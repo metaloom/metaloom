@@ -11,7 +11,7 @@
 	</parent>
 
 	<artifactId>loom-container-demo</artifactId>
-	<name>Loom - Container :: Demo</name>
+	<name>Loom :: Container :: Demo</name>
 	<packaging>jar</packaging>
 
 	<properties>

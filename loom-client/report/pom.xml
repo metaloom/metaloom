@@ -11,7 +11,7 @@
 		<version>1.0.0-SNAPSHOT</version>
 	</parent>
 
-	<name>Loom - Java Client :: Report</name>
+	<name>Loom :: Java Client :: Report</name>
 	<description>Aggregate Coverage Report</description>
 
 	<dependencies>

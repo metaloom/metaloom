@@ -2,8 +2,8 @@
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    <groupId>io.metaloom.loom</groupId>
-    <artifactId>maven-loom-parent</artifactId>
+    <groupId>io.metaloom</groupId>
+    <artifactId>metaloom-parent</artifactId>
     <version>2.0.0-SNAPSHOT</version>
 
     <parent>
@@ -13,10 +13,9 @@
     </parent>
 
     <packaging>pom</packaging>
-    <name>Loom :: Parent</name>
-    <description>Loom Maven Parent Module</description>
+    <name>MetaLoom</name>
+    <description>MetaLoom Parent Module</description>
     <inceptionYear>2023</inceptionYear>
-
 
     <properties>
         <vertx.version>5.0.4</vertx.version>
@@ -29,12 +28,22 @@
     </properties>
 
     <scm>
-        <connection>scm:git:git@github.com:metaloom/maven-vertx-parent.git</connection>
+        <connection>scm:git:git@github.com:metaloom/metaloom.git</connection>
         <developerConnection>
-            scm:git:git@github.com:metaloom/maven-vertx-parent.git</developerConnection>
-        <url>https://github.com/metaloom/maven-vertx-parent</url>
+            scm:git:git@github.com:metaloom/metaloom.git</developerConnection>
+        <url>https://github.com/metaloom/metaloom</url>
         <tag>HEAD</tag>
     </scm>
+
+    <modules>
+        <module>loom-bom</module>
+        <module>loom-client</module>
+        <module>loom</module>
+        <module>cortex</module>
+        <module>loom-shared</module>
+        <module>loom-test-env</module>
+        <module>loom-integration-test</module>
+    </modules>
 
     <dependencies>
         <!-- Core Deps-->

@@ -16,7 +16,7 @@
     <grpc.version>1.52.1</grpc.version>
   </properties>
 
-  <name>Loom - Java Client :: gRPC</name>
+  <name>Loom :: Java Client :: gRPC</name>
 
   <dependencies>
 

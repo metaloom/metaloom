@@ -10,7 +10,7 @@
         <version>1.0.0-SNAPSHOT</version>
     </parent>
 
-    <name>MetaLoom // Cortex :: Core Media</name>
+    <name>Cortex :: Core Media</name>
     <description>This module contains the core media implementation that is
         being utilized by build-in actions</description>
 
