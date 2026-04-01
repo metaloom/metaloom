@@ -1,0 +1,54 @@
+{
+    "name": "Example Pipeline",
+    "onFailure": "next/terminate",
+    "nodes": [
+        {
+            "id": "source-by-fs",
+            "path": "<filesystem-path>",
+            "next": ["hash", "fingerprint"]
+        },
+        {
+            "id": "hash",
+            "md5": true,
+            "sha256": true,
+            "sha512": true,
+            "next": ["property-filter"]
+        },
+        {
+            "id": "fingerprint",
+            "algo": "v3",
+            "next": ["<next-node>"]
+        },
+        {
+            "id": "raw-filter",
+            "size-range-max": "100MB",
+            "size-range-min": "10MB",
+            "name-regex": "<regex-for-assetname>",
+            "pass": ["assign-to-raw"],
+            "reject": ["run-script"]
+        },
+        {
+            "id": "video-filter",
+            "size-range-max": "100MB",
+            "size-range-min": "10MB",
+            "name-regex": "<regex-for-assetname>",
+            "pass": ["assign-to-video"],
+            "reject": ["run-script"]
+        },
+        { 
+            "id": "assign-to-raw",
+            "collection":  "raw",
+            "next": ["<next-node>"]
+        },
+        { 
+            "id": "assign-to-video",
+            "collection":  "raw",
+            "next": ["<next-node>"]
+        },
+        {
+            "id": "run-script",
+            "script": "<LUA Script>",
+            "next": ["<next-node>"]
+        }
+    ]
+}

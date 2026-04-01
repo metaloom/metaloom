@@ -1,0 +1,6 @@
+module loom.test {
+	exports io.metaloom.loom.test;
+
+	requires junit;
+	requires org.apache.commons.io;
+}
