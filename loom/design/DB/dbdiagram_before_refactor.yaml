@@ -1,0 +1,880 @@
+Project LOOM {
+  Note: '''
+    # MetaLoom - Loom 1.0 Database model
+
+  '''
+}
+//// -- LEVEL 1
+//// -- Tables and References
+
+// Creating tables
+
+Table loom as LOOM [headercolor: #4B82B0] {
+  db_rev varchar
+  last_used_timestamp timestamp [default: `now()`, not null]
+}
+
+
+Table stage as STAGE [headercolor: #16a085] {
+  uuid uuid_generate_v4 [increment]
+  name varchar [unique, not null]
+  enabled boolean [default: false]
+  meta varchar [note: "Custom meta properties"]
+  next_stage_uuid uuid_generate_v4 [ref: > STAGE.uuid]
+  prev_stage_uuid uuid_generate_v4 [ref: > STAGE.uuid]
+  
+  created timestamp [default: `now()`]
+  creator_uuid uuid  [ref: > U.uuid]
+  edited timestamp [default: `now()`]
+  editor_uuid uuid_generate_v4 [ref: > U.uuid]
+  
+  Indexes {
+    (uuid) [pk]
+    (name) [unique]
+  }
+  note: 'Stages can be used to create workflow processes for contents.'
+}
+
+Table stage_assignment as STA {
+  stage_uuid uuid_generate_v4 [ref: > STAGE.uuid, not null]
+  content_uuid uuid_generate_v4 [ref: > C.uuid, not null]
+  asset_uuid uuid_generate_v4 [ref: > ASSET.uuid, not null]
+  note varchar [note: "Added description by the reviewer"]
+  status stage_status
+  meta varchar [note: 'Additional meta properties for the stage assignment']
+
+  created timestamp [default: `now()`]
+  creator_uuid uuid  [ref: > U.uuid]
+  reviewed timestamp [default: `now()`]
+  reviewer_uuid uuid_generate_v4 [ref: > U.uuid]
+
+  Indexes {
+    (stage_uuid) [pk]
+    (stage_uuid, content_uuid)
+    (stage_uuid, asset_uuid)
+  }
+  
+  note: 'This crosstable tracks the stage elements'
+  // TODO: Maybe add expiration date for elements?
+  // TODO: Priority? Assigments could also be seen as tickets / tasks - How could this be connected to a TT?
+}
+
+Table stage_ugr {
+  stage_uuid uuid_generate_v4 [ref: > STAGE.uuid, not null]
+
+  user_uuid  uuid_generate_v4 
+  group_uuid  uuid_generate_v4 
+  role_uuid uuid_generate_v4 
+  
+  note: "This table keeps track of the user/group/role stage assignment"
+  
+  //TODO How to handle conflicts? How to prevent duplicates?
+}
+
+Table user as U [headercolor: #16a085] {
+  uuid uuid_generate_v4 [increment]
+  username varchar [unique, not null]
+  firstname varchar
+  lastname varchar
+  email varchar
+  enabled boolean [default: true, not null, note: "Flag to enable or disable the user."]
+  sso boolean [default: false, not null, note: "Flag that indicates that the user was created via SSO mappings"]
+  meta varchar [note: "Custom meta properties to the element"]
+  
+  created timestamp [default: `now()`]
+  creator_uuid uuid  [ref: > U.uuid]
+  edited timestamp [default: `now()`]
+  editor_uuid uuid_generate_v4 [ref: > U.uuid]
+  
+  Indexes {
+    (uuid) [pk]
+    (username) [unique]
+  }
+}
+
+Table token as AK {
+  uuid uuid_generate_v4 [increment]
+  user_uuid uuid_generate_v4 [ref: > U.uuid]
+  description varchar
+  token varchar [not null]
+  created timestamp [default: `now()`]
+  meta varchar [note: "Custom meta properties to the element"]
+  
+  Indexes {
+    (uuid) [pk]
+    (token) [unique]
+    (user_uuid)
+  }
+
+}
+
+Table role as R [headercolor: #16a085] {
+  uuid uuid_generate_v4 [increment]
+  name varchar [unique, not null]
+  meta varchar [note: "Custom meta properties to the element"]
+  
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid_generate_v4  [ref: > U.uuid]
+  edited timestamp [default: `now()`]
+  editor_uuid uuid_generate_v4 [ref: > U.uuid]
+  
+  Indexes {
+    (uuid) [pk]
+    (name) [unique]
+  }
+}
+
+Table role_permission as PERM {
+  role_uuid uuid_generate_v4 [ref: > R.uuid]
+  resource varchar [not null]
+  permission loom_permission [note: "Permission granted / granted to the resource"]
+  
+  Indexes {
+    (role_uuid, resource) [pk]
+  }
+}
+
+Table user_permission as UPERM {
+  user_uuid uuid_generate_v4 [ref: > U.uuid]
+  resource varchar [not null]
+  permission loom_permission [note: "Permission granted / granted to the resource"]
+  
+  Indexes {
+    (user_uuid, resource) [pk]
+  }
+}
+
+Table token_permission as TPERM {
+  token_uuid uuid_generate_v4 [ref: > AK.uuid]
+  resource varchar [not null]
+  permission loom_permission [note: "Permission granted / granted to the resource"]
+  
+  Indexes {
+    (token_uuid, resource) [pk]
+  }
+}
+
+Table group as G [headercolor: #16a085] {
+  uuid uuid_generate_v4 [increment]
+  name varchar [unique, not null]
+  meta varchar [note: "Custom meta properties to the element"]
+  
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid_generate_v4  [ref: > U.uuid]
+  edited timestamp [default: `now()`]
+  editor_uuid uuid_generate_v4 [ref: > U.uuid]
+  
+  Indexes {
+    (uuid) [pk]
+    (name) [unique]
+  }
+}
+ 
+Table role_group as RG {
+   group_uuid uuid_generate_v4 [ref: > G.uuid, not null]
+   role_uuid uuid_generate_v4 [ref: > R.uuid, not null]
+   
+  Indexes {
+    (group_uuid, role_uuid) [pk]
+  }
+}
+
+Table user_group as UG {
+   user_uuid uuid_generate_v4 [ref: > U.uuid, not null]
+   group_uuid uuid_generate_v4 [ref: > G.uuid, not null]
+   
+  Indexes {
+    (user_uuid, group_uuid) [pk]
+  }
+}
+
+Table tag as T [headercolor: #16a085] {
+  uuid uuid_generate_v4 [increment]
+  name varchar [not null]
+  collection varchar [not null]
+  namespace_uuid uuid_generate_v4 [ref: > N.uuid, not null]
+  meta varchar [note: "Custom meta properties to the element"]
+  rating int [note: "Absolute or buffered/precomputed rating information"]
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid_generate_v4  [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`]
+  editor_uuid uuid_generate_v4 [ref: > U.uuid]
+
+  Indexes {
+    (uuid) [pk]
+    (name, collection, namespace_uuid) [unique]
+  }
+}
+
+Table tag_user_meta as TUM {
+  tag_uuid uuid_generate_v4 [ref: > T.uuid, not null]
+  user_uuid uuid_generate_v4 [ref: > U.uuid, not null]
+  rating int [not null, note: "Rating of the tag by the user"]
+  meta varchar [note: "Custom meta properties"]
+}
+
+Table tag_namespace {
+  tag_uuid uuid_generate_v4 [ref: > T.uuid, not null]
+  namespace_uuid uuid_generate_v4 [ref: > N.uuid, not null]
+  
+  Indexes {
+    (tag_uuid, namespace_uuid) [pk]
+  }
+  
+  note: "Table used to taggings on namespaces"
+}
+
+Table tag_asset {
+  tag_uuid uuid_generate_v4 [ref: > T.uuid, not null]
+  asset_uuid uuid_generate_v4 [ref: > ASSET.uuid, not null]
+  
+  Indexes {
+    (tag_uuid, asset_uuid) [pk]
+  }
+  
+  note: "Table used to taggings on assets"
+}
+
+
+Table tag_content {
+  tag_uuid uuid_generate_v4 [ref: > T.uuid, not null]
+  content_uuid uuid_generate_v4 [ref: > C.uuid, not null]
+  
+  Indexes {
+    (tag_uuid, content_uuid) [pk]
+  }
+}
+
+Table asset_binary as AB {
+  uuid uuid_generate_v4 [increment]
+  sha512sum varchar [not null]
+
+  size int [not null]
+  sha256sum varchar [not null]
+  md5sum varchar [not null]
+  media_width  int [note: "Only set for images"]
+  media_height int [note: "Only set for images"]
+  fingerprint varchar [note: "Media fingerprint information"]
+
+  // TODO extracted meta attribute -> Asset?
+
+  Indexes {
+    (sha512sum) [pk]
+  }
+  
+  note: "This table stores the immutable asset information"
+}
+
+Table asset as ASSET [headercolor: #16a085] {
+  uuid uuid_generate_v4 [increment]
+  asset_binary_uuid uuid_generate_v4 [ref: > AB.uuid, not null]
+  namespace_uuid uuid_generate_v4 [ref: > N.uuid, not null]  
+
+  filename varchar [not null]
+  localPath varchar [note: "Local path to the asset (when using the local path feature)"]
+  meta varchar [note: "Custom meta properties to the element"]
+  rating int [note: "Absolute or computed asset rating"]
+  dominantColor varchar
+  mimeType varchar
+  gps_lon decimal(9,6)
+  gps_lat decimal(8,6)
+
+  state varchar
+  locked_by_uuid uuid_generate_v4 [ref: > U.uuid]
+  // Locking reason can be stored in meta? or state? Do we need a dedicated field?
+  //author, license, metadata
+
+  // S3
+  // Whenever the props change the asset_binary information has to be checked
+  // Information must be mutable to avoid broken images in case of bucket changes
+  s3_bucket_name varchar
+  s3_object_path varchar
+
+  // TODO store information which processor did handle the asset? eg. useful for re-run of processors
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid_generate_v4  [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`]
+  editor_uuid uuid_generate_v4 [ref: > U.uuid]
+  
+  Indexes {
+    (uuid) [pk]
+    (uuid, namespace_uuid) [unique]
+  }
+}
+
+Table asset_face {
+  asset_uuid uuid_generate_v4 [ref: > ASSET.uuid, not null]
+  face_uuid uuid_generate_v4 [ref: > FACE.uuid, not null]
+}
+
+Table face as FACE {
+  uuid uuid_generate_v4 [increment]
+  meta varchar [note: "Custom meta properties to the face."]
+  source varchar [note: "Source information (e.g.: frame of the media from which the face was extracted)."]
+  face_nr int [not null, note: "When the source contains more than one face the id can be used to identify them."]
+  embeddings bytea [not null, note: "Actual embedding data"]
+}
+
+Table face_cluster as FACE_CLUSTER {
+  uuid uuid_generate_v4 [increment]
+  name varchar [note: "Name of the cluster"]
+  description varchar [note: "Description of the cluster"]
+  meta varchar [note: "Custom meta properties to the cluster."]
+}
+
+Table asset_collection {
+  asset_uuid uuid_generate_v4 [ref: > ASSET.uuid, not null]
+  collection_uuid uuid_generate_v4 [ref: > COLLECTION.uuid, not null]
+}
+
+Table reaction {
+  type varchar [note: "Type of the reaction"]
+}
+
+Table comment as COMMENT {
+  uuid uuid_generate_v4 [increment]
+  content varchar [note: "Comment text"]
+  user_uuid uuid_generate_v4 [ref: > U.uuid]
+  created varchar  [note: "Creation timestamp"]
+  parent_uuid uuid_generate_v4 [ref: > COMMENT.uuid]
+}
+
+Table annotation {
+  uuid uuid_generate_v4 [increment]
+  creator_uuid  uuid_generate_v4 [ref: > U.uuid]
+  created timestamp [default: `now()`]
+  description varchar
+  from int
+  to int
+  area varchar
+  meta jsonb [note: "Custom meta properties"]
+  kind varchar [note: "Type of the annotation"]
+}
+
+Table task as TASK {
+  uuid uuid_generate_v4 [increment]
+  content varchar [note: "Description of the task"]
+  created timestamp [default: `now()`]
+  due_date timestamp [default: `now()`]
+
+}
+
+// TODO maybe better to use a  root_comment_uuid field in task
+Table task_comment {
+  task_uuid uuid_generate_v4 [ref: > TASK.uuid, not null]
+  comment_uuid uuid_generate_v4 [ref: > COMMENT.uuid, not null]
+}
+
+Table annotation_task {
+  asset_uuid uuid_generate_v4 [ref: > ASSET.uuid, not null]
+  task_uuid uuid_generate_v4 [ref: > TASK.uuid, not null]
+}
+
+// TODO per namespace?
+Table collection as COLLECTION {
+  uuid uuid_generate_v4 [increment]
+  name varchar [unique, not null]
+  meta varchar [note: "Custom meta properties"]
+  description varchar
+  tags varchar
+  //thumbail varchar
+  Indexes {
+    (uuid) [pk]
+  }
+  
+  note: "Collections are used to group assets together"
+}
+
+Table asset_user_meta as AUM {
+  asset_uuid uuid_generate_v4 [ref: > ASSET.uuid, not null]
+  user_uuid uuid_generate_v4 [ref: > U.uuid, not null]
+  rating int [note: "Asset rating by the user"]
+  meta varchar [note: "Custom meta properties"]
+  
+  Indexes {
+    (asset_uuid, user_uuid) [pk]
+  }
+}
+
+Table asset_timeline as ASSET_TIMELINE [headercolor: #16A085]{
+  uuid uuid_generate_v4 [increment]
+  asset_uuid uuid_generate_v4 [ref: > ASSET.uuid, not null]
+  from int [not null]
+  to int  [not null]
+  description varchar
+  tags varchar
+  meta varchar
+  thumbail varchar
+  
+  Indexes {
+    (uuid) [pk]
+  }
+  
+  note: "This table contains asset timeline entries"
+}
+
+Table asset_timeline_tag as ASSET_TIMELINE_TAGS {
+  assettimeline_uuid uuid_generate_v4 [ref: > ASSET_TIMELINE.uuid, not null]
+  tag_uuid           uuid_generate_v4 [ref: > T.uuid, not null]
+}
+
+Table content as C [headercolor: #16a085] {
+  uuid uuid_generate_v4 [increment]
+  namespace_uuid uuid_generate_v4 [ref: > N.uuid, not null]
+  parent uuid_generate_v4 [ref: > C.uuid, note: 'Reference to the parent content.']
+  
+  meta varchar [note: "Custom meta properties"]
+  state varchar
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid_generate_v4  [ref: > U.uuid, not null]
+  model_uuid uuid_generate_v4 [ref: > M.uuid, not null]
+  
+  Indexes {
+    (uuid) [pk]
+  }
+}
+
+Table content_tree as CT [headercolor: #16A085] {
+  content_uuid uuid_generate_v4 [ref: > C.uuid, not null]
+  language varchar
+  content_type loom_content_type [not null, note: "D or P for draft and published"]
+  field_uuid uuid_generate_v4 [ref: > F.uuid, not null]
+  meta varchar [note: "Custom meta properties"]
+  webroot_path_info varchar [unique]
+
+  Indexes {
+    (content_uuid, field_uuid) [pk]
+    (content_uuid, content_type) [note: 'Index to be used to lookup contents of contents']
+    (content_type, webroot_path_info) [note: 'Index to be used to lookup webroot paths']
+  }
+  
+  note: "This table keeps track of the content publish status"
+}
+
+Table content_user_meta as CM {
+  content_uuid uuid_generate_v4 [ref: > C.uuid, not null]
+  user_uuid uuid_generate_v4 [ref: > U.uuid, not null]
+  rating int [not null, note: "Rating of the content by the user"]
+  meta varchar [note: "Custom meta properties"]
+  // TODO: Include language reference?
+  
+  Indexes {
+    (content_uuid, user_uuid) [pk]
+  }
+}
+
+Table field_reference as FR {
+  source_uuid uuid_generate_v4 [ref: > F.uuid, not null]
+  target_uuid uuid_generate_v4 [ref: > F.uuid, not null]
+  field_name varchar [not null, note: 'Name of the field in which the content reference was listed.']
+
+  Indexes {
+    (source_uuid, target_uuid) [pk]
+  }
+  
+  note: "This table is mainly used to lookup foreign references to contents"
+}
+
+Table field_content as CF {
+  fields_uuid uuid_generate_v4 [ref: >  F.uuid, not null]
+  content_uuid uuid_generate_v4 [ref: > C.uuid]
+  state varchar
+  webroot_path_info varchar [unique, note: 'The path info contains a unique path to the content. It may thus also be parentUuid+language+namespace+path specific.']
+
+  // TODO maybe better move language_uuid / tag into here? 
+  // Guess it depends on the query and uniqueness constaints
+  note: "Crosstable that tracks all fields for a content"
+}
+
+
+//Table webroot_nice_url {
+//  content_uuid uuid_generate_v4 [ref: > C.uuid]  
+//  content_type content_type [not null]
+//  url varchar [not null]
+//
+//  Indexes {
+//    (content_type, url) [name:'webroot_url', note: 'Index to be used to lookup nice urls']
+//  }
+//}
+
+
+
+Table field as F [headercolor: #16a085] {
+  uuid uuid_generate_v4 [increment]
+  content_uuid uuid_generate_v4 [ref: > N.uuid, note: "Reference to the content that uses this fields record"]
+  
+  fields_json varchar [note: 'JSON which contains the actual fields content']
+  language_uuid uuid_generate_v4 [ref: > L.uuid]
+  edited timestamp [default: `now()`]
+  editor_uuid uuid_generate_v4 [ref: > U.uuid]
+  modelversion_uuid uuid_generate_v4 [ref: > MV.uuid]
+  version int
+  
+  Indexes {
+    (uuid) [pk]
+  }
+  
+  note: "Table which stores the actual fields content as JSON"
+}
+
+Table field_asset as FA {
+  field_uuid uuid_generate_v4 [ref: > F.uuid]
+  asset_uuid uuid_generate_v4 [ref: > ASSET.uuid]
+  field_name varchar
+  
+  Indexes {
+    (field_uuid, asset_uuid) [pk]
+  }
+  
+  note: "Crosstable which tracks the used assets in a fields record"
+
+}
+
+Table namespace as N [headercolor: #16a085] {
+  uuid uuid_generate_v4 [increment]
+  name varchar [unique, not null]
+  root_content_uuid uuid_generate_v4 [ref: > C.uuid]
+  meta varchar [note: "Custom meta properties to the element"]
+  path_prefix varchar [note: "Prefix for webroot paths"]
+  model_filters varchar [note: "filter for models that can be used in the namespace"]
+  
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid  [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`]
+  editor_uuid uuid_generate_v4 [ref: > U.uuid]
+  
+  Indexes {
+    (uuid) [pk]
+    (name) [unique]
+  }
+}
+
+Table model as M [headercolor: #16a085] {
+  uuid uuid_generate_v4 [increment]
+  name varchar [unique, not null, note: "Human readable name of the content model"]
+  latest_version_uuid uuid_generate_v4 [ref: > MV.uuid]
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid  [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`]
+  editor_uuid uuid_generate_v4 [ref: > U.uuid]
+  
+  Indexes {
+    (uuid) [pk]
+    (name) [unique]
+  }
+}
+
+Table model_version as MV {
+  uuid uuid_generate_v4 [increment]
+  model_uuid uuid_generate_v4 [ref: > M.uuid]
+  json varchar [not null]
+  next_version_uuid uuid_generate_v4 [ref: - MV.uuid]
+  prev_version_uuid uuid_generate_v4 [ref: - MV.uuid]
+  
+  Indexes {
+    (uuid) [pk]
+  }
+}
+
+
+Table language as L [headercolor: #16a085] {
+  uuid uuid_generate_v4 [increment]
+  native_name varchar [not null]
+  tag varchar [unique, not null]
+  meta varchar [note: "Custom meta properties to the element"]
+
+  Indexes {
+    (uuid) [pk]
+    (tag)
+  }
+  
+  note: "Table which stores the languages for loom"
+}
+
+Table extension as E [headercolor: #16a085] {
+  uuid uuid_generate_v4 [increment]
+  url varchar [not null]
+  kind loom_extension_type [note: "Defines the type of the extension service"]
+  status varchar
+  meta varchar [note: "Custom meta properties to the element"]
+  
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid_generate_v4  [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`]
+  editor_uuid uuid_generate_v4 [ref: > U.uuid]
+  
+  Indexes {
+    (uuid) [pk]
+  }
+  
+  note: "Table which lists the registered extensions"
+}
+
+Table webhook as W [headercolor: #16a085] {
+  uuid uuid_generate_v4 [increment]
+  url varchar [not null]
+  status varchar
+  active boolean [default: true, not null]
+  triggers loom_events [note: "List of triggers which can invoke the webhook"]
+  secretToken varchar [note: "Secret token which webhook services can use to authenticate the request."]
+  meta varchar [note: "Custom meta properties to the element"]
+  
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid_generate_v4 [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`]
+  editor_uuid uuid_generate_v4 [ref: > U.uuid]
+  
+  Indexes {
+    (uuid) [pk]
+  }
+  
+  note: "Table which stores the registered webhooks"
+}
+
+
+// Groups
+
+tablegroup Namespace {
+  namespace
+}
+
+tablegroup Others {
+  loom
+}
+
+tablegroup Connectivity {
+  webhook
+  extension
+}
+
+tablegroup Models {
+  model
+  model_version
+}
+
+tablegroup Contents {
+  content
+  content_tree
+  field
+  field_content
+  field_reference
+  field_asset
+  content_user_meta
+  language
+}
+
+tablegroup Assets {
+  asset
+  asset_binary
+  asset_timeline
+  asset_user_meta
+  collection
+  asset_collection
+}
+
+tablegroup Staging {
+  stage
+  stage_assignment
+  stage_ugr
+}
+
+tablegroup ACL {
+  user
+  role
+  group
+  user_group
+  role_group
+  token
+  role_permission
+  user_permission
+  token_permission
+}
+
+tablegroup Tagging {
+  tag
+  tag_namespace
+  tag_asset
+  asset_timeline_tag
+  tag_content
+  tag_user_meta
+}
+
+tablegroup Face {
+  face
+  asset_face
+  face_cluster
+}
+
+tablegroup Task {
+  task
+  task_comment
+  annotation
+  annotation_task
+  comment
+  reaction
+}
+
+// Enums
+
+Enum loom_extension_type {
+  ASSET_PROCESSOR
+  USER_MAPPER
+}
+
+Enum loom_events {
+
+  USER_LOGGED_IN
+  USER_CREATED
+  USER_UPDATED
+  USER_DELETED
+  USER_MAPPED
+  
+  GROUP_CREATED
+  GROUP_UPDATED
+  GROUP_DELETED
+  
+  ROLE_CREATED
+  ROLE_UPDATED
+  ROLE_DELETED
+  
+  CONTENT_CREATED
+  CONTENT_UPDATED
+  CONTENT_DELETED
+  CONTENT_TAGGED
+  CONTENT_PUBLISHED
+  CONTENT_UNPUBLISHED
+  
+  ASSET_UPLOADED
+  ASSET_CREATED
+  ASSET_UPDATED
+  ASSET_DELETED
+  ASSET_TAGGED
+  
+  TAG_CREATED
+  TAG_DELETED
+  TAG_UPDATED
+  
+  NAMESPACE_CREATED
+  NAMESPACE_UPDATED
+  NAMESPACE_DELETED
+  
+  MODEL_CREATED
+  MODEL_UPDATED
+  MODEL_DELETED
+  
+  EXTENSION_CREATED
+  EXTENSION_DELETED
+  EXTENSION_UPDATED
+  
+  WEBHOOK_CREATED
+  WEBHOOK_DELETED
+  WEBHOOK_UPDATED
+  
+  //note: "List of events which can trigger a webhook"
+}
+
+
+Enum loom_content_type {
+  D
+  P
+  I [note: 'Maybe implicitly used']
+}
+
+Enum state_status {
+  ACCEPTED
+  REJECTED
+  PENDING
+  REVIEW
+}
+
+
+Enum loom_permission {
+  // C
+  CREATE_CONTENT
+  READ_CONTENT
+  UPDATE_CONTENT
+  DELETE_CONTENT
+  PUBLISH_CONTENT
+  UNPUBLISH_CONTENT
+  LOCK_CONTENT
+  UNLOCK_CONTENT
+
+  // N
+  CREATE_NAMESPACE
+  READ_NAMESPACE
+  UPDATE_NAMESPACE
+  DELETE_NAMESPACE
+  
+  // U
+  CREATE_USER
+  READ_USER
+  UPDATE_USER
+  DELETE_USER
+  
+  // G
+  CREATE_GROUP
+  READ_GROUP
+  UPDATE_GROUP
+  DELETE_GROUP
+  
+  // R
+  CREATE_ROLE
+  READ_ROLE
+  UPDATE_ROLE
+  DELETE_ROLE
+  
+  // T
+  CREATE_TAG
+  READ_TAG
+  UPDATE_TAG
+  DELETE_TAG
+  
+  // M
+  CREATE_MODEL
+  READ_MODEL
+  UPDATE_MODEL
+  DELETE_MODEL
+  
+  // A
+  CREATE_ASSET
+  READ_ASSET
+  UPDATE_ASSET
+  DELETE_ASSET
+  UPLOAD_ASSET
+  DOWNLOAD_ASSET
+  LOCK_ASSET
+  UNLOCK_ASSET
+  
+  // W
+  CREATE_WEBHOOK
+  READ_WEBHOOK
+  UPDATE_WEBHOOK
+  DELETE_WEBHOOK
+
+  // E
+  CREATE_EXTENSION
+  READ_EXTENSION
+  UPDATE_EXTENSION
+  DELETE_EXTENSION
+
+  // L
+  CREATE_LANGUAGE
+  READ_LANGUAGE
+  UPDATE_LANGUAGE
+  DELETE_LANGUAGE
+
+  // ADMIN
+  // TBD
+  
+}
+
+Ref: "asset"."edited" < "asset"."created"
+
+Ref: "stage_assignment"."meta" < "stage_assignment"."status"
+
+Ref: "collection"."description" < "collection"."uuid"
+
+Ref: "asset_timeline"."description" < "model"."creator_uuid"

@@ -1,0 +1,13 @@
+module loom.core {
+	requires dagger;
+	requires io.reactivex.rxjava3;
+	requires io.vertx.core;
+	requires java.sql;
+	requires javax.inject;
+	requires loom.api;
+	requires loom.common;
+	requires loom.db.api;
+	requires loom.db.jooq;
+	requires org.jooq;
+	requires vertx.rx.java3;
+}

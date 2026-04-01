@@ -1,0 +1,17 @@
+.DS_Store
+target
+.classpath
+.project
+.settings
+.bin
+.pmd*
+*.orig
+.index*
+hs_err_*.log
+.vertx
+dependency-reduced-pom.xml
+.checkstyle
+.testcontainers*
+.idea
+.factorypath
+*.iml

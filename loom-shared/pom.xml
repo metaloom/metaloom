@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>io.metaloom.loom.shared</groupId>
+  <artifactId>loom-shared</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+
+  <packaging>pom</packaging>
+  <name>Loom :: Shared</name>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <projectRoot>${project.basedir}</projectRoot>
+
+    <!-- Tests -->
+    <surefire.forkcount>1</surefire.forkcount>
+    <surefire.jvm.postfix></surefire.jvm.postfix>
+    <skip.unit.tests>false</skip.unit.tests>
+    <skip.cluster.tests>false</skip.cluster.tests>
+    <surefire.excludedGroups></surefire.excludedGroups>
+    <surefire.groups></surefire.groups>
+
+    <!-- Jacoco -->
+    <jacoco.skip.merge>true</jacoco.skip.merge>
+    <jacoco.version>0.8.4</jacoco.version>
+    <jacoco.skip>true</jacoco.skip>
+    <jacoco.env></jacoco.env>
+
+
+    <loom.build.timestamp>${maven.build.timestamp}</loom.build.timestamp>
+  </properties>
+
+  <parent>
+    <groupId>io.metaloom.loom</groupId>
+    <artifactId>maven-loom-parent</artifactId>
+    <version>2.0.0-SNAPSHOT</version>
+  </parent>
+
+  <developers>
+    <developer>
+      <name>Johannes Schüth</name>
+      <url>https://github.com/Jotschi</url>
+      <email>git@jotschi.de</email>
+      <roles>
+        <role>Project Lead</role>
+      </roles>
+    </developer>
+  </developers>
+
+  <licenses>
+    <license>
+      <name>The Apache Software License, Version 2.0</name>
+      <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+
+  <inceptionYear>2023</inceptionYear>
+
+  <modules>
+    <module>api</module>
+    <module>rest-model</module>
+    <module>proto</module>
+  </modules>
+
+  <!-- List only internal project deps here. External deps will be managed via
+  bom pom -->
+  <dependencyManagement>
+
+    <dependencies>
+      <dependency>
+        <groupId>io.metaloom.loom</groupId>
+        <artifactId>loom-bom</artifactId>
+        <type>pom</type>
+        <scope>import</scope>
+        <version>${project.version}</version>
+      </dependency>
+      
+      <dependency>
+        <groupId>io.metaloom.loom.shared</groupId>
+        <artifactId>loom-api</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+     </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <dependency>
+      <groupId>io.metaloom.loom.test</groupId>
+      <artifactId>loom-test-env</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+
+  <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <version>3.0.0-M5</version>
+          <configuration>
+            <skip>${skip.unit.tests}</skip>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.jacoco</groupId>
+          <artifactId>jacoco-maven-plugin</artifactId>
+          <version>${jacoco.version}</version>
+          <executions>
+            <execution>
+              <id>merge-all-jacoco</id>
+              <goals>
+                <goal>merge</goal>
+              </goals>
+              <phase>install</phase>
+              <configuration>
+                <skip>${jacoco.skip.merge}</skip>
+                <destFile>${project.build.directory}/jacoco.exec</destFile>
+                <fileSets>
+                  <fileSet>
+                    <directory>${project.build.directory}</directory>
+                    <includes>
+                      <include>*.exec</include>
+                    </includes>
+                  </fileSet>
+                </fileSets>
+              </configuration>
+            </execution>
+          </executions>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+
+    <plugins>
+      <!--
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+      <artifactId>versions-maven-plugin</artifactId>
+        <version>2.8.1</version>
+      </plugin>
+      <plugin>
+        <artifactId>maven-scm-plugin</artifactId>
+      <version>1.11.2</version>
+        <configuration>
+      <tag>${project.artifactId}-${project.version}</tag>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+      <artifactId>maven-site-plugin</artifactId>
+        <configuration>
+      <skip>true</skip>
+          <skipDeploy>true</skipDeploy>
+      <generateReports>false</generateReports>
+        </configuration>
+      </plugin>
+      -->
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <goals>
+              <goal>prepare-agent</goal>
+            </goals>
+            <configuration>
+              <skip>${jacoco.skip}</skip>
+              <propertyName>jacoco.env</propertyName>
+              <destFile>
+                ${project.build.directory}/jacoco-partial.exec</destFile>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <skip>${skip.unit.tests}</skip>
+          <argLine>-Xms128m -Xmx256m ${jacoco.env}</argLine>
+          <forkedProcessTimeoutInSeconds>2700</forkedProcessTimeoutInSeconds>
+          <rerunFailingTestsCount>0</rerunFailingTestsCount>
+          <reuseForks>false</reuseForks>
+          <forkCount>${surefire.forkcount}</forkCount>
+          <trimStackTrace>false</trimStackTrace>
+          <useSystemClassLoader>false</useSystemClassLoader>
+          <excludes>
+            <include>**/*AbstractTest.java</include>
+            <include>**/*Abstract*Test.java</include>
+            <exclude>**/*Abstract*.java</exclude>
+            <exclude>**/Abstract*.java</exclude>
+          </excludes>
+          <groups>${surefire.groups}</groups>
+          <excludedGroups>${surefire.excludedGroups}</excludedGroups>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-resources-plugin</artifactId>
+        <version>3.3.1</version>
+        <inherited>false</inherited>
+        <executions>
+          <execution>
+            <id>readme-md</id>
+            <phase>clean</phase>
+            <goals>
+              <goal>copy-resources</goal>
+            </goals>
+            <configuration>
+              <outputDirectory>${project.basedir}</outputDirectory>
+              <resources>
+                <resource>
+                  <directory>${project.basedir}/.github/md</directory>
+                  <includes>
+                    <include>README.md</include>
+                  </includes>
+                  <filtering>true</filtering>
+                </resource>
+              </resources>
+              <encoding>UTF-8</encoding>
+              <mavenFilteringHints>
+                <mavenFilteringHint>snippetFilter</mavenFilteringHint>
+              </mavenFilteringHints>
+            </configuration>
+          </execution>
+        </executions>
+        <dependencies>
+          <dependency>
+            <groupId>io.metaloom.maven</groupId>
+            <artifactId>snippet-resource-filter</artifactId>
+            <version>0.1.1</version>
+          </dependency>
+        </dependencies>
+      </plugin>
+    </plugins>
+  </build>
+</project>

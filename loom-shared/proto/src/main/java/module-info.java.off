@@ -1,0 +1,13 @@
+module loom.proto {
+	exports io.metaloom.loom.proto;
+
+	requires com.google.common;
+	requires com.google.protobuf;
+	requires grpc.api;
+	requires grpc.context;
+	requires grpc.protobuf;
+	requires grpc.stub;
+	requires io.vertx.core;
+	requires io.vertx.grpc;
+	requires java.annotation;
+}

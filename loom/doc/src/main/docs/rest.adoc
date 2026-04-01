@@ -1,0 +1,26 @@
+---
+title: REST API
+---
+
+.Try the example
+[TIP]
+https://demo.metaloom.io/api/v1/demo/assets
+
+=== API endpoints
+
+[options="header",cols="2*"]
+|======
+
+| Description
+| API endpoint
+
+| Get the asset with the given UUID.
+| ```GET /api/v1/:projectName/assets/:assetUuid```
+
+|======
+
+
+[source,json]
+----
+include::content/english/docs/examples/loom-config.yaml[]
+----

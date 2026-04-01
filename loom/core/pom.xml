@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>io.metaloom.loom</groupId>
+    <artifactId>loom</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>loom-core</artifactId>
+  <name>Loom :: Core</name>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>io.metaloom.loom</groupId>
+        <artifactId>loom-bom</artifactId>
+        <version>${project.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <dependency>
+      <groupId>io.metaloom.loom</groupId>
+      <artifactId>loom-common</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.metaloom.loom.db</groupId>
+      <artifactId>loom-db-jooq</artifactId>
+    </dependency>
+
+    <!-- Needed services -->
+    <!--
+    <dependency>
+      <groupId>io.metaloom.loom.service</groupId>
+      <artifactId>loom-service-grpc</artifactId>
+    </dependency>
+    -->
+    <dependency>
+      <groupId>io.metaloom.loom.service</groupId>
+      <artifactId>loom-service-rest</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.metaloom.loom.service</groupId>
+      <artifactId>loom-service-mcp</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.metaloom.loom.service</groupId>
+      <artifactId>loom-service-auth-common</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.metaloom.loom.service</groupId>
+      <artifactId>loom-service-auth-jwt</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-lang3</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>com.google.dagger</groupId>
+      <artifactId>dagger</artifactId>
+    </dependency>
+
+    <!-- Test -->
+    <dependency>
+      <groupId>io.metaloom.loom</groupId>
+      <artifactId>loom-rest-model</artifactId>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.metaloom.loom.test</groupId>
+      <artifactId>loom-test-env</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.metaloom.loom.client</groupId>
+      <artifactId>loom-client-rest</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.metaloom.utils</groupId>
+      <artifactId>genai-utils</artifactId>
+      <version>0.0.1-SNAPSHOT</version>
+      <scope>test</scope>
+    </dependency>
+    <!--
+    <dependency>
+      <groupId>io.metaloom.loom.client</groupId>
+      <artifactId>loom-client-grpc</artifactId>
+      <scope>test</scope>
+    </dependency>
+    -->
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <annotationProcessorPaths>
+            <path>
+              <groupId>com.google.dagger</groupId>
+              <artifactId>dagger-compiler</artifactId>
+              <version>${dagger.version}</version>
+            </path>
+          </annotationProcessorPaths>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
+</project>

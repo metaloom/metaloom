@@ -1,0 +1,9 @@
+module loom.db.flyway {
+	exports io.metaloom.loom.db.flyway.dagger;
+	exports io.metaloom.loom.db.flyway;
+
+	requires dagger;
+	requires javax.inject;
+	requires loom.api;
+	requires org.flywaydb.core;
+}

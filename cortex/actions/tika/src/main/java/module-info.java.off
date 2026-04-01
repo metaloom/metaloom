@@ -1,0 +1,8 @@
+module loom.cortex.action.tika {
+	exports io.metaloom.loom.cortex.action.tika;
+
+	requires loom.client.common;
+	requires loom.client.grpc;
+	requires loom.cortex.api;
+	requires loom.cortex.common;
+}

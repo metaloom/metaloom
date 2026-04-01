@@ -1,0 +1,123 @@
+---
+title: Documentation
+---
+
+++++
+<div id="swagger-ui"></div>
+
+<div class="container docs-content">
+    <div class="row">
+        <div class="col-12">
+            <div id="preamble">
+                <div class="sectionbody">
+                    <div class="paragraph">
+                        <p>
+                        MetaLoom // Loom and MetaLoom // Cortex are the two main components parts of the MetaLoom solution.<br/>
+                        This is the right place for <a href="getting-started">getting started</a>. 
+                            <ul>
+                                <li>The <a href="getting-started#_tldr">TL;DR</a>.</li>
+                            </ul>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-3">
+            <ul class="doc-toc">
+                <h2><a href="getting-started">Getting Started</a></h2>
+                <li class="doc-toc-section">
+                    <ul>
+                        <li>
+                            <a href="test#_quickstart">Quickstart</a>
+                        </li>
+                        <li>
+                            <a href="test#_tldr">TL;DR</a>
+                        </li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+        <div class="col-3">
+            <ul class="doc-toc">
+                <h2><a href="getting-started">Getting Started</a></h2>
+                <li class="doc-toc-section">
+                    <ul>
+                        <li>
+                            <a href="getting-started#_quickstart">Quickstart</a>
+                        </li>
+                        <li>
+                            <a href="getting-started#_tldr">TL;DR</a>
+                        </li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+        <div class="col-3">
+            <ul class="doc-toc">
+                <h2><a href="getting-started">Getting Started</a></h2>
+                <li class="doc-toc-section">
+                    <ul>
+                        <li>
+                            <a href="getting-started#_quickstart">Quickstart</a>
+                        </li>
+                        <li>
+                            <a href="getting-started#_tldr">TL;DR</a>
+                        </li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+
+        <div class="col-3">
+            <ul class="doc-toc">
+                <h2><a href="getting-started">Getting Started</a></h2>
+                <li class="doc-toc-section">
+                    <ul>
+                        <li>
+                            <a href="getting-started#_quickstart">Quickstart</a>
+                        </li>
+                        <li>
+                            <a href="getting-started#_tldr">TL;DR</a>
+                        </li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+
+        <div class="col-3">
+            <ul class="doc-toc">
+                <h2><a href="getting-started">Getting Started</a></h2>
+                <li class="doc-toc-section">
+                    <ul>
+                        <li>
+                            <a href="getting-started#_quickstart">Quickstart</a>
+                        </li>
+                        <li>
+                            <a href="getting-started#_tldr">TL;DR</a>
+                        </li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+
+        <div class="col-3">
+            <ul class="doc-toc">
+                <h2><a href="getting-started">Getting Started</a></h2>
+                <li class="doc-toc-section">
+                    <ul>
+                        <li>
+                            <a href="getting-started#_quickstart">Quickstart</a>
+                        </li>
+                        <li>
+                            <a href="getting-started#_tldr">TL;DR</a>
+                        </li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+++++

@@ -1,0 +1,9 @@
+{
+  "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+  "status" : { },
+  "meta" : {
+    "abc" : "cdef"
+  },
+  "title" : "The title",
+  "comments" : [ ]
+}

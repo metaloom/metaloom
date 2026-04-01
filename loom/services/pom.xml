@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.metaloom.loom</groupId>
+        <artifactId>loom</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <groupId>io.metaloom.loom.service</groupId>
+    <artifactId>loom-services</artifactId>
+    <name>Loom :: Services</name>
+    <packaging>pom</packaging>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>io.metaloom.loom</groupId>
+                <artifactId>loom-bom</artifactId>
+                <type>pom</type>
+                <scope>import</scope>
+                <version>${project.version}</version>
+            </dependency>
+
+
+            <dependency>
+                <groupId>io.metaloom.loom.service</groupId>
+                <artifactId>loom-service-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+        </dependencies>
+    </dependencyManagement>
+
+    <modules>
+        <module>api</module>
+        <module>auth</module>
+        <module>elasticsearch</module>
+        <module>graphql</module>
+        <module>monitoring</module>
+        <module>logger</module>
+        <module>plugins</module>
+        <module>rest</module>
+        <!--
+        <module>grpc</module>
+        -->
+        <module>image</module>
+        <module>video</module>
+        <module>fs</module>
+        <module>tika</module>
+        <module>lucene</module>
+        <module>qdrant</module>
+        <module>eventbus</module>
+        <module>webhook</module>
+        <module>mcp</module>
+    </modules>
+
+
+    <dependencies>
+        <dependency>
+            <groupId>io.metaloom.loom.shared</groupId>
+            <artifactId>loom-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.loom.db</groupId>
+            <artifactId>loom-db-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.google.dagger</groupId>
+            <artifactId>dagger</artifactId>
+        </dependency>
+    </dependencies>
+
+</project>

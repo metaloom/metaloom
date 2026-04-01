@@ -1,0 +1,13 @@
+{
+  "status" : {
+    "creator" : {
+      "uuid" : "6793ad7e-200c-432b-8e64-62b9f9544ece",
+      "name" : "joedoe"
+    },
+    "editor" : {
+      "uuid" : "6793ad7e-200c-432b-8e64-62b9f9544ece",
+      "name" : "joedoe"
+    }
+  },
+  "name" : "the_role_name"
+}

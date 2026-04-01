@@ -1,0 +1,10 @@
+module loom.api {
+	exports io.metaloom.loom.api.options;
+	exports io.metaloom.loom.api.uuid;
+	exports io.metaloom.loom.api.error;
+	exports io.metaloom;
+	exports io.metaloom.loom.api.json;
+
+	requires com.fasterxml.jackson.core;
+	requires com.fasterxml.jackson.databind;
+}

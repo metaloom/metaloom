@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "io.metaloom.loom.proto";
+option java_outer_classname = "AssetProto";
+option objc_class_prefix = "HLW";
+
+package asset;
+
+// The asset loader service definition.
+service AssetLoader {
+  // Store asset
+  rpc Store (AssetRequest) returns (AssetResponse) {}
+  
+  // Load asset
+  rpc Load (AssetRequest) returns (AssetResponse) {}
+}
+
+// The request for the asset
+message AssetRequest {
+  string sha512sum = 1;
+  string sha256sum = 2;
+  string md5sum = 3;
+  string chunkHash = 4;
+  string mimeType = 5;
+  string filename = 6;
+  uint64 size = 7;
+  string fingerprint = 8;
+  uint64 zeroChunkCount = 9;
+  string initialOrigin = 10;
+}
+
+// The response for the asset
+message AssetResponse {
+  string uuid = 1;
+  string filename = 2;
+  string initialOrigin = 3;
+  string mimeType = 4;
+  uint64 size = 5;
+  string sha512sum = 6;
+  string sha256sum = 7;
+  string md5sum = 8;
+  string fingerprint = 9;
+  string chunkHash = 10;
+  uint64 zeroChunkCount = 11;
+}

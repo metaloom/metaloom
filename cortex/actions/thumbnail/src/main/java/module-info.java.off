@@ -1,0 +1,11 @@
+module loom.cortex.action.thumbnail {
+	exports io.metaloom.loom.cortex.action.thumbnail;
+
+	requires loom.client.common;
+	requires loom.client.grpc;
+	requires loom.cortex.api;
+	requires loom.cortex.common;
+	requires opencv;
+	requires org.slf4j;
+	requires video4j;
+}

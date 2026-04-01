@@ -1,0 +1,49 @@
+{
+  "data" : [ {
+    "status" : {
+      "creator" : {
+        "uuid" : "6793ad7e-200c-432b-8e64-62b9f9544ece",
+        "name" : "creatorEditor"
+      },
+      "created" : "2018-10-12T14:15:06Z",
+      "editor" : {
+        "uuid" : "6793ad7e-200c-432b-8e64-62b9f9544ece",
+        "name" : "creatorEditor"
+      },
+      "edited" : "2018-10-12T14:15:06Z"
+    },
+    "meta" : {
+      "abc" : "efg",
+      "nested" : {
+        "key" : 42
+      },
+      "array" : [ 42, 24 ]
+    },
+    "name" : "group_name"
+  }, {
+    "status" : {
+      "creator" : {
+        "uuid" : "6793ad7e-200c-432b-8e64-62b9f9544ece",
+        "name" : "creatorEditor"
+      },
+      "created" : "2018-10-12T14:15:06Z",
+      "editor" : {
+        "uuid" : "6793ad7e-200c-432b-8e64-62b9f9544ece",
+        "name" : "creatorEditor"
+      },
+      "edited" : "2018-10-12T14:15:06Z"
+    },
+    "meta" : {
+      "abc" : "efg",
+      "nested" : {
+        "key" : 42
+      },
+      "array" : [ 42, 24 ]
+    },
+    "name" : "group_name"
+  } ],
+  "_metainfo" : {
+    "perPage" : 25,
+    "totalCount" : 2
+  }
+}

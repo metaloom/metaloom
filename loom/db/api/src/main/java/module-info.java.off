@@ -1,0 +1,25 @@
+module loom.db.api {
+	exports io.metaloom.loom.db.model.face;
+	exports io.metaloom.loom.db.model.extension;
+	exports io.metaloom.loom.db.model.tag;
+	exports io.metaloom.loom.db;
+	exports io.metaloom.loom.db.dagger;
+	exports io.metaloom.loom.db.field;
+	exports io.metaloom.loom.db.model.content;
+	exports io.metaloom.loom.db.model.group;
+	exports io.metaloom.loom.utils;
+	exports io.metaloom.loom.db.model.webhook;
+	exports io.metaloom.loom.db.impl;
+	exports io.metaloom.loom.db.model.language;
+	exports io.metaloom.loom.db.model.namespace;
+	exports io.metaloom.loom.db.model.role;
+	exports io.metaloom.loom.db.model.asset;
+	exports io.metaloom.loom.db.model.model;
+	exports io.metaloom.loom.db.model.user;
+
+	requires dagger;
+	requires io.reactivex.rxjava3;
+	requires io.vertx.core;
+	requires java.desktop;
+	requires javax.inject;
+}

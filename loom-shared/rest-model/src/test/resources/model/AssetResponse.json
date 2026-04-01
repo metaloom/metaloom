@@ -1,0 +1,113 @@
+{
+  "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+  "status" : {
+    "creator" : {
+      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+      "name" : "joedoe"
+    },
+    "created" : "2018-10-12T14:15:06Z",
+    "editor" : {
+      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+      "name" : "joedoe"
+    },
+    "edited" : "2018-11-20T20:12:01Z"
+  },
+  "meta" : {
+    "abc" : "cdef"
+  },
+  "geo" : {
+    "lon" : 32.56,
+    "lat" : 52.156
+  },
+  "tags" : [ {
+    "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+    "name" : "red"
+  } ],
+  "annotations" : [ {
+    "status" : { },
+    "meta" : {
+      "abc" : "cdef"
+    },
+    "title" : "Intro Feedback",
+    "area" : {
+      "from" : 0,
+      "to" : 10
+    },
+    "description" : "The very nice intro",
+    "tasks" : [ {
+      "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+      "status" : { },
+      "title" : "Fix text offset here",
+      "description" : "The text is not aligned with the title",
+      "comments" : [ {
+        "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+        "status" : { },
+        "title" : "Great work!",
+        "text" : "What a great choice of colors!",
+        "social" : {
+          "rating" : {
+            "stars" : 10,
+            "upVotes" : 42,
+            "downVotes" : 0
+          },
+          "reactions" : {
+            "SATISFIED" : 10
+          }
+        }
+      } ]
+    } ],
+    "comments" : [ {
+      "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+      "status" : { },
+      "title" : "Great work!",
+      "text" : "What a great choice of colors!",
+      "social" : {
+        "rating" : {
+          "stars" : 10,
+          "upVotes" : 42,
+          "downVotes" : 0
+        },
+        "reactions" : {
+          "SATISFIED" : 10
+        }
+      }
+    } ],
+    "thumbnail" : "???",
+    "tags" : [ {
+      "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+      "name" : "blue"
+    } ]
+  } ],
+  "collections" : [ ],
+  "embeddings" : [ ],
+  "file" : {
+    "mimeType" : "video/mp4",
+    "filename" : "bigbuckbunny-4k.mp4",
+    "size" : 42000000,
+    "origin" : "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+    "firstSeen" : "2018-10-12T14:15:06Z"
+  },
+  "hashes" : {
+    "sha512" : "0e3e75234abc68f4378a86b3f4b32a198ba301845b0cd6e50106e874345700cc6663a86c1ea125dc5e92be17c98f9a0f85ca9d5f595db2012f7cc3571945c123",
+    "sha256" : "f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2",
+    "md5" : "d8e8fca2dc0f896fd7cb4cb0031ba249"
+  },
+  "media" : {
+    "duration" : 20000,
+    "width" : 4000,
+    "height" : 2250
+  },
+  "image" : {
+    "dominantColor" : "#FFFF00"
+  },
+  "audio" : {
+    "channels" : 2,
+    "encoding" : "mp3",
+    "samplingRate" : 48000,
+    "bpm" : 120
+  },
+  "locations" : [ {
+    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+    "path" : "/the-current-path/bigbuckbunny-4k.mp4"
+  } ]
+}

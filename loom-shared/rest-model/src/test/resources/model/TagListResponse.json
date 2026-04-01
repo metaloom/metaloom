@@ -1,0 +1,63 @@
+{
+  "data" : [ {
+    "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+    "status" : {
+      "creator" : {
+        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+        "name" : "joedoe"
+      },
+      "created" : "2018-10-12T14:15:06Z",
+      "editor" : {
+        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+        "name" : "joedoe"
+      },
+      "edited" : "2018-11-20T20:12:01Z"
+    },
+    "meta" : {
+      "abc" : "cdef"
+    },
+    "name" : "red",
+    "area" : {
+      "from" : 12,
+      "to" : 42,
+      "width" : 480,
+      "height" : 200,
+      "startX" : 120,
+      "startY" : 240
+    },
+    "color" : "1681de",
+    "collection" : "colors"
+  }, {
+    "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+    "status" : {
+      "creator" : {
+        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+        "name" : "joedoe"
+      },
+      "created" : "2018-10-12T14:15:06Z",
+      "editor" : {
+        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+        "name" : "joedoe"
+      },
+      "edited" : "2018-11-20T20:12:01Z"
+    },
+    "meta" : {
+      "abc" : "cdef"
+    },
+    "name" : "red",
+    "area" : {
+      "from" : 12,
+      "to" : 42,
+      "width" : 480,
+      "height" : 200,
+      "startX" : 120,
+      "startY" : 240
+    },
+    "color" : "1681de",
+    "collection" : "colors"
+  } ],
+  "_metainfo" : {
+    "perPage" : 2,
+    "totalCount" : 28
+  }
+}

@@ -1,0 +1,11 @@
+module loom.cortex.action.hash {
+	exports io.metaloom.cortex.action.hash;
+
+	requires utils;
+	requires hash_utils;
+	requires loom.client.common;
+	requires loom.client.grpc;
+	requires loom.proto;
+	requires loom.cortex.api;
+	requires loom.cortex.common;
+}

@@ -1,0 +1,31 @@
+{
+  "data" : [ {
+    "status" : {
+      "creator" : {
+        "uuid" : "6793ad7e-200c-432b-8e64-62b9f9544ece",
+        "name" : "creatorEditor"
+      },
+      "editor" : {
+        "uuid" : "6793ad7e-200c-432b-8e64-62b9f9544ece",
+        "name" : "creatorEditor"
+      }
+    },
+    "name" : "red"
+  }, {
+    "status" : {
+      "creator" : {
+        "uuid" : "6793ad7e-200c-432b-8e64-62b9f9544ece",
+        "name" : "creatorEditor"
+      },
+      "editor" : {
+        "uuid" : "6793ad7e-200c-432b-8e64-62b9f9544ece",
+        "name" : "creatorEditor"
+      }
+    },
+    "name" : "blue"
+  } ],
+  "_metainfo" : {
+    "perPage" : 25,
+    "totalCount" : 2
+  }
+}

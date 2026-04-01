@@ -1,0 +1,12 @@
+module loom.cortex.action.fingerprint {
+	exports io.metaloom.cortex.action.fp;
+
+	requires loom.client.common;
+	requires loom.client.grpc;
+	requires loom.proto;
+	requires loom.cortex.api;
+	requires loom.cortex.common;
+	requires opencv;
+	requires video4j;
+	requires video4j.fingerprint;
+}

@@ -1,0 +1,10 @@
+module loom.common {
+	exports io.metaloom.loom.common;
+	exports io.metaloom.loom.common.dagger;
+
+	requires dagger;
+	requires io.vertx.core;
+	requires javax.inject;
+	requires loom.api;
+	requires vertx.rx.java3;
+}

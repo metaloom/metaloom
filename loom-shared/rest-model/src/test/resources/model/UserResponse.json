@@ -1,0 +1,20 @@
+{
+  "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+  "creator" : {
+    "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+    "name" : "joedoe"
+  },
+  "created" : "2018-10-12T14:15:06.024Z",
+  "editor" : {
+    "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+    "name" : "joedoe"
+  },
+  "edited" : "2018-11-20T20:12:01.084Z",
+  "username" : "joedoe",
+  "firstname" : "Joe",
+  "lastname" : "Doe",
+  "email" : "joedoe@metaloom.io",
+  "meta" : {
+    "custom" : "value"
+  }
+}

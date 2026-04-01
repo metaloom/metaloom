@@ -1,0 +1,51 @@
+type Query {
+    """Load an asset by UUID"""
+    asset(uuid: ID!): Asset
+
+    """List all assets"""
+    assets: [Asset!]!
+}
+
+type Asset {
+    uuid: ID!
+    filename: String
+    mimeType: String
+    size: Long
+    sha512: String
+    sha256: String
+    md5: String
+    initialOrigin: String
+    imageComponents: [ImageComponent!]!
+    videoComponents: [VideoComponent!]!
+    audioComponents: [AudioComponent!]!
+    locations: [AssetLocation!]!
+}
+
+type AssetLocation {
+    uuid: ID!
+    path: String
+    assetUuid: ID
+    libraryUuid: ID
+    mimeType: String
+}
+
+type ImageComponent {
+    uuid: ID!
+    source: String
+    dominantColor: String
+    width: Int
+    height: Int
+}
+
+type VideoComponent {
+    uuid: ID!
+    source: String
+}
+
+type AudioComponent {
+    uuid: ID!
+    source: String
+}
+
+"""Long scalar for large numeric values (e.g. file sizes)"""
+scalar Long

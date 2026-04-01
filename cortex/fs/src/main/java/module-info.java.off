@@ -1,0 +1,4 @@
+module loom.cortex.fs {
+	exports io.metaloom.cortex.fs.impl;
+	exports io.metaloom.cortex.fs.scanner.impl;
+}

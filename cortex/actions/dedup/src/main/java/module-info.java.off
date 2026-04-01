@@ -1,0 +1,5 @@
+module loom.cortex.action.dedup {
+	exports io.metaloom.loom.cortex.dedup;
+
+	requires loom.cortex.api;
+}

@@ -1,0 +1,7 @@
+{
+  "name" : "new_role_name",
+  "meta" : {
+    "abc" : "cdef"
+  },
+  "permissions" : [ "CREATE_USER" ]
+}

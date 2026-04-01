@@ -1,0 +1,280 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>io.metaloom.loom.db</groupId>
+		<artifactId>loom-db</artifactId>
+		<version>1.0.0-SNAPSHOT</version>
+	</parent>
+
+	<artifactId>loom-db-jooq</artifactId>
+	<name>Loom - DB :: JOOQ</name>
+
+	<properties>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<db.username>postgres</db.username>
+		<db.password>finger</db.password>
+	</properties>
+
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>io.metaloom.loom</groupId>
+				<artifactId>loom-bom</artifactId>
+				<type>pom</type>
+				<scope>import</scope>
+				<version>${project.version}</version>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
+	<dependencies>
+		<dependency>
+			<groupId>io.metaloom.loom</groupId>
+			<artifactId>loom-common</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>io.metaloom.loom.db</groupId>
+			<artifactId>loom-db-api</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>io.metaloom.loom.db</groupId>
+			<artifactId>loom-db-flyway</artifactId>
+		</dependency>
+
+		<!-- JOOQ -->
+		<dependency>
+			<groupId>org.jooq</groupId>
+			<artifactId>jooq</artifactId>
+			<version>${jooq.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>javax.persistence</groupId>
+			<artifactId>javax.persistence-api</artifactId>
+		</dependency>
+
+		<!-- JDBC / Connection Pooling support -->
+		<dependency>
+			<groupId>com.mchange</groupId>
+			<artifactId>c3p0</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-lang3</artifactId>
+		</dependency>
+
+		<!-- Test -->
+		<dependency>
+			<groupId>io.metaloom.loom.db</groupId>
+			<artifactId>loom-db-api</artifactId>
+			<type>test-jar</type>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+
+	<profiles>
+		<profile>
+			<activation>
+				<property>
+					<name>generate</name>
+				</property>
+			</activation>
+
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.codehaus.gmaven</groupId>
+						<artifactId>groovy-maven-plugin</artifactId>
+						<version>2.1.1</version>
+						<executions>
+							<execution>
+								<id>testcontainer-start</id>
+								<phase>generate-sources</phase>
+								<goals>
+									<goal>execute</goal>
+								</goals>
+								<configuration>
+									<source>
+										db = new org.testcontainers.containers.PostgreSQLContainer("postgres:latest")
+											.withUsername("${db.username}")
+											.withDatabaseName("postgres")
+											.withPassword("${db.password}");
+										db.start();
+										project.properties.setProperty('db.url', db.getJdbcUrl());
+										project.properties.setProperty('testcontainer.containerid', db.getContainerId());
+										project.properties.setProperty('testcontainer.imageName', db.getDockerImageName());
+									</source>
+								</configuration>
+							</execution>
+							<execution>
+								<id>testcontainer-stop</id>
+								<phase>test</phase>
+								<goals>
+									<goal>execute</goal>
+								</goals>
+								<configuration>
+									<source>
+										containerId = "${testcontainer.containerid}"
+										imageName = "${testcontainer.imageName}"
+										println("Stopping testcontainer $containerId - $imageName")
+										org.testcontainers.utility.ResourceReaper
+											.instance()
+											.stopAndRemoveContainer(containerId, imageName);
+									</source>
+								</configuration>
+							</execution>
+						</executions>
+
+						<dependencies>
+							<dependency>
+								<groupId>org.testcontainers</groupId>
+								<artifactId>postgresql</artifactId>
+								<version>1.17.6</version>
+							</dependency>
+						</dependencies>
+					</plugin>
+					<plugin>
+						<groupId>org.flywaydb</groupId>
+						<artifactId>flyway-maven-plugin</artifactId>
+						<version>9.14.1</version>
+						<executions>
+							<execution>
+								<?m2e ignore?>
+								<phase>generate-sources</phase>
+								<goals>
+									<goal>migrate</goal>
+								</goals>
+							</execution>
+						</executions>
+
+						<configuration>
+							<url>${db.url}</url>
+							<user>${db.username}</user>
+							<password>${db.password}</password>
+							<validateMigrationNaming>true</validateMigrationNaming>
+							<locations>
+								<location>
+									filesystem:../flyway/src/main/resources/db/migration</location>
+							</locations>
+						</configuration>
+						<dependencies>
+							<dependency>
+								<groupId>org.postgresql</groupId>
+								<artifactId>postgresql</artifactId>
+								<version>${postgres.driver.version}</version>
+							</dependency>
+						</dependencies>
+					</plugin>
+
+					<plugin>
+						<groupId>org.jooq</groupId>
+						<artifactId>jooq-codegen-maven</artifactId>
+						<version>${jooq.version}</version>
+
+						<executions>
+							<execution>
+								<id>jooq-codegen</id>
+								<phase>generate-sources</phase>
+								<goals>
+									<goal>generate</goal>
+								</goals>
+							</execution>
+						</executions>
+
+						<dependencies>
+							<dependency>
+								<groupId>org.postgresql</groupId>
+								<artifactId>postgresql</artifactId>
+								<version>${postgres.driver.version}</version>
+							</dependency>
+							<dependency>
+								<groupId>org.jooq</groupId>
+								<artifactId>jooq</artifactId>
+								<version>${jooq.version}</version>
+							</dependency>
+							<dependency>
+								<groupId>org.jooq</groupId>
+								<artifactId>jooq-meta</artifactId>
+								<version>${jooq.version}</version>
+							</dependency>
+							<dependency>
+								<groupId>org.jooq</groupId>
+								<artifactId>jooq-codegen</artifactId>
+								<version>${jooq.version}</version>
+							</dependency>
+							<dependency>
+								<groupId>io.metaloom.loom.db</groupId>
+								<artifactId>loom-db-jooq-gen</artifactId>
+								<version>${project.version}</version>
+							</dependency>
+						</dependencies>
+
+						<configuration>
+							<jdbc>
+								<driver>org.postgresql.Driver</driver>
+								<url>${db.url}</url>
+								<user>${db.username}</user>
+								<password>${db.password}</password>
+							</jdbc>
+
+							<generator>
+								<strategy>
+									<name>io.metaloom.loom.db.jooq.codegen.LoomJooqStrategy</name>
+								</strategy>
+								<generate>
+									<daos>false</daos>
+								</generate>
+								<database>
+									<name>
+										org.jooq.meta.postgres.PostgresDatabase</name>
+									<includes>.*</includes>
+									<inputSchema>public</inputSchema>
+									<outputSchema>public</outputSchema>
+									<unsignedTypes>false</unsignedTypes>
+									<forcedTypes>
+										<forcedType>
+											<userType>io.vertx.core.json.JsonObject</userType>
+											<converter>io.metaloom.loom.db.jooq.converter.JsonObjectConverter</converter>
+											<includeExpression>.*\.meta.*</includeExpression>
+										</forcedType>
+									</forcedTypes>
+								</database>
+								<target>
+									<packageName>io.metaloom.loom.db.jooq</packageName>
+									<directory>src/jooq/java</directory>
+								</target>
+							</generator>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>build-helper-maven-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>add-source</id>
+						<phase>generate-sources</phase>
+						<goals>
+							<goal>add-source</goal>
+						</goals>
+						<configuration>
+							<sources>
+								<source>${project.basedir}/src/jooq/java/</source>
+							</sources>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
+
+</project>

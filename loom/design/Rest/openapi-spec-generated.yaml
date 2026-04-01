@@ -1,0 +1,44 @@
+openapi: 3.0.1
+info:
+  description: The API for our example server
+servers:
+- url: https://server.tld
+  description: The API for our example server
+paths:
+  "null": {}
+  /users:
+    get:
+      responses:
+        "200":
+          description: The user list response
+          content:
+            application/json:
+              example: "{\"data\":[{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\"\
+                ,\"status\":{\"creator\":{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\"\
+                ,\"name\":\"joedoe\"},\"created\":\"2018-10-12T14:15:06.024Z\",\"\
+                editor\":{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"name\"\
+                :\"joedoe\"},\"edited\":\"2018-11-20T20:12:01.084Z\"},\"meta\":{\"\
+                abc\":\"cdef\"},\"username\":\"joedoe\",\"firstname\":\"Joe\",\"lastname\"\
+                :\"Doe\",\"email\":\"joedoe@metaloom.io\",\"enabled\":false},{\"uuid\"\
+                :\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"status\":{\"creator\"\
+                :{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"name\":\"joedoe\"\
+                },\"created\":\"2018-10-12T14:15:06.024Z\",\"editor\":{\"uuid\":\"\
+                f04e89d0-076d-4d90-b192-715a25a2cd59\",\"name\":\"joedoe\"},\"edited\"\
+                :\"2018-11-20T20:12:01.084Z\"},\"meta\":{\"abc\":\"cdef\"},\"username\"\
+                :\"joedoe\",\"firstname\":\"Joe\",\"lastname\":\"Doe\",\"email\":\"\
+                joedoe@metaloom.io\",\"enabled\":false}],\"_metainfo\":{\"lastUuid\"\
+                :null,\"perPage\":2,\"totalCount\":28}}"
+  /users/:uuid:
+    get:
+      responses:
+        "200":
+          description: The user response
+          content:
+            application/json:
+              example: "{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"status\"\
+                :{\"creator\":{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"\
+                name\":\"joedoe\"},\"created\":\"2018-10-12T14:15:06.024Z\",\"editor\"\
+                :{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"name\":\"joedoe\"\
+                },\"edited\":\"2018-11-20T20:12:01.084Z\"},\"meta\":{\"abc\":\"cdef\"\
+                },\"username\":\"joedoe\",\"firstname\":\"Joe\",\"lastname\":\"Doe\"\
+                ,\"email\":\"joedoe@metaloom.io\",\"enabled\":false}"

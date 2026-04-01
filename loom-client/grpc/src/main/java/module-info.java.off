@@ -1,0 +1,13 @@
+module loom.client.grpc {
+	exports io.metaloom.loom.client.util;
+	exports io.metaloom.loom.client.grpc.impl;
+	exports io.metaloom.loom.client.grpc;
+	exports io.metaloom.loom.client.grpc.method;
+
+	requires grpc.api;
+	requires io.reactivex.rxjava3;
+	requires io.vertx.core;
+	requires loom.client.common;
+	requires loom.proto;
+	requires org.slf4j;
+}

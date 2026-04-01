@@ -1,0 +1,7 @@
+{
+  "name" : "red",
+  "collection" : "colors",
+  "meta" : {
+    "abc" : "cdef"
+  }
+}
