@@ -112,8 +112,6 @@ public class VideoFaceScanner {
 	 * 
 	 * @param video
 	 * @param window
-	 * @param windowSize
-	 * @param windowSteps
 	 * @return
 	 * @throws InterruptedException
 	 */
