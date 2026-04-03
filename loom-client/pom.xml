@@ -67,15 +67,7 @@
                 <version>${loom.version}</version>
             </dependency>
             -->
-
-            <!-- Test -->
-            <dependency>
-                <groupId>io.metaloom.loom.test</groupId>
-                <artifactId>loom-test-env</artifactId>
-                <version>0.0.1-SNAPSHOT</version>
-            </dependency>
         </dependencies>
-
     </dependencyManagement>
 
 

@@ -39,6 +39,14 @@
 
     <dependencyManagement>
         <dependencies>
+
+            <!-- MetaLoom // Shared -->
+            <dependency>
+                <groupId>io.metaloom.loom.shared</groupId>
+                <artifactId>loom-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
             <!-- DB -->
             <dependency>
                 <artifactId>vertx-mysql-client</artifactId>
@@ -440,7 +448,7 @@
                 <version>0.10.0</version>
             </dependency>
 
-            <!-- Metaloom deps -->
+            <!-- MetaLoom OSS deps -->
             <dependency>
                 <groupId>io.metaloom.utils</groupId>
                 <artifactId>utils</artifactId>

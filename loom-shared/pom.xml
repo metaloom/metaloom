@@ -91,6 +91,7 @@
     <dependency>
       <groupId>io.metaloom.loom.test</groupId>
       <artifactId>loom-test-env</artifactId>
+      <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
   </dependencies>

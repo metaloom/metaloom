@@ -21,7 +21,6 @@ public class LoomProviderExtension extends ProviderExtension {
 	/**
 	 * Create a new extension which connects to the provider server.
 	 * 
-	 * @param poolId
 	 * @return
 	 */
 	public static LoomProviderExtension create() {

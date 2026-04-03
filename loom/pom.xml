@@ -1,340 +1,345 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
-  <modelVersion>4.0.0</modelVersion>
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+    <modelVersion>4.0.0</modelVersion>
 
-  <groupId>io.metaloom.loom</groupId>
-  <artifactId>loom</artifactId>
+    <groupId>io.metaloom.loom</groupId>
+    <artifactId>loom</artifactId>
 
-  <packaging>pom</packaging>
-  <name>MetaLoom // Loom</name>
+    <packaging>pom</packaging>
+    <name>MetaLoom // Loom</name>
 
-  <parent>
-    <groupId>io.metaloom</groupId>
-    <artifactId>metaloom-parent</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
-  </parent>
+    <parent>
+        <groupId>io.metaloom</groupId>
+        <artifactId>metaloom-parent</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
 
-  <properties>
-    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <projectRoot>${project.basedir}</projectRoot>
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <projectRoot>${project.basedir}</projectRoot>
 
-    <!-- Tests -->
-    <surefire.forkcount>1</surefire.forkcount>
-    <surefire.jvm.postfix></surefire.jvm.postfix>
-    <skip.unit.tests>false</skip.unit.tests>
-    <skip.cluster.tests>false</skip.cluster.tests>
-    <surefire.excludedGroups></surefire.excludedGroups>
-    <surefire.groups></surefire.groups>
+        <!-- Tests -->
+        <surefire.forkcount>1</surefire.forkcount>
+        <surefire.jvm.postfix></surefire.jvm.postfix>
+        <skip.unit.tests>false</skip.unit.tests>
+        <skip.cluster.tests>false</skip.cluster.tests>
+        <surefire.excludedGroups></surefire.excludedGroups>
+        <surefire.groups></surefire.groups>
 
-    <!-- Jacoco -->
-    <jacoco.skip.merge>true</jacoco.skip.merge>
-    <jacoco.version>0.8.4</jacoco.version>
-    <jacoco.skip>true</jacoco.skip>
-    <jacoco.env></jacoco.env>
+        <!-- Jacoco -->
+        <jacoco.skip.merge>true</jacoco.skip.merge>
+        <jacoco.version>0.8.4</jacoco.version>
+        <jacoco.skip>true</jacoco.skip>
+        <jacoco.env></jacoco.env>
 
-    <!-- Some versions need to be managed via parent modules due to open
+        <!-- Some versions need to be managed via parent modules due to open
     MNG-5588 issue  -->
-    <dagger.version>2.57.2</dagger.version>
+        <dagger.version>2.57.2</dagger.version>
 
-    <!-- Loom -->
-    <loom.cortex.version>1.0.0-SNAPSHOT</loom.cortex.version>
+        <!-- Loom -->
+        <loom.cortex.version>1.0.0-SNAPSHOT</loom.cortex.version>
 
-    <loom.build.timestamp>${maven.build.timestamp}</loom.build.timestamp>
-  </properties>
+        <loom.build.timestamp>${maven.build.timestamp}</loom.build.timestamp>
+    </properties>
 
-  <developers>
-    <developer>
-      <name>Johannes Schüth</name>
-      <url>https://github.com/Jotschi</url>
-      <email>git@jotschi.de</email>
-      <roles>
-        <role>Project Lead</role>
-      </roles>
-    </developer>
-  </developers>
+    <developers>
+        <developer>
+            <name>Johannes Schüth</name>
+            <url>https://github.com/Jotschi</url>
+            <email>git@jotschi.de</email>
+            <roles>
+                <role>Project Lead</role>
+            </roles>
+        </developer>
+    </developers>
 
-  <licenses>
-    <license>
-      <name>The Apache Software License, Version 2.0</name>
-      <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
-      <distribution>repo</distribution>
-    </license>
-  </licenses>
+    <licenses>
+        <license>
+            <name>The Apache Software License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
 
-  <inceptionYear>2021</inceptionYear>
+    <inceptionYear>2021</inceptionYear>
 
-  <modules>
-    <module>common</module>
-    <module>db</module>
-    <module>services</module>
-    <module>core</module>
-    <module>cli</module>
-    <module>nexus</module>
-    <module>containers</module>
-    <module>doc</module>
-  </modules>
+    <modules>
+        <module>common</module>
+        <module>db</module>
+        <module>services</module>
+        <module>core</module>
+        <module>cli</module>
+        <module>nexus</module>
+        <module>containers</module>
+        <module>doc</module>
+    </modules>
 
-  <!-- List only internal project deps here. External deps will be managed via
+    <!-- List only internal project deps here. External deps will be managed via
   bom pom -->
-  <dependencyManagement>
+    <dependencyManagement>
+
+        <dependencies>
+            <dependency>
+                <groupId>io.metaloom</groupId>
+                <artifactId>bom</artifactId>
+                <type>pom</type>
+                <scope>import</scope>
+                <version>${project.version}</version>
+            </dependency>
+
+            <!-- Loom Shared -->
+            <dependency>
+                <groupId>io.metaloom.loom.shared</groupId>
+                <artifactId>loom-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.loom.shared</groupId>
+                <artifactId>loom-rest-model</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.loom.shared</groupId>
+                <artifactId>loom-proto</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <!-- Loom Core -->
+            <dependency>
+                <groupId>io.metaloom.loom</groupId>
+                <artifactId>loom-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.loom</groupId>
+                <artifactId>loom-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.loom</groupId>
+                <artifactId>loom-doc</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.loom.container</groupId>
+                <artifactId>loom-container-server</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.loom.cortex</groupId>
+                <artifactId>loom-cortex-cli</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.loom.container</groupId>
+                <artifactId>loom-container-demo</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+
+            <!-- Project deps -->
+            <dependency>
+                <groupId>io.metaloom.loom.container</groupId>
+                <artifactId>loom-container</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <!-- Loom DB -->
+            <dependency>
+                <groupId>io.metaloom.loom</groupId>
+                <artifactId>loom-db</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.loom</groupId>
+                <artifactId>loom-db-model</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.loom.db</groupId>
+                <artifactId>loom-db-hibernate</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.loom.db</groupId>
+                <artifactId>loom-db-jooq</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.loom.db</groupId>
+                <artifactId>loom-db-jooq-gen</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.loom.db</groupId>
+                <artifactId>loom-db-fs</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.loom.db</groupId>
+                <artifactId>loom-db-memory</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.loom.db</groupId>
+                <artifactId>loom-db-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.loom.db</groupId>
+                <artifactId>loom-db-flyway</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.loom.db</groupId>
+                <artifactId>loom-db-api</artifactId>
+                <version>${project.version}</version>
+                <type>test-jar</type>
+            </dependency>
+
+            <!-- Loom Services -->
+            <dependency>
+                <groupId>io.metaloom.loom.service</groupId>
+                <artifactId>loom-service-s3</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.loom.service</groupId>
+                <artifactId>loom-service-grpc</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.loom.service</groupId>
+                <artifactId>loom-service-rest</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.loom.service</groupId>
+                <artifactId>loom-service-auth-jwt</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.loom.service</groupId>
+                <artifactId>loom-service-auth-keycloak</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.loom.service</groupId>
+                <artifactId>loom-service-auth-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.metaloom.loom.service</groupId>
+                <artifactId>loom-service-graphql</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.loom.service</groupId>
+                <artifactId>loom-service-mcp</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.loom.service</groupId>
+                <artifactId>loom-service-image</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.loom.service</groupId>
+                <artifactId>loom-service-video</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <!-- Loom Client -->
+            <dependency>
+                <groupId>io.metaloom.loom.client</groupId>
+                <artifactId>loom-client-grpc</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.loom.client</groupId>
+                <artifactId>loom-client-rest</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.loom.client</groupId>
+                <artifactId>loom-client-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.loom</groupId>
+                <artifactId>loom-rest-model</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.loom.shared</groupId>
+                <artifactId>loom-rest-model</artifactId>
+                <version>${project.version}</version>
+                <type>test-jar</type>
+            </dependency>
+
+            <!-- Nexus -->
+            <dependency>
+                <groupId>io.metaloom.loom.nexus</groupId>
+                <artifactId>loom-nexus</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
-      <dependency>
-        <groupId>io.metaloom</groupId>
-        <artifactId>bom</artifactId>
-        <type>pom</type>
-        <scope>import</scope>
-        <version>${project.version}</version>
-      </dependency>
-
-      <!-- Loom Shared -->
-      <dependency>
-        <groupId>io.metaloom.loom.shared</groupId>
-        <artifactId>loom-api</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.metaloom.loom.shared</groupId>
-        <artifactId>loom-rest-model</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.metaloom.loom.shared</groupId>
-        <artifactId>loom-proto</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-
-      <!-- Loom Core -->
-      <dependency>
-        <groupId>io.metaloom.loom</groupId>
-        <artifactId>loom-common</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.metaloom.loom</groupId>
-        <artifactId>loom-core</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.metaloom.loom</groupId>
-        <artifactId>loom-doc</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.metaloom.loom.container</groupId>
-        <artifactId>loom-container-server</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.metaloom.loom.cortex</groupId>
-        <artifactId>loom-cortex-cli</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.metaloom.loom.container</groupId>
-        <artifactId>loom-container-demo</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-
-
-      <!-- Project deps -->
-      <dependency>
-        <groupId>io.metaloom.loom.container</groupId>
-        <artifactId>loom-container</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-
-      <!-- Loom DB -->
-      <dependency>
-        <groupId>io.metaloom.loom</groupId>
-        <artifactId>loom-db</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.metaloom.loom</groupId>
-        <artifactId>loom-db-model</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.metaloom.loom.db</groupId>
-        <artifactId>loom-db-hibernate</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.metaloom.loom.db</groupId>
-        <artifactId>loom-db-jooq</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.metaloom.loom.db</groupId>
-        <artifactId>loom-db-jooq-gen</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.metaloom.loom.db</groupId>
-        <artifactId>loom-db-fs</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.metaloom.loom.db</groupId>
-        <artifactId>loom-db-memory</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.metaloom.loom.db</groupId>
-        <artifactId>loom-db-api</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.metaloom.loom.db</groupId>
-        <artifactId>loom-db-flyway</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.metaloom.loom.db</groupId>
-        <artifactId>loom-db-api</artifactId>
-        <version>${project.version}</version>
-        <type>test-jar</type>
-      </dependency>
-
-      <!-- Loom Services -->
-      <dependency>
-        <groupId>io.metaloom.loom.service</groupId>
-        <artifactId>loom-service-s3</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.metaloom.loom.service</groupId>
-        <artifactId>loom-service-grpc</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.metaloom.loom.service</groupId>
-        <artifactId>loom-service-rest</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.metaloom.loom.service</groupId>
-        <artifactId>loom-service-auth-jwt</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.metaloom.loom.service</groupId>
-        <artifactId>loom-service-auth-keycloak</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.metaloom.loom.service</groupId>
-        <artifactId>loom-service-auth-common</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-
-      <dependency>
-        <groupId>io.metaloom.loom.service</groupId>
-        <artifactId>loom-service-graphql</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.metaloom.loom.service</groupId>
-        <artifactId>loom-service-mcp</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.metaloom.loom.service</groupId>
-        <artifactId>loom-service-image</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.metaloom.loom.service</groupId>
-        <artifactId>loom-service-video</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-
-      <!-- Loom Client -->
-      <dependency>
-        <groupId>io.metaloom.loom.client</groupId>
-        <artifactId>loom-client-grpc</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.metaloom.loom.client</groupId>
-        <artifactId>loom-client-rest</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.metaloom.loom.client</groupId>
-        <artifactId>loom-client-common</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.metaloom.loom</groupId>
-        <artifactId>loom-rest-model</artifactId>
-        <version>${project.version}</version>
-        <type>test-jar</type>
-      </dependency>
-
-      <!-- Nexus -->
-      <dependency>
-        <groupId>io.metaloom.loom.nexus</groupId>
-        <artifactId>loom-nexus</artifactId>
-        <version>${project.version}</version>
-      </dependency>
+        <dependency>
+            <groupId>io.metaloom.loom.test</groupId>
+            <artifactId>loom-test-env</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
-  </dependencyManagement>
-
-  <dependencies>
-    <dependency>
-      <groupId>io.metaloom.loom.test</groupId>
-      <artifactId>loom-test-env</artifactId>
-      <scope>test</scope>
-    </dependency>
-  </dependencies>
 
 
-  <build>
-    <pluginManagement>
-      <plugins>
-        <plugin>
-          <groupId>org.apache.maven.plugins</groupId>
-          <artifactId>maven-surefire-plugin</artifactId>
-          <version>3.0.0-M5</version>
-          <configuration>
-            <skip>${skip.unit.tests}</skip>
-          </configuration>
-        </plugin>
-        <plugin>
-          <groupId>org.jacoco</groupId>
-          <artifactId>jacoco-maven-plugin</artifactId>
-          <version>${jacoco.version}</version>
-          <executions>
-            <execution>
-              <id>merge-all-jacoco</id>
-              <goals>
-                <goal>merge</goal>
-              </goals>
-              <phase>install</phase>
-              <configuration>
-                <skip>${jacoco.skip.merge}</skip>
-                <destFile>${project.build.directory}/jacoco.exec</destFile>
-                <fileSets>
-                  <fileSet>
-                    <directory>${project.build.directory}</directory>
-                    <includes>
-                      <include>*.exec</include>
-                    </includes>
-                  </fileSet>
-                </fileSets>
-              </configuration>
-            </execution>
-          </executions>
-        </plugin>
-      </plugins>
-    </pluginManagement>
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>3.0.0-M5</version>
+                    <configuration>
+                        <skip>${skip.unit.tests}</skip>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.jacoco</groupId>
+                    <artifactId>jacoco-maven-plugin</artifactId>
+                    <version>${jacoco.version}</version>
+                    <executions>
+                        <execution>
+                            <id>merge-all-jacoco</id>
+                            <goals>
+                                <goal>merge</goal>
+                            </goals>
+                            <phase>install</phase>
+                            <configuration>
+                                <skip>${jacoco.skip.merge}</skip>
+                                <destFile>${project.build.directory}/jacoco.exec</destFile>
+                                <fileSets>
+                                    <fileSet>
+                                        <directory>${project.build.directory}</directory>
+                                        <includes>
+                                            <include>*.exec</include>
+                                        </includes>
+                                    </fileSet>
+                                </fileSets>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
+            </plugins>
+        </pluginManagement>
 
-    <plugins>
-      <!--
+        <plugins>
+            <!--
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
       <artifactId>versions-maven-plugin</artifactId>
@@ -357,83 +362,83 @@
         </configuration>
       </plugin>
       -->
-      <plugin>
-        <groupId>org.jacoco</groupId>
-        <artifactId>jacoco-maven-plugin</artifactId>
-        <executions>
-          <execution>
-            <goals>
-              <goal>prepare-agent</goal>
-            </goals>
-            <configuration>
-              <skip>${jacoco.skip}</skip>
-              <propertyName>jacoco.env</propertyName>
-              <destFile>
-                ${project.build.directory}/jacoco-partial.exec</destFile>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-surefire-plugin</artifactId>
-        <configuration>
-          <skip>${skip.unit.tests}</skip>
-          <argLine>-Xms128m -Xmx256m ${jacoco.env}</argLine>
-          <forkedProcessTimeoutInSeconds>2700</forkedProcessTimeoutInSeconds>
-          <rerunFailingTestsCount>0</rerunFailingTestsCount>
-          <reuseForks>false</reuseForks>
-          <forkCount>${surefire.forkcount}</forkCount>
-          <trimStackTrace>false</trimStackTrace>
-          <useSystemClassLoader>false</useSystemClassLoader>
-          <excludes>
-            <include>**/*AbstractTest.java</include>
-            <include>**/*Abstract*Test.java</include>
-            <exclude>**/*Abstract*.java</exclude>
-            <exclude>**/Abstract*.java</exclude>
-          </excludes>
-          <groups>${surefire.groups}</groups>
-          <excludedGroups>${surefire.excludedGroups}</excludedGroups>
-        </configuration>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-resources-plugin</artifactId>
-        <version>3.3.1</version>
-        <inherited>false</inherited>
-        <executions>
-          <execution>
-            <id>readme-md</id>
-            <phase>clean</phase>
-            <goals>
-              <goal>copy-resources</goal>
-            </goals>
-            <configuration>
-              <outputDirectory>${project.basedir}</outputDirectory>
-              <resources>
-                <resource>
-                  <directory>${project.basedir}/.github/md</directory>
-                  <includes>
-                    <include>README.md</include>
-                  </includes>
-                  <filtering>true</filtering>
-                </resource>
-              </resources>
-              <encoding>UTF-8</encoding>
-              <mavenFilteringHints>
-                <mavenFilteringHint>snippetFilter</mavenFilteringHint>
-              </mavenFilteringHints>
-            </configuration>
-          </execution>
-        </executions>
-        <dependencies>
-          <dependency>
-            <groupId>io.metaloom.maven</groupId>
-            <artifactId>snippet-resource-filter</artifactId>
-            <version>0.1.1</version>
-          </dependency>
-        </dependencies>
-      </plugin>
-    </plugins>
-  </build>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${jacoco.skip}</skip>
+                            <propertyName>jacoco.env</propertyName>
+                            <destFile>
+                                ${project.build.directory}/jacoco-partial.exec</destFile>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <skip>${skip.unit.tests}</skip>
+                    <argLine>-Xms128m -Xmx256m ${jacoco.env}</argLine>
+                    <forkedProcessTimeoutInSeconds>2700</forkedProcessTimeoutInSeconds>
+                    <rerunFailingTestsCount>0</rerunFailingTestsCount>
+                    <reuseForks>false</reuseForks>
+                    <forkCount>${surefire.forkcount}</forkCount>
+                    <trimStackTrace>false</trimStackTrace>
+                    <useSystemClassLoader>false</useSystemClassLoader>
+                    <excludes>
+                        <include>**/*AbstractTest.java</include>
+                        <include>**/*Abstract*Test.java</include>
+                        <exclude>**/*Abstract*.java</exclude>
+                        <exclude>**/Abstract*.java</exclude>
+                    </excludes>
+                    <groups>${surefire.groups}</groups>
+                    <excludedGroups>${surefire.excludedGroups}</excludedGroups>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <version>3.3.1</version>
+                <inherited>false</inherited>
+                <executions>
+                    <execution>
+                        <id>readme-md</id>
+                        <phase>clean</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.basedir}</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.basedir}/.github/md</directory>
+                                    <includes>
+                                        <include>README.md</include>
+                                    </includes>
+                                    <filtering>true</filtering>
+                                </resource>
+                            </resources>
+                            <encoding>UTF-8</encoding>
+                            <mavenFilteringHints>
+                                <mavenFilteringHint>snippetFilter</mavenFilteringHint>
+                            </mavenFilteringHints>
+                        </configuration>
+                    </execution>
+                </executions>
+                <dependencies>
+                    <dependency>
+                        <groupId>io.metaloom.maven</groupId>
+                        <artifactId>snippet-resource-filter</artifactId>
+                        <version>0.1.1</version>
+                    </dependency>
+                </dependencies>
+            </plugin>
+        </plugins>
+    </build>
 </project>

@@ -74,7 +74,7 @@
 
     <!-- Test -->
     <dependency>
-      <groupId>io.metaloom.loom</groupId>
+      <groupId>io.metaloom.loom.shared</groupId>
       <artifactId>loom-rest-model</artifactId>
       <type>test-jar</type>
       <scope>test</scope>
