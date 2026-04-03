@@ -1,0 +1,24 @@
+.DS_Store
+target
+.classpath
+.project
+.settings
+.bin
+.vscode
+.pmd*
+*.orig
+.index*
+hs_err_*.log
+.vertx
+dependency-reduced-pom.xml
+.checkstyle
+.testcontainers*
+.idea
+.factorypath
+*.iml
+keystore.jceks
+
+#dlib models
+worker/actions/facedetect/dlib/
+containers/server/config
+core/file-uploads
