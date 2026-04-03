@@ -108,7 +108,9 @@ public abstract class AbstractCRUDEndpointService<D extends CRUDDao<E>, E extend
 		Function<E, RestResponseModel<?>> builder) {
 		checkPerm(lrc, permission, () -> {
 			E element = creator.get();
-			dao().store(element);
+			if (element.getUuid() == null) {
+				dao().store(element);
+			}
 			RestResponseModel<?> response = builder.apply(element);
 			lrc.send(response, 201);
 		});

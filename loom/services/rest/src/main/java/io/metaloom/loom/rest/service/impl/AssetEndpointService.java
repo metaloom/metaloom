@@ -162,11 +162,15 @@ public class AssetEndpointService extends AbstractCRUDEndpointService<AssetDao, 
 			Asset asset = dao().createAsset(userUuid, sha512sum, mimeType, filename, origin, size);
 			updateAssetFields(request, asset);
 
+			// Store asset first so it gets a UUID (needed for FK constraints on child entities)
+			dao().store(asset);
+
 			// Create initial embedding for asset
 			for (EmbeddingCreateRequest embeddingRequest : request.getEmbeddings()) {
 				Float[] vectorData = embeddingRequest.getVector();
 				Embedding embedding = daos().embeddingDao().createEmbedding(userUuid, asset.getUuid(), vectorData,
 					EmbeddingType.VIDEO4J_FINGERPRINT_V2);
+				daos().embeddingDao().store(embedding);
 			}
 
 			// Create component records

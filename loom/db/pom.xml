@@ -23,8 +23,8 @@
 	<dependencyManagement>
 		<dependencies>
 			<dependency>
-				<groupId>io.metaloom.loom</groupId>
-				<artifactId>loom-bom</artifactId>
+				<groupId>io.metaloom</groupId>
+				<artifactId>bom</artifactId>
 				<type>pom</type>
 				<scope>import</scope>
 				<version>1.0.0-SNAPSHOT</version>

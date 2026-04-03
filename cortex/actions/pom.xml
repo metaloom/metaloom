@@ -32,8 +32,8 @@
     <dependencyManagement>
         <dependencies>
             <dependency>
-                <groupId>io.metaloom.loom</groupId>
-                <artifactId>loom-bom</artifactId>
+                <groupId>io.metaloom</groupId>
+                <artifactId>bom</artifactId>
                 <version>${project.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
