@@ -11,7 +11,7 @@
 	</parent>
 
 	<artifactId>loom-db-memory</artifactId>
-	<name>Loom - DB :: In-Memory</name>
+	<name>MetaLoom // Loom :: DB :: In-Memory</name>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

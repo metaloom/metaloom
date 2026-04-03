@@ -11,7 +11,7 @@
 	</parent>
 
 	<artifactId>loom-service-fs</artifactId>
-	<name>Loom - Service :: Filesystem</name>
+	<name>MetaLoom // Loom :: Service :: Filesystem</name>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

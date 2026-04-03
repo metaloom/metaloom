@@ -10,7 +10,7 @@
 
 	<groupId>io.metaloom.loom.db</groupId>
 	<artifactId>loom-db</artifactId>
-	<name>Loom :: DB</name>
+	<name>MetaLoom // Loom :: DB</name>
 	<description>Loom Database</description>
 	<packaging>pom</packaging>
 

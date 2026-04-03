@@ -11,7 +11,7 @@
 	</parent>
 
 	<artifactId>loom-service-eventbus</artifactId>
-	<name>Loom - Service :: Eventbus</name>
+	<name>MetaLoom // Loom :: Service :: Eventbus</name>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

@@ -11,7 +11,7 @@
 	</parent>
 
 	<artifactId>loom-service-plugins</artifactId>
-	<name>Loom - Service :: Plugins</name>
+	<name>MetaLoom // Loom :: Service :: Plugins</name>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

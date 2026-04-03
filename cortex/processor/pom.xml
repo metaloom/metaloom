@@ -12,7 +12,7 @@
         <version>1.0.0-SNAPSHOT</version>
     </parent>
 
-    <name>Cortex :: Processor</name>
+    <name>MetaLoom // Cortex :: Processor</name>
 
     <dependencyManagement>
         <dependencies>

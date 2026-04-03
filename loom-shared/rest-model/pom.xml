@@ -11,7 +11,7 @@
   </parent>
 
   <artifactId>loom-rest-model</artifactId>
-  <name>Loom :: Shared - REST Model</name>
+  <name>MetaLoom // Loom :: Shared :: REST Model</name>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

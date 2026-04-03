@@ -11,7 +11,7 @@
     </parent>
 
     <artifactId>loom-service-logger</artifactId>
-    <name>Loom - Service :: Logging</name>
+    <name>MetaLoom // Loom :: Service :: Logging</name>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

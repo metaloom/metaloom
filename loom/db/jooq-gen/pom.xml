@@ -9,7 +9,7 @@
 	</parent>
 
 	<artifactId>loom-db-jooq-gen</artifactId>
-	<name>Loom - DB :: JOOQ Generator</name>
+	<name>MetaLoom // Loom :: DB :: JOOQ Generator</name>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

@@ -10,7 +10,7 @@
         <version>1.0.0-SNAPSHOT</version>
     </parent>
 
-    <name>Cortex :: Actions - Loom</name>
+    <name>MetaLoom // Cortex :: Actions :: Loom</name>
 
 
     <dependencies>

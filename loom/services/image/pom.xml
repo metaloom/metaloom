@@ -11,7 +11,7 @@
 	</parent>
 
 	<artifactId>loom-service-image</artifactId>
-	<name>Loom - Service :: Image</name>
+	<name>MetaLoom // Loom :: Service :: Image</name>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

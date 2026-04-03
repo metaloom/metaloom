@@ -10,7 +10,7 @@
 	</parent>
 
 	<artifactId>loom-db-jooq</artifactId>
-	<name>Loom - DB :: JOOQ</name>
+	<name>MetaLoom // Loom :: DB :: JOOQ</name>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

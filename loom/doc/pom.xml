@@ -11,7 +11,7 @@
 	</parent>
 
 	<artifactId>loom-doc</artifactId>
-	<name>Loom :: Documentation</name>
+	<name>MetaLoom // Loom :: Documentation</name>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

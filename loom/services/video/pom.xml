@@ -11,7 +11,7 @@
 	</parent>
 
 	<artifactId>loom-service-video</artifactId>
-	<name>Loom - Service :: Video</name>
+	<name>MetaLoom // Loom :: Service :: Video</name>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

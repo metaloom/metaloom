@@ -11,7 +11,7 @@
 	</parent>
 
 	<artifactId>loom-service-lucene</artifactId>
-	<name>Loom - Service :: Lucene</name>
+	<name>MetaLoom // Loom :: Service :: Lucene</name>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

@@ -11,7 +11,7 @@
 	</parent>
 
 	<artifactId>loom-service-auth-auth0</artifactId>
-	<name>Loom - Service - Authentication - Auth0</name>
+	<name>MetaLoom // Loom :: Service :: Authentication :: Auth0</name>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

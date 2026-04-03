@@ -9,7 +9,7 @@
 	</parent>
 
 	<artifactId>loom-proto</artifactId>
-	<name>Loom :: Protobuf</name>
+	<name>MetaLoom // Loom :: Shared :: Protobuf</name>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

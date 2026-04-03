@@ -11,7 +11,7 @@
 	</parent>
 
 	<artifactId>loom-service-auth-keycloak</artifactId>
-	<name>Loom - Service :: Authentication - Keycloak</name>
+	<name>MetaLoom // Loom :: Service :: Authentication :: Keycloak</name>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

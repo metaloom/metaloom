@@ -12,7 +12,7 @@
 
     <groupId>io.metaloom.loom.service</groupId>
     <artifactId>loom-services</artifactId>
-    <name>Loom :: Services</name>
+    <name>MetaLoom // Loom :: Services</name>
     <packaging>pom</packaging>
 
     <properties>

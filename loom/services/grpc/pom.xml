@@ -11,7 +11,7 @@
   </parent>
 
   <artifactId>loom-service-grpc</artifactId>
-  <name>Loom - Service :: gRPC</name>
+  <name>MetaLoom // Loom :: Service :: gRPC</name>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

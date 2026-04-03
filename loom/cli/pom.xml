@@ -11,7 +11,7 @@
 	</parent>
 
 	<artifactId>loom-cli</artifactId>
-	<name>Loom :: CLI</name>
+	<name>MetaLoom // Loom :: CLI</name>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

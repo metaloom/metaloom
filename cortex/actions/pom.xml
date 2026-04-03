@@ -27,7 +27,7 @@
         <module>loom</module>
     </modules>
 
-    <name>Cortex :: Actions</name>
+    <name>MetaLoom // Cortex :: Actions</name>
 
     <dependencyManagement>
         <dependencies>

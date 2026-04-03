@@ -9,7 +9,7 @@
 	</parent>
 
 	<artifactId>loom-service-auth</artifactId>
-	<name>Loom - Service :: Authentication</name>
+	<name>MetaLoom // Loom :: Service :: Authentication</name>
 	<packaging>pom</packaging>
 
 	<properties>

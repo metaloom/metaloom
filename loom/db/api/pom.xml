@@ -11,7 +11,7 @@
     </parent>
 
     <artifactId>loom-db-api</artifactId>
-    <name>Loom - DB :: API</name>
+    <name>MetaLoom // Loom :: DB :: API</name>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

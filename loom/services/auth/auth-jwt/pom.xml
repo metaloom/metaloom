@@ -11,7 +11,7 @@
   </parent>
 
   <artifactId>loom-service-auth-jwt</artifactId>
-  <name>Loom - Service :: Authentication - JWT</name>
+  <name>MetaLoom // Loom :: Service :: Authentication :: JWT</name>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

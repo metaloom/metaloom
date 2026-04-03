@@ -11,7 +11,7 @@
 	</parent>
 
 	<artifactId>loom-service-tika</artifactId>
-	<name>Loom - Service :: Tika</name>
+	<name>MetaLoom // Loom :: Service :: Tika</name>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

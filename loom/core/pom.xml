@@ -11,7 +11,7 @@
   </parent>
 
   <artifactId>loom-core</artifactId>
-  <name>Loom :: Core</name>
+  <name>MetaLoom // Loom :: Core</name>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

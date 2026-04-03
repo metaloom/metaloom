@@ -11,7 +11,7 @@
 	</parent>
 
 	<artifactId>loom-service-graphql</artifactId>
-	<name>Loom - Service :: GraphQL</name>
+	<name>MetaLoom // Loom :: Service :: GraphQL</name>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

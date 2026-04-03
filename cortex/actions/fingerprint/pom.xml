@@ -11,7 +11,7 @@
         <version>1.0.0-SNAPSHOT</version>
     </parent>
 
-    <name>Cortex :: Actions - Fingerprint</name>
+    <name>MetaLoom // Cortex :: Actions :: Fingerprint</name>
 
     <dependencyManagement>
         <dependencies>

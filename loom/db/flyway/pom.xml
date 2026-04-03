@@ -11,7 +11,7 @@
 	</parent>
 
 	<artifactId>loom-db-flyway</artifactId>
-	<name>Loom - DB :: Flyway</name>
+	<name>MetaLoom // Loom :: DB :: Flyway</name>
 	<description>Flyway specific DB parts for Loom</description>
 
 	<properties>

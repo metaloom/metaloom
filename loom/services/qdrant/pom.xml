@@ -11,7 +11,7 @@
 	</parent>
 
 	<artifactId>loom-service-qdrant</artifactId>
-	<name>Loom - Service :: Qdrant</name>
+	<name>MetaLoom // Loom :: Service :: Qdrant</name>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
