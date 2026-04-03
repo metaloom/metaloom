@@ -49,12 +49,10 @@
     <dependency>
       <groupId>io.metaloom.loom.service</groupId>
       <artifactId>loom-service-rest</artifactId>
-      <version>${project.version}</version>
     </dependency>
     <dependency>
       <groupId>io.metaloom.loom.service</groupId>
       <artifactId>loom-service-mcp</artifactId>
-      <version>${project.version}</version>
     </dependency>
     <dependency>
       <groupId>io.metaloom.loom.service</groupId>

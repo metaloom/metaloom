@@ -9,12 +9,10 @@ import javax.inject.Singleton;
 
 import org.jooq.DSLContext;
 import org.jooq.Field;
-import org.jooq.Record;
 import org.jooq.Table;
 import org.jooq.TableRecord;
 import org.jooq.UpdatableRecord;
 import org.jooq.impl.DSL;
-import org.jooq.impl.SQLDataType;
 
 import io.metaloom.loom.db.model.asset.AssetAudioComp;
 import io.metaloom.loom.db.model.asset.AssetComponentDao;
