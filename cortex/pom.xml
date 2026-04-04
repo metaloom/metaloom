@@ -25,6 +25,9 @@
         <module>processor</module>
         <module>core</module>
         <module>cli</module>
+        <module>pipeline-api</module>
+        <module>pipeline-common</module>
+        <module>pipeline-core</module>
     </modules>
 
     <properties>
@@ -88,6 +91,21 @@
             <dependency>
                 <groupId>io.metaloom.cortex</groupId>
                 <artifactId>cortex-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.cortex</groupId>
+                <artifactId>cortex-pipeline-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.cortex</groupId>
+                <artifactId>cortex-pipeline-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.cortex</groupId>
+                <artifactId>cortex-pipeline-core</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
