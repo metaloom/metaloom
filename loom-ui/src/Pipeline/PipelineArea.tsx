@@ -9,23 +9,23 @@ import { styled } from "@mui/system";
 
 import Typography from "@mui/material/Typography";
 import "./flow-style.css";
-import "react-flow-renderer/dist/theme-default.css";
+import "reactflow/dist/style.css";
 
 import ReactFlow, {
   ReactFlowProvider,
-  addEdge,
-  removeElements,
   Controls,
-} from "react-flow-renderer";
+} from "reactflow";
 
-const elements = [
+const nodes = [
   { id: "src", data: { label: "Source" }, position: { x: 250, y: 5 } },
-  { id: "fp", data: { label: <div>Fingerprint</div> }, position: { x: 100, y: 100 } },
-  { id: "hash", data: { label: <div>Hash</div> }, position: { x: 100, y: 100 } },
-  { id: "resize", data: { label: <div>Resize</div> }, position: { x: 100, y: 100 } },
-  { id: "filter", data: { label: <div>Filter</div> }, position: { x: 100, y: 100 } },
-  { id: "s3", data: { label: <div>S3</div> }, position: { x: 100, y: 100 } },
+  { id: "fp", data: { label: "Fingerprint" }, position: { x: 100, y: 100 } },
+  { id: "hash", data: { label: "Hash" }, position: { x: 100, y: 100 } },
+  { id: "resize", data: { label: "Resize" }, position: { x: 100, y: 100 } },
+  { id: "filter", data: { label: "Filter" }, position: { x: 100, y: 100 } },
+  { id: "s3", data: { label: "S3" }, position: { x: 100, y: 100 } },
+];
 
+const edges = [
   { id: "e1", source: "src", target: "filter", animated: true },
   { id: "e2", source: "filter", target: "hash", animated: true },
   { id: "e3", source: "filter", target: "resize", animated: true },
@@ -33,7 +33,7 @@ const elements = [
   { id: "e5", source: "resize", target: "s3", animated: true },
 ];
 
-const BasicFlow = () => <ReactFlow style={{height: 700, width: 1500}} elements={elements} />;
+const BasicFlow = () => <ReactFlow style={{height: 700, width: 1500}} nodes={nodes} edges={edges} />;
 
 const StyledFlow = styled(BasicFlow)(
   ({ theme }) => `

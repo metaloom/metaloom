@@ -25,6 +25,6 @@ function App() {
   );
 }
 
-const container = document.querySelector("#app");
+const container = document.querySelector("#app")!;
 const root = createRoot(container);
 root.render(<App />);

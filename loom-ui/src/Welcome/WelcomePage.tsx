@@ -2,9 +2,8 @@ import * as React from "react";
 import Typography from "@mui/material/Typography";
 import { Container, Icon, Box, SvgIcon } from "@mui/material";
 import { styled } from "@mui/system";
-import { makeStyles } from "@mui/styles";
 
-import { ReactComponent as LoomSVG } from "../img/logo_word_min.svg";
+import LoomSVG from "../img/logo_word_min.svg?react";
 import  LoomImg from "../img/logo_word_3d.png";
 
 

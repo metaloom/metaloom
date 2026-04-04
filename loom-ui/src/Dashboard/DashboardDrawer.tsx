@@ -21,7 +21,7 @@ import BarChartIcon from "@mui/icons-material/BarChart";
 import LayersIcon from "@mui/icons-material/Layers";
 import AssignmentIcon from "@mui/icons-material/Assignment";
 import Typography from "@mui/material/Typography";
-import { ReactComponent as LoomLogo } from "../img/logo_picto.svg";
+import LoomLogo from "../img/logo_picto.svg?react";
 import { Link } from "react-router-dom";
 import { SvgIcon } from "@mui/material";
 

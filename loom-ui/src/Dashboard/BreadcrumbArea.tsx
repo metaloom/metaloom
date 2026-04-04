@@ -19,7 +19,7 @@ export default function BreadcrumbArea({
   setBreadcrumb,
 }: BreadcrumbAreaProps) {
   const handleInputChange = useCallback(
-    (event) => {
+    (event: React.ChangeEvent<HTMLInputElement>) => {
       setBreadcrumb(event.target.value);
     },
     [setBreadcrumb]
