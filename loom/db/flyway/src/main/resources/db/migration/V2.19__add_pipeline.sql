@@ -1,3 +1,9 @@
+-- Add pipeline permissions to the loom_permission enum
+ALTER TYPE "loom_permission" ADD VALUE 'CREATE_PIPELINE';
+ALTER TYPE "loom_permission" ADD VALUE 'READ_PIPELINE';
+ALTER TYPE "loom_permission" ADD VALUE 'UPDATE_PIPELINE';
+ALTER TYPE "loom_permission" ADD VALUE 'DELETE_PIPELINE';
+
 CREATE TABLE pipeline (
     uuid           UUID NOT NULL DEFAULT uuid_generate_v4(),
     name           VARCHAR NOT NULL,
