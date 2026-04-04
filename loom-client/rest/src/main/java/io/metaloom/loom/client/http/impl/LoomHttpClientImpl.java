@@ -62,6 +62,10 @@ import io.metaloom.loom.rest.model.library.LibraryCreateRequest;
 import io.metaloom.loom.rest.model.library.LibraryListResponse;
 import io.metaloom.loom.rest.model.library.LibraryResponse;
 import io.metaloom.loom.rest.model.library.LibraryUpdateRequest;
+import io.metaloom.loom.rest.model.pipeline.PipelineCreateRequest;
+import io.metaloom.loom.rest.model.pipeline.PipelineListResponse;
+import io.metaloom.loom.rest.model.pipeline.PipelineResponse;
+import io.metaloom.loom.rest.model.pipeline.PipelineUpdateRequest;
 import io.metaloom.loom.rest.model.project.ProjectCreateRequest;
 import io.metaloom.loom.rest.model.project.ProjectListResponse;
 import io.metaloom.loom.rest.model.project.ProjectResponse;
@@ -459,6 +463,33 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<LibraryResponse> createLibrary(LibraryCreateRequest request) {
 		return postRequest("libraries", request, LibraryResponse.class);
+	}
+
+	// PIPELINE
+
+	@Override
+	public LoomClientHttpRequest<PipelineResponse> loadPipeline(UUID pipelineUuid) {
+		return getRequest("pipelines/" + pipelineUuid, PipelineResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> deletePipeline(UUID pipelineUuid) {
+		return deleteRequest("pipelines/" + pipelineUuid);
+	}
+
+	@Override
+	public LoomClientHttpRequest<PipelineListResponse> listPipelines() {
+		return getRequest("pipelines", PipelineListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<PipelineResponse> updatePipeline(UUID pipelineUuid, PipelineUpdateRequest request) {
+		return postRequest("pipelines/" + pipelineUuid, request, PipelineResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<PipelineResponse> createPipeline(PipelineCreateRequest request) {
+		return postRequest("pipelines", request, PipelineResponse.class);
 	}
 
 	// ANNOTATION

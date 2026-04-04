@@ -29,6 +29,7 @@ import io.metaloom.loom.db.jooq.tables.JooqLibrary;
 import io.metaloom.loom.db.jooq.tables.JooqLibraryAsset;
 import io.metaloom.loom.db.jooq.tables.JooqLibraryCollection;
 import io.metaloom.loom.db.jooq.tables.JooqLoom;
+import io.metaloom.loom.db.jooq.tables.JooqPipeline;
 import io.metaloom.loom.db.jooq.tables.JooqProject;
 import io.metaloom.loom.db.jooq.tables.JooqProjectCollection;
 import io.metaloom.loom.db.jooq.tables.JooqProjectLibrary;
@@ -208,6 +209,11 @@ public class JooqPublic extends SchemaImpl {
     public final JooqLoom LOOM = JooqLoom.LOOM;
 
     /**
+     * The table <code>public.pipeline</code>.
+     */
+    public final JooqPipeline PIPELINE = JooqPipeline.PIPELINE;
+
+    /**
      * The table <code>public.project</code>.
      */
     public final JooqProject PROJECT = JooqProject.PROJECT;
@@ -355,6 +361,7 @@ public class JooqPublic extends SchemaImpl {
             JooqLibraryAsset.LIBRARY_ASSET,
             JooqLibraryCollection.LIBRARY_COLLECTION,
             JooqLoom.LOOM,
+            JooqPipeline.PIPELINE,
             JooqProject.PROJECT,
             JooqProjectCollection.PROJECT_COLLECTION,
             JooqProjectLibrary.PROJECT_LIBRARY,

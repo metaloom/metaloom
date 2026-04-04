@@ -20,8 +20,7 @@ import io.metaloom.loom.db.model.tag.TagDao;
 import io.metaloom.loom.db.model.task.TaskDao;
 import io.metaloom.loom.db.model.token.TokenDao;
 import io.metaloom.loom.db.model.user.UserDao;
-import io.metaloom.loom.db.model.webhook.WebhookDao;
-
+import io.metaloom.loom.db.model.webhook.WebhookDao;import io.metaloom.loom.db.model.pipeline.PipelineDao;
 /**
  * Aggregated list of all loom DAOs.
  */
@@ -84,5 +83,9 @@ public interface DaoCollection {
 	ReactionDao reactionDao();
 
 	CommentDao commentDao();
+
+	// Pipeline
+
+	PipelineDao pipelineDao();
 
 }

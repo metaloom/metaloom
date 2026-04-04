@@ -18,6 +18,7 @@ public interface LoomModelBuilder extends
 	TaskModelBuilder,
 	TokenModelBuilder,
 	LibraryModelBuilder,
+	PipelineModelBuilder,
 	ProjectModelBuilder,
 	ReactionModelBuilder,
 	WebhookModelBuilder {

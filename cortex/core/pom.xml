@@ -30,6 +30,14 @@
             <artifactId>cortex-processor</artifactId>
         </dependency>
         <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-pipeline-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-pipeline-core</artifactId>
+        </dependency>
+        <dependency>
             <groupId>info.picocli</groupId>
             <artifactId>picocli</artifactId>
         </dependency>

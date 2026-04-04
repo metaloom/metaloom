@@ -12,6 +12,7 @@ import io.metaloom.loom.db.jooq.dao.cluster.ClusterDaoImpl;
 import io.metaloom.loom.db.jooq.dao.collection.CollectionDaoImpl;
 import io.metaloom.loom.db.jooq.dao.comment.CommentDaoImpl;
 import io.metaloom.loom.db.jooq.dao.embedding.EmbeddingDaoImpl;
+import io.metaloom.loom.db.jooq.dao.pipeline.PipelineDaoImpl;
 import io.metaloom.loom.db.jooq.dao.group.GroupDaoImpl;
 import io.metaloom.loom.db.jooq.dao.library.LibraryDaoImpl;
 import io.metaloom.loom.db.jooq.dao.perm.PermissionDaoImpl;
@@ -33,6 +34,7 @@ import io.metaloom.loom.db.model.cluster.ClusterDao;
 import io.metaloom.loom.db.model.collection.CollectionDao;
 import io.metaloom.loom.db.model.comment.CommentDao;
 import io.metaloom.loom.db.model.embedding.EmbeddingDao;
+import io.metaloom.loom.db.model.pipeline.PipelineDao;
 import io.metaloom.loom.db.model.group.GroupDao;
 import io.metaloom.loom.db.model.library.LibraryDao;
 import io.metaloom.loom.db.model.perm.PermissionDao;
@@ -110,5 +112,8 @@ public abstract class JooqLoomDaoBindModule {
 
 	@Binds
 	abstract ClusterDao clusterDao(ClusterDaoImpl dao);
+
+	@Binds
+	abstract PipelineDao pipelineDao(PipelineDaoImpl dao);
 
 }

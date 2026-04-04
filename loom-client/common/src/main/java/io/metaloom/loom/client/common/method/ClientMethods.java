@@ -16,6 +16,7 @@ public interface ClientMethods extends
 	ReactionMethods,
 	TokenMethods,
 	LibraryMethods,
+	PipelineMethods,
 	ProjectMethods,
 	CommentMethods,
 	EmbeddingMethods {

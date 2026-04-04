@@ -18,6 +18,7 @@ import io.metaloom.loom.rest.endpoint.impl.EmbeddingEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.GraphQLEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.GroupEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.LibraryEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.PipelineEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.LoginEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.ProjectEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.RESTInfoEndpoint;
@@ -46,6 +47,7 @@ public class EndpointModule {
 		TagEndpoint tagEndpoint,
 		WebhookEndpoint webhookEndpoint,
 		LibraryEndpoint libraryEndpoint,
+		PipelineEndpoint pipelineEndpoint,
 		ProjectEndpoint projectEndpoint,
 		LoginEndpoint loginEndpoint,
 		RESTInfoEndpoint restInfoEndpoint,
@@ -65,6 +67,7 @@ public class EndpointModule {
 			tagEndpoint,
 			webhookEndpoint,
 			libraryEndpoint,
+			pipelineEndpoint,
 			projectEndpoint,
 			loginEndpoint,
 			restInfoEndpoint,

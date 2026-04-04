@@ -13,6 +13,7 @@ import io.metaloom.loom.db.model.embedding.EmbeddingDao;
 import io.metaloom.loom.db.model.group.GroupDao;
 import io.metaloom.loom.db.model.library.LibraryDao;
 import io.metaloom.loom.db.model.perm.PermissionDao;
+import io.metaloom.loom.db.model.pipeline.PipelineDao;
 import io.metaloom.loom.db.model.project.ProjectDao;
 import io.metaloom.loom.db.model.reaction.ReactionDao;
 import io.metaloom.loom.db.model.role.RoleDao;
@@ -125,6 +126,12 @@ public interface DaoProvider extends DaoCollection {
 
 	default CommentDao commentDao() {
 		return daos().commentDao();
+	}
+
+	// Pipeline
+
+	default PipelineDao pipelineDao() {
+		return daos().pipelineDao();
 	}
 
 }
