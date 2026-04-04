@@ -47,6 +47,10 @@ import io.metaloom.loom.rest.model.reaction.ReactionCreateRequest;
 import io.metaloom.loom.rest.model.reaction.ReactionResponse;
 import io.metaloom.loom.rest.model.tag.TagCreateRequest;
 import io.metaloom.loom.rest.model.tag.TagResponse;
+import io.metaloom.loom.rest.model.pipeline.PipelineCreateRequest;
+import io.metaloom.loom.rest.model.pipeline.PipelineListResponse;
+import io.metaloom.loom.rest.model.pipeline.PipelineResponse;
+import io.metaloom.loom.rest.model.pipeline.PipelineUpdateRequest;
 import io.metaloom.loom.rest.model.task.TaskCreateRequest;
 import io.metaloom.loom.rest.model.task.TaskPriority;
 import io.metaloom.loom.rest.model.task.TaskResponse;
@@ -216,6 +220,54 @@ public class CombinedEndpointTest extends AbstractEndpointTest {
 			ReactionResponse reaction1 = client.createAssetReaction(asset.getUuid(), reactionRequest).sync();
 			ReactionResponse reaction2 = client.createCommentReaction(comment.getUuid(), reactionRequest).sync();
 			ReactionResponse reaction3 = client.createTaskReaction(task.getUuid(), reactionRequest).sync();
+
+			// Pipeline CRUD
+			PipelineCreateRequest pipelineRequest = new PipelineCreateRequest();
+			pipelineRequest.setName("test-pipeline");
+			pipelineRequest.setDescription("A test pipeline for combined endpoint test");
+			pipelineRequest.setDefinition(new JsonObject()
+				.put("nodes", new JsonObject()
+					.put("sha512", new JsonObject()
+						.put("name", "SHA-512 Hash")
+						.put("mode", "PARALLEL")
+						.put("concurrency", 4))));
+			pipelineRequest.setEnabled(true);
+			pipelineRequest.setPriority(10);
+			pipelineRequest.setDryRun(false);
+			PipelineResponse pipeline = client.createPipeline(pipelineRequest).sync();
+			assertNotNull(pipeline.getUuid(), "Pipeline UUID should not be null");
+			assertEquals("test-pipeline", pipeline.getName());
+			assertEquals("A test pipeline for combined endpoint test", pipeline.getDescription());
+			assertNotNull(pipeline.getDefinition(), "Pipeline definition should not be null");
+			assertEquals(true, pipeline.isEnabled());
+			assertEquals(Integer.valueOf(10), pipeline.getPriority());
+			assertEquals(false, pipeline.isDryRun());
+
+			// Load pipeline
+			PipelineResponse loadedPipeline = client.loadPipeline(pipeline.getUuid()).sync();
+			assertNotNull(loadedPipeline);
+			assertEquals(pipeline.getUuid(), loadedPipeline.getUuid());
+			assertEquals("test-pipeline", loadedPipeline.getName());
+
+			// Update pipeline
+			PipelineUpdateRequest pipelineUpdateRequest = new PipelineUpdateRequest();
+			pipelineUpdateRequest.setName("updated-pipeline");
+			pipelineUpdateRequest.setDescription("Updated description");
+			pipelineUpdateRequest.setEnabled(false);
+			pipelineUpdateRequest.setPriority(20);
+			PipelineResponse updatedPipeline = client.updatePipeline(pipeline.getUuid(), pipelineUpdateRequest).sync();
+			assertEquals("updated-pipeline", updatedPipeline.getName());
+			assertEquals("Updated description", updatedPipeline.getDescription());
+			assertEquals(false, updatedPipeline.isEnabled());
+			assertEquals(Integer.valueOf(20), updatedPipeline.getPriority());
+
+			// List pipelines
+			PipelineListResponse pipelineList = client.listPipelines().sync();
+			assertNotNull(pipelineList);
+			assertFalse(pipelineList.getData().isEmpty(), "Pipeline list should not be empty");
+
+			// Delete pipeline
+			client.deletePipeline(pipeline.getUuid()).sync();
 		}
 
 	}
