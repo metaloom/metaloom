@@ -22,7 +22,7 @@ public class TestEnvHelperTest {
 		}
 		TestDataCollection data = TestEnvHelper.prepareTestdata("postfix");
 		assertTrue(Files.exists(data.root()));
-		assertEquals(expectedPath.getAbsolutePath(), data.root().toAbsolutePath());
+		assertEquals(expectedPath.getAbsolutePath().toString(), data.root().toAbsolutePath().toString());
 	}
 
 }
