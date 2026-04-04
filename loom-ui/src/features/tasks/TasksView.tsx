@@ -3,11 +3,12 @@ import { useNavigate } from "react-router-dom";
 import {
   Box, Typography, Paper, Chip, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Avatar, Tooltip, IconButton, Tabs, Tab,
-  LinearProgress,
+  LinearProgress, Drawer, Divider,
 } from "@mui/material";
 import {
   TaskAltOutlined, RadioButtonUncheckedOutlined, PendingOutlined,
   BlockOutlined, RateReviewOutlined, PlayCircleOutline, ImageOutlined,
+  CloseOutlined, PersonOutlineOutlined, CalendarTodayOutlined, FlagOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { Task, Asset } from "../../types";
@@ -30,7 +31,141 @@ const statusConfig: Record<string, { label: string; color: string; icon: React.R
   blocked: { label: "Blocked", color: tokens.accent.red, icon: <BlockOutlined sx={{ fontSize: 13 }} /> },
 };
 
-function TaskRow({ task }: { task: Task }) {
+// ── Task Detail Drawer ────────────────────────────────────────────────────
+function TaskDetailDrawer({ task, onClose }: { task: Task | null; onClose: () => void }) {
+  const navigate = useNavigate();
+  if (!task) return null;
+  const sc = statusConfig[task.status] ?? statusConfig.open;
+  const pc = priorityColor[task.priority] ?? tokens.text.tertiary;
+  const assignee = USERS.find(u => u.id === task.assigneeId);
+  const asset = task.assetId ? ASSETS.find(a => a.id === task.assetId) : null;
+
+  return (
+    <Drawer
+      anchor="right"
+      open={!!task}
+      onClose={onClose}
+      PaperProps={{
+        sx: {
+          width: 420,
+          bgcolor: tokens.bg.surface,
+          border: `1px solid ${tokens.border.default}`,
+          backgroundImage: "none",
+        },
+      }}
+    >
+      <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+        {/* Header */}
+        <Box sx={{ px: 2.5, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", gap: 1 }}>
+          <Box sx={{ width: 4, height: 20, borderRadius: 2, bgcolor: pc, flexShrink: 0 }} />
+          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "0.95rem", flex: 1 }}>Task Detail</Typography>
+          <IconButton size="small" onClick={onClose}><CloseOutlined sx={{ fontSize: 16 }} /></IconButton>
+        </Box>
+
+        <Box sx={{ flex: 1, overflow: "auto", p: 2.5, display: "flex", flexDirection: "column", gap: 2.5 }}>
+          {/* Title */}
+          <Box>
+            <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem", lineHeight: 1.4, mb: 0.75 }}>{task.title}</Typography>
+            <Typography variant="body2" sx={{ color: tokens.text.secondary, lineHeight: 1.65 }}>{task.description}</Typography>
+          </Box>
+
+          {/* Status + Priority row */}
+          <Box sx={{ display: "flex", gap: 1 }}>
+            <Chip
+              icon={<Box sx={{ color: sc.color, display: "flex", ml: "6px !important" }}>{sc.icon}</Box>}
+              label={sc.label}
+              size="small"
+              sx={{ bgcolor: `${sc.color}22`, color: sc.color, border: `1px solid ${sc.color}44`, fontWeight: 600 }}
+            />
+            <Chip
+              label={task.priority}
+              size="small"
+              sx={{ bgcolor: `${pc}22`, color: pc, border: `1px solid ${pc}44`, fontWeight: 700 }}
+            />
+          </Box>
+
+          <Divider sx={{ borderColor: tokens.border.subtle }} />
+
+          {/* Meta grid */}
+          <Box sx={{ border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, overflow: "hidden" }}>
+            {[
+              {
+                icon: <PersonOutlineOutlined sx={{ fontSize: 14 }} />,
+                label: "Assignee",
+                content: assignee ? (
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Avatar sx={{ width: 20, height: 20, fontSize: "0.55rem", bgcolor: tokens.primary.dark }}>
+                      {assignee.name.split(" ").map(n => n[0]).join("")}
+                    </Avatar>
+                    <Typography sx={{ fontSize: "0.82rem", color: tokens.text.secondary }}>{assignee.name}</Typography>
+                  </Box>
+                ) : <Typography sx={{ fontSize: "0.82rem", color: tokens.text.tertiary }}>Unassigned</Typography>,
+              },
+              {
+                icon: <CalendarTodayOutlined sx={{ fontSize: 14 }} />,
+                label: "Due Date",
+                content: <Typography sx={{ fontSize: "0.82rem", color: task.dueDate && new Date(task.dueDate) < new Date() ? tokens.accent.red : tokens.text.secondary }}>
+                  {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : "—"}
+                </Typography>,
+              },
+              {
+                icon: <CalendarTodayOutlined sx={{ fontSize: 14 }} />,
+                label: "Created",
+                content: <Typography sx={{ fontSize: "0.82rem", color: tokens.text.secondary }}>{new Date(task.createdAt).toLocaleDateString()}</Typography>,
+              },
+            ].map(({ icon, label, content }, idx) => (
+              <Box key={label} sx={{ display: "grid", gridTemplateColumns: "130px 1fr", px: 1.5, py: 0.9, borderBottom: idx < 2 ? `1px solid ${tokens.border.subtle}` : "none", bgcolor: idx % 2 === 0 ? "transparent" : "rgba(255,255,255,0.02)", alignItems: "center" }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, color: tokens.text.tertiary }}>
+                  {icon}
+                  <Typography sx={{ color: tokens.text.tertiary, fontSize: "0.8rem" }}>{label}</Typography>
+                </Box>
+                {content}
+              </Box>
+            ))}
+          </Box>
+
+          {/* Linked asset */}
+          {asset && (
+            <Box>
+              <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.06em", color: tokens.text.tertiary, fontSize: "0.68rem", display: "block", mb: 0.75 }}>Linked Asset</Typography>
+              <Box
+                onClick={() => navigate(`/assets/${asset.id}`)}
+                sx={{
+                  display: "flex", alignItems: "center", gap: 1.25, p: 1.25,
+                  borderRadius: tokens.radius.md, border: `1px solid ${tokens.border.subtle}`,
+                  bgcolor: tokens.bg.elevated, cursor: "pointer",
+                  "&:hover": { borderColor: tokens.primary.main, bgcolor: tokens.primary.subtle },
+                  transition: "all 140ms ease",
+                }}
+              >
+                <Box sx={{ width: 48, height: 30, borderRadius: tokens.radius.sm, overflow: "hidden", flexShrink: 0 }}>
+                  <img src={asset.thumbnailUrl} alt={asset.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                </Box>
+                <Box sx={{ flex: 1, overflow: "hidden" }}>
+                  <Typography variant="caption" fontWeight={600} noWrap sx={{ fontSize: "0.78rem", color: tokens.text.primary, display: "block" }}>{asset.name}</Typography>
+                  <Typography variant="caption" sx={{ fontSize: "0.68rem", color: tokens.text.tertiary }}>{asset.type}</Typography>
+                </Box>
+              </Box>
+            </Box>
+          )}
+
+          {/* Tags */}
+          {task.tags.length > 0 && (
+            <Box>
+              <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.06em", color: tokens.text.tertiary, fontSize: "0.68rem", display: "block", mb: 0.75 }}>Tags</Typography>
+              <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
+                {task.tags.map(t => <Chip key={t} label={t} size="small" sx={{ height: 20, fontSize: "0.7rem", bgcolor: tokens.bg.elevated }} />)}
+              </Box>
+            </Box>
+          )}
+        </Box>
+      </Box>
+    </Drawer>
+  );
+}
+
+// ── Task Row ──────────────────────────────────────────────────────────────
+function TaskRow({ task, onSelect }: { task: Task; onSelect: (t: Task) => void }) {
   const navigate = useNavigate();
   const sc = statusConfig[task.status] ?? statusConfig.open;
   const pc = priorityColor[task.priority] ?? tokens.text.tertiary;
@@ -38,7 +173,7 @@ function TaskRow({ task }: { task: Task }) {
   const asset = task.assetId ? ASSETS.find(a => a.id === task.assetId) : null;
 
   return (
-    <TableRow hover sx={{ cursor: "pointer" }}>
+    <TableRow hover onClick={() => onSelect(task)} sx={{ cursor: "pointer" }}>
       <TableCell sx={{ pl: 2 }}>
         <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
           <Box sx={{ width: 3, height: 36, bgcolor: pc, borderRadius: 2, flexShrink: 0, mt: 0.25 }} />
@@ -55,11 +190,7 @@ function TaskRow({ task }: { task: Task }) {
       <TableCell>
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
           <Box sx={{ color: sc.color }}>{sc.icon}</Box>
-          <Chip
-            label={sc.label}
-            size="small"
-            sx={{ height: 18, fontSize: "0.65rem", bgcolor: `${sc.color}22`, color: sc.color }}
-          />
+          <Chip label={sc.label} size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: `${sc.color}22`, color: sc.color }} />
         </Box>
       </TableCell>
       <TableCell>
@@ -77,7 +208,7 @@ function TaskRow({ task }: { task: Task }) {
       <TableCell>
         {asset && (
           <Box
-            onClick={() => navigate(`/assets/${asset.id}`)}
+            onClick={(e) => { e.stopPropagation(); navigate(`/assets/${asset.id}`); }}
             sx={{
               display: "flex", alignItems: "center", gap: 0.75,
               px: 0.75, py: 0.25, borderRadius: tokens.radius.sm,
@@ -106,6 +237,7 @@ export default function TasksView() {
   const { activeProject } = useProject();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   useEffect(() => {
     if (!activeProject) return;
@@ -161,7 +293,7 @@ export default function TasksView() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {filtered.map(t => <TaskRow key={t.id} task={t} />)}
+              {filtered.map(t => <TaskRow key={t.id} task={t} onSelect={setSelectedTask} />)}
             </TableBody>
           </Table>
         </TableContainer>
@@ -172,6 +304,9 @@ export default function TasksView() {
           </Box>
         )}
       </Box>
+
+      <TaskDetailDrawer task={selectedTask} onClose={() => setSelectedTask(null)} />
     </Box>
   );
 }
+

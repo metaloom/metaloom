@@ -1,8 +1,8 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Box, Typography, Chip, Avatar, Paper, IconButton, Tab, Tabs,
-  Divider, Tooltip, LinearProgress, Stack,
+  Divider, Tooltip, LinearProgress, Stack, TextField,
 } from "@mui/material";
 import {
   ArrowBack, PlayArrowOutlined, PauseOutlined, PlayCircleOutline,
@@ -10,12 +10,16 @@ import {
   ThumbUpAltOutlined, TaskAltOutlined, AccountTreeOutlined,
   FlagOutlined, StarBorderOutlined, HelpOutlineOutlined,
   CheckCircleOutlineOutlined, AccessTimeOutlined,
+  ZoomInOutlined, ZoomOutOutlined, CenterFocusStrongOutlined,
+  FaceOutlined, GroupWorkOutlined, PersonOutlined,
+  ArrowUpwardOutlined, ArrowDownwardOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
-import { Asset, Comment, Annotation, Reaction, Task } from "../../types";
+import { Asset, Comment, Annotation, Reaction, Task, TranscriptSection, DetectedFace, FaceCluster, Person } from "../../types";
 import {
   mockAssetService, mockCommentService, mockAnnotationService,
-  mockReactionService, mockTaskService,
+  mockReactionService, mockTaskService, mockTranscriptService,
+  mockFaceDetectionService,
 } from "../../mock/services";
 import { USERS } from "../../mock/data";
 
@@ -57,6 +61,7 @@ const reactionColor: Record<string, string> = {
 // ── Video Timeline ────────────────────────────────────────────────────────
 interface TimelineMarker {
   time: number;
+  endTime?: number;
   type: "comment" | "annotation" | "reaction";
   color: string;
   label: string;
@@ -67,14 +72,18 @@ function VideoTimeline({
   duration,
   currentTime,
   markers,
+  hoveredMarkerId,
   onSeek,
   onMarkerClick,
+  onMarkerHover,
 }: {
   duration: number;
   currentTime: number;
   markers: TimelineMarker[];
+  hoveredMarkerId: string | null;
   onSeek: (t: number) => void;
   onMarkerClick: (id: string, type: string) => void;
+  onMarkerHover: (id: string | null) => void;
 }) {
   const barRef = useRef<HTMLDivElement>(null);
 
@@ -87,42 +96,77 @@ function VideoTimeline({
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-      {/* Scrubber */}
-      <Box
-        ref={barRef}
-        onClick={handleBarClick}
-        sx={{
-          position: "relative",
-          height: 6,
-          bgcolor: tokens.bg.overlay,
-          borderRadius: 3,
-          cursor: "pointer",
-          "&:hover": { height: 8 },
-          transition: "height 120ms ease",
-        }}
-      >
-        <Box sx={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${(currentTime / duration) * 100}%`, bgcolor: tokens.primary.main, borderRadius: 3 }} />
-        {markers.map(m => (
-          <Tooltip key={m.id} title={m.label}>
-            <Box
-              onClick={(e) => { e.stopPropagation(); onMarkerClick(m.id, m.type); }}
-              sx={{
-                position: "absolute",
-                left: `${(m.time / duration) * 100}%`,
-                top: "50%",
-                transform: "translate(-50%, -50%)",
-                width: 10, height: 10,
-                borderRadius: "50%",
-                bgcolor: m.color,
-                border: `2px solid ${tokens.bg.elevated}`,
-                cursor: "pointer",
-                zIndex: 2,
-                "&:hover": { width: 13, height: 13 },
-                transition: "width 100ms, height 100ms",
-              }}
-            />
-          </Tooltip>
-        ))}
+      {/* Scrubber — fixed-height wrapper prevents layout shift on hover */}
+      <Box sx={{ position: "relative", height: 12, display: "flex", alignItems: "center" }}>
+        <Box
+          ref={barRef}
+          onClick={handleBarClick}
+          sx={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            height: 6,
+            bgcolor: tokens.bg.overlay,
+            borderRadius: 3,
+            cursor: "pointer",
+            "&:hover": { height: 10 },
+            transition: "height 120ms ease",
+          }}
+        >
+          <Box sx={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${(currentTime / duration) * 100}%`, bgcolor: tokens.primary.main, borderRadius: 3 }} />
+          {/* Range highlight for hovered annotation with endTime */}
+          {markers.map(m => {
+            const isHovered = hoveredMarkerId === m.id;
+            if (!isHovered || !m.endTime || m.endTime <= m.time) return null;
+            const left = (m.time / duration) * 100;
+            const width = ((m.endTime - m.time) / duration) * 100;
+            return (
+              <Box
+                key={`range_${m.id}`}
+                sx={{
+                  position: "absolute",
+                  left: `${left}%`,
+                  width: `${width}%`,
+                  top: 0,
+                  bottom: 0,
+                  bgcolor: `${m.color}33`,
+                  borderLeft: `2px solid ${m.color}`,
+                  borderRight: `2px solid ${m.color}`,
+                  borderRadius: 1,
+                  pointerEvents: "none",
+                  zIndex: 1,
+                }}
+              />
+            );
+          })}
+          {markers.map(m => {
+            const isHovered = hoveredMarkerId === m.id;
+            return (
+              <Tooltip key={m.id} title={m.label}>
+                <Box
+                  onClick={(e) => { e.stopPropagation(); onMarkerClick(m.id, m.type); }}
+                  onMouseEnter={() => onMarkerHover(m.id)}
+                  onMouseLeave={() => onMarkerHover(null)}
+                  sx={{
+                    position: "absolute",
+                    left: `${(m.time / duration) * 100}%`,
+                    top: "50%",
+                    transform: "translate(-50%, -50%)",
+                    width: isHovered ? 14 : 10,
+                    height: isHovered ? 14 : 10,
+                    borderRadius: "50%",
+                    bgcolor: m.color,
+                    border: `2px solid ${isHovered ? tokens.bg.base : tokens.bg.elevated}`,
+                    boxShadow: isHovered ? `0 0 8px ${m.color}` : "none",
+                    cursor: "pointer",
+                    zIndex: isHovered ? 3 : 2,
+                    transition: "width 100ms, height 100ms, box-shadow 100ms",
+                  }}
+                />
+              </Tooltip>
+            );
+          })}
+        </Box>
       </Box>
       <Box sx={{ display: "flex", justifyContent: "space-between" }}>
         <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem" }}>
@@ -136,10 +180,115 @@ function VideoTimeline({
   );
 }
 
-// ── Comment Item ──────────────────────────────────────────────────────────
-function CommentItem({ comment, highlighted, onTimeClick }: { comment: Comment; highlighted: boolean; onTimeClick?: (t: number) => void }) {
+// ── Zoom/Pan Image Viewer ─────────────────────────────────────────────────
+function ZoomableImage({ src, alt }: { src: string; alt: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const dragging = useRef(false);
+  const lastMouse = useRef({ x: 0, y: 0 });
+
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    setScale(prev => {
+      const next = Math.min(8, Math.max(1, prev - e.deltaY * 0.002));
+      if (next <= 1) setPan({ x: 0, y: 0 });
+      return next;
+    });
+  }, []);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (scale <= 1) return;
+    e.preventDefault();
+    dragging.current = true;
+    lastMouse.current = { x: e.clientX, y: e.clientY };
+  }, [scale]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!dragging.current) return;
+    const dx = e.clientX - lastMouse.current.x;
+    const dy = e.clientY - lastMouse.current.y;
+    lastMouse.current = { x: e.clientX, y: e.clientY };
+    setPan(prev => ({ x: prev.x + dx, y: prev.y + dy }));
+  }, []);
+
+  const handleMouseUp = useCallback(() => { dragging.current = false; }, []);
+
+  const reset = useCallback(() => { setScale(1); setPan({ x: 0, y: 0 }); }, []);
+
+  // Minimap viewport fraction
+  const vpW = Math.min(1, 1 / scale);
+  const vpH = Math.min(1, 1 / scale);
+  const cw = containerRef.current?.clientWidth ?? 1;
+  const ch = containerRef.current?.clientHeight ?? 1;
+  const vpX = 0.5 - pan.x / (cw * scale) - vpW / 2;
+  const vpY = 0.5 - pan.y / (ch * scale) - vpH / 2;
+
   return (
     <Box
+      ref={containerRef}
+      onWheel={handleWheel}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+      sx={{
+        position: "relative", width: "100%", height: "100%",
+        overflow: "hidden", cursor: scale > 1 ? (dragging.current ? "grabbing" : "grab") : "default",
+      }}
+    >
+      <img
+        src={src}
+        alt={alt}
+        draggable={false}
+        style={{
+          maxWidth: "100%", maxHeight: "100%", objectFit: "contain",
+          transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
+          transformOrigin: "center center",
+          transition: dragging.current ? "none" : "transform 80ms ease-out",
+          userSelect: "none",
+        }}
+      />
+      {/* Zoom controls */}
+      <Box sx={{ position: "absolute", bottom: 8, right: 8, display: "flex", gap: 0.5, bgcolor: "rgba(0,0,0,0.6)", borderRadius: tokens.radius.md, px: 0.5, py: 0.25 }}>
+        <IconButton size="small" onClick={() => setScale(s => Math.min(8, s + 0.5))} sx={{ color: "#fff", p: 0.5 }}><ZoomInOutlined sx={{ fontSize: 16 }} /></IconButton>
+        <IconButton size="small" onClick={reset} sx={{ color: "#fff", p: 0.5 }}><CenterFocusStrongOutlined sx={{ fontSize: 16 }} /></IconButton>
+        <IconButton size="small" onClick={() => { const ns = Math.max(1, scale - 0.5); setScale(ns); if (ns <= 1) setPan({ x: 0, y: 0 }); }} sx={{ color: "#fff", p: 0.5 }}><ZoomOutOutlined sx={{ fontSize: 16 }} /></IconButton>
+        {scale > 1 && (
+          <Typography variant="caption" sx={{ color: "#fff", fontSize: "0.65rem", alignSelf: "center", px: 0.5 }}>
+            {Math.round(scale * 100)}%
+          </Typography>
+        )}
+      </Box>
+      {/* Minimap */}
+      {scale > 1 && (
+        <Box sx={{ position: "absolute", top: 8, right: 8, width: 100, height: 70, bgcolor: "rgba(0,0,0,0.5)", border: `1px solid ${tokens.border.default}`, borderRadius: tokens.radius.sm, overflow: "hidden" }}>
+          <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "contain", opacity: 0.7 }} />
+          <Box
+            sx={{
+              position: "absolute",
+              left: `${vpX * 100}%`,
+              top: `${vpY * 100}%`,
+              width: `${vpW * 100}%`,
+              height: `${vpH * 100}%`,
+              border: `2px solid ${tokens.primary.main}`,
+              bgcolor: `${tokens.primary.main}22`,
+              boxSizing: "border-box",
+              pointerEvents: "none",
+            }}
+          />
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+// ── Comment Item ──────────────────────────────────────────────────────────
+function CommentItem({ comment, highlighted, onTimeClick, onHover }: { comment: Comment; highlighted: boolean; onTimeClick?: (t: number) => void; onHover?: (id: string | null) => void }) {
+  return (
+    <Box
+      onMouseEnter={() => onHover?.(comment.id)}
+      onMouseLeave={() => onHover?.(null)}
       sx={{
         display: "flex",
         gap: 1.5,
@@ -148,6 +297,7 @@ function CommentItem({ comment, highlighted, onTimeClick }: { comment: Comment; 
         bgcolor: highlighted ? tokens.primary.subtle : "transparent",
         border: highlighted ? `1px solid ${tokens.primary.glow}` : "1px solid transparent",
         transition: "all 160ms ease",
+        cursor: "default",
       }}
     >
       <Avatar sx={{ width: 26, height: 26, fontSize: "0.65rem", bgcolor: tokens.bg.overlay, color: tokens.text.secondary, flexShrink: 0 }}>
@@ -183,9 +333,11 @@ function CommentItem({ comment, highlighted, onTimeClick }: { comment: Comment; 
 }
 
 // ── Annotation Item ───────────────────────────────────────────────────────
-function AnnotationItem({ ann, highlighted, onTimeClick }: { ann: Annotation; highlighted: boolean; onTimeClick?: (t: number) => void }) {
+function AnnotationItem({ ann, highlighted, onTimeClick, onHover }: { ann: Annotation; highlighted: boolean; onTimeClick?: (t: number) => void; onHover?: (id: string | null) => void }) {
   return (
     <Box
+      onMouseEnter={() => onHover?.(ann.id)}
+      onMouseLeave={() => onHover?.(null)}
       sx={{
         display: "flex",
         gap: 1.25,
@@ -194,6 +346,7 @@ function AnnotationItem({ ann, highlighted, onTimeClick }: { ann: Annotation; hi
         bgcolor: highlighted ? `${ann.color}14` : "transparent",
         border: highlighted ? `1px solid ${ann.color}44` : `1px solid transparent`,
         transition: "all 160ms ease",
+        cursor: "default",
       }}
     >
       <Box sx={{ width: 3, bgcolor: ann.color, borderRadius: 2, alignSelf: "stretch", flexShrink: 0 }} />
@@ -237,20 +390,275 @@ function ReactionChip({ reaction }: { reaction: Reaction }) {
 }
 
 // ── Task Item ─────────────────────────────────────────────────────────────
-function TaskItem({ task }: { task: Task }) {
+function TaskItem({ task, onClick }: { task: Task; onClick?: () => void }) {
   const priorityColor: Record<string, string> = { critical: tokens.accent.red, high: tokens.accent.amber, medium: tokens.accent.blue, low: tokens.text.tertiary };
   const statusColor: Record<string, string> = { open: tokens.accent.blue, in_progress: tokens.accent.amber, review: tokens.primary.main, done: tokens.accent.green, blocked: tokens.accent.red };
   return (
-    <Box sx={{ display: "flex", gap: 1.5, p: 1.5, borderRadius: tokens.radius.md, bgcolor: tokens.bg.overlay }}>
+    <Box onClick={onClick} sx={{ display: "flex", gap: 1.5, p: 1.5, borderRadius: tokens.radius.md, bgcolor: tokens.bg.overlay, cursor: "pointer", "&:hover": { bgcolor: tokens.primary.subtle, border: `1px solid ${tokens.primary.glow}` }, border: "1px solid transparent", transition: "all 140ms ease" }}>
       <Box sx={{ width: 3, height: "auto", bgcolor: priorityColor[task.priority], borderRadius: 2, flexShrink: 0, alignSelf: "stretch" }} />
       <Box sx={{ flex: 1 }}>
         <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.82rem", color: tokens.text.primary, mb: 0.5 }}>{task.title}</Typography>
         <Typography variant="caption" sx={{ color: tokens.text.secondary, fontSize: "0.78rem", display: "block", mb: 0.5 }}>{task.description}</Typography>
         <Box sx={{ display: "flex", gap: 0.75, alignItems: "center" }}>
           <Chip label={task.status.replace("_", " ")} size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: `${statusColor[task.status]}22`, color: statusColor[task.status] }} />
-          <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem" }}>→ {userName(task.assigneeId)}</Typography>
+          <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem" }}>→ {USERS.find(u => u.id === task.assigneeId)?.name ?? task.assigneeId}</Typography>
+          {task.dueDate && <Typography variant="caption" sx={{ color: new Date(task.dueDate) < new Date() ? tokens.accent.red : tokens.text.tertiary, fontSize: "0.68rem", ml: "auto" }}>{new Date(task.dueDate).toLocaleDateString()}</Typography>}
         </Box>
       </Box>
+    </Box>
+  );
+}
+
+// ── Main Asset Detail ─────────────────────────────────────────────────────
+
+// ── Transcript Panel ──────────────────────────────────────────────────────
+function TranscriptPanel({
+  sections,
+  currentTime,
+  onSeek,
+  onSectionsChange,
+}: {
+  sections: TranscriptSection[];
+  currentTime: number;
+  onSeek: (t: number) => void;
+  onSectionsChange: (s: TranscriptSection[]) => void;
+}) {
+  const sectionColors = [tokens.accent.blue, tokens.accent.green, tokens.accent.amber, "#c077db", tokens.primary.main, tokens.accent.red];
+
+  const moveBoundary = (idx: number, direction: "up" | "down") => {
+    const updated = [...sections];
+    const step = 0.5;
+    if (direction === "up" && idx > 0) {
+      const newTime = Math.max(updated[idx - 1].startTime + 0.5, updated[idx].startTime - step);
+      updated[idx - 1] = { ...updated[idx - 1], endTime: newTime };
+      updated[idx] = { ...updated[idx], startTime: newTime, words: updated[idx].words.filter(w => w.startTime >= newTime) };
+    } else if (direction === "down" && idx < updated.length - 1) {
+      const newTime = Math.min(updated[idx + 1].endTime - 0.5, updated[idx].endTime + step);
+      updated[idx] = { ...updated[idx], endTime: newTime };
+      updated[idx + 1] = { ...updated[idx + 1], startTime: newTime, words: updated[idx + 1].words.filter(w => w.startTime >= newTime) };
+    }
+    onSectionsChange(updated);
+  };
+
+  return (
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 0, overflow: "auto" }}>
+      {/* Section timeline bar */}
+      {sections.length > 0 && (() => {
+        const total = sections[sections.length - 1].endTime;
+        return (
+          <Box sx={{ mb: 1.5, px: 0.5 }}>
+            <Box sx={{ position: "relative", height: 20, bgcolor: tokens.bg.overlay, borderRadius: tokens.radius.sm, overflow: "hidden" }}>
+              {sections.map((s, i) => {
+                const left = (s.startTime / total) * 100;
+                const width = ((s.endTime - s.startTime) / total) * 100;
+                const active = currentTime >= s.startTime && currentTime <= s.endTime;
+                return (
+                  <Tooltip key={s.id} title={`${s.title} (${formatDuration(Math.round(s.startTime))} – ${formatDuration(Math.round(s.endTime))})`}>
+                    <Box
+                      onClick={() => onSeek(s.startTime)}
+                      sx={{
+                        position: "absolute", left: `${left}%`, width: `${width}%`, top: 0, bottom: 0,
+                        bgcolor: active ? `${sectionColors[i % sectionColors.length]}44` : `${sectionColors[i % sectionColors.length]}22`,
+                        borderLeft: i > 0 ? `1px solid ${tokens.bg.surface}` : "none",
+                        cursor: "pointer",
+                        "&:hover": { bgcolor: `${sectionColors[i % sectionColors.length]}55` },
+                        transition: "background-color 120ms ease",
+                      }}
+                    />
+                  </Tooltip>
+                );
+              })}
+              {/* Playhead */}
+              <Box sx={{ position: "absolute", left: `${(currentTime / total) * 100}%`, top: 0, bottom: 0, width: 2, bgcolor: tokens.primary.main, zIndex: 2, pointerEvents: "none" }} />
+            </Box>
+          </Box>
+        );
+      })()}
+
+      {sections.map((section, idx) => {
+        const color = sectionColors[idx % sectionColors.length];
+        const active = currentTime >= section.startTime && currentTime <= section.endTime;
+        return (
+          <Box key={section.id}>
+            {/* Boundary drag arrows between sections */}
+            {idx > 0 && (
+              <Box sx={{ display: "flex", justifyContent: "center", py: 0.25 }}>
+                <Box sx={{ display: "flex", gap: 0.25, bgcolor: tokens.bg.overlay, borderRadius: tokens.radius.sm, px: 0.5 }}>
+                  <IconButton size="small" onClick={() => moveBoundary(idx, "up")} sx={{ p: 0.25, color: tokens.text.tertiary, "&:hover": { color: tokens.text.primary } }}>
+                    <ArrowUpwardOutlined sx={{ fontSize: 12 }} />
+                  </IconButton>
+                  <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.6rem", alignSelf: "center", px: 0.25 }}>
+                    {formatDuration(Math.round(section.startTime))}
+                  </Typography>
+                  <IconButton size="small" onClick={() => moveBoundary(idx, "down")} sx={{ p: 0.25, color: tokens.text.tertiary, "&:hover": { color: tokens.text.primary } }}>
+                    <ArrowDownwardOutlined sx={{ fontSize: 12 }} />
+                  </IconButton>
+                </Box>
+              </Box>
+            )}
+
+            {/* Section block */}
+            <Box
+              sx={{
+                p: 1.5, borderRadius: tokens.radius.md,
+                borderLeft: `3px solid ${color}`,
+                bgcolor: active ? `${color}11` : "transparent",
+                transition: "background-color 160ms ease",
+              }}
+            >
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.75 }}>
+                <Typography variant="caption" fontWeight={700} sx={{ fontSize: "0.78rem", color }}>
+                  {section.title}
+                </Typography>
+                <Chip
+                  label={`${formatDuration(Math.round(section.startTime))} – ${formatDuration(Math.round(section.endTime))}`}
+                  size="small"
+                  onClick={() => onSeek(section.startTime)}
+                  sx={{ height: 16, fontSize: "0.62rem", bgcolor: `${color}22`, color, cursor: "pointer" }}
+                />
+              </Box>
+              <Typography variant="body2" sx={{ fontSize: "0.8rem", color: tokens.text.secondary, lineHeight: 1.8 }}>
+                {section.words.map((w, wi) => {
+                  const wordActive = currentTime >= w.startTime && currentTime <= w.endTime;
+                  return (
+                    <Box
+                      key={wi}
+                      component="span"
+                      onClick={() => onSeek(w.startTime)}
+                      sx={{
+                        cursor: "pointer",
+                        bgcolor: wordActive ? `${tokens.primary.main}33` : "transparent",
+                        borderRadius: wordActive ? "2px" : 0,
+                        px: wordActive ? 0.25 : 0,
+                        fontWeight: wordActive ? 600 : 400,
+                        color: wordActive ? tokens.primary.light : tokens.text.secondary,
+                        transition: "all 80ms ease",
+                        "&:hover": { bgcolor: `${tokens.primary.main}22`, borderRadius: "2px" },
+                      }}
+                    >
+                      {w.word}{" "}
+                    </Box>
+                  );
+                })}
+              </Typography>
+            </Box>
+          </Box>
+        );
+      })}
+
+      {sections.length === 0 && (
+        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 4, gap: 1 }}>
+          <Typography variant="body2" color="text.secondary">No transcript available</Typography>
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+// ── Face Detection Panel ──────────────────────────────────────────────────
+function FaceDetectionPanel({
+  faces,
+  clusters,
+  persons,
+  onSeek,
+}: {
+  faces: DetectedFace[];
+  clusters: FaceCluster[];
+  persons: Person[];
+  onSeek?: (t: number) => void;
+}) {
+  // Group faces by cluster
+  const grouped = clusters.filter(c => c.faceIds.some(fid => faces.some(f => f.id === fid))).map(cluster => {
+    const clusterFaces = faces.filter(f => cluster.faceIds.includes(f.id));
+    const person = cluster.personId ? persons.find(p => p.id === cluster.personId) : undefined;
+    return { cluster, faces: clusterFaces, person };
+  });
+
+  const unclustered = faces.filter(f => !f.clusterId || !clusters.some(c => c.id === f.clusterId));
+
+  return (
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      {/* Summary */}
+      <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+          <FaceOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
+          <Typography variant="caption" sx={{ color: tokens.text.secondary, fontSize: "0.78rem" }}>{faces.length} faces detected</Typography>
+        </Box>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+          <GroupWorkOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
+          <Typography variant="caption" sx={{ color: tokens.text.secondary, fontSize: "0.78rem" }}>{grouped.length} clusters</Typography>
+        </Box>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+          <PersonOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
+          <Typography variant="caption" sx={{ color: tokens.text.secondary, fontSize: "0.78rem" }}>{grouped.filter(g => g.person).length} identified</Typography>
+        </Box>
+      </Box>
+
+      {/* Clusters */}
+      {grouped.map(({ cluster, faces: cFaces, person }) => (
+        <Box key={cluster.id} sx={{ border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, overflow: "hidden" }}>
+          {/* Cluster header */}
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, px: 1.5, py: 1, bgcolor: tokens.bg.overlay }}>
+            <Avatar src={cluster.representativeThumbnailUrl} sx={{ width: 28, height: 28 }} />
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.78rem", color: tokens.text.primary }}>
+                {person ? person.name : cluster.label}
+              </Typography>
+              {person && (
+                <Typography variant="caption" sx={{ fontSize: "0.68rem", color: tokens.text.tertiary, display: "block" }}>
+                  {person.description}
+                </Typography>
+              )}
+            </Box>
+            {person ? (
+              <Chip label="Identified" size="small" sx={{ height: 18, fontSize: "0.62rem", bgcolor: `${tokens.accent.green}22`, color: tokens.accent.green }} />
+            ) : (
+              <Chip label="Unidentified" size="small" sx={{ height: 18, fontSize: "0.62rem", bgcolor: tokens.bg.elevated, color: tokens.text.tertiary }} />
+            )}
+          </Box>
+          {/* Face thumbnails */}
+          <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap", p: 1.25 }}>
+            {cFaces.map(face => (
+              <Tooltip key={face.id} title={`Confidence: ${(face.confidence * 100).toFixed(0)}%${face.timestamp != null ? ` · ${formatDuration(Math.round(face.timestamp))}` : ""}`}>
+                <Box
+                  onClick={() => face.timestamp != null && onSeek?.(face.timestamp)}
+                  sx={{
+                    width: 48, height: 48, borderRadius: tokens.radius.sm, overflow: "hidden",
+                    border: `2px solid ${tokens.border.subtle}`, cursor: face.timestamp != null ? "pointer" : "default",
+                    "&:hover": face.timestamp != null ? { borderColor: tokens.primary.main } : {},
+                    transition: "border-color 120ms ease",
+                  }}
+                >
+                  <img src={face.thumbnailUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                </Box>
+              </Tooltip>
+            ))}
+          </Box>
+        </Box>
+      ))}
+
+      {/* Unclustered */}
+      {unclustered.length > 0 && (
+        <Box sx={{ border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, overflow: "hidden" }}>
+          <Box sx={{ px: 1.5, py: 1, bgcolor: tokens.bg.overlay }}>
+            <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.78rem", color: tokens.text.tertiary }}>Unclustered ({unclustered.length})</Typography>
+          </Box>
+          <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap", p: 1.25 }}>
+            {unclustered.map(face => (
+              <Box key={face.id} sx={{ width: 48, height: 48, borderRadius: tokens.radius.sm, overflow: "hidden", border: `2px solid ${tokens.border.subtle}` }}>
+                <img src={face.thumbnailUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              </Box>
+            ))}
+          </Box>
+        </Box>
+      )}
+
+      {faces.length === 0 && (
+        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 4, gap: 1 }}>
+          <FaceOutlined sx={{ fontSize: 32, color: tokens.text.tertiary }} />
+          <Typography variant="body2" color="text.secondary">No face detection data</Typography>
+        </Box>
+      )}
     </Box>
   );
 }
@@ -264,10 +672,20 @@ export default function AssetDetail() {
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [reactions, setReactions] = useState<Reaction[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [transcriptSections, setTranscriptSections] = useState<TranscriptSection[]>([]);
+  const [detectedFaces, setDetectedFaces] = useState<DetectedFace[]>([]);
+  const [faceClusters, setFaceClusters] = useState<FaceCluster[]>([]);
+  const [persons, setPersons] = useState<Person[]>([]);
   const [tab, setTab] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const [hoveredMarkerId, setHoveredMarkerId] = useState<string | null>(null);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  // Draggable left/right split (percentage)
+  const [leftPct, setLeftPct] = useState(60);
+  const isDragging = useRef(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const intervalRef = useRef<number | null>(null);
 
@@ -279,14 +697,37 @@ export default function AssetDetail() {
       mockAnnotationService.getByAsset(id),
       mockReactionService.getByAsset(id),
       mockTaskService.getByAsset(id),
-    ]).then(([a, c, an, rx, t]) => {
+      mockTranscriptService.getByAsset(id),
+      mockFaceDetectionService.getFacesByAsset(id),
+      mockFaceDetectionService.getAllClusters(),
+      mockFaceDetectionService.getAllPersons(),
+    ]).then(([a, c, an, rx, t, tr, faces, clusters, pers]) => {
       if (a) setAsset(a);
       setComments(c);
       setAnnotations(an);
       setReactions(rx);
       setTasks(t);
+      setTranscriptSections(tr);
+      setDetectedFaces(faces);
+      setFaceClusters(clusters);
+      setPersons(pers);
     });
   }, [id]);
+
+  // Draggable divider handlers
+  const handleDividerMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isDragging.current = true;
+    const onMove = (ev: MouseEvent) => {
+      if (!isDragging.current || !containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const pct = ((ev.clientX - rect.left) / rect.width) * 100;
+      setLeftPct(Math.min(Math.max(pct, 25), 75));
+    };
+    const onUp = () => { isDragging.current = false; window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, []);
 
   // Simulated video progress
   useEffect(() => {
@@ -321,7 +762,7 @@ export default function AssetDetail() {
       color: tokens.accent.blue, label: c.title ?? c.text.slice(0, 30), id: c.id,
     })),
     ...annotations.filter(a => a.timestampStart != null).map(a => ({
-      time: a.timestampStart!, type: "annotation" as const,
+      time: a.timestampStart!, endTime: a.timestampEnd ?? undefined, type: "annotation" as const,
       color: a.color, label: a.title, id: a.id,
     })),
     ...reactions.filter(r => r.timestamp != null).map(r => ({
@@ -343,6 +784,8 @@ export default function AssetDetail() {
     { label: `Annotations (${annotations.length})`, icon: <BookmarkBorderOutlined sx={{ fontSize: 14 }} /> },
     { label: `Reactions (${reactions.length})`, icon: <ThumbUpAltOutlined sx={{ fontSize: 14 }} /> },
     { label: `Tasks (${tasks.length})`, icon: <TaskAltOutlined sx={{ fontSize: 14 }} /> },
+    ...(transcriptSections.length > 0 ? [{ label: "Transcript", icon: <ChatBubbleOutlineOutlined sx={{ fontSize: 14 }} /> }] : []),
+    ...(detectedFaces.length > 0 ? [{ label: `Faces (${detectedFaces.length})`, icon: <FaceOutlined sx={{ fontSize: 14 }} /> }] : []),
   ];
 
   return (
@@ -373,9 +816,9 @@ export default function AssetDetail() {
       </Box>
 
       {/* Body */}
-      <Box sx={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: { xs: "column", lg: "row" }, gap: 0 }}>
+      <Box ref={containerRef} sx={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: { xs: "column", lg: "row" }, gap: 0 }}>
         {/* Left: media */}
-        <Box sx={{ flex: "0 0 auto", width: { xs: "100%", lg: "60%" }, display: "flex", flexDirection: "column", borderRight: { lg: `1px solid ${tokens.border.subtle}` } }}>
+        <Box sx={{ flex: "0 0 auto", width: { xs: "100%", lg: `${leftPct}%` }, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           {/* Media area */}
           <Box sx={{ position: "relative", bgcolor: "#000", aspectRatio: isVideo ? "16/9" : "auto", maxHeight: { xs: 240, lg: 380 }, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
             {isVideo ? (
@@ -402,10 +845,9 @@ export default function AssetDetail() {
                 </Box>
               </>
             ) : (
-              <img
+              <ZoomableImage
                 src={asset.url || asset.thumbnailUrl}
                 alt={asset.name}
-                style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
               />
             )}
           </Box>
@@ -417,8 +859,10 @@ export default function AssetDetail() {
                 duration={duration}
                 currentTime={currentTime}
                 markers={markers}
+                hoveredMarkerId={hoveredMarkerId}
                 onSeek={setCurrentTime}
                 onMarkerClick={handleMarkerClick}
+                onMarkerHover={setHoveredMarkerId}
               />
             </Box>
           )}
@@ -433,12 +877,38 @@ export default function AssetDetail() {
             </Box>
           )}
 
+          {/* Tags */}
+          {asset.tags.length > 0 && (
+            <Box sx={{ px: 2, py: 1, bgcolor: tokens.bg.surface, display: "flex", gap: 0.5, flexWrap: "wrap", alignItems: "center", borderTop: `1px solid ${tokens.border.subtle}` }}>
+              {asset.tags.map(t => (
+                <Chip key={t} label={t} size="small" sx={{ height: 20, fontSize: "0.7rem", bgcolor: tokens.bg.elevated, color: tokens.text.secondary }} />
+              ))}
+            </Box>
+          )}
+
+          {/* Description */}
+          <Box sx={{ px: 2, py: 1.5, bgcolor: tokens.bg.surface, borderTop: `1px solid ${tokens.border.subtle}` }}>
+            <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.07em", color: tokens.text.tertiary, fontSize: "0.68rem", display: "block", mb: 0.75 }}>
+              Description
+            </Typography>
+            <TextField
+              multiline
+              minRows={2}
+              maxRows={5}
+              fullWidth
+              value={asset.description}
+              size="small"
+              InputProps={{ sx: { fontSize: "0.82rem", color: tokens.text.secondary, lineHeight: 1.55 } }}
+              sx={{ "& .MuiOutlinedInput-root": { bgcolor: tokens.bg.elevated } }}
+            />
+          </Box>
+
           {/* Metadata */}
-          <Box sx={{ px: 2.5, py: 2, flex: 1, overflow: "auto" }}>
+          <Box sx={{ px: 2, py: 2, flex: 1, overflow: "auto" }}>
             <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.07em", color: tokens.text.tertiary, fontSize: "0.68rem" }}>
               Metadata
             </Typography>
-            <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px", mt: 1 }}>
+            <Box sx={{ mt: 1, border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, overflow: "hidden" }}>
               {[
                 ["Size", formatBytes(asset.fileSize)],
                 ["MIME", asset.mimeType],
@@ -447,14 +917,53 @@ export default function AssetDetail() {
                 ["Owner", userName(asset.ownerId)],
                 ["Created", new Date(asset.createdAt).toLocaleDateString()],
                 ...Object.entries(asset.metadata).slice(0, 4).map(([k, v]) => [k, String(v)]),
-              ].map(([k, v]) => (
-                <React.Fragment key={k}>
-                  <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.72rem" }}>{k}</Typography>
-                  <Typography variant="caption" sx={{ color: tokens.text.secondary, fontSize: "0.72rem", wordBreak: "break-word" }}>{v}</Typography>
-                </React.Fragment>
+              ].map(([k, v], idx, arr) => (
+                <Box
+                  key={k}
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: "120px 1fr",
+                    px: 1.5,
+                    py: 0.85,
+                    borderBottom: idx < arr.length - 1 ? `1px solid ${tokens.border.subtle}` : "none",
+                    bgcolor: idx % 2 === 0 ? "transparent" : `rgba(255,255,255,0.02)`,
+                  }}
+                >
+                  <Typography sx={{ color: tokens.text.tertiary, fontSize: "0.8rem" }}>{k}</Typography>
+                  <Typography sx={{ color: tokens.text.secondary, fontSize: "0.8rem", wordBreak: "break-word" }}>{v}</Typography>
+                </Box>
               ))}
             </Box>
           </Box>
+        </Box>
+
+        {/* Draggable divider */}
+        <Box
+          onMouseDown={handleDividerMouseDown}
+          sx={{
+            display: { xs: "none", lg: "flex" },
+            width: 6,
+            flexShrink: 0,
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "col-resize",
+            bgcolor: "transparent",
+            borderLeft: `1px solid ${tokens.border.subtle}`,
+            borderRight: `1px solid ${tokens.border.subtle}`,
+            "&:hover": { bgcolor: tokens.primary.subtle },
+            "&:hover .drag-handle": { opacity: 1 },
+            transition: "background-color 120ms ease",
+            zIndex: 10,
+          }}
+        >
+          <Box
+            className="drag-handle"
+            sx={{
+              width: 2, height: 32, borderRadius: 1,
+              bgcolor: tokens.primary.main, opacity: 0,
+              transition: "opacity 120ms ease",
+            }}
+          />
         </Box>
 
         {/* Right: discussion tabs */}
@@ -472,7 +981,14 @@ export default function AssetDetail() {
                 <Typography variant="body2" sx={{ color: tokens.text.secondary, lineHeight: 1.6 }}>{asset.description}</Typography>
                 <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
                   {asset.tags.map(t => (
-                    <Chip key={t} label={t} size="small" sx={{ height: 20, fontSize: "0.7rem", bgcolor: tokens.bg.elevated }} />
+                    <Chip
+                      key={t}
+                      label={t}
+                      size="small"
+                      onMouseEnter={() => setHoveredMarkerId(t)}
+                      onMouseLeave={() => setHoveredMarkerId(null)}
+                      sx={{ height: 20, fontSize: "0.7rem", bgcolor: hoveredMarkerId === t ? tokens.primary.subtle : tokens.bg.elevated, border: `1px solid ${hoveredMarkerId === t ? tokens.primary.main : "transparent"}`, transition: "all 120ms ease", cursor: "default" }}
+                    />
                   ))}
                 </Box>
               </Box>
@@ -490,8 +1006,9 @@ export default function AssetDetail() {
                   <CommentItem
                     key={c.id}
                     comment={c}
-                    highlighted={highlightedId === c.id}
+                    highlighted={highlightedId === c.id || hoveredMarkerId === c.id}
                     onTimeClick={(t) => { setCurrentTime(t); setHighlightedId(null); }}
+                    onHover={setHoveredMarkerId}
                   />
                 ))}
               </Box>
@@ -509,8 +1026,9 @@ export default function AssetDetail() {
                   <AnnotationItem
                     key={a.id}
                     ann={a}
-                    highlighted={highlightedId === a.id}
+                    highlighted={highlightedId === a.id || hoveredMarkerId === a.id}
                     onTimeClick={(t) => { setCurrentTime(t); setHighlightedId(null); }}
+                    onHover={setHoveredMarkerId}
                   />
                 ))}
               </Box>
@@ -540,12 +1058,88 @@ export default function AssetDetail() {
                     <TaskAltOutlined sx={{ fontSize: 32, color: tokens.text.tertiary }} />
                     <Typography variant="body2" color="text.secondary">No tasks linked</Typography>
                   </Box>
-                ) : tasks.map(t => <TaskItem key={t.id} task={t} />)}
+                ) : tasks.map(t => <TaskItem key={t.id} task={t} onClick={() => setSelectedTask(t)} />)}
               </Box>
+            )}
+
+            {/* Transcript tab */}
+            {transcriptSections.length > 0 && tab === 5 && (
+              <TranscriptPanel
+                sections={transcriptSections}
+                currentTime={currentTime}
+                onSeek={setCurrentTime}
+                onSectionsChange={setTranscriptSections}
+              />
+            )}
+
+            {/* Faces tab */}
+            {detectedFaces.length > 0 && tab === (transcriptSections.length > 0 ? 6 : 5) && (
+              <FaceDetectionPanel
+                faces={detectedFaces}
+                clusters={faceClusters}
+                persons={persons}
+                onSeek={isVideo ? setCurrentTime : undefined}
+              />
             )}
           </Box>
         </Box>
       </Box>
+
+      {/* Task detail drawer */}
+      {selectedTask && (
+        <Box
+          onClick={() => setSelectedTask(null)}
+          sx={{ position: "fixed", inset: 0, bgcolor: "rgba(0,0,0,0.5)", zIndex: 1200, display: "flex", justifyContent: "flex-end" }}
+        >
+          <Box
+            onClick={(e) => e.stopPropagation()}
+            sx={{
+              width: 420, bgcolor: tokens.bg.surface, borderLeft: `1px solid ${tokens.border.default}`,
+              display: "flex", flexDirection: "column", height: "100%", overflow: "hidden",
+            }}
+          >
+            <Box sx={{ px: 2.5, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", gap: 1 }}>
+              <TaskAltOutlined sx={{ fontSize: 18, color: tokens.primary.main }} />
+              <Typography variant="h6" fontWeight={700} sx={{ fontSize: "0.95rem", flex: 1 }}>Task Detail</Typography>
+              <IconButton size="small" onClick={() => setSelectedTask(null)}><ArrowBack sx={{ fontSize: 16 }} /></IconButton>
+            </Box>
+            <Box sx={{ flex: 1, overflow: "auto", p: 2.5, display: "flex", flexDirection: "column", gap: 2 }}>
+              {/* Title + Priority */}
+              <Box>
+                <Box sx={{ display: "flex", gap: 1, alignItems: "flex-start", mb: 1 }}>
+                  <Box sx={{ width: 4, height: 20, borderRadius: 2, bgcolor: { critical: tokens.accent.red, high: tokens.accent.amber, medium: tokens.accent.blue, low: tokens.text.tertiary }[selectedTask.priority], mt: 0.3, flexShrink: 0 }} />
+                  <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem", lineHeight: 1.3 }}>{selectedTask.title}</Typography>
+                </Box>
+                <Typography variant="body2" sx={{ color: tokens.text.secondary, lineHeight: 1.6 }}>{selectedTask.description}</Typography>
+              </Box>
+              {/* Meta grid */}
+              <Box sx={{ border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, overflow: "hidden" }}>
+                {[
+                  ["Status", <Chip label={selectedTask.status.replace("_", " ")} size="small" sx={{ height: 18, fontSize: "0.7rem", bgcolor: `${{ open: tokens.accent.blue, in_progress: tokens.accent.amber, review: tokens.primary.main, done: tokens.accent.green, blocked: tokens.accent.red }[selectedTask.status]}22`, color: { open: tokens.accent.blue, in_progress: tokens.accent.amber, review: tokens.primary.main, done: tokens.accent.green, blocked: tokens.accent.red }[selectedTask.status] }} />],
+                  ["Priority", <Chip label={selectedTask.priority} size="small" sx={{ height: 18, fontSize: "0.7rem", bgcolor: `${{ critical: tokens.accent.red, high: tokens.accent.amber, medium: tokens.accent.blue, low: tokens.text.tertiary }[selectedTask.priority]}22`, color: { critical: tokens.accent.red, high: tokens.accent.amber, medium: tokens.accent.blue, low: tokens.text.tertiary }[selectedTask.priority], fontWeight: 700 }} />],
+                  ["Assignee", <Typography sx={{ fontSize: "0.82rem", color: tokens.text.secondary }}>{USERS.find(u => u.id === selectedTask.assigneeId)?.name ?? selectedTask.assigneeId}</Typography>],
+                  ["Due Date", <Typography sx={{ fontSize: "0.82rem", color: selectedTask.dueDate && new Date(selectedTask.dueDate) < new Date() ? tokens.accent.red : tokens.text.secondary }}>{selectedTask.dueDate ? new Date(selectedTask.dueDate).toLocaleDateString() : "—"}</Typography>],
+                  ["Created", <Typography sx={{ fontSize: "0.82rem", color: tokens.text.secondary }}>{new Date(selectedTask.createdAt).toLocaleDateString()}</Typography>],
+                ].map(([label, content], idx) => (
+                  <Box key={String(label)} sx={{ display: "grid", gridTemplateColumns: "100px 1fr", px: 1.5, py: 0.85, borderBottom: idx < 4 ? `1px solid ${tokens.border.subtle}` : "none", bgcolor: idx % 2 === 0 ? "transparent" : "rgba(255,255,255,0.02)", alignItems: "center" }}>
+                    <Typography sx={{ color: tokens.text.tertiary, fontSize: "0.8rem" }}>{label}</Typography>
+                    {content}
+                  </Box>
+                ))}
+              </Box>
+              {/* Tags */}
+              {selectedTask.tags.length > 0 && (
+                <Box>
+                  <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.06em", color: tokens.text.tertiary, fontSize: "0.68rem", display: "block", mb: 0.75 }}>Tags</Typography>
+                  <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
+                    {selectedTask.tags.map(t => <Chip key={t} label={t} size="small" sx={{ height: 20, fontSize: "0.7rem", bgcolor: tokens.bg.elevated }} />)}
+                  </Box>
+                </Box>
+              )}
+            </Box>
+          </Box>
+        </Box>
+      )}
     </Box>
   );
 }

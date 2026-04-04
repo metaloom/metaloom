@@ -3,13 +3,13 @@ import { createTheme, alpha } from "@mui/material/styles";
 // ── Design Tokens ──────────────────────────────────────────────────────────
 export const tokens = {
   bg: {
-    base: "#0d0e11",
-    surface: "#141519",
-    panel: "#1a1c22",
-    elevated: "#1e2028",
-    overlay: "#23262f",
-    hover: "rgba(255,255,255,0.04)",
-    active: "rgba(255,255,255,0.07)",
+    base: "#0d0f11",
+    surface: "#141719",
+    panel: "#1a1d22",
+    elevated: "#20252c",
+    overlay: "#353b43",
+    hover: "rgba(87,203,204,0.06)",
+    active: "rgba(87,203,204,0.10)",
   },
   border: {
     subtle: "rgba(255,255,255,0.07)",
@@ -18,17 +18,17 @@ export const tokens = {
   },
   text: {
     primary: "#e8e9eb",
-    secondary: "#8b8fa8",
-    tertiary: "#5a5e78",
-    disabled: "#3d4058",
-    inverse: "#0d0e11",
+    secondary: "#737f8a",
+    tertiary: "#4f5a63",
+    disabled: "#353b43",
+    inverse: "#0d0f11",
   },
   primary: {
-    main: "#7c6af7",
-    light: "#a597ff",
-    dark: "#5a4bc4",
-    glow: "rgba(124,106,247,0.25)",
-    subtle: "rgba(124,106,247,0.10)",
+    main: "#57cbcc",
+    light: "#88dcdd",
+    dark: "#3ba8a9",
+    glow: "rgba(87,203,204,0.25)",
+    subtle: "rgba(87,203,204,0.10)",
   },
   accent: {
     blue: "#2ea8ff",

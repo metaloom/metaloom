@@ -2,8 +2,9 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box, Typography, Paper, Chip, Avatar, Divider, List, ListItemButton, ListItemText,
+  IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Tooltip,
 } from "@mui/material";
-import { LibraryBooksOutlined, PhotoLibraryOutlined, VideocamOutlined, FolderOutlined } from "@mui/icons-material";
+import { LibraryBooksOutlined, PhotoLibraryOutlined, VideocamOutlined, FolderOutlined, AddOutlined, DeleteOutlined } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { Library, Asset } from "../../types";
 import { mockLibraryService, mockAssetService } from "../../mock/services";
@@ -22,6 +23,11 @@ export default function LibraryView() {
   const [libraries, setLibraries] = useState<Library[]>([]);
   const [selectedLib, setSelectedLib] = useState<Library | null>(null);
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newDesc, setNewDesc] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Library | null>(null);
 
   useEffect(() => {
     if (!activeProject) return;
@@ -36,6 +42,24 @@ export default function LibraryView() {
     mockAssetService.getByLibrary(selectedLib.id).then(setAssets);
   }, [selectedLib]);
 
+  const handleCreate = async () => {
+    if (!activeProject || !newName.trim()) return;
+    setCreating(true);
+    const lib = await mockLibraryService.create(activeProject.id, newName.trim(), newDesc.trim());
+    setLibraries(prev => [...prev, lib]);
+    setSelectedLib(lib);
+    setNewName(""); setNewDesc(""); setCreateOpen(false); setCreating(false);
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    await mockLibraryService.delete(deleteTarget.id);
+    const updated = libraries.filter(l => l.id !== deleteTarget.id);
+    setLibraries(updated);
+    if (selectedLib?.id === deleteTarget.id) setSelectedLib(updated[0] ?? null);
+    setDeleteTarget(null);
+  };
+
   const videoCount = assets.filter(a => a.type === "video").length;
   const imageCount = assets.filter(a => a.type === "image").length;
   const totalSize = assets.reduce((s, a) => s + a.fileSize, 0);
@@ -43,18 +67,25 @@ export default function LibraryView() {
   return (
     <Box sx={{ display: "flex", height: "100%", overflow: "hidden", bgcolor: tokens.bg.base }}>
       {/* Library sidebar */}
-      <Box sx={{ width: 220, flexShrink: 0, borderRight: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", flexDirection: "column" }}>
-        <Box sx={{ px: 2, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}` }}>
-          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Libraries</Typography>
-          <Typography variant="caption" color="text.secondary">{activeProject?.name}</Typography>
+      <Box sx={{ width: 230, flexShrink: 0, borderRight: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", flexDirection: "column" }}>
+        <Box sx={{ px: 2, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <Box>
+            <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Libraries</Typography>
+            <Typography variant="caption" color="text.secondary">{activeProject?.name}</Typography>
+          </Box>
+          <Tooltip title="New library">
+            <IconButton size="small" onClick={() => setCreateOpen(true)} sx={{ bgcolor: tokens.primary.subtle, color: tokens.primary.main, "&:hover": { bgcolor: tokens.primary.glow } }}>
+              <AddOutlined sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Tooltip>
         </Box>
-        <List dense sx={{ p: 1, flex: 1 }}>
+        <List dense sx={{ p: 1, flex: 1, overflow: "auto" }}>
           {libraries.map(lib => (
             <ListItemButton
               key={lib.id}
               selected={selectedLib?.id === lib.id}
               onClick={() => setSelectedLib(lib)}
-              sx={{ borderRadius: tokens.radius.md, mb: 0.5 }}
+              sx={{ borderRadius: tokens.radius.md, mb: 0.5, pr: 0.5 }}
             >
               <Box sx={{ mr: 1.25, color: tokens.text.secondary, display: "flex" }}>
                 <FolderOutlined sx={{ fontSize: 18 }} />
@@ -63,6 +94,15 @@ export default function LibraryView() {
                 primary={<Typography variant="body2" fontWeight={500} noWrap sx={{ fontSize: "0.82rem" }}>{lib.name}</Typography>}
                 secondary={<Typography variant="caption" sx={{ fontSize: "0.68rem", color: tokens.text.tertiary }}>{lib.assetCount} assets</Typography>}
               />
+              <Tooltip title="Delete library">
+                <IconButton
+                  size="small"
+                  onClick={(e) => { e.stopPropagation(); setDeleteTarget(lib); }}
+                  sx={{ opacity: 0, ".MuiListItemButton-root:hover &": { opacity: 1 }, color: tokens.accent.red, ml: 0.5, width: 24, height: 24 }}
+                >
+                  <DeleteOutlined sx={{ fontSize: 14 }} />
+                </IconButton>
+              </Tooltip>
             </ListItemButton>
           ))}
         </List>
@@ -72,7 +112,6 @@ export default function LibraryView() {
       <Box sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         {selectedLib ? (
           <>
-            {/* Header */}
             <Box sx={{ px: 2.5, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface }}>
               <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{selectedLib.name}</Typography>
               <Typography variant="caption" color="text.secondary">{selectedLib.description}</Typography>
@@ -90,8 +129,6 @@ export default function LibraryView() {
                 </Box>
               </Box>
             </Box>
-
-            {/* Asset grid */}
             <Box sx={{ flex: 1, overflow: "auto", p: 2.5 }}>
               {assets.length === 0 ? (
                 <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 6, gap: 1 }}>
@@ -136,6 +173,35 @@ export default function LibraryView() {
           </Box>
         )}
       </Box>
+
+      {/* Create library dialog */}
+      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} PaperProps={{ sx: { bgcolor: tokens.bg.panel, border: `1px solid ${tokens.border.default}`, minWidth: 360 } }}>
+        <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700, pb: 1 }}>New Library</DialogTitle>
+        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: "8px !important" }}>
+          <TextField label="Name" size="small" value={newName} onChange={e => setNewName(e.target.value)} autoFocus fullWidth />
+          <TextField label="Description" size="small" value={newDesc} onChange={e => setNewDesc(e.target.value)} multiline rows={2} fullWidth />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setCreateOpen(false)} size="small" sx={{ color: tokens.text.secondary }}>Cancel</Button>
+          <Button onClick={handleCreate} size="small" variant="contained" disabled={!newName.trim() || creating}>
+            {creating ? "Creating…" : "Create"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)} PaperProps={{ sx: { bgcolor: tokens.bg.panel, border: `1px solid ${tokens.border.default}`, minWidth: 340 } }}>
+        <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700, pb: 1 }}>Delete Library</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary">
+            Delete <strong style={{ color: tokens.text.primary }}>{deleteTarget?.name}</strong>? This cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setDeleteTarget(null)} size="small" sx={{ color: tokens.text.secondary }}>Cancel</Button>
+          <Button onClick={handleDelete} size="small" variant="contained" sx={{ bgcolor: tokens.accent.red, "&:hover": { bgcolor: tokens.accent.red } }}>Delete</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

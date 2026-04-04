@@ -8,7 +8,8 @@ import {
 import {
   SearchOutlined, GridViewOutlined, FormatListBulletedOutlined,
   PlayCircleOutline, ImageOutlined, AudiotrackOutlined, InsertDriveFileOutlined,
-  FilterListOutlined, Circle,
+  FilterListOutlined, Circle, PhotoSizeSelectSmallOutlined,
+  PhotoSizeSelectActualOutlined, PhotoSizeSelectLargeOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { Asset, AssetType, AssetStatus } from "../../types";
@@ -47,7 +48,9 @@ const statusColor: Record<AssetStatus, string> = {
 };
 
 // ── Asset Card (grid mode) ────────────────────────────────────────────────
-function AssetCard({ asset }: { asset: Asset }) {
+type CardSize = "small" | "medium" | "large";
+
+function AssetCard({ asset, cardSize = "medium" }: { asset: Asset; cardSize?: CardSize }) {
   const navigate = useNavigate();
   const sc = statusColor[asset.status];
 
@@ -61,10 +64,9 @@ function AssetCard({ asset }: { asset: Asset }) {
         border: `1px solid ${tokens.border.subtle}`,
         borderRadius: tokens.radius.lg,
         overflow: "hidden",
-        transition: "border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease",
+        transition: "border-color 140ms ease, box-shadow 140ms ease",
         "&:hover": {
           borderColor: tokens.border.strong,
-          transform: "translateY(-1px)",
           boxShadow: `0 4px 20px rgba(0,0,0,0.35)`,
         },
       }}
@@ -84,20 +86,42 @@ function AssetCard({ asset }: { asset: Asset }) {
         <Box sx={{ position: "absolute", top: 6, right: 6, width: 8, height: 8, borderRadius: "50%", bgcolor: sc, boxShadow: `0 0 6px ${sc}` }} />
       </Box>
 
-      {/* Info */}
-      <Box sx={{ px: 1.5, py: 1.25 }}>
-        <Typography variant="body2" fontWeight={600} noWrap sx={{ fontSize: "0.8rem", color: tokens.text.primary, mb: 0.5 }}>
-          {asset.name}
-        </Typography>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
-          <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>
-            {formatBytes(asset.fileSize)}
+      {/* Info — hidden in small mode */}
+      {cardSize !== "small" && (
+        <Box sx={{ px: 1.5, py: 1.25 }}>
+          <Typography variant="body2" fontWeight={600} noWrap sx={{ fontSize: "0.8rem", color: tokens.text.primary, mb: 0.5 }}>
+            {asset.name}
           </Typography>
-          {asset.tags.slice(0, 2).map(tag => (
-            <Chip key={tag} label={tag} size="small" sx={{ height: 16, fontSize: "0.62rem", bgcolor: tokens.bg.overlay, color: tokens.text.secondary }} />
-          ))}
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
+            <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>
+              {formatBytes(asset.fileSize)}
+            </Typography>
+            {cardSize === "medium" && asset.tags.slice(0, 2).map(tag => (
+              <Chip key={tag} label={tag} size="small" sx={{ height: 16, fontSize: "0.62rem", bgcolor: tokens.bg.overlay, color: tokens.text.secondary }} />
+            ))}
+          </Box>
+          {/* Large mode extras */}
+          {cardSize === "large" && (
+            <>
+              <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", mt: 0.75 }}>
+                {asset.tags.map(tag => (
+                  <Chip key={tag} label={tag} size="small" sx={{ height: 16, fontSize: "0.62rem", bgcolor: tokens.bg.overlay, color: tokens.text.secondary }} />
+                ))}
+              </Box>
+              <Box sx={{ display: "flex", gap: 1, mt: 0.75, alignItems: "center" }}>
+                {asset.duration && (
+                  <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem" }}>
+                    {formatDuration(asset.duration)}
+                  </Typography>
+                )}
+                <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem" }}>
+                  {formatBytes(asset.fileSize)}
+                </Typography>
+              </Box>
+            </>
+          )}
         </Box>
-      </Box>
+      )}
     </Paper>
   );
 }
@@ -159,6 +183,7 @@ export default function AssetBrowser({ embedded = false }: Props) {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [cardSize, setCardSize] = useState<CardSize>("medium");
   const [statusFilter, setStatusFilter] = useState<AssetStatus | "all">("all");
   const [typeFilter, setTypeFilter] = useState<AssetType | "all">("all");
   const [libraryFilter, setLibraryFilter] = useState<string>("all");
@@ -282,6 +307,20 @@ export default function AssetBrowser({ embedded = false }: Props) {
               <FormatListBulletedOutlined sx={{ fontSize: 16 }} />
             </ToggleButton>
           </ToggleButtonGroup>
+
+          {viewMode === "grid" && (
+            <ToggleButtonGroup value={cardSize} exclusive onChange={(_, v) => v && setCardSize(v as CardSize)} size="small">
+              <ToggleButton value="small" sx={{ border: `1px solid ${tokens.border.default}`, borderRadius: `${tokens.radius.sm} !important`, px: 0.75 }}>
+                <Tooltip title="Small — thumbnail only"><PhotoSizeSelectSmallOutlined sx={{ fontSize: 14 }} /></Tooltip>
+              </ToggleButton>
+              <ToggleButton value="medium" sx={{ border: `1px solid ${tokens.border.default}`, borderRadius: `${tokens.radius.sm} !important`, px: 0.75 }}>
+                <Tooltip title="Medium"><PhotoSizeSelectActualOutlined sx={{ fontSize: 14 }} /></Tooltip>
+              </ToggleButton>
+              <ToggleButton value="large" sx={{ border: `1px solid ${tokens.border.default}`, borderRadius: `${tokens.radius.sm} !important`, px: 0.75 }}>
+                <Tooltip title="Large — tags, size, duration"><PhotoSizeSelectLargeOutlined sx={{ fontSize: 14 }} /></Tooltip>
+              </ToggleButton>
+            </ToggleButtonGroup>
+          )}
         </Box>
 
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
@@ -313,8 +352,8 @@ export default function AssetBrowser({ embedded = false }: Props) {
             <Typography variant="body2" color="text.secondary">No assets match your filters</Typography>
           </Box>
         ) : viewMode === "grid" ? (
-          <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 2 }}>
-            {filtered.map(a => <AssetCard key={a.id} asset={a} />)}
+          <Box sx={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${cardSize === "small" ? "120px" : cardSize === "large" ? "260px" : "190px"}, 1fr))`, gap: cardSize === "small" ? 1 : 2 }}>
+            {filtered.map(a => <AssetCard key={a.id} asset={a} cardSize={cardSize} />)}
           </Box>
         ) : (
           <Paper elevation={0} sx={{ bgcolor: tokens.bg.elevated, border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.lg, overflow: "hidden" }}>

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box, Typography, TextField, IconButton, Chip, Avatar, Tooltip,
@@ -8,7 +8,7 @@ import {
   Send, AutoAwesome, CheckCircleOutline, ErrorOutline,
   PlayCircleOutline, ImageOutlined, TaskAltOutlined,
   AccountTreeOutlined, CollectionsOutlined, AccessTimeOutlined,
-  ArrowForwardIos,
+  ArrowForwardIos, DragIndicator,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { ChatMessage, ChatReference } from "../../types";
@@ -18,7 +18,7 @@ import AssetBrowser from "../assets/AssetBrowser";
 import { ASSETS, COLLECTIONS, TASKS, PIPELINES } from "../../mock/data";
 
 // ── Reference chip renderer ───────────────────────────────────────────────
-function RefChip({ chatRef: r }: { chatRef: ChatReference }) {
+function RefChip({ chatRef: r, onAssetClick }: { chatRef: ChatReference; onAssetClick?: (id: string) => void }) {
   const navigate = useNavigate();
   type RefType = "asset" | "collection" | "task" | "pipeline" | "annotation";
   const iconMap: Record<RefType, React.ReactNode> = {
@@ -39,8 +39,11 @@ function RefChip({ chatRef: r }: { chatRef: ChatReference }) {
   const icon = iconMap[r.type as RefType];
 
   const handleClick = () => {
-    if (r.type === "asset") navigate(`/assets/${r.id}`);
-    else if (r.type === "pipeline") navigate("/pipelines");
+    if (r.type === "asset" && onAssetClick) {
+      onAssetClick(r.id);
+    } else if (r.type === "asset") {
+      navigate(`/assets/${r.id}`);
+    } else if (r.type === "pipeline") navigate("/pipelines");
     else if (r.type === "task") navigate("/tasks");
     else if (r.type === "collection") navigate("/collections");
   };
@@ -89,7 +92,7 @@ function ActionRow({ action }: { action: NonNullable<ChatMessage["actions"]>[0] 
 }
 
 // ── Message bubble ────────────────────────────────────────────────────────
-function MessageBubble({ msg, onFollowUp }: { msg: ChatMessage; onFollowUp: (text: string) => void }) {
+function MessageBubble({ msg, onFollowUp, onAssetClick }: { msg: ChatMessage; onFollowUp: (text: string) => void; onAssetClick?: (id: string) => void }) {
   const isUser = msg.role === "user";
   const isSystem = msg.role === "system";
 
@@ -178,7 +181,7 @@ function MessageBubble({ msg, onFollowUp }: { msg: ChatMessage; onFollowUp: (tex
         {/* References */}
         {msg.references && msg.references.length > 0 && (
           <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, px: 0.5 }}>
-            {msg.references.map((r) => <RefChip key={r.id + r.type} chatRef={r} />)}
+            {msg.references.map((r) => <RefChip key={r.id + r.type} chatRef={r} onAssetClick={onAssetClick} />)}
           </Box>
         )}
 
@@ -211,7 +214,66 @@ function MessageBubble({ msg, onFollowUp }: { msg: ChatMessage; onFollowUp: (tex
 }
 
 // ── Right panel — context-driven workspace ────────────────────────────────
-function WorkspacePanel({ mode }: { mode: "assets" | "overview" }) {
+function WorkspacePanel({ mode, selectedAssetId, onClearAsset }: { mode: "assets" | "overview"; selectedAssetId?: string | null; onClearAsset?: () => void }) {
+  const navigate = useNavigate();
+
+  // If an asset is selected from the chat, show it inline
+  if (selectedAssetId) {
+    const asset = ASSETS.find(a => a.id === selectedAssetId);
+    if (asset) {
+      return (
+        <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+          <Box sx={{ px: 2, py: 1.25, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", gap: 1 }}>
+            <Box sx={{ width: 40, height: 28, borderRadius: tokens.radius.sm, overflow: "hidden", flexShrink: 0, bgcolor: tokens.bg.overlay }}>
+              <img src={asset.thumbnailUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            </Box>
+            <Box sx={{ flex: 1, overflow: "hidden" }}>
+              <Typography variant="body2" fontWeight={600} noWrap sx={{ fontSize: "0.82rem" }}>{asset.name}</Typography>
+              <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem" }}>{asset.type} · {asset.mimeType}</Typography>
+            </Box>
+            <Chip
+              label="Open"
+              size="small"
+              onClick={() => navigate(`/assets/${asset.id}`)}
+              sx={{ cursor: "pointer", bgcolor: tokens.primary.subtle, border: `1px solid ${tokens.primary.main}`, color: tokens.primary.light, fontWeight: 600, fontSize: "0.72rem" }}
+            />
+            <IconButton size="small" onClick={onClearAsset} sx={{ ml: 0.5 }}>
+              <ArrowForwardIos sx={{ fontSize: 10, transform: "rotate(180deg)" }} />
+            </IconButton>
+          </Box>
+          <Box sx={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column" }}>
+            {/* Preview image/video */}
+            <Box sx={{ bgcolor: "#000", display: "flex", alignItems: "center", justifyContent: "center", maxHeight: 320, overflow: "hidden" }}>
+              <img src={asset.url || asset.thumbnailUrl} alt={asset.name} style={{ maxWidth: "100%", maxHeight: 320, objectFit: "contain" }} />
+            </Box>
+            {/* Quick meta */}
+            <Box sx={{ p: 2, display: "flex", flexDirection: "column", gap: 1.5 }}>
+              <Typography variant="body2" sx={{ color: tokens.text.secondary, lineHeight: 1.6, fontSize: "0.85rem" }}>{asset.description}</Typography>
+              <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
+                {asset.tags.map(t => (
+                  <Chip key={t} label={t} size="small" sx={{ height: 20, fontSize: "0.68rem", bgcolor: tokens.bg.elevated }} />
+                ))}
+              </Box>
+              <Box sx={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 12px" }}>
+                {[
+                  ["Size", `${(asset.fileSize / 1e6).toFixed(1)} MB`],
+                  ["Status", asset.status],
+                  ...(asset.duration ? [["Duration", `${Math.floor(asset.duration / 60)}:${(asset.duration % 60).toString().padStart(2, "0")}`]] : []),
+                  ...(asset.width ? [["Dimensions", `${asset.width}×${asset.height}`]] : []),
+                ].map(([k, v]) => (
+                  <React.Fragment key={k}>
+                    <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.72rem" }}>{k}</Typography>
+                    <Typography variant="caption" sx={{ color: tokens.text.secondary, fontSize: "0.72rem" }}>{v}</Typography>
+                  </React.Fragment>
+                ))}
+              </Box>
+            </Box>
+          </Box>
+        </Box>
+      );
+    }
+  }
+
   if (mode === "assets") return <AssetBrowser embedded />;
 
   return (
@@ -320,7 +382,29 @@ export default function ChatWorkspace() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [workspaceMode, setWorkspaceMode] = useState<"overview" | "assets">("overview");
+  const [chatWidth, setChatWidth] = useState(440);
+  const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const isDragging = useRef(false);
+
+  const handleDividerMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isDragging.current = true;
+    const startX = e.clientX;
+    const startW = chatWidth;
+    const onMove = (ev: MouseEvent) => {
+      if (!isDragging.current) return;
+      const delta = ev.clientX - startX;
+      setChatWidth(Math.max(280, Math.min(700, startW + delta)));
+    };
+    const onUp = () => {
+      isDragging.current = false;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, [chatWidth]);
 
   useEffect(() => {
     mockChatService.getHistory().then(setMessages);
@@ -369,13 +453,13 @@ export default function ChatWorkspace() {
       {/* ── Left: Chat column ── */}
       <Box
         sx={{
-          width: { xs: "100%", md: 440 },
-          minWidth: { md: 380 },
-          maxWidth: { md: 500 },
+          width: { xs: "100%", md: chatWidth },
+          minWidth: { md: 280 },
+          maxWidth: { md: 700 },
           display: "flex",
           flexDirection: "column",
-          borderRight: `1px solid ${tokens.border.subtle}`,
           bgcolor: tokens.bg.surface,
+          flexShrink: 0,
         }}
       >
         {/* Header */}
@@ -403,7 +487,7 @@ export default function ChatWorkspace() {
         {/* Messages */}
         <Box ref={scrollRef} sx={{ flex: 1, overflow: "auto", px: 2, py: 1.5 }}>
           {messages.map((msg) => (
-            <MessageBubble key={msg.id} msg={msg} onFollowUp={sendMessage} />
+            <MessageBubble key={msg.id} msg={msg} onFollowUp={sendMessage} onAssetClick={(id) => setSelectedAssetId(id)} />
           ))}
           {sending && (
             <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 2 }}>
@@ -466,6 +550,36 @@ export default function ChatWorkspace() {
         </Box>
       </Box>
 
+      {/* ── Drag divider ── */}
+      <Box
+        onMouseDown={handleDividerMouseDown}
+        sx={{
+          display: { xs: "none", md: "flex" },
+          width: 6,
+          cursor: "col-resize",
+          borderLeft: `1px solid ${tokens.border.subtle}`,
+          borderRight: `1px solid ${tokens.border.subtle}`,
+          bgcolor: "transparent",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+          alignSelf: "stretch",
+          "&:hover": { bgcolor: tokens.primary.subtle },
+          transition: "background-color 120ms ease",
+          userSelect: "none",
+          zIndex: 2,
+        }}
+      >
+        <Box
+          sx={{
+            width: 2, height: 36, borderRadius: 1,
+            bgcolor: tokens.border.strong,
+            opacity: 0.5,
+            transition: "opacity 120ms ease",
+          }}
+        />
+      </Box>
+
       {/* ── Right: Workspace panel ── */}
       <Box sx={{ flex: 1, overflow: "auto", display: { xs: "none", md: "flex" }, flexDirection: "column", bgcolor: tokens.bg.base }}>
         {/* Workspace tab bar */}
@@ -487,7 +601,7 @@ export default function ChatWorkspace() {
           ))}
         </Box>
         <Box sx={{ flex: 1, overflow: "auto" }}>
-          <WorkspacePanel mode={workspaceMode} />
+          <WorkspacePanel mode={workspaceMode} selectedAssetId={selectedAssetId} onClearAsset={() => setSelectedAssetId(null)} />
         </Box>
       </Box>
     </Box>

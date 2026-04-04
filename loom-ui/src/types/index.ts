@@ -275,3 +275,47 @@ export interface ChatMessage {
   actions?: AgentAction[];
   suggestedFollowUps?: string[];
 }
+
+// Transcript
+export interface TranscriptWord {
+  word: string;
+  startTime: number;
+  endTime: number;
+  confidence: number;
+}
+
+export interface TranscriptSection {
+  id: string;
+  title: string;
+  startTime: number;
+  endTime: number;
+  words: TranscriptWord[];
+}
+
+// Face Detection
+export interface DetectedFace {
+  id: string;
+  assetId: string;
+  timestamp?: number; // for video: the time of detection
+  boundingBox: { x: number; y: number; width: number; height: number }; // normalized 0-1
+  confidence: number;
+  thumbnailUrl: string;
+  clusterId?: string;
+}
+
+export interface FaceCluster {
+  id: string;
+  label: string;
+  representativeThumbnailUrl: string;
+  faceIds: string[];
+  personId?: string;
+}
+
+export interface Person {
+  id: string;
+  name: string;
+  description: string;
+  avatarUrl: string;
+  clusterIds: string[];
+  createdAt: string;
+}

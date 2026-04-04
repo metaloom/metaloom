@@ -9,7 +9,7 @@ import {
   TaskAltOutlined, CollectionsOutlined, BarChartOutlined,
   AdminPanelSettingsOutlined, ExpandMore, ExpandLess,
   Circle, ChevronLeft, ChevronRight, LibraryBooksOutlined,
-  FolderOpenOutlined, KeyboardArrowDown,
+  FolderOpenOutlined, KeyboardArrowDown, FaceOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../theme";
 import { useProject } from "../context/ProjectContext";
@@ -32,6 +32,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Collections", path: "/collections", icon: <CollectionsOutlined fontSize="small" /> },
   { label: "Tasks", path: "/tasks", icon: <TaskAltOutlined fontSize="small" />, badge: 3 },
   { label: "Pipelines", path: "/pipelines", icon: <AccountTreeOutlined fontSize="small" /> },
+  { label: "Faces", path: "/faces", icon: <FaceOutlined fontSize="small" /> },
   { label: "Monitoring", path: "/monitoring", icon: <BarChartOutlined fontSize="small" /> },
   {
     label: "Admin", path: "/admin", icon: <AdminPanelSettingsOutlined fontSize="small" />,

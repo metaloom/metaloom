@@ -2,11 +2,13 @@ import {
   Project, Library, Asset, Collection, Task, Comment, Annotation,
   Reaction, Pipeline, User, Group, Role, Permission, ApiKey,
   BlacklistEntry, ChatMessage,
+  TranscriptSection, DetectedFace, FaceCluster, Person,
 } from "../types";
 import {
   PROJECTS, LIBRARIES, ASSETS, COLLECTIONS, TASKS,
   COMMENTS, ANNOTATIONS, REACTIONS, PIPELINES, USERS, GROUPS,
   ROLES, PERMISSIONS, API_KEYS, BLACKLIST, INITIAL_CHAT,
+  TRANSCRIPTS, DETECTED_FACES, FACE_CLUSTERS, PERSONS,
 } from "./data";
 
 // Simulate realistic async latency
@@ -23,6 +25,24 @@ export const mockLibraryService = {
   getByProject: async (projectId: string): Promise<Library[]> => {
     await delay(100);
     return LIBRARIES.filter(l => l.projectId === projectId);
+  },
+  create: async (projectId: string, name: string, description: string): Promise<Library> => {
+    await delay(150);
+    const lib: Library = {
+      id: `lib_${Date.now()}`,
+      projectId,
+      name,
+      description,
+      assetCount: 0,
+      createdAt: new Date().toISOString(),
+    };
+    LIBRARIES.push(lib);
+    return lib;
+  },
+  delete: async (id: string): Promise<void> => {
+    await delay(100);
+    const idx = LIBRARIES.findIndex(l => l.id === id);
+    if (idx >= 0) LIBRARIES.splice(idx, 1);
   },
 };
 
@@ -60,6 +80,27 @@ export const mockCollectionService = {
   getById: async (id: string): Promise<Collection | undefined> => {
     await delay(80);
     return COLLECTIONS.find(c => c.id === id);
+  },
+  create: async (projectId: string, name: string, description: string, color: string): Promise<Collection> => {
+    await delay(150);
+    const col: Collection = {
+      id: `col_${Date.now()}`,
+      projectId,
+      name,
+      description,
+      assetIds: [],
+      ownerId: "u1",
+      color,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    COLLECTIONS.push(col);
+    return col;
+  },
+  delete: async (id: string): Promise<void> => {
+    await delay(100);
+    const idx = COLLECTIONS.findIndex(c => c.id === id);
+    if (idx >= 0) COLLECTIONS.splice(idx, 1);
   },
 };
 
@@ -121,8 +162,28 @@ export const mockAdminService = {
   getUsers: async (): Promise<User[]> => { await delay(150); return [...USERS]; },
   getGroups: async (): Promise<Group[]> => { await delay(120); return [...GROUPS]; },
   getRoles: async (): Promise<Role[]> => { await delay(100); return [...ROLES]; },
+  updateRolePermissions: async (roleId: string, permissionIds: string[]): Promise<void> => {
+    await delay(80);
+    const role = ROLES.find(r => r.id === roleId);
+    if (role) role.permissionIds = [...permissionIds];
+  },
   getPermissions: async (): Promise<Permission[]> => { await delay(80); return [...PERMISSIONS]; },
   getApiKeys: async (): Promise<ApiKey[]> => { await delay(120); return [...API_KEYS]; },
+  createApiKey: async (data: { name: string; scopes: string[]; expiresAt?: string }): Promise<ApiKey> => {
+    await delay(200);
+    const key: ApiKey = {
+      id: `k${Date.now()}`,
+      name: data.name,
+      prefix: `lm_${data.name.toLowerCase().replace(/\s+/g, "_").slice(0, 8)}_${Math.random().toString(36).slice(2, 6)}`,
+      ownerId: "u1",
+      scopes: data.scopes,
+      expiresAt: data.expiresAt,
+      createdAt: new Date().toISOString(),
+      active: true,
+    };
+    API_KEYS.push(key);
+    return key;
+  },
   getBlacklist: async (): Promise<BlacklistEntry[]> => { await delay(100); return [...BLACKLIST]; },
 };
 
@@ -209,5 +270,42 @@ export const mockChatService = {
       actions: response.actions,
       suggestedFollowUps: response.suggestedFollowUps,
     };
+  },
+};
+
+// ── Transcript ───────────────────────────────────────────────────────────
+export const mockTranscriptService = {
+  getByAsset: async (assetId: string): Promise<TranscriptSection[]> => {
+    await delay(100);
+    return TRANSCRIPTS[assetId] ? [...TRANSCRIPTS[assetId]] : [];
+  },
+};
+
+// ── Face Detection ───────────────────────────────────────────────────────
+export const mockFaceDetectionService = {
+  getFacesByAsset: async (assetId: string): Promise<DetectedFace[]> => {
+    await delay(100);
+    return DETECTED_FACES.filter(f => f.assetId === assetId);
+  },
+  getAllClusters: async (): Promise<FaceCluster[]> => {
+    await delay(80);
+    return [...FACE_CLUSTERS];
+  },
+  getAllPersons: async (): Promise<Person[]> => {
+    await delay(80);
+    return [...PERSONS];
+  },
+  createPerson: async (name: string, description: string): Promise<Person> => {
+    await delay(150);
+    const p: Person = { id: `per_${Date.now()}`, name, description, avatarUrl: `https://i.pravatar.cc/80?u=${Date.now()}`, clusterIds: [], createdAt: new Date().toISOString() };
+    PERSONS.push(p);
+    return p;
+  },
+  assignClusterToPerson: async (clusterId: string, personId: string): Promise<void> => {
+    await delay(100);
+    const cluster = FACE_CLUSTERS.find(c => c.id === clusterId);
+    if (cluster) cluster.personId = personId;
+    const person = PERSONS.find(p => p.id === personId);
+    if (person && !person.clusterIds.includes(clusterId)) person.clusterIds.push(clusterId);
   },
 };

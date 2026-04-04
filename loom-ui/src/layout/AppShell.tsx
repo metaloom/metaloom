@@ -12,6 +12,7 @@ import MonitoringArea from "../features/monitoring/MonitoringArea";
 import CollectionsView from "../features/collections/CollectionsView";
 import TasksView from "../features/tasks/TasksView";
 import LibraryView from "../features/library/LibraryView";
+import FaceDetectionManagement from "../features/faceDetection/FaceDetectionManagement";
 
 export default function AppShell() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -37,6 +38,7 @@ export default function AppShell() {
           <Route path="/collections" element={<CollectionsView />} />
           <Route path="/tasks" element={<TasksView />} />
           <Route path="/pipelines" element={<PipelineEditor />} />
+          <Route path="/faces" element={<FaceDetectionManagement />} />
           <Route path="/monitoring" element={<MonitoringArea />} />
           <Route path="/admin/*" element={<AdminArea />} />
           <Route path="*" element={<Navigate to="/" replace />} />
