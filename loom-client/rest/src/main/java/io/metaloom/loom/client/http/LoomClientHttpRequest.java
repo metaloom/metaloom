@@ -39,7 +39,6 @@ public interface LoomClientHttpRequest<T extends RestResponseModel<T>> extends L
 	/**
 	 * Create request without payload and no response (e.g. delete requests)
 	 * 
-	 * @param <T>
 	 * @param method
 	 * @param path
 	 * @param loomClient
@@ -133,7 +132,7 @@ public interface LoomClientHttpRequest<T extends RestResponseModel<T>> extends L
 	 * Executes the request in a synchronized blocking way.
 	 * 
 	 * @return
-	 * @throws HttpErrorException
+	 * @throws LoomClientException
 	 */
 	T sync() throws LoomClientException;
 

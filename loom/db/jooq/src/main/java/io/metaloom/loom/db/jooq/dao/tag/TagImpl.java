@@ -4,7 +4,7 @@ import io.metaloom.loom.db.jooq.AbstractEditableElement;
 import io.metaloom.loom.db.model.tag.Tag;
 
 /**
- * @See {@link Tag}
+ * @see Tag
  */
 public class TagImpl extends AbstractEditableElement<Tag> implements Tag {
 

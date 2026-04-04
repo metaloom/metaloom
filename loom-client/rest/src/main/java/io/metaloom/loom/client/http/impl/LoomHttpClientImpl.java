@@ -93,7 +93,7 @@ import io.metaloom.loom.rest.model.user.UserUpdateRequest;
 import okhttp3.OkHttpClient;
 
 /**
- * Implementation for the {@link LoomHttpClient}
+ * Implementation for the {@link io.metaloom.loom.client.http.LoomHttpClient}
  */
 public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 

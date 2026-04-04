@@ -12,8 +12,6 @@ import io.metaloom.loom.db.page.Page;
 /**
  * @param <T>
  *            Element type for the DTO
- * @param <UUID>
- *            Type of the id
  */
 public interface CRUDDao<T extends Element<T>> extends Dao {
 
