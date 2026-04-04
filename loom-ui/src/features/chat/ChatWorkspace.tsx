@@ -18,7 +18,7 @@ import AssetBrowser from "../assets/AssetBrowser";
 import { ASSETS, COLLECTIONS, TASKS, PIPELINES } from "../../mock/data";
 
 // ── Reference chip renderer ───────────────────────────────────────────────
-function RefChip({ ref: r }: { ref: ChatReference }) {
+function RefChip({ chatRef: r }: { chatRef: ChatReference }) {
   const navigate = useNavigate();
   type RefType = "asset" | "collection" | "task" | "pipeline" | "annotation";
   const iconMap: Record<RefType, React.ReactNode> = {
@@ -178,7 +178,7 @@ function MessageBubble({ msg, onFollowUp }: { msg: ChatMessage; onFollowUp: (tex
         {/* References */}
         {msg.references && msg.references.length > 0 && (
           <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, px: 0.5 }}>
-            {msg.references.map((r) => <RefChip key={r.id + r.type} ref={r} />)}
+            {msg.references.map((r) => <RefChip key={r.id + r.type} chatRef={r} />)}
           </Box>
         )}
 
