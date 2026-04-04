@@ -26,6 +26,7 @@ import io.metaloom.cortex.pipeline.api.cache.NodeCacheProvider;
 import io.metaloom.cortex.pipeline.api.event.NodeCompletionEvent;
 import io.metaloom.cortex.pipeline.api.event.PipelineEventBus;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
+import io.metaloom.cortex.pipeline.api.sync.LoomBulkSyncCollector;
 import io.metaloom.cortex.pipeline.common.cache.NoOpNodeCache;
 import io.metaloom.cortex.pipeline.common.event.DefaultPipelineEventBus;
 
@@ -46,20 +47,29 @@ public class DAGPipelineExecutor implements PipelineExecutor {
 
 	private final ExecutorService executorService;
 	private final PipelineEventBus eventBus;
+	private final LoomBulkSyncCollector syncCollector;
 	private final Map<String, Semaphore> nodeSemaphores = new ConcurrentHashMap<>();
 
 	public DAGPipelineExecutor(int threadPoolSize) {
-		this.executorService = Executors.newFixedThreadPool(threadPoolSize);
-		this.eventBus = new DefaultPipelineEventBus();
+		this(threadPoolSize, new DefaultPipelineEventBus(), null);
 	}
 
 	public DAGPipelineExecutor(int threadPoolSize, PipelineEventBus eventBus) {
+		this(threadPoolSize, eventBus, null);
+	}
+
+	public DAGPipelineExecutor(int threadPoolSize, PipelineEventBus eventBus, LoomBulkSyncCollector syncCollector) {
 		this.executorService = Executors.newFixedThreadPool(threadPoolSize);
 		this.eventBus = eventBus;
+		this.syncCollector = syncCollector;
 	}
 
 	public PipelineEventBus getEventBus() {
 		return eventBus;
+	}
+
+	public LoomBulkSyncCollector getSyncCollector() {
+		return syncCollector;
 	}
 
 	@Override
@@ -185,9 +195,22 @@ public class DAGPipelineExecutor implements PipelineExecutor {
 		// Cache the result on success
 		if (result.getState() == NodeState.COMPLETED) {
 			cache.put(node.id(), media, result);
+
+			// Collect sync-eligible results for bulk Loom sync
+			if (node.syncToLoom() && syncCollector != null) {
+				syncCollector.collect(media, node.id(), result);
+			}
 		}
 
 		return result;
+	}
+
+	@Override
+	public int flushSync() {
+		if (syncCollector != null) {
+			return syncCollector.flush();
+		}
+		return 0;
 	}
 
 	@Override

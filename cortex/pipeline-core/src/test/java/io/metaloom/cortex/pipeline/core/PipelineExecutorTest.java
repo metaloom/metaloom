@@ -38,6 +38,7 @@ import io.metaloom.cortex.pipeline.api.filter.MediaFilter;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 import io.metaloom.cortex.pipeline.common.cache.HeapNodeCache;
 import io.metaloom.cortex.pipeline.common.event.DefaultPipelineEventBus;
+import io.metaloom.cortex.pipeline.common.sync.DefaultLoomBulkSyncCollector;
 import io.metaloom.cortex.pipeline.core.executor.DAGPipelineExecutor;
 import io.metaloom.cortex.pipeline.core.node.AbstractPipelineNode;
 import io.metaloom.cortex.pipeline.core.node.LoomFetchNode;
@@ -401,6 +402,214 @@ class PipelineExecutorTest {
 		evExecutor.shutdown();
 	}
 
+	/**
+	 * Complex DAG demonstrating the user's target pipeline:
+	 *
+	 * <pre>
+	 * hasher -> thumbnail    -> llm-image-desc (extracts image description via prompt)
+	 *                              -> llm-process-desc (processes the image description)
+	 *        -> fingerprint  (parallel with thumbnail and whisper)
+	 *        -> whisper      -> llm-transcript-qa (answers questions from transcript)
+	 * </pre>
+	 *
+	 * Multiple LLM nodes with distinct IDs, each depending on different upstream producers.
+	 * Nodes pass data downstream via NodeResult output maps.
+	 */
+	@Test
+	void testComplexDAGWithMultipleLLMNodes() {
+		CopyOnWriteArrayList<String> executionLog = new CopyOnWriteArrayList<>();
+
+		// 1. Hasher — root node, no dependencies
+		PipelineNode hasherNode = new TestNode("hasher", "SHA-512 Hash", NodeMode.PARALLEL, true,
+				Set.of(), 4, 30, executionLog);
+
+		// 2. Thumbnail — depends on hasher, produces image data
+		PipelineNode thumbnailNode = new OutputTestNode("thumbnail", "Thumbnail", NodeMode.PARALLEL, true,
+				Set.of("hasher"), 2, 40,
+				Map.of("image", "/tmp/thumb_001.jpg"),
+				executionLog);
+
+		// 3. Fingerprint — depends on hasher, runs in parallel with thumbnail & whisper
+		PipelineNode fingerprintNode = new TestNode("fingerprint", "Fingerprint", NodeMode.PARALLEL, true,
+				Set.of("hasher"), 2, 60, executionLog, true);
+
+		// 4. Whisper — depends on hasher, produces transcript
+		PipelineNode whisperNode = new OutputTestNode("whisper", "Whisper STT", NodeMode.PARALLEL, true,
+				Set.of("hasher"), 1, 80,
+				Map.of("transcript", "Hello world, this is a test video about machine learning."),
+				executionLog);
+
+		// 5. LLM Image Description — depends on thumbnail, reads its output, produces description
+		PipelineNode llmImageDescNode = new AbstractPipelineNode("llm-image-desc", "LLM Image Description",
+				NodeMode.PARALLEL, true, Set.of("thumbnail"), 4, true) {
+			@Override
+			public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {
+				try { Thread.sleep(50); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+				// Read thumbnail path from upstream
+				NodeResult thumbResult = upstreamResults.get("thumbnail");
+				String imagePath = thumbResult != null ? thumbResult.getOutput("image") : "unknown";
+				String description = "A scenic landscape with mountains (from " + imagePath + ")";
+				executionLog.add(id());
+				return NodeResult.success(id(), 50, Map.of("description", description));
+			}
+		};
+
+		// 6. LLM Process Description — depends on llm-image-desc, reads the description
+		PipelineNode llmProcessDescNode = new AbstractPipelineNode("llm-process-desc", "LLM Process Description",
+				NodeMode.PARALLEL, true, Set.of("llm-image-desc"), 4, true) {
+			@Override
+			public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {
+				try { Thread.sleep(30); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+				NodeResult descResult = upstreamResults.get("llm-image-desc");
+				String description = descResult != null ? descResult.getOutput("description") : "none";
+				String tags = "nature,landscape,mountains (derived from: " + description + ")";
+				executionLog.add(id());
+				return NodeResult.success(id(), 30, Map.of("tags", tags));
+			}
+		};
+
+		// 7. LLM Transcript QA — depends on whisper, reads transcript
+		PipelineNode llmTranscriptQaNode = new AbstractPipelineNode("llm-transcript-qa", "LLM Transcript QA",
+				NodeMode.PARALLEL, true, Set.of("whisper"), 4, true) {
+			@Override
+			public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {
+				try { Thread.sleep(50); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+				NodeResult whisperResult = upstreamResults.get("whisper");
+				String transcript = whisperResult != null ? whisperResult.getOutput("transcript") : "none";
+				String answer = "This video discusses machine learning (from transcript: " + transcript.substring(0, 20) + "...)";
+				executionLog.add(id());
+				return NodeResult.success(id(), 50, Map.of("answer", answer));
+			}
+		};
+
+		Pipeline pipeline = DefaultPipeline.builder("complex-llm-pipeline")
+				.description("Complex pipeline with multiple LLM nodes")
+				.priority(100)
+				.filter(new MediaFilter(Set.of("video/*"), List.of()))
+				.addNode(hasherNode)
+				.addNode(thumbnailNode)
+				.addNode(fingerprintNode)
+				.addNode(whisperNode)
+				.addNode(llmImageDescNode)
+				.addNode(llmProcessDescNode)
+				.addNode(llmTranscriptQaNode)
+				.build();
+
+		LoomMedia media = new StubLoomMedia("/media/videos/complex.mp4", true);
+		PipelineResult result = executor.execute(pipeline, media);
+
+		// Verify all nodes completed
+		assertTrue(result.isSuccess(), "Pipeline should succeed: " + result);
+		assertEquals(7, result.getNodeResults().size());
+
+		// Verify dependency ordering
+		int hasherIdx = executionLog.indexOf("hasher");
+		int thumbIdx = executionLog.indexOf("thumbnail");
+		int fpIdx = executionLog.indexOf("fingerprint");
+		int whisperIdx = executionLog.indexOf("whisper");
+		int llmImgIdx = executionLog.indexOf("llm-image-desc");
+		int llmProcIdx = executionLog.indexOf("llm-process-desc");
+		int llmQaIdx = executionLog.indexOf("llm-transcript-qa");
+
+		// hasher must come first
+		assertTrue(hasherIdx < thumbIdx, "hasher before thumbnail");
+		assertTrue(hasherIdx < fpIdx, "hasher before fingerprint");
+		assertTrue(hasherIdx < whisperIdx, "hasher before whisper");
+
+		// thumbnail -> llm-image-desc -> llm-process-desc
+		assertTrue(thumbIdx < llmImgIdx, "thumbnail before llm-image-desc");
+		assertTrue(llmImgIdx < llmProcIdx, "llm-image-desc before llm-process-desc");
+
+		// whisper -> llm-transcript-qa
+		assertTrue(whisperIdx < llmQaIdx, "whisper before llm-transcript-qa");
+
+		// Verify output data flows correctly through the chain
+		NodeResult llmImageResult = result.getNodeResults().get("llm-image-desc");
+		assertNotNull(llmImageResult.getOutput("description"));
+		assertTrue(((String) llmImageResult.getOutput("description")).contains("scenic landscape"));
+
+		NodeResult llmProcessResult = result.getNodeResults().get("llm-process-desc");
+		assertNotNull(llmProcessResult.getOutput("tags"));
+		assertTrue(((String) llmProcessResult.getOutput("tags")).contains("nature"));
+
+		NodeResult llmQaResult = result.getNodeResults().get("llm-transcript-qa");
+		assertNotNull(llmQaResult.getOutput("answer"));
+		assertTrue(((String) llmQaResult.getOutput("answer")).contains("machine learning"));
+
+		log.info("Execution order: {}", executionLog);
+		log.info("LLM image output: {}", llmImageResult.getOutput());
+		log.info("LLM process output: {}", llmProcessResult.getOutput());
+		log.info("LLM QA output: {}", llmQaResult.getOutput());
+		log.info("Result: {}", result);
+	}
+
+	@Test
+	void testSyncToLoomFlag() {
+		// Nodes with syncToLoom=true should be collected by the bulk sync collector
+		PipelineNode hashNode = new TestNode("hash", "Hash", NodeMode.PARALLEL, true,
+				Set.of(), 4, 10, new CopyOnWriteArrayList<>(), true);
+		PipelineNode thumbnailNode = new TestNode("thumbnail", "Thumb", NodeMode.PARALLEL, true,
+				Set.of("hash"), 2, 10, new CopyOnWriteArrayList<>(), true);
+		PipelineNode internalNode = new TestNode("internal", "Internal", NodeMode.PARALLEL, true,
+				Set.of("hash"), 2, 10, new CopyOnWriteArrayList<>(), false);
+
+		Pipeline pipeline = DefaultPipeline.builder("sync-test")
+				.addNode(hashNode)
+				.addNode(thumbnailNode)
+				.addNode(internalNode)
+				.build();
+
+		assertTrue(hashNode.syncToLoom());
+		assertTrue(thumbnailNode.syncToLoom());
+		assertFalse(internalNode.syncToLoom());
+	}
+
+	@Test
+	void testBulkSyncCollectorIntegration() {
+		// Set up a sync collector that records what gets flushed
+		List<DefaultLoomBulkSyncCollector.SyncEntry> flushedEntries = new CopyOnWriteArrayList<>();
+		DefaultLoomBulkSyncCollector syncCollector = new DefaultLoomBulkSyncCollector(
+				batch -> flushedEntries.addAll(batch), 50);
+
+		DAGPipelineExecutor syncExecutor = new DAGPipelineExecutor(4,
+				new DefaultPipelineEventBus(), syncCollector);
+
+		// hash (sync) -> thumbnail (sync) -> internal (no sync)
+		PipelineNode hashNode = new TestNode("hash", "Hash", NodeMode.PARALLEL, true,
+				Set.of(), 4, 10, new CopyOnWriteArrayList<>(), true);
+		PipelineNode thumbnailNode = new TestNode("thumbnail", "Thumb", NodeMode.PARALLEL, true,
+				Set.of("hash"), 2, 10, new CopyOnWriteArrayList<>(), true);
+		PipelineNode internalNode = new TestNode("internal", "Internal", NodeMode.PARALLEL, true,
+				Set.of("hash"), 2, 10, new CopyOnWriteArrayList<>(), false);
+
+		Pipeline pipeline = DefaultPipeline.builder("bulk-sync-test")
+				.addNode(hashNode)
+				.addNode(thumbnailNode)
+				.addNode(internalNode)
+				.build();
+
+		// Process a batch of 3 media items
+		List<LoomMedia> batch = List.of(
+				new StubLoomMedia("/a.mp4", true),
+				new StubLoomMedia("/b.mp4", true),
+				new StubLoomMedia("/c.mp4", true));
+
+		List<PipelineResult> results = syncExecutor.executeBatch(pipeline, batch);
+
+		assertEquals(3, results.size());
+		assertTrue(results.stream().allMatch(PipelineResult::isSuccess));
+
+		// 3 media x 2 sync-eligible nodes = 6 flushed entries
+		assertEquals(6, flushedEntries.size(), "Should flush 6 sync entries (3 media x 2 sync nodes)");
+
+		// Verify only hash and thumbnail entries (not internal)
+		assertTrue(flushedEntries.stream().allMatch(
+				e -> "hash".equals(e.getNodeId()) || "thumbnail".equals(e.getNodeId())),
+				"Only sync-eligible nodes should be flushed");
+
+		syncExecutor.shutdown();
+	}
+
 	// --- Helper classes ---
 
 	/**
@@ -412,7 +621,13 @@ class PipelineExecutorTest {
 
 		TestNode(String id, String name, NodeMode mode, boolean blocking,
 				Set<String> dependencies, int concurrency, long delayMs, List<String> executionLog) {
-			super(id, name, mode, blocking, dependencies, concurrency);
+			this(id, name, mode, blocking, dependencies, concurrency, delayMs, executionLog, false);
+		}
+
+		TestNode(String id, String name, NodeMode mode, boolean blocking,
+				Set<String> dependencies, int concurrency, long delayMs, List<String> executionLog,
+				boolean syncToLoom) {
+			super(id, name, mode, blocking, dependencies, concurrency, syncToLoom);
 			this.delayMs = delayMs;
 			this.executionLog = executionLog;
 		}
@@ -427,6 +642,36 @@ class PipelineExecutorTest {
 			}
 			executionLog.add(id());
 			return NodeResult.success(id(), delayMs);
+		}
+	}
+
+	/**
+	 * Test node that produces output data so downstream nodes can read from it.
+	 */
+	static class OutputTestNode extends AbstractPipelineNode {
+		private final long delayMs;
+		private final Map<String, Object> outputData;
+		private final List<String> executionLog;
+
+		OutputTestNode(String id, String name, NodeMode mode, boolean blocking,
+				Set<String> dependencies, int concurrency, long delayMs,
+				Map<String, Object> outputData, List<String> executionLog) {
+			super(id, name, mode, blocking, dependencies, concurrency, true);
+			this.delayMs = delayMs;
+			this.outputData = outputData;
+			this.executionLog = executionLog;
+		}
+
+		@Override
+		public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {
+			try {
+				Thread.sleep(delayMs);
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				return NodeResult.failed(id(), 0, "Interrupted");
+			}
+			executionLog.add(id());
+			return NodeResult.success(id(), delayMs, outputData);
 		}
 	}
 

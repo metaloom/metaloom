@@ -19,16 +19,23 @@ public abstract class AbstractPipelineNode implements PipelineNode {
 	private final boolean blocking;
 	private final Set<String> dependencies;
 	private final int concurrency;
+	private boolean syncToLoom;
 	private NodeCacheProvider cacheProvider;
 
 	protected AbstractPipelineNode(String id, String name, NodeMode mode, boolean blocking,
 			Set<String> dependencies, int concurrency) {
+		this(id, name, mode, blocking, dependencies, concurrency, false);
+	}
+
+	protected AbstractPipelineNode(String id, String name, NodeMode mode, boolean blocking,
+			Set<String> dependencies, int concurrency, boolean syncToLoom) {
 		this.id = id;
 		this.name = name;
 		this.mode = mode;
 		this.blocking = blocking;
 		this.dependencies = dependencies != null ? Collections.unmodifiableSet(dependencies) : Collections.emptySet();
 		this.concurrency = concurrency;
+		this.syncToLoom = syncToLoom;
 	}
 
 	@Override
@@ -62,6 +69,15 @@ public abstract class AbstractPipelineNode implements PipelineNode {
 	}
 
 	@Override
+	public boolean syncToLoom() {
+		return syncToLoom;
+	}
+
+	public void setSyncToLoom(boolean syncToLoom) {
+		this.syncToLoom = syncToLoom;
+	}
+
+	@Override
 	public NodeCacheProvider cacheProvider() {
 		return cacheProvider;
 	}
@@ -72,6 +88,7 @@ public abstract class AbstractPipelineNode implements PipelineNode {
 
 	@Override
 	public String toString() {
-		return id + " [" + mode + (blocking ? ", blocking" : "") + ", concurrency=" + concurrency + "]";
+		return id + " [" + mode + (blocking ? ", blocking" : "") + ", concurrency=" + concurrency
+				+ (syncToLoom ? ", sync" : "") + "]";
 	}
 }

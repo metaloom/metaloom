@@ -48,6 +48,16 @@ public interface PipelineNode {
 	int concurrency();
 
 	/**
+	 * Whether the result of this node should be synchronized to the Loom backend.
+	 * Nodes that produce metadata (hashes, descriptions, transcripts, fingerprints)
+	 * typically return {@code true}. The pipeline executor collects results from all
+	 * sync-eligible nodes and flushes them in bulk via {@link io.metaloom.cortex.pipeline.api.sync.LoomBulkSyncCollector}.
+	 */
+	default boolean syncToLoom() {
+		return false;
+	}
+
+	/**
 	 * Process a single media item. Returns the result of the processing.
 	 *
 	 * @param media the media item to process
