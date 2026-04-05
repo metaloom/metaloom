@@ -3,6 +3,7 @@ import {
   Reaction, Pipeline, User, Group, Role, Permission, ApiKey,
   BlacklistEntry, MetricSeries, ChatMessage,
   TranscriptSection, DetectedFace, FaceCluster, Person,
+  DetectedObject,
 } from "../types";
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -509,4 +510,18 @@ export const PERSONS: Person[] = [
   { id: "per1", name: "Aria Chen", description: "CEO and co-founder", avatarUrl: "https://i.pravatar.cc/80?u=per1", clusterIds: ["fc1"], createdAt: daysAgo(60) },
   { id: "per2", name: "Marcus Webb", description: "Lead editor", avatarUrl: "https://i.pravatar.cc/80?u=per2", clusterIds: ["fc2"], createdAt: daysAgo(45) },
   { id: "per3", name: "Sofia Reyes", description: "Pipeline operator", avatarUrl: "https://i.pravatar.cc/80?u=per3", clusterIds: [], createdAt: daysAgo(30) },
+];
+
+// ── Object Detection ──────────────────────────────────────────────────────
+export const DETECTED_OBJECTS: DetectedObject[] = [
+  { id: "obj1", assetId: "a1", label: "car", confidence: 0.95, boundingBox: { x: 0.1, y: 0.4, width: 0.25, height: 0.3 }, timestamp: 5 },
+  { id: "obj2", assetId: "a1", label: "person", confidence: 0.92, boundingBox: { x: 0.5, y: 0.2, width: 0.12, height: 0.35 }, timestamp: 5 },
+  { id: "obj3", assetId: "a1", label: "tree", confidence: 0.88, boundingBox: { x: 0.75, y: 0.1, width: 0.2, height: 0.5 }, timestamp: 12 },
+  { id: "obj4", assetId: "a4", label: "dog", confidence: 0.94, boundingBox: { x: 0.3, y: 0.5, width: 0.15, height: 0.2 } },
+  { id: "obj5", assetId: "a4", label: "bench", confidence: 0.87, boundingBox: { x: 0.55, y: 0.6, width: 0.3, height: 0.2 } },
+  { id: "obj6", assetId: "a5", label: "building", confidence: 0.96, boundingBox: { x: 0.05, y: 0.05, width: 0.4, height: 0.7 }, timestamp: 60 },
+  { id: "obj7", assetId: "a5", label: "person", confidence: 0.91, boundingBox: { x: 0.6, y: 0.3, width: 0.1, height: 0.3 }, timestamp: 120 },
+  { id: "obj8", assetId: "a7", label: "laptop", confidence: 0.89, boundingBox: { x: 0.35, y: 0.45, width: 0.2, height: 0.15 } },
+  { id: "obj9", assetId: "a7", label: "cup", confidence: 0.85, boundingBox: { x: 0.6, y: 0.5, width: 0.08, height: 0.12 } },
+  { id: "obj10", assetId: "a8", label: "microphone", confidence: 0.93, boundingBox: { x: 0.45, y: 0.15, width: 0.08, height: 0.25 }, timestamp: 300 },
 ];

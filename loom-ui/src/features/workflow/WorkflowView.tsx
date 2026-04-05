@@ -2,21 +2,24 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Box, Typography, Chip, IconButton, Paper, TextField, Tooltip, Divider,
   Autocomplete, Rating, Button, ToggleButtonGroup, ToggleButton,
-  InputAdornment,
+  InputAdornment, Avatar,
 } from "@mui/material";
 import {
   StarOutlined, LocalOfferOutlined, ContentCopyOutlined,
-  ArrowBackIosNewOutlined, ArrowForwardIosOutlined, SkipNextOutlined,
-  ChevronLeftOutlined, ChevronRightOutlined, SettingsOutlined,
-  SearchOutlined, CheckOutlined, CloseOutlined, DeleteOutlineOutlined,
+  ArrowBackIosNewOutlined, ArrowForwardIosOutlined,
+  ChevronRightOutlined,
+  CheckOutlined, CloseOutlined, DeleteOutlineOutlined,
   KeyboardOutlined, TuneOutlined, SpeedOutlined,
+  FaceOutlined, CenterFocusStrongOutlined, FullscreenOutlined,
+  FullscreenExitOutlined, PersonOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
-import { Asset } from "../../types";
-import { ASSETS } from "../../mock/data";
+import { Asset, DetectedFace, FaceCluster, Person, DetectedObject } from "../../types";
+import { ASSETS, DETECTED_FACES, FACE_CLUSTERS, PERSONS, DETECTED_OBJECTS } from "../../mock/data";
+import { useLayout } from "../../context/LayoutContext";
 
 // ── Types ─────────────────────────────────────────────────────────────────
-type WorkflowMode = "rating" | "tagging" | "deduplication";
+type WorkflowMode = "rating" | "tagging" | "deduplication" | "facedetection" | "objectdetection";
 
 interface KeyAction {
   key: string;
@@ -32,7 +35,6 @@ interface KeyProfile {
   bindings: KeyAction[];
 }
 
-// Tag names from mock data (flat list)
 const ALL_TAGS = [
   "landscape", "portrait", "urban", "nature", "drone", "interview",
   "timelapse", "b-roll", "hero", "archive", "aerial", "macro",
@@ -40,13 +42,26 @@ const ALL_TAGS = [
   "fashion", "architecture", "food", "travel", "sports", "music",
 ];
 
-// Duplicate groups (mock: pairs of similar assets)
 function buildDuplicateGroups(assets: Asset[]): { keep: Asset; candidates: Asset[] }[] {
   const groups: { keep: Asset; candidates: Asset[] }[] = [];
   for (let i = 0; i + 1 < assets.length; i += 2) {
     groups.push({ keep: assets[i], candidates: [assets[i + 1]] });
   }
   return groups;
+}
+
+function keyDisplayName(key: string): string {
+  if (key === " ") return "Space";
+  if (key === "ArrowRight") return "→";
+  if (key === "ArrowLeft") return "←";
+  if (key === "ArrowUp") return "↑";
+  if (key === "ArrowDown") return "↓";
+  if (key === "Enter") return "↵";
+  if (key === "Escape") return "Esc";
+  if (key === "Backspace") return "⌫";
+  if (key === "Tab") return "Tab";
+  if (key === "") return "—";
+  return key.length === 1 ? key.toUpperCase() : key;
 }
 
 // ── Default Key Profiles ──────────────────────────────────────────────────
@@ -96,90 +111,73 @@ const DEFAULT_PROFILES: KeyProfile[] = [
       { key: "n", label: "Reject Dedup", action: "reject_dedup" },
     ],
   },
+  {
+    id: "face-default",
+    name: "Faces — Default",
+    mode: "facedetection",
+    bindings: [
+      { key: "ArrowRight", label: "Next Asset", action: "next_asset" },
+      { key: "ArrowLeft", label: "Prev Asset", action: "prev_asset" },
+      { key: " ", label: "Next Asset", action: "next_asset" },
+      { key: "y", label: "Confirm Cluster", action: "confirm_cluster" },
+      { key: "n", label: "Deny Cluster", action: "deny_cluster" },
+      { key: "Tab", label: "Next Cluster", action: "next_cluster" },
+      { key: "Enter", label: "Assign Person", action: "focus_person" },
+    ],
+  },
+  {
+    id: "object-default",
+    name: "Objects — Default",
+    mode: "objectdetection",
+    bindings: [
+      { key: "ArrowRight", label: "Next Asset", action: "next_asset" },
+      { key: "ArrowLeft", label: "Prev Asset", action: "prev_asset" },
+      { key: " ", label: "Next Asset", action: "next_asset" },
+      { key: "y", label: "Confirm Detection", action: "confirm_object" },
+      { key: "n", label: "Reject Detection", action: "reject_object" },
+      { key: "Tab", label: "Next Detection", action: "next_detection" },
+    ],
+  },
 ];
 
 // ── Rating Mode ───────────────────────────────────────────────────────────
 function RatingMode({
-  asset,
-  ratings,
-  onRate,
-  tagInputRef,
-  assetTags,
-  onAddTag,
-  onRemoveTag,
+  asset, ratings, onRate, tagInputRef, assetTags, onAddTag, onRemoveTag,
 }: {
-  asset: Asset;
-  ratings: Record<string, number>;
-  onRate: (rating: number) => void;
+  asset: Asset; ratings: Record<string, number>; onRate: (r: number) => void;
   tagInputRef: React.RefObject<HTMLInputElement | null>;
-  assetTags: string[];
-  onAddTag: (tag: string) => void;
-  onRemoveTag: (tag: string) => void;
+  assetTags: string[]; onAddTag: (t: string) => void; onRemoveTag: (t: string) => void;
 }) {
   const rating = ratings[asset.id] ?? 0;
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
-      {/* Asset preview */}
-      <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", bgcolor: "#000", borderRadius: tokens.radius.lg, overflow: "hidden", position: "relative", minHeight: 300 }}>
+      <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", bgcolor: "#000", borderRadius: tokens.radius.lg, overflow: "hidden", minHeight: 300 }}>
         <img src={asset.thumbnailUrl} alt={asset.name} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
       </Box>
-
-      {/* Info bar */}
       <Box sx={{ display: "flex", alignItems: "center", gap: 2, px: 1 }}>
         <Box sx={{ flex: 1 }}>
           <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.95rem" }}>{asset.name}</Typography>
-          <Typography variant="caption" color="text.secondary">{asset.type} · {asset.mimeType}</Typography>
+          <Typography variant="caption" color="text.secondary">{asset.type}</Typography>
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.78rem" }}>Rating:</Typography>
-          <Rating
-            value={rating}
-            max={10}
-            onChange={(_, v) => v !== null && onRate(v)}
-            size="small"
-            sx={{ "& .MuiRating-iconFilled": { color: tokens.accent.amber }, "& .MuiRating-iconEmpty": { color: tokens.text.tertiary } }}
-          />
+          <Rating value={rating} max={10} onChange={(_, v) => v !== null && onRate(v)} size="small"
+            sx={{ "& .MuiRating-iconFilled": { color: tokens.accent.amber }, "& .MuiRating-iconEmpty": { color: tokens.text.tertiary } }} />
           <Typography variant="caption" fontWeight={600} sx={{ minWidth: 20, textAlign: "center" }}>{rating || "—"}</Typography>
         </Box>
       </Box>
-
-      {/* Tag editor */}
       <Box sx={{ px: 1 }}>
         <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", alignItems: "center", mb: 0.75 }}>
-          {assetTags.map(t => (
-            <Chip key={t} label={t} size="small" onDelete={() => onRemoveTag(t)} sx={{ height: 22, fontSize: "0.72rem" }} />
-          ))}
+          {assetTags.map(t => <Chip key={t} label={t} size="small" onDelete={() => onRemoveTag(t)} sx={{ height: 22, fontSize: "0.72rem" }} />)}
         </Box>
-        <Autocomplete
-          freeSolo
-          options={ALL_TAGS.filter(t => !assetTags.includes(t))}
+        <Autocomplete freeSolo options={ALL_TAGS.filter(t => !assetTags.includes(t))}
           renderInput={(params) => (
-            <TextField
-              {...params}
-              inputRef={tagInputRef}
-              placeholder="Add tag… (Enter to confirm)"
-              size="small"
-              InputProps={{
-                ...params.InputProps,
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <LocalOfferOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />
-                  </InputAdornment>
-                ),
-              }}
-              sx={{ "& .MuiInputBase-root": { fontSize: "0.8rem" } }}
-            />
+            <TextField {...params} inputRef={tagInputRef} placeholder="Add tag… (Enter to confirm)" size="small"
+              InputProps={{ ...params.InputProps, startAdornment: <InputAdornment position="start"><LocalOfferOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} /></InputAdornment> }}
+              sx={{ "& .MuiInputBase-root": { fontSize: "0.8rem" } }} />
           )}
-          onChange={(_, val) => {
-            if (typeof val === "string" && val.trim()) {
-              onAddTag(val.trim());
-            }
-          }}
-          clearOnBlur={false}
-          selectOnFocus
-          handleHomeEndKeys
-          sx={{ maxWidth: 360 }}
-        />
+          onChange={(_, val) => { if (typeof val === "string" && val.trim()) onAddTag(val.trim()); }}
+          clearOnBlur={false} selectOnFocus handleHomeEndKeys sx={{ maxWidth: 360 }} />
       </Box>
     </Box>
   );
@@ -187,17 +185,10 @@ function RatingMode({
 
 // ── Tagging Mode ──────────────────────────────────────────────────────────
 function TaggingMode({
-  asset,
-  tagInputRef,
-  assetTags,
-  onAddTag,
-  onRemoveTag,
+  asset, tagInputRef, assetTags, onAddTag, onRemoveTag,
 }: {
-  asset: Asset;
-  tagInputRef: React.RefObject<HTMLInputElement | null>;
-  assetTags: string[];
-  onAddTag: (tag: string) => void;
-  onRemoveTag: (tag: string) => void;
+  asset: Asset; tagInputRef: React.RefObject<HTMLInputElement | null>;
+  assetTags: string[]; onAddTag: (t: string) => void; onRemoveTag: (t: string) => void;
 }) {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
@@ -207,56 +198,27 @@ function TaggingMode({
       <Box sx={{ px: 1 }}>
         <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.95rem", mb: 0.5 }}>{asset.name}</Typography>
         <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", alignItems: "center", mb: 1 }}>
-          {assetTags.map(t => (
-            <Chip key={t} label={t} size="small" onDelete={() => onRemoveTag(t)} sx={{ height: 22, fontSize: "0.72rem" }} />
-          ))}
+          {assetTags.map(t => <Chip key={t} label={t} size="small" onDelete={() => onRemoveTag(t)} sx={{ height: 22, fontSize: "0.72rem" }} />)}
           {assetTags.length === 0 && <Typography variant="caption" color="text.secondary">No tags yet</Typography>}
         </Box>
-        <Autocomplete
-          freeSolo
-          options={ALL_TAGS.filter(t => !assetTags.includes(t))}
+        <Autocomplete freeSolo options={ALL_TAGS.filter(t => !assetTags.includes(t))}
           renderInput={(params) => (
-            <TextField
-              {...params}
-              inputRef={tagInputRef}
-              placeholder="Type to search tags… (Enter to add)"
-              size="small"
-              autoFocus
-              InputProps={{
-                ...params.InputProps,
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <LocalOfferOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />
-                  </InputAdornment>
-                ),
-              }}
-            />
+            <TextField {...params} inputRef={tagInputRef} placeholder="Type to search tags… (Enter to add)" size="small" autoFocus
+              InputProps={{ ...params.InputProps, startAdornment: <InputAdornment position="start"><LocalOfferOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} /></InputAdornment> }} />
           )}
-          onChange={(_, val) => {
-            if (typeof val === "string" && val.trim()) {
-              onAddTag(val.trim());
-            }
-          }}
-          clearOnBlur={false}
-          selectOnFocus
-          handleHomeEndKeys
-          sx={{ maxWidth: 440 }}
-        />
+          onChange={(_, val) => { if (typeof val === "string" && val.trim()) onAddTag(val.trim()); }}
+          clearOnBlur={false} selectOnFocus handleHomeEndKeys sx={{ maxWidth: 440 }} />
       </Box>
     </Box>
   );
 }
 
-// ── Deduplication Mode ────────────────────────────────────────────────────
+// ── Deduplication Mode (reworked layout) ──────────────────────────────────
 function DeduplicationMode({
-  group,
-  onConfirm,
-  onReject,
-  decision,
+  group, onConfirm, onReject, decision,
 }: {
   group: { keep: Asset; candidates: Asset[] };
-  onConfirm: () => void;
-  onReject: () => void;
+  onConfirm: () => void; onReject: () => void;
   decision: "confirmed" | "rejected" | null;
 }) {
   return (
@@ -265,16 +227,13 @@ function DeduplicationMode({
       <Box>
         <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", color: tokens.accent.green, fontSize: "0.7rem", letterSpacing: "0.06em", mb: 0.5, display: "block" }}>Keep</Typography>
         <Paper elevation={0} sx={{ border: `2px solid ${tokens.accent.green}`, borderRadius: tokens.radius.lg, overflow: "hidden", bgcolor: tokens.bg.elevated }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2, p: 1.5 }}>
-            <Box sx={{ width: 160, height: 90, borderRadius: tokens.radius.md, overflow: "hidden", flexShrink: 0, bgcolor: "#000" }}>
-              <img src={group.keep.thumbnailUrl} alt={group.keep.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            </Box>
-            <Box>
-              <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.88rem" }}>{group.keep.name}</Typography>
-              <Typography variant="caption" color="text.secondary">{group.keep.type} · {group.keep.mimeType}</Typography>
-              <Box sx={{ display: "flex", gap: 0.5, mt: 0.5 }}>
-                {group.keep.tags.slice(0, 3).map(t => <Chip key={t} label={t} size="small" sx={{ height: 18, fontSize: "0.65rem" }} />)}
-              </Box>
+          <Box sx={{ width: "100%", aspectRatio: "16/9", bgcolor: "#000", overflow: "hidden" }}>
+            <img src={group.keep.thumbnailUrl} alt={group.keep.name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+          </Box>
+          <Box sx={{ p: 1.5 }}>
+            <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.88rem" }}>{group.keep.name}</Typography>
+            <Box sx={{ display: "flex", gap: 0.5, mt: 0.5 }}>
+              {group.keep.tags.slice(0, 5).map(t => <Chip key={t} label={t} size="small" sx={{ height: 18, fontSize: "0.65rem" }} />)}
             </Box>
           </Box>
         </Paper>
@@ -286,53 +245,41 @@ function DeduplicationMode({
           Duplicate Candidates
         </Typography>
         {group.candidates.map(c => (
-          <Paper key={c.id} elevation={0} sx={{ border: `2px dashed ${decision === "confirmed" ? tokens.accent.red : decision === "rejected" ? tokens.text.tertiary : tokens.border.strong}`, borderRadius: tokens.radius.lg, overflow: "hidden", bgcolor: tokens.bg.elevated, opacity: decision === "confirmed" ? 0.5 : 1, transition: "opacity 200ms ease", mb: 1 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 2, p: 1.5 }}>
-              <Box sx={{ width: 160, height: 90, borderRadius: tokens.radius.md, overflow: "hidden", flexShrink: 0, bgcolor: "#000" }}>
-                <img src={c.thumbnailUrl} alt={c.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              </Box>
+          <Paper key={c.id} elevation={0} sx={{
+            border: `2px dashed ${decision === "confirmed" ? tokens.accent.red : decision === "rejected" ? tokens.text.tertiary : tokens.border.strong}`,
+            borderRadius: tokens.radius.lg, overflow: "hidden", bgcolor: tokens.bg.elevated,
+            opacity: decision === "confirmed" ? 0.5 : 1, transition: "opacity 200ms ease", mb: 1,
+          }}>
+            <Box sx={{ width: "100%", aspectRatio: "16/9", bgcolor: "#000", overflow: "hidden" }}>
+              <img src={c.thumbnailUrl} alt={c.name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+            </Box>
+            <Box sx={{ p: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
               <Box sx={{ flex: 1 }}>
                 <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.88rem" }}>{c.name}</Typography>
-                <Typography variant="caption" color="text.secondary">{c.type} · {c.mimeType}</Typography>
                 <Box sx={{ display: "flex", gap: 0.5, mt: 0.5 }}>
-                  {c.tags.slice(0, 3).map(t => <Chip key={t} label={t} size="small" sx={{ height: 18, fontSize: "0.65rem" }} />)}
+                  {c.tags.slice(0, 5).map(t => <Chip key={t} label={t} size="small" sx={{ height: 18, fontSize: "0.65rem" }} />)}
                 </Box>
               </Box>
               {decision && (
-                <Chip
-                  label={decision === "confirmed" ? "Remove" : "Kept"}
-                  size="small"
-                  sx={{
-                    height: 20, fontSize: "0.68rem", fontWeight: 600,
+                <Chip label={decision === "confirmed" ? "Remove" : "Kept"} size="small"
+                  sx={{ height: 20, fontSize: "0.68rem", fontWeight: 600,
                     bgcolor: decision === "confirmed" ? `${tokens.accent.red}18` : `${tokens.accent.green}18`,
-                    color: decision === "confirmed" ? tokens.accent.red : tokens.accent.green,
-                  }}
-                />
+                    color: decision === "confirmed" ? tokens.accent.red : tokens.accent.green }} />
               )}
             </Box>
           </Paper>
         ))}
       </Box>
 
-      {/* Actions */}
       <Box sx={{ display: "flex", gap: 1, px: 1 }}>
-        <Button
-          variant={decision === "confirmed" ? "contained" : "outlined"}
-          size="small"
-          color="error"
-          startIcon={<DeleteOutlineOutlined sx={{ fontSize: 16 }} />}
-          onClick={onConfirm}
-          sx={{ textTransform: "none", fontWeight: 600, fontSize: "0.8rem" }}
-        >
+        <Button variant={decision === "confirmed" ? "contained" : "outlined"} size="small" color="error"
+          startIcon={<DeleteOutlineOutlined sx={{ fontSize: 16 }} />} onClick={onConfirm}
+          sx={{ textTransform: "none", fontWeight: 600, fontSize: "0.8rem" }}>
           Confirm Dedup (Y)
         </Button>
-        <Button
-          variant={decision === "rejected" ? "contained" : "outlined"}
-          size="small"
-          startIcon={<CloseOutlined sx={{ fontSize: 16 }} />}
-          onClick={onReject}
-          sx={{ textTransform: "none", fontWeight: 600, fontSize: "0.8rem" }}
-        >
+        <Button variant={decision === "rejected" ? "contained" : "outlined"} size="small"
+          startIcon={<CloseOutlined sx={{ fontSize: 16 }} />} onClick={onReject}
+          sx={{ textTransform: "none", fontWeight: 600, fontSize: "0.8rem" }}>
           Reject (N)
         </Button>
       </Box>
@@ -340,79 +287,298 @@ function DeduplicationMode({
   );
 }
 
-// ── Key Profiles Sidebar ──────────────────────────────────────────────────
-function ProfilesSidebar({ profiles, activeProfileId, mode, onSelectProfile, collapsed, onToggle }: {
-  profiles: KeyProfile[];
-  activeProfileId: string;
-  mode: WorkflowMode;
-  onSelectProfile: (id: string) => void;
-  collapsed: boolean;
-  onToggle: () => void;
+// ── Face Detection Mode ───────────────────────────────────────────────────
+function FaceDetectionMode({
+  asset, faces, clusters, persons,
+  selectedClusterIdx, onSelectCluster,
+  clusterDecisions, onConfirmCluster, onDenyCluster,
+  clusterPersonAssignments, onAssignPerson,
+  personInputRef,
+}: {
+  asset: Asset;
+  faces: DetectedFace[];
+  clusters: { cluster: FaceCluster; faces: DetectedFace[] }[];
+  persons: Person[];
+  selectedClusterIdx: number;
+  onSelectCluster: (idx: number) => void;
+  clusterDecisions: Record<string, "confirmed" | "denied">;
+  onConfirmCluster: (clusterId: string) => void;
+  onDenyCluster: (clusterId: string) => void;
+  clusterPersonAssignments: Record<string, string>;
+  onAssignPerson: (clusterId: string, personName: string) => void;
+  personInputRef: React.RefObject<HTMLInputElement | null>;
+}) {
+  const selectedCluster = clusters[selectedClusterIdx];
+
+  return (
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, overflow: "auto" }}>
+      {/* Asset preview with face bboxes */}
+      <Box sx={{ position: "relative", bgcolor: "#000", borderRadius: tokens.radius.lg, overflow: "hidden", minHeight: 200 }}>
+        <img src={asset.thumbnailUrl} alt={asset.name} style={{ width: "100%", display: "block", objectFit: "contain" }} />
+        {faces.map(f => (
+          <Box key={f.id} sx={{
+            position: "absolute",
+            left: `${f.boundingBox.x * 100}%`, top: `${f.boundingBox.y * 100}%`,
+            width: `${f.boundingBox.width * 100}%`, height: `${f.boundingBox.height * 100}%`,
+            border: `2px solid ${selectedCluster && f.clusterId === selectedCluster.cluster.id ? tokens.primary.main : tokens.accent.amber}`,
+            borderRadius: tokens.radius.sm, pointerEvents: "none",
+          }} />
+        ))}
+      </Box>
+
+      <Typography variant="body2" fontWeight={700} sx={{ px: 1 }}>{asset.name}</Typography>
+
+      {/* Clusters */}
+      <Box sx={{ px: 1 }}>
+        <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.06em", color: tokens.text.tertiary, fontSize: "0.68rem", mb: 1, display: "block" }}>
+          Face Clusters ({clusters.length})
+        </Typography>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+          {clusters.map((c, idx) => {
+            const decision = clusterDecisions[c.cluster.id];
+            const assignedPerson = clusterPersonAssignments[c.cluster.id];
+            const isSelected = idx === selectedClusterIdx;
+            return (
+              <Paper key={c.cluster.id} elevation={0} onClick={() => onSelectCluster(idx)} sx={{
+                p: 1.5, cursor: "pointer",
+                border: `1px solid ${isSelected ? tokens.primary.main : tokens.border.subtle}`,
+                bgcolor: isSelected ? tokens.primary.subtle : tokens.bg.elevated,
+                borderRadius: tokens.radius.md, transition: "all 120ms ease",
+                opacity: decision === "denied" ? 0.5 : 1,
+              }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 1 }}>
+                  <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.85rem", flex: 1 }}>
+                    {c.cluster.label}
+                    {assignedPerson && <Typography component="span" variant="caption" sx={{ ml: 1, color: tokens.primary.light }}>→ {assignedPerson}</Typography>}
+                  </Typography>
+                  {decision && (
+                    <Chip label={decision === "confirmed" ? "Confirmed" : "Denied"} size="small"
+                      sx={{ height: 18, fontSize: "0.64rem", fontWeight: 600,
+                        bgcolor: decision === "confirmed" ? `${tokens.accent.green}18` : `${tokens.accent.red}18`,
+                        color: decision === "confirmed" ? tokens.accent.green : tokens.accent.red }} />
+                  )}
+                </Box>
+                <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
+                  {c.faces.map(f => (
+                    <Avatar key={f.id} src={f.thumbnailUrl} variant="rounded"
+                      sx={{ width: 36, height: 36, border: `1px solid ${tokens.border.subtle}` }} />
+                  ))}
+                </Box>
+                {isSelected && !decision && (
+                  <Box sx={{ display: "flex", gap: 1, mt: 1.5, alignItems: "center", flexWrap: "wrap" }}>
+                    <Button variant="outlined" size="small" color="success" startIcon={<CheckOutlined sx={{ fontSize: 14 }} />}
+                      onClick={(e) => { e.stopPropagation(); onConfirmCluster(c.cluster.id); }}
+                      sx={{ textTransform: "none", fontSize: "0.75rem", fontWeight: 600 }}>
+                      Confirm (Y)
+                    </Button>
+                    <Button variant="outlined" size="small" color="error" startIcon={<CloseOutlined sx={{ fontSize: 14 }} />}
+                      onClick={(e) => { e.stopPropagation(); onDenyCluster(c.cluster.id); }}
+                      sx={{ textTransform: "none", fontSize: "0.75rem", fontWeight: 600 }}>
+                      Deny (N)
+                    </Button>
+                    <Autocomplete
+                      freeSolo size="small"
+                      options={persons.map(p => p.name)}
+                      value={assignedPerson ?? ""}
+                      onChange={(_, val) => { if (typeof val === "string" && val.trim()) onAssignPerson(c.cluster.id, val.trim()); }}
+                      renderInput={(params) => (
+                        <TextField {...params} inputRef={personInputRef} placeholder="Assign person…" size="small"
+                          onClick={(e) => e.stopPropagation()}
+                          InputProps={{ ...params.InputProps, startAdornment: <InputAdornment position="start"><PersonOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} /></InputAdornment> }}
+                          sx={{ "& .MuiInputBase-root": { fontSize: "0.78rem" } }} />
+                      )}
+                      sx={{ minWidth: 160, flex: 1 }}
+                    />
+                  </Box>
+                )}
+              </Paper>
+            );
+          })}
+          {clusters.length === 0 && <Typography variant="caption" color="text.secondary">No face clusters for this asset</Typography>}
+        </Box>
+      </Box>
+    </Box>
+  );
+}
+
+// ── Object Detection Mode ─────────────────────────────────────────────────
+function ObjectDetectionMode({
+  asset, objects, selectedIdx, onSelectIdx, decisions, onConfirm, onReject,
+}: {
+  asset: Asset; objects: DetectedObject[]; selectedIdx: number;
+  onSelectIdx: (idx: number) => void;
+  decisions: Record<string, "confirmed" | "rejected">;
+  onConfirm: (id: string) => void; onReject: (id: string) => void;
+}) {
+  const selected = objects[selectedIdx];
+
+  return (
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, overflow: "auto" }}>
+      {/* Asset preview with bounding boxes */}
+      <Box sx={{ position: "relative", bgcolor: "#000", borderRadius: tokens.radius.lg, overflow: "hidden", minHeight: 200 }}>
+        <img src={asset.thumbnailUrl} alt={asset.name} style={{ width: "100%", display: "block", objectFit: "contain" }} />
+        {objects.map((obj, idx) => {
+          const dec = decisions[obj.id];
+          const color = dec === "confirmed" ? tokens.accent.green : dec === "rejected" ? tokens.accent.red : idx === selectedIdx ? tokens.primary.main : tokens.accent.amber;
+          return (
+            <Box key={obj.id} onClick={() => onSelectIdx(idx)} sx={{
+              position: "absolute",
+              left: `${obj.boundingBox.x * 100}%`, top: `${obj.boundingBox.y * 100}%`,
+              width: `${obj.boundingBox.width * 100}%`, height: `${obj.boundingBox.height * 100}%`,
+              border: `2px solid ${color}`, borderRadius: tokens.radius.sm,
+              cursor: "pointer", "&:hover": { borderWidth: 3 }, transition: "border-width 100ms ease",
+            }}>
+              <Typography variant="caption" sx={{
+                position: "absolute", top: -18, left: 0,
+                bgcolor: color, color: "#000", px: 0.5, borderRadius: "2px",
+                fontSize: "0.6rem", fontWeight: 700, whiteSpace: "nowrap",
+              }}>
+                {obj.label} ({Math.round(obj.confidence * 100)}%)
+              </Typography>
+            </Box>
+          );
+        })}
+      </Box>
+
+      <Typography variant="body2" fontWeight={700} sx={{ px: 1 }}>{asset.name}</Typography>
+
+      {/* Object list */}
+      <Box sx={{ px: 1 }}>
+        <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.06em", color: tokens.text.tertiary, fontSize: "0.68rem", mb: 1, display: "block" }}>
+          Detected Objects ({objects.length})
+        </Typography>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+          {objects.map((obj, idx) => {
+            const dec = decisions[obj.id];
+            const isSelected = idx === selectedIdx;
+            return (
+              <Paper key={obj.id} elevation={0} onClick={() => onSelectIdx(idx)} sx={{
+                px: 1.5, py: 1, cursor: "pointer", display: "flex", alignItems: "center", gap: 1.5,
+                border: `1px solid ${isSelected ? tokens.primary.main : tokens.border.subtle}`,
+                bgcolor: isSelected ? tokens.primary.subtle : tokens.bg.elevated,
+                borderRadius: tokens.radius.md, opacity: dec === "rejected" ? 0.5 : 1, transition: "all 120ms ease",
+              }}>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.84rem", textTransform: "capitalize" }}>{obj.label}</Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>Confidence: {Math.round(obj.confidence * 100)}%</Typography>
+                </Box>
+                {dec ? (
+                  <Chip label={dec === "confirmed" ? "Confirmed" : "Rejected"} size="small"
+                    sx={{ height: 18, fontSize: "0.64rem", fontWeight: 600,
+                      bgcolor: dec === "confirmed" ? `${tokens.accent.green}18` : `${tokens.accent.red}18`,
+                      color: dec === "confirmed" ? tokens.accent.green : tokens.accent.red }} />
+                ) : isSelected ? (
+                  <Box sx={{ display: "flex", gap: 0.5 }}>
+                    <IconButton size="small" onClick={(e) => { e.stopPropagation(); onConfirm(obj.id); }}
+                      sx={{ width: 26, height: 26, bgcolor: `${tokens.accent.green}18`, "&:hover": { bgcolor: `${tokens.accent.green}33` } }}>
+                      <CheckOutlined sx={{ fontSize: 14, color: tokens.accent.green }} />
+                    </IconButton>
+                    <IconButton size="small" onClick={(e) => { e.stopPropagation(); onReject(obj.id); }}
+                      sx={{ width: 26, height: 26, bgcolor: `${tokens.accent.red}18`, "&:hover": { bgcolor: `${tokens.accent.red}33` } }}>
+                      <CloseOutlined sx={{ fontSize: 14, color: tokens.accent.red }} />
+                    </IconButton>
+                  </Box>
+                ) : null}
+              </Paper>
+            );
+          })}
+          {objects.length === 0 && <Typography variant="caption" color="text.secondary">No object detections for this asset</Typography>}
+        </Box>
+      </Box>
+    </Box>
+  );
+}
+
+// ── Key Profiles Sidebar (right side, narrower, editable bindings) ────────
+function ProfilesSidebar({
+  profiles, activeProfileId, mode, onSelectProfile, collapsed, onToggle, onUpdateBinding,
+}: {
+  profiles: KeyProfile[]; activeProfileId: string; mode: WorkflowMode;
+  onSelectProfile: (id: string) => void; collapsed: boolean; onToggle: () => void;
+  onUpdateBinding: (profileId: string, bindingIdx: number, newKey: string) => void;
 }) {
   const filtered = profiles.filter(p => p.mode === mode);
   const active = profiles.find(p => p.id === activeProfileId);
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (editingIdx === null || !active) return;
+    const handler = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === "Backspace") {
+        onUpdateBinding(active.id, editingIdx, "");
+      } else {
+        onUpdateBinding(active.id, editingIdx, e.key);
+      }
+      setEditingIdx(null);
+    };
+    window.addEventListener("keydown", handler, true);
+    return () => window.removeEventListener("keydown", handler, true);
+  }, [editingIdx, active, onUpdateBinding]);
 
   return (
     <Box sx={{
-      width: collapsed ? 0 : 260,
-      flexShrink: 0,
-      borderRight: collapsed ? "none" : `1px solid ${tokens.border.subtle}`,
-      bgcolor: tokens.bg.surface,
-      overflow: "hidden",
-      transition: "width 200ms ease",
-      display: "flex",
-      flexDirection: "column",
+      width: collapsed ? 0 : 200, flexShrink: 0,
+      borderLeft: collapsed ? "none" : `1px solid ${tokens.border.subtle}`,
+      bgcolor: tokens.bg.surface, overflow: "hidden",
+      transition: "width 200ms ease", display: "flex", flexDirection: "column",
     }}>
-      <Box sx={{ px: 2, py: 1.5, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", gap: 1 }}>
-        <KeyboardOutlined sx={{ fontSize: 16, color: tokens.primary.main }} />
-        <Typography variant="caption" fontWeight={700} sx={{ fontSize: "0.78rem", flex: 1 }}>Key Profiles</Typography>
+      <Box sx={{ px: 1.5, py: 1.5, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", gap: 0.75 }}>
         <Tooltip title="Collapse">
           <IconButton size="small" onClick={onToggle} sx={{ width: 20, height: 20 }}>
-            <ChevronLeftOutlined sx={{ fontSize: 14 }} />
+            <ChevronRightOutlined sx={{ fontSize: 14 }} />
           </IconButton>
         </Tooltip>
+        <KeyboardOutlined sx={{ fontSize: 14, color: tokens.primary.main }} />
+        <Typography variant="caption" fontWeight={700} sx={{ fontSize: "0.72rem", flex: 1 }}>Key Profiles</Typography>
       </Box>
 
-      {/* Profile list */}
-      <Box sx={{ p: 1, display: "flex", flexDirection: "column", gap: 0.5 }}>
+      <Box sx={{ p: 0.75, display: "flex", flexDirection: "column", gap: 0.5 }}>
         {filtered.map(p => (
-          <Paper
-            key={p.id}
-            elevation={0}
-            onClick={() => onSelectProfile(p.id)}
-            sx={{
-              px: 1.5, py: 1, cursor: "pointer",
-              bgcolor: p.id === activeProfileId ? tokens.primary.subtle : tokens.bg.elevated,
-              border: `1px solid ${p.id === activeProfileId ? tokens.primary.main : tokens.border.subtle}`,
-              borderRadius: tokens.radius.md,
-              "&:hover": { borderColor: tokens.border.strong },
-              transition: "all 120ms ease",
-            }}
-          >
-            <Typography variant="body2" fontWeight={p.id === activeProfileId ? 700 : 500} sx={{ fontSize: "0.82rem" }}>{p.name}</Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.68rem" }}>{p.bindings.length} bindings</Typography>
+          <Paper key={p.id} elevation={0} onClick={() => onSelectProfile(p.id)} sx={{
+            px: 1, py: 0.75, cursor: "pointer",
+            bgcolor: p.id === activeProfileId ? tokens.primary.subtle : tokens.bg.elevated,
+            border: `1px solid ${p.id === activeProfileId ? tokens.primary.main : tokens.border.subtle}`,
+            borderRadius: tokens.radius.md, "&:hover": { borderColor: tokens.border.strong }, transition: "all 120ms ease",
+          }}>
+            <Typography variant="body2" fontWeight={p.id === activeProfileId ? 700 : 500} sx={{ fontSize: "0.74rem" }}>{p.name}</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.63rem" }}>{p.bindings.length} bindings</Typography>
           </Paper>
         ))}
       </Box>
 
       <Divider sx={{ my: 0.5 }} />
 
-      {/* Active profile bindings */}
       {active && (
-        <Box sx={{ flex: 1, overflow: "auto", p: 1.5 }}>
-          <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.06em", color: tokens.text.tertiary, fontSize: "0.66rem", mb: 1, display: "block" }}>
-            Bindings
+        <Box sx={{ flex: 1, overflow: "auto", p: 1 }}>
+          <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.06em", color: tokens.text.tertiary, fontSize: "0.6rem", mb: 0.75, display: "block" }}>
+            Bindings · click to rebind
           </Typography>
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
             {active.bindings.map((b, i) => (
-              <Box key={i} sx={{ display: "flex", alignItems: "center", gap: 1, py: 0.5 }}>
-                <Chip
-                  label={b.key === " " ? "Space" : b.key === "ArrowRight" ? "→" : b.key === "ArrowLeft" ? "←" : b.key === "Enter" ? "↵" : b.key === "Escape" ? "Esc" : b.key.toUpperCase()}
-                  size="small"
-                  sx={{ height: 20, minWidth: 28, fontSize: "0.68rem", fontWeight: 700, bgcolor: tokens.bg.overlay, fontFamily: "monospace" }}
-                />
-                <Typography variant="caption" sx={{ fontSize: "0.72rem", color: tokens.text.secondary }}>{b.label}</Typography>
-              </Box>
+              <Tooltip key={i} title={editingIdx === i ? "Press a key… (Backspace to unbind)" : "Click to rebind"} placement="left">
+                <Box onClick={() => setEditingIdx(i)} sx={{
+                  display: "flex", alignItems: "center", gap: 0.75, py: 0.4, px: 0.5,
+                  cursor: "pointer", borderRadius: tokens.radius.sm,
+                  bgcolor: editingIdx === i ? tokens.primary.subtle : "transparent",
+                  border: editingIdx === i ? `1px solid ${tokens.primary.main}` : "1px solid transparent",
+                  "&:hover": { bgcolor: tokens.bg.hover }, transition: "all 100ms ease",
+                }}>
+                  <Chip
+                    label={editingIdx === i ? "…" : b.key === "" ? "—" : keyDisplayName(b.key)}
+                    size="small"
+                    sx={{
+                      height: 18, minWidth: 24, fontSize: "0.62rem", fontWeight: 700,
+                      bgcolor: b.key === "" ? `${tokens.accent.red}18` : tokens.bg.overlay,
+                      color: b.key === "" ? tokens.accent.red : tokens.text.primary, fontFamily: "monospace",
+                    }}
+                  />
+                  <Typography variant="caption" sx={{ fontSize: "0.66rem", color: tokens.text.secondary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {b.label}
+                  </Typography>
+                </Box>
+              </Tooltip>
             ))}
           </Box>
         </Box>
@@ -423,9 +589,11 @@ function ProfilesSidebar({ profiles, activeProfileId, mode, onSelectProfile, col
 
 // ── Main Workflow View ────────────────────────────────────────────────────
 export default function WorkflowView() {
+  const { setSidebarCollapsed } = useLayout();
   const assets = useMemo(() => ASSETS.slice(0, 20), []);
   const [mode, setMode] = useState<WorkflowMode>("rating");
   const [currentIdx, setCurrentIdx] = useState(0);
+  const [fullscreen, setFullscreen] = useState(false);
   const [ratings, setRatings] = useState<Record<string, number>>({});
   const [assetTags, setAssetTags] = useState<Record<string, string[]>>(() => {
     const map: Record<string, string[]> = {};
@@ -433,155 +601,141 @@ export default function WorkflowView() {
     return map;
   });
   const [dedupDecisions, setDedupDecisions] = useState<Record<number, "confirmed" | "rejected">>({});
+  const [selectedClusterIdx, setSelectedClusterIdx] = useState(0);
+  const [clusterDecisions, setClusterDecisions] = useState<Record<string, "confirmed" | "denied">>({});
+  const [clusterPersonAssignments, setClusterPersonAssignments] = useState<Record<string, string>>({});
+  const [selectedObjIdx, setSelectedObjIdx] = useState(0);
+  const [objectDecisions, setObjectDecisions] = useState<Record<string, "confirmed" | "rejected">>({});
   const [profileSidebarOpen, setProfileSidebarOpen] = useState(true);
-  const [profiles] = useState<KeyProfile[]>(DEFAULT_PROFILES);
+  const [profiles, setProfiles] = useState<KeyProfile[]>(DEFAULT_PROFILES);
   const [activeProfileId, setActiveProfileId] = useState(DEFAULT_PROFILES[0].id);
   const tagInputRef = useRef<HTMLInputElement>(null);
+  const personInputRef = useRef<HTMLInputElement>(null);
 
   const duplicateGroups = useMemo(() => buildDuplicateGroups(assets), [assets]);
   const currentAsset = assets[currentIdx] ?? assets[0];
   const currentGroup = duplicateGroups[currentIdx] ?? duplicateGroups[0];
+  const currentFaces = useMemo(() => DETECTED_FACES.filter(f => f.assetId === currentAsset?.id), [currentAsset]);
+  const currentFaceClusters = useMemo(() => {
+    const clusterIds = [...new Set(currentFaces.map(f => f.clusterId).filter(Boolean))];
+    return clusterIds.map(cid => {
+      const cluster = FACE_CLUSTERS.find(c => c.id === cid)!;
+      return { cluster, faces: currentFaces.filter(f => f.clusterId === cid) };
+    }).filter(c => c.cluster);
+  }, [currentFaces]);
+  const currentObjects = useMemo(() => DETECTED_OBJECTS.filter(o => o.assetId === currentAsset?.id), [currentAsset]);
   const maxIdx = mode === "deduplication" ? duplicateGroups.length - 1 : assets.length - 1;
 
-  // Sync active profile when mode changes
   useEffect(() => {
     const profile = profiles.find(p => p.mode === mode);
     if (profile) setActiveProfileId(profile.id);
     setCurrentIdx(0);
+    setSelectedClusterIdx(0);
+    setSelectedObjIdx(0);
   }, [mode, profiles]);
 
-  const goNext = useCallback(() => setCurrentIdx(i => Math.min(i + 1, maxIdx)), [maxIdx]);
-  const goPrev = useCallback(() => setCurrentIdx(i => Math.max(i - 1, 0)), []);
-
-  const handleRate = useCallback((rating: number) => {
-    setRatings(prev => ({ ...prev, [currentAsset.id]: rating }));
-  }, [currentAsset]);
-
-  const handleAddTag = useCallback((tag: string) => {
-    setAssetTags(prev => {
-      const current = prev[currentAsset.id] ?? [];
-      if (current.includes(tag)) return prev;
-      return { ...prev, [currentAsset.id]: [...current, tag] };
+  const toggleFullscreen = useCallback(() => {
+    setFullscreen(prev => {
+      const next = !prev;
+      if (next) { setProfileSidebarOpen(false); setSidebarCollapsed(true); }
+      else { setProfileSidebarOpen(true); setSidebarCollapsed(false); }
+      return next;
     });
-  }, [currentAsset]);
+  }, [setSidebarCollapsed]);
 
+  const goNext = useCallback(() => { setCurrentIdx(i => Math.min(i + 1, maxIdx)); setSelectedClusterIdx(0); setSelectedObjIdx(0); }, [maxIdx]);
+  const goPrev = useCallback(() => { setCurrentIdx(i => Math.max(i - 1, 0)); setSelectedClusterIdx(0); setSelectedObjIdx(0); }, []);
+  const handleRate = useCallback((rating: number) => { setRatings(prev => ({ ...prev, [currentAsset.id]: rating })); }, [currentAsset]);
+  const handleAddTag = useCallback((tag: string) => {
+    setAssetTags(prev => { const cur = prev[currentAsset.id] ?? []; if (cur.includes(tag)) return prev; return { ...prev, [currentAsset.id]: [...cur, tag] }; });
+  }, [currentAsset]);
   const handleRemoveTag = useCallback((tag: string) => {
-    setAssetTags(prev => ({
-      ...prev,
-      [currentAsset.id]: (prev[currentAsset.id] ?? []).filter(t => t !== tag),
-    }));
+    setAssetTags(prev => ({ ...prev, [currentAsset.id]: (prev[currentAsset.id] ?? []).filter(t => t !== tag) }));
   }, [currentAsset]);
+  const handleConfirmDedup = useCallback(() => { setDedupDecisions(prev => ({ ...prev, [currentIdx]: "confirmed" })); }, [currentIdx]);
+  const handleRejectDedup = useCallback(() => { setDedupDecisions(prev => ({ ...prev, [currentIdx]: "rejected" })); }, [currentIdx]);
+  const handleConfirmCluster = useCallback((id: string) => { setClusterDecisions(prev => ({ ...prev, [id]: "confirmed" })); }, []);
+  const handleDenyCluster = useCallback((id: string) => { setClusterDecisions(prev => ({ ...prev, [id]: "denied" })); }, []);
+  const handleAssignPerson = useCallback((clusterId: string, name: string) => { setClusterPersonAssignments(prev => ({ ...prev, [clusterId]: name })); }, []);
+  const handleConfirmObject = useCallback((id: string) => { setObjectDecisions(prev => ({ ...prev, [id]: "confirmed" })); }, []);
+  const handleRejectObject = useCallback((id: string) => { setObjectDecisions(prev => ({ ...prev, [id]: "rejected" })); }, []);
+  const handleUpdateBinding = useCallback((profileId: string, bindingIdx: number, newKey: string) => {
+    setProfiles(prev => prev.map(p => {
+      if (p.id !== profileId) return p;
+      const nb = [...p.bindings];
+      nb[bindingIdx] = { ...nb[bindingIdx], key: newKey };
+      if (newKey === "") nb[bindingIdx].label = "Not bound";
+      return { ...p, bindings: nb };
+    }));
+  }, []);
 
-  const handleConfirmDedup = useCallback(() => {
-    setDedupDecisions(prev => ({ ...prev, [currentIdx]: "confirmed" }));
-  }, [currentIdx]);
-
-  const handleRejectDedup = useCallback(() => {
-    setDedupDecisions(prev => ({ ...prev, [currentIdx]: "rejected" }));
-  }, [currentIdx]);
-
-  // Keyboard handler
+  // Master keyboard handler
   useEffect(() => {
     const profile = profiles.find(p => p.id === activeProfileId);
     if (!profile) return;
-
     const handler = (e: KeyboardEvent) => {
-      // Don't hijack when user is typing in an input
       const target = e.target as HTMLElement;
       const isInput = target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
-
-      const binding = profile.bindings.find(b => b.key === e.key);
+      if (e.key === "f" && !isInput) { e.preventDefault(); toggleFullscreen(); return; }
+      const binding = profile.bindings.find(b => b.key !== "" && b.key === e.key);
       if (!binding) return;
-
-      // Allow Enter in input fields for tag confirmation
       if (isInput && binding.action !== "blur_tags") return;
-
       switch (binding.action) {
-        case "next_asset":
-          e.preventDefault();
-          goNext();
-          break;
-        case "prev_asset":
-          e.preventDefault();
-          goPrev();
-          break;
-        case "set_rating":
-          e.preventDefault();
-          if (binding.param) handleRate(parseInt(binding.param, 10));
-          break;
-        case "focus_tags":
-          e.preventDefault();
-          tagInputRef.current?.focus();
-          break;
-        case "blur_tags":
-          e.preventDefault();
-          tagInputRef.current?.blur();
-          break;
-        case "confirm_dedup":
-          e.preventDefault();
-          handleConfirmDedup();
-          break;
-        case "reject_dedup":
-          e.preventDefault();
-          handleRejectDedup();
-          break;
+        case "next_asset": e.preventDefault(); goNext(); break;
+        case "prev_asset": e.preventDefault(); goPrev(); break;
+        case "set_rating": e.preventDefault(); if (binding.param) handleRate(parseInt(binding.param, 10)); break;
+        case "focus_tags": e.preventDefault(); tagInputRef.current?.focus(); break;
+        case "blur_tags": e.preventDefault(); tagInputRef.current?.blur(); break;
+        case "confirm_dedup": e.preventDefault(); handleConfirmDedup(); break;
+        case "reject_dedup": e.preventDefault(); handleRejectDedup(); break;
+        case "confirm_cluster": e.preventDefault(); if (currentFaceClusters[selectedClusterIdx]) handleConfirmCluster(currentFaceClusters[selectedClusterIdx].cluster.id); break;
+        case "deny_cluster": e.preventDefault(); if (currentFaceClusters[selectedClusterIdx]) handleDenyCluster(currentFaceClusters[selectedClusterIdx].cluster.id); break;
+        case "next_cluster": e.preventDefault(); setSelectedClusterIdx(i => (i + 1) % Math.max(1, currentFaceClusters.length)); break;
+        case "focus_person": e.preventDefault(); personInputRef.current?.focus(); break;
+        case "confirm_object": e.preventDefault(); if (currentObjects[selectedObjIdx]) handleConfirmObject(currentObjects[selectedObjIdx].id); break;
+        case "reject_object": e.preventDefault(); if (currentObjects[selectedObjIdx]) handleRejectObject(currentObjects[selectedObjIdx].id); break;
+        case "next_detection": e.preventDefault(); setSelectedObjIdx(i => (i + 1) % Math.max(1, currentObjects.length)); break;
       }
     };
-
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [activeProfileId, profiles, goNext, goPrev, handleRate, handleConfirmDedup, handleRejectDedup]);
+  }, [activeProfileId, profiles, goNext, goPrev, handleRate, handleConfirmDedup, handleRejectDedup,
+      toggleFullscreen, handleConfirmCluster, handleDenyCluster, handleConfirmObject, handleRejectObject,
+      currentFaceClusters, currentObjects, selectedClusterIdx, selectedObjIdx]);
 
   return (
     <Box sx={{ display: "flex", height: "100%", overflow: "hidden", bgcolor: tokens.bg.base }}>
-      {/* Key profiles sidebar */}
-      <ProfilesSidebar
-        profiles={profiles}
-        activeProfileId={activeProfileId}
-        mode={mode}
-        onSelectProfile={setActiveProfileId}
-        collapsed={!profileSidebarOpen}
-        onToggle={() => setProfileSidebarOpen(v => !v)}
-      />
-
       {/* Main content */}
       <Box sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         {/* Toolbar */}
-        <Box sx={{ px: 2.5, py: 1.25, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", alignItems: "center", gap: 2 }}>
-          {!profileSidebarOpen && (
-            <Tooltip title="Show key profiles">
-              <IconButton size="small" onClick={() => setProfileSidebarOpen(true)} sx={{ mr: 0.5 }}>
-                <TuneOutlined sx={{ fontSize: 16 }} />
-              </IconButton>
-            </Tooltip>
-          )}
-
+        <Box sx={{ px: 2.5, py: 1.25, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", alignItems: "center", gap: 1.5 }}>
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
             <SpeedOutlined sx={{ fontSize: 18, color: tokens.primary.main }} />
             <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Workflow</Typography>
           </Box>
-
-          <ToggleButtonGroup
-            value={mode}
-            exclusive
-            onChange={(_, v) => v && setMode(v)}
-            size="small"
-            sx={{ ml: 1 }}
-          >
-            <ToggleButton value="rating" sx={{ textTransform: "none", fontSize: "0.78rem", px: 1.5 }}>
-              <StarOutlined sx={{ fontSize: 14, mr: 0.5 }} /> Rating
+          <ToggleButtonGroup value={mode} exclusive onChange={(_, v) => v && setMode(v)} size="small" sx={{ ml: 0.5 }}>
+            <ToggleButton value="rating" sx={{ textTransform: "none", fontSize: "0.72rem", px: 1 }}>
+              <StarOutlined sx={{ fontSize: 13, mr: 0.5 }} /> Rating
             </ToggleButton>
-            <ToggleButton value="tagging" sx={{ textTransform: "none", fontSize: "0.78rem", px: 1.5 }}>
-              <LocalOfferOutlined sx={{ fontSize: 14, mr: 0.5 }} /> Tagging
+            <ToggleButton value="tagging" sx={{ textTransform: "none", fontSize: "0.72rem", px: 1 }}>
+              <LocalOfferOutlined sx={{ fontSize: 13, mr: 0.5 }} /> Tagging
             </ToggleButton>
-            <ToggleButton value="deduplication" sx={{ textTransform: "none", fontSize: "0.78rem", px: 1.5 }}>
-              <ContentCopyOutlined sx={{ fontSize: 14, mr: 0.5 }} /> Deduplication
+            <ToggleButton value="deduplication" sx={{ textTransform: "none", fontSize: "0.72rem", px: 1 }}>
+              <ContentCopyOutlined sx={{ fontSize: 13, mr: 0.5 }} /> Dedup
+            </ToggleButton>
+            <ToggleButton value="facedetection" sx={{ textTransform: "none", fontSize: "0.72rem", px: 1 }}>
+              <FaceOutlined sx={{ fontSize: 13, mr: 0.5 }} /> Faces
+            </ToggleButton>
+            <ToggleButton value="objectdetection" sx={{ textTransform: "none", fontSize: "0.72rem", px: 1 }}>
+              <CenterFocusStrongOutlined sx={{ fontSize: 13, mr: 0.5 }} /> Objects
             </ToggleButton>
           </ToggleButtonGroup>
-
           <Box sx={{ flex: 1 }} />
-
-          {/* Navigation */}
+          <Tooltip title={fullscreen ? "Exit fullscreen (F)" : "Fullscreen (F)"}>
+            <IconButton size="small" onClick={toggleFullscreen}>
+              {fullscreen ? <FullscreenExitOutlined sx={{ fontSize: 18 }} /> : <FullscreenOutlined sx={{ fontSize: 18 }} />}
+            </IconButton>
+          </Tooltip>
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
             <IconButton size="small" onClick={goPrev} disabled={currentIdx === 0}>
               <ArrowBackIosNewOutlined sx={{ fontSize: 14 }} />
@@ -593,37 +747,41 @@ export default function WorkflowView() {
               <ArrowForwardIosOutlined sx={{ fontSize: 14 }} />
             </IconButton>
           </Box>
+          {!profileSidebarOpen && (
+            <Tooltip title="Show key profiles">
+              <IconButton size="small" onClick={() => setProfileSidebarOpen(true)}>
+                <TuneOutlined sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+          )}
         </Box>
 
         {/* Content area */}
         <Box sx={{ flex: 1, overflow: "auto", p: 2.5, display: "flex" }}>
           {mode === "rating" && currentAsset && (
-            <RatingMode
-              asset={currentAsset}
-              ratings={ratings}
-              onRate={handleRate}
-              tagInputRef={tagInputRef}
-              assetTags={assetTags[currentAsset.id] ?? []}
-              onAddTag={handleAddTag}
-              onRemoveTag={handleRemoveTag}
-            />
+            <RatingMode asset={currentAsset} ratings={ratings} onRate={handleRate}
+              tagInputRef={tagInputRef} assetTags={assetTags[currentAsset.id] ?? []}
+              onAddTag={handleAddTag} onRemoveTag={handleRemoveTag} />
           )}
           {mode === "tagging" && currentAsset && (
-            <TaggingMode
-              asset={currentAsset}
-              tagInputRef={tagInputRef}
-              assetTags={assetTags[currentAsset.id] ?? []}
-              onAddTag={handleAddTag}
-              onRemoveTag={handleRemoveTag}
-            />
+            <TaggingMode asset={currentAsset} tagInputRef={tagInputRef}
+              assetTags={assetTags[currentAsset.id] ?? []} onAddTag={handleAddTag} onRemoveTag={handleRemoveTag} />
           )}
           {mode === "deduplication" && currentGroup && (
-            <DeduplicationMode
-              group={currentGroup}
-              onConfirm={handleConfirmDedup}
-              onReject={handleRejectDedup}
-              decision={dedupDecisions[currentIdx] ?? null}
-            />
+            <DeduplicationMode group={currentGroup} onConfirm={handleConfirmDedup}
+              onReject={handleRejectDedup} decision={dedupDecisions[currentIdx] ?? null} />
+          )}
+          {mode === "facedetection" && currentAsset && (
+            <FaceDetectionMode asset={currentAsset} faces={currentFaces} clusters={currentFaceClusters}
+              persons={PERSONS} selectedClusterIdx={selectedClusterIdx} onSelectCluster={setSelectedClusterIdx}
+              clusterDecisions={clusterDecisions} onConfirmCluster={handleConfirmCluster}
+              onDenyCluster={handleDenyCluster} clusterPersonAssignments={clusterPersonAssignments}
+              onAssignPerson={handleAssignPerson} personInputRef={personInputRef} />
+          )}
+          {mode === "objectdetection" && currentAsset && (
+            <ObjectDetectionMode asset={currentAsset} objects={currentObjects}
+              selectedIdx={selectedObjIdx} onSelectIdx={setSelectedObjIdx}
+              decisions={objectDecisions} onConfirm={handleConfirmObject} onReject={handleRejectObject} />
           )}
         </Box>
 
@@ -631,24 +789,37 @@ export default function WorkflowView() {
         <Box sx={{ px: 2.5, py: 0.75, borderTop: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", gap: 2, alignItems: "center", flexWrap: "wrap" }}>
           <KeyboardOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />
           {mode === "rating" && (
-            <>
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.68rem" }}>
-                <strong>1-0</strong> Set rating · <strong>←/→</strong> Navigate · <strong>Space</strong> Next · <strong>Enter</strong> Edit tags
-              </Typography>
-            </>
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.68rem" }}>
+              <strong>1-0</strong> Set rating · <strong>←/→</strong> Navigate · <strong>Space</strong> Next · <strong>Enter</strong> Edit tags · <strong>F</strong> Fullscreen
+            </Typography>
           )}
           {mode === "tagging" && (
             <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.68rem" }}>
-              <strong>←/→</strong> Navigate · <strong>Space</strong> Next · <strong>Enter</strong> Edit tags · <strong>Esc</strong> Blur
+              <strong>←/→</strong> Navigate · <strong>Space</strong> Next · <strong>Enter</strong> Edit tags · <strong>Esc</strong> Blur · <strong>F</strong> Fullscreen
             </Typography>
           )}
           {mode === "deduplication" && (
             <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.68rem" }}>
-              <strong>←/→</strong> Navigate · <strong>Y</strong> Confirm dedup · <strong>N</strong> Reject
+              <strong>←/→</strong> Navigate · <strong>Y</strong> Confirm dedup · <strong>N</strong> Reject · <strong>F</strong> Fullscreen
+            </Typography>
+          )}
+          {mode === "facedetection" && (
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.68rem" }}>
+              <strong>←/→</strong> Navigate · <strong>Tab</strong> Cycle clusters · <strong>Y</strong> Confirm · <strong>N</strong> Deny · <strong>Enter</strong> Assign person · <strong>F</strong> Fullscreen
+            </Typography>
+          )}
+          {mode === "objectdetection" && (
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.68rem" }}>
+              <strong>←/→</strong> Navigate · <strong>Tab</strong> Cycle detections · <strong>Y</strong> Confirm · <strong>N</strong> Reject · <strong>F</strong> Fullscreen
             </Typography>
           )}
         </Box>
       </Box>
+
+      {/* Key profiles sidebar (right side) */}
+      <ProfilesSidebar profiles={profiles} activeProfileId={activeProfileId} mode={mode}
+        onSelectProfile={setActiveProfileId} collapsed={!profileSidebarOpen}
+        onToggle={() => setProfileSidebarOpen(v => !v)} onUpdateBinding={handleUpdateBinding} />
     </Box>
   );
 }

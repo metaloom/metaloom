@@ -395,7 +395,7 @@ export default function ChatWorkspace() {
     const onMove = (ev: MouseEvent) => {
       if (!isDragging.current) return;
       const delta = ev.clientX - startX;
-      setChatWidth(Math.max(280, Math.min(700, startW + delta)));
+      setChatWidth(Math.max(200, Math.min(1200, startW + delta)));
     };
     const onUp = () => {
       isDragging.current = false;

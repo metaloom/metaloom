@@ -71,22 +71,30 @@ export default function LoginPage() {
         )}
 
         <TextField
-          label="Username"
+          placeholder="Username"
           value={username}
           onChange={(e) => { setUsername(e.target.value); setError(false); }}
           fullWidth
           size="small"
           autoFocus
-          sx={{ "& .MuiInputBase-input": { py: "8.5px" } }}
+          sx={{
+            "& .MuiInputBase-input": { py: "8.5px" },
+            "& .MuiInputBase-input:focus::placeholder": { opacity: 0, transition: "opacity 150ms ease" },
+            "& .MuiInputBase-input::placeholder": { transition: "opacity 150ms ease" },
+          }}
         />
         <TextField
-          label="Password"
+          placeholder="Password"
           type="password"
           value={password}
           onChange={(e) => { setPassword(e.target.value); setError(false); }}
           fullWidth
           size="small"
-          sx={{ "& .MuiInputBase-input": { py: "8.5px" } }}
+          sx={{
+            "& .MuiInputBase-input": { py: "8.5px" },
+            "& .MuiInputBase-input:focus::placeholder": { opacity: 0, transition: "opacity 150ms ease" },
+            "& .MuiInputBase-input::placeholder": { transition: "opacity 150ms ease" },
+          }}
         />
 
         <Button

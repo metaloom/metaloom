@@ -319,3 +319,13 @@ export interface Person {
   clusterIds: string[];
   createdAt: string;
 }
+
+// Object Detection
+export interface DetectedObject {
+  id: string;
+  assetId: string;
+  label: string;
+  confidence: number;
+  boundingBox: { x: number; y: number; width: number; height: number }; // normalized 0-1
+  timestamp?: number;
+}

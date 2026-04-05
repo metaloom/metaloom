@@ -18,11 +18,13 @@ import MaintenanceView from "../features/maintenance/MaintenanceView";
 import TagsView from "../features/tags/TagsView";
 import CortexView from "../features/cortex/CortexView";
 import WorkflowView from "../features/workflow/WorkflowView";
+import { LayoutContext } from "../context/LayoutContext";
 
 export default function AppShell() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   return (
+    <LayoutContext.Provider value={{ sidebarCollapsed, setSidebarCollapsed }}>
     <Box sx={{ display: "flex", height: "100vh", overflow: "hidden", bgcolor: tokens.bg.base }}>
       <Sidebar collapsed={sidebarCollapsed} onCollapse={setSidebarCollapsed} />
       <Box
@@ -55,5 +57,6 @@ export default function AppShell() {
         </Routes>
       </Box>
     </Box>
+    </LayoutContext.Provider>
   );
 }
