@@ -6,7 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
 import java.net.ServerSocket;
+import java.net.URL;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
@@ -15,178 +17,216 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.Network;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.containers.output.Slf4jLogConsumer;
-import org.testcontainers.containers.wait.strategy.Wait;
-import org.testcontainers.utility.DockerImageName;
-import org.testcontainers.utility.MountableFile;
 
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.rest.model.auth.AuthLoginResponse;
 
 /**
- * Full end-to-end test that:
- * <ol>
- *   <li>Starts a PostgreSQL container</li>
- *   <li>Starts the Loom demo container (Flyway migrations create the schema)</li>
- *   <li>Optionally starts the loom-ui Vite dev server with Playwright</li>
- *   <li>Verifies login works end-to-end through the real REST API</li>
- * </ol>
+ * End-to-end test that starts the Loom demo jar as a local process
+ * (backed by a host-local PostgreSQL instance) and verifies login
+ * works through the real REST API.
  *
- * <p>The demo container image must be built locally before running this test.
- * See {@code loom/containers/build-containers.sh}.</p>
+ * <p>Database options are configured via environment variables or
+ * system properties (LOOM_DB_HOST, LOOM_DB_PORT, etc.).</p>
  */
 public class LoginE2ETest {
 
-	private static final Logger log = LoggerFactory.getLogger(LoginE2ETest.class);
+private static final Logger log = LoggerFactory.getLogger(LoginE2ETest.class);
 
-	private static final String LOOM_IMAGE = System.getProperty("loom.image", "metaloom/loom-demo:latest");
-	private static final int REST_PORT = 8092;
+private static final int REST_PORT = 8092;
+private static final String DB_HOST = System.getProperty("loom.db.host", "127.0.0.1");
+private static final int DB_PORT = Integer.getInteger("loom.db.port", 5432);
+private static final String DB_USER = System.getProperty("loom.db.username", "loom");
+private static final String DB_PASS = System.getProperty("loom.db.password", "loom");
+private static final String DB_NAME = System.getProperty("loom.db.name", "loom");
 
-	private static Network network;
-	private static PostgreSQLContainer<?> postgres;
-	private static GenericContainer<?> loom;
+private static Process loomProcess;
 
-	@BeforeAll
-	static void startContainers() {
-		network = Network.newNetwork();
+@BeforeAll
+static void startLoom() throws Exception {
+String jarPath = System.getProperty("loom.jar", resolveLoomJar());
+log.info("Starting Loom demo from jar: {}", jarPath);
 
-		postgres = new PostgreSQLContainer<>(DockerImageName.parse("postgres:16-alpine"))
-			.withNetwork(network)
-			.withNetworkAliases("postgres")
-			.withDatabaseName("loom")
-			.withUsername("loom")
-			.withPassword("loom");
-		postgres.start();
-		log.info("PostgreSQL started at {}:{}", postgres.getHost(), postgres.getMappedPort(5432));
+ProcessBuilder pb = new ProcessBuilder(
+"java",
+"-Djna.tmpdir=/tmp/.jna",
+"-Xms256m", "-Xmx512m",
+"-jar", jarPath
+);
+pb.environment().put("LOOM_DB_HOST", DB_HOST);
+pb.environment().put("LOOM_DB_PORT", String.valueOf(DB_PORT));
+pb.environment().put("LOOM_DB_USERNAME", DB_USER);
+pb.environment().put("LOOM_DB_PASSWORD", DB_PASS);
+pb.environment().put("LOOM_DB_NAME", DB_NAME);
+		pb.environment().put("LOOM_INITIAL_PASSWORD", "finger");
 
-		loom = new GenericContainer<>(DockerImageName.parse(LOOM_IMAGE))
-			.withNetwork(network)
-			.withExposedPorts(REST_PORT)
-			.withCopyFileToContainer(
-				MountableFile.forClasspathResource("loom-e2e.yml"),
-				"/config/loom.yml")
-			.withLogConsumer(new Slf4jLogConsumer(log).withPrefix("loom"))
-			.waitingFor(Wait.forListeningPort().withStartupTimeout(Duration.ofSeconds(120)));
-		loom.start();
-		log.info("Loom demo container started, REST API at {}:{}", loom.getHost(), loom.getMappedPort(REST_PORT));
-	}
+loomProcess = pb.start();
 
-	@AfterAll
-	static void stopContainers() {
-		if (loom != null) {
-			loom.stop();
-		}
-		if (postgres != null) {
-			postgres.stop();
-		}
-		if (network != null) {
-			network.close();
-		}
-	}
+// Log output in background thread
+Thread logThread = new Thread(() -> {
+try (BufferedReader reader = new BufferedReader(new InputStreamReader(loomProcess.getInputStream()))) {
+String line;
+while ((line = reader.readLine()) != null) {
+log.info("[loom] {}", line);
+}
+} catch (Exception e) {
+log.debug("Loom log reader stopped", e);
+}
+}, "loom-log");
+logThread.setDaemon(true);
+logThread.start();
 
-	/**
-	 * Sanity check: verify the REST client can log in directly (no UI involved).
-	 */
-	@Test
-	void testRestLoginDirectly() throws Exception {
-		try (LoomHttpClient client = LoomHttpClient.builder()
-			.setHostname(loom.getHost())
-			.setReadTimeout(Duration.ofSeconds(30))
-			.setPort(loom.getMappedPort(REST_PORT))
-			.build()) {
+// Wait for the REST API to become available
+waitForRestApi(Duration.ofSeconds(120));
+log.info("Loom demo started, REST API at localhost:{}", REST_PORT);
+}
 
-			AuthLoginResponse response = client.login("admin", "finger").sync();
-			assertNotNull(response.getToken(), "Token should not be null after login");
-		}
-	}
+@AfterAll
+static void stopLoom() {
+if (loomProcess != null && loomProcess.isAlive()) {
+loomProcess.destroy();
+try {
+loomProcess.waitFor(10, TimeUnit.SECONDS);
+} catch (InterruptedException e) {
+Thread.currentThread().interrupt();
+}
+if (loomProcess.isAlive()) {
+loomProcess.destroyForcibly();
+}
+}
+}
 
-	/**
-	 * Full E2E: run Playwright from the loom-ui directory.
-	 * <p>
-	 * Playwright's config auto-starts a Vite dev server via {@code webServer.command}.
-	 * We pass {@code VITE_API_BASE_URL} so Vite injects the correct backend URL,
-	 * and {@code VITE_PORT} so the dev server uses a free port (avoiding conflicts).
-	 * </p>
-	 */
-	@Test
-	void testLoginViaPlaywright() throws Exception {
-		File loomUiDir = resolveLoomUiDir();
-		if (loomUiDir == null) {
-			log.warn("loom-ui directory not found. Skipping Playwright test. "
-				+ "Set LOOM_UI_DIR env var or ensure ../loom-ui exists relative to this module.");
-			return;
-		}
-		log.info("Using loom-ui at {}", loomUiDir.getAbsolutePath());
+/**
+ * Sanity check: verify the REST client can log in directly (no UI involved).
+ */
+@Test
+void testRestLoginDirectly() throws Exception {
+try (LoomHttpClient client = LoomHttpClient.builder()
+.setHostname("localhost")
+.setReadTimeout(Duration.ofSeconds(30))
+.setPort(REST_PORT)
+.build()) {
 
-		String apiBaseUrl = "/api/v1";
-		String proxyTarget = "http://" + loom.getHost() + ":" + loom.getMappedPort(REST_PORT);
-		int vitePort = findFreePort();
-		log.info("Running Playwright e2e tests against backend at {} (Vite on port {}, proxy to {})", apiBaseUrl, vitePort, proxyTarget);
+AuthLoginResponse response = client.login("admin", "finger").sync();
+assertNotNull(response.getToken(), "Token should not be null after login");
+}
+}
 
-		ProcessBuilder pb = new ProcessBuilder(
-			"npx", "playwright", "test", "e2e/login-backend.spec.ts", "--reporter=list"
-		);
-		pb.directory(loomUiDir);
-		// These env vars propagate through Playwright → webServer → Vite
-		pb.environment().put("VITE_API_BASE_URL", apiBaseUrl);
-		pb.environment().put("VITE_PROXY_TARGET", proxyTarget);
-		pb.environment().put("VITE_PORT", String.valueOf(vitePort));
-		pb.redirectErrorStream(true);
+/**
+ * Full E2E: run Playwright from the loom-ui directory.
+ */
+@Test
+void testLoginViaPlaywright() throws Exception {
+File loomUiDir = resolveLoomUiDir();
+if (loomUiDir == null) {
+log.warn("loom-ui directory not found. Skipping Playwright test. "
++ "Set LOOM_UI_DIR env var or ensure ../loom-ui exists relative to this module.");
+return;
+}
+log.info("Using loom-ui at {}", loomUiDir.getAbsolutePath());
 
-		Process proc = pb.start();
-		StringBuilder output = new StringBuilder();
-		try (BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
-			String line;
-			while ((line = reader.readLine()) != null) {
-				output.append(line).append("\n");
-				log.info("[playwright] {}", line);
-			}
-		}
+String apiBaseUrl = "/api/v1";
+String proxyTarget = "http://localhost:" + REST_PORT;
+int vitePort = findFreePort();
+log.info("Running Playwright e2e tests against backend at {} (Vite on port {}, proxy to {})", apiBaseUrl, vitePort, proxyTarget);
 
-		boolean finished = proc.waitFor(120, TimeUnit.SECONDS);
-		if (!finished) {
-			proc.destroyForcibly();
-			throw new AssertionError("Playwright timed out after 120s");
-		}
+ProcessBuilder ppb = new ProcessBuilder(
+"npx", "playwright", "test", "e2e/login-backend.spec.ts", "--reporter=list"
+);
+ppb.directory(loomUiDir);
+ppb.environment().put("VITE_API_BASE_URL", apiBaseUrl);
+ppb.environment().put("VITE_PROXY_TARGET", proxyTarget);
+ppb.environment().put("VITE_PORT", String.valueOf(vitePort));
+ppb.redirectErrorStream(true);
 
-		assertEquals(0, proc.exitValue(),
-			"Playwright tests failed (exit code " + proc.exitValue() + "):\n" + output);
-	}
+Process proc = ppb.start();
+StringBuilder output = new StringBuilder();
+try (BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
+String line;
+while ((line = reader.readLine()) != null) {
+output.append(line).append("\n");
+log.info("[playwright] {}", line);
+}
+}
 
-	private static File resolveLoomUiDir() {
-		String envDir = System.getenv("LOOM_UI_DIR");
-		if (envDir != null) {
-			File f = new File(envDir);
-			if (isLoomUiDir(f)) {
-				return f;
-			}
-		}
+boolean finished = proc.waitFor(120, TimeUnit.SECONDS);
+if (!finished) {
+proc.destroyForcibly();
+throw new AssertionError("Playwright timed out after 120s");
+}
 
-		File[] candidates = {
-			new File("../loom-ui"),
-			new File(System.getProperty("user.dir"), "../loom-ui"),
-		};
+assertEquals(0, proc.exitValue(),
+"Playwright tests failed (exit code " + proc.exitValue() + "):\n" + output);
+}
 
-		for (File candidate : candidates) {
-			if (isLoomUiDir(candidate)) {
-				return candidate.getAbsoluteFile();
-			}
-		}
-		return null;
-	}
+private static void waitForRestApi(Duration timeout) throws Exception {
+long deadline = System.currentTimeMillis() + timeout.toMillis();
+while (System.currentTimeMillis() < deadline) {
+try {
+HttpURLConnection conn = (HttpURLConnection) new URL("http://localhost:" + REST_PORT + "/api/v1").openConnection();
+conn.setConnectTimeout(2000);
+conn.setReadTimeout(2000);
+int code = conn.getResponseCode();
+if (code > 0) {
+log.info("REST API responded with status {}", code);
+return;
+}
+} catch (Exception e) {
+// Not ready yet
+}
+if (!loomProcess.isAlive()) {
+throw new IllegalStateException("Loom process exited with code " + loomProcess.exitValue());
+}
+Thread.sleep(1000);
+}
+throw new IllegalStateException("Loom REST API did not become available within " + timeout);
+}
 
-	private static boolean isLoomUiDir(File dir) {
-		return dir.isDirectory()
-			&& new File(dir, "package.json").exists()
-			&& new File(dir, "e2e").isDirectory();
-	}
+private static String resolveLoomJar() {
+String[] candidates = {
+"../loom/containers/demo/target/loom-demo.jar",
+System.getProperty("user.dir") + "/../loom/containers/demo/target/loom-demo.jar",
+};
+for (String path : candidates) {
+File f = new File(path);
+if (f.isFile()) {
+return f.getAbsolutePath();
+}
+}
+throw new IllegalStateException("Cannot find loom-demo.jar. Set -Dloom.jar=<path> or build the project first.");
+}
 
-	private static int findFreePort() throws Exception {
-		try (ServerSocket s = new ServerSocket(0)) {
-			return s.getLocalPort();
-		}
-	}
+private static File resolveLoomUiDir() {
+String envDir = System.getenv("LOOM_UI_DIR");
+if (envDir != null) {
+File f = new File(envDir);
+if (isLoomUiDir(f)) {
+return f;
+}
+}
+
+File[] candidates = {
+new File("../loom-ui"),
+new File(System.getProperty("user.dir"), "../loom-ui"),
+};
+
+for (File candidate : candidates) {
+if (isLoomUiDir(candidate)) {
+return candidate.getAbsoluteFile();
+}
+}
+return null;
+}
+
+private static boolean isLoomUiDir(File dir) {
+return dir.isDirectory()
+&& new File(dir, "package.json").exists()
+&& new File(dir, "e2e").isDirectory();
+}
+
+private static int findFreePort() throws Exception {
+try (ServerSocket s = new ServerSocket(0)) {
+return s.getLocalPort();
+}
+}
 }
