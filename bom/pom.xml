@@ -56,6 +56,16 @@
                 <artifactId>loom-rest-model-test</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <dependency>
+                <groupId>io.metaloom.loom.shared</groupId>
+                <artifactId>loom-db-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.loom.db</groupId>
+                <artifactId>loom-db-api-test</artifactId>
+                <version>${project.version}</version>
+            </dependency>
 
             <!-- DB -->
             <dependency>

@@ -10,8 +10,8 @@
         <version>1.0.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>loom-db-api</artifactId>
-    <name>MetaLoom // Loom :: DB :: API</name>
+    <artifactId>loom-db-api-test</artifactId>
+    <name>MetaLoom // Loom :: DB :: API Test</name>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -30,9 +30,14 @@
     </dependencyManagement>
 
     <dependencies>
+
         <dependency>
             <groupId>io.metaloom.loom.shared</groupId>
             <artifactId>loom-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.loom.db</groupId>
+            <artifactId>loom-db-api</artifactId>
         </dependency>
         <dependency>
             <groupId>io.vertx</groupId>
@@ -42,6 +47,13 @@
             <groupId>io.vertx</groupId>
             <artifactId>vertx-rx-java3</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.loom.test</groupId>
+            <artifactId>loom-test-env</artifactId>
+        </dependency>
     </dependencies>
-
 </project>
