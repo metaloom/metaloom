@@ -4,23 +4,24 @@
   "description": "Loom App - UI for the MetaLoom // Loom Server",
   "main": "main.js",
   "scripts": {
-    "start": "electron-forge start",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "package": "electron-forge package",
-    "make": "electron-forge make"
+    "copy-ui": "rm -rf ui && cp -r ../loom-ui/build ui",
+    "build-ui": "cd ../loom-ui && npm run build && cd ../loom-app && npm run copy-ui",
+    "start": "npm run copy-ui && electron-forge start",
+    "package": "npm run copy-ui && electron-forge package",
+    "make": "npm run copy-ui && electron-forge make"
   },
   "author": "Johannes Schüth",
   "license": "MIT",
   "devDependencies": {
-    "@electron-forge/cli": "^6.4.2",
-    "@electron-forge/maker-deb": "^6.4.2",
-    "@electron-forge/maker-rpm": "^6.4.2",
-    "@electron-forge/maker-squirrel": "^6.4.2",
-    "@electron-forge/maker-zip": "^6.4.2",
-    "@electron-forge/plugin-auto-unpack-natives": "^6.4.2",
-    "electron": "^26.2.2"
+    "@electron-forge/cli": "^7.11.1",
+    "@electron-forge/maker-deb": "^7.11.1",
+    "@electron-forge/maker-rpm": "^7.11.1",
+    "@electron-forge/maker-squirrel": "^7.11.1",
+    "@electron-forge/maker-zip": "^7.11.1",
+    "@electron-forge/plugin-auto-unpack-natives": "^7.11.1",
+    "electron": "^41.1.1"
   },
   "dependencies": {
-    "electron-squirrel-startup": "^1.0.0"
+    "electron-squirrel-startup": "^1.0.1"
   }
 }
