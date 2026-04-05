@@ -1,66 +1,68 @@
 import React, { useState, useCallback } from "react";
 import {
   Box, Typography, IconButton, TextField, Tooltip, Chip, Divider, Menu, MenuItem,
-  InputAdornment,
+  InputAdornment, Button, Paper,
 } from "@mui/material";
 import {
   ExpandMore, ChevronRight, AddOutlined, EditOutlined,
   DeleteOutlineOutlined, LocalOfferOutlined, MoreVertOutlined,
-  FolderOutlined, SearchOutlined,
+  FolderOutlined, SearchOutlined, HelpOutlineOutlined,
+  SaveOutlined, CloseOutlined, DragIndicatorOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 
 interface TagNode {
   id: string;
   label: string;
+  glob: string;
   children: TagNode[];
 }
 
 // Initial mock tag tree
 const INITIAL_TAGS: TagNode[] = [
   {
-    id: "t1", label: "Vehicles", children: [
+    id: "t1", label: "Vehicles", glob: "vehicles/**", children: [
       {
-        id: "t1a", label: "Cars", children: [
-          { id: "t1a1", label: "Audi Quattro", children: [] },
-          { id: "t1a2", label: "VW Käfer", children: [] },
-          { id: "t1a3", label: "Tesla Roadster", children: [] },
+        id: "t1a", label: "Cars", glob: "vehicles/cars/**", children: [
+          { id: "t1a1", label: "Audi Quattro", glob: "*audi*quattro*", children: [] },
+          { id: "t1a2", label: "VW Käfer", glob: "*vw*kaefer*", children: [] },
+          { id: "t1a3", label: "Tesla Roadster", glob: "*tesla*roadster*", children: [] },
         ],
       },
       {
-        id: "t1b", label: "Trucks", children: [
-          { id: "t1b1", label: "Ford F-150", children: [] },
+        id: "t1b", label: "Trucks", glob: "vehicles/trucks/**", children: [
+          { id: "t1b1", label: "Ford F-150", glob: "*ford*f150*", children: [] },
         ],
       },
-      { id: "t1c", label: "Motorcycles", children: [] },
+      { id: "t1c", label: "Motorcycles", glob: "vehicles/motorcycles/**", children: [] },
     ],
   },
   {
-    id: "t2", label: "Nature", children: [
-      { id: "t2a", label: "Forest", children: [] },
-      { id: "t2b", label: "Ocean", children: [] },
+    id: "t2", label: "Nature", glob: "nature/**", children: [
+      { id: "t2a", label: "Forest", glob: "nature/forest/**", children: [] },
+      { id: "t2b", label: "Ocean", glob: "nature/ocean/**", children: [] },
       {
-        id: "t2c", label: "Animals", children: [
-          { id: "t2c1", label: "Mammals", children: [] },
-          { id: "t2c2", label: "Birds", children: [] },
-          { id: "t2c3", label: "Reptiles", children: [] },
+        id: "t2c", label: "Animals", glob: "nature/animals/**", children: [
+          { id: "t2c1", label: "Mammals", glob: "nature/animals/mammals/**", children: [] },
+          { id: "t2c2", label: "Birds", glob: "nature/animals/birds/**", children: [] },
+          { id: "t2c3", label: "Reptiles", glob: "nature/animals/reptiles/**", children: [] },
         ],
       },
     ],
   },
   {
-    id: "t3", label: "People", children: [
-      { id: "t3a", label: "Portraits", children: [] },
-      { id: "t3b", label: "Groups", children: [] },
+    id: "t3", label: "People", glob: "people/**", children: [
+      { id: "t3a", label: "Portraits", glob: "people/portraits/**", children: [] },
+      { id: "t3b", label: "Groups", glob: "people/groups/**", children: [] },
     ],
   },
   {
-    id: "t4", label: "Architecture", children: [
-      { id: "t4a", label: "Modern", children: [] },
-      { id: "t4b", label: "Historic", children: [] },
+    id: "t4", label: "Architecture", glob: "architecture/**", children: [
+      { id: "t4a", label: "Modern", glob: "architecture/modern/**", children: [] },
+      { id: "t4b", label: "Historic", glob: "architecture/historic/**", children: [] },
     ],
   },
-  { id: "t5", label: "Abstract", children: [] },
+  { id: "t5", label: "Abstract", glob: "abstract/**", children: [] },
 ];
 
 function countDescendants(node: TagNode): number {
@@ -68,15 +70,20 @@ function countDescendants(node: TagNode): number {
 }
 
 function TagTreeNode({
-  node, depth, expanded, onToggle, onAdd, onRename, onDelete,
+  node, depth, expanded, selectedId, onToggle, onSelect, onAdd, onRename, onDelete, onDragStart, onDragOver, onDrop,
 }: {
   node: TagNode;
   depth: number;
   expanded: Set<string>;
+  selectedId: string | null;
   onToggle: (id: string) => void;
+  onSelect: (node: TagNode) => void;
   onAdd: (parentId: string) => void;
   onRename: (id: string, newLabel: string) => void;
   onDelete: (id: string) => void;
+  onDragStart: (e: React.DragEvent, id: string) => void;
+  onDragOver: (e: React.DragEvent) => void;
+  onDrop: (e: React.DragEvent, targetId: string) => void;
 }) {
   const isOpen = expanded.has(node.id);
   const hasChildren = node.children.length > 0;
@@ -94,6 +101,10 @@ function TagTreeNode({
   return (
     <>
       <Box
+        draggable
+        onDragStart={e => onDragStart(e, node.id)}
+        onDragOver={onDragOver}
+        onDrop={e => onDrop(e, node.id)}
         sx={{
           display: "flex",
           alignItems: "center",
@@ -103,12 +114,18 @@ function TagTreeNode({
           py: 0.5,
           borderRadius: tokens.radius.sm,
           cursor: "pointer",
-          "&:hover": { bgcolor: tokens.bg.hover },
+          bgcolor: selectedId === node.id ? tokens.primary.subtle : "transparent",
+          "&:hover": { bgcolor: selectedId === node.id ? tokens.primary.subtle : tokens.bg.hover },
           "&:hover .tag-actions": { opacity: 1 },
+          "&:hover .drag-handle": { opacity: 0.6 },
           transition: "background 100ms ease",
         }}
-        onClick={() => hasChildren && onToggle(node.id)}
+        onClick={() => { onSelect(node); if (hasChildren) onToggle(node.id); }}
       >
+        {/* Drag handle */}
+        <Box className="drag-handle" sx={{ opacity: 0, display: "flex", alignItems: "center", transition: "opacity 100ms ease", cursor: "grab", flexShrink: 0 }}>
+          <DragIndicatorOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />
+        </Box>
         {/* Expand / leaf indicator */}
         <Box sx={{ width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           {hasChildren ? (
@@ -176,10 +193,15 @@ function TagTreeNode({
           node={child}
           depth={depth + 1}
           expanded={expanded}
+          selectedId={selectedId}
           onToggle={onToggle}
+          onSelect={onSelect}
           onAdd={onAdd}
           onRename={onRename}
           onDelete={onDelete}
+          onDragStart={onDragStart}
+          onDragOver={onDragOver}
+          onDrop={onDrop}
         />
       ))}
     </>
@@ -191,6 +213,10 @@ export default function TagsView() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set(["t1", "t1a", "t2", "t2c"]));
   const [newTagInput, setNewTagInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedTag, setSelectedTag] = useState<TagNode | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editGlob, setEditGlob] = useState("");
+  const [dragId, setDragId] = useState<string | null>(null);
 
   const toggleExpand = useCallback((id: string) => {
     setExpanded(prev => {
@@ -205,7 +231,7 @@ export default function TagsView() {
     const newId = `t_${Date.now()}`;
     const addToTree = (nodes: TagNode[]): TagNode[] =>
       nodes.map(n => n.id === parentId
-        ? { ...n, children: [...n.children, { id: newId, label: "New Tag", children: [] }] }
+        ? { ...n, children: [...n.children, { id: newId, label: "New Tag", glob: "", children: [] }] }
         : { ...n, children: addToTree(n.children) });
     setTags(prev => addToTree(prev));
     setExpanded(prev => new Set([...prev, parentId]));
@@ -226,9 +252,52 @@ export default function TagsView() {
   const addRootTag = () => {
     const label = newTagInput.trim();
     if (!label) return;
-    setTags(prev => [...prev, { id: `t_${Date.now()}`, label, children: [] }]);
+    setTags(prev => [...prev, { id: `t_${Date.now()}`, label, glob: "", children: [] }]);
     setNewTagInput("");
   };
+
+  const handleSelectTag = useCallback((node: TagNode) => {
+    setSelectedTag(node);
+    setEditName(node.label);
+    setEditGlob(node.glob);
+  }, []);
+
+  const handleSaveTag = () => {
+    if (!selectedTag) return;
+    const updateInTree = (nodes: TagNode[]): TagNode[] =>
+      nodes.map(n => n.id === selectedTag.id ? { ...n, label: editName.trim() || n.label, glob: editGlob } : { ...n, children: updateInTree(n.children) });
+    setTags(prev => updateInTree(prev));
+    setSelectedTag(prev => prev ? { ...prev, label: editName.trim() || prev.label, glob: editGlob } : null);
+  };
+
+  // Drag-and-drop: reorder siblings
+  const handleDragStart = useCallback((e: React.DragEvent, id: string) => {
+    setDragId(id);
+    e.dataTransfer.effectAllowed = "move";
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    if (!dragId || dragId === targetId) return;
+    const reorderSiblings = (nodes: TagNode[]): TagNode[] => {
+      const srcIdx = nodes.findIndex(n => n.id === dragId);
+      const tgtIdx = nodes.findIndex(n => n.id === targetId);
+      if (srcIdx !== -1 && tgtIdx !== -1) {
+        const copy = [...nodes];
+        const [moved] = copy.splice(srcIdx, 1);
+        copy.splice(tgtIdx, 0, moved);
+        return copy;
+      }
+      return nodes.map(n => ({ ...n, children: reorderSiblings(n.children) }));
+    };
+    setTags(prev => reorderSiblings(prev));
+    setDragId(null);
+  }, [dragId]);
 
   const totalTags = tags.reduce((s, n) => s + 1 + countDescendants(n), 0);
 
@@ -255,7 +324,10 @@ export default function TagsView() {
       <Box sx={{ px: 2.5, py: 1.5, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", flexDirection: "column", gap: 1 }}>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <Box>
-            <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Tags</Typography>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+              <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Tags</Typography>
+              <Tooltip title="Tags are hierarchical labels used to classify and filter assets. Assign tags manually or via automated workflows." arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
+            </Box>
             <Typography variant="caption" color="text.secondary">{totalTags} tags across {tags.length} root categories</Typography>
           </Box>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
@@ -290,28 +362,87 @@ export default function TagsView() {
         />
       </Box>
 
-      {/* Tree */}
-      <Box sx={{ flex: 1, overflow: "auto", p: 2 }}>
-        <Box sx={{ maxWidth: 600 }}>
-          {displayTags.map(node => (
-            <TagTreeNode
-              key={node.id}
-              node={node}
-              depth={0}
-              expanded={expanded}
-              onToggle={toggleExpand}
-              onAdd={addChild}
-              onRename={renameTag}
-              onDelete={deleteTag}
-            />
-          ))}
-          {displayTags.length === 0 && (
-            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 6, gap: 1 }}>
-              <LocalOfferOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
-              <Typography variant="body2" color="text.secondary">No tags yet. Create a root tag to get started.</Typography>
-            </Box>
-          )}
+      {/* Tree + Detail Sidebar */}
+      <Box sx={{ flex: 1, display: "flex", overflow: "hidden" }}>
+        <Box sx={{ flex: 1, overflow: "auto", p: 2 }}>
+          <Box sx={{ maxWidth: 600 }}>
+            {displayTags.map(node => (
+              <TagTreeNode
+                key={node.id}
+                node={node}
+                depth={0}
+                expanded={expanded}
+                selectedId={selectedTag?.id ?? null}
+                onToggle={toggleExpand}
+                onSelect={handleSelectTag}
+                onAdd={addChild}
+                onRename={renameTag}
+                onDelete={deleteTag}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+              />
+            ))}
+            {displayTags.length === 0 && (
+              <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 6, gap: 1 }}>
+                <LocalOfferOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
+                <Typography variant="body2" color="text.secondary">No tags yet. Create a root tag to get started.</Typography>
+              </Box>
+            )}
+          </Box>
         </Box>
+
+        {/* Detail Sidebar */}
+        {selectedTag && (
+          <Paper
+            elevation={0}
+            sx={{
+              width: 280, flexShrink: 0, borderLeft: `1px solid ${tokens.border.subtle}`,
+              bgcolor: tokens.bg.surface, display: "flex", flexDirection: "column", overflow: "auto",
+            }}
+          >
+            <Box sx={{ px: 2, py: 1.5, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+                <LocalOfferOutlined sx={{ fontSize: 16, color: tokens.primary.main }} />
+                <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.88rem" }}>Tag Details</Typography>
+              </Box>
+              <IconButton size="small" onClick={() => setSelectedTag(null)}>
+                <CloseOutlined sx={{ fontSize: 14 }} />
+              </IconButton>
+            </Box>
+            <Box sx={{ p: 2, display: "flex", flexDirection: "column", gap: 2 }}>
+              <TextField
+                label="Name"
+                value={editName}
+                onChange={e => setEditName(e.target.value)}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="Glob pattern"
+                value={editGlob}
+                onChange={e => setEditGlob(e.target.value)}
+                size="small"
+                fullWidth
+                placeholder="e.g. vehicles/cars/**"
+                helperText="File matching pattern for auto-tagging"
+              />
+              <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>
+                ID: {selectedTag.id} · Children: {selectedTag.children.length}
+              </Typography>
+              <Button
+                size="small"
+                variant="contained"
+                startIcon={<SaveOutlined sx={{ fontSize: 14 }} />}
+                onClick={handleSaveTag}
+                disabled={!editName.trim()}
+                sx={{ textTransform: "none" }}
+              >
+                Save
+              </Button>
+            </Box>
+          </Paper>
+        )}
       </Box>
     </Box>
   );

@@ -13,6 +13,7 @@ import CollectionsView from "../features/collections/CollectionsView";
 import TasksView from "../features/tasks/TasksView";
 import LibraryView from "../features/library/LibraryView";
 import FaceDetectionManagement from "../features/faceDetection/FaceDetectionManagement";
+import DetectionManagement from "../features/detection/DetectionManagement";
 import ProfileView from "../features/profile/ProfileView";
 import MaintenanceView from "../features/maintenance/MaintenanceView";
 import TagsView from "../features/tags/TagsView";
@@ -45,7 +46,8 @@ export default function AppShell() {
           <Route path="/collections" element={<CollectionsView />} />
           <Route path="/tasks" element={<TasksView />} />
           <Route path="/pipelines" element={<PipelineEditor />} />
-          <Route path="/faces" element={<FaceDetectionManagement />} />
+          <Route path="/detection" element={<DetectionManagement />} />
+          <Route path="/faces" element={<Navigate to="/detection" replace />} />
           <Route path="/tags" element={<TagsView />} />
           <Route path="/workflow" element={<WorkflowView />} />
           <Route path="/cortex" element={<CortexView />} />

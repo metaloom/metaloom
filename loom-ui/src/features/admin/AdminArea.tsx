@@ -12,7 +12,9 @@ import {
   SecurityOutlined, EditOutlined, DeleteOutlineOutlined, AddOutlined,
   CloseOutlined, ExpandMoreOutlined, ExpandLessOutlined, LockOutlined,
   CheckBoxOutlined, CheckBoxOutlineBlankOutlined, SearchOutlined,
+  MoreVertOutlined, HelpOutlineOutlined,
 } from "@mui/icons-material";
+import { Menu } from "@mui/material";
 import { tokens } from "../../theme";
 import { User, Group, Role, Permission, ApiKey, BlacklistEntry } from "../../types";
 import { mockAdminService } from "../../mock/services";
@@ -53,7 +55,10 @@ function UsersAdmin() {
     <Box>
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
         <Box>
-          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Users</Typography>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+            <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Users</Typography>
+            <Tooltip title="Manage user accounts, roles, and access levels. Invite new users or deactivate existing ones." arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
+          </Box>
           <Typography variant="caption" color="text.secondary">{users.length} accounts</Typography>
         </Box>
         <Button startIcon={<PersonAddOutlined />} variant="contained" size="small">
@@ -202,6 +207,10 @@ function GroupsAdmin() {
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [query, setQuery] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newDesc, setNewDesc] = useState("");
+  const [manageGroup, setManageGroup] = useState<Group | null>(null);
 
   useEffect(() => {
     Promise.all([mockAdminService.getGroups(), mockAdminService.getUsers(), mockAdminService.getRoles()]).then(([g, u, r]) => {
@@ -209,14 +218,39 @@ function GroupsAdmin() {
     });
   }, []);
 
+  const handleCreateGroup = () => {
+    if (!newName.trim()) return;
+    const g: Group = { id: `grp_${Date.now()}`, name: newName.trim(), description: newDesc.trim(), memberIds: [], roleIds: [], createdAt: new Date().toISOString() };
+    setGroups(prev => [...prev, g]);
+    setCreateOpen(false); setNewName(""); setNewDesc("");
+  };
+
+  const toggleMember = (groupId: string, userId: string) => {
+    setGroups(prev => prev.map(g => {
+      if (g.id !== groupId) return g;
+      const has = g.memberIds.includes(userId);
+      return { ...g, memberIds: has ? g.memberIds.filter(id => id !== userId) : [...g.memberIds, userId] };
+    }));
+    if (manageGroup) {
+      setManageGroup(prev => {
+        if (!prev) return prev;
+        const has = prev.memberIds.includes(userId);
+        return { ...prev, memberIds: has ? prev.memberIds.filter(id => id !== userId) : [...prev.memberIds, userId] };
+      });
+    }
+  };
+
   return (
     <Box>
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
         <Box>
-          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Groups</Typography>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+            <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Groups</Typography>
+            <Tooltip title="Groups let you organise users and assign shared permissions. Members inherit the group's access rights." arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
+          </Box>
           <Typography variant="caption" color="text.secondary">{groups.length} groups</Typography>
         </Box>
-        <Button startIcon={<AddOutlined />} variant="contained" size="small">New Group</Button>
+        <Button startIcon={<AddOutlined />} variant="contained" size="small" onClick={() => setCreateOpen(true)}>New Group</Button>
       </Box>
       <TextField
         value={query}
@@ -242,6 +276,7 @@ function GroupsAdmin() {
               <TableCell>Members</TableCell>
               <TableCell>Roles</TableCell>
               <TableCell>Created</TableCell>
+              <TableCell align="right">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -265,6 +300,9 @@ function GroupsAdmin() {
                         </Tooltip>
                       );
                     })}
+                    {g.memberIds.length > 3 && (
+                      <Chip label={`+${g.memberIds.length - 3}`} size="small" sx={{ height: 18, fontSize: "0.6rem", ml: 0.5 }} />
+                    )}
                   </Box>
                 </TableCell>
                 <TableCell>
@@ -276,11 +314,87 @@ function GroupsAdmin() {
                   </Box>
                 </TableCell>
                 <TableCell><Typography variant="caption" color="text.secondary">{new Date(g.createdAt).toLocaleDateString()}</Typography></TableCell>
+                <TableCell align="right">
+                  <Tooltip title="Manage members">
+                    <IconButton size="small" onClick={() => setManageGroup(g)}>
+                      <GroupsOutlined sx={{ fontSize: 15 }} />
+                    </IconButton>
+                  </Tooltip>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </TableContainer>
+
+      {/* Create Group dialog */}
+      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="sm" fullWidth
+        PaperProps={{ sx: { bgcolor: tokens.bg.surface, border: `1px solid ${tokens.border.subtle}` } }}>
+        <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1, pb: 1 }}>
+          <GroupsOutlined sx={{ fontSize: 18, color: tokens.primary.main }} />
+          <Typography fontWeight={700} sx={{ fontSize: "1rem" }}>Create Group</Typography>
+          <IconButton size="small" onClick={() => setCreateOpen(false)} sx={{ ml: "auto" }}>
+            <CloseOutlined sx={{ fontSize: 16 }} />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 1 }}>
+          <Stack spacing={2.5}>
+            <TextField label="Group name" size="small" fullWidth value={newName} onChange={e => setNewName(e.target.value)} autoFocus placeholder="e.g. Engineering" />
+            <TextField label="Description" size="small" fullWidth value={newDesc} onChange={e => setNewDesc(e.target.value)} multiline rows={2} placeholder="What is this group for?" />
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button size="small" onClick={() => setCreateOpen(false)}>Cancel</Button>
+          <Button size="small" variant="contained" onClick={handleCreateGroup} disabled={!newName.trim()}>Create Group</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Manage members dialog */}
+      <Dialog open={Boolean(manageGroup)} onClose={() => setManageGroup(null)} maxWidth="sm" fullWidth
+        PaperProps={{ sx: { bgcolor: tokens.bg.surface, border: `1px solid ${tokens.border.subtle}` } }}>
+        <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1, pb: 1 }}>
+          <GroupsOutlined sx={{ fontSize: 18, color: tokens.primary.main }} />
+          <Typography fontWeight={700} sx={{ fontSize: "1rem" }}>Manage Members — {manageGroup?.name}</Typography>
+          <IconButton size="small" onClick={() => setManageGroup(null)} sx={{ ml: "auto" }}>
+            <CloseOutlined sx={{ fontSize: 16 }} />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5 }}>
+            Toggle users to assign or unassign them from this group.
+          </Typography>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, maxHeight: 360, overflow: "auto" }}>
+            {users.map(u => {
+              const isMember = manageGroup?.memberIds.includes(u.id) ?? false;
+              return (
+                <Box key={u.id}
+                  onClick={() => manageGroup && toggleMember(manageGroup.id, u.id)}
+                  sx={{
+                    display: "flex", alignItems: "center", gap: 1.5, px: 1.5, py: 1,
+                    borderRadius: tokens.radius.md, cursor: "pointer",
+                    bgcolor: isMember ? `${tokens.primary.main}12` : "transparent",
+                    border: `1px solid ${isMember ? tokens.primary.main : "transparent"}`,
+                    "&:hover": { bgcolor: isMember ? `${tokens.primary.main}18` : tokens.bg.hover },
+                  }}
+                >
+                  <Checkbox size="small" checked={isMember} sx={{ p: 0, color: tokens.text.tertiary, "&.Mui-checked": { color: tokens.primary.main } }} />
+                  <Avatar sx={{ width: 24, height: 24, fontSize: "0.65rem", bgcolor: tokens.primary.dark }}>
+                    {u.name.split(" ").map(n => n[0]).join("")}
+                  </Avatar>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.82rem" }}>{u.name}</Typography>
+                    <Typography variant="caption" color="text.tertiary" sx={{ fontSize: "0.7rem" }}>{u.email}</Typography>
+                  </Box>
+                  <Chip label={u.role} size="small" sx={{ height: 16, fontSize: "0.6rem" }} />
+                </Box>
+              );
+            })}
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button size="small" variant="contained" onClick={() => setManageGroup(null)}>Done</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
@@ -465,21 +579,41 @@ function AccessControlAdmin() {
 }
 
 // ── API Keys Table ────────────────────────────────────────────────────────
-const AVAILABLE_SCOPES = [
-  "asset:read", "asset:write", "collection:read", "collection:write",
-  "pipeline:read", "pipeline:execute", "library:read", "library:write",
-  "task:read", "task:write", "admin:read",
-];
+// Permissions grouped by resource (derived from Permission.java enum)
+const PERMISSION_GROUPS: Record<string, string[]> = {
+  Annotation: ["CREATE_ANNOTATION", "READ_ANNOTATION", "DELETE_ANNOTATION", "UPDATE_ANNOTATION"],
+  Asset: ["CREATE_ASSET", "READ_ASSET", "DELETE_ASSET", "UPDATE_ASSET"],
+  "Asset Location": ["CREATE_ASSET_LOCATION", "READ_ASSET_LOCATION", "DELETE_ASSET_LOCATION", "UPDATE_ASSET_LOCATION"],
+  Attachment: ["CREATE_ATTACHMENT", "READ_ATTACHMENT", "DELETE_ATTACHMENT", "UPDATE_ATTACHMENT"],
+  User: ["CREATE_USER", "READ_USER", "DELETE_USER", "UPDATE_USER"],
+  Role: ["CREATE_ROLE", "READ_ROLE", "DELETE_ROLE", "UPDATE_ROLE"],
+  Group: ["CREATE_GROUP", "READ_GROUP", "DELETE_GROUP", "UPDATE_GROUP"],
+  Project: ["CREATE_PROJECT", "READ_PROJECT", "DELETE_PROJECT", "UPDATE_PROJECT"],
+  Cluster: ["CREATE_CLUSTER", "READ_CLUSTER", "DELETE_CLUSTER", "UPDATE_CLUSTER"],
+  Collection: ["CREATE_COLLECTION", "READ_COLLECTION", "DELETE_COLLECTION", "UPDATE_COLLECTION"],
+  Comment: ["CREATE_COMMENT", "READ_COMMENT", "DELETE_COMMENT", "UPDATE_COMMENT"],
+  Embedding: ["CREATE_EMBEDDING", "READ_EMBEDDING", "DELETE_EMBEDDING", "UPDATE_EMBEDDING"],
+  Reaction: ["CREATE_REACTION", "READ_REACTION", "DELETE_REACTION", "UPDATE_REACTION"],
+  Task: ["CREATE_TASK", "READ_TASK", "DELETE_TASK", "UPDATE_TASK"],
+  Tag: ["CREATE_TAG", "READ_TAG", "DELETE_TAG", "UPDATE_TAG", "TAG_ASSET", "UNTAG_ASSET"],
+  Token: ["CREATE_TOKEN", "READ_TOKEN", "DELETE_TOKEN", "UPDATE_TOKEN"],
+  WebHook: ["CREATE_WEBHOOK", "READ_WEBHOOK", "DELETE_WEBHOOK", "UPDATE_WEBHOOK"],
+  Library: ["CREATE_LIBRARY", "READ_LIBRARY", "DELETE_LIBRARY", "UPDATE_LIBRARY"],
+  Pipeline: ["CREATE_PIPELINE", "READ_PIPELINE", "DELETE_PIPELINE", "UPDATE_PIPELINE"],
+};
 
 function ApiKeysAdmin() {
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
-  const [newScopes, setNewScopes] = useState<string[]>([]);
+  const [newPermissions, setNewPermissions] = useState<string[]>([]);
   const [newExpiry, setNewExpiry] = useState("");
   const [creating, setCreating] = useState(false);
   const [query, setQuery] = useState("");
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+  const [menuKeyId, setMenuKeyId] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([mockAdminService.getApiKeys(), mockAdminService.getUsers()]).then(([k, u]) => {
@@ -488,33 +622,49 @@ function ApiKeysAdmin() {
   }, []);
 
   const handleCreate = async () => {
-    if (!newName.trim() || newScopes.length === 0) return;
+    if (!newName.trim() || newPermissions.length === 0) return;
     setCreating(true);
     try {
       const key = await mockAdminService.createApiKey({
         name: newName.trim(),
-        scopes: newScopes,
+        scopes: newPermissions,
         expiresAt: newExpiry || undefined,
       });
       setKeys(prev => [...prev, key]);
       setCreateOpen(false);
       setNewName("");
-      setNewScopes([]);
+      setNewPermissions([]);
       setNewExpiry("");
     } finally {
       setCreating(false);
     }
   };
 
-  const toggleScope = (scope: string) => {
-    setNewScopes(prev => prev.includes(scope) ? prev.filter(s => s !== scope) : [...prev, scope]);
+  const togglePermission = (perm: string) => {
+    setNewPermissions(prev => prev.includes(perm) ? prev.filter(s => s !== perm) : [...prev, perm]);
+  };
+
+  const toggleGroup = (group: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(group)) next.delete(group); else next.add(group);
+      return next;
+    });
+  };
+
+  const handleRevoke = (keyId: string) => {
+    setKeys(prev => prev.map(k => k.id === keyId ? { ...k, active: false } : k));
+    setMenuAnchor(null); setMenuKeyId(null);
   };
 
   return (
     <Box>
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
         <Box>
-          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>API Keys</Typography>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+            <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>API Keys</Typography>
+            <Tooltip title="API keys provide programmatic access to the platform. Assign granular permissions and set expiry dates for security." arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
+          </Box>
           <Typography variant="caption" color="text.secondary">{keys.length} keys</Typography>
         </Box>
         <Button startIcon={<VpnKeyOutlined />} variant="contained" size="small" onClick={() => setCreateOpen(true)}>
@@ -547,6 +697,7 @@ function ApiKeysAdmin() {
               <TableCell>Last Used</TableCell>
               <TableCell>Expires</TableCell>
               <TableCell>Status</TableCell>
+              <TableCell align="right" />
             </TableRow>
           </TableHead>
           <TableBody>
@@ -565,7 +716,8 @@ function ApiKeysAdmin() {
                   <TableCell><Typography variant="caption" color="text.secondary">{owner?.name ?? k.ownerId}</Typography></TableCell>
                   <TableCell>
                     <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
-                      {k.scopes.map(s => <Chip key={s} label={s} size="small" sx={{ height: 16, fontSize: "0.62rem", fontFamily: "monospace" }} />)}
+                      {k.scopes.slice(0, 3).map(s => <Chip key={s} label={s} size="small" sx={{ height: 16, fontSize: "0.62rem", fontFamily: "monospace" }} />)}
+                      {k.scopes.length > 3 && <Chip label={`+${k.scopes.length - 3}`} size="small" sx={{ height: 16, fontSize: "0.62rem" }} />}
                     </Box>
                   </TableCell>
                   <TableCell><Typography variant="caption" color="text.secondary">{k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleDateString() : "—"}</Typography></TableCell>
@@ -578,12 +730,25 @@ function ApiKeysAdmin() {
                       </Typography>
                     </Box>
                   </TableCell>
+                  <TableCell align="right">
+                    <IconButton size="small" onClick={e => { setMenuKeyId(k.id); setMenuAnchor(e.currentTarget); }}>
+                      <MoreVertOutlined sx={{ fontSize: 15 }} />
+                    </IconButton>
+                  </TableCell>
                 </TableRow>
               );
             })}
           </TableBody>
         </Table>
       </TableContainer>
+      <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => { setMenuAnchor(null); setMenuKeyId(null); }}>
+        <MenuItem onClick={() => menuKeyId && handleRevoke(menuKeyId)} sx={{ gap: 1, fontSize: "0.82rem", color: tokens.accent.red }}>
+          <VpnKeyOutlined sx={{ fontSize: 16 }} /> Revoke Key
+        </MenuItem>
+        <MenuItem onClick={() => { if (menuKeyId) setKeys(prev => prev.filter(k => k.id !== menuKeyId)); setMenuAnchor(null); setMenuKeyId(null); }} sx={{ gap: 1, fontSize: "0.82rem", color: tokens.accent.red }}>
+          <DeleteOutlineOutlined sx={{ fontSize: 16 }} /> Delete Key
+        </MenuItem>
+      </Menu>
 
       {/* Create API Key dialog */}
       <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="sm" fullWidth
@@ -608,23 +773,45 @@ function ApiKeysAdmin() {
             />
             <Box>
               <Typography variant="caption" fontWeight={600} sx={{ color: tokens.text.secondary, textTransform: "uppercase", letterSpacing: "0.06em", fontSize: "0.7rem", mb: 1, display: "block" }}>
-                Scopes
+                Permissions ({newPermissions.length})
               </Typography>
-              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0.25 }}>
-                {AVAILABLE_SCOPES.map(scope => (
-                  <FormControlLabel
-                    key={scope}
-                    control={
-                      <Checkbox
-                        size="small"
-                        checked={newScopes.includes(scope)}
-                        onChange={() => toggleScope(scope)}
-                        sx={{ py: 0.25, color: tokens.text.tertiary, "&.Mui-checked": { color: tokens.primary.main } }}
-                      />
-                    }
-                    label={<Typography variant="caption" sx={{ fontFamily: "monospace", fontSize: "0.75rem" }}>{scope}</Typography>}
-                  />
-                ))}
+              <Box sx={{ maxHeight: 320, overflow: "auto", display: "flex", flexDirection: "column", gap: 0.5 }}>
+                {Object.entries(PERMISSION_GROUPS).map(([group, perms]) => {
+                  const selected = perms.filter(p => newPermissions.includes(p));
+                  const allSelected = selected.length === perms.length;
+                  const expanded = expandedGroups.has(group);
+                  return (
+                    <Paper key={group} variant="outlined" sx={{ bgcolor: tokens.bg.overlay, border: `1px solid ${tokens.border}` }}>
+                      <Box sx={{ display: "flex", alignItems: "center", px: 1.5, py: 0.5, cursor: "pointer" }} onClick={() => toggleGroup(group)}>
+                        <Checkbox
+                          size="small"
+                          checked={allSelected}
+                          indeterminate={selected.length > 0 && !allSelected}
+                          onChange={() => {
+                            if (allSelected) setNewPermissions(prev => prev.filter(p => !perms.includes(p)));
+                            else setNewPermissions(prev => [...new Set([...prev, ...perms])]);
+                          }}
+                          onClick={e => e.stopPropagation()}
+                          sx={{ p: 0.25, mr: 1, color: tokens.text.tertiary, "&.Mui-checked": { color: tokens.primary.main } }}
+                        />
+                        <Typography variant="caption" fontWeight={600} sx={{ flex: 1, fontSize: "0.75rem" }}>{group}</Typography>
+                        <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.65rem", mr: 0.5 }}>{selected.length}/{perms.length}</Typography>
+                        {expanded ? <ExpandLessOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} /> : <ExpandMoreOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />}
+                      </Box>
+                      <Collapse in={expanded}>
+                        <Box sx={{ px: 1.5, pb: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0 }}>
+                          {perms.map(p => (
+                            <FormControlLabel
+                              key={p}
+                              control={<Checkbox size="small" checked={newPermissions.includes(p)} onChange={() => togglePermission(p)} sx={{ py: 0.15, color: tokens.text.tertiary, "&.Mui-checked": { color: tokens.primary.main } }} />}
+                              label={<Typography variant="caption" sx={{ fontFamily: "monospace", fontSize: "0.68rem" }}>{p}</Typography>}
+                            />
+                          ))}
+                        </Box>
+                      </Collapse>
+                    </Paper>
+                  );
+                })}
               </Box>
             </Box>
             <TextField
@@ -644,7 +831,7 @@ function ApiKeysAdmin() {
             size="small"
             variant="contained"
             onClick={handleCreate}
-            disabled={!newName.trim() || newScopes.length === 0 || creating}
+            disabled={!newName.trim() || newPermissions.length === 0 || creating}
             startIcon={<VpnKeyOutlined />}
           >
             {creating ? "Creating…" : "Create Key"}
@@ -658,6 +845,12 @@ function ApiKeysAdmin() {
 // ── Blacklist Table ───────────────────────────────────────────────────────
 function BlacklistAdmin() {
   const [entries, setEntries] = useState<BlacklistEntry[]>([]);
+  const [query, setQuery] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newType, setNewType] = useState<string>("ip");
+  const [newValue, setNewValue] = useState("");
+  const [newReason, setNewReason] = useState("");
+  const [newExpiry, setNewExpiry] = useState("");
 
   useEffect(() => { mockAdminService.getBlacklist().then(setEntries); }, []);
 
@@ -668,6 +861,27 @@ function BlacklistAdmin() {
     user: tokens.accent.teal,
   };
 
+  const filteredEntries = entries.filter(e => {
+    if (!query.trim()) return true;
+    const q = query.toLowerCase();
+    return e.value.toLowerCase().includes(q) || e.type.toLowerCase().includes(q) || e.reason.toLowerCase().includes(q);
+  });
+
+  const handleCreate = () => {
+    if (!newValue.trim()) return;
+    const entry: BlacklistEntry = {
+      id: `bl_${Date.now()}`,
+      type: newType as BlacklistEntry["type"],
+      value: newValue.trim(),
+      reason: newReason.trim() || "Manual entry",
+      createdAt: new Date().toISOString(),
+      expiresAt: newExpiry || null,
+    };
+    setEntries(prev => [...prev, entry]);
+    setCreateOpen(false);
+    setNewType("ip"); setNewValue(""); setNewReason(""); setNewExpiry("");
+  };
+
   return (
     <Box>
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
@@ -675,10 +889,25 @@ function BlacklistAdmin() {
           <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Blacklist</Typography>
           <Typography variant="caption" color="text.secondary">{entries.length} entries</Typography>
         </Box>
-        <Button startIcon={<BlockOutlined />} variant="contained" size="small" color="error">
+        <Button startIcon={<BlockOutlined />} variant="contained" size="small" color="error" onClick={() => setCreateOpen(true)}>
           Add Entry
         </Button>
       </Box>
+      <TextField
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        placeholder="Search blacklist entries…"
+        size="small"
+        sx={{ mb: 1.5, maxWidth: 320 }}
+        fullWidth
+        InputProps={{
+          startAdornment: (
+            <InputAdornment position="start">
+              <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
+            </InputAdornment>
+          ),
+        }}
+      />
       <TableContainer component={Paper} elevation={0}>
         <Table size="small">
           <TableHead>
@@ -692,7 +921,7 @@ function BlacklistAdmin() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {entries.map(e => (
+            {filteredEntries.map(e => (
               <TableRow key={e.id} hover>
                 <TableCell>
                   <Chip label={e.type} size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: `${typeColor[e.type] ?? tokens.text.tertiary}22`, color: typeColor[e.type] ?? tokens.text.tertiary }} />
@@ -702,7 +931,7 @@ function BlacklistAdmin() {
                 <TableCell><Typography variant="caption" color="text.secondary">{new Date(e.createdAt).toLocaleDateString()}</Typography></TableCell>
                 <TableCell><Typography variant="caption" sx={{ color: e.expiresAt ? tokens.accent.amber : tokens.text.tertiary }}>{e.expiresAt ? new Date(e.expiresAt).toLocaleDateString() : "Permanent"}</Typography></TableCell>
                 <TableCell align="right">
-                  <IconButton size="small">
+                  <IconButton size="small" onClick={() => setEntries(prev => prev.filter(x => x.id !== e.id))}>
                     <DeleteOutlineOutlined sx={{ fontSize: 15, color: tokens.accent.red }} />
                   </IconButton>
                 </TableCell>
@@ -711,6 +940,41 @@ function BlacklistAdmin() {
           </TableBody>
         </Table>
       </TableContainer>
+
+      {/* Create blacklist entry dialog */}
+      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="sm" fullWidth
+        PaperProps={{ sx: { bgcolor: tokens.bg.surface, border: `1px solid ${tokens.border.subtle}` } }}>
+        <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1, pb: 1 }}>
+          <BlockOutlined sx={{ fontSize: 18, color: tokens.accent.red }} />
+          <Typography fontWeight={700} sx={{ fontSize: "1rem" }}>Add Blacklist Entry</Typography>
+          <IconButton size="small" onClick={() => setCreateOpen(false)} sx={{ ml: "auto" }}>
+            <CloseOutlined sx={{ fontSize: 16 }} />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 1 }}>
+          <Stack spacing={2.5}>
+            <FormControl size="small" fullWidth>
+              <InputLabel>Type</InputLabel>
+              <Select label="Type" value={newType} onChange={e => setNewType(e.target.value)}>
+                <MenuItem value="ip">IP Address</MenuItem>
+                <MenuItem value="domain">Domain</MenuItem>
+                <MenuItem value="fingerprint">Fingerprint</MenuItem>
+                <MenuItem value="user">User</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField label="Value" size="small" fullWidth value={newValue} onChange={e => setNewValue(e.target.value)}
+              placeholder={newType === "ip" ? "192.168.1.100" : newType === "domain" ? "example.com" : newType === "user" ? "username" : "hash…"} autoFocus />
+            <TextField label="Reason" size="small" fullWidth value={newReason} onChange={e => setNewReason(e.target.value)} placeholder="Reason for blacklisting" />
+            <TextField label="Expiry date (optional)" type="date" size="small" fullWidth value={newExpiry} onChange={e => setNewExpiry(e.target.value)} InputLabelProps={{ shrink: true }} />
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button size="small" onClick={() => setCreateOpen(false)}>Cancel</Button>
+          <Button size="small" variant="contained" color="error" onClick={handleCreate} disabled={!newValue.trim()} startIcon={<BlockOutlined />}>
+            Add Entry
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

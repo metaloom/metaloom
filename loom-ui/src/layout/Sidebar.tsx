@@ -12,7 +12,7 @@ import {
   PersonOutlined, LogoutOutlined,
   LocalOfferOutlined, DnsOutlined, GroupsOutlined,
   SecurityOutlined, VpnKeyOutlined, BlockOutlined,
-  SpeedOutlined,
+  SpeedOutlined, VisibilityOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../theme";
 import { useProject } from "../context/ProjectContext";
@@ -35,8 +35,7 @@ const USER_NAV_ITEMS: NavItem[] = [
   { label: "Assets", path: "/assets", icon: <PhotoLibraryOutlined fontSize="small" /> },
   { label: "Collections", path: "/collections", icon: <CollectionsOutlined fontSize="small" /> },
   { label: "Tasks", path: "/tasks", icon: <TaskAltOutlined fontSize="small" />, badge: 3 },
-  { label: "Faces", path: "/faces", icon: <FaceOutlined fontSize="small" /> },
-  { label: "Tags", path: "/tags", icon: <LocalOfferOutlined fontSize="small" /> },
+  { label: "Detection", path: "/detection", icon: <VisibilityOutlined fontSize="small" /> },  { label: "Tags", path: "/tags", icon: <LocalOfferOutlined fontSize="small" /> },
   { label: "Workflow", path: "/workflow", icon: <SpeedOutlined fontSize="small" /> },
 ];
 
@@ -110,7 +109,8 @@ export default function Sidebar({ collapsed, onCollapse }: Props) {
     >
       {/* Project Switcher */}
       <Box sx={{ px: collapsed ? 1 : 1.5, pt: 1.5, pb: 1, display: "flex", alignItems: "center", gap: 1 }}>
-        <Tooltip title={collapsed ? activeProject?.name ?? "Project" : ""} placement="right">
+        {!collapsed && (
+        <Tooltip title="" placement="right">
           <Box
             onClick={(e) => setProjectMenuAnchor(e.currentTarget)}
             sx={{
@@ -139,16 +139,13 @@ export default function Sidebar({ collapsed, onCollapse }: Props) {
             >
               <FolderOpenOutlined sx={{ fontSize: 13, color: "#fff" }} />
             </Box>
-            {!collapsed && (
-              <>
-                <Typography variant="caption" fontWeight={600} color="text.primary" noWrap sx={{ flex: 1, fontSize: "0.8rem" }}>
-                  {activeProject?.name ?? "Loading…"}
-                </Typography>
-                <KeyboardArrowDown sx={{ fontSize: 14, color: tokens.text.tertiary, flexShrink: 0 }} />
-              </>
-            )}
+            <Typography variant="caption" fontWeight={600} color="text.primary" noWrap sx={{ flex: 1, fontSize: "0.8rem" }}>
+              {activeProject?.name ?? "Loading…"}
+            </Typography>
+            <KeyboardArrowDown sx={{ fontSize: 14, color: tokens.text.tertiary, flexShrink: 0 }} />
           </Box>
         </Tooltip>
+        )}
         <Menu
           anchorEl={projectMenuAnchor}
           open={Boolean(projectMenuAnchor)}

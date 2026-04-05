@@ -523,7 +523,7 @@ export default function ChatWorkspace() {
                 disableUnderline: true,
                 sx: { px: 2, pt: 1.25, pb: 0.5, fontSize: "0.875rem", lineHeight: 1.6 },
                 endAdornment: (
-                  <InputAdornment position="end" sx={{ pb: 0.5, pr: 0.5, alignSelf: "flex-end" }}>
+                  <InputAdornment position="end" sx={{ pb: 0.5, pr: 0.5, alignSelf: input.includes("\n") ? "flex-end" : "center" }}>
                     <IconButton
                       size="small"
                       onClick={() => sendMessage(input)}

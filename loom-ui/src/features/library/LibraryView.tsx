@@ -5,7 +5,7 @@ import {
   IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Tooltip,
   InputAdornment,
 } from "@mui/material";
-import { LibraryBooksOutlined, PhotoLibraryOutlined, VideocamOutlined, FolderOutlined, AddOutlined, DeleteOutlined, SearchOutlined } from "@mui/icons-material";
+import { LibraryBooksOutlined, PhotoLibraryOutlined, VideocamOutlined, FolderOutlined, AddOutlined, DeleteOutlined, SearchOutlined, HelpOutlineOutlined } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { Library, Asset } from "../../types";
 import { mockLibraryService, mockAssetService } from "../../mock/services";
@@ -81,7 +81,10 @@ export default function LibraryView() {
       <Box sx={{ width: 230, flexShrink: 0, borderRight: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", flexDirection: "column" }}>
         <Box sx={{ px: 2, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <Box>
-            <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Libraries</Typography>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+              <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Libraries</Typography>
+              <Tooltip title="Libraries are used to aggregate and organise assets into logical collections within a project." arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
+            </Box>
             <Typography variant="caption" color="text.secondary">{activeProject?.name}</Typography>
           </Box>
           <Tooltip title="New library">

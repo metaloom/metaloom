@@ -13,7 +13,7 @@ import { tokens } from "../../theme";
 import { FaceCluster, Person } from "../../types";
 import { mockFaceDetectionService } from "../../mock/services";
 
-export default function FaceDetectionManagement() {
+export default function FaceDetectionManagement({ embedded }: { embedded?: boolean }) {
   const [clusters, setClusters] = useState<FaceCluster[]>([]);
   const [persons, setPersons] = useState<Person[]>([]);
   const [query, setQuery] = useState("");
@@ -68,6 +68,7 @@ export default function FaceDetectionManagement() {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: tokens.bg.base }}>
       {/* Header */}
+      {!embedded && (
       <Box sx={{ px: 2.5, py: 1.5, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface }}>
         <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem", mb: 0.5 }}>
           Face Detection
@@ -76,6 +77,7 @@ export default function FaceDetectionManagement() {
           Manage face clusters and person database
         </Typography>
       </Box>
+      )}
 
       {/* Toolbar */}
       <Box sx={{ px: 2.5, py: 1.5, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", gap: 1, alignItems: "center" }}>

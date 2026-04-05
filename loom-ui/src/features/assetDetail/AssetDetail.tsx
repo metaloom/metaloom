@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import {
   Box, Typography, Chip, Avatar, Paper, IconButton, Tab, Tabs,
   Divider, Tooltip, LinearProgress, Stack, TextField, InputAdornment,
+  Menu, MenuItem, ListItemIcon, ListItemText,
 } from "@mui/material";
 import {
   ArrowBack, PlayArrowOutlined, PauseOutlined, PlayCircleOutline,
@@ -13,6 +14,8 @@ import {
   ZoomInOutlined, ZoomOutOutlined, CenterFocusStrongOutlined,
   FaceOutlined, GroupWorkOutlined, PersonOutlined,
   ArrowUpwardOutlined, ArrowDownwardOutlined, SearchOutlined,
+  MoreVertOutlined, SendOutlined, AddTaskOutlined,
+  CollectionsOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { Asset, Comment, Annotation, Reaction, Task, TranscriptSection, DetectedFace, FaceCluster, Person } from "../../types";
@@ -21,7 +24,7 @@ import {
   mockReactionService, mockTaskService, mockTranscriptService,
   mockFaceDetectionService,
 } from "../../mock/services";
-import { USERS } from "../../mock/data";
+import { USERS, COLLECTIONS, PIPELINES } from "../../mock/data";
 
 function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -58,6 +61,45 @@ const reactionColor: Record<string, string> = {
   question: tokens.accent.blue,
 };
 
+// Tag parent hierarchy (mock) — tag → parent chain from root to immediate parent
+const TAG_HIERARCHY: Record<string, string[]> = {
+  suv: ["vehicles", "cars"],
+  sedan: ["vehicles", "cars"],
+  supercars: ["vehicles", "cars"],
+  cars: ["vehicles"],
+  trucks: ["vehicles"],
+  vehicles: [],
+  nature: ["outdoor"],
+  wildlife: ["outdoor", "nature"],
+  landscape: ["outdoor"],
+  aerial: ["outdoor"],
+  drone: ["outdoor", "aerial"],
+  portrait: ["photography"],
+  macro: ["photography"],
+  street: ["photography", "outdoor"],
+  fashion: ["photography"],
+  studio: ["photography", "indoor"],
+  indoor: [],
+  outdoor: [],
+  urban: ["outdoor"],
+  architecture: ["outdoor", "urban"],
+  food: [],
+  travel: [],
+  sports: [],
+  music: [],
+  hero: ["editorial"],
+  archive: ["editorial"],
+  "b-roll": ["editorial"],
+  timelapse: ["editorial", "technique"],
+  interview: ["editorial"],
+};
+
+function tagBreadcrumb(tag: string): string {
+  const parents = TAG_HIERARCHY[tag.toLowerCase()];
+  if (!parents || parents.length === 0) return "";
+  return [...parents, tag.toLowerCase()].join(" → ");
+}
+
 // ── Video Timeline ────────────────────────────────────────────────────────
 interface TimelineMarker {
   time: number;
@@ -76,6 +118,7 @@ function VideoTimeline({
   onSeek,
   onMarkerClick,
   onMarkerHover,
+  onMarkerDrag,
 }: {
   duration: number;
   currentTime: number;
@@ -84,6 +127,7 @@ function VideoTimeline({
   onSeek: (t: number) => void;
   onMarkerClick: (id: string, type: string) => void;
   onMarkerHover: (id: string | null) => void;
+  onMarkerDrag?: (markerId: string, edge: "start" | "end", newTime: number) => void;
 }) {
   const barRef = useRef<HTMLDivElement>(null);
   const markerBarRef = useRef<HTMLDivElement>(null);
@@ -113,9 +157,9 @@ function VideoTimeline({
       if (!markerBarRef.current) return;
       const rect = markerBarRef.current.getBoundingClientRect();
       const pct = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
-      const time = pct * duration;
-      // We just seek to show position — the marker times are data-driven
-      onSeek(Math.round(time * 10) / 10);
+      const time = Math.round(pct * duration * 10) / 10;
+      onSeek(time);
+      onMarkerDrag?.(markerId, edge, time);
     };
     const onUp = () => {
       setDraggingMarker(null);
@@ -124,10 +168,10 @@ function VideoTimeline({
     };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
-  }, [duration, onSeek]);
+  }, [duration, onSeek, onMarkerDrag]);
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 0 }}>
+    <Box sx={{ display: "flex", flexDirection: "column", gap: "4px" }}>
       {/* Top: thin progress bar */}
       <Box sx={{ position: "relative", height: 6, cursor: "pointer" }}>
         <Box
@@ -750,6 +794,8 @@ export default function AssetDetail() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [tagInput, setTagInput] = useState("");
   const tagInputRef = useRef<HTMLInputElement>(null);
+  const [actionMenuAnchor, setActionMenuAnchor] = useState<null | HTMLElement>(null);
+  const [pipelineMenuAnchor, setPipelineMenuAnchor] = useState<null | HTMLElement>(null);
   // Draggable left/right split (percentage)
   const [leftPct, setLeftPct] = useState(60);
   const isDragging = useRef(false);
@@ -865,7 +911,7 @@ export default function AssetDetail() {
         </IconButton>
         <Box sx={{ flex: 1, overflow: "hidden" }}>
           <Typography variant="h6" fontWeight={700} noWrap sx={{ fontSize: "0.95rem" }}>{asset.name}</Typography>
-          <Box sx={{ display: "flex", gap: 0.75, alignItems: "center" }}>
+          <Box sx={{ display: "flex", gap: 0.75, alignItems: "center", flexWrap: "wrap" }}>
             <Chip label={asset.type} size="small" sx={{ height: 16, fontSize: "0.65rem", bgcolor: tokens.bg.elevated }} />
             <Chip
               label={asset.status}
@@ -879,8 +925,47 @@ export default function AssetDetail() {
             {asset.tags.slice(0, 3).map(t => (
               <Chip key={t} label={t} size="small" sx={{ height: 16, fontSize: "0.65rem", bgcolor: tokens.bg.overlay }} />
             ))}
+            {/* Collection chips */}
+            {COLLECTIONS.filter(c => asset.collectionIds.includes(c.id)).map(col => (
+              <Chip
+                key={col.id}
+                icon={<CollectionsOutlined sx={{ fontSize: 10 }} />}
+                label={col.name}
+                size="small"
+                sx={{ height: 16, fontSize: "0.65rem", bgcolor: `${col.color}22`, color: col.color, "& .MuiChip-icon": { color: col.color } }}
+              />
+            ))}
           </Box>
         </Box>
+        {/* Actions menu */}
+        <IconButton size="small" onClick={e => setActionMenuAnchor(e.currentTarget)}>
+          <MoreVertOutlined sx={{ fontSize: 18 }} />
+        </IconButton>
+        <Menu anchorEl={actionMenuAnchor} open={Boolean(actionMenuAnchor)} onClose={() => setActionMenuAnchor(null)}>
+          <MenuItem onClick={e => { setPipelineMenuAnchor(e.currentTarget); }}>
+            <ListItemIcon><SendOutlined sx={{ fontSize: 16 }} /></ListItemIcon>
+            <ListItemText primaryTypographyProps={{ fontSize: "0.85rem" }}>Process</ListItemText>
+            <Typography variant="caption" sx={{ ml: 2, color: tokens.text.tertiary }}>▸</Typography>
+          </MenuItem>
+          <MenuItem onClick={() => { setActionMenuAnchor(null); /* create task action */ }}>
+            <ListItemIcon><AddTaskOutlined sx={{ fontSize: 16 }} /></ListItemIcon>
+            <ListItemText primaryTypographyProps={{ fontSize: "0.85rem" }}>Create Task</ListItemText>
+          </MenuItem>
+        </Menu>
+        <Menu
+          anchorEl={pipelineMenuAnchor}
+          open={Boolean(pipelineMenuAnchor)}
+          onClose={() => { setPipelineMenuAnchor(null); setActionMenuAnchor(null); }}
+          anchorOrigin={{ vertical: "top", horizontal: "right" }}
+          transformOrigin={{ vertical: "top", horizontal: "left" }}
+        >
+          {PIPELINES.map(p => (
+            <MenuItem key={p.id} onClick={() => { setPipelineMenuAnchor(null); setActionMenuAnchor(null); }} sx={{ gap: 1 }}>
+              <AccountTreeOutlined sx={{ fontSize: 14, color: tokens.primary.main }} />
+              <Typography variant="body2" sx={{ fontSize: "0.82rem" }}>{p.name}</Typography>
+            </MenuItem>
+          ))}
+        </Menu>
       </Box>
 
       {/* Body */}
@@ -931,6 +1016,22 @@ export default function AssetDetail() {
                 onSeek={setCurrentTime}
                 onMarkerClick={handleMarkerClick}
                 onMarkerHover={setHoveredMarkerId}
+                onMarkerDrag={(markerId, edge, newTime) => {
+                  // Update comment or annotation time when dragging handles
+                  const comment = comments.find(c => c.id === markerId);
+                  if (comment) {
+                    if (edge === "start") comment.timestampStart = newTime;
+                    else if (edge === "end") comment.timestampEnd = newTime;
+                    setComments([...comments]);
+                    return;
+                  }
+                  const ann = annotations.find(a => a.id === markerId);
+                  if (ann) {
+                    if (edge === "start") ann.timestampStart = newTime;
+                    else if (edge === "end") ann.timestampEnd = newTime;
+                    setAnnotations([...annotations]);
+                  }
+                }}
               />
             </Box>
           )}
@@ -947,15 +1048,19 @@ export default function AssetDetail() {
 
           {/* Tags — editable */}
           <Box sx={{ px: 2, py: 1, bgcolor: tokens.bg.surface, display: "flex", gap: 0.5, flexWrap: "wrap", alignItems: "center", borderTop: `1px solid ${tokens.border.subtle}` }}>
-            {asset.tags.map(t => (
-              <Chip
-                key={t}
-                label={t}
-                size="small"
-                onDelete={() => { asset.tags = asset.tags.filter(tag => tag !== t); setAsset({ ...asset }); }}
-                sx={{ height: 20, fontSize: "0.7rem", bgcolor: tokens.bg.elevated, color: tokens.text.secondary }}
-              />
-            ))}
+            {asset.tags.map(t => {
+              const bc = tagBreadcrumb(t);
+              return (
+                <Tooltip key={t} title={bc || ""} placement="top" arrow>
+                  <Chip
+                    label={t}
+                    size="small"
+                    onDelete={() => { asset.tags = asset.tags.filter(tag => tag !== t); setAsset({ ...asset }); }}
+                    sx={{ height: 20, fontSize: "0.7rem", bgcolor: tokens.bg.elevated, color: tokens.text.secondary }}
+                  />
+                </Tooltip>
+              );
+            })}
             <TextField
               inputRef={tagInputRef}
               value={tagInput}

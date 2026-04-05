@@ -12,6 +12,8 @@ import {
   KeyboardOutlined, TuneOutlined, SpeedOutlined,
   FaceOutlined, CenterFocusStrongOutlined, FullscreenOutlined,
   FullscreenExitOutlined, PersonOutlined,
+  HelpOutlineOutlined, CheckCircleOutlineOutlined,
+  AutoAwesomeOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { Asset, DetectedFace, FaceCluster, Person, DetectedObject } from "../../types";
@@ -19,7 +21,7 @@ import { ASSETS, DETECTED_FACES, FACE_CLUSTERS, PERSONS, DETECTED_OBJECTS } from
 import { useLayout } from "../../context/LayoutContext";
 
 // ── Types ─────────────────────────────────────────────────────────────────
-type WorkflowMode = "rating" | "tagging" | "deduplication" | "facedetection" | "objectdetection";
+type WorkflowMode = "rating" | "tagging" | "deduplication" | "facedetection" | "objectdetection" | "llm";
 
 interface KeyAction {
   key: string;
@@ -119,6 +121,8 @@ const DEFAULT_PROFILES: KeyProfile[] = [
       { key: "ArrowRight", label: "Next Asset", action: "next_asset" },
       { key: "ArrowLeft", label: "Prev Asset", action: "prev_asset" },
       { key: " ", label: "Next Asset", action: "next_asset" },
+      { key: "ArrowDown", label: "Next Cluster", action: "next_cluster" },
+      { key: "ArrowUp", label: "Prev Cluster", action: "prev_cluster" },
       { key: "y", label: "Confirm Cluster", action: "confirm_cluster" },
       { key: "n", label: "Deny Cluster", action: "deny_cluster" },
       { key: "Tab", label: "Next Cluster", action: "next_cluster" },
@@ -133,9 +137,24 @@ const DEFAULT_PROFILES: KeyProfile[] = [
       { key: "ArrowRight", label: "Next Asset", action: "next_asset" },
       { key: "ArrowLeft", label: "Prev Asset", action: "prev_asset" },
       { key: " ", label: "Next Asset", action: "next_asset" },
+      { key: "ArrowDown", label: "Next Detection", action: "next_detection" },
+      { key: "ArrowUp", label: "Prev Detection", action: "prev_detection" },
       { key: "y", label: "Confirm Detection", action: "confirm_object" },
       { key: "n", label: "Reject Detection", action: "reject_object" },
       { key: "Tab", label: "Next Detection", action: "next_detection" },
+    ],
+  },
+  {
+    id: "llm-default",
+    name: "LLM — Default",
+    mode: "llm",
+    bindings: [
+      { key: "ArrowRight", label: "Next Asset", action: "next_asset" },
+      { key: "ArrowLeft", label: "Prev Asset", action: "prev_asset" },
+      { key: " ", label: "Next Asset", action: "next_asset" },
+      { key: "y", label: "Approve Result", action: "approve_llm" },
+      { key: "n", label: "Reject Result", action: "reject_llm" },
+      { key: "r", label: "Re-run Prompt", action: "rerun_llm" },
     ],
   },
 ];
@@ -315,15 +334,27 @@ function FaceDetectionMode({
       {/* Asset preview with face bboxes */}
       <Box sx={{ position: "relative", bgcolor: "#000", borderRadius: tokens.radius.lg, overflow: "hidden", minHeight: 200 }}>
         <img src={asset.thumbnailUrl} alt={asset.name} style={{ width: "100%", display: "block", objectFit: "contain" }} />
-        {faces.map(f => (
+        {faces.map(f => {
+          const clusterDec = clusterDecisions[f.clusterId ?? ""];
+          return (
           <Box key={f.id} sx={{
             position: "absolute",
             left: `${f.boundingBox.x * 100}%`, top: `${f.boundingBox.y * 100}%`,
             width: `${f.boundingBox.width * 100}%`, height: `${f.boundingBox.height * 100}%`,
             border: `2px solid ${selectedCluster && f.clusterId === selectedCluster.cluster.id ? tokens.primary.main : tokens.accent.amber}`,
             borderRadius: tokens.radius.sm, pointerEvents: "none",
-          }} />
-        ))}
+          }}>
+            {/* Status icon */}
+            <Box sx={{ position: "absolute", top: -16, right: 0 }}>
+              {clusterDec === "confirmed" ? (
+                <CheckCircleOutlineOutlined sx={{ fontSize: 12, color: tokens.accent.green }} />
+              ) : (
+                <HelpOutlineOutlined sx={{ fontSize: 12, color: clusterDec === "denied" ? tokens.accent.red : tokens.accent.amber }} />
+              )}
+            </Box>
+          </Box>
+          );
+        })}
       </Box>
 
       <Typography variant="body2" fontWeight={700} sx={{ px: 1 }}>{asset.name}</Typography>
@@ -428,6 +459,14 @@ function ObjectDetectionMode({
               border: `2px solid ${color}`, borderRadius: tokens.radius.sm,
               cursor: "pointer", "&:hover": { borderWidth: 3 }, transition: "border-width 100ms ease",
             }}>
+              {/* Status icon */}
+              <Box sx={{ position: "absolute", top: -20, right: 0, display: "flex", alignItems: "center", gap: 0.25 }}>
+                {dec === "confirmed" ? (
+                  <CheckCircleOutlineOutlined sx={{ fontSize: 12, color: tokens.accent.green }} />
+                ) : (
+                  <HelpOutlineOutlined sx={{ fontSize: 12, color: dec === "rejected" ? tokens.accent.red : tokens.accent.amber }} />
+                )}
+              </Box>
               <Typography variant="caption" sx={{
                 position: "absolute", top: -18, left: 0,
                 bgcolor: color, color: "#000", px: 0.5, borderRadius: "2px",
@@ -483,6 +522,57 @@ function ObjectDetectionMode({
             );
           })}
           {objects.length === 0 && <Typography variant="caption" color="text.secondary">No object detections for this asset</Typography>}
+        </Box>
+      </Box>
+    </Box>
+  );
+}
+
+// ── LLM Mode ─────────────────────────────────────────────────────────────
+function LLMMode({
+  asset, llmDecisions, onApprove, onReject,
+}: {
+  asset: Asset;
+  llmDecisions: Record<string, "approved" | "rejected">;
+  onApprove: (assetId: string) => void;
+  onReject: (assetId: string) => void;
+}) {
+  const decision = llmDecisions[asset.id];
+  // Mock LLM results for this asset
+  const mockResult = asset.id === "a1" ? "Corporate presentation scene with modern furniture. Professional indoor lighting." :
+    asset.id === "a3" ? "Product hero shot with clean studio background and dramatic side lighting." :
+    asset.id === "a4" ? "Nature scene with golden retriever on grass near a wooden bench." :
+    "No LLM analysis available for this asset yet.";
+
+  return (
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, overflow: "auto" }}>
+      <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", bgcolor: "#000", borderRadius: tokens.radius.lg, overflow: "hidden", minHeight: 300 }}>
+        <img src={asset.thumbnailUrl} alt={asset.name} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+      </Box>
+      <Box sx={{ px: 1 }}>
+        <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.95rem", mb: 0.5 }}>{asset.name}</Typography>
+        <Paper elevation={0} sx={{ p: 2, bgcolor: tokens.bg.elevated, border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+            <AutoAwesomeOutlined sx={{ fontSize: 16, color: tokens.primary.main }} />
+            <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.78rem" }}>Vision Model Output</Typography>
+            <Chip label="gpt-4o" size="small" sx={{ height: 16, fontSize: "0.62rem", bgcolor: tokens.bg.overlay }} />
+          </Box>
+          <Typography variant="body2" sx={{ color: tokens.text.secondary, fontSize: "0.84rem", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+            {mockResult}
+          </Typography>
+        </Paper>
+        <Box sx={{ display: "flex", gap: 1, mt: 1.5 }}>
+          <Button variant={decision === "approved" ? "contained" : "outlined"} size="small" color="success"
+            startIcon={<CheckOutlined sx={{ fontSize: 14 }} />} onClick={() => onApprove(asset.id)}
+            sx={{ textTransform: "none", fontSize: "0.8rem", fontWeight: 600 }}>Approve (Y)</Button>
+          <Button variant={decision === "rejected" ? "contained" : "outlined"} size="small" color="error"
+            startIcon={<CloseOutlined sx={{ fontSize: 14 }} />} onClick={() => onReject(asset.id)}
+            sx={{ textTransform: "none", fontSize: "0.8rem", fontWeight: 600 }}>Reject (N)</Button>
+          {decision && (
+            <Chip label={decision} size="small" sx={{ height: 22, fontSize: "0.72rem", fontWeight: 600, ml: "auto",
+              bgcolor: decision === "approved" ? `${tokens.accent.green}18` : `${tokens.accent.red}18`,
+              color: decision === "approved" ? tokens.accent.green : tokens.accent.red }} />
+          )}
         </Box>
       </Box>
     </Box>
@@ -606,6 +696,7 @@ export default function WorkflowView() {
   const [clusterPersonAssignments, setClusterPersonAssignments] = useState<Record<string, string>>({});
   const [selectedObjIdx, setSelectedObjIdx] = useState(0);
   const [objectDecisions, setObjectDecisions] = useState<Record<string, "confirmed" | "rejected">>({});
+  const [llmDecisions, setLlmDecisions] = useState<Record<string, "approved" | "rejected">>({});
   const [profileSidebarOpen, setProfileSidebarOpen] = useState(true);
   const [profiles, setProfiles] = useState<KeyProfile[]>(DEFAULT_PROFILES);
   const [activeProfileId, setActiveProfileId] = useState(DEFAULT_PROFILES[0].id);
@@ -658,6 +749,8 @@ export default function WorkflowView() {
   const handleDenyCluster = useCallback((id: string) => { setClusterDecisions(prev => ({ ...prev, [id]: "denied" })); }, []);
   const handleAssignPerson = useCallback((clusterId: string, name: string) => { setClusterPersonAssignments(prev => ({ ...prev, [clusterId]: name })); }, []);
   const handleConfirmObject = useCallback((id: string) => { setObjectDecisions(prev => ({ ...prev, [id]: "confirmed" })); }, []);
+  const handleApproveLlm = useCallback((assetId: string) => { setLlmDecisions(prev => ({ ...prev, [assetId]: "approved" })); }, []);
+  const handleRejectLlm = useCallback((assetId: string) => { setLlmDecisions(prev => ({ ...prev, [assetId]: "rejected" })); }, []);
   const handleRejectObject = useCallback((id: string) => { setObjectDecisions(prev => ({ ...prev, [id]: "rejected" })); }, []);
   const handleUpdateBinding = useCallback((profileId: string, bindingIdx: number, newKey: string) => {
     setProfiles(prev => prev.map(p => {
@@ -691,17 +784,23 @@ export default function WorkflowView() {
         case "confirm_cluster": e.preventDefault(); if (currentFaceClusters[selectedClusterIdx]) handleConfirmCluster(currentFaceClusters[selectedClusterIdx].cluster.id); break;
         case "deny_cluster": e.preventDefault(); if (currentFaceClusters[selectedClusterIdx]) handleDenyCluster(currentFaceClusters[selectedClusterIdx].cluster.id); break;
         case "next_cluster": e.preventDefault(); setSelectedClusterIdx(i => (i + 1) % Math.max(1, currentFaceClusters.length)); break;
+        case "prev_cluster": e.preventDefault(); setSelectedClusterIdx(i => (i - 1 + currentFaceClusters.length) % Math.max(1, currentFaceClusters.length)); break;
         case "focus_person": e.preventDefault(); personInputRef.current?.focus(); break;
         case "confirm_object": e.preventDefault(); if (currentObjects[selectedObjIdx]) handleConfirmObject(currentObjects[selectedObjIdx].id); break;
+        case "approve_llm": e.preventDefault(); if (currentAsset) handleApproveLlm(currentAsset.id); break;
+        case "reject_llm": e.preventDefault(); if (currentAsset) handleRejectLlm(currentAsset.id); break;
+        case "rerun_llm": e.preventDefault(); break;
         case "reject_object": e.preventDefault(); if (currentObjects[selectedObjIdx]) handleRejectObject(currentObjects[selectedObjIdx].id); break;
         case "next_detection": e.preventDefault(); setSelectedObjIdx(i => (i + 1) % Math.max(1, currentObjects.length)); break;
+        case "prev_detection": e.preventDefault(); setSelectedObjIdx(i => (i - 1 + currentObjects.length) % Math.max(1, currentObjects.length)); break;
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [activeProfileId, profiles, goNext, goPrev, handleRate, handleConfirmDedup, handleRejectDedup,
       toggleFullscreen, handleConfirmCluster, handleDenyCluster, handleConfirmObject, handleRejectObject,
-      currentFaceClusters, currentObjects, selectedClusterIdx, selectedObjIdx]);
+      handleApproveLlm, handleRejectLlm,
+      currentFaceClusters, currentObjects, selectedClusterIdx, selectedObjIdx, currentAsset]);
 
   return (
     <Box sx={{ display: "flex", height: "100%", overflow: "hidden", bgcolor: tokens.bg.base }}>
@@ -712,6 +811,7 @@ export default function WorkflowView() {
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
             <SpeedOutlined sx={{ fontSize: 18, color: tokens.primary.main }} />
             <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Workflow</Typography>
+            <Tooltip title="Workflows provide keyboard-driven bulk review modes for rating, tagging, deduplication, and detection tasks." arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
           </Box>
           <ToggleButtonGroup value={mode} exclusive onChange={(_, v) => v && setMode(v)} size="small" sx={{ ml: 0.5 }}>
             <ToggleButton value="rating" sx={{ textTransform: "none", fontSize: "0.72rem", px: 1 }}>
@@ -722,6 +822,9 @@ export default function WorkflowView() {
             </ToggleButton>
             <ToggleButton value="deduplication" sx={{ textTransform: "none", fontSize: "0.72rem", px: 1 }}>
               <ContentCopyOutlined sx={{ fontSize: 13, mr: 0.5 }} /> Dedup
+            </ToggleButton>
+            <ToggleButton value="llm" sx={{ textTransform: "none", fontSize: "0.72rem", px: 1 }}>
+              <AutoAwesomeOutlined sx={{ fontSize: 13, mr: 0.5 }} /> LLM
             </ToggleButton>
             <ToggleButton value="facedetection" sx={{ textTransform: "none", fontSize: "0.72rem", px: 1 }}>
               <FaceOutlined sx={{ fontSize: 13, mr: 0.5 }} /> Faces
@@ -778,6 +881,10 @@ export default function WorkflowView() {
               onDenyCluster={handleDenyCluster} clusterPersonAssignments={clusterPersonAssignments}
               onAssignPerson={handleAssignPerson} personInputRef={personInputRef} />
           )}
+          {mode === "llm" && currentAsset && (
+            <LLMMode asset={currentAsset} llmDecisions={llmDecisions}
+              onApprove={handleApproveLlm} onReject={handleRejectLlm} />
+          )}
           {mode === "objectdetection" && currentAsset && (
             <ObjectDetectionMode asset={currentAsset} objects={currentObjects}
               selectedIdx={selectedObjIdx} onSelectIdx={setSelectedObjIdx}
@@ -803,14 +910,19 @@ export default function WorkflowView() {
               <strong>←/→</strong> Navigate · <strong>Y</strong> Confirm dedup · <strong>N</strong> Reject · <strong>F</strong> Fullscreen
             </Typography>
           )}
+          {mode === "llm" && (
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.68rem" }}>
+              <strong>←/→</strong> Navigate · <strong>Y</strong> Approve · <strong>N</strong> Reject · <strong>R</strong> Re-run prompt · <strong>F</strong> Fullscreen
+            </Typography>
+          )}
           {mode === "facedetection" && (
             <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.68rem" }}>
-              <strong>←/→</strong> Navigate · <strong>Tab</strong> Cycle clusters · <strong>Y</strong> Confirm · <strong>N</strong> Deny · <strong>Enter</strong> Assign person · <strong>F</strong> Fullscreen
+              <strong>←/→</strong> Navigate · <strong>↑/↓</strong> Cycle clusters · <strong>Tab</strong> Next cluster · <strong>Y</strong> Confirm · <strong>N</strong> Deny · <strong>Enter</strong> Assign person · <strong>F</strong> Fullscreen
             </Typography>
           )}
           {mode === "objectdetection" && (
             <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.68rem" }}>
-              <strong>←/→</strong> Navigate · <strong>Tab</strong> Cycle detections · <strong>Y</strong> Confirm · <strong>N</strong> Reject · <strong>F</strong> Fullscreen
+              <strong>←/→</strong> Navigate · <strong>↑/↓</strong> Cycle detections · <strong>Tab</strong> Next detection · <strong>Y</strong> Confirm · <strong>N</strong> Reject · <strong>F</strong> Fullscreen
             </Typography>
           )}
         </Box>

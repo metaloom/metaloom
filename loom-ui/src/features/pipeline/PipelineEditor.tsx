@@ -19,8 +19,11 @@ import {
   TerminalOutlined, ExpandLessOutlined, ExpandMoreOutlined,
   ChevronRightOutlined, ChevronLeftOutlined,
   AddOutlined, CenterFocusStrongOutlined, VideocamOutlined,
-  MovieFilterOutlined,
+  MovieFilterOutlined, FolderOpenOutlined, AutoAwesomeOutlined,
+  LocalOfferOutlined, ImageOutlined, SubtitlesOutlined,
+  DataObjectOutlined, BugReportOutlined,
 } from "@mui/icons-material";
+import { Tabs, Tab } from "@mui/material";
 import { tokens } from "../../theme";
 import { Pipeline, PipelineNode, PipelineRun } from "../../types";
 import { mockPipelineService } from "../../mock/services";
@@ -29,46 +32,84 @@ import { useProject } from "../../context/ProjectContext";
 // ── Custom Node Types ─────────────────────────────────────────────────────
 const nodeTypeConfig: Record<string, { color: string; icon: React.ReactNode; bg: string }> = {
   source: { color: tokens.accent.blue, icon: <CloudUploadOutlined sx={{ fontSize: 14 }} />, bg: `${tokens.accent.blue}18` },
+  filesystem_source: { color: "#42a5f5", icon: <FolderOpenOutlined sx={{ fontSize: 14 }} />, bg: "#42a5f518" },
   filter: { color: tokens.accent.amber, icon: <FilterAltOutlined sx={{ fontSize: 14 }} />, bg: `${tokens.accent.amber}18` },
   process: { color: tokens.primary.main, icon: <MemoryOutlined sx={{ fontSize: 14 }} />, bg: tokens.primary.subtle },
   output: { color: tokens.accent.teal, icon: <CloudDownloadOutlined sx={{ fontSize: 14 }} />, bg: `${tokens.accent.teal}18` },
   yolo: { color: "#e040fb", icon: <CenterFocusStrongOutlined sx={{ fontSize: 14 }} />, bg: "#e040fb18" },
   scene_detection: { color: "#ff7043", icon: <MovieFilterOutlined sx={{ fontSize: 14 }} />, bg: "#ff704318" },
+  llm: { color: "#ab47bc", icon: <AutoAwesomeOutlined sx={{ fontSize: 14 }} />, bg: "#ab47bc18" },
+  auto_tag: { color: "#26a69a", icon: <LocalOfferOutlined sx={{ fontSize: 14 }} />, bg: "#26a69a18" },
+  asset_source: { color: "#5c6bc0", icon: <ImageOutlined sx={{ fontSize: 14 }} />, bg: "#5c6bc018" },
 };
 
+// Source-type nodes have no input connector
+const SOURCE_TYPES = new Set(["source", "filesystem_source", "asset_source"]);
+
+
+// Connector data types
+type ConnectorDataType = "text" | "asset" | "json" | "hash";
+
+interface ConnectorDef {
+  name: string;
+  dataType: ConnectorDataType;
+}
+
 // Node templates available for adding to a pipeline
-const NODE_TEMPLATES: { type: string; label: string; description: string; inputLabel?: string; outputLabel?: string; data: Record<string, unknown> }[] = [
-  { type: "source", label: "S3 Source", description: "Watch an S3 bucket for new assets", inputLabel: "Trigger", outputLabel: "Asset", data: { bucket: "", prefix: "/" } },
-  { type: "filter", label: "Format Filter", description: "Filter by MIME type", inputLabel: "Asset", outputLabel: "Filtered Asset", data: { types: ["video/*", "image/*"] } },
-  { type: "process", label: "Hash", description: "SHA-256 + perceptual hash", inputLabel: "Asset", outputLabel: "Hash", data: { algorithms: ["sha256", "phash"] } },
-  { type: "process", label: "Fingerprint", description: "Generate audio/video fingerprint", inputLabel: "Asset", outputLabel: "Fingerprint", data: { engine: "chromaprint" } },
-  { type: "process", label: "Resize Proxy", description: "Generate proxy resolutions", inputLabel: "Asset", outputLabel: "Proxy", data: { resolutions: ["720p", "360p"] } },
-  { type: "yolo", label: "YOLO Detection", description: "Run YOLOv8 object detection on frames", inputLabel: "Frames", outputLabel: "Detections", data: { model: "yolov8-dam", confidence: 0.72, classes: ["person", "car", "animal"] } },
-  { type: "scene_detection", label: "Scene Detection", description: "Detect scene boundaries and transitions", inputLabel: "Asset", outputLabel: "Scenes", data: { model: "scenedetect-v3", threshold: 0.4, minSceneLength: 2.0 } },
-  { type: "process", label: "Face Recognition", description: "InspireFace identity matching", inputLabel: "Frames", outputLabel: "Identities", data: { threshold: 0.85 } },
-  { type: "process", label: "Sentiment Score", description: "NLP scene sentiment analysis", inputLabel: "Transcription Text", outputLabel: "Sentiment", data: { model: "genai-sentiment-v2" } },
-  { type: "output", label: "S3 Delivery", description: "Store outputs in delivery bucket", inputLabel: "Asset", outputLabel: "Stored", data: { bucket: "" } },
-  { type: "output", label: "Tag Writer", description: "Write tags back to asset metadata", inputLabel: "Tags", outputLabel: "Updated Asset", data: { overwrite: false } },
-  { type: "output", label: "CDN Push", description: "Push to broadcast CDN", inputLabel: "Asset", outputLabel: "Published", data: { cdn: "" } },
+const NODE_TEMPLATES: { type: string; label: string; description: string; inputs: ConnectorDef[]; outputs: ConnectorDef[]; data: Record<string, unknown> }[] = [
+  { type: "source", label: "S3 Source", description: "Watch an S3 bucket for new assets", inputs: [], outputs: [{ name: "Asset", dataType: "asset" }], data: { bucket: "", prefix: "/" } },
+  { type: "filesystem_source", label: "Filesystem Source", description: "Watch a local directory for new files", inputs: [], outputs: [{ name: "Asset", dataType: "asset" }], data: { path: "/data/ingest", watchMode: true, pattern: "*.*", recursive: true } },
+  { type: "asset_source", label: "Asset Source", description: "Yield a single asset for testing", inputs: [], outputs: [{ name: "Asset", dataType: "asset" }], data: { assetId: "", mode: "test" } },
+  { type: "filter", label: "Format Filter", description: "Filter by MIME type", inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Filtered Asset", dataType: "asset" }], data: { types: ["video/*", "image/*"] } },
+  { type: "process", label: "Hash", description: "SHA-256 + perceptual hash", inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Hash", dataType: "hash" }], data: { algorithms: ["sha256", "phash"] } },
+  { type: "process", label: "Fingerprint", description: "Generate audio/video fingerprint", inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Fingerprint", dataType: "hash" }], data: { engine: "chromaprint" } },
+  { type: "process", label: "Resize Proxy", description: "Generate proxy resolutions", inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Proxy", dataType: "asset" }], data: { resolutions: ["720p", "360p"] } },
+  { type: "yolo", label: "YOLO Detection", description: "Run YOLOv8 object detection on frames", inputs: [{ name: "Frames", dataType: "asset" }, { name: "Scenes", dataType: "json" }], outputs: [{ name: "Detections", dataType: "json" }], data: { model: "yolov8-dam", confidence: 0.72, classes: ["person", "car", "animal"] } },
+  { type: "scene_detection", label: "Scene Detection", description: "Detect scene boundaries and transitions", inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Scenes", dataType: "json" }], data: { model: "scenedetect-v3", threshold: 0.4, minSceneLength: 2.0 } },
+  { type: "output", label: "S3 Output", description: "Write results to S3 bucket", inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Stored", dataType: "asset" }], data: { bucket: "", prefix: "/output" } },
+  { type: "process", label: "Thumbnail", description: "Generate thumbnail images", inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Thumbnail", dataType: "asset" }], data: { sizes: ["256x144", "640x360"] } },
+  { type: "llm", label: "LLM Vision", description: "Run a vision model prompt against asset frames", inputs: [{ name: "Asset", dataType: "asset" }, { name: "Scenes", dataType: "json" }, { name: "Detections", dataType: "json" }], outputs: [{ name: "Text", dataType: "text" }, { name: "JSON", dataType: "json" }], data: { prompt: "", model: "gpt-4o", reasoningEffort: "medium", maxOutputTokens: 2048 } },
+  { type: "process", label: "Face Detection", description: "Detect and recognize faces", inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Detections", dataType: "json" }], data: { model: "insightface", minConfidence: 0.7 } },
+  { type: "process", label: "Embedding", description: "Generate CLIP embedding vectors", inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Embedding", dataType: "json" }], data: { model: "clip-vit-l-14", dimensions: 768 } },
+  { type: "process", label: "ASR", description: "Automatic speech recognition", inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Transcript", dataType: "text" }], data: { model: "whisper-large-v3", language: "auto" } },
+  { type: "auto_tag", label: "Auto Tag", description: "Automatically tag assets by matching tag globs", inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Tags", dataType: "json" }], data: { matchMode: "glob", minConfidence: 0.6 } },
+  { type: "filter", label: "Transcription Filter", description: "Filter assets that have transcriptions", inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Transcribed Asset", dataType: "asset" }], data: { requireTranscription: true, minLength: 10 } },
 ];
 
+// Color map for connector data types
+const DATA_TYPE_COLOR: Record<ConnectorDataType, string> = {
+  text: "#42a5f5",
+  asset: "#66bb6a",
+  json: "#ffa726",
+  hash: "#ab47bc",
+};
+
+// ── Custom Pipeline Node Component ────────────────────────────────────────
 function PipelineNodeComponent({ data, selected }: NodeProps) {
-  const cfg = nodeTypeConfig[data.nodeType as string] ?? nodeTypeConfig.process;
+  const nodeType = (data.nodeType as string) ?? "process";
+  const cfg = nodeTypeConfig[nodeType] ?? nodeTypeConfig.process;
+  const isSource = SOURCE_TYPES.has(nodeType);
+  const inputs = isSource ? [] : ((data.inputs as ConnectorDef[] | undefined) ?? [{ name: "Input", dataType: "asset" as ConnectorDataType }]);
+  const outputs = (data.outputs as ConnectorDef[] | undefined) ?? [{ name: "Output", dataType: "asset" as ConnectorDataType }];
+  const [hovered, setHovered] = useState(false);
 
   return (
     <Box
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       sx={{
-        minWidth: 160,
+        minWidth: 180,
         bgcolor: tokens.bg.elevated,
         border: `1.5px solid ${selected ? cfg.color : tokens.border.default}`,
         borderRadius: tokens.radius.md,
-        overflow: "hidden",
+        overflow: "visible",
         boxShadow: selected ? `0 0 14px ${cfg.color}44` : `0 2px 8px rgba(0,0,0,0.4)`,
         transition: "border-color 120ms ease, box-shadow 120ms ease",
+        position: "relative",
       }}
     >
       {/* Header stripe */}
-      <Box sx={{ height: 3, bgcolor: cfg.color }} />
+      <Box sx={{ height: 3, bgcolor: cfg.color, borderRadius: `${tokens.radius.md} ${tokens.radius.md} 0 0` }} />
       <Box sx={{ px: 1.5, py: 1.25, display: "flex", alignItems: "center", gap: 1 }}>
         <Box sx={{ width: 26, height: 26, borderRadius: tokens.radius.sm, bgcolor: cfg.bg, display: "flex", alignItems: "center", justifyContent: "center", color: cfg.color, flexShrink: 0 }}>
           {cfg.icon}
@@ -82,12 +123,59 @@ function PipelineNodeComponent({ data, selected }: NodeProps) {
           </Typography>
         </Box>
       </Box>
-      <Tooltip title={data.inputLabel as string ?? "Input"} placement="left" arrow>
-        <Handle type="target" position={Position.Left} style={{ background: cfg.color, border: `2px solid ${tokens.bg.elevated}`, width: 10, height: 10 }} />
-      </Tooltip>
-      <Tooltip title={data.outputLabel as string ?? "Output"} placement="right" arrow>
-        <Handle type="source" position={Position.Right} style={{ background: cfg.color, border: `2px solid ${tokens.bg.elevated}`, width: 10, height: 10 }} />
-      </Tooltip>
+
+      {/* Input handles */}
+      {inputs.map((inp, idx) => {
+        const topPct = inputs.length === 1 ? 50 : 30 + (idx * 40) / Math.max(1, inputs.length - 1);
+        const dtColor = DATA_TYPE_COLOR[inp.dataType] ?? tokens.text.tertiary;
+        return (
+          <React.Fragment key={`in_${idx}`}>
+            <Handle
+              type="target"
+              position={Position.Left}
+              id={`in_${idx}`}
+              style={{ background: dtColor, border: `2px solid ${tokens.bg.elevated}`, width: 10, height: 10, top: `${topPct}%` }}
+            />
+            {hovered && (
+              <Typography sx={{
+                position: "absolute", left: -4, top: `${topPct}%`, transform: "translate(-100%, -50%)",
+                fontSize: "0.55rem", color: tokens.text.tertiary, whiteSpace: "nowrap", pointerEvents: "none",
+                display: "flex", gap: 0.25, alignItems: "center",
+              }}>
+                {inp.name} <span style={{ color: dtColor, fontWeight: 700 }}>[{inp.dataType}]</span>
+              </Typography>
+            )}
+          </React.Fragment>
+        );
+      })}
+
+      {/* Output handles */}
+      {outputs.map((out, idx) => {
+        const topPct = outputs.length === 1 ? 50 : 30 + (idx * 40) / Math.max(1, outputs.length - 1);
+        const dtColor = DATA_TYPE_COLOR[out.dataType] ?? tokens.text.tertiary;
+        return (
+          <React.Fragment key={`out_${idx}`}>
+            <Handle
+              type="source"
+              position={Position.Right}
+              id={`out_${idx}`}
+              style={{ background: dtColor, border: `2px solid ${tokens.bg.elevated}`, width: 10, height: 10, top: `${topPct}%` }}
+            />
+            {hovered && (
+              <Typography sx={{
+                position: "absolute", right: -4, top: `${topPct}%`, transform: "translate(100%, -50%)",
+                fontSize: "0.55rem", color: tokens.text.tertiary, whiteSpace: "nowrap", pointerEvents: "none",
+                display: "flex", gap: 0.25, alignItems: "center",
+              }}>
+                <span style={{ color: dtColor, fontWeight: 700 }}>[{out.dataType}]</span> {out.name}
+              </Typography>
+            )}
+          </React.Fragment>
+        );
+      })}
+
+      {/* Bottom stripe */}
+      <Box sx={{ height: 3, bgcolor: cfg.color }} />
     </Box>
   );
 }
@@ -95,19 +183,23 @@ function PipelineNodeComponent({ data, selected }: NodeProps) {
 const nodeTypes = { pipelineNode: PipelineNodeComponent };
 
 // ── Convert pipeline nodes to React Flow format ───────────────────────────
-// Default connector labels for node types loaded from pipeline definitions
-const defaultConnectorLabels: Record<string, { input: string; output: string }> = {
-  source: { input: "Trigger", output: "Asset" },
-  filter: { input: "Asset", output: "Filtered Asset" },
-  process: { input: "Asset", output: "Processed" },
-  output: { input: "Asset", output: "Stored" },
-  yolo: { input: "Frames", output: "Detections" },
-  scene_detection: { input: "Asset", output: "Scenes" },
+// Default connector definitions for node types loaded from pipeline definitions
+const defaultConnectors: Record<string, { inputs: ConnectorDef[]; outputs: ConnectorDef[] }> = {
+  source: { inputs: [], outputs: [{ name: "Asset", dataType: "asset" }] },
+  filesystem_source: { inputs: [], outputs: [{ name: "Asset", dataType: "asset" }] },
+  asset_source: { inputs: [], outputs: [{ name: "Asset", dataType: "asset" }] },
+  filter: { inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Filtered Asset", dataType: "asset" }] },
+  process: { inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Processed", dataType: "asset" }] },
+  output: { inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Stored", dataType: "asset" }] },
+  yolo: { inputs: [{ name: "Frames", dataType: "asset" }, { name: "Scenes", dataType: "json" }], outputs: [{ name: "Detections", dataType: "json" }] },
+  scene_detection: { inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Scenes", dataType: "json" }] },
+  llm: { inputs: [{ name: "Asset", dataType: "asset" }, { name: "Scenes", dataType: "json" }, { name: "Detections", dataType: "json" }], outputs: [{ name: "Text", dataType: "text" }, { name: "JSON", dataType: "json" }] },
+  auto_tag: { inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Tags", dataType: "json" }] },
 };
 
 function toRFNodes(pnodes: PipelineNode[], selectedId: string | null): RFNode[] {
   return pnodes.map(n => {
-    const labels = defaultConnectorLabels[n.type] ?? { input: "Input", output: "Output" };
+    const connectors = defaultConnectors[n.type] ?? { inputs: [{ name: "Input", dataType: "asset" as ConnectorDataType }], outputs: [{ name: "Output", dataType: "asset" as ConnectorDataType }] };
     return {
       id: n.id,
       type: "pipelineNode",
@@ -117,8 +209,8 @@ function toRFNodes(pnodes: PipelineNode[], selectedId: string | null): RFNode[] 
         label: n.label,
         description: n.description,
         nodeType: n.type,
-        inputLabel: labels.input,
-        outputLabel: labels.output,
+        inputs: connectors.inputs,
+        outputs: connectors.outputs,
         ...n.data,
       },
     };
@@ -272,10 +364,12 @@ function NodeDetailSidebar({
   const node = (nodeId && pipeline) ? pipeline.definition.nodes.find(n => n.id === nodeId) ?? null : null;
   const cfg = node ? (nodeTypeConfig[node.type] ?? nodeTypeConfig.process) : null;
   const [displayName, setDisplayName] = useState("");
+  const [detailTab, setDetailTab] = useState(0);
 
   // Sync display name when node changes
   useEffect(() => {
     setDisplayName((node as any)?.displayName ?? "");
+    setDetailTab(0);
   }, [nodeId]);
 
   return (
@@ -305,72 +399,131 @@ function NodeDetailSidebar({
       </Box>
 
       {/* Content */}
-      <Box sx={{ flex: 1, overflow: "auto", p: 1.5 }}>
+      <Box sx={{ flex: 1, overflow: "auto" }}>
         {node && cfg ? (
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            {/* Node identity */}
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
-              <Box sx={{ width: 28, height: 28, borderRadius: tokens.radius.sm, bgcolor: cfg.bg, display: "flex", alignItems: "center", justifyContent: "center", color: cfg.color, flexShrink: 0 }}>
-                {cfg.icon}
-              </Box>
-              <Box>
-                <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.85rem", lineHeight: 1.2 }}>{node.label}</Typography>
-                <Chip label={node.type} size="small" sx={{ height: 14, fontSize: "0.6rem", bgcolor: `${cfg.color}22`, color: cfg.color, mt: 0.25 }} />
-              </Box>
-            </Box>
+          <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+            {/* Tabs */}
+            <Tabs value={detailTab} onChange={(_, v) => setDetailTab(v)} sx={{ minHeight: 32, borderBottom: `1px solid ${tokens.border.subtle}`, px: 1 }}>
+              <Tab label="Config" sx={{ fontSize: "0.7rem", minHeight: 32, py: 0.5, minWidth: 60 }} />
+              <Tab label="Log" sx={{ fontSize: "0.7rem", minHeight: 32, py: 0.5, minWidth: 60 }} />
+              <Tab label="JSON" sx={{ fontSize: "0.7rem", minHeight: 32, py: 0.5, minWidth: 60 }} />
+            </Tabs>
 
-            {/* Description */}
-            <TextField
-              label="Display Name"
-              value={displayName}
-              onChange={e => {
-                const v = e.target.value.slice(0, 15);
-                setDisplayName(v);
-                if (onDisplayNameChange && nodeId) onDisplayNameChange(nodeId, v);
-              }}
-              size="small"
-              fullWidth
-              placeholder="Max 15 characters"
-              inputProps={{ maxLength: 15 }}
-              helperText={`${displayName.length}/15`}
-              sx={{ "& .MuiInputBase-root": { fontSize: "0.78rem" }, "& .MuiFormHelperText-root": { fontSize: "0.62rem", textAlign: "right" } }}
-            />
-            <TextField
-              label="Description"
-              value={node.description}
-              multiline
-              minRows={2}
-              size="small"
-              fullWidth
-              InputProps={{ readOnly: true }}
-              sx={{ "& .MuiInputBase-root": { fontSize: "0.78rem" } }}
-            />
+            {detailTab === 0 && (
+              <Box sx={{ p: 1.5, display: "flex", flexDirection: "column", gap: 2, overflow: "auto" }}>
+                {/* Node identity */}
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
+                  <Box sx={{ width: 28, height: 28, borderRadius: tokens.radius.sm, bgcolor: cfg.bg, display: "flex", alignItems: "center", justifyContent: "center", color: cfg.color, flexShrink: 0 }}>
+                    {cfg.icon}
+                  </Box>
+                  <Box>
+                    <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.85rem", lineHeight: 1.2 }}>{node.label}</Typography>
+                    <Chip label={node.type} size="small" sx={{ height: 14, fontSize: "0.6rem", bgcolor: `${cfg.color}22`, color: cfg.color, mt: 0.25 }} />
+                  </Box>
+                </Box>
 
-            {/* Data fields */}
-            <Box>
-              <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.07em", color: tokens.text.tertiary, fontSize: "0.66rem", mb: 1, display: "block" }}>
-                Configuration
-              </Typography>
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                {Object.entries(node.data).map(([k, v]) => (
-                  <TextField
-                    key={k}
-                    label={k}
-                    value={Array.isArray(v) ? (v as unknown[]).join(", ") : String(v)}
-                    size="small"
-                    fullWidth
-                    InputProps={{ readOnly: true }}
-                    sx={{ "& .MuiInputBase-root": { fontSize: "0.78rem", fontFamily: "monospace" } }}
-                  />
-                ))}
+                {/* Description */}
+                <TextField
+                  label="Display Name"
+                  value={displayName}
+                  onChange={e => {
+                    const v = e.target.value.slice(0, 15);
+                    setDisplayName(v);
+                    if (onDisplayNameChange && nodeId) onDisplayNameChange(nodeId, v);
+                  }}
+                  size="small"
+                  fullWidth
+                  placeholder="Max 15 characters"
+                  inputProps={{ maxLength: 15 }}
+                  helperText={`${displayName.length}/15`}
+                  sx={{ "& .MuiInputBase-root": { fontSize: "0.78rem" }, "& .MuiFormHelperText-root": { fontSize: "0.62rem", textAlign: "right" } }}
+                />
+                <TextField
+                  label="Description"
+                  value={node.description}
+                  multiline
+                  minRows={2}
+                  size="small"
+                  fullWidth
+                  InputProps={{ readOnly: true }}
+                  sx={{ "& .MuiInputBase-root": { fontSize: "0.78rem" } }}
+                />
+
+                {/* Data fields */}
+                <Box>
+                  <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.07em", color: tokens.text.tertiary, fontSize: "0.66rem", mb: 1, display: "block" }}>
+                    Configuration
+                  </Typography>
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                    {Object.entries(node.data).map(([k, v]) => (
+                      <TextField
+                        key={k}
+                        label={k}
+                        value={Array.isArray(v) ? (v as unknown[]).join(", ") : String(v)}
+                        size="small"
+                        fullWidth
+                        InputProps={{ readOnly: true }}
+                        sx={{ "& .MuiInputBase-root": { fontSize: "0.78rem", fontFamily: "monospace" } }}
+                      />
+                    ))}
+                  </Box>
+                </Box>
+
+                {/* Node ID */}
+                <Box sx={{ p: 1, bgcolor: tokens.bg.overlay, borderRadius: tokens.radius.sm }}>
+                  <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.66rem", display: "block" }}>Node ID</Typography>
+                  <Typography variant="caption" sx={{ fontFamily: "monospace", fontSize: "0.72rem", color: tokens.text.secondary }}>{node.id}</Typography>
+                </Box>
               </Box>
-            </Box>
+            )}
 
-            {/* Node ID */}
-            <Box sx={{ p: 1, bgcolor: tokens.bg.overlay, borderRadius: tokens.radius.sm }}>
-              <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.66rem", display: "block" }}>Node ID</Typography>
-              <Typography variant="caption" sx={{ fontFamily: "monospace", fontSize: "0.72rem", color: tokens.text.secondary }}>{node.id}</Typography>
-            </Box>
+            {detailTab === 1 && (
+              <Box sx={{ p: 1.5, flex: 1, overflow: "auto" }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 1 }}>
+                  <BugReportOutlined sx={{ fontSize: 14, color: tokens.primary.main }} />
+                  <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.72rem" }}>Processing Log</Typography>
+                </Box>
+                <Box sx={{ bgcolor: tokens.bg.base, borderRadius: tokens.radius.sm, p: 1, border: `1px solid ${tokens.border.subtle}` }}>
+                  {[
+                    { ts: "14:32:01.243", level: "info", msg: `[${node.label}] Node initialized` },
+                    { ts: "14:32:01.501", level: "info", msg: `[${node.label}] Processing asset batch (3 items)` },
+                    { ts: "14:32:02.118", level: "info", msg: `[${node.label}] Asset a1 — completed in 617ms` },
+                    { ts: "14:32:02.834", level: "info", msg: `[${node.label}] Asset a3 — completed in 716ms` },
+                    { ts: "14:32:03.290", level: "warn", msg: `[${node.label}] Asset a4 — slow processing (>1s)` },
+                    { ts: "14:32:04.501", level: "info", msg: `[${node.label}] Asset a4 — completed in 1667ms` },
+                    { ts: "14:32:04.502", level: "info", msg: `[${node.label}] Batch complete. 3/3 succeeded.` },
+                  ].map((entry, i) => (
+                    <Typography key={i} sx={{
+                      fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontSize: "0.68rem", lineHeight: 1.7, display: "block",
+                      color: entry.level === "warn" ? tokens.accent.amber : entry.level === "error" ? tokens.accent.red : tokens.text.secondary,
+                    }}>
+                      <Box component="span" sx={{ color: tokens.text.tertiary, mr: 1 }}>{entry.ts}</Box>
+                      <Box component="span" sx={{ color: entry.level === "warn" ? tokens.accent.amber : entry.level === "error" ? tokens.accent.red : tokens.primary.main, mr: 1, fontWeight: 600 }}>
+                        {entry.level.toUpperCase()}
+                      </Box>
+                      {entry.msg}
+                    </Typography>
+                  ))}
+                </Box>
+              </Box>
+            )}
+
+            {detailTab === 2 && (
+              <Box sx={{ p: 1.5, flex: 1, overflow: "auto" }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 1 }}>
+                  <DataObjectOutlined sx={{ fontSize: 14, color: tokens.primary.main }} />
+                  <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.72rem" }}>Node State (JSON)</Typography>
+                </Box>
+                <Box sx={{ bgcolor: tokens.bg.base, borderRadius: tokens.radius.sm, p: 1.5, border: `1px solid ${tokens.border.subtle}` }}>
+                  <Typography component="pre" sx={{
+                    fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontSize: "0.68rem", lineHeight: 1.6,
+                    color: tokens.text.secondary, whiteSpace: "pre-wrap", wordBreak: "break-word", m: 0,
+                  }}>
+                    {JSON.stringify({ id: node.id, type: node.type, label: node.label, description: node.description, config: node.data, status: "idle", lastRun: null, metrics: { processedCount: 3, avgLatencyMs: 1000, errorRate: 0 } }, null, 2)}
+                  </Typography>
+                </Box>
+              </Box>
+            )}
           </Box>
         ) : (
           <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 1, pt: 4 }}>
@@ -539,9 +692,10 @@ export default function PipelineEditor() {
   const [logOpen, setLogOpen] = useState(true);
   const [logHeight, setLogHeight] = useState(160);
   const [nodeDetailOpen, setNodeDetailOpen] = useState(false);
-  const [addNodeAnchor, setAddNodeAnchor] = useState<null | HTMLElement>(null);
   const [addedNodes, setAddedNodes] = useState<RFNode[]>([]);
   const [nodeDisplayNames, setNodeDisplayNames] = useState<Record<string, string>>({});
+  const [addNodeAnchor, setAddNodeAnchor] = useState<null | HTMLElement>(null);
+  const [addNodeCategory, setAddNodeCategory] = useState<string | null>(null);
   const isDraggingLog = useRef(false);
   const logRef = useRef<HTMLDivElement>(null);
 
@@ -569,7 +723,7 @@ export default function PipelineEditor() {
       id,
       type: "pipelineNode",
       position: { x: 300 + Math.random() * 100, y: 100 + Math.random() * 100 },
-      data: { label: template.label, description: template.description, nodeType: template.type, inputLabel: template.inputLabel ?? "Input", outputLabel: template.outputLabel ?? "Output", ...template.data },
+      data: { label: template.label, description: template.description, nodeType: template.type, inputs: template.inputs, outputs: template.outputs, ...template.data },
     };
     // Also add to pipeline definition so NodeDetailSidebar can find it
     selected.definition.nodes.push({
@@ -646,44 +800,6 @@ export default function PipelineEditor() {
           {selected && (
             <Box sx={{ px: 2, py: 1.25, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", alignItems: "center", gap: 1 }}>
               <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.875rem", flex: 1 }}>{selected.name}</Typography>
-              {/* Add Node button */}
-              <Tooltip title="Add a node to the pipeline">
-                <Chip
-                  icon={<AddOutlined sx={{ fontSize: 14 }} />}
-                  label="Add Node"
-                  size="small"
-                  onClick={(e) => setAddNodeAnchor(e.currentTarget)}
-                  sx={{
-                    bgcolor: tokens.bg.overlay,
-                    border: `1px solid ${tokens.border.default}`,
-                    color: tokens.text.secondary,
-                    cursor: "pointer",
-                    fontWeight: 500,
-                    "&:hover": { bgcolor: tokens.bg.hover, borderColor: tokens.primary.main, color: tokens.primary.light },
-                  }}
-                />
-              </Tooltip>
-              <Menu
-                anchorEl={addNodeAnchor}
-                open={Boolean(addNodeAnchor)}
-                onClose={() => setAddNodeAnchor(null)}
-                slotProps={{ paper: { sx: { maxHeight: 360, minWidth: 240, bgcolor: tokens.bg.panel, border: `1px solid ${tokens.border.default}` } } }}
-              >
-                {NODE_TEMPLATES.map((t, i) => {
-                  const cfg = nodeTypeConfig[t.type] ?? nodeTypeConfig.process;
-                  return (
-                    <MenuItem key={i} onClick={() => handleAddNode(t)} sx={{ gap: 1.25, py: 0.75 }}>
-                      <Box sx={{ width: 22, height: 22, borderRadius: tokens.radius.sm, bgcolor: cfg.bg, display: "flex", alignItems: "center", justifyContent: "center", color: cfg.color, flexShrink: 0 }}>
-                        {cfg.icon}
-                      </Box>
-                      <Box>
-                        <Typography variant="body2" sx={{ fontSize: "0.8rem", fontWeight: 600 }}>{t.label}</Typography>
-                        <Typography variant="caption" sx={{ fontSize: "0.65rem", color: tokens.text.tertiary }}>{t.description.slice(0, 45)}</Typography>
-                      </Box>
-                    </MenuItem>
-                  );
-                })}
-              </Menu>
               {/* Show Log button — only visible when log is collapsed */}
               {!logOpen && (
                 <Tooltip title="Show log">
@@ -729,6 +845,77 @@ export default function PipelineEditor() {
             <Box sx={{ flex: 1, overflow: "hidden" }}>
               <PipelineCanvas pipeline={selected} onNodeSelect={handleNodeSelect} externalNodes={addedNodes} nodeDisplayNames={nodeDisplayNames} />
             </Box>
+
+            {/* Add node bar — above the log */}
+            {selected && (
+              <Box sx={{ px: 2, py: 0.75, borderTop: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", alignItems: "center", gap: 0.75, flexShrink: 0 }}>
+                <Tooltip title="Add a node to the pipeline">
+                  <Chip
+                    icon={<AddOutlined sx={{ fontSize: 14 }} />}
+                    label="Add Node"
+                    size="small"
+                    onClick={(e) => { setAddNodeCategory(null); setAddNodeAnchor(e.currentTarget); }}
+                    sx={{
+                      bgcolor: tokens.bg.overlay,
+                      border: `1px solid ${tokens.border.default}`,
+                      color: tokens.text.secondary,
+                      cursor: "pointer",
+                      fontWeight: 500,
+                      "&:hover": { bgcolor: tokens.bg.hover, borderColor: tokens.primary.main, color: tokens.primary.light },
+                    }}
+                  />
+                </Tooltip>
+                <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
+                {[
+                  { cat: "source", label: "Source", icon: <CloudUploadOutlined sx={{ fontSize: 13 }} />, types: ["source", "filesystem_source", "asset_source"] },
+                  { cat: "filter", label: "Filter", icon: <FilterAltOutlined sx={{ fontSize: 13 }} />, types: ["filter"] },
+                  { cat: "process", label: "Process", icon: <MemoryOutlined sx={{ fontSize: 13 }} />, types: ["process", "yolo", "scene_detection", "llm", "auto_tag"] },
+                ].map(c => (
+                  <Tooltip key={c.cat} title={`Add ${c.label.toLowerCase()} node`}>
+                    <Chip
+                      icon={c.icon}
+                      label={c.label}
+                      size="small"
+                      onClick={(e) => { setAddNodeCategory(c.cat); setAddNodeAnchor(e.currentTarget); }}
+                      sx={{
+                        bgcolor: tokens.bg.overlay,
+                        border: `1px solid ${tokens.border.subtle}`,
+                        color: tokens.text.tertiary,
+                        cursor: "pointer",
+                        fontSize: "0.7rem",
+                        "&:hover": { bgcolor: tokens.bg.hover, color: tokens.text.secondary },
+                      }}
+                    />
+                  </Tooltip>
+                ))}
+                <Menu
+                  anchorEl={addNodeAnchor}
+                  open={Boolean(addNodeAnchor)}
+                  onClose={() => setAddNodeAnchor(null)}
+                  slotProps={{ paper: { sx: { maxHeight: 360, minWidth: 240, bgcolor: tokens.bg.panel, border: `1px solid ${tokens.border.default}` } } }}
+                >
+                  {NODE_TEMPLATES.filter(t => {
+                    if (!addNodeCategory) return true;
+                    if (addNodeCategory === "source") return SOURCE_TYPES.has(t.type);
+                    if (addNodeCategory === "filter") return t.type === "filter";
+                    return !SOURCE_TYPES.has(t.type) && t.type !== "filter" && t.type !== "output";
+                  }).map((t, i) => {
+                    const cfg = nodeTypeConfig[t.type] ?? nodeTypeConfig.process;
+                    return (
+                      <MenuItem key={i} onClick={() => handleAddNode(t)} sx={{ gap: 1.25, py: 0.75 }}>
+                        <Box sx={{ width: 22, height: 22, borderRadius: tokens.radius.sm, bgcolor: cfg.bg, display: "flex", alignItems: "center", justifyContent: "center", color: cfg.color, flexShrink: 0 }}>
+                          {cfg.icon}
+                        </Box>
+                        <Box>
+                          <Typography variant="body2" sx={{ fontSize: "0.8rem", fontWeight: 600 }}>{t.label}</Typography>
+                          <Typography variant="caption" sx={{ fontSize: "0.65rem", color: tokens.text.tertiary }}>{t.description.slice(0, 45)}</Typography>
+                        </Box>
+                      </MenuItem>
+                    );
+                  })}
+                </Menu>
+              </Box>
+            )}
 
             {/* Log panel drag handle */}
             <Box

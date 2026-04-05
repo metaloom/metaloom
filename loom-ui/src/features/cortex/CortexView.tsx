@@ -7,7 +7,7 @@ import {
   MemoryOutlined, StorageOutlined,
   MoreVertOutlined, PauseOutlined, PlayArrowOutlined,
   StopOutlined, RestartAltOutlined, DnsOutlined,
-  SearchOutlined, FilterListOutlined,
+  SearchOutlined, FilterListOutlined, HelpOutlineOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 
@@ -86,6 +86,35 @@ function HealthMeter({ cpu, gpu, io, size = 48 }: { cpu: number; gpu: number; io
   );
 }
 
+// ── Heartbeat EKG animation ──────────────────────────────────────────────
+const heartbeatKeyframes = `
+@keyframes heartbeat-trace {
+  0% { stroke-dashoffset: 120; }
+  100% { stroke-dashoffset: 0; }
+}
+`;
+
+function HeartbeatIndicator({ active }: { active: boolean }) {
+  if (!active) return null;
+  return (
+    <>
+      <style>{heartbeatKeyframes}</style>
+      <svg width={36} height={16} viewBox="0 0 36 16" style={{ display: "block" }}>
+        <polyline
+          points="0,8 6,8 9,8 11,2 13,14 15,4 17,10 19,8 24,8 26,8 28,3 30,13 32,8 36,8"
+          fill="none"
+          stroke={tokens.accent.green}
+          strokeWidth={1.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeDasharray="120"
+          style={{ animation: "heartbeat-trace 1.5s linear infinite" }}
+        />
+      </svg>
+    </>
+  );
+}
+
 // ── Worker Card ───────────────────────────────────────────────────────────
 function WorkerCard({ worker, onChangeStatus }: { worker: WorkerNode; onChangeStatus: (id: string, status: WorkerNode["status"]) => void }) {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
@@ -107,6 +136,7 @@ function WorkerCard({ worker, onChangeStatus }: { worker: WorkerNode; onChangeSt
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
           <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.88rem" }}>{worker.name}</Typography>
           <Chip label={worker.status} size="small" sx={{ height: 18, fontSize: "0.64rem", fontWeight: 600, bgcolor: `${sc}18`, color: sc }} />
+          <HeartbeatIndicator active={worker.status === "online"} />
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 0.75 }}>
           <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.72rem", fontFamily: "monospace" }}>{worker.host}</Typography>
@@ -195,6 +225,7 @@ export default function CortexView() {
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.25 }}>
               <DnsOutlined sx={{ fontSize: 18, color: tokens.primary.main }} />
               <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Cortex Workers</Typography>
+              <Tooltip title="Cortex workers are distributed processing nodes that handle media analysis, transcoding, and AI inference tasks." arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
             </Box>
             <Typography variant="caption" color="text.secondary">{onlineCount} / {workers.length} online</Typography>
           </Box>
