@@ -75,7 +75,7 @@ function PipelineNodeComponent({ data, selected }: NodeProps) {
         </Box>
         <Box>
           <Typography sx={{ fontSize: "0.78rem", fontWeight: 700, color: tokens.text.primary, lineHeight: 1.2 }}>
-            {data.label as string}
+            {data.label as string}{data.displayName ? ` — ${data.displayName}` : ""}
           </Typography>
           <Typography sx={{ fontSize: "0.65rem", color: tokens.text.tertiary, lineHeight: 1.3 }}>
             {(data.description as string)?.slice(0, 40)}
@@ -261,15 +261,22 @@ function PipelineInspector({ pipeline }: { pipeline: Pipeline | null }) {
 
 // ── Node Detail Sidebar (second collapsible right panel) ──────────────────
 function NodeDetailSidebar({
-  nodeId, pipeline, open, onClose,
+  nodeId, pipeline, open, onClose, onDisplayNameChange,
 }: {
   nodeId: string | null;
   pipeline: Pipeline | null;
   open: boolean;
   onClose: () => void;
+  onDisplayNameChange?: (nodeId: string, name: string) => void;
 }) {
   const node = (nodeId && pipeline) ? pipeline.definition.nodes.find(n => n.id === nodeId) ?? null : null;
   const cfg = node ? (nodeTypeConfig[node.type] ?? nodeTypeConfig.process) : null;
+  const [displayName, setDisplayName] = useState("");
+
+  // Sync display name when node changes
+  useEffect(() => {
+    setDisplayName((node as any)?.displayName ?? "");
+  }, [nodeId]);
 
   return (
     <Box
@@ -313,6 +320,21 @@ function NodeDetailSidebar({
             </Box>
 
             {/* Description */}
+            <TextField
+              label="Display Name"
+              value={displayName}
+              onChange={e => {
+                const v = e.target.value.slice(0, 15);
+                setDisplayName(v);
+                if (onDisplayNameChange && nodeId) onDisplayNameChange(nodeId, v);
+              }}
+              size="small"
+              fullWidth
+              placeholder="Max 15 characters"
+              inputProps={{ maxLength: 15 }}
+              helperText={`${displayName.length}/15`}
+              sx={{ "& .MuiInputBase-root": { fontSize: "0.78rem" }, "& .MuiFormHelperText-root": { fontSize: "0.62rem", textAlign: "right" } }}
+            />
             <TextField
               label="Description"
               value={node.description}
@@ -362,7 +384,7 @@ function NodeDetailSidebar({
 }
 
 // ── Canvas ────────────────────────────────────────────────────────────────
-function PipelineCanvas({ pipeline, onNodeSelect, externalNodes }: { pipeline: Pipeline | null; onNodeSelect: (id: string | null) => void; externalNodes?: RFNode[] }) {
+function PipelineCanvas({ pipeline, onNodeSelect, externalNodes, nodeDisplayNames }: { pipeline: Pipeline | null; onNodeSelect: (id: string | null) => void; externalNodes?: RFNode[]; nodeDisplayNames?: Record<string, string> }) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -392,6 +414,18 @@ function PipelineCanvas({ pipeline, onNodeSelect, externalNodes }: { pipeline: P
   useEffect(() => {
     setNodes(nds => nds.map(n => ({ ...n, selected: n.id === selectedId })));
   }, [selectedId, setNodes]);
+
+  // Apply display name changes
+  useEffect(() => {
+    if (!nodeDisplayNames) return;
+    setNodes(nds => nds.map(n => {
+      const dn = nodeDisplayNames[n.id];
+      if (dn !== undefined && n.data.displayName !== dn) {
+        return { ...n, data: { ...n.data, displayName: dn } };
+      }
+      return n;
+    }));
+  }, [nodeDisplayNames, setNodes]);
 
   const onNodeClick = useCallback((_: React.MouseEvent, node: RFNode) => {
     setSelectedId(node.id);
@@ -507,6 +541,7 @@ export default function PipelineEditor() {
   const [nodeDetailOpen, setNodeDetailOpen] = useState(false);
   const [addNodeAnchor, setAddNodeAnchor] = useState<null | HTMLElement>(null);
   const [addedNodes, setAddedNodes] = useState<RFNode[]>([]);
+  const [nodeDisplayNames, setNodeDisplayNames] = useState<Record<string, string>>({});
   const isDraggingLog = useRef(false);
   const logRef = useRef<HTMLDivElement>(null);
 
@@ -521,6 +556,10 @@ export default function PipelineEditor() {
   const handleNodeSelect = useCallback((id: string | null) => {
     setSelectedNodeId(id);
     if (id !== null) setNodeDetailOpen(true);
+  }, []);
+
+  const handleDisplayNameChange = useCallback((nodeId: string, name: string) => {
+    setNodeDisplayNames(prev => ({ ...prev, [nodeId]: name }));
   }, []);
 
   const handleAddNode = useCallback((template: typeof NODE_TEMPLATES[0]) => {
@@ -688,7 +727,7 @@ export default function PipelineEditor() {
           {/* Canvas + log panel */}
           <Box sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
             <Box sx={{ flex: 1, overflow: "hidden" }}>
-              <PipelineCanvas pipeline={selected} onNodeSelect={handleNodeSelect} externalNodes={addedNodes} />
+              <PipelineCanvas pipeline={selected} onNodeSelect={handleNodeSelect} externalNodes={addedNodes} nodeDisplayNames={nodeDisplayNames} />
             </Box>
 
             {/* Log panel drag handle */}
@@ -776,6 +815,7 @@ export default function PipelineEditor() {
         pipeline={selected}
         open={nodeDetailOpen}
         onClose={() => setNodeDetailOpen(false)}
+        onDisplayNameChange={handleDisplayNameChange}
       />
 
       {/* Stats inspector panel */}

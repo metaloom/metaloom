@@ -3,8 +3,9 @@ import { useNavigate } from "react-router-dom";
 import {
   Box, Typography, Paper, Chip, Avatar, Divider, List, ListItemButton, ListItemText,
   IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Tooltip,
+  InputAdornment,
 } from "@mui/material";
-import { LibraryBooksOutlined, PhotoLibraryOutlined, VideocamOutlined, FolderOutlined, AddOutlined, DeleteOutlined } from "@mui/icons-material";
+import { LibraryBooksOutlined, PhotoLibraryOutlined, VideocamOutlined, FolderOutlined, AddOutlined, DeleteOutlined, SearchOutlined } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { Library, Asset } from "../../types";
 import { mockLibraryService, mockAssetService } from "../../mock/services";
@@ -30,6 +31,7 @@ export default function LibraryView() {
   const [newDesc, setNewDesc] = useState("");
   const [creating, setCreating] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Library | null>(null);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     if (!activeProject) return;
@@ -66,6 +68,12 @@ export default function LibraryView() {
   const videoCount = assets.filter(a => a.type === "video").length;
   const imageCount = assets.filter(a => a.type === "image").length;
   const totalSize = assets.reduce((s, a) => s + a.fileSize, 0);
+
+  const filteredAssets = assets.filter(a => {
+    if (!query.trim()) return true;
+    const q = query.toLowerCase();
+    return a.name.toLowerCase().includes(q) || a.type.toLowerCase().includes(q) || a.tags.some(t => t.toLowerCase().includes(q));
+  });
 
   return (
     <Box sx={{ display: "flex", height: "100%", overflow: "hidden", bgcolor: tokens.bg.base }}>
@@ -115,32 +123,48 @@ export default function LibraryView() {
       <Box sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         {selectedLib ? (
           <>
-            <Box sx={{ px: 2.5, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface }}>
-              <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{selectedLib.name}</Typography>
-              <Typography variant="caption" color="text.secondary">{selectedLib.description}</Typography>
-              <Box sx={{ display: "flex", gap: 1.5, mt: 1 }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                  <VideocamOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />
-                  <Typography variant="caption" color="text.secondary">{videoCount} videos</Typography>
-                </Box>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                  <PhotoLibraryOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />
-                  <Typography variant="caption" color="text.secondary">{imageCount} images</Typography>
-                </Box>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                  <Typography variant="caption" color="text.secondary">{formatBytes(totalSize)} total</Typography>
+            <Box sx={{ px: 2.5, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", flexDirection: "column", gap: 1 }}>
+              <Box>
+                <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{selectedLib.name}</Typography>
+                <Typography variant="caption" color="text.secondary">{selectedLib.description}</Typography>
+                <Box sx={{ display: "flex", gap: 1.5, mt: 1 }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                    <VideocamOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />
+                    <Typography variant="caption" color="text.secondary">{videoCount} videos</Typography>
+                  </Box>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                    <PhotoLibraryOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />
+                    <Typography variant="caption" color="text.secondary">{imageCount} images</Typography>
+                  </Box>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                    <Typography variant="caption" color="text.secondary">{formatBytes(totalSize)} total</Typography>
+                  </Box>
                 </Box>
               </Box>
+              <TextField
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="Search assets…"
+                size="small"
+                sx={{ maxWidth: 320 }}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
+                    </InputAdornment>
+                  ),
+                }}
+              />
             </Box>
             <Box sx={{ flex: 1, overflow: "auto", p: 2.5 }}>
-              {assets.length === 0 ? (
+              {filteredAssets.length === 0 ? (
                 <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 6, gap: 1 }}>
                   <LibraryBooksOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
-                  <Typography variant="body2" color="text.secondary">No assets in this library</Typography>
+                  <Typography variant="body2" color="text.secondary">{assets.length === 0 ? "No assets in this library" : "No assets match your search"}</Typography>
                 </Box>
               ) : (
                 <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 2 }}>
-                  {assets.map(a => (
+                  {filteredAssets.map(a => (
                     <Paper
                       key={a.id}
                       elevation={0}

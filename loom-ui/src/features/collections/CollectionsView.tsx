@@ -3,8 +3,9 @@ import { useNavigate } from "react-router-dom";
 import {
   Box, Typography, Paper, Chip, Grid, IconButton, AvatarGroup, Avatar, Tooltip,
   Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField,
+  InputAdornment,
 } from "@mui/material";
-import { AddOutlined, CollectionsOutlined, ArrowForwardIos, DeleteOutlined, ArrowBack } from "@mui/icons-material";
+import { AddOutlined, CollectionsOutlined, ArrowForwardIos, DeleteOutlined, ArrowBack, SearchOutlined } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { Collection, Asset } from "../../types";
 import { mockCollectionService, mockAssetService } from "../../mock/services";
@@ -153,6 +154,7 @@ export default function CollectionsView() {
   const [newColor, setNewColor] = useState(PALETTE[0]);
   const [creating, setCreating] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Collection | null>(null);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     if (!activeProject) return;
@@ -180,31 +182,56 @@ export default function CollectionsView() {
     return <CollectionDetail collection={selectedCollection} onBack={() => setSelectedCollection(null)} />;
   }
 
+  const filtered = collections.filter(c => {
+    if (!query.trim()) return true;
+    const q = query.toLowerCase();
+    return c.name.toLowerCase().includes(q) || c.description.toLowerCase().includes(q);
+  });
+
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: tokens.bg.base }}>
-      <Box sx={{ px: 2.5, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <Box>
-          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Collections</Typography>
-          <Typography variant="caption" color="text.secondary">{activeProject?.name} · {collections.length} collections</Typography>
+      <Box sx={{ px: 2.5, py: 1.5, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", flexDirection: "column", gap: 1 }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <Box>
+            <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Collections</Typography>
+            <Typography variant="caption" color="text.secondary">{activeProject?.name} · {collections.length} collections</Typography>
+          </Box>
+          <Chip
+            icon={<AddOutlined sx={{ fontSize: 14 }} />}
+            label="New Collection"
+            size="small"
+            onClick={() => setCreateOpen(true)}
+            sx={{ cursor: "pointer", bgcolor: tokens.primary.subtle, border: `1px solid ${tokens.primary.main}`, color: tokens.primary.light }}
+          />
         </Box>
-        <Chip
-          icon={<AddOutlined sx={{ fontSize: 14 }} />}
-          label="New Collection"
-          size="small"
-          onClick={() => setCreateOpen(true)}
-          sx={{ cursor: "pointer", bgcolor: tokens.primary.subtle, border: `1px solid ${tokens.primary.main}`, color: tokens.primary.light }}
-        />
+        <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+          <TextField
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Search collections…"
+            size="small"
+            sx={{ flex: 1, maxWidth: 360 }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
+                </InputAdornment>
+              ),
+            }}
+          />
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.72rem" }}>{filtered.length} results</Typography>
+        </Box>
       </Box>
 
       <Box sx={{ flex: 1, overflow: "auto", p: 2.5 }}>
-        {collections.length === 0 ? (
+        {filtered.length === 0 ? (
           <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 200, gap: 1 }}>
             <CollectionsOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
-            <Typography variant="body2" color="text.secondary">No collections in this project</Typography>
+            <Typography variant="body2" color="text.secondary">{collections.length === 0 ? "No collections in this project" : "No collections match your search"}</Typography>
           </Box>
         ) : (
           <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 2 }}>
-            {collections.map(c => (
+            {filtered.map(c => (
               <CollectionCard
                 key={c.id}
                 collection={c}

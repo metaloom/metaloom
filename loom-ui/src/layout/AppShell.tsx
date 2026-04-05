@@ -17,6 +17,7 @@ import ProfileView from "../features/profile/ProfileView";
 import MaintenanceView from "../features/maintenance/MaintenanceView";
 import TagsView from "../features/tags/TagsView";
 import CortexView from "../features/cortex/CortexView";
+import WorkflowView from "../features/workflow/WorkflowView";
 
 export default function AppShell() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -44,6 +45,7 @@ export default function AppShell() {
           <Route path="/pipelines" element={<PipelineEditor />} />
           <Route path="/faces" element={<FaceDetectionManagement />} />
           <Route path="/tags" element={<TagsView />} />
+          <Route path="/workflow" element={<WorkflowView />} />
           <Route path="/cortex" element={<CortexView />} />
           <Route path="/monitoring" element={<MonitoringArea />} />
           <Route path="/admin/*" element={<AdminArea />} />

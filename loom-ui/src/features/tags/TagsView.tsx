@@ -1,11 +1,12 @@
 import React, { useState, useCallback } from "react";
 import {
   Box, Typography, IconButton, TextField, Tooltip, Chip, Divider, Menu, MenuItem,
+  InputAdornment,
 } from "@mui/material";
 import {
   ExpandMore, ChevronRight, AddOutlined, EditOutlined,
   DeleteOutlineOutlined, LocalOfferOutlined, MoreVertOutlined,
-  FolderOutlined,
+  FolderOutlined, SearchOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 
@@ -189,6 +190,7 @@ export default function TagsView() {
   const [tags, setTags] = useState<TagNode[]>(INITIAL_TAGS);
   const [expanded, setExpanded] = useState<Set<string>>(new Set(["t1", "t1a", "t2", "t2c"]));
   const [newTagInput, setNewTagInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const toggleExpand = useCallback((id: string) => {
     setExpanded(prev => {
@@ -230,10 +232,27 @@ export default function TagsView() {
 
   const totalTags = tags.reduce((s, n) => s + 1 + countDescendants(n), 0);
 
+  // Filter tree: keep nodes (and parents) matching the query
+  const filterTree = (nodes: TagNode[], q: string): TagNode[] => {
+    if (!q) return nodes;
+    return nodes
+      .map(n => {
+        const childMatches = filterTree(n.children, q);
+        const selfMatch = n.label.toLowerCase().includes(q);
+        if (selfMatch || childMatches.length > 0) {
+          return { ...n, children: selfMatch ? n.children : childMatches };
+        }
+        return null;
+      })
+      .filter(Boolean) as TagNode[];
+  };
+
+  const displayTags = filterTree(tags, searchQuery.toLowerCase().trim());
+
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: tokens.bg.base }}>
       {/* Header */}
-      <Box sx={{ px: 2.5, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface }}>
+      <Box sx={{ px: 2.5, py: 1.5, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", flexDirection: "column", gap: 1 }}>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <Box>
             <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Tags</Typography>
@@ -255,12 +274,26 @@ export default function TagsView() {
             </Tooltip>
           </Box>
         </Box>
+        <TextField
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          placeholder="Filter tags…"
+          size="small"
+          sx={{ maxWidth: 320 }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
+              </InputAdornment>
+            ),
+          }}
+        />
       </Box>
 
       {/* Tree */}
       <Box sx={{ flex: 1, overflow: "auto", p: 2 }}>
         <Box sx={{ maxWidth: 600 }}>
-          {tags.map(node => (
+          {displayTags.map(node => (
             <TagTreeNode
               key={node.id}
               node={node}
@@ -272,7 +305,7 @@ export default function TagsView() {
               onDelete={deleteTag}
             />
           ))}
-          {tags.length === 0 && (
+          {displayTags.length === 0 && (
             <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 6, gap: 1 }}>
               <LocalOfferOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
               <Typography variant="body2" color="text.secondary">No tags yet. Create a root tag to get started.</Typography>

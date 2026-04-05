@@ -5,13 +5,13 @@ import {
   TableHead, TableRow, Paper, Chip, Avatar, IconButton, Tooltip,
   TextField, Button, Select, MenuItem, FormControl, InputLabel, Stack,
   Divider, Switch, Dialog, DialogTitle, DialogContent, DialogActions,
-  Checkbox, FormControlLabel, FormGroup, Collapse,
+  Checkbox, FormControlLabel, FormGroup, Collapse, InputAdornment,
 } from "@mui/material";
 import {
   PersonAddOutlined, VpnKeyOutlined, BlockOutlined, GroupsOutlined,
   SecurityOutlined, EditOutlined, DeleteOutlineOutlined, AddOutlined,
   CloseOutlined, ExpandMoreOutlined, ExpandLessOutlined, LockOutlined,
-  CheckBoxOutlined, CheckBoxOutlineBlankOutlined,
+  CheckBoxOutlined, CheckBoxOutlineBlankOutlined, SearchOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { User, Group, Role, Permission, ApiKey, BlacklistEntry } from "../../types";
@@ -22,6 +22,7 @@ function UsersAdmin() {
   const [users, setUsers] = useState<User[]>([]);
   const [editUser, setEditUser] = useState<User | null>(null);
   const [editForm, setEditForm] = useState({ name: "", email: "", role: "" as string });
+  const [query, setQuery] = useState("");
 
   useEffect(() => { mockAdminService.getUsers().then(setUsers); }, []);
 
@@ -59,6 +60,21 @@ function UsersAdmin() {
           Invite User
         </Button>
       </Box>
+      <TextField
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        placeholder="Search users…"
+        size="small"
+        sx={{ mb: 1.5, maxWidth: 320 }}
+        fullWidth
+        InputProps={{
+          startAdornment: (
+            <InputAdornment position="start">
+              <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
+            </InputAdornment>
+          ),
+        }}
+      />
       <TableContainer component={Paper} elevation={0}>
         <Table size="small">
           <TableHead>
@@ -72,7 +88,11 @@ function UsersAdmin() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {users.map(u => (
+            {users.filter(u => {
+              if (!query.trim()) return true;
+              const q = query.toLowerCase();
+              return u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.role.toLowerCase().includes(q);
+            }).map(u => (
               <TableRow key={u.id} hover sx={{ cursor: "pointer" }} onClick={() => openEdit(u)}>
                 <TableCell>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
@@ -181,6 +201,7 @@ function GroupsAdmin() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     Promise.all([mockAdminService.getGroups(), mockAdminService.getUsers(), mockAdminService.getRoles()]).then(([g, u, r]) => {
@@ -197,6 +218,21 @@ function GroupsAdmin() {
         </Box>
         <Button startIcon={<AddOutlined />} variant="contained" size="small">New Group</Button>
       </Box>
+      <TextField
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        placeholder="Search groups…"
+        size="small"
+        sx={{ mb: 1.5, maxWidth: 320 }}
+        fullWidth
+        InputProps={{
+          startAdornment: (
+            <InputAdornment position="start">
+              <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
+            </InputAdornment>
+          ),
+        }}
+      />
       <TableContainer component={Paper} elevation={0}>
         <Table size="small">
           <TableHead>
@@ -209,7 +245,11 @@ function GroupsAdmin() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {groups.map(g => (
+            {groups.filter(g => {
+              if (!query.trim()) return true;
+              const q = query.toLowerCase();
+              return g.name.toLowerCase().includes(q) || g.description.toLowerCase().includes(q);
+            }).map(g => (
               <TableRow key={g.id} hover>
                 <TableCell><Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.82rem" }}>{g.name}</Typography></TableCell>
                 <TableCell><Typography variant="caption" color="text.secondary">{g.description}</Typography></TableCell>
@@ -439,6 +479,7 @@ function ApiKeysAdmin() {
   const [newScopes, setNewScopes] = useState<string[]>([]);
   const [newExpiry, setNewExpiry] = useState("");
   const [creating, setCreating] = useState(false);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     Promise.all([mockAdminService.getApiKeys(), mockAdminService.getUsers()]).then(([k, u]) => {
@@ -480,6 +521,21 @@ function ApiKeysAdmin() {
           Create Key
         </Button>
       </Box>
+      <TextField
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        placeholder="Search API keys…"
+        size="small"
+        sx={{ mb: 1.5, maxWidth: 320 }}
+        fullWidth
+        InputProps={{
+          startAdornment: (
+            <InputAdornment position="start">
+              <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
+            </InputAdornment>
+          ),
+        }}
+      />
       <TableContainer component={Paper} elevation={0}>
         <Table size="small">
           <TableHead>
@@ -494,7 +550,12 @@ function ApiKeysAdmin() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {keys.map(k => {
+            {keys.filter(k => {
+              if (!query.trim()) return true;
+              const q = query.toLowerCase();
+              const owner = users.find(u => u.id === k.ownerId);
+              return k.name.toLowerCase().includes(q) || (owner?.name.toLowerCase().includes(q) ?? false) || k.scopes.some(s => s.toLowerCase().includes(q));
+            }).map(k => {
               const owner = users.find(u => u.id === k.ownerId);
               const expired = k.expiresAt && new Date(k.expiresAt) < new Date();
               return (
@@ -659,7 +720,7 @@ function BlacklistAdmin() {
 const ADMIN_TABS = [
   { label: "Users", path: "/admin/users" },
   { label: "Groups", path: "/admin/groups" },
-  { label: "Access Control", path: "/admin/access-control" },
+  { label: "Permissions", path: "/admin/permissions" },
   { label: "API Keys", path: "/admin/api-keys" },
   { label: "Blacklist", path: "/admin/blacklist" },
 ];
@@ -694,7 +755,7 @@ export default function AdminArea() {
         <Routes>
           <Route path="users" element={<UsersAdmin />} />
           <Route path="groups" element={<GroupsAdmin />} />
-          <Route path="access-control" element={<AccessControlAdmin />} />
+          <Route path="permissions" element={<AccessControlAdmin />} />
           <Route path="api-keys" element={<ApiKeysAdmin />} />
           <Route path="blacklist" element={<BlacklistAdmin />} />
         </Routes>

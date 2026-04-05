@@ -2,16 +2,17 @@ import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   Box, List, ListItemButton, ListItemIcon, ListItemText, Typography,
-  Avatar, Menu, MenuItem, Divider, Tooltip, IconButton, Badge, Collapse,
+  Avatar, Menu, MenuItem, Divider, Tooltip, IconButton, Badge,
 } from "@mui/material";
 import {
   ChatBubbleOutline, PhotoLibraryOutlined, AccountTreeOutlined,
   TaskAltOutlined, CollectionsOutlined, BarChartOutlined,
-  AdminPanelSettingsOutlined, ExpandMore, ExpandLess,
   Circle, ChevronLeft, ChevronRight, LibraryBooksOutlined,
   FolderOpenOutlined, KeyboardArrowDown, FaceOutlined,
-  MoreVertOutlined, PersonOutlined, LogoutOutlined,
-  LocalOfferOutlined, DnsOutlined,
+  PersonOutlined, LogoutOutlined,
+  LocalOfferOutlined, DnsOutlined, GroupsOutlined,
+  SecurityOutlined, VpnKeyOutlined, BlockOutlined,
+  SpeedOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../theme";
 import { useProject } from "../context/ProjectContext";
@@ -36,22 +37,18 @@ const USER_NAV_ITEMS: NavItem[] = [
   { label: "Tasks", path: "/tasks", icon: <TaskAltOutlined fontSize="small" />, badge: 3 },
   { label: "Faces", path: "/faces", icon: <FaceOutlined fontSize="small" /> },
   { label: "Tags", path: "/tags", icon: <LocalOfferOutlined fontSize="small" /> },
+  { label: "Workflow", path: "/workflow", icon: <SpeedOutlined fontSize="small" /> },
 ];
 
 const ADMIN_NAV_ITEMS: NavItem[] = [
   { label: "Pipelines", path: "/pipelines", icon: <AccountTreeOutlined fontSize="small" /> },
   { label: "Cortex", path: "/cortex", icon: <DnsOutlined fontSize="small" /> },
   { label: "Monitoring", path: "/monitoring", icon: <BarChartOutlined fontSize="small" /> },
-  {
-    label: "Admin", path: "/admin", icon: <AdminPanelSettingsOutlined fontSize="small" />,
-    children: [
-      { label: "Users", path: "/admin/users", icon: <Box component="span" sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: tokens.text.tertiary, display: "inline-block", ml: "2px", mr: "4px" }} /> },
-      { label: "Groups", path: "/admin/groups", icon: <Box component="span" sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: tokens.text.tertiary, display: "inline-block", ml: "2px", mr: "4px" }} /> },
-      { label: "RBAC", path: "/admin/rbac", icon: <Box component="span" sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: tokens.text.tertiary, display: "inline-block", ml: "2px", mr: "4px" }} /> },
-      { label: "API Keys", path: "/admin/api-keys", icon: <Box component="span" sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: tokens.text.tertiary, display: "inline-block", ml: "2px", mr: "4px" }} /> },
-      { label: "Blacklist", path: "/admin/blacklist", icon: <Box component="span" sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: tokens.text.tertiary, display: "inline-block", ml: "2px", mr: "4px" }} /> },
-    ],
-  },
+  { label: "Users", path: "/admin/users", icon: <PersonOutlined fontSize="small" /> },
+  { label: "Groups", path: "/admin/groups", icon: <GroupsOutlined fontSize="small" /> },
+  { label: "Permissions", path: "/admin/permissions", icon: <SecurityOutlined fontSize="small" /> },
+  { label: "API Keys", path: "/admin/api-keys", icon: <VpnKeyOutlined fontSize="small" /> },
+  { label: "Blacklist", path: "/admin/blacklist", icon: <BlockOutlined fontSize="small" /> },
 ];
 
 interface Props {
@@ -66,87 +63,34 @@ export default function Sidebar({ collapsed, onCollapse }: Props) {
   const { logout } = useAuth();
   const [projectMenuAnchor, setProjectMenuAnchor] = useState<null | HTMLElement>(null);
   const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
-  const [expandedAdmin, setExpandedAdmin] = useState(location.pathname.startsWith("/admin"));
 
   const isActive = (path: string) =>
     path === "/" ? location.pathname === "/" : location.pathname.startsWith(path);
 
   const renderNavItems = (items: NavItem[]) =>
-    items.map((item) => {
-      if (item.children) {
-        return (
-          <React.Fragment key={item.path}>
-            <Tooltip title={collapsed ? item.label : ""} placement="right">
-              <ListItemButton
-                selected={isActive(item.path)}
-                onClick={() => {
-                  if (collapsed) { navigate(item.path); }
-                  else setExpandedAdmin(!expandedAdmin);
-                }}
-                sx={{ borderRadius: tokens.radius.md, px: collapsed ? 1 : 1.5, minHeight: 36 }}
-              >
-                <ListItemIcon sx={{ minWidth: collapsed ? 0 : 30, mr: collapsed ? 0 : 0 }}>
-                  {item.icon}
-                </ListItemIcon>
-                {!collapsed && (
-                  <>
-                    <ListItemText
-                      primary={item.label}
-                      primaryTypographyProps={{ fontSize: "0.8375rem", fontWeight: 500 }}
-                    />
-                    {expandedAdmin ? <ExpandLess sx={{ fontSize: 16 }} /> : <ExpandMore sx={{ fontSize: 16 }} />}
-                  </>
-                )}
-              </ListItemButton>
-            </Tooltip>
-            {!collapsed && (
-              <Collapse in={expandedAdmin}>
-                <List dense disablePadding sx={{ pl: 1.5 }}>
-                  {item.children.map((child) => (
-                    <ListItemButton
-                      key={child.path}
-                      selected={location.pathname === child.path}
-                      onClick={() => navigate(child.path)}
-                      sx={{ borderRadius: tokens.radius.sm, px: 1.5, minHeight: 32, mb: 0.25 }}
-                    >
-                      {child.icon}
-                      <ListItemText
-                        primary={child.label}
-                        primaryTypographyProps={{ fontSize: "0.8rem", color: tokens.text.secondary }}
-                      />
-                    </ListItemButton>
-                  ))}
-                </List>
-              </Collapse>
-            )}
-          </React.Fragment>
-        );
-      }
-
-      return (
-        <Tooltip key={item.path} title={collapsed ? item.label : ""} placement="right">
-          <ListItemButton
-            selected={isActive(item.path)}
-            onClick={() => navigate(item.path)}
-            sx={{ borderRadius: tokens.radius.md, px: collapsed ? 1 : 1.5, minHeight: 36 }}
-          >
-            <ListItemIcon sx={{ minWidth: collapsed ? 0 : 30 }}>
-              {item.badge ? (
-                <Badge badgeContent={item.badge} color="primary" sx={{ "& .MuiBadge-badge": { fontSize: "0.6rem", height: 14, minWidth: 14 } }}>
-                  {item.icon}
-                </Badge>
-              ) : item.icon}
-            </ListItemIcon>
-            {!collapsed && (
-              <ListItemText
-                primary={item.label}
-                primaryTypographyProps={{ fontSize: "0.8375rem", fontWeight: 500 }}
-              />
-            )}
-          </ListItemButton>
-        </Tooltip>
-      );
-    });
+    items.map((item) => (
+      <Tooltip key={item.path} title={collapsed ? item.label : ""} placement="right">
+        <ListItemButton
+          selected={isActive(item.path)}
+          onClick={() => navigate(item.path)}
+          sx={{ borderRadius: tokens.radius.md, px: collapsed ? 1 : 1.5, minHeight: 36 }}
+        >
+          <ListItemIcon sx={{ minWidth: collapsed ? 0 : 30 }}>
+            {item.badge ? (
+              <Badge badgeContent={item.badge} color="primary" sx={{ "& .MuiBadge-badge": { fontSize: "0.6rem", height: 14, minWidth: 14 } }}>
+                {item.icon}
+              </Badge>
+            ) : item.icon}
+          </ListItemIcon>
+          {!collapsed && (
+            <ListItemText
+              primary={item.label}
+              primaryTypographyProps={{ fontSize: "0.8375rem", fontWeight: 500 }}
+            />
+          )}
+        </ListItemButton>
+      </Tooltip>
+    ));
 
   return (
     <Box

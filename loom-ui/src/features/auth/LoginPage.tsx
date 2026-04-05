@@ -66,7 +66,7 @@ export default function LoginPage() {
 
         {error && (
           <Alert severity="error" sx={{ width: "100%", fontSize: "0.8rem" }}>
-            Invalid credentials. Try demo / demo.
+            Invalid credentials.
           </Alert>
         )}
 
@@ -77,6 +77,7 @@ export default function LoginPage() {
           fullWidth
           size="small"
           autoFocus
+          sx={{ "& .MuiInputBase-input": { py: "8.5px" } }}
         />
         <TextField
           label="Password"
@@ -85,6 +86,7 @@ export default function LoginPage() {
           onChange={(e) => { setPassword(e.target.value); setError(false); }}
           fullWidth
           size="small"
+          sx={{ "& .MuiInputBase-input": { py: "8.5px" } }}
         />
 
         <Button

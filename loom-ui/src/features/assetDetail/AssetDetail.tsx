@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Box, Typography, Chip, Avatar, Paper, IconButton, Tab, Tabs,
-  Divider, Tooltip, LinearProgress, Stack, TextField,
+  Divider, Tooltip, LinearProgress, Stack, TextField, InputAdornment,
 } from "@mui/material";
 import {
   ArrowBack, PlayArrowOutlined, PauseOutlined, PlayCircleOutline,
@@ -12,7 +12,7 @@ import {
   CheckCircleOutlineOutlined, AccessTimeOutlined,
   ZoomInOutlined, ZoomOutOutlined, CenterFocusStrongOutlined,
   FaceOutlined, GroupWorkOutlined, PersonOutlined,
-  ArrowUpwardOutlined, ArrowDownwardOutlined,
+  ArrowUpwardOutlined, ArrowDownwardOutlined, SearchOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { Asset, Comment, Annotation, Reaction, Task, TranscriptSection, DetectedFace, FaceCluster, Person } from "../../types";
@@ -742,6 +742,7 @@ export default function AssetDetail() {
   const [faceClusters, setFaceClusters] = useState<FaceCluster[]>([]);
   const [persons, setPersons] = useState<Person[]>([]);
   const [tab, setTab] = useState(0);
+  const [sidebarQuery, setSidebarQuery] = useState("");
   const [currentTime, setCurrentTime] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
@@ -1062,11 +1063,33 @@ export default function AssetDetail() {
 
         {/* Right: discussion tabs */}
         <Box sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", bgcolor: tokens.bg.surface }}>
-          <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ px: 1.5, borderBottom: `1px solid ${tokens.border.subtle}`, minHeight: 40 }}>
+          <Tabs value={tab} onChange={(_, v) => { setTab(v); setSidebarQuery(""); }} sx={{ px: 1.5, borderBottom: `1px solid ${tokens.border.subtle}`, minHeight: 40 }}>
             {tabs.map((t, i) => (
               <Tab key={i} label={t.label} iconPosition="start" icon={t.icon} sx={{ minHeight: 40, fontSize: "0.75rem", px: 1.5 }} />
             ))}
           </Tabs>
+
+          {/* Mini search (for Comments, Annotations, Tasks) */}
+          {(tab === 1 || tab === 2 || tab === 4) && (
+            <Box sx={{ px: 1.5, py: 0.75, borderBottom: `1px solid ${tokens.border.subtle}` }}>
+              <TextField
+                value={sidebarQuery}
+                onChange={e => setSidebarQuery(e.target.value)}
+                placeholder="Filter…"
+                size="small"
+                fullWidth
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />
+                    </InputAdornment>
+                  ),
+                  sx: { fontSize: "0.75rem", height: 30 },
+                }}
+                sx={{ "& .MuiOutlinedInput-root": { bgcolor: tokens.bg.elevated } }}
+              />
+            </Box>
+          )}
 
           <Box sx={{ flex: 1, overflow: "auto", p: 1.5 }}>
             {/* Overview tab */}
@@ -1089,14 +1112,17 @@ export default function AssetDetail() {
             )}
 
             {/* Comments tab */}
-            {tab === 1 && (
+            {tab === 1 && (() => {
+              const sq = sidebarQuery.toLowerCase().trim();
+              const filtered = sq ? comments.filter(c => (c.title?.toLowerCase().includes(sq)) || c.body.toLowerCase().includes(sq) || userName(c.authorId).toLowerCase().includes(sq)) : comments;
+              return (
               <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
-                {comments.length === 0 ? (
+                {filtered.length === 0 ? (
                   <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 4, gap: 1 }}>
                     <ChatBubbleOutlineOutlined sx={{ fontSize: 32, color: tokens.text.tertiary }} />
-                    <Typography variant="body2" color="text.secondary">No comments yet</Typography>
+                    <Typography variant="body2" color="text.secondary">{comments.length === 0 ? "No comments yet" : "No matching comments"}</Typography>
                   </Box>
-                ) : comments.map(c => (
+                ) : filtered.map(c => (
                   <CommentItem
                     key={c.id}
                     comment={c}
@@ -1106,17 +1132,21 @@ export default function AssetDetail() {
                   />
                 ))}
               </Box>
-            )}
+              );
+            })()}
 
             {/* Annotations tab */}
-            {tab === 2 && (
+            {tab === 2 && (() => {
+              const sq = sidebarQuery.toLowerCase().trim();
+              const filtered = sq ? annotations.filter(a => a.title.toLowerCase().includes(sq) || (a.description?.toLowerCase().includes(sq) ?? false)) : annotations;
+              return (
               <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
-                {annotations.length === 0 ? (
+                {filtered.length === 0 ? (
                   <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 4, gap: 1 }}>
                     <BookmarkBorderOutlined sx={{ fontSize: 32, color: tokens.text.tertiary }} />
-                    <Typography variant="body2" color="text.secondary">No annotations yet</Typography>
+                    <Typography variant="body2" color="text.secondary">{annotations.length === 0 ? "No annotations yet" : "No matching annotations"}</Typography>
                   </Box>
-                ) : annotations.map(a => (
+                ) : filtered.map(a => (
                   <AnnotationItem
                     key={a.id}
                     ann={a}
@@ -1126,7 +1156,8 @@ export default function AssetDetail() {
                   />
                 ))}
               </Box>
-            )}
+              );
+            })()}
 
             {/* Reactions tab */}
             {tab === 3 && (
