@@ -71,7 +71,6 @@
         <module>services</module>
         <module>core</module>
         <module>cli</module>
-        <module>nexus</module>
         <module>containers</module>
         <module>doc</module>
     </modules>
@@ -278,13 +277,6 @@
                 <artifactId>loom-rest-model</artifactId>
                 <version>${project.version}</version>
                 <type>test-jar</type>
-            </dependency>
-
-            <!-- Nexus -->
-            <dependency>
-                <groupId>io.metaloom.loom.nexus</groupId>
-                <artifactId>loom-nexus</artifactId>
-                <version>${project.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

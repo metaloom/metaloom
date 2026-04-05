@@ -50,8 +50,10 @@ public class DatabaseInitializer {
 		// User
 		User adminUser = userDao.loadAdmin();
 		if (adminUser == null) {
-			adminUser = userDao.createUser(UserDao.ADMIN_USER_NAME);
-			adminUser.setUuid(UUIDUtils.randomUUID());
+			// Inline admin creation to avoid default method dispatch issues on fresh DB
+			java.util.UUID adminUuid = UUIDUtils.randomUUID();
+			adminUser = userDao.createUser(adminUuid, UserDao.ADMIN_USER_NAME);
+			adminUser.setUuid(adminUuid);
 			adminUser.setCreator(adminUser);
 			adminUser.setEditor(adminUser);
 			adminUser.setEdited(Instant.now());
