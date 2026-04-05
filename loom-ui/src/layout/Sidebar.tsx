@@ -10,9 +10,12 @@ import {
   AdminPanelSettingsOutlined, ExpandMore, ExpandLess,
   Circle, ChevronLeft, ChevronRight, LibraryBooksOutlined,
   FolderOpenOutlined, KeyboardArrowDown, FaceOutlined,
+  MoreVertOutlined, PersonOutlined, LogoutOutlined,
+  LocalOfferOutlined, DnsOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../theme";
 import { useProject } from "../context/ProjectContext";
+import { useAuth } from "../context/AuthContext";
 import { USERS } from "../mock/data";
 
 const currentUser = USERS[0];
@@ -32,7 +35,9 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Collections", path: "/collections", icon: <CollectionsOutlined fontSize="small" /> },
   { label: "Tasks", path: "/tasks", icon: <TaskAltOutlined fontSize="small" />, badge: 3 },
   { label: "Pipelines", path: "/pipelines", icon: <AccountTreeOutlined fontSize="small" /> },
+  { label: "Cortex", path: "/cortex", icon: <DnsOutlined fontSize="small" /> },
   { label: "Faces", path: "/faces", icon: <FaceOutlined fontSize="small" /> },
+  { label: "Tags", path: "/tags", icon: <LocalOfferOutlined fontSize="small" /> },
   { label: "Monitoring", path: "/monitoring", icon: <BarChartOutlined fontSize="small" /> },
   {
     label: "Admin", path: "/admin", icon: <AdminPanelSettingsOutlined fontSize="small" />,
@@ -55,7 +60,9 @@ export default function Sidebar({ collapsed, onCollapse }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
   const { projects, activeProject, setActiveProject } = useProject();
+  const { logout } = useAuth();
   const [projectMenuAnchor, setProjectMenuAnchor] = useState<null | HTMLElement>(null);
+  const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
   const [expandedAdmin, setExpandedAdmin] = useState(location.pathname.startsWith("/admin"));
 
   const isActive = (path: string) =>
@@ -78,7 +85,7 @@ export default function Sidebar({ collapsed, onCollapse }: Props) {
       }}
     >
       {/* Project Switcher */}
-      <Box sx={{ px: collapsed ? 1 : 1.5, pt: 1.5, pb: 1 }}>
+      <Box sx={{ px: collapsed ? 1 : 1.5, pt: 1.5, pb: 1, display: "flex", alignItems: "center", gap: 1 }}>
         <Tooltip title={collapsed ? activeProject?.name ?? "Project" : ""} placement="right">
           <Box
             onClick={(e) => setProjectMenuAnchor(e.currentTarget)}
@@ -95,6 +102,8 @@ export default function Sidebar({ collapsed, onCollapse }: Props) {
               "&:hover": { borderColor: tokens.border.default, bgcolor: tokens.bg.overlay },
               transition: "all 140ms ease",
               overflow: "hidden",
+              flex: 1,
+              minWidth: 0,
             }}
           >
             <Box
@@ -133,6 +142,41 @@ export default function Sidebar({ collapsed, onCollapse }: Props) {
               <Typography variant="body2" fontWeight={500}>{p.name}</Typography>
             </MenuItem>
           ))}
+        </Menu>
+
+        {/* User avatar — top right */}
+        <Tooltip title={collapsed ? currentUser.name : ""} placement="right">
+          <IconButton
+            size="small"
+            onClick={(e) => setUserMenuAnchor(e.currentTarget)}
+            sx={{ flexShrink: 0, p: 0 }}
+          >
+            <Box sx={{ position: "relative" }}>
+              <Avatar sx={{ width: 28, height: 28, fontSize: "0.75rem", bgcolor: tokens.primary.dark }}>
+                {currentUser.name.split(" ").map(n => n[0]).join("")}
+              </Avatar>
+              <Circle sx={{ position: "absolute", bottom: -1, right: -1, fontSize: 10, color: tokens.accent.green }} />
+            </Box>
+          </IconButton>
+        </Tooltip>
+        <Menu
+          anchorEl={userMenuAnchor}
+          open={Boolean(userMenuAnchor)}
+          onClose={() => setUserMenuAnchor(null)}
+          anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+          transformOrigin={{ vertical: "top", horizontal: "right" }}
+        >
+          <Box sx={{ px: 2, py: 1, minWidth: 160 }}>
+            <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.82rem" }}>{currentUser.name}</Typography>
+            <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>{currentUser.role}</Typography>
+          </Box>
+          <Divider />
+          <MenuItem onClick={() => { setUserMenuAnchor(null); navigate("/profile"); }} sx={{ gap: 1.5, fontSize: "0.85rem" }}>
+            <PersonOutlined sx={{ fontSize: 18 }} /> Profile
+          </MenuItem>
+          <MenuItem onClick={() => { setUserMenuAnchor(null); logout(); }} sx={{ gap: 1.5, fontSize: "0.85rem", color: tokens.accent.red }}>
+            <LogoutOutlined sx={{ fontSize: 18 }} /> Logout
+          </MenuItem>
         </Menu>
       </Box>
 
@@ -221,49 +265,24 @@ export default function Sidebar({ collapsed, onCollapse }: Props) {
 
       <Divider />
 
-      {/* User / Status Footer */}
-      <Box sx={{ px: collapsed ? 0.75 : 1.5, py: 1.25, display: "flex", alignItems: "center", gap: 1.5 }}>
-        <Box sx={{ position: "relative", flexShrink: 0 }}>
-          <Avatar
-            sx={{ width: 28, height: 28, fontSize: "0.75rem", bgcolor: tokens.primary.dark }}
-          >
-            {currentUser.name.split(" ").map(n => n[0]).join("")}
-          </Avatar>
-          <Circle sx={{ position: "absolute", bottom: -1, right: -1, fontSize: 10, color: tokens.accent.green }} />
-        </Box>
-        {!collapsed && (
-          <Box sx={{ overflow: "hidden", flex: 1 }}>
-            <Typography variant="caption" fontWeight={600} display="block" noWrap color="text.primary">
-              {currentUser.name}
-            </Typography>
-            <Typography variant="caption" display="block" noWrap sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>
-              {currentUser.role}
-            </Typography>
-          </Box>
-        )}
-      </Box>
-
       {/* Collapse Toggle */}
-      <Tooltip title={collapsed ? "Expand sidebar" : "Collapse sidebar"} placement="right">
-        <IconButton
-          onClick={() => onCollapse(!collapsed)}
-          size="small"
-          sx={{
-            position: "absolute",
-            bottom: 16,
-            right: collapsed ? "50%" : 8,
-            transform: collapsed ? "translateX(50%)" : "none",
-            bgcolor: tokens.bg.elevated,
-            border: `1px solid ${tokens.border.subtle}`,
-            width: 22,
-            height: 22,
-            "&:hover": { bgcolor: tokens.bg.overlay },
-            display: { xs: "none", md: "flex" },
-          }}
-        >
-          {collapsed ? <ChevronRight sx={{ fontSize: 14 }} /> : <ChevronLeft sx={{ fontSize: 14 }} />}
-        </IconButton>
-      </Tooltip>
+      <Box sx={{ px: collapsed ? 0.75 : 1.5, py: 1, display: "flex", justifyContent: collapsed ? "center" : "flex-end" }}>
+        <Tooltip title={collapsed ? "Expand sidebar" : "Collapse sidebar"} placement="right">
+          <IconButton
+            onClick={() => onCollapse(!collapsed)}
+            size="small"
+            sx={{
+              bgcolor: tokens.bg.elevated,
+              border: `1px solid ${tokens.border.subtle}`,
+              width: 22,
+              height: 22,
+              "&:hover": { bgcolor: tokens.bg.overlay },
+            }}
+          >
+            {collapsed ? <ChevronRight sx={{ fontSize: 14 }} /> : <ChevronLeft sx={{ fontSize: 14 }} />}
+          </IconButton>
+        </Tooltip>
+      </Box>
     </Box>
   );
 }

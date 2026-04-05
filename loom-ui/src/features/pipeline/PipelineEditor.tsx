@@ -3,11 +3,13 @@ import ReactFlow, {
   Background, Controls, MiniMap, Handle, Position,
   NodeProps, ReactFlowProvider, useNodesState, useEdgesState,
   MarkerType, Node as RFNode, Edge as RFEdge,
+  Connection, addEdge, reconnectEdge,
 } from "reactflow";
 import "reactflow/dist/style.css";
 import {
   Box, Typography, Chip, Paper, Divider, IconButton, Tooltip,
   List, ListItemButton, ListItemText, ListItemIcon, Switch, Stack, Avatar, Collapse, TextField,
+  Menu, MenuItem,
 } from "@mui/material";
 import {
   PlayArrowOutlined, AccountTreeOutlined, CheckCircleOutline,
@@ -16,6 +18,8 @@ import {
   CircleOutlined, AccessTimeOutlined, BarChartOutlined,
   TerminalOutlined, ExpandLessOutlined, ExpandMoreOutlined,
   ChevronRightOutlined, ChevronLeftOutlined,
+  AddOutlined, CenterFocusStrongOutlined, VideocamOutlined,
+  MovieFilterOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { Pipeline, PipelineNode, PipelineRun } from "../../types";
@@ -28,7 +32,25 @@ const nodeTypeConfig: Record<string, { color: string; icon: React.ReactNode; bg:
   filter: { color: tokens.accent.amber, icon: <FilterAltOutlined sx={{ fontSize: 14 }} />, bg: `${tokens.accent.amber}18` },
   process: { color: tokens.primary.main, icon: <MemoryOutlined sx={{ fontSize: 14 }} />, bg: tokens.primary.subtle },
   output: { color: tokens.accent.teal, icon: <CloudDownloadOutlined sx={{ fontSize: 14 }} />, bg: `${tokens.accent.teal}18` },
+  yolo: { color: "#e040fb", icon: <CenterFocusStrongOutlined sx={{ fontSize: 14 }} />, bg: "#e040fb18" },
+  scene_detection: { color: "#ff7043", icon: <MovieFilterOutlined sx={{ fontSize: 14 }} />, bg: "#ff704318" },
 };
+
+// Node templates available for adding to a pipeline
+const NODE_TEMPLATES: { type: string; label: string; description: string; data: Record<string, unknown> }[] = [
+  { type: "source", label: "S3 Source", description: "Watch an S3 bucket for new assets", data: { bucket: "", prefix: "/" } },
+  { type: "filter", label: "Format Filter", description: "Filter by MIME type", data: { types: ["video/*", "image/*"] } },
+  { type: "process", label: "Hash", description: "SHA-256 + perceptual hash", data: { algorithms: ["sha256", "phash"] } },
+  { type: "process", label: "Fingerprint", description: "Generate audio/video fingerprint", data: { engine: "chromaprint" } },
+  { type: "process", label: "Resize Proxy", description: "Generate proxy resolutions", data: { resolutions: ["720p", "360p"] } },
+  { type: "yolo", label: "YOLO Detection", description: "Run YOLOv8 object detection on frames", data: { model: "yolov8-dam", confidence: 0.72, classes: ["person", "car", "animal"] } },
+  { type: "scene_detection", label: "Scene Detection", description: "Detect scene boundaries and transitions", data: { model: "scenedetect-v3", threshold: 0.4, minSceneLength: 2.0 } },
+  { type: "process", label: "Face Recognition", description: "InspireFace identity matching", data: { threshold: 0.85 } },
+  { type: "process", label: "Sentiment Score", description: "NLP scene sentiment analysis", data: { model: "genai-sentiment-v2" } },
+  { type: "output", label: "S3 Delivery", description: "Store outputs in delivery bucket", data: { bucket: "" } },
+  { type: "output", label: "Tag Writer", description: "Write tags back to asset metadata", data: { overwrite: false } },
+  { type: "output", label: "CDN Push", description: "Push to broadcast CDN", data: { cdn: "" } },
+];
 
 function PipelineNodeComponent({ data, selected }: NodeProps) {
   const cfg = nodeTypeConfig[data.nodeType as string] ?? nodeTypeConfig.process;
@@ -321,16 +343,36 @@ function NodeDetailSidebar({
 }
 
 // ── Canvas ────────────────────────────────────────────────────────────────
-function PipelineCanvas({ pipeline, onNodeSelect }: { pipeline: Pipeline | null; onNodeSelect: (id: string | null) => void }) {
+function PipelineCanvas({ pipeline, onNodeSelect, externalNodes }: { pipeline: Pipeline | null; onNodeSelect: (id: string | null) => void; externalNodes?: RFNode[] }) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const reconnectingEdgeRef = useRef<RFEdge | null>(null);
 
+  // Only reset graph when the pipeline itself changes
   useEffect(() => {
     if (!pipeline) { setNodes([]); setEdges([]); return; }
-    setNodes(toRFNodes(pipeline.definition.nodes, selectedId));
+    setNodes(toRFNodes(pipeline.definition.nodes, null));
     setEdges(toRFEdges(pipeline.definition.edges));
-  }, [pipeline, selectedId]);
+    setSelectedId(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pipeline?.id]);
+
+  // Append externally-added nodes
+  useEffect(() => {
+    if (externalNodes && externalNodes.length > 0) {
+      setNodes(prev => {
+        const existingIds = new Set(prev.map(n => n.id));
+        const newOnes = externalNodes.filter(n => !existingIds.has(n.id));
+        return newOnes.length > 0 ? [...prev, ...newOnes] : prev;
+      });
+    }
+  }, [externalNodes, setNodes]);
+
+  // Update selection state without resetting positions
+  useEffect(() => {
+    setNodes(nds => nds.map(n => ({ ...n, selected: n.id === selectedId })));
+  }, [selectedId, setNodes]);
 
   const onNodeClick = useCallback((_: React.MouseEvent, node: RFNode) => {
     setSelectedId(node.id);
@@ -341,6 +383,39 @@ function PipelineCanvas({ pipeline, onNodeSelect }: { pipeline: Pipeline | null;
     setSelectedId(null);
     onNodeSelect(null);
   }, [onNodeSelect]);
+
+  // New connection: snap source→target
+  const onConnect = useCallback((conn: Connection) => {
+    if (!conn.source || !conn.target) return;
+    const newEdge: RFEdge = {
+      id: `e_${conn.source}_${conn.target}_${Date.now()}`,
+      source: conn.source,
+      target: conn.target,
+      sourceHandle: conn.sourceHandle ?? undefined,
+      targetHandle: conn.targetHandle ?? undefined,
+      style: { stroke: tokens.border.strong, strokeWidth: 1.5 },
+      markerEnd: { type: MarkerType.ArrowClosed, color: tokens.border.strong, width: 16, height: 16 },
+    };
+    setEdges(eds => addEdge(newEdge, eds));
+  }, [setEdges]);
+
+  // Reconnect (drag existing edge to a new target)
+  const onReconnectStart = useCallback((_: React.MouseEvent, edge: RFEdge) => {
+    reconnectingEdgeRef.current = edge;
+  }, []);
+
+  const onReconnect = useCallback((oldEdge: RFEdge, newConn: Connection) => {
+    reconnectingEdgeRef.current = null;
+    setEdges(eds => reconnectEdge(oldEdge, newConn, eds));
+  }, [setEdges]);
+
+  const onReconnectEnd = useCallback((_: MouseEvent | TouchEvent, edge: RFEdge) => {
+    // If the reconnect didn't complete (dropped in empty space) → delete the edge
+    if (reconnectingEdgeRef.current) {
+      setEdges(eds => eds.filter(e => e.id !== edge.id));
+      reconnectingEdgeRef.current = null;
+    }
+  }, [setEdges]);
 
   if (!pipeline) {
     return (
@@ -359,9 +434,16 @@ function PipelineCanvas({ pipeline, onNodeSelect }: { pipeline: Pipeline | null;
         onEdgesChange={onEdgesChange}
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
+        onConnect={onConnect}
+        onReconnectStart={onReconnectStart}
+        onReconnect={onReconnect}
+        onReconnectEnd={onReconnectEnd}
         nodeTypes={nodeTypes}
         fitView
         fitViewOptions={{ padding: 0.3 }}
+        snapToGrid
+        snapGrid={[15, 15]}
+        connectionMode={"loose" as any}
         style={{ background: tokens.bg.base }}
       >
         <Background color={tokens.border.subtle} gap={20} />
@@ -385,6 +467,8 @@ export default function PipelineEditor() {
   const [logOpen, setLogOpen] = useState(true);
   const [logHeight, setLogHeight] = useState(160);
   const [nodeDetailOpen, setNodeDetailOpen] = useState(false);
+  const [addNodeAnchor, setAddNodeAnchor] = useState<null | HTMLElement>(null);
+  const [addedNodes, setAddedNodes] = useState<RFNode[]>([]);
   const isDraggingLog = useRef(false);
   const logRef = useRef<HTMLDivElement>(null);
 
@@ -400,6 +484,24 @@ export default function PipelineEditor() {
     setSelectedNodeId(id);
     if (id !== null) setNodeDetailOpen(true);
   }, []);
+
+  const handleAddNode = useCallback((template: typeof NODE_TEMPLATES[0]) => {
+    if (!selected) return;
+    const id = `pn_${Date.now()}`;
+    const newNode: RFNode = {
+      id,
+      type: "pipelineNode",
+      position: { x: 300 + Math.random() * 100, y: 100 + Math.random() * 100 },
+      data: { label: template.label, description: template.description, nodeType: template.type, ...template.data },
+    };
+    // Also add to pipeline definition so NodeDetailSidebar can find it
+    selected.definition.nodes.push({
+      id, type: template.type, label: template.label, description: template.description,
+      position: newNode.position, data: template.data,
+    });
+    setAddedNodes(prev => [...prev, newNode]);
+    setAddNodeAnchor(null);
+  }, [selected]);
 
   // Draggable log panel resize
   const handleLogDividerMouseDown = useCallback((e: React.MouseEvent) => {
@@ -467,6 +569,44 @@ export default function PipelineEditor() {
           {selected && (
             <Box sx={{ px: 2, py: 1.25, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", alignItems: "center", gap: 1 }}>
               <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.875rem", flex: 1 }}>{selected.name}</Typography>
+              {/* Add Node button */}
+              <Tooltip title="Add a node to the pipeline">
+                <Chip
+                  icon={<AddOutlined sx={{ fontSize: 14 }} />}
+                  label="Add Node"
+                  size="small"
+                  onClick={(e) => setAddNodeAnchor(e.currentTarget)}
+                  sx={{
+                    bgcolor: tokens.bg.overlay,
+                    border: `1px solid ${tokens.border.default}`,
+                    color: tokens.text.secondary,
+                    cursor: "pointer",
+                    fontWeight: 500,
+                    "&:hover": { bgcolor: tokens.bg.hover, borderColor: tokens.primary.main, color: tokens.primary.light },
+                  }}
+                />
+              </Tooltip>
+              <Menu
+                anchorEl={addNodeAnchor}
+                open={Boolean(addNodeAnchor)}
+                onClose={() => setAddNodeAnchor(null)}
+                slotProps={{ paper: { sx: { maxHeight: 360, minWidth: 240, bgcolor: tokens.bg.panel, border: `1px solid ${tokens.border.default}` } } }}
+              >
+                {NODE_TEMPLATES.map((t, i) => {
+                  const cfg = nodeTypeConfig[t.type] ?? nodeTypeConfig.process;
+                  return (
+                    <MenuItem key={i} onClick={() => handleAddNode(t)} sx={{ gap: 1.25, py: 0.75 }}>
+                      <Box sx={{ width: 22, height: 22, borderRadius: tokens.radius.sm, bgcolor: cfg.bg, display: "flex", alignItems: "center", justifyContent: "center", color: cfg.color, flexShrink: 0 }}>
+                        {cfg.icon}
+                      </Box>
+                      <Box>
+                        <Typography variant="body2" sx={{ fontSize: "0.8rem", fontWeight: 600 }}>{t.label}</Typography>
+                        <Typography variant="caption" sx={{ fontSize: "0.65rem", color: tokens.text.tertiary }}>{t.description.slice(0, 45)}</Typography>
+                      </Box>
+                    </MenuItem>
+                  );
+                })}
+              </Menu>
               {/* Show Log button — only visible when log is collapsed */}
               {!logOpen && (
                 <Tooltip title="Show log">
@@ -510,7 +650,7 @@ export default function PipelineEditor() {
           {/* Canvas + log panel */}
           <Box sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
             <Box sx={{ flex: 1, overflow: "hidden" }}>
-              <PipelineCanvas pipeline={selected} onNodeSelect={handleNodeSelect} />
+              <PipelineCanvas pipeline={selected} onNodeSelect={handleNodeSelect} externalNodes={addedNodes} />
             </Box>
 
             {/* Log panel drag handle */}

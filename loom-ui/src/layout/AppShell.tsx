@@ -13,6 +13,10 @@ import CollectionsView from "../features/collections/CollectionsView";
 import TasksView from "../features/tasks/TasksView";
 import LibraryView from "../features/library/LibraryView";
 import FaceDetectionManagement from "../features/faceDetection/FaceDetectionManagement";
+import ProfileView from "../features/profile/ProfileView";
+import MaintenanceView from "../features/maintenance/MaintenanceView";
+import TagsView from "../features/tags/TagsView";
+import CortexView from "../features/cortex/CortexView";
 
 export default function AppShell() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -39,8 +43,12 @@ export default function AppShell() {
           <Route path="/tasks" element={<TasksView />} />
           <Route path="/pipelines" element={<PipelineEditor />} />
           <Route path="/faces" element={<FaceDetectionManagement />} />
+          <Route path="/tags" element={<TagsView />} />
+          <Route path="/cortex" element={<CortexView />} />
           <Route path="/monitoring" element={<MonitoringArea />} />
           <Route path="/admin/*" element={<AdminArea />} />
+          <Route path="/profile" element={<ProfileView />} />
+          <Route path="/maintenance" element={<MaintenanceView />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Box>

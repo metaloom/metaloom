@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import {
   Box, Typography, Tab, Tabs, Table, TableBody, TableCell, TableContainer,
-  TableHead, TableRow, Paper, Chip, Avatar, IconButton, Tooltip, Drawer,
+  TableHead, TableRow, Paper, Chip, Avatar, IconButton, Tooltip,
   TextField, Button, Select, MenuItem, FormControl, InputLabel, Stack,
   Divider, Switch, Dialog, DialogTitle, DialogContent, DialogActions,
   Checkbox, FormControlLabel, FormGroup, Collapse,
@@ -20,8 +20,8 @@ import { mockAdminService } from "../../mock/services";
 // ── Users Table ───────────────────────────────────────────────────────────
 function UsersAdmin() {
   const [users, setUsers] = useState<User[]>([]);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [selected, setSelected] = useState<User | null>(null);
+  const [editUser, setEditUser] = useState<User | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", email: "", role: "" as string });
 
   useEffect(() => { mockAdminService.getUsers().then(setUsers); }, []);
 
@@ -30,6 +30,22 @@ function UsersAdmin() {
     editor: tokens.primary.main,
     viewer: tokens.accent.blue,
     operator: tokens.accent.teal,
+  };
+
+  const handleToggleActive = (e: React.MouseEvent, userId: string) => {
+    e.stopPropagation();
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, active: !u.active } : u));
+  };
+
+  const openEdit = (user: User) => {
+    setEditUser(user);
+    setEditForm({ name: user.name, email: user.email, role: user.role });
+  };
+
+  const handleSaveEdit = () => {
+    if (!editUser) return;
+    setUsers(prev => prev.map(u => u.id === editUser.id ? { ...u, name: editForm.name, email: editForm.email, role: editForm.role as User["role"] } : u));
+    setEditUser(null);
   };
 
   return (
@@ -52,19 +68,19 @@ function UsersAdmin() {
               <TableCell>Groups</TableCell>
               <TableCell>Status</TableCell>
               <TableCell>Last Active</TableCell>
-              <TableCell align="right" />
+              <TableCell align="right">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {users.map(u => (
-              <TableRow key={u.id} hover sx={{ cursor: "pointer" }} onClick={() => { setSelected(u); setDrawerOpen(true); }}>
+              <TableRow key={u.id} hover sx={{ cursor: "pointer" }} onClick={() => openEdit(u)}>
                 <TableCell>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                    <Avatar sx={{ width: 28, height: 28, fontSize: "0.7rem", bgcolor: tokens.primary.dark }}>
+                    <Avatar sx={{ width: 28, height: 28, fontSize: "0.7rem", bgcolor: u.active ? tokens.primary.dark : tokens.text.tertiary, opacity: u.active ? 1 : 0.5 }}>
                       {u.name.split(" ").map(n => n[0]).join("")}
                     </Avatar>
                     <Box>
-                      <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.82rem" }}>{u.name}</Typography>
+                      <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.82rem", opacity: u.active ? 1 : 0.5 }}>{u.name}</Typography>
                       <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>{u.email}</Typography>
                     </Box>
                   </Box>
@@ -76,12 +92,14 @@ function UsersAdmin() {
                   <Typography variant="caption" color="text.secondary">{u.groupIds.length} groups</Typography>
                 </TableCell>
                 <TableCell>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
-                    <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: u.active ? tokens.accent.green : tokens.text.tertiary }} />
-                    <Typography variant="caption" sx={{ color: u.active ? tokens.accent.green : tokens.text.tertiary, fontSize: "0.72rem" }}>
-                      {u.active ? "active" : "inactive"}
-                    </Typography>
-                  </Box>
+                  <Tooltip title={u.active ? "Disable user" : "Enable user"}>
+                    <Switch
+                      size="small"
+                      checked={u.active}
+                      onClick={(e) => handleToggleActive(e, u.id)}
+                      sx={{ "& .MuiSwitch-switchBase.Mui-checked": { color: tokens.accent.green }, "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": { bgcolor: tokens.accent.green } }}
+                    />
+                  </Tooltip>
                 </TableCell>
                 <TableCell>
                   <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.72rem" }}>
@@ -89,7 +107,7 @@ function UsersAdmin() {
                   </Typography>
                 </TableCell>
                 <TableCell align="right">
-                  <IconButton size="small" onClick={e => { e.stopPropagation(); }}>
+                  <IconButton size="small" onClick={e => { e.stopPropagation(); openEdit(u); }}>
                     <EditOutlined sx={{ fontSize: 15 }} />
                   </IconButton>
                 </TableCell>
@@ -99,41 +117,61 @@ function UsersAdmin() {
         </Table>
       </TableContainer>
 
-      <Drawer anchor="right" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
-        <Box sx={{ width: 340, p: 2.5, bgcolor: tokens.bg.surface, height: "100%" }}>
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
-            <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>User Detail</Typography>
-            <IconButton size="small" onClick={() => setDrawerOpen(false)}><CloseOutlined sx={{ fontSize: 18 }} /></IconButton>
-          </Box>
-          {selected && (
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                <Avatar sx={{ width: 44, height: 44, bgcolor: tokens.primary.dark }}>{selected.name.split(" ").map(n => n[0]).join("")}</Avatar>
-                <Box>
-                  <Typography variant="subtitle1" fontWeight={700}>{selected.name}</Typography>
-                  <Typography variant="caption" color="text.secondary">{selected.email}</Typography>
+      {/* Edit User Dialog */}
+      <Dialog open={Boolean(editUser)} onClose={() => setEditUser(null)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", pb: 1 }}>
+          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Edit User</Typography>
+          <IconButton size="small" onClick={() => setEditUser(null)}><CloseOutlined sx={{ fontSize: 18 }} /></IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
+          {editUser && (
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5, pt: 1 }}>
+              {/* Avatar + identity */}
+              <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                <Avatar sx={{ width: 56, height: 56, bgcolor: tokens.primary.dark, fontSize: "1.15rem" }}>
+                  {editUser.name.split(" ").map(n => n[0]).join("")}
+                </Avatar>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="body2" sx={{ color: tokens.text.tertiary, fontSize: "0.75rem" }}>@{editUser.username}</Typography>
+                  <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>
+                    Member since {new Date(editUser.createdAt).toLocaleDateString()} · Last seen {new Date(editUser.lastSeenAt).toLocaleString()}
+                  </Typography>
                 </Box>
               </Box>
+
+              <TextField label="Full Name" size="small" fullWidth value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
+              <TextField label="Email" size="small" fullWidth type="email" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} />
+              <FormControl size="small" fullWidth>
+                <InputLabel>Role</InputLabel>
+                <Select label="Role" value={editForm.role} onChange={e => setEditForm(f => ({ ...f, role: e.target.value }))}>
+                  <MenuItem value="admin">Admin</MenuItem>
+                  <MenuItem value="editor">Editor</MenuItem>
+                  <MenuItem value="viewer">Viewer</MenuItem>
+                  <MenuItem value="operator">Operator</MenuItem>
+                </Select>
+              </FormControl>
+
               <Divider />
-              {[
-                ["Username", `@${selected.username}`],
-                ["Role", selected.role],
-                ["Member since", new Date(selected.createdAt).toLocaleDateString()],
-                ["Last seen", new Date(selected.lastSeenAt).toLocaleString()],
-              ].map(([k, v]) => (
-                <Box key={k} sx={{ display: "flex", justifyContent: "space-between" }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.82rem" }}>{k}</Typography>
-                  <Typography variant="body2" fontWeight={500} sx={{ fontSize: "0.82rem" }}>{v}</Typography>
-                </Box>
-              ))}
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 1 }}>
-                <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.82rem" }}>Active</Typography>
-                <Switch size="small" checked={selected.active} />
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <Typography variant="body2" color="text.secondary">Account enabled</Typography>
+                <Switch
+                  checked={editUser.active}
+                  onChange={() => {
+                    const toggled = { ...editUser, active: !editUser.active };
+                    setEditUser(toggled);
+                    setUsers(prev => prev.map(u => u.id === toggled.id ? toggled : u));
+                  }}
+                  sx={{ "& .MuiSwitch-switchBase.Mui-checked": { color: tokens.accent.green }, "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": { bgcolor: tokens.accent.green } }}
+                />
               </Box>
             </Box>
           )}
-        </Box>
-      </Drawer>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 1.5 }}>
+          <Button onClick={() => setEditUser(null)} size="small">Cancel</Button>
+          <Button variant="contained" size="small" onClick={handleSaveEdit} sx={{ textTransform: "none", fontWeight: 600 }}>Save</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

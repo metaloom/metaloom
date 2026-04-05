@@ -9,6 +9,7 @@ import { tokens } from "../../theme";
 import { Collection, Asset } from "../../types";
 import { mockCollectionService, mockAssetService } from "../../mock/services";
 import { useProject } from "../../context/ProjectContext";
+import { useToast } from "../../context/ToastContext";
 import { ASSETS } from "../../mock/data";
 
 const PALETTE = ["#57cbcc", "#2ea8ff", "#34d58a", "#f5a623", "#f0546e", "#a855f7", "#ec4899", "#00c9b1"];
@@ -143,6 +144,7 @@ function CollectionDetail({ collection, onBack }: { collection: Collection; onBa
 
 export default function CollectionsView() {
   const { activeProject } = useProject();
+  const { showToast } = useToast();
   const [collections, setCollections] = useState<Collection[]>([]);
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -171,6 +173,7 @@ export default function CollectionsView() {
     setCollections(prev => prev.filter(c => c.id !== deleteTarget.id));
     if (selectedCollection?.id === deleteTarget.id) setSelectedCollection(null);
     setDeleteTarget(null);
+    showToast("Collection deleted", "success");
   };
 
   if (selectedCollection) {

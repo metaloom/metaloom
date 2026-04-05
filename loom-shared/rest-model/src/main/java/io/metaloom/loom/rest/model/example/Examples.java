@@ -13,6 +13,7 @@ import io.metaloom.loom.rest.model.example.impl.ExampleImpl;
 import io.metaloom.loom.rest.model.group.GroupExamples;
 import io.metaloom.loom.rest.model.library.LibraryExamples;
 import io.metaloom.loom.rest.model.pipeline.PipelineExamples;
+import io.metaloom.loom.rest.model.processor.ProcessorExamples;
 import io.metaloom.loom.rest.model.project.ProjectExamples;
 import io.metaloom.loom.rest.model.reaction.ReactionExamples;
 import io.metaloom.loom.rest.model.role.RoleExamples;
@@ -43,6 +44,7 @@ public interface Examples extends
 	ProjectExamples,
 	LibraryExamples,
 	PipelineExamples,
+	ProcessorExamples,
 	WebhookExamples {
 
 	default Example deleteResponseExample() {

@@ -9,6 +9,7 @@ import { tokens } from "../../theme";
 import { Library, Asset } from "../../types";
 import { mockLibraryService, mockAssetService } from "../../mock/services";
 import { useProject } from "../../context/ProjectContext";
+import { useToast } from "../../context/ToastContext";
 
 function formatBytes(bytes: number): string {
   if (bytes >= 1e12) return `${(bytes / 1e12).toFixed(1)} TB`;
@@ -19,6 +20,7 @@ function formatBytes(bytes: number): string {
 
 export default function LibraryView() {
   const { activeProject } = useProject();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const [libraries, setLibraries] = useState<Library[]>([]);
   const [selectedLib, setSelectedLib] = useState<Library | null>(null);
@@ -58,6 +60,7 @@ export default function LibraryView() {
     setLibraries(updated);
     if (selectedLib?.id === deleteTarget.id) setSelectedLib(updated[0] ?? null);
     setDeleteTarget(null);
+    showToast("Library deleted", "success");
   };
 
   const videoCount = assets.filter(a => a.type === "video").length;
@@ -148,7 +151,7 @@ export default function LibraryView() {
                         border: `1px solid ${tokens.border.subtle}`,
                         borderRadius: tokens.radius.lg,
                         overflow: "hidden",
-                        "&:hover": { borderColor: tokens.border.strong, transform: "translateY(-1px)" },
+                        "&:hover": { borderColor: tokens.border.strong, boxShadow: "0 4px 20px rgba(0,0,0,0.35)" },
                         transition: "all 140ms ease",
                       }}
                     >

@@ -19,6 +19,7 @@ import io.metaloom.loom.rest.endpoint.impl.GraphQLEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.GroupEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.LibraryEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.PipelineEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.ProcessorEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.LoginEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.ProjectEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.RESTInfoEndpoint;
@@ -48,6 +49,7 @@ public class EndpointModule {
 		WebhookEndpoint webhookEndpoint,
 		LibraryEndpoint libraryEndpoint,
 		PipelineEndpoint pipelineEndpoint,
+		ProcessorEndpoint processorEndpoint,
 		ProjectEndpoint projectEndpoint,
 		LoginEndpoint loginEndpoint,
 		RESTInfoEndpoint restInfoEndpoint,
@@ -68,6 +70,7 @@ public class EndpointModule {
 			webhookEndpoint,
 			libraryEndpoint,
 			pipelineEndpoint,
+			processorEndpoint,
 			projectEndpoint,
 			loginEndpoint,
 			restInfoEndpoint,

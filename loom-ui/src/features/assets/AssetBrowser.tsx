@@ -308,19 +308,23 @@ export default function AssetBrowser({ embedded = false }: Props) {
             </ToggleButton>
           </ToggleButtonGroup>
 
-          {viewMode === "grid" && (
-            <ToggleButtonGroup value={cardSize} exclusive onChange={(_, v) => v && setCardSize(v as CardSize)} size="small">
-              <ToggleButton value="small" sx={{ border: `1px solid ${tokens.border.default}`, borderRadius: `${tokens.radius.sm} !important`, px: 0.75 }}>
-                <Tooltip title="Small — thumbnail only"><PhotoSizeSelectSmallOutlined sx={{ fontSize: 14 }} /></Tooltip>
-              </ToggleButton>
-              <ToggleButton value="medium" sx={{ border: `1px solid ${tokens.border.default}`, borderRadius: `${tokens.radius.sm} !important`, px: 0.75 }}>
-                <Tooltip title="Medium"><PhotoSizeSelectActualOutlined sx={{ fontSize: 14 }} /></Tooltip>
-              </ToggleButton>
-              <ToggleButton value="large" sx={{ border: `1px solid ${tokens.border.default}`, borderRadius: `${tokens.radius.sm} !important`, px: 0.75 }}>
-                <Tooltip title="Large — tags, size, duration"><PhotoSizeSelectLargeOutlined sx={{ fontSize: 14 }} /></Tooltip>
-              </ToggleButton>
-            </ToggleButtonGroup>
-          )}
+          <ToggleButtonGroup
+            value={cardSize}
+            exclusive
+            onChange={(_, v) => v && setCardSize(v as CardSize)}
+            size="small"
+            sx={{ visibility: viewMode === "grid" ? "visible" : "hidden" }}
+          >
+            <ToggleButton value="small" sx={{ border: `1px solid ${tokens.border.default}`, borderRadius: `${tokens.radius.sm} !important`, px: 0.75 }}>
+              <Tooltip title="Small — thumbnail only"><PhotoSizeSelectSmallOutlined sx={{ fontSize: 14 }} /></Tooltip>
+            </ToggleButton>
+            <ToggleButton value="medium" sx={{ border: `1px solid ${tokens.border.default}`, borderRadius: `${tokens.radius.sm} !important`, px: 0.75 }}>
+              <Tooltip title="Medium"><PhotoSizeSelectActualOutlined sx={{ fontSize: 14 }} /></Tooltip>
+            </ToggleButton>
+            <ToggleButton value="large" sx={{ border: `1px solid ${tokens.border.default}`, borderRadius: `${tokens.radius.sm} !important`, px: 0.75 }}>
+              <Tooltip title="Large — tags, size, duration"><PhotoSizeSelectLargeOutlined sx={{ fontSize: 14 }} /></Tooltip>
+            </ToggleButton>
+          </ToggleButtonGroup>
         </Box>
 
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
