@@ -1,4 +1,4 @@
-const { app, BrowserWindow, protocol, net } = require('electron')
+const { app, BrowserWindow, protocol, net, ipcMain } = require('electron')
 const path = require('node:path')
 const { pathToFileURL } = require('node:url')
 
@@ -26,6 +26,8 @@ function createWindow() {
         height: 900,
         backgroundColor: '#0d0e11',
         icon: path.join(UI_DIR, 'img', 'logo_picto.png'),
+        frame: false,
+        autoHideMenuBar: true,
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,
@@ -58,6 +60,18 @@ app.whenReady().then(() => {
     })
 
     createWindow()
+
+    // Window control IPC handlers
+    ipcMain.on('window-minimize', () => win?.minimize())
+    ipcMain.on('window-maximize', () => {
+        if (win?.isMaximized()) {
+            win.unmaximize()
+        } else {
+            win?.maximize()
+        }
+    })
+    ipcMain.on('window-close', () => win?.close())
+
     app.on('activate', () => {
         // macOS specific close process
         if (BrowserWindow.getAllWindows().length === 0) {
