@@ -6,6 +6,7 @@ import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -19,6 +20,8 @@ public class OptionUtils {
 	static final Logger log = LoggerFactory.getLogger(Option.class);
 	private static final Pattern SPLIT_PATTERN = Pattern.compile(",");
 	private static final String MASK = "********";
+
+	static Function<String, String> envLookup = System::getenv;
 
 	/**
 	 * Convert a string value to a type. Throws an runtime exception when the type is not supported or certain conversions fail.
@@ -83,7 +86,7 @@ public class OptionUtils {
 	static void overrideWithEnvViaMethod(Method method, Option target) {
 		EnvironmentVariable envInfo = method.getAnnotation(EnvironmentVariable.class);
 		String name = envInfo.name();
-		String value = System.getenv(name);
+		String value = envLookup.apply(name);
 		if (value == null) {
 			return;
 		}
@@ -107,7 +110,7 @@ public class OptionUtils {
 	static void overrideWitEnvViaFieldSet(Field field, Option target) {
 		EnvironmentVariable envInfo = field.getAnnotation(EnvironmentVariable.class);
 		String name = envInfo.name();
-		String value = System.getenv(name);
+		String value = envLookup.apply(name);
 		if (value == null) {
 			return;
 		}

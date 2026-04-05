@@ -10,12 +10,16 @@ public class ServerOptions implements Option {
 
 	public static final String DEFAULT_BIND_ADDRESS = "0.0.0.0";
 
+	@EnvironmentVariable(name = "LOOM_SERVER_GRPC_PORT", description = "Override the gRPC server port.")
 	private int grpcPort = DEFAULT_GRPC_PORT;
 
+	@EnvironmentVariable(name = "LOOM_SERVER_GRPC_BIND_ADDRESS", description = "Override the gRPC server bind address.")
 	private String bindAddress = DEFAULT_BIND_ADDRESS;
 
+	@EnvironmentVariable(name = "LOOM_SERVER_REST_PORT", description = "Override the REST server port.")
 	private int restPort = DEFAULT_REST_PORT;
 
+	@EnvironmentVariable(name = "LOOM_SERVER_MON_PORT", description = "Override the monitoring server port.")
 	private int monitoringPort = DEFAULT_MONITORING_PORT;
 
 	public int getGrpcPort() {
