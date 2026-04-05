@@ -1,11 +1,13 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box, Typography, Chip, IconButton, Menu, MenuItem, Divider, Tooltip, Paper,
+  TextField, InputAdornment, FormControl, Select, SelectChangeEvent, ToggleButtonGroup, ToggleButton,
 } from "@mui/material";
 import {
-  MemoryOutlined, StorageOutlined, GpsFixedOutlined,
+  MemoryOutlined, StorageOutlined,
   MoreVertOutlined, PauseOutlined, PlayArrowOutlined,
   StopOutlined, RestartAltOutlined, DnsOutlined,
+  SearchOutlined, FilterListOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 
@@ -33,13 +35,14 @@ const statusColor: Record<WorkerNode["status"], string> = {
   offline: tokens.text.tertiary,
   starting: tokens.accent.amber,
   terminating: tokens.accent.red,
-  paused: tokens.accent.blue,
+  paused: tokens.text.secondary,
 };
 
-const capColor: Record<string, string> = {
-  GPU: "#e040fb",
-  CPU: tokens.primary.main,
-  IO: tokens.accent.amber,
+// Muted, single-hue palette for rings — all based on primary teal with varying opacity
+const ringColor = {
+  gpu: tokens.primary.main,
+  cpu: tokens.primary.light,
+  io: tokens.text.secondary,
 };
 
 // ── Health Meter SVG — concentric ring arcs ───────────────────────────────
@@ -48,52 +51,35 @@ function HealthMeter({ cpu, gpu, io, size = 48 }: { cpu: number; gpu: number; io
   const cy = size / 2;
 
   const rings = [
-    { value: gpu, color: "#e040fb", label: "GPU", radius: size / 2 - 3 },
-    { value: cpu, color: tokens.primary.main, label: "CPU", radius: size / 2 - 8 },
-    { value: io, color: tokens.accent.amber, label: "IO", radius: size / 2 - 13 },
+    { value: gpu, color: ringColor.gpu, label: "GPU", radius: size / 2 - 3 },
+    { value: cpu, color: ringColor.cpu, label: "CPU", radius: size / 2 - 8 },
+    { value: io, color: ringColor.io, label: "IO", radius: size / 2 - 13 },
   ].filter(r => r.value > 0 || r.label === "CPU");
+
+  const avg = Math.round(rings.reduce((s, r) => s + r.value, 0) / rings.length);
 
   return (
     <Tooltip title={`CPU: ${cpu}% · GPU: ${gpu}% · IO: ${io}%`}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        {/* Background circle */}
         <circle cx={cx} cy={cy} r={size / 2 - 8} fill={tokens.bg.overlay} />
-        {/* Ring backgrounds */}
         {rings.map(r => (
-          <circle
-            key={`bg-${r.label}`}
-            cx={cx}
-            cy={cy}
-            r={r.radius}
-            fill="none"
-            stroke={`${r.color}22`}
-            strokeWidth={3.5}
-          />
+          <circle key={`bg-${r.label}`} cx={cx} cy={cy} r={r.radius} fill="none" stroke={`${r.color}18`} strokeWidth={3.5} />
         ))}
-        {/* Ring arcs */}
         {rings.map(r => {
           const circumference = 2 * Math.PI * r.radius;
           const offset = circumference - (r.value / 100) * circumference;
           return (
             <circle
-              key={r.label}
-              cx={cx}
-              cy={cy}
-              r={r.radius}
-              fill="none"
-              stroke={r.color}
-              strokeWidth={3.5}
-              strokeDasharray={circumference}
-              strokeDashoffset={offset}
-              strokeLinecap="round"
+              key={r.label} cx={cx} cy={cy} r={r.radius} fill="none"
+              stroke={r.color} strokeWidth={3.5} strokeDasharray={circumference}
+              strokeDashoffset={offset} strokeLinecap="round"
               transform={`rotate(-90 ${cx} ${cy})`}
               style={{ transition: "stroke-dashoffset 400ms ease" }}
             />
           );
         })}
-        {/* Center health score */}
         <text x={cx} y={cy + 1} textAnchor="middle" dominantBaseline="middle" fontSize={size * 0.22} fontWeight={700} fill={tokens.text.primary}>
-          {Math.round((cpu + gpu + io) / (gpu > 0 ? 3 : 2))}%
+          {avg}%
         </text>
       </svg>
     </Tooltip>
@@ -109,82 +95,44 @@ function WorkerCard({ worker, onChangeStatus }: { worker: WorkerNode; onChangeSt
     <Paper
       elevation={0}
       sx={{
-        display: "flex",
-        alignItems: "center",
-        gap: 2,
-        p: 2,
-        border: `1px solid ${tokens.border.subtle}`,
-        borderRadius: tokens.radius.lg,
-        bgcolor: tokens.bg.surface,
-        opacity: worker.status === "offline" ? 0.5 : 1,
+        display: "flex", alignItems: "center", gap: 2, p: 2,
+        border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.lg,
+        bgcolor: tokens.bg.surface, opacity: worker.status === "offline" ? 0.45 : 1,
         transition: "opacity 200ms ease",
       }}
     >
-      {/* Health meter */}
       <HealthMeter cpu={worker.stats.cpu} gpu={worker.stats.gpu} io={worker.stats.io} size={52} />
 
-      {/* Info */}
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
           <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.88rem" }}>{worker.name}</Typography>
-          <Chip
-            label={worker.status}
-            size="small"
-            sx={{
-              height: 18, fontSize: "0.64rem", fontWeight: 600,
-              bgcolor: `${sc}22`, color: sc,
-            }}
-          />
+          <Chip label={worker.status} size="small" sx={{ height: 18, fontSize: "0.64rem", fontWeight: 600, bgcolor: `${sc}18`, color: sc }} />
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 0.75 }}>
-          <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.72rem", fontFamily: "monospace" }}>
-            {worker.host}
-          </Typography>
-          <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>
-            Priority: {worker.priority}
-          </Typography>
+          <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.72rem", fontFamily: "monospace" }}>{worker.host}</Typography>
+          <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>P{worker.priority}</Typography>
         </Box>
-
-        {/* Stats bar */}
         <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-            <MemoryOutlined sx={{ fontSize: 12, color: tokens.primary.main }} />
-            <Typography variant="caption" sx={{ fontSize: "0.68rem", color: tokens.text.secondary }}>CPU {worker.stats.cpu}%</Typography>
-          </Box>
-          {worker.capabilities.includes("GPU") && (
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-              <GpsFixedOutlined sx={{ fontSize: 12, color: "#e040fb" }} />
-              <Typography variant="caption" sx={{ fontSize: "0.68rem", color: tokens.text.secondary }}>GPU {worker.stats.gpu}%</Typography>
+          {[
+            { label: "CPU", value: worker.stats.cpu, icon: <MemoryOutlined sx={{ fontSize: 12, color: tokens.text.tertiary }} /> },
+            ...(worker.capabilities.includes("GPU") ? [{ label: "GPU", value: worker.stats.gpu, icon: <MemoryOutlined sx={{ fontSize: 12, color: tokens.text.tertiary }} /> }] : []),
+            { label: "IO", value: worker.stats.io, icon: <StorageOutlined sx={{ fontSize: 12, color: tokens.text.tertiary }} /> },
+            { label: "MEM", value: worker.stats.memory, icon: <MemoryOutlined sx={{ fontSize: 12, color: tokens.text.tertiary }} /> },
+          ].map(s => (
+            <Box key={s.label} sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+              {s.icon}
+              <Typography variant="caption" sx={{ fontSize: "0.68rem", color: tokens.text.secondary }}>{s.label} {s.value}%</Typography>
             </Box>
-          )}
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-            <StorageOutlined sx={{ fontSize: 12, color: tokens.accent.amber }} />
-            <Typography variant="caption" sx={{ fontSize: "0.68rem", color: tokens.text.secondary }}>IO {worker.stats.io}%</Typography>
-          </Box>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-            <MemoryOutlined sx={{ fontSize: 12, color: tokens.accent.teal }} />
-            <Typography variant="caption" sx={{ fontSize: "0.68rem", color: tokens.text.secondary }}>MEM {worker.stats.memory}%</Typography>
-          </Box>
+          ))}
         </Box>
       </Box>
 
-      {/* Capabilities */}
       <Box sx={{ display: "flex", gap: 0.5, flexShrink: 0 }}>
         {worker.capabilities.map(cap => (
-          <Chip
-            key={cap}
-            label={cap}
-            size="small"
-            sx={{
-              height: 20, fontSize: "0.65rem", fontWeight: 700,
-              bgcolor: `${capColor[cap]}18`, color: capColor[cap],
-              borderRadius: tokens.radius.sm,
-            }}
-          />
+          <Chip key={cap} label={cap} size="small" sx={{ height: 20, fontSize: "0.65rem", fontWeight: 600, bgcolor: tokens.bg.overlay, color: tokens.text.secondary, borderRadius: tokens.radius.sm }} />
         ))}
       </Box>
 
-      {/* Burger menu */}
       <IconButton size="small" onClick={e => setMenuAnchor(e.currentTarget)} sx={{ flexShrink: 0 }}>
         <MoreVertOutlined sx={{ fontSize: 18 }} />
       </IconButton>
@@ -216,33 +164,117 @@ function WorkerCard({ worker, onChangeStatus }: { worker: WorkerNode; onChangeSt
 // ── Main Cortex View ──────────────────────────────────────────────────────
 export default function CortexView() {
   const [workers, setWorkers] = useState<WorkerNode[]>(WORKERS);
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<WorkerNode["status"] | "all">("all");
+  const [capFilter, setCapFilter] = useState<"all" | "GPU" | "CPU" | "IO">("all");
+  const [filtered, setFiltered] = useState<WorkerNode[]>(WORKERS);
+
+  useEffect(() => {
+    let res = workers;
+    if (statusFilter !== "all") res = res.filter(w => w.status === statusFilter);
+    if (capFilter !== "all") res = res.filter(w => w.capabilities.includes(capFilter as any));
+    if (query.trim()) {
+      const q = query.toLowerCase();
+      res = res.filter(w => w.name.toLowerCase().includes(q) || w.host.includes(q));
+    }
+    setFiltered(res);
+  }, [workers, query, statusFilter, capFilter]);
 
   const handleChangeStatus = (id: string, status: WorkerNode["status"]) => {
     setWorkers(prev => prev.map(w => w.id === id ? { ...w, status } : w));
   };
 
   const onlineCount = workers.filter(w => w.status === "online").length;
-  const totalCount = workers.length;
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: tokens.bg.base }}>
-      {/* Header */}
-      <Box sx={{ px: 2.5, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 0.25 }}>
-          <DnsOutlined sx={{ color: tokens.primary.main }} />
-          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Cortex Workers</Typography>
+      {/* Toolbar */}
+      <Box sx={{ px: 2.5, py: 1.5, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", flexDirection: "column", gap: 1.25 }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <Box>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.25 }}>
+              <DnsOutlined sx={{ fontSize: 18, color: tokens.primary.main }} />
+              <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Cortex Workers</Typography>
+            </Box>
+            <Typography variant="caption" color="text.secondary">{onlineCount} / {workers.length} online</Typography>
+          </Box>
         </Box>
-        <Typography variant="caption" color="text.secondary">
-          {onlineCount} / {totalCount} nodes online · Registered processor nodes
-        </Typography>
+
+        <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
+          <TextField
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Search workers, hosts…"
+            size="small"
+            sx={{ flex: 1, minWidth: 180 }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
+                </InputAdornment>
+              ),
+            }}
+          />
+
+          <FormControl size="small" sx={{ minWidth: 100 }}>
+            <Select
+              value={statusFilter}
+              onChange={(e: SelectChangeEvent) => setStatusFilter(e.target.value as WorkerNode["status"] | "all")}
+              displayEmpty
+              sx={{ fontSize: "0.78rem", bgcolor: tokens.bg.elevated }}
+            >
+              <MenuItem value="all">All Status</MenuItem>
+              <MenuItem value="online">Online</MenuItem>
+              <MenuItem value="paused">Paused</MenuItem>
+              <MenuItem value="starting">Starting</MenuItem>
+              <MenuItem value="offline">Offline</MenuItem>
+              <MenuItem value="terminating">Terminating</MenuItem>
+            </Select>
+          </FormControl>
+
+          <FormControl size="small" sx={{ minWidth: 90 }}>
+            <Select
+              value={capFilter}
+              onChange={(e: SelectChangeEvent) => setCapFilter(e.target.value as any)}
+              displayEmpty
+              sx={{ fontSize: "0.78rem", bgcolor: tokens.bg.elevated }}
+            >
+              <MenuItem value="all">All Caps</MenuItem>
+              <MenuItem value="GPU">GPU</MenuItem>
+              <MenuItem value="CPU">CPU</MenuItem>
+              <MenuItem value="IO">IO</MenuItem>
+            </Select>
+          </FormControl>
+        </Box>
+
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.72rem" }}>
+            {filtered.length} workers
+          </Typography>
+          {(statusFilter !== "all" || capFilter !== "all" || query) && (
+            <Chip
+              label="Clear filters"
+              size="small"
+              onDelete={() => { setStatusFilter("all"); setCapFilter("all"); setQuery(""); }}
+              sx={{ height: 18, fontSize: "0.65rem" }}
+            />
+          )}
+        </Box>
       </Box>
 
       {/* Worker list */}
       <Box sx={{ flex: 1, overflow: "auto", p: 2.5 }}>
         <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, maxWidth: 900 }}>
-          {workers.map(w => (
-            <WorkerCard key={w.id} worker={w} onChangeStatus={handleChangeStatus} />
-          ))}
+          {filtered.length === 0 ? (
+            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 200, gap: 1 }}>
+              <DnsOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
+              <Typography variant="body2" color="text.secondary">No workers match your filters</Typography>
+            </Box>
+          ) : (
+            filtered.map(w => (
+              <WorkerCard key={w.id} worker={w} onChangeStatus={handleChangeStatus} />
+            ))
+          )}
         </Box>
       </Box>
     </Box>

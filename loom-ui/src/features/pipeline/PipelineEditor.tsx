@@ -37,19 +37,19 @@ const nodeTypeConfig: Record<string, { color: string; icon: React.ReactNode; bg:
 };
 
 // Node templates available for adding to a pipeline
-const NODE_TEMPLATES: { type: string; label: string; description: string; data: Record<string, unknown> }[] = [
-  { type: "source", label: "S3 Source", description: "Watch an S3 bucket for new assets", data: { bucket: "", prefix: "/" } },
-  { type: "filter", label: "Format Filter", description: "Filter by MIME type", data: { types: ["video/*", "image/*"] } },
-  { type: "process", label: "Hash", description: "SHA-256 + perceptual hash", data: { algorithms: ["sha256", "phash"] } },
-  { type: "process", label: "Fingerprint", description: "Generate audio/video fingerprint", data: { engine: "chromaprint" } },
-  { type: "process", label: "Resize Proxy", description: "Generate proxy resolutions", data: { resolutions: ["720p", "360p"] } },
-  { type: "yolo", label: "YOLO Detection", description: "Run YOLOv8 object detection on frames", data: { model: "yolov8-dam", confidence: 0.72, classes: ["person", "car", "animal"] } },
-  { type: "scene_detection", label: "Scene Detection", description: "Detect scene boundaries and transitions", data: { model: "scenedetect-v3", threshold: 0.4, minSceneLength: 2.0 } },
-  { type: "process", label: "Face Recognition", description: "InspireFace identity matching", data: { threshold: 0.85 } },
-  { type: "process", label: "Sentiment Score", description: "NLP scene sentiment analysis", data: { model: "genai-sentiment-v2" } },
-  { type: "output", label: "S3 Delivery", description: "Store outputs in delivery bucket", data: { bucket: "" } },
-  { type: "output", label: "Tag Writer", description: "Write tags back to asset metadata", data: { overwrite: false } },
-  { type: "output", label: "CDN Push", description: "Push to broadcast CDN", data: { cdn: "" } },
+const NODE_TEMPLATES: { type: string; label: string; description: string; inputLabel?: string; outputLabel?: string; data: Record<string, unknown> }[] = [
+  { type: "source", label: "S3 Source", description: "Watch an S3 bucket for new assets", inputLabel: "Trigger", outputLabel: "Asset", data: { bucket: "", prefix: "/" } },
+  { type: "filter", label: "Format Filter", description: "Filter by MIME type", inputLabel: "Asset", outputLabel: "Filtered Asset", data: { types: ["video/*", "image/*"] } },
+  { type: "process", label: "Hash", description: "SHA-256 + perceptual hash", inputLabel: "Asset", outputLabel: "Hash", data: { algorithms: ["sha256", "phash"] } },
+  { type: "process", label: "Fingerprint", description: "Generate audio/video fingerprint", inputLabel: "Asset", outputLabel: "Fingerprint", data: { engine: "chromaprint" } },
+  { type: "process", label: "Resize Proxy", description: "Generate proxy resolutions", inputLabel: "Asset", outputLabel: "Proxy", data: { resolutions: ["720p", "360p"] } },
+  { type: "yolo", label: "YOLO Detection", description: "Run YOLOv8 object detection on frames", inputLabel: "Frames", outputLabel: "Detections", data: { model: "yolov8-dam", confidence: 0.72, classes: ["person", "car", "animal"] } },
+  { type: "scene_detection", label: "Scene Detection", description: "Detect scene boundaries and transitions", inputLabel: "Asset", outputLabel: "Scenes", data: { model: "scenedetect-v3", threshold: 0.4, minSceneLength: 2.0 } },
+  { type: "process", label: "Face Recognition", description: "InspireFace identity matching", inputLabel: "Frames", outputLabel: "Identities", data: { threshold: 0.85 } },
+  { type: "process", label: "Sentiment Score", description: "NLP scene sentiment analysis", inputLabel: "Transcription Text", outputLabel: "Sentiment", data: { model: "genai-sentiment-v2" } },
+  { type: "output", label: "S3 Delivery", description: "Store outputs in delivery bucket", inputLabel: "Asset", outputLabel: "Stored", data: { bucket: "" } },
+  { type: "output", label: "Tag Writer", description: "Write tags back to asset metadata", inputLabel: "Tags", outputLabel: "Updated Asset", data: { overwrite: false } },
+  { type: "output", label: "CDN Push", description: "Push to broadcast CDN", inputLabel: "Asset", outputLabel: "Published", data: { cdn: "" } },
 ];
 
 function PipelineNodeComponent({ data, selected }: NodeProps) {
@@ -82,8 +82,12 @@ function PipelineNodeComponent({ data, selected }: NodeProps) {
           </Typography>
         </Box>
       </Box>
-      <Handle type="target" position={Position.Left} style={{ background: cfg.color, border: `2px solid ${tokens.bg.elevated}`, width: 10, height: 10 }} />
-      <Handle type="source" position={Position.Right} style={{ background: cfg.color, border: `2px solid ${tokens.bg.elevated}`, width: 10, height: 10 }} />
+      <Tooltip title={data.inputLabel as string ?? "Input"} placement="left" arrow>
+        <Handle type="target" position={Position.Left} style={{ background: cfg.color, border: `2px solid ${tokens.bg.elevated}`, width: 10, height: 10 }} />
+      </Tooltip>
+      <Tooltip title={data.outputLabel as string ?? "Output"} placement="right" arrow>
+        <Handle type="source" position={Position.Right} style={{ background: cfg.color, border: `2px solid ${tokens.bg.elevated}`, width: 10, height: 10 }} />
+      </Tooltip>
     </Box>
   );
 }
@@ -91,19 +95,34 @@ function PipelineNodeComponent({ data, selected }: NodeProps) {
 const nodeTypes = { pipelineNode: PipelineNodeComponent };
 
 // ── Convert pipeline nodes to React Flow format ───────────────────────────
+// Default connector labels for node types loaded from pipeline definitions
+const defaultConnectorLabels: Record<string, { input: string; output: string }> = {
+  source: { input: "Trigger", output: "Asset" },
+  filter: { input: "Asset", output: "Filtered Asset" },
+  process: { input: "Asset", output: "Processed" },
+  output: { input: "Asset", output: "Stored" },
+  yolo: { input: "Frames", output: "Detections" },
+  scene_detection: { input: "Asset", output: "Scenes" },
+};
+
 function toRFNodes(pnodes: PipelineNode[], selectedId: string | null): RFNode[] {
-  return pnodes.map(n => ({
-    id: n.id,
-    type: "pipelineNode",
-    position: n.position,
-    selected: n.id === selectedId,
-    data: {
-      label: n.label,
-      description: n.description,
-      nodeType: n.type,
-      ...n.data,
-    },
-  }));
+  return pnodes.map(n => {
+    const labels = defaultConnectorLabels[n.type] ?? { input: "Input", output: "Output" };
+    return {
+      id: n.id,
+      type: "pipelineNode",
+      position: n.position,
+      selected: n.id === selectedId,
+      data: {
+        label: n.label,
+        description: n.description,
+        nodeType: n.type,
+        inputLabel: labels.input,
+        outputLabel: labels.output,
+        ...n.data,
+      },
+    };
+  });
 }
 
 function toRFEdges(edges: Pipeline["definition"]["edges"]): RFEdge[] {
@@ -426,7 +445,26 @@ function PipelineCanvas({ pipeline, onNodeSelect, externalNodes }: { pipeline: P
   }
 
   return (
-    <Box sx={{ flex: 1, height: "100%" }}>
+    <Box sx={{
+      flex: 1, height: "100%",
+      "& .react-flow__controls": {
+        background: tokens.bg.elevated,
+        border: `1px solid ${tokens.border.subtle}`,
+        borderRadius: tokens.radius.md,
+        boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
+      },
+      "& .react-flow__controls-button": {
+        background: "transparent",
+        border: "none",
+        borderBottom: `1px solid ${tokens.border.subtle}`,
+        fill: tokens.text.secondary,
+        color: tokens.text.secondary,
+        width: 28,
+        height: 28,
+        "&:hover": { background: tokens.bg.overlay, fill: tokens.text.primary },
+        "&:last-child": { borderBottom: "none" },
+      },
+    }}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -447,7 +485,7 @@ function PipelineCanvas({ pipeline, onNodeSelect, externalNodes }: { pipeline: P
         style={{ background: tokens.bg.base }}
       >
         <Background color={tokens.border.subtle} gap={20} />
-        <Controls style={{ background: tokens.bg.elevated, border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md }} />
+        <Controls />
         <MiniMap
           style={{ background: tokens.bg.surface, border: `1px solid ${tokens.border.subtle}` }}
           nodeColor={() => tokens.border.strong}
@@ -492,7 +530,7 @@ export default function PipelineEditor() {
       id,
       type: "pipelineNode",
       position: { x: 300 + Math.random() * 100, y: 100 + Math.random() * 100 },
-      data: { label: template.label, description: template.description, nodeType: template.type, ...template.data },
+      data: { label: template.label, description: template.description, nodeType: template.type, inputLabel: template.inputLabel ?? "Input", outputLabel: template.outputLabel ?? "Output", ...template.data },
     };
     // Also add to pipeline definition so NodeDetailSidebar can find it
     selected.definition.nodes.push({

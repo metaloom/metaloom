@@ -28,16 +28,19 @@ interface NavItem {
   children?: NavItem[];
 }
 
-const NAV_ITEMS: NavItem[] = [
+const USER_NAV_ITEMS: NavItem[] = [
   { label: "Chat", path: "/", icon: <ChatBubbleOutline fontSize="small" /> },
   { label: "Library", path: "/library", icon: <LibraryBooksOutlined fontSize="small" /> },
   { label: "Assets", path: "/assets", icon: <PhotoLibraryOutlined fontSize="small" /> },
   { label: "Collections", path: "/collections", icon: <CollectionsOutlined fontSize="small" /> },
   { label: "Tasks", path: "/tasks", icon: <TaskAltOutlined fontSize="small" />, badge: 3 },
-  { label: "Pipelines", path: "/pipelines", icon: <AccountTreeOutlined fontSize="small" /> },
-  { label: "Cortex", path: "/cortex", icon: <DnsOutlined fontSize="small" /> },
   { label: "Faces", path: "/faces", icon: <FaceOutlined fontSize="small" /> },
   { label: "Tags", path: "/tags", icon: <LocalOfferOutlined fontSize="small" /> },
+];
+
+const ADMIN_NAV_ITEMS: NavItem[] = [
+  { label: "Pipelines", path: "/pipelines", icon: <AccountTreeOutlined fontSize="small" /> },
+  { label: "Cortex", path: "/cortex", icon: <DnsOutlined fontSize="small" /> },
   { label: "Monitoring", path: "/monitoring", icon: <BarChartOutlined fontSize="small" /> },
   {
     label: "Admin", path: "/admin", icon: <AdminPanelSettingsOutlined fontSize="small" />,
@@ -67,6 +70,83 @@ export default function Sidebar({ collapsed, onCollapse }: Props) {
 
   const isActive = (path: string) =>
     path === "/" ? location.pathname === "/" : location.pathname.startsWith(path);
+
+  const renderNavItems = (items: NavItem[]) =>
+    items.map((item) => {
+      if (item.children) {
+        return (
+          <React.Fragment key={item.path}>
+            <Tooltip title={collapsed ? item.label : ""} placement="right">
+              <ListItemButton
+                selected={isActive(item.path)}
+                onClick={() => {
+                  if (collapsed) { navigate(item.path); }
+                  else setExpandedAdmin(!expandedAdmin);
+                }}
+                sx={{ borderRadius: tokens.radius.md, px: collapsed ? 1 : 1.5, minHeight: 36 }}
+              >
+                <ListItemIcon sx={{ minWidth: collapsed ? 0 : 30, mr: collapsed ? 0 : 0 }}>
+                  {item.icon}
+                </ListItemIcon>
+                {!collapsed && (
+                  <>
+                    <ListItemText
+                      primary={item.label}
+                      primaryTypographyProps={{ fontSize: "0.8375rem", fontWeight: 500 }}
+                    />
+                    {expandedAdmin ? <ExpandLess sx={{ fontSize: 16 }} /> : <ExpandMore sx={{ fontSize: 16 }} />}
+                  </>
+                )}
+              </ListItemButton>
+            </Tooltip>
+            {!collapsed && (
+              <Collapse in={expandedAdmin}>
+                <List dense disablePadding sx={{ pl: 1.5 }}>
+                  {item.children.map((child) => (
+                    <ListItemButton
+                      key={child.path}
+                      selected={location.pathname === child.path}
+                      onClick={() => navigate(child.path)}
+                      sx={{ borderRadius: tokens.radius.sm, px: 1.5, minHeight: 32, mb: 0.25 }}
+                    >
+                      {child.icon}
+                      <ListItemText
+                        primary={child.label}
+                        primaryTypographyProps={{ fontSize: "0.8rem", color: tokens.text.secondary }}
+                      />
+                    </ListItemButton>
+                  ))}
+                </List>
+              </Collapse>
+            )}
+          </React.Fragment>
+        );
+      }
+
+      return (
+        <Tooltip key={item.path} title={collapsed ? item.label : ""} placement="right">
+          <ListItemButton
+            selected={isActive(item.path)}
+            onClick={() => navigate(item.path)}
+            sx={{ borderRadius: tokens.radius.md, px: collapsed ? 1 : 1.5, minHeight: 36 }}
+          >
+            <ListItemIcon sx={{ minWidth: collapsed ? 0 : 30 }}>
+              {item.badge ? (
+                <Badge badgeContent={item.badge} color="primary" sx={{ "& .MuiBadge-badge": { fontSize: "0.6rem", height: 14, minWidth: 14 } }}>
+                  {item.icon}
+                </Badge>
+              ) : item.icon}
+            </ListItemIcon>
+            {!collapsed && (
+              <ListItemText
+                primary={item.label}
+                primaryTypographyProps={{ fontSize: "0.8375rem", fontWeight: 500 }}
+              />
+            )}
+          </ListItemButton>
+        </Tooltip>
+      );
+    });
 
   return (
     <Box
@@ -185,81 +265,24 @@ export default function Sidebar({ collapsed, onCollapse }: Props) {
       {/* Navigation */}
       <Box sx={{ flex: 1, overflow: "auto", px: collapsed ? 0.5 : 1, py: 1 }}>
         <List dense disablePadding sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
-          {NAV_ITEMS.map((item) => {
-            if (item.children) {
-              return (
-                <React.Fragment key={item.path}>
-                  <Tooltip title={collapsed ? item.label : ""} placement="right">
-                    <ListItemButton
-                      selected={isActive(item.path)}
-                      onClick={() => {
-                        if (collapsed) { navigate(item.path); }
-                        else setExpandedAdmin(!expandedAdmin);
-                      }}
-                      sx={{ borderRadius: tokens.radius.md, px: collapsed ? 1 : 1.5, minHeight: 36 }}
-                    >
-                      <ListItemIcon sx={{ minWidth: collapsed ? 0 : 30, mr: collapsed ? 0 : 0 }}>
-                        {item.icon}
-                      </ListItemIcon>
-                      {!collapsed && (
-                        <>
-                          <ListItemText
-                            primary={item.label}
-                            primaryTypographyProps={{ fontSize: "0.8375rem", fontWeight: 500 }}
-                          />
-                          {expandedAdmin ? <ExpandLess sx={{ fontSize: 16 }} /> : <ExpandMore sx={{ fontSize: 16 }} />}
-                        </>
-                      )}
-                    </ListItemButton>
-                  </Tooltip>
-                  {!collapsed && (
-                    <Collapse in={expandedAdmin}>
-                      <List dense disablePadding sx={{ pl: 1.5 }}>
-                        {item.children.map((child) => (
-                          <ListItemButton
-                            key={child.path}
-                            selected={location.pathname === child.path}
-                            onClick={() => navigate(child.path)}
-                            sx={{ borderRadius: tokens.radius.sm, px: 1.5, minHeight: 32, mb: 0.25 }}
-                          >
-                            {child.icon}
-                            <ListItemText
-                              primary={child.label}
-                              primaryTypographyProps={{ fontSize: "0.8rem", color: tokens.text.secondary }}
-                            />
-                          </ListItemButton>
-                        ))}
-                      </List>
-                    </Collapse>
-                  )}
-                </React.Fragment>
-              );
-            }
+          {renderNavItems(USER_NAV_ITEMS)}
+        </List>
 
-            return (
-              <Tooltip key={item.path} title={collapsed ? item.label : ""} placement="right">
-                <ListItemButton
-                  selected={isActive(item.path)}
-                  onClick={() => navigate(item.path)}
-                  sx={{ borderRadius: tokens.radius.md, px: collapsed ? 1 : 1.5, minHeight: 36 }}
-                >
-                  <ListItemIcon sx={{ minWidth: collapsed ? 0 : 30 }}>
-                    {item.badge ? (
-                      <Badge badgeContent={item.badge} color="primary" sx={{ "& .MuiBadge-badge": { fontSize: "0.6rem", height: 14, minWidth: 14 } }}>
-                        {item.icon}
-                      </Badge>
-                    ) : item.icon}
-                  </ListItemIcon>
-                  {!collapsed && (
-                    <ListItemText
-                      primary={item.label}
-                      primaryTypographyProps={{ fontSize: "0.8375rem", fontWeight: 500 }}
-                    />
-                  )}
-                </ListItemButton>
-              </Tooltip>
-            );
-          })}
+        {/* Admin divider */}
+        <Box sx={{ px: collapsed ? 0.5 : 1, py: 1.25 }}>
+          {collapsed ? (
+            <Divider sx={{ borderColor: tokens.border.subtle }} />
+          ) : (
+            <Divider sx={{ borderColor: tokens.border.subtle, "&::before": { width: 0 }, "&::after": { flex: 1 } }} textAlign="left">
+              <Typography variant="caption" sx={{ fontSize: "0.62rem", color: tokens.text.tertiary, letterSpacing: "0.08em", textTransform: "uppercase", px: 0.5 }}>
+                Admin
+              </Typography>
+            </Divider>
+          )}
+        </Box>
+
+        <List dense disablePadding sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
+          {renderNavItems(ADMIN_NAV_ITEMS)}
         </List>
       </Box>
 
