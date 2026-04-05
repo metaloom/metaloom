@@ -44,6 +44,7 @@ public class LoginE2ETest {
 	private static final String DB_NAME = System.getProperty("db.name", "loom_e2e");
 	private static final String DB_USER = System.getProperty("db.user", "loom");
 	private static final String DB_PASSWORD = System.getProperty("db.password", "loom");
+	private static final int REST_PORT = Integer.getInteger("rest.port", 0);
 
 	private static Loom server;
 	private static int restPort;
@@ -62,10 +63,10 @@ public class LoginE2ETest {
 		options.setDatabase(dbOptions);
 		log.info("Using PostgreSQL at {}:{}/{}", DB_HOST, DB_PORT, DB_NAME);
 
-		// Server – use port 0 so the OS picks a free port
+		// Server – use configured port or 0 for OS-assigned free port
 		ServerOptions serverOptions = options.getServer();
 		serverOptions.setBindAddress("localhost");
-		serverOptions.setRestPort(0);
+		serverOptions.setRestPort(REST_PORT);
 		serverOptions.setGrpcPort(0);
 
 		// Auth
@@ -126,9 +127,10 @@ public class LoginE2ETest {
 		}
 		log.info("Using loom-ui at {}", loomUiDir.getAbsolutePath());
 
-		String apiBaseUrl = "http://localhost:" + restPort + "/api/v1";
+		String apiBaseUrl = "/api/v1";
+		String proxyTarget = "http://localhost:" + restPort;
 		int vitePort = findFreePort();
-		log.info("Running Playwright e2e tests against backend at {} (Vite on port {})", apiBaseUrl, vitePort);
+		log.info("Running Playwright e2e tests against backend at {} (Vite on port {}, proxy to {})", apiBaseUrl, vitePort, proxyTarget);
 
 		ProcessBuilder pb = new ProcessBuilder(
 			"npx", "playwright", "test", "e2e/login-backend.spec.ts", "--reporter=list"
@@ -136,6 +138,7 @@ public class LoginE2ETest {
 		pb.directory(loomUiDir);
 		// These env vars propagate through Playwright → webServer → Vite
 		pb.environment().put("VITE_API_BASE_URL", apiBaseUrl);
+		pb.environment().put("VITE_PROXY_TARGET", proxyTarget);
 		pb.environment().put("VITE_PORT", String.valueOf(vitePort));
 		pb.redirectErrorStream(true);
 

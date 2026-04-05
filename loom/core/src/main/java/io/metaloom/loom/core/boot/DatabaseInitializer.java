@@ -50,7 +50,8 @@ public class DatabaseInitializer {
 		// User
 		User adminUser = userDao.loadAdmin();
 		if (adminUser == null) {
-			adminUser = userDao.createAdmin();
+			adminUser = userDao.createUser(UserDao.ADMIN_USER_NAME);
+			adminUser.setUuid(UUIDUtils.randomUUID());
 			adminUser.setCreator(adminUser);
 			adminUser.setEditor(adminUser);
 			adminUser.setEdited(Instant.now());

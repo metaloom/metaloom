@@ -8,6 +8,14 @@ export default defineConfig({
   server: {
     port: 3000,
     open: true,
+    proxy: process.env.VITE_PROXY_TARGET
+      ? {
+          "/api": {
+            target: process.env.VITE_PROXY_TARGET,
+            changeOrigin: true,
+          },
+        }
+      : undefined,
   },
   build: {
     outDir: "build",

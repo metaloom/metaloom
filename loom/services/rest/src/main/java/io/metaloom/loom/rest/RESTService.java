@@ -17,10 +17,12 @@ import io.metaloom.loom.rest.endpoint.RESTEndpoint;
 import io.metaloom.loom.rest.model.message.GenericMessageResponse;
 import io.metaloom.vertx.router.ApiRouter;
 import io.vertx.core.Vertx;
+import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServer;
 import io.vertx.core.http.HttpServerOptions;
 import io.vertx.core.json.Json;
 import io.vertx.ext.web.handler.BodyHandler;
+import io.vertx.ext.web.handler.CorsHandler;
 
 @Singleton
 public class RESTService extends AbstractService {
@@ -60,6 +62,18 @@ public class RESTService extends AbstractService {
 	}
 
 	public void setupRouter() {
+		router.getDelegate().route().handler(CorsHandler.create()
+			.addOriginWithRegex(".*")
+			.allowedMethod(HttpMethod.GET)
+			.allowedMethod(HttpMethod.POST)
+			.allowedMethod(HttpMethod.PUT)
+			.allowedMethod(HttpMethod.DELETE)
+			.allowedMethod(HttpMethod.PATCH)
+			.allowedMethod(HttpMethod.OPTIONS)
+			.allowedHeader("Content-Type")
+			.allowedHeader("Authorization")
+			.allowedHeader("Accept")
+			.allowCredentials(true));
 		router.getDelegate().route().handler(BodyHandler.create().setBodyLimit(-1));
 
 		// Register all injected endpoint routes
