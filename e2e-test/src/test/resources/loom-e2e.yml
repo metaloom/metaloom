@@ -1,0 +1,13 @@
+---
+database:
+  host: "postgres"
+  port: 5432
+  username: "loom"
+  password: "loom"
+  databaseName: "loom"
+server:
+  restPort: 8092
+  grpcPort: 0
+  bindAddress: "0.0.0.0"
+auth:
+  keystorePassword: "finger"

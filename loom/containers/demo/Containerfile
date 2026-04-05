@@ -1,17 +1,13 @@
-FROM adoptopenjdk/openjdk11:x86_64-alpine-jre-11.0.5_10
+FROM eclipse-temurin:25-jre-alpine
 
 ENV LOOM_AUTH_KEYSTORE_PATH=/keystore/keystore.jks
-ENV LOOM_GRAPH_BACKUP_DIRECTORY=/backups
-ENV LOOM_GRAPH_DB_DIRECTORY=/graphdb
-ENV LOOM_PLUGIN_DIR=/plugins
 ENV LOOM_BINARY_DIR=/uploads
 ENV LOOM_TEMP_DIR=/tmp
-ENV HOME=/look
+ENV HOME=/loom
 ENV JAVA_TOOL_OPTIONS="-Xms512m -Xmx512m"
 
-EXPOSE 8080
-EXPOSE 8443
-EXPOSE 8081
+EXPOSE 8092
+EXPOSE 8091
 
 USER root
 RUN adduser -D -u 1000 -G root -h /loom loom && \
@@ -22,7 +18,7 @@ RUN adduser -D -u 1000 -G root -h /loom loom && \
     mkdir /loom/data && \
     chown 1000:0 /loom -R && \
     chmod 770 /loom -R
-ADD --chown=1000:0 ./target/loom-server*jar /loom/loom.jar
+ADD --chown=1000:0 ./target/loom-demo.jar /loom/loom.jar
 
 USER loom
 WORKDIR /loom

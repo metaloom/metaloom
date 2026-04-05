@@ -15,81 +15,75 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.Network;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.containers.output.Slf4jLogConsumer;
+import org.testcontainers.containers.wait.strategy.Wait;
+import org.testcontainers.utility.DockerImageName;
+import org.testcontainers.utility.MountableFile;
 
-import io.metaloom.loom.api.Loom;
-import io.metaloom.loom.api.options.AuthenticationOptions;
-import io.metaloom.loom.api.options.DatabaseOptions;
-import io.metaloom.loom.api.options.LoomOptions;
-import io.metaloom.loom.api.options.LoomOptionsLookup;
-import io.metaloom.loom.api.options.ServerOptions;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.rest.model.auth.AuthLoginResponse;
 
 /**
  * Full end-to-end test that:
  * <ol>
- *   <li>Connects to a fresh PostgreSQL database</li>
- *   <li>Starts a real Loom backend (Flyway migrations create the schema)</li>
- *   <li>Starts the loom-ui Vite dev server with VITE_API_BASE_URL pointing at the backend</li>
- *   <li>Runs Playwright against the loom-ui login page</li>
+ *   <li>Starts a PostgreSQL container</li>
+ *   <li>Starts the Loom demo container (Flyway migrations create the schema)</li>
+ *   <li>Optionally starts the loom-ui Vite dev server with Playwright</li>
  *   <li>Verifies login works end-to-end through the real REST API</li>
  * </ol>
+ *
+ * <p>The demo container image must be built locally before running this test.
+ * See {@code loom/containers/build-containers.sh}.</p>
  */
 public class LoginE2ETest {
 
 	private static final Logger log = LoggerFactory.getLogger(LoginE2ETest.class);
 
-	private static final String DB_HOST = System.getProperty("db.host", "localhost");
-	private static final int DB_PORT = Integer.getInteger("db.port", 5432);
-	private static final String DB_NAME = System.getProperty("db.name", "loom_e2e");
-	private static final String DB_USER = System.getProperty("db.user", "loom");
-	private static final String DB_PASSWORD = System.getProperty("db.password", "loom");
-	private static final int REST_PORT = Integer.getInteger("rest.port", 0);
+	private static final String LOOM_IMAGE = System.getProperty("loom.image", "metaloom/loom-demo:latest");
+	private static final int REST_PORT = 8092;
 
-	private static Loom server;
-	private static int restPort;
+	private static Network network;
+	private static PostgreSQLContainer<?> postgres;
+	private static GenericContainer<?> loom;
 
 	@BeforeAll
-	static void startServer() throws Exception {
-		LoomOptions options = new LoomOptions();
+	static void startContainers() {
+		network = Network.newNetwork();
 
-		// Database – fresh PostgreSQL with Flyway migrations on startup
-		DatabaseOptions dbOptions = new DatabaseOptions();
-		dbOptions.setHost(DB_HOST);
-		dbOptions.setPort(DB_PORT);
-		dbOptions.setUsername(DB_USER);
-		dbOptions.setPassword(DB_PASSWORD);
-		dbOptions.setDatabaseName(DB_NAME);
-		options.setDatabase(dbOptions);
-		log.info("Using PostgreSQL at {}:{}/{}", DB_HOST, DB_PORT, DB_NAME);
+		postgres = new PostgreSQLContainer<>(DockerImageName.parse("postgres:16-alpine"))
+			.withNetwork(network)
+			.withNetworkAliases("postgres")
+			.withDatabaseName("loom")
+			.withUsername("loom")
+			.withPassword("loom");
+		postgres.start();
+		log.info("PostgreSQL started at {}:{}", postgres.getHost(), postgres.getMappedPort(5432));
 
-		// Server – use configured port or 0 for OS-assigned free port
-		ServerOptions serverOptions = options.getServer();
-		serverOptions.setBindAddress("localhost");
-		serverOptions.setRestPort(REST_PORT);
-		serverOptions.setGrpcPort(0);
-
-		// Auth
-		AuthenticationOptions authOptions = options.getAuth();
-		authOptions.setKeystorePassword("finger");
-
-		File baseFolder = new File("target", "e2e-test-config");
-		File keystoreFile = new File(baseFolder, "keystore.jceks");
-		if (keystoreFile.exists()) {
-			keystoreFile.delete();
-		}
-
-		LoomOptionsLookup lookup = new LoomOptionsLookup(baseFolder, options);
-		server = Loom.create(lookup);
-		server.run(false);
-		restPort = server.actualRestPort();
-		log.info("Loom backend started on port {}", restPort);
+		loom = new GenericContainer<>(DockerImageName.parse(LOOM_IMAGE))
+			.withNetwork(network)
+			.withExposedPorts(REST_PORT)
+			.withCopyFileToContainer(
+				MountableFile.forClasspathResource("loom-e2e.yml"),
+				"/config/loom.yml")
+			.withLogConsumer(new Slf4jLogConsumer(log).withPrefix("loom"))
+			.waitingFor(Wait.forListeningPort().withStartupTimeout(Duration.ofSeconds(120)));
+		loom.start();
+		log.info("Loom demo container started, REST API at {}:{}", loom.getHost(), loom.getMappedPort(REST_PORT));
 	}
 
 	@AfterAll
-	static void stopServer() {
-		if (server != null) {
-			server.shutdown();
+	static void stopContainers() {
+		if (loom != null) {
+			loom.stop();
+		}
+		if (postgres != null) {
+			postgres.stop();
+		}
+		if (network != null) {
+			network.close();
 		}
 	}
 
@@ -99,9 +93,9 @@ public class LoginE2ETest {
 	@Test
 	void testRestLoginDirectly() throws Exception {
 		try (LoomHttpClient client = LoomHttpClient.builder()
-			.setHostname("localhost")
+			.setHostname(loom.getHost())
 			.setReadTimeout(Duration.ofSeconds(30))
-			.setPort(restPort)
+			.setPort(loom.getMappedPort(REST_PORT))
 			.build()) {
 
 			AuthLoginResponse response = client.login("admin", "finger").sync();
@@ -128,7 +122,7 @@ public class LoginE2ETest {
 		log.info("Using loom-ui at {}", loomUiDir.getAbsolutePath());
 
 		String apiBaseUrl = "/api/v1";
-		String proxyTarget = "http://localhost:" + restPort;
+		String proxyTarget = "http://" + loom.getHost() + ":" + loom.getMappedPort(REST_PORT);
 		int vitePort = findFreePort();
 		log.info("Running Playwright e2e tests against backend at {} (Vite on port {}, proxy to {})", apiBaseUrl, vitePort, proxyTarget);
 
@@ -162,12 +156,7 @@ public class LoginE2ETest {
 			"Playwright tests failed (exit code " + proc.exitValue() + "):\n" + output);
 	}
 
-	/**
-	 * Resolve the loom-ui directory. The module lives at {@code metaloom/loom-ui-e2e},
-	 * and loom-ui is its sibling at {@code metaloom/loom-ui}.
-	 */
 	private static File resolveLoomUiDir() {
-		// 1. Env var override
 		String envDir = System.getenv("LOOM_UI_DIR");
 		if (envDir != null) {
 			File f = new File(envDir);
@@ -176,9 +165,8 @@ public class LoginE2ETest {
 			}
 		}
 
-		// 2. Sibling directory (both modules are under metaloom/)
 		File[] candidates = {
-			new File("../loom-ui"),                // typical Maven CWD = module root
+			new File("../loom-ui"),
 			new File(System.getProperty("user.dir"), "../loom-ui"),
 		};
 

@@ -53,7 +53,7 @@ public final class LoomOptionsLoader {
 	public static LoomOptionsLookup createOrLoadOptions() {
 		LoomOptionsLookup lookup = loadLoomOptions();
 		// applyNonYamlProperties(defaultOption, options);
-		// applyEnvironmentVariables(options);
+		lookup.options().overrideWithEnv();
 		// applyCommandLineArgs(options, args);
 		lookup.options().validate();
 		return lookup;

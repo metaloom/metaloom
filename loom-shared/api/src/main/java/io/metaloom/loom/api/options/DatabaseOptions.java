@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 
 public class DatabaseOptions implements Option {
 
+	
 	public static final String DEFAULT_HOST = "127.0.0.1";
 
 	public static final int DEFAULT_PORT = 5432;
@@ -20,6 +21,7 @@ public class DatabaseOptions implements Option {
 
 	public static final int DEFAULT_MAX_POOL_SIZE = 20;
 
+	@EnvironmentVariable(name = "LOOM_DB_HOST", description = "Override the database host.")
 	private String host = DEFAULT_HOST;
 
 	private int port = DEFAULT_PORT;

@@ -26,6 +26,7 @@
     </dependencies>
 
     <build>
+        <finalName>loom-demo</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -64,7 +65,7 @@
                                 <transformer
                                     implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <mainClass>
-                                        io.metaloom.loom.container.demo.DemoRunner</mainClass>
+                                        io.metaloom.loom.container.demo.LoomDemoRunner</mainClass>
                                 </transformer>
                                 <transformer
                                     implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
