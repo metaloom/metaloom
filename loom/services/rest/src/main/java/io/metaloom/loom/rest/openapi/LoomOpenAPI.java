@@ -19,11 +19,13 @@ import io.metaloom.vertx.openapi.OpenAPIGenerator;
 import io.metaloom.vertx.openapi.OpenAPIGenerator.Builder;
 import io.metaloom.vertx.router.ApiRouter;
 import io.vertx.core.Vertx;
+import io.vertx.core.http.HttpServer;
 
 public class LoomOpenAPI {
 
 	public String generateJson() throws JsonProcessingException {
 		Vertx vertx = Vertx.vertx();
+		HttpServer server = vertx.createHttpServer();
 		LoomOptions options = new LoomOptions();
 		ApiRouter router = ApiRouter.create(vertx);
 		Set<RESTEndpoint> endpoints = new HashSet<>();
@@ -33,7 +35,7 @@ public class LoomOpenAPI {
 		endpoints.add(new GroupEndpoint(null, deps, examples));
 		endpoints.add(new AssetEndpoint(null, null, null, null, deps, examples));
 		ServerFailureHandler failureHandler = null;
-		RESTService rest = new RESTService(vertx, options, router, endpoints, failureHandler);
+		RESTService rest = new RESTService(vertx, options, server, router, endpoints, failureHandler);
 		rest.setupRouter();
 
 		Builder builder = OpenAPIGenerator.builder();

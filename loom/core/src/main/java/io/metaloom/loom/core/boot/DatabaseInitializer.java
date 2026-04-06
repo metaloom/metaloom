@@ -7,7 +7,6 @@ import javax.inject.Singleton;
 
 import io.metaloom.loom.api.options.LoomOptions;
 import io.metaloom.loom.auth.AuthenticationService;
-import io.metaloom.loom.common.options.LoomEnv;
 import io.metaloom.loom.db.model.group.Group;
 import io.metaloom.loom.db.model.group.GroupDao;
 import io.metaloom.loom.db.model.perm.Permission;
@@ -59,7 +58,7 @@ public class DatabaseInitializer {
 			adminUser.setEdited(Instant.now());
 			adminUser.setCreated(Instant.now());
 
-			String password = LoomEnv.initialPassword();
+			String password = options.getAuth().getInitialPassword();
 			if (password == null) {
 				password = StringUtils.randomHumanString(8);
 				System.out.println("####################");
