@@ -1,86 +1,91 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-  <modelVersion>4.0.0</modelVersion>
-  <groupId>io.metaloom.loom.test</groupId>
-  <artifactId>loom-integration-test</artifactId>
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>io.metaloom.loom.test</groupId>
+    <artifactId>loom-integration-test</artifactId>
 
-  <name>MetaLoom // Integration Test</name>
+    <name>MetaLoom // Integration Test</name>
 
-  <parent>
-    <groupId>io.metaloom</groupId>
-    <artifactId>metaloom-parent</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
-  </parent>
-
-  <properties>
-    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <dagger.version>2.45</dagger.version>
-    <loom.nexus.version>1.0.0-SNAPSHOT</loom.nexus.version>
-    <loom.cortex.version>1.0.0-SNAPSHOT</loom.cortex.version>
-    <loom.client.version>1.0.0-SNAPSHOT</loom.client.version>
-  </properties>
-
-  <dependencyManagement>
-    <dependencies>
-      <dependency>
+    <parent>
         <groupId>io.metaloom</groupId>
-        <artifactId>bom</artifactId>
-        <version>${project.version}</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
-    </dependencies>
-  </dependencyManagement>
+        <artifactId>metaloom-parent</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <dagger.version>2.45</dagger.version>
+        <loom.nexus.version>1.0.0-SNAPSHOT</loom.nexus.version>
+        <loom.cortex.version>1.0.0-SNAPSHOT</loom.cortex.version>
+        <loom.client.version>1.0.0-SNAPSHOT</loom.client.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>io.metaloom</groupId>
+                <artifactId>bom</artifactId>
+                <version>${project.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
 
-  <dependencies>
-    <dependency>
-      <groupId>io.metaloom.loom.container</groupId>
-      <artifactId>loom-container-server</artifactId>
-      <version>${loom.nexus.version}</version>
-    </dependency>
-    <!--
+    <dependencies>
+        <dependency>
+            <groupId>io.metaloom.loom.container</groupId>
+            <artifactId>loom-container-server</artifactId>
+            <version>${loom.nexus.version}</version>
+        </dependency>
+        <!--
     <dependency>
       <groupId>io.metaloom.loom.client</groupId>
       <artifactId>loom-client-grpc</artifactId>
       <version>${loom.client.version}</version>
     </dependency>
     -->
-    <dependency>
-      <groupId>io.metaloom.loom.client</groupId>
-      <artifactId>loom-client-rest</artifactId>
-      <version>${loom.client.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>io.metaloom.cortex</groupId>
-      <artifactId>cortex-cli</artifactId>
-      <version>${loom.cortex.version}</version>
-    </dependency>
+        <dependency>
+            <groupId>io.metaloom.loom.client</groupId>
+            <artifactId>loom-client-rest</artifactId>
+            <version>${loom.client.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-cli</artifactId>
+            <version>${loom.cortex.version}</version>
+        </dependency>
 
-    <!--Test-->
-    <dependency>
-      <groupId>io.metaloom.loom.test</groupId>
-      <artifactId>loom-test-env</artifactId>
-      <scope>test</scope>
-    </dependency>
-  </dependencies>
+        <!--Test-->
+        <dependency>
+            <groupId>io.metaloom.loom.test</groupId>
+            <artifactId>loom-test-env</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.loom</groupId>
+            <artifactId>loom-fixture</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
 
-  <build>
-    <plugins>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-compiler-plugin</artifactId>
-        <configuration>
-          <annotationProcessorPaths>
-            <path>
-              <groupId>com.google.dagger</groupId>
-              <artifactId>dagger-compiler</artifactId>
-              <version>${dagger.version}</version>
-            </path>
-          </annotationProcessorPaths>
-        </configuration>
-      </plugin>
-    </plugins>
-  </build>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>com.google.dagger</groupId>
+                            <artifactId>dagger-compiler</artifactId>
+                            <version>${dagger.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>

@@ -1,4 +1,4 @@
-package io.metaloom.loom.core.db.fixture;
+package io.metaloom.loom.test.fixture;
 
 import io.metaloom.loom.auth.AuthenticationService;
 import io.metaloom.loom.core.dagger.LoomCoreComponent;

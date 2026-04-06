@@ -1,18 +1,16 @@
-package io.metaloom.loom.core.db;
+package io.metaloom.loom.test;
 
 import java.io.File;
 
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.output.MigrateResult;
-import org.junit.jupiter.api.Test;
 
 import io.metaloom.loom.api.options.DatabaseOptions;
 import io.metaloom.loom.api.options.LoomOptions;
 import io.metaloom.loom.api.options.LoomOptionsLookup;
 import io.metaloom.loom.core.dagger.DaggerLoomCoreComponent;
 import io.metaloom.loom.core.dagger.LoomCoreComponent;
-import io.metaloom.loom.core.db.fixture.TestFixtureProvider;
-import io.metaloom.loom.test.TestEnvHelper;
+import io.metaloom.loom.test.fixture.TestFixtureProvider;
 import io.metaloom.test.container.provider.client.TestDatabaseProvider;
 import io.metaloom.test.container.provider.common.config.ProviderConfig;
 import io.metaloom.test.container.provider.model.DatabasePoolResponse;
@@ -20,11 +18,13 @@ import io.metaloom.test.container.provider.model.DatabasePoolResponse;
 /**
  * Example implementation for a custom pool setup operation.
  */
-public class PoolSetupActionTest {
+public class PoolSetupRunner {
 
-	@Test
-	public void testSetup() throws Exception {
+	public static void main(String[] args) throws Exception {
+		setupPool();
+	}
 
+	public static void setupPool() throws Exception {
 		ProviderConfig config = TestEnvHelper.prepareProvider();
 
 		String templateDBName = "loom_dev";
@@ -69,6 +69,7 @@ public class PoolSetupActionTest {
 		System.out.println("\nPool Created: " + response.toString());
 
 		// 5. Now run your unit tests and happy testing
+
 	}
 
 }

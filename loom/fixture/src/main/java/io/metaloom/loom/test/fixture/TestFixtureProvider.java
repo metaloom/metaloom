@@ -1,4 +1,4 @@
-package io.metaloom.loom.core.db.fixture;
+package io.metaloom.loom.test.fixture;
 
 import java.time.Instant;
 import java.util.UUID;

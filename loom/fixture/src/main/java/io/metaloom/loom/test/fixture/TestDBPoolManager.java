@@ -1,4 +1,4 @@
-package io.metaloom.loom.core.db;
+package io.metaloom.loom.test.fixture;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
