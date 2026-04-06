@@ -62,10 +62,17 @@ public class DatabaseInitializer {
 			if (password == null) {
 				password = StringUtils.randomHumanString(8);
 				System.out.println("####################");
-				System.out.println("# Initial Password #");
+				System.out.println("# Initial Password  ");
 				System.out.println("####################");
 				System.out.println("# USER: " + UserDao.ADMIN_USER_NAME);
 				System.out.println("# PASS: " + password);
+				System.out.println("####################");
+			} else {
+				System.out.println("####################");
+				System.out.println("# Initial Password via env");
+				System.out.println("####################");
+				System.out.println("# USER: " + UserDao.ADMIN_USER_NAME);
+				System.out.println("# PASS: <ENV.LOOM_INITIAL_PASSWORD>");
 				System.out.println("####################");
 			}
 			adminUser.setPasswordHash(authService.encodePassword(password));
