@@ -1219,7 +1219,7 @@ export default function AssetDetail() {
             {/* Comments tab */}
             {tab === 1 && (() => {
               const sq = sidebarQuery.toLowerCase().trim();
-              const filtered = sq ? comments.filter(c => (c.title?.toLowerCase().includes(sq)) || c.body.toLowerCase().includes(sq) || userName(c.authorId).toLowerCase().includes(sq)) : comments;
+              const filtered = sq ? comments.filter(c => (c.title?.toLowerCase().includes(sq)) || c.text.toLowerCase().includes(sq) || userName(c.authorId).toLowerCase().includes(sq)) : comments;
               return (
               <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
                 {filtered.length === 0 ? (

@@ -874,8 +874,9 @@ function BlacklistAdmin() {
       type: newType as BlacklistEntry["type"],
       value: newValue.trim(),
       reason: newReason.trim() || "Manual entry",
+      addedBy: "",
       createdAt: new Date().toISOString(),
-      expiresAt: newExpiry || null,
+      expiresAt: newExpiry || undefined,
     };
     setEntries(prev => [...prev, entry]);
     setCreateOpen(false);
