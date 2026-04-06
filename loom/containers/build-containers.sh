@@ -18,17 +18,24 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 TAG="${TAG:-latest}"
 
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+UI_BUILD="$REPO_ROOT/loom-ui/build"
+
 build_demo() {
     local jar="$SCRIPT_DIR/demo/target/loom-demo.jar"
     if [[ ! -f "$jar" ]]; then
         echo "ERROR: $jar not found. Run 'mvn package' first." >&2
         exit 1
     fi
+    if [[ ! -d "$UI_BUILD" ]]; then
+        echo "ERROR: $UI_BUILD not found. Run 'npm run build' in loom-ui first." >&2
+        exit 1
+    fi
     echo "Building metaloom/loom-demo:$TAG ..."
     podman build \
         -f "$SCRIPT_DIR/demo/Containerfile" \
         -t "metaloom/loom-demo:$TAG" \
-        "$SCRIPT_DIR/demo"
+        "$REPO_ROOT"
 }
 
 build_server() {
@@ -37,11 +44,15 @@ build_server() {
         echo "ERROR: $jar not found. Run 'mvn package' first." >&2
         exit 1
     fi
+    if [[ ! -d "$UI_BUILD" ]]; then
+        echo "ERROR: $UI_BUILD not found. Run 'npm run build' in loom-ui first." >&2
+        exit 1
+    fi
     echo "Building metaloom/loom-server:$TAG ..."
     podman build \
         -f "$SCRIPT_DIR/server/Containerfile" \
         -t "metaloom/loom-server:$TAG" \
-        "$SCRIPT_DIR/server"
+        "$REPO_ROOT"
 }
 
 target="${1:-all}"

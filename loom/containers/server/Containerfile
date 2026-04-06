@@ -25,7 +25,8 @@ RUN adduser -D -u 1000 -G root -h /loom loom && \
     mkdir /loom/data && \
     chown 1000:0 /loom -R && \
     chmod 770 /loom -R
-ADD --chown=1000:0 ./target/loom-server.jar /loom/loom.jar
+ADD --chown=1000:0 ./loom/containers/server/target/loom-server.jar /loom/loom.jar
+ADD --chown=1000:0 ./loom-ui/build /loom/ui
 
 USER loom
 WORKDIR /loom
