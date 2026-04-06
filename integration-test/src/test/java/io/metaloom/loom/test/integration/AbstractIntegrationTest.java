@@ -6,7 +6,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
 import io.metaloom.cortex.cli.CortexCLIMain;
@@ -18,17 +17,11 @@ import io.metaloom.loom.client.common.LoomClientException;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.rest.model.auth.AuthLoginResponse;
 import io.metaloom.loom.test.LoomProviderExtension;
-import io.metaloom.loom.test.PoolSetupRunner;
 
 public abstract class AbstractIntegrationTest {
 
 	@RegisterExtension
 	public static LoomProviderExtension provider = LoomProviderExtension.create();
-
-	@BeforeAll
-	public static void testSetup() throws Exception {
-		PoolSetupRunner.setupPool();
-	}
 
 	public void loginAdmin(LoomHttpClient client) throws LoomClientException {
 		AuthLoginResponse loginResponse = client.login("admin", "finger").sync();

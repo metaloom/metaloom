@@ -16,6 +16,6 @@
 
 # Test Notes
 
-* Run `io.metaloom.loom.core.db.PoolSetupActionTest` to prepare the test database with test data. All database tests will utilize the data that is being created during this stage.
+* After database changes it is required to execute the `io.metaloom.loom.test.PoolSetupRunner` from the `loom-fixture` project. This is used to prepare the test database with test data. All database tests will utilize the data that is being created during this stage.
 * Run `io.metaloom.loom.core.endpoint.test.CombinedEndpointTest` to verify that endpoint interaction works
 * Each database test will obtain a fresh database from the pool

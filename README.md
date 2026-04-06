@@ -33,12 +33,15 @@ Loom is an advanced media asset management system designed to ease the managemen
 
 Apache License, Version 2.0
 
-## Maven
+## Testing
 
-### GroupIds
+All DAO/Database and some integration tests utilize the a prefilled database test pool.
 
-* `io.metaloom.loom` - **Loom**
-* `io.metaloom.loom.maven` - **Loom Maven Related Projects** 
-* `io.metaloom.loom.client` - **Loom Client**
-* `io.metaloom.loom.cortex` - **Loom // Cortex**
-* `io.metaloom.loom.test` - **Test Artifacts**
+1. This requires the start of the pool provider + database
+
+```bash
+cd test-database
+podman-compose  up -d
+```
+
+2. The pool must initially be setup using the `io.metaloom.loom.test.PoolSetupRunner` from the `loom-fixture` project.
