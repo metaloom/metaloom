@@ -22,6 +22,10 @@ public class ProcessorResponse extends AbstractResponse<ProcessorResponse> {
 	private Integer priority;
 
 	@JsonProperty(required = false)
+	@JsonPropertyDescription("Host address of the processor node")
+	private String host;
+
+	@JsonProperty(required = false)
 	@JsonPropertyDescription("Current state of the processor node")
 	private ProcessorState state;
 
@@ -52,6 +56,15 @@ public class ProcessorResponse extends AbstractResponse<ProcessorResponse> {
 
 	public ProcessorResponse setPriority(Integer priority) {
 		this.priority = priority;
+		return this;
+	}
+
+	public String getHost() {
+		return host;
+	}
+
+	public ProcessorResponse setHost(String host) {
+		this.host = host;
 		return this;
 	}
 

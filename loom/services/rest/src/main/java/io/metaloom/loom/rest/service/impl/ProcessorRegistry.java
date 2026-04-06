@@ -45,6 +45,7 @@ public class ProcessorRegistry {
 		ConnectedProcessor processor = new ConnectedProcessor();
 		processor.nodeId = nodeId;
 		processor.name = registration.getName();
+		processor.host = registration.getHost();
 		processor.priority = registration.getPriority();
 		processor.capabilities = registration.getCapabilities();
 		processor.state = ProcessorState.ONLINE;
@@ -146,6 +147,7 @@ public class ProcessorRegistry {
 		ProcessorResponse response = new ProcessorResponse();
 		response.setUuid(UUID.nameUUIDFromBytes(processor.nodeId.getBytes()));
 		response.setName(processor.name);
+		response.setHost(processor.host);
 		response.setPriority(processor.priority);
 		response.setState(processor.state);
 		response.setCapabilities(processor.capabilities);
@@ -160,6 +162,7 @@ public class ProcessorRegistry {
 	public static class ConnectedProcessor {
 		public String nodeId;
 		public String name;
+		public String host;
 		public int priority;
 		public Set<ProcessorCapability> capabilities;
 		public ProcessorState state;

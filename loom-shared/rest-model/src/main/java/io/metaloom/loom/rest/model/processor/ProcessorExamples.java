@@ -22,12 +22,15 @@ public interface ProcessorExamples extends ExampleValues {
 		ProcessorResponse model = new ProcessorResponse();
 		model.setUuid(uuidC());
 		model.setName("cortex-node-1");
+		model.setHost("10.0.1.10:9090");
 		model.setPriority(10);
 		model.setState(ProcessorState.ONLINE);
 		model.setCapabilities(EnumSet.of(ProcessorCapability.CPU, ProcessorCapability.IO));
 		model.setLastSeen(Instant.parse("2026-04-05T10:30:00Z"));
 		model.setSystemStatus(new SystemStatusInfo()
 			.setCpuLoad(45.2)
+			.setGpuLoad(78.0)
+			.setIoLoad(31.0)
 			.setMemoryUsed(4_294_967_296L)
 			.setMemoryTotal(17_179_869_184L)
 			.setDiskUsed(107_374_182_400L)

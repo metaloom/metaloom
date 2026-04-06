@@ -26,6 +26,10 @@ public class ProcessorRegistration implements RestModel {
 	private int priority;
 
 	@JsonProperty(required = false)
+	@JsonPropertyDescription("Host address of the processor node (e.g. 10.0.1.10:9090)")
+	private String host;
+
+	@JsonProperty(required = false)
 	@JsonPropertyDescription("Capabilities offered by this processor node")
 	private Set<ProcessorCapability> capabilities;
 
@@ -53,6 +57,15 @@ public class ProcessorRegistration implements RestModel {
 
 	public ProcessorRegistration setPriority(int priority) {
 		this.priority = priority;
+		return this;
+	}
+
+	public String getHost() {
+		return host;
+	}
+
+	public ProcessorRegistration setHost(String host) {
+		this.host = host;
 		return this;
 	}
 

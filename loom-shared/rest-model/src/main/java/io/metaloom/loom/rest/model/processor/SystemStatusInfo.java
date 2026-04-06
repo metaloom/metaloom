@@ -23,6 +23,14 @@ public class SystemStatusInfo implements RestModel {
 	private Long memoryTotal;
 
 	@JsonProperty(required = false)
+	@JsonPropertyDescription("GPU load percentage (0-100)")
+	private Double gpuLoad;
+
+	@JsonProperty(required = false)
+	@JsonPropertyDescription("I/O load percentage (0-100)")
+	private Double ioLoad;
+
+	@JsonProperty(required = false)
 	@JsonPropertyDescription("Used disk space in bytes")
 	private Long diskUsed;
 
@@ -54,6 +62,24 @@ public class SystemStatusInfo implements RestModel {
 
 	public SystemStatusInfo setMemoryTotal(Long memoryTotal) {
 		this.memoryTotal = memoryTotal;
+		return this;
+	}
+
+	public Double getGpuLoad() {
+		return gpuLoad;
+	}
+
+	public SystemStatusInfo setGpuLoad(Double gpuLoad) {
+		this.gpuLoad = gpuLoad;
+		return this;
+	}
+
+	public Double getIoLoad() {
+		return ioLoad;
+	}
+
+	public SystemStatusInfo setIoLoad(Double ioLoad) {
+		this.ioLoad = ioLoad;
 		return this;
 	}
 

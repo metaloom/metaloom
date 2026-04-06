@@ -11,5 +11,7 @@ public enum ProcessorState {
 
 	OFFLINE,
 
+	PAUSED,
+
 	TERMINATING
 }
