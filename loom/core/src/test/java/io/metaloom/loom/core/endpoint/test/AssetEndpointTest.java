@@ -2,6 +2,8 @@ package io.metaloom.loom.core.endpoint.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
@@ -28,6 +30,7 @@ import io.metaloom.loom.rest.model.asset.info.ImageInfo;
 import io.metaloom.loom.rest.model.asset.info.MediaInfo;
 import io.metaloom.loom.rest.model.asset.info.VideoInfo;
 import io.metaloom.utils.hash.SHA512;
+import io.vertx.core.json.JsonObject;
 
 public class AssetEndpointTest extends AbstractCRUDEndpointTest {
 
@@ -242,6 +245,174 @@ public class AssetEndpointTest extends AbstractCRUDEndpointTest {
 		assertEquals(3, response.getTotal());
 		assertEquals(3, response.getCreated()); // 'created' field is reused for successful count
 		assertEquals(0, response.getFailed());
+	}
+
+	// --- Meta handling tests ---
+
+	@Test
+	public void testCreateWithMeta() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			SHA512 sha = SHA512.fromString(
+				"cc000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001");
+			AssetCreateRequest request = new AssetCreateRequest();
+			request.setFile(new FileInfo().setMimeType(IMAGE_MIMETYPE).setFilename("meta_create.png").setSize(100L).setOrigin(INITIAL_ORIGIN));
+			request.setHashes(new HashInfo().setSHA512(sha));
+			request.setMeta(new JsonObject().put("rating", 5).put("source", "upload"));
+
+			AssetResponse response = client.createAsset(request).sync();
+			assertNotNull(response.getMeta());
+			assertEquals(5, response.getMeta().getInteger("rating"));
+			assertEquals("upload", response.getMeta().getString("source"));
+
+			// Reload and verify persistence
+			AssetResponse loaded = client.loadAsset(response.getUuid()).sync();
+			assertNotNull(loaded.getMeta());
+			assertEquals(5, loaded.getMeta().getInteger("rating"));
+			assertEquals("upload", loaded.getMeta().getString("source"));
+		}
+	}
+
+	@Test
+	public void testSetMetaViaUpdate() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			// The fixture asset has no meta set — add meta via update
+			AssetUpdateRequest request = new AssetUpdateRequest();
+			request.setMeta(new JsonObject().put("category", "nature").put("priority", 3));
+			AssetResponse response = client.updateAsset(ASSET_UUID, request).sync();
+
+			assertNotNull(response.getMeta());
+			assertEquals("nature", response.getMeta().getString("category"));
+			assertEquals(3, response.getMeta().getInteger("priority"));
+
+			// Verify via reload
+			AssetResponse loaded = client.loadAsset(ASSET_UUID).sync();
+			assertNotNull(loaded.getMeta());
+			assertEquals("nature", loaded.getMeta().getString("category"));
+			assertEquals(3, loaded.getMeta().getInteger("priority"));
+		}
+	}
+
+	@Test
+	public void testUpdateMetaReplacesExistingMeta() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			// First, create an asset with initial meta
+			SHA512 sha = SHA512.fromString(
+				"cc000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002");
+			AssetCreateRequest createReq = new AssetCreateRequest();
+			createReq.setFile(new FileInfo().setMimeType(IMAGE_MIMETYPE).setFilename("meta_update.png").setSize(200L).setOrigin(INITIAL_ORIGIN));
+			createReq.setHashes(new HashInfo().setSHA512(sha));
+			createReq.setMeta(new JsonObject().put("version", 1).put("oldKey", "oldValue"));
+			AssetResponse created = client.createAsset(createReq).sync();
+
+			// Now update meta with completely new content
+			AssetUpdateRequest updateReq = new AssetUpdateRequest();
+			updateReq.setMeta(new JsonObject().put("version", 2).put("newKey", "newValue"));
+			AssetResponse updated = client.updateAsset(created.getUuid(), updateReq).sync();
+
+			assertNotNull(updated.getMeta());
+			assertEquals(2, updated.getMeta().getInteger("version"));
+			assertEquals("newValue", updated.getMeta().getString("newKey"));
+			// The old key should no longer be present — meta is replaced, not merged
+			assertNull(updated.getMeta().getString("oldKey"));
+		}
+	}
+
+	@Test
+	public void testCreateWithoutMeta() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			SHA512 sha = SHA512.fromString(
+				"cc000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003");
+			AssetCreateRequest request = new AssetCreateRequest();
+			request.setFile(new FileInfo().setMimeType(IMAGE_MIMETYPE).setFilename("no_meta.png").setSize(50L).setOrigin(INITIAL_ORIGIN));
+			request.setHashes(new HashInfo().setSHA512(sha));
+			// No meta set
+
+			AssetResponse response = client.createAsset(request).sync();
+			assertNull(response.getMeta());
+		}
+	}
+
+	@Test
+	public void testUpdateMetaWithNestedObject() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			SHA512 sha = SHA512.fromString(
+				"cc000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004");
+			AssetCreateRequest createReq = new AssetCreateRequest();
+			createReq.setFile(new FileInfo().setMimeType(IMAGE_MIMETYPE).setFilename("nested_meta.png").setSize(300L).setOrigin(INITIAL_ORIGIN));
+			createReq.setHashes(new HashInfo().setSHA512(sha));
+			AssetResponse created = client.createAsset(createReq).sync();
+
+			// Set meta with a nested JSON object
+			JsonObject nestedMeta = new JsonObject()
+				.put("tags", new JsonObject().put("genre", "wildlife").put("mood", "serene"))
+				.put("score", 9.5);
+			AssetUpdateRequest updateReq = new AssetUpdateRequest();
+			updateReq.setMeta(nestedMeta);
+			AssetResponse updated = client.updateAsset(created.getUuid(), updateReq).sync();
+
+			assertNotNull(updated.getMeta());
+			assertEquals("wildlife", updated.getMeta().getJsonObject("tags").getString("genre"));
+			assertEquals("serene", updated.getMeta().getJsonObject("tags").getString("mood"));
+			assertEquals(9.5, updated.getMeta().getDouble("score"), 0.001);
+
+			// Verify persistence via reload
+			AssetResponse loaded = client.loadAsset(created.getUuid()).sync();
+			assertNotNull(loaded.getMeta());
+			assertEquals("wildlife", loaded.getMeta().getJsonObject("tags").getString("genre"));
+		}
+	}
+
+	@Test
+	public void testRemoveMetaViaEmptyObject() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			// Create asset with meta
+			SHA512 sha = SHA512.fromString(
+				"cc000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000005");
+			AssetCreateRequest createReq = new AssetCreateRequest();
+			createReq.setFile(new FileInfo().setMimeType(IMAGE_MIMETYPE).setFilename("clear_meta.png").setSize(400L).setOrigin(INITIAL_ORIGIN));
+			createReq.setHashes(new HashInfo().setSHA512(sha));
+			createReq.setMeta(new JsonObject().put("toRemove", "data"));
+			AssetResponse created = client.createAsset(createReq).sync();
+			assertNotNull(created.getMeta());
+
+			// Replace meta with empty object to effectively clear it
+			AssetUpdateRequest updateReq = new AssetUpdateRequest();
+			updateReq.setMeta(new JsonObject());
+			AssetResponse updated = client.updateAsset(created.getUuid(), updateReq).sync();
+
+			assertNotNull(updated.getMeta());
+			assertTrue(updated.getMeta().isEmpty());
+		}
+	}
+
+	@Test
+	public void testUpdateDoesNotClearMetaWhenNotProvided() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			// Create asset with meta
+			SHA512 sha = SHA512.fromString(
+				"cc000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006");
+			AssetCreateRequest createReq = new AssetCreateRequest();
+			createReq.setFile(new FileInfo().setMimeType(IMAGE_MIMETYPE).setFilename("keep_meta.png").setSize(500L).setOrigin(INITIAL_ORIGIN));
+			createReq.setHashes(new HashInfo().setSHA512(sha));
+			createReq.setMeta(new JsonObject().put("keep", "this"));
+			AssetResponse created = client.createAsset(createReq).sync();
+
+			// Update only filename — meta should remain untouched
+			AssetUpdateRequest updateReq = new AssetUpdateRequest();
+			updateReq.setFile(new FileInfo().setFilename("renamed.png"));
+			AssetResponse updated = client.updateAsset(created.getUuid(), updateReq).sync();
+
+			assertNotNull(updated.getMeta());
+			assertEquals("this", updated.getMeta().getString("keep"));
+			assertEquals("renamed.png", updated.getFile().getFilename());
+		}
 	}
 
 }
