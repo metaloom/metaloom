@@ -97,6 +97,13 @@ public class AssetDaoImpl extends AbstractJooqDao<Asset> implements AssetDao {
 	}
 
 	@Override
+	public void delete(UUID id) {
+		ctx().delete(getTable())
+			.where(ASSET.UUID.eq(id))
+			.execute();
+	}
+
+	@Override
 	public void storeUserMeta(User user, Asset asset, JsonObject meta) {
 		// TODO Auto-generated method stub
 

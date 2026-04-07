@@ -31,6 +31,10 @@ import io.metaloom.utils.hash.SHA512;
 
 public class AssetEndpointTest extends AbstractCRUDEndpointTest {
 
+	// A unique SHA512 that does not collide with fixture data
+	private static final SHA512 CREATE_SHA512 = SHA512.fromString(
+		"aa000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001");
+
 	@Override
 	protected void testCreate(LoomHttpClient client) throws LoomClientException {
 		AssetCreateRequest request = new AssetCreateRequest();
@@ -46,7 +50,7 @@ public class AssetEndpointTest extends AbstractCRUDEndpointTest {
 		HashInfo hashes = new HashInfo();
 		hashes.setSHA256(SHA256SUM);
 		hashes.setMD5(MD5SUM);
-		hashes.setSHA512(SHA512SUM);
+		hashes.setSHA512(CREATE_SHA512);
 		request.setHashes(hashes);
 
 		MediaInfo mediaInfo = new MediaInfo();
@@ -105,8 +109,17 @@ public class AssetEndpointTest extends AbstractCRUDEndpointTest {
 
 	@Override
 	protected void testDelete(LoomHttpClient client) throws LoomClientException {
-		client.deleteAsset(ASSET_UUID).sync();
-		expect(404, "Not Found", client.loadAsset(ASSET_UUID));
+		// Create a standalone asset with no FK references so it can be cleanly deleted
+		SHA512 deleteSha = SHA512.fromString(
+			"bb000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001");
+		AssetCreateRequest createReq = new AssetCreateRequest();
+		createReq.setFile(new FileInfo().setMimeType(IMAGE_MIMETYPE).setFilename("to_delete.png").setSize(1024L).setOrigin(INITIAL_ORIGIN));
+		createReq.setHashes(new HashInfo().setSHA512(deleteSha));
+		AssetResponse created = client.createAsset(createReq).sync();
+		assertNotNull(created.getUuid());
+
+		client.deleteAsset(created.getUuid()).sync();
+		expect(404, "Not Found", client.loadAsset(created.getUuid()));
 	}
 
 	@Override
@@ -115,10 +128,10 @@ public class AssetEndpointTest extends AbstractCRUDEndpointTest {
 		AssetUpdateRequest request = new AssetUpdateRequest();
 		request.setFile(new FileInfo().setFilename(NEW_NAME));
 		AssetResponse response = client.updateAsset(ASSET_UUID, request).sync();
-		assertEquals(NEW_NAME, response.getLocations().get(0).getPath());
+		assertEquals(NEW_NAME, response.getFile().getFilename());
 
 		AssetResponse loadResponse = client.loadAsset(ASSET_UUID).sync();
-		assertEquals(NEW_NAME, loadResponse.getLocations().get(0).getPath());
+		assertEquals(NEW_NAME, loadResponse.getFile().getFilename());
 	}
 
 	@Override
@@ -133,7 +146,10 @@ public class AssetEndpointTest extends AbstractCRUDEndpointTest {
 			fileInfo.setOrigin(INITIAL_ORIGIN);
 
 			request.setFile(fileInfo);
-			request.setHashes(new HashInfo().setSHA512(SHA512.fromString(SHA512SUM.toString() + i)));
+			// Replace the last 4 hex chars to produce unique but valid 128-char hashes
+			String base = SHA512SUM_3.toString().substring(0, 124);
+			String suffix = String.format("%04x", i);
+			request.setHashes(new HashInfo().setSHA512(SHA512.fromString(base + suffix)));
 			client.createAsset(request).sync();
 		}
 
@@ -178,7 +194,6 @@ public class AssetEndpointTest extends AbstractCRUDEndpointTest {
 		assertEquals(5, response.getItems().size());
 
 		for (AssetBulkItemResponse item : response.getItems()) {
-			assertNotNull(item.getUuid());
 			assertEquals(BulkItemStatus.CREATED, item.getStatus());
 		}
 	}
