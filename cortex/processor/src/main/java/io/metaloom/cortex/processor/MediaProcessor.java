@@ -6,6 +6,6 @@ import java.util.List;
 
 public interface MediaProcessor {
 
-	void process(List<String> enabledActions, Path folder) throws IOException;
+	void process(List<String> enabledNodes, Path folder) throws IOException;
 
 }

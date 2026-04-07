@@ -18,8 +18,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 
 import io.metaloom.cortex.CortexEnv;
 import io.metaloom.cortex.api.option.CortexOptions;
-import io.metaloom.cortex.api.option.action.CortexActionOptions;
-import io.metaloom.cortex.common.action.dummy.DummyOptions;
+import io.metaloom.cortex.api.option.node.CortexNodeOptions;
+import io.metaloom.cortex.common.node.dummy.DummyOptions;
 
 public class CortexOptionsLoaderTest {
 
@@ -46,7 +46,7 @@ public class CortexOptionsLoaderTest {
 		assertNotNull(options);
 		assertTrue(Files.exists(CONF_PATH), "The config file should have been written");
 
-		CortexActionOptions actionOptions = options.getActions().get("thumbnail");
+		CortexNodeOptions actionOptions = options.getNodes().get("thumbnail");
 		assertNotNull(actionOptions);
 
 		String str = optionsLoader().getMapper().writeValueAsString(options);
@@ -54,9 +54,9 @@ public class CortexOptionsLoaderTest {
 	}
 
 	private CortexOptionsLoader optionsLoader() {
-		Set<CortexActionOptionDeserializerInfo> infos = new HashSet<>();
-		infos.add(new CortexActionOptionDeserializerInfo(DummyOptions.class, "dummy"));
-		return new CortexOptionsLoader(new CortexActionOptionDeserializer(infos));
+		Set<CortexNodeOptionDeserializerInfo> infos = new HashSet<>();
+		infos.add(new CortexNodeOptionDeserializerInfo(DummyOptions.class, "dummy"));
+		return new CortexOptionsLoader(new CortexNodeOptionDeserializer(infos));
 	}
 
 }

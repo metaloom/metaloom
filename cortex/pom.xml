@@ -21,7 +21,7 @@
         <module>common</module>
         <module>fs</module>
         <module>core-media</module>
-        <module>actions</module>
+        <module>nodes</module>
         <module>processor</module>
         <module>core</module>
         <module>cli</module>

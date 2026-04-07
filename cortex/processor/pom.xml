@@ -43,62 +43,62 @@
         <!-- Actions -->
         <dependency>
             <groupId>io.metaloom.cortex</groupId>
-            <artifactId>cortex-hash-action</artifactId>
+            <artifactId>cortex-hash-node</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>io.metaloom.cortex</groupId>
-            <artifactId>cortex-thumbnail-action</artifactId>
+            <artifactId>cortex-thumbnail-node</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>io.metaloom.cortex</groupId>
-            <artifactId>cortex-facedetect-action</artifactId>
+            <artifactId>cortex-facedetect-node</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>io.metaloom.cortex</groupId>
-            <artifactId>cortex-scene-detection-action</artifactId>
+            <artifactId>cortex-scene-detection-node</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>io.metaloom.cortex</groupId>
-            <artifactId>cortex-llm-action</artifactId>
+            <artifactId>cortex-llm-node</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>io.metaloom.cortex</groupId>
-            <artifactId>cortex-tika-action</artifactId>
+            <artifactId>cortex-tika-node</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>io.metaloom.cortex</groupId>
-            <artifactId>cortex-ocr-action</artifactId>
+            <artifactId>cortex-ocr-node</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>io.metaloom.cortex</groupId>
-            <artifactId>cortex-loom-action</artifactId>
+            <artifactId>cortex-loom-node</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>io.metaloom.cortex</groupId>
-            <artifactId>cortex-captioning-action</artifactId>
+            <artifactId>cortex-captioning-node</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>io.metaloom.cortex</groupId>
-            <artifactId>cortex-dedup-action</artifactId>
+            <artifactId>cortex-dedup-node</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>io.metaloom.cortex</groupId>
-            <artifactId>cortex-fingerprint-action</artifactId>
+            <artifactId>cortex-fingerprint-node</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>io.metaloom.cortex</groupId>
-            <artifactId>cortex-consistency-action</artifactId>
+            <artifactId>cortex-consistency-node</artifactId>
             <version>${project.version}</version>
         </dependency>
     </dependencies>

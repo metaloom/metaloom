@@ -34,13 +34,13 @@ public class ProcessCommand extends AbstractLoomWorkerCommand {
 
 	@Command(name = "run", description = "Process the files using the configured actions")
 	public int run(
-		@Option(names = { "-a", "--actions" }, description = "Actions to be used when processing files.") String enabledActions,
+		@Option(names = { "-a", "--actions" }, description = "Actions to be used when processing files.") String enabledNodes,
 		@Parameters(index = "0", description = "Path to be processed") String path) {
 		try {
 			Path folder = Paths.get(path);
 			List<String> actionList = Collections.emptyList();
-			if (enabledActions != null) {
-				actionList = List.of(enabledActions.split(","));
+			if (enabledNodes != null) {
+				actionList = List.of(enabledNodes.split(","));
 			}
 			processor.process(actionList, folder);
 			return OK.code();

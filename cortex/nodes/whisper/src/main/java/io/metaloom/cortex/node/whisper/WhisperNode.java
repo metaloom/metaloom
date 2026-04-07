@@ -1,0 +1,71 @@
+package io.metaloom.cortex.node.whisper;
+
+import static io.metaloom.cortex.api.node.ResultOrigin.COMPUTED;
+import static io.metaloom.cortex.media.whisper.WhisperMedia.WHISPER;
+
+import javax.annotation.Nullable;
+import javax.inject.Inject;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.option.CortexOptions;
+import io.metaloom.cortex.common.node.AbstractMediaNode;
+import io.metaloom.cortex.media.whisper.WhisperMedia;
+import io.metaloom.cortex.media.whisper.WhisperResult;
+import io.metaloom.loom.client.common.LoomClient;
+import io.metaloom.loom.rest.model.asset.AssetResponse;
+
+public class WhisperNode extends AbstractMediaNode<Void, WhisperOptions> {
+
+	public static final Logger log = LoggerFactory.getLogger(WhisperNode.class);
+
+	private WhisperMediaProcessor processor;
+
+	@Inject
+	public WhisperNode(@Nullable LoomClient client, CortexOptions cortexOptions, WhisperOptions options, WhisperMediaProcessor processor) {
+		super(client, cortexOptions, options);
+		this.processor = processor;
+	}
+
+	@Override
+	public String name() {
+		return "whisper";
+	}
+
+	@Override
+	protected boolean isProcessable(NodeContext<LoomMedia> ctx) {
+		if (options().isEnabled()) {
+			return ctx.media().isVideo() || ctx.media().isAudio();
+		} else {
+			return false;
+		}
+	}
+
+	@Override
+	protected boolean isProcessed(NodeContext<LoomMedia> ctx) {
+		WhisperMedia media = ctx.media(WHISPER);
+		return media.hasWhisper();
+	}
+
+	@Override
+	protected NodeResult<Void> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
+		WhisperMedia media = ctx.media(WHISPER);
+		String path = media.absolutePath();
+
+		try {
+			WhisperResult result = processor.process(path);
+			media.setWhisperResult(result);
+			print(ctx, "DONE", result.segments().size() + " segments");
+			return ctx.origin(COMPUTED).next();
+		} catch (Exception e) {
+			if (log.isErrorEnabled()) {
+				log.error("Error while processing media " + path, e);
+			}
+			return ctx.failure(e.getMessage()).next();
+		}
+	}
+}

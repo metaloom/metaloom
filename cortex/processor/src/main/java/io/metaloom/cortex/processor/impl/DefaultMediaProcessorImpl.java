@@ -35,15 +35,15 @@ public class DefaultMediaProcessorImpl implements MediaProcessor {
 	}
 
 	@Override
-	public void process(List<String> enabledActions, Path folder) throws IOException {
+	public void process(List<String> enabledNodes, Path folder) throws IOException {
 		if (!Files.exists(folder)) {
 			throw new FileNotFoundException("Startfolder not found " + folder.toString());
 		}
-		process(enabledActions, client, folder);
+		process(enabledNodes, client, folder);
 	}
 
-	private void process(List<String> enabledActions, LoomClient client, Path folder) throws IOException {
-		processor.analyze(enabledActions, folder);
+	private void process(List<String> enabledNodes, LoomClient client, Path folder) throws IOException {
+		processor.analyze(enabledNodes, folder);
 	}
 
 }

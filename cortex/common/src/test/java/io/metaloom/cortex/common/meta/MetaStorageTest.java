@@ -28,7 +28,7 @@ import io.metaloom.cortex.api.media.type.handler.impl.MetaStorageException;
 import io.metaloom.cortex.api.media.type.handler.impl.XAttrLoomMetaTypeHandlerImpl;
 import io.metaloom.cortex.api.meta.MetaDataStream;
 import io.metaloom.cortex.api.meta.MetaStorage;
-import io.metaloom.cortex.common.action.media.AbstractMediaTest;
+import io.metaloom.cortex.common.node.media.AbstractMediaTest;
 
 public class MetaStorageTest extends AbstractMediaTest {
 

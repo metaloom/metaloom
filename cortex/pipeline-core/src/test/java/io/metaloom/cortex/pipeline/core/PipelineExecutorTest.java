@@ -267,7 +267,7 @@ class PipelineExecutorTest {
 	void testDryRunMode() {
 		AtomicInteger processCount = new AtomicInteger(0);
 
-		PipelineNode node = new AbstractPipelineNode("action", "Some Action",
+		PipelineNode node = new AbstractPipelineNode("action", "Some Node",
 				NodeMode.SEQUENTIAL, true, Set.of(), 1) {
 			@Override
 			public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {
@@ -291,7 +291,7 @@ class PipelineExecutorTest {
 
 	@Test
 	void testDisabledPipeline() {
-		PipelineNode node = new AbstractPipelineNode("action", "Some Action",
+		PipelineNode node = new AbstractPipelineNode("action", "Some Node",
 				NodeMode.SEQUENTIAL, true, Set.of(), 1) {
 			@Override
 			public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {

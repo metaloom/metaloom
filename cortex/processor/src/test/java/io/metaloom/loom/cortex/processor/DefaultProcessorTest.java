@@ -10,9 +10,9 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-import io.metaloom.cortex.action.hash.HashActionOptions;
-import io.metaloom.cortex.action.hash.SHA512Action;
-import io.metaloom.cortex.api.action.FilesystemAction;
+import io.metaloom.cortex.node.hash.HashNodeOptions;
+import io.metaloom.cortex.node.hash.SHA512Node;
+import io.metaloom.cortex.api.node.FilesystemNode;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.media.LoomMediaLoader;
@@ -39,15 +39,15 @@ public class DefaultProcessorTest {
 		LoomClient client = null;
 		CortexOptions options = new CortexOptions();
 		options.setMetaPath(LocalTestData.metaStorageDir());
-		//ThumbnailActionOptions thumbnailOptions = new ThumbnailActionOptions();
-		Set<FilesystemAction> actions = Set.of(new SHA512Action(null, options, new HashActionOptions()));
+		//ThumbnailNodeOptions thumbnailOptions = new ThumbnailNodeOptions();
+		Set<FilesystemNode<?, ?, ?>> nodes = Set.of(new SHA512Node(null, options, new HashNodeOptions()));
 		LinuxFilesystemScanner scanner = new LinuxFilesystemScannerImpl();
 		LoomMediaLoader loader = mock(LoomMediaLoader.class);
 		
 		//MetaStorage storage = new MetaStorageImpl(null)
 		LoomMedia media = new LoomMediaImpl(null, null);
 		when(loader.load(Mockito.any())).thenReturn(media);
-		FilesystemProcessor  fsProcessor = new FilesystemProcessorImpl(scanner, actions, loader);
+		FilesystemProcessor  fsProcessor = new FilesystemProcessorImpl(scanner, nodes, loader);
 		MediaProcessor processor = new DefaultMediaProcessorImpl(options, client, fsProcessor);
 		processor.process(null, LocalTestData.localDir());
 	}

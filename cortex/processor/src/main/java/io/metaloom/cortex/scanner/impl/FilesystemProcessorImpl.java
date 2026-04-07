@@ -13,11 +13,11 @@ import javax.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.metaloom.cortex.api.action.ActionResult;
-import io.metaloom.cortex.api.action.FilesystemAction;
-import io.metaloom.cortex.api.action.ResultState;
-import io.metaloom.cortex.api.action.context.ActionContext;
-import io.metaloom.cortex.api.action.context.impl.ActionContextImpl;
+import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.api.node.FilesystemNode;
+import io.metaloom.cortex.api.node.ResultState;
+import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.common.media.LoomMediaLoader;
 import io.metaloom.cortex.scanner.FilesystemProcessor;
 import io.metaloom.fs.FileInfo;
@@ -30,7 +30,7 @@ import me.tongfei.progressbar.ProgressBar;
 @Singleton
 public class FilesystemProcessorImpl implements FilesystemProcessor {
 
-	private final Set<FilesystemAction> actions;
+	private final Set<FilesystemNode<?, ?, ?>> nodes;
 
 	private final LinuxFilesystemScanner scanner;
 
@@ -39,14 +39,14 @@ public class FilesystemProcessorImpl implements FilesystemProcessor {
 	public static final Logger log = LoggerFactory.getLogger(FilesystemProcessorImpl.class);
 
 	@Inject
-	public FilesystemProcessorImpl(LinuxFilesystemScanner scanner, Set<FilesystemAction> actions, LoomMediaLoader loader) {
+	public FilesystemProcessorImpl(LinuxFilesystemScanner scanner, Set<FilesystemNode<?, ?, ?>> nodes, LoomMediaLoader loader) {
 		this.scanner = scanner;
-		this.actions = actions;
+		this.nodes = nodes;
 		this.loader = loader;
 	}
 
 	@Override
-	public void analyze(List<String> enabledActions, Path path) throws IOException {
+	public void analyze(List<String> enabledNodes, Path path) throws IOException {
 
 		AtomicLong count = new AtomicLong(0);
 		// 1. Scan the whole fs tree and count the files.
@@ -67,38 +67,35 @@ public class FilesystemProcessorImpl implements FilesystemProcessor {
 				long current = count.incrementAndGet();
 				boolean processed = false;
 				// pb.setExtraMessage("[" + media.path().toFile().getName() + "]");
-				for (FilesystemAction<?> action : actions) {
-					if (enabledActions != null && !enabledActions.isEmpty() && !enabledActions.contains(action.name().toLowerCase())) {
+				for (FilesystemNode<?, ?, ?> node : nodes) {
+					if (enabledNodes != null && !enabledNodes.isEmpty() && !enabledNodes.contains(node.name().toLowerCase())) {
 						if (log.isDebugEnabled()) {
-							log.debug("Action {} will be skipped", action.name());
+							log.debug("Node {} will be skipped", node.name());
 						}
 						continue;
 					}
 
-					log.debug("Processing media {} using action {}", media, action.name());
-					action.set(current, total);
+					log.debug("Processing media {} using node {}", media, node.name());
+					node.set(current, total);
 					try {
-						ActionContext ctx = new ActionContextImpl(media);
-						ActionResult result = action.process(ctx);
+						NodeContext<LoomMedia> ctx = NodeContext.create(media);
+						@SuppressWarnings("unchecked")
+						FilesystemNode<LoomMedia, ?, ?> typedNode = (FilesystemNode<LoomMedia, ?, ?>) node;
+						NodeResult<?> result = typedNode.process(ctx);
 						if (result == null) {
-							log.error("Action '{}' failed to process media {}. Invalid result returned.", action.name(), media);
+							log.error("Node '{}' failed to process media {}. Invalid result returned.", node.name(), media);
 							return;
 						}
 
 						String originName = ctx.origin() != null ? ctx.origin().name() : "NA";
-						action.print(ctx, result.getState().name(), originName);
+						node.print(ctx, result.getState().name(), originName);
 						processed |= result.getState() == ResultState.SUCCESS;
-						if (!result.isContinueNext()) {
-							action.error(media, "Aborting further processing");
-							// Abort further processing
-							return;
-						}
 					} catch (Exception e) {
 						e.printStackTrace();
-						action.error(media, "Error while processing action " + action.name());
+						node.error(media, "Error while processing node " + node.name());
 					}
 					if (current % 100 == 0) {
-						action.flush();
+						node.flush();
 					}
 				}
 				if (processed) {

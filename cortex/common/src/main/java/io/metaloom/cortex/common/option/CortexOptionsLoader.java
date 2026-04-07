@@ -25,17 +25,17 @@ import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
 import io.metaloom.cortex.api.option.CortexOptions;
-import io.metaloom.cortex.api.option.action.CortexActionOptions;
+import io.metaloom.cortex.api.option.node.CortexNodeOptions;
 
 @Singleton
 public class CortexOptionsLoader {
 
 	private static final Logger log = LoggerFactory.getLogger(CortexOptionsLoader.class);
 
-	private final CortexActionOptionDeserializer actionOptionsDeserializer;
+	private final CortexNodeOptionDeserializer actionOptionsDeserializer;
 
 	@Inject
-	public CortexOptionsLoader(CortexActionOptionDeserializer deserializer) {
+	public CortexOptionsLoader(CortexNodeOptionDeserializer deserializer) {
 		this.actionOptionsDeserializer = deserializer;
 	}
 
@@ -51,7 +51,7 @@ public class CortexOptionsLoader {
 		mapper.setSerializationInclusion(Include.ALWAYS);
 
 		SimpleModule module = new SimpleModule();
-		module.addDeserializer(CortexActionOptions.class, actionOptionsDeserializer);
+		module.addDeserializer(CortexNodeOptions.class, actionOptionsDeserializer);
 
 		mapper.registerModule(module);
 		return mapper;

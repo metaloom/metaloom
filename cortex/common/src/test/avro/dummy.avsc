@@ -1,7 +1,7 @@
 {
     "type": "record",
     "name": "DummyElement",
-    "namespace": "io.metaloom.cortex.common.action.media.avro",
+    "namespace": "io.metaloom.cortex.common.node.media.avro",
     "fields": [
         {
             "name": "asset_hash",

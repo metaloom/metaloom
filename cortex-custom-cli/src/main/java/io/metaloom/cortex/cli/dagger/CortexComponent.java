@@ -2,7 +2,6 @@ package io.metaloom.cortex.cli.dagger;
 
 import javax.annotation.Nullable;
 import javax.inject.Named;
-import javax.inject.Singleton;
 
 import dagger.BindsInstance;
 import dagger.Component;
@@ -12,8 +11,10 @@ import io.metaloom.cortex.common.media.LoomMediaLoader;
 import io.metaloom.cortex.common.option.CortexOptionsLoader;
 import picocli.CommandLine;
 
+import javax.inject.Singleton;
+
 @Singleton
-@Component(modules = { CortexBindModule.class, CortexMediaModule.class, PicoCLIModule.class, LoomStorageModule.class, ActionCollectionModule.class,
+@Component(modules = { CortexBindModule.class, CortexMediaModule.class, PicoCLIModule.class, LoomStorageModule.class, NodeCollectionModule.class,
 	CortexClientModule.class })
 public interface CortexComponent {
 

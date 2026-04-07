@@ -11,7 +11,7 @@ import io.metaloom.fs.linux.LinuxFilesystemScanner;
  */
 public interface FilesystemProcessor {
 
-	void analyze(List<String> enabledActions, Path path) throws IOException;
+	void analyze(List<String> enabledNodes, Path path) throws IOException;
 
 	LinuxFilesystemScanner getScanner();
 

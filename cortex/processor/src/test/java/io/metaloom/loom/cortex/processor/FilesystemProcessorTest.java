@@ -11,12 +11,12 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-import io.metaloom.cortex.api.action.ActionResult;
-import io.metaloom.cortex.api.action.FilesystemAction;
-import io.metaloom.cortex.api.action.context.ActionContext;
+import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.FilesystemNode;
+import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.option.action.CortexActionOptions;
-import io.metaloom.cortex.common.action.AbstractMediaAction;
+import io.metaloom.cortex.api.option.node.CortexNodeOptions;
+import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.cortex.common.media.LoomMediaComponent;
 import io.metaloom.cortex.common.media.LoomMediaLoader;
 import io.metaloom.cortex.scanner.FilesystemProcessor;
@@ -36,16 +36,16 @@ public class FilesystemProcessorTest {
 	@Test
 	public void testProcessor() throws IOException {
 		LinuxFilesystemScanner scanner = new LinuxFilesystemScannerImpl();
-		FilesystemProcessor processor = new FilesystemProcessorImpl(scanner, Set.of(dummyAction()), mockLoader());
+		FilesystemProcessor processor = new FilesystemProcessorImpl(scanner, Set.of(dummyNode()), mockLoader());
 		processor.analyze(null, LocalTestData.localDir());
 	}
 
-	private FilesystemAction<?> dummyAction() throws IOException {
-		FilesystemAction<?> action = new AbstractMediaAction<CortexActionOptions>(null, null, null) {
+	private FilesystemNode<?, ?, ?> dummyNode() throws IOException {
+		FilesystemNode<?, ?, ?> node = new AbstractMediaNode<Void, CortexNodeOptions>(null, null, null) {
 
 			@Override
-			public CortexActionOptions options() {
-				CortexActionOptions options = mock(CortexActionOptions.class);
+			public CortexNodeOptions options() {
+				CortexNodeOptions options = mock(CortexNodeOptions.class);
 				when(options.isEnabled()).thenReturn(true);
 				return options;
 			}
@@ -56,21 +56,21 @@ public class FilesystemProcessorTest {
 			}
 
 			@Override
-			protected boolean isProcessable(ActionContext ctx) {
+			protected boolean isProcessable(NodeContext<LoomMedia> ctx) {
 				return true;
 			}
 
 			@Override
-			protected boolean isProcessed(ActionContext ctx) {
+			protected boolean isProcessed(NodeContext<LoomMedia> ctx) {
 				return false;
 			}
 
 			@Override
-			protected ActionResult compute(ActionContext ctx, AssetResponse asset) throws Exception {
-				return ActionResult.processed(true);
+			protected NodeResult<Void> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
+				return NodeResult.success(null);
 			}
 		};
-		return action;
+		return node;
 	}
 
 	private LoomMediaLoader mockLoader() {

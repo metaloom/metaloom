@@ -3,9 +3,9 @@ package io.metaloom.cortex.cli;
 import java.nio.file.Paths;
 import java.util.Map.Entry;
 
-import io.metaloom.cortex.action.thumbnail.ThumbnailActionOptions;
+import io.metaloom.cortex.node.thumbnail.ThumbnailNodeOptions;
 import io.metaloom.cortex.api.option.CortexOptions;
-import io.metaloom.cortex.api.option.action.CortexActionOptions;
+import io.metaloom.cortex.api.option.node.CortexNodeOptions;
 
 public abstract class AbstractCortexTest {
 
@@ -17,9 +17,9 @@ public abstract class AbstractCortexTest {
 		// ActionOptions options = new ActionOptions();
 		// options.getProcessorSettings().setPort(getPort());
 		// options.getProcessorSettings().setHostname(getHostname());
-		ThumbnailActionOptions thumbnailActionOptions = new ThumbnailActionOptions();
-		options.getActions().put(ThumbnailActionOptions.KEY, thumbnailActionOptions);
-		for (Entry<String, CortexActionOptions> entry : options.getActions().entrySet()) {
+		ThumbnailNodeOptions thumbnailActionOptions = new ThumbnailNodeOptions();
+		options.getNodes().put(ThumbnailNodeOptions.KEY, thumbnailActionOptions);
+		for (Entry<String, CortexNodeOptions> entry : options.getNodes().entrySet()) {
 			System.out.println(entry.getKey() + " " + entry.getValue());
 		}
 		return options;

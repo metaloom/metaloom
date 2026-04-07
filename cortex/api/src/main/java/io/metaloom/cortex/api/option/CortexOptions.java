@@ -4,11 +4,11 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
-import io.metaloom.cortex.api.option.action.CortexActionOptions;
+import io.metaloom.cortex.api.option.node.CortexNodeOptions;
 
 public class CortexOptions {
 
-	private Map<String, CortexActionOptions> actions = new HashMap<>();
+	private Map<String, CortexNodeOptions> nodes = new HashMap<>();
 	private LoomClientOptions loom = new LoomClientOptions();
 	private boolean dryrun;
 
@@ -17,12 +17,12 @@ public class CortexOptions {
 	public CortexOptions() {
 	}
 
-	public Map<String, CortexActionOptions> getActions() {
-		return actions;
+	public Map<String, CortexNodeOptions> getNodes() {
+		return nodes;
 	}
 
-	public CortexOptions setActions(Map<String, CortexActionOptions> actions) {
-		this.actions = actions;
+	public CortexOptions setNodes(Map<String, CortexNodeOptions> nodes) {
+		this.nodes = nodes;
 		return this;
 	}
 

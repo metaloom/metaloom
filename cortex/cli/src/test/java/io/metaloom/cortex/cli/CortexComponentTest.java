@@ -19,7 +19,7 @@ public class CortexComponentTest {
 	public void testDaggerSetup() {
 		CortexComponent component = DaggerCortexComponent.builder().build();
 		Cortex cortex = component.cortex();
-		// cortex.checkActions();
+		// cortex.checkNodes();
 		CommandLine cli = component.cli();
 		cli.execute("-help");
 	}
