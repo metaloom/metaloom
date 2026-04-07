@@ -36,7 +36,7 @@ public class FacedescriptionNode extends AbstractMediaNode<Void, FacedetectNodeO
 
 	private static final Logger logger = LoggerFactory.getLogger(FacedescriptionNode.class);
 
-	private static final LargeLanguageModel MODEL = FaceDescriptionModel.OLLAMA_GEMMA3_12B_Q8;
+	private static final LargeLanguageModel MODEL = FaceDescriptionModel.OLLAMA_GEMMA3_27B_Q8;
 
 	public static final String OUTPUT_FACE_DESCRIPTION = "face_description";
 

@@ -1,5 +1,6 @@
 package io.metaloom.cortex.media.test.assertj;
 
+import static io.metaloom.cortex.api.media.LoomMetaKey.metaKey;
 import static io.metaloom.cortex.api.media.type.LoomMetaCoreType.XATTR;
 import static io.metaloom.cortex.media.consistency.ConsistencyMedia.ZERO_CHUNK_COUNT_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -8,13 +9,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.assertj.core.api.AbstractAssert;
 
+import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.media.LoomMetaKey;
-import io.metaloom.cortex.api.media.ProcessableMedia;
-import io.metaloom.cortex.media.hash.HashMedia;
 import io.metaloom.utils.hash.SHA512;
 
-public abstract class AbstractProcessableMediaAssert<T extends AbstractProcessableMediaAssert<T, M>, M extends ProcessableMedia>
+public abstract class AbstractProcessableMediaAssert<T extends AbstractProcessableMediaAssert<T, M>, M extends LoomMedia>
 	extends AbstractAssert<T, M> {
+
+	private static final LoomMetaKey<SHA512> SHA_512_KEY = metaKey("sha512sum", 1, XATTR, SHA512.class);
 
 	public AbstractProcessableMediaAssert(M actual, Class<?> clazz) {
 		super(actual, clazz);
@@ -53,7 +55,7 @@ public abstract class AbstractProcessableMediaAssert<T extends AbstractProcessab
 	}
 	
 	public <R> T hasSHA512(SHA512 value) {
-		assertEquals(value, actual.get(HashMedia.SHA_512_KEY), "The hash sum did not match.");
+		assertEquals(value, actual.get(SHA_512_KEY), "The hash sum did not match.");
 		return self();
 	}
 
