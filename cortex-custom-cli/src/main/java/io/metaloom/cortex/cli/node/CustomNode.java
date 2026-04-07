@@ -29,11 +29,6 @@ public class CustomNode extends AbstractMediaNode<Void, CustomNodeOptions> {
 	}
 
 	@Override
-	protected boolean isProcessed(NodeContext<LoomMedia> ctx) {
-		return false;
-	}
-
-	@Override
 	protected NodeResult<Void> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
 		System.out.println("Custom Action Invoked");
 		return NodeResult.success(null);

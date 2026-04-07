@@ -1,6 +1,5 @@
 package io.metaloom.cortex.node.facedetect;
 
-import static io.metaloom.cortex.node.facedetect.FacedetectMedia.FACE_DETECTION;
 import static io.metaloom.cortex.api.node.ResultOrigin.COMPUTED;
 
 import java.awt.image.BufferedImage;
@@ -22,7 +21,6 @@ import io.metaloom.cortex.node.facedetect.video.VideoFaceScannerReport;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.media.flag.FaceDetectionFlag;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
@@ -43,6 +41,9 @@ public class FacedetectNode extends AbstractMediaNode<Void, FacedetectNodeOption
 
 	public static final Logger log = LoggerFactory.getLogger(FacedetectNode.class);
 
+	public static final String OUTPUT_FACE_COUNT = "face_count";
+	public static final String OUTPUT_FACEDETECT_FLAG = "facedetect_flag";
+
 	private static final int WINDOW_COUNT = 50;
 
 	private InspireFacedetector inspireface;
@@ -58,7 +59,6 @@ public class FacedetectNode extends AbstractMediaNode<Void, FacedetectNodeOption
 	@Override
 	public void initialize() {
 		Video4j.init();
-
 	}
 
 	@Override
@@ -70,13 +70,6 @@ public class FacedetectNode extends AbstractMediaNode<Void, FacedetectNodeOption
 	protected boolean isProcessable(NodeContext<LoomMedia> ctx) {
 		LoomMedia media = ctx.media();
 		return media.isVideo() || media.isImage();
-	}
-
-	@Override
-	protected boolean isProcessed(NodeContext<LoomMedia> ctx) {
-		FacedetectMedia media = ctx.media(FACE_DETECTION);
-		// TODO check the flags with the options to figure out whether we need to rerun the detection
-		return media.hasFacedetectionFlag();
 	}
 
 	@Override
@@ -92,61 +85,29 @@ public class FacedetectNode extends AbstractMediaNode<Void, FacedetectNodeOption
 	}
 
 	private NodeResult<Void> processImage(NodeContext<LoomMedia> ctx) throws IOException {
-
-		FacedetectMedia media = ctx.media(FACE_DETECTION);
-		SHA512 hash = media.getSHA512();
-		// 1. Read image
+		LoomMedia media = ctx.media();
 		BufferedImage image = ImageIO.read(media.file());
 		List<? extends Face> faces = inspireface.detectFaces(image);
 
-		if (faces != null && !faces.isEmpty()) {
-			media.setFaceCount(faces.size());
-			media.setFacedetectionFlag(FaceDetectionFlag.SUCCESS);
-			for (Face face : faces) {
-				VideoFace videoFace = new VideoFace(face);
-				media.appendFacedetection(toDetection(hash, videoFace));
-			}
-		}
+		int count = faces != null ? faces.size() : 0;
+		ctx.output(OUTPUT_FACE_COUNT, count);
+		ctx.output(OUTPUT_FACEDETECT_FLAG, count > 0 ? "SUCCESS" : "NONE");
 		return ctx.origin(COMPUTED).next();
 	}
 
 	private NodeResult<Void> processVideo(NodeContext<LoomMedia> ctx) {
-		FacedetectMedia media = ctx.media(FACE_DETECTION);
-		SHA512 hash = media.getSHA512();
+		LoomMedia media = ctx.media();
 
 		try (VideoFile video = Videos.open(media.absolutePath())) {
 			VideoFaceScannerReport report = videoScanner.scan(video, WINDOW_COUNT);
-			media.setFaceCount(report.getFaces().size());
-
-			for (VideoFace face : report.getFaces()) {
-				media.appendFacedetection(toDetection(hash, face));
-			}
+			int count = report.getFaces().size();
+			ctx.output(OUTPUT_FACE_COUNT, count);
+			ctx.output(OUTPUT_FACEDETECT_FLAG, "SUCCESS");
 			return ctx.origin(COMPUTED).next();
 		} catch (InterruptedException | IOException | URISyntaxException e) {
 			log.error("Failed to process video", e);
 			return ctx.failure(e.getMessage()).next();
 		}
-	}
-
-	private Facedetection toDetection(SHA512 mediaHash, VideoFace face) throws IOException {
-		BufferedImage image = face.getImage();
-		ByteBufferOutputStream os = new ByteBufferOutputStream();
-		ImageUtils.saveJPG(os, image);
-		FaceBox obox = face.box();
-		FacedetectionBox box = FacedetectionBox.newBuilder()
-			.setHeight(obox.getHeight())
-			.setWidth(obox.getWidth())
-			.setStartX(obox.getStartX())
-			.setStartY(obox.getStartY())
-			.build();
-
-		return Facedetection.newBuilder()
-			.setAssetHash(mediaHash.toString())
-			.setFrame(face.getFrame())
-			.setBlurriness(face.getBlurriness())
-			.setBox(box)
-			.setThumbnail(ByteBufferUtils.convertToOne(os.getBufferList()))
-			.build();
 	}
 
 }

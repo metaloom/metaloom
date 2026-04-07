@@ -45,11 +45,6 @@ public class HashDedupNode extends AbstractMediaNode<Void, DedupNodeOptions> {
 	}
 
 	@Override
-	protected boolean isProcessed(NodeContext<LoomMedia> ctx) {
-		return false;
-	}
-
-	@Override
 	protected NodeResult<Void> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws IOException {
 		if (isOfflineMode()) {
 			return ctx.skipped("offline mode").next();

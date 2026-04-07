@@ -8,7 +8,6 @@ import java.nio.file.Path;
 import java.util.List;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.meta.MetaStorage;
 import io.metaloom.utils.hash.SHA512;
 
 public abstract class AbstractMediaWrapper implements LoomMedia {
@@ -77,16 +76,6 @@ public abstract class AbstractMediaWrapper implements LoomMedia {
 	@Override
 	public List<String> listXAttr() {
 		return delegate.listXAttr();
-	}
-
-	@Override
-	public MetaStorage storage() {
-		return delegate.storage();
-	}
-
-	@Override
-	public LoomMedia self() {
-		return delegate.self();
 	}
 
 	@Override

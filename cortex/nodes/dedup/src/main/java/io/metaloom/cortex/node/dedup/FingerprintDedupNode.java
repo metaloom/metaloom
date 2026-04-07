@@ -1,7 +1,5 @@
 package io.metaloom.cortex.node.dedup;
 
-import static io.metaloom.cortex.media.fingerprint.FingerprintMedia.FINGERPRINT;
-
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 
@@ -28,11 +26,6 @@ public class FingerprintDedupNode extends AbstractMediaNode<Void, DedupNodeOptio
 	@Override
 	public String name() {
 		return "fingerprint-dedup";
-	}
-
-	@Override
-	protected boolean isProcessed(NodeContext<LoomMedia> ctx) {
-		return ctx.media(FINGERPRINT).hasFingerprint();
 	}
 
 	@Override

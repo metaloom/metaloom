@@ -1,5 +1,6 @@
 package io.metaloom.cortex.pipeline.core.node;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -15,6 +16,11 @@ import io.metaloom.cortex.pipeline.api.NodeResult;
 /**
  * Adapter that wraps an existing {@link FilesystemNode} as a {@link io.metaloom.cortex.pipeline.api.node.PipelineNode}.
  * This allows the pipeline system to reuse all existing Cortex nodes.
+ *
+ * <p>The adapter converts upstream pipeline {@link NodeResult} outputs into a
+ * {@code Map<String, Map<String, Object>>} that the wrapped node can access
+ * via {@link NodeContext#upstreamOutputs()}. It also extracts the node's
+ * outputs from the cortex-level result and forwards them in the pipeline-level result.</p>
  */
 public class CortexNodeAdapter extends AbstractPipelineNode {
 
@@ -32,14 +38,19 @@ public class CortexNodeAdapter extends AbstractPipelineNode {
 	public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {
 		long start = System.currentTimeMillis();
 		try {
-			io.metaloom.cortex.api.node.NodeResult<?> result = wrappedNode.process(media);
+			// Convert pipeline NodeResult map → upstream outputs map for the cortex node
+			Map<String, Map<String, Object>> upstreamOutputs = toUpstreamOutputs(upstreamResults);
+
+			io.metaloom.cortex.api.node.NodeResult<?> result = wrappedNode.process(media, upstreamOutputs);
 			long elapsed = System.currentTimeMillis() - start;
 			if (result == null) {
 				return NodeResult.failed(id(), elapsed, "Node returned null result");
 			}
 			switch (result.getState()) {
 				case SUCCESS:
-					return NodeResult.success(id(), elapsed);
+					// Forward the cortex-level outputs to the pipeline-level result
+					Map<String, Object> outputs = result.getOutputs();
+					return NodeResult.success(id(), elapsed, outputs);
 				case SKIPPED:
 					return NodeResult.skipped(id(), "Node skipped");
 				case FAILED:
@@ -51,6 +62,24 @@ public class CortexNodeAdapter extends AbstractPipelineNode {
 			log.error("Error executing cortex node {}: {}", id(), e.getMessage(), e);
 			return NodeResult.failed(id(), elapsed, e.getMessage());
 		}
+	}
+
+	/**
+	 * Convert pipeline-level upstream results into a simple map of maps
+	 * that the cortex node can access via NodeContext.upstreamOutputs().
+	 */
+	private Map<String, Map<String, Object>> toUpstreamOutputs(Map<String, NodeResult> upstreamResults) {
+		if (upstreamResults == null || upstreamResults.isEmpty()) {
+			return Map.of();
+		}
+		Map<String, Map<String, Object>> outputs = new HashMap<>();
+		for (Map.Entry<String, NodeResult> entry : upstreamResults.entrySet()) {
+			NodeResult result = entry.getValue();
+			if (result != null && result.getOutput() != null) {
+				outputs.put(entry.getKey(), result.getOutput());
+			}
+		}
+		return outputs;
 	}
 
 	@Override

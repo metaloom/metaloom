@@ -7,12 +7,11 @@ import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.List;
 
-import io.metaloom.cortex.api.meta.MetaStorageAccess;
-
 /**
- * Media which will be processable via cortex actions.
+ * A media file that can be processed by cortex nodes.
+ * This is a pure file handle — no storage or metadata concerns.
  */
-public interface ProcessableMedia extends MetaStorageAccess {
+public interface ProcessableMedia {
 
 	boolean isVideo();
 

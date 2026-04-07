@@ -1,8 +1,5 @@
 package io.metaloom.cortex.node.llm;
 
-import static io.metaloom.cortex.api.media.LoomMetaKey.metaKey;
-import static io.metaloom.cortex.api.media.type.LoomMetaCoreType.XATTR;
-
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -20,7 +17,6 @@ import io.metaloom.ai.genai.llm.prompt.impl.PromptImpl;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.context.NodeContext;
-import io.metaloom.cortex.api.media.LoomMetaKey;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
@@ -68,27 +64,12 @@ public class LLMNode extends AbstractMediaNode<Void, LLMNodeOptions> {
 	}
 
 	@Override
-	protected boolean isProcessed(NodeContext<LoomMedia> ctx) {
-		boolean hasAllPrompts = false;
-		for (String id : options().getPrompts().keySet()) {
-			hasAllPrompts |= ctx.media().has(resultKey(id));
-		}
-		return hasAllPrompts;
-	}
-
-	@Override
 	protected NodeResult<Void> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
 
 		for (Entry<String, LLMNodePrompt> entry : options().getPrompts().entrySet()) {
 			String promptId = entry.getKey();
 			String modelName = entry.getValue().getModel();
 			String promptStr = entry.getValue().getPrompt();
-
-			LoomMetaKey<JsonObject> metaKey = resultKey(promptId); 
-			boolean hasMetaKey = ctx.media().has(metaKey);
-			if (hasMetaKey) {
-				continue;
-			}
 
 			LargeLanguageModel model = new LargeLanguageModelImpl(modelName, options().ollamaUrl(), 2048, LLMProviderType.OLLAMA);
 			Prompt prompt = new PromptImpl(promptStr);
@@ -98,14 +79,10 @@ public class LLMNode extends AbstractMediaNode<Void, LLMNodeOptions> {
 			LLMProvider provider = new OllamaLLMProvider();
 			JsonObject json = provider.generateJson(llmCtx);
 
-			ctx.media().put(metaKey, json);
+			ctx.output("llm_result_" + promptId, json.encode());
 		}
 
-		return NodeResult.success(null);
-	}
-
-	public static LoomMetaKey<JsonObject> resultKey(String promptId) {
-		return metaKey("llm_result_" + promptId, 1, XATTR, JsonObject.class);
+		return NodeResult.success(null, ctx.outputs());
 	}
 
 }

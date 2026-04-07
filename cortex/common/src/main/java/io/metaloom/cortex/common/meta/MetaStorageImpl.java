@@ -1,6 +1,7 @@
 package io.metaloom.cortex.common.meta;
 
-import static io.metaloom.cortex.api.media.LoomMedia.SHA_512_KEY;
+import static io.metaloom.cortex.api.media.LoomMetaKey.metaKey;
+import static io.metaloom.cortex.api.media.type.LoomMetaCoreType.XATTR;
 
 import java.util.List;
 import java.util.Objects;
@@ -25,6 +26,8 @@ import io.metaloom.utils.hash.SHA512;
  */
 @Singleton
 public class MetaStorageImpl implements MetaStorage {
+
+	private static final LoomMetaKey<SHA512> SHA_512_KEY = metaKey("sha512sum", 1, XATTR, SHA512.class);
 
 	private final Set<LoomMetaTypeHandler> handlers;
 

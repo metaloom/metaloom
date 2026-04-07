@@ -1,7 +1,5 @@
 package io.metaloom.cortex.node.loom;
 
-import static io.metaloom.cortex.media.hash.HashMedia.HASH;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -17,12 +15,13 @@ import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractFilesystemNode;
-import io.metaloom.cortex.media.hash.HashMedia;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.rest.model.asset.AssetBulkUpdateEntry;
 import io.metaloom.loom.rest.model.asset.AssetBulkUpdateRequest;
 import io.metaloom.loom.rest.model.asset.AssetUpdateRequest;
 import io.metaloom.loom.rest.model.asset.info.HashInfo;
+import io.metaloom.utils.hash.MD5;
+import io.metaloom.utils.hash.SHA256;
 import io.metaloom.utils.hash.SHA512;
 
 public class LoomNode extends AbstractFilesystemNode<LoomMedia, Void, LoomNodeOptions> {
@@ -56,8 +55,7 @@ public class LoomNode extends AbstractFilesystemNode<LoomMedia, Void, LoomNodeOp
 			return ctx.next();
 		}
 		try {
-			HashMedia media = ctx.media(HASH);
-			SHA512 hash = media.getSHA512();
+			SHA512 hash = ctx.media().getSHA512();
 			if (hash == null) {
 				log.warn("SHA-512 is null, skipping asset");
 				return ctx.next();
@@ -67,11 +65,13 @@ public class LoomNode extends AbstractFilesystemNode<LoomMedia, Void, LoomNodeOp
 			HashInfo hashes = new HashInfo();
 			hashes.setSHA512(hash);
 
-			if (media.getMD5() != null) {
-				hashes.setMD5(media.getMD5());
+			Object md5Obj = ctx.upstreamOutput("md5sum", "md5");
+			if (md5Obj != null) {
+				hashes.setMD5(MD5.fromString(md5Obj.toString()));
 			}
-			if (media.getSHA256() != null) {
-				hashes.setSHA256(media.getSHA256());
+			Object sha256Obj = ctx.upstreamOutput("sha256sum", "sha256");
+			if (sha256Obj != null) {
+				hashes.setSHA256(SHA256.fromString(sha256Obj.toString()));
 			}
 
 			entry.setHashes(hashes);

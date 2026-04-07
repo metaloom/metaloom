@@ -22,6 +22,8 @@ public class SHA512Node extends AbstractMediaNode<Void, HashNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(SHA512Node.class);
 
+	public static final String OUTPUT_SHA512 = "sha512";
+
 	@Inject
 	public SHA512Node(@Nullable LoomClient client, CortexOptions cortexOption, HashNodeOptions options) {
 		super(client, cortexOption, options);
@@ -38,11 +40,6 @@ public class SHA512Node extends AbstractMediaNode<Void, HashNodeOptions> {
 	}
 
 	@Override
-	protected boolean isProcessed(NodeContext<LoomMedia> ctx) {
-		return ctx.media().hasSHA512();
-	}
-
-	@Override
 	protected boolean isProcessable(NodeContext<LoomMedia> ctx) {
 		return options().isSHA512();
 	}
@@ -52,6 +49,7 @@ public class SHA512Node extends AbstractMediaNode<Void, HashNodeOptions> {
 		LoomMedia media = ctx.media();
 		SHA512 hash = HashUtils.computeSHA512(media.file());
 		media.setSHA512(hash);
+		ctx.output(OUTPUT_SHA512, hash.toString());
 		return ctx.origin(COMPUTED).next();
 	}
 

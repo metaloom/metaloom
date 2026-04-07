@@ -1,7 +1,6 @@
 package io.metaloom.cortex.node.whisper;
 
 import static io.metaloom.cortex.api.node.ResultOrigin.COMPUTED;
-import static io.metaloom.cortex.media.whisper.WhisperMedia.WHISPER;
 
 import javax.annotation.Nullable;
 import javax.inject.Inject;
@@ -14,7 +13,6 @@ import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
-import io.metaloom.cortex.media.whisper.WhisperMedia;
 import io.metaloom.cortex.media.whisper.WhisperResult;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
@@ -22,6 +20,8 @@ import io.metaloom.loom.rest.model.asset.AssetResponse;
 public class WhisperNode extends AbstractMediaNode<Void, WhisperOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(WhisperNode.class);
+
+	public static final String OUTPUT_WHISPER_RESULT = "whisper_result";
 
 	private WhisperMediaProcessor processor;
 
@@ -46,19 +46,13 @@ public class WhisperNode extends AbstractMediaNode<Void, WhisperOptions> {
 	}
 
 	@Override
-	protected boolean isProcessed(NodeContext<LoomMedia> ctx) {
-		WhisperMedia media = ctx.media(WHISPER);
-		return media.hasWhisper();
-	}
-
-	@Override
 	protected NodeResult<Void> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
-		WhisperMedia media = ctx.media(WHISPER);
+		LoomMedia media = ctx.media();
 		String path = media.absolutePath();
 
 		try {
 			WhisperResult result = processor.process(path);
-			media.setWhisperResult(result);
+			ctx.output(OUTPUT_WHISPER_RESULT, result.toJson());
 			print(ctx, "DONE", result.segments().size() + " segments");
 			return ctx.origin(COMPUTED).next();
 		} catch (Exception e) {

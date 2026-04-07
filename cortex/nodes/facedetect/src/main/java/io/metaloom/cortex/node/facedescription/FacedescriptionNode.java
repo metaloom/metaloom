@@ -1,7 +1,5 @@
 package io.metaloom.cortex.node.facedescription;
 
-import static io.metaloom.cortex.node.facedetect.FacedetectMedia.FACE_DETECTION;
-
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.time.Duration;
@@ -25,14 +23,12 @@ import dev.langchain4j.model.ollama.OllamaChatModel.OllamaChatModelBuilder;
 import io.metaloom.ai.genai.llm.LargeLanguageModel;
 import io.metaloom.ai.genai.utils.TextUtils;
 import io.metaloom.cortex.node.facedetect.FacedetectNodeOptions;
-import io.metaloom.cortex.node.facedetect.FacedetectMedia;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
-import io.metaloom.loom.cortex.node.facedetect.avro.Facedetection;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.video4j.utils.ImageUtils;
 
@@ -41,6 +37,8 @@ public class FacedescriptionNode extends AbstractMediaNode<Void, FacedetectNodeO
 	private static final Logger logger = LoggerFactory.getLogger(FacedescriptionNode.class);
 
 	private static final LargeLanguageModel MODEL = FaceDescriptionModel.OLLAMA_GEMMA3_12B_Q8;
+
+	public static final String OUTPUT_FACE_DESCRIPTION = "face_description";
 
 	public static final String PROMPT = """
 		Describe the face. Output only valid JSON without wrapper.
@@ -83,13 +81,6 @@ public class FacedescriptionNode extends AbstractMediaNode<Void, FacedetectNodeO
 	}
 
 	@Override
-	protected boolean isProcessed(NodeContext<LoomMedia> ctx) {
-		FacedetectMedia media = ctx.media(FACE_DETECTION);
-		// TODO check the flags with the options to figure out whether we need to rerun the detection
-		return media.hasFacedetectionFlag();
-	}
-
-	@Override
 	protected NodeResult<Void> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws IOException {
 		LoomMedia media = ctx.media();
 		if (media.isVideo() || media.isImage()) {
@@ -100,14 +91,15 @@ public class FacedescriptionNode extends AbstractMediaNode<Void, FacedetectNodeO
 	}
 
 	private NodeResult<Void> processFaces(NodeContext<LoomMedia> ctx) {
-		FacedetectMedia media = ctx.media(FACE_DETECTION);
-		Integer count = media.getFaceCount();
-		if(count!=null && count>0) {
-			for(Facedetection detection : media.getFacedetections()) {
-				detection.getThumbnail();
+		Object countObj = ctx.upstreamOutput("facedetect", "face_count");
+		if (countObj != null) {
+			int count = Integer.parseInt(countObj.toString());
+			if (count > 0) {
+				// TODO: process individual face thumbnails via upstream output or file paths
+				ctx.output(OUTPUT_FACE_DESCRIPTION, "pending");
 			}
 		}
-		return null;
+		return ctx.next();
 	}
 
 	public FaceDescription processFace(BufferedImage image) throws IOException {

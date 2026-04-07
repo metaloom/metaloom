@@ -2,7 +2,6 @@ package io.metaloom.cortex.node.consistency;
 
 import static io.metaloom.cortex.api.node.ResultOrigin.COMPUTED;
 import static io.metaloom.cortex.api.node.ResultOrigin.REMOTE;
-import static io.metaloom.cortex.media.consistency.ConsistencyMedia.CONSISTENCY;
 
 import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
@@ -15,12 +14,14 @@ import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
-import io.metaloom.cortex.media.consistency.ConsistencyMedia;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.utils.hash.partial.PartialFile;
 
 public class ConsistencyNode extends AbstractMediaNode<Void, ConsistencyNodeOptions> {
+
+	public static final String OUTPUT_ZERO_CHUNK_COUNT = "zero_chunk_count";
+	public static final String OUTPUT_IS_COMPLETE = "is_complete";
 
 	@Inject
 	public ConsistencyNode(@Nullable LoomClient client, CortexOptions cortexOption, ConsistencyNodeOptions options) {
@@ -35,42 +36,36 @@ public class ConsistencyNode extends AbstractMediaNode<Void, ConsistencyNodeOpti
 	@Override
 	protected boolean isProcessable(NodeContext<LoomMedia> ctx) {
 		LoomMedia media = ctx.media();
-		// ctx.skipped("no video or audio media").next();
 		return media.isVideo() && media.isAudio();
 	}
 
 	@Override
-	protected boolean isProcessed(NodeContext<LoomMedia> ctx) {
-		ConsistencyMedia media = ctx.media(CONSISTENCY);
-		return media.hasZeroChunkCount();
-	}
-
-	@Override
 	protected NodeResult<Void> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
-		ConsistencyMedia media = ctx.media(CONSISTENCY);
+		LoomMedia media = ctx.media();
 
 		if (asset == null) {
-			// if (!isOfflineMode()) {
-			computeSum(media);
+			long count = computeZeroChunks(media);
+			ctx.output(OUTPUT_ZERO_CHUNK_COUNT, count);
+			ctx.output(OUTPUT_IS_COMPLETE, count == 0);
 			return ctx.origin(COMPUTED).next();
-
 		} else {
 			Long dbCount = asset.getConsistency().getZeroChunkCount();
 			if (dbCount != null) {
-				media.setZeroChunkCount(dbCount);
+				ctx.output(OUTPUT_ZERO_CHUNK_COUNT, dbCount);
+				ctx.output(OUTPUT_IS_COMPLETE, dbCount == 0);
 				return ctx.origin(REMOTE).next();
 			} else {
-				computeSum(media);
+				long count = computeZeroChunks(media);
+				ctx.output(OUTPUT_ZERO_CHUNK_COUNT, count);
+				ctx.output(OUTPUT_IS_COMPLETE, count == 0);
 				return ctx.origin(COMPUTED).next();
 			}
 		}
-
 	}
 
-	private void computeSum(ConsistencyMedia media) throws NoSuchAlgorithmException, IOException {
+	private long computeZeroChunks(LoomMedia media) throws NoSuchAlgorithmException, IOException {
 		PartialFile pf = new PartialFile(media.path());
-		long count = pf.computeZeroChunkCount();
-		media.setZeroChunkCount(count);
+		return pf.computeZeroChunkCount();
 	}
 
 }

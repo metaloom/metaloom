@@ -1,6 +1,5 @@
 package io.metaloom.cortex.node.tika;
 
-import static io.metaloom.cortex.node.tika.TikaMedia.TIKA;
 import static io.metaloom.cortex.api.node.ResultOrigin.COMPUTED;
 
 import javax.annotation.Nullable;
@@ -21,9 +20,9 @@ public class TikaNode extends AbstractMediaNode<Void, TikaNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(TikaNode.class);
 
-	public static String DONE_FLAG = "DONE";
+	public static final String OUTPUT_TIKA_FLAGS = "tika_flags";
+	public static final String OUTPUT_TIKA_CONTENT = "tika_content";
 
-	public static String NULL_FLAG = "NULL";
 
 	@Inject
 	public TikaNode(@Nullable LoomClient client, CortexOptions cortexOption, TikaNodeOptions options) {
@@ -42,53 +41,20 @@ public class TikaNode extends AbstractMediaNode<Void, TikaNodeOptions> {
 	}
 
 	@Override
-	protected boolean isProcessed(NodeContext<LoomMedia> ctx) {
-		TikaMedia media = ctx.media().of(TIKA);
-		return media.getTikaFlags() != null;
-	}
-
-	@Override
 	protected NodeResult<Void> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
-		TikaMedia media = ctx.media(TIKA);
-		String flags = getFlags(media);
-		if (NULL_FLAG.equals(flags)) {
-			return ctx.skipped("previously failed").next();
-		} else if (flags == null) {
-			if (asset == null) {
-				return parseMedia(ctx);
-				// TODO utilize and store result
-			} else {
-				// TODO check whether db needs tika update
-				return parseMedia(ctx);
-				// TODO check response and assert whether processing is needed
-				// return done(media, start, "from db");
-				// writeFlags(media, DONE_FLAG);
-			}
-		} else {
-			return ctx.info("already processed").next();
-		}
-	}
-
-	private NodeResult<Void> parseMedia(NodeContext<LoomMedia> ctx) {
-		TikaMedia media = ctx.media(TIKA);
+		LoomMedia media = ctx.media();
 		try {
 			String result = MediaTikaParser.parse(media);
-			// TODO store result
-			media.setTikaFlags(DONE_FLAG);
+			ctx.output(OUTPUT_TIKA_FLAGS, "DONE");
+			if (result != null) {
+				ctx.output(OUTPUT_TIKA_CONTENT, result);
+			}
 			return ctx.origin(COMPUTED).next();
 		} catch (Exception e) {
 			log.error("Error while processing media " + media.path(), e);
-			media.setTikaFlags(DONE_FLAG);
+			ctx.output(OUTPUT_TIKA_FLAGS, "FAILED");
 			return ctx.failure("failed processing").next();
 		}
-	}
-
-	private String getFlags(TikaMedia media) {
-		String tikaFlags = media.getTikaFlags();
-		if (tikaFlags == null) {
-			// media.setTikaFlags(tikaFlags);
-		}
-		return tikaFlags;
 	}
 
 }

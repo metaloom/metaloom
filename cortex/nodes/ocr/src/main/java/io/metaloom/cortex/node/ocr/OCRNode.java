@@ -36,13 +36,7 @@ public class OCRNode extends AbstractMediaNode<Void, OCRNodeOptions> {
 	}
 
 	@Override
-	protected boolean isProcessed(NodeContext<LoomMedia> ctx) {
-		return false;
-	}
-
-	@Override
 	protected NodeResult<Void> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws IOException {
-		// OCR.ocr(img)
 		return ctx.skipped("not implemented").next();
 	}
 

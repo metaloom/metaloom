@@ -15,24 +15,27 @@ import javax.inject.Named;
 import javax.inject.Singleton;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.meta.MetaStorage;
 import io.metaloom.cortex.common.media.AbstractFilesystemMedia;
 import io.metaloom.utils.fs.FilterHelper;
 import io.metaloom.utils.fs.XAttrUtils;
 import io.metaloom.utils.hash.HashUtils;
 import io.metaloom.utils.hash.SHA512;
 
-// The media is a singleton within the scope of the subcomponent
+/**
+ * A pure file handle with content-based identity (SHA-512).
+ * SHA-512 is computed on first access and cached in-memory and as an xattr.
+ */
 @Singleton
 public class LoomMediaImpl extends AbstractFilesystemMedia {
 
+	private static final String SHA512_XATTR_KEY = "loom_sha512";
+
 	private Path path;
-	private final MetaStorage storage;
+	private SHA512 sha512Cache;
 
 	@Inject
-	public LoomMediaImpl(@Named("mediaPath") Path path, MetaStorage storage) {
+	public LoomMediaImpl(@Named("mediaPath") Path path) {
 		this.path = path;
-		this.storage = storage;
 	}
 
 	@Override
@@ -95,43 +98,45 @@ public class LoomMediaImpl extends AbstractFilesystemMedia {
 	}
 
 	@Override
-	public LoomMedia self() {
-		return this;
-	}
-
-	@Override
 	public SHA512 getSHA512() {
-		SHA512 hash = get(SHA_512_KEY);
-
-		// Try original hash xattr
-		if (hash == null) {
-			String attrStr = XAttrUtils.readXAttr(path(), "sha512sum", String.class);
-			if (attrStr != null) {
-				hash = SHA512.fromString(attrStr);
-				setSHA512(hash);
-			}
+		if (sha512Cache != null) {
+			return sha512Cache;
 		}
 
-		if (hash == null) {
-			hash = HashUtils.computeSHA512(file());
-			setSHA512(hash);
+		// Try reading from xattr
+		String attrStr = XAttrUtils.readXAttr(path(), SHA512_XATTR_KEY, String.class);
+		if (attrStr != null) {
+			sha512Cache = SHA512.fromString(attrStr);
+			return sha512Cache;
 		}
-		return hash;
+
+		// Try legacy xattr key
+		attrStr = XAttrUtils.readXAttr(path(), "sha512sum", String.class);
+		if (attrStr != null) {
+			sha512Cache = SHA512.fromString(attrStr);
+			setSHA512(sha512Cache);
+			return sha512Cache;
+		}
+
+		// Compute from file
+		sha512Cache = HashUtils.computeSHA512(file());
+		setSHA512(sha512Cache);
+		return sha512Cache;
 	}
 
 	@Override
 	public boolean hasSHA512() {
-		return has(SHA_512_KEY);
+		if (sha512Cache != null) {
+			return true;
+		}
+		return XAttrUtils.hasXAttr(path(), SHA512_XATTR_KEY)
+			|| XAttrUtils.hasXAttr(path(), "sha512sum");
 	}
 
 	@Override
 	public void setSHA512(SHA512 hash) {
-		put(SHA_512_KEY, hash);
-	}
-
-	@Override
-	public MetaStorage storage() {
-		return storage;
+		this.sha512Cache = hash;
+		XAttrUtils.writeXAttr(path(), SHA512_XATTR_KEY, hash.toString());
 	}
 
 	@Override
