@@ -10,6 +10,7 @@ import io.metaloom.cortex.node.hash.HashNodeModule;
 import io.metaloom.cortex.node.llm.LLMNodeModule;
 import io.metaloom.cortex.node.loom.LoomNodeModule;
 import io.metaloom.cortex.node.ocr.OCRNodeModule;
+import io.metaloom.cortex.node.quality.QualityNodeModule;
 import io.metaloom.cortex.node.scene.SceneDetectionNodeModule;
 import io.metaloom.cortex.node.thumbnail.ThumbnailNodeModule;
 import io.metaloom.cortex.node.tika.TikaNodeModule;
@@ -25,6 +26,7 @@ import io.metaloom.cortex.node.tika.TikaNodeModule;
 	LLMNodeModule.class,
 	SceneDetectionNodeModule.class,
 	LoomNodeModule.class,
+	QualityNodeModule.class,
 	CaptioningNodeModule.class,
 	ConsistencyNodeModule.class })
 public interface NodeCollectionModule {

@@ -23,6 +23,7 @@
         <module>llm</module>
         <module>tika</module>
         <module>whisper</module>
+        <module>quality</module>
         <module>captioning</module>
         <module>loom</module>
     </modules>
