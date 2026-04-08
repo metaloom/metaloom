@@ -11,7 +11,7 @@
         <version>1.0.0-SNAPSHOT</version>
     </parent>
 
-    <name>MetaLoom // Cortex :: Actions :: Whisper</name>
+    <name>MetaLoom // Cortex :: Nodes :: Whisper</name>
 
     <properties>
         <whispercpp.version>1.4.0</whispercpp.version>

@@ -36,7 +36,7 @@ public class ConsistencyNode extends AbstractMediaNode<Void, ConsistencyNodeOpti
 	@Override
 	protected boolean isProcessable(NodeContext<LoomMedia> ctx) {
 		LoomMedia media = ctx.media();
-		return media.isVideo() && media.isAudio();
+		return media.isVideo() || media.isAudio();
 	}
 
 	@Override
@@ -49,7 +49,7 @@ public class ConsistencyNode extends AbstractMediaNode<Void, ConsistencyNodeOpti
 			ctx.output(OUTPUT_IS_COMPLETE, count == 0);
 			return ctx.origin(COMPUTED).next();
 		} else {
-			Long dbCount = asset.getConsistency().getZeroChunkCount();
+			Long dbCount = asset.getConsistency() != null ? asset.getConsistency().getZeroChunkCount() : null;
 			if (dbCount != null) {
 				ctx.output(OUTPUT_ZERO_CHUNK_COUNT, dbCount);
 				ctx.output(OUTPUT_IS_COMPLETE, dbCount == 0);

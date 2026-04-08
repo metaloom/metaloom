@@ -11,6 +11,6 @@
         <version>1.0.0-SNAPSHOT</version>
     </parent>
 
-    <name>MetaLoom // Cortex :: Actions :: Hash</name>
+    <name>MetaLoom // Cortex :: Nodes :: Hash</name>
 
 </project>

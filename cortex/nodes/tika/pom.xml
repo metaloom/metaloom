@@ -9,7 +9,7 @@
 		<version>1.0.0-SNAPSHOT</version>
 	</parent>
 
-	<name>MetaLoom // Cortex :: Actions :: Tika</name>
+	<name>MetaLoom // Cortex :: Nodes :: Tika</name>
 
 	<properties>
 		<tika.version>2.7.0</tika.version>
