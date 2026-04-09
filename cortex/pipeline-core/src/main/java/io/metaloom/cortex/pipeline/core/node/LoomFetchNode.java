@@ -1,7 +1,6 @@
 package io.metaloom.cortex.pipeline.core.node;
 
 import java.util.Map;
-import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,13 +24,13 @@ public class LoomFetchNode extends AbstractPipelineNode {
 
 	private final LoomMetadataFetcher fetcher;
 
-	public LoomFetchNode(Set<String> dependencies, int concurrency, LoomMetadataFetcher fetcher) {
-		super(NODE_ID, "Loom Metadata Fetch", NodeMode.PARALLEL, false, dependencies, concurrency);
+	public LoomFetchNode(int concurrency, LoomMetadataFetcher fetcher) {
+		super(NODE_ID, "Loom Metadata Fetch", NodeMode.PARALLEL, false, concurrency);
 		this.fetcher = fetcher;
 	}
 
 	public LoomFetchNode(LoomMetadataFetcher fetcher) {
-		this(Set.of(), 2, fetcher);
+		this(2, fetcher);
 	}
 
 	@Override

@@ -5,8 +5,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 
 import io.metaloom.cortex.pipeline.api.Pipeline;
@@ -14,7 +17,20 @@ import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 
 /**
  * Default implementation of {@link Pipeline}.
- * Nodes are maintained in topological order based on their declared dependencies.
+ * Nodes are maintained in topological order based on their connections.
+ *
+ * <p>The pipeline takes a single source node and discovers all reachable nodes
+ * by walking the connection graph.</p>
+ *
+ * <h3>Usage</h3>
+ * <pre>
+ * sourceNode.connectTo(filterNode);
+ * filterNode.connectTo(hashNode, FilterBranch.PASS);
+ *
+ * Pipeline pipeline = DefaultPipeline.builder("my-pipeline")
+ *     .source(sourceNode)
+ *     .build();
+ * </pre>
  */
 public class DefaultPipeline implements Pipeline {
 
@@ -33,21 +49,43 @@ public class DefaultPipeline implements Pipeline {
 		this.priority = builder.priority;
 		this.enabled = builder.enabled;
 		this.dryRun = builder.dryRun;
+
+		if (builder.sourceNode == null) {
+			throw new IllegalStateException("Pipeline '" + name + "' must have a source node set via .source()");
+		}
+		this.sourceNode = builder.sourceNode;
+
+		// Discover all nodes by walking the graph from the source
+		List<PipelineNode> discovered = discoverNodes(this.sourceNode);
+
 		this.nodeIndex = new LinkedHashMap<>();
-		for (PipelineNode node : builder.nodes) {
+		for (PipelineNode node : discovered) {
 			nodeIndex.put(node.id(), node);
 		}
-		this.nodes = Collections.unmodifiableList(topologicalSort(builder.nodes));
+		this.nodes = Collections.unmodifiableList(topologicalSort(discovered));
+	}
 
-		// Validate exactly one source node
-		List<PipelineNode> sources = this.nodes.stream()
-				.filter(PipelineNode::isSource)
-				.toList();
-		if (sources.size() != 1) {
-			throw new IllegalStateException(
-					"Pipeline '" + name + "' must have exactly one source node, but found " + sources.size());
+	/**
+	 * Walk the connection graph starting from the source node and collect all reachable nodes.
+	 */
+	private List<PipelineNode> discoverNodes(PipelineNode source) {
+		Set<String> visited = new LinkedHashSet<>();
+		Queue<PipelineNode> queue = new LinkedList<>();
+		List<PipelineNode> result = new ArrayList<>();
+
+		queue.add(source);
+		visited.add(source.id());
+
+		while (!queue.isEmpty()) {
+			PipelineNode current = queue.poll();
+			result.add(current);
+			for (PipelineNode child : current.children()) {
+				if (visited.add(child.id())) {
+					queue.add(child);
+				}
+			}
 		}
-		this.sourceNode = sources.get(0);
+		return result;
 	}
 
 	@Override
@@ -162,7 +200,7 @@ public class DefaultPipeline implements Pipeline {
 		private int priority = 0;
 		private boolean enabled = true;
 		private boolean dryRun = false;
-		private final List<PipelineNode> nodes = new ArrayList<>();
+		private PipelineNode sourceNode;
 
 		private Builder(String name) {
 			this.name = name;
@@ -188,8 +226,15 @@ public class DefaultPipeline implements Pipeline {
 			return this;
 		}
 
-		public Builder addNode(PipelineNode node) {
-			this.nodes.add(node);
+		/**
+		 * Set the source node of the pipeline. All other nodes are discovered by
+		 * walking the connection graph from this node.
+		 *
+		 * @param source the source node
+		 * @return this builder
+		 */
+		public Builder source(PipelineNode source) {
+			this.sourceNode = source;
 			return this;
 		}
 

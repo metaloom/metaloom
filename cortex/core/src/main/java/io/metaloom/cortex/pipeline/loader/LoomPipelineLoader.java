@@ -1,6 +1,8 @@
 package io.metaloom.cortex.pipeline.loader;
 
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -122,41 +124,95 @@ public class LoomPipelineLoader {
 	Pipeline toPipeline(PipelineResponse response) {
 		JsonObject definition = response.getDefinition();
 
+		// First pass: parse all nodes
+		Map<String, StubPipelineNode> nodeMap = new LinkedHashMap<>();
+		Map<String, Set<String>> depMap = new HashMap<>();
+
+		if (definition != null && definition.containsKey("nodes")) {
+			JsonArray nodesArray = definition.getJsonArray("nodes");
+			for (int i = 0; i < nodesArray.size(); i++) {
+				JsonObject nodeDef = nodesArray.getJsonObject(i);
+				String id = nodeDef.getString("id");
+				if (id == null) {
+					log.warn("Skipping node definition without id: {}", nodeDef);
+					continue;
+				}
+
+				StubPipelineNode node = parseNode(nodeDef);
+				if (node != null) {
+					nodeMap.put(id, node);
+
+					Set<String> dependencies = new HashSet<>();
+					JsonArray depsArray = nodeDef.getJsonArray("dependencies");
+					if (depsArray != null) {
+						for (int j = 0; j < depsArray.size(); j++) {
+							dependencies.add(depsArray.getString(j));
+						}
+					}
+					depMap.put(id, dependencies);
+				}
+			}
+		}
+
+		// Second pass: reconstruct connections from dependencies
+		for (Map.Entry<String, Set<String>> entry : depMap.entrySet()) {
+			StubPipelineNode child = nodeMap.get(entry.getKey());
+			for (String depId : entry.getValue()) {
+				StubPipelineNode parent = nodeMap.get(depId);
+				if (parent != null && child != null) {
+					parent.connectTo(child);
+				}
+			}
+		}
+
+		// Find source node
+		StubPipelineNode source = null;
+		for (StubPipelineNode node : nodeMap.values()) {
+			if (node.isSource()) {
+				source = node;
+				break;
+			}
+		}
+		if (source == null && !nodeMap.isEmpty()) {
+			// Fall back: find node with no dependencies
+			for (Map.Entry<String, Set<String>> entry : depMap.entrySet()) {
+				if (entry.getValue().isEmpty()) {
+					source = nodeMap.get(entry.getKey());
+					source.setSource(true);
+					break;
+				}
+			}
+		}
+
 		DefaultPipeline.Builder builder = DefaultPipeline.builder(response.getName())
 			.description(response.getDescription() != null ? response.getDescription() : "")
 			.priority(response.getPriority() != null ? response.getPriority() : 0)
 			.enabled(response.isEnabled() != null ? response.isEnabled() : true)
 			.dryRun(response.isDryRun() != null ? response.isDryRun() : false);
 
-		// Parse nodes
-		if (definition != null && definition.containsKey("nodes")) {
-			JsonArray nodesArray = definition.getJsonArray("nodes");
-			for (int i = 0; i < nodesArray.size(); i++) {
-				JsonObject nodeDef = nodesArray.getJsonObject(i);
-				PipelineNode node = parseNode(nodeDef);
-				if (node != null) {
-					builder.addNode(node);
-				}
-			}
+		if (source != null) {
+			builder.source(source);
 		}
 
 		return builder.build();
 	}
 
-	private PipelineNode parseNode(JsonObject nodeDef) {
+	private StubPipelineNode parseNode(JsonObject nodeDef) {
 		String id = nodeDef.getString("id");
 		if (id == null) {
-			log.warn("Skipping node definition without id: {}", nodeDef);
 			return null;
 		}
 
 		// If a custom factory is set, delegate to it
 		if (nodeFactory != null) {
 			PipelineNode resolved = nodeFactory.createNode(nodeDef);
-			if (resolved != null) {
-				return resolved;
+			if (resolved != null && resolved instanceof StubPipelineNode stub) {
+				return stub;
 			}
-			log.warn("NodeFactory returned null for node '{}'. Using stub.", id);
+			// Custom factory nodes are not StubPipelineNodes, wrap or skip
+			if (resolved != null) {
+				log.warn("NodeFactory returned non-stub node for '{}'. Using stub.", id);
+			}
 		}
 
 		String name = nodeDef.getString("name", id);
@@ -164,28 +220,28 @@ public class LoomPipelineLoader {
 		boolean blocking = nodeDef.getBoolean("blocking", true);
 		int concurrency = nodeDef.getInteger("concurrency", 1);
 		boolean syncToLoom = nodeDef.getBoolean("syncToLoom", false);
-
-		Set<String> dependencies = new HashSet<>();
-		JsonArray depsArray = nodeDef.getJsonArray("dependencies");
-		if (depsArray != null) {
-			for (int i = 0; i < depsArray.size(); i++) {
-				dependencies.add(depsArray.getString(i));
-			}
+		boolean source = nodeDef.getBoolean("source", false);
+		String type = nodeDef.getString("type", "processor");
+		if ("source".equals(type)) {
+			source = true;
 		}
 
-		// Return a stub node that carries configuration but just logs
-		return new StubPipelineNode(id, name, mode, blocking, dependencies, concurrency, syncToLoom);
+		StubPipelineNode node = new StubPipelineNode(id, name, mode, blocking, concurrency, syncToLoom);
+		if (source) {
+			node.setSource(true);
+		}
+		return node;
 	}
 
 	/**
 	 * A placeholder node that carries configuration loaded from the server.
 	 * Actual processing should be handled by replacing this with a real node via {@link NodeFactory}.
 	 */
-	private static class StubPipelineNode extends AbstractPipelineNode {
+	static class StubPipelineNode extends AbstractPipelineNode {
 
 		StubPipelineNode(String id, String name, NodeMode mode, boolean blocking,
-				Set<String> dependencies, int concurrency, boolean syncToLoom) {
-			super(id, name, mode, blocking, dependencies, concurrency, syncToLoom);
+				int concurrency, boolean syncToLoom) {
+			super(id, name, mode, blocking, concurrency, syncToLoom);
 		}
 
 		@Override

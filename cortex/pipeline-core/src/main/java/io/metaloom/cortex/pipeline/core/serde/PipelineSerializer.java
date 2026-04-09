@@ -177,13 +177,13 @@ public class PipelineSerializer {
 	}
 
 	/**
-	 * Build a map from node id → list of child node ids (nodes that depend on it).
+	 * Build a map from node id → list of child node ids.
 	 */
 	private Map<String, List<String>> buildChildrenMap(List<PipelineNode> nodes) {
 		Map<String, List<String>> childrenMap = new LinkedHashMap<>();
 		for (PipelineNode node : nodes) {
-			for (String dep : node.dependencies()) {
-				childrenMap.computeIfAbsent(dep, k -> new ArrayList<>()).add(node.id());
+			for (PipelineNode child : node.children()) {
+				childrenMap.computeIfAbsent(node.id(), k -> new ArrayList<>()).add(child.id());
 			}
 		}
 		return childrenMap;

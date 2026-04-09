@@ -28,7 +28,7 @@ public class ThresholdFilterNode extends AbstractFilterNode {
 	private final double threshold;
 
 	private ThresholdFilterNode(Builder builder) {
-		super(builder.id, builder.name, builder.dependencies);
+		super(builder.id, builder.name);
 		this.upstreamNodeId = builder.upstreamNodeId;
 		this.outputKey = builder.outputKey;
 		this.operator = builder.operator;

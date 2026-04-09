@@ -1,6 +1,10 @@
 package io.metaloom.cortex.pipeline.core.node;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -11,6 +15,10 @@ import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 
 /**
  * Base implementation of {@link PipelineNode} with sensible defaults.
+ *
+ * <p>Nodes are connected into a DAG via {@link #connectTo(PipelineNode)} and
+ * {@link #connectTo(PipelineNode, FilterBranch)}. Dependencies are computed
+ * automatically from the inverse of the connection graph.</p>
  */
 public abstract class AbstractPipelineNode implements PipelineNode {
 
@@ -18,36 +26,27 @@ public abstract class AbstractPipelineNode implements PipelineNode {
 	private final String name;
 	private final NodeMode mode;
 	private final boolean blocking;
-	private final Set<String> dependencies;
 	private final int concurrency;
 	private boolean source;
 	private boolean syncToLoom;
 	private NodeCacheProvider cacheProvider;
-	private Map<String, FilterBranch> conditionalDependencies = Collections.emptyMap();
 
-	protected AbstractPipelineNode(String id, String name, NodeMode mode, boolean blocking,
-			Set<String> dependencies, int concurrency) {
-		this(id, name, mode, blocking, dependencies, concurrency, false);
+	private final List<PipelineNode> children = new ArrayList<>();
+	private final Set<String> parentIds = new HashSet<>();
+	private final Map<String, FilterBranch> conditionalDependencies = new HashMap<>();
+
+	protected AbstractPipelineNode(String id, String name, NodeMode mode, boolean blocking, int concurrency) {
+		this(id, name, mode, blocking, concurrency, false);
 	}
 
-	protected AbstractPipelineNode(String id, String name, NodeMode mode, boolean blocking,
-			Set<String> dependencies, int concurrency, boolean syncToLoom) {
-		this(id, name, mode, blocking, dependencies, concurrency, syncToLoom, Collections.emptyMap());
-	}
-
-	protected AbstractPipelineNode(String id, String name, NodeMode mode, boolean blocking,
-			Set<String> dependencies, int concurrency, boolean syncToLoom,
-			Map<String, FilterBranch> conditionalDependencies) {
+	protected AbstractPipelineNode(String id, String name, NodeMode mode, boolean blocking, int concurrency,
+			boolean syncToLoom) {
 		this.id = id;
 		this.name = name;
 		this.mode = mode;
 		this.blocking = blocking;
-		this.dependencies = dependencies != null ? Collections.unmodifiableSet(dependencies) : Collections.emptySet();
 		this.concurrency = concurrency;
 		this.syncToLoom = syncToLoom;
-		this.conditionalDependencies = conditionalDependencies != null
-				? Collections.unmodifiableMap(conditionalDependencies)
-				: Collections.emptyMap();
 	}
 
 	@Override
@@ -81,18 +80,50 @@ public abstract class AbstractPipelineNode implements PipelineNode {
 
 	@Override
 	public Set<String> dependencies() {
-		return dependencies;
+		return Collections.unmodifiableSet(parentIds);
+	}
+
+	/**
+	 * Directly add a parent dependency by id. Used by deserialization and loader
+	 * when reconstructing the graph from stored data.
+	 *
+	 * @param parentId the id of the upstream node
+	 */
+	public void addDependency(String parentId) {
+		parentIds.add(parentId);
 	}
 
 	@Override
 	public Map<String, FilterBranch> conditionalDependencies() {
-		return conditionalDependencies;
+		return Collections.unmodifiableMap(conditionalDependencies);
 	}
 
-	public void setConditionalDependencies(Map<String, FilterBranch> conditionalDependencies) {
-		this.conditionalDependencies = conditionalDependencies != null
-				? Collections.unmodifiableMap(conditionalDependencies)
-				: Collections.emptyMap();
+	public void setConditionalDependency(String parentId, FilterBranch branch) {
+		conditionalDependencies.put(parentId, branch);
+	}
+
+	@Override
+	public PipelineNode connectTo(PipelineNode downstream) {
+		children.add(downstream);
+		if (downstream instanceof AbstractPipelineNode apn) {
+			apn.parentIds.add(this.id);
+		}
+		return this;
+	}
+
+	@Override
+	public PipelineNode connectTo(PipelineNode downstream, FilterBranch branch) {
+		children.add(downstream);
+		if (downstream instanceof AbstractPipelineNode apn) {
+			apn.parentIds.add(this.id);
+			apn.conditionalDependencies.put(this.id, branch);
+		}
+		return this;
+	}
+
+	@Override
+	public List<PipelineNode> children() {
+		return Collections.unmodifiableList(children);
 	}
 
 	@Override

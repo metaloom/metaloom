@@ -23,7 +23,7 @@ public class MimeTypeFilterNode extends AbstractFilterNode {
 	private final Set<String> allowedExtensions;
 
 	private MimeTypeFilterNode(Builder builder) {
-		super(builder.id, builder.name, builder.dependencies);
+		super(builder.id, builder.name);
 		this.allowVideo = builder.allowVideo;
 		this.allowImage = builder.allowImage;
 		this.allowAudio = builder.allowAudio;

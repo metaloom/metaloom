@@ -50,7 +50,7 @@ public class BlacklistFilterNode extends AbstractFilterNode {
 	private List<Pattern> compiledPatterns;
 
 	private BlacklistFilterNode(Builder builder) {
-		super(builder.id, builder.name, builder.dependencies);
+		super(builder.id, builder.name);
 		this.blacklistTerms = Collections.unmodifiableSet(builder.blacklistTerms);
 		this.upstreamKeys = Collections.unmodifiableList(builder.upstreamKeys);
 		this.matchMode = builder.matchMode;

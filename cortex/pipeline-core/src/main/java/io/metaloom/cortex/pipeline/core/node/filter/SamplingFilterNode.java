@@ -18,7 +18,7 @@ public class SamplingFilterNode extends AbstractFilterNode {
 	private final Random random;
 
 	private SamplingFilterNode(Builder builder) {
-		super(builder.id, builder.name, builder.dependencies);
+		super(builder.id, builder.name);
 		this.passRate = builder.passRate;
 		this.random = builder.seed != null ? new Random(builder.seed) : new Random();
 	}

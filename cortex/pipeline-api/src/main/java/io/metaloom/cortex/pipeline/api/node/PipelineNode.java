@@ -1,6 +1,7 @@
 package io.metaloom.cortex.pipeline.api.node;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -12,10 +13,23 @@ import io.metaloom.cortex.api.media.LoomMedia;
 
 /**
  * A node within a processing pipeline. Nodes execute actions on media items.
- * Each node can declare dependencies on other nodes and configure its execution mode.
+ * Nodes are connected into a DAG via {@link #connectTo(PipelineNode)} and
+ * {@link #connectTo(PipelineNode, FilterBranch)}.
  *
  * <p>Filter nodes emit a {@value #FILTER_PASSED} boolean output to signal pass/reject.
- * Downstream nodes can use {@link #conditionalDependencies()} to bind to a specific branch.</p>
+ * Downstream nodes connected with a specific {@link FilterBranch} are skipped when
+ * the branch does not match.</p>
+ *
+ * <h3>Usage</h3>
+ * <pre>
+ * sourceNode.connectTo(sizeFilter);
+ * sizeFilter.connectTo(hashNode, FilterBranch.PASS);
+ * sizeFilter.connectTo(tikaNode, FilterBranch.PASS);
+ * 
+ * Pipeline pipeline = DefaultPipeline.builder("my-pipeline")
+ *     .source(sourceNode)
+ *     .build();
+ * </pre>
  */
 public interface PipelineNode {
 
@@ -56,6 +70,7 @@ public interface PipelineNode {
 
 	/**
 	 * IDs of nodes that must complete before this node can execute.
+	 * Computed from the inverse of the connection graph (parents of this node).
 	 */
 	Set<String> dependencies();
 
@@ -89,6 +104,32 @@ public interface PipelineNode {
 	default boolean syncToLoom() {
 		return false;
 	}
+
+	/**
+	 * Connect this node to a downstream node. The downstream node will depend on this node
+	 * and will only execute after this node completes.
+	 *
+	 * @param downstream the downstream node to connect to
+	 * @return this node for fluent chaining
+	 */
+	PipelineNode connectTo(PipelineNode downstream);
+
+	/**
+	 * Connect this node to a downstream node with a filter branch condition.
+	 * The downstream node will only execute if this node's filter output matches the branch.
+	 *
+	 * @param downstream the downstream node to connect to
+	 * @param branch     the filter branch (PASS or REJECT) the downstream node requires
+	 * @return this node for fluent chaining
+	 */
+	PipelineNode connectTo(PipelineNode downstream, FilterBranch branch);
+
+	/**
+	 * Return the list of downstream nodes connected via {@link #connectTo}.
+	 *
+	 * @return unmodifiable list of downstream children
+	 */
+	List<PipelineNode> children();
 
 	/**
 	 * Process a single media item. Returns the result of the processing.

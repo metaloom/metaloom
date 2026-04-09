@@ -36,7 +36,7 @@ public class DateFilterNode extends AbstractFilterNode {
 	private final DateField dateField;
 
 	private DateFilterNode(Builder builder) {
-		super(builder.id, builder.name, builder.dependencies);
+		super(builder.id, builder.name);
 		this.minDate = builder.minDate;
 		this.maxDate = builder.maxDate;
 		this.dateField = builder.dateField;

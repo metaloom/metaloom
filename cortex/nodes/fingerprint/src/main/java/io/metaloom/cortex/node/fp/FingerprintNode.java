@@ -32,13 +32,16 @@ public class FingerprintNode extends AbstractMediaNode<FingerprintNodeOptions> {
 
 	private MultiSectorVideoFingerprinter hasher = new MultiSectorVideoFingerprinterImpl();
 
+	private final FingerprintMetaStorage metaStorage;
+
 	static {
 		Video4j.init();
 	}
 
 	@Inject
-	public FingerprintNode(@Nullable LoomClient client, CortexOptions cortexOption, FingerprintNodeOptions options) {
+	public FingerprintNode(@Nullable LoomClient client, CortexOptions cortexOption, FingerprintNodeOptions options, FingerprintMetaStorage metaStorage) {
 		super(client, cortexOption, options);
+		this.metaStorage = metaStorage;
 	}
 
 	@Override
@@ -50,6 +53,11 @@ public class FingerprintNode extends AbstractMediaNode<FingerprintNodeOptions> {
 	protected boolean isProcessable(NodeContext<LoomMedia> ctx) {
 		LoomMedia media = ctx.media();
 		if (!media.isVideo()) {
+			return false;
+		}
+
+		// Skip if fingerprint was already computed
+		if (metaStorage.hasFingerprint(media)) {
 			return false;
 		}
 
@@ -71,7 +79,9 @@ public class FingerprintNode extends AbstractMediaNode<FingerprintNodeOptions> {
 		} else {
 			try {
 				String hash = computeFingerprint(media);
-				ctx.output(OUTPUT_FINGERPRINT, hash != null ? hash : "NULL");
+				String value = hash != null ? hash : "NULL";
+				ctx.output(OUTPUT_FINGERPRINT, value);
+				metaStorage.setFingerprint(media, value);
 				print(ctx, hash != null ? "DONE" : "NULL", "");
 				return ctx.origin(COMPUTED).next();
 			} catch (Exception e) {

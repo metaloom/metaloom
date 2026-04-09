@@ -21,7 +21,7 @@ public class QualityFilterNode extends AbstractFilterNode {
 	private final boolean requireQualityFlag;
 
 	private QualityFilterNode(Builder builder) {
-		super(builder.id, builder.name, builder.dependencies);
+		super(builder.id, builder.name);
 		this.qualityNodeId = builder.qualityNodeId;
 		this.maxBlurriness = builder.maxBlurriness;
 		this.minWidth = builder.minWidth;

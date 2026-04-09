@@ -26,7 +26,7 @@ public class DuplicateFilterNode extends AbstractFilterNode {
 	private final Set<String> seen = ConcurrentHashMap.newKeySet();
 
 	private DuplicateFilterNode(Builder builder) {
-		super(builder.id, builder.name, builder.dependencies);
+		super(builder.id, builder.name);
 		this.upstreamNodeId = builder.upstreamNodeId;
 		this.outputKey = builder.outputKey;
 	}

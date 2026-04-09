@@ -1,7 +1,6 @@
 package io.metaloom.cortex.pipeline.core.node.filter;
 
 import java.util.Map;
-import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,12 +26,12 @@ public abstract class AbstractFilterNode extends AbstractPipelineNode {
 
 	private static final Logger log = LoggerFactory.getLogger(AbstractFilterNode.class);
 
-	protected AbstractFilterNode(String id, String name, Set<String> dependencies) {
-		super(id, name, NodeMode.SEQUENTIAL, true, dependencies, 1);
+	protected AbstractFilterNode(String id, String name) {
+		super(id, name, NodeMode.SEQUENTIAL, true, 1);
 	}
 
-	protected AbstractFilterNode(String id, String name, Set<String> dependencies, int concurrency) {
-		super(id, name, NodeMode.PARALLEL, true, dependencies, concurrency);
+	protected AbstractFilterNode(String id, String name, int concurrency) {
+		super(id, name, NodeMode.PARALLEL, true, concurrency);
 	}
 
 	@Override

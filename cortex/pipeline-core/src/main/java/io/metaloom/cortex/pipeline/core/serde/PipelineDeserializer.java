@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -105,37 +106,60 @@ public class PipelineDeserializer {
 		boolean dryRun = root.path("dryRun").asBoolean(false);
 		String sourceNodeId = root.path("sourceNode").asText(null);
 
-		DefaultPipeline.Builder builder = DefaultPipeline.builder(name)
-				.description(description)
-				.priority(priority)
-				.enabled(enabled)
-				.dryRun(dryRun);
-
+		// First pass: parse all nodes into a lookup map
+		Map<String, DeserializedNode> nodeMap = new LinkedHashMap<>();
 		JsonNode nodesArray = root.path("nodes");
 		if (nodesArray.isArray()) {
 			for (JsonNode nodeDef : nodesArray) {
-				PipelineNode node = parseNode(nodeDef, sourceNodeId);
+				DeserializedNode node = parseNode(nodeDef, sourceNodeId);
 				if (node != null) {
-					builder.addNode(node);
+					nodeMap.put(node.id(), node);
 				}
 			}
 		}
 
-		return builder.build();
+		// Second pass: reconstruct connections from the serialized dependencies.
+		// For each node that has dependencies, connect the parent -> child.
+		for (DeserializedNode node : nodeMap.values()) {
+			for (String depId : node.parsedDependencies()) {
+				DeserializedNode parent = nodeMap.get(depId);
+				if (parent != null) {
+					Map<String, FilterBranch> condDeps = node.parsedConditionalDependencies();
+					FilterBranch branch = condDeps.get(depId);
+					if (branch != null && branch != FilterBranch.ANY) {
+						parent.connectTo(node, branch);
+					} else {
+						parent.connectTo(node);
+					}
+				}
+			}
+		}
+
+		// Find the source node
+		DeserializedNode source = null;
+		for (DeserializedNode node : nodeMap.values()) {
+			if (node.isSource()) {
+				source = node;
+				break;
+			}
+		}
+		if (source == null) {
+			throw new IllegalStateException("No source node found in deserialized pipeline '" + name + "'");
+		}
+
+		return DefaultPipeline.builder(name)
+				.description(description)
+				.priority(priority)
+				.enabled(enabled)
+				.dryRun(dryRun)
+				.source(source)
+				.build();
 	}
 
-	private PipelineNode parseNode(JsonNode nodeDef, String sourceNodeId) {
+	private DeserializedNode parseNode(JsonNode nodeDef, String sourceNodeId) {
 		String id = nodeDef.path("id").asText(null);
 		if (id == null) {
 			return null;
-		}
-
-		// Try the custom resolver first
-		if (nodeResolver != null) {
-			PipelineNode resolved = nodeResolver.resolve(id, nodeDef);
-			if (resolved != null) {
-				return resolved;
-			}
 		}
 
 		String nodeName = nodeDef.path("name").asText(id);
@@ -146,7 +170,7 @@ public class PipelineDeserializer {
 		boolean syncToLoom = nodeDef.path("syncToLoom").asBoolean(false);
 		boolean source = "source".equals(type) || id.equals(sourceNodeId);
 
-		// Parse dependencies
+		// Parse dependencies (stored for connection reconstruction)
 		Set<String> dependencies = new HashSet<>();
 		JsonNode depsNode = nodeDef.path("dependencies");
 		if (depsNode.isArray()) {
@@ -155,7 +179,7 @@ public class PipelineDeserializer {
 			}
 		}
 
-		// Parse conditional dependencies
+		// Parse conditional dependencies (stored for connection reconstruction)
 		Map<String, FilterBranch> conditionalDeps = new HashMap<>();
 		JsonNode condNode = nodeDef.path("conditionalDependencies");
 		if (condNode.isObject()) {
@@ -178,8 +202,8 @@ public class PipelineDeserializer {
 			}
 		}
 
-		return new DeserializedNode(id, nodeName, mode, blocking, dependencies, concurrency,
-				syncToLoom, conditionalDeps, options, source);
+		return new DeserializedNode(id, nodeName, mode, blocking, concurrency,
+				syncToLoom, options, source, dependencies, conditionalDeps);
 	}
 
 	private static <E extends Enum<E>> E parseEnum(String value, Class<E> enumType, E defaultValue) {
@@ -226,19 +250,40 @@ public class PipelineDeserializer {
 
 		private final Map<String, Object> options;
 		private final boolean source;
+		private final Set<String> parsedDeps;
+		private final Map<String, FilterBranch> parsedCondDeps;
 
 		DeserializedNode(String id, String name, NodeMode mode, boolean blocking,
-				Set<String> dependencies, int concurrency, boolean syncToLoom,
-				Map<String, FilterBranch> conditionalDeps, Map<String, Object> options,
-				boolean source) {
-			super(id, name, mode, blocking, dependencies, concurrency, syncToLoom, conditionalDeps);
+				int concurrency, boolean syncToLoom,
+				Map<String, Object> options, boolean source,
+				Set<String> parsedDeps, Map<String, FilterBranch> parsedCondDeps) {
+			super(id, name, mode, blocking, concurrency, syncToLoom);
 			this.options = options != null ? Collections.unmodifiableMap(options) : Collections.emptyMap();
 			this.source = source;
+			this.parsedDeps = parsedDeps != null ? parsedDeps : Collections.emptySet();
+			this.parsedCondDeps = parsedCondDeps != null ? parsedCondDeps : Collections.emptyMap();
+			if (source) {
+				setSource(true);
+			}
 		}
 
 		@Override
 		public boolean isSource() {
 			return source;
+		}
+
+		/**
+		 * Return the raw dependency IDs parsed from JSON, used for reconstructing connections.
+		 */
+		Set<String> parsedDependencies() {
+			return parsedDeps;
+		}
+
+		/**
+		 * Return the raw conditional dependency map parsed from JSON, used for reconstructing connections.
+		 */
+		Map<String, FilterBranch> parsedConditionalDependencies() {
+			return parsedCondDeps;
 		}
 
 		@Override

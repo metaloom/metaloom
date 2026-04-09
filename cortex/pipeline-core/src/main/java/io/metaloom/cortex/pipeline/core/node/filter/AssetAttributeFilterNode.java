@@ -42,7 +42,7 @@ public class AssetAttributeFilterNode extends AbstractFilterNode {
 	private final Double maxFps;
 
 	private AssetAttributeFilterNode(Builder builder) {
-		super(builder.id, builder.name, builder.dependencies, builder.concurrency);
+		super(builder.id, builder.name, builder.concurrency);
 		this.qualityNodeId = builder.qualityNodeId;
 		this.minFileSize = builder.minFileSize;
 		this.maxFileSize = builder.maxFileSize;

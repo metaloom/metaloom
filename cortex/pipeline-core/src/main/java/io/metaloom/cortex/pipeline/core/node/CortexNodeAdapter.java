@@ -2,7 +2,6 @@ package io.metaloom.cortex.pipeline.core.node;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,9 +28,8 @@ public class CortexNodeAdapter extends AbstractPipelineNode {
 
 	private final FilesystemNode<?, ?> wrappedNode;
 
-	public CortexNodeAdapter(FilesystemNode<?, ?> wrappedNode, NodeMode mode, boolean blocking,
-			Set<String> dependencies, int concurrency) {
-		super(wrappedNode.name(), wrappedNode.name(), mode, blocking, dependencies, concurrency);
+	public CortexNodeAdapter(FilesystemNode<?, ?> wrappedNode, NodeMode mode, boolean blocking, int concurrency) {
+		super(wrappedNode.name(), wrappedNode.name(), mode, blocking, concurrency);
 		this.wrappedNode = wrappedNode;
 	}
 

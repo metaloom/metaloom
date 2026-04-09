@@ -51,6 +51,14 @@ public class SceneDetectionNodeTest extends AbstractBasicNodeTest<SceneDetection
 		when(options.isEnabled()).thenReturn(false);
 	}
 
+	/**
+	 * Override to bypass LoomClientMock which fails with Java 25 Mockito restrictions.
+	 */
+	@Override
+	public SceneDetectionNode mockNode() {
+		return mockNode(null, options());
+	}
+
 	@Override
 	public SceneDetectionNode mockNode(LoomClient client, CortexOptions cortexOptions) {
 		SceneDetectionOptions options = mock(SceneDetectionOptions.class);

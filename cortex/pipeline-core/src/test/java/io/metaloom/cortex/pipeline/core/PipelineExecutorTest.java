@@ -67,41 +67,43 @@ class PipelineExecutorTest {
 		// Track execution order
 		CopyOnWriteArrayList<String> executionLog = new CopyOnWriteArrayList<>();
 
-		// Build nodes with realistic dependencies
-		PipelineNode hashNode = new TestNode("sha512", "SHA-512 Hash", NodeMode.PARALLEL, true,
-				Set.of(), 4, 50, executionLog, false, true);
+		// Build nodes
+		PipelineNode hashNode = new TestNode("sha512", "SHA-512 Hash", NodeMode.PARALLEL, true, 4, 50, executionLog);
+		((AbstractPipelineNode) hashNode).setSource(true);
 
-		PipelineNode tikaNode = new TestNode("tika", "Tika Analysis", NodeMode.PARALLEL, false,
-				Set.of("sha512"), 2, 30, executionLog);
+		PipelineNode tikaNode = new TestNode("tika", "Tika Analysis", NodeMode.PARALLEL, false, 2, 30, executionLog);
+		PipelineNode fingerprintNode = new TestNode("fingerprint", "Video Fingerprint", NodeMode.PARALLEL, false, 2, 80, executionLog);
+		PipelineNode thumbnailNode = new TestNode("thumbnail", "Thumbnail Generation", NodeMode.PARALLEL, false, 2, 40, executionLog);
 
-		PipelineNode fingerprintNode = new TestNode("fingerprint", "Video Fingerprint", NodeMode.PARALLEL, false,
-				Set.of("sha512"), 2, 80, executionLog);
-
-		PipelineNode thumbnailNode = new TestNode("thumbnail", "Thumbnail Generation", NodeMode.PARALLEL, false,
-				Set.of("sha512"), 2, 40, executionLog);
-
-		PipelineNode loomFetchNode = new LoomFetchNode(Set.of("sha512"), 2, media -> {
+		PipelineNode loomFetchNode = new LoomFetchNode(2, media -> {
 			executionLog.add("loom-fetch");
 			Thread.sleep(20);
 		});
 
-		PipelineNode llmNode = new TestNode("llm", "LLM Analysis", NodeMode.PARALLEL, true,
-				Set.of("tika", "thumbnail", "loom-fetch"), 4, 100, executionLog);
+		PipelineNode llmNode = new TestNode("llm", "LLM Analysis", NodeMode.PARALLEL, true, 4, 100, executionLog);
+		PipelineNode syncNode = new TestNode("loom-sync", "Loom Sync", NodeMode.SEQUENTIAL, true, 1, 30, executionLog);
 
-		PipelineNode syncNode = new TestNode("loom-sync", "Loom Sync", NodeMode.SEQUENTIAL, true,
-				Set.of("sha512", "tika", "fingerprint", "thumbnail", "llm"), 1, 30, executionLog);
+		// Wire the DAG: hash -> (tika | fingerprint | thumbnail | loom-fetch) -> llm -> sync
+		hashNode.connectTo(tikaNode);
+		hashNode.connectTo(fingerprintNode);
+		hashNode.connectTo(thumbnailNode);
+		hashNode.connectTo(loomFetchNode);
+
+		tikaNode.connectTo(llmNode);
+		thumbnailNode.connectTo(llmNode);
+		loomFetchNode.connectTo(llmNode);
+
+		hashNode.connectTo(syncNode);
+		tikaNode.connectTo(syncNode);
+		fingerprintNode.connectTo(syncNode);
+		thumbnailNode.connectTo(syncNode);
+		llmNode.connectTo(syncNode);
 
 		// Build pipeline
 		Pipeline pipeline = DefaultPipeline.builder("video-full-analysis")
 				.description("Full processing for video libraries")
 				.priority(100)
-				.addNode(hashNode)
-				.addNode(tikaNode)
-				.addNode(fingerprintNode)
-				.addNode(thumbnailNode)
-				.addNode(loomFetchNode)
-				.addNode(llmNode)
-				.addNode(syncNode)
+				.source(hashNode)
 				.build();
 
 		// Subscribe to all events on the bus
@@ -158,15 +160,16 @@ class PipelineExecutorTest {
 		AtomicInteger currentConcurrent = new AtomicInteger(0);
 		CountDownLatch allStarted = new CountDownLatch(3);
 
-		PipelineNode node1 = createConcurrencyTestNode("node-a", Set.of(), currentConcurrent, maxConcurrent, allStarted);
+		PipelineNode node1 = createConcurrencyTestNode("node-a", currentConcurrent, maxConcurrent, allStarted);
 		((AbstractPipelineNode) node1).setSource(true);
-		PipelineNode node2 = createConcurrencyTestNode("node-b", Set.of("node-a"), currentConcurrent, maxConcurrent, allStarted);
-		PipelineNode node3 = createConcurrencyTestNode("node-c", Set.of("node-a"), currentConcurrent, maxConcurrent, allStarted);
+		PipelineNode node2 = createConcurrencyTestNode("node-b", currentConcurrent, maxConcurrent, allStarted);
+		PipelineNode node3 = createConcurrencyTestNode("node-c", currentConcurrent, maxConcurrent, allStarted);
+
+		node1.connectTo(node2);
+		node1.connectTo(node3);
 
 		Pipeline pipeline = DefaultPipeline.builder("parallel-test")
-				.addNode(node1)
-				.addNode(node2)
-				.addNode(node3)
+				.source(node1)
 				.build();
 
 		LoomMedia media = new StubLoomMedia("/test/file.mp4", true);
@@ -186,7 +189,7 @@ class PipelineExecutorTest {
 
 		// Node with concurrency=1 processing a stream of 5 items
 		AbstractPipelineNode limitedNode = new AbstractPipelineNode("limited", "Limited Node",
-				NodeMode.PARALLEL, true, Set.of(), 1) {
+				NodeMode.PARALLEL, true, 1) {
 			@Override
 			public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {
 				int c = currentConcurrentForNode.incrementAndGet();
@@ -203,7 +206,7 @@ class PipelineExecutorTest {
 		limitedNode.setSource(true);
 
 		Pipeline pipeline = DefaultPipeline.builder("concurrency-test")
-				.addNode(limitedNode)
+				.source(limitedNode)
 				.build();
 
 		// Process stream of 5 media items
@@ -228,7 +231,7 @@ class PipelineExecutorTest {
 		AtomicInteger processCount = new AtomicInteger(0);
 
 		AbstractPipelineNode cachedNode = new AbstractPipelineNode("cached", "Cached Node",
-				NodeMode.PARALLEL, true, Set.of(), 1) {
+				NodeMode.PARALLEL, true, 1) {
 			@Override
 			public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {
 				processCount.incrementAndGet();
@@ -243,7 +246,7 @@ class PipelineExecutorTest {
 		cachedNode.setSource(true);
 
 		Pipeline pipeline = DefaultPipeline.builder("cache-test")
-				.addNode(cachedNode)
+				.source(cachedNode)
 				.build();
 
 		LoomMedia media = new StubLoomMedia("/test/cached.mp4", true);
@@ -264,7 +267,7 @@ class PipelineExecutorTest {
 		AtomicInteger processCount = new AtomicInteger(0);
 
 		AbstractPipelineNode node = new AbstractPipelineNode("action", "Some Node",
-				NodeMode.SEQUENTIAL, true, Set.of(), 1) {
+				NodeMode.SEQUENTIAL, true, 1) {
 			@Override
 			public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {
 				processCount.incrementAndGet();
@@ -275,7 +278,7 @@ class PipelineExecutorTest {
 
 		Pipeline pipeline = DefaultPipeline.builder("dryrun-test")
 				.dryRun(true)
-				.addNode(node)
+				.source(node)
 				.build();
 
 		LoomMedia media = new StubLoomMedia("/test/dry.mp4", true);
@@ -289,7 +292,7 @@ class PipelineExecutorTest {
 	@Test
 	void testDisabledPipeline() {
 		AbstractPipelineNode node = new AbstractPipelineNode("action", "Some Node",
-				NodeMode.SEQUENTIAL, true, Set.of(), 1) {
+				NodeMode.SEQUENTIAL, true, 1) {
 			@Override
 			public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {
 				return NodeResult.success(id(), 10);
@@ -299,7 +302,7 @@ class PipelineExecutorTest {
 
 		Pipeline pipeline = DefaultPipeline.builder("disabled-test")
 				.enabled(false)
-				.addNode(node)
+				.source(node)
 				.build();
 
 		LoomMedia media = new StubLoomMedia("/test/disabled.mp4", true);
@@ -312,19 +315,25 @@ class PipelineExecutorTest {
 	void testPipelineManager() {
 		DefaultPipelineManager manager = new DefaultPipelineManager();
 
+		TestNode videoHash = new TestNode("hash", "Hash", NodeMode.PARALLEL, true, 4, 10, new CopyOnWriteArrayList<>());
+		videoHash.setSource(true);
 		Pipeline videoPipeline = DefaultPipeline.builder("video-full")
 				.priority(100)
-				.addNode(new TestNode("hash", "Hash", NodeMode.PARALLEL, true, Set.of(), 4, 10, new CopyOnWriteArrayList<>(), false, true))
+				.source(videoHash)
 				.build();
 
+		TestNode imageHash = new TestNode("hash", "Hash", NodeMode.PARALLEL, true, 4, 10, new CopyOnWriteArrayList<>());
+		imageHash.setSource(true);
 		Pipeline imagePipeline = DefaultPipeline.builder("image-standard")
 				.priority(50)
-				.addNode(new TestNode("hash", "Hash", NodeMode.PARALLEL, true, Set.of(), 4, 10, new CopyOnWriteArrayList<>(), false, true))
+				.source(imageHash)
 				.build();
 
+		TestNode fallbackHash = new TestNode("hash", "Hash", NodeMode.PARALLEL, true, 4, 10, new CopyOnWriteArrayList<>());
+		fallbackHash.setSource(true);
 		Pipeline fallback = DefaultPipeline.builder("hash-only")
 				.priority(0)
-				.addNode(new TestNode("hash", "Hash", NodeMode.PARALLEL, true, Set.of(), 4, 10, new CopyOnWriteArrayList<>(), false, true))
+				.source(fallbackHash)
 				.build();
 
 		manager.register(videoPipeline);
@@ -354,13 +363,17 @@ class PipelineExecutorTest {
 	@Test
 	void testDependencyCycleDetection() {
 		// Nodes with circular dependencies should throw
-		PipelineNode a = new TestNode("a", "A", NodeMode.PARALLEL, true, Set.of("b"), 1, 10, new CopyOnWriteArrayList<>(), false, true);
-		PipelineNode b = new TestNode("b", "B", NodeMode.PARALLEL, true, Set.of("a"), 1, 10, new CopyOnWriteArrayList<>());
+		PipelineNode a = new TestNode("a", "A", NodeMode.PARALLEL, true, 1, 10, new CopyOnWriteArrayList<>());
+		((AbstractPipelineNode) a).setSource(true);
+		PipelineNode b = new TestNode("b", "B", NodeMode.PARALLEL, true, 1, 10, new CopyOnWriteArrayList<>());
+
+		// Create a cycle: a -> b -> a
+		a.connectTo(b);
+		b.connectTo(a);
 
 		assertThrows(IllegalStateException.class, () -> {
 			DefaultPipeline.builder("cycle-test")
-					.addNode(a)
-					.addNode(b)
+					.source(a)
 					.build();
 		});
 	}
@@ -376,14 +389,14 @@ class PipelineExecutorTest {
 		eventBus.subscribeAll(e -> events.add(e.getNodeId()));
 		eventBus.subscribe("hash", e -> specificEvents.add(e.getNodeId() + ":" + e.getResult().getState()));
 
-		PipelineNode hashNode = new TestNode("hash", "Hash", NodeMode.PARALLEL, true,
-				Set.of(), 4, 10, new CopyOnWriteArrayList<>(), false, true);
-		PipelineNode syncNode = new TestNode("sync", "Sync", NodeMode.SEQUENTIAL, true,
-				Set.of("hash"), 1, 10, new CopyOnWriteArrayList<>());
+		PipelineNode hashNode = new TestNode("hash", "Hash", NodeMode.PARALLEL, true, 4, 10, new CopyOnWriteArrayList<>());
+		((AbstractPipelineNode) hashNode).setSource(true);
+		PipelineNode syncNode = new TestNode("sync", "Sync", NodeMode.SEQUENTIAL, true, 1, 10, new CopyOnWriteArrayList<>());
+
+		hashNode.connectTo(syncNode);
 
 		Pipeline pipeline = DefaultPipeline.builder("event-test")
-				.addNode(hashNode)
-				.addNode(syncNode)
+				.source(hashNode)
 				.build();
 
 		LoomMedia media = new StubLoomMedia("/test/event.mp4", true);
@@ -415,33 +428,32 @@ class PipelineExecutorTest {
 	void testComplexDAGWithMultipleLLMNodes() {
 		CopyOnWriteArrayList<String> executionLog = new CopyOnWriteArrayList<>();
 
-		// 1. Hasher — root node, no dependencies, source node
-		PipelineNode hasherNode = new TestNode("hasher", "SHA-512 Hash", NodeMode.PARALLEL, true,
-				Set.of(), 4, 30, executionLog, false, true);
+		// 1. Hasher — root node, source node
+		PipelineNode hasherNode = new TestNode("hasher", "SHA-512 Hash", NodeMode.PARALLEL, true, 4, 30, executionLog);
+		((AbstractPipelineNode) hasherNode).setSource(true);
 
-		// 2. Thumbnail — depends on hasher, produces image data
+		// 2. Thumbnail — produces image data
 		PipelineNode thumbnailNode = new OutputTestNode("thumbnail", "Thumbnail", NodeMode.PARALLEL, true,
-				Set.of("hasher"), 2, 40,
+				2, 40,
 				Map.of("image", "/tmp/thumb_001.jpg"),
 				executionLog);
 
-		// 3. Fingerprint — depends on hasher, runs in parallel with thumbnail & whisper
-		PipelineNode fingerprintNode = new TestNode("fingerprint", "Fingerprint", NodeMode.PARALLEL, true,
-				Set.of("hasher"), 2, 60, executionLog, true);
+		// 3. Fingerprint — runs in parallel with thumbnail & whisper
+		TestNode fingerprintNode = new TestNode("fingerprint", "Fingerprint", NodeMode.PARALLEL, true, 2, 60, executionLog);
+		fingerprintNode.setSyncToLoom(true);
 
-		// 4. Whisper — depends on hasher, produces transcript
+		// 4. Whisper — produces transcript
 		PipelineNode whisperNode = new OutputTestNode("whisper", "Whisper STT", NodeMode.PARALLEL, true,
-				Set.of("hasher"), 1, 80,
+				1, 80,
 				Map.of("transcript", "Hello world, this is a test video about machine learning."),
 				executionLog);
 
-		// 5. LLM Image Description — depends on thumbnail, reads its output, produces description
+		// 5. LLM Image Description — reads thumbnail output, produces description
 		PipelineNode llmImageDescNode = new AbstractPipelineNode("llm-image-desc", "LLM Image Description",
-				NodeMode.PARALLEL, true, Set.of("thumbnail"), 4, true) {
+				NodeMode.PARALLEL, true, 4, true) {
 			@Override
 			public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {
 				try { Thread.sleep(50); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
-				// Read thumbnail path from upstream
 				NodeResult thumbResult = upstreamResults.get("thumbnail");
 				String imagePath = thumbResult != null ? thumbResult.getOutput("image") : "unknown";
 				String description = "A scenic landscape with mountains (from " + imagePath + ")";
@@ -450,9 +462,9 @@ class PipelineExecutorTest {
 			}
 		};
 
-		// 6. LLM Process Description — depends on llm-image-desc, reads the description
+		// 6. LLM Process Description — reads the description
 		PipelineNode llmProcessDescNode = new AbstractPipelineNode("llm-process-desc", "LLM Process Description",
-				NodeMode.PARALLEL, true, Set.of("llm-image-desc"), 4, true) {
+				NodeMode.PARALLEL, true, 4, true) {
 			@Override
 			public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {
 				try { Thread.sleep(30); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
@@ -464,9 +476,9 @@ class PipelineExecutorTest {
 			}
 		};
 
-		// 7. LLM Transcript QA — depends on whisper, reads transcript
+		// 7. LLM Transcript QA — reads transcript
 		PipelineNode llmTranscriptQaNode = new AbstractPipelineNode("llm-transcript-qa", "LLM Transcript QA",
-				NodeMode.PARALLEL, true, Set.of("whisper"), 4, true) {
+				NodeMode.PARALLEL, true, 4, true) {
 			@Override
 			public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {
 				try { Thread.sleep(50); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
@@ -478,16 +490,19 @@ class PipelineExecutorTest {
 			}
 		};
 
+		// Wire the DAG
+		hasherNode.connectTo(thumbnailNode);
+		hasherNode.connectTo(fingerprintNode);
+		hasherNode.connectTo(whisperNode);
+
+		thumbnailNode.connectTo(llmImageDescNode);
+		llmImageDescNode.connectTo(llmProcessDescNode);
+		whisperNode.connectTo(llmTranscriptQaNode);
+
 		Pipeline pipeline = DefaultPipeline.builder("complex-llm-pipeline")
 				.description("Complex pipeline with multiple LLM nodes")
 				.priority(100)
-				.addNode(hasherNode)
-				.addNode(thumbnailNode)
-				.addNode(fingerprintNode)
-				.addNode(whisperNode)
-				.addNode(llmImageDescNode)
-				.addNode(llmProcessDescNode)
-				.addNode(llmTranscriptQaNode)
+				.source(hasherNode)
 				.build();
 
 		LoomMedia media = new StubLoomMedia("/media/videos/complex.mp4", true);
@@ -541,17 +556,20 @@ class PipelineExecutorTest {
 	@Test
 	void testSyncToLoomFlag() {
 		// Nodes with syncToLoom=true should be collected by the bulk sync collector
-		PipelineNode hashNode = new TestNode("hash", "Hash", NodeMode.PARALLEL, true,
-				Set.of(), 4, 10, new CopyOnWriteArrayList<>(), true, true);
-		PipelineNode thumbnailNode = new TestNode("thumbnail", "Thumb", NodeMode.PARALLEL, true,
-				Set.of("hash"), 2, 10, new CopyOnWriteArrayList<>(), true);
-		PipelineNode internalNode = new TestNode("internal", "Internal", NodeMode.PARALLEL, true,
-				Set.of("hash"), 2, 10, new CopyOnWriteArrayList<>(), false);
+		TestNode hashNode = new TestNode("hash", "Hash", NodeMode.PARALLEL, true, 4, 10, new CopyOnWriteArrayList<>());
+		hashNode.setSource(true);
+		hashNode.setSyncToLoom(true);
+
+		TestNode thumbnailNode = new TestNode("thumbnail", "Thumb", NodeMode.PARALLEL, true, 2, 10, new CopyOnWriteArrayList<>());
+		thumbnailNode.setSyncToLoom(true);
+
+		TestNode internalNode = new TestNode("internal", "Internal", NodeMode.PARALLEL, true, 2, 10, new CopyOnWriteArrayList<>());
+
+		hashNode.connectTo(thumbnailNode);
+		hashNode.connectTo(internalNode);
 
 		Pipeline pipeline = DefaultPipeline.builder("sync-test")
-				.addNode(hashNode)
-				.addNode(thumbnailNode)
-				.addNode(internalNode)
+				.source(hashNode)
 				.build();
 
 		assertTrue(hashNode.syncToLoom());
@@ -570,17 +588,20 @@ class PipelineExecutorTest {
 				new DefaultPipelineEventBus(), syncCollector);
 
 		// hash (sync) -> thumbnail (sync) -> internal (no sync)
-		PipelineNode hashNode2 = new TestNode("hash", "Hash", NodeMode.PARALLEL, true,
-				Set.of(), 4, 10, new CopyOnWriteArrayList<>(), true, true);
-		PipelineNode thumbnailNode2 = new TestNode("thumbnail", "Thumb", NodeMode.PARALLEL, true,
-				Set.of("hash"), 2, 10, new CopyOnWriteArrayList<>(), true);
-		PipelineNode internalNode2 = new TestNode("internal", "Internal", NodeMode.PARALLEL, true,
-				Set.of("hash"), 2, 10, new CopyOnWriteArrayList<>(), false);
+		TestNode hashNode2 = new TestNode("hash", "Hash", NodeMode.PARALLEL, true, 4, 10, new CopyOnWriteArrayList<>());
+		hashNode2.setSource(true);
+		hashNode2.setSyncToLoom(true);
+
+		TestNode thumbnailNode2 = new TestNode("thumbnail", "Thumb", NodeMode.PARALLEL, true, 2, 10, new CopyOnWriteArrayList<>());
+		thumbnailNode2.setSyncToLoom(true);
+
+		TestNode internalNode2 = new TestNode("internal", "Internal", NodeMode.PARALLEL, true, 2, 10, new CopyOnWriteArrayList<>());
+
+		hashNode2.connectTo(thumbnailNode2);
+		hashNode2.connectTo(internalNode2);
 
 		Pipeline pipeline2 = DefaultPipeline.builder("bulk-sync-test")
-				.addNode(hashNode2)
-				.addNode(thumbnailNode2)
-				.addNode(internalNode2)
+				.source(hashNode2)
 				.build();
 
 		// Process a batch of 3 media items
@@ -613,31 +634,12 @@ class PipelineExecutorTest {
 	static class TestNode extends AbstractPipelineNode {
 		private final long delayMs;
 		private final List<String> executionLog;
-		private final boolean source;
 
 		TestNode(String id, String name, NodeMode mode, boolean blocking,
-				Set<String> dependencies, int concurrency, long delayMs, List<String> executionLog) {
-			this(id, name, mode, blocking, dependencies, concurrency, delayMs, executionLog, false, false);
-		}
-
-		TestNode(String id, String name, NodeMode mode, boolean blocking,
-				Set<String> dependencies, int concurrency, long delayMs, List<String> executionLog,
-				boolean syncToLoom) {
-			this(id, name, mode, blocking, dependencies, concurrency, delayMs, executionLog, syncToLoom, false);
-		}
-
-		TestNode(String id, String name, NodeMode mode, boolean blocking,
-				Set<String> dependencies, int concurrency, long delayMs, List<String> executionLog,
-				boolean syncToLoom, boolean source) {
-			super(id, name, mode, blocking, dependencies, concurrency, syncToLoom);
+				int concurrency, long delayMs, List<String> executionLog) {
+			super(id, name, mode, blocking, concurrency);
 			this.delayMs = delayMs;
 			this.executionLog = executionLog;
-			this.source = source;
-		}
-
-		@Override
-		public boolean isSource() {
-			return source;
 		}
 
 		@Override
@@ -662,9 +664,9 @@ class PipelineExecutorTest {
 		private final List<String> executionLog;
 
 		OutputTestNode(String id, String name, NodeMode mode, boolean blocking,
-				Set<String> dependencies, int concurrency, long delayMs,
+				int concurrency, long delayMs,
 				Map<String, Object> outputData, List<String> executionLog) {
-			super(id, name, mode, blocking, dependencies, concurrency, true);
+			super(id, name, mode, blocking, concurrency, true);
 			this.delayMs = delayMs;
 			this.outputData = outputData;
 			this.executionLog = executionLog;
@@ -683,9 +685,9 @@ class PipelineExecutorTest {
 		}
 	}
 
-	private PipelineNode createConcurrencyTestNode(String id, Set<String> deps,
+	private PipelineNode createConcurrencyTestNode(String id,
 			AtomicInteger currentConcurrent, AtomicInteger maxConcurrent, CountDownLatch allStarted) {
-		return new AbstractPipelineNode(id, id, NodeMode.PARALLEL, true, deps, 1) {
+		return new AbstractPipelineNode(id, id, NodeMode.PARALLEL, true, 1) {
 			@Override
 			public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {
 				int c = currentConcurrent.incrementAndGet();

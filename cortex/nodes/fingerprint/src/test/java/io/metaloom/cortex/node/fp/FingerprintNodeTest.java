@@ -1,8 +1,6 @@
 package io.metaloom.cortex.node.fp;
 
 import static io.metaloom.cortex.media.test.assertj.NodeAssertions.assertThat;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 
@@ -39,13 +37,21 @@ public class FingerprintNodeTest extends AbstractBasicNodeTest<FingerprintNode> 
 	@Override
 	protected void disableNode(FingerprintNode nodeMock) {
 		FingerprintNodeOptions options = nodeMock.options();
-		when(options.isEnabled()).thenReturn(false);
+		options.setEnabled(false);
+	}
+
+	/**
+	 * Override to bypass LoomClientMock which fails with Java 25 Mockito restrictions.
+	 */
+	@Override
+	public FingerprintNode mockNode() {
+		return mockNode(null, options());
 	}
 
 	@Override
 	public FingerprintNode mockNode(LoomClient client, CortexOptions cortexOptions) {
-		FingerprintNodeOptions options = mock(FingerprintNodeOptions.class);
-		when(options.isEnabled()).thenReturn(true);
-		return new FingerprintNode(client, cortexOptions, options);
+		FingerprintNodeOptions options = new FingerprintNodeOptions();
+		FingerprintMetaStorage metaStorage = new FingerprintMetaStorage(storage());
+		return new FingerprintNode(client, cortexOptions, options, metaStorage);
 	}
 }
