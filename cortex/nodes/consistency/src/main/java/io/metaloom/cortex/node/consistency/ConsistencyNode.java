@@ -12,13 +12,14 @@ import javax.inject.Inject;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.api.node.payload.ConsistencyPayload;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.utils.hash.partial.PartialFile;
 
-public class ConsistencyNode extends AbstractMediaNode<Void, ConsistencyNodeOptions> {
+public class ConsistencyNode extends AbstractMediaNode<ConsistencyPayload, ConsistencyNodeOptions> {
 
 	public static final String OUTPUT_ZERO_CHUNK_COUNT = "zero_chunk_count";
 	public static final String OUTPUT_IS_COMPLETE = "is_complete";
@@ -40,25 +41,25 @@ public class ConsistencyNode extends AbstractMediaNode<Void, ConsistencyNodeOpti
 	}
 
 	@Override
-	protected NodeResult<Void> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
+	protected NodeResult<ConsistencyPayload> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
 		LoomMedia media = ctx.media();
 
 		if (asset == null) {
 			long count = computeZeroChunks(media);
 			ctx.output(OUTPUT_ZERO_CHUNK_COUNT, count);
 			ctx.output(OUTPUT_IS_COMPLETE, count == 0);
-			return ctx.origin(COMPUTED).next();
+			return ctx.origin(COMPUTED).next(ConsistencyPayload.of(count == 0, count));
 		} else {
 			Long dbCount = asset.getConsistency() != null ? asset.getConsistency().getZeroChunkCount() : null;
 			if (dbCount != null) {
 				ctx.output(OUTPUT_ZERO_CHUNK_COUNT, dbCount);
 				ctx.output(OUTPUT_IS_COMPLETE, dbCount == 0);
-				return ctx.origin(REMOTE).next();
+				return ctx.origin(REMOTE).next(ConsistencyPayload.of(dbCount == 0, dbCount));
 			} else {
 				long count = computeZeroChunks(media);
 				ctx.output(OUTPUT_ZERO_CHUNK_COUNT, count);
 				ctx.output(OUTPUT_IS_COMPLETE, count == 0);
-				return ctx.origin(COMPUTED).next();
+				return ctx.origin(COMPUTED).next(ConsistencyPayload.of(count == 0, count));
 			}
 		}
 	}

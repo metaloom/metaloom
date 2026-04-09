@@ -11,12 +11,13 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.payload.TextPayload;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 
-public class OCRNode extends AbstractMediaNode<Void, OCRNodeOptions> {
+public class OCRNode extends AbstractMediaNode<TextPayload, OCRNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(OCRNode.class);
 
@@ -36,7 +37,7 @@ public class OCRNode extends AbstractMediaNode<Void, OCRNodeOptions> {
 	}
 
 	@Override
-	protected NodeResult<Void> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws IOException {
+	protected NodeResult<TextPayload> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws IOException {
 		return ctx.skipped("not implemented").next();
 	}
 

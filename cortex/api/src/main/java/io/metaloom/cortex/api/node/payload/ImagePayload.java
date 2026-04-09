@@ -34,4 +34,8 @@ public interface ImagePayload extends Payload {
 	static ImagePayload of(Path path, int width, int height, String format) {
 		return new Default(path, width, height, format);
 	}
+
+	static ImagePayload of(Path path, String format) {
+		return new Default(path, -1, -1, format);
+	}
 }

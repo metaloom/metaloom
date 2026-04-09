@@ -91,6 +91,15 @@ public class NodeContextImpl<I> implements NodeContext<I> {
 	}
 
 	@Override
+	public <O> NodeResult<O> next(O output) {
+		if (skipReason != null) {
+			return NodeResult.skipped();
+		} else {
+			return NodeResult.success(output, outputs());
+		}
+	}
+
+	@Override
 	public <O> NodeResult<O> abort() {
 		return NodeResult.failed();
 	}

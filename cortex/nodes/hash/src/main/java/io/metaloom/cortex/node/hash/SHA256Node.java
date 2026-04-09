@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.payload.HashPayload;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
@@ -19,7 +20,7 @@ import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.utils.hash.HashUtils;
 import io.metaloom.utils.hash.SHA256;
 
-public class SHA256Node extends AbstractMediaNode<Void, HashNodeOptions> {
+public class SHA256Node extends AbstractMediaNode<HashPayload, HashNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(SHA256Node.class);
 
@@ -41,14 +42,15 @@ public class SHA256Node extends AbstractMediaNode<Void, HashNodeOptions> {
 	}
 
 	@Override
-	protected NodeResult<Void> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) {
+	protected NodeResult<HashPayload> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) {
 		if (asset != null && asset.getHashes().getSHA256() != null) {
-			ctx.output(OUTPUT_SHA256, asset.getHashes().getSHA256().toString());
-			return ctx.origin(REMOTE).next();
+			String sha256 = asset.getHashes().getSHA256().toString();
+			ctx.output(OUTPUT_SHA256, sha256);
+			return ctx.origin(REMOTE).next(HashPayload.of("SHA-256", sha256));
 		} else {
 			SHA256 hash = HashUtils.computeSHA256(ctx.media().file());
 			ctx.output(OUTPUT_SHA256, hash.toString());
-			return ctx.origin(COMPUTED).next();
+			return ctx.origin(COMPUTED).next(HashPayload.of("SHA-256", hash.toString()));
 		}
 	}
 

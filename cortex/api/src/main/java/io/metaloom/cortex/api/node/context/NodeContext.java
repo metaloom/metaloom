@@ -91,6 +91,13 @@ public interface NodeContext<I> {
 
 	<O> NodeResult<O> next();
 
+	/**
+	 * Build the result with a typed payload output.
+	 *
+	 * @param output the typed payload produced by the node
+	 */
+	<O> NodeResult<O> next(O output);
+
 	<O> NodeResult<O> abort();
 
 	NodeContext<I> print(String string, String string2);

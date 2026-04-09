@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.payload.HashPayload;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
@@ -19,7 +20,7 @@ import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.utils.hash.HashUtils;
 import io.metaloom.utils.hash.MD5;
 
-public class MD5Node extends AbstractMediaNode<Void, HashNodeOptions> {
+public class MD5Node extends AbstractMediaNode<HashPayload, HashNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(MD5Node.class);
 
@@ -46,14 +47,15 @@ public class MD5Node extends AbstractMediaNode<Void, HashNodeOptions> {
 	}
 
 	@Override
-	protected NodeResult<Void> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) {
+	protected NodeResult<HashPayload> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) {
 		if (asset != null && asset.getHashes().getMD5() != null) {
-			ctx.output(OUTPUT_MD5, asset.getHashes().getMD5().toString());
-			return ctx.origin(REMOTE).next();
+			String md5 = asset.getHashes().getMD5().toString();
+			ctx.output(OUTPUT_MD5, md5);
+			return ctx.origin(REMOTE).next(HashPayload.of("MD5", md5));
 		} else {
 			MD5 hash = HashUtils.computeMD5(ctx.media().file());
 			ctx.output(OUTPUT_MD5, hash.toString());
-			return ctx.origin(COMPUTED).next();
+			return ctx.origin(COMPUTED).next(HashPayload.of("MD5", hash.toString()));
 		}
 	}
 

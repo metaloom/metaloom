@@ -11,13 +11,14 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.payload.TextPayload;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.cortex.media.whisper.WhisperResult;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 
-public class WhisperNode extends AbstractMediaNode<Void, WhisperOptions> {
+public class WhisperNode extends AbstractMediaNode<TextPayload, WhisperOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(WhisperNode.class);
 
@@ -46,15 +47,16 @@ public class WhisperNode extends AbstractMediaNode<Void, WhisperOptions> {
 	}
 
 	@Override
-	protected NodeResult<Void> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
+	protected NodeResult<TextPayload> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
 		LoomMedia media = ctx.media();
 		String path = media.absolutePath();
 
 		try {
 			WhisperResult result = processor.process(path);
-			ctx.output(OUTPUT_WHISPER_RESULT, result.toJson());
+			String json = result.toJson();
+			ctx.output(OUTPUT_WHISPER_RESULT, json);
 			print(ctx, "DONE", result.segments().size() + " segments");
-			return ctx.origin(COMPUTED).next();
+			return ctx.origin(COMPUTED).next(TextPayload.of(json));
 		} catch (Exception e) {
 			if (log.isErrorEnabled()) {
 				log.error("Error while processing media " + path, e);

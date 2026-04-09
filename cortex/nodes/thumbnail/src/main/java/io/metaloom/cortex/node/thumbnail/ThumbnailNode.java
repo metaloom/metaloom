@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.payload.ImagePayload;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
@@ -28,7 +29,7 @@ import io.metaloom.video4j.VideoFile;
 import io.metaloom.video4j.Videos;
 import io.metaloom.video4j.preview.PreviewGenerator;
 
-public class ThumbnailNode extends AbstractMediaNode<Void, ThumbnailNodeOptions> {
+public class ThumbnailNode extends AbstractMediaNode<ImagePayload, ThumbnailNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(ThumbnailNode.class);
 
@@ -73,7 +74,7 @@ public class ThumbnailNode extends AbstractMediaNode<Void, ThumbnailNodeOptions>
 	}
 
 	@Override
-	protected NodeResult<Void> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws IOException {
+	protected NodeResult<ImagePayload> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws IOException {
 		LoomMedia media = ctx.media();
 		try {
 			String path = media.absolutePath();
@@ -87,7 +88,8 @@ public class ThumbnailNode extends AbstractMediaNode<Void, ThumbnailNodeOptions>
 					ctx.output(OUTPUT_THUMBNAIL_PATH, thumbnailPath.toString());
 				}
 			}
-			return ctx.origin(COMPUTED).next();
+			Path thumbnailPath = resolveThumbnailPath(media);
+			return ctx.origin(COMPUTED).next(ImagePayload.of(thumbnailPath, "jpg"));
 		} catch (Exception e) {
 			log.error("Failed to compute thumbnail", e);
 			ctx.output(OUTPUT_THUMBNAIL_FLAG, "FAILED");
