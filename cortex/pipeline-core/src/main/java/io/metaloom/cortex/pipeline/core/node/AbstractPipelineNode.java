@@ -6,6 +6,7 @@ import java.util.Set;
 
 import io.metaloom.cortex.pipeline.api.NodeMode;
 import io.metaloom.cortex.pipeline.api.cache.NodeCacheProvider;
+import io.metaloom.cortex.pipeline.api.filter.FilterBranch;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 
 /**
@@ -21,6 +22,7 @@ public abstract class AbstractPipelineNode implements PipelineNode {
 	private final int concurrency;
 	private boolean syncToLoom;
 	private NodeCacheProvider cacheProvider;
+	private Map<String, FilterBranch> conditionalDependencies = Collections.emptyMap();
 
 	protected AbstractPipelineNode(String id, String name, NodeMode mode, boolean blocking,
 			Set<String> dependencies, int concurrency) {
@@ -29,6 +31,12 @@ public abstract class AbstractPipelineNode implements PipelineNode {
 
 	protected AbstractPipelineNode(String id, String name, NodeMode mode, boolean blocking,
 			Set<String> dependencies, int concurrency, boolean syncToLoom) {
+		this(id, name, mode, blocking, dependencies, concurrency, syncToLoom, Collections.emptyMap());
+	}
+
+	protected AbstractPipelineNode(String id, String name, NodeMode mode, boolean blocking,
+			Set<String> dependencies, int concurrency, boolean syncToLoom,
+			Map<String, FilterBranch> conditionalDependencies) {
 		this.id = id;
 		this.name = name;
 		this.mode = mode;
@@ -36,6 +44,9 @@ public abstract class AbstractPipelineNode implements PipelineNode {
 		this.dependencies = dependencies != null ? Collections.unmodifiableSet(dependencies) : Collections.emptySet();
 		this.concurrency = concurrency;
 		this.syncToLoom = syncToLoom;
+		this.conditionalDependencies = conditionalDependencies != null
+				? Collections.unmodifiableMap(conditionalDependencies)
+				: Collections.emptyMap();
 	}
 
 	@Override
@@ -61,6 +72,17 @@ public abstract class AbstractPipelineNode implements PipelineNode {
 	@Override
 	public Set<String> dependencies() {
 		return dependencies;
+	}
+
+	@Override
+	public Map<String, FilterBranch> conditionalDependencies() {
+		return conditionalDependencies;
+	}
+
+	public void setConditionalDependencies(Map<String, FilterBranch> conditionalDependencies) {
+		this.conditionalDependencies = conditionalDependencies != null
+				? Collections.unmodifiableMap(conditionalDependencies)
+				: Collections.emptyMap();
 	}
 
 	@Override

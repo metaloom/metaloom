@@ -25,6 +25,7 @@ import io.metaloom.cortex.pipeline.api.PipelineResult;
 import io.metaloom.cortex.pipeline.api.cache.NodeCacheProvider;
 import io.metaloom.cortex.pipeline.api.event.NodeCompletionEvent;
 import io.metaloom.cortex.pipeline.api.event.PipelineEventBus;
+import io.metaloom.cortex.pipeline.api.filter.FilterBranch;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 import io.metaloom.cortex.pipeline.api.sync.LoomBulkSyncCollector;
 import io.metaloom.cortex.pipeline.common.cache.NoOpNodeCache;
@@ -146,6 +147,33 @@ public class DAGPipelineExecutor implements PipelineExecutor {
 						results.put(node.id(), skipped);
 						eventBus.publish(new NodeCompletionEvent(node.id(), media, skipped));
 						return CompletableFuture.completedFuture(skipped);
+					}
+				}
+			}
+
+			// Check conditional (filter branch) dependencies
+			Map<String, FilterBranch> conditions = node.conditionalDependencies();
+			if (!conditions.isEmpty()) {
+				for (Map.Entry<String, FilterBranch> entry : conditions.entrySet()) {
+					String depId = entry.getKey();
+					FilterBranch required = entry.getValue();
+					if (required == FilterBranch.ANY) {
+						continue;
+					}
+					NodeResult depResult = results.get(depId);
+					if (depResult != null && depResult.getState() == NodeState.COMPLETED) {
+						Boolean passed = depResult.getOutput(PipelineNode.FILTER_PASSED);
+						if (passed != null) {
+							boolean branchMatch = (required == FilterBranch.PASS) == passed;
+							if (!branchMatch) {
+								String reason = "Filter branch mismatch: " + depId + " "
+										+ (passed ? "PASS" : "REJECT") + " vs required " + required;
+								NodeResult skipped = NodeResult.skipped(node.id(), reason);
+								results.put(node.id(), skipped);
+								eventBus.publish(new NodeCompletionEvent(node.id(), media, skipped));
+								return CompletableFuture.completedFuture(skipped);
+							}
+						}
 					}
 				}
 			}

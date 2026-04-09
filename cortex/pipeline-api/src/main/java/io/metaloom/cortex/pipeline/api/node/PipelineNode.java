@@ -7,13 +7,23 @@ import java.util.Set;
 import io.metaloom.cortex.pipeline.api.NodeMode;
 import io.metaloom.cortex.pipeline.api.NodeResult;
 import io.metaloom.cortex.pipeline.api.cache.NodeCacheProvider;
+import io.metaloom.cortex.pipeline.api.filter.FilterBranch;
 import io.metaloom.cortex.api.media.LoomMedia;
 
 /**
  * A node within a processing pipeline. Nodes execute actions on media items.
  * Each node can declare dependencies on other nodes and configure its execution mode.
+ *
+ * <p>Filter nodes emit a {@value #FILTER_PASSED} boolean output to signal pass/reject.
+ * Downstream nodes can use {@link #conditionalDependencies()} to bind to a specific branch.</p>
  */
 public interface PipelineNode {
+
+	/**
+	 * Standard output key emitted by filter nodes. {@code true} means the media passed
+	 * the filter condition; {@code false} means it was rejected.
+	 */
+	String FILTER_PASSED = "filter_passed";
 
 	/**
 	 * Unique identifier for this node within the pipeline (e.g. "sha512", "thumbnail", "loom-sync").
@@ -40,6 +50,21 @@ public interface PipelineNode {
 	 * IDs of nodes that must complete before this node can execute.
 	 */
 	Set<String> dependencies();
+
+	/**
+	 * Conditional dependency declarations for filter-based branching. Maps a dependency
+	 * node id to the {@link FilterBranch} this node expects. If a dependency emits a
+	 * {@value #FILTER_PASSED} output that does not match the declared branch, this node
+	 * is skipped.
+	 *
+	 * <p>Only entries for filter nodes need to be declared; regular dependencies default
+	 * to {@link FilterBranch#ANY}.</p>
+	 *
+	 * @return map of dependency node id → required filter branch (empty by default)
+	 */
+	default Map<String, FilterBranch> conditionalDependencies() {
+		return Collections.emptyMap();
+	}
 
 	/**
 	 * The maximum number of concurrent workers for this node (job queue size).
