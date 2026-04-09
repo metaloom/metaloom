@@ -7,9 +7,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import javax.inject.Inject;
+import javax.inject.Singleton;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
@@ -19,8 +21,8 @@ import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 
 /**
  * Serializer that converts a {@link Pipeline} into a JSON representation.
- * The JSON encodes the full pipeline graph as a tree structure with branches,
- * filter nodes, source nodes, and processing nodes.
+ * The JSON encodes the full pipeline graph as a tree structure with the single
+ * source node, branches, filter nodes, and processing nodes.
  *
  * <p>Example output:</p>
  * <pre>
@@ -30,39 +32,38 @@ import io.metaloom.cortex.pipeline.api.node.PipelineNode;
  *   "priority": 100,
  *   "enabled": true,
  *   "dryRun": false,
+ *   "sourceNode": "filesystem",
  *   "nodes": [
  *     {
- *       "id": "sha512",
- *       "name": "SHA-512 Hash",
+ *       "id": "filesystem",
+ *       "name": "Filesystem Source",
  *       "type": "source",
  *       "mode": "PARALLEL",
  *       "blocking": true,
  *       "concurrency": 4,
- *       "syncToLoom": true,
+ *       "syncToLoom": false,
  *       "dependencies": [],
  *       "conditionalDependencies": {},
  *       "options": {},
- *       "children": ["tika"]
+ *       "children": ["sha512"]
  *     }
  *   ],
  *   "tree": {
- *     "roots": ["sha512"],
+ *     "root": "filesystem",
  *     "branches": {
- *       "sha512": ["tika"],
- *       "tika": ["llm"]
+ *       "filesystem": ["sha512"],
+ *       "sha512": ["tika"]
  *     }
  *   }
  * }
  * </pre>
  */
+@Singleton
 public class PipelineSerializer {
 
 	private final ObjectMapper mapper;
 
-	public PipelineSerializer() {
-		this.mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
-	}
-
+	@Inject
 	public PipelineSerializer(ObjectMapper mapper) {
 		this.mapper = mapper;
 	}
@@ -92,6 +93,7 @@ public class PipelineSerializer {
 		root.put("priority", pipeline.priority());
 		root.put("enabled", pipeline.isEnabled());
 		root.put("dryRun", pipeline.isDryRun());
+		root.put("sourceNode", pipeline.sourceNode().id());
 
 		// Serialize nodes
 		List<PipelineNode> nodes = pipeline.nodes();
@@ -188,22 +190,19 @@ public class PipelineSerializer {
 	}
 
 	/**
-	 * Build the tree structure showing roots and branches.
+	 * Build the tree structure showing the source root and branches.
 	 */
 	private ObjectNode buildTreeStructure(List<PipelineNode> nodes, Map<String, List<String>> childrenMap) {
 		ObjectNode tree = mapper.createObjectNode();
 
-		// Roots are nodes with no dependencies
+		// Root is the single source node
 		Set<String> allNodeIds = nodes.stream().map(PipelineNode::id).collect(Collectors.toSet());
-		ArrayNode roots = mapper.createArrayNode();
-		for (PipelineNode node : nodes) {
-			// A root node has no dependencies (or all deps are outside this pipeline)
-			boolean isRoot = node.dependencies().stream().noneMatch(allNodeIds::contains);
-			if (isRoot) {
-				roots.add(node.id());
-			}
-		}
-		tree.set("roots", roots);
+		String rootId = nodes.stream()
+				.filter(PipelineNode::isSource)
+				.map(PipelineNode::id)
+				.findFirst()
+				.orElse(null);
+		tree.put("root", rootId);
 
 		// Branches: for each node that has children, list the children
 		ObjectNode branches = mapper.createObjectNode();

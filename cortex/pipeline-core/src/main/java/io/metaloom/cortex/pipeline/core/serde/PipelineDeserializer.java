@@ -7,9 +7,13 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
+import javax.inject.Inject;
+import javax.inject.Singleton;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.pipeline.api.NodeMode;
 import io.metaloom.cortex.pipeline.api.NodeResult;
@@ -21,6 +25,8 @@ import io.metaloom.cortex.pipeline.core.node.AbstractPipelineNode;
 
 /**
  * Deserializer that parses a JSON document into a {@link Pipeline} that can be used for processing.
+ * The JSON must define exactly one source node (identified by {@code "type": "source"} or
+ * via the top-level {@code "sourceNode"} field).
  *
  * <p>By default, parsed nodes are structural stubs that return success immediately.
  * Use {@link #setNodeResolver(NodeResolver)} to provide a factory that maps node definitions
@@ -34,32 +40,31 @@ import io.metaloom.cortex.pipeline.core.node.AbstractPipelineNode;
  *   "priority": 100,
  *   "enabled": true,
  *   "dryRun": false,
+ *   "sourceNode": "filesystem",
  *   "nodes": [
  *     {
- *       "id": "sha512",
- *       "name": "SHA-512 Hash",
+ *       "id": "filesystem",
+ *       "name": "Filesystem Source",
  *       "type": "source",
  *       "mode": "PARALLEL",
  *       "blocking": true,
  *       "concurrency": 4,
- *       "syncToLoom": true,
+ *       "syncToLoom": false,
  *       "dependencies": [],
- *       "conditionalDependencies": {"mime-filter": "PASS"},
+ *       "conditionalDependencies": {},
  *       "options": {}
  *     }
  *   ]
  * }
  * </pre>
  */
+@Singleton
 public class PipelineDeserializer {
 
 	private final ObjectMapper mapper;
 	private NodeResolver nodeResolver;
 
-	public PipelineDeserializer() {
-		this.mapper = new ObjectMapper();
-	}
-
+	@Inject
 	public PipelineDeserializer(ObjectMapper mapper) {
 		this.mapper = mapper;
 	}
@@ -98,6 +103,7 @@ public class PipelineDeserializer {
 		int priority = root.path("priority").asInt(0);
 		boolean enabled = root.path("enabled").asBoolean(true);
 		boolean dryRun = root.path("dryRun").asBoolean(false);
+		String sourceNodeId = root.path("sourceNode").asText(null);
 
 		DefaultPipeline.Builder builder = DefaultPipeline.builder(name)
 				.description(description)
@@ -108,7 +114,7 @@ public class PipelineDeserializer {
 		JsonNode nodesArray = root.path("nodes");
 		if (nodesArray.isArray()) {
 			for (JsonNode nodeDef : nodesArray) {
-				PipelineNode node = parseNode(nodeDef);
+				PipelineNode node = parseNode(nodeDef, sourceNodeId);
 				if (node != null) {
 					builder.addNode(node);
 				}
@@ -118,7 +124,7 @@ public class PipelineDeserializer {
 		return builder.build();
 	}
 
-	private PipelineNode parseNode(JsonNode nodeDef) {
+	private PipelineNode parseNode(JsonNode nodeDef, String sourceNodeId) {
 		String id = nodeDef.path("id").asText(null);
 		if (id == null) {
 			return null;
@@ -138,7 +144,7 @@ public class PipelineDeserializer {
 		boolean blocking = nodeDef.path("blocking").asBoolean(true);
 		int concurrency = nodeDef.path("concurrency").asInt(1);
 		boolean syncToLoom = nodeDef.path("syncToLoom").asBoolean(false);
-		boolean source = "source".equals(type);
+		boolean source = "source".equals(type) || id.equals(sourceNodeId);
 
 		// Parse dependencies
 		Set<String> dependencies = new HashSet<>();

@@ -6,6 +6,7 @@ import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 
 /**
  * A processing pipeline that defines an ordered graph of nodes to execute on media assets.
+ * Every pipeline has exactly one source node that yields media assets for processing.
  */
 public interface Pipeline {
 
@@ -34,6 +35,11 @@ public interface Pipeline {
 	 * Whether this pipeline is in dry-run mode (nodes log but do not mutate state).
 	 */
 	boolean isDryRun();
+
+	/**
+	 * The single source node of this pipeline.
+	 */
+	PipelineNode sourceNode();
 
 	/**
 	 * All nodes in this pipeline in topological order (respecting dependencies).

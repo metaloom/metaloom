@@ -74,7 +74,7 @@ class PipelineExecutorTest {
 
 		// Build nodes with realistic dependencies
 		PipelineNode hashNode = new TestNode("sha512", "SHA-512 Hash", NodeMode.PARALLEL, true,
-				Set.of(), 4, 50, executionLog);
+				Set.of(), 4, 50, executionLog, false, true);
 
 		PipelineNode tikaNode = new TestNode("tika", "Tika Analysis", NodeMode.PARALLEL, false,
 				Set.of("sha512"), 2, 30, executionLog);
@@ -164,8 +164,9 @@ class PipelineExecutorTest {
 		CountDownLatch allStarted = new CountDownLatch(3);
 
 		PipelineNode node1 = createConcurrencyTestNode("node-a", Set.of(), currentConcurrent, maxConcurrent, allStarted);
-		PipelineNode node2 = createConcurrencyTestNode("node-b", Set.of(), currentConcurrent, maxConcurrent, allStarted);
-		PipelineNode node3 = createConcurrencyTestNode("node-c", Set.of(), currentConcurrent, maxConcurrent, allStarted);
+		((AbstractPipelineNode) node1).setSource(true);
+		PipelineNode node2 = createConcurrencyTestNode("node-b", Set.of("node-a"), currentConcurrent, maxConcurrent, allStarted);
+		PipelineNode node3 = createConcurrencyTestNode("node-c", Set.of("node-a"), currentConcurrent, maxConcurrent, allStarted);
 
 		Pipeline pipeline = DefaultPipeline.builder("parallel-test")
 				.addNode(node1)
@@ -189,7 +190,7 @@ class PipelineExecutorTest {
 		AtomicInteger currentConcurrentForNode = new AtomicInteger(0);
 
 		// Node with concurrency=1 processing a stream of 5 items
-		PipelineNode limitedNode = new AbstractPipelineNode("limited", "Limited Node",
+		AbstractPipelineNode limitedNode = new AbstractPipelineNode("limited", "Limited Node",
 				NodeMode.PARALLEL, true, Set.of(), 1) {
 			@Override
 			public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {
@@ -204,6 +205,7 @@ class PipelineExecutorTest {
 				return NodeResult.success(id(), 50);
 			}
 		};
+		limitedNode.setSource(true);
 
 		Pipeline pipeline = DefaultPipeline.builder("concurrency-test")
 				.addNode(limitedNode)
@@ -230,7 +232,7 @@ class PipelineExecutorTest {
 		HeapNodeCache cache = new HeapNodeCache(100, 60);
 		AtomicInteger processCount = new AtomicInteger(0);
 
-		PipelineNode cachedNode = new AbstractPipelineNode("cached", "Cached Node",
+		AbstractPipelineNode cachedNode = new AbstractPipelineNode("cached", "Cached Node",
 				NodeMode.PARALLEL, true, Set.of(), 1) {
 			@Override
 			public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {
@@ -243,6 +245,7 @@ class PipelineExecutorTest {
 				return cache;
 			}
 		};
+		cachedNode.setSource(true);
 
 		Pipeline pipeline = DefaultPipeline.builder("cache-test")
 				.addNode(cachedNode)
@@ -265,7 +268,7 @@ class PipelineExecutorTest {
 	void testDryRunMode() {
 		AtomicInteger processCount = new AtomicInteger(0);
 
-		PipelineNode node = new AbstractPipelineNode("action", "Some Node",
+		AbstractPipelineNode node = new AbstractPipelineNode("action", "Some Node",
 				NodeMode.SEQUENTIAL, true, Set.of(), 1) {
 			@Override
 			public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {
@@ -273,6 +276,7 @@ class PipelineExecutorTest {
 				return NodeResult.success(id(), 10);
 			}
 		};
+		node.setSource(true);
 
 		Pipeline pipeline = DefaultPipeline.builder("dryrun-test")
 				.dryRun(true)
@@ -289,13 +293,14 @@ class PipelineExecutorTest {
 
 	@Test
 	void testDisabledPipeline() {
-		PipelineNode node = new AbstractPipelineNode("action", "Some Node",
+		AbstractPipelineNode node = new AbstractPipelineNode("action", "Some Node",
 				NodeMode.SEQUENTIAL, true, Set.of(), 1) {
 			@Override
 			public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {
 				return NodeResult.success(id(), 10);
 			}
 		};
+		node.setSource(true);
 
 		Pipeline pipeline = DefaultPipeline.builder("disabled-test")
 				.enabled(false)
@@ -314,17 +319,17 @@ class PipelineExecutorTest {
 
 		Pipeline videoPipeline = DefaultPipeline.builder("video-full")
 				.priority(100)
-				.addNode(new TestNode("hash", "Hash", NodeMode.PARALLEL, true, Set.of(), 4, 10, new CopyOnWriteArrayList<>()))
+				.addNode(new TestNode("hash", "Hash", NodeMode.PARALLEL, true, Set.of(), 4, 10, new CopyOnWriteArrayList<>(), false, true))
 				.build();
 
 		Pipeline imagePipeline = DefaultPipeline.builder("image-standard")
 				.priority(50)
-				.addNode(new TestNode("hash", "Hash", NodeMode.PARALLEL, true, Set.of(), 4, 10, new CopyOnWriteArrayList<>()))
+				.addNode(new TestNode("hash", "Hash", NodeMode.PARALLEL, true, Set.of(), 4, 10, new CopyOnWriteArrayList<>(), false, true))
 				.build();
 
 		Pipeline fallback = DefaultPipeline.builder("hash-only")
 				.priority(0)
-				.addNode(new TestNode("hash", "Hash", NodeMode.PARALLEL, true, Set.of(), 4, 10, new CopyOnWriteArrayList<>()))
+				.addNode(new TestNode("hash", "Hash", NodeMode.PARALLEL, true, Set.of(), 4, 10, new CopyOnWriteArrayList<>(), false, true))
 				.build();
 
 		manager.register(videoPipeline);
@@ -354,7 +359,7 @@ class PipelineExecutorTest {
 	@Test
 	void testDependencyCycleDetection() {
 		// Nodes with circular dependencies should throw
-		PipelineNode a = new TestNode("a", "A", NodeMode.PARALLEL, true, Set.of("b"), 1, 10, new CopyOnWriteArrayList<>());
+		PipelineNode a = new TestNode("a", "A", NodeMode.PARALLEL, true, Set.of("b"), 1, 10, new CopyOnWriteArrayList<>(), false, true);
 		PipelineNode b = new TestNode("b", "B", NodeMode.PARALLEL, true, Set.of("a"), 1, 10, new CopyOnWriteArrayList<>());
 
 		assertThrows(IllegalStateException.class, () -> {
@@ -377,7 +382,7 @@ class PipelineExecutorTest {
 		eventBus.subscribe("hash", e -> specificEvents.add(e.getNodeId() + ":" + e.getResult().getState()));
 
 		PipelineNode hashNode = new TestNode("hash", "Hash", NodeMode.PARALLEL, true,
-				Set.of(), 4, 10, new CopyOnWriteArrayList<>());
+				Set.of(), 4, 10, new CopyOnWriteArrayList<>(), false, true);
 		PipelineNode syncNode = new TestNode("sync", "Sync", NodeMode.SEQUENTIAL, true,
 				Set.of("hash"), 1, 10, new CopyOnWriteArrayList<>());
 
@@ -415,9 +420,9 @@ class PipelineExecutorTest {
 	void testComplexDAGWithMultipleLLMNodes() {
 		CopyOnWriteArrayList<String> executionLog = new CopyOnWriteArrayList<>();
 
-		// 1. Hasher — root node, no dependencies
+		// 1. Hasher — root node, no dependencies, source node
 		PipelineNode hasherNode = new TestNode("hasher", "SHA-512 Hash", NodeMode.PARALLEL, true,
-				Set.of(), 4, 30, executionLog);
+				Set.of(), 4, 30, executionLog, false, true);
 
 		// 2. Thumbnail — depends on hasher, produces image data
 		PipelineNode thumbnailNode = new OutputTestNode("thumbnail", "Thumbnail", NodeMode.PARALLEL, true,
@@ -542,7 +547,7 @@ class PipelineExecutorTest {
 	void testSyncToLoomFlag() {
 		// Nodes with syncToLoom=true should be collected by the bulk sync collector
 		PipelineNode hashNode = new TestNode("hash", "Hash", NodeMode.PARALLEL, true,
-				Set.of(), 4, 10, new CopyOnWriteArrayList<>(), true);
+				Set.of(), 4, 10, new CopyOnWriteArrayList<>(), true, true);
 		PipelineNode thumbnailNode = new TestNode("thumbnail", "Thumb", NodeMode.PARALLEL, true,
 				Set.of("hash"), 2, 10, new CopyOnWriteArrayList<>(), true);
 		PipelineNode internalNode = new TestNode("internal", "Internal", NodeMode.PARALLEL, true,
@@ -570,17 +575,17 @@ class PipelineExecutorTest {
 				new DefaultPipelineEventBus(), syncCollector);
 
 		// hash (sync) -> thumbnail (sync) -> internal (no sync)
-		PipelineNode hashNode = new TestNode("hash", "Hash", NodeMode.PARALLEL, true,
-				Set.of(), 4, 10, new CopyOnWriteArrayList<>(), true);
-		PipelineNode thumbnailNode = new TestNode("thumbnail", "Thumb", NodeMode.PARALLEL, true,
+		PipelineNode hashNode2 = new TestNode("hash", "Hash", NodeMode.PARALLEL, true,
+				Set.of(), 4, 10, new CopyOnWriteArrayList<>(), true, true);
+		PipelineNode thumbnailNode2 = new TestNode("thumbnail", "Thumb", NodeMode.PARALLEL, true,
 				Set.of("hash"), 2, 10, new CopyOnWriteArrayList<>(), true);
-		PipelineNode internalNode = new TestNode("internal", "Internal", NodeMode.PARALLEL, true,
+		PipelineNode internalNode2 = new TestNode("internal", "Internal", NodeMode.PARALLEL, true,
 				Set.of("hash"), 2, 10, new CopyOnWriteArrayList<>(), false);
 
-		Pipeline pipeline = DefaultPipeline.builder("bulk-sync-test")
-				.addNode(hashNode)
-				.addNode(thumbnailNode)
-				.addNode(internalNode)
+		Pipeline pipeline2 = DefaultPipeline.builder("bulk-sync-test")
+				.addNode(hashNode2)
+				.addNode(thumbnailNode2)
+				.addNode(internalNode2)
 				.build();
 
 		// Process a batch of 3 media items
@@ -589,7 +594,7 @@ class PipelineExecutorTest {
 				new StubLoomMedia("/b.mp4", true),
 				new StubLoomMedia("/c.mp4", true));
 
-		List<PipelineResult> results = syncExecutor.executeBatch(pipeline, batch);
+		List<PipelineResult> results = syncExecutor.executeBatch(pipeline2, batch);
 
 		assertEquals(3, results.size());
 		assertTrue(results.stream().allMatch(PipelineResult::isSuccess));
@@ -613,18 +618,31 @@ class PipelineExecutorTest {
 	static class TestNode extends AbstractPipelineNode {
 		private final long delayMs;
 		private final List<String> executionLog;
+		private final boolean source;
 
 		TestNode(String id, String name, NodeMode mode, boolean blocking,
 				Set<String> dependencies, int concurrency, long delayMs, List<String> executionLog) {
-			this(id, name, mode, blocking, dependencies, concurrency, delayMs, executionLog, false);
+			this(id, name, mode, blocking, dependencies, concurrency, delayMs, executionLog, false, false);
 		}
 
 		TestNode(String id, String name, NodeMode mode, boolean blocking,
 				Set<String> dependencies, int concurrency, long delayMs, List<String> executionLog,
 				boolean syncToLoom) {
+			this(id, name, mode, blocking, dependencies, concurrency, delayMs, executionLog, syncToLoom, false);
+		}
+
+		TestNode(String id, String name, NodeMode mode, boolean blocking,
+				Set<String> dependencies, int concurrency, long delayMs, List<String> executionLog,
+				boolean syncToLoom, boolean source) {
 			super(id, name, mode, blocking, dependencies, concurrency, syncToLoom);
 			this.delayMs = delayMs;
 			this.executionLog = executionLog;
+			this.source = source;
+		}
+
+		@Override
+		public boolean isSource() {
+			return source;
 		}
 
 		@Override

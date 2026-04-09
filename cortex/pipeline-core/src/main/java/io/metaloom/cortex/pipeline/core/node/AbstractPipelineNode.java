@@ -20,6 +20,7 @@ public abstract class AbstractPipelineNode implements PipelineNode {
 	private final boolean blocking;
 	private final Set<String> dependencies;
 	private final int concurrency;
+	private boolean source;
 	private boolean syncToLoom;
 	private NodeCacheProvider cacheProvider;
 	private Map<String, FilterBranch> conditionalDependencies = Collections.emptyMap();
@@ -47,6 +48,15 @@ public abstract class AbstractPipelineNode implements PipelineNode {
 		this.conditionalDependencies = conditionalDependencies != null
 				? Collections.unmodifiableMap(conditionalDependencies)
 				: Collections.emptyMap();
+	}
+
+	@Override
+	public boolean isSource() {
+		return source;
+	}
+
+	public void setSource(boolean source) {
+		this.source = source;
 	}
 
 	@Override

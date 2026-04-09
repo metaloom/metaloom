@@ -23,6 +23,7 @@ public class DefaultPipeline implements Pipeline {
 	private final int priority;
 	private final boolean enabled;
 	private final boolean dryRun;
+	private final PipelineNode sourceNode;
 	private final List<PipelineNode> nodes;
 	private final Map<String, PipelineNode> nodeIndex;
 
@@ -37,6 +38,16 @@ public class DefaultPipeline implements Pipeline {
 			nodeIndex.put(node.id(), node);
 		}
 		this.nodes = Collections.unmodifiableList(topologicalSort(builder.nodes));
+
+		// Validate exactly one source node
+		List<PipelineNode> sources = this.nodes.stream()
+				.filter(PipelineNode::isSource)
+				.toList();
+		if (sources.size() != 1) {
+			throw new IllegalStateException(
+					"Pipeline '" + name + "' must have exactly one source node, but found " + sources.size());
+		}
+		this.sourceNode = sources.get(0);
 	}
 
 	@Override
@@ -62,6 +73,11 @@ public class DefaultPipeline implements Pipeline {
 	@Override
 	public boolean isDryRun() {
 		return dryRun;
+	}
+
+	@Override
+	public PipelineNode sourceNode() {
+		return sourceNode;
 	}
 
 	@Override
