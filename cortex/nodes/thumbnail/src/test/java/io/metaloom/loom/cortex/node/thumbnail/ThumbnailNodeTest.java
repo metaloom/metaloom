@@ -1,6 +1,7 @@
 package io.metaloom.loom.cortex.node.thumbnail;
 
-import static io.metaloom.cortex.api.media.LoomMedia.SHA_512_KEY;
+import static io.metaloom.cortex.media.hash.HashMedia.SHA_512_KEY;
+
 import static io.metaloom.cortex.media.test.assertj.NodeAssertions.assertThat;
 import static io.metaloom.cortex.media.thumbnail.ThumbnailMedia.THUMBNAIL_FLAG_KEY;
 import static org.assertj.core.api.Assertions.assertThat;

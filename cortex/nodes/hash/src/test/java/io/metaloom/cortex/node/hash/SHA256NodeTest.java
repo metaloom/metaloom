@@ -1,6 +1,6 @@
 package io.metaloom.cortex.node.hash;
 
-import static io.metaloom.cortex.api.media.LoomMedia.SHA_512_KEY;
+import static io.metaloom.cortex.media.hash.HashMedia.SHA_512_KEY;
 import static io.metaloom.cortex.media.hash.HashMedia.SHA_256_KEY;
 import static io.metaloom.cortex.media.test.assertj.NodeAssertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;

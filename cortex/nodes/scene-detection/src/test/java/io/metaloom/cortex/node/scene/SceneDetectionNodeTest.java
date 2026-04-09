@@ -1,6 +1,7 @@
 package io.metaloom.cortex.node.scene;
 
-import static io.metaloom.cortex.api.media.LoomMedia.SHA_512_KEY;
+import static io.metaloom.cortex.media.hash.HashMedia.SHA_512_KEY;
+
 import static io.metaloom.cortex.media.scene.SceneDetectionMedia.SCENE_DETECTION;
 import static io.metaloom.cortex.media.test.assertj.NodeAssertions.assertThat;
 import static org.mockito.Mockito.mock;

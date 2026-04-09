@@ -9,6 +9,7 @@ import io.metaloom.cortex.media.hash.impl.HashMediaType;
 import io.metaloom.utils.hash.ChunkHash;
 import io.metaloom.utils.hash.MD5;
 import io.metaloom.utils.hash.SHA256;
+import io.metaloom.utils.hash.SHA512;
 
 public interface HashMedia extends LoomMedia {
 
@@ -17,6 +18,8 @@ public interface HashMedia extends LoomMedia {
 	public static final int VERSION = 1;
 
 	public static final LoomMetaKey<ChunkHash> CHUNK_HASH_KEY = metaKey("chunk_hash", 1, XATTR, ChunkHash.class, b -> ChunkHash.fromBuffer(b));
+
+	public static final LoomMetaKey<SHA512> SHA_512_KEY = metaKey("sha512", 1, XATTR, SHA512.class, b -> SHA512.fromBuffer(b));
 
 	public static final LoomMetaKey<SHA256> SHA_256_KEY = metaKey("sha256", 1, XATTR, SHA256.class, b -> SHA256.fromBuffer(b));
 

@@ -27,4 +27,8 @@ public abstract class OCRNodeModule extends AbstractNodeModule {
 		return nodeOptions(options, OCRNodeOptions.KEY, new OCRNodeOptions());
 	}
 
+	@Provides
+	public static OCRProvider ocrProvider(OCRNodeOptions options) {
+		return new Tess4jOCRProvider(options.getTessDataPath());
+	}
 }

@@ -1,6 +1,6 @@
 package io.metaloom.cortex.node.whisper;
 
-import static io.metaloom.cortex.api.media.LoomMedia.SHA_512_KEY;
+import static io.metaloom.cortex.media.hash.HashMedia.SHA_512_KEY;
 import static io.metaloom.cortex.media.test.assertj.NodeAssertions.assertThat;
 import static io.metaloom.cortex.media.whisper.WhisperMedia.WHISPER;
 
@@ -9,13 +9,13 @@ import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
-import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.media.type.handler.impl.AvroLoomMetaTypeHandlerImpl;
 import io.metaloom.cortex.api.media.type.handler.impl.FSLoomMetaTypeHandlerImpl;
 import io.metaloom.cortex.api.media.type.handler.impl.HeapLoomMetaTypeHandlerImpl;
 import io.metaloom.cortex.api.media.type.handler.impl.XAttrLoomMetaTypeHandlerImpl;
 import io.metaloom.cortex.api.meta.MetaStorage;
+import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.meta.MetaStorageImpl;
 import io.metaloom.cortex.media.test.AbstractBasicNodeTest;

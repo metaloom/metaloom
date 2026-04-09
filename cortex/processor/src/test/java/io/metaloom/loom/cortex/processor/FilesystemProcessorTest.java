@@ -61,11 +61,6 @@ public class FilesystemProcessorTest {
 			}
 
 			@Override
-			protected boolean isProcessed(NodeContext<LoomMedia> ctx) {
-				return false;
-			}
-
-			@Override
 			protected NodeResult<Void> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
 				return NodeResult.success(null);
 			}

@@ -1,20 +1,19 @@
 package io.metaloom.cortex.pipeline.core;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
-import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
@@ -25,15 +24,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.media.LoomMetaKey;
 import io.metaloom.cortex.api.media.MediaType;
-import io.metaloom.cortex.api.meta.MetaStorage;
 import io.metaloom.cortex.pipeline.api.NodeMode;
 import io.metaloom.cortex.pipeline.api.NodeResult;
 import io.metaloom.cortex.pipeline.api.NodeState;
 import io.metaloom.cortex.pipeline.api.Pipeline;
 import io.metaloom.cortex.pipeline.api.PipelineResult;
-import io.metaloom.cortex.pipeline.api.event.NodeCompletionEvent;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 import io.metaloom.cortex.pipeline.common.cache.HeapNodeCache;
 import io.metaloom.cortex.pipeline.common.event.DefaultPipelineEventBus;
@@ -799,14 +795,5 @@ class PipelineExecutorTest {
 			return List.of();
 		}
 
-		@Override
-		public MetaStorage storage() {
-			return null;
-		}
-
-		@Override
-		public LoomMedia self() {
-			return this;
-		}
 	}
 }
