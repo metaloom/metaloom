@@ -1,6 +1,6 @@
 package io.metaloom.cortex.node.captioning;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.metaloom.cortex.media.test.assertj.NodeAssertions.assertThat;
 
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.media.LoomMedia;
@@ -13,7 +13,7 @@ public class CaptioningNodeTest extends AbstractBasicNodeTest<CaptioningNode> {
 
 	@Override
 	protected void assertProcessed(TestMedia testMedia, LoomMedia media, NodeResult result, CaptioningNode nodeMock) {
-		assertTrue(media.has(CaptioningNode.CAPTION_META_KEY));
+		assertThat(result).hasOutput(CaptioningNode.OUTPUT_CAPTION);
 	}
 
 	@Override

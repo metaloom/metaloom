@@ -1,6 +1,5 @@
 package io.metaloom.cortex.node.hash;
 
-import static io.metaloom.cortex.media.hash.HashMedia.MD5_KEY;
 import static io.metaloom.cortex.media.test.assertj.NodeAssertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -20,7 +19,7 @@ public class MD5NodeTest extends AbstractBasicNodeTest<MD5Node> {
 
 	@Override
 	protected void assertProcessed(TestMedia testMedia, LoomMedia media, NodeResult result, MD5Node nodeMock) {
-		assertThat(media).hasXAttr(2).hasXAttr(MD5_KEY, testMedia.md5());
+		assertThat(result).hasOutput(MD5Node.OUTPUT_MD5, testMedia.md5().toString());
 	}
 
 	@Test

@@ -1,8 +1,7 @@
 package io.metaloom.cortex.node.whisper;
 
-import static io.metaloom.cortex.media.hash.HashMedia.SHA_512_KEY;
 import static io.metaloom.cortex.media.test.assertj.NodeAssertions.assertThat;
-import static io.metaloom.cortex.media.whisper.WhisperMedia.WHISPER;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import java.io.IOException;
 import java.util.Set;
@@ -19,7 +18,6 @@ import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.meta.MetaStorageImpl;
 import io.metaloom.cortex.media.test.AbstractBasicNodeTest;
-import io.metaloom.cortex.media.whisper.WhisperMedia;
 import io.metaloom.cortex.media.whisper.WhisperResult;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.test.data.TestMedia;
@@ -75,15 +73,14 @@ public class WhisperNodeTest extends AbstractBasicNodeTest<WhisperNode> {
 
 	@Override
 	protected void assertProcessed(TestMedia testMedia, LoomMedia media, NodeResult result, WhisperNode nodeMock) {
-		WhisperMedia whisperMedia = media.of(WHISPER);
-		assertThat(media).hasXAttr(SHA_512_KEY);
+		assertThat(media).hasSHA512();
 
-		WhisperResult whisperResult = whisperMedia.getWhisperResult();
+		WhisperResult whisperResult = whisperStorage().getWhisperResult(media);
 		System.out.println("Segments: " + whisperResult.segments().size());
 		for (var segment : whisperResult.segments()) {
 			System.out.println("[" + segment.getFrom() + " - " + segment.getTo() + "] " + segment.getText());
 		}
-		org.junit.jupiter.api.Assertions.assertFalse(whisperResult.segments().isEmpty(), "Whisper should have produced transcription segments");
+		assertFalse(whisperResult.segments().isEmpty(), "Whisper should have produced transcription segments");
 	}
 
 	@Override
@@ -160,6 +157,10 @@ public class WhisperNodeTest extends AbstractBasicNodeTest<WhisperNode> {
 		WhisperMediaProcessor processor = new WhisperMediaProcessor(options);
 		// Pass null for client to use offline mode
 		return new WhisperNode(null, cortexOptions, options, processor);
+	}
+
+	public WhisperMetaStorage whisperStorage() {
+		return new WhisperMetaStorage(storage());
 	}
 
 	@Override

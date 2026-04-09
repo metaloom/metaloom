@@ -1,7 +1,6 @@
 package io.metaloom.cortex.node.llm;
 
 import static io.metaloom.cortex.media.test.assertj.NodeAssertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 
@@ -27,12 +26,12 @@ public class LLMNodeTest extends AbstractBasicNodeTest<LLMNode> {
 			""";
 
 		JsonObject json = new JsonObject(jsonStr);
-		assertThat(media).hasXAttr(1).hasXAttr(LLMNode.resultKey("default"), json);
+		assertThat(result).hasOutput(LLMNode.resultKey("default"), json.encode());
 	}
 
 	@Override
 	protected void assertProcessed(TestMedia testMedia, LoomMedia media, NodeResult result, LLMNode nodeMock) {
-		assertTrue(media.has(LLMNode.resultKey("default")));
+		assertThat(result).hasOutput(LLMNode.resultKey("default"));
 	}
 
 	@Override

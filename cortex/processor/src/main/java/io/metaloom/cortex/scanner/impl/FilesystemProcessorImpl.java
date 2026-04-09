@@ -30,7 +30,7 @@ import me.tongfei.progressbar.ProgressBar;
 @Singleton
 public class FilesystemProcessorImpl implements FilesystemProcessor {
 
-	private final Set<FilesystemNode<?, ?, ?>> nodes;
+	private final Set<FilesystemNode<?, ?>> nodes;
 
 	private final LinuxFilesystemScanner scanner;
 
@@ -39,7 +39,7 @@ public class FilesystemProcessorImpl implements FilesystemProcessor {
 	public static final Logger log = LoggerFactory.getLogger(FilesystemProcessorImpl.class);
 
 	@Inject
-	public FilesystemProcessorImpl(LinuxFilesystemScanner scanner, Set<FilesystemNode<?, ?, ?>> nodes, LoomMediaLoader loader) {
+	public FilesystemProcessorImpl(LinuxFilesystemScanner scanner, Set<FilesystemNode<?, ?>> nodes, LoomMediaLoader loader) {
 		this.scanner = scanner;
 		this.nodes = nodes;
 		this.loader = loader;
@@ -67,7 +67,7 @@ public class FilesystemProcessorImpl implements FilesystemProcessor {
 				long current = count.incrementAndGet();
 				boolean processed = false;
 				// pb.setExtraMessage("[" + media.path().toFile().getName() + "]");
-				for (FilesystemNode<?, ?, ?> node : nodes) {
+				for (FilesystemNode<?, ?> node : nodes) {
 					if (enabledNodes != null && !enabledNodes.isEmpty() && !enabledNodes.contains(node.name().toLowerCase())) {
 						if (log.isDebugEnabled()) {
 							log.debug("Node {} will be skipped", node.name());
@@ -80,8 +80,8 @@ public class FilesystemProcessorImpl implements FilesystemProcessor {
 					try {
 						NodeContext<LoomMedia> ctx = NodeContext.create(media);
 						@SuppressWarnings("unchecked")
-						FilesystemNode<LoomMedia, ?, ?> typedNode = (FilesystemNode<LoomMedia, ?, ?>) node;
-						NodeResult<?> result = typedNode.process(ctx);
+						FilesystemNode<LoomMedia, ?> typedNode = (FilesystemNode<LoomMedia, ?>) node;
+						NodeResult result = typedNode.process(ctx);
 						if (result == null) {
 							log.error("Node '{}' failed to process media {}. Invalid result returned.", node.name(), media);
 							return;

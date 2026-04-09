@@ -1,7 +1,5 @@
 package io.metaloom.cortex.node.fp;
 
-import static io.metaloom.cortex.media.fingerprint.FingerprintMedia.FINGERPRINT_KEY;
-import static io.metaloom.cortex.media.hash.HashMedia.SHA_512_KEY;
 import static io.metaloom.cortex.media.test.assertj.NodeAssertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -20,7 +18,7 @@ public class FingerprintNodeTest extends AbstractBasicNodeTest<FingerprintNode> 
 	@Override
 	protected void assertProcessed(TestMedia testMedia, LoomMedia media, NodeResult result, FingerprintNode nodeMock) {
 		assertThat(result).isSuccess();
-		assertThat(media).hasXAttr(2).hasXAttr(SHA_512_KEY).hasXAttr(FINGERPRINT_KEY, data.sampleVideoFingerprint());
+		assertThat(result).hasOutput(FingerprintNode.OUTPUT_FINGERPRINT, data.sampleVideoFingerprint());
 	}
 
 	@Override

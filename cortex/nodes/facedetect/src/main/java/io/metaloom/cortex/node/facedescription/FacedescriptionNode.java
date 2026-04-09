@@ -23,6 +23,7 @@ import dev.langchain4j.model.ollama.OllamaChatModel.OllamaChatModelBuilder;
 import io.metaloom.ai.genai.llm.LargeLanguageModel;
 import io.metaloom.ai.genai.utils.TextUtils;
 import io.metaloom.cortex.node.facedetect.FacedetectNodeOptions;
+import io.metaloom.cortex.api.node.NodeOutputKey;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.media.LoomMedia;
@@ -32,13 +33,13 @@ import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.video4j.utils.ImageUtils;
 
-public class FacedescriptionNode extends AbstractMediaNode<Void, FacedetectNodeOptions> {
+public class FacedescriptionNode extends AbstractMediaNode<FacedetectNodeOptions> {
 
 	private static final Logger logger = LoggerFactory.getLogger(FacedescriptionNode.class);
 
 	private static final LargeLanguageModel MODEL = FaceDescriptionModel.OLLAMA_GEMMA3_27B_Q8;
 
-	public static final String OUTPUT_FACE_DESCRIPTION = "face_description";
+	public static final NodeOutputKey<String> OUTPUT_FACE_DESCRIPTION = NodeOutputKey.of("face_description", String.class);
 
 	public static final String PROMPT = """
 		Describe the face. Output only valid JSON without wrapper.
@@ -81,7 +82,7 @@ public class FacedescriptionNode extends AbstractMediaNode<Void, FacedetectNodeO
 	}
 
 	@Override
-	protected NodeResult<Void> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws IOException {
+	protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws IOException {
 		LoomMedia media = ctx.media();
 		if (media.isVideo() || media.isImage()) {
 			return processFaces(ctx);
@@ -90,7 +91,7 @@ public class FacedescriptionNode extends AbstractMediaNode<Void, FacedetectNodeO
 		}
 	}
 
-	private NodeResult<Void> processFaces(NodeContext<LoomMedia> ctx) {
+	private NodeResult processFaces(NodeContext<LoomMedia> ctx) {
 		Object countObj = ctx.upstreamOutput("facedetect", "face_count");
 		if (countObj != null) {
 			int count = Integer.parseInt(countObj.toString());

@@ -35,7 +35,7 @@ import io.metaloom.loom.rest.model.asset.AssetResponse;
  *   <li>Returning a typed {@link HelloWorldPayload} so the pipeline runner can inspect the result.</li>
  * </ul>
  */
-public class HelloWorldNode extends AbstractMediaNode<HelloWorldPayload, HelloWorldNodeOptions> {
+public class HelloWorldNode extends AbstractMediaNode<HelloWorldNodeOptions> {
 
 	private static final Logger log = LoggerFactory.getLogger(HelloWorldNode.class);
 
@@ -65,7 +65,7 @@ public class HelloWorldNode extends AbstractMediaNode<HelloWorldPayload, HelloWo
 	}
 
 	@Override
-	protected NodeResult<HelloWorldPayload> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
+	protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
 		LoomMedia media = ctx.media();
 
 		// --- Reading upstream outputs ---
@@ -88,7 +88,7 @@ public class HelloWorldNode extends AbstractMediaNode<HelloWorldPayload, HelloWo
 		ctx.info("Computed file_size=" + fileSize + ", word_count=" + wordCount);
 
 		// Return the typed payload — the pipeline stores it in the NodeResult
-		return ctx.origin(COMPUTED).next(HelloWorldPayload.of(fileSize, wordCount));
+		return ctx.origin(COMPUTED).next();
 	}
 
 	/**

@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import io.metaloom.cortex.api.node.NodeOutputKey;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.ResultOrigin;
 import io.metaloom.cortex.api.node.context.NodeContext;
@@ -63,6 +64,11 @@ public class NodeContextImpl<I> implements NodeContext<I> {
 	}
 
 	@Override
+	public <T> NodeContext<I> output(NodeOutputKey<T> key, T value) {
+		return output(key.key(), value);
+	}
+
+	@Override
 	public NodeContext<I> output(String key, Object value) {
 		if (outputs == null) {
 			outputs = new HashMap<>();
@@ -82,25 +88,16 @@ public class NodeContextImpl<I> implements NodeContext<I> {
 	}
 
 	@Override
-	public <O> NodeResult<O> next() {
+	public NodeResult next() {
 		if (skipReason != null) {
 			return NodeResult.skipped();
 		} else {
-			return NodeResult.success(null, outputs());
+			return NodeResult.success(outputs());
 		}
 	}
 
 	@Override
-	public <O> NodeResult<O> next(O output) {
-		if (skipReason != null) {
-			return NodeResult.skipped();
-		} else {
-			return NodeResult.success(output, outputs());
-		}
-	}
-
-	@Override
-	public <O> NodeResult<O> abort() {
+	public NodeResult abort() {
 		return NodeResult.failed();
 	}
 

@@ -14,7 +14,7 @@ public abstract class FingerprintNodeModule extends AbstractNodeModule {
 
 	@Binds
 	@IntoSet
-	abstract FilesystemNode<?, ?, ?> bindNode(FingerprintNode node);
+	abstract FilesystemNode<?, ?> bindNode(FingerprintNode node);
 
 	@IntoSet
 	@Provides

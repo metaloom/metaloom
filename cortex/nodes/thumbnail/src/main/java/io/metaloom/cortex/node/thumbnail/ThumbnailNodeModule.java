@@ -14,7 +14,7 @@ public abstract class ThumbnailNodeModule extends AbstractNodeModule {
 
 	@Binds
 	@IntoSet
-	abstract FilesystemNode<?, ?, ?> bindNode(ThumbnailNode node);
+	abstract FilesystemNode<?, ?> bindNode(ThumbnailNode node);
 
 	@IntoSet
 	@Provides

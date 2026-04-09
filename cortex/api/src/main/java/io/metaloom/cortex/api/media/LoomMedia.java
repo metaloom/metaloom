@@ -1,7 +1,5 @@
 package io.metaloom.cortex.api.media;
 
-import java.util.List;
-
 import io.metaloom.utils.hash.SHA512;
 
 /**
@@ -32,54 +30,6 @@ public interface LoomMedia extends ProcessableMedia {
 		} else {
 			return hash.toString().substring(0, 8);
 		}
-	}
-
-	/**
-	 * @deprecated Typed media wrappers are deprecated. Use NodeResult output maps instead.
-	 */
-	@Deprecated
-	default <T extends LoomMedia> T of(MediaType<T> type) {
-		return type.wrap(this);
-	}
-
-	/**
-	 * @deprecated Legacy method from MetaStorageAccess. Use NodeResult output maps instead.
-	 */
-	@Deprecated
-	default <T> T get(LoomMetaKey<T> metaKey) {
-		throw new UnsupportedOperationException("MetaStorage access removed. Use NodeResult output maps.");
-	}
-
-	/**
-	 * @deprecated Legacy method from MetaStorageAccess. Use NodeResult output maps instead.
-	 */
-	@Deprecated
-	default <T> List<T> getAll(LoomMetaKey<T> metaKey) {
-		throw new UnsupportedOperationException("MetaStorage access removed. Use NodeResult output maps.");
-	}
-
-	/**
-	 * @deprecated Legacy method from MetaStorageAccess. Use NodeResult output maps instead.
-	 */
-	@Deprecated
-	default <T> void put(LoomMetaKey<T> metaKey, T value) {
-		throw new UnsupportedOperationException("MetaStorage access removed. Use NodeResult output maps.");
-	}
-
-	/**
-	 * @deprecated Legacy method from MetaStorageAccess. Use NodeResult output maps instead.
-	 */
-	@Deprecated
-	default <T> boolean has(LoomMetaKey<T> metaKey) {
-		throw new UnsupportedOperationException("MetaStorage access removed. Use NodeResult output maps.");
-	}
-
-	/**
-	 * @deprecated Legacy method from MetaStorageAccess. Use NodeResult output maps instead.
-	 */
-	@Deprecated
-	default <T> void append(LoomMetaKey<T> metaKey, T value) {
-		throw new UnsupportedOperationException("MetaStorage access removed. Use NodeResult output maps.");
 	}
 
 }

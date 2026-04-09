@@ -34,26 +34,24 @@ public class OCRNodeTest extends AbstractMediaTest {
 	public void testOCROnEinsteinImage() throws IOException {
 		OCRNode node = mockNode();
 		LoomMedia media = media(data.root().resolve("ocr/albert_einstein.png"));
-		NodeResult<TextPayload> result = node.process(media);
+		NodeResult result = node.process(media);
 
 		assertEquals(ResultState.SUCCESS, result.getState());
-		TextPayload payload = result.getOutput();
-		assertNotNull(payload);
 
-		String text = payload.text();
+		String text = result.get(OCRNode.OUTPUT_OCR_TEXT);
 		assertNotNull(text);
 		assertTrue(text.contains("Albert Einstein"), "OCR text should contain 'Albert Einstein', got: " + text.substring(0, Math.min(200, text.length())));
 		assertTrue(text.contains("Physiker"), "OCR text should contain 'Physiker'");
 
 		// Verify the output map contains the OCR text
-		assertNotNull(result.getOutputs().get(OCRNode.OUTPUT_OCR_TEXT));
+		assertNotNull(result.getOutputs().get(OCRNode.OUTPUT_OCR_TEXT.key()));
 	}
 
 	@Test
 	public void testSkipsNonImageMedia() throws IOException {
 		OCRNode node = mockNode();
 		LoomMedia media = mediaVideo1();
-		NodeResult<TextPayload> result = node.process(media);
+		NodeResult result = node.process(media);
 
 		assertEquals(ResultState.SKIPPED, result.getState());
 	}
@@ -66,7 +64,7 @@ public class OCRNodeTest extends AbstractMediaTest {
 		OCRNode node = new OCRNode(null, new CortexOptions(), options, provider);
 
 		LoomMedia media = mediaImage1();
-		NodeResult<TextPayload> result = node.process(media);
+		NodeResult result = node.process(media);
 
 		assertEquals(ResultState.SKIPPED, result.getState());
 	}

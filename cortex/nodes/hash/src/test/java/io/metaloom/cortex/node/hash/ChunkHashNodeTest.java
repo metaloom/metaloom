@@ -1,6 +1,5 @@
 package io.metaloom.cortex.node.hash;
 
-import static io.metaloom.cortex.media.hash.HashMedia.CHUNK_HASH_KEY;
 import static io.metaloom.cortex.media.test.assertj.NodeAssertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -23,11 +22,11 @@ public class ChunkHashNodeTest extends AbstractBasicNodeTest<ChunkHashNode> {
 		LoomMedia media = mediaVideo1();
 		NodeResult result = node().process(ctx(media));
 		assertThat(result).isSuccess();
-		assertThat(media).hasXAttr(2).hasXAttr(CHUNK_HASH_KEY, sampleVideoChunkHash());
+		assertThat(result).hasOutput(ChunkHashNode.OUTPUT_CHUNK_HASH, sampleVideoChunkHash().toString());
 
 		NodeResult result2 = node().process(ctx(media));
 		assertThat(result2).isSuccess();
-		assertThat(media).hasXAttr(2).hasXAttr(CHUNK_HASH_KEY, sampleVideoChunkHash());
+		assertThat(result2).hasOutput(ChunkHashNode.OUTPUT_CHUNK_HASH, sampleVideoChunkHash().toString());
 	}
 
 	@Override
@@ -39,7 +38,7 @@ public class ChunkHashNodeTest extends AbstractBasicNodeTest<ChunkHashNode> {
 
 	@Override
 	protected void assertProcessed(TestMedia testMedia, LoomMedia media, NodeResult result, ChunkHashNode nodeMock) {
-		assertThat(media).hasXAttr(2).hasXAttr(CHUNK_HASH_KEY, testMedia.chunkHash());
+		assertThat(result).hasOutput(ChunkHashNode.OUTPUT_CHUNK_HASH, testMedia.chunkHash().toString());
 	}
 
 	@Override

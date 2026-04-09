@@ -24,7 +24,7 @@ public abstract class HelloWorldNodeModule extends AbstractNodeModule {
 
 	@Binds
 	@IntoSet
-	abstract FilesystemNode<?, ?, ?> bindHelloWorldNode(HelloWorldNode node);
+	abstract FilesystemNode<?, ?> bindHelloWorldNode(HelloWorldNode node);
 
 	@IntoSet
 	@Provides

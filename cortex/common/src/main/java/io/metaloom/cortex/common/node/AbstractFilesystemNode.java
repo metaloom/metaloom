@@ -12,7 +12,7 @@ import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.api.option.node.CortexNodeOptions;
 import io.metaloom.loom.client.common.LoomClient;
 
-public abstract class AbstractFilesystemNode<I, O, T extends CortexNodeOptions> extends AbstractCortexNode<I, O, T> implements FilesystemNode<I, O, T> {
+public abstract class AbstractFilesystemNode<I, T extends CortexNodeOptions> extends AbstractCortexNode<I, T> implements FilesystemNode<I, T> {
 
 	private long current = 1L;
 	private long total = 1L;

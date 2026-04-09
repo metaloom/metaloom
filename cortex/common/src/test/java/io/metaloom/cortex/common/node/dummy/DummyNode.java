@@ -9,7 +9,7 @@ import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractFilesystemNode;
 import io.metaloom.loom.client.common.LoomClient;
 
-public class DummyNode extends AbstractFilesystemNode<LoomMedia, Void, DummyOptions> {
+public class DummyNode extends AbstractFilesystemNode<LoomMedia, DummyOptions> {
 
 	boolean invoked = false;
 
@@ -18,7 +18,7 @@ public class DummyNode extends AbstractFilesystemNode<LoomMedia, Void, DummyOpti
 	}
 
 	@Override
-	public NodeResult<Void> process(NodeContext<LoomMedia> ctx) throws IOException {
+	public NodeResult process(NodeContext<LoomMedia> ctx) throws IOException {
 		invoked = true;
 		return ctx.skipped("not implemented").next();
 	}

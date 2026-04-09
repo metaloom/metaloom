@@ -14,7 +14,7 @@ import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 
-public class FingerprintDedupNode extends AbstractMediaNode<Void, DedupNodeOptions> {
+public class FingerprintDedupNode extends AbstractMediaNode<DedupNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(FingerprintDedupNode.class);
 
@@ -34,7 +34,7 @@ public class FingerprintDedupNode extends AbstractMediaNode<Void, DedupNodeOptio
 	}
 
 	@Override
-	protected NodeResult<Void> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) {
+	protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) {
 		return ctx.skipped("not implemented").next();
 	}
 

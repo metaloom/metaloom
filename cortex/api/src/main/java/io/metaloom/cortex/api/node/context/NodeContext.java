@@ -3,11 +3,11 @@ package io.metaloom.cortex.api.node.context;
 import java.util.Collections;
 import java.util.Map;
 
+import io.metaloom.cortex.api.node.NodeOutputKey;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.ResultOrigin;
 import io.metaloom.cortex.api.node.context.impl.NodeContextImpl;
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.media.MediaType;
 
 /**
  * Context for a single node invocation. Wraps the typed input {@code I} and accumulates
@@ -35,11 +35,6 @@ public interface NodeContext<I> {
 	 */
 	LoomMedia media();
 
-	@Deprecated
-	default <T extends LoomMedia> T media(MediaType<T> type) {
-		return media().of(type);
-	}
-
 	/**
 	 * Returns the time in milliseconds since the creation of this context.
 	 */
@@ -52,6 +47,15 @@ public interface NodeContext<I> {
 	ResultOrigin origin();
 
 	NodeContext<I> failure(String cause);
+
+	/**
+	 * Accumulate an output key-value pair using a typed {@link NodeOutputKey}.
+	 *
+	 * @param key   the typed output key
+	 * @param value the output value
+	 * @return this context for chaining
+	 */
+	<T> NodeContext<I> output(NodeOutputKey<T> key, T value);
 
 	/**
 	 * Accumulate an output key-value pair. These outputs will be carried in the
@@ -89,16 +93,9 @@ public interface NodeContext<I> {
 		return nodeOutputs != null ? (T) nodeOutputs.get(key) : null;
 	}
 
-	<O> NodeResult<O> next();
+	NodeResult next();
 
-	/**
-	 * Build the result with a typed payload output.
-	 *
-	 * @param output the typed payload produced by the node
-	 */
-	<O> NodeResult<O> next(O output);
-
-	<O> NodeResult<O> abort();
+	NodeResult abort();
 
 	NodeContext<I> print(String string, String string2);
 

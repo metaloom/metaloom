@@ -15,7 +15,7 @@ public class ConsistencyMediaTest extends AbstractMediaTest {
 
 	@Test
 	public void testGetSetUpdateLong() throws IOException {
-		ConsistencyMedia media = createEmptyLoomMedia().of(CONSISTENCY);
+		ConsistencyMedia media = CONSISTENCY.wrap(createEmptyLoomMedia(), storage());
 		assertNull(media.getZeroChunkCount());
 		media.setZeroChunkCount(42L);
 		Long value1 = media.getZeroChunkCount();

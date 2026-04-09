@@ -14,15 +14,15 @@ public abstract class HashNodeModule extends AbstractNodeModule {
 
 	@Binds
 	@IntoSet
-	abstract FilesystemNode<?, ?, ?> bindSHA512Node(SHA512Node node);
+	abstract FilesystemNode<?, ?> bindSHA512Node(SHA512Node node);
 
 	@Binds
 	@IntoSet
-	abstract FilesystemNode<?, ?, ?> bindSHA256Node(SHA256Node node);
+	abstract FilesystemNode<?, ?> bindSHA256Node(SHA256Node node);
 
 	@Binds
 	@IntoSet
-	abstract FilesystemNode<?, ?, ?> bindMD5Node(MD5Node node);
+	abstract FilesystemNode<?, ?> bindMD5Node(MD5Node node);
 
 	@IntoSet
 	@Provides

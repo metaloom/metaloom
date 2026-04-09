@@ -27,9 +27,9 @@ public class CortexNodeAdapter extends AbstractPipelineNode {
 
 	private static final Logger log = LoggerFactory.getLogger(CortexNodeAdapter.class);
 
-	private final FilesystemNode<?, ?, ?> wrappedNode;
+	private final FilesystemNode<?, ?> wrappedNode;
 
-	public CortexNodeAdapter(FilesystemNode<?, ?, ?> wrappedNode, NodeMode mode, boolean blocking,
+	public CortexNodeAdapter(FilesystemNode<?, ?> wrappedNode, NodeMode mode, boolean blocking,
 			Set<String> dependencies, int concurrency) {
 		super(wrappedNode.name(), wrappedNode.name(), mode, blocking, dependencies, concurrency);
 		this.wrappedNode = wrappedNode;
@@ -47,7 +47,7 @@ public class CortexNodeAdapter extends AbstractPipelineNode {
 			// Convert pipeline NodeResult map → upstream outputs map for the cortex node
 			Map<String, Map<String, Object>> upstreamOutputs = toUpstreamOutputs(upstreamResults);
 
-			io.metaloom.cortex.api.node.NodeResult<?> result = wrappedNode.process(media, upstreamOutputs);
+			io.metaloom.cortex.api.node.NodeResult result = wrappedNode.process(media, upstreamOutputs);
 			long elapsed = System.currentTimeMillis() - start;
 			if (result == null) {
 				return NodeResult.failed(id(), elapsed, "Node returned null result");
@@ -93,7 +93,7 @@ public class CortexNodeAdapter extends AbstractPipelineNode {
 		wrappedNode.initialize();
 	}
 
-	public FilesystemNode<?, ?, ?> getWrappedNode() {
+	public FilesystemNode<?, ?> getWrappedNode() {
 		return wrappedNode;
 	}
 }

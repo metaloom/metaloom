@@ -1,6 +1,5 @@
 package io.metaloom.cortex.node.hash;
 
-import static io.metaloom.cortex.media.hash.HashMedia.SHA_512_KEY;
 import static io.metaloom.cortex.media.test.assertj.NodeAssertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -20,7 +19,7 @@ public class SHA512NodeTest extends AbstractBasicNodeTest<SHA512Node> {
 
 	@Override
 	protected void assertProcessed(TestMedia testMedia, LoomMedia media, NodeResult result, SHA512Node nodeMock) {
-		assertThat(media).hasXAttr(1).hasXAttr(SHA_512_KEY, testMedia.sha512());
+		assertThat(result).hasOutput(SHA512Node.OUTPUT_SHA512, testMedia.sha512().toString());
 	}
 
 	@Test
@@ -57,7 +56,7 @@ public class SHA512NodeTest extends AbstractBasicNodeTest<SHA512Node> {
 		LoomMedia media = mediaVideo1();
 		NodeResult result = node().process(media);
 		assertThat(result).isSuccess();
-		assertThat(media).hasXAttr(1).hasXAttr(SHA_512_KEY, sampleVideoSHA512());
+		assertThat(result).hasOutput(SHA512Node.OUTPUT_SHA512, sampleVideoSHA512().toString());
 	}
 
 	@Test

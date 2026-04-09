@@ -14,7 +14,7 @@ public abstract class ConsistencyNodeModule extends AbstractNodeModule {
 
 	@Binds
 	@IntoSet
-	abstract FilesystemNode<?, ?, ?> bindNode(ConsistencyNode node);
+	abstract FilesystemNode<?, ?> bindNode(ConsistencyNode node);
 
 	@IntoSet
 	@Provides

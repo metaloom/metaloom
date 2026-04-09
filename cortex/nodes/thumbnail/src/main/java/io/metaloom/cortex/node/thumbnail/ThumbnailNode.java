@@ -1,5 +1,8 @@
 package io.metaloom.cortex.node.thumbnail;
 
+import static io.metaloom.cortex.api.media.LoomMetaKey.metaKey;
+import static io.metaloom.cortex.api.media.type.LoomMetaCoreType.FS;
+import static io.metaloom.cortex.api.media.type.LoomMetaCoreType.XATTR;
 import static io.metaloom.cortex.api.node.ResultOrigin.COMPUTED;
 
 import java.io.FileOutputStream;
@@ -14,8 +17,12 @@ import javax.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.metaloom.cortex.api.node.NodeOutputKey;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.api.media.LoomMetaKey;
+import io.metaloom.cortex.api.media.param.ThumbnailFlag;
+import io.metaloom.cortex.api.meta.MetaDataStream;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.node.payload.ImagePayload;
 import io.metaloom.cortex.api.option.CortexOptions;
@@ -29,13 +36,19 @@ import io.metaloom.video4j.VideoFile;
 import io.metaloom.video4j.Videos;
 import io.metaloom.video4j.preview.PreviewGenerator;
 
-public class ThumbnailNode extends AbstractMediaNode<ImagePayload, ThumbnailNodeOptions> {
+public class ThumbnailNode extends AbstractMediaNode<ThumbnailNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(ThumbnailNode.class);
 
-	public static final String OUTPUT_THUMBNAIL_FLAG = "thumbnail_flag";
-	public static final String OUTPUT_THUMBNAIL_PATH = "thumbnail_path";
+	public static final NodeOutputKey<String> OUTPUT_THUMBNAIL_FLAG = NodeOutputKey.of("thumbnail_flag", String.class);
+	public static final NodeOutputKey<String> OUTPUT_THUMBNAIL_PATH = NodeOutputKey.of("thumbnail_path", String.class);
 
+
+	public static final LoomMetaKey<ThumbnailFlag> THUMBNAIL_FLAG_KEY = metaKey("thumbnail_flags", 1, XATTR, ThumbnailFlag.class);
+
+	public static final LoomMetaKey<MetaDataStream> THUMBNAIL_BIN_KEY = metaKey("thumbnail_bin", 1, FS, MetaDataStream.class);
+
+	
 	private final PreviewGenerator gen;
 	private final CortexOptions cortexOptions;
 
@@ -74,7 +87,7 @@ public class ThumbnailNode extends AbstractMediaNode<ImagePayload, ThumbnailNode
 	}
 
 	@Override
-	protected NodeResult<ImagePayload> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws IOException {
+	protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws IOException {
 		LoomMedia media = ctx.media();
 		try {
 			String path = media.absolutePath();
@@ -89,7 +102,7 @@ public class ThumbnailNode extends AbstractMediaNode<ImagePayload, ThumbnailNode
 				}
 			}
 			Path thumbnailPath = resolveThumbnailPath(media);
-			return ctx.origin(COMPUTED).next(ImagePayload.of(thumbnailPath, "jpg"));
+			return ctx.origin(COMPUTED).next();
 		} catch (Exception e) {
 			log.error("Failed to compute thumbnail", e);
 			ctx.output(OUTPUT_THUMBNAIL_FLAG, "FAILED");

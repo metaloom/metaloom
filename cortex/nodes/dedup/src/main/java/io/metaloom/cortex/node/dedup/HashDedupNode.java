@@ -23,7 +23,7 @@ import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.utils.fs.FileUtils;
 import io.metaloom.utils.hash.SHA512;
 
-public class HashDedupNode extends AbstractMediaNode<Void, DedupNodeOptions> {
+public class HashDedupNode extends AbstractMediaNode<DedupNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(HashDedupNode.class);
 	private final LoomMediaLoader loader;
@@ -45,7 +45,7 @@ public class HashDedupNode extends AbstractMediaNode<Void, DedupNodeOptions> {
 	}
 
 	@Override
-	protected NodeResult<Void> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws IOException {
+	protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws IOException {
 		if (isOfflineMode()) {
 			return ctx.skipped("offline mode").next();
 		} else {
@@ -120,7 +120,7 @@ public class HashDedupNode extends AbstractMediaNode<Void, DedupNodeOptions> {
 
 	}
 
-	protected NodeResult<Void> moveMedia(NodeContext<LoomMedia> ctx, Path targetFolder, String msg) {
+	protected NodeResult moveMedia(NodeContext<LoomMedia> ctx, Path targetFolder, String msg) {
 		LoomMedia media = ctx.media();
 		try {
 			File targetFile = FileUtils.autoRotate(media.file(), targetFolder.toFile());

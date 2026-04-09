@@ -31,7 +31,7 @@ public abstract class FacedetectNodeModule extends AbstractNodeModule {
 
 	@Binds
 	@IntoSet
-	abstract CortexNode<?, ?, ?> bindNode(FacedetectNode action);
+	abstract CortexNode<?, ?> bindNode(FacedetectNode action);
 
 	@IntoSet
 	@Provides

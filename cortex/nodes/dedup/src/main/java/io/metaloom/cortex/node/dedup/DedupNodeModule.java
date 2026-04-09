@@ -14,11 +14,11 @@ public abstract class DedupNodeModule extends AbstractNodeModule {
 
 	@Binds
 	@IntoSet
-	abstract FilesystemNode<?, ?, ?> bindHashDedupNode(HashDedupNode node);
+	abstract FilesystemNode<?, ?> bindHashDedupNode(HashDedupNode node);
 
 	@Binds
 	@IntoSet
-	abstract FilesystemNode<?, ?, ?> bindFingerprintDedupNode(FingerprintDedupNode node);
+	abstract FilesystemNode<?, ?> bindFingerprintDedupNode(FingerprintDedupNode node);
 
 	@IntoSet
 	@Provides

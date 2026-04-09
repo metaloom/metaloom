@@ -7,7 +7,7 @@ import io.metaloom.cortex.api.media.LoomMedia;
 
 public class NodeAssertions extends Assertions {
 
-	public static NodeResultAssert assertThat(NodeResult<?> actual) {
+	public static NodeResultAssert assertThat(NodeResult actual) {
 		return new NodeResultAssert(actual);
 	}
 

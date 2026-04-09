@@ -14,7 +14,7 @@ public abstract class LoomNodeModule extends AbstractNodeModule {
 
 	@Binds
 	@IntoSet
-	abstract FilesystemNode<?, ?, ?> bindNode(LoomNode node);
+	abstract FilesystemNode<?, ?> bindNode(LoomNode node);
 
 	@IntoSet
 	@Provides

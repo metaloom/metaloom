@@ -11,7 +11,7 @@ import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 
-public class CustomNode extends AbstractMediaNode<Void, CustomNodeOptions> {
+public class CustomNode extends AbstractMediaNode<CustomNodeOptions> {
 
 	@Inject
 	public CustomNode(@Nullable LoomClient client, CortexOptions cortexOption, CustomNodeOptions options) {
@@ -29,9 +29,9 @@ public class CustomNode extends AbstractMediaNode<Void, CustomNodeOptions> {
 	}
 
 	@Override
-	protected NodeResult<Void> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
+	protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
 		System.out.println("Custom Action Invoked");
-		return NodeResult.success(null);
+		return NodeResult.success();
 	}
 
 }

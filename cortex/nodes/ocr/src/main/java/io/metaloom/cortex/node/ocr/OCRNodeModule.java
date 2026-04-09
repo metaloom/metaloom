@@ -14,7 +14,7 @@ public abstract class OCRNodeModule extends AbstractNodeModule {
 
 	@Binds
 	@IntoSet
-	abstract FilesystemNode<?, ?, ?> bindNode(OCRNode node);
+	abstract FilesystemNode<?, ?> bindNode(OCRNode node);
 
 	@IntoSet
 	@Provides

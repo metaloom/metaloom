@@ -6,6 +6,7 @@ import java.io.IOException;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 
+import io.metaloom.cortex.api.node.NodeOutputKey;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.media.LoomMedia;
@@ -15,11 +16,11 @@ import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.video4j.utils.ImageUtils;
 
-public class CaptioningNode extends AbstractMediaNode<Void, CaptioningNodeOptions> {
+public class CaptioningNode extends AbstractMediaNode<CaptioningNodeOptions> {
 
 	private final SmolVLMClient smolvlmClient;
 
-	public static final String OUTPUT_CAPTION = "caption_result";
+	public static final NodeOutputKey<String> OUTPUT_CAPTION = NodeOutputKey.of("caption_result", String.class);
 
 	@Inject
 	public CaptioningNode(@Nullable LoomClient client, CortexOptions cortexOption, CaptioningNodeOptions option) {
@@ -38,7 +39,7 @@ public class CaptioningNode extends AbstractMediaNode<Void, CaptioningNodeOption
 	}
 
 	@Override
-	protected NodeResult<Void> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws IOException {
+	protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws IOException {
 		LoomMedia media = ctx.media();
 		try {
 			if (media.isImage()) {

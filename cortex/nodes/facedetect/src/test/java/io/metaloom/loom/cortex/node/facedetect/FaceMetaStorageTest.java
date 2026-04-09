@@ -11,7 +11,7 @@ public class FaceMetaStorageTest extends AbstractFacedetectMediaTest implements 
 
 	@Test
 	public void testMetaStorageIntegration() {
-		FacedetectMedia media = mediaVideo2().of(FACE_DETECTION);
+		FacedetectMedia media = FACE_DETECTION.wrap(mediaVideo2(), storage());
 		Facedetection data = createFaceData(media.getSHA512());
 		storage().put(media, FacedetectMedia.FACEDETECTION_RESULT_KEY, data);
 	}

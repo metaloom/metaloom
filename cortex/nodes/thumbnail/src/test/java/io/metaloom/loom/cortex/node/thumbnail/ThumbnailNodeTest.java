@@ -1,9 +1,6 @@
 package io.metaloom.loom.cortex.node.thumbnail;
 
-import static io.metaloom.cortex.media.hash.HashMedia.SHA_512_KEY;
-
 import static io.metaloom.cortex.media.test.assertj.NodeAssertions.assertThat;
-import static io.metaloom.cortex.media.thumbnail.ThumbnailMedia.THUMBNAIL_FLAG_KEY;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -43,7 +40,7 @@ public class ThumbnailNodeTest extends AbstractMediaTest {
 		LoomMedia media = mediaVideo3();
 		NodeResult result = node.process(ctx(media));
 		assertThat(result).isSuccess();
-		assertThat(media).hasXAttr(2).hasXAttr(SHA_512_KEY).hasXAttr(THUMBNAIL_FLAG_KEY);
+		assertThat(result).hasOutput(ThumbnailNode.OUTPUT_THUMBNAIL_FLAG);
 		assertThat(new File(thumbnailDir, media.getSHA512() + ".jpg")).exists();
 	}
 

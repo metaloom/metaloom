@@ -24,7 +24,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.media.MediaType;
 import io.metaloom.cortex.pipeline.api.NodeMode;
 import io.metaloom.cortex.pipeline.api.NodeResult;
 import io.metaloom.cortex.pipeline.api.NodeState;
@@ -778,11 +777,6 @@ class PipelineExecutorTest {
 		@Override
 		public boolean exists() {
 			return true;
-		}
-
-		@Override
-		public <T extends LoomMedia> T of(MediaType<T> type) {
-			return null;
 		}
 
 		@Override

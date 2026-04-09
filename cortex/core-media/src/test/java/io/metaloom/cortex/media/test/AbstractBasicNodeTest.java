@@ -17,7 +17,7 @@ import io.metaloom.cortex.api.meta.MetaStorage;
 import io.metaloom.cortex.common.meta.MetaStorageImpl;
 import io.metaloom.loom.test.data.TestMedia;
 
-public abstract class AbstractBasicNodeTest<T extends FilesystemNode<?, ?, ?>> extends AbstractNodeTest<T> implements NodeTestcases {
+public abstract class AbstractBasicNodeTest<T extends FilesystemNode<?, ?>> extends AbstractNodeTest<T> implements NodeTestcases {
 
 	@Test
 	@Override
@@ -28,7 +28,7 @@ public abstract class AbstractBasicNodeTest<T extends FilesystemNode<?, ?, ?>> e
 		assertProcessed(nodeMock, media, video1);
 	}
 
-	protected abstract void assertProcessed(TestMedia testMedia, LoomMedia media, NodeResult<?> result, T nodeMock);
+	protected abstract void assertProcessed(TestMedia testMedia, LoomMedia media, NodeResult result, T nodeMock);
 
 	@Test
 	@Override
@@ -87,7 +87,7 @@ public abstract class AbstractBasicNodeTest<T extends FilesystemNode<?, ?, ?>> e
 	public void testProcessMissing() throws IOException {
 		LoomMedia media = mediaMissingMP4();
 		T nodeMock = node();
-		NodeResult<?> result = nodeMock.process(ctx(media));
+		NodeResult result = nodeMock.process(ctx(media));
 		assertThat(result).isFailed();
 	}
 
@@ -96,7 +96,7 @@ public abstract class AbstractBasicNodeTest<T extends FilesystemNode<?, ?, ?>> e
 	public void testProcessOther() throws IOException {
 		LoomMedia media = mediaBogusBin();
 		T nodeMock = node();
-		NodeResult<?> result = nodeMock.process(ctx(media));
+		NodeResult result = nodeMock.process(ctx(media));
 	}
 
 	@Test
@@ -104,7 +104,7 @@ public abstract class AbstractBasicNodeTest<T extends FilesystemNode<?, ?, ?>> e
 	public void testFailure() throws IOException {
 		LoomMedia media = mediaVideo1();
 		T nodeMock = node();
-		NodeResult<?> result = nodeMock.process(ctx(media));
+		NodeResult result = nodeMock.process(ctx(media));
 	}
 
 	@Test
@@ -114,12 +114,12 @@ public abstract class AbstractBasicNodeTest<T extends FilesystemNode<?, ?, ?>> e
 		T nodeMock = node();
 		disableNode(nodeMock);
 
-		NodeResult<?> result = nodeMock.process(ctx(media));
+		NodeResult result = nodeMock.process(ctx(media));
 		assertThat(result).isSkipped();
 		assertDisabled(media, result);
 	}
 
-	protected void assertDisabled(LoomMedia media, NodeResult<?> result) {
+	protected void assertDisabled(LoomMedia media, NodeResult result) {
 		assertThat(media).hasXAttr(0);
 	}
 
@@ -128,13 +128,13 @@ public abstract class AbstractBasicNodeTest<T extends FilesystemNode<?, ?, ?>> e
 	}
 
 	private void assertProcessed(T nodeMock, LoomMedia media, TestMedia testMedia) throws IOException {
-		NodeResult<?> result = nodeMock.process(ctx(media));
+		NodeResult result = nodeMock.process(ctx(media));
 		assertThat(result).isSuccess();
 		assertThat(media).hasSHA512();
 		assertProcessed(testMedia, media, result, nodeMock);
 
 		// Run the process again on the media to ensure that it will be skipped
-		NodeResult<?> result2 = nodeMock.process(ctx(media));
+		NodeResult result2 = nodeMock.process(ctx(media));
 		assertThat(result2).isSkipped();
 	}
 

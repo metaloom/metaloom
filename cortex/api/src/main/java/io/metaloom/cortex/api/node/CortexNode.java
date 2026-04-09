@@ -14,10 +14,9 @@ import io.metaloom.cortex.api.option.node.CortexNodeOptions;
  * times with different options.
  *
  * @param <I> the input type this node accepts
- * @param <O> the output type this node produces
  * @param <T> the options type for this node
  */
-public interface CortexNode<I, O, T extends CortexNodeOptions> {
+public interface CortexNode<I, T extends CortexNodeOptions> {
 
 	/**
 	 * Name of the node.

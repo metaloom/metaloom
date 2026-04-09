@@ -16,7 +16,7 @@ public abstract class CustomNodeModule extends AbstractNodeModule {
 
 	@Binds
 	@IntoSet
-	abstract FilesystemNode<?, ?, ?> bindNode(CustomNode node);
+	abstract FilesystemNode<?, ?> bindNode(CustomNode node);
 	
 	@IntoSet
 	@Provides

@@ -1,8 +1,6 @@
 package io.metaloom.loom.cortex.node.facedetect;
 
 import static io.metaloom.cortex.node.facedetect.FacedetectMedia.FACE_DETECTION;
-import static io.metaloom.cortex.api.media.LoomMetaKey.metaKey;
-import static io.metaloom.cortex.api.media.type.LoomMetaCoreType.XATTR;
 import static io.metaloom.cortex.media.test.assertj.NodeAssertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -18,18 +16,13 @@ import io.metaloom.cortex.node.facedetect.FacedetectNodeOptions;
 import io.metaloom.cortex.node.facedetect.FacedetectMedia;
 import io.metaloom.cortex.node.facedetect.video.VideoFaceScanner;
 import io.metaloom.cortex.api.node.NodeResult;
-import io.metaloom.cortex.api.media.LoomMetaKey;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.media.LoomClientMock;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.client.common.LoomClientException;
-import io.metaloom.video.facedetect.dlib.DLibFacedetector;
 import io.metaloom.video.facedetect.inspireface.InspireFacedetector;
-import io.metaloom.utils.hash.SHA512;
 
 public class FacedetectNodeTest extends AbstractFacedetectMediaTest {
-
-	private static final LoomMetaKey<SHA512> SHA_512_KEY = metaKey("sha512sum", 1, XATTR, SHA512.class);
 
 	private FacedetectNode node;
 
@@ -41,19 +34,18 @@ public class FacedetectNodeTest extends AbstractFacedetectMediaTest {
 
 	@Test
 	public void testVideo() throws IOException {
-		FacedetectMedia media = mediaVideo2().of(FACE_DETECTION);
+		FacedetectMedia media = FACE_DETECTION.wrap(mediaVideo2(), storage());
 		NodeResult result = node.process(ctx(media));
 		assertThat(result).isSuccess();
-		assertThat(media).hasXAttr(2).hasXAttr(SHA_512_KEY, FacedetectMedia.FACEDETECT_COUNT_KEY);
+		assertThat(result).hasOutput(FacedetectNode.OUTPUT_FACE_COUNT);
 		assertTrue(media.getFaceCount() > 10, "There should be at least 10 detections. Found: " + media.getFaceCount());
 	}
 
 	@Test
 	public void testImage() throws IOException, LoomClientException {
-		FacedetectMedia media = mediaImage1().of(FACE_DETECTION);
+		FacedetectMedia media = FACE_DETECTION.wrap(mediaImage1(), storage());
 		NodeResult result = node.process(ctx(media));
 		assertThat(result).isSuccess();
-		assertThat(media).hasXAttr(1).hasXAttr(SHA_512_KEY);
 		System.out.println("Faces: " + media.getFaceCount());
 	}
 

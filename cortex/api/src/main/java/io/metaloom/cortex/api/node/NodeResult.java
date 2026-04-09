@@ -4,38 +4,30 @@ import java.util.Collections;
 import java.util.Map;
 
 /**
- * Result of processing by a {@link CortexNode}. Carries a typed output value {@code O}
- * along with state information (success, skipped, failed) and an output map
- * for passing data to downstream nodes.
+ * Result of processing by a {@link CortexNode}. Carries state information
+ * (success, skipped, failed) and a typed output map for passing data to
+ * downstream nodes.
  *
- * @param <O> the output type produced by the node
+ * <p>Output values are stored under {@link NodeOutputKey} keys which provide
+ * type-safe access without casts.
  */
-public class NodeResult<O> {
+public class NodeResult {
 
 	private final ResultState state;
-	private final O output;
 	private final Map<String, Object> outputs;
 	private long duration = 0;
 
-	public NodeResult(ResultState state, O output) {
-		this(state, output, Collections.emptyMap());
+	public NodeResult(ResultState state) {
+		this(state, Collections.emptyMap());
 	}
 
-	public NodeResult(ResultState state, O output, Map<String, Object> outputs) {
+	public NodeResult(ResultState state, Map<String, Object> outputs) {
 		this.state = state;
-		this.output = output;
 		this.outputs = outputs != null ? outputs : Collections.emptyMap();
 	}
 
 	public ResultState getState() {
 		return state;
-	}
-
-	/**
-	 * Return the computed output value, or {@code null} if the node was skipped or failed.
-	 */
-	public O getOutput() {
-		return output;
 	}
 
 	/**
@@ -47,7 +39,22 @@ public class NodeResult<O> {
 	}
 
 	/**
-	 * Convenience accessor for a single output value from the outputs map.
+	 * Type-safe accessor for a single output value via a {@link NodeOutputKey}.
+	 */
+	@SuppressWarnings("unchecked")
+	public <T> T get(NodeOutputKey<T> key) {
+		return (T) outputs.get(key.key());
+	}
+
+	/**
+	 * Check whether the output map contains a value for the given key.
+	 */
+	public boolean has(NodeOutputKey<?> key) {
+		return outputs.containsKey(key.key());
+	}
+
+	/**
+	 * Convenience accessor for a single output value by raw string key.
 	 */
 	@SuppressWarnings("unchecked")
 	public <T> T getOutput(String key) {
@@ -62,25 +69,25 @@ public class NodeResult<O> {
 		return duration;
 	}
 
-	public static <O> NodeResult<O> success(O output) {
-		return new NodeResult<>(ResultState.SUCCESS, output, Collections.emptyMap());
+	public static NodeResult success() {
+		return new NodeResult(ResultState.SUCCESS, Collections.emptyMap());
 	}
 
-	public static <O> NodeResult<O> success(O output, Map<String, Object> outputs) {
-		return new NodeResult<>(ResultState.SUCCESS, output, outputs);
+	public static NodeResult success(Map<String, Object> outputs) {
+		return new NodeResult(ResultState.SUCCESS, outputs);
 	}
 
-	public static <O> NodeResult<O> failed() {
-		return new NodeResult<>(ResultState.FAILED, null);
+	public static NodeResult failed() {
+		return new NodeResult(ResultState.FAILED);
 	}
 
-	public static <O> NodeResult<O> skipped() {
-		return new NodeResult<>(ResultState.SKIPPED, null);
+	public static NodeResult skipped() {
+		return new NodeResult(ResultState.SKIPPED);
 	}
 
 	@Override
 	public String toString() {
-		return state.name() + (output != null ? " [" + output + "]" : "")
+		return state.name()
 			+ (outputs != null && !outputs.isEmpty() ? " outputs=" + outputs.keySet() : "");
 	}
 }

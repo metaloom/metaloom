@@ -24,7 +24,7 @@ import io.metaloom.utils.hash.MD5;
 import io.metaloom.utils.hash.SHA256;
 import io.metaloom.utils.hash.SHA512;
 
-public class LoomNode extends AbstractFilesystemNode<LoomMedia, Void, LoomNodeOptions> {
+public class LoomNode extends AbstractFilesystemNode<LoomMedia, LoomNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(LoomNode.class);
 
@@ -49,7 +49,7 @@ public class LoomNode extends AbstractFilesystemNode<LoomMedia, Void, LoomNodeOp
 	}
 
 	@Override
-	public NodeResult<Void> process(NodeContext<LoomMedia> ctx) throws IOException {
+	public NodeResult process(NodeContext<LoomMedia> ctx) throws IOException {
 		if (isOfflineMode()) {
 			log.info("Running in offline mode. Skipping node");
 			return ctx.next();

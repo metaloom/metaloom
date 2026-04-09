@@ -13,17 +13,17 @@ import io.metaloom.cortex.api.option.CortexOptions;
 public class CortexImpl implements Cortex {
 
 	private final CortexOptions options;
-	private final Set<CortexNode<?, ?, ?>> nodes;
+	private final Set<CortexNode<?, ?>> nodes;
 
 	@Inject
-	public CortexImpl(CortexOptions options, Set<CortexNode<?, ?, ?>> nodes) {
+	public CortexImpl(CortexOptions options, Set<CortexNode<?, ?>> nodes) {
 		this.options = options;
 		this.nodes = nodes;
 	}
 
 	@Override
 	public void checkNodes() {
-		for (CortexNode<?, ?, ?> node : nodes) {
+		for (CortexNode<?, ?> node : nodes) {
 			System.out.println(node.options());
 		}
 	}

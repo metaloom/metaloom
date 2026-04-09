@@ -15,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.api.node.NodeOutputKey;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
@@ -26,18 +27,18 @@ import io.metaloom.video4j.VideoFile;
 import io.metaloom.video4j.Videos;
 import io.metaloom.video4j.opencv.CVUtils;
 
-public class QualityNode extends AbstractMediaNode<Void, QualityNodeOptions> {
+public class QualityNode extends AbstractMediaNode<QualityNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(QualityNode.class);
 
-	public static final String OUTPUT_BLURRINESS = "blurriness";
-	public static final String OUTPUT_IMAGE_WIDTH = "image_width";
-	public static final String OUTPUT_IMAGE_HEIGHT = "image_height";
-	public static final String OUTPUT_VIDEO_WIDTH = "video_width";
-	public static final String OUTPUT_VIDEO_HEIGHT = "video_height";
-	public static final String OUTPUT_VIDEO_FPS = "video_fps";
-	public static final String OUTPUT_VIDEO_FRAME_COUNT = "video_frame_count";
-	public static final String OUTPUT_QUALITY_FLAG = "quality_flag";
+	public static final NodeOutputKey<Double> OUTPUT_BLURRINESS = NodeOutputKey.of("blurriness", Double.class);
+	public static final NodeOutputKey<Integer> OUTPUT_IMAGE_WIDTH = NodeOutputKey.of("image_width", Integer.class);
+	public static final NodeOutputKey<Integer> OUTPUT_IMAGE_HEIGHT = NodeOutputKey.of("image_height", Integer.class);
+	public static final NodeOutputKey<Integer> OUTPUT_VIDEO_WIDTH = NodeOutputKey.of("video_width", Integer.class);
+	public static final NodeOutputKey<Integer> OUTPUT_VIDEO_HEIGHT = NodeOutputKey.of("video_height", Integer.class);
+	public static final NodeOutputKey<Double> OUTPUT_VIDEO_FPS = NodeOutputKey.of("video_fps", Double.class);
+	public static final NodeOutputKey<Long> OUTPUT_VIDEO_FRAME_COUNT = NodeOutputKey.of("video_frame_count", Long.class);
+	public static final NodeOutputKey<String> OUTPUT_QUALITY_FLAG = NodeOutputKey.of("quality_flag", String.class);
 
 	@Inject
 	public QualityNode(@Nullable LoomClient client, CortexOptions cortexOption, QualityNodeOptions options) {
@@ -61,7 +62,7 @@ public class QualityNode extends AbstractMediaNode<Void, QualityNodeOptions> {
 	}
 
 	@Override
-	protected NodeResult<Void> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
+	protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
 		LoomMedia media = ctx.media();
 		if (media.isImage()) {
 			return processImage(ctx);
@@ -72,7 +73,7 @@ public class QualityNode extends AbstractMediaNode<Void, QualityNodeOptions> {
 		}
 	}
 
-	private NodeResult<Void> processImage(NodeContext<LoomMedia> ctx) throws IOException {
+	private NodeResult processImage(NodeContext<LoomMedia> ctx) throws IOException {
 		LoomMedia media = ctx.media();
 		BufferedImage image = ImageIO.read(media.file());
 		if (image == null) {
@@ -97,7 +98,7 @@ public class QualityNode extends AbstractMediaNode<Void, QualityNodeOptions> {
 		return ctx.origin(COMPUTED).next();
 	}
 
-	private NodeResult<Void> processVideo(NodeContext<LoomMedia> ctx) {
+	private NodeResult processVideo(NodeContext<LoomMedia> ctx) {
 		LoomMedia media = ctx.media();
 		QualityNodeOptions opts = options();
 

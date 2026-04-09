@@ -14,7 +14,7 @@ public abstract class SceneDetectionNodeModule extends AbstractNodeModule {
 
 	@Binds
 	@IntoSet
-	abstract FilesystemNode<?, ?, ?> bindNode(SceneDetectionNode node);
+	abstract FilesystemNode<?, ?> bindNode(SceneDetectionNode node);
 
 	@IntoSet
 	@Provides

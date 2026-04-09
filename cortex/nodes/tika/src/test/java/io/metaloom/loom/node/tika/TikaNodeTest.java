@@ -1,8 +1,6 @@
 package io.metaloom.loom.node.tika;
 
-import static io.metaloom.cortex.media.hash.HashMedia.SHA_512_KEY;
 import static io.metaloom.cortex.media.test.assertj.NodeAssertions.assertThat;
-import static io.metaloom.cortex.node.tika.TikaMedia.TIKA_FLAGS_KEY;
 
 import java.io.IOException;
 
@@ -26,7 +24,7 @@ public class TikaNodeTest extends AbstractMediaTest {
 		LoomMedia media = mediaVideo1();
 		NodeResult result = node.process(media);
 		assertThat(result).isSuccess();
-		assertThat(media).hasXAttr(2).hasXAttr(SHA_512_KEY, TIKA_FLAGS_KEY);
+		assertThat(result).hasOutput(TikaNode.OUTPUT_TIKA_FLAGS);
 	}
 
 	public TikaNode mockNode() throws LoomClientException {

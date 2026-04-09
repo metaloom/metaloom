@@ -1,8 +1,5 @@
 package io.metaloom.cortex.node.scene;
 
-import static io.metaloom.cortex.media.hash.HashMedia.SHA_512_KEY;
-
-import static io.metaloom.cortex.media.scene.SceneDetectionMedia.SCENE_DETECTION;
 import static io.metaloom.cortex.media.test.assertj.NodeAssertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -27,8 +24,8 @@ public class SceneDetectionNodeTest extends AbstractBasicNodeTest<SceneDetection
 
 	@Override
 	protected void assertProcessed(TestMedia testMedia, LoomMedia media, NodeResult result, SceneDetectionNode nodeMock) {
-		SceneDetectionMedia sceneMedia = media.of(SCENE_DETECTION);
-		assertThat(media).hasXAttr(1).hasXAttr(SHA_512_KEY, testMedia.sha512());
+		SceneDetectionMedia sceneMedia = SceneDetectionMedia.SCENE_DETECTION.wrap(media, storage());
+		assertThat(media).hasSHA512();
 		// assertThat(media).hasXAttr(SceneDetectionMedia.SCENE_DETECTION_FLAG_KEY);
 
 		SceneDetectionResult detection = sceneMedia.getSceneDetection();

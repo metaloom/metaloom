@@ -14,7 +14,7 @@ public abstract class QualityNodeModule extends AbstractNodeModule {
 
 	@Binds
 	@IntoSet
-	abstract FilesystemNode<?, ?, ?> bindNode(QualityNode node);
+	abstract FilesystemNode<?, ?> bindNode(QualityNode node);
 
 	@IntoSet
 	@Provides

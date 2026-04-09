@@ -8,8 +8,7 @@ import io.metaloom.cortex.api.option.node.CortexNodeOptions;
  * that yield {@link io.metaloom.cortex.api.media.LoomMedia} items for downstream processing.
  *
  * @param <I> the input type this node accepts
- * @param <O> the output type this node produces
  * @param <T> the options type for this node
  */
-public interface SourceNode<I, O, T extends CortexNodeOptions> extends CortexNode<I, O, T> {
+public interface SourceNode<I, T extends CortexNodeOptions> extends CortexNode<I, T> {
 }

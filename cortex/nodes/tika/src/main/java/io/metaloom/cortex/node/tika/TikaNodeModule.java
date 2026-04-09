@@ -16,7 +16,7 @@ public abstract class TikaNodeModule extends AbstractNodeModule {
 
 	@Binds
 	@IntoSet
-	abstract FilesystemNode<?, ?, ?> bindNode(TikaNode node);
+	abstract FilesystemNode<?, ?> bindNode(TikaNode node);
 
 	@IntoSet
 	@Provides

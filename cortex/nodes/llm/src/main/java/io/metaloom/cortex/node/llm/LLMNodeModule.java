@@ -16,7 +16,7 @@ public abstract class LLMNodeModule extends AbstractNodeModule {
 
 	@Binds
 	@IntoSet
-	abstract FilesystemNode<?, ?, ?> bindNode(LLMNode node);
+	abstract FilesystemNode<?, ?> bindNode(LLMNode node);
 
 	@IntoSet
 	@Provides

@@ -12,10 +12,9 @@ import io.metaloom.cortex.api.option.node.CortexNodeOptions;
  * Filesystem nodes are source nodes — they yield media assets for downstream processing.
  *
  * @param <I> the input type this node accepts
- * @param <O> the output type this node produces
  * @param <T> the options type for this node
  */
-public interface FilesystemNode<I, O, T extends CortexNodeOptions> extends SourceNode<I, O, T> {
+public interface FilesystemNode<I, T extends CortexNodeOptions> extends SourceNode<I, T> {
 
 	/**
 	 * Process the input and produce a typed result.
@@ -24,9 +23,9 @@ public interface FilesystemNode<I, O, T extends CortexNodeOptions> extends Sourc
 	 * @return the result containing the computed output
 	 * @throws IOException if processing fails due to I/O
 	 */
-	NodeResult<O> process(NodeContext<I> ctx) throws IOException;
+	NodeResult process(NodeContext<I> ctx) throws IOException;
 
-	default NodeResult<O> process(LoomMedia media) throws IOException {
+	default NodeResult process(LoomMedia media) throws IOException {
 		@SuppressWarnings("unchecked")
 		NodeContext<I> ctx = (NodeContext<I>) NodeContext.create(media);
 		return process(ctx);
@@ -40,7 +39,7 @@ public interface FilesystemNode<I, O, T extends CortexNodeOptions> extends Sourc
 	 * @param upstreamOutputs  outputs from upstream nodes, keyed by node id
 	 * @return the result
 	 */
-	default NodeResult<O> process(LoomMedia media, Map<String, Map<String, Object>> upstreamOutputs) throws IOException {
+	default NodeResult process(LoomMedia media, Map<String, Map<String, Object>> upstreamOutputs) throws IOException {
 		@SuppressWarnings("unchecked")
 		NodeContext<I> ctx = (NodeContext<I>) NodeContext.create(media, upstreamOutputs);
 		return process(ctx);

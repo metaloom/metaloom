@@ -5,7 +5,7 @@ import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.api.option.node.CortexNodeOptions;
 import io.metaloom.loom.client.common.LoomClient;
 
-public abstract class AbstractCortexNode<I, O, T extends CortexNodeOptions> implements CortexNode<I, O, T> {
+public abstract class AbstractCortexNode<I, T extends CortexNodeOptions> implements CortexNode<I, T> {
 
 	private final LoomClient client;
 	private final CortexOptions cortexOption;

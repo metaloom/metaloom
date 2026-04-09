@@ -14,7 +14,7 @@ public abstract class CaptioningNodeModule extends AbstractNodeModule {
 
 	@Binds
 	@IntoSet
-	abstract FilesystemNode<?, ?, ?> bindNode(CaptioningNode node);
+	abstract FilesystemNode<?, ?> bindNode(CaptioningNode node);
 
 	@IntoSet
 	@Provides

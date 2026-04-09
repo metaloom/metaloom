@@ -20,10 +20,9 @@ import io.metaloom.utils.hash.SHA512;
  * (XAttr or sidecar file cache backend), not by the node itself. This node only
  * checks whether the media type is processable.</p>
  *
- * @param <O> the output type this node produces (e.g. SHA256, fingerprint, transcript)
  * @param <T> the options type for this node
  */
-public abstract class AbstractMediaNode<O, T extends CortexNodeOptions> extends AbstractFilesystemNode<LoomMedia, O, T> {
+public abstract class AbstractMediaNode<T extends CortexNodeOptions> extends AbstractFilesystemNode<LoomMedia, T> {
 
 	public static final Logger log = LoggerFactory.getLogger(AbstractMediaNode.class);
 
@@ -32,7 +31,7 @@ public abstract class AbstractMediaNode<O, T extends CortexNodeOptions> extends 
 	}
 
 	@Override
-	public NodeResult<O> process(NodeContext<LoomMedia> ctx) {
+	public NodeResult process(NodeContext<LoomMedia> ctx) {
 		if (!options().isEnabled()) {
 			return ctx.skipped("Disabled").next();
 		}
@@ -80,7 +79,7 @@ public abstract class AbstractMediaNode<O, T extends CortexNodeOptions> extends 
 	 *
 	 * @param ctx   the processing context
 	 * @param asset optional asset response from Loom (may be used to skip computation)
-	 * @return the result containing the computed output of type {@code O}
+	 * @return the result containing the computed output
 	 */
-	protected abstract NodeResult<O> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception;
+	protected abstract NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception;
 }

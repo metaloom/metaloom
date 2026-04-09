@@ -19,7 +19,7 @@ import io.metaloom.loom.client.common.LoomClientRequest;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 
-public abstract class AbstractNodeTest<T extends FilesystemNode<?, ?, ?>> extends AbstractMediaTest {
+public abstract class AbstractNodeTest<T extends FilesystemNode<?, ?>> extends AbstractMediaTest {
 
 	private T node;
 

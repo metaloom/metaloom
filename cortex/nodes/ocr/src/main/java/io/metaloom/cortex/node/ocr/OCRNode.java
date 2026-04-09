@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.api.node.NodeOutputKey;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.ResultOrigin;
 import io.metaloom.cortex.api.node.context.NodeContext;
@@ -16,11 +17,11 @@ import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 
-public class OCRNode extends AbstractMediaNode<TextPayload, OCRNodeOptions> {
+public class OCRNode extends AbstractMediaNode<OCRNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(OCRNode.class);
 
-	public static final String OUTPUT_OCR_TEXT = "ocr_text";
+	public static final NodeOutputKey<String> OUTPUT_OCR_TEXT = NodeOutputKey.of("ocr_text", String.class);
 
 	private final OCRProvider provider;
 
@@ -41,11 +42,11 @@ public class OCRNode extends AbstractMediaNode<TextPayload, OCRNodeOptions> {
 	}
 
 	@Override
-	protected NodeResult<TextPayload> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
+	protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
 		LoomMedia media = ctx.media();
 		String text = provider.recognizeText(media.file(), options().getLanguage());
 		ctx.output(OUTPUT_OCR_TEXT, text);
 		ctx.info("OCR extracted " + text.length() + " chars via " + provider.name());
-		return ctx.origin(ResultOrigin.COMPUTED).next(TextPayload.of(text));
+		return ctx.origin(ResultOrigin.COMPUTED).next();
 	}
 }

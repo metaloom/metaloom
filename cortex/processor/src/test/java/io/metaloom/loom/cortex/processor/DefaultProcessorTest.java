@@ -40,7 +40,7 @@ public class DefaultProcessorTest {
 		CortexOptions options = new CortexOptions();
 		options.setMetaPath(LocalTestData.metaStorageDir());
 		//ThumbnailNodeOptions thumbnailOptions = new ThumbnailNodeOptions();
-		Set<FilesystemNode<?, ?, ?>> nodes = Set.of(new SHA512Node(null, options, new HashNodeOptions()));
+		Set<FilesystemNode<?, ?>> nodes = Set.of(new SHA512Node(null, options, new HashNodeOptions()));
 		LinuxFilesystemScanner scanner = new LinuxFilesystemScannerImpl();
 		LoomMediaLoader loader = mock(LoomMediaLoader.class);
 		

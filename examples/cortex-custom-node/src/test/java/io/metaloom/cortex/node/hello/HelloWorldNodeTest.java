@@ -54,19 +54,16 @@ public class HelloWorldNodeTest {
 		LoomMedia media = new LoomMediaImpl(textFile);
 		NodeContext<LoomMedia> ctx = NodeContext.create(media);
 
-		NodeResult<HelloWorldPayload> result = node.process(ctx);
+		NodeResult result = node.process(ctx);
 
 		assertEquals(ResultState.SUCCESS, result.getState());
 
-		HelloWorldPayload payload = result.getOutput();
-		assertNotNull(payload);
-		assertTrue(payload.fileSize() > 0, "File size should be > 0");
-		assertEquals(9, payload.wordCount(), "Expected 9 words in the test file");
-
 		// Verify both outputs are in the output map for downstream nodes
 		Map<String, Object> outputs = result.getOutputs();
-		assertNotNull(outputs.get(HelloWorldNode.OUTPUT_FILE_SIZE));
-		assertNotNull(outputs.get(HelloWorldNode.OUTPUT_WORD_COUNT));
+		long fileSize = (long) outputs.get(HelloWorldNode.OUTPUT_FILE_SIZE);
+		long wordCount = (long) outputs.get(HelloWorldNode.OUTPUT_WORD_COUNT);
+		assertTrue(fileSize > 0, "File size should be > 0");
+		assertEquals(9, wordCount, "Expected 9 words in the test file");
 	}
 
 	@Test
@@ -79,11 +76,11 @@ public class HelloWorldNodeTest {
 		LoomMedia media = new LoomMediaImpl(binFile);
 		NodeContext<LoomMedia> ctx = NodeContext.create(media);
 
-		NodeResult<HelloWorldPayload> result = node.process(ctx);
+		NodeResult result = node.process(ctx);
 
 		assertEquals(ResultState.SUCCESS, result.getState());
-		HelloWorldPayload payload = result.getOutput();
-		assertEquals(6, payload.fileSize());
+		long fileSize = (long) result.getOutputs().get(HelloWorldNode.OUTPUT_FILE_SIZE);
+		assertEquals(6, fileSize);
 	}
 
 	@Test
@@ -98,7 +95,7 @@ public class HelloWorldNodeTest {
 			"sha256", Map.of("sha256", "abc123def456"));
 
 		NodeContext<LoomMedia> ctx = NodeContext.create(media, upstream);
-		NodeResult<HelloWorldPayload> result = node.process(ctx);
+		NodeResult result = node.process(ctx);
 
 		assertEquals(ResultState.SUCCESS, result.getState());
 	}
@@ -116,7 +113,7 @@ public class HelloWorldNodeTest {
 		LoomMedia media = new LoomMediaImpl(textFile);
 		NodeContext<LoomMedia> ctx = NodeContext.create(media);
 
-		NodeResult<HelloWorldPayload> result = disabledNode.process(ctx);
+		NodeResult result = disabledNode.process(ctx);
 		assertEquals(ResultState.SKIPPED, result.getState());
 	}
 
@@ -126,7 +123,7 @@ public class HelloWorldNodeTest {
 		LoomMedia media = new LoomMediaImpl(missing);
 		NodeContext<LoomMedia> ctx = NodeContext.create(media);
 
-		NodeResult<HelloWorldPayload> result = node.process(ctx);
+		NodeResult result = node.process(ctx);
 		assertEquals(ResultState.FAILED, result.getState());
 	}
 }

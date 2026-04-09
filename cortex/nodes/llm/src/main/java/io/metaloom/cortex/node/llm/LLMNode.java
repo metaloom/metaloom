@@ -14,6 +14,7 @@ import io.metaloom.ai.genai.llm.impl.LargeLanguageModelImpl;
 import io.metaloom.ai.genai.llm.ollama.OllamaLLMProvider;
 import io.metaloom.ai.genai.llm.prompt.Prompt;
 import io.metaloom.ai.genai.llm.prompt.impl.PromptImpl;
+import io.metaloom.cortex.api.node.NodeOutputKey;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.context.NodeContext;
@@ -23,7 +24,7 @@ import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.vertx.core.json.JsonObject;
 
-public class LLMNode extends AbstractMediaNode<Void, LLMNodeOptions> {
+public class LLMNode extends AbstractMediaNode<LLMNodeOptions> {
 
 	@Inject
 	public LLMNode(@Nullable LoomClient client, CortexOptions cortexOption, LLMNodeOptions options) {
@@ -63,8 +64,15 @@ public class LLMNode extends AbstractMediaNode<Void, LLMNodeOptions> {
 		return true;
 	}
 
+	/**
+	 * Create a typed output key for a given prompt id.
+	 */
+	public static NodeOutputKey<String> resultKey(String promptId) {
+		return NodeOutputKey.of("llm_result_" + promptId, String.class);
+	}
+
 	@Override
-	protected NodeResult<Void> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
+	protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
 
 		for (Entry<String, LLMNodePrompt> entry : options().getPrompts().entrySet()) {
 			String promptId = entry.getKey();
@@ -79,10 +87,10 @@ public class LLMNode extends AbstractMediaNode<Void, LLMNodeOptions> {
 			LLMProvider provider = new OllamaLLMProvider();
 			JsonObject json = provider.generateJson(llmCtx);
 
-			ctx.output("llm_result_" + promptId, json.encode());
+			ctx.output(resultKey(promptId), json.encode());
 		}
 
-		return NodeResult.success(null, ctx.outputs());
+		return NodeResult.success(ctx.outputs());
 	}
 
 }

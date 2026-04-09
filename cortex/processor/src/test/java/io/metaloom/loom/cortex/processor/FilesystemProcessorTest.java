@@ -40,8 +40,8 @@ public class FilesystemProcessorTest {
 		processor.analyze(null, LocalTestData.localDir());
 	}
 
-	private FilesystemNode<?, ?, ?> dummyNode() throws IOException {
-		FilesystemNode<?, ?, ?> node = new AbstractMediaNode<Void, CortexNodeOptions>(null, null, null) {
+	private FilesystemNode<?, ?> dummyNode() throws IOException {
+		FilesystemNode<?, ?> node = new AbstractMediaNode<CortexNodeOptions>(null, null, null) {
 
 			@Override
 			public CortexNodeOptions options() {
@@ -61,8 +61,8 @@ public class FilesystemProcessorTest {
 			}
 
 			@Override
-			protected NodeResult<Void> compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
-				return NodeResult.success(null);
+			protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
+				return NodeResult.success();
 			}
 		};
 		return node;
