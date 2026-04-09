@@ -10,7 +10,6 @@ import java.util.Map;
 import java.util.Set;
 
 import io.metaloom.cortex.pipeline.api.Pipeline;
-import io.metaloom.cortex.pipeline.api.filter.PipelineFilter;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 
 /**
@@ -24,7 +23,6 @@ public class DefaultPipeline implements Pipeline {
 	private final int priority;
 	private final boolean enabled;
 	private final boolean dryRun;
-	private final PipelineFilter filter;
 	private final List<PipelineNode> nodes;
 	private final Map<String, PipelineNode> nodeIndex;
 
@@ -34,7 +32,6 @@ public class DefaultPipeline implements Pipeline {
 		this.priority = builder.priority;
 		this.enabled = builder.enabled;
 		this.dryRun = builder.dryRun;
-		this.filter = builder.filter;
 		this.nodeIndex = new LinkedHashMap<>();
 		for (PipelineNode node : builder.nodes) {
 			nodeIndex.put(node.id(), node);
@@ -65,11 +62,6 @@ public class DefaultPipeline implements Pipeline {
 	@Override
 	public boolean isDryRun() {
 		return dryRun;
-	}
-
-	@Override
-	public PipelineFilter filter() {
-		return filter;
 	}
 
 	@Override
@@ -154,7 +146,6 @@ public class DefaultPipeline implements Pipeline {
 		private int priority = 0;
 		private boolean enabled = true;
 		private boolean dryRun = false;
-		private PipelineFilter filter;
 		private final List<PipelineNode> nodes = new ArrayList<>();
 
 		private Builder(String name) {
@@ -178,11 +169,6 @@ public class DefaultPipeline implements Pipeline {
 
 		public Builder dryRun(boolean dryRun) {
 			this.dryRun = dryRun;
-			return this;
-		}
-
-		public Builder filter(PipelineFilter filter) {
-			this.filter = filter;
 			return this;
 		}
 

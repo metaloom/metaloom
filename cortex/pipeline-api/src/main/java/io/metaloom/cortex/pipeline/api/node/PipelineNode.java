@@ -36,6 +36,14 @@ public interface PipelineNode {
 	String name();
 
 	/**
+	 * Whether this node is a source node that yields media assets.
+	 * A pipeline must have exactly one source node.
+	 */
+	default boolean isSource() {
+		return false;
+	}
+
+	/**
 	 * Whether this node runs in parallel or sequentially.
 	 */
 	NodeMode mode();

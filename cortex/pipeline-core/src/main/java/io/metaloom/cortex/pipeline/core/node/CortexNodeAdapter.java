@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.node.FilesystemNode;
+import io.metaloom.cortex.api.node.SourceNode;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.pipeline.api.NodeMode;
@@ -32,6 +33,11 @@ public class CortexNodeAdapter extends AbstractPipelineNode {
 			Set<String> dependencies, int concurrency) {
 		super(wrappedNode.name(), wrappedNode.name(), mode, blocking, dependencies, concurrency);
 		this.wrappedNode = wrappedNode;
+	}
+
+	@Override
+	public boolean isSource() {
+		return wrappedNode instanceof SourceNode;
 	}
 
 	@Override

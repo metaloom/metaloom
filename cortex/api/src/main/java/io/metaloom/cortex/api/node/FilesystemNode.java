@@ -9,12 +9,13 @@ import io.metaloom.cortex.api.option.node.CortexNodeOptions;
 
 /**
  * A Cortex node which is capable of processing {@link LoomMedia}.
+ * Filesystem nodes are source nodes — they yield media assets for downstream processing.
  *
  * @param <I> the input type this node accepts
  * @param <O> the output type this node produces
  * @param <T> the options type for this node
  */
-public interface FilesystemNode<I, O, T extends CortexNodeOptions> extends CortexNode<I, O, T> {
+public interface FilesystemNode<I, O, T extends CortexNodeOptions> extends SourceNode<I, O, T> {
 
 	/**
 	 * Process the input and produce a typed result.

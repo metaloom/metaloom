@@ -1,9 +1,6 @@
 package io.metaloom.cortex.pipeline.loader;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -18,8 +15,6 @@ import io.metaloom.cortex.pipeline.api.Pipeline;
 import io.metaloom.cortex.pipeline.api.PipelineManager;
 import io.metaloom.cortex.pipeline.api.NodeMode;
 import io.metaloom.cortex.pipeline.api.NodeResult;
-import io.metaloom.cortex.pipeline.api.filter.MediaFilter;
-import io.metaloom.cortex.pipeline.api.filter.PipelineFilter;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 import io.metaloom.cortex.pipeline.core.DefaultPipeline;
 import io.metaloom.cortex.pipeline.core.node.AbstractPipelineNode;
@@ -133,14 +128,6 @@ public class LoomPipelineLoader {
 			.enabled(response.isEnabled() != null ? response.isEnabled() : true)
 			.dryRun(response.isDryRun() != null ? response.isDryRun() : false);
 
-		// Parse filters
-		if (definition != null && definition.containsKey("filters")) {
-			PipelineFilter filter = parseFilter(definition.getJsonObject("filters"));
-			if (filter != null) {
-				builder.filter(filter);
-			}
-		}
-
 		// Parse nodes
 		if (definition != null && definition.containsKey("nodes")) {
 			JsonArray nodesArray = definition.getJsonArray("nodes");
@@ -156,31 +143,6 @@ public class LoomPipelineLoader {
 		return builder.build();
 	}
 
-	private PipelineFilter parseFilter(JsonObject filterDef) {
-		if (filterDef == null) {
-			return null;
-		}
-
-		Set<String> mimeTypes = new HashSet<>();
-		JsonArray mimeArray = filterDef.getJsonArray("mimeTypes");
-		if (mimeArray != null) {
-			for (int i = 0; i < mimeArray.size(); i++) {
-				mimeTypes.add(mimeArray.getString(i));
-			}
-		}
-
-		List<String> pathGlobs = new ArrayList<>();
-		JsonArray globArray = filterDef.getJsonArray("pathGlobs");
-		if (globArray != null) {
-			for (int i = 0; i < globArray.size(); i++) {
-				pathGlobs.add(globArray.getString(i));
-			}
-		}
-
-		return new MediaFilter(mimeTypes, pathGlobs);
-	}
-
-	@SuppressWarnings("unchecked")
 	private PipelineNode parseNode(JsonObject nodeDef) {
 		String id = nodeDef.getString("id");
 		if (id == null) {

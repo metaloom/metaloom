@@ -45,7 +45,6 @@ public class DefaultPipelineManager implements PipelineManager {
 		return pipelines()
 				.stream()
 				.filter(Pipeline::isEnabled)
-				.filter(p -> p.matches(media))
 				.findFirst();
 	}
 }

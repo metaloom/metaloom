@@ -34,7 +34,6 @@ import io.metaloom.cortex.pipeline.api.NodeState;
 import io.metaloom.cortex.pipeline.api.Pipeline;
 import io.metaloom.cortex.pipeline.api.PipelineResult;
 import io.metaloom.cortex.pipeline.api.event.NodeCompletionEvent;
-import io.metaloom.cortex.pipeline.api.filter.MediaFilter;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 import io.metaloom.cortex.pipeline.common.cache.HeapNodeCache;
 import io.metaloom.cortex.pipeline.common.event.DefaultPipelineEventBus;
@@ -97,11 +96,10 @@ class PipelineExecutorTest {
 		PipelineNode syncNode = new TestNode("loom-sync", "Loom Sync", NodeMode.SEQUENTIAL, true,
 				Set.of("sha512", "tika", "fingerprint", "thumbnail", "llm"), 1, 30, executionLog);
 
-		// Build pipeline with filter
+		// Build pipeline
 		Pipeline pipeline = DefaultPipeline.builder("video-full-analysis")
 				.description("Full processing for video libraries")
 				.priority(100)
-				.filter(new MediaFilter(Set.of("video/*"), List.of()))
 				.addNode(hashNode)
 				.addNode(tikaNode)
 				.addNode(fingerprintNode)
@@ -316,13 +314,11 @@ class PipelineExecutorTest {
 
 		Pipeline videoPipeline = DefaultPipeline.builder("video-full")
 				.priority(100)
-				.filter(new MediaFilter(Set.of("video/*"), List.of()))
 				.addNode(new TestNode("hash", "Hash", NodeMode.PARALLEL, true, Set.of(), 4, 10, new CopyOnWriteArrayList<>()))
 				.build();
 
 		Pipeline imagePipeline = DefaultPipeline.builder("image-standard")
 				.priority(50)
-				.filter(new MediaFilter(Set.of("image/*"), List.of()))
 				.addNode(new TestNode("hash", "Hash", NodeMode.PARALLEL, true, Set.of(), 4, 10, new CopyOnWriteArrayList<>()))
 				.build();
 
@@ -337,13 +333,13 @@ class PipelineExecutorTest {
 
 		assertEquals(3, manager.pipelines().size());
 
-		// Video file should match video pipeline (highest priority)
+		// Video file should resolve to highest priority pipeline
 		LoomMedia videoMedia = new StubLoomMedia("/test/video.mp4", true);
 		Pipeline resolved = manager.resolve(videoMedia).orElse(null);
 		assertNotNull(resolved);
 		assertEquals("video-full", resolved.name());
 
-		// Image file should match image pipeline
+		// Image file also resolves to highest priority (filtering is now done via filter nodes)
 		LoomMedia imageMedia = new StubLoomMedia("/test/photo.jpg", false) {
 			@Override
 			public boolean isImage() {
@@ -352,7 +348,7 @@ class PipelineExecutorTest {
 		};
 		resolved = manager.resolve(imageMedia).orElse(null);
 		assertNotNull(resolved);
-		assertEquals("image-standard", resolved.name());
+		assertEquals("video-full", resolved.name());
 	}
 
 	@Test
@@ -485,7 +481,6 @@ class PipelineExecutorTest {
 		Pipeline pipeline = DefaultPipeline.builder("complex-llm-pipeline")
 				.description("Complex pipeline with multiple LLM nodes")
 				.priority(100)
-				.filter(new MediaFilter(Set.of("video/*"), List.of()))
 				.addNode(hasherNode)
 				.addNode(thumbnailNode)
 				.addNode(fingerprintNode)
