@@ -1,7 +1,5 @@
 package io.metaloom.cortex.node.whisper;
 
-import static io.metaloom.cortex.api.media.LoomMetaKey.metaKey;
-import static io.metaloom.cortex.api.media.type.LoomMetaCoreType.FS;
 import static io.metaloom.cortex.api.node.ResultOrigin.COMPUTED;
 
 import javax.annotation.Nullable;
@@ -11,7 +9,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.media.LoomMetaKey;
 import io.metaloom.cortex.api.node.NodeOutputKey;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.context.NodeContext;
@@ -26,8 +23,6 @@ public class WhisperNode extends AbstractMediaNode<WhisperOptions> {
 	public static final Logger log = LoggerFactory.getLogger(WhisperNode.class);
 
 	public static final NodeOutputKey<String> OUTPUT_WHISPER_RESULT = NodeOutputKey.of("whisper_result", String.class);
-
-	public static final LoomMetaKey<String> WHISPER_FLAG_KEY = metaKey("whisper-result", 1, FS, String.class);
 
 	private WhisperMediaProcessor processor;
 

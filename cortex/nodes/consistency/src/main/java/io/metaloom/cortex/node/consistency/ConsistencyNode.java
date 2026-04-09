@@ -1,7 +1,5 @@
 package io.metaloom.cortex.node.consistency;
 
-import static io.metaloom.cortex.api.media.LoomMetaKey.metaKey;
-import static io.metaloom.cortex.api.media.type.LoomMetaCoreType.XATTR;
 import static io.metaloom.cortex.api.node.ResultOrigin.COMPUTED;
 import static io.metaloom.cortex.api.node.ResultOrigin.REMOTE;
 
@@ -15,7 +13,6 @@ import io.metaloom.cortex.api.node.NodeOutputKey;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.media.LoomMetaKey;
 import io.metaloom.cortex.api.node.payload.ConsistencyPayload;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
@@ -27,8 +24,6 @@ public class ConsistencyNode extends AbstractMediaNode<ConsistencyNodeOptions> {
 
 	public static final NodeOutputKey<Long> OUTPUT_ZERO_CHUNK_COUNT = NodeOutputKey.of("zero_chunk_count", Long.class);
 	public static final NodeOutputKey<Boolean> OUTPUT_IS_COMPLETE = NodeOutputKey.of("is_complete", Boolean.class);
-	public static final LoomMetaKey<Long> ZERO_CHUNK_COUNT_KEY = metaKey("zero_chunk_count", 1, XATTR, Long.class);
-
 	@Inject
 	public ConsistencyNode(@Nullable LoomClient client, CortexOptions cortexOption, ConsistencyNodeOptions options) {
 		super(client, cortexOption, options);

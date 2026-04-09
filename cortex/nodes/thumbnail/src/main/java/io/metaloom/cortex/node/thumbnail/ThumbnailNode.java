@@ -1,8 +1,5 @@
 package io.metaloom.cortex.node.thumbnail;
 
-import static io.metaloom.cortex.api.media.LoomMetaKey.metaKey;
-import static io.metaloom.cortex.api.media.type.LoomMetaCoreType.FS;
-import static io.metaloom.cortex.api.media.type.LoomMetaCoreType.XATTR;
 import static io.metaloom.cortex.api.node.ResultOrigin.COMPUTED;
 
 import java.io.FileOutputStream;
@@ -20,9 +17,6 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.cortex.api.node.NodeOutputKey;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.media.LoomMetaKey;
-import io.metaloom.cortex.api.media.param.ThumbnailFlag;
-import io.metaloom.cortex.api.meta.MetaDataStream;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.node.payload.ImagePayload;
 import io.metaloom.cortex.api.option.CortexOptions;
@@ -42,11 +36,6 @@ public class ThumbnailNode extends AbstractMediaNode<ThumbnailNodeOptions> {
 
 	public static final NodeOutputKey<String> OUTPUT_THUMBNAIL_FLAG = NodeOutputKey.of("thumbnail_flag", String.class);
 	public static final NodeOutputKey<String> OUTPUT_THUMBNAIL_PATH = NodeOutputKey.of("thumbnail_path", String.class);
-
-
-	public static final LoomMetaKey<ThumbnailFlag> THUMBNAIL_FLAG_KEY = metaKey("thumbnail_flags", 1, XATTR, ThumbnailFlag.class);
-
-	public static final LoomMetaKey<MetaDataStream> THUMBNAIL_BIN_KEY = metaKey("thumbnail_bin", 1, FS, MetaDataStream.class);
 
 	
 	private final PreviewGenerator gen;

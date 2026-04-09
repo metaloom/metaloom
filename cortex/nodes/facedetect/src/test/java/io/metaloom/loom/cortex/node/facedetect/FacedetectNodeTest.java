@@ -1,6 +1,5 @@
 package io.metaloom.loom.cortex.node.facedetect;
 
-import static io.metaloom.cortex.node.facedetect.FacedetectMedia.FACE_DETECTION;
 import static io.metaloom.cortex.media.test.assertj.NodeAssertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -13,8 +12,9 @@ import org.junit.jupiter.api.Test;
 import io.metaloom.cortex.node.facedetect.FacedetectNode;
 import io.metaloom.cortex.node.facedetect.FacedetectNodeModule;
 import io.metaloom.cortex.node.facedetect.FacedetectNodeOptions;
-import io.metaloom.cortex.node.facedetect.FacedetectMedia;
+import io.metaloom.cortex.node.facedetect.FacedetectionMetaStorage;
 import io.metaloom.cortex.node.facedetect.video.VideoFaceScanner;
+import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.media.LoomClientMock;
@@ -34,19 +34,21 @@ public class FacedetectNodeTest extends AbstractFacedetectMediaTest {
 
 	@Test
 	public void testVideo() throws IOException {
-		FacedetectMedia media = FACE_DETECTION.wrap(mediaVideo2(), storage());
+		LoomMedia media = mediaVideo2();
+		FacedetectionMetaStorage faceStorage = new FacedetectionMetaStorage(storage());
 		NodeResult result = node.process(ctx(media));
 		assertThat(result).isSuccess();
 		assertThat(result).hasOutput(FacedetectNode.OUTPUT_FACE_COUNT);
-		assertTrue(media.getFaceCount() > 10, "There should be at least 10 detections. Found: " + media.getFaceCount());
+		assertTrue(faceStorage.getFaceCount(media) > 10, "There should be at least 10 detections. Found: " + faceStorage.getFaceCount(media));
 	}
 
 	@Test
 	public void testImage() throws IOException, LoomClientException {
-		FacedetectMedia media = FACE_DETECTION.wrap(mediaImage1(), storage());
+		LoomMedia media = mediaImage1();
+		FacedetectionMetaStorage faceStorage = new FacedetectionMetaStorage(storage());
 		NodeResult result = node.process(ctx(media));
 		assertThat(result).isSuccess();
-		System.out.println("Faces: " + media.getFaceCount());
+		System.out.println("Faces: " + faceStorage.getFaceCount(media));
 	}
 
 	public FacedetectNode mockNode() throws FileNotFoundException, LoomClientException {

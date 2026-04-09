@@ -1,7 +1,6 @@
 package io.metaloom.loom.cortex.node.facedetect;
 
-import static io.metaloom.cortex.node.facedetect.FacedetectMedia.FACEDETECTION_RESULT_KEY;
-import static io.metaloom.cortex.node.facedetect.FacedetectMedia.FACE_DETECTION;
+import static io.metaloom.cortex.node.facedetect.FacedetectionMetaStorage.FACEDETECTION_RESULT_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -11,8 +10,8 @@ import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
-import io.metaloom.cortex.node.facedetect.FacedetectMedia;
-import io.metaloom.cortex.node.facedetect.FacedetectionStorageAccess;
+import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.node.facedetect.FacedetectionMetaStorage;
 import io.metaloom.cortex.api.media.type.LoomMetaTypeHandler;
 import io.metaloom.cortex.api.media.type.handler.impl.AvroLoomMetaTypeHandlerImpl;
 import io.metaloom.cortex.api.media.type.handler.impl.XAttrLoomMetaTypeHandlerImpl;
@@ -20,29 +19,28 @@ import io.metaloom.cortex.api.meta.MetaStorage;
 import io.metaloom.cortex.common.meta.MetaStorageImpl;
 import io.metaloom.loom.cortex.node.facedetect.avro.Facedetection;
 import io.metaloom.loom.cortex.node.facedetect.avro.FacedetectionBox;
-import io.metaloom.video.facedetect.face.Face;
-import io.metaloom.video.facedetect.face.impl.FaceImpl;
 
 public class FacedetectMediaTest extends AbstractFacedetectMediaTest {
 
 	@Test
 	public void testFaceCount() throws IOException {
-		FacedetectMedia media = FACE_DETECTION.wrap(mediaVideo2(), storage());
-		faceStorage().getFaceCount(media);
-		assertNull(media.getFaceCount());
-		media.setFaceCount(42);
-		assertEquals(42, media.getFaceCount());
-		assertEquals(1, media.listXAttr().size());
+		LoomMedia media = mediaVideo2();
+		FacedetectionMetaStorage faceStorage = faceStorage();
+		assertNull(faceStorage.getFaceCount(media));
+		faceStorage.setFaceCount(media, 42);
+		assertEquals(42, faceStorage.getFaceCount(media));
 
-		FacedetectMedia media2 = FACE_DETECTION.wrap(mediaVideo2(), storage());
-		assertEquals(42, media2.getFaceCount());
+		// Verify via a new storage instance (simulating reload)
+		FacedetectionMetaStorage faceStorage2 = faceStorage();
+		assertEquals(42, faceStorage2.getFaceCount(media));
 	}
 
 	@Test
 	public void testFaceDetectionParameters() throws IOException {
-		FacedetectMedia media = FACE_DETECTION.wrap(mediaVideo2(), storage());
-		assertNull(media.getFacedetections());
-		assertNull(media.get(FACEDETECTION_RESULT_KEY));
+		LoomMedia media = mediaVideo2();
+		FacedetectionMetaStorage faceStorage = faceStorage();
+		assertNull(faceStorage.getFacedetections(media));
+		assertNull(storage().get(media, FACEDETECTION_RESULT_KEY));
 
 		FacedetectionBox box = FacedetectionBox.newBuilder()
 			.setStartX(0)
@@ -56,25 +54,22 @@ public class FacedetectMediaTest extends AbstractFacedetectMediaTest {
 			.setFrame(10)
 			.setBox(box)
 			.build();
-		media.put(FACEDETECTION_RESULT_KEY, facedetection);
-		assertEquals(2, media.getFacedetections().size());
+		faceStorage.appendFacedetection(media, facedetection);
+		assertEquals(2, faceStorage.getFacedetections(media).size());
 
-		FacedetectMedia media2 = FACE_DETECTION.wrap(media(media.path()), storage());
-		assertNotNull(media2.get(FACEDETECTION_RESULT_KEY));
-		Facedetection params = media2.get(FACEDETECTION_RESULT_KEY);
-		// assertEquals(1, params.getEntries());
+		// Verify via a new storage/media instance (simulating reload)
+		LoomMedia media2 = media(media.path());
+		FacedetectionMetaStorage faceStorage2 = faceStorage();
+		assertNotNull(faceStorage2.getFacedetections(media2));
+		Facedetection params = storage().get(media2, FACEDETECTION_RESULT_KEY);
+		assertNotNull(params);
 
-		// Now update the params
-		Face face = new FaceImpl();
-		// params.getEntries().add(face);
-		media2.appendFacedetection(params);
-
-		FacedetectMedia media3 = FACE_DETECTION.wrap(media(media.path()), storage());
-		// assertEquals(2, media3.getFacedetectionParams().getEntries());
+		// Now append another detection
+		faceStorage2.appendFacedetection(media2, params);
 	}
 
-	FacedetectionStorageAccess faceStorage() {
-		return new FacedetectionStorageAccess(storage());
+	FacedetectionMetaStorage faceStorage() {
+		return new FacedetectionMetaStorage(storage());
 	}
 
 	@Override

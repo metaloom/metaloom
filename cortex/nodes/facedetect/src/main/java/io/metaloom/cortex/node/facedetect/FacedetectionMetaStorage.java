@@ -17,7 +17,7 @@ import io.metaloom.cortex.api.meta.MetaStorage;
 import io.metaloom.loom.cortex.node.facedetect.avro.Facedetection;
 
 @Singleton
-public class FacedetectionStorageAccess extends AbstractMetaStorage {
+public class FacedetectionMetaStorage extends AbstractMetaStorage {
 
 	/**
 	 * XAttr which stores the count of detected faces.
@@ -32,32 +32,32 @@ public class FacedetectionStorageAccess extends AbstractMetaStorage {
 	public static final LoomMetaKey<Facedetection> FACEDETECTION_RESULT_KEY = metaKey("facedetect_result", 1, AVRO, Facedetection.class);
 
 	@Inject
-	public FacedetectionStorageAccess(MetaStorage storage) {
+	public FacedetectionMetaStorage(MetaStorage storage) {
 		super(storage);
 	}
 
 	public Integer getFaceCount(LoomMedia media) {
-		return storage.get(media, FACEDETECT_COUNT_KEY);
+		return get(media, FACEDETECT_COUNT_KEY);
 	}
 
 	public void setFaceCount(LoomMedia media, Integer count) {
-		storage.put(media, FACEDETECT_COUNT_KEY, count);
+		put(media, FACEDETECT_COUNT_KEY, count);
 	}
 
 	public FaceDetectionFlag getFacedetectionFlag(LoomMedia media) {
-		return storage.get(media, FACEDETECTION_FLAG_KEY);
+		return get(media, FACEDETECTION_FLAG_KEY);
 	}
 
 	public List<Facedetection> getFacedetections(LoomMedia media) {
-		return storage.getAll(media, FACEDETECTION_RESULT_KEY);
+		return getAll(media, FACEDETECTION_RESULT_KEY);
 	}
 
 	public void setFacedetectionFlag(LoomMedia media, FaceDetectionFlag flag) {
-		storage.put(media, FACEDETECTION_FLAG_KEY, flag);
+		put(media, FACEDETECTION_FLAG_KEY, flag);
 	}
 
 	public void appendFacedetection(LoomMedia media, Facedetection result) {
-		storage.append(media, FACEDETECTION_RESULT_KEY, result);
+		append(media, FACEDETECTION_RESULT_KEY, result);
 	}
 
 	public boolean hasFacedetectionFlag(LoomMedia media) {

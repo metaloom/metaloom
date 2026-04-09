@@ -1,7 +1,5 @@
 package io.metaloom.cortex.node.scene;
 
-import static io.metaloom.cortex.api.media.LoomMetaKey.metaKey;
-import static io.metaloom.cortex.api.media.type.LoomMetaCoreType.FS;
 import static io.metaloom.cortex.api.node.ResultOrigin.COMPUTED;
 
 import java.io.IOException;
@@ -13,7 +11,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.media.LoomMetaKey;
 import io.metaloom.cortex.api.node.NodeOutputKey;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.context.NodeContext;
@@ -30,9 +27,6 @@ public class SceneDetectionNode extends AbstractMediaNode<SceneDetectionOptions>
 	public static final Logger log = LoggerFactory.getLogger(SceneDetectionNode.class);
 
 	public static final NodeOutputKey<String> OUTPUT_SCENE_DETECTION = NodeOutputKey.of("scene_detection", String.class);
-
-	public static final LoomMetaKey<SceneDetectionResult> SCENE_DETECTION_FLAG_KEY = metaKey("scene-detection-result", 1, FS,
-		SceneDetectionResult.class);
 
 	private OpticalFlowSceneDetector detector = new OpticalFlowSceneDetector();
 

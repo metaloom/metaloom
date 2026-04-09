@@ -1,7 +1,5 @@
 package io.metaloom.cortex.node.tika;
 
-import static io.metaloom.cortex.api.media.LoomMetaKey.metaKey;
-import static io.metaloom.cortex.api.media.type.LoomMetaCoreType.XATTR;
 import static io.metaloom.cortex.api.node.ResultOrigin.COMPUTED;
 
 import javax.annotation.Nullable;
@@ -14,7 +12,6 @@ import io.metaloom.cortex.api.node.NodeOutputKey;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.media.LoomMetaKey;
 import io.metaloom.cortex.api.node.payload.TextPayload;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
@@ -27,9 +24,6 @@ public class TikaNode extends AbstractMediaNode<TikaNodeOptions> {
 
 	public static final NodeOutputKey<String> OUTPUT_TIKA_FLAGS = NodeOutputKey.of("tika_flags", String.class);
 	public static final NodeOutputKey<String> OUTPUT_TIKA_CONTENT = NodeOutputKey.of("tika_content", String.class);
-
-	public static final LoomMetaKey<String> TIKA_FLAGS_KEY = metaKey("tika_flags", 1, XATTR, String.class);
-
 
 	@Inject
 	public TikaNode(@Nullable LoomClient client, CortexOptions cortexOption, TikaNodeOptions options) {
