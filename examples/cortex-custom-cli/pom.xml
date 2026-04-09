@@ -4,28 +4,23 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>io.metaloom.cortex</groupId>
     <artifactId>cortex-custom-cli</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
 
     <packaging>jar</packaging>
 
 
-    <name>MetaLoom // Cortex :: Custom CLI</name>
-    <url>https://github.com/metaloom/cortex-custom-cli</url>
-    <inceptionYear>2024</inceptionYear>
+    <parent>
+        <groupId>io.metaloom.cortex</groupId>
+        <artifactId>cortex-examples</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
 
-    <scm>
-        <connection>scm:git:git@github.com:metaloom/cortex-custom-cli.git</connection>
-        <developerConnection>
-            scm:git:git@github.com:metaloom/cortex-custom-cli.git</developerConnection>
-        <url>https://github.com/metaloom/cortex-custom-cli</url>
-        <tag>HEAD</tag>
-    </scm>
+
+    <name>MetaLoom // Cortex :: Examples :: Custom CLI</name>
+    <inceptionYear>2024</inceptionYear>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <project.github.repository>metaloom/cortex-custom-cli</project.github.repository>
 
-        <cortex.version>1.0.0-SNAPSHOT</cortex.version>
         <dagger.version>2.57.2</dagger.version>
         <mainClass>io.metaloom.cortex.cli.CortexCustomCLIMain</mainClass>
     </properties>
@@ -37,7 +32,7 @@
                 <artifactId>bom</artifactId>
                 <type>pom</type>
                 <scope>import</scope>
-                <version>${cortex.version}</version>
+                <version>${project.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -46,7 +41,7 @@
         <dependency>
             <groupId>io.metaloom.cortex</groupId>
             <artifactId>cortex-core</artifactId>
-            <version>${cortex.version}</version>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>

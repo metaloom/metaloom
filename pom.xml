@@ -42,7 +42,7 @@
         <module>loom-client</module>
         <module>loom</module>
         <module>cortex</module>
-        <module>cortex-custom-cli</module>
+        <module>examples</module>
         <module>integration-test</module>
         <module>e2e-test</module>
     </modules>
