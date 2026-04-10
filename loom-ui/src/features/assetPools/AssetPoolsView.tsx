@@ -10,8 +10,9 @@ import {
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { AssetPool, AssetPoolType } from "../../types";
-import { mockAssetPoolService } from "../../mock/services";
 import { useToast } from "../../context/ToastContext";
+import { useAuth } from "../../context/AuthContext";
+import { listPools, createPool, updatePool, deletePool, PoolResponse } from "../../api/pools";
 
 function formatBytes(bytes: number): string {
   if (bytes >= 1e15) return `${(bytes / 1e15).toFixed(1)} PB`;
@@ -137,8 +138,26 @@ function PoolCard({ pool, onEdit, onDelete }: { pool: AssetPool; onEdit: () => v
 }
 
 // ── Main View ─────────────────────────────────────────────────────────────
+
+function mapResponseToPool(r: PoolResponse): AssetPool {
+  return {
+    id: r.uuid,
+    name: r.name,
+    type: r.s3Bucket ? "s3" : "filesystem",
+    fsPath: r.fsPath,
+    s3Bucket: r.s3Bucket,
+    s3Region: r.s3Region,
+    s3Endpoint: r.s3Endpoint,
+    assetCount: 0,
+    totalSize: 0,
+    createdAt: r.status?.created ?? new Date().toISOString(),
+    updatedAt: r.status?.edited ?? new Date().toISOString(),
+  };
+}
+
 export default function AssetPoolsView() {
   const { showToast } = useToast();
+  const { token } = useAuth();
   const [pools, setPools] = useState<AssetPool[]>([]);
   const [query, setQuery] = useState("");
 
@@ -159,8 +178,9 @@ export default function AssetPoolsView() {
   const [deleteTarget, setDeleteTarget] = useState<AssetPool | null>(null);
 
   useEffect(() => {
-    mockAssetPoolService.getAll().then(setPools);
-  }, []);
+    if (!token) return;
+    listPools(token).then(resp => setPools(resp.data.map(mapResponseToPool))).catch(() => showToast("Failed to load pools", "error"));
+  }, [token]);
 
   const resetForm = () => {
     setFormName(""); setFormType("filesystem"); setFormFsPath("");
@@ -168,19 +188,23 @@ export default function AssetPoolsView() {
   };
 
   const handleCreate = async () => {
-    if (!formName.trim()) return;
+    if (!formName.trim() || !token) return;
     setSaving(true);
-    const pool = await mockAssetPoolService.create({
-      name: formName.trim(),
-      type: formType,
-      ...(formType === "filesystem" ? { fsPath: formFsPath.trim() } : {}),
-      ...(formType === "s3" ? { s3Bucket: formS3Bucket.trim(), s3Region: formS3Region.trim(), s3Endpoint: formS3Endpoint.trim() } : {}),
-    });
-    setPools(prev => [...prev, pool]);
-    resetForm();
-    setCreateOpen(false);
-    setSaving(false);
-    showToast("Asset pool created", "success");
+    try {
+      const resp = await createPool(token, {
+        name: formName.trim(),
+        ...(formType === "filesystem" ? { fsPath: formFsPath.trim() } : {}),
+        ...(formType === "s3" ? { s3Bucket: formS3Bucket.trim(), s3Region: formS3Region.trim(), s3Endpoint: formS3Endpoint.trim() } : {}),
+      });
+      setPools(prev => [...prev, mapResponseToPool(resp)]);
+      resetForm();
+      setCreateOpen(false);
+      showToast("Asset pool created", "success");
+    } catch {
+      showToast("Failed to create pool", "error");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const openEdit = (pool: AssetPool) => {
@@ -194,31 +218,38 @@ export default function AssetPoolsView() {
   };
 
   const handleEdit = async () => {
-    if (!editPool || !formName.trim()) return;
+    if (!editPool || !formName.trim() || !token) return;
     setSaving(true);
-    const updated = await mockAssetPoolService.update(editPool.id, {
-      name: formName.trim(),
-      type: formType,
-      fsPath: formType === "filesystem" ? formFsPath.trim() : undefined,
-      s3Bucket: formType === "s3" ? formS3Bucket.trim() : undefined,
-      s3Region: formType === "s3" ? formS3Region.trim() : undefined,
-      s3Endpoint: formType === "s3" ? formS3Endpoint.trim() : undefined,
-    });
-    if (updated) {
+    try {
+      const resp = await updatePool(token, editPool.id, {
+        name: formName.trim(),
+        fsPath: formType === "filesystem" ? formFsPath.trim() : undefined,
+        s3Bucket: formType === "s3" ? formS3Bucket.trim() : undefined,
+        s3Region: formType === "s3" ? formS3Region.trim() : undefined,
+        s3Endpoint: formType === "s3" ? formS3Endpoint.trim() : undefined,
+      });
+      const updated = mapResponseToPool(resp);
       setPools(prev => prev.map(p => p.id === updated.id ? updated : p));
+      resetForm();
+      setEditPool(null);
+      showToast("Asset pool updated", "success");
+    } catch {
+      showToast("Failed to update pool", "error");
+    } finally {
+      setSaving(false);
     }
-    resetForm();
-    setEditPool(null);
-    setSaving(false);
-    showToast("Asset pool updated", "success");
   };
 
   const handleDelete = async () => {
-    if (!deleteTarget) return;
-    await mockAssetPoolService.delete(deleteTarget.id);
-    setPools(prev => prev.filter(p => p.id !== deleteTarget.id));
-    setDeleteTarget(null);
-    showToast("Asset pool deleted", "success");
+    if (!deleteTarget || !token) return;
+    try {
+      await deletePool(token, deleteTarget.id);
+      setPools(prev => prev.filter(p => p.id !== deleteTarget.id));
+      setDeleteTarget(null);
+      showToast("Asset pool deleted", "success");
+    } catch {
+      showToast("Failed to delete pool", "error");
+    }
   };
 
   const filtered = pools.filter(p => {
