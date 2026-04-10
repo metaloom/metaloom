@@ -5,11 +5,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import io.metaloom.cortex.pipeline.api.MediaContext;
 import io.metaloom.cortex.pipeline.api.NodeMode;
 import io.metaloom.cortex.pipeline.api.NodeResult;
+import io.metaloom.cortex.pipeline.api.PartitionedFlowable;
 import io.metaloom.cortex.pipeline.api.cache.NodeCacheProvider;
 import io.metaloom.cortex.pipeline.api.filter.FilterBranch;
 import io.metaloom.cortex.api.media.LoomMedia;
+import io.reactivex.rxjava3.core.Flowable;
+import io.reactivex.rxjava3.schedulers.Schedulers;
 
 /**
  * A node within a processing pipeline. Nodes execute actions on media items.
@@ -139,6 +143,48 @@ public interface PipelineNode {
 	 * @return the processing result
 	 */
 	NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults);
+
+	/**
+	 * Apply this node as a reactive operator on the input stream. The default
+	 * implementation wraps {@link #process} in a {@code flatMap} with
+	 * backpressure-aware concurrency control.
+	 *
+	 * <p>Override to customise scheduling, error handling, or to implement
+	 * streaming operators that cannot be expressed as single-item transformations.</p>
+	 *
+	 * @param input the upstream media context flowable
+	 * @return a flowable of media contexts enriched with this node's result
+	 */
+	default Flowable<MediaContext> apply(Flowable<MediaContext> input) {
+		return input.flatMap(ctx ->
+			Flowable.fromCallable(() -> {
+				NodeResult result = process(ctx.getMedia(), ctx.getUpstreamResults());
+				return ctx.withResult(id(), result);
+			}).subscribeOn(Schedulers.io()),
+			concurrency()
+		);
+	}
+
+	/**
+	 * Whether this node supports partitioning its output into two branches
+	 * (PASS / REJECT). Filter nodes typically return {@code true}.
+	 */
+	default boolean isPartitioning() {
+		return false;
+	}
+
+	/**
+	 * Partition the input stream into PASS and REJECT branches based on this
+	 * node's filter evaluation. Only meaningful when {@link #isPartitioning()}
+	 * returns {@code true}.
+	 *
+	 * @param input the upstream media context flowable
+	 * @return a {@link PartitionedFlowable} with pass and reject branches
+	 * @throws UnsupportedOperationException if this node does not support partitioning
+	 */
+	default PartitionedFlowable<MediaContext> partition(Flowable<MediaContext> input) {
+		throw new UnsupportedOperationException(id() + " does not support partitioning");
+	}
 
 	/**
 	 * Optional node-specific configuration parameters.

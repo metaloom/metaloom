@@ -15,7 +15,8 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Stream;
+
+import io.reactivex.rxjava3.core.Flowable;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,7 +34,7 @@ import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 import io.metaloom.cortex.pipeline.common.cache.HeapNodeCache;
 import io.metaloom.cortex.pipeline.common.event.DefaultPipelineEventBus;
 import io.metaloom.cortex.pipeline.common.sync.DefaultLoomBulkSyncCollector;
-import io.metaloom.cortex.pipeline.core.executor.DAGPipelineExecutor;
+import io.metaloom.cortex.pipeline.core.executor.ReactivePipelineExecutor;
 import io.metaloom.cortex.pipeline.core.node.AbstractPipelineNode;
 import io.metaloom.cortex.pipeline.core.node.LoomFetchNode;
 import io.metaloom.utils.hash.SHA512;
@@ -46,11 +47,11 @@ class PipelineExecutorTest {
 
 	private static final Logger log = LoggerFactory.getLogger(PipelineExecutorTest.class);
 
-	private DAGPipelineExecutor executor;
+	private ReactivePipelineExecutor executor;
 
 	@BeforeEach
 	void setUp() {
-		executor = new DAGPipelineExecutor(8);
+		executor = new ReactivePipelineExecutor(8);
 	}
 
 	@AfterEach
@@ -211,13 +212,13 @@ class PipelineExecutorTest {
 
 		// Process stream of 5 media items
 		List<PipelineResult> results = executor.execute(pipeline,
-				Stream.of(
+				Flowable.just(
 						new StubLoomMedia("/a.mp4", true),
 						new StubLoomMedia("/b.mp4", true),
 						new StubLoomMedia("/c.mp4", true),
 						new StubLoomMedia("/d.mp4", true),
 						new StubLoomMedia("/e.mp4", true)))
-				.toList();
+				.toList().blockingGet();
 
 		assertEquals(5, results.size());
 		// Since stream is sequential by default, concurrency=1 is expected
@@ -381,7 +382,7 @@ class PipelineExecutorTest {
 	@Test
 	void testEventBusNotifications() {
 		DefaultPipelineEventBus eventBus = new DefaultPipelineEventBus();
-		DAGPipelineExecutor evExecutor = new DAGPipelineExecutor(4, eventBus);
+		ReactivePipelineExecutor evExecutor = new ReactivePipelineExecutor(4, eventBus);
 
 		List<String> events = new CopyOnWriteArrayList<>();
 		List<String> specificEvents = new CopyOnWriteArrayList<>();
@@ -584,7 +585,7 @@ class PipelineExecutorTest {
 		DefaultLoomBulkSyncCollector syncCollector = new DefaultLoomBulkSyncCollector(
 				batch -> flushedEntries.addAll(batch), 50);
 
-		DAGPipelineExecutor syncExecutor = new DAGPipelineExecutor(4,
+		ReactivePipelineExecutor syncExecutor = new ReactivePipelineExecutor(4,
 				new DefaultPipelineEventBus(), syncCollector);
 
 		// hash (sync) -> thumbnail (sync) -> internal (no sync)

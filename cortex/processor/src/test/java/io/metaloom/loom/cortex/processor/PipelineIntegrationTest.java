@@ -14,6 +14,8 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.reactivex.rxjava3.core.Flowable;
+
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.media.AbstractMediaTest;
@@ -29,7 +31,7 @@ import io.metaloom.cortex.pipeline.api.PipelineResult;
 import io.metaloom.cortex.pipeline.api.filter.FilterBranch;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 import io.metaloom.cortex.pipeline.core.DefaultPipeline;
-import io.metaloom.cortex.pipeline.core.executor.DAGPipelineExecutor;
+import io.metaloom.cortex.pipeline.core.executor.ReactivePipelineExecutor;
 import io.metaloom.cortex.pipeline.core.node.AbstractPipelineNode;
 import io.metaloom.cortex.pipeline.core.node.CortexNodeAdapter;
 import io.metaloom.cortex.pipeline.core.node.filter.AbstractFilterNode;
@@ -48,11 +50,11 @@ class PipelineIntegrationTest extends AbstractMediaTest {
 
 	private static final Logger log = LoggerFactory.getLogger(PipelineIntegrationTest.class);
 
-	private DAGPipelineExecutor executor;
+	private ReactivePipelineExecutor executor;
 
 	@BeforeEach
 	void setUpExecutor() {
-		executor = new DAGPipelineExecutor(4);
+		executor = new ReactivePipelineExecutor(4);
 	}
 
 	@AfterEach
@@ -211,7 +213,8 @@ class PipelineIntegrationTest extends AbstractMediaTest {
 				media(image1()),
 				media(audio1()));
 
-		List<PipelineResult> results = executor.execute(pipeline, mediaItems.stream()).toList();
+		List<PipelineResult> results = executor.execute(pipeline, Flowable.fromIterable(mediaItems))
+				.toList().blockingGet();
 
 		assertEquals(3, results.size());
 		for (PipelineResult r : results) {

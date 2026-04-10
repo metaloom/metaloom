@@ -29,5 +29,11 @@
             <groupId>io.metaloom.cortex</groupId>
             <artifactId>cortex-api</artifactId>
         </dependency>
+
+        <!-- Reactive Streams -->
+        <dependency>
+            <groupId>io.reactivex.rxjava3</groupId>
+            <artifactId>rxjava</artifactId>
+        </dependency>
     </dependencies>
 </project>

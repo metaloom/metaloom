@@ -6,10 +6,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.pipeline.api.MediaContext;
 import io.metaloom.cortex.pipeline.api.NodeMode;
 import io.metaloom.cortex.pipeline.api.NodeResult;
+import io.metaloom.cortex.pipeline.api.PartitionedFlowable;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 import io.metaloom.cortex.pipeline.core.node.AbstractPipelineNode;
+import io.reactivex.rxjava3.core.Flowable;
+import io.reactivex.rxjava3.schedulers.Schedulers;
 
 /**
  * Base class for filter nodes that produce a Y-branch in the pipeline.
@@ -66,5 +70,34 @@ public abstract class AbstractFilterNode extends AbstractPipelineNode {
 	 */
 	protected String rejectReason(LoomMedia media, Map<String, NodeResult> upstreamResults) {
 		return "rejected by " + id();
+	}
+
+	@Override
+	public boolean isPartitioning() {
+		return true;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The filter evaluates each item and routes it to the pass or reject branch.
+	 * Both branches share the same upstream subscription via {@code share()}, so
+	 * items are evaluated exactly once.</p>
+	 */
+	@Override
+	public PartitionedFlowable<MediaContext> partition(Flowable<MediaContext> input) {
+		Flowable<MediaContext> processed = apply(input).share();
+
+		Flowable<MediaContext> passStream = processed.filter(ctx -> {
+			NodeResult r = ctx.getResult(id());
+			return r != null && Boolean.TRUE.equals(r.getOutput(FILTER_PASSED));
+		});
+
+		Flowable<MediaContext> rejectStream = processed.filter(ctx -> {
+			NodeResult r = ctx.getResult(id());
+			return r == null || !Boolean.TRUE.equals(r.getOutput(FILTER_PASSED));
+		});
+
+		return new PartitionedFlowable<>(passStream, rejectStream);
 	}
 }
