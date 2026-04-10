@@ -48,4 +48,11 @@ public class AssetPoolDaoImpl extends AbstractJooqDao<AssetPool> implements Asse
 		return pool;
 	}
 
+	@Override
+	public void delete(UUID id) {
+		ctx().deleteFrom(JooqAssetPool.ASSET_POOL)
+			.where(JooqAssetPool.ASSET_POOL.UUID.eq(id))
+			.execute();
+	}
+
 }

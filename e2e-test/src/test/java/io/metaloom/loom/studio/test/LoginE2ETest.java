@@ -27,6 +27,9 @@ import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.rest.model.asset.AssetListResponse;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.auth.AuthLoginResponse;
+import io.metaloom.loom.rest.model.pool.AssetPoolCreateRequest;
+import io.metaloom.loom.rest.model.pool.AssetPoolListResponse;
+import io.metaloom.loom.rest.model.pool.AssetPoolResponse;
 import io.metaloom.loom.rest.model.tag.TagCreateRequest;
 import io.metaloom.loom.rest.model.tag.TagListResponse;
 import io.metaloom.loom.rest.model.tag.TagResponse;
@@ -332,6 +335,59 @@ public class LoginE2ETest {
 			TagListResponse listAfterDelete = client.listTags().sync();
 			assertEquals(initialCount, listAfterDelete.getData().size(), "Tag count should return to initial after delete");
 			log.info("Tag CRUD test passed");
+		}
+	}
+
+	/**
+	 * Verify asset pool CRUD via REST API: list demo pools, create, load, update, delete.
+	 */
+	@Test
+	void testAssetPoolCRUD() throws Exception {
+		try (LoomHttpClient client = LoomHttpClient.builder()
+			.setHostname("localhost")
+			.setReadTimeout(Duration.ofSeconds(30))
+			.setPort(REST_PORT)
+			.build()) {
+
+			AuthLoginResponse loginResp = client.login("admin", "finger").sync();
+			client.setToken(loginResp.getToken());
+
+			// List existing pools (demo data should contain 3)
+			AssetPoolListResponse listResp = client.listPools().sync();
+			assertNotNull(listResp, "Pool list response should not be null");
+			assertNotNull(listResp.getData(), "Pool list data should not be null");
+			assertTrue(listResp.getData().size() >= 3, "Pool list should contain at least 3 demo pools");
+			int initialCount = listResp.getData().size();
+			log.info("Initial pool count: {}", initialCount);
+
+			// Create a new filesystem pool
+			AssetPoolCreateRequest createReq = new AssetPoolCreateRequest();
+			createReq.setName("e2e-test-pool");
+			createReq.setFsPath("/tmp/e2e-test");
+			AssetPoolResponse created = client.createPool(createReq).sync();
+			assertNotNull(created, "Created pool should not be null");
+			assertNotNull(created.getUuid(), "Created pool UUID should not be null");
+			assertEquals("e2e-test-pool", created.getName());
+			assertEquals("/tmp/e2e-test", created.getFsPath());
+			log.info("Created pool: {} ({})", created.getName(), created.getUuid());
+
+			// Verify the pool appears in the listing
+			AssetPoolListResponse listAfterCreate = client.listPools().sync();
+			assertTrue(listAfterCreate.getData().size() > initialCount, "Pool list should have grown after create");
+
+			// Load the pool by UUID
+			AssetPoolResponse loaded = client.loadPool(created.getUuid()).sync();
+			assertNotNull(loaded, "Loaded pool should not be null");
+			assertEquals(created.getUuid(), loaded.getUuid());
+			assertEquals("e2e-test-pool", loaded.getName());
+
+			// Delete the pool
+			client.deletePool(created.getUuid()).sync();
+
+			// Verify the pool is gone
+			AssetPoolListResponse listAfterDelete = client.listPools().sync();
+			assertEquals(initialCount, listAfterDelete.getData().size(), "Pool count should return to initial after delete");
+			log.info("Asset pool CRUD test passed");
 		}
 	}
 

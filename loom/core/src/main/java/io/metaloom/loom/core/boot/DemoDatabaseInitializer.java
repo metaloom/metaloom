@@ -260,20 +260,4 @@ public class DemoDatabaseInitializer {
 		log.info("Created demo asset: {}", filename);
 		return asset;
 	}
-
-	private AssetPool createAssetPool(User admin, String name, String fsPath, String s3Bucket, String s3Region, String s3Endpoint) {
-		AssetPool pool = assetPoolDao.createAssetPool(admin.getUuid(), name);
-		pool.setUuid(UUIDUtils.randomUUID());
-		pool.setFsPath(fsPath);
-		pool.setS3Bucket(s3Bucket);
-		pool.setS3Region(s3Region);
-		pool.setS3Endpoint(s3Endpoint);
-		pool.setCreator(admin);
-		pool.setEditor(admin);
-		pool.setCreated(Instant.now());
-		pool.setEdited(Instant.now());
-		assetPoolDao.store(pool);
-		log.info("Created demo asset pool: {}", name);
-		return pool;
-	}
 }
