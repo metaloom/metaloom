@@ -12,7 +12,7 @@ import io.metaloom.loom.rest.model.common.AbstractListResponse;
 import io.metaloom.loom.rest.model.embedding.EmbeddingResponse;
 import io.metaloom.loom.rest.model.group.GroupResponse;
 import io.metaloom.loom.rest.model.library.LibraryResponse;
-import io.metaloom.loom.rest.model.project.ProjectResponse;
+import io.metaloom.loom.rest.model.space.SpaceResponse;
 import io.metaloom.loom.rest.model.role.RoleResponse;
 import io.metaloom.loom.rest.model.tag.TagResponse;
 import io.metaloom.loom.rest.model.task.TaskResponse;
@@ -86,8 +86,8 @@ public class Assertions extends org.assertj.core.api.Assertions {
 		return new LibraryModelAssert(model);
 	}
 
-	public static ProjectModelAssert assertThat(ProjectResponse model) {
-		return new ProjectModelAssert(model);
+	public static SpaceModelAssert assertThat(SpaceResponse model) {
+		return new SpaceModelAssert(model);
 	}
 
 }

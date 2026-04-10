@@ -19,7 +19,7 @@ public interface ClientMethods extends
 	TokenMethods,
 	LibraryMethods,
 	PipelineMethods,
-	ProjectMethods,
+	SpaceMethods,
 	CommentMethods,
 	EmbeddingMethods {
 

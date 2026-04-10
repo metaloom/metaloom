@@ -1,0 +1,6 @@
+-- Rename project permissions to space permissions
+
+ALTER TYPE "loom_permission" RENAME VALUE 'CREATE_PROJECT' TO 'CREATE_SPACE';
+ALTER TYPE "loom_permission" RENAME VALUE 'READ_PROJECT' TO 'READ_SPACE';
+ALTER TYPE "loom_permission" RENAME VALUE 'DELETE_PROJECT' TO 'DELETE_SPACE';
+ALTER TYPE "loom_permission" RENAME VALUE 'UPDATE_PROJECT' TO 'UPDATE_SPACE';

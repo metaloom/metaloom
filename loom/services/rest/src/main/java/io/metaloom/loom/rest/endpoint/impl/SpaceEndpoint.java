@@ -13,17 +13,17 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.loom.rest.AbstractEndpoint;
 import io.metaloom.loom.rest.EndpointDependencies;
 import io.metaloom.loom.rest.model.ModelExamples;
-import io.metaloom.loom.rest.service.impl.ProjectEndpointService;
+import io.metaloom.loom.rest.service.impl.SpaceEndpointService;
 
-public class ProjectEndpoint extends AbstractEndpoint{
+public class SpaceEndpoint extends AbstractEndpoint{
 
-	private static final Logger log = LoggerFactory.getLogger(ProjectEndpoint.class);
+	private static final Logger log = LoggerFactory.getLogger(SpaceEndpoint.class);
 	
-	private final ProjectEndpointService service;
+	private final SpaceEndpointService service;
 	private final ModelExamples examples;
 
 	@Inject
-	public ProjectEndpoint(ProjectEndpointService service, EndpointDependencies deps, ModelExamples examples) {
+	public SpaceEndpoint(SpaceEndpointService service, EndpointDependencies deps, ModelExamples examples) {
 		super(deps);
 		this.service = service;
 		this.examples = examples;
@@ -31,12 +31,12 @@ public class ProjectEndpoint extends AbstractEndpoint{
 
 	@Override
 	public String name() {
-		return "project";
+		return "space";
 	}
 
 	@Override
 	public String basePath() {
-		return API_V1_PATH + "/projects";
+		return API_V1_PATH + "/spaces";
 	}
 
 	@Override
@@ -47,25 +47,25 @@ public class ProjectEndpoint extends AbstractEndpoint{
 
 		// Create
 		addRoute(basePath(), POST,
-			"Create a new project",
-			examples.projectCreateRequestExample(),
-			examples.projectResponseExample(),
+			"Create a new space",
+			examples.spaceCreateRequestExample(),
+			examples.spaceResponseExample(),
 			lrc -> {
 				service.create(lrc);
 			});
 
 		// Update
 		addRoute(basePath() + "/:uuid", POST,
-			"Update a project",
-			examples.projectUpdateRequestExample(),
-			examples.projectResponseExample(),
+			"Update a space",
+			examples.spaceUpdateRequestExample(),
+			examples.spaceResponseExample(),
 			lrc -> {
 				service.update(lrc, lrc.pathParamUUID("uuid"));
 			});
 
 		// Delete
 		addRoute(basePath() + "/:uuid", DELETE,
-			"Delete a project",
+			"Delete a space",
 			null,
 			examples.deleteResponseExample(),
 			lrc -> {
@@ -74,17 +74,17 @@ public class ProjectEndpoint extends AbstractEndpoint{
 
 		// List
 		addListRoute(basePath(), GET,
-			"Load a paged list of projects",
-			examples.projectListResponseExample(),
+			"Load a paged list of spaces",
+			examples.spaceListResponseExample(),
 			lrc -> {
 				service.list(lrc);
 			});
 
 		// Read
 		addRoute(basePath() + "/:uuid", GET,
-			"Load a project",
+			"Load a space",
 			null,
-			examples.projectResponseExample(),
+			examples.spaceResponseExample(),
 			lrc -> {
 				service.load(lrc, lrc.pathParamUUID("uuid"));
 			});

@@ -3,7 +3,7 @@ package io.metaloom.loom.db;
 import io.metaloom.loom.db.dagger.DaoProvider;
 import io.metaloom.loom.db.model.asset.Asset;
 import io.metaloom.loom.db.model.library.Library;
-import io.metaloom.loom.db.model.project.Project;
+import io.metaloom.loom.db.model.space.Space;
 import io.metaloom.loom.db.model.user.User;
 import io.metaloom.loom.db.transaction.TransactionCallable;
 import io.metaloom.loom.test.data.TestValues;
@@ -23,7 +23,7 @@ public interface FixtureElementProvider extends DaoProvider, TestValues {
 		return userDao().load(ADMIN_UUID);
 	}
 
-	default Project project() {
+	default Space space() {
 		return projectDao().load(PROJECT_UUID);
 	}
 

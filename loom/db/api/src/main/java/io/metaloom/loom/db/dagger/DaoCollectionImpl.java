@@ -20,7 +20,7 @@ import io.metaloom.loom.db.model.library.LibraryDao;
 import io.metaloom.loom.db.model.pipeline.PipelineDao;
 import io.metaloom.loom.db.model.pool.AssetPoolDao;
 import io.metaloom.loom.db.model.perm.PermissionDao;
-import io.metaloom.loom.db.model.project.ProjectDao;
+import io.metaloom.loom.db.model.space.SpaceDao;
 import io.metaloom.loom.db.model.reaction.ReactionDao;
 import io.metaloom.loom.db.model.role.RoleDao;
 import io.metaloom.loom.db.model.tag.TagDao;
@@ -44,7 +44,7 @@ public class DaoCollectionImpl implements DaoCollection {
 	private final Lazy<WebhookDao> webhookDao;
 	private final Lazy<CollectionDao> collectionDao;
 	private final Lazy<LibraryDao> libraryDao;
-	private final Lazy<ProjectDao> projectDao;
+	private final Lazy<SpaceDao> projectDao;
 	private final Lazy<BlacklistDao> blacklistDao;
 	private final Lazy<TaskDao> taskDao;
 	private final Lazy<ReactionDao> reactionDao;
@@ -63,7 +63,7 @@ public class DaoCollectionImpl implements DaoCollection {
 		Lazy<AssetComponentDao> assetComponentDao,
 		Lazy<WebhookDao> webhookDao, Lazy<CollectionDao> collectionDao, Lazy<LibraryDao> libraryDao,
 		Lazy<AnnotationDao> annotationDao, Lazy<TaskDao> taskDao, Lazy<ReactionDao> reactionDao,
-		Lazy<BlacklistDao> blacklistDao, Lazy<CommentDao> commentDao, Lazy<ProjectDao> projectDao,
+		Lazy<BlacklistDao> blacklistDao, Lazy<CommentDao> commentDao, Lazy<SpaceDao> projectDao,
 		Lazy<ClusterDao> clusterDao, Lazy<EmbeddingDao> embeddingDao, Lazy<TokenDao> tokenDao,
 		Lazy<TagDao> tagDao, Lazy<AttachmentDao> attachmentDao, Lazy<PipelineDao> pipelineDao,
 		Lazy<AssetPoolDao> assetPoolDao) {
@@ -179,7 +179,7 @@ public class DaoCollectionImpl implements DaoCollection {
 	}
 
 	@Override
-	public ProjectDao projectDao() {
+	public SpaceDao projectDao() {
 		return projectDao.get();
 	}
 

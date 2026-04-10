@@ -19,7 +19,7 @@ public interface LoomModelValidator extends
 	TokenModelValidator,
 	LibraryModelValidator,
 	PipelineModelValidator,
-	ProjectModelValidator,
+	SpaceModelValidator,
 	ReactionModelValidator,
 	WebhookModelValidator,
 	LoginModelValidator {

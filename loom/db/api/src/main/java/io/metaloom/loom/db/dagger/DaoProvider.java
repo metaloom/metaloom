@@ -16,7 +16,7 @@ import io.metaloom.loom.db.model.library.LibraryDao;
 import io.metaloom.loom.db.model.perm.PermissionDao;
 import io.metaloom.loom.db.model.pipeline.PipelineDao;
 import io.metaloom.loom.db.model.pool.AssetPoolDao;
-import io.metaloom.loom.db.model.project.ProjectDao;
+import io.metaloom.loom.db.model.space.SpaceDao;
 import io.metaloom.loom.db.model.reaction.ReactionDao;
 import io.metaloom.loom.db.model.role.RoleDao;
 import io.metaloom.loom.db.model.tag.TagDao;
@@ -84,7 +84,7 @@ public interface DaoProvider extends DaoCollection {
 
 	// Management
 
-	default ProjectDao projectDao() {
+	default SpaceDao projectDao() {
 		return daos().projectDao();
 	}
 

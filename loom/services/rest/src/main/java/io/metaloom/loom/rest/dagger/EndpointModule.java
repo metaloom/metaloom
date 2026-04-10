@@ -22,7 +22,7 @@ import io.metaloom.loom.rest.endpoint.impl.LibraryEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.PipelineEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.ProcessorEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.LoginEndpoint;
-import io.metaloom.loom.rest.endpoint.impl.ProjectEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.SpaceEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.RESTInfoEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.RoleEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.TagEndpoint;
@@ -52,7 +52,7 @@ public class EndpointModule {
 		LibraryEndpoint libraryEndpoint,
 		PipelineEndpoint pipelineEndpoint,
 		ProcessorEndpoint processorEndpoint,
-		ProjectEndpoint projectEndpoint,
+		SpaceEndpoint spaceEndpoint,
 		LoginEndpoint loginEndpoint,
 		RESTInfoEndpoint restInfoEndpoint,
 		CommentEndpoint commentEndpoint,
@@ -74,7 +74,7 @@ public class EndpointModule {
 			libraryEndpoint,
 			pipelineEndpoint,
 			processorEndpoint,
-			projectEndpoint,
+			spaceEndpoint,
 			loginEndpoint,
 			restInfoEndpoint,
 			attachmentEndpoint,

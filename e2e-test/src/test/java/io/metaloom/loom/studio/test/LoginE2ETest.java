@@ -501,7 +501,7 @@ public class LoginE2ETest {
 				return f.getAbsolutePath();
 			}
 		}
-		throw new IllegalStateException("Cannot find loom-demo.jar. Set -Dloom.jar=<path> or build the project first.");
+		throw new IllegalStateException("Cannot find loom-demo.jar. Set -Dloom.jar=<path> or build the space first.");
 	}
 
 	private static File resolveLoomUiDir() {

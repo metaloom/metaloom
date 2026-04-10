@@ -1,5 +1,5 @@
 package io.metaloom.loom.db.jooq.dao;
 
-public class ProjectDaoTest {
+public class SpaceDaoTest {
 
 }

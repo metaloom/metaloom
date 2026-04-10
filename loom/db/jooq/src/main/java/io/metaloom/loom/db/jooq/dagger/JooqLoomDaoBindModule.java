@@ -18,7 +18,7 @@ import io.metaloom.loom.db.jooq.dao.pool.AssetPoolDaoImpl;
 import io.metaloom.loom.db.jooq.dao.group.GroupDaoImpl;
 import io.metaloom.loom.db.jooq.dao.library.LibraryDaoImpl;
 import io.metaloom.loom.db.jooq.dao.perm.PermissionDaoImpl;
-import io.metaloom.loom.db.jooq.dao.project.ProjectDaoImpl;
+import io.metaloom.loom.db.jooq.dao.space.SpaceDaoImpl;
 import io.metaloom.loom.db.jooq.dao.reaction.ReactionDaoImpl;
 import io.metaloom.loom.db.jooq.dao.role.RoleDaoImpl;
 import io.metaloom.loom.db.jooq.dao.tag.TagDaoImpl;
@@ -42,7 +42,7 @@ import io.metaloom.loom.db.model.pool.AssetPoolDao;
 import io.metaloom.loom.db.model.group.GroupDao;
 import io.metaloom.loom.db.model.library.LibraryDao;
 import io.metaloom.loom.db.model.perm.PermissionDao;
-import io.metaloom.loom.db.model.project.ProjectDao;
+import io.metaloom.loom.db.model.space.SpaceDao;
 import io.metaloom.loom.db.model.reaction.ReactionDao;
 import io.metaloom.loom.db.model.role.RoleDao;
 import io.metaloom.loom.db.model.tag.TagDao;
@@ -97,7 +97,7 @@ public abstract class JooqLoomDaoBindModule {
 	abstract LibraryDao libraryDao(LibraryDaoImpl dao);
 
 	@Binds
-	abstract ProjectDao projectDao(ProjectDaoImpl dao);
+	abstract SpaceDao projectDao(SpaceDaoImpl dao);
 
 	@Binds
 	abstract TaskDao taskDao(TaskDaoImpl dao);

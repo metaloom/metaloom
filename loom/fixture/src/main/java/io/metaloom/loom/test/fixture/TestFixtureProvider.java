@@ -20,7 +20,7 @@ import io.metaloom.loom.db.model.group.Group;
 import io.metaloom.loom.db.model.library.Library;
 import io.metaloom.loom.db.model.perm.Permission;
 import io.metaloom.loom.db.model.pool.AssetPool;
-import io.metaloom.loom.db.model.project.Project;
+import io.metaloom.loom.db.model.space.Space;
 import io.metaloom.loom.db.model.reaction.Reaction;
 import io.metaloom.loom.db.model.role.Role;
 import io.metaloom.loom.db.model.tag.AssetTag;
@@ -79,13 +79,13 @@ public class TestFixtureProvider extends AbstractFixtureProvider {
 		// Attachment for embedding
 		Attachment attachment1 = createAttachment(ATTACHMENT_UUID, embedding1, user);
 
-		// Create project
-		Project project = createProject(user);
+		// Create space
+		Space space = createSpace(user);
 
-		// Group assets into collections and assign collection to project
-		Collection collection = createCollection(COLLECTION_UUID, "Collection1", project, user, asset);
-		Collection videoCollection = createCollection("Drone Footage", project, user, videoAsset);
-		Collection docsCollection = createCollection("Reports", project, user, pdfAsset);
+		// Group assets into collections and assign collection to space
+		Collection collection = createCollection(COLLECTION_UUID, "Collection1", space, user, asset);
+		Collection videoCollection = createCollection("Drone Footage", space, user, videoAsset);
+		Collection docsCollection = createCollection("Reports", space, user, pdfAsset);
 
 		// Create task
 		Task task = createTask(user);
@@ -163,11 +163,11 @@ public class TestFixtureProvider extends AbstractFixtureProvider {
 		return task;
 	}
 
-	private Collection createCollection(String name, Project project, User user, Asset asset) {
-		return createCollection(null, name, project, user, asset);
+	private Collection createCollection(String name, Space space, User user, Asset asset) {
+		return createCollection(null, name, space, user, asset);
 	}
 
-	private Collection createCollection(UUID uuid, String name, Project project, User user, Asset asset) {
+	private Collection createCollection(UUID uuid, String name, Space space, User user, Asset asset) {
 		Collection collection = collectionDao().createCollection(user, name);
 		if (uuid != null) {
 			collection.setUuid(uuid);
@@ -177,11 +177,11 @@ public class TestFixtureProvider extends AbstractFixtureProvider {
 		return collection;
 	}
 
-	private Project createProject(User user) {
-		Project project = projectDao().createProject(user, "test-project");
-		project.setUuid(PROJECT_UUID);
-		projectDao().store(project);
-		return project;
+	private Space createSpace(User user) {
+		Space space = projectDao().createSpace(user, "test-space");
+		space.setUuid(PROJECT_UUID);
+		projectDao().store(space);
+		return space;
 	}
 
 	private Cluster clusterEmbeddings(User user, Embedding... embeddings) {

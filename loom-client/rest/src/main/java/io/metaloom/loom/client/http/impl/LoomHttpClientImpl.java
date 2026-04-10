@@ -74,10 +74,10 @@ import io.metaloom.loom.rest.model.pipeline.PipelineCreateRequest;
 import io.metaloom.loom.rest.model.pipeline.PipelineListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineUpdateRequest;
-import io.metaloom.loom.rest.model.project.ProjectCreateRequest;
-import io.metaloom.loom.rest.model.project.ProjectListResponse;
-import io.metaloom.loom.rest.model.project.ProjectResponse;
-import io.metaloom.loom.rest.model.project.ProjectUpdateRequest;
+import io.metaloom.loom.rest.model.space.SpaceCreateRequest;
+import io.metaloom.loom.rest.model.space.SpaceListResponse;
+import io.metaloom.loom.rest.model.space.SpaceResponse;
+import io.metaloom.loom.rest.model.space.SpaceUpdateRequest;
 import io.metaloom.loom.rest.model.reaction.ReactionCreateRequest;
 import io.metaloom.loom.rest.model.reaction.ReactionListResponse;
 import io.metaloom.loom.rest.model.reaction.ReactionResponse;
@@ -419,31 +419,31 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 		return getRequest("clusters", ClusterListResponse.class);
 	}
 
-	// PROJECT
+	// SPACE
 
 	@Override
-	public LoomClientHttpRequest<ProjectResponse> loadProject(UUID projectUuid) {
-		return getRequest("projects/" + projectUuid, ProjectResponse.class);
+	public LoomClientHttpRequest<SpaceResponse> loadSpace(UUID spaceUuid) {
+		return getRequest("spaces/" + spaceUuid, SpaceResponse.class);
 	}
 
 	@Override
-	public LoomClientHttpRequest<NoResponse> deleteProject(UUID projectUuid) {
-		return deleteRequest("projects/" + projectUuid);
+	public LoomClientHttpRequest<NoResponse> deleteSpace(UUID spaceUuid) {
+		return deleteRequest("spaces/" + spaceUuid);
 	}
 
 	@Override
-	public LoomClientHttpRequest<ProjectResponse> createProject(ProjectCreateRequest request) {
-		return postRequest("projects", request, ProjectResponse.class);
+	public LoomClientHttpRequest<SpaceResponse> createSpace(SpaceCreateRequest request) {
+		return postRequest("spaces", request, SpaceResponse.class);
 	}
 
 	@Override
-	public LoomClientHttpRequest<ProjectResponse> updateProject(UUID projectUuid, ProjectUpdateRequest request) {
-		return postRequest("projects/" + projectUuid, request, ProjectResponse.class);
+	public LoomClientHttpRequest<SpaceResponse> updateSpace(UUID spaceUuid, SpaceUpdateRequest request) {
+		return postRequest("spaces/" + spaceUuid, request, SpaceResponse.class);
 	}
 
 	@Override
-	public LoomClientHttpRequest<ProjectListResponse> listProjects() {
-		return getRequest("projects", ProjectListResponse.class);
+	public LoomClientHttpRequest<SpaceListResponse> listSpaces() {
+		return getRequest("spaces", SpaceListResponse.class);
 	}
 
 	// LIBRARY
@@ -785,18 +785,17 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 		InputStream suffix;
 		try {
 			prefix = new ByteArrayInputStream(multiPartFormData.toString().getBytes("utf-8"));
-			suffix = new ByteArrayInputStream(("\r\n--" + boundary + "--\r\n").getBytes("utf-8"));
+			suffix = new ByteArrayInputStream(("\r\n--" + boundary + "--").getBytes("utf-8"));
 		} catch (UnsupportedEncodingException e) {
 			throw new RuntimeException(e);
 		}
-
-		String bodyContentType = "multipart/form-data; boundary=" + boundary;
 
 		Vector<InputStream> streams = new Vector<>(Arrays.asList(
 			prefix,
 			fileData,
 			suffix));
 		SequenceInputStream completeStream = new SequenceInputStream(streams.elements());
+		String bodyContentType = "multipart/form-data;boundary=" + boundary;
 
 		return postUploadRequest("attachments", AttachmentResponse.class, completeStream, bodyContentType);
 	}

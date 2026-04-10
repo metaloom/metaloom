@@ -1,9 +1,9 @@
-package io.metaloom.loom.rest.model.project;
+package io.metaloom.loom.rest.model.space;
 
 import io.metaloom.loom.rest.model.MetaModel;
 import io.metaloom.loom.rest.model.RestModel;
 
-public interface ProjectModel<T extends ProjectModel<T>> extends RestModel, MetaModel<T> {
+public interface SpaceModel<T extends SpaceModel<T>> extends RestModel, MetaModel<T> {
 
 	String getName();
 
