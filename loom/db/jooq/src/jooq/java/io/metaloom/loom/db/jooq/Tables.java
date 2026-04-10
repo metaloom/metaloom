@@ -9,10 +9,17 @@ import io.metaloom.loom.db.jooq.tables.JooqAnnotationAsset;
 import io.metaloom.loom.db.jooq.tables.JooqAnnotationTag;
 import io.metaloom.loom.db.jooq.tables.JooqAnnotationTask;
 import io.metaloom.loom.db.jooq.tables.JooqAsset;
+import io.metaloom.loom.db.jooq.tables.JooqAssetAudioComp;
+import io.metaloom.loom.db.jooq.tables.JooqAssetDocComp;
+import io.metaloom.loom.db.jooq.tables.JooqAssetGeoComp;
+import io.metaloom.loom.db.jooq.tables.JooqAssetImageComp;
 import io.metaloom.loom.db.jooq.tables.JooqAssetLocation;
+import io.metaloom.loom.db.jooq.tables.JooqAssetPool;
 import io.metaloom.loom.db.jooq.tables.JooqAssetRemix;
 import io.metaloom.loom.db.jooq.tables.JooqAssetTask;
+import io.metaloom.loom.db.jooq.tables.JooqAssetTranscriptComp;
 import io.metaloom.loom.db.jooq.tables.JooqAssetUserMeta;
+import io.metaloom.loom.db.jooq.tables.JooqAssetVideoComp;
 import io.metaloom.loom.db.jooq.tables.JooqAttachment;
 import io.metaloom.loom.db.jooq.tables.JooqAttachmentBinary;
 import io.metaloom.loom.db.jooq.tables.JooqBlacklist;
@@ -29,6 +36,7 @@ import io.metaloom.loom.db.jooq.tables.JooqLibrary;
 import io.metaloom.loom.db.jooq.tables.JooqLibraryAsset;
 import io.metaloom.loom.db.jooq.tables.JooqLibraryCollection;
 import io.metaloom.loom.db.jooq.tables.JooqLoom;
+import io.metaloom.loom.db.jooq.tables.JooqPipeline;
 import io.metaloom.loom.db.jooq.tables.JooqProject;
 import io.metaloom.loom.db.jooq.tables.JooqProjectCollection;
 import io.metaloom.loom.db.jooq.tables.JooqProjectLibrary;
@@ -84,11 +92,37 @@ public class Tables {
     public static final JooqAsset ASSET = JooqAsset.ASSET;
 
     /**
+     * Stores audio-specific properties extracted from an asset
+     */
+    public static final JooqAssetAudioComp ASSET_AUDIO_COMP = JooqAssetAudioComp.ASSET_AUDIO_COMP;
+
+    /**
+     * Stores document/text extraction data from an asset
+     */
+    public static final JooqAssetDocComp ASSET_DOC_COMP = JooqAssetDocComp.ASSET_DOC_COMP;
+
+    /**
+     * Stores geo location information extracted from an asset
+     */
+    public static final JooqAssetGeoComp ASSET_GEO_COMP = JooqAssetGeoComp.ASSET_GEO_COMP;
+
+    /**
+     * Stores image-specific properties extracted from an asset
+     */
+    public static final JooqAssetImageComp ASSET_IMAGE_COMP = JooqAssetImageComp.ASSET_IMAGE_COMP;
+
+    /**
      * Assets keep track of media that has been found by the scanner. Multiple
      * asset_locations may share the same asset thus the properties will be
      * decoupled from asset.
      */
     public static final JooqAssetLocation ASSET_LOCATION = JooqAssetLocation.ASSET_LOCATION;
+
+    /**
+     * Storage pools for asset binaries. A pool represents either a filesystem
+     * directory or an S3 bucket where binary data is stored.
+     */
+    public static final JooqAssetPool ASSET_POOL = JooqAssetPool.ASSET_POOL;
 
     /**
      * Store information on remixes of binaries.
@@ -101,9 +135,19 @@ public class Tables {
     public static final JooqAssetTask ASSET_TASK = JooqAssetTask.ASSET_TASK;
 
     /**
+     * Stores transcript data for audio/video assets
+     */
+    public static final JooqAssetTranscriptComp ASSET_TRANSCRIPT_COMP = JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP;
+
+    /**
      * Stores user specific metadata that can be added to asset
      */
     public static final JooqAssetUserMeta ASSET_USER_META = JooqAssetUserMeta.ASSET_USER_META;
+
+    /**
+     * Stores video-specific properties extracted from an asset
+     */
+    public static final JooqAssetVideoComp ASSET_VIDEO_COMP = JooqAssetVideoComp.ASSET_VIDEO_COMP;
 
     /**
      * The table <code>public.attachment</code>.
@@ -192,6 +236,11 @@ public class Tables {
      * The table <code>public.loom</code>.
      */
     public static final JooqLoom LOOM = JooqLoom.LOOM;
+
+    /**
+     * The table <code>public.pipeline</code>.
+     */
+    public static final JooqPipeline PIPELINE = JooqPipeline.PIPELINE;
 
     /**
      * The table <code>public.project</code>.

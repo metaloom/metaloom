@@ -12,8 +12,8 @@ import java.util.UUID;
 
 import org.jooq.Field;
 import org.jooq.Record1;
-import org.jooq.Record17;
-import org.jooq.Row17;
+import org.jooq.Record18;
+import org.jooq.Row18;
 import org.jooq.impl.UpdatableRecordImpl;
 
 
@@ -23,7 +23,7 @@ import org.jooq.impl.UpdatableRecordImpl;
  * decoupled from asset.
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqAssetLocationRecord extends UpdatableRecordImpl<JooqAssetLocationRecord> implements Record17<UUID, UUID, UUID, String, Integer, Integer, Integer, Integer, JsonObject, String, String, String, UUID, LocalDateTime, UUID, LocalDateTime, UUID> {
+public class JooqAssetLocationRecord extends UpdatableRecordImpl<JooqAssetLocationRecord> implements Record18<UUID, UUID, UUID, String, Integer, Integer, Integer, Integer, JsonObject, String, String, String, UUID, LocalDateTime, UUID, LocalDateTime, UUID, UUID> {
 
     private static final long serialVersionUID = 1L;
 
@@ -271,6 +271,22 @@ public class JooqAssetLocationRecord extends UpdatableRecordImpl<JooqAssetLocati
         return (UUID) get(16);
     }
 
+    /**
+     * Setter for <code>public.asset_location.pool_uuid</code>. Reference to the
+     * storage pool where the binary is stored
+     */
+    public void setPoolUuid(UUID value) {
+        set(17, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_location.pool_uuid</code>. Reference to the
+     * storage pool where the binary is stored
+     */
+    public UUID getPoolUuid() {
+        return (UUID) get(17);
+    }
+
     // -------------------------------------------------------------------------
     // Primary key information
     // -------------------------------------------------------------------------
@@ -281,17 +297,17 @@ public class JooqAssetLocationRecord extends UpdatableRecordImpl<JooqAssetLocati
     }
 
     // -------------------------------------------------------------------------
-    // Record17 type implementation
+    // Record18 type implementation
     // -------------------------------------------------------------------------
 
     @Override
-    public Row17<UUID, UUID, UUID, String, Integer, Integer, Integer, Integer, JsonObject, String, String, String, UUID, LocalDateTime, UUID, LocalDateTime, UUID> fieldsRow() {
-        return (Row17) super.fieldsRow();
+    public Row18<UUID, UUID, UUID, String, Integer, Integer, Integer, Integer, JsonObject, String, String, String, UUID, LocalDateTime, UUID, LocalDateTime, UUID, UUID> fieldsRow() {
+        return (Row18) super.fieldsRow();
     }
 
     @Override
-    public Row17<UUID, UUID, UUID, String, Integer, Integer, Integer, Integer, JsonObject, String, String, String, UUID, LocalDateTime, UUID, LocalDateTime, UUID> valuesRow() {
-        return (Row17) super.valuesRow();
+    public Row18<UUID, UUID, UUID, String, Integer, Integer, Integer, Integer, JsonObject, String, String, String, UUID, LocalDateTime, UUID, LocalDateTime, UUID, UUID> valuesRow() {
+        return (Row18) super.valuesRow();
     }
 
     @Override
@@ -380,6 +396,11 @@ public class JooqAssetLocationRecord extends UpdatableRecordImpl<JooqAssetLocati
     }
 
     @Override
+    public Field<UUID> field18() {
+        return JooqAssetLocation.ASSET_LOCATION.POOL_UUID;
+    }
+
+    @Override
     public UUID component1() {
         return getUuid();
     }
@@ -465,6 +486,11 @@ public class JooqAssetLocationRecord extends UpdatableRecordImpl<JooqAssetLocati
     }
 
     @Override
+    public UUID component18() {
+        return getPoolUuid();
+    }
+
+    @Override
     public UUID value1() {
         return getUuid();
     }
@@ -547,6 +573,11 @@ public class JooqAssetLocationRecord extends UpdatableRecordImpl<JooqAssetLocati
     @Override
     public UUID value17() {
         return getEditorUuid();
+    }
+
+    @Override
+    public UUID value18() {
+        return getPoolUuid();
     }
 
     @Override
@@ -652,7 +683,13 @@ public class JooqAssetLocationRecord extends UpdatableRecordImpl<JooqAssetLocati
     }
 
     @Override
-    public JooqAssetLocationRecord values(UUID value1, UUID value2, UUID value3, String value4, Integer value5, Integer value6, Integer value7, Integer value8, JsonObject value9, String value10, String value11, String value12, UUID value13, LocalDateTime value14, UUID value15, LocalDateTime value16, UUID value17) {
+    public JooqAssetLocationRecord value18(UUID value) {
+        setPoolUuid(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetLocationRecord values(UUID value1, UUID value2, UUID value3, String value4, Integer value5, Integer value6, Integer value7, Integer value8, JsonObject value9, String value10, String value11, String value12, UUID value13, LocalDateTime value14, UUID value15, LocalDateTime value16, UUID value17, UUID value18) {
         value1(value1);
         value2(value2);
         value3(value3);
@@ -670,6 +707,7 @@ public class JooqAssetLocationRecord extends UpdatableRecordImpl<JooqAssetLocati
         value15(value15);
         value16(value16);
         value17(value17);
+        value18(value18);
         return this;
     }
 
@@ -687,7 +725,7 @@ public class JooqAssetLocationRecord extends UpdatableRecordImpl<JooqAssetLocati
     /**
      * Create a detached, initialised JooqAssetLocationRecord
      */
-    public JooqAssetLocationRecord(UUID uuid, UUID assetUuid, UUID libraryUuid, String path, Integer filekeyInode, Integer filekeyStdev, Integer filekeyEdateNano, Integer filekeyEdate, JsonObject meta, String mimeType, String license, String state, UUID lockedByUuid, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid) {
+    public JooqAssetLocationRecord(UUID uuid, UUID assetUuid, UUID libraryUuid, String path, Integer filekeyInode, Integer filekeyStdev, Integer filekeyEdateNano, Integer filekeyEdate, JsonObject meta, String mimeType, String license, String state, UUID lockedByUuid, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid, UUID poolUuid) {
         super(JooqAssetLocation.ASSET_LOCATION);
 
         setUuid(uuid);
@@ -707,5 +745,6 @@ public class JooqAssetLocationRecord extends UpdatableRecordImpl<JooqAssetLocati
         setCreatorUuid(creatorUuid);
         setEdited(edited);
         setEditorUuid(editorUuid);
+        setPoolUuid(poolUuid);
     }
 }

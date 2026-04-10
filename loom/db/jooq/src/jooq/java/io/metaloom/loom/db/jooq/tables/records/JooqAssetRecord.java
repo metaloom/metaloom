@@ -10,7 +10,10 @@ import io.vertx.core.json.JsonObject;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import org.jooq.Field;
 import org.jooq.Record1;
+import org.jooq.Record18;
+import org.jooq.Row18;
 import org.jooq.impl.UpdatableRecordImpl;
 
 
@@ -18,7 +21,7 @@ import org.jooq.impl.UpdatableRecordImpl;
  * This table stores information on the asset component of the asset
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqAssetRecord extends UpdatableRecordImpl<JooqAssetRecord> {
+public class JooqAssetRecord extends UpdatableRecordImpl<JooqAssetRecord> implements Record18<UUID, String, Long, String, String, String, Long, String, String, String, LocalDateTime, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID, String, String> {
 
     private static final long serialVersionUID = 1L;
 
@@ -287,6 +290,421 @@ public class JooqAssetRecord extends UpdatableRecordImpl<JooqAssetRecord> {
     @Override
     public Record1<String> key() {
         return (Record1) super.key();
+    }
+
+    // -------------------------------------------------------------------------
+    // Record18 type implementation
+    // -------------------------------------------------------------------------
+
+    @Override
+    public Row18<UUID, String, Long, String, String, String, Long, String, String, String, LocalDateTime, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID, String, String> fieldsRow() {
+        return (Row18) super.fieldsRow();
+    }
+
+    @Override
+    public Row18<UUID, String, Long, String, String, String, Long, String, String, String, LocalDateTime, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID, String, String> valuesRow() {
+        return (Row18) super.valuesRow();
+    }
+
+    @Override
+    public Field<UUID> field1() {
+        return JooqAsset.ASSET.UUID;
+    }
+
+    @Override
+    public Field<String> field2() {
+        return JooqAsset.ASSET.SHA512SUM;
+    }
+
+    @Override
+    public Field<Long> field3() {
+        return JooqAsset.ASSET.SIZE;
+    }
+
+    @Override
+    public Field<String> field4() {
+        return JooqAsset.ASSET.SHA256SUM;
+    }
+
+    @Override
+    public Field<String> field5() {
+        return JooqAsset.ASSET.MD5SUM;
+    }
+
+    @Override
+    public Field<String> field6() {
+        return JooqAsset.ASSET.CHUNK_HASH;
+    }
+
+    @Override
+    public Field<Long> field7() {
+        return JooqAsset.ASSET.ZERO_CHUNK_COUNT;
+    }
+
+    @Override
+    public Field<String> field8() {
+        return JooqAsset.ASSET.MIME_TYPE;
+    }
+
+    @Override
+    public Field<String> field9() {
+        return JooqAsset.ASSET.FILENAME;
+    }
+
+    @Override
+    public Field<String> field10() {
+        return JooqAsset.ASSET.INITIAL_ORIGIN;
+    }
+
+    @Override
+    public Field<LocalDateTime> field11() {
+        return JooqAsset.ASSET.FIRST_SEEN;
+    }
+
+    @Override
+    public Field<JsonObject> field12() {
+        return JooqAsset.ASSET.META;
+    }
+
+    @Override
+    public Field<LocalDateTime> field13() {
+        return JooqAsset.ASSET.CREATED;
+    }
+
+    @Override
+    public Field<UUID> field14() {
+        return JooqAsset.ASSET.CREATOR_UUID;
+    }
+
+    @Override
+    public Field<LocalDateTime> field15() {
+        return JooqAsset.ASSET.EDITED;
+    }
+
+    @Override
+    public Field<UUID> field16() {
+        return JooqAsset.ASSET.EDITOR_UUID;
+    }
+
+    @Override
+    public Field<String> field17() {
+        return JooqAsset.ASSET.S3_BUCKET_NAME;
+    }
+
+    @Override
+    public Field<String> field18() {
+        return JooqAsset.ASSET.S3_OBJECT_PATH;
+    }
+
+    @Override
+    public UUID component1() {
+        return getUuid();
+    }
+
+    @Override
+    public String component2() {
+        return getSha512sum();
+    }
+
+    @Override
+    public Long component3() {
+        return getSize();
+    }
+
+    @Override
+    public String component4() {
+        return getSha256sum();
+    }
+
+    @Override
+    public String component5() {
+        return getMd5sum();
+    }
+
+    @Override
+    public String component6() {
+        return getChunkHash();
+    }
+
+    @Override
+    public Long component7() {
+        return getZeroChunkCount();
+    }
+
+    @Override
+    public String component8() {
+        return getMimeType();
+    }
+
+    @Override
+    public String component9() {
+        return getFilename();
+    }
+
+    @Override
+    public String component10() {
+        return getInitialOrigin();
+    }
+
+    @Override
+    public LocalDateTime component11() {
+        return getFirstSeen();
+    }
+
+    @Override
+    public JsonObject component12() {
+        return getMeta();
+    }
+
+    @Override
+    public LocalDateTime component13() {
+        return getCreated();
+    }
+
+    @Override
+    public UUID component14() {
+        return getCreatorUuid();
+    }
+
+    @Override
+    public LocalDateTime component15() {
+        return getEdited();
+    }
+
+    @Override
+    public UUID component16() {
+        return getEditorUuid();
+    }
+
+    @Override
+    public String component17() {
+        return getS3BucketName();
+    }
+
+    @Override
+    public String component18() {
+        return getS3ObjectPath();
+    }
+
+    @Override
+    public UUID value1() {
+        return getUuid();
+    }
+
+    @Override
+    public String value2() {
+        return getSha512sum();
+    }
+
+    @Override
+    public Long value3() {
+        return getSize();
+    }
+
+    @Override
+    public String value4() {
+        return getSha256sum();
+    }
+
+    @Override
+    public String value5() {
+        return getMd5sum();
+    }
+
+    @Override
+    public String value6() {
+        return getChunkHash();
+    }
+
+    @Override
+    public Long value7() {
+        return getZeroChunkCount();
+    }
+
+    @Override
+    public String value8() {
+        return getMimeType();
+    }
+
+    @Override
+    public String value9() {
+        return getFilename();
+    }
+
+    @Override
+    public String value10() {
+        return getInitialOrigin();
+    }
+
+    @Override
+    public LocalDateTime value11() {
+        return getFirstSeen();
+    }
+
+    @Override
+    public JsonObject value12() {
+        return getMeta();
+    }
+
+    @Override
+    public LocalDateTime value13() {
+        return getCreated();
+    }
+
+    @Override
+    public UUID value14() {
+        return getCreatorUuid();
+    }
+
+    @Override
+    public LocalDateTime value15() {
+        return getEdited();
+    }
+
+    @Override
+    public UUID value16() {
+        return getEditorUuid();
+    }
+
+    @Override
+    public String value17() {
+        return getS3BucketName();
+    }
+
+    @Override
+    public String value18() {
+        return getS3ObjectPath();
+    }
+
+    @Override
+    public JooqAssetRecord value1(UUID value) {
+        setUuid(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetRecord value2(String value) {
+        setSha512sum(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetRecord value3(Long value) {
+        setSize(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetRecord value4(String value) {
+        setSha256sum(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetRecord value5(String value) {
+        setMd5sum(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetRecord value6(String value) {
+        setChunkHash(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetRecord value7(Long value) {
+        setZeroChunkCount(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetRecord value8(String value) {
+        setMimeType(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetRecord value9(String value) {
+        setFilename(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetRecord value10(String value) {
+        setInitialOrigin(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetRecord value11(LocalDateTime value) {
+        setFirstSeen(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetRecord value12(JsonObject value) {
+        setMeta(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetRecord value13(LocalDateTime value) {
+        setCreated(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetRecord value14(UUID value) {
+        setCreatorUuid(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetRecord value15(LocalDateTime value) {
+        setEdited(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetRecord value16(UUID value) {
+        setEditorUuid(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetRecord value17(String value) {
+        setS3BucketName(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetRecord value18(String value) {
+        setS3ObjectPath(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetRecord values(UUID value1, String value2, Long value3, String value4, String value5, String value6, Long value7, String value8, String value9, String value10, LocalDateTime value11, JsonObject value12, LocalDateTime value13, UUID value14, LocalDateTime value15, UUID value16, String value17, String value18) {
+        value1(value1);
+        value2(value2);
+        value3(value3);
+        value4(value4);
+        value5(value5);
+        value6(value6);
+        value7(value7);
+        value8(value8);
+        value9(value9);
+        value10(value10);
+        value11(value11);
+        value12(value12);
+        value13(value13);
+        value14(value14);
+        value15(value15);
+        value16(value16);
+        value17(value17);
+        value18(value18);
+        return this;
     }
 
     // -------------------------------------------------------------------------

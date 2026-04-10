@@ -14,13 +14,18 @@ import io.vertx.core.json.JsonObject;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Function;
 
 import org.jooq.Field;
 import org.jooq.ForeignKey;
+import org.jooq.Function18;
 import org.jooq.Index;
 import org.jooq.Name;
 import org.jooq.Record;
+import org.jooq.Records;
+import org.jooq.Row18;
 import org.jooq.Schema;
+import org.jooq.SelectField;
 import org.jooq.Table;
 import org.jooq.TableField;
 import org.jooq.TableOptions;
@@ -259,5 +264,29 @@ public class JooqAsset extends TableImpl<JooqAssetRecord> {
     @Override
     public JooqAsset rename(Table<?> name) {
         return new JooqAsset(name.getQualifiedName(), null);
+    }
+
+    // -------------------------------------------------------------------------
+    // Row18 type methods
+    // -------------------------------------------------------------------------
+
+    @Override
+    public Row18<java.util.UUID, String, Long, String, String, String, Long, String, String, String, LocalDateTime, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID, String, String> fieldsRow() {
+        return (Row18) super.fieldsRow();
+    }
+
+    /**
+     * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
+     */
+    public <U> SelectField<U> mapping(Function18<? super java.util.UUID, ? super String, ? super Long, ? super String, ? super String, ? super String, ? super Long, ? super String, ? super String, ? super String, ? super LocalDateTime, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super String, ? super String, ? extends U> from) {
+        return convertFrom(Records.mapping(from));
+    }
+
+    /**
+     * Convenience mapping calling {@link SelectField#convertFrom(Class,
+     * Function)}.
+     */
+    public <U> SelectField<U> mapping(Class<U> toType, Function18<? super java.util.UUID, ? super String, ? super Long, ? super String, ? super String, ? super String, ? super Long, ? super String, ? super String, ? super String, ? super LocalDateTime, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super String, ? super String, ? extends U> from) {
+        return convertFrom(toType, Records.mapping(from));
     }
 }

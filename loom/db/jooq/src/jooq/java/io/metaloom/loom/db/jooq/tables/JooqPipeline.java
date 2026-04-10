@@ -18,6 +18,7 @@ import java.util.function.Function;
 import org.jooq.Field;
 import org.jooq.ForeignKey;
 import org.jooq.Function12;
+import org.jooq.JSONB;
 import org.jooq.Name;
 import org.jooq.Record;
 import org.jooq.Records;
@@ -72,7 +73,7 @@ public class JooqPipeline extends TableImpl<JooqPipelineRecord> {
     /**
      * The column <code>public.pipeline.definition</code>.
      */
-    public final TableField<JooqPipelineRecord, JsonObject> DEFINITION = createField(DSL.name("definition"), SQLDataType.JSONB.nullable(false).defaultValue(DSL.field("'{}'::jsonb", SQLDataType.JSONB)), this, "", new JsonObjectConverter());
+    public final TableField<JooqPipelineRecord, JSONB> DEFINITION = createField(DSL.name("definition"), SQLDataType.JSONB.nullable(false).defaultValue(DSL.field("'{}'::jsonb", SQLDataType.JSONB)), this, "");
 
     /**
      * The column <code>public.pipeline.enabled</code>.
@@ -90,9 +91,9 @@ public class JooqPipeline extends TableImpl<JooqPipelineRecord> {
     public final TableField<JooqPipelineRecord, Boolean> DRY_RUN = createField(DSL.name("dry_run"), SQLDataType.BOOLEAN.nullable(false).defaultValue(DSL.field("false", SQLDataType.BOOLEAN)), this, "");
 
     /**
-     * The column <code>public.pipeline.meta</code>. Custom meta properties to the element
+     * The column <code>public.pipeline.meta</code>.
      */
-    public final TableField<JooqPipelineRecord, JsonObject> META = createField(DSL.name("meta"), SQLDataType.JSONB, this, "Custom meta properties to the element", new JsonObjectConverter());
+    public final TableField<JooqPipelineRecord, JsonObject> META = createField(DSL.name("meta"), SQLDataType.JSONB, this, "", new JsonObjectConverter());
 
     /**
      * The column <code>public.pipeline.created</code>.
@@ -165,15 +166,25 @@ public class JooqPipeline extends TableImpl<JooqPipelineRecord> {
     private transient JooqUser _pipelineCreatorUuidFkey;
     private transient JooqUser _pipelineEditorUuidFkey;
 
+    /**
+     * Get the implicit join path to the <code>public.user</code> table, via the
+     * <code>pipeline_creator_uuid_fkey</code> key.
+     */
     public JooqUser pipelineCreatorUuidFkey() {
         if (_pipelineCreatorUuidFkey == null)
             _pipelineCreatorUuidFkey = new JooqUser(this, Keys.PIPELINE__PIPELINE_CREATOR_UUID_FKEY);
+
         return _pipelineCreatorUuidFkey;
     }
 
+    /**
+     * Get the implicit join path to the <code>public.user</code> table, via the
+     * <code>pipeline_editor_uuid_fkey</code> key.
+     */
     public JooqUser pipelineEditorUuidFkey() {
         if (_pipelineEditorUuidFkey == null)
             _pipelineEditorUuidFkey = new JooqUser(this, Keys.PIPELINE__PIPELINE_EDITOR_UUID_FKEY);
+
         return _pipelineEditorUuidFkey;
     }
 
@@ -192,31 +203,51 @@ public class JooqPipeline extends TableImpl<JooqPipelineRecord> {
         return new JooqPipeline(alias.getQualifiedName(), this);
     }
 
+    /**
+     * Rename this table
+     */
     @Override
     public JooqPipeline rename(String name) {
         return new JooqPipeline(DSL.name(name), null);
     }
 
+    /**
+     * Rename this table
+     */
     @Override
     public JooqPipeline rename(Name name) {
         return new JooqPipeline(name, null);
     }
 
+    /**
+     * Rename this table
+     */
     @Override
     public JooqPipeline rename(Table<?> name) {
         return new JooqPipeline(name.getQualifiedName(), null);
     }
 
+    // -------------------------------------------------------------------------
+    // Row12 type methods
+    // -------------------------------------------------------------------------
+
     @Override
-    public Row12<java.util.UUID, String, String, JsonObject, Boolean, Integer, Boolean, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
+    public Row12<java.util.UUID, String, String, JSONB, Boolean, Integer, Boolean, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
         return (Row12) super.fieldsRow();
     }
 
-    public <U> SelectField<U> mapping(Function12<? super java.util.UUID, ? super String, ? super String, ? super JsonObject, ? super Boolean, ? super Integer, ? super Boolean, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    /**
+     * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
+     */
+    public <U> SelectField<U> mapping(Function12<? super java.util.UUID, ? super String, ? super String, ? super JSONB, ? super Boolean, ? super Integer, ? super Boolean, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
-    public <U> SelectField<U> mapping(Class<U> toType, Function12<? super java.util.UUID, ? super String, ? super String, ? super JsonObject, ? super Boolean, ? super Integer, ? super Boolean, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    /**
+     * Convenience mapping calling {@link SelectField#convertFrom(Class,
+     * Function)}.
+     */
+    public <U> SelectField<U> mapping(Class<U> toType, Function12<? super java.util.UUID, ? super String, ? super String, ? super JSONB, ? super Boolean, ? super Integer, ? super Boolean, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }
