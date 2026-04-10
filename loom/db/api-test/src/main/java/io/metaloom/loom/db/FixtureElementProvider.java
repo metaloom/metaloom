@@ -24,7 +24,7 @@ public interface FixtureElementProvider extends DaoProvider, TestValues {
 	}
 
 	default Space space() {
-		return projectDao().load(PROJECT_UUID);
+		return spaceDao().load(PROJECT_UUID);
 	}
 
 	default Library library() {

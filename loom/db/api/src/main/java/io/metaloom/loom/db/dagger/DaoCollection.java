@@ -60,7 +60,7 @@ public interface DaoCollection {
 
 	// Management
 
-	SpaceDao projectDao();
+	SpaceDao spaceDao();
 
 	LibraryDao libraryDao();
 

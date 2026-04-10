@@ -178,9 +178,9 @@ public class TestFixtureProvider extends AbstractFixtureProvider {
 	}
 
 	private Space createSpace(User user) {
-		Space space = projectDao().createSpace(user, "test-space");
+		Space space = spaceDao().createSpace(user, "test-space");
 		space.setUuid(PROJECT_UUID);
-		projectDao().store(space);
+		spaceDao().store(space);
 		return space;
 	}
 

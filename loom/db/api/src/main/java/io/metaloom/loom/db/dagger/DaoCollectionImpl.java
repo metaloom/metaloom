@@ -179,7 +179,7 @@ public class DaoCollectionImpl implements DaoCollection {
 	}
 
 	@Override
-	public SpaceDao projectDao() {
+	public SpaceDao spaceDao() {
 		return projectDao.get();
 	}
 

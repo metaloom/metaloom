@@ -84,8 +84,8 @@ public interface DaoProvider extends DaoCollection {
 
 	// Management
 
-	default SpaceDao projectDao() {
-		return daos().projectDao();
+	default SpaceDao spaceDao() {
+		return daos().spaceDao();
 	}
 
 	default LibraryDao libraryDao() {
