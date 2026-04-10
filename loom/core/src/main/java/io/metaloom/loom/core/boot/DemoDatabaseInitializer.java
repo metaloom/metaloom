@@ -15,6 +15,8 @@ import io.metaloom.loom.db.model.collection.Collection;
 import io.metaloom.loom.db.model.collection.CollectionDao;
 import io.metaloom.loom.db.model.pipeline.Pipeline;
 import io.metaloom.loom.db.model.pipeline.PipelineDao;
+import io.metaloom.loom.db.model.pool.AssetPool;
+import io.metaloom.loom.db.model.pool.AssetPoolDao;
 import io.metaloom.loom.db.model.project.Project;
 import io.metaloom.loom.db.model.project.ProjectDao;
 import io.metaloom.loom.db.model.tag.AssetTag;
@@ -36,6 +38,9 @@ public class DemoDatabaseInitializer {
 	private static final String DEMO_COLLECTION_IMAGES = "Demo Images";
 	private static final String DEMO_COLLECTION_VIDEOS = "Demo Videos";
 	private static final String DEMO_PIPELINE_NAME = "Default Pipeline";
+	private static final String DEMO_POOL_PRODUCTION = "Production Storage";
+	private static final String DEMO_POOL_INGEST = "Ingest Hot Storage";
+	private static final String DEMO_POOL_ARCHIVE = "Archive S3";
 
 	private final UserDao userDao;
 	private final AssetDao assetDao;
@@ -43,16 +48,18 @@ public class DemoDatabaseInitializer {
 	private final TagDao tagDao;
 	private final CollectionDao collectionDao;
 	private final PipelineDao pipelineDao;
+	private final AssetPoolDao assetPoolDao;
 
 	@Inject
 	public DemoDatabaseInitializer(UserDao userDao, AssetDao assetDao, ProjectDao projectDao,
-		TagDao tagDao, CollectionDao collectionDao, PipelineDao pipelineDao) {
+		TagDao tagDao, CollectionDao collectionDao, PipelineDao pipelineDao, AssetPoolDao assetPoolDao) {
 		this.userDao = userDao;
 		this.assetDao = assetDao;
 		this.projectDao = projectDao;
 		this.tagDao = tagDao;
 		this.collectionDao = collectionDao;
 		this.pipelineDao = pipelineDao;
+		this.assetPoolDao = assetPoolDao;
 	}
 
 	/**
@@ -109,6 +116,11 @@ public class DemoDatabaseInitializer {
 		pipeline.setPriority(1);
 		pipelineDao.store(pipeline);
 		log.info("Created demo pipeline: {}", DEMO_PIPELINE_NAME);
+
+		// --- Asset Pools ---
+		createAssetPool(admin, DEMO_POOL_PRODUCTION, "/mnt/media/production", null, null, null);
+		createAssetPool(admin, DEMO_POOL_INGEST, "/mnt/fast-ssd/ingest", null, null, null);
+		createAssetPool(admin, DEMO_POOL_ARCHIVE, null, "metaloom-archive-prod", "eu-central-1", "https://s3.eu-central-1.amazonaws.com");
 
 		// --- Assets ---
 		Asset[] imageAssets = {
@@ -205,6 +217,30 @@ public class DemoDatabaseInitializer {
 		return col;
 	}
 
+	private AssetPool createAssetPool(User admin, String name, String fsPath, String s3Bucket, String s3Region, String s3Endpoint) {
+		AssetPool pool = assetPoolDao.createAssetPool(admin.getUuid(), name);
+		pool.setUuid(UUIDUtils.randomUUID());
+		pool.setCreator(admin);
+		pool.setEditor(admin);
+		pool.setCreated(Instant.now());
+		pool.setEdited(Instant.now());
+		if (fsPath != null) {
+			pool.setFsPath(fsPath);
+		}
+		if (s3Bucket != null) {
+			pool.setS3Bucket(s3Bucket);
+		}
+		if (s3Region != null) {
+			pool.setS3Region(s3Region);
+		}
+		if (s3Endpoint != null) {
+			pool.setS3Endpoint(s3Endpoint);
+		}
+		assetPoolDao.store(pool);
+		log.info("Created demo asset pool: {}", name);
+		return pool;
+	}
+
 	private Asset createAsset(User admin, String filename, String mimeType, long size, String origin) {
 		String hashHex = String.format("%0128x", new java.math.BigInteger(1, filename.getBytes(java.nio.charset.StandardCharsets.UTF_8)))
 			.substring(0, 128);
@@ -223,5 +259,21 @@ public class DemoDatabaseInitializer {
 		assetDao.store(asset);
 		log.info("Created demo asset: {}", filename);
 		return asset;
+	}
+
+	private AssetPool createAssetPool(User admin, String name, String fsPath, String s3Bucket, String s3Region, String s3Endpoint) {
+		AssetPool pool = assetPoolDao.createAssetPool(admin.getUuid(), name);
+		pool.setUuid(UUIDUtils.randomUUID());
+		pool.setFsPath(fsPath);
+		pool.setS3Bucket(s3Bucket);
+		pool.setS3Region(s3Region);
+		pool.setS3Endpoint(s3Endpoint);
+		pool.setCreator(admin);
+		pool.setEditor(admin);
+		pool.setCreated(Instant.now());
+		pool.setEdited(Instant.now());
+		assetPoolDao.store(pool);
+		log.info("Created demo asset pool: {}", name);
+		return pool;
 	}
 }

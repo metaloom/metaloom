@@ -33,7 +33,7 @@ public class LoomOpenAPI {
 		ModelExamples examples = new ModelExamples();
 		endpoints.add(new UserEndpoint(null, deps, examples));
 		endpoints.add(new GroupEndpoint(null, deps, examples));
-		endpoints.add(new AssetEndpoint(null, null, null, null, null, deps, examples));
+		endpoints.add(new AssetEndpoint(null, null, null, null, deps, examples));
 		ServerFailureHandler failureHandler = null;
 		RESTService rest = new RESTService(vertx, options, server, router, endpoints, failureHandler);
 		rest.setupRouter();

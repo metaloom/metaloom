@@ -16,7 +16,6 @@ import io.metaloom.loom.rest.EndpointDependencies;
 import io.metaloom.loom.rest.model.ModelExamples;
 import io.metaloom.loom.rest.service.impl.AssetEndpointService;
 import io.metaloom.loom.rest.service.impl.AssetBinaryEndpointService;
-import io.metaloom.loom.rest.service.impl.AssetLocationEndpointService;
 import io.metaloom.loom.rest.service.impl.ReactionEndpointService;
 import io.metaloom.loom.rest.service.impl.TagEndpointService;
 import io.metaloom.utils.hash.SHA512;
@@ -27,20 +26,18 @@ public class AssetEndpoint extends AbstractEndpoint {
 
 	private final AssetEndpointService service;
 	private final TagEndpointService tagService;
-	private final AssetLocationEndpointService locationService;
 	private final AssetBinaryEndpointService binaryService;
 	private final ReactionEndpointService reactionService;
 	private final ModelExamples examples;
 
 	@Inject
-	public AssetEndpoint(AssetEndpointService service, TagEndpointService tagService, AssetLocationEndpointService locationService,
+	public AssetEndpoint(AssetEndpointService service, TagEndpointService tagService,
 		AssetBinaryEndpointService binaryService,
 		ReactionEndpointService reactionService,
 		EndpointDependencies deps, ModelExamples examples) {
 		super(deps);
 		this.service = service;
 		this.tagService = tagService;
-		this.locationService = locationService;
 		this.binaryService = binaryService;
 		this.reactionService = reactionService;
 		this.examples = examples;
