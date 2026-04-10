@@ -44,7 +44,7 @@ public class DaoCollectionImpl implements DaoCollection {
 	private final Lazy<WebhookDao> webhookDao;
 	private final Lazy<CollectionDao> collectionDao;
 	private final Lazy<LibraryDao> libraryDao;
-	private final Lazy<SpaceDao> projectDao;
+	private final Lazy<SpaceDao> spaceDao;
 	private final Lazy<BlacklistDao> blacklistDao;
 	private final Lazy<TaskDao> taskDao;
 	private final Lazy<ReactionDao> reactionDao;
@@ -63,7 +63,7 @@ public class DaoCollectionImpl implements DaoCollection {
 		Lazy<AssetComponentDao> assetComponentDao,
 		Lazy<WebhookDao> webhookDao, Lazy<CollectionDao> collectionDao, Lazy<LibraryDao> libraryDao,
 		Lazy<AnnotationDao> annotationDao, Lazy<TaskDao> taskDao, Lazy<ReactionDao> reactionDao,
-		Lazy<BlacklistDao> blacklistDao, Lazy<CommentDao> commentDao, Lazy<SpaceDao> projectDao,
+		Lazy<BlacklistDao> blacklistDao, Lazy<CommentDao> commentDao, Lazy<SpaceDao> spaceDao,
 		Lazy<ClusterDao> clusterDao, Lazy<EmbeddingDao> embeddingDao, Lazy<TokenDao> tokenDao,
 		Lazy<TagDao> tagDao, Lazy<AttachmentDao> attachmentDao, Lazy<PipelineDao> pipelineDao,
 		Lazy<AssetPoolDao> assetPoolDao) {
@@ -83,7 +83,7 @@ public class DaoCollectionImpl implements DaoCollection {
 		this.reactionDao = reactionDao;
 		this.blacklistDao = blacklistDao;
 		this.commentDao = commentDao;
-		this.projectDao = projectDao;
+		this.spaceDao = spaceDao;
 		this.clusterDao = clusterDao;
 		this.embeddingDao = embeddingDao;
 		this.tokenDao = tokenDao;
@@ -180,7 +180,7 @@ public class DaoCollectionImpl implements DaoCollection {
 
 	@Override
 	public SpaceDao spaceDao() {
-		return projectDao.get();
+		return spaceDao.get();
 	}
 
 	@Override

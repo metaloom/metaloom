@@ -16,21 +16,21 @@ public class SpaceModelBuilderTest extends AbstractModelBuilderTest {
 	@Test
 	@Override
 	void testResponseModel() throws IOException {
-		Space space = mockProject("the_name");
+		Space space = mockSpace("the_name");
 		assertWithModel(builder().toResponse(space), "space.response");
 	}
 
 	@Test
 	@Override
 	void testListResponseModel() throws IOException {
-		Space project1 = mockProject("the_name_1");
-		Space project2 = mockProject("the_name_2");
-		Page<Space> page = mockPage(project1, project2);
+		Space space1 = mockSpace("the_name_1");
+		Space space2 = mockSpace("the_name_2");
+		Page<Space> page = mockPage(space1, space2);
 		SpaceListResponse list = builder().toSpaceList(page);
 		assertWithModel(list, "space.list_response");
 	}
 
-	public Space mockProject(String name) {
+	public Space mockSpace(String name) {
 		Space space = mock(Space.class);
 		when(space.getName()).thenReturn(name);
 		when(space.getUuid()).thenReturn(PROJECT_UUID);

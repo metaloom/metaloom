@@ -22,7 +22,7 @@ import io.vertx.core.json.JsonObject;
  * MCP tool: list_collections
  *
  * <p>Browse and search asset collections. Collections provide hierarchical
- * grouping of assets for projects or topics.</p>
+ * grouping of assets for spaces or topics.</p>
  */
 @Singleton
 public class ListCollectionsTool implements MCPTool {
@@ -38,7 +38,7 @@ public class ListCollectionsTool implements MCPTool {
 	public MCPToolDescriptor descriptor() {
 		return new MCPToolDescriptor(
 			"list_collections",
-			"List available asset collections. Collections group assets together for projects or topics. Returns collection names and UUIDs.",
+			"List available asset collections. Collections group assets together for spaces or topics. Returns collection names and UUIDs.",
 			MCPToolDescriptor.buildInputSchema(List.of(
 				new MCPToolParam("limit", "integer", "Maximum number of collections to return (default: 25)", false)
 			))

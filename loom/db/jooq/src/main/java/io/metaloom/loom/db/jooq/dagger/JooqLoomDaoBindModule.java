@@ -97,7 +97,7 @@ public abstract class JooqLoomDaoBindModule {
 	abstract LibraryDao libraryDao(LibraryDaoImpl dao);
 
 	@Binds
-	abstract SpaceDao projectDao(SpaceDaoImpl dao);
+	abstract SpaceDao spaceDao(SpaceDaoImpl dao);
 
 	@Binds
 	abstract TaskDao taskDao(TaskDaoImpl dao);

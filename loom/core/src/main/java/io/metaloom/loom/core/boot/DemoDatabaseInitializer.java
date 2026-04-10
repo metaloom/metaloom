@@ -34,7 +34,7 @@ public class DemoDatabaseInitializer {
 
 	private static final Logger log = LoggerFactory.getLogger(DemoDatabaseInitializer.class);
 
-	private static final String DEMO_PROJECT_NAME = "Demo Space";
+	private static final String DEMO_SPACE_NAME = "Demo Space";
 	private static final String DEMO_COLLECTION_IMAGES = "Demo Images";
 	private static final String DEMO_COLLECTION_VIDEOS = "Demo Videos";
 	private static final String DEMO_PIPELINE_NAME = "Default Pipeline";
@@ -44,18 +44,18 @@ public class DemoDatabaseInitializer {
 
 	private final UserDao userDao;
 	private final AssetDao assetDao;
-	private final SpaceDao projectDao;
+	private final SpaceDao spaceDao;
 	private final TagDao tagDao;
 	private final CollectionDao collectionDao;
 	private final PipelineDao pipelineDao;
 	private final AssetPoolDao assetPoolDao;
 
 	@Inject
-	public DemoDatabaseInitializer(UserDao userDao, AssetDao assetDao, SpaceDao projectDao,
+	public DemoDatabaseInitializer(UserDao userDao, AssetDao assetDao, SpaceDao spaceDao,
 		TagDao tagDao, CollectionDao collectionDao, PipelineDao pipelineDao, AssetPoolDao assetPoolDao) {
 		this.userDao = userDao;
 		this.assetDao = assetDao;
-		this.projectDao = projectDao;
+		this.spaceDao = spaceDao;
 		this.tagDao = tagDao;
 		this.collectionDao = collectionDao;
 		this.pipelineDao = pipelineDao;
@@ -81,14 +81,14 @@ public class DemoDatabaseInitializer {
 		log.info("Populating demo data…");
 
 		// --- Space ---
-		Space space = projectDao.createSpace(adminUuid, DEMO_PROJECT_NAME);
+		Space space = spaceDao.createSpace(adminUuid, DEMO_SPACE_NAME);
 		space.setUuid(UUIDUtils.randomUUID());
 		space.setCreator(admin);
 		space.setEditor(admin);
 		space.setCreated(Instant.now());
 		space.setEdited(Instant.now());
-		projectDao.store(space);
-		log.info("Created demo space: {}", DEMO_PROJECT_NAME);
+		spaceDao.store(space);
+		log.info("Created demo space: {}", DEMO_SPACE_NAME);
 
 		// --- Tags ---
 		AssetTag tagNature = createAssetTag(admin, "nature", "category");
