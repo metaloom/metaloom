@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +24,8 @@ import io.metaloom.cortex.pipeline.api.PipelineResult;
 import io.metaloom.cortex.pipeline.api.cache.NodeCacheProvider;
 import io.metaloom.cortex.pipeline.api.event.NodeCompletionEvent;
 import io.metaloom.cortex.pipeline.api.event.PipelineEventBus;
+import io.metaloom.cortex.pipeline.api.event.PipelineTrackingEvent;
+import io.metaloom.cortex.pipeline.api.event.PipelineTrackingEvent.Type;
 import io.metaloom.cortex.pipeline.api.filter.FilterBranch;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 import io.metaloom.cortex.pipeline.api.sync.LoomBulkSyncCollector;
@@ -60,6 +63,8 @@ public class ReactivePipelineExecutor implements PipelineExecutor {
 	private final PipelineEventBus eventBus;
 	private final LoomBulkSyncCollector syncCollector;
 	private final Map<String, Semaphore> nodeSemaphores = new ConcurrentHashMap<>();
+	private final Map<String, AtomicLong> nodeProcessedCounts = new ConcurrentHashMap<>();
+	private final Map<String, AtomicLong> nodeFailedCounts = new ConcurrentHashMap<>();
 
 	public ReactivePipelineExecutor(int maxConcurrentMedia) {
 		this(maxConcurrentMedia, new DefaultPipelineEventBus(), null);
@@ -101,13 +106,20 @@ public class ReactivePipelineExecutor implements PipelineExecutor {
 		for (PipelineNode node : nodes) {
 			node.initialize();
 			nodeSemaphores.computeIfAbsent(node.id(), k -> new Semaphore(node.concurrency()));
+			nodeProcessedCounts.computeIfAbsent(node.id(), k -> new AtomicLong());
+			nodeFailedCounts.computeIfAbsent(node.id(), k -> new AtomicLong());
 		}
+
+		eventBus.publishTracking(new PipelineTrackingEvent(
+				Type.PIPELINE_STARTED, pipeline.name(), null, null));
 
 		return media.flatMap(
 				m -> executeSingle(pipeline, m)
 						.toFlowable()
 						.subscribeOn(Schedulers.io()),
-				maxConcurrentMedia);
+				maxConcurrentMedia)
+				.doOnComplete(() -> eventBus.publishTracking(new PipelineTrackingEvent(
+						Type.PIPELINE_COMPLETED, pipeline.name(), null, null)));
 	}
 
 	/**
@@ -182,6 +194,8 @@ public class ReactivePipelineExecutor implements PipelineExecutor {
 				if (depResult != null && depResult.getState() == NodeState.FAILED && node.isBlocking()) {
 					NodeResult skipped = NodeResult.skipped(node.id(), "Dependency " + depId + " failed");
 					eventBus.publish(new NodeCompletionEvent(node.id(), media, skipped));
+					emitTrackingEvent(Type.NODE_SKIPPED, pipeline.name(), node.id(), media,
+							0, "Dependency " + depId + " failed");
 					return Single.just(skipped);
 				}
 			}
@@ -204,6 +218,8 @@ public class ReactivePipelineExecutor implements PipelineExecutor {
 									+ (passed ? "PASS" : "REJECT") + " vs required " + required;
 							NodeResult skipped = NodeResult.skipped(node.id(), reason);
 							eventBus.publish(new NodeCompletionEvent(node.id(), media, skipped));
+							emitTrackingEvent(Type.NODE_SKIPPED, pipeline.name(), node.id(), media,
+									0, reason);
 							return Single.just(skipped);
 						}
 					}
@@ -225,8 +241,16 @@ public class ReactivePipelineExecutor implements PipelineExecutor {
 
 		return Single.<NodeResult>fromCallable(() -> {
 			Semaphore semaphore = nodeSemaphores.get(node.id());
+
+			// Emit NODE_BUFFERED if the semaphore is not immediately available
+			if (semaphore.availablePermits() == 0) {
+				emitTrackingEvent(Type.NODE_BUFFERED, pipeline.name(), node.id(), media, 0, null);
+			}
+
 			semaphore.acquire();
 			try {
+				emitTrackingEvent(Type.NODE_STARTED, pipeline.name(), node.id(), media, 0, null);
+
 				// Check cache
 				NodeCacheProvider cache = node.cacheProvider() != null ? node.cacheProvider() : NoOpNodeCache.INSTANCE;
 				Optional<NodeResult> cached = cache.get(node.id(), media);
@@ -259,9 +283,29 @@ public class ReactivePipelineExecutor implements PipelineExecutor {
 			}
 		})
 		.subscribeOn(Schedulers.io())
-		.doOnSuccess(result -> eventBus.publish(new NodeCompletionEvent(node.id(), media, result)))
+		.doOnSuccess(result -> {
+			eventBus.publish(new NodeCompletionEvent(node.id(), media, result));
+			Type trackingType = switch (result.getState()) {
+				case COMPLETED -> {
+					nodeProcessedCounts.get(node.id()).incrementAndGet();
+					yield Type.NODE_COMPLETED;
+				}
+				case FAILED -> {
+					nodeFailedCounts.get(node.id()).incrementAndGet();
+					yield Type.NODE_FAILED;
+				}
+				case SKIPPED -> Type.NODE_SKIPPED;
+				default -> null;
+			};
+			if (trackingType != null) {
+				emitTrackingEvent(trackingType, pipeline.name(), node.id(), media,
+						result.getDurationMs(), result.getMessage());
+			}
+		})
 		.onErrorReturn(e -> {
 			log.error("Node {} failed on {}: {}", node.id(), media.absolutePath(), e.getMessage(), e);
+			nodeFailedCounts.get(node.id()).incrementAndGet();
+			emitTrackingEvent(Type.NODE_FAILED, pipeline.name(), node.id(), media, 0, e.getMessage());
 			return NodeResult.failed(node.id(), 0, e.getMessage());
 		});
 	}
@@ -277,5 +321,12 @@ public class ReactivePipelineExecutor implements PipelineExecutor {
 	@Override
 	public void shutdown() {
 		eventBus.clear();
+	}
+
+	private void emitTrackingEvent(Type type, String pipelineName, String nodeId,
+			LoomMedia media, long durationMs, String message) {
+		String mediaPath = media != null ? media.absolutePath().toString() : null;
+		eventBus.publishTracking(new PipelineTrackingEvent(type, pipelineName, nodeId,
+				mediaPath, durationMs, message));
 	}
 }

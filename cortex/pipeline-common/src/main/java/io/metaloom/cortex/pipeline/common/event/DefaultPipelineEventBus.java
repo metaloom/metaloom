@@ -11,19 +11,21 @@ import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.pipeline.api.event.NodeCompletionEvent;
 import io.metaloom.cortex.pipeline.api.event.PipelineEventBus;
+import io.metaloom.cortex.pipeline.api.event.PipelineTrackingEvent;
 
 /**
- * CompletableFuture-compatible event bus implementation using concurrent data structures.
+ * Event bus implementation using concurrent data structures.
  * Events are dispatched synchronously on the publishing thread for low-latency communication
- * between pipeline nodes.
+ * between pipeline nodes and tracking subscribers.
  */
 public class DefaultPipelineEventBus implements PipelineEventBus {
 
 	private static final Logger log = LoggerFactory.getLogger(DefaultPipelineEventBus.class);
 
-	private final ConcurrentHashMap<String, List<SubscriptionEntry>> nodeSubscriptions = new ConcurrentHashMap<>();
-	private final List<SubscriptionEntry> globalSubscriptions = new CopyOnWriteArrayList<>();
-	private final ConcurrentHashMap<String, SubscriptionEntry> handleIndex = new ConcurrentHashMap<>();
+	private final ConcurrentHashMap<String, List<SubscriptionEntry<NodeCompletionEvent>>> nodeSubscriptions = new ConcurrentHashMap<>();
+	private final List<SubscriptionEntry<NodeCompletionEvent>> globalSubscriptions = new CopyOnWriteArrayList<>();
+	private final List<SubscriptionEntry<PipelineTrackingEvent>> trackingSubscriptions = new CopyOnWriteArrayList<>();
+	private final ConcurrentHashMap<String, Runnable> handleCleanup = new ConcurrentHashMap<>();
 
 	@Override
 	public void publish(NodeCompletionEvent event) {
@@ -31,9 +33,9 @@ public class DefaultPipelineEventBus implements PipelineEventBus {
 		log.debug("Publishing completion event for node: {}", nodeId);
 
 		// Notify node-specific subscribers
-		List<SubscriptionEntry> subs = nodeSubscriptions.get(nodeId);
+		List<SubscriptionEntry<NodeCompletionEvent>> subs = nodeSubscriptions.get(nodeId);
 		if (subs != null) {
-			for (SubscriptionEntry entry : subs) {
+			for (SubscriptionEntry<NodeCompletionEvent> entry : subs) {
 				try {
 					entry.listener.accept(event);
 				} catch (Exception e) {
@@ -43,7 +45,7 @@ public class DefaultPipelineEventBus implements PipelineEventBus {
 		}
 
 		// Notify global subscribers
-		for (SubscriptionEntry entry : globalSubscriptions) {
+		for (SubscriptionEntry<NodeCompletionEvent> entry : globalSubscriptions) {
 			try {
 				entry.listener.accept(event);
 			} catch (Exception e) {
@@ -53,35 +55,51 @@ public class DefaultPipelineEventBus implements PipelineEventBus {
 	}
 
 	@Override
+	public void publishTracking(PipelineTrackingEvent event) {
+		log.debug("Publishing tracking event: {}", event);
+		for (SubscriptionEntry<PipelineTrackingEvent> entry : trackingSubscriptions) {
+			try {
+				entry.listener.accept(event);
+			} catch (Exception e) {
+				log.error("Error in tracking event listener: {}", e.getMessage(), e);
+			}
+		}
+	}
+
+	@Override
 	public String subscribe(String nodeId, Consumer<NodeCompletionEvent> listener) {
 		String handle = UUID.randomUUID().toString();
-		SubscriptionEntry entry = new SubscriptionEntry(handle, nodeId, listener);
-		nodeSubscriptions.computeIfAbsent(nodeId, k -> new CopyOnWriteArrayList<>()).add(entry);
-		handleIndex.put(handle, entry);
+		SubscriptionEntry<NodeCompletionEvent> entry = new SubscriptionEntry<>(handle, listener);
+		List<SubscriptionEntry<NodeCompletionEvent>> subs = nodeSubscriptions.computeIfAbsent(nodeId,
+				k -> new CopyOnWriteArrayList<>());
+		subs.add(entry);
+		handleCleanup.put(handle, () -> subs.remove(entry));
 		return handle;
 	}
 
 	@Override
 	public String subscribeAll(Consumer<NodeCompletionEvent> listener) {
 		String handle = UUID.randomUUID().toString();
-		SubscriptionEntry entry = new SubscriptionEntry(handle, null, listener);
+		SubscriptionEntry<NodeCompletionEvent> entry = new SubscriptionEntry<>(handle, listener);
 		globalSubscriptions.add(entry);
-		handleIndex.put(handle, entry);
+		handleCleanup.put(handle, () -> globalSubscriptions.remove(entry));
+		return handle;
+	}
+
+	@Override
+	public String subscribeTracking(Consumer<PipelineTrackingEvent> listener) {
+		String handle = UUID.randomUUID().toString();
+		SubscriptionEntry<PipelineTrackingEvent> entry = new SubscriptionEntry<>(handle, listener);
+		trackingSubscriptions.add(entry);
+		handleCleanup.put(handle, () -> trackingSubscriptions.remove(entry));
 		return handle;
 	}
 
 	@Override
 	public void unsubscribe(String handle) {
-		SubscriptionEntry entry = handleIndex.remove(handle);
-		if (entry != null) {
-			if (entry.nodeId != null) {
-				List<SubscriptionEntry> subs = nodeSubscriptions.get(entry.nodeId);
-				if (subs != null) {
-					subs.remove(entry);
-				}
-			} else {
-				globalSubscriptions.remove(entry);
-			}
+		Runnable cleanup = handleCleanup.remove(handle);
+		if (cleanup != null) {
+			cleanup.run();
 		}
 	}
 
@@ -89,17 +107,16 @@ public class DefaultPipelineEventBus implements PipelineEventBus {
 	public void clear() {
 		nodeSubscriptions.clear();
 		globalSubscriptions.clear();
-		handleIndex.clear();
+		trackingSubscriptions.clear();
+		handleCleanup.clear();
 	}
 
-	private static class SubscriptionEntry {
+	private static class SubscriptionEntry<E> {
 		final String handle;
-		final String nodeId;
-		final Consumer<NodeCompletionEvent> listener;
+		final Consumer<E> listener;
 
-		SubscriptionEntry(String handle, String nodeId, Consumer<NodeCompletionEvent> listener) {
+		SubscriptionEntry(String handle, Consumer<E> listener) {
 			this.handle = handle;
-			this.nodeId = nodeId;
 			this.listener = listener;
 		}
 	}

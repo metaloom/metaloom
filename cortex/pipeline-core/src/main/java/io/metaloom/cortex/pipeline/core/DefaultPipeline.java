@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import io.metaloom.cortex.pipeline.api.Pipeline;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
@@ -33,6 +34,13 @@ import io.metaloom.cortex.pipeline.api.node.PipelineNode;
  * </pre>
  */
 public class DefaultPipeline implements Pipeline {
+
+	/**
+	 * Node IDs must be lowercase alphanumeric with hyphens, 1-64 characters.
+	 * This ensures they can be used as stable identifiers in UI mapping, WebSocket events,
+	 * and serialisation without ambiguity.
+	 */
+	public static final Pattern NODE_ID_PATTERN = Pattern.compile("^[a-z0-9]([a-z0-9\\-]{0,62}[a-z0-9])?$");
 
 	private final String name;
 	private final String description;
@@ -67,6 +75,7 @@ public class DefaultPipeline implements Pipeline {
 
 	/**
 	 * Walk the connection graph starting from the source node and collect all reachable nodes.
+	 * Validates that every node has a unique, well-formed ID.
 	 */
 	private List<PipelineNode> discoverNodes(PipelineNode source) {
 		Set<String> visited = new LinkedHashSet<>();
@@ -74,18 +83,38 @@ public class DefaultPipeline implements Pipeline {
 		List<PipelineNode> result = new ArrayList<>();
 
 		queue.add(source);
-		visited.add(source.id());
+		validateAndRegisterNodeId(source, visited);
 
 		while (!queue.isEmpty()) {
 			PipelineNode current = queue.poll();
 			result.add(current);
 			for (PipelineNode child : current.children()) {
-				if (visited.add(child.id())) {
+				if (!visited.contains(child.id())) {
+					validateAndRegisterNodeId(child, visited);
 					queue.add(child);
 				}
 			}
 		}
 		return result;
+	}
+
+	private void validateAndRegisterNodeId(PipelineNode node, Set<String> visited) {
+		String id = node.id();
+		if (id == null || id.isBlank()) {
+			throw new IllegalStateException(
+					"Pipeline '" + name + "': node '" + node.name() + "' has a null or blank id");
+		}
+		if (!NODE_ID_PATTERN.matcher(id).matches()) {
+			throw new IllegalStateException(
+					"Pipeline '" + name + "': node id '" + id + "' is invalid. "
+							+ "IDs must match " + NODE_ID_PATTERN.pattern()
+							+ " (lowercase alphanumeric with hyphens, 1-64 chars)");
+		}
+		if (!visited.add(id)) {
+			throw new IllegalStateException(
+					"Pipeline '" + name + "': duplicate node id '" + id + "'. "
+							+ "Every node in a pipeline must have a unique id.");
+		}
 	}
 
 	@Override

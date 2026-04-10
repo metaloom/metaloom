@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.loom.rest.AbstractEndpoint;
 import io.metaloom.loom.rest.EndpointDependencies;
 import io.metaloom.loom.rest.model.ModelExamples;
+import io.metaloom.loom.rest.model.pipeline.event.PipelineEventMessage;
 import io.metaloom.loom.rest.model.processor.ProcessorListResponse;
 import io.metaloom.loom.rest.model.processor.ProcessorResponse;
 import io.metaloom.loom.rest.model.processor.ProcessorState;
@@ -19,6 +20,7 @@ import io.metaloom.loom.rest.model.processor.message.ProcessorMessage;
 import io.metaloom.loom.rest.model.processor.message.ProcessorMessageType;
 import io.metaloom.loom.rest.model.processor.message.ProcessorRegistration;
 import io.metaloom.loom.rest.model.processor.workorder.WorkOrderResult;
+import io.metaloom.loom.rest.service.impl.PipelineEventBroadcaster;
 import io.metaloom.loom.rest.service.impl.ProcessorRegistry;
 import io.metaloom.loom.rest.service.impl.ProcessorRegistry.ConnectedProcessor;
 import io.vertx.core.http.ServerWebSocket;
@@ -47,12 +49,15 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 	private static final Logger log = LoggerFactory.getLogger(ProcessorEndpoint.class);
 
 	private final ProcessorRegistry registry;
+	private final PipelineEventBroadcaster pipelineEventBroadcaster;
 	private final ModelExamples examples;
 
 	@Inject
-	public ProcessorEndpoint(ProcessorRegistry registry, EndpointDependencies deps, ModelExamples examples) {
+	public ProcessorEndpoint(ProcessorRegistry registry, PipelineEventBroadcaster pipelineEventBroadcaster,
+			EndpointDependencies deps, ModelExamples examples) {
 		super(deps);
 		this.registry = registry;
+		this.pipelineEventBroadcaster = pipelineEventBroadcaster;
 		this.examples = examples;
 	}
 
@@ -159,6 +164,9 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 				case WORK_ORDER_RESULT:
 					handleWorkOrderResult(ws, msg, nodeIdHolder[0]);
 					break;
+				case PIPELINE_EVENT:
+					handlePipelineEvent(ws, msg, nodeIdHolder[0]);
+					break;
 				default:
 					sendError(ws, "Unexpected message type: " + msg.getType());
 					break;
@@ -246,6 +254,19 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 		log.info("Work order result received from {}: workOrderId={}, status={}",
 			nodeId, result.getWorkOrderId(), result.getStatus());
 		// TODO: Forward the result to the appropriate work order handler / pipeline
+	}
+
+	private void handlePipelineEvent(ServerWebSocket ws, ProcessorMessage msg, String nodeId) {
+		if (nodeId == null) {
+			sendError(ws, "Not registered. Send REGISTER first.");
+			return;
+		}
+		if (msg.getBody() == null) {
+			sendError(ws, "PIPELINE_EVENT message must include a body");
+			return;
+		}
+		PipelineEventMessage event = msg.getBody().mapTo(PipelineEventMessage.class);
+		pipelineEventBroadcaster.broadcast(event);
 	}
 
 	private void sendError(ServerWebSocket ws, String message) {

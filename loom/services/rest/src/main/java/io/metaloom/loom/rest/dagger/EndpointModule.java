@@ -20,6 +20,7 @@ import io.metaloom.loom.rest.endpoint.impl.GraphQLEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.GroupEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.LibraryEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.PipelineEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.PipelineEventEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.ProcessorEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.LoginEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.SpaceEndpoint;
@@ -51,6 +52,7 @@ public class EndpointModule {
 		WebhookEndpoint webhookEndpoint,
 		LibraryEndpoint libraryEndpoint,
 		PipelineEndpoint pipelineEndpoint,
+		PipelineEventEndpoint pipelineEventEndpoint,
 		ProcessorEndpoint processorEndpoint,
 		SpaceEndpoint spaceEndpoint,
 		LoginEndpoint loginEndpoint,
@@ -73,6 +75,7 @@ public class EndpointModule {
 			webhookEndpoint,
 			libraryEndpoint,
 			pipelineEndpoint,
+			pipelineEventEndpoint,
 			processorEndpoint,
 			spaceEndpoint,
 			loginEndpoint,

@@ -22,6 +22,9 @@ public enum ProcessorMessageType {
 	/** Work order result from processor */
 	WORK_ORDER_RESULT,
 
+	/** Pipeline tracking event from processor (forwarded to UI clients) */
+	PIPELINE_EVENT,
+
 	// --- Messages FROM loom TO processor ---
 
 	/** Registration acknowledgement from loom */
