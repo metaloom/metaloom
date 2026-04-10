@@ -11,6 +11,9 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.ServerSocket;
 import java.net.URL;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.Statement;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
@@ -24,6 +27,9 @@ import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.rest.model.asset.AssetListResponse;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.auth.AuthLoginResponse;
+import io.metaloom.loom.rest.model.tag.TagCreateRequest;
+import io.metaloom.loom.rest.model.tag.TagListResponse;
+import io.metaloom.loom.rest.model.tag.TagResponse;
 
 /**
  * End-to-end test that starts the Loom demo jar as a local process (backed by a host-local PostgreSQL instance) and verifies login works through the real REST
@@ -40,6 +46,12 @@ public class LoginE2ETest {
 	private static final int REST_PORT = 8092;
 	private static final String DB_HOST = System.getProperty("loom.db.host", "127.0.0.1");
 	private static final int DB_PORT = Integer.getInteger("loom.db.port", 5432);
+
+	// Privileged PostgreSQL credentials used to (re)create the loom database
+	private static final String PG_ADMIN_USER = System.getProperty("loom.pg.admin.user", "postgres");
+	private static final String PG_ADMIN_PASS = System.getProperty("loom.pg.admin.password", "finger");
+
+	// Application-level credentials used by the Loom server at runtime
 	private static final String DB_USER = System.getProperty("loom.db.username", "loom");
 	private static final String DB_PASS = System.getProperty("loom.db.password", "loom");
 	private static final String DB_NAME = System.getProperty("loom.db.name", "loom");
@@ -48,6 +60,8 @@ public class LoginE2ETest {
 
 	@BeforeAll
 	static void startLoom() throws Exception {
+		setupDatabase();
+
 		String jarPath = System.getProperty("loom.jar", resolveLoomJar());
 		log.info("Starting Loom demo from jar: {}", jarPath);
 
@@ -266,6 +280,135 @@ public class LoginE2ETest {
 
 		assertEquals(0, proc.exitValue(),
 			"Playwright tests failed (exit code " + proc.exitValue() + "):\n" + output);
+	}
+
+	/**
+	 * Verify tag CRUD via REST API: list, create, update, delete.
+	 */
+	@Test
+	void testTagCRUD() throws Exception {
+		try (LoomHttpClient client = LoomHttpClient.builder()
+			.setHostname("localhost")
+			.setReadTimeout(Duration.ofSeconds(30))
+			.setPort(REST_PORT)
+			.build()) {
+
+			AuthLoginResponse loginResp = client.login("admin", "finger").sync();
+			client.setToken(loginResp.getToken());
+
+			// List existing tags (demo data)
+			TagListResponse listResp = client.listTags().sync();
+			assertNotNull(listResp, "Tag list response should not be null");
+			assertNotNull(listResp.getData(), "Tag list data should not be null");
+			assertFalse(listResp.getData().isEmpty(), "Tag list should contain demo tags");
+			int initialCount = listResp.getData().size();
+			log.info("Initial tag count: {}", initialCount);
+
+			// Create a new tag
+			TagCreateRequest createReq = new TagCreateRequest();
+			createReq.setName("e2e-test-tag");
+			createReq.setCollection("test");
+			TagResponse created = client.createTag(createReq).sync();
+			assertNotNull(created, "Created tag should not be null");
+			assertNotNull(created.getUuid(), "Created tag UUID should not be null");
+			assertEquals("e2e-test-tag", created.getName());
+			assertEquals("test", created.getCollection());
+			log.info("Created tag: {} ({})", created.getName(), created.getUuid());
+
+			// Verify the tag appears in the listing
+			TagListResponse listAfterCreate = client.listTags().sync();
+			assertTrue(listAfterCreate.getData().size() > initialCount, "Tag list should have grown after create");
+
+			// Load the tag by UUID
+			TagResponse loaded = client.loadTag(created.getUuid()).sync();
+			assertNotNull(loaded, "Loaded tag should not be null");
+			assertEquals(created.getUuid(), loaded.getUuid());
+			assertEquals("e2e-test-tag", loaded.getName());
+
+			// Delete the tag
+			client.deleteTag(created.getUuid()).sync();
+
+			// Verify the tag is gone
+			TagListResponse listAfterDelete = client.listTags().sync();
+			assertEquals(initialCount, listAfterDelete.getData().size(), "Tag count should return to initial after delete");
+			log.info("Tag CRUD test passed");
+		}
+	}
+
+	/**
+	 * Full E2E: run Playwright tag tests from the loom-ui directory.
+	 */
+	@Test
+	void testTagsViaPlaywright() throws Exception {
+		File loomUiDir = resolveLoomUiDir();
+		if (loomUiDir == null) {
+			log.warn("loom-ui directory not found. Skipping Playwright tag test.");
+			return;
+		}
+		log.info("Using loom-ui at {}", loomUiDir.getAbsolutePath());
+
+		String apiBaseUrl = "/api/v1";
+		String proxyTarget = "http://localhost:" + REST_PORT;
+		int vitePort = findFreePort();
+		log.info("Running Playwright tag e2e tests (Vite on port {}, proxy to {})", vitePort, proxyTarget);
+
+		ProcessBuilder ppb = new ProcessBuilder(
+			"npx", "playwright", "test", "e2e/tags-backend.spec.ts", "--reporter=list");
+		ppb.directory(loomUiDir);
+		ppb.environment().put("VITE_API_BASE_URL", apiBaseUrl);
+		ppb.environment().put("VITE_PROXY_TARGET", proxyTarget);
+		ppb.environment().put("VITE_PORT", String.valueOf(vitePort));
+		ppb.redirectErrorStream(true);
+
+		Process proc = ppb.start();
+		StringBuilder output = new StringBuilder();
+		try (BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
+			String line;
+			while ((line = reader.readLine()) != null) {
+				output.append(line).append("\n");
+				log.info("[playwright-tags] {}", line);
+			}
+		}
+
+		boolean finished = proc.waitFor(120, TimeUnit.SECONDS);
+		if (!finished) {
+			proc.destroyForcibly();
+			throw new AssertionError("Playwright tag tests timed out after 120s");
+		}
+
+		assertEquals(0, proc.exitValue(),
+			"Playwright tag tests failed (exit code " + proc.exitValue() + "):\n" + output);
+	}
+
+	/**
+	 * (Re)create the loom database and user using the PostgreSQL admin credentials (postgres / finger). This ensures a clean state regardless of what happened
+	 * in previous runs.
+	 */
+	private static void setupDatabase() throws Exception {
+		String adminJdbcUrl = "jdbc:postgresql://" + DB_HOST + ":" + DB_PORT + "/postgres";
+		log.info("Setting up database via admin connection: {} (user={})", adminJdbcUrl, PG_ADMIN_USER);
+
+		try (Connection conn = DriverManager.getConnection(adminJdbcUrl, PG_ADMIN_USER, PG_ADMIN_PASS);
+			Statement stmt = conn.createStatement()) {
+
+			// Terminate active connections to the target database
+			stmt.execute("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '" + DB_NAME + "' AND pid <> pg_backend_pid()");
+
+			// Drop and recreate the database
+			stmt.execute("DROP DATABASE IF EXISTS " + DB_NAME);
+			log.info("Dropped database '{}' (if it existed)", DB_NAME);
+
+			// Ensure the application role exists
+			var rs = stmt.executeQuery("SELECT 1 FROM pg_roles WHERE rolname = '" + DB_USER + "'");
+			if (!rs.next()) {
+				stmt.execute("CREATE USER " + DB_USER + " WITH PASSWORD '" + DB_PASS + "' SUPERUSER");
+				log.info("Created database role '{}'", DB_USER);
+			}
+			rs.close();
+
+			stmt.execute("CREATE DATABASE " + DB_NAME + " OWNER " + DB_USER);
+			log.info("Created fresh database '{}'", DB_NAME);
+		}
 	}
 
 	private static void waitForRestApi(Duration timeout) throws Exception {

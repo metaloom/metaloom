@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   Box, Typography, IconButton, TextField, Tooltip, Chip, Divider, Menu, MenuItem,
   InputAdornment, Button, Paper,
@@ -10,67 +10,64 @@ import {
   SaveOutlined, CloseOutlined, DragIndicatorOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
+import { useAuth } from "../../context/AuthContext";
+import {
+  listTags, createTag, updateTag, deleteTag as apiDeleteTag,
+  TagResponse,
+} from "../../api/tags";
+
+// Backend tags are flat with a "collection" grouper.
+// We present them as a two-level tree: collection → tag leaf nodes.
 
 interface TagNode {
+  /** For a collection header: `col:<name>`. For a real tag: the UUID. */
   id: string;
   label: string;
-  glob: string;
+  /** The REST collection string. */
+  collection: string;
+  /** Only collection headers have children. */
   children: TagNode[];
+  /** True when the node represents a real backend tag (has a UUID). */
+  isTag: boolean;
 }
 
-// Initial mock tag tree
-const INITIAL_TAGS: TagNode[] = [
-  {
-    id: "t1", label: "Vehicles", glob: "vehicles/**", children: [
-      {
-        id: "t1a", label: "Cars", glob: "vehicles/cars/**", children: [
-          { id: "t1a1", label: "Audi Quattro", glob: "*audi*quattro*", children: [] },
-          { id: "t1a2", label: "VW Käfer", glob: "*vw*kaefer*", children: [] },
-          { id: "t1a3", label: "Tesla Roadster", glob: "*tesla*roadster*", children: [] },
-        ],
-      },
-      {
-        id: "t1b", label: "Trucks", glob: "vehicles/trucks/**", children: [
-          { id: "t1b1", label: "Ford F-150", glob: "*ford*f150*", children: [] },
-        ],
-      },
-      { id: "t1c", label: "Motorcycles", glob: "vehicles/motorcycles/**", children: [] },
-    ],
-  },
-  {
-    id: "t2", label: "Nature", glob: "nature/**", children: [
-      { id: "t2a", label: "Forest", glob: "nature/forest/**", children: [] },
-      { id: "t2b", label: "Ocean", glob: "nature/ocean/**", children: [] },
-      {
-        id: "t2c", label: "Animals", glob: "nature/animals/**", children: [
-          { id: "t2c1", label: "Mammals", glob: "nature/animals/mammals/**", children: [] },
-          { id: "t2c2", label: "Birds", glob: "nature/animals/birds/**", children: [] },
-          { id: "t2c3", label: "Reptiles", glob: "nature/animals/reptiles/**", children: [] },
-        ],
-      },
-    ],
-  },
-  {
-    id: "t3", label: "People", glob: "people/**", children: [
-      { id: "t3a", label: "Portraits", glob: "people/portraits/**", children: [] },
-      { id: "t3b", label: "Groups", glob: "people/groups/**", children: [] },
-    ],
-  },
-  {
-    id: "t4", label: "Architecture", glob: "architecture/**", children: [
-      { id: "t4a", label: "Modern", glob: "architecture/modern/**", children: [] },
-      { id: "t4b", label: "Historic", glob: "architecture/historic/**", children: [] },
-    ],
-  },
-  { id: "t5", label: "Abstract", glob: "abstract/**", children: [] },
-];
+/** Build a two-level tree from a flat list of TagResponse objects. */
+function buildTree(tags: TagResponse[]): TagNode[] {
+  const groups = new Map<string, TagNode[]>();
+  for (const t of tags) {
+    const col = t.collection || "uncategorized";
+    if (!groups.has(col)) groups.set(col, []);
+    groups.get(col)!.push({
+      id: t.uuid,
+      label: t.name,
+      collection: col,
+      children: [],
+      isTag: true,
+    });
+  }
+  const tree: TagNode[] = [];
+  for (const [col, children] of groups) {
+    tree.push({
+      id: `col:${col}`,
+      label: col,
+      collection: col,
+      children,
+      isTag: false,
+    });
+  }
+  tree.sort((a, b) => a.label.localeCompare(b.label));
+  return tree;
+}
 
 function countDescendants(node: TagNode): number {
   return node.children.reduce((sum, c) => sum + 1 + countDescendants(c), 0);
 }
 
-function TagTreeNode({
-  node, depth, expanded, selectedId, onToggle, onSelect, onAdd, onRename, onDelete, onDragStart, onDragOver, onDrop,
+// ── Tag tree row ──────────────────────────────────────────────────────
+function TagTreeRow({
+  node, depth, expanded, selectedId,
+  onToggle, onSelect, onDelete,
+  onDragStart, onDragOver, onDrop,
 }: {
   node: TagNode;
   depth: number;
@@ -78,33 +75,22 @@ function TagTreeNode({
   selectedId: string | null;
   onToggle: (id: string) => void;
   onSelect: (node: TagNode) => void;
-  onAdd: (parentId: string) => void;
-  onRename: (id: string, newLabel: string) => void;
-  onDelete: (id: string) => void;
+  onDelete: (node: TagNode) => void;
   onDragStart: (e: React.DragEvent, id: string) => void;
   onDragOver: (e: React.DragEvent) => void;
-  onDrop: (e: React.DragEvent, targetId: string) => void;
+  onDrop: (e: React.DragEvent, targetCollectionId: string) => void;
 }) {
   const isOpen = expanded.has(node.id);
   const hasChildren = node.children.length > 0;
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
-  const [editing, setEditing] = useState(false);
-  const [editValue, setEditValue] = useState(node.label);
-
-  const handleRename = () => {
-    if (editValue.trim() && editValue.trim() !== node.label) {
-      onRename(node.id, editValue.trim());
-    }
-    setEditing(false);
-  };
 
   return (
     <>
       <Box
-        draggable
-        onDragStart={e => onDragStart(e, node.id)}
-        onDragOver={onDragOver}
-        onDrop={e => onDrop(e, node.id)}
+        draggable={node.isTag}
+        onDragStart={node.isTag ? e => onDragStart(e, node.id) : undefined}
+        onDragOver={!node.isTag ? onDragOver : undefined}
+        onDrop={!node.isTag ? e => onDrop(e, node.id) : undefined}
         sx={{
           display: "flex",
           alignItems: "center",
@@ -122,10 +108,13 @@ function TagTreeNode({
         }}
         onClick={() => { onSelect(node); if (hasChildren) onToggle(node.id); }}
       >
-        {/* Drag handle */}
-        <Box className="drag-handle" sx={{ opacity: 0, display: "flex", alignItems: "center", transition: "opacity 100ms ease", cursor: "grab", flexShrink: 0 }}>
-          <DragIndicatorOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />
-        </Box>
+        {/* Drag handle — tags only */}
+        {node.isTag ? (
+          <Box className="drag-handle" sx={{ opacity: 0, display: "flex", alignItems: "center", transition: "opacity 100ms ease", cursor: "grab", flexShrink: 0 }}>
+            <DragIndicatorOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />
+          </Box>
+        ) : <Box sx={{ width: 14, flexShrink: 0 }} />}
+
         {/* Expand / leaf indicator */}
         <Box sx={{ width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           {hasChildren ? (
@@ -135,52 +124,32 @@ function TagTreeNode({
           )}
         </Box>
 
-        {/* Icon for folders */}
-        {hasChildren && <FolderOutlined sx={{ fontSize: 15, color: tokens.primary.main, flexShrink: 0 }} />}
+        {/* Icon for collections */}
+        {!node.isTag && <FolderOutlined sx={{ fontSize: 15, color: tokens.primary.main, flexShrink: 0 }} />}
 
-        {/* Label or edit field */}
-        {editing ? (
-          <TextField
-            value={editValue}
-            onChange={e => setEditValue(e.target.value)}
-            onBlur={handleRename}
-            onKeyDown={e => { if (e.key === "Enter") handleRename(); if (e.key === "Escape") setEditing(false); }}
-            autoFocus
-            size="small"
-            variant="standard"
-            onClick={e => e.stopPropagation()}
-            sx={{ flex: 1, "& .MuiInput-root": { fontSize: "0.82rem" } }}
-          />
-        ) : (
-          <Typography
-            variant="body2"
-            sx={{ fontSize: "0.82rem", fontWeight: hasChildren ? 600 : 400, color: tokens.text.primary, flex: 1, userSelect: "none" }}
-            onDoubleClick={(e) => { e.stopPropagation(); setEditValue(node.label); setEditing(true); }}
-          >
-            {node.label}
-          </Typography>
-        )}
+        {/* Label */}
+        <Typography
+          variant="body2"
+          sx={{ fontSize: "0.82rem", fontWeight: !node.isTag ? 600 : 400, color: tokens.text.primary, flex: 1, userSelect: "none" }}
+        >
+          {node.label}
+        </Typography>
 
         {/* Child count badge */}
-        {hasChildren && (
+        {!node.isTag && (
           <Chip label={countDescendants(node)} size="small" sx={{ height: 16, fontSize: "0.6rem", bgcolor: tokens.bg.overlay, color: tokens.text.tertiary }} />
         )}
 
-        {/* Actions */}
-        <Box className="tag-actions" sx={{ opacity: 0, display: "flex", gap: 0.25, transition: "opacity 100ms ease" }}>
-          <IconButton size="small" onClick={e => { e.stopPropagation(); setMenuAnchor(e.currentTarget); }} sx={{ width: 20, height: 20 }}>
-            <MoreVertOutlined sx={{ fontSize: 14 }} />
-          </IconButton>
-        </Box>
+        {/* Actions (tags only) */}
+        {node.isTag && (
+          <Box className="tag-actions" sx={{ opacity: 0, display: "flex", gap: 0.25, transition: "opacity 100ms ease" }}>
+            <IconButton size="small" onClick={e => { e.stopPropagation(); setMenuAnchor(e.currentTarget); }} sx={{ width: 20, height: 20 }}>
+              <MoreVertOutlined sx={{ fontSize: 14 }} />
+            </IconButton>
+          </Box>
+        )}
         <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}>
-          <MenuItem onClick={() => { setMenuAnchor(null); onAdd(node.id); }} sx={{ gap: 1, fontSize: "0.82rem" }}>
-            <AddOutlined sx={{ fontSize: 16 }} /> Add child tag
-          </MenuItem>
-          <MenuItem onClick={() => { setMenuAnchor(null); setEditValue(node.label); setEditing(true); }} sx={{ gap: 1, fontSize: "0.82rem" }}>
-            <EditOutlined sx={{ fontSize: 16 }} /> Rename
-          </MenuItem>
-          <Divider />
-          <MenuItem onClick={() => { setMenuAnchor(null); onDelete(node.id); }} sx={{ gap: 1, fontSize: "0.82rem", color: tokens.accent.red }}>
+          <MenuItem onClick={() => { setMenuAnchor(null); onDelete(node); }} sx={{ gap: 1, fontSize: "0.82rem", color: tokens.accent.red }}>
             <DeleteOutlineOutlined sx={{ fontSize: 16 }} /> Delete
           </MenuItem>
         </Menu>
@@ -188,7 +157,7 @@ function TagTreeNode({
 
       {/* Children */}
       {isOpen && node.children.map(child => (
-        <TagTreeNode
+        <TagTreeRow
           key={child.id}
           node={child}
           depth={depth + 1}
@@ -196,8 +165,6 @@ function TagTreeNode({
           selectedId={selectedId}
           onToggle={onToggle}
           onSelect={onSelect}
-          onAdd={onAdd}
-          onRename={onRename}
           onDelete={onDelete}
           onDragStart={onDragStart}
           onDragOver={onDragOver}
@@ -208,69 +175,74 @@ function TagTreeNode({
   );
 }
 
+// ── Main view ─────────────────────────────────────────────────────────
 export default function TagsView() {
-  const [tags, setTags] = useState<TagNode[]>(INITIAL_TAGS);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set(["t1", "t1a", "t2", "t2c"]));
-  const [newTagInput, setNewTagInput] = useState("");
+  const { token } = useAuth();
+  const [allTags, setAllTags] = useState<TagResponse[]>([]);
+  const [tree, setTree] = useState<TagNode[]>([]);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set<string>());
+  const [loading, setLoading] = useState(true);
+  const [newTagName, setNewTagName] = useState("");
+  const [newTagCollection, setNewTagCollection] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedTag, setSelectedTag] = useState<TagNode | null>(null);
+  const [selectedNode, setSelectedNode] = useState<TagNode | null>(null);
   const [editName, setEditName] = useState("");
-  const [editGlob, setEditGlob] = useState("");
+  const [editCollection, setEditCollection] = useState("");
   const [dragId, setDragId] = useState<string | null>(null);
 
-  const toggleExpand = useCallback((id: string) => {
-    setExpanded(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  }, []);
+  // ── Load tags from API ──────────────────────────────────────────────
+  const reload = useCallback(() => {
+    if (!token) return;
+    setLoading(true);
+    listTags(token).then(resp => {
+      const tags = resp.data ?? [];
+      setAllTags(tags);
+      const t = buildTree(tags);
+      setTree(t);
+      // Auto-expand all collections on first load
+      setExpanded(prev => prev.size > 0 ? prev : new Set(t.map(n => n.id)));
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, [token]);
 
-  // Recursive helpers
-  const addChild = useCallback((parentId: string) => {
-    const newId = `t_${Date.now()}`;
-    const addToTree = (nodes: TagNode[]): TagNode[] =>
-      nodes.map(n => n.id === parentId
-        ? { ...n, children: [...n.children, { id: newId, label: "New Tag", glob: "", children: [] }] }
-        : { ...n, children: addToTree(n.children) });
-    setTags(prev => addToTree(prev));
-    setExpanded(prev => new Set([...prev, parentId]));
-  }, []);
+  useEffect(() => { reload(); }, [reload]);
 
-  const renameTag = useCallback((id: string, label: string) => {
-    const renameInTree = (nodes: TagNode[]): TagNode[] =>
-      nodes.map(n => n.id === id ? { ...n, label } : { ...n, children: renameInTree(n.children) });
-    setTags(prev => renameInTree(prev));
-  }, []);
+  // Rebuild tree whenever allTags changes
+  useEffect(() => { setTree(buildTree(allTags)); }, [allTags]);
 
-  const deleteTag = useCallback((id: string) => {
-    const removeFromTree = (nodes: TagNode[]): TagNode[] =>
-      nodes.filter(n => n.id !== id).map(n => ({ ...n, children: removeFromTree(n.children) }));
-    setTags(prev => removeFromTree(prev));
-  }, []);
-
-  const addRootTag = () => {
-    const label = newTagInput.trim();
-    if (!label) return;
-    setTags(prev => [...prev, { id: `t_${Date.now()}`, label, glob: "", children: [] }]);
-    setNewTagInput("");
+  // ── Create tag ──────────────────────────────────────────────────────
+  const handleCreateTag = async () => {
+    const name = newTagName.trim();
+    const collection = newTagCollection.trim() || "general";
+    if (!name || !token) return;
+    const created = await createTag(token, { name, collection });
+    setAllTags(prev => [...prev, created]);
+    setNewTagName("");
+    setNewTagCollection("");
+    setExpanded(prev => new Set([...prev, `col:${collection}`]));
   };
 
-  const handleSelectTag = useCallback((node: TagNode) => {
-    setSelectedTag(node);
-    setEditName(node.label);
-    setEditGlob(node.glob);
-  }, []);
+  // ── Delete tag ──────────────────────────────────────────────────────
+  const handleDeleteTag = useCallback(async (node: TagNode) => {
+    if (!node.isTag || !token) return;
+    await apiDeleteTag(token, node.id);
+    setAllTags(prev => prev.filter(t => t.uuid !== node.id));
+    if (selectedNode?.id === node.id) setSelectedNode(null);
+  }, [token, selectedNode]);
 
-  const handleSaveTag = () => {
-    if (!selectedTag) return;
-    const updateInTree = (nodes: TagNode[]): TagNode[] =>
-      nodes.map(n => n.id === selectedTag.id ? { ...n, label: editName.trim() || n.label, glob: editGlob } : { ...n, children: updateInTree(n.children) });
-    setTags(prev => updateInTree(prev));
-    setSelectedTag(prev => prev ? { ...prev, label: editName.trim() || prev.label, glob: editGlob } : null);
+  // ── Update tag (name / move to different collection) ────────────────
+  const handleSaveTag = async () => {
+    if (!selectedNode?.isTag || !token) return;
+    const name = editName.trim();
+    const collection = editCollection.trim() || "general";
+    if (!name) return;
+    const updated = await updateTag(token, selectedNode.id, { name, collection });
+    setAllTags(prev => prev.map(t => t.uuid === updated.uuid ? updated : t));
+    setSelectedNode({ ...selectedNode, label: updated.name, collection: updated.collection });
+    setExpanded(prev => new Set([...prev, `col:${collection}`]));
   };
 
-  // Drag-and-drop: reorder siblings
+  // ── Drag-and-drop: move tag to a different collection ───────────────
   const handleDragStart = useCallback((e: React.DragEvent, id: string) => {
     setDragId(id);
     e.dataTransfer.effectAllowed = "move";
@@ -281,25 +253,37 @@ export default function TagsView() {
     e.dataTransfer.dropEffect = "move";
   }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent, targetId: string) => {
+  const handleDrop = useCallback(async (e: React.DragEvent, targetCollectionId: string) => {
     e.preventDefault();
-    if (!dragId || dragId === targetId) return;
-    const reorderSiblings = (nodes: TagNode[]): TagNode[] => {
-      const srcIdx = nodes.findIndex(n => n.id === dragId);
-      const tgtIdx = nodes.findIndex(n => n.id === targetId);
-      if (srcIdx !== -1 && tgtIdx !== -1) {
-        const copy = [...nodes];
-        const [moved] = copy.splice(srcIdx, 1);
-        copy.splice(tgtIdx, 0, moved);
-        return copy;
-      }
-      return nodes.map(n => ({ ...n, children: reorderSiblings(n.children) }));
-    };
-    setTags(prev => reorderSiblings(prev));
+    if (!dragId || !token) { setDragId(null); return; }
+    const targetCollection = targetCollectionId.replace(/^col:/, "");
+    const tag = allTags.find(t => t.uuid === dragId);
+    if (!tag || tag.collection === targetCollection) { setDragId(null); return; }
+    const updated = await updateTag(token, dragId, { name: tag.name, collection: targetCollection });
+    setAllTags(prev => prev.map(t => t.uuid === updated.uuid ? updated : t));
     setDragId(null);
-  }, [dragId]);
+  }, [dragId, token, allTags]);
 
-  const totalTags = tags.reduce((s, n) => s + 1 + countDescendants(n), 0);
+  // ── Expand / collapse ──────────────────────────────────────────────
+  const toggleExpand = useCallback((id: string) => {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handleSelectNode = useCallback((node: TagNode) => {
+    setSelectedNode(node);
+    if (node.isTag) {
+      setEditName(node.label);
+      setEditCollection(node.collection);
+    }
+  }, []);
+
+  // ── Derived state ──────────────────────────────────────────────────
+  const totalTags = allTags.length;
+  const collections = new Set(allTags.map(t => t.collection || "uncategorized"));
 
   // Filter tree: keep nodes (and parents) matching the query
   const filterTree = (nodes: TagNode[], q: string): TagNode[] => {
@@ -316,7 +300,7 @@ export default function TagsView() {
       .filter(Boolean) as TagNode[];
   };
 
-  const displayTags = filterTree(tags, searchQuery.toLowerCase().trim());
+  const displayTree = filterTree(tree, searchQuery.toLowerCase().trim());
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: tokens.bg.base }}>
@@ -326,21 +310,31 @@ export default function TagsView() {
           <Box>
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
               <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Tags</Typography>
-              <Tooltip title="Tags are hierarchical labels used to classify and filter assets. Assign tags manually or via automated workflows." arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
+              <Tooltip title="Tags are flat labels grouped by collection. Drag a tag onto a collection header to move it." arrow>
+                <HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} />
+              </Tooltip>
             </Box>
-            <Typography variant="caption" color="text.secondary">{totalTags} tags across {tags.length} root categories</Typography>
+            <Typography variant="caption" color="text.secondary">{totalTags} tags across {collections.size} collections</Typography>
           </Box>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <TextField
-              value={newTagInput}
-              onChange={e => setNewTagInput(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter") addRootTag(); }}
-              placeholder="New root tag…"
+              value={newTagName}
+              onChange={e => setNewTagName(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") handleCreateTag(); }}
+              placeholder="Tag name…"
               size="small"
-              sx={{ width: 180, "& .MuiInputBase-root": { fontSize: "0.82rem" } }}
+              sx={{ width: 140, "& .MuiInputBase-root": { fontSize: "0.82rem" } }}
             />
-            <Tooltip title="Add root tag">
-              <IconButton size="small" onClick={addRootTag} sx={{ bgcolor: tokens.primary.main, color: "#fff", "&:hover": { bgcolor: tokens.primary.dark }, width: 28, height: 28 }}>
+            <TextField
+              value={newTagCollection}
+              onChange={e => setNewTagCollection(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") handleCreateTag(); }}
+              placeholder="Collection…"
+              size="small"
+              sx={{ width: 120, "& .MuiInputBase-root": { fontSize: "0.82rem" } }}
+            />
+            <Tooltip title="Create tag">
+              <IconButton size="small" onClick={handleCreateTag} sx={{ bgcolor: tokens.primary.main, color: "#fff", "&:hover": { bgcolor: tokens.primary.dark }, width: 28, height: 28 }}>
                 <AddOutlined sx={{ fontSize: 16 }} />
               </IconButton>
             </Tooltip>
@@ -366,34 +360,35 @@ export default function TagsView() {
       <Box sx={{ flex: 1, display: "flex", overflow: "hidden" }}>
         <Box sx={{ flex: 1, overflow: "auto", p: 2 }}>
           <Box sx={{ maxWidth: 600 }}>
-            {displayTags.map(node => (
-              <TagTreeNode
+            {loading && displayTree.length === 0 && (
+              <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: "center" }}>Loading tags…</Typography>
+            )}
+            {displayTree.map(node => (
+              <TagTreeRow
                 key={node.id}
                 node={node}
                 depth={0}
                 expanded={expanded}
-                selectedId={selectedTag?.id ?? null}
+                selectedId={selectedNode?.id ?? null}
                 onToggle={toggleExpand}
-                onSelect={handleSelectTag}
-                onAdd={addChild}
-                onRename={renameTag}
-                onDelete={deleteTag}
+                onSelect={handleSelectNode}
+                onDelete={handleDeleteTag}
                 onDragStart={handleDragStart}
                 onDragOver={handleDragOver}
                 onDrop={handleDrop}
               />
             ))}
-            {displayTags.length === 0 && (
+            {!loading && displayTree.length === 0 && (
               <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 6, gap: 1 }}>
                 <LocalOfferOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
-                <Typography variant="body2" color="text.secondary">No tags yet. Create a root tag to get started.</Typography>
+                <Typography variant="body2" color="text.secondary">No tags yet. Create a tag to get started.</Typography>
               </Box>
             )}
           </Box>
         </Box>
 
         {/* Detail Sidebar */}
-        {selectedTag && (
+        {selectedNode?.isTag && (
           <Paper
             elevation={0}
             sx={{
@@ -406,7 +401,7 @@ export default function TagsView() {
                 <LocalOfferOutlined sx={{ fontSize: 16, color: tokens.primary.main }} />
                 <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.88rem" }}>Tag Details</Typography>
               </Box>
-              <IconButton size="small" onClick={() => setSelectedTag(null)}>
+              <IconButton size="small" onClick={() => setSelectedNode(null)}>
                 <CloseOutlined sx={{ fontSize: 14 }} />
               </IconButton>
             </Box>
@@ -419,16 +414,16 @@ export default function TagsView() {
                 fullWidth
               />
               <TextField
-                label="Glob pattern"
-                value={editGlob}
-                onChange={e => setEditGlob(e.target.value)}
+                label="Collection"
+                value={editCollection}
+                onChange={e => setEditCollection(e.target.value)}
                 size="small"
                 fullWidth
-                placeholder="e.g. vehicles/cars/**"
-                helperText="File matching pattern for auto-tagging"
+                placeholder="e.g. category"
+                helperText="Change collection to move tag to a different group"
               />
               <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>
-                ID: {selectedTag.id} · Children: {selectedTag.children.length}
+                UUID: {selectedNode.id}
               </Typography>
               <Button
                 size="small"
