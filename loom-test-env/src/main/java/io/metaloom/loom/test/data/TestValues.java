@@ -114,4 +114,6 @@ public interface TestValues {
 
 	public static final UUID BLACKLIST_UUID = UUID.fromString("471be5bd-d7e6-4719-b43c-57d6b30e7c2f");
 
+	public static final UUID ASSET_POOL_UUID = UUID.fromString("a84e3c0b-2f17-4d67-b159-3c6a8e9d1f42");
+
 }

@@ -15,6 +15,7 @@ import io.metaloom.loom.rest.AbstractEndpoint;
 import io.metaloom.loom.rest.EndpointDependencies;
 import io.metaloom.loom.rest.model.ModelExamples;
 import io.metaloom.loom.rest.service.impl.AssetEndpointService;
+import io.metaloom.loom.rest.service.impl.AssetBinaryEndpointService;
 import io.metaloom.loom.rest.service.impl.AssetLocationEndpointService;
 import io.metaloom.loom.rest.service.impl.ReactionEndpointService;
 import io.metaloom.loom.rest.service.impl.TagEndpointService;
@@ -27,17 +28,20 @@ public class AssetEndpoint extends AbstractEndpoint {
 	private final AssetEndpointService service;
 	private final TagEndpointService tagService;
 	private final AssetLocationEndpointService locationService;
+	private final AssetBinaryEndpointService binaryService;
 	private final ReactionEndpointService reactionService;
 	private final ModelExamples examples;
 
 	@Inject
 	public AssetEndpoint(AssetEndpointService service, TagEndpointService tagService, AssetLocationEndpointService locationService,
+		AssetBinaryEndpointService binaryService,
 		ReactionEndpointService reactionService,
 		EndpointDependencies deps, ModelExamples examples) {
 		super(deps);
 		this.service = service;
 		this.tagService = tagService;
 		this.locationService = locationService;
+		this.binaryService = binaryService;
 		this.reactionService = reactionService;
 		this.examples = examples;
 	}
@@ -188,6 +192,32 @@ public class AssetEndpoint extends AbstractEndpoint {
 			"Update an reaction for an asset",
 			lrc -> {
 				reactionService.updateAssetReaction(lrc, lrc.pathParamAssetId("uuid"), lrc.pathParamUUID("reactionUuid"));
+			});
+
+		// --- BINARY (UUID-based sub-resource, one-to-one) ---
+
+		addRoute(basePath() + "/:uuid/binary", POST,
+			"Create a binary for the asset",
+			examples.binaryCreateRequestExample(),
+			examples.binaryResponseExample(),
+			lrc -> {
+				binaryService.createForAsset(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/binary", GET,
+			"Load the binary for the asset",
+			null,
+			examples.binaryResponseExample(),
+			lrc -> {
+				binaryService.loadByAssetUuid(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/binary", DELETE,
+			"Delete the binary for the asset",
+			null,
+			examples.deleteResponseExample(),
+			lrc -> {
+				binaryService.deleteByAssetUuid(lrc, lrc.pathParamUUID("uuid"));
 			});
 
 	}

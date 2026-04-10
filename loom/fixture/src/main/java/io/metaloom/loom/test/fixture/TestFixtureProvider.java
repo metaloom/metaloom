@@ -19,6 +19,7 @@ import io.metaloom.loom.db.model.embedding.Embedding;
 import io.metaloom.loom.db.model.group.Group;
 import io.metaloom.loom.db.model.library.Library;
 import io.metaloom.loom.db.model.perm.Permission;
+import io.metaloom.loom.db.model.pool.AssetPool;
 import io.metaloom.loom.db.model.project.Project;
 import io.metaloom.loom.db.model.reaction.Reaction;
 import io.metaloom.loom.db.model.role.Role;
@@ -44,6 +45,9 @@ public class TestFixtureProvider extends AbstractFixtureProvider {
 
 		// Add library
 		Library library = createLibrary(user, "4k B-roll");
+
+		// Add asset pool
+		AssetPool pool = createAssetPool(user);
 
 		// Add Assets to library
 		Asset asset = createAsset(library, user);
@@ -256,6 +260,14 @@ public class TestFixtureProvider extends AbstractFixtureProvider {
 		assetLocation.setUuid(ASSET_LOCATION_UUID);
 		assetLocationDao().store(assetLocation);
 		return assetLocation;
+	}
+
+	private AssetPool createAssetPool(User user) {
+		AssetPool pool = assetPoolDao().createAssetPool(user.getUuid(), "primary-storage");
+		pool.setUuid(ASSET_POOL_UUID);
+		pool.setFsPath("/tank/loom/binaries");
+		assetPoolDao().store(pool);
+		return pool;
 	}
 
 	private Library createLibrary(User user, String name) {

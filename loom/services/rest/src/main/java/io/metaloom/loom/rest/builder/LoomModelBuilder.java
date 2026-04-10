@@ -4,6 +4,8 @@ import io.metaloom.loom.rest.model.message.GenericMessageResponse;
 
 public interface LoomModelBuilder extends
 	AssetLocationModelBuilder,
+	AssetBinaryModelBuilder,
+	AssetPoolModelBuilder,
 	AnnotationModelBuilder,
 	AttachmentModelBuilder,
 	AssetModelBuilder,

@@ -19,6 +19,7 @@ import MaintenanceView from "../features/maintenance/MaintenanceView";
 import TagsView from "../features/tags/TagsView";
 import CortexView from "../features/cortex/CortexView";
 import WorkflowView from "../features/workflow/WorkflowView";
+import AssetPoolsView from "../features/assetPools/AssetPoolsView";
 import { LayoutContext } from "../context/LayoutContext";
 
 export default function AppShell() {
@@ -50,6 +51,7 @@ export default function AppShell() {
           <Route path="/faces" element={<Navigate to="/detection" replace />} />
           <Route path="/tags" element={<TagsView />} />
           <Route path="/workflow" element={<WorkflowView />} />
+          <Route path="/asset-pools" element={<AssetPoolsView />} />
           <Route path="/cortex" element={<CortexView />} />
           <Route path="/monitoring" element={<MonitoringArea />} />
           <Route path="/admin/*" element={<AdminArea />} />

@@ -12,7 +12,7 @@ import {
   PersonOutlined, LogoutOutlined,
   LocalOfferOutlined, DnsOutlined, GroupsOutlined,
   SecurityOutlined, VpnKeyOutlined, BlockOutlined,
-  SpeedOutlined, VisibilityOutlined,
+  SpeedOutlined, VisibilityOutlined, StorageOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../theme";
 import { useProject } from "../context/ProjectContext";
@@ -40,6 +40,7 @@ const USER_NAV_ITEMS: NavItem[] = [
 ];
 
 const ADMIN_NAV_ITEMS: NavItem[] = [
+  { label: "Asset Pools", path: "/asset-pools", icon: <StorageOutlined fontSize="small" /> },
   { label: "Pipelines", path: "/pipelines", icon: <AccountTreeOutlined fontSize="small" /> },
   { label: "Cortex", path: "/cortex", icon: <DnsOutlined fontSize="small" /> },
   { label: "Monitoring", path: "/monitoring", icon: <BarChartOutlined fontSize="small" /> },

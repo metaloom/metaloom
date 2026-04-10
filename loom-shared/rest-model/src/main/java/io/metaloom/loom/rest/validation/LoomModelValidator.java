@@ -2,6 +2,8 @@ package io.metaloom.loom.rest.validation;
 
 public interface LoomModelValidator extends
 	AssetLocationModelValidator,
+	AssetBinaryModelValidator,
+	AssetPoolModelValidator,
 	AttachmentModelValidator,
 	AnnotationModelValidator,
 	AssetModelValidator,

@@ -4,6 +4,7 @@ import io.metaloom.loom.db.model.annotation.AnnotationDao;
 import io.metaloom.loom.db.model.asset.AssetComponentDao;
 import io.metaloom.loom.db.model.asset.AssetDao;
 import io.metaloom.loom.db.model.asset.AssetLocationDao;
+import io.metaloom.loom.db.model.asset.AssetBinaryDao;
 import io.metaloom.loom.db.model.attachment.AttachmentDao;
 import io.metaloom.loom.db.model.blacklist.BlacklistDao;
 import io.metaloom.loom.db.model.cluster.ClusterDao;
@@ -21,6 +22,7 @@ import io.metaloom.loom.db.model.task.TaskDao;
 import io.metaloom.loom.db.model.token.TokenDao;
 import io.metaloom.loom.db.model.user.UserDao;
 import io.metaloom.loom.db.model.webhook.WebhookDao;import io.metaloom.loom.db.model.pipeline.PipelineDao;
+import io.metaloom.loom.db.model.pool.AssetPoolDao;
 /**
  * Aggregated list of all loom DAOs.
  */
@@ -45,6 +47,8 @@ public interface DaoCollection {
 	// Asset
 
 	AssetLocationDao assetLocationDao();
+
+	AssetBinaryDao assetBinaryDao();
 
 	AssetDao assetDao();
 
@@ -87,5 +91,9 @@ public interface DaoCollection {
 	// Pipeline
 
 	PipelineDao pipelineDao();
+
+	// Asset Pool
+
+	AssetPoolDao assetPoolDao();
 
 }

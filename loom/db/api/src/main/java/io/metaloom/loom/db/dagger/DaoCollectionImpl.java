@@ -8,6 +8,7 @@ import io.metaloom.loom.db.model.annotation.AnnotationDao;
 import io.metaloom.loom.db.model.asset.AssetComponentDao;
 import io.metaloom.loom.db.model.asset.AssetDao;
 import io.metaloom.loom.db.model.asset.AssetLocationDao;
+import io.metaloom.loom.db.model.asset.AssetBinaryDao;
 import io.metaloom.loom.db.model.attachment.AttachmentDao;
 import io.metaloom.loom.db.model.blacklist.BlacklistDao;
 import io.metaloom.loom.db.model.cluster.ClusterDao;
@@ -17,6 +18,7 @@ import io.metaloom.loom.db.model.embedding.EmbeddingDao;
 import io.metaloom.loom.db.model.group.GroupDao;
 import io.metaloom.loom.db.model.library.LibraryDao;
 import io.metaloom.loom.db.model.pipeline.PipelineDao;
+import io.metaloom.loom.db.model.pool.AssetPoolDao;
 import io.metaloom.loom.db.model.perm.PermissionDao;
 import io.metaloom.loom.db.model.project.ProjectDao;
 import io.metaloom.loom.db.model.reaction.ReactionDao;
@@ -37,6 +39,7 @@ public class DaoCollectionImpl implements DaoCollection {
 	private final Lazy<AssetDao> assetDao;
 	private final Lazy<AssetComponentDao> assetComponentDao;
 	private final Lazy<AssetLocationDao> assetLocationDao;
+	private final Lazy<AssetBinaryDao> assetBinaryDao;
 	private final Lazy<AttachmentDao> attachmentDao;
 	private final Lazy<WebhookDao> webhookDao;
 	private final Lazy<CollectionDao> collectionDao;
@@ -52,16 +55,18 @@ public class DaoCollectionImpl implements DaoCollection {
 	private final Lazy<TokenDao> tokenDao;
 	private final Lazy<TagDao> tagDao;
 	private final Lazy<PipelineDao> pipelineDao;
+	private final Lazy<AssetPoolDao> assetPoolDao;
 
 	@Inject
 	public DaoCollectionImpl(Lazy<UserDao> userDao, Lazy<PermissionDao> permissionDao,
-		Lazy<RoleDao> roleDao, Lazy<GroupDao> groupDao, Lazy<AssetLocationDao> assetLocationDao, Lazy<AssetDao> assetDao,
+		Lazy<RoleDao> roleDao, Lazy<GroupDao> groupDao, Lazy<AssetLocationDao> assetLocationDao, Lazy<AssetBinaryDao> assetBinaryDao, Lazy<AssetDao> assetDao,
 		Lazy<AssetComponentDao> assetComponentDao,
 		Lazy<WebhookDao> webhookDao, Lazy<CollectionDao> collectionDao, Lazy<LibraryDao> libraryDao,
 		Lazy<AnnotationDao> annotationDao, Lazy<TaskDao> taskDao, Lazy<ReactionDao> reactionDao,
 		Lazy<BlacklistDao> blacklistDao, Lazy<CommentDao> commentDao, Lazy<ProjectDao> projectDao,
 		Lazy<ClusterDao> clusterDao, Lazy<EmbeddingDao> embeddingDao, Lazy<TokenDao> tokenDao,
-		Lazy<TagDao> tagDao, Lazy<AttachmentDao> attachmentDao, Lazy<PipelineDao> pipelineDao) {
+		Lazy<TagDao> tagDao, Lazy<AttachmentDao> attachmentDao, Lazy<PipelineDao> pipelineDao,
+		Lazy<AssetPoolDao> assetPoolDao) {
 		this.userDao = userDao;
 		this.groupDao = groupDao;
 		this.roleDao = roleDao;
@@ -69,6 +74,7 @@ public class DaoCollectionImpl implements DaoCollection {
 		this.assetComponentDao = assetComponentDao;
 		this.permissionDao = permissionDao;
 		this.assetLocationDao = assetLocationDao;
+		this.assetBinaryDao = assetBinaryDao;
 		this.webhookDao = webhookDao;
 		this.libraryDao = libraryDao;
 		this.collectionDao = collectionDao;
@@ -84,11 +90,17 @@ public class DaoCollectionImpl implements DaoCollection {
 		this.tagDao = tagDao;
 		this.attachmentDao = attachmentDao;
 		this.pipelineDao = pipelineDao;
+		this.assetPoolDao = assetPoolDao;
 	}
 
 	@Override
 	public AssetLocationDao assetLocationDao() {
 		return assetLocationDao.get();
+	}
+
+	@Override
+	public AssetBinaryDao assetBinaryDao() {
+		return assetBinaryDao.get();
 	}
 
 	@Override
@@ -194,5 +206,10 @@ public class DaoCollectionImpl implements DaoCollection {
 	@Override
 	public PipelineDao pipelineDao() {
 		return pipelineDao.get();
+	}
+
+	@Override
+	public AssetPoolDao assetPoolDao() {
+		return assetPoolDao.get();
 	}
 }

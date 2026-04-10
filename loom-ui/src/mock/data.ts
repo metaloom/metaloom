@@ -3,7 +3,7 @@ import {
   Reaction, Pipeline, User, Group, Role, Permission, ApiKey,
   BlacklistEntry, MetricSeries, ChatMessage,
   TranscriptSection, DetectedFace, FaceCluster, Person,
-  DetectedObject,
+  DetectedObject, AssetPool,
 } from "../types";
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -524,4 +524,13 @@ export const DETECTED_OBJECTS: DetectedObject[] = [
   { id: "obj8", assetId: "a7", label: "laptop", confidence: 0.89, boundingBox: { x: 0.35, y: 0.45, width: 0.2, height: 0.15 } },
   { id: "obj9", assetId: "a7", label: "cup", confidence: 0.85, boundingBox: { x: 0.6, y: 0.5, width: 0.08, height: 0.12 } },
   { id: "obj10", assetId: "a8", label: "microphone", confidence: 0.93, boundingBox: { x: 0.45, y: 0.15, width: 0.08, height: 0.25 }, timestamp: 300 },
+];
+
+// ── Asset Pools ───────────────────────────────────────────────────────────
+export const ASSET_POOLS: AssetPool[] = [
+  { id: "pool1", name: "Production Storage", type: "filesystem", fsPath: "/mnt/media/production", assetCount: 2480, totalSize: 18.4 * 1024 * 1024 * 1024 * 1024, createdAt: daysAgo(180), updatedAt: daysAgo(1) },
+  { id: "pool2", name: "Archive S3", type: "s3", s3Bucket: "metaloom-archive-prod", s3Region: "eu-central-1", s3Endpoint: "https://s3.eu-central-1.amazonaws.com", assetCount: 12400, totalSize: 96 * 1024 * 1024 * 1024 * 1024, createdAt: daysAgo(365), updatedAt: daysAgo(3) },
+  { id: "pool3", name: "Ingest Hot Storage", type: "filesystem", fsPath: "/mnt/fast-ssd/ingest", assetCount: 124, totalSize: 640 * 1024 * 1024 * 1024, createdAt: daysAgo(90), updatedAt: hoursAgo(2) },
+  { id: "pool4", name: "CDN Delivery Bucket", type: "s3", s3Bucket: "metaloom-cdn-delivery", s3Region: "us-east-1", s3Endpoint: "https://s3.us-east-1.amazonaws.com", assetCount: 5800, totalSize: 42 * 1024 * 1024 * 1024 * 1024, createdAt: daysAgo(200), updatedAt: hoursAgo(6) },
+  { id: "pool5", name: "Backup Cold Storage", type: "s3", s3Bucket: "metaloom-glacier-backup", s3Region: "eu-west-1", s3Endpoint: "https://s3.eu-west-1.amazonaws.com", assetCount: 31200, totalSize: 220 * 1024 * 1024 * 1024 * 1024, createdAt: daysAgo(400), updatedAt: daysAgo(7) },
 ];

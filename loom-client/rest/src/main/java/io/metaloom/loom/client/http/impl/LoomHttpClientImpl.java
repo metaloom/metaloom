@@ -33,11 +33,19 @@ import io.metaloom.loom.rest.model.asset.location.AssetLocationCreateRequest;
 import io.metaloom.loom.rest.model.asset.location.AssetLocationListResponse;
 import io.metaloom.loom.rest.model.asset.location.AssetLocationResponse;
 import io.metaloom.loom.rest.model.asset.location.AssetLocationUpdateRequest;
+import io.metaloom.loom.rest.model.asset.binary.AssetBinaryCreateRequest;
+import io.metaloom.loom.rest.model.asset.binary.AssetBinaryListResponse;
+import io.metaloom.loom.rest.model.asset.binary.AssetBinaryResponse;
+import io.metaloom.loom.rest.model.asset.binary.AssetBinaryUpdateRequest;
 import io.metaloom.loom.rest.model.attachment.AttachmentListResponse;
 import io.metaloom.loom.rest.model.attachment.AttachmentResponse;
 import io.metaloom.loom.rest.model.attachment.AttachmentUpdateRequest;
 import io.metaloom.loom.rest.model.auth.AuthLoginRequest;
 import io.metaloom.loom.rest.model.auth.AuthLoginResponse;
+import io.metaloom.loom.rest.model.pool.AssetPoolCreateRequest;
+import io.metaloom.loom.rest.model.pool.AssetPoolListResponse;
+import io.metaloom.loom.rest.model.pool.AssetPoolResponse;
+import io.metaloom.loom.rest.model.pool.AssetPoolUpdateRequest;
 import io.metaloom.loom.rest.model.cluster.ClusterCreateRequest;
 import io.metaloom.loom.rest.model.cluster.ClusterListResponse;
 import io.metaloom.loom.rest.model.cluster.ClusterResponse;
@@ -870,6 +878,75 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<NoResponse> deleteToken(UUID uuid) {
 		return deleteRequest("/tokens/" + uuid);
+	}
+
+	// POOL
+
+	@Override
+	public LoomClientHttpRequest<AssetPoolResponse> loadPool(UUID poolUuid) {
+		return getRequest("pools/" + poolUuid, AssetPoolResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> deletePool(UUID poolUuid) {
+		return deleteRequest("pools/" + poolUuid);
+	}
+
+	@Override
+	public LoomClientHttpRequest<AssetPoolResponse> createPool(AssetPoolCreateRequest request) {
+		return postRequest("pools", request, AssetPoolResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<AssetPoolResponse> updatePool(UUID poolUuid, AssetPoolUpdateRequest request) {
+		return postRequest("pools/" + poolUuid, request, AssetPoolResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<AssetPoolListResponse> listPools() {
+		return getRequest("pools", AssetPoolListResponse.class);
+	}
+
+	// BINARY
+
+	@Override
+	public LoomClientHttpRequest<AssetBinaryResponse> loadBinary(UUID binaryUuid) {
+		return getRequest("binaries/" + binaryUuid, AssetBinaryResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> deleteBinary(UUID binaryUuid) {
+		return deleteRequest("binaries/" + binaryUuid);
+	}
+
+	@Override
+	public LoomClientHttpRequest<AssetBinaryResponse> createBinary(AssetBinaryCreateRequest request) {
+		return postRequest("binaries", request, AssetBinaryResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<AssetBinaryResponse> updateBinary(UUID binaryUuid, AssetBinaryUpdateRequest request) {
+		return postRequest("binaries/" + binaryUuid, request, AssetBinaryResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<AssetBinaryListResponse> listBinaries() {
+		return getRequest("binaries", AssetBinaryListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<AssetBinaryResponse> loadAssetBinary(UUID assetUuid) {
+		return getRequest("assets/" + assetUuid + "/binary", AssetBinaryResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<AssetBinaryResponse> createAssetBinary(UUID assetUuid, AssetBinaryCreateRequest request) {
+		return postRequest("assets/" + assetUuid + "/binary", request, AssetBinaryResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> deleteAssetBinary(UUID assetUuid) {
+		return deleteRequest("assets/" + assetUuid + "/binary");
 	}
 
 }

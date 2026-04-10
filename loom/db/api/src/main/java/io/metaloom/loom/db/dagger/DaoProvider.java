@@ -4,6 +4,7 @@ import io.metaloom.loom.db.model.annotation.AnnotationDao;
 import io.metaloom.loom.db.model.asset.AssetComponentDao;
 import io.metaloom.loom.db.model.asset.AssetDao;
 import io.metaloom.loom.db.model.asset.AssetLocationDao;
+import io.metaloom.loom.db.model.asset.AssetBinaryDao;
 import io.metaloom.loom.db.model.attachment.AttachmentDao;
 import io.metaloom.loom.db.model.blacklist.BlacklistDao;
 import io.metaloom.loom.db.model.cluster.ClusterDao;
@@ -14,6 +15,7 @@ import io.metaloom.loom.db.model.group.GroupDao;
 import io.metaloom.loom.db.model.library.LibraryDao;
 import io.metaloom.loom.db.model.perm.PermissionDao;
 import io.metaloom.loom.db.model.pipeline.PipelineDao;
+import io.metaloom.loom.db.model.pool.AssetPoolDao;
 import io.metaloom.loom.db.model.project.ProjectDao;
 import io.metaloom.loom.db.model.reaction.ReactionDao;
 import io.metaloom.loom.db.model.role.RoleDao;
@@ -63,6 +65,10 @@ public interface DaoProvider extends DaoCollection {
 
 	default AssetLocationDao assetLocationDao() {
 		return daos().assetLocationDao();
+	}
+
+	default AssetBinaryDao assetBinaryDao() {
+		return daos().assetBinaryDao();
 	}
 
 	default AssetComponentDao assetComponentDao() {
@@ -132,6 +138,12 @@ public interface DaoProvider extends DaoCollection {
 
 	default PipelineDao pipelineDao() {
 		return daos().pipelineDao();
+	}
+
+	// Asset Pool
+
+	default AssetPoolDao assetPoolDao() {
+		return daos().assetPoolDao();
 	}
 
 }

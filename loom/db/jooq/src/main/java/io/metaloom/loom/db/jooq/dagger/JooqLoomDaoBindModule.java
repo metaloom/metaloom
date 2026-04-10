@@ -6,6 +6,7 @@ import io.metaloom.loom.db.jooq.dao.annotation.AnnotationDaoImpl;
 import io.metaloom.loom.db.jooq.dao.asset.AssetDaoImpl;
 import io.metaloom.loom.db.jooq.dao.asset.comp.AssetComponentDaoImpl;
 import io.metaloom.loom.db.jooq.dao.asset.location.AssetLocationDaoImpl;
+import io.metaloom.loom.db.jooq.dao.asset.binary.AssetBinaryDaoImpl;
 import io.metaloom.loom.db.jooq.dao.attachment.AttachmentDaoImpl;
 import io.metaloom.loom.db.jooq.dao.blacklist.BlacklistDaoImpl;
 import io.metaloom.loom.db.jooq.dao.cluster.ClusterDaoImpl;
@@ -13,6 +14,7 @@ import io.metaloom.loom.db.jooq.dao.collection.CollectionDaoImpl;
 import io.metaloom.loom.db.jooq.dao.comment.CommentDaoImpl;
 import io.metaloom.loom.db.jooq.dao.embedding.EmbeddingDaoImpl;
 import io.metaloom.loom.db.jooq.dao.pipeline.PipelineDaoImpl;
+import io.metaloom.loom.db.jooq.dao.pool.AssetPoolDaoImpl;
 import io.metaloom.loom.db.jooq.dao.group.GroupDaoImpl;
 import io.metaloom.loom.db.jooq.dao.library.LibraryDaoImpl;
 import io.metaloom.loom.db.jooq.dao.perm.PermissionDaoImpl;
@@ -28,6 +30,7 @@ import io.metaloom.loom.db.model.annotation.AnnotationDao;
 import io.metaloom.loom.db.model.asset.AssetComponentDao;
 import io.metaloom.loom.db.model.asset.AssetDao;
 import io.metaloom.loom.db.model.asset.AssetLocationDao;
+import io.metaloom.loom.db.model.asset.AssetBinaryDao;
 import io.metaloom.loom.db.model.attachment.AttachmentDao;
 import io.metaloom.loom.db.model.blacklist.BlacklistDao;
 import io.metaloom.loom.db.model.cluster.ClusterDao;
@@ -35,6 +38,7 @@ import io.metaloom.loom.db.model.collection.CollectionDao;
 import io.metaloom.loom.db.model.comment.CommentDao;
 import io.metaloom.loom.db.model.embedding.EmbeddingDao;
 import io.metaloom.loom.db.model.pipeline.PipelineDao;
+import io.metaloom.loom.db.model.pool.AssetPoolDao;
 import io.metaloom.loom.db.model.group.GroupDao;
 import io.metaloom.loom.db.model.library.LibraryDao;
 import io.metaloom.loom.db.model.perm.PermissionDao;
@@ -69,13 +73,16 @@ public abstract class JooqLoomDaoBindModule {
 	abstract WebhookDao webhookDao(WebhookDaoImpl dao);
 
 	@Binds
-	abstract AssetDao assetBinaryDao(AssetDaoImpl dao);
+	abstract AssetDao assetDao(AssetDaoImpl dao);
 
 	@Binds
 	abstract AssetComponentDao assetComponentDao(AssetComponentDaoImpl dao);
 
 	@Binds
-	abstract AssetLocationDao assetDao(AssetLocationDaoImpl dao);
+	abstract AssetLocationDao assetLocationDao(AssetLocationDaoImpl dao);
+
+	@Binds
+	abstract AssetBinaryDao assetBinaryDao(AssetBinaryDaoImpl dao);
 
 	@Binds
 	abstract AttachmentDao attachmentDao(AttachmentDaoImpl dao);
@@ -115,5 +122,8 @@ public abstract class JooqLoomDaoBindModule {
 
 	@Binds
 	abstract PipelineDao pipelineDao(PipelineDaoImpl dao);
+
+	@Binds
+	abstract AssetPoolDao assetPoolDao(AssetPoolDaoImpl dao);
 
 }

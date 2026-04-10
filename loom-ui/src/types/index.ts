@@ -329,3 +329,20 @@ export interface DetectedObject {
   boundingBox: { x: number; y: number; width: number; height: number }; // normalized 0-1
   timestamp?: number;
 }
+
+// Asset Pools
+export type AssetPoolType = "filesystem" | "s3";
+
+export interface AssetPool {
+  id: string;
+  name: string;
+  type: AssetPoolType;
+  fsPath?: string;
+  s3Bucket?: string;
+  s3Region?: string;
+  s3Endpoint?: string;
+  assetCount: number;
+  totalSize: number; // bytes
+  createdAt: string;
+  updatedAt: string;
+}
