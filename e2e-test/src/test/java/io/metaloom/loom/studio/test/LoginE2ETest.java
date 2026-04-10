@@ -1,7 +1,9 @@
 package io.metaloom.loom.studio.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -19,6 +21,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.loom.client.http.LoomHttpClient;
+import io.metaloom.loom.rest.model.asset.AssetListResponse;
+import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.auth.AuthLoginResponse;
 
 /**
@@ -109,6 +113,113 @@ public class LoginE2ETest {
 			AuthLoginResponse response = client.login("admin", "finger").sync();
 			assertNotNull(response.getToken(), "Token should not be null after login");
 		}
+	}
+
+	/**
+	 * Verify that the asset list endpoint returns demo assets populated by DemoDatabaseInitializer.
+	 */
+	@Test
+	void testListAssets() throws Exception {
+		try (LoomHttpClient client = LoomHttpClient.builder()
+			.setHostname("localhost")
+			.setReadTimeout(Duration.ofSeconds(30))
+			.setPort(REST_PORT)
+			.build()) {
+
+			AuthLoginResponse loginResp = client.login("admin", "finger").sync();
+			assertNotNull(loginResp.getToken());
+			client.setToken(loginResp.getToken());
+
+			AssetListResponse listResp = client.listAssets().sync();
+			assertNotNull(listResp, "Asset list response should not be null");
+			assertNotNull(listResp.getData(), "Asset list data should not be null");
+			assertFalse(listResp.getData().isEmpty(), "Asset list should contain demo assets");
+			log.info("Listed {} assets", listResp.getData().size());
+
+			// Verify one of the demo assets has expected properties
+			AssetResponse first = listResp.getData().get(0);
+			assertNotNull(first.getUuid(), "Asset UUID should not be null");
+			assertNotNull(first.getFile(), "Asset file info should not be null");
+			assertNotNull(first.getFile().getFilename(), "Asset filename should not be null");
+			assertTrue(first.getFile().getSize() > 0, "Asset file size should be > 0");
+		}
+	}
+
+	/**
+	 * Verify that a single asset can be loaded by UUID and contains full metadata.
+	 */
+	@Test
+	void testLoadSingleAsset() throws Exception {
+		try (LoomHttpClient client = LoomHttpClient.builder()
+			.setHostname("localhost")
+			.setReadTimeout(Duration.ofSeconds(30))
+			.setPort(REST_PORT)
+			.build()) {
+
+			AuthLoginResponse loginResp = client.login("admin", "finger").sync();
+			client.setToken(loginResp.getToken());
+
+			// List assets and pick the first UUID
+			AssetListResponse listResp = client.listAssets().sync();
+			assertFalse(listResp.getData().isEmpty(), "Need at least one asset");
+			AssetResponse listed = listResp.getData().get(0);
+
+			// Load by UUID
+			AssetResponse loaded = client.loadAsset(listed.getUuid()).sync();
+			assertNotNull(loaded, "Loaded asset should not be null");
+			assertEquals(listed.getUuid(), loaded.getUuid(), "UUID should match");
+			assertNotNull(loaded.getFile(), "File info should be present");
+			assertNotNull(loaded.getFile().getMimeType(), "MIME type should be set");
+			log.info("Loaded asset: {} ({})", loaded.getFile().getFilename(), loaded.getFile().getMimeType());
+
+			// Verify tags are populated from demo data
+			assertNotNull(loaded.getTags(), "Tags list should not be null");
+		}
+	}
+
+	/**
+	 * Full E2E: run Playwright asset tests from the loom-ui directory.
+	 */
+	@Test
+	void testAssetsViaPlaywright() throws Exception {
+		File loomUiDir = resolveLoomUiDir();
+		if (loomUiDir == null) {
+			log.warn("loom-ui directory not found. Skipping Playwright asset test.");
+			return;
+		}
+		log.info("Using loom-ui at {}", loomUiDir.getAbsolutePath());
+
+		String apiBaseUrl = "/api/v1";
+		String proxyTarget = "http://localhost:" + REST_PORT;
+		int vitePort = findFreePort();
+		log.info("Running Playwright asset e2e tests (Vite on port {}, proxy to {})", vitePort, proxyTarget);
+
+		ProcessBuilder ppb = new ProcessBuilder(
+			"npx", "playwright", "test", "e2e/assets-backend.spec.ts", "--reporter=list");
+		ppb.directory(loomUiDir);
+		ppb.environment().put("VITE_API_BASE_URL", apiBaseUrl);
+		ppb.environment().put("VITE_PROXY_TARGET", proxyTarget);
+		ppb.environment().put("VITE_PORT", String.valueOf(vitePort));
+		ppb.redirectErrorStream(true);
+
+		Process proc = ppb.start();
+		StringBuilder output = new StringBuilder();
+		try (BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
+			String line;
+			while ((line = reader.readLine()) != null) {
+				output.append(line).append("\n");
+				log.info("[playwright-assets] {}", line);
+			}
+		}
+
+		boolean finished = proc.waitFor(120, TimeUnit.SECONDS);
+		if (!finished) {
+			proc.destroyForcibly();
+			throw new AssertionError("Playwright asset tests timed out after 120s");
+		}
+
+		assertEquals(0, proc.exitValue(),
+			"Playwright asset tests failed (exit code " + proc.exitValue() + "):\n" + output);
 	}
 
 	/**

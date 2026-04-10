@@ -13,9 +13,9 @@ import {
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { Asset, AssetType, AssetStatus } from "../../types";
-import { mockAssetService, mockLibraryService } from "../../mock/services";
+import { useAuth } from "../../context/AuthContext";
+import { listAssets, AssetResponse } from "../../api/assets";
 import { useProject } from "../../context/ProjectContext";
-import { LIBRARIES } from "../../mock/data";
 
 function formatBytes(bytes: number): string {
   if (bytes >= 1e12) return `${(bytes / 1e12).toFixed(1)} TB`;
@@ -46,6 +46,43 @@ const statusColor: Record<AssetStatus, string> = {
   failed: tokens.accent.red,
   archived: tokens.text.tertiary,
 };
+
+/** Map a Loom REST AssetResponse to the local Asset type used by the UI. */
+function toAsset(r: AssetResponse): Asset {
+  const mime = r.file?.mimeType ?? "";
+  let type: AssetType = "unknown";
+  if (mime.startsWith("image/")) type = "image";
+  else if (mime.startsWith("video/")) type = "video";
+  else if (mime.startsWith("audio/")) type = "audio";
+  else if (mime.startsWith("application/") || mime.startsWith("text/")) type = "document";
+
+  const video = r.videoComponents?.[0];
+  const image = r.imageComponents?.[0];
+
+  return {
+    id: r.uuid,
+    projectId: "",
+    libraryId: "",
+    name: r.file?.filename ?? r.uuid,
+    type,
+    status: "ready" as AssetStatus,
+    tags: (r.tags ?? []).map(t => t.name),
+    description: "",
+    duration: video?.duration,
+    width: video?.width ?? image?.width,
+    height: video?.height ?? image?.height,
+    fileSize: r.file?.size ?? 0,
+    mimeType: mime,
+    thumbnailUrl: "",
+    url: "",
+    ownerId: r.status?.creator?.uuid ?? "",
+    collectionIds: (r.collections ?? []).map(c => c.uuid),
+    taskIds: [],
+    createdAt: r.status?.created ?? "",
+    updatedAt: r.status?.edited ?? "",
+    metadata: {},
+  };
+}
 
 // ── Asset Card (grid mode) ────────────────────────────────────────────────
 type CardSize = "small" | "medium" | "large";
@@ -130,7 +167,6 @@ function AssetCard({ asset, cardSize = "medium" }: { asset: Asset; cardSize?: Ca
 function AssetRow({ asset }: { asset: Asset }) {
   const navigate = useNavigate();
   const sc = statusColor[asset.status];
-  const lib = LIBRARIES.find(l => l.id === asset.libraryId);
 
   return (
     <Box
@@ -151,7 +187,7 @@ function AssetRow({ asset }: { asset: Asset }) {
           {asset.name}
         </Typography>
         <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>
-          {lib?.name ?? asset.libraryId}
+          {asset.mimeType}
         </Typography>
       </Box>
       <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, color: tokens.text.secondary }}>
@@ -178,6 +214,7 @@ interface Props {
 
 export default function AssetBrowser({ embedded = false }: Props) {
   const { activeProject } = useProject();
+  const { token } = useAuth();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [filtered, setFiltered] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
@@ -189,14 +226,17 @@ export default function AssetBrowser({ embedded = false }: Props) {
   const [libraryFilter, setLibraryFilter] = useState<string>("all");
 
   useEffect(() => {
-    if (!activeProject) return;
+    if (!token) return;
     setLoading(true);
-    mockAssetService.getByProject(activeProject.id).then((a) => {
-      setAssets(a);
-      setFiltered(a);
+    listAssets(token).then((resp) => {
+      const mapped = (resp.data ?? []).map(toAsset);
+      setAssets(mapped);
+      setFiltered(mapped);
+      setLoading(false);
+    }).catch(() => {
       setLoading(false);
     });
-  }, [activeProject]);
+  }, [token]);
 
   useEffect(() => {
     let res = assets;
@@ -213,8 +253,6 @@ export default function AssetBrowser({ embedded = false }: Props) {
     }
     setFiltered(res);
   }, [assets, query, statusFilter, typeFilter, libraryFilter]);
-
-  const libs = LIBRARIES.filter(l => l.projectId === activeProject?.id);
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: tokens.bg.base }}>
@@ -284,20 +322,6 @@ export default function AssetBrowser({ embedded = false }: Props) {
               <MenuItem value="document">Document</MenuItem>
             </Select>
           </FormControl>
-
-          {libs.length > 0 && (
-            <FormControl size="small" sx={{ minWidth: 100 }}>
-              <Select
-                value={libraryFilter}
-                onChange={(e: SelectChangeEvent) => setLibraryFilter(e.target.value)}
-                displayEmpty
-                sx={{ fontSize: "0.78rem", bgcolor: tokens.bg.elevated }}
-              >
-                <MenuItem value="all">All Libraries</MenuItem>
-                {libs.map(l => <MenuItem key={l.id} value={l.id}>{l.name}</MenuItem>)}
-              </Select>
-            </FormControl>
-          )}
 
           <ToggleButtonGroup value={viewMode} exclusive onChange={(_, v) => v && setViewMode(v)} size="small">
             <ToggleButton value="grid" sx={{ border: `1px solid ${tokens.border.default}`, borderRadius: `${tokens.radius.sm} !important` }}>

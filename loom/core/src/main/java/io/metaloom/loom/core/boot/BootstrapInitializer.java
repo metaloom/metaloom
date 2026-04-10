@@ -35,17 +35,20 @@ public class BootstrapInitializer {
 
 	private final DatabaseInitializer initializer;
 
+	private final DemoDatabaseInitializer demoInitializer;
+
 	private final HttpServer httpServer;
 
 	@Inject
 	public BootstrapInitializer(RESTService restService, UIService uiService, MCPService mcpService, AuthenticationService authService,
-		Flyway flyway, DatabaseInitializer initializer, HttpServer httpServer) {
+		Flyway flyway, DatabaseInitializer initializer, DemoDatabaseInitializer demoInitializer, HttpServer httpServer) {
 		this.restService = restService;
 		this.uiService = uiService;
 		this.mcpService = mcpService;
 		this.authService = authService;
 		this.flyway = flyway;
 		this.initializer = initializer;
+		this.demoInitializer = demoInitializer;
 		this.httpServer = httpServer;
 	}
 
@@ -64,6 +67,13 @@ public class BootstrapInitializer {
 			initializer.init();
 		} catch (Exception e) {
 			throw new RuntimeException("Error while initializing database", e);
+		}
+
+		try {
+			log.info("Invoking demo database initializer");
+			demoInitializer.init();
+		} catch (Exception e) {
+			log.warn("Error while populating demo data — continuing startup", e);
 		}
 
 		// try {

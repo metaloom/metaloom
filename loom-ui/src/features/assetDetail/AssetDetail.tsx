@@ -18,13 +18,52 @@ import {
   CollectionsOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
-import { Asset, Comment, Annotation, Reaction, Task, TranscriptSection, DetectedFace, FaceCluster, Person } from "../../types";
+import { Asset, AssetType, AssetStatus, Comment, Annotation, Reaction, Task, TranscriptSection, DetectedFace, FaceCluster, Person } from "../../types";
 import {
-  mockAssetService, mockCommentService, mockAnnotationService,
+  mockCommentService, mockAnnotationService,
   mockReactionService, mockTaskService, mockTranscriptService,
   mockFaceDetectionService,
 } from "../../mock/services";
 import { USERS, COLLECTIONS, PIPELINES } from "../../mock/data";
+import { useAuth } from "../../context/AuthContext";
+import { loadAsset as apiLoadAsset, AssetResponse } from "../../api/assets";
+
+/** Map a Loom REST AssetResponse to the local Asset type used by the UI. */
+function apiToAsset(r: AssetResponse): Asset {
+  const mime = r.file?.mimeType ?? "";
+  let type: AssetType = "unknown";
+  if (mime.startsWith("image/")) type = "image";
+  else if (mime.startsWith("video/")) type = "video";
+  else if (mime.startsWith("audio/")) type = "audio";
+  else if (mime.startsWith("application/") || mime.startsWith("text/")) type = "document";
+
+  const video = r.videoComponents?.[0];
+  const image = r.imageComponents?.[0];
+
+  return {
+    id: r.uuid,
+    projectId: "",
+    libraryId: "",
+    name: r.file?.filename ?? r.uuid,
+    type,
+    status: "ready" as AssetStatus,
+    tags: (r.tags ?? []).map(t => t.name),
+    description: "",
+    duration: video?.duration,
+    width: video?.width ?? image?.width,
+    height: video?.height ?? image?.height,
+    fileSize: r.file?.size ?? 0,
+    mimeType: mime,
+    thumbnailUrl: "",
+    url: "",
+    ownerId: r.status?.creator?.uuid ?? "",
+    collectionIds: (r.collections ?? []).map(c => c.uuid),
+    taskIds: [],
+    createdAt: r.status?.created ?? "",
+    updatedAt: r.status?.edited ?? "",
+    metadata: {},
+  };
+}
 
 function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -776,6 +815,7 @@ function FaceDetectionPanel({
 export default function AssetDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { token } = useAuth();
   const [asset, setAsset] = useState<Asset | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
@@ -804,9 +844,12 @@ export default function AssetDetail() {
   const intervalRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!id) return;
+    if (!id || !token) return;
+    // Load asset from real API; social features still use mock services
+    apiLoadAsset(token, id).then(resp => {
+      setAsset(apiToAsset(resp));
+    }).catch(() => { /* asset not found */ });
     Promise.all([
-      mockAssetService.getById(id),
       mockCommentService.getByAsset(id),
       mockAnnotationService.getByAsset(id),
       mockReactionService.getByAsset(id),
@@ -815,8 +858,7 @@ export default function AssetDetail() {
       mockFaceDetectionService.getFacesByAsset(id),
       mockFaceDetectionService.getAllClusters(),
       mockFaceDetectionService.getAllPersons(),
-    ]).then(([a, c, an, rx, t, tr, faces, clusters, pers]) => {
-      if (a) setAsset(a);
+    ]).then(([c, an, rx, t, tr, faces, clusters, pers]) => {
       setComments(c);
       setAnnotations(an);
       setReactions(rx);
@@ -826,7 +868,7 @@ export default function AssetDetail() {
       setFaceClusters(clusters);
       setPersons(pers);
     });
-  }, [id]);
+  }, [id, token]);
 
   // Draggable divider handlers
   const handleDividerMouseDown = useCallback((e: React.MouseEvent) => {
