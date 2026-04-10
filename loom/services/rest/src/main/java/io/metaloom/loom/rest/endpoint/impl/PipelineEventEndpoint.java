@@ -52,7 +52,9 @@ public class PipelineEventEndpoint extends AbstractEndpoint {
 		// WebSocket upgrade route — not secured via auth handler since WS upgrade
 		// happens before the handler chain. Authentication can be enforced by requiring
 		// a token query parameter in the future.
-		apiRouter().getDelegate().get(basePath() + "/ws").handler(rc -> {
+		// Use a high-priority route order so the WS upgrade path is matched before
+		// wildcard auth routes such as /api/v1/pipelines*.
+		apiRouter().getDelegate().get(basePath() + "/ws").order(-1000).handler(rc -> {
 			rc.request().toWebSocket()
 				.onSuccess(this::handleWebSocket)
 				.onFailure(err -> {

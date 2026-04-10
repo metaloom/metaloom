@@ -43,7 +43,10 @@ public class PipelineEndpoint extends AbstractEndpoint {
 	public void register() {
 		log.info("Registering {} endpoint", name());
 
-		secure(basePath() + "*");
+		// Secure CRUD paths without catching nested technical paths like
+		// /api/v1/pipelines/events/ws which is handled by PipelineEventEndpoint.
+		secure(basePath());
+		secure(basePath() + "/:uuid");
 
 		// Create
 		addRoute(basePath(), POST,
