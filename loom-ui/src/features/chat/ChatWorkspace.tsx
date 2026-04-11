@@ -14,6 +14,7 @@ import { tokens } from "../../theme";
 import { ChatMessage, ChatReference } from "../../types";
 import { mockChatService } from "../../mock/services";
 import { useSpace } from "../../context/SpaceContext";
+import { useTranslation } from "react-i18next";
 import AssetBrowser from "../assets/AssetBrowser";
 import { ASSETS, COLLECTIONS, TASKS, PIPELINES } from "../../mock/data";
 
@@ -216,6 +217,7 @@ function MessageBubble({ msg, onFollowUp, onAssetClick }: { msg: ChatMessage; on
 // ── Right panel — context-driven workspace ────────────────────────────────
 function WorkspacePanel({ mode, selectedAssetId, onClearAsset }: { mode: "assets" | "overview"; selectedAssetId?: string | null; onClearAsset?: () => void }) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   // If an asset is selected from the chat, show it inline
   if (selectedAssetId) {
@@ -232,7 +234,7 @@ function WorkspacePanel({ mode, selectedAssetId, onClearAsset }: { mode: "assets
               <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem" }}>{asset.type} · {asset.mimeType}</Typography>
             </Box>
             <Chip
-              label="Open"
+              label={t("chat.panel.open")}
               size="small"
               onClick={() => navigate(`/assets/${asset.id}`)}
               sx={{ cursor: "pointer", bgcolor: tokens.primary.subtle, border: `1px solid ${tokens.primary.main}`, color: tokens.primary.light, fontWeight: 600, fontSize: "0.72rem" }}
@@ -256,10 +258,10 @@ function WorkspacePanel({ mode, selectedAssetId, onClearAsset }: { mode: "assets
               </Box>
               <Box sx={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 12px" }}>
                 {[
-                  ["Size", `${(asset.fileSize / 1e6).toFixed(1)} MB`],
-                  ["Status", asset.status],
-                  ...(asset.duration ? [["Duration", `${Math.floor(asset.duration / 60)}:${(asset.duration % 60).toString().padStart(2, "0")}`]] : []),
-                  ...(asset.width ? [["Dimensions", `${asset.width}×${asset.height}`]] : []),
+                  [t("chat.detail.size"), `${(asset.fileSize / 1e6).toFixed(1)} MB`],
+                  [t("chat.detail.status"), asset.status],
+                  ...(asset.duration ? [[t("chat.detail.duration"), `${Math.floor(asset.duration / 60)}:${(asset.duration % 60).toString().padStart(2, "0")}`]] : []),
+                  ...(asset.width ? [[t("chat.detail.dimensions"), `${asset.width}×${asset.height}`]] : []),
                 ].map(([k, v]) => (
                   <React.Fragment key={k}>
                     <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.72rem" }}>{k}</Typography>
@@ -279,19 +281,19 @@ function WorkspacePanel({ mode, selectedAssetId, onClearAsset }: { mode: "assets
   return (
     <Box sx={{ p: 2.5, display: "flex", flexDirection: "column", gap: 2 }}>
       {/* Recent assets */}
-      <SectionCard title="Recent Assets" icon={<ImageOutlined sx={{ fontSize: 14 }} />}>
+      <SectionCard title={t("chat.panel.recentAssets")} icon={<ImageOutlined sx={{ fontSize: 14 }} />}>
         {ASSETS.slice(0, 4).map((a) => (
           <AssetRow key={a.id} asset={a} />
         ))}
       </SectionCard>
 
-      <SectionCard title="Active Tasks" icon={<TaskAltOutlined sx={{ fontSize: 14 }} />}>
+      <SectionCard title={t("chat.panel.activeTasks")} icon={<TaskAltOutlined sx={{ fontSize: 14 }} />}>
         {TASKS.filter(t => t.status !== "done").slice(0, 4).map((t) => (
           <TaskRow key={t.id} task={t} />
         ))}
       </SectionCard>
 
-      <SectionCard title="Collections" icon={<CollectionsOutlined sx={{ fontSize: 14 }} />}>
+      <SectionCard title={t("chat.panel.collections")} icon={<CollectionsOutlined sx={{ fontSize: 14 }} />}>
         {COLLECTIONS.slice(0, 3).map((c) => (
           <CollectionRow key={c.id} collection={c} />
         ))}
@@ -360,6 +362,7 @@ function TaskRow({ task }: { task: typeof TASKS[0] }) {
 }
 
 function CollectionRow({ collection }: { collection: typeof COLLECTIONS[0] }) {
+  const { t } = useTranslation();
   return (
     <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, px: 1, py: 0.6, borderRadius: tokens.radius.md, "&:hover": { bgcolor: tokens.bg.hover }, cursor: "pointer" }}>
       <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: collection.color, flexShrink: 0 }} />
@@ -368,7 +371,7 @@ function CollectionRow({ collection }: { collection: typeof COLLECTIONS[0] }) {
           {collection.name}
         </Typography>
         <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>
-          {collection.assetIds.length} assets
+          {t("chat.panel.collectionAssets", { count: collection.assetIds.length })}
         </Typography>
       </Box>
     </Box>
@@ -378,6 +381,7 @@ function CollectionRow({ collection }: { collection: typeof COLLECTIONS[0] }) {
 // ── Main Chat Workspace ───────────────────────────────────────────────────
 export default function ChatWorkspace() {
   const { activeSpace } = useSpace();
+  const { t } = useTranslation();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -476,10 +480,10 @@ export default function ChatWorkspace() {
           </Box>
           <Box>
             <Typography variant="subtitle2" fontWeight={700} sx={{ fontSize: "0.875rem", color: tokens.text.primary, lineHeight: 1.2 }}>
-              Loom Agent
+              {t("chat.header.title")}
             </Typography>
             <Typography variant="caption" sx={{ color: tokens.accent.green, fontSize: "0.68rem" }}>
-              ● online · {activeSpace?.name ?? "No space"}
+              {t("chat.header.status", { space: activeSpace?.name ?? t("chat.header.noSpace") })}
             </Typography>
           </Box>
         </Box>
@@ -513,7 +517,7 @@ export default function ChatWorkspace() {
               multiline
               maxRows={5}
               fullWidth
-              placeholder="Ask about assets, collections, tasks, pipelines…"
+              placeholder={t("chat.input.placeholder")}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -545,7 +549,7 @@ export default function ChatWorkspace() {
             />
           </Paper>
           <Typography variant="caption" sx={{ mt: 0.75, display: "block", color: tokens.text.tertiary, fontSize: "0.68rem", textAlign: "center" }}>
-            Enter to send · Shift+Enter for new line
+            {t("chat.input.helper")}
           </Typography>
         </Box>
       </Box>
@@ -587,7 +591,7 @@ export default function ChatWorkspace() {
           {(["overview", "assets"] as const).map((mode) => (
             <Chip
               key={mode}
-              label={mode.charAt(0).toUpperCase() + mode.slice(1)}
+              label={t(`chat.tab.${mode}`)}
               size="small"
               onClick={() => setWorkspaceMode(mode)}
               sx={{

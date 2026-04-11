@@ -4,6 +4,7 @@ import {
   BuildOutlined, StorageOutlined, MemoryOutlined, UpdateOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
+import { useTranslation } from "react-i18next";
 
 const statusItems = [
   { label: "Database", status: "Healthy", icon: <StorageOutlined sx={{ fontSize: 18 }} />, progress: 34 },
@@ -13,16 +14,17 @@ const statusItems = [
 ];
 
 export default function MaintenanceView() {
+  const { t } = useTranslation();
   return (
     <Box sx={{ flex: 1, overflow: "auto", p: 4, maxWidth: 720, mx: "auto" }}>
       <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 1 }}>
         <BuildOutlined sx={{ color: tokens.primary.main }} />
         <Typography variant="h5" fontWeight={700} color="text.primary">
-          Maintenance
+          {t("maintenance.title")}
         </Typography>
       </Box>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        System health overview and maintenance status
+        {t("maintenance.subtitle")}
       </Typography>
 
       <Divider sx={{ mb: 3 }} />

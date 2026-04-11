@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import ReactFlow, {
   Background, Controls, MiniMap, Handle, Position,
   NodeProps, ReactFlowProvider, useNodesState, useEdgesState,
@@ -231,10 +232,11 @@ function toRFEdges(edges: Pipeline["definition"]["edges"]): RFEdge[] {
 
 // ── Run History Panel ─────────────────────────────────────────────────────
 function RunHistory({ runs }: { runs: PipelineRun[] }) {
+  const { t } = useTranslation();
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75, p: 1.5 }}>
       <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.07em", color: tokens.text.tertiary, fontSize: "0.68rem", mb: 0.5 }}>
-        Run History
+        {t("pipeline.runHistory.title")}
       </Typography>
       {runs.map(r => (
         <Paper key={r.id} elevation={0} sx={{ bgcolor: tokens.bg.overlay, border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, p: 1.25 }}>
@@ -251,11 +253,11 @@ function RunHistory({ runs }: { runs: PipelineRun[] }) {
           </Box>
           <Box sx={{ display: "flex", gap: 1 }}>
             <Typography variant="caption" sx={{ color: tokens.text.secondary, fontSize: "0.7rem" }}>
-              {r.processedAssets} assets
+              {r.processedAssets} {t("pipeline.runHistory.assets")}
             </Typography>
             {r.errors > 0 && (
               <Typography variant="caption" sx={{ color: tokens.accent.red, fontSize: "0.7rem" }}>
-                {r.errors} error{r.errors > 1 ? "s" : ""}
+                {r.errors} {r.errors > 1 ? t("pipeline.runHistory.errors") : t("pipeline.runHistory.error")}
               </Typography>
             )}
           </Box>
@@ -302,11 +304,12 @@ function NodeDetailPanel({ nodeId, pipeline }: { nodeId: string | null; pipeline
 
 // ── Pipeline Inspector (right stats panel) ────────────────────────────────
 function PipelineInspector({ pipeline }: { pipeline: Pipeline | null }) {
+  const { t } = useTranslation();
   if (!pipeline) {
     return (
       <Box sx={{ p: 2, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 1 }}>
         <AccountTreeOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
-        <Typography variant="body2" color="text.secondary">Select a pipeline to inspect</Typography>
+        <Typography variant="body2" color="text.secondary">{t("pipeline.inspector.empty")}</Typography>
       </Box>
     );
   }
@@ -321,9 +324,9 @@ function PipelineInspector({ pipeline }: { pipeline: Pipeline | null }) {
         <Typography variant="subtitle2" fontWeight={700} sx={{ fontSize: "0.875rem", mb: 0.25 }}>{pipeline.name}</Typography>
         <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.4, display: "block" }}>{pipeline.description}</Typography>
         <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap", mt: 0.75 }}>
-          <Chip label={pipeline.enabled ? "enabled" : "disabled"} size="small" sx={{ height: 16, fontSize: "0.62rem", bgcolor: pipeline.enabled ? `${tokens.accent.green}22` : tokens.bg.overlay, color: pipeline.enabled ? tokens.accent.green : tokens.text.tertiary }} />
-          <Chip label={`priority ${pipeline.priority}`} size="small" sx={{ height: 16, fontSize: "0.62rem", bgcolor: tokens.bg.overlay }} />
-          {pipeline.dryRun && <Chip label="dry run" size="small" sx={{ height: 16, fontSize: "0.62rem", bgcolor: `${tokens.accent.amber}22`, color: tokens.accent.amber }} />}
+          <Chip label={pipeline.enabled ? t("pipeline.inspector.enabled") : t("pipeline.inspector.disabled")} size="small" sx={{ height: 16, fontSize: "0.62rem", bgcolor: pipeline.enabled ? `${tokens.accent.green}22` : tokens.bg.overlay, color: pipeline.enabled ? tokens.accent.green : tokens.text.tertiary }} />
+          <Chip label={`${t("pipeline.inspector.priority")} ${pipeline.priority}`} size="small" sx={{ height: 16, fontSize: "0.62rem", bgcolor: tokens.bg.overlay }} />
+          {pipeline.dryRun && <Chip label={t("pipeline.inspector.dryRun")} size="small" sx={{ height: 16, fontSize: "0.62rem", bgcolor: `${tokens.accent.amber}22`, color: tokens.accent.amber }} />}
         </Box>
       </Box>
 
@@ -335,10 +338,10 @@ function PipelineInspector({ pipeline }: { pipeline: Pipeline | null }) {
               latestRun.status === "running" ? <CircleOutlined sx={{ fontSize: 14, color: tokens.accent.amber, animation: "spin 1s linear infinite", "@keyframes spin": { from: { transform: "rotate(0deg)" }, to: { transform: "rotate(360deg)" } } }} /> :
                 <CircleOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />}
           <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.75rem", color: runStatusColor[latestRun.status] }}>
-            {latestRun.status === "running" ? "Running now" : `Last run: ${latestRun.status}`}
+            {latestRun.status === "running" ? t("pipeline.inspector.runningNow") : `${t("pipeline.inspector.lastRun")} ${latestRun.status}`}
           </Typography>
           <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem", ml: "auto" }}>
-            · {latestRun.processedAssets} assets
+            · {latestRun.processedAssets} {t("pipeline.runHistory.assets")}
           </Typography>
         </Box>
       )}
@@ -365,6 +368,7 @@ function NodeDetailSidebar({
   const cfg = node ? (nodeTypeConfig[node.type] ?? nodeTypeConfig.process) : null;
   const [displayName, setDisplayName] = useState("");
   const [detailTab, setDetailTab] = useState(0);
+  const { t } = useTranslation();
 
   // Sync display name when node changes
   useEffect(() => {
@@ -390,8 +394,8 @@ function NodeDetailSidebar({
       {/* Header */}
       <Box sx={{ px: 2, py: 1.25, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", gap: 1, flexShrink: 0 }}>
         <SettingsOutlined sx={{ fontSize: 14, color: tokens.primary.main }} />
-        <Typography variant="caption" fontWeight={700} sx={{ fontSize: "0.78rem", flex: 1, whiteSpace: "nowrap" }}>Node Details</Typography>
-        <Tooltip title="Collapse panel">
+        <Typography variant="caption" fontWeight={700} sx={{ fontSize: "0.78rem", flex: 1, whiteSpace: "nowrap" }}>{t("pipeline.nodeDetail.title")}</Typography>
+        <Tooltip title={t("pipeline.nodeDetail.collapse")}>
           <IconButton size="small" onClick={onClose} sx={{ width: 20, height: 20 }}>
             <ChevronLeftOutlined sx={{ fontSize: 14 }} />
           </IconButton>
@@ -404,9 +408,9 @@ function NodeDetailSidebar({
           <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
             {/* Tabs */}
             <Tabs value={detailTab} onChange={(_, v) => setDetailTab(v)} sx={{ minHeight: 32, borderBottom: `1px solid ${tokens.border.subtle}`, px: 1 }}>
-              <Tab label="Config" sx={{ fontSize: "0.7rem", minHeight: 32, py: 0.5, minWidth: 60 }} />
-              <Tab label="Log" sx={{ fontSize: "0.7rem", minHeight: 32, py: 0.5, minWidth: 60 }} />
-              <Tab label="JSON" sx={{ fontSize: "0.7rem", minHeight: 32, py: 0.5, minWidth: 60 }} />
+              <Tab label={t("pipeline.nodeDetail.tab.config")} sx={{ fontSize: "0.7rem", minHeight: 32, py: 0.5, minWidth: 60 }} />
+              <Tab label={t("pipeline.nodeDetail.tab.log")} sx={{ fontSize: "0.7rem", minHeight: 32, py: 0.5, minWidth: 60 }} />
+              <Tab label={t("pipeline.nodeDetail.tab.json")} sx={{ fontSize: "0.7rem", minHeight: 32, py: 0.5, minWidth: 60 }} />
             </Tabs>
 
             {detailTab === 0 && (
@@ -424,7 +428,7 @@ function NodeDetailSidebar({
 
                 {/* Description */}
                 <TextField
-                  label="Display Name"
+                  label={t("pipeline.nodeDetail.displayName")}
                   value={displayName}
                   onChange={e => {
                     const v = e.target.value.slice(0, 15);
@@ -433,13 +437,13 @@ function NodeDetailSidebar({
                   }}
                   size="small"
                   fullWidth
-                  placeholder="Max 15 characters"
+                  placeholder={t("pipeline.nodeDetail.maxChars")}
                   inputProps={{ maxLength: 15 }}
                   helperText={`${displayName.length}/15`}
                   sx={{ "& .MuiInputBase-root": { fontSize: "0.78rem" }, "& .MuiFormHelperText-root": { fontSize: "0.62rem", textAlign: "right" } }}
                 />
                 <TextField
-                  label="Description"
+                  label={t("pipeline.nodeDetail.description")}
                   value={node.description}
                   multiline
                   minRows={2}
@@ -452,7 +456,7 @@ function NodeDetailSidebar({
                 {/* Data fields */}
                 <Box>
                   <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.07em", color: tokens.text.tertiary, fontSize: "0.66rem", mb: 1, display: "block" }}>
-                    Configuration
+                    {t("pipeline.nodeDetail.configuration")}
                   </Typography>
                   <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
                     {Object.entries(node.data).map(([k, v]) => (
@@ -471,7 +475,7 @@ function NodeDetailSidebar({
 
                 {/* Node ID */}
                 <Box sx={{ p: 1, bgcolor: tokens.bg.overlay, borderRadius: tokens.radius.sm }}>
-                  <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.66rem", display: "block" }}>Node ID</Typography>
+                  <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.66rem", display: "block" }}>{t("pipeline.nodeDetail.nodeId")}</Typography>
                   <Typography variant="caption" sx={{ fontFamily: "monospace", fontSize: "0.72rem", color: tokens.text.secondary }}>{node.id}</Typography>
                 </Box>
               </Box>
@@ -481,7 +485,7 @@ function NodeDetailSidebar({
               <Box sx={{ p: 1.5, flex: 1, overflow: "auto" }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 1 }}>
                   <BugReportOutlined sx={{ fontSize: 14, color: tokens.primary.main }} />
-                  <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.72rem" }}>Processing Log</Typography>
+                  <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.72rem" }}>{t("pipeline.nodeDetail.processingLog")}</Typography>
                 </Box>
                 <Box sx={{ bgcolor: tokens.bg.base, borderRadius: tokens.radius.sm, p: 1, border: `1px solid ${tokens.border.subtle}` }}>
                   {[
@@ -512,7 +516,7 @@ function NodeDetailSidebar({
               <Box sx={{ p: 1.5, flex: 1, overflow: "auto" }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 1 }}>
                   <DataObjectOutlined sx={{ fontSize: 14, color: tokens.primary.main }} />
-                  <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.72rem" }}>Node State (JSON)</Typography>
+                  <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.72rem" }}>{t("pipeline.nodeDetail.nodeState")}</Typography>
                 </Box>
                 <Box sx={{ bgcolor: tokens.bg.base, borderRadius: tokens.radius.sm, p: 1.5, border: `1px solid ${tokens.border.subtle}` }}>
                   <Typography component="pre" sx={{
@@ -528,7 +532,7 @@ function NodeDetailSidebar({
         ) : (
           <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 1, pt: 4 }}>
             <SettingsOutlined sx={{ fontSize: 28, color: tokens.text.tertiary }} />
-            <Typography variant="caption" color="text.secondary" sx={{ textAlign: "center" }}>Click a node in the canvas to view and edit its details</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ textAlign: "center" }}>{t("pipeline.nodeDetail.emptyHint")}</Typography>
           </Box>
         )}
       </Box>
@@ -685,6 +689,7 @@ function PipelineCanvas({ pipeline, onNodeSelect, externalNodes, nodeDisplayName
 // ── Main Pipeline Editor ──────────────────────────────────────────────────
 export default function PipelineEditor() {
   const { activeSpace } = useSpace();
+  const { t } = useTranslation();
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selected, setSelected] = useState<Pipeline | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -763,7 +768,7 @@ export default function PipelineEditor() {
       {/* Pipeline list */}
       <Box sx={{ width: 220, flexShrink: 0, borderRight: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", flexDirection: "column" }}>
         <Box sx={{ px: 2, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}` }}>
-          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Pipelines</Typography>
+          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("pipeline.editor.title")}</Typography>
         </Box>
         <List dense sx={{ p: 1, flex: 1, overflow: "auto" }}>
           {pipelines.map(p => {
@@ -782,7 +787,7 @@ export default function PipelineEditor() {
                     <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: 0.25 }}>
                       <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: sc }} />
                       <Typography variant="caption" sx={{ fontSize: "0.68rem", color: tokens.text.tertiary }}>
-                        {latestRun ? latestRun.status : "no runs"} · P{p.priority}
+                        {latestRun ? latestRun.status : t("pipeline.editor.noRuns")} · P{p.priority}
                       </Typography>
                     </Box>
                   }
@@ -802,10 +807,10 @@ export default function PipelineEditor() {
               <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.875rem", flex: 1 }}>{selected.name}</Typography>
               {/* Show Log button — only visible when log is collapsed */}
               {!logOpen && (
-                <Tooltip title="Show log">
+                <Tooltip title={t("pipeline.editor.showLog")}>
                   <Chip
                     icon={<TerminalOutlined sx={{ fontSize: 13 }} />}
-                    label="Log"
+                    label={t("pipeline.editor.log")}
                     size="small"
                     onClick={() => setLogOpen(true)}
                     sx={{
@@ -819,10 +824,10 @@ export default function PipelineEditor() {
                   />
                 </Tooltip>
               )}
-              <Tooltip title={selected.dryRun ? "Dry run mode — no writes" : "Run pipeline"}>
+              <Tooltip title={selected.dryRun ? t("pipeline.editor.dryRunTooltip") : t("pipeline.editor.runTooltip")}>
                 <Chip
                   icon={<PlayArrowOutlined sx={{ fontSize: 14 }} />}
-                  label={selected.dryRun ? "Dry Run" : "Run"}
+                  label={selected.dryRun ? t("pipeline.editor.dryRun") : t("pipeline.editor.run")}
                   size="small"
                   onClick={() => {}}
                   sx={{
@@ -835,7 +840,7 @@ export default function PipelineEditor() {
                 />
               </Tooltip>
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                <Typography variant="caption" sx={{ fontSize: "0.72rem", color: tokens.text.tertiary }}>Enabled</Typography>
+                <Typography variant="caption" sx={{ fontSize: "0.72rem", color: tokens.text.tertiary }}>{t("pipeline.editor.enabled")}</Typography>
                 <Switch size="small" checked={selected.enabled} />
               </Box>
             </Box>
@@ -849,10 +854,10 @@ export default function PipelineEditor() {
             {/* Add node bar — above the log */}
             {selected && (
               <Box sx={{ px: 2, py: 0.75, borderTop: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", alignItems: "center", gap: 0.75, flexShrink: 0 }}>
-                <Tooltip title="Add a node to the pipeline">
+                <Tooltip title={t("pipeline.editor.addNodeTooltip")}>
                   <Chip
                     icon={<AddOutlined sx={{ fontSize: 14 }} />}
-                    label="Add Node"
+                    label={t("pipeline.editor.addNode")}
                     size="small"
                     onClick={(e) => { setAddNodeCategory(null); setAddNodeAnchor(e.currentTarget); }}
                     sx={{
@@ -867,9 +872,9 @@ export default function PipelineEditor() {
                 </Tooltip>
                 <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
                 {[
-                  { cat: "source", label: "Source", icon: <CloudUploadOutlined sx={{ fontSize: 13 }} />, types: ["source", "filesystem_source", "asset_source"] },
-                  { cat: "filter", label: "Filter", icon: <FilterAltOutlined sx={{ fontSize: 13 }} />, types: ["filter"] },
-                  { cat: "process", label: "Process", icon: <MemoryOutlined sx={{ fontSize: 13 }} />, types: ["process", "yolo", "scene_detection", "llm", "auto_tag"] },
+                  { cat: "source", label: t("pipeline.editor.source"), icon: <CloudUploadOutlined sx={{ fontSize: 13 }} />, types: ["source", "filesystem_source", "asset_source"] },
+                  { cat: "filter", label: t("pipeline.editor.filter"), icon: <FilterAltOutlined sx={{ fontSize: 13 }} />, types: ["filter"] },
+                  { cat: "process", label: t("pipeline.editor.process"), icon: <MemoryOutlined sx={{ fontSize: 13 }} />, types: ["process", "yolo", "scene_detection", "llm", "auto_tag"] },
                 ].map(c => (
                   <Tooltip key={c.cat} title={`Add ${c.label.toLowerCase()} node`}>
                     <Chip
@@ -948,10 +953,10 @@ export default function PipelineEditor() {
             >
               <Box sx={{ px: 2, py: 0.75, display: "flex", alignItems: "center", gap: 1, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, flexShrink: 0 }}>
                 <TerminalOutlined sx={{ fontSize: 14, color: tokens.primary.main }} />
-                <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.75rem", flex: 1 }}>System Log</Typography>
+                <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.75rem", flex: 1 }}>{t("pipeline.editor.systemLog")}</Typography>
                 {selected && (
                   <Typography variant="caption" sx={{ fontSize: "0.68rem", color: tokens.text.tertiary }}>
-                    {selected.name} · {selected.runs[0]?.status ?? "no runs"}
+                    {selected.name} · {selected.runs[0]?.status ?? t("pipeline.editor.noRuns")}
                   </Typography>
                 )}
                 <IconButton size="small" onClick={() => setLogOpen(v => !v)} sx={{ width: 20, height: 20 }}>
@@ -987,7 +992,7 @@ export default function PipelineEditor() {
                   )))
                 ) : (
                   <Typography sx={{ fontFamily: "monospace", fontSize: "0.72rem", color: tokens.text.tertiary }}>
-                    Select a pipeline to view logs.
+                    {t("pipeline.editor.selectPipelineLogs")}
                   </Typography>
                 )}
               </Box>
@@ -1020,7 +1025,7 @@ export default function PipelineEditor() {
               }}
             >
               <ChevronLeftOutlined sx={{ fontSize: 14, color: tokens.primary.main }} />
-              <Typography variant="caption" sx={{ fontSize: "0.7rem", color: tokens.primary.light, fontWeight: 600 }}>Node Details</Typography>
+              <Typography variant="caption" sx={{ fontSize: "0.7rem", color: tokens.primary.light, fontWeight: 600 }}>{t("pipeline.nodeDetail.title")}</Typography>
             </Box>
           </Tooltip>
         )}

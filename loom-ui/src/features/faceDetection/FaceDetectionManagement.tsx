@@ -12,6 +12,7 @@ import {
 import { tokens } from "../../theme";
 import { FaceCluster, Person } from "../../types";
 import { mockFaceDetectionService } from "../../mock/services";
+import { useTranslation } from "react-i18next";
 
 export default function FaceDetectionManagement({ embedded }: { embedded?: boolean }) {
   const [clusters, setClusters] = useState<FaceCluster[]>([]);
@@ -23,6 +24,7 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
   const [newPersonDesc, setNewPersonDesc] = useState("");
   const [assignOpen, setAssignOpen] = useState<string | null>(null); // clusterId
   const [assignPersonId, setAssignPersonId] = useState("");
+  const { t } = useTranslation();
 
   useEffect(() => {
     Promise.all([
@@ -71,10 +73,10 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
       {!embedded && (
       <Box sx={{ px: 2.5, py: 1.5, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface }}>
         <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem", mb: 0.5 }}>
-          Face Detection
+          {t("faceDetection.title")}
         </Typography>
         <Typography variant="caption" color="text.secondary">
-          Manage face clusters and person database
+          {t("faceDetection.subtitle")}
         </Typography>
       </Box>
       )}
@@ -84,7 +86,7 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
         <TextField
           value={query}
           onChange={e => setQuery(e.target.value)}
-          placeholder="Search clusters, persons…"
+          placeholder={t("faceDetection.search.placeholder")}
           size="small"
           sx={{ flex: 1, maxWidth: 320 }}
           InputProps={{
@@ -97,7 +99,7 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
         />
         <Box sx={{ display: "flex", gap: 0.5 }}>
           <Chip
-            label="Clusters"
+            label={t("faceDetection.chip.clusters")}
             size="small"
             icon={<GroupWorkOutlined sx={{ fontSize: 14 }} />}
             onClick={() => setActiveSection("clusters")}
@@ -109,7 +111,7 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
             }}
           />
           <Chip
-            label="Persons"
+            label={t("faceDetection.chip.persons")}
             size="small"
             icon={<PersonOutlined sx={{ fontSize: 14 }} />}
             onClick={() => setActiveSection("persons")}
@@ -128,7 +130,7 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
             onClick={() => setCreatePersonOpen(true)}
             sx={{ ml: "auto", textTransform: "none", fontSize: "0.78rem" }}
           >
-            Add Person
+            {t("faceDetection.button.addPerson")}
           </Button>
         )}
       </Box>
@@ -158,13 +160,13 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
                         {cluster.label}
                       </Typography>
                       <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.72rem" }}>
-                        {cluster.faceIds.length} faces
+                        {t("faceDetection.count.faces", { count: cluster.faceIds.length })}
                       </Typography>
                     </Box>
                     {person ? (
                       <Chip label={person.name} size="small" avatar={<Avatar src={person.avatarUrl} />} sx={{ height: 24, fontSize: "0.72rem", bgcolor: `${tokens.accent.green}18`, border: `1px solid ${tokens.accent.green}44` }} />
                     ) : (
-                      <Tooltip title="Assign to person">
+                      <Tooltip title={t("faceDetection.tooltip.assign")}>
                         <IconButton size="small" onClick={() => { setAssignOpen(cluster.id); setAssignPersonId(""); }}>
                           <LinkOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
                         </IconButton>
@@ -190,7 +192,7 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
             {filteredClusters.length === 0 && (
               <Box sx={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", alignItems: "center", py: 6, gap: 1 }}>
                 <GroupWorkOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
-                <Typography variant="body2" color="text.secondary">No clusters found</Typography>
+                <Typography variant="body2" color="text.secondary">{t("faceDetection.empty.clusters")}</Typography>
               </Box>
             )}
           </Box>
@@ -221,9 +223,9 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
                         {person.description}
                       </Typography>
                       <Box sx={{ display: "flex", gap: 0.5, mt: 0.5 }}>
-                        <Chip label={`${person.clusterIds.length} clusters`} size="small" sx={{ height: 18, fontSize: "0.62rem", bgcolor: tokens.bg.overlay }} />
+                        <Chip label={t("faceDetection.count.clusters", { count: person.clusterIds.length })} size="small" sx={{ height: 18, fontSize: "0.62rem", bgcolor: tokens.bg.overlay }} />
                         <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.65rem", alignSelf: "center" }}>
-                          since {new Date(person.createdAt).toLocaleDateString()}
+                          {t("faceDetection.label.since", { date: new Date(person.createdAt).toLocaleDateString() })}
                         </Typography>
                       </Box>
                     </Box>
@@ -247,7 +249,7 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
             {filteredPersons.length === 0 && (
               <Box sx={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", alignItems: "center", py: 6, gap: 1 }}>
                 <PersonOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
-                <Typography variant="body2" color="text.secondary">No persons found</Typography>
+                <Typography variant="body2" color="text.secondary">{t("faceDetection.empty.persons")}</Typography>
               </Box>
             )}
           </Box>
@@ -256,19 +258,17 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
 
       {/* Create Person Dialog */}
       <Dialog open={createPersonOpen} onClose={() => setCreatePersonOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontSize: "0.95rem", fontWeight: 700 }}>Add Person</DialogTitle>
+        <DialogTitle sx={{ fontSize: "0.95rem", fontWeight: 700 }}>{t("faceDetection.dialog.addPerson")}</DialogTitle>
         <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: "8px !important" }}>
           <TextField
-            label="Name"
-            value={newPersonName}
+            label={t("faceDetection.label.name")}
             onChange={e => setNewPersonName(e.target.value)}
             size="small"
             fullWidth
             autoFocus
           />
           <TextField
-            label="Description"
-            value={newPersonDesc}
+            label={t("faceDetection.label.description")}
             onChange={e => setNewPersonDesc(e.target.value)}
             size="small"
             fullWidth
@@ -277,14 +277,14 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCreatePersonOpen(false)} size="small">Cancel</Button>
-          <Button onClick={handleCreatePerson} variant="contained" size="small" disabled={!newPersonName.trim()}>Create</Button>
+          <Button onClick={() => setCreatePersonOpen(false)} size="small">{t("faceDetection.button.cancel")}</Button>
+          <Button onClick={handleCreatePerson} variant="contained" size="small" disabled={!newPersonName.trim()}>{t("faceDetection.button.create")}</Button>
         </DialogActions>
       </Dialog>
 
       {/* Assign Cluster to Person Dialog */}
       <Dialog open={!!assignOpen} onClose={() => setAssignOpen(null)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontSize: "0.95rem", fontWeight: 700 }}>Assign Cluster to Person</DialogTitle>
+        <DialogTitle sx={{ fontSize: "0.95rem", fontWeight: 700 }}>{t("faceDetection.dialog.assign")}</DialogTitle>
         <DialogContent sx={{ pt: "8px !important" }}>
           <FormControl fullWidth size="small">
             <Select
@@ -293,7 +293,7 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
               displayEmpty
               sx={{ fontSize: "0.85rem" }}
             >
-              <MenuItem value="" disabled>Select a person…</MenuItem>
+              <MenuItem value="" disabled>{t("faceDetection.dialog.selectPerson")}</MenuItem>
               {persons.map(p => (
                 <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
               ))}
@@ -301,8 +301,8 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
           </FormControl>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setAssignOpen(null)} size="small">Cancel</Button>
-          <Button onClick={handleAssignCluster} variant="contained" size="small" disabled={!assignPersonId}>Assign</Button>
+          <Button onClick={() => setAssignOpen(null)} size="small">{t("faceDetection.button.cancel")}</Button>
+          <Button onClick={handleAssignCluster} variant="contained" size="small" disabled={!assignPersonId}>{t("faceDetection.button.assign")}</Button>
         </DialogActions>
       </Dialog>
     </Box>

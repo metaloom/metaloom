@@ -11,6 +11,7 @@ import {
 import { tokens } from "../../theme";
 import { useAuth } from "../../context/AuthContext";
 import { listTasks, TaskResponse } from "../../api/tasks";
+import { useTranslation } from "react-i18next";
 
 const priorityColor: Record<string, string> = {
   CRITICAL: tokens.accent.red,
@@ -32,6 +33,7 @@ function TaskDetailDrawer({ task, onClose }: { task: TaskResponse | null; onClos
   if (!task) return null;
   const prio = task.priority?.toUpperCase() ?? "MEDIUM";
   const pc = priorityColor[prio] ?? tokens.text.tertiary;
+  const { t } = useTranslation();
 
   return (
     <Drawer
@@ -51,7 +53,7 @@ function TaskDetailDrawer({ task, onClose }: { task: TaskResponse | null; onClos
         {/* Header */}
         <Box sx={{ px: 2.5, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", gap: 1 }}>
           <Box sx={{ width: 4, height: 20, borderRadius: 2, bgcolor: pc, flexShrink: 0 }} />
-          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "0.95rem", flex: 1 }}>Task Detail</Typography>
+          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "0.95rem", flex: 1 }}>{t("tasks.drawer.title")}</Typography>
           <IconButton size="small" onClick={onClose}><CloseOutlined sx={{ fontSize: 16 }} /></IconButton>
         </Box>
 
@@ -81,14 +83,14 @@ function TaskDetailDrawer({ task, onClose }: { task: TaskResponse | null; onClos
             {[
               {
                 icon: <CalendarTodayOutlined sx={{ fontSize: 14 }} />,
-                label: "Created",
+                label: t("tasks.drawer.created"),
                 content: <Typography sx={{ fontSize: "0.82rem", color: tokens.text.secondary }}>
                   {task.status?.created ? new Date(task.status.created).toLocaleDateString() : "—"}
                 </Typography>,
               },
               {
                 icon: <CalendarTodayOutlined sx={{ fontSize: 14 }} />,
-                label: "Last Edited",
+                label: t("tasks.drawer.lastEdited"),
                 content: <Typography sx={{ fontSize: "0.82rem", color: tokens.text.secondary }}>
                   {task.status?.edited ? new Date(task.status.edited).toLocaleDateString() : "—"}
                 </Typography>,
@@ -145,6 +147,7 @@ function TaskRow({ task, onSelect }: { task: TaskResponse; onSelect: (t: TaskRes
 
 export default function TasksView() {
   const { token } = useAuth();
+  const { t } = useTranslation();
   const [tasks, setTasks] = useState<TaskResponse[]>([]);
   const [selectedTask, setSelectedTask] = useState<TaskResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -161,8 +164,8 @@ export default function TasksView() {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: tokens.bg.base }}>
       <Box sx={{ px: 2.5, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface }}>
-        <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Tasks</Typography>
-        <Typography variant="caption" color="text.secondary">{tasks.length} tasks</Typography>
+        <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("tasks.title")}</Typography>
+        <Typography variant="caption" color="text.secondary">{tasks.length} {t("tasks.count")}</Typography>
       </Box>
 
       <Box sx={{ flex: 1, overflow: "auto" }}>
@@ -170,9 +173,9 @@ export default function TasksView() {
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>Task</TableCell>
-                <TableCell>Priority</TableCell>
-                <TableCell>Created</TableCell>
+                <TableCell>{t("tasks.table.task")}</TableCell>
+                <TableCell>{t("tasks.table.priority")}</TableCell>
+                <TableCell>{t("tasks.table.created")}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -183,7 +186,7 @@ export default function TasksView() {
         {!loading && tasks.length === 0 && (
           <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 6, gap: 1 }}>
             <TaskAltOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
-            <Typography variant="body2" color="text.secondary">No tasks found</Typography>
+            <Typography variant="body2" color="text.secondary">{t("tasks.empty")}</Typography>
           </Box>
         )}
       </Box>

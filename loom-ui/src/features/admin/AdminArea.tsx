@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import {
   Box, Typography, Tab, Tabs, Table, TableBody, TableCell, TableContainer,
@@ -38,6 +39,7 @@ import {
 
 // ── Spaces Table ──────────────────────────────────────────────────────────
 function SpacesAdmin() {
+  const { t } = useTranslation();
   const { token } = useAuth();
   const [spaces, setSpaces] = useState<SpaceResponse[]>([]);
   const [query, setQuery] = useState("");
@@ -103,17 +105,17 @@ function SpacesAdmin() {
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
         <Box>
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-            <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Spaces</Typography>
-            <Tooltip title="Spaces organise projects, libraries and assets into logical groups." arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
+            <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("admin.spaces.title")}</Typography>
+            <Tooltip title={t("admin.spaces.tooltip")} arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
           </Box>
-          <Typography variant="caption" color="text.secondary">{spaces.length} spaces</Typography>
+          <Typography variant="caption" color="text.secondary">{spaces.length} {t("admin.spaces.count")}</Typography>
         </Box>
-        <Button startIcon={<AddOutlined />} variant="contained" size="small" onClick={() => setCreateOpen(true)}>New Space</Button>
+        <Button startIcon={<AddOutlined />} variant="contained" size="small" onClick={() => setCreateOpen(true)}>{t("admin.spaces.newSpace")}</Button>
       </Box>
       <TextField
         value={query}
         onChange={e => setQuery(e.target.value)}
-        placeholder="Search spaces…"
+        placeholder={t("admin.spaces.search")}
         size="small"
         sx={{ mb: 1.5, maxWidth: 320 }}
         fullWidth
@@ -129,10 +131,10 @@ function SpacesAdmin() {
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell>Name</TableCell>
-              <TableCell>UUID</TableCell>
-              <TableCell>Created</TableCell>
-              <TableCell align="right">Actions</TableCell>
+              <TableCell>{t("admin.spaces.table.name")}</TableCell>
+              <TableCell>{t("admin.spaces.table.uuid")}</TableCell>
+              <TableCell>{t("admin.spaces.table.created")}</TableCell>
+              <TableCell align="right">{t("admin.spaces.table.actions")}</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -162,26 +164,26 @@ function SpacesAdmin() {
       <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="sm" fullWidth
         PaperProps={{ sx: { bgcolor: tokens.bg.surface, border: `1px solid ${tokens.border.subtle}` } }}>
         <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1, pb: 1 }}>
-          <Typography fontWeight={700} sx={{ fontSize: "1rem" }}>Create Space</Typography>
+          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("admin.spaces.dialog.create")}</Typography>
           <IconButton size="small" onClick={() => setCreateOpen(false)} sx={{ ml: "auto" }}>
             <CloseOutlined sx={{ fontSize: 16 }} />
           </IconButton>
         </DialogTitle>
         <DialogContent sx={{ pt: 1 }}>
           <Stack spacing={2.5}>
-            <TextField label="Space name" size="small" fullWidth value={newName} onChange={e => setNewName(e.target.value)} autoFocus placeholder="e.g. Production" />
+            <TextField label={t("admin.spaces.dialog.label")} size="small" fullWidth value={newName} onChange={e => setNewName(e.target.value)} autoFocus placeholder={t("admin.spaces.dialog.placeholder")} />
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button size="small" onClick={() => setCreateOpen(false)}>Cancel</Button>
-          <Button size="small" variant="contained" onClick={handleCreate} disabled={!newName.trim()}>Create Space</Button>
+          <Button size="small" onClick={() => setCreateOpen(false)}>{t("common.cancel")}</Button>
+          <Button size="small" variant="contained" onClick={handleCreate} disabled={!newName.trim()}>{t("admin.spaces.dialog.create")}</Button>
         </DialogActions>
       </Dialog>
 
       {/* Edit Space dialog */}
       <Dialog open={Boolean(editSpace)} onClose={() => setEditSpace(null)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", pb: 1 }}>
-          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Edit Space</Typography>
+          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("admin.spaces.dialog.edit")}</Typography>
           <IconButton size="small" onClick={() => setEditSpace(null)}><CloseOutlined sx={{ fontSize: 18 }} /></IconButton>
         </DialogTitle>
         <DialogContent dividers>
@@ -189,26 +191,24 @@ function SpacesAdmin() {
             {editSpace && (
               <Typography variant="caption" sx={{ color: tokens.text.tertiary }}>UUID: {editSpace.uuid}</Typography>
             )}
-            <TextField label="Space name" size="small" fullWidth value={editName} onChange={e => setEditName(e.target.value)} />
+            <TextField label={t("admin.spaces.dialog.label")} size="small" fullWidth value={editName} onChange={e => setEditName(e.target.value)} />
           </Box>
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 1.5 }}>
-          <Button onClick={() => setEditSpace(null)} size="small">Cancel</Button>
-          <Button variant="contained" size="small" onClick={handleSaveEdit}>Save</Button>
+          <Button onClick={() => setEditSpace(null)} size="small">{t("common.cancel")}</Button>
+          <Button variant="contained" size="small" onClick={handleSaveEdit}>{t("common.save")}</Button>
         </DialogActions>
       </Dialog>
 
       {/* Delete Confirm Dialog */}
       <Dialog open={Boolean(deleteConfirm)} onClose={() => setDeleteConfirm(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>Delete Space</DialogTitle>
+        <DialogTitle>{t("admin.spaces.dialog.delete")}</DialogTitle>
         <DialogContent>
-          <Typography variant="body2">
-            Are you sure you want to delete space <strong>{deleteConfirm?.name}</strong>?
-          </Typography>
+          <Typography variant="body2" dangerouslySetInnerHTML={{ __html: t("admin.spaces.confirm.delete", { name: `<strong>${deleteConfirm?.name}</strong>` }) }} />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteConfirm(null)} size="small">Cancel</Button>
-          <Button variant="contained" color="error" size="small" onClick={handleDelete}>Delete</Button>
+          <Button onClick={() => setDeleteConfirm(null)} size="small">{t("common.cancel")}</Button>
+          <Button variant="contained" color="error" size="small" onClick={handleDelete}>{t("common.delete")}</Button>
         </DialogActions>
       </Dialog>
     </Box>
@@ -217,6 +217,7 @@ function SpacesAdmin() {
 
 // ── Users Table ───────────────────────────────────────────────────────────
 function UsersAdmin() {
+  const { t } = useTranslation();
   const { token } = useAuth();
   const [users, setUsers] = useState<UserResponse[]>([]);
   const [editUser, setEditUser] = useState<UserResponse | null>(null);
@@ -292,19 +293,19 @@ function UsersAdmin() {
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
         <Box>
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-            <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Users</Typography>
-            <Tooltip title="Manage user accounts and access levels. Create new users or remove existing ones." arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
+            <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("admin.users.title")}</Typography>
+            <Tooltip title={t("admin.users.tooltip")} arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
           </Box>
-          <Typography variant="caption" color="text.secondary">{users.length} accounts</Typography>
+          <Typography variant="caption" color="text.secondary">{users.length} {t("admin.users.count")}</Typography>
         </Box>
         <Button startIcon={<PersonAddOutlined />} variant="contained" size="small" onClick={() => setCreateOpen(true)}>
-          Create User
+          {t("admin.users.createUser")}
         </Button>
       </Box>
       <TextField
         value={query}
         onChange={e => setQuery(e.target.value)}
-        placeholder="Search users…"
+        placeholder={t("admin.users.search")}
         size="small"
         sx={{ mb: 1.5, maxWidth: 320 }}
         fullWidth
@@ -320,11 +321,11 @@ function UsersAdmin() {
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell>User</TableCell>
-              <TableCell>Email</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Created</TableCell>
-              <TableCell align="right">Actions</TableCell>
+              <TableCell>{t("admin.users.table.user")}</TableCell>
+              <TableCell>{t("admin.users.table.email")}</TableCell>
+              <TableCell>{t("admin.users.table.status")}</TableCell>
+              <TableCell>{t("admin.users.table.created")}</TableCell>
+              <TableCell align="right">{t("admin.users.table.actions")}</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -352,7 +353,7 @@ function UsersAdmin() {
                 </TableCell>
                 <TableCell>
                   <Chip
-                    label={u.enabled ? "enabled" : "disabled"}
+                    label={u.enabled ? t("admin.users.chip.enabled") : t("admin.users.chip.disabled")}
                     size="small"
                     sx={{ height: 18, fontSize: "0.65rem", bgcolor: u.enabled ? `${tokens.accent.green}22` : `${tokens.accent.red}22`, color: u.enabled ? tokens.accent.green : tokens.accent.red }}
                   />
@@ -379,27 +380,27 @@ function UsersAdmin() {
       {/* Create User Dialog */}
       <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", pb: 1 }}>
-          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Create User</Typography>
+          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("admin.users.dialog.create")}</Typography>
           <IconButton size="small" onClick={() => setCreateOpen(false)}><CloseOutlined sx={{ fontSize: 18 }} /></IconButton>
         </DialogTitle>
         <DialogContent dividers>
           <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5, pt: 1 }}>
-            <TextField label="Username" size="small" fullWidth value={createForm.username} onChange={e => setCreateForm(f => ({ ...f, username: e.target.value }))} autoFocus />
-            <TextField label="Email" size="small" fullWidth type="email" value={createForm.email} onChange={e => setCreateForm(f => ({ ...f, email: e.target.value }))} />
-            <TextField label="Firstname" size="small" fullWidth value={createForm.firstname} onChange={e => setCreateForm(f => ({ ...f, firstname: e.target.value }))} />
-            <TextField label="Lastname" size="small" fullWidth value={createForm.lastname} onChange={e => setCreateForm(f => ({ ...f, lastname: e.target.value }))} />
+            <TextField label={t("admin.users.dialog.label.username")} size="small" fullWidth value={createForm.username} onChange={e => setCreateForm(f => ({ ...f, username: e.target.value }))} autoFocus />
+            <TextField label={t("admin.users.dialog.label.email")} size="small" fullWidth type="email" value={createForm.email} onChange={e => setCreateForm(f => ({ ...f, email: e.target.value }))} />
+            <TextField label={t("admin.users.dialog.label.firstname")} size="small" fullWidth value={createForm.firstname} onChange={e => setCreateForm(f => ({ ...f, firstname: e.target.value }))} />
+            <TextField label={t("admin.users.dialog.label.lastname")} size="small" fullWidth value={createForm.lastname} onChange={e => setCreateForm(f => ({ ...f, lastname: e.target.value }))} />
           </Box>
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 1.5 }}>
-          <Button onClick={() => setCreateOpen(false)} size="small">Cancel</Button>
-          <Button variant="contained" size="small" onClick={handleCreate} disabled={!createForm.username.trim()}>Create</Button>
+          <Button onClick={() => setCreateOpen(false)} size="small">{t("common.cancel")}</Button>
+          <Button variant="contained" size="small" onClick={handleCreate} disabled={!createForm.username.trim()}>{t("common.create")}</Button>
         </DialogActions>
       </Dialog>
 
       {/* Edit User Dialog */}
       <Dialog open={Boolean(editUser)} onClose={() => setEditUser(null)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", pb: 1 }}>
-          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Edit User</Typography>
+          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("admin.users.dialog.edit")}</Typography>
           <IconButton size="small" onClick={() => setEditUser(null)}><CloseOutlined sx={{ fontSize: 18 }} /></IconButton>
         </DialogTitle>
         <DialogContent dividers>
@@ -418,30 +419,28 @@ function UsersAdmin() {
                   )}
                 </Box>
               </Box>
-              <TextField label="Username" size="small" fullWidth value={editForm.username} onChange={e => setEditForm(f => ({ ...f, username: e.target.value }))} />
-              <TextField label="Email" size="small" fullWidth type="email" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} />
-              <TextField label="Firstname" size="small" fullWidth value={editForm.firstname} onChange={e => setEditForm(f => ({ ...f, firstname: e.target.value }))} />
-              <TextField label="Lastname" size="small" fullWidth value={editForm.lastname} onChange={e => setEditForm(f => ({ ...f, lastname: e.target.value }))} />
+              <TextField label={t("admin.users.dialog.label.username")} size="small" fullWidth value={editForm.username} onChange={e => setEditForm(f => ({ ...f, username: e.target.value }))} />
+              <TextField label={t("admin.users.dialog.label.email")} size="small" fullWidth type="email" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} />
+              <TextField label={t("admin.users.dialog.label.firstname")} size="small" fullWidth value={editForm.firstname} onChange={e => setEditForm(f => ({ ...f, firstname: e.target.value }))} />
+              <TextField label={t("admin.users.dialog.label.lastname")} size="small" fullWidth value={editForm.lastname} onChange={e => setEditForm(f => ({ ...f, lastname: e.target.value }))} />
             </Box>
           )}
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 1.5 }}>
-          <Button onClick={() => setEditUser(null)} size="small">Cancel</Button>
-          <Button variant="contained" size="small" onClick={handleSaveEdit} sx={{ textTransform: "none", fontWeight: 600 }}>Save</Button>
+          <Button onClick={() => setEditUser(null)} size="small">{t("common.cancel")}</Button>
+          <Button variant="contained" size="small" onClick={handleSaveEdit} sx={{ textTransform: "none", fontWeight: 600 }}>{t("common.save")}</Button>
         </DialogActions>
       </Dialog>
 
       {/* Delete Confirm Dialog */}
       <Dialog open={Boolean(deleteConfirm)} onClose={() => setDeleteConfirm(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>Delete User</DialogTitle>
+        <DialogTitle>{t("admin.users.dialog.delete")}</DialogTitle>
         <DialogContent>
-          <Typography variant="body2">
-            Are you sure you want to delete user <strong>{deleteConfirm?.username}</strong>? This action cannot be undone.
-          </Typography>
+          <Typography variant="body2" dangerouslySetInnerHTML={{ __html: t("admin.users.confirm.delete", { name: `<strong>${deleteConfirm?.username}</strong>` }) }} />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteConfirm(null)} size="small">Cancel</Button>
-          <Button variant="contained" color="error" size="small" onClick={handleDelete}>Delete</Button>
+          <Button onClick={() => setDeleteConfirm(null)} size="small">{t("common.cancel")}</Button>
+          <Button variant="contained" color="error" size="small" onClick={handleDelete}>{t("common.delete")}</Button>
         </DialogActions>
       </Dialog>
     </Box>
@@ -450,6 +449,7 @@ function UsersAdmin() {
 
 // ── Groups Table ──────────────────────────────────────────────────────────
 function GroupsAdmin() {
+  const { t } = useTranslation();
   const { token } = useAuth();
   const [groups, setGroups] = useState<GroupResponse[]>([]);
   const [query, setQuery] = useState("");
@@ -515,17 +515,17 @@ function GroupsAdmin() {
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
         <Box>
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-            <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Groups</Typography>
-            <Tooltip title="Groups let you organise users and assign shared permissions." arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
+            <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("admin.groups.title")}</Typography>
+            <Tooltip title={t("admin.groups.tooltip")} arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
           </Box>
-          <Typography variant="caption" color="text.secondary">{groups.length} groups</Typography>
+          <Typography variant="caption" color="text.secondary">{groups.length} {t("admin.groups.count")}</Typography>
         </Box>
-        <Button startIcon={<AddOutlined />} variant="contained" size="small" onClick={() => setCreateOpen(true)}>New Group</Button>
+        <Button startIcon={<AddOutlined />} variant="contained" size="small" onClick={() => setCreateOpen(true)}>{t("admin.groups.newGroup")}</Button>
       </Box>
       <TextField
         value={query}
         onChange={e => setQuery(e.target.value)}
-        placeholder="Search groups…"
+        placeholder={t("admin.groups.search")}
         size="small"
         sx={{ mb: 1.5, maxWidth: 320 }}
         fullWidth
@@ -541,10 +541,10 @@ function GroupsAdmin() {
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell>Name</TableCell>
-              <TableCell>UUID</TableCell>
-              <TableCell>Created</TableCell>
-              <TableCell align="right">Actions</TableCell>
+              <TableCell>{t("admin.groups.table.name")}</TableCell>
+              <TableCell>{t("admin.groups.table.uuid")}</TableCell>
+              <TableCell>{t("admin.groups.table.created")}</TableCell>
+              <TableCell align="right">{t("admin.groups.table.actions")}</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -576,26 +576,26 @@ function GroupsAdmin() {
         PaperProps={{ sx: { bgcolor: tokens.bg.surface, border: `1px solid ${tokens.border.subtle}` } }}>
         <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1, pb: 1 }}>
           <GroupsOutlined sx={{ fontSize: 18, color: tokens.primary.main }} />
-          <Typography fontWeight={700} sx={{ fontSize: "1rem" }}>Create Group</Typography>
+          <Typography fontWeight={700} sx={{ fontSize: "1rem" }}>{t("admin.groups.dialog.create")}</Typography>
           <IconButton size="small" onClick={() => setCreateOpen(false)} sx={{ ml: "auto" }}>
             <CloseOutlined sx={{ fontSize: 16 }} />
           </IconButton>
         </DialogTitle>
         <DialogContent sx={{ pt: 1 }}>
           <Stack spacing={2.5}>
-            <TextField label="Group name" size="small" fullWidth value={newName} onChange={e => setNewName(e.target.value)} autoFocus placeholder="e.g. Engineering" />
+            <TextField label={t("admin.groups.dialog.label")} size="small" fullWidth value={newName} onChange={e => setNewName(e.target.value)} autoFocus placeholder={t("admin.groups.dialog.placeholder")} />
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button size="small" onClick={() => setCreateOpen(false)}>Cancel</Button>
-          <Button size="small" variant="contained" onClick={handleCreateGroup} disabled={!newName.trim()}>Create Group</Button>
+          <Button size="small" onClick={() => setCreateOpen(false)}>{t("common.cancel")}</Button>
+          <Button size="small" variant="contained" onClick={handleCreateGroup} disabled={!newName.trim()}>{t("admin.groups.dialog.create")}</Button>
         </DialogActions>
       </Dialog>
 
       {/* Edit Group dialog */}
       <Dialog open={Boolean(editGroup)} onClose={() => setEditGroup(null)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", pb: 1 }}>
-          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Edit Group</Typography>
+          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("admin.groups.dialog.edit")}</Typography>
           <IconButton size="small" onClick={() => setEditGroup(null)}><CloseOutlined sx={{ fontSize: 18 }} /></IconButton>
         </DialogTitle>
         <DialogContent dividers>
@@ -603,26 +603,24 @@ function GroupsAdmin() {
             {editGroup && (
               <Typography variant="caption" sx={{ color: tokens.text.tertiary }}>UUID: {editGroup.uuid}</Typography>
             )}
-            <TextField label="Group name" size="small" fullWidth value={editName} onChange={e => setEditName(e.target.value)} />
+            <TextField label={t("admin.groups.dialog.label")} size="small" fullWidth value={editName} onChange={e => setEditName(e.target.value)} />
           </Box>
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 1.5 }}>
-          <Button onClick={() => setEditGroup(null)} size="small">Cancel</Button>
-          <Button variant="contained" size="small" onClick={handleSaveEdit}>Save</Button>
+          <Button onClick={() => setEditGroup(null)} size="small">{t("common.cancel")}</Button>
+          <Button variant="contained" size="small" onClick={handleSaveEdit}>{t("common.save")}</Button>
         </DialogActions>
       </Dialog>
 
       {/* Delete Confirm Dialog */}
       <Dialog open={Boolean(deleteConfirm)} onClose={() => setDeleteConfirm(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>Delete Group</DialogTitle>
+        <DialogTitle>{t("admin.groups.dialog.delete")}</DialogTitle>
         <DialogContent>
-          <Typography variant="body2">
-            Are you sure you want to delete group <strong>{deleteConfirm?.name}</strong>?
-          </Typography>
+          <Typography variant="body2" dangerouslySetInnerHTML={{ __html: t("admin.groups.confirm.delete", { name: `<strong>${deleteConfirm?.name}</strong>` }) }} />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteConfirm(null)} size="small">Cancel</Button>
-          <Button variant="contained" color="error" size="small" onClick={handleDelete}>Delete</Button>
+          <Button onClick={() => setDeleteConfirm(null)} size="small">{t("common.cancel")}</Button>
+          <Button variant="contained" color="error" size="small" onClick={handleDelete}>{t("common.delete")}</Button>
         </DialogActions>
       </Dialog>
     </Box>
@@ -631,6 +629,7 @@ function GroupsAdmin() {
 
 // ── Access Control (Roles with Permissions) ──────────────────────────────
 function AccessControlAdmin() {
+  const { t } = useTranslation();
   const { token } = useAuth();
   const [roles, setRoles] = useState<RoleResponse[]>([]);
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
@@ -721,20 +720,20 @@ function AccessControlAdmin() {
     <Box>
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
         <Box>
-          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Access Control</Typography>
+          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("admin.roles.title")}</Typography>
           <Typography variant="caption" color="text.secondary">
-            {roles.length} roles
-            {saving && " · saving…"}
+            {roles.length} {t("admin.roles.count")}
+            {saving && " · " + t("admin.roles.saving")}
           </Typography>
         </Box>
-        <Button startIcon={<AddOutlined />} variant="outlined" size="small" onClick={() => setCreateOpen(true)}>New Role</Button>
+        <Button startIcon={<AddOutlined />} variant="outlined" size="small" onClick={() => setCreateOpen(true)}>{t("admin.roles.newRole")}</Button>
       </Box>
 
       <Box sx={{ display: "flex", gap: 2, height: "calc(100vh - 220px)", minHeight: 400 }}>
         {/* Left: Role list */}
         <Box sx={{ width: 220, flexShrink: 0, display: "flex", flexDirection: "column", gap: 0.5 }}>
           <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.07em", color: tokens.text.tertiary, fontSize: "0.68rem", mb: 0.5, px: 0.5 }}>
-            Roles
+            {t("admin.roles.sectionTitle")}
           </Typography>
           {roles.map(role => (
             <Box
@@ -761,7 +760,7 @@ function AccessControlAdmin() {
                 </IconButton>
               </Box>
               <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem", pl: 2.5, display: "block" }}>
-                {(role.permissions ?? []).length} permissions
+                {(role.permissions ?? []).length} {t("admin.roles.permissionsCount")}
               </Typography>
             </Box>
           ))}
@@ -777,7 +776,7 @@ function AccessControlAdmin() {
               <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2, pb: 1.5, borderBottom: `1px solid ${tokens.border.subtle}` }}>
                 <SecurityOutlined sx={{ fontSize: 16, color: tokens.primary.main }} />
                 <Typography variant="subtitle2" fontWeight={700}>{selectedRole.name}</Typography>
-                <Typography variant="caption" color="text.secondary">— {(selectedRole.permissions ?? []).length} permissions granted</Typography>
+                <Typography variant="caption" color="text.secondary">— {(selectedRole.permissions ?? []).length} {t("admin.roles.permissionsGranted")}</Typography>
               </Box>
               <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
                 {Object.entries(PERMISSION_GROUPS).map(([resource, perms]) => {
@@ -826,7 +825,7 @@ function AccessControlAdmin() {
             </Box>
           ) : (
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
-              <Typography variant="body2" color="text.secondary">Select a role to manage its permissions</Typography>
+              <Typography variant="body2" color="text.secondary">{t("admin.roles.empty")}</Typography>
             </Box>
           )}
         </Box>
@@ -836,24 +835,24 @@ function AccessControlAdmin() {
       <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1, pb: 1 }}>
           <SecurityOutlined sx={{ fontSize: 18, color: tokens.primary.main }} />
-          <Typography fontWeight={700} sx={{ fontSize: "1rem" }}>Create Role</Typography>
+          <Typography fontWeight={700} sx={{ fontSize: "1rem" }}>{t("admin.roles.dialog.create")}</Typography>
           <IconButton size="small" onClick={() => setCreateOpen(false)} sx={{ ml: "auto" }}>
             <CloseOutlined sx={{ fontSize: 16 }} />
           </IconButton>
         </DialogTitle>
         <DialogContent sx={{ pt: 1 }}>
-          <TextField label="Role name" size="small" fullWidth value={newRoleName} onChange={e => setNewRoleName(e.target.value)} autoFocus placeholder="e.g. Editor" />
+          <TextField label={t("admin.roles.dialog.label")} size="small" fullWidth value={newRoleName} onChange={e => setNewRoleName(e.target.value)} autoFocus placeholder={t("admin.roles.dialog.placeholder")} />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button size="small" onClick={() => setCreateOpen(false)}>Cancel</Button>
-          <Button size="small" variant="contained" onClick={handleCreateRole} disabled={!newRoleName.trim()}>Create</Button>
+          <Button size="small" onClick={() => setCreateOpen(false)}>{t("common.cancel")}</Button>
+          <Button size="small" variant="contained" onClick={handleCreateRole} disabled={!newRoleName.trim()}>{t("common.create")}</Button>
         </DialogActions>
       </Dialog>
 
       {/* Edit Role dialog */}
       <Dialog open={Boolean(editRole)} onClose={() => setEditRole(null)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", pb: 1 }}>
-          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Edit Role</Typography>
+          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("admin.roles.dialog.edit")}</Typography>
           <IconButton size="small" onClick={() => setEditRole(null)}><CloseOutlined sx={{ fontSize: 18 }} /></IconButton>
         </DialogTitle>
         <DialogContent dividers>
@@ -861,26 +860,24 @@ function AccessControlAdmin() {
             {editRole && (
               <Typography variant="caption" sx={{ color: tokens.text.tertiary }}>UUID: {editRole.uuid}</Typography>
             )}
-            <TextField label="Role name" size="small" fullWidth value={editName} onChange={e => setEditName(e.target.value)} />
+            <TextField label={t("admin.roles.dialog.label")} size="small" fullWidth value={editName} onChange={e => setEditName(e.target.value)} />
           </Box>
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 1.5 }}>
-          <Button onClick={() => setEditRole(null)} size="small">Cancel</Button>
-          <Button variant="contained" size="small" onClick={handleSaveEdit}>Save</Button>
+          <Button onClick={() => setEditRole(null)} size="small">{t("common.cancel")}</Button>
+          <Button variant="contained" size="small" onClick={handleSaveEdit}>{t("common.save")}</Button>
         </DialogActions>
       </Dialog>
 
       {/* Delete Role Confirm */}
       <Dialog open={Boolean(deleteConfirm)} onClose={() => setDeleteConfirm(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>Delete Role</DialogTitle>
+        <DialogTitle>{t("admin.roles.dialog.delete")}</DialogTitle>
         <DialogContent>
-          <Typography variant="body2">
-            Are you sure you want to delete role <strong>{deleteConfirm?.name}</strong>?
-          </Typography>
+          <Typography variant="body2" dangerouslySetInnerHTML={{ __html: t("admin.roles.confirm.delete", { name: `<strong>${deleteConfirm?.name}</strong>` }) }} />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteConfirm(null)} size="small">Cancel</Button>
-          <Button variant="contained" color="error" size="small" onClick={handleDeleteRole}>Delete</Button>
+          <Button onClick={() => setDeleteConfirm(null)} size="small">{t("common.cancel")}</Button>
+          <Button variant="contained" color="error" size="small" onClick={handleDeleteRole}>{t("common.delete")}</Button>
         </DialogActions>
       </Dialog>
     </Box>
@@ -913,6 +910,7 @@ const PERMISSION_GROUPS: Record<string, string[]> = {
 };
 
 function ApiKeysAdmin() {
+  const { t } = useTranslation();
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
@@ -969,19 +967,19 @@ function ApiKeysAdmin() {
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
         <Box>
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-            <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>API Keys</Typography>
-            <Tooltip title="API keys provide programmatic access to the platform. Assign granular permissions and set expiry dates for security." arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
+            <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("admin.apiKeys.title")}</Typography>
+            <Tooltip title={t("admin.apiKeys.tooltip")} arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
           </Box>
-          <Typography variant="caption" color="text.secondary">{keys.length} keys</Typography>
+          <Typography variant="caption" color="text.secondary">{keys.length} {t("admin.apiKeys.count")}</Typography>
         </Box>
         <Button startIcon={<VpnKeyOutlined />} variant="contained" size="small" onClick={() => setCreateOpen(true)}>
-          Create Key
+          {t("admin.apiKeys.createKey")}
         </Button>
       </Box>
       <TextField
         value={query}
         onChange={e => setQuery(e.target.value)}
-        placeholder="Search API keys…"
+        placeholder={t("admin.apiKeys.search")}
         size="small"
         sx={{ mb: 1.5, maxWidth: 320 }}
         fullWidth
@@ -997,13 +995,13 @@ function ApiKeysAdmin() {
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell>Name</TableCell>
-              <TableCell>Key ID</TableCell>
-              <TableCell>Owner</TableCell>
-              <TableCell>Scopes</TableCell>
-              <TableCell>Last Used</TableCell>
-              <TableCell>Expires</TableCell>
-              <TableCell>Status</TableCell>
+              <TableCell>{t("admin.apiKeys.table.name")}</TableCell>
+              <TableCell>{t("admin.apiKeys.table.keyId")}</TableCell>
+              <TableCell>{t("admin.apiKeys.table.owner")}</TableCell>
+              <TableCell>{t("admin.apiKeys.table.scopes")}</TableCell>
+              <TableCell>{t("admin.apiKeys.table.lastUsed")}</TableCell>
+              <TableCell>{t("admin.apiKeys.table.expires")}</TableCell>
+              <TableCell>{t("admin.apiKeys.table.status")}</TableCell>
               <TableCell align="right" />
             </TableRow>
           </TableHead>
@@ -1026,12 +1024,12 @@ function ApiKeysAdmin() {
                     </Box>
                   </TableCell>
                   <TableCell><Typography variant="caption" color="text.secondary">{k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleDateString() : "—"}</Typography></TableCell>
-                  <TableCell><Typography variant="caption" sx={{ color: expired ? tokens.accent.red : "text.secondary" }}>{k.expiresAt ? new Date(k.expiresAt).toLocaleDateString() : "Never"}</Typography></TableCell>
+                  <TableCell><Typography variant="caption" sx={{ color: expired ? tokens.accent.red : "text.secondary" }}>{k.expiresAt ? new Date(k.expiresAt).toLocaleDateString() : t("common.never")}</Typography></TableCell>
                   <TableCell>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
                       <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: k.active && !expired ? tokens.accent.green : tokens.accent.red }} />
                       <Typography variant="caption" sx={{ fontSize: "0.7rem", color: k.active && !expired ? tokens.accent.green : tokens.accent.red }}>
-                        {k.active && !expired ? "active" : "inactive"}
+                        {k.active && !expired ? t("admin.apiKeys.status.active") : t("admin.apiKeys.status.inactive")}
                       </Typography>
                     </Box>
                   </TableCell>
@@ -1048,10 +1046,10 @@ function ApiKeysAdmin() {
       </TableContainer>
       <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => { setMenuAnchor(null); setMenuKeyId(null); }}>
         <MenuItem onClick={() => menuKeyId && handleRevoke(menuKeyId)} sx={{ gap: 1, fontSize: "0.82rem", color: tokens.accent.red }}>
-          <VpnKeyOutlined sx={{ fontSize: 16 }} /> Revoke Key
+          <VpnKeyOutlined sx={{ fontSize: 16 }} /> {t("admin.apiKeys.menu.revoke")}
         </MenuItem>
         <MenuItem onClick={() => { if (menuKeyId) setKeys(prev => prev.filter(k => k.id !== menuKeyId)); setMenuAnchor(null); setMenuKeyId(null); }} sx={{ gap: 1, fontSize: "0.82rem", color: tokens.accent.red }}>
-          <DeleteOutlineOutlined sx={{ fontSize: 16 }} /> Delete Key
+          <DeleteOutlineOutlined sx={{ fontSize: 16 }} /> {t("admin.apiKeys.menu.delete")}
         </MenuItem>
       </Menu>
 
@@ -1060,7 +1058,7 @@ function ApiKeysAdmin() {
         PaperProps={{ sx: { bgcolor: tokens.bg.surface, border: `1px solid ${tokens.border.subtle}` } }}>
         <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1, pb: 1 }}>
           <VpnKeyOutlined sx={{ fontSize: 18, color: tokens.primary.main }} />
-          <Typography fontWeight={700} sx={{ fontSize: "1rem" }}>Create API Key</Typography>
+          <Typography fontWeight={700} sx={{ fontSize: "1rem" }}>{t("admin.apiKeys.dialog.create")}</Typography>
           <IconButton size="small" onClick={() => setCreateOpen(false)} sx={{ ml: "auto" }}>
             <CloseOutlined sx={{ fontSize: 16 }} />
           </IconButton>
@@ -1068,8 +1066,8 @@ function ApiKeysAdmin() {
         <DialogContent sx={{ pt: 1 }}>
           <Stack spacing={2.5}>
             <TextField
-              label="Key name"
-              placeholder="e.g. CI Pipeline Key"
+              label={t("admin.apiKeys.dialog.keyName")}
+              placeholder={t("admin.apiKeys.dialog.keyPlaceholder")}
               value={newName}
               onChange={e => setNewName(e.target.value)}
               size="small"
@@ -1078,7 +1076,7 @@ function ApiKeysAdmin() {
             />
             <Box>
               <Typography variant="caption" fontWeight={600} sx={{ color: tokens.text.secondary, textTransform: "uppercase", letterSpacing: "0.06em", fontSize: "0.7rem", mb: 1, display: "block" }}>
-                Permissions ({newPermissions.length})
+                {t("admin.apiKeys.dialog.permissions", { count: newPermissions.length })}
               </Typography>
               <Box sx={{ maxHeight: 320, overflow: "auto", display: "flex", flexDirection: "column", gap: 0.5 }}>
                 {Object.entries(PERMISSION_GROUPS).map(([group, perms]) => {
@@ -1120,7 +1118,7 @@ function ApiKeysAdmin() {
               </Box>
             </Box>
             <TextField
-              label="Expiry date (optional)"
+              label={t("admin.apiKeys.dialog.expiry")}
               type="date"
               value={newExpiry}
               onChange={e => setNewExpiry(e.target.value)}
@@ -1131,7 +1129,7 @@ function ApiKeysAdmin() {
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
-          <Button size="small" onClick={() => setCreateOpen(false)}>Cancel</Button>
+          <Button size="small" onClick={() => setCreateOpen(false)}>{t("common.cancel")}</Button>
           <Button
             size="small"
             variant="contained"
@@ -1139,7 +1137,7 @@ function ApiKeysAdmin() {
             disabled={!newName.trim() || newPermissions.length === 0 || creating}
             startIcon={<VpnKeyOutlined />}
           >
-            {creating ? "Creating…" : "Create Key"}
+            {creating ? t("admin.apiKeys.dialog.creating") : t("admin.apiKeys.dialog.createKey")}
           </Button>
         </DialogActions>
       </Dialog>
@@ -1149,6 +1147,7 @@ function ApiKeysAdmin() {
 
 // ── Blacklist Table ───────────────────────────────────────────────────────
 function BlacklistAdmin() {
+  const { t } = useTranslation();
   const [entries, setEntries] = useState<BlacklistEntry[]>([]);
   const [query, setQuery] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -1192,17 +1191,17 @@ function BlacklistAdmin() {
     <Box>
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
         <Box>
-          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Blacklist</Typography>
-          <Typography variant="caption" color="text.secondary">{entries.length} entries</Typography>
+          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("admin.blacklist.title")}</Typography>
+          <Typography variant="caption" color="text.secondary">{entries.length} {t("admin.blacklist.count")}</Typography>
         </Box>
         <Button startIcon={<BlockOutlined />} variant="contained" size="small" color="error" onClick={() => setCreateOpen(true)}>
-          Add Entry
+          {t("admin.blacklist.addEntry")}
         </Button>
       </Box>
       <TextField
         value={query}
         onChange={e => setQuery(e.target.value)}
-        placeholder="Search blacklist entries…"
+        placeholder={t("admin.blacklist.search")}
         size="small"
         sx={{ mb: 1.5, maxWidth: 320 }}
         fullWidth
@@ -1218,11 +1217,11 @@ function BlacklistAdmin() {
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell>Type</TableCell>
-              <TableCell>Value</TableCell>
-              <TableCell>Reason</TableCell>
-              <TableCell>Added</TableCell>
-              <TableCell>Expires</TableCell>
+              <TableCell>{t("admin.blacklist.table.type")}</TableCell>
+              <TableCell>{t("admin.blacklist.table.value")}</TableCell>
+              <TableCell>{t("admin.blacklist.table.reason")}</TableCell>
+              <TableCell>{t("admin.blacklist.table.added")}</TableCell>
+              <TableCell>{t("admin.blacklist.table.expires")}</TableCell>
               <TableCell align="right" />
             </TableRow>
           </TableHead>
@@ -1235,7 +1234,7 @@ function BlacklistAdmin() {
                 <TableCell><Typography variant="caption" sx={{ fontFamily: "monospace", color: tokens.text.primary, fontSize: "0.78rem" }}>{e.value}</Typography></TableCell>
                 <TableCell><Typography variant="caption" color="text.secondary">{e.reason}</Typography></TableCell>
                 <TableCell><Typography variant="caption" color="text.secondary">{new Date(e.createdAt).toLocaleDateString()}</Typography></TableCell>
-                <TableCell><Typography variant="caption" sx={{ color: e.expiresAt ? tokens.accent.amber : tokens.text.tertiary }}>{e.expiresAt ? new Date(e.expiresAt).toLocaleDateString() : "Permanent"}</Typography></TableCell>
+                <TableCell><Typography variant="caption" sx={{ color: e.expiresAt ? tokens.accent.amber : tokens.text.tertiary }}>{e.expiresAt ? new Date(e.expiresAt).toLocaleDateString() : t("common.permanent")}</Typography></TableCell>
                 <TableCell align="right">
                   <IconButton size="small" onClick={() => setEntries(prev => prev.filter(x => x.id !== e.id))}>
                     <DeleteOutlineOutlined sx={{ fontSize: 15, color: tokens.accent.red }} />
@@ -1252,7 +1251,7 @@ function BlacklistAdmin() {
         PaperProps={{ sx: { bgcolor: tokens.bg.surface, border: `1px solid ${tokens.border.subtle}` } }}>
         <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1, pb: 1 }}>
           <BlockOutlined sx={{ fontSize: 18, color: tokens.accent.red }} />
-          <Typography fontWeight={700} sx={{ fontSize: "1rem" }}>Add Blacklist Entry</Typography>
+          <Typography fontWeight={700} sx={{ fontSize: "1rem" }}>{t("admin.blacklist.dialog.add")}</Typography>
           <IconButton size="small" onClick={() => setCreateOpen(false)} sx={{ ml: "auto" }}>
             <CloseOutlined sx={{ fontSize: 16 }} />
           </IconButton>
@@ -1260,24 +1259,24 @@ function BlacklistAdmin() {
         <DialogContent sx={{ pt: 1 }}>
           <Stack spacing={2.5}>
             <FormControl size="small" fullWidth>
-              <InputLabel>Type</InputLabel>
-              <Select label="Type" value={newType} onChange={e => setNewType(e.target.value)}>
-                <MenuItem value="ip">IP Address</MenuItem>
-                <MenuItem value="domain">Domain</MenuItem>
-                <MenuItem value="fingerprint">Fingerprint</MenuItem>
-                <MenuItem value="user">User</MenuItem>
+              <InputLabel>{t("admin.blacklist.dialog.type")}</InputLabel>
+              <Select label={t("admin.blacklist.dialog.type")} value={newType} onChange={e => setNewType(e.target.value)}>
+                <MenuItem value="ip">{t("admin.blacklist.dialog.typeIp")}</MenuItem>
+                <MenuItem value="domain">{t("admin.blacklist.dialog.typeDomain")}</MenuItem>
+                <MenuItem value="fingerprint">{t("admin.blacklist.dialog.typeFingerprint")}</MenuItem>
+                <MenuItem value="user">{t("admin.blacklist.dialog.typeUser")}</MenuItem>
               </Select>
             </FormControl>
-            <TextField label="Value" size="small" fullWidth value={newValue} onChange={e => setNewValue(e.target.value)}
+            <TextField label={t("admin.blacklist.dialog.value")} size="small" fullWidth value={newValue} onChange={e => setNewValue(e.target.value)}
               placeholder={newType === "ip" ? "192.168.1.100" : newType === "domain" ? "example.com" : newType === "user" ? "username" : "hash…"} autoFocus />
-            <TextField label="Reason" size="small" fullWidth value={newReason} onChange={e => setNewReason(e.target.value)} placeholder="Reason for blacklisting" />
-            <TextField label="Expiry date (optional)" type="date" size="small" fullWidth value={newExpiry} onChange={e => setNewExpiry(e.target.value)} InputLabelProps={{ shrink: true }} />
+            <TextField label={t("admin.blacklist.dialog.reason")} size="small" fullWidth value={newReason} onChange={e => setNewReason(e.target.value)} placeholder={t("admin.blacklist.dialog.reasonPlaceholder")} />
+            <TextField label={t("admin.blacklist.dialog.expiry")} type="date" size="small" fullWidth value={newExpiry} onChange={e => setNewExpiry(e.target.value)} InputLabelProps={{ shrink: true }} />
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button size="small" onClick={() => setCreateOpen(false)}>Cancel</Button>
+          <Button size="small" onClick={() => setCreateOpen(false)}>{t("common.cancel")}</Button>
           <Button size="small" variant="contained" color="error" onClick={handleCreate} disabled={!newValue.trim()} startIcon={<BlockOutlined />}>
-            Add Entry
+            {t("admin.blacklist.addEntry")}
           </Button>
         </DialogActions>
       </Dialog>
@@ -1287,20 +1286,22 @@ function BlacklistAdmin() {
 
 // ── Permissions view ──────────────────────────────────────────────────────
 // ── Admin Area Shell ──────────────────────────────────────────────────────
-const ADMIN_TABS = [
-  { label: "Spaces", path: "/admin/spaces" },
-  { label: "Users", path: "/admin/users" },
-  { label: "Groups", path: "/admin/groups" },
-  { label: "Permissions", path: "/admin/permissions" },
-  { label: "API Keys", path: "/admin/api-keys" },
-  { label: "Blacklist", path: "/admin/blacklist" },
-];
 
 export default function AdminArea() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const tabIdx = ADMIN_TABS.findIndex(t => location.pathname === t.path);
+  const ADMIN_TABS = [
+    { label: t("admin.tab.spaces"), path: "/admin/spaces" },
+    { label: t("admin.tab.users"), path: "/admin/users" },
+    { label: t("admin.tab.groups"), path: "/admin/groups" },
+    { label: t("admin.tab.permissions"), path: "/admin/permissions" },
+    { label: t("admin.tab.apiKeys"), path: "/admin/api-keys" },
+    { label: t("admin.tab.blacklist"), path: "/admin/blacklist" },
+  ];
+
+  const tabIdx = ADMIN_TABS.findIndex(tab => location.pathname === tab.path);
   const activeTab = tabIdx === -1 ? 0 : tabIdx;
 
   useEffect(() => {
@@ -1312,13 +1313,13 @@ export default function AdminArea() {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: tokens.bg.base }}>
       <Box sx={{ px: 2.5, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface }}>
-        <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem", mb: 0.25 }}>Admin</Typography>
-        <Typography variant="caption" color="text.secondary">User management, access control, and security</Typography>
+        <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem", mb: 0.25 }}>{t("admin.title")}</Typography>
+        <Typography variant="caption" color="text.secondary">{t("admin.subtitle")}</Typography>
       </Box>
 
       <Box sx={{ borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, px: 2 }}>
         <Tabs value={activeTab} onChange={(_, i) => navigate(ADMIN_TABS[i].path)}>
-          {ADMIN_TABS.map(t => <Tab key={t.path} label={t.label} sx={{ fontSize: "0.8rem" }} />)}
+          {ADMIN_TABS.map(tab => <Tab key={tab.path} label={tab.label} sx={{ fontSize: "0.8rem" }} />)}
         </Tabs>
       </Box>
 

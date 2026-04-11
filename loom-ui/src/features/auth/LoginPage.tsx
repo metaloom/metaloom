@@ -3,9 +3,11 @@ import { Box, TextField, Button, Typography, Alert } from "@mui/material";
 import { LockOutlined } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { useAuth } from "../../context/AuthContext";
+import { useTranslation } from "react-i18next";
 
 export default function LoginPage() {
   const { login } = useAuth();
+  const { t } = useTranslation();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(false);
@@ -59,20 +61,20 @@ export default function LoginPage() {
         </Box>
 
         <Typography variant="h6" fontWeight={700} color="text.primary">
-          Loom Studio
+          {t("auth.title")}
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mt: -1.5 }}>
-          Sign in to continue
+          {t("auth.subtitle")}
         </Typography>
 
         {error && (
           <Alert severity="error" sx={{ width: "100%", fontSize: "0.8rem" }}>
-            Invalid credentials.
+            {t("auth.error.invalidCredentials")}
           </Alert>
         )}
 
         <TextField
-          placeholder="Username"
+          placeholder={t("auth.placeholder.username")}
           value={username}
           onChange={(e) => { setUsername(e.target.value); setError(false); }}
           fullWidth
@@ -85,7 +87,7 @@ export default function LoginPage() {
           }}
         />
         <TextField
-          placeholder="Password"
+          placeholder={t("auth.placeholder.password")}
           type="password"
           value={password}
           onChange={(e) => { setPassword(e.target.value); setError(false); }}
@@ -110,7 +112,7 @@ export default function LoginPage() {
             "&:hover": { bgcolor: tokens.primary.dark },
           }}
         >
-          Sign in
+          {t("auth.button.signIn")}
         </Button>
       </Box>
     </Box>

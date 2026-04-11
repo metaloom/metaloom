@@ -13,6 +13,7 @@ import { AssetPool, AssetPoolType } from "../../types";
 import { useToast } from "../../context/ToastContext";
 import { useAuth } from "../../context/AuthContext";
 import { listPools, createPool, updatePool, deletePool, PoolResponse } from "../../api/pools";
+import { useTranslation } from "react-i18next";
 
 function formatBytes(bytes: number): string {
   if (bytes >= 1e15) return `${(bytes / 1e15).toFixed(1)} PB`;
@@ -158,6 +159,7 @@ function mapResponseToPool(r: PoolResponse): AssetPool {
 export default function AssetPoolsView() {
   const { showToast } = useToast();
   const { token } = useAuth();
+  const { t } = useTranslation();
   const [pools, setPools] = useState<AssetPool[]>([]);
   const [query, setQuery] = useState("");
 
@@ -179,7 +181,7 @@ export default function AssetPoolsView() {
 
   useEffect(() => {
     if (!token) return;
-    listPools(token).then(resp => setPools(resp.data.map(mapResponseToPool))).catch(() => showToast("Failed to load pools", "error"));
+    listPools(token).then(resp => setPools(resp.data.map(mapResponseToPool))).catch(() => showToast(t("assetPools.toast.loadFailed"), "error"));
   }, [token]);
 
   const resetForm = () => {
@@ -199,9 +201,9 @@ export default function AssetPoolsView() {
       setPools(prev => [...prev, mapResponseToPool(resp)]);
       resetForm();
       setCreateOpen(false);
-      showToast("Asset pool created", "success");
+      showToast(t("assetPools.toast.created"), "success");
     } catch {
-      showToast("Failed to create pool", "error");
+      showToast(t("assetPools.toast.createFailed"), "error");
     } finally {
       setSaving(false);
     }
@@ -232,9 +234,9 @@ export default function AssetPoolsView() {
       setPools(prev => prev.map(p => p.id === updated.id ? updated : p));
       resetForm();
       setEditPool(null);
-      showToast("Asset pool updated", "success");
+      showToast(t("assetPools.toast.updated"), "success");
     } catch {
-      showToast("Failed to update pool", "error");
+      showToast(t("assetPools.toast.updateFailed"), "error");
     } finally {
       setSaving(false);
     }
@@ -246,9 +248,9 @@ export default function AssetPoolsView() {
       await deletePool(token, deleteTarget.id);
       setPools(prev => prev.filter(p => p.id !== deleteTarget.id));
       setDeleteTarget(null);
-      showToast("Asset pool deleted", "success");
+      showToast(t("assetPools.toast.deleted"), "success");
     } catch {
-      showToast("Failed to delete pool", "error");
+      showToast(t("assetPools.toast.deleteFailed"), "error");
     }
   };
 
@@ -272,22 +274,22 @@ export default function AssetPoolsView() {
   // Shared form fields for create and edit
   const renderFormFields = () => (
     <>
-      <TextField label="Name" size="small" value={formName} onChange={e => setFormName(e.target.value)} autoFocus fullWidth />
+      <TextField label={t("assetPools.form.name")} size="small" value={formName} onChange={e => setFormName(e.target.value)} autoFocus fullWidth />
       <FormControl size="small" fullWidth>
-        <InputLabel>Type</InputLabel>
-        <Select value={formType} label="Type" onChange={e => setFormType(e.target.value as AssetPoolType)}>
-          <MenuItem value="filesystem">Filesystem</MenuItem>
-          <MenuItem value="s3">S3 Bucket</MenuItem>
+        <InputLabel>{t("assetPools.form.type")}</InputLabel>
+        <Select value={formType} label={t("assetPools.form.type")} onChange={e => setFormType(e.target.value as AssetPoolType)}>
+          <MenuItem value="filesystem">{t("assetPools.form.filesystem")}</MenuItem>
+          <MenuItem value="s3">{t("assetPools.form.s3")}</MenuItem>
         </Select>
       </FormControl>
       {formType === "filesystem" && (
-        <TextField label="Filesystem Path" size="small" value={formFsPath} onChange={e => setFormFsPath(e.target.value)} placeholder="/mnt/media/pool" fullWidth />
+        <TextField label={t("assetPools.form.fsPath")} size="small" value={formFsPath} onChange={e => setFormFsPath(e.target.value)} placeholder="/mnt/media/pool" fullWidth />
       )}
       {formType === "s3" && (
         <>
-          <TextField label="S3 Bucket" size="small" value={formS3Bucket} onChange={e => setFormS3Bucket(e.target.value)} placeholder="my-bucket" fullWidth />
-          <TextField label="S3 Region" size="small" value={formS3Region} onChange={e => setFormS3Region(e.target.value)} placeholder="eu-central-1" fullWidth />
-          <TextField label="S3 Endpoint" size="small" value={formS3Endpoint} onChange={e => setFormS3Endpoint(e.target.value)} placeholder="https://s3.eu-central-1.amazonaws.com" fullWidth />
+          <TextField label={t("assetPools.form.s3Bucket")} size="small" value={formS3Bucket} onChange={e => setFormS3Bucket(e.target.value)} placeholder="my-bucket" fullWidth />
+          <TextField label={t("assetPools.form.s3Region")} size="small" value={formS3Region} onChange={e => setFormS3Region(e.target.value)} placeholder="eu-central-1" fullWidth />
+          <TextField label={t("assetPools.form.s3Endpoint")} size="small" value={formS3Endpoint} onChange={e => setFormS3Endpoint(e.target.value)} placeholder="https://s3.eu-central-1.amazonaws.com" fullWidth />
         </>
       )}
     </>
@@ -300,19 +302,19 @@ export default function AssetPoolsView() {
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <StorageOutlined sx={{ fontSize: 20, color: tokens.primary.main }} />
-            <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Asset Pools</Typography>
-            <Tooltip title="Asset pools define storage locations for assets. They can be backed by a local filesystem folder or an S3-compatible bucket." arrow>
+            <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("assetPools.title")}</Typography>
+              <Tooltip title={t("assetPools.tooltip.info")} arrow>
               <HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} />
             </Tooltip>
           </Box>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Chip label={`${fsCount} filesystem`} size="small" icon={<FolderOutlined sx={{ fontSize: 12 }} />} sx={{ height: 20, fontSize: "0.65rem" }} />
-            <Chip label={`${s3Count} S3`} size="small" icon={<CloudOutlined sx={{ fontSize: 12 }} />} sx={{ height: 20, fontSize: "0.65rem" }} />
-            <Chip label={`${formatCount(totalAssets)} assets`} size="small" sx={{ height: 20, fontSize: "0.65rem" }} />
+            <Chip label={`${fsCount} ${t("assetPools.chip.filesystem")}`} size="small" icon={<FolderOutlined sx={{ fontSize: 12 }} />} sx={{ height: 20, fontSize: "0.65rem" }} />
+            <Chip label={`${s3Count} ${t("assetPools.chip.s3")}`} size="small" icon={<CloudOutlined sx={{ fontSize: 12 }} />} sx={{ height: 20, fontSize: "0.65rem" }} />
+            <Chip label={`${formatCount(totalAssets)} ${t("assetPools.chip.assets")}`} size="small" sx={{ height: 20, fontSize: "0.65rem" }} />
             <Chip label={formatBytes(totalSize)} size="small" sx={{ height: 20, fontSize: "0.65rem" }} />
             <Chip
               icon={<AddOutlined sx={{ fontSize: 14 }} />}
-              label="New Pool"
+              label={t("assetPools.button.new")}
               size="small"
               onClick={() => { resetForm(); setCreateOpen(true); }}
               sx={{ cursor: "pointer", bgcolor: tokens.primary.subtle, border: `1px solid ${tokens.primary.main}`, color: tokens.primary.light }}
@@ -323,7 +325,7 @@ export default function AssetPoolsView() {
           <TextField
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Search pools…"
+              placeholder={t("assetPools.search.placeholder")}
             size="small"
             sx={{ flex: 1, maxWidth: 360 }}
             InputProps={{
@@ -341,7 +343,7 @@ export default function AssetPoolsView() {
       <Box sx={{ flex: 1, overflow: "auto", p: 2.5 }}>
         {filtered.length === 0 ? (
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", opacity: 0.5 }}>
-            <Typography variant="body2">No asset pools found</Typography>
+            <Typography variant="body2">{t("assetPools.empty")}</Typography>
           </Box>
         ) : (
           <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 2 }}>
@@ -359,39 +361,39 @@ export default function AssetPoolsView() {
 
       {/* Create dialog */}
       <Dialog open={createOpen} onClose={() => setCreateOpen(false)} PaperProps={{ sx: { bgcolor: tokens.bg.panel, border: `1px solid ${tokens.border.default}`, minWidth: 400 } }}>
-        <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700, pb: 1 }}>New Asset Pool</DialogTitle>
+        <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700, pb: 1 }}>{t("assetPools.dialog.create")}</DialogTitle>
         <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: "8px !important" }}>
           {renderFormFields()}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setCreateOpen(false)} size="small">Cancel</Button>
-          <Button onClick={handleCreate} variant="contained" size="small" disabled={!formName.trim() || saving}>Create</Button>
+          <Button onClick={() => setCreateOpen(false)} size="small">{t("assetPools.button.cancel")}</Button>
+          <Button onClick={handleCreate} variant="contained" size="small" disabled={!formName.trim() || saving}>{t("assetPools.button.create")}</Button>
         </DialogActions>
       </Dialog>
 
       {/* Edit dialog */}
       <Dialog open={!!editPool} onClose={() => { setEditPool(null); resetForm(); }} PaperProps={{ sx: { bgcolor: tokens.bg.panel, border: `1px solid ${tokens.border.default}`, minWidth: 400 } }}>
-        <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700, pb: 1 }}>Edit Asset Pool</DialogTitle>
+        <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700, pb: 1 }}>{t("assetPools.dialog.edit")}</DialogTitle>
         <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: "8px !important" }}>
           {renderFormFields()}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => { setEditPool(null); resetForm(); }} size="small">Cancel</Button>
-          <Button onClick={handleEdit} variant="contained" size="small" disabled={!formName.trim() || saving}>Save</Button>
+          <Button onClick={() => { setEditPool(null); resetForm(); }} size="small">{t("assetPools.button.cancel")}</Button>
+          <Button onClick={handleEdit} variant="contained" size="small" disabled={!formName.trim() || saving}>{t("assetPools.button.save")}</Button>
         </DialogActions>
       </Dialog>
 
       {/* Delete confirmation */}
       <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)} PaperProps={{ sx: { bgcolor: tokens.bg.panel, border: `1px solid ${tokens.border.default}`, minWidth: 340 } }}>
-        <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700, pb: 1 }}>Delete Asset Pool</DialogTitle>
+        <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700, pb: 1 }}>{t("assetPools.dialog.delete")}</DialogTitle>
         <DialogContent>
           <Typography variant="body2">
-            Are you sure you want to delete <strong>{deleteTarget?.name}</strong>? This will not delete the underlying storage, but the pool reference will be removed.
+            {t("assetPools.confirm.delete", { name: deleteTarget?.name })}
           </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setDeleteTarget(null)} size="small">Cancel</Button>
-          <Button onClick={handleDelete} color="error" variant="contained" size="small">Delete</Button>
+          <Button onClick={() => setDeleteTarget(null)} size="small">{t("assetPools.button.cancel")}</Button>
+          <Button onClick={handleDelete} color="error" variant="contained" size="small">{t("assetPools.button.delete")}</Button>
         </DialogActions>
       </Dialog>
     </Box>

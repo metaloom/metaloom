@@ -10,6 +10,7 @@ import {
   SearchOutlined, FilterListOutlined, HelpOutlineOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
+import { useTranslation } from "react-i18next";
 
 interface WorkerNode {
   id: string;
@@ -119,6 +120,7 @@ function HeartbeatIndicator({ active }: { active: boolean }) {
 function WorkerCard({ worker, onChangeStatus }: { worker: WorkerNode; onChangeStatus: (id: string, status: WorkerNode["status"]) => void }) {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const sc = statusColor[worker.status];
+  const { t } = useTranslation();
 
   return (
     <Paper
@@ -169,22 +171,22 @@ function WorkerCard({ worker, onChangeStatus }: { worker: WorkerNode; onChangeSt
       <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}>
         {worker.status === "online" && (
           <MenuItem onClick={() => { setMenuAnchor(null); onChangeStatus(worker.id, "paused"); }} sx={{ gap: 1.25, fontSize: "0.82rem" }}>
-            <PauseOutlined sx={{ fontSize: 16 }} /> Pause
+            <PauseOutlined sx={{ fontSize: 16 }} /> {t("cortex.menu.pause")}
           </MenuItem>
         )}
         {worker.status === "paused" && (
           <MenuItem onClick={() => { setMenuAnchor(null); onChangeStatus(worker.id, "online"); }} sx={{ gap: 1.25, fontSize: "0.82rem" }}>
-            <PlayArrowOutlined sx={{ fontSize: 16 }} /> Resume
+            <PlayArrowOutlined sx={{ fontSize: 16 }} /> {t("cortex.menu.resume")}
           </MenuItem>
         )}
         {(worker.status === "online" || worker.status === "paused") && (
           <MenuItem onClick={() => { setMenuAnchor(null); onChangeStatus(worker.id, "online"); }} sx={{ gap: 1.25, fontSize: "0.82rem" }}>
-            <RestartAltOutlined sx={{ fontSize: 16 }} /> Restart
+            <RestartAltOutlined sx={{ fontSize: 16 }} /> {t("cortex.menu.restart")}
           </MenuItem>
         )}
         <Divider />
         <MenuItem onClick={() => { setMenuAnchor(null); onChangeStatus(worker.id, "terminating"); }} sx={{ gap: 1.25, fontSize: "0.82rem", color: tokens.accent.red }}>
-          <StopOutlined sx={{ fontSize: 16 }} /> Terminate
+            <StopOutlined sx={{ fontSize: 16 }} /> {t("cortex.menu.terminate")}
         </MenuItem>
       </Menu>
     </Paper>
@@ -198,6 +200,7 @@ export default function CortexView() {
   const [statusFilter, setStatusFilter] = useState<WorkerNode["status"] | "all">("all");
   const [capFilter, setCapFilter] = useState<"all" | "GPU" | "CPU" | "IO">("all");
   const [filtered, setFiltered] = useState<WorkerNode[]>(WORKERS);
+  const { t } = useTranslation();
 
   useEffect(() => {
     let res = workers;
@@ -224,10 +227,10 @@ export default function CortexView() {
           <Box>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.25 }}>
               <DnsOutlined sx={{ fontSize: 18, color: tokens.primary.main }} />
-              <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Cortex Workers</Typography>
-              <Tooltip title="Cortex workers are distributed processing nodes that handle media analysis, transcoding, and AI inference tasks." arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
+              <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("cortex.title")}</Typography>
+              <Tooltip title={t("cortex.tooltip.info")} arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
             </Box>
-            <Typography variant="caption" color="text.secondary">{onlineCount} / {workers.length} online</Typography>
+            <Typography variant="caption" color="text.secondary">{t("cortex.count.online", { online: onlineCount, total: workers.length })}</Typography>
           </Box>
         </Box>
 
@@ -235,7 +238,7 @@ export default function CortexView() {
           <TextField
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Search workers, hosts…"
+            placeholder={t("cortex.search.placeholder")}
             size="small"
             sx={{ flex: 1, minWidth: 180 }}
             InputProps={{
@@ -254,12 +257,12 @@ export default function CortexView() {
               displayEmpty
               sx={{ fontSize: "0.78rem", bgcolor: tokens.bg.elevated }}
             >
-              <MenuItem value="all">All Status</MenuItem>
-              <MenuItem value="online">Online</MenuItem>
-              <MenuItem value="paused">Paused</MenuItem>
-              <MenuItem value="starting">Starting</MenuItem>
-              <MenuItem value="offline">Offline</MenuItem>
-              <MenuItem value="terminating">Terminating</MenuItem>
+              <MenuItem value="all">{t("cortex.filter.allStatus")}</MenuItem>
+              <MenuItem value="online">{t("cortex.filter.online")}</MenuItem>
+              <MenuItem value="paused">{t("cortex.filter.paused")}</MenuItem>
+              <MenuItem value="starting">{t("cortex.filter.starting")}</MenuItem>
+              <MenuItem value="offline">{t("cortex.filter.offline")}</MenuItem>
+              <MenuItem value="terminating">{t("cortex.filter.terminating")}</MenuItem>
             </Select>
           </FormControl>
 
@@ -270,7 +273,7 @@ export default function CortexView() {
               displayEmpty
               sx={{ fontSize: "0.78rem", bgcolor: tokens.bg.elevated }}
             >
-              <MenuItem value="all">All Caps</MenuItem>
+              <MenuItem value="all">{t("cortex.filter.allCaps")}</MenuItem>
               <MenuItem value="GPU">GPU</MenuItem>
               <MenuItem value="CPU">CPU</MenuItem>
               <MenuItem value="IO">IO</MenuItem>
@@ -280,11 +283,11 @@ export default function CortexView() {
 
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
           <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.72rem" }}>
-            {filtered.length} workers
+            {t("cortex.count.workers", { count: filtered.length })}
           </Typography>
           {(statusFilter !== "all" || capFilter !== "all" || query) && (
             <Chip
-              label="Clear filters"
+              label={t("cortex.chip.clearFilters")}
               size="small"
               onDelete={() => { setStatusFilter("all"); setCapFilter("all"); setQuery(""); }}
               sx={{ height: 18, fontSize: "0.65rem" }}
@@ -299,7 +302,7 @@ export default function CortexView() {
           {filtered.length === 0 ? (
             <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 200, gap: 1 }}>
               <DnsOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
-              <Typography variant="body2" color="text.secondary">No workers match your filters</Typography>
+              <Typography variant="body2" color="text.secondary">{t("cortex.empty")}</Typography>
             </Box>
           ) : (
             filtered.map(w => (

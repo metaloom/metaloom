@@ -15,6 +15,7 @@ import {
   listTags, createTag, updateTag, deleteTag as apiDeleteTag,
   TagResponse,
 } from "../../api/tags";
+import { useTranslation } from "react-i18next";
 
 // Backend tags are flat with a "collection" grouper.
 // We present them as a two-level tree: collection → tag leaf nodes.
@@ -83,6 +84,7 @@ function TagTreeRow({
   const isOpen = expanded.has(node.id);
   const hasChildren = node.children.length > 0;
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+  const { t } = useTranslation();
 
   return (
     <>
@@ -150,7 +152,7 @@ function TagTreeRow({
         )}
         <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}>
           <MenuItem onClick={() => { setMenuAnchor(null); onDelete(node); }} sx={{ gap: 1, fontSize: "0.82rem", color: tokens.accent.red }}>
-            <DeleteOutlineOutlined sx={{ fontSize: 16 }} /> Delete
+              <DeleteOutlineOutlined sx={{ fontSize: 16 }} /> {t("tags.menu.delete")}
           </MenuItem>
         </Menu>
       </Box>
@@ -178,6 +180,7 @@ function TagTreeRow({
 // ── Main view ─────────────────────────────────────────────────────────
 export default function TagsView() {
   const { token } = useAuth();
+  const { t } = useTranslation();
   const [allTags, setAllTags] = useState<TagResponse[]>([]);
   const [tree, setTree] = useState<TagNode[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set<string>());
@@ -197,10 +200,10 @@ export default function TagsView() {
     listTags(token).then(resp => {
       const tags = resp.data ?? [];
       setAllTags(tags);
-      const t = buildTree(tags);
-      setTree(t);
+      const tree = buildTree(tags);
+      setTree(tree);
       // Auto-expand all collections on first load
-      setExpanded(prev => prev.size > 0 ? prev : new Set(t.map(n => n.id)));
+      setExpanded(prev => prev.size > 0 ? prev : new Set(tree.map(n => n.id)));
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [token]);
@@ -309,19 +312,19 @@ export default function TagsView() {
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <Box>
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-              <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Tags</Typography>
-              <Tooltip title="Tags are flat labels grouped by collection. Drag a tag onto a collection header to move it." arrow>
+              <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("tags.title")}</Typography>
+              <Tooltip title={t("tags.tooltip.info")} arrow>
                 <HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} />
               </Tooltip>
             </Box>
-            <Typography variant="caption" color="text.secondary">{totalTags} tags across {collections.size} collections</Typography>
+            <Typography variant="caption" color="text.secondary">{totalTags} {t("tags.count", { collections: collections.size })}</Typography>
           </Box>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <TextField
               value={newTagName}
               onChange={e => setNewTagName(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter") handleCreateTag(); }}
-              placeholder="Tag name…"
+              placeholder={t("tags.placeholder.name")}
               size="small"
               sx={{ width: 140, "& .MuiInputBase-root": { fontSize: "0.82rem" } }}
             />
@@ -329,11 +332,11 @@ export default function TagsView() {
               value={newTagCollection}
               onChange={e => setNewTagCollection(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter") handleCreateTag(); }}
-              placeholder="Collection…"
+              placeholder={t("tags.placeholder.collection")}
               size="small"
               sx={{ width: 120, "& .MuiInputBase-root": { fontSize: "0.82rem" } }}
             />
-            <Tooltip title="Create tag">
+              <Tooltip title={t("tags.tooltip.create")}>
               <IconButton size="small" onClick={handleCreateTag} sx={{ bgcolor: tokens.primary.main, color: "#fff", "&:hover": { bgcolor: tokens.primary.dark }, width: 28, height: 28 }}>
                 <AddOutlined sx={{ fontSize: 16 }} />
               </IconButton>
@@ -343,7 +346,7 @@ export default function TagsView() {
         <TextField
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
-          placeholder="Filter tags…"
+          placeholder={t("tags.search.placeholder")}  
           size="small"
           sx={{ maxWidth: 320 }}
           InputProps={{
@@ -361,7 +364,7 @@ export default function TagsView() {
         <Box sx={{ flex: 1, overflow: "auto", p: 2 }}>
           <Box sx={{ maxWidth: 600 }}>
             {loading && displayTree.length === 0 && (
-              <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: "center" }}>Loading tags…</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: "center" }}>{t("tags.loading")}</Typography>
             )}
             {displayTree.map(node => (
               <TagTreeRow
@@ -381,7 +384,7 @@ export default function TagsView() {
             {!loading && displayTree.length === 0 && (
               <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 6, gap: 1 }}>
                 <LocalOfferOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
-                <Typography variant="body2" color="text.secondary">No tags yet. Create a tag to get started.</Typography>
+                <Typography variant="body2" color="text.secondary">{t("tags.empty")}</Typography>
               </Box>
             )}
           </Box>
@@ -399,7 +402,7 @@ export default function TagsView() {
             <Box sx={{ px: 2, py: 1.5, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
                 <LocalOfferOutlined sx={{ fontSize: 16, color: tokens.primary.main }} />
-                <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.88rem" }}>Tag Details</Typography>
+                <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.88rem" }}>{t("tags.detail.title")}</Typography>
               </Box>
               <IconButton size="small" onClick={() => setSelectedNode(null)}>
                 <CloseOutlined sx={{ fontSize: 14 }} />
@@ -407,20 +410,20 @@ export default function TagsView() {
             </Box>
             <Box sx={{ p: 2, display: "flex", flexDirection: "column", gap: 2 }}>
               <TextField
-                label="Name"
+                label={t("tags.detail.name")}
                 value={editName}
                 onChange={e => setEditName(e.target.value)}
                 size="small"
                 fullWidth
               />
               <TextField
-                label="Collection"
+                label={t("tags.detail.collection")}
                 value={editCollection}
                 onChange={e => setEditCollection(e.target.value)}
                 size="small"
                 fullWidth
-                placeholder="e.g. category"
-                helperText="Change collection to move tag to a different group"
+                placeholder={t("tags.detail.collectionPlaceholder")}
+                helperText={t("tags.detail.collectionHelper")}
               />
               <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>
                 UUID: {selectedNode.id}
@@ -433,7 +436,7 @@ export default function TagsView() {
                 disabled={!editName.trim()}
                 sx={{ textTransform: "none" }}
               >
-                Save
+                {t("tags.detail.save")}
               </Button>
             </Box>
           </Paper>

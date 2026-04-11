@@ -12,6 +12,7 @@ import {
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { ASSETS } from "../../mock/data";
+import { useTranslation } from "react-i18next";
 
 interface VisionPrompt {
   id: string;
@@ -54,6 +55,7 @@ export default function LLMDetectionManagement() {
   const [query, setQuery] = useState("");
   const [activeSection, setActiveSection] = useState<"prompts" | "results">("prompts");
   const [prompts, setPrompts] = useState<VisionPrompt[]>(MOCK_PROMPTS);
+  const { t } = useTranslation();
 
   // Create dialog state
   const [createOpen, setCreateOpen] = useState(false);
@@ -103,7 +105,7 @@ export default function LLMDetectionManagement() {
         <TextField
           value={query}
           onChange={e => setQuery(e.target.value)}
-          placeholder="Search prompts, results…"
+          placeholder={t("llmDetection.search.placeholder")}
           size="small"
           sx={{ flex: 1, maxWidth: 320 }}
           InputProps={{
@@ -115,16 +117,16 @@ export default function LLMDetectionManagement() {
           }}
         />
         <Box sx={{ display: "flex", gap: 0.5 }}>
-          <Chip label="Prompts" size="small" icon={<AutoAwesomeOutlined sx={{ fontSize: 14 }} />}
+          <Chip label={t("llmDetection.chip.prompts")} size="small" icon={<AutoAwesomeOutlined sx={{ fontSize: 14 }} />}
             onClick={() => setActiveSection("prompts")}
             sx={{ bgcolor: activeSection === "prompts" ? tokens.primary.subtle : tokens.bg.elevated, color: activeSection === "prompts" ? tokens.primary.main : tokens.text.secondary, border: `1px solid ${activeSection === "prompts" ? tokens.primary.main : "transparent"}`, fontWeight: activeSection === "prompts" ? 600 : 400 }} />
-          <Chip label="Results" size="small" icon={<PlayArrowOutlined sx={{ fontSize: 14 }} />}
+          <Chip label={t("llmDetection.chip.results")} size="small" icon={<PlayArrowOutlined sx={{ fontSize: 14 }} />}
             onClick={() => setActiveSection("results")}
             sx={{ bgcolor: activeSection === "results" ? tokens.primary.subtle : tokens.bg.elevated, color: activeSection === "results" ? tokens.primary.main : tokens.text.secondary, border: `1px solid ${activeSection === "results" ? tokens.primary.main : "transparent"}`, fontWeight: activeSection === "results" ? 600 : 400 }} />
         </Box>
         {activeSection === "prompts" && (
           <Button size="small" startIcon={<AddOutlined sx={{ fontSize: 14 }} />} onClick={() => setCreateOpen(true)} sx={{ ml: "auto", textTransform: "none", fontSize: "0.78rem" }}>
-            New Prompt
+            {t("llmDetection.button.newPrompt")}
           </Button>
         )}
       </Box>
@@ -132,15 +134,15 @@ export default function LLMDetectionManagement() {
       {/* Create Prompt Dialog */}
       <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { bgcolor: tokens.bg.surface, backgroundImage: "none", borderRadius: tokens.radius.lg, border: `1px solid ${tokens.border.subtle}` } }}>
         <DialogTitle sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", pb: 1 }}>
-          <Typography fontWeight={700} sx={{ fontSize: "1rem" }}>New Vision Prompt</Typography>
+          <Typography fontWeight={700} sx={{ fontSize: "1rem" }}>{t("llmDetection.dialog.title")}</Typography>
           <IconButton size="small" onClick={() => setCreateOpen(false)}><CloseOutlined sx={{ fontSize: 16 }} /></IconButton>
         </DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 0.5 }}>
-            <TextField label="Name" placeholder="e.g. Scene Description" value={newName} onChange={e => setNewName(e.target.value)} size="small" fullWidth autoFocus />
+            <TextField label={t("llmDetection.label.name")} placeholder={t("llmDetection.label.namePlaceholder")} value={newName} onChange={e => setNewName(e.target.value)} size="small" fullWidth autoFocus />
             <FormControl size="small" fullWidth>
-              <InputLabel>Model</InputLabel>
-              <Select value={newModel} label="Model" onChange={(e: SelectChangeEvent) => setNewModel(e.target.value)}>
+              <InputLabel>{t("llmDetection.label.model")}</InputLabel>
+              <Select value={newModel} label={t("llmDetection.label.model")} onChange={(e: SelectChangeEvent) => setNewModel(e.target.value)}>
                 <MenuItem value="gpt-4o">gpt-4o</MenuItem>
                 <MenuItem value="gpt-4o-mini">gpt-4o-mini</MenuItem>
                 <MenuItem value="gpt-4.1">gpt-4.1</MenuItem>
@@ -149,31 +151,31 @@ export default function LLMDetectionManagement() {
                 <MenuItem value="gemini-2.5-flash">gemini-2.5-flash</MenuItem>
               </Select>
             </FormControl>
-            <TextField label="Prompt" placeholder="Describe what the model should do with the asset…" value={newPrompt} onChange={e => setNewPrompt(e.target.value)} size="small" fullWidth multiline minRows={3} maxRows={6} />
+            <TextField label={t("llmDetection.label.prompt")} placeholder={t("llmDetection.label.promptPlaceholder")} value={newPrompt} onChange={e => setNewPrompt(e.target.value)} size="small" fullWidth multiline minRows={3} maxRows={6} />
             <Box sx={{ display: "flex", gap: 1.5 }}>
               <FormControl size="small" sx={{ flex: 1 }}>
-                <InputLabel>Reasoning Effort</InputLabel>
-                <Select value={newEffort} label="Reasoning Effort" onChange={(e: SelectChangeEvent) => setNewEffort(e.target.value as "low" | "medium" | "high")}>
-                  <MenuItem value="low">Low</MenuItem>
-                  <MenuItem value="medium">Medium</MenuItem>
-                  <MenuItem value="high">High</MenuItem>
+                <InputLabel>{t("llmDetection.label.reasoningEffort")}</InputLabel>
+                <Select value={newEffort} label={t("llmDetection.label.reasoningEffort")} onChange={(e: SelectChangeEvent) => setNewEffort(e.target.value as "low" | "medium" | "high")}>
+                  <MenuItem value="low">{t("llmDetection.effort.low")}</MenuItem>
+                  <MenuItem value="medium">{t("llmDetection.effort.medium")}</MenuItem>
+                  <MenuItem value="high">{t("llmDetection.effort.high")}</MenuItem>
                 </Select>
               </FormControl>
               <FormControl size="small" sx={{ flex: 1 }}>
-                <InputLabel>Output Format</InputLabel>
-                <Select value={newFormat} label="Output Format" onChange={(e: SelectChangeEvent) => setNewFormat(e.target.value as "text" | "json")}>
-                  <MenuItem value="text">Text</MenuItem>
-                  <MenuItem value="json">JSON</MenuItem>
+                <InputLabel>{t("llmDetection.label.outputFormat")}</InputLabel>
+                <Select value={newFormat} label={t("llmDetection.label.outputFormat")} onChange={(e: SelectChangeEvent) => setNewFormat(e.target.value as "text" | "json")}>
+                  <MenuItem value="text">{t("llmDetection.format.text")}</MenuItem>
+                  <MenuItem value="json">{t("llmDetection.format.json")}</MenuItem>
                 </Select>
               </FormControl>
             </Box>
-            <TextField label="Max Tokens" type="number" value={newMaxTokens} onChange={e => setNewMaxTokens(Math.max(1, parseInt(e.target.value) || 1))} size="small" fullWidth inputProps={{ min: 1, max: 16384 }} />
-            <TextField label="Description (optional)" placeholder="Brief description of this prompt's purpose" value={newDescription} onChange={e => setNewDescription(e.target.value)} size="small" fullWidth />
+            <TextField label={t("llmDetection.label.maxTokens")} type="number" value={newMaxTokens} onChange={e => setNewMaxTokens(Math.max(1, parseInt(e.target.value) || 1))} size="small" fullWidth inputProps={{ min: 1, max: 16384 }} />
+            <TextField label={t("llmDetection.label.description")} placeholder={t("llmDetection.label.descriptionPlaceholder")} value={newDescription} onChange={e => setNewDescription(e.target.value)} size="small" fullWidth />
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
-          <Button size="small" onClick={() => setCreateOpen(false)}>Cancel</Button>
-          <Button size="small" variant="contained" onClick={handleCreatePrompt} disabled={!newName.trim() || !newPrompt.trim()} startIcon={<AutoAwesomeOutlined sx={{ fontSize: 14 }} />}>Create Prompt</Button>
+          <Button size="small" onClick={() => setCreateOpen(false)}>{t("llmDetection.button.cancel")}</Button>
+          <Button size="small" variant="contained" onClick={handleCreatePrompt} disabled={!newName.trim() || !newPrompt.trim()} startIcon={<AutoAwesomeOutlined sx={{ fontSize: 14 }} />}>{t("llmDetection.button.create")}</Button>
         </DialogActions>
       </Dialog>
 
@@ -188,21 +190,21 @@ export default function LLMDetectionManagement() {
                   <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.9rem", flex: 1 }}>{p.name}</Typography>
                   <Chip label={p.model} size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: tokens.bg.overlay }} />
                   <Chip label={p.outputFormat.toUpperCase()} size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: `${tokens.accent.blue}18`, color: tokens.accent.blue }} />
-                  <Chip label={`${p.reasoningEffort} effort`} size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: `${effortColor[p.reasoningEffort]}18`, color: effortColor[p.reasoningEffort] }} />
+                  <Chip label={t("llmDetection.chip.effort", { effort: p.reasoningEffort })} size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: `${effortColor[p.reasoningEffort]}18`, color: effortColor[p.reasoningEffort] }} />
                 </Box>
                 <Typography variant="body2" sx={{ color: tokens.text.secondary, fontSize: "0.8rem", lineHeight: 1.5, mb: 1 }}>{p.prompt}</Typography>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>Max tokens: {p.maxTokens}</Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>{t("llmDetection.label.maxTokensValue", { count: p.maxTokens })}</Typography>
                   <Typography variant="caption" color="text.tertiary" sx={{ fontSize: "0.7rem", ml: "auto" }}>Created {new Date(p.createdAt).toLocaleDateString()}</Typography>
-                  <Tooltip title="Edit"><IconButton size="small"><EditOutlined sx={{ fontSize: 14 }} /></IconButton></Tooltip>
-                  <Tooltip title="Run on assets"><IconButton size="small"><PlayArrowOutlined sx={{ fontSize: 14, color: tokens.accent.green }} /></IconButton></Tooltip>
+                  <Tooltip title={t("llmDetection.tooltip.edit")}><IconButton size="small"><EditOutlined sx={{ fontSize: 14 }} /></IconButton></Tooltip>
+                  <Tooltip title={t("llmDetection.tooltip.run")}><IconButton size="small"><PlayArrowOutlined sx={{ fontSize: 14, color: tokens.accent.green }} /></IconButton></Tooltip>
                 </Box>
               </Paper>
             ))}
             {filteredPrompts.length === 0 && (
               <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 6, gap: 1 }}>
                 <AutoAwesomeOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
-                <Typography variant="body2" color="text.secondary">No prompts found</Typography>
+                <Typography variant="body2" color="text.secondary">{t("llmDetection.empty.prompts")}</Typography>
               </Box>
             )}
           </Box>
@@ -239,7 +241,7 @@ export default function LLMDetectionManagement() {
             {filteredResults.length === 0 && (
               <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 6, gap: 1 }}>
                 <PlayArrowOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
-                <Typography variant="body2" color="text.secondary">No results found</Typography>
+                <Typography variant="body2" color="text.secondary">{t("llmDetection.empty.results")}</Typography>
               </Box>
             )}
           </Box>

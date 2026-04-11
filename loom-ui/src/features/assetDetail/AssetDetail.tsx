@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Box, Typography, Chip, Avatar, Paper, IconButton, Tab, Tabs,
@@ -571,6 +572,7 @@ function TranscriptPanel({
   onSeek: (t: number) => void;
   onSectionsChange: (s: TranscriptSection[]) => void;
 }) {
+  const { t: tAD } = useTranslation();
   const sectionColors = [tokens.accent.blue, tokens.accent.green, tokens.accent.amber, "#c077db", tokens.primary.main, tokens.accent.red];
 
   const moveBoundary = (idx: number, direction: "up" | "down") => {
@@ -696,7 +698,7 @@ function TranscriptPanel({
 
       {sections.length === 0 && (
         <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 4, gap: 1 }}>
-          <Typography variant="body2" color="text.secondary">No transcript available</Typography>
+          <Typography variant="body2" color="text.secondary">{tAD("empty.noTranscript")}</Typography>
         </Box>
       )}
     </Box>
@@ -715,6 +717,7 @@ function FaceDetectionPanel({
   persons: Person[];
   onSeek?: (t: number) => void;
 }) {
+  const { t: tAD } = useTranslation();
   // Group faces by cluster
   const grouped = clusters.filter(c => c.faceIds.some(fid => faces.some(f => f.id === fid))).map(cluster => {
     const clusterFaces = faces.filter(f => cluster.faceIds.includes(f.id));
@@ -730,15 +733,15 @@ function FaceDetectionPanel({
       <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
           <FaceOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
-          <Typography variant="caption" sx={{ color: tokens.text.secondary, fontSize: "0.78rem" }}>{faces.length} faces detected</Typography>
+          <Typography variant="caption" sx={{ color: tokens.text.secondary, fontSize: "0.78rem" }}>{tAD("faces.detected", { count: faces.length })}</Typography>
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
           <GroupWorkOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
-          <Typography variant="caption" sx={{ color: tokens.text.secondary, fontSize: "0.78rem" }}>{grouped.length} clusters</Typography>
+          <Typography variant="caption" sx={{ color: tokens.text.secondary, fontSize: "0.78rem" }}>{tAD("faces.clusters", { count: grouped.length })}</Typography>
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
           <PersonOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
-          <Typography variant="caption" sx={{ color: tokens.text.secondary, fontSize: "0.78rem" }}>{grouped.filter(g => g.person).length} identified</Typography>
+          <Typography variant="caption" sx={{ color: tokens.text.secondary, fontSize: "0.78rem" }}>{tAD("faces.identified", { count: grouped.filter(g => g.person).length })}</Typography>
         </Box>
       </Box>
 
@@ -759,9 +762,9 @@ function FaceDetectionPanel({
               )}
             </Box>
             {person ? (
-              <Chip label="Identified" size="small" sx={{ height: 18, fontSize: "0.62rem", bgcolor: `${tokens.accent.green}22`, color: tokens.accent.green }} />
+              <Chip label={tAD("faces.identifiedChip")} size="small" sx={{ height: 18, fontSize: "0.62rem", bgcolor: `${tokens.accent.green}22`, color: tokens.accent.green }} />
             ) : (
-              <Chip label="Unidentified" size="small" sx={{ height: 18, fontSize: "0.62rem", bgcolor: tokens.bg.elevated, color: tokens.text.tertiary }} />
+              <Chip label={tAD("faces.unidentifiedChip")} size="small" sx={{ height: 18, fontSize: "0.62rem", bgcolor: tokens.bg.elevated, color: tokens.text.tertiary }} />
             )}
           </Box>
           {/* Face thumbnails */}
@@ -789,7 +792,7 @@ function FaceDetectionPanel({
       {unclustered.length > 0 && (
         <Box sx={{ border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, overflow: "hidden" }}>
           <Box sx={{ px: 1.5, py: 1, bgcolor: tokens.bg.overlay }}>
-            <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.78rem", color: tokens.text.tertiary }}>Unclustered ({unclustered.length})</Typography>
+            <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.78rem", color: tokens.text.tertiary }}>{tAD("faces.unclustered", { count: unclustered.length })}</Typography>
           </Box>
           <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap", p: 1.25 }}>
             {unclustered.map(face => (
@@ -804,7 +807,7 @@ function FaceDetectionPanel({
       {faces.length === 0 && (
         <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 4, gap: 1 }}>
           <FaceOutlined sx={{ fontSize: 32, color: tokens.text.tertiary }} />
-          <Typography variant="body2" color="text.secondary">No face detection data</Typography>
+          <Typography variant="body2" color="text.secondary">{tAD("empty.noFaces")}</Typography>
         </Box>
       )}
     </Box>
@@ -813,6 +816,7 @@ function FaceDetectionPanel({
 
 // ── Main Asset Detail ─────────────────────────────────────────────────────
 export default function AssetDetail() {
+  const { t: tAD } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { token } = useAuth();
@@ -935,13 +939,13 @@ export default function AssetDetail() {
   };
 
   const tabs = [
-    { label: "Overview", icon: <AccountTreeOutlined sx={{ fontSize: 14 }} /> },
-    { label: `Comments (${comments.length})`, icon: <ChatBubbleOutlineOutlined sx={{ fontSize: 14 }} /> },
-    { label: `Annotations (${annotations.length})`, icon: <BookmarkBorderOutlined sx={{ fontSize: 14 }} /> },
-    { label: `Reactions (${reactions.length})`, icon: <ThumbUpAltOutlined sx={{ fontSize: 14 }} /> },
-    { label: `Tasks (${tasks.length})`, icon: <TaskAltOutlined sx={{ fontSize: 14 }} /> },
-    ...(transcriptSections.length > 0 ? [{ label: "Transcript", icon: <ChatBubbleOutlineOutlined sx={{ fontSize: 14 }} /> }] : []),
-    ...(detectedFaces.length > 0 ? [{ label: `Faces (${detectedFaces.length})`, icon: <FaceOutlined sx={{ fontSize: 14 }} /> }] : []),
+    { label: tAD("tab.overview"), icon: <AccountTreeOutlined sx={{ fontSize: 14 }} /> },
+    { label: tAD("tab.comments", { count: comments.length }), icon: <ChatBubbleOutlineOutlined sx={{ fontSize: 14 }} /> },
+    { label: tAD("tab.annotations", { count: annotations.length }), icon: <BookmarkBorderOutlined sx={{ fontSize: 14 }} /> },
+    { label: tAD("tab.reactions", { count: reactions.length }), icon: <ThumbUpAltOutlined sx={{ fontSize: 14 }} /> },
+    { label: tAD("tab.tasks", { count: tasks.length }), icon: <TaskAltOutlined sx={{ fontSize: 14 }} /> },
+    ...(transcriptSections.length > 0 ? [{ label: tAD("tab.transcript"), icon: <ChatBubbleOutlineOutlined sx={{ fontSize: 14 }} /> }] : []),
+    ...(detectedFaces.length > 0 ? [{ label: tAD("tab.faces", { count: detectedFaces.length }), icon: <FaceOutlined sx={{ fontSize: 14 }} /> }] : []),
   ];
 
   return (
@@ -986,12 +990,12 @@ export default function AssetDetail() {
         <Menu anchorEl={actionMenuAnchor} open={Boolean(actionMenuAnchor)} onClose={() => setActionMenuAnchor(null)}>
           <MenuItem onClick={e => { setPipelineMenuAnchor(e.currentTarget); }}>
             <ListItemIcon><SendOutlined sx={{ fontSize: 16 }} /></ListItemIcon>
-            <ListItemText primaryTypographyProps={{ fontSize: "0.85rem" }}>Process</ListItemText>
+            <ListItemText primaryTypographyProps={{ fontSize: "0.85rem" }}>{tAD("action.process")}</ListItemText>
             <Typography variant="caption" sx={{ ml: 2, color: tokens.text.tertiary }}>▸</Typography>
           </MenuItem>
           <MenuItem onClick={() => { setActionMenuAnchor(null); /* create task action */ }}>
             <ListItemIcon><AddTaskOutlined sx={{ fontSize: 16 }} /></ListItemIcon>
-            <ListItemText primaryTypographyProps={{ fontSize: "0.85rem" }}>Create Task</ListItemText>
+            <ListItemText primaryTypographyProps={{ fontSize: "0.85rem" }}>{tAD("action.createTask")}</ListItemText>
           </MenuItem>
         </Menu>
         <Menu
@@ -1081,7 +1085,7 @@ export default function AssetDetail() {
           {/* Annotation overlay for images */}
           {!isVideo && annotations.filter(a => a.region).length > 0 && (
             <Box sx={{ px: 2, py: 1, bgcolor: tokens.bg.surface, display: "flex", gap: 0.75, flexWrap: "wrap", alignItems: "center", borderTop: `1px solid ${tokens.border.subtle}` }}>
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>Annotations:</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>{tAD("annotations.label")}</Typography>
               {annotations.filter(a => a.region).map(a => (
                 <Chip key={a.id} label={a.title} size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: `${a.color}22`, color: a.color }} />
               ))}
@@ -1121,7 +1125,7 @@ export default function AssetDetail() {
                   setAsset({ ...asset });
                 }
               }}
-              placeholder="Add tag…"
+              placeholder={tAD("tag.addPlaceholder")}
               size="small"
               variant="standard"
               sx={{ minWidth: 80, maxWidth: 140, "& .MuiInput-root": { fontSize: "0.75rem" }, "& .MuiInput-underline:before": { borderBottom: "none" }, "& .MuiInput-underline:hover:before": { borderBottom: `1px solid ${tokens.border.default}` } }}
@@ -1131,7 +1135,7 @@ export default function AssetDetail() {
           {/* Description */}
           <Box sx={{ px: 2, py: 1.5, bgcolor: tokens.bg.surface, borderTop: `1px solid ${tokens.border.subtle}` }}>
             <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.07em", color: tokens.text.tertiary, fontSize: "0.68rem", display: "block", mb: 0.75 }}>
-              Description
+              {tAD("meta.description")}
             </Typography>
             <TextField
               multiline
@@ -1148,16 +1152,16 @@ export default function AssetDetail() {
           {/* Metadata */}
           <Box sx={{ px: 2, py: 2, flex: 1, overflow: "auto" }}>
             <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.07em", color: tokens.text.tertiary, fontSize: "0.68rem" }}>
-              Metadata
+              {tAD("meta.title")}
             </Typography>
             <Box sx={{ mt: 1, border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, overflow: "hidden" }}>
               {[
-                ["Size", formatBytes(asset.fileSize)],
-                ["MIME", asset.mimeType],
-                ...(asset.width ? [["Dimensions", `${asset.width}×${asset.height}`]] : []),
-                ...(asset.duration ? [["Duration", formatDuration(asset.duration)]] : []),
-                ["Owner", userName(asset.ownerId)],
-                ["Created", new Date(asset.createdAt).toLocaleDateString()],
+                [tAD("meta.size"), formatBytes(asset.fileSize)],
+                [tAD("meta.mime"), asset.mimeType],
+                ...(asset.width ? [[tAD("meta.dimensions"), `${asset.width}×${asset.height}`]] : []),
+                ...(asset.duration ? [[tAD("meta.duration"), formatDuration(asset.duration)]] : []),
+                [tAD("meta.owner"), userName(asset.ownerId)],
+                [tAD("meta.created"), new Date(asset.createdAt).toLocaleDateString()],
                 ...Object.entries(asset.metadata).slice(0, 4).map(([k, v]) => [k, String(v)]),
               ].map(([k, v], idx, arr) => (
                 <Box
@@ -1222,7 +1226,7 @@ export default function AssetDetail() {
               <TextField
                 value={sidebarQuery}
                 onChange={e => setSidebarQuery(e.target.value)}
-                placeholder="Filter…"
+                placeholder={tAD("sidebar.filterPlaceholder")}
                 size="small"
                 fullWidth
                 InputProps={{
@@ -1267,7 +1271,7 @@ export default function AssetDetail() {
                 {filtered.length === 0 ? (
                   <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 4, gap: 1 }}>
                     <ChatBubbleOutlineOutlined sx={{ fontSize: 32, color: tokens.text.tertiary }} />
-                    <Typography variant="body2" color="text.secondary">{comments.length === 0 ? "No comments yet" : "No matching comments"}</Typography>
+                    <Typography variant="body2" color="text.secondary">{comments.length === 0 ? tAD("empty.noComments") : tAD("empty.noMatchComments")}</Typography>
                   </Box>
                 ) : filtered.map(c => (
                   <CommentItem
@@ -1291,7 +1295,7 @@ export default function AssetDetail() {
                 {filtered.length === 0 ? (
                   <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 4, gap: 1 }}>
                     <BookmarkBorderOutlined sx={{ fontSize: 32, color: tokens.text.tertiary }} />
-                    <Typography variant="body2" color="text.secondary">{annotations.length === 0 ? "No annotations yet" : "No matching annotations"}</Typography>
+                    <Typography variant="body2" color="text.secondary">{annotations.length === 0 ? tAD("empty.noAnnotations") : tAD("empty.noMatchAnnotations")}</Typography>
                   </Box>
                 ) : filtered.map(a => (
                   <AnnotationItem
@@ -1312,7 +1316,7 @@ export default function AssetDetail() {
                 {reactions.length === 0 ? (
                   <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 4, gap: 1 }}>
                     <ThumbUpAltOutlined sx={{ fontSize: 32, color: tokens.text.tertiary }} />
-                    <Typography variant="body2" color="text.secondary">No reactions yet</Typography>
+                    <Typography variant="body2" color="text.secondary">{tAD("empty.noReactions")}</Typography>
                   </Box>
                 ) : (
                   <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
@@ -1328,7 +1332,7 @@ export default function AssetDetail() {
                 {tasks.length === 0 ? (
                   <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 4, gap: 1 }}>
                     <TaskAltOutlined sx={{ fontSize: 32, color: tokens.text.tertiary }} />
-                    <Typography variant="body2" color="text.secondary">No tasks linked</Typography>
+                    <Typography variant="body2" color="text.secondary">{tAD("empty.noTasks")}</Typography>
                   </Box>
                 ) : tasks.map(t => <TaskItem key={t.id} task={t} onClick={() => setSelectedTask(t)} />)}
               </Box>
@@ -1372,7 +1376,7 @@ export default function AssetDetail() {
           >
             <Box sx={{ px: 2.5, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", gap: 1 }}>
               <TaskAltOutlined sx={{ fontSize: 18, color: tokens.primary.main }} />
-              <Typography variant="h6" fontWeight={700} sx={{ fontSize: "0.95rem", flex: 1 }}>Task Detail</Typography>
+              <Typography variant="h6" fontWeight={700} sx={{ fontSize: "0.95rem", flex: 1 }}>{tAD("taskDetail.title")}</Typography>
               <IconButton size="small" onClick={() => setSelectedTask(null)}><ArrowBack sx={{ fontSize: 16 }} /></IconButton>
             </Box>
             <Box sx={{ flex: 1, overflow: "auto", p: 2.5, display: "flex", flexDirection: "column", gap: 2 }}>
@@ -1387,11 +1391,11 @@ export default function AssetDetail() {
               {/* Meta grid */}
               <Box sx={{ border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, overflow: "hidden" }}>
                 {[
-                  ["Status", <Chip label={selectedTask.status.replace("_", " ")} size="small" sx={{ height: 18, fontSize: "0.7rem", bgcolor: `${{ open: tokens.accent.blue, in_progress: tokens.accent.amber, review: tokens.primary.main, done: tokens.accent.green, blocked: tokens.accent.red }[selectedTask.status]}22`, color: { open: tokens.accent.blue, in_progress: tokens.accent.amber, review: tokens.primary.main, done: tokens.accent.green, blocked: tokens.accent.red }[selectedTask.status] }} />],
-                  ["Priority", <Chip label={selectedTask.priority} size="small" sx={{ height: 18, fontSize: "0.7rem", bgcolor: `${{ critical: tokens.accent.red, high: tokens.accent.amber, medium: tokens.accent.blue, low: tokens.text.tertiary }[selectedTask.priority]}22`, color: { critical: tokens.accent.red, high: tokens.accent.amber, medium: tokens.accent.blue, low: tokens.text.tertiary }[selectedTask.priority], fontWeight: 700 }} />],
-                  ["Assignee", <Typography sx={{ fontSize: "0.82rem", color: tokens.text.secondary }}>{USERS.find(u => u.id === selectedTask.assigneeId)?.name ?? selectedTask.assigneeId}</Typography>],
-                  ["Due Date", <Typography sx={{ fontSize: "0.82rem", color: selectedTask.dueDate && new Date(selectedTask.dueDate) < new Date() ? tokens.accent.red : tokens.text.secondary }}>{selectedTask.dueDate ? new Date(selectedTask.dueDate).toLocaleDateString() : "—"}</Typography>],
-                  ["Created", <Typography sx={{ fontSize: "0.82rem", color: tokens.text.secondary }}>{new Date(selectedTask.createdAt).toLocaleDateString()}</Typography>],
+                  [tAD("taskDetail.status"), <Chip label={selectedTask.status.replace("_", " ")} size="small" sx={{ height: 18, fontSize: "0.7rem", bgcolor: `${{ open: tokens.accent.blue, in_progress: tokens.accent.amber, review: tokens.primary.main, done: tokens.accent.green, blocked: tokens.accent.red }[selectedTask.status]}22`, color: { open: tokens.accent.blue, in_progress: tokens.accent.amber, review: tokens.primary.main, done: tokens.accent.green, blocked: tokens.accent.red }[selectedTask.status] }} />],
+                  [tAD("taskDetail.priority"), <Chip label={selectedTask.priority} size="small" sx={{ height: 18, fontSize: "0.7rem", bgcolor: `${{ critical: tokens.accent.red, high: tokens.accent.amber, medium: tokens.accent.blue, low: tokens.text.tertiary }[selectedTask.priority]}22`, color: { critical: tokens.accent.red, high: tokens.accent.amber, medium: tokens.accent.blue, low: tokens.text.tertiary }[selectedTask.priority], fontWeight: 700 }} />],
+                  [tAD("taskDetail.assignee"), <Typography sx={{ fontSize: "0.82rem", color: tokens.text.secondary }}>{USERS.find(u => u.id === selectedTask.assigneeId)?.name ?? selectedTask.assigneeId}</Typography>],
+                  [tAD("taskDetail.dueDate"), <Typography sx={{ fontSize: "0.82rem", color: selectedTask.dueDate && new Date(selectedTask.dueDate) < new Date() ? tokens.accent.red : tokens.text.secondary }}>{selectedTask.dueDate ? new Date(selectedTask.dueDate).toLocaleDateString() : "—"}</Typography>],
+                  [tAD("taskDetail.created"), <Typography sx={{ fontSize: "0.82rem", color: tokens.text.secondary }}>{new Date(selectedTask.createdAt).toLocaleDateString()}</Typography>],
                 ].map(([label, content], idx) => (
                   <Box key={String(label)} sx={{ display: "grid", gridTemplateColumns: "100px 1fr", px: 1.5, py: 0.85, borderBottom: idx < 4 ? `1px solid ${tokens.border.subtle}` : "none", bgcolor: idx % 2 === 0 ? "transparent" : "rgba(255,255,255,0.02)", alignItems: "center" }}>
                     <Typography sx={{ color: tokens.text.tertiary, fontSize: "0.8rem" }}>{label}</Typography>
@@ -1402,7 +1406,7 @@ export default function AssetDetail() {
               {/* Tags */}
               {selectedTask.tags.length > 0 && (
                 <Box>
-                  <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.06em", color: tokens.text.tertiary, fontSize: "0.68rem", display: "block", mb: 0.75 }}>Tags</Typography>
+                  <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.06em", color: tokens.text.tertiary, fontSize: "0.68rem", display: "block", mb: 0.75 }}>{tAD("taskDetail.tags")}</Typography>
                   <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
                     {selectedTask.tags.map(t => <Chip key={t} label={t} size="small" sx={{ height: 20, fontSize: "0.7rem", bgcolor: tokens.bg.elevated }} />)}
                   </Box>

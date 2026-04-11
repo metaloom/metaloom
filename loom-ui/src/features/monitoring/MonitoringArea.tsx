@@ -13,6 +13,7 @@ import {
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { METRICS } from "../../mock/data";
+import { useTranslation } from "react-i18next";
 
 // ── KPI Card ──────────────────────────────────────────────────────────────
 function KPICard({
@@ -115,6 +116,7 @@ const tooltipStyle = {
 
 // ── Main Monitoring Area ──────────────────────────────────────────────────
 export default function MonitoringArea() {
+  const { t } = useTranslation();
   // Compute KPI snapshot values from latest data points
   const lastIngestion = METRICS.ingestion[0].data.slice(-1)[0]?.value ?? 0;
   const lastLatency = METRICS.latency[0].data.slice(-1)[0]?.value ?? 0;
@@ -126,26 +128,26 @@ export default function MonitoringArea() {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: tokens.bg.base }}>
       <Box sx={{ px: 2.5, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface }}>
-        <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Monitoring & Statistics</Typography>
-        <Typography variant="caption" color="text.secondary">14-day rolling metrics</Typography>
+        <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("monitoring.title")}</Typography>
+        <Typography variant="caption" color="text.secondary">{t("monitoring.subtitle")}</Typography>
       </Box>
 
       <Box sx={{ flex: 1, overflow: "auto", p: 2.5 }}>
         {/* KPI Row */}
         <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 2, mb: 3 }}>
-          <KPICard title="Daily Ingest" value={lastIngestion} unit="assets" delta="+14%" color={tokens.primary.main} icon={<CloudUploadOutlined />} subtitle="Assets ingested today" />
-          <KPICard title="Pipeline Runs (7d)" value={totalRuns} unit="runs" delta="+8%" color={tokens.accent.teal} icon={<AccountTreeOutlined />} subtitle="All pipelines" />
-          <KPICard title="Avg Latency" value={lastLatency} unit="ms" delta={lastLatency > 400 ? "+5%" : "-3%"} color={tokens.accent.blue} icon={<SpeedOutlined />} subtitle="Processing pipeline" />
-          <KPICard title="Storage Used" value={storageLatest.toFixed(1)} unit="TB" color={tokens.accent.amber} icon={<StorageOutlined />} subtitle="Total across libraries" />
-          <KPICard title="Open Tasks" value={openTasks} delta="-2%" color={tokens.accent.green} icon={<TaskAltOutlined />} subtitle="Across all projects" />
-          <KPICard title="Agent Queries (14d)" value={chatQueries} color={tokens.primary.light} icon={<AutoAwesome />} subtitle="Total Loom Agent queries" />
-          <KPICard title="Annotations (14d)" value={METRICS.annotations[0].data.reduce((a, b) => a + b.value, 0)} color={tokens.accent.red} icon={<BookmarkBorderOutlined />} subtitle="New annotations created" />
+          <KPICard title={t("monitoring.kpi.dailyIngest")} value={lastIngestion} unit={t("monitoring.kpi.assets")} delta="+14%" color={tokens.primary.main} icon={<CloudUploadOutlined />} subtitle={t("monitoring.kpi.assetsToday")} />
+          <KPICard title={t("monitoring.kpi.pipelineRuns")} value={totalRuns} unit={t("monitoring.kpi.runs")} delta="+8%" color={tokens.accent.teal} icon={<AccountTreeOutlined />} subtitle={t("monitoring.kpi.allPipelines")} />
+          <KPICard title={t("monitoring.kpi.avgLatency")} value={lastLatency} unit="ms" delta={lastLatency > 400 ? "+5%" : "-3%"} color={tokens.accent.blue} icon={<SpeedOutlined />} subtitle={t("monitoring.kpi.processingPipeline")} />
+          <KPICard title={t("monitoring.kpi.storageUsed")} value={storageLatest.toFixed(1)} unit="TB" color={tokens.accent.amber} icon={<StorageOutlined />} subtitle={t("monitoring.kpi.totalLibraries")} />
+          <KPICard title={t("monitoring.kpi.openTasks")} value={openTasks} delta="-2%" color={tokens.accent.green} icon={<TaskAltOutlined />} subtitle={t("monitoring.kpi.allProjects")} />
+          <KPICard title={t("monitoring.kpi.agentQueries")} value={chatQueries} color={tokens.primary.light} icon={<AutoAwesome />} subtitle={t("monitoring.kpi.totalAgentQueries")} />
+          <KPICard title={t("monitoring.kpi.annotations")} value={METRICS.annotations[0].data.reduce((a, b) => a + b.value, 0)} color={tokens.accent.red} icon={<BookmarkBorderOutlined />} subtitle={t("monitoring.kpi.newAnnotations")} />
         </Box>
 
         {/* Charts Grid */}
         <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr", lg: "2fr 1fr 1fr" }, gap: 2 }}>
           {/* Ingestion throughput */}
-          <ChartCard title="Asset Ingestion (14d)" height={180}>
+          <ChartCard title={t("monitoring.chart.ingestion")} height={180}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={METRICS.ingestion[0].data} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
                 <defs>
@@ -164,7 +166,7 @@ export default function MonitoringArea() {
           </ChartCard>
 
           {/* Pipeline runs */}
-          <ChartCard title="Pipeline Runs (14d)" height={180}>
+          <ChartCard title={t("monitoring.chart.pipelineRuns")} height={180}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={METRICS.pipelineRuns[0].data.map((d, i) => ({ ts: d.ts, success: d.value, failed: METRICS.pipelineRuns[1].data[i]?.value ?? 0 }))} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
                 <CartesianGrid stroke={tokens.border.subtle} vertical={false} />
@@ -178,7 +180,7 @@ export default function MonitoringArea() {
           </ChartCard>
 
           {/* Task backlog */}
-          <ChartCard title="Task Backlog" height={180}>
+          <ChartCard title={t("monitoring.chart.taskBacklog")} height={180}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={METRICS.taskBacklog[0].data.map((d, i) => ({ ts: d.ts, open: d.value, overdue: METRICS.taskBacklog[1].data[i]?.value ?? 0 }))} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
                 <CartesianGrid stroke={tokens.border.subtle} vertical={false} />
@@ -192,7 +194,7 @@ export default function MonitoringArea() {
           </ChartCard>
 
           {/* Processing latency */}
-          <ChartCard title="Processing Latency (ms)" height={170}>
+          <ChartCard title={t("monitoring.chart.latency")} height={170}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={METRICS.latency[0].data.map((d, i) => ({ ts: d.ts, avg: d.value, p99: METRICS.latency[1].data[i]?.value ?? 0 }))} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
                 <CartesianGrid stroke={tokens.border.subtle} vertical={false} />
@@ -206,7 +208,7 @@ export default function MonitoringArea() {
           </ChartCard>
 
           {/* Storage growth */}
-          <ChartCard title="Storage Growth (TB)" height={170}>
+          <ChartCard title={t("monitoring.chart.storage")} height={170}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={METRICS.storage[0].data} margin={{ top: 5, right: 5, bottom: 0, left: -10 }}>
                 <defs>
@@ -225,7 +227,7 @@ export default function MonitoringArea() {
           </ChartCard>
 
           {/* Agent chat usage */}
-          <ChartCard title="Agent Usage (14d)" height={170}>
+          <ChartCard title={t("monitoring.chart.agentUsage")} height={170}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={METRICS.chatUsage[0].data.map((d, i) => ({ ts: d.ts, queries: d.value, actions: METRICS.chatUsage[1].data[i]?.value ?? 0 }))} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
                 <CartesianGrid stroke={tokens.border.subtle} vertical={false} />

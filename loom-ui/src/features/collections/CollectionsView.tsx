@@ -12,11 +12,13 @@ import { mockCollectionService, mockAssetService } from "../../mock/services";
 import { useSpace } from "../../context/SpaceContext";
 import { useToast } from "../../context/ToastContext";
 import { ASSETS } from "../../mock/data";
+import { useTranslation } from "react-i18next";
 
 const PALETTE = ["#57cbcc", "#2ea8ff", "#34d58a", "#f5a623", "#f0546e", "#a855f7", "#ec4899", "#00c9b1"];
 
 function CollectionCard({ collection, onDelete, onClick }: { collection: Collection; onDelete: () => void; onClick: () => void }) {
   const assets = ASSETS.filter(a => collection.assetIds.includes(a.id));
+  const { t } = useTranslation();
 
   return (
     <Paper
@@ -35,7 +37,7 @@ function CollectionCard({ collection, onDelete, onClick }: { collection: Collect
       }}
     >
       {/* Delete button */}
-      <Tooltip title="Delete collection">
+      <Tooltip title={t("collections.tooltip.delete")}>
         <IconButton
           className="delete-btn"
           size="small"
@@ -76,7 +78,7 @@ function CollectionCard({ collection, onDelete, onClick }: { collection: Collect
         </Typography>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <Box sx={{ display: "flex", gap: 0.75 }}>
-            <Chip label={`${collection.assetIds.length} assets`} size="small" sx={{ height: 18, fontSize: "0.65rem" }} />
+            <Chip label={`${collection.assetIds.length} ${t("collections.chip.assets")}`} size="small" sx={{ height: 18, fontSize: "0.65rem" }} />
             <Chip label={new Date(collection.updatedAt).toLocaleDateString()} size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: "transparent", color: tokens.text.tertiary }} />
           </Box>
         </Box>
@@ -88,6 +90,7 @@ function CollectionCard({ collection, onDelete, onClick }: { collection: Collect
 // ── Collection Detail View ────────────────────────────────────────────────
 function CollectionDetail({ collection, onBack }: { collection: Collection; onBack: () => void }) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const assets = ASSETS.filter(a => collection.assetIds.includes(a.id));
 
   return (
@@ -98,8 +101,8 @@ function CollectionDetail({ collection, onBack }: { collection: Collection; onBa
           <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{collection.name}</Typography>
           {collection.description && <Typography variant="caption" color="text.secondary">{collection.description}</Typography>}
         </Box>
-        <Chip label={`${collection.assetIds.length} assets`} size="small" sx={{ height: 18, fontSize: "0.65rem" }} />
-        <Tooltip title="Back to collections">
+        <Chip label={`${collection.assetIds.length} ${t("collections.chip.assets")}`} size="small" sx={{ height: 18, fontSize: "0.65rem" }} />
+        <Tooltip title={t("collections.tooltip.back")}>
           <IconButton size="small" onClick={onBack}><ArrowBack sx={{ fontSize: 16 }} /></IconButton>
         </Tooltip>
       </Box>
@@ -107,7 +110,7 @@ function CollectionDetail({ collection, onBack }: { collection: Collection; onBa
         {assets.length === 0 ? (
           <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 6, gap: 1 }}>
             <CollectionsOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
-            <Typography variant="body2" color="text.secondary">No assets in this collection</Typography>
+            <Typography variant="body2" color="text.secondary">{t("collections.empty.noAssets")}</Typography>
           </Box>
         ) : (
           <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 2 }}>
@@ -146,6 +149,7 @@ function CollectionDetail({ collection, onBack }: { collection: Collection; onBa
 export default function CollectionsView() {
   const { activeSpace } = useSpace();
   const { showToast } = useToast();
+  const { t } = useTranslation();
   const [collections, setCollections] = useState<Collection[]>([]);
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -175,7 +179,7 @@ export default function CollectionsView() {
     setCollections(prev => prev.filter(c => c.id !== deleteTarget.id));
     if (selectedCollection?.id === deleteTarget.id) setSelectedCollection(null);
     setDeleteTarget(null);
-    showToast("Collection deleted", "success");
+    showToast(t("collections.toast.deleted"), "success");
   };
 
   if (selectedCollection) {
@@ -193,12 +197,12 @@ export default function CollectionsView() {
       <Box sx={{ px: 2.5, py: 1.5, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", flexDirection: "column", gap: 1 }}>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <Box>
-            <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Collections</Typography>
-            <Typography variant="caption" color="text.secondary">{activeSpace?.name} · {collections.length} collections</Typography>
+            <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("collections.title")}</Typography>
+            <Typography variant="caption" color="text.secondary">{activeSpace?.name} · {collections.length} {t("collections.count.collections")}</Typography>
           </Box>
           <Chip
             icon={<AddOutlined sx={{ fontSize: 14 }} />}
-            label="New Collection"
+            label={t("collections.button.new")}
             size="small"
             onClick={() => setCreateOpen(true)}
             sx={{ cursor: "pointer", bgcolor: tokens.primary.subtle, border: `1px solid ${tokens.primary.main}`, color: tokens.primary.light }}
@@ -208,7 +212,7 @@ export default function CollectionsView() {
           <TextField
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Search collections…"
+            placeholder={t("collections.search.placeholder")}
             size="small"
             sx={{ flex: 1, maxWidth: 360 }}
             InputProps={{
@@ -219,7 +223,7 @@ export default function CollectionsView() {
               ),
             }}
           />
-          <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.72rem" }}>{filtered.length} results</Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.72rem" }}>{filtered.length} {t("collections.count.results")}</Typography>
         </Box>
       </Box>
 
@@ -227,7 +231,7 @@ export default function CollectionsView() {
         {filtered.length === 0 ? (
           <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 200, gap: 1 }}>
             <CollectionsOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
-            <Typography variant="body2" color="text.secondary">{collections.length === 0 ? "No collections in this space" : "No collections match your search"}</Typography>
+            <Typography variant="body2" color="text.secondary">{collections.length === 0 ? t("collections.empty.noCollections") : t("collections.empty.noSearch")}</Typography>
           </Box>
         ) : (
           <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 2 }}>
@@ -245,12 +249,12 @@ export default function CollectionsView() {
 
       {/* Create collection dialog */}
       <Dialog open={createOpen} onClose={() => setCreateOpen(false)} PaperProps={{ sx: { bgcolor: tokens.bg.panel, border: `1px solid ${tokens.border.default}`, minWidth: 380 } }}>
-        <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700, pb: 1 }}>New Collection</DialogTitle>
+        <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700, pb: 1 }}>{t("collections.dialog.newCollection")}</DialogTitle>
         <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: "8px !important" }}>
-          <TextField label="Name" size="small" value={newName} onChange={e => setNewName(e.target.value)} autoFocus fullWidth />
-          <TextField label="Description" size="small" value={newDesc} onChange={e => setNewDesc(e.target.value)} multiline rows={2} fullWidth />
+          <TextField label={t("collections.label.name")} size="small" value={newName} onChange={e => setNewName(e.target.value)} autoFocus fullWidth />
+          <TextField label={t("collections.label.description")} size="small" value={newDesc} onChange={e => setNewDesc(e.target.value)} multiline rows={2} fullWidth />
           <Box>
-            <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.72rem", mb: 0.75, display: "block" }}>Color</Typography>
+            <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.72rem", mb: 0.75, display: "block" }}>{t("collections.label.color")}</Typography>
             <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
               {PALETTE.map(c => (
                 <Box
@@ -267,24 +271,24 @@ export default function CollectionsView() {
           </Box>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setCreateOpen(false)} size="small" sx={{ color: tokens.text.secondary }}>Cancel</Button>
+          <Button onClick={() => setCreateOpen(false)} size="small" sx={{ color: tokens.text.secondary }}>{t("collections.button.cancel")}</Button>
           <Button onClick={handleCreate} size="small" variant="contained" disabled={!newName.trim() || creating}>
-            {creating ? "Creating…" : "Create"}
+            {creating ? t("collections.button.creating") : t("collections.button.create")}
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* Delete confirmation */}
       <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)} PaperProps={{ sx: { bgcolor: tokens.bg.panel, border: `1px solid ${tokens.border.default}`, minWidth: 340 } }}>
-        <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700, pb: 1 }}>Delete Collection</DialogTitle>
+        <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700, pb: 1 }}>{t("collections.dialog.deleteCollection")}</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary">
-            Delete <strong style={{ color: tokens.text.primary }}>{deleteTarget?.name}</strong>? This cannot be undone.
+            {t("collections.confirm.delete", { name: deleteTarget?.name })}
           </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setDeleteTarget(null)} size="small" sx={{ color: tokens.text.secondary }}>Cancel</Button>
-          <Button onClick={handleDelete} size="small" variant="contained" sx={{ bgcolor: tokens.accent.red, "&:hover": { bgcolor: tokens.accent.red } }}>Delete</Button>
+          <Button onClick={() => setDeleteTarget(null)} size="small" sx={{ color: tokens.text.secondary }}>{t("collections.button.cancel")}</Button>
+          <Button onClick={handleDelete} size="small" variant="contained" sx={{ bgcolor: tokens.accent.red, "&:hover": { bgcolor: tokens.accent.red } }}>{t("collections.button.delete")}</Button>
         </DialogActions>
       </Dialog>
     </Box>

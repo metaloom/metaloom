@@ -19,6 +19,7 @@ import { tokens } from "../../theme";
 import { Asset, DetectedFace, FaceCluster, Person, DetectedObject } from "../../types";
 import { ASSETS, DETECTED_FACES, FACE_CLUSTERS, PERSONS, DETECTED_OBJECTS } from "../../mock/data";
 import { useLayout } from "../../context/LayoutContext";
+import { useTranslation } from "react-i18next";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 type WorkflowMode = "rating" | "tagging" | "deduplication" | "facedetection" | "objectdetection" | "llm";
@@ -167,6 +168,7 @@ function RatingMode({
   tagInputRef: React.RefObject<HTMLInputElement | null>;
   assetTags: string[]; onAddTag: (t: string) => void; onRemoveTag: (t: string) => void;
 }) {
+  const { t } = useTranslation();
   const rating = ratings[asset.id] ?? 0;
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
@@ -179,7 +181,7 @@ function RatingMode({
           <Typography variant="caption" color="text.secondary">{asset.type}</Typography>
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.78rem" }}>Rating:</Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.78rem" }}>{t("workflow.rating.label")}:</Typography>
           <Rating value={rating} max={10} onChange={(_, v) => v !== null && onRate(v)} size="small"
             sx={{ "& .MuiRating-iconFilled": { color: tokens.accent.amber }, "& .MuiRating-iconEmpty": { color: tokens.text.tertiary } }} />
           <Typography variant="caption" fontWeight={600} sx={{ minWidth: 20, textAlign: "center" }}>{rating || "—"}</Typography>
@@ -191,7 +193,7 @@ function RatingMode({
         </Box>
         <Autocomplete freeSolo options={ALL_TAGS.filter(t => !assetTags.includes(t))}
           renderInput={(params) => (
-            <TextField {...params} inputRef={tagInputRef} placeholder="Add tag… (Enter to confirm)" size="small"
+              <TextField {...params} inputRef={tagInputRef} placeholder={t("workflow.rating.addTagPlaceholder")} size="small"
               InputProps={{ ...params.InputProps, startAdornment: <InputAdornment position="start"><LocalOfferOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} /></InputAdornment> }}
               sx={{ "& .MuiInputBase-root": { fontSize: "0.8rem" } }} />
           )}
@@ -207,8 +209,9 @@ function TaggingMode({
   asset, tagInputRef, assetTags, onAddTag, onRemoveTag,
 }: {
   asset: Asset; tagInputRef: React.RefObject<HTMLInputElement | null>;
-  assetTags: string[]; onAddTag: (t: string) => void; onRemoveTag: (t: string) => void;
+  assetTags: string[]; onAddTag: (tag: string) => void; onRemoveTag: (tag: string) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
       <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", bgcolor: "#000", borderRadius: tokens.radius.lg, overflow: "hidden", minHeight: 300 }}>
@@ -217,12 +220,12 @@ function TaggingMode({
       <Box sx={{ px: 1 }}>
         <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.95rem", mb: 0.5 }}>{asset.name}</Typography>
         <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", alignItems: "center", mb: 1 }}>
-          {assetTags.map(t => <Chip key={t} label={t} size="small" onDelete={() => onRemoveTag(t)} sx={{ height: 22, fontSize: "0.72rem" }} />)}
-          {assetTags.length === 0 && <Typography variant="caption" color="text.secondary">No tags yet</Typography>}
+          {assetTags.map(tag => <Chip key={tag} label={tag} size="small" onDelete={() => onRemoveTag(tag)} sx={{ height: 22, fontSize: "0.72rem" }} />)}
+          {assetTags.length === 0 && <Typography variant="caption" color="text.secondary">{t("workflow.tagging.noTags")}</Typography>}
         </Box>
-        <Autocomplete freeSolo options={ALL_TAGS.filter(t => !assetTags.includes(t))}
+        <Autocomplete freeSolo options={ALL_TAGS.filter(tag => !assetTags.includes(tag))}
           renderInput={(params) => (
-            <TextField {...params} inputRef={tagInputRef} placeholder="Type to search tags… (Enter to add)" size="small" autoFocus
+              <TextField {...params} inputRef={tagInputRef} placeholder={t("workflow.tagging.placeholder")} size="small" autoFocus
               InputProps={{ ...params.InputProps, startAdornment: <InputAdornment position="start"><LocalOfferOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} /></InputAdornment> }} />
           )}
           onChange={(_, val) => { if (typeof val === "string" && val.trim()) onAddTag(val.trim()); }}
@@ -240,11 +243,12 @@ function DeduplicationMode({
   onConfirm: () => void; onReject: () => void;
   decision: "confirmed" | "rejected" | null;
 }) {
+  const { t } = useTranslation();
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, overflow: "auto" }}>
       {/* Keep asset */}
       <Box>
-        <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", color: tokens.accent.green, fontSize: "0.7rem", letterSpacing: "0.06em", mb: 0.5, display: "block" }}>Keep</Typography>
+        <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", color: tokens.accent.green, fontSize: "0.7rem", letterSpacing: "0.06em", mb: 0.5, display: "block" }}>{t("workflow.dedup.keep")}</Typography>
         <Paper elevation={0} sx={{ border: `2px solid ${tokens.accent.green}`, borderRadius: tokens.radius.lg, overflow: "hidden", bgcolor: tokens.bg.elevated }}>
           <Box sx={{ width: "100%", aspectRatio: "16/9", bgcolor: "#000", overflow: "hidden" }}>
             <img src={group.keep.thumbnailUrl} alt={group.keep.name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
@@ -261,7 +265,7 @@ function DeduplicationMode({
       {/* Duplicate candidates */}
       <Box>
         <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", color: tokens.text.tertiary, fontSize: "0.7rem", letterSpacing: "0.06em", mb: 0.5, display: "block" }}>
-          Duplicate Candidates
+          {t("workflow.dedup.duplicateCandidates")}
         </Typography>
         {group.candidates.map(c => (
           <Paper key={c.id} elevation={0} sx={{
@@ -280,7 +284,7 @@ function DeduplicationMode({
                 </Box>
               </Box>
               {decision && (
-                <Chip label={decision === "confirmed" ? "Remove" : "Kept"} size="small"
+                  <Chip label={decision === "confirmed" ? t("workflow.dedup.chipRemove") : t("workflow.dedup.chipKept")} size="small"
                   sx={{ height: 20, fontSize: "0.68rem", fontWeight: 600,
                     bgcolor: decision === "confirmed" ? `${tokens.accent.red}18` : `${tokens.accent.green}18`,
                     color: decision === "confirmed" ? tokens.accent.red : tokens.accent.green }} />
@@ -294,12 +298,12 @@ function DeduplicationMode({
         <Button variant={decision === "confirmed" ? "contained" : "outlined"} size="small" color="error"
           startIcon={<DeleteOutlineOutlined sx={{ fontSize: 16 }} />} onClick={onConfirm}
           sx={{ textTransform: "none", fontWeight: 600, fontSize: "0.8rem" }}>
-          Confirm Dedup (Y)
+          {t("workflow.dedup.confirmBtn")}
         </Button>
         <Button variant={decision === "rejected" ? "contained" : "outlined"} size="small"
           startIcon={<CloseOutlined sx={{ fontSize: 16 }} />} onClick={onReject}
           sx={{ textTransform: "none", fontWeight: 600, fontSize: "0.8rem" }}>
-          Reject (N)
+          {t("workflow.dedup.rejectBtn")}
         </Button>
       </Box>
     </Box>
@@ -328,6 +332,7 @@ function FaceDetectionMode({
   personInputRef: React.RefObject<HTMLInputElement | null>;
 }) {
   const selectedCluster = clusters[selectedClusterIdx];
+  const { t } = useTranslation();
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, overflow: "auto" }}>
@@ -362,7 +367,7 @@ function FaceDetectionMode({
       {/* Clusters */}
       <Box sx={{ px: 1 }}>
         <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.06em", color: tokens.text.tertiary, fontSize: "0.68rem", mb: 1, display: "block" }}>
-          Face Clusters ({clusters.length})
+          {t("workflow.faceMode.clusters", { count: clusters.length })}
         </Typography>
         <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
           {clusters.map((c, idx) => {
@@ -383,10 +388,8 @@ function FaceDetectionMode({
                     {assignedPerson && <Typography component="span" variant="caption" sx={{ ml: 1, color: tokens.primary.light }}>→ {assignedPerson}</Typography>}
                   </Typography>
                   {decision && (
-                    <Chip label={decision === "confirmed" ? "Confirmed" : "Denied"} size="small"
-                      sx={{ height: 18, fontSize: "0.64rem", fontWeight: 600,
-                        bgcolor: decision === "confirmed" ? `${tokens.accent.green}18` : `${tokens.accent.red}18`,
-                        color: decision === "confirmed" ? tokens.accent.green : tokens.accent.red }} />
+                    <Chip label={decision === "confirmed" ? t("workflow.faceMode.confirmed") : t("workflow.faceMode.denied")} size="small"
+                      sx={{ height: 18, fontSize: "0.65rem", bgcolor: decision === "confirmed" ? `${tokens.accent.green}22` : `${tokens.accent.red}22`, color: decision === "confirmed" ? tokens.accent.green : tokens.accent.red }} />
                   )}
                 </Box>
                 <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
@@ -400,12 +403,12 @@ function FaceDetectionMode({
                     <Button variant="outlined" size="small" color="success" startIcon={<CheckOutlined sx={{ fontSize: 14 }} />}
                       onClick={(e) => { e.stopPropagation(); onConfirmCluster(c.cluster.id); }}
                       sx={{ textTransform: "none", fontSize: "0.75rem", fontWeight: 600 }}>
-                      Confirm (Y)
+                      {t("workflow.faceMode.confirmBtn")}
                     </Button>
                     <Button variant="outlined" size="small" color="error" startIcon={<CloseOutlined sx={{ fontSize: 14 }} />}
                       onClick={(e) => { e.stopPropagation(); onDenyCluster(c.cluster.id); }}
                       sx={{ textTransform: "none", fontSize: "0.75rem", fontWeight: 600 }}>
-                      Deny (N)
+                      {t("workflow.faceMode.denyBtn")}
                     </Button>
                     <Autocomplete
                       freeSolo size="small"
@@ -413,7 +416,7 @@ function FaceDetectionMode({
                       value={assignedPerson ?? ""}
                       onChange={(_, val) => { if (typeof val === "string" && val.trim()) onAssignPerson(c.cluster.id, val.trim()); }}
                       renderInput={(params) => (
-                        <TextField {...params} inputRef={personInputRef} placeholder="Assign person…" size="small"
+                        <TextField {...params} inputRef={personInputRef} placeholder={t("workflow.faceMode.assignPerson")} size="small"
                           onClick={(e) => e.stopPropagation()}
                           InputProps={{ ...params.InputProps, startAdornment: <InputAdornment position="start"><PersonOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} /></InputAdornment> }}
                           sx={{ "& .MuiInputBase-root": { fontSize: "0.78rem" } }} />
@@ -425,7 +428,7 @@ function FaceDetectionMode({
               </Paper>
             );
           })}
-          {clusters.length === 0 && <Typography variant="caption" color="text.secondary">No face clusters for this asset</Typography>}
+          {clusters.length === 0 && <Typography variant="caption" color="text.secondary">{t("workflow.faceMode.empty")}</Typography>}
         </Box>
       </Box>
     </Box>
@@ -442,6 +445,7 @@ function ObjectDetectionMode({
   onConfirm: (id: string) => void; onReject: (id: string) => void;
 }) {
   const selected = objects[selectedIdx];
+  const { t } = useTranslation();
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, overflow: "auto" }}>
@@ -484,7 +488,7 @@ function ObjectDetectionMode({
       {/* Object list */}
       <Box sx={{ px: 1 }}>
         <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.06em", color: tokens.text.tertiary, fontSize: "0.68rem", mb: 1, display: "block" }}>
-          Detected Objects ({objects.length})
+          {t("workflow.objectMode.detected", { count: objects.length })}
         </Typography>
         <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
           {objects.map((obj, idx) => {
@@ -499,13 +503,11 @@ function ObjectDetectionMode({
               }}>
                 <Box sx={{ flex: 1 }}>
                   <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.84rem", textTransform: "capitalize" }}>{obj.label}</Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>Confidence: {Math.round(obj.confidence * 100)}%</Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>{t("workflow.objectMode.confidence", { pct: Math.round(obj.confidence * 100) })}</Typography>
                 </Box>
                 {dec ? (
-                  <Chip label={dec === "confirmed" ? "Confirmed" : "Rejected"} size="small"
-                    sx={{ height: 18, fontSize: "0.64rem", fontWeight: 600,
-                      bgcolor: dec === "confirmed" ? `${tokens.accent.green}18` : `${tokens.accent.red}18`,
-                      color: dec === "confirmed" ? tokens.accent.green : tokens.accent.red }} />
+                  <Chip label={dec === "confirmed" ? t("workflow.objectMode.confirmed") : t("workflow.objectMode.rejected")} size="small"
+                    sx={{ height: 18, fontSize: "0.65rem", bgcolor: dec === "confirmed" ? `${tokens.accent.green}22` : `${tokens.accent.red}22`, color: dec === "confirmed" ? tokens.accent.green : tokens.accent.red }} />
                 ) : isSelected ? (
                   <Box sx={{ display: "flex", gap: 0.5 }}>
                     <IconButton size="small" onClick={(e) => { e.stopPropagation(); onConfirm(obj.id); }}
@@ -521,7 +523,7 @@ function ObjectDetectionMode({
               </Paper>
             );
           })}
-          {objects.length === 0 && <Typography variant="caption" color="text.secondary">No object detections for this asset</Typography>}
+          {objects.length === 0 && <Typography variant="caption" color="text.secondary">{t("workflow.objectMode.empty")}</Typography>}
         </Box>
       </Box>
     </Box>
@@ -538,6 +540,7 @@ function LLMMode({
   onReject: (assetId: string) => void;
 }) {
   const decision = llmDecisions[asset.id];
+  const { t } = useTranslation();
   // Mock LLM results for this asset
   const mockResult = asset.id === "a1" ? "Corporate presentation scene with modern furniture. Professional indoor lighting." :
     asset.id === "a3" ? "Product hero shot with clean studio background and dramatic side lighting." :
@@ -554,7 +557,7 @@ function LLMMode({
         <Paper elevation={0} sx={{ p: 2, bgcolor: tokens.bg.elevated, border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md }}>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
             <AutoAwesomeOutlined sx={{ fontSize: 16, color: tokens.primary.main }} />
-            <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.78rem" }}>Vision Model Output</Typography>
+            <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.78rem" }}>{t("workflow.llmMode.modelOutput")}</Typography>
             <Chip label="gpt-4o" size="small" sx={{ height: 16, fontSize: "0.62rem", bgcolor: tokens.bg.overlay }} />
           </Box>
           <Typography variant="body2" sx={{ color: tokens.text.secondary, fontSize: "0.84rem", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
@@ -564,10 +567,10 @@ function LLMMode({
         <Box sx={{ display: "flex", gap: 1, mt: 1.5 }}>
           <Button variant={decision === "approved" ? "contained" : "outlined"} size="small" color="success"
             startIcon={<CheckOutlined sx={{ fontSize: 14 }} />} onClick={() => onApprove(asset.id)}
-            sx={{ textTransform: "none", fontSize: "0.8rem", fontWeight: 600 }}>Approve (Y)</Button>
+            sx={{ textTransform: "none", fontSize: "0.8rem", fontWeight: 600 }}>{t("workflow.llmMode.approveBtn")}</Button>
           <Button variant={decision === "rejected" ? "contained" : "outlined"} size="small" color="error"
             startIcon={<CloseOutlined sx={{ fontSize: 14 }} />} onClick={() => onReject(asset.id)}
-            sx={{ textTransform: "none", fontSize: "0.8rem", fontWeight: 600 }}>Reject (N)</Button>
+            sx={{ textTransform: "none", fontSize: "0.8rem", fontWeight: 600 }}>{t("workflow.llmMode.rejectBtn")}</Button>
           {decision && (
             <Chip label={decision} size="small" sx={{ height: 22, fontSize: "0.72rem", fontWeight: 600, ml: "auto",
               bgcolor: decision === "approved" ? `${tokens.accent.green}18` : `${tokens.accent.red}18`,
@@ -590,6 +593,7 @@ function ProfilesSidebar({
   const filtered = profiles.filter(p => p.mode === mode);
   const active = profiles.find(p => p.id === activeProfileId);
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (editingIdx === null || !active) return;
@@ -615,13 +619,13 @@ function ProfilesSidebar({
       transition: "width 200ms ease", display: "flex", flexDirection: "column",
     }}>
       <Box sx={{ px: 1.5, py: 1.5, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", gap: 0.75 }}>
-        <Tooltip title="Collapse">
+        <Tooltip title={t("workflow.profiles.collapse")}>
           <IconButton size="small" onClick={onToggle} sx={{ width: 20, height: 20 }}>
             <ChevronRightOutlined sx={{ fontSize: 14 }} />
           </IconButton>
         </Tooltip>
         <KeyboardOutlined sx={{ fontSize: 14, color: tokens.primary.main }} />
-        <Typography variant="caption" fontWeight={700} sx={{ fontSize: "0.72rem", flex: 1 }}>Key Profiles</Typography>
+        <Typography variant="caption" fontWeight={700} sx={{ fontSize: "0.72rem", flex: 1 }}>{t("workflow.profiles.title")}</Typography>
       </Box>
 
       <Box sx={{ p: 0.75, display: "flex", flexDirection: "column", gap: 0.5 }}>
@@ -633,7 +637,7 @@ function ProfilesSidebar({
             borderRadius: tokens.radius.md, "&:hover": { borderColor: tokens.border.strong }, transition: "all 120ms ease",
           }}>
             <Typography variant="body2" fontWeight={p.id === activeProfileId ? 700 : 500} sx={{ fontSize: "0.74rem" }}>{p.name}</Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.63rem" }}>{p.bindings.length} bindings</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.63rem" }}>{t("workflow.profiles.bindings", { count: p.bindings.length })}</Typography>
           </Paper>
         ))}
       </Box>
@@ -643,11 +647,11 @@ function ProfilesSidebar({
       {active && (
         <Box sx={{ flex: 1, overflow: "auto", p: 1 }}>
           <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.06em", color: tokens.text.tertiary, fontSize: "0.6rem", mb: 0.75, display: "block" }}>
-            Bindings · click to rebind
+            {t("workflow.profiles.bindingsTitle")}
           </Typography>
           <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
             {active.bindings.map((b, i) => (
-              <Tooltip key={i} title={editingIdx === i ? "Press a key… (Backspace to unbind)" : "Click to rebind"} placement="left">
+              <Tooltip key={i} title={editingIdx === i ? t("workflow.profiles.pressKey") : t("workflow.profiles.clickToRebind")} placement="left">
                 <Box onClick={() => setEditingIdx(i)} sx={{
                   display: "flex", alignItems: "center", gap: 0.75, py: 0.4, px: 0.5,
                   cursor: "pointer", borderRadius: tokens.radius.sm,
@@ -680,6 +684,7 @@ function ProfilesSidebar({
 // ── Main Workflow View ────────────────────────────────────────────────────
 export default function WorkflowView() {
   const { setSidebarCollapsed } = useLayout();
+  const { t } = useTranslation();
   const assets = useMemo(() => ASSETS.slice(0, 20), []);
   const [mode, setMode] = useState<WorkflowMode>("rating");
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -815,26 +820,26 @@ export default function WorkflowView() {
           </Box>
           <ToggleButtonGroup value={mode} exclusive onChange={(_, v) => v && setMode(v)} size="small" sx={{ ml: 0.5 }}>
             <ToggleButton value="rating" sx={{ textTransform: "none", fontSize: "0.72rem", px: 1 }}>
-              <StarOutlined sx={{ fontSize: 13, mr: 0.5 }} /> Rating
+              <StarOutlined sx={{ fontSize: 13, mr: 0.5 }} /> {t("workflow.mode.rating")}
             </ToggleButton>
             <ToggleButton value="tagging" sx={{ textTransform: "none", fontSize: "0.72rem", px: 1 }}>
-              <LocalOfferOutlined sx={{ fontSize: 13, mr: 0.5 }} /> Tagging
+              <LocalOfferOutlined sx={{ fontSize: 13, mr: 0.5 }} /> {t("workflow.mode.tagging")}
             </ToggleButton>
             <ToggleButton value="deduplication" sx={{ textTransform: "none", fontSize: "0.72rem", px: 1 }}>
-              <ContentCopyOutlined sx={{ fontSize: 13, mr: 0.5 }} /> Dedup
+              <ContentCopyOutlined sx={{ fontSize: 13, mr: 0.5 }} /> {t("workflow.mode.dedup")}
             </ToggleButton>
             <ToggleButton value="llm" sx={{ textTransform: "none", fontSize: "0.72rem", px: 1 }}>
-              <AutoAwesomeOutlined sx={{ fontSize: 13, mr: 0.5 }} /> LLM
+              <AutoAwesomeOutlined sx={{ fontSize: 13, mr: 0.5 }} /> {t("workflow.mode.llm")}
             </ToggleButton>
             <ToggleButton value="facedetection" sx={{ textTransform: "none", fontSize: "0.72rem", px: 1 }}>
-              <FaceOutlined sx={{ fontSize: 13, mr: 0.5 }} /> Faces
+              <FaceOutlined sx={{ fontSize: 13, mr: 0.5 }} /> {t("workflow.mode.faces")}
             </ToggleButton>
             <ToggleButton value="objectdetection" sx={{ textTransform: "none", fontSize: "0.72rem", px: 1 }}>
-              <CenterFocusStrongOutlined sx={{ fontSize: 13, mr: 0.5 }} /> Objects
+              <CenterFocusStrongOutlined sx={{ fontSize: 13, mr: 0.5 }} /> {t("workflow.mode.objects")}
             </ToggleButton>
           </ToggleButtonGroup>
           <Box sx={{ flex: 1 }} />
-          <Tooltip title={fullscreen ? "Exit fullscreen (F)" : "Fullscreen (F)"}>
+          <Tooltip title={fullscreen ? t("workflow.tooltip.exitFullscreen") : t("workflow.tooltip.fullscreen")}>
             <IconButton size="small" onClick={toggleFullscreen}>
               {fullscreen ? <FullscreenExitOutlined sx={{ fontSize: 18 }} /> : <FullscreenOutlined sx={{ fontSize: 18 }} />}
             </IconButton>
@@ -851,7 +856,7 @@ export default function WorkflowView() {
             </IconButton>
           </Box>
           {!profileSidebarOpen && (
-            <Tooltip title="Show key profiles">
+            <Tooltip title={t("workflow.tooltip.showProfiles")}>
               <IconButton size="small" onClick={() => setProfileSidebarOpen(true)}>
                 <TuneOutlined sx={{ fontSize: 16 }} />
               </IconButton>
@@ -896,34 +901,28 @@ export default function WorkflowView() {
         <Box sx={{ px: 2.5, py: 0.75, borderTop: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", gap: 2, alignItems: "center", flexWrap: "wrap" }}>
           <KeyboardOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />
           {mode === "rating" && (
-            <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.68rem" }}>
-              <strong>1-0</strong> Set rating · <strong>←/→</strong> Navigate · <strong>Space</strong> Next · <strong>Enter</strong> Edit tags · <strong>F</strong> Fullscreen
-            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.68rem" }}
+              dangerouslySetInnerHTML={{ __html: t("workflow.hint.rating") }} />
           )}
           {mode === "tagging" && (
-            <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.68rem" }}>
-              <strong>←/→</strong> Navigate · <strong>Space</strong> Next · <strong>Enter</strong> Edit tags · <strong>Esc</strong> Blur · <strong>F</strong> Fullscreen
-            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.68rem" }}
+              dangerouslySetInnerHTML={{ __html: t("workflow.hint.tagging") }} />
           )}
           {mode === "deduplication" && (
-            <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.68rem" }}>
-              <strong>←/→</strong> Navigate · <strong>Y</strong> Confirm dedup · <strong>N</strong> Reject · <strong>F</strong> Fullscreen
-            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.68rem" }}
+              dangerouslySetInnerHTML={{ __html: t("workflow.hint.dedup") }} />
           )}
           {mode === "llm" && (
-            <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.68rem" }}>
-              <strong>←/→</strong> Navigate · <strong>Y</strong> Approve · <strong>N</strong> Reject · <strong>R</strong> Re-run prompt · <strong>F</strong> Fullscreen
-            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.68rem" }}
+              dangerouslySetInnerHTML={{ __html: t("workflow.hint.llm") }} />
           )}
           {mode === "facedetection" && (
-            <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.68rem" }}>
-              <strong>←/→</strong> Navigate · <strong>↑/↓</strong> Cycle clusters · <strong>Tab</strong> Next cluster · <strong>Y</strong> Confirm · <strong>N</strong> Deny · <strong>Enter</strong> Assign person · <strong>F</strong> Fullscreen
-            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.68rem" }}
+              dangerouslySetInnerHTML={{ __html: t("workflow.hint.facedetection") }} />
           )}
           {mode === "objectdetection" && (
-            <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.68rem" }}>
-              <strong>←/→</strong> Navigate · <strong>↑/↓</strong> Cycle detections · <strong>Tab</strong> Next detection · <strong>Y</strong> Confirm · <strong>N</strong> Reject · <strong>F</strong> Fullscreen
-            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.68rem" }}
+              dangerouslySetInnerHTML={{ __html: t("workflow.hint.objectdetection") }} />
           )}
         </Box>
       </Box>

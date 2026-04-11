@@ -11,6 +11,7 @@ import { Library, Asset } from "../../types";
 import { mockLibraryService, mockAssetService } from "../../mock/services";
 import { useSpace } from "../../context/SpaceContext";
 import { useToast } from "../../context/ToastContext";
+import { useTranslation } from "react-i18next";
 
 function formatBytes(bytes: number): string {
   if (bytes >= 1e12) return `${(bytes / 1e12).toFixed(1)} TB`;
@@ -22,6 +23,7 @@ function formatBytes(bytes: number): string {
 export default function LibraryView() {
   const { activeSpace } = useSpace();
   const { showToast } = useToast();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [libraries, setLibraries] = useState<Library[]>([]);
   const [selectedLib, setSelectedLib] = useState<Library | null>(null);
@@ -62,7 +64,7 @@ export default function LibraryView() {
     setLibraries(updated);
     if (selectedLib?.id === deleteTarget.id) setSelectedLib(updated[0] ?? null);
     setDeleteTarget(null);
-    showToast("Library deleted", "success");
+    showToast(t("library.toast.deleted"), "success");
   };
 
   const videoCount = assets.filter(a => a.type === "video").length;
@@ -82,12 +84,12 @@ export default function LibraryView() {
         <Box sx={{ px: 2, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <Box>
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-              <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Libraries</Typography>
-              <Tooltip title="Libraries are used to aggregate and organise assets into logical collections within a space." arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
+              <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("library.title")}</Typography>
+              <Tooltip title={t("library.tooltip.info")} arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
             </Box>
             <Typography variant="caption" color="text.secondary">{activeSpace?.name}</Typography>
           </Box>
-          <Tooltip title="New library">
+          <Tooltip title={t("library.tooltip.newLibrary")}>
             <IconButton size="small" onClick={() => setCreateOpen(true)} sx={{ bgcolor: tokens.primary.subtle, color: tokens.primary.main, "&:hover": { bgcolor: tokens.primary.glow } }}>
               <AddOutlined sx={{ fontSize: 16 }} />
             </IconButton>
@@ -106,9 +108,9 @@ export default function LibraryView() {
               </Box>
               <ListItemText
                 primary={<Typography variant="body2" fontWeight={500} noWrap sx={{ fontSize: "0.82rem" }}>{lib.name}</Typography>}
-                secondary={<Typography variant="caption" sx={{ fontSize: "0.68rem", color: tokens.text.tertiary }}>{lib.assetCount} assets</Typography>}
+                secondary={<Typography variant="caption" sx={{ fontSize: "0.68rem", color: tokens.text.tertiary }}>{lib.assetCount} {t("library.count.assets")}</Typography>}
               />
-              <Tooltip title="Delete library">
+              <Tooltip title={t("library.tooltip.deleteLibrary")}>
                 <IconButton
                   size="small"
                   onClick={(e) => { e.stopPropagation(); setDeleteTarget(lib); }}
@@ -133,21 +135,21 @@ export default function LibraryView() {
                 <Box sx={{ display: "flex", gap: 1.5, mt: 1 }}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                     <VideocamOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />
-                    <Typography variant="caption" color="text.secondary">{videoCount} videos</Typography>
+                    <Typography variant="caption" color="text.secondary">{videoCount} {t("library.stats.videos")}</Typography>
                   </Box>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                     <PhotoLibraryOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />
-                    <Typography variant="caption" color="text.secondary">{imageCount} images</Typography>
+                    <Typography variant="caption" color="text.secondary">{imageCount} {t("library.stats.images")}</Typography>
                   </Box>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                    <Typography variant="caption" color="text.secondary">{formatBytes(totalSize)} total</Typography>
+                    <Typography variant="caption" color="text.secondary">{formatBytes(totalSize)} {t("library.stats.total")}</Typography>
                   </Box>
                 </Box>
               </Box>
               <TextField
                 value={query}
                 onChange={e => setQuery(e.target.value)}
-                placeholder="Search assets…"
+                placeholder={t("library.search.placeholder")}
                 size="small"
                 sx={{ maxWidth: 320 }}
                 InputProps={{
@@ -163,7 +165,7 @@ export default function LibraryView() {
               {filteredAssets.length === 0 ? (
                 <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 6, gap: 1 }}>
                   <LibraryBooksOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
-                  <Typography variant="body2" color="text.secondary">{assets.length === 0 ? "No assets in this library" : "No assets match your search"}</Typography>
+                  <Typography variant="body2" color="text.secondary">{assets.length === 0 ? t("library.empty.noAssets") : t("library.empty.noSearch")}</Typography>
                 </Box>
               ) : (
                 <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 2 }}>
@@ -199,37 +201,37 @@ export default function LibraryView() {
         ) : (
           <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 1 }}>
             <LibraryBooksOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
-            <Typography variant="body2" color="text.secondary">Select a library</Typography>
+            <Typography variant="body2" color="text.secondary">{t("library.empty.selectLibrary")}</Typography>
           </Box>
         )}
       </Box>
 
       {/* Create library dialog */}
       <Dialog open={createOpen} onClose={() => setCreateOpen(false)} PaperProps={{ sx: { bgcolor: tokens.bg.panel, border: `1px solid ${tokens.border.default}`, minWidth: 360 } }}>
-        <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700, pb: 1 }}>New Library</DialogTitle>
+        <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700, pb: 1 }}>{t("library.dialog.newLibrary")}</DialogTitle>
         <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: "8px !important" }}>
-          <TextField label="Name" size="small" value={newName} onChange={e => setNewName(e.target.value)} autoFocus fullWidth />
-          <TextField label="Description" size="small" value={newDesc} onChange={e => setNewDesc(e.target.value)} multiline rows={2} fullWidth />
+          <TextField label={t("library.label.name")} size="small" value={newName} onChange={e => setNewName(e.target.value)} autoFocus fullWidth />
+          <TextField label={t("library.label.description")} size="small" value={newDesc} onChange={e => setNewDesc(e.target.value)} multiline rows={2} fullWidth />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setCreateOpen(false)} size="small" sx={{ color: tokens.text.secondary }}>Cancel</Button>
+          <Button onClick={() => setCreateOpen(false)} size="small" sx={{ color: tokens.text.secondary }}>{t("library.button.cancel")}</Button>
           <Button onClick={handleCreate} size="small" variant="contained" disabled={!newName.trim() || creating}>
-            {creating ? "Creating…" : "Create"}
+            {creating ? t("library.button.creating") : t("library.button.create")}
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* Delete confirmation dialog */}
       <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)} PaperProps={{ sx: { bgcolor: tokens.bg.panel, border: `1px solid ${tokens.border.default}`, minWidth: 340 } }}>
-        <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700, pb: 1 }}>Delete Library</DialogTitle>
+        <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700, pb: 1 }}>{t("library.dialog.deleteLibrary")}</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary">
-            Delete <strong style={{ color: tokens.text.primary }}>{deleteTarget?.name}</strong>? This cannot be undone.
+            {t("library.confirm.delete", { name: deleteTarget?.name })}
           </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setDeleteTarget(null)} size="small" sx={{ color: tokens.text.secondary }}>Cancel</Button>
-          <Button onClick={handleDelete} size="small" variant="contained" sx={{ bgcolor: tokens.accent.red, "&:hover": { bgcolor: tokens.accent.red } }}>Delete</Button>
+          <Button onClick={() => setDeleteTarget(null)} size="small" sx={{ color: tokens.text.secondary }}>{t("library.button.cancel")}</Button>
+          <Button onClick={handleDelete} size="small" variant="contained" sx={{ bgcolor: tokens.accent.red, "&:hover": { bgcolor: tokens.accent.red } }}>{t("common.delete")}</Button>
         </DialogActions>
       </Dialog>
     </Box>

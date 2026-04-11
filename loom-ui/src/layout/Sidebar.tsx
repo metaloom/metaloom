@@ -16,6 +16,7 @@ import {
 } from "@mui/icons-material";
 import { tokens } from "../theme";
 import { useAuth } from "../context/AuthContext";
+import { useTranslation } from "react-i18next";
 
 interface NavItem {
   label: string;
@@ -25,28 +26,33 @@ interface NavItem {
   children?: NavItem[];
 }
 
-const USER_NAV_ITEMS: NavItem[] = [
-  { label: "Chat", path: "/", icon: <ChatBubbleOutline fontSize="small" /> },
-  { label: "Library", path: "/library", icon: <LibraryBooksOutlined fontSize="small" /> },
-  { label: "Assets", path: "/assets", icon: <PhotoLibraryOutlined fontSize="small" /> },
-  { label: "Collections", path: "/collections", icon: <CollectionsOutlined fontSize="small" /> },
-  { label: "Tasks", path: "/tasks", icon: <TaskAltOutlined fontSize="small" />, badge: 3 },
-  { label: "Detection", path: "/detection", icon: <VisibilityOutlined fontSize="small" /> },  { label: "Tags", path: "/tags", icon: <LocalOfferOutlined fontSize="small" /> },
-  { label: "Workflow", path: "/workflow", icon: <SpeedOutlined fontSize="small" /> },
-];
+function userNavItems(t: (k: string) => string): NavItem[] {
+  return [
+    { label: t("sidebar.nav.chat"), path: "/", icon: <ChatBubbleOutline fontSize="small" /> },
+    { label: t("sidebar.nav.library"), path: "/library", icon: <LibraryBooksOutlined fontSize="small" /> },
+    { label: t("sidebar.nav.assets"), path: "/assets", icon: <PhotoLibraryOutlined fontSize="small" /> },
+    { label: t("sidebar.nav.collections"), path: "/collections", icon: <CollectionsOutlined fontSize="small" /> },
+    { label: t("sidebar.nav.tasks"), path: "/tasks", icon: <TaskAltOutlined fontSize="small" />, badge: 3 },
+    { label: t("sidebar.nav.detection"), path: "/detection", icon: <VisibilityOutlined fontSize="small" /> },
+    { label: t("sidebar.nav.tags"), path: "/tags", icon: <LocalOfferOutlined fontSize="small" /> },
+    { label: t("sidebar.nav.workflow"), path: "/workflow", icon: <SpeedOutlined fontSize="small" /> },
+  ];
+}
 
-const ADMIN_NAV_ITEMS: NavItem[] = [
-  { label: "Asset Pools", path: "/asset-pools", icon: <StorageOutlined fontSize="small" /> },
-  { label: "Pipelines", path: "/pipelines", icon: <AccountTreeOutlined fontSize="small" /> },
-  { label: "Cortex", path: "/cortex", icon: <DnsOutlined fontSize="small" /> },
-  { label: "Monitoring", path: "/monitoring", icon: <BarChartOutlined fontSize="small" /> },
-  { label: "Spaces", path: "/admin/spaces", icon: <FolderOpenOutlined fontSize="small" /> },
-  { label: "Users", path: "/admin/users", icon: <PersonOutlined fontSize="small" /> },
-  { label: "Groups", path: "/admin/groups", icon: <GroupsOutlined fontSize="small" /> },
-  { label: "Permissions", path: "/admin/permissions", icon: <SecurityOutlined fontSize="small" /> },
-  { label: "API Keys", path: "/admin/api-keys", icon: <VpnKeyOutlined fontSize="small" /> },
-  { label: "Blacklist", path: "/admin/blacklist", icon: <BlockOutlined fontSize="small" /> },
-];
+function adminNavItems(t: (k: string) => string): NavItem[] {
+  return [
+    { label: t("sidebar.admin.assetPools"), path: "/asset-pools", icon: <StorageOutlined fontSize="small" /> },
+    { label: t("sidebar.admin.pipelines"), path: "/pipelines", icon: <AccountTreeOutlined fontSize="small" /> },
+    { label: t("sidebar.admin.cortex"), path: "/cortex", icon: <DnsOutlined fontSize="small" /> },
+    { label: t("sidebar.admin.monitoring"), path: "/monitoring", icon: <BarChartOutlined fontSize="small" /> },
+    { label: t("sidebar.admin.spaces"), path: "/admin/spaces", icon: <FolderOpenOutlined fontSize="small" /> },
+    { label: t("sidebar.admin.users"), path: "/admin/users", icon: <PersonOutlined fontSize="small" /> },
+    { label: t("sidebar.admin.groups"), path: "/admin/groups", icon: <GroupsOutlined fontSize="small" /> },
+    { label: t("sidebar.admin.permissions"), path: "/admin/permissions", icon: <SecurityOutlined fontSize="small" /> },
+    { label: t("sidebar.admin.apiKeys"), path: "/admin/api-keys", icon: <VpnKeyOutlined fontSize="small" /> },
+    { label: t("sidebar.admin.blacklist"), path: "/admin/blacklist", icon: <BlockOutlined fontSize="small" /> },
+  ];
+}
 
 interface Props {
   collapsed: boolean;
@@ -57,7 +63,11 @@ export default function Sidebar({ collapsed, onCollapse }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
   const { username, logout } = useAuth();
+  const { t } = useTranslation();
   const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
+
+  const USER_NAV_ITEMS = userNavItems(t);
+  const ADMIN_NAV_ITEMS = adminNavItems(t);
 
   const isActive = (path: string) =>
     path === "/" ? location.pathname === "/" : location.pathname.startsWith(path);
@@ -117,7 +127,7 @@ export default function Sidebar({ collapsed, onCollapse }: Props) {
               <FolderOpenOutlined sx={{ fontSize: 13, color: "#fff" }} />
             </Box>
             <Typography variant="caption" fontWeight={600} color="text.primary" noWrap sx={{ flex: 1, fontSize: "0.8rem" }}>
-              Metaloom
+              {t("sidebar.brand")}
             </Typography>
           </Box>
         )}
@@ -145,14 +155,14 @@ export default function Sidebar({ collapsed, onCollapse }: Props) {
           transformOrigin={{ vertical: "top", horizontal: "right" }}
         >
           <Box sx={{ px: 2, py: 1, minWidth: 160 }}>
-            <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.82rem" }}>{username ?? "Unknown"}</Typography>
+            <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.82rem" }}>{username ?? t("sidebar.fallback.unknown")}</Typography>
           </Box>
           <Divider />
           <MenuItem onClick={() => { setUserMenuAnchor(null); navigate("/profile"); }} sx={{ gap: 1.5, fontSize: "0.85rem" }}>
-            <PersonOutlined sx={{ fontSize: 18 }} /> Profile
+            <PersonOutlined sx={{ fontSize: 18 }} /> {t("sidebar.menu.profile")}
           </MenuItem>
           <MenuItem onClick={() => { setUserMenuAnchor(null); logout(); }} sx={{ gap: 1.5, fontSize: "0.85rem", color: tokens.accent.red }}>
-            <LogoutOutlined sx={{ fontSize: 18 }} /> Logout
+            <LogoutOutlined sx={{ fontSize: 18 }} /> {t("sidebar.menu.logout")}
           </MenuItem>
         </Menu>
       </Box>
@@ -172,7 +182,7 @@ export default function Sidebar({ collapsed, onCollapse }: Props) {
           ) : (
             <Divider sx={{ borderColor: tokens.border.subtle, "&::before": { width: 0 }, "&::after": { flex: 1 } }} textAlign="left">
               <Typography variant="caption" sx={{ fontSize: "0.62rem", color: tokens.text.tertiary, letterSpacing: "0.08em", textTransform: "uppercase", px: 0.5 }}>
-                Admin
+                {t("sidebar.divider.admin")}
               </Typography>
             </Divider>
           )}
@@ -187,7 +197,7 @@ export default function Sidebar({ collapsed, onCollapse }: Props) {
 
       {/* Collapse Toggle */}
       <Box sx={{ px: collapsed ? 0.75 : 1.5, py: 1, display: "flex", justifyContent: collapsed ? "center" : "flex-end" }}>
-        <Tooltip title={collapsed ? "Expand sidebar" : "Collapse sidebar"} placement="right">
+        <Tooltip title={collapsed ? t("sidebar.tooltip.expand") : t("sidebar.tooltip.collapse")} placement="right">
           <IconButton
             onClick={() => onCollapse(!collapsed)}
             size="small"

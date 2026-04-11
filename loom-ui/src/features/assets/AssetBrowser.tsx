@@ -16,6 +16,7 @@ import { Asset, AssetType, AssetStatus } from "../../types";
 import { useAuth } from "../../context/AuthContext";
 import { listAssets, AssetResponse } from "../../api/assets";
 import { useSpace } from "../../context/SpaceContext";
+import { useTranslation } from "react-i18next";
 
 function formatBytes(bytes: number): string {
   if (bytes >= 1e12) return `${(bytes / 1e12).toFixed(1)} TB`;
@@ -215,6 +216,7 @@ interface Props {
 export default function AssetBrowser({ embedded = false }: Props) {
   const { activeSpace } = useSpace();
   const { token } = useAuth();
+  const { t } = useTranslation();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [filtered, setFiltered] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
@@ -271,7 +273,7 @@ export default function AssetBrowser({ embedded = false }: Props) {
         {!embedded && (
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <Box>
-              <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Assets</Typography>
+              <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("assets.title")}</Typography>
               <Typography variant="caption" color="text.secondary">{activeSpace?.name}</Typography>
             </Box>
           </Box>
@@ -281,7 +283,7 @@ export default function AssetBrowser({ embedded = false }: Props) {
           <TextField
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Search assets, tags…"
+            placeholder={t("assets.search.placeholder")}
             size="small"
             sx={{ flex: 1, minWidth: 180 }}
             InputProps={{
@@ -300,11 +302,11 @@ export default function AssetBrowser({ embedded = false }: Props) {
               displayEmpty
               sx={{ fontSize: "0.78rem", bgcolor: tokens.bg.elevated }}
             >
-              <MenuItem value="all">All Status</MenuItem>
-              <MenuItem value="ready">Ready</MenuItem>
-              <MenuItem value="processing">Processing</MenuItem>
-              <MenuItem value="failed">Failed</MenuItem>
-              <MenuItem value="archived">Archived</MenuItem>
+              <MenuItem value="all">{t("assets.filter.allStatus")}</MenuItem>
+              <MenuItem value="ready">{t("assets.filter.ready")}</MenuItem>
+              <MenuItem value="processing">{t("assets.filter.processing")}</MenuItem>
+              <MenuItem value="failed">{t("assets.filter.failed")}</MenuItem>
+              <MenuItem value="archived">{t("assets.filter.archived")}</MenuItem>
             </Select>
           </FormControl>
 
@@ -315,11 +317,11 @@ export default function AssetBrowser({ embedded = false }: Props) {
               displayEmpty
               sx={{ fontSize: "0.78rem", bgcolor: tokens.bg.elevated }}
             >
-              <MenuItem value="all">All Types</MenuItem>
-              <MenuItem value="video">Video</MenuItem>
-              <MenuItem value="image">Image</MenuItem>
-              <MenuItem value="audio">Audio</MenuItem>
-              <MenuItem value="document">Document</MenuItem>
+              <MenuItem value="all">{t("assets.filter.allTypes")}</MenuItem>
+              <MenuItem value="video">{t("assets.filter.video")}</MenuItem>
+              <MenuItem value="image">{t("assets.filter.image")}</MenuItem>
+              <MenuItem value="audio">{t("assets.filter.audio")}</MenuItem>
+              <MenuItem value="document">{t("assets.filter.document")}</MenuItem>
             </Select>
           </FormControl>
 
@@ -340,24 +342,24 @@ export default function AssetBrowser({ embedded = false }: Props) {
             sx={{ visibility: viewMode === "grid" ? "visible" : "hidden" }}
           >
             <ToggleButton value="small" sx={{ border: `1px solid ${tokens.border.default}`, borderRadius: `${tokens.radius.sm} !important`, px: 0.75 }}>
-              <Tooltip title="Small — thumbnail only"><PhotoSizeSelectSmallOutlined sx={{ fontSize: 14 }} /></Tooltip>
+              <Tooltip title={t("assets.tooltip.small")}><PhotoSizeSelectSmallOutlined sx={{ fontSize: 14 }} /></Tooltip>
             </ToggleButton>
             <ToggleButton value="medium" sx={{ border: `1px solid ${tokens.border.default}`, borderRadius: `${tokens.radius.sm} !important`, px: 0.75 }}>
-              <Tooltip title="Medium"><PhotoSizeSelectActualOutlined sx={{ fontSize: 14 }} /></Tooltip>
+              <Tooltip title={t("assets.tooltip.medium")}><PhotoSizeSelectActualOutlined sx={{ fontSize: 14 }} /></Tooltip>
             </ToggleButton>
             <ToggleButton value="large" sx={{ border: `1px solid ${tokens.border.default}`, borderRadius: `${tokens.radius.sm} !important`, px: 0.75 }}>
-              <Tooltip title="Large — tags, size, duration"><PhotoSizeSelectLargeOutlined sx={{ fontSize: 14 }} /></Tooltip>
+              <Tooltip title={t("assets.tooltip.large")}><PhotoSizeSelectLargeOutlined sx={{ fontSize: 14 }} /></Tooltip>
             </ToggleButton>
           </ToggleButtonGroup>
         </Box>
 
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
           <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.72rem" }}>
-            {filtered.length} assets
+            {filtered.length} {t("assets.count")}
           </Typography>
           {(statusFilter !== "all" || typeFilter !== "all" || libraryFilter !== "all" || query) && (
             <Chip
-              label="Clear filters"
+              label={t("assets.filter.clear")}
               size="small"
               onDelete={() => { setStatusFilter("all"); setTypeFilter("all"); setLibraryFilter("all"); setQuery(""); }}
               sx={{ height: 18, fontSize: "0.65rem" }}
@@ -377,7 +379,7 @@ export default function AssetBrowser({ embedded = false }: Props) {
         ) : filtered.length === 0 ? (
           <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 200, gap: 1 }}>
             <SearchOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
-            <Typography variant="body2" color="text.secondary">No assets match your filters</Typography>
+            <Typography variant="body2" color="text.secondary">{t("assets.empty.noMatch")}</Typography>
           </Box>
         ) : viewMode === "grid" ? (
           <Box sx={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${cardSize === "small" ? "120px" : cardSize === "large" ? "260px" : "190px"}, 1fr))`, gap: cardSize === "small" ? 1 : 2 }}>

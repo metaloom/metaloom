@@ -9,10 +9,12 @@ import {
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { DETECTED_OBJECTS, ASSETS } from "../../mock/data";
+import { useTranslation } from "react-i18next";
 
 export default function ObjectDetectionManagement() {
   const [query, setQuery] = useState("");
   const [decisions, setDecisions] = useState<Record<string, "confirmed" | "rejected">>({});
+  const { t } = useTranslation();
 
   const grouped = useMemo(() => {
     const byLabel: Record<string, typeof DETECTED_OBJECTS> = {};
@@ -33,7 +35,7 @@ export default function ObjectDetectionManagement() {
         <TextField
           value={query}
           onChange={e => setQuery(e.target.value)}
-          placeholder="Search object labels…"
+          placeholder={t("objectDetection.search.placeholder")}
           size="small"
           sx={{ flex: 1, maxWidth: 320 }}
           InputProps={{
@@ -45,7 +47,7 @@ export default function ObjectDetectionManagement() {
           }}
         />
         <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.72rem" }}>
-          {DETECTED_OBJECTS.length} detections · {grouped.length} labels
+          {t("objectDetection.count", { detections: DETECTED_OBJECTS.length, labels: grouped.length })}
         </Typography>
       </Box>
 
@@ -71,15 +73,15 @@ export default function ObjectDetectionManagement() {
                       <Box sx={{ flex: 1, minWidth: 0 }}>
                         <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.8rem" }} noWrap>{asset?.name ?? obj.assetId}</Typography>
                         <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>
-                          Confidence: {Math.round(obj.confidence * 100)}%{obj.timestamp != null && ` · ${obj.timestamp}s`}
+                          {t("objectDetection.label.confidence", { pct: Math.round(obj.confidence * 100) })}{obj.timestamp != null && ` · ${obj.timestamp}s`}
                         </Typography>
                       </Box>
                       {dec ? (
                         <Chip label={dec} size="small" sx={{ height: 18, fontSize: "0.64rem", fontWeight: 600, bgcolor: dec === "confirmed" ? `${tokens.accent.green}18` : `${tokens.accent.red}18`, color: dec === "confirmed" ? tokens.accent.green : tokens.accent.red }} />
                       ) : (
                         <Box sx={{ display: "flex", gap: 0.5 }}>
-                          <Tooltip title="Confirm"><IconButton size="small" onClick={() => setDecisions(prev => ({ ...prev, [obj.id]: "confirmed" }))} sx={{ width: 24, height: 24, bgcolor: `${tokens.accent.green}18`, "&:hover": { bgcolor: `${tokens.accent.green}33` } }}><CheckOutlined sx={{ fontSize: 12, color: tokens.accent.green }} /></IconButton></Tooltip>
-                          <Tooltip title="Reject"><IconButton size="small" onClick={() => setDecisions(prev => ({ ...prev, [obj.id]: "rejected" }))} sx={{ width: 24, height: 24, bgcolor: `${tokens.accent.red}18`, "&:hover": { bgcolor: `${tokens.accent.red}33` } }}><CloseOutlined sx={{ fontSize: 12, color: tokens.accent.red }} /></IconButton></Tooltip>
+                          <Tooltip title={t("objectDetection.tooltip.confirm")}><IconButton size="small" onClick={() => setDecisions(prev => ({ ...prev, [obj.id]: "confirmed" }))} sx={{ width: 24, height: 24, bgcolor: `${tokens.accent.green}18`, "&:hover": { bgcolor: `${tokens.accent.green}33` } }}><CheckOutlined sx={{ fontSize: 12, color: tokens.accent.green }} /></IconButton></Tooltip>
+                          <Tooltip title={t("objectDetection.tooltip.reject")}><IconButton size="small" onClick={() => setDecisions(prev => ({ ...prev, [obj.id]: "rejected" }))} sx={{ width: 24, height: 24, bgcolor: `${tokens.accent.red}18`, "&:hover": { bgcolor: `${tokens.accent.red}33` } }}><CloseOutlined sx={{ fontSize: 12, color: tokens.accent.red }} /></IconButton></Tooltip>
                         </Box>
                       )}
                     </Box>
@@ -91,7 +93,7 @@ export default function ObjectDetectionManagement() {
           {filtered.length === 0 && (
             <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 6, gap: 1 }}>
               <CenterFocusStrongOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
-              <Typography variant="body2" color="text.secondary">No object detections found</Typography>
+              <Typography variant="body2" color="text.secondary">{t("objectDetection.empty")}</Typography>
             </Box>
           )}
         </Box>

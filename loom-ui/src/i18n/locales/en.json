@@ -1,0 +1,1019 @@
+{
+  "common": {
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "save": "Save",
+    "create": "Create",
+    "search": "Search",
+    "name": "Name",
+    "description": "Description",
+    "actions": "Actions",
+    "uuid": "UUID",
+    "created": "Created",
+    "status": "Status",
+    "assets": "assets",
+    "clearFilters": "Clear filters",
+    "noMatchFilters": "No assets match your filters",
+    "allStatus": "All Status",
+    "enabled": "enabled",
+    "disabled": "disabled",
+    "confirmed": "Confirmed",
+    "denied": "Denied",
+    "rejected": "Rejected",
+    "never": "Never",
+    "permanent": "Permanent"
+  },
+  "sidebar": {
+    "brand": "Metaloom",
+    "nav": {
+      "chat": "Chat",
+      "library": "Library",
+      "assets": "Assets",
+      "collections": "Collections",
+      "tasks": "Tasks",
+      "detection": "Detection",
+      "tags": "Tags",
+      "workflow": "Workflow"
+    },
+    "admin": {
+      "assetPools": "Asset Pools",
+      "pipelines": "Pipelines",
+      "cortex": "Cortex",
+      "monitoring": "Monitoring",
+      "spaces": "Spaces",
+      "users": "Users",
+      "groups": "Groups",
+      "permissions": "Permissions",
+      "apiKeys": "API Keys",
+      "blacklist": "Blacklist"
+    },
+    "divider": {
+      "admin": "Admin"
+    },
+    "menu": {
+      "profile": "Profile",
+      "logout": "Logout"
+    },
+    "tooltip": {
+      "expand": "Expand sidebar",
+      "collapse": "Collapse sidebar"
+    },
+    "fallback": {
+      "unknown": "Unknown"
+    }
+  },
+  "auth": {
+    "title": "Loom Studio",
+    "subtitle": "Sign in to continue",
+    "error": {
+      "invalidCredentials": "Invalid credentials."
+    },
+    "placeholder": {
+      "username": "Username",
+      "password": "Password"
+    },
+    "button": {
+      "signIn": "Sign in"
+    }
+  },
+  "assets": {
+    "title": "Assets",
+    "search": {
+      "placeholder": "Search assets, tags…"
+    },
+    "filter": {
+      "allStatus": "All Status",
+      "ready": "Ready",
+      "processing": "Processing",
+      "failed": "Failed",
+      "archived": "Archived",
+      "allTypes": "All Types",
+      "video": "Video",
+      "image": "Image",
+      "audio": "Audio",
+      "document": "Document",
+      "allLibraries": "All Libraries",
+      "clear": "Clear filters"
+    },
+    "tooltip": {
+      "small": "Small — thumbnail only",
+      "medium": "Medium",
+      "large": "Large — tags, size, duration"
+    },
+    "count": "assets",
+    "chip": {
+      "clearFilters": "Clear filters"
+    },
+    "empty": {
+      "noMatch": "No assets match your filters"
+    }
+  },
+  "library": {
+    "title": "Libraries",
+    "tooltip": {
+      "info": "Libraries are used to aggregate and organise assets into logical collections within a space.",
+      "newLibrary": "New library",
+      "deleteLibrary": "Delete library"
+    },
+    "count": {
+      "assets": "assets"
+    },
+    "search": {
+      "placeholder": "Search assets…"
+    },
+    "stats": {
+      "videos": "videos",
+      "images": "images",
+      "total": "total"
+    },
+    "empty": {
+      "noAssets": "No assets in this library",
+      "noSearch": "No assets match your search",
+      "selectLibrary": "Select a library"
+    },
+    "dialog": {
+      "newLibrary": "New Library",
+      "deleteLibrary": "Delete Library"
+    },
+    "label": {
+      "name": "Name",
+      "description": "Description"
+    },
+    "button": {
+      "cancel": "Cancel",
+      "creating": "Creating…",
+      "create": "Create"
+    },
+    "confirm": {
+      "delete": "Delete {{name}}? This cannot be undone."
+    },
+    "toast": {
+      "deleted": "Library deleted"
+    }
+  },
+  "collections": {
+    "title": "Collections",
+    "count": {
+      "collections": "collections",
+      "results": "results"
+    },
+    "button": {
+      "new": "New Collection",
+      "cancel": "Cancel",
+      "creating": "Creating…",
+      "create": "Create"
+    },
+    "search": {
+      "placeholder": "Search collections…"
+    },
+    "tooltip": {
+      "delete": "Delete collection",
+      "back": "Back to collections"
+    },
+    "chip": {
+      "assets": "assets",
+      "open": "Open"
+    },
+    "empty": {
+      "noCollections": "No collections in this space",
+      "noSearch": "No collections match your search",
+      "noAssets": "No assets in this collection"
+    },
+    "dialog": {
+      "newCollection": "New Collection",
+      "deleteCollection": "Delete Collection"
+    },
+    "label": {
+      "name": "Name",
+      "description": "Description",
+      "color": "Color"
+    },
+    "confirm": {
+      "delete": "Delete {{name}}? This cannot be undone."
+    },
+    "toast": {
+      "deleted": "Collection deleted"
+    }
+  },
+  "tasks": {
+    "title": "Tasks",
+    "count": "tasks",
+    "table": {
+      "task": "Task",
+      "priority": "Priority",
+      "created": "Created"
+    },
+    "status": {
+      "open": "Open",
+      "inProgress": "In Progress",
+      "review": "Review",
+      "done": "Done",
+      "blocked": "Blocked"
+    },
+    "drawer": {
+      "title": "Task Detail",
+      "created": "Created",
+      "lastEdited": "Last Edited"
+    },
+    "empty": "No tasks found"
+  },
+  "monitoring": {
+    "title": "Monitoring & Statistics",
+    "subtitle": "14-day rolling metrics",
+    "kpi": {
+      "dailyIngest": "Daily Ingest",
+      "assets": "assets",
+      "assetsToday": "Assets ingested today",
+      "pipelineRuns": "Pipeline Runs (7d)",
+      "runs": "runs",
+      "allPipelines": "All pipelines",
+      "avgLatency": "Avg Latency",
+      "processingPipeline": "Processing pipeline",
+      "storageUsed": "Storage Used",
+      "totalLibraries": "Total across libraries",
+      "openTasks": "Open Tasks",
+      "allProjects": "Across all spaces",
+      "agentQueries": "Agent Queries (14d)",
+      "totalAgentQueries": "Total Loom Agent queries",
+      "annotations": "Annotations (14d)",
+      "newAnnotations": "New annotations created"
+    },
+    "chart": {
+      "ingestion": "Asset Ingestion (14d)",
+      "pipelineRuns": "Pipeline Runs (14d)",
+      "taskBacklog": "Task Backlog",
+      "latency": "Processing Latency (ms)",
+      "storage": "Storage Growth (TB)",
+      "agentUsage": "Agent Usage (14d)"
+    },
+    "series": {
+      "assets": "Assets",
+      "success": "Success",
+      "failed": "Failed",
+      "open": "Open",
+      "overdue": "Overdue",
+      "avg": "Avg",
+      "p99": "P99",
+      "storage": "Storage",
+      "queries": "Queries",
+      "actions": "Actions"
+    }
+  },
+  "tags": {
+    "title": "Tags",
+    "tooltip": {
+      "info": "Tags are flat labels grouped by collection. Drag a tag onto a collection header to move it.",
+      "create": "Create tag"
+    },
+    "count": "tags across {{count}} collections",
+    "placeholder": {
+      "name": "Tag name…",
+      "collection": "Collection…",
+      "filter": "Filter tags…"
+    },
+    "search": {
+      "placeholder": "Filter tags…"
+    },
+    "menu": {
+      "delete": "Delete"
+    },
+    "loading": "Loading tags…",
+    "empty": "No tags yet. Create a tag to get started.",
+    "detail": {
+      "title": "Tag Details",
+      "name": "Name",
+      "collection": "Collection",
+      "collectionPlaceholder": "e.g. category",
+      "collectionHelper": "Change collection to move tag to a different group",
+      "placeholder": "e.g. category",
+      "helper": "Change collection to move tag to a different group",
+      "save": "Save"
+    }
+  },
+  "profile": {
+    "title": "Profile",
+    "subtitle": "Manage your personal information",
+    "field": {
+      "firstName": "First name",
+      "lastName": "Last name",
+      "email": "Email",
+      "username": "Username",
+      "usernameHelper": "Username cannot be changed",
+      "role": "Role"
+    },
+    "label": {
+      "firstName": "First name",
+      "lastName": "Last name",
+      "email": "Email",
+      "username": "Username",
+      "role": "Role"
+    },
+    "helper": {
+      "username": "Username cannot be changed"
+    },
+    "button": {
+      "save": "Save changes"
+    },
+    "toast": {
+      "saved": "Profile updated",
+      "updated": "Profile updated"
+    }
+  },
+  "chat": {
+    "header": {
+      "title": "Loom Agent",
+      "status": "● online · {{space}}",
+      "noSpace": "No space"
+    },
+    "input": {
+      "placeholder": "Ask about assets, collections, tasks, pipelines…",
+      "helper": "Enter to send · Shift+Enter for new line"
+    },
+    "panel": {
+      "recentAssets": "Recent Assets",
+      "activeTasks": "Active Tasks",
+      "collections": "Collections",
+      "open": "Open",
+      "collectionAssets": "{{count}} assets"
+    },
+    "tab": {
+      "overview": "Overview",
+      "assets": "Assets"
+    },
+    "detail": {
+      "size": "Size",
+      "status": "Status",
+      "duration": "Duration",
+      "dimensions": "Dimensions",
+      "open": "Open"
+    }
+  },
+  "admin": {
+    "title": "Admin",
+    "subtitle": "User management, access control, and security",
+    "tab": {
+      "spaces": "Spaces",
+      "users": "Users",
+      "groups": "Groups",
+      "permissions": "Permissions",
+      "apiKeys": "API Keys",
+      "blacklist": "Blacklist"
+    },
+    "spaces": {
+      "title": "Spaces",
+      "tooltip": "Spaces organise projects, teams and assets into isolated environments.",
+      "count": "spaces",
+      "newSpace": "New Space",
+      "search": "Search spaces…",
+      "table": {
+        "name": "Name",
+        "uuid": "UUID",
+        "created": "Created",
+        "actions": "Actions"
+      },
+      "dialog": {
+        "create": "Create Space",
+        "edit": "Edit Space",
+        "delete": "Delete Space",
+        "label": "Space name",
+        "placeholder": "e.g. Production"
+      },
+      "confirm": {
+        "delete": "Are you sure you want to delete space {{name}}?"
+      }
+    },
+    "users": {
+      "title": "Users",
+      "tooltip": "Manage user accounts and their access to the system.",
+      "count": "accounts",
+      "createUser": "Create User",
+      "search": "Search users…",
+      "table": {
+        "user": "User",
+        "email": "Email",
+        "status": "Status",
+        "created": "Created",
+        "actions": "Actions"
+      },
+      "chip": {
+        "enabled": "enabled",
+        "disabled": "disabled"
+      },
+      "dialog": {
+        "create": "Create User",
+        "edit": "Edit User",
+        "delete": "Delete User",
+        "label": {
+          "username": "Username",
+          "email": "Email",
+          "firstname": "Firstname",
+          "lastname": "Lastname"
+        }
+      },
+      "confirm": {
+        "delete": "Are you sure you want to delete user {{name}}? This action cannot be undone."
+      }
+    },
+    "groups": {
+      "title": "Groups",
+      "tooltip": "Groups let you organise users into logical teams and assign shared permissions.",
+      "count": "groups",
+      "newGroup": "New Group",
+      "search": "Search groups…",
+      "table": {
+        "name": "Name",
+        "uuid": "UUID",
+        "created": "Created",
+        "actions": "Actions"
+      },
+      "dialog": {
+        "create": "Create Group",
+        "edit": "Edit Group",
+        "delete": "Delete Group",
+        "label": "Group name",
+        "placeholder": "e.g. Engineering"
+      },
+      "confirm": {
+        "delete": "Are you sure you want to delete group {{name}}?"
+      }
+    },
+    "roles": {
+      "title": "Access Control",
+      "count": "roles",
+      "saving": "saving…",
+      "newRole": "New Role",
+      "sectionTitle": "Roles",
+      "permissionsCount": "permissions",
+      "permissionsGranted": "permissions granted",
+      "empty": "Select a role to manage its permissions",
+      "dialog": {
+        "create": "Create Role",
+        "edit": "Edit Role",
+        "delete": "Delete Role",
+        "label": "Role name",
+        "placeholder": "e.g. Editor"
+      },
+      "confirm": {
+        "delete": "Are you sure you want to delete role {{name}}?"
+      }
+    },
+    "apiKeys": {
+      "title": "API Keys",
+      "tooltip": "API keys provide programmatic access to the Metaloom REST API.",
+      "count": "keys",
+      "createKey": "Create Key",
+      "search": "Search API keys…",
+      "table": {
+        "name": "Name",
+        "keyId": "Key ID",
+        "owner": "Owner",
+        "scopes": "Scopes",
+        "lastUsed": "Last Used",
+        "expires": "Expires",
+        "status": "Status"
+      },
+      "status": {
+        "active": "active",
+        "inactive": "inactive"
+      },
+      "menu": {
+        "revoke": "Revoke Key",
+        "delete": "Delete Key"
+      },
+      "dialog": {
+        "create": "Create API Key",
+        "keyName": "Key name",
+        "keyPlaceholder": "e.g. CI Pipeline Key",
+        "permissions": "Permissions ({{count}})",
+        "expiry": "Expiry date (optional)",
+        "creating": "Creating…",
+        "createKey": "Create Key"
+      }
+    },
+    "blacklist": {
+      "title": "Blacklist",
+      "count": "entries",
+      "addEntry": "Add Entry",
+      "search": "Search blacklist entries…",
+      "table": {
+        "type": "Type",
+        "value": "Value",
+        "reason": "Reason",
+        "added": "Added",
+        "expires": "Expires"
+      },
+      "dialog": {
+        "add": "Add Blacklist Entry",
+        "type": "Type",
+        "typeIp": "IP Address",
+        "typeDomain": "Domain",
+        "typeFingerprint": "Fingerprint",
+        "typeUser": "User",
+        "value": "Value",
+        "reason": "Reason",
+        "reasonPlaceholder": "Reason for blacklisting",
+        "expiry": "Expiry date (optional)"
+      },
+      "defaultReason": "Manual entry"
+    }
+  },
+  "pipeline": {
+    "editor": {
+      "title": "Pipelines",
+      "noRuns": "no runs",
+      "selectPipeline": "Select a pipeline to view its graph",
+      "showLog": "Show log",
+      "log": "Log",
+      "dryRun": "Dry Run",
+      "run": "Run",
+      "dryRunTooltip": "Dry run mode — no writes",
+      "runTooltip": "Run pipeline",
+      "enabled": "Enabled",
+      "addNode": "Add Node",
+      "addNodeTooltip": "Add a node to the pipeline",
+      "source": "Source",
+      "filter": "Filter",
+      "process": "Process",
+      "systemLog": "System Log",
+      "selectPipelineLogs": "Select a pipeline to view logs."
+    },
+    "node": {
+      "s3Source": {
+        "label": "S3 Source",
+        "description": "Watch an S3 bucket for new assets"
+      },
+      "filesystemSource": {
+        "label": "Filesystem Source",
+        "description": "Watch a local directory for new files"
+      },
+      "assetSource": {
+        "label": "Asset Source",
+        "description": "Yield a single asset for testing"
+      },
+      "formatFilter": {
+        "label": "Format Filter",
+        "description": "Filter by MIME type"
+      },
+      "hash": {
+        "label": "Hash",
+        "description": "SHA-256 + perceptual hash"
+      },
+      "fingerprint": {
+        "label": "Fingerprint",
+        "description": "Generate audio/video fingerprint"
+      },
+      "resizeProxy": {
+        "label": "Resize Proxy",
+        "description": "Generate proxy resolutions"
+      },
+      "yoloDetection": {
+        "label": "YOLO Detection",
+        "description": "Run YOLOv8 object detection on frames"
+      },
+      "sceneDetection": {
+        "label": "Scene Detection",
+        "description": "Detect scene boundaries via histogram diff"
+      },
+      "s3Output": {
+        "label": "S3 Output",
+        "description": "Write results to S3 bucket"
+      },
+      "thumbnail": {
+        "label": "Thumbnail",
+        "description": "Generate thumbnail images"
+      },
+      "llmVision": {
+        "label": "LLM Vision",
+        "description": "Run a vision model prompt on asset frames"
+      },
+      "faceDetection": {
+        "label": "Face Detection",
+        "description": "Detect and recognize faces"
+      },
+      "embedding": {
+        "label": "Embedding",
+        "description": "Generate CLIP embedding vectors"
+      },
+      "asr": {
+        "label": "ASR",
+        "description": "Automatic speech recognition"
+      },
+      "autoTag": {
+        "label": "Auto Tag",
+        "description": "Automatically tag assets by matching tag globs"
+      },
+      "transcriptionFilter": {
+        "label": "Transcription Filter",
+        "description": "Filter assets that have transcriptions"
+      }
+    },
+    "runHistory": {
+      "title": "Run History",
+      "assets": "assets",
+      "error": "error",
+      "errors": "errors"
+    },
+    "inspector": {
+      "empty": "Select a pipeline to inspect",
+      "enabled": "enabled",
+      "disabled": "disabled",
+      "priority": "priority",
+      "dryRun": "dry run",
+      "runningNow": "Running now",
+      "lastRun": "Last run:"
+    },
+    "nodeDetail": {
+      "title": "Node Details",
+      "collapse": "Collapse panel",
+      "tab": {
+        "config": "Config",
+        "log": "Log",
+        "json": "JSON"
+      },
+      "displayName": "Display Name",
+      "maxChars": "Max 15 characters",
+      "description": "Description",
+      "configuration": "Configuration",
+      "nodeId": "Node ID",
+      "processingLog": "Processing Log",
+      "nodeState": "Node State (JSON)",
+      "emptyHint": "Click a node in the canvas to view and edit its details"
+    }
+  },
+  "cortex": {
+    "title": "Cortex Workers",
+    "tooltip": {
+      "info": "Cortex workers are distributed processing nodes that handle media analysis, transcoding, and AI inference tasks.",
+      "stats": "CPU: {{cpu}}% · GPU: {{gpu}}% · IO: {{io}}%"
+    },
+    "count": {
+      "online": "{{online}} / {{total}} online",
+      "workers": "{{count}} workers"
+    },
+    "search": {
+      "placeholder": "Search workers, hosts…"
+    },
+    "filter": {
+      "allStatus": "All Status",
+      "online": "Online",
+      "paused": "Paused",
+      "starting": "Starting",
+      "offline": "Offline",
+      "terminating": "Terminating",
+      "allCaps": "All Caps"
+    },
+    "chip": {
+      "clearFilters": "Clear filters"
+    },
+    "empty": "No workers match your filters",
+    "stat": {
+      "cpu": "CPU",
+      "gpu": "GPU",
+      "io": "IO",
+      "mem": "MEM"
+    },
+    "menu": {
+      "pause": "Pause",
+      "resume": "Resume",
+      "restart": "Restart",
+      "terminate": "Terminate"
+    }
+  },
+  "detection": {
+    "title": "Detection Management",
+    "tab": {
+      "faces": "Faces",
+      "objects": "Objects",
+      "llm": "LLM"
+    }
+  },
+  "llmDetection": {
+    "search": {
+      "placeholder": "Search prompts, results…"
+    },
+    "chip": {
+      "prompts": "Prompts",
+      "results": "Results"
+    },
+    "button": {
+      "newPrompt": "New Prompt",
+      "cancel": "Cancel",
+      "create": "Create Prompt"
+    },
+    "dialog": {
+      "title": "New Vision Prompt"
+    },
+    "label": {
+      "name": "Name",
+      "namePlaceholder": "e.g. Scene Description",
+      "model": "Model",
+      "prompt": "Prompt",
+      "promptPlaceholder": "Describe what the model should do with the asset…",
+      "reasoningEffort": "Reasoning Effort",
+      "outputFormat": "Output Format",
+      "maxTokens": "Max Tokens",
+      "description": "Description (optional)",
+      "descriptionPlaceholder": "Brief description of this prompt's purpose",
+      "maxTokensValue": "Max tokens: {{count}}",
+      "tokens": "{{count}} tokens"
+    },
+    "effort": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High"
+    },
+    "format": {
+      "text": "Text",
+      "json": "JSON"
+    },
+    "chip_template": {
+      "effort": "{{effort}} effort"
+    },
+    "tooltip": {
+      "edit": "Edit",
+      "run": "Run on assets"
+    },
+    "empty": {
+      "prompts": "No prompts found",
+      "results": "No results found"
+    }
+  },
+  "objectDetection": {
+    "search": {
+      "placeholder": "Search object labels…"
+    },
+    "count": "{{detections}} detections · {{labels}} labels",
+    "tooltip": {
+      "confirm": "Confirm",
+      "reject": "Reject"
+    },
+    "label": {
+      "confidence": "Confidence: {{pct}}%"
+    },
+    "empty": "No object detections found"
+  },
+  "faceDetection": {
+    "title": "Face Detection",
+    "subtitle": "Manage face clusters and person database",
+    "search": {
+      "placeholder": "Search clusters, persons…"
+    },
+    "chip": {
+      "clusters": "Clusters",
+      "persons": "Persons"
+    },
+    "button": {
+      "addPerson": "Add Person",
+      "cancel": "Cancel",
+      "create": "Create",
+      "assign": "Assign"
+    },
+    "count": {
+      "faces": "{{count}} faces",
+      "clusters": "{{count}} clusters"
+    },
+    "label": {
+      "since": "since {{date}}",
+      "name": "Name",
+      "description": "Description"
+    },
+    "tooltip": {
+      "assign": "Assign to person"
+    },
+    "empty": {
+      "clusters": "No clusters found",
+      "persons": "No persons found"
+    },
+    "dialog": {
+      "addPerson": "Add Person",
+      "assign": "Assign Cluster to Person",
+      "selectPerson": "Select a person…"
+    }
+  },
+  "maintenance": {
+    "title": "Maintenance",
+    "subtitle": "System health overview and maintenance status",
+    "chip": {
+      "lastRestart": "Last restart: 2 days ago",
+      "version": "Version 0.9.4-alpha",
+      "uptime": "Uptime: 48h 12m"
+    },
+    "status": {
+      "database": "Database",
+      "objectStorage": "Object Storage (S3)",
+      "memory": "Memory",
+      "pipelineWorkers": "Pipeline Workers"
+    },
+    "statusLabel": {
+      "healthy": "Healthy",
+      "running": "Running"
+    }
+  },
+  "workflow": {
+    "title": "Workflow",
+    "tooltip": {
+      "info": "Workflows provide keyboard-driven bulk review modes for rating, tagging, deduplication, and detection tasks.",
+      "fullscreen": "Fullscreen (F)",
+      "exitFullscreen": "Exit fullscreen (F)",
+      "showProfiles": "Show key profiles"
+    },
+    "mode": {
+      "rating": "Rating",
+      "tagging": "Tagging",
+      "dedup": "Dedup",
+      "llm": "LLM",
+      "faces": "Faces",
+      "objects": "Objects"
+    },
+    "rating": {
+      "label": "Rating:",
+      "addTag": "Add tag… (Enter to confirm)",
+      "addTagPlaceholder": "Add tag… (Enter to confirm)"
+    },
+    "tagging": {
+      "noTags": "No tags yet",
+      "search": "Type to search tags… (Enter to add)",
+      "placeholder": "Type to search tags… (Enter to add)"
+    },
+    "dedup": {
+      "keep": "Keep",
+      "duplicateCandidates": "Duplicate Candidates",
+      "remove": "Remove",
+      "kept": "Kept",
+      "chipRemove": "Remove",
+      "chipKept": "Kept",
+      "confirmDedup": "Confirm Dedup (Y)",
+      "confirmBtn": "Confirm Dedup (Y)",
+      "rejectBtn": "Reject (N)",
+      "reject": "Reject (N)"
+    },
+    "faceMode": {
+      "clusters": "Face Clusters ({{count}})",
+      "confirm": "Confirm (Y)",
+      "confirmed": "Confirmed",
+      "denied": "Denied",
+      "deny": "Deny (N)",
+      "confirmBtn": "Confirm (Y)",
+      "denyBtn": "Deny (N)",
+      "assignPerson": "Assign person…",
+      "noClusters": "No face clusters for this asset",
+      "empty": "No face clusters for this asset"
+    },
+    "objectMode": {
+      "detectedObjects": "Detected Objects ({{count}})",
+      "detected": "Detected Objects ({{count}})",
+      "confidence": "Confidence: {{pct}}%",
+      "confirmed": "Confirmed",
+      "rejected": "Rejected",
+      "noDetections": "No object detections for this asset",
+      "empty": "No object detections for this asset"
+    },
+    "llmMode": {
+      "title": "Vision Model Output",
+      "modelOutput": "Vision Model Output",
+      "approve": "Approve (Y)",
+      "reject": "Reject (N)",
+      "approveBtn": "Approve (Y)",
+      "rejectBtn": "Reject (N)"
+    },
+    "profiles": {
+      "title": "Key Profiles",
+      "collapse": "Collapse",
+      "bindings": "{{count}} bindings",
+      "bindingsTitle": "Bindings · click to rebind",
+      "bindingsHeader": "Bindings · click to rebind",
+      "pressKey": "Press a key… (Backspace to unbind)",
+      "clickToRebind": "Click to rebind",
+      "notBound": "Not bound"
+    },
+    "hint": {
+      "rating": "<strong>1-0</strong> Set rating · <strong>←/→</strong> Navigate · <strong>Space</strong> Next · <strong>Enter</strong> Edit tags · <strong>F</strong> Fullscreen",
+      "tagging": "<strong>←/→</strong> Navigate · <strong>Space</strong> Next · <strong>Enter</strong> Edit tags · <strong>Esc</strong> Blur · <strong>F</strong> Fullscreen",
+      "dedup": "<strong>←/→</strong> Navigate · <strong>Y</strong> Confirm dedup · <strong>N</strong> Reject · <strong>F</strong> Fullscreen",
+      "llm": "<strong>←/→</strong> Navigate · <strong>Y</strong> Approve · <strong>N</strong> Reject · <strong>R</strong> Re-run prompt · <strong>F</strong> Fullscreen",
+      "faces": "<strong>←/→</strong> Navigate · <strong>↑/↓</strong> Cycle clusters · <strong>Tab</strong> Next cluster · <strong>Y</strong> Confirm · <strong>N</strong> Deny · <strong>Enter</strong> Assign person · <strong>F</strong> Fullscreen",
+      "objects": "<strong>←/→</strong> Navigate · <strong>↑/↓</strong> Cycle detections · <strong>Tab</strong> Next detection · <strong>Y</strong> Confirm · <strong>N</strong> Reject · <strong>F</strong> Fullscreen",
+      "facedetection": "<strong>←/→</strong> Navigate · <strong>↑/↓</strong> Cycle clusters · <strong>Tab</strong> Next cluster · <strong>Y</strong> Confirm · <strong>N</strong> Deny · <strong>Enter</strong> Assign person · <strong>F</strong> Fullscreen",
+      "objectdetection": "<strong>←/→</strong> Navigate · <strong>↑/↓</strong> Cycle detections · <strong>Tab</strong> Next detection · <strong>Y</strong> Confirm · <strong>N</strong> Reject · <strong>F</strong> Fullscreen"
+    }
+  },
+  "assetPools": {
+    "title": "Asset Pools",
+    "tooltip": {
+      "info": "Asset pools define storage locations for assets. They can be backed by a local filesystem folder or an S3-compatible bucket.",
+      "editPool": "Edit pool",
+      "deletePool": "Delete pool"
+    },
+    "chip": {
+      "filesystem": "filesystem",
+      "s3": "S3",
+      "assets": "assets",
+      "s3Bucket": "S3 Bucket",
+      "filesystemLabel": "Filesystem"
+    },
+    "button": {
+      "new": "New Pool",
+      "newPool": "New Pool",
+      "cancel": "Cancel",
+      "create": "Create",
+      "save": "Save",
+      "delete": "Delete"
+    },
+    "search": {
+      "placeholder": "Search pools…"
+    },
+    "form": {
+      "name": "Name",
+      "type": "Type",
+      "filesystem": "Filesystem",
+      "s3": "S3 Bucket",
+      "fsPath": "Filesystem Path",
+      "s3Bucket": "S3 Bucket",
+      "s3Region": "S3 Region",
+      "s3Endpoint": "S3 Endpoint"
+    },
+    "empty": "No asset pools found",
+    "dialog": {
+      "create": "New Asset Pool",
+      "edit": "Edit Asset Pool",
+      "delete": "Delete Asset Pool"
+    },
+    "confirm": {
+      "delete": "Are you sure you want to delete {{name}}? This will not delete the underlying storage, but the pool reference will be removed."
+    },
+    "toast": {
+      "created": "Asset pool created",
+      "updated": "Asset pool updated",
+      "deleted": "Asset pool deleted",
+      "loadFailed": "Failed to load pools",
+      "createFailed": "Failed to create pool",
+      "updateFailed": "Failed to update pool",
+      "deleteFailed": "Failed to delete pool",
+      "loadError": "Failed to load pools",
+      "createError": "Failed to create pool",
+      "updateError": "Failed to update pool",
+      "deleteError": "Failed to delete pool"
+    }
+  },
+  "assetDetail": {
+    "tab": {
+      "overview": "Overview",
+      "comments": "Comments ({{count}})",
+      "annotations": "Annotations ({{count}})",
+      "reactions": "Reactions ({{count}})",
+      "tasks": "Tasks ({{count}})",
+      "transcript": "Transcript",
+      "faces": "Faces ({{count}})"
+    },
+    "meta": {
+      "title": "Metadata",
+      "size": "Size",
+      "mime": "MIME",
+      "dimensions": "Dimensions",
+      "duration": "Duration",
+      "owner": "Owner",
+      "created": "Created",
+      "description": "Description"
+    },
+    "action": {
+      "process": "Process",
+      "createTask": "Create Task"
+    },
+    "tag": {
+      "addPlaceholder": "Add tag…"
+    },
+    "sidebar": {
+      "filterPlaceholder": "Filter…"
+    },
+    "empty": {
+      "noComments": "No comments yet",
+      "noMatchComments": "No matching comments",
+      "noAnnotations": "No annotations yet",
+      "noMatchAnnotations": "No matching annotations",
+      "noReactions": "No reactions yet",
+      "noTasks": "No tasks linked",
+      "noTranscript": "No transcript available",
+      "noFaces": "No face detection data"
+    },
+    "faces": {
+      "detected": "{{count}} faces detected",
+      "clusters": "{{count}} clusters",
+      "identified": "{{count}} identified",
+      "identifiedChip": "Identified",
+      "unidentifiedChip": "Unidentified",
+      "unclustered": "Unclustered ({{count}})"
+    },
+    "taskDetail": {
+      "title": "Task Detail",
+      "status": "Status",
+      "priority": "Priority",
+      "assignee": "Assignee",
+      "dueDate": "Due Date",
+      "created": "Created",
+      "tags": "Tags"
+    },
+    "annotations": {
+      "label": "Annotations:"
+    }
+  }
+}
