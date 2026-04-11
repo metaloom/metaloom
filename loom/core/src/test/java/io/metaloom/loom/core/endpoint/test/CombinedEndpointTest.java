@@ -69,7 +69,7 @@ public class CombinedEndpointTest extends AbstractEndpointTest {
 			// Create library for assets being created
 			LibraryCreateRequest libraryRequest = new LibraryCreateRequest();
 			libraryRequest.setName(LIBRARY_NAME_2);
-			LibraryResponse library = client.createLibrary(libraryRequest).sync();
+			LibraryResponse library = client.createLibrary(libraryRequest).sync().body();
 
 			// Create an asset with component data
 			AssetCreateRequest assetRequest = new AssetCreateRequest();
@@ -120,7 +120,7 @@ public class CombinedEndpointTest extends AbstractEndpointTest {
 			docInfo.setWordCount(1500L);
 			assetRequest.setDocument(docInfo);
 
-			AssetResponse asset = client.createAsset(assetRequest).sync();
+			AssetResponse asset = client.createAsset(assetRequest).sync().body();
 
 			// Verify component data in response
 			assertNotNull(asset.getUuid(), "Asset UUID should not be null");
@@ -167,10 +167,10 @@ public class CombinedEndpointTest extends AbstractEndpointTest {
 				embeddingRequest.setAssetUuid(asset.getUuid());
 				embeddingRequest.setSource("embedding_" + i);
 				embeddingRequest.setMeta(new JsonObject().put("test", "1234"));
-				EmbeddingResponse embedding = client.createEmbedding(embeddingRequest).sync();
+				EmbeddingResponse embedding = client.createEmbedding(embeddingRequest).sync().body();
 				Path videoPath = env.video1().path();
 				try (InputStream stream = Files.newInputStream(videoPath)) {
-					AttachmentResponse uploadResponse = client.uploadAttachment(DUMMY_VIDEO_FILENAME, VIDEO_MIMETYPE, stream).sync();
+					AttachmentResponse uploadResponse = client.uploadAttachment(DUMMY_VIDEO_FILENAME, VIDEO_MIMETYPE, stream).sync().body();
 				}
 			}
 
@@ -180,12 +180,12 @@ public class CombinedEndpointTest extends AbstractEndpointTest {
 			locationRequest.setAssetUuid(asset.getUuid());
 			locationRequest.setFilesystem(
 				new AssetLocationFilesystemInfo().setLastSeen(Instant.now()).setPath(DUMMY_IMAGE_ORIGIN).setFilekey(new FileKey(42L, 42L, 42L, 42L)));
-			AssetLocationResponse location = client.createLocation(locationRequest).sync();
+			AssetLocationResponse location = client.createLocation(locationRequest).sync().body();
 
 			// Collection are used to group assets together (e.g. for a set of remixes)
 			CollectionCreateRequest collectionRequest = new CollectionCreateRequest();
 			collectionRequest.setName(COLLECTION_NAME_2);
-			CollectionResponse collection = client.createCollection(collectionRequest).sync();
+			CollectionResponse collection = client.createCollection(collectionRequest).sync().body();
 
 			// Add annotation + task
 			AnnotationCreateRequest annotationRequest = new AnnotationCreateRequest();
@@ -194,32 +194,32 @@ public class CombinedEndpointTest extends AbstractEndpointTest {
 			annotationRequest.setTitle("Feedback on intro");
 			annotationRequest.setType(AnnotationType.FEEDBACK);
 			annotationRequest.setAssetUuid(asset.getUuid());
-			AnnotationResponse annotation = client.createAnnotation(annotationRequest).sync();
+			AnnotationResponse annotation = client.createAnnotation(annotationRequest).sync().body();
 
 			TaskCreateRequest taskRequest = new TaskCreateRequest();
 			taskRequest.setTitle("Update Intro");
 			taskRequest.setPriority(TaskPriority.CRITICAL);
-			TaskResponse task = client.createTask(taskRequest).sync();
+			TaskResponse task = client.createTask(taskRequest).sync().body();
 
 			// Tag
 			TagCreateRequest tagRequest = new TagCreateRequest();
 			tagRequest.setName("black");
 			tagRequest.setCollection("colors");
-			TagResponse tag = client.createTag(tagRequest).sync();
+			TagResponse tag = client.createTag(tagRequest).sync().body();
 
 			// Comment
 			CommentCreateRequest commentRequest = new CommentCreateRequest();
 			commentRequest.setTitle("Feedback");
 			commentRequest.setText("ABCDEFG");
-			CommentResponse comment = client.createComment(commentRequest).sync();
+			CommentResponse comment = client.createComment(commentRequest).sync().body();
 
 			// Reactions
 			ReactionCreateRequest reactionRequest = new ReactionCreateRequest();
 			reactionRequest.setRating(42);
 			reactionRequest.setType(ReactionType.PLUS_ONE);
-			ReactionResponse reaction1 = client.createAssetReaction(asset.getUuid(), reactionRequest).sync();
-			ReactionResponse reaction2 = client.createCommentReaction(comment.getUuid(), reactionRequest).sync();
-			ReactionResponse reaction3 = client.createTaskReaction(task.getUuid(), reactionRequest).sync();
+			ReactionResponse reaction1 = client.createAssetReaction(asset.getUuid(), reactionRequest).sync().body();
+			ReactionResponse reaction2 = client.createCommentReaction(comment.getUuid(), reactionRequest).sync().body();
+			ReactionResponse reaction3 = client.createTaskReaction(task.getUuid(), reactionRequest).sync().body();
 
 			// Pipeline CRUD
 			PipelineCreateRequest pipelineRequest = new PipelineCreateRequest();
@@ -234,7 +234,7 @@ public class CombinedEndpointTest extends AbstractEndpointTest {
 			pipelineRequest.setEnabled(true);
 			pipelineRequest.setPriority(10);
 			pipelineRequest.setDryRun(false);
-			PipelineResponse pipeline = client.createPipeline(pipelineRequest).sync();
+			PipelineResponse pipeline = client.createPipeline(pipelineRequest).sync().body();
 			assertNotNull(pipeline.getUuid(), "Pipeline UUID should not be null");
 			assertEquals("test-pipeline", pipeline.getName());
 			assertEquals("A test pipeline for combined endpoint test", pipeline.getDescription());
@@ -244,7 +244,7 @@ public class CombinedEndpointTest extends AbstractEndpointTest {
 			assertEquals(false, pipeline.isDryRun());
 
 			// Load pipeline
-			PipelineResponse loadedPipeline = client.loadPipeline(pipeline.getUuid()).sync();
+			PipelineResponse loadedPipeline = client.loadPipeline(pipeline.getUuid()).sync().body();
 			assertNotNull(loadedPipeline);
 			assertEquals(pipeline.getUuid(), loadedPipeline.getUuid());
 			assertEquals("test-pipeline", loadedPipeline.getName());
@@ -255,19 +255,19 @@ public class CombinedEndpointTest extends AbstractEndpointTest {
 			pipelineUpdateRequest.setDescription("Updated description");
 			pipelineUpdateRequest.setEnabled(false);
 			pipelineUpdateRequest.setPriority(20);
-			PipelineResponse updatedPipeline = client.updatePipeline(pipeline.getUuid(), pipelineUpdateRequest).sync();
+			PipelineResponse updatedPipeline = client.updatePipeline(pipeline.getUuid(), pipelineUpdateRequest).sync().body();
 			assertEquals("updated-pipeline", updatedPipeline.getName());
 			assertEquals("Updated description", updatedPipeline.getDescription());
 			assertEquals(false, updatedPipeline.isEnabled());
 			assertEquals(Integer.valueOf(20), updatedPipeline.getPriority());
 
 			// List pipelines
-			PipelineListResponse pipelineList = client.listPipelines().sync();
+			PipelineListResponse pipelineList = client.listPipelines().sync().body();
 			assertNotNull(pipelineList);
 			assertFalse(pipelineList.getData().isEmpty(), "Pipeline list should not be empty");
 
 			// Delete pipeline
-			client.deletePipeline(pipeline.getUuid()).sync();
+			client.deletePipeline(pipeline.getUuid()).sync().body();
 		}
 
 	}

@@ -93,7 +93,7 @@ public class LoomPipelineLoader {
 
 		try {
 			LoomClientRequest<PipelineListResponse> request = loomClient.listPipelines();
-			PipelineListResponse response = request.sync();
+			PipelineListResponse response = request.sync().body();
 			if (response == null || response.getData() == null) {
 				log.info("No pipelines found on Loom server.");
 				return 0;

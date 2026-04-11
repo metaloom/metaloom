@@ -23,18 +23,18 @@ public class TagAssetEndpointTest extends AbstractEndpointTest {
 			request.setName("red2");
 			request.setCollection("colors");
 			request.setMeta(new JsonObject().put("hello", "world"));
-			TagResponse tag = client.tagAsset(ASSET_UUID, request).sync();
+			TagResponse tag = client.tagAsset(ASSET_UUID, request).sync().body();
 			assertThat(tag).isValid();
 
-			AssetResponse asset = client.loadAsset(ASSET_UUID).sync();
+			AssetResponse asset = client.loadAsset(ASSET_UUID).sync().body();
 			assertThat(asset).isValid();
 
-			client.untagAsset(ASSET_UUID, tag.getUuid()).sync();
+			client.untagAsset(ASSET_UUID, tag.getUuid()).sync().body();
 
-			AssetResponse asset2 = client.loadAsset(ASSET_UUID).sync();
+			AssetResponse asset2 = client.loadAsset(ASSET_UUID).sync().body();
 			assertThat(asset2).isValid();
 
-			TagResponse tag2 = client.loadTag(tag.getUuid()).sync();
+			TagResponse tag2 = client.loadTag(tag.getUuid()).sync().body();
 			assertThat(tag2).isValid();
 		}
 	}

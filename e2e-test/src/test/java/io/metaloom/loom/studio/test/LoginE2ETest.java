@@ -139,7 +139,7 @@ public class LoginE2ETest {
 			.setPort(REST_PORT)
 			.build()) {
 
-			AuthLoginResponse response = client.login("admin", "finger").sync();
+			AuthLoginResponse response = client.login("admin", "finger").sync().body();
 			assertNotNull(response.getToken(), "Token should not be null after login");
 		}
 	}
@@ -155,11 +155,11 @@ public class LoginE2ETest {
 			.setPort(REST_PORT)
 			.build()) {
 
-			AuthLoginResponse loginResp = client.login("admin", "finger").sync();
+			AuthLoginResponse loginResp = client.login("admin", "finger").sync().body();
 			assertNotNull(loginResp.getToken());
 			client.setToken(loginResp.getToken());
 
-			AssetListResponse listResp = client.listAssets().sync();
+			AssetListResponse listResp = client.listAssets().sync().body();
 			assertNotNull(listResp, "Asset list response should not be null");
 			assertNotNull(listResp.getData(), "Asset list data should not be null");
 			assertFalse(listResp.getData().isEmpty(), "Asset list should contain demo assets");
@@ -185,16 +185,16 @@ public class LoginE2ETest {
 			.setPort(REST_PORT)
 			.build()) {
 
-			AuthLoginResponse loginResp = client.login("admin", "finger").sync();
+			AuthLoginResponse loginResp = client.login("admin", "finger").sync().body();
 			client.setToken(loginResp.getToken());
 
 			// List assets and pick the first UUID
-			AssetListResponse listResp = client.listAssets().sync();
+			AssetListResponse listResp = client.listAssets().sync().body();
 			assertFalse(listResp.getData().isEmpty(), "Need at least one asset");
 			AssetResponse listed = listResp.getData().get(0);
 
 			// Load by UUID
-			AssetResponse loaded = client.loadAsset(listed.getUuid()).sync();
+			AssetResponse loaded = client.loadAsset(listed.getUuid()).sync().body();
 			assertNotNull(loaded, "Loaded asset should not be null");
 			assertEquals(listed.getUuid(), loaded.getUuid(), "UUID should match");
 			assertNotNull(loaded.getFile(), "File info should be present");
@@ -308,11 +308,11 @@ public class LoginE2ETest {
 			.setPort(REST_PORT)
 			.build()) {
 
-			AuthLoginResponse loginResp = client.login("admin", "finger").sync();
+			AuthLoginResponse loginResp = client.login("admin", "finger").sync().body();
 			client.setToken(loginResp.getToken());
 
 			// List existing tags (demo data)
-			TagListResponse listResp = client.listTags().sync();
+			TagListResponse listResp = client.listTags().sync().body();
 			assertNotNull(listResp, "Tag list response should not be null");
 			assertNotNull(listResp.getData(), "Tag list data should not be null");
 			assertFalse(listResp.getData().isEmpty(), "Tag list should contain demo tags");
@@ -323,7 +323,7 @@ public class LoginE2ETest {
 			TagCreateRequest createReq = new TagCreateRequest();
 			createReq.setName("e2e-test-tag");
 			createReq.setCollection("test");
-			TagResponse created = client.createTag(createReq).sync();
+			TagResponse created = client.createTag(createReq).sync().body();
 			assertNotNull(created, "Created tag should not be null");
 			assertNotNull(created.getUuid(), "Created tag UUID should not be null");
 			assertEquals("e2e-test-tag", created.getName());
@@ -331,20 +331,20 @@ public class LoginE2ETest {
 			log.info("Created tag: {} ({})", created.getName(), created.getUuid());
 
 			// Verify the tag appears in the listing
-			TagListResponse listAfterCreate = client.listTags().sync();
+			TagListResponse listAfterCreate = client.listTags().sync().body();
 			assertTrue(listAfterCreate.getData().size() > initialCount, "Tag list should have grown after create");
 
 			// Load the tag by UUID
-			TagResponse loaded = client.loadTag(created.getUuid()).sync();
+			TagResponse loaded = client.loadTag(created.getUuid()).sync().body();
 			assertNotNull(loaded, "Loaded tag should not be null");
 			assertEquals(created.getUuid(), loaded.getUuid());
 			assertEquals("e2e-test-tag", loaded.getName());
 
 			// Delete the tag
-			client.deleteTag(created.getUuid()).sync();
+			client.deleteTag(created.getUuid()).sync().body();
 
 			// Verify the tag is gone
-			TagListResponse listAfterDelete = client.listTags().sync();
+			TagListResponse listAfterDelete = client.listTags().sync().body();
 			assertEquals(initialCount, listAfterDelete.getData().size(), "Tag count should return to initial after delete");
 			log.info("Tag CRUD test passed");
 		}
@@ -361,11 +361,11 @@ public class LoginE2ETest {
 			.setPort(REST_PORT)
 			.build()) {
 
-			AuthLoginResponse loginResp = client.login("admin", "finger").sync();
+			AuthLoginResponse loginResp = client.login("admin", "finger").sync().body();
 			client.setToken(loginResp.getToken());
 
 			// List existing pools (demo data should contain 3)
-			AssetPoolListResponse listResp = client.listPools().sync();
+			AssetPoolListResponse listResp = client.listPools().sync().body();
 			assertNotNull(listResp, "Pool list response should not be null");
 			assertNotNull(listResp.getData(), "Pool list data should not be null");
 			assertTrue(listResp.getData().size() >= 3, "Pool list should contain at least 3 demo pools");
@@ -376,7 +376,7 @@ public class LoginE2ETest {
 			AssetPoolCreateRequest createReq = new AssetPoolCreateRequest();
 			createReq.setName("e2e-test-pool");
 			createReq.setFsPath("/tmp/e2e-test");
-			AssetPoolResponse created = client.createPool(createReq).sync();
+			AssetPoolResponse created = client.createPool(createReq).sync().body();
 			assertNotNull(created, "Created pool should not be null");
 			assertNotNull(created.getUuid(), "Created pool UUID should not be null");
 			assertEquals("e2e-test-pool", created.getName());
@@ -384,20 +384,20 @@ public class LoginE2ETest {
 			log.info("Created pool: {} ({})", created.getName(), created.getUuid());
 
 			// Verify the pool appears in the listing
-			AssetPoolListResponse listAfterCreate = client.listPools().sync();
+			AssetPoolListResponse listAfterCreate = client.listPools().sync().body();
 			assertTrue(listAfterCreate.getData().size() > initialCount, "Pool list should have grown after create");
 
 			// Load the pool by UUID
-			AssetPoolResponse loaded = client.loadPool(created.getUuid()).sync();
+			AssetPoolResponse loaded = client.loadPool(created.getUuid()).sync().body();
 			assertNotNull(loaded, "Loaded pool should not be null");
 			assertEquals(created.getUuid(), loaded.getUuid());
 			assertEquals("e2e-test-pool", loaded.getName());
 
 			// Delete the pool
-			client.deletePool(created.getUuid()).sync();
+			client.deletePool(created.getUuid()).sync().body();
 
 			// Verify the pool is gone
-			AssetPoolListResponse listAfterDelete = client.listPools().sync();
+			AssetPoolListResponse listAfterDelete = client.listPools().sync().body();
 			assertEquals(initialCount, listAfterDelete.getData().size(), "Pool count should return to initial after delete");
 			log.info("Asset pool CRUD test passed");
 		}
@@ -414,11 +414,11 @@ public class LoginE2ETest {
 			.setPort(REST_PORT)
 			.build()) {
 
-			AuthLoginResponse loginResp = client.login("admin", "finger").sync();
+			AuthLoginResponse loginResp = client.login("admin", "finger").sync().body();
 			client.setToken(loginResp.getToken());
 
 			// List existing users (admin + demo users)
-			UserListResponse listResp = client.listUsers().sync();
+			UserListResponse listResp = client.listUsers().sync().body();
 			assertNotNull(listResp, "User list response should not be null");
 			assertNotNull(listResp.getData(), "User list data should not be null");
 			assertFalse(listResp.getData().isEmpty(), "User list should contain at least the admin user");
@@ -431,7 +431,7 @@ public class LoginE2ETest {
 			createReq.setFirstname("Test");
 			createReq.setLastname("User");
 			createReq.setEmail("e2e@example.com");
-			UserResponse created = client.createUser(createReq).sync();
+			UserResponse created = client.createUser(createReq).sync().body();
 			assertNotNull(created, "Created user should not be null");
 			assertNotNull(created.getUuid(), "Created user UUID should not be null");
 			assertEquals("e2e-test-user", created.getUsername());
@@ -441,11 +441,11 @@ public class LoginE2ETest {
 			log.info("Created user: {} ({})", created.getUsername(), created.getUuid());
 
 			// Verify the user appears in the listing
-			UserListResponse listAfterCreate = client.listUsers().sync();
+			UserListResponse listAfterCreate = client.listUsers().sync().body();
 			assertTrue(listAfterCreate.getData().size() > initialCount, "User list should have grown after create");
 
 			// Load the user by UUID
-			UserResponse loaded = client.loadUser(created.getUuid()).sync();
+			UserResponse loaded = client.loadUser(created.getUuid()).sync().body();
 			assertNotNull(loaded, "Loaded user should not be null");
 			assertEquals(created.getUuid(), loaded.getUuid());
 			assertEquals("e2e-test-user", loaded.getUsername());
@@ -454,16 +454,16 @@ public class LoginE2ETest {
 			UserUpdateRequest updateReq = new UserUpdateRequest();
 			updateReq.setFirstname("Updated");
 			updateReq.setEmail("updated@example.com");
-			UserResponse updated = client.updateUser(created.getUuid(), updateReq).sync();
+			UserResponse updated = client.updateUser(created.getUuid(), updateReq).sync().body();
 			assertNotNull(updated, "Updated user should not be null");
 			assertEquals("Updated", updated.getFirstname());
 			assertEquals("updated@example.com", updated.getEmail());
 
 			// Delete the user
-			client.deleteUser(created.getUuid()).sync();
+			client.deleteUser(created.getUuid()).sync().body();
 
 			// Verify the user is gone
-			UserListResponse listAfterDelete = client.listUsers().sync();
+			UserListResponse listAfterDelete = client.listUsers().sync().body();
 			assertEquals(initialCount, listAfterDelete.getData().size(), "User count should return to initial after delete");
 			log.info("User CRUD test passed");
 		}
@@ -480,11 +480,11 @@ public class LoginE2ETest {
 			.setPort(REST_PORT)
 			.build()) {
 
-			AuthLoginResponse loginResp = client.login("admin", "finger").sync();
+			AuthLoginResponse loginResp = client.login("admin", "finger").sync().body();
 			client.setToken(loginResp.getToken());
 
 			// List existing groups (demo data)
-			GroupListResponse listResp = client.listGroups().sync();
+			GroupListResponse listResp = client.listGroups().sync().body();
 			assertNotNull(listResp, "Group list response should not be null");
 			assertNotNull(listResp.getData(), "Group list data should not be null");
 			int initialCount = listResp.getData().size();
@@ -493,18 +493,18 @@ public class LoginE2ETest {
 			// Create a new group
 			GroupCreateRequest createReq = new GroupCreateRequest();
 			createReq.setName("e2e-test-group");
-			GroupResponse created = client.createGroup(createReq).sync();
+			GroupResponse created = client.createGroup(createReq).sync().body();
 			assertNotNull(created, "Created group should not be null");
 			assertNotNull(created.getUuid(), "Created group UUID should not be null");
 			assertEquals("e2e-test-group", created.getName());
 			log.info("Created group: {} ({})", created.getName(), created.getUuid());
 
 			// Verify the group appears in the listing
-			GroupListResponse listAfterCreate = client.listGroups().sync();
+			GroupListResponse listAfterCreate = client.listGroups().sync().body();
 			assertTrue(listAfterCreate.getData().size() > initialCount, "Group list should have grown after create");
 
 			// Load the group by UUID
-			GroupResponse loaded = client.loadGroup(created.getUuid()).sync();
+			GroupResponse loaded = client.loadGroup(created.getUuid()).sync().body();
 			assertNotNull(loaded, "Loaded group should not be null");
 			assertEquals(created.getUuid(), loaded.getUuid());
 			assertEquals("e2e-test-group", loaded.getName());
@@ -512,15 +512,15 @@ public class LoginE2ETest {
 			// Update the group
 			GroupUpdateRequest updateReq = new GroupUpdateRequest();
 			updateReq.setName("e2e-test-group-updated");
-			GroupResponse updated = client.updateGroup(created.getUuid(), updateReq).sync();
+			GroupResponse updated = client.updateGroup(created.getUuid(), updateReq).sync().body();
 			assertNotNull(updated, "Updated group should not be null");
 			assertEquals("e2e-test-group-updated", updated.getName());
 
 			// Delete the group
-			client.deleteGroup(created.getUuid()).sync();
+			client.deleteGroup(created.getUuid()).sync().body();
 
 			// Verify the group is gone
-			GroupListResponse listAfterDelete = client.listGroups().sync();
+			GroupListResponse listAfterDelete = client.listGroups().sync().body();
 			assertEquals(initialCount, listAfterDelete.getData().size(), "Group count should return to initial after delete");
 			log.info("Group CRUD test passed");
 		}
@@ -537,11 +537,11 @@ public class LoginE2ETest {
 			.setPort(REST_PORT)
 			.build()) {
 
-			AuthLoginResponse loginResp = client.login("admin", "finger").sync();
+			AuthLoginResponse loginResp = client.login("admin", "finger").sync().body();
 			client.setToken(loginResp.getToken());
 
 			// List existing roles (demo data)
-			RoleListResponse listResp = client.listRoles().sync();
+			RoleListResponse listResp = client.listRoles().sync().body();
 			assertNotNull(listResp, "Role list response should not be null");
 			assertNotNull(listResp.getData(), "Role list data should not be null");
 			int initialCount = listResp.getData().size();
@@ -550,18 +550,18 @@ public class LoginE2ETest {
 			// Create a new role
 			RoleCreateRequest createReq = new RoleCreateRequest();
 			createReq.setName("e2e-test-role");
-			RoleResponse created = client.createRole(createReq).sync();
+			RoleResponse created = client.createRole(createReq).sync().body();
 			assertNotNull(created, "Created role should not be null");
 			assertNotNull(created.getUuid(), "Created role UUID should not be null");
 			assertEquals("e2e-test-role", created.getName());
 			log.info("Created role: {} ({})", created.getName(), created.getUuid());
 
 			// Verify the role appears in the listing
-			RoleListResponse listAfterCreate = client.listRoles().sync();
+			RoleListResponse listAfterCreate = client.listRoles().sync().body();
 			assertTrue(listAfterCreate.getData().size() > initialCount, "Role list should have grown after create");
 
 			// Load the role by UUID
-			RoleResponse loaded = client.loadRole(created.getUuid()).sync();
+			RoleResponse loaded = client.loadRole(created.getUuid()).sync().body();
 			assertNotNull(loaded, "Loaded role should not be null");
 			assertEquals(created.getUuid(), loaded.getUuid());
 			assertEquals("e2e-test-role", loaded.getName());
@@ -569,15 +569,15 @@ public class LoginE2ETest {
 			// Update the role
 			RoleUpdateRequest updateReq = new RoleUpdateRequest();
 			updateReq.setName("e2e-test-role-updated");
-			RoleResponse updated = client.updateRole(created.getUuid(), updateReq).sync();
+			RoleResponse updated = client.updateRole(created.getUuid(), updateReq).sync().body();
 			assertNotNull(updated, "Updated role should not be null");
 			assertEquals("e2e-test-role-updated", updated.getName());
 
 			// Delete the role
-			client.deleteRole(created.getUuid()).sync();
+			client.deleteRole(created.getUuid()).sync().body();
 
 			// Verify the role is gone
-			RoleListResponse listAfterDelete = client.listRoles().sync();
+			RoleListResponse listAfterDelete = client.listRoles().sync().body();
 			assertEquals(initialCount, listAfterDelete.getData().size(), "Role count should return to initial after delete");
 			log.info("Role CRUD test passed");
 		}

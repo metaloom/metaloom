@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import io.metaloom.loom.client.common.LoomBinaryResponse;
 import io.metaloom.loom.client.common.LoomClientException;
 import io.metaloom.loom.client.common.LoomClientRequest;
+import io.metaloom.loom.client.common.LoomClientResponse;
 import io.metaloom.loom.client.http.error.LoomHttpClientException;
 import io.metaloom.loom.client.http.impl.LoomClientRequestImpl;
 import io.metaloom.loom.rest.json.LoomJson;
@@ -118,7 +119,7 @@ public interface LoomClientHttpRequest<T extends RestResponseModel<T>> extends L
 	 * 
 	 * @return
 	 */
-	Single<T> async();
+	Single<LoomClientResponse<T>> async();
 
 	/**
 	 * Executes the request in a synchronized blocking way and returns the returned JSON data.
@@ -134,6 +135,6 @@ public interface LoomClientHttpRequest<T extends RestResponseModel<T>> extends L
 	 * @return
 	 * @throws LoomClientException
 	 */
-	T sync() throws LoomClientException;
+	LoomClientResponse<T> sync() throws LoomClientException;
 
 }

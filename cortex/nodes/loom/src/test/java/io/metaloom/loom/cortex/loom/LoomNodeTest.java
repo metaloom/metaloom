@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -25,6 +26,7 @@ import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.client.common.LoomClientException;
 import io.metaloom.loom.client.common.LoomClientRequest;
 import io.metaloom.loom.client.http.LoomHttpClient;
+import io.metaloom.loom.client.http.impl.LoomClientResponseImpl;
 import io.metaloom.loom.rest.model.asset.AssetBulkResponse;
 import io.metaloom.loom.rest.model.asset.AssetBulkUpdateRequest;
 
@@ -85,7 +87,7 @@ public class LoomNodeTest extends AbstractMediaTest {
 		bulkResponse.setTotal(0);
 		bulkResponse.setCreated(0);
 		bulkResponse.setFailed(0);
-		when(bulkRequest.sync()).thenReturn(bulkResponse);
+		when(bulkRequest.sync()).thenReturn(new LoomClientResponseImpl<>(bulkResponse, 200, "OK", Map.of()));
 		when(client.bulkUpdateAssets(any(AssetBulkUpdateRequest.class))).thenReturn(bulkRequest);
 
 		return client;

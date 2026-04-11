@@ -14,7 +14,7 @@ public class AnnotationEndpointTest extends AbstractCRUDEndpointTest {
 
 	@Override
 	protected void testRead(LoomHttpClient client) throws LoomClientException {
-		AnnotationResponse annotation = client.loadAnnotation(ANNOTATION_UUID).sync();
+		AnnotationResponse annotation = client.loadAnnotation(ANNOTATION_UUID).sync().body();
 		assertThat(annotation).isValid();
 	}
 
@@ -23,16 +23,16 @@ public class AnnotationEndpointTest extends AbstractCRUDEndpointTest {
 		AnnotationCreateRequest request = new AnnotationCreateRequest();
 		request.setTitle("dummy title");
 		request.setAssetUuid(ASSET_UUID);
-		AnnotationResponse annotation = client.createAnnotation(request).sync();
+		AnnotationResponse annotation = client.createAnnotation(request).sync().body();
 		assertThat(annotation).isValid();
 
-		AnnotationResponse annotation2 = client.loadAnnotation(annotation.getUuid()).sync();
+		AnnotationResponse annotation2 = client.loadAnnotation(annotation.getUuid()).sync().body();
 		assertThat(annotation2).matches(annotation2);
 	}
 
 	@Override
 	protected void testDelete(LoomHttpClient client) throws LoomClientException {
-		client.deleteAnnotation(ANNOTATION_UUID).sync();
+		client.deleteAnnotation(ANNOTATION_UUID).sync().body();
 		expect(404, "Not Found", client.loadAnnotation(ANNOTATION_UUID));
 	}
 
@@ -40,7 +40,7 @@ public class AnnotationEndpointTest extends AbstractCRUDEndpointTest {
 	protected void testUpdate(LoomHttpClient client) throws LoomClientException {
 		AnnotationUpdateRequest update = new AnnotationUpdateRequest();
 		update.setTitle("updated-title");
-		AnnotationResponse response = client.updateAnnotation(ANNOTATION_UUID, update).sync();
+		AnnotationResponse response = client.updateAnnotation(ANNOTATION_UUID, update).sync().body();
 		assertThat(response).isValid();
 	}
 
@@ -49,9 +49,9 @@ public class AnnotationEndpointTest extends AbstractCRUDEndpointTest {
 		for (int i = 0; i < 100; i++) {
 			AnnotationCreateRequest request = new AnnotationCreateRequest();
 			request.setTitle("dummy title " + i);
-			client.createAnnotation(request).sync();
+			client.createAnnotation(request).sync().body();
 		}
-		AnnotationListResponse list = client.listAnnotations().sync();
+		AnnotationListResponse list = client.listAnnotations().sync().body();
 		assertThat(list).isValid().hasSize(25).hasPerPage(25);
 	}
 

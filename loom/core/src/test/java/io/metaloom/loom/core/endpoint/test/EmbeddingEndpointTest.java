@@ -15,7 +15,7 @@ public class EmbeddingEndpointTest extends AbstractCRUDEndpointTest {
 
 	@Override
 	protected void testRead(LoomHttpClient client) throws LoomClientException {
-		EmbeddingResponse embedding = client.loadEmbedding(EMBEDDING_UUID).sync();
+		EmbeddingResponse embedding = client.loadEmbedding(EMBEDDING_UUID).sync().body();
 		assertThat(embedding).isValid();
 	}
 
@@ -25,25 +25,25 @@ public class EmbeddingEndpointTest extends AbstractCRUDEndpointTest {
 		request.setVector(new Float[] { 0.42f, 0.24f });
 		request.setType(EmbeddingType.VIDEO4J_FINGERPRINT_V1);
 		request.setAssetUuid(ASSET_UUID);
-		EmbeddingResponse response = client.createEmbedding(request).sync();
+		EmbeddingResponse response = client.createEmbedding(request).sync().body();
 		assertThat(response).isValid();
 	}
 
 	@Override
 	protected void testDelete(LoomHttpClient client) throws LoomClientException {
-		client.deleteEmbedding(EMBEDDING_UUID).sync();
+		client.deleteEmbedding(EMBEDDING_UUID).sync().body();
 		expect(404, "Not Found", client.loadEmbedding(EMBEDDING_UUID));
 	}
 
 	@Override
 	protected void testUpdate(LoomHttpClient client) throws LoomClientException {
 		EmbeddingUpdateRequest request = new EmbeddingUpdateRequest();
-		client.updateEmbedding(EMBEDDING_UUID, request).sync();
+		client.updateEmbedding(EMBEDDING_UUID, request).sync().body();
 	}
 
 	@Override
 	protected void testReadPage(LoomHttpClient client) throws LoomClientException {
-		EmbeddingListResponse response = client.listEmbeddings().sync();
+		EmbeddingListResponse response = client.listEmbeddings().sync().body();
 	}
 
 }

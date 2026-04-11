@@ -15,7 +15,7 @@ public class AssetClientTest extends AbstractEndpointTest {
 		try (LoomClient client = loom.httpClient()) {
 			// client.setToken(generateJWT());
 			AssetResponse response;
-			response = client.loadAsset(SHA512SUM).sync();
+			response = client.loadAsset(SHA512SUM).sync().body();
 			assertNotNull(response);
 		} catch (Exception e) {
 			// TODO Auto-generated catch block

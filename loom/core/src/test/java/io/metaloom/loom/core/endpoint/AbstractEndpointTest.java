@@ -25,7 +25,7 @@ public abstract class AbstractEndpointTest implements EndpointTest {
 	}
 
 	public void loginAdmin(LoomHttpClient client) throws LoomClientException {
-		AuthLoginResponse loginResponse = client.login("admin", "finger").sync();
+		AuthLoginResponse loginResponse = client.login("admin", "finger").sync().body();
 		client.setToken(loginResponse.getToken());
 	}
 
@@ -38,7 +38,7 @@ public abstract class AbstractEndpointTest implements EndpointTest {
 
 	protected void expect(int statusCode, String statusMsg, LoomClientRequest<?> request) {
 		try {
-			request.sync();
+			request.sync().body();
 			fail("The request should have failed with code " + statusCode + " and msg " + statusMsg + " but it succeeded.");
 		} catch (LoomClientException e) {
 			assertEquals(statusCode, e.getStatusCode(), "The status code did not match");

@@ -4,6 +4,8 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import javax.inject.Singleton;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,6 +19,7 @@ import io.vertx.core.Vertx;
 import io.vertx.ext.auth.KeyStoreOptions;
 import io.vertx.ext.auth.jwt.JWTAuth;
 import io.vertx.ext.auth.jwt.JWTAuthOptions;
+import io.vertx.ext.auth.oauth2.OAuth2Auth;
 
 @Module
 public class AuthModule {
@@ -49,5 +52,26 @@ public class AuthModule {
 
 		JWTAuthOptions config = new JWTAuthOptions().setKeyStore(keyStoreOptions);
 		return JWTAuth.create(vertx, config);
+	}
+
+	@Provides
+	@Singleton
+	public OAuth2Auth oauth2AuthProvider(Vertx vertx, LoomOptions options) {
+		io.metaloom.loom.api.options.OAuth2Options oauth2 = options.getAuth().getOauth2();
+		if (oauth2 == null || !oauth2.isEnabled()) {
+			log.info("OAuth2 is not enabled, creating stub provider");
+			// Provide a minimal OAuth2Auth instance; endpoints will check enabled flag
+			return OAuth2Auth.create(vertx, new io.vertx.ext.auth.oauth2.OAuth2Options()
+				.setClientId("disabled"));
+		}
+		log.info("Configuring OAuth2 with authorization URL: {}", oauth2.getAuthUrl());
+		io.vertx.ext.auth.oauth2.OAuth2Options vertxOAuth2Options = new io.vertx.ext.auth.oauth2.OAuth2Options()
+			.setClientId(oauth2.getClientId())
+			.setClientSecret(oauth2.getClientSecret())
+			.setSite("")
+			.setAuthorizationPath(oauth2.getAuthUrl())
+			.setTokenPath(oauth2.getTokenUrl())
+			.setUserInfoPath(oauth2.getUserInfoUrl());
+		return OAuth2Auth.create(vertx, vertxOAuth2Options);
 	}
 }

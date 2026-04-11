@@ -115,7 +115,7 @@ public class LoomNode extends AbstractFilesystemNode<LoomMedia, LoomNodeOptions>
 		pendingUpdates.clear();
 
 		try {
-			client().bulkUpdateAssets(request).sync();
+			client().bulkUpdateAssets(request).sync().body();
 			if (log.isDebugEnabled()) {
 				log.debug("Flushed {} asset updates to Loom", request.getAssets().size());
 			}
@@ -126,7 +126,7 @@ public class LoomNode extends AbstractFilesystemNode<LoomMedia, LoomNodeOptions>
 				try {
 					AssetUpdateRequest updateReq = entry.getUpdate() != null ? entry.getUpdate() : new AssetUpdateRequest();
 					updateReq.setHashes(entry.getHashes());
-					client().updateAsset(entry.getHashes().getSHA512(), updateReq).sync();
+					client().updateAsset(entry.getHashes().getSHA512(), updateReq).sync().body();
 				} catch (Exception e2) {
 					log.error("Individual fallback update also failed for {}: {}", entry.getHashes().getSHA512(), e2.getMessage());
 				}

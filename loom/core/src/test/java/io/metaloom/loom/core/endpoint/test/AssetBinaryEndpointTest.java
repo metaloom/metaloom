@@ -15,7 +15,7 @@ public class AssetBinaryEndpointTest extends AbstractCRUDEndpointTest {
 
 	@Override
 	protected void testRead(LoomHttpClient client) throws LoomClientException {
-		AssetBinaryResponse binary = client.loadBinary(ASSET_LOCATION_UUID).sync();
+		AssetBinaryResponse binary = client.loadBinary(ASSET_LOCATION_UUID).sync().body();
 		assertThat(binary).isValid();
 	}
 
@@ -25,16 +25,16 @@ public class AssetBinaryEndpointTest extends AbstractCRUDEndpointTest {
 		request.setFilesystem(new AssetBinaryFilesystemInfo().setPath("/dummy/path"));
 		request.setLibraryUuid(LIBRARY_UUID);
 		request.setAssetUuid(ASSET_UUID);
-		AssetBinaryResponse binary = client.createBinary(request).sync();
+		AssetBinaryResponse binary = client.createBinary(request).sync().body();
 		assertThat(binary).isValid();
 
-		AssetBinaryResponse binary2 = client.loadBinary(binary.getUuid()).sync();
+		AssetBinaryResponse binary2 = client.loadBinary(binary.getUuid()).sync().body();
 		assertThat(binary).matches(binary2);
 	}
 
 	@Override
 	protected void testDelete(LoomHttpClient client) throws LoomClientException {
-		client.deleteBinary(ASSET_LOCATION_UUID).sync();
+		client.deleteBinary(ASSET_LOCATION_UUID).sync().body();
 		expect(404, "Not Found", client.loadBinary(ASSET_LOCATION_UUID));
 	}
 
@@ -42,7 +42,7 @@ public class AssetBinaryEndpointTest extends AbstractCRUDEndpointTest {
 	protected void testUpdate(LoomHttpClient client) throws LoomClientException {
 		AssetBinaryUpdateRequest update = new AssetBinaryUpdateRequest();
 		update.setFilesystem(new AssetBinaryFilesystemInfo().setPath("updated-path"));
-		AssetBinaryResponse response = client.updateBinary(ASSET_LOCATION_UUID, update).sync();
+		AssetBinaryResponse response = client.updateBinary(ASSET_LOCATION_UUID, update).sync().body();
 		assertThat(response).isValid().hasPath("updated-path");
 	}
 
@@ -53,9 +53,9 @@ public class AssetBinaryEndpointTest extends AbstractCRUDEndpointTest {
 			request.setAssetUuid(ASSET_UUID);
 			request.setLibraryUuid(LIBRARY_UUID);
 			request.setFilesystem(new AssetBinaryFilesystemInfo().setPath("dummy path " + i));
-			client.createBinary(request).sync();
+			client.createBinary(request).sync().body();
 		}
-		AssetBinaryListResponse list = client.listBinaries().sync();
+		AssetBinaryListResponse list = client.listBinaries().sync().body();
 		assertThat(list).isValid().hasSize(25).hasPerPage(25);
 	}
 

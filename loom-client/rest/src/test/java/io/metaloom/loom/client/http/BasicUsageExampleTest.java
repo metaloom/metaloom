@@ -20,7 +20,7 @@ public class BasicUsageExampleTest extends AbstractContainerTest {
 			.setPort(port)
 			.build()) {
 
-			UserResponse user = client.loadUser(USER_UUID).sync();
+			UserResponse user = client.loadUser(USER_UUID).sync().body();
 			assertNotNull(user);
 		}
 	}

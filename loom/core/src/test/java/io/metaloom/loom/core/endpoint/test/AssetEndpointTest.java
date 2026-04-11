@@ -89,13 +89,13 @@ public class AssetEndpointTest extends AbstractCRUDEndpointTest {
 		geoInfo.setLon(41.0);
 		request.setGeo(geoInfo);
 
-		AssetResponse response = client.createAsset(request).sync();
+		AssetResponse response = client.createAsset(request).sync().body();
 		Assertions.assertThat(response).matches(request);
 	}
 
 	@Override
 	protected void testRead(LoomHttpClient client) throws LoomClientException {
-		AssetResponse response = client.loadAsset(ASSET_UUID).sync();
+		AssetResponse response = client.loadAsset(ASSET_UUID).sync().body();
 		assertNotNull(response);
 	}
 
@@ -104,7 +104,7 @@ public class AssetEndpointTest extends AbstractCRUDEndpointTest {
 		try (LoomHttpClient client = loom.httpClient()) {
 			loginAdmin(client);
 			// The test fixture creates an asset with SHA512SUM — load it via the /sha512/ sub-path
-			AssetResponse response = client.loadAsset(SHA512SUM).sync();
+			AssetResponse response = client.loadAsset(SHA512SUM).sync().body();
 			assertNotNull(response);
 			assertEquals(ASSET_UUID, response.getUuid());
 		}
@@ -118,10 +118,10 @@ public class AssetEndpointTest extends AbstractCRUDEndpointTest {
 		AssetCreateRequest createReq = new AssetCreateRequest();
 		createReq.setFile(new FileInfo().setMimeType(IMAGE_MIMETYPE).setFilename("to_delete.png").setSize(1024L).setOrigin(INITIAL_ORIGIN));
 		createReq.setHashes(new HashInfo().setSHA512(deleteSha));
-		AssetResponse created = client.createAsset(createReq).sync();
+		AssetResponse created = client.createAsset(createReq).sync().body();
 		assertNotNull(created.getUuid());
 
-		client.deleteAsset(created.getUuid()).sync();
+		client.deleteAsset(created.getUuid()).sync().body();
 		expect(404, "Not Found", client.loadAsset(created.getUuid()));
 	}
 
@@ -130,10 +130,10 @@ public class AssetEndpointTest extends AbstractCRUDEndpointTest {
 		final String NEW_NAME = "the_new_local_path.jpg";
 		AssetUpdateRequest request = new AssetUpdateRequest();
 		request.setFile(new FileInfo().setFilename(NEW_NAME));
-		AssetResponse response = client.updateAsset(ASSET_UUID, request).sync();
+		AssetResponse response = client.updateAsset(ASSET_UUID, request).sync().body();
 		assertEquals(NEW_NAME, response.getFile().getFilename());
 
-		AssetResponse loadResponse = client.loadAsset(ASSET_UUID).sync();
+		AssetResponse loadResponse = client.loadAsset(ASSET_UUID).sync().body();
 		assertEquals(NEW_NAME, loadResponse.getFile().getFilename());
 	}
 
@@ -153,10 +153,10 @@ public class AssetEndpointTest extends AbstractCRUDEndpointTest {
 			String base = SHA512SUM_3.toString().substring(0, 124);
 			String suffix = String.format("%04x", i);
 			request.setHashes(new HashInfo().setSHA512(SHA512.fromString(base + suffix)));
-			client.createAsset(request).sync();
+			client.createAsset(request).sync().body();
 		}
 
-		AssetListResponse response = client.listAssets().sync();
+		AssetListResponse response = client.listAssets().sync().body();
 		assertNotNull(response);
 	}
 
@@ -189,7 +189,7 @@ public class AssetEndpointTest extends AbstractCRUDEndpointTest {
 			bulkRequest.add(request);
 		}
 
-		AssetBulkResponse response = client.bulkCreateAssets(bulkRequest).sync();
+		AssetBulkResponse response = client.bulkCreateAssets(bulkRequest).sync().body();
 		assertNotNull(response);
 		assertEquals(5, response.getTotal());
 		assertEquals(5, response.getCreated());
@@ -227,7 +227,7 @@ public class AssetEndpointTest extends AbstractCRUDEndpointTest {
 			request.setHashes(new HashInfo().setSHA512(hashes[i]));
 			createRequest.add(request);
 		}
-		client.bulkCreateAssets(createRequest).sync();
+		client.bulkCreateAssets(createRequest).sync().body();
 
 		// Now bulk update them
 		AssetBulkUpdateRequest updateRequest = new AssetBulkUpdateRequest();
@@ -240,7 +240,7 @@ public class AssetEndpointTest extends AbstractCRUDEndpointTest {
 			updateRequest.add(entry);
 		}
 
-		AssetBulkResponse response = client.bulkUpdateAssets(updateRequest).sync();
+		AssetBulkResponse response = client.bulkUpdateAssets(updateRequest).sync().body();
 		assertNotNull(response);
 		assertEquals(3, response.getTotal());
 		assertEquals(3, response.getCreated()); // 'created' field is reused for successful count
@@ -260,13 +260,13 @@ public class AssetEndpointTest extends AbstractCRUDEndpointTest {
 			request.setHashes(new HashInfo().setSHA512(sha));
 			request.setMeta(new JsonObject().put("rating", 5).put("source", "upload"));
 
-			AssetResponse response = client.createAsset(request).sync();
+			AssetResponse response = client.createAsset(request).sync().body();
 			assertNotNull(response.getMeta());
 			assertEquals(5, response.getMeta().getInteger("rating"));
 			assertEquals("upload", response.getMeta().getString("source"));
 
 			// Reload and verify persistence
-			AssetResponse loaded = client.loadAsset(response.getUuid()).sync();
+			AssetResponse loaded = client.loadAsset(response.getUuid()).sync().body();
 			assertNotNull(loaded.getMeta());
 			assertEquals(5, loaded.getMeta().getInteger("rating"));
 			assertEquals("upload", loaded.getMeta().getString("source"));
@@ -280,14 +280,14 @@ public class AssetEndpointTest extends AbstractCRUDEndpointTest {
 			// The fixture asset has no meta set — add meta via update
 			AssetUpdateRequest request = new AssetUpdateRequest();
 			request.setMeta(new JsonObject().put("category", "nature").put("priority", 3));
-			AssetResponse response = client.updateAsset(ASSET_UUID, request).sync();
+			AssetResponse response = client.updateAsset(ASSET_UUID, request).sync().body();
 
 			assertNotNull(response.getMeta());
 			assertEquals("nature", response.getMeta().getString("category"));
 			assertEquals(3, response.getMeta().getInteger("priority"));
 
 			// Verify via reload
-			AssetResponse loaded = client.loadAsset(ASSET_UUID).sync();
+			AssetResponse loaded = client.loadAsset(ASSET_UUID).sync().body();
 			assertNotNull(loaded.getMeta());
 			assertEquals("nature", loaded.getMeta().getString("category"));
 			assertEquals(3, loaded.getMeta().getInteger("priority"));
@@ -305,12 +305,12 @@ public class AssetEndpointTest extends AbstractCRUDEndpointTest {
 			createReq.setFile(new FileInfo().setMimeType(IMAGE_MIMETYPE).setFilename("meta_update.png").setSize(200L).setOrigin(INITIAL_ORIGIN));
 			createReq.setHashes(new HashInfo().setSHA512(sha));
 			createReq.setMeta(new JsonObject().put("version", 1).put("oldKey", "oldValue"));
-			AssetResponse created = client.createAsset(createReq).sync();
+			AssetResponse created = client.createAsset(createReq).sync().body();
 
 			// Now update meta with completely new content
 			AssetUpdateRequest updateReq = new AssetUpdateRequest();
 			updateReq.setMeta(new JsonObject().put("version", 2).put("newKey", "newValue"));
-			AssetResponse updated = client.updateAsset(created.getUuid(), updateReq).sync();
+			AssetResponse updated = client.updateAsset(created.getUuid(), updateReq).sync().body();
 
 			assertNotNull(updated.getMeta());
 			assertEquals(2, updated.getMeta().getInteger("version"));
@@ -331,7 +331,7 @@ public class AssetEndpointTest extends AbstractCRUDEndpointTest {
 			request.setHashes(new HashInfo().setSHA512(sha));
 			// No meta set
 
-			AssetResponse response = client.createAsset(request).sync();
+			AssetResponse response = client.createAsset(request).sync().body();
 			assertNull(response.getMeta());
 		}
 	}
@@ -345,7 +345,7 @@ public class AssetEndpointTest extends AbstractCRUDEndpointTest {
 			AssetCreateRequest createReq = new AssetCreateRequest();
 			createReq.setFile(new FileInfo().setMimeType(IMAGE_MIMETYPE).setFilename("nested_meta.png").setSize(300L).setOrigin(INITIAL_ORIGIN));
 			createReq.setHashes(new HashInfo().setSHA512(sha));
-			AssetResponse created = client.createAsset(createReq).sync();
+			AssetResponse created = client.createAsset(createReq).sync().body();
 
 			// Set meta with a nested JSON object
 			JsonObject nestedMeta = new JsonObject()
@@ -353,7 +353,7 @@ public class AssetEndpointTest extends AbstractCRUDEndpointTest {
 				.put("score", 9.5);
 			AssetUpdateRequest updateReq = new AssetUpdateRequest();
 			updateReq.setMeta(nestedMeta);
-			AssetResponse updated = client.updateAsset(created.getUuid(), updateReq).sync();
+			AssetResponse updated = client.updateAsset(created.getUuid(), updateReq).sync().body();
 
 			assertNotNull(updated.getMeta());
 			assertEquals("wildlife", updated.getMeta().getJsonObject("tags").getString("genre"));
@@ -361,7 +361,7 @@ public class AssetEndpointTest extends AbstractCRUDEndpointTest {
 			assertEquals(9.5, updated.getMeta().getDouble("score"), 0.001);
 
 			// Verify persistence via reload
-			AssetResponse loaded = client.loadAsset(created.getUuid()).sync();
+			AssetResponse loaded = client.loadAsset(created.getUuid()).sync().body();
 			assertNotNull(loaded.getMeta());
 			assertEquals("wildlife", loaded.getMeta().getJsonObject("tags").getString("genre"));
 		}
@@ -378,13 +378,13 @@ public class AssetEndpointTest extends AbstractCRUDEndpointTest {
 			createReq.setFile(new FileInfo().setMimeType(IMAGE_MIMETYPE).setFilename("clear_meta.png").setSize(400L).setOrigin(INITIAL_ORIGIN));
 			createReq.setHashes(new HashInfo().setSHA512(sha));
 			createReq.setMeta(new JsonObject().put("toRemove", "data"));
-			AssetResponse created = client.createAsset(createReq).sync();
+			AssetResponse created = client.createAsset(createReq).sync().body();
 			assertNotNull(created.getMeta());
 
 			// Replace meta with empty object to effectively clear it
 			AssetUpdateRequest updateReq = new AssetUpdateRequest();
 			updateReq.setMeta(new JsonObject());
-			AssetResponse updated = client.updateAsset(created.getUuid(), updateReq).sync();
+			AssetResponse updated = client.updateAsset(created.getUuid(), updateReq).sync().body();
 
 			assertNotNull(updated.getMeta());
 			assertTrue(updated.getMeta().isEmpty());
@@ -402,12 +402,12 @@ public class AssetEndpointTest extends AbstractCRUDEndpointTest {
 			createReq.setFile(new FileInfo().setMimeType(IMAGE_MIMETYPE).setFilename("keep_meta.png").setSize(500L).setOrigin(INITIAL_ORIGIN));
 			createReq.setHashes(new HashInfo().setSHA512(sha));
 			createReq.setMeta(new JsonObject().put("keep", "this"));
-			AssetResponse created = client.createAsset(createReq).sync();
+			AssetResponse created = client.createAsset(createReq).sync().body();
 
 			// Update only filename — meta should remain untouched
 			AssetUpdateRequest updateReq = new AssetUpdateRequest();
 			updateReq.setFile(new FileInfo().setFilename("renamed.png"));
-			AssetResponse updated = client.updateAsset(created.getUuid(), updateReq).sync();
+			AssetResponse updated = client.updateAsset(created.getUuid(), updateReq).sync().body();
 
 			assertNotNull(updated.getMeta());
 			assertEquals("this", updated.getMeta().getString("keep"));

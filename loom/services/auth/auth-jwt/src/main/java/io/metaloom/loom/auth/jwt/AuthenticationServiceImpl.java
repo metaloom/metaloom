@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
+import io.metaloom.loom.api.options.AuthenticationOptions;
 import io.metaloom.loom.api.options.LoomOptions;
 import io.metaloom.loom.auth.AuthenticationService;
 import io.metaloom.loom.db.model.user.User;
@@ -35,12 +36,14 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 
 	@Override
 	public void verify(String token) {
-		System.out.println("Verify of " + token);
+		log.debug("Verify of {}", token);
 	}
 
 	@Override
 	public String generate(JsonObject claims) {
-		return authProvider.generateToken(claims, new JWTOptions().setIgnoreExpiration(true));
+		AuthenticationOptions authOptions = options.getAuth();
+		int expirationTime = authOptions.getTokenExpirationTime();
+		return authProvider.generateToken(claims, new JWTOptions().setExpiresInSeconds(expirationTime));
 	}
 
 	@Override
@@ -55,8 +58,9 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 			return null;
 		}
 		String accountPasswordHash = user.getPasswordHash();
-		System.out.println(user.getClass().getName());
-		System.out.println("PasswordHash: " + accountPasswordHash + " for " + user.getUsername());
+		if (log.isDebugEnabled()) {
+			log.debug("Checking password for user {}", user.getUsername());
+		}
 		boolean hashMatches = passwordEncoder.matches(password, accountPasswordHash);
 		if (hashMatches) {
 			return user;

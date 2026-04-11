@@ -52,7 +52,7 @@ public class ProcessorEndpointTest {
 	}
 
 	private void loginAdmin(LoomHttpClient client) throws LoomClientException {
-		AuthLoginResponse loginResponse = client.login("admin", "finger").sync();
+		AuthLoginResponse loginResponse = client.login("admin", "finger").sync().body();
 		client.setToken(loginResponse.getToken());
 	}
 

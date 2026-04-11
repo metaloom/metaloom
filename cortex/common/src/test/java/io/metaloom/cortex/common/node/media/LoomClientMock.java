@@ -4,10 +4,14 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.Map;
+
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.client.common.LoomClientException;
 import io.metaloom.loom.client.common.LoomClientRequest;
+import io.metaloom.loom.client.common.LoomClientResponse;
 import io.metaloom.loom.client.http.LoomHttpClient;
+import io.metaloom.loom.client.http.impl.LoomClientResponseImpl;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.utils.hash.SHA512;
 
@@ -18,7 +22,7 @@ public class LoomClientMock {
 	// LoomGRPCClient mock = mock(LoomGRPCClient.class);
 	// LoomClientRequest<AssetResponse> req = mock(LoomClientRequest.class);
 	// AssetResponse response = mock(AssetResponse.class);
-	// when(req.sync()).thenReturn(response);
+	// when(req.sync()).thenReturn(new LoomClientResponseImpl<>(response, 200, "OK", Map.of()));
 	// when(mock.loadAsset(any())).thenReturn(req);
 	// return mock;
 	// }
@@ -28,7 +32,7 @@ public class LoomClientMock {
 		LoomHttpClient mock = mock(LoomHttpClient.class);
 		LoomClientRequest<AssetResponse> req = mock(LoomClientRequest.class);
 		AssetResponse response = mock(AssetResponse.class);
-		when(req.sync()).thenReturn(response);
+		when(req.sync()).thenReturn(new LoomClientResponseImpl<>(response, 200, "OK", Map.of()));
 //		AssetId id = any();
 		SHA512 sha512 = any();
 		when(mock.loadAsset(sha512)).thenReturn(req);

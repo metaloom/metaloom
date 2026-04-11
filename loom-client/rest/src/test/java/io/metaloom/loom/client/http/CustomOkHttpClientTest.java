@@ -30,7 +30,7 @@ public class CustomOkHttpClientTest extends AbstractContainerTest {
 			.build()) {
 
 			// Create a collection
-			UserResponse userResponse = client.loadUser(USER_UUID).sync();
+			UserResponse userResponse = client.loadUser(USER_UUID).sync().body();
 			assertNotNull(userResponse);
 		}
 	}

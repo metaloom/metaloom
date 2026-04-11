@@ -28,20 +28,20 @@ public class UserEndpointTest extends AbstractCRUDEndpointTest {
 		try (LoomHttpClient client = loom.httpClient()) {
 			loginAdmin(client);
 
-			UserResponse response = client.loadUser(USER_UUID).sync();
+			UserResponse response = client.loadUser(USER_UUID).sync().body();
 			assertNotNull(response);
 
 			for (int i = 0; i < 100; i++) {
 				UserCreateRequest userRequest = new UserCreateRequest();
 				userRequest.setUsername("user_" + i);
-				client.createUser(userRequest).sync();
+				client.createUser(userRequest).sync().body();
 			}
 
-			UserListResponse listResponse = client.listUsers().addLimit(12).sync();
+			UserListResponse listResponse = client.listUsers().addLimit(12).sync().body();
 			assertEquals(25, listResponse.getData().size(), "There should have been 25 users loaded");
 
 			UUID uuid = listResponse.getData().get(0).getUuid();
-			client.deleteUser(uuid).sync();
+			client.deleteUser(uuid).sync().body();
 		}
 	}
 
@@ -53,13 +53,13 @@ public class UserEndpointTest extends AbstractCRUDEndpointTest {
 			for (int i = 0; i < 100; i++) {
 				UserCreateRequest request = new UserCreateRequest();
 				request.setUsername("user_" + i);
-				client.createUser(request).sync();
+				client.createUser(request).sync().body();
 			}
 
 			UserListResponse pageResponse = client.listUsers()
 				.addLimit(10)
 				.addEquals(LoomFilterKey.USERNAME, "joedoe")
-				.sync();
+				.sync().body();
 			assertEquals(1, pageResponse.getData().size(), "There should only be one result");
 		}
 	}
@@ -72,14 +72,14 @@ public class UserEndpointTest extends AbstractCRUDEndpointTest {
 			for (int i = 0; i < 100; i++) {
 				UserCreateRequest request = new UserCreateRequest();
 				request.setUsername("user_" + i);
-				client.createUser(request).sync();
+				client.createUser(request).sync().body();
 			}
 
 			UserListResponse pageResponse = client.listUsers()
 				.addLimit(10)
 				.sortBy(LoomSortKey.UUID)
 				.sortDirection(SortDirection.ASCENDING)
-				.sync();
+				.sync().body();
 
 			for (UserResponse element : pageResponse.getData()) {
 				System.out.println(element.getUsername());
@@ -89,7 +89,7 @@ public class UserEndpointTest extends AbstractCRUDEndpointTest {
 
 	@Override
 	protected void testRead(LoomHttpClient client) throws LoomClientException {
-		UserResponse user = client.loadUser(USER_UUID).sync();
+		UserResponse user = client.loadUser(USER_UUID).sync().body();
 		assertThat(user).isValid();
 	}
 
@@ -97,16 +97,16 @@ public class UserEndpointTest extends AbstractCRUDEndpointTest {
 	protected void testCreate(LoomHttpClient client) throws LoomClientException {
 		UserCreateRequest request = new UserCreateRequest();
 		request.setUsername("dummy username");
-		UserResponse user = client.createUser(request).sync();
+		UserResponse user = client.createUser(request).sync().body();
 		assertThat(user).isValid();
 
-		UserResponse user2 = client.loadUser(user.getUuid()).sync();
+		UserResponse user2 = client.loadUser(user.getUuid()).sync().body();
 		assertThat(user2).matches(user2);
 	}
 
 	@Override
 	protected void testDelete(LoomHttpClient client) throws LoomClientException {
-		client.deleteUser(USER_UUID).sync();
+		client.deleteUser(USER_UUID).sync().body();
 		expect(404, "Not Found", client.loadUser(USER_UUID));
 	}
 
@@ -114,7 +114,7 @@ public class UserEndpointTest extends AbstractCRUDEndpointTest {
 	protected void testUpdate(LoomHttpClient client) throws LoomClientException {
 		UserUpdateRequest update = new UserUpdateRequest();
 		update.setUsername("updated-username");
-		UserResponse response = client.updateUser(USER_UUID, update).sync();
+		UserResponse response = client.updateUser(USER_UUID, update).sync().body();
 		assertThat(response).isValid();
 	}
 
@@ -124,14 +124,14 @@ public class UserEndpointTest extends AbstractCRUDEndpointTest {
 			loginAdmin(client);
 
 			// 1. Delete user
-			client.deleteUser(USER_UUID).sync();
+			client.deleteUser(USER_UUID).sync().body();
 
 			// 2. Assert that update fails
 			UserUpdateRequest update = new UserUpdateRequest();
 			update.setUsername("updated-username");
 			// TODO encapsulate call in lambda to process errors with less code
 			try {
-				client.updateUser(USER_UUID, update).sync();
+				client.updateUser(USER_UUID, update).sync().body();
 				fail("The request should have failed.");
 			} catch (LoomClientException e) {
 				assertEquals("Request failed {Not Found}", e.getMessage());
@@ -144,13 +144,13 @@ public class UserEndpointTest extends AbstractCRUDEndpointTest {
 		for (int i = 0; i < 100; i++) {
 			UserCreateRequest request = new UserCreateRequest();
 			request.setUsername("user_" + i);
-			client.createUser(request).sync();
+			client.createUser(request).sync().body();
 		}
 
-		UserListResponse pageResponse = client.listUsers().addLimit(10).sync();
+		UserListResponse pageResponse = client.listUsers().addLimit(10).sync().body();
 		assertThat(pageResponse).isValid().hasSize(10).hasPerPage(10);
 
-		UserListResponse secondPage = client.listUsers().addLimit(2).addFrom(pageResponse.getMetainfo().getLastUuid()).sync();
+		UserListResponse secondPage = client.listUsers().addLimit(2).addFrom(pageResponse.getMetainfo().getLastUuid()).sync().body();
 		assertEquals(2, secondPage.getMetainfo().getTotalCount(), "There should only be two users in the list");
 		assertEquals(2, secondPage.getData().size(), "There should only be two responses");
 	}
@@ -162,17 +162,17 @@ public class UserEndpointTest extends AbstractCRUDEndpointTest {
 			for (int i = 0; i < 10; i++) {
 				UserCreateRequest request = new UserCreateRequest();
 				request.setUsername("user_" + i);
-				client.createUser(request).sync();
+				client.createUser(request).sync().body();
 			}
 
 			for (int i = 0; i < 10; i++) {
 				UserCreateRequest request = new UserCreateRequest();
 				request.setUsername("deleted_user_" + i);
-				UserResponse user = client.createUser(request).sync();
-				client.deleteUser(user.getUuid()).sync();
+				UserResponse user = client.createUser(request).sync().body();
+				client.deleteUser(user.getUuid()).sync().body();
 			}
 
-			UserListResponse pageResponse = client.listUsers().addLimit(100).sync();
+			UserListResponse pageResponse = client.listUsers().addLimit(100).sync().body();
 			// Test fixture provides 2 users
 			assertThat(pageResponse).isValid().hasSize(10 + 2).hasPerPage(100);
 			for (UserResponse user : pageResponse.getData()) {

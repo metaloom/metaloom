@@ -53,7 +53,7 @@ public abstract class AbstractHTTPClientTest extends AbstractContainerTest {
 
 	protected <T extends RestResponseModel<T>> T invoke(LoomClientHttpRequest<T> request) throws LoomClientException {
 		try {
-			T response = request.sync();
+			T response = request.sync().body();
 			assertSuccess((AbstractResponse) response);
 			return response;
 		} catch (LoomClientException e) {

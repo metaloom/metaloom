@@ -26,7 +26,7 @@ public class BasicIntegrationTest extends AbstractIntegrationTest {
 		// 4. Use the REST client to assert that the assets have been stored
 		try (LoomHttpClient client = httpClient(server)) {
 			loginAdmin(client);
-			AssetListResponse assets = client.listAssets().sync();
+			AssetListResponse assets = client.listAssets().sync().body();
 			System.out.println("Assets: " + assets.getData().size());
 		}
 		server.shutdown();

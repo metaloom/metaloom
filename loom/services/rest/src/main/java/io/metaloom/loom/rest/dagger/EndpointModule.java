@@ -19,6 +19,7 @@ import io.metaloom.loom.rest.endpoint.impl.EmbeddingEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.GraphQLEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.GroupEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.LibraryEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.OAuth2Endpoint;
 import io.metaloom.loom.rest.endpoint.impl.PipelineEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.PipelineEventEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.ProcessorEndpoint;
@@ -56,6 +57,7 @@ public class EndpointModule {
 		ProcessorEndpoint processorEndpoint,
 		SpaceEndpoint spaceEndpoint,
 		LoginEndpoint loginEndpoint,
+		OAuth2Endpoint oauth2Endpoint,
 		RESTInfoEndpoint restInfoEndpoint,
 		CommentEndpoint commentEndpoint,
 		AttachmentEndpoint attachmentEndpoint,
@@ -79,6 +81,7 @@ public class EndpointModule {
 			processorEndpoint,
 			spaceEndpoint,
 			loginEndpoint,
+			oauth2Endpoint,
 			restInfoEndpoint,
 			attachmentEndpoint,
 			commentEndpoint,

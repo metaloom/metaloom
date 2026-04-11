@@ -14,7 +14,7 @@ public class AssetPoolEndpointTest extends AbstractCRUDEndpointTest {
 
 	@Override
 	protected void testRead(LoomHttpClient client) throws LoomClientException {
-		AssetPoolResponse pool = client.loadPool(ASSET_POOL_UUID).sync();
+		AssetPoolResponse pool = client.loadPool(ASSET_POOL_UUID).sync().body();
 		assertThat(pool).isValid();
 	}
 
@@ -23,16 +23,16 @@ public class AssetPoolEndpointTest extends AbstractCRUDEndpointTest {
 		AssetPoolCreateRequest request = new AssetPoolCreateRequest();
 		request.setName("test-pool");
 		request.setFsPath("/tank/test/binaries");
-		AssetPoolResponse pool = client.createPool(request).sync();
+		AssetPoolResponse pool = client.createPool(request).sync().body();
 		assertThat(pool).isValid().hasName("test-pool");
 
-		AssetPoolResponse pool2 = client.loadPool(pool.getUuid()).sync();
+		AssetPoolResponse pool2 = client.loadPool(pool.getUuid()).sync().body();
 		assertThat(pool).matches(pool2);
 	}
 
 	@Override
 	protected void testDelete(LoomHttpClient client) throws LoomClientException {
-		client.deletePool(ASSET_POOL_UUID).sync();
+		client.deletePool(ASSET_POOL_UUID).sync().body();
 		expect(404, "Not Found", client.loadPool(ASSET_POOL_UUID));
 	}
 
@@ -40,7 +40,7 @@ public class AssetPoolEndpointTest extends AbstractCRUDEndpointTest {
 	protected void testUpdate(LoomHttpClient client) throws LoomClientException {
 		AssetPoolUpdateRequest update = new AssetPoolUpdateRequest();
 		update.setName("updated-pool-name");
-		AssetPoolResponse response = client.updatePool(ASSET_POOL_UUID, update).sync();
+		AssetPoolResponse response = client.updatePool(ASSET_POOL_UUID, update).sync().body();
 		assertThat(response).isValid().hasName("updated-pool-name");
 	}
 
@@ -50,9 +50,9 @@ public class AssetPoolEndpointTest extends AbstractCRUDEndpointTest {
 			AssetPoolCreateRequest request = new AssetPoolCreateRequest();
 			request.setName("pool-" + i);
 			request.setFsPath("/tank/pool/" + i);
-			client.createPool(request).sync();
+			client.createPool(request).sync().body();
 		}
-		AssetPoolListResponse list = client.listPools().sync();
+		AssetPoolListResponse list = client.listPools().sync().body();
 		assertThat(list).isValid().hasSize(25).hasPerPage(25);
 	}
 

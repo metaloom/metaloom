@@ -60,7 +60,7 @@ public abstract class AbstractMediaNode<T extends CortexNodeOptions> extends Abs
 		}
 		try {
 			SHA512 sha512 = media.getSHA512();
-			return client().loadAsset(sha512).sync();
+			return client().loadAsset(sha512).sync().body();
 		} catch (Exception e) {
 			log.debug("Failed to fetch asset from Loom: {}", e.getMessage());
 			return null;

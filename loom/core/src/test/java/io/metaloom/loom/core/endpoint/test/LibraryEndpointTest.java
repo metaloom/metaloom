@@ -14,7 +14,7 @@ public class LibraryEndpointTest extends AbstractCRUDEndpointTest {
 
 	@Override
 	protected void testRead(LoomHttpClient client) throws LoomClientException {
-		LibraryResponse library = client.loadLibrary(LIBRARY_UUID).sync();
+		LibraryResponse library = client.loadLibrary(LIBRARY_UUID).sync().body();
 		assertThat(library).isValid();
 	}
 
@@ -22,16 +22,16 @@ public class LibraryEndpointTest extends AbstractCRUDEndpointTest {
 	protected void testCreate(LoomHttpClient client) throws LoomClientException {
 		LibraryCreateRequest request = new LibraryCreateRequest();
 		request.setName("dummy name");
-		LibraryResponse library = client.createLibrary(request).sync();
+		LibraryResponse library = client.createLibrary(request).sync().body();
 		assertThat(library).isValid();
 
-		LibraryResponse library2 = client.loadLibrary(library.getUuid()).sync();
+		LibraryResponse library2 = client.loadLibrary(library.getUuid()).sync().body();
 		assertThat(library).matches(library2);
 	}
 
 	@Override
 	protected void testDelete(LoomHttpClient client) throws LoomClientException {
-		client.deleteLibrary(LIBRARY_UUID).sync();
+		client.deleteLibrary(LIBRARY_UUID).sync().body();
 		expect(404, "Not Found", client.loadLibrary(LIBRARY_UUID));
 	}
 
@@ -39,7 +39,7 @@ public class LibraryEndpointTest extends AbstractCRUDEndpointTest {
 	protected void testUpdate(LoomHttpClient client) throws LoomClientException {
 		LibraryUpdateRequest update = new LibraryUpdateRequest();
 		update.setName("updated-name");
-		LibraryResponse response = client.updateLibrary(LIBRARY_UUID, update).sync();
+		LibraryResponse response = client.updateLibrary(LIBRARY_UUID, update).sync().body();
 		assertThat(response).isValid();
 	}
 
@@ -48,9 +48,9 @@ public class LibraryEndpointTest extends AbstractCRUDEndpointTest {
 		for (int i = 0; i < 100; i++) {
 			LibraryCreateRequest request = new LibraryCreateRequest();
 			request.setName("dummy name");
-			client.createLibrary(request).sync();
+			client.createLibrary(request).sync().body();
 		}
-		LibraryListResponse list = client.listLibraries().sync();
+		LibraryListResponse list = client.listLibraries().sync().body();
 		assertThat(list).isValid().hasSize(25).hasPerPage(25);
 	}
 

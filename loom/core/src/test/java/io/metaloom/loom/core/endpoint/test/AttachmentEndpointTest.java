@@ -30,27 +30,27 @@ public class AttachmentEndpointTest extends AbstractCRUDEndpointTest {
 
 	@Override
 	protected void testRead(LoomHttpClient client) throws LoomClientException {
-		AttachmentResponse response = client.loadAttachment(ATTACHMENT_UUID).sync();
+		AttachmentResponse response = client.loadAttachment(ATTACHMENT_UUID).sync().body();
 	}
 
 	@Override
 	protected void testCreate(LoomHttpClient client) throws Exception {
 		Path path = env.video2().path();
 		try (InputStream stream = Files.newInputStream(path)) {
-			AttachmentResponse response = client.uploadAttachment(DUMMY_VIDEO_FILENAME, VIDEO_MIMETYPE, stream).sync();
+			AttachmentResponse response = client.uploadAttachment(DUMMY_VIDEO_FILENAME, VIDEO_MIMETYPE, stream).sync().body();
 		}
 	}
 
 	@Override
 	protected void testDelete(LoomHttpClient client) throws LoomClientException {
-		client.deleteAttachment(ATTACHMENT_UUID).sync();
+		client.deleteAttachment(ATTACHMENT_UUID).sync().body();
 	}
 
 	@Override
 	protected void testUpdate(LoomHttpClient client) throws LoomClientException {
 		AttachmentUpdateRequest request = new AttachmentUpdateRequest();
 		request.setFilename("new_filename.jpg");
-		AttachmentResponse response = client.updateAttachment(ATTACHMENT_UUID, request).sync();
+		AttachmentResponse response = client.updateAttachment(ATTACHMENT_UUID, request).sync().body();
 		assertEquals("new_filename.jpg", response.getFilename(), "The filename should have been updated.");
 	}
 
@@ -59,10 +59,10 @@ public class AttachmentEndpointTest extends AbstractCRUDEndpointTest {
 		for (int i = 0; i < 10; i++) {
 			Path path = env.video2().path();
 			try (InputStream stream = Files.newInputStream(path)) {
-				AttachmentResponse response = client.uploadAttachment(DUMMY_VIDEO_FILENAME, VIDEO_MIMETYPE, stream).sync();
+				AttachmentResponse response = client.uploadAttachment(DUMMY_VIDEO_FILENAME, VIDEO_MIMETYPE, stream).sync().body();
 			}
 		}
-		AttachmentListResponse list = client.listAttachments().sync();
+		AttachmentListResponse list = client.listAttachments().sync().body();
 		System.out.println(LoomJson.encode(list));
 
 	}

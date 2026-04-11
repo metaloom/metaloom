@@ -14,7 +14,7 @@ public class TagEndpointTest extends AbstractCRUDEndpointTest {
 
 	@Override
 	protected void testRead(LoomHttpClient client) throws LoomClientException {
-		TagResponse tag = client.loadTag(TAG_UUID).sync();
+		TagResponse tag = client.loadTag(TAG_UUID).sync().body();
 		assertThat(tag).isValid();
 	}
 
@@ -23,16 +23,16 @@ public class TagEndpointTest extends AbstractCRUDEndpointTest {
 		TagCreateRequest request = new TagCreateRequest();
 		request.setName("dummy name");
 		request.setCollection("test");
-		TagResponse tag = client.createTag(request).sync();
+		TagResponse tag = client.createTag(request).sync().body();
 		assertThat(tag).isValid();
 
-		TagResponse tag2 = client.loadTag(tag.getUuid()).sync();
+		TagResponse tag2 = client.loadTag(tag.getUuid()).sync().body();
 		assertThat(tag2).matches(tag2);
 	}
 
 	@Override
 	protected void testDelete(LoomHttpClient client) throws LoomClientException {
-		client.deleteTag(TAG_UUID).sync();
+		client.deleteTag(TAG_UUID).sync().body();
 		expect(404, "Not Found", client.loadTag(TAG_UUID));
 	}
 
@@ -40,7 +40,7 @@ public class TagEndpointTest extends AbstractCRUDEndpointTest {
 	protected void testUpdate(LoomHttpClient client) throws LoomClientException {
 		TagUpdateRequest update = new TagUpdateRequest();
 		update.setName("updated-name");
-		TagResponse response = client.updateTag(TAG_UUID, update).sync();
+		TagResponse response = client.updateTag(TAG_UUID, update).sync().body();
 		assertThat(response).isValid();
 	}
 
@@ -50,9 +50,9 @@ public class TagEndpointTest extends AbstractCRUDEndpointTest {
 			TagCreateRequest request = new TagCreateRequest();
 			request.setName("dummy title " + i);
 			request.setCollection("test");
-			client.createTag(request).sync();
+			client.createTag(request).sync().body();
 		}
-		TagListResponse list = client.listTags().sync();
+		TagListResponse list = client.listTags().sync().body();
 		assertThat(list).isValid().hasSize(25).hasPerPage(25);
 	}
 

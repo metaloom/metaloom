@@ -5,6 +5,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 
@@ -17,6 +18,7 @@ import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.client.common.LoomClientException;
 import io.metaloom.loom.client.common.LoomClientRequest;
 import io.metaloom.loom.client.http.LoomHttpClient;
+import io.metaloom.loom.client.http.impl.LoomClientResponseImpl;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 
 public abstract class AbstractNodeTest<T extends FilesystemNode<?, ?>> extends AbstractMediaTest {
@@ -38,7 +40,7 @@ public abstract class AbstractNodeTest<T extends FilesystemNode<?, ?>> extends A
 	public LoomClient mockClient(AssetResponse response) throws LoomClientException {
 		LoomHttpClient client = mock(LoomHttpClient.class);
 		LoomClientRequest<AssetResponse> request = mock(LoomClientRequest.class);
-		when(request.sync()).thenReturn(response);
+		when(request.sync()).thenReturn(new LoomClientResponseImpl<>(response, 200, "OK", Map.of()));
 
 		AssetId id = any();
 		when(client.loadAsset(id)).thenReturn(request);

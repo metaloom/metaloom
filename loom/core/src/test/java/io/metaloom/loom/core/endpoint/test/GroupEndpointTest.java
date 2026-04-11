@@ -14,7 +14,7 @@ public class GroupEndpointTest extends AbstractCRUDEndpointTest {
 
 	@Override
 	protected void testRead(LoomHttpClient client) throws LoomClientException {
-		GroupResponse group = client.loadGroup(GROUP_UUID).sync();
+		GroupResponse group = client.loadGroup(GROUP_UUID).sync().body();
 		assertThat(group).isValid();
 	}
 
@@ -22,16 +22,16 @@ public class GroupEndpointTest extends AbstractCRUDEndpointTest {
 	protected void testCreate(LoomHttpClient client) throws LoomClientException {
 		GroupCreateRequest request = new GroupCreateRequest();
 		request.setName("dummy name");
-		GroupResponse group = client.createGroup(request).sync();
+		GroupResponse group = client.createGroup(request).sync().body();
 		assertThat(group).isValid();
 
-		GroupResponse group2 = client.loadGroup(group.getUuid()).sync();
+		GroupResponse group2 = client.loadGroup(group.getUuid()).sync().body();
 		assertThat(group).matches(group2);
 	}
 
 	@Override
 	protected void testDelete(LoomHttpClient client) throws LoomClientException {
-		client.deleteGroup(GROUP_UUID).sync();
+		client.deleteGroup(GROUP_UUID).sync().body();
 		expect(404, "Not Found", client.loadGroup(GROUP_UUID));
 	}
 
@@ -39,7 +39,7 @@ public class GroupEndpointTest extends AbstractCRUDEndpointTest {
 	protected void testUpdate(LoomHttpClient client) throws LoomClientException {
 		GroupUpdateRequest update = new GroupUpdateRequest();
 		update.setName("updated-name");
-		GroupResponse response = client.updateGroup(GROUP_UUID, update).sync();
+		GroupResponse response = client.updateGroup(GROUP_UUID, update).sync().body();
 		assertThat(response).isValid();
 	}
 
@@ -48,9 +48,9 @@ public class GroupEndpointTest extends AbstractCRUDEndpointTest {
 		for (int i = 0; i < 100; i++) {
 			GroupCreateRequest request = new GroupCreateRequest();
 			request.setName("dummy name " + i);
-			client.createGroup(request).sync();
+			client.createGroup(request).sync().body();
 		}
-		GroupListResponse list = client.listGroups().sync();
+		GroupListResponse list = client.listGroups().sync().body();
 		assertThat(list).isValid().hasSize(25).hasPerPage(25);
 	}
 

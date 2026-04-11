@@ -1,6 +1,8 @@
 package io.metaloom.loom.client.http.impl;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,6 +11,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import io.metaloom.loom.client.common.LoomBinaryResponse;
+import io.metaloom.loom.client.common.LoomClientResponse;
 import io.metaloom.loom.client.http.LoomClientHttpRequest;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.client.http.error.LoomHttpClientException;
@@ -79,7 +82,7 @@ public class LoomClientRequestImpl<T extends RestResponseModel<T>> implements Lo
 	}
 
 	@Override
-	public Single<T> async() {
+	public Single<LoomClientResponse<T>> async() {
 		return executeAsync(build());
 	}
 
@@ -90,8 +93,15 @@ public class LoomClientRequestImpl<T extends RestResponseModel<T>> implements Lo
 	}
 
 	@Override
-	public T sync() throws LoomHttpClientException {
+	public LoomClientResponse<T> sync() throws LoomHttpClientException {
 		return executeSync(build());
+	}
+
+	/**
+	 * Extract headers from an OkHttp response as a multi-value map.
+	 */
+	private Map<String, List<String>> extractHeaders(Response response) {
+		return response.headers().toMultimap();
 	}
 
 	/**
@@ -127,15 +137,12 @@ public class LoomClientRequestImpl<T extends RestResponseModel<T>> implements Lo
 	}
 
 	/**
-	 * Execute the request synchronously.
-	 *
-	 * @param request
-	 * @throws HttpErrorException
+	 * Execute the request synchronously with no expected response body.
 	 */
-	private void executeSyncNoResponse(Request request) throws LoomHttpClientException {
+	private LoomClientResponse<T> executeSyncNoResponse(Request request) throws LoomHttpClientException {
 		try (Response response = okClient.newCall(request).execute()) {
 			if (response.isSuccessful()) {
-				return;
+				return new LoomClientResponseImpl<>(null, response.code(), response.message(), extractHeaders(response));
 			} else {
 				if (log.isDebugEnabled()) {
 					log.debug("Failed request with code {" + response.code() + "}");
@@ -158,31 +165,56 @@ public class LoomClientRequestImpl<T extends RestResponseModel<T>> implements Lo
 		}
 	}
 
-	private LoomBinaryResponse executeSyncBinary(Request request) throws LoomHttpClientException {
+	private LoomClientResponse<T> executeSyncBinary(Request request) throws LoomHttpClientException {
 		try {
 			Response response = okClient.newCall(request).execute();
-			return new LoomBinaryResponseImpl(response);
+			@SuppressWarnings("unchecked")
+			T binaryBody = (T) new LoomBinaryResponseImpl(response);
+			return new LoomClientResponseImpl<>(binaryBody, response.code(), response.message(), extractHeaders(response));
 		} catch (IOException e1) {
 			throw new LoomHttpClientException("Error while excuting request", e1);
 		}
 	}
 
 	@SuppressWarnings("unchecked")
-	public T executeSync(Request request) throws LoomHttpClientException {
+	public LoomClientResponse<T> executeSync(Request request) throws LoomHttpClientException {
 		if (NoResponse.class.isAssignableFrom(responseClass)) {
-			executeSyncNoResponse(request);
-			return null;
+			return executeSyncNoResponse(request);
+		} else if (LoomBinaryResponse.class.equals(responseClass)) {
+			return executeSyncBinary(request);
 		} else if (RestModel.class.isAssignableFrom(responseClass)) {
-			Class<? extends RestModel> r = (Class<? extends RestModel>) responseClass;
-			String bodyStr = executeSyncPlain(request);
+			return executeSyncModel(request);
+		} else {
+			throw new RuntimeException("Unsupported response class encountered. Got: " + responseClass.getName());
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	private LoomClientResponse<T> executeSyncModel(Request request) throws LoomHttpClientException {
+		try (Response response = okClient.newCall(request).execute()) {
+			ResponseBody body = response.body();
+			String bodyStr = "";
+			if (body != null) {
+				try {
+					bodyStr = body.string();
+				} catch (Exception e) {
+					throw new LoomHttpClientException("Error while reading body", e);
+				}
+			}
+			if (!response.isSuccessful()) {
+				if (log.isDebugEnabled()) {
+					log.debug("Failed request with code {" + response.code() + "} and body:\n" + bodyStr);
+				}
+				throw new LoomHttpClientException("Request failed {" + response.message() + "}", response.code(), response.message(), bodyStr);
+			}
 			if (log.isDebugEnabled()) {
 				log.debug("Response JSON:\n" + bodyStr);
 			}
-			return (T) LoomJson.parse(bodyStr, r);
-		} else if (LoomBinaryResponse.class.equals(responseClass)) {
-			return (T) executeSyncBinary(request);
-		} else {
-			throw new RuntimeException("Unsupported response class encountered. Got: " + responseClass.getName());
+			Class<? extends RestModel> r = (Class<? extends RestModel>) responseClass;
+			T model = (T) LoomJson.parse(bodyStr, r);
+			return new LoomClientResponseImpl<>(model, response.code(), response.message(), extractHeaders(response));
+		} catch (IOException e1) {
+			throw new LoomHttpClientException("Error while excuting request", e1);
 		}
 	}
 
@@ -208,7 +240,8 @@ public class LoomClientRequestImpl<T extends RestResponseModel<T>> implements Lo
 	 * @param request
 	 * @return Single which yields the response data
 	 */
-	private Single<T> executeAsync(Request request) {
+	@SuppressWarnings("unchecked")
+	private Single<LoomClientResponse<T>> executeAsync(Request request) {
 		return Single.create(sub -> {
 			Call call = okClient.newCall(request);
 			sub.setCancellable(call::cancel);
@@ -224,7 +257,8 @@ public class LoomClientRequestImpl<T extends RestResponseModel<T>> implements Lo
 				@Override
 				public void onResponse(Call call, Response response) {
 					if (LoomBinaryResponse.class.equals(responseClass)) {
-						sub.onSuccess((T) new LoomBinaryResponseImpl(response));
+						T binaryBody = (T) new LoomBinaryResponseImpl(response);
+						sub.onSuccess(new LoomClientResponseImpl<>(binaryBody, response.code(), response.message(), extractHeaders(response)));
 						return;
 					}
 
@@ -243,9 +277,12 @@ public class LoomClientRequestImpl<T extends RestResponseModel<T>> implements Lo
 							sub.onError(new LoomHttpClientException("Request failed", response.code(), response.message(), bodyStr));
 							return;
 						}
-						if (RestModel.class.isAssignableFrom(responseClass)) {
+						if (NoResponse.class.isAssignableFrom(responseClass)) {
+							sub.onSuccess(new LoomClientResponseImpl<>(null, response.code(), response.message(), extractHeaders(response)));
+						} else if (RestModel.class.isAssignableFrom(responseClass)) {
 							Class<? extends RestModel> r = (Class<? extends RestModel>) responseClass;
-							sub.onSuccess((T) LoomJson.parse(bodyStr, r));
+							T model = (T) LoomJson.parse(bodyStr, r);
+							sub.onSuccess(new LoomClientResponseImpl<>(model, response.code(), response.message(), extractHeaders(response)));
 						} else {
 							throw new RuntimeException("Unsupported response class encountered. Got: " + responseClass.getName());
 						}

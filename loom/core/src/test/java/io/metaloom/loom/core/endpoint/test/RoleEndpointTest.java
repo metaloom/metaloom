@@ -27,14 +27,14 @@ public class RoleEndpointTest extends AbstractCRUDEndpointTest {
 			for (int i = 0; i < 100; i++) {
 				RoleCreateRequest request = new RoleCreateRequest();
 				request.setName("role_" + i);
-				client.createRole(request).sync();
+				client.createRole(request).sync().body();
 			}
 
 			RoleListResponse pageResponse = client.listRoles()
 				.addLimit(10)
 				.sortBy(LoomSortKey.NAME)
 				.sortDirection(SortDirection.ASCENDING)
-				.sync();
+				.sync().body();
 
 			for (RoleResponse element : pageResponse.getData()) {
 				System.out.println(element.getName());
@@ -52,7 +52,7 @@ public class RoleEndpointTest extends AbstractCRUDEndpointTest {
 				.addLimit(10)
 				.sortBy(LoomSortKey.EMAIL)
 				.sortDirection(SortDirection.ASCENDING)
-				.sync();
+				.sync().body();
 			});
 			assertEquals(400, ex.getStatusCode());
 			assertEquals("Bad Request", ex.getStatusMsg());
@@ -62,7 +62,7 @@ public class RoleEndpointTest extends AbstractCRUDEndpointTest {
 
 	@Override
 	protected void testRead(LoomHttpClient client) throws LoomClientException {
-		RoleResponse role = client.loadRole(ROLE_UUID).sync();
+		RoleResponse role = client.loadRole(ROLE_UUID).sync().body();
 		assertThat(role).isValid();
 	}
 
@@ -70,16 +70,16 @@ public class RoleEndpointTest extends AbstractCRUDEndpointTest {
 	protected void testCreate(LoomHttpClient client) throws LoomClientException {
 		RoleCreateRequest request = new RoleCreateRequest();
 		request.setName("dummy name");
-		RoleResponse role = client.createRole(request).sync();
+		RoleResponse role = client.createRole(request).sync().body();
 		assertThat(role).isValid();
 
-		RoleResponse role2 = client.loadRole(role.getUuid()).sync();
+		RoleResponse role2 = client.loadRole(role.getUuid()).sync().body();
 		assertThat(role).matches(role2);
 	}
 
 	@Override
 	protected void testDelete(LoomHttpClient client) throws LoomClientException {
-		client.deleteRole(ROLE_UUID).sync();
+		client.deleteRole(ROLE_UUID).sync().body();
 		expect(404, "Not Found", client.loadRole(ROLE_UUID));
 	}
 
@@ -87,7 +87,7 @@ public class RoleEndpointTest extends AbstractCRUDEndpointTest {
 	protected void testUpdate(LoomHttpClient client) throws LoomClientException {
 		RoleUpdateRequest update = new RoleUpdateRequest();
 		update.setName("updated-name");
-		RoleResponse response = client.updateRole(ROLE_UUID, update).sync();
+		RoleResponse response = client.updateRole(ROLE_UUID, update).sync().body();
 		assertThat(response).isValid();
 	}
 
@@ -96,9 +96,9 @@ public class RoleEndpointTest extends AbstractCRUDEndpointTest {
 		for (int i = 0; i < 100; i++) {
 			RoleCreateRequest request = new RoleCreateRequest();
 			request.setName("dummy name " + i);
-			client.createRole(request).sync();
+			client.createRole(request).sync().body();
 		}
-		RoleListResponse list = client.listRoles().sync();
+		RoleListResponse list = client.listRoles().sync().body();
 		assertThat(list).isValid().hasSize(25).hasPerPage(25);
 	}
 }

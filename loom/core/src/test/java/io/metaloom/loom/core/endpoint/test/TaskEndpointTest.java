@@ -14,7 +14,7 @@ public class TaskEndpointTest extends AbstractCRUDEndpointTest {
 
 	@Override
 	protected void testRead(LoomHttpClient client) throws LoomClientException {
-		TaskResponse task = client.loadTask(TASK_UUID).sync();
+		TaskResponse task = client.loadTask(TASK_UUID).sync().body();
 		assertThat(task).isValid();
 	}
 
@@ -22,16 +22,16 @@ public class TaskEndpointTest extends AbstractCRUDEndpointTest {
 	protected void testCreate(LoomHttpClient client) throws LoomClientException {
 		TaskCreateRequest request = new TaskCreateRequest();
 		request.setTitle("dummy title");
-		TaskResponse task = client.createTask(request).sync();
+		TaskResponse task = client.createTask(request).sync().body();
 		assertThat(task).isValid();
 
-		TaskResponse task2 = client.loadTask(task.getUuid()).sync();
+		TaskResponse task2 = client.loadTask(task.getUuid()).sync().body();
 		assertThat(task).matches(task2);
 	}
 
 	@Override
 	protected void testDelete(LoomHttpClient client) throws LoomClientException {
-		client.deleteTask(TASK_UUID).sync();
+		client.deleteTask(TASK_UUID).sync().body();
 		expect(404, "Not Found", client.loadTask(TASK_UUID));
 	}
 
@@ -40,7 +40,7 @@ public class TaskEndpointTest extends AbstractCRUDEndpointTest {
 		TaskUpdateRequest update = new TaskUpdateRequest();
 		update.setTitle("updated-title");
 		update.setDescription("updated-description");
-		TaskResponse response = client.updateTask(TASK_UUID, update).sync();
+		TaskResponse response = client.updateTask(TASK_UUID, update).sync().body();
 		assertThat(response).isValid();
 	}
 
@@ -49,9 +49,9 @@ public class TaskEndpointTest extends AbstractCRUDEndpointTest {
 		for (int i = 0; i < 100; i++) {
 			TaskCreateRequest request = new TaskCreateRequest();
 			request.setTitle("dummy title");
-			client.createTask(request).sync();
+			client.createTask(request).sync().body();
 		}
-		TaskListResponse list = client.listTasks().sync();
+		TaskListResponse list = client.listTasks().sync().body();
 		assertThat(list).isValid().hasSize(25).hasPerPage(25);
 	}
 

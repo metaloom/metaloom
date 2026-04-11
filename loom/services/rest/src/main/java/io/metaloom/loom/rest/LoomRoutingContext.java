@@ -158,4 +158,11 @@ public class LoomRoutingContext {
 		return rc.fileUploads();
 	}
 
+	/**
+	 * Return the underlying Vert.x routing context.
+	 */
+	public RoutingContext routingContext() {
+		return rc;
+	}
+
 }
