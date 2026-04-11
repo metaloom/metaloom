@@ -13,7 +13,7 @@ import {
 import { tokens } from "../../theme";
 import { ChatMessage, ChatReference } from "../../types";
 import { mockChatService } from "../../mock/services";
-import { useProject } from "../../context/ProjectContext";
+import { useSpace } from "../../context/SpaceContext";
 import AssetBrowser from "../assets/AssetBrowser";
 import { ASSETS, COLLECTIONS, TASKS, PIPELINES } from "../../mock/data";
 
@@ -377,7 +377,7 @@ function CollectionRow({ collection }: { collection: typeof COLLECTIONS[0] }) {
 
 // ── Main Chat Workspace ───────────────────────────────────────────────────
 export default function ChatWorkspace() {
-  const { activeProject } = useProject();
+  const { activeSpace } = useSpace();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -434,7 +434,7 @@ export default function ChatWorkspace() {
     }
 
     try {
-      const response = await mockChatService.sendMessage(text, activeProject?.id ?? "");
+      const response = await mockChatService.sendMessage(text, activeSpace?.id ?? "");
       setMessages(prev => [...prev, response]);
     } finally {
       setSending(false);
@@ -479,7 +479,7 @@ export default function ChatWorkspace() {
               Loom Agent
             </Typography>
             <Typography variant="caption" sx={{ color: tokens.accent.green, fontSize: "0.68rem" }}>
-              ● online · {activeProject?.name ?? "No project"}
+              ● online · {activeSpace?.name ?? "No space"}
             </Typography>
           </Box>
         </Box>

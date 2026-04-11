@@ -27,7 +27,7 @@ import { Tabs, Tab } from "@mui/material";
 import { tokens } from "../../theme";
 import { Pipeline, PipelineNode, PipelineRun } from "../../types";
 import { mockPipelineService } from "../../mock/services";
-import { useProject } from "../../context/ProjectContext";
+import { useSpace } from "../../context/SpaceContext";
 
 // ── Custom Node Types ─────────────────────────────────────────────────────
 const nodeTypeConfig: Record<string, { color: string; icon: React.ReactNode; bg: string }> = {
@@ -684,7 +684,7 @@ function PipelineCanvas({ pipeline, onNodeSelect, externalNodes, nodeDisplayName
 
 // ── Main Pipeline Editor ──────────────────────────────────────────────────
 export default function PipelineEditor() {
-  const { activeProject } = useProject();
+  const { activeSpace } = useSpace();
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selected, setSelected] = useState<Pipeline | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);

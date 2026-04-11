@@ -17,15 +17,15 @@ const delay = (ms = 200) => new Promise<void>((r) => setTimeout(r, ms));
 
 // ── Libraries ────────────────────────────────────────────────────────────
 export const mockLibraryService = {
-  getByProject: async (projectId: string): Promise<Library[]> => {
+  getBySpace: async (spaceId: string): Promise<Library[]> => {
     await delay(100);
-    return LIBRARIES.filter(l => l.projectId === projectId);
+    return LIBRARIES.filter(l => l.spaceId === spaceId);
   },
-  create: async (projectId: string, name: string, description: string): Promise<Library> => {
+  create: async (spaceId: string, name: string, description: string): Promise<Library> => {
     await delay(150);
     const lib: Library = {
       id: `lib_${Date.now()}`,
-      projectId,
+      spaceId: spaceId,
       name,
       description,
       assetCount: 0,
@@ -44,9 +44,9 @@ export const mockLibraryService = {
 // ── Assets ────────────────────────────────────────────────────────────────
 export const mockAssetService = {
   getAll: async (): Promise<Asset[]> => { await delay(150); return [...ASSETS]; },
-  getByProject: async (projectId: string): Promise<Asset[]> => {
+  getBySpace: async (spaceId: string): Promise<Asset[]> => {
     await delay(150);
-    return ASSETS.filter(a => a.projectId === projectId);
+    return ASSETS.filter(a => a.spaceId === spaceId);
   },
   getByLibrary: async (libraryId: string): Promise<Asset[]> => {
     await delay(120);
@@ -56,11 +56,11 @@ export const mockAssetService = {
     await delay(80);
     return ASSETS.find(a => a.id === id);
   },
-  search: async (projectId: string, query: string): Promise<Asset[]> => {
+  search: async (spaceId: string, query: string): Promise<Asset[]> => {
     await delay(200);
     const q = query.toLowerCase();
     return ASSETS.filter(a =>
-      a.projectId === projectId &&
+      a.spaceId === spaceId &&
       (a.name.toLowerCase().includes(q) || a.tags.some(t => t.includes(q)) || a.description.toLowerCase().includes(q))
     );
   },
@@ -68,19 +68,19 @@ export const mockAssetService = {
 
 // ── Collections ──────────────────────────────────────────────────────────
 export const mockCollectionService = {
-  getByProject: async (projectId: string): Promise<Collection[]> => {
+  getBySpace: async (spaceId: string): Promise<Collection[]> => {
     await delay(120);
-    return COLLECTIONS.filter(c => c.projectId === projectId);
+    return COLLECTIONS.filter(c => c.spaceId === spaceId);
   },
   getById: async (id: string): Promise<Collection | undefined> => {
     await delay(80);
     return COLLECTIONS.find(c => c.id === id);
   },
-  create: async (projectId: string, name: string, description: string, color: string): Promise<Collection> => {
+  create: async (spaceId: string, name: string, description: string, color: string): Promise<Collection> => {
     await delay(150);
     const col: Collection = {
       id: `col_${Date.now()}`,
-      projectId,
+      spaceId,
       name,
       description,
       assetIds: [],
@@ -126,9 +126,9 @@ export const mockReactionService = {
 // ── Pipelines ─────────────────────────────────────────────────────────────
 export const mockPipelineService = {
   getAll: async (): Promise<Pipeline[]> => { await delay(150); return [...PIPELINES]; },
-  getByProject: async (projectId: string): Promise<Pipeline[]> => {
+  getBySpace: async (spaceId: string): Promise<Pipeline[]> => {
     await delay(150);
-    return PIPELINES.filter(p => p.projectId === projectId);
+    return PIPELINES.filter(p => p.spaceId === spaceId);
   },
   getById: async (id: string): Promise<Pipeline | undefined> => {
     await delay(80);
@@ -164,7 +164,7 @@ export const mockChatService = {
     return [...INITIAL_CHAT];
   },
 
-  sendMessage: async (content: string, projectId: string): Promise<ChatMessage> => {
+  sendMessage: async (content: string, spaceId: string): Promise<ChatMessage> => {
     await delay(900 + Math.random() * 600);
 
     const q = content.toLowerCase();
@@ -192,7 +192,7 @@ export const mockChatService = {
       };
     } else if (q.includes("task") && (q.includes("sport") || q.includes("sports"))) {
       response = {
-        content: "There are **3 tasks** in the Sports Archive project. Two are critical priority right now: an overdue broadcast proxy and the halftime ingest monitoring.",
+        content: "There are **3 tasks** in the Sports Archive space. Two are critical priority right now: an overdue broadcast proxy and the halftime ingest monitoring.",
         references: [
           { type: "task", id: "t5", label: "Export broadcast proxy" },
           { type: "task", id: "t6", label: "Monitor halftime ingest" },
@@ -221,8 +221,8 @@ export const mockChatService = {
       };
     } else {
       const fallbacks = [
-        "I understand your request. Let me look across the current project for relevant assets and actions.",
-        "Here's what I found. The data is scoped to the active project — switch projects from the top of the sidebar if needed.",
+        "I understand your request. Let me look across the current space for relevant assets and actions.",
+        "Here's what I found. The data is scoped to the active space — switch spaces from the sidebar if needed.",
         "I've reviewed the metadata. Let me know if you want me to take any action or open a specific asset.",
       ];
       response = {

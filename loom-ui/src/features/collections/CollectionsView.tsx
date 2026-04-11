@@ -9,7 +9,7 @@ import { AddOutlined, CollectionsOutlined, ArrowForwardIos, DeleteOutlined, Arro
 import { tokens } from "../../theme";
 import { Collection, Asset } from "../../types";
 import { mockCollectionService, mockAssetService } from "../../mock/services";
-import { useProject } from "../../context/ProjectContext";
+import { useSpace } from "../../context/SpaceContext";
 import { useToast } from "../../context/ToastContext";
 import { ASSETS } from "../../mock/data";
 
@@ -144,7 +144,7 @@ function CollectionDetail({ collection, onBack }: { collection: Collection; onBa
 }
 
 export default function CollectionsView() {
-  const { activeProject } = useProject();
+  const { activeSpace } = useSpace();
   const { showToast } = useToast();
   const [collections, setCollections] = useState<Collection[]>([]);
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
@@ -157,14 +157,14 @@ export default function CollectionsView() {
   const [query, setQuery] = useState("");
 
   useEffect(() => {
-    if (!activeProject) return;
-    mockCollectionService.getByProject(activeProject.id).then(setCollections);
-  }, [activeProject]);
+    if (!activeSpace) return;
+    mockCollectionService.getBySpace(activeSpace.id).then(setCollections);
+  }, [activeSpace]);
 
   const handleCreate = async () => {
-    if (!activeProject || !newName.trim()) return;
+    if (!activeSpace || !newName.trim()) return;
     setCreating(true);
-    const col = await mockCollectionService.create(activeProject.id, newName.trim(), newDesc.trim(), newColor);
+    const col = await mockCollectionService.create(activeSpace.id, newName.trim(), newDesc.trim(), newColor);
     setCollections(prev => [...prev, col]);
     setNewName(""); setNewDesc(""); setNewColor(PALETTE[0]); setCreateOpen(false); setCreating(false);
   };
@@ -194,7 +194,7 @@ export default function CollectionsView() {
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <Box>
             <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Collections</Typography>
-            <Typography variant="caption" color="text.secondary">{activeProject?.name} · {collections.length} collections</Typography>
+            <Typography variant="caption" color="text.secondary">{activeSpace?.name} · {collections.length} collections</Typography>
           </Box>
           <Chip
             icon={<AddOutlined sx={{ fontSize: 14 }} />}
@@ -227,7 +227,7 @@ export default function CollectionsView() {
         {filtered.length === 0 ? (
           <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 200, gap: 1 }}>
             <CollectionsOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
-            <Typography variant="body2" color="text.secondary">{collections.length === 0 ? "No collections in this project" : "No collections match your search"}</Typography>
+            <Typography variant="body2" color="text.secondary">{collections.length === 0 ? "No collections in this space" : "No collections match your search"}</Typography>
           </Box>
         ) : (
           <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 2 }}>

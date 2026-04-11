@@ -15,7 +15,7 @@ import { tokens } from "../../theme";
 import { Asset, AssetType, AssetStatus } from "../../types";
 import { useAuth } from "../../context/AuthContext";
 import { listAssets, AssetResponse } from "../../api/assets";
-import { useProject } from "../../context/ProjectContext";
+import { useSpace } from "../../context/SpaceContext";
 
 function formatBytes(bytes: number): string {
   if (bytes >= 1e12) return `${(bytes / 1e12).toFixed(1)} TB`;
@@ -61,7 +61,7 @@ function toAsset(r: AssetResponse): Asset {
 
   return {
     id: r.uuid,
-    projectId: "",
+    spaceId: "",
     libraryId: "",
     name: r.file?.filename ?? r.uuid,
     type,
@@ -213,7 +213,7 @@ interface Props {
 }
 
 export default function AssetBrowser({ embedded = false }: Props) {
-  const { activeProject } = useProject();
+  const { activeSpace } = useSpace();
   const { token } = useAuth();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [filtered, setFiltered] = useState<Asset[]>([]);
@@ -272,7 +272,7 @@ export default function AssetBrowser({ embedded = false }: Props) {
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <Box>
               <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Assets</Typography>
-              <Typography variant="caption" color="text.secondary">{activeProject?.name}</Typography>
+              <Typography variant="caption" color="text.secondary">{activeSpace?.name}</Typography>
             </Box>
           </Box>
         )}

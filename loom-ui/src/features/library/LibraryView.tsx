@@ -9,7 +9,7 @@ import { LibraryBooksOutlined, PhotoLibraryOutlined, VideocamOutlined, FolderOut
 import { tokens } from "../../theme";
 import { Library, Asset } from "../../types";
 import { mockLibraryService, mockAssetService } from "../../mock/services";
-import { useProject } from "../../context/ProjectContext";
+import { useSpace } from "../../context/SpaceContext";
 import { useToast } from "../../context/ToastContext";
 
 function formatBytes(bytes: number): string {
@@ -20,7 +20,7 @@ function formatBytes(bytes: number): string {
 }
 
 export default function LibraryView() {
-  const { activeProject } = useProject();
+  const { activeSpace } = useSpace();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [libraries, setLibraries] = useState<Library[]>([]);
@@ -34,12 +34,12 @@ export default function LibraryView() {
   const [query, setQuery] = useState("");
 
   useEffect(() => {
-    if (!activeProject) return;
-    mockLibraryService.getByProject(activeProject.id).then(libs => {
+    if (!activeSpace) return;
+    mockLibraryService.getBySpace(activeSpace.id).then(libs => {
       setLibraries(libs);
       setSelectedLib(libs[0] ?? null);
     });
-  }, [activeProject]);
+  }, [activeSpace]);
 
   useEffect(() => {
     if (!selectedLib) return;
@@ -47,9 +47,9 @@ export default function LibraryView() {
   }, [selectedLib]);
 
   const handleCreate = async () => {
-    if (!activeProject || !newName.trim()) return;
+    if (!activeSpace || !newName.trim()) return;
     setCreating(true);
-    const lib = await mockLibraryService.create(activeProject.id, newName.trim(), newDesc.trim());
+    const lib = await mockLibraryService.create(activeSpace.id, newName.trim(), newDesc.trim());
     setLibraries(prev => [...prev, lib]);
     setSelectedLib(lib);
     setNewName(""); setNewDesc(""); setCreateOpen(false); setCreating(false);
@@ -83,9 +83,9 @@ export default function LibraryView() {
           <Box>
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
               <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Libraries</Typography>
-              <Tooltip title="Libraries are used to aggregate and organise assets into logical collections within a project." arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
+              <Tooltip title="Libraries are used to aggregate and organise assets into logical collections within a space." arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
             </Box>
-            <Typography variant="caption" color="text.secondary">{activeProject?.name}</Typography>
+            <Typography variant="caption" color="text.secondary">{activeSpace?.name}</Typography>
           </Box>
           <Tooltip title="New library">
             <IconButton size="small" onClick={() => setCreateOpen(true)} sx={{ bgcolor: tokens.primary.subtle, color: tokens.primary.main, "&:hover": { bgcolor: tokens.primary.glow } }}>

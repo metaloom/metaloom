@@ -7,8 +7,8 @@ export type TaskPriority = "low" | "medium" | "high" | "critical";
 export type PipelineStatus = "idle" | "running" | "success" | "failed" | "paused";
 export type ReactionType = "approve" | "flag" | "reject" | "favorite" | "question";
 
-// Projects
-export interface Project {
+// Spaces
+export interface Space {
   id: string;
   name: string;
   slug: string;
@@ -23,7 +23,7 @@ export interface Project {
 // Libraries
 export interface Library {
   id: string;
-  projectId: string;
+  spaceId: string;
   name: string;
   description: string;
   assetCount: number;
@@ -33,7 +33,7 @@ export interface Library {
 // Assets
 export interface Asset {
   id: string;
-  projectId: string;
+  spaceId: string;
   libraryId: string;
   name: string;
   type: AssetType;
@@ -58,7 +58,7 @@ export interface Asset {
 // Collections
 export interface Collection {
   id: string;
-  projectId: string;
+  spaceId: string;
   name: string;
   description: string;
   assetIds: string[];
@@ -71,7 +71,7 @@ export interface Collection {
 // Tasks
 export interface Task {
   id: string;
-  projectId: string;
+  spaceId: string;
   title: string;
   description: string;
   status: TaskStatus;
@@ -155,7 +155,7 @@ export interface PipelineRun {
 
 export interface Pipeline {
   id: string;
-  projectId: string;
+  spaceId: string;
   name: string;
   description: string;
   enabled: boolean;

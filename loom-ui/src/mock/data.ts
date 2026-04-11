@@ -65,17 +65,17 @@ export const BLACKLIST: BlacklistEntry[] = [
 
 // ── Libraries ─────────────────────────────────────────────────────────────
 export const LIBRARIES: Library[] = [
-  { id: "lib1", projectId: "proj1", name: "Hero Videos", description: "Campaign hero video masters", assetCount: 28, createdAt: daysAgo(88) },
-  { id: "lib2", projectId: "proj1", name: "Still Photos", description: "Product and lifestyle photography", assetCount: 114, createdAt: daysAgo(88) },
-  { id: "lib3", projectId: "proj2", name: "Match Footage", description: "Game and highlight reels", assetCount: 220, createdAt: daysAgo(178) },
-  { id: "lib4", projectId: "proj2", name: "Press Images", description: "Editorial press photos", assetCount: 161, createdAt: daysAgo(178) },
-  { id: "lib5", projectId: "proj3", name: "All Hands", description: "All-hands meeting recordings", assetCount: 58, createdAt: daysAgo(28) },
+  { id: "lib1", spaceId: "proj1", name: "Hero Videos", description: "Campaign hero video masters", assetCount: 28, createdAt: daysAgo(88) },
+  { id: "lib2", spaceId: "proj1", name: "Still Photos", description: "Product and lifestyle photography", assetCount: 114, createdAt: daysAgo(88) },
+  { id: "lib3", spaceId: "proj2", name: "Match Footage", description: "Game and highlight reels", assetCount: 220, createdAt: daysAgo(178) },
+  { id: "lib4", spaceId: "proj2", name: "Press Images", description: "Editorial press photos", assetCount: 161, createdAt: daysAgo(178) },
+  { id: "lib5", spaceId: "proj3", name: "All Hands", description: "All-hands meeting recordings", assetCount: 58, createdAt: daysAgo(28) },
 ];
 
 // ── Assets ────────────────────────────────────────────────────────────────
 export const ASSETS: Asset[] = [
   {
-    id: "a1", projectId: "proj1", libraryId: "lib1",
+    id: "a1", spaceId: "proj1", libraryId: "lib1",
     name: "Hero_Campaign_30s_Final.mp4",
     type: "video", status: "ready",
     tags: ["hero", "campaign", "approved", "30s"],
@@ -89,7 +89,7 @@ export const ASSETS: Asset[] = [
     metadata: { codec: "h265", fps: 60, colorSpace: "BT.2020", deliverable: true },
   },
   {
-    id: "a2", projectId: "proj1", libraryId: "lib1",
+    id: "a2", spaceId: "proj1", libraryId: "lib1",
     name: "Hero_Campaign_15s_Cut.mp4",
     type: "video", status: "ready",
     tags: ["hero", "campaign", "15s", "social"],
@@ -103,7 +103,7 @@ export const ASSETS: Asset[] = [
     metadata: { codec: "h264", fps: 30, colorSpace: "BT.709", deliverable: true },
   },
   {
-    id: "a3", projectId: "proj1", libraryId: "lib2",
+    id: "a3", spaceId: "proj1", libraryId: "lib2",
     name: "Product_Shot_A_Hero.jpg",
     type: "image", status: "ready",
     tags: ["product", "hero", "clean"],
@@ -117,7 +117,7 @@ export const ASSETS: Asset[] = [
     metadata: { lens: "85mm f/1.4", iso: 200, studio: "Studio B" },
   },
   {
-    id: "a4", projectId: "proj1", libraryId: "lib2",
+    id: "a4", spaceId: "proj1", libraryId: "lib2",
     name: "Lifestyle_Shoot_Outdoors_01.jpg",
     type: "image", status: "ready",
     tags: ["lifestyle", "outdoor", "talent"],
@@ -131,7 +131,7 @@ export const ASSETS: Asset[] = [
     metadata: { location: "Venice Beach, CA", talent: "cleared" },
   },
   {
-    id: "a5", projectId: "proj2", libraryId: "lib3",
+    id: "a5", spaceId: "proj2", libraryId: "lib3",
     name: "Match_Finals_Highlight_Reel.mp4",
     type: "video", status: "ready",
     tags: ["highlight", "finals", "broadcast"],
@@ -145,7 +145,7 @@ export const ASSETS: Asset[] = [
     metadata: { event: "Championship Finals 2026", format: "MXF proxy" },
   },
   {
-    id: "a6", projectId: "proj2", libraryId: "lib3",
+    id: "a6", spaceId: "proj2", libraryId: "lib3",
     name: "Halftime_Show_4K.mp4",
     type: "video", status: "processing",
     tags: ["halftime", "4k", "ingest"],
@@ -159,7 +159,7 @@ export const ASSETS: Asset[] = [
     metadata: { ingestSource: "SDI Deck 4", frame: "59.94" },
   },
   {
-    id: "a7", projectId: "proj2", libraryId: "lib4",
+    id: "a7", spaceId: "proj2", libraryId: "lib4",
     name: "Press_Conference_Hero.jpg",
     type: "image", status: "ready",
     tags: ["press", "official", "editorial"],
@@ -173,7 +173,7 @@ export const ASSETS: Asset[] = [
     metadata: { photographer: "Jeff Stein", agency: "AP" },
   },
   {
-    id: "a8", projectId: "proj3", libraryId: "lib5",
+    id: "a8", spaceId: "proj3", libraryId: "lib5",
     name: "All_Hands_Q1_2026.mp4",
     type: "video", status: "ready",
     tags: ["all-hands", "internal", "q1"],
@@ -187,7 +187,7 @@ export const ASSETS: Asset[] = [
     metadata: { confidential: true, presenter: "Aria Chen" },
   },
   {
-    id: "a9", projectId: "proj1", libraryId: "lib1",
+    id: "a9", spaceId: "proj1", libraryId: "lib1",
     name: "Behind_The_Scenes_BTS.mp4",
     type: "video", status: "failed",
     tags: ["bts", "draft"],
@@ -204,22 +204,22 @@ export const ASSETS: Asset[] = [
 
 // ── Collections ───────────────────────────────────────────────────────────
 export const COLLECTIONS: Collection[] = [
-  { id: "col1", projectId: "proj1", name: "Broadcast Deliverables", description: "Final approved assets cleared for broadcast", assetIds: ["a1", "a2"], ownerId: "u1", color: "#7c6af7", createdAt: daysAgo(13), updatedAt: daysAgo(2) },
-  { id: "col2", projectId: "proj1", name: "Social Media Pack", description: "Cut-downs and photos for social channels", assetIds: ["a2", "a3", "a4"], ownerId: "u2", color: "#2ea8ff", createdAt: daysAgo(10), updatedAt: daysAgo(1) },
-  { id: "col3", projectId: "proj2", name: "Finals Package", description: "Championship finals full media package", assetIds: ["a5", "a7"], ownerId: "u5", color: "#f5a623", createdAt: daysAgo(6), updatedAt: daysAgo(1) },
-  { id: "col4", projectId: "proj3", name: "Q1 Recordings", description: "All Q1 internal meeting recordings", assetIds: ["a8"], ownerId: "u1", color: "#34d58a", createdAt: daysAgo(20), updatedAt: daysAgo(14) },
+  { id: "col1", spaceId: "proj1", name: "Broadcast Deliverables", description: "Final approved assets cleared for broadcast", assetIds: ["a1", "a2"], ownerId: "u1", color: "#7c6af7", createdAt: daysAgo(13), updatedAt: daysAgo(2) },
+  { id: "col2", spaceId: "proj1", name: "Social Media Pack", description: "Cut-downs and photos for social channels", assetIds: ["a2", "a3", "a4"], ownerId: "u2", color: "#2ea8ff", createdAt: daysAgo(10), updatedAt: daysAgo(1) },
+  { id: "col3", spaceId: "proj2", name: "Finals Package", description: "Championship finals full media package", assetIds: ["a5", "a7"], ownerId: "u5", color: "#f5a623", createdAt: daysAgo(6), updatedAt: daysAgo(1) },
+  { id: "col4", spaceId: "proj3", name: "Q1 Recordings", description: "All Q1 internal meeting recordings", assetIds: ["a8"], ownerId: "u1", color: "#34d58a", createdAt: daysAgo(20), updatedAt: daysAgo(14) },
 ];
 
 // ── Tasks ─────────────────────────────────────────────────────────────────
 export const TASKS: Task[] = [
-  { id: "t1", projectId: "proj1", title: "QC final hero video", description: "Full QC pass on Hero_Campaign_30s_Final.mp4 — check audio levels, color grade, and format compliance.", status: "in_progress", priority: "high", assigneeId: "u2", assetId: "a1", dueDate: daysAgo(-2), createdAt: daysAgo(5), updatedAt: hoursAgo(8), tags: ["qc", "high-priority"] },
-  { id: "t2", projectId: "proj1", title: "Add subtitles to 30s hero", description: "Add EN subtitles and accessibility annotations to hero video.", status: "open", priority: "medium", assigneeId: "u3", assetId: "a1", dueDate: daysAgo(-5), createdAt: daysAgo(4), updatedAt: daysAgo(2), tags: ["accessibility", "subtitles"] },
-  { id: "t3", projectId: "proj1", title: "Approve 15s social cut", description: "Brand sign-off on social cut. Check logo safe zone for all platforms.", status: "review", priority: "high", assigneeId: "u1", assetId: "a2", dueDate: daysAgo(-1), createdAt: daysAgo(3), updatedAt: hoursAgo(4), tags: ["approval", "social"] },
-  { id: "t4", projectId: "proj1", title: "Retouch product hero shot", description: "Minor retouch: remove shadow artifact in bottom-right corner.", status: "done", priority: "low", assigneeId: "u3", assetId: "a3", dueDate: daysAgo(1), createdAt: daysAgo(7), updatedAt: daysAgo(2), tags: ["retouching"] },
-  { id: "t5", projectId: "proj2", title: "Export broadcast proxy", description: "Create low-res proxy for editorial workflow.", status: "open", priority: "critical", assigneeId: "u5", assetId: "a5", dueDate: hoursAgo(-24), createdAt: daysAgo(2), updatedAt: hoursAgo(6), tags: ["proxy", "broadcast"] },
-  { id: "t6", projectId: "proj2", title: "Monitor halftime ingest", description: "Track ingest progress, validate checksums when complete.", status: "in_progress", priority: "critical", assigneeId: "u5", assetId: "a6", createdAt: hoursAgo(4), updatedAt: hoursAgo(1), tags: ["ingest", "monitoring"] },
-  { id: "t7", projectId: "proj3", title: "Chaptering for All Hands Q1", description: "Add chapter markers for each agenda item.", status: "open", priority: "low", assigneeId: "u2", assetId: "a8", dueDate: daysAgo(-7), createdAt: daysAgo(14), updatedAt: daysAgo(10), tags: ["chapters", "internal"] },
-  { id: "t8", projectId: "proj1", title: "Re-ingest BTS footage", description: "Source file is available on Deck 3. Re-ingest and validate audio track.", status: "blocked", priority: "medium", assigneeId: "u2", assetId: "a9", createdAt: daysAgo(3), updatedAt: hoursAgo(12), tags: ["ingest", "blocked"] },
+  { id: "t1", spaceId: "proj1", title: "QC final hero video", description: "Full QC pass on Hero_Campaign_30s_Final.mp4 — check audio levels, color grade, and format compliance.", status: "in_progress", priority: "high", assigneeId: "u2", assetId: "a1", dueDate: daysAgo(-2), createdAt: daysAgo(5), updatedAt: hoursAgo(8), tags: ["qc", "high-priority"] },
+  { id: "t2", spaceId: "proj1", title: "Add subtitles to 30s hero", description: "Add EN subtitles and accessibility annotations to hero video.", status: "open", priority: "medium", assigneeId: "u3", assetId: "a1", dueDate: daysAgo(-5), createdAt: daysAgo(4), updatedAt: daysAgo(2), tags: ["accessibility", "subtitles"] },
+  { id: "t3", spaceId: "proj1", title: "Approve 15s social cut", description: "Brand sign-off on social cut. Check logo safe zone for all platforms.", status: "review", priority: "high", assigneeId: "u1", assetId: "a2", dueDate: daysAgo(-1), createdAt: daysAgo(3), updatedAt: hoursAgo(4), tags: ["approval", "social"] },
+  { id: "t4", spaceId: "proj1", title: "Retouch product hero shot", description: "Minor retouch: remove shadow artifact in bottom-right corner.", status: "done", priority: "low", assigneeId: "u3", assetId: "a3", dueDate: daysAgo(1), createdAt: daysAgo(7), updatedAt: daysAgo(2), tags: ["retouching"] },
+  { id: "t5", spaceId: "proj2", title: "Export broadcast proxy", description: "Create low-res proxy for editorial workflow.", status: "open", priority: "critical", assigneeId: "u5", assetId: "a5", dueDate: hoursAgo(-24), createdAt: daysAgo(2), updatedAt: hoursAgo(6), tags: ["proxy", "broadcast"] },
+  { id: "t6", spaceId: "proj2", title: "Monitor halftime ingest", description: "Track ingest progress, validate checksums when complete.", status: "in_progress", priority: "critical", assigneeId: "u5", assetId: "a6", createdAt: hoursAgo(4), updatedAt: hoursAgo(1), tags: ["ingest", "monitoring"] },
+  { id: "t7", spaceId: "proj3", title: "Chaptering for All Hands Q1", description: "Add chapter markers for each agenda item.", status: "open", priority: "low", assigneeId: "u2", assetId: "a8", dueDate: daysAgo(-7), createdAt: daysAgo(14), updatedAt: daysAgo(10), tags: ["chapters", "internal"] },
+  { id: "t8", spaceId: "proj1", title: "Re-ingest BTS footage", description: "Source file is available on Deck 3. Re-ingest and validate audio track.", status: "blocked", priority: "medium", assigneeId: "u2", assetId: "a9", createdAt: daysAgo(3), updatedAt: hoursAgo(12), tags: ["ingest", "blocked"] },
 ];
 
 // ── Comments ──────────────────────────────────────────────────────────────
@@ -255,7 +255,7 @@ export const REACTIONS: Reaction[] = [
 // ── Pipelines ─────────────────────────────────────────────────────────────
 export const PIPELINES: Pipeline[] = [
   {
-    id: "pipe1", projectId: "proj1", name: "Campaign Ingest Pipeline",
+    id: "pipe1", spaceId: "proj1", name: "Campaign Ingest Pipeline",
     description: "Processes incoming campaign assets: hash, fingerprint, resize, and deliver to S3.",
     enabled: true, priority: 1, dryRun: false,
     definition: {
@@ -285,7 +285,7 @@ export const PIPELINES: Pipeline[] = [
     createdAt: daysAgo(60), updatedAt: hoursAgo(2),
   },
   {
-    id: "pipe2", projectId: "proj2", name: "Sports Broadcast Processing",
+    id: "pipe2", spaceId: "proj2", name: "Sports Broadcast Processing",
     description: "High-priority ingestion and transcoding for live sports broadcasts.",
     enabled: true, priority: 10, dryRun: false,
     definition: {
@@ -310,7 +310,7 @@ export const PIPELINES: Pipeline[] = [
     createdAt: daysAgo(120), updatedAt: hoursAgo(3),
   },
   {
-    id: "pipe3", projectId: "proj1", name: "AI Tagging Pipeline",
+    id: "pipe3", spaceId: "proj1", name: "AI Tagging Pipeline",
     description: "Runs ML models to auto-tag assets with objects, faces, and sentiment.",
     enabled: true, priority: 5, dryRun: true,
     definition: {

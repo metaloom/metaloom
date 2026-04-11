@@ -42,7 +42,7 @@ function apiToAsset(r: AssetResponse): Asset {
 
   return {
     id: r.uuid,
-    projectId: "",
+    spaceId: "",
     libraryId: "",
     name: r.file?.filename ?? r.uuid,
     type,
