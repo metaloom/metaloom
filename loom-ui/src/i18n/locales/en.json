@@ -311,6 +311,11 @@
     "helper": {
       "username": "Username cannot be changed"
     },
+    "language": {
+      "label": "Language",
+      "en": "English",
+      "de": "German"
+    },
     "button": {
       "save": "Save changes"
     },

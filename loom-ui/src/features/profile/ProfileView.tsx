@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import {
   Box, Typography, TextField, Button, Avatar, IconButton, Divider,
+  ToggleButton, ToggleButtonGroup,
 } from "@mui/material";
 import { PhotoCameraOutlined } from "@mui/icons-material";
 import { tokens } from "../../theme";
@@ -11,7 +12,8 @@ import { useTranslation } from "react-i18next";
 export default function ProfileView() {
   const user = USERS[0];
   const { showToast } = useToast();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const [language, setLanguage] = useState(i18n.language);
   const [firstName, setFirstName] = useState(user.name.split(" ")[0]);
   const [lastName, setLastName] = useState(user.name.split(" ").slice(1).join(" "));
   const [email, setEmail] = useState(user.email);
@@ -24,6 +26,13 @@ export default function ProfileView() {
       reader.onload = () => setAvatarPreview(reader.result as string);
       reader.readAsDataURL(file);
     }
+  };
+
+  const handleLanguageChange = (_: React.MouseEvent<HTMLElement>, lang: string | null) => {
+    if (!lang) return;
+    i18n.changeLanguage(lang);
+    localStorage.setItem("loom-ui-language", lang);
+    setLanguage(lang);
   };
 
   const handleSave = () => {
@@ -123,6 +132,28 @@ export default function ProfileView() {
           value={user.role}
           disabled
         />
+      </Box>
+
+      <Divider sx={{ my: 3 }} />
+
+      {/* Language */}
+      <Box sx={{ mb: 3 }}>
+        <Typography
+          variant="body2"
+          fontWeight={600}
+          color="text.secondary"
+          sx={{ mb: 1.5, textTransform: "uppercase", fontSize: "0.72rem", letterSpacing: "0.07em" }}
+        >
+          {t("profile.language.label")}
+        </Typography>
+        <ToggleButtonGroup value={language} exclusive onChange={handleLanguageChange} size="small">
+          <ToggleButton value="en" sx={{ px: 2, fontSize: "0.8rem", textTransform: "none" }}>
+            🇬🇧 {t("profile.language.en")}
+          </ToggleButton>
+          <ToggleButton value="de" sx={{ px: 2, fontSize: "0.8rem", textTransform: "none" }}>
+            🇩🇪 {t("profile.language.de")}
+          </ToggleButton>
+        </ToggleButtonGroup>
       </Box>
 
       <Box sx={{ mt: 4 }}>
