@@ -1,16 +1,17 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Box, Typography, Paper, Chip, Avatar, Divider, List, ListItemButton, ListItemText,
+  Box, Typography, Paper, List, ListItemButton, ListItemText,
   IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Tooltip,
   InputAdornment,
 } from "@mui/material";
-import { LibraryBooksOutlined, PhotoLibraryOutlined, VideocamOutlined, FolderOutlined, AddOutlined, DeleteOutlined, SearchOutlined, HelpOutlineOutlined } from "@mui/icons-material";
+import { LibraryBooksOutlined, PhotoLibraryOutlined, VideocamOutlined, FolderOutlined, AddOutlined, DeleteOutlined, SearchOutlined, HelpOutlineOutlined, EditOutlined } from "@mui/icons-material";
 import { tokens } from "../../theme";
-import { Library, Asset } from "../../types";
-import { mockLibraryService, mockAssetService } from "../../mock/services";
+import { AssetResponse, listAssets } from "../../api/assets";
+import { createLibrary, deleteLibrary, listLibraries, updateLibrary } from "../../api/libraries";
 import { useSpace } from "../../context/SpaceContext";
 import { useToast } from "../../context/ToastContext";
+import { useAuth } from "../../context/AuthContext";
 import { useTranslation } from "react-i18next";
 
 function formatBytes(bytes: number): string {
@@ -23,43 +24,90 @@ function formatBytes(bytes: number): string {
 export default function LibraryView() {
   const { activeSpace } = useSpace();
   const { showToast } = useToast();
+  const { token } = useAuth();
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [libraries, setLibraries] = useState<Library[]>([]);
-  const [selectedLib, setSelectedLib] = useState<Library | null>(null);
-  const [assets, setAssets] = useState<Asset[]>([]);
+  const [libraries, setLibraries] = useState<Array<{ id: string; name: string; description: string; assetCount: number; createdAt: string }>>([]);
+  const [selectedLib, setSelectedLib] = useState<{ id: string; name: string; description: string; assetCount: number; createdAt: string } | null>(null);
+  const [assets, setAssets] = useState<AssetResponse[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [creating, setCreating] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<Library | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [updating, setUpdating] = useState(false);
   const [query, setQuery] = useState("");
 
   useEffect(() => {
-    if (!activeSpace) return;
-    mockLibraryService.getBySpace(activeSpace.id).then(libs => {
+    if (!token) return;
+    listLibraries(token).then(resp => {
+      const libs = (resp.data ?? []).map(lib => ({
+        id: lib.uuid,
+        name: lib.name,
+        description: typeof lib.meta?.description === "string" ? lib.meta.description : "",
+        assetCount: 0,
+        createdAt: lib.status?.created ?? new Date().toISOString(),
+      }));
       setLibraries(libs);
-      setSelectedLib(libs[0] ?? null);
+      setSelectedLib(prev => libs.find(l => l.id === prev?.id) ?? libs[0] ?? null);
+    }).catch(() => {
+      setLibraries([]);
+      setSelectedLib(null);
     });
-  }, [activeSpace]);
+  }, [token]);
 
   useEffect(() => {
-    if (!selectedLib) return;
-    mockAssetService.getByLibrary(selectedLib.id).then(setAssets);
-  }, [selectedLib]);
+    if (!token) return;
+    listAssets(token).then(resp => setAssets(resp.data ?? [])).catch(() => setAssets([]));
+  }, [token]);
 
   const handleCreate = async () => {
-    if (!activeSpace || !newName.trim()) return;
+    if (!token || !newName.trim()) return;
     setCreating(true);
-    const lib = await mockLibraryService.create(activeSpace.id, newName.trim(), newDesc.trim());
-    setLibraries(prev => [...prev, lib]);
-    setSelectedLib(lib);
-    setNewName(""); setNewDesc(""); setCreateOpen(false); setCreating(false);
+    try {
+      const created = await createLibrary(token, {
+        name: newName.trim(),
+        meta: newDesc.trim() ? { description: newDesc.trim() } : undefined,
+      });
+      const lib = {
+        id: created.uuid,
+        name: created.name,
+        description: typeof created.meta?.description === "string" ? created.meta.description : "",
+        assetCount: 0,
+        createdAt: created.status?.created ?? new Date().toISOString(),
+      };
+      setLibraries(prev => [...prev, lib]);
+      setSelectedLib(lib);
+      setNewName("");
+      setNewDesc("");
+      setCreateOpen(false);
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleUpdate = async () => {
+    if (!token || !selectedLib || !editName.trim()) return;
+    setUpdating(true);
+    try {
+      const updated = await updateLibrary(token, selectedLib.id, {
+        name: editName.trim(),
+      });
+      setLibraries(prev => prev.map(lib => lib.id === selectedLib.id
+        ? { ...lib, name: updated.name }
+        : lib));
+      setSelectedLib(prev => prev ? { ...prev, name: updated.name } : prev);
+      setEditOpen(false);
+    } finally {
+      setUpdating(false);
+    }
   };
 
   const handleDelete = async () => {
-    if (!deleteTarget) return;
-    await mockLibraryService.delete(deleteTarget.id);
+    if (!deleteTarget || !token) return;
+    await deleteLibrary(token, deleteTarget.id);
     const updated = libraries.filter(l => l.id !== deleteTarget.id);
     setLibraries(updated);
     if (selectedLib?.id === deleteTarget.id) setSelectedLib(updated[0] ?? null);
@@ -67,15 +115,22 @@ export default function LibraryView() {
     showToast(t("library.toast.deleted"), "success");
   };
 
-  const videoCount = assets.filter(a => a.type === "video").length;
-  const imageCount = assets.filter(a => a.type === "image").length;
-  const totalSize = assets.reduce((s, a) => s + a.fileSize, 0);
+  const filteredAssets = useMemo(() => {
+    return assets.filter(a => {
+      const filename = a.file?.filename ?? "";
+      const mimeType = a.file?.mimeType ?? "";
+      const tags = (a.tags ?? []).map(tag => `${tag.collection}:${tag.name}`);
+      if (!query.trim()) return true;
+      const q = query.toLowerCase();
+      return filename.toLowerCase().includes(q)
+        || mimeType.toLowerCase().includes(q)
+        || tags.some(tag => tag.toLowerCase().includes(q));
+    });
+  }, [assets, query]);
 
-  const filteredAssets = assets.filter(a => {
-    if (!query.trim()) return true;
-    const q = query.toLowerCase();
-    return a.name.toLowerCase().includes(q) || a.type.toLowerCase().includes(q) || a.tags.some(t => t.toLowerCase().includes(q));
-  });
+  const videoCount = filteredAssets.filter(a => (a.file?.mimeType ?? "").startsWith("video/")).length;
+  const imageCount = filteredAssets.filter(a => (a.file?.mimeType ?? "").startsWith("image/")).length;
+  const totalSize = filteredAssets.reduce((s, a) => s + (a.file?.size ?? 0), 0);
 
   return (
     <Box sx={{ display: "flex", height: "100%", overflow: "hidden", bgcolor: tokens.bg.base }}>
@@ -87,7 +142,7 @@ export default function LibraryView() {
               <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("library.title")}</Typography>
               <Tooltip title={t("library.tooltip.info")} arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
             </Box>
-            <Typography variant="caption" color="text.secondary">{activeSpace?.name}</Typography>
+            <Typography variant="caption" color="text.secondary">{activeSpace?.name ?? "All Spaces"}</Typography>
           </Box>
           <Tooltip title={t("library.tooltip.newLibrary")}>
             <IconButton size="small" onClick={() => setCreateOpen(true)} sx={{ bgcolor: tokens.primary.subtle, color: tokens.primary.main, "&:hover": { bgcolor: tokens.primary.glow } }}>
@@ -108,7 +163,7 @@ export default function LibraryView() {
               </Box>
               <ListItemText
                 primary={<Typography variant="body2" fontWeight={500} noWrap sx={{ fontSize: "0.82rem" }}>{lib.name}</Typography>}
-                secondary={<Typography variant="caption" sx={{ fontSize: "0.68rem", color: tokens.text.tertiary }}>{lib.assetCount} {t("library.count.assets")}</Typography>}
+                secondary={<Typography variant="caption" sx={{ fontSize: "0.68rem", color: tokens.text.tertiary }}>{assets.length} {t("library.count.assets")}</Typography>}
               />
               <Tooltip title={t("library.tooltip.deleteLibrary")}>
                 <IconButton
@@ -130,7 +185,20 @@ export default function LibraryView() {
           <>
             <Box sx={{ px: 2.5, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", flexDirection: "column", gap: 1 }}>
               <Box>
-                <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{selectedLib.name}</Typography>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                  <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{selectedLib.name}</Typography>
+                  <Tooltip title="Edit library">
+                    <IconButton
+                      size="small"
+                      onClick={() => {
+                        setEditName(selectedLib.name);
+                        setEditOpen(true);
+                      }}
+                      sx={{ width: 20, height: 20, color: tokens.text.tertiary }}>
+                      <EditOutlined sx={{ fontSize: 14 }} />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
                 <Typography variant="caption" color="text.secondary">{selectedLib.description}</Typography>
                 <Box sx={{ display: "flex", gap: 1.5, mt: 1 }}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
@@ -171,9 +239,9 @@ export default function LibraryView() {
                 <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 2 }}>
                   {filteredAssets.map(a => (
                     <Paper
-                      key={a.id}
+                      key={a.uuid}
                       elevation={0}
-                      onClick={() => navigate(`/assets/${a.id}`)}
+                      onClick={() => navigate(`/assets/${a.uuid}`)}
                       sx={{
                         cursor: "pointer",
                         bgcolor: tokens.bg.elevated,
@@ -185,12 +253,13 @@ export default function LibraryView() {
                       }}
                     >
                       <Box sx={{ position: "relative", paddingTop: "56.25%", bgcolor: tokens.bg.overlay }}>
-                        <img src={a.thumbnailUrl} alt={a.name} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} loading="lazy" />
-                        <Box sx={{ position: "absolute", top: 5, right: 5, width: 7, height: 7, borderRadius: "50%", bgcolor: a.status === "ready" ? tokens.accent.green : a.status === "failed" ? tokens.accent.red : tokens.accent.amber }} />
+                        <Box sx={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: tokens.text.tertiary }}>
+                          <LibraryBooksOutlined sx={{ fontSize: 20 }} />
+                        </Box>
                       </Box>
                       <Box sx={{ px: 1.25, py: 1 }}>
-                        <Typography variant="caption" fontWeight={600} noWrap display="block" sx={{ fontSize: "0.75rem", color: tokens.text.primary }}>{a.name}</Typography>
-                        <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem" }}>{a.type}</Typography>
+                        <Typography variant="caption" fontWeight={600} noWrap display="block" sx={{ fontSize: "0.75rem", color: tokens.text.primary }}>{a.file?.filename ?? "Untitled"}</Typography>
+                        <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem" }}>{a.file?.mimeType ?? "unknown"}</Typography>
                       </Box>
                     </Paper>
                   ))}
@@ -217,6 +286,20 @@ export default function LibraryView() {
           <Button onClick={() => setCreateOpen(false)} size="small" sx={{ color: tokens.text.secondary }}>{t("library.button.cancel")}</Button>
           <Button onClick={handleCreate} size="small" variant="contained" disabled={!newName.trim() || creating}>
             {creating ? t("library.button.creating") : t("library.button.create")}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit library dialog */}
+      <Dialog open={editOpen} onClose={() => setEditOpen(false)} PaperProps={{ sx: { bgcolor: tokens.bg.panel, border: `1px solid ${tokens.border.default}`, minWidth: 340 } }}>
+        <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700, pb: 1 }}>Edit Library</DialogTitle>
+        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: "8px !important" }}>
+          <TextField label={t("library.label.name")} size="small" value={editName} onChange={e => setEditName(e.target.value)} autoFocus fullWidth />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setEditOpen(false)} size="small" sx={{ color: tokens.text.secondary }}>{t("library.button.cancel")}</Button>
+          <Button onClick={handleUpdate} size="small" variant="contained" disabled={!editName.trim() || updating}>
+            {updating ? t("library.button.creating") : t("common.save")}
           </Button>
         </DialogActions>
       </Dialog>

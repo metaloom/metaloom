@@ -31,6 +31,10 @@ import io.metaloom.loom.rest.model.group.GroupCreateRequest;
 import io.metaloom.loom.rest.model.group.GroupListResponse;
 import io.metaloom.loom.rest.model.group.GroupResponse;
 import io.metaloom.loom.rest.model.group.GroupUpdateRequest;
+import io.metaloom.loom.rest.model.library.LibraryCreateRequest;
+import io.metaloom.loom.rest.model.library.LibraryListResponse;
+import io.metaloom.loom.rest.model.library.LibraryResponse;
+import io.metaloom.loom.rest.model.library.LibraryUpdateRequest;
 import io.metaloom.loom.rest.model.pool.AssetPoolCreateRequest;
 import io.metaloom.loom.rest.model.pool.AssetPoolListResponse;
 import io.metaloom.loom.rest.model.pool.AssetPoolResponse;
@@ -351,6 +355,56 @@ public class LoginE2ETest {
 	}
 
 	/**
+	 * Verify library CRUD via REST API: list demo libraries, create, load, update, delete.
+	 */
+	@Test
+	void testLibraryCRUD() throws Exception {
+		try (LoomHttpClient client = LoomHttpClient.builder()
+			.setHostname("localhost")
+			.setReadTimeout(Duration.ofSeconds(30))
+			.setPort(REST_PORT)
+			.build()) {
+
+			AuthLoginResponse loginResp = client.login("admin", "finger").sync().body();
+			client.setToken(loginResp.getToken());
+
+			LibraryListResponse listResp = client.listLibraries().sync().body();
+			assertNotNull(listResp, "Library list response should not be null");
+			int initialCount = listResp.getData() != null ? listResp.getData().size() : 0;
+			log.info("Initial library count: {}", initialCount);
+
+			LibraryCreateRequest createReq = new LibraryCreateRequest();
+			createReq.setName("e2e-test-library");
+			LibraryResponse created = client.createLibrary(createReq).sync().body();
+			assertNotNull(created, "Created library should not be null");
+			assertNotNull(created.getUuid(), "Created library UUID should not be null");
+			assertEquals("e2e-test-library", created.getName());
+
+			LibraryListResponse listAfterCreate = client.listLibraries().sync().body();
+			assertNotNull(listAfterCreate.getData(), "Library list data should not be null after create");
+			assertTrue(listAfterCreate.getData().size() > initialCount, "Library list should have grown after create");
+
+			LibraryResponse loaded = client.loadLibrary(created.getUuid()).sync().body();
+			assertNotNull(loaded, "Loaded library should not be null");
+			assertEquals(created.getUuid(), loaded.getUuid());
+			assertEquals("e2e-test-library", loaded.getName());
+
+			LibraryUpdateRequest updateReq = new LibraryUpdateRequest();
+			updateReq.setName("e2e-test-library-updated");
+			LibraryResponse updated = client.updateLibrary(created.getUuid(), updateReq).sync().body();
+			assertNotNull(updated, "Updated library should not be null");
+			assertEquals("e2e-test-library-updated", updated.getName());
+
+			client.deleteLibrary(created.getUuid()).sync().body();
+
+			LibraryListResponse listAfterDelete = client.listLibraries().sync().body();
+			assertEquals(initialCount, listAfterDelete.getData() != null ? listAfterDelete.getData().size() : 0,
+				"Library count should return to initial after delete");
+			log.info("Library CRUD test passed");
+		}
+	}
+
+	/**
 	 * Verify asset pool CRUD via REST API: list demo pools, create, load, update, delete.
 	 */
 	@Test
@@ -626,6 +680,19 @@ public class LoginE2ETest {
 
 		assertEquals(0, proc.exitValue(),
 			"Playwright tag tests failed (exit code " + proc.exitValue() + "):\n" + output);
+	}
+
+	/**
+	 * Full E2E: run Playwright library CRUD tests from the loom-ui directory.
+	 */
+	@Test
+	void testLibraryViaPlaywright() throws Exception {
+		File loomUiDir = resolveLoomUiDir();
+		if (loomUiDir == null) {
+			log.warn("loom-ui directory not found. Skipping Playwright library test.");
+			return;
+		}
+		runPlaywrightSpec(loomUiDir, "e2e/library-backend.spec.ts", "playwright-library");
 	}
 
 	/**

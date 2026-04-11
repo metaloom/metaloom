@@ -15,6 +15,8 @@ import io.metaloom.loom.db.model.collection.Collection;
 import io.metaloom.loom.db.model.collection.CollectionDao;
 import io.metaloom.loom.db.model.group.Group;
 import io.metaloom.loom.db.model.group.GroupDao;
+import io.metaloom.loom.db.model.library.Library;
+import io.metaloom.loom.db.model.library.LibraryDao;
 import io.metaloom.loom.db.model.perm.Permission;
 import io.metaloom.loom.db.model.perm.PermissionDao;
 import io.metaloom.loom.db.model.pipeline.Pipeline;
@@ -43,6 +45,9 @@ public class DemoDatabaseInitializer {
 	private static final String DEMO_SPACE_NAME = "Demo Space";
 	private static final String DEMO_COLLECTION_IMAGES = "Demo Images";
 	private static final String DEMO_COLLECTION_VIDEOS = "Demo Videos";
+	private static final String DEMO_LIBRARY_CAMPAIGNS = "Campaign Media";
+	private static final String DEMO_LIBRARY_ARCHIVE = "Archive Footage";
+	private static final String DEMO_LIBRARY_AUDIO = "Audio Sessions";
 	private static final String DEMO_PIPELINE_NAME = "Default Pipeline";
 	private static final String DEMO_POOL_PRODUCTION = "Production Storage";
 	private static final String DEMO_POOL_INGEST = "Ingest Hot Storage";
@@ -53,6 +58,7 @@ public class DemoDatabaseInitializer {
 	private final SpaceDao spaceDao;
 	private final TagDao tagDao;
 	private final CollectionDao collectionDao;
+	private final LibraryDao libraryDao;
 	private final PipelineDao pipelineDao;
 	private final AssetPoolDao assetPoolDao;
 	private final GroupDao groupDao;
@@ -61,13 +67,14 @@ public class DemoDatabaseInitializer {
 
 	@Inject
 	public DemoDatabaseInitializer(UserDao userDao, AssetDao assetDao, SpaceDao spaceDao,
-		TagDao tagDao, CollectionDao collectionDao, PipelineDao pipelineDao, AssetPoolDao assetPoolDao,
+		TagDao tagDao, CollectionDao collectionDao, LibraryDao libraryDao, PipelineDao pipelineDao, AssetPoolDao assetPoolDao,
 		GroupDao groupDao, RoleDao roleDao, PermissionDao permissionDao) {
 		this.userDao = userDao;
 		this.assetDao = assetDao;
 		this.spaceDao = spaceDao;
 		this.tagDao = tagDao;
 		this.collectionDao = collectionDao;
+		this.libraryDao = libraryDao;
 		this.pipelineDao = pipelineDao;
 		this.assetPoolDao = assetPoolDao;
 		this.groupDao = groupDao;
@@ -117,6 +124,11 @@ public class DemoDatabaseInitializer {
 		Collection imagesCollection = createCollection(admin, DEMO_COLLECTION_IMAGES);
 		Collection videosCollection = createCollection(admin, DEMO_COLLECTION_VIDEOS);
 
+		// --- Libraries ---
+		createLibrary(admin, DEMO_LIBRARY_CAMPAIGNS);
+		createLibrary(admin, DEMO_LIBRARY_ARCHIVE);
+		createLibrary(admin, DEMO_LIBRARY_AUDIO);
+
 		// --- Pipeline ---
 		Pipeline pipeline = pipelineDao.createPipeline(adminUuid, DEMO_PIPELINE_NAME);
 		pipeline.setUuid(UUIDUtils.randomUUID());
@@ -146,6 +158,7 @@ public class DemoDatabaseInitializer {
 		// Grant editor permissions (full CRUD on assets, tags, collections, comments, annotations)
 		for (Permission perm : new Permission[] {
 			Permission.CREATE_ASSET, Permission.READ_ASSET, Permission.UPDATE_ASSET, Permission.DELETE_ASSET,
+			Permission.CREATE_LIBRARY, Permission.READ_LIBRARY, Permission.UPDATE_LIBRARY, Permission.DELETE_LIBRARY,
 			Permission.CREATE_TAG, Permission.READ_TAG, Permission.UPDATE_TAG, Permission.DELETE_TAG,
 			Permission.TAG_ASSET, Permission.UNTAG_ASSET,
 			Permission.CREATE_COLLECTION, Permission.READ_COLLECTION, Permission.UPDATE_COLLECTION, Permission.DELETE_COLLECTION,
@@ -163,7 +176,7 @@ public class DemoDatabaseInitializer {
 			Permission.READ_ASSET, Permission.READ_TAG, Permission.READ_COLLECTION,
 			Permission.READ_COMMENT, Permission.READ_ANNOTATION,
 			Permission.READ_USER, Permission.READ_GROUP, Permission.READ_ROLE,
-			Permission.READ_SPACE, Permission.READ_PIPELINE, Permission.READ_ASSET_POOL,
+			Permission.READ_SPACE, Permission.READ_LIBRARY, Permission.READ_PIPELINE, Permission.READ_ASSET_POOL,
 		}) {
 			permissionDao.grantRolePermission(viewerRole.getUuid(), perm);
 		}
@@ -252,6 +265,18 @@ public class DemoDatabaseInitializer {
 		log.info("Demo data initialization complete — created {} assets, {} tags, {} collections, {} pipeline, {} users, {} groups, {} roles.",
 			imageAssets.length + videoAssets.length + audioAssets.length + docAssets.length,
 			8, 2, 1, 2, 2, 2);
+	}
+
+	private Library createLibrary(User admin, String name) {
+		Library library = libraryDao.createLibrary(admin.getUuid(), name);
+		library.setUuid(UUIDUtils.randomUUID());
+		library.setCreator(admin);
+		library.setEditor(admin);
+		library.setCreated(Instant.now());
+		library.setEdited(Instant.now());
+		libraryDao.store(library);
+		log.info("Created demo library: {}", name);
+		return library;
 	}
 
 	private AssetTag createAssetTag(User admin, String name, String collection) {
