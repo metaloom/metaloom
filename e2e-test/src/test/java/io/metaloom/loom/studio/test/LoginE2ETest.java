@@ -27,12 +27,24 @@ import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.rest.model.asset.AssetListResponse;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.auth.AuthLoginResponse;
+import io.metaloom.loom.rest.model.group.GroupCreateRequest;
+import io.metaloom.loom.rest.model.group.GroupListResponse;
+import io.metaloom.loom.rest.model.group.GroupResponse;
+import io.metaloom.loom.rest.model.group.GroupUpdateRequest;
 import io.metaloom.loom.rest.model.pool.AssetPoolCreateRequest;
 import io.metaloom.loom.rest.model.pool.AssetPoolListResponse;
 import io.metaloom.loom.rest.model.pool.AssetPoolResponse;
+import io.metaloom.loom.rest.model.role.RoleCreateRequest;
+import io.metaloom.loom.rest.model.role.RoleListResponse;
+import io.metaloom.loom.rest.model.role.RoleResponse;
+import io.metaloom.loom.rest.model.role.RoleUpdateRequest;
 import io.metaloom.loom.rest.model.tag.TagCreateRequest;
 import io.metaloom.loom.rest.model.tag.TagListResponse;
 import io.metaloom.loom.rest.model.tag.TagResponse;
+import io.metaloom.loom.rest.model.user.UserCreateRequest;
+import io.metaloom.loom.rest.model.user.UserListResponse;
+import io.metaloom.loom.rest.model.user.UserResponse;
+import io.metaloom.loom.rest.model.user.UserUpdateRequest;
 
 /**
  * End-to-end test that starts the Loom demo jar as a local process (backed by a host-local PostgreSQL instance) and verifies login works through the real REST
@@ -392,6 +404,186 @@ public class LoginE2ETest {
 	}
 
 	/**
+	 * Verify user CRUD via REST API: list, create, load, update, delete.
+	 */
+	@Test
+	void testUserCRUD() throws Exception {
+		try (LoomHttpClient client = LoomHttpClient.builder()
+			.setHostname("localhost")
+			.setReadTimeout(Duration.ofSeconds(30))
+			.setPort(REST_PORT)
+			.build()) {
+
+			AuthLoginResponse loginResp = client.login("admin", "finger").sync();
+			client.setToken(loginResp.getToken());
+
+			// List existing users (admin + demo users)
+			UserListResponse listResp = client.listUsers().sync();
+			assertNotNull(listResp, "User list response should not be null");
+			assertNotNull(listResp.getData(), "User list data should not be null");
+			assertFalse(listResp.getData().isEmpty(), "User list should contain at least the admin user");
+			int initialCount = listResp.getData().size();
+			log.info("Initial user count: {}", initialCount);
+
+			// Create a new user
+			UserCreateRequest createReq = new UserCreateRequest();
+			createReq.setUsername("e2e-test-user");
+			createReq.setFirstname("Test");
+			createReq.setLastname("User");
+			createReq.setEmail("e2e@example.com");
+			UserResponse created = client.createUser(createReq).sync();
+			assertNotNull(created, "Created user should not be null");
+			assertNotNull(created.getUuid(), "Created user UUID should not be null");
+			assertEquals("e2e-test-user", created.getUsername());
+			assertEquals("Test", created.getFirstname());
+			assertEquals("User", created.getLastname());
+			assertEquals("e2e@example.com", created.getEmail());
+			log.info("Created user: {} ({})", created.getUsername(), created.getUuid());
+
+			// Verify the user appears in the listing
+			UserListResponse listAfterCreate = client.listUsers().sync();
+			assertTrue(listAfterCreate.getData().size() > initialCount, "User list should have grown after create");
+
+			// Load the user by UUID
+			UserResponse loaded = client.loadUser(created.getUuid()).sync();
+			assertNotNull(loaded, "Loaded user should not be null");
+			assertEquals(created.getUuid(), loaded.getUuid());
+			assertEquals("e2e-test-user", loaded.getUsername());
+
+			// Update the user
+			UserUpdateRequest updateReq = new UserUpdateRequest();
+			updateReq.setFirstname("Updated");
+			updateReq.setEmail("updated@example.com");
+			UserResponse updated = client.updateUser(created.getUuid(), updateReq).sync();
+			assertNotNull(updated, "Updated user should not be null");
+			assertEquals("Updated", updated.getFirstname());
+			assertEquals("updated@example.com", updated.getEmail());
+
+			// Delete the user
+			client.deleteUser(created.getUuid()).sync();
+
+			// Verify the user is gone
+			UserListResponse listAfterDelete = client.listUsers().sync();
+			assertEquals(initialCount, listAfterDelete.getData().size(), "User count should return to initial after delete");
+			log.info("User CRUD test passed");
+		}
+	}
+
+	/**
+	 * Verify group CRUD via REST API: list, create, load, update, delete.
+	 */
+	@Test
+	void testGroupCRUD() throws Exception {
+		try (LoomHttpClient client = LoomHttpClient.builder()
+			.setHostname("localhost")
+			.setReadTimeout(Duration.ofSeconds(30))
+			.setPort(REST_PORT)
+			.build()) {
+
+			AuthLoginResponse loginResp = client.login("admin", "finger").sync();
+			client.setToken(loginResp.getToken());
+
+			// List existing groups (demo data)
+			GroupListResponse listResp = client.listGroups().sync();
+			assertNotNull(listResp, "Group list response should not be null");
+			assertNotNull(listResp.getData(), "Group list data should not be null");
+			int initialCount = listResp.getData().size();
+			log.info("Initial group count: {}", initialCount);
+
+			// Create a new group
+			GroupCreateRequest createReq = new GroupCreateRequest();
+			createReq.setName("e2e-test-group");
+			GroupResponse created = client.createGroup(createReq).sync();
+			assertNotNull(created, "Created group should not be null");
+			assertNotNull(created.getUuid(), "Created group UUID should not be null");
+			assertEquals("e2e-test-group", created.getName());
+			log.info("Created group: {} ({})", created.getName(), created.getUuid());
+
+			// Verify the group appears in the listing
+			GroupListResponse listAfterCreate = client.listGroups().sync();
+			assertTrue(listAfterCreate.getData().size() > initialCount, "Group list should have grown after create");
+
+			// Load the group by UUID
+			GroupResponse loaded = client.loadGroup(created.getUuid()).sync();
+			assertNotNull(loaded, "Loaded group should not be null");
+			assertEquals(created.getUuid(), loaded.getUuid());
+			assertEquals("e2e-test-group", loaded.getName());
+
+			// Update the group
+			GroupUpdateRequest updateReq = new GroupUpdateRequest();
+			updateReq.setName("e2e-test-group-updated");
+			GroupResponse updated = client.updateGroup(created.getUuid(), updateReq).sync();
+			assertNotNull(updated, "Updated group should not be null");
+			assertEquals("e2e-test-group-updated", updated.getName());
+
+			// Delete the group
+			client.deleteGroup(created.getUuid()).sync();
+
+			// Verify the group is gone
+			GroupListResponse listAfterDelete = client.listGroups().sync();
+			assertEquals(initialCount, listAfterDelete.getData().size(), "Group count should return to initial after delete");
+			log.info("Group CRUD test passed");
+		}
+	}
+
+	/**
+	 * Verify role CRUD via REST API: list, create, load, update, delete.
+	 */
+	@Test
+	void testRoleCRUD() throws Exception {
+		try (LoomHttpClient client = LoomHttpClient.builder()
+			.setHostname("localhost")
+			.setReadTimeout(Duration.ofSeconds(30))
+			.setPort(REST_PORT)
+			.build()) {
+
+			AuthLoginResponse loginResp = client.login("admin", "finger").sync();
+			client.setToken(loginResp.getToken());
+
+			// List existing roles (demo data)
+			RoleListResponse listResp = client.listRoles().sync();
+			assertNotNull(listResp, "Role list response should not be null");
+			assertNotNull(listResp.getData(), "Role list data should not be null");
+			int initialCount = listResp.getData().size();
+			log.info("Initial role count: {}", initialCount);
+
+			// Create a new role
+			RoleCreateRequest createReq = new RoleCreateRequest();
+			createReq.setName("e2e-test-role");
+			RoleResponse created = client.createRole(createReq).sync();
+			assertNotNull(created, "Created role should not be null");
+			assertNotNull(created.getUuid(), "Created role UUID should not be null");
+			assertEquals("e2e-test-role", created.getName());
+			log.info("Created role: {} ({})", created.getName(), created.getUuid());
+
+			// Verify the role appears in the listing
+			RoleListResponse listAfterCreate = client.listRoles().sync();
+			assertTrue(listAfterCreate.getData().size() > initialCount, "Role list should have grown after create");
+
+			// Load the role by UUID
+			RoleResponse loaded = client.loadRole(created.getUuid()).sync();
+			assertNotNull(loaded, "Loaded role should not be null");
+			assertEquals(created.getUuid(), loaded.getUuid());
+			assertEquals("e2e-test-role", loaded.getName());
+
+			// Update the role
+			RoleUpdateRequest updateReq = new RoleUpdateRequest();
+			updateReq.setName("e2e-test-role-updated");
+			RoleResponse updated = client.updateRole(created.getUuid(), updateReq).sync();
+			assertNotNull(updated, "Updated role should not be null");
+			assertEquals("e2e-test-role-updated", updated.getName());
+
+			// Delete the role
+			client.deleteRole(created.getUuid()).sync();
+
+			// Verify the role is gone
+			RoleListResponse listAfterDelete = client.listRoles().sync();
+			assertEquals(initialCount, listAfterDelete.getData().size(), "Role count should return to initial after delete");
+			log.info("Role CRUD test passed");
+		}
+	}
+
+	/**
 	 * Full E2E: run Playwright tag tests from the loom-ui directory.
 	 */
 	@Test
@@ -434,6 +626,79 @@ public class LoginE2ETest {
 
 		assertEquals(0, proc.exitValue(),
 			"Playwright tag tests failed (exit code " + proc.exitValue() + "):\n" + output);
+	}
+
+	/**
+	 * Full E2E: run Playwright users CRUD tests from the loom-ui directory.
+	 */
+	@Test
+	void testUsersViaPlaywright() throws Exception {
+		File loomUiDir = resolveLoomUiDir();
+		if (loomUiDir == null) {
+			log.warn("loom-ui directory not found. Skipping Playwright users test.");
+			return;
+		}
+		runPlaywrightSpec(loomUiDir, "e2e/users-backend.spec.ts", "playwright-users");
+	}
+
+	/**
+	 * Full E2E: run Playwright groups CRUD tests from the loom-ui directory.
+	 */
+	@Test
+	void testGroupsViaPlaywright() throws Exception {
+		File loomUiDir = resolveLoomUiDir();
+		if (loomUiDir == null) {
+			log.warn("loom-ui directory not found. Skipping Playwright groups test.");
+			return;
+		}
+		runPlaywrightSpec(loomUiDir, "e2e/groups-backend.spec.ts", "playwright-groups");
+	}
+
+	/**
+	 * Full E2E: run Playwright roles CRUD tests from the loom-ui directory.
+	 */
+	@Test
+	void testRolesViaPlaywright() throws Exception {
+		File loomUiDir = resolveLoomUiDir();
+		if (loomUiDir == null) {
+			log.warn("loom-ui directory not found. Skipping Playwright roles test.");
+			return;
+		}
+		runPlaywrightSpec(loomUiDir, "e2e/roles-backend.spec.ts", "playwright-roles");
+	}
+
+	private void runPlaywrightSpec(File loomUiDir, String specPath, String logPrefix) throws Exception {
+		String apiBaseUrl = "/api/v1";
+		String proxyTarget = "http://localhost:" + REST_PORT;
+		int vitePort = findFreePort();
+		log.info("Running Playwright {} tests (Vite on port {}, proxy to {})", logPrefix, vitePort, proxyTarget);
+
+		ProcessBuilder ppb = new ProcessBuilder(
+			"npx", "playwright", "test", specPath, "--reporter=list");
+		ppb.directory(loomUiDir);
+		ppb.environment().put("VITE_API_BASE_URL", apiBaseUrl);
+		ppb.environment().put("VITE_PROXY_TARGET", proxyTarget);
+		ppb.environment().put("VITE_PORT", String.valueOf(vitePort));
+		ppb.redirectErrorStream(true);
+
+		Process proc = ppb.start();
+		StringBuilder output = new StringBuilder();
+		try (BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
+			String line;
+			while ((line = reader.readLine()) != null) {
+				output.append(line).append("\n");
+				log.info("[{}] {}", logPrefix, line);
+			}
+		}
+
+		boolean finished = proc.waitFor(120, TimeUnit.SECONDS);
+		if (!finished) {
+			proc.destroyForcibly();
+			throw new AssertionError("Playwright " + logPrefix + " tests timed out after 120s");
+		}
+
+		assertEquals(0, proc.exitValue(),
+			"Playwright " + logPrefix + " tests failed (exit code " + proc.exitValue() + "):\n" + output);
 	}
 
 	/**

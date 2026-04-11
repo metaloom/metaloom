@@ -16,39 +16,92 @@ import {
 } from "@mui/icons-material";
 import { Menu } from "@mui/material";
 import { tokens } from "../../theme";
-import { User, Group, Role, Permission, ApiKey, BlacklistEntry } from "../../types";
+import { User, Permission, ApiKey, BlacklistEntry } from "../../types";
 import { mockAdminService } from "../../mock/services";
+import { useAuth } from "../../context/AuthContext";
+import {
+  listUsers, createUser, updateUser, deleteUser,
+  UserResponse, UserCreateRequest,
+} from "../../api/users";
+import {
+  listGroups, createGroup, updateGroup, deleteGroup,
+  GroupResponse,
+} from "../../api/groups";
+import {
+  listRoles, createRole, updateRole, deleteRole,
+  RoleResponse,
+} from "../../api/roles";
 
 // ── Users Table ───────────────────────────────────────────────────────────
 function UsersAdmin() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [editUser, setEditUser] = useState<User | null>(null);
-  const [editForm, setEditForm] = useState({ name: "", email: "", role: "" as string });
+  const { token } = useAuth();
+  const [users, setUsers] = useState<UserResponse[]>([]);
+  const [editUser, setEditUser] = useState<UserResponse | null>(null);
+  const [editForm, setEditForm] = useState({ username: "", email: "", firstname: "", lastname: "" });
   const [query, setQuery] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({ username: "", email: "", firstname: "", lastname: "" });
+  const [deleteConfirm, setDeleteConfirm] = useState<UserResponse | null>(null);
 
-  useEffect(() => { mockAdminService.getUsers().then(setUsers); }, []);
+  const reload = useCallback(async () => {
+    if (!token) return;
+    try {
+      const resp = await listUsers(token);
+      setUsers(resp.data ?? []);
+    } catch (e) {
+      console.error("Failed to load users", e);
+    }
+  }, [token]);
 
-  const roleColor: Record<string, string> = {
-    admin: tokens.accent.red,
-    editor: tokens.primary.main,
-    viewer: tokens.accent.blue,
-    operator: tokens.accent.teal,
-  };
+  useEffect(() => { reload(); }, [reload]);
 
-  const handleToggleActive = (e: React.MouseEvent, userId: string) => {
-    e.stopPropagation();
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, active: !u.active } : u));
-  };
-
-  const openEdit = (user: User) => {
+  const openEdit = (user: UserResponse) => {
     setEditUser(user);
-    setEditForm({ name: user.name, email: user.email, role: user.role });
+    setEditForm({ username: user.username ?? "", email: user.email ?? "", firstname: user.firstname ?? "", lastname: user.lastname ?? "" });
   };
 
-  const handleSaveEdit = () => {
-    if (!editUser) return;
-    setUsers(prev => prev.map(u => u.id === editUser.id ? { ...u, name: editForm.name, email: editForm.email, role: editForm.role as User["role"] } : u));
-    setEditUser(null);
+  const handleSaveEdit = async () => {
+    if (!editUser || !token) return;
+    try {
+      await updateUser(token, editUser.uuid, {
+        username: editForm.username || undefined,
+        email: editForm.email || undefined,
+        firstname: editForm.firstname || undefined,
+        lastname: editForm.lastname || undefined,
+      });
+      setEditUser(null);
+      reload();
+    } catch (e) {
+      console.error("Failed to update user", e);
+    }
+  };
+
+  const handleCreate = async () => {
+    if (!createForm.username.trim() || !token) return;
+    try {
+      await createUser(token, {
+        username: createForm.username.trim(),
+        email: createForm.email.trim() || undefined,
+        firstname: createForm.firstname.trim() || undefined,
+        lastname: createForm.lastname.trim() || undefined,
+      });
+      setCreateOpen(false);
+      setCreateForm({ username: "", email: "", firstname: "", lastname: "" });
+      reload();
+    } catch (e) {
+      console.error("Failed to create user", e);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteConfirm || !token) return;
+    try {
+      await deleteUser(token, deleteConfirm.uuid);
+      setDeleteConfirm(null);
+      reload();
+    } catch (e) {
+      console.error("Failed to delete user", e);
+    }
   };
 
   return (
@@ -57,12 +110,12 @@ function UsersAdmin() {
         <Box>
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
             <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Users</Typography>
-            <Tooltip title="Manage user accounts, roles, and access levels. Invite new users or deactivate existing ones." arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
+            <Tooltip title="Manage user accounts and access levels. Create new users or remove existing ones." arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
           </Box>
           <Typography variant="caption" color="text.secondary">{users.length} accounts</Typography>
         </Box>
-        <Button startIcon={<PersonAddOutlined />} variant="contained" size="small">
-          Invite User
+        <Button startIcon={<PersonAddOutlined />} variant="contained" size="small" onClick={() => setCreateOpen(true)}>
+          Create User
         </Button>
       </Box>
       <TextField
@@ -85,10 +138,9 @@ function UsersAdmin() {
           <TableHead>
             <TableRow>
               <TableCell>User</TableCell>
-              <TableCell>Role</TableCell>
-              <TableCell>Groups</TableCell>
+              <TableCell>Email</TableCell>
               <TableCell>Status</TableCell>
-              <TableCell>Last Active</TableCell>
+              <TableCell>Created</TableCell>
               <TableCell align="right">Actions</TableCell>
             </TableRow>
           </TableHead>
@@ -96,44 +148,43 @@ function UsersAdmin() {
             {users.filter(u => {
               if (!query.trim()) return true;
               const q = query.toLowerCase();
-              return u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.role.toLowerCase().includes(q);
+              return (u.username ?? "").toLowerCase().includes(q) || (u.email ?? "").toLowerCase().includes(q) || (u.firstname ?? "").toLowerCase().includes(q) || (u.lastname ?? "").toLowerCase().includes(q);
             }).map(u => (
-              <TableRow key={u.id} hover sx={{ cursor: "pointer" }} onClick={() => openEdit(u)}>
+              <TableRow key={u.uuid} hover sx={{ cursor: "pointer" }} onClick={() => openEdit(u)}>
                 <TableCell>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                    <Avatar sx={{ width: 28, height: 28, fontSize: "0.7rem", bgcolor: u.active ? tokens.primary.dark : tokens.text.tertiary, opacity: u.active ? 1 : 0.5 }}>
-                      {u.name.split(" ").map(n => n[0]).join("")}
+                    <Avatar sx={{ width: 28, height: 28, fontSize: "0.7rem", bgcolor: u.enabled ? tokens.primary.dark : tokens.text.tertiary, opacity: u.enabled ? 1 : 0.5 }}>
+                      {(u.firstname ?? u.username ?? "?").charAt(0).toUpperCase()}
                     </Avatar>
                     <Box>
-                      <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.82rem", opacity: u.active ? 1 : 0.5 }}>{u.name}</Typography>
-                      <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>{u.email}</Typography>
+                      <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.82rem", opacity: u.enabled ? 1 : 0.5 }}>{u.username}</Typography>
+                      {(u.firstname || u.lastname) && (
+                        <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>{[u.firstname, u.lastname].filter(Boolean).join(" ")}</Typography>
+                      )}
                     </Box>
                   </Box>
                 </TableCell>
                 <TableCell>
-                  <Chip label={u.role} size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: `${roleColor[u.role] ?? tokens.text.tertiary}22`, color: roleColor[u.role] ?? tokens.text.tertiary }} />
+                  <Typography variant="caption" color="text.secondary">{u.email ?? "—"}</Typography>
                 </TableCell>
                 <TableCell>
-                  <Typography variant="caption" color="text.secondary">{u.groupIds.length} groups</Typography>
-                </TableCell>
-                <TableCell>
-                  <Tooltip title={u.active ? "Disable user" : "Enable user"}>
-                    <Switch
-                      size="small"
-                      checked={u.active}
-                      onClick={(e) => handleToggleActive(e, u.id)}
-                      sx={{ "& .MuiSwitch-switchBase.Mui-checked": { color: tokens.accent.green }, "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": { bgcolor: tokens.accent.green } }}
-                    />
-                  </Tooltip>
+                  <Chip
+                    label={u.enabled ? "enabled" : "disabled"}
+                    size="small"
+                    sx={{ height: 18, fontSize: "0.65rem", bgcolor: u.enabled ? `${tokens.accent.green}22` : `${tokens.accent.red}22`, color: u.enabled ? tokens.accent.green : tokens.accent.red }}
+                  />
                 </TableCell>
                 <TableCell>
                   <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.72rem" }}>
-                    {new Date(u.lastSeenAt).toLocaleDateString()}
+                    {u.status?.created ? new Date(u.status.created).toLocaleDateString() : "—"}
                   </Typography>
                 </TableCell>
                 <TableCell align="right">
                   <IconButton size="small" onClick={e => { e.stopPropagation(); openEdit(u); }}>
                     <EditOutlined sx={{ fontSize: 15 }} />
+                  </IconButton>
+                  <IconButton size="small" onClick={e => { e.stopPropagation(); setDeleteConfirm(u); }}>
+                    <DeleteOutlineOutlined sx={{ fontSize: 15, color: tokens.accent.red }} />
                   </IconButton>
                 </TableCell>
               </TableRow>
@@ -141,6 +192,26 @@ function UsersAdmin() {
           </TableBody>
         </Table>
       </TableContainer>
+
+      {/* Create User Dialog */}
+      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", pb: 1 }}>
+          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Create User</Typography>
+          <IconButton size="small" onClick={() => setCreateOpen(false)}><CloseOutlined sx={{ fontSize: 18 }} /></IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5, pt: 1 }}>
+            <TextField label="Username" size="small" fullWidth value={createForm.username} onChange={e => setCreateForm(f => ({ ...f, username: e.target.value }))} autoFocus />
+            <TextField label="Email" size="small" fullWidth type="email" value={createForm.email} onChange={e => setCreateForm(f => ({ ...f, email: e.target.value }))} />
+            <TextField label="Firstname" size="small" fullWidth value={createForm.firstname} onChange={e => setCreateForm(f => ({ ...f, firstname: e.target.value }))} />
+            <TextField label="Lastname" size="small" fullWidth value={createForm.lastname} onChange={e => setCreateForm(f => ({ ...f, lastname: e.target.value }))} />
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 1.5 }}>
+          <Button onClick={() => setCreateOpen(false)} size="small">Cancel</Button>
+          <Button variant="contained" size="small" onClick={handleCreate} disabled={!createForm.username.trim()}>Create</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Edit User Dialog */}
       <Dialog open={Boolean(editUser)} onClose={() => setEditUser(null)} maxWidth="sm" fullWidth>
@@ -151,44 +222,23 @@ function UsersAdmin() {
         <DialogContent dividers>
           {editUser && (
             <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5, pt: 1 }}>
-              {/* Avatar + identity */}
               <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
                 <Avatar sx={{ width: 56, height: 56, bgcolor: tokens.primary.dark, fontSize: "1.15rem" }}>
-                  {editUser.name.split(" ").map(n => n[0]).join("")}
+                  {(editUser.firstname ?? editUser.username ?? "?").charAt(0).toUpperCase()}
                 </Avatar>
                 <Box sx={{ flex: 1 }}>
-                  <Typography variant="body2" sx={{ color: tokens.text.tertiary, fontSize: "0.75rem" }}>@{editUser.username}</Typography>
-                  <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>
-                    Member since {new Date(editUser.createdAt).toLocaleDateString()} · Last seen {new Date(editUser.lastSeenAt).toLocaleString()}
-                  </Typography>
+                  <Typography variant="body2" sx={{ color: tokens.text.tertiary, fontSize: "0.75rem" }}>UUID: {editUser.uuid}</Typography>
+                  {editUser.status?.created && (
+                    <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>
+                      Created {new Date(editUser.status.created).toLocaleDateString()}
+                    </Typography>
+                  )}
                 </Box>
               </Box>
-
-              <TextField label="Full Name" size="small" fullWidth value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
+              <TextField label="Username" size="small" fullWidth value={editForm.username} onChange={e => setEditForm(f => ({ ...f, username: e.target.value }))} />
               <TextField label="Email" size="small" fullWidth type="email" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} />
-              <FormControl size="small" fullWidth>
-                <InputLabel>Role</InputLabel>
-                <Select label="Role" value={editForm.role} onChange={e => setEditForm(f => ({ ...f, role: e.target.value }))}>
-                  <MenuItem value="admin">Admin</MenuItem>
-                  <MenuItem value="editor">Editor</MenuItem>
-                  <MenuItem value="viewer">Viewer</MenuItem>
-                  <MenuItem value="operator">Operator</MenuItem>
-                </Select>
-              </FormControl>
-
-              <Divider />
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <Typography variant="body2" color="text.secondary">Account enabled</Typography>
-                <Switch
-                  checked={editUser.active}
-                  onChange={() => {
-                    const toggled = { ...editUser, active: !editUser.active };
-                    setEditUser(toggled);
-                    setUsers(prev => prev.map(u => u.id === toggled.id ? toggled : u));
-                  }}
-                  sx={{ "& .MuiSwitch-switchBase.Mui-checked": { color: tokens.accent.green }, "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": { bgcolor: tokens.accent.green } }}
-                />
-              </Box>
+              <TextField label="Firstname" size="small" fullWidth value={editForm.firstname} onChange={e => setEditForm(f => ({ ...f, firstname: e.target.value }))} />
+              <TextField label="Lastname" size="small" fullWidth value={editForm.lastname} onChange={e => setEditForm(f => ({ ...f, lastname: e.target.value }))} />
             </Box>
           )}
         </DialogContent>
@@ -197,46 +247,83 @@ function UsersAdmin() {
           <Button variant="contained" size="small" onClick={handleSaveEdit} sx={{ textTransform: "none", fontWeight: 600 }}>Save</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Delete Confirm Dialog */}
+      <Dialog open={Boolean(deleteConfirm)} onClose={() => setDeleteConfirm(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Delete User</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">
+            Are you sure you want to delete user <strong>{deleteConfirm?.username}</strong>? This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteConfirm(null)} size="small">Cancel</Button>
+          <Button variant="contained" color="error" size="small" onClick={handleDelete}>Delete</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
 
 // ── Groups Table ──────────────────────────────────────────────────────────
 function GroupsAdmin() {
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [roles, setRoles] = useState<Role[]>([]);
+  const { token } = useAuth();
+  const [groups, setGroups] = useState<GroupResponse[]>([]);
   const [query, setQuery] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
-  const [newDesc, setNewDesc] = useState("");
-  const [manageGroup, setManageGroup] = useState<Group | null>(null);
+  const [editGroup, setEditGroup] = useState<GroupResponse | null>(null);
+  const [editName, setEditName] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState<GroupResponse | null>(null);
 
-  useEffect(() => {
-    Promise.all([mockAdminService.getGroups(), mockAdminService.getUsers(), mockAdminService.getRoles()]).then(([g, u, r]) => {
-      setGroups(g); setUsers(u); setRoles(r);
-    });
-  }, []);
+  const reload = useCallback(async () => {
+    if (!token) return;
+    try {
+      const resp = await listGroups(token);
+      setGroups(resp.data ?? []);
+    } catch (e) {
+      console.error("Failed to load groups", e);
+    }
+  }, [token]);
 
-  const handleCreateGroup = () => {
-    if (!newName.trim()) return;
-    const g: Group = { id: `grp_${Date.now()}`, name: newName.trim(), description: newDesc.trim(), memberIds: [], roleIds: [], createdAt: new Date().toISOString() };
-    setGroups(prev => [...prev, g]);
-    setCreateOpen(false); setNewName(""); setNewDesc("");
+  useEffect(() => { reload(); }, [reload]);
+
+  const handleCreateGroup = async () => {
+    if (!newName.trim() || !token) return;
+    try {
+      await createGroup(token, { name: newName.trim() });
+      setCreateOpen(false);
+      setNewName("");
+      reload();
+    } catch (e) {
+      console.error("Failed to create group", e);
+    }
   };
 
-  const toggleMember = (groupId: string, userId: string) => {
-    setGroups(prev => prev.map(g => {
-      if (g.id !== groupId) return g;
-      const has = g.memberIds.includes(userId);
-      return { ...g, memberIds: has ? g.memberIds.filter(id => id !== userId) : [...g.memberIds, userId] };
-    }));
-    if (manageGroup) {
-      setManageGroup(prev => {
-        if (!prev) return prev;
-        const has = prev.memberIds.includes(userId);
-        return { ...prev, memberIds: has ? prev.memberIds.filter(id => id !== userId) : [...prev.memberIds, userId] };
-      });
+  const openEdit = (g: GroupResponse) => {
+    setEditGroup(g);
+    setEditName(g.name);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editGroup || !token) return;
+    try {
+      await updateGroup(token, editGroup.uuid, { name: editName.trim() || undefined });
+      setEditGroup(null);
+      reload();
+    } catch (e) {
+      console.error("Failed to update group", e);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteConfirm || !token) return;
+    try {
+      await deleteGroup(token, deleteConfirm.uuid);
+      setDeleteConfirm(null);
+      reload();
+    } catch (e) {
+      console.error("Failed to delete group", e);
     }
   };
 
@@ -246,7 +333,7 @@ function GroupsAdmin() {
         <Box>
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
             <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Groups</Typography>
-            <Tooltip title="Groups let you organise users and assign shared permissions. Members inherit the group's access rights." arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
+            <Tooltip title="Groups let you organise users and assign shared permissions." arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
           </Box>
           <Typography variant="caption" color="text.secondary">{groups.length} groups</Typography>
         </Box>
@@ -272,9 +359,7 @@ function GroupsAdmin() {
           <TableHead>
             <TableRow>
               <TableCell>Name</TableCell>
-              <TableCell>Description</TableCell>
-              <TableCell>Members</TableCell>
-              <TableCell>Roles</TableCell>
+              <TableCell>UUID</TableCell>
               <TableCell>Created</TableCell>
               <TableCell align="right">Actions</TableCell>
             </TableRow>
@@ -283,43 +368,19 @@ function GroupsAdmin() {
             {groups.filter(g => {
               if (!query.trim()) return true;
               const q = query.toLowerCase();
-              return g.name.toLowerCase().includes(q) || g.description.toLowerCase().includes(q);
+              return g.name.toLowerCase().includes(q);
             }).map(g => (
-              <TableRow key={g.id} hover>
+              <TableRow key={g.uuid} hover sx={{ cursor: "pointer" }} onClick={() => openEdit(g)}>
                 <TableCell><Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.82rem" }}>{g.name}</Typography></TableCell>
-                <TableCell><Typography variant="caption" color="text.secondary">{g.description}</Typography></TableCell>
-                <TableCell>
-                  <Box sx={{ display: "flex", gap: -0.5 }}>
-                    {g.memberIds.slice(0, 3).map(uid => {
-                      const u = users.find(x => x.id === uid);
-                      return (
-                        <Tooltip key={uid} title={u?.name ?? uid}>
-                          <Avatar sx={{ width: 22, height: 22, fontSize: "0.58rem", bgcolor: tokens.primary.dark, border: `2px solid ${tokens.bg.surface}`, marginLeft: -0.5 }}>
-                            {(u?.name ?? uid).split(" ").map(n => n[0]).join("")}
-                          </Avatar>
-                        </Tooltip>
-                      );
-                    })}
-                    {g.memberIds.length > 3 && (
-                      <Chip label={`+${g.memberIds.length - 3}`} size="small" sx={{ height: 18, fontSize: "0.6rem", ml: 0.5 }} />
-                    )}
-                  </Box>
-                </TableCell>
-                <TableCell>
-                  <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
-                    {g.roleIds.map(rid => {
-                      const r = roles.find(x => x.id === rid);
-                      return <Chip key={rid} label={r?.name ?? rid} size="small" sx={{ height: 16, fontSize: "0.62rem" }} />;
-                    })}
-                  </Box>
-                </TableCell>
-                <TableCell><Typography variant="caption" color="text.secondary">{new Date(g.createdAt).toLocaleDateString()}</Typography></TableCell>
+                <TableCell><Typography variant="caption" color="text.secondary" sx={{ fontFamily: "monospace", fontSize: "0.7rem" }}>{g.uuid}</Typography></TableCell>
+                <TableCell><Typography variant="caption" color="text.secondary">{g.status?.created ? new Date(g.status.created).toLocaleDateString() : "—"}</Typography></TableCell>
                 <TableCell align="right">
-                  <Tooltip title="Manage members">
-                    <IconButton size="small" onClick={() => setManageGroup(g)}>
-                      <GroupsOutlined sx={{ fontSize: 15 }} />
-                    </IconButton>
-                  </Tooltip>
+                  <IconButton size="small" onClick={e => { e.stopPropagation(); openEdit(g); }}>
+                    <EditOutlined sx={{ fontSize: 15 }} />
+                  </IconButton>
+                  <IconButton size="small" onClick={e => { e.stopPropagation(); setDeleteConfirm(g); }}>
+                    <DeleteOutlineOutlined sx={{ fontSize: 15, color: tokens.accent.red }} />
+                  </IconButton>
                 </TableCell>
               </TableRow>
             ))}
@@ -340,7 +401,6 @@ function GroupsAdmin() {
         <DialogContent sx={{ pt: 1 }}>
           <Stack spacing={2.5}>
             <TextField label="Group name" size="small" fullWidth value={newName} onChange={e => setNewName(e.target.value)} autoFocus placeholder="e.g. Engineering" />
-            <TextField label="Description" size="small" fullWidth value={newDesc} onChange={e => setNewDesc(e.target.value)} multiline rows={2} placeholder="What is this group for?" />
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
@@ -349,105 +409,130 @@ function GroupsAdmin() {
         </DialogActions>
       </Dialog>
 
-      {/* Manage members dialog */}
-      <Dialog open={Boolean(manageGroup)} onClose={() => setManageGroup(null)} maxWidth="sm" fullWidth
-        PaperProps={{ sx: { bgcolor: tokens.bg.surface, border: `1px solid ${tokens.border.subtle}` } }}>
-        <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1, pb: 1 }}>
-          <GroupsOutlined sx={{ fontSize: 18, color: tokens.primary.main }} />
-          <Typography fontWeight={700} sx={{ fontSize: "1rem" }}>Manage Members — {manageGroup?.name}</Typography>
-          <IconButton size="small" onClick={() => setManageGroup(null)} sx={{ ml: "auto" }}>
-            <CloseOutlined sx={{ fontSize: 16 }} />
-          </IconButton>
+      {/* Edit Group dialog */}
+      <Dialog open={Boolean(editGroup)} onClose={() => setEditGroup(null)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", pb: 1 }}>
+          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Edit Group</Typography>
+          <IconButton size="small" onClick={() => setEditGroup(null)}><CloseOutlined sx={{ fontSize: 18 }} /></IconButton>
         </DialogTitle>
-        <DialogContent>
-          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5 }}>
-            Toggle users to assign or unassign them from this group.
-          </Typography>
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, maxHeight: 360, overflow: "auto" }}>
-            {users.map(u => {
-              const isMember = manageGroup?.memberIds.includes(u.id) ?? false;
-              return (
-                <Box key={u.id}
-                  onClick={() => manageGroup && toggleMember(manageGroup.id, u.id)}
-                  sx={{
-                    display: "flex", alignItems: "center", gap: 1.5, px: 1.5, py: 1,
-                    borderRadius: tokens.radius.md, cursor: "pointer",
-                    bgcolor: isMember ? `${tokens.primary.main}12` : "transparent",
-                    border: `1px solid ${isMember ? tokens.primary.main : "transparent"}`,
-                    "&:hover": { bgcolor: isMember ? `${tokens.primary.main}18` : tokens.bg.hover },
-                  }}
-                >
-                  <Checkbox size="small" checked={isMember} sx={{ p: 0, color: tokens.text.tertiary, "&.Mui-checked": { color: tokens.primary.main } }} />
-                  <Avatar sx={{ width: 24, height: 24, fontSize: "0.65rem", bgcolor: tokens.primary.dark }}>
-                    {u.name.split(" ").map(n => n[0]).join("")}
-                  </Avatar>
-                  <Box sx={{ flex: 1 }}>
-                    <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.82rem" }}>{u.name}</Typography>
-                    <Typography variant="caption" color="text.tertiary" sx={{ fontSize: "0.7rem" }}>{u.email}</Typography>
-                  </Box>
-                  <Chip label={u.role} size="small" sx={{ height: 16, fontSize: "0.6rem" }} />
-                </Box>
-              );
-            })}
+        <DialogContent dividers>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5, pt: 1 }}>
+            {editGroup && (
+              <Typography variant="caption" sx={{ color: tokens.text.tertiary }}>UUID: {editGroup.uuid}</Typography>
+            )}
+            <TextField label="Group name" size="small" fullWidth value={editName} onChange={e => setEditName(e.target.value)} />
           </Box>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button size="small" variant="contained" onClick={() => setManageGroup(null)}>Done</Button>
+        <DialogActions sx={{ px: 3, py: 1.5 }}>
+          <Button onClick={() => setEditGroup(null)} size="small">Cancel</Button>
+          <Button variant="contained" size="small" onClick={handleSaveEdit}>Save</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirm Dialog */}
+      <Dialog open={Boolean(deleteConfirm)} onClose={() => setDeleteConfirm(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Delete Group</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">
+            Are you sure you want to delete group <strong>{deleteConfirm?.name}</strong>?
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteConfirm(null)} size="small">Cancel</Button>
+          <Button variant="contained" color="error" size="small" onClick={handleDelete}>Delete</Button>
         </DialogActions>
       </Dialog>
     </Box>
   );
 }
 
-// ── Access Control (Unified RBAC + Permissions) ───────────────────────────
+// ── Access Control (Roles with Permissions) ──────────────────────────────
 function AccessControlAdmin() {
-  const [roles, setRoles] = useState<Role[]>([]);
-  const [permissions, setPermissions] = useState<Permission[]>([]);
+  const { token } = useAuth();
+  const [roles, setRoles] = useState<RoleResponse[]>([]);
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
-  const [expandedResources, setExpandedResources] = useState<Set<string>>(new Set());
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newRoleName, setNewRoleName] = useState("");
+  const [editRole, setEditRole] = useState<RoleResponse | null>(null);
+  const [editName, setEditName] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState<RoleResponse | null>(null);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    Promise.all([mockAdminService.getRoles(), mockAdminService.getPermissions()]).then(([r, p]) => {
-      setRoles(r);
-      setPermissions(p);
-      if (r.length > 0) setSelectedRoleId(r[0].id);
-      setExpandedResources(new Set([...new Set(p.map(x => x.resource))]));
-    });
-  }, []);
+  const reload = useCallback(async () => {
+    if (!token) return;
+    try {
+      const resp = await listRoles(token);
+      setRoles(resp.data ?? []);
+      if (!selectedRoleId && resp.data?.length) {
+        setSelectedRoleId(resp.data[0].uuid);
+      }
+    } catch (e) {
+      console.error("Failed to load roles", e);
+    }
+  }, [token]);
 
-  const selectedRole = roles.find(r => r.id === selectedRoleId) ?? null;
-  const resources = [...new Set(permissions.map(p => p.resource))].sort();
+  useEffect(() => { reload(); }, [reload]);
 
-  const hasPermission = (pid: string) => selectedRole?.permissionIds.includes(pid) ?? false;
+  const selectedRole = roles.find(r => r.uuid === selectedRoleId) ?? null;
 
-  const togglePermission = useCallback(async (pid: string) => {
-    if (!selectedRole) return;
-    const next = hasPermission(pid)
-      ? selectedRole.permissionIds.filter(id => id !== pid)
-      : [...selectedRole.permissionIds, pid];
-    setRoles(prev => prev.map(r => r.id === selectedRole.id ? { ...r, permissionIds: next } : r));
+  const hasPermission = (perm: string) => selectedRole?.permissions?.includes(perm) ?? false;
+
+  const togglePermission = useCallback(async (perm: string) => {
+    if (!selectedRole || !token) return;
+    const current = selectedRole.permissions ?? [];
+    const next = current.includes(perm)
+      ? current.filter(p => p !== perm)
+      : [...current, perm];
     setSaving(true);
     try {
-      await mockAdminService.updateRolePermissions(selectedRole.id, next);
+      await updateRole(token, selectedRole.uuid, { permissions: next });
+      reload();
+    } catch (e) {
+      console.error("Failed to update role permissions", e);
     } finally {
       setSaving(false);
     }
-  }, [selectedRole]);
+  }, [selectedRole, token, reload]);
 
-  const toggleResource = (resource: string) => {
-    setExpandedResources(prev => {
-      const next = new Set(prev);
-      if (next.has(resource)) next.delete(resource); else next.add(resource);
-      return next;
-    });
+  const handleCreateRole = async () => {
+    if (!newRoleName.trim() || !token) return;
+    try {
+      await createRole(token, { name: newRoleName.trim() });
+      setCreateOpen(false);
+      setNewRoleName("");
+      reload();
+    } catch (e) {
+      console.error("Failed to create role", e);
+    }
   };
 
-  const resourcePermissionCount = (resource: string) =>
-    permissions.filter(p => p.resource === resource && hasPermission(p.id)).length;
+  const openEditRole = (r: RoleResponse) => {
+    setEditRole(r);
+    setEditName(r.name);
+  };
 
-  const totalForResource = (resource: string) =>
-    permissions.filter(p => p.resource === resource).length;
+  const handleSaveEdit = async () => {
+    if (!editRole || !token) return;
+    try {
+      await updateRole(token, editRole.uuid, { name: editName.trim() || undefined });
+      setEditRole(null);
+      reload();
+    } catch (e) {
+      console.error("Failed to update role", e);
+    }
+  };
+
+  const handleDeleteRole = async () => {
+    if (!deleteConfirm || !token) return;
+    try {
+      await deleteRole(token, deleteConfirm.uuid);
+      setDeleteConfirm(null);
+      if (selectedRoleId === deleteConfirm.uuid) setSelectedRoleId(null);
+      reload();
+    } catch (e) {
+      console.error("Failed to delete role", e);
+    }
+  };
 
   return (
     <Box>
@@ -455,43 +540,46 @@ function AccessControlAdmin() {
         <Box>
           <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Access Control</Typography>
           <Typography variant="caption" color="text.secondary">
-            {roles.length} roles · {permissions.length} permissions
+            {roles.length} roles
             {saving && " · saving…"}
           </Typography>
         </Box>
-        <Button startIcon={<AddOutlined />} variant="outlined" size="small">New Role</Button>
+        <Button startIcon={<AddOutlined />} variant="outlined" size="small" onClick={() => setCreateOpen(true)}>New Role</Button>
       </Box>
 
       <Box sx={{ display: "flex", gap: 2, height: "calc(100vh - 220px)", minHeight: 400 }}>
         {/* Left: Role list */}
-        <Box sx={{ width: 200, flexShrink: 0, display: "flex", flexDirection: "column", gap: 0.5 }}>
+        <Box sx={{ width: 220, flexShrink: 0, display: "flex", flexDirection: "column", gap: 0.5 }}>
           <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.07em", color: tokens.text.tertiary, fontSize: "0.68rem", mb: 0.5, px: 0.5 }}>
             Roles
           </Typography>
           {roles.map(role => (
             <Box
-              key={role.id}
-              onClick={() => setSelectedRoleId(role.id)}
+              key={role.uuid}
+              onClick={() => setSelectedRoleId(role.uuid)}
               sx={{
                 px: 1.5, py: 1, borderRadius: tokens.radius.md, cursor: "pointer",
-                bgcolor: selectedRoleId === role.id ? tokens.primary.subtle : "transparent",
-                border: `1px solid ${selectedRoleId === role.id ? tokens.primary.main : "transparent"}`,
-                "&:hover": { bgcolor: selectedRoleId === role.id ? tokens.primary.subtle : tokens.bg.hover },
+                bgcolor: selectedRoleId === role.uuid ? tokens.primary.subtle : "transparent",
+                border: `1px solid ${selectedRoleId === role.uuid ? tokens.primary.main : "transparent"}`,
+                "&:hover": { bgcolor: selectedRoleId === role.uuid ? tokens.primary.subtle : tokens.bg.hover },
                 transition: "all 120ms ease",
               }}
             >
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
-                <SecurityOutlined sx={{ fontSize: 14, color: selectedRoleId === role.id ? tokens.primary.main : tokens.text.tertiary }} />
-                <Typography variant="body2" fontWeight={selectedRoleId === role.id ? 700 : 500} sx={{ fontSize: "0.82rem", color: selectedRoleId === role.id ? tokens.primary.light : tokens.text.primary }}>
+                <SecurityOutlined sx={{ fontSize: 14, color: selectedRoleId === role.uuid ? tokens.primary.main : tokens.text.tertiary }} />
+                <Typography variant="body2" fontWeight={selectedRoleId === role.uuid ? 700 : 500} sx={{ fontSize: "0.82rem", color: selectedRoleId === role.uuid ? tokens.primary.light : tokens.text.primary, flex: 1 }}>
                   {role.name}
                 </Typography>
+                <IconButton size="small" onClick={e => { e.stopPropagation(); openEditRole(role); }} sx={{ p: 0.25 }}>
+                  <EditOutlined sx={{ fontSize: 12 }} />
+                </IconButton>
+                <IconButton size="small" onClick={e => { e.stopPropagation(); setDeleteConfirm(role); }} sx={{ p: 0.25 }}>
+                  <DeleteOutlineOutlined sx={{ fontSize: 12, color: tokens.accent.red }} />
+                </IconButton>
               </Box>
               <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem", pl: 2.5, display: "block" }}>
-                {role.permissionIds.length} permissions
+                {(role.permissions ?? []).length} permissions
               </Typography>
-              {role.isSystem && (
-                <Chip label="system" size="small" sx={{ height: 14, fontSize: "0.6rem", bgcolor: tokens.bg.overlay, color: tokens.text.tertiary, ml: 2.5, mt: 0.25 }} />
-              )}
             </Box>
           ))}
         </Box>
@@ -506,22 +594,17 @@ function AccessControlAdmin() {
               <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2, pb: 1.5, borderBottom: `1px solid ${tokens.border.subtle}` }}>
                 <SecurityOutlined sx={{ fontSize: 16, color: tokens.primary.main }} />
                 <Typography variant="subtitle2" fontWeight={700}>{selectedRole.name}</Typography>
-                <Typography variant="caption" color="text.secondary">— {selectedRole.description}</Typography>
+                <Typography variant="caption" color="text.secondary">— {(selectedRole.permissions ?? []).length} permissions granted</Typography>
               </Box>
               <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-                {resources.map(resource => {
-                  const expanded = expandedResources.has(resource);
-                  const perms = permissions.filter(p => p.resource === resource);
-                  const grantedCount = resourcePermissionCount(resource);
-                  const allGranted = grantedCount === totalForResource(resource);
+                {Object.entries(PERMISSION_GROUPS).map(([resource, perms]) => {
+                  const grantedCount = perms.filter(p => hasPermission(p)).length;
+                  const allGranted = grantedCount === perms.length;
                   return (
                     <Paper key={resource} elevation={0} sx={{ bgcolor: tokens.bg.elevated, border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, overflow: "hidden" }}>
-                      {/* Resource header */}
                       <Box
-                        onClick={() => toggleResource(resource)}
                         sx={{
-                          px: 2, py: 1, display: "flex", alignItems: "center", gap: 1.5, cursor: "pointer",
-                          "&:hover": { bgcolor: tokens.bg.hover },
+                          px: 2, py: 1, display: "flex", alignItems: "center", gap: 1.5,
                           bgcolor: allGranted ? `${tokens.primary.main}08` : "transparent",
                         }}
                       >
@@ -530,38 +613,29 @@ function AccessControlAdmin() {
                           {resource}
                         </Typography>
                         <Typography variant="caption" sx={{ color: grantedCount > 0 ? tokens.primary.light : tokens.text.tertiary, fontSize: "0.68rem", mr: 0.5 }}>
-                          {grantedCount}/{totalForResource(resource)}
+                          {grantedCount}/{perms.length}
                         </Typography>
-                        {expanded ? <ExpandLessOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} /> : <ExpandMoreOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />}
                       </Box>
-                      {/* Permissions */}
-                      <Collapse in={expanded}>
-                        <Box sx={{ px: 1, pb: 0.75, display: "flex", flexDirection: "column" }}>
-                          {perms.map(p => (
-                            <FormControlLabel
-                              key={p.id}
-                              control={
-                                <Checkbox
-                                  size="small"
-                                  checked={hasPermission(p.id)}
-                                  onChange={() => togglePermission(p.id)}
-                                  sx={{ py: 0.5, pl: 1, color: tokens.text.tertiary, "&.Mui-checked": { color: tokens.primary.main } }}
-                                />
-                              }
-                              label={
-                                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                                  <Typography variant="caption" sx={{ fontFamily: "monospace", fontWeight: 600, fontSize: "0.75rem", color: hasPermission(p.id) ? tokens.primary.light : tokens.text.primary }}>
-                                    {p.action}
-                                  </Typography>
-                                  <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>
-                                    — {p.description}
-                                  </Typography>
-                                </Box>
-                              }
-                            />
-                          ))}
-                        </Box>
-                      </Collapse>
+                      <Box sx={{ px: 1, pb: 0.75, display: "flex", flexDirection: "column" }}>
+                        {perms.map(p => (
+                          <FormControlLabel
+                            key={p}
+                            control={
+                              <Checkbox
+                                size="small"
+                                checked={hasPermission(p)}
+                                onChange={() => togglePermission(p)}
+                                sx={{ py: 0.5, pl: 1, color: tokens.text.tertiary, "&.Mui-checked": { color: tokens.primary.main } }}
+                              />
+                            }
+                            label={
+                              <Typography variant="caption" sx={{ fontFamily: "monospace", fontWeight: 600, fontSize: "0.75rem", color: hasPermission(p) ? tokens.primary.light : tokens.text.primary }}>
+                                {p}
+                              </Typography>
+                            }
+                          />
+                        ))}
+                      </Box>
                     </Paper>
                   );
                 })}
@@ -574,6 +648,58 @@ function AccessControlAdmin() {
           )}
         </Box>
       </Box>
+
+      {/* Create Role dialog */}
+      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1, pb: 1 }}>
+          <SecurityOutlined sx={{ fontSize: 18, color: tokens.primary.main }} />
+          <Typography fontWeight={700} sx={{ fontSize: "1rem" }}>Create Role</Typography>
+          <IconButton size="small" onClick={() => setCreateOpen(false)} sx={{ ml: "auto" }}>
+            <CloseOutlined sx={{ fontSize: 16 }} />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 1 }}>
+          <TextField label="Role name" size="small" fullWidth value={newRoleName} onChange={e => setNewRoleName(e.target.value)} autoFocus placeholder="e.g. Editor" />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button size="small" onClick={() => setCreateOpen(false)}>Cancel</Button>
+          <Button size="small" variant="contained" onClick={handleCreateRole} disabled={!newRoleName.trim()}>Create</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit Role dialog */}
+      <Dialog open={Boolean(editRole)} onClose={() => setEditRole(null)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", pb: 1 }}>
+          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Edit Role</Typography>
+          <IconButton size="small" onClick={() => setEditRole(null)}><CloseOutlined sx={{ fontSize: 18 }} /></IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5, pt: 1 }}>
+            {editRole && (
+              <Typography variant="caption" sx={{ color: tokens.text.tertiary }}>UUID: {editRole.uuid}</Typography>
+            )}
+            <TextField label="Role name" size="small" fullWidth value={editName} onChange={e => setEditName(e.target.value)} />
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 1.5 }}>
+          <Button onClick={() => setEditRole(null)} size="small">Cancel</Button>
+          <Button variant="contained" size="small" onClick={handleSaveEdit}>Save</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Role Confirm */}
+      <Dialog open={Boolean(deleteConfirm)} onClose={() => setDeleteConfirm(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Delete Role</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">
+            Are you sure you want to delete role <strong>{deleteConfirm?.name}</strong>?
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteConfirm(null)} size="small">Cancel</Button>
+          <Button variant="contained" color="error" size="small" onClick={handleDeleteRole}>Delete</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

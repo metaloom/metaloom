@@ -1,0 +1,102 @@
+import { API_BASE_URL } from "./config";
+
+// ── Types matching the Loom REST API role models ──────────────────────
+
+export interface RoleResponse {
+  uuid: string;
+  name: string;
+  permissions?: string[];
+  meta?: Record<string, unknown>;
+  status?: {
+    creator?: { uuid: string; name: string };
+    created?: string;
+    editor?: { uuid: string; name: string };
+    edited?: string;
+  };
+}
+
+export interface RoleListResponse {
+  data: RoleResponse[];
+  _metainfo?: {
+    totalCount?: number;
+    currentPage?: number;
+    pageCount?: number;
+    perPage?: number;
+  };
+}
+
+export interface RoleCreateRequest {
+  name: string;
+  permissions?: string[];
+  meta?: Record<string, unknown>;
+}
+
+export interface RoleUpdateRequest {
+  name?: string;
+  permissions?: string[];
+  meta?: Record<string, unknown>;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────
+
+function authHeaders(token: string): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  };
+}
+
+async function handleResponse<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+// ── CRUD API ──────────────────────────────────────────────────────────
+
+export async function listRoles(token: string): Promise<RoleListResponse> {
+  const res = await fetch(`${API_BASE_URL}/roles`, {
+    method: "GET",
+    headers: authHeaders(token),
+  });
+  return handleResponse<RoleListResponse>(res);
+}
+
+export async function loadRole(token: string, uuid: string): Promise<RoleResponse> {
+  const res = await fetch(`${API_BASE_URL}/roles/${encodeURIComponent(uuid)}`, {
+    method: "GET",
+    headers: authHeaders(token),
+  });
+  return handleResponse<RoleResponse>(res);
+}
+
+export async function createRole(token: string, request: RoleCreateRequest): Promise<RoleResponse> {
+  const res = await fetch(`${API_BASE_URL}/roles`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(request),
+  });
+  return handleResponse<RoleResponse>(res);
+}
+
+export async function updateRole(token: string, uuid: string, request: RoleUpdateRequest): Promise<RoleResponse> {
+  const res = await fetch(`${API_BASE_URL}/roles/${encodeURIComponent(uuid)}`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(request),
+  });
+  return handleResponse<RoleResponse>(res);
+}
+
+export async function deleteRole(token: string, uuid: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/roles/${encodeURIComponent(uuid)}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+}

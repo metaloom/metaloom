@@ -13,10 +13,16 @@ import io.metaloom.loom.db.model.asset.Asset;
 import io.metaloom.loom.db.model.asset.AssetDao;
 import io.metaloom.loom.db.model.collection.Collection;
 import io.metaloom.loom.db.model.collection.CollectionDao;
+import io.metaloom.loom.db.model.group.Group;
+import io.metaloom.loom.db.model.group.GroupDao;
+import io.metaloom.loom.db.model.perm.Permission;
+import io.metaloom.loom.db.model.perm.PermissionDao;
 import io.metaloom.loom.db.model.pipeline.Pipeline;
 import io.metaloom.loom.db.model.pipeline.PipelineDao;
 import io.metaloom.loom.db.model.pool.AssetPool;
 import io.metaloom.loom.db.model.pool.AssetPoolDao;
+import io.metaloom.loom.db.model.role.Role;
+import io.metaloom.loom.db.model.role.RoleDao;
 import io.metaloom.loom.db.model.space.Space;
 import io.metaloom.loom.db.model.space.SpaceDao;
 import io.metaloom.loom.db.model.tag.AssetTag;
@@ -49,10 +55,14 @@ public class DemoDatabaseInitializer {
 	private final CollectionDao collectionDao;
 	private final PipelineDao pipelineDao;
 	private final AssetPoolDao assetPoolDao;
+	private final GroupDao groupDao;
+	private final RoleDao roleDao;
+	private final PermissionDao permissionDao;
 
 	@Inject
 	public DemoDatabaseInitializer(UserDao userDao, AssetDao assetDao, SpaceDao spaceDao,
-		TagDao tagDao, CollectionDao collectionDao, PipelineDao pipelineDao, AssetPoolDao assetPoolDao) {
+		TagDao tagDao, CollectionDao collectionDao, PipelineDao pipelineDao, AssetPoolDao assetPoolDao,
+		GroupDao groupDao, RoleDao roleDao, PermissionDao permissionDao) {
 		this.userDao = userDao;
 		this.assetDao = assetDao;
 		this.spaceDao = spaceDao;
@@ -60,6 +70,9 @@ public class DemoDatabaseInitializer {
 		this.collectionDao = collectionDao;
 		this.pipelineDao = pipelineDao;
 		this.assetPoolDao = assetPoolDao;
+		this.groupDao = groupDao;
+		this.roleDao = roleDao;
+		this.permissionDao = permissionDao;
 	}
 
 	/**
@@ -121,6 +134,54 @@ public class DemoDatabaseInitializer {
 		createAssetPool(admin, DEMO_POOL_PRODUCTION, "/mnt/media/production", null, null, null);
 		createAssetPool(admin, DEMO_POOL_INGEST, "/mnt/fast-ssd/ingest", null, null, null);
 		createAssetPool(admin, DEMO_POOL_ARCHIVE, null, "metaloom-archive-prod", "eu-central-1", "https://s3.eu-central-1.amazonaws.com");
+
+		// --- Users ---
+		User editor = createDemoUser(admin, "editor", "editor1234", "editor@example.com", "Emily", "Editor");
+		User viewer = createDemoUser(admin, "viewer", "viewer1234", "viewer@example.com", "Victor", "Viewer");
+
+		// --- Roles ---
+		Role editorRole = createDemoRole(admin, "Editor");
+		Role viewerRole = createDemoRole(admin, "Viewer");
+
+		// Grant editor permissions (full CRUD on assets, tags, collections, comments, annotations)
+		for (Permission perm : new Permission[] {
+			Permission.CREATE_ASSET, Permission.READ_ASSET, Permission.UPDATE_ASSET, Permission.DELETE_ASSET,
+			Permission.CREATE_TAG, Permission.READ_TAG, Permission.UPDATE_TAG, Permission.DELETE_TAG,
+			Permission.TAG_ASSET, Permission.UNTAG_ASSET,
+			Permission.CREATE_COLLECTION, Permission.READ_COLLECTION, Permission.UPDATE_COLLECTION, Permission.DELETE_COLLECTION,
+			Permission.CREATE_COMMENT, Permission.READ_COMMENT, Permission.UPDATE_COMMENT, Permission.DELETE_COMMENT,
+			Permission.CREATE_ANNOTATION, Permission.READ_ANNOTATION, Permission.UPDATE_ANNOTATION, Permission.DELETE_ANNOTATION,
+			Permission.READ_USER, Permission.READ_GROUP, Permission.READ_ROLE,
+			Permission.READ_SPACE, Permission.READ_PIPELINE, Permission.READ_ASSET_POOL,
+		}) {
+			permissionDao.grantRolePermission(editorRole.getUuid(), perm);
+		}
+		log.info("Granted editor permissions to role: {}", editorRole.getName());
+
+		// Grant viewer permissions (read-only)
+		for (Permission perm : new Permission[] {
+			Permission.READ_ASSET, Permission.READ_TAG, Permission.READ_COLLECTION,
+			Permission.READ_COMMENT, Permission.READ_ANNOTATION,
+			Permission.READ_USER, Permission.READ_GROUP, Permission.READ_ROLE,
+			Permission.READ_SPACE, Permission.READ_PIPELINE, Permission.READ_ASSET_POOL,
+		}) {
+			permissionDao.grantRolePermission(viewerRole.getUuid(), perm);
+		}
+		log.info("Granted viewer permissions to role: {}", viewerRole.getName());
+
+		// --- Groups ---
+		Group editorsGroup = createDemoGroup(admin, "Editors");
+		Group viewersGroup = createDemoGroup(admin, "Viewers");
+
+		// Wire users to groups
+		groupDao.addUserToGroup(editorsGroup, editor);
+		groupDao.addUserToGroup(viewersGroup, viewer);
+		log.info("Assigned users to groups");
+
+		// Wire roles to groups
+		groupDao.addRoleToGroup(editorsGroup, editorRole);
+		groupDao.addRoleToGroup(viewersGroup, viewerRole);
+		log.info("Assigned roles to groups");
 
 		// --- Assets ---
 		Asset[] imageAssets = {
@@ -188,9 +249,9 @@ public class DemoDatabaseInitializer {
 			collectionDao.link(videosCollection, a);
 		}
 
-		log.info("Demo data initialization complete — created {} assets, {} tags, {} collections, {} pipeline.",
+		log.info("Demo data initialization complete — created {} assets, {} tags, {} collections, {} pipeline, {} users, {} groups, {} roles.",
 			imageAssets.length + videoAssets.length + audioAssets.length + docAssets.length,
-			8, 2, 1);
+			8, 2, 1, 2, 2, 2);
 	}
 
 	private AssetTag createAssetTag(User admin, String name, String collection) {
@@ -259,5 +320,46 @@ public class DemoDatabaseInitializer {
 		assetDao.store(asset);
 		log.info("Created demo asset: {}", filename);
 		return asset;
+	}
+
+	private User createDemoUser(User admin, String username, String password, String email, String firstname, String lastname) {
+		User user = userDao.createUser(admin.getUuid(), username);
+		user.setUuid(UUIDUtils.randomUUID());
+		user.setCreator(admin);
+		user.setEditor(admin);
+		user.setCreated(Instant.now());
+		user.setEdited(Instant.now());
+		user.setEmail(email);
+		user.setFirstname(firstname);
+		user.setLastname(lastname);
+		user.setEnabled(true);
+		user.setPasswordHash(password);
+		userDao.store(user);
+		log.info("Created demo user: {}", username);
+		return user;
+	}
+
+	private Group createDemoGroup(User admin, String name) {
+		Group group = groupDao.createGroup(admin.getUuid(), name);
+		group.setUuid(UUIDUtils.randomUUID());
+		group.setCreator(admin);
+		group.setEditor(admin);
+		group.setCreated(Instant.now());
+		group.setEdited(Instant.now());
+		groupDao.store(group);
+		log.info("Created demo group: {}", name);
+		return group;
+	}
+
+	private Role createDemoRole(User admin, String name) {
+		Role role = roleDao.createRole(admin.getUuid(), name);
+		role.setUuid(UUIDUtils.randomUUID());
+		role.setCreator(admin);
+		role.setEditor(admin);
+		role.setCreated(Instant.now());
+		role.setEdited(Instant.now());
+		roleDao.store(role);
+		log.info("Created demo role: {}", name);
+		return role;
 	}
 }
