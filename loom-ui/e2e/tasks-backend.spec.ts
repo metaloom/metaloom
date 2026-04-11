@@ -36,13 +36,44 @@ test.describe("Tasks – backend e2e", () => {
   test("tasks are loaded from backend API", async ({ page }) => {
     await loginAndGoToTasks(page);
 
-    // Wait for the table body to render.
-    // If there are tasks, we should see at least one table row.
-    // If there are no tasks, the "No tasks found" message should appear.
-    const taskRows = page.getByRole("row");
+    // If there are tasks, at least one tbody row should be visible.
+    // If there are no tasks, the empty state should be visible.
+    const taskRows = page.locator("tbody tr");
     const emptyMessage = page.getByText("No tasks found");
 
-    // One of these must become visible
-    await expect(taskRows.first().or(emptyMessage)).toBeVisible({ timeout: 10_000 });
+    await expect.poll(async () => await taskRows.count(), { timeout: 10_000 }).toBeGreaterThanOrEqual(0);
+    if (await taskRows.count()) {
+      await expect(taskRows.first()).toBeVisible();
+    } else {
+      await expect(emptyMessage).toBeVisible({ timeout: 10_000 });
+    }
+  });
+
+  test("can create, update and delete a task", async ({ page }) => {
+    await loginAndGoToTasks(page);
+
+    const unique = Date.now();
+    const createdTitle = `E2E task ${unique}`;
+    const updatedTitle = `E2E task updated ${unique}`;
+
+    // Create
+    await page.getByTestId("tasks-create-button").click();
+    await page.getByTestId("tasks-title-input").fill(createdTitle);
+    await page.getByTestId("tasks-description-input").fill("Created by Playwright e2e");
+    await page.getByTestId("tasks-create-submit-button").click();
+    await expect(page.getByText(createdTitle)).toBeVisible({ timeout: 10_000 });
+
+    // Edit
+    await page.getByText(createdTitle).click();
+    await page.getByTestId("tasks-edit-button").click();
+    await page.getByTestId("tasks-edit-title-input").fill(updatedTitle);
+    await page.getByTestId("tasks-save-button").click();
+    await expect(page.getByRole("heading", { name: updatedTitle })).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator("tbody tr").filter({ hasText: updatedTitle }).first()).toBeVisible({ timeout: 10_000 });
+
+    // Delete
+    await page.getByTestId("tasks-delete-button").click();
+    await page.getByTestId("tasks-delete-confirm-button").click();
+    await expect(page.locator("tbody tr").filter({ hasText: updatedTitle })).toHaveCount(0, { timeout: 10_000 });
   });
 });

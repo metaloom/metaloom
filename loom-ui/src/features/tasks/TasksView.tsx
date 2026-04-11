@@ -1,16 +1,17 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Box, Typography, Chip, Table, TableBody, TableCell, TableContainer,
-  TableHead, TableRow, Tooltip, IconButton, Drawer, Divider,
+  TableHead, TableRow, IconButton, Drawer, Divider, Button,
+  Dialog, DialogActions, DialogContent, DialogTitle, TextField, CircularProgress,
 } from "@mui/material";
 import {
-  TaskAltOutlined, RadioButtonUncheckedOutlined, PendingOutlined,
-  BlockOutlined, RateReviewOutlined,
-  CloseOutlined, CalendarTodayOutlined, FlagOutlined,
+  TaskAltOutlined,
+  CloseOutlined, CalendarTodayOutlined, FlagOutlined, AddOutlined,
+  EditOutlined, DeleteOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { useAuth } from "../../context/AuthContext";
-import { listTasks, TaskResponse } from "../../api/tasks";
+import { createTask, deleteTask, listTasks, TaskResponse, updateTask } from "../../api/tasks";
 import { useTranslation } from "react-i18next";
 
 const priorityColor: Record<string, string> = {
@@ -20,16 +21,18 @@ const priorityColor: Record<string, string> = {
   LOW: tokens.text.tertiary,
 };
 
-const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  open: { label: "Open", color: tokens.accent.blue, icon: <RadioButtonUncheckedOutlined sx={{ fontSize: 13 }} /> },
-  in_progress: { label: "In Progress", color: tokens.accent.amber, icon: <PendingOutlined sx={{ fontSize: 13 }} /> },
-  review: { label: "Review", color: tokens.primary.main, icon: <RateReviewOutlined sx={{ fontSize: 13 }} /> },
-  done: { label: "Done", color: tokens.accent.green, icon: <TaskAltOutlined sx={{ fontSize: 13 }} /> },
-  blocked: { label: "Blocked", color: tokens.accent.red, icon: <BlockOutlined sx={{ fontSize: 13 }} /> },
-};
-
 // ── Task Detail Drawer ────────────────────────────────────────────────────
-function TaskDetailDrawer({ task, onClose }: { task: TaskResponse | null; onClose: () => void }) {
+function TaskDetailDrawer({
+  task,
+  onClose,
+  onStartEdit,
+  onDelete,
+}: {
+  task: TaskResponse | null;
+  onClose: () => void;
+  onStartEdit: () => void;
+  onDelete: () => void;
+}) {
   if (!task) return null;
   const prio = task.priority?.toUpperCase() ?? "MEDIUM";
   const pc = priorityColor[prio] ?? tokens.text.tertiary;
@@ -54,7 +57,15 @@ function TaskDetailDrawer({ task, onClose }: { task: TaskResponse | null; onClos
         <Box sx={{ px: 2.5, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", gap: 1 }}>
           <Box sx={{ width: 4, height: 20, borderRadius: 2, bgcolor: pc, flexShrink: 0 }} />
           <Typography variant="h6" fontWeight={700} sx={{ fontSize: "0.95rem", flex: 1 }}>{t("tasks.drawer.title")}</Typography>
-          <IconButton size="small" onClick={onClose}><CloseOutlined sx={{ fontSize: 16 }} /></IconButton>
+          <IconButton size="small" onClick={onStartEdit} data-testid="tasks-edit-button" aria-label={t("tasks.button.edit")}> 
+            <EditOutlined sx={{ fontSize: 16 }} />
+          </IconButton>
+          <IconButton size="small" onClick={onDelete} data-testid="tasks-delete-button" aria-label={t("tasks.button.delete")}> 
+            <DeleteOutlined sx={{ fontSize: 16 }} />
+          </IconButton>
+          <IconButton size="small" onClick={onClose} aria-label={t("tasks.button.close")}>
+            <CloseOutlined sx={{ fontSize: 16 }} />
+          </IconButton>
         </Box>
 
         <Box sx={{ flex: 1, overflow: "auto", p: 2.5, display: "flex", flexDirection: "column", gap: 2.5 }}>
@@ -151,24 +162,117 @@ export default function TasksView() {
   const [tasks, setTasks] = useState<TaskResponse[]>([]);
   const [selectedTask, setSelectedTask] = useState<TaskResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
 
-  useEffect(() => {
-    if (!token) return;
+  const loadTaskList = useCallback(() => {
+    if (!token) {
+      setLoading(false);
+      return Promise.resolve();
+    }
     setLoading(true);
-    listTasks(token)
+    return listTasks(token)
       .then((res) => setTasks(res.data ?? []))
       .catch(() => setTasks([]))
       .finally(() => setLoading(false));
   }, [token]);
 
+  useEffect(() => {
+    void loadTaskList();
+  }, [loadTaskList]);
+
+  const openCreateDialog = () => {
+    setNewTitle("");
+    setNewDescription("");
+    setCreateOpen(true);
+  };
+
+  const openEditForSelected = () => {
+    if (!selectedTask) return;
+    setEditTitle(selectedTask.title ?? "");
+    setEditDescription(selectedTask.description ?? "");
+    setEditMode(true);
+  };
+
+  const closeDrawer = () => {
+    setEditMode(false);
+    setSelectedTask(null);
+  };
+
+  const handleCreateTask = async () => {
+    if (!token || !newTitle.trim()) return;
+    setSaving(true);
+    try {
+      const created = await createTask(token, {
+        title: newTitle.trim(),
+        description: newDescription.trim() || undefined,
+      });
+      setTasks((prev) => [created, ...prev]);
+      setCreateOpen(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!token || !selectedTask || !editTitle.trim()) return;
+    setSaving(true);
+    try {
+      const updated = await updateTask(token, selectedTask.uuid, {
+        title: editTitle.trim(),
+        description: editDescription.trim() || undefined,
+      });
+      setTasks((prev) => prev.map((task) => (task.uuid === updated.uuid ? updated : task)));
+      setSelectedTask(updated);
+      setEditMode(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteTask = async () => {
+    if (!token || !selectedTask) return;
+    setSaving(true);
+    try {
+      await deleteTask(token, selectedTask.uuid);
+      setTasks((prev) => prev.filter((task) => task.uuid !== selectedTask.uuid));
+      setDeleteOpen(false);
+      closeDrawer();
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: tokens.bg.base }}>
-      <Box sx={{ px: 2.5, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface }}>
-        <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("tasks.title")}</Typography>
-        <Typography variant="caption" color="text.secondary">{tasks.length} {t("tasks.count")}</Typography>
+      <Box sx={{ px: 2.5, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
+        <Box>
+          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("tasks.title")}</Typography>
+          <Typography variant="caption" color="text.secondary">{tasks.length} {t("tasks.count")}</Typography>
+        </Box>
+        <Button
+          size="small"
+          variant="contained"
+          startIcon={<AddOutlined sx={{ fontSize: 14 }} />}
+          onClick={openCreateDialog}
+          data-testid="tasks-create-button"
+        >
+          {t("tasks.button.new")}
+        </Button>
       </Box>
 
       <Box sx={{ flex: 1, overflow: "auto" }}>
+        {loading && (
+          <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+            <CircularProgress size={22} />
+          </Box>
+        )}
         <TableContainer>
           <Table size="small">
             <TableHead>
@@ -191,7 +295,109 @@ export default function TasksView() {
         )}
       </Box>
 
-      <TaskDetailDrawer task={selectedTask} onClose={() => setSelectedTask(null)} />
+      {selectedTask && editMode && (
+        <Drawer
+          anchor="right"
+          open={editMode}
+          onClose={() => setEditMode(false)}
+          PaperProps={{
+            sx: {
+              width: 420,
+              bgcolor: tokens.bg.surface,
+              border: `1px solid ${tokens.border.default}`,
+              backgroundImage: "none",
+              p: 2,
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+            },
+          }}
+        >
+          <Typography variant="h6" sx={{ fontSize: "1rem", fontWeight: 700 }}>{t("tasks.dialog.editTitle")}</Typography>
+          <TextField
+            label={t("tasks.form.title")}
+            size="small"
+            value={editTitle}
+            inputProps={{ "data-testid": "tasks-edit-title-input" }}
+            onChange={(e) => setEditTitle(e.target.value)}
+            fullWidth
+          />
+          <TextField
+            label={t("tasks.form.description")}
+            size="small"
+            value={editDescription}
+            inputProps={{ "data-testid": "tasks-edit-description-input" }}
+            onChange={(e) => setEditDescription(e.target.value)}
+            fullWidth
+            multiline
+            minRows={3}
+          />
+          <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
+            <Button size="small" onClick={() => setEditMode(false)}>{t("tasks.button.cancel")}</Button>
+            <Button size="small" variant="contained" onClick={handleSaveEdit} disabled={saving || !editTitle.trim()} data-testid="tasks-save-button">
+              {t("tasks.button.save")}
+            </Button>
+          </Box>
+        </Drawer>
+      )}
+
+      {!editMode && (
+        <TaskDetailDrawer
+          task={selectedTask}
+          onClose={closeDrawer}
+          onStartEdit={openEditForSelected}
+          onDelete={() => setDeleteOpen(true)}
+        />
+      )}
+
+      <Dialog open={createOpen} onClose={() => setCreateOpen(false)}>
+        <DialogTitle>{t("tasks.dialog.newTitle")}</DialogTitle>
+        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 360, pt: "8px !important" }}>
+          <TextField
+            label={t("tasks.form.title")}
+            size="small"
+            value={newTitle}
+            inputProps={{ "data-testid": "tasks-title-input" }}
+            onChange={(e) => setNewTitle(e.target.value)}
+            fullWidth
+          />
+          <TextField
+            label={t("tasks.form.description")}
+            size="small"
+            value={newDescription}
+            inputProps={{ "data-testid": "tasks-description-input" }}
+            onChange={(e) => setNewDescription(e.target.value)}
+            fullWidth
+            multiline
+            minRows={3}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button size="small" onClick={() => setCreateOpen(false)}>{t("tasks.button.cancel")}</Button>
+          <Button size="small" variant="contained" onClick={handleCreateTask} disabled={saving || !newTitle.trim()} data-testid="tasks-create-submit-button">
+            {t("tasks.button.create")}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={deleteOpen} onClose={() => setDeleteOpen(false)}>
+        <DialogTitle>{t("tasks.dialog.deleteTitle")}</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">{t("tasks.confirm.delete", { name: selectedTask?.title ?? "" })}</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button size="small" onClick={() => setDeleteOpen(false)}>{t("tasks.button.cancel")}</Button>
+          <Button
+            size="small"
+            variant="contained"
+            onClick={handleDeleteTask}
+            data-testid="tasks-delete-confirm-button"
+            sx={{ bgcolor: tokens.accent.red, "&:hover": { bgcolor: tokens.accent.red } }}
+          >
+            {t("tasks.button.delete")}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

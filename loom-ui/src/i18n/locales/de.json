@@ -198,6 +198,27 @@
   "tasks": {
     "title": "Aufgaben",
     "count": "Aufgaben",
+    "button": {
+      "new": "Neue Aufgabe",
+      "create": "Erstellen",
+      "save": "Speichern",
+      "edit": "Bearbeiten",
+      "delete": "Löschen",
+      "cancel": "Abbrechen",
+      "close": "Schließen"
+    },
+    "form": {
+      "title": "Titel",
+      "description": "Beschreibung"
+    },
+    "dialog": {
+      "newTitle": "Aufgabe erstellen",
+      "editTitle": "Aufgabe bearbeiten",
+      "deleteTitle": "Aufgabe löschen"
+    },
+    "confirm": {
+      "delete": "{{name}} löschen? Dies kann nicht rückgängig gemacht werden."
+    },
     "table": {
       "task": "Aufgabe",
       "priority": "Priorität",

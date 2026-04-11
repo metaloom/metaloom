@@ -29,6 +29,8 @@ import io.metaloom.loom.db.model.space.Space;
 import io.metaloom.loom.db.model.space.SpaceDao;
 import io.metaloom.loom.db.model.tag.AssetTag;
 import io.metaloom.loom.db.model.tag.TagDao;
+import io.metaloom.loom.db.model.task.Task;
+import io.metaloom.loom.db.model.task.TaskDao;
 import io.metaloom.loom.db.model.user.User;
 import io.metaloom.loom.db.model.user.UserDao;
 import io.metaloom.utils.UUIDUtils;
@@ -64,11 +66,12 @@ public class DemoDatabaseInitializer {
 	private final GroupDao groupDao;
 	private final RoleDao roleDao;
 	private final PermissionDao permissionDao;
+	private final TaskDao taskDao;
 
 	@Inject
 	public DemoDatabaseInitializer(UserDao userDao, AssetDao assetDao, SpaceDao spaceDao,
 		TagDao tagDao, CollectionDao collectionDao, LibraryDao libraryDao, PipelineDao pipelineDao, AssetPoolDao assetPoolDao,
-		GroupDao groupDao, RoleDao roleDao, PermissionDao permissionDao) {
+		GroupDao groupDao, RoleDao roleDao, PermissionDao permissionDao, TaskDao taskDao) {
 		this.userDao = userDao;
 		this.assetDao = assetDao;
 		this.spaceDao = spaceDao;
@@ -80,6 +83,7 @@ public class DemoDatabaseInitializer {
 		this.groupDao = groupDao;
 		this.roleDao = roleDao;
 		this.permissionDao = permissionDao;
+		this.taskDao = taskDao;
 	}
 
 	/**
@@ -161,6 +165,7 @@ public class DemoDatabaseInitializer {
 			Permission.CREATE_LIBRARY, Permission.READ_LIBRARY, Permission.UPDATE_LIBRARY, Permission.DELETE_LIBRARY,
 			Permission.CREATE_TAG, Permission.READ_TAG, Permission.UPDATE_TAG, Permission.DELETE_TAG,
 			Permission.TAG_ASSET, Permission.UNTAG_ASSET,
+			Permission.CREATE_TASK, Permission.READ_TASK, Permission.UPDATE_TASK, Permission.DELETE_TASK,
 			Permission.CREATE_COLLECTION, Permission.READ_COLLECTION, Permission.UPDATE_COLLECTION, Permission.DELETE_COLLECTION,
 			Permission.CREATE_COMMENT, Permission.READ_COMMENT, Permission.UPDATE_COMMENT, Permission.DELETE_COMMENT,
 			Permission.CREATE_ANNOTATION, Permission.READ_ANNOTATION, Permission.UPDATE_ANNOTATION, Permission.DELETE_ANNOTATION,
@@ -174,6 +179,7 @@ public class DemoDatabaseInitializer {
 		// Grant viewer permissions (read-only)
 		for (Permission perm : new Permission[] {
 			Permission.READ_ASSET, Permission.READ_TAG, Permission.READ_COLLECTION,
+			Permission.READ_TASK,
 			Permission.READ_COMMENT, Permission.READ_ANNOTATION,
 			Permission.READ_USER, Permission.READ_GROUP, Permission.READ_ROLE,
 			Permission.READ_SPACE, Permission.READ_LIBRARY, Permission.READ_PIPELINE, Permission.READ_ASSET_POOL,
@@ -262,9 +268,27 @@ public class DemoDatabaseInitializer {
 			collectionDao.link(videosCollection, a);
 		}
 
-		log.info("Demo data initialization complete — created {} assets, {} tags, {} collections, {} pipeline, {} users, {} groups, {} roles.",
+		// --- Tasks ---
+		createTask(admin, "Review metadata quality", "Check imported assets for missing descriptions and keywords.");
+		createTask(admin, "Approve campaign cut", "Review the latest campaign cut and approve for publishing.");
+		createTask(admin, "Tag city timelapse", "Assign accurate tags to timelapse-city.mp4 for discoverability.");
+
+		log.info("Demo data initialization complete — created {} assets, {} tags, {} collections, {} pipeline, {} users, {} groups, {} roles, {} tasks.",
 			imageAssets.length + videoAssets.length + audioAssets.length + docAssets.length,
-			8, 2, 1, 2, 2, 2);
+			8, 2, 1, 2, 2, 2, 3);
+	}
+
+	private Task createTask(User admin, String title, String description) {
+		Task task = taskDao.createTask(admin.getUuid(), title);
+		task.setUuid(UUIDUtils.randomUUID());
+		task.setCreator(admin);
+		task.setEditor(admin);
+		task.setCreated(Instant.now());
+		task.setEdited(Instant.now());
+		task.setDescription(description);
+		taskDao.store(task);
+		log.info("Created demo task: {}", title);
+		return task;
 	}
 
 	private Library createLibrary(User admin, String name) {

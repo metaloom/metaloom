@@ -198,6 +198,27 @@
   "tasks": {
     "title": "Tasks",
     "count": "tasks",
+    "button": {
+      "new": "New Task",
+      "create": "Create",
+      "save": "Save",
+      "edit": "Edit",
+      "delete": "Delete",
+      "cancel": "Cancel",
+      "close": "Close"
+    },
+    "form": {
+      "title": "Title",
+      "description": "Description"
+    },
+    "dialog": {
+      "newTitle": "Create Task",
+      "editTitle": "Edit Task",
+      "deleteTitle": "Delete Task"
+    },
+    "confirm": {
+      "delete": "Delete {{name}}? This cannot be undone."
+    },
     "table": {
       "task": "Task",
       "priority": "Priority",
