@@ -16,7 +16,7 @@ import {
 } from "@mui/icons-material";
 import { Menu } from "@mui/material";
 import { tokens } from "../../theme";
-import { User, Permission, ApiKey, BlacklistEntry } from "../../types";
+import { Permission, ApiKey, BlacklistEntry } from "../../types";
 import { mockAdminService } from "../../mock/services";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -31,6 +31,189 @@ import {
   listRoles, createRole, updateRole, deleteRole,
   RoleResponse,
 } from "../../api/roles";
+import {
+  listSpaces, createSpace, updateSpace, deleteSpace,
+  SpaceResponse,
+} from "../../api/spaces";
+
+// ── Spaces Table ──────────────────────────────────────────────────────────
+function SpacesAdmin() {
+  const { token } = useAuth();
+  const [spaces, setSpaces] = useState<SpaceResponse[]>([]);
+  const [query, setQuery] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [editSpace, setEditSpace] = useState<SpaceResponse | null>(null);
+  const [editName, setEditName] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState<SpaceResponse | null>(null);
+
+  const reload = useCallback(async () => {
+    if (!token) return;
+    try {
+      const resp = await listSpaces(token);
+      setSpaces(resp.data ?? []);
+    } catch (e) {
+      console.error("Failed to load spaces", e);
+    }
+  }, [token]);
+
+  useEffect(() => { reload(); }, [reload]);
+
+  const handleCreate = async () => {
+    if (!newName.trim() || !token) return;
+    try {
+      await createSpace(token, { name: newName.trim() });
+      setCreateOpen(false);
+      setNewName("");
+      reload();
+    } catch (e) {
+      console.error("Failed to create space", e);
+    }
+  };
+
+  const openEdit = (s: SpaceResponse) => {
+    setEditSpace(s);
+    setEditName(s.name);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editSpace || !token) return;
+    try {
+      await updateSpace(token, editSpace.uuid, { name: editName.trim() || undefined });
+      setEditSpace(null);
+      reload();
+    } catch (e) {
+      console.error("Failed to update space", e);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteConfirm || !token) return;
+    try {
+      await deleteSpace(token, deleteConfirm.uuid);
+      setDeleteConfirm(null);
+      reload();
+    } catch (e) {
+      console.error("Failed to delete space", e);
+    }
+  };
+
+  return (
+    <Box>
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+        <Box>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+            <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Spaces</Typography>
+            <Tooltip title="Spaces organise projects, libraries and assets into logical groups." arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
+          </Box>
+          <Typography variant="caption" color="text.secondary">{spaces.length} spaces</Typography>
+        </Box>
+        <Button startIcon={<AddOutlined />} variant="contained" size="small" onClick={() => setCreateOpen(true)}>New Space</Button>
+      </Box>
+      <TextField
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        placeholder="Search spaces…"
+        size="small"
+        sx={{ mb: 1.5, maxWidth: 320 }}
+        fullWidth
+        InputProps={{
+          startAdornment: (
+            <InputAdornment position="start">
+              <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
+            </InputAdornment>
+          ),
+        }}
+      />
+      <TableContainer component={Paper} elevation={0}>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>Name</TableCell>
+              <TableCell>UUID</TableCell>
+              <TableCell>Created</TableCell>
+              <TableCell align="right">Actions</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {spaces.filter(s => {
+              if (!query.trim()) return true;
+              return s.name.toLowerCase().includes(query.toLowerCase());
+            }).map(s => (
+              <TableRow key={s.uuid} hover sx={{ cursor: "pointer" }} onClick={() => openEdit(s)}>
+                <TableCell><Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.82rem" }}>{s.name}</Typography></TableCell>
+                <TableCell><Typography variant="caption" color="text.secondary" sx={{ fontFamily: "monospace", fontSize: "0.7rem" }}>{s.uuid}</Typography></TableCell>
+                <TableCell><Typography variant="caption" color="text.secondary">{s.status?.created ? new Date(s.status.created).toLocaleDateString() : "—"}</Typography></TableCell>
+                <TableCell align="right">
+                  <IconButton size="small" onClick={e => { e.stopPropagation(); openEdit(s); }}>
+                    <EditOutlined sx={{ fontSize: 15 }} />
+                  </IconButton>
+                  <IconButton size="small" onClick={e => { e.stopPropagation(); setDeleteConfirm(s); }}>
+                    <DeleteOutlineOutlined sx={{ fontSize: 15, color: tokens.accent.red }} />
+                  </IconButton>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      {/* Create Space dialog */}
+      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="sm" fullWidth
+        PaperProps={{ sx: { bgcolor: tokens.bg.surface, border: `1px solid ${tokens.border.subtle}` } }}>
+        <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1, pb: 1 }}>
+          <Typography fontWeight={700} sx={{ fontSize: "1rem" }}>Create Space</Typography>
+          <IconButton size="small" onClick={() => setCreateOpen(false)} sx={{ ml: "auto" }}>
+            <CloseOutlined sx={{ fontSize: 16 }} />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 1 }}>
+          <Stack spacing={2.5}>
+            <TextField label="Space name" size="small" fullWidth value={newName} onChange={e => setNewName(e.target.value)} autoFocus placeholder="e.g. Production" />
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button size="small" onClick={() => setCreateOpen(false)}>Cancel</Button>
+          <Button size="small" variant="contained" onClick={handleCreate} disabled={!newName.trim()}>Create Space</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit Space dialog */}
+      <Dialog open={Boolean(editSpace)} onClose={() => setEditSpace(null)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", pb: 1 }}>
+          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>Edit Space</Typography>
+          <IconButton size="small" onClick={() => setEditSpace(null)}><CloseOutlined sx={{ fontSize: 18 }} /></IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5, pt: 1 }}>
+            {editSpace && (
+              <Typography variant="caption" sx={{ color: tokens.text.tertiary }}>UUID: {editSpace.uuid}</Typography>
+            )}
+            <TextField label="Space name" size="small" fullWidth value={editName} onChange={e => setEditName(e.target.value)} />
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 1.5 }}>
+          <Button onClick={() => setEditSpace(null)} size="small">Cancel</Button>
+          <Button variant="contained" size="small" onClick={handleSaveEdit}>Save</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirm Dialog */}
+      <Dialog open={Boolean(deleteConfirm)} onClose={() => setDeleteConfirm(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Delete Space</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">
+            Are you sure you want to delete space <strong>{deleteConfirm?.name}</strong>?
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteConfirm(null)} size="small">Cancel</Button>
+          <Button variant="contained" color="error" size="small" onClick={handleDelete}>Delete</Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+}
 
 // ── Users Table ───────────────────────────────────────────────────────────
 function UsersAdmin() {
@@ -731,7 +914,6 @@ const PERMISSION_GROUPS: Record<string, string[]> = {
 
 function ApiKeysAdmin() {
   const [keys, setKeys] = useState<ApiKey[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [newPermissions, setNewPermissions] = useState<string[]>([]);
@@ -743,9 +925,7 @@ function ApiKeysAdmin() {
   const [menuKeyId, setMenuKeyId] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([mockAdminService.getApiKeys(), mockAdminService.getUsers()]).then(([k, u]) => {
-      setKeys(k); setUsers(u);
-    });
+    mockAdminService.getApiKeys().then(setKeys);
   }, []);
 
   const handleCreate = async () => {
@@ -831,16 +1011,14 @@ function ApiKeysAdmin() {
             {keys.filter(k => {
               if (!query.trim()) return true;
               const q = query.toLowerCase();
-              const owner = users.find(u => u.id === k.ownerId);
-              return k.name.toLowerCase().includes(q) || (owner?.name.toLowerCase().includes(q) ?? false) || k.scopes.some(s => s.toLowerCase().includes(q));
+              return k.name.toLowerCase().includes(q) || k.ownerId.toLowerCase().includes(q) || k.scopes.some(s => s.toLowerCase().includes(q));
             }).map(k => {
-              const owner = users.find(u => u.id === k.ownerId);
               const expired = k.expiresAt && new Date(k.expiresAt) < new Date();
               return (
                 <TableRow key={k.id} hover>
                   <TableCell><Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.82rem" }}>{k.name}</Typography></TableCell>
                   <TableCell><Typography variant="caption" sx={{ fontFamily: "monospace", color: tokens.text.secondary, bgcolor: tokens.bg.overlay, px: 0.75, py: 0.25, borderRadius: tokens.radius.sm }}>{k.id.slice(0, 16)}…</Typography></TableCell>
-                  <TableCell><Typography variant="caption" color="text.secondary">{owner?.name ?? k.ownerId}</Typography></TableCell>
+                  <TableCell><Typography variant="caption" color="text.secondary">{k.ownerId}</Typography></TableCell>
                   <TableCell>
                     <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
                       {k.scopes.slice(0, 3).map(s => <Chip key={s} label={s} size="small" sx={{ height: 16, fontSize: "0.62rem", fontFamily: "monospace" }} />)}
@@ -1110,6 +1288,7 @@ function BlacklistAdmin() {
 // ── Permissions view ──────────────────────────────────────────────────────
 // ── Admin Area Shell ──────────────────────────────────────────────────────
 const ADMIN_TABS = [
+  { label: "Spaces", path: "/admin/spaces" },
   { label: "Users", path: "/admin/users" },
   { label: "Groups", path: "/admin/groups" },
   { label: "Permissions", path: "/admin/permissions" },
@@ -1126,7 +1305,7 @@ export default function AdminArea() {
 
   useEffect(() => {
     if (location.pathname === "/admin" || location.pathname === "/admin/") {
-      navigate("/admin/users", { replace: true });
+      navigate("/admin/spaces", { replace: true });
     }
   }, [location.pathname, navigate]);
 
@@ -1145,6 +1324,7 @@ export default function AdminArea() {
 
       <Box sx={{ flex: 1, overflow: "auto", p: 2.5 }}>
         <Routes>
+          <Route path="spaces" element={<SpacesAdmin />} />
           <Route path="users" element={<UsersAdmin />} />
           <Route path="groups" element={<GroupsAdmin />} />
           <Route path="permissions" element={<AccessControlAdmin />} />

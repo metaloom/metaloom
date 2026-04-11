@@ -8,18 +8,14 @@ import {
   ChatBubbleOutline, PhotoLibraryOutlined, AccountTreeOutlined,
   TaskAltOutlined, CollectionsOutlined, BarChartOutlined,
   Circle, ChevronLeft, ChevronRight, LibraryBooksOutlined,
-  FolderOpenOutlined, KeyboardArrowDown, FaceOutlined,
+  FolderOpenOutlined, FaceOutlined,
   PersonOutlined, LogoutOutlined,
   LocalOfferOutlined, DnsOutlined, GroupsOutlined,
   SecurityOutlined, VpnKeyOutlined, BlockOutlined,
   SpeedOutlined, VisibilityOutlined, StorageOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../theme";
-import { useProject } from "../context/ProjectContext";
 import { useAuth } from "../context/AuthContext";
-import { USERS } from "../mock/data";
-
-const currentUser = USERS[0];
 
 interface NavItem {
   label: string;
@@ -44,6 +40,7 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
   { label: "Pipelines", path: "/pipelines", icon: <AccountTreeOutlined fontSize="small" /> },
   { label: "Cortex", path: "/cortex", icon: <DnsOutlined fontSize="small" /> },
   { label: "Monitoring", path: "/monitoring", icon: <BarChartOutlined fontSize="small" /> },
+  { label: "Spaces", path: "/admin/spaces", icon: <FolderOpenOutlined fontSize="small" /> },
   { label: "Users", path: "/admin/users", icon: <PersonOutlined fontSize="small" /> },
   { label: "Groups", path: "/admin/groups", icon: <GroupsOutlined fontSize="small" /> },
   { label: "Permissions", path: "/admin/permissions", icon: <SecurityOutlined fontSize="small" /> },
@@ -59,9 +56,7 @@ interface Props {
 export default function Sidebar({ collapsed, onCollapse }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { projects, activeProject, setActiveProject } = useProject();
-  const { logout } = useAuth();
-  const [projectMenuAnchor, setProjectMenuAnchor] = useState<null | HTMLElement>(null);
+  const { username, logout } = useAuth();
   const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
 
   const isActive = (path: string) =>
@@ -108,66 +103,27 @@ export default function Sidebar({ collapsed, onCollapse }: Props) {
         flexShrink: 0,
       }}
     >
-      {/* Project Switcher */}
+      {/* Header */}
       <Box sx={{ px: collapsed ? 1 : 1.5, pt: 1.5, pb: 1, display: "flex", alignItems: "center", gap: 1 }}>
         {!collapsed && (
-        <Tooltip title="" placement="right">
-          <Box
-            onClick={(e) => setProjectMenuAnchor(e.currentTarget)}
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 1,
-              px: 1,
-              py: 0.75,
-              borderRadius: tokens.radius.md,
-              cursor: "pointer",
-              border: `1px solid ${tokens.border.subtle}`,
-              bgcolor: tokens.bg.elevated,
-              "&:hover": { borderColor: tokens.border.default, bgcolor: tokens.bg.overlay },
-              transition: "all 140ms ease",
-              overflow: "hidden",
-              flex: 1,
-              minWidth: 0,
-            }}
-          >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: 1, minWidth: 0 }}>
             <Box
               sx={{
                 width: 24, height: 24, borderRadius: tokens.radius.sm,
-                bgcolor: activeProject?.color ?? tokens.primary.main,
+                bgcolor: tokens.primary.main,
                 flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
               }}
             >
               <FolderOpenOutlined sx={{ fontSize: 13, color: "#fff" }} />
             </Box>
             <Typography variant="caption" fontWeight={600} color="text.primary" noWrap sx={{ flex: 1, fontSize: "0.8rem" }}>
-              {activeProject?.name ?? "Loading…"}
+              Metaloom
             </Typography>
-            <KeyboardArrowDown sx={{ fontSize: 14, color: tokens.text.tertiary, flexShrink: 0 }} />
           </Box>
-        </Tooltip>
         )}
-        <Menu
-          anchorEl={projectMenuAnchor}
-          open={Boolean(projectMenuAnchor)}
-          onClose={() => setProjectMenuAnchor(null)}
-          sx={{ mt: 0.5 }}
-        >
-          {projects.map((p) => (
-            <MenuItem
-              key={p.id}
-              selected={p.id === activeProject?.id}
-              onClick={() => { setActiveProject(p); setProjectMenuAnchor(null); }}
-              sx={{ gap: 1.5 }}
-            >
-              <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: p.color, flexShrink: 0 }} />
-              <Typography variant="body2" fontWeight={500}>{p.name}</Typography>
-            </MenuItem>
-          ))}
-        </Menu>
 
         {/* User avatar — top right */}
-        <Tooltip title={collapsed ? currentUser.name : ""} placement="right">
+        <Tooltip title={collapsed ? (username ?? "") : ""} placement="right">
           <IconButton
             size="small"
             onClick={(e) => setUserMenuAnchor(e.currentTarget)}
@@ -175,7 +131,7 @@ export default function Sidebar({ collapsed, onCollapse }: Props) {
           >
             <Box sx={{ position: "relative" }}>
               <Avatar sx={{ width: 28, height: 28, fontSize: "0.75rem", bgcolor: tokens.primary.dark }}>
-                {currentUser.name.split(" ").map(n => n[0]).join("")}
+                {(username ?? "?").charAt(0).toUpperCase()}
               </Avatar>
               <Circle sx={{ position: "absolute", bottom: -1, right: -1, fontSize: 10, color: tokens.accent.green }} />
             </Box>
@@ -189,8 +145,7 @@ export default function Sidebar({ collapsed, onCollapse }: Props) {
           transformOrigin={{ vertical: "top", horizontal: "right" }}
         >
           <Box sx={{ px: 2, py: 1, minWidth: 160 }}>
-            <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.82rem" }}>{currentUser.name}</Typography>
-            <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>{currentUser.role}</Typography>
+            <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.82rem" }}>{username ?? "Unknown"}</Typography>
           </Box>
           <Divider />
           <MenuItem onClick={() => { setUserMenuAnchor(null); navigate("/profile"); }} sx={{ gap: 1.5, fontSize: "0.85rem" }}>

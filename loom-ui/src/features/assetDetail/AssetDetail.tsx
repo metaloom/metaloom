@@ -21,7 +21,7 @@ import { tokens } from "../../theme";
 import { Asset, AssetType, AssetStatus, Comment, Annotation, Reaction, Task, TranscriptSection, DetectedFace, FaceCluster, Person } from "../../types";
 import {
   mockCommentService, mockAnnotationService,
-  mockReactionService, mockTaskService, mockTranscriptService,
+  mockReactionService, mockTranscriptService,
   mockFaceDetectionService,
 } from "../../mock/services";
 import { USERS, COLLECTIONS, PIPELINES } from "../../mock/data";
@@ -853,7 +853,7 @@ export default function AssetDetail() {
       mockCommentService.getByAsset(id),
       mockAnnotationService.getByAsset(id),
       mockReactionService.getByAsset(id),
-      mockTaskService.getByAsset(id),
+      Promise.resolve([] as Task[]),
       mockTranscriptService.getByAsset(id),
       mockFaceDetectionService.getFacesByAsset(id),
       mockFaceDetectionService.getAllClusters(),

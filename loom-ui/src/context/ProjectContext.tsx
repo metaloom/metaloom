@@ -1,6 +1,5 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useState } from "react";
 import { Project } from "../types";
-import { mockProjectService } from "../mock/services";
 
 interface ProjectContextValue {
   projects: Project[];
@@ -13,24 +12,15 @@ const ProjectContext = createContext<ProjectContextValue>({
   projects: [],
   activeProject: null,
   setActiveProject: () => {},
-  loading: true,
+  loading: false,
 });
 
 export function ProjectProvider({ children }: { children: React.ReactNode }) {
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects] = useState<Project[]>([]);
   const [activeProject, setActiveProject] = useState<Project | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    mockProjectService.getAll().then((ps) => {
-      setProjects(ps);
-      setActiveProject(ps[0] ?? null);
-      setLoading(false);
-    });
-  }, []);
 
   return (
-    <ProjectContext.Provider value={{ projects, activeProject, setActiveProject, loading }}>
+    <ProjectContext.Provider value={{ projects, activeProject, setActiveProject, loading: false }}>
       {children}
     </ProjectContext.Provider>
   );

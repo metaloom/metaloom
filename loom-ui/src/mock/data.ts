@@ -1,6 +1,6 @@
 import {
-  Project, Library, Asset, Collection, Task, Comment, Annotation,
-  Reaction, Pipeline, User, Group, Role, Permission, ApiKey,
+  Library, Asset, Collection, Task, Comment, Annotation,
+  Reaction, Pipeline, User, Permission, ApiKey,
   BlacklistEntry, MetricSeries, ChatMessage,
   TranscriptSection, DetectedFace, FaceCluster, Person,
   DetectedObject, AssetPool,
@@ -34,13 +34,6 @@ export const USERS: User[] = [
   { id: "u6", name: "Dev Build Bot", email: "bot@metaloom.io", username: "buildbot", role: "operator", groupIds: [], active: false, createdAt: daysAgo(200), lastSeenAt: daysAgo(10) },
 ];
 
-// ── Groups ────────────────────────────────────────────────────────────────
-export const GROUPS: Group[] = [
-  { id: "g1", name: "Core Team", description: "Core product and engineering", memberIds: ["u1", "u2"], roleIds: ["r1", "r2"], createdAt: daysAgo(180) },
-  { id: "g2", name: "Media Ops", description: "Ingestion and pipeline operators", memberIds: ["u1", "u3", "u5"], roleIds: ["r2", "r3"], createdAt: daysAgo(100) },
-  { id: "g3", name: "Reviewers", description: "Content review and approval", memberIds: ["u4", "u5"], roleIds: ["r4"], createdAt: daysAgo(60) },
-];
-
 // ── Permissions ───────────────────────────────────────────────────────────
 export const PERMISSIONS: Permission[] = [
   { id: "p1", resource: "asset", action: "read", description: "View assets" },
@@ -53,14 +46,6 @@ export const PERMISSIONS: Permission[] = [
   { id: "p8", resource: "collection", action: "write", description: "Manage collections" },
   { id: "p9", resource: "task", action: "write", description: "Create and update tasks" },
   { id: "p10", resource: "admin", action: "access", description: "Access admin panel" },
-];
-
-// ── Roles ─────────────────────────────────────────────────────────────────
-export const ROLES: Role[] = [
-  { id: "r1", name: "Super Admin", description: "Full system access", permissionIds: ["p1","p2","p3","p4","p5","p6","p7","p8","p9","p10"], isSystem: true, createdAt: daysAgo(180) },
-  { id: "r2", name: "Editor", description: "Can read and write assets, collections, tasks", permissionIds: ["p1","p2","p4","p8","p9"], isSystem: true, createdAt: daysAgo(180) },
-  { id: "r3", name: "Pipeline Operator", description: "Can view and run pipelines", permissionIds: ["p1","p4","p5"], isSystem: true, createdAt: daysAgo(100) },
-  { id: "r4", name: "Reviewer", description: "Read-only access with annotation capability", permissionIds: ["p1","p4"], isSystem: false, createdAt: daysAgo(60) },
 ];
 
 // ── API Keys ──────────────────────────────────────────────────────────────
@@ -76,13 +61,6 @@ export const BLACKLIST: BlacklistEntry[] = [
   { id: "bl2", type: "domain", value: "bad-actor.example.com", reason: "Phishing referrer", addedBy: "u1", createdAt: daysAgo(12) },
   { id: "bl3", type: "fingerprint", value: "sha256:abc123def456", reason: "DMCA takedown", addedBy: "u2", createdAt: daysAgo(20) },
   { id: "bl4", type: "user", value: "u6", reason: "Compromised bot account", addedBy: "u1", createdAt: daysAgo(8) },
-];
-
-// ── Projects ──────────────────────────────────────────────────────────────
-export const PROJECTS: Project[] = [
-  { id: "proj1", name: "Campaign Alpha", slug: "campaign-alpha", description: "Summer 2026 brand campaign assets", color: "#7c6af7", assetCount: 142, memberCount: 4, createdAt: daysAgo(90), libraryIds: ["lib1", "lib2"] },
-  { id: "proj2", name: "Sports Archive", slug: "sports-archive", description: "Broadcast and editorial sports library", color: "#2ea8ff", assetCount: 381, memberCount: 6, createdAt: daysAgo(180), libraryIds: ["lib3", "lib4"] },
-  { id: "proj3", name: "Internal Comms", slug: "internal-comms", description: "Internal video and document assets", color: "#34d58a", assetCount: 58, memberCount: 3, createdAt: daysAgo(30), libraryIds: ["lib5"] },
 ];
 
 // ── Libraries ─────────────────────────────────────────────────────────────

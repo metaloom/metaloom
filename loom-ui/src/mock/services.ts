@@ -1,25 +1,19 @@
 import {
-  Project, Library, Asset, Collection, Task, Comment, Annotation,
-  Reaction, Pipeline, User, Group, Role, Permission, ApiKey,
+  Library, Asset, Collection, Comment, Annotation,
+  Reaction, Pipeline, ApiKey,
   BlacklistEntry, ChatMessage,
   TranscriptSection, DetectedFace, FaceCluster, Person, AssetPool,
 } from "../types";
 import {
-  PROJECTS, LIBRARIES, ASSETS, COLLECTIONS, TASKS,
-  COMMENTS, ANNOTATIONS, REACTIONS, PIPELINES, USERS, GROUPS,
-  ROLES, PERMISSIONS, API_KEYS, BLACKLIST, INITIAL_CHAT,
+  LIBRARIES, ASSETS, COLLECTIONS,
+  COMMENTS, ANNOTATIONS, REACTIONS, PIPELINES,
+  API_KEYS, BLACKLIST, INITIAL_CHAT,
   TRANSCRIPTS, DETECTED_FACES, FACE_CLUSTERS, PERSONS,
   ASSET_POOLS,
 } from "./data";
 
 // Simulate realistic async latency
 const delay = (ms = 200) => new Promise<void>((r) => setTimeout(r, ms));
-
-// ── Projects ─────────────────────────────────────────────────────────────
-export const mockProjectService = {
-  getAll: async (): Promise<Project[]> => { await delay(120); return [...PROJECTS]; },
-  getById: async (id: string): Promise<Project | undefined> => { await delay(80); return PROJECTS.find(p => p.id === id); },
-};
 
 // ── Libraries ────────────────────────────────────────────────────────────
 export const mockLibraryService = {
@@ -105,22 +99,6 @@ export const mockCollectionService = {
   },
 };
 
-// ── Tasks ─────────────────────────────────────────────────────────────────
-export const mockTaskService = {
-  getByProject: async (projectId: string): Promise<Task[]> => {
-    await delay(150);
-    return TASKS.filter(t => t.projectId === projectId);
-  },
-  getByAsset: async (assetId: string): Promise<Task[]> => {
-    await delay(100);
-    return TASKS.filter(t => t.assetId === assetId);
-  },
-  getById: async (id: string): Promise<Task | undefined> => {
-    await delay(80);
-    return TASKS.find(t => t.id === id);
-  },
-};
-
 // ── Comments ──────────────────────────────────────────────────────────────
 export const mockCommentService = {
   getByAsset: async (assetId: string): Promise<Comment[]> => {
@@ -160,15 +138,6 @@ export const mockPipelineService = {
 
 // ── Admin ─────────────────────────────────────────────────────────────────
 export const mockAdminService = {
-  getUsers: async (): Promise<User[]> => { await delay(150); return [...USERS]; },
-  getGroups: async (): Promise<Group[]> => { await delay(120); return [...GROUPS]; },
-  getRoles: async (): Promise<Role[]> => { await delay(100); return [...ROLES]; },
-  updateRolePermissions: async (roleId: string, permissionIds: string[]): Promise<void> => {
-    await delay(80);
-    const role = ROLES.find(r => r.id === roleId);
-    if (role) role.permissionIds = [...permissionIds];
-  },
-  getPermissions: async (): Promise<Permission[]> => { await delay(80); return [...PERMISSIONS]; },
   getApiKeys: async (): Promise<ApiKey[]> => { await delay(120); return [...API_KEYS]; },
   createApiKey: async (data: { name: string; scopes: string[]; expiresAt?: string }): Promise<ApiKey> => {
     await delay(200);
