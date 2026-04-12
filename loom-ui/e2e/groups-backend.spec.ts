@@ -81,7 +81,10 @@ test.describe("Groups – full backend e2e", () => {
     // Confirm deletion
     await page.getByRole("button", { name: /delete/i }).click();
 
-    // The group should disappear
+    // Wait for the confirmation dialog to close
+    await expect(page.getByLabel('Delete Group')).toBeHidden({ timeout: 10_000 });
+
+    // The group should disappear from the list
     await expect(page.getByText("pw-test-group-updated")).toBeHidden({ timeout: 10_000 });
   });
 });

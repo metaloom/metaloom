@@ -28,13 +28,13 @@ test.describe("Roles – full backend e2e", () => {
     await loginAndGoToPermissions(page);
 
     // Demo roles should be present in the sidebar
-    await expect(page.getByText("Editor")).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText("Viewer")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("Editor").first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("Viewer").first()).toBeVisible({ timeout: 10_000 });
   });
 
   test("create a new role and verify it appears", async ({ page }) => {
     await loginAndGoToPermissions(page);
-    await expect(page.getByText("Editor")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("Editor").first()).toBeVisible({ timeout: 10_000 });
 
     // Click "New Role" button
     await page.getByRole("button", { name: /new role/i }).click();
@@ -51,10 +51,10 @@ test.describe("Roles – full backend e2e", () => {
 
   test("select a role and view permissions", async ({ page }) => {
     await loginAndGoToPermissions(page);
-    await expect(page.getByText("Editor")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("Editor").first()).toBeVisible({ timeout: 10_000 });
 
     // Click on the Editor role
-    await page.getByText("Editor").click();
+    await page.getByText("Editor").first().click();
 
     // The permission tree should show resource groups
     await expect(page.getByText("permissions granted")).toBeVisible({ timeout: 5_000 });
@@ -76,7 +76,10 @@ test.describe("Roles – full backend e2e", () => {
     // Confirm deletion in dialog
     await page.getByRole("button", { name: /delete/i }).last().click();
 
-    // Role should disappear
+    // Wait for the confirmation dialog to close
+    await expect(page.getByLabel('Delete Role')).toBeHidden({ timeout: 10_000 });
+
+    // Role should disappear from the list
     await expect(page.getByText("pw-test-role")).toBeHidden({ timeout: 10_000 });
   });
 });

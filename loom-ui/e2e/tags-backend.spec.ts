@@ -85,7 +85,7 @@ test.describe("Tags – full backend e2e", () => {
     await expect(nameInput).toHaveValue("nature");
 
     // Collection field should contain "category"
-    const collectionInput = page.getByLabel("Collection");
+    const collectionInput = page.getByRole('textbox', { name: 'Collection', exact: true });
     await expect(collectionInput).toHaveValue("category");
 
     // UUID should be displayed
