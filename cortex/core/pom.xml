@@ -52,6 +52,12 @@
             <artifactId>dagger</artifactId>
         </dependency>
 
+        <!-- Vert.x -->
+        <dependency>
+            <groupId>io.vertx</groupId>
+            <artifactId>vertx-web</artifactId>
+        </dependency>
+
         <!--Test-->
         <dependency>
             <groupId>org.testcontainers</groupId>

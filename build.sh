@@ -13,5 +13,12 @@ mvn clean package -DskipTests
 cd $SCRIPT_DIR/loom-ui
 npm run build
 
-# 3. Build the container image
+# 3. Build the container images
 cd $SCRIPT_DIR/loom/containers && ./build-containers.sh all
+
+# 4. Build the cortex container image
+echo "Building metaloom/cortex-server:latest ..."
+docker build \
+    -f "$SCRIPT_DIR/cortex/container/Containerfile" \
+    -t "metaloom/cortex-server:latest" \
+    "$SCRIPT_DIR"

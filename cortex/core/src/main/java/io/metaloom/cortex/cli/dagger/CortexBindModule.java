@@ -15,6 +15,7 @@ import io.metaloom.cortex.scanner.FilesystemProcessor;
 import io.metaloom.cortex.scanner.impl.FilesystemProcessorImpl;
 import io.metaloom.fs.linux.LinuxFilesystemScanner;
 import io.metaloom.fs.linux.impl.LinuxFilesystemScannerImpl;
+import io.vertx.core.Vertx;
 
 @Module
 public abstract class CortexBindModule {
@@ -34,6 +35,12 @@ public abstract class CortexBindModule {
 	@Binds
 	@Singleton
 	abstract MetaStorage bindMetaStorage(MetaStorageImpl e);
+
+	@Provides
+	@Singleton
+	public static Vertx provideVertx() {
+		return Vertx.vertx();
+	}
 
 	@Provides
 	public static LinuxFilesystemScanner bindFilesystemScanner() {

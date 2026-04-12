@@ -1,0 +1,23 @@
+FROM eclipse-temurin:25-jre-alpine
+
+ENV LOOM_HOST=loom
+ENV LOOM_PORT=8092
+ENV CORTEX_MONITORING_PORT=8093
+
+ENV HOME=/cortex
+ENV JAVA_TOOL_OPTIONS="-Xms256m -Xmx512m"
+
+EXPOSE 8093
+
+USER root
+RUN adduser -D -u 1000 -G root -h /cortex cortex && \
+    mkdir /config && chown 1000:0 /config -R && chmod 770 /config && ln -s /config /cortex/config && \
+    chown 1000:0 /cortex -R && \
+    chmod 770 /cortex -R
+ADD --chown=1000:0 ./cortex/container/target/cortex-server.jar /cortex/cortex.jar
+
+USER cortex
+WORKDIR /cortex
+VOLUME /config
+
+CMD [ "java", "-Djna.tmpdir=/tmp/.jna", "-Duser.dir=/cortex", "-jar", "cortex.jar" ]

@@ -25,6 +25,7 @@
         <module>processor</module>
         <module>core</module>
         <module>cli</module>
+        <module>container</module>
         <module>pipeline-api</module>
         <module>pipeline-common</module>
         <module>pipeline-core</module>

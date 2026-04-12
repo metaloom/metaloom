@@ -14,6 +14,8 @@ public class CortexOptions {
 
 	private Path metaPath;
 
+	private int monitoringPort = 8093;
+
 	public CortexOptions() {
 	}
 
@@ -55,6 +57,15 @@ public class CortexOptions {
 
 	public CortexOptions setMetaPath(Path metaPath) {
 		this.metaPath = metaPath;
+		return this;
+	}
+
+	public int getMonitoringPort() {
+		return monitoringPort;
+	}
+
+	public CortexOptions setMonitoringPort(int monitoringPort) {
+		this.monitoringPort = monitoringPort;
 		return this;
 	}
 

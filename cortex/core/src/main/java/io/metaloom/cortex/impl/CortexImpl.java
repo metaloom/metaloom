@@ -1,24 +1,36 @@
 package io.metaloom.cortex.impl;
 
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.metaloom.cortex.Cortex;
 import io.metaloom.cortex.api.node.CortexNode;
 import io.metaloom.cortex.api.option.CortexOptions;
+import io.metaloom.cortex.impl.boot.CortexBootstrapInitializer;
 
 @Singleton
 public class CortexImpl implements Cortex {
 
+	private static final Logger log = LoggerFactory.getLogger(CortexImpl.class);
+
 	private final CortexOptions options;
 	private final Set<CortexNode<?, ?>> nodes;
+	private final CortexBootstrapInitializer boot;
+
+	private boolean shutdown = true;
+	private CountDownLatch latch = new CountDownLatch(1);
 
 	@Inject
-	public CortexImpl(CortexOptions options, Set<CortexNode<?, ?>> nodes) {
+	public CortexImpl(CortexOptions options, Set<CortexNode<?, ?>> nodes, CortexBootstrapInitializer boot) {
 		this.options = options;
 		this.nodes = nodes;
+		this.boot = boot;
 	}
 
 	@Override
@@ -26,6 +38,64 @@ public class CortexImpl implements Cortex {
 		for (CortexNode<?, ?> node : nodes) {
 			System.out.println(node.options());
 		}
+	}
+
+	@Override
+	public Cortex run() throws Exception {
+		return run(true);
+	}
+
+	@Override
+	public Cortex run(boolean block) throws Exception {
+		try {
+			log.info("Starting Cortex...");
+			shutdown = false;
+			boot.init(options.getMonitoringPort());
+		} catch (Exception e) {
+			log.error("Error while starting Cortex", e);
+			throw e;
+		}
+
+		if (block) {
+			dontExit();
+		}
+		return this;
+	}
+
+	@Override
+	public void shutdown() {
+		if (shutdown) {
+			log.info("Instance is already shut down...");
+			return;
+		}
+		log.info("Cortex shutting down...");
+		try {
+			boot.deinit();
+		} catch (Exception e) {
+			log.error("Error while shutting down", e);
+		}
+		try {
+			latch.countDown();
+		} catch (Exception e) {
+			log.debug("Error while releasing latch. Maybe it was already released.", e);
+		}
+		shutdown = true;
+	}
+
+	@Override
+	public void shutdownAndTerminate(int code) {
+		shutdown();
+		Runtime.getRuntime().exit(code);
+	}
+
+	@Override
+	public void dontExit() throws InterruptedException {
+		latch.await();
+	}
+
+	@Override
+	public Integer actualMonitoringPort() {
+		return boot.actualMonitoringPort();
 	}
 
 }
