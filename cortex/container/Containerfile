@@ -1,4 +1,4 @@
-FROM eclipse-temurin:25-jre-alpine
+FROM nvidia/cuda:13.2.0-runtime-ubuntu24.04
 
 ENV LOOM_HOST=loom
 ENV LOOM_PORT=8092
@@ -10,14 +10,28 @@ ENV JAVA_TOOL_OPTIONS="-Xms256m -Xmx512m"
 EXPOSE 8093
 
 USER root
-RUN adduser -D -u 1000 -G root -h /cortex cortex && \
-    mkdir /config && chown 1000:0 /config -R && chmod 770 /config && ln -s /config /cortex/config && \
-    chown 1000:0 /cortex -R && \
+
+RUN apt-get update && \
+    apt-get update && apt-get install -y --no-install-recommends wget libopencv406-jni
+
+WORKDIR  /opt
+RUN wget "https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.2%2B10/OpenJDK25U-jre_x64_linux_hotspot_25.0.2_10.tar.gz"
+RUN tar -xzf *.gz -C /opt && \
+    rm *.gz && \
+    ln -s /opt/jdk-25.0.2+10-jre /opt/java25
+
+ENV JAVA_HOME=/opt/java25
+
+RUN rm -rf /var/lib/apt/lists/* && \
+    adduser --disabled-password --uid 1010 --ingroup root --home /cortex --gecos "" cortex && \
+    mkdir /config && chown 1010:0 /config -R && chmod 770 /config && ln -s /config /cortex/config && \
+    chown 1010:0 /cortex -R && \
     chmod 770 /cortex -R
-ADD --chown=1000:0 ./cortex/container/target/cortex-cli/cortex-cli.jar /cortex/cortex-cli.jar
+ADD --chown=1010:0 ./cortex/container/target/cortex-cli/cortex-cli.jar /cortex/cortex-cli.jar
 
 USER cortex
 WORKDIR /cortex
 VOLUME /config
+VOLUME /meta
 
-CMD [ "java", "-Djna.tmpdir=/tmp/.jna", "-Duser.dir=/cortex", "-jar", "cortex-cli.jar", "server", "start"]
+CMD [ "/opt/java25/bin/java", "-Djna.tmpdir=/tmp/.jna", "-Duser.dir=/cortex", "-jar", "cortex-cli.jar", "server", "start"]
