@@ -4,7 +4,7 @@ import io.metaloom.loom.api.options.LoomOptions;
 import io.metaloom.loom.api.options.LoomOptionsLookup;
 import io.metaloom.loom.common.options.LoomOptionsLoader;
 
-public class CortexServerRunner {
+public class DummyLoomServerRunner {
 
 	public static void main(String[] args) throws Exception {
 		LoomOptionsLookup optionsLookup = LoomOptionsLoader.createOrLoadOptions();
