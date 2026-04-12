@@ -32,7 +32,7 @@ build_demo() {
         exit 1
     fi
     echo "Building metaloom/loom-demo:$TAG ..."
-    podman build \
+    docker build \
         -f "$SCRIPT_DIR/demo/Containerfile" \
         -t "metaloom/loom-demo:$TAG" \
         "$REPO_ROOT"
@@ -49,7 +49,7 @@ build_server() {
         exit 1
     fi
     echo "Building metaloom/loom-server:$TAG ..."
-    podman build \
+    docker build \
         -f "$SCRIPT_DIR/server/Containerfile" \
         -t "metaloom/loom-server:$TAG" \
         "$REPO_ROOT"

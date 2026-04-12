@@ -3,8 +3,9 @@
 NAME=postgres-demo
 IMAGE=postgres:16.3-bullseye
 
-podman rm -f $NAME
-podman run -d \
+docker network create dev
+docker rm -f $NAME
+docker run -d \
         --network dev \
         --name $NAME \
         -e POSTGRES_PASSWORD=finger \
