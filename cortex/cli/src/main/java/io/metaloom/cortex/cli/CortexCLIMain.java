@@ -15,6 +15,10 @@ public class CortexCLIMain {
 		// Pre-parse: resolve options from CLI args and environment variables
 		CortexOptions options = parseOptions(args);
 
+		return execute(options);
+	}
+
+	public static int execute(CortexOptions options, String... args) {
 		CortexComponent.Builder builder = DaggerCortexComponent.builder();
 		builder.options(options);
 		CortexComponent cortexComponent = builder.build();

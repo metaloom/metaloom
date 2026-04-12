@@ -48,7 +48,7 @@ public abstract class AbstractIntegrationTest {
 		list.addAll(Arrays.asList("--hostname", "localhost", "--port", String.valueOf(loomOptions().getServer().getGrpcPort())));
 		list.addAll(Arrays.asList(args));
 		String[] array = list.toArray(new String[0]);
-		return CortexCLIMain.execute(null, array);
+		return CortexCLIMain.execute(array);
 	}
 
 	protected Loom loomServer() {
