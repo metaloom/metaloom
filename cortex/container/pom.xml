@@ -12,7 +12,7 @@
 
     <artifactId>cortex-container</artifactId>
     <name>MetaLoom // Cortex :: Container</name>
-    <packaging>jar</packaging>
+    <packaging>pom</packaging>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -33,85 +33,42 @@
     <dependencies>
         <dependency>
             <groupId>io.metaloom.cortex</groupId>
-            <artifactId>cortex-core</artifactId>
+            <artifactId>cortex-cli</artifactId>
+            <classifier>combined</classifier>
+            <version>${project.version}</version>
         </dependency>
     </dependencies>
 
     <build>
-        <finalName>cortex-server</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <configuration>
-                    <annotationProcessorPaths>
-                        <path>
-                            <groupId>info.picocli</groupId>
-                            <artifactId>picocli-codegen</artifactId>
-                            <version>${pico-cli.version}</version>
-                        </path>
-                        <path>
-                            <groupId>com.google.dagger</groupId>
-                            <artifactId>dagger-compiler</artifactId>
-                            <version>${dagger.version}</version>
-                        </path>
-                    </annotationProcessorPaths>
-                </configuration>
-                <dependencies>
-                    <dependency>
-                        <groupId>com.google.dagger</groupId>
-                        <artifactId>dagger-compiler</artifactId>
-                        <version>${dagger.version}</version>
-                        <optional>true</optional>
-                    </dependency>
-                </dependencies>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-jar-plugin</artifactId>
-                <configuration>
-                    <archive>
-                        <manifest>
-                            <addClasspath>true</addClasspath>
-                            <mainClass>io.metaloom.cortex.container.CortexServerRunner</mainClass>
-                        </manifest>
-                    </archive>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-shade-plugin</artifactId>
+                <artifactId>maven-dependency-plugin</artifactId>
+
                 <executions>
                     <execution>
+                        <id>copy-cortex-cli</id>
                         <phase>package</phase>
                         <goals>
-                            <goal>shade</goal>
+                            <goal>copy</goal>
                         </goals>
                         <configuration>
-                            <filters>
-                                <filter>
-                                    <artifact>*:*</artifact>
-                                    <excludes>
-                                        <exclude>META-INF/*.SF</exclude>
-                                        <exclude>META-INF/*.DSA</exclude>
-                                        <exclude>META-INF/*.RSA</exclude>
-                                    </excludes>
-                                </filter>
-                            </filters>
-                            <transformers>
-                                <transformer
-                                    implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>
-                                        io.metaloom.cortex.container.CortexServerRunner</mainClass>
-                                </transformer>
-                                <transformer
-                                    implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
-                            </transformers>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>io.metaloom.cortex</groupId>
+                                    <artifactId>cortex-cli</artifactId>
+                                    <version>${project.version}</version>
+                                    <classifier>combined</classifier>
+                                    <outputDirectory>
+                                        ${project.build.directory}/cortex-cli</outputDirectory>
+                                    <destFileName>cortex-cli.jar</destFileName>
+                                </artifactItem>
+                            </artifactItems>
                         </configuration>
                     </execution>
                 </executions>
+
             </plugin>
         </plugins>
     </build>
-
 </project>

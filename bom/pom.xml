@@ -40,7 +40,7 @@
     <dependencyManagement>
         <dependencies>
 
-            <!-- MetaLoom // Shared -->
+            <!-- MetaLoom -->
             <dependency>
                 <groupId>io.metaloom.loom.shared</groupId>
                 <artifactId>loom-api</artifactId>
@@ -75,6 +75,11 @@
             <dependency>
                 <groupId>io.metaloom.loom</groupId>
                 <artifactId>loom-fixture</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.cortex</groupId>
+                <artifactId>cortex-cli</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

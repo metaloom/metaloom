@@ -18,7 +18,4 @@ cd $SCRIPT_DIR/loom/containers && ./build-containers.sh all
 
 # 4. Build the cortex container image
 echo "Building metaloom/cortex-server:latest ..."
-docker build \
-    -f "$SCRIPT_DIR/cortex/container/Containerfile" \
-    -t "metaloom/cortex-server:latest" \
-    "$SCRIPT_DIR"
+cd $SCRIPT_DIR/cortex/container && ./build-container.sh
