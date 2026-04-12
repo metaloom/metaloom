@@ -1,9 +1,14 @@
 package io.metaloom.cortex.cli;
 
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import ch.qos.logback.classic.Level;
+import io.metaloom.cortex.api.option.CortexOptions;
+import io.metaloom.cortex.api.option.LoomClientOptions;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -17,10 +22,17 @@ public class CortexCLI implements Runnable {
 	public static final int DEFAULT_PORT = 7733;
 	public static final String DEFAULT_PORT_STR = "7733";
 	public static final String DEFAULT_HOSTNAME = "localhost";
+	public static final int DEFAULT_MONITORING_PORT = 8093;
+	public static final String DEFAULT_MONITORING_PORT_STR = "8093";
+	public static final String DEFAULT_META_PATH = "${user.home}/.cache/metaloom/cortex/meta";
 
 	private String hostname = DEFAULT_HOSTNAME;
 
 	private int port = DEFAULT_PORT;
+
+	private int monitoringPort = DEFAULT_MONITORING_PORT;
+
+	private Path metaPath = Paths.get(System.getProperty("user.home"), ".cache", "metaloom", "cortex", "meta");
 
 	@Spec
 	CommandSpec spec;
@@ -47,7 +59,7 @@ public class CortexCLI implements Runnable {
 		return hostname;
 	}
 
-	@Option(names = { "-h", "--hostname" }, description = "Hostname to connect to", defaultValue = DEFAULT_HOSTNAME, scope = ScopeType.INHERIT)
+	@Option(names = { "-h", "--hostname" }, description = "Loom server hostname. Env: LOOM_HOST", defaultValue = DEFAULT_HOSTNAME, scope = ScopeType.INHERIT)
 	public void setHostname(String hostname) {
 		this.hostname = hostname;
 	}
@@ -56,9 +68,41 @@ public class CortexCLI implements Runnable {
 		return port;
 	}
 
-	@Option(names = { "-p", "--port" }, description = "HTTP port to connect to.", defaultValue = DEFAULT_PORT_STR, scope = ScopeType.INHERIT)
+	@Option(names = { "-p", "--port" }, description = "Loom server HTTP port. Env: LOOM_PORT", defaultValue = DEFAULT_PORT_STR, scope = ScopeType.INHERIT)
 	public void setPort(int port) {
 		this.port = port;
+	}
+
+	public int getMonitoringPort() {
+		return monitoringPort;
+	}
+
+	@Option(names = { "--monitoring-port" }, description = "Monitoring HTTP port. Env: CORTEX_MONITORING_PORT", defaultValue = DEFAULT_MONITORING_PORT_STR, scope = ScopeType.INHERIT)
+	public void setMonitoringPort(int monitoringPort) {
+		this.monitoringPort = monitoringPort;
+	}
+
+	public Path getMetaPath() {
+		return metaPath;
+	}
+
+	@Option(names = { "--meta-path" }, description = "Base path for metadata storage. Env: CORTEX_META_PATH", defaultValue = DEFAULT_META_PATH, scope = ScopeType.INHERIT)
+	public void setMetaPath(Path metaPath) {
+		this.metaPath = metaPath;
+	}
+
+	/**
+	 * Build {@link CortexOptions} from the parsed CLI values.
+	 */
+	public CortexOptions toCortexOptions() {
+		CortexOptions options = new CortexOptions();
+		LoomClientOptions loom = new LoomClientOptions();
+		loom.setHostname(hostname);
+		loom.setPort(port);
+		options.setLoom(loom);
+		options.setMonitoringPort(monitoringPort);
+		options.setMetaPath(metaPath);
+		return options;
 	}
 
 	@Override
