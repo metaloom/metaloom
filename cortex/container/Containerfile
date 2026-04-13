@@ -1,4 +1,4 @@
-FROM nvidia/cuda:13.2.0-runtime-ubuntu24.04
+FROM debian:trixie-slim
 
 ENV LOOM_HOST=loom
 ENV LOOM_PORT=8092
@@ -11,10 +11,40 @@ EXPOSE 8093
 
 USER root
 
+# CUDA runtime (from NVIDIA debian13 repo)
 RUN apt-get update && \
-    apt-get update && apt-get install -y --no-install-recommends wget libopencv406-jni
+    apt-get install -y --no-install-recommends wget ca-certificates && \
+    wget -qO /tmp/cuda-keyring.deb https://developer.download.nvidia.com/compute/cuda/repos/debian13/x86_64/cuda-keyring_1.1-1_all.deb && \
+    dpkg -i /tmp/cuda-keyring.deb && rm /tmp/cuda-keyring.deb && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends cuda-cudart-13-2 libcublas-13-2 && \
+    rm -rf /var/lib/apt/lists/*
+
+ENV PATH="/usr/local/cuda-13.2/bin:${PATH}"
+#ENV LD_LIBRARY_PATH="/usr/local/cuda-13.2/lib64:${LD_LIBRARY_PATH}"
+
+# OpenCV 4.10 JNI (Debian Trixie)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    libopencv-contrib410:amd64 \
+    libopencv-core410:amd64 \
+    libopencv410-jni \
+    libopencv-imgproc410:amd64 && \
+    rm -rf /var/lib/apt/lists/*
+
+## OpenCV 4.06 libs (from Bookworm - not available in Trixie)
+#RUN wget -qO /tmp/libopencv406-jni.deb https://deb.debian.org/debian/pool/main/o/opencv/libopencv406-jni_4.6.0+dfsg-12_amd64.deb && \
+#    wget -qO /tmp/libopencv-core406.deb https://deb.debian.org/debian/pool/main/o/opencv/libopencv-core406_4.6.0+dfsg-12_amd64.deb && \
+#    wget -qO /tmp/libopencv-contrib406.deb https://deb.debian.org/debian/pool/main/o/opencv/libopencv-contrib406_4.6.0+dfsg-12_amd64.deb && \
+#    wget -qO /tmp/libopencv-imgproc406.deb https://deb.debian.org/debian/pool/main/o/opencv/libopencv-imgproc406_4.6.0+dfsg-12_amd64.deb && \
+#    dpkg -i /tmp/libopencv-core406.deb /tmp/libopencv-imgproc406.deb /tmp/libopencv-contrib406.deb /tmp/libopencv406-jni.deb || \
+#    (apt-get update && apt-get install -yf --no-install-recommends) && \
+#    rm -f /tmp/libopencv*.deb && \
+#    rm -rf /var/lib/apt/lists/*
 
 WORKDIR  /opt
+
+# JAVA
 RUN wget "https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.2%2B10/OpenJDK25U-jre_x64_linux_hotspot_25.0.2_10.tar.gz"
 RUN tar -xzf *.gz -C /opt && \
     rm *.gz && \
@@ -22,16 +52,20 @@ RUN tar -xzf *.gz -C /opt && \
 
 ENV JAVA_HOME=/opt/java25
 
-RUN rm -rf /var/lib/apt/lists/* && \
-    adduser --disabled-password --uid 1010 --ingroup root --home /cortex --gecos "" cortex && \
-    mkdir /config && chown 1010:0 /config -R && chmod 770 /config && ln -s /config /cortex/config && \
-    chown 1010:0 /cortex -R && \
+# Inspireface
+WORKDIR  /cortex
+RUN mkdir packs && cd packs && wget "https://github.com/HyperInspire/InspireFace/releases/download/v1.x/Pikachu"
+
+# Cortex
+RUN adduser --disabled-password --uid 1000 --ingroup root --home /cortex --gecos "" cortex && \
+    mkdir /config && chown 1000:0 /config -R && chmod 770 /config && ln -s /config /cortex/config && \
+    chown 1000:0 /cortex -R && \
     chmod 770 /cortex -R
-ADD --chown=1010:0 ./cortex/container/target/cortex-cli/cortex-cli.jar /cortex/cortex-cli.jar
+ADD --chown=1000:0 ./cortex/container/target/cortex-cli/cortex-cli.jar /cortex/cortex-cli.jar
 
 USER cortex
 WORKDIR /cortex
 VOLUME /config
 VOLUME /meta
 
-CMD [ "/opt/java25/bin/java", "-Djna.tmpdir=/tmp/.jna", "-Duser.dir=/cortex", "-jar", "cortex-cli.jar", "server", "start"]
+CMD [ "/opt/java25/bin/java", "-Djna.tmpdir=/tmp/.jna", "-Duser.dir=/cortex", "--enable-native-access=ALL-UNNAMED", "-jar", "cortex-cli.jar", "server", "start"]
