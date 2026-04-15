@@ -4,7 +4,7 @@ set -euo pipefail
 
 # Starts the build container image
 
-NAME=loom-demo
+NAME=loom
 NETWORK=dev
 
 docker network inspect "$NETWORK" >/dev/null 2>&1 || docker network create "$NETWORK"

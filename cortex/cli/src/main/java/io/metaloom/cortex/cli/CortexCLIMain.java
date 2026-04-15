@@ -15,7 +15,7 @@ public class CortexCLIMain {
 		// Pre-parse: resolve options from CLI args and environment variables
 		CortexOptions options = parseOptions(args);
 
-		return execute(options);
+		return execute(options, args);
 	}
 
 	public static int execute(CortexOptions options, String... args) {

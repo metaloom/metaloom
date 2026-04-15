@@ -41,7 +41,7 @@ public class VideoFaceScanner {
 	private static final double BLUR_THRESHOLD = 10f;
 
 	private final InspireFacedetector inspireface;
-	private SimpleImageViewer viewer = new SimpleImageViewer();
+	//private SimpleImageViewer viewer = new SimpleImageViewer();
 
 	@Inject
 	public VideoFaceScanner(InspireFacedetector inspireface) {
@@ -224,7 +224,7 @@ public class VideoFaceScanner {
 				double blurriness = CVUtils.blurriness(faceImage);
 				face.setBluriness(blurriness);
 				if (blurriness < BLUR_THRESHOLD) {
-					viewer.show(faceImage);
+					//viewer.show(faceImage);
 					// ImageUtils.show(faceImage);
 					logger.warn("Omitting face due to blur check: {}", blurriness);
 					// Skipped due to bad quality

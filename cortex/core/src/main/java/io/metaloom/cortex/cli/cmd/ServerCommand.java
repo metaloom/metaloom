@@ -10,11 +10,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.Cortex;
-import io.metaloom.cortex.api.option.CortexOptions;
-import io.metaloom.cortex.api.option.LoomClientOptions;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
-import picocli.CommandLine.Parameters;
 
 @Singleton
 @Command(name = "server", aliases = { "s" }, description = "Server command")
@@ -31,8 +28,7 @@ public class ServerCommand extends AbstractLoomWorkerCommand {
 
 	@Command(name = "start", description = "Start the cortex server")
 	public int run(
-		@Option(names = { "-a", "--actions" }, description = "Actions to be used when processing files.") String enabledNodes,
-		@Parameters(index = "0", description = "Path to be processed") String path) {
+		@Option(names = { "-a", "--actions" }, description = "Actions to be used when processing files.") String enabledNodes) {
 		try {
 			try {
 				cortex.run();

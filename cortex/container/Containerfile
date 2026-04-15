@@ -21,7 +21,6 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 ENV PATH="/usr/local/cuda-13.2/bin:${PATH}"
-#ENV LD_LIBRARY_PATH="/usr/local/cuda-13.2/lib64:${LD_LIBRARY_PATH}"
 
 # OpenCV 4.10 JNI (Debian Trixie)
 RUN apt-get update && \
@@ -31,16 +30,6 @@ RUN apt-get update && \
     libopencv410-jni \
     libopencv-imgproc410:amd64 && \
     rm -rf /var/lib/apt/lists/*
-
-## OpenCV 4.06 libs (from Bookworm - not available in Trixie)
-#RUN wget -qO /tmp/libopencv406-jni.deb https://deb.debian.org/debian/pool/main/o/opencv/libopencv406-jni_4.6.0+dfsg-12_amd64.deb && \
-#    wget -qO /tmp/libopencv-core406.deb https://deb.debian.org/debian/pool/main/o/opencv/libopencv-core406_4.6.0+dfsg-12_amd64.deb && \
-#    wget -qO /tmp/libopencv-contrib406.deb https://deb.debian.org/debian/pool/main/o/opencv/libopencv-contrib406_4.6.0+dfsg-12_amd64.deb && \
-#    wget -qO /tmp/libopencv-imgproc406.deb https://deb.debian.org/debian/pool/main/o/opencv/libopencv-imgproc406_4.6.0+dfsg-12_amd64.deb && \
-#    dpkg -i /tmp/libopencv-core406.deb /tmp/libopencv-imgproc406.deb /tmp/libopencv-contrib406.deb /tmp/libopencv406-jni.deb || \
-#    (apt-get update && apt-get install -yf --no-install-recommends) && \
-#    rm -f /tmp/libopencv*.deb && \
-#    rm -rf /var/lib/apt/lists/*
 
 WORKDIR  /opt
 
