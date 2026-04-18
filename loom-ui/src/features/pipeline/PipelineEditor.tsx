@@ -10,7 +10,7 @@ import "reactflow/dist/style.css";
 import {
   Box, Typography, Chip, Paper, Divider, IconButton, Tooltip,
   List, ListItemButton, ListItemText, ListItemIcon, Switch, Stack, Avatar, Collapse, TextField,
-  Menu, MenuItem,
+  Menu, MenuItem, CircularProgress,
 } from "@mui/material";
 import {
   PlayArrowOutlined, AccountTreeOutlined, CheckCircleOutline,
@@ -23,75 +23,112 @@ import {
   MovieFilterOutlined, FolderOpenOutlined, AutoAwesomeOutlined,
   LocalOfferOutlined, ImageOutlined, SubtitlesOutlined,
   DataObjectOutlined, BugReportOutlined,
+  Fingerprint, Mic, Psychology, Tune, HighQuality, Grain,
+  TextFields, GridView, LinearScale, Straighten, ContentCopy,
+  DateRange, Block, VerifiedOutlined, PlaylistRemoveOutlined,
+  ImageSearchOutlined, FaceRetouchingNatural, Face, Description,
+  TransformOutlined,
 } from "@mui/icons-material";
 import { Tabs, Tab } from "@mui/material";
 import { tokens } from "../../theme";
 import { Pipeline, PipelineNode, PipelineRun } from "../../types";
 import { mockPipelineService } from "../../mock/services";
 import { useSpace } from "../../context/SpaceContext";
+import { useNodeRegistry } from "../../context/NodeRegistryContext";
+import type { NodeDescriptor, NodeCategory } from "../../types/nodeDescriptors";
 
-// ── Custom Node Types ─────────────────────────────────────────────────────
-const nodeTypeConfig: Record<string, { color: string; icon: React.ReactNode; bg: string }> = {
-  source: { color: tokens.accent.blue, icon: <CloudUploadOutlined sx={{ fontSize: 14 }} />, bg: `${tokens.accent.blue}18` },
-  filesystem_source: { color: "#42a5f5", icon: <FolderOpenOutlined sx={{ fontSize: 14 }} />, bg: "#42a5f518" },
-  filter: { color: tokens.accent.amber, icon: <FilterAltOutlined sx={{ fontSize: 14 }} />, bg: `${tokens.accent.amber}18` },
-  process: { color: tokens.primary.main, icon: <MemoryOutlined sx={{ fontSize: 14 }} />, bg: tokens.primary.subtle },
-  output: { color: tokens.accent.teal, icon: <CloudDownloadOutlined sx={{ fontSize: 14 }} />, bg: `${tokens.accent.teal}18` },
-  yolo: { color: "#e040fb", icon: <CenterFocusStrongOutlined sx={{ fontSize: 14 }} />, bg: "#e040fb18" },
-  scene_detection: { color: "#ff7043", icon: <MovieFilterOutlined sx={{ fontSize: 14 }} />, bg: "#ff704318" },
-  llm: { color: "#ab47bc", icon: <AutoAwesomeOutlined sx={{ fontSize: 14 }} />, bg: "#ab47bc18" },
-  auto_tag: { color: "#26a69a", icon: <LocalOfferOutlined sx={{ fontSize: 14 }} />, bg: "#26a69a18" },
-  asset_source: { color: "#5c6bc0", icon: <ImageOutlined sx={{ fontSize: 14 }} />, bg: "#5c6bc018" },
+// ── Category-based node styling ───────────────────────────────────────────
+const categoryConfig: Record<NodeCategory, { color: string; icon: React.ReactNode; bg: string }> = {
+  SOURCE:    { color: tokens.accent.blue,  icon: <CloudUploadOutlined sx={{ fontSize: 14 }} />,  bg: `${tokens.accent.blue}18` },
+  FILTER:    { color: tokens.accent.amber, icon: <FilterAltOutlined sx={{ fontSize: 14 }} />,    bg: `${tokens.accent.amber}18` },
+  ANALYSIS:  { color: tokens.primary.main, icon: <MemoryOutlined sx={{ fontSize: 14 }} />,       bg: tokens.primary.subtle },
+  TRANSFORM: { color: "#e040fb",           icon: <TransformOutlined sx={{ fontSize: 14 }} />,     bg: "#e040fb18" },
+  OUTPUT:    { color: tokens.accent.teal,  icon: <CloudDownloadOutlined sx={{ fontSize: 14 }} />, bg: `${tokens.accent.teal}18` },
 };
 
-// Source-type nodes have no input connector
-const SOURCE_TYPES = new Set(["source", "filesystem_source", "asset_source"]);
+// Map material icon names from the API to MUI components
+const ICON_MAP: Record<string, React.ReactNode> = {
+  folder_open:              <FolderOpenOutlined sx={{ fontSize: 14 }} />,
+  cloud_download:           <CloudDownloadOutlined sx={{ fontSize: 14 }} />,
+  cloud_upload:             <CloudUploadOutlined sx={{ fontSize: 14 }} />,
+  fingerprint:              <Fingerprint sx={{ fontSize: 14 }} />,
+  movie_filter:             <MovieFilterOutlined sx={{ fontSize: 14 }} />,
+  description:              <Description sx={{ fontSize: 14 }} />,
+  mic:                      <Mic sx={{ fontSize: 14 }} />,
+  text_fields:              <TextFields sx={{ fontSize: 14 }} />,
+  psychology:               <Psychology sx={{ fontSize: 14 }} />,
+  label:                    <LocalOfferOutlined sx={{ fontSize: 14 }} />,
+  image_search:             <ImageSearchOutlined sx={{ fontSize: 14 }} />,
+  grid_view:                <GridView sx={{ fontSize: 14 }} />,
+  tune:                     <Tune sx={{ fontSize: 14 }} />,
+  high_quality:             <HighQuality sx={{ fontSize: 14 }} />,
+  grain:                    <Grain sx={{ fontSize: 14 }} />,
+  linear_scale:             <LinearScale sx={{ fontSize: 14 }} />,
+  straighten:               <Straighten sx={{ fontSize: 14 }} />,
+  content_copy:             <ContentCopy sx={{ fontSize: 14 }} />,
+  filter_alt:               <FilterAltOutlined sx={{ fontSize: 14 }} />,
+  date_range:               <DateRange sx={{ fontSize: 14 }} />,
+  block:                    <Block sx={{ fontSize: 14 }} />,
+  verified:                 <VerifiedOutlined sx={{ fontSize: 14 }} />,
+  playlist_remove:          <PlaylistRemoveOutlined sx={{ fontSize: 14 }} />,
+  face:                     <Face sx={{ fontSize: 14 }} />,
+  face_retouching_natural:  <FaceRetouchingNatural sx={{ fontSize: 14 }} />,
+  file_copy:                <ContentCopy sx={{ fontSize: 14 }} />,
+};
 
+/** Resolve the icon for a descriptor, falling back to its category default. */
+function resolveNodeIcon(desc: NodeDescriptor): React.ReactNode {
+  return ICON_MAP[desc.icon] ?? categoryConfig[desc.category]?.icon ?? <MemoryOutlined sx={{ fontSize: 14 }} />;
+}
 
-// Connector data types
-type ConnectorDataType = "text" | "asset" | "json" | "hash";
+/** Get the visual config (color, icon, bg) for a descriptor. */
+function nodeVisualConfig(desc: NodeDescriptor) {
+  const cat = categoryConfig[desc.category] ?? categoryConfig.ANALYSIS;
+  return { ...cat, icon: resolveNodeIcon(desc) };
+}
+
+// Connector data types – derived from content-type strings
+type ConnectorDataType = "media" | "data" | "control" | "text" | "hash";
 
 interface ConnectorDef {
   name: string;
   dataType: ConnectorDataType;
 }
 
-// Node templates available for adding to a pipeline
-const NODE_TEMPLATES: { type: string; label: string; description: string; inputs: ConnectorDef[]; outputs: ConnectorDef[]; data: Record<string, unknown> }[] = [
-  { type: "source", label: "S3 Source", description: "Watch an S3 bucket for new assets", inputs: [], outputs: [{ name: "Asset", dataType: "asset" }], data: { bucket: "", prefix: "/" } },
-  { type: "filesystem_source", label: "Filesystem Source", description: "Watch a local directory for new files", inputs: [], outputs: [{ name: "Asset", dataType: "asset" }], data: { path: "/data/ingest", watchMode: true, pattern: "*.*", recursive: true } },
-  { type: "asset_source", label: "Asset Source", description: "Yield a single asset for testing", inputs: [], outputs: [{ name: "Asset", dataType: "asset" }], data: { assetId: "", mode: "test" } },
-  { type: "filter", label: "Format Filter", description: "Filter by MIME type", inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Filtered Asset", dataType: "asset" }], data: { types: ["video/*", "image/*"] } },
-  { type: "process", label: "Hash", description: "SHA-256 + perceptual hash", inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Hash", dataType: "hash" }], data: { algorithms: ["sha256", "phash"] } },
-  { type: "process", label: "Fingerprint", description: "Generate audio/video fingerprint", inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Fingerprint", dataType: "hash" }], data: { engine: "chromaprint" } },
-  { type: "process", label: "Resize Proxy", description: "Generate proxy resolutions", inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Proxy", dataType: "asset" }], data: { resolutions: ["720p", "360p"] } },
-  { type: "yolo", label: "YOLO Detection", description: "Run YOLOv8 object detection on frames", inputs: [{ name: "Frames", dataType: "asset" }, { name: "Scenes", dataType: "json" }], outputs: [{ name: "Detections", dataType: "json" }], data: { model: "yolov8-dam", confidence: 0.72, classes: ["person", "car", "animal"] } },
-  { type: "scene_detection", label: "Scene Detection", description: "Detect scene boundaries and transitions", inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Scenes", dataType: "json" }], data: { model: "scenedetect-v3", threshold: 0.4, minSceneLength: 2.0 } },
-  { type: "output", label: "S3 Output", description: "Write results to S3 bucket", inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Stored", dataType: "asset" }], data: { bucket: "", prefix: "/output" } },
-  { type: "process", label: "Thumbnail", description: "Generate thumbnail images", inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Thumbnail", dataType: "asset" }], data: { sizes: ["256x144", "640x360"] } },
-  { type: "llm", label: "LLM Vision", description: "Run a vision model prompt against asset frames", inputs: [{ name: "Asset", dataType: "asset" }, { name: "Scenes", dataType: "json" }, { name: "Detections", dataType: "json" }], outputs: [{ name: "Text", dataType: "text" }, { name: "JSON", dataType: "json" }], data: { prompt: "", model: "gpt-4o", reasoningEffort: "medium", maxOutputTokens: 2048 } },
-  { type: "process", label: "Face Detection", description: "Detect and recognize faces", inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Detections", dataType: "json" }], data: { model: "insightface", minConfidence: 0.7 } },
-  { type: "process", label: "Embedding", description: "Generate CLIP embedding vectors", inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Embedding", dataType: "json" }], data: { model: "clip-vit-l-14", dimensions: 768 } },
-  { type: "process", label: "ASR", description: "Automatic speech recognition", inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Transcript", dataType: "text" }], data: { model: "whisper-large-v3", language: "auto" } },
-  { type: "auto_tag", label: "Auto Tag", description: "Automatically tag assets by matching tag globs", inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Tags", dataType: "json" }], data: { matchMode: "glob", minConfidence: 0.6 } },
-  { type: "filter", label: "Transcription Filter", description: "Filter assets that have transcriptions", inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Transcribed Asset", dataType: "asset" }], data: { requireTranscription: true, minLength: 10 } },
-];
+/** Map an API content-type string to a UI connector data type. */
+function toConnectorDataType(contentType: string): ConnectorDataType {
+  if (contentType.startsWith("media/")) return "media";
+  if (contentType === "data/hash" || contentType === "data/fingerprint") return "hash";
+  if (contentType === "data/text" || contentType === "data/transcript" || contentType === "data/caption") return "text";
+  if (contentType.startsWith("control/")) return "control";
+  return "data";
+}
+
+/** Convert a NodeDescriptor to ConnectorDef arrays. */
+function descriptorConnectors(desc: NodeDescriptor): { inputs: ConnectorDef[]; outputs: ConnectorDef[] } {
+  return {
+    inputs: desc.inputs.map((i) => ({ name: i.name, dataType: toConnectorDataType(i.contentType) })),
+    outputs: desc.outputs.map((o) => ({ name: o.name, dataType: toConnectorDataType(o.contentType) })),
+  };
+}
 
 // Color map for connector data types
 const DATA_TYPE_COLOR: Record<ConnectorDataType, string> = {
   text: "#42a5f5",
-  asset: "#66bb6a",
-  json: "#ffa726",
+  media: "#66bb6a",
+  data: "#ffa726",
   hash: "#ab47bc",
+  control: "#78909c",
 };
 
 // ── Custom Pipeline Node Component ────────────────────────────────────────
 function PipelineNodeComponent({ data, selected }: NodeProps) {
-  const nodeType = (data.nodeType as string) ?? "process";
-  const cfg = nodeTypeConfig[nodeType] ?? nodeTypeConfig.process;
-  const isSource = SOURCE_TYPES.has(nodeType);
-  const inputs = isSource ? [] : ((data.inputs as ConnectorDef[] | undefined) ?? [{ name: "Input", dataType: "asset" as ConnectorDataType }]);
-  const outputs = (data.outputs as ConnectorDef[] | undefined) ?? [{ name: "Output", dataType: "asset" as ConnectorDataType }];
+  const category = (data.category as NodeCategory) ?? "ANALYSIS";
+  const cfg = categoryConfig[category] ?? categoryConfig.ANALYSIS;
+  const nodeIcon = data.nodeIcon as React.ReactNode | undefined;
+  const isSource = category === "SOURCE";
+  const inputs = isSource ? [] : ((data.inputs as ConnectorDef[] | undefined) ?? [{ name: "Input", dataType: "media" as ConnectorDataType }]);
+  const outputs = (data.outputs as ConnectorDef[] | undefined) ?? [{ name: "Output", dataType: "media" as ConnectorDataType }];
   const [hovered, setHovered] = useState(false);
 
   return (
@@ -113,7 +150,7 @@ function PipelineNodeComponent({ data, selected }: NodeProps) {
       <Box sx={{ height: 3, bgcolor: cfg.color, borderRadius: `${tokens.radius.md} ${tokens.radius.md} 0 0` }} />
       <Box sx={{ px: 1.5, py: 1.25, display: "flex", alignItems: "center", gap: 1 }}>
         <Box sx={{ width: 26, height: 26, borderRadius: tokens.radius.sm, bgcolor: cfg.bg, display: "flex", alignItems: "center", justifyContent: "center", color: cfg.color, flexShrink: 0 }}>
-          {cfg.icon}
+          {nodeIcon ?? cfg.icon}
         </Box>
         <Box>
           <Typography sx={{ fontSize: "0.78rem", fontWeight: 700, color: tokens.text.primary, lineHeight: 1.2 }}>
@@ -184,23 +221,17 @@ function PipelineNodeComponent({ data, selected }: NodeProps) {
 const nodeTypes = { pipelineNode: PipelineNodeComponent };
 
 // ── Convert pipeline nodes to React Flow format ───────────────────────────
-// Default connector definitions for node types loaded from pipeline definitions
-const defaultConnectors: Record<string, { inputs: ConnectorDef[]; outputs: ConnectorDef[] }> = {
-  source: { inputs: [], outputs: [{ name: "Asset", dataType: "asset" }] },
-  filesystem_source: { inputs: [], outputs: [{ name: "Asset", dataType: "asset" }] },
-  asset_source: { inputs: [], outputs: [{ name: "Asset", dataType: "asset" }] },
-  filter: { inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Filtered Asset", dataType: "asset" }] },
-  process: { inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Processed", dataType: "asset" }] },
-  output: { inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Stored", dataType: "asset" }] },
-  yolo: { inputs: [{ name: "Frames", dataType: "asset" }, { name: "Scenes", dataType: "json" }], outputs: [{ name: "Detections", dataType: "json" }] },
-  scene_detection: { inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Scenes", dataType: "json" }] },
-  llm: { inputs: [{ name: "Asset", dataType: "asset" }, { name: "Scenes", dataType: "json" }, { name: "Detections", dataType: "json" }], outputs: [{ name: "Text", dataType: "text" }, { name: "JSON", dataType: "json" }] },
-  auto_tag: { inputs: [{ name: "Asset", dataType: "asset" }], outputs: [{ name: "Tags", dataType: "json" }] },
-};
 
-function toRFNodes(pnodes: PipelineNode[], selectedId: string | null): RFNode[] {
+function toRFNodes(pnodes: PipelineNode[], selectedId: string | null, descriptors: NodeDescriptor[]): RFNode[] {
+  // Build a lookup map once
+  const descMap = new Map(descriptors.map(d => [d.kind, d]));
+
   return pnodes.map(n => {
-    const connectors = defaultConnectors[n.type] ?? { inputs: [{ name: "Input", dataType: "asset" as ConnectorDataType }], outputs: [{ name: "Output", dataType: "asset" as ConnectorDataType }] };
+    const desc = descMap.get(n.type);
+    const connectors = desc
+      ? descriptorConnectors(desc)
+      : { inputs: [{ name: "Input", dataType: "media" as ConnectorDataType }], outputs: [{ name: "Output", dataType: "media" as ConnectorDataType }] };
+    const category: NodeCategory = desc?.category ?? "ANALYSIS";
     return {
       id: n.id,
       type: "pipelineNode",
@@ -209,7 +240,8 @@ function toRFNodes(pnodes: PipelineNode[], selectedId: string | null): RFNode[] 
       data: {
         label: n.label,
         description: n.description,
-        nodeType: n.type,
+        category,
+        nodeIcon: desc ? resolveNodeIcon(desc) : undefined,
         inputs: connectors.inputs,
         outputs: connectors.outputs,
         ...n.data,
@@ -274,10 +306,12 @@ function RunHistory({ runs }: { runs: PipelineRun[] }) {
 
 // ── Node Detail Panel ─────────────────────────────────────────────────────
 function NodeDetailPanel({ nodeId, pipeline }: { nodeId: string | null; pipeline: Pipeline | null }) {
+  const { getDescriptor } = useNodeRegistry();
   if (!nodeId || !pipeline) return null;
   const node = pipeline.definition.nodes.find(n => n.id === nodeId);
   if (!node) return null;
-  const cfg = nodeTypeConfig[node.type] ?? nodeTypeConfig.process;
+  const desc = getDescriptor(node.type);
+  const cfg = desc ? nodeVisualConfig(desc) : categoryConfig.ANALYSIS;
 
   return (
     <Box sx={{ p: 1.5, borderTop: `1px solid ${tokens.border.subtle}` }}>
@@ -364,8 +398,10 @@ function NodeDetailSidebar({
   onClose: () => void;
   onDisplayNameChange?: (nodeId: string, name: string) => void;
 }) {
+  const { getDescriptor } = useNodeRegistry();
   const node = (nodeId && pipeline) ? pipeline.definition.nodes.find(n => n.id === nodeId) ?? null : null;
-  const cfg = node ? (nodeTypeConfig[node.type] ?? nodeTypeConfig.process) : null;
+  const desc = node ? getDescriptor(node.type) : undefined;
+  const cfg = desc ? nodeVisualConfig(desc) : (node ? categoryConfig.ANALYSIS : null);
   const [displayName, setDisplayName] = useState("");
   const [detailTab, setDetailTab] = useState(0);
   const { t } = useTranslation();
@@ -541,7 +577,7 @@ function NodeDetailSidebar({
 }
 
 // ── Canvas ────────────────────────────────────────────────────────────────
-function PipelineCanvas({ pipeline, onNodeSelect, externalNodes, nodeDisplayNames }: { pipeline: Pipeline | null; onNodeSelect: (id: string | null) => void; externalNodes?: RFNode[]; nodeDisplayNames?: Record<string, string> }) {
+function PipelineCanvas({ pipeline, onNodeSelect, externalNodes, nodeDisplayNames, descriptors }: { pipeline: Pipeline | null; onNodeSelect: (id: string | null) => void; externalNodes?: RFNode[]; nodeDisplayNames?: Record<string, string>; descriptors: NodeDescriptor[] }) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -550,7 +586,7 @@ function PipelineCanvas({ pipeline, onNodeSelect, externalNodes, nodeDisplayName
   // Only reset graph when the pipeline itself changes
   useEffect(() => {
     if (!pipeline) { setNodes([]); setEdges([]); return; }
-    setNodes(toRFNodes(pipeline.definition.nodes, null));
+    setNodes(toRFNodes(pipeline.definition.nodes, null, descriptors));
     setEdges(toRFEdges(pipeline.definition.edges));
     setSelectedId(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -690,6 +726,7 @@ function PipelineCanvas({ pipeline, onNodeSelect, externalNodes, nodeDisplayName
 export default function PipelineEditor() {
   const { activeSpace } = useSpace();
   const { t } = useTranslation();
+  const { descriptors, loading: registryLoading, error: registryError } = useNodeRegistry();
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selected, setSelected] = useState<Pipeline | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -721,19 +758,32 @@ export default function PipelineEditor() {
     setNodeDisplayNames(prev => ({ ...prev, [nodeId]: name }));
   }, []);
 
-  const handleAddNode = useCallback((template: typeof NODE_TEMPLATES[0]) => {
+  const handleAddNode = useCallback((desc: NodeDescriptor) => {
     if (!selected) return;
     const id = `pn_${Date.now()}`;
+    const connectors = descriptorConnectors(desc);
+    const paramDefaults: Record<string, unknown> = {};
+    for (const p of desc.parameters) {
+      if (p.defaultValue !== undefined && p.defaultValue !== null) paramDefaults[p.key] = p.defaultValue;
+    }
     const newNode: RFNode = {
       id,
       type: "pipelineNode",
       position: { x: 300 + Math.random() * 100, y: 100 + Math.random() * 100 },
-      data: { label: template.label, description: template.description, nodeType: template.type, inputs: template.inputs, outputs: template.outputs, ...template.data },
+      data: {
+        label: desc.name,
+        description: desc.description,
+        category: desc.category,
+        nodeIcon: resolveNodeIcon(desc),
+        inputs: connectors.inputs,
+        outputs: connectors.outputs,
+        ...paramDefaults,
+      },
     };
     // Also add to pipeline definition so NodeDetailSidebar can find it
     selected.definition.nodes.push({
-      id, type: template.type, label: template.label, description: template.description,
-      position: newNode.position, data: template.data,
+      id, type: desc.kind, label: desc.name, description: desc.description,
+      position: newNode.position, data: paramDefaults,
     });
     setAddedNodes(prev => [...prev, newNode]);
     setAddNodeAnchor(null);
@@ -847,8 +897,8 @@ export default function PipelineEditor() {
           )}
           {/* Canvas + log panel */}
           <Box sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-            <Box sx={{ flex: 1, overflow: "hidden" }}>
-              <PipelineCanvas pipeline={selected} onNodeSelect={handleNodeSelect} externalNodes={addedNodes} nodeDisplayNames={nodeDisplayNames} />
+            <Box data-testid="pipeline-canvas" sx={{ flex: 1, overflow: "hidden" }}>
+              <PipelineCanvas pipeline={selected} onNodeSelect={handleNodeSelect} externalNodes={addedNodes} nodeDisplayNames={nodeDisplayNames} descriptors={descriptors} />
             </Box>
 
             {/* Add node bar — above the log */}
@@ -856,6 +906,7 @@ export default function PipelineEditor() {
               <Box sx={{ px: 2, py: 0.75, borderTop: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", alignItems: "center", gap: 0.75, flexShrink: 0 }}>
                 <Tooltip title={t("pipeline.editor.addNodeTooltip")}>
                   <Chip
+                    data-testid="pipeline-add-node-button"
                     icon={<AddOutlined sx={{ fontSize: 14 }} />}
                     label={t("pipeline.editor.addNode")}
                     size="small"
@@ -871,53 +922,56 @@ export default function PipelineEditor() {
                   />
                 </Tooltip>
                 <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
-                {[
-                  { cat: "source", label: t("pipeline.editor.source"), icon: <CloudUploadOutlined sx={{ fontSize: 13 }} />, types: ["source", "filesystem_source", "asset_source"] },
-                  { cat: "filter", label: t("pipeline.editor.filter"), icon: <FilterAltOutlined sx={{ fontSize: 13 }} />, types: ["filter"] },
-                  { cat: "process", label: t("pipeline.editor.process"), icon: <MemoryOutlined sx={{ fontSize: 13 }} />, types: ["process", "yolo", "scene_detection", "llm", "auto_tag"] },
-                ].map(c => (
-                  <Tooltip key={c.cat} title={`Add ${c.label.toLowerCase()} node`}>
-                    <Chip
-                      icon={c.icon}
-                      label={c.label}
-                      size="small"
-                      onClick={(e) => { setAddNodeCategory(c.cat); setAddNodeAnchor(e.currentTarget); }}
-                      sx={{
-                        bgcolor: tokens.bg.overlay,
-                        border: `1px solid ${tokens.border.subtle}`,
-                        color: tokens.text.tertiary,
-                        cursor: "pointer",
-                        fontSize: "0.7rem",
-                        "&:hover": { bgcolor: tokens.bg.hover, color: tokens.text.secondary },
-                      }}
-                    />
-                  </Tooltip>
-                ))}
+                {(["SOURCE", "FILTER", "ANALYSIS", "TRANSFORM", "OUTPUT"] as NodeCategory[]).map(cat => {
+                  const catCfg = categoryConfig[cat];
+                  return (
+                    <Tooltip key={cat} title={`Add ${cat.toLowerCase()} node`}>
+                      <Chip
+                        data-testid={`pipeline-category-chip-${cat.toLowerCase()}`}
+                        icon={catCfg.icon as React.ReactElement}
+                        label={cat.charAt(0) + cat.slice(1).toLowerCase()}
+                        size="small"
+                        onClick={(e) => { setAddNodeCategory(cat); setAddNodeAnchor(e.currentTarget); }}
+                        sx={{
+                          bgcolor: tokens.bg.overlay,
+                          border: `1px solid ${tokens.border.subtle}`,
+                          color: tokens.text.tertiary,
+                          cursor: "pointer",
+                          fontSize: "0.7rem",
+                          "&:hover": { bgcolor: tokens.bg.hover, color: tokens.text.secondary },
+                        }}
+                      />
+                    </Tooltip>
+                  );
+                })}
                 <Menu
+                  data-testid="pipeline-add-node-menu"
                   anchorEl={addNodeAnchor}
                   open={Boolean(addNodeAnchor)}
                   onClose={() => setAddNodeAnchor(null)}
                   slotProps={{ paper: { sx: { maxHeight: 360, minWidth: 240, bgcolor: tokens.bg.panel, border: `1px solid ${tokens.border.default}` } } }}
                 >
-                  {NODE_TEMPLATES.filter(t => {
-                    if (!addNodeCategory) return true;
-                    if (addNodeCategory === "source") return SOURCE_TYPES.has(t.type);
-                    if (addNodeCategory === "filter") return t.type === "filter";
-                    return !SOURCE_TYPES.has(t.type) && t.type !== "filter" && t.type !== "output";
-                  }).map((t, i) => {
-                    const cfg = nodeTypeConfig[t.type] ?? nodeTypeConfig.process;
-                    return (
-                      <MenuItem key={i} onClick={() => handleAddNode(t)} sx={{ gap: 1.25, py: 0.75 }}>
-                        <Box sx={{ width: 22, height: 22, borderRadius: tokens.radius.sm, bgcolor: cfg.bg, display: "flex", alignItems: "center", justifyContent: "center", color: cfg.color, flexShrink: 0 }}>
-                          {cfg.icon}
-                        </Box>
-                        <Box>
-                          <Typography variant="body2" sx={{ fontSize: "0.8rem", fontWeight: 600 }}>{t.label}</Typography>
-                          <Typography variant="caption" sx={{ fontSize: "0.65rem", color: tokens.text.tertiary }}>{t.description.slice(0, 45)}</Typography>
-                        </Box>
-                      </MenuItem>
-                    );
-                  })}
+                  {registryLoading && (
+                    <MenuItem disabled sx={{ justifyContent: "center" }}>
+                      <CircularProgress size={18} />
+                    </MenuItem>
+                  )}
+                  {descriptors
+                    .filter(d => !addNodeCategory || d.category === addNodeCategory)
+                    .map((d) => {
+                      const cfg = nodeVisualConfig(d);
+                      return (
+                        <MenuItem key={d.kind} data-testid={`pipeline-node-item-${d.kind}`} onClick={() => handleAddNode(d)} sx={{ gap: 1.25, py: 0.75 }}>
+                          <Box sx={{ width: 22, height: 22, borderRadius: tokens.radius.sm, bgcolor: cfg.bg, display: "flex", alignItems: "center", justifyContent: "center", color: cfg.color, flexShrink: 0 }}>
+                            {cfg.icon}
+                          </Box>
+                          <Box>
+                            <Typography variant="body2" sx={{ fontSize: "0.8rem", fontWeight: 600 }}>{d.name}</Typography>
+                            <Typography variant="caption" sx={{ fontSize: "0.65rem", color: tokens.text.tertiary }}>{d.description.slice(0, 45)}</Typography>
+                          </Box>
+                        </MenuItem>
+                      );
+                    })}
                 </Menu>
               </Box>
             )}

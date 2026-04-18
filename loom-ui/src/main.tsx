@@ -7,6 +7,7 @@ import "./i18n/i18n";
 import { SpaceProvider } from "./context/SpaceContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ToastProvider } from "./context/ToastContext";
+import { NodeRegistryProvider } from "./context/NodeRegistryContext";
 import AppShell from "./layout/AppShell";
 import LoginPage from "./features/auth/LoginPage";
 
@@ -14,9 +15,11 @@ function AuthGate() {
   const { isAuthenticated } = useAuth();
   if (!isAuthenticated) return <LoginPage />;
   return (
-    <SpaceProvider>
-      <AppShell />
-    </SpaceProvider>
+    <NodeRegistryProvider>
+      <SpaceProvider>
+        <AppShell />
+      </SpaceProvider>
+    </NodeRegistryProvider>
   );
 }
 

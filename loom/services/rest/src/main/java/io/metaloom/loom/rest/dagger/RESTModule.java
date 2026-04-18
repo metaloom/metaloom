@@ -5,6 +5,8 @@ import javax.inject.Singleton;
 
 import dagger.Module;
 import dagger.Provides;
+import io.metaloom.loom.nodes.spec.CortexNodeDescriptors;
+import io.metaloom.loom.nodes.spec.NodeDescriptorRegistry;
 import io.metaloom.loom.rest.validation.LoomModelValidator;
 import io.metaloom.loom.rest.validation.impl.LoomModelValidatorImpl;
 import io.metaloom.vertx.router.ApiRouter;
@@ -32,6 +34,14 @@ public class RESTModule {
 	@Singleton
 	public LoomModelValidator validator() {
 		return new LoomModelValidatorImpl();
+	}
+
+	@Provides
+	@Singleton
+	public NodeDescriptorRegistry nodeDescriptorRegistry() {
+		NodeDescriptorRegistry registry = new NodeDescriptorRegistry();
+		CortexNodeDescriptors.registerAll(registry);
+		return registry;
 	}
 
 }

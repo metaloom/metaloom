@@ -47,6 +47,10 @@
       <artifactId>loom-rest-model</artifactId>
     </dependency>
     <dependency>
+      <groupId>io.metaloom.loom.shared</groupId>
+      <artifactId>loom-nodes-spec</artifactId>
+    </dependency>
+    <dependency>
       <groupId>io.metaloom.video</groupId>
       <artifactId>video4j-fingerprint</artifactId>
     </dependency>

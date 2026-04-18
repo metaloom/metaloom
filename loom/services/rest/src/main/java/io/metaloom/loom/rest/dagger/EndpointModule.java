@@ -18,6 +18,7 @@ import io.metaloom.loom.rest.endpoint.impl.CommentEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.EmbeddingEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.GraphQLEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.GroupEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.NodeDescriptorEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.LibraryEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.OAuth2Endpoint;
 import io.metaloom.loom.rest.endpoint.impl.PipelineEndpoint;
@@ -61,7 +62,8 @@ public class EndpointModule {
 		RESTInfoEndpoint restInfoEndpoint,
 		CommentEndpoint commentEndpoint,
 		AttachmentEndpoint attachmentEndpoint,
-		GraphQLEndpoint graphQLEndpoint) {
+		GraphQLEndpoint graphQLEndpoint,
+		NodeDescriptorEndpoint nodeDescriptorEndpoint) {
 		return new HashSet<>(Arrays.asList(
 			userEndpoint,
 			roleEndpoint,
@@ -85,6 +87,7 @@ public class EndpointModule {
 			restInfoEndpoint,
 			attachmentEndpoint,
 			commentEndpoint,
-			graphQLEndpoint));
+			graphQLEndpoint,
+			nodeDescriptorEndpoint));
 	}
 }

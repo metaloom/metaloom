@@ -659,6 +659,19 @@ public class LoginE2ETest {
 		runPlaywrightSpec(loomUiDir, "e2e/roles-backend.spec.ts", "playwright-roles");
 	}
 
+	/**
+	 * Full E2E: run Playwright pipeline editor tests from the loom-ui directory.
+	 */
+	@Test
+	void testPipelineViaPlaywright() throws Exception {
+		File loomUiDir = resolveLoomUiDir();
+		if (loomUiDir == null) {
+			log.warn("loom-ui directory not found. Skipping Playwright pipeline test.");
+			return;
+		}
+		runPlaywrightSpec(loomUiDir, "e2e/pipeline-backend.spec.ts", "playwright-pipeline");
+	}
+
 	private void runPlaywrightSpec(File loomUiDir, String specPath, String logPrefix) throws Exception {
 		String apiBaseUrl = "/api/v1";
 		String proxyTarget = "http://localhost:" + REST_PORT;
