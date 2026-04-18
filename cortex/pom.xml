@@ -116,6 +116,93 @@
                 <type>test-jar</type>
             </dependency>
 
+            <!-- Node Descriptor API modules -->
+            <dependency>
+                <groupId>io.metaloom.cortex</groupId>
+                <artifactId>cortex-nodes-common-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.cortex</groupId>
+                <artifactId>cortex-source-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.cortex</groupId>
+                <artifactId>cortex-filter-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.cortex</groupId>
+                <artifactId>cortex-hash-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.cortex</groupId>
+                <artifactId>cortex-dedup-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.cortex</groupId>
+                <artifactId>cortex-thumbnail-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.cortex</groupId>
+                <artifactId>cortex-consistency-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.cortex</groupId>
+                <artifactId>cortex-fingerprint-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.cortex</groupId>
+                <artifactId>cortex-facedetect-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.cortex</groupId>
+                <artifactId>cortex-scene-detection-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.cortex</groupId>
+                <artifactId>cortex-ocr-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.cortex</groupId>
+                <artifactId>cortex-llm-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.cortex</groupId>
+                <artifactId>cortex-tika-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.cortex</groupId>
+                <artifactId>cortex-whisper-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.cortex</groupId>
+                <artifactId>cortex-quality-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.cortex</groupId>
+                <artifactId>cortex-captioning-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.cortex</groupId>
+                <artifactId>cortex-loom-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
             <!-- Loom / Nexus -->
             <dependency>
                 <groupId>io.metaloom.loom</groupId>

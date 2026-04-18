@@ -47,8 +47,72 @@
       <artifactId>loom-rest-model</artifactId>
     </dependency>
     <dependency>
-      <groupId>io.metaloom.loom.shared</groupId>
-      <artifactId>loom-nodes-spec</artifactId>
+      <groupId>io.metaloom.cortex</groupId>
+      <artifactId>cortex-nodes-common-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.metaloom.cortex</groupId>
+      <artifactId>cortex-source-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.metaloom.cortex</groupId>
+      <artifactId>cortex-filter-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.metaloom.cortex</groupId>
+      <artifactId>cortex-hash-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.metaloom.cortex</groupId>
+      <artifactId>cortex-dedup-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.metaloom.cortex</groupId>
+      <artifactId>cortex-thumbnail-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.metaloom.cortex</groupId>
+      <artifactId>cortex-consistency-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.metaloom.cortex</groupId>
+      <artifactId>cortex-fingerprint-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.metaloom.cortex</groupId>
+      <artifactId>cortex-facedetect-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.metaloom.cortex</groupId>
+      <artifactId>cortex-scene-detection-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.metaloom.cortex</groupId>
+      <artifactId>cortex-ocr-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.metaloom.cortex</groupId>
+      <artifactId>cortex-llm-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.metaloom.cortex</groupId>
+      <artifactId>cortex-tika-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.metaloom.cortex</groupId>
+      <artifactId>cortex-whisper-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.metaloom.cortex</groupId>
+      <artifactId>cortex-quality-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.metaloom.cortex</groupId>
+      <artifactId>cortex-captioning-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.metaloom.cortex</groupId>
+      <artifactId>cortex-loom-api</artifactId>
     </dependency>
     <dependency>
       <groupId>io.metaloom.video</groupId>

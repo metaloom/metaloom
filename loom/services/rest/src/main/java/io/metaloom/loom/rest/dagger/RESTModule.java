@@ -1,11 +1,13 @@
 package io.metaloom.loom.rest.dagger;
 
+import java.util.ServiceLoader;
+
 import javax.inject.Named;
 import javax.inject.Singleton;
 
 import dagger.Module;
 import dagger.Provides;
-import io.metaloom.loom.nodes.spec.CortexNodeDescriptors;
+import io.metaloom.loom.nodes.spec.NodeDescriptorProvider;
 import io.metaloom.loom.nodes.spec.NodeDescriptorRegistry;
 import io.metaloom.loom.rest.validation.LoomModelValidator;
 import io.metaloom.loom.rest.validation.impl.LoomModelValidatorImpl;
@@ -40,7 +42,8 @@ public class RESTModule {
 	@Singleton
 	public NodeDescriptorRegistry nodeDescriptorRegistry() {
 		NodeDescriptorRegistry registry = new NodeDescriptorRegistry();
-		CortexNodeDescriptors.registerAll(registry);
+		ServiceLoader.load(NodeDescriptorProvider.class)
+			.forEach(provider -> provider.getDescriptors().forEach(registry::register));
 		return registry;
 	}
 

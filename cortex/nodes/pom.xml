@@ -12,6 +12,9 @@
     </parent>
 
     <modules>
+        <module>common-api</module>
+        <module>source-api</module>
+        <module>filter-api</module>
         <module>hash</module>
         <module>dedup</module>
         <module>thumbnail</module>
