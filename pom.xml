@@ -40,8 +40,8 @@
         <module>loom-test-env</module>
         <module>loom-shared</module>
         <module>loom-client</module>
-        <module>loom</module>
         <module>cortex</module>
+        <module>loom</module>
         <module>examples</module>
         <module>integration-test</module>
         <module>e2e-test</module>
