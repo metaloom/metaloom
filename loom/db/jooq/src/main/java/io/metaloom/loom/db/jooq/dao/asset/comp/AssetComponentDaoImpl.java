@@ -489,13 +489,18 @@ comp.setUuid(uuid);
 
 @Override
 public List<AssetJsonComp> loadJsonComps(UUID assetUuid) {
-return doLoadByAsset(JSON_TABLE, assetUuid, AssetJsonCompImpl.class).stream()
-	.map(e -> (AssetJsonComp) e).toList();
+return ctx.select(DSL.asterisk())
+	.from(JSON_TABLE)
+	.where(F_ASSET_UUID.eq(assetUuid))
+	.fetch(this::mapJsonComp);
 }
 
 @Override
 public AssetJsonComp loadJsonComp(UUID uuid) {
-return doLoad(JSON_TABLE, uuid, AssetJsonCompImpl.class);
+return ctx.select(DSL.asterisk())
+	.from(JSON_TABLE)
+	.where(F_UUID.eq(uuid))
+	.fetchOne(this::mapJsonComp);
 }
 
 @Override
@@ -510,5 +515,38 @@ values.put(F_SCHEMA_TYPE, comp.getSchemaType());
 values.put(F_DATA, comp.getData() != null ? JSONB.jsonb(comp.getData().encode()) : null);
 doUpdate(JSON_TABLE, comp.getUuid(), values);
 return comp;
+}
+
+private AssetJsonComp mapJsonComp(org.jooq.Record r) {
+AssetJsonCompImpl comp = new AssetJsonCompImpl();
+comp.setUuid(r.get(F_UUID));
+comp.setAssetUuid(r.get(F_ASSET_UUID));
+comp.setSource(r.get(F_SOURCE));
+comp.setCreated(toInstant(r.get("created")));
+comp.setCreatorUuid(r.get(F_CREATOR_UUID));
+comp.setEdited(toInstant(r.get("edited")));
+comp.setEditorUuid(r.get(F_EDITOR_UUID));
+comp.setSchemaType(r.get(F_SCHEMA_TYPE));
+JSONB jsonb = r.get(F_DATA);
+if (jsonb != null) {
+	comp.setData(new io.vertx.core.json.JsonObject(jsonb.data()));
+}
+return comp;
+}
+
+private Instant toInstant(Object value) {
+if (value == null) {
+	return null;
+}
+if (value instanceof Instant i) {
+	return i;
+}
+if (value instanceof java.sql.Timestamp ts) {
+	return ts.toInstant();
+}
+if (value instanceof java.time.LocalDateTime ldt) {
+	return ldt.atZone(java.time.ZoneOffset.UTC).toInstant();
+}
+throw new IllegalArgumentException("Cannot convert " + value.getClass() + " to Instant");
 }
 }

@@ -3,6 +3,7 @@ package io.metaloom.loom.rest.model.asset;
 import io.metaloom.loom.rest.model.asset.info.GeoLocationInfo;
 import io.metaloom.loom.rest.model.asset.info.ImageInfo;
 import io.metaloom.loom.rest.model.asset.info.JsonComponentInfo;
+import io.metaloom.loom.rest.model.example.Example;
 import io.metaloom.loom.rest.model.example.ExampleValues;
 import io.metaloom.loom.rest.model.example.impl.ExampleImpl;
 import io.netty.handler.codec.http.HttpResponseStatus;

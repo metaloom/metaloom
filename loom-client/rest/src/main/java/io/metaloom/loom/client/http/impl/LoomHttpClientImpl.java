@@ -29,6 +29,10 @@ import io.metaloom.loom.rest.model.asset.AssetUpdateRequest;
 import io.metaloom.loom.rest.model.asset.AssetBulkCreateRequest;
 import io.metaloom.loom.rest.model.asset.AssetBulkResponse;
 import io.metaloom.loom.rest.model.asset.AssetBulkUpdateRequest;
+import io.metaloom.loom.rest.model.asset.AssetComponentCreateRequest;
+import io.metaloom.loom.rest.model.asset.AssetComponentListResponse;
+import io.metaloom.loom.rest.model.asset.AssetComponentResponse;
+import io.metaloom.loom.rest.model.asset.AssetComponentUpdateRequest;
 import io.metaloom.loom.rest.model.asset.location.AssetLocationCreateRequest;
 import io.metaloom.loom.rest.model.asset.location.AssetLocationListResponse;
 import io.metaloom.loom.rest.model.asset.location.AssetLocationResponse;
@@ -645,6 +649,33 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<EmbeddingResponse> createEmbedding(EmbeddingCreateRequest request) {
 		return postRequest("embeddings", request, EmbeddingResponse.class);
+	}
+
+	// ASSET COMPONENT
+
+	@Override
+	public LoomClientHttpRequest<AssetComponentListResponse> listAssetComponents(UUID assetUuid) {
+		return getRequest("assets/" + assetUuid + "/components", AssetComponentListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<AssetComponentResponse> createAssetComponent(UUID assetUuid, AssetComponentCreateRequest request) {
+		return postRequest("assets/" + assetUuid + "/components", request, AssetComponentResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<AssetComponentResponse> loadAssetComponent(UUID assetUuid, UUID compUuid) {
+		return getRequest("assets/" + assetUuid + "/components/" + compUuid, AssetComponentResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<AssetComponentResponse> updateAssetComponent(UUID assetUuid, UUID compUuid, AssetComponentUpdateRequest request) {
+		return postRequest("assets/" + assetUuid + "/components/" + compUuid, request, AssetComponentResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> deleteAssetComponent(UUID assetUuid, UUID compUuid) {
+		return deleteRequest("assets/" + assetUuid + "/components/" + compUuid);
 	}
 
 	// GROUP

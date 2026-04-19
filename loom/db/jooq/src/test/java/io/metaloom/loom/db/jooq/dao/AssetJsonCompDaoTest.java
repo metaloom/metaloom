@@ -23,14 +23,9 @@ public class AssetJsonCompDaoTest extends AbstractJooqTest {
 		return assetComponentDao();
 	}
 
-	private Asset createTestAsset() {
-		User user = dummyUser();
-		return createAsset(user);
-	}
-
 	@Test
 	public void testCreate() {
-		Asset asset = createTestAsset();
+		Asset asset = asset();
 		User user = dummyUser();
 
 		AssetJsonComp comp = dao().createJsonComp(user.getUuid(), asset.getUuid(), "yolo-detector");
@@ -49,7 +44,7 @@ public class AssetJsonCompDaoTest extends AbstractJooqTest {
 
 	@Test
 	public void testLoad() {
-		Asset asset = createTestAsset();
+		Asset asset = asset();
 		User user = dummyUser();
 
 		AssetJsonComp comp = dao().createJsonComp(user.getUuid(), asset.getUuid(), "face-embedder");
@@ -76,7 +71,7 @@ public class AssetJsonCompDaoTest extends AbstractJooqTest {
 
 	@Test
 	public void testLoadByAsset() {
-		Asset asset = createTestAsset();
+		Asset asset = asset();
 		User user = dummyUser();
 
 		dao().storeJsonComp(dao().createJsonComp(user.getUuid(), asset.getUuid(), "source-a"));
@@ -95,7 +90,7 @@ public class AssetJsonCompDaoTest extends AbstractJooqTest {
 
 	@Test
 	public void testUpdate() {
-		Asset asset = createTestAsset();
+		Asset asset = asset();
 		User user = dummyUser();
 
 		AssetJsonComp comp = dao().createJsonComp(user.getUuid(), asset.getUuid(), "detector");
@@ -120,7 +115,7 @@ public class AssetJsonCompDaoTest extends AbstractJooqTest {
 
 	@Test
 	public void testDelete() {
-		Asset asset = createTestAsset();
+		Asset asset = asset();
 		User user = dummyUser();
 
 		AssetJsonComp comp = dao().createJsonComp(user.getUuid(), asset.getUuid(), "source");
@@ -134,7 +129,7 @@ public class AssetJsonCompDaoTest extends AbstractJooqTest {
 
 	@Test
 	public void testNullData() {
-		Asset asset = createTestAsset();
+		Asset asset = asset();
 		User user = dummyUser();
 
 		AssetJsonComp comp = dao().createJsonComp(user.getUuid(), asset.getUuid(), "empty-source");
@@ -150,7 +145,7 @@ public class AssetJsonCompDaoTest extends AbstractJooqTest {
 
 	@Test
 	public void testComplexJsonData() {
-		Asset asset = createTestAsset();
+		Asset asset = asset();
 		User user = dummyUser();
 
 		JsonObject nested = new JsonObject()
@@ -174,7 +169,7 @@ public class AssetJsonCompDaoTest extends AbstractJooqTest {
 
 	@Test
 	public void testUpdateDataToNull() {
-		Asset asset = createTestAsset();
+		Asset asset = asset();
 		User user = dummyUser();
 
 		AssetJsonComp comp = dao().createJsonComp(user.getUuid(), asset.getUuid(), "source");

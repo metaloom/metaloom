@@ -23,7 +23,7 @@ import io.metaloom.loom.rest.model.asset.info.JsonComponentInfo;
 import io.metaloom.loom.rest.model.asset.info.TranscriptInfo;
 import io.metaloom.loom.rest.model.asset.info.VideoInfo;
 
-public interface AssetComponentModelBuilder extends ModelBuilder {
+public interface AssetComponentModelBuilder extends ModelBuilder, UserModelBuilder {
 
 	default AssetComponentResponse toResponse(AssetGeoComp comp) {
 		AssetComponentResponse response = new AssetComponentResponse();

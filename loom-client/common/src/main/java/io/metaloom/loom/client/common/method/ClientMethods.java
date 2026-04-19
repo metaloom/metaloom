@@ -5,6 +5,7 @@ public interface ClientMethods extends
 	AssetMethods,
 	AssetLocationMethods,
 	AssetBinaryMethods,
+	AssetComponentMethods,
 	AssetPoolMethods,
 	AttachmentMethods,
 	ClusterMethods,
