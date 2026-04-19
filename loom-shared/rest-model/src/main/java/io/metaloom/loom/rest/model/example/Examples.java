@@ -1,6 +1,7 @@
 package io.metaloom.loom.rest.model.example;
 
 import io.metaloom.loom.rest.model.annotation.AnnotationExamples;
+import io.metaloom.loom.rest.model.asset.AssetComponentExamples;
 import io.metaloom.loom.rest.model.asset.AssetExamples;
 import io.metaloom.loom.rest.model.asset.location.AssetLocationExamples;
 import io.metaloom.loom.rest.model.asset.binary.AssetBinaryExamples;
@@ -30,6 +31,7 @@ public interface Examples extends
 	AnnotationExamples,
 	AuthLoginExamples,
 	AssetExamples,
+	AssetComponentExamples,
 	AssetLocationExamples,
 	AssetBinaryExamples,
 	AssetPoolExamples,

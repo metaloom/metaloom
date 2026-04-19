@@ -11,6 +11,7 @@ import javax.inject.Singleton;
 
 import org.jooq.DSLContext;
 import org.jooq.Field;
+import org.jooq.JSONB;
 import org.jooq.Table;
 import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
@@ -22,6 +23,7 @@ import io.metaloom.loom.db.model.asset.AssetComponentDao;
 import io.metaloom.loom.db.model.asset.AssetDocComp;
 import io.metaloom.loom.db.model.asset.AssetGeoComp;
 import io.metaloom.loom.db.model.asset.AssetImageComp;
+import io.metaloom.loom.db.model.asset.AssetJsonComp;
 import io.metaloom.loom.db.model.asset.AssetTranscriptComp;
 import io.metaloom.loom.db.model.asset.AssetVideoComp;
 
@@ -34,6 +36,7 @@ private static final Table<?> IMAGE_TABLE = DSL.table("asset_image_comp");
 private static final Table<?> VIDEO_TABLE = DSL.table("asset_video_comp");
 private static final Table<?> AUDIO_TABLE = DSL.table("asset_audio_comp");
 private static final Table<?> TRANSCRIPT_TABLE = DSL.table("asset_transcript_comp");
+private static final Table<?> JSON_TABLE = DSL.table("asset_json_comp");
 
 private static final Field<UUID> F_UUID = DSL.field("uuid", UUID.class);
 private static final Field<UUID> F_ASSET_UUID = DSL.field("asset_uuid", UUID.class);
@@ -76,6 +79,10 @@ private static final Field<Integer> F_DURATION = DSL.field("duration", Integer.c
 private static final Field<String> F_MODEL = DSL.field("model", String.class);
 private static final Field<String> F_TRANSCRIPT_JSON = DSL.field("transcript_json", SQLDataType.VARCHAR);
 
+// Json fields
+private static final Field<String> F_SCHEMA_TYPE = DSL.field("schema_type", String.class);
+private static final Field<JSONB> F_DATA = DSL.field("data", SQLDataType.JSONB);
+
 private final DSLContext ctx;
 
 @Inject
@@ -96,6 +103,7 @@ ctx.deleteFrom(IMAGE_TABLE).execute();
 ctx.deleteFrom(VIDEO_TABLE).execute();
 ctx.deleteFrom(AUDIO_TABLE).execute();
 ctx.deleteFrom(TRANSCRIPT_TABLE).execute();
+ctx.deleteFrom(JSON_TABLE).execute();
 }
 
 @Override
@@ -107,6 +115,7 @@ total += ctx.fetchCount(IMAGE_TABLE);
 total += ctx.fetchCount(VIDEO_TABLE);
 total += ctx.fetchCount(AUDIO_TABLE);
 total += ctx.fetchCount(TRANSCRIPT_TABLE);
+total += ctx.fetchCount(JSON_TABLE);
 return total;
 }
 
@@ -456,6 +465,50 @@ values.put(F_DURATION, comp.getDuration());
 values.put(F_MODEL, comp.getModel());
 values.put(F_TRANSCRIPT_JSON, comp.getTranscriptJson() != null ? comp.getTranscriptJson().encode() : null);
 doUpdate(TRANSCRIPT_TABLE, comp.getUuid(), values);
+return comp;
+}
+// ---- Json ----
+
+@Override
+public AssetJsonComp createJsonComp(UUID userUuid, UUID assetUuid, String source) {
+AssetJsonCompImpl comp = new AssetJsonCompImpl();
+comp.setAssetUuid(assetUuid);
+comp.setSource(source);
+setCreatorEditor(userUuid, comp);
+return comp;
+}
+
+@Override
+public void storeJsonComp(AssetJsonComp comp) {
+Map<Field<?>, Object> values = baseValues(comp);
+values.put(F_SCHEMA_TYPE, comp.getSchemaType());
+values.put(F_DATA, comp.getData() != null ? JSONB.jsonb(comp.getData().encode()) : null);
+UUID uuid = insertAndReturnUuid(JSON_TABLE, values);
+comp.setUuid(uuid);
+}
+
+@Override
+public List<AssetJsonComp> loadJsonComps(UUID assetUuid) {
+return doLoadByAsset(JSON_TABLE, assetUuid, AssetJsonCompImpl.class).stream()
+	.map(e -> (AssetJsonComp) e).toList();
+}
+
+@Override
+public AssetJsonComp loadJsonComp(UUID uuid) {
+return doLoad(JSON_TABLE, uuid, AssetJsonCompImpl.class);
+}
+
+@Override
+public void deleteJsonComp(UUID uuid) {
+doDelete(JSON_TABLE, uuid);
+}
+
+@Override
+public AssetJsonComp updateJsonComp(AssetJsonComp comp) {
+Map<Field<?>, Object> values = baseValues(comp);
+values.put(F_SCHEMA_TYPE, comp.getSchemaType());
+values.put(F_DATA, comp.getData() != null ? JSONB.jsonb(comp.getData().encode()) : null);
+doUpdate(JSON_TABLE, comp.getUuid(), values);
 return comp;
 }
 }

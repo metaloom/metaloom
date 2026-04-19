@@ -10,7 +10,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.loom.db.model.asset.Asset;
+import io.metaloom.loom.db.model.asset.AssetAudioComp;
+import io.metaloom.loom.db.model.asset.AssetComponentDao;
 import io.metaloom.loom.db.model.asset.AssetDao;
+import io.metaloom.loom.db.model.asset.AssetDocComp;
+import io.metaloom.loom.db.model.asset.AssetGeoComp;
+import io.metaloom.loom.db.model.asset.AssetImageComp;
+import io.metaloom.loom.db.model.asset.AssetJsonComp;
+import io.metaloom.loom.db.model.asset.AssetTranscriptComp;
+import io.metaloom.loom.db.model.asset.AssetVideoComp;
 import io.metaloom.loom.db.model.collection.Collection;
 import io.metaloom.loom.db.model.collection.CollectionDao;
 import io.metaloom.loom.db.model.group.Group;

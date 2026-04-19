@@ -6,7 +6,7 @@ import java.util.UUID;
 import io.metaloom.loom.db.Dao;
 
 /**
- * DAO for managing asset components (geo, doc, image, video, audio, transcript).
+ * DAO for managing asset components (geo, doc, image, video, audio, transcript, json).
  */
 public interface AssetComponentDao extends Dao {
 
@@ -87,4 +87,17 @@ public interface AssetComponentDao extends Dao {
 	void storeTranscriptComp(AssetTranscriptComp comp);
 
 	AssetTranscriptComp updateTranscriptComp(AssetTranscriptComp comp);
+
+	// Json
+	AssetJsonComp createJsonComp(UUID userUuid, UUID assetUuid, String source);
+
+	List<AssetJsonComp> loadJsonComps(UUID assetUuid);
+
+	void deleteJsonComp(UUID uuid);
+
+	AssetJsonComp loadJsonComp(UUID uuid);
+
+	void storeJsonComp(AssetJsonComp comp);
+
+	AssetJsonComp updateJsonComp(AssetJsonComp comp);
 }

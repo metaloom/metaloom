@@ -9,6 +9,7 @@ import dagger.Provides;
 import dagger.multibindings.ElementsIntoSet;
 import io.metaloom.loom.rest.endpoint.RESTEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.AnnotationEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.AssetComponentEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.AssetEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.AssetBinaryEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.AssetPoolEndpoint;
@@ -46,6 +47,7 @@ public class EndpointModule {
 		AnnotationEndpoint annotationEndpoint,
 		AssetEndpoint assetEndpoint,
 		AssetBinaryEndpoint assetBinaryEndpoint,
+		AssetComponentEndpoint assetComponentEndpoint,
 		AssetPoolEndpoint assetPoolEndpoint,
 		CollectionEndpoint collectionEndpoint,
 		EmbeddingEndpoint embeddingEndpoint,
@@ -71,6 +73,7 @@ public class EndpointModule {
 			annotationEndpoint,
 			assetEndpoint,
 			assetBinaryEndpoint,
+			assetComponentEndpoint,
 			assetPoolEndpoint,
 			collectionEndpoint,
 			embeddingEndpoint,
