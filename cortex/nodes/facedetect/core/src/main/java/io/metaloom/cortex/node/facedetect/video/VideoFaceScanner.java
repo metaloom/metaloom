@@ -5,19 +5,19 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
+import java.awt.Dimension;
 
 import javax.inject.Inject;
 
-import org.opencv.core.Mat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.facedetection.client.FaceDetectionServerClient;
 import io.metaloom.facedetection.client.model.DetectionResponse;
 import io.metaloom.facedetection.client.model.FaceModel;
+import io.metaloom.opencv.core.Mat;
 import io.metaloom.video.facedetect.FaceVideoFrame;
 import io.metaloom.video.facedetect.Facedetector;
-import io.metaloom.video.facedetect.FacedetectorUtils;
 import io.metaloom.video.facedetect.face.Face;
 import io.metaloom.video.facedetect.face.FaceBox;
 import io.metaloom.video.facedetect.inspireface.InspireFacedetector;
@@ -220,7 +220,7 @@ public class VideoFaceScanner {
 
 				// Mat faceImage = faceFrame.mat().clone();
 				int padding = (int) ((double) face.box().getWidth() * 1d);
-				Mat faceImage = FacedetectorUtils.cropToFace(faceFrame.mat(), face, padding);
+				Mat faceImage = cropToFace(faceFrame, face, padding);
 				double blurriness = CVUtils.blurriness(faceImage);
 				face.setBluriness(blurriness);
 				if (blurriness < BLUR_THRESHOLD) {
@@ -245,6 +245,15 @@ public class VideoFaceScanner {
 		}
 		return faces;
 
+	}
+
+	private Mat cropToFace(FaceVideoFrame frame, Face face, int padding) {
+		FaceBox box = face.box();
+		int startX = Math.max(1, box.getStartX());
+		int startY = Math.max(1, box.getStartY());
+		int width = Math.max(1, box.getWidth());
+		int height = Math.max(1, box.getHeight());
+		return CVUtils.crop2(frame.mat(), new java.awt.Point(startX, startY), new Dimension(width, height), padding).clone();
 	}
 
 	public FaceVideoFrame detectFaces(Facedetector detector, VideoFrame frame) {

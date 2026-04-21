@@ -9,8 +9,6 @@ import javax.annotation.Nullable;
 import javax.imageio.ImageIO;
 import javax.inject.Inject;
 
-import org.opencv.core.CvType;
-import org.opencv.core.Mat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,6 +20,8 @@ import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
+import io.metaloom.opencv.core.CvType;
+import io.metaloom.opencv.core.Mat;
 import io.metaloom.video4j.Video4j;
 import io.metaloom.video4j.VideoFile;
 import io.metaloom.video4j.Videos;

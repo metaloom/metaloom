@@ -7,10 +7,11 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.DoubleStream;
 
 import org.apache.commons.math3.ml.distance.EuclideanDistance;
-import org.opencv.core.Mat;
-import org.opencv.core.MatOfPoint;
-import org.opencv.core.Point;
-import org.opencv.imgproc.Imgproc;
+
+import io.metaloom.opencv.core.Mat;
+import io.metaloom.opencv.core.MatOfPoint;
+import io.metaloom.opencv.core.Point;
+import io.metaloom.opencv.imgproc.Imgproc;
 
 import io.metaloom.cortex.node.scene.AbstractSceneDetector;
 import io.metaloom.cortex.node.scene.detector.DetectionResult;

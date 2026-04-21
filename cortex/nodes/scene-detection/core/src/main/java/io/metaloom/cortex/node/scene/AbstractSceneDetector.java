@@ -7,8 +7,8 @@ import java.awt.GraphicsEnvironment;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 
-import org.opencv.core.Size;
-import org.opencv.imgproc.Imgproc;
+import io.metaloom.opencv.core.Size;
+import io.metaloom.opencv.imgproc.Imgproc;
 
 import io.metaloom.cortex.node.scene.detector.DetectionResult;
 import io.metaloom.cortex.node.scene.detector.Detector;

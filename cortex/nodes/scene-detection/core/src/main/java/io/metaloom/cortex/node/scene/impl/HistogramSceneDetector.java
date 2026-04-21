@@ -4,11 +4,11 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.opencv.core.Core;
-import org.opencv.core.Mat;
-import org.opencv.core.MatOfFloat;
-import org.opencv.core.MatOfInt;
-import org.opencv.imgproc.Imgproc;
+import io.metaloom.opencv.core.Core;
+import io.metaloom.opencv.core.Mat;
+import io.metaloom.opencv.core.MatOfFloat;
+import io.metaloom.opencv.core.MatOfInt;
+import io.metaloom.opencv.imgproc.Imgproc;
 
 import io.metaloom.cortex.node.scene.AbstractSceneDetector;
 import io.metaloom.cortex.node.scene.detector.DetectionResult;
