@@ -5,7 +5,7 @@ theme = "meghna-hugo"
 # post pagination
 paginate = "6"
 
-publishDir = "docs"
+publishDir = "dist"
 
 # post excerpt
 summaryLength = "15"
@@ -146,7 +146,7 @@ author = "Jotschi"
 # Google Analytics
 google_analytics_id = "" # Your ID
 # post share
-post_share = true
+post_share = false
 
 # preloader
 [params.preloader]

@@ -1,21 +1,58 @@
 
 /** TABLES **/
 
-table.tableblock, table.tableblock>tbody>tr>td, table.tableblock>tbody>tr>th, table.tableblock>tfoot>tr>td, table.tableblock>tfoot>tr>th, table.tableblock>thead>tr>td, table.tableblock>thead>tr>th {
-    border: 1px solid rgba(221, 221, 221, 0.452);
-  }
-  
-  table.tableblock thead {
-    font-size: 1.3em;
-  }
-  
-  table.tableblock {
-    margin-bottom: 11px;
-  }
-  
-  table.tableblock p {
-    margin: 5px;
-  }
+table.tableblock {
+  border-collapse: collapse;
+  width: 100%;
+  margin-bottom: 20px;
+  border: 2px solid #4e595f;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+table.tableblock > tbody > tr > td,
+table.tableblock > tbody > tr > th,
+table.tableblock > tfoot > tr > td,
+table.tableblock > tfoot > tr > th,
+table.tableblock > thead > tr > td,
+table.tableblock > thead > tr > th {
+  border: 1px solid #3a424a;
+  padding: 10px 14px;
+  vertical-align: top;
+}
+
+table.tableblock thead tr {
+  background-color: #1e2428;
+}
+
+table.tableblock thead tr th,
+table.tableblock thead tr td {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #00b5a6;
+  border-bottom: 2px solid #4e595f;
+}
+
+table.tableblock tbody tr {
+  background-color: #242a30;
+}
+
+table.tableblock tbody tr:nth-child(even) {
+  background-color: #292f36;
+}
+
+table.tableblock tbody tr:hover {
+  background-color: rgba(0, 181, 166, 0.05);
+}
+
+table.tableblock p {
+  margin: 0;
+  padding: 0;
+  color: #c8cdd2;
+  font-size: 0.95rem;
+}
   
   /** ICONS **/
   
