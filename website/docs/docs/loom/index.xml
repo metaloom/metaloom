@@ -12,70 +12,70 @@
       <link>https://metaloom.io/docs/loom/artifacts/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/loom/artifacts/</guid>
-      <description>Loom publishes JVM artifacts and container deployment assets separately.&#xA;Maven Artifacts See Maven Artifacts for the BOM and the primary client and shared model modules.</description>
+      <description>&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;Loom publishes JVM artifacts and container deployment assets separately.&lt;/p&gt;&#xA;&lt;/div&gt;&#xA;&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_maven_artifacts&#34;&gt;Maven Artifacts&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;See &lt;a href=&#34;../maven-artifacts/&#34;&gt;Maven Artifacts&lt;/a&gt; for the BOM and the primary client and shared model modules.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Authentication</title>
       <link>https://metaloom.io/docs/loom/authentication/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/loom/authentication/</guid>
-      <description>Loom uses JWT (JSON Web Token) bearer tokens for API authentication. OAuth2 integration is also available.</description>
+      <description>&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;Loom uses JWT (JSON Web Token) bearer tokens for API authentication.&#xA;OAuth2 integration is also available.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Configuration</title>
       <link>https://metaloom.io/docs/loom/configuration/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/loom/configuration/</guid>
-      <description>Loom is configured via a YAML file (loom.yml) with optional environment variable overrides.&#xA;Config File Locations Loom looks for loom.</description>
+      <description>&lt;div id=&#34;preamble&#34;&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;Loom is configured via a YAML file (&lt;code&gt;loom.yml&lt;/code&gt;) with optional environment variable overrides.&lt;/p&gt;&#xA;&lt;/div&gt;&#xA;&lt;/div&gt;&#xA;&lt;/div&gt;&#xA;&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_config_file_locations&#34;&gt;Config File Locations&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;Loom looks for &lt;code&gt;loom.yml&lt;/code&gt; in the following order (first match wins):&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Containers</title>
       <link>https://metaloom.io/docs/loom/containers/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/loom/containers/</guid>
-      <description>The Loom server is distributed as a Docker image.&#xA;Running with Docker docker run -d \ --name loom \ -p 8092:8092 \ -p 8091:8091 \ -p 8989:8989 \ -e LOOM_DB_HOST=postgres \ -e LOOM_DB_PASSWORD=secret \ -e LOOM_INITIAL_PASSWORD=admin123 \ -v loom-config:/app/config \ metaloom/loom:latest Docker Compose version: &amp;#34;3.</description>
+      <description>&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;The Loom server is distributed as a Docker image.&lt;/p&gt;&#xA;&lt;/div&gt;&#xA;&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_running_with_docker&#34;&gt;Running with Docker&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;listingblock&#34;&gt;&#xA;&lt;div class=&#34;content&#34;&gt;&#xA;&lt;pre class=&#34;highlight&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;docker run -d \&#xA;  --name loom \&#xA;  -p 8092:8092 \&#xA;  -p 8091:8091 \&#xA;  -p 8989:8989 \&#xA;  -e LOOM_DB_HOST=postgres \&#xA;  -e LOOM_DB_PASSWORD=secret \&#xA;  -e LOOM_INITIAL_PASSWORD=admin123 \&#xA;  -v loom-config:/app/config \&#xA;  metaloom/loom:latest&lt;/code&gt;&lt;/pre&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Examples</title>
       <link>https://metaloom.io/docs/loom/examples/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/loom/examples/</guid>
-      <description>The /examples directory of the source repository contains runnable example projects.&#xA;Listing Examples The examples/ Maven module contains sub-projects for both Loom and Cortex use cases.</description>
+      <description>&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;The &lt;code&gt;/examples&lt;/code&gt; directory of the source repository contains runnable example projects.&lt;/p&gt;&#xA;&lt;/div&gt;&#xA;&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_listing_examples&#34;&gt;Listing Examples&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;The &lt;code&gt;examples/&lt;/code&gt; Maven module contains sub-projects for both Loom and Cortex use cases.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Features</title>
       <link>https://metaloom.io/docs/loom/features/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/loom/features/</guid>
-      <description>Loom provides a comprehensive set of features for managing digital media assets and their associated metadata.</description>
+      <description>&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;Loom provides a comprehensive set of features for managing digital media assets and their associated metadata.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Helm Chart</title>
       <link>https://metaloom.io/docs/loom/helm-chart/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/loom/helm-chart/</guid>
-      <description>The Loom Helm chart is the Kubernetes deployment entry point for running the server in-cluster.</description>
+      <description>&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;The Loom Helm chart is the Kubernetes deployment entry point for running the server in-cluster.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Java Client Usage</title>
       <link>https://metaloom.io/docs/loom/java-client/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/loom/java-client/</guid>
-      <description>The loom-rest-client module provides a typed HTTP client for JVM applications.&#xA;Maven Dependency &amp;lt;dependency&amp;gt; &amp;lt;groupId&amp;gt;io.</description>
+      <description>&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;The &lt;code&gt;loom-rest-client&lt;/code&gt; module provides a typed HTTP client for JVM applications.&lt;/p&gt;&#xA;&lt;/div&gt;&#xA;&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_maven_dependency&#34;&gt;Maven Dependency&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;listingblock&#34;&gt;&#xA;&lt;div class=&#34;content&#34;&gt;&#xA;&lt;pre class=&#34;highlight&#34;&gt;&lt;code class=&#34;language-xml&#34; data-lang=&#34;xml&#34;&gt;&amp;lt;dependency&amp;gt;&#xA;    &amp;lt;groupId&amp;gt;io.metaloom.loom.client&amp;lt;/groupId&amp;gt;&#xA;    &amp;lt;artifactId&amp;gt;loom-rest-client&amp;lt;/artifactId&amp;gt;&#xA;    &amp;lt;version&amp;gt;1.0.0-SNAPSHOT&amp;lt;/version&amp;gt;&#xA;&amp;lt;/dependency&amp;gt;&lt;/code&gt;&lt;/pre&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Maven Artifacts</title>
       <link>https://metaloom.io/docs/loom/maven-artifacts/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/loom/maven-artifacts/</guid>
-      <description>All Loom artifacts are published under the io.metaloom group.&#xA;BOM POM Use the BOM to align versions across Loom and Cortex modules:</description>
+      <description>&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;All Loom artifacts are published under the &lt;code&gt;io.metaloom&lt;/code&gt; group.&lt;/p&gt;&#xA;&lt;/div&gt;&#xA;&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_bom_pom&#34;&gt;BOM POM&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;Use the BOM to align versions across Loom and Cortex modules:&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>REST API</title>
       <link>https://metaloom.io/docs/loom/rest-api/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/loom/rest-api/</guid>
-      <description>Loom exposes its full functionality via a versioned REST API. All endpoints are rooted at /api/v1.</description>
+      <description>&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;Loom exposes its full functionality via a versioned REST API.&#xA;All endpoints are rooted at &lt;code&gt;/api/v1&lt;/code&gt;.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
   </channel>
 </rss>

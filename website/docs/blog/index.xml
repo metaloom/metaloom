@@ -13,49 +13,49 @@
       <link>https://metaloom.io/blog/java-ffm-graph-storage-poc/</link>
       <pubDate>Tue, 28 Jan 2025 14:51:12 +0600</pubDate>
       <guid>https://metaloom.io/blog/java-ffm-graph-storage-poc/</guid>
-      <description>Graph Storage PoC FFM Basics - Memory The main building blocks for foreign memory handling are Arena, MemoryLayout and MemorySegmet.</description>
+      <description>&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_graph_storage_poc&#34;&gt;Graph Storage PoC&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&#xA;&lt;/div&gt;&#xA;&lt;/div&gt;&#xA;&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_ffm_basics_memory&#34;&gt;FFM Basics - Memory&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;The main building blocks for foreign memory handling are &lt;code&gt;Arena&lt;/code&gt;, &lt;code&gt;MemoryLayout&lt;/code&gt; and &lt;code&gt;MemorySegmet&lt;/code&gt;.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Video Fingerprinting</title>
       <link>https://metaloom.io/blog/video-fingerprinting/</link>
       <pubDate>Mon, 21 Jun 2021 21:51:12 +0600</pubDate>
       <guid>https://metaloom.io/blog/video-fingerprinting/</guid>
-      <description>Intro In this post I want to share my experiments on how to generate video fingerprints.</description>
+      <description>&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_intro&#34;&gt;Intro&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;In this post I want to share my experiments on how to generate video fingerprints.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Day4 - Vert.x jOOQ PoC</title>
       <link>https://metaloom.io/blog/day4-vertx-jooq-poc/</link>
       <pubDate>Wed, 19 May 2021 21:51:12 +0600</pubDate>
       <guid>https://metaloom.io/blog/day4-vertx-jooq-poc/</guid>
-      <description>Intro In this post I want to present a reactive database layer proof of concept implementation I did which will hopefully make its way into my MetaLoom project.</description>
+      <description>&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_intro&#34;&gt;Intro&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;In this post I want to present a &lt;a href=&#34;https://github.com/metaloom/poc-vertx-jooq&#34;&gt;reactive database layer proof of concept implementation&lt;/a&gt; I did which will hopefully make its way into my &lt;a href=&#34;https://metaloom.io/blog/day0-let-there-be-loom/&#34;&gt;MetaLoom project&lt;/a&gt;.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Day3 - Vert.x Dagger PoC</title>
       <link>https://metaloom.io/blog/day3-vertx-dagger-poc/</link>
       <pubDate>Mon, 17 May 2021 14:51:12 +0600</pubDate>
       <guid>https://metaloom.io/blog/day3-vertx-dagger-poc/</guid>
-      <description>Dagger / Vert.x In this post I want to show a proof of concept project that makes use of Eclipse Vert.</description>
+      <description>&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_dagger_vert_x&#34;&gt;Dagger /  Vert.x&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;In this post I want to show a proof of concept project that makes use of &lt;a href=&#34;https://vertx.io/&#34;&gt;Eclipse Vert.x 4.0.3&lt;/a&gt; and &lt;a href=&#34;https://dagger.dev/&#34;&gt;Dagger 2.35.1&lt;/a&gt; dependency injection.&#xA;The &lt;a href=&#34;https://github.com/metaloom/poc-vertx-dagger&#34;&gt;PoC project&lt;/a&gt; contains a modularized Vert.x application that is using Maven modules and dependency injection.&#xA;Vert.x is a project which provides libraries that can be used to create reactive applications on the JVM. The PoC contains a simple HTTP server.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Day2 - Project Setup</title>
       <link>https://metaloom.io/blog/day2-project-setup/</link>
       <pubDate>Sun, 16 May 2021 14:51:12 +0600</pubDate>
       <guid>https://metaloom.io/blog/day2-project-setup/</guid>
-      <description>Disclaimer Coke vs. Sprite&#xA;Ketchup vs. Majo&#xA;Eclipse vs. IntelliJ&#xA;Java vs. Kotlin vs. Rust</description>
+      <description>&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_disclaimer&#34;&gt;Disclaimer&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;ulist&#34;&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&#xA;&lt;p&gt;Coke vs. Sprite&lt;/p&gt;&#xA;&lt;/li&gt;&#xA;&lt;li&gt;&#xA;&lt;p&gt;Ketchup vs. Majo&lt;/p&gt;&#xA;&lt;/li&gt;&#xA;&lt;li&gt;&#xA;&lt;p&gt;Eclipse vs. IntelliJ&lt;/p&gt;&#xA;&lt;/li&gt;&#xA;&lt;li&gt;&#xA;&lt;p&gt;Java vs. Kotlin vs. Rust&lt;/p&gt;&#xA;&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Day1 - Project Design</title>
       <link>https://metaloom.io/blog/day1-project-design/</link>
       <pubDate>Thu, 13 May 2021 14:51:12 +0600</pubDate>
       <guid>https://metaloom.io/blog/day1-project-design/</guid>
-      <description>Basics For Loom I knew what kind of building blocks were required since it is basically just a continuation of my work on Mesh.</description>
+      <description>&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_basics&#34;&gt;Basics&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;For Loom I knew what kind of building blocks were required since it is basically just a continuation of my work on Mesh.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Day0 - Let there be Loom</title>
       <link>https://metaloom.io/blog/day0-let-there-be-loom/</link>
       <pubDate>Wed, 12 May 2021 14:51:12 +0600</pubDate>
       <guid>https://metaloom.io/blog/day0-let-there-be-loom/</guid>
-      <description>What is Loom? Loom is a headless media asset management server platform. It provides tools to inventory your media assets and extract the most information from them.</description>
+      <description>&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_what_is_loom&#34;&gt;What is Loom?&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;Loom is a headless media asset management server platform. It provides tools to inventory your media assets and extract the most information from them. The Loom Sever can be used to query the data in a structured way with either REST or GraphQL. Additional metadata can be stored in Loom alongside to your assets.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
   </channel>
 </rss>

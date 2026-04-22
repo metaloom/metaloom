@@ -38,6 +38,32 @@
   color: #57cbcc;
 }
 
+/* ==========================================================
+   Documentation - Modern Visual Style
+   ========================================================== */
+
+/* ---- Page structure ---- */
+.docs-section {
+  padding-top: 40px;
+  padding-bottom: 80px;
+}
+
+.docs-page-header {
+  margin-bottom: 32px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid rgba(0, 181, 166, 0.25);
+}
+
+.docs-page-header h1 {
+  color: #e8ecf0;
+  font-size: 2.2rem;
+  font-weight: 700;
+  margin: 0;
+  padding: 0;
+  letter-spacing: -0.02em;
+}
+
+/* ---- Content typography ---- */
 .post-single-content a {
   color: #00b5a6;
 }
@@ -63,15 +89,22 @@ code {
 }
 
 .post-single-content p {
-  color: #d0d0d0;
-  font-size: 1.2em;
-  margin-bottom: 0.1rem;
+  color: #c8cdd2;
+  font-size: 1.05rem;
+  line-height: 1.75;
+  margin-bottom: 0.6rem;
 }
 
 .post-single-content li p {
   margin-bottom: 0px;
 }
 
+.post-single-content li {
+  color: #c8cdd2;
+  line-height: 1.7;
+}
+
+/* ---- Heading hierarchy with section borders ---- */
 .post-single-content h1,
 .post-single-content h2,
 .post-single-content h3,
@@ -82,8 +115,44 @@ code {
   padding-top: 3em;
 }
 
+.docs-main-content h2 {
+  font-size: 1.65rem;
+  font-weight: 700;
+  color: #e0e5ea;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(0, 181, 166, 0.18);
+  margin-bottom: 16px;
+}
+
+.docs-main-content h3 {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: #d0d8e0;
+  position: relative;
+  padding-left: 16px;
+  margin-bottom: 12px;
+}
+
+.docs-main-content h3::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 3px;
+  height: 1.2em;
+  background: #00b5a6;
+  border-radius: 2px;
+}
+
+.docs-main-content h4 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #c0c8d0;
+  margin-bottom: 8px;
+}
+
 .paragraph {
-  padding-top: 15px;
+  padding-top: 12px;
 }
 
 .post-block .content h1,
@@ -99,12 +168,40 @@ blockquote .paragraph {
   padding-top: 0px;
 }
 
-/* Docs overview cards */
+/* ---- Code blocks ---- */
+.docs-main-content .listingblock {
+  margin: 16px 0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.docs-main-content .listingblock pre {
+  border-radius: 6px;
+  border: 1px solid #3a424a;
+}
+
+/* ---- Tables ---- */
+.docs-main-content table.tableblock {
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+/* ---- Navigation bar enhancement ---- */
+.navigation {
+  border-bottom: 1px solid rgba(0, 181, 166, 0.15);
+}
+
+/* ---- Docs overview cards ---- */
 .docs-card {
   background-color: #292F36;
   border: 1px solid #4e595f;
   border-radius: 6px;
   overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.docs-card:hover {
+  border-color: rgba(0, 181, 166, 0.4);
 }
 
 .docs-card-header {
@@ -115,8 +212,9 @@ blockquote .paragraph {
 .docs-card-header h2 {
   margin: 0 0 10px;
   padding: 0;
-  font-size: 28px;
+  font-size: 1.5rem;
   font-weight: 700;
+  border-bottom: none;
 }
 
 .docs-card-header h2 a {
@@ -130,8 +228,8 @@ blockquote .paragraph {
 
 .docs-card-header p {
   margin: 0;
-  color: #a0a8b0;
-  font-size: 1em;
+  color: #8a95a0;
+  font-size: 0.95em;
   line-height: 1.6;
 }
 
@@ -144,16 +242,16 @@ blockquote .paragraph {
 .docs-card-body a.docs-card-link {
   display: block;
   padding: 10px 14px;
-  font-size: 1.05em;
+  font-size: 1.0em;
   font-weight: 500;
-  color: #d0d0d0;
+  color: #b0bac4;
   text-decoration: none;
   border-radius: 4px;
   transition: background-color 0.15s, color 0.15s;
 }
 
 .docs-card-body a.docs-card-link:hover {
-  background-color: rgba(0, 181, 166, 0.12);
+  background-color: rgba(0, 181, 166, 0.10);
   color: #00b5a6;
 }
 
@@ -163,8 +261,42 @@ blockquote .paragraph {
   color: #4e595f;
   font-weight: 700;
   font-size: 1.2em;
+  transition: color 0.15s;
 }
 
 .docs-card-body a.docs-card-link:hover::before {
   color: #00b5a6;
+}
+
+/* ---- Concept cards (overview page) ---- */
+.note {
+  border-radius: 6px;
+  transition: border-color 0.2s;
+}
+
+.note:hover {
+  border-color: rgba(0, 181, 166, 0.35);
+}
+
+.note h3 {
+  color: #e0e5ea;
+  font-weight: 600;
+  font-size: 1.2rem;
+  border-bottom: none;
+  padding-left: 0;
+  border-left: none;
+}
+
+.note p {
+  color: #8a95a0;
+  font-size: 0.95em;
+  line-height: 1.6;
+}
+
+.note p a {
+  color: #00b5a6;
+}
+
+.note p a:hover {
+  color: #7efff4;
 }

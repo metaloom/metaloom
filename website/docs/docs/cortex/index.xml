@@ -12,56 +12,56 @@
       <link>https://metaloom.io/docs/cortex/artifacts/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/cortex/artifacts/</guid>
-      <description>Cortex publishes JVM modules and container deployment assets separately.&#xA;Maven Artifacts See Maven Artifacts for the BOM-backed module list and node dependencies.</description>
+      <description>&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;Cortex publishes JVM modules and container deployment assets separately.&lt;/p&gt;&#xA;&lt;/div&gt;&#xA;&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_maven_artifacts&#34;&gt;Maven Artifacts&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;See &lt;a href=&#34;../maven-artifacts/&#34;&gt;Maven Artifacts&lt;/a&gt; for the BOM-backed module list and node dependencies.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>CLI Arguments &amp; Env Settings</title>
       <link>https://metaloom.io/docs/cortex/configuration/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/cortex/configuration/</guid>
-      <description>Cortex is configured entirely via CLI arguments and environment variables. Environment variables can be used as drop-in replacements for CLI flags, which is convenient for container-based deployments.</description>
+      <description>&lt;div id=&#34;preamble&#34;&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;Cortex is configured entirely via CLI arguments and environment variables.&#xA;Environment variables can be used as drop-in replacements for CLI flags, which is convenient for container-based deployments.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Containers</title>
       <link>https://metaloom.io/docs/cortex/containers/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/cortex/containers/</guid>
-      <description>Running with Docker docker run --rm \ -e LOOM_HOST=loom.internal \ -e LOOM_PORT=7733 \ -v /media/assets:/data \ metaloom/cortex:latest \ process run /data Server Mode docker run -d \ --name cortex \ -p 8093:8093 \ -e LOOM_HOST=loom.</description>
+      <description>&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_running_with_docker&#34;&gt;Running with Docker&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;listingblock&#34;&gt;&#xA;&lt;div class=&#34;content&#34;&gt;&#xA;&lt;pre class=&#34;highlight&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;docker run --rm \&#xA;  -e LOOM_HOST=loom.internal \&#xA;  -e LOOM_PORT=7733 \&#xA;  -v /media/assets:/data \&#xA;  metaloom/cortex:latest \&#xA;  process run /data&lt;/code&gt;&lt;/pre&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Examples</title>
       <link>https://metaloom.io/docs/cortex/examples/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/cortex/examples/</guid>
-      <description>The examples/ directory in the source repository contains two Cortex example projects.&#xA;cortex-custom-node A minimal Maven project that shows how to build a custom processing node.</description>
+      <description>&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;The &lt;code&gt;examples/&lt;/code&gt; directory in the source repository contains two Cortex example projects.&lt;/p&gt;&#xA;&lt;/div&gt;&#xA;&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_cortex_custom_node&#34;&gt;cortex-custom-node&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;A minimal Maven project that shows how to build a custom processing node.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Features</title>
       <link>https://metaloom.io/docs/cortex/features/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/cortex/features/</guid>
-      <description>Media Processing Cortex can process any media file type — images, videos, audio, and documents.</description>
+      <description>&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_media_processing&#34;&gt;Media Processing&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;Cortex can process any media file type — images, videos, audio, and documents.&#xA;The specific analyses performed depend on which nodes are active in a pipeline.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Maven Artifacts</title>
       <link>https://metaloom.io/docs/cortex/maven-artifacts/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/cortex/maven-artifacts/</guid>
-      <description>All Cortex artifacts are published under the io.metaloom group and should generally be consumed with the shared BOM.</description>
+      <description>&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;All Cortex artifacts are published under the &lt;code&gt;io.metaloom&lt;/code&gt; group and should generally be consumed with the shared BOM.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Monitoring API</title>
       <link>https://metaloom.io/docs/cortex/monitoring/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/cortex/monitoring/</guid>
-      <description>Cortex exposes a lightweight monitoring/health endpoint that can be used by load balancers, Kubernetes liveness probes, and Prometheus scrapers.</description>
+      <description>&lt;div id=&#34;preamble&#34;&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;Cortex exposes a lightweight monitoring/health endpoint that can be used by load balancers,&#xA;Kubernetes liveness probes, and Prometheus scrapers.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Pipeline Nodes</title>
       <link>https://metaloom.io/docs/cortex/nodes/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/cortex/nodes/</guid>
-      <description>Cortex ships with a set of built-in processing nodes. Each node has a unique name that is used to reference it in CLI --actions flags and pipeline definitions.</description>
+      <description>&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;Cortex ships with a set of built-in processing nodes.&#xA;Each node has a unique name that is used to reference it in CLI &lt;code&gt;--actions&lt;/code&gt; flags and pipeline definitions.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
   </channel>
 </rss>

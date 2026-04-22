@@ -2,14 +2,16 @@
 
 {{ partial "navigation.html" . }}
 
-<section class="section">
+<section class="section docs-section">
   <div class="container">
     <div class="row justify-content-center">
-      <div class="col-lg-10 text-center">
-        <h1>{{ .Title }}</h1>
+      <div class="col-lg-10">
+        <div class="docs-page-header text-center">
+          <h1>{{ .Title }}</h1>
+        </div>
       </div>
       <div class="col-lg-10">
-        <div class="post-single-content docs-content">
+        <div class="post-single-content docs-content docs-main-content">
           {{ .Content }}
         </div>
       </div>

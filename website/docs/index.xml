@@ -13,217 +13,217 @@
       <link>https://metaloom.io/blog/java-ffm-graph-storage-poc/</link>
       <pubDate>Tue, 28 Jan 2025 14:51:12 +0600</pubDate>
       <guid>https://metaloom.io/blog/java-ffm-graph-storage-poc/</guid>
-      <description>Graph Storage PoC FFM Basics - Memory The main building blocks for foreign memory handling are Arena, MemoryLayout and MemorySegmet.</description>
+      <description>&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_graph_storage_poc&#34;&gt;Graph Storage PoC&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&#xA;&lt;/div&gt;&#xA;&lt;/div&gt;&#xA;&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_ffm_basics_memory&#34;&gt;FFM Basics - Memory&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;The main building blocks for foreign memory handling are &lt;code&gt;Arena&lt;/code&gt;, &lt;code&gt;MemoryLayout&lt;/code&gt; and &lt;code&gt;MemorySegmet&lt;/code&gt;.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Video Fingerprinting</title>
       <link>https://metaloom.io/blog/video-fingerprinting/</link>
       <pubDate>Mon, 21 Jun 2021 21:51:12 +0600</pubDate>
       <guid>https://metaloom.io/blog/video-fingerprinting/</guid>
-      <description>Intro In this post I want to share my experiments on how to generate video fingerprints.</description>
+      <description>&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_intro&#34;&gt;Intro&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;In this post I want to share my experiments on how to generate video fingerprints.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Day4 - Vert.x jOOQ PoC</title>
       <link>https://metaloom.io/blog/day4-vertx-jooq-poc/</link>
       <pubDate>Wed, 19 May 2021 21:51:12 +0600</pubDate>
       <guid>https://metaloom.io/blog/day4-vertx-jooq-poc/</guid>
-      <description>Intro In this post I want to present a reactive database layer proof of concept implementation I did which will hopefully make its way into my MetaLoom project.</description>
+      <description>&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_intro&#34;&gt;Intro&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;In this post I want to present a &lt;a href=&#34;https://github.com/metaloom/poc-vertx-jooq&#34;&gt;reactive database layer proof of concept implementation&lt;/a&gt; I did which will hopefully make its way into my &lt;a href=&#34;https://metaloom.io/blog/day0-let-there-be-loom/&#34;&gt;MetaLoom project&lt;/a&gt;.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Day3 - Vert.x Dagger PoC</title>
       <link>https://metaloom.io/blog/day3-vertx-dagger-poc/</link>
       <pubDate>Mon, 17 May 2021 14:51:12 +0600</pubDate>
       <guid>https://metaloom.io/blog/day3-vertx-dagger-poc/</guid>
-      <description>Dagger / Vert.x In this post I want to show a proof of concept project that makes use of Eclipse Vert.</description>
+      <description>&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_dagger_vert_x&#34;&gt;Dagger /  Vert.x&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;In this post I want to show a proof of concept project that makes use of &lt;a href=&#34;https://vertx.io/&#34;&gt;Eclipse Vert.x 4.0.3&lt;/a&gt; and &lt;a href=&#34;https://dagger.dev/&#34;&gt;Dagger 2.35.1&lt;/a&gt; dependency injection.&#xA;The &lt;a href=&#34;https://github.com/metaloom/poc-vertx-dagger&#34;&gt;PoC project&lt;/a&gt; contains a modularized Vert.x application that is using Maven modules and dependency injection.&#xA;Vert.x is a project which provides libraries that can be used to create reactive applications on the JVM. The PoC contains a simple HTTP server.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Day2 - Project Setup</title>
       <link>https://metaloom.io/blog/day2-project-setup/</link>
       <pubDate>Sun, 16 May 2021 14:51:12 +0600</pubDate>
       <guid>https://metaloom.io/blog/day2-project-setup/</guid>
-      <description>Disclaimer Coke vs. Sprite&#xA;Ketchup vs. Majo&#xA;Eclipse vs. IntelliJ&#xA;Java vs. Kotlin vs. Rust</description>
+      <description>&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_disclaimer&#34;&gt;Disclaimer&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;ulist&#34;&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&#xA;&lt;p&gt;Coke vs. Sprite&lt;/p&gt;&#xA;&lt;/li&gt;&#xA;&lt;li&gt;&#xA;&lt;p&gt;Ketchup vs. Majo&lt;/p&gt;&#xA;&lt;/li&gt;&#xA;&lt;li&gt;&#xA;&lt;p&gt;Eclipse vs. IntelliJ&lt;/p&gt;&#xA;&lt;/li&gt;&#xA;&lt;li&gt;&#xA;&lt;p&gt;Java vs. Kotlin vs. Rust&lt;/p&gt;&#xA;&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Day1 - Project Design</title>
       <link>https://metaloom.io/blog/day1-project-design/</link>
       <pubDate>Thu, 13 May 2021 14:51:12 +0600</pubDate>
       <guid>https://metaloom.io/blog/day1-project-design/</guid>
-      <description>Basics For Loom I knew what kind of building blocks were required since it is basically just a continuation of my work on Mesh.</description>
+      <description>&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_basics&#34;&gt;Basics&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;For Loom I knew what kind of building blocks were required since it is basically just a continuation of my work on Mesh.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Day0 - Let there be Loom</title>
       <link>https://metaloom.io/blog/day0-let-there-be-loom/</link>
       <pubDate>Wed, 12 May 2021 14:51:12 +0600</pubDate>
       <guid>https://metaloom.io/blog/day0-let-there-be-loom/</guid>
-      <description>What is Loom? Loom is a headless media asset management server platform. It provides tools to inventory your media assets and extract the most information from them.</description>
+      <description>&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_what_is_loom&#34;&gt;What is Loom?&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;Loom is a headless media asset management server platform. It provides tools to inventory your media assets and extract the most information from them. The Loom Sever can be used to query the data in a structured way with either REST or GraphQL. Additional metadata can be stored in Loom alongside to your assets.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Administration Guide</title>
       <link>https://metaloom.io/docs/test/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/test/</guid>
-      <description>Docs A B C The docs</description>
+      <description>&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_docs&#34;&gt;Docs&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;sect2&#34;&gt;&#xA;&lt;h3 id=&#34;_a&#34;&gt;A&lt;/h3&gt;&#xA;&#xA;&lt;/div&gt;&#xA;&lt;div class=&#34;sect2&#34;&gt;&#xA;&lt;h3 id=&#34;_b&#34;&gt;B&lt;/h3&gt;&#xA;&lt;div class=&#34;sect3&#34;&gt;&#xA;&lt;h4 id=&#34;_c&#34;&gt;C&lt;/h4&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;The docs&lt;/p&gt;&#xA;&lt;/div&gt;&#xA;&lt;/div&gt;&#xA;&lt;/div&gt;&#xA;&lt;/div&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Artifacts</title>
       <link>https://metaloom.io/docs/cortex/artifacts/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/cortex/artifacts/</guid>
-      <description>Cortex publishes JVM modules and container deployment assets separately.&#xA;Maven Artifacts See Maven Artifacts for the BOM-backed module list and node dependencies.</description>
+      <description>&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;Cortex publishes JVM modules and container deployment assets separately.&lt;/p&gt;&#xA;&lt;/div&gt;&#xA;&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_maven_artifacts&#34;&gt;Maven Artifacts&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;See &lt;a href=&#34;../maven-artifacts/&#34;&gt;Maven Artifacts&lt;/a&gt; for the BOM-backed module list and node dependencies.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Artifacts</title>
       <link>https://metaloom.io/docs/loom/artifacts/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/loom/artifacts/</guid>
-      <description>Loom publishes JVM artifacts and container deployment assets separately.&#xA;Maven Artifacts See Maven Artifacts for the BOM and the primary client and shared model modules.</description>
+      <description>&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;Loom publishes JVM artifacts and container deployment assets separately.&lt;/p&gt;&#xA;&lt;/div&gt;&#xA;&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_maven_artifacts&#34;&gt;Maven Artifacts&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;See &lt;a href=&#34;../maven-artifacts/&#34;&gt;Maven Artifacts&lt;/a&gt; for the BOM and the primary client and shared model modules.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Authentication</title>
       <link>https://metaloom.io/docs/loom/authentication/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/loom/authentication/</guid>
-      <description>Loom uses JWT (JSON Web Token) bearer tokens for API authentication. OAuth2 integration is also available.</description>
+      <description>&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;Loom uses JWT (JSON Web Token) bearer tokens for API authentication.&#xA;OAuth2 integration is also available.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>CLI Arguments &amp; Env Settings</title>
       <link>https://metaloom.io/docs/cortex/configuration/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/cortex/configuration/</guid>
-      <description>Cortex is configured entirely via CLI arguments and environment variables. Environment variables can be used as drop-in replacements for CLI flags, which is convenient for container-based deployments.</description>
+      <description>&lt;div id=&#34;preamble&#34;&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;Cortex is configured entirely via CLI arguments and environment variables.&#xA;Environment variables can be used as drop-in replacements for CLI flags, which is convenient for container-based deployments.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Configuration</title>
       <link>https://metaloom.io/docs/configuration/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/configuration/</guid>
-      <description> { &amp;#34;db&amp;#34;: { &amp;#34;host&amp;#34;: &amp;#34;localhost&amp;#34;, &amp;#34;port&amp;#34;: 5432 }, &amp;#34;server&amp;#34;: { &amp;#34;port&amp;#34;: 8080 } } </description>
+      <description>&lt;div class=&#34;listingblock&#34;&gt;&#xA;&lt;div class=&#34;content&#34;&gt;&#xA;&lt;pre class=&#34;highlight&#34;&gt;&lt;code class=&#34;language-json&#34; data-lang=&#34;json&#34;&gt;{&#xA;&#x9;&amp;#34;db&amp;#34;: {&#xA;&#x9;&#x9;&amp;#34;host&amp;#34;: &amp;#34;localhost&amp;#34;,&#xA;&#x9;&#x9;&amp;#34;port&amp;#34;: 5432&#xA;&#x9;},&#xA;&#x9;&amp;#34;server&amp;#34;: {&#xA;&#x9;&#x9;&amp;#34;port&amp;#34;: 8080&#xA;&#x9;}&#xA;}&lt;/code&gt;&lt;/pre&gt;&#xA;&lt;/div&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Configuration</title>
       <link>https://metaloom.io/docs/loom/configuration/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/loom/configuration/</guid>
-      <description>Loom is configured via a YAML file (loom.yml) with optional environment variable overrides.&#xA;Config File Locations Loom looks for loom.</description>
+      <description>&lt;div id=&#34;preamble&#34;&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;Loom is configured via a YAML file (&lt;code&gt;loom.yml&lt;/code&gt;) with optional environment variable overrides.&lt;/p&gt;&#xA;&lt;/div&gt;&#xA;&lt;/div&gt;&#xA;&lt;/div&gt;&#xA;&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_config_file_locations&#34;&gt;Config File Locations&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;Loom looks for &lt;code&gt;loom.yml&lt;/code&gt; in the following order (first match wins):&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Containers</title>
       <link>https://metaloom.io/docs/cortex/containers/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/cortex/containers/</guid>
-      <description>Running with Docker docker run --rm \ -e LOOM_HOST=loom.internal \ -e LOOM_PORT=7733 \ -v /media/assets:/data \ metaloom/cortex:latest \ process run /data Server Mode docker run -d \ --name cortex \ -p 8093:8093 \ -e LOOM_HOST=loom.</description>
+      <description>&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_running_with_docker&#34;&gt;Running with Docker&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;listingblock&#34;&gt;&#xA;&lt;div class=&#34;content&#34;&gt;&#xA;&lt;pre class=&#34;highlight&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;docker run --rm \&#xA;  -e LOOM_HOST=loom.internal \&#xA;  -e LOOM_PORT=7733 \&#xA;  -v /media/assets:/data \&#xA;  metaloom/cortex:latest \&#xA;  process run /data&lt;/code&gt;&lt;/pre&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Containers</title>
       <link>https://metaloom.io/docs/loom/containers/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/loom/containers/</guid>
-      <description>The Loom server is distributed as a Docker image.&#xA;Running with Docker docker run -d \ --name loom \ -p 8092:8092 \ -p 8091:8091 \ -p 8989:8989 \ -e LOOM_DB_HOST=postgres \ -e LOOM_DB_PASSWORD=secret \ -e LOOM_INITIAL_PASSWORD=admin123 \ -v loom-config:/app/config \ metaloom/loom:latest Docker Compose version: &amp;#34;3.</description>
+      <description>&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;The Loom server is distributed as a Docker image.&lt;/p&gt;&#xA;&lt;/div&gt;&#xA;&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_running_with_docker&#34;&gt;Running with Docker&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;listingblock&#34;&gt;&#xA;&lt;div class=&#34;content&#34;&gt;&#xA;&lt;pre class=&#34;highlight&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;docker run -d \&#xA;  --name loom \&#xA;  -p 8092:8092 \&#xA;  -p 8091:8091 \&#xA;  -p 8989:8989 \&#xA;  -e LOOM_DB_HOST=postgres \&#xA;  -e LOOM_DB_PASSWORD=secret \&#xA;  -e LOOM_INITIAL_PASSWORD=admin123 \&#xA;  -v loom-config:/app/config \&#xA;  metaloom/loom:latest&lt;/code&gt;&lt;/pre&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Examples</title>
       <link>https://metaloom.io/docs/cortex/examples/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/cortex/examples/</guid>
-      <description>The examples/ directory in the source repository contains two Cortex example projects.&#xA;cortex-custom-node A minimal Maven project that shows how to build a custom processing node.</description>
+      <description>&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;The &lt;code&gt;examples/&lt;/code&gt; directory in the source repository contains two Cortex example projects.&lt;/p&gt;&#xA;&lt;/div&gt;&#xA;&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_cortex_custom_node&#34;&gt;cortex-custom-node&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;A minimal Maven project that shows how to build a custom processing node.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Examples</title>
       <link>https://metaloom.io/docs/loom/examples/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/loom/examples/</guid>
-      <description>The /examples directory of the source repository contains runnable example projects.&#xA;Listing Examples The examples/ Maven module contains sub-projects for both Loom and Cortex use cases.</description>
+      <description>&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;The &lt;code&gt;/examples&lt;/code&gt; directory of the source repository contains runnable example projects.&lt;/p&gt;&#xA;&lt;/div&gt;&#xA;&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_listing_examples&#34;&gt;Listing Examples&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;The &lt;code&gt;examples/&lt;/code&gt; Maven module contains sub-projects for both Loom and Cortex use cases.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Features</title>
       <link>https://metaloom.io/docs/cortex/features/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/cortex/features/</guid>
-      <description>Media Processing Cortex can process any media file type — images, videos, audio, and documents.</description>
+      <description>&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_media_processing&#34;&gt;Media Processing&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;Cortex can process any media file type — images, videos, audio, and documents.&#xA;The specific analyses performed depend on which nodes are active in a pipeline.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Features</title>
       <link>https://metaloom.io/docs/loom/features/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/loom/features/</guid>
-      <description>Loom provides a comprehensive set of features for managing digital media assets and their associated metadata.</description>
+      <description>&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;Loom provides a comprehensive set of features for managing digital media assets and their associated metadata.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Helm Chart</title>
       <link>https://metaloom.io/docs/loom/helm-chart/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/loom/helm-chart/</guid>
-      <description>The Loom Helm chart is the Kubernetes deployment entry point for running the server in-cluster.</description>
+      <description>&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;The Loom Helm chart is the Kubernetes deployment entry point for running the server in-cluster.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Java Client Usage</title>
       <link>https://metaloom.io/docs/loom/java-client/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/loom/java-client/</guid>
-      <description>The loom-rest-client module provides a typed HTTP client for JVM applications.&#xA;Maven Dependency &amp;lt;dependency&amp;gt; &amp;lt;groupId&amp;gt;io.</description>
+      <description>&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;The &lt;code&gt;loom-rest-client&lt;/code&gt; module provides a typed HTTP client for JVM applications.&lt;/p&gt;&#xA;&lt;/div&gt;&#xA;&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_maven_dependency&#34;&gt;Maven Dependency&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;listingblock&#34;&gt;&#xA;&lt;div class=&#34;content&#34;&gt;&#xA;&lt;pre class=&#34;highlight&#34;&gt;&lt;code class=&#34;language-xml&#34; data-lang=&#34;xml&#34;&gt;&amp;lt;dependency&amp;gt;&#xA;    &amp;lt;groupId&amp;gt;io.metaloom.loom.client&amp;lt;/groupId&amp;gt;&#xA;    &amp;lt;artifactId&amp;gt;loom-rest-client&amp;lt;/artifactId&amp;gt;&#xA;    &amp;lt;version&amp;gt;1.0.0-SNAPSHOT&amp;lt;/version&amp;gt;&#xA;&amp;lt;/dependency&amp;gt;&lt;/code&gt;&lt;/pre&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Johannes Schüth</title>
       <link>https://metaloom.io/author/jotschi/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/author/jotschi/</guid>
-      <description>Johannes main focus is backend development. But he does not mind devops and the occasional frontend development.</description>
+      <description>&lt;p&gt;Johannes main focus is backend development. But he does not mind devops and the occasional frontend development. He recharges his coding battery by outdoor photography or working on his IBM 5150. Besides retro computing his hobbies also include electronics and astronomy.&lt;/p&gt;</description>
     </item>
     <item>
       <title>Loom &amp; Cortex Interaction</title>
       <link>https://metaloom.io/docs/interaction/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/interaction/</guid>
-      <description>Loom and Cortex are complementary components that can be deployed together or used independently.</description>
+      <description>&lt;div id=&#34;preamble&#34;&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;Loom and Cortex are complementary components that can be deployed together or used independently.&lt;/p&gt;&#xA;&lt;/div&gt;&#xA;&lt;/div&gt;&#xA;&lt;/div&gt;&#xA;&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_architecture_overview&#34;&gt;Architecture Overview&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;listingblock&#34;&gt;&#xA;&lt;div class=&#34;content&#34;&gt;&#xA;&lt;pre&gt;┌─────────────────────────────────────────────┐&#xA;│  Loom (Media Asset Management Server)        │&#xA;│                                             │&#xA;│  REST API (:8092)  gRPC (:8091)             │&#xA;│  PostgreSQL database                        │&#xA;│  Pipeline definitions (stored in DB)        │&#xA;│  WebSocket event bus (/pipelines/events/ws) │&#xA;└───────────────────┬─────────────────────────┘&#xA;                    │  REST API (LoomClient)&#xA;                    │  Pipeline definitions&#xA;                    │  Asset results (hashes, thumbs, ...)&#xA;                    ▼&#xA;┌─────────────────────────────────────────────┐&#xA;│  Cortex (Media Processing Engine)            │&#xA;│                                             │&#xA;│  Monitoring API (:8093)                     │&#xA;│  Pipeline executor (node graph)             │&#xA;│  Local meta-path cache                      │&#xA;└─────────────────────────────────────────────┘&#xA;        │&#xA;        │  reads media files&#xA;        ▼&#xA;   /media/assets/...&lt;/pre&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Maven Artifacts</title>
       <link>https://metaloom.io/docs/cortex/maven-artifacts/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/cortex/maven-artifacts/</guid>
-      <description>All Cortex artifacts are published under the io.metaloom group and should generally be consumed with the shared BOM.</description>
+      <description>&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;All Cortex artifacts are published under the &lt;code&gt;io.metaloom&lt;/code&gt; group and should generally be consumed with the shared BOM.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Maven Artifacts</title>
       <link>https://metaloom.io/docs/loom/maven-artifacts/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/loom/maven-artifacts/</guid>
-      <description>All Loom artifacts are published under the io.metaloom group.&#xA;BOM POM Use the BOM to align versions across Loom and Cortex modules:</description>
+      <description>&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;All Loom artifacts are published under the &lt;code&gt;io.metaloom&lt;/code&gt; group.&lt;/p&gt;&#xA;&lt;/div&gt;&#xA;&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_bom_pom&#34;&gt;BOM POM&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;Use the BOM to align versions across Loom and Cortex modules:&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Monitoring API</title>
       <link>https://metaloom.io/docs/cortex/monitoring/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/cortex/monitoring/</guid>
-      <description>Cortex exposes a lightweight monitoring/health endpoint that can be used by load balancers, Kubernetes liveness probes, and Prometheus scrapers.</description>
+      <description>&lt;div id=&#34;preamble&#34;&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;Cortex exposes a lightweight monitoring/health endpoint that can be used by load balancers,&#xA;Kubernetes liveness probes, and Prometheus scrapers.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Pipeline Mechanism</title>
       <link>https://metaloom.io/docs/pipeline/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/pipeline/</guid>
-      <description>A pipeline is a directed acyclic graph (DAG) of processing nodes that Cortex executes on each media asset.</description>
+      <description>&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;A &lt;strong&gt;pipeline&lt;/strong&gt; is a directed acyclic graph (DAG) of processing nodes that Cortex executes on each media asset.&#xA;Pipelines are defined in Loom (stored in the database) and loaded by Cortex at startup.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>Pipeline Nodes</title>
       <link>https://metaloom.io/docs/cortex/nodes/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/cortex/nodes/</guid>
-      <description>Cortex ships with a set of built-in processing nodes. Each node has a unique name that is used to reference it in CLI --actions flags and pipeline definitions.</description>
+      <description>&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;Cortex ships with a set of built-in processing nodes.&#xA;Each node has a unique name that is used to reference it in CLI &lt;code&gt;--actions&lt;/code&gt; flags and pipeline definitions.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>REST API</title>
       <link>https://metaloom.io/docs/loom/rest-api/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/loom/rest-api/</guid>
-      <description>Loom exposes its full functionality via a versioned REST API. All endpoints are rooted at /api/v1.</description>
+      <description>&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;Loom exposes its full functionality via a versioned REST API.&#xA;All endpoints are rooted at &lt;code&gt;/api/v1&lt;/code&gt;.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
     </item>
     <item>
       <title>REST API</title>
       <link>https://metaloom.io/docs/rest/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/rest/</guid>
-      <description>Tip Try the example https://demo.metaloom.io/api/v1/demo/assets API endpoints Description API endpoint Get the asset with the given UUID.</description>
+      <description>&lt;div class=&#34;admonitionblock tip&#34;&gt;&#xA;&lt;table&gt;&#xA;&lt;tbody&gt;&lt;tr&gt;&#xA;&lt;td class=&#34;icon&#34;&gt;&#xA;&lt;div class=&#34;title&#34;&gt;Tip&lt;/div&gt;&#xA;&lt;/td&gt;&#xA;&lt;td class=&#34;content&#34;&gt;&#xA;&lt;div class=&#34;title&#34;&gt;Try the example&lt;/div&gt;&#xA;&lt;a href=&#34;https://demo.metaloom.io/api/v1/demo/assets&#34; class=&#34;bare&#34;&gt;https://demo.metaloom.io/api/v1/demo/assets&lt;/a&gt;&#xA;&lt;/td&gt;&#xA;&lt;/tr&gt;&#xA;&lt;/tbody&gt;&lt;/table&gt;&#xA;&lt;/div&gt;&#xA;&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_api_endpoints&#34;&gt;API endpoints&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;table class=&#34;tableblock frame-all grid-all stretch&#34;&gt;&#xA;&lt;colgroup&gt;&#xA;&lt;col style=&#34;width: 50%;&#34;/&gt;&#xA;&lt;col style=&#34;width: 50%;&#34;/&gt;&#xA;&lt;/colgroup&gt;&#xA;&lt;thead&gt;&#xA;&lt;tr&gt;&#xA;&lt;th class=&#34;tableblock halign-left valign-top&#34;&gt;Description&lt;/th&gt;&#xA;&lt;th class=&#34;tableblock halign-left valign-top&#34;&gt;API endpoint&lt;/th&gt;&#xA;&lt;/tr&gt;&#xA;&lt;/thead&gt;&#xA;&lt;tbody&gt;&#xA;&lt;tr&gt;&#xA;&lt;td class=&#34;tableblock halign-left valign-top&#34;&gt;&lt;p class=&#34;tableblock&#34;&gt;Get the asset with the given UUID.&lt;/p&gt;&lt;/td&gt;&#xA;&lt;td class=&#34;tableblock halign-left valign-top&#34;&gt;&lt;p class=&#34;tableblock&#34;&gt;&lt;code&gt;&lt;code&gt;GET /api/v1/:projectName/assets/:assetUuid&lt;/code&gt;&lt;/code&gt;&lt;/p&gt;&lt;/td&gt;&#xA;&lt;/tr&gt;&#xA;&lt;/tbody&gt;&#xA;&lt;/table&gt;&#xA;&lt;div class=&#34;listingblock&#34;&gt;&#xA;&lt;div class=&#34;content&#34;&gt;&#xA;&lt;pre class=&#34;highlight&#34;&gt;&lt;code class=&#34;language-json&#34; data-lang=&#34;json&#34;&gt;{&#xA;&#x9;&amp;#34;uuid&amp;#34;: &amp;#34;b5f26d5f-4ab0-4f99-a2f1-7be9f20e7a15&amp;#34;,&#xA;&#x9;&amp;#34;filename&amp;#34;: &amp;#34;sample.mp4&amp;#34;&#xA;}&lt;/code&gt;&lt;/pre&gt;&#xA;&lt;/div&gt;</description>
     </item>
   </channel>
 </rss>
