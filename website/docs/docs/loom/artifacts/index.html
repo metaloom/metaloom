@@ -2,7 +2,7 @@
 <html lang="en-us">
 <head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
 	<meta charset="utf-8">
-	<title>Maven Artifacts &amp; Containers</title>
+	<title>Artifacts</title>
 
 	<!-- mobile responsive meta -->
 	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
@@ -12,11 +12,11 @@
     <meta name="twitter:card" content="summary" />
     <meta name="twitter:site" content="@metaloom" />
     <meta name="twitter:creator" content="" />
-    <meta name="twitter:title" content="Maven Artifacts &amp; Containers" />
+    <meta name="twitter:title" content="Artifacts" />
     <meta name="twitter:description" content="" />
     <meta name="twitter:image:src" content="http://localhost:1313/images/banner_square.webp" />
     
-    <meta property="og:title" content="Maven Artifacts &amp; Containers">
+    <meta property="og:title" content="Artifacts">
     <meta property="og:url" content="http://localhost:1313/docs/loom/artifacts/">
     <meta property="og:description" content="">
     <meta property="og:image" content="http://localhost:1313/images/banner_square.webp">
@@ -107,128 +107,26 @@
         <nav id="toc"></nav>
       </div>
       <div class="col-lg-9 text-center">
-        <h1>Maven Artifacts &amp; Containers</h1>
+        <h1>Artifacts</h1>
       </div>
       <div class="col-lg-9 offset-lg-3">
         <div class="post-single-content">
-          <div class="sect1">
+          <div class="paragraph">
+<p>Loom publishes JVM artifacts and container deployment assets separately.</p>
+</div>
+<div class="sect1">
 <h2 id="_maven_artifacts">Maven Artifacts</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>All Loom artifacts are published under the <code>io.metaloom</code> group.</p>
-</div>
-<div class="sect2">
-<h3 id="_parent_bom">Parent / BOM</h3>
-<div class="listingblock">
-<div class="content">
-<pre class="highlight"><code class="language-xml" data-lang="xml">&lt;dependency&gt;
-    &lt;groupId&gt;io.metaloom&lt;/groupId&gt;
-    &lt;artifactId&gt;metaloom-parent&lt;/artifactId&gt;
-    &lt;version&gt;1.0.0-SNAPSHOT&lt;/version&gt;
-    &lt;type&gt;pom&lt;/type&gt;
-&lt;/dependency&gt;</code></pre>
-</div>
-</div>
-</div>
-<div class="sect2">
-<h3 id="_rest_client">REST Client</h3>
-<div class="listingblock">
-<div class="content">
-<pre class="highlight"><code class="language-xml" data-lang="xml">&lt;dependency&gt;
-    &lt;groupId&gt;io.metaloom.loom.client&lt;/groupId&gt;
-    &lt;artifactId&gt;loom-rest-client&lt;/artifactId&gt;
-    &lt;version&gt;1.0.0-SNAPSHOT&lt;/version&gt;
-&lt;/dependency&gt;</code></pre>
-</div>
-</div>
-</div>
-<div class="sect2">
-<h3 id="_grpc_client">gRPC Client</h3>
-<div class="listingblock">
-<div class="content">
-<pre class="highlight"><code class="language-xml" data-lang="xml">&lt;dependency&gt;
-    &lt;groupId&gt;io.metaloom.loom.client&lt;/groupId&gt;
-    &lt;artifactId&gt;loom-grpc-client&lt;/artifactId&gt;
-    &lt;version&gt;1.0.0-SNAPSHOT&lt;/version&gt;
-&lt;/dependency&gt;</code></pre>
-</div>
-</div>
-</div>
-<div class="sect2">
-<h3 id="_rest_model_shared_dtos">REST Model (shared DTOs)</h3>
-<div class="listingblock">
-<div class="content">
-<pre class="highlight"><code class="language-xml" data-lang="xml">&lt;dependency&gt;
-    &lt;groupId&gt;io.metaloom.loom&lt;/groupId&gt;
-    &lt;artifactId&gt;loom-rest-model&lt;/artifactId&gt;
-    &lt;version&gt;1.0.0-SNAPSHOT&lt;/version&gt;
-&lt;/dependency&gt;</code></pre>
-</div>
-</div>
-</div>
-<div class="sect2">
-<h3 id="_shared_api">Shared API</h3>
-<div class="listingblock">
-<div class="content">
-<pre class="highlight"><code class="language-xml" data-lang="xml">&lt;dependency&gt;
-    &lt;groupId&gt;io.metaloom.loom&lt;/groupId&gt;
-    &lt;artifactId&gt;loom-api&lt;/artifactId&gt;
-    &lt;version&gt;1.0.0-SNAPSHOT&lt;/version&gt;
-&lt;/dependency&gt;</code></pre>
-</div>
-</div>
+<p>See <a href="../maven-artifacts/">Maven Artifacts</a> for the BOM and the primary client and shared model modules.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_docker_container">Docker Container</h2>
+<h2 id="_containers">Containers</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>The Loom server is distributed as a Docker image.</p>
-</div>
-<div class="sect2">
-<h3 id="_running_with_docker">Running with Docker</h3>
-<div class="listingblock">
-<div class="content">
-<pre class="highlight"><code class="language-bash" data-lang="bash">docker run -d \
-  --name loom \
-  -p 8092:8092 \
-  -p 8091:8091 \
-  -p 8989:8989 \
-  -e LOOM_DB_HOST=postgres \
-  -e LOOM_DB_PASSWORD=secret \
-  -e LOOM_INITIAL_PASSWORD=admin123 \
-  -v loom-config:/app/config \
-  metaloom/loom:latest</code></pre>
-</div>
-</div>
-</div>
-<div class="sect2">
-<h3 id="_docker_compose">Docker Compose</h3>
-<div class="listingblock">
-<div class="content">
-<pre class="highlight"><code class="language-yaml" data-lang="yaml">version: &#34;3.8&#34;
-services:
-  postgres:
-    image: postgres:16
-    environment:
-      POSTGRES_DB: loom
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: secret
-
-  loom:
-    image: metaloom/loom:latest
-    depends_on:
-      - postgres
-    ports:
-      - &#34;8092:8092&#34;
-      - &#34;8989:8989&#34;
-    environment:
-      LOOM_DB_HOST: postgres
-      LOOM_DB_PASSWORD: secret
-      LOOM_INITIAL_PASSWORD: admin123</code></pre>
-</div>
-</div>
+<p>See <a href="../containers/">Containers</a> for the standalone Docker and Docker Compose examples.</p>
 </div>
 </div>
 </div>
@@ -236,7 +134,7 @@ services:
 <h2 id="_helm_chart">Helm Chart</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>A Helm chart for Kubernetes deployments is available in the <code>loom/helm</code> directory of the source repository.</p>
+<p>See <a href="../helm-chart/">Helm Chart</a> for the Kubernetes deployment entry point.</p>
 </div>
 </div>
 </div>
@@ -249,7 +147,7 @@ services:
 	<h4>Share:</h4>
 
 	
-	<a class="resp-sharing-button__link" href="https://twitter.com/intent/tweet/?text=Maven%20Artifacts%20%26%20Containers&amp;url=http%3a%2f%2flocalhost%3a1313%2fdocs%2floom%2fartifacts%2f"
+	<a class="resp-sharing-button__link" href="https://twitter.com/intent/tweet/?text=Artifacts&amp;url=http%3a%2f%2flocalhost%3a1313%2fdocs%2floom%2fartifacts%2f"
 		target="_blank" rel="noopener" aria-label="">
 		<div class="resp-sharing-button resp-sharing-button--twitter resp-sharing-button--small">
 			<div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">
@@ -262,7 +160,7 @@ services:
 	</a>
 
 	
-	<a class="resp-sharing-button__link" href="mailto:?subject=Maven%20Artifacts%20%26%20Containers&amp;body=http%3a%2f%2flocalhost%3a1313%2fdocs%2floom%2fartifacts%2f" target="_self"
+	<a class="resp-sharing-button__link" href="mailto:?subject=Artifacts&amp;body=http%3a%2f%2flocalhost%3a1313%2fdocs%2floom%2fartifacts%2f" target="_self"
 		rel="noopener" aria-label="">
 		<div class="resp-sharing-button resp-sharing-button--email resp-sharing-button--small">
 			<div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">
@@ -276,7 +174,7 @@ services:
 
 	
 	<a class="resp-sharing-button__link"
-		href="https://reddit.com/submit/?url=http%3a%2f%2flocalhost%3a1313%2fdocs%2floom%2fartifacts%2f&amp;resubmit=true&amp;title=Maven%20Artifacts%20%26%20Containers" target="_blank"
+		href="https://reddit.com/submit/?url=http%3a%2f%2flocalhost%3a1313%2fdocs%2floom%2fartifacts%2f&amp;resubmit=true&amp;title=Artifacts" target="_blank"
 		rel="noopener" aria-label="">
 		<div class="resp-sharing-button resp-sharing-button--reddit resp-sharing-button--small">
 			<div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">

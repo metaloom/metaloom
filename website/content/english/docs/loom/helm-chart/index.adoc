@@ -1,0 +1,23 @@
+---
+title: Helm Chart
+---
+
+The Loom Helm chart is the Kubernetes deployment entry point for running the server in-cluster.
+
+== Location
+
+The chart is available in the `loom/helm` directory of the source repository.
+
+== Typical Use
+
+Use the chart when you want to deploy Loom together with database, ingress, persistent volumes and environment-specific values files in a Kubernetes environment.
+
+== Example
+
+[source,bash]
+----
+helm upgrade --install loom ./loom/helm \
+  --namespace loom \
+  --create-namespace \
+  --values values.yaml
+----

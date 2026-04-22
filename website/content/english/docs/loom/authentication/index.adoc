@@ -2,8 +2,6 @@
 title: Authentication
 ---
 
-= Authentication
-
 Loom uses JWT (JSON Web Token) bearer tokens for API authentication.
 OAuth2 integration is also available.
 

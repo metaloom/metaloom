@@ -1,0 +1,108 @@
+---
+title: Maven Artifacts
+---
+
+All Cortex artifacts are published under the `io.metaloom` group and should generally be consumed with the shared BOM.
+
+== BOM POM
+
+[source,xml]
+----
+<dependencyManagement>
+  <dependencies>
+    <dependency>
+      <groupId>io.metaloom</groupId>
+      <artifactId>bom</artifactId>
+      <version>1.0.0-SNAPSHOT</version>
+      <type>pom</type>
+      <scope>import</scope>
+    </dependency>
+  </dependencies>
+</dependencyManagement>
+----
+
+== Cortex Pipeline API
+
+Core pipeline interfaces (`Pipeline`, `PipelineNode`, `PipelineExecutor`):
+
+[source,xml]
+----
+<dependency>
+    <groupId>io.metaloom.cortex</groupId>
+    <artifactId>cortex-pipeline-api</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+</dependency>
+----
+
+== Cortex Common Node
+
+Base class `AbstractMediaNode` and shared utilities for building custom nodes:
+
+[source,xml]
+----
+<dependency>
+    <groupId>io.metaloom.cortex</groupId>
+    <artifactId>cortex-common</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+</dependency>
+----
+
+== Cortex API
+
+[source,xml]
+----
+<dependency>
+    <groupId>io.metaloom.cortex</groupId>
+    <artifactId>cortex-api</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+</dependency>
+----
+
+== Built-in Nodes
+
+Each built-in node is packaged separately so you can include only the nodes you need:
+
+[source,xml]
+----
+<dependency>
+    <groupId>io.metaloom.cortex.nodes</groupId>
+    <artifactId>cortex-node-hash</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+</dependency>
+
+<dependency>
+    <groupId>io.metaloom.cortex.nodes</groupId>
+    <artifactId>cortex-node-fingerprint</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+</dependency>
+
+<dependency>
+    <groupId>io.metaloom.cortex.nodes</groupId>
+    <artifactId>cortex-node-thumbnail</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+</dependency>
+
+<dependency>
+    <groupId>io.metaloom.cortex.nodes</groupId>
+    <artifactId>cortex-node-tika</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+</dependency>
+
+<dependency>
+    <groupId>io.metaloom.cortex.nodes</groupId>
+    <artifactId>cortex-node-scene-detection</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+</dependency>
+
+<dependency>
+    <groupId>io.metaloom.cortex.nodes</groupId>
+    <artifactId>cortex-node-ocr</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+</dependency>
+
+<dependency>
+    <groupId>io.metaloom.cortex.nodes</groupId>
+    <artifactId>cortex-node-facedetect</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+</dependency>
+----

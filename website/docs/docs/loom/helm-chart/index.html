@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en-us">
-<head>
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
 	<meta charset="utf-8">
-	<title>REST API</title>
+	<title>Helm Chart</title>
 
 	<!-- mobile responsive meta -->
 	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
@@ -12,43 +12,43 @@
     <meta name="twitter:card" content="summary" />
     <meta name="twitter:site" content="@metaloom" />
     <meta name="twitter:creator" content="" />
-    <meta name="twitter:title" content="REST API" />
+    <meta name="twitter:title" content="Helm Chart" />
     <meta name="twitter:description" content="" />
-    <meta name="twitter:image:src" content="https://metaloom.io/images/banner_square.webp" />
+    <meta name="twitter:image:src" content="http://localhost:1313/images/banner_square.webp" />
     
-    <meta property="og:title" content="REST API">
-    <meta property="og:url" content="https://metaloom.io/docs/rest/">
+    <meta property="og:title" content="Helm Chart">
+    <meta property="og:url" content="http://localhost:1313/docs/loom/helm-chart/">
     <meta property="og:description" content="">
-    <meta property="og:image" content="https://metaloom.io/images/banner_square.webp">
+    <meta property="og:image" content="http://localhost:1313/images/banner_square.webp">
 
-	<meta name="generator" content="Hugo 0.131.0">
+	<meta name="generator" content="Hugo 0.158.0">
 
 	<!-- plugins -->
 	
-	<link rel="stylesheet" href="https://metaloom.io/plugins/fontawesome5/css/all.min.css">
+	<link rel="stylesheet" href="http://localhost:1313/plugins/fontawesome5/css/all.min.css">
 	
-	<link rel="stylesheet" href="https://metaloom.io/plugins/bootstrap/bootstrap.min.css">
+	<link rel="stylesheet" href="http://localhost:1313/plugins/bootstrap/bootstrap.min.css">
 	
-	<link rel="stylesheet" href="https://metaloom.io/plugins/themify-icons/themify-icons.css">
+	<link rel="stylesheet" href="http://localhost:1313/plugins/themify-icons/themify-icons.css">
 	
-	<link rel="stylesheet" href="https://metaloom.io/plugins/magnific-popup/magnific-popup.css">
+	<link rel="stylesheet" href="http://localhost:1313/plugins/magnific-popup/magnific-popup.css">
 	
-	<link rel="stylesheet" href="https://metaloom.io/plugins/slick/slick.css">
+	<link rel="stylesheet" href="http://localhost:1313/plugins/slick/slick.css">
 	
 	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Anaheim%7cQuattrocento&#43;Sans:400,700&amp;display=swap">
 	
-	<link rel="stylesheet" href="https://metaloom.io/plugins/toc/bootstrap-toc.min.css">
+	<link rel="stylesheet" href="http://localhost:1313/plugins/toc/bootstrap-toc.min.css">
 	
-	<link rel="stylesheet" href="https://metaloom.io/plugins/swagger/swagger-ui.css">
+	<link rel="stylesheet" href="http://localhost:1313/plugins/swagger/swagger-ui.css">
 	
 
 	<!-- Main Stylesheet -->
 	
-	<link rel="stylesheet" href="https://metaloom.io/css/main.min.css" media="screen">
+	<link rel="stylesheet" href="http://localhost:1313/css/main.min.css" media="screen">
 
 	<!--Favicon-->
-	<link rel="shortcut icon" href="https://metaloom.io/images/favicon.png" type="image/x-icon">
-	<link rel="icon" href="https://metaloom.io/images/favicon.png" type="image/x-icon">
+	<link rel="shortcut icon" href="http://localhost:1313/images/favicon.png" type="image/x-icon">
+	<link rel="icon" href="http://localhost:1313/images/favicon.png" type="image/x-icon">
 
 	
 
@@ -65,7 +65,7 @@
 		<nav class="navbar navbar-expand-lg navbar-dark">
 			<a class="navbar-brand p-0" href="/">
 				
-				<img class="lozad" src="https://metaloom.io/images/logo_word_big.svg" alt="MetaLoom" height="42">
+				<img class="lozad" src="http://localhost:1313/images/logo_word_big.svg" alt="MetaLoom" height="42">
 				
 			</a>
 
@@ -107,50 +107,38 @@
         <nav id="toc"></nav>
       </div>
       <div class="col-lg-9 text-center">
-        <h1>REST API</h1>
+        <h1>Helm Chart</h1>
       </div>
       <div class="col-lg-9 offset-lg-3">
         <div class="post-single-content">
-          <div class="admonitionblock tip">
-<table>
-<tbody><tr>
-<td class="icon">
-<div class="title">Tip</div>
-</td>
-<td class="content">
-<div class="title">Try the example</div>
-<a href="https://demo.metaloom.io/api/v1/demo/assets" class="bare">https://demo.metaloom.io/api/v1/demo/assets</a>
-</td>
-</tr>
-</tbody></table>
+          <div class="paragraph">
+<p>The Loom Helm chart is the Kubernetes deployment entry point for running the server in-cluster.</p>
 </div>
 <div class="sect1">
-<h2 id="_api_endpoints">API endpoints</h2>
+<h2 id="_location">Location</h2>
 <div class="sectionbody">
-<table class="tableblock frame-all grid-all stretch">
-<colgroup>
-<col style="width: 50%;"/>
-<col style="width: 50%;"/>
-</colgroup>
-<thead>
-<tr>
-<th class="tableblock halign-left valign-top">Description</th>
-<th class="tableblock halign-left valign-top">API endpoint</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Get the asset with the given UUID.</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code><code>GET /api/v1/:projectName/assets/:assetUuid</code></code></p></td>
-</tr>
-</tbody>
-</table>
+<div class="paragraph">
+<p>The chart is available in the <code>loom/helm</code> directory of the source repository.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_typical_use">Typical Use</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Use the chart when you want to deploy Loom together with database, ingress, persistent volumes and environment-specific values files in a Kubernetes environment.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_example">Example</h2>
+<div class="sectionbody">
 <div class="listingblock">
 <div class="content">
-<pre class="highlight"><code class="language-json" data-lang="json">{
-	&#34;uuid&#34;: &#34;b5f26d5f-4ab0-4f99-a2f1-7be9f20e7a15&#34;,
-	&#34;filename&#34;: &#34;sample.mp4&#34;
-}</code></pre>
+<pre class="highlight"><code class="language-bash" data-lang="bash">helm upgrade --install loom ./loom/helm \
+  --namespace loom \
+  --create-namespace \
+  --values values.yaml</code></pre>
 </div>
 </div>
 </div>
@@ -164,7 +152,7 @@
 	<h4>Share:</h4>
 
 	
-	<a class="resp-sharing-button__link" href="https://twitter.com/intent/tweet/?text=REST%20API&amp;url=https%3a%2f%2fmetaloom.io%2fdocs%2frest%2f"
+	<a class="resp-sharing-button__link" href="https://twitter.com/intent/tweet/?text=Helm%20Chart&amp;url=http%3a%2f%2flocalhost%3a1313%2fdocs%2floom%2fhelm-chart%2f"
 		target="_blank" rel="noopener" aria-label="">
 		<div class="resp-sharing-button resp-sharing-button--twitter resp-sharing-button--small">
 			<div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">
@@ -177,7 +165,7 @@
 	</a>
 
 	
-	<a class="resp-sharing-button__link" href="mailto:?subject=REST%20API&amp;body=https%3a%2f%2fmetaloom.io%2fdocs%2frest%2f" target="_self"
+	<a class="resp-sharing-button__link" href="mailto:?subject=Helm%20Chart&amp;body=http%3a%2f%2flocalhost%3a1313%2fdocs%2floom%2fhelm-chart%2f" target="_self"
 		rel="noopener" aria-label="">
 		<div class="resp-sharing-button resp-sharing-button--email resp-sharing-button--small">
 			<div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">
@@ -191,7 +179,7 @@
 
 	
 	<a class="resp-sharing-button__link"
-		href="https://reddit.com/submit/?url=https%3a%2f%2fmetaloom.io%2fdocs%2frest%2f&amp;resubmit=true&amp;title=REST%20API" target="_blank"
+		href="https://reddit.com/submit/?url=http%3a%2f%2flocalhost%3a1313%2fdocs%2floom%2fhelm-chart%2f&amp;resubmit=true&amp;title=Helm%20Chart" target="_blank"
 		rel="noopener" aria-label="">
 		<div class="resp-sharing-button resp-sharing-button--reddit resp-sharing-button--small">
 			<div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">
@@ -226,8 +214,8 @@
 
 				<!-- copyright -->
 				<div class="copyright text-center">
-					<a href="https://metaloom.io/">
-						<img src="https://metaloom.io/images/logo_word_big.svg" alt="MetaLoom" height="42" />
+					<a href="http://localhost:1313/">
+						<img src="http://localhost:1313/images/logo_word_big.svg" alt="MetaLoom" height="42" />
 					</a>
 					<br>
 					<p></p>
@@ -243,32 +231,32 @@
 
 <!-- JS Plugins -->
 
-<script src="https://metaloom.io/plugins/jquery/jquery.min.js"></script>
+<script src="http://localhost:1313/plugins/jquery/jquery.min.js"></script>
 
-<script src="https://metaloom.io/plugins/bootstrap/bootstrap.min.js"></script>
+<script src="http://localhost:1313/plugins/bootstrap/bootstrap.min.js"></script>
 
-<script src="https://metaloom.io/plugins/slick/slick.min.js"></script>
+<script src="http://localhost:1313/plugins/slick/slick.min.js"></script>
 
-<script src="https://metaloom.io/plugins/shuffle/shuffle.min.js"></script>
+<script src="http://localhost:1313/plugins/shuffle/shuffle.min.js"></script>
 
-<script src="https://metaloom.io/plugins/magnific-popup/jquery.magnific-popup.min.js"></script>
+<script src="http://localhost:1313/plugins/magnific-popup/jquery.magnific-popup.min.js"></script>
 
-<script src="https://metaloom.io/plugins/lazy-load/lozad.min.js"></script>
+<script src="http://localhost:1313/plugins/lazy-load/lozad.min.js"></script>
 
-<script src="https://metaloom.io/plugins/toc/bootstrap-toc.min.js"></script>
+<script src="http://localhost:1313/plugins/toc/bootstrap-toc.min.js"></script>
 
-<script src="https://metaloom.io/plugins/toc/toc.js"></script>
+<script src="http://localhost:1313/plugins/toc/toc.js"></script>
 
-<script src="https://metaloom.io/plugins/swagger/swagger-ui-bundle.js"></script>
+<script src="http://localhost:1313/plugins/swagger/swagger-ui-bundle.js"></script>
 
-<script src="https://metaloom.io/plugins/swagger/swagger-ui-standalone-preset.js"></script>
+<script src="http://localhost:1313/plugins/swagger/swagger-ui-standalone-preset.js"></script>
 
-<script src="https://metaloom.io/plugins/swagger/swagger.js"></script>
+<script src="http://localhost:1313/plugins/swagger/swagger.js"></script>
 
 
 <!-- Main Script -->
 
-<script src="https://metaloom.io/js/script.min.561d4194db5c74b1ef31dc32f4a688e74fd5cb99890203fdd8f7fbf9350071c37a7943c3df205fa1f943fb70bd80c8b1.js" integrity="sha384-Vh1BlNtcdLHvMdwy9KaI50/Vy5mJAgP92Pf7&#43;TUAccN6eUPD3yBfoflD&#43;3C9gMix"></script>
+<script src="http://localhost:1313/js/script.min.ef558ab60e181d3d6e423237a73e635357660ad269aaf394b450c69972f92a96dd457107aab6b5e167d70fc55cb53636.js" integrity="sha384-71WKtg4YHT1uQjI3pz5jU1dmCtJpqvOUtFDGmXL5KpbdRXEHqra14WfXD8VctTY2"></script>
 
 <!-- Highlight Script -->
 <link rel="stylesheet" href="/plugins/highlight/styles/obsidian.css">

@@ -2,8 +2,6 @@
 title: Features
 ---
 
-= Cortex Features
-
 == Media Processing
 
 Cortex can process any media file type — images, videos, audio, and documents.

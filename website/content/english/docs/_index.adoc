@@ -13,7 +13,7 @@ MetaLoom consists of two core components:
 - link:loom/java-client/[Java Client Usage]
 - link:loom/authentication/[Authentication]
 - link:loom/configuration/[Configuration]
-- link:loom/artifacts/[Maven Artifacts and Containers]
+- link:loom/artifacts/[Artifacts]
 - link:loom/features/[Features]
 - link:loom/examples/[Examples]
 
@@ -21,7 +21,7 @@ MetaLoom consists of two core components:
 
 - link:cortex/monitoring/[Monitoring API]
 - link:cortex/configuration/[CLI Arguments and Env Settings]
-- link:cortex/artifacts/[Maven Artifacts and Containers]
+- link:cortex/artifacts/[Artifacts]
 - link:cortex/nodes/[Pipeline Nodes]
 - link:cortex/features/[Features]
 - link:cortex/examples/[Examples]

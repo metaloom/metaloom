@@ -2,7 +2,7 @@
 <html lang="en-us">
 <head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
 	<meta charset="utf-8">
-	<title>Configuration</title>
+	<title>Maven Artifacts</title>
 
 	<!-- mobile responsive meta -->
 	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
@@ -12,12 +12,12 @@
     <meta name="twitter:card" content="summary" />
     <meta name="twitter:site" content="@metaloom" />
     <meta name="twitter:creator" content="" />
-    <meta name="twitter:title" content="Configuration" />
+    <meta name="twitter:title" content="Maven Artifacts" />
     <meta name="twitter:description" content="" />
     <meta name="twitter:image:src" content="http://localhost:1313/images/banner_square.webp" />
     
-    <meta property="og:title" content="Configuration">
-    <meta property="og:url" content="http://localhost:1313/docs/loom/configuration/">
+    <meta property="og:title" content="Maven Artifacts">
+    <meta property="og:url" content="http://localhost:1313/docs/cortex/maven-artifacts/">
     <meta property="og:description" content="">
     <meta property="og:image" content="http://localhost:1313/images/banner_square.webp">
 
@@ -107,204 +107,131 @@
         <nav id="toc"></nav>
       </div>
       <div class="col-lg-9 text-center">
-        <h1>Configuration</h1>
+        <h1>Maven Artifacts</h1>
       </div>
       <div class="col-lg-9 offset-lg-3">
         <div class="post-single-content">
-          <div id="preamble">
-<div class="sectionbody">
-<div class="paragraph">
-<p>Loom is configured via a YAML file (<code>loom.yml</code>) with optional environment variable overrides.</p>
-</div>
-</div>
+          <div class="paragraph">
+<p>All Cortex artifacts are published under the <code>io.metaloom</code> group and should generally be consumed with the shared BOM.</p>
 </div>
 <div class="sect1">
-<h2 id="_config_file_locations">Config File Locations</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>Loom looks for <code>loom.yml</code> in the following order (first match wins):</p>
-</div>
-<div class="olist arabic">
-<ol class="arabic">
-<li>
-<p><code>config/loom.yml</code> — directory relative to the working directory</p>
-</li>
-<li>
-<p><code>~/.config/metaloom/loom.yml</code> — user home config</p>
-</li>
-<li>
-<p><code>/etc/metaloom/loom.yml</code> — system-wide config</p>
-</li>
-</ol>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_full_configuration_example">Full Configuration Example</h2>
+<h2 id="_bom_pom">BOM POM</h2>
 <div class="sectionbody">
 <div class="listingblock">
 <div class="content">
-<pre class="highlight"><code class="language-yaml" data-lang="yaml">database:
-  host: &#34;127.0.0.1&#34;
-  port: 5432
-  username: &#34;postgres&#34;
-  password: &#34;secret&#34;
-  databaseName: &#34;loom&#34;
-  minPoolSize: 5
-  acquireIncrement: 5
-  maxPoolSize: 20
-
-server:
-  grpcPort: 8091
-  bindAddress: &#34;0.0.0.0&#34;
-  restPort: 8092
-  monitoringPort: 8989
-
-auth:
-  keystorePath: &#34;keystore.jceks&#34;
-  keystorePassword: &#34;change-me&#34;
-  tokenExpirationTime: 3600</code></pre>
+<pre class="highlight"><code class="language-xml" data-lang="xml">&lt;dependencyManagement&gt;
+  &lt;dependencies&gt;
+    &lt;dependency&gt;
+      &lt;groupId&gt;io.metaloom&lt;/groupId&gt;
+      &lt;artifactId&gt;bom&lt;/artifactId&gt;
+      &lt;version&gt;1.0.0-SNAPSHOT&lt;/version&gt;
+      &lt;type&gt;pom&lt;/type&gt;
+      &lt;scope&gt;import&lt;/scope&gt;
+    &lt;/dependency&gt;
+  &lt;/dependencies&gt;
+&lt;/dependencyManagement&gt;</code></pre>
 </div>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_environment_variables">Environment Variables</h2>
+<h2 id="_cortex_pipeline_api">Cortex Pipeline API</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>All settings can be overridden with environment variables.
-Environment variables take precedence over values in <code>loom.yml</code>.</p>
+<p>Core pipeline interfaces (<code>Pipeline</code>, <code>PipelineNode</code>, <code>PipelineExecutor</code>):</p>
 </div>
-<div class="sect2">
-<h3 id="_database">Database</h3>
-<table class="tableblock frame-all grid-all stretch">
-<colgroup>
-<col style="width: 40%;"/>
-<col style="width: 20%;"/>
-<col style="width: 40%;"/>
-</colgroup>
-<thead>
-<tr>
-<th class="tableblock halign-left valign-top">Variable</th>
-<th class="tableblock halign-left valign-top">Default</th>
-<th class="tableblock halign-left valign-top">Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>LOOM_DB_HOST</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>127.0.0.1</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">PostgreSQL host</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>LOOM_DB_PORT</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>5432</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">PostgreSQL port</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>LOOM_DB_USERNAME</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>postgres</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Database username</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>LOOM_DB_PASSWORD</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>finger</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Database password</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>LOOM_DB_NAME</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>loom</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Database name</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>LOOM_DB_MIN_POOL_SIZE</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>5</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Minimum connection pool size</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>LOOM_DB_MAX_POOL_SIZE</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>20</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Maximum connection pool size</p></td>
-</tr>
-</tbody>
-</table>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-xml" data-lang="xml">&lt;dependency&gt;
+    &lt;groupId&gt;io.metaloom.cortex&lt;/groupId&gt;
+    &lt;artifactId&gt;cortex-pipeline-api&lt;/artifactId&gt;
+    &lt;version&gt;1.0.0-SNAPSHOT&lt;/version&gt;
+&lt;/dependency&gt;</code></pre>
 </div>
-<div class="sect2">
-<h3 id="_server">Server</h3>
-<table class="tableblock frame-all grid-all stretch">
-<colgroup>
-<col style="width: 40%;"/>
-<col style="width: 20%;"/>
-<col style="width: 40%;"/>
-</colgroup>
-<thead>
-<tr>
-<th class="tableblock halign-left valign-top">Variable</th>
-<th class="tableblock halign-left valign-top">Default</th>
-<th class="tableblock halign-left valign-top">Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>LOOM_SERVER_REST_PORT</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>8092</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">HTTP REST port</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>LOOM_SERVER_GRPC_PORT</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>8091</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">gRPC port</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>LOOM_SERVER_GRPC_BIND_ADDRESS</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>0.0.0.0</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Bind address for all listeners</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>LOOM_SERVER_MON_PORT</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>8989</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Monitoring/health port</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<div class="sect2">
-<h3 id="_authentication">Authentication</h3>
-<table class="tableblock frame-all grid-all stretch">
-<colgroup>
-<col style="width: 40%;"/>
-<col style="width: 20%;"/>
-<col style="width: 40%;"/>
-</colgroup>
-<thead>
-<tr>
-<th class="tableblock halign-left valign-top">Variable</th>
-<th class="tableblock halign-left valign-top">Default</th>
-<th class="tableblock halign-left valign-top">Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>LOOM_INITIAL_PASSWORD</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><em>(random)</em></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Initial admin password (first boot only)</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>LOOM_TOKEN_EXPIRATION_TIME</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>3600</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">JWT token lifetime in seconds</p></td>
-</tr>
-</tbody>
-</table>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_cli">CLI</h2>
+<h2 id="_cortex_common_node">Cortex Common Node</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>The Loom server CLI is currently a stub (<code>TBD</code>).
-The main entry point is <code>LoomCLI</code>. Configuration is driven entirely via the YAML file and environment variables.</p>
+<p>Base class <code>AbstractMediaNode</code> and shared utilities for building custom nodes:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-xml" data-lang="xml">&lt;dependency&gt;
+    &lt;groupId&gt;io.metaloom.cortex&lt;/groupId&gt;
+    &lt;artifactId&gt;cortex-common&lt;/artifactId&gt;
+    &lt;version&gt;1.0.0-SNAPSHOT&lt;/version&gt;
+&lt;/dependency&gt;</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_cortex_api">Cortex API</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-xml" data-lang="xml">&lt;dependency&gt;
+    &lt;groupId&gt;io.metaloom.cortex&lt;/groupId&gt;
+    &lt;artifactId&gt;cortex-api&lt;/artifactId&gt;
+    &lt;version&gt;1.0.0-SNAPSHOT&lt;/version&gt;
+&lt;/dependency&gt;</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_built_in_nodes">Built-in Nodes</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Each built-in node is packaged separately so you can include only the nodes you need:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-xml" data-lang="xml">&lt;dependency&gt;
+    &lt;groupId&gt;io.metaloom.cortex.nodes&lt;/groupId&gt;
+    &lt;artifactId&gt;cortex-node-hash&lt;/artifactId&gt;
+    &lt;version&gt;1.0.0-SNAPSHOT&lt;/version&gt;
+&lt;/dependency&gt;
+
+&lt;dependency&gt;
+    &lt;groupId&gt;io.metaloom.cortex.nodes&lt;/groupId&gt;
+    &lt;artifactId&gt;cortex-node-fingerprint&lt;/artifactId&gt;
+    &lt;version&gt;1.0.0-SNAPSHOT&lt;/version&gt;
+&lt;/dependency&gt;
+
+&lt;dependency&gt;
+    &lt;groupId&gt;io.metaloom.cortex.nodes&lt;/groupId&gt;
+    &lt;artifactId&gt;cortex-node-thumbnail&lt;/artifactId&gt;
+    &lt;version&gt;1.0.0-SNAPSHOT&lt;/version&gt;
+&lt;/dependency&gt;
+
+&lt;dependency&gt;
+    &lt;groupId&gt;io.metaloom.cortex.nodes&lt;/groupId&gt;
+    &lt;artifactId&gt;cortex-node-tika&lt;/artifactId&gt;
+    &lt;version&gt;1.0.0-SNAPSHOT&lt;/version&gt;
+&lt;/dependency&gt;
+
+&lt;dependency&gt;
+    &lt;groupId&gt;io.metaloom.cortex.nodes&lt;/groupId&gt;
+    &lt;artifactId&gt;cortex-node-scene-detection&lt;/artifactId&gt;
+    &lt;version&gt;1.0.0-SNAPSHOT&lt;/version&gt;
+&lt;/dependency&gt;
+
+&lt;dependency&gt;
+    &lt;groupId&gt;io.metaloom.cortex.nodes&lt;/groupId&gt;
+    &lt;artifactId&gt;cortex-node-ocr&lt;/artifactId&gt;
+    &lt;version&gt;1.0.0-SNAPSHOT&lt;/version&gt;
+&lt;/dependency&gt;
+
+&lt;dependency&gt;
+    &lt;groupId&gt;io.metaloom.cortex.nodes&lt;/groupId&gt;
+    &lt;artifactId&gt;cortex-node-facedetect&lt;/artifactId&gt;
+    &lt;version&gt;1.0.0-SNAPSHOT&lt;/version&gt;
+&lt;/dependency&gt;</code></pre>
+</div>
 </div>
 </div>
 </div>
@@ -317,7 +244,7 @@ The main entry point is <code>LoomCLI</code>. Configuration is driven entirely v
 	<h4>Share:</h4>
 
 	
-	<a class="resp-sharing-button__link" href="https://twitter.com/intent/tweet/?text=Configuration&amp;url=http%3a%2f%2flocalhost%3a1313%2fdocs%2floom%2fconfiguration%2f"
+	<a class="resp-sharing-button__link" href="https://twitter.com/intent/tweet/?text=Maven%20Artifacts&amp;url=http%3a%2f%2flocalhost%3a1313%2fdocs%2fcortex%2fmaven-artifacts%2f"
 		target="_blank" rel="noopener" aria-label="">
 		<div class="resp-sharing-button resp-sharing-button--twitter resp-sharing-button--small">
 			<div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">
@@ -330,7 +257,7 @@ The main entry point is <code>LoomCLI</code>. Configuration is driven entirely v
 	</a>
 
 	
-	<a class="resp-sharing-button__link" href="mailto:?subject=Configuration&amp;body=http%3a%2f%2flocalhost%3a1313%2fdocs%2floom%2fconfiguration%2f" target="_self"
+	<a class="resp-sharing-button__link" href="mailto:?subject=Maven%20Artifacts&amp;body=http%3a%2f%2flocalhost%3a1313%2fdocs%2fcortex%2fmaven-artifacts%2f" target="_self"
 		rel="noopener" aria-label="">
 		<div class="resp-sharing-button resp-sharing-button--email resp-sharing-button--small">
 			<div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">
@@ -344,7 +271,7 @@ The main entry point is <code>LoomCLI</code>. Configuration is driven entirely v
 
 	
 	<a class="resp-sharing-button__link"
-		href="https://reddit.com/submit/?url=http%3a%2f%2flocalhost%3a1313%2fdocs%2floom%2fconfiguration%2f&amp;resubmit=true&amp;title=Configuration" target="_blank"
+		href="https://reddit.com/submit/?url=http%3a%2f%2flocalhost%3a1313%2fdocs%2fcortex%2fmaven-artifacts%2f&amp;resubmit=true&amp;title=Maven%20Artifacts" target="_blank"
 		rel="noopener" aria-label="">
 		<div class="resp-sharing-button resp-sharing-button--reddit resp-sharing-button--small">
 			<div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">

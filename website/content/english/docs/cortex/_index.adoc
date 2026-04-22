@@ -2,8 +2,6 @@
 title: Cortex
 ---
 
-= Cortex
-
 MetaLoom // *Cortex* is the media processing engine of the MetaLoom platform.
 It analyses media files — images, videos, audio, documents — and extracts metadata that can be stored locally (via extended file attributes) or forwarded to a Loom server.
 
@@ -19,7 +17,7 @@ It acts as the processing worker for the Loom MAM.
 
 * *Monitoring API* — Health and metrics endpoint. See link:monitoring[Monitoring API].
 * *Configuration* — CLI arguments and environment variables. See link:configuration[Configuration].
-* *Artifacts* — Maven coordinates and Docker image. See link:artifacts[Maven Artifacts & Containers].
+* *Artifacts* — Maven coordinates and container deployment options. See link:artifacts[Artifacts].
 * *Pipeline Nodes* — The built-in processing nodes. See link:nodes[Pipeline Nodes].
 * *Features* — Overview of all Cortex capabilities. See link:features[Features].
 * *Examples* — Custom node and custom CLI examples. See link:examples[Examples].

@@ -2,8 +2,6 @@
 title: Loom
 ---
 
-= Loom
-
 MetaLoom // *Loom* is the media asset management server at the heart of the MetaLoom platform.
 It exposes a REST API over HTTP, a gRPC API (planned), and a GraphQL API (planned) for managing digital media assets and all related entities.
 
@@ -13,6 +11,6 @@ It exposes a REST API over HTTP, a gRPC API (planned), and a GraphQL API (planne
 * *Java Client* — Typed HTTP client for JVM applications. See link:java-client[Java Client Usage].
 * *Authentication* — JWT bearer tokens and optional OAuth2. See link:authentication[Authentication].
 * *Configuration* — YAML config file and environment variables. See link:configuration[Configuration].
-* *Artifacts* — Maven coordinates and Docker image. See link:artifacts[Maven Artifacts & Containers].
+* *Artifacts* — Maven coordinates, containers and the Helm chart. See link:artifacts[Artifacts].
 * *Features* — Assets, users, groups, roles, tags, pipelines and more. See link:features[Features].
 * *Examples* — Code snippets from the `/examples` module. See link:examples[Examples].

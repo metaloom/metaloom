@@ -2,8 +2,6 @@
 title: Examples
 ---
 
-= Loom Examples
-
 The `/examples` directory of the source repository contains runnable example projects.
 
 == Listing Examples

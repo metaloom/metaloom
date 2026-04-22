@@ -2,8 +2,6 @@
 title: Examples
 ---
 
-= Cortex Examples
-
 The `examples/` directory in the source repository contains two Cortex example projects.
 
 == cortex-custom-node

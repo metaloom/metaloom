@@ -2,8 +2,6 @@
 title: Features
 ---
 
-= Loom Features
-
 Loom provides a comprehensive set of features for managing digital media assets and their associated metadata.
 
 == Assets
