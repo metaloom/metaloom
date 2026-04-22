@@ -12,32 +12,36 @@ This page is the quickest way to orient yourself in the platform and jump to the
 ++++
 <div class="row mt-4 mb-4">
 	<div class="col-lg-6 mb-4">
-		<div class="note p-4 h-100">
-			<h2><a href="loom/">Loom</a></h2>
-			<p>The media asset management server. Use these guides when you need the API surface, authentication model, configuration, artifacts or a feature overview.</p>
-			<ul class="doc-toc">
-				<li><a href="loom/rest-api/">REST API</a></li>
-				<li><a href="loom/java-client/">Java Client</a></li>
-				<li><a href="loom/authentication/">Authentication</a></li>
-				<li><a href="loom/configuration/">Configuration</a></li>
-				<li><a href="loom/artifacts/">Artifacts</a></li>
-				<li><a href="loom/features/">Features</a></li>
-				<li><a href="loom/examples/">Examples</a></li>
-			</ul>
+		<div class="docs-card h-100">
+			<div class="docs-card-header">
+				<h2><a href="loom/">Loom</a></h2>
+				<p>The media asset management server. Use these guides when you need the API surface, authentication model, configuration, artifacts or a feature overview.</p>
+			</div>
+			<div class="docs-card-body">
+				<a href="loom/rest-api/" class="docs-card-link">REST API</a>
+				<a href="loom/java-client/" class="docs-card-link">Java Client</a>
+				<a href="loom/authentication/" class="docs-card-link">Authentication</a>
+				<a href="loom/configuration/" class="docs-card-link">Configuration</a>
+				<a href="loom/artifacts/" class="docs-card-link">Artifacts</a>
+				<a href="loom/features/" class="docs-card-link">Features</a>
+				<a href="loom/examples/" class="docs-card-link">Examples</a>
+			</div>
 		</div>
 	</div>
 	<div class="col-lg-6 mb-4">
-		<div class="note p-4 h-100">
-			<h2><a href="cortex/">Cortex</a></h2>
-			<p>The media processing engine. Use these guides when you need node behavior, runtime configuration, deployment options or an overview of supported processing capabilities.</p>
-			<ul class="doc-toc">
-				<li><a href="cortex/nodes/">Pipeline Nodes</a></li>
-				<li><a href="cortex/features/">Features</a></li>
-				<li><a href="cortex/configuration/">Configuration</a></li>
-				<li><a href="cortex/monitoring/">Monitoring API</a></li>
-				<li><a href="cortex/artifacts/">Artifacts</a></li>
-				<li><a href="cortex/examples/">Examples</a></li>
-			</ul>
+		<div class="docs-card h-100">
+			<div class="docs-card-header">
+				<h2><a href="cortex/">Cortex</a></h2>
+				<p>The media processing engine. Use these guides when you need node behavior, runtime configuration, deployment options or an overview of supported processing capabilities.</p>
+			</div>
+			<div class="docs-card-body">
+				<a href="cortex/nodes/" class="docs-card-link">Pipeline Nodes</a>
+				<a href="cortex/features/" class="docs-card-link">Features</a>
+				<a href="cortex/configuration/" class="docs-card-link">Configuration</a>
+				<a href="cortex/monitoring/" class="docs-card-link">Monitoring API</a>
+				<a href="cortex/artifacts/" class="docs-card-link">Artifacts</a>
+				<a href="cortex/examples/" class="docs-card-link">Examples</a>
+			</div>
 		</div>
 	</div>
 </div>

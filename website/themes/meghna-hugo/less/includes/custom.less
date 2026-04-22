@@ -98,3 +98,73 @@ code {
 blockquote .paragraph {
   padding-top: 0px;
 }
+
+/* Docs overview cards */
+.docs-card {
+  background-color: #292F36;
+  border: 1px solid #4e595f;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.docs-card-header {
+  padding: 24px 28px 20px;
+  border-bottom: 1px solid #4e595f;
+}
+
+.docs-card-header h2 {
+  margin: 0 0 10px;
+  padding: 0;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.docs-card-header h2 a {
+  color: #00b5a6;
+  text-decoration: none;
+}
+
+.docs-card-header h2 a:hover {
+  color: #7efff4;
+}
+
+.docs-card-header p {
+  margin: 0;
+  color: #a0a8b0;
+  font-size: 1em;
+  line-height: 1.6;
+}
+
+.docs-card-body {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.docs-card-body a.docs-card-link {
+  display: block;
+  padding: 10px 14px;
+  font-size: 1.05em;
+  font-weight: 500;
+  color: #d0d0d0;
+  text-decoration: none;
+  border-radius: 4px;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.docs-card-body a.docs-card-link:hover {
+  background-color: rgba(0, 181, 166, 0.12);
+  color: #00b5a6;
+}
+
+.docs-card-body a.docs-card-link::before {
+  content: "\203A";
+  margin-right: 10px;
+  color: #4e595f;
+  font-weight: 700;
+  font-size: 1.2em;
+}
+
+.docs-card-body a.docs-card-link:hover::before {
+  color: #00b5a6;
+}
