@@ -12,35 +12,35 @@
       <link>https://metaloom.io/docs/test/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/test/</guid>
-      <description>&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_docs&#34;&gt;Docs&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;sect2&#34;&gt;&#xA;&lt;h3 id=&#34;_a&#34;&gt;A&lt;/h3&gt;&#xA;&#xA;&lt;/div&gt;&#xA;&lt;div class=&#34;sect2&#34;&gt;&#xA;&lt;h3 id=&#34;_b&#34;&gt;B&lt;/h3&gt;&#xA;&lt;div class=&#34;sect3&#34;&gt;&#xA;&lt;h4 id=&#34;_c&#34;&gt;C&lt;/h4&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;The docs&lt;/p&gt;&#xA;&lt;/div&gt;&#xA;&lt;/div&gt;&#xA;&lt;/div&gt;&#xA;&lt;/div&gt;&#xA;&lt;/div&gt;</description>
+      <description>Docs A B C The docs</description>
     </item>
     <item>
       <title>Configuration</title>
       <link>https://metaloom.io/docs/configuration/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/configuration/</guid>
-      <description>&lt;div class=&#34;listingblock&#34;&gt;&#xA;&lt;div class=&#34;content&#34;&gt;&#xA;&lt;pre class=&#34;highlight&#34;&gt;&lt;code class=&#34;language-json&#34; data-lang=&#34;json&#34;&gt;{&#xA;&#x9;&amp;#34;db&amp;#34;: {&#xA;&#x9;&#x9;&amp;#34;host&amp;#34;: &amp;#34;localhost&amp;#34;,&#xA;&#x9;&#x9;&amp;#34;port&amp;#34;: 5432&#xA;&#x9;},&#xA;&#x9;&amp;#34;server&amp;#34;: {&#xA;&#x9;&#x9;&amp;#34;port&amp;#34;: 8080&#xA;&#x9;}&#xA;}&lt;/code&gt;&lt;/pre&gt;&#xA;&lt;/div&gt;&#xA;&lt;/div&gt;</description>
+      <description> { &amp;#34;db&amp;#34;: { &amp;#34;host&amp;#34;: &amp;#34;localhost&amp;#34;, &amp;#34;port&amp;#34;: 5432 }, &amp;#34;server&amp;#34;: { &amp;#34;port&amp;#34;: 8080 } } </description>
     </item>
     <item>
       <title>Loom &amp; Cortex Interaction</title>
       <link>https://metaloom.io/docs/interaction/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/interaction/</guid>
-      <description>&lt;div id=&#34;preamble&#34;&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;Loom and Cortex are complementary components that can be deployed together or used independently.&lt;/p&gt;&#xA;&lt;/div&gt;&#xA;&lt;/div&gt;&#xA;&lt;/div&gt;&#xA;&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_architecture_overview&#34;&gt;Architecture Overview&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;div class=&#34;listingblock&#34;&gt;&#xA;&lt;div class=&#34;content&#34;&gt;&#xA;&lt;pre&gt;┌─────────────────────────────────────────────┐&#xA;│  Loom (Media Asset Management Server)        │&#xA;│                                             │&#xA;│  REST API (:8092)  gRPC (:8091)             │&#xA;│  PostgreSQL database                        │&#xA;│  Pipeline definitions (stored in DB)        │&#xA;│  WebSocket event bus (/pipelines/events/ws) │&#xA;└───────────────────┬─────────────────────────┘&#xA;                    │  REST API (LoomClient)&#xA;                    │  Pipeline definitions&#xA;                    │  Asset results (hashes, thumbs, ...)&#xA;                    ▼&#xA;┌─────────────────────────────────────────────┐&#xA;│  Cortex (Media Processing Engine)            │&#xA;│                                             │&#xA;│  Monitoring API (:8093)                     │&#xA;│  Pipeline executor (node graph)             │&#xA;│  Local meta-path cache                      │&#xA;└─────────────────────────────────────────────┘&#xA;        │&#xA;        │  reads media files&#xA;        ▼&#xA;   /media/assets/...&lt;/pre&gt;&#xA;&lt;/div&gt;</description>
+      <description>Loom and Cortex are complementary components that can be deployed together or used independently.</description>
     </item>
     <item>
       <title>Pipeline Mechanism</title>
       <link>https://metaloom.io/docs/pipeline/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/pipeline/</guid>
-      <description>&lt;div class=&#34;paragraph&#34;&gt;&#xA;&lt;p&gt;A &lt;strong&gt;pipeline&lt;/strong&gt; is a directed acyclic graph (DAG) of processing nodes that Cortex executes on each media asset.&#xA;Pipelines are defined in Loom (stored in the database) and loaded by Cortex at startup.&lt;/p&gt;&#xA;&lt;/div&gt;</description>
+      <description>A pipeline is a directed acyclic graph (DAG) of processing nodes that Cortex executes on each media asset.</description>
     </item>
     <item>
       <title>REST API</title>
       <link>https://metaloom.io/docs/rest/</link>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       <guid>https://metaloom.io/docs/rest/</guid>
-      <description>&lt;div class=&#34;admonitionblock tip&#34;&gt;&#xA;&lt;table&gt;&#xA;&lt;tbody&gt;&lt;tr&gt;&#xA;&lt;td class=&#34;icon&#34;&gt;&#xA;&lt;div class=&#34;title&#34;&gt;Tip&lt;/div&gt;&#xA;&lt;/td&gt;&#xA;&lt;td class=&#34;content&#34;&gt;&#xA;&lt;div class=&#34;title&#34;&gt;Try the example&lt;/div&gt;&#xA;&lt;a href=&#34;https://demo.metaloom.io/api/v1/demo/assets&#34; class=&#34;bare&#34;&gt;https://demo.metaloom.io/api/v1/demo/assets&lt;/a&gt;&#xA;&lt;/td&gt;&#xA;&lt;/tr&gt;&#xA;&lt;/tbody&gt;&lt;/table&gt;&#xA;&lt;/div&gt;&#xA;&lt;div class=&#34;sect1&#34;&gt;&#xA;&lt;h2 id=&#34;_api_endpoints&#34;&gt;API endpoints&lt;/h2&gt;&#xA;&lt;div class=&#34;sectionbody&#34;&gt;&#xA;&lt;table class=&#34;tableblock frame-all grid-all stretch&#34;&gt;&#xA;&lt;colgroup&gt;&#xA;&lt;col style=&#34;width: 50%;&#34;/&gt;&#xA;&lt;col style=&#34;width: 50%;&#34;/&gt;&#xA;&lt;/colgroup&gt;&#xA;&lt;thead&gt;&#xA;&lt;tr&gt;&#xA;&lt;th class=&#34;tableblock halign-left valign-top&#34;&gt;Description&lt;/th&gt;&#xA;&lt;th class=&#34;tableblock halign-left valign-top&#34;&gt;API endpoint&lt;/th&gt;&#xA;&lt;/tr&gt;&#xA;&lt;/thead&gt;&#xA;&lt;tbody&gt;&#xA;&lt;tr&gt;&#xA;&lt;td class=&#34;tableblock halign-left valign-top&#34;&gt;&lt;p class=&#34;tableblock&#34;&gt;Get the asset with the given UUID.&lt;/p&gt;&lt;/td&gt;&#xA;&lt;td class=&#34;tableblock halign-left valign-top&#34;&gt;&lt;p class=&#34;tableblock&#34;&gt;&lt;code&gt;&lt;code&gt;GET /api/v1/:projectName/assets/:assetUuid&lt;/code&gt;&lt;/code&gt;&lt;/p&gt;&lt;/td&gt;&#xA;&lt;/tr&gt;&#xA;&lt;/tbody&gt;&#xA;&lt;/table&gt;&#xA;&lt;div class=&#34;listingblock&#34;&gt;&#xA;&lt;div class=&#34;content&#34;&gt;&#xA;&lt;pre class=&#34;highlight&#34;&gt;&lt;code class=&#34;language-json&#34; data-lang=&#34;json&#34;&gt;{&#xA;&#x9;&amp;#34;uuid&amp;#34;: &amp;#34;b5f26d5f-4ab0-4f99-a2f1-7be9f20e7a15&amp;#34;,&#xA;&#x9;&amp;#34;filename&amp;#34;: &amp;#34;sample.mp4&amp;#34;&#xA;}&lt;/code&gt;&lt;/pre&gt;&#xA;&lt;/div&gt;</description>
+      <description>Tip Try the example https://demo.metaloom.io/api/v1/demo/assets API endpoints Description API endpoint Get the asset with the given UUID.</description>
     </item>
   </channel>
 </rss>
