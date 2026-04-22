@@ -5,13 +5,6 @@ title: Pipeline Nodes
 Cortex ships with a set of built-in processing nodes.
 Each node has a unique name that is used to reference it in CLI `--actions` flags and pipeline definitions.
 
-Every node extends `AbstractMediaNode` and follows the same lifecycle:
-
-. *enabled?* — is the node active in this run?
-. *exists?* — has this asset already been processed by this node (cached result)?
-. *processable?* — does the media type match (e.g. video only)?
-. *compute()* — perform the actual processing.
-
 Results are stored in the local metadata cache (`--meta-path`) and optionally forwarded to Loom via the `loom` node.
 
 == Hashing Nodes

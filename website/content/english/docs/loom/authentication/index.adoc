@@ -15,6 +15,7 @@ If not set, a random password is generated and printed to the log.
 
 Send credentials to obtain a JWT token:
 
+[source,http]
 ----
 POST /api/v1/auth/login
 Content-Type: application/json
@@ -38,6 +39,7 @@ Response:
 
 Include the token as a `Bearer` header in every subsequent request:
 
+[source,http]
 ----
 Authorization: Bearer <token>
 ----
@@ -79,3 +81,6 @@ Configure the OAuth2 provider in the `auth.oauth2` section of `loom.yml`.
 
 Long-lived API keys can be created and managed via the `/api/v1/tokens` endpoint.
 API keys behave like JWT tokens and are passed the same way in the `Authorization` header.
+
+API keys can also be managed through the link:../../getting-started/#loom-ui[Loom UI] without touching the API directly.
+Navigate to *Settings → API Keys* in the UI to generate, label and revoke tokens.

@@ -11,6 +11,19 @@ This page is the quickest way to orient yourself in the platform and jump to the
 
 ++++
 <div class="row mt-4 mb-4">
+	<div class="col-lg-12 mb-4">
+		<div class="docs-card h-100">
+			<div class="docs-card-header">
+				<h2><a href="getting-started/">Getting Started</a></h2>
+				<p>Run a full MetaLoom stack locally in minutes using the demo container. Covers Loom UI, Loom App and where to go next.</p>
+			</div>
+			<div class="docs-card-body">
+				<a href="getting-started/" class="docs-card-link">Demo Container</a>
+				<a href="getting-started/#loom-ui" class="docs-card-link">Loom UI</a>
+				<a href="getting-started/#loom-app" class="docs-card-link">Loom App</a>
+			</div>
+		</div>
+	</div>
 	<div class="col-lg-6 mb-4">
 		<div class="docs-card h-100">
 			<div class="docs-card-header">
@@ -51,9 +64,10 @@ This page is the quickest way to orient yourself in the platform and jump to the
 
 If you are new to the platform, this is the shortest reading order:
 
-1. Read link:interaction/[Loom and Cortex Interaction] to understand the system boundary.
-2. Read link:pipeline/[Pipeline Mechanism] to understand how processing is modeled.
-3. Continue into link:loom/[Loom] or link:cortex/[Cortex] depending on whether you are integrating with the API or building processing workflows.
+1. Start with link:getting-started/[Getting Started] to run a local demo in minutes.
+2. Read link:interaction/[Loom and Cortex Interaction] to understand the system boundary.
+3. Read link:pipeline/[Pipeline Mechanism] to understand how processing is modeled.
+4. Continue into link:loom/[Loom] or link:cortex/[Cortex] depending on whether you are integrating with the API or building processing workflows.
 
 == Central Concepts
 
@@ -113,6 +127,10 @@ Choose the documentation track that matches your task:
 [options="header",cols="1,2,2"]
 |===
 | Goal | Start with | Then continue to
+
+| Try the platform quickly
+| link:getting-started/[Getting Started]
+| link:loom/rest-api/[REST API], link:loom/authentication/[Authentication]
 
 | Integrate a client application with Loom
 | link:loom/rest-api/[REST API] or link:loom/java-client/[Java Client]

@@ -1,0 +1,85 @@
+---
+title: Getting Started
+weight: 1
+---
+
+This guide gets a full MetaLoom stack running locally in a few minutes using the demo container.
+No build tools or configuration files are required.
+
+== What You Will Run
+
+The demo bundle starts three services side by side:
+
+* *Loom* — the asset management server (REST API on port 8092)
+* *Loom UI* — a browser-based management interface (default port 3000)
+* *Loom App* — a desktop client built with Electron (optional, launched separately)
+
+== Prerequisites
+
+* Docker and Docker Compose installed
+* A terminal
+
+== Start the Demo Stack
+
+The `metaloom/loom-demo` image bundles Loom together with a pre-seeded PostgreSQL database and a set of sample assets so you can explore the system without any manual setup.
+
+[source,bash]
+----
+docker run -d \
+  --name loom-demo \
+  -p 8092:8092 \
+  -p 3000:3000 \
+  metaloom/loom-demo:latest
+----
+
+Once the container is running, Loom is available at http://localhost:8092 and the web UI at http://localhost:3000.
+
+Default credentials:
+
+[options="header",cols="1,1"]
+|===
+| Field | Value
+| Username | `admin`
+| Password | `admin`
+|===
+
+== Loom UI
+
+Loom UI is a browser-based management interface for the Loom server.
+It lets you browse assets, manage users, groups, roles, tags and API keys, and monitor running pipelines — all without touching the REST API directly.
+
+Open http://localhost:3000 after starting the demo container.
+
+Key areas of the UI:
+
+[options="header",cols="1,2"]
+|===
+| Section | Purpose
+| Assets | Browse, search, upload and preview media assets
+| Users & Groups | Create and manage user accounts, group memberships and role assignments
+| API Keys | Generate and revoke long-lived API tokens (see link:../loom/authentication/[Authentication])
+| Pipelines | View defined pipelines and monitor their execution state
+| Settings | Server configuration and system status
+|===
+
+== Loom App
+
+Loom App is a desktop application built with link:https://www.electronjs.org/[Electron].
+It embeds the Loom UI inside a native window and adds OS-level integrations:
+
+* System tray icon with quick access to the connected server
+* Native file drag-and-drop for asset ingestion
+* Local connection profiles for managing multiple Loom servers
+
+Download the latest release from the link:https://github.com/metaloom/loom-app/releases[Loom App releases page] or build from source.
+
+To connect Loom App to the demo instance, launch the app and point it at `http://localhost:8092`.
+
+== Next Steps
+
+Once the stack is running and you can log in:
+
+. Explore the REST API — link:../loom/rest-api/[REST API Reference]
+. Understand the authentication model — link:../loom/authentication/[Authentication]
+. Read how Cortex processes assets — link:../interaction/[Loom and Cortex Interaction]
+. Deploy to production — link:../loom/artifacts/[Loom Artifacts], link:../loom/helm-chart/[Helm Chart]
