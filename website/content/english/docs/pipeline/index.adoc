@@ -2,8 +2,6 @@
 title: Pipeline Mechanism
 ---
 
-= Pipeline Mechanism
-
 A *pipeline* is a directed acyclic graph (DAG) of processing nodes that Cortex executes on each media asset.
 Pipelines are defined in Loom (stored in the database) and loaded by Cortex at startup.
 

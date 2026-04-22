@@ -2,8 +2,6 @@
 title: Pipeline Nodes
 ---
 
-= Cortex Pipeline Nodes
-
 Cortex ships with a set of built-in processing nodes.
 Each node has a unique name that is used to reference it in CLI `--actions` flags and pipeline definitions.
 

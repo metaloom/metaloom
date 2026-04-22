@@ -2,8 +2,6 @@
 title: Java Client Usage
 ---
 
-= Java Client Usage
-
 The `loom-rest-client` module provides a typed HTTP client for JVM applications.
 
 == Maven Dependency
