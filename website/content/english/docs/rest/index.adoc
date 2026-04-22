@@ -1,0 +1,29 @@
+---
+title: REST API
+---
+
+.Try the example
+[TIP]
+https://demo.metaloom.io/api/v1/demo/assets
+
+== API endpoints
+
+[options="header",cols="2*"]
+|======
+
+| Description
+| API endpoint
+
+| Get the asset with the given UUID.
+| ```GET /api/v1/:projectName/assets/:assetUuid```
+
+|======
+
+
+[source,json]
+----
+{
+	"uuid": "b5f26d5f-4ab0-4f99-a2f1-7be9f20e7a15",
+	"filename": "sample.mp4"
+}
+----

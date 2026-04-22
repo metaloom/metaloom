@@ -1,0 +1,113 @@
+---
+title: Features
+---
+
+= Loom Features
+
+Loom provides a comprehensive set of features for managing digital media assets and their associated metadata.
+
+== Assets
+
+An *asset* is the central entity in Loom.
+It represents a digital media file (image, video, audio, document) together with its extracted metadata.
+
+Key capabilities:
+
+* Create, read, update, delete (CRUD) via REST API
+* Lookup by UUID or SHA-512 hash
+* Binary upload/download (original file)
+* Bulk create and bulk update
+* Tagging
+* Reactions (like, dislike, custom reactions)
+* Comments and annotations
+* Linked components (asset parts / variants)
+* Linked locations (multiple storage locations per file)
+* Embedding storage (vector embeddings for similarity search)
+
+== Asset Pools
+
+*Asset pools* are logical groupings of assets, typically corresponding to a physical storage location (folder, bucket, NAS share).
+They are used to scope Cortex processing runs and asset import operations.
+
+== Libraries
+
+*Libraries* provide a higher-level organizational layer above asset pools.
+A library can span multiple pools and is the primary unit for user-visible browsing.
+
+== Collections
+
+*Collections* are curated, user-defined sets of assets (similar to playlists or albums).
+An asset can appear in multiple collections.
+
+== Users
+
+User management is built into Loom.
+
+* Create, update, delete users
+* Assign users to groups
+* Set per-user passwords
+* Per-user token management
+
+== Groups
+
+Groups aggregate users and are the unit on which *roles* are assigned.
+
+== Roles
+
+Loom uses role-based access control (RBAC).
+
+* Create named roles (e.g. `viewer`, `editor`, `admin`)
+* Assign roles to groups
+* Roles carry permissions for each resource type
+
+== Permissions
+
+Permissions control what actions a role can perform on each resource (create, read, update, delete).
+They can be set at the global level or scoped to specific libraries or collections.
+
+== Tags
+
+*Tags* are free-text labels that can be attached to assets.
+
+* Create and manage a global tag vocabulary
+* Add or remove tags from individual assets
+* Filter assets by one or more tags via the API
+
+== Pipelines
+
+*Pipelines* define the processing workflows that Cortex executes on assets.
+
+* Define a pipeline with a name, description, priority, and enabled flag
+* Pipelines are stored in Loom and loaded by Cortex at startup
+* Each pipeline maps to a directed node graph (see link:../../pipeline[Pipeline Mechanism])
+* Pipeline execution results are tracked and surfaced as real-time WebSocket events
+
+== Webhooks
+
+*Webhooks* allow Loom to push event notifications to external HTTP endpoints when entities are created, updated, or deleted.
+
+== Tasks
+
+*Tasks* represent asynchronous background operations (e.g. bulk ingestion).
+They can be monitored via the REST API.
+
+== API Keys (Tokens)
+
+Long-lived API keys can be created for service accounts or CI/CD integrations.
+They are functionally equivalent to JWT tokens.
+
+== Blacklists
+
+Assets or hashes can be blacklisted to prevent them from being re-ingested or surfaced in search results.
+
+== Spaces
+
+*Spaces* are top-level organisational units that group libraries, collections and users.
+They allow multi-tenant deployments within a single Loom instance.
+
+== Search and Similarity
+
+Loom integrates with search backends (Elasticsearch, Lucene, Qdrant) to provide:
+
+* Full-text search over extracted metadata
+* Vector similarity search using stored embeddings (e.g. face embeddings, video fingerprints)

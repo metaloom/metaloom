@@ -1,0 +1,83 @@
+---
+title: Authentication
+---
+
+= Authentication
+
+Loom uses JWT (JSON Web Token) bearer tokens for API authentication.
+OAuth2 integration is also available.
+
+== Initial Admin Password
+
+On first startup, Loom creates an admin account.
+Set its password via the `LOOM_INITIAL_PASSWORD` environment variable before starting the server.
+If not set, a random password is generated and printed to the log.
+
+== Login
+
+Send credentials to obtain a JWT token:
+
+----
+POST /api/v1/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "your-password"
+}
+----
+
+Response:
+
+[source,json]
+----
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+----
+
+== Using the Token
+
+Include the token as a `Bearer` header in every subsequent request:
+
+----
+Authorization: Bearer <token>
+----
+
+Alternatively, the server also accepts the token as a cookie named `__Host-loom_token`.
+
+== Token Expiration
+
+Tokens expire after *3 600 seconds* (1 hour) by default.
+Override with:
+
+[source,yaml]
+----
+auth:
+  tokenExpirationTime: 7200
+----
+
+Or via the environment variable `LOOM_TOKEN_EXPIRATION_TIME` (value in seconds).
+
+== Keystore
+
+JWT tokens are signed with an HMAC key stored in a JCEKS keystore.
+The keystore file is `keystore.jceks` and must be present in the working directory.
+Set the keystore password in the config file:
+
+[source,yaml]
+----
+auth:
+  keystorePath: "keystore.jceks"
+  keystorePassword: "your-keystore-password"
+----
+
+== OAuth2
+
+Loom supports OAuth2 via the `/api/v1/auth/oauth2` endpoint.
+Configure the OAuth2 provider in the `auth.oauth2` section of `loom.yml`.
+
+== API Keys (Tokens)
+
+Long-lived API keys can be created and managed via the `/api/v1/tokens` endpoint.
+API keys behave like JWT tokens and are passed the same way in the `Authorization` header.

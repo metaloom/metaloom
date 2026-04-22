@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en-us">
-<head>
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
 	<meta charset="utf-8">
 	<title>Configuration</title>
 
@@ -14,39 +14,41 @@
     <meta name="twitter:creator" content="" />
     <meta name="twitter:title" content="Configuration" />
     <meta name="twitter:description" content="" />
-    <meta name="twitter:image:src" content="https://metaloom.io/images/banner_square.webp" />
+    <meta name="twitter:image:src" content="http://localhost:1313/images/banner_square.webp" />
     
     <meta property="og:title" content="Configuration">
-    <meta property="og:url" content="https://metaloom.io/docs/configuration/">
+    <meta property="og:url" content="http://localhost:1313/docs/configuration/">
     <meta property="og:description" content="">
-    <meta property="og:image" content="https://metaloom.io/images/banner_square.webp">
+    <meta property="og:image" content="http://localhost:1313/images/banner_square.webp">
 
-	<meta name="generator" content="Hugo 0.110.0">
+	<meta name="generator" content="Hugo 0.158.0">
 
 	<!-- plugins -->
 	
-	<link rel="stylesheet" href="https://metaloom.io/plugins/fontawesome5/css/all.min.css">
+	<link rel="stylesheet" href="http://localhost:1313/plugins/fontawesome5/css/all.min.css">
 	
-	<link rel="stylesheet" href="https://metaloom.io/plugins/bootstrap/bootstrap.min.css">
+	<link rel="stylesheet" href="http://localhost:1313/plugins/bootstrap/bootstrap.min.css">
 	
-	<link rel="stylesheet" href="https://metaloom.io/plugins/themify-icons/themify-icons.css">
+	<link rel="stylesheet" href="http://localhost:1313/plugins/themify-icons/themify-icons.css">
 	
-	<link rel="stylesheet" href="https://metaloom.io/plugins/magnific-popup/magnific-popup.css">
+	<link rel="stylesheet" href="http://localhost:1313/plugins/magnific-popup/magnific-popup.css">
 	
-	<link rel="stylesheet" href="https://metaloom.io/plugins/slick/slick.css">
+	<link rel="stylesheet" href="http://localhost:1313/plugins/slick/slick.css">
 	
 	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Anaheim%7cQuattrocento&#43;Sans:400,700&amp;display=swap">
 	
-	<link rel="stylesheet" href="https://metaloom.io/plugins/toc/bootstrap-toc.min.css">
+	<link rel="stylesheet" href="http://localhost:1313/plugins/toc/bootstrap-toc.min.css">
+	
+	<link rel="stylesheet" href="http://localhost:1313/plugins/swagger/swagger-ui.css">
 	
 
 	<!-- Main Stylesheet -->
 	
-	<link rel="stylesheet" href="https://metaloom.io/css/main.min.css" media="screen">
+	<link rel="stylesheet" href="http://localhost:1313/css/main.min.css" media="screen">
 
 	<!--Favicon-->
-	<link rel="shortcut icon" href="https://metaloom.io/images/favicon.png" type="image/x-icon">
-	<link rel="icon" href="https://metaloom.io/images/favicon.png" type="image/x-icon">
+	<link rel="shortcut icon" href="http://localhost:1313/images/favicon.png" type="image/x-icon">
+	<link rel="icon" href="http://localhost:1313/images/favicon.png" type="image/x-icon">
 
 	
 
@@ -63,7 +65,7 @@
 		<nav class="navbar navbar-expand-lg navbar-dark">
 			<a class="navbar-brand p-0" href="/">
 				
-				<img class="lozad" src="https://metaloom.io/images/logo_word_big.svg" alt="MetaLoom" height="42">
+				<img class="lozad" src="http://localhost:1313/images/logo_word_big.svg" alt="MetaLoom" height="42">
 				
 			</a>
 
@@ -111,25 +113,15 @@
         <div class="post-single-content">
           <div class="listingblock">
 <div class="content">
-<pre class="highlight"><code class="language-json" data-lang="json">---
-database:
-  host: &#34;127.0.0.1&#34;
-  port: 5432
-  username: &#34;postgres&#34;
-  password: &#34;finger&#34;
-  databaseName: &#34;loom&#34;
-  minPoolSize: 5
-  acquireIncrement: 5
-  maxPoolSize: 20
-  jdbcUrl: &#34;jdbc:postgresql://127.0.0.1:5432/loom&#34;
-server:
-  grpcPort: 8091
-  bindAddress: &#34;0.0.0.0&#34;
-  restPort: 8092
-  monitoringPort: 8989
-auth:
-  keystorePath: &#34;keystore.jceks&#34;
-  keystorePassword: &#34;D9guazY873Kv&#34;</code></pre>
+<pre class="highlight"><code class="language-json" data-lang="json">{
+	&#34;db&#34;: {
+		&#34;host&#34;: &#34;localhost&#34;,
+		&#34;port&#34;: 5432
+	},
+	&#34;server&#34;: {
+		&#34;port&#34;: 8080
+	}
+}</code></pre>
 </div>
 </div>
 
@@ -141,7 +133,7 @@ auth:
 	<h4>Share:</h4>
 
 	
-	<a class="resp-sharing-button__link" href="https://twitter.com/intent/tweet/?text=Configuration&amp;url=https%3a%2f%2fmetaloom.io%2fdocs%2fconfiguration%2f"
+	<a class="resp-sharing-button__link" href="https://twitter.com/intent/tweet/?text=Configuration&amp;url=http%3a%2f%2flocalhost%3a1313%2fdocs%2fconfiguration%2f"
 		target="_blank" rel="noopener" aria-label="">
 		<div class="resp-sharing-button resp-sharing-button--twitter resp-sharing-button--small">
 			<div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">
@@ -154,7 +146,7 @@ auth:
 	</a>
 
 	
-	<a class="resp-sharing-button__link" href="mailto:?subject=Configuration&amp;body=https%3a%2f%2fmetaloom.io%2fdocs%2fconfiguration%2f" target="_self"
+	<a class="resp-sharing-button__link" href="mailto:?subject=Configuration&amp;body=http%3a%2f%2flocalhost%3a1313%2fdocs%2fconfiguration%2f" target="_self"
 		rel="noopener" aria-label="">
 		<div class="resp-sharing-button resp-sharing-button--email resp-sharing-button--small">
 			<div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">
@@ -168,7 +160,7 @@ auth:
 
 	
 	<a class="resp-sharing-button__link"
-		href="https://reddit.com/submit/?url=https%3a%2f%2fmetaloom.io%2fdocs%2fconfiguration%2f&amp;resubmit=true&amp;title=Configuration" target="_blank"
+		href="https://reddit.com/submit/?url=http%3a%2f%2flocalhost%3a1313%2fdocs%2fconfiguration%2f&amp;resubmit=true&amp;title=Configuration" target="_blank"
 		rel="noopener" aria-label="">
 		<div class="resp-sharing-button resp-sharing-button--reddit resp-sharing-button--small">
 			<div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">
@@ -203,8 +195,8 @@ auth:
 
 				<!-- copyright -->
 				<div class="copyright text-center">
-					<a href="https://metaloom.io/">
-						<img src="https://metaloom.io/images/logo_word_big.svg" alt="MetaLoom" height="42" />
+					<a href="http://localhost:1313/">
+						<img src="http://localhost:1313/images/logo_word_big.svg" alt="MetaLoom" height="42" />
 					</a>
 					<br>
 					<p></p>
@@ -220,28 +212,32 @@ auth:
 
 <!-- JS Plugins -->
 
-<script src="https://metaloom.io/plugins/jquery/jquery.min.js"></script>
+<script src="http://localhost:1313/plugins/jquery/jquery.min.js"></script>
 
-<script src="https://metaloom.io/plugins/bootstrap/bootstrap.min.js"></script>
+<script src="http://localhost:1313/plugins/bootstrap/bootstrap.min.js"></script>
 
-<script src="https://metaloom.io/plugins/slick/slick.min.js"></script>
+<script src="http://localhost:1313/plugins/slick/slick.min.js"></script>
 
-<script src="https://metaloom.io/plugins/shuffle/shuffle.min.js"></script>
+<script src="http://localhost:1313/plugins/shuffle/shuffle.min.js"></script>
 
-<script src="https://metaloom.io/plugins/magnific-popup/jquery.magnific-popup.min.js"></script>
+<script src="http://localhost:1313/plugins/magnific-popup/jquery.magnific-popup.min.js"></script>
 
-<script src="https://metaloom.io/plugins/lazy-load/lozad.min.js"></script>
+<script src="http://localhost:1313/plugins/lazy-load/lozad.min.js"></script>
 
-<script src="https://metaloom.io/plugins/toc/bootstrap-toc.min.js"></script>
+<script src="http://localhost:1313/plugins/toc/bootstrap-toc.min.js"></script>
 
-<script src="https://metaloom.io/plugins/toc/toc.js"></script>
+<script src="http://localhost:1313/plugins/toc/toc.js"></script>
 
-<script src="https://metaloom.io/plugins/swagger/swagger.js"></script>
+<script src="http://localhost:1313/plugins/swagger/swagger-ui-bundle.js"></script>
+
+<script src="http://localhost:1313/plugins/swagger/swagger-ui-standalone-preset.js"></script>
+
+<script src="http://localhost:1313/plugins/swagger/swagger.js"></script>
 
 
 <!-- Main Script -->
 
-<script src="https://metaloom.io/js/script.min.561d4194db5c74b1ef31dc32f4a688e74fd5cb99890203fdd8f7fbf9350071c37a7943c3df205fa1f943fb70bd80c8b1.js" integrity="sha384-Vh1BlNtcdLHvMdwy9KaI50/Vy5mJAgP92Pf7&#43;TUAccN6eUPD3yBfoflD&#43;3C9gMix"></script>
+<script src="http://localhost:1313/js/script.min.ef558ab60e181d3d6e423237a73e635357660ad269aaf394b450c69972f92a96dd457107aab6b5e167d70fc55cb53636.js" integrity="sha384-71WKtg4YHT1uQjI3pz5jU1dmCtJpqvOUtFDGmXL5KpbdRXEHqra14WfXD8VctTY2"></script>
 
 <!-- Highlight Script -->
 <link rel="stylesheet" href="/plugins/highlight/styles/obsidian.css">

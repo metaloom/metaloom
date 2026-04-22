@@ -1,0 +1,142 @@
+---
+title: Java Client Usage
+---
+
+= Java Client Usage
+
+The `loom-rest-client` module provides a typed HTTP client for JVM applications.
+
+== Maven Dependency
+
+[source,xml]
+----
+<dependency>
+    <groupId>io.metaloom.loom.client</groupId>
+    <artifactId>loom-rest-client</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+</dependency>
+----
+
+== Creating a Client
+
+Use the fluent builder to configure and construct the client:
+
+[source,java]
+----
+LoomHttpClient client = LoomHttpClient.builder()
+    .hostname("localhost")
+    .port(8092)
+    .build();
+----
+
+== Authentication
+
+[source,java]
+----
+// Login and store the token
+AuthLoginRequest loginRequest = new AuthLoginRequest()
+    .setUsername("admin")
+    .setPassword("secret");
+
+AuthLoginResponse loginResponse = client.login(loginRequest).sync();
+client.setToken(loginResponse.getToken());
+----
+
+The token is automatically included as a `Bearer` header in all subsequent requests.
+
+== Working with Assets
+
+[source,java]
+----
+// Create an asset
+AssetCreateRequest createReq = new AssetCreateRequest()
+    .setFilename("photo.jpg")
+    .setSha512("abc123...");
+AssetResponse asset = client.createAsset(createReq).sync();
+
+// Load an asset by UUID
+AssetResponse found = client.loadAsset(UUID.fromString(asset.getUuid())).sync();
+
+// Update an asset
+AssetUpdateRequest updateReq = new AssetUpdateRequest()
+    .setDescription("My photo");
+client.updateAsset(UUID.fromString(asset.getUuid()), updateReq).sync();
+
+// Delete an asset
+client.deleteAsset(UUID.fromString(asset.getUuid())).sync();
+
+// List assets (paged)
+AssetListResponse list = client.listAssets().sync();
+----
+
+== Working with Tags
+
+[source,java]
+----
+TagCreateRequest tagReq = new TagCreateRequest().setName("holiday");
+TagResponse tag = client.createTag(tagReq).sync();
+
+// Add tag to asset
+client.addTagToAsset(assetUuid, UUID.fromString(tag.getUuid())).sync();
+
+// Remove tag from asset
+client.removeTagFromAsset(assetUuid, UUID.fromString(tag.getUuid())).sync();
+----
+
+== Working with Users, Groups and Roles
+
+[source,java]
+----
+// Create user
+UserCreateRequest userReq = new UserCreateRequest()
+    .setUsername("alice")
+    .setPassword("s3cret");
+UserResponse user = client.createUser(userReq).sync();
+
+// Create group and assign user
+GroupCreateRequest groupReq = new GroupCreateRequest().setName("editors");
+GroupResponse group = client.createGroup(groupReq).sync();
+
+// Create role and assign permissions
+RoleCreateRequest roleReq = new RoleCreateRequest().setName("asset-editor");
+RoleResponse role = client.createRole(roleReq).sync();
+----
+
+== Pipelines
+
+[source,java]
+----
+// Create a pipeline definition
+PipelineCreateRequest pipelineReq = new PipelineCreateRequest()
+    .setName("ingest-pipeline")
+    .setEnabled(true);
+PipelineResponse pipeline = client.createPipeline(pipelineReq).sync();
+
+// List pipelines
+PipelineListResponse pipelines = client.listPipelines().sync();
+----
+
+== Async Usage
+
+All methods return a `LoomClientRequest<T>` that supports both synchronous `.sync()` and reactive `.rx()` usage:
+
+[source,java]
+----
+// Synchronous
+AssetResponse asset = client.loadAsset(uuid).sync();
+
+// Reactive (RxJava)
+client.loadAsset(uuid).rx()
+    .subscribe(a -> System.out.println("Loaded: " + a.getUuid()));
+----
+
+== Closing the Client
+
+The client implements `AutoCloseable`:
+
+[source,java]
+----
+try (LoomHttpClient client = LoomHttpClient.builder().hostname("localhost").build()) {
+    // use client
+}
+----

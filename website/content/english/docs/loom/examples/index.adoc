@@ -1,0 +1,71 @@
+---
+title: Examples
+---
+
+= Loom Examples
+
+The `/examples` directory of the source repository contains runnable example projects.
+
+== Listing Examples
+
+The `examples/` Maven module contains sub-projects for both Loom and Cortex use cases.
+
+== Java Client: Full Ingest Flow
+
+The following example shows a complete ingest flow: login, create an asset, upload its binary, and add a tag.
+
+[source,java]
+----
+import io.metaloom.loom.client.http.LoomHttpClient;
+import io.metaloom.loom.rest.model.auth.AuthLoginRequest;
+import io.metaloom.loom.rest.model.asset.AssetCreateRequest;
+import io.metaloom.loom.rest.model.asset.AssetResponse;
+import io.metaloom.loom.rest.model.tag.TagCreateRequest;
+
+public class IngestExample {
+    public static void main(String[] args) throws Exception {
+        // 1. Build client
+        try (LoomHttpClient client = LoomHttpClient.builder()
+                .hostname("localhost")
+                .port(8092)
+                .build()) {
+
+            // 2. Authenticate
+            var login = client.login(
+                new AuthLoginRequest().setUsername("admin").setPassword("admin123")
+            ).sync();
+            client.setToken(login.getToken());
+
+            // 3. Create asset metadata
+            AssetResponse asset = client.createAsset(
+                new AssetCreateRequest()
+                    .setFilename("holiday.jpg")
+                    .setSha512("aabbcc...")
+            ).sync();
+            System.out.println("Created asset: " + asset.getUuid());
+
+            // 4. Upload binary
+            try (var stream = java.nio.file.Files.newInputStream(
+                    java.nio.file.Path.of("holiday.jpg"))) {
+                client.uploadBinary(java.util.UUID.fromString(asset.getUuid()), stream).sync();
+            }
+
+            // 5. Tag the asset
+            var tag = client.createTag(
+                new TagCreateRequest().setName("holiday")
+            ).sync();
+            client.addTagToAsset(
+                java.util.UUID.fromString(asset.getUuid()),
+                java.util.UUID.fromString(tag.getUuid())
+            ).sync();
+
+            System.out.println("Done.");
+        }
+    }
+}
+----
+
+== Cortex Custom CLI (from examples/)
+
+The `cortex-custom-cli` example demonstrates how to build a Cortex CLI with a custom node added to the processing pipeline.
+See the link:../../cortex/examples[Cortex Examples] page for details.

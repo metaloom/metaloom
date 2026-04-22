@@ -1,0 +1,170 @@
+---
+title: REST API
+---
+
+= REST API
+
+Loom exposes its full functionality via a versioned REST API.
+All endpoints are rooted at `/api/v1`.
+
+== Authentication
+
+All endpoints (except `POST /api/v1/auth/login`) require a JWT bearer token:
+
+----
+Authorization: Bearer <token>
+----
+
+Obtain a token via the link:../authentication[Authentication] flow.
+
+== Base URL
+
+----
+http://<host>:8092/api/v1
+----
+
+Default port is `8092` (overridable via `LOOM_SERVER_REST_PORT`).
+
+== Interactive API (Swagger UI)
+
+A live Swagger UI is embedded in the link:/docs[Documentation] landing page and points to the OpenAPI spec at `/api/v1/openapi.json`.
+
+== Endpoint Reference
+
+=== Auth
+
+[options="header",cols="1,1,3"]
+|===
+| Method | Path | Description
+| POST | `/api/v1/auth/login` | Login with username + password, returns JWT token
+| POST | `/api/v1/auth/oauth2` | OAuth2 token exchange
+|===
+
+=== Assets
+
+[options="header",cols="1,1,3"]
+|===
+| Method | Path | Description
+| POST   | `/api/v1/assets` | Create a new asset
+| GET    | `/api/v1/assets` | List assets (paged)
+| POST   | `/api/v1/assets/bulk/create` | Bulk-create assets
+| POST   | `/api/v1/assets/bulk/update` | Bulk-update assets
+| GET    | `/api/v1/assets/sha512/:sha512` | Load asset by SHA-512 hash
+| POST   | `/api/v1/assets/sha512/:sha512` | Update asset by SHA-512 hash
+| DELETE | `/api/v1/assets/sha512/:sha512` | Delete asset by SHA-512 hash
+| GET    | `/api/v1/assets/:uuid` | Load asset by UUID
+| POST   | `/api/v1/assets/:uuid` | Update asset by UUID
+| DELETE | `/api/v1/assets/:uuid` | Delete asset by UUID
+| POST   | `/api/v1/assets/:uuid/tags` | Add tag to asset
+| DELETE | `/api/v1/assets/:uuid/tags/:tagUuid` | Remove tag from asset
+| POST   | `/api/v1/assets/:uuid/reactions` | Add reaction
+| GET    | `/api/v1/assets/:uuid/reactions` | List reactions
+| GET    | `/api/v1/assets/:uuid/reactions/:reactionUuid` | Load reaction
+| POST   | `/api/v1/assets/:uuid/reactions/:reactionUuid` | Update reaction
+| DELETE | `/api/v1/assets/:uuid/reactions/:reactionUuid` | Delete reaction
+| POST   | `/api/v1/assets/:uuid/binary` | Upload binary data
+| GET    | `/api/v1/assets/:uuid/binary` | Download binary data
+| DELETE | `/api/v1/assets/:uuid/binary` | Delete binary data
+|===
+
+=== Users
+
+[options="header",cols="1,1,3"]
+|===
+| Method | Path | Description
+| POST   | `/api/v1/users` | Create user
+| GET    | `/api/v1/users` | List users (paged)
+| GET    | `/api/v1/users/:uuid` | Load user
+| POST   | `/api/v1/users/:uuid` | Update user
+| DELETE | `/api/v1/users/:uuid` | Delete user
+|===
+
+=== Groups
+
+[options="header",cols="1,1,3"]
+|===
+| Method | Path | Description
+| POST   | `/api/v1/groups` | Create group
+| GET    | `/api/v1/groups` | List groups
+| GET    | `/api/v1/groups/:uuid` | Load group
+| POST   | `/api/v1/groups/:uuid` | Update group
+| DELETE | `/api/v1/groups/:uuid` | Delete group
+|===
+
+=== Roles
+
+[options="header",cols="1,1,3"]
+|===
+| Method | Path | Description
+| POST   | `/api/v1/roles` | Create role
+| GET    | `/api/v1/roles` | List roles
+| GET    | `/api/v1/roles/:uuid` | Load role
+| POST   | `/api/v1/roles/:uuid` | Update role
+| DELETE | `/api/v1/roles/:uuid` | Delete role
+|===
+
+=== Tags
+
+[options="header",cols="1,1,3"]
+|===
+| Method | Path | Description
+| POST   | `/api/v1/tags` | Create tag
+| GET    | `/api/v1/tags` | List tags
+| GET    | `/api/v1/tags/:uuid` | Load tag
+| POST   | `/api/v1/tags/:uuid` | Update tag
+| DELETE | `/api/v1/tags/:uuid` | Delete tag
+|===
+
+=== Pipelines
+
+[options="header",cols="1,1,3"]
+|===
+| Method | Path | Description
+| POST   | `/api/v1/pipelines` | Create pipeline definition
+| GET    | `/api/v1/pipelines` | List pipelines
+| GET    | `/api/v1/pipelines/:uuid` | Load pipeline
+| POST   | `/api/v1/pipelines/:uuid` | Update pipeline
+| DELETE | `/api/v1/pipelines/:uuid` | Delete pipeline
+| GET    | `/api/v1/pipelines/events/ws` | WebSocket: live pipeline events
+|===
+
+=== Libraries
+
+[options="header",cols="1,1,3"]
+|===
+| Method | Path | Description
+| POST   | `/api/v1/libraries` | Create library
+| GET    | `/api/v1/libraries` | List libraries
+| GET    | `/api/v1/libraries/:uuid` | Load library
+| POST   | `/api/v1/libraries/:uuid` | Update library
+| DELETE | `/api/v1/libraries/:uuid` | Delete library
+|===
+
+=== Collections
+
+[options="header",cols="1,1,3"]
+|===
+| Method | Path | Description
+| POST   | `/api/v1/collections` | Create collection
+| GET    | `/api/v1/collections` | List collections
+| GET    | `/api/v1/collections/:uuid` | Load collection
+| POST   | `/api/v1/collections/:uuid` | Update collection
+| DELETE | `/api/v1/collections/:uuid` | Delete collection
+|===
+
+=== Further Endpoints
+
+Additional endpoints exist for: `attachments`, `webhooks`, `tasks`, `comments`, `embeddings`, `spaces`, `annotations`, `asset-pools`, `asset-components`, `asset-binaries`, `tokens` (API keys), and `node-descriptors`.
+All follow the same CRUD pattern under `/api/v1/<resource>`.
+
+== Error Responses
+
+All errors return a JSON body with `message` and optional `statusCode` fields.
+
+[source,json]
+----
+{
+  "message": "Cannot find asset with uuid 'abc'",
+  "statusCode": 404
+}
+----

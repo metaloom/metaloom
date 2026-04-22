@@ -84,40 +84,35 @@ title: Documentation
                     </ul>
                 </li>
             </ul>
-        </div>
-
-        <div class="col-3">
+        <div class="col-md-6">
             <ul class="doc-toc">
-                <h2><a href="getting-started">Getting Started</a></h2>
+                <h2><a href="loom">Loom</a></h2>
                 <li class="doc-toc-section">
                     <ul>
-                        <li>
-                            <a href="getting-started#_quickstart">Quickstart</a>
-                        </li>
-                        <li>
-                            <a href="getting-started#_tldr">TL;DR</a>
-                        </li>
+                        <li><a href="loom/rest-api">REST API</a></li>
+                        <li><a href="loom/java-client">Java Client Usage</a></li>
+                        <li><a href="loom/authentication">Authentication</a></li>
+                        <li><a href="loom/configuration">CLI Arguments &amp; Env Settings</a></li>
+                        <li><a href="loom/artifacts">Maven Artifacts &amp; Containers</a></li>
+                        <li><a href="loom/features">Features</a></li>
+                        <li><a href="loom/examples">Examples</a></li>
                     </ul>
                 </li>
             </ul>
         </div>
-
-        <div class="col-3">
+        <div class="col-md-6">
             <ul class="doc-toc">
-                <h2><a href="getting-started">Getting Started</a></h2>
+                <h2><a href="cortex">Cortex</a></h2>
                 <li class="doc-toc-section">
                     <ul>
-                        <li>
-                            <a href="getting-started#_quickstart">Quickstart</a>
-                        </li>
-                        <li>
-                            <a href="getting-started#_tldr">TL;DR</a>
-                        </li>
+                        <li><a href="cortex/monitoring">Monitoring API</a></li>
+                        <li><a href="cortex/configuration">CLI Arguments &amp; Env Settings</a></li>
+                        <li><a href="cortex/artifacts">Maven Artifacts &amp; Containers</a></li>
+                        <li><a href="cortex/nodes">Pipeline Nodes</a></li>
+                        <li><a href="cortex/features">Features</a></li>
+                        <li><a href="cortex/examples">Examples</a></li>
                     </ul>
                 </li>
             </ul>
         </div>
-    </div>
-</div>
-
-++++
+            </ul>

@@ -2,39 +2,81 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
   xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
-    <loc>https://metaloom.io/blog/</loc>
+    <loc>http://localhost:1313/blog/</loc>
     <lastmod>2025-01-28T14:51:12+06:00</lastmod>
   </url><url>
-    <loc>https://metaloom.io/blog/java-ffm-graph-storage-poc/</loc>
+    <loc>http://localhost:1313/blog/java-ffm-graph-storage-poc/</loc>
     <lastmod>2025-01-28T14:51:12+06:00</lastmod>
   </url><url>
-    <loc>https://metaloom.io/</loc>
+    <loc>http://localhost:1313/</loc>
     <lastmod>2025-01-28T14:51:12+06:00</lastmod>
   </url><url>
-    <loc>https://metaloom.io/blog/video-fingerprinting/</loc>
+    <loc>http://localhost:1313/blog/video-fingerprinting/</loc>
     <lastmod>2021-06-21T21:51:12+06:00</lastmod>
   </url><url>
-    <loc>https://metaloom.io/blog/day4-vertx-jooq-poc/</loc>
+    <loc>http://localhost:1313/blog/day4-vertx-jooq-poc/</loc>
     <lastmod>2021-05-19T21:51:12+06:00</lastmod>
   </url><url>
-    <loc>https://metaloom.io/blog/day3-vertx-dagger-poc/</loc>
+    <loc>http://localhost:1313/blog/day3-vertx-dagger-poc/</loc>
     <lastmod>2021-05-17T14:51:12+06:00</lastmod>
   </url><url>
-    <loc>https://metaloom.io/blog/day2-project-setup/</loc>
+    <loc>http://localhost:1313/blog/day2-project-setup/</loc>
     <lastmod>2021-05-16T14:51:12+06:00</lastmod>
   </url><url>
-    <loc>https://metaloom.io/blog/day1-project-design/</loc>
+    <loc>http://localhost:1313/blog/day1-project-design/</loc>
     <lastmod>2021-05-13T14:51:12+06:00</lastmod>
   </url><url>
-    <loc>https://metaloom.io/blog/day0-let-there-be-loom/</loc>
+    <loc>http://localhost:1313/blog/day0-let-there-be-loom/</loc>
     <lastmod>2021-05-12T14:51:12+06:00</lastmod>
   </url><url>
-    <loc>https://metaloom.io/author/</loc>
+    <loc>http://localhost:1313/docs/test/</loc>
   </url><url>
-    <loc>https://metaloom.io/categories/</loc>
+    <loc>http://localhost:1313/docs/loom/authentication/</loc>
   </url><url>
-    <loc>https://metaloom.io/author/jotschi/</loc>
+    <loc>http://localhost:1313/author/</loc>
   </url><url>
-    <loc>https://metaloom.io/tags/</loc>
+    <loc>http://localhost:1313/categories/</loc>
+  </url><url>
+    <loc>http://localhost:1313/docs/cortex/configuration/</loc>
+  </url><url>
+    <loc>http://localhost:1313/docs/configuration/</loc>
+  </url><url>
+    <loc>http://localhost:1313/docs/loom/configuration/</loc>
+  </url><url>
+    <loc>http://localhost:1313/docs/cortex/</loc>
+  </url><url>
+    <loc>http://localhost:1313/docs/</loc>
+  </url><url>
+    <loc>http://localhost:1313/docs/cortex/examples/</loc>
+  </url><url>
+    <loc>http://localhost:1313/docs/loom/examples/</loc>
+  </url><url>
+    <loc>http://localhost:1313/docs/cortex/features/</loc>
+  </url><url>
+    <loc>http://localhost:1313/docs/loom/features/</loc>
+  </url><url>
+    <loc>http://localhost:1313/docs/loom/java-client/</loc>
+  </url><url>
+    <loc>http://localhost:1313/author/jotschi/</loc>
+  </url><url>
+    <loc>http://localhost:1313/docs/loom/</loc>
+  </url><url>
+    <loc>http://localhost:1313/docs/interaction/</loc>
+  </url><url>
+    <loc>http://localhost:1313/docs/cortex/artifacts/</loc>
+  </url><url>
+    <loc>http://localhost:1313/docs/loom/artifacts/</loc>
+  </url><url>
+    <loc>http://localhost:1313/docs/cortex/monitoring/</loc>
+  </url><url>
+    <loc>http://localhost:1313/docs/pipeline/</loc>
+  </url><url>
+    <loc>http://localhost:1313/docs/cortex/nodes/</loc>
+  </url><url>
+    <loc>http://localhost:1313/docs/loom/rest-api/</loc>
+  </url><url>
+    <loc>http://localhost:1313/docs/rest/</loc>
+  </url><url>
+    <loc>http://localhost:1313/tags/</loc>
   </url>
 </urlset>

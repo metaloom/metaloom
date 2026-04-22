@@ -1,0 +1,88 @@
+---
+title: Monitoring API
+---
+
+= Monitoring API
+
+Cortex exposes a lightweight monitoring/health endpoint that can be used by load balancers,
+Kubernetes liveness probes, and Prometheus scrapers.
+
+== Default Endpoint
+
+----
+http://localhost:8093
+----
+
+The port is configurable with `--monitoring-port` or the `CORTEX_MONITORING_PORT` environment variable (default: `8093`).
+
+== Health Check
+
+----
+GET /health
+----
+
+Returns HTTP `200 OK` with a JSON body when Cortex is running and healthy:
+
+[source,json]
+----
+{
+  "status": "UP"
+}
+----
+
+Returns HTTP `503 Service Unavailable` when Cortex is starting up or shutting down.
+
+== Metrics
+
+Cortex exposes JVM and application metrics in Prometheus text format:
+
+----
+GET /metrics
+----
+
+Exposed metrics include:
+
+* JVM memory usage (heap / non-heap)
+* Thread pool sizes and task queue depths
+* Per-node processing counters (processed, skipped, failed)
+* Pipeline execution times
+
+== Kubernetes Probe Configuration
+
+[source,yaml]
+----
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 8093
+  initialDelaySeconds: 10
+  periodSeconds: 15
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 8093
+  initialDelaySeconds: 5
+  periodSeconds: 10
+----
+
+== Changing the Port
+
+Via CLI:
+
+----
+cortex server start --monitoring-port 9090
+----
+
+Via environment variable:
+
+----
+CORTEX_MONITORING_PORT=9090 cortex server start
+----
+
+Via YAML configuration (if applicable to the deployment):
+
+[source,yaml]
+----
+monitoringPort: 9090
+----

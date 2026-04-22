@@ -1,0 +1,115 @@
+---
+title: Maven Artifacts & Containers
+---
+
+= Maven Artifacts & Containers
+
+== Maven Artifacts
+
+All Loom artifacts are published under the `io.metaloom` group.
+
+=== Parent / BOM
+
+[source,xml]
+----
+<dependency>
+    <groupId>io.metaloom</groupId>
+    <artifactId>metaloom-parent</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <type>pom</type>
+</dependency>
+----
+
+=== REST Client
+
+[source,xml]
+----
+<dependency>
+    <groupId>io.metaloom.loom.client</groupId>
+    <artifactId>loom-rest-client</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+</dependency>
+----
+
+=== gRPC Client
+
+[source,xml]
+----
+<dependency>
+    <groupId>io.metaloom.loom.client</groupId>
+    <artifactId>loom-grpc-client</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+</dependency>
+----
+
+=== REST Model (shared DTOs)
+
+[source,xml]
+----
+<dependency>
+    <groupId>io.metaloom.loom</groupId>
+    <artifactId>loom-rest-model</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+</dependency>
+----
+
+=== Shared API
+
+[source,xml]
+----
+<dependency>
+    <groupId>io.metaloom.loom</groupId>
+    <artifactId>loom-api</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+</dependency>
+----
+
+== Docker Container
+
+The Loom server is distributed as a Docker image.
+
+=== Running with Docker
+
+[source,bash]
+----
+docker run -d \
+  --name loom \
+  -p 8092:8092 \
+  -p 8091:8091 \
+  -p 8989:8989 \
+  -e LOOM_DB_HOST=postgres \
+  -e LOOM_DB_PASSWORD=secret \
+  -e LOOM_INITIAL_PASSWORD=admin123 \
+  -v loom-config:/app/config \
+  metaloom/loom:latest
+----
+
+=== Docker Compose
+
+[source,yaml]
+----
+version: "3.8"
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: loom
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
+
+  loom:
+    image: metaloom/loom:latest
+    depends_on:
+      - postgres
+    ports:
+      - "8092:8092"
+      - "8989:8989"
+    environment:
+      LOOM_DB_HOST: postgres
+      LOOM_DB_PASSWORD: secret
+      LOOM_INITIAL_PASSWORD: admin123
+----
+
+== Helm Chart
+
+A Helm chart for Kubernetes deployments is available in the `loom/helm` directory of the source repository.

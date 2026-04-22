@@ -1,0 +1,9 @@
+---
+title: Configuration
+---
+
+
+[source,json]
+----
+include::../examples/loom-config.yaml[]
+----

@@ -1,0 +1,13 @@
+---
+title: Administration Guide
+---
+
+include::../variables.adoc-include[]
+
+# Docs
+
+## A
+
+## B
+### C
+The docs

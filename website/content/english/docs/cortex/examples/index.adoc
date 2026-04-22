@@ -1,0 +1,158 @@
+---
+title: Examples
+---
+
+= Cortex Examples
+
+The `examples/` directory in the source repository contains two Cortex example projects.
+
+== cortex-custom-node
+
+A minimal Maven project that shows how to build a custom processing node.
+
+=== `HelloWorldNode`
+
+[source,java]
+----
+/**
+ * Custom Cortex node that reads file size and word count from each media asset.
+ */
+public class HelloWorldNode extends AbstractMediaNode<HelloWorldNodeOptions> {
+
+    public static final String OUTPUT_FILE_SIZE  = "file_size";
+    public static final String OUTPUT_WORD_COUNT = "word_count";
+
+    @Inject
+    public HelloWorldNode(@Nullable LoomClient client,
+                          CortexOptions cortexOption,
+                          HelloWorldNodeOptions options) {
+        super(client, cortexOption, options);
+    }
+
+    @Override
+    public String name() {
+        return "hello-world";
+    }
+
+    @Override
+    protected boolean isProcessable(NodeContext<LoomMedia> ctx) {
+        return true; // accepts all media types
+    }
+
+    @Override
+    protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
+        LoomMedia media = ctx.media();
+
+        // Read an output published by an upstream node (e.g. sha256)
+        String upstreamHash = ctx.upstreamOutput("sha256", "sha256");
+
+        // Compute outputs
+        long fileSize  = media.size();
+        long wordCount = countWords(media.file());
+
+        // Publish outputs for downstream nodes
+        ctx.output(OUTPUT_FILE_SIZE,  fileSize);
+        ctx.output(OUTPUT_WORD_COUNT, wordCount);
+        ctx.info("file_size=" + fileSize + ", word_count=" + wordCount);
+
+        return ctx.origin(COMPUTED).next();
+    }
+}
+----
+
+=== `HelloWorldNodeOptions`
+
+Options control per-node CLI flags and are injected via Dagger:
+
+[source,java]
+----
+@Singleton
+public class HelloWorldNodeOptions extends AbstractNodeOptions {
+
+    @Option(names = "--hw-enabled", description = "Enable HelloWorldNode")
+    private boolean enabled = true;
+
+    @Override
+    public boolean isEnabled() { return enabled; }
+}
+----
+
+=== Dagger Module
+
+Register the node so the pipeline runner discovers it:
+
+[source,java]
+----
+@Module
+public abstract class HelloWorldNodeModule {
+    @Binds @IntoSet
+    public abstract MediaNode bindHelloWorldNode(HelloWorldNode node);
+}
+----
+
+== cortex-custom-cli
+
+The `cortex-custom-cli` example shows how to assemble a complete Cortex CLI binary that includes your custom node alongside the built-in nodes.
+
+=== `NodeCollectionModule`
+
+[source,java]
+----
+@Module(includes = {
+    HelloWorldNodeModule.class,
+    // ... add other built-in node modules here
+})
+public interface NodeCollectionModule {}
+----
+
+=== `CortexComponent`
+
+Wire the Dagger component with the custom module:
+
+[source,java]
+----
+@Singleton
+@Component(modules = {
+    NodeCollectionModule.class,
+    LoomStorageModule.class,
+    PicoCLIModule.class
+})
+public interface CortexComponent {
+    CommandLine cli();
+    // ...
+}
+----
+
+=== Running the Custom CLI
+
+[source,bash]
+----
+# Build the fat JAR
+mvn package
+
+# Process a folder with the custom node enabled
+java -jar target/cortex-custom-cli.jar process run --actions hello-world /media/inbox
+----
+
+== Unit Testing a Node
+
+[source,java]
+----
+class HelloWorldNodeTest {
+
+    @Test
+    void testCompute() {
+        // Arrange
+        HelloWorldNode node = new HelloWorldNode(null, new CortexOptions(),
+                                                 new HelloWorldNodeOptions());
+        NodeContext<LoomMedia> ctx = MockNodeContext.forFile(Path.of("src/test/resources/sample.txt"));
+
+        // Act
+        NodeResult result = node.compute(ctx, null);
+
+        // Assert
+        assertEquals(COMPUTED, result.origin());
+        assertNotNull(ctx.output(HelloWorldNode.OUTPUT_FILE_SIZE));
+    }
+}
+----

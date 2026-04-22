@@ -1,0 +1,17 @@
+---
+title: Configuration
+---
+
+
+[source,json]
+----
+{
+	"db": {
+		"host": "localhost",
+		"port": 5432
+	},
+	"server": {
+		"port": 8080
+	}
+}
+----

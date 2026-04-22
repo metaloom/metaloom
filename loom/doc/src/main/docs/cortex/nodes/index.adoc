@@ -1,0 +1,187 @@
+---
+title: Pipeline Nodes
+---
+
+= Cortex Pipeline Nodes
+
+Cortex ships with a set of built-in processing nodes.
+Each node has a unique name that is used to reference it in CLI `--actions` flags and pipeline definitions.
+
+Every node extends `AbstractMediaNode` and follows the same lifecycle:
+
+. *enabled?* — is the node active in this run?
+. *exists?* — has this asset already been processed by this node (cached result)?
+. *processable?* — does the media type match (e.g. video only)?
+. *compute()* — perform the actual processing.
+
+Results are stored in the local metadata cache (`--meta-path`) and optionally forwarded to Loom via the `loom` node.
+
+== Hashing Nodes
+
+=== `sha256`
+
+Computes the SHA-256 hash of the media file.
+
+* Output key: `sha256` (string)
+* Reads from Loom (online mode) to avoid recomputation when the hash is already stored.
+
+=== `sha512`
+
+Computes the SHA-512 hash of the media file.
+
+* Output key: `sha512` (string)
+
+=== `md5`
+
+Computes the MD5 hash of the media file.
+
+* Output key: `md5` (string)
+
+=== `chunk-hash`
+
+Computes a content-based chunked hash.
+Used for near-duplicate detection on partially modified files.
+
+* Output key: `chunk_hash` (string)
+
+== Fingerprinting
+
+=== `fingerprint`
+
+Generates a perceptual video fingerprint using the multi-sector algorithm from `video4j-fingerprint`.
+The fingerprint enables similarity search and near-duplicate detection for video content.
+
+* Applicable to: video files
+* Output key: `fingerprint` (string)
+* Depends on: `video4j` native library (OpenCV)
+
+== Media Metadata
+
+=== `tika`
+
+Extracts rich metadata from any file format using Apache Tika.
+Supports images, video, audio, PDFs, Office documents, and more.
+
+* Applicable to: all media types
+* Output keys:
+  - `tika_flags` — processing flags
+  - `tika_content` — full extracted text content
+
+== Thumbnail Generation
+
+=== `thumbnail`
+
+Generates a preview thumbnail image from a video or image file.
+
+* Applicable to: video, image
+* Output keys:
+  - `thumbnail_flag` — processing status flag
+  - `thumbnail_path` — path to the generated thumbnail file
+
+== Scene Detection
+
+=== `scene-detection`
+
+Detects scene changes in video files using optical-flow analysis.
+Returns a list of timestamps where scene cuts occur.
+
+* Applicable to: video files
+* Output key: `scene_detection` (string/JSON)
+* Algorithm: `OpticalFlowSceneDetector`
+
+== Face Detection
+
+=== `facedetect`
+
+Detects faces in images and video frames.
+Extracts face regions and (optionally) computes face embeddings for recognition.
+
+* Applicable to: image, video
+* Output: face bounding boxes, embedding vectors
+* Supports scanning full video via `VideoFaceScanner`
+
+=== `face-description`
+
+Generates a textual description of detected faces using a vision-language model.
+
+* Depends on: `facedetect` node (upstream)
+
+== Deduplication
+
+=== `hash-dedup`
+
+Detects exact duplicates by comparing SHA-512 hashes against the Loom asset database.
+
+* Depends on: `sha512` node (upstream)
+
+=== `fingerprint-dedup`
+
+Detects near-duplicate videos by comparing fingerprints via vector similarity search.
+
+* Depends on: `fingerprint` node (upstream)
+
+== OCR
+
+=== `ocr`
+
+Extracts text from images and document scans using Tesseract (via Tess4J).
+
+* Applicable to: image, PDF
+* Output key: `ocr_text` (string)
+
+== Captioning
+
+=== `captioning`
+
+Generates a natural-language caption for an image or video frame using the SmolVLM vision-language model.
+
+* Applicable to: image, video
+* Output key: `caption_result` (string)
+* Requires: SmolVLM HTTP service (configurable host/port via `CaptioningNodeOptions`)
+
+== LLM Enrichment
+
+=== `llm`
+
+Sends asset metadata to a large language model (LLM) via Ollama for enrichment.
+The default prompt asks the model to classify and describe the asset.
+
+* Output key: LLM-generated JSON response
+* Default model: `gemma2:27b`
+* Requires: Ollama service
+
+== Consistency
+
+=== `consistency`
+
+Checks that stored metadata is consistent with the actual file on disk.
+Detects corruption, truncation, and format mismatches.
+
+* Applicable to: all media types
+
+== Loom Sync
+
+=== `loom`
+
+Forwards all results from upstream nodes to the Loom server via the REST API.
+This node is what makes "online mode" work — without it, Cortex only writes to local xattr/meta-path storage.
+
+* Requires: Loom connection (`--hostname`, `--port`)
+
+== Speech-to-Text
+
+=== `whisper`
+
+Transcribes audio tracks using the Whisper speech-to-text model.
+
+* Applicable to: audio, video (audio track)
+* Requires: whisper.cpp or compatible Whisper HTTP service
+
+== Quality Assessment
+
+=== `quality`
+
+Assesses the perceptual quality of an image or video frame (blur detection, exposure, noise level).
+
+* Applicable to: image, video
+* Output key: quality score

@@ -1,0 +1,104 @@
+---
+title: Features
+---
+
+= Cortex Features
+
+== Media Processing
+
+Cortex can process any media file type — images, videos, audio, and documents.
+The specific analyses performed depend on which nodes are active in a pipeline.
+
+== Offline Mode
+
+In offline mode Cortex requires no network connection and no Loom server.
+Extracted metadata is stored using extended file attributes (xattr) or in the local meta-path directory (`~/.cache/metaloom/cortex/meta`).
+This makes Cortex suitable for air-gapped environments and for pre-processing large archives before connecting to a Loom server.
+
+== Online Mode
+
+When connected to Loom, Cortex:
+
+. Authenticates against the Loom REST API.
+. Loads active pipeline definitions from Loom.
+. Processes media assets found in configured source paths.
+. Sends extracted results (hashes, thumbnails, embeddings, captions, …) back to Loom via the REST API.
+. Publishes real-time processing events over the pipeline WebSocket.
+
+== Asset Hashing
+
+Multiple hash algorithms are supported in parallel:
+
+* SHA-256
+* SHA-512
+* MD5
+* Chunk-based content hash
+
+Hashes enable exact deduplication and fast lookup of already-processed assets.
+
+== Video Fingerprinting
+
+The `fingerprint` node computes a perceptual multi-sector fingerprint for video files using the `video4j-fingerprint` library.
+The fingerprint is invariant to transcoding, resolution changes, and minor edits.
+It enables near-duplicate detection at scale via vector similarity search.
+
+== Face Detection
+
+Cortex detects faces in both images and video using the InspireFace library (or dlib/InsightFace in alternative builds).
+For each detected face it can:
+
+* Return bounding box coordinates
+* Extract facial embeddings
+* Compute the optimal focal point for cropped thumbnails
+
+== Thumbnail Generation
+
+Cortex generates preview images from video frames and source images.
+Thumbnails are stored locally and, in online mode, uploaded to Loom as asset binaries.
+
+== Metadata Extraction (Tika)
+
+Apache Tika extracts structured and unstructured metadata from any supported file format.
+This includes EXIF data from images, codec information from videos, and full-text content from documents.
+
+== Scene Detection
+
+The optical-flow scene detector splits videos into scenes, producing a list of cut timestamps.
+These timestamps can drive downstream workflows such as generating per-scene thumbnails or clips.
+
+== OCR
+
+The `ocr` node uses Tesseract to extract text from images and document pages.
+
+== AI Captioning & LLM Enrichment
+
+Cortex integrates with SmolVLM (for captioning) and Ollama (for LLM enrichment) to automatically generate natural-language descriptions of media assets.
+
+== Speech-to-Text
+
+The `whisper` node transcribes audio and video soundtracks using the Whisper model.
+
+== Consistency Checking
+
+Cortex can validate that stored metadata (hashes, dimensions, codec info) still matches the file on disk.
+Inconsistencies are flagged for review or automatic remediation.
+
+== Extensibility
+
+Cortex is designed to be extended.
+Custom nodes can be built by:
+
+. Extending `AbstractMediaNode<YourOptions>`.
+. Implementing `name()`, `isProcessable()`, and `compute()`.
+. Registering the node via a Dagger module.
+
+See link:examples[Cortex Examples] for a complete working example.
+
+== Deployment Flexibility
+
+Cortex can run as:
+
+* A long-running daemon server (`cortex server start`)
+* A one-shot batch processor (`cortex process run <path>`)
+* A Kubernetes CronJob or Job workload
+* A standalone Docker container

@@ -1,0 +1,110 @@
+---
+title: CLI Arguments & Env Settings
+---
+
+= Cortex CLI Arguments & Environment Settings
+
+Cortex is configured entirely via CLI arguments and environment variables.
+Environment variables can be used as drop-in replacements for CLI flags, which is convenient for container-based deployments.
+
+== Entry Point
+
+[source,bash]
+----
+cortex <global-options> <command> <sub-command> [options]
+----
+
+== Global Options
+
+These options apply to all commands and can be set via environment variables.
+
+[options="header",cols="2,1,1,2"]
+|===
+| Flag | Short | Default | Description
+| `--hostname` | `-h` | `localhost` | Hostname of the Loom server. Env: `LOOM_HOST`
+| `--port` | `-p` | `7733` | HTTP port of the Loom server. Env: `LOOM_PORT`
+| `--monitoring-port` | | `8093` | Monitoring HTTP port. Env: `CORTEX_MONITORING_PORT`
+| `--meta-path` | | `~/.cache/metaloom/cortex/meta` | Local metadata storage path. Env: `CORTEX_META_PATH`
+| `-v` | | _(off)_ | Enable DEBUG logging. Use `-vv` for TRACE.
+|===
+
+== Commands
+
+=== `server start`
+
+Start the Cortex server in continuous (daemon) mode.
+Cortex connects to Loom, loads pipeline definitions, and processes new assets as they arrive.
+
+[source,bash]
+----
+cortex server start [--actions <node1,node2,...>]
+----
+
+[options="header",cols="2,1,2"]
+|===
+| Option | Short | Description
+| `--actions` | `-a` | Comma-separated list of node names to enable.
+  When omitted all registered nodes are active.
+|===
+
+Example:
+
+[source,bash]
+----
+cortex --hostname loom.internal --port 7733 server start --actions sha256,thumbnail,tika
+----
+
+=== `process run`
+
+Process a local directory tree once (batch mode) and exit.
+
+[source,bash]
+----
+cortex process run [--actions <node1,...>] <path>
+----
+
+[options="header",cols="2,1,2"]
+|===
+| Option | Short | Description
+| `--actions` | `-a` | Comma-separated list of node names to enable.
+| `<path>` | | (positional) Root directory to process.
+|===
+
+Example — hash and thumbnail all files under `/media/archive`:
+
+[source,bash]
+----
+cortex process run --actions sha256,sha512,thumbnail /media/archive
+----
+
+Example — run all nodes against a directory using env vars instead of flags:
+
+[source,bash]
+----
+LOOM_HOST=loom.internal LOOM_PORT=7733 cortex process run /media/inbox
+----
+
+== Environment Variable Reference
+
+[options="header",cols="2,1,2"]
+|===
+| Variable | Default | Description
+| `LOOM_HOST` | `localhost` | Loom server hostname
+| `LOOM_PORT` | `7733` | Loom server HTTP port
+| `CORTEX_MONITORING_PORT` | `8093` | Cortex monitoring/health port
+| `CORTEX_META_PATH` | `~/.cache/metaloom/cortex/meta` | Local metadata cache directory
+|===
+
+== Verbosity
+
+[source,bash]
+----
+# INFO level (default)
+cortex server start
+
+# DEBUG level
+cortex -v server start
+
+# TRACE level
+cortex -vv server start
+----

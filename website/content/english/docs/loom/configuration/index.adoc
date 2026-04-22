@@ -1,0 +1,85 @@
+---
+title: Configuration
+---
+
+= Configuration
+
+Loom is configured via a YAML file (`loom.yml`) with optional environment variable overrides.
+
+== Config File Locations
+
+Loom looks for `loom.yml` in the following order (first match wins):
+
+. `config/loom.yml` — directory relative to the working directory
+. `~/.config/metaloom/loom.yml` — user home config
+. `/etc/metaloom/loom.yml` — system-wide config
+
+== Full Configuration Example
+
+[source,yaml]
+----
+database:
+  host: "127.0.0.1"
+  port: 5432
+  username: "postgres"
+  password: "secret"
+  databaseName: "loom"
+  minPoolSize: 5
+  acquireIncrement: 5
+  maxPoolSize: 20
+
+server:
+  grpcPort: 8091
+  bindAddress: "0.0.0.0"
+  restPort: 8092
+  monitoringPort: 8989
+
+auth:
+  keystorePath: "keystore.jceks"
+  keystorePassword: "change-me"
+  tokenExpirationTime: 3600
+----
+
+== Environment Variables
+
+All settings can be overridden with environment variables.
+Environment variables take precedence over values in `loom.yml`.
+
+=== Database
+
+[options="header",cols="2,1,2"]
+|===
+| Variable | Default | Description
+| `LOOM_DB_HOST` | `127.0.0.1` | PostgreSQL host
+| `LOOM_DB_PORT` | `5432` | PostgreSQL port
+| `LOOM_DB_USERNAME` | `postgres` | Database username
+| `LOOM_DB_PASSWORD` | `finger` | Database password
+| `LOOM_DB_NAME` | `loom` | Database name
+| `LOOM_DB_MIN_POOL_SIZE` | `5` | Minimum connection pool size
+| `LOOM_DB_MAX_POOL_SIZE` | `20` | Maximum connection pool size
+|===
+
+=== Server
+
+[options="header",cols="2,1,2"]
+|===
+| Variable | Default | Description
+| `LOOM_SERVER_REST_PORT` | `8092` | HTTP REST port
+| `LOOM_SERVER_GRPC_PORT` | `8091` | gRPC port
+| `LOOM_SERVER_GRPC_BIND_ADDRESS` | `0.0.0.0` | Bind address for all listeners
+| `LOOM_SERVER_MON_PORT` | `8989` | Monitoring/health port
+|===
+
+=== Authentication
+
+[options="header",cols="2,1,2"]
+|===
+| Variable | Default | Description
+| `LOOM_INITIAL_PASSWORD` | _(random)_ | Initial admin password (first boot only)
+| `LOOM_TOKEN_EXPIRATION_TIME` | `3600` | JWT token lifetime in seconds
+|===
+
+== CLI
+
+The Loom server CLI is currently a stub (`TBD`).
+The main entry point is `LoomCLI`. Configuration is driven entirely via the YAML file and environment variables.
