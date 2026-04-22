@@ -2,31 +2,137 @@
 title: Documentation
 ---
 
-MetaLoom consists of two core components:
+MetaLoom is built around two cooperating systems:
 
-- link:loom/[Loom]
-- link:cortex/[Cortex]
+* *Loom* manages assets, metadata, users, permissions and pipeline definitions.
+* *Cortex* processes media, extracts signals and feeds results back into Loom.
 
-== Loom
+This page is the quickest way to orient yourself in the platform and jump to the right part of the documentation.
 
-- link:loom/rest-api/[REST API]
-- link:loom/java-client/[Java Client Usage]
-- link:loom/authentication/[Authentication]
-- link:loom/configuration/[Configuration]
-- link:loom/artifacts/[Artifacts]
-- link:loom/features/[Features]
-- link:loom/examples/[Examples]
+++++
+<div class="row mt-4 mb-4">
+	<div class="col-lg-6 mb-4">
+		<div class="note p-4 h-100">
+			<h2><a href="loom/">Loom</a></h2>
+			<p>The media asset management server. Use these guides when you need the API surface, authentication model, configuration, artifacts or a feature overview.</p>
+			<ul class="doc-toc">
+				<li><a href="loom/rest-api/">REST API</a></li>
+				<li><a href="loom/java-client/">Java Client</a></li>
+				<li><a href="loom/authentication/">Authentication</a></li>
+				<li><a href="loom/configuration/">Configuration</a></li>
+				<li><a href="loom/artifacts/">Artifacts</a></li>
+				<li><a href="loom/features/">Features</a></li>
+				<li><a href="loom/examples/">Examples</a></li>
+			</ul>
+		</div>
+	</div>
+	<div class="col-lg-6 mb-4">
+		<div class="note p-4 h-100">
+			<h2><a href="cortex/">Cortex</a></h2>
+			<p>The media processing engine. Use these guides when you need node behavior, runtime configuration, deployment options or an overview of supported processing capabilities.</p>
+			<ul class="doc-toc">
+				<li><a href="cortex/nodes/">Pipeline Nodes</a></li>
+				<li><a href="cortex/features/">Features</a></li>
+				<li><a href="cortex/configuration/">Configuration</a></li>
+				<li><a href="cortex/monitoring/">Monitoring API</a></li>
+				<li><a href="cortex/artifacts/">Artifacts</a></li>
+				<li><a href="cortex/examples/">Examples</a></li>
+			</ul>
+		</div>
+	</div>
+</div>
+++++
 
-== Cortex
+== Start Here
 
-- link:cortex/monitoring/[Monitoring API]
-- link:cortex/configuration/[CLI Arguments and Env Settings]
-- link:cortex/artifacts/[Artifacts]
-- link:cortex/nodes/[Pipeline Nodes]
-- link:cortex/features/[Features]
-- link:cortex/examples/[Examples]
+If you are new to the platform, this is the shortest reading order:
 
-== Integration
+1. Read link:interaction/[Loom and Cortex Interaction] to understand the system boundary.
+2. Read link:pipeline/[Pipeline Mechanism] to understand how processing is modeled.
+3. Continue into link:loom/[Loom] or link:cortex/[Cortex] depending on whether you are integrating with the API or building processing workflows.
 
-- link:interaction/[Loom and Cortex Interaction]
-- link:pipeline/[Pipeline Mechanism]
+== Central Concepts
+
+The MetaLoom platform revolves around a small set of concepts that appear throughout the documentation.
+
+++++
+<div class="row">
+	<div class="col-md-6 col-xl-4 mb-4">
+		<div class="note p-4 h-100">
+			<h3>Asset</h3>
+			<p>The main entity in Loom. An asset represents a file together with metadata, binaries, tags, reactions, comments and derived processing output.</p>
+			<p><a href="loom/features/">See Loom features</a></p>
+		</div>
+	</div>
+	<div class="col-md-6 col-xl-4 mb-4">
+		<div class="note p-4 h-100">
+			<h3>Pipeline</h3>
+			<p>A directed graph of processing nodes. Pipelines describe how Cortex evaluates assets and how results flow between nodes.</p>
+			<p><a href="pipeline/">See pipeline mechanism</a></p>
+		</div>
+	</div>
+	<div class="col-md-6 col-xl-4 mb-4">
+		<div class="note p-4 h-100">
+			<h3>Node</h3>
+			<p>A single processing step such as hashing, OCR, thumbnail generation, face detection, captioning or synchronization back to Loom.</p>
+			<p><a href="cortex/nodes/">See pipeline nodes</a></p>
+		</div>
+	</div>
+	<div class="col-md-6 col-xl-4 mb-4">
+		<div class="note p-4 h-100">
+			<h3>Online vs Offline</h3>
+			<p>Cortex can run standalone against local files or connected to Loom, where it loads pipeline definitions and persists extracted results remotely.</p>
+			<p><a href="interaction/">See interaction model</a></p>
+		</div>
+	</div>
+	<div class="col-md-6 col-xl-4 mb-4">
+		<div class="note p-4 h-100">
+			<h3>API and Client</h3>
+			<p>Loom exposes a REST API and a Java client for creating assets, authenticating, managing users and orchestrating processing workflows.</p>
+			<p><a href="loom/rest-api/">REST API</a> · <a href="loom/java-client/">Java Client</a></p>
+		</div>
+	</div>
+	<div class="col-md-6 col-xl-4 mb-4">
+		<div class="note p-4 h-100">
+			<h3>Deployment</h3>
+			<p>Both systems ship as JVM artifacts and container images, with Kubernetes deployment paths for server and scheduled batch processing setups.</p>
+			<p><a href="loom/artifacts/">Loom artifacts</a> · <a href="cortex/artifacts/">Cortex artifacts</a></p>
+		</div>
+	</div>
+</div>
+++++
+
+== Choose Your Path
+
+Choose the documentation track that matches your task:
+
+[options="header",cols="1,2,2"]
+|===
+| Goal | Start with | Then continue to
+
+| Integrate a client application with Loom
+| link:loom/rest-api/[REST API] or link:loom/java-client/[Java Client]
+| link:loom/authentication/[Authentication], link:loom/configuration/[Configuration]
+
+| Understand how media gets processed
+| link:interaction/[Loom and Cortex Interaction]
+| link:pipeline/[Pipeline Mechanism], link:cortex/nodes/[Pipeline Nodes]
+
+| Deploy or operate the system
+| link:loom/artifacts/[Loom Artifacts], link:cortex/artifacts/[Cortex Artifacts]
+| link:cortex/monitoring/[Monitoring], link:cortex/configuration/[Cortex Configuration]
+
+| Learn the data model and feature surface
+| link:loom/features/[Loom Features]
+| link:cortex/features/[Cortex Features]
+|===
+
+== Architecture View
+
+The overall system flow is:
+
+. Loom stores asset metadata, user state and pipeline definitions.
+. Cortex loads or receives work, processes media through pipeline nodes and emits results.
+. Results are stored locally, sent back to Loom, and exposed through APIs, events and search systems.
+
+For the full interaction model, continue with link:interaction/[Loom and Cortex Interaction].
