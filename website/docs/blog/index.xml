@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Blogs on MetaLoom</title>
+    <link>https://metaloom.io/blog/</link>
+    <description>Recent content in Blogs on MetaLoom</description>
+    <generator>Hugo</generator>
+    <language>en-us</language>
+    <lastBuildDate>Tue, 28 Jan 2025 14:51:12 +0600</lastBuildDate>
+    <atom:link href="https://metaloom.io/blog/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Java FFM - Graph Storage PoC</title>
+      <link>https://metaloom.io/blog/java-ffm-graph-storage-poc/</link>
+      <pubDate>Tue, 28 Jan 2025 14:51:12 +0600</pubDate>
+      <guid>https://metaloom.io/blog/java-ffm-graph-storage-poc/</guid>
+      <description>Graph Storage PoC FFM Basics - Memory The main building blocks for foreign memory handling are Arena, MemoryLayout and MemorySegmet.</description>
+    </item>
+    <item>
+      <title>Video Fingerprinting</title>
+      <link>https://metaloom.io/blog/video-fingerprinting/</link>
+      <pubDate>Mon, 21 Jun 2021 21:51:12 +0600</pubDate>
+      <guid>https://metaloom.io/blog/video-fingerprinting/</guid>
+      <description>Intro In this post I want to share my experiments on how to generate video fingerprints.</description>
+    </item>
+    <item>
+      <title>Day4 - Vert.x jOOQ PoC</title>
+      <link>https://metaloom.io/blog/day4-vertx-jooq-poc/</link>
+      <pubDate>Wed, 19 May 2021 21:51:12 +0600</pubDate>
+      <guid>https://metaloom.io/blog/day4-vertx-jooq-poc/</guid>
+      <description>Intro In this post I want to present a reactive database layer proof of concept implementation I did which will hopefully make its way into my MetaLoom project.</description>
+    </item>
+    <item>
+      <title>Day3 - Vert.x Dagger PoC</title>
+      <link>https://metaloom.io/blog/day3-vertx-dagger-poc/</link>
+      <pubDate>Mon, 17 May 2021 14:51:12 +0600</pubDate>
+      <guid>https://metaloom.io/blog/day3-vertx-dagger-poc/</guid>
+      <description>Dagger / Vert.x In this post I want to show a proof of concept project that makes use of Eclipse Vert.</description>
+    </item>
+    <item>
+      <title>Day2 - Project Setup</title>
+      <link>https://metaloom.io/blog/day2-project-setup/</link>
+      <pubDate>Sun, 16 May 2021 14:51:12 +0600</pubDate>
+      <guid>https://metaloom.io/blog/day2-project-setup/</guid>
+      <description>Disclaimer Coke vs. Sprite&#xA;Ketchup vs. Majo&#xA;Eclipse vs. IntelliJ&#xA;Java vs. Kotlin vs. Rust</description>
+    </item>
+    <item>
+      <title>Day1 - Project Design</title>
+      <link>https://metaloom.io/blog/day1-project-design/</link>
+      <pubDate>Thu, 13 May 2021 14:51:12 +0600</pubDate>
+      <guid>https://metaloom.io/blog/day1-project-design/</guid>
+      <description>Basics For Loom I knew what kind of building blocks were required since it is basically just a continuation of my work on Mesh.</description>
+    </item>
+    <item>
+      <title>Day0 - Let there be Loom</title>
+      <link>https://metaloom.io/blog/day0-let-there-be-loom/</link>
+      <pubDate>Wed, 12 May 2021 14:51:12 +0600</pubDate>
+      <guid>https://metaloom.io/blog/day0-let-there-be-loom/</guid>
+      <description>What is Loom? Loom is a headless media asset management server platform. It provides tools to inventory your media assets and extract the most information from them.</description>
+    </item>
+  </channel>
+</rss>

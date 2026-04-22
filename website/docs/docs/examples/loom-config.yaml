@@ -1,0 +1,19 @@
+---
+database:
+  host: "127.0.0.1"
+  port: 5432
+  username: "postgres"
+  password: "finger"
+  databaseName: "loom"
+  minPoolSize: 5
+  acquireIncrement: 5
+  maxPoolSize: 20
+  jdbcUrl: "jdbc:postgresql://127.0.0.1:5432/loom"
+server:
+  grpcPort: 8091
+  bindAddress: "0.0.0.0"
+  restPort: 8092
+  monitoringPort: 8989
+auth:
+  keystorePath: "keystore.jceks"
+  keystorePassword: "D9guazY873Kv"

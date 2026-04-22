@@ -1,0 +1,24 @@
+############################# About ###################################
+about:
+  enable : true
+  title : About MetaLoom
+  content: >-
+    Loom is a Headless Media Asset Management System which is still in __early development__.
+
+    At the moment there are no public sources or binaries available for download. If you are however interested in the development process or have general question I recommend to checkout my [blog](/blog/day0-let-there-be-loom).
+
+    
+    Loom is a private project which is not backed by a company. The design, development is done by [Johannes Schüth](#team).
+
+  about_item :
+  - icon : ti-file
+    title : Assets
+    content : Assets of any sort can be feed into Loom. Stored assets will be processed and made available via S3 and REST API.
+
+  - icon : ti-package
+    title : Contents
+    content : Additional contents (e.g. metadata, tags, ratings, text, numbers, free JSON) can also be stored in Loom along with your assets.
+
+  - icon : ti-cloud
+    title : API
+    content : The REST and GraphQL API allows you to retrieve and update the assets and their connected contents.

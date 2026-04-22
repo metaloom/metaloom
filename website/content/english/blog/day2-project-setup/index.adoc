@@ -1,0 +1,283 @@
+---
+title: "Day2 - Project Setup"
+date: 2021-05-16T14:51:12+06:00
+image: terry-vlisidis-WsEbnsnKbUE-unsplash.jpg
+image_webp: terry-vlisidis-WsEbnsnKbUE-unsplash.webp
+image_credit: Photo by Terry Vlisidis on Unsplash
+author: jotschi
+description : "Let's talk about the project setup."
+---
+
+:icons: font
+
+## Disclaimer
+
+* Coke vs. Sprite
+* Ketchup vs. Majo
+* Eclipse vs. IntelliJ
+* Java vs. Kotlin vs. Rust
+
+Almost 99% of the time there is no perfect solution to a problem.
+If someone asks me what tools I would recommend I tend to say to choose the tool that works best for you personally.
+
+For the setup I'm going to describe my personal preference which is based on my own experience.
+
+
+## Setup
+
+I'm using link:https://maven.apache.org/[Apache Maven] for my java project structure.
+
+With maven you can create modules in which to split your project into different components.
+
+### Root POM
+
+The root level of my project is called 'maven-parent'.
+
+.pom.xml
+[source,xml]
+----
+<groupId>io.metaloom</groupId>
+<artifactId>maven-parent</artifactId>
+<version>1.0.0-SNAPSHOT</version>
+<packaging>pom</packaging>
+----
+
+All the maven projects under metaloom share this parent. This means all modules also inherit the properties and plugin definitions. I use this parent module to:
+
+* Define common maven repositories via `repositories` section.
+* Pin the maven plugin version via the `pluginManagement` section.
+* Pin very common maven dependency version (e.g. JUnit) via the `dependencyManagement` section.
+
+### Vert.x Root POM
+
+.pom.xml
+[source,xml]
+----
+<groupId>io.metaloom.vertx</groupId>
+<artifactId>maven-vertx-parent</artifactId>
+<version>1.0.0-SNAPSHOT</version>
+<packaging>pom</packaging>
+----
+
+I use my `maven-vertx-parent` to pin and define Vert.x dependencies via the `dependencyManagement` section.
+
+I think it is also possible to include a bom (BillOfMaterials POM) link:https://github.com/vert-x3/vertx-dependencies[from Vert.x].
+
+### Loom Maven Modules
+
+For Loom I decided to modularize as much as possible. I know that this can quickly result in dependency hell situations but I'd rather deal with dependency hell than spaghetti code.
+
+While working on Mesh I made a few bad design decisions. For one I put REST API code, Domain model code and business logic in one `core` module. The `api`, `rest-api`, `rest-modules` and search integration and other parts were in dedicated modules but having everything in the core resulted in a lot of effort that was needed to isolate and refactor the database code. The situation was even worse since the domain model classes also contained most of the business logic.
+
+For Loom I decided to create modules for each aspect of the application and move non-api code that needs to be shared across modules into the `common` module. The `service` modules can thus depend on this code in order to implement their functionality.
+
+The `core` module aggregates all service modules and provides bundle that can be depended by the `container` modules which are used to generated the final executable shaded jar.
+
+
+Model Overview:
+
+[options="header",cols="2*"]
+|======
+
+| Module
+| Description
+
+| bom
+| Central BOM module which is imported in all modules to pin dependency versions
+
+| api
+| Module which contains public API code which nearly or no dependencies
+
+| common
+| Common module which contains shared code needed for various services
+
+| rest-model
+| REST Model definitions (mostly only POJO's with jackson annotations)
+
+| rest-client
+| REST API client implementation
+
+| db
+| Central DB parent module
+
+| db/api
+| API module which defines the DAO interfaces and Domain Model interfaces
+
+| db/fs
+| Filesystem specific DAO implementation
+
+| db/flyway
+| Flyway database migration mechanism
+
+| db/jooq
+| jOOQ specific DAO implementation
+
+| db/memory
+| In-Memory specific DAO implementation
+
+| services
+| Services parent module
+
+| services/auth
+| Authentication services
+
+| services/auth/common
+| Common code for various SSO and auth implementations
+
+| services/auth/jwt
+| Basic JWT handling
+
+| services/auth/auth0 
+| Auth0 SSO handling
+
+| services/auth/keycloak 
+| Keycloak SSO handling
+
+| services/auth/auth-okta
+| Okta SSO handling
+
+| services/elasticsearch
+| Elasticsearch integeration (contains document transformation and search handling)
+
+| services/fs
+| Filesystem Asset storage code
+
+| services/image
+| Image processing code
+
+| services/monitoring
+| Monitoring code
+
+| services/rest
+| REST API implementation of OpenAPI spec
+
+| services/tika
+| Tika Asset processing
+
+| services/webhook
+| Webhook handling
+
+| services/distributed
+| Code to handle distributed clustering code
+
+| services/eventbus
+| Eventbus models and event handling
+
+| services/graphql
+| GraphQL type definitions
+
+| services/logger
+| Logging code
+
+| services/s3
+| S3 connector code
+
+| services/video
+| Video processing code
+
+| core
+| Central core module to combine all services
+
+| containers
+| Common container module 
+
+| containers/demo
+| Maven module for building the demo container
+
+| containers/server
+| Maven module for building the server container
+
+| cli
+| Loom CLI
+
+| doc
+| Loom documentation and example generation
+
+|======
+
+## Recommendations
+
+### Use BOM POM
+
+* Use a dedicated BOM pom in your project to manage dependencies
+
+First Define your `bom` module.
+
+.pom.xml
+[source,xml]
+----
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>io.metaloom.loom</groupId>
+		<artifactId>loom</artifactId>
+		<version>1.0.0-SNAPSHOT</version>
+	</parent>
+
+	<artifactId>loom-bom</artifactId>
+	<name>Loom - BOM</name>
+
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>commons-cli</groupId>
+				<artifactId>commons-cli</artifactId>
+				<version>1.4</version>
+			</dependency>
+			<dependency>
+				<groupId>org.apache.commons</groupId>
+				<artifactId>commons-lang3</artifactId>
+				<version>3.12.0</version>
+			</dependency>
+			<dependency>
+				<groupId>commons-io</groupId>
+				<artifactId>commons-io</artifactId>
+				<version>2.8.0</version>
+			</dependency>
+		</dependencies>
+    </dependencyManagement>
+</project>
+----
+
+Next import it in your project modules
+
+.pom.xml
+[source,xml]
+----
+<dependencyManagement>
+    <dependencies>
+        <dependency>
+            <groupId>io.metaloom.loom</groupId>
+            <artifactId>loom-bom</artifactId>
+            <type>pom</type>
+            <scope>import</scope>
+            <version>${project.version}</version>
+        </dependency>
+    </dependencies>
+</dependencyManagement>
+----
+
+Now you can add dependencies without defining the dep version.
+.pom.xml
+[source,xml]
+----
+<dependency>
+    <groupId>commons-cli</groupId>
+    <artifactId>commons-cli</artifactId>
+</dependency>
+----
+
+NOTE: Add your project dependencies to your bom pom. This way you can avoid ```<version>${project.version}</version>```.
+
+### Modularize your application
+
+It might be tempting to throw various components of your application in one module but that can turn out to be a problem when you need to refactor something.
+
+For Loom I'll place the interfaces into the `common` module. This way all services can access these and depend upon them.
+
+The service implementations can now utilize the interfaces. When using dagger this is especially useful since you can create bindings for specific implementations. The services do not know which implementation they are using. Instead they just inject a dependency based on the interface. I'll cover this in a dedicated post in which we'll take a closer look on how I use dagger to manage dependency injection.
+

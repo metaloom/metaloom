@@ -1,0 +1,108 @@
+############################# feature ###################################
+feature:
+  enable : true
+  image : images/extra/solen-feyissa-ATlYEZxGmZA-unsplash.jpg
+  #image_webp : images/about/about-business-man.webp
+  title : Planned features
+  content : "This list contains some of the key features which are planned for Loom."
+  feature_item : 
+      # Icon: https://themify.me/themify-icons
+    - title : Developer Centric
+      icon : ti-user
+      content : The whole architecture of loom has a developer centric design which makes it easy to adapt it to your needs.
+
+    - title : REST API (planned)
+      icon : ti-settings
+      content : The loom server provides you with a powerful REST API which can be used to manage all resources.
+
+    - title : GraphQL (planned)
+      icon : ti-settings
+      content : In addition to REST the server also provides a GraphQL API which allows you to fetch nested data in one step.
+
+    - title : ACL (planned)
+      icon : ti-credit-card
+      content : Loom comes with a powerful permission system. Permissions can be granted on a object level.
+
+    - title : SSO (planned)
+      icon : ti-key
+      content : SSO IAM providers such as RedHat Keycloak, Auth0, Okta will be natively supported. No need for complicated plugins. 
+
+    - title : Asset Store (planned)
+      icon : ti-files
+      content : Existing assets can be referenced from disk or S3. Alternatively files can be uploaded and stored locally or in a configured S3 bucket.
+
+    - title : Media fingerprinting (planned)
+      icon : ti-image
+      content : An extension can be attached which allows the generation of media fingerprints. These fingerprints can be used for asset blacklisting and similarly search using nearest neighbor search.
+
+    - title : Image manipulation (planned)
+      icon : ti-image
+      content : Images can be resized and cropped. The focalpoint can be set on images in order to help generation of cropped images for responsive designs.
+
+    - title : Video thumbnail generation (planned)
+      icon : ti-video-clapper
+      content : Thumbnails can be automatically generated from video content.
+
+    - title : Search (planned)
+      icon : ti-search
+      content : The stored metadata can be indexed using Elasticsearch.
+
+    - title : Tagging (planned)
+      icon : ti-tag
+      content : Loom comes with a system which allows you to tag assets, namespaces and contents.
+
+    - title : Metadata (planned)
+      icon : ti-layers-alt
+      content : Sometimes data can't be structured using the provided models. Loom thus provides you with options to add custom metadata to any element it stores. 
+
+    - title : Import / Export (planned)
+      icon : ti-import
+      content : Selective data can be exported and re-imported in another instance.
+
+    - title : Metadata extraction (planned)
+      icon : ti-menu
+      content : Metadata from images, videos, documents will automatically be extracted and make accessible via REST or GraphQL API.
+
+    - title : User Content (planned)
+      icon : ti-comments
+      content : User specific content such as comments, taggings, ratings can be stored along with your assets or content elements.
+
+    - title : Content Model (planned)
+      icon : ti-layout
+      content : Content models can be used to provide a structure for metadata that can be stored in addition to assets.
+
+    - title : Webhooks (planned)
+      icon : ti-server
+      content : The server provides webhooks that allow you to trigger other attached processes.
+
+
+  title_ops : Devops Features
+  content_ops : "These various features help you to integrate Loom into your environment."
+  feature_item_ops : 
+    - title : Multiple Storage Options (planned)
+      icon : ti-server
+      content : You can choose between different persistent modes. In-Memory, Filesystem, MariaDB, PostgreSQL
+
+    - title : Monitoring (planned)
+      icon : ti-dashboard
+      content : Monitoring data will be made accessible via a Prometheus scrape endpoint. You can thus track status of the instances via a Grafana dashboard.
+
+    - title : CLI (planned)
+      icon : ti-announcement
+      content : The CLI can be used to run admin tasks and also trigger synchronization tasks for new assets.
+
+    - title : Kubernetes support / Helm Chart (planned)
+      icon : ti-announcement
+      content : Loom fully supports Kubernetes and comes with a Helm Chart that helps you deploy it in your K8S cluster.
+
+    - title : Extensions (planned)
+      icon : ti-server
+      content : Extensions can be registered in order to extend the functionality of Loom using Microservices or Serverless servies (e.g. AWS Lambda).
+
+    - title : Clustering (planned)
+      icon : ti-infinite
+      content : Multiple instances of Loom can form a cluster in order to help you scale your API.
+      
+    - title : S3 (planned)
+      icon : ti-cloud-up
+      content : Assets can be referenced from an existing S3 bucket or you can choose to use a bucket to store newly uploaded assets.

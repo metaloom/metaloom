@@ -1,0 +1,482 @@
+openapi: 3.0.1
+info:
+  title: MetaLoom // Loom REST API
+  description: The API for our example server
+  version: 1_0
+servers:
+- url: https://server.tld
+  description: The API for our example server
+paths:
+  /groups:
+    get:
+      responses:
+        "200":
+          description: The group list response
+          content:
+            application/json:
+              example: "{\"data\":[{\"uuid\":\"0f3332a6-e404-4777-88a9-1fa984a311bc\"\
+                ,\"status\":{\"creator\":{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\"\
+                ,\"name\":\"joedoe\"},\"created\":\"2018-10-12T14:15:06.024Z\",\"\
+                editor\":{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"name\"\
+                :\"joedoe\"},\"edited\":\"2018-11-20T20:12:01.084Z\"},\"meta\":{\"\
+                abc\":\"cdef\"},\"name\":\"Guests\"},{\"uuid\":\"0f3332a6-e404-4777-88a9-1fa984a311bc\"\
+                ,\"status\":{\"creator\":{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\"\
+                ,\"name\":\"joedoe\"},\"created\":\"2018-10-12T14:15:06.024Z\",\"\
+                editor\":{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"name\"\
+                :\"joedoe\"},\"edited\":\"2018-11-20T20:12:01.084Z\"},\"meta\":{\"\
+                abc\":\"cdef\"},\"name\":\"Guests\"}],\"_metainfo\":{\"lastUuid\"\
+                :null,\"perPage\":2,\"totalCount\":28}}"
+    post:
+      requestBody:
+        content:
+          application/json:
+            example: "{\"name\":\"Guests\",\"meta\":{\"abc\":\"cdef\"}}"
+      responses:
+        "200":
+          description: The group response
+          content:
+            application/json:
+              example: "{\"uuid\":\"0f3332a6-e404-4777-88a9-1fa984a311bc\",\"status\"\
+                :{\"creator\":{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"\
+                name\":\"joedoe\"},\"created\":\"2018-10-12T14:15:06.024Z\",\"editor\"\
+                :{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"name\":\"joedoe\"\
+                },\"edited\":\"2018-11-20T20:12:01.084Z\"},\"meta\":{\"abc\":\"cdef\"\
+                },\"name\":\"Guests\"}"
+  /groups/:uuid:
+    get:
+      responses:
+        "200":
+          description: The group response
+          content:
+            application/json:
+              example: "{\"uuid\":\"0f3332a6-e404-4777-88a9-1fa984a311bc\",\"status\"\
+                :{\"creator\":{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"\
+                name\":\"joedoe\"},\"created\":\"2018-10-12T14:15:06.024Z\",\"editor\"\
+                :{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"name\":\"joedoe\"\
+                },\"edited\":\"2018-11-20T20:12:01.084Z\"},\"meta\":{\"abc\":\"cdef\"\
+                },\"name\":\"Guests\"}"
+    post:
+      requestBody:
+        content:
+          application/json:
+            example: "{\"name\":\"NewGuests\",\"meta\":{\"abc\":\"cdef\"}}"
+      responses:
+        "200":
+          description: The group response
+          content:
+            application/json:
+              example: "{\"uuid\":\"0f3332a6-e404-4777-88a9-1fa984a311bc\",\"status\"\
+                :{\"creator\":{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"\
+                name\":\"joedoe\"},\"created\":\"2018-10-12T14:15:06.024Z\",\"editor\"\
+                :{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"name\":\"joedoe\"\
+                },\"edited\":\"2018-11-20T20:12:01.084Z\"},\"meta\":{\"abc\":\"cdef\"\
+                },\"name\":\"Guests\"}"
+    delete:
+      responses:
+        "204":
+          description: The delete response
+  /users:
+    get:
+      parameters:
+      - name: filter
+        in: query
+        description: "name[eq]=joedoe"
+        schema:
+          type: string
+        example: Filter the elements
+      - name: limit
+        in: query
+        description: "25"
+        schema:
+          type: string
+        example: Limit the page size
+      - name: from
+        in: query
+        description: e829f0f1-4775-4857-a326-850440cf9577
+        schema:
+          type: string
+        example: Seek to the element with the given UUID
+      - name: sort
+        in: query
+        description: username
+        schema:
+          type: string
+        example: Sort the elements by the provided field
+      - name: dir
+        in: query
+        description: ASCENDING
+        schema:
+          type: string
+        example: Sort order direction
+      responses:
+        "200":
+          description: The user list response
+          content:
+            application/json:
+              example: "{\"data\":[{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\"\
+                ,\"status\":{\"creator\":{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\"\
+                ,\"name\":\"joedoe\"},\"created\":\"2018-10-12T14:15:06.024Z\",\"\
+                editor\":{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"name\"\
+                :\"joedoe\"},\"edited\":\"2018-11-20T20:12:01.084Z\"},\"meta\":{\"\
+                abc\":\"cdef\"},\"username\":\"joedoe\",\"firstname\":\"Joe\",\"lastname\"\
+                :\"Doe\",\"email\":\"joedoe@metaloom.io\",\"enabled\":false},{\"uuid\"\
+                :\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"status\":{\"creator\"\
+                :{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"name\":\"joedoe\"\
+                },\"created\":\"2018-10-12T14:15:06.024Z\",\"editor\":{\"uuid\":\"\
+                f04e89d0-076d-4d90-b192-715a25a2cd59\",\"name\":\"joedoe\"},\"edited\"\
+                :\"2018-11-20T20:12:01.084Z\"},\"meta\":{\"abc\":\"cdef\"},\"username\"\
+                :\"joedoe\",\"firstname\":\"Joe\",\"lastname\":\"Doe\",\"email\":\"\
+                joedoe@metaloom.io\",\"enabled\":false}],\"_metainfo\":{\"lastUuid\"\
+                :null,\"perPage\":2,\"totalCount\":28}}"
+    post:
+      requestBody:
+        content:
+          application/json:
+            example: "{\"username\":\"joedoe\",\"firstname\":\"Joe\",\"lastname\"\
+              :\"Doe\",\"email\":\"joedoe@metaloom.io\",\"meta\":{\"abc\":\"cdef\"\
+              }}"
+      responses:
+        "200":
+          description: The user response
+          content:
+            application/json:
+              example: "{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"status\"\
+                :{\"creator\":{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"\
+                name\":\"joedoe\"},\"created\":\"2018-10-12T14:15:06.024Z\",\"editor\"\
+                :{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"name\":\"joedoe\"\
+                },\"edited\":\"2018-11-20T20:12:01.084Z\"},\"meta\":{\"abc\":\"cdef\"\
+                },\"username\":\"joedoe\",\"firstname\":\"Joe\",\"lastname\":\"Doe\"\
+                ,\"email\":\"joedoe@metaloom.io\",\"enabled\":false}"
+  /users/:uuid:
+    get:
+      responses:
+        "200":
+          description: The user response
+          content:
+            application/json:
+              example: "{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"status\"\
+                :{\"creator\":{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"\
+                name\":\"joedoe\"},\"created\":\"2018-10-12T14:15:06.024Z\",\"editor\"\
+                :{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"name\":\"joedoe\"\
+                },\"edited\":\"2018-11-20T20:12:01.084Z\"},\"meta\":{\"abc\":\"cdef\"\
+                },\"username\":\"joedoe\",\"firstname\":\"Joe\",\"lastname\":\"Doe\"\
+                ,\"email\":\"joedoe@metaloom.io\",\"enabled\":false}"
+    post:
+      requestBody:
+        content:
+          application/json:
+            example: "{\"meta\":{\"abc\":\"cdef\"},\"username\":\"joedoe\",\"firstname\"\
+              :\"Joe\",\"lastname\":\"Doe\",\"email\":\"joedoe@metaloom.io\"}"
+      responses:
+        "200":
+          description: The user response
+          content:
+            application/json:
+              example: "{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"status\"\
+                :{\"creator\":{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"\
+                name\":\"joedoe\"},\"created\":\"2018-10-12T14:15:06.024Z\",\"editor\"\
+                :{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"name\":\"joedoe\"\
+                },\"edited\":\"2018-11-20T20:12:01.084Z\"},\"meta\":{\"abc\":\"cdef\"\
+                },\"username\":\"joedoe\",\"firstname\":\"Joe\",\"lastname\":\"Doe\"\
+                ,\"email\":\"joedoe@metaloom.io\",\"enabled\":false}"
+    delete:
+      responses:
+        "204":
+          description: The delete response
+  /assets:
+    get:
+      responses:
+        "200":
+          description: The asset list response
+          content:
+            application/json:
+              example: "{\"data\":[{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\"\
+                ,\"status\":{\"creator\":{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\"\
+                ,\"name\":\"joedoe\"},\"created\":\"2018-10-12T14:15:06.024Z\",\"\
+                editor\":{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"name\"\
+                :\"joedoe\"},\"edited\":\"2018-11-20T20:12:01.084Z\"},\"meta\":{\"\
+                abc\":\"cdef\"},\"geo\":{\"lon\":32.56,\"lat\":52.156,\"alias\":null},\"\
+                social\":null,\"tags\":[{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\"\
+                ,\"name\":\"red\"}],\"annotations\":[{\"uuid\":null,\"status\":{\"\
+                creator\":null,\"created\":null,\"editor\":null,\"edited\":null},\"\
+                meta\":{\"abc\":\"cdef\"},\"type\":null,\"title\":\"Intro Feedback\"\
+                ,\"area\":{\"from\":0,\"to\":10,\"width\":null,\"height\":null,\"\
+                startX\":null,\"startY\":null},\"description\":\"The very nice intro\"\
+                ,\"tasks\":[{\"uuid\":\"0f3332a6-e404-4777-88a9-1fa984a311bc\",\"\
+                status\":{\"creator\":null,\"created\":null,\"editor\":null,\"edited\"\
+                :null},\"meta\":null,\"title\":\"Fix text offset here\",\"description\"\
+                :\"The text is not aligned with the title\",\"priority\":null,\"comments\"\
+                :[{\"uuid\":\"86abc160-4da2-4951-a91f-da0c33fbc634\",\"status\":{\"\
+                creator\":null,\"created\":null,\"editor\":null,\"edited\":null},\"\
+                meta\":null,\"title\":\"Great work!\",\"text\":\"What a great choice\
+                \ of colors!\",\"social\":{\"rating\":{\"stars\":10,\"upVotes\":42,\"\
+                downVotes\":0},\"reactions\":{\"SATISFIED\":10}}}]}],\"comments\"\
+                :[{\"uuid\":\"86abc160-4da2-4951-a91f-da0c33fbc634\",\"status\":{\"\
+                creator\":null,\"created\":null,\"editor\":null,\"edited\":null},\"\
+                meta\":null,\"title\":\"Great work!\",\"text\":\"What a great choice\
+                \ of colors!\",\"social\":{\"rating\":{\"stars\":10,\"upVotes\":42,\"\
+                downVotes\":0},\"reactions\":{\"SATISFIED\":10}}}],\"thumbnail\":\"\
+                ???\",\"tags\":[{\"uuid\":\"86abc160-4da2-4951-a91f-da0c33fbc634\"\
+                ,\"name\":\"blue\"}],\"assetUuid\":null}],\"collections\":[],\"embeddings\"\
+                :[],\"file\":{\"mimeType\":\"video/mp4\",\"filename\":\"bigbuckbunny-4k.mp4\"\
+                ,\"size\":42000000,\"origin\":\"https://www.youtube.com/watch?v=aqz-KE-bpKQ\"\
+                ,\"firstSeen\":\"2018-10-12T14:15:06.024Z\"},\"consistency\":null,\"\
+                hashes\":{\"sha512\":\"0e3e75234abc68f4378a86b3f4b32a198ba301845b0cd6e50106e874345700cc6663a86c1ea125dc5e92be17c98f9a0f85ca9d5f595db2012f7cc3571945c123\"\
+                ,\"sha256\":\"f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2\"\
+                ,\"md5\":\"d8e8fca2dc0f896fd7cb4cb0031ba249\"},\"media\":{\"duration\"\
+                :20000,\"width\":4000,\"height\":2250},\"image\":{\"dominantColor\"\
+                :\"#FFFF00\"},\"video\":null,\"audio\":{\"channels\":2,\"encoding\"\
+                :\"mp3\",\"bitrate\":null,\"samplingRate\":48000,\"bpm\":120},\"document\"\
+                :null,\"locations\":[{\"uuid\":\"0f3332a6-e404-4777-88a9-1fa984a311bc\"\
+                ,\"path\":\"/the-current-path/bigbuckbunny-4k.mp4\"}]},{\"uuid\":\"\
+                f04e89d0-076d-4d90-b192-715a25a2cd59\",\"status\":{\"creator\":{\"\
+                uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"name\":\"joedoe\"\
+                },\"created\":\"2018-10-12T14:15:06.024Z\",\"editor\":{\"uuid\":\"\
+                f04e89d0-076d-4d90-b192-715a25a2cd59\",\"name\":\"joedoe\"},\"edited\"\
+                :\"2018-11-20T20:12:01.084Z\"},\"meta\":{\"abc\":\"cdef\"},\"geo\"\
+                :{\"lon\":32.56,\"lat\":52.156,\"alias\":null},\"social\":null,\"\
+                tags\":[{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"name\"\
+                :\"red\"}],\"annotations\":[{\"uuid\":null,\"status\":{\"creator\"\
+                :null,\"created\":null,\"editor\":null,\"edited\":null},\"meta\":{\"\
+                abc\":\"cdef\"},\"type\":null,\"title\":\"Intro Feedback\",\"area\"\
+                :{\"from\":0,\"to\":10,\"width\":null,\"height\":null,\"startX\":null,\"\
+                startY\":null},\"description\":\"The very nice intro\",\"tasks\":[{\"\
+                uuid\":\"0f3332a6-e404-4777-88a9-1fa984a311bc\",\"status\":{\"creator\"\
+                :null,\"created\":null,\"editor\":null,\"edited\":null},\"meta\":null,\"\
+                title\":\"Fix text offset here\",\"description\":\"The text is not\
+                \ aligned with the title\",\"priority\":null,\"comments\":[{\"uuid\"\
+                :\"86abc160-4da2-4951-a91f-da0c33fbc634\",\"status\":{\"creator\"\
+                :null,\"created\":null,\"editor\":null,\"edited\":null},\"meta\":null,\"\
+                title\":\"Great work!\",\"text\":\"What a great choice of colors!\"\
+                ,\"social\":{\"rating\":{\"stars\":10,\"upVotes\":42,\"downVotes\"\
+                :0},\"reactions\":{\"SATISFIED\":10}}}]}],\"comments\":[{\"uuid\"\
+                :\"86abc160-4da2-4951-a91f-da0c33fbc634\",\"status\":{\"creator\"\
+                :null,\"created\":null,\"editor\":null,\"edited\":null},\"meta\":null,\"\
+                title\":\"Great work!\",\"text\":\"What a great choice of colors!\"\
+                ,\"social\":{\"rating\":{\"stars\":10,\"upVotes\":42,\"downVotes\"\
+                :0},\"reactions\":{\"SATISFIED\":10}}}],\"thumbnail\":\"???\",\"tags\"\
+                :[{\"uuid\":\"86abc160-4da2-4951-a91f-da0c33fbc634\",\"name\":\"blue\"\
+                }],\"assetUuid\":null}],\"collections\":[],\"embeddings\":[],\"file\"\
+                :{\"mimeType\":\"video/mp4\",\"filename\":\"bigbuckbunny-4k.mp4\"\
+                ,\"size\":42000000,\"origin\":\"https://www.youtube.com/watch?v=aqz-KE-bpKQ\"\
+                ,\"firstSeen\":\"2018-10-12T14:15:06.024Z\"},\"consistency\":null,\"\
+                hashes\":{\"sha512\":\"0e3e75234abc68f4378a86b3f4b32a198ba301845b0cd6e50106e874345700cc6663a86c1ea125dc5e92be17c98f9a0f85ca9d5f595db2012f7cc3571945c123\"\
+                ,\"sha256\":\"f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2\"\
+                ,\"md5\":\"d8e8fca2dc0f896fd7cb4cb0031ba249\"},\"media\":{\"duration\"\
+                :20000,\"width\":4000,\"height\":2250},\"image\":{\"dominantColor\"\
+                :\"#FFFF00\"},\"video\":null,\"audio\":{\"channels\":2,\"encoding\"\
+                :\"mp3\",\"bitrate\":null,\"samplingRate\":48000,\"bpm\":120},\"document\"\
+                :null,\"locations\":[{\"uuid\":\"0f3332a6-e404-4777-88a9-1fa984a311bc\"\
+                ,\"path\":\"/the-current-path/bigbuckbunny-4k.mp4\"}]}],\"_metainfo\"\
+                :{\"lastUuid\":null,\"perPage\":2,\"totalCount\":28}}"
+    post:
+      requestBody:
+        content:
+          application/json:
+            example: "{\"meta\":{\"abc\":\"cdef\"},\"geo\":{\"lon\":32.56,\"lat\"\
+              :52.156,\"alias\":null},\"timeline\":[{\"uuid\":null,\"status\":{\"\
+              creator\":null,\"created\":null,\"editor\":null,\"edited\":null},\"\
+              meta\":{\"abc\":\"cdef\"},\"type\":null,\"title\":\"Intro Feedback\"\
+              ,\"area\":{\"from\":0,\"to\":10,\"width\":null,\"height\":null,\"startX\"\
+              :null,\"startY\":null},\"description\":\"The very nice intro\",\"tasks\"\
+              :[{\"uuid\":\"0f3332a6-e404-4777-88a9-1fa984a311bc\",\"status\":{\"\
+              creator\":null,\"created\":null,\"editor\":null,\"edited\":null},\"\
+              meta\":null,\"title\":\"Fix text offset here\",\"description\":\"The\
+              \ text is not aligned with the title\",\"priority\":null,\"comments\"\
+              :[{\"uuid\":\"86abc160-4da2-4951-a91f-da0c33fbc634\",\"status\":{\"\
+              creator\":null,\"created\":null,\"editor\":null,\"edited\":null},\"\
+              meta\":null,\"title\":\"Great work!\",\"text\":\"What a great choice\
+              \ of colors!\",\"social\":{\"rating\":{\"stars\":10,\"upVotes\":42,\"\
+              downVotes\":0},\"reactions\":{\"SATISFIED\":10}}}]}],\"comments\":[{\"\
+              uuid\":\"86abc160-4da2-4951-a91f-da0c33fbc634\",\"status\":{\"creator\"\
+              :null,\"created\":null,\"editor\":null,\"edited\":null},\"meta\":null,\"\
+              title\":\"Great work!\",\"text\":\"What a great choice of colors!\"\
+              ,\"social\":{\"rating\":{\"stars\":10,\"upVotes\":42,\"downVotes\":0},\"\
+              reactions\":{\"SATISFIED\":10}}}],\"thumbnail\":\"???\",\"tags\":[{\"\
+              uuid\":\"86abc160-4da2-4951-a91f-da0c33fbc634\",\"name\":\"blue\"}],\"\
+              assetUuid\":null}],\"tags\":null,\"file\":{\"mimeType\":\"video/mp4\"\
+              ,\"filename\":\"bigbuckbunny-4k.mp4\",\"size\":42000000,\"origin\":\"\
+              https://www.youtube.com/watch?v=aqz-KE-bpKQ\",\"firstSeen\":\"2018-10-12T14:15:06.024Z\"\
+              },\"consistency\":null,\"hashes\":null,\"media\":null,\"image\":{\"\
+              dominantColor\":\"#FFFF00\"},\"video\":null,\"audio\":null,\"document\"\
+              :null,\"embeddings\":[]}"
+      responses:
+        "200":
+          description: The asset response
+          content:
+            application/json:
+              example: "{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"status\"\
+                :{\"creator\":{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"\
+                name\":\"joedoe\"},\"created\":\"2018-10-12T14:15:06.024Z\",\"editor\"\
+                :{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"name\":\"joedoe\"\
+                },\"edited\":\"2018-11-20T20:12:01.084Z\"},\"meta\":{\"abc\":\"cdef\"\
+                },\"geo\":{\"lon\":32.56,\"lat\":52.156,\"alias\":null},\"social\"\
+                :null,\"tags\":[{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\"\
+                ,\"name\":\"red\"}],\"annotations\":[{\"uuid\":null,\"status\":{\"\
+                creator\":null,\"created\":null,\"editor\":null,\"edited\":null},\"\
+                meta\":{\"abc\":\"cdef\"},\"type\":null,\"title\":\"Intro Feedback\"\
+                ,\"area\":{\"from\":0,\"to\":10,\"width\":null,\"height\":null,\"\
+                startX\":null,\"startY\":null},\"description\":\"The very nice intro\"\
+                ,\"tasks\":[{\"uuid\":\"0f3332a6-e404-4777-88a9-1fa984a311bc\",\"\
+                status\":{\"creator\":null,\"created\":null,\"editor\":null,\"edited\"\
+                :null},\"meta\":null,\"title\":\"Fix text offset here\",\"description\"\
+                :\"The text is not aligned with the title\",\"priority\":null,\"comments\"\
+                :[{\"uuid\":\"86abc160-4da2-4951-a91f-da0c33fbc634\",\"status\":{\"\
+                creator\":null,\"created\":null,\"editor\":null,\"edited\":null},\"\
+                meta\":null,\"title\":\"Great work!\",\"text\":\"What a great choice\
+                \ of colors!\",\"social\":{\"rating\":{\"stars\":10,\"upVotes\":42,\"\
+                downVotes\":0},\"reactions\":{\"SATISFIED\":10}}}]}],\"comments\"\
+                :[{\"uuid\":\"86abc160-4da2-4951-a91f-da0c33fbc634\",\"status\":{\"\
+                creator\":null,\"created\":null,\"editor\":null,\"edited\":null},\"\
+                meta\":null,\"title\":\"Great work!\",\"text\":\"What a great choice\
+                \ of colors!\",\"social\":{\"rating\":{\"stars\":10,\"upVotes\":42,\"\
+                downVotes\":0},\"reactions\":{\"SATISFIED\":10}}}],\"thumbnail\":\"\
+                ???\",\"tags\":[{\"uuid\":\"86abc160-4da2-4951-a91f-da0c33fbc634\"\
+                ,\"name\":\"blue\"}],\"assetUuid\":null}],\"collections\":[],\"embeddings\"\
+                :[],\"file\":{\"mimeType\":\"video/mp4\",\"filename\":\"bigbuckbunny-4k.mp4\"\
+                ,\"size\":42000000,\"origin\":\"https://www.youtube.com/watch?v=aqz-KE-bpKQ\"\
+                ,\"firstSeen\":\"2018-10-12T14:15:06.024Z\"},\"consistency\":null,\"\
+                hashes\":{\"sha512\":\"0e3e75234abc68f4378a86b3f4b32a198ba301845b0cd6e50106e874345700cc6663a86c1ea125dc5e92be17c98f9a0f85ca9d5f595db2012f7cc3571945c123\"\
+                ,\"sha256\":\"f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2\"\
+                ,\"md5\":\"d8e8fca2dc0f896fd7cb4cb0031ba249\"},\"media\":{\"duration\"\
+                :20000,\"width\":4000,\"height\":2250},\"image\":{\"dominantColor\"\
+                :\"#FFFF00\"},\"video\":null,\"audio\":{\"channels\":2,\"encoding\"\
+                :\"mp3\",\"bitrate\":null,\"samplingRate\":48000,\"bpm\":120},\"document\"\
+                :null,\"locations\":[{\"uuid\":\"0f3332a6-e404-4777-88a9-1fa984a311bc\"\
+                ,\"path\":\"/the-current-path/bigbuckbunny-4k.mp4\"}]}"
+  /assets/:sha512orUUID:
+    get:
+      responses:
+        "200":
+          description: The asset response
+          content:
+            application/json:
+              example: "{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"status\"\
+                :{\"creator\":{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"\
+                name\":\"joedoe\"},\"created\":\"2018-10-12T14:15:06.024Z\",\"editor\"\
+                :{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"name\":\"joedoe\"\
+                },\"edited\":\"2018-11-20T20:12:01.084Z\"},\"meta\":{\"abc\":\"cdef\"\
+                },\"geo\":{\"lon\":32.56,\"lat\":52.156,\"alias\":null},\"social\"\
+                :null,\"tags\":[{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\"\
+                ,\"name\":\"red\"}],\"annotations\":[{\"uuid\":null,\"status\":{\"\
+                creator\":null,\"created\":null,\"editor\":null,\"edited\":null},\"\
+                meta\":{\"abc\":\"cdef\"},\"type\":null,\"title\":\"Intro Feedback\"\
+                ,\"area\":{\"from\":0,\"to\":10,\"width\":null,\"height\":null,\"\
+                startX\":null,\"startY\":null},\"description\":\"The very nice intro\"\
+                ,\"tasks\":[{\"uuid\":\"0f3332a6-e404-4777-88a9-1fa984a311bc\",\"\
+                status\":{\"creator\":null,\"created\":null,\"editor\":null,\"edited\"\
+                :null},\"meta\":null,\"title\":\"Fix text offset here\",\"description\"\
+                :\"The text is not aligned with the title\",\"priority\":null,\"comments\"\
+                :[{\"uuid\":\"86abc160-4da2-4951-a91f-da0c33fbc634\",\"status\":{\"\
+                creator\":null,\"created\":null,\"editor\":null,\"edited\":null},\"\
+                meta\":null,\"title\":\"Great work!\",\"text\":\"What a great choice\
+                \ of colors!\",\"social\":{\"rating\":{\"stars\":10,\"upVotes\":42,\"\
+                downVotes\":0},\"reactions\":{\"SATISFIED\":10}}}]}],\"comments\"\
+                :[{\"uuid\":\"86abc160-4da2-4951-a91f-da0c33fbc634\",\"status\":{\"\
+                creator\":null,\"created\":null,\"editor\":null,\"edited\":null},\"\
+                meta\":null,\"title\":\"Great work!\",\"text\":\"What a great choice\
+                \ of colors!\",\"social\":{\"rating\":{\"stars\":10,\"upVotes\":42,\"\
+                downVotes\":0},\"reactions\":{\"SATISFIED\":10}}}],\"thumbnail\":\"\
+                ???\",\"tags\":[{\"uuid\":\"86abc160-4da2-4951-a91f-da0c33fbc634\"\
+                ,\"name\":\"blue\"}],\"assetUuid\":null}],\"collections\":[],\"embeddings\"\
+                :[],\"file\":{\"mimeType\":\"video/mp4\",\"filename\":\"bigbuckbunny-4k.mp4\"\
+                ,\"size\":42000000,\"origin\":\"https://www.youtube.com/watch?v=aqz-KE-bpKQ\"\
+                ,\"firstSeen\":\"2018-10-12T14:15:06.024Z\"},\"consistency\":null,\"\
+                hashes\":{\"sha512\":\"0e3e75234abc68f4378a86b3f4b32a198ba301845b0cd6e50106e874345700cc6663a86c1ea125dc5e92be17c98f9a0f85ca9d5f595db2012f7cc3571945c123\"\
+                ,\"sha256\":\"f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2\"\
+                ,\"md5\":\"d8e8fca2dc0f896fd7cb4cb0031ba249\"},\"media\":{\"duration\"\
+                :20000,\"width\":4000,\"height\":2250},\"image\":{\"dominantColor\"\
+                :\"#FFFF00\"},\"video\":null,\"audio\":{\"channels\":2,\"encoding\"\
+                :\"mp3\",\"bitrate\":null,\"samplingRate\":48000,\"bpm\":120},\"document\"\
+                :null,\"locations\":[{\"uuid\":\"0f3332a6-e404-4777-88a9-1fa984a311bc\"\
+                ,\"path\":\"/the-current-path/bigbuckbunny-4k.mp4\"}]}"
+    post:
+      requestBody:
+        content:
+          application/json:
+            example: "{\"filename\":null,\"meta\":{\"abc\":\"cdef\"},\"timeline\"\
+              :[{\"uuid\":null,\"status\":{\"creator\":null,\"created\":null,\"editor\"\
+              :null,\"edited\":null},\"meta\":{\"abc\":\"cdef\"},\"type\":null,\"\
+              title\":\"Intro Feedback\",\"area\":{\"from\":0,\"to\":10,\"width\"\
+              :null,\"height\":null,\"startX\":null,\"startY\":null},\"description\"\
+              :\"The very nice intro\",\"tasks\":[{\"uuid\":\"0f3332a6-e404-4777-88a9-1fa984a311bc\"\
+              ,\"status\":{\"creator\":null,\"created\":null,\"editor\":null,\"edited\"\
+              :null},\"meta\":null,\"title\":\"Fix text offset here\",\"description\"\
+              :\"The text is not aligned with the title\",\"priority\":null,\"comments\"\
+              :[{\"uuid\":\"86abc160-4da2-4951-a91f-da0c33fbc634\",\"status\":{\"\
+              creator\":null,\"created\":null,\"editor\":null,\"edited\":null},\"\
+              meta\":null,\"title\":\"Great work!\",\"text\":\"What a great choice\
+              \ of colors!\",\"social\":{\"rating\":{\"stars\":10,\"upVotes\":42,\"\
+              downVotes\":0},\"reactions\":{\"SATISFIED\":10}}}]}],\"comments\":[{\"\
+              uuid\":\"86abc160-4da2-4951-a91f-da0c33fbc634\",\"status\":{\"creator\"\
+              :null,\"created\":null,\"editor\":null,\"edited\":null},\"meta\":null,\"\
+              title\":\"Great work!\",\"text\":\"What a great choice of colors!\"\
+              ,\"social\":{\"rating\":{\"stars\":10,\"upVotes\":42,\"downVotes\":0},\"\
+              reactions\":{\"SATISFIED\":10}}}],\"thumbnail\":\"???\",\"tags\":[{\"\
+              uuid\":\"86abc160-4da2-4951-a91f-da0c33fbc634\",\"name\":\"blue\"}],\"\
+              assetUuid\":null}],\"s3\":null,\"tags\":null,\"file\":{\"mimeType\"\
+              :\"video/mp4\",\"filename\":\"bigbuckbunny-4k.mp4\",\"size\":42000000,\"\
+              origin\":\"https://www.youtube.com/watch?v=aqz-KE-bpKQ\",\"firstSeen\"\
+              :\"2018-10-12T14:15:06.024Z\"},\"consistency\":null,\"hashes\":null,\"\
+              media\":null,\"image\":{\"dominantColor\":\"#FFFF00\"},\"video\":null,\"\
+              audio\":null,\"document\":null,\"geo\":{\"lon\":32.56,\"lat\":52.156,\"\
+              alias\":null}}"
+      responses:
+        "200":
+          description: The asset response
+          content:
+            application/json:
+              example: "{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"status\"\
+                :{\"creator\":{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"\
+                name\":\"joedoe\"},\"created\":\"2018-10-12T14:15:06.024Z\",\"editor\"\
+                :{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\",\"name\":\"joedoe\"\
+                },\"edited\":\"2018-11-20T20:12:01.084Z\"},\"meta\":{\"abc\":\"cdef\"\
+                },\"geo\":{\"lon\":32.56,\"lat\":52.156,\"alias\":null},\"social\"\
+                :null,\"tags\":[{\"uuid\":\"f04e89d0-076d-4d90-b192-715a25a2cd59\"\
+                ,\"name\":\"red\"}],\"annotations\":[{\"uuid\":null,\"status\":{\"\
+                creator\":null,\"created\":null,\"editor\":null,\"edited\":null},\"\
+                meta\":{\"abc\":\"cdef\"},\"type\":null,\"title\":\"Intro Feedback\"\
+                ,\"area\":{\"from\":0,\"to\":10,\"width\":null,\"height\":null,\"\
+                startX\":null,\"startY\":null},\"description\":\"The very nice intro\"\
+                ,\"tasks\":[{\"uuid\":\"0f3332a6-e404-4777-88a9-1fa984a311bc\",\"\
+                status\":{\"creator\":null,\"created\":null,\"editor\":null,\"edited\"\
+                :null},\"meta\":null,\"title\":\"Fix text offset here\",\"description\"\
+                :\"The text is not aligned with the title\",\"priority\":null,\"comments\"\
+                :[{\"uuid\":\"86abc160-4da2-4951-a91f-da0c33fbc634\",\"status\":{\"\
+                creator\":null,\"created\":null,\"editor\":null,\"edited\":null},\"\
+                meta\":null,\"title\":\"Great work!\",\"text\":\"What a great choice\
+                \ of colors!\",\"social\":{\"rating\":{\"stars\":10,\"upVotes\":42,\"\
+                downVotes\":0},\"reactions\":{\"SATISFIED\":10}}}]}],\"comments\"\
+                :[{\"uuid\":\"86abc160-4da2-4951-a91f-da0c33fbc634\",\"status\":{\"\
+                creator\":null,\"created\":null,\"editor\":null,\"edited\":null},\"\
+                meta\":null,\"title\":\"Great work!\",\"text\":\"What a great choice\
+                \ of colors!\",\"social\":{\"rating\":{\"stars\":10,\"upVotes\":42,\"\
+                downVotes\":0},\"reactions\":{\"SATISFIED\":10}}}],\"thumbnail\":\"\
+                ???\",\"tags\":[{\"uuid\":\"86abc160-4da2-4951-a91f-da0c33fbc634\"\
+                ,\"name\":\"blue\"}],\"assetUuid\":null}],\"collections\":[],\"embeddings\"\
+                :[],\"file\":{\"mimeType\":\"video/mp4\",\"filename\":\"bigbuckbunny-4k.mp4\"\
+                ,\"size\":42000000,\"origin\":\"https://www.youtube.com/watch?v=aqz-KE-bpKQ\"\
+                ,\"firstSeen\":\"2018-10-12T14:15:06.024Z\"},\"consistency\":null,\"\
+                hashes\":{\"sha512\":\"0e3e75234abc68f4378a86b3f4b32a198ba301845b0cd6e50106e874345700cc6663a86c1ea125dc5e92be17c98f9a0f85ca9d5f595db2012f7cc3571945c123\"\
+                ,\"sha256\":\"f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2\"\
+                ,\"md5\":\"d8e8fca2dc0f896fd7cb4cb0031ba249\"},\"media\":{\"duration\"\
+                :20000,\"width\":4000,\"height\":2250},\"image\":{\"dominantColor\"\
+                :\"#FFFF00\"},\"video\":null,\"audio\":{\"channels\":2,\"encoding\"\
+                :\"mp3\",\"bitrate\":null,\"samplingRate\":48000,\"bpm\":120},\"document\"\
+                :null,\"locations\":[{\"uuid\":\"0f3332a6-e404-4777-88a9-1fa984a311bc\"\
+                ,\"path\":\"/the-current-path/bigbuckbunny-4k.mp4\"}]}"
+    delete:
+      responses:
+        "204":
+          description: The delete response
+  /assets/:sha512orUUID/tags:
+    post: {}
+  /assets/:sha512orUUID/tags/:tagUuid:
+    delete: {}
+  /assets/:sha512orUUID/reactions:
+    get: {}
+    post: {}
+  /assets/:sha512orUUID/reactions/:reactionUuid:
+    get: {}
+    post: {}
+    delete: {}

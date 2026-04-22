@@ -1,0 +1,12 @@
+############################### Banner ################################
+banner:
+  enable : true
+  bg_image : "images/banner_narrow.jpg"
+  #bg_image_webp : "images/logo.svg"
+  icon : "" # themify icon pack : https://themify.me/themify-icons
+  #title : "Coming soon"
+  #content : "MetaLoom 2021"
+  button:
+    enable : false
+    label : "Explore Us"
+    link : "#services"

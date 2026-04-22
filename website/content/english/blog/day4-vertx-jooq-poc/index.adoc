@@ -1,0 +1,671 @@
+---
+title: "Day4 - Vert.x jOOQ PoC"
+date: 2021-05-19T21:51:12+06:00
+image: jan-antonin-kolar-lRoX0shwjUQ-unsplash.jpg
+image_webp: jan-antonin-kolar-lRoX0shwjUQ-unsplash.webp
+image_credit: Photo by Jan Antonin Kolar on Unsplash
+author: jotschi
+description : "In this post I want to walk you through a PoC I created that covers database handling with Vert.x and jOOQ."
+hidden: false
+---
+
+:icons: font
+
+## Intro
+
+In this post I want to present a link:https://github.com/metaloom/poc-vertx-jooq[reactive database layer proof of concept implementation] I did which will hopefully make its way into my link:/blog/day0-let-there-be-loom/[MetaLoom project].
+
+## Selection Process
+
+Before taking a closer look at jOOQ I had various other options on the table.
+
+### Hibernate
+
+link:https://hibernate.org/[Hibernate] was one of the first selection for my project. There now even exists a link:http://hibernate.org/reactive/[Reactive] implementation which I have also evaluated. With Hibernate you can write your DAO and Domain Model classes in Java and the database schema will be generated for you. We'll later see that jOOQ works exactly the opposite way.
+
+### Plain SQL
+
+Another option I briefly considered was to write the SQL manually and also process the DAO using just the reactive SQL client. I assume this would work for smaller projects but could quickly become problematic when dealing with larger systems. Additionally the queries would not be type safe and could easily break when the database structure needs changing.
+
+## jOOQ
+
+> jOOQ generates Java code from your database and lets you build type safe SQL queries through its fluent API.
+
+As already mentioned does link:https://www.jooq.org/[jOOQ] work differently. It follows the *database first* approach and can generate code for your database layer by inspecting your database schema.
+
+Having your database schema as the source of truth directly appealed to me since I was planning to have a specification first approach for my whole project. I went the same road for the REST API which makes use a link:https://swagger.io/specification/[OpenAPI] definition.
+
+### Comparison to Hibernate
+
+Handling database schema migrations was another important aspect. I knew that I wanted to use link:https://flywaydb.org/[Flyway] for database migrations. Hibernate can do automatic database migrations but process always seemed very elusive to me since it is mostly done automatically. I should add that it is link:https://docs.jboss.org/hibernate/orm/5.4/userguide/html_single/Hibernate_User_Guide.html#best-practices-schema[recommended in the Hibernate docs] that this process is done manually (e.g. using Flyway). Having a detailed understanding of the database schema that is in-use would thus also be recommended when managing those changes.
+
+Hibernate does however support a much larger range of database servers. The `vertx-jooq` project does currently only support MariaDB and PostgreSQL.
+
+### Vert.x jOOQ
+
+link:https://twitter.com/julienviet[Julien Viet] suggested to take a look at link:https://github.com/jklingsporn/vertx-jooq[vertx-jooq] which was written by link:https://twitter.com/klingspoon[Jens Klingsporn].
+
+The project provides ways to integrate link:https://vertx.io/[Vert.x] which is the core library for MetaLoom with jOOQ. It will automatically generate the needed DAO code that utilizes Vert.x and the link:https://vertx.io/docs/vertx-pg-client/java/[reactive Vert.x SQL client].
+
+image:meme.gif[]
+
+The project does however offer you multiple options on how to handle the database access. You can basically choose between using the API reactive or non-reactive with either the JDBC driver (blocking) or the Vert.x RX SQL client (non-blocking).
+
+For my first evaluation and this PoC I decided on the reactive approach. We'll later see that this requires additional care when handling transactional operations.
+
+## PoC
+
+The PoC project which can be found on link:https://github.com/metaloom/poc-vertx-jooq[GitHub] consist of the maven modules `bom`, `api`, `flyway` and `jooq`.
+
+## BOM Module
+
+The `bom` module contains the Maven BillOfMaterials definition for the project. It provides a home for the dependency definitions which pin the used versions for other modules.
+
+## API Module
+
+The `api` module contains the link:https://github.com/metaloom/poc-vertx-jooq/tree/master/api/src/main/java/io/metaloom/poc/db[HighLevel DAO and domain model interfaces] for the project.
+
+It is important to note that this API is different from the API that jOOQ will generate.
+jOOQ does not know anything about the application it serves.
+It will thus generate code that is only structured by found tables and not structured by the domain model of the application. Having a higher level of abstraction was something I wanted for my project.
+
+.PocGroupDao.java
+[source,java]
+----
+public interface PocGroupDao {
+	
+	Single<? extends PocGroup> createGroup(String name);
+
+	Completable deleteGroup(UUID uuid);
+
+	Completable updateGroup(PocGroup group);
+
+	Maybe<? extends PocGroup> loadGroup(UUID uuid);
+
+	Completable addUserToGroup(PocGroup group, PocUser user);
+
+	Completable removeUserFromGroup(PocGroup group, PocUser user);
+
+	Observable<PocUser> loadUsers(PocGroup group);
+
+	Observable<PocUser> addTwoUsers();
+
+}
+----
+
+The `PocGroupDao` interface contains the link:https://github.com/ReactiveX/RxJava[RxJava] DAO methods. The DAO lists only the needed subset of methods that are needed for the business logic of the application.
+
+.PocUser.java
+[source,java]
+----
+public interface PocGroup extends PocElement {
+
+	String getName();
+
+	PocGroup setName(String name);
+}
+----
+
+The definition of the domain model classes is hierarchically and can extend multiple interfaces. The domain model classes that will be generated by jOOQ are generally flat as they don't know anything about the hierarchical structure of the domain models.
+
+TIP: The high level classes have been prefixed in order to avoid problems with conflicting names of the jOOQ generated sources.
+
+## Flyway Module
+
+The `flyway` module contains the link:https://flywaydb.org/[Flyway] related resources that are needed to manage the database schema for the PoC.
+
+Flyway also provides a Java API that can be used to trigger the database migration programmatically.
+We'll later see how this mechanism is used for the database test setup.
+
+.FlywayHelper.java
+[source,java]
+----
+public final class FlywayHelper {
+
+	private FlywayHelper() {
+	}
+
+	public static void migrate(DatabaseOptions options) {
+		int port = options.getPort();
+		String dbName = options.getDatabaseName();
+		String user = options.getUsername();
+		String password = options.getPassword();
+		String url = "jdbc:postgresql://" + options.getHost()+":" + port + "/" + dbName;
+		Flyway flyway = Flyway.configure().dataSource(url, user, password).load();
+		flyway.migrate();
+	}
+}
+----
+
+The flyway migration mechanism will automatically pickup the `V1__initial_setup.sql` file in the classpath and use it for migrations.
+
+.db/migration/V1__initial_setup.sql
+[source,sql]
+----
+/*
+Enable UUID V4 Support
+*/
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+CREATE TABLE "user" (
+  "uuid" uuid DEFAULT uuid_generate_v4 (),
+  "username" varchar UNIQUE NOT NULL,
+  "firstname" varchar,
+  "lastname" varchar,
+  "passwordhash" varchar,
+  "email" varchar,
+  "enabled" boolean DEFAULT true,
+  "meta" varchar,
+  "created" timestamp DEFAULT (now()),
+  "creator_uuid" uuid,
+  "edited" timestamp DEFAULT (now()),
+  "editor_uuid" uuid,
+  PRIMARY KEY ("uuid")
+);
+
+CREATE TABLE "group" (
+  "uuid" uuid DEFAULT uuid_generate_v4 (),
+  "name" varchar UNIQUE NOT NULL,
+  "meta" varchar,
+  "created" timestamp DEFAULT (now()),
+  "creator_uuid" uuid,
+  "edited" timestamp DEFAULT (now()),
+  "editor_uuid" uuid,
+  PRIMARY KEY ("uuid")
+);
+
+CREATE TABLE "user_group" (
+  "user_uuid" uuid NOT NULL,
+  "group_uuid" uuid NOT NULL,
+  PRIMARY KEY ("user_uuid", "group_uuid")
+);
+
+ALTER TABLE "user" ADD FOREIGN KEY ("creator_uuid") REFERENCES "user" ("uuid");
+ALTER TABLE "user" ADD FOREIGN KEY ("editor_uuid") REFERENCES "user" ("uuid");
+ALTER TABLE "group" ADD FOREIGN KEY ("creator_uuid") REFERENCES "user" ("uuid");
+ALTER TABLE "group" ADD FOREIGN KEY ("editor_uuid") REFERENCES "user" ("uuid");
+ALTER TABLE "user_group" ADD FOREIGN KEY ("user_uuid") REFERENCES "user" ("uuid");
+ALTER TABLE "user_group" ADD FOREIGN KEY ("group_uuid") REFERENCES "group" ("uuid");
+
+CREATE UNIQUE INDEX ON "user" ("username");
+CREATE UNIQUE INDEX ON "group" ("name");
+----
+
+The database consists of three tables:
+
+* `group` - Stores groups
+* `user` - Stores users
+* `user_group` - Crosstable to store user assignments to groups
+
+## jOOQ Module
+
+The `jooq` module contains the bulk of the PoC code, the jOOQ code generation and the example tests.
+
+### Code Generation
+
+The `jooq-codegen-maven` maven plugin is used to generate the needed API code. This plugin needs to connect to a postgreSQL server to load the needed schema information.
+
+On Linux the `setup-postgres-container.sh` script can be used to spin-up a docker container that initializes the database with the needed schema.
+
+.pom.xml
+[source,xml]
+----
+…
+<plugin>
+    <!-- Specify the maven code generator plugin -->
+    <groupId>org.jooq</groupId>
+    <artifactId>jooq-codegen-maven</artifactId>
+
+    <!-- The plugin should hook into the generate goal -->
+    <executions>
+        <execution>
+            <goals>
+                <goal>generate</goal>
+            </goals>
+        </execution>
+    </executions>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>${postgres.driver.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.github.jklingsporn</groupId>
+            <artifactId>vertx-jooq-generate</artifactId>
+            <version>${vertx.jooq.version}</version>
+        </dependency>
+    </dependencies>
+
+    <!-- Specify the plugin configuration. The configuration format is the 
+        same as for the standalone code generator -->
+    <configuration>
+        <!-- JDBC connection parameters -->
+        <jdbc>
+            <driver>org.postgresql.Driver</driver>
+            <url>jdbc:postgresql://localhost:5432/postgres</url>
+            <user>postgres</user>
+            <password>finger</password>
+        </jdbc>
+
+        <!-- Generator parameters -->
+        <generator>
+            <name>io.github.jklingsporn.vertx.jooq.generate.rx.RXReactiveVertxGenerator</name>
+            <database>
+                <name>org.jooq.meta.postgres.PostgresDatabase</name>
+                <includes>.*</includes>
+                <inputSchema>public</inputSchema>
+                <outputSchema>public</outputSchema>
+                <unsignedTypes>false</unsignedTypes>
+                <forcedTypes>
+                    <!-- Convert tinyint to boolean -->
+                    <forcedType>
+                        <name>BOOLEAN</name>
+                        <types>(?i:TINYINT)</types>
+                    </forcedType>
+                </forcedTypes>
+            </database>
+            <target>
+                <packageName>io.metaloom.poc.db.jooq</packageName>
+                <directory>src/jooq/java</directory>
+            </target>
+            <generate>
+                <interfaces>true</interfaces>
+                <daos>true</daos>
+                <fluentSetters>true</fluentSetters>
+            </generate>
+            <strategy>
+                <name>io.github.jklingsporn.vertx.jooq.generate.VertxGeneratorStrategy</name>
+            </strategy>
+        </generator>
+    </configuration>
+</plugin>
+…
+----
+
+The `build-helper-maven-plugin` maven plugin will be used to attach the sources to the project. Otherwise the code can't be utilized by the maven compile plugin. The usage of this plugin will also enable the Eclipse IDE to map the otherwise unknown source folder.
+
+.pom.xml
+[source,xml]
+----
+…
+<plugin>
+    <groupId>org.codehaus.mojo</groupId>
+    <artifactId>build-helper-maven-plugin</artifactId>
+    <executions>
+        <execution>
+            <id>add-source</id>
+            <phase>generate-sources</phase>
+            <goals>
+                <goal>add-source</goal>
+            </goals>
+            <configuration>
+                <sources>
+                    <source>${project.basedir}/src/jooq/java/</source>
+                </sources>
+            </configuration>
+        </execution>
+    </executions>
+</plugin>
+…
+----
+
+### HighLevel API
+
+The `jooq` module also contains the high level API implementation for the DAO and domain model classes.
+
+.PocGroupDaoImpl.java
+[source,java]
+----
+public class PocGroupDaoImpl extends GroupDao implements PocGroupDao {
+
+	private final UserDao userDao;
+	private final UserGroupDao userGroupDao;
+
+	public PocGroupDaoImpl(Configuration configuration, io.vertx.reactivex.sqlclient.SqlClient delegate, UserDao userDao, UserGroupDao userGroupDao) {
+		super(configuration, delegate);
+		this.userDao = userDao;
+		this.userGroupDao = userGroupDao;
+	}
+
+	@Override
+	public Maybe<? extends PocGroup> loadGroup(UUID uuid) {
+		return wrap(findOneById(uuid), PocGroupImpl.class);
+	}
+
+	@Override
+	public Completable deleteGroup(UUID uuid) {
+		Objects.requireNonNull(uuid, "Group uuid must not be null");
+		return deleteById(uuid).ignoreElement();
+	}
+
+	@Override
+	public Single<PocGroup> createGroup(String name) {
+		Group group = new Group();
+		group.setName(name);
+		return insertReturningPrimary(group).map(pk -> new PocGroupImpl(group.setUuid(pk)));
+	}
+
+	@Override
+	public Completable updateGroup(PocGroup group) {
+		Objects.requireNonNull(group, "Group must not be null");
+		return update(unwrap(group)).ignoreElement();
+	}
+
+	@Override
+	public Completable addUserToGroup(PocGroup group, PocUser user) {
+		UserGroup userGroup = new UserGroup();
+		userGroup.setGroupUuid(group.getUuid());
+		userGroup.setUserUuid(user.getUuid());
+		return userGroupDao.insert(userGroup).ignoreElement();
+	}
+
+	@Override
+	public Completable removeUserFromGroup(PocGroup group, PocUser user) {
+		UserGroupRecord record = new UserGroupRecord(user.getUuid(), group.getUuid());
+		return userGroupDao.deleteById(record).ignoreElement();
+	}
+
+	@Override
+	public Observable<PocUser> loadUsers(PocGroup group) {
+		ReactiveRXQueryExecutor<UserRecord, User, UUID> queryExecutor = userDao.queryExecutor();
+		Single<List<User>> result = queryExecutor.findMany(dslContext -> dslContext.select()
+			.from(USER_GROUP
+				.join(USER)
+				.on(USER.UUID.eq(USER_GROUP.USER_UUID))
+				.where(USER_GROUP.GROUP_UUID.eq(group.getUuid())).asTable(USER))
+			.coerce(USER));
+
+		return result.flatMapObservable(list -> {
+			return Observable.fromIterable(list);
+		}).map(jooq -> {
+			return JooqWrapperHelper.wrap(jooq, PocUserImpl.class);
+		});
+	}
+
+	@Override
+	public Observable<PocUser> addTwoUsers() {
+		Observable<User> txOperation = userDao.queryExecutor().beginTransaction()
+			.flatMapObservable(tx -> {
+				Single<List<User>> existingUsers = tx.findMany(ctx -> {
+					ResultQuery<UserRecord> userRecords = ctx.select().from(USER).coerce(USER);
+					return userRecords;
+				});
+
+				User userPojo = new User();
+				userPojo.setUsername("ABCD");
+
+				User userPojo2 = new User();
+				userPojo2.setUsername("ABCD2");
+
+				Single<User> createdUser1 = DaoOps.insertUser(tx, userPojo, keyConverter());
+				Single<User> createdUser2 = DaoOps.insertUser(tx, userPojo2, keyConverter());
+
+				Single<List<User>> s = Single.zip(existingUsers, createdUser1, createdUser2, (u1, c1, c2) -> {
+					System.out.println("Adding users");
+					u1.add(c1);
+					u1.add(c2);
+					return u1;
+				});
+
+				Observable<User> obs = s.flatMapObservable(Observable::fromIterable);
+
+				return tx.commit().andThen(obs);
+			});
+
+		return txOperation.map(jooq -> {
+			return JooqWrapperHelper.wrap(jooq, PocUserImpl.class);
+		});
+	}
+}
+----
+
+The DAO implements the needed PocGroupDao. The `GroupDao` class provides the needed low-level reactive methods to manage the database access. This class is part of `vertx-jooq`.
+
+The `PocGroupDaoImpl` constructor also requires the low-level DAO's to enable the implementation to manage the `user_group` crosstable elements.
+
+The `PocGroupImpl` is a wrapper for the jOOQ `Group` POJO which will limit the API to the business logic.
+
+.PocGroupImpl.java
+[source,java]
+----
+public class PocGroupImpl implements PocGroup, PocWrapper<Group> {
+
+	private final Group delegate;
+
+	public PocGroupImpl(Group delegate) {
+		this.delegate = delegate;
+	}
+
+	@Override
+	public UUID getUuid() {
+		return delegate.getUuid();
+	}
+
+	@Override
+	public PocElement setUuid(UUID uuid) {
+		delegate.setUuid(uuid);
+		return this;
+	}
+
+	@Override
+	public String getName() {
+		return delegate.getName();
+	}
+
+	@Override
+	public PocGroup setName(String name) {
+		delegate.setName(name);
+		return this;
+	}
+
+	@Override
+	public Group getDelegate() {
+		return delegate;
+	}
+}
+----
+
+### Testcontainer
+
+The link:https://www.testcontainers.org/[Testcontainer] project enables you to write unit tests which can spin-up containers for testing purposes.
+
+[source,java]
+----
+@Rule
+public PocPostgreSQLContainer container = new PocPostgreSQLContainer();
+----
+
+A container can be provided for your test environment by adding a simple TestRule to your JUnit test.
+
+Whenever I use Testcontainers I usually extend my own testcontainer which pins the needed container version.
+
+TIP: Avoid omitting or using the `latest` tag from your image as it can cause stability issues when new versions get released.
+
+.PocPostgreSQLContainer.java
+[source,java]
+----
+/**
+ * Preconfigured {@link PocPostgreSQLContainer}
+ */
+public class PocPostgreSQLContainer extends  PostgreSQLContainer<PocPostgreSQLContainer> {
+
+	public static final String DEFAULT_IMAGE = "postgres:13.2";
+
+	public PocPostgreSQLContainer() {
+		super(DEFAULT_IMAGE);
+		withDatabaseName("postgres");
+		withUsername("sa");
+		withPassword("sa");
+	}
+
+	public int getPort() {
+		return getFirstMappedPort();
+	}
+
+	public DatabaseOptions getOptions() {
+		DatabaseOptions options = new DatabaseOptions();
+		options.setPort(getPort());
+		options.setHost(getContainerIpAddress());
+		options.setUsername(getUsername());
+		options.setPassword(getPassword());
+		options.setDatabaseName(getDatabaseName());
+		return options;
+	}
+}
+----
+
+I also added methods to the `PocPostgreSQLContainer` to quickly access the the needed JDBC settings.
+
+### Unit Tests
+
+The `UserDaoTest` shows how the DAO can be used. All tests will utilize the `AbstractDaoTest` which prepares the DAO's and creates the needed SQL client and testcontainer.
+
+.UserDaoTest.java
+[source,java]
+----
+public class UserDaoTest extends AbstractDaoTest {
+
+	@Test
+	public void testCreateUser() {
+		PocUserDao userDao = userDao();
+
+		// Create User
+		PocUser user = userDao.createUser("test").blockingGet();
+
+		// Update User
+		user.setUsername("NewName");
+		userDao.updateUser(user).blockingAwait();
+
+		// Reload User
+		PocUser reloadedUser = userDao.loadUser(user.getUuid()).blockingGet();
+		assertEquals("NewName", reloadedUser.getUsername());
+	}
+}
+----
+
+.AbstractDaoTest.java
+[source,java]
+----
+public class AbstractDaoTest {
+
+	public static Vertx vertx = Vertx.vertx();
+
+	@Rule
+	public PocPostgreSQLContainer container = new PocPostgreSQLContainer();
+
+	private SqlClient sqlClient;
+
+	@Before
+	public void setupClient() {
+		FlywayHelper.migrate(container.getOptions());
+		this.sqlClient = setupSQLClient(vertx, container.getOptions());
+	}
+
+	private SqlClient setupSQLClient(Vertx vertx, DatabaseOptions dbOptions) {
+		String host = dbOptions.getHost();
+		int port = dbOptions.getPort();
+		String username = dbOptions.getUsername();
+		String password = dbOptions.getPassword();
+		String database = dbOptions.getDatabaseName();
+
+		PgConnectOptions config = new PgConnectOptions()
+			.setHost(host)
+			.setPort(port)
+			.setUser(username)
+			.setPassword(password)
+			.setDatabase(database);
+
+		PgPool client = PgPool.pool(vertx, config, new PoolOptions().setMaxSize(32));
+		return new io.vertx.reactivex.sqlclient.Pool(client);
+	}
+
+	private Configuration jooqConfiguration() {
+		Configuration configuration = new DefaultConfiguration();
+		return configuration.set(SQLDialect.POSTGRES);
+	}
+
+	public PocUserDao userDao() {
+		return new PocUserDaoImpl(jooqConfiguration(), sqlClient);
+	}
+
+	public PocGroupDao groupDao() {
+		Configuration config = jooqConfiguration();
+
+		UserGroupDao userGroupDao = new UserGroupDao(config, sqlClient);
+		UserDao userDao = new UserDao(config, sqlClient);
+
+		return new PocGroupDaoImpl(config, sqlClient, userGroupDao, userDao);
+	}
+
+}
+----
+
+The `setupSQLClient` method will return the `io.vertx.reactivex.sqlclient.Pool` which is the reactive variant of the pooled client.
+
+### Transaction Handling
+
+The `PocGroupDaoImpl#addTwoUsers` method shows how transactional operations can be used.
+
+.PocGroupDaoImpl.java
+[source,java]
+----
+…
+@Override
+public Observable<PocUser> addTwoUsers() {
+	Observable<User> txOperation = userDao.queryExecutor().beginTransaction()
+		.flatMapObservable(tx -> {
+			// Load elements conveniently via the findMany method
+			Single<List<User>> existingUsers = tx.findMany(ctx -> {
+				ResultQuery<UserRecord> userRecords = ctx.select().from(USER).coerce(USER);
+				return userRecords;
+			});
+
+			User userPojo = new User();
+			userPojo.setUsername("ABCD");
+
+			User userPojo2 = new User();
+			userPojo2.setUsername("ABCD2");
+
+			// Inserts can be executed within the given transaction
+			Single<User> createdUser1 = tx.executeAny(ctx -> {
+				UserRecord record = ctx.newRecord(userDao.getTable(), userPojo);
+				return ctx.insertInto(userDao.getTable())
+					.set(record)
+					.returning(USER.getPrimaryKey().getFieldsArray());
+			}).map(rows -> rows.iterator().next())
+				.map(io.vertx.reactivex.sqlclient.Row::getDelegate)
+				.map(keyConverter()::apply)
+				.map(pk -> userPojo.setUuid(pk));
+
+			// The operation can also be encapsulated within a dedicated method
+			Single<User> createdUser2 = DaoOps.insertUser(tx, userPojo2, keyConverter());
+			
+			// Lets combine the created users with the previously loaded users
+			Single<List<User>> s = Single.zip(existingUsers, createdUser1, createdUser2,
+				(u1, c1, c2) -> {
+					System.out.println("Adding users");
+					u1.add(c1);
+					u1.add(c2);
+					return u1;
+				});
+
+			Observable<User> obs = s.flatMapObservable(Observable::fromIterable);
+			// Now commit the tx and return the results
+			return tx.commit().andThen(obs);
+		});
+
+	return txOperation.map(jooq -> {
+		return JooqWrapperHelper.wrap(jooq, PocUserImpl.class);
+	});
+}
+…
+----
+
+It is important to note that transactions can't be controlled by the caller of the DAO methods. Instead the DAO implementation controls the use of transactions. This pattern is required since the DAO methods are all reactive/async.
+I moved the atomic transactional operations to the `DaoOps` class which can be referenced when combining operations.
+
+## Conclusion
+
+I hope this PoC and blogpost was informative to you. If you have feedback or want to improve the PoC you can always do so. I welcome any pull-request for the link:https://github.com/metaloom/poc-vertx-jooq[PoC Github repository].

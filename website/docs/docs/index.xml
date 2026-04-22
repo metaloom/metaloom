@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Documentation on MetaLoom</title>
+    <link>https://metaloom.io/docs/</link>
+    <description>Recent content in Documentation on MetaLoom</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-us</language><atom:link href="https://metaloom.io/docs/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Administration Guide</title>
+      <link>https://metaloom.io/docs/test/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>https://metaloom.io/docs/test/</guid>
+      <description>A B C The docs</description>
+    </item>
+    
+    <item>
+      <title>Configuration</title>
+      <link>https://metaloom.io/docs/configuration/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>https://metaloom.io/docs/configuration/</guid>
+      <description>--- database: host: &amp;#34;127.0.0.1&amp;#34; port: 5432 username: &amp;#34;postgres&amp;#34; password: &amp;#34;finger&amp;#34; databaseName: &amp;#34;loom&amp;#34; minPoolSize: 5 acquireIncrement: 5 maxPoolSize: 20 jdbcUrl: &amp;#34;jdbc:postgresql://127.</description>
+    </item>
+    
+    <item>
+      <title>REST API</title>
+      <link>https://metaloom.io/docs/rest/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>https://metaloom.io/docs/rest/</guid>
+      <description>Tip Try the example https://demo.metaloom.io/api/v1/demo/assets API endpoints Description API endpoint Get the asset with the given UUID.</description>
+    </item>
+    
+  </channel>
+</rss>

@@ -45,6 +45,7 @@
         <module>examples</module>
         <module>integration-test</module>
         <module>e2e-test</module>
+        <module>website</module>
     </modules>
 
     <dependencies>

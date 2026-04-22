@@ -1,0 +1,16 @@
+{
+    "name": "metaloom-theme",
+    "version": "1.0.0",
+    "main": "index.js",
+    "license": "MIT",
+    "scripts": {
+      "build": "parcel build -d assets/css less/*.less",
+      "watch": "parcel watch -d assets/css less/*.less"
+    },
+    "devDependencies": {
+      "cssnano": "^4.1.0",
+      "less": "^3.8.1",
+      "parcel-bundler": "^1.9.7"
+    }
+  }
+  

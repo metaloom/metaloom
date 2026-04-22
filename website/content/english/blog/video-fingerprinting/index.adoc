@@ -1,0 +1,148 @@
+---
+title: "Video Fingerprinting"
+date: 2021-06-21T21:51:12+06:00
+image: "photo-1585079374502-415f8516dcc3.jpg"
+image_webp: "photo-1585079374502-415f8516dcc3.webp"
+image_credit: Photo by George Prentzas on Unsplash
+author: jotschi
+description : "In this post I want to share my experiments on how to generate video fingerprints."
+hidden: false
+---
+
+:icons: font
+
+## Intro
+
+In this post I want to share my experiments on how to generate video fingerprints.
+
+The goal of the link:https://en.wikipedia.org/wiki/Digital_video_fingerprinting[fingerprinting] is to enable identification and comparing processes for video media.
+
+Fingerprinting is the key process that is needed to handle comparing processes, similarity search, de-duplication and video identification.
+
+## Basics
+
+Fingerprinting works by generating a binary hash of the image. These hashes can in turn be compared to each other. Lets take a look on how this process works with text first before we dive into media hashing.
+
+[options="header",cols="1,3,2"]
+|======
+
+| Text
+| Bin
+| Diff
+
+| loom
+| 01101100011011110``1101111``01101101
+| -
+
+| lo0m
+| 01101100011011110``0110000``01101101
+| 6
+
+|======
+
+In this example shows that both strings have a difference of 6 bits. The remaining bits are similar. The same process can be applied to video fingerprinting. By comparing a generated hash from one video to another it is possible to determine whether both videos share similar characteristics which were encoded in the fingerprint hash.
+
+The link:https://en.wikipedia.org/wiki/Levenshtein_distance[Levenshtein distance] describes this metric in more detail.
+
+For a large set of fingerprints it is however not feasible to pre-compute all Levenshtein distances for all fingerprint combinations. 
+
+Another approach to handle comparing fingerprints is to use link:https://en.wikipedia.org/wiki/Nearest_neighbor_search[Nearest neighbor search]. In this case the fingerprint can be seen as a multidimensional vector. Similar vectors are closer in relation and thus NNS can be applied to find neighbors similar to the selected fingerprint.
+
+The last approach is to store the fingerprint as a vector in a binary tree. Queries can be run against this tree to determine nearest neighbors.
+
+NOTE: Additional information can of course also be included in the vectors to search for more specific traits of the media. Outside of media fingerprinting this process may also be used for product suggestions / recommendations. User, product, behaviour information may be added to the vectors which can be searched.
+
+There are various projects on github which also allow the creation and storage of such binary trees for link:https://github.com/erikbern/ann-benchmarks[nearest neighbor search].
+
+The one I tested was link:https://github.com/spotify/annoy[Annoy] from spotify.
+
+## Process
+
+For video you of course need to deal with image data.
+The process I came up with works as following:
+
+* Seek to 15% position of the video
+* Iterate over a given amount of frames
+* Skip black frames (e.g. cut-screen frames)
+* Process the frame by reducing, greyscaling, bluring, normalizing it
+* Stack/Combine the frames additively into a single output image
+* Reduce the output image to a binary color precision
+* Convert the image into a bitstream
+* Convert to hex
+
+I decided to try the stacking approach in order to get generate fingerprints which were less prone to slight changes in framerate and start offset.
+In order to speedup the process some of the frames after a taken frame will be omitted.
+
+## Detailed Process
+
+### Stage 1 - Source
+
+Resize the source frame to 512x512.
+
+.Source frame
+image::stage-1.jpg[]
+
+### Stage 2 - Preparation
+
+Convert to greyscale and normalize the image to reduce extra bright spots.
+Blur the image and normalize again. Now stack the resulting frame with the previously processed frame.
+Resize to 16x16 pixel
+
+.Reduced
+image::stage-2.jpg[]
+
+### Stage 3 - Normalize
+
+Normalize the image
+
+.Normalized
+image::stage-3.jpg[]
+
+### Stage 4 - Stacking
+
+Stack the frame with the previously frame
+
+.Stacked
+image::stage-4.jpg[]
+
+### Stage 5 - Normalize
+
+Normalize the stacked image to reduce bright spots that may have been created due to stacking.
+
+.Normalized
+image::stage-5.jpg[]
+
+### Stage 6 - Binary
+
+Convert grey values to one bit precision.
+
+.Result
+image::stage-6.jpg[]
+
+The result image content gets converted into hex which forms the final fingerprint value.
+
+`060007000f003e001d0085000600f40076597a007c86ffdefffffefffcfffdff01`
+
+### Example Video
+
+This video shows the stacking process in action using a sample video from big buck bunny.
+
+video::processing.mp4[width="100%",opts="autoplay,loop"]
+
+## Other sources
+
+### pHash
+
+https://www.phash.org/[pHash] is an open source perceptual hashing mechanism for media.
+As far as I recall it uses edge detection to find specific areas of the video which are more prominent. The detected edges are transformed via link:https://en.wikipedia.org/wiki/Hough_transform[Hough Transform] into a different spatial data which is robust to scaling and rotation. A more detailed description can be found in this post: link:https://www.programmersought.com/article/58297818060/[Phash knows the perception of the human eye]
+
+### Chromaprint
+
+Chromaprint is mainly designed for audio but shares some concepts to video fingerprinting.
+The main aspect is that fourier transformation is applied to the audio data to prepare it for processing. Checkout the authors detailed explanation on how link:https://oxygene.sk/2011/01/how-does-chromaprint-work/[Chromaprint] works.
+
+## Final thoughts
+
+My initial implementation of this process works as expected but there still some cases in which the fingerprint process will not yield a meaningful stacked image / generated hash. I assume there may be a problem with the selection process of frames or that the normalization does not work as expected. I have to look into this.
+
+I hope this post was interesting to you. I may create a follow-up post in the future which will cover the actual storage and query processes for the generated fingerprints.

@@ -1,0 +1,132 @@
+---
+title: "Java FFM - Graph Storage PoC"
+date: 2025-01-28T14:51:12+06:00
+image: linh-le-a0rE64YJDA4-unsplash.jpg
+image_webp: linh-le-a0rE64YJDA4-unsplash.webp
+image_credit: Photo by Linh Le on Unsplash
+author: Jotschi
+description : "This post covers the creation of a Graph Storage PoC using Java FFM."
+---
+
+:icons: font
+
+## Graph Storage PoC
+
+
+## FFM Basics - Memory
+
+The main building blocks for foreign memory handling are `Arena`, `MemoryLayout` and `MemorySegmet`.
+
+### Arena 
+
+The arena provides your Java Code with an entrypoint to access foreign memory. Memory access can be scoped via different access. This may influence threaded access and automatic freeing of allocated memory segments.
+
+```java 
+Arena arena = Arena.ofAuto();
+```
+
+### MemoryLayout
+
+A memory layouts defines data structures for your memory access. The Java API provides ways to nest, repeat and add padding for structures.
+
+
+### Graph Storage
+
+* Nodes, Properties and Relationship
+
+
+### MMap handling
+
+### UUID handling
+
+In order to elivate the need for expensive offset lookup I decided to directly encode the file offset into the generated UUID.
+This way the stroage implementation can directly seek to the memory segment in the storage file that contains the Node / Relationship.
+
+The `GraphUUID` class uses bit packing to encode the offset. The two 8 byte components of the UUID are created by intertwining the bits of a random component with the offset. This way the overall randomness of the uuid gets preserved to some extend and the offset is still part of the UUID.
+The same process can be reversed to extract the offset for the element from the given `GraphUUID`.
+
+
+```java
+public class GraphUUID {
+
+	private static final Random RND = new Random();
+
+	private final UUID uuid;
+
+	public GraphUUID(UUID uuid) {
+		this.uuid = uuid;
+	}
+
+	public static GraphUUID uuid(long offset) {
+		long random = RND.nextLong();
+		UUID uuid = createUUID(offset, random);
+		return new GraphUUID(uuid);
+	}
+
+	public static GraphUUID from(long offset, long randomValue) {
+		return new GraphUUID(createUUID(offset, randomValue));
+	}
+
+	/**
+	 * Creates a UUID by intertwining bits from value and randomValue.
+	 * 
+	 * @param offset
+	 * @param randomValue
+	 * @return
+	 */
+	private static UUID createUUID(long offset, long randomValue) {
+		long mostSignificantBits = intertwineBits(offset >>> 32, randomValue >>> 32);
+		long leastSignificantBits = intertwineBits(offset & 0xFFFFFFFFL, randomValue & 0xFFFFFFFFL);
+		return new UUID(mostSignificantBits, leastSignificantBits);
+	}
+
+	public long offset() {
+		long mostSignificantBits = uuid.getMostSignificantBits();
+		long leastSignificantBits = uuid.getLeastSignificantBits();
+		return (extractOddBits(mostSignificantBits) << 32) | extractOddBits(leastSignificantBits);
+	}
+
+	public long randomValue() {
+		long mostSignificantBits = uuid.getMostSignificantBits();
+		long leastSignificantBits = uuid.getLeastSignificantBits();
+		return (extractEvenBits(mostSignificantBits) << 32) | extractEvenBits(leastSignificantBits);
+	}
+
+	private static long intertwineBits(long value, long randomValue) {
+		long intertwined = 0;
+		for (int i = 0; i < 32; i++) {
+			intertwined |= ((value >>> i) & 1L) << (2 * i + 1);
+			intertwined |= ((randomValue >>> i) & 1L) << (2 * i);
+		}
+		return intertwined;
+	}
+
+	private static long extractOddBits(long intertwined) {
+		long value = 0;
+		for (int i = 0; i < 32; i++) {
+			value |= ((intertwined >>> (2 * i + 1)) & 1L) << i;
+		}
+		return value;
+	}
+
+	private static long extractEvenBits(long intertwined) {
+		long randomValue = 0;
+		for (int i = 0; i < 32; i++) {
+			randomValue |= ((intertwined >>> (2 * i)) & 1L) << i;
+		}
+		return randomValue;
+	}
+
+	@Override
+	public String toString() {
+		return uuid.toString();
+	}
+
+}
+```
+
+## NodeRelationshipStorage
+
+## RelationshipStorage 
+
+## Traversal

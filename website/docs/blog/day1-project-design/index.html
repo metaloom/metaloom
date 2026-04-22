@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en-us">
+<head>
+	<meta charset="utf-8">
+	<title>Day1 - Project Design</title>
+
+	<!-- mobile responsive meta -->
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+	<meta name="description" content="In this post I would like to share how I approach the design for Loom.">
+	
+	<meta name="author" content="Jotschi">
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:site" content="@metaloom" />
+    <meta name="twitter:creator" content="" />
+    <meta name="twitter:title" content="Day1 - Project Design" />
+    <meta name="twitter:description" content="In this post I would like to share how I approach the design for Loom." />
+    <meta name="twitter:image:src" content="https://metaloom.io/blog/day1-project-design/eleventh-wave-JsjtrixOiWc-unsplash.webp" />
+    
+    <meta property="og:title" content="Day1 - Project Design">
+    <meta property="og:url" content="https://metaloom.io/blog/day1-project-design/">
+    <meta property="og:description" content="In this post I would like to share how I approach the design for Loom.">
+    <meta property="og:image" content="https://metaloom.io/blog/day1-project-design/eleventh-wave-JsjtrixOiWc-unsplash.webp">
+
+	<meta name="generator" content="Hugo 0.131.0">
+
+	<!-- plugins -->
+	
+	<link rel="stylesheet" href="https://metaloom.io/plugins/fontawesome5/css/all.min.css">
+	
+	<link rel="stylesheet" href="https://metaloom.io/plugins/bootstrap/bootstrap.min.css">
+	
+	<link rel="stylesheet" href="https://metaloom.io/plugins/themify-icons/themify-icons.css">
+	
+	<link rel="stylesheet" href="https://metaloom.io/plugins/magnific-popup/magnific-popup.css">
+	
+	<link rel="stylesheet" href="https://metaloom.io/plugins/slick/slick.css">
+	
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Anaheim%7cQuattrocento&#43;Sans:400,700&amp;display=swap">
+	
+	<link rel="stylesheet" href="https://metaloom.io/plugins/toc/bootstrap-toc.min.css">
+	
+	<link rel="stylesheet" href="https://metaloom.io/plugins/swagger/swagger-ui.css">
+	
+
+	<!-- Main Stylesheet -->
+	
+	<link rel="stylesheet" href="https://metaloom.io/css/main.min.css" media="screen">
+
+	<!--Favicon-->
+	<link rel="shortcut icon" href="https://metaloom.io/images/favicon.png" type="image/x-icon">
+	<link rel="icon" href="https://metaloom.io/images/favicon.png" type="image/x-icon">
+
+	
+
+</head>
+
+
+<body id="body" data-spy="scroll" data-target=".navbar" data-offset="55">
+  <div id="content">
+    
+
+
+<section class="sticky-top navigation">
+	<div class="container">
+		<nav class="navbar navbar-expand-lg navbar-dark">
+			<a class="navbar-brand p-0" href="/">
+				
+				<img class="lozad" src="https://metaloom.io/images/logo_word_big.svg" alt="MetaLoom" height="42">
+				
+			</a>
+
+			<button class="navbar-toggler rounded-0" type="button" data-toggle="collapse" data-target="#navigation">
+				<span class="navbar-toggler-icon"></span>
+			</button>
+
+			<div class="collapse navbar-collapse" id="navigation">
+				<ul class="navbar-nav ml-auto">
+					
+					<li class="nav-item">
+            <a class="nav-link" href="/#feature">features</a>
+					</li>
+					
+					<li class="nav-item">
+            <a class="nav-link" href="/#team">developer</a>
+					</li>
+					
+					<li class="nav-item">
+            <a class="nav-link" href="/#blog">blog</a>
+					</li>
+					
+					<li class="nav-item">
+            <a class="nav-link" href="/docs">docs</a>
+					</li>
+					
+				</ul>
+				
+			</div>
+		</nav>
+	</div>
+</section>
+
+
+<section class="section">
+  <div class="container">
+    <div class="row">
+      <div class="col-lg-3 d-none d-lg-block toc-sticky-top">
+        <nav id="toc"></nav>
+      </div>
+      <div class="col-lg-9 text-center">
+        <h1>Day1 - Project Design</h1>
+        <ul class="list-inline mb-50">
+          <li class="list-inline-item"><a href="/author/jotschi/">jotschi</a></li>
+          <li class="list-inline-item">Thursday, May 13, 2021</li>
+        </ul>
+        <img class="img-fluid lozad" src="eleventh-wave-JsjtrixOiWc-unsplash.jpg" data-src="eleventh-wave-JsjtrixOiWc-unsplash.jpg" alt="blog-image">
+        <div class="image-credit">
+          Credit: Photo by Eleventh Wave on Unsplash
+        </div>
+      </div>
+      <div class="col-lg-9 offset-lg-3">
+        <div class="post-single-content">
+          <div class="sect1">
+<h2 id="_basics">Basics</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>For Loom I knew what kind of building blocks were required since it is basically just a continuation of my work on Mesh.</p>
+</div>
+<div class="paragraph">
+<p>In the past I choose the approach to generate the spec and database schema from code. At least for the database that seemed a good choice at the time since the embedded DB of Mesh could be directly controlled via Java.</p>
+</div>
+<div class="paragraph">
+<p>This time I’ll however decided to handle things differently. First I want to define the API specification and from that information I would derive the needed domain model.</p>
+</div>
+<div class="paragraph">
+<p>Let’s take a look at the building blocks first.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_assets">Assets</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The assets are the key component of Loom around various other elements are arranged.</p>
+</div>
+<div class="paragraph">
+<p>Properties:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>uuid</code></p>
+</li>
+<li>
+<p><code>filename</code></p>
+</li>
+<li>
+<p><code>hashes.sha512</code>, <code>hashes.sha256</code>, <code>hashes.md5</code></p>
+</li>
+<li>
+<p><code>mimeType</code></p>
+</li>
+<li>
+<p><code>dominantColor</code></p>
+</li>
+<li>
+<p><code>duration</code></p>
+</li>
+<li>
+<p><code>timeline.from</code>, <code>timeline.to</code></p>
+</li>
+<li>
+<p><code>timeline.thumbnail</code></p>
+</li>
+<li>
+<p><code>timeline.meta</code></p>
+</li>
+<li>
+<p><code>timeline.tags</code></p>
+</li>
+<li>
+<p><code>timeline.description</code></p>
+</li>
+<li>
+<p><code>location.lon</code>, <code>location.lat</code></p>
+</li>
+<li>
+<p><code>meta</code></p>
+</li>
+<li>
+<p><code>creator.username</code>, <code>creator.uuid</code></p>
+</li>
+<li>
+<p><code>editor.username</code>, <code>editor.uuid</code></p>
+</li>
+<li>
+<p><code>cdate</code>, <code>edate</code></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_acl">ACL</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Additionally an <code>ACL</code> system is needed which consists of <code>User</code>, <code>Group</code>, <code>Role</code> and permission management.</p>
+</div>
+<div class="sect2">
+<h3 id="_sso">SSO</h3>
+<div class="paragraph">
+<p>Loom does not directly participate a typical OAuth flow since it is only a third party consumer of OAuth tokens.</p>
+</div>
+<div class="paragraph">
+<p>Instead a frontend app must handle the OAuth flow and process the SSO authentication. After that has been done the generated API token can be used for Loom requests as well.</p>
+</div>
+<div class="paragraph">
+<p>Loom can now validate the token using the public keys from the SSO provider.
+Next the <code>JWT</code> public claims can be utilized to map the information to a Loom user which is needed to perform the request.</p>
+</div>
+<div class="paragraph">
+<p>For all options it is a good idea to prepared the domain model in order to support <a href="https://en.wikipedia.org/wiki/Single_sign-on">Single-Sign-On</a>. For Loom this means that a user model also has a <code>sso</code> flag which indicates that the user was created via SSO process.</p>
+</div>
+<div class="sect3">
+<h4 id="_option_1_in_memory_user_mapping">Option 1 - In-memory user mapping</h4>
+<div class="paragraph">
+<p>In order to avoid cluttering the Loom database with SSO users it would be one option to use an in-memory user instead of creating and persisting the user in the database. Downside of this approach is that newly created or edited resources can’t store the user reference.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_option_2_surrogate_user_mapping">Option 2 - Surrogate user mapping</h4>
+<div class="paragraph">
+<p>Another approach is to map the SSO user to a surrogate user which acts as a stand-in for SSO users. This approach however only works if the users don’t need dedicated permissions.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_option_3_dedicate_mapping">Option 3 - Dedicate mapping</h4>
+<div class="paragraph">
+<p>Finally the SSO token information can be mapped directly to a dedicated Loom users. This way individual permissions and creator/editor references can be stored in Loom.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_permissions">Permissions</h3>
+
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_tagging">Tagging</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Taggings can be applied to assets, contents, namespaces.</p>
+</div>
+<div class="paragraph">
+<p>Often taggings are user based and thus it is a good choice to store tags globally and on a per-user basis.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_namespaces">Namespaces</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>Namespaces</code> are used to scope content and asset elements.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_content_models">Content Models</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>Content Models</code> are used to define the structure of your content elements.
+A model defines a list of fields which can hold the content information.
+<code>Field</code> types can be numbers, dates, JSON, text, booleans.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_contents">Contents</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The <code>Content</code> are elements which can be created in order to supplement the information from the assets.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_api_functions_openapi">API Functions / OpenAPI</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This time I wanted to follow the design first approach as it would give me time to rethink and plan the API upfront.
+The <a href="https://swagger.io/specification/">OpenAPI</a> spec can be utilized to create a full REST API specification.</p>
+</div>
+<div class="paragraph">
+<p>The <a href="https://editor.swagger.io/">Swagger Editor</a> is a great tool when verifying and visualizing the written spec.</p>
+</div>
+<div class="paragraph">
+<p>There are many resources out there on the net that cover good practices when creating an API. I thus won’t go into detail about those topics here.</p>
+</div>
+<div class="paragraph">
+<p>A good summary can for example be found <a href="https://www.vinaysahni.com/best-practices-for-a-pragmatic-restful-api">here</a>.</p>
+</div>
+<div class="paragraph">
+<p>My bulletpoint list:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Don’t use verbs in your path - use http methods instead</p>
+</li>
+<li>
+<p>Use plural for resources</p>
+</li>
+<li>
+<p>Be consistent (e.g. same patterns, same identifier format)</p>
+</li>
+<li>
+<p>Plan on how the API can be seen by humans <strong>and</strong> software</p>
+</li>
+<li>
+<p>Keep caching in mind</p>
+</li>
+<li>
+<p>Try to find a good middleground when returning information (<code>overfetching</code>,<code>underfetching</code>)</p>
+</li>
+<li>
+<p>Use JSON where possible</p>
+</li>
+<li>
+<p>Enable server-side compression</p>
+</li>
+<li>
+<p>Enable prettyprinting of JSON</p>
+</li>
+<li>
+<p>Add options to hide server tokens</p>
+</li>
+<li>
+<p>Use meaningful http error codes for server errors</p>
+</li>
+<li>
+<p>Return <code>204</code> on delete</p>
+</li>
+<li>
+<p>Include error messages</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="title">openapi.xml</div>
+<div class="content">
+<pre class="prettyprint highlight"><code data-lang="xml">openapi: &#39;3.0.2&#39;
+info:
+  description: &#34;Central Loom REST API&#34;
+  version: &#34;1.0.0&#34;
+  title: &#34;MetaLoom Loom API&#34;
+  termsOfService: &#34;https://metaloom.io/terms/&#34;
+  contact:
+    email: &#34;api@metaloom.io&#34;
+  license:
+    name: &#34;Apache 2.0&#34;
+    url: &#34;http://www.apache.org/licenses/LICENSE-2.0.html&#34;
+servers:
+  - url: https://demo.metaloom.io/v1
+tags:
+- name: &#34;namespace&#34;
+  description: &#34;The namespace within a loom instance.&#34;
+  externalDocs:
+    description: &#34;Find out more&#34;
+    url: &#34;https://metaloom/docs/namespaces&#34;
+
+
+security:
+  - ApiKeyAuth: []
+
+paths:
+  # User
+  /users:
+    summary: &#34;Endpoint to access users.&#34;
+    head:
+      tags: [&#34;User&#34;]
+      operationId: &#34;checkUsers&#34;
+      responses:
+        &#39;204&#39;:
+          description: &#34;Users checked&#34;
+    get:
+      parameters:
+        - $ref: &#34;#/components/parameters/perPage&#34;
+        - $ref: &#34;#/components/parameters/page&#34;
+      tags: [&#34;User&#34;]
+      operationId: &#34;loadUsers&#34;
+      responses:
+        &#39;200&#39;:
+          description: &#34;Users loaded&#34;
+          content:
+            &#39;application/json&#39;:
+              schema:
+                $ref: &#39;#/components/schemas/UserListResponse&#39;
+              examples:
+                UserListResponse:
+                  $ref: &#39;#/components/schemas/UserListResponse/example&#39;
+…</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><a href="openapi.yaml">Full OpenAPI Spec</a></p>
+</div>
+<div class="sect2">
+<h3 id="_resource_identifier">Resource Identifier</h3>
+<div class="paragraph">
+<p>For the resource identifier in API paths (<code>/users/:uuid</code>) I choose <a href="https://en.wikipedia.org/wiki/Universally_unique_identifier#Version_4_(random)">UUIDv4</a>.</p>
+</div>
+<div class="paragraph">
+<p>In some situations using UUIDs can be complicated for the client. Tags are a good example for this.
+A frontend may interact with the Loom backend using tag names instead of UUIDs.</p>
+</div>
+<div class="paragraph">
+<p>A resource path that matches <code>/tagsByName/:tagName</code> would thus be more convenient.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_http_methods">HTTP Methods</h3>
+<div class="paragraph">
+<p>The REST API CRUD methods should not be be directly mapped to HTTP methods. The usage of the method must match the <a href="https://datatracker.ietf.org/doc/html/rfc2616#section-9.3">RFC2616</a>.</p>
+</div>
+<div class="paragraph">
+<p>A good resource on this topic is <a href="https://restfulapi.net/http-methods/">restfulapi.net</a>.</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 33.3333%;"/>
+<col style="width: 66.6667%;"/>
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Method</th>
+<th class="tableblock halign-left valign-top">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GET</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Load the resource/s (idempotent)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Create a new resource</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>PATCH</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Partial update of a resource</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>HEAD</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Check the resource/s without returning the content</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>PUT</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Update / create resource with id</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>DELETE</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Delete the resource</p></td>
+</tr>
+</tbody>
+</table>
+<div class="paragraph">
+<p>Note that POST requests are not idempotent and thus may create multiple elements when invoked multiple times.</p>
+</div>
+<div class="paragraph">
+<p>For Loom I’m however considering to omit <code>PATCH</code> and use <code>POST</code> for partial updates. This does not validate the RFC and simplifies the API.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_rest_models">REST Models</h3>
+<div class="paragraph">
+<p>The OpenAPI spec also contains the response and request format.</p>
+</div>
+<div class="listingblock">
+<div class="title">openapi.xml</div>
+<div class="content">
+<pre class="prettyprint highlight"><code data-lang="xml">…
+UserResponse:
+    allOf:
+    - $ref: &#34;#/components/schemas/EditableElement&#34;
+    required:
+    - username
+    properties:
+    uuid:
+        type: string
+        description: &#34;UUID of the user.&#34;
+    username:
+        type: string
+        description: &#34;Username of the user.&#34;
+    firstname:
+        type: string
+        description: &#34;Firstname of the user.&#34;
+    lastname:
+        type: string
+        description: &#34;Lastname of the user.&#34;
+    email:
+        type: string
+        description: &#34;E-Mail address of the user.&#34;
+    enabled:
+        type: boolean
+        description: &#34;Flag which indicates that the user is enabled.&#34;
+    admin:
+        type: boolean
+        description: &#34;Flag which indicates that the user has admin permissions.&#34;
+    meta:
+        type: object
+        description: &#34;Additional user properties.&#34;
+    example:
+    uuid: &#34;217f8c981ada4642bf8c981adaa642c3&#34;
+    username: &#34;joedoe&#34;
+    email: &#34;joedoe@metaloom.io&#34;
+    firstName: &#34;Joe&#34;
+    lastName: &#34;Doe&#34;
+    enabled: true
+    admin: false
+    meta:
+        birthday: &#34;02-04-1987&#34;
+        favoriteColor: &#34;blue&#34;
+        securityQuestionAnswer: &#34;42&#34;
+    creator:
+        username: &#34;joedoe&#34;
+        uuid: &#34;eaf23fea-f6b2-46a7-84af-a7335471df5e&#34;
+    editor:
+        username: &#34;joedoe&#34;
+        uuid: &#34;2e20fca1-dbe7-4f28-99d7-15bf366b4a82&#34;
+    cdate: &#34;2021-03-20T20:12:01.084Z&#34;
+    edate: &#34;2021-03-20T21:12:01.084Z&#34;
+…</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_pagination">Pagination</h3>
+<div class="paragraph">
+<p>Implementing an efficient paging solution can be a challenge in itself. Often many parameters need to be taken into account when retrieving a page of elements for a specific resource.</p>
+</div>
+<div class="paragraph">
+<p>For loom the result of a page request can be affected by:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>applied filters</p>
+</li>
+<li>
+<p>user permissions</p>
+</li>
+<li>
+<p>page selection</p>
+</li>
+<li>
+<p>sort order</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>It is thus desired to generate database queries which all include these factors. The database can in turn cache the query and return the resulting page of elements.</p>
+</div>
+<div class="paragraph">
+<p>There are two different paging options that are common:</p>
+</div>
+<div class="sect3">
+<h4 id="_limit_offset_based_usersoffset10limit2">Limit &amp; offset based - <code>/users?offset=10&amp;limit=2</code></h4>
+<div class="paragraph">
+<p>In this option you need to manually specify how many items you want to skip and afterwards select.
+It is easy to map these parameters to the needed SQL query. This option is however not very convenient when using the REST API for a web frontend which usually exposes pages to the users.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_page_size_based_usersperpage10page2">Page size based - <code>/users?perPage=10&amp;page=2</code></h4>
+<div class="paragraph">
+<p>In this option page size and selected page need to be specified by the user.
+The offset and limit can derived from these parameters.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>perPage * page = offset</code></p>
+</li>
+<li>
+<p><code>perPage = limit</code></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_response_caching_etag_handling">Response Caching / eTag Handling</h3>
+<div class="paragraph">
+<p>Caching is an important aspect that is rarely mentioned when designing a REST API.
+In this section I’ll mention a few aspects that influence caching.</p>
+</div>
+<div class="sect3">
+<h4 id="_foreign_values">Foreign values</h4>
+<div class="paragraph">
+<p>Whenever the response of a resource contains fields from foreign elements it can negatively affect the cacheability.</p>
+</div>
+<div class="paragraph">
+<p>The element needs to be flushed from the cache whenever an included value of a foreign element is altered in the response. This not only affects client side caches but also the eTag generation for responses.</p>
+</div>
+<div class="listingblock">
+<div class="title">group-response</div>
+<div class="content">
+<pre class="prettyprint highlight"><code data-lang="xml">{
+  &#34;uuid&#34; : &#34;fbfd0632-7d10-464f-ada4-ebe5511d226d&#34;,
+  &#34;creator&#34; : {
+    &#34;firstName&#34; : &#34;Joe&#34;,
+    &#34;lastName&#34; : &#34;Doe&#34;,
+    &#34;uuid&#34; : &#34;89389d87-6af3-43ed-8374-23cda00c3750&#34;
+  },
+…
+  &#34;name&#34; : &#34;Admin Group&#34;,
+  &#34;roles&#34; : [ {
+    &#34;name&#34; : &#34;admin&#34;,
+    &#34;uuid&#34; : &#34;8cb8c1c0-7a32-4b27-a15b-d28819ae5952&#34;
+  } ]
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Including foreign values can’t or should not always be avoided. This is mainly a design and usability decision.
+In this example the role names and uuid are included. Whenever the role name changes the cached group response needs to be invalidated / the eTag in the response needs to change.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_inclusion_of_immutable_foreign_values">Inclusion of immutable foreign values</h4>
+<div class="paragraph">
+<p>Another option is to omit the mutable value from the referenced resource. This reduces the probability that the cache needs to be updated. It however may also increase the <strong>burden on the API user</strong> since additional resources may need to be manually fetched afterwards. This aspect is called <a href="https://stackoverflow.com/a/44568365/644326">underfetching</a>.</p>
+</div>
+<div class="paragraph">
+<p>Needless to say that <a href="https://graphql.org/">GraphQL</a> does solve the fetching aspect in a great way.</p>
+</div>
+<div class="listingblock">
+<div class="title">group-response</div>
+<div class="content">
+<pre class="prettyprint highlight"><code data-lang="xml">…
+  &#34;roles&#34; : [ {
+    &#34;uuid&#34; : &#34;8cb8c1c0-7a32-4b27-a15b-d28819ae5952&#34;
+  } ]
+…</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_etag_handling">ETag handling</h4>
+<div class="paragraph">
+<p>Returning an <a href="https://en.wikipedia.org/wiki/HTTP_ETag">ETag</a> is a good practice for REST APIs as it with helps client and proxy caching.</p>
+</div>
+<div class="paragraph">
+<p>The ETag itself is a hash which needs to be computed for the requested resource.</p>
+</div>
+<div class="paragraph">
+<p>Adding a <code>version</code> column on each resource table can help a lot with the generation of the ETag.
+The value of the column for the element needs to be incremented whenever it gets updated.
+Using this value it is easy to compute a hash by selecting all <code>version</code> values that influence the response.
+A group response which also returns the role names must thus also include the role version’s in the ETag.
+Server side caching can be used to store computed hashes in order to avoid database queries.
+For Mesh I created an event aware caching implementation which could invalidate server-side caches across a clustered setup. For Loom this might also be a good option.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_caching_of_page_responses">Caching of page responses</h4>
+<div class="paragraph">
+<p>Including the <code>totalCount</code> and <code>pageCount</code> values in the response can also negatively affect caching since the response needs to be invalidated when ever new elements get added/removed which may alter the counts.</p>
+</div>
+<div class="listingblock">
+<div class="title">page-response</div>
+<div class="content">
+<pre class="prettyprint highlight"><code data-lang="xml">{
+  &#34;data&#34; : [ … ],
+  &#34;_metainfo&#34; : {
+    &#34;currentPage&#34; : 1,
+    &#34;perPage&#34; : 2,
+    &#34;pageCount&#34; : 10,
+    &#34;totalCount&#34; : 20
+  }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Alternatively it is also possible to just include information whether there are further pages. This may limit the effect of newly added elements to the resource on caching. The needed SQL select may in theory also be faster since a <a href="https://en.wikipedia.org/wiki/Full_table_scan">full table scan</a> can be avoided in this case. The scan would otherwise needed to return the count values.</p>
+</div>
+<div class="listingblock">
+<div class="title">page-response</div>
+<div class="content">
+<pre class="prettyprint highlight"><code data-lang="xml">{
+  &#34;data&#34; : [ … ],
+  &#34;_metainfo&#34; : {
+    &#34;currentPage&#34; : 1,
+    &#34;perPage&#34; : 2,
+    &#34;hasNext&#34; : true,
+    &#34;hasPrev&#34; : true
+  }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_streaming_time_to_first_byte">Streaming / Time to first byte</h3>
+<div class="paragraph">
+<p>Reducing the time to first byte can be a desired feature.</p>
+</div>
+<div class="sect3">
+<h4 id="_progressive_media">Progressive Media</h4>
+<div class="paragraph">
+<p>A very typical usecase is the handling of progressive images.
+Images which are for example encoded in <a href="https://en.wikipedia.org/wiki/WebP">WebP</a> can already be displayed by the client when only a part of the full image data has been loaded.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_json_streaming">JSON Streaming</h4>
+<div class="paragraph">
+<p>Streaming JSON data which was formatted in <a href="http://ndjson.org/">NDJSON</a> can also desired when handling large bulk responses. The server side response handling gets a bit more complicated since individual entries need to be encoded and flushed to the connected client.</p>
+</div>
+<div class="paragraph">
+<p>Returning paged response data in this way could improve the responsiveness of client applications.
+A reactive server design in combination with result streaming from a source database can allow this kind of streaming in an efficient way. Streaming the data also reduces the memory footprint of request processing since the full result in not kept in memory at one time. Instead only the currently retrieved database entry needs to be processed at one time.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_domain_model_database_design">Domain Model / Database Design</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Each main building block gets a dedicated table <code>group</code>, <code>role</code>, <code>user</code>.</p>
+</div>
+<div class="paragraph">
+<p>Relations between elements are stored in individual cross tables (e.g. <code>user_role</code>, <code>user_group</code>)</p>
+</div>
+<div class="paragraph">
+<p><span class="image"><a class="image" href="schema_v1.png"><img src="schema_v1.png" alt="500" width="600"/></a></span></p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_final_words">Final words</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>I hope you liked this post. It certainly gave me an option to reflect on the whole design and to summarize it.</p>
+</div>
+<div class="paragraph">
+<p>Things might change in the future. I welcome any feedback/ideas via <code>feedback@metaloom.io</code></p>
+</div>
+</div>
+</div>
+
+        </div>
+        
+        
+
+<div class="social-share pt-4">
+	<h4>Share:</h4>
+
+	
+	<a class="resp-sharing-button__link" href="https://twitter.com/intent/tweet/?text=Day1%20-%20Project%20Design&amp;url=https%3a%2f%2fmetaloom.io%2fblog%2fday1-project-design%2f"
+		target="_blank" rel="noopener" aria-label="">
+		<div class="resp-sharing-button resp-sharing-button--twitter resp-sharing-button--small">
+			<div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">
+				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+					<path
+						d="M23.44 4.83c-.8.37-1.5.38-2.22.02.93-.56.98-.96 1.32-2.02-.88.52-1.86.9-2.9 1.1-.82-.88-2-1.43-3.3-1.43-2.5 0-4.55 2.04-4.55 4.54 0 .36.03.7.1 1.04-3.77-.2-7.12-2-9.36-4.75-.4.67-.6 1.45-.6 2.3 0 1.56.8 2.95 2 3.77-.74-.03-1.44-.23-2.05-.57v.06c0 2.2 1.56 4.03 3.64 4.44-.67.2-1.37.2-2.06.08.58 1.8 2.26 3.12 4.25 3.16C5.78 18.1 3.37 18.74 1 18.46c2 1.3 4.4 2.04 6.97 2.04 8.35 0 12.92-6.92 12.92-12.93 0-.2 0-.4-.02-.6.9-.63 1.96-1.22 2.56-2.14z" />
+				</svg>
+			</div>
+		</div>
+	</a>
+
+	
+	<a class="resp-sharing-button__link" href="mailto:?subject=Day1%20-%20Project%20Design&amp;body=https%3a%2f%2fmetaloom.io%2fblog%2fday1-project-design%2f" target="_self"
+		rel="noopener" aria-label="">
+		<div class="resp-sharing-button resp-sharing-button--email resp-sharing-button--small">
+			<div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">
+				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+					<path
+						d="M22 4H2C.9 4 0 4.9 0 6v12c0 1.1.9 2 2 2h20c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM7.25 14.43l-3.5 2c-.08.05-.17.07-.25.07-.17 0-.34-.1-.43-.25-.14-.24-.06-.55.18-.68l3.5-2c.24-.14.55-.06.68.18.14.24.06.55-.18.68zm4.75.07c-.1 0-.2-.03-.27-.08l-8.5-5.5c-.23-.15-.3-.46-.15-.7.15-.22.46-.3.7-.14L12 13.4l8.23-5.32c.23-.15.54-.08.7.15.14.23.07.54-.16.7l-8.5 5.5c-.08.04-.17.07-.27.07zm8.93 1.75c-.1.16-.26.25-.43.25-.08 0-.17-.02-.25-.07l-3.5-2c-.24-.13-.32-.44-.18-.68s.44-.32.68-.18l3.5 2c.24.13.32.44.18.68z" />
+				</svg>
+			</div>
+		</div>
+	</a>
+
+	
+	<a class="resp-sharing-button__link"
+		href="https://reddit.com/submit/?url=https%3a%2f%2fmetaloom.io%2fblog%2fday1-project-design%2f&amp;resubmit=true&amp;title=Day1%20-%20Project%20Design" target="_blank"
+		rel="noopener" aria-label="">
+		<div class="resp-sharing-button resp-sharing-button--reddit resp-sharing-button--small">
+			<div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">
+				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+					<path
+						d="M24 11.5c0-1.65-1.35-3-3-3-.96 0-1.86.48-2.42 1.24-1.64-1-3.75-1.64-6.07-1.72.08-1.1.4-3.05 1.52-3.7.72-.4 1.73-.24 3 .5C17.2 6.3 18.46 7.5 20 7.5c1.65 0 3-1.35 3-3s-1.35-3-3-3c-1.38 0-2.54.94-2.88 2.22-1.43-.72-2.64-.8-3.6-.25-1.64.94-1.95 3.47-2 4.55-2.33.08-4.45.7-6.1 1.72C4.86 8.98 3.96 8.5 3 8.5c-1.65 0-3 1.35-3 3 0 1.32.84 2.44 2.05 2.84-.03.22-.05.44-.05.66 0 3.86 4.5 7 10 7s10-3.14 10-7c0-.22-.02-.44-.05-.66 1.2-.4 2.05-1.54 2.05-2.84zM2.3 13.37C1.5 13.07 1 12.35 1 11.5c0-1.1.9-2 2-2 .64 0 1.22.32 1.6.82-1.1.85-1.92 1.9-2.3 3.05zm3.7.13c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2zm9.8 4.8c-1.08.63-2.42.96-3.8.96-1.4 0-2.74-.34-3.8-.95-.24-.13-.32-.44-.2-.68.15-.24.46-.32.7-.18 1.83 1.06 4.76 1.06 6.6 0 .23-.13.53-.05.67.2.14.23.06.54-.18.67zm.2-2.8c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm5.7-2.13c-.38-1.16-1.2-2.2-2.3-3.05.38-.5.97-.82 1.6-.82 1.1 0 2 .9 2 2 0 .84-.53 1.57-1.3 1.87z" />
+				</svg>
+			</div>
+		</div>
+	</a>
+</div>
+        
+        
+        <div class="mt-5">
+          
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+  </div><!-- end Contact Area -->
+<footer id="footer" class="section-bg">
+	<div class="container">
+		<div class="row wow fadeInUp" data-wow-duration="500ms">
+			<div class="col-xl-12">
+
+				<!-- Footer Social Links -->
+				<div class="social-icon">
+					<ul class="list-inline">
+						
+						<li class="list-inline-item"><a href="#"><i class="ti-twitter-alt"></i></a></li>
+						
+					</ul>
+				</div>
+
+				<!-- copyright -->
+				<div class="copyright text-center">
+					<a href="https://metaloom.io/">
+						<img src="https://metaloom.io/images/logo_word_big.svg" alt="MetaLoom" height="42" />
+					</a>
+					<br>
+					<p></p>
+				</div>
+			</div>
+		</div>
+	</div>
+</footer>
+<!-- /footer -->
+
+<!-- Google Map API -->
+
+
+<!-- JS Plugins -->
+
+<script src="https://metaloom.io/plugins/jquery/jquery.min.js"></script>
+
+<script src="https://metaloom.io/plugins/bootstrap/bootstrap.min.js"></script>
+
+<script src="https://metaloom.io/plugins/slick/slick.min.js"></script>
+
+<script src="https://metaloom.io/plugins/shuffle/shuffle.min.js"></script>
+
+<script src="https://metaloom.io/plugins/magnific-popup/jquery.magnific-popup.min.js"></script>
+
+<script src="https://metaloom.io/plugins/lazy-load/lozad.min.js"></script>
+
+<script src="https://metaloom.io/plugins/toc/bootstrap-toc.min.js"></script>
+
+<script src="https://metaloom.io/plugins/toc/toc.js"></script>
+
+<script src="https://metaloom.io/plugins/swagger/swagger-ui-bundle.js"></script>
+
+<script src="https://metaloom.io/plugins/swagger/swagger-ui-standalone-preset.js"></script>
+
+<script src="https://metaloom.io/plugins/swagger/swagger.js"></script>
+
+
+<!-- Main Script -->
+
+<script src="https://metaloom.io/js/script.min.561d4194db5c74b1ef31dc32f4a688e74fd5cb99890203fdd8f7fbf9350071c37a7943c3df205fa1f943fb70bd80c8b1.js" integrity="sha384-Vh1BlNtcdLHvMdwy9KaI50/Vy5mJAgP92Pf7&#43;TUAccN6eUPD3yBfoflD&#43;3C9gMix"></script>
+
+<!-- Highlight Script -->
+<link rel="stylesheet" href="/plugins/highlight/styles/obsidian.css">
+<script src="/plugins/highlight/highlight.pack.js"></script>
+<script>hljs.highlightAll();</script>
+
+
+</body>
+
+</html>

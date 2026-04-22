@@ -1,0 +1,393 @@
+---
+title: "Day3 - Vert.x Dagger PoC"
+date: 2021-05-17T14:51:12+06:00
+image: christian-wiediger-WkfDrhxDMC8-unsplash.jpg
+image_webp: christian-wiediger-WkfDrhxDMC8-unsplash.webp
+image_credit: Photo by Christian Wiediger on Unsplash
+author: jotschi
+description : "This post explains a Vert.x Dagger proof of concept."
+---
+
+:icons: font
+
+## Dagger /  Vert.x
+
+In this post I want to show a proof of concept project that makes use of link:https://vertx.io/[Eclipse Vert.x 4.0.3] and link:https://dagger.dev/[Dagger 2.35.1] dependency injection.
+The link:https://github.com/metaloom/poc-vertx-dagger[PoC project] contains a modularized Vert.x application that is using Maven modules and dependency injection.
+Vert.x is a project which provides libraries that can be used to create reactive applications on the JVM. The PoC contains a simple HTTP server.
+
+
+
+Next I'll walk you through the individual maven modules starting with the API and at the end we'll reach the main method that starts the example project.
+
+## API
+
+The `api` module contains the API classes of the application which have no Vert.x dependency.
+In this PoC it contains the `ServerOption` POJO and `RESTServer` interface which will be implemented within the `rest` maven module.
+
+.RESTServer.java
+[source,java]
+----
+public interface RESTServer {
+
+	Completable start();
+
+	Completable stop();
+}
+----
+
+The server interface is very simple. It only defines the start and stop methods. We'll implement this interface in the `rest` module.
+
+## BOM
+
+The `bom` module is used to manage the application maven dependency versions. Using a BOM is a good practice when working with a multi-module maven project.
+It lists dagger, vert.x, project and test dependencies that are needed for the project.
+
+Other module `pom.xml` files contain the needed `dependencyManagement` section to import the BOM dependency definitions.
+
+Modules like `common`, `rest`, `api` and `server` which make use of this do not need to specify the dependency version in the `dependencies` section.
+
+.pom.xml
+[source,xml]
+----
+…
+<dependencyManagement>
+    <dependencies>
+        <dependency>
+            <groupId>io.metaloom.poc</groupId>
+            <artifactId>poc-vertx-dagger-bom</artifactId>
+            <version>${project.version}</version>
+            <type>pom</type>
+            <scope>import</scope>
+        </dependency>
+    </dependencies>
+</dependencyManagement>
+…
+----
+
+## Common
+
+The `common` module is the first module which makes use of dagger.
+
+### Dependencies
+
+It thus contains the following dependencies:
+
+.pom.xml
+[source,xml]
+----
+…
+<dependency>
+    <groupId>com.google.dagger</groupId>
+    <artifactId>dagger</artifactId>
+</dependency>
+<dependency>
+    <groupId>com.google.dagger</groupId>
+    <artifactId>dagger-compiler</artifactId>
+    <optional>true</optional>
+</dependency>
+…
+----
+
+The first dependency provides the dagger annotations that can be used within the code.
+
+The second dependency is used for the `maven-compiler-plugin`.
+
+### Compile Time DI
+
+Dagger does not handle dependency injection during runtime like this is typically done for DI libraries like link:https://github.com/google/guice[Guice] or link:https://docs.spring.io/spring-framework/docs/current/reference/html/core.html[Spring DI].
+
+Instead of runtime DI dagger will use `compile-time` DI.
+This means that the needed DI code is generated during the compilation of the project.
+
+The `dagger-compiler` dependency thus needs to be added to the `maven-compile-plugin`.
+This will enable link:https://docs.oracle.com/javase/7/docs/technotes/tools/solaris/javac.html#processing[annotation processing] for the compiler that generates new sources that are needed for the dependency injection mechanism.
+
+.pom.xml
+[source,xml]
+----
+…
+<plugin>
+    <groupId>org.apache.maven.plugins</groupId>
+    <artifactId>maven-compiler-plugin</artifactId>
+    <configuration>
+        <forceJavacCompilerUse>true</forceJavacCompilerUse>
+        <verbose>false</verbose>
+        <compilerVersion>11</compilerVersion>
+        <source>11</source>
+        <target>11</target>
+    </configuration>
+    <dependencies>
+        <dependency>
+            <groupId>com.google.dagger</groupId>
+            <artifactId>dagger-compiler</artifactId>
+            <version>${dagger.version}</version>
+            <optional>true</optional>
+        </dependency>
+    </dependencies>
+</plugin>
+…
+----
+
+TIP: When using Eclipse IDE you want to install the `m2e-apt` plugin to enable processing within the IDE. See link:https://stackoverflow.com/a/35744298/644326[SO] for details.
+
+### Vert.x + Dagger
+
+Next we need to tell dagger how to provide Vert.x dependencies when they are requested in other modules.
+
+In this PoC I choose to create a dagger module which is a class that defines how to provide needed non-dagger dependencies.
+
+.VertxModule.java
+[source,java]
+----
+…
+@Module
+public class VertxModule {
+
+	@Provides
+	@Singleton
+	public Vertx vertx() {
+		return Vertx.vertx();
+	}
+
+	@Provides
+	@Singleton
+	public io.vertx.reactivex.core.Vertx rxVertx(Vertx vertx) {
+		return new io.vertx.reactivex.core.Vertx(vertx);
+	}
+…
+----
+
+Since the `Vert.x` instance itself should only be instantiated once we use the `@Singleton` annotation on the `vertx` method.
+
+I also added a link:https://vertx.io/docs/vertx-rx/java2/[reactive] `rxVertx(…)` variant to the module. We can request the non-rx variant of Vert.x via the argument of the method since we have already made it injectable via the `vertx()` method. 
+
+The PoC also makes use of link:[Vert.x Web] which provides additional functionality for HTTP handling.
+
+.VertxWebModule.java
+[source,java]
+----
+@Module
+public class VertxWebModule {
+
+	@Provides
+	public Router rxRouter(Vertx rxVertx) {
+		return Router.router(rxVertx);
+	}
+
+}
+----
+
+The `VertxWebModule` contains a single method to provide the needed reactive variant of the Vert.x Web `Router`. Note the lack of the `@Singleton` annotation. This will make it possible to inject new instances of the router across the application. Sometimes it can be useful to create multiple routers (e.g. for multiple API servers or subrouting)
+
+## REST
+
+We now have our `RESTServer` interface and made Vert.x injectable. Now we can implement the server.
+
+.RESTServerImpl.java
+[source,java]
+----
+@Singleton
+public class RESTServerImpl implements RESTServer {
+
+	private final HttpServer rxHttpServer;
+	private final Router rxRouter;
+
+	@Inject
+	public RESTServerImpl(HttpServer rxHttpServer, Provider<Router> rxRouterProvider) {
+		this.rxHttpServer = rxHttpServer;
+		this.rxRouter = rxRouterProvider.get();
+	}
+
+	@Override
+	public Completable start() {
+		rxRouter.route("/hello").handler(rc -> {
+			rc.response().end("world");
+		});
+		return rxHttpServer
+			.requestHandler(rxRouter)
+			.rxListen()
+			.toCompletable();
+	}
+
+	@Override
+	public Completable stop() {
+		return rxHttpServer.rxClose();
+	}
+
+}
+----
+
+The `RESTServerImpl` injects the needed dependencies via the constructor. It is also possible to inject dependencies into fields but those need to be set to `public`. The benefit of using dagger is also that you write code which is easier to be used in combination with mocking frameworks. This is at least my experience.
+
+Since we omitted the `@Singleton` annotation for the provider of `Router` we now need to inject the dependency using a `Provider`. This allows us to invoke the `get` method which will in turn create a new instance of the `Router`.
+
+The implementation of the `start`, `stop` method follows the basic link:https://vertx.io/docs/vertx-web/java/[Vert.x Web] server usage.
+
+## Server
+
+We now have the REST implementation, Vert.x DI and API. Now we need to create a link:https://dagger.dev/dev-guide/#building-the-graph[Dagger component] to prepare the dependency graph.
+
+### Dagger Component
+
+The `Component` is the main entry point of a dagger dependency setup. It defines the list of modules which provide injectable dependencies.
+
+.ServerComponent.java
+[source,java]
+----
+@Singleton
+@Component(modules = { VertxModule.class, PocBindModule.class })
+public interface ServerComponent {
+
+	RESTServer restServer();
+
+	/**
+	 * Builder for the main dagger component.
+	 */
+	@Component.Builder
+	interface Builder {
+
+		/**
+		 * Inject the options.
+		 * 
+		 * @param options
+		 * @return
+		 */
+		@BindsInstance
+		Builder configuration(ServerOption options);
+
+		/**
+		 * Build the component.
+		 * 
+		 * @return
+		 */
+		ServerComponent build();
+	}
+
+}
+----
+
+The `@Component(modules = { VertxModule.class, PocBindModule.class })` line defines the dagger modules that need to be used.
+
+Dependencies can however also be injected from outside of the dagger dependency mechanism. This is done using the `Component.Builder` and the `@BindsInstance` method.
+Later we'll see how to create the DI graph and this definition will allow us to inject the `ServerOption` POJO from outside of the the whole dagger DI mechanism.
+
+### Bind Module
+
+The second module we have not yet seen is the `PocBindModule`. This module now tells dagger what implementation should be used when a `RESTServer` should be injected.
+
+This injection is actually implicitly being done within the `ServerComponent` interface by adding the method `RESTServer restServer();`.
+
+.PocBindModule.java
+[source,java]
+----
+@Module
+public abstract class PocBindModule {
+
+	@Binds
+	abstract RESTServer bindRESTServer(RESTServerImpl e);
+}
+----
+
+NOTE: The bind module would not be needed when directly injecting `RESTServerImpl` but I recommend to inject interfaces instead to keep the code clean.
+
+### Main Method
+
+Finally we can now create the runner for our PoC.
+
+.ServerRunner.java
+[source,java]
+----
+public class ServerRunner {
+
+	public static void main(String[] args) {
+		ServerOption options = new ServerOption();
+		options.setPort(8888);
+
+		// Inject the options and build the dagger dependency graph
+		ServerComponent serverComponent = DaggerServerComponent
+			.builder()
+			.configuration(options)
+			.build();
+
+		// Start the server
+		serverComponent.restServer().start().subscribe(() -> {
+			System.out.println("REST server started");
+			System.out.println("Now connect to http://localhost:8888/hello");
+		}, err -> {
+			err.printStackTrace();
+		});
+	}
+}
+----
+
+The `DaggerServerComponent` class will be auto-generated by dagger and contains the builder which we defined in the `ServerComponent` interface.
+The builder contains the `configuration` method which is used to inject the ServerOption which was instantiated outside of the Dagger scope.
+
+Since we defined the `restServer` method in the interface of the component we can now access the instance via `serverComponent.restServer()`.
+
+### Shading
+
+Lastly I want to point out that the `server` maven module contains the `maven-shade-plugin` which will generated a fatjar that can be executed after building the project.
+
+.pom.xml
+[source,xml]
+----
+…
+<plugin>
+    <groupId>org.apache.maven.plugins</groupId>
+    <artifactId>maven-shade-plugin</artifactId>
+    <executions>
+        <!-- Run shade goal on package phase -->
+        <execution>
+            <phase>package</phase>
+            <goals>
+                <goal>shade</goal>
+            </goals>
+            <configuration>
+                <filters>
+                    <filter>
+                        <artifact>*:*</artifact>
+                        <excludes>
+                            <exclude>META-INF/*.SF</exclude>
+                            <exclude>META-INF/*.DSA</exclude>
+                            <exclude>META-INF/*.RSA</exclude>
+                        </excludes>
+                    </filter>
+                </filters>
+                <transformers>
+                    <transformer
+                        implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                        <mainClass>io.metaloom.poc.server.ServerRunner</mainClass>
+                    </transformer>
+                    <transformer
+                        implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
+                </transformers>
+            </configuration>
+        </execution>
+    </executions>
+</plugin>
+…
+----
+
+
+The `mainClass` section references the ServerRunner in order to create the correct manifest in the jar file.
+
+The server can be started after building the project using:
+```
+java -jar server/target/poc-vertx-dagger-server-1.0.0-SNAPSHOT.jar
+```
+
+## Final words
+
+The whole PoC sources can be found here link:https://github.com/metaloom/poc-vertx-dagger[https://github.com/metaloom/poc-vertx-dagger]
+
+Personally I prefer Dagger over Spring DI since it does not involve classpath scanning. 
+One application I build a while ago was previously using Spring DI and had performance issues during startup since the JVM was busy scanning the rather large classpath for DI.
+I assume this could have been solved by using package prefixes for DI scanning but I switched to Dagger instead and I don't regret the decision.
+
+Dagger however can also sometimes be a bit picky. Previously I had issues with the generated code when using `@Inject` on public fields. Sometimes the generated constructor argument order would not match up and dagger was not happy.
+Additionally at least when using Eclipse IDE you sometimes need to re-compile/re-generate the dagger sources if you change DI related code. This may however be related to the `m2e-apt` plugin.
+
+I hope you enjoyed this quick introduction. If you want to learn more about Dagger I can recommend the link:https://dagger.dev/[documentation].
+

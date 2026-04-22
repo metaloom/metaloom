@@ -1,0 +1,25 @@
+{{ define "main" }}
+
+{{ partial "navigation.html" . }}
+
+<section class="section">
+  <div class="container">
+    <div class="row">
+      <div class="col-lg-3 d-none d-lg-block toc-sticky-top">
+        <nav id="toc"></nav>
+      </div>
+      <div class="col-lg-9 text-center">
+        <h1>{{ .Title }}</h1>
+      </div>
+      <div class="col-lg-9 offset-lg-3">
+        <div class="post-single-content">
+          {{ .Content }}
+        </div>
+        {{ if site.Params.post_share }}
+        {{ partial "post-share.html" . }}
+        {{ end }}
+      </div>
+    </div>
+  </div>
+</section>
+{{ end }}

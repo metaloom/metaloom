@@ -1,0 +1,11 @@
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:site" content="@metaloom" />
+    <meta name="twitter:creator" content="{{ .Params.Twitter_Author }}" />
+    <meta name="twitter:title" content="{{ .Title }}" />
+    <meta name="twitter:description" content="{{ if .Params.description }}{{ .Params.description | plainify }}{{ end }}" />
+    <meta name="twitter:image:src" content="{{ if .Params.image_webp }}{{ .Permalink }}{{ .Params.image_webp }}{{ else }}{{ "/images/banner_square.webp" | absURL }}{{ end }}" />
+    
+    <meta property="og:title" content="{{ .Title }}">
+    <meta property="og:url" content="{{ .Permalink }}">
+    <meta property="og:description" content="{{ if .Params.description }}{{ .Params.description | plainify }}{{ end }}">
+    <meta property="og:image" content="{{ if .Params.image_webp }}{{ .Permalink }}{{ .Params.image_webp }}{{ else }}{{ "/images/banner_square.webp" | absURL }}{{ end }}">

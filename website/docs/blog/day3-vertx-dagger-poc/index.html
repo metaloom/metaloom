@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en-us">
+<head>
+	<meta charset="utf-8">
+	<title>Day3 - Vert.x Dagger PoC</title>
+
+	<!-- mobile responsive meta -->
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+	<meta name="description" content="This post explains a Vert.x Dagger proof of concept.">
+	
+	<meta name="author" content="Jotschi">
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:site" content="@metaloom" />
+    <meta name="twitter:creator" content="" />
+    <meta name="twitter:title" content="Day3 - Vert.x Dagger PoC" />
+    <meta name="twitter:description" content="This post explains a Vert.x Dagger proof of concept." />
+    <meta name="twitter:image:src" content="https://metaloom.io/blog/day3-vertx-dagger-poc/christian-wiediger-WkfDrhxDMC8-unsplash.webp" />
+    
+    <meta property="og:title" content="Day3 - Vert.x Dagger PoC">
+    <meta property="og:url" content="https://metaloom.io/blog/day3-vertx-dagger-poc/">
+    <meta property="og:description" content="This post explains a Vert.x Dagger proof of concept.">
+    <meta property="og:image" content="https://metaloom.io/blog/day3-vertx-dagger-poc/christian-wiediger-WkfDrhxDMC8-unsplash.webp">
+
+	<meta name="generator" content="Hugo 0.131.0">
+
+	<!-- plugins -->
+	
+	<link rel="stylesheet" href="https://metaloom.io/plugins/fontawesome5/css/all.min.css">
+	
+	<link rel="stylesheet" href="https://metaloom.io/plugins/bootstrap/bootstrap.min.css">
+	
+	<link rel="stylesheet" href="https://metaloom.io/plugins/themify-icons/themify-icons.css">
+	
+	<link rel="stylesheet" href="https://metaloom.io/plugins/magnific-popup/magnific-popup.css">
+	
+	<link rel="stylesheet" href="https://metaloom.io/plugins/slick/slick.css">
+	
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Anaheim%7cQuattrocento&#43;Sans:400,700&amp;display=swap">
+	
+	<link rel="stylesheet" href="https://metaloom.io/plugins/toc/bootstrap-toc.min.css">
+	
+	<link rel="stylesheet" href="https://metaloom.io/plugins/swagger/swagger-ui.css">
+	
+
+	<!-- Main Stylesheet -->
+	
+	<link rel="stylesheet" href="https://metaloom.io/css/main.min.css" media="screen">
+
+	<!--Favicon-->
+	<link rel="shortcut icon" href="https://metaloom.io/images/favicon.png" type="image/x-icon">
+	<link rel="icon" href="https://metaloom.io/images/favicon.png" type="image/x-icon">
+
+	
+
+</head>
+
+
+<body id="body" data-spy="scroll" data-target=".navbar" data-offset="55">
+  <div id="content">
+    
+
+
+<section class="sticky-top navigation">
+	<div class="container">
+		<nav class="navbar navbar-expand-lg navbar-dark">
+			<a class="navbar-brand p-0" href="/">
+				
+				<img class="lozad" src="https://metaloom.io/images/logo_word_big.svg" alt="MetaLoom" height="42">
+				
+			</a>
+
+			<button class="navbar-toggler rounded-0" type="button" data-toggle="collapse" data-target="#navigation">
+				<span class="navbar-toggler-icon"></span>
+			</button>
+
+			<div class="collapse navbar-collapse" id="navigation">
+				<ul class="navbar-nav ml-auto">
+					
+					<li class="nav-item">
+            <a class="nav-link" href="/#feature">features</a>
+					</li>
+					
+					<li class="nav-item">
+            <a class="nav-link" href="/#team">developer</a>
+					</li>
+					
+					<li class="nav-item">
+            <a class="nav-link" href="/#blog">blog</a>
+					</li>
+					
+					<li class="nav-item">
+            <a class="nav-link" href="/docs">docs</a>
+					</li>
+					
+				</ul>
+				
+			</div>
+		</nav>
+	</div>
+</section>
+
+
+<section class="section">
+  <div class="container">
+    <div class="row">
+      <div class="col-lg-3 d-none d-lg-block toc-sticky-top">
+        <nav id="toc"></nav>
+      </div>
+      <div class="col-lg-9 text-center">
+        <h1>Day3 - Vert.x Dagger PoC</h1>
+        <ul class="list-inline mb-50">
+          <li class="list-inline-item"><a href="/author/jotschi/">jotschi</a></li>
+          <li class="list-inline-item">Monday, May 17, 2021</li>
+        </ul>
+        <img class="img-fluid lozad" src="christian-wiediger-WkfDrhxDMC8-unsplash.jpg" data-src="christian-wiediger-WkfDrhxDMC8-unsplash.jpg" alt="blog-image">
+        <div class="image-credit">
+          Credit: Photo by Christian Wiediger on Unsplash
+        </div>
+      </div>
+      <div class="col-lg-9 offset-lg-3">
+        <div class="post-single-content">
+          <div class="sect1">
+<h2 id="_dagger_vert_x">Dagger /  Vert.x</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In this post I want to show a proof of concept project that makes use of <a href="https://vertx.io/">Eclipse Vert.x 4.0.3</a> and <a href="https://dagger.dev/">Dagger 2.35.1</a> dependency injection.
+The <a href="https://github.com/metaloom/poc-vertx-dagger">PoC project</a> contains a modularized Vert.x application that is using Maven modules and dependency injection.
+Vert.x is a project which provides libraries that can be used to create reactive applications on the JVM. The PoC contains a simple HTTP server.</p>
+</div>
+<div class="paragraph">
+<p>Next I’ll walk you through the individual maven modules starting with the API and at the end we’ll reach the main method that starts the example project.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_api">API</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The <code>api</code> module contains the API classes of the application which have no Vert.x dependency.
+In this PoC it contains the <code>ServerOption</code> POJO and <code>RESTServer</code> interface which will be implemented within the <code>rest</code> maven module.</p>
+</div>
+<div class="listingblock">
+<div class="title">RESTServer.java</div>
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">public interface RESTServer {
+
+	Completable start();
+
+	Completable stop();
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The server interface is very simple. It only defines the start and stop methods. We’ll implement this interface in the <code>rest</code> module.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_bom">BOM</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The <code>bom</code> module is used to manage the application maven dependency versions. Using a BOM is a good practice when working with a multi-module maven project.
+It lists dagger, vert.x, project and test dependencies that are needed for the project.</p>
+</div>
+<div class="paragraph">
+<p>Other module <code>pom.xml</code> files contain the needed <code>dependencyManagement</code> section to import the BOM dependency definitions.</p>
+</div>
+<div class="paragraph">
+<p>Modules like <code>common</code>, <code>rest</code>, <code>api</code> and <code>server</code> which make use of this do not need to specify the dependency version in the <code>dependencies</code> section.</p>
+</div>
+<div class="listingblock">
+<div class="title">pom.xml</div>
+<div class="content">
+<pre class="highlight"><code class="language-xml" data-lang="xml">…
+&lt;dependencyManagement&gt;
+    &lt;dependencies&gt;
+        &lt;dependency&gt;
+            &lt;groupId&gt;io.metaloom.poc&lt;/groupId&gt;
+            &lt;artifactId&gt;poc-vertx-dagger-bom&lt;/artifactId&gt;
+            &lt;version&gt;${project.version}&lt;/version&gt;
+            &lt;type&gt;pom&lt;/type&gt;
+            &lt;scope&gt;import&lt;/scope&gt;
+        &lt;/dependency&gt;
+    &lt;/dependencies&gt;
+&lt;/dependencyManagement&gt;
+…</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_common">Common</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The <code>common</code> module is the first module which makes use of dagger.</p>
+</div>
+<div class="sect2">
+<h3 id="_dependencies">Dependencies</h3>
+<div class="paragraph">
+<p>It thus contains the following dependencies:</p>
+</div>
+<div class="listingblock">
+<div class="title">pom.xml</div>
+<div class="content">
+<pre class="highlight"><code class="language-xml" data-lang="xml">…
+&lt;dependency&gt;
+    &lt;groupId&gt;com.google.dagger&lt;/groupId&gt;
+    &lt;artifactId&gt;dagger&lt;/artifactId&gt;
+&lt;/dependency&gt;
+&lt;dependency&gt;
+    &lt;groupId&gt;com.google.dagger&lt;/groupId&gt;
+    &lt;artifactId&gt;dagger-compiler&lt;/artifactId&gt;
+    &lt;optional&gt;true&lt;/optional&gt;
+&lt;/dependency&gt;
+…</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The first dependency provides the dagger annotations that can be used within the code.</p>
+</div>
+<div class="paragraph">
+<p>The second dependency is used for the <code>maven-compiler-plugin</code>.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_compile_time_di">Compile Time DI</h3>
+<div class="paragraph">
+<p>Dagger does not handle dependency injection during runtime like this is typically done for DI libraries like <a href="https://github.com/google/guice">Guice</a> or <a href="https://docs.spring.io/spring-framework/docs/current/reference/html/core.html">Spring DI</a>.</p>
+</div>
+<div class="paragraph">
+<p>Instead of runtime DI dagger will use <code>compile-time</code> DI.
+This means that the needed DI code is generated during the compilation of the project.</p>
+</div>
+<div class="paragraph">
+<p>The <code>dagger-compiler</code> dependency thus needs to be added to the <code>maven-compile-plugin</code>.
+This will enable <a href="https://docs.oracle.com/javase/7/docs/technotes/tools/solaris/javac.html#processing">annotation processing</a> for the compiler that generates new sources that are needed for the dependency injection mechanism.</p>
+</div>
+<div class="listingblock">
+<div class="title">pom.xml</div>
+<div class="content">
+<pre class="highlight"><code class="language-xml" data-lang="xml">…
+&lt;plugin&gt;
+    &lt;groupId&gt;org.apache.maven.plugins&lt;/groupId&gt;
+    &lt;artifactId&gt;maven-compiler-plugin&lt;/artifactId&gt;
+    &lt;configuration&gt;
+        &lt;forceJavacCompilerUse&gt;true&lt;/forceJavacCompilerUse&gt;
+        &lt;verbose&gt;false&lt;/verbose&gt;
+        &lt;compilerVersion&gt;11&lt;/compilerVersion&gt;
+        &lt;source&gt;11&lt;/source&gt;
+        &lt;target&gt;11&lt;/target&gt;
+    &lt;/configuration&gt;
+    &lt;dependencies&gt;
+        &lt;dependency&gt;
+            &lt;groupId&gt;com.google.dagger&lt;/groupId&gt;
+            &lt;artifactId&gt;dagger-compiler&lt;/artifactId&gt;
+            &lt;version&gt;${dagger.version}&lt;/version&gt;
+            &lt;optional&gt;true&lt;/optional&gt;
+        &lt;/dependency&gt;
+    &lt;/dependencies&gt;
+&lt;/plugin&gt;
+…</code></pre>
+</div>
+</div>
+<div class="admonitionblock tip">
+<table>
+<tbody><tr>
+<td class="icon">
+<i class="fa icon-tip" title="Tip"></i>
+</td>
+<td class="content">
+When using Eclipse IDE you want to install the <code>m2e-apt</code> plugin to enable processing within the IDE. See <a href="https://stackoverflow.com/a/35744298/644326">SO</a> for details.
+</td>
+</tr>
+</tbody></table>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_vert_x_dagger">Vert.x + Dagger</h3>
+<div class="paragraph">
+<p>Next we need to tell dagger how to provide Vert.x dependencies when they are requested in other modules.</p>
+</div>
+<div class="paragraph">
+<p>In this PoC I choose to create a dagger module which is a class that defines how to provide needed non-dagger dependencies.</p>
+</div>
+<div class="listingblock">
+<div class="title">VertxModule.java</div>
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">…
+@Module
+public class VertxModule {
+
+	@Provides
+	@Singleton
+	public Vertx vertx() {
+		return Vertx.vertx();
+	}
+
+	@Provides
+	@Singleton
+	public io.vertx.reactivex.core.Vertx rxVertx(Vertx vertx) {
+		return new io.vertx.reactivex.core.Vertx(vertx);
+	}
+…</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Since the <code>Vert.x</code> instance itself should only be instantiated once we use the <code>@Singleton</code> annotation on the <code>vertx</code> method.</p>
+</div>
+<div class="paragraph">
+<p>I also added a <a href="https://vertx.io/docs/vertx-rx/java2/">reactive</a> <code>rxVertx(…)</code> variant to the module. We can request the non-rx variant of Vert.x via the argument of the method since we have already made it injectable via the <code>vertx()</code> method.</p>
+</div>
+<div class="paragraph">
+<p>The PoC also makes use of <a href="">Vert.x Web</a> which provides additional functionality for HTTP handling.</p>
+</div>
+<div class="listingblock">
+<div class="title">VertxWebModule.java</div>
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">@Module
+public class VertxWebModule {
+
+	@Provides
+	public Router rxRouter(Vertx rxVertx) {
+		return Router.router(rxVertx);
+	}
+
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The <code>VertxWebModule</code> contains a single method to provide the needed reactive variant of the Vert.x Web <code>Router</code>. Note the lack of the <code>@Singleton</code> annotation. This will make it possible to inject new instances of the router across the application. Sometimes it can be useful to create multiple routers (e.g. for multiple API servers or subrouting)</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_rest">REST</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>We now have our <code>RESTServer</code> interface and made Vert.x injectable. Now we can implement the server.</p>
+</div>
+<div class="listingblock">
+<div class="title">RESTServerImpl.java</div>
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">@Singleton
+public class RESTServerImpl implements RESTServer {
+
+	private final HttpServer rxHttpServer;
+	private final Router rxRouter;
+
+	@Inject
+	public RESTServerImpl(HttpServer rxHttpServer, Provider&lt;Router&gt; rxRouterProvider) {
+		this.rxHttpServer = rxHttpServer;
+		this.rxRouter = rxRouterProvider.get();
+	}
+
+	@Override
+	public Completable start() {
+		rxRouter.route(&#34;/hello&#34;).handler(rc -&gt; {
+			rc.response().end(&#34;world&#34;);
+		});
+		return rxHttpServer
+			.requestHandler(rxRouter)
+			.rxListen()
+			.toCompletable();
+	}
+
+	@Override
+	public Completable stop() {
+		return rxHttpServer.rxClose();
+	}
+
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The <code>RESTServerImpl</code> injects the needed dependencies via the constructor. It is also possible to inject dependencies into fields but those need to be set to <code>public</code>. The benefit of using dagger is also that you write code which is easier to be used in combination with mocking frameworks. This is at least my experience.</p>
+</div>
+<div class="paragraph">
+<p>Since we omitted the <code>@Singleton</code> annotation for the provider of <code>Router</code> we now need to inject the dependency using a <code>Provider</code>. This allows us to invoke the <code>get</code> method which will in turn create a new instance of the <code>Router</code>.</p>
+</div>
+<div class="paragraph">
+<p>The implementation of the <code>start</code>, <code>stop</code> method follows the basic <a href="https://vertx.io/docs/vertx-web/java/">Vert.x Web</a> server usage.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_server">Server</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>We now have the REST implementation, Vert.x DI and API. Now we need to create a <a href="https://dagger.dev/dev-guide/#building-the-graph">Dagger component</a> to prepare the dependency graph.</p>
+</div>
+<div class="sect2">
+<h3 id="_dagger_component">Dagger Component</h3>
+<div class="paragraph">
+<p>The <code>Component</code> is the main entry point of a dagger dependency setup. It defines the list of modules which provide injectable dependencies.</p>
+</div>
+<div class="listingblock">
+<div class="title">ServerComponent.java</div>
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">@Singleton
+@Component(modules = { VertxModule.class, PocBindModule.class })
+public interface ServerComponent {
+
+	RESTServer restServer();
+
+	/**
+	 * Builder for the main dagger component.
+	 */
+	@Component.Builder
+	interface Builder {
+
+		/**
+		 * Inject the options.
+		 *
+		 * @param options
+		 * @return
+		 */
+		@BindsInstance
+		Builder configuration(ServerOption options);
+
+		/**
+		 * Build the component.
+		 *
+		 * @return
+		 */
+		ServerComponent build();
+	}
+
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The <code>@Component(modules = { VertxModule.class, PocBindModule.class })</code> line defines the dagger modules that need to be used.</p>
+</div>
+<div class="paragraph">
+<p>Dependencies can however also be injected from outside of the dagger dependency mechanism. This is done using the <code>Component.Builder</code> and the <code>@BindsInstance</code> method.
+Later we’ll see how to create the DI graph and this definition will allow us to inject the <code>ServerOption</code> POJO from outside of the the whole dagger DI mechanism.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_bind_module">Bind Module</h3>
+<div class="paragraph">
+<p>The second module we have not yet seen is the <code>PocBindModule</code>. This module now tells dagger what implementation should be used when a <code>RESTServer</code> should be injected.</p>
+</div>
+<div class="paragraph">
+<p>This injection is actually implicitly being done within the <code>ServerComponent</code> interface by adding the method <code>RESTServer restServer();</code>.</p>
+</div>
+<div class="listingblock">
+<div class="title">PocBindModule.java</div>
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">@Module
+public abstract class PocBindModule {
+
+	@Binds
+	abstract RESTServer bindRESTServer(RESTServerImpl e);
+}</code></pre>
+</div>
+</div>
+<div class="admonitionblock note">
+<table>
+<tbody><tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+The bind module would not be needed when directly injecting <code>RESTServerImpl</code> but I recommend to inject interfaces instead to keep the code clean.
+</td>
+</tr>
+</tbody></table>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_main_method">Main Method</h3>
+<div class="paragraph">
+<p>Finally we can now create the runner for our PoC.</p>
+</div>
+<div class="listingblock">
+<div class="title">ServerRunner.java</div>
+<div class="content">
+<pre class="highlight"><code class="language-java" data-lang="java">public class ServerRunner {
+
+	public static void main(String[] args) {
+		ServerOption options = new ServerOption();
+		options.setPort(8888);
+
+		// Inject the options and build the dagger dependency graph
+		ServerComponent serverComponent = DaggerServerComponent
+			.builder()
+			.configuration(options)
+			.build();
+
+		// Start the server
+		serverComponent.restServer().start().subscribe(() -&gt; {
+			System.out.println(&#34;REST server started&#34;);
+			System.out.println(&#34;Now connect to http://localhost:8888/hello&#34;);
+		}, err -&gt; {
+			err.printStackTrace();
+		});
+	}
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The <code>DaggerServerComponent</code> class will be auto-generated by dagger and contains the builder which we defined in the <code>ServerComponent</code> interface.
+The builder contains the <code>configuration</code> method which is used to inject the ServerOption which was instantiated outside of the Dagger scope.</p>
+</div>
+<div class="paragraph">
+<p>Since we defined the <code>restServer</code> method in the interface of the component we can now access the instance via <code>serverComponent.restServer()</code>.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_shading">Shading</h3>
+<div class="paragraph">
+<p>Lastly I want to point out that the <code>server</code> maven module contains the <code>maven-shade-plugin</code> which will generated a fatjar that can be executed after building the project.</p>
+</div>
+<div class="listingblock">
+<div class="title">pom.xml</div>
+<div class="content">
+<pre class="highlight"><code class="language-xml" data-lang="xml">…
+&lt;plugin&gt;
+    &lt;groupId&gt;org.apache.maven.plugins&lt;/groupId&gt;
+    &lt;artifactId&gt;maven-shade-plugin&lt;/artifactId&gt;
+    &lt;executions&gt;
+        &lt;!-- Run shade goal on package phase --&gt;
+        &lt;execution&gt;
+            &lt;phase&gt;package&lt;/phase&gt;
+            &lt;goals&gt;
+                &lt;goal&gt;shade&lt;/goal&gt;
+            &lt;/goals&gt;
+            &lt;configuration&gt;
+                &lt;filters&gt;
+                    &lt;filter&gt;
+                        &lt;artifact&gt;*:*&lt;/artifact&gt;
+                        &lt;excludes&gt;
+                            &lt;exclude&gt;META-INF/*.SF&lt;/exclude&gt;
+                            &lt;exclude&gt;META-INF/*.DSA&lt;/exclude&gt;
+                            &lt;exclude&gt;META-INF/*.RSA&lt;/exclude&gt;
+                        &lt;/excludes&gt;
+                    &lt;/filter&gt;
+                &lt;/filters&gt;
+                &lt;transformers&gt;
+                    &lt;transformer
+                        implementation=&#34;org.apache.maven.plugins.shade.resource.ManifestResourceTransformer&#34;&gt;
+                        &lt;mainClass&gt;io.metaloom.poc.server.ServerRunner&lt;/mainClass&gt;
+                    &lt;/transformer&gt;
+                    &lt;transformer
+                        implementation=&#34;org.apache.maven.plugins.shade.resource.ServicesResourceTransformer&#34; /&gt;
+                &lt;/transformers&gt;
+            &lt;/configuration&gt;
+        &lt;/execution&gt;
+    &lt;/executions&gt;
+&lt;/plugin&gt;
+…</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The <code>mainClass</code> section references the ServerRunner in order to create the correct manifest in the jar file.</p>
+</div>
+<div class="paragraph">
+<p>The server can be started after building the project using:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code>java -jar server/target/poc-vertx-dagger-server-1.0.0-SNAPSHOT.jar</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_final_words">Final words</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The whole PoC sources can be found here <a href="https://github.com/metaloom/poc-vertx-dagger">https://github.com/metaloom/poc-vertx-dagger</a></p>
+</div>
+<div class="paragraph">
+<p>Personally I prefer Dagger over Spring DI since it does not involve classpath scanning.
+One application I build a while ago was previously using Spring DI and had performance issues during startup since the JVM was busy scanning the rather large classpath for DI.
+I assume this could have been solved by using package prefixes for DI scanning but I switched to Dagger instead and I don’t regret the decision.</p>
+</div>
+<div class="paragraph">
+<p>Dagger however can also sometimes be a bit picky. Previously I had issues with the generated code when using <code>@Inject</code> on public fields. Sometimes the generated constructor argument order would not match up and dagger was not happy.
+Additionally at least when using Eclipse IDE you sometimes need to re-compile/re-generate the dagger sources if you change DI related code. This may however be related to the <code>m2e-apt</code> plugin.</p>
+</div>
+<div class="paragraph">
+<p>I hope you enjoyed this quick introduction. If you want to learn more about Dagger I can recommend the <a href="https://dagger.dev/">documentation</a>.</p>
+</div>
+</div>
+</div>
+
+        </div>
+        
+        
+
+<div class="social-share pt-4">
+	<h4>Share:</h4>
+
+	
+	<a class="resp-sharing-button__link" href="https://twitter.com/intent/tweet/?text=Day3%20-%20Vert.x%20Dagger%20PoC&amp;url=https%3a%2f%2fmetaloom.io%2fblog%2fday3-vertx-dagger-poc%2f"
+		target="_blank" rel="noopener" aria-label="">
+		<div class="resp-sharing-button resp-sharing-button--twitter resp-sharing-button--small">
+			<div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">
+				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+					<path
+						d="M23.44 4.83c-.8.37-1.5.38-2.22.02.93-.56.98-.96 1.32-2.02-.88.52-1.86.9-2.9 1.1-.82-.88-2-1.43-3.3-1.43-2.5 0-4.55 2.04-4.55 4.54 0 .36.03.7.1 1.04-3.77-.2-7.12-2-9.36-4.75-.4.67-.6 1.45-.6 2.3 0 1.56.8 2.95 2 3.77-.74-.03-1.44-.23-2.05-.57v.06c0 2.2 1.56 4.03 3.64 4.44-.67.2-1.37.2-2.06.08.58 1.8 2.26 3.12 4.25 3.16C5.78 18.1 3.37 18.74 1 18.46c2 1.3 4.4 2.04 6.97 2.04 8.35 0 12.92-6.92 12.92-12.93 0-.2 0-.4-.02-.6.9-.63 1.96-1.22 2.56-2.14z" />
+				</svg>
+			</div>
+		</div>
+	</a>
+
+	
+	<a class="resp-sharing-button__link" href="mailto:?subject=Day3%20-%20Vert.x%20Dagger%20PoC&amp;body=https%3a%2f%2fmetaloom.io%2fblog%2fday3-vertx-dagger-poc%2f" target="_self"
+		rel="noopener" aria-label="">
+		<div class="resp-sharing-button resp-sharing-button--email resp-sharing-button--small">
+			<div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">
+				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+					<path
+						d="M22 4H2C.9 4 0 4.9 0 6v12c0 1.1.9 2 2 2h20c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM7.25 14.43l-3.5 2c-.08.05-.17.07-.25.07-.17 0-.34-.1-.43-.25-.14-.24-.06-.55.18-.68l3.5-2c.24-.14.55-.06.68.18.14.24.06.55-.18.68zm4.75.07c-.1 0-.2-.03-.27-.08l-8.5-5.5c-.23-.15-.3-.46-.15-.7.15-.22.46-.3.7-.14L12 13.4l8.23-5.32c.23-.15.54-.08.7.15.14.23.07.54-.16.7l-8.5 5.5c-.08.04-.17.07-.27.07zm8.93 1.75c-.1.16-.26.25-.43.25-.08 0-.17-.02-.25-.07l-3.5-2c-.24-.13-.32-.44-.18-.68s.44-.32.68-.18l3.5 2c.24.13.32.44.18.68z" />
+				</svg>
+			</div>
+		</div>
+	</a>
+
+	
+	<a class="resp-sharing-button__link"
+		href="https://reddit.com/submit/?url=https%3a%2f%2fmetaloom.io%2fblog%2fday3-vertx-dagger-poc%2f&amp;resubmit=true&amp;title=Day3%20-%20Vert.x%20Dagger%20PoC" target="_blank"
+		rel="noopener" aria-label="">
+		<div class="resp-sharing-button resp-sharing-button--reddit resp-sharing-button--small">
+			<div aria-hidden="true" class="resp-sharing-button__icon resp-sharing-button__icon--solid">
+				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+					<path
+						d="M24 11.5c0-1.65-1.35-3-3-3-.96 0-1.86.48-2.42 1.24-1.64-1-3.75-1.64-6.07-1.72.08-1.1.4-3.05 1.52-3.7.72-.4 1.73-.24 3 .5C17.2 6.3 18.46 7.5 20 7.5c1.65 0 3-1.35 3-3s-1.35-3-3-3c-1.38 0-2.54.94-2.88 2.22-1.43-.72-2.64-.8-3.6-.25-1.64.94-1.95 3.47-2 4.55-2.33.08-4.45.7-6.1 1.72C4.86 8.98 3.96 8.5 3 8.5c-1.65 0-3 1.35-3 3 0 1.32.84 2.44 2.05 2.84-.03.22-.05.44-.05.66 0 3.86 4.5 7 10 7s10-3.14 10-7c0-.22-.02-.44-.05-.66 1.2-.4 2.05-1.54 2.05-2.84zM2.3 13.37C1.5 13.07 1 12.35 1 11.5c0-1.1.9-2 2-2 .64 0 1.22.32 1.6.82-1.1.85-1.92 1.9-2.3 3.05zm3.7.13c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2zm9.8 4.8c-1.08.63-2.42.96-3.8.96-1.4 0-2.74-.34-3.8-.95-.24-.13-.32-.44-.2-.68.15-.24.46-.32.7-.18 1.83 1.06 4.76 1.06 6.6 0 .23-.13.53-.05.67.2.14.23.06.54-.18.67zm.2-2.8c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm5.7-2.13c-.38-1.16-1.2-2.2-2.3-3.05.38-.5.97-.82 1.6-.82 1.1 0 2 .9 2 2 0 .84-.53 1.57-1.3 1.87z" />
+				</svg>
+			</div>
+		</div>
+	</a>
+</div>
+        
+        
+        <div class="mt-5">
+          
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+  </div><!-- end Contact Area -->
+<footer id="footer" class="section-bg">
+	<div class="container">
+		<div class="row wow fadeInUp" data-wow-duration="500ms">
+			<div class="col-xl-12">
+
+				<!-- Footer Social Links -->
+				<div class="social-icon">
+					<ul class="list-inline">
+						
+						<li class="list-inline-item"><a href="#"><i class="ti-twitter-alt"></i></a></li>
+						
+					</ul>
+				</div>
+
+				<!-- copyright -->
+				<div class="copyright text-center">
+					<a href="https://metaloom.io/">
+						<img src="https://metaloom.io/images/logo_word_big.svg" alt="MetaLoom" height="42" />
+					</a>
+					<br>
+					<p></p>
+				</div>
+			</div>
+		</div>
+	</div>
+</footer>
+<!-- /footer -->
+
+<!-- Google Map API -->
+
+
+<!-- JS Plugins -->
+
+<script src="https://metaloom.io/plugins/jquery/jquery.min.js"></script>
+
+<script src="https://metaloom.io/plugins/bootstrap/bootstrap.min.js"></script>
+
+<script src="https://metaloom.io/plugins/slick/slick.min.js"></script>
+
+<script src="https://metaloom.io/plugins/shuffle/shuffle.min.js"></script>
+
+<script src="https://metaloom.io/plugins/magnific-popup/jquery.magnific-popup.min.js"></script>
+
+<script src="https://metaloom.io/plugins/lazy-load/lozad.min.js"></script>
+
+<script src="https://metaloom.io/plugins/toc/bootstrap-toc.min.js"></script>
+
+<script src="https://metaloom.io/plugins/toc/toc.js"></script>
+
+<script src="https://metaloom.io/plugins/swagger/swagger-ui-bundle.js"></script>
+
+<script src="https://metaloom.io/plugins/swagger/swagger-ui-standalone-preset.js"></script>
+
+<script src="https://metaloom.io/plugins/swagger/swagger.js"></script>
+
+
+<!-- Main Script -->
+
+<script src="https://metaloom.io/js/script.min.561d4194db5c74b1ef31dc32f4a688e74fd5cb99890203fdd8f7fbf9350071c37a7943c3df205fa1f943fb70bd80c8b1.js" integrity="sha384-Vh1BlNtcdLHvMdwy9KaI50/Vy5mJAgP92Pf7&#43;TUAccN6eUPD3yBfoflD&#43;3C9gMix"></script>
+
+<!-- Highlight Script -->
+<link rel="stylesheet" href="/plugins/highlight/styles/obsidian.css">
+<script src="/plugins/highlight/highlight.pack.js"></script>
+<script>hljs.highlightAll();</script>
+
+
+</body>
+
+</html>

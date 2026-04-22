@@ -1,0 +1,176 @@
+################################# Default configuration ###################
+baseURL = "https://metaloom.io"
+title = "MetaLoom"
+theme = "meghna-hugo"
+# post pagination
+paginate = "6"
+
+publishDir = "docs"
+
+# post excerpt
+summaryLength = "15"
+# disqus short name
+disqusShortname = "" # get your shortname form here : https://disqus.com
+# disable language
+disableLanguages = []
+discordLink = "https://discord.gg/NFdnFcSbfA"
+
+enableRobotsTXT = true
+
+
+[security]
+  enableInlineShortcodes = false
+
+  [security.exec]
+    allow = ['^dart-sass-embedded$', '^go$', '^npx$', '^postcss$', 'asciidoctor']
+    osEnv = ['(?i)^((HTTPS?|NO)_PROXY|PATH(EXT)?|APPDATA|TE?MP|TERM|GO\w+)$']
+
+  [security.funcs]
+    getenv = ['^HUGO_', '^CI$']
+
+  [security.http]
+    methods = ['(?i)GET|POST']
+    urls = ['.*']
+
+
+############################# Plugins ##########################
+# css plugins
+[[params.plugins.css]]
+link = "plugins/fontawesome5/css/all.min.css"
+[[params.plugins.css]]
+link = "plugins/bootstrap/bootstrap.min.css"
+[[params.plugins.css]]
+link = "plugins/themify-icons/themify-icons.css"
+[[params.plugins.css]]
+link = "plugins/magnific-popup/magnific-popup.css"
+[[params.plugins.css]]
+link = "plugins/slick/slick.css"
+[[params.plugins.css]]
+link = "https://fonts.googleapis.com/css?family=Anaheim|Quattrocento+Sans:400,700&display=swap"
+[[params.plugins.css]]
+link = "plugins/toc/bootstrap-toc.min.css"
+[[params.plugins.css]]
+link = "plugins/swagger/swagger-ui.css"
+
+
+
+# js plugins
+[[params.plugins.js]]
+link = "plugins/jquery/jquery.min.js"
+[[params.plugins.js]]
+link = "plugins/bootstrap/bootstrap.min.js"
+[[params.plugins.js]]
+link = "plugins/slick/slick.min.js"
+[[params.plugins.js]]
+link = "plugins/shuffle/shuffle.min.js"
+[[params.plugins.js]]
+link = "plugins/magnific-popup/jquery.magnific-popup.min.js"
+[[params.plugins.js]]
+link = "plugins/lazy-load/lozad.min.js"
+#[[params.plugins.js]]
+#link = "plugins/google-map/map.js"
+[[params.plugins.js]]
+link = "plugins/toc/bootstrap-toc.min.js"
+[[params.plugins.js]]
+link = "plugins/toc/toc.js"
+[[params.plugins.js]]
+link = "plugins/swagger/swagger-ui-bundle.js"
+[[params.plugins.js]]
+link = "plugins/swagger/swagger-ui-standalone-preset.js"
+[[params.plugins.js]]
+link = "plugins/swagger/swagger.js"
+
+################### English Navigation ########################
+#[[Languages.en.menu.main]]
+#name = "about"
+#pre = "#"
+#url = "about"
+#weight = 1
+
+#[[Languages.en.menu.main]]
+#name = "services"
+#pre = "#"
+#url = "services"
+#weight = 2
+
+#[[Languages.en.menu.main]]
+#name = "portfolio"
+#pre = "#"
+#url = "portfolio"
+#weight = 3
+
+
+[[Languages.en.menu.main]]
+name = "features"
+pre = "#"
+url = "feature"
+weight = 3
+
+[[Languages.en.menu.main]]
+name = "developer"
+pre = "#"
+url = "team"
+weight = 4
+
+#[[Languages.en.menu.main]]
+#name = "pricing"
+#pre = "#"
+#url = "pricing"
+#weight = 5
+
+[[Languages.en.menu.main]]
+name = "blog"
+pre = "#"
+url = "blog"
+weight = 6
+
+[[Languages.en.menu.main]]
+name = "docs"
+pre = ""
+url = "docs"
+weight = 6
+
+
+#[[Languages.en.menu.main]]
+#name = "contact"
+#pre = "#"
+#url = "contact"
+#weight = 7
+
+############################# Default Parameters ##########################
+[params]
+logo = "images/logo_word_big.svg"
+# Meta data
+description = "MetaLoom 2021"
+author = "Jotschi"
+# Google Analytics
+google_analytics_id = "" # Your ID
+# post share
+post_share = true
+
+# preloader
+[params.preloader]
+enable = false
+preloader = "images/logo_word_big.svg"
+
+# cookies
+[params.cookies]
+enable = false
+expire_days = 2
+
+[[params.social]]
+icon = "ti-twitter-alt" # themify icon pack : https://themify.me/themify-icons
+link = "#"
+
+
+################################ English Language ########################
+[Languages.en.params]
+home = "Home"
+
+[Languages.en]
+languageName = "En"
+languageCode = "en-us"
+contentDir = "content/english"
+weight = 1
+
+copyright = ""
