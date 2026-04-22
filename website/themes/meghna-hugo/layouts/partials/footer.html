@@ -16,7 +16,7 @@
 				{{"<!-- copyright -->" | safeHTML}}
 				<div class="copyright text-center">
 					<a href="{{ site.Home.Permalink }}">
-						<img src="{{ site.Params.logo | absURL }}" alt="{{ site.Title }}" height="42" />
+						<img src="{{ site.Params.logo | relURL }}" alt="{{ site.Title }}" height="42" />
 					</a>
 					<br>
 					<p>{{ site.Params.copyright | markdownify }}</p>
@@ -34,12 +34,12 @@
 
 {{ "<!-- JS Plugins -->" | safeHTML }}
 {{ range site.Params.plugins.js}}
-<script src="{{ .link | absURL }}"></script>
+<script src="{{ .link | relURL }}"></script>
 {{ end }}
 
 {{ "<!-- Main Script -->" | safeHTML }}
 {{ $script := resources.Get "js/script.js" | minify | fingerprint "sha384"}}
-<script src="{{ $script.Permalink }}" integrity="{{ $script.Data.Integrity }}"></script>
+<script src="{{ $script.RelPermalink }}" integrity="{{ $script.Data.Integrity }}"></script>
 
 {{ "<!-- Highlight Script -->" | safeHTML }}
 <link rel="stylesheet" href="/plugins/highlight/styles/obsidian.css">
