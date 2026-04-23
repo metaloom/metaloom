@@ -1,0 +1,48 @@
+{
+  "reflection": [
+    {
+      "type": "java.util.logging.Level",
+      "allDeclaredFields": true,
+      "allPublicFields": true
+    },
+    {
+      "type": "com.mchange.v2.log.MLevel",
+      "allDeclaredFields": true,
+      "allPublicFields": true,
+      "allDeclaredMethods": true,
+      "allPublicMethods": true,
+      "allDeclaredConstructors": true
+    },
+    {
+      "type": "com.mchange.v2.log.slf4j.Slf4jMLog",
+      "allDeclaredConstructors": true,
+      "allPublicConstructors": true,
+      "allDeclaredMethods": true,
+      "allPublicMethods": true
+    },
+    {
+      "type": "com.mchange.v2.log.jdk14logging.Jdk14MLog",
+      "allDeclaredConstructors": true,
+      "allPublicConstructors": true
+    },
+    {
+      "type": "com.mchange.v1.cachedstore.TweakableCachedStore",
+      "allDeclaredMethods": true,
+      "allPublicMethods": true
+    },
+    {
+      "type": {
+        "proxy": [
+          "com.mchange.v1.cachedstore.TweakableCachedStore"
+        ]
+      }
+    },
+    {
+      "type": {
+        "proxy": [
+          "com.mchange.v1.cachedstore.CachedStore"
+        ]
+      }
+    }
+  ]
+}

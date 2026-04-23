@@ -111,4 +111,17 @@ public class OAuth2Options implements Option {
 		this.scope = scope;
 		return this;
 	}
+
+	@Override
+	public void overrideWithEnv() {
+		OptionUtils.applyEnvBoolean("LOOM_OAUTH2_ENABLED", this::setEnabled);
+		OptionUtils.applyEnv("LOOM_OAUTH2_CLIENT_ID", this::setClientId);
+		OptionUtils.applyEnvSensitive("LOOM_OAUTH2_CLIENT_SECRET", this::setClientSecret);
+		OptionUtils.applyEnv("LOOM_OAUTH2_AUTH_URL", this::setAuthUrl);
+		OptionUtils.applyEnv("LOOM_OAUTH2_TOKEN_URL", this::setTokenUrl);
+		OptionUtils.applyEnv("LOOM_OAUTH2_USERINFO_URL", this::setUserInfoUrl);
+		OptionUtils.applyEnv("LOOM_OAUTH2_CALLBACK_URL", this::setCallbackUrl);
+		OptionUtils.applyEnv("LOOM_OAUTH2_LOGOUT_URL", this::setLogoutUrl);
+		OptionUtils.applyEnv("LOOM_OAUTH2_SCOPE", this::setScope);
+	}
 }

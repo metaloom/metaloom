@@ -18,10 +18,10 @@
     <inceptionYear>2023</inceptionYear>
 
     <properties>
-        <vertx.version>5.0.4</vertx.version>
+        <vertx.version>5.0.11</vertx.version>
         <!-- Versions from
-        https://repo1.maven.org/maven2/io/vertx/vertx-dependencies/5.0.4/vertx-dependencies-5.0.4.pom -->
-        <netty.version>4.2.5.Final</netty.version>
+        https://repo1.maven.org/maven2/io/vertx/vertx-dependencies/5.0.11/vertx-dependencies-5.0.11.pom -->
+        <netty.version>4.2.12.Final</netty.version>
         <jackson.version>2.18.2</jackson.version>
         <loom-test-env.version>0.0.1-SNAPSHOT</loom-test-env.version>
         <avro.version>1.12.0</avro.version>

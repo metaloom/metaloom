@@ -48,4 +48,11 @@ public class AuthenticationOptions implements Option {
 		this.oauth2 = oauth2;
 		return this;
 	}
+
+	@Override
+	public void overrideWithEnv() {
+		OptionUtils.applyEnv("LOOM_INITIAL_PASSWORD", v -> this.initialPassword = v);
+		OptionUtils.applyEnvInt("LOOM_TOKEN_EXPIRATION_TIME", v -> this.tokenExpirationTime = v);
+		oauth2.overrideWithEnv();
+	}
 }

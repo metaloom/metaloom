@@ -57,4 +57,12 @@ public class ServerOptions implements Option {
 		this.bindAddress = bindAddress;
 		return this;
 	}
+
+	@Override
+	public void overrideWithEnv() {
+		OptionUtils.applyEnvInt("LOOM_SERVER_GRPC_PORT", this::setGrpcPort);
+		OptionUtils.applyEnv("LOOM_SERVER_GRPC_BIND_ADDRESS", this::setBindAddress);
+		OptionUtils.applyEnvInt("LOOM_SERVER_REST_PORT", this::setRestPort);
+		OptionUtils.applyEnvInt("LOOM_SERVER_MON_PORT", this::setMonitoringPort);
+	}
 }

@@ -18,6 +18,18 @@ import org.apache.commons.io.FileExistsException;
 public class KeyStoreHelper {
 
 	/**
+	 * Returns the keystore type to use. PKCS12 is used unconditionally because
+	 * JCEKS depends on JCE provider JAR verification which is not implemented
+	 * in GraalVM Substrate VM (JarVerifier.verifyJars is intentionally
+	 * unimplemented). PKCS12 supports SecretKeyEntry with HMAC keys since
+	 * Java 9 and is the JDK default, so it is functionally equivalent for
+	 * Loom's use both on the JVM and as a native image.
+	 */
+	public static String keystoreType() {
+		return "pkcs12";
+	}
+
+	/**
 	 * Create a keystore for the given path and store various keys in it which are needed for JWT.
 	 * 
 	 * @param keystorePath
@@ -41,7 +53,7 @@ public class KeyStoreHelper {
 			keystoreFile.createNewFile();
 		}
 
-		KeyStore keystore = KeyStore.getInstance("jceks");
+		KeyStore keystore = KeyStore.getInstance(keystoreType());
 		keystore.load(null, null);
 		for (String type : Arrays.asList("SHA256", "SHA384", "SHA512")) {
 			KeyGenerator keygen = KeyGenerator.getInstance("Hmac" + type);

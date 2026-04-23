@@ -12,13 +12,22 @@ public class LoomServerRunner {
 	public static final Logger log = LoggerFactory.getLogger(LoomServerRunner.class);
 
 	public static void main(String[] args) {
-		LoomOptionsLookup optionsLookup = LoomOptionsLoader.createOrLoadOptions();
-		Loom loom = Loom.create(optionsLookup);
+		System.err.println("[loom] starting native loom-server ...");
 		try {
-			loom.run();
+			LoomOptionsLookup optionsLookup = LoomOptionsLoader.createOrLoadOptions();
+			Loom loom = Loom.create(optionsLookup);
+			try {
+				loom.run();
+			} catch (Throwable t) {
+				System.err.println("[loom] Error while starting loom. Invoking shutdown.");
+				t.printStackTrace(System.err);
+				log.error("Error while starting loom. Invoking shutdown.", t);
+				loom.shutdownAndTerminate(10);
+			}
 		} catch (Throwable t) {
-			log.error("Error while starting loom. Invoking shutdown.", t);
-			loom.shutdownAndTerminate(10);
+			System.err.println("[loom] Fatal error during bootstrap.");
+			t.printStackTrace(System.err);
+			System.exit(11);
 		}
 	}
 

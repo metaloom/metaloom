@@ -8,6 +8,13 @@ public class LoomOptions implements Option {
 
 	private AuthenticationOptions auth = new AuthenticationOptions();
 
+	@Override
+	public void overrideWithEnv() {
+		database.overrideWithEnv();
+		server.overrideWithEnv();
+		auth.overrideWithEnv();
+	}
+
 	public DatabaseOptions getDatabase() {
 		return database;
 	}

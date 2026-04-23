@@ -1,0 +1,46 @@
+# Native (GraalVM/SubstrateVM) variant of the Loom demo image.
+#
+# The native binary is produced via the `native` Maven profile in this
+# module's pom.xml using GraalVM 25 (Substrate VM). The binary is linked
+# against glibc, so we use a debian-slim base instead of alpine.
+#
+# Build prerequisites:
+#   JAVA_HOME=/opt/jvm/graalvm-25 \
+#   mvn -f pom.xml -Pnative -DskipTests \
+#       -pl loom/containers/demo -am package
+FROM debian:stable-slim
+
+ENV LOOM_AUTH_KEYSTORE_PATH=/keystore/keystore.jks
+ENV LOOM_BINARY_DIR=/uploads
+ENV LOOM_TEMP_DIR=/tmp
+ENV HOME=/loom
+
+EXPOSE 8092
+EXPOSE 8091
+
+USER root
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates libstdc++6 zlib1g && \
+    rm -rf /var/lib/apt/lists/* && \
+    useradd -u 1000 -g 0 -d /loom -m loom && \
+    mkdir /uploads   && chown 1000:0 /uploads  -R && chmod 770 /uploads  && \
+    mkdir /plugins   && chown 1000:0 /plugins  -R && chmod 770 /plugins  && \
+    mkdir /keystore  && chown 1000:0 /keystore -R && chmod 770 /keystore && \
+    mkdir /config    && chown 1000:0 /config   -R && chmod 770 /config && ln -s /config /loom/config && \
+    mkdir /loom/data && \
+    chown 1000:0 /loom -R && \
+    chmod 770 /loom -R
+
+# Native binary produced by GraalVM native-image
+ADD --chown=1000:0 ./loom/containers/demo/target/loom-demo /loom/loom
+RUN chmod 770 /loom/loom
+ADD --chown=1000:0 ./loom-ui/build /loom/ui
+
+USER loom
+WORKDIR /loom
+VOLUME /uploads
+VOLUME /plugins
+VOLUME /keystore
+VOLUME /config
+
+CMD [ "/loom/loom" ]

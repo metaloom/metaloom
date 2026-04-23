@@ -48,7 +48,7 @@ public class AuthModule {
 
 		KeyStoreOptions keyStoreOptions = new KeyStoreOptions().setPath(keystorePath.toAbsolutePath().toString())
 			.setPassword(loomAuthOptions.getKeystorePassword())
-			.setType("jceks");
+			.setType(KeyStoreHelper.keystoreType());
 
 		JWTAuthOptions config = new JWTAuthOptions().setKeyStore(keyStoreOptions);
 		return JWTAuth.create(vertx, config);

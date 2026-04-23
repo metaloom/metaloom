@@ -1,0 +1,4 @@
+[
+  { "interfaces": [ "com.mchange.v1.cachedstore.TweakableCachedStore" ] },
+  { "interfaces": [ "com.mchange.v1.cachedstore.CachedStore" ] }
+]

@@ -119,4 +119,15 @@ public class DatabaseOptions implements Option {
 		this.maxPoolSize = maxPoolSize;
 		return this;
 	}
+
+	@Override
+	public void overrideWithEnv() {
+		OptionUtils.applyEnv("LOOM_DB_HOST", this::setHost);
+		OptionUtils.applyEnvInt("LOOM_DB_PORT", this::setPort);
+		OptionUtils.applyEnv("LOOM_DB_USERNAME", this::setUsername);
+		OptionUtils.applyEnv("LOOM_DB_PASSWORD", this::setPassword);
+		OptionUtils.applyEnv("LOOM_DB_NAME", this::setDatabaseName);
+		OptionUtils.applyEnvInt("LOOM_DB_MIN_POOL_SIZE", this::setMinPoolSize);
+		OptionUtils.applyEnvInt("LOOM_DB_MAX_POOL_SIZE", this::setMaxPoolSize);
+	}
 }

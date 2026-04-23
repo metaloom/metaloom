@@ -1,0 +1,11 @@
+{
+  "resources": {
+    "includes": [
+      { "pattern": "db/migration/.*\\.sql$" },
+      { "pattern": "org/flywaydb/core/internal/version\\.txt$" },
+      { "pattern": "org/flywaydb/core/internal/.*" },
+      { "pattern": "org/flywaydb/core/internal/database/postgresql/.*" },
+      { "pattern": "loom-options\\.yaml$" }
+    ]
+  }
+}

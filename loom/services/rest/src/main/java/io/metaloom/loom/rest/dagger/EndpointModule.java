@@ -17,7 +17,7 @@ import io.metaloom.loom.rest.endpoint.impl.AttachmentEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.CollectionEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.CommentEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.EmbeddingEndpoint;
-import io.metaloom.loom.rest.endpoint.impl.GraphQLEndpoint;
+// import io.metaloom.loom.rest.endpoint.impl.GraphQLEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.GroupEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.NodeDescriptorEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.LibraryEndpoint;
@@ -64,7 +64,6 @@ public class EndpointModule {
 		RESTInfoEndpoint restInfoEndpoint,
 		CommentEndpoint commentEndpoint,
 		AttachmentEndpoint attachmentEndpoint,
-		GraphQLEndpoint graphQLEndpoint,
 		NodeDescriptorEndpoint nodeDescriptorEndpoint) {
 		return new HashSet<>(Arrays.asList(
 			userEndpoint,
@@ -90,7 +89,6 @@ public class EndpointModule {
 			restInfoEndpoint,
 			attachmentEndpoint,
 			commentEndpoint,
-			graphQLEndpoint,
 			nodeDescriptorEndpoint));
 	}
 }

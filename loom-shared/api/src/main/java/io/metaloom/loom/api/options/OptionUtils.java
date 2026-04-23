@@ -6,7 +6,9 @@ import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -120,6 +122,52 @@ public class OptionUtils {
 			field.set(target, convertValue(field.getType(), value));
 		} catch (IllegalArgumentException | IllegalAccessException ex) {
 			throw new RuntimeException("Could not set environment variable for {" + name + "} with value {" + value + "}", ex);
+		}
+	}
+
+	// -- Reflection-free helpers for native-image-safe env overrides ----------
+
+	/**
+	 * Apply a string environment variable using a direct setter.
+	 */
+	public static void applyEnv(String envName, Consumer<String> setter) {
+		String value = envLookup.apply(envName);
+		if (value != null) {
+			log.info("Setting env {" + envName + "=" + value + "}");
+			setter.accept(value);
+		}
+	}
+
+	/**
+	 * Apply a sensitive string environment variable (value is masked in logs).
+	 */
+	public static void applyEnvSensitive(String envName, Consumer<String> setter) {
+		String value = envLookup.apply(envName);
+		if (value != null) {
+			log.info("Setting env {" + envName + "=" + MASK + "}");
+			setter.accept(value);
+		}
+	}
+
+	/**
+	 * Apply an int environment variable using a direct setter.
+	 */
+	public static void applyEnvInt(String envName, IntConsumer setter) {
+		String value = envLookup.apply(envName);
+		if (value != null) {
+			log.info("Setting env {" + envName + "=" + value + "}");
+			setter.accept(Integer.parseInt(value));
+		}
+	}
+
+	/**
+	 * Apply a boolean environment variable using a direct setter.
+	 */
+	public static void applyEnvBoolean(String envName, Consumer<Boolean> setter) {
+		String value = envLookup.apply(envName);
+		if (value != null) {
+			log.info("Setting env {" + envName + "=" + value + "}");
+			setter.accept(Boolean.parseBoolean(value));
 		}
 	}
 

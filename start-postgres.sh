@@ -10,11 +10,11 @@ docker network inspect "$NETWORK" >/dev/null 2>&1 || docker network create "$NET
 docker rm -f "$NAME" >/dev/null 2>&1 || true
 
 docker run -d \
-                --network "$NETWORK" \
-                --name "$NAME" \
+        --network "$NETWORK" \
+        --name "$NAME" \
         -e POSTGRES_PASSWORD=finger \
         -p 5444:5432 \
-                "$IMAGE"
+        "$IMAGE"
 
 echo "Waiting for postgres to accept connections..."
 until docker exec "$NAME" pg_isready -U postgres >/dev/null 2>&1; do

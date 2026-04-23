@@ -77,4 +77,69 @@
         </plugins>
     </build>
 
+    <profiles>
+        <!--
+            Build a GraalVM/SubstrateVM native image of the shaded server jar.
+
+            Activate with: mvn -Pnative package
+            Requires GraalVM with native-image installed (e.g. /opt/jvm/graalvm-25).
+            Set JAVA_HOME=/opt/jvm/graalvm-25 (or GRAALVM_HOME) before running Maven.
+        -->
+        <profile>
+            <id>native</id>
+            <properties>
+                <native.image.name>loom-server</native.image.name>
+                <native.maven.plugin.version>0.10.6</native.maven.plugin.version>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.graalvm.buildtools</groupId>
+                        <artifactId>native-maven-plugin</artifactId>
+                        <version>${native.maven.plugin.version}</version>
+                        <extensions>true</extensions>
+                        <executions>
+                            <execution>
+                                <id>build-native</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>compile-no-fork</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <imageName>${native.image.name}</imageName>
+                            <mainClass>io.metaloom.loom.container.server.LoomServerRunner</mainClass>
+                            <classpath>
+                                <param>${project.build.directory}/loom-server.jar</param>
+                            </classpath>
+                            <fallback>false</fallback>
+                            <verbose>true</verbose>
+                            <buildArgs>
+                                <buildArg>--no-fallback</buildArg>
+                                <buildArg>-H:+UnlockExperimentalVMOptions</buildArg>
+                                <buildArg>-H:+ReportExceptionStackTraces</buildArg>
+                                <buildArg>--enable-url-protocols=http,https</buildArg>
+                                <buildArg>--initialize-at-build-time=org.slf4j,ch.qos.logback,org.jooq,com.fasterxml.jackson,org.yaml.snakeyaml,org.apache.commons.logging</buildArg>
+                                <!--
+                                    Netty (used by Vert.x) instantiates direct ByteBuffers /
+                                    native MemorySegments during class init. Defer netty
+                                    initialization to runtime so these objects do not leak
+                                    into the image heap.
+                                -->
+                                <buildArg>--initialize-at-run-time=io.netty</buildArg>
+                                <!--
+                                    c3p0 / mchange-commons reflection + dynamic-proxy metadata.
+                                    Files live in src/main/resources/META-INF/native-image/io.metaloom.loom/loom-server/
+                                -->
+                                <buildArg>-H:ConfigurationFileDirectories=${project.basedir}/src/main/resources/META-INF/native-image/io.metaloom.loom/loom-server</buildArg>
+                                <buildArg>-J-Xmx6g</buildArg>
+                            </buildArgs>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
 </project>
