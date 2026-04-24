@@ -25,4 +25,12 @@ public interface AssetPoolModel<T extends AssetPoolModel<T>> extends MetaModel<T
 
 	T setS3Endpoint(String s3Endpoint);
 
+	Long getFreeSpace();
+
+	T setFreeSpace(Long freeSpace);
+
+	Long getUsedSpace();
+
+	T setUsedSpace(Long usedSpace);
+
 }

@@ -341,6 +341,8 @@ export interface AssetPool {
   s3Bucket?: string;
   s3Region?: string;
   s3Endpoint?: string;
+  freeSpace?: number; // bytes
+  usedSpace?: number; // bytes
   assetCount: number;
   totalSize: number; // bytes
   createdAt: string;

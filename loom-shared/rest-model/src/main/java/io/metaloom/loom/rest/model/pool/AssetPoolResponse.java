@@ -22,6 +22,12 @@ public class AssetPoolResponse extends AbstractCreatorEditorRestResponse<AssetPo
 	@JsonPropertyDescription("S3 endpoint URL for S3-compatible services (only set for S3 pools)")
 	private String s3Endpoint;
 
+	@JsonPropertyDescription("Free space in bytes (filesystem pools only)")
+	private Long freeSpace;
+
+	@JsonPropertyDescription("Used space in bytes")
+	private Long usedSpace;
+
 	@Override
 	public String getName() {
 		return name;
@@ -74,6 +80,28 @@ public class AssetPoolResponse extends AbstractCreatorEditorRestResponse<AssetPo
 	@Override
 	public AssetPoolResponse setS3Endpoint(String s3Endpoint) {
 		this.s3Endpoint = s3Endpoint;
+		return this;
+	}
+
+	@Override
+	public Long getFreeSpace() {
+		return freeSpace;
+	}
+
+	@Override
+	public AssetPoolResponse setFreeSpace(Long freeSpace) {
+		this.freeSpace = freeSpace;
+		return this;
+	}
+
+	@Override
+	public Long getUsedSpace() {
+		return usedSpace;
+	}
+
+	@Override
+	public AssetPoolResponse setUsedSpace(Long usedSpace) {
+		this.usedSpace = usedSpace;
 		return this;
 	}
 

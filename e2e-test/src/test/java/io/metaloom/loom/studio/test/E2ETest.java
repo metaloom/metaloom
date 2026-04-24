@@ -49,9 +49,9 @@ import io.metaloom.loom.rest.model.user.UserUpdateRequest;
 /**
  * End-to-end test that verifies the running Loom backend through the real REST API.
  */
-public class LoginE2ETest {
+public class E2ETest {
 
-	private static final Logger log = LoggerFactory.getLogger(LoginE2ETest.class);
+	private static final Logger log = LoggerFactory.getLogger(E2ETest.class);
 
 	private static final int REST_PORT = 8092;
 
@@ -356,15 +356,19 @@ public class LoginE2ETest {
 			int initialCount = listResp.getData().size();
 			log.info("Initial pool count: {}", initialCount);
 
-			// Create a new filesystem pool
+			// Create a new filesystem pool with freeSpace and usedSpace
 			AssetPoolCreateRequest createReq = new AssetPoolCreateRequest();
 			createReq.setName("e2e-test-pool");
 			createReq.setFsPath("/tmp/e2e-test");
+			createReq.setFreeSpace(1024L * 1024 * 1024 * 100); // 100 GB
+			createReq.setUsedSpace(1024L * 1024 * 1024 * 50); // 50 GB
 			AssetPoolResponse created = client.createPool(createReq).sync().body();
 			assertNotNull(created, "Created pool should not be null");
 			assertNotNull(created.getUuid(), "Created pool UUID should not be null");
 			assertEquals("e2e-test-pool", created.getName());
 			assertEquals("/tmp/e2e-test", created.getFsPath());
+			assertEquals(Long.valueOf(1024L * 1024 * 1024 * 100), created.getFreeSpace(), "Free space should be set");
+			assertEquals(Long.valueOf(1024L * 1024 * 1024 * 50), created.getUsedSpace(), "Used space should be set");
 			log.info("Created pool: {} ({})", created.getName(), created.getUuid());
 
 			// Verify the pool appears in the listing
@@ -376,6 +380,8 @@ public class LoginE2ETest {
 			assertNotNull(loaded, "Loaded pool should not be null");
 			assertEquals(created.getUuid(), loaded.getUuid());
 			assertEquals("e2e-test-pool", loaded.getName());
+			assertEquals(Long.valueOf(1024L * 1024 * 1024 * 100), loaded.getFreeSpace(), "Free space should persist");
+			assertEquals(Long.valueOf(1024L * 1024 * 1024 * 50), loaded.getUsedSpace(), "Used space should persist");
 
 			// Delete the pool
 			client.deletePool(created.getUuid()).sync().body();
@@ -657,6 +663,19 @@ public class LoginE2ETest {
 			return;
 		}
 		runPlaywrightSpec(loomUiDir, "e2e/roles-backend.spec.ts", "playwright-roles");
+	}
+
+	/**
+	 * Full E2E: run Playwright asset pools CRUD tests from the loom-ui directory.
+	 */
+	@Test
+	void testAssetPoolsViaPlaywright() throws Exception {
+		File loomUiDir = resolveLoomUiDir();
+		if (loomUiDir == null) {
+			log.warn("loom-ui directory not found. Skipping Playwright asset pools test.");
+			return;
+		}
+		runPlaywrightSpec(loomUiDir, "e2e/pools-backend.spec.ts", "playwright-pools");
 	}
 
 	/**

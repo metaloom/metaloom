@@ -35,8 +35,45 @@ function PoolIcon({ type }: { type: AssetPoolType }) {
     : <FolderOutlined sx={{ fontSize: 20, color: tokens.accent.green }} />;
 }
 
+// ── Free Space Donut Chart ────────────────────────────────────────────────
+function FreeSpaceDonut({ freeSpace, usedSpace, totalSize, size = 52 }: { freeSpace: number; usedSpace?: number; totalSize: number; size?: number }) {
+  const used = usedSpace != null ? usedSpace : totalSize - freeSpace;
+  const pct = totalSize > 0 ? Math.min(used / totalSize, 1) : 0;
+  const r = (size - 6) / 2;
+  const circ = 2 * Math.PI * r;
+  const usedColor = pct > 0.9 ? tokens.accent.red : pct > 0.7 ? tokens.accent.amber : tokens.accent.green;
+
+  return (
+    <Tooltip title={`${formatBytes(freeSpace)} free / ${formatBytes(totalSize)} total (${Math.round((1 - pct) * 100)}% free)`}>
+      <Box sx={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={tokens.border.subtle} strokeWidth={5} />
+          <circle
+            cx={size / 2} cy={size / 2} r={r} fill="none"
+            stroke={usedColor} strokeWidth={5}
+            strokeDasharray={`${pct * circ} ${circ}`}
+            strokeLinecap="round"
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          />
+        </svg>
+        <Box sx={{
+          position: "absolute", inset: 0,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <Typography sx={{ fontSize: "0.6rem", fontWeight: 700, color: tokens.text.secondary, lineHeight: 1 }}>
+            {Math.round(pct * 100)}%
+          </Typography>
+        </Box>
+      </Box>
+    </Tooltip>
+  );
+}
+
 // ── Pool Detail Card ──────────────────────────────────────────────────────
 function PoolCard({ pool, onEdit, onDelete }: { pool: AssetPool; onEdit: () => void; onDelete: () => void }) {
+  const hasFreeSpace = pool.freeSpace != null && pool.freeSpace >= 0;
+  const totalForChart = hasFreeSpace && pool.totalSize > 0 ? pool.totalSize : (hasFreeSpace ? pool.freeSpace! : 0);
+
   return (
     <Paper
       elevation={0}
@@ -128,11 +165,22 @@ function PoolCard({ pool, onEdit, onDelete }: { pool: AssetPool; onEdit: () => v
         )}
       </Box>
 
-      {/* Stats */}
-      <Box sx={{ display: "flex", gap: 0.75, px: 2, pb: 2 }}>
-        <Chip label={`${formatCount(pool.assetCount)} assets`} size="small" sx={{ height: 18, fontSize: "0.65rem" }} />
-        <Chip label={formatBytes(pool.totalSize)} size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: "transparent", color: tokens.text.tertiary }} />
-        <Chip label={new Date(pool.updatedAt).toLocaleDateString()} size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: "transparent", color: tokens.text.tertiary }} />
+      {/* Stats + Free Space Chart */}
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, px: 2, pb: 2 }}>
+        {hasFreeSpace && totalForChart > 0 && (
+          <FreeSpaceDonut freeSpace={pool.freeSpace!} usedSpace={pool.usedSpace} totalSize={totalForChart} />
+        )}
+        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, flex: 1 }}>
+          <Chip label={`${formatCount(pool.assetCount)} assets`} size="small" sx={{ height: 18, fontSize: "0.65rem" }} />
+          {hasFreeSpace && (
+            <Chip label={`${formatBytes(pool.freeSpace!)} free`} size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: "rgba(52,213,138,0.12)", color: tokens.accent.green }} />
+          )}
+          {pool.usedSpace != null && pool.usedSpace > 0 && (
+            <Chip label={`${formatBytes(pool.usedSpace)} used`} size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: "rgba(46,168,255,0.12)", color: tokens.accent.blue }} />
+          )}
+          <Chip label={formatBytes(pool.totalSize)} size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: "transparent", color: tokens.text.tertiary }} />
+          <Chip label={new Date(pool.updatedAt).toLocaleDateString()} size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: "transparent", color: tokens.text.tertiary }} />
+        </Box>
       </Box>
     </Paper>
   );
@@ -149,6 +197,8 @@ function mapResponseToPool(r: PoolResponse): AssetPool {
     s3Bucket: r.s3Bucket,
     s3Region: r.s3Region,
     s3Endpoint: r.s3Endpoint,
+    freeSpace: r.freeSpace,
+    usedSpace: r.usedSpace,
     assetCount: 0,
     totalSize: 0,
     createdAt: r.status?.created ?? new Date().toISOString(),

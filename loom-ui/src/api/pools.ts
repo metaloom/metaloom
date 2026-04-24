@@ -9,6 +9,8 @@ export interface PoolResponse {
   s3Bucket?: string;
   s3Region?: string;
   s3Endpoint?: string;
+  freeSpace?: number;
+  usedSpace?: number;
   meta?: Record<string, unknown>;
   status?: {
     creator?: { uuid: string; name: string };

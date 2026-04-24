@@ -100,6 +100,16 @@ public class JooqAssetPool extends TableImpl<JooqAssetPoolRecord> {
     public final TableField<JooqAssetPoolRecord, String> S3_ENDPOINT = createField(DSL.name("s3_endpoint"), SQLDataType.VARCHAR, this, "S3 endpoint URL for S3-compatible services (only set for S3 pools)");
 
     /**
+     * The column <code>public.asset_pool.free_space</code>. Free space in bytes
+     */
+    public final TableField<JooqAssetPoolRecord, Long> FREE_SPACE = createField(DSL.name("free_space"), SQLDataType.BIGINT, this, "Free space in bytes");
+
+    /**
+     * The column <code>public.asset_pool.used_space</code>. Used space in bytes
+     */
+    public final TableField<JooqAssetPoolRecord, Long> USED_SPACE = createField(DSL.name("used_space"), SQLDataType.BIGINT, this, "Used space in bytes");
+
+    /**
      * The column <code>public.asset_pool.created</code>.
      */
     public final TableField<JooqAssetPoolRecord, LocalDateTime> CREATED = createField(DSL.name("created"), SQLDataType.LOCALDATETIME(6).nullable(false).defaultValue(DSL.field("now()", SQLDataType.LOCALDATETIME)), this, "");

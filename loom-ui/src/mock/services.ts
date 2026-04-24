@@ -2,14 +2,13 @@ import {
   Library, Asset, Collection, Comment, Annotation,
   Reaction, ApiKey,
   BlacklistEntry, ChatMessage,
-  TranscriptSection, DetectedFace, FaceCluster, Person, AssetPool,
+  TranscriptSection, DetectedFace, FaceCluster, Person,
 } from "../types";
 import {
   LIBRARIES, ASSETS, COLLECTIONS,
   COMMENTS, ANNOTATIONS, REACTIONS,
   API_KEYS, BLACKLIST, INITIAL_CHAT,
   TRANSCRIPTS, DETECTED_FACES, FACE_CLUSTERS, PERSONS,
-  ASSET_POOLS,
 } from "./data";
 
 // Simulate realistic async latency
@@ -264,35 +263,5 @@ export const mockFaceDetectionService = {
     if (cluster) cluster.personId = personId;
     const person = PERSONS.find(p => p.id === personId);
     if (person && !person.clusterIds.includes(clusterId)) person.clusterIds.push(clusterId);
-  },
-};
-
-// ── Asset Pools ───────────────────────────────────────────────────────────
-export const mockAssetPoolService = {
-  getAll: async (): Promise<AssetPool[]> => { await delay(120); return [...ASSET_POOLS]; },
-  getById: async (id: string): Promise<AssetPool | undefined> => { await delay(80); return ASSET_POOLS.find(p => p.id === id); },
-  create: async (data: Omit<AssetPool, "id" | "assetCount" | "totalSize" | "createdAt" | "updatedAt">): Promise<AssetPool> => {
-    await delay(150);
-    const pool: AssetPool = {
-      ...data,
-      id: `pool_${Date.now()}`,
-      assetCount: 0,
-      totalSize: 0,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    ASSET_POOLS.push(pool);
-    return pool;
-  },
-  update: async (id: string, data: Partial<AssetPool>): Promise<AssetPool | undefined> => {
-    await delay(120);
-    const pool = ASSET_POOLS.find(p => p.id === id);
-    if (pool) Object.assign(pool, data, { updatedAt: new Date().toISOString() });
-    return pool;
-  },
-  delete: async (id: string): Promise<void> => {
-    await delay(100);
-    const idx = ASSET_POOLS.findIndex(p => p.id === id);
-    if (idx >= 0) ASSET_POOLS.splice(idx, 1);
   },
 };

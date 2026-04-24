@@ -29,4 +29,14 @@ public interface AssetPool extends CUDElement<AssetPool>, MetaElement<AssetPool>
 
 	AssetPool setS3Endpoint(String s3Endpoint);
 
+	// Free space in bytes
+	Long getFreeSpace();
+
+	AssetPool setFreeSpace(Long freeSpace);
+
+	// Used space in bytes
+	Long getUsedSpace();
+
+	AssetPool setUsedSpace(Long usedSpace);
+
 }

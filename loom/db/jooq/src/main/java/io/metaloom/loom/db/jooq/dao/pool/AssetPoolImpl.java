@@ -14,6 +14,8 @@ public class AssetPoolImpl extends AbstractEditableElement<AssetPool> implements
 	private String s3Region;
 
 	private String s3Endpoint;
+	private Long freeSpace;
+	private Long usedSpace;
 
 	@Override
 	public String getName() {
@@ -69,6 +71,18 @@ public class AssetPoolImpl extends AbstractEditableElement<AssetPool> implements
 		this.s3Endpoint = s3Endpoint;
 		return this;
 	}
+
+	@Override
+	public Long getFreeSpace() { return freeSpace; }
+
+	@Override
+	public AssetPool setFreeSpace(Long freeSpace) { this.freeSpace = freeSpace; return this; }
+
+	@Override
+	public Long getUsedSpace() { return usedSpace; }
+
+	@Override
+	public AssetPool setUsedSpace(Long usedSpace) { this.usedSpace = usedSpace; return this; }
 
 	@Override
 	public String toString() {

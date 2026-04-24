@@ -16,6 +16,8 @@ public interface AssetPoolModelBuilder extends ModelBuilder, UserModelBuilder {
 		response.setS3Bucket(pool.getS3Bucket());
 		response.setS3Region(pool.getS3Region());
 		response.setS3Endpoint(pool.getS3Endpoint());
+		response.setFreeSpace(pool.getFreeSpace());
+		response.setUsedSpace(pool.getUsedSpace());
 		setStatus(pool, response);
 		return response;
 	}

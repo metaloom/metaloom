@@ -51,6 +51,8 @@ public class AssetPoolEndpointService extends AbstractCRUDEndpointService<AssetP
 			update(request::getS3Bucket, pool::setS3Bucket);
 			update(request::getS3Region, pool::setS3Region);
 			update(request::getS3Endpoint, pool::setS3Endpoint);
+			update(request::getFreeSpace, pool::setFreeSpace);
+			update(request::getUsedSpace, pool::setUsedSpace);
 			update(request::getMeta, pool::setMeta);
 			return pool;
 		}, modelBuilder::toResponse);
@@ -69,6 +71,8 @@ public class AssetPoolEndpointService extends AbstractCRUDEndpointService<AssetP
 			update(request::getS3Bucket, pool::setS3Bucket);
 			update(request::getS3Region, pool::setS3Region);
 			update(request::getS3Endpoint, pool::setS3Endpoint);
+			update(request::getFreeSpace, pool::setFreeSpace);
+			update(request::getUsedSpace, pool::setUsedSpace);
 			update(request::getMeta, pool::setMeta);
 			setEditor(pool, userUuid);
 			return pool;
