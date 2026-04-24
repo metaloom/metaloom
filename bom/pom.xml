@@ -19,7 +19,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <dagger.version>2.57.2</dagger.version>
         <hazelcast.version>5.3.8</hazelcast.version>
-        <tika.version>2.9.4</tika.version>
+        <tika.version>3.2.2</tika.version>
         <pico-cli.version>4.7.5</pico-cli.version>
         <aws.sdk.version>2.29.70</aws.sdk.version>
         <jackson.version>2.18.2</jackson.version>
