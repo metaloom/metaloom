@@ -26,6 +26,7 @@ import io.metaloom.loom.rest.endpoint.impl.PipelineEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.PipelineEventEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.ProcessorEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.LoginEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.ReactionEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.SpaceEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.RESTInfoEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.RoleEndpoint;
@@ -64,6 +65,7 @@ public class EndpointModule {
 		RESTInfoEndpoint restInfoEndpoint,
 		CommentEndpoint commentEndpoint,
 		AttachmentEndpoint attachmentEndpoint,
+		ReactionEndpoint reactionEndpoint,
 		NodeDescriptorEndpoint nodeDescriptorEndpoint) {
 		return new HashSet<>(Arrays.asList(
 			userEndpoint,
@@ -89,6 +91,7 @@ public class EndpointModule {
 			restInfoEndpoint,
 			attachmentEndpoint,
 			commentEndpoint,
+			reactionEndpoint,
 			nodeDescriptorEndpoint));
 	}
 }

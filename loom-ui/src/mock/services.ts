@@ -1,12 +1,12 @@
 import {
-  Library, Asset, Collection, Comment, Annotation,
-  Reaction, ApiKey,
+  Library, Asset, Comment,
+  ApiKey,
   BlacklistEntry, ChatMessage,
   TranscriptSection, DetectedFace, FaceCluster, Person,
 } from "../types";
 import {
-  LIBRARIES, ASSETS, COLLECTIONS,
-  COMMENTS, ANNOTATIONS, REACTIONS,
+  LIBRARIES, ASSETS,
+  COMMENTS,
   API_KEYS, BLACKLIST, INITIAL_CHAT,
   TRANSCRIPTS, DETECTED_FACES, FACE_CLUSTERS, PERSONS,
 } from "./data";
@@ -65,39 +65,6 @@ export const mockAssetService = {
   },
 };
 
-// ── Collections ──────────────────────────────────────────────────────────
-export const mockCollectionService = {
-  getBySpace: async (spaceId: string): Promise<Collection[]> => {
-    await delay(120);
-    return COLLECTIONS.filter(c => c.spaceId === spaceId);
-  },
-  getById: async (id: string): Promise<Collection | undefined> => {
-    await delay(80);
-    return COLLECTIONS.find(c => c.id === id);
-  },
-  create: async (spaceId: string, name: string, description: string, color: string): Promise<Collection> => {
-    await delay(150);
-    const col: Collection = {
-      id: `col_${Date.now()}`,
-      spaceId,
-      name,
-      description,
-      assetIds: [],
-      ownerId: "u1",
-      color,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    COLLECTIONS.push(col);
-    return col;
-  },
-  delete: async (id: string): Promise<void> => {
-    await delay(100);
-    const idx = COLLECTIONS.findIndex(c => c.id === id);
-    if (idx >= 0) COLLECTIONS.splice(idx, 1);
-  },
-};
-
 // ── Comments ──────────────────────────────────────────────────────────────
 export const mockCommentService = {
   getByAsset: async (assetId: string): Promise<Comment[]> => {
@@ -106,21 +73,6 @@ export const mockCommentService = {
   },
 };
 
-// ── Annotations ───────────────────────────────────────────────────────────
-export const mockAnnotationService = {
-  getByAsset: async (assetId: string): Promise<Annotation[]> => {
-    await delay(100);
-    return ANNOTATIONS.filter(a => a.assetId === assetId);
-  },
-};
-
-// ── Reactions ─────────────────────────────────────────────────────────────
-export const mockReactionService = {
-  getByAsset: async (assetId: string): Promise<Reaction[]> => {
-    await delay(80);
-    return REACTIONS.filter(r => r.assetId === assetId);
-  },
-};
 
 // ── Admin ─────────────────────────────────────────────────────────────────
 export const mockAdminService = {

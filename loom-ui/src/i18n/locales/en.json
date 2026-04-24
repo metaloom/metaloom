@@ -161,7 +161,9 @@
       "new": "New Collection",
       "cancel": "Cancel",
       "creating": "Creating…",
-      "create": "Create"
+      "create": "Create",
+      "save": "Save",
+      "delete": "Delete"
     },
     "search": {
       "placeholder": "Search collections…"
@@ -181,6 +183,7 @@
     },
     "dialog": {
       "newCollection": "New Collection",
+      "editCollection": "Edit Collection",
       "deleteCollection": "Delete Collection"
     },
     "label": {
@@ -192,7 +195,13 @@
       "delete": "Delete {{name}}? This cannot be undone."
     },
     "toast": {
-      "deleted": "Collection deleted"
+      "deleted": "Collection deleted",
+      "created": "Collection created",
+      "updated": "Collection updated",
+      "loadFailed": "Failed to load collections",
+      "createFailed": "Failed to create collection",
+      "updateFailed": "Failed to update collection",
+      "deleteFailed": "Failed to delete collection"
     }
   },
   "tasks": {

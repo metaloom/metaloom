@@ -72,7 +72,7 @@ public class CollectionEndpointService extends AbstractCRUDEndpointService<Colle
 
 			UUID userUuid = lrc.userUuid();
 			Collection collection = dao().load(id);
-			// TOOD update
+			update(request::getName, collection::setName);
 			update(request::getMeta, collection::setMeta);
 			setEditor(collection, userUuid);
 			return collection;

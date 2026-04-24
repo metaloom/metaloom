@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import { AnnotationResponseItem } from "./annotations";
 
 // ── Types matching the Loom REST API response models ──────────────────
 
@@ -81,7 +82,7 @@ export interface AssetResponse {
   hashes?: HashInfo;
   geo?: GeoLocationInfo;
   tags?: TagReference[];
-  annotations?: unknown[];
+  annotations?: AnnotationResponseItem[];
   collections?: CollectionRef[];
   imageComponents?: ImageInfo[];
   videoComponents?: VideoInfo[];

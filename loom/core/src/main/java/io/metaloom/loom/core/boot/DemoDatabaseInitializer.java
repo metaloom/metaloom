@@ -12,6 +12,9 @@ import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
+import io.metaloom.loom.db.model.annotation.Annotation;
+import io.metaloom.loom.db.model.annotation.AnnotationDao;
+import io.metaloom.loom.api.annotation.AnnotationType;
 import io.metaloom.loom.db.model.asset.Asset;
 import io.metaloom.loom.db.model.asset.AssetAudioComp;
 import io.metaloom.loom.db.model.asset.AssetComponentDao;
@@ -34,6 +37,8 @@ import io.metaloom.loom.db.model.pipeline.Pipeline;
 import io.metaloom.loom.db.model.pipeline.PipelineDao;
 import io.metaloom.loom.db.model.pool.AssetPool;
 import io.metaloom.loom.db.model.pool.AssetPoolDao;
+import io.metaloom.loom.db.model.reaction.Reaction;
+import io.metaloom.loom.db.model.reaction.ReactionDao;
 import io.metaloom.loom.db.model.role.Role;
 import io.metaloom.loom.db.model.role.RoleDao;
 import io.metaloom.loom.db.model.space.Space;
@@ -80,11 +85,14 @@ public class DemoDatabaseInitializer {
 	private final RoleDao roleDao;
 	private final PermissionDao permissionDao;
 	private final TaskDao taskDao;
+	private final AnnotationDao annotationDao;
+	private final ReactionDao reactionDao;
 
 	@Inject
 	public DemoDatabaseInitializer(UserDao userDao, AssetDao assetDao, SpaceDao spaceDao,
 		TagDao tagDao, CollectionDao collectionDao, LibraryDao libraryDao, PipelineDao pipelineDao, AssetPoolDao assetPoolDao,
-		GroupDao groupDao, RoleDao roleDao, PermissionDao permissionDao, TaskDao taskDao) {
+		GroupDao groupDao, RoleDao roleDao, PermissionDao permissionDao, TaskDao taskDao,
+		AnnotationDao annotationDao, ReactionDao reactionDao) {
 		this.userDao = userDao;
 		this.assetDao = assetDao;
 		this.spaceDao = spaceDao;
@@ -97,6 +105,8 @@ public class DemoDatabaseInitializer {
 		this.roleDao = roleDao;
 		this.permissionDao = permissionDao;
 		this.taskDao = taskDao;
+		this.annotationDao = annotationDao;
+		this.reactionDao = reactionDao;
 	}
 
 	/**
@@ -329,9 +339,45 @@ public class DemoDatabaseInitializer {
 		createTask(admin, "Approve campaign cut", "Review the latest campaign cut and approve for publishing.");
 		createTask(admin, "Tag city timelapse", "Assign accurate tags to timelapse-city.mp4 for discoverability.");
 
-		log.info("Demo data initialization complete — created {} assets, {} tags, {} collections, {} pipelines, {} users, {} groups, {} roles, {} tasks.",
+		// --- Annotations ---
+		Annotation ann1 = annotationDao.createAnnotation(admin, imageAssets[0], "Color correction needed", AnnotationType.FEEDBACK);
+		ann1.setDescription("The white balance is slightly off in the top-left quadrant.");
+		ann1.setAreaStartX(0);
+		ann1.setAreaStartY(0);
+		ann1.setAreaWidth(500);
+		ann1.setAreaHeight(400);
+		annotationDao.store(ann1);
+
+		Annotation ann2 = annotationDao.createAnnotation(admin, videoAssets[0], "Audio peak", AnnotationType.FEEDBACK);
+		ann2.setDescription("Transient peak exceeds -3dB at this timestamp.");
+		ann2.setTimeFrom(8000L);
+		ann2.setTimeTo(9000L);
+		annotationDao.store(ann2);
+
+		Annotation ann3 = annotationDao.createAnnotation(admin, imageAssets[1], "Crop suggestion", AnnotationType.FEEDBACK);
+		ann3.setDescription("Consider a tighter crop for the hero banner variant.");
+		annotationDao.store(ann3);
+
+		log.info("Created {} demo annotations", 3);
+
+		// --- Reactions ---
+		Reaction rx1 = reactionDao.createReaction(admin, "THUMBSUP");
+		rx1.setAssetUuid(imageAssets[0].getUuid());
+		reactionDao.store(rx1);
+
+		Reaction rx2 = reactionDao.createReaction(admin, "SATISFIED");
+		rx2.setAssetUuid(imageAssets[1].getUuid());
+		reactionDao.store(rx2);
+
+		Reaction rx3 = reactionDao.createReaction(admin, "PLUS_ONE");
+		rx3.setAssetUuid(videoAssets[0].getUuid());
+		reactionDao.store(rx3);
+
+		log.info("Created {} demo reactions", 3);
+
+		log.info("Demo data initialization complete — created {} assets, {} tags, {} collections, {} pipelines, {} users, {} groups, {} roles, {} tasks, {} annotations, {} reactions.",
 			imageAssets.length + videoAssets.length + audioAssets.length + docAssets.length,
-			8, 2, 3, 2, 2, 2, 3);
+			8, 2, 3, 2, 2, 2, 3, 3, 3);
 	}
 
 	private Task createTask(User admin, String title, String description) {

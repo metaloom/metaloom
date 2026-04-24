@@ -120,6 +120,21 @@ public class ReactionEndpointService extends AbstractEndpointService {
 		});
 	}
 
+	// GLOBAL
+
+	public void loadReaction(LoomRoutingContext lrc, UUID reactionUuid) {
+		load(lrc, READ_REACTION, () -> dao().load(reactionUuid));
+	}
+
+	public void deleteReaction(LoomRoutingContext lrc, UUID reactionUuid) {
+		delete(lrc, DELETE_REACTION, () -> dao().load(reactionUuid));
+	}
+
+	public void listReactions(LoomRoutingContext lrc) {
+		list(lrc, READ_REACTION,
+			(fromId, pageSize, filters, sortBy, sortDirection) -> dao().loadPage(fromId, pageSize, filters, sortBy, sortDirection));
+	}
+
 	// ASSET
 
 	public void createAssetReaction(LoomRoutingContext lrc, AssetId assetId) {

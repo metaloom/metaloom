@@ -1,6 +1,6 @@
 import {
-  Library, Asset, Collection, Task, Comment, Annotation,
-  Reaction, User, Permission, ApiKey,
+  Library, Asset, Collection, Task, Comment,
+  User, Permission, ApiKey,
   BlacklistEntry, MetricSeries, ChatMessage,
   TranscriptSection, DetectedFace, FaceCluster, Person,
   DetectedObject,
@@ -231,25 +231,6 @@ export const COMMENTS: Comment[] = [
   { id: "c5", assetId: "a5", authorId: "u5", title: "Proxy needed urgently", text: "Editorial is waiting. Need proxy by EOD.", timestampStart: undefined, createdAt: hoursAgo(5), updatedAt: hoursAgo(5) },
   { id: "c6", assetId: "a5", authorId: "u2", text: "Great sequence at 43:12 — use for promo?", timestampStart: 2592, createdAt: daysAgo(1), updatedAt: daysAgo(1) },
   { id: "c7", assetId: "a8", authorId: "u1", title: "Context at 12:00", text: "This section covers Q1 headcount and hiring plans. Not for sharing externally.", timestampStart: 720, createdAt: daysAgo(20), updatedAt: daysAgo(20) },
-];
-
-// ── Annotations ───────────────────────────────────────────────────────────
-export const ANNOTATIONS: Annotation[] = [
-  { id: "an1", assetId: "a1", authorId: "u2", title: "Audio peak", description: "Transient peak exceeds -3dB", timestampStart: 8, timestampEnd: 9, color: "#f0546e", createdAt: hoursAgo(20) },
-  { id: "an2", assetId: "a1", authorId: "u4", title: "Safe zone violation", description: "Logo crops on 9:16", timestampStart: 22, timestampEnd: 27, color: "#f5a623", createdAt: hoursAgo(10) },
-  { id: "an3", assetId: "a3", authorId: "u3", title: "Shadow artifact", description: "Minor shadow at bottom right", region: { x: 0.73, y: 0.82, width: 0.18, height: 0.12 }, color: "#f5a623", createdAt: daysAgo(3) },
-  { id: "an4", assetId: "a5", authorId: "u5", title: "Promo clip", description: "Strong sequence for promo reel", timestampStart: 2592, timestampEnd: 2640, color: "#34d58a", createdAt: daysAgo(1) },
-  { id: "an5", assetId: "a8", authorId: "u1", title: "Confidential section", description: "Hiring and headcount data", timestampStart: 720, timestampEnd: 960, color: "#f0546e", createdAt: daysAgo(20) },
-];
-
-// ── Reactions ─────────────────────────────────────────────────────────────
-export const REACTIONS: Reaction[] = [
-  { id: "rx1", assetId: "a1", userId: "u1", type: "approve", rating: 5, createdAt: hoursAgo(15) },
-  { id: "rx2", assetId: "a1", userId: "u4", type: "flag", createdAt: hoursAgo(10) },
-  { id: "rx3", assetId: "a2", userId: "u1", type: "approve", rating: 4, createdAt: daysAgo(1) },
-  { id: "rx4", assetId: "a3", userId: "u2", type: "favorite", rating: 5, createdAt: daysAgo(3) },
-  { id: "rx5", assetId: "a5", userId: "u5", type: "approve", rating: 4, timestamp: 2592, createdAt: daysAgo(1) },
-  { id: "rx6", assetId: "a5", userId: "u2", type: "question", timestamp: 1200, createdAt: daysAgo(1) },
 ];
 
 // ── Metrics ───────────────────────────────────────────────────────────────

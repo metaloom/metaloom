@@ -21,13 +21,14 @@ import {
 import { tokens } from "../../theme";
 import { Asset, AssetType, AssetStatus, Comment, Annotation, Reaction, Task, TranscriptSection, DetectedFace, FaceCluster, Person } from "../../types";
 import {
-  mockCommentService, mockAnnotationService,
-  mockReactionService, mockTranscriptService,
+  mockCommentService, mockTranscriptService,
   mockFaceDetectionService,
 } from "../../mock/services";
-import { USERS, COLLECTIONS } from "../../mock/data";
+import { USERS } from "../../mock/data";
 import { useAuth } from "../../context/AuthContext";
 import { loadAsset as apiLoadAsset, AssetResponse } from "../../api/assets";
+import { AnnotationResponseItem } from "../../api/annotations";
+import { listAssetReactions, ReactionResponseItem } from "../../api/reactions";
 
 /** Map a Loom REST AssetResponse to the local Asset type used by the UI. */
 function apiToAsset(r: AssetResponse): Asset {
@@ -572,7 +573,7 @@ function TranscriptPanel({
   onSeek: (t: number) => void;
   onSectionsChange: (s: TranscriptSection[]) => void;
 }) {
-  const { t: tAD } = useTranslation();
+  const { t: tAD } = useTranslation("translation", { keyPrefix: "assetDetail" });
   const sectionColors = [tokens.accent.blue, tokens.accent.green, tokens.accent.amber, "#c077db", tokens.primary.main, tokens.accent.red];
 
   const moveBoundary = (idx: number, direction: "up" | "down") => {
@@ -717,7 +718,7 @@ function FaceDetectionPanel({
   persons: Person[];
   onSeek?: (t: number) => void;
 }) {
-  const { t: tAD } = useTranslation();
+  const { t: tAD } = useTranslation("translation", { keyPrefix: "assetDetail" });
   // Group faces by cluster
   const grouped = clusters.filter(c => c.faceIds.some(fid => faces.some(f => f.id === fid))).map(cluster => {
     const clusterFaces = faces.filter(f => cluster.faceIds.includes(f.id));
@@ -816,7 +817,7 @@ function FaceDetectionPanel({
 
 // ── Main Asset Detail ─────────────────────────────────────────────────────
 export default function AssetDetail() {
-  const { t: tAD } = useTranslation();
+  const { t: tAD } = useTranslation("translation", { keyPrefix: "assetDetail" });
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { token } = useAuth();
@@ -829,6 +830,7 @@ export default function AssetDetail() {
   const [detectedFaces, setDetectedFaces] = useState<DetectedFace[]>([]);
   const [faceClusters, setFaceClusters] = useState<FaceCluster[]>([]);
   const [persons, setPersons] = useState<Person[]>([]);
+  const [assetCollections, setAssetCollections] = useState<{ uuid: string; name: string }[]>([]);
   const [tab, setTab] = useState(0);
   const [sidebarQuery, setSidebarQuery] = useState("");
   const [currentTime, setCurrentTime] = useState(0);
@@ -849,23 +851,52 @@ export default function AssetDetail() {
 
   useEffect(() => {
     if (!id || !token) return;
-    // Load asset from real API; social features still use mock services
+    // Load asset from real API
     apiLoadAsset(token, id).then(resp => {
       setAsset(apiToAsset(resp));
+      // Extract collections from the asset response
+      setAssetCollections((resp.collections ?? []).map(c => ({ uuid: c.uuid, name: c.name })));
+      // Extract annotations from the asset response
+      const restAnnotations: Annotation[] = (resp.annotations ?? []).map((a: AnnotationResponseItem) => ({
+        id: a.uuid ?? "",
+        assetId: a.assetUuid ?? id,
+        authorId: a.status?.creator?.uuid ?? "",
+        title: a.title ?? "",
+        description: a.description ?? "",
+        timestampStart: a.area?.from != null ? a.area.from / 1000 : undefined,
+        timestampEnd: a.area?.to != null ? a.area.to / 1000 : undefined,
+        region: a.area?.width != null && a.area?.height != null && a.area?.startX != null && a.area?.startY != null
+          ? { x: a.area.startX, y: a.area.startY, width: a.area.width, height: a.area.height }
+          : undefined,
+        color: tokens.accent.amber,
+        createdAt: a.status?.created ?? "",
+      }));
+      setAnnotations(restAnnotations);
     }).catch(() => { /* asset not found */ });
+
+    // Load reactions from REST
+    listAssetReactions(token, id).then(resp => {
+      const restReactions: Reaction[] = (resp.data ?? []).map((r: ReactionResponseItem) => ({
+        id: r.uuid ?? "",
+        assetId: id,
+        userId: r.status?.creator?.uuid ?? "",
+        type: (r.type?.toLowerCase() ?? "approve") as Reaction["type"],
+        rating: r.rating,
+        createdAt: r.status?.created ?? "",
+      }));
+      setReactions(restReactions);
+    }).catch(() => { /* reactions load failed */ });
+
+    // Comments and other social features still use mock services
     Promise.all([
       mockCommentService.getByAsset(id),
-      mockAnnotationService.getByAsset(id),
-      mockReactionService.getByAsset(id),
       Promise.resolve([] as Task[]),
       mockTranscriptService.getByAsset(id),
       mockFaceDetectionService.getFacesByAsset(id),
       mockFaceDetectionService.getAllClusters(),
       mockFaceDetectionService.getAllPersons(),
-    ]).then(([c, an, rx, t, tr, faces, clusters, pers]) => {
+    ]).then(([c, t, tr, faces, clusters, pers]) => {
       setComments(c);
-      setAnnotations(an);
-      setReactions(rx);
       setTasks(t);
       setTranscriptSections(tr);
       setDetectedFaces(faces);
@@ -971,14 +1002,14 @@ export default function AssetDetail() {
             {asset.tags.slice(0, 3).map(t => (
               <Chip key={t} label={t} size="small" sx={{ height: 16, fontSize: "0.65rem", bgcolor: tokens.bg.overlay }} />
             ))}
-            {/* Collection chips */}
-            {COLLECTIONS.filter(c => asset.collectionIds.includes(c.id)).map(col => (
+            {/* Collection chips – from the asset response */}
+            {(assetCollections ?? []).map(col => (
               <Chip
-                key={col.id}
+                key={col.uuid}
                 icon={<CollectionsOutlined sx={{ fontSize: 10 }} />}
                 label={col.name}
                 size="small"
-                sx={{ height: 16, fontSize: "0.65rem", bgcolor: `${col.color}22`, color: col.color, "& .MuiChip-icon": { color: col.color } }}
+                sx={{ height: 16, fontSize: "0.65rem", bgcolor: `${tokens.primary.main}22`, color: tokens.primary.main, "& .MuiChip-icon": { color: tokens.primary.main } }}
               />
             ))}
           </Box>

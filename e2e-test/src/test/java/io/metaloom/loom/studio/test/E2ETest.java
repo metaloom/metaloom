@@ -19,6 +19,8 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.metaloom.loom.api.asset.AssetId;
+import io.metaloom.loom.api.reaction.ReactionType;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.rest.model.asset.AssetListResponse;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
@@ -34,6 +36,13 @@ import io.metaloom.loom.rest.model.library.LibraryUpdateRequest;
 import io.metaloom.loom.rest.model.pool.AssetPoolCreateRequest;
 import io.metaloom.loom.rest.model.pool.AssetPoolListResponse;
 import io.metaloom.loom.rest.model.pool.AssetPoolResponse;
+import io.metaloom.loom.rest.model.collection.CollectionCreateRequest;
+import io.metaloom.loom.rest.model.collection.CollectionListResponse;
+import io.metaloom.loom.rest.model.collection.CollectionResponse;
+import io.metaloom.loom.rest.model.collection.CollectionUpdateRequest;
+import io.metaloom.loom.rest.model.reaction.ReactionCreateRequest;
+import io.metaloom.loom.rest.model.reaction.ReactionListResponse;
+import io.metaloom.loom.rest.model.reaction.ReactionResponse;
 import io.metaloom.loom.rest.model.role.RoleCreateRequest;
 import io.metaloom.loom.rest.model.role.RoleListResponse;
 import io.metaloom.loom.rest.model.role.RoleResponse;
@@ -394,6 +403,67 @@ public class E2ETest {
 	}
 
 	/**
+	 * Verify collection CRUD via REST API: list, create, load, update, delete.
+	 */
+	@Test
+	void testCollectionCRUD() throws Exception {
+		try (LoomHttpClient client = LoomHttpClient.builder()
+			.setHostname("localhost")
+			.setReadTimeout(Duration.ofSeconds(30))
+			.setPort(REST_PORT)
+			.build()) {
+
+			AuthLoginResponse loginResp = client.login("admin", "finger").sync().body();
+			client.setToken(loginResp.getToken());
+
+			// List existing collections
+			CollectionListResponse listResp = client.listCollections().sync().body();
+			assertNotNull(listResp, "Collection list response should not be null");
+			assertNotNull(listResp.getData(), "Collection list data should not be null");
+			int initialCount = listResp.getData().size();
+			log.info("Initial collection count: {}", initialCount);
+
+			// Create a new collection
+			CollectionCreateRequest createReq = new CollectionCreateRequest();
+			createReq.setName("e2e-test-collection");
+			CollectionResponse created = client.createCollection(createReq).sync().body();
+			assertNotNull(created, "Created collection should not be null");
+			assertNotNull(created.getUuid(), "Created collection UUID should not be null");
+			assertEquals("e2e-test-collection", created.getName());
+			log.info("Created collection: {} ({})", created.getName(), created.getUuid());
+
+			// Verify the collection appears in the listing
+			CollectionListResponse listAfterCreate = client.listCollections().sync().body();
+			assertTrue(listAfterCreate.getData().size() > initialCount, "Collection list should have grown after create");
+
+			// Load the collection by UUID
+			CollectionResponse loaded = client.loadCollection(created.getUuid()).sync().body();
+			assertNotNull(loaded, "Loaded collection should not be null");
+			assertEquals(created.getUuid(), loaded.getUuid());
+			assertEquals("e2e-test-collection", loaded.getName());
+
+			// Update the collection name
+			CollectionUpdateRequest updateReq = new CollectionUpdateRequest();
+			updateReq.setName("e2e-test-collection-updated");
+			CollectionResponse updated = client.updateCollection(created.getUuid(), updateReq).sync().body();
+			assertNotNull(updated, "Updated collection should not be null");
+			assertEquals("e2e-test-collection-updated", updated.getName());
+
+			// Verify update persisted
+			CollectionResponse reloaded = client.loadCollection(created.getUuid()).sync().body();
+			assertEquals("e2e-test-collection-updated", reloaded.getName());
+
+			// Delete the collection
+			client.deleteCollection(created.getUuid()).sync().body();
+
+			// Verify the collection is gone
+			CollectionListResponse listAfterDelete = client.listCollections().sync().body();
+			assertEquals(initialCount, listAfterDelete.getData().size(), "Collection count should return to initial after delete");
+			log.info("Collection CRUD test passed");
+		}
+	}
+
+	/**
 	 * Verify user CRUD via REST API: list, create, load, update, delete.
 	 */
 	@Test
@@ -679,6 +749,19 @@ public class E2ETest {
 	}
 
 	/**
+	 * Full E2E: run Playwright collections CRUD tests from the loom-ui directory.
+	 */
+	@Test
+	void testCollectionsViaPlaywright() throws Exception {
+		File loomUiDir = resolveLoomUiDir();
+		if (loomUiDir == null) {
+			log.warn("loom-ui directory not found. Skipping Playwright collections test.");
+			return;
+		}
+		runPlaywrightSpec(loomUiDir, "e2e/collections-backend.spec.ts", "playwright-collections");
+	}
+
+	/**
 	 * Full E2E: run Playwright pipeline editor tests from the loom-ui directory.
 	 */
 	@Test
@@ -743,6 +826,59 @@ public class E2ETest {
 			Thread.sleep(1000);
 		}
 		throw new IllegalStateException("Loom REST API did not become available within " + timeout);
+	}
+
+	/**
+	 * Verify reaction CRUD on assets via REST API: create, list, load, delete.
+	 */
+	@Test
+	void testReactionCRUD() throws Exception {
+		try (LoomHttpClient client = LoomHttpClient.builder()
+			.setHostname("localhost")
+			.setReadTimeout(Duration.ofSeconds(30))
+			.setPort(REST_PORT)
+			.build()) {
+
+			AuthLoginResponse loginResp = client.login("admin", "finger").sync().body();
+			client.setToken(loginResp.getToken());
+
+			// Pick the first demo asset
+			AssetListResponse assetList = client.listAssets().sync().body();
+			assertFalse(assetList.getData().isEmpty(), "Need at least one asset for reaction test");
+			AssetResponse asset = assetList.getData().get(0);
+			AssetId assetId = AssetId.assetId(asset.getUuid());
+
+			// List existing reactions on the asset
+			ReactionListResponse initialReactions = client.listAssetReaction(assetId).sync().body();
+			int initialCount = initialReactions.getData() != null ? initialReactions.getData().size() : 0;
+
+			// Create a reaction
+			ReactionCreateRequest createReq = new ReactionCreateRequest();
+			createReq.setType(ReactionType.THUMBSUP);
+			ReactionResponse created = client.createAssetReaction(assetId, createReq).sync().body();
+			assertNotNull(created, "Created reaction should not be null");
+			assertNotNull(created.getUuid(), "Created reaction UUID should not be null");
+			assertEquals(ReactionType.THUMBSUP, created.getType());
+			log.info("Created reaction: {} ({})", created.getType(), created.getUuid());
+
+			// Verify the reaction appears in the listing
+			ReactionListResponse listAfterCreate = client.listAssetReaction(assetId).sync().body();
+			assertTrue(listAfterCreate.getData().size() > initialCount, "Reaction list should have grown after create");
+
+			// Load the reaction by UUID
+			ReactionResponse loaded = client.loadAssetReaction(assetId, created.getUuid()).sync().body();
+			assertNotNull(loaded, "Loaded reaction should not be null");
+			assertEquals(created.getUuid(), loaded.getUuid());
+			assertEquals(ReactionType.THUMBSUP, loaded.getType());
+
+			// Delete the reaction
+			client.deleteAssetReaction(assetId, created.getUuid()).sync().body();
+
+			// Verify the reaction is gone
+			ReactionListResponse listAfterDelete = client.listAssetReaction(assetId).sync().body();
+			assertEquals(initialCount, listAfterDelete.getData().size(), "Reaction count should return to initial after delete");
+			log.info("Reaction CRUD test passed");
+		}
 	}
 
 	private static File resolveLoomUiDir() {
