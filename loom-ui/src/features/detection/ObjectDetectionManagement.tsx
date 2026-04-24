@@ -8,13 +8,26 @@ import {
   CheckOutlined, CloseOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
-import { DETECTED_OBJECTS, ASSETS } from "../../mock/data";
+import { DETECTED_OBJECTS } from "../../mock/data";
 import { useTranslation } from "react-i18next";
+import { useAuth } from "../../context/AuthContext";
+import { listAssets, AssetResponse } from "../../api/assets";
 
 export default function ObjectDetectionManagement() {
   const [query, setQuery] = useState("");
   const [decisions, setDecisions] = useState<Record<string, "confirmed" | "rejected">>({});
   const { t } = useTranslation();
+  const { token } = useAuth();
+  const [assetMap, setAssetMap] = useState<Record<string, AssetResponse>>({});
+
+  React.useEffect(() => {
+    if (!token) return;
+    listAssets(token).then(r => {
+      const map: Record<string, AssetResponse> = {};
+      (r.data ?? []).forEach(a => { map[a.uuid] = a; });
+      setAssetMap(map);
+    }).catch(() => {});
+  }, [token]);
 
   const grouped = useMemo(() => {
     const byLabel: Record<string, typeof DETECTED_OBJECTS> = {};
@@ -65,13 +78,13 @@ export default function ObjectDetectionManagement() {
               </Box>
               <Box sx={{ p: 1.5, display: "flex", flexDirection: "column", gap: 0.75 }}>
                 {objects.map(obj => {
-                  const asset = ASSETS.find(a => a.id === obj.assetId);
+                  const asset = assetMap[obj.assetId];
                   const dec = decisions[obj.id];
                   return (
                     <Box key={obj.id} sx={{ display: "flex", alignItems: "center", gap: 1.5, py: 0.5, px: 1, borderRadius: tokens.radius.sm, bgcolor: dec === "rejected" ? `${tokens.accent.red}08` : "transparent", opacity: dec === "rejected" ? 0.6 : 1 }}>
-                      <Avatar variant="rounded" src={asset?.thumbnailUrl} sx={{ width: 40, height: 40 }} />
+                      <Avatar variant="rounded" sx={{ width: 40, height: 40 }} />
                       <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.8rem" }} noWrap>{asset?.name ?? obj.assetId}</Typography>
+                        <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.8rem" }} noWrap>{asset?.file?.filename ?? obj.assetId}</Typography>
                         <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>
                           {t("objectDetection.label.confidence", { pct: Math.round(obj.confidence * 100) })}{obj.timestamp != null && ` · ${obj.timestamp}s`}
                         </Typography>

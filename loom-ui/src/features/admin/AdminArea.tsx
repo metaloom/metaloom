@@ -17,8 +17,7 @@ import {
 } from "@mui/icons-material";
 import { Menu } from "@mui/material";
 import { tokens } from "../../theme";
-import { BlacklistEntry } from "../../types";
-import { mockAdminService } from "../../mock/services";
+import { listBlacklists, createBlacklist, deleteBlacklist, BlacklistResponse } from "../../api/blacklist";
 import { useAuth } from "../../context/AuthContext";
 import {
   listUsers, createUser, updateUser, deleteUser,
@@ -1075,43 +1074,38 @@ function ApiKeysAdmin() {
 // ── Blacklist Table ───────────────────────────────────────────────────────
 function BlacklistAdmin() {
   const { t } = useTranslation();
-  const [entries, setEntries] = useState<BlacklistEntry[]>([]);
+  const { token } = useAuth();
+  const [entries, setEntries] = useState<BlacklistResponse[]>([]);
   const [query, setQuery] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
-  const [newType, setNewType] = useState<string>("ip");
-  const [newValue, setNewValue] = useState("");
-  const [newReason, setNewReason] = useState("");
-  const [newExpiry, setNewExpiry] = useState("");
+  const [newName, setNewName] = useState("");
+  const [newAssetUuid, setNewAssetUuid] = useState("");
 
-  useEffect(() => { mockAdminService.getBlacklist().then(setEntries); }, []);
+  const loadEntries = useCallback(() => {
+    if (!token) return;
+    listBlacklists(token).then(r => setEntries(r.data ?? [])).catch(() => {});
+  }, [token]);
 
-  const typeColor: Record<string, string> = {
-    ip: tokens.accent.red,
-    domain: tokens.accent.amber,
-    fingerprint: tokens.primary.main,
-    user: tokens.accent.teal,
-  };
+  useEffect(() => { loadEntries(); }, [loadEntries]);
 
   const filteredEntries = entries.filter(e => {
     if (!query.trim()) return true;
     const q = query.toLowerCase();
-    return e.value.toLowerCase().includes(q) || e.type.toLowerCase().includes(q) || e.reason.toLowerCase().includes(q);
+    return (e.name?.toLowerCase().includes(q) ?? false) || (e.assetUuid?.toLowerCase().includes(q) ?? false);
   });
 
   const handleCreate = () => {
-    if (!newValue.trim()) return;
-    const entry: BlacklistEntry = {
-      id: `bl_${Date.now()}`,
-      type: newType as BlacklistEntry["type"],
-      value: newValue.trim(),
-      reason: newReason.trim() || "Manual entry",
-      addedBy: "",
-      createdAt: new Date().toISOString(),
-      expiresAt: newExpiry || undefined,
-    };
-    setEntries(prev => [...prev, entry]);
-    setCreateOpen(false);
-    setNewType("ip"); setNewValue(""); setNewReason(""); setNewExpiry("");
+    if (!newName.trim() || !token) return;
+    createBlacklist(token, { name: newName.trim(), assetUuid: newAssetUuid.trim() || undefined }).then(() => {
+      loadEntries();
+      setCreateOpen(false);
+      setNewName(""); setNewAssetUuid("");
+    }).catch(() => {});
+  };
+
+  const handleDelete = (uuid: string) => {
+    if (!token) return;
+    deleteBlacklist(token, uuid).then(() => loadEntries()).catch(() => {});
   };
 
   return (
@@ -1144,26 +1138,20 @@ function BlacklistAdmin() {
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell>{t("admin.blacklist.table.type")}</TableCell>
-              <TableCell>{t("admin.blacklist.table.value")}</TableCell>
-              <TableCell>{t("admin.blacklist.table.reason")}</TableCell>
+              <TableCell>{t("admin.blacklist.table.name", "Name")}</TableCell>
+              <TableCell>{t("admin.blacklist.table.assetUuid", "Asset UUID")}</TableCell>
               <TableCell>{t("admin.blacklist.table.added")}</TableCell>
-              <TableCell>{t("admin.blacklist.table.expires")}</TableCell>
               <TableCell align="right" />
             </TableRow>
           </TableHead>
           <TableBody>
             {filteredEntries.map(e => (
-              <TableRow key={e.id} hover>
-                <TableCell>
-                  <Chip label={e.type} size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: `${typeColor[e.type] ?? tokens.text.tertiary}22`, color: typeColor[e.type] ?? tokens.text.tertiary }} />
-                </TableCell>
-                <TableCell><Typography variant="caption" sx={{ fontFamily: "monospace", color: tokens.text.primary, fontSize: "0.78rem" }}>{e.value}</Typography></TableCell>
-                <TableCell><Typography variant="caption" color="text.secondary">{e.reason}</Typography></TableCell>
-                <TableCell><Typography variant="caption" color="text.secondary">{new Date(e.createdAt).toLocaleDateString()}</Typography></TableCell>
-                <TableCell><Typography variant="caption" sx={{ color: e.expiresAt ? tokens.accent.amber : tokens.text.tertiary }}>{e.expiresAt ? new Date(e.expiresAt).toLocaleDateString() : t("common.permanent")}</Typography></TableCell>
+              <TableRow key={e.uuid} hover>
+                <TableCell><Typography variant="caption" sx={{ fontFamily: "monospace", color: tokens.text.primary, fontSize: "0.78rem" }}>{e.name}</Typography></TableCell>
+                <TableCell><Typography variant="caption" sx={{ fontFamily: "monospace", color: tokens.text.secondary, fontSize: "0.72rem" }}>{e.assetUuid ?? "—"}</Typography></TableCell>
+                <TableCell><Typography variant="caption" color="text.secondary">{e.status?.created ? new Date(e.status.created).toLocaleDateString() : "—"}</Typography></TableCell>
                 <TableCell align="right">
-                  <IconButton size="small" onClick={() => setEntries(prev => prev.filter(x => x.id !== e.id))}>
+                  <IconButton size="small" onClick={() => handleDelete(e.uuid)}>
                     <DeleteOutlineOutlined sx={{ fontSize: 15, color: tokens.accent.red }} />
                   </IconButton>
                 </TableCell>
@@ -1185,24 +1173,13 @@ function BlacklistAdmin() {
         </DialogTitle>
         <DialogContent sx={{ pt: 1 }}>
           <Stack spacing={2.5}>
-            <FormControl size="small" fullWidth>
-              <InputLabel>{t("admin.blacklist.dialog.type")}</InputLabel>
-              <Select label={t("admin.blacklist.dialog.type")} value={newType} onChange={e => setNewType(e.target.value)}>
-                <MenuItem value="ip">{t("admin.blacklist.dialog.typeIp")}</MenuItem>
-                <MenuItem value="domain">{t("admin.blacklist.dialog.typeDomain")}</MenuItem>
-                <MenuItem value="fingerprint">{t("admin.blacklist.dialog.typeFingerprint")}</MenuItem>
-                <MenuItem value="user">{t("admin.blacklist.dialog.typeUser")}</MenuItem>
-              </Select>
-            </FormControl>
-            <TextField label={t("admin.blacklist.dialog.value")} size="small" fullWidth value={newValue} onChange={e => setNewValue(e.target.value)}
-              placeholder={newType === "ip" ? "192.168.1.100" : newType === "domain" ? "example.com" : newType === "user" ? "username" : "hash…"} autoFocus />
-            <TextField label={t("admin.blacklist.dialog.reason")} size="small" fullWidth value={newReason} onChange={e => setNewReason(e.target.value)} placeholder={t("admin.blacklist.dialog.reasonPlaceholder")} />
-            <TextField label={t("admin.blacklist.dialog.expiry")} type="date" size="small" fullWidth value={newExpiry} onChange={e => setNewExpiry(e.target.value)} InputLabelProps={{ shrink: true }} />
+            <TextField label={t("admin.blacklist.dialog.name", "Name")} size="small" fullWidth value={newName} onChange={e => setNewName(e.target.value)} autoFocus />
+            <TextField label={t("admin.blacklist.dialog.assetUuid", "Asset UUID")} size="small" fullWidth value={newAssetUuid} onChange={e => setNewAssetUuid(e.target.value)} placeholder="Optional asset UUID" />
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button size="small" onClick={() => setCreateOpen(false)}>{t("common.cancel")}</Button>
-          <Button size="small" variant="contained" color="error" onClick={handleCreate} disabled={!newValue.trim()} startIcon={<BlockOutlined />}>
+          <Button size="small" variant="contained" color="error" onClick={handleCreate} disabled={!newName.trim()} startIcon={<BlockOutlined />}>
             {t("admin.blacklist.addEntry")}
           </Button>
         </DialogActions>

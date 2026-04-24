@@ -16,10 +16,46 @@ import {
   AutoAwesomeOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
-import { Asset, DetectedFace, FaceCluster, Person, DetectedObject } from "../../types";
-import { ASSETS, DETECTED_FACES, FACE_CLUSTERS, PERSONS, DETECTED_OBJECTS } from "../../mock/data";
+import { Asset, AssetType, AssetStatus, DetectedFace, FaceCluster, Person, DetectedObject } from "../../types";
+import { DETECTED_FACES, FACE_CLUSTERS, PERSONS, DETECTED_OBJECTS } from "../../mock/data";
 import { useLayout } from "../../context/LayoutContext";
 import { useTranslation } from "react-i18next";
+import { useAuth } from "../../context/AuthContext";
+import { listAssets, AssetResponse } from "../../api/assets";
+
+function apiToWorkflowAsset(r: AssetResponse): Asset {
+  const mime = r.file?.mimeType ?? "";
+  let type: AssetType = "unknown";
+  if (mime.startsWith("image/")) type = "image";
+  else if (mime.startsWith("video/")) type = "video";
+  else if (mime.startsWith("audio/")) type = "audio";
+  else if (mime.startsWith("application/") || mime.startsWith("text/")) type = "document";
+  const video = r.videoComponents?.[0];
+  const image = r.imageComponents?.[0];
+  return {
+    id: r.uuid,
+    spaceId: "",
+    libraryId: "",
+    name: r.file?.filename ?? r.uuid,
+    type,
+    status: "ready" as AssetStatus,
+    tags: (r.tags ?? []).map(t => t.name),
+    description: "",
+    duration: video?.duration,
+    width: video?.width ?? image?.width,
+    height: video?.height ?? image?.height,
+    fileSize: r.file?.size ?? 0,
+    mimeType: mime,
+    thumbnailUrl: "",
+    url: "",
+    ownerId: r.status?.creator?.uuid ?? "",
+    collectionIds: (r.collections ?? []).map(c => c.uuid),
+    taskIds: [],
+    createdAt: r.status?.created ?? "",
+    updatedAt: r.status?.edited ?? "",
+    metadata: {},
+  };
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────
 type WorkflowMode = "rating" | "tagging" | "deduplication" | "facedetection" | "objectdetection" | "llm";
@@ -685,16 +721,13 @@ function ProfilesSidebar({
 export default function WorkflowView() {
   const { setSidebarCollapsed } = useLayout();
   const { t } = useTranslation();
-  const assets = useMemo(() => ASSETS.slice(0, 20), []);
+  const { token } = useAuth();
+  const [assets, setAssets] = useState<Asset[]>([]);
   const [mode, setMode] = useState<WorkflowMode>("rating");
   const [currentIdx, setCurrentIdx] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
   const [ratings, setRatings] = useState<Record<string, number>>({});
-  const [assetTags, setAssetTags] = useState<Record<string, string[]>>(() => {
-    const map: Record<string, string[]> = {};
-    assets.forEach(a => { map[a.id] = [...a.tags]; });
-    return map;
-  });
+  const [assetTags, setAssetTags] = useState<Record<string, string[]>>({});
   const [dedupDecisions, setDedupDecisions] = useState<Record<number, "confirmed" | "rejected">>({});
   const [selectedClusterIdx, setSelectedClusterIdx] = useState(0);
   const [clusterDecisions, setClusterDecisions] = useState<Record<string, "confirmed" | "denied">>({});
@@ -707,6 +740,17 @@ export default function WorkflowView() {
   const [activeProfileId, setActiveProfileId] = useState(DEFAULT_PROFILES[0].id);
   const tagInputRef = useRef<HTMLInputElement>(null);
   const personInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    listAssets(token).then(r => {
+      const loaded = (r.data ?? []).slice(0, 20).map(apiToWorkflowAsset);
+      setAssets(loaded);
+      const map: Record<string, string[]> = {};
+      loaded.forEach(a => { map[a.id] = [...a.tags]; });
+      setAssetTags(map);
+    }).catch(() => {});
+  }, [token]);
 
   const duplicateGroups = useMemo(() => buildDuplicateGroups(assets), [assets]);
   const currentAsset = assets[currentIdx] ?? assets[0];

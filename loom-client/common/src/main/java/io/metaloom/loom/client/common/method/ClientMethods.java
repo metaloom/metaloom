@@ -8,6 +8,7 @@ public interface ClientMethods extends
 	AssetComponentMethods,
 	AssetPoolMethods,
 	AttachmentMethods,
+	BlacklistMethods,
 	ClusterMethods,
 	GroupMethods,
 	RoleMethods,

@@ -10,6 +10,7 @@ public interface LoomModelBuilder extends
 	AnnotationModelBuilder,
 	AttachmentModelBuilder,
 	AssetModelBuilder,
+	BlacklistModelBuilder,
 	CollectionModelBuilder,
 	ClusterModelBuilder,
 	CommentModelBuilder,

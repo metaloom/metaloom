@@ -14,6 +14,7 @@ import io.metaloom.loom.rest.endpoint.impl.AssetEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.AssetBinaryEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.AssetPoolEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.AttachmentEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.BlacklistEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.CollectionEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.CommentEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.EmbeddingEndpoint;
@@ -51,6 +52,7 @@ public class EndpointModule {
 		AssetBinaryEndpoint assetBinaryEndpoint,
 		AssetComponentEndpoint assetComponentEndpoint,
 		AssetPoolEndpoint assetPoolEndpoint,
+		BlacklistEndpoint blacklistEndpoint,
 		CollectionEndpoint collectionEndpoint,
 		EmbeddingEndpoint embeddingEndpoint,
 		TaskEndpoint taskEndoint,
@@ -78,6 +80,7 @@ public class EndpointModule {
 			assetBinaryEndpoint,
 			assetComponentEndpoint,
 			assetPoolEndpoint,
+			blacklistEndpoint,
 			collectionEndpoint,
 			embeddingEndpoint,
 			taskEndoint,

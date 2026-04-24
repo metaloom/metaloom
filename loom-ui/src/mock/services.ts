@@ -1,82 +1,14 @@
 import {
-  Library, Asset, Comment,
-  BlacklistEntry, ChatMessage,
+  ChatMessage,
   TranscriptSection, DetectedFace, FaceCluster, Person,
 } from "../types";
 import {
-  LIBRARIES, ASSETS,
-  COMMENTS,
-  BLACKLIST, INITIAL_CHAT,
+  INITIAL_CHAT,
   TRANSCRIPTS, DETECTED_FACES, FACE_CLUSTERS, PERSONS,
 } from "./data";
 
 // Simulate realistic async latency
 const delay = (ms = 200) => new Promise<void>((r) => setTimeout(r, ms));
-
-// ── Libraries ────────────────────────────────────────────────────────────
-export const mockLibraryService = {
-  getBySpace: async (spaceId: string): Promise<Library[]> => {
-    await delay(100);
-    return LIBRARIES.filter(l => l.spaceId === spaceId);
-  },
-  create: async (spaceId: string, name: string, description: string): Promise<Library> => {
-    await delay(150);
-    const lib: Library = {
-      id: `lib_${Date.now()}`,
-      spaceId: spaceId,
-      name,
-      description,
-      assetCount: 0,
-      createdAt: new Date().toISOString(),
-    };
-    LIBRARIES.push(lib);
-    return lib;
-  },
-  delete: async (id: string): Promise<void> => {
-    await delay(100);
-    const idx = LIBRARIES.findIndex(l => l.id === id);
-    if (idx >= 0) LIBRARIES.splice(idx, 1);
-  },
-};
-
-// ── Assets ────────────────────────────────────────────────────────────────
-export const mockAssetService = {
-  getAll: async (): Promise<Asset[]> => { await delay(150); return [...ASSETS]; },
-  getBySpace: async (spaceId: string): Promise<Asset[]> => {
-    await delay(150);
-    return ASSETS.filter(a => a.spaceId === spaceId);
-  },
-  getByLibrary: async (libraryId: string): Promise<Asset[]> => {
-    await delay(120);
-    return ASSETS.filter(a => a.libraryId === libraryId);
-  },
-  getById: async (id: string): Promise<Asset | undefined> => {
-    await delay(80);
-    return ASSETS.find(a => a.id === id);
-  },
-  search: async (spaceId: string, query: string): Promise<Asset[]> => {
-    await delay(200);
-    const q = query.toLowerCase();
-    return ASSETS.filter(a =>
-      a.spaceId === spaceId &&
-      (a.name.toLowerCase().includes(q) || a.tags.some(t => t.includes(q)) || a.description.toLowerCase().includes(q))
-    );
-  },
-};
-
-// ── Comments ──────────────────────────────────────────────────────────────
-export const mockCommentService = {
-  getByAsset: async (assetId: string): Promise<Comment[]> => {
-    await delay(100);
-    return COMMENTS.filter(c => c.assetId === assetId);
-  },
-};
-
-
-// ── Admin ─────────────────────────────────────────────────────────────────
-export const mockAdminService = {
-  getBlacklist: async (): Promise<BlacklistEntry[]> => { await delay(100); return [...BLACKLIST]; },
-};
 
 // ── Chat ──────────────────────────────────────────────────────────────────
 export const mockChatService = {

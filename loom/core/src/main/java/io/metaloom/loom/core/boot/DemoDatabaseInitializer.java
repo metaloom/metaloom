@@ -25,8 +25,12 @@ import io.metaloom.loom.db.model.asset.AssetImageComp;
 import io.metaloom.loom.db.model.asset.AssetJsonComp;
 import io.metaloom.loom.db.model.asset.AssetTranscriptComp;
 import io.metaloom.loom.db.model.asset.AssetVideoComp;
+import io.metaloom.loom.db.model.blacklist.Blacklist;
+import io.metaloom.loom.db.model.blacklist.BlacklistDao;
 import io.metaloom.loom.db.model.collection.Collection;
 import io.metaloom.loom.db.model.collection.CollectionDao;
+import io.metaloom.loom.db.model.comment.Comment;
+import io.metaloom.loom.db.model.comment.CommentDao;
 import io.metaloom.loom.db.model.group.Group;
 import io.metaloom.loom.db.model.group.GroupDao;
 import io.metaloom.loom.db.model.library.Library;
@@ -90,12 +94,15 @@ public class DemoDatabaseInitializer {
 	private final AnnotationDao annotationDao;
 	private final ReactionDao reactionDao;
 	private final TokenDao tokenDao;
+	private final CommentDao commentDao;
+	private final BlacklistDao blacklistDao;
 
 	@Inject
 	public DemoDatabaseInitializer(UserDao userDao, AssetDao assetDao, SpaceDao spaceDao,
 		TagDao tagDao, CollectionDao collectionDao, LibraryDao libraryDao, PipelineDao pipelineDao, AssetPoolDao assetPoolDao,
 		GroupDao groupDao, RoleDao roleDao, PermissionDao permissionDao, TaskDao taskDao,
-		AnnotationDao annotationDao, ReactionDao reactionDao, TokenDao tokenDao) {
+		AnnotationDao annotationDao, ReactionDao reactionDao, TokenDao tokenDao,
+		CommentDao commentDao, BlacklistDao blacklistDao) {
 		this.userDao = userDao;
 		this.assetDao = assetDao;
 		this.spaceDao = spaceDao;
@@ -111,6 +118,8 @@ public class DemoDatabaseInitializer {
 		this.annotationDao = annotationDao;
 		this.reactionDao = reactionDao;
 		this.tokenDao = tokenDao;
+		this.commentDao = commentDao;
+		this.blacklistDao = blacklistDao;
 	}
 
 	/**
@@ -239,6 +248,7 @@ public class DemoDatabaseInitializer {
 			Permission.CREATE_COLLECTION, Permission.READ_COLLECTION, Permission.UPDATE_COLLECTION, Permission.DELETE_COLLECTION,
 			Permission.CREATE_COMMENT, Permission.READ_COMMENT, Permission.UPDATE_COMMENT, Permission.DELETE_COMMENT,
 			Permission.CREATE_ANNOTATION, Permission.READ_ANNOTATION, Permission.UPDATE_ANNOTATION, Permission.DELETE_ANNOTATION,
+			Permission.CREATE_BLACKLIST, Permission.READ_BLACKLIST, Permission.UPDATE_BLACKLIST, Permission.DELETE_BLACKLIST,
 			Permission.READ_USER, Permission.READ_GROUP, Permission.READ_ROLE,
 			Permission.READ_SPACE, Permission.READ_PIPELINE, Permission.READ_ASSET_POOL,
 		}) {
@@ -251,6 +261,7 @@ public class DemoDatabaseInitializer {
 			Permission.READ_ASSET, Permission.READ_TAG, Permission.READ_COLLECTION,
 			Permission.READ_TASK,
 			Permission.READ_COMMENT, Permission.READ_ANNOTATION,
+			Permission.READ_BLACKLIST,
 			Permission.READ_USER, Permission.READ_GROUP, Permission.READ_ROLE,
 			Permission.READ_SPACE, Permission.READ_LIBRARY, Permission.READ_PIPELINE, Permission.READ_ASSET_POOL,
 		}) {
@@ -383,6 +394,17 @@ public class DemoDatabaseInitializer {
 
 		log.info("Created {} demo reactions", 3);
 
+		// --- Comments ---
+		createComment(admin, "Review notes", "The white balance looks slightly off in the second half.");
+		createComment(admin, "Approved", "Looks great, ready for distribution.");
+		createComment(admin, "Tagging feedback", "Please add location tags for the city timelapse assets.");
+		log.info("Created {} demo comments", 3);
+
+		// --- Blacklist entries ---
+		createBlacklist(admin, imageAssets[0], "Duplicate low-res variant");
+		createBlacklist(admin, videoAssets[1], "Copyright strike - pending review");
+		log.info("Created {} demo blacklist entries", 2);
+
 		log.info("Demo data initialization complete — created {} assets, {} tags, {} collections, {} pipelines, {} users, {} groups, {} roles, {} tasks, {} annotations, {} reactions.",
 			imageAssets.length + videoAssets.length + audioAssets.length + docAssets.length,
 			8, 2, 3, 2, 2, 2, 3, 3, 3);
@@ -411,6 +433,30 @@ public class DemoDatabaseInitializer {
 		libraryDao.store(library);
 		log.info("Created demo library: {}", name);
 		return library;
+	}
+
+	private Comment createComment(User admin, String title, String text) {
+		Comment comment = commentDao.createComment(admin.getUuid(), title, text);
+		comment.setUuid(UUIDUtils.randomUUID());
+		comment.setCreator(admin);
+		comment.setEditor(admin);
+		comment.setCreated(Instant.now());
+		comment.setEdited(Instant.now());
+		commentDao.store(comment);
+		log.info("Created demo comment: {}", title);
+		return comment;
+	}
+
+	private Blacklist createBlacklist(User admin, Asset asset, String name) {
+		Blacklist blacklist = blacklistDao.createBlacklist(admin.getUuid(), asset.getUuid(), name);
+		blacklist.setUuid(UUIDUtils.randomUUID());
+		blacklist.setCreator(admin);
+		blacklist.setEditor(admin);
+		blacklist.setCreated(Instant.now());
+		blacklist.setEdited(Instant.now());
+		blacklistDao.store(blacklist);
+		log.info("Created demo blacklist entry: {}", name);
+		return blacklist;
 	}
 
 	private AssetTag createAssetTag(User admin, String name, String collection) {

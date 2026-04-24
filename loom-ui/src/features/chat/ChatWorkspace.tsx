@@ -16,7 +16,10 @@ import { mockChatService } from "../../mock/services";
 import { useSpace } from "../../context/SpaceContext";
 import { useTranslation } from "react-i18next";
 import AssetBrowser from "../assets/AssetBrowser";
-import { ASSETS, COLLECTIONS, TASKS } from "../../mock/data";
+import { useAuth } from "../../context/AuthContext";
+import { listAssets, loadAsset as apiLoadAsset, AssetResponse } from "../../api/assets";
+import { listCollections, CollectionResponse } from "../../api/collections";
+import { listTasks, TaskResponse } from "../../api/tasks";
 
 // ── Reference chip renderer ───────────────────────────────────────────────
 function RefChip({ chatRef: r, onAssetClick }: { chatRef: ChatReference; onAssetClick?: (id: string) => void }) {
@@ -218,62 +221,74 @@ function MessageBubble({ msg, onFollowUp, onAssetClick }: { msg: ChatMessage; on
 function WorkspacePanel({ mode, selectedAssetId, onClearAsset }: { mode: "assets" | "overview"; selectedAssetId?: string | null; onClearAsset?: () => void }) {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const { token } = useAuth();
+  const [assets, setAssets] = useState<AssetResponse[]>([]);
+  const [tasks, setTasks] = useState<TaskResponse[]>([]);
+  const [collections, setCollections] = useState<CollectionResponse[]>([]);
+  const [selectedAsset, setSelectedAsset] = useState<AssetResponse | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    listAssets(token).then(r => setAssets(r.data ?? [])).catch(() => {});
+    listTasks(token).then(r => setTasks(r.data ?? [])).catch(() => {});
+    listCollections(token).then(r => setCollections(r.data ?? [])).catch(() => {});
+  }, [token]);
+
+  useEffect(() => {
+    if (!selectedAssetId || !token) { setSelectedAsset(null); return; }
+    apiLoadAsset(token, selectedAssetId).then(setSelectedAsset).catch(() => setSelectedAsset(null));
+  }, [selectedAssetId, token]);
 
   // If an asset is selected from the chat, show it inline
-  if (selectedAssetId) {
-    const asset = ASSETS.find(a => a.id === selectedAssetId);
-    if (asset) {
-      return (
-        <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-          <Box sx={{ px: 2, py: 1.25, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", gap: 1 }}>
-            <Box sx={{ width: 40, height: 28, borderRadius: tokens.radius.sm, overflow: "hidden", flexShrink: 0, bgcolor: tokens.bg.overlay }}>
-              <img src={asset.thumbnailUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            </Box>
-            <Box sx={{ flex: 1, overflow: "hidden" }}>
-              <Typography variant="body2" fontWeight={600} noWrap sx={{ fontSize: "0.82rem" }}>{asset.name}</Typography>
-              <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem" }}>{asset.type} · {asset.mimeType}</Typography>
-            </Box>
-            <Chip
-              label={t("chat.panel.open")}
-              size="small"
-              onClick={() => navigate(`/assets/${asset.id}`)}
-              sx={{ cursor: "pointer", bgcolor: tokens.primary.subtle, border: `1px solid ${tokens.primary.main}`, color: tokens.primary.light, fontWeight: 600, fontSize: "0.72rem" }}
-            />
-            <IconButton size="small" onClick={onClearAsset} sx={{ ml: 0.5 }}>
-              <ArrowForwardIos sx={{ fontSize: 10, transform: "rotate(180deg)" }} />
-            </IconButton>
+  if (selectedAssetId && selectedAsset) {
+    const mime = selectedAsset.file?.mimeType ?? "";
+    const filename = selectedAsset.file?.filename ?? selectedAsset.uuid;
+    const fileSize = selectedAsset.file?.size ?? 0;
+    const tags = (selectedAsset.tags ?? []).map(t => t.name);
+    const width = selectedAsset.imageComponents?.[0]?.width ?? selectedAsset.videoComponents?.[0]?.width;
+    const height = selectedAsset.imageComponents?.[0]?.height ?? selectedAsset.videoComponents?.[0]?.height;
+    const duration = selectedAsset.videoComponents?.[0]?.duration ?? selectedAsset.audioComponents?.[0]?.duration;
+    return (
+      <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+        <Box sx={{ px: 2, py: 1.25, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", gap: 1 }}>
+          <Box sx={{ width: 40, height: 28, borderRadius: tokens.radius.sm, overflow: "hidden", flexShrink: 0, bgcolor: tokens.bg.overlay }} />
+          <Box sx={{ flex: 1, overflow: "hidden" }}>
+            <Typography variant="body2" fontWeight={600} noWrap sx={{ fontSize: "0.82rem" }}>{filename}</Typography>
+            <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem" }}>{mime}</Typography>
           </Box>
-          <Box sx={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column" }}>
-            {/* Preview image/video */}
-            <Box sx={{ bgcolor: "#000", display: "flex", alignItems: "center", justifyContent: "center", maxHeight: 320, overflow: "hidden" }}>
-              <img src={asset.url || asset.thumbnailUrl} alt={asset.name} style={{ maxWidth: "100%", maxHeight: 320, objectFit: "contain" }} />
+          <Chip
+            label={t("chat.panel.open")}
+            size="small"
+            onClick={() => navigate(`/assets/${selectedAsset.uuid}`)}
+            sx={{ cursor: "pointer", bgcolor: tokens.primary.subtle, border: `1px solid ${tokens.primary.main}`, color: tokens.primary.light, fontWeight: 600, fontSize: "0.72rem" }}
+          />
+          <IconButton size="small" onClick={onClearAsset} sx={{ ml: 0.5 }}>
+            <ArrowForwardIos sx={{ fontSize: 10, transform: "rotate(180deg)" }} />
+          </IconButton>
+        </Box>
+        <Box sx={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column" }}>
+          <Box sx={{ p: 2, display: "flex", flexDirection: "column", gap: 1.5 }}>
+            <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
+              {tags.map(tg => (
+                <Chip key={tg} label={tg} size="small" sx={{ height: 20, fontSize: "0.68rem", bgcolor: tokens.bg.elevated }} />
+              ))}
             </Box>
-            {/* Quick meta */}
-            <Box sx={{ p: 2, display: "flex", flexDirection: "column", gap: 1.5 }}>
-              <Typography variant="body2" sx={{ color: tokens.text.secondary, lineHeight: 1.6, fontSize: "0.85rem" }}>{asset.description}</Typography>
-              <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
-                {asset.tags.map(t => (
-                  <Chip key={t} label={t} size="small" sx={{ height: 20, fontSize: "0.68rem", bgcolor: tokens.bg.elevated }} />
-                ))}
-              </Box>
-              <Box sx={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 12px" }}>
-                {[
-                  [t("chat.detail.size"), `${(asset.fileSize / 1e6).toFixed(1)} MB`],
-                  [t("chat.detail.status"), asset.status],
-                  ...(asset.duration ? [[t("chat.detail.duration"), `${Math.floor(asset.duration / 60)}:${(asset.duration % 60).toString().padStart(2, "0")}`]] : []),
-                  ...(asset.width ? [[t("chat.detail.dimensions"), `${asset.width}×${asset.height}`]] : []),
-                ].map(([k, v]) => (
-                  <React.Fragment key={k}>
-                    <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.72rem" }}>{k}</Typography>
-                    <Typography variant="caption" sx={{ color: tokens.text.secondary, fontSize: "0.72rem" }}>{v}</Typography>
-                  </React.Fragment>
-                ))}
-              </Box>
+            <Box sx={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 12px" }}>
+              {[
+                [t("chat.detail.size"), `${(fileSize / 1e6).toFixed(1)} MB`],
+                ...(duration ? [[t("chat.detail.duration"), `${Math.floor(duration / 60)}:${(duration % 60).toString().padStart(2, "0")}`]] : []),
+                ...(width ? [[t("chat.detail.dimensions"), `${width}×${height}`]] : []),
+              ].map(([k, v]) => (
+                <React.Fragment key={k}>
+                  <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.72rem" }}>{k}</Typography>
+                  <Typography variant="caption" sx={{ color: tokens.text.secondary, fontSize: "0.72rem" }}>{v}</Typography>
+                </React.Fragment>
+              ))}
             </Box>
           </Box>
         </Box>
-      );
-    }
+      </Box>
+    );
   }
 
   if (mode === "assets") return <AssetBrowser embedded />;
@@ -282,20 +297,20 @@ function WorkspacePanel({ mode, selectedAssetId, onClearAsset }: { mode: "assets
     <Box sx={{ p: 2.5, display: "flex", flexDirection: "column", gap: 2 }}>
       {/* Recent assets */}
       <SectionCard title={t("chat.panel.recentAssets")} icon={<ImageOutlined sx={{ fontSize: 14 }} />}>
-        {ASSETS.slice(0, 4).map((a) => (
-          <AssetRow key={a.id} asset={a} />
+        {assets.slice(0, 4).map((a) => (
+          <AssetRow key={a.uuid} asset={a} />
         ))}
       </SectionCard>
 
       <SectionCard title={t("chat.panel.activeTasks")} icon={<TaskAltOutlined sx={{ fontSize: 14 }} />}>
-        {TASKS.filter(t => t.status !== "done").slice(0, 4).map((t) => (
-          <TaskRow key={t.id} task={t} />
+        {tasks.slice(0, 4).map((tk) => (
+          <TaskRow key={tk.uuid} task={tk} />
         ))}
       </SectionCard>
 
       <SectionCard title={t("chat.panel.collections")} icon={<CollectionsOutlined sx={{ fontSize: 14 }} />}>
-        {COLLECTIONS.slice(0, 3).map((c) => (
-          <CollectionRow key={c.id} collection={c} />
+        {collections.slice(0, 3).map((c) => (
+          <CollectionRow key={c.uuid} collection={c} />
         ))}
       </SectionCard>
     </Box>
@@ -318,60 +333,53 @@ function SectionCard({ title, icon, children }: { title: string; icon: React.Rea
   );
 }
 
-function AssetRow({ asset }: { asset: typeof ASSETS[0] }) {
+function AssetRow({ asset }: { asset: AssetResponse }) {
   const navigate = useNavigate();
-  const statusColor = asset.status === "ready" ? tokens.accent.green : asset.status === "failed" ? tokens.accent.red : tokens.accent.amber;
+  const filename = asset.file?.filename ?? asset.uuid;
+  const mime = asset.file?.mimeType ?? "";
   return (
     <Box
-      onClick={() => navigate(`/assets/${asset.id}`)}
+      onClick={() => navigate(`/assets/${asset.uuid}`)}
       sx={{
         display: "flex", alignItems: "center", gap: 1.5, px: 1, py: 0.75,
         borderRadius: tokens.radius.md, cursor: "pointer",
         "&:hover": { bgcolor: tokens.bg.hover },
       }}
     >
-      <Box sx={{ width: 36, height: 24, borderRadius: tokens.radius.sm, overflow: "hidden", flexShrink: 0, bgcolor: tokens.bg.overlay }}>
-        <img src={asset.thumbnailUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-      </Box>
+      <Box sx={{ width: 36, height: 24, borderRadius: tokens.radius.sm, overflow: "hidden", flexShrink: 0, bgcolor: tokens.bg.overlay }} />
       <Box sx={{ flex: 1, overflow: "hidden" }}>
         <Typography variant="caption" fontWeight={500} color="text.primary" noWrap display="block" sx={{ fontSize: "0.78rem" }}>
-          {asset.name}
+          {filename}
         </Typography>
         <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>
-          {asset.type} · {asset.libraryId}
+          {mime}
         </Typography>
       </Box>
-      <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: statusColor, flexShrink: 0 }} />
     </Box>
   );
 }
 
-function TaskRow({ task }: { task: typeof TASKS[0] }) {
+function TaskRow({ task }: { task: TaskResponse }) {
   const priorityColor: Record<string, string> = { critical: tokens.accent.red, high: tokens.accent.amber, medium: tokens.accent.blue, low: tokens.text.tertiary };
   return (
     <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, px: 1, py: 0.6, borderRadius: tokens.radius.md, "&:hover": { bgcolor: tokens.bg.hover }, cursor: "pointer" }}>
-      <Box sx={{ width: 3, height: 18, borderRadius: 2, bgcolor: priorityColor[task.priority] ?? tokens.text.tertiary, flexShrink: 0 }} />
+      <Box sx={{ width: 3, height: 18, borderRadius: 2, bgcolor: priorityColor[task.priority ?? ""] ?? tokens.text.tertiary, flexShrink: 0 }} />
       <Box sx={{ flex: 1, overflow: "hidden" }}>
         <Typography variant="caption" fontWeight={500} color="text.primary" noWrap display="block" sx={{ fontSize: "0.78rem" }}>
           {task.title}
         </Typography>
-        <Chip label={task.status.replace("_", " ")} size="small" sx={{ height: 16, fontSize: "0.65rem", mt: 0.25 }} />
       </Box>
     </Box>
   );
 }
 
-function CollectionRow({ collection }: { collection: typeof COLLECTIONS[0] }) {
-  const { t } = useTranslation();
+function CollectionRow({ collection }: { collection: CollectionResponse }) {
   return (
     <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, px: 1, py: 0.6, borderRadius: tokens.radius.md, "&:hover": { bgcolor: tokens.bg.hover }, cursor: "pointer" }}>
-      <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: collection.color, flexShrink: 0 }} />
+      <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: tokens.primary.main, flexShrink: 0 }} />
       <Box sx={{ flex: 1, overflow: "hidden" }}>
         <Typography variant="caption" fontWeight={500} color="text.primary" noWrap display="block" sx={{ fontSize: "0.78rem" }}>
           {collection.name}
-        </Typography>
-        <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>
-          {t("chat.panel.collectionAssets", { count: collection.assetIds.length })}
         </Typography>
       </Box>
     </Box>

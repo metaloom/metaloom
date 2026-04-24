@@ -54,6 +54,10 @@ import io.metaloom.loom.rest.model.cluster.ClusterCreateRequest;
 import io.metaloom.loom.rest.model.cluster.ClusterListResponse;
 import io.metaloom.loom.rest.model.cluster.ClusterResponse;
 import io.metaloom.loom.rest.model.cluster.ClusterUpdateRequest;
+import io.metaloom.loom.rest.model.blacklist.BlacklistCreateRequest;
+import io.metaloom.loom.rest.model.blacklist.BlacklistListResponse;
+import io.metaloom.loom.rest.model.blacklist.BlacklistResponse;
+import io.metaloom.loom.rest.model.blacklist.BlacklistUpdateRequest;
 import io.metaloom.loom.rest.model.collection.CollectionCreateRequest;
 import io.metaloom.loom.rest.model.collection.CollectionListResponse;
 import io.metaloom.loom.rest.model.collection.CollectionResponse;
@@ -708,6 +712,11 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	// COMMENT
 
 	@Override
+	public LoomClientHttpRequest<CommentListResponse> listComments() {
+		return getRequest("comments", CommentListResponse.class);
+	}
+
+	@Override
 	public LoomClientHttpRequest<CommentListResponse> listCommentsForAnnotation(UUID annotationUuid) {
 		return getRequest("annotation/" + annotationUuid + "/comments", CommentListResponse.class);
 	}
@@ -730,6 +739,33 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<CommentResponse> createComment(CommentCreateRequest request) {
 		return postRequest("comments", request, CommentResponse.class);
+	}
+
+	// BLACKLIST
+
+	@Override
+	public LoomClientHttpRequest<BlacklistListResponse> listBlacklists() {
+		return getRequest("blacklists", BlacklistListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<BlacklistResponse> loadBlacklist(UUID uuid) {
+		return getRequest("blacklists/" + uuid, BlacklistResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> deleteBlacklist(UUID uuid) {
+		return deleteRequest("blacklists/" + uuid);
+	}
+
+	@Override
+	public LoomClientHttpRequest<BlacklistResponse> updateBlacklist(UUID uuid, BlacklistUpdateRequest request) {
+		return postRequest("blacklists/" + uuid, request, BlacklistResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<BlacklistResponse> createBlacklist(BlacklistCreateRequest request) {
+		return postRequest("blacklists", request, BlacklistResponse.class);
 	}
 
 	// ROLE

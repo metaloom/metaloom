@@ -25,6 +25,14 @@ import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.rest.model.asset.AssetListResponse;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.auth.AuthLoginResponse;
+import io.metaloom.loom.rest.model.blacklist.BlacklistCreateRequest;
+import io.metaloom.loom.rest.model.blacklist.BlacklistListResponse;
+import io.metaloom.loom.rest.model.blacklist.BlacklistResponse;
+import io.metaloom.loom.rest.model.blacklist.BlacklistUpdateRequest;
+import io.metaloom.loom.rest.model.comment.CommentCreateRequest;
+import io.metaloom.loom.rest.model.comment.CommentListResponse;
+import io.metaloom.loom.rest.model.comment.CommentResponse;
+import io.metaloom.loom.rest.model.comment.CommentUpdateRequest;
 import io.metaloom.loom.rest.model.group.GroupCreateRequest;
 import io.metaloom.loom.rest.model.group.GroupListResponse;
 import io.metaloom.loom.rest.model.group.GroupResponse;
@@ -50,6 +58,10 @@ import io.metaloom.loom.rest.model.role.RoleUpdateRequest;
 import io.metaloom.loom.rest.model.tag.TagCreateRequest;
 import io.metaloom.loom.rest.model.tag.TagListResponse;
 import io.metaloom.loom.rest.model.tag.TagResponse;
+import io.metaloom.loom.rest.model.task.TaskCreateRequest;
+import io.metaloom.loom.rest.model.task.TaskListResponse;
+import io.metaloom.loom.rest.model.task.TaskResponse;
+import io.metaloom.loom.rest.model.task.TaskUpdateRequest;
 import io.metaloom.loom.rest.model.token.TokenCreateRequest;
 import io.metaloom.loom.rest.model.token.TokenListResponse;
 import io.metaloom.loom.rest.model.token.TokenResponse;
@@ -938,6 +950,179 @@ public class E2ETest {
 			TokenListResponse listAfterDelete = client.listTokens().sync().body();
 			assertEquals(initialCount, listAfterDelete.getData().size(), "Token count should return to initial after delete");
 			log.info("Token CRUD test passed");
+		}
+	}
+
+	/**
+	 * Verify task CRUD via REST API: list, create, load, update, delete.
+	 */
+	@Test
+	void testTaskCRUD() throws Exception {
+		try (LoomHttpClient client = LoomHttpClient.builder()
+			.setHostname("localhost")
+			.setReadTimeout(Duration.ofSeconds(30))
+			.setPort(REST_PORT)
+			.build()) {
+
+			AuthLoginResponse loginResp = client.login("admin", "finger").sync().body();
+			client.setToken(loginResp.getToken());
+
+			// List existing tasks
+			TaskListResponse listResp = client.listTasks().sync().body();
+			assertNotNull(listResp, "Task list response should not be null");
+			assertNotNull(listResp.getData(), "Task list data should not be null");
+			int initialCount = listResp.getData().size();
+			log.info("Initial task count: {}", initialCount);
+
+			// Create a new task
+			TaskCreateRequest createReq = new TaskCreateRequest();
+			createReq.setTitle("e2e-test-task");
+			createReq.setDescription("Created by E2E test");
+			TaskResponse created = client.createTask(createReq).sync().body();
+			assertNotNull(created, "Created task should not be null");
+			assertNotNull(created.getUuid(), "Created task UUID should not be null");
+			assertEquals("e2e-test-task", created.getTitle());
+			log.info("Created task: {} ({})", created.getTitle(), created.getUuid());
+
+			// Verify the task appears in the listing
+			TaskListResponse listAfterCreate = client.listTasks().sync().body();
+			assertTrue(listAfterCreate.getData().size() > initialCount, "Task list should have grown after create");
+
+			// Load the task by UUID
+			TaskResponse loaded = client.loadTask(created.getUuid()).sync().body();
+			assertNotNull(loaded, "Loaded task should not be null");
+			assertEquals(created.getUuid(), loaded.getUuid());
+			assertEquals("e2e-test-task", loaded.getTitle());
+
+			// Update the task
+			TaskUpdateRequest updateReq = new TaskUpdateRequest();
+			updateReq.setTitle("e2e-test-task-updated");
+			TaskResponse updated = client.updateTask(created.getUuid(), updateReq).sync().body();
+			assertNotNull(updated, "Updated task should not be null");
+			assertEquals("e2e-test-task-updated", updated.getTitle());
+
+			// Delete the task
+			client.deleteTask(created.getUuid()).sync().body();
+
+			// Verify the task is gone
+			TaskListResponse listAfterDelete = client.listTasks().sync().body();
+			assertEquals(initialCount, listAfterDelete.getData().size(), "Task count should return to initial after delete");
+			log.info("Task CRUD test passed");
+		}
+	}
+
+	/**
+	 * Verify comment CRUD via REST API: list, create, load, update, delete.
+	 */
+	@Test
+	void testCommentCRUD() throws Exception {
+		try (LoomHttpClient client = LoomHttpClient.builder()
+			.setHostname("localhost")
+			.setReadTimeout(Duration.ofSeconds(30))
+			.setPort(REST_PORT)
+			.build()) {
+
+			AuthLoginResponse loginResp = client.login("admin", "finger").sync().body();
+			client.setToken(loginResp.getToken());
+
+			// List existing comments
+			CommentListResponse listResp = client.listComments().sync().body();
+			assertNotNull(listResp, "Comment list response should not be null");
+			assertNotNull(listResp.getData(), "Comment list data should not be null");
+			int initialCount = listResp.getData().size();
+			log.info("Initial comment count: {}", initialCount);
+
+			// Create a new comment
+			CommentCreateRequest createReq = new CommentCreateRequest();
+			createReq.setTitle("e2e-test-comment");
+			createReq.setText("Created by E2E test");
+			CommentResponse created = client.createComment(createReq).sync().body();
+			assertNotNull(created, "Created comment should not be null");
+			assertNotNull(created.getUuid(), "Created comment UUID should not be null");
+			assertEquals("e2e-test-comment", created.getTitle());
+			log.info("Created comment: {} ({})", created.getTitle(), created.getUuid());
+
+			// Verify the comment appears in the listing
+			CommentListResponse listAfterCreate = client.listComments().sync().body();
+			assertTrue(listAfterCreate.getData().size() > initialCount, "Comment list should have grown after create");
+
+			// Load the comment by UUID
+			CommentResponse loaded = client.loadComment(created.getUuid()).sync().body();
+			assertNotNull(loaded, "Loaded comment should not be null");
+			assertEquals(created.getUuid(), loaded.getUuid());
+			assertEquals("e2e-test-comment", loaded.getTitle());
+
+			// Update the comment
+			CommentUpdateRequest updateReq = new CommentUpdateRequest();
+			updateReq.setTitle("e2e-test-comment-updated");
+			CommentResponse updated = client.updateComment(created.getUuid(), updateReq).sync().body();
+			assertNotNull(updated, "Updated comment should not be null");
+			assertEquals("e2e-test-comment-updated", updated.getTitle());
+
+			// Delete the comment
+			client.deleteComment(created.getUuid()).sync().body();
+
+			// Verify the comment is gone
+			CommentListResponse listAfterDelete = client.listComments().sync().body();
+			assertEquals(initialCount, listAfterDelete.getData().size(), "Comment count should return to initial after delete");
+			log.info("Comment CRUD test passed");
+		}
+	}
+
+	/**
+	 * Verify blacklist CRUD via REST API: list, create, load, update, delete.
+	 */
+	@Test
+	void testBlacklistCRUD() throws Exception {
+		try (LoomHttpClient client = LoomHttpClient.builder()
+			.setHostname("localhost")
+			.setReadTimeout(Duration.ofSeconds(30))
+			.setPort(REST_PORT)
+			.build()) {
+
+			AuthLoginResponse loginResp = client.login("admin", "finger").sync().body();
+			client.setToken(loginResp.getToken());
+
+			// List existing blacklist entries
+			BlacklistListResponse listResp = client.listBlacklists().sync().body();
+			assertNotNull(listResp, "Blacklist list response should not be null");
+			assertNotNull(listResp.getData(), "Blacklist list data should not be null");
+			int initialCount = listResp.getData().size();
+			log.info("Initial blacklist count: {}", initialCount);
+
+			// Create a new blacklist entry
+			BlacklistCreateRequest createReq = new BlacklistCreateRequest();
+			createReq.setName("e2e-test-blacklist");
+			BlacklistResponse created = client.createBlacklist(createReq).sync().body();
+			assertNotNull(created, "Created blacklist entry should not be null");
+			assertNotNull(created.getUuid(), "Created blacklist UUID should not be null");
+			assertEquals("e2e-test-blacklist", created.getName());
+			log.info("Created blacklist entry: {} ({})", created.getName(), created.getUuid());
+
+			// Verify the entry appears in the listing
+			BlacklistListResponse listAfterCreate = client.listBlacklists().sync().body();
+			assertTrue(listAfterCreate.getData().size() > initialCount, "Blacklist list should have grown after create");
+
+			// Load the entry by UUID
+			BlacklistResponse loaded = client.loadBlacklist(created.getUuid()).sync().body();
+			assertNotNull(loaded, "Loaded blacklist entry should not be null");
+			assertEquals(created.getUuid(), loaded.getUuid());
+			assertEquals("e2e-test-blacklist", loaded.getName());
+
+			// Update the entry
+			BlacklistUpdateRequest updateReq = new BlacklistUpdateRequest();
+			updateReq.setName("e2e-test-blacklist-updated");
+			BlacklistResponse updated = client.updateBlacklist(created.getUuid(), updateReq).sync().body();
+			assertNotNull(updated, "Updated blacklist entry should not be null");
+			assertEquals("e2e-test-blacklist-updated", updated.getName());
+
+			// Delete the entry
+			client.deleteBlacklist(created.getUuid()).sync().body();
+
+			// Verify the entry is gone
+			BlacklistListResponse listAfterDelete = client.listBlacklists().sync().body();
+			assertEquals(initialCount, listAfterDelete.getData().size(), "Blacklist count should return to initial after delete");
+			log.info("Blacklist CRUD test passed");
 		}
 	}
 

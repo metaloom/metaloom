@@ -11,8 +11,9 @@ import {
   CloseOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
-import { ASSETS } from "../../mock/data";
 import { useTranslation } from "react-i18next";
+import { useAuth } from "../../context/AuthContext";
+import { listAssets, AssetResponse } from "../../api/assets";
 
 interface VisionPrompt {
   id: string;
@@ -56,6 +57,17 @@ export default function LLMDetectionManagement() {
   const [activeSection, setActiveSection] = useState<"prompts" | "results">("prompts");
   const [prompts, setPrompts] = useState<VisionPrompt[]>(MOCK_PROMPTS);
   const { t } = useTranslation();
+  const { token } = useAuth();
+  const [assetMap, setAssetMap] = useState<Record<string, AssetResponse>>({});
+
+  React.useEffect(() => {
+    if (!token) return;
+    listAssets(token).then(r => {
+      const map: Record<string, AssetResponse> = {};
+      (r.data ?? []).forEach(a => { map[a.uuid] = a; });
+      setAssetMap(map);
+    }).catch(() => {});
+  }, [token]);
 
   // Create dialog state
   const [createOpen, setCreateOpen] = useState(false);
@@ -92,8 +104,8 @@ export default function LLMDetectionManagement() {
     if (!query.trim()) return true;
     const q = query.toLowerCase();
     const prompt = MOCK_PROMPTS.find(p => p.id === r.promptId);
-    const asset = ASSETS.find(a => a.id === r.assetId);
-    return (prompt?.name.toLowerCase().includes(q) ?? false) || (asset?.name.toLowerCase().includes(q) ?? false);
+    const asset = assetMap[r.assetId];
+    return (prompt?.name.toLowerCase().includes(q) ?? false) || (asset?.file?.filename?.toLowerCase().includes(q) ?? false);
   });
 
   const effortColor: Record<string, string> = { low: tokens.accent.green, medium: tokens.accent.amber, high: tokens.accent.red };
@@ -214,14 +226,14 @@ export default function LLMDetectionManagement() {
           <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
             {filteredResults.map(r => {
               const prompt = MOCK_PROMPTS.find(p => p.id === r.promptId);
-              const asset = ASSETS.find(a => a.id === r.assetId);
+              const asset = assetMap[r.assetId];
               const statusColor = r.status === "success" ? tokens.accent.green : r.status === "failed" ? tokens.accent.red : tokens.accent.amber;
               return (
                 <Paper key={r.id} elevation={0} sx={{ bgcolor: tokens.bg.elevated, border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, p: 1.5, display: "flex", gap: 1.5, alignItems: "flex-start" }}>
-                  <Avatar variant="rounded" src={asset?.thumbnailUrl} sx={{ width: 48, height: 48 }} />
+                  <Avatar variant="rounded" sx={{ width: 48, height: 48 }} />
                   <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 0.5 }}>
-                      <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.82rem" }}>{asset?.name ?? r.assetId}</Typography>
+                      <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.82rem" }}>{asset?.file?.filename ?? r.assetId}</Typography>
                       <Chip label={prompt?.name ?? r.promptId} size="small" sx={{ height: 16, fontSize: "0.6rem", bgcolor: tokens.bg.overlay }} />
                       <Chip label={r.status} size="small" sx={{ height: 16, fontSize: "0.6rem", bgcolor: `${statusColor}18`, color: statusColor }} />
                     </Box>

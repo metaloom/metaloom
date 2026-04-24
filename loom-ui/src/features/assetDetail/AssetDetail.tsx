@@ -21,13 +21,14 @@ import {
 import { tokens } from "../../theme";
 import { Asset, AssetType, AssetStatus, Comment, Annotation, Reaction, Task, TranscriptSection, DetectedFace, FaceCluster, Person } from "../../types";
 import {
-  mockCommentService, mockTranscriptService,
+  mockTranscriptService,
   mockFaceDetectionService,
 } from "../../mock/services";
 import { useAuth } from "../../context/AuthContext";
 import { loadAsset as apiLoadAsset, AssetResponse } from "../../api/assets";
 import { AnnotationResponseItem } from "../../api/annotations";
 import { listAssetReactions, ReactionResponseItem } from "../../api/reactions";
+import { listComments, CommentResponse } from "../../api/comments";
 
 /** Map a Loom REST AssetResponse to the local Asset type used by the UI. */
 function apiToAsset(r: AssetResponse): Asset {
@@ -886,9 +887,17 @@ export default function AssetDetail() {
       setReactions(restReactions);
     }).catch(() => { /* reactions load failed */ });
 
-    // Comments and other social features still use mock services
+    // Comments from REST API, other social features still use mock services
     Promise.all([
-      mockCommentService.getByAsset(id),
+      token ? listComments(token).then(r => (r.data ?? []).map((c: CommentResponse): Comment => ({
+        id: c.uuid,
+        assetId: id,
+        authorId: c.status?.creator?.uuid ?? "",
+        title: c.title,
+        text: c.text ?? "",
+        createdAt: c.status?.created ?? "",
+        updatedAt: c.status?.edited ?? c.status?.created ?? "",
+      }))) : Promise.resolve([] as Comment[]),
       Promise.resolve([] as Task[]),
       mockTranscriptService.getByAsset(id),
       mockFaceDetectionService.getFacesByAsset(id),

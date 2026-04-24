@@ -8,6 +8,7 @@ public interface LoomModelValidator extends
 	AttachmentModelValidator,
 	AnnotationModelValidator,
 	AssetModelValidator,
+	BlacklistModelValidator,
 	CollectionModelValidator,
 	ClusterModelValidator,
 	CommentModelValidator,
