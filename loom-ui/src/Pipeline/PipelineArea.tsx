@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { Container, Grid, Typography, Chip, Box } from "@mui/material";
+import { Container, Grid, Typography, Chip, Box, FormControl, InputLabel, Select, MenuItem, CircularProgress } from "@mui/material";
 import "./flow-style.css";
 import "reactflow/dist/style.css";
 
@@ -19,6 +19,8 @@ import {
   PipelineEventMessage,
   PipelineEventType,
 } from "../api/pipelineEvents";
+import { listPipelines, PipelineResponse } from "../api/pipelines";
+import { useAuth } from "../context/AuthContext";
 
 // ── Per-node live state ──────────────────────────────────────────────────
 
@@ -84,28 +86,30 @@ function PipelineNodeComponent({ data }: NodeProps) {
   );
 }
 
-const nodeTypes = { pipeline: PipelineNodeComponent };
-
-// ── Static graph layout (matches existing demo graph) ────────────────────
-
-const INITIAL_NODES: Node[] = [
-  { id: "src", type: "pipeline", data: { label: "Source" }, position: { x: 350, y: 0 } },
-  { id: "filter", type: "pipeline", data: { label: "Filter" }, position: { x: 350, y: 120 } },
-  { id: "hash", type: "pipeline", data: { label: "Hash" }, position: { x: 100, y: 260 } },
-  { id: "resize", type: "pipeline", data: { label: "Resize" }, position: { x: 350, y: 260 } },
-  { id: "fp", type: "pipeline", data: { label: "Fingerprint" }, position: { x: 600, y: 260 } },
-  { id: "s3", type: "pipeline", data: { label: "S3" }, position: { x: 350, y: 400 } },
-];
-
-const EDGES: Edge[] = [
-  { id: "e1", source: "src", target: "filter", animated: true },
-  { id: "e2", source: "filter", target: "hash", animated: true },
-  { id: "e3", source: "filter", target: "resize", animated: true },
-  { id: "e4", source: "filter", target: "fp", animated: true },
-  { id: "e5", source: "resize", target: "s3", animated: true },
-];
-
 // ── Helpers ──────────────────────────────────────────────────────────────
+
+/** Convert a pipeline definition from the REST API into ReactFlow nodes/edges. */
+function definitionToGraph(definition: Record<string, unknown> | undefined): { nodes: Node[]; edges: Edge[] } {
+  if (!definition) return { nodes: [], edges: [] };
+  const rawNodes = (definition.nodes as Array<Record<string, unknown>>) ?? [];
+  const rawEdges = (definition.edges as Array<Record<string, unknown>>) ?? [];
+  const nodes: Node[] = rawNodes.map((n) => ({
+    id: String(n.id),
+    type: "pipeline",
+    data: { label: n.label ?? n.type ?? n.id },
+    position: {
+      x: (n.position as { x?: number })?.x ?? 0,
+      y: (n.position as { y?: number })?.y ?? 0,
+    },
+  }));
+  const edges: Edge[] = rawEdges.map((e) => ({
+    id: String(e.id),
+    source: String(e.source),
+    target: String(e.target),
+    animated: !!e.animated,
+  }));
+  return { nodes, edges };
+}
 
 function eventToStatus(type: PipelineEventType): NodeLiveState["status"] {
   switch (type) {
@@ -124,10 +128,35 @@ function eventToStatus(type: PipelineEventType): NodeLiveState["status"] {
   }
 }
 
+const nodeTypes = { pipeline: PipelineNodeComponent };
+
 // ── Main component ───────────────────────────────────────────────────────
 
 export default function PipelineArea() {
+  const { token } = useAuth();
+  const [pipelines, setPipelines] = useState<PipelineResponse[]>([]);
+  const [selectedId, setSelectedId] = useState<string>("");
+  const [loading, setLoading] = useState(true);
   const [nodeStates, setNodeStates] = useState<Record<string, NodeLiveState>>({});
+
+  // Fetch pipelines from the REST API
+  useEffect(() => {
+    if (!token) return;
+    listPipelines(token)
+      .then((resp) => {
+        const ps = resp.data ?? [];
+        setPipelines(ps);
+        if (ps.length > 0) setSelectedId(ps[0].uuid);
+      })
+      .catch((err) => console.error("Failed to load pipelines", err))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  const selectedPipeline = pipelines.find((p) => p.uuid === selectedId);
+  const { nodes: baseNodes, edges } = useMemo(
+    () => definitionToGraph(selectedPipeline?.definition),
+    [selectedPipeline]
+  );
 
   const handleEvent = useCallback((event: PipelineEventMessage) => {
     if (!event.nodeId) return;
@@ -163,24 +192,48 @@ export default function PipelineArea() {
   // Merge live state into ReactFlow node data
   const nodes = useMemo(
     () =>
-      INITIAL_NODES.map((n) => ({
+      baseNodes.map((n) => ({
         ...n,
         data: { ...n.data, liveState: nodeStates[n.id] },
       })),
-    [nodeStates]
+    [baseNodes, nodeStates]
   );
+
+  if (loading) {
+    return (
+      <Container maxWidth="lg" sx={{ mt: 4, mb: 4, textAlign: "center" }}>
+        <CircularProgress />
+      </Container>
+    );
+  }
 
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Typography variant="h5" gutterBottom>
-        Pipeline Monitor
-      </Typography>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
+        <Typography variant="h5">Pipeline Monitor</Typography>
+        {pipelines.length > 1 && (
+          <FormControl size="small" sx={{ minWidth: 220 }}>
+            <InputLabel>Pipeline</InputLabel>
+            <Select
+              value={selectedId}
+              label="Pipeline"
+              onChange={(e) => setSelectedId(e.target.value)}
+            >
+              {pipelines.map((p) => (
+                <MenuItem key={p.uuid} value={p.uuid}>
+                  {p.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        )}
+      </Box>
       <Grid item xs={12}>
         <ReactFlowProvider>
           <div style={{ height: 600, width: "100%" }}>
             <ReactFlow
               nodes={nodes}
-              edges={EDGES}
+              edges={edges}
               nodeTypes={nodeTypes}
               fitView
               proOptions={{ hideAttribution: true }}

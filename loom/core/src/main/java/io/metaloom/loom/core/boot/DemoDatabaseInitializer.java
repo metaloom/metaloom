@@ -9,6 +9,9 @@ import javax.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
+
 import io.metaloom.loom.db.model.asset.Asset;
 import io.metaloom.loom.db.model.asset.AssetAudioComp;
 import io.metaloom.loom.db.model.asset.AssetComponentDao;
@@ -58,7 +61,9 @@ public class DemoDatabaseInitializer {
 	private static final String DEMO_LIBRARY_CAMPAIGNS = "Campaign Media";
 	private static final String DEMO_LIBRARY_ARCHIVE = "Archive Footage";
 	private static final String DEMO_LIBRARY_AUDIO = "Audio Sessions";
-	private static final String DEMO_PIPELINE_NAME = "Default Pipeline";
+	private static final String DEMO_PIPELINE_SIMPLE = "Quick Hash";
+	private static final String DEMO_PIPELINE_MEDIUM = "Ingest & Proxy";
+	private static final String DEMO_PIPELINE_COMPLEX = "Full Processing";
 	private static final String DEMO_POOL_PRODUCTION = "Production Storage";
 	private static final String DEMO_POOL_INGEST = "Ingest Hot Storage";
 	private static final String DEMO_POOL_ARCHIVE = "Archive S3";
@@ -141,18 +146,61 @@ public class DemoDatabaseInitializer {
 		createLibrary(admin, DEMO_LIBRARY_ARCHIVE);
 		createLibrary(admin, DEMO_LIBRARY_AUDIO);
 
-		// --- Pipeline ---
-		Pipeline pipeline = pipelineDao.createPipeline(adminUuid, DEMO_PIPELINE_NAME);
-		pipeline.setUuid(UUIDUtils.randomUUID());
-		pipeline.setCreator(admin);
-		pipeline.setEditor(admin);
-		pipeline.setCreated(Instant.now());
-		pipeline.setEdited(Instant.now());
-		pipeline.setDescription("Default processing pipeline for demo assets");
-		pipeline.setEnabled(true);
-		pipeline.setPriority(1);
-		pipelineDao.store(pipeline);
-		log.info("Created demo pipeline: {}", DEMO_PIPELINE_NAME);
+		// --- Pipelines ---
+		// 1) Simple pipeline: Source → Hash → Output
+		createPipeline(admin, DEMO_PIPELINE_SIMPLE,
+			"Simple pipeline that hashes incoming assets and stores the result.",
+			true, 1, false,
+			new JsonObject()
+				.put("nodes", new JsonArray()
+					.add(node("pn1", "filesystem-source", "File Source", "Watch local folder", 60, 120))
+					.add(node("pn2", "sha256", "SHA-256 Hash", "Compute SHA-256 digest", 300, 120))
+					.add(node("pn3", "loom", "Loom Output", "Persist to Loom", 540, 120)))
+				.put("edges", new JsonArray()
+					.add(edge("pe1", "pn1", "pn2"))
+					.add(edge("pe2", "pn2", "pn3"))));
+
+		// 2) Medium pipeline: Source → Filter → Hash + Fingerprint → Output
+		createPipeline(admin, DEMO_PIPELINE_MEDIUM,
+			"Ingest pipeline with MIME-type filtering, hashing, fingerprinting, and proxy generation.",
+			true, 5, false,
+			new JsonObject()
+				.put("nodes", new JsonArray()
+					.add(node("pn1", "filesystem-source", "File Source", "Watch ingest folder", 60, 160))
+					.add(node("pn2", "filter-mimetype", "MIME Filter", "Accept video and image types", 260, 160))
+					.add(node("pn3", "sha256", "SHA-256 Hash", "Compute hash", 460, 60))
+					.add(node("pn4", "fingerprint", "Fingerprint", "Audio/video fingerprint", 460, 260))
+					.add(node("pn5", "loom", "Loom Output", "Store results", 680, 160)))
+				.put("edges", new JsonArray()
+					.add(edge("pe1", "pn1", "pn2"))
+					.add(edge("pe2", "pn2", "pn3"))
+					.add(edge("pe3", "pn2", "pn4"))
+					.add(edge("pe4", "pn3", "pn5"))
+					.add(edge("pe5", "pn4", "pn5"))));
+
+		// 3) Complex pipeline: Source → Filter → Hash + Fingerprint + Resize → Face Detection → Loom Output
+		createPipeline(admin, DEMO_PIPELINE_COMPLEX,
+			"Full processing pipeline with filtering, analysis, face detection, and multi-output.",
+			true, 10, false,
+			new JsonObject()
+				.put("nodes", new JsonArray()
+					.add(node("pn1", "filesystem-source", "File Source", "Watch production folder", 60, 200))
+					.add(node("pn2", "filter-mimetype", "MIME Filter", "Accept media types", 240, 200))
+					.add(node("pn3", "sha256", "SHA-256 Hash", "Compute SHA-256", 440, 60))
+					.add(node("pn4", "fingerprint", "Fingerprint", "Chromaprint fingerprint", 440, 200))
+					.add(node("pn5", "resize", "Resize Proxy", "Generate 720p proxy", 440, 340))
+					.add(node("pn6", "face-detect", "Face Detection", "Detect faces with InspireFace", 660, 130))
+					.add(node("pn7", "loom", "Loom Output", "Persist metadata", 880, 130))
+					.add(node("pn8", "s3-output", "S3 Delivery", "Upload proxies to S3", 880, 340)))
+				.put("edges", new JsonArray()
+					.add(edge("pe1", "pn1", "pn2"))
+					.add(edge("pe2", "pn2", "pn3"))
+					.add(edge("pe3", "pn2", "pn4"))
+					.add(edge("pe4", "pn2", "pn5"))
+					.add(edge("pe5", "pn3", "pn6"))
+					.add(edge("pe6", "pn4", "pn6"))
+					.add(edge("pe7", "pn6", "pn7"))
+					.add(edge("pe8", "pn5", "pn8"))));
 
 		// --- Asset Pools ---
 		createAssetPool(admin, DEMO_POOL_PRODUCTION, "/mnt/media/production", null, null, null);
@@ -281,9 +329,9 @@ public class DemoDatabaseInitializer {
 		createTask(admin, "Approve campaign cut", "Review the latest campaign cut and approve for publishing.");
 		createTask(admin, "Tag city timelapse", "Assign accurate tags to timelapse-city.mp4 for discoverability.");
 
-		log.info("Demo data initialization complete — created {} assets, {} tags, {} collections, {} pipeline, {} users, {} groups, {} roles, {} tasks.",
+		log.info("Demo data initialization complete — created {} assets, {} tags, {} collections, {} pipelines, {} users, {} groups, {} roles, {} tasks.",
 			imageAssets.length + videoAssets.length + audioAssets.length + docAssets.length,
-			8, 2, 1, 2, 2, 2, 3);
+			8, 2, 3, 2, 2, 2, 3);
 	}
 
 	private Task createTask(User admin, String title, String description) {
@@ -418,5 +466,40 @@ public class DemoDatabaseInitializer {
 		roleDao.store(role);
 		log.info("Created demo role: {}", name);
 		return role;
+	}
+
+	private Pipeline createPipeline(User admin, String name, String description,
+			boolean enabled, int priority, boolean dryRun, JsonObject definition) {
+		Pipeline pipeline = pipelineDao.createPipeline(admin.getUuid(), name);
+		pipeline.setUuid(UUIDUtils.randomUUID());
+		pipeline.setCreator(admin);
+		pipeline.setEditor(admin);
+		pipeline.setCreated(Instant.now());
+		pipeline.setEdited(Instant.now());
+		pipeline.setDescription(description);
+		pipeline.setEnabled(enabled);
+		pipeline.setPriority(priority);
+		pipeline.setDryRun(dryRun);
+		pipeline.setDefinition(definition);
+		pipelineDao.store(pipeline);
+		log.info("Created demo pipeline: {}", name);
+		return pipeline;
+	}
+
+	private static JsonObject node(String id, String type, String label, String description, int x, int y) {
+		return new JsonObject()
+			.put("id", id)
+			.put("type", type)
+			.put("label", label)
+			.put("description", description)
+			.put("position", new JsonObject().put("x", x).put("y", y))
+			.put("data", new JsonObject());
+	}
+
+	private static JsonObject edge(String id, String source, String target) {
+		return new JsonObject()
+			.put("id", id)
+			.put("source", source)
+			.put("target", target);
 	}
 }

@@ -570,6 +570,8 @@
       "filterNodes": "Knoten filtern…",
       "jsonValid": "JSON gültig",
       "jsonInvalid": "JSON ungültig",
+      "jsonLoaded": "Geladene Definition",
+      "jsonCurrent": "Aktueller Canvas-Zustand",
       "source": "Quelle",
       "filter": "Filter",
       "process": "Verarbeitung",

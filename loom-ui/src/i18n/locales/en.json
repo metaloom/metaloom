@@ -570,6 +570,8 @@
       "filterNodes": "Filter nodes…",
       "jsonValid": "Valid JSON",
       "jsonInvalid": "Invalid JSON",
+      "jsonLoaded": "Loaded Definition",
+      "jsonCurrent": "Current Canvas State",
       "source": "Source",
       "filter": "Filter",
       "process": "Process",

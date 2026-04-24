@@ -16,7 +16,7 @@ import { mockChatService } from "../../mock/services";
 import { useSpace } from "../../context/SpaceContext";
 import { useTranslation } from "react-i18next";
 import AssetBrowser from "../assets/AssetBrowser";
-import { ASSETS, COLLECTIONS, TASKS, PIPELINES } from "../../mock/data";
+import { ASSETS, COLLECTIONS, TASKS } from "../../mock/data";
 
 // ── Reference chip renderer ───────────────────────────────────────────────
 function RefChip({ chatRef: r, onAssetClick }: { chatRef: ChatReference; onAssetClick?: (id: string) => void }) {

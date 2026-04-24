@@ -1,6 +1,6 @@
 import {
   Library, Asset, Collection, Task, Comment, Annotation,
-  Reaction, Pipeline, User, Permission, ApiKey,
+  Reaction, User, Permission, ApiKey,
   BlacklistEntry, MetricSeries, ChatMessage,
   TranscriptSection, DetectedFace, FaceCluster, Person,
   DetectedObject, AssetPool,
@@ -250,90 +250,6 @@ export const REACTIONS: Reaction[] = [
   { id: "rx4", assetId: "a3", userId: "u2", type: "favorite", rating: 5, createdAt: daysAgo(3) },
   { id: "rx5", assetId: "a5", userId: "u5", type: "approve", rating: 4, timestamp: 2592, createdAt: daysAgo(1) },
   { id: "rx6", assetId: "a5", userId: "u2", type: "question", timestamp: 1200, createdAt: daysAgo(1) },
-];
-
-// ── Pipelines ─────────────────────────────────────────────────────────────
-export const PIPELINES: Pipeline[] = [
-  {
-    id: "pipe1", spaceId: "proj1", name: "Campaign Ingest Pipeline",
-    description: "Processes incoming campaign assets: hash, fingerprint, resize, and deliver to S3.",
-    enabled: true, priority: 1, dryRun: false,
-    definition: {
-      nodes: [
-        { id: "pn1", type: "source", label: "S3 Source", description: "Watch incoming S3 bucket", position: { x: 60, y: 160 }, data: { bucket: "loom-ingest-prod", prefix: "campaign/" } },
-        { id: "pn2", type: "filter", label: "Format Filter", description: "Accept only video/image MIME types", position: { x: 260, y: 80 }, data: { types: ["video/*", "image/*"] } },
-        { id: "pn3", type: "process", label: "Hash", description: "SHA-256 + perceptual hash", position: { x: 460, y: 40 }, data: { algorithms: ["sha256", "phash"] } },
-        { id: "pn4", type: "process", label: "Fingerprint", description: "Generate audio/video fingerprint", position: { x: 460, y: 160 }, data: { engine: "chromaprint" } },
-        { id: "pn5", type: "process", label: "Resize Proxy", description: "Generate 720p and 360p proxies", position: { x: 460, y: 280 }, data: { resolutions: ["720p", "360p"] } },
-        { id: "pn6", type: "output", label: "S3 Delivery", description: "Store outputs in delivery bucket", position: { x: 680, y: 160 }, data: { bucket: "loom-delivery-prod" } },
-      ],
-      edges: [
-        { id: "pe1", source: "pn1", target: "pn2", animated: true },
-        { id: "pe2", source: "pn2", target: "pn3" },
-        { id: "pe3", source: "pn2", target: "pn4" },
-        { id: "pe4", source: "pn2", target: "pn5" },
-        { id: "pe5", source: "pn3", target: "pn6" },
-        { id: "pe6", source: "pn4", target: "pn6" },
-        { id: "pe7", source: "pn5", target: "pn6" },
-      ],
-    },
-    runs: [
-      { id: "run1", pipelineId: "pipe1", startedAt: hoursAgo(2), finishedAt: hoursAgo(1), status: "success", processedAssets: 12, errors: 0, log: ["12 assets ingested", "12 hashes computed", "12 proxies generated"] },
-      { id: "run2", pipelineId: "pipe1", startedAt: daysAgo(1), finishedAt: daysAgo(1), status: "success", processedAssets: 8, errors: 0, log: ["8 assets ingested"] },
-      { id: "run3", pipelineId: "pipe1", startedAt: daysAgo(3), finishedAt: daysAgo(3), status: "failed", processedAssets: 4, errors: 1, log: ["4 assets processed", "ERROR: S3 timeout on delivery"] },
-    ],
-    createdAt: daysAgo(60), updatedAt: hoursAgo(2),
-  },
-  {
-    id: "pipe2", spaceId: "proj2", name: "Sports Broadcast Processing",
-    description: "High-priority ingestion and transcoding for live sports broadcasts.",
-    enabled: true, priority: 10, dryRun: false,
-    definition: {
-      nodes: [
-        { id: "pn1", type: "source", label: "SDI Ingest", description: "SDI deck capture endpoint", position: { x: 60, y: 120 }, data: { decks: ["Deck 1", "Deck 4"] } },
-        { id: "pn2", type: "process", label: "Transcode 4K", description: "Transcode to H.265 4K master", position: { x: 260, y: 60 }, data: { codec: "h265", resolution: "4K" } },
-        { id: "pn3", type: "process", label: "Proxy Generation", description: "Create 1080p and 540p proxies", position: { x: 260, y: 200 }, data: { resolutions: ["1080p", "540p"] } },
-        { id: "pn4", type: "filter", label: "Scene Detect", description: "AI scene change detection", position: { x: 460, y: 60 }, data: { model: "scenedetect-v3" } },
-        { id: "pn5", type: "output", label: "CDN Push", description: "Push proxies to broadcast CDN", position: { x: 660, y: 140 }, data: { cdn: "akamai-sports" } },
-      ],
-      edges: [
-        { id: "pe1", source: "pn1", target: "pn2", animated: true },
-        { id: "pe2", source: "pn1", target: "pn3", animated: true },
-        { id: "pe3", source: "pn2", target: "pn4" },
-        { id: "pe4", source: "pn3", target: "pn5" },
-        { id: "pe5", source: "pn4", target: "pn5" },
-      ],
-    },
-    runs: [
-      { id: "run4", pipelineId: "pipe2", startedAt: hoursAgo(3), status: "running", processedAssets: 3, errors: 0, log: ["Ingest started", "3 streams active"] },
-    ],
-    createdAt: daysAgo(120), updatedAt: hoursAgo(3),
-  },
-  {
-    id: "pipe3", spaceId: "proj1", name: "AI Tagging Pipeline",
-    description: "Runs ML models to auto-tag assets with objects, faces, and sentiment.",
-    enabled: true, priority: 5, dryRun: true,
-    definition: {
-      nodes: [
-        { id: "pn1", type: "source", label: "Asset Queue", description: "Pull from ready asset queue", position: { x: 60, y: 120 }, data: { status: "ready", limit: 50 } },
-        { id: "pn2", type: "process", label: "Object Detection", description: "YOLO v8 object detection", position: { x: 260, y: 60 }, data: { model: "yolov8-dam", confidence: 0.72 } },
-        { id: "pn3", type: "process", label: "Face Recognition", description: "InspireFace identity matching", position: { x: 260, y: 180 }, data: { threshold: 0.85 } },
-        { id: "pn4", type: "process", label: "Sentiment Score", description: "NLP scene sentiment analysis", position: { x: 460, y: 120 }, data: { model: "genai-sentiment-v2" } },
-        { id: "pn5", type: "output", label: "Tag Writer", description: "Write tags back to asset metadata", position: { x: 660, y: 120 }, data: { overwrite: false } },
-      ],
-      edges: [
-        { id: "pe1", source: "pn1", target: "pn2" },
-        { id: "pe2", source: "pn1", target: "pn3" },
-        { id: "pe3", source: "pn2", target: "pn4" },
-        { id: "pe4", source: "pn3", target: "pn4" },
-        { id: "pe5", source: "pn4", target: "pn5" },
-      ],
-    },
-    runs: [
-      { id: "run5", pipelineId: "pipe3", startedAt: daysAgo(1), finishedAt: daysAgo(1), status: "success", processedAssets: 24, errors: 2, log: ["24 assets tagged", "2 face matches skipped (low confidence)"] },
-    ],
-    createdAt: daysAgo(14), updatedAt: daysAgo(1),
-  },
 ];
 
 // ── Metrics ───────────────────────────────────────────────────────────────

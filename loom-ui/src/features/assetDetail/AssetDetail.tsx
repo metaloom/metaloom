@@ -25,7 +25,7 @@ import {
   mockReactionService, mockTranscriptService,
   mockFaceDetectionService,
 } from "../../mock/services";
-import { USERS, COLLECTIONS, PIPELINES } from "../../mock/data";
+import { USERS, COLLECTIONS } from "../../mock/data";
 import { useAuth } from "../../context/AuthContext";
 import { loadAsset as apiLoadAsset, AssetResponse } from "../../api/assets";
 
@@ -1005,7 +1005,7 @@ export default function AssetDetail() {
           anchorOrigin={{ vertical: "top", horizontal: "right" }}
           transformOrigin={{ vertical: "top", horizontal: "left" }}
         >
-          {PIPELINES.map(p => (
+          {([] as { id: string; name: string }[]).map(p => (
             <MenuItem key={p.id} onClick={() => { setPipelineMenuAnchor(null); setActionMenuAnchor(null); }} sx={{ gap: 1 }}>
               <AccountTreeOutlined sx={{ fontSize: 14, color: tokens.primary.main }} />
               <Typography variant="body2" sx={{ fontSize: "0.82rem" }}>{p.name}</Typography>

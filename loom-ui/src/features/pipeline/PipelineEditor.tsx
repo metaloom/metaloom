@@ -34,7 +34,8 @@ import {
 import { Tabs, Tab } from "@mui/material";
 import { tokens } from "../../theme";
 import { Pipeline, PipelineNode, PipelineRun } from "../../types";
-import { mockPipelineService } from "../../mock/services";
+import { listPipelines, PipelineResponse } from "../../api/pipelines";
+import { useAuth } from "../../context/AuthContext";
 import { useSpace } from "../../context/SpaceContext";
 import { useNodeRegistry } from "../../context/NodeRegistryContext";
 import type { NodeDescriptor, NodeCategory } from "../../types/nodeDescriptors";
@@ -1174,6 +1175,7 @@ function CommandPaletteContent({
 export default function PipelineEditor() {
   const { activeSpace } = useSpace();
   const { t } = useTranslation();
+  const { token } = useAuth();
   const { descriptors, loading: registryLoading, error: registryError } = useNodeRegistry();
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selected, setSelected] = useState<Pipeline | null>(null);
@@ -1202,12 +1204,29 @@ export default function PipelineEditor() {
   const logRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    mockPipelineService.getAll().then(ps => {
+    if (!token) return;
+    listPipelines(token).then(resp => {
+      const ps: Pipeline[] = (resp.data ?? []).map((p: PipelineResponse) => ({
+        id: p.uuid,
+        spaceId: "",
+        name: p.name,
+        description: p.description ?? "",
+        enabled: p.enabled,
+        priority: p.priority,
+        dryRun: p.dryRun,
+        definition: {
+          nodes: ((p.definition as any)?.nodes ?? []) as Pipeline["definition"]["nodes"],
+          edges: ((p.definition as any)?.edges ?? []) as Pipeline["definition"]["edges"],
+        },
+        runs: [],
+        createdAt: p.status?.created ?? "",
+        updatedAt: p.status?.edited ?? "",
+      }));
       setPipelines(ps);
       setSelected(ps[0] ?? null);
       setLoading(false);
-    });
-  }, []);
+    }).catch(() => setLoading(false));
+  }, [token]);
 
   const handleNodeSelect = useCallback((id: string | null) => {
     setSelectedNodeId(id);
@@ -1435,37 +1454,80 @@ export default function PipelineEditor() {
 
             {/* JSON tab */}
             {canvasTab === 1 && (
-              <Box sx={{ flex: 1, overflow: "auto", p: 2, bgcolor: tokens.bg.base, display: "flex", flexDirection: "column" }}>
-                <Box sx={{
-                  bgcolor: tokens.bg.surface,
-                  border: `1px solid ${tokens.border.subtle}`,
-                  borderRadius: tokens.radius.md,
-                  p: 2,
-                  overflow: "auto",
-                  flex: 1,
-                }}>
-                  <Typography
-                    component="pre"
-                    sx={{
-                      fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
-                      fontSize: "0.76rem",
-                      lineHeight: 1.7,
-                      color: tokens.text.secondary,
-                      whiteSpace: "pre-wrap",
-                      wordBreak: "break-word",
-                      m: 0,
-                      "& .json-key": { color: tokens.primary.main, fontWeight: 600 },
-                      "& .json-string": { color: tokens.accent.green },
-                      "& .json-number": { color: tokens.accent.amber },
-                      "& .json-boolean": { color: tokens.accent.blue },
-                      "& .json-null": { color: tokens.text.tertiary },
-                    }}
-                    dangerouslySetInnerHTML={{
-                      __html: graphJson
-                        ? syntaxHighlightJson(JSON.stringify(graphJson, null, 2))
-                        : "<span style='color: " + tokens.text.tertiary + "'>No pipeline data</span>",
-                    }}
-                  />
+              <Box sx={{ flex: 1, overflow: "auto", p: 2, bgcolor: tokens.bg.base, display: "flex", flexDirection: "column", gap: 2 }}>
+                {/* Loaded definition from server */}
+                <Box>
+                  <Typography variant="caption" sx={{ fontSize: "0.68rem", fontWeight: 700, color: tokens.text.tertiary, textTransform: "uppercase", letterSpacing: "0.06em", mb: 0.5, display: "block" }}>
+                    {t("pipeline.editor.jsonLoaded")}
+                  </Typography>
+                  <Box sx={{
+                    bgcolor: tokens.bg.surface,
+                    border: `1px solid ${tokens.border.subtle}`,
+                    borderRadius: tokens.radius.md,
+                    p: 2,
+                    overflow: "auto",
+                    maxHeight: "40%",
+                  }}>
+                    <Typography
+                      component="pre"
+                      sx={{
+                        fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
+                        fontSize: "0.76rem",
+                        lineHeight: 1.7,
+                        color: tokens.text.secondary,
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-word",
+                        m: 0,
+                        "& .json-key": { color: tokens.primary.main, fontWeight: 600 },
+                        "& .json-string": { color: tokens.accent.green },
+                        "& .json-number": { color: tokens.accent.amber },
+                        "& .json-boolean": { color: tokens.accent.blue },
+                        "& .json-null": { color: tokens.text.tertiary },
+                      }}
+                      dangerouslySetInnerHTML={{
+                        __html: selected?.definition
+                          ? syntaxHighlightJson(JSON.stringify(selected.definition, null, 2))
+                          : "<span style='color: " + tokens.text.tertiary + "'>No loaded definition</span>",
+                      }}
+                    />
+                  </Box>
+                </Box>
+                {/* Current canvas state */}
+                <Box sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
+                  <Typography variant="caption" sx={{ fontSize: "0.68rem", fontWeight: 700, color: tokens.text.tertiary, textTransform: "uppercase", letterSpacing: "0.06em", mb: 0.5, display: "block" }}>
+                    {t("pipeline.editor.jsonCurrent")}
+                  </Typography>
+                  <Box sx={{
+                    bgcolor: tokens.bg.surface,
+                    border: `1px solid ${tokens.border.subtle}`,
+                    borderRadius: tokens.radius.md,
+                    p: 2,
+                    overflow: "auto",
+                    flex: 1,
+                  }}>
+                    <Typography
+                      component="pre"
+                      sx={{
+                        fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
+                        fontSize: "0.76rem",
+                        lineHeight: 1.7,
+                        color: tokens.text.secondary,
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-word",
+                        m: 0,
+                        "& .json-key": { color: tokens.primary.main, fontWeight: 600 },
+                        "& .json-string": { color: tokens.accent.green },
+                        "& .json-number": { color: tokens.accent.amber },
+                        "& .json-boolean": { color: tokens.accent.blue },
+                        "& .json-null": { color: tokens.text.tertiary },
+                      }}
+                      dangerouslySetInnerHTML={{
+                        __html: graphJson
+                          ? syntaxHighlightJson(JSON.stringify(graphJson, null, 2))
+                          : "<span style='color: " + tokens.text.tertiary + "'>No pipeline data</span>",
+                      }}
+                    />
+                  </Box>
                 </Box>
                 {/* JSON validity bar */}
                 <Box sx={{

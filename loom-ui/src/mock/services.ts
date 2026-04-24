@@ -1,12 +1,12 @@
 import {
   Library, Asset, Collection, Comment, Annotation,
-  Reaction, Pipeline, ApiKey,
+  Reaction, ApiKey,
   BlacklistEntry, ChatMessage,
   TranscriptSection, DetectedFace, FaceCluster, Person, AssetPool,
 } from "../types";
 import {
   LIBRARIES, ASSETS, COLLECTIONS,
-  COMMENTS, ANNOTATIONS, REACTIONS, PIPELINES,
+  COMMENTS, ANNOTATIONS, REACTIONS,
   API_KEYS, BLACKLIST, INITIAL_CHAT,
   TRANSCRIPTS, DETECTED_FACES, FACE_CLUSTERS, PERSONS,
   ASSET_POOLS,
@@ -120,19 +120,6 @@ export const mockReactionService = {
   getByAsset: async (assetId: string): Promise<Reaction[]> => {
     await delay(80);
     return REACTIONS.filter(r => r.assetId === assetId);
-  },
-};
-
-// ── Pipelines ─────────────────────────────────────────────────────────────
-export const mockPipelineService = {
-  getAll: async (): Promise<Pipeline[]> => { await delay(150); return [...PIPELINES]; },
-  getBySpace: async (spaceId: string): Promise<Pipeline[]> => {
-    await delay(150);
-    return PIPELINES.filter(p => p.spaceId === spaceId);
-  },
-  getById: async (id: string): Promise<Pipeline | undefined> => {
-    await delay(80);
-    return PIPELINES.find(p => p.id === id);
   },
 };
 
