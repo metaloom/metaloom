@@ -337,6 +337,11 @@
       "en": "English",
       "de": "German"
     },
+    "appearance": {
+      "label": "Appearance",
+      "dark": "Dark",
+      "light": "Light"
+    },
     "button": {
       "save": "Save changes"
     },
@@ -557,6 +562,14 @@
       "enabled": "Enabled",
       "addNode": "Add Node",
       "addNodeTooltip": "Add a node to the pipeline",
+      "tabVisual": "Visual",
+      "tabJson": "JSON",
+      "deleteNodeTitle": "Delete Node",
+      "deleteNodeMessage": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone.",
+      "connectionTypeError": "Cannot connect — incompatible data types",
+      "filterNodes": "Filter nodes…",
+      "jsonValid": "Valid JSON",
+      "jsonInvalid": "Invalid JSON",
       "source": "Source",
       "filter": "Filter",
       "process": "Process",
@@ -664,6 +677,18 @@
       "processingLog": "Processing Log",
       "nodeState": "Node State (JSON)",
       "emptyHint": "Click a node in the canvas to view and edit its details"
+    },
+    "help": {
+      "title": "Keyboard Shortcuts",
+      "close": "Press H or Escape to close",
+      "hKey": "Toggle help overlay",
+      "nKey": "Add new node",
+      "aKey": "Auto-arrange nodes",
+      "delKey": "Delete selected node"
+    },
+    "commandPalette": {
+      "placeholder": "Search nodes…",
+      "empty": "No matching nodes"
     }
   },
   "cortex": {

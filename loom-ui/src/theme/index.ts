@@ -1,7 +1,7 @@
 import { createTheme, alpha } from "@mui/material/styles";
 
-// ── Design Tokens ──────────────────────────────────────────────────────────
-export const tokens = {
+// ── Dark Design Tokens ─────────────────────────────────────────────────────
+const darkTokens = {
   bg: {
     base: "#0d0f11",
     surface: "#141719",
@@ -46,38 +46,110 @@ export const tokens = {
   },
 } as const;
 
-// ── MUI Theme ──────────────────────────────────────────────────────────────
-const loomTheme = createTheme({
-  palette: {
-    mode: "dark",
-    background: {
-      default: tokens.bg.base,
-      paper: tokens.bg.panel,
-    },
-    primary: {
-      main: tokens.primary.main,
-      light: tokens.primary.light,
-      dark: tokens.primary.dark,
-    },
-    secondary: {
-      main: tokens.accent.blue,
-    },
-    success: {
-      main: tokens.accent.green,
-    },
-    warning: {
-      main: tokens.accent.amber,
-    },
-    error: {
-      main: tokens.accent.red,
-    },
-    text: {
-      primary: tokens.text.primary,
-      secondary: tokens.text.secondary,
-      disabled: tokens.text.disabled,
-    },
-    divider: tokens.border.subtle,
+// ── Light Design Tokens ────────────────────────────────────────────────────
+const lightTokens = {
+  bg: {
+    base: "#f5f6f8",
+    surface: "#ffffff",
+    panel: "#f0f1f3",
+    elevated: "#ffffff",
+    overlay: "#e4e6ea",
+    hover: "rgba(52,148,149,0.06)",
+    active: "rgba(52,148,149,0.10)",
   },
+  border: {
+    subtle: "rgba(0,0,0,0.08)",
+    default: "rgba(0,0,0,0.12)",
+    strong: "rgba(0,0,0,0.20)",
+  },
+  text: {
+    primary: "#1a1d22",
+    secondary: "#5f6b77",
+    tertiary: "#8a95a0",
+    disabled: "#bdc3ca",
+    inverse: "#e8e9eb",
+  },
+  primary: {
+    main: "#349495",
+    light: "#57cbcc",
+    dark: "#267070",
+    glow: "rgba(52,148,149,0.25)",
+    subtle: "rgba(52,148,149,0.08)",
+  },
+  accent: {
+    blue: "#1a8fe0",
+    green: "#28a96e",
+    amber: "#d48e1a",
+    red: "#d43f58",
+    teal: "#00a895",
+  },
+  radius: {
+    sm: "6px",
+    md: "10px",
+    lg: "16px",
+    xl: "24px",
+    full: "9999px",
+  },
+} as const;
+
+type TokenGroup = { readonly [key: string]: string };
+type Tokens = {
+  readonly bg: TokenGroup;
+  readonly border: TokenGroup;
+  readonly text: TokenGroup;
+  readonly primary: TokenGroup;
+  readonly accent: TokenGroup;
+  readonly radius: TokenGroup;
+};
+
+// Mutable reference – updated by `setActiveTokens` when mode changes
+let _active: Tokens = darkTokens;
+
+export function setActiveTokens(mode: "dark" | "light") {
+  _active = mode === "dark" ? darkTokens : lightTokens;
+}
+
+/** Reactive tokens proxy – always returns the currently active set. */
+export const tokens = new Proxy({} as typeof darkTokens, {
+  get(_target, prop: string) {
+    return (_active as any)[prop];
+  },
+}) as typeof darkTokens;
+
+// ── MUI Theme builder ──────────────────────────────────────────────────────
+export function buildTheme(mode: "dark" | "light") {
+  const t = mode === "dark" ? darkTokens : lightTokens;
+  return createTheme({
+    palette: {
+      mode,
+      background: {
+        default: t.bg.base,
+        paper: t.bg.panel,
+      },
+      primary: {
+        main: t.primary.main,
+        light: t.primary.light,
+        dark: t.primary.dark,
+      },
+      secondary: {
+        main: t.accent.blue,
+      },
+      success: {
+        main: t.accent.green,
+      },
+      warning: {
+        main: t.accent.amber,
+      },
+      error: {
+        main: t.accent.red,
+      },
+      text: {
+        primary: t.text.primary,
+        secondary: t.text.secondary,
+        disabled: t.text.disabled,
+      },
+      divider: t.border.subtle,
+    },
   typography: {
     fontFamily: "'Inter', 'Roboto', sans-serif",
     h1: { fontWeight: 700, letterSpacing: "-0.02em" },
@@ -87,10 +159,10 @@ const loomTheme = createTheme({
     h5: { fontWeight: 600 },
     h6: { fontWeight: 600 },
     subtitle1: { fontWeight: 500 },
-    subtitle2: { fontWeight: 500, color: tokens.text.secondary },
+    subtitle2: { fontWeight: 500, color: t.text.secondary },
     body1: { lineHeight: 1.6 },
-    body2: { lineHeight: 1.5, color: tokens.text.secondary },
-    caption: { color: tokens.text.tertiary },
+    body2: { lineHeight: 1.5, color: t.text.secondary },
+    caption: { color: t.text.tertiary },
     button: { fontWeight: 600, textTransform: "none", letterSpacing: "0.01em" },
   },
   shape: {
@@ -308,5 +380,9 @@ const loomTheme = createTheme({
     },
   },
 });
+}
 
+const loomTheme = buildTheme("dark");
 export default loomTheme;
+
+export { darkTokens, lightTokens };

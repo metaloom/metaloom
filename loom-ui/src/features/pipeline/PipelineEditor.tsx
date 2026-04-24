@@ -4,13 +4,15 @@ import ReactFlow, {
   Background, Controls, MiniMap, Handle, Position,
   NodeProps, ReactFlowProvider, useNodesState, useEdgesState,
   MarkerType, Node as RFNode, Edge as RFEdge,
-  Connection, addEdge, reconnectEdge,
+  Connection, addEdge, reconnectEdge, useReactFlow,
+  BackgroundVariant,
 } from "reactflow";
 import "reactflow/dist/style.css";
 import {
   Box, Typography, Chip, Paper, Divider, IconButton, Tooltip,
   List, ListItemButton, ListItemText, ListItemIcon, Switch, Stack, Avatar, Collapse, TextField,
-  Menu, MenuItem, CircularProgress,
+  InputAdornment, Popper, ClickAwayListener,
+  Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button,
 } from "@mui/material";
 import {
   PlayArrowOutlined, AccountTreeOutlined, CheckCircleOutline,
@@ -27,7 +29,7 @@ import {
   TextFields, GridView, LinearScale, Straighten, ContentCopy,
   DateRange, Block, VerifiedOutlined, PlaylistRemoveOutlined,
   ImageSearchOutlined, FaceRetouchingNatural, Face, Description,
-  TransformOutlined,
+  TransformOutlined, CloseOutlined, SearchOutlined,
 } from "@mui/icons-material";
 import { Tabs, Tab } from "@mui/material";
 import { tokens } from "../../theme";
@@ -122,14 +124,16 @@ const DATA_TYPE_COLOR: Record<ConnectorDataType, string> = {
 };
 
 // ── Custom Pipeline Node Component ────────────────────────────────────────
-function PipelineNodeComponent({ data, selected }: NodeProps) {
+function PipelineNodeComponent({ data, selected, id }: NodeProps) {
   const category = (data.category as NodeCategory) ?? "ANALYSIS";
   const cfg = categoryConfig[category] ?? categoryConfig.ANALYSIS;
   const nodeIcon = data.nodeIcon as React.ReactNode | undefined;
   const isSource = category === "SOURCE";
+  const isActive = data.isActive as boolean | undefined;
   const inputs = isSource ? [] : ((data.inputs as ConnectorDef[] | undefined) ?? [{ name: "Input", dataType: "media" as ConnectorDataType }]);
   const outputs = (data.outputs as ConnectorDef[] | undefined) ?? [{ name: "Output", dataType: "media" as ConnectorDataType }];
   const [hovered, setHovered] = useState(false);
+  const onDelete = data.onDelete as ((nodeId: string) => void) | undefined;
 
   return (
     <Box
@@ -138,16 +142,75 @@ function PipelineNodeComponent({ data, selected }: NodeProps) {
       sx={{
         minWidth: 180,
         bgcolor: tokens.bg.elevated,
-        border: `1.5px solid ${selected ? cfg.color : tokens.border.default}`,
+        borderLeft: `1.5px solid ${selected ? cfg.color : tokens.border.default}`,
+        borderRight: `1.5px solid ${selected ? cfg.color : tokens.border.default}`,
+        borderTop: `3px solid ${cfg.color}`,
+        borderBottom: `3px solid ${cfg.color}`,
         borderRadius: tokens.radius.md,
         overflow: "visible",
-        boxShadow: selected ? `0 0 14px ${cfg.color}44` : `0 2px 8px rgba(0,0,0,0.4)`,
+        boxShadow: selected
+          ? `0 0 14px ${cfg.color}44`
+          : isActive
+          ? `0 0 18px ${cfg.color}55, 0 0 6px ${cfg.color}33`
+          : `0 2px 8px rgba(0,0,0,0.4)`,
         transition: "border-color 120ms ease, box-shadow 120ms ease",
         position: "relative",
+        ...(isActive && {
+          animation: "pulse-active 2s ease-in-out infinite",
+          "@keyframes pulse-active": {
+            "0%, 100%": { boxShadow: `0 0 8px ${cfg.color}33` },
+            "50%": { boxShadow: `0 0 22px ${cfg.color}66, 0 0 8px ${cfg.color}44` },
+          },
+        }),
       }}
     >
+      {/* Active indicator dot */}
+      {isActive && !hovered && (
+        <Box
+          sx={{
+            position: "absolute",
+            top: -4,
+            right: -4,
+            width: 10,
+            height: 10,
+            borderRadius: "50%",
+            bgcolor: tokens.accent.green,
+            border: `2px solid ${tokens.bg.elevated}`,
+            zIndex: 10,
+            animation: "blink 1.4s ease-in-out infinite",
+            "@keyframes blink": {
+              "0%, 100%": { opacity: 1 },
+              "50%": { opacity: 0.3 },
+            },
+          }}
+        />
+      )}
+
+      {/* Delete button */}
+      {hovered && onDelete && (
+        <Tooltip title="Delete node">
+          <IconButton
+            size="small"
+            onClick={(e) => { e.stopPropagation(); onDelete(id); }}
+            sx={{
+              position: "absolute",
+              top: -5,
+              right: -5,
+              width: 14,
+              height: 14,
+              bgcolor: tokens.accent.red,
+              color: "#fff",
+              zIndex: 10,
+              "&:hover": { bgcolor: "#d32f2f" },
+              boxShadow: "0 1px 4px rgba(0,0,0,0.4)",
+            }}
+          >
+            <CloseOutlined sx={{ fontSize: 8 }} />
+          </IconButton>
+        </Tooltip>
+      )}
+
       {/* Header stripe */}
-      <Box sx={{ height: 3, bgcolor: cfg.color, borderRadius: `${tokens.radius.md} ${tokens.radius.md} 0 0` }} />
       <Box sx={{ px: 1.5, py: 1.25, display: "flex", alignItems: "center", gap: 1 }}>
         <Box sx={{ width: 26, height: 26, borderRadius: tokens.radius.sm, bgcolor: cfg.bg, display: "flex", alignItems: "center", justifyContent: "center", color: cfg.color, flexShrink: 0 }}>
           {nodeIcon ?? cfg.icon}
@@ -175,13 +238,27 @@ function PipelineNodeComponent({ data, selected }: NodeProps) {
               style={{ background: dtColor, border: `2px solid ${tokens.bg.elevated}`, width: 10, height: 10, top: `${topPct}%` }}
             />
             {hovered && (
-              <Typography sx={{
-                position: "absolute", left: -4, top: `${topPct}%`, transform: "translate(-100%, -50%)",
-                fontSize: "0.55rem", color: tokens.text.tertiary, whiteSpace: "nowrap", pointerEvents: "none",
-                display: "flex", gap: 0.25, alignItems: "center",
-              }}>
-                {inp.name} <span style={{ color: dtColor, fontWeight: 700 }}>[{inp.dataType}]</span>
-              </Typography>
+              <Box
+                sx={{
+                  position: "absolute",
+                  left: -8,
+                  top: `${topPct}%`,
+                  transform: "translate(-100%, -50%)",
+                  pointerEvents: "none",
+                  px: 0.5,
+                  py: 0.15,
+                  borderRadius: "3px",
+                  bgcolor: `${tokens.bg.base}ee`,
+                  border: `1px solid ${dtColor}44`,
+                  display: "flex",
+                  alignItems: "center",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <Typography sx={{ fontSize: "0.52rem", color: dtColor, fontWeight: 600, lineHeight: 1 }}>
+                  {inp.dataType}
+                </Typography>
+              </Box>
             )}
           </React.Fragment>
         );
@@ -200,20 +277,33 @@ function PipelineNodeComponent({ data, selected }: NodeProps) {
               style={{ background: dtColor, border: `2px solid ${tokens.bg.elevated}`, width: 10, height: 10, top: `${topPct}%` }}
             />
             {hovered && (
-              <Typography sx={{
-                position: "absolute", right: -4, top: `${topPct}%`, transform: "translate(100%, -50%)",
-                fontSize: "0.55rem", color: tokens.text.tertiary, whiteSpace: "nowrap", pointerEvents: "none",
-                display: "flex", gap: 0.25, alignItems: "center",
-              }}>
-                <span style={{ color: dtColor, fontWeight: 700 }}>[{out.dataType}]</span> {out.name}
-              </Typography>
+              <Box
+                sx={{
+                  position: "absolute",
+                  right: -8,
+                  top: `${topPct}%`,
+                  transform: "translate(100%, -50%)",
+                  pointerEvents: "none",
+                  px: 0.5,
+                  py: 0.15,
+                  borderRadius: "3px",
+                  bgcolor: `${tokens.bg.base}ee`,
+                  border: `1px solid ${dtColor}44`,
+                  display: "flex",
+                  alignItems: "center",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <Typography sx={{ fontSize: "0.52rem", color: dtColor, fontWeight: 600, lineHeight: 1 }}>
+                  {out.dataType}
+                </Typography>
+              </Box>
             )}
           </React.Fragment>
         );
       })}
 
-      {/* Bottom stripe */}
-      <Box sx={{ height: 3, bgcolor: cfg.color }} />
+      {/* Bottom of node */}
     </Box>
   );
 }
@@ -222,7 +312,7 @@ const nodeTypes = { pipelineNode: PipelineNodeComponent };
 
 // ── Convert pipeline nodes to React Flow format ───────────────────────────
 
-function toRFNodes(pnodes: PipelineNode[], selectedId: string | null, descriptors: NodeDescriptor[]): RFNode[] {
+function toRFNodes(pnodes: PipelineNode[], selectedId: string | null, descriptors: NodeDescriptor[], onDelete?: (nodeId: string) => void, activeNodeIds?: Set<string>): RFNode[] {
   // Build a lookup map once
   const descMap = new Map(descriptors.map(d => [d.kind, d]));
 
@@ -244,6 +334,8 @@ function toRFNodes(pnodes: PipelineNode[], selectedId: string | null, descriptor
         nodeIcon: desc ? resolveNodeIcon(desc) : undefined,
         inputs: connectors.inputs,
         outputs: connectors.outputs,
+        onDelete,
+        isActive: activeNodeIds?.has(n.id) ?? false,
         ...n.data,
       },
     };
@@ -258,7 +350,6 @@ function toRFEdges(edges: Pipeline["definition"]["edges"]): RFEdge[] {
     label: e.label,
     animated: e.animated,
     style: { stroke: tokens.border.strong, strokeWidth: 1.5 },
-    markerEnd: { type: MarkerType.ArrowClosed, color: tokens.border.strong, width: 16, height: 16 },
   }));
 }
 
@@ -577,31 +668,132 @@ function NodeDetailSidebar({
 }
 
 // ── Canvas ────────────────────────────────────────────────────────────────
-function PipelineCanvas({ pipeline, onNodeSelect, externalNodes, nodeDisplayNames, descriptors }: { pipeline: Pipeline | null; onNodeSelect: (id: string | null) => void; externalNodes?: RFNode[]; nodeDisplayNames?: Record<string, string>; descriptors: NodeDescriptor[] }) {
+function PipelineCanvas({
+  pipeline, onNodeSelect, externalNodes, nodeDisplayNames, descriptors,
+  onDeleteNode, activeNodeIds, onGraphChange, removalTrigger, autoArrangeTrigger,
+}: {
+  pipeline: Pipeline | null;
+  onNodeSelect: (id: string | null) => void;
+  externalNodes?: RFNode[];
+  nodeDisplayNames?: Record<string, string>;
+  descriptors: NodeDescriptor[];
+  onDeleteNode?: (nodeId: string, label: string) => void;
+  activeNodeIds?: Set<string>;
+  onGraphChange?: (json: any) => void;
+  removalTrigger?: { nodeId: string; key: number } | null;
+  autoArrangeTrigger?: number;
+}) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const reconnectingEdgeRef = useRef<RFEdge | null>(null);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const connectionRejectedRef = useRef(false);
+  const connectingRef = useRef(false);
+  const { t } = useTranslation();
+  const { fitView } = useReactFlow();
+
+  // Callback for node X-button delete
+  const handleNodeDelete = useCallback((nodeId: string) => {
+    const node = nodes.find(n => n.id === nodeId);
+    if (onDeleteNode) onDeleteNode(nodeId, (node?.data?.label as string) ?? nodeId);
+  }, [nodes, onDeleteNode]);
 
   // Only reset graph when the pipeline itself changes
   useEffect(() => {
     if (!pipeline) { setNodes([]); setEdges([]); return; }
-    setNodes(toRFNodes(pipeline.definition.nodes, null, descriptors));
+    setNodes(toRFNodes(pipeline.definition.nodes, null, descriptors, handleNodeDelete, activeNodeIds));
     setEdges(toRFEdges(pipeline.definition.edges));
     setSelectedId(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pipeline?.id]);
+
+  // Handle node removal from parent
+  useEffect(() => {
+    if (removalTrigger) {
+      setNodes(nds => nds.filter(n => n.id !== removalTrigger.nodeId));
+      setEdges(eds => eds.filter(e => e.source !== removalTrigger.nodeId && e.target !== removalTrigger.nodeId));
+    }
+  }, [removalTrigger, setNodes, setEdges]);
+
+  // Auto-arrange nodes in a left-to-right DAG layout
+  useEffect(() => {
+    if (!autoArrangeTrigger || nodes.length === 0) return;
+    const NODE_W = 200;
+    const NODE_H = 80;
+    const GAP_X = 80;
+    const GAP_Y = 40;
+
+    // Build adjacency: node → set of target node ids
+    const adj = new Map<string, string[]>();
+    const inDeg = new Map<string, number>();
+    for (const n of nodes) { adj.set(n.id, []); inDeg.set(n.id, 0); }
+    for (const e of edges) {
+      adj.get(e.source)?.push(e.target);
+      inDeg.set(e.target, (inDeg.get(e.target) ?? 0) + 1);
+    }
+
+    // Topological sort (Kahn) to assign columns
+    const queue: string[] = [];
+    for (const [id, deg] of inDeg) { if (deg === 0) queue.push(id); }
+    const col = new Map<string, number>();
+    while (queue.length > 0) {
+      const id = queue.shift()!;
+      const c = col.get(id) ?? 0;
+      for (const t of adj.get(id) ?? []) {
+        col.set(t, Math.max(col.get(t) ?? 0, c + 1));
+        inDeg.set(t, (inDeg.get(t) ?? 0) - 1);
+        if (inDeg.get(t) === 0) queue.push(t);
+      }
+    }
+    // Assign unvisited nodes (disconnected) to column 0
+    for (const n of nodes) { if (!col.has(n.id)) col.set(n.id, 0); }
+
+    // Group by column
+    const columns = new Map<number, string[]>();
+    for (const [id, c] of col) {
+      if (!columns.has(c)) columns.set(c, []);
+      columns.get(c)!.push(id);
+    }
+
+    const posMap = new Map<string, { x: number; y: number }>();
+    for (const [c, ids] of columns) {
+      ids.forEach((id, row) => {
+        posMap.set(id, { x: c * (NODE_W + GAP_X), y: row * (NODE_H + GAP_Y) });
+      });
+    }
+
+    setNodes(nds => nds.map(n => {
+      const p = posMap.get(n.id);
+      return p ? { ...n, position: p } : n;
+    }));
+
+    // Fit view after layout settles
+    setTimeout(() => fitView({ padding: 0.3 }), 50);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoArrangeTrigger]);
+
+  // Keep onDelete callback up to date
+  useEffect(() => {
+    setNodes(nds => nds.map(n => ({
+      ...n,
+      data: { ...n.data, onDelete: handleNodeDelete, isActive: activeNodeIds?.has(n.id) ?? false },
+    })));
+  }, [handleNodeDelete, activeNodeIds, setNodes]);
 
   // Append externally-added nodes
   useEffect(() => {
     if (externalNodes && externalNodes.length > 0) {
       setNodes(prev => {
         const existingIds = new Set(prev.map(n => n.id));
-        const newOnes = externalNodes.filter(n => !existingIds.has(n.id));
+        const newOnes = externalNodes.filter(n => !existingIds.has(n.id)).map(n => ({
+          ...n,
+          data: { ...n.data, onDelete: handleNodeDelete, isActive: activeNodeIds?.has(n.id) ?? false },
+        }));
         return newOnes.length > 0 ? [...prev, ...newOnes] : prev;
       });
     }
-  }, [externalNodes, setNodes]);
+  }, [externalNodes, setNodes, handleNodeDelete, activeNodeIds]);
 
   // Update selection state without resetting positions
   useEffect(() => {
@@ -630,9 +822,45 @@ function PipelineCanvas({ pipeline, onNodeSelect, externalNodes, nodeDisplayName
     onNodeSelect(null);
   }, [onNodeSelect]);
 
-  // New connection: snap source→target
+  // DEL key handler
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Delete" && selectedId && onDeleteNode) {
+        const node = nodes.find(n => n.id === selectedId);
+        onDeleteNode(selectedId, (node?.data?.label as string) ?? selectedId);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [selectedId, nodes, onDeleteNode]);
+
+  // Connection type validation: only allow same data-type connections
+  const isValidConnection = useCallback((conn: Connection) => {
+    if (!conn.source || !conn.target || !conn.sourceHandle || !conn.targetHandle) return true;
+    const sourceNode = nodes.find(n => n.id === conn.source);
+    const targetNode = nodes.find(n => n.id === conn.target);
+    if (!sourceNode || !targetNode) return true;
+
+    const sourceOutputs = sourceNode.data.outputs as ConnectorDef[] | undefined;
+    const targetInputs = targetNode.data.inputs as ConnectorDef[] | undefined;
+    if (!sourceOutputs || !targetInputs) return true;
+
+    const outIdx = parseInt(conn.sourceHandle.replace("out_", ""), 10);
+    const inIdx = parseInt(conn.targetHandle.replace("in_", ""), 10);
+    const sourceType = sourceOutputs[outIdx]?.dataType;
+    const targetType = targetInputs[inIdx]?.dataType;
+    if (!sourceType || !targetType) return true;
+
+    const valid = sourceType === targetType;
+    if (!valid) connectionRejectedRef.current = true;
+    return valid;
+  }, [nodes]);
+
+  // New connection: snap source→target (only if valid)
   const onConnect = useCallback((conn: Connection) => {
     if (!conn.source || !conn.target) return;
+    if (!isValidConnection(conn)) return;
+    connectionRejectedRef.current = false;
     const newEdge: RFEdge = {
       id: `e_${conn.source}_${conn.target}_${Date.now()}`,
       source: conn.source,
@@ -640,10 +868,25 @@ function PipelineCanvas({ pipeline, onNodeSelect, externalNodes, nodeDisplayName
       sourceHandle: conn.sourceHandle ?? undefined,
       targetHandle: conn.targetHandle ?? undefined,
       style: { stroke: tokens.border.strong, strokeWidth: 1.5 },
-      markerEnd: { type: MarkerType.ArrowClosed, color: tokens.border.strong, width: 16, height: 16 },
     };
     setEdges(eds => addEdge(newEdge, eds));
-  }, [setEdges]);
+  }, [setEdges, isValidConnection]);
+
+  // Connection start/end for error feedback
+  const onConnectStartHandler = useCallback(() => {
+    connectionRejectedRef.current = false;
+    connectingRef.current = true;
+  }, []);
+
+  const onConnectEndHandler = useCallback((event: MouseEvent | TouchEvent) => {
+    // Check if we were connecting and it was rejected
+    if (connectingRef.current && connectionRejectedRef.current) {
+      setConnectionError(t("pipeline.editor.connectionTypeError"));
+      setTimeout(() => setConnectionError(null), 3000);
+    }
+    connectionRejectedRef.current = false;
+    connectingRef.current = false;
+  }, [t]);
 
   // Reconnect (drag existing edge to a new target)
   const onReconnectStart = useCallback((_: React.MouseEvent, edge: RFEdge) => {
@@ -663,6 +906,33 @@ function PipelineCanvas({ pipeline, onNodeSelect, externalNodes, nodeDisplayName
     }
   }, [setEdges]);
 
+  // Expose nodes/edges for JSON view
+  const getGraphJson = useCallback(() => {
+    const nodeData = nodes.map(n => ({
+      id: n.id,
+      type: (n.data as any).category ?? "unknown",
+      label: n.data.label,
+      description: n.data.description,
+      position: n.position,
+      ...(Object.keys(n.data).filter(k => !["label", "description", "category", "nodeIcon", "inputs", "outputs", "onDelete", "isActive", "displayName"].includes(k)).length > 0
+        ? { config: Object.fromEntries(Object.entries(n.data).filter(([k]) => !["label", "description", "category", "nodeIcon", "inputs", "outputs", "onDelete", "isActive", "displayName"].includes(k))) }
+        : {}),
+    }));
+    const edgeData = edges.map(e => ({
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      ...(e.sourceHandle ? { sourceHandle: e.sourceHandle } : {}),
+      ...(e.targetHandle ? { targetHandle: e.targetHandle } : {}),
+    }));
+    return { nodes: nodeData, edges: edgeData };
+  }, [nodes, edges]);
+
+  // Notify parent of graph changes for JSON tab
+  useEffect(() => {
+    if (onGraphChange) onGraphChange(getGraphJson());
+  }, [nodes, edges, getGraphJson, onGraphChange]);
+
   if (!pipeline) {
     return (
       <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", bgcolor: tokens.bg.base }}>
@@ -673,7 +943,24 @@ function PipelineCanvas({ pipeline, onNodeSelect, externalNodes, nodeDisplayName
 
   return (
     <Box sx={{
-      flex: 1, height: "100%",
+      flex: 1, height: "100%", position: "relative",
+      "& .react-flow__connection-path": {
+        stroke: tokens.border.strong,
+        strokeWidth: 1.5,
+      },
+      "& .react-flow__connection.valid .react-flow__connection-path": {
+        stroke: tokens.accent.green,
+      },
+      "& .react-flow__connection:not(.valid) .react-flow__connection-path": {
+        stroke: tokens.accent.red,
+        strokeDasharray: "5 3",
+      },
+      "& .react-flow__handle.connectingto": {
+        boxShadow: `0 0 0 3px ${tokens.accent.red}66`,
+      },
+      "& .react-flow__handle.valid": {
+        boxShadow: `0 0 0 3px ${tokens.accent.green}66`,
+      },
       "& .react-flow__controls": {
         background: tokens.bg.elevated,
         border: `1px solid ${tokens.border.subtle}`,
@@ -700,24 +987,185 @@ function PipelineCanvas({ pipeline, onNodeSelect, externalNodes, nodeDisplayName
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
         onConnect={onConnect}
+        onConnectStart={onConnectStartHandler}
+        onConnectEnd={onConnectEndHandler}
         onReconnectStart={onReconnectStart}
         onReconnect={onReconnect}
         onReconnectEnd={onReconnectEnd}
+        isValidConnection={isValidConnection}
         nodeTypes={nodeTypes}
         fitView
         fitViewOptions={{ padding: 0.3 }}
         snapToGrid
         snapGrid={[15, 15]}
-        connectionMode={"loose" as any}
         style={{ background: tokens.bg.base }}
       >
-        <Background color={tokens.border.subtle} gap={20} />
+        <Background variant={BackgroundVariant.Dots} color={tokens.border.subtle} gap={20} size={1} />
         <Controls />
         <MiniMap
           style={{ background: tokens.bg.surface, border: `1px solid ${tokens.border.subtle}` }}
           nodeColor={() => tokens.border.strong}
         />
       </ReactFlow>
+      {/* Connection error toast */}
+      {connectionError && (
+        <Box
+          sx={{
+            position: "absolute",
+            top: 12,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 100,
+            animation: "fadeIn 150ms ease",
+            "@keyframes fadeIn": { from: { opacity: 0, transform: "translateX(-50%) translateY(-6px)" }, to: { opacity: 1, transform: "translateX(-50%) translateY(0)" } },
+          }}
+        >
+          <Chip
+            icon={<ErrorOutline sx={{ fontSize: 14 }} />}
+            label={connectionError}
+            size="small"
+            sx={{
+              bgcolor: `${tokens.accent.red}22`,
+              border: `1px solid ${tokens.accent.red}`,
+              color: tokens.accent.red,
+              fontWeight: 600,
+              fontSize: "0.72rem",
+            }}
+          />
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+// ── JSON syntax highlighting ──────────────────────────────────────────────
+function syntaxHighlightJson(json: string): string {
+  return json.replace(
+    /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?|\bnull\b)/g,
+    (match) => {
+      let cls = "json-number";
+      if (match.startsWith('"')) {
+        cls = match.endsWith(":") ? "json-key" : "json-string";
+      } else if (/true|false/.test(match)) {
+        cls = "json-boolean";
+      } else if (match === "null") {
+        cls = "json-null";
+      }
+      // Escape HTML entities to prevent injection
+      const escaped = match.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      return `<span class="${cls}">${escaped}</span>`;
+    },
+  );
+}
+
+// ── Node Command Palette ──────────────────────────────────────────────────
+function CommandPaletteContent({
+  descriptors, onAdd, onClose,
+}: {
+  descriptors: NodeDescriptor[];
+  onAdd: (desc: NodeDescriptor) => void;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const [filter, setFilter] = useState("");
+  const [selectedIdx, setSelectedIdx] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+
+  const filtered = descriptors.filter(d =>
+    !filter ||
+    d.name.toLowerCase().includes(filter.toLowerCase()) ||
+    d.kind.toLowerCase().includes(filter.toLowerCase()) ||
+    d.category.toLowerCase().includes(filter.toLowerCase())
+  );
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    setSelectedIdx(0);
+  }, [filter]);
+
+  // Scroll selected item into view
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const item = list.children[selectedIdx] as HTMLElement | undefined;
+    item?.scrollIntoView({ block: "nearest" });
+  }, [selectedIdx]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedIdx(i => Math.min(i + 1, filtered.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedIdx(i => Math.max(i - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (filtered[selectedIdx]) onAdd(filtered[selectedIdx]);
+    } else if (e.key === "Escape") {
+      onClose();
+    }
+  };
+
+  return (
+    <Box sx={{ display: "flex", flexDirection: "column", maxHeight: 480 }}>
+      <Box sx={{ p: 1.5, borderBottom: `1px solid ${tokens.border.subtle}` }}>
+        <TextField
+          inputRef={inputRef}
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder={t("pipeline.commandPalette.placeholder")}
+          size="small"
+          fullWidth
+          autoFocus
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
+              </InputAdornment>
+            ),
+          }}
+          sx={{
+            "& .MuiInputBase-root": { fontSize: "0.82rem" },
+            "& .MuiOutlinedInput-notchedOutline": { borderColor: tokens.border.default },
+          }}
+        />
+      </Box>
+      <List ref={listRef} dense sx={{ overflow: "auto", flex: 1, py: 0.5 }}>
+        {filtered.length === 0 && (
+          <Box sx={{ p: 2, textAlign: "center" }}>
+            <Typography variant="caption" sx={{ color: tokens.text.tertiary }}>{t("pipeline.commandPalette.empty")}</Typography>
+          </Box>
+        )}
+        {filtered.map((d, idx) => {
+          const cfg = nodeVisualConfig(d);
+          return (
+            <ListItemButton
+              key={d.kind}
+              selected={idx === selectedIdx}
+              onClick={() => onAdd(d)}
+              sx={{
+                py: 0.75,
+                px: 1.5,
+                gap: 1.25,
+                "&.Mui-selected": { bgcolor: `${tokens.primary.main}18` },
+              }}
+            >
+              <Box sx={{ width: 24, height: 24, borderRadius: tokens.radius.sm, bgcolor: cfg.bg, display: "flex", alignItems: "center", justifyContent: "center", color: cfg.color, flexShrink: 0 }}>
+                {cfg.icon}
+              </Box>
+              <Box sx={{ minWidth: 0, flex: 1 }}>
+                <Typography variant="body2" sx={{ fontSize: "0.8rem", fontWeight: 600, lineHeight: 1.2 }}>{d.name}</Typography>
+                <Typography variant="caption" sx={{ fontSize: "0.65rem", color: tokens.text.tertiary, display: "block" }}>{d.category} · {d.description.slice(0, 50)}</Typography>
+              </Box>
+            </ListItemButton>
+          );
+        })}
+      </List>
     </Box>
   );
 }
@@ -736,8 +1184,20 @@ export default function PipelineEditor() {
   const [nodeDetailOpen, setNodeDetailOpen] = useState(false);
   const [addedNodes, setAddedNodes] = useState<RFNode[]>([]);
   const [nodeDisplayNames, setNodeDisplayNames] = useState<Record<string, string>>({});
-  const [addNodeAnchor, setAddNodeAnchor] = useState<null | HTMLElement>(null);
-  const [addNodeCategory, setAddNodeCategory] = useState<string | null>(null);
+  const [addNodeOpen, setAddNodeOpen] = useState(false);
+  const [addNodeIdx, setAddNodeIdx] = useState(0);
+  const addNodeBarRef = useRef<HTMLDivElement>(null);
+  const addNodeInputRef = useRef<HTMLInputElement>(null);
+  const [canvasTab, setCanvasTab] = useState<0 | 1>(0); // 0 = Visual, 1 = JSON
+  const [graphJson, setGraphJson] = useState<any>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ nodeId: string; label: string } | null>(null);
+  const [activeNodeIds] = useState<Set<string>>(() => new Set()); // Populated by pipeline events
+  const [removalTrigger, setRemovalTrigger] = useState<{ nodeId: string; key: number } | null>(null);
+  const removalKeyRef = useRef(0);
+  const [showHelp, setShowHelp] = useState(false);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [nodeFilter, setNodeFilter] = useState("");
+  const [autoArrangeTrigger, setAutoArrangeTrigger] = useState(0);
   const isDraggingLog = useRef(false);
   const logRef = useRef<HTMLDivElement>(null);
 
@@ -786,7 +1246,55 @@ export default function PipelineEditor() {
       position: newNode.position, data: paramDefaults,
     });
     setAddedNodes(prev => [...prev, newNode]);
-    setAddNodeAnchor(null);
+    setAddNodeOpen(false);
+    setNodeFilter("");
+  }, [selected]);
+
+  // Delete node handlers
+  const handleDeleteNodeRequest = useCallback((nodeId: string, label: string) => {
+    setDeleteConfirm({ nodeId, label });
+  }, []);
+
+  const handleDeleteNodeConfirm = useCallback(() => {
+    if (!deleteConfirm || !selected) return;
+    const { nodeId } = deleteConfirm;
+    // Remove from pipeline definition
+    selected.definition.nodes = selected.definition.nodes.filter(n => n.id !== nodeId);
+    selected.definition.edges = selected.definition.edges.filter(e => e.source !== nodeId && e.target !== nodeId);
+    // Remove from added nodes
+    setAddedNodes(prev => prev.filter(n => n.id !== nodeId));
+    // Trigger canvas removal
+    removalKeyRef.current++;
+    setRemovalTrigger({ nodeId, key: removalKeyRef.current });
+    // Force re-render by setting a cloned pipeline
+    setSelected({ ...selected });
+    if (selectedNodeId === nodeId) {
+      setSelectedNodeId(null);
+      setNodeDetailOpen(false);
+    }
+    setDeleteConfirm(null);
+  }, [deleteConfirm, selected, selectedNodeId]);
+
+  const handleGraphChange = useCallback((json: any) => {
+    setGraphJson(json);
+  }, []);
+
+  // Global keyboard shortcuts (H = help, N = command palette)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
+      if (e.key === "h" || e.key === "H") {
+        setShowHelp(v => !v);
+      } else if (e.key === "n" || e.key === "N") {
+        e.preventDefault();
+        if (selected) setShowCommandPalette(true);
+      } else if (e.key === "a" || e.key === "A") {
+        if (selected) setAutoArrangeTrigger(v => v + 1);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
   }, [selected]);
 
   // Draggable log panel resize
@@ -897,83 +1405,207 @@ export default function PipelineEditor() {
           )}
           {/* Canvas + log panel */}
           <Box sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-            <Box data-testid="pipeline-canvas" sx={{ flex: 1, overflow: "hidden" }}>
-              <PipelineCanvas pipeline={selected} onNodeSelect={handleNodeSelect} externalNodes={addedNodes} nodeDisplayNames={nodeDisplayNames} descriptors={descriptors} />
-            </Box>
+            {/* Visual / JSON tabs */}
+            {selected && (
+              <Box sx={{ borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, flexShrink: 0 }}>
+                <Tabs value={canvasTab} onChange={(_, v) => setCanvasTab(v)} sx={{ minHeight: 32, px: 1 }}>
+                  <Tab label={t("pipeline.editor.tabVisual")} sx={{ fontSize: "0.72rem", minHeight: 32, py: 0.5, minWidth: 60 }} />
+                  <Tab label={t("pipeline.editor.tabJson")} icon={<DataObjectOutlined sx={{ fontSize: 13 }} />} iconPosition="start" sx={{ fontSize: "0.72rem", minHeight: 32, py: 0.5, minWidth: 60 }} />
+                </Tabs>
+              </Box>
+            )}
+
+            {/* Visual tab */}
+            {canvasTab === 0 && (
+              <Box data-testid="pipeline-canvas" sx={{ flex: 1, overflow: "hidden" }}>
+                <PipelineCanvas
+                  pipeline={selected}
+                  onNodeSelect={handleNodeSelect}
+                  externalNodes={addedNodes}
+                  nodeDisplayNames={nodeDisplayNames}
+                  descriptors={descriptors}
+                  onDeleteNode={handleDeleteNodeRequest}
+                  activeNodeIds={activeNodeIds}
+                  onGraphChange={handleGraphChange}
+                  removalTrigger={removalTrigger}
+                  autoArrangeTrigger={autoArrangeTrigger}
+                />
+              </Box>
+            )}
+
+            {/* JSON tab */}
+            {canvasTab === 1 && (
+              <Box sx={{ flex: 1, overflow: "auto", p: 2, bgcolor: tokens.bg.base, display: "flex", flexDirection: "column" }}>
+                <Box sx={{
+                  bgcolor: tokens.bg.surface,
+                  border: `1px solid ${tokens.border.subtle}`,
+                  borderRadius: tokens.radius.md,
+                  p: 2,
+                  overflow: "auto",
+                  flex: 1,
+                }}>
+                  <Typography
+                    component="pre"
+                    sx={{
+                      fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
+                      fontSize: "0.76rem",
+                      lineHeight: 1.7,
+                      color: tokens.text.secondary,
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-word",
+                      m: 0,
+                      "& .json-key": { color: tokens.primary.main, fontWeight: 600 },
+                      "& .json-string": { color: tokens.accent.green },
+                      "& .json-number": { color: tokens.accent.amber },
+                      "& .json-boolean": { color: tokens.accent.blue },
+                      "& .json-null": { color: tokens.text.tertiary },
+                    }}
+                    dangerouslySetInnerHTML={{
+                      __html: graphJson
+                        ? syntaxHighlightJson(JSON.stringify(graphJson, null, 2))
+                        : "<span style='color: " + tokens.text.tertiary + "'>No pipeline data</span>",
+                    }}
+                  />
+                </Box>
+                {/* JSON validity bar */}
+                <Box sx={{
+                  mt: 1,
+                  px: 1.5,
+                  py: 0.5,
+                  bgcolor: tokens.bg.surface,
+                  border: `1px solid ${tokens.border.subtle}`,
+                  borderRadius: tokens.radius.sm,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 0.75,
+                  flexShrink: 0,
+                }}>
+                  <Box sx={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    bgcolor: graphJson ? tokens.accent.green : tokens.accent.red,
+                  }} />
+                  <Typography variant="caption" sx={{
+                    fontSize: "0.68rem",
+                    color: graphJson ? tokens.accent.green : tokens.accent.red,
+                    fontWeight: 600,
+                  }}>
+                    {graphJson ? t("pipeline.editor.jsonValid") : t("pipeline.editor.jsonInvalid")}
+                  </Typography>
+                </Box>
+              </Box>
+            )}
 
             {/* Add node bar — above the log */}
             {selected && (
-              <Box sx={{ px: 2, py: 0.75, borderTop: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", alignItems: "center", gap: 0.75, flexShrink: 0 }}>
-                <Tooltip title={t("pipeline.editor.addNodeTooltip")}>
-                  <Chip
-                    data-testid="pipeline-add-node-button"
-                    icon={<AddOutlined sx={{ fontSize: 14 }} />}
-                    label={t("pipeline.editor.addNode")}
+              <ClickAwayListener onClickAway={() => setAddNodeOpen(false)}>
+                <Box ref={addNodeBarRef} sx={{ px: 2, py: 1, borderTop: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, flexShrink: 0, position: "relative" }}>
+                  <TextField
+                    inputRef={addNodeInputRef}
                     size="small"
-                    onClick={(e) => { setAddNodeCategory(null); setAddNodeAnchor(e.currentTarget); }}
+                    placeholder={t("pipeline.editor.addNode")}
+                    value={nodeFilter}
+                    onChange={(e) => { setNodeFilter(e.target.value); setAddNodeIdx(0); }}
+                    onFocus={() => setAddNodeOpen(true)}
+                    onKeyDown={(e) => {
+                      const filtered = descriptors.filter(d =>
+                        !nodeFilter ||
+                        d.name.toLowerCase().includes(nodeFilter.toLowerCase()) ||
+                        d.kind.toLowerCase().includes(nodeFilter.toLowerCase()) ||
+                        d.category.toLowerCase().includes(nodeFilter.toLowerCase())
+                      );
+                      if (e.key === "ArrowDown") {
+                        e.preventDefault();
+                        setAddNodeIdx(i => Math.min(i + 1, filtered.length - 1));
+                      } else if (e.key === "ArrowUp") {
+                        e.preventDefault();
+                        setAddNodeIdx(i => Math.max(i - 1, 0));
+                      } else if (e.key === "Enter") {
+                        e.preventDefault();
+                        if (filtered[addNodeIdx]) handleAddNode(filtered[addNodeIdx]);
+                      } else if (e.key === "Escape") {
+                        setAddNodeOpen(false);
+                        addNodeInputRef.current?.blur();
+                      }
+                    }}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <AddOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
+                        </InputAdornment>
+                      ),
+                    }}
                     sx={{
-                      bgcolor: tokens.bg.overlay,
-                      border: `1px solid ${tokens.border.default}`,
-                      color: tokens.text.secondary,
-                      cursor: "pointer",
-                      fontWeight: 500,
-                      "&:hover": { bgcolor: tokens.bg.hover, borderColor: tokens.primary.main, color: tokens.primary.light },
+                      width: "30%", minWidth: 180, maxWidth: 280,
+                      "& .MuiInputBase-root": { fontSize: "0.78rem", height: 34 },
+                      "& .MuiOutlinedInput-notchedOutline": { borderColor: tokens.border.default },
                     }}
                   />
-                </Tooltip>
-                <Divider orientation="vertical" flexItem sx={{ mx: 0.25 }} />
-                {(["SOURCE", "FILTER", "ANALYSIS", "TRANSFORM", "OUTPUT"] as NodeCategory[]).map(cat => {
-                  const catCfg = categoryConfig[cat];
-                  return (
-                    <Tooltip key={cat} title={`Add ${cat.toLowerCase()} node`}>
-                      <Chip
-                        data-testid={`pipeline-category-chip-${cat.toLowerCase()}`}
-                        icon={catCfg.icon as React.ReactElement}
-                        label={cat.charAt(0) + cat.slice(1).toLowerCase()}
-                        size="small"
-                        onClick={(e) => { setAddNodeCategory(cat); setAddNodeAnchor(e.currentTarget); }}
-                        sx={{
-                          bgcolor: tokens.bg.overlay,
-                          border: `1px solid ${tokens.border.subtle}`,
-                          color: tokens.text.tertiary,
-                          cursor: "pointer",
-                          fontSize: "0.7rem",
-                          "&:hover": { bgcolor: tokens.bg.hover, color: tokens.text.secondary },
-                        }}
-                      />
-                    </Tooltip>
-                  );
-                })}
-                <Menu
-                  data-testid="pipeline-add-node-menu"
-                  anchorEl={addNodeAnchor}
-                  open={Boolean(addNodeAnchor)}
-                  onClose={() => setAddNodeAnchor(null)}
-                  slotProps={{ paper: { sx: { maxHeight: 360, minWidth: 240, bgcolor: tokens.bg.panel, border: `1px solid ${tokens.border.default}` } } }}
-                >
-                  {registryLoading && (
-                    <MenuItem disabled sx={{ justifyContent: "center" }}>
-                      <CircularProgress size={18} />
-                    </MenuItem>
-                  )}
-                  {descriptors
-                    .filter(d => !addNodeCategory || d.category === addNodeCategory)
-                    .map((d) => {
-                      const cfg = nodeVisualConfig(d);
-                      return (
-                        <MenuItem key={d.kind} data-testid={`pipeline-node-item-${d.kind}`} onClick={() => handleAddNode(d)} sx={{ gap: 1.25, py: 0.75 }}>
-                          <Box sx={{ width: 22, height: 22, borderRadius: tokens.radius.sm, bgcolor: cfg.bg, display: "flex", alignItems: "center", justifyContent: "center", color: cfg.color, flexShrink: 0 }}>
-                            {cfg.icon}
+                  <Popper
+                    open={addNodeOpen}
+                    anchorEl={addNodeBarRef.current}
+                    placement="top-start"
+                    style={{ zIndex: 1300, width: 280 }}
+                    modifiers={[{ name: "offset", options: { offset: [16, 4] } }, { name: "preventOverflow", enabled: false }]}
+                  >
+                    <Paper
+                      elevation={8}
+                      sx={{
+                        bgcolor: tokens.bg.panel,
+                        border: `1px solid ${tokens.border.default}`,
+                        borderRadius: tokens.radius.md,
+                        maxHeight: 320,
+                        overflow: "auto",
+                      }}
+                    >
+                      <List dense sx={{ py: 0.5 }}>
+                        {descriptors
+                          .filter(d =>
+                            !nodeFilter ||
+                            d.name.toLowerCase().includes(nodeFilter.toLowerCase()) ||
+                            d.kind.toLowerCase().includes(nodeFilter.toLowerCase()) ||
+                            d.category.toLowerCase().includes(nodeFilter.toLowerCase())
+                          )
+                          .map((d, idx) => {
+                            const cfg = nodeVisualConfig(d);
+                            return (
+                              <ListItemButton
+                                key={d.kind}
+                                selected={idx === addNodeIdx}
+                                onClick={() => handleAddNode(d)}
+                                sx={{
+                                  py: 0.6,
+                                  px: 1.5,
+                                  gap: 1,
+                                  "&.Mui-selected": { bgcolor: `${tokens.primary.main}18` },
+                                }}
+                              >
+                                <Box sx={{ width: 22, height: 22, borderRadius: tokens.radius.sm, bgcolor: cfg.bg, display: "flex", alignItems: "center", justifyContent: "center", color: cfg.color, flexShrink: 0 }}>
+                                  {cfg.icon}
+                                </Box>
+                                <Box sx={{ minWidth: 0, flex: 1 }}>
+                                  <Typography variant="body2" sx={{ fontSize: "0.78rem", fontWeight: 600, lineHeight: 1.2 }}>{d.name}</Typography>
+                                  <Typography variant="caption" sx={{ fontSize: "0.62rem", color: tokens.text.tertiary, display: "block" }}>{d.category} · {d.description.slice(0, 45)}</Typography>
+                                </Box>
+                              </ListItemButton>
+                            );
+                          })}
+                        {descriptors.filter(d =>
+                          !nodeFilter ||
+                          d.name.toLowerCase().includes(nodeFilter.toLowerCase()) ||
+                          d.kind.toLowerCase().includes(nodeFilter.toLowerCase()) ||
+                          d.category.toLowerCase().includes(nodeFilter.toLowerCase())
+                        ).length === 0 && (
+                          <Box sx={{ p: 1.5, textAlign: "center" }}>
+                            <Typography variant="caption" sx={{ color: tokens.text.tertiary }}>{t("pipeline.commandPalette.empty")}</Typography>
                           </Box>
-                          <Box>
-                            <Typography variant="body2" sx={{ fontSize: "0.8rem", fontWeight: 600 }}>{d.name}</Typography>
-                            <Typography variant="caption" sx={{ fontSize: "0.65rem", color: tokens.text.tertiary }}>{d.description.slice(0, 45)}</Typography>
-                          </Box>
-                        </MenuItem>
-                      );
-                    })}
-                </Menu>
-              </Box>
+                        )}
+                      </List>
+                    </Paper>
+                  </Popper>
+                </Box>
+              </ClickAwayListener>
             )}
 
             {/* Log panel drag handle */}
@@ -1087,6 +1719,129 @@ export default function PipelineEditor() {
           <PipelineInspector pipeline={selected} />
         </Box>
       </Box>
+
+      {/* Delete node confirmation dialog */}
+      <Dialog
+        open={Boolean(deleteConfirm)}
+        onClose={() => setDeleteConfirm(null)}
+        PaperProps={{
+          sx: {
+            bgcolor: tokens.bg.panel,
+            border: `1px solid ${tokens.border.default}`,
+            borderRadius: tokens.radius.lg,
+            minWidth: 360,
+          },
+        }}
+      >
+        <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700 }}>
+          {t("pipeline.editor.deleteNodeTitle")}
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ fontSize: "0.85rem", color: tokens.text.secondary }}>
+            {t("pipeline.editor.deleteNodeMessage", { name: deleteConfirm?.label ?? "" })}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setDeleteConfirm(null)} sx={{ color: tokens.text.secondary }}>
+            {t("common.cancel")}
+          </Button>
+          <Button
+            onClick={handleDeleteNodeConfirm}
+            variant="contained"
+            color="error"
+            sx={{ fontWeight: 600 }}
+          >
+            {t("common.delete")}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Help overlay */}
+      {showHelp && (
+        <Box
+          onClick={() => setShowHelp(false)}
+          onKeyDown={(e) => { if (e.key === "Escape") setShowHelp(false); }}
+          tabIndex={-1}
+          sx={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1300,
+            bgcolor: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            animation: "fadeInOverlay 150ms ease",
+            "@keyframes fadeInOverlay": { from: { opacity: 0 }, to: { opacity: 1 } },
+          }}
+        >
+          <Paper
+            onClick={(e) => e.stopPropagation()}
+            elevation={8}
+            sx={{
+              p: 3,
+              minWidth: 320,
+              maxWidth: 420,
+              bgcolor: tokens.bg.panel,
+              border: `1px solid ${tokens.border.default}`,
+              borderRadius: tokens.radius.lg,
+            }}
+          >
+            <Typography variant="h6" fontWeight={700} sx={{ mb: 2, fontSize: "1rem" }}>
+              {t("pipeline.help.title")}
+            </Typography>
+            {[
+              { key: "H", desc: t("pipeline.help.hKey") },
+              { key: "N", desc: t("pipeline.help.nKey") },
+              { key: "A", desc: t("pipeline.help.aKey") },
+              { key: "Del", desc: t("pipeline.help.delKey") },
+            ].map((shortcut) => (
+              <Box key={shortcut.key} sx={{ display: "flex", alignItems: "center", gap: 2, mb: 1.25 }}>
+                <Chip
+                  label={shortcut.key}
+                  size="small"
+                  sx={{
+                    fontFamily: "monospace",
+                    fontWeight: 700,
+                    fontSize: "0.76rem",
+                    minWidth: 44,
+                    bgcolor: tokens.bg.overlay,
+                    border: `1px solid ${tokens.border.default}`,
+                    borderRadius: tokens.radius.sm,
+                  }}
+                />
+                <Typography variant="body2" sx={{ fontSize: "0.82rem", color: tokens.text.secondary }}>
+                  {shortcut.desc}
+                </Typography>
+              </Box>
+            ))}
+            <Typography variant="caption" sx={{ color: tokens.text.tertiary, display: "block", mt: 2, fontSize: "0.7rem" }}>
+              {t("pipeline.help.close")}
+            </Typography>
+          </Paper>
+        </Box>
+      )}
+
+      {/* Node command palette (N key) */}
+      <Dialog
+        open={showCommandPalette}
+        onClose={() => setShowCommandPalette(false)}
+        PaperProps={{
+          sx: {
+            bgcolor: tokens.bg.panel,
+            border: `1px solid ${tokens.border.default}`,
+            borderRadius: tokens.radius.lg,
+            width: 400,
+            maxHeight: 480,
+            overflow: "hidden",
+          },
+        }}
+      >
+        <CommandPaletteContent
+          descriptors={descriptors}
+          onAdd={(desc) => { handleAddNode(desc); setShowCommandPalette(false); }}
+          onClose={() => setShowCommandPalette(false)}
+        />
+      </Dialog>
     </Box>
   );
 }

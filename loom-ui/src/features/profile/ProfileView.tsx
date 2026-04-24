@@ -3,16 +3,19 @@ import {
   Box, Typography, TextField, Button, Avatar, IconButton, Divider,
   ToggleButton, ToggleButtonGroup,
 } from "@mui/material";
-import { PhotoCameraOutlined } from "@mui/icons-material";
+import { PhotoCameraOutlined, DarkModeOutlined, LightModeOutlined } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { USERS } from "../../mock/data";
 import { useToast } from "../../context/ToastContext";
 import { useTranslation } from "react-i18next";
+import { useThemeMode } from "../../context/ThemeContext";
+import type { ThemeMode } from "../../context/ThemeContext";
 
 export default function ProfileView() {
   const user = USERS[0];
   const { showToast } = useToast();
   const { t, i18n } = useTranslation();
+  const { mode, setMode } = useThemeMode();
   const [language, setLanguage] = useState(i18n.language);
   const [firstName, setFirstName] = useState(user.name.split(" ")[0]);
   const [lastName, setLastName] = useState(user.name.split(" ").slice(1).join(" "));
@@ -152,6 +155,31 @@ export default function ProfileView() {
           </ToggleButton>
           <ToggleButton value="de" sx={{ px: 2, fontSize: "0.8rem", textTransform: "none" }}>
             🇩🇪 {t("profile.language.de")}
+          </ToggleButton>
+        </ToggleButtonGroup>
+      </Box>
+
+      {/* Appearance */}
+      <Box sx={{ mb: 3 }}>
+        <Typography
+          variant="body2"
+          fontWeight={600}
+          color="text.secondary"
+          sx={{ mb: 1.5, textTransform: "uppercase", fontSize: "0.72rem", letterSpacing: "0.07em" }}
+        >
+          {t("profile.appearance.label")}
+        </Typography>
+        <ToggleButtonGroup
+          value={mode}
+          exclusive
+          onChange={(_, v: ThemeMode | null) => { if (v) setMode(v); }}
+          size="small"
+        >
+          <ToggleButton value="dark" sx={{ px: 2, fontSize: "0.8rem", textTransform: "none", gap: 0.75 }}>
+            <DarkModeOutlined sx={{ fontSize: 16 }} /> {t("profile.appearance.dark")}
+          </ToggleButton>
+          <ToggleButton value="light" sx={{ px: 2, fontSize: "0.8rem", textTransform: "none", gap: 0.75 }}>
+            <LightModeOutlined sx={{ fontSize: 16 }} /> {t("profile.appearance.light")}
           </ToggleButton>
         </ToggleButtonGroup>
       </Box>

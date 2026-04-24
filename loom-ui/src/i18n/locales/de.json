@@ -337,6 +337,11 @@
       "en": "Englisch",
       "de": "Deutsch"
     },
+    "appearance": {
+      "label": "Erscheinungsbild",
+      "dark": "Dunkel",
+      "light": "Hell"
+    },
     "button": {
       "save": "Änderungen speichern"
     },
@@ -557,6 +562,14 @@
       "enabled": "Aktiviert",
       "addNode": "Knoten hinzufügen",
       "addNodeTooltip": "Einen Knoten zur Pipeline hinzufügen",
+      "tabVisual": "Visuell",
+      "tabJson": "JSON",
+      "deleteNodeTitle": "Knoten löschen",
+      "deleteNodeMessage": "Sind Sie sicher, dass Sie \"{{name}}\" löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.",
+      "connectionTypeError": "Verbindung nicht möglich — inkompatible Datentypen",
+      "filterNodes": "Knoten filtern…",
+      "jsonValid": "JSON gültig",
+      "jsonInvalid": "JSON ungültig",
       "source": "Quelle",
       "filter": "Filter",
       "process": "Verarbeitung",
@@ -664,6 +677,18 @@
       "processingLog": "Verarbeitungsprotokoll",
       "nodeState": "Knotenstatus (JSON)",
       "emptyHint": "Klicken Sie auf einen Knoten im Canvas, um seine Details anzuzeigen und zu bearbeiten"
+    },
+    "help": {
+      "title": "Tastenkombinationen",
+      "close": "H oder Escape zum Schließen",
+      "hKey": "Hilfe ein-/ausblenden",
+      "nKey": "Neuen Knoten hinzufügen",
+      "aKey": "Knoten automatisch anordnen",
+      "delKey": "Ausgewählten Knoten löschen"
+    },
+    "commandPalette": {
+      "placeholder": "Knoten suchen…",
+      "empty": "Keine passenden Knoten"
     }
   },
   "cortex": {
