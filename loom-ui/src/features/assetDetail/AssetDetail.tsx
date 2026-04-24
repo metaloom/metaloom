@@ -24,7 +24,6 @@ import {
   mockCommentService, mockTranscriptService,
   mockFaceDetectionService,
 } from "../../mock/services";
-import { USERS } from "../../mock/data";
 import { useAuth } from "../../context/AuthContext";
 import { loadAsset as apiLoadAsset, AssetResponse } from "../../api/assets";
 import { AnnotationResponseItem } from "../../api/annotations";
@@ -83,7 +82,7 @@ function formatBytes(bytes: number): string {
 }
 
 function userName(userId: string) {
-  return USERS.find(u => u.id === userId)?.name ?? userId;
+  return userId;
 }
 
 const reactionIcon: Record<string, React.ReactNode> = {
@@ -551,7 +550,7 @@ function TaskItem({ task, onClick }: { task: Task; onClick?: () => void }) {
         <Typography variant="caption" sx={{ color: tokens.text.secondary, fontSize: "0.78rem", display: "block", mb: 0.5 }}>{task.description}</Typography>
         <Box sx={{ display: "flex", gap: 0.75, alignItems: "center" }}>
           <Chip label={task.status.replace("_", " ")} size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: `${statusColor[task.status]}22`, color: statusColor[task.status] }} />
-          <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem" }}>→ {USERS.find(u => u.id === task.assigneeId)?.name ?? task.assigneeId}</Typography>
+          <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem" }}>→ {task.assigneeId}</Typography>
           {task.dueDate && <Typography variant="caption" sx={{ color: new Date(task.dueDate) < new Date() ? tokens.accent.red : tokens.text.tertiary, fontSize: "0.68rem", ml: "auto" }}>{new Date(task.dueDate).toLocaleDateString()}</Typography>}
         </Box>
       </Box>
@@ -1424,7 +1423,7 @@ export default function AssetDetail() {
                 {[
                   [tAD("taskDetail.status"), <Chip label={selectedTask.status.replace("_", " ")} size="small" sx={{ height: 18, fontSize: "0.7rem", bgcolor: `${{ open: tokens.accent.blue, in_progress: tokens.accent.amber, review: tokens.primary.main, done: tokens.accent.green, blocked: tokens.accent.red }[selectedTask.status]}22`, color: { open: tokens.accent.blue, in_progress: tokens.accent.amber, review: tokens.primary.main, done: tokens.accent.green, blocked: tokens.accent.red }[selectedTask.status] }} />],
                   [tAD("taskDetail.priority"), <Chip label={selectedTask.priority} size="small" sx={{ height: 18, fontSize: "0.7rem", bgcolor: `${{ critical: tokens.accent.red, high: tokens.accent.amber, medium: tokens.accent.blue, low: tokens.text.tertiary }[selectedTask.priority]}22`, color: { critical: tokens.accent.red, high: tokens.accent.amber, medium: tokens.accent.blue, low: tokens.text.tertiary }[selectedTask.priority], fontWeight: 700 }} />],
-                  [tAD("taskDetail.assignee"), <Typography sx={{ fontSize: "0.82rem", color: tokens.text.secondary }}>{USERS.find(u => u.id === selectedTask.assigneeId)?.name ?? selectedTask.assigneeId}</Typography>],
+                  [tAD("taskDetail.assignee"), <Typography sx={{ fontSize: "0.82rem", color: tokens.text.secondary }}>{selectedTask.assigneeId}</Typography>],
                   [tAD("taskDetail.dueDate"), <Typography sx={{ fontSize: "0.82rem", color: selectedTask.dueDate && new Date(selectedTask.dueDate) < new Date() ? tokens.accent.red : tokens.text.secondary }}>{selectedTask.dueDate ? new Date(selectedTask.dueDate).toLocaleDateString() : "—"}</Typography>],
                   [tAD("taskDetail.created"), <Typography sx={{ fontSize: "0.82rem", color: tokens.text.secondary }}>{new Date(selectedTask.createdAt).toLocaleDateString()}</Typography>],
                 ].map(([label, content], idx) => (

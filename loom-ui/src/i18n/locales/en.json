@@ -1,6 +1,7 @@
 {
   "common": {
     "cancel": "Cancel",
+    "close": "Close",
     "delete": "Delete",
     "save": "Save",
     "create": "Create",
@@ -356,7 +357,8 @@
     },
     "toast": {
       "saved": "Profile updated",
-      "updated": "Profile updated"
+      "updated": "Profile updated",
+      "error": "Failed to update profile"
     }
   },
   "chat": {
@@ -506,28 +508,19 @@
       "table": {
         "name": "Name",
         "keyId": "Key ID",
-        "owner": "Owner",
-        "scopes": "Scopes",
-        "lastUsed": "Last Used",
-        "expires": "Expires",
-        "status": "Status"
-      },
-      "status": {
-        "active": "active",
-        "inactive": "inactive"
+        "created": "Created"
       },
       "menu": {
-        "revoke": "Revoke Key",
         "delete": "Delete Key"
       },
       "dialog": {
         "create": "Create API Key",
         "keyName": "Key name",
         "keyPlaceholder": "e.g. CI Pipeline Key",
-        "permissions": "Permissions ({{count}})",
-        "expiry": "Expiry date (optional)",
         "creating": "Creating…",
-        "createKey": "Create Key"
+        "createKey": "Create Key",
+        "tokenCreated": "Token created successfully!",
+        "tokenWarning": "Copy this token now — it will not be shown again."
       }
     },
     "blacklist": {

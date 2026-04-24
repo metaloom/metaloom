@@ -50,6 +50,10 @@ import io.metaloom.loom.rest.model.role.RoleUpdateRequest;
 import io.metaloom.loom.rest.model.tag.TagCreateRequest;
 import io.metaloom.loom.rest.model.tag.TagListResponse;
 import io.metaloom.loom.rest.model.tag.TagResponse;
+import io.metaloom.loom.rest.model.token.TokenCreateRequest;
+import io.metaloom.loom.rest.model.token.TokenListResponse;
+import io.metaloom.loom.rest.model.token.TokenResponse;
+import io.metaloom.loom.rest.model.token.TokenUpdateRequest;
 import io.metaloom.loom.rest.model.user.UserCreateRequest;
 import io.metaloom.loom.rest.model.user.UserListResponse;
 import io.metaloom.loom.rest.model.user.UserResponse;
@@ -878,6 +882,62 @@ public class E2ETest {
 			ReactionListResponse listAfterDelete = client.listAssetReaction(assetId).sync().body();
 			assertEquals(initialCount, listAfterDelete.getData().size(), "Reaction count should return to initial after delete");
 			log.info("Reaction CRUD test passed");
+		}
+	}
+
+	/**
+	 * Verify token (API key) CRUD via REST API: list, create, load, update, delete.
+	 */
+	@Test
+	void testTokenCRUD() throws Exception {
+		try (LoomHttpClient client = LoomHttpClient.builder()
+			.setHostname("localhost")
+			.setReadTimeout(Duration.ofSeconds(30))
+			.setPort(REST_PORT)
+			.build()) {
+
+			AuthLoginResponse loginResp = client.login("admin", "finger").sync().body();
+			client.setToken(loginResp.getToken());
+
+			// List existing tokens (demo data should have created some)
+			TokenListResponse listResp = client.listTokens().sync().body();
+			assertNotNull(listResp, "Token list response should not be null");
+			assertNotNull(listResp.getData(), "Token list data should not be null");
+			int initialCount = listResp.getData().size();
+
+			// Create a token
+			TokenCreateRequest createReq = new TokenCreateRequest();
+			createReq.setName("e2e-test-token");
+			TokenResponse created = client.createToken(createReq).sync().body();
+			assertNotNull(created, "Created token should not be null");
+			assertNotNull(created.getUuid(), "Created token UUID should not be null");
+			assertEquals("e2e-test-token", created.getName());
+			assertNotNull(created.getToken(), "Created token value should not be null");
+			log.info("Created token: {} ({})", created.getName(), created.getUuid());
+
+			// Verify the token appears in the listing
+			TokenListResponse listAfterCreate = client.listTokens().sync().body();
+			assertTrue(listAfterCreate.getData().size() > initialCount, "Token list should have grown after create");
+
+			// Load the token by UUID
+			TokenResponse loaded = client.loadToken(created.getUuid()).sync().body();
+			assertNotNull(loaded, "Loaded token should not be null");
+			assertEquals(created.getUuid(), loaded.getUuid());
+			assertEquals("e2e-test-token", loaded.getName());
+
+			// Update the token
+			TokenUpdateRequest updateReq = new TokenUpdateRequest();
+			updateReq.setName("e2e-test-token-updated");
+			TokenResponse updated = client.updateToken(created.getUuid(), updateReq).sync().body();
+			assertNotNull(updated, "Updated token should not be null");
+
+			// Delete the token
+			client.deleteToken(created.getUuid()).sync().body();
+
+			// Verify the token is gone
+			TokenListResponse listAfterDelete = client.listTokens().sync().body();
+			assertEquals(initialCount, listAfterDelete.getData().size(), "Token count should return to initial after delete");
+			log.info("Token CRUD test passed");
 		}
 	}
 

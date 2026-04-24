@@ -1,6 +1,7 @@
 {
   "common": {
     "cancel": "Abbrechen",
+    "close": "Schließen",
     "delete": "Löschen",
     "save": "Speichern",
     "create": "Erstellen",
@@ -347,7 +348,8 @@
     },
     "toast": {
       "saved": "Profil aktualisiert",
-      "updated": "Profil aktualisiert"
+      "updated": "Profil aktualisiert",
+      "error": "Profil konnte nicht aktualisiert werden"
     }
   },
   "chat": {
@@ -497,28 +499,19 @@
       "table": {
         "name": "Name",
         "keyId": "Schlüssel-ID",
-        "owner": "Eigentümer",
-        "scopes": "Geltungsbereiche",
-        "lastUsed": "Zuletzt verwendet",
-        "expires": "Läuft ab",
-        "status": "Status"
-      },
-      "status": {
-        "active": "aktiv",
-        "inactive": "inaktiv"
+        "created": "Erstellt"
       },
       "menu": {
-        "revoke": "Schlüssel widerrufen",
         "delete": "Schlüssel löschen"
       },
       "dialog": {
         "create": "API-Schlüssel erstellen",
         "keyName": "Schlüsselname",
         "keyPlaceholder": "z. B. CI-Pipeline-Schlüssel",
-        "permissions": "Berechtigungen ({{count}})",
-        "expiry": "Ablaufdatum (optional)",
         "creating": "Wird erstellt…",
-        "createKey": "Schlüssel erstellen"
+        "createKey": "Schlüssel erstellen",
+        "tokenCreated": "Token erfolgreich erstellt!",
+        "tokenWarning": "Kopieren Sie dieses Token jetzt — es wird nicht erneut angezeigt."
       }
     },
     "blacklist": {

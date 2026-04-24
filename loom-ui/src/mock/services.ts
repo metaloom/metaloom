@@ -1,13 +1,12 @@
 import {
   Library, Asset, Comment,
-  ApiKey,
   BlacklistEntry, ChatMessage,
   TranscriptSection, DetectedFace, FaceCluster, Person,
 } from "../types";
 import {
   LIBRARIES, ASSETS,
   COMMENTS,
-  API_KEYS, BLACKLIST, INITIAL_CHAT,
+  BLACKLIST, INITIAL_CHAT,
   TRANSCRIPTS, DETECTED_FACES, FACE_CLUSTERS, PERSONS,
 } from "./data";
 
@@ -76,22 +75,6 @@ export const mockCommentService = {
 
 // ── Admin ─────────────────────────────────────────────────────────────────
 export const mockAdminService = {
-  getApiKeys: async (): Promise<ApiKey[]> => { await delay(120); return [...API_KEYS]; },
-  createApiKey: async (data: { name: string; scopes: string[]; expiresAt?: string }): Promise<ApiKey> => {
-    await delay(200);
-    const key: ApiKey = {
-      id: `k${Date.now()}`,
-      name: data.name,
-      prefix: `lm_${data.name.toLowerCase().replace(/\s+/g, "_").slice(0, 8)}_${Math.random().toString(36).slice(2, 6)}`,
-      ownerId: "u1",
-      scopes: data.scopes,
-      expiresAt: data.expiresAt,
-      createdAt: new Date().toISOString(),
-      active: true,
-    };
-    API_KEYS.push(key);
-    return key;
-  },
   getBlacklist: async (): Promise<BlacklistEntry[]> => { await delay(100); return [...BLACKLIST]; },
 };
 

@@ -1,6 +1,5 @@
 import {
   Library, Asset, Collection, Task, Comment,
-  User, Permission, ApiKey,
   BlacklistEntry, MetricSeries, ChatMessage,
   TranscriptSection, DetectedFace, FaceCluster, Person,
   DetectedObject,
@@ -23,37 +22,6 @@ function genPoints(base: number, count: number, variance: number, dayOffset = 0)
     value: Math.max(0, Math.round(base + (Math.random() - 0.5) * 2 * variance)),
   }));
 }
-
-// ── Users ─────────────────────────────────────────────────────────────────
-export const USERS: User[] = [
-  { id: "u1", name: "Aria Chen", email: "aria@metaloom.io", username: "aria", role: "admin", groupIds: ["g1", "g2"], active: true, createdAt: daysAgo(180), lastSeenAt: hoursAgo(1) },
-  { id: "u2", name: "Marcus Webb", email: "marcus@metaloom.io", username: "marcus", role: "editor", groupIds: ["g1"], active: true, createdAt: daysAgo(120), lastSeenAt: hoursAgo(4) },
-  { id: "u3", name: "Priya Suresh", email: "priya@metaloom.io", username: "priya", role: "editor", groupIds: ["g2"], active: true, createdAt: daysAgo(90), lastSeenAt: daysAgo(1) },
-  { id: "u4", name: "Tom Fischer", email: "tom@metaloom.io", username: "tom", role: "viewer", groupIds: ["g3"], active: true, createdAt: daysAgo(60), lastSeenAt: daysAgo(2) },
-  { id: "u5", name: "Sofia Reyes", email: "sofia@metaloom.io", username: "sofia", role: "operator", groupIds: ["g2", "g3"], active: true, createdAt: daysAgo(45), lastSeenAt: hoursAgo(6) },
-  { id: "u6", name: "Dev Build Bot", email: "bot@metaloom.io", username: "buildbot", role: "operator", groupIds: [], active: false, createdAt: daysAgo(200), lastSeenAt: daysAgo(10) },
-];
-
-// ── Permissions ───────────────────────────────────────────────────────────
-export const PERMISSIONS: Permission[] = [
-  { id: "p1", resource: "asset", action: "read", description: "View assets" },
-  { id: "p2", resource: "asset", action: "write", description: "Upload and edit assets" },
-  { id: "p3", resource: "asset", action: "delete", description: "Delete assets" },
-  { id: "p4", resource: "pipeline", action: "read", description: "View pipelines" },
-  { id: "p5", resource: "pipeline", action: "execute", description: "Run pipelines" },
-  { id: "p6", resource: "pipeline", action: "write", description: "Create and modify pipelines" },
-  { id: "p7", resource: "user", action: "manage", description: "Manage users" },
-  { id: "p8", resource: "collection", action: "write", description: "Manage collections" },
-  { id: "p9", resource: "task", action: "write", description: "Create and update tasks" },
-  { id: "p10", resource: "admin", action: "access", description: "Access admin panel" },
-];
-
-// ── API Keys ──────────────────────────────────────────────────────────────
-export const API_KEYS: ApiKey[] = [
-  { id: "k1", name: "CI Pipeline Key", prefix: "lm_ci_a8f2", ownerId: "u1", scopes: ["pipeline:execute","asset:read"], lastUsedAt: hoursAgo(2), createdAt: daysAgo(30), active: true },
-  { id: "k2", name: "Mobile App Key", prefix: "lm_mob_9d3b", ownerId: "u2", scopes: ["asset:read","collection:read"], lastUsedAt: daysAgo(1), createdAt: daysAgo(14), active: true },
-  { id: "k3", name: "Legacy Webhook", prefix: "lm_wh_7c1e", ownerId: "u5", scopes: ["asset:write"], lastUsedAt: daysAgo(45), expiresAt: daysAgo(-10), createdAt: daysAgo(90), active: false },
-];
 
 // ── Blacklist ─────────────────────────────────────────────────────────────
 export const BLACKLIST: BlacklistEntry[] = [

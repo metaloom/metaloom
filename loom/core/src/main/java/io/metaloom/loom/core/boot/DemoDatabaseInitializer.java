@@ -47,6 +47,8 @@ import io.metaloom.loom.db.model.tag.AssetTag;
 import io.metaloom.loom.db.model.tag.TagDao;
 import io.metaloom.loom.db.model.task.Task;
 import io.metaloom.loom.db.model.task.TaskDao;
+import io.metaloom.loom.db.model.token.Token;
+import io.metaloom.loom.db.model.token.TokenDao;
 import io.metaloom.loom.db.model.user.User;
 import io.metaloom.loom.db.model.user.UserDao;
 import io.metaloom.utils.UUIDUtils;
@@ -87,12 +89,13 @@ public class DemoDatabaseInitializer {
 	private final TaskDao taskDao;
 	private final AnnotationDao annotationDao;
 	private final ReactionDao reactionDao;
+	private final TokenDao tokenDao;
 
 	@Inject
 	public DemoDatabaseInitializer(UserDao userDao, AssetDao assetDao, SpaceDao spaceDao,
 		TagDao tagDao, CollectionDao collectionDao, LibraryDao libraryDao, PipelineDao pipelineDao, AssetPoolDao assetPoolDao,
 		GroupDao groupDao, RoleDao roleDao, PermissionDao permissionDao, TaskDao taskDao,
-		AnnotationDao annotationDao, ReactionDao reactionDao) {
+		AnnotationDao annotationDao, ReactionDao reactionDao, TokenDao tokenDao) {
 		this.userDao = userDao;
 		this.assetDao = assetDao;
 		this.spaceDao = spaceDao;
@@ -107,6 +110,7 @@ public class DemoDatabaseInitializer {
 		this.taskDao = taskDao;
 		this.annotationDao = annotationDao;
 		this.reactionDao = reactionDao;
+		this.tokenDao = tokenDao;
 	}
 
 	/**
@@ -267,6 +271,10 @@ public class DemoDatabaseInitializer {
 		groupDao.addRoleToGroup(editorsGroup, editorRole);
 		groupDao.addRoleToGroup(viewersGroup, viewerRole);
 		log.info("Assigned roles to groups");
+
+		// --- Tokens (API Keys) ---
+		createDemoToken(admin, "CI Pipeline Key", "demo-ci-token-value");
+		createDemoToken(admin, "Mobile App Key", "demo-mobile-token-value");
 
 		// --- Assets ---
 		Asset[] imageAssets = {
@@ -547,5 +555,17 @@ public class DemoDatabaseInitializer {
 			.put("id", id)
 			.put("source", source)
 			.put("target", target);
+	}
+
+	private Token createDemoToken(User admin, String name, String tokenValue) {
+		Token token = tokenDao.createToken(admin.getUuid(), name, tokenValue);
+		token.setUuid(UUIDUtils.randomUUID());
+		token.setCreator(admin);
+		token.setEditor(admin);
+		token.setCreated(Instant.now());
+		token.setEdited(Instant.now());
+		tokenDao.store(token);
+		log.info("Created demo token: {}", name);
+		return token;
 	}
 }

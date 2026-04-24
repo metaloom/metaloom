@@ -17,7 +17,7 @@ import {
 } from "@mui/icons-material";
 import { Menu } from "@mui/material";
 import { tokens } from "../../theme";
-import { Permission, ApiKey, BlacklistEntry } from "../../types";
+import { BlacklistEntry } from "../../types";
 import { mockAdminService } from "../../mock/services";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -36,6 +36,10 @@ import {
   listSpaces, createSpace, updateSpace, deleteSpace,
   SpaceResponse,
 } from "../../api/spaces";
+import {
+  listTokens, createToken, deleteToken as deleteTokenApi,
+  TokenResponse,
+} from "../../api/tokens";
 
 // ── Spaces Table ──────────────────────────────────────────────────────────
 function SpacesAdmin() {
@@ -911,54 +915,40 @@ const PERMISSION_GROUPS: Record<string, string[]> = {
 
 function ApiKeysAdmin() {
   const { t } = useTranslation();
-  const [keys, setKeys] = useState<ApiKey[]>([]);
+  const { token: authToken } = useAuth();
+  const [keys, setKeys] = useState<TokenResponse[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
-  const [newPermissions, setNewPermissions] = useState<string[]>([]);
-  const [newExpiry, setNewExpiry] = useState("");
   const [creating, setCreating] = useState(false);
   const [query, setQuery] = useState("");
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [menuKeyId, setMenuKeyId] = useState<string | null>(null);
+  const [createdToken, setCreatedToken] = useState<string | null>(null);
 
   useEffect(() => {
-    mockAdminService.getApiKeys().then(setKeys);
-  }, []);
+    if (!authToken) return;
+    listTokens(authToken).then(res => setKeys(res.data ?? [])).catch(() => {});
+  }, [authToken]);
 
   const handleCreate = async () => {
-    if (!newName.trim() || newPermissions.length === 0) return;
+    if (!authToken || !newName.trim()) return;
     setCreating(true);
     try {
-      const key = await mockAdminService.createApiKey({
-        name: newName.trim(),
-        scopes: newPermissions,
-        expiresAt: newExpiry || undefined,
-      });
-      setKeys(prev => [...prev, key]);
-      setCreateOpen(false);
+      const created = await createToken(authToken, { name: newName.trim() });
+      setKeys(prev => [...prev, created]);
       setNewName("");
-      setNewPermissions([]);
-      setNewExpiry("");
+      setCreatedToken(created.token ?? null);
     } finally {
       setCreating(false);
     }
   };
 
-  const togglePermission = (perm: string) => {
-    setNewPermissions(prev => prev.includes(perm) ? prev.filter(s => s !== perm) : [...prev, perm]);
-  };
-
-  const toggleGroup = (group: string) => {
-    setExpandedGroups(prev => {
-      const next = new Set(prev);
-      if (next.has(group)) next.delete(group); else next.add(group);
-      return next;
-    });
-  };
-
-  const handleRevoke = (keyId: string) => {
-    setKeys(prev => prev.map(k => k.id === keyId ? { ...k, active: false } : k));
+  const handleDelete = async (uuid: string) => {
+    if (!authToken) return;
+    try {
+      await deleteTokenApi(authToken, uuid);
+      setKeys(prev => prev.filter(k => k.uuid !== uuid));
+    } catch { /* ignore */ }
     setMenuAnchor(null); setMenuKeyId(null);
   };
 
@@ -972,7 +962,7 @@ function ApiKeysAdmin() {
           </Box>
           <Typography variant="caption" color="text.secondary">{keys.length} {t("admin.apiKeys.count")}</Typography>
         </Box>
-        <Button startIcon={<VpnKeyOutlined />} variant="contained" size="small" onClick={() => setCreateOpen(true)}>
+        <Button startIcon={<VpnKeyOutlined />} variant="contained" size="small" onClick={() => { setCreateOpen(true); setCreatedToken(null); }}>
           {t("admin.apiKeys.createKey")}
         </Button>
       </Box>
@@ -997,11 +987,7 @@ function ApiKeysAdmin() {
             <TableRow>
               <TableCell>{t("admin.apiKeys.table.name")}</TableCell>
               <TableCell>{t("admin.apiKeys.table.keyId")}</TableCell>
-              <TableCell>{t("admin.apiKeys.table.owner")}</TableCell>
-              <TableCell>{t("admin.apiKeys.table.scopes")}</TableCell>
-              <TableCell>{t("admin.apiKeys.table.lastUsed")}</TableCell>
-              <TableCell>{t("admin.apiKeys.table.expires")}</TableCell>
-              <TableCell>{t("admin.apiKeys.table.status")}</TableCell>
+              <TableCell>{t("admin.apiKeys.table.created")}</TableCell>
               <TableCell align="right" />
             </TableRow>
           </TableHead>
@@ -1009,46 +995,24 @@ function ApiKeysAdmin() {
             {keys.filter(k => {
               if (!query.trim()) return true;
               const q = query.toLowerCase();
-              return k.name.toLowerCase().includes(q) || k.ownerId.toLowerCase().includes(q) || k.scopes.some(s => s.toLowerCase().includes(q));
-            }).map(k => {
-              const expired = k.expiresAt && new Date(k.expiresAt) < new Date();
-              return (
-                <TableRow key={k.id} hover>
-                  <TableCell><Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.82rem" }}>{k.name}</Typography></TableCell>
-                  <TableCell><Typography variant="caption" sx={{ fontFamily: "monospace", color: tokens.text.secondary, bgcolor: tokens.bg.overlay, px: 0.75, py: 0.25, borderRadius: tokens.radius.sm }}>{k.id.slice(0, 16)}…</Typography></TableCell>
-                  <TableCell><Typography variant="caption" color="text.secondary">{k.ownerId}</Typography></TableCell>
-                  <TableCell>
-                    <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
-                      {k.scopes.slice(0, 3).map(s => <Chip key={s} label={s} size="small" sx={{ height: 16, fontSize: "0.62rem", fontFamily: "monospace" }} />)}
-                      {k.scopes.length > 3 && <Chip label={`+${k.scopes.length - 3}`} size="small" sx={{ height: 16, fontSize: "0.62rem" }} />}
-                    </Box>
-                  </TableCell>
-                  <TableCell><Typography variant="caption" color="text.secondary">{k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleDateString() : "—"}</Typography></TableCell>
-                  <TableCell><Typography variant="caption" sx={{ color: expired ? tokens.accent.red : "text.secondary" }}>{k.expiresAt ? new Date(k.expiresAt).toLocaleDateString() : t("common.never")}</Typography></TableCell>
-                  <TableCell>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
-                      <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: k.active && !expired ? tokens.accent.green : tokens.accent.red }} />
-                      <Typography variant="caption" sx={{ fontSize: "0.7rem", color: k.active && !expired ? tokens.accent.green : tokens.accent.red }}>
-                        {k.active && !expired ? t("admin.apiKeys.status.active") : t("admin.apiKeys.status.inactive")}
-                      </Typography>
-                    </Box>
-                  </TableCell>
-                  <TableCell align="right">
-                    <IconButton size="small" onClick={e => { setMenuKeyId(k.id); setMenuAnchor(e.currentTarget); }}>
-                      <MoreVertOutlined sx={{ fontSize: 15 }} />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
+              return k.name.toLowerCase().includes(q) || k.uuid.toLowerCase().includes(q);
+            }).map(k => (
+              <TableRow key={k.uuid} hover>
+                <TableCell><Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.82rem" }}>{k.name}</Typography></TableCell>
+                <TableCell><Typography variant="caption" sx={{ fontFamily: "monospace", color: tokens.text.secondary, bgcolor: tokens.bg.overlay, px: 0.75, py: 0.25, borderRadius: tokens.radius.sm }}>{k.uuid.slice(0, 16)}…</Typography></TableCell>
+                <TableCell><Typography variant="caption" color="text.secondary">{k.status?.created ? new Date(k.status.created).toLocaleDateString() : "—"}</Typography></TableCell>
+                <TableCell align="right">
+                  <IconButton size="small" onClick={e => { setMenuKeyId(k.uuid); setMenuAnchor(e.currentTarget); }}>
+                    <MoreVertOutlined sx={{ fontSize: 15 }} />
+                  </IconButton>
+                </TableCell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
       </TableContainer>
       <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => { setMenuAnchor(null); setMenuKeyId(null); }}>
-        <MenuItem onClick={() => menuKeyId && handleRevoke(menuKeyId)} sx={{ gap: 1, fontSize: "0.82rem", color: tokens.accent.red }}>
-          <VpnKeyOutlined sx={{ fontSize: 16 }} /> {t("admin.apiKeys.menu.revoke")}
-        </MenuItem>
-        <MenuItem onClick={() => { if (menuKeyId) setKeys(prev => prev.filter(k => k.id !== menuKeyId)); setMenuAnchor(null); setMenuKeyId(null); }} sx={{ gap: 1, fontSize: "0.82rem", color: tokens.accent.red }}>
+        <MenuItem onClick={() => menuKeyId && handleDelete(menuKeyId)} sx={{ gap: 1, fontSize: "0.82rem", color: tokens.accent.red }}>
           <DeleteOutlineOutlined sx={{ fontSize: 16 }} /> {t("admin.apiKeys.menu.delete")}
         </MenuItem>
       </Menu>
@@ -1074,71 +1038,34 @@ function ApiKeysAdmin() {
               fullWidth
               autoFocus
             />
-            <Box>
-              <Typography variant="caption" fontWeight={600} sx={{ color: tokens.text.secondary, textTransform: "uppercase", letterSpacing: "0.06em", fontSize: "0.7rem", mb: 1, display: "block" }}>
-                {t("admin.apiKeys.dialog.permissions", { count: newPermissions.length })}
-              </Typography>
-              <Box sx={{ maxHeight: 320, overflow: "auto", display: "flex", flexDirection: "column", gap: 0.5 }}>
-                {Object.entries(PERMISSION_GROUPS).map(([group, perms]) => {
-                  const selected = perms.filter(p => newPermissions.includes(p));
-                  const allSelected = selected.length === perms.length;
-                  const expanded = expandedGroups.has(group);
-                  return (
-                    <Paper key={group} variant="outlined" sx={{ bgcolor: tokens.bg.overlay, border: `1px solid ${tokens.border}` }}>
-                      <Box sx={{ display: "flex", alignItems: "center", px: 1.5, py: 0.5, cursor: "pointer" }} onClick={() => toggleGroup(group)}>
-                        <Checkbox
-                          size="small"
-                          checked={allSelected}
-                          indeterminate={selected.length > 0 && !allSelected}
-                          onChange={() => {
-                            if (allSelected) setNewPermissions(prev => prev.filter(p => !perms.includes(p)));
-                            else setNewPermissions(prev => [...new Set([...prev, ...perms])]);
-                          }}
-                          onClick={e => e.stopPropagation()}
-                          sx={{ p: 0.25, mr: 1, color: tokens.text.tertiary, "&.Mui-checked": { color: tokens.primary.main } }}
-                        />
-                        <Typography variant="caption" fontWeight={600} sx={{ flex: 1, fontSize: "0.75rem" }}>{group}</Typography>
-                        <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.65rem", mr: 0.5 }}>{selected.length}/{perms.length}</Typography>
-                        {expanded ? <ExpandLessOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} /> : <ExpandMoreOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />}
-                      </Box>
-                      <Collapse in={expanded}>
-                        <Box sx={{ px: 1.5, pb: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0 }}>
-                          {perms.map(p => (
-                            <FormControlLabel
-                              key={p}
-                              control={<Checkbox size="small" checked={newPermissions.includes(p)} onChange={() => togglePermission(p)} sx={{ py: 0.15, color: tokens.text.tertiary, "&.Mui-checked": { color: tokens.primary.main } }} />}
-                              label={<Typography variant="caption" sx={{ fontFamily: "monospace", fontSize: "0.68rem" }}>{p}</Typography>}
-                            />
-                          ))}
-                        </Box>
-                      </Collapse>
-                    </Paper>
-                  );
-                })}
+            {createdToken && (
+              <Box sx={{ p: 1.5, bgcolor: tokens.bg.overlay, borderRadius: tokens.radius.sm, border: `1px solid ${tokens.border.subtle}` }}>
+                <Typography variant="caption" fontWeight={600} sx={{ color: tokens.accent.green, display: "block", mb: 0.5 }}>
+                  {t("admin.apiKeys.dialog.tokenCreated")}
+                </Typography>
+                <Typography variant="body2" sx={{ fontFamily: "monospace", fontSize: "0.82rem", wordBreak: "break-all" }}>
+                  {createdToken}
+                </Typography>
+                <Typography variant="caption" sx={{ color: tokens.accent.red, display: "block", mt: 0.5 }}>
+                  {t("admin.apiKeys.dialog.tokenWarning")}
+                </Typography>
               </Box>
-            </Box>
-            <TextField
-              label={t("admin.apiKeys.dialog.expiry")}
-              type="date"
-              value={newExpiry}
-              onChange={e => setNewExpiry(e.target.value)}
-              size="small"
-              fullWidth
-              InputLabelProps={{ shrink: true }}
-            />
+            )}
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
-          <Button size="small" onClick={() => setCreateOpen(false)}>{t("common.cancel")}</Button>
-          <Button
-            size="small"
-            variant="contained"
-            onClick={handleCreate}
-            disabled={!newName.trim() || newPermissions.length === 0 || creating}
-            startIcon={<VpnKeyOutlined />}
-          >
-            {creating ? t("admin.apiKeys.dialog.creating") : t("admin.apiKeys.dialog.createKey")}
-          </Button>
+          <Button size="small" onClick={() => setCreateOpen(false)}>{createdToken ? t("common.close") : t("common.cancel")}</Button>
+          {!createdToken && (
+            <Button
+              size="small"
+              variant="contained"
+              onClick={handleCreate}
+              disabled={!newName.trim() || creating}
+              startIcon={<VpnKeyOutlined />}
+            >
+              {creating ? t("admin.apiKeys.dialog.creating") : t("admin.apiKeys.dialog.createKey")}
+            </Button>
+          )}
         </DialogActions>
       </Dialog>
     </Box>

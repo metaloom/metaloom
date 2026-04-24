@@ -1,26 +1,53 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box, Typography, TextField, Button, Avatar, IconButton, Divider,
-  ToggleButton, ToggleButtonGroup,
+  ToggleButton, ToggleButtonGroup, CircularProgress,
 } from "@mui/material";
 import { PhotoCameraOutlined, DarkModeOutlined, LightModeOutlined } from "@mui/icons-material";
 import { tokens } from "../../theme";
-import { USERS } from "../../mock/data";
+import { useAuth } from "../../context/AuthContext";
+import { loadUser, updateUser, UserResponse } from "../../api/users";
 import { useToast } from "../../context/ToastContext";
 import { useTranslation } from "react-i18next";
 import { useThemeMode } from "../../context/ThemeContext";
 import type { ThemeMode } from "../../context/ThemeContext";
 
+/** Decode the payload of a JWT (no validation, just base64 parse). */
+function decodeJwtPayload(jwt: string): Record<string, unknown> {
+  const parts = jwt.split(".");
+  if (parts.length < 2) return {};
+  const payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+  return JSON.parse(atob(payload));
+}
+
 export default function ProfileView() {
-  const user = USERS[0];
+  const { token: authToken, username: authUsername } = useAuth();
   const { showToast } = useToast();
   const { t, i18n } = useTranslation();
   const { mode, setMode } = useThemeMode();
   const [language, setLanguage] = useState(i18n.language);
-  const [firstName, setFirstName] = useState(user.name.split(" ")[0]);
-  const [lastName, setLastName] = useState(user.name.split(" ").slice(1).join(" "));
-  const [email, setEmail] = useState(user.email);
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(user.avatarUrl ?? null);
+  const [user, setUser] = useState<UserResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!authToken) return;
+    const payload = decodeJwtPayload(authToken);
+    const uuid = payload.uuid as string | undefined;
+    if (!uuid) { setLoading(false); return; }
+    loadUser(authToken, uuid)
+      .then(u => {
+        setUser(u);
+        setFirstName(u.firstname ?? "");
+        setLastName(u.lastname ?? "");
+        setEmail(u.email ?? "");
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [authToken]);
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -38,11 +65,28 @@ export default function ProfileView() {
     setLanguage(lang);
   };
 
-  const handleSave = () => {
-    user.name = `${firstName} ${lastName}`.trim();
-    user.email = email;
-    showToast(t("profile.toast.saved"), "success");
+  const handleSave = async () => {
+    if (!authToken || !user) return;
+    try {
+      const updated = await updateUser(authToken, user.uuid, {
+        firstname: firstName,
+        lastname: lastName,
+        email,
+      });
+      setUser(updated);
+      showToast(t("profile.toast.saved"), "success");
+    } catch {
+      showToast(t("profile.toast.error"), "error");
+    }
   };
+
+  if (loading) {
+    return (
+      <Box sx={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center" }}>
+        <CircularProgress size={32} />
+      </Box>
+    );
+  }
 
   const initials = `${firstName[0] ?? ""}${lastName[0] ?? ""}`.toUpperCase();
 
@@ -89,7 +133,7 @@ export default function ProfileView() {
             {firstName} {lastName}
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            {user.role} &middot; {user.username}
+            {user?.username ?? authUsername}
           </Typography>
         </Box>
       </Box>
@@ -124,16 +168,9 @@ export default function ProfileView() {
           label={t("profile.field.username")}
           size="small"
           fullWidth
-          value={user.username}
+          value={user?.username ?? authUsername ?? ""}
           disabled
           helperText={t("profile.field.usernameHelper")}
-        />
-        <TextField
-          label={t("profile.field.role")}
-          size="small"
-          fullWidth
-          value={user.role}
-          disabled
         />
       </Box>
 

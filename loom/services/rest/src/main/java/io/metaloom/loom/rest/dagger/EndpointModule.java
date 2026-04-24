@@ -32,6 +32,7 @@ import io.metaloom.loom.rest.endpoint.impl.RESTInfoEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.RoleEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.TagEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.TaskEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.TokenEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.UserEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.WebhookEndpoint;
 
@@ -66,6 +67,7 @@ public class EndpointModule {
 		CommentEndpoint commentEndpoint,
 		AttachmentEndpoint attachmentEndpoint,
 		ReactionEndpoint reactionEndpoint,
+		TokenEndpoint tokenEndpoint,
 		NodeDescriptorEndpoint nodeDescriptorEndpoint) {
 		return new HashSet<>(Arrays.asList(
 			userEndpoint,
@@ -92,6 +94,7 @@ public class EndpointModule {
 			attachmentEndpoint,
 			commentEndpoint,
 			reactionEndpoint,
+			tokenEndpoint,
 			nodeDescriptorEndpoint));
 	}
 }
