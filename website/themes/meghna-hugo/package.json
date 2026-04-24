@@ -4,13 +4,14 @@
     "main": "index.js",
     "license": "MIT",
     "scripts": {
-      "build": "parcel build -d assets/css less/*.less",
-      "watch": "parcel watch -d assets/css less/*.less"
+      "build": "lessc less/main.less assets/css/main.css && postcss assets/css/main.css --use cssnano --map -o assets/css/main.css",
+      "watch": "lessc less/main.less assets/css/main.css --watch"
     },
     "devDependencies": {
-      "cssnano": "^4.1.0",
-      "less": "^3.8.1",
-      "parcel-bundler": "^1.9.7"
+      "cssnano": "^7.0.0",
+      "less": "^4.2.0",
+      "postcss": "^8.5.0",
+      "postcss-cli": "^11.0.0"
     }
   }
   
