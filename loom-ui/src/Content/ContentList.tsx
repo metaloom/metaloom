@@ -1,5 +1,5 @@
 import * as React from "react";
-import Title from "../Demo/Title";
+import Title from "../components/Title";
 import { Link as RouterLink } from "react-router-dom";
 import { Link as MaterialLink } from "@mui/material";
 

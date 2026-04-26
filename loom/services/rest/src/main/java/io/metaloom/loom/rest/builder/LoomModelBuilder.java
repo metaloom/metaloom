@@ -22,6 +22,7 @@ public interface LoomModelBuilder extends
 	TaskModelBuilder,
 	TokenModelBuilder,
 	LibraryModelBuilder,
+	PersonModelBuilder,
 	PipelineModelBuilder,
 	SpaceModelBuilder,
 	ReactionModelBuilder,

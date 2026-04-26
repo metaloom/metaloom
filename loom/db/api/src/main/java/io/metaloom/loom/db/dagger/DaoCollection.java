@@ -21,6 +21,7 @@ import io.metaloom.loom.db.model.tag.TagDao;
 import io.metaloom.loom.db.model.task.TaskDao;
 import io.metaloom.loom.db.model.token.TokenDao;
 import io.metaloom.loom.db.model.user.UserDao;
+import io.metaloom.loom.db.model.person.PersonDao;
 import io.metaloom.loom.db.model.webhook.WebhookDao;import io.metaloom.loom.db.model.pipeline.PipelineDao;
 import io.metaloom.loom.db.model.pool.AssetPoolDao;
 /**
@@ -95,5 +96,9 @@ public interface DaoCollection {
 	// Asset Pool
 
 	AssetPoolDao assetPoolDao();
+
+	// Person
+
+	PersonDao personDao();
 
 }

@@ -17,6 +17,7 @@ import io.metaloom.loom.db.model.comment.CommentDao;
 import io.metaloom.loom.db.model.embedding.EmbeddingDao;
 import io.metaloom.loom.db.model.group.GroupDao;
 import io.metaloom.loom.db.model.library.LibraryDao;
+import io.metaloom.loom.db.model.person.PersonDao;
 import io.metaloom.loom.db.model.pipeline.PipelineDao;
 import io.metaloom.loom.db.model.pool.AssetPoolDao;
 import io.metaloom.loom.db.model.perm.PermissionDao;
@@ -56,6 +57,7 @@ public class DaoCollectionImpl implements DaoCollection {
 	private final Lazy<TagDao> tagDao;
 	private final Lazy<PipelineDao> pipelineDao;
 	private final Lazy<AssetPoolDao> assetPoolDao;
+	private final Lazy<PersonDao> personDao;
 
 	@Inject
 	public DaoCollectionImpl(Lazy<UserDao> userDao, Lazy<PermissionDao> permissionDao,
@@ -66,7 +68,7 @@ public class DaoCollectionImpl implements DaoCollection {
 		Lazy<BlacklistDao> blacklistDao, Lazy<CommentDao> commentDao, Lazy<SpaceDao> spaceDao,
 		Lazy<ClusterDao> clusterDao, Lazy<EmbeddingDao> embeddingDao, Lazy<TokenDao> tokenDao,
 		Lazy<TagDao> tagDao, Lazy<AttachmentDao> attachmentDao, Lazy<PipelineDao> pipelineDao,
-		Lazy<AssetPoolDao> assetPoolDao) {
+		Lazy<AssetPoolDao> assetPoolDao, Lazy<PersonDao> personDao) {
 		this.userDao = userDao;
 		this.groupDao = groupDao;
 		this.roleDao = roleDao;
@@ -91,6 +93,7 @@ public class DaoCollectionImpl implements DaoCollection {
 		this.attachmentDao = attachmentDao;
 		this.pipelineDao = pipelineDao;
 		this.assetPoolDao = assetPoolDao;
+		this.personDao = personDao;
 	}
 
 	@Override
@@ -211,5 +214,10 @@ public class DaoCollectionImpl implements DaoCollection {
 	@Override
 	public AssetPoolDao assetPoolDao() {
 		return assetPoolDao.get();
+	}
+
+	@Override
+	public PersonDao personDao() {
+		return personDao.get();
 	}
 }

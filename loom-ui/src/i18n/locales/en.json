@@ -821,7 +821,8 @@
       "addPerson": "Add Person",
       "cancel": "Cancel",
       "create": "Create",
-      "assign": "Assign"
+      "assign": "Assign",
+      "save": "Save"
     },
     "count": {
       "faces": "{{count}} faces",
@@ -830,7 +831,10 @@
     "label": {
       "since": "since {{date}}",
       "name": "Name",
-      "description": "Description"
+      "description": "Description",
+      "alias": "Alias",
+      "firstname": "First Name",
+      "lastname": "Last Name"
     },
     "tooltip": {
       "assign": "Assign to person"
@@ -841,6 +845,7 @@
     },
     "dialog": {
       "addPerson": "Add Person",
+      "editPerson": "Edit Person",
       "assign": "Assign Cluster to Person",
       "selectPerson": "Select a person…"
     }

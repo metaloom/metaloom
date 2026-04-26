@@ -1,5 +1,5 @@
 import * as React from "react";
-import Title from "../Demo/Title";
+import Title from "../components/Title";
 import Grid from "@mui/material/Grid";
 import Paper from "@mui/material/Paper";
 import { Link as RouterLink } from "react-router-dom";

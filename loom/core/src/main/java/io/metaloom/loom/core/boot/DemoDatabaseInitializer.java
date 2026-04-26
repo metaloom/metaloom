@@ -27,6 +27,8 @@ import io.metaloom.loom.db.model.asset.AssetTranscriptComp;
 import io.metaloom.loom.db.model.asset.AssetVideoComp;
 import io.metaloom.loom.db.model.blacklist.Blacklist;
 import io.metaloom.loom.db.model.blacklist.BlacklistDao;
+import io.metaloom.loom.db.model.person.Person;
+import io.metaloom.loom.db.model.person.PersonDao;
 import io.metaloom.loom.db.model.collection.Collection;
 import io.metaloom.loom.db.model.collection.CollectionDao;
 import io.metaloom.loom.db.model.comment.Comment;
@@ -96,13 +98,14 @@ public class DemoDatabaseInitializer {
 	private final TokenDao tokenDao;
 	private final CommentDao commentDao;
 	private final BlacklistDao blacklistDao;
+	private final PersonDao personDao;
 
 	@Inject
 	public DemoDatabaseInitializer(UserDao userDao, AssetDao assetDao, SpaceDao spaceDao,
 		TagDao tagDao, CollectionDao collectionDao, LibraryDao libraryDao, PipelineDao pipelineDao, AssetPoolDao assetPoolDao,
 		GroupDao groupDao, RoleDao roleDao, PermissionDao permissionDao, TaskDao taskDao,
 		AnnotationDao annotationDao, ReactionDao reactionDao, TokenDao tokenDao,
-		CommentDao commentDao, BlacklistDao blacklistDao) {
+		CommentDao commentDao, BlacklistDao blacklistDao, PersonDao personDao) {
 		this.userDao = userDao;
 		this.assetDao = assetDao;
 		this.spaceDao = spaceDao;
@@ -120,6 +123,7 @@ public class DemoDatabaseInitializer {
 		this.tokenDao = tokenDao;
 		this.commentDao = commentDao;
 		this.blacklistDao = blacklistDao;
+		this.personDao = personDao;
 	}
 
 	/**
@@ -405,6 +409,12 @@ public class DemoDatabaseInitializer {
 		createBlacklist(admin, videoAssets[1], "Copyright strike - pending review");
 		log.info("Created {} demo blacklist entries", 2);
 
+		// --- Persons ---
+		createPerson(admin, "jdoe", "John", "Doe");
+		createPerson(admin, "asmith", "Alice", "Smith");
+		createPerson(admin, "bwilson", "Bob", "Wilson");
+		log.info("Created {} demo persons", 3);
+
 		log.info("Demo data initialization complete — created {} assets, {} tags, {} collections, {} pipelines, {} users, {} groups, {} roles, {} tasks, {} annotations, {} reactions.",
 			imageAssets.length + videoAssets.length + audioAssets.length + docAssets.length,
 			8, 2, 3, 2, 2, 2, 3, 3, 3);
@@ -457,6 +467,20 @@ public class DemoDatabaseInitializer {
 		blacklistDao.store(blacklist);
 		log.info("Created demo blacklist entry: {}", name);
 		return blacklist;
+	}
+
+	private Person createPerson(User admin, String alias, String firstname, String lastname) {
+		Person person = personDao.createPerson(admin.getUuid(), alias);
+		person.setUuid(UUIDUtils.randomUUID());
+		person.setFirstname(firstname);
+		person.setLastname(lastname);
+		person.setCreator(admin);
+		person.setEditor(admin);
+		person.setCreated(Instant.now());
+		person.setEdited(Instant.now());
+		personDao.store(person);
+		log.info("Created demo person: {} ({} {})", alias, firstname, lastname);
+		return person;
 	}
 
 	private AssetTag createAssetTag(User admin, String name, String collection) {

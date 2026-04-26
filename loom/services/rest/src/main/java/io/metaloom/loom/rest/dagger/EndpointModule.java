@@ -23,6 +23,7 @@ import io.metaloom.loom.rest.endpoint.impl.GroupEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.NodeDescriptorEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.LibraryEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.OAuth2Endpoint;
+import io.metaloom.loom.rest.endpoint.impl.PersonEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.PipelineEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.PipelineEventEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.ProcessorEndpoint;
@@ -59,6 +60,7 @@ public class EndpointModule {
 		TagEndpoint tagEndpoint,
 		WebhookEndpoint webhookEndpoint,
 		LibraryEndpoint libraryEndpoint,
+		PersonEndpoint personEndpoint,
 		PipelineEndpoint pipelineEndpoint,
 		PipelineEventEndpoint pipelineEventEndpoint,
 		ProcessorEndpoint processorEndpoint,
@@ -87,6 +89,7 @@ public class EndpointModule {
 			tagEndpoint,
 			webhookEndpoint,
 			libraryEndpoint,
+			personEndpoint,
 			pipelineEndpoint,
 			pipelineEventEndpoint,
 			processorEndpoint,
