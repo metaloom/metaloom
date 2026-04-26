@@ -17,11 +17,12 @@ import {
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { Asset, AssetType, AssetStatus, DetectedFace, FaceCluster, Person, DetectedObject } from "../../types";
-import { DETECTED_FACES, FACE_CLUSTERS, PERSONS, DETECTED_OBJECTS } from "../../mock/data";
+import { FACE_CLUSTERS, PERSONS } from "../../mock/data";
 import { useLayout } from "../../context/LayoutContext";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
 import { listAssets, AssetResponse } from "../../api/assets";
+import { listAssetDetections, DetectionResponse } from "../../api/detections";
 
 function apiToWorkflowAsset(r: AssetResponse): Asset {
   const mime = r.file?.mimeType ?? "";
@@ -755,7 +756,49 @@ export default function WorkflowView() {
   const duplicateGroups = useMemo(() => buildDuplicateGroups(assets), [assets]);
   const currentAsset = assets[currentIdx] ?? assets[0];
   const currentGroup = duplicateGroups[currentIdx] ?? duplicateGroups[0];
-  const currentFaces = useMemo(() => DETECTED_FACES.filter(f => f.assetId === currentAsset?.id), [currentAsset]);
+
+  const [currentFaces, setCurrentFaces] = useState<DetectedFace[]>([]);
+  const [currentObjects, setCurrentObjects] = useState<DetectedObject[]>([]);
+
+  useEffect(() => {
+    if (!token || !currentAsset?.id) {
+      setCurrentFaces([]);
+      setCurrentObjects([]);
+      return;
+    }
+    listAssetDetections(token, currentAsset.id).then(resp => {
+      const faces: DetectedFace[] = [];
+      const objects: DetectedObject[] = [];
+      for (const d of (resp.data ?? [])) {
+        if (d.type === "facedetection") {
+          faces.push({
+            id: d.uuid,
+            assetId: d.assetUuid,
+            timestamp: d.frameNumber,
+            boundingBox: { x: d.bboxX, y: d.bboxY, width: d.bboxWidth, height: d.bboxHeight },
+            confidence: d.confidence,
+            thumbnailUrl: "",
+            clusterId: (d.meta as Record<string, unknown>)?.clusterId as string | undefined,
+          });
+        } else if (d.type === "objectdetection") {
+          objects.push({
+            id: d.uuid,
+            assetId: d.assetUuid,
+            label: ((d.meta as Record<string, unknown>)?.label as string) ?? d.type,
+            confidence: d.confidence,
+            boundingBox: { x: d.bboxX, y: d.bboxY, width: d.bboxWidth, height: d.bboxHeight },
+            timestamp: d.frameNumber,
+          });
+        }
+      }
+      setCurrentFaces(faces);
+      setCurrentObjects(objects);
+    }).catch(() => {
+      setCurrentFaces([]);
+      setCurrentObjects([]);
+    });
+  }, [token, currentAsset?.id]);
+
   const currentFaceClusters = useMemo(() => {
     const clusterIds = [...new Set(currentFaces.map(f => f.clusterId).filter(Boolean))];
     return clusterIds.map(cid => {
@@ -763,7 +806,6 @@ export default function WorkflowView() {
       return { cluster, faces: currentFaces.filter(f => f.clusterId === cid) };
     }).filter(c => c.cluster);
   }, [currentFaces]);
-  const currentObjects = useMemo(() => DETECTED_OBJECTS.filter(o => o.assetId === currentAsset?.id), [currentAsset]);
   const maxIdx = mode === "deduplication" ? duplicateGroups.length - 1 : assets.length - 1;
 
   useEffect(() => {

@@ -18,6 +18,7 @@ import io.metaloom.loom.db.jooq.dao.pool.AssetPoolDaoImpl;
 import io.metaloom.loom.db.jooq.dao.group.GroupDaoImpl;
 import io.metaloom.loom.db.jooq.dao.library.LibraryDaoImpl;
 import io.metaloom.loom.db.jooq.dao.perm.PermissionDaoImpl;
+import io.metaloom.loom.db.jooq.dao.detection.DetectionDaoImpl;
 import io.metaloom.loom.db.jooq.dao.person.PersonDaoImpl;
 import io.metaloom.loom.db.jooq.dao.space.SpaceDaoImpl;
 import io.metaloom.loom.db.jooq.dao.reaction.ReactionDaoImpl;
@@ -38,6 +39,7 @@ import io.metaloom.loom.db.model.cluster.ClusterDao;
 import io.metaloom.loom.db.model.collection.CollectionDao;
 import io.metaloom.loom.db.model.comment.CommentDao;
 import io.metaloom.loom.db.model.embedding.EmbeddingDao;
+import io.metaloom.loom.db.model.detection.DetectionDao;
 import io.metaloom.loom.db.model.person.PersonDao;
 import io.metaloom.loom.db.model.pipeline.PipelineDao;
 import io.metaloom.loom.db.model.pool.AssetPoolDao;
@@ -130,5 +132,8 @@ public abstract class JooqLoomDaoBindModule {
 
 	@Binds
 	abstract PersonDao personDao(PersonDaoImpl dao);
+
+	@Binds
+	abstract DetectionDao detectionDao(DetectionDaoImpl dao);
 
 }

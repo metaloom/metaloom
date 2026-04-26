@@ -150,42 +150,11 @@ export const TRANSCRIPTS: Record<string, TranscriptSection[]> = {
 };
 
 // ── Face Detection ────────────────────────────────────────────────────────
-export const DETECTED_FACES: DetectedFace[] = [
-  { id: "f1", assetId: "a1", timestamp: 2, boundingBox: { x: 0.3, y: 0.2, width: 0.12, height: 0.2 }, confidence: 0.97, thumbnailUrl: "https://i.pravatar.cc/80?u=f1", clusterId: "fc1" },
-  { id: "f2", assetId: "a1", timestamp: 8, boundingBox: { x: 0.55, y: 0.15, width: 0.1, height: 0.18 }, confidence: 0.94, thumbnailUrl: "https://i.pravatar.cc/80?u=f2", clusterId: "fc2" },
-  { id: "f3", assetId: "a1", timestamp: 15, boundingBox: { x: 0.25, y: 0.25, width: 0.11, height: 0.19 }, confidence: 0.96, thumbnailUrl: "https://i.pravatar.cc/80?u=f3", clusterId: "fc1" },
-  { id: "f4", assetId: "a5", timestamp: 120, boundingBox: { x: 0.4, y: 0.1, width: 0.15, height: 0.22 }, confidence: 0.92, thumbnailUrl: "https://i.pravatar.cc/80?u=f4", clusterId: "fc3" },
-  { id: "f5", assetId: "a5", timestamp: 300, boundingBox: { x: 0.2, y: 0.3, width: 0.1, height: 0.18 }, confidence: 0.89, thumbnailUrl: "https://i.pravatar.cc/80?u=f5", clusterId: "fc2" },
-  { id: "f6", assetId: "a7", boundingBox: { x: 0.35, y: 0.2, width: 0.08, height: 0.15 }, confidence: 0.95, thumbnailUrl: "https://i.pravatar.cc/80?u=f6", clusterId: "fc1" },
-  { id: "f7", assetId: "a7", boundingBox: { x: 0.55, y: 0.22, width: 0.09, height: 0.16 }, confidence: 0.93, thumbnailUrl: "https://i.pravatar.cc/80?u=f7", clusterId: "fc3" },
-  { id: "f8", assetId: "a7", boundingBox: { x: 0.7, y: 0.18, width: 0.07, height: 0.14 }, confidence: 0.88, thumbnailUrl: "https://i.pravatar.cc/80?u=f8", clusterId: "fc4" },
-  { id: "f9", assetId: "a4", boundingBox: { x: 0.42, y: 0.15, width: 0.13, height: 0.22 }, confidence: 0.91, thumbnailUrl: "https://i.pravatar.cc/80?u=f9", clusterId: "fc2" },
-  { id: "f10", assetId: "a8", timestamp: 600, boundingBox: { x: 0.45, y: 0.2, width: 0.1, height: 0.18 }, confidence: 0.96, thumbnailUrl: "https://i.pravatar.cc/80?u=f10", clusterId: "fc1" },
-];
+export const DETECTED_FACES: DetectedFace[] = [];
 
-export const FACE_CLUSTERS: FaceCluster[] = [
-  { id: "fc1", label: "Cluster A", representativeThumbnailUrl: "https://i.pravatar.cc/80?u=f1", faceIds: ["f1", "f3", "f6", "f10"], personId: "per1" },
-  { id: "fc2", label: "Cluster B", representativeThumbnailUrl: "https://i.pravatar.cc/80?u=f2", faceIds: ["f2", "f5", "f9"], personId: "per2" },
-  { id: "fc3", label: "Cluster C", representativeThumbnailUrl: "https://i.pravatar.cc/80?u=f4", faceIds: ["f4", "f7"], personId: undefined },
-  { id: "fc4", label: "Cluster D", representativeThumbnailUrl: "https://i.pravatar.cc/80?u=f8", faceIds: ["f8"], personId: undefined },
-];
+export const FACE_CLUSTERS: FaceCluster[] = [];
 
-export const PERSONS: Person[] = [
-  { id: "per1", name: "Aria Chen", description: "CEO and co-founder", avatarUrl: "https://i.pravatar.cc/80?u=per1", clusterIds: ["fc1"], createdAt: daysAgo(60) },
-  { id: "per2", name: "Marcus Webb", description: "Lead editor", avatarUrl: "https://i.pravatar.cc/80?u=per2", clusterIds: ["fc2"], createdAt: daysAgo(45) },
-  { id: "per3", name: "Sofia Reyes", description: "Pipeline operator", avatarUrl: "https://i.pravatar.cc/80?u=per3", clusterIds: [], createdAt: daysAgo(30) },
-];
+export const PERSONS: Person[] = [];
 
 // ── Object Detection ──────────────────────────────────────────────────────
-export const DETECTED_OBJECTS: DetectedObject[] = [
-  { id: "obj1", assetId: "a1", label: "car", confidence: 0.95, boundingBox: { x: 0.1, y: 0.4, width: 0.25, height: 0.3 }, timestamp: 5 },
-  { id: "obj2", assetId: "a1", label: "person", confidence: 0.92, boundingBox: { x: 0.5, y: 0.2, width: 0.12, height: 0.35 }, timestamp: 5 },
-  { id: "obj3", assetId: "a1", label: "tree", confidence: 0.88, boundingBox: { x: 0.75, y: 0.1, width: 0.2, height: 0.5 }, timestamp: 12 },
-  { id: "obj4", assetId: "a4", label: "dog", confidence: 0.94, boundingBox: { x: 0.3, y: 0.5, width: 0.15, height: 0.2 } },
-  { id: "obj5", assetId: "a4", label: "bench", confidence: 0.87, boundingBox: { x: 0.55, y: 0.6, width: 0.3, height: 0.2 } },
-  { id: "obj6", assetId: "a5", label: "building", confidence: 0.96, boundingBox: { x: 0.05, y: 0.05, width: 0.4, height: 0.7 }, timestamp: 60 },
-  { id: "obj7", assetId: "a5", label: "person", confidence: 0.91, boundingBox: { x: 0.6, y: 0.3, width: 0.1, height: 0.3 }, timestamp: 120 },
-  { id: "obj8", assetId: "a7", label: "laptop", confidence: 0.89, boundingBox: { x: 0.35, y: 0.45, width: 0.2, height: 0.15 } },
-  { id: "obj9", assetId: "a7", label: "cup", confidence: 0.85, boundingBox: { x: 0.6, y: 0.5, width: 0.08, height: 0.12 } },
-  { id: "obj10", assetId: "a8", label: "microphone", confidence: 0.93, boundingBox: { x: 0.45, y: 0.15, width: 0.08, height: 0.25 }, timestamp: 300 },
-];
+export const DETECTED_OBJECTS: DetectedObject[] = [];

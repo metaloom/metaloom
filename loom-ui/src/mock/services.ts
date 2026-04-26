@@ -1,10 +1,10 @@
 import {
   ChatMessage,
-  TranscriptSection, DetectedFace, FaceCluster, Person,
+  TranscriptSection, DetectedFace,
 } from "../types";
 import {
   INITIAL_CHAT,
-  TRANSCRIPTS, DETECTED_FACES, FACE_CLUSTERS, PERSONS,
+  TRANSCRIPTS, DETECTED_FACES,
 } from "./data";
 
 // Simulate realistic async latency
@@ -109,26 +109,5 @@ export const mockFaceDetectionService = {
   getFacesByAsset: async (assetId: string): Promise<DetectedFace[]> => {
     await delay(100);
     return DETECTED_FACES.filter(f => f.assetId === assetId);
-  },
-  getAllClusters: async (): Promise<FaceCluster[]> => {
-    await delay(80);
-    return [...FACE_CLUSTERS];
-  },
-  getAllPersons: async (): Promise<Person[]> => {
-    await delay(80);
-    return [...PERSONS];
-  },
-  createPerson: async (name: string, description: string): Promise<Person> => {
-    await delay(150);
-    const p: Person = { id: `per_${Date.now()}`, name, description, avatarUrl: `https://i.pravatar.cc/80?u=${Date.now()}`, clusterIds: [], createdAt: new Date().toISOString() };
-    PERSONS.push(p);
-    return p;
-  },
-  assignClusterToPerson: async (clusterId: string, personId: string): Promise<void> => {
-    await delay(100);
-    const cluster = FACE_CLUSTERS.find(c => c.id === clusterId);
-    if (cluster) cluster.personId = personId;
-    const person = PERSONS.find(p => p.id === personId);
-    if (person && !person.clusterIds.includes(clusterId)) person.clusterIds.push(clusterId);
   },
 };

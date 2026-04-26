@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Box, Typography, Paper, Chip, TextField, InputAdornment,
   Avatar, IconButton, Tooltip,
@@ -8,10 +8,11 @@ import {
   CheckOutlined, CloseOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
-import { DETECTED_OBJECTS } from "../../mock/data";
+import { DetectedObject } from "../../types";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
 import { listAssets, AssetResponse } from "../../api/assets";
+import { listAssetDetections } from "../../api/detections";
 
 export default function ObjectDetectionManagement() {
   const [query, setQuery] = useState("");
@@ -19,23 +20,46 @@ export default function ObjectDetectionManagement() {
   const { t } = useTranslation();
   const { token } = useAuth();
   const [assetMap, setAssetMap] = useState<Record<string, AssetResponse>>({});
+  const [detectedObjects, setDetectedObjects] = useState<DetectedObject[]>([]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!token) return;
     listAssets(token).then(r => {
+      const assets = r.data ?? [];
       const map: Record<string, AssetResponse> = {};
-      (r.data ?? []).forEach(a => { map[a.uuid] = a; });
+      assets.forEach(a => { map[a.uuid] = a; });
       setAssetMap(map);
+
+      // Fetch detections for all assets
+      Promise.all(assets.map(a => listAssetDetections(token, a.uuid).catch(() => ({ data: [] as never[] }))))
+        .then(results => {
+          const objects: DetectedObject[] = [];
+          results.forEach(resp => {
+            for (const d of (resp.data ?? [])) {
+              if (d.type === "objectdetection") {
+                objects.push({
+                  id: d.uuid,
+                  assetId: d.assetUuid,
+                  label: ((d.meta as Record<string, unknown>)?.label as string) ?? d.type,
+                  confidence: d.confidence,
+                  boundingBox: { x: d.bboxX, y: d.bboxY, width: d.bboxWidth, height: d.bboxHeight },
+                  timestamp: d.frameNumber,
+                });
+              }
+            }
+          });
+          setDetectedObjects(objects);
+        });
     }).catch(() => {});
   }, [token]);
 
   const grouped = useMemo(() => {
-    const byLabel: Record<string, typeof DETECTED_OBJECTS> = {};
-    DETECTED_OBJECTS.forEach(o => {
+    const byLabel: Record<string, DetectedObject[]> = {};
+    detectedObjects.forEach(o => {
       (byLabel[o.label] ??= []).push(o);
     });
     return Object.entries(byLabel).sort((a, b) => b[1].length - a[1].length);
-  }, []);
+  }, [detectedObjects]);
 
   const filtered = query.trim()
     ? grouped.filter(([label]) => label.toLowerCase().includes(query.toLowerCase()))
@@ -60,7 +84,7 @@ export default function ObjectDetectionManagement() {
           }}
         />
         <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.72rem" }}>
-          {t("objectDetection.count", { detections: DETECTED_OBJECTS.length, labels: grouped.length })}
+          {t("objectDetection.count", { detections: detectedObjects.length, labels: grouped.length })}
         </Typography>
       </Box>
 

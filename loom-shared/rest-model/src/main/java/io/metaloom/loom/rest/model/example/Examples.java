@@ -12,6 +12,7 @@ import io.metaloom.loom.rest.model.auth.AuthLoginExamples;
 import io.metaloom.loom.rest.model.cluster.ClusterExamples;
 import io.metaloom.loom.rest.model.collection.CollectionExamples;
 import io.metaloom.loom.rest.model.comment.CommentExamples;
+import io.metaloom.loom.rest.model.detection.DetectionExamples;
 import io.metaloom.loom.rest.model.embedding.EmbeddingExamples;
 import io.metaloom.loom.rest.model.example.impl.ExampleImpl;
 import io.metaloom.loom.rest.model.group.GroupExamples;
@@ -42,6 +43,7 @@ public interface Examples extends
 	ClusterExamples,
 	CommentExamples,
 	CollectionExamples,
+	DetectionExamples,
 	EmbeddingExamples,
 	TaskExamples,
 	TagExamples,

@@ -12,6 +12,7 @@ public interface LoomModelValidator extends
 	CollectionModelValidator,
 	ClusterModelValidator,
 	CommentModelValidator,
+	DetectionModelValidator,
 	EmbeddingModelValidator,
 	UserModelValidator,
 	GroupModelValidator,

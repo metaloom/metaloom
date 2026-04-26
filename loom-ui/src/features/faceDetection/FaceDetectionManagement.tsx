@@ -9,10 +9,10 @@ import {
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { FaceCluster, Person } from "../../types";
-import { mockFaceDetectionService } from "../../mock/services";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
-import { listPersons, createPerson as apiCreatePerson, deletePerson as apiDeletePerson, updatePerson as apiUpdatePerson, PersonResponse } from "../../api/persons";
+import { listPersons, createPerson as apiCreatePerson, PersonResponse } from "../../api/persons";
+import { listClusters as apiListClusters, ClusterResponse } from "../../api/clusters";
 import ClustersPanel from "./ClustersPanel";
 import PersonsPanel from "./PersonsPanel";
 
@@ -39,21 +39,27 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
     createdAt: r.status?.created ?? new Date().toISOString(),
   });
 
+  const toUiCluster = (r: ClusterResponse): FaceCluster => ({
+    id: r.uuid,
+    label: r.name,
+    representativeThumbnailUrl: "",
+    faceIds: [],
+    personId: undefined,
+  });
+
   useEffect(() => {
     const loadData = async () => {
-      const c = await mockFaceDetectionService.getAllClusters();
-      setClusters(c);
       if (token) {
         try {
-          const resp = await listPersons(token);
-          setPersons(resp.data.map(toUiPerson));
-        } catch {
-          const p = await mockFaceDetectionService.getAllPersons();
-          setPersons(p);
+          const [clustersResp, personsResp] = await Promise.all([
+            apiListClusters(token),
+            listPersons(token),
+          ]);
+          setClusters(clustersResp.data.map(toUiCluster));
+          setPersons(personsResp.data.map(toUiPerson));
+        } catch (e) {
+          console.error("Failed to load face detection data", e);
         }
-      } else {
-        const p = await mockFaceDetectionService.getAllPersons();
-        setPersons(p);
       }
     };
     loadData();
@@ -73,23 +79,16 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
   });
 
   const handleCreatePerson = async () => {
-    if (!newPersonAlias.trim()) return;
-    if (token) {
-      try {
-        const resp = await apiCreatePerson(token, {
-          alias: newPersonAlias,
-          firstname: newPersonFirstname || undefined,
-          lastname: newPersonLastname || undefined,
-        });
-        setPersons(prev => [...prev, toUiPerson(resp)]);
-      } catch {
-        // fallback to mock
-        const p = await mockFaceDetectionService.createPerson(newPersonAlias, "");
-        setPersons(prev => [...prev, p]);
-      }
-    } else {
-      const p = await mockFaceDetectionService.createPerson(newPersonAlias, "");
-      setPersons(prev => [...prev, p]);
+    if (!newPersonAlias.trim() || !token) return;
+    try {
+      const resp = await apiCreatePerson(token, {
+        alias: newPersonAlias,
+        firstname: newPersonFirstname || undefined,
+        lastname: newPersonLastname || undefined,
+      });
+      setPersons(prev => [...prev, toUiPerson(resp)]);
+    } catch (e) {
+      console.error("Failed to create person", e);
     }
     setNewPersonAlias("");
     setNewPersonFirstname("");
@@ -99,7 +98,7 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
 
   const handleAssignCluster = async () => {
     if (!assignOpen || !assignPersonId) return;
-    await mockFaceDetectionService.assignClusterToPerson(assignOpen, assignPersonId);
+    // TODO: implement cluster-to-person assignment via REST API when backend supports it
     setClusters(prev => prev.map(c => c.id === assignOpen ? { ...c, personId: assignPersonId } : c));
     setPersons(prev => prev.map(p => p.id === assignPersonId ? { ...p, clusterIds: [...p.clusterIds, assignOpen!] } : p));
     setAssignOpen(null);

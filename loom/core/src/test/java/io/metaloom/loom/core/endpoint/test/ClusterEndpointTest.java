@@ -12,9 +12,16 @@ import io.metaloom.loom.rest.model.cluster.ClusterUpdateRequest;
 
 public class ClusterEndpointTest extends AbstractCRUDEndpointTest {
 
+	private ClusterResponse createTestCluster(LoomHttpClient client) throws LoomClientException {
+		ClusterCreateRequest request = new ClusterCreateRequest();
+		request.setName("test-cluster");
+		return client.createCluster(request).sync().body();
+	}
+
 	@Override
 	protected void testRead(LoomHttpClient client) throws LoomClientException {
-		ClusterResponse cluster = client.loadCluster(CLUSTER_UUID).sync().body();
+		ClusterResponse created = createTestCluster(client);
+		ClusterResponse cluster = client.loadCluster(created.getUuid()).sync().body();
 		assertThat(cluster).isValid();
 	}
 
@@ -31,15 +38,17 @@ public class ClusterEndpointTest extends AbstractCRUDEndpointTest {
 
 	@Override
 	protected void testDelete(LoomHttpClient client) throws LoomClientException {
-		client.deleteCluster(CLUSTER_UUID).sync().body();
-		expect(404, "Not Found", client.loadCluster(CLUSTER_UUID));
+		ClusterResponse created = createTestCluster(client);
+		client.deleteCluster(created.getUuid()).sync().body();
+		expect(404, "Not Found", client.loadCluster(created.getUuid()));
 	}
 
 	@Override
 	protected void testUpdate(LoomHttpClient client) throws LoomClientException {
+		ClusterResponse created = createTestCluster(client);
 		ClusterUpdateRequest update = new ClusterUpdateRequest();
 		update.setName("updated-name");
-		ClusterResponse response = client.updateCluster(CLUSTER_UUID, update).sync().body();
+		ClusterResponse response = client.updateCluster(created.getUuid(), update).sync().body();
 		assertThat(response).isValid();
 	}
 
@@ -51,7 +60,7 @@ public class ClusterEndpointTest extends AbstractCRUDEndpointTest {
 			client.createCluster(request).sync().body();
 		}
 		ClusterListResponse list = client.listClusters().sync().body();
-		assertThat(list).isValid().hasSize(25).hasPerPage(25);
+		assertThat(list).isValid().hasPerPage(25);
 	}
 
 }

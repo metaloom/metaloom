@@ -22,10 +22,12 @@ import { tokens } from "../../theme";
 import { Asset, AssetType, AssetStatus, Comment, Annotation, Reaction, Task, TranscriptSection, DetectedFace, FaceCluster, Person } from "../../types";
 import {
   mockTranscriptService,
-  mockFaceDetectionService,
 } from "../../mock/services";
 import { useAuth } from "../../context/AuthContext";
 import { loadAsset as apiLoadAsset, AssetResponse } from "../../api/assets";
+import { listPersons, PersonResponse } from "../../api/persons";
+import { listClusters, ClusterResponse as ClusterApiResponse } from "../../api/clusters";
+import { listAssetDetections } from "../../api/detections";
 import { AnnotationResponseItem } from "../../api/annotations";
 import { listAssetReactions, ReactionResponseItem } from "../../api/reactions";
 import { listComments, CommentResponse } from "../../api/comments";
@@ -900,9 +902,25 @@ export default function AssetDetail() {
       }))) : Promise.resolve([] as Comment[]),
       Promise.resolve([] as Task[]),
       mockTranscriptService.getByAsset(id),
-      mockFaceDetectionService.getFacesByAsset(id),
-      mockFaceDetectionService.getAllClusters(),
-      mockFaceDetectionService.getAllPersons(),
+      token ? listAssetDetections(token, id).then(resp => (resp.data ?? [])
+        .filter(d => d.type === "facedetection")
+        .map((d): DetectedFace => ({
+          id: d.uuid,
+          assetId: d.assetUuid,
+          timestamp: d.frameNumber,
+          boundingBox: { x: d.bboxX, y: d.bboxY, width: d.bboxWidth, height: d.bboxHeight },
+          confidence: d.confidence,
+          thumbnailUrl: "",
+          clusterId: (d.meta as Record<string, unknown>)?.clusterId as string | undefined,
+        }))
+      ) : Promise.resolve([] as DetectedFace[]),
+      token ? listClusters(token).then(r => r.data.map((c: ClusterApiResponse): FaceCluster => ({
+        id: c.uuid, label: c.name, representativeThumbnailUrl: "", faceIds: [], personId: undefined,
+      }))) : Promise.resolve([] as FaceCluster[]),
+      token ? listPersons(token).then(r => r.data.map((p: PersonResponse): Person => ({
+        id: p.uuid, name: [p.firstname, p.lastname].filter(Boolean).join(" ") || p.alias,
+        description: p.alias, avatarUrl: "", clusterIds: [], createdAt: p.status?.created ?? "",
+      }))) : Promise.resolve([] as Person[]),
     ]).then(([c, t, tr, faces, clusters, pers]) => {
       setComments(c);
       setTasks(t);

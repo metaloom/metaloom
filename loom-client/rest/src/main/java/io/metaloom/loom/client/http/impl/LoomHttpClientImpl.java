@@ -66,6 +66,12 @@ import io.metaloom.loom.rest.model.comment.CommentCreateRequest;
 import io.metaloom.loom.rest.model.comment.CommentListResponse;
 import io.metaloom.loom.rest.model.comment.CommentResponse;
 import io.metaloom.loom.rest.model.comment.CommentUpdateRequest;
+import io.metaloom.loom.rest.model.detection.DetectionBulkCreateRequest;
+import io.metaloom.loom.rest.model.detection.DetectionBulkResponse;
+import io.metaloom.loom.rest.model.detection.DetectionCreateRequest;
+import io.metaloom.loom.rest.model.detection.DetectionListResponse;
+import io.metaloom.loom.rest.model.detection.DetectionResponse;
+import io.metaloom.loom.rest.model.detection.DetectionUpdateRequest;
 import io.metaloom.loom.rest.model.embedding.EmbeddingCreateRequest;
 import io.metaloom.loom.rest.model.embedding.EmbeddingListResponse;
 import io.metaloom.loom.rest.model.embedding.EmbeddingResponse;
@@ -78,6 +84,10 @@ import io.metaloom.loom.rest.model.library.LibraryCreateRequest;
 import io.metaloom.loom.rest.model.library.LibraryListResponse;
 import io.metaloom.loom.rest.model.library.LibraryResponse;
 import io.metaloom.loom.rest.model.library.LibraryUpdateRequest;
+import io.metaloom.loom.rest.model.person.PersonCreateRequest;
+import io.metaloom.loom.rest.model.person.PersonListResponse;
+import io.metaloom.loom.rest.model.person.PersonResponse;
+import io.metaloom.loom.rest.model.person.PersonUpdateRequest;
 import io.metaloom.loom.rest.model.pipeline.PipelineCreateRequest;
 import io.metaloom.loom.rest.model.pipeline.PipelineListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineResponse;
@@ -427,6 +437,33 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 		return getRequest("clusters", ClusterListResponse.class);
 	}
 
+	// PERSON
+
+	@Override
+	public LoomClientHttpRequest<PersonResponse> loadPerson(UUID uuid) {
+		return getRequest("persons/" + uuid, PersonResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> deletePerson(UUID uuid) {
+		return deleteRequest("persons/" + uuid);
+	}
+
+	@Override
+	public LoomClientHttpRequest<PersonResponse> updatePerson(UUID personUuid, PersonUpdateRequest request) {
+		return postRequest("persons/" + personUuid, request, PersonResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<PersonResponse> createPerson(PersonCreateRequest request) {
+		return postRequest("persons", request, PersonResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<PersonListResponse> listPersons() {
+		return getRequest("persons", PersonListResponse.class);
+	}
+
 	// SPACE
 
 	@Override
@@ -604,6 +641,32 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 
 	public LoomClientHttpRequest<NoResponse> deleteAssetReaction(AssetId assetId, UUID reactionUuid) {
 		return deleteRequest(assetPath(assetId) + "/reactions/" + reactionUuid);
+	}
+
+	// ASSET DETECTION
+
+	public LoomClientHttpRequest<DetectionResponse> loadAssetDetection(AssetId assetId, UUID detectionUuid) {
+		return getRequest(assetPath(assetId) + "/detections/" + detectionUuid, DetectionResponse.class);
+	}
+
+	public LoomClientHttpRequest<DetectionResponse> createAssetDetection(AssetId assetId, DetectionCreateRequest request) {
+		return postRequest(assetPath(assetId) + "/detections", request, DetectionResponse.class);
+	}
+
+	public LoomClientHttpRequest<DetectionResponse> updateAssetDetection(AssetId assetId, UUID detectionUuid, DetectionUpdateRequest request) {
+		return postRequest(assetPath(assetId) + "/detections/" + detectionUuid, request, DetectionResponse.class);
+	}
+
+	public LoomClientHttpRequest<DetectionListResponse> listAssetDetections(AssetId assetId) {
+		return getRequest(assetPath(assetId) + "/detections", DetectionListResponse.class);
+	}
+
+	public LoomClientHttpRequest<NoResponse> deleteAssetDetection(AssetId assetId, UUID detectionUuid) {
+		return deleteRequest(assetPath(assetId) + "/detections/" + detectionUuid);
+	}
+
+	public LoomClientHttpRequest<DetectionBulkResponse> bulkCreateAssetDetections(AssetId assetId, DetectionBulkCreateRequest request) {
+		return postRequest(assetPath(assetId) + "/detections/bulk", request, DetectionBulkResponse.class);
 	}
 
 	// COMMENT REACTION

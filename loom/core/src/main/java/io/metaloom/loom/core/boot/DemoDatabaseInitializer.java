@@ -27,6 +27,10 @@ import io.metaloom.loom.db.model.asset.AssetTranscriptComp;
 import io.metaloom.loom.db.model.asset.AssetVideoComp;
 import io.metaloom.loom.db.model.blacklist.Blacklist;
 import io.metaloom.loom.db.model.blacklist.BlacklistDao;
+import io.metaloom.loom.db.model.cluster.Cluster;
+import io.metaloom.loom.db.model.cluster.ClusterDao;
+import io.metaloom.loom.db.model.detection.Detection;
+import io.metaloom.loom.db.model.detection.DetectionDao;
 import io.metaloom.loom.db.model.person.Person;
 import io.metaloom.loom.db.model.person.PersonDao;
 import io.metaloom.loom.db.model.collection.Collection;
@@ -98,14 +102,16 @@ public class DemoDatabaseInitializer {
 	private final TokenDao tokenDao;
 	private final CommentDao commentDao;
 	private final BlacklistDao blacklistDao;
+	private final ClusterDao clusterDao;
 	private final PersonDao personDao;
+	private final DetectionDao detectionDao;
 
 	@Inject
 	public DemoDatabaseInitializer(UserDao userDao, AssetDao assetDao, SpaceDao spaceDao,
 		TagDao tagDao, CollectionDao collectionDao, LibraryDao libraryDao, PipelineDao pipelineDao, AssetPoolDao assetPoolDao,
 		GroupDao groupDao, RoleDao roleDao, PermissionDao permissionDao, TaskDao taskDao,
 		AnnotationDao annotationDao, ReactionDao reactionDao, TokenDao tokenDao,
-		CommentDao commentDao, BlacklistDao blacklistDao, PersonDao personDao) {
+		CommentDao commentDao, BlacklistDao blacklistDao, ClusterDao clusterDao, PersonDao personDao, DetectionDao detectionDao) {
 		this.userDao = userDao;
 		this.assetDao = assetDao;
 		this.spaceDao = spaceDao;
@@ -123,7 +129,9 @@ public class DemoDatabaseInitializer {
 		this.tokenDao = tokenDao;
 		this.commentDao = commentDao;
 		this.blacklistDao = blacklistDao;
+		this.clusterDao = clusterDao;
 		this.personDao = personDao;
+		this.detectionDao = detectionDao;
 	}
 
 	/**
@@ -415,6 +423,45 @@ public class DemoDatabaseInitializer {
 		createPerson(admin, "bwilson", "Bob", "Wilson");
 		log.info("Created {} demo persons", 3);
 
+		// --- Clusters ---
+		createCluster(admin, "Face Cluster A", "face");
+		createCluster(admin, "Face Cluster B", "face");
+		createCluster(admin, "Face Cluster C", "face");
+		log.info("Created {} demo clusters", 3);
+
+		// --- Detections ---
+		// Face detections on image assets
+		createDetection(admin, imageAssets[0], "facedetection", 0, 0.3f, 0.2f, 0.12f, 0.2f, 0.97f,
+			new JsonObject().put("gender", "male").put("age", 30));
+		createDetection(admin, imageAssets[0], "facedetection", 0, 0.55f, 0.15f, 0.1f, 0.18f, 0.94f,
+			new JsonObject().put("gender", "female").put("age", 25));
+		createDetection(admin, imageAssets[3], "facedetection", 0, 0.42f, 0.15f, 0.13f, 0.22f, 0.91f,
+			new JsonObject().put("gender", "male").put("age", 45));
+
+		// Face detections on video assets (different frames)
+		createDetection(admin, videoAssets[0], "facedetection", 60, 0.4f, 0.1f, 0.15f, 0.22f, 0.92f,
+			new JsonObject().put("gender", "female").put("age", 28));
+		createDetection(admin, videoAssets[0], "facedetection", 180, 0.2f, 0.3f, 0.1f, 0.18f, 0.89f,
+			new JsonObject().put("gender", "male").put("age", 35));
+		createDetection(admin, videoAssets[2], "facedetection", 300, 0.45f, 0.2f, 0.1f, 0.18f, 0.96f,
+			new JsonObject().put("gender", "female").put("age", 32));
+
+		// Object detections on image assets
+		createDetection(admin, imageAssets[0], "objectdetection", 0, 0.1f, 0.4f, 0.25f, 0.3f, 0.95f,
+			new JsonObject().put("label", "car"));
+		createDetection(admin, imageAssets[0], "objectdetection", 0, 0.5f, 0.2f, 0.12f, 0.35f, 0.92f,
+			new JsonObject().put("label", "person"));
+		createDetection(admin, imageAssets[2], "objectdetection", 0, 0.05f, 0.05f, 0.4f, 0.7f, 0.96f,
+			new JsonObject().put("label", "building"));
+
+		// Object detections on video assets
+		createDetection(admin, videoAssets[0], "objectdetection", 30, 0.75f, 0.1f, 0.2f, 0.5f, 0.88f,
+			new JsonObject().put("label", "tree"));
+		createDetection(admin, videoAssets[1], "objectdetection", 60, 0.6f, 0.3f, 0.1f, 0.3f, 0.91f,
+			new JsonObject().put("label", "person"));
+
+		log.info("Created {} demo detections", 11);
+
 		log.info("Demo data initialization complete — created {} assets, {} tags, {} collections, {} pipelines, {} users, {} groups, {} roles, {} tasks, {} annotations, {} reactions.",
 			imageAssets.length + videoAssets.length + audioAssets.length + docAssets.length,
 			8, 2, 3, 2, 2, 2, 3, 3, 3);
@@ -481,6 +528,39 @@ public class DemoDatabaseInitializer {
 		personDao.store(person);
 		log.info("Created demo person: {} ({} {})", alias, firstname, lastname);
 		return person;
+	}
+
+	private Cluster createCluster(User admin, String name, String type) {
+		Cluster cluster = clusterDao.createCluster(admin.getUuid(), name, type);
+		cluster.setUuid(UUIDUtils.randomUUID());
+		cluster.setCreator(admin);
+		cluster.setEditor(admin);
+		cluster.setCreated(Instant.now());
+		cluster.setEdited(Instant.now());
+		clusterDao.store(cluster);
+		log.info("Created demo cluster: {} ({})", name, type);
+		return cluster;
+	}
+
+	private Detection createDetection(User admin, Asset asset, String type, int frameNumber,
+		float bboxX, float bboxY, float bboxWidth, float bboxHeight, float confidence, JsonObject meta) {
+		Detection detection = detectionDao.createDetection(admin.getUuid(), type);
+		detection.setUuid(UUIDUtils.randomUUID());
+		detection.setAssetUuid(asset.getUuid());
+		detection.setFrameNumber(frameNumber);
+		detection.setBboxX(bboxX);
+		detection.setBboxY(bboxY);
+		detection.setBboxWidth(bboxWidth);
+		detection.setBboxHeight(bboxHeight);
+		detection.setConfidence(confidence);
+		detection.setMeta(meta);
+		detection.setCreator(admin);
+		detection.setEditor(admin);
+		detection.setCreated(Instant.now());
+		detection.setEdited(Instant.now());
+		detectionDao.store(detection);
+		log.info("Created demo detection: {} on {} (frame {})", type, asset.getFilename(), frameNumber);
+		return detection;
 	}
 
 	private AssetTag createAssetTag(User admin, String name, String collection) {

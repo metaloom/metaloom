@@ -16,6 +16,7 @@ import io.metaloom.loom.rest.EndpointDependencies;
 import io.metaloom.loom.rest.model.ModelExamples;
 import io.metaloom.loom.rest.service.impl.AssetEndpointService;
 import io.metaloom.loom.rest.service.impl.AssetBinaryEndpointService;
+import io.metaloom.loom.rest.service.impl.DetectionEndpointService;
 import io.metaloom.loom.rest.service.impl.ReactionEndpointService;
 import io.metaloom.loom.rest.service.impl.TagEndpointService;
 import io.metaloom.utils.hash.SHA512;
@@ -28,18 +29,21 @@ public class AssetEndpoint extends AbstractEndpoint {
 	private final TagEndpointService tagService;
 	private final AssetBinaryEndpointService binaryService;
 	private final ReactionEndpointService reactionService;
+	private final DetectionEndpointService detectionService;
 	private final ModelExamples examples;
 
 	@Inject
 	public AssetEndpoint(AssetEndpointService service, TagEndpointService tagService,
 		AssetBinaryEndpointService binaryService,
 		ReactionEndpointService reactionService,
+		DetectionEndpointService detectionService,
 		EndpointDependencies deps, ModelExamples examples) {
 		super(deps);
 		this.service = service;
 		this.tagService = tagService;
 		this.binaryService = binaryService;
 		this.reactionService = reactionService;
+		this.detectionService = detectionService;
 		this.examples = examples;
 	}
 
@@ -189,6 +193,52 @@ public class AssetEndpoint extends AbstractEndpoint {
 			"Update an reaction for an asset",
 			lrc -> {
 				reactionService.updateAssetReaction(lrc, lrc.pathParamAssetId("uuid"), lrc.pathParamUUID("reactionUuid"));
+			});
+
+		// --- DETECTION (UUID-based sub-resource) ---
+
+		addRoute(basePath() + "/:uuid/detections", POST,
+			"Create a new detection on an asset",
+			examples.detectionCreateRequestExample(),
+			examples.detectionResponseExample(),
+			lrc -> {
+				detectionService.createAssetDetection(lrc, lrc.pathParamAssetId("uuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/detections/bulk", POST,
+			"Bulk create detections on an asset",
+			examples.detectionBulkCreateRequestExample(),
+			examples.detectionBulkResponseExample(),
+			lrc -> {
+				detectionService.bulkCreateAssetDetections(lrc, lrc.pathParamAssetId("uuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/detections/:detectionUuid", DELETE,
+			"Delete a detection on an asset",
+			lrc -> {
+				detectionService.deleteAssetDetection(lrc, lrc.pathParamAssetId("uuid"), lrc.pathParamUUID("detectionUuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/detections", GET,
+			"List detections on an asset",
+			null,
+			examples.detectionListResponseExample(),
+			lrc -> {
+				detectionService.listAssetDetections(lrc, lrc.pathParamAssetId("uuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/detections/:detectionUuid", GET,
+			"Load a detection for an asset",
+			lrc -> {
+				detectionService.loadAssetDetection(lrc, lrc.pathParamAssetId("uuid"), lrc.pathParamUUID("detectionUuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/detections/:detectionUuid", POST,
+			"Update a detection for an asset",
+			examples.detectionUpdateRequestExample(),
+			examples.detectionResponseExample(),
+			lrc -> {
+				detectionService.updateAssetDetection(lrc, lrc.pathParamAssetId("uuid"), lrc.pathParamUUID("detectionUuid"));
 			});
 
 		// --- BINARY (UUID-based sub-resource, one-to-one) ---
