@@ -116,6 +116,10 @@ import io.metaloom.loom.rest.model.token.TokenCreateRequest;
 import io.metaloom.loom.rest.model.token.TokenListResponse;
 import io.metaloom.loom.rest.model.token.TokenResponse;
 import io.metaloom.loom.rest.model.token.TokenUpdateRequest;
+import io.metaloom.loom.rest.model.transcript.TranscriptCreateRequest;
+import io.metaloom.loom.rest.model.transcript.TranscriptListResponse;
+import io.metaloom.loom.rest.model.transcript.TranscriptResponse;
+import io.metaloom.loom.rest.model.transcript.TranscriptUpdateRequest;
 import io.metaloom.loom.rest.model.user.UserCreateRequest;
 import io.metaloom.loom.rest.model.user.UserListResponse;
 import io.metaloom.loom.rest.model.user.UserResponse;
@@ -743,6 +747,33 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<NoResponse> deleteAssetComponent(UUID assetUuid, UUID compUuid) {
 		return deleteRequest("assets/" + assetUuid + "/components/" + compUuid);
+	}
+
+	// ASSET TRANSCRIPT
+
+	@Override
+	public LoomClientHttpRequest<TranscriptResponse> createAssetTranscript(UUID assetUuid, TranscriptCreateRequest request) {
+		return postRequest("assets/" + assetUuid + "/transcripts", request, TranscriptResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<TranscriptResponse> loadAssetTranscript(UUID assetUuid, UUID transcriptUuid) {
+		return getRequest("assets/" + assetUuid + "/transcripts/" + transcriptUuid, TranscriptResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<TranscriptResponse> updateAssetTranscript(UUID assetUuid, UUID transcriptUuid, TranscriptUpdateRequest request) {
+		return postRequest("assets/" + assetUuid + "/transcripts/" + transcriptUuid, request, TranscriptResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<TranscriptListResponse> listAssetTranscripts(UUID assetUuid) {
+		return getRequest("assets/" + assetUuid + "/transcripts", TranscriptListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> deleteAssetTranscript(UUID assetUuid, UUID transcriptUuid) {
+		return deleteRequest("assets/" + assetUuid + "/transcripts/" + transcriptUuid);
 	}
 
 	// GROUP

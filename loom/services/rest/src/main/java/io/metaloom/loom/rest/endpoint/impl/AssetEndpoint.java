@@ -19,6 +19,7 @@ import io.metaloom.loom.rest.service.impl.AssetBinaryEndpointService;
 import io.metaloom.loom.rest.service.impl.DetectionEndpointService;
 import io.metaloom.loom.rest.service.impl.ReactionEndpointService;
 import io.metaloom.loom.rest.service.impl.TagEndpointService;
+import io.metaloom.loom.rest.service.impl.TranscriptEndpointService;
 import io.metaloom.utils.hash.SHA512;
 
 public class AssetEndpoint extends AbstractEndpoint {
@@ -30,6 +31,7 @@ public class AssetEndpoint extends AbstractEndpoint {
 	private final AssetBinaryEndpointService binaryService;
 	private final ReactionEndpointService reactionService;
 	private final DetectionEndpointService detectionService;
+	private final TranscriptEndpointService transcriptService;
 	private final ModelExamples examples;
 
 	@Inject
@@ -37,6 +39,7 @@ public class AssetEndpoint extends AbstractEndpoint {
 		AssetBinaryEndpointService binaryService,
 		ReactionEndpointService reactionService,
 		DetectionEndpointService detectionService,
+		TranscriptEndpointService transcriptService,
 		EndpointDependencies deps, ModelExamples examples) {
 		super(deps);
 		this.service = service;
@@ -44,6 +47,7 @@ public class AssetEndpoint extends AbstractEndpoint {
 		this.binaryService = binaryService;
 		this.reactionService = reactionService;
 		this.detectionService = detectionService;
+		this.transcriptService = transcriptService;
 		this.examples = examples;
 	}
 
@@ -239,6 +243,46 @@ public class AssetEndpoint extends AbstractEndpoint {
 			examples.detectionResponseExample(),
 			lrc -> {
 				detectionService.updateAssetDetection(lrc, lrc.pathParamAssetId("uuid"), lrc.pathParamUUID("detectionUuid"));
+			});
+
+		// --- TRANSCRIPT (UUID-based sub-resource) ---
+
+		addRoute(basePath() + "/:uuid/transcripts", POST,
+			"Create a new transcript for an asset",
+			examples.transcriptCreateRequestExample(),
+			examples.transcriptResponseExample(),
+			lrc -> {
+				transcriptService.createAssetTranscript(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/transcripts", GET,
+			"List transcripts for an asset",
+			null,
+			examples.transcriptListResponseExample(),
+			lrc -> {
+				transcriptService.listAssetTranscripts(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/transcripts/:transcriptUuid", GET,
+			"Load a transcript for an asset",
+			lrc -> {
+				transcriptService.loadAssetTranscript(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("transcriptUuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/transcripts/:transcriptUuid", POST,
+			"Update a transcript for an asset",
+			examples.transcriptUpdateRequestExample(),
+			examples.transcriptResponseExample(),
+			lrc -> {
+				transcriptService.updateAssetTranscript(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("transcriptUuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/transcripts/:transcriptUuid", DELETE,
+			"Delete a transcript for an asset",
+			null,
+			examples.deleteResponseExample(),
+			lrc -> {
+				transcriptService.deleteAssetTranscript(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("transcriptUuid"));
 			});
 
 		// --- BINARY (UUID-based sub-resource, one-to-one) ---

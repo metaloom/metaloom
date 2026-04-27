@@ -26,6 +26,7 @@ import io.metaloom.loom.rest.model.role.RoleExamples;
 import io.metaloom.loom.rest.model.tag.TagExamples;
 import io.metaloom.loom.rest.model.task.TaskExamples;
 import io.metaloom.loom.rest.model.token.TokenExamples;
+import io.metaloom.loom.rest.model.transcript.TranscriptExamples;
 import io.metaloom.loom.rest.model.user.UserExamples;
 import io.metaloom.loom.rest.model.webhook.WebhookExamples;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -57,6 +58,7 @@ public interface Examples extends
 	PersonExamples,
 	PipelineExamples,
 	ProcessorExamples,
+	TranscriptExamples,
 	WebhookExamples {
 
 	default Example deleteResponseExample() {

@@ -25,6 +25,7 @@ public interface ClientMethods extends
 	PipelineMethods,
 	SpaceMethods,
 	CommentMethods,
-	EmbeddingMethods {
+	EmbeddingMethods,
+	TranscriptMethods {
 
 }

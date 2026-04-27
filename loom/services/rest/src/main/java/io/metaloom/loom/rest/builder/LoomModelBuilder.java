@@ -16,6 +16,7 @@ public interface LoomModelBuilder extends
 	CommentModelBuilder,
 	DetectionModelBuilder,
 	EmbeddingModelBuilder,
+	TranscriptModelBuilder,
 	UserModelBuilder,
 	GroupModelBuilder,
 	RoleModelBuilder,

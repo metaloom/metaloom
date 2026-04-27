@@ -2,6 +2,10 @@ package io.metaloom.cortex.node.whisper;
 
 import static io.metaloom.cortex.api.node.ResultOrigin.COMPUTED;
 
+import java.io.File;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 
@@ -14,9 +18,12 @@ import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
+import io.metaloom.cortex.media.whisper.TranscriptionSegment;
 import io.metaloom.cortex.media.whisper.WhisperResult;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
+import io.metaloom.loom.rest.model.transcript.TranscriptCreateRequest;
+import io.vertx.core.json.JsonObject;
 
 public class WhisperNode extends AbstractMediaNode<WhisperOptions> {
 
@@ -55,6 +62,29 @@ public class WhisperNode extends AbstractMediaNode<WhisperOptions> {
 			WhisperResult result = processor.process(path);
 			String json = result.toJson();
 			ctx.output(OUTPUT_WHISPER_RESULT, json);
+
+			// Persist transcript via Loom REST API
+			if (asset != null) {
+				try {
+					TranscriptCreateRequest request = new TranscriptCreateRequest();
+					request.setSource("whisper");
+					request.setLang(options().getLanguage());
+					request.setModel(new File(options().getModelPath()).getName());
+					request.setTranscriptText(result.segments().stream()
+						.map(TranscriptionSegment::getText)
+						.collect(Collectors.joining(" ")));
+					if (!result.segments().isEmpty()) {
+						long lastTo = result.segments().get(result.segments().size() - 1).getTo();
+						request.setDuration((int) lastTo);
+					}
+					request.setTranscriptJson(new JsonObject(json));
+					UUID assetUuid = asset.getUuid();
+					client().createAssetTranscript(assetUuid, request).sync();
+				} catch (Exception e) {
+					log.warn("Failed to persist transcript for asset {}: {}", asset.getUuid(), e.getMessage());
+				}
+			}
+
 			print(ctx, "DONE", result.segments().size() + " segments");
 			return ctx.origin(COMPUTED).next();
 		} catch (Exception e) {

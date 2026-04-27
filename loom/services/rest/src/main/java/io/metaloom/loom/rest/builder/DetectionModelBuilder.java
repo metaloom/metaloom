@@ -5,7 +5,7 @@ import io.metaloom.loom.db.page.Page;
 import io.metaloom.loom.rest.model.detection.DetectionListResponse;
 import io.metaloom.loom.rest.model.detection.DetectionResponse;
 
-public interface DetectionModelBuilder extends ModelBuilder {
+public interface DetectionModelBuilder extends ModelBuilder, UserModelBuilder {
 
 	default DetectionResponse toResponse(Detection detection) {
 		DetectionResponse response = new DetectionResponse();

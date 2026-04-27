@@ -14,6 +14,7 @@ import io.metaloom.loom.db.model.blacklist.BlacklistDao;
 import io.metaloom.loom.db.model.cluster.ClusterDao;
 import io.metaloom.loom.db.model.collection.CollectionDao;
 import io.metaloom.loom.db.model.comment.CommentDao;
+import io.metaloom.loom.db.model.detection.DetectionDao;
 import io.metaloom.loom.db.model.embedding.EmbeddingDao;
 import io.metaloom.loom.db.model.group.GroupDao;
 import io.metaloom.loom.db.model.library.LibraryDao;
@@ -58,6 +59,7 @@ public class DaoCollectionImpl implements DaoCollection {
 	private final Lazy<PipelineDao> pipelineDao;
 	private final Lazy<AssetPoolDao> assetPoolDao;
 	private final Lazy<PersonDao> personDao;
+	private final Lazy<DetectionDao> detectionDao;
 
 	@Inject
 	public DaoCollectionImpl(Lazy<UserDao> userDao, Lazy<PermissionDao> permissionDao,
@@ -68,7 +70,7 @@ public class DaoCollectionImpl implements DaoCollection {
 		Lazy<BlacklistDao> blacklistDao, Lazy<CommentDao> commentDao, Lazy<SpaceDao> spaceDao,
 		Lazy<ClusterDao> clusterDao, Lazy<EmbeddingDao> embeddingDao, Lazy<TokenDao> tokenDao,
 		Lazy<TagDao> tagDao, Lazy<AttachmentDao> attachmentDao, Lazy<PipelineDao> pipelineDao,
-		Lazy<AssetPoolDao> assetPoolDao, Lazy<PersonDao> personDao) {
+		Lazy<AssetPoolDao> assetPoolDao, Lazy<PersonDao> personDao, Lazy<DetectionDao> detectionDao) {
 		this.userDao = userDao;
 		this.groupDao = groupDao;
 		this.roleDao = roleDao;
@@ -94,6 +96,7 @@ public class DaoCollectionImpl implements DaoCollection {
 		this.pipelineDao = pipelineDao;
 		this.assetPoolDao = assetPoolDao;
 		this.personDao = personDao;
+		this.detectionDao = detectionDao;
 	}
 
 	@Override
@@ -219,5 +222,10 @@ public class DaoCollectionImpl implements DaoCollection {
 	@Override
 	public PersonDao personDao() {
 		return personDao.get();
+	}
+
+	@Override
+	public DetectionDao detectionDao() {
+		return detectionDao.get();
 	}
 }
