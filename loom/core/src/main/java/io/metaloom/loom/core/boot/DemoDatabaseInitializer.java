@@ -27,6 +27,8 @@ import io.metaloom.loom.db.model.asset.AssetTranscriptComp;
 import io.metaloom.loom.db.model.asset.AssetVideoComp;
 import io.metaloom.loom.db.model.blacklist.Blacklist;
 import io.metaloom.loom.db.model.blacklist.BlacklistDao;
+import io.metaloom.loom.db.model.chat.Chat;
+import io.metaloom.loom.db.model.chat.ChatDao;
 import io.metaloom.loom.db.model.cluster.Cluster;
 import io.metaloom.loom.db.model.cluster.ClusterDao;
 import io.metaloom.loom.db.model.detection.Detection;
@@ -106,6 +108,7 @@ public class DemoDatabaseInitializer {
 	private final PersonDao personDao;
 	private final DetectionDao detectionDao;
 	private final AssetComponentDao assetComponentDao;
+	private final ChatDao chatDao;
 
 	@Inject
 	public DemoDatabaseInitializer(UserDao userDao, AssetDao assetDao, SpaceDao spaceDao,
@@ -113,7 +116,7 @@ public class DemoDatabaseInitializer {
 		GroupDao groupDao, RoleDao roleDao, PermissionDao permissionDao, TaskDao taskDao,
 		AnnotationDao annotationDao, ReactionDao reactionDao, TokenDao tokenDao,
 		CommentDao commentDao, BlacklistDao blacklistDao, ClusterDao clusterDao, PersonDao personDao, DetectionDao detectionDao,
-		AssetComponentDao assetComponentDao) {
+		AssetComponentDao assetComponentDao, ChatDao chatDao) {
 		this.userDao = userDao;
 		this.assetDao = assetDao;
 		this.spaceDao = spaceDao;
@@ -135,6 +138,7 @@ public class DemoDatabaseInitializer {
 		this.personDao = personDao;
 		this.detectionDao = detectionDao;
 		this.assetComponentDao = assetComponentDao;
+		this.chatDao = chatDao;
 	}
 
 	/**
@@ -264,6 +268,7 @@ public class DemoDatabaseInitializer {
 			Permission.CREATE_COMMENT, Permission.READ_COMMENT, Permission.UPDATE_COMMENT, Permission.DELETE_COMMENT,
 			Permission.CREATE_ANNOTATION, Permission.READ_ANNOTATION, Permission.UPDATE_ANNOTATION, Permission.DELETE_ANNOTATION,
 			Permission.CREATE_BLACKLIST, Permission.READ_BLACKLIST, Permission.UPDATE_BLACKLIST, Permission.DELETE_BLACKLIST,
+			Permission.CREATE_CHAT, Permission.READ_CHAT, Permission.UPDATE_CHAT, Permission.DELETE_CHAT,
 			Permission.READ_USER, Permission.READ_GROUP, Permission.READ_ROLE,
 			Permission.READ_SPACE, Permission.READ_PIPELINE, Permission.READ_ASSET_POOL,
 		}) {
@@ -277,6 +282,7 @@ public class DemoDatabaseInitializer {
 			Permission.READ_TASK,
 			Permission.READ_COMMENT, Permission.READ_ANNOTATION,
 			Permission.READ_BLACKLIST,
+			Permission.READ_CHAT,
 			Permission.READ_USER, Permission.READ_GROUP, Permission.READ_ROLE,
 			Permission.READ_SPACE, Permission.READ_LIBRARY, Permission.READ_PIPELINE, Permission.READ_ASSET_POOL,
 		}) {
@@ -415,6 +421,25 @@ public class DemoDatabaseInitializer {
 		createComment(admin, "Tagging feedback", "Please add location tags for the city timelapse assets.");
 		log.info("Created {} demo comments", 3);
 
+		// --- Chat sessions ---
+		createDemoChat(admin, "Asset review discussion", new JsonArray()
+			.add(new JsonObject().put("role", "user").put("content", "Can you check the quality of the recently uploaded landscape photos?"))
+			.add(new JsonObject().put("role", "assistant").put("content", "I reviewed the 5 landscape photos. Three have excellent resolution, but two appear to have compression artifacts.")
+				.put("references", new JsonArray()
+					.add(new JsonObject().put("type", "asset").put("label", "mountain_sunrise.jpg"))
+					.add(new JsonObject().put("type", "asset").put("label", "forest_fog.jpg"))))
+			.add(new JsonObject().put("role", "user").put("content", "Should we re-upload the two with artifacts?"))
+			.add(new JsonObject().put("role", "assistant").put("content", "Yes, I recommend re-uploading from the original RAW files to preserve quality.")));
+
+		createDemoChat(admin, "Tagging strategy", new JsonArray()
+			.add(new JsonObject().put("role", "user").put("content", "What tagging convention should we use for the city timelapse collection?"))
+			.add(new JsonObject().put("role", "assistant").put("content", "I suggest using hierarchical tags: location/city/landmark, and adding time-of-day tags like golden-hour or blue-hour."))
+			.add(new JsonObject().put("role", "user").put("content", "Good idea. Can you apply those to the existing assets?"))
+			.add(new JsonObject().put("role", "assistant").put("content", "Done. I tagged 12 timelapse assets with the new convention.")
+				.put("references", new JsonArray()
+					.add(new JsonObject().put("type", "collection").put("label", "Demo Videos")))));
+		log.info("Created {} demo chat sessions", 2);
+
 		// --- Blacklist entries ---
 		createBlacklist(admin, imageAssets[0], "Duplicate low-res variant");
 		createBlacklist(admin, videoAssets[1], "Copyright strike - pending review");
@@ -503,6 +528,17 @@ public class DemoDatabaseInitializer {
 		taskDao.store(task);
 		log.info("Created demo task: {}", title);
 		return task;
+	}
+
+	private Chat createDemoChat(User admin, String title, JsonArray messages) {
+		Chat chat = chatDao.createChat(admin.getUuid(), title);
+		chat.setUuid(UUIDUtils.randomUUID());
+		chat.setMessages(messages);
+		chat.setCreated(Instant.now());
+		chat.setEdited(Instant.now());
+		chatDao.store(chat);
+		log.info("Created demo chat: {}", title);
+		return chat;
 	}
 
 	private Library createLibrary(User admin, String name) {

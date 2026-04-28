@@ -12,6 +12,7 @@ import io.metaloom.loom.db.model.asset.Asset;
 import io.metaloom.loom.db.model.asset.AssetLocation;
 import io.metaloom.loom.db.model.attachment.Attachment;
 import io.metaloom.loom.db.model.blacklist.Blacklist;
+import io.metaloom.loom.db.model.chat.Chat;
 import io.metaloom.loom.db.model.cluster.Cluster;
 import io.metaloom.loom.db.model.collection.Collection;
 import io.metaloom.loom.db.model.comment.Comment;
@@ -31,6 +32,8 @@ import io.metaloom.loom.db.model.user.User;
 import io.metaloom.loom.db.model.webhook.Webhook;
 import io.metaloom.utils.StringUtils;
 import io.metaloom.utils.hash.SHA512;
+import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
 
 public class TestFixtureProvider extends AbstractFixtureProvider {
 
@@ -101,6 +104,9 @@ public class TestFixtureProvider extends AbstractFixtureProvider {
 		// Register webhook
 		Webhook webhook = createWebhook(user, "http://localhost:9090/trigger");
 
+		// Create chat
+		Chat chat = createChat(user);
+
 	}
 
 	private Comment commentOn(User user, Task task, String text) {
@@ -122,6 +128,16 @@ public class TestFixtureProvider extends AbstractFixtureProvider {
 		blacklist.setUuid(BLACKLIST_UUID);
 		blacklistDao().store(blacklist);
 		return blacklist;
+	}
+
+	private Chat createChat(User user) {
+		Chat chat = chatDao().createChat(user.getUuid(), "Test chat session");
+		chat.setUuid(CHAT_UUID);
+		chat.setMessages(new JsonArray()
+			.add(new JsonObject().put("role", "user").put("content", "Hello"))
+			.add(new JsonObject().put("role", "assistant").put("content", "Hi there!")));
+		chatDao().store(chat);
+		return chat;
 	}
 
 	private Reaction reactOn(UUID uuid, User user, Asset asset) {

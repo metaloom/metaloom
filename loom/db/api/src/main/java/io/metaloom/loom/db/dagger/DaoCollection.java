@@ -7,6 +7,7 @@ import io.metaloom.loom.db.model.asset.AssetLocationDao;
 import io.metaloom.loom.db.model.asset.AssetBinaryDao;
 import io.metaloom.loom.db.model.attachment.AttachmentDao;
 import io.metaloom.loom.db.model.blacklist.BlacklistDao;
+import io.metaloom.loom.db.model.chat.ChatDao;
 import io.metaloom.loom.db.model.cluster.ClusterDao;
 import io.metaloom.loom.db.model.collection.CollectionDao;
 import io.metaloom.loom.db.model.comment.CommentDao;
@@ -105,5 +106,9 @@ public interface DaoCollection {
 	// Detection
 
 	DetectionDao detectionDao();
+
+	// Chat
+
+	ChatDao chatDao();
 
 }

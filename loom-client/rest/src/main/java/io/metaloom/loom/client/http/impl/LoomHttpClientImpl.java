@@ -58,6 +58,10 @@ import io.metaloom.loom.rest.model.blacklist.BlacklistCreateRequest;
 import io.metaloom.loom.rest.model.blacklist.BlacklistListResponse;
 import io.metaloom.loom.rest.model.blacklist.BlacklistResponse;
 import io.metaloom.loom.rest.model.blacklist.BlacklistUpdateRequest;
+import io.metaloom.loom.rest.model.chat.ChatCreateRequest;
+import io.metaloom.loom.rest.model.chat.ChatListResponse;
+import io.metaloom.loom.rest.model.chat.ChatResponse;
+import io.metaloom.loom.rest.model.chat.ChatUpdateRequest;
 import io.metaloom.loom.rest.model.collection.CollectionCreateRequest;
 import io.metaloom.loom.rest.model.collection.CollectionListResponse;
 import io.metaloom.loom.rest.model.collection.CollectionResponse;
@@ -860,6 +864,33 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<BlacklistResponse> createBlacklist(BlacklistCreateRequest request) {
 		return postRequest("blacklists", request, BlacklistResponse.class);
+	}
+
+	// CHAT
+
+	@Override
+	public LoomClientHttpRequest<ChatListResponse> listChats() {
+		return getRequest("chats", ChatListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<ChatResponse> loadChat(UUID uuid) {
+		return getRequest("chats/" + uuid, ChatResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> deleteChat(UUID uuid) {
+		return deleteRequest("chats/" + uuid);
+	}
+
+	@Override
+	public LoomClientHttpRequest<ChatResponse> updateChat(UUID uuid, ChatUpdateRequest request) {
+		return postRequest("chats/" + uuid, request, ChatResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<ChatResponse> createChat(ChatCreateRequest request) {
+		return postRequest("chats", request, ChatResponse.class);
 	}
 
 	// ROLE

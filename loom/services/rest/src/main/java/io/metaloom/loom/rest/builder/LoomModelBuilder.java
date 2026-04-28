@@ -11,6 +11,7 @@ public interface LoomModelBuilder extends
 	AttachmentModelBuilder,
 	AssetModelBuilder,
 	BlacklistModelBuilder,
+	ChatModelBuilder,
 	CollectionModelBuilder,
 	ClusterModelBuilder,
 	CommentModelBuilder,

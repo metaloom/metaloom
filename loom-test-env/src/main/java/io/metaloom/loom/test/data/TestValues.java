@@ -116,4 +116,6 @@ public interface TestValues {
 
 	public static final UUID ASSET_POOL_UUID = UUID.fromString("a84e3c0b-2f17-4d67-b159-3c6a8e9d1f42");
 
+	public static final UUID CHAT_UUID = UUID.fromString("c7e12f4a-9b3d-4e6f-a8c1-2d5e7f9b3a4c");
+
 }

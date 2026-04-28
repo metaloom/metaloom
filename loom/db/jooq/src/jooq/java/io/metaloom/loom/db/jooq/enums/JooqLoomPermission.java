@@ -203,7 +203,15 @@ public enum JooqLoomPermission implements EnumType {
 
     DELETE_PERSON("DELETE_PERSON"),
 
-    UPDATE_PERSON("UPDATE_PERSON");
+    UPDATE_PERSON("UPDATE_PERSON"),
+
+    CREATE_CHAT("CREATE_CHAT"),
+
+    READ_CHAT("READ_CHAT"),
+
+    DELETE_CHAT("DELETE_CHAT"),
+
+    UPDATE_CHAT("UPDATE_CHAT");
 
     private final String literal;
 
