@@ -105,13 +105,15 @@ public class DemoDatabaseInitializer {
 	private final ClusterDao clusterDao;
 	private final PersonDao personDao;
 	private final DetectionDao detectionDao;
+	private final AssetComponentDao assetComponentDao;
 
 	@Inject
 	public DemoDatabaseInitializer(UserDao userDao, AssetDao assetDao, SpaceDao spaceDao,
 		TagDao tagDao, CollectionDao collectionDao, LibraryDao libraryDao, PipelineDao pipelineDao, AssetPoolDao assetPoolDao,
 		GroupDao groupDao, RoleDao roleDao, PermissionDao permissionDao, TaskDao taskDao,
 		AnnotationDao annotationDao, ReactionDao reactionDao, TokenDao tokenDao,
-		CommentDao commentDao, BlacklistDao blacklistDao, ClusterDao clusterDao, PersonDao personDao, DetectionDao detectionDao) {
+		CommentDao commentDao, BlacklistDao blacklistDao, ClusterDao clusterDao, PersonDao personDao, DetectionDao detectionDao,
+		AssetComponentDao assetComponentDao) {
 		this.userDao = userDao;
 		this.assetDao = assetDao;
 		this.spaceDao = spaceDao;
@@ -132,6 +134,7 @@ public class DemoDatabaseInitializer {
 		this.clusterDao = clusterDao;
 		this.personDao = personDao;
 		this.detectionDao = detectionDao;
+		this.assetComponentDao = assetComponentDao;
 	}
 
 	/**
@@ -462,6 +465,28 @@ public class DemoDatabaseInitializer {
 
 		log.info("Created {} demo detections", 11);
 
+		// --- Transcripts ---
+		// Transcript for drone-coastal.mp4 (videoAssets[0]) — 3 sections
+		createTranscript(admin, videoAssets[0], "en", "whisper-1", "asr-pipeline",
+			"Welcome everyone to the quarterly update. We have a packed agenda today covering product launches, financial results, and team updates.",
+			"First up, let's discuss the new product launch. The campaign alpha assets are performing exceptionally well across all channels. Social engagement is up forty percent compared to last quarter.",
+			"Moving on to financials. Q1 revenue came in twelve percent above target. Our media pipeline automation reduced processing costs by nearly a third. The investment in the new encoding infrastructure is already paying dividends.");
+
+		// Transcript for interview-clip.mov (videoAssets[2]) — 2 sections
+		createTranscript(admin, videoAssets[2], "en", "whisper-1", "asr-pipeline",
+			"Let's talk about the highlight reel we produced for the championship finals. The broadcast team pulled together the package in record time using our automated workflows.",
+			"Finally, some team updates. We're welcoming two new members to Media Ops next week. Please make sure to update your project permissions and onboard them into the relevant pipelines.");
+
+		// Transcript for podcast-episode1.mp3 (audioAssets[1]) — 5 sections
+		createTranscript(admin, audioAssets[1], "en", "whisper-1", "asr-pipeline",
+			"Welcome everyone to the quarterly update. We have a packed agenda today covering product launches, financial results, and team updates.",
+			"First up, let's discuss the new product launch. The campaign alpha assets are performing exceptionally well across all channels. Social engagement is up forty percent compared to last quarter.",
+			"Moving on to financials. Q1 revenue came in twelve percent above target. Our media pipeline automation reduced processing costs by nearly a third. The investment in the new encoding infrastructure is already paying dividends.",
+			"Let's talk about the highlight reel we produced for the championship finals. The broadcast team pulled together the package in record time using our automated workflows.",
+			"Finally, some team updates. We're welcoming two new members to Media Ops next week. Please make sure to update your project permissions and onboard them into the relevant pipelines.");
+
+		log.info("Created {} demo transcripts", 3);
+
 		log.info("Demo data initialization complete — created {} assets, {} tags, {} collections, {} pipelines, {} users, {} groups, {} roles, {} tasks, {} annotations, {} reactions.",
 			imageAssets.length + videoAssets.length + audioAssets.length + docAssets.length,
 			8, 2, 3, 2, 2, 2, 3, 3, 3);
@@ -717,5 +742,64 @@ public class DemoDatabaseInitializer {
 		tokenDao.store(token);
 		log.info("Created demo token: {}", name);
 		return token;
+	}
+
+	/**
+	 * Build a word-level JSON structure from a text and a starting time offset.
+	 * Returns a JsonObject with "words" (array) and "endTime" (number).
+	 */
+	private static JsonObject buildWords(String text, double startTime) {
+		String[] tokens = text.split("\\s+");
+		JsonArray words = new JsonArray();
+		double t = startTime;
+		for (String w : tokens) {
+			double dur = 0.25;
+			double gap = 0.1;
+			double end = Math.round((t + dur) * 100.0) / 100.0;
+			words.add(new JsonObject()
+				.put("word", w)
+				.put("startTime", Math.round(t * 100.0) / 100.0)
+				.put("endTime", end)
+				.put("confidence", 0.92));
+			t = end + gap;
+		}
+		return new JsonObject()
+			.put("words", words)
+			.put("endTime", Math.round(t * 100.0) / 100.0);
+	}
+
+	/**
+	 * Create a transcript component with word-level JSON sections for an asset.
+	 */
+	private void createTranscript(User admin, Asset asset, String lang, String model, String source, String... sectionTexts) {
+		String[] sectionTitles = { "Introduction", "Product Launch Update", "Financial Results", "Broadcast Highlights", "Team Updates" };
+
+		JsonArray sections = new JsonArray();
+		double cursor = 0;
+		StringBuilder fullText = new StringBuilder();
+		for (int i = 0; i < sectionTexts.length; i++) {
+			JsonObject wResult = buildWords(sectionTexts[i], cursor);
+			double endTime = wResult.getDouble("endTime");
+			sections.add(new JsonObject()
+				.put("id", "ts" + (i + 1))
+				.put("title", sectionTitles[i % sectionTitles.length])
+				.put("startTime", cursor)
+				.put("endTime", endTime)
+				.put("words", wResult.getJsonArray("words")));
+			if (fullText.length() > 0) {
+				fullText.append(" ");
+			}
+			fullText.append(sectionTexts[i]);
+			cursor = endTime + 0.5;
+		}
+
+		AssetTranscriptComp comp = assetComponentDao.createTranscriptComp(admin.getUuid(), asset.getUuid(), source);
+		comp.setLang(lang);
+		comp.setModel(model);
+		comp.setTranscriptText(fullText.toString());
+		comp.setDuration((int) Math.ceil(cursor));
+		comp.setTranscriptJson(new JsonObject().put("sections", sections));
+		assetComponentDao.storeTranscriptComp(comp);
+		log.info("Created demo transcript for asset: {} ({} sections)", asset.getFilename(), sectionTexts.length);
 	}
 }

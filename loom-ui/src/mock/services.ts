@@ -1,10 +1,10 @@
 import {
   ChatMessage,
-  TranscriptSection, DetectedFace,
+  DetectedFace,
 } from "../types";
 import {
   INITIAL_CHAT,
-  TRANSCRIPTS, DETECTED_FACES,
+  DETECTED_FACES,
 } from "./data";
 
 // Simulate realistic async latency
@@ -93,14 +93,6 @@ export const mockChatService = {
       actions: response.actions,
       suggestedFollowUps: response.suggestedFollowUps,
     };
-  },
-};
-
-// ── Transcript ───────────────────────────────────────────────────────────
-export const mockTranscriptService = {
-  getByAsset: async (assetId: string): Promise<TranscriptSection[]> => {
-    await delay(100);
-    return TRANSCRIPTS[assetId] ? [...TRANSCRIPTS[assetId]] : [];
   },
 };
 
