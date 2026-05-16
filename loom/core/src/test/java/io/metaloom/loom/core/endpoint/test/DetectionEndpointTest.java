@@ -130,7 +130,7 @@ public class DetectionEndpointTest extends AbstractCRUDEndpointTest {
 		}
 		DetectionListResponse list = client.listAssetDetections(asset.getUuid()).sync().body();
 		assertNotNull(list);
-		assertEquals(25, list.getPerPage());
+		assertEquals(25, list.getMetainfo().getPerPage());
 	}
 
 	@org.junit.jupiter.api.Test

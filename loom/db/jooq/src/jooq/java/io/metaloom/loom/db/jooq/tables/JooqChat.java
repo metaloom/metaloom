@@ -5,17 +5,19 @@ package io.metaloom.loom.db.jooq.tables;
 
 
 import io.metaloom.loom.db.jooq.JooqPublic;
+import io.metaloom.loom.db.jooq.Keys;
+import io.metaloom.loom.db.jooq.tables.records.JooqChatRecord;
 
 import java.time.LocalDateTime;
 
 import org.jooq.Field;
 import org.jooq.JSONB;
 import org.jooq.Name;
-import org.jooq.Record;
 import org.jooq.Schema;
 import org.jooq.Table;
 import org.jooq.TableField;
 import org.jooq.TableOptions;
+import org.jooq.UniqueKey;
 import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
 import org.jooq.impl.TableImpl;
@@ -25,7 +27,7 @@ import org.jooq.impl.TableImpl;
  * Stores LLM chat sessions with message history
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqChat extends TableImpl<Record> {
+public class JooqChat extends TableImpl<JooqChatRecord> {
 
     private static final long serialVersionUID = 1L;
 
@@ -37,48 +39,48 @@ public class JooqChat extends TableImpl<Record> {
     /**
      * The column <code>public.chat.uuid</code>.
      */
-    public final TableField<Record, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
+    public final TableField<JooqChatRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
 
     /**
      * The column <code>public.chat.title</code>. Short title / summary of the chat session
      */
-    public final TableField<Record, String> TITLE = createField(DSL.name("title"), SQLDataType.VARCHAR.nullable(false), this, "Short title / summary of the chat session");
+    public final TableField<JooqChatRecord, String> TITLE = createField(DSL.name("title"), SQLDataType.VARCHAR.nullable(false), this, "Short title / summary of the chat session");
 
     /**
      * The column <code>public.chat.messages</code>. JSON array of chat messages
      */
-    public final TableField<Record, JSONB> MESSAGES = createField(DSL.name("messages"), SQLDataType.JSONB.nullable(false).defaultValue(DSL.field("'[]'::jsonb", SQLDataType.JSONB)), this, "JSON array of chat messages");
+    public final TableField<JooqChatRecord, JSONB> MESSAGES = createField(DSL.name("messages"), SQLDataType.JSONB.nullable(false).defaultValue(DSL.field("'[]'::jsonb", SQLDataType.JSONB)), this, "JSON array of chat messages");
 
     /**
      * The column <code>public.chat.meta</code>.
      */
-    public final TableField<Record, JSONB> META = createField(DSL.name("meta"), SQLDataType.JSONB, this, "");
+    public final TableField<JooqChatRecord, JSONB> META = createField(DSL.name("meta"), SQLDataType.JSONB, this, "");
 
     /**
      * The column <code>public.chat.created</code>. Creation timestamp
      */
-    public final TableField<Record, LocalDateTime> CREATED = createField(DSL.name("created"), SQLDataType.LOCALDATETIME(6).nullable(false).defaultValue(DSL.field("now()", SQLDataType.LOCALDATETIME)), this, "Creation timestamp");
+    public final TableField<JooqChatRecord, LocalDateTime> CREATED = createField(DSL.name("created"), SQLDataType.LOCALDATETIME(6).nullable(false).defaultValue(DSL.field("now()", SQLDataType.LOCALDATETIME)), this, "Creation timestamp");
 
     /**
      * The column <code>public.chat.creator_uuid</code>.
      */
-    public final TableField<Record, java.util.UUID> CREATOR_UUID = createField(DSL.name("creator_uuid"), SQLDataType.UUID.nullable(false), this, "");
+    public final TableField<JooqChatRecord, java.util.UUID> CREATOR_UUID = createField(DSL.name("creator_uuid"), SQLDataType.UUID.nullable(false), this, "");
 
     /**
      * The column <code>public.chat.edited</code>. Last edit timestamp
      */
-    public final TableField<Record, LocalDateTime> EDITED = createField(DSL.name("edited"), SQLDataType.LOCALDATETIME(6).nullable(false).defaultValue(DSL.field("now()", SQLDataType.LOCALDATETIME)), this, "Last edit timestamp");
+    public final TableField<JooqChatRecord, LocalDateTime> EDITED = createField(DSL.name("edited"), SQLDataType.LOCALDATETIME(6).nullable(false).defaultValue(DSL.field("now()", SQLDataType.LOCALDATETIME)), this, "Last edit timestamp");
 
     /**
      * The column <code>public.chat.editor_uuid</code>.
      */
-    public final TableField<Record, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID.nullable(false), this, "");
+    public final TableField<JooqChatRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID.nullable(false), this, "");
 
-    private JooqChat(Name alias, Table<Record> aliased) {
+    private JooqChat(Name alias, Table<JooqChatRecord> aliased) {
         this(alias, aliased, null);
     }
 
-    private JooqChat(Name alias, Table<Record> aliased, Field<?>[] parameters) {
+    private JooqChat(Name alias, Table<JooqChatRecord> aliased, Field<?>[] parameters) {
         super(alias, null, aliased, parameters, DSL.comment("Stores LLM chat sessions with message history"), TableOptions.table());
     }
 
@@ -89,6 +91,11 @@ public class JooqChat extends TableImpl<Record> {
     @Override
     public Schema getSchema() {
         return aliased() ? null : JooqPublic.PUBLIC;
+    }
+
+    @Override
+    public UniqueKey<JooqChatRecord> getPrimaryKey() {
+        return Keys.CHAT_PKEY;
     }
 
 }

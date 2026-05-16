@@ -15,6 +15,7 @@ import io.metaloom.loom.db.model.embedding.EmbeddingDao;
 import io.metaloom.loom.db.model.group.GroupDao;
 import io.metaloom.loom.db.model.library.LibraryDao;
 import io.metaloom.loom.db.model.perm.PermissionDao;
+import io.metaloom.loom.db.model.detection.DetectionDao;
 import io.metaloom.loom.db.model.person.PersonDao;
 import io.metaloom.loom.db.model.pipeline.PipelineDao;
 import io.metaloom.loom.db.model.pool.AssetPoolDao;
@@ -152,6 +153,12 @@ public interface DaoProvider extends DaoCollection {
 
 	default PersonDao personDao() {
 		return daos().personDao();
+	}
+
+	// Detection
+
+	default DetectionDao detectionDao() {
+		return daos().detectionDao();
 	}
 
 	// Chat

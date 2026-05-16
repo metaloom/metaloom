@@ -5,6 +5,7 @@ package io.metaloom.loom.db.jooq;
 
 
 import io.metaloom.loom.db.jooq.tables.JooqAnnotation;
+import io.metaloom.loom.db.jooq.tables.JooqChat;
 import io.metaloom.loom.db.jooq.tables.JooqAnnotationAsset;
 import io.metaloom.loom.db.jooq.tables.JooqAnnotationTag;
 import io.metaloom.loom.db.jooq.tables.JooqAnnotationTask;
@@ -59,6 +60,7 @@ import io.metaloom.loom.db.jooq.tables.JooqUserPermission;
 import io.metaloom.loom.db.jooq.tables.JooqVectorConfig;
 import io.metaloom.loom.db.jooq.tables.JooqWebhook;
 import io.metaloom.loom.db.jooq.tables.records.JooqAnnotationAssetRecord;
+import io.metaloom.loom.db.jooq.tables.records.JooqChatRecord;
 import io.metaloom.loom.db.jooq.tables.records.JooqAnnotationRecord;
 import io.metaloom.loom.db.jooq.tables.records.JooqAnnotationTagRecord;
 import io.metaloom.loom.db.jooq.tables.records.JooqAnnotationTaskRecord;
@@ -131,6 +133,7 @@ public class Keys {
     // UNIQUE and PRIMARY KEY definitions
     // -------------------------------------------------------------------------
 
+    public static final UniqueKey<JooqChatRecord> CHAT_PKEY = Internal.createUniqueKey(JooqChat.CHAT, DSL.name("chat_pkey"), new TableField[] { JooqChat.CHAT.UUID }, true);
     public static final UniqueKey<JooqAnnotationRecord> ANNOTATION_PKEY = Internal.createUniqueKey(JooqAnnotation.ANNOTATION, DSL.name("annotation_pkey"), new TableField[] { JooqAnnotation.ANNOTATION.UUID }, true);
     public static final UniqueKey<JooqAnnotationAssetRecord> ANNOTATION_ASSET_PKEY = Internal.createUniqueKey(JooqAnnotationAsset.ANNOTATION_ASSET, DSL.name("annotation_asset_pkey"), new TableField[] { JooqAnnotationAsset.ANNOTATION_ASSET.ANNOTATION_UUID, JooqAnnotationAsset.ANNOTATION_ASSET.ASSET_UUID }, true);
     public static final UniqueKey<JooqAnnotationTagRecord> ANNOTATION_TAG_PKEY = Internal.createUniqueKey(JooqAnnotationTag.ANNOTATION_TAG, DSL.name("annotation_tag_pkey"), new TableField[] { JooqAnnotationTag.ANNOTATION_TAG.ANNOTATION_UUID, JooqAnnotationTag.ANNOTATION_TAG.TAG_UUID }, true);
