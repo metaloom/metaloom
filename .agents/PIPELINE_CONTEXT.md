@@ -473,7 +473,16 @@ legacy tree. Each node module ships:
 wraps a legacy `FilesystemNode<?, ?>` as an `AbstractPipelineNode`.
 It:
 
-- Uses `wrappedNode.name()` for both id and display name
+- Uses `wrappedNode.name()` for both id and display name **by default**
+- Has an alternate constructor
+  `new CortexNodeAdapter(String id, FilesystemNode, NodeMode, boolean, int)`
+  that lets you override the pipeline node id while keeping the wrapped
+  node's own `name()` as the display name. Use this when a downstream
+  legacy node expects a specific upstream id that does not match the
+  wrapped node's `name()` — e.g. `LoomNode` reads
+  `ctx.upstreamOutput("md5sum", "md5")` but `MD5Node.name()` is `"md5"`,
+  so the MD5 adapter must be built as
+  `new CortexNodeAdapter("md5sum", md5Node, PARALLEL, true, 1)`.
 - Converts `Map<String, NodeResult>` → `Map<String, Map<String, Object>>`
   so the legacy node's `NodeContext.upstreamOutputs()` sees each
   parent's raw output map
@@ -720,26 +729,54 @@ Uses inline test doubles:
 - `TestNode` — sleeps `delayMs`, appends id to `executionLog`
 - `OutputTestNode` — same plus emits a configurable output map
 - `StubLoomMedia` — no-op `LoomMedia` (in
-  [test/StubLoomMedia.java](../cortex/pipeline-core/src/test/java/io/metaloom/cortex/pipeline/test/StubLoomMedia.java))
+  [test/StubLoomMedia.java](../cortex/pipeline-core/src/test/java/io/metaloom/cortex/pipeline/test/StubLoomMedia.java)).
+  Factories: `StubLoomMedia.ofFile(File)`, `ofBytes(File tempDir, String name, byte[])`,
+  `ofBytes(File tempDir, String name, String)` (UTF-8) — use these to
+  avoid boilerplate `Files.write(...)` in `@BeforeEach` blocks.
 
 ### 11.2 Node pipeline tests — use the base class
 
 For any pipeline-node-level test, extend
 [`AbstractPipelineNodeTest`](../cortex/pipeline-core/src/test/java/io/metaloom/cortex/pipeline/test/AbstractPipelineNodeTest.java).
-It manages the executor, event bus, and event collection:
+It manages the executor, event bus, and event collection, and provides
+helpers that eliminate the repetitive adapter/executor boilerplate:
+
+- `execute(media, PipelineNode...)` — builds a linear
+  `AssetSourceNode → n1 → n2 → ...` pipeline and runs it.
+- `executeWithSync(media, LoomBulkSyncCollector, PipelineNode...)` —
+  spins up a fresh local executor with the given sync collector
+  installed and calls `flush()` after execution. Use this to observe
+  what would be persisted for `syncToLoom` nodes.
+- `adapt(FilesystemNode<?,?>)` and
+  `adapt(node, NodeMode, boolean, int)` — wrap a legacy node as a
+  `CortexNodeAdapter` (default settings: PARALLEL, blocking,
+  concurrency 1).
+- `assertCompletionEvent(nodeId)` and
+  `assertTrackingEvent(nodeId, Type)` — event assertions with helpful
+  failure messages.
+
+For asserting that a downstream node saw a specific upstream output,
+use
+[`CapturingNode`](../cortex/pipeline-core/src/test/java/io/metaloom/cortex/pipeline/test/CapturingNode.java)
+instead of hand-rolling an anonymous `AbstractPipelineNode`:
 
 ```java
 class MyNodePipelineTest extends AbstractPipelineNodeTest {
+    @TempDir
+    File tempDir;
+
     @Test
-    void testProcessing() {
-        LoomMedia media = new StubLoomMedia("/tmp/x.mp4", true);
-        PipelineNode node = /* build node under test */;
+    void testOutputChaining() {
+        LoomMedia media = StubLoomMedia.ofBytes(tempDir, "data.bin", "payload");
+        CortexNodeAdapter node = adapt(new SHA512Node(null, opts, new HashNodeOptions()));
+        CapturingNode capture = new CapturingNode("consumer", "sha512", "sha512");
 
-        PipelineResult result = execute(media, node); // AssetSourceNode → node
+        PipelineResult result = execute(media, node, capture);
 
-        assertThat(result).isSuccess().hasCompletedNode("my-node");
-        assertCompletionEvent("my-node");
-        assertTrackingEvent("my-node", PipelineTrackingEvent.Type.NODE_COMPLETED);
+        assertThat(result).isSuccess().hasCompletedNode("sha512");
+        assertThat(capture.capturedValues()).containsExactly(expectedSha512);
+        assertCompletionEvent("sha512");
+        assertTrackingEvent("sha512", PipelineTrackingEvent.Type.NODE_COMPLETED);
     }
 }
 ```
@@ -753,6 +790,13 @@ Sister asserts for the legacy cortex node tree live under
 
 **Rule**: use these asserts instead of raw `assertEquals` on maps and
 states — they give useful failure messages.
+
+Canonical examples of this pattern (all extend
+`AbstractPipelineNodeTest`): `MD5NodePipelineTest`,
+`SHA512NodePipelineTest`, `ChunkHashNodePipelineTest`,
+`FingerprintNodePipelineTest`, `ThumbnailNodePipelineTest`,
+`LLMNodePipelineTest`, `FacedetectNodePipelineTest`,
+`WhisperNodePipelineTest`.
 
 ### 11.3 Serde round-trip tests
 
@@ -774,6 +818,29 @@ uses `LoomCoreTestExtension` to boot Loom in-process and verifies:
 [PipelineDaoTest](../loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/dao/PipelineDaoTest.java)
 covers the persistence contract (leases a DB from the
 `testdatabase-provider` — see PROJECT_CONTEXT §7).
+
+### 11.6 End-to-end pipeline persistence integration test
+
+[PipelinePersistenceIntegrationTest](../integration-test/src/test/java/io/metaloom/loom/test/integration/PipelinePersistenceIntegrationTest.java)
+covers the full pipeline → `LoomNode` → REST → DB persistence path in
+the [integration-test](../integration-test/) module. It boots Loom
+in-process via `AbstractIntegrationTest`, pre-creates an asset with
+only its SHA-512, then runs a real
+`AssetSourceNode → sha512 → md5sum → loom` pipeline using production
+`CortexNodeAdapter` + `LoomNode`, calls `loomNode.flush()`, reloads
+the asset, and asserts the MD5 hash was persisted.
+
+Key wiring detail: the MD5 adapter must be constructed with the id
+`"md5sum"` (see §7.3) so that `LoomNode`'s
+`ctx.upstreamOutput("md5sum", "md5")` lookup resolves.
+
+**Prerequisite**: the shared `testdatabase-provider` container must
+expose a pool named `loom-dev`. Provision it via `./setup-pool.sh`
+from the repo root before running any integration-test in this
+module. Without it, tests fail at `ProviderExtension.beforeEach` with
+`Got error from server {Pool not found {loom-dev}}` — this is
+identical for the sibling `BasicIntegrationTest` and is an env, not
+code, issue.
 
 ---
 
@@ -814,6 +881,10 @@ consistency.
 | Concrete filters | [pipeline-core/…/node/filter/](../cortex/pipeline-core/src/main/java/io/metaloom/cortex/pipeline/core/node/filter/) |
 | Legacy → new bridge | [pipeline-core/…/node/CortexNodeAdapter.java](../cortex/pipeline-core/src/main/java/io/metaloom/cortex/pipeline/core/node/CortexNodeAdapter.java) |
 | Legacy node base | [common/…/node/AbstractMediaNode.java](../cortex/common/src/main/java/io/metaloom/cortex/common/node/AbstractMediaNode.java) |
+| Node test base | [pipeline-core/src/test/…/test/AbstractPipelineNodeTest.java](../cortex/pipeline-core/src/test/java/io/metaloom/cortex/pipeline/test/AbstractPipelineNodeTest.java) |
+| Test capture node | [pipeline-core/src/test/…/test/CapturingNode.java](../cortex/pipeline-core/src/test/java/io/metaloom/cortex/pipeline/test/CapturingNode.java) |
+| Test media stub | [pipeline-core/src/test/…/test/StubLoomMedia.java](../cortex/pipeline-core/src/test/java/io/metaloom/cortex/pipeline/test/StubLoomMedia.java) |
+| E2E persistence test | [integration-test/…/PipelinePersistenceIntegrationTest.java](../integration-test/src/test/java/io/metaloom/loom/test/integration/PipelinePersistenceIntegrationTest.java) |
 | Event bus | [pipeline-common/…/event/DefaultPipelineEventBus.java](../cortex/pipeline-common/src/main/java/io/metaloom/cortex/pipeline/common/event/DefaultPipelineEventBus.java) |
 | Cache impls | [pipeline-common/…/cache/](../cortex/pipeline-common/src/main/java/io/metaloom/cortex/pipeline/common/cache/) |
 | Bulk sync | [pipeline-common/…/sync/DefaultLoomBulkSyncCollector.java](../cortex/pipeline-common/src/main/java/io/metaloom/cortex/pipeline/common/sync/DefaultLoomBulkSyncCollector.java) |
