@@ -116,6 +116,12 @@
         <!-- Test -->
         <dependency>
             <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-pipeline-core</artifactId>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
             <artifactId>cortex-common</artifactId>
             <type>test-jar</type>
             <scope>test</scope>

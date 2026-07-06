@@ -10,35 +10,28 @@ import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.ResultOrigin;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
-import io.metaloom.cortex.pipeline.api.NodeMode;
+import io.metaloom.cortex.node.facedetect.video.VideoFaceScanner;
 import io.metaloom.cortex.pipeline.api.NodeState;
 import io.metaloom.cortex.pipeline.api.Pipeline;
 import io.metaloom.cortex.pipeline.api.PipelineResult;
 import io.metaloom.cortex.pipeline.api.event.NodeCompletionEvent;
 import io.metaloom.cortex.pipeline.api.event.PipelineTrackingEvent;
 import io.metaloom.cortex.pipeline.core.DefaultPipeline;
-import io.metaloom.cortex.pipeline.core.node.AbstractPipelineNode;
 import io.metaloom.cortex.pipeline.core.node.AssetSourceNode;
 import io.metaloom.cortex.pipeline.core.node.CortexNodeAdapter;
 import io.metaloom.cortex.pipeline.test.AbstractPipelineNodeTest;
+import io.metaloom.cortex.pipeline.test.CapturingNode;
 import io.metaloom.cortex.pipeline.test.StubLoomMedia;
-import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.video.facedetect.inspireface.InspireFacedetector;
-import io.metaloom.cortex.node.facedetect.video.VideoFaceScanner;
 
 /**
  * Pipeline integration test for {@link FacedetectNode}.
@@ -59,8 +52,8 @@ class FacedetectNodePipelineTest extends AbstractPipelineNodeTest {
 
 	@BeforeEach
 	void setUpTestData() throws IOException {
-		testFile = new File(tempDir, "test-video.mp4");
-		Files.write(testFile.toPath(), "fake-video-content".getBytes());
+		StubLoomMedia backing = StubLoomMedia.ofBytes(tempDir, "test-video.mp4", "fake-video-content");
+		testFile = backing.file();
 		videoMedia = new StubLoomMedia(testFile.getAbsolutePath(), true, false, false, false);
 		imageMedia = new StubLoomMedia(testFile.getAbsolutePath(), false, true, false, false);
 	}
@@ -72,8 +65,7 @@ class FacedetectNodePipelineTest extends AbstractPipelineNodeTest {
 		InspireFacedetector inspireface = mock(InspireFacedetector.class);
 		VideoFaceScanner videoScanner = mock(VideoFaceScanner.class);
 
-		CortexOptions cortexOptions = new CortexOptions();
-		FacedetectNode node = spy(new FacedetectNode(null, cortexOptions, options, inspireface, videoScanner));
+		FacedetectNode node = spy(new FacedetectNode(null, new CortexOptions(), options, inspireface, videoScanner));
 
 		// Stub the compute method to avoid native calls
 		doAnswer(invocation -> {
@@ -83,7 +75,7 @@ class FacedetectNodePipelineTest extends AbstractPipelineNodeTest {
 			return ctx.origin(ResultOrigin.COMPUTED).next();
 		}).when(node).compute(any(), any());
 
-		return new CortexNodeAdapter(node, NodeMode.PARALLEL, true, 1);
+		return adapt(node);
 	}
 
 	// ========================================================================
@@ -158,33 +150,12 @@ class FacedetectNodePipelineTest extends AbstractPipelineNodeTest {
 	@Test
 	void testOutputChaining() throws Exception {
 		CortexNodeAdapter faceAdapter = createAdapter(5);
+		CapturingNode consumer = new CapturingNode("consumer", "facedetect", "face_count");
 
-		List<Integer> receivedCounts = new CopyOnWriteArrayList<>();
-		AbstractPipelineNode downstream = new AbstractPipelineNode(
-				"consumer", "Consumer", NodeMode.SEQUENTIAL, true, 1) {
-			@Override
-			public io.metaloom.cortex.pipeline.api.NodeResult process(LoomMedia media,
-					Map<String, io.metaloom.cortex.pipeline.api.NodeResult> upstreamResults) {
-				io.metaloom.cortex.pipeline.api.NodeResult faceResult = upstreamResults.get("facedetect");
-				Integer count = faceResult != null ? faceResult.getOutput("face_count") : null;
-				receivedCounts.add(count);
-				return io.metaloom.cortex.pipeline.api.NodeResult.success(id(), 0,
-						Map.of("received_count", count != null ? count : 0));
-			}
-		};
-
-		AssetSourceNode source = new AssetSourceNode(videoMedia);
-		source.connectTo(faceAdapter);
-		faceAdapter.connectTo(downstream);
-
-		Pipeline pipeline = DefaultPipeline.builder("chaining-test")
-				.source(source)
-				.build();
-
-		PipelineResult result = executor.execute(pipeline, videoMedia);
+		PipelineResult result = execute(videoMedia, faceAdapter, consumer);
 
 		assertThat(result).isSuccess().hasNodeCount(3);
-		assertThat(receivedCounts).containsExactly(5);
+		assertThat(consumer.capturedValues()).containsExactly(5);
 	}
 
 	// ========================================================================

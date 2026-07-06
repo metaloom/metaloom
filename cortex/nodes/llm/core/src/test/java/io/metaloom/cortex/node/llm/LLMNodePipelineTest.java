@@ -8,10 +8,7 @@ import static org.mockito.Mockito.spy;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,19 +18,17 @@ import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
-import io.metaloom.cortex.pipeline.api.NodeMode;
 import io.metaloom.cortex.pipeline.api.NodeState;
 import io.metaloom.cortex.pipeline.api.Pipeline;
 import io.metaloom.cortex.pipeline.api.PipelineResult;
 import io.metaloom.cortex.pipeline.api.event.NodeCompletionEvent;
 import io.metaloom.cortex.pipeline.api.event.PipelineTrackingEvent;
 import io.metaloom.cortex.pipeline.core.DefaultPipeline;
-import io.metaloom.cortex.pipeline.core.node.AbstractPipelineNode;
 import io.metaloom.cortex.pipeline.core.node.AssetSourceNode;
 import io.metaloom.cortex.pipeline.core.node.CortexNodeAdapter;
 import io.metaloom.cortex.pipeline.test.AbstractPipelineNodeTest;
+import io.metaloom.cortex.pipeline.test.CapturingNode;
 import io.metaloom.cortex.pipeline.test.StubLoomMedia;
-import io.metaloom.loom.rest.model.asset.AssetResponse;
 
 /**
  * Pipeline integration test for {@link LLMNode}.
@@ -50,14 +45,11 @@ class LLMNodePipelineTest extends AbstractPipelineNodeTest {
 	@TempDir
 	File tempDir;
 
-	private File testFile;
 	private StubLoomMedia media;
 
 	@BeforeEach
 	void setUpTestData() throws IOException {
-		testFile = new File(tempDir, "My_Documentary_2024_1080p.mp4");
-		Files.write(testFile.toPath(), "fake-video-content".getBytes());
-		media = StubLoomMedia.ofFile(testFile);
+		media = StubLoomMedia.ofBytes(tempDir, "My_Documentary_2024_1080p.mp4", "fake-video-content");
 	}
 
 	private CortexNodeAdapter createAdapter() throws Exception {
@@ -73,8 +65,7 @@ class LLMNodePipelineTest extends AbstractPipelineNodeTest {
 		prompt.setPrompt("Extract metadata from ${name}");
 		options.setPrompts(Map.of(promptId, prompt));
 
-		CortexOptions cortexOptions = new CortexOptions();
-		LLMNode node = spy(new LLMNode(null, cortexOptions, options));
+		LLMNode node = spy(new LLMNode(null, new CortexOptions(), options));
 
 		// Stub the compute method to avoid Ollama HTTP calls
 		doAnswer(invocation -> {
@@ -85,7 +76,7 @@ class LLMNodePipelineTest extends AbstractPipelineNodeTest {
 			return NodeResult.success(ctx.outputs());
 		}).when(node).compute(any(), any());
 
-		return new CortexNodeAdapter(node, NodeMode.PARALLEL, true, 1);
+		return adapt(node);
 	}
 
 	// ========================================================================
@@ -141,7 +132,7 @@ class LLMNodePipelineTest extends AbstractPipelineNodeTest {
 			return NodeResult.success(ctx.outputs());
 		}).when(node).compute(any(), any());
 
-		CortexNodeAdapter adapter = new CortexNodeAdapter(node, NodeMode.PARALLEL, true, 1);
+		CortexNodeAdapter adapter = adapt(node);
 		PipelineResult result = execute(media, adapter);
 
 		assertThat(result).isSuccess();
@@ -183,33 +174,12 @@ class LLMNodePipelineTest extends AbstractPipelineNodeTest {
 	@Test
 	void testOutputChaining() throws Exception {
 		CortexNodeAdapter llmAdapter = createAdapter();
+		CapturingNode consumer = new CapturingNode("consumer", "llm", "llm_result_default");
 
-		List<String> receivedResults = new CopyOnWriteArrayList<>();
-		AbstractPipelineNode downstream = new AbstractPipelineNode(
-				"consumer", "Consumer", NodeMode.SEQUENTIAL, true, 1) {
-			@Override
-			public io.metaloom.cortex.pipeline.api.NodeResult process(LoomMedia media,
-					Map<String, io.metaloom.cortex.pipeline.api.NodeResult> upstreamResults) {
-				io.metaloom.cortex.pipeline.api.NodeResult llmResult = upstreamResults.get("llm");
-				String json = llmResult != null ? llmResult.getOutput("llm_result_default") : null;
-				receivedResults.add(json);
-				return io.metaloom.cortex.pipeline.api.NodeResult.success(id(), 0,
-						Map.of("received_llm", json != null ? json : ""));
-			}
-		};
-
-		AssetSourceNode source = new AssetSourceNode(media);
-		source.connectTo(llmAdapter);
-		llmAdapter.connectTo(downstream);
-
-		Pipeline pipeline = DefaultPipeline.builder("chaining-test")
-				.source(source)
-				.build();
-
-		PipelineResult result = executor.execute(pipeline, media);
+		PipelineResult result = execute(media, llmAdapter, consumer);
 
 		assertThat(result).isSuccess().hasNodeCount(3);
-		assertThat(receivedResults).containsExactly(FAKE_LLM_RESULT);
+		assertThat(consumer.capturedValues()).containsExactly(FAKE_LLM_RESULT);
 	}
 
 	// ========================================================================

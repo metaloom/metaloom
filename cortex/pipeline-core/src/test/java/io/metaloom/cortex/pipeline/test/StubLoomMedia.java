@@ -3,7 +3,10 @@ package io.metaloom.cortex.pipeline.test;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -41,6 +44,28 @@ public class StubLoomMedia implements LoomMedia {
 
 	public static StubLoomMedia ofFile(File file) {
 		return new StubLoomMedia(file.getAbsolutePath());
+	}
+
+	/**
+	 * Write {@code content} to a new file {@code name} under {@code tempDir}
+	 * and return a media stub pointing at it. Convenience factory that removes
+	 * the {@code Files.write(...)} preamble from every node-test {@code @BeforeEach}.
+	 */
+	public static StubLoomMedia ofBytes(File tempDir, String name, byte[] content) {
+		File file = new File(tempDir, name);
+		try {
+			Files.write(file.toPath(), content);
+		} catch (IOException e) {
+			throw new UncheckedIOException(e);
+		}
+		return ofFile(file);
+	}
+
+	/**
+	 * {@link #ofBytes(File, String, byte[])} using the UTF-8 bytes of {@code content}.
+	 */
+	public static StubLoomMedia ofBytes(File tempDir, String name, String content) {
+		return ofBytes(tempDir, name, content.getBytes());
 	}
 
 	@Override

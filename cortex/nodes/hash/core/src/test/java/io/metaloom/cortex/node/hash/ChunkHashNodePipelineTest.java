@@ -7,28 +7,22 @@ import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import io.metaloom.cortex.api.option.CortexOptions;
-import io.metaloom.cortex.pipeline.api.NodeMode;
-import io.metaloom.cortex.pipeline.api.NodeResult;
 import io.metaloom.cortex.pipeline.api.NodeState;
 import io.metaloom.cortex.pipeline.api.Pipeline;
 import io.metaloom.cortex.pipeline.api.PipelineResult;
 import io.metaloom.cortex.pipeline.api.event.NodeCompletionEvent;
 import io.metaloom.cortex.pipeline.api.event.PipelineTrackingEvent;
 import io.metaloom.cortex.pipeline.core.DefaultPipeline;
-import io.metaloom.cortex.pipeline.core.node.AbstractPipelineNode;
 import io.metaloom.cortex.pipeline.core.node.AssetSourceNode;
 import io.metaloom.cortex.pipeline.core.node.CortexNodeAdapter;
 import io.metaloom.cortex.pipeline.test.AbstractPipelineNodeTest;
+import io.metaloom.cortex.pipeline.test.CapturingNode;
 import io.metaloom.cortex.pipeline.test.StubLoomMedia;
 import io.metaloom.utils.hash.HashUtils;
 
@@ -40,16 +34,13 @@ class ChunkHashNodePipelineTest extends AbstractPipelineNodeTest {
 	@TempDir
 	File tempDir;
 
-	private File testFile;
 	private String expectedChunkHash;
 	private StubLoomMedia media;
 
 	@BeforeEach
 	void setUpTestData() throws IOException {
-		testFile = new File(tempDir, "test-asset.bin");
-		Files.write(testFile.toPath(), "chunkhash-pipeline-test-content".getBytes());
-		expectedChunkHash = HashUtils.computeChunkHash(testFile).toString();
-		media = StubLoomMedia.ofFile(testFile);
+		media = StubLoomMedia.ofBytes(tempDir, "test-asset.bin", "chunkhash-pipeline-test-content");
+		expectedChunkHash = HashUtils.computeChunkHash(media.file()).toString();
 	}
 
 	private ChunkHashNode createNode() {
@@ -60,12 +51,7 @@ class ChunkHashNodePipelineTest extends AbstractPipelineNodeTest {
 		HashNodeOptions options = mock(HashNodeOptions.class);
 		when(options.isChunkHash()).thenReturn(chunkHashEnabled);
 		when(options.isEnabled()).thenReturn(true);
-		CortexOptions cortexOptions = new CortexOptions();
-		return new ChunkHashNode(null, cortexOptions, options);
-	}
-
-	private CortexNodeAdapter adapt(ChunkHashNode node) {
-		return new CortexNodeAdapter(node, NodeMode.PARALLEL, true, 1);
+		return new ChunkHashNode(null, new CortexOptions(), options);
 	}
 
 	// ========================================================================
@@ -128,32 +114,12 @@ class ChunkHashNodePipelineTest extends AbstractPipelineNodeTest {
 	@Test
 	void testOutputChaining() {
 		CortexNodeAdapter chunkAdapter = adapt(createNode());
+		CapturingNode consumer = new CapturingNode("consumer", "chunk-hash", "chunk_hash");
 
-		List<String> receivedHash = new CopyOnWriteArrayList<>();
-		AbstractPipelineNode downstream = new AbstractPipelineNode(
-				"consumer", "Consumer", NodeMode.SEQUENTIAL, true, 1) {
-			@Override
-			public NodeResult process(io.metaloom.cortex.api.media.LoomMedia media,
-					Map<String, NodeResult> upstreamResults) {
-				NodeResult hashResult = upstreamResults.get("chunk-hash");
-				String hash = hashResult != null ? hashResult.getOutput("chunk_hash") : null;
-				receivedHash.add(hash);
-				return NodeResult.success(id(), 0, Map.of("received_hash", hash != null ? hash : ""));
-			}
-		};
-
-		AssetSourceNode source = new AssetSourceNode(media);
-		source.connectTo(chunkAdapter);
-		chunkAdapter.connectTo(downstream);
-
-		Pipeline pipeline = DefaultPipeline.builder("chaining-test")
-				.source(source)
-				.build();
-
-		PipelineResult result = executor.execute(pipeline, media);
+		PipelineResult result = execute(media, chunkAdapter, consumer);
 
 		assertThat(result).isSuccess().hasNodeCount(3);
-		assertThat(receivedHash).containsExactly(expectedChunkHash);
+		assertThat(consumer.capturedValues()).containsExactly(expectedChunkHash);
 	}
 
 	// ========================================================================

@@ -29,7 +29,15 @@ public class CortexNodeAdapter extends AbstractPipelineNode {
 	private final FilesystemNode<?, ?> wrappedNode;
 
 	public CortexNodeAdapter(FilesystemNode<?, ?> wrappedNode, NodeMode mode, boolean blocking, int concurrency) {
-		super(wrappedNode.name(), wrappedNode.name(), mode, blocking, concurrency);
+		this(wrappedNode.name(), wrappedNode, mode, blocking, concurrency);
+	}
+
+	/**
+	 * Alternate constructor which allows overriding the pipeline node id (defaults to {@code wrappedNode.name()}).
+	 * Useful when a downstream node expects a specific upstream node id that does not match the wrapped node's own name.
+	 */
+	public CortexNodeAdapter(String id, FilesystemNode<?, ?> wrappedNode, NodeMode mode, boolean blocking, int concurrency) {
+		super(id, wrappedNode.name(), mode, blocking, concurrency);
 		this.wrappedNode = wrappedNode;
 	}
 

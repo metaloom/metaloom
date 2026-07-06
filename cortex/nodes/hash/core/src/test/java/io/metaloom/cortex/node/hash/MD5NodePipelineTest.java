@@ -7,29 +7,22 @@ import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import io.metaloom.cortex.api.option.CortexOptions;
-import io.metaloom.cortex.pipeline.api.NodeMode;
-import io.metaloom.cortex.pipeline.api.NodeResult;
 import io.metaloom.cortex.pipeline.api.NodeState;
 import io.metaloom.cortex.pipeline.api.Pipeline;
 import io.metaloom.cortex.pipeline.api.PipelineResult;
 import io.metaloom.cortex.pipeline.api.event.NodeCompletionEvent;
 import io.metaloom.cortex.pipeline.api.event.PipelineTrackingEvent;
-import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 import io.metaloom.cortex.pipeline.core.DefaultPipeline;
-import io.metaloom.cortex.pipeline.core.node.AbstractPipelineNode;
 import io.metaloom.cortex.pipeline.core.node.AssetSourceNode;
 import io.metaloom.cortex.pipeline.core.node.CortexNodeAdapter;
 import io.metaloom.cortex.pipeline.test.AbstractPipelineNodeTest;
+import io.metaloom.cortex.pipeline.test.CapturingNode;
 import io.metaloom.cortex.pipeline.test.StubLoomMedia;
 import io.metaloom.utils.hash.HashUtils;
 import io.metaloom.utils.hash.MD5;
@@ -53,16 +46,13 @@ public class MD5NodePipelineTest extends AbstractPipelineNodeTest {
 	@TempDir
 	File tempDir;
 
-	private File testFile;
 	private String expectedMd5;
 	private StubLoomMedia media;
 
 	@BeforeEach
 	void setUpTestData() throws IOException {
-		testFile = new File(tempDir, "test-asset.bin");
-		Files.write(testFile.toPath(), "pipeline-test-content".getBytes());
-		expectedMd5 = HashUtils.computeMD5(testFile).toString();
-		media = StubLoomMedia.ofFile(testFile);
+		media = StubLoomMedia.ofBytes(tempDir, "test-asset.bin", "pipeline-test-content");
+		expectedMd5 = HashUtils.computeMD5(media.file()).toString();
 	}
 
 	// -- Setup helpers --
@@ -75,12 +65,7 @@ public class MD5NodePipelineTest extends AbstractPipelineNodeTest {
 		HashNodeOptions options = mock(HashNodeOptions.class);
 		when(options.isMD5()).thenReturn(md5Enabled);
 		when(options.isEnabled()).thenReturn(true);
-		CortexOptions cortexOptions = new CortexOptions();
-		return new MD5Node(null, cortexOptions, options);
-	}
-
-	private CortexNodeAdapter adapt(MD5Node node) {
-		return new CortexNodeAdapter(node, NodeMode.PARALLEL, true, 1);
+		return new MD5Node(null, new CortexOptions(), options);
 	}
 
 	// ========================================================================
@@ -147,35 +132,12 @@ public class MD5NodePipelineTest extends AbstractPipelineNodeTest {
 	@Test
 	void testOutputChaining() {
 		CortexNodeAdapter md5Adapter = adapt(createNode());
+		CapturingNode consumer = new CapturingNode("consumer", "md5", "md5");
 
-		// Downstream node that reads the MD5 value from upstream
-		List<String> receivedMd5 = new CopyOnWriteArrayList<>();
-		AbstractPipelineNode downstream = new AbstractPipelineNode(
-				"consumer", "Consumer", NodeMode.SEQUENTIAL, true, 1) {
-			@Override
-			public NodeResult process(io.metaloom.cortex.api.media.LoomMedia media,
-					Map<String, NodeResult> upstreamResults) {
-				NodeResult md5Result = upstreamResults.get("md5");
-				String md5 = md5Result != null ? md5Result.getOutput("md5") : null;
-				receivedMd5.add(md5);
-				return NodeResult.success(id(), 0, Map.of("received_md5", md5 != null ? md5 : ""));
-			}
-		};
-
-		// Build pipeline: source → md5 → consumer
-		AssetSourceNode source = new AssetSourceNode(media);
-		source.connectTo(md5Adapter);
-		md5Adapter.connectTo(downstream);
-
-		Pipeline pipeline = DefaultPipeline.builder("chaining-test")
-				.source(source)
-				.build();
-
-		PipelineResult result = executor.execute(pipeline, media);
+		PipelineResult result = execute(media, md5Adapter, consumer);
 
 		assertThat(result).isSuccess().hasNodeCount(3);
-		assertThat(result).hasNodeOutput("consumer", "received_md5", expectedMd5);
-		assertThat(receivedMd5).containsExactly(expectedMd5);
+		assertThat(consumer.capturedValues()).containsExactly(expectedMd5);
 	}
 
 	// ========================================================================

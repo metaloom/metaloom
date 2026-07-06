@@ -10,10 +10,6 @@ import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,19 +19,17 @@ import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.ResultOrigin;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
-import io.metaloom.cortex.pipeline.api.NodeMode;
 import io.metaloom.cortex.pipeline.api.NodeState;
 import io.metaloom.cortex.pipeline.api.Pipeline;
 import io.metaloom.cortex.pipeline.api.PipelineResult;
 import io.metaloom.cortex.pipeline.api.event.NodeCompletionEvent;
 import io.metaloom.cortex.pipeline.api.event.PipelineTrackingEvent;
 import io.metaloom.cortex.pipeline.core.DefaultPipeline;
-import io.metaloom.cortex.pipeline.core.node.AbstractPipelineNode;
 import io.metaloom.cortex.pipeline.core.node.AssetSourceNode;
 import io.metaloom.cortex.pipeline.core.node.CortexNodeAdapter;
 import io.metaloom.cortex.pipeline.test.AbstractPipelineNodeTest;
+import io.metaloom.cortex.pipeline.test.CapturingNode;
 import io.metaloom.cortex.pipeline.test.StubLoomMedia;
-import io.metaloom.loom.rest.model.asset.AssetResponse;
 
 /**
  * Pipeline integration test for {@link WhisperNode}.
@@ -58,8 +52,8 @@ class WhisperNodePipelineTest extends AbstractPipelineNodeTest {
 
 	@BeforeEach
 	void setUpTestData() throws IOException {
-		testFile = new File(tempDir, "test-audio.wav");
-		Files.write(testFile.toPath(), "fake-audio-content".getBytes());
+		StubLoomMedia backing = StubLoomMedia.ofBytes(tempDir, "test-audio.wav", "fake-audio-content");
+		testFile = backing.file();
 		videoMedia = new StubLoomMedia(testFile.getAbsolutePath(), true, false, false, false);
 		audioMedia = new StubLoomMedia(testFile.getAbsolutePath(), false, false, true, false);
 	}
@@ -74,8 +68,7 @@ class WhisperNodePipelineTest extends AbstractPipelineNodeTest {
 
 		WhisperMediaProcessor processor = mock(WhisperMediaProcessor.class);
 
-		CortexOptions cortexOptions = new CortexOptions();
-		WhisperNode node = spy(new WhisperNode(null, cortexOptions, options, processor));
+		WhisperNode node = spy(new WhisperNode(null, new CortexOptions(), options, processor));
 
 		// Stub the compute method to avoid native WhisperCpp calls
 		doAnswer(invocation -> {
@@ -84,7 +77,7 @@ class WhisperNodePipelineTest extends AbstractPipelineNodeTest {
 			return ctx.origin(ResultOrigin.COMPUTED).next();
 		}).when(node).compute(any(), any());
 
-		return new CortexNodeAdapter(node, NodeMode.PARALLEL, true, 1);
+		return adapt(node);
 	}
 
 	// ========================================================================
@@ -150,33 +143,12 @@ class WhisperNodePipelineTest extends AbstractPipelineNodeTest {
 	@Test
 	void testOutputChaining() throws Exception {
 		CortexNodeAdapter whisperAdapter = createAdapter();
+		CapturingNode consumer = new CapturingNode("consumer", "whisper", "whisper_result");
 
-		List<String> receivedTranscripts = new CopyOnWriteArrayList<>();
-		AbstractPipelineNode downstream = new AbstractPipelineNode(
-				"consumer", "Consumer", NodeMode.SEQUENTIAL, true, 1) {
-			@Override
-			public io.metaloom.cortex.pipeline.api.NodeResult process(LoomMedia media,
-					Map<String, io.metaloom.cortex.pipeline.api.NodeResult> upstreamResults) {
-				io.metaloom.cortex.pipeline.api.NodeResult whisperResult = upstreamResults.get("whisper");
-				String json = whisperResult != null ? whisperResult.getOutput("whisper_result") : null;
-				receivedTranscripts.add(json);
-				return io.metaloom.cortex.pipeline.api.NodeResult.success(id(), 0,
-						Map.of("received_transcript", json != null ? json : ""));
-			}
-		};
-
-		AssetSourceNode source = new AssetSourceNode(videoMedia);
-		source.connectTo(whisperAdapter);
-		whisperAdapter.connectTo(downstream);
-
-		Pipeline pipeline = DefaultPipeline.builder("chaining-test")
-				.source(source)
-				.build();
-
-		PipelineResult result = executor.execute(pipeline, videoMedia);
+		PipelineResult result = execute(videoMedia, whisperAdapter, consumer);
 
 		assertThat(result).isSuccess().hasNodeCount(3);
-		assertThat(receivedTranscripts).containsExactly(FAKE_WHISPER_JSON);
+		assertThat(consumer.capturedValues()).containsExactly(FAKE_WHISPER_JSON);
 	}
 
 	// ========================================================================

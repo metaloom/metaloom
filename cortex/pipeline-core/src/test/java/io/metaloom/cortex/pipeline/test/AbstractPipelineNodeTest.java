@@ -7,15 +7,19 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 
 import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.api.node.FilesystemNode;
+import io.metaloom.cortex.pipeline.api.NodeMode;
 import io.metaloom.cortex.pipeline.api.Pipeline;
 import io.metaloom.cortex.pipeline.api.PipelineResult;
 import io.metaloom.cortex.pipeline.api.event.NodeCompletionEvent;
 import io.metaloom.cortex.pipeline.api.event.PipelineTrackingEvent;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
+import io.metaloom.cortex.pipeline.api.sync.LoomBulkSyncCollector;
 import io.metaloom.cortex.pipeline.common.event.DefaultPipelineEventBus;
 import io.metaloom.cortex.pipeline.core.DefaultPipeline;
 import io.metaloom.cortex.pipeline.core.executor.ReactivePipelineExecutor;
 import io.metaloom.cortex.pipeline.core.node.AssetSourceNode;
+import io.metaloom.cortex.pipeline.core.node.CortexNodeAdapter;
 
 /**
  * Abstract base for pipeline node tests. Provides:
@@ -96,6 +100,50 @@ public abstract class AbstractPipelineNodeTest {
 				.source(source)
 				.build();
 		return executor.execute(pipeline, media);
+	}
+
+	/**
+	 * Execute a linear pipeline using a fresh executor that has the given
+	 * {@link LoomBulkSyncCollector} installed. Useful for tests that want to
+	 * observe what would be persisted for {@code syncToLoom} nodes without
+	 * affecting the shared {@link #executor}.
+	 */
+	protected PipelineResult executeWithSync(LoomMedia media, LoomBulkSyncCollector syncCollector, PipelineNode... nodes) {
+		ReactivePipelineExecutor localExecutor = new ReactivePipelineExecutor(4, eventBus, syncCollector);
+		try {
+			AssetSourceNode source = new AssetSourceNode(media);
+			PipelineNode prev = source;
+			for (PipelineNode node : nodes) {
+				prev.connectTo(node);
+				prev = node;
+			}
+			Pipeline pipeline = DefaultPipeline.builder("sync-test-pipeline")
+					.source(source)
+					.build();
+			PipelineResult result = localExecutor.execute(pipeline, media);
+			syncCollector.flush();
+			return result;
+		} finally {
+			localExecutor.shutdown();
+		}
+	}
+
+	/**
+	 * Wrap a legacy cortex {@link FilesystemNode} as a {@link CortexNodeAdapter}
+	 * with the default test settings (PARALLEL, blocking, concurrency 1).
+	 * Removes the {@code new CortexNodeAdapter(node, NodeMode.PARALLEL, true, 1)}
+	 * boilerplate from every node test.
+	 */
+	protected CortexNodeAdapter adapt(FilesystemNode<?, ?> node) {
+		return adapt(node, NodeMode.PARALLEL, true, 1);
+	}
+
+	/**
+	 * Wrap a legacy cortex {@link FilesystemNode} as a {@link CortexNodeAdapter}
+	 * with explicit mode, blocking and concurrency settings.
+	 */
+	protected CortexNodeAdapter adapt(FilesystemNode<?, ?> node, NodeMode mode, boolean blocking, int concurrency) {
+		return new CortexNodeAdapter(node, mode, blocking, concurrency);
 	}
 
 	/**

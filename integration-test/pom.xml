@@ -57,6 +57,21 @@
             <artifactId>cortex-cli</artifactId>
             <version>${loom.cortex.version}</version>
         </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-pipeline-core</artifactId>
+            <version>${loom.cortex.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-hash-node</artifactId>
+            <version>${loom.cortex.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-loom-node</artifactId>
+            <version>${loom.cortex.version}</version>
+        </dependency>
 
         <!--Test-->
         <dependency>
