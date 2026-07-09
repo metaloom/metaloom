@@ -3,6 +3,7 @@ package io.metaloom.cortex.node.hash;
 import static io.metaloom.cortex.api.node.ResultOrigin.COMPUTED;
 import static io.metaloom.cortex.api.node.ResultOrigin.REMOTE;
 
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 
 import org.slf4j.Logger;
@@ -27,7 +28,7 @@ public class ChunkHashNode extends AbstractMediaNode<HashNodeOptions> {
 	public static final NodeOutputKey<String> OUTPUT_CHUNK_HASH = NodeOutputKey.of("chunk_hash", String.class);
 
 	@Inject
-	public ChunkHashNode(LoomClient client, CortexOptions cortexOption, HashNodeOptions options) {
+	public ChunkHashNode(@Nullable LoomClient client, CortexOptions cortexOption, HashNodeOptions options) {
 		super(client, cortexOption, options);
 	}
 

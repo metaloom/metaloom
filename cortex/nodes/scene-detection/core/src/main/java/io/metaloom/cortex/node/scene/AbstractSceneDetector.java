@@ -5,7 +5,9 @@ import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.GraphicsEnvironment;
 import java.awt.image.BufferedImage;
-import java.io.IOException;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.metaloom.opencv.core.Size;
 import io.metaloom.opencv.imgproc.Imgproc;
@@ -20,6 +22,8 @@ import io.metaloom.video4j.VideoFrame;
 import io.metaloom.video4j.utils.SimpleImageViewer;
 
 public abstract class AbstractSceneDetector implements SceneDetector {
+
+	private static final Logger log = LoggerFactory.getLogger(AbstractSceneDetector.class);
 
 	private final int videoChopRate = 10;
 	protected final int VIDEO_SCALE_SIZE = 256;
@@ -42,7 +46,7 @@ public abstract class AbstractSceneDetector implements SceneDetector {
 			if (nTotalFrame % 1000 == 0) {
 				long dur = System.currentTimeMillis() - start;
 				double avg = (double) nTotalFrame / (double) dur;
-				System.out.println("Frame: " + avg + " " + nFrame + " " + video.length());
+				log.debug("Frame rate: {} fps at frame {}/{}", String.format("%.2f", avg), nFrame, video.length());
 			}
 			for (int i = 0; i < videoChopRate-1; i++) {
 				video.frame();
@@ -85,14 +89,7 @@ public abstract class AbstractSceneDetector implements SceneDetector {
 				}
 
 			} catch (Exception e) {
-				e.printStackTrace();
-				System.out.println(nFrame);
-				try {
-					System.in.read();
-				} catch (IOException e1) {
-					// TODO Auto-generated catch block
-					e1.printStackTrace();
-				}
+				log.error("Scene detection failed at frame {} of {} — skipping frame", nFrame, video.length(), e);
 				continue;
 			}
 

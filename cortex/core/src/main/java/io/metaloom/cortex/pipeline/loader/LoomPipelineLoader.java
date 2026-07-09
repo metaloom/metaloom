@@ -125,7 +125,7 @@ public class LoomPipelineLoader {
 		JsonObject definition = response.getDefinition();
 
 		// First pass: parse all nodes
-		Map<String, StubPipelineNode> nodeMap = new LinkedHashMap<>();
+		Map<String, PipelineNode> nodeMap = new LinkedHashMap<>();
 		Map<String, Set<String>> depMap = new HashMap<>();
 
 		if (definition != null && definition.containsKey("nodes")) {
@@ -138,7 +138,7 @@ public class LoomPipelineLoader {
 					continue;
 				}
 
-				StubPipelineNode node = parseNode(nodeDef);
+				PipelineNode node = parseNode(nodeDef);
 				if (node != null) {
 					nodeMap.put(id, node);
 
@@ -156,9 +156,9 @@ public class LoomPipelineLoader {
 
 		// Second pass: reconstruct connections from dependencies
 		for (Map.Entry<String, Set<String>> entry : depMap.entrySet()) {
-			StubPipelineNode child = nodeMap.get(entry.getKey());
+			PipelineNode child = nodeMap.get(entry.getKey());
 			for (String depId : entry.getValue()) {
-				StubPipelineNode parent = nodeMap.get(depId);
+				PipelineNode parent = nodeMap.get(depId);
 				if (parent != null && child != null) {
 					parent.connectTo(child);
 				}
@@ -166,8 +166,8 @@ public class LoomPipelineLoader {
 		}
 
 		// Find source node
-		StubPipelineNode source = null;
-		for (StubPipelineNode node : nodeMap.values()) {
+		PipelineNode source = null;
+		for (PipelineNode node : nodeMap.values()) {
 			if (node.isSource()) {
 				source = node;
 				break;
@@ -178,7 +178,9 @@ public class LoomPipelineLoader {
 			for (Map.Entry<String, Set<String>> entry : depMap.entrySet()) {
 				if (entry.getValue().isEmpty()) {
 					source = nodeMap.get(entry.getKey());
-					source.setSource(true);
+					if (source instanceof AbstractPipelineNode ap) {
+						ap.setSource(true);
+					}
 					break;
 				}
 			}
@@ -197,22 +199,29 @@ public class LoomPipelineLoader {
 		return builder.build();
 	}
 
-	private StubPipelineNode parseNode(JsonObject nodeDef) {
+	private PipelineNode parseNode(JsonObject nodeDef) {
 		String id = nodeDef.getString("id");
 		if (id == null) {
 			return null;
 		}
 
-		// If a custom factory is set, delegate to it
+		String type = nodeDef.getString("type", "processor");
+		boolean sourceFlag = nodeDef.getBoolean("source", false) || "source".equals(type);
+
+		// If a custom factory is set, delegate to it. Real cortex nodes
+		// (wrapped via CortexNodeAdapter) come back through this branch.
 		if (nodeFactory != null) {
 			PipelineNode resolved = nodeFactory.createNode(nodeDef);
-			if (resolved != null && resolved instanceof StubPipelineNode stub) {
-				return stub;
-			}
-			// Custom factory nodes are not StubPipelineNodes, wrap or skip
 			if (resolved != null) {
-				log.warn("NodeFactory returned non-stub node for '{}'. Using stub.", id);
+				// Apply the source flag when possible; adapters that wrap a
+				// legacy SourceNode already report isSource() correctly, but
+				// stub-style AbstractPipelineNodes need the explicit setter.
+				if (sourceFlag && resolved instanceof AbstractPipelineNode ap && !ap.isSource()) {
+					ap.setSource(true);
+				}
+				return resolved;
 			}
+			log.debug("NodeFactory returned no node for '{}'; using stub", id);
 		}
 
 		String name = nodeDef.getString("name", id);
@@ -220,14 +229,9 @@ public class LoomPipelineLoader {
 		boolean blocking = nodeDef.getBoolean("blocking", true);
 		int concurrency = nodeDef.getInteger("concurrency", 1);
 		boolean syncToLoom = nodeDef.getBoolean("syncToLoom", false);
-		boolean source = nodeDef.getBoolean("source", false);
-		String type = nodeDef.getString("type", "processor");
-		if ("source".equals(type)) {
-			source = true;
-		}
 
 		StubPipelineNode node = new StubPipelineNode(id, name, mode, blocking, concurrency, syncToLoom);
-		if (source) {
+		if (sourceFlag) {
 			node.setSource(true);
 		}
 		return node;

@@ -13,6 +13,7 @@ import {
   List, ListItemButton, ListItemText, ListItemIcon, Switch, Stack, Avatar, Collapse, TextField,
   InputAdornment, Popper, ClickAwayListener,
   Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button,
+  Snackbar, Alert,
 } from "@mui/material";
 import {
   PlayArrowOutlined, AccountTreeOutlined, CheckCircleOutline,
@@ -30,11 +31,15 @@ import {
   DateRange, Block, VerifiedOutlined, PlaylistRemoveOutlined,
   ImageSearchOutlined, FaceRetouchingNatural, Face, Description,
   TransformOutlined, CloseOutlined, SearchOutlined,
+  SaveOutlined,
 } from "@mui/icons-material";
 import { Tabs, Tab } from "@mui/material";
 import { tokens } from "../../theme";
 import { Pipeline, PipelineNode, PipelineRun } from "../../types";
-import { listPipelines, PipelineResponse } from "../../api/pipelines";
+import {
+  listPipelines, PipelineResponse,
+  updatePipeline, runPipeline, type PipelineUpdateRequest,
+} from "../../api/pipelines";
 import { useAuth } from "../../context/AuthContext";
 import { useSpace } from "../../context/SpaceContext";
 import { useNodeRegistry } from "../../context/NodeRegistryContext";
@@ -1203,6 +1208,17 @@ export default function PipelineEditor() {
   const isDraggingLog = useRef(false);
   const logRef = useRef<HTMLDivElement>(null);
 
+  // Save / Run state
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [snack, setSnack] = useState<{ open: boolean; severity: "success" | "error" | "info"; message: string }>({
+    open: false, severity: "info", message: "",
+  });
+  const notify = useCallback((severity: "success" | "error" | "info", message: string) => {
+    setSnack({ open: true, severity, message });
+  }, []);
+
   useEffect(() => {
     if (!token) return;
     listPipelines(token).then(resp => {
@@ -1296,7 +1312,52 @@ export default function PipelineEditor() {
 
   const handleGraphChange = useCallback((json: any) => {
     setGraphJson(json);
+    setDirty(true);
   }, []);
+
+  const handleSave = useCallback(async () => {
+    if (!token || !selected || saving) return;
+    setSaving(true);
+    try {
+      const definition = graphJson ?? {
+        nodes: selected.definition.nodes,
+        edges: selected.definition.edges,
+      };
+      const req: PipelineUpdateRequest = {
+        name: selected.name,
+        description: selected.description,
+        definition,
+        enabled: selected.enabled,
+        priority: selected.priority,
+        dryRun: selected.dryRun,
+      };
+      await updatePipeline(token, selected.id, req);
+      setDirty(false);
+      notify("success", t("pipeline.editor.saveOk") || "Pipeline saved");
+    } catch (err) {
+      notify("error", (err as Error).message || "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  }, [token, selected, saving, graphJson, notify, t]);
+
+  const handleRun = useCallback(async () => {
+    if (!token || !selected || running) return;
+    setRunning(true);
+    try {
+      const resp = await runPipeline(token, selected.id, { dryRun: selected.dryRun });
+      notify(
+        resp.dispatched ? "success" : "info",
+        resp.dispatched
+          ? (t("pipeline.editor.runDispatched") || "Pipeline run dispatched")
+          : (resp.message || t("pipeline.editor.runNoProcessor") || "No processor available"),
+      );
+    } catch (err) {
+      notify("error", (err as Error).message || "Run failed");
+    } finally {
+      setRunning(false);
+    }
+  }, [token, selected, running, notify, t]);
 
   // Global keyboard shortcuts (H = help, N = command palette)
   useEffect(() => {
@@ -1401,20 +1462,49 @@ export default function PipelineEditor() {
                   />
                 </Tooltip>
               )}
+              <Tooltip title={dirty ? (t("pipeline.editor.saveTooltip") || "Save pipeline") : (t("pipeline.editor.savedTooltip") || "No unsaved changes")}>
+                <span>
+                  <Chip
+                    icon={<SaveOutlined sx={{ fontSize: 14 }} />}
+                    label={saving
+                      ? (t("pipeline.editor.saving") || "Saving…")
+                      : dirty
+                        ? (t("pipeline.editor.save") || "Save")
+                        : (t("pipeline.editor.saved") || "Saved")}
+                    size="small"
+                    onClick={dirty && !saving ? handleSave : undefined}
+                    sx={{
+                      bgcolor: dirty ? `${tokens.accent.amber}22` : tokens.bg.overlay,
+                      border: `1px solid ${dirty ? tokens.accent.amber : tokens.border.default}`,
+                      color: dirty ? tokens.accent.amber : tokens.text.secondary,
+                      cursor: dirty && !saving ? "pointer" : "default",
+                      fontWeight: 600,
+                      opacity: saving ? 0.6 : 1,
+                    }}
+                  />
+                </span>
+              </Tooltip>
               <Tooltip title={selected.dryRun ? t("pipeline.editor.dryRunTooltip") : t("pipeline.editor.runTooltip")}>
-                <Chip
-                  icon={<PlayArrowOutlined sx={{ fontSize: 14 }} />}
-                  label={selected.dryRun ? t("pipeline.editor.dryRun") : t("pipeline.editor.run")}
-                  size="small"
-                  onClick={() => {}}
-                  sx={{
-                    bgcolor: selected.dryRun ? `${tokens.accent.amber}22` : tokens.primary.subtle,
-                    border: `1px solid ${selected.dryRun ? tokens.accent.amber : tokens.primary.main}`,
-                    color: selected.dryRun ? tokens.accent.amber : tokens.primary.light,
-                    cursor: "pointer",
-                    fontWeight: 600,
-                  }}
-                />
+                <span>
+                  <Chip
+                    icon={<PlayArrowOutlined sx={{ fontSize: 14 }} />}
+                    label={running
+                      ? (t("pipeline.editor.running") || "Running…")
+                      : selected.dryRun
+                        ? t("pipeline.editor.dryRun")
+                        : t("pipeline.editor.run")}
+                    size="small"
+                    onClick={running ? undefined : handleRun}
+                    sx={{
+                      bgcolor: selected.dryRun ? `${tokens.accent.amber}22` : tokens.primary.subtle,
+                      border: `1px solid ${selected.dryRun ? tokens.accent.amber : tokens.primary.main}`,
+                      color: selected.dryRun ? tokens.accent.amber : tokens.primary.light,
+                      cursor: running ? "default" : "pointer",
+                      fontWeight: 600,
+                      opacity: running ? 0.6 : 1,
+                    }}
+                  />
+                </span>
               </Tooltip>
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                 <Typography variant="caption" sx={{ fontSize: "0.72rem", color: tokens.text.tertiary }}>{t("pipeline.editor.enabled")}</Typography>
@@ -1904,6 +1994,22 @@ export default function PipelineEditor() {
           onClose={() => setShowCommandPalette(false)}
         />
       </Dialog>
+
+      {/* Global feedback for Save/Run actions */}
+      <Snackbar
+        open={snack.open}
+        autoHideDuration={4000}
+        onClose={() => setSnack(s => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert
+          onClose={() => setSnack(s => ({ ...s, open: false }))}
+          severity={snack.severity}
+          sx={{ width: "100%" }}
+        >
+          {snack.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

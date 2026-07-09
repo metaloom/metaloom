@@ -23,6 +23,7 @@ import io.metaloom.loom.rest.model.processor.workorder.WorkOrderResult;
 import io.metaloom.loom.rest.service.impl.PipelineEventBroadcaster;
 import io.metaloom.loom.rest.service.impl.ProcessorRegistry;
 import io.metaloom.loom.rest.service.impl.ProcessorRegistry.ConnectedProcessor;
+import io.metaloom.loom.rest.service.impl.WebSocketAuthenticator;
 import io.vertx.core.http.ServerWebSocket;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
@@ -50,14 +51,16 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 
 	private final ProcessorRegistry registry;
 	private final PipelineEventBroadcaster pipelineEventBroadcaster;
+	private final WebSocketAuthenticator authenticator;
 	private final ModelExamples examples;
 
 	@Inject
 	public ProcessorEndpoint(ProcessorRegistry registry, PipelineEventBroadcaster pipelineEventBroadcaster,
-			EndpointDependencies deps, ModelExamples examples) {
+			WebSocketAuthenticator authenticator, EndpointDependencies deps, ModelExamples examples) {
 		super(deps);
 		this.registry = registry;
 		this.pipelineEventBroadcaster = pipelineEventBroadcaster;
+		this.authenticator = authenticator;
 		this.examples = examples;
 	}
 
@@ -75,12 +78,16 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 	public void register() {
 		log.info("Registering {} endpoint", name());
 
-		// WebSocket upgrade route — NOT secured via auth handler since WS upgrade
-		// happens before the handler chain can authenticate. The processor authenticates
-		// via the REGISTER message payload.
+		// WebSocket upgrade route — NOT secured via the standard auth handler because
+		// the WS upgrade happens before the handler chain can authenticate. Instead
+		// we accept a ?token=<jwt> query parameter and validate it via
+		// WebSocketAuthenticator once the socket is open. The processor still sends
+		// a REGISTER message for identity/capability metadata.
 		apiRouter().getDelegate().get(basePath() + "/ws").handler(rc -> {
 			rc.request().toWebSocket()
-				.onSuccess(ws -> handleWebSocket(ws))
+				.onSuccess(ws -> authenticator.authenticate(ws, "processor")
+					.onSuccess(v -> handleWebSocket(ws))
+					.onFailure(err -> log.debug("Processor WebSocket rejected: {}", err.getMessage())))
 				.onFailure(err -> {
 					log.warn("Processor WebSocket upgrade failed", err);
 					rc.response().setStatusCode(400).end("WebSocket upgrade failed");

@@ -74,6 +74,7 @@ public class LoomControlChannel {
 	private volatile String connectionError;
 	private volatile String resolvedHost;
 	private volatile int resolvedPort;
+	private volatile String resolvedToken;
 	private volatile boolean endpointConfigured;
 
 	@Inject
@@ -184,8 +185,20 @@ public class LoomControlChannel {
 		}
 		resolvedHost = host;
 		resolvedPort = port;
+		resolvedToken = resolveToken(loom);
 		endpointConfigured = true;
 		connectionError = null;
+	}
+
+	private static String resolveToken(LoomClientOptions loom) {
+		if (loom != null && loom.getToken() != null && !loom.getToken().isBlank()) {
+			return loom.getToken();
+		}
+		String env = System.getenv("LOOM_TOKEN");
+		if (env != null && !env.isBlank()) {
+			return env;
+		}
+		return null;
 	}
 
 	private void connectNow() {
@@ -193,10 +206,15 @@ public class LoomControlChannel {
 			return;
 		}
 
+		String uri = PROCESSOR_WS_URI;
+		if (resolvedToken != null && !resolvedToken.isBlank()) {
+			uri = uri + "?token=" + java.net.URLEncoder.encode(resolvedToken,
+				java.nio.charset.StandardCharsets.UTF_8);
+		}
 		WebSocketConnectOptions connectOptions = new WebSocketConnectOptions()
 			.setHost(resolvedHost)
 			.setPort(resolvedPort)
-			.setURI(PROCESSOR_WS_URI);
+			.setURI(uri);
 
 		webSocketClient.connect(connectOptions)
 			.onSuccess(this::onConnected)

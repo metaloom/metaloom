@@ -9,12 +9,16 @@ import io.metaloom.cortex.Cortex;
 import io.metaloom.cortex.api.meta.MetaStorage;
 import io.metaloom.cortex.common.meta.MetaStorageImpl;
 import io.metaloom.cortex.impl.CortexImpl;
+import io.metaloom.cortex.impl.loom.LoomBulkSyncWriterImpl;
 import io.metaloom.cortex.pipeline.api.PipelineExecutor;
 import io.metaloom.cortex.pipeline.api.PipelineManager;
 import io.metaloom.cortex.pipeline.api.event.PipelineEventBus;
+import io.metaloom.cortex.pipeline.api.sync.LoomBulkSyncCollector;
+import io.metaloom.cortex.pipeline.common.event.DefaultPipelineEventBus;
+import io.metaloom.cortex.pipeline.common.sync.DefaultLoomBulkSyncCollector;
+import io.metaloom.cortex.pipeline.common.sync.DefaultLoomBulkSyncCollector.BulkSyncWriter;
 import io.metaloom.cortex.pipeline.core.DefaultPipelineManager;
 import io.metaloom.cortex.pipeline.core.executor.ReactivePipelineExecutor;
-import io.metaloom.cortex.pipeline.common.event.DefaultPipelineEventBus;
 import io.metaloom.cortex.processor.MediaProcessor;
 import io.metaloom.cortex.processor.impl.DefaultMediaProcessorImpl;
 import io.metaloom.cortex.scanner.FilesystemProcessor;
@@ -42,6 +46,10 @@ public abstract class CortexBindModule {
 	@Singleton
 	abstract MetaStorage bindMetaStorage(MetaStorageImpl e);
 
+	@Binds
+	@Singleton
+	abstract BulkSyncWriter bindBulkSyncWriter(LoomBulkSyncWriterImpl e);
+
 	@Provides
 	@Singleton
 	public static Vertx provideVertx() {
@@ -62,8 +70,14 @@ public abstract class CortexBindModule {
 
 	@Provides
 	@Singleton
-	public static PipelineExecutor providePipelineExecutor(PipelineEventBus eventBus) {
-		return new ReactivePipelineExecutor(4, eventBus);
+	public static LoomBulkSyncCollector provideBulkSyncCollector(BulkSyncWriter writer) {
+		return new DefaultLoomBulkSyncCollector(writer);
+	}
+
+	@Provides
+	@Singleton
+	public static PipelineExecutor providePipelineExecutor(PipelineEventBus eventBus, LoomBulkSyncCollector collector) {
+		return new ReactivePipelineExecutor(4, eventBus, collector);
 	}
 
 	@Provides

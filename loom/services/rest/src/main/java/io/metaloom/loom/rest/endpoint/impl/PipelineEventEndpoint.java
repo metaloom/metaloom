@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.loom.rest.AbstractEndpoint;
 import io.metaloom.loom.rest.EndpointDependencies;
 import io.metaloom.loom.rest.service.impl.PipelineEventBroadcaster;
+import io.metaloom.loom.rest.service.impl.WebSocketAuthenticator;
 import io.vertx.core.http.ServerWebSocket;
 
 /**
@@ -22,17 +23,26 @@ import io.vertx.core.http.ServerWebSocket;
  * <p>The endpoint is read-only from the client side — clients do not send messages.
  * Events flow from processor nodes via the {@link io.metaloom.loom.rest.endpoint.impl.ProcessorEndpoint}
  * into the {@link PipelineEventBroadcaster} and then fan out to all connected subscribers.</p>
+ *
+ * <h2>Authentication</h2>
+ * <p>A bearer token can be passed as the {@code ?token=&lt;jwt&gt;} query parameter on
+ * the WebSocket handshake URL. When present the token is validated via
+ * {@link WebSocketAuthenticator}; invalid tokens result in a
+ * {@code 4401} close code.</p>
  */
 public class PipelineEventEndpoint extends AbstractEndpoint {
 
 	private static final Logger log = LoggerFactory.getLogger(PipelineEventEndpoint.class);
 
 	private final PipelineEventBroadcaster broadcaster;
+	private final WebSocketAuthenticator authenticator;
 
 	@Inject
-	public PipelineEventEndpoint(PipelineEventBroadcaster broadcaster, EndpointDependencies deps) {
+	public PipelineEventEndpoint(PipelineEventBroadcaster broadcaster, WebSocketAuthenticator authenticator,
+		EndpointDependencies deps) {
 		super(deps);
 		this.broadcaster = broadcaster;
+		this.authenticator = authenticator;
 	}
 
 	@Override
@@ -49,9 +59,9 @@ public class PipelineEventEndpoint extends AbstractEndpoint {
 	public void register() {
 		log.info("Registering {} endpoint", name());
 
-		// WebSocket upgrade route — not secured via auth handler since WS upgrade
-		// happens before the handler chain. Authentication can be enforced by requiring
-		// a token query parameter in the future.
+		// WebSocket upgrade route. Authentication is done post-upgrade because
+		// the WS handshake cannot carry a full auth header from browsers — the
+		// token is passed as a `?token=` query parameter.
 		// Use a high-priority route order so the WS upgrade path is matched before
 		// wildcard auth routes such as /api/v1/pipelines*.
 		apiRouter().getDelegate().get(basePath() + "/ws").order(-1000).handler(rc -> {
@@ -65,13 +75,20 @@ public class PipelineEventEndpoint extends AbstractEndpoint {
 	}
 
 	private void handleWebSocket(ServerWebSocket ws) {
-		broadcaster.addSubscriber(ws);
+		authenticator.authenticate(ws, "pipeline-events")
+			.onSuccess(v -> {
+				broadcaster.addSubscriber(ws);
 
-		ws.closeHandler(v -> broadcaster.removeSubscriber(ws));
+				ws.closeHandler(v2 -> broadcaster.removeSubscriber(ws));
 
-		ws.exceptionHandler(err -> {
-			log.error("Pipeline events WebSocket error", err);
-			broadcaster.removeSubscriber(ws);
-		});
+				ws.exceptionHandler(err -> {
+					log.error("Pipeline events WebSocket error", err);
+					broadcaster.removeSubscriber(ws);
+				});
+			})
+			.onFailure(err -> {
+				// authenticator already logged + closed the socket
+				log.debug("Pipeline events WebSocket rejected: {}", err.getMessage());
+			});
 	}
 }

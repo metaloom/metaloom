@@ -13,8 +13,8 @@ import io.metaloom.cortex.common.option.CortexOptionsLoader;
 import picocli.CommandLine;
 
 @Singleton
-@Component(modules = { CortexBindModule.class, CortexMediaModule.class, PicoCLIModule.class, LoomStorageModule.class, NodeCollectionModule.class,
-	CortexClientModule.class })
+@Component(modules = { CortexBindModule.class, CortexMediaModule.class, PicoCLIModule.class, LoomStorageModule.class,
+	PipelineNodeFactoryModule.class, CortexClientModule.class })
 public interface CortexComponent {
 
 	Cortex cortex();

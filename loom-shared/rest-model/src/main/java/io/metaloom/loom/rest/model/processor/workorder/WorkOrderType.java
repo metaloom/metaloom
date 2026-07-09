@@ -13,5 +13,10 @@ public enum WorkOrderType {
 	/**
 	 * Run a filesystem scan on an asset/storage location.
 	 */
-	FILESYSTEM_SCAN
+	FILESYSTEM_SCAN,
+
+	/**
+	 * Execute a pipeline against a selection of media.
+	 */
+	PIPELINE_RUN
 }

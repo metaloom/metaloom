@@ -47,6 +47,7 @@ public class PipelineEndpoint extends AbstractEndpoint {
 		// /api/v1/pipelines/events/ws which is handled by PipelineEventEndpoint.
 		secure(basePath());
 		secure(basePath() + "/:uuid");
+		secure(basePath() + "/:uuid/run");
 
 		// Create
 		addRoute(basePath(), POST,
@@ -90,6 +91,15 @@ public class PipelineEndpoint extends AbstractEndpoint {
 			examples.pipelineResponseExample(),
 			lrc -> {
 				service.load(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		// Run — dispatch a pipeline execution to a registered processor
+		addRoute(basePath() + "/:uuid/run", POST,
+			"Trigger execution of a pipeline",
+			examples.pipelineRunRequestExample(),
+			examples.pipelineRunResponseExample(),
+			lrc -> {
+				service.run(lrc, lrc.pathParamUUID("uuid"));
 			});
 	}
 }

@@ -1,5 +1,8 @@
 package io.metaloom.loom.rest.model.pipeline;
 
+import java.util.List;
+import java.util.UUID;
+
 import io.metaloom.loom.rest.model.example.Example;
 import io.metaloom.loom.rest.model.example.ExampleValues;
 import io.metaloom.loom.rest.model.example.impl.ExampleImpl;
@@ -22,6 +25,14 @@ public interface PipelineExamples extends ExampleValues {
 
 	default Example pipelineListResponseExample() {
 		return new ExampleImpl(pipelineListResponse(), "The pipeline list response", HttpResponseStatus.OK);
+	}
+
+	default Example pipelineRunRequestExample() {
+		return new ExampleImpl(pipelineRunRequest(), "The pipeline run request", HttpResponseStatus.ACCEPTED);
+	}
+
+	default Example pipelineRunResponseExample() {
+		return new ExampleImpl(pipelineRunResponse(), "The pipeline run response", HttpResponseStatus.ACCEPTED);
 	}
 
 	default PipelineResponse pipelineResponse() {
@@ -64,6 +75,22 @@ public interface PipelineExamples extends ExampleValues {
 		model.setMetainfo(pagingInfo());
 		model.add(pipelineResponse());
 		model.add(pipelineResponse());
+		return model;
+	}
+
+	default PipelineRunRequest pipelineRunRequest() {
+		PipelineRunRequest model = new PipelineRunRequest();
+		model.setMediaUuids(List.of(uuidA(), uuidB()));
+		model.setDryRun(false);
+		return model;
+	}
+
+	default PipelineRunResponse pipelineRunResponse() {
+		PipelineRunResponse model = new PipelineRunResponse();
+		model.setWorkOrderId(UUID.randomUUID());
+		model.setProcessorNodeId("cortex-01");
+		model.setDispatched(true);
+		model.setMessage("Work order dispatched");
 		return model;
 	}
 

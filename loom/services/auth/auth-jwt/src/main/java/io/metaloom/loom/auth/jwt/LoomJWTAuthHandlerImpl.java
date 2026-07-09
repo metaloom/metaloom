@@ -12,11 +12,13 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.loom.api.options.AuthenticationOptions;
 import io.metaloom.loom.api.options.LoomOptions;
 import io.metaloom.loom.auth.LoomAuthenticationHandler;
+import io.vertx.core.Future;
 import io.vertx.core.http.Cookie;
 import io.vertx.core.http.CookieSameSite;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.auth.JWTOptions;
+import io.vertx.ext.auth.User;
 import io.vertx.ext.auth.authentication.TokenCredentials;
 import io.vertx.ext.auth.jwt.JWTAuth;
 import io.vertx.ext.web.RoutingContext;
@@ -127,6 +129,11 @@ public class LoomJWTAuthHandlerImpl implements LoomAuthenticationHandler {
 			.setStatusCode(401)
 			.putHeader("WWW-Authenticate", "Bearer")
 			.end("Unauthorized");
+	}
+
+	@Override
+	public Future<User> authenticateToken(String token) {
+		return authProvider.authenticate(new TokenCredentials(token));
 	}
 }
 

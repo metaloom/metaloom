@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.impl.loom.LoomControlChannel;
 import io.metaloom.cortex.impl.monitoring.MonitoringService;
+import io.metaloom.cortex.pipeline.loader.NodeFactory;
 
 @Singleton
 public class CortexBootstrapInitializer {
@@ -16,11 +17,20 @@ public class CortexBootstrapInitializer {
 
 	private final MonitoringService monitoringService;
 	private final LoomControlChannel loomControlChannel;
+	@SuppressWarnings("unused")
+	private final NodeFactory nodeFactory;
 
 	@Inject
-	public CortexBootstrapInitializer(MonitoringService monitoringService, LoomControlChannel loomControlChannel) {
+	public CortexBootstrapInitializer(MonitoringService monitoringService, LoomControlChannel loomControlChannel,
+			NodeFactory nodeFactory) {
 		this.monitoringService = monitoringService;
 		this.loomControlChannel = loomControlChannel;
+		// Injecting the NodeFactory forces eager instantiation of the
+		// RegistryNodeFactory which, as part of construction, calls
+		// LoomPipelineLoader.setNodeFactory(...). Without this reference
+		// Dagger would create the factory lazily and pipelines loaded before
+		// first use would still resolve to stub nodes.
+		this.nodeFactory = nodeFactory;
 	}
 
 	public void init() {

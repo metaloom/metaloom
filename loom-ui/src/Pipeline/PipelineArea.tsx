@@ -185,9 +185,9 @@ export default function PipelineArea() {
   }, []);
 
   useEffect(() => {
-    const unsub = subscribePipelineEvents(handleEvent);
+    const unsub = subscribePipelineEvents(handleEvent, token);
     return unsub;
-  }, [handleEvent]);
+  }, [handleEvent, token]);
 
   // Merge live state into ReactFlow node data
   const nodes = useMemo(

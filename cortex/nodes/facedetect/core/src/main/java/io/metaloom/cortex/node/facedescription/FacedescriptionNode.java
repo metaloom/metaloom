@@ -3,8 +3,11 @@ package io.metaloom.cortex.node.facedescription;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
 import javax.annotation.Nullable;
+import javax.imageio.ImageIO;
 import javax.inject.Inject;
 
 import org.slf4j.Logger;
@@ -31,6 +34,9 @@ import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
+import io.metaloom.video.facedetect.face.Face;
+import io.metaloom.video.facedetect.face.FaceBox;
+import io.metaloom.video.facedetect.inspireface.InspireFacedetector;
 import io.metaloom.video4j.utils.ImageUtils;
 
 public class FacedescriptionNode extends AbstractMediaNode<FacedetectNodeOptions> {
@@ -62,12 +68,15 @@ public class FacedescriptionNode extends AbstractMediaNode<FacedetectNodeOptions
 
 	public static final String URL = "http://127.0.0.1:11434";
 
-	private ObjectMapper mapper;
+	private final ObjectMapper mapper;
+	private final InspireFacedetector inspireface;
 
 	@Inject
-	public FacedescriptionNode(@Nullable LoomClient client, CortexOptions cortexOption, FacedetectNodeOptions options, ObjectMapper mapper) {
+	public FacedescriptionNode(@Nullable LoomClient client, CortexOptions cortexOption, FacedetectNodeOptions options,
+			ObjectMapper mapper, @Nullable InspireFacedetector inspireface) {
 		super(client, cortexOption, options);
 		this.mapper = mapper;
+		this.inspireface = inspireface;
 	}
 
 	@Override
@@ -91,16 +100,79 @@ public class FacedescriptionNode extends AbstractMediaNode<FacedetectNodeOptions
 		}
 	}
 
-	private NodeResult processFaces(NodeContext<LoomMedia> ctx) {
+	/**
+	 * Describe every face detected on the media asset. Faces are re-detected
+	 * from the source image (image media only for now) using the same
+	 * {@link InspireFacedetector} that {@code FacedetectNode} uses, cropped
+	 * from the bounding box, and each thumbnail is fed into the vision LLM.
+	 * The collected descriptions are emitted as a JSON array under the
+	 * {@code face_description} output key.
+	 */
+	private NodeResult processFaces(NodeContext<LoomMedia> ctx) throws IOException {
 		Object countObj = ctx.upstreamOutput("facedetect", "face_count");
-		if (countObj != null) {
-			int count = Integer.parseInt(countObj.toString());
-			if (count > 0) {
-				// TODO: process individual face thumbnails via upstream output or file paths
-				ctx.output(OUTPUT_FACE_DESCRIPTION, "pending");
+		int upstreamCount = countObj != null ? Integer.parseInt(countObj.toString()) : -1;
+		if (upstreamCount == 0) {
+			return ctx.next();
+		}
+
+		LoomMedia media = ctx.media();
+		if (!media.isImage()) {
+			// Video face description would require per-frame extraction which
+			// is a larger scope; skip cleanly for now instead of emitting a
+			// bogus placeholder.
+			return ctx.skipped("Video face description not yet supported").next();
+		}
+
+		if (inspireface == null) {
+			return ctx.skipped("InspireFacedetector not configured").next();
+		}
+
+		BufferedImage image = ImageIO.read(media.file());
+		if (image == null) {
+			return ctx.skipped("Unable to read image").next();
+		}
+
+		List<? extends Face> faces = inspireface.detectFaces(image);
+		int count = faces == null ? 0 : faces.size();
+		if (count == 0) {
+			return ctx.next();
+		}
+
+		List<FaceDescription> descriptions = new ArrayList<>(count);
+		for (int i = 0; i < count; i++) {
+			Face face = faces.get(i);
+			BufferedImage crop = cropFace(image, face.box());
+			if (crop == null) {
+				continue;
+			}
+			try {
+				FaceDescription desc = processFace(crop);
+				if (desc != null) {
+					descriptions.add(desc);
+				}
+			} catch (Exception e) {
+				logger.warn("Failed to describe face {}/{} for {}", i + 1, count, media.absolutePath(), e);
 			}
 		}
+
+		String json = mapper.writeValueAsString(descriptions);
+		ctx.output(OUTPUT_FACE_DESCRIPTION, json);
 		return ctx.next();
+	}
+
+	/**
+	 * Crop a face region from the source image, clamped to the image bounds.
+	 * Returns {@code null} for a degenerate crop (zero or negative area).
+	 */
+	private static BufferedImage cropFace(BufferedImage image, FaceBox box) {
+		int x = Math.max(0, box.getStartX());
+		int y = Math.max(0, box.getStartY());
+		int w = Math.min(box.getWidth(), image.getWidth() - x);
+		int h = Math.min(box.getHeight(), image.getHeight() - y);
+		if (w <= 0 || h <= 0) {
+			return null;
+		}
+		return image.getSubimage(x, y, w, h);
 	}
 
 	public FaceDescription processFace(BufferedImage image) throws IOException {
@@ -134,3 +206,4 @@ public class FacedescriptionNode extends AbstractMediaNode<FacedetectNodeOptions
 		return null;
 	}
 }
+
