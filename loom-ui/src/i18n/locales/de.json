@@ -569,7 +569,23 @@
       "filter": "Filter",
       "process": "Verarbeitung",
       "systemLog": "Systemprotokoll",
-      "selectPipelineLogs": "Wählen Sie eine Pipeline, um die Protokolle anzuzeigen."
+      "selectPipelineLogs": "Wählen Sie eine Pipeline, um die Protokolle anzuzeigen.",
+      "edgeLabel": "Kantenbeschriftung",
+      "edgeAny": "ANY",
+      "edgePass": "PASS",
+      "edgeReject": "REJECT",
+      "edgeLabelTooltip": "Kantenbeschriftung festlegen (PASS / REJECT / ANY)",
+      "edgeLabelPassDesc": "Nur passende Assets weiterleiten",
+      "edgeLabelRejectDesc": "Nur abgelehnte Assets weiterleiten",
+      "edgeLabelAnyDesc": "Alle Assets weiterleiten",
+      "validationDuplicateId": "Doppelte Knoten-ID: \"{{id}}\" — Knoten-IDs müssen eindeutig sein",
+      "validationCycle": "Zyklus im Pipeline-Graph erkannt — Knoten bilden eine zirkuläre Abhängigkeit",
+      "validationInvalidId": "Ungültige Knoten-ID: \"{{id}}\" — IDs müssen ^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$ entsprechen",
+      "validationNoSource": "Pipeline benötigt genau einen Quellknoten (isSource=true)",
+      "validationMultipleSource": "Pipeline hat mehrere Quellknoten — nur einer ist erlaubt",
+      "validationUnknownType": "Unbekannter Knotentyp: \"{{type}}\" — nicht in der Descriptor-Registry gefunden",
+      "validationOk": "Pipeline-Validierung erfolgreich",
+      "validationTitle": "Validierung"
     },
     "node": {
       "s3Source": {
@@ -645,7 +661,9 @@
       "title": "Ausführungsverlauf",
       "assets": "Assets",
       "error": "Fehler",
-      "errors": "Fehler"
+      "errors": "Fehler",
+      "noRuns": "Noch keine Läufe aufgezeichnet",
+      "loading": "Läufe werden geladen…"
     },
     "inspector": {
       "empty": "Wählen Sie eine Pipeline zur Inspektion",
@@ -671,7 +689,10 @@
       "nodeId": "Knoten-ID",
       "processingLog": "Verarbeitungsprotokoll",
       "nodeState": "Knotenstatus (JSON)",
-      "emptyHint": "Klicken Sie auf einen Knoten im Canvas, um seine Details anzuzeigen und zu bearbeiten"
+      "emptyHint": "Klicken Sie auf einen Knoten im Canvas, um seine Details anzuzeigen und zu bearbeiten",
+      "parameters": "Parameter",
+      "noParameters": "Dieser Knoten hat keine konfigurierbaren Parameter",
+      "parameterDescription": "Parameterbeschreibung"
     },
     "help": {
       "title": "Tastenkombinationen",

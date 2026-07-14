@@ -142,3 +142,49 @@ export async function runPipeline(token: string, uuid: string, request: Pipeline
   });
   return handleResponse<PipelineRunResponse>(res);
 }
+
+// ── Pipeline Run History ──────────────────────────────────────────────
+
+export interface PipelineRunRecord {
+  uuid: string;
+  pipelineUuid: string;
+  started: string;
+  finished?: string;
+  status: string;
+  mediaCount: number;
+  successCount: number;
+  failureCount: number;
+  dryRun: boolean;
+  errorMessage?: string;
+}
+
+export interface PipelineRunListResponse {
+  data: PipelineRunRecord[];
+  metainfo?: {
+    totalCount?: number;
+    currentPage?: number;
+    pageCount?: number;
+    perPage?: number;
+  };
+}
+
+/**
+ * Fetch the run history for a pipeline.
+ * The endpoint is `GET /api/v1/pipelines/:uuid/runs` (paged).
+ * If the server has not yet deployed the runs endpoint, this will
+ * return an empty array gracefully.
+ */
+export async function listPipelineRuns(token: string, uuid: string): Promise<PipelineRunRecord[]> {
+  const res = await fetch(`${API_BASE_URL}/pipelines/${encodeURIComponent(uuid)}/runs`, {
+    method: "GET",
+    headers: authHeaders(token),
+  });
+  if (!res.ok) {
+    // If the endpoint does not exist yet (404) or the server returns
+    // an error, return an empty array so the UI shows "no runs".
+    return [];
+  }
+  const body = await res.json() as PipelineRunListResponse | PipelineRunRecord[];
+  if (Array.isArray(body)) return body;
+  return body.data ?? [];
+}

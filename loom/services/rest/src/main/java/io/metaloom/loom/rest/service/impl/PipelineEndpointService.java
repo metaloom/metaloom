@@ -30,6 +30,9 @@ import io.metaloom.loom.rest.model.processor.workorder.WorkOrderType;
 import io.metaloom.loom.rest.service.AbstractCRUDEndpointService;
 import io.metaloom.loom.rest.service.impl.ProcessorRegistry.ConnectedProcessor;
 import io.metaloom.loom.rest.validation.LoomModelValidator;
+import io.metaloom.loom.rest.validation.ValidationException;
+import io.metaloom.loom.nodes.spec.NodeDescriptorRegistry;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 @Singleton
@@ -38,12 +41,15 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 	private static final Logger log = LoggerFactory.getLogger(PipelineEndpointService.class);
 
 	private final ProcessorRegistry processorRegistry;
+	private final NodeDescriptorRegistry nodeDescriptorRegistry;
 
 	@Inject
 	public PipelineEndpointService(PipelineDao pipelineDao, DaoCollection daos, LoomModelBuilder modelBuilder,
-		LoomModelValidator validator, ProcessorRegistry processorRegistry) {
+		LoomModelValidator validator, ProcessorRegistry processorRegistry,
+		NodeDescriptorRegistry nodeDescriptorRegistry) {
 		super(pipelineDao, daos, modelBuilder, validator);
 		this.processorRegistry = processorRegistry;
+		this.nodeDescriptorRegistry = nodeDescriptorRegistry;
 	}
 
 	@Override
@@ -68,6 +74,7 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 		create(lrc, CREATE_PIPELINE, () -> {
 			PipelineCreateRequest request = lrc.requestBody(PipelineCreateRequest.class);
 			validator.validate(request);
+			validateNodeTypes(request.getDefinition());
 
 			String name = request.getName();
 			UUID userUuid = lrc.userUuid();
@@ -93,6 +100,9 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 		update(lrc, UPDATE_PIPELINE, () -> {
 			PipelineUpdateRequest request = lrc.requestBody(PipelineUpdateRequest.class);
 			validator.validate(request);
+			if (request.getDefinition() != null) {
+				validateNodeTypes(request.getDefinition());
+			}
 
 			UUID userUuid = lrc.userUuid();
 			Pipeline pipeline = dao().load(id);
@@ -183,6 +193,39 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 				pipeline.getName(), workOrderId, processor.nodeId, dispatched);
 			lrc.send(response, dispatched ? 202 : 503);
 		});
+	}
+
+	/**
+	 * Validate that all node types in the pipeline definition are registered
+	 * in the {@link NodeDescriptorRegistry}. This complements the structural
+	 * validation in {@link PipelineModelValidator#validateDefinition} which checks
+	 * node IDs, edges, and cycles.
+	 *
+	 * @param definition the pipeline definition JSON
+	 * @throws ValidationException if an unknown node type is found
+	 */
+	private void validateNodeTypes(JsonObject definition) {
+		if (definition == null) {
+			return;
+		}
+		JsonArray nodes = definition.getJsonArray("nodes");
+		if (nodes == null || nodes.isEmpty()) {
+			return;
+		}
+		for (int i = 0; i < nodes.size(); i++) {
+			JsonObject node = nodes.getJsonObject(i);
+			if (node == null) {
+				continue;
+			}
+			String type = node.getString("type");
+			if (type == null || type.isBlank()) {
+				continue; // structural validation handles missing type
+			}
+			if (!nodeDescriptorRegistry.contains(type)) {
+				throw new ValidationException(
+					"Unknown node type: \"" + type + "\" — not found in descriptor registry");
+			}
+		}
 	}
 
 }

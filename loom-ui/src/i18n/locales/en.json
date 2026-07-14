@@ -578,7 +578,23 @@
       "filter": "Filter",
       "process": "Process",
       "systemLog": "System Log",
-      "selectPipelineLogs": "Select a pipeline to view logs."
+      "selectPipelineLogs": "Select a pipeline to view logs.",
+      "edgeLabel": "Edge Label",
+      "edgeAny": "ANY",
+      "edgePass": "PASS",
+      "edgeReject": "REJECT",
+      "edgeLabelTooltip": "Set edge label (PASS / REJECT / ANY)",
+      "edgeLabelPassDesc": "Pass only matching assets",
+      "edgeLabelRejectDesc": "Pass only rejected assets",
+      "edgeLabelAnyDesc": "Pass all assets",
+      "validationDuplicateId": "Duplicate node ID: \"{{id}}\" — node IDs must be unique",
+      "validationCycle": "Cycle detected in pipeline graph — nodes form a circular dependency",
+      "validationInvalidId": "Invalid node ID: \"{{id}}\" — IDs must match ^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$",
+      "validationNoSource": "Pipeline must have exactly one source node (isSource=true)",
+      "validationMultipleSource": "Pipeline has multiple source nodes — only one is allowed",
+      "validationUnknownType": "Unknown node type: \"{{type}}\" — not found in descriptor registry",
+      "validationOk": "Pipeline validation passed",
+      "validationTitle": "Validation"
     },
     "node": {
       "s3Source": {
@@ -654,7 +670,9 @@
       "title": "Run History",
       "assets": "assets",
       "error": "error",
-      "errors": "errors"
+      "errors": "errors",
+      "noRuns": "No runs recorded yet",
+      "loading": "Loading runs…"
     },
     "inspector": {
       "empty": "Select a pipeline to inspect",
@@ -680,7 +698,10 @@
       "nodeId": "Node ID",
       "processingLog": "Processing Log",
       "nodeState": "Node State (JSON)",
-      "emptyHint": "Click a node in the canvas to view and edit its details"
+      "emptyHint": "Click a node in the canvas to view and edit its details",
+      "parameters": "Parameters",
+      "noParameters": "This node has no configurable parameters",
+      "parameterDescription": "Parameter description"
     },
     "help": {
       "title": "Keyboard Shortcuts",

@@ -24,6 +24,7 @@ import io.metaloom.loom.rest.service.impl.PipelineEventBroadcaster;
 import io.metaloom.loom.rest.service.impl.ProcessorRegistry;
 import io.metaloom.loom.rest.service.impl.ProcessorRegistry.ConnectedProcessor;
 import io.metaloom.loom.rest.service.impl.WebSocketAuthenticator;
+import io.metaloom.loom.rest.service.impl.WorkOrderResultRegistry;
 import io.vertx.core.http.ServerWebSocket;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
@@ -52,15 +53,18 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 	private final ProcessorRegistry registry;
 	private final PipelineEventBroadcaster pipelineEventBroadcaster;
 	private final WebSocketAuthenticator authenticator;
+	private final WorkOrderResultRegistry workOrderResultRegistry;
 	private final ModelExamples examples;
 
 	@Inject
 	public ProcessorEndpoint(ProcessorRegistry registry, PipelineEventBroadcaster pipelineEventBroadcaster,
-			WebSocketAuthenticator authenticator, EndpointDependencies deps, ModelExamples examples) {
+			WebSocketAuthenticator authenticator, WorkOrderResultRegistry workOrderResultRegistry,
+			EndpointDependencies deps, ModelExamples examples) {
 		super(deps);
 		this.registry = registry;
 		this.pipelineEventBroadcaster = pipelineEventBroadcaster;
 		this.authenticator = authenticator;
+		this.workOrderResultRegistry = workOrderResultRegistry;
 		this.examples = examples;
 	}
 
@@ -260,7 +264,11 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 		WorkOrderResult result = msg.getBody().mapTo(WorkOrderResult.class);
 		log.info("Work order result received from {}: workOrderId={}, status={}",
 			nodeId, result.getWorkOrderId(), result.getStatus());
-		// TODO: Forward the result to the appropriate work order handler / pipeline
+		boolean routed = workOrderResultRegistry.complete(result);
+		if (!routed) {
+			log.debug("No registered callback for work order {} (result logged only)",
+				result.getWorkOrderId());
+		}
 	}
 
 	private void handlePipelineEvent(ServerWebSocket ws, ProcessorMessage msg, String nodeId) {

@@ -2,10 +2,12 @@
 
 ## Overview
 
-The pipeline plumbing is roughly **85% complete end-to-end** after the
-first implementation pass. All Phase 1 (CRITICAL) tasks have landed —
-see the check-marks in the Progress section below — and the flow now
-works end-to-end for the happy path:
+The pipeline plumbing is roughly **90% complete end-to-end** after the
+second implementation pass. All Phase 1 (CRITICAL) tasks have landed,
+and the Phase 2 UI tasks (dynamic parameter editor, PASS/REJECT edge
+UI, client-side validation, live run history) are now complete — see
+the check-marks in the Progress section below. The flow now works
+end-to-end for the happy path:
 
 - Pipelines loaded from Loom into Cortex resolve to **real cortex
   nodes** for the registered types (SHA-512/256, MD5, chunk-hash,
@@ -30,9 +32,12 @@ works end-to-end for the happy path:
   mode is opt-in via `LOOM_WS_STRICT_AUTH=true` so pre-token clients
   keep working during the rollout.
 
-Remaining gaps are Phase 2 and later — dynamic parameter editor,
-`NODE_STATS` emission, PASS/REJECT edge UI, server-side pipeline
-validation, per-pipeline WS filtering, and pipeline run history.
+Remaining gaps are Phase 2 server-side work (server-side validation
+echo, `NODE_STATS` emission, per-pipeline WS filtering) and Phase 3+
+(server-side run history persistence, broadcaster backpressure,
+work-order result routing, etc.). The UI gaps from Phase 2 (dynamic
+parameter editor, PASS/REJECT edge UI, cycle/duplicate-id detection,
+live run history) are now closed.
 
 ## Per-surface status
 
@@ -116,7 +121,7 @@ Gaps:
 - Definition validation is minimal (name + non-null definition only);
   no graph structure or node-type checks.
 
-### Loom UI — ~75%
+### Loom UI — ~90%
 
 Working: [`PipelineEditor`](../../loom-ui/src/features/pipeline/PipelineEditor.tsx)
 renders the graph, fetches node descriptors from
@@ -131,16 +136,33 @@ chips with loading state, dirty-state tracking, and Snackbar
 feedback. The events subscription in
 [`pipelineEvents.ts`](../../loom-ui/src/api/pipelineEvents.ts)
 includes the bearer token in the WS URL and reconnects on 4401.
+The `NodeDetailSidebar` now renders a dynamic parameter editor
+generated from `NodeDescriptor.parameters` (STRING / INTEGER / FLOAT /
+BOOLEAN / ENUM / STRING_LIST) with type-appropriate inputs (text
+field, number field, switch, dropdown, comma-separated list);
+parameter values are persisted into the node's `data` on change and
+included in the save payload. Edge context menu supports PASS / REJECT
+/ ANY labeling with visual differentiation (solid green, dashed red,
+neutral grey). Client-side validation before save checks for duplicate
+node IDs, invalid ID format, unknown node types, and graph cycles
+(Kahn's algorithm). `RunHistory` and the system log panel now fetch
+live run data from `GET /api/v1/pipelines/:uuid/runs` via the new
+`listPipelineRuns` API function (gracefully degrades to "no runs"
+when the endpoint is not yet deployed).
 
 Gaps:
 
-- Node parameters shown read-only — no dynamic form generated from
-  `NodeDescriptor.parameters`.
-- No PASS/REJECT edge labeling UI; all edges look identical; only
-  data-type mismatch validation on connections.
-- No cycle/duplicate-id detection before save.
-- `RunHistory` uses hard-coded mock data at
-  `PipelineEditor.tsx:620-627`.
+- `NODE_STATS` is advertised by all 14 node descriptors but the enum
+  value is absent from `PipelineTrackingEvent.Type` and nothing emits it.
+- No per-pipeline WS event filtering — broadcaster fan-outs every event to
+  every subscriber.
+- No backpressure — a slow subscriber can back up the broadcaster.
+- `ProcessorEndpoint.handleWorkOrderResult` is a TODO dead-end
+  (line 256) — work order results are logged but never routed.
+- Definition validation is minimal (name + non-null definition only);
+  no graph structure or node-type checks server-side (client-side
+  validation is now in place, but the server should echo the same
+  checks).
 
 # Progress
 
@@ -208,11 +230,18 @@ Gaps:
 
 ## Phase 2 — Editor / observability polish (HIGH)
 
-- [ ] **6. Dynamic parameter editor.** Render editable inputs in the
-  `PipelineEditor` node detail sidebar based on
-  `NodeDescriptor.parameters` (string / number / boolean / enum /
-  content-type). Persist values into node `options` on save. Validate
-  types on the client and echo the same on the server in Task 9.
+- [x] **6. Dynamic parameter editor.** The `NodeDetailSidebar` in
+  `PipelineEditor.tsx` now renders editable form inputs for each
+  `NodeDescriptor.parameters` entry. The field type is driven by
+  `ParameterType`: STRING/INTEGER/FLOAT render text/number inputs,
+  BOOLEAN renders a `Switch`, ENUM renders a `Select` dropdown from
+  `allowedValues`, and STRING_LIST renders a comma-separated text
+  field. Values are written into the node's `data` map via
+  `onParameterChange` and included in the save payload. The
+  descriptor's `label` and `description` are shown as the field label
+  and tooltip respectively. When a descriptor has no parameters, the
+  sidebar falls back to showing the node's raw `data` fields
+  read-only (or a "no parameters" message if empty).
 
 - [ ] **7. Emit `NODE_STATS` from Cortex.** Add `NODE_STATS` to
   `PipelineTrackingEvent.Type` in `cortex/pipeline-api`. In
@@ -222,22 +251,27 @@ Gaps:
   processed/failed totals, and publishes a `PipelineTrackingEvent` of
   type `NODE_STATS` per active node.
 
-- [ ] **8. PASS/REJECT edge UI.** In `PipelineEditor`, add an edge
-  label ("PASS" / "REJECT" / "ANY") settable via edge context menu.
-  Render PASS as solid green, REJECT as dashed red, ANY as neutral
-  grey. Only allow branched edges from nodes whose descriptor category
-  is `FILTER`. Block connections whose source/target content types
-  don't match.
+- [x] **8. PASS/REJECT edge UI.** In `PipelineEditor`, clicking an
+  edge opens a context menu with PASS / REJECT / ANY options. PASS
+  edges render as solid green, REJECT as dashed red, ANY as neutral
+  grey, each with a label badge. The edge type is stored in
+  `PipelineEdge.edgeType` and persisted into the pipeline definition
+  on save via `onEdgeTypeChange`. The `toRFEdges` function applies
+  the visual styling (stroke color, dash pattern, label) from
+  `EDGE_TYPE_STYLE`. Data-type mismatch validation on connections
+  (already present via `isValidConnection`) remains.
 
-- [ ] **9. Server-side pipeline validation.** Extend
+- [~] **9. Server-side pipeline validation.** Client-side validation
+  is implemented in `PipelineEditor.tsx` via `validatePipeline()`,
+  which checks (a) node id regex `^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$`,
+  (b) unique node ids, (c) graph cycles (Kahn's algorithm), and (d)
+  unknown node types against the descriptor registry. Validation
+  errors are displayed in the JSON tab and block save. The server-side
+  `PipelineModelValidator` still only checks `name` and
+  `definition != null` — the same checks need to be echoed server-side
+  (extend
   [PipelineModelValidator](../../loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/validation/PipelineModelValidator.java)
-  to check (a) node id regex `^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$`,
-  (b) unique node ids within a pipeline, (c) exactly one node with
-  `isSource=true`, (d) no dependency cycles (Kahn's algorithm on the
-  parsed graph), (e) all node `type`s resolvable against the
-  descriptor registry. Expose the descriptor registry server-side —
-  either seed from the last-known processor snapshot or pull it on
-  demand from a registered processor via a WorkOrder.
+  and expose the descriptor registry server-side).
 
 - [ ] **10. Per-pipeline WS event filtering.** Accept
   `?pipeline=<name>` on the event WS handshake and filter events in
@@ -245,15 +279,20 @@ Gaps:
   currently-open pipeline name in the URL and re-subscribe when it
   changes.
 
-- [ ] **11. Pipeline run history.** New Flyway migration
-  `V2.20__add_pipeline_run.sql` with columns
-  `(uuid, pipeline_uuid, started, finished, status, media_count,
-  success_count, failure_count, dry_run, error_message)`. Add
-  `PipelineRun` model, `PipelineRunDao`, jOOQ impl, REST endpoint
-  `GET /api/v1/pipelines/:uuid/runs` (paged), a lightweight sync
-  writer on the Cortex side that writes a run row at
-  `PIPELINE_STARTED` and updates it at `PIPELINE_COMPLETED`, and swap
-  the UI's hard-coded `RunHistory` mock for live data.
+- [~] **11. Pipeline run history (UI portion).** The UI
+  `RunHistory` component and system log panel in
+  `PipelineEditor.tsx` now fetch live run data from
+  `GET /api/v1/pipelines/:uuid/runs` via the new `listPipelineRuns`
+  API function in `pipelines.ts`. The `PipelineInspector` and log
+  panel display `PipelineRunRecord` fields (status, started, media
+  count, success/failure counts, dry-run flag, error message) with
+  loading and empty states. When the server endpoint is not yet
+  deployed, the API gracefully returns an empty array so the UI
+  shows "No runs recorded yet". The remaining server-side work
+  (Flyway migration `V2.20__add_pipeline_run.sql`, `PipelineRun`
+  model, `PipelineRunDao`, jOOQ impl, paged REST endpoint, Cortex
+  sync writer at `PIPELINE_STARTED`/`PIPELINE_COMPLETED`) is still
+  pending.
 
 ## Phase 3 — Data & runtime hardening (MEDIUM)
 

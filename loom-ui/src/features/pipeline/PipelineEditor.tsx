@@ -11,7 +11,7 @@ import "reactflow/dist/style.css";
 import {
   Box, Typography, Chip, Paper, Divider, IconButton, Tooltip,
   List, ListItemButton, ListItemText, ListItemIcon, Switch, Stack, Avatar, Collapse, TextField,
-  InputAdornment, Popper, ClickAwayListener,
+  InputAdornment, Popper, ClickAwayListener, MenuItem,
   Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button,
   Snackbar, Alert,
 } from "@mui/material";
@@ -35,10 +35,11 @@ import {
 } from "@mui/icons-material";
 import { Tabs, Tab } from "@mui/material";
 import { tokens } from "../../theme";
-import { Pipeline, PipelineNode, PipelineRun } from "../../types";
+import { Pipeline, PipelineNode, EdgeKind } from "../../types";
 import {
   listPipelines, PipelineResponse,
-  updatePipeline, runPipeline, type PipelineUpdateRequest,
+  updatePipeline, runPipeline, listPipelineRuns, type PipelineUpdateRequest,
+  type PipelineRunRecord,
 } from "../../api/pipelines";
 import { useAuth } from "../../context/AuthContext";
 import { useSpace } from "../../context/SpaceContext";
@@ -348,55 +349,106 @@ function toRFNodes(pnodes: PipelineNode[], selectedId: string | null, descriptor
   });
 }
 
+// Edge type styling for PASS / REJECT / ANY
+const EDGE_TYPE_STYLE: Record<string, { stroke: string; strokeDasharray?: string; label: string; labelBg: string; labelColor: string }> = {
+  PASS:   { stroke: tokens.accent.green,  label: "PASS",   labelBg: `${tokens.accent.green}22`,   labelColor: tokens.accent.green },
+  REJECT: { stroke: tokens.accent.red,    strokeDasharray: "6 3", label: "REJECT", labelBg: `${tokens.accent.red}22`,     labelColor: tokens.accent.red },
+  ANY:    { stroke: tokens.border.strong, label: "ANY",    labelBg: tokens.bg.overlay,             labelColor: tokens.text.tertiary },
+};
+
 function toRFEdges(edges: Pipeline["definition"]["edges"]): RFEdge[] {
-  return edges.map(e => ({
-    id: e.id,
-    source: e.source,
-    target: e.target,
-    label: e.label,
-    animated: e.animated,
-    style: { stroke: tokens.border.strong, strokeWidth: 1.5 },
-  }));
+  return edges.map(e => {
+    const et = e.edgeType ?? "ANY";
+    const style = EDGE_TYPE_STYLE[et] ?? EDGE_TYPE_STYLE.ANY;
+    return {
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      label: e.label ?? style.label,
+      labelStyle: { fill: style.labelColor, fontWeight: 600, fontSize: 9 },
+      labelBgStyle: { fill: style.labelBg, stroke: style.stroke, strokeDasharray: undefined },
+      labelBgPadding: [4, 2] as [number, number],
+      labelBgBorderRadius: 4,
+      animated: e.animated ?? false,
+      style: { stroke: style.stroke, strokeWidth: 1.5, strokeDasharray: style.strokeDasharray },
+      data: { edgeType: et },
+    };
+  });
 }
 
 // ── Run History Panel ─────────────────────────────────────────────────────
-function RunHistory({ runs }: { runs: PipelineRun[] }) {
+function RunHistory({ runs, loading }: { runs: PipelineRunRecord[]; loading?: boolean }) {
   const { t } = useTranslation();
+  if (loading) {
+    return (
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75, p: 1.5 }}>
+        <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.07em", color: tokens.text.tertiary, fontSize: "0.68rem", mb: 0.5 }}>
+          {t("pipeline.runHistory.title")}
+        </Typography>
+        <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>
+          {t("pipeline.runHistory.loading")}
+        </Typography>
+      </Box>
+    );
+  }
+  if (runs.length === 0) {
+    return (
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75, p: 1.5 }}>
+        <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.07em", color: tokens.text.tertiary, fontSize: "0.68rem", mb: 0.5 }}>
+          {t("pipeline.runHistory.title")}
+        </Typography>
+        <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>
+          {t("pipeline.runHistory.noRuns")}
+        </Typography>
+      </Box>
+    );
+  }
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75, p: 1.5 }}>
       <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.07em", color: tokens.text.tertiary, fontSize: "0.68rem", mb: 0.5 }}>
         {t("pipeline.runHistory.title")}
       </Typography>
-      {runs.map(r => (
-        <Paper key={r.id} elevation={0} sx={{ bgcolor: tokens.bg.overlay, border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, p: 1.25 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
-            {r.status === "success" ? <CheckCircleOutline sx={{ fontSize: 14, color: tokens.accent.green }} /> :
-              r.status === "failed" ? <ErrorOutline sx={{ fontSize: 14, color: tokens.accent.red }} /> :
-                <CircleOutlined sx={{ fontSize: 14, color: tokens.accent.amber }} />}
-            <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.75rem", color: r.status === "success" ? tokens.accent.green : r.status === "failed" ? tokens.accent.red : tokens.accent.amber }}>
-              {r.status}
-            </Typography>
-            <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem", ml: "auto" }}>
-              {new Date(r.startedAt).toLocaleDateString()}
-            </Typography>
-          </Box>
-          <Box sx={{ display: "flex", gap: 1 }}>
-            <Typography variant="caption" sx={{ color: tokens.text.secondary, fontSize: "0.7rem" }}>
-              {r.processedAssets} {t("pipeline.runHistory.assets")}
-            </Typography>
-            {r.errors > 0 && (
-              <Typography variant="caption" sx={{ color: tokens.accent.red, fontSize: "0.7rem" }}>
-                {r.errors} {r.errors > 1 ? t("pipeline.runHistory.errors") : t("pipeline.runHistory.error")}
+      {runs.map(r => {
+        const status = r.status.toLowerCase();
+        const isSuccess = status === "success" || status === "completed";
+        const isFailed = status === "failed" || status === "error";
+        const isRunning = status === "running" || status === "active";
+        const dateStr = r.started ? new Date(r.started).toLocaleString() : "";
+        return (
+          <Paper key={r.uuid} elevation={0} sx={{ bgcolor: tokens.bg.overlay, border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, p: 1.25 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+              {isSuccess ? <CheckCircleOutline sx={{ fontSize: 14, color: tokens.accent.green }} /> :
+                isFailed ? <ErrorOutline sx={{ fontSize: 14, color: tokens.accent.red }} /> :
+                  isRunning ? <CircleOutlined sx={{ fontSize: 14, color: tokens.accent.amber }} /> :
+                    <CircleOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />}
+              <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.75rem", color: isSuccess ? tokens.accent.green : isFailed ? tokens.accent.red : isRunning ? tokens.accent.amber : tokens.text.tertiary }}>
+                {r.status}
+              </Typography>
+              {r.dryRun && (
+                <Chip label="dry" size="small" sx={{ height: 14, fontSize: "0.55rem", bgcolor: `${tokens.accent.amber}22`, color: tokens.accent.amber }} />
+              )}
+              <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem", ml: "auto" }}>
+                {dateStr}
+              </Typography>
+            </Box>
+            <Box sx={{ display: "flex", gap: 1 }}>
+              <Typography variant="caption" sx={{ color: tokens.text.secondary, fontSize: "0.7rem" }}>
+                {r.successCount} / {r.mediaCount} {t("pipeline.runHistory.assets")}
+              </Typography>
+              {r.failureCount > 0 && (
+                <Typography variant="caption" sx={{ color: tokens.accent.red, fontSize: "0.7rem" }}>
+                  {r.failureCount} {r.failureCount > 1 ? t("pipeline.runHistory.errors") : t("pipeline.runHistory.error")}
+                </Typography>
+              )}
+            </Box>
+            {r.errorMessage && (
+              <Typography variant="caption" sx={{ color: tokens.accent.red, fontSize: "0.65rem", display: "block", mt: 0.25, fontFamily: "monospace" }}>
+                {r.errorMessage}
               </Typography>
             )}
-          </Box>
-          {r.log.slice(-1).map((l, i) => (
-            <Typography key={i} variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.65rem", display: "block", mt: 0.25, fontFamily: "monospace" }}>
-              {l}
-            </Typography>
-          ))}
-        </Paper>
-      ))}
+          </Paper>
+        );
+      })}
     </Box>
   );
 }
@@ -434,7 +486,7 @@ function NodeDetailPanel({ nodeId, pipeline }: { nodeId: string | null; pipeline
 }
 
 // ── Pipeline Inspector (right stats panel) ────────────────────────────────
-function PipelineInspector({ pipeline }: { pipeline: Pipeline | null }) {
+function PipelineInspector({ pipeline, runs, runsLoading }: { pipeline: Pipeline | null; runs: PipelineRunRecord[]; runsLoading: boolean }) {
   const { t } = useTranslation();
   if (!pipeline) {
     return (
@@ -445,7 +497,7 @@ function PipelineInspector({ pipeline }: { pipeline: Pipeline | null }) {
     );
   }
 
-  const latestRun = pipeline.runs[0];
+  const latestRun = runs[0];
   const runStatusColor: Record<string, string> = { success: tokens.accent.green, failed: tokens.accent.red, running: tokens.accent.amber, idle: tokens.text.tertiary, paused: tokens.text.tertiary };
 
   return (
@@ -463,23 +515,23 @@ function PipelineInspector({ pipeline }: { pipeline: Pipeline | null }) {
 
       {/* Latest run status */}
       {latestRun && (
-        <Box sx={{ px: 2, py: 1, bgcolor: `${runStatusColor[latestRun.status]}0a`, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", gap: 1 }}>
-          {latestRun.status === "success" ? <CheckCircleOutline sx={{ fontSize: 14, color: tokens.accent.green }} /> :
-            latestRun.status === "failed" ? <ErrorOutline sx={{ fontSize: 14, color: tokens.accent.red }} /> :
-              latestRun.status === "running" ? <CircleOutlined sx={{ fontSize: 14, color: tokens.accent.amber, animation: "spin 1s linear infinite", "@keyframes spin": { from: { transform: "rotate(0deg)" }, to: { transform: "rotate(360deg)" } } }} /> :
+        <Box sx={{ px: 2, py: 1, bgcolor: `${runStatusColor[latestRun.status] ?? runStatusColor.idle}0a`, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", gap: 1 }}>
+          {latestRun.status === "success" || latestRun.status === "completed" ? <CheckCircleOutline sx={{ fontSize: 14, color: tokens.accent.green }} /> :
+            latestRun.status === "failed" || latestRun.status === "error" ? <ErrorOutline sx={{ fontSize: 14, color: tokens.accent.red }} /> :
+              latestRun.status === "running" || latestRun.status === "active" ? <CircleOutlined sx={{ fontSize: 14, color: tokens.accent.amber, animation: "spin 1s linear infinite", "@keyframes spin": { from: { transform: "rotate(0deg)" }, to: { transform: "rotate(360deg)" } } }} /> :
                 <CircleOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />}
-          <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.75rem", color: runStatusColor[latestRun.status] }}>
-            {latestRun.status === "running" ? t("pipeline.inspector.runningNow") : `${t("pipeline.inspector.lastRun")} ${latestRun.status}`}
+          <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.75rem", color: runStatusColor[latestRun.status] ?? tokens.text.tertiary }}>
+            {latestRun.status === "running" || latestRun.status === "active" ? t("pipeline.inspector.runningNow") : `${t("pipeline.inspector.lastRun")} ${latestRun.status}`}
           </Typography>
           <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem", ml: "auto" }}>
-            · {latestRun.processedAssets} {t("pipeline.runHistory.assets")}
+            · {latestRun.successCount} / {latestRun.mediaCount} {t("pipeline.runHistory.assets")}
           </Typography>
         </Box>
       )}
 
       {/* Scrollable run history */}
       <Box sx={{ flex: 1, overflow: "auto" }}>
-        <RunHistory runs={pipeline.runs} />
+        <RunHistory runs={runs} loading={runsLoading} />
       </Box>
     </Box>
   );
@@ -487,13 +539,14 @@ function PipelineInspector({ pipeline }: { pipeline: Pipeline | null }) {
 
 // ── Node Detail Sidebar (second collapsible right panel) ──────────────────
 function NodeDetailSidebar({
-  nodeId, pipeline, open, onClose, onDisplayNameChange,
+  nodeId, pipeline, open, onClose, onDisplayNameChange, onParameterChange,
 }: {
   nodeId: string | null;
   pipeline: Pipeline | null;
   open: boolean;
   onClose: () => void;
   onDisplayNameChange?: (nodeId: string, name: string) => void;
+  onParameterChange?: (nodeId: string, key: string, value: unknown) => void;
 }) {
   const { getDescriptor } = useNodeRegistry();
   const node = (nodeId && pipeline) ? pipeline.definition.nodes.find(n => n.id === nodeId) ?? null : null;
@@ -586,24 +639,104 @@ function NodeDetailSidebar({
                   sx={{ "& .MuiInputBase-root": { fontSize: "0.78rem" } }}
                 />
 
-                {/* Data fields */}
+                {/* Dynamic parameter editor (from NodeDescriptor.parameters) */}
                 <Box>
                   <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.07em", color: tokens.text.tertiary, fontSize: "0.66rem", mb: 1, display: "block" }}>
-                    {t("pipeline.nodeDetail.configuration")}
+                    {desc && desc.parameters.length > 0 ? t("pipeline.nodeDetail.parameters") : t("pipeline.nodeDetail.configuration")}
                   </Typography>
-                  <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                    {Object.entries(node.data).map(([k, v]) => (
-                      <TextField
-                        key={k}
-                        label={k}
-                        value={Array.isArray(v) ? (v as unknown[]).join(", ") : String(v)}
-                        size="small"
-                        fullWidth
-                        InputProps={{ readOnly: true }}
-                        sx={{ "& .MuiInputBase-root": { fontSize: "0.78rem", fontFamily: "monospace" } }}
-                      />
-                    ))}
-                  </Box>
+                  {desc && desc.parameters.length > 0 ? (
+                    <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+                      {desc.parameters.map(param => {
+                        const currentValue = (node.data as Record<string, unknown>)[param.key] ?? param.defaultValue ?? "";
+                        const label = param.label || param.key;
+                        const descText = param.description || "";
+                        const isEnum = param.type === "ENUM" && param.allowedValues;
+                        const isBool = param.type === "BOOLEAN";
+                        const isInt = param.type === "INTEGER";
+                        const isFloat = param.type === "FLOAT";
+                        const isStringList = param.type === "STRING_LIST";
+                        const fieldValue = isStringList
+                          ? Array.isArray(currentValue) ? (currentValue as unknown[]).join(", ") : String(currentValue)
+                          : currentValue;
+
+                        return (
+                          <Box key={param.key}>
+                            <Tooltip title={descText || t("pipeline.nodeDetail.parameterDescription")} placement="left" arrow>
+                              <Typography variant="caption" sx={{ fontSize: "0.66rem", color: tokens.text.tertiary, display: "block", mb: 0.25, cursor: "help" }}>
+                                {label}
+                              </Typography>
+                            </Tooltip>
+                            {isEnum ? (
+                              <TextField
+                                select
+                                size="small"
+                                fullWidth
+                                value={String(currentValue ?? "")}
+                                onChange={e => onParameterChange?.(nodeId!, param.key, e.target.value)}
+                                sx={{ "& .MuiInputBase-root": { fontSize: "0.78rem" } }}
+                              >
+                                {(param.allowedValues ?? []).map(opt => (
+                                  <MenuItem key={opt} value={opt} sx={{ fontSize: "0.78rem" }}>{opt}</MenuItem>
+                                ))}
+                              </TextField>
+                            ) : isBool ? (
+                              <Switch
+                                size="small"
+                                checked={!!currentValue}
+                                onChange={e => onParameterChange?.(nodeId!, param.key, e.target.checked)}
+                                sx={{ "& .MuiSwitch-switchBase": { color: tokens.primary.main } }}
+                              />
+                            ) : isStringList ? (
+                              <TextField
+                                size="small"
+                                fullWidth
+                                value={fieldValue as string}
+                                placeholder="comma, separated, values"
+                                onChange={e => {
+                                  const parts = e.target.value.split(",").map(s => s.trim()).filter(s => s.length > 0);
+                                  onParameterChange?.(nodeId!, param.key, parts);
+                                }}
+                                sx={{ "& .MuiInputBase-root": { fontSize: "0.78rem", fontFamily: "monospace" } }}
+                              />
+                            ) : (
+                              <TextField
+                                size="small"
+                                fullWidth
+                                type={isInt || isFloat ? "number" : "text"}
+                                value={String(fieldValue ?? "")}
+                                onChange={e => {
+                                  let val: unknown = e.target.value;
+                                  if (isInt) val = e.target.value === "" ? "" : parseInt(e.target.value, 10);
+                                  else if (isFloat) val = e.target.value === "" ? "" : parseFloat(e.target.value);
+                                  onParameterChange?.(nodeId!, param.key, val);
+                                }}
+                                sx={{ "& .MuiInputBase-root": { fontSize: "0.78rem", fontFamily: isInt || isFloat ? "monospace" : "inherit" } }}
+                              />
+                            )}
+                          </Box>
+                        );
+                      })}
+                    </Box>
+                  ) : (
+                    <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                      {Object.entries(node.data).map(([k, v]) => (
+                        <TextField
+                          key={k}
+                          label={k}
+                          value={Array.isArray(v) ? (v as unknown[]).join(", ") : String(v)}
+                          size="small"
+                          fullWidth
+                          InputProps={{ readOnly: true }}
+                          sx={{ "& .MuiInputBase-root": { fontSize: "0.78rem", fontFamily: "monospace" } }}
+                        />
+                      ))}
+                      {Object.keys(node.data).length === 0 && (
+                        <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem", fontStyle: "italic" }}>
+                          {t("pipeline.nodeDetail.noParameters")}
+                        </Typography>
+                      )}
+                    </Box>
+                  )}
                 </Box>
 
                 {/* Node ID */}
@@ -677,6 +810,7 @@ function NodeDetailSidebar({
 function PipelineCanvas({
   pipeline, onNodeSelect, externalNodes, nodeDisplayNames, descriptors,
   onDeleteNode, activeNodeIds, onGraphChange, removalTrigger, autoArrangeTrigger,
+  onEdgeTypeChange,
 }: {
   pipeline: Pipeline | null;
   onNodeSelect: (id: string | null) => void;
@@ -688,6 +822,7 @@ function PipelineCanvas({
   onGraphChange?: (json: any) => void;
   removalTrigger?: { nodeId: string; key: number } | null;
   autoArrangeTrigger?: number;
+  onEdgeTypeChange?: (edgeId: string, edgeType: EdgeKind) => void;
 }) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -696,6 +831,7 @@ function PipelineCanvas({
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const connectionRejectedRef = useRef(false);
   const connectingRef = useRef(false);
+  const [edgeMenu, setEdgeMenu] = useState<{ edgeId: string; x: number; y: number } | null>(null);
   const { t } = useTranslation();
   const { fitView } = useReactFlow();
 
@@ -912,6 +1048,30 @@ function PipelineCanvas({
     }
   }, [setEdges]);
 
+  // Edge click: open context menu for edge type labeling (PASS / REJECT / ANY)
+  const onEdgeClick = useCallback((event: React.MouseEvent, edge: RFEdge) => {
+    event.stopPropagation();
+    setEdgeMenu({ edgeId: edge.id, x: event.clientX, y: event.clientY });
+  }, []);
+
+  // Apply edge type change locally and notify parent
+  const handleEdgeTypeChange = useCallback((edgeId: string, edgeType: EdgeKind) => {
+    const style = EDGE_TYPE_STYLE[edgeType] ?? EDGE_TYPE_STYLE.ANY;
+    setEdges(eds => eds.map(e => {
+      if (e.id !== edgeId) return e;
+      return {
+        ...e,
+        label: edgeType,
+        labelStyle: { fill: style.labelColor, fontWeight: 600, fontSize: 9 },
+        labelBgStyle: { fill: style.labelBg, stroke: style.stroke },
+        style: { ...e.style, stroke: style.stroke, strokeDasharray: style.strokeDasharray },
+        data: { ...e.data, edgeType },
+      };
+    }));
+    onEdgeTypeChange?.(edgeId, edgeType);
+    setEdgeMenu(null);
+  }, [setEdges, onEdgeTypeChange]);
+
   // Expose nodes/edges for JSON view
   const getGraphJson = useCallback(() => {
     const nodeData = nodes.map(n => ({
@@ -930,6 +1090,7 @@ function PipelineCanvas({
       target: e.target,
       ...(e.sourceHandle ? { sourceHandle: e.sourceHandle } : {}),
       ...(e.targetHandle ? { targetHandle: e.targetHandle } : {}),
+      ...(e.data?.edgeType && e.data.edgeType !== "ANY" ? { edgeType: e.data.edgeType } : {}),
     }));
     return { nodes: nodeData, edges: edgeData };
   }, [nodes, edges]);
@@ -998,6 +1159,7 @@ function PipelineCanvas({
         onReconnectStart={onReconnectStart}
         onReconnect={onReconnect}
         onReconnectEnd={onReconnectEnd}
+        onEdgeClick={onEdgeClick}
         isValidConnection={isValidConnection}
         nodeTypes={nodeTypes}
         fitView
@@ -1013,6 +1175,35 @@ function PipelineCanvas({
           nodeColor={() => tokens.border.strong}
         />
       </ReactFlow>
+      {/* Edge context menu for PASS / REJECT / ANY labeling */}
+      {edgeMenu && (
+        <ClickAwayListener onClickAway={() => setEdgeMenu(null)}>
+          <Paper
+            style={{ position: "fixed", top: edgeMenu.y, left: edgeMenu.x, zIndex: 1300 }}
+            sx={{
+              bgcolor: tokens.bg.panel,
+              border: `1px solid ${tokens.border.default}`,
+              borderRadius: tokens.radius.md,
+              minWidth: 140,
+              boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
+              py: 0.5,
+            }}
+          >
+            <Typography variant="caption" sx={{ px: 1.5, py: 0.5, fontSize: "0.62rem", fontWeight: 700, color: tokens.text.tertiary, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+              {t("pipeline.editor.edgeLabel")}
+            </Typography>
+            {(["PASS", "REJECT", "ANY"] as EdgeKind[]).map(kind => {
+              const s = EDGE_TYPE_STYLE[kind];
+              return (
+                <ListItemButton key={kind} onClick={() => handleEdgeTypeChange(edgeMenu.edgeId, kind)} sx={{ py: 0.5, px: 1.5, gap: 1 }}>
+                  <Box sx={{ width: 16, height: 3, borderRadius: 1, bgcolor: s.stroke, borderStyle: kind === "REJECT" ? "none" : "solid", backgroundImage: kind === "REJECT" ? `repeating-linear-gradient(90deg, ${s.stroke} 0 4px, transparent 4px 7px)` : "none" }} />
+                  <Typography variant="caption" sx={{ fontSize: "0.72rem", fontWeight: 600, color: s.labelColor }}>{kind}</Typography>
+                </ListItemButton>
+              );
+            })}
+          </Paper>
+        </ClickAwayListener>
+      )}
       {/* Connection error toast */}
       {connectionError && (
         <Box
@@ -1176,6 +1367,71 @@ function CommandPaletteContent({
   );
 }
 
+// ── Pipeline validation (cycle detection, duplicate IDs, etc.) ──────────
+const NODE_ID_REGEX = /^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$/;
+
+interface ValidationError {
+  type: "duplicateId" | "cycle" | "invalidId" | "noSource" | "multipleSource" | "unknownType";
+  message: string;
+}
+
+function validatePipeline(nodes: { id: string; type: string; label: string }[], edges: { source: string; target: string }[], descriptors: NodeDescriptor[]): ValidationError[] {
+  const errors: ValidationError[] = [];
+  const descKinds = new Set(descriptors.map(d => d.kind));
+
+  // Duplicate ID check
+  const idSet = new Set<string>();
+  for (const n of nodes) {
+    if (idSet.has(n.id)) {
+      errors.push({ type: "duplicateId", message: `Duplicate node ID: "${n.id}" — node IDs must be unique` });
+    } else {
+      idSet.add(n.id);
+    }
+  }
+
+  // Invalid ID format check
+  for (const n of nodes) {
+    if (!NODE_ID_REGEX.test(n.id)) {
+      errors.push({ type: "invalidId", message: `Invalid node ID: "${n.id}" — IDs must match ^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$` });
+    }
+  }
+
+  // Unknown node type check
+  for (const n of nodes) {
+    if (!descKinds.has(n.type)) {
+      errors.push({ type: "unknownType", message: `Unknown node type: "${n.type}" — not found in descriptor registry` });
+    }
+  }
+
+  // Cycle detection (Kahn's algorithm)
+  const adj = new Map<string, string[]>();
+  const inDeg = new Map<string, number>();
+  for (const n of nodes) { adj.set(n.id, []); inDeg.set(n.id, 0); }
+  for (const e of edges) {
+    if (adj.has(e.source) && inDeg.has(e.target)) {
+      adj.get(e.source)!.push(e.target);
+      inDeg.set(e.target, (inDeg.get(e.target) ?? 0) + 1);
+    }
+  }
+  const queue: string[] = [];
+  for (const [id, deg] of inDeg) { if (deg === 0) queue.push(id); }
+  let visited = 0;
+  while (queue.length > 0) {
+    const id = queue.shift()!;
+    visited++;
+    for (const t of adj.get(id) ?? []) {
+      const d = (inDeg.get(t) ?? 0) - 1;
+      inDeg.set(t, d);
+      if (d === 0) queue.push(t);
+    }
+  }
+  if (visited < nodes.length) {
+    errors.push({ type: "cycle", message: "Cycle detected in pipeline graph — nodes form a circular dependency" });
+  }
+
+  return errors;
+}
+
 // ── Main Pipeline Editor ──────────────────────────────────────────────────
 export default function PipelineEditor() {
   const { activeSpace } = useSpace();
@@ -1207,6 +1463,12 @@ export default function PipelineEditor() {
   const [autoArrangeTrigger, setAutoArrangeTrigger] = useState(0);
   const isDraggingLog = useRef(false);
   const logRef = useRef<HTMLDivElement>(null);
+
+  // Validation errors (cycle / duplicate-id / unknown type)
+  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
+  // Live run history from the server
+  const [pipelineRuns, setPipelineRuns] = useState<PipelineRunRecord[]>([]);
+  const [runsLoading, setRunsLoading] = useState(false);
 
   // Save / Run state
   const [dirty, setDirty] = useState(false);
@@ -1244,6 +1506,16 @@ export default function PipelineEditor() {
     }).catch(() => setLoading(false));
   }, [token]);
 
+  // Load run history for the selected pipeline
+  useEffect(() => {
+    if (!token || !selected) { setPipelineRuns([]); return; }
+    setRunsLoading(true);
+    listPipelineRuns(token, selected.id)
+      .then(runs => setPipelineRuns(runs))
+      .catch(() => setPipelineRuns([]))
+      .finally(() => setRunsLoading(false));
+  }, [token, selected?.id]);
+
   const handleNodeSelect = useCallback((id: string | null) => {
     setSelectedNodeId(id);
     if (id !== null) setNodeDetailOpen(true);
@@ -1253,9 +1525,32 @@ export default function PipelineEditor() {
     setNodeDisplayNames(prev => ({ ...prev, [nodeId]: name }));
   }, []);
 
+  // Persist parameter changes from the NodeDetailSidebar into the pipeline definition
+  const handleParameterChange = useCallback((nodeId: string, key: string, value: unknown) => {
+    if (!selected) return;
+    const node = selected.definition.nodes.find(n => n.id === nodeId);
+    if (node) {
+      (node.data as Record<string, unknown>)[key] = value;
+      setSelected({ ...selected });
+      setDirty(true);
+    }
+  }, [selected]);
+
+  // Persist edge type changes (PASS / REJECT / ANY) into the pipeline definition
+  const handleEdgeTypeChange = useCallback((edgeId: string, edgeType: EdgeKind) => {
+    if (!selected) return;
+    const edge = selected.definition.edges.find(e => e.id === edgeId);
+    if (edge) {
+      edge.edgeType = edgeType;
+      edge.label = edgeType;
+      setSelected({ ...selected });
+      setDirty(true);
+    }
+  }, [selected]);
+
   const handleAddNode = useCallback((desc: NodeDescriptor) => {
     if (!selected) return;
-    const id = `pn_${Date.now()}`;
+    const id = `pn-${Date.now()}`;
     const connectors = descriptorConnectors(desc);
     const paramDefaults: Record<string, unknown> = {};
     for (const p of desc.parameters) {
@@ -1313,16 +1608,26 @@ export default function PipelineEditor() {
   const handleGraphChange = useCallback((json: any) => {
     setGraphJson(json);
     setDirty(true);
+    setValidationErrors([]); // clear stale validation on graph change
   }, []);
 
   const handleSave = useCallback(async () => {
     if (!token || !selected || saving) return;
+    // Run validation before saving
+    const definition = graphJson ?? {
+      nodes: selected.definition.nodes,
+      edges: selected.definition.edges,
+    };
+    const nodesForValidation = (definition.nodes ?? []).map((n: any) => ({ id: n.id, type: n.type ?? n.category, label: n.label }));
+    const edgesForValidation = (definition.edges ?? []).map((e: any) => ({ source: e.source, target: e.target }));
+    const errors = validatePipeline(nodesForValidation, edgesForValidation, descriptors);
+    setValidationErrors(errors);
+    if (errors.length > 0) {
+      notify("error", errors[0].message);
+      return;
+    }
     setSaving(true);
     try {
-      const definition = graphJson ?? {
-        nodes: selected.definition.nodes,
-        edges: selected.definition.edges,
-      };
       const req: PipelineUpdateRequest = {
         name: selected.name,
         description: selected.description,
@@ -1339,7 +1644,7 @@ export default function PipelineEditor() {
     } finally {
       setSaving(false);
     }
-  }, [token, selected, saving, graphJson, notify, t]);
+  }, [token, selected, saving, graphJson, descriptors, notify, t]);
 
   const handleRun = useCallback(async () => {
     if (!token || !selected || running) return;
@@ -1538,6 +1843,7 @@ export default function PipelineEditor() {
                   onGraphChange={handleGraphChange}
                   removalTrigger={removalTrigger}
                   autoArrangeTrigger={autoArrangeTrigger}
+                  onEdgeTypeChange={handleEdgeTypeChange}
                 />
               </Box>
             )}
@@ -1646,6 +1952,17 @@ export default function PipelineEditor() {
                     {graphJson ? t("pipeline.editor.jsonValid") : t("pipeline.editor.jsonInvalid")}
                   </Typography>
                 </Box>
+                {/* Validation errors */}
+                {validationErrors.length > 0 && (
+                  <Box sx={{ mt: 1, px: 1.5, py: 0.5, bgcolor: `${tokens.accent.red}11`, border: `1px solid ${tokens.accent.red}44`, borderRadius: tokens.radius.sm, flexShrink: 0 }}>
+                    {validationErrors.map((err, i) => (
+                      <Box key={i} sx={{ display: "flex", alignItems: "flex-start", gap: 0.5, py: 0.25 }}>
+                        <ErrorOutline sx={{ fontSize: 12, color: tokens.accent.red, mt: 1, flexShrink: 0 }} />
+                        <Typography variant="caption" sx={{ fontSize: "0.65rem", color: tokens.accent.red, lineHeight: 1.3 }}>{err.message}</Typography>
+                      </Box>
+                    ))}
+                  </Box>
+                )}
               </Box>
             )}
 
@@ -1794,7 +2111,7 @@ export default function PipelineEditor() {
                 <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.75rem", flex: 1 }}>{t("pipeline.editor.systemLog")}</Typography>
                 {selected && (
                   <Typography variant="caption" sx={{ fontSize: "0.68rem", color: tokens.text.tertiary }}>
-                    {selected.name} · {selected.runs[0]?.status ?? t("pipeline.editor.noRuns")}
+                    {selected.name} · {pipelineRuns[0]?.status ?? t("pipeline.editor.noRuns")}
                   </Typography>
                 )}
                 <IconButton size="small" onClick={() => setLogOpen(v => !v)} sx={{ width: 20, height: 20 }}>
@@ -1803,31 +2120,38 @@ export default function PipelineEditor() {
               </Box>
               <Box sx={{ flex: 1, overflow: "auto", p: 1.5 }}>
                 {selected ? (
-                  selected.runs.flatMap(r => r.log.map((line, i) => (
-                    <Typography
-                      key={`${r.id}_${i}`}
-                      sx={{
-                        fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
-                        fontSize: "0.72rem",
-                        lineHeight: 1.6,
-                        color: line.toLowerCase().includes("error") || line.toLowerCase().includes("fail")
-                          ? tokens.accent.red
-                          : line.toLowerCase().includes("warn")
-                          ? tokens.accent.amber
-                          : line.toLowerCase().includes("success") || line.toLowerCase().includes("complete")
-                          ? tokens.accent.green
-                          : tokens.text.secondary,
-                        display: "block",
-                        whiteSpace: "pre-wrap",
-                        wordBreak: "break-word",
-                      }}
-                    >
-                      <Box component="span" sx={{ color: tokens.text.tertiary, mr: 1.5 }}>
-                        {new Date(r.startedAt).toLocaleTimeString()}
-                      </Box>
-                      {line}
+                  pipelineRuns.length > 0 ? (
+                    pipelineRuns.map(r => {
+                      const status = r.status.toLowerCase();
+                      const isErr = status === "failed" || status === "error";
+                      const isWarn = status === "running" || status === "active";
+                      const isOk = status === "success" || status === "completed";
+                      const color = isErr ? tokens.accent.red : isWarn ? tokens.accent.amber : isOk ? tokens.accent.green : tokens.text.secondary;
+                      return (
+                        <Typography
+                          key={r.uuid}
+                          sx={{
+                            fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
+                            fontSize: "0.72rem",
+                            lineHeight: 1.6,
+                            color,
+                            display: "block",
+                            whiteSpace: "pre-wrap",
+                            wordBreak: "break-word",
+                          }}
+                        >
+                          <Box component="span" sx={{ color: tokens.text.tertiary, mr: 1.5 }}>
+                            {r.started ? new Date(r.started).toLocaleTimeString() : ""}
+                          </Box>
+                          {r.status} — {r.successCount}/{r.mediaCount} {t("pipeline.runHistory.assets")}{r.failureCount > 0 ? `, ${r.failureCount} ${t("pipeline.runHistory.errors")}` : ""}{r.errorMessage ? ` — ${r.errorMessage}` : ""}
+                        </Typography>
+                      );
+                    })
+                  ) : (
+                    <Typography sx={{ fontFamily: "monospace", fontSize: "0.72rem", color: tokens.text.tertiary }}>
+                      {t("pipeline.runHistory.noRuns")}
                     </Typography>
-                  )))
+                  )
                 ) : (
                   <Typography sx={{ fontFamily: "monospace", fontSize: "0.72rem", color: tokens.text.tertiary }}>
                     {t("pipeline.editor.selectPipelineLogs")}
@@ -1846,6 +2170,7 @@ export default function PipelineEditor() {
         open={nodeDetailOpen}
         onClose={() => setNodeDetailOpen(false)}
         onDisplayNameChange={handleDisplayNameChange}
+        onParameterChange={handleParameterChange}
       />
 
       {/* Stats inspector panel */}
@@ -1868,7 +2193,7 @@ export default function PipelineEditor() {
           </Tooltip>
         )}
         <Box sx={{ flex: 1, overflow: "hidden" }}>
-          <PipelineInspector pipeline={selected} />
+          <PipelineInspector pipeline={selected} runs={pipelineRuns} runsLoading={runsLoading} />
         </Box>
       </Box>
 

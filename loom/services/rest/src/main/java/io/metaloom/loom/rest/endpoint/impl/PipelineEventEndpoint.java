@@ -29,6 +29,10 @@ import io.vertx.core.http.ServerWebSocket;
  * the WebSocket handshake URL. When present the token is validated via
  * {@link WebSocketAuthenticator}; invalid tokens result in a
  * {@code 4401} close code.</p>
+ *
+ * <h2>Per-pipeline filtering</h2>
+ * <p>Clients may pass {@code ?pipeline=&lt;name&gt;} to receive only events for the
+ * specified pipeline. When omitted, all pipeline events are delivered.</p>
  */
 public class PipelineEventEndpoint extends AbstractEndpoint {
 
@@ -77,7 +81,8 @@ public class PipelineEventEndpoint extends AbstractEndpoint {
 	private void handleWebSocket(ServerWebSocket ws) {
 		authenticator.authenticate(ws, "pipeline-events")
 			.onSuccess(v -> {
-				broadcaster.addSubscriber(ws);
+				String pipelineFilter = extractPipelineFilter(ws);
+				broadcaster.addSubscriber(ws, pipelineFilter);
 
 				ws.closeHandler(v2 -> broadcaster.removeSubscriber(ws));
 
@@ -90,5 +95,29 @@ public class PipelineEventEndpoint extends AbstractEndpoint {
 				// authenticator already logged + closed the socket
 				log.debug("Pipeline events WebSocket rejected: {}", err.getMessage());
 			});
+	}
+
+	/**
+	 * Extract the optional {@code ?pipeline=} query parameter from the
+	 * WebSocket handshake URL. When present, the subscriber only receives
+	 * events for that pipeline.
+	 */
+	private static String extractPipelineFilter(ServerWebSocket ws) {
+		String query = ws.query();
+		if (query == null || query.isEmpty()) {
+			return null;
+		}
+		for (String part : query.split("&")) {
+			int eq = part.indexOf('=');
+			if (eq <= 0) {
+				continue;
+			}
+			String key = part.substring(0, eq);
+			if ("pipeline".equals(key)) {
+				return java.net.URLDecoder.decode(part.substring(eq + 1),
+					java.nio.charset.StandardCharsets.UTF_8);
+			}
+		}
+		return null;
 	}
 }

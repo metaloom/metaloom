@@ -134,12 +134,15 @@ export interface PipelineNode {
   data: Record<string, unknown>;
 }
 
+export type EdgeKind = "PASS" | "REJECT" | "ANY";
+
 export interface PipelineEdge {
   id: string;
   source: string;
   target: string;
   label?: string;
   animated?: boolean;
+  edgeType?: EdgeKind;
 }
 
 export interface PipelineRun {
