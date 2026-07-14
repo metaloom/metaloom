@@ -27,6 +27,7 @@ public interface ClientMethods extends
 	SpaceMethods,
 	CommentMethods,
 	EmbeddingMethods,
-	TranscriptMethods {
+	TranscriptMethods,
+	GraphQLMethods {
 
 }

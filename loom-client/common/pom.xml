@@ -31,5 +31,11 @@
             <artifactId>rxjava</artifactId>
             <version>3.1.6</version>
         </dependency>
+
+        <!-- REST Model -->
+        <dependency>
+            <groupId>io.metaloom.loom.shared</groupId>
+            <artifactId>loom-rest-model</artifactId>
+        </dependency>
     </dependencies>
 </project>

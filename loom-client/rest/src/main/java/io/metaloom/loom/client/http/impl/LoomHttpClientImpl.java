@@ -78,6 +78,8 @@ import io.metaloom.loom.rest.model.detection.DetectionResponse;
 import io.metaloom.loom.rest.model.detection.DetectionUpdateRequest;
 import io.metaloom.loom.rest.model.embedding.EmbeddingCreateRequest;
 import io.metaloom.loom.rest.model.embedding.EmbeddingListResponse;
+import io.metaloom.loom.rest.model.graphql.GraphQLRequest;
+import io.metaloom.loom.rest.model.graphql.GraphQLResponse;
 import io.metaloom.loom.rest.model.embedding.EmbeddingResponse;
 import io.metaloom.loom.rest.model.embedding.EmbeddingUpdateRequest;
 import io.metaloom.loom.rest.model.group.GroupCreateRequest;
@@ -1138,6 +1140,13 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<NoResponse> deleteAssetBinary(UUID assetUuid) {
 		return deleteRequest("assets/" + assetUuid + "/binary");
+	}
+
+	// GRAPHQL
+
+	@Override
+	public LoomClientHttpRequest<GraphQLResponse> executeGraphQL(GraphQLRequest request) {
+		return postRequest("graphql", request, GraphQLResponse.class);
 	}
 
 }

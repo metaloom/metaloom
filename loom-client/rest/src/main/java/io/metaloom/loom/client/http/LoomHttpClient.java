@@ -3,8 +3,11 @@ package io.metaloom.loom.client.http;
 import java.time.Duration;
 
 import io.metaloom.loom.client.common.LoomClient;
+import io.metaloom.loom.client.common.LoomClientRequest;
 import io.metaloom.loom.client.common.method.ClientMethods;
 import io.metaloom.loom.client.http.impl.LoomHttpClientImpl;
+import io.metaloom.loom.rest.model.graphql.GraphQLRequest;
+import io.metaloom.loom.rest.model.graphql.GraphQLResponse;
 
 public interface LoomHttpClient extends ClientSettings, LoomClient {
 
@@ -69,5 +72,13 @@ public interface LoomHttpClient extends ClientSettings, LoomClient {
 	 * @return
 	 */
 	String getToken();
+
+	/**
+	 * Execute a GraphQL query
+	 * 
+	 * @param request the GraphQL request containing query, variables, and operationName
+	 * @return request that can be executed synchronously or asynchronously
+	 */
+	LoomClientRequest<GraphQLResponse> executeGraphQL(GraphQLRequest request);
 
 }

@@ -20,7 +20,7 @@ import io.metaloom.loom.rest.endpoint.impl.ClusterEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.CollectionEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.CommentEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.EmbeddingEndpoint;
-// import io.metaloom.loom.rest.endpoint.impl.GraphQLEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.GraphQLEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.GroupEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.NodeDescriptorEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.LibraryEndpoint;
@@ -60,6 +60,7 @@ public class EndpointModule {
 		ClusterEndpoint clusterEndpoint,
 		CollectionEndpoint collectionEndpoint,
 		EmbeddingEndpoint embeddingEndpoint,
+		GraphQLEndpoint graphQLEndpoint,
 		TaskEndpoint taskEndoint,
 		TagEndpoint tagEndpoint,
 		WebhookEndpoint webhookEndpoint,
@@ -91,6 +92,7 @@ public class EndpointModule {
 			clusterEndpoint,
 			collectionEndpoint,
 			embeddingEndpoint,
+			graphQLEndpoint,
 			taskEndoint,
 			tagEndpoint,
 			webhookEndpoint,
