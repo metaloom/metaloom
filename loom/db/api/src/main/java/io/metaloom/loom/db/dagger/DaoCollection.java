@@ -24,7 +24,9 @@ import io.metaloom.loom.db.model.token.TokenDao;
 import io.metaloom.loom.db.model.user.UserDao;
 import io.metaloom.loom.db.model.person.PersonDao;
 import io.metaloom.loom.db.model.detection.DetectionDao;
-import io.metaloom.loom.db.model.webhook.WebhookDao;import io.metaloom.loom.db.model.pipeline.PipelineDao;
+import io.metaloom.loom.db.model.webhook.WebhookDao;
+import io.metaloom.loom.db.model.pipeline.PipelineDao;
+import io.metaloom.loom.db.model.pipeline.PipelineRunDao;
 import io.metaloom.loom.db.model.pool.AssetPoolDao;
 /**
  * Aggregated list of all loom DAOs.
@@ -94,6 +96,8 @@ public interface DaoCollection {
 	// Pipeline
 
 	PipelineDao pipelineDao();
+
+	PipelineRunDao pipelineRunDao();
 
 	// Asset Pool
 

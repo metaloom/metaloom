@@ -12,140 +12,599 @@ import java.util.UUID;
 
 import org.jooq.Field;
 import org.jooq.Record1;
+import org.jooq.Record14;
+import org.jooq.Row14;
 import org.jooq.impl.UpdatableRecordImpl;
 
 
+/**
+ * Stores object and face detections within assets
+ */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqDetectionRecord extends UpdatableRecordImpl<JooqDetectionRecord> {
+public class JooqDetectionRecord extends UpdatableRecordImpl<JooqDetectionRecord> implements Record14<UUID, String, Integer, Float, Float, Float, Float, Float, JsonObject, UUID, LocalDateTime, UUID, LocalDateTime, UUID> {
 
-	private static final long serialVersionUID = 1L;
+    private static final long serialVersionUID = 1L;
 
-	public void setUuid(UUID value) {
-		set(0, value);
-	}
+    /**
+     * Setter for <code>public.detection.uuid</code>.
+     */
+    public void setUuid(UUID value) {
+        set(0, value);
+    }
 
-	public UUID getUuid() {
-		return (UUID) get(0);
-	}
+    /**
+     * Getter for <code>public.detection.uuid</code>.
+     */
+    public UUID getUuid() {
+        return (UUID) get(0);
+    }
 
-	public void setType(String value) {
-		set(1, value);
-	}
+    /**
+     * Setter for <code>public.detection.type</code>. Type of detection (e.g.
+     * facedetection, objectdetection)
+     */
+    public void setType(String value) {
+        set(1, value);
+    }
 
-	public String getType() {
-		return (String) get(1);
-	}
+    /**
+     * Getter for <code>public.detection.type</code>. Type of detection (e.g.
+     * facedetection, objectdetection)
+     */
+    public String getType() {
+        return (String) get(1);
+    }
 
-	public void setFrameNumber(Integer value) {
-		set(2, value);
-	}
+    /**
+     * Setter for <code>public.detection.frame_number</code>. Frame index within
+     * the media (0 for images)
+     */
+    public void setFrameNumber(Integer value) {
+        set(2, value);
+    }
 
-	public Integer getFrameNumber() {
-		return (Integer) get(2);
-	}
+    /**
+     * Getter for <code>public.detection.frame_number</code>. Frame index within
+     * the media (0 for images)
+     */
+    public Integer getFrameNumber() {
+        return (Integer) get(2);
+    }
 
-	public void setBboxX(Float value) {
-		set(3, value);
-	}
+    /**
+     * Setter for <code>public.detection.bbox_x</code>. Bounding box X
+     * coordinate (normalized 0-1)
+     */
+    public void setBboxX(Float value) {
+        set(3, value);
+    }
 
-	public Float getBboxX() {
-		return (Float) get(3);
-	}
+    /**
+     * Getter for <code>public.detection.bbox_x</code>. Bounding box X
+     * coordinate (normalized 0-1)
+     */
+    public Float getBboxX() {
+        return (Float) get(3);
+    }
 
-	public void setBboxY(Float value) {
-		set(4, value);
-	}
+    /**
+     * Setter for <code>public.detection.bbox_y</code>. Bounding box Y
+     * coordinate (normalized 0-1)
+     */
+    public void setBboxY(Float value) {
+        set(4, value);
+    }
 
-	public Float getBboxY() {
-		return (Float) get(4);
-	}
+    /**
+     * Getter for <code>public.detection.bbox_y</code>. Bounding box Y
+     * coordinate (normalized 0-1)
+     */
+    public Float getBboxY() {
+        return (Float) get(4);
+    }
 
-	public void setBboxWidth(Float value) {
-		set(5, value);
-	}
+    /**
+     * Setter for <code>public.detection.bbox_width</code>. Bounding box width
+     * (normalized 0-1)
+     */
+    public void setBboxWidth(Float value) {
+        set(5, value);
+    }
 
-	public Float getBboxWidth() {
-		return (Float) get(5);
-	}
+    /**
+     * Getter for <code>public.detection.bbox_width</code>. Bounding box width
+     * (normalized 0-1)
+     */
+    public Float getBboxWidth() {
+        return (Float) get(5);
+    }
 
-	public void setBboxHeight(Float value) {
-		set(6, value);
-	}
+    /**
+     * Setter for <code>public.detection.bbox_height</code>. Bounding box height
+     * (normalized 0-1)
+     */
+    public void setBboxHeight(Float value) {
+        set(6, value);
+    }
 
-	public Float getBboxHeight() {
-		return (Float) get(6);
-	}
+    /**
+     * Getter for <code>public.detection.bbox_height</code>. Bounding box height
+     * (normalized 0-1)
+     */
+    public Float getBboxHeight() {
+        return (Float) get(6);
+    }
 
-	public void setConfidence(Float value) {
-		set(7, value);
-	}
+    /**
+     * Setter for <code>public.detection.confidence</code>. Detection confidence
+     * score (0.0 - 1.0)
+     */
+    public void setConfidence(Float value) {
+        set(7, value);
+    }
 
-	public Float getConfidence() {
-		return (Float) get(7);
-	}
+    /**
+     * Getter for <code>public.detection.confidence</code>. Detection confidence
+     * score (0.0 - 1.0)
+     */
+    public Float getConfidence() {
+        return (Float) get(7);
+    }
 
-	public void setMeta(JsonObject value) {
-		set(8, value);
-	}
+    /**
+     * Setter for <code>public.detection.meta</code>. Custom meta properties
+     * (e.g. gender, age, label, face angle)
+     */
+    public void setMeta(JsonObject value) {
+        set(8, value);
+    }
 
-	public JsonObject getMeta() {
-		return (JsonObject) get(8);
-	}
+    /**
+     * Getter for <code>public.detection.meta</code>. Custom meta properties
+     * (e.g. gender, age, label, face angle)
+     */
+    public JsonObject getMeta() {
+        return (JsonObject) get(8);
+    }
 
-	public void setAssetUuid(UUID value) {
-		set(9, value);
-	}
+    /**
+     * Setter for <code>public.detection.asset_uuid</code>. UUID of the parent
+     * asset
+     */
+    public void setAssetUuid(UUID value) {
+        set(9, value);
+    }
 
-	public UUID getAssetUuid() {
-		return (UUID) get(9);
-	}
+    /**
+     * Getter for <code>public.detection.asset_uuid</code>. UUID of the parent
+     * asset
+     */
+    public UUID getAssetUuid() {
+        return (UUID) get(9);
+    }
 
-	public void setCreated(LocalDateTime value) {
-		set(10, value);
-	}
+    /**
+     * Setter for <code>public.detection.created</code>.
+     */
+    public void setCreated(LocalDateTime value) {
+        set(10, value);
+    }
 
-	public LocalDateTime getCreated() {
-		return (LocalDateTime) get(10);
-	}
+    /**
+     * Getter for <code>public.detection.created</code>.
+     */
+    public LocalDateTime getCreated() {
+        return (LocalDateTime) get(10);
+    }
 
-	public void setCreatorUuid(UUID value) {
-		set(11, value);
-	}
+    /**
+     * Setter for <code>public.detection.creator_uuid</code>.
+     */
+    public void setCreatorUuid(UUID value) {
+        set(11, value);
+    }
 
-	public UUID getCreatorUuid() {
-		return (UUID) get(11);
-	}
+    /**
+     * Getter for <code>public.detection.creator_uuid</code>.
+     */
+    public UUID getCreatorUuid() {
+        return (UUID) get(11);
+    }
 
-	public void setEdited(LocalDateTime value) {
-		set(12, value);
-	}
+    /**
+     * Setter for <code>public.detection.edited</code>.
+     */
+    public void setEdited(LocalDateTime value) {
+        set(12, value);
+    }
 
-	public LocalDateTime getEdited() {
-		return (LocalDateTime) get(12);
-	}
+    /**
+     * Getter for <code>public.detection.edited</code>.
+     */
+    public LocalDateTime getEdited() {
+        return (LocalDateTime) get(12);
+    }
 
-	public void setEditorUuid(UUID value) {
-		set(13, value);
-	}
+    /**
+     * Setter for <code>public.detection.editor_uuid</code>.
+     */
+    public void setEditorUuid(UUID value) {
+        set(13, value);
+    }
 
-	public UUID getEditorUuid() {
-		return (UUID) get(13);
-	}
+    /**
+     * Getter for <code>public.detection.editor_uuid</code>.
+     */
+    public UUID getEditorUuid() {
+        return (UUID) get(13);
+    }
 
-	// -------------------------------------------------------------------------
-	// Primary key information
-	// -------------------------------------------------------------------------
+    // -------------------------------------------------------------------------
+    // Primary key information
+    // -------------------------------------------------------------------------
 
-	@Override
-	public Record1<UUID> key() {
-		return (Record1) super.key();
-	}
+    @Override
+    public Record1<UUID> key() {
+        return (Record1) super.key();
+    }
 
-	// -------------------------------------------------------------------------
-	// Constructors
-	// -------------------------------------------------------------------------
+    // -------------------------------------------------------------------------
+    // Record14 type implementation
+    // -------------------------------------------------------------------------
 
-	public JooqDetectionRecord() {
-		super(JooqDetection.DETECTION);
-	}
+    @Override
+    public Row14<UUID, String, Integer, Float, Float, Float, Float, Float, JsonObject, UUID, LocalDateTime, UUID, LocalDateTime, UUID> fieldsRow() {
+        return (Row14) super.fieldsRow();
+    }
+
+    @Override
+    public Row14<UUID, String, Integer, Float, Float, Float, Float, Float, JsonObject, UUID, LocalDateTime, UUID, LocalDateTime, UUID> valuesRow() {
+        return (Row14) super.valuesRow();
+    }
+
+    @Override
+    public Field<UUID> field1() {
+        return JooqDetection.DETECTION.UUID;
+    }
+
+    @Override
+    public Field<String> field2() {
+        return JooqDetection.DETECTION.TYPE;
+    }
+
+    @Override
+    public Field<Integer> field3() {
+        return JooqDetection.DETECTION.FRAME_NUMBER;
+    }
+
+    @Override
+    public Field<Float> field4() {
+        return JooqDetection.DETECTION.BBOX_X;
+    }
+
+    @Override
+    public Field<Float> field5() {
+        return JooqDetection.DETECTION.BBOX_Y;
+    }
+
+    @Override
+    public Field<Float> field6() {
+        return JooqDetection.DETECTION.BBOX_WIDTH;
+    }
+
+    @Override
+    public Field<Float> field7() {
+        return JooqDetection.DETECTION.BBOX_HEIGHT;
+    }
+
+    @Override
+    public Field<Float> field8() {
+        return JooqDetection.DETECTION.CONFIDENCE;
+    }
+
+    @Override
+    public Field<JsonObject> field9() {
+        return JooqDetection.DETECTION.META;
+    }
+
+    @Override
+    public Field<UUID> field10() {
+        return JooqDetection.DETECTION.ASSET_UUID;
+    }
+
+    @Override
+    public Field<LocalDateTime> field11() {
+        return JooqDetection.DETECTION.CREATED;
+    }
+
+    @Override
+    public Field<UUID> field12() {
+        return JooqDetection.DETECTION.CREATOR_UUID;
+    }
+
+    @Override
+    public Field<LocalDateTime> field13() {
+        return JooqDetection.DETECTION.EDITED;
+    }
+
+    @Override
+    public Field<UUID> field14() {
+        return JooqDetection.DETECTION.EDITOR_UUID;
+    }
+
+    @Override
+    public UUID component1() {
+        return getUuid();
+    }
+
+    @Override
+    public String component2() {
+        return getType();
+    }
+
+    @Override
+    public Integer component3() {
+        return getFrameNumber();
+    }
+
+    @Override
+    public Float component4() {
+        return getBboxX();
+    }
+
+    @Override
+    public Float component5() {
+        return getBboxY();
+    }
+
+    @Override
+    public Float component6() {
+        return getBboxWidth();
+    }
+
+    @Override
+    public Float component7() {
+        return getBboxHeight();
+    }
+
+    @Override
+    public Float component8() {
+        return getConfidence();
+    }
+
+    @Override
+    public JsonObject component9() {
+        return getMeta();
+    }
+
+    @Override
+    public UUID component10() {
+        return getAssetUuid();
+    }
+
+    @Override
+    public LocalDateTime component11() {
+        return getCreated();
+    }
+
+    @Override
+    public UUID component12() {
+        return getCreatorUuid();
+    }
+
+    @Override
+    public LocalDateTime component13() {
+        return getEdited();
+    }
+
+    @Override
+    public UUID component14() {
+        return getEditorUuid();
+    }
+
+    @Override
+    public UUID value1() {
+        return getUuid();
+    }
+
+    @Override
+    public String value2() {
+        return getType();
+    }
+
+    @Override
+    public Integer value3() {
+        return getFrameNumber();
+    }
+
+    @Override
+    public Float value4() {
+        return getBboxX();
+    }
+
+    @Override
+    public Float value5() {
+        return getBboxY();
+    }
+
+    @Override
+    public Float value6() {
+        return getBboxWidth();
+    }
+
+    @Override
+    public Float value7() {
+        return getBboxHeight();
+    }
+
+    @Override
+    public Float value8() {
+        return getConfidence();
+    }
+
+    @Override
+    public JsonObject value9() {
+        return getMeta();
+    }
+
+    @Override
+    public UUID value10() {
+        return getAssetUuid();
+    }
+
+    @Override
+    public LocalDateTime value11() {
+        return getCreated();
+    }
+
+    @Override
+    public UUID value12() {
+        return getCreatorUuid();
+    }
+
+    @Override
+    public LocalDateTime value13() {
+        return getEdited();
+    }
+
+    @Override
+    public UUID value14() {
+        return getEditorUuid();
+    }
+
+    @Override
+    public JooqDetectionRecord value1(UUID value) {
+        setUuid(value);
+        return this;
+    }
+
+    @Override
+    public JooqDetectionRecord value2(String value) {
+        setType(value);
+        return this;
+    }
+
+    @Override
+    public JooqDetectionRecord value3(Integer value) {
+        setFrameNumber(value);
+        return this;
+    }
+
+    @Override
+    public JooqDetectionRecord value4(Float value) {
+        setBboxX(value);
+        return this;
+    }
+
+    @Override
+    public JooqDetectionRecord value5(Float value) {
+        setBboxY(value);
+        return this;
+    }
+
+    @Override
+    public JooqDetectionRecord value6(Float value) {
+        setBboxWidth(value);
+        return this;
+    }
+
+    @Override
+    public JooqDetectionRecord value7(Float value) {
+        setBboxHeight(value);
+        return this;
+    }
+
+    @Override
+    public JooqDetectionRecord value8(Float value) {
+        setConfidence(value);
+        return this;
+    }
+
+    @Override
+    public JooqDetectionRecord value9(JsonObject value) {
+        setMeta(value);
+        return this;
+    }
+
+    @Override
+    public JooqDetectionRecord value10(UUID value) {
+        setAssetUuid(value);
+        return this;
+    }
+
+    @Override
+    public JooqDetectionRecord value11(LocalDateTime value) {
+        setCreated(value);
+        return this;
+    }
+
+    @Override
+    public JooqDetectionRecord value12(UUID value) {
+        setCreatorUuid(value);
+        return this;
+    }
+
+    @Override
+    public JooqDetectionRecord value13(LocalDateTime value) {
+        setEdited(value);
+        return this;
+    }
+
+    @Override
+    public JooqDetectionRecord value14(UUID value) {
+        setEditorUuid(value);
+        return this;
+    }
+
+    @Override
+    public JooqDetectionRecord values(UUID value1, String value2, Integer value3, Float value4, Float value5, Float value6, Float value7, Float value8, JsonObject value9, UUID value10, LocalDateTime value11, UUID value12, LocalDateTime value13, UUID value14) {
+        value1(value1);
+        value2(value2);
+        value3(value3);
+        value4(value4);
+        value5(value5);
+        value6(value6);
+        value7(value7);
+        value8(value8);
+        value9(value9);
+        value10(value10);
+        value11(value11);
+        value12(value12);
+        value13(value13);
+        value14(value14);
+        return this;
+    }
+
+    // -------------------------------------------------------------------------
+    // Constructors
+    // -------------------------------------------------------------------------
+
+    /**
+     * Create a detached JooqDetectionRecord
+     */
+    public JooqDetectionRecord() {
+        super(JooqDetection.DETECTION);
+    }
+
+    /**
+     * Create a detached, initialised JooqDetectionRecord
+     */
+    public JooqDetectionRecord(UUID uuid, String type, Integer frameNumber, Float bboxX, Float bboxY, Float bboxWidth, Float bboxHeight, Float confidence, JsonObject meta, UUID assetUuid, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid) {
+        super(JooqDetection.DETECTION);
+
+        setUuid(uuid);
+        setType(type);
+        setFrameNumber(frameNumber);
+        setBboxX(bboxX);
+        setBboxY(bboxY);
+        setBboxWidth(bboxWidth);
+        setBboxHeight(bboxHeight);
+        setConfidence(confidence);
+        setMeta(meta);
+        setAssetUuid(assetUuid);
+        setCreated(created);
+        setCreatorUuid(creatorUuid);
+        setEdited(edited);
+        setEditorUuid(editorUuid);
+    }
 }

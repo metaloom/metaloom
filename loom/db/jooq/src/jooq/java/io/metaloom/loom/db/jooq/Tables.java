@@ -13,6 +13,7 @@ import io.metaloom.loom.db.jooq.tables.JooqAssetAudioComp;
 import io.metaloom.loom.db.jooq.tables.JooqAssetDocComp;
 import io.metaloom.loom.db.jooq.tables.JooqAssetGeoComp;
 import io.metaloom.loom.db.jooq.tables.JooqAssetImageComp;
+import io.metaloom.loom.db.jooq.tables.JooqAssetJsonComp;
 import io.metaloom.loom.db.jooq.tables.JooqAssetLocation;
 import io.metaloom.loom.db.jooq.tables.JooqAssetPool;
 import io.metaloom.loom.db.jooq.tables.JooqAssetRemix;
@@ -23,11 +24,13 @@ import io.metaloom.loom.db.jooq.tables.JooqAssetVideoComp;
 import io.metaloom.loom.db.jooq.tables.JooqAttachment;
 import io.metaloom.loom.db.jooq.tables.JooqAttachmentBinary;
 import io.metaloom.loom.db.jooq.tables.JooqBlacklist;
+import io.metaloom.loom.db.jooq.tables.JooqChat;
 import io.metaloom.loom.db.jooq.tables.JooqCluster;
 import io.metaloom.loom.db.jooq.tables.JooqCollection;
 import io.metaloom.loom.db.jooq.tables.JooqCollectionAsset;
 import io.metaloom.loom.db.jooq.tables.JooqCollectionCluster;
 import io.metaloom.loom.db.jooq.tables.JooqComment;
+import io.metaloom.loom.db.jooq.tables.JooqDetection;
 import io.metaloom.loom.db.jooq.tables.JooqEmbedding;
 import io.metaloom.loom.db.jooq.tables.JooqEmbeddingCluster;
 import io.metaloom.loom.db.jooq.tables.JooqFlywaySchemaHistory;
@@ -36,7 +39,10 @@ import io.metaloom.loom.db.jooq.tables.JooqLibrary;
 import io.metaloom.loom.db.jooq.tables.JooqLibraryAsset;
 import io.metaloom.loom.db.jooq.tables.JooqLibraryCollection;
 import io.metaloom.loom.db.jooq.tables.JooqLoom;
+import io.metaloom.loom.db.jooq.tables.JooqPerson;
+import io.metaloom.loom.db.jooq.tables.JooqPersonImage;
 import io.metaloom.loom.db.jooq.tables.JooqPipeline;
+import io.metaloom.loom.db.jooq.tables.JooqPipelineRun;
 import io.metaloom.loom.db.jooq.tables.JooqProject;
 import io.metaloom.loom.db.jooq.tables.JooqProjectCollection;
 import io.metaloom.loom.db.jooq.tables.JooqProjectLibrary;
@@ -112,6 +118,11 @@ public class Tables {
     public static final JooqAssetImageComp ASSET_IMAGE_COMP = JooqAssetImageComp.ASSET_IMAGE_COMP;
 
     /**
+     * Stores generic JSON component data produced by Cortex processing nodes
+     */
+    public static final JooqAssetJsonComp ASSET_JSON_COMP = JooqAssetJsonComp.ASSET_JSON_COMP;
+
+    /**
      * Assets keep track of media that has been found by the scanner. Multiple
      * asset_locations may share the same asset thus the properties will be
      * decoupled from asset.
@@ -167,6 +178,11 @@ public class Tables {
     public static final JooqBlacklist BLACKLIST = JooqBlacklist.BLACKLIST;
 
     /**
+     * Stores LLM chat sessions with message history
+     */
+    public static final JooqChat CHAT = JooqChat.CHAT;
+
+    /**
      * Generic cluster that aggregates multiple embeddings. 
      * A cluster could for example represent a person which can have multiple
      * face embeddings.
@@ -196,6 +212,11 @@ public class Tables {
      * Stores comments on tasks, annotations..
      */
     public static final JooqComment COMMENT = JooqComment.COMMENT;
+
+    /**
+     * Stores object and face detections within assets
+     */
+    public static final JooqDetection DETECTION = JooqDetection.DETECTION;
 
     /**
      * Embedding information which was extracted from an asset.
@@ -238,9 +259,24 @@ public class Tables {
     public static final JooqLoom LOOM = JooqLoom.LOOM;
 
     /**
+     * The table <code>public.person</code>.
+     */
+    public static final JooqPerson PERSON = JooqPerson.PERSON;
+
+    /**
+     * Gallery of pictures associated with a person
+     */
+    public static final JooqPersonImage PERSON_IMAGE = JooqPersonImage.PERSON_IMAGE;
+
+    /**
      * The table <code>public.pipeline</code>.
      */
     public static final JooqPipeline PIPELINE = JooqPipeline.PIPELINE;
+
+    /**
+     * History of pipeline executions
+     */
+    public static final JooqPipelineRun PIPELINE_RUN = JooqPipelineRun.PIPELINE_RUN;
 
     /**
      * The table <code>public.project</code>.

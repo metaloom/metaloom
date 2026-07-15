@@ -18,9 +18,13 @@ import io.metaloom.loom.api.error.LoomRestException;
 import io.metaloom.loom.db.dagger.DaoCollection;
 import io.metaloom.loom.db.model.pipeline.Pipeline;
 import io.metaloom.loom.db.model.pipeline.PipelineDao;
+import io.metaloom.loom.db.model.pipeline.PipelineRun;
+import io.metaloom.loom.db.model.pipeline.PipelineRunDao;
 import io.metaloom.loom.rest.LoomRoutingContext;
 import io.metaloom.loom.rest.builder.LoomModelBuilder;
 import io.metaloom.loom.rest.model.pipeline.PipelineCreateRequest;
+import io.metaloom.loom.rest.model.pipeline.PipelineRunListResponse;
+import io.metaloom.loom.rest.model.pipeline.PipelineRunRecord;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunRequest;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineUpdateRequest;
@@ -42,14 +46,16 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 
 	private final ProcessorRegistry processorRegistry;
 	private final PipelineValidationService pipelineValidationService;
+	private final PipelineRunDao pipelineRunDao;
 
 	@Inject
 	public PipelineEndpointService(PipelineDao pipelineDao, DaoCollection daos, LoomModelBuilder modelBuilder,
 		LoomModelValidator validator, ProcessorRegistry processorRegistry,
-		PipelineValidationService pipelineValidationService) {
+		PipelineValidationService pipelineValidationService, PipelineRunDao pipelineRunDao) {
 		super(pipelineDao, daos, modelBuilder, validator);
 		this.processorRegistry = processorRegistry;
 		this.pipelineValidationService = pipelineValidationService;
+		this.pipelineRunDao = pipelineRunDao;
 	}
 
 	@Override
@@ -161,10 +167,17 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 				return;
 			}
 
+			// Create a pipeline run record to track this execution
+			PipelineRun runRecord = pipelineRunDao.createPipelineRun(lrc.userUuid(), pipeline.getUuid(), 1);
+			runRecord.setStatus("RUNNING");
+			runRecord.setDryRun(request.isDryRun() != null ? request.isDryRun() : pipeline.isDryRun());
+			pipelineRunDao.store(runRecord);
+
 			JsonObject params = new JsonObject()
 				.put("command", "run-pipeline")
 				.put("pipelineUuid", pipeline.getUuid().toString())
-				.put("pipelineName", pipeline.getName());
+				.put("pipelineName", pipeline.getName())
+				.put("pipelineRunUuid", runRecord.getUuid().toString());
 			if (request.getMediaUuids() != null && !request.getMediaUuids().isEmpty()) {
 				params.put("mediaUuids", new io.vertx.core.json.JsonArray(
 					request.getMediaUuids().stream().map(u -> u.toString()).toList()));
@@ -189,9 +202,28 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 				.setDispatched(dispatched)
 				.setMessage(dispatched ? "Work order dispatched" : "Processor was not reachable");
 
-			log.info("Pipeline '{}' run dispatched (workOrderId={}, processor={}, ok={})",
-				pipeline.getName(), workOrderId, processor.nodeId, dispatched);
+			log.info("Pipeline '{}' run dispatched (workOrderId={}, pipelineRunUuid={}, processor={}, ok={})",
+				pipeline.getName(), workOrderId, runRecord.getUuid(), processor.nodeId, dispatched);
 			lrc.send(response, dispatched ? 202 : 503);
+		});
+	}
+
+	/**
+	 * List pipeline runs for a specific pipeline.
+	 */
+	public void listRuns(LoomRoutingContext lrc, UUID pipelineUuid) {
+		checkPerm(lrc, READ_PIPELINE, () -> {
+			io.metaloom.loom.rest.parameter.PagingParameters pagingParameters = lrc.pagingParams();
+			io.metaloom.loom.rest.parameter.FilterParameters filterParameters = lrc.filterParams();
+			io.metaloom.loom.rest.parameter.SortParameters sortParameters = lrc.sortParams();
+			UUID from = pagingParameters.from();
+			int limit = pagingParameters.limit();
+			if (log.isDebugEnabled()) {
+				log.debug("Loading page from {} limit: {}", from, limit);
+			}
+			io.metaloom.loom.db.page.Page<PipelineRun> page = pipelineRunDao.loadPageByPipeline(pipelineUuid, from, limit, filterParameters.filters(), sortParameters.sortBy(), sortParameters.sortOrder());
+			io.metaloom.loom.rest.model.RestResponseModel<?> response = modelBuilder.toPipelineRunList(page);
+			lrc.send(response);
 		});
 	}
 

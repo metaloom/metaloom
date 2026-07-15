@@ -1,6 +1,7 @@
 package io.metaloom.loom.client.http;
 
 import java.time.Duration;
+import java.util.UUID;
 
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.client.common.LoomClientRequest;
@@ -8,6 +9,7 @@ import io.metaloom.loom.client.common.method.ClientMethods;
 import io.metaloom.loom.client.http.impl.LoomHttpClientImpl;
 import io.metaloom.loom.rest.model.graphql.GraphQLRequest;
 import io.metaloom.loom.rest.model.graphql.GraphQLResponse;
+import io.metaloom.loom.rest.model.pipeline.PipelineRunListResponse;
 
 public interface LoomHttpClient extends ClientSettings, LoomClient {
 

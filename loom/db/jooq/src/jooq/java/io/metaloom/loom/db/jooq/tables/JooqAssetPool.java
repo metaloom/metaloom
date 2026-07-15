@@ -19,12 +19,12 @@ import java.util.function.Function;
 import org.jooq.Check;
 import org.jooq.Field;
 import org.jooq.ForeignKey;
-import org.jooq.Function11;
+import org.jooq.Function13;
 import org.jooq.Index;
 import org.jooq.Name;
 import org.jooq.Record;
 import org.jooq.Records;
-import org.jooq.Row11;
+import org.jooq.Row13;
 import org.jooq.Schema;
 import org.jooq.SelectField;
 import org.jooq.Table;
@@ -100,16 +100,6 @@ public class JooqAssetPool extends TableImpl<JooqAssetPoolRecord> {
     public final TableField<JooqAssetPoolRecord, String> S3_ENDPOINT = createField(DSL.name("s3_endpoint"), SQLDataType.VARCHAR, this, "S3 endpoint URL for S3-compatible services (only set for S3 pools)");
 
     /**
-     * The column <code>public.asset_pool.free_space</code>. Free space in bytes
-     */
-    public final TableField<JooqAssetPoolRecord, Long> FREE_SPACE = createField(DSL.name("free_space"), SQLDataType.BIGINT, this, "Free space in bytes");
-
-    /**
-     * The column <code>public.asset_pool.used_space</code>. Used space in bytes
-     */
-    public final TableField<JooqAssetPoolRecord, Long> USED_SPACE = createField(DSL.name("used_space"), SQLDataType.BIGINT, this, "Used space in bytes");
-
-    /**
      * The column <code>public.asset_pool.created</code>.
      */
     public final TableField<JooqAssetPoolRecord, LocalDateTime> CREATED = createField(DSL.name("created"), SQLDataType.LOCALDATETIME(6).nullable(false).defaultValue(DSL.field("now()", SQLDataType.LOCALDATETIME)), this, "");
@@ -128,6 +118,16 @@ public class JooqAssetPool extends TableImpl<JooqAssetPoolRecord> {
      * The column <code>public.asset_pool.editor_uuid</code>.
      */
     public final TableField<JooqAssetPoolRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID.nullable(false), this, "");
+
+    /**
+     * The column <code>public.asset_pool.free_space</code>.
+     */
+    public final TableField<JooqAssetPoolRecord, Long> FREE_SPACE = createField(DSL.name("free_space"), SQLDataType.BIGINT, this, "");
+
+    /**
+     * The column <code>public.asset_pool.used_space</code>.
+     */
+    public final TableField<JooqAssetPoolRecord, Long> USED_SPACE = createField(DSL.name("used_space"), SQLDataType.BIGINT, this, "");
 
     private JooqAssetPool(Name alias, Table<JooqAssetPoolRecord> aliased) {
         this(alias, aliased, null);
@@ -254,18 +254,18 @@ public class JooqAssetPool extends TableImpl<JooqAssetPoolRecord> {
     }
 
     // -------------------------------------------------------------------------
-    // Row11 type methods
+    // Row13 type methods
     // -------------------------------------------------------------------------
 
     @Override
-    public Row11<java.util.UUID, String, JsonObject, String, String, String, String, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
-        return (Row11) super.fieldsRow();
+    public Row13<java.util.UUID, String, JsonObject, String, String, String, String, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID, Long, Long> fieldsRow() {
+        return (Row13) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function11<? super java.util.UUID, ? super String, ? super JsonObject, ? super String, ? super String, ? super String, ? super String, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function13<? super java.util.UUID, ? super String, ? super JsonObject, ? super String, ? super String, ? super String, ? super String, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super Long, ? super Long, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -273,7 +273,7 @@ public class JooqAssetPool extends TableImpl<JooqAssetPoolRecord> {
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function11<? super java.util.UUID, ? super String, ? super JsonObject, ? super String, ? super String, ? super String, ? super String, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function13<? super java.util.UUID, ? super String, ? super JsonObject, ? super String, ? super String, ? super String, ? super String, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super Long, ? super Long, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }

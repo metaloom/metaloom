@@ -25,6 +25,9 @@ public enum ProcessorMessageType {
 	/** Pipeline tracking event from processor (forwarded to UI clients) */
 	PIPELINE_EVENT,
 
+	/** Pipeline run completed notification from processor */
+	PIPELINE_RUN_COMPLETED,
+
 	// --- Messages FROM loom TO processor ---
 
 	/** Registration acknowledgement from loom */

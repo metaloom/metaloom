@@ -6,14 +6,25 @@ package io.metaloom.loom.db.jooq.tables;
 
 import io.metaloom.loom.db.jooq.JooqPublic;
 import io.metaloom.loom.db.jooq.Keys;
+import io.metaloom.loom.db.jooq.converter.JsonObjectConverter;
 import io.metaloom.loom.db.jooq.tables.records.JooqChatRecord;
+import io.vertx.core.json.JsonObject;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.List;
+import java.util.function.Function;
 
 import org.jooq.Field;
+import org.jooq.ForeignKey;
+import org.jooq.Function8;
 import org.jooq.JSONB;
 import org.jooq.Name;
+import org.jooq.Record;
+import org.jooq.Records;
+import org.jooq.Row8;
 import org.jooq.Schema;
+import org.jooq.SelectField;
 import org.jooq.Table;
 import org.jooq.TableField;
 import org.jooq.TableOptions;
@@ -37,24 +48,34 @@ public class JooqChat extends TableImpl<JooqChatRecord> {
     public static final JooqChat CHAT = new JooqChat();
 
     /**
+     * The class holding records for this type
+     */
+    @Override
+    public Class<JooqChatRecord> getRecordType() {
+        return JooqChatRecord.class;
+    }
+
+    /**
      * The column <code>public.chat.uuid</code>.
      */
     public final TableField<JooqChatRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
 
     /**
-     * The column <code>public.chat.title</code>. Short title / summary of the chat session
+     * The column <code>public.chat.title</code>. Short title / summary of the
+     * chat session
      */
     public final TableField<JooqChatRecord, String> TITLE = createField(DSL.name("title"), SQLDataType.VARCHAR.nullable(false), this, "Short title / summary of the chat session");
 
     /**
      * The column <code>public.chat.messages</code>. JSON array of chat messages
+     * (role, content, metadata, asset references)
      */
-    public final TableField<JooqChatRecord, JSONB> MESSAGES = createField(DSL.name("messages"), SQLDataType.JSONB.nullable(false).defaultValue(DSL.field("'[]'::jsonb", SQLDataType.JSONB)), this, "JSON array of chat messages");
+    public final TableField<JooqChatRecord, JSONB> MESSAGES = createField(DSL.name("messages"), SQLDataType.JSONB.nullable(false).defaultValue(DSL.field("'[]'::jsonb", SQLDataType.JSONB)), this, "JSON array of chat messages (role, content, metadata, asset references)");
 
     /**
      * The column <code>public.chat.meta</code>.
      */
-    public final TableField<JooqChatRecord, JSONB> META = createField(DSL.name("meta"), SQLDataType.JSONB, this, "");
+    public final TableField<JooqChatRecord, JsonObject> META = createField(DSL.name("meta"), SQLDataType.JSONB, this, "", new JsonObjectConverter());
 
     /**
      * The column <code>public.chat.created</code>. Creation timestamp
@@ -84,8 +105,29 @@ public class JooqChat extends TableImpl<JooqChatRecord> {
         super(alias, null, aliased, parameters, DSL.comment("Stores LLM chat sessions with message history"), TableOptions.table());
     }
 
+    /**
+     * Create an aliased <code>public.chat</code> table reference
+     */
+    public JooqChat(String alias) {
+        this(DSL.name(alias), CHAT);
+    }
+
+    /**
+     * Create an aliased <code>public.chat</code> table reference
+     */
+    public JooqChat(Name alias) {
+        this(alias, CHAT);
+    }
+
+    /**
+     * Create a <code>public.chat</code> table reference
+     */
     public JooqChat() {
         this(DSL.name("chat"), null);
+    }
+
+    public <O extends Record> JooqChat(Table<O> child, ForeignKey<O, JooqChatRecord> key) {
+        super(child, key, CHAT);
     }
 
     @Override
@@ -98,4 +140,96 @@ public class JooqChat extends TableImpl<JooqChatRecord> {
         return Keys.CHAT_PKEY;
     }
 
+    @Override
+    public List<ForeignKey<JooqChatRecord, ?>> getReferences() {
+        return Arrays.asList(Keys.CHAT__CHAT_CREATOR_UUID_FKEY, Keys.CHAT__CHAT_EDITOR_UUID_FKEY);
+    }
+
+    private transient JooqUser _chatCreatorUuidFkey;
+    private transient JooqUser _chatEditorUuidFkey;
+
+    /**
+     * Get the implicit join path to the <code>public.user</code> table, via the
+     * <code>chat_creator_uuid_fkey</code> key.
+     */
+    public JooqUser chatCreatorUuidFkey() {
+        if (_chatCreatorUuidFkey == null)
+            _chatCreatorUuidFkey = new JooqUser(this, Keys.CHAT__CHAT_CREATOR_UUID_FKEY);
+
+        return _chatCreatorUuidFkey;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.user</code> table, via the
+     * <code>chat_editor_uuid_fkey</code> key.
+     */
+    public JooqUser chatEditorUuidFkey() {
+        if (_chatEditorUuidFkey == null)
+            _chatEditorUuidFkey = new JooqUser(this, Keys.CHAT__CHAT_EDITOR_UUID_FKEY);
+
+        return _chatEditorUuidFkey;
+    }
+
+    @Override
+    public JooqChat as(String alias) {
+        return new JooqChat(DSL.name(alias), this);
+    }
+
+    @Override
+    public JooqChat as(Name alias) {
+        return new JooqChat(alias, this);
+    }
+
+    @Override
+    public JooqChat as(Table<?> alias) {
+        return new JooqChat(alias.getQualifiedName(), this);
+    }
+
+    /**
+     * Rename this table
+     */
+    @Override
+    public JooqChat rename(String name) {
+        return new JooqChat(DSL.name(name), null);
+    }
+
+    /**
+     * Rename this table
+     */
+    @Override
+    public JooqChat rename(Name name) {
+        return new JooqChat(name, null);
+    }
+
+    /**
+     * Rename this table
+     */
+    @Override
+    public JooqChat rename(Table<?> name) {
+        return new JooqChat(name.getQualifiedName(), null);
+    }
+
+    // -------------------------------------------------------------------------
+    // Row8 type methods
+    // -------------------------------------------------------------------------
+
+    @Override
+    public Row8<java.util.UUID, String, JSONB, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
+        return (Row8) super.fieldsRow();
+    }
+
+    /**
+     * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
+     */
+    public <U> SelectField<U> mapping(Function8<? super java.util.UUID, ? super String, ? super JSONB, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+        return convertFrom(Records.mapping(from));
+    }
+
+    /**
+     * Convenience mapping calling {@link SelectField#convertFrom(Class,
+     * Function)}.
+     */
+    public <U> SelectField<U> mapping(Class<U> toType, Function8<? super java.util.UUID, ? super String, ? super JSONB, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+        return convertFrom(toType, Records.mapping(from));
+    }
 }

@@ -7,6 +7,7 @@ import io.metaloom.loom.rest.model.NoResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineCreateRequest;
 import io.metaloom.loom.rest.model.pipeline.PipelineListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineResponse;
+import io.metaloom.loom.rest.model.pipeline.PipelineRunListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineUpdateRequest;
 
 public interface PipelineMethods {
@@ -18,6 +19,8 @@ public interface PipelineMethods {
 	LoomClientRequest<PipelineResponse> updatePipeline(UUID uuid, PipelineUpdateRequest request);
 
 	LoomClientRequest<PipelineListResponse> listPipelines();
+
+	LoomClientRequest<PipelineRunListResponse> listPipelineRuns(UUID pipelineUuid);
 
 	LoomClientRequest<NoResponse> deletePipeline(UUID uuid);
 }

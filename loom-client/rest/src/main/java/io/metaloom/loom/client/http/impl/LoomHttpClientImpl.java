@@ -97,6 +97,7 @@ import io.metaloom.loom.rest.model.person.PersonUpdateRequest;
 import io.metaloom.loom.rest.model.pipeline.PipelineCreateRequest;
 import io.metaloom.loom.rest.model.pipeline.PipelineListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineResponse;
+import io.metaloom.loom.rest.model.pipeline.PipelineRunListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineUpdateRequest;
 import io.metaloom.loom.rest.model.space.SpaceCreateRequest;
 import io.metaloom.loom.rest.model.space.SpaceListResponse;
@@ -543,6 +544,10 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<PipelineListResponse> listPipelines() {
 		return getRequest("pipelines", PipelineListResponse.class);
+	}
+
+	public LoomClientHttpRequest<PipelineRunListResponse> listPipelineRuns(UUID pipelineUuid) {
+		return getRequest("pipelines/" + pipelineUuid + "/runs", PipelineRunListResponse.class);
 	}
 
 	@Override

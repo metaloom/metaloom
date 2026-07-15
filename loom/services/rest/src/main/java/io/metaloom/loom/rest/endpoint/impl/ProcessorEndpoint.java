@@ -11,6 +11,9 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.loom.rest.AbstractEndpoint;
 import io.metaloom.loom.rest.EndpointDependencies;
 import io.metaloom.loom.rest.model.ModelExamples;
+import io.metaloom.loom.db.dagger.DaoCollection;
+import io.metaloom.loom.db.model.pipeline.PipelineRun;
+import io.metaloom.loom.db.model.pipeline.PipelineRunDao;
 import io.metaloom.loom.rest.model.pipeline.event.PipelineEventMessage;
 import io.metaloom.loom.rest.model.processor.ProcessorListResponse;
 import io.metaloom.loom.rest.model.processor.ProcessorResponse;
@@ -54,17 +57,19 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 	private final PipelineEventBroadcaster pipelineEventBroadcaster;
 	private final WebSocketAuthenticator authenticator;
 	private final WorkOrderResultRegistry workOrderResultRegistry;
+	private final PipelineRunDao pipelineRunDao;
 	private final ModelExamples examples;
 
 	@Inject
 	public ProcessorEndpoint(ProcessorRegistry registry, PipelineEventBroadcaster pipelineEventBroadcaster,
 			WebSocketAuthenticator authenticator, WorkOrderResultRegistry workOrderResultRegistry,
-			EndpointDependencies deps, ModelExamples examples) {
+			PipelineRunDao pipelineRunDao, EndpointDependencies deps, ModelExamples examples) {
 		super(deps);
 		this.registry = registry;
 		this.pipelineEventBroadcaster = pipelineEventBroadcaster;
 		this.authenticator = authenticator;
 		this.workOrderResultRegistry = workOrderResultRegistry;
+		this.pipelineRunDao = pipelineRunDao;
 		this.examples = examples;
 	}
 
@@ -178,6 +183,9 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 				case PIPELINE_EVENT:
 					handlePipelineEvent(ws, msg, nodeIdHolder[0]);
 					break;
+				case PIPELINE_RUN_COMPLETED:
+					handlePipelineRunCompleted(ws, msg, nodeIdHolder[0]);
+					break;
 				default:
 					sendError(ws, "Unexpected message type: " + msg.getType());
 					break;
@@ -282,6 +290,30 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 		}
 		PipelineEventMessage event = msg.getBody().mapTo(PipelineEventMessage.class);
 		pipelineEventBroadcaster.broadcast(event);
+	}
+
+	private void handlePipelineRunCompleted(ServerWebSocket ws, ProcessorMessage msg, String nodeId) {
+		if (nodeId == null) {
+			sendError(ws, "Not registered. Send REGISTER first.");
+			return;
+		}
+		if (msg.getBody() == null) {
+			sendError(ws, "PIPELINE_RUN_COMPLETED message must include a body");
+			return;
+		}
+		JsonObject body = msg.getBody();
+		String pipelineName = body.getString("pipelineName");
+		Long timestamp = body.getLong("timestamp");
+		Long durationMs = body.getLong("durationMs");
+		String message = body.getString("message");
+
+		log.info("Pipeline run completed: pipeline={}, duration={}ms, message={}", pipelineName, durationMs, message);
+
+		// Find the latest pipeline run for this pipeline and update it
+		// We need to find the pipeline by name first
+		// For now, we'll just log - in a full implementation we'd look up the pipeline run
+		// and update its status, duration, etc.
+		// TODO: Implement pipeline run completion tracking
 	}
 
 	private void sendError(ServerWebSocket ws, String message) {

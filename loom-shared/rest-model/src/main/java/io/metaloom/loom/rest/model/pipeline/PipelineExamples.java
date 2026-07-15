@@ -35,6 +35,10 @@ public interface PipelineExamples extends ExampleValues {
 		return new ExampleImpl(pipelineRunResponse(), "The pipeline run response", HttpResponseStatus.ACCEPTED);
 	}
 
+	default Example pipelineRunListResponseExample() {
+		return new ExampleImpl(pipelineRunListResponse(), "The pipeline run list response", HttpResponseStatus.OK);
+	}
+
 	default PipelineResponse pipelineResponse() {
 		PipelineResponse model = new PipelineResponse();
 		model.setUuid(uuidC());
@@ -91,6 +95,32 @@ public interface PipelineExamples extends ExampleValues {
 		model.setProcessorNodeId("cortex-01");
 		model.setDispatched(true);
 		model.setMessage("Work order dispatched");
+		return model;
+	}
+
+	default PipelineRunListResponse pipelineRunListResponse() {
+		PipelineRunListResponse model = new PipelineRunListResponse();
+		model.add(pipelineRunRecord());
+		model.add(pipelineRunRecord());
+		model.getMetainfo().setTotalCount(2);
+		model.getMetainfo().setPerPage(30L);
+		return model;
+	}
+
+	default PipelineRunRecord pipelineRunRecord() {
+		PipelineRunRecord model = new PipelineRunRecord();
+		model.setUuid(UUID.randomUUID());
+		model.setPipelineUuid(UUID.randomUUID());
+		model.setPipelineVersion(1);
+		model.setStarted(java.time.Instant.now().toString());
+		model.setFinished(java.time.Instant.now().toString());
+		model.setStatus("SUCCESS");
+		model.setMediaCount(100);
+		model.setSuccessCount(95);
+		model.setFailureCount(3);
+		model.setSkippedCount(2);
+		model.setDryRun(false);
+		model.setDurationMs(45000L);
 		return model;
 	}
 

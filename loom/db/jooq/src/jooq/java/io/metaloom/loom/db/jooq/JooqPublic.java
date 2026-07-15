@@ -13,6 +13,7 @@ import io.metaloom.loom.db.jooq.tables.JooqAssetAudioComp;
 import io.metaloom.loom.db.jooq.tables.JooqAssetDocComp;
 import io.metaloom.loom.db.jooq.tables.JooqAssetGeoComp;
 import io.metaloom.loom.db.jooq.tables.JooqAssetImageComp;
+import io.metaloom.loom.db.jooq.tables.JooqAssetJsonComp;
 import io.metaloom.loom.db.jooq.tables.JooqAssetLocation;
 import io.metaloom.loom.db.jooq.tables.JooqAssetPool;
 import io.metaloom.loom.db.jooq.tables.JooqAssetRemix;
@@ -23,11 +24,13 @@ import io.metaloom.loom.db.jooq.tables.JooqAssetVideoComp;
 import io.metaloom.loom.db.jooq.tables.JooqAttachment;
 import io.metaloom.loom.db.jooq.tables.JooqAttachmentBinary;
 import io.metaloom.loom.db.jooq.tables.JooqBlacklist;
+import io.metaloom.loom.db.jooq.tables.JooqChat;
 import io.metaloom.loom.db.jooq.tables.JooqCluster;
 import io.metaloom.loom.db.jooq.tables.JooqCollection;
 import io.metaloom.loom.db.jooq.tables.JooqCollectionAsset;
 import io.metaloom.loom.db.jooq.tables.JooqCollectionCluster;
 import io.metaloom.loom.db.jooq.tables.JooqComment;
+import io.metaloom.loom.db.jooq.tables.JooqDetection;
 import io.metaloom.loom.db.jooq.tables.JooqEmbedding;
 import io.metaloom.loom.db.jooq.tables.JooqEmbeddingCluster;
 import io.metaloom.loom.db.jooq.tables.JooqFlywaySchemaHistory;
@@ -36,7 +39,10 @@ import io.metaloom.loom.db.jooq.tables.JooqLibrary;
 import io.metaloom.loom.db.jooq.tables.JooqLibraryAsset;
 import io.metaloom.loom.db.jooq.tables.JooqLibraryCollection;
 import io.metaloom.loom.db.jooq.tables.JooqLoom;
+import io.metaloom.loom.db.jooq.tables.JooqPerson;
+import io.metaloom.loom.db.jooq.tables.JooqPersonImage;
 import io.metaloom.loom.db.jooq.tables.JooqPipeline;
+import io.metaloom.loom.db.jooq.tables.JooqPipelineRun;
 import io.metaloom.loom.db.jooq.tables.JooqProject;
 import io.metaloom.loom.db.jooq.tables.JooqProjectCollection;
 import io.metaloom.loom.db.jooq.tables.JooqProjectLibrary;
@@ -126,6 +132,11 @@ public class JooqPublic extends SchemaImpl {
     public final JooqAssetImageComp ASSET_IMAGE_COMP = JooqAssetImageComp.ASSET_IMAGE_COMP;
 
     /**
+     * Stores generic JSON component data produced by Cortex processing nodes
+     */
+    public final JooqAssetJsonComp ASSET_JSON_COMP = JooqAssetJsonComp.ASSET_JSON_COMP;
+
+    /**
      * Assets keep track of media that has been found by the scanner. Multiple
      * asset_locations may share the same asset thus the properties will be
      * decoupled from asset.
@@ -181,6 +192,11 @@ public class JooqPublic extends SchemaImpl {
     public final JooqBlacklist BLACKLIST = JooqBlacklist.BLACKLIST;
 
     /**
+     * Stores LLM chat sessions with message history
+     */
+    public final JooqChat CHAT = JooqChat.CHAT;
+
+    /**
      * Generic cluster that aggregates multiple embeddings. 
      * A cluster could for example represent a person which can have multiple
      * face embeddings.
@@ -210,6 +226,11 @@ public class JooqPublic extends SchemaImpl {
      * Stores comments on tasks, annotations..
      */
     public final JooqComment COMMENT = JooqComment.COMMENT;
+
+    /**
+     * Stores object and face detections within assets
+     */
+    public final JooqDetection DETECTION = JooqDetection.DETECTION;
 
     /**
      * Embedding information which was extracted from an asset.
@@ -252,9 +273,24 @@ public class JooqPublic extends SchemaImpl {
     public final JooqLoom LOOM = JooqLoom.LOOM;
 
     /**
+     * The table <code>public.person</code>.
+     */
+    public final JooqPerson PERSON = JooqPerson.PERSON;
+
+    /**
+     * Gallery of pictures associated with a person
+     */
+    public final JooqPersonImage PERSON_IMAGE = JooqPersonImage.PERSON_IMAGE;
+
+    /**
      * The table <code>public.pipeline</code>.
      */
     public final JooqPipeline PIPELINE = JooqPipeline.PIPELINE;
+
+    /**
+     * History of pipeline executions
+     */
+    public final JooqPipelineRun PIPELINE_RUN = JooqPipelineRun.PIPELINE_RUN;
 
     /**
      * The table <code>public.project</code>.
@@ -388,6 +424,7 @@ public class JooqPublic extends SchemaImpl {
             JooqAssetDocComp.ASSET_DOC_COMP,
             JooqAssetGeoComp.ASSET_GEO_COMP,
             JooqAssetImageComp.ASSET_IMAGE_COMP,
+            JooqAssetJsonComp.ASSET_JSON_COMP,
             JooqAssetLocation.ASSET_LOCATION,
             JooqAssetPool.ASSET_POOL,
             JooqAssetRemix.ASSET_REMIX,
@@ -398,11 +435,13 @@ public class JooqPublic extends SchemaImpl {
             JooqAttachment.ATTACHMENT,
             JooqAttachmentBinary.ATTACHMENT_BINARY,
             JooqBlacklist.BLACKLIST,
+            JooqChat.CHAT,
             JooqCluster.CLUSTER,
             JooqCollection.COLLECTION,
             JooqCollectionAsset.COLLECTION_ASSET,
             JooqCollectionCluster.COLLECTION_CLUSTER,
             JooqComment.COMMENT,
+            JooqDetection.DETECTION,
             JooqEmbedding.EMBEDDING,
             JooqEmbeddingCluster.EMBEDDING_CLUSTER,
             JooqFlywaySchemaHistory.FLYWAY_SCHEMA_HISTORY,
@@ -411,7 +450,10 @@ public class JooqPublic extends SchemaImpl {
             JooqLibraryAsset.LIBRARY_ASSET,
             JooqLibraryCollection.LIBRARY_COLLECTION,
             JooqLoom.LOOM,
+            JooqPerson.PERSON,
+            JooqPersonImage.PERSON_IMAGE,
             JooqPipeline.PIPELINE,
+            JooqPipelineRun.PIPELINE_RUN,
             JooqProject.PROJECT,
             JooqProjectCollection.PROJECT_COLLECTION,
             JooqProjectLibrary.PROJECT_LIBRARY,

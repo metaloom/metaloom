@@ -18,6 +18,7 @@ import io.metaloom.loom.db.model.perm.PermissionDao;
 import io.metaloom.loom.db.model.detection.DetectionDao;
 import io.metaloom.loom.db.model.person.PersonDao;
 import io.metaloom.loom.db.model.pipeline.PipelineDao;
+import io.metaloom.loom.db.model.pipeline.PipelineRunDao;
 import io.metaloom.loom.db.model.pool.AssetPoolDao;
 import io.metaloom.loom.db.model.space.SpaceDao;
 import io.metaloom.loom.db.model.reaction.ReactionDao;
@@ -141,6 +142,10 @@ public interface DaoProvider extends DaoCollection {
 
 	default PipelineDao pipelineDao() {
 		return daos().pipelineDao();
+	}
+
+	default PipelineRunDao pipelineRunDao() {
+		return daos().pipelineRunDao();
 	}
 
 	// Asset Pool

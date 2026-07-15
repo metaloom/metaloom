@@ -393,6 +393,16 @@ public class LoomControlChannel {
 			.setDurationMs(event.getDurationMs())
 			.setMessage(event.getMessage());
 		sendMessage(new ProcessorMessage(ProcessorMessageType.PIPELINE_EVENT, JsonObject.mapFrom(outgoing)));
+
+		// If this is a pipeline completion event, also send a PIPELINE_RUN_COMPLETED message
+		if (event.getType() == PipelineTrackingEvent.Type.PIPELINE_COMPLETED) {
+			JsonObject completionPayload = new JsonObject()
+				.put("pipelineName", event.getPipelineName())
+				.put("timestamp", event.getTimestamp())
+				.put("durationMs", event.getDurationMs())
+				.put("message", event.getMessage());
+			sendMessage(new ProcessorMessage(ProcessorMessageType.PIPELINE_RUN_COMPLETED, completionPayload));
+		}
 	}
 
 	private void sendMessage(ProcessorMessage message) {

@@ -66,8 +66,6 @@ Gaps:
 - Only 5 node types are registered with the factory today (hash
   family + thumbnail). Extend `PipelineNodeFactoryModule` with the
   remaining ~10 legacy nodes as they are exercised.
-- `NODE_STATS` is advertised by all 14 node descriptors but the enum
-  value is absent from `PipelineTrackingEvent.Type` and nothing emits it.
 - `SidecarFileNodeCache.clear()` is a warn stub.
 - `PipelineFilter` / `MediaFilter` SPI is orphaned — never called by
   the manager or executor.
@@ -152,8 +150,6 @@ when the endpoint is not yet deployed).
 
 Gaps:
 
-- `NODE_STATS` is advertised by all 14 node descriptors but the enum
-  value is absent from `PipelineTrackingEvent.Type` and nothing emits it.
 - No per-pipeline WS event filtering — broadcaster fan-outs every event to
   every subscriber.
 - No backpressure — a slow subscriber can back up the broadcaster.
@@ -243,7 +239,7 @@ Gaps:
   sidebar falls back to showing the node's raw `data` fields
   read-only (or a "no parameters" message if empty).
 
-- [ ] **7. Emit `NODE_STATS` from Cortex.** Add `NODE_STATS` to
+- [x] **7. Emit `NODE_STATS` from Cortex.** Add `NODE_STATS` to
   `PipelineTrackingEvent.Type` in `cortex/pipeline-api`. In
   `ReactivePipelineExecutor`, schedule a periodic tick (e.g. every
   500 ms) that snapshots per-node semaphore permits (active =

@@ -48,6 +48,7 @@ public class PipelineEndpoint extends AbstractEndpoint {
 		secure(basePath());
 		secure(basePath() + "/:uuid");
 		secure(basePath() + "/:uuid/run");
+		secure(basePath() + "/:uuid/runs");
 
 		// Create
 		addRoute(basePath(), POST,
@@ -100,6 +101,14 @@ public class PipelineEndpoint extends AbstractEndpoint {
 			examples.pipelineRunResponseExample(),
 			lrc -> {
 				service.run(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		// Run history — list pipeline runs
+		addListRoute(basePath() + "/:uuid/runs", GET,
+			"Load a paged list of pipeline runs",
+			examples.pipelineRunListResponseExample(),
+			lrc -> {
+				service.listRuns(lrc, lrc.pathParamUUID("uuid"));
 			});
 	}
 }

@@ -12,8 +12,8 @@ import java.util.UUID;
 
 import org.jooq.Field;
 import org.jooq.Record1;
-import org.jooq.Record11;
-import org.jooq.Row11;
+import org.jooq.Record13;
+import org.jooq.Row13;
 import org.jooq.impl.UpdatableRecordImpl;
 
 
@@ -22,7 +22,7 @@ import org.jooq.impl.UpdatableRecordImpl;
  * directory or an S3 bucket where binary data is stored.
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqAssetPoolRecord extends UpdatableRecordImpl<JooqAssetPoolRecord> implements Record11<UUID, String, JsonObject, String, String, String, String, LocalDateTime, UUID, LocalDateTime, UUID> {
+public class JooqAssetPoolRecord extends UpdatableRecordImpl<JooqAssetPoolRecord> implements Record13<UUID, String, JsonObject, String, String, String, String, LocalDateTime, UUID, LocalDateTime, UUID, Long, Long> {
 
     private static final long serialVersionUID = 1L;
 
@@ -190,6 +190,34 @@ public class JooqAssetPoolRecord extends UpdatableRecordImpl<JooqAssetPoolRecord
         return (UUID) get(10);
     }
 
+    /**
+     * Setter for <code>public.asset_pool.free_space</code>.
+     */
+    public void setFreeSpace(Long value) {
+        set(11, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_pool.free_space</code>.
+     */
+    public Long getFreeSpace() {
+        return (Long) get(11);
+    }
+
+    /**
+     * Setter for <code>public.asset_pool.used_space</code>.
+     */
+    public void setUsedSpace(Long value) {
+        set(12, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_pool.used_space</code>.
+     */
+    public Long getUsedSpace() {
+        return (Long) get(12);
+    }
+
     // -------------------------------------------------------------------------
     // Primary key information
     // -------------------------------------------------------------------------
@@ -200,17 +228,17 @@ public class JooqAssetPoolRecord extends UpdatableRecordImpl<JooqAssetPoolRecord
     }
 
     // -------------------------------------------------------------------------
-    // Record11 type implementation
+    // Record13 type implementation
     // -------------------------------------------------------------------------
 
     @Override
-    public Row11<UUID, String, JsonObject, String, String, String, String, LocalDateTime, UUID, LocalDateTime, UUID> fieldsRow() {
-        return (Row11) super.fieldsRow();
+    public Row13<UUID, String, JsonObject, String, String, String, String, LocalDateTime, UUID, LocalDateTime, UUID, Long, Long> fieldsRow() {
+        return (Row13) super.fieldsRow();
     }
 
     @Override
-    public Row11<UUID, String, JsonObject, String, String, String, String, LocalDateTime, UUID, LocalDateTime, UUID> valuesRow() {
-        return (Row11) super.valuesRow();
+    public Row13<UUID, String, JsonObject, String, String, String, String, LocalDateTime, UUID, LocalDateTime, UUID, Long, Long> valuesRow() {
+        return (Row13) super.valuesRow();
     }
 
     @Override
@@ -269,6 +297,16 @@ public class JooqAssetPoolRecord extends UpdatableRecordImpl<JooqAssetPoolRecord
     }
 
     @Override
+    public Field<Long> field12() {
+        return JooqAssetPool.ASSET_POOL.FREE_SPACE;
+    }
+
+    @Override
+    public Field<Long> field13() {
+        return JooqAssetPool.ASSET_POOL.USED_SPACE;
+    }
+
+    @Override
     public UUID component1() {
         return getUuid();
     }
@@ -324,6 +362,16 @@ public class JooqAssetPoolRecord extends UpdatableRecordImpl<JooqAssetPoolRecord
     }
 
     @Override
+    public Long component12() {
+        return getFreeSpace();
+    }
+
+    @Override
+    public Long component13() {
+        return getUsedSpace();
+    }
+
+    @Override
     public UUID value1() {
         return getUuid();
     }
@@ -376,6 +424,16 @@ public class JooqAssetPoolRecord extends UpdatableRecordImpl<JooqAssetPoolRecord
     @Override
     public UUID value11() {
         return getEditorUuid();
+    }
+
+    @Override
+    public Long value12() {
+        return getFreeSpace();
+    }
+
+    @Override
+    public Long value13() {
+        return getUsedSpace();
     }
 
     @Override
@@ -445,7 +503,19 @@ public class JooqAssetPoolRecord extends UpdatableRecordImpl<JooqAssetPoolRecord
     }
 
     @Override
-    public JooqAssetPoolRecord values(UUID value1, String value2, JsonObject value3, String value4, String value5, String value6, String value7, LocalDateTime value8, UUID value9, LocalDateTime value10, UUID value11) {
+    public JooqAssetPoolRecord value12(Long value) {
+        setFreeSpace(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetPoolRecord value13(Long value) {
+        setUsedSpace(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetPoolRecord values(UUID value1, String value2, JsonObject value3, String value4, String value5, String value6, String value7, LocalDateTime value8, UUID value9, LocalDateTime value10, UUID value11, Long value12, Long value13) {
         value1(value1);
         value2(value2);
         value3(value3);
@@ -457,6 +527,8 @@ public class JooqAssetPoolRecord extends UpdatableRecordImpl<JooqAssetPoolRecord
         value9(value9);
         value10(value10);
         value11(value11);
+        value12(value12);
+        value13(value13);
         return this;
     }
 
@@ -474,7 +546,7 @@ public class JooqAssetPoolRecord extends UpdatableRecordImpl<JooqAssetPoolRecord
     /**
      * Create a detached, initialised JooqAssetPoolRecord
      */
-    public JooqAssetPoolRecord(UUID uuid, String name, JsonObject meta, String fsPath, String s3Bucket, String s3Region, String s3Endpoint, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid) {
+    public JooqAssetPoolRecord(UUID uuid, String name, JsonObject meta, String fsPath, String s3Bucket, String s3Region, String s3Endpoint, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid, Long freeSpace, Long usedSpace) {
         super(JooqAssetPool.ASSET_POOL);
 
         setUuid(uuid);
@@ -488,5 +560,7 @@ public class JooqAssetPoolRecord extends UpdatableRecordImpl<JooqAssetPoolRecord
         setCreatorUuid(creatorUuid);
         setEdited(edited);
         setEditorUuid(editorUuid);
+        setFreeSpace(freeSpace);
+        setUsedSpace(usedSpace);
     }
 }

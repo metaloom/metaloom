@@ -2,6 +2,8 @@ package io.metaloom.loom.client.http;
 
 import java.time.Duration;
 
+import io.metaloom.loom.client.common.LoomClientRequest;
+
 public abstract class AbstractLoomClient implements LoomHttpClient {
 
 	protected final String scheme;
@@ -77,6 +79,11 @@ public abstract class AbstractLoomClient implements LoomHttpClient {
 	@Override
 	public String getToken() {
 		return token;
+	}
+
+	@Override
+	public LoomClientRequest<io.metaloom.loom.rest.model.graphql.GraphQLResponse> executeGraphQL(io.metaloom.loom.rest.model.graphql.GraphQLRequest request) {
+		throw new UnsupportedOperationException("Not implemented");
 	}
 
 }

@@ -9,6 +9,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -121,6 +122,11 @@ public class PipelineWorkOrderHandler {
 		if (pipelineName == null || pipelineName.isBlank()) {
 			throw new IllegalArgumentException("run-pipeline: missing 'pipelineName' parameter");
 		}
+		
+		// Extract pipeline run UUID for tracking
+		String pipelineRunUuidStr = params.getString("pipelineRunUuid");
+		UUID pipelineRunUuid = pipelineRunUuidStr != null ? UUID.fromString(pipelineRunUuidStr) : null;
+
 		Optional<Pipeline> maybe = pipelineManager.pipeline(pipelineName);
 		if (maybe.isEmpty()) {
 			throw new IllegalStateException("run-pipeline: no pipeline registered with name '" + pipelineName + "'");
@@ -130,6 +136,10 @@ public class PipelineWorkOrderHandler {
 		List<LoomMedia> media = collectMedia(params);
 		payload.put("pipelineName", pipelineName);
 		payload.put("mediaCount", media.size());
+
+		if (pipelineRunUuid != null) {
+			payload.put("pipelineRunUuid", pipelineRunUuid.toString());
+		}
 
 		if (media.isEmpty()) {
 			log.warn("run-pipeline: no media resolved for pipeline '{}' — pipeline will not execute", pipelineName);
