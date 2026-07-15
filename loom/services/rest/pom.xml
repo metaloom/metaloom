@@ -31,6 +31,10 @@
       <artifactId>loom-service-auth-common</artifactId>
     </dependency>
     <dependency>
+      <groupId>io.metaloom.loom.service</groupId>
+      <artifactId>loom-service-auth-jwt</artifactId>
+    </dependency>
+    <dependency>
       <groupId>io.vertx</groupId>
       <artifactId>vertx-auth-oauth2</artifactId>
     </dependency>

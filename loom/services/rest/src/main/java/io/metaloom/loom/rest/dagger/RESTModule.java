@@ -11,6 +11,7 @@ import io.metaloom.loom.nodes.spec.NodeDescriptorProvider;
 import io.metaloom.loom.nodes.spec.NodeDescriptorRegistry;
 import io.metaloom.loom.rest.validation.LoomModelValidator;
 import io.metaloom.loom.rest.validation.impl.LoomModelValidatorImpl;
+import io.metaloom.loom.rest.validation.PipelineValidationService;
 import io.metaloom.vertx.router.ApiRouter;
 import io.vertx.core.Vertx;
 import io.vertx.ext.web.Router;
@@ -45,6 +46,12 @@ public class RESTModule {
 		ServiceLoader.load(NodeDescriptorProvider.class)
 			.forEach(provider -> provider.getDescriptors().forEach(registry::register));
 		return registry;
+	}
+
+	@Provides
+	@Singleton
+	public PipelineValidationService pipelineValidationService(NodeDescriptorRegistry nodeDescriptorRegistry) {
+		return new PipelineValidationService(nodeDescriptorRegistry);
 	}
 
 }

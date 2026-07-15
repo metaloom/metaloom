@@ -261,17 +261,23 @@ Gaps:
   `EDGE_TYPE_STYLE`. Data-type mismatch validation on connections
   (already present via `isValidConnection`) remains.
 
-- [~] **9. Server-side pipeline validation.** Client-side validation
+- [x] **9. Server-side pipeline validation.** Client-side validation
   is implemented in `PipelineEditor.tsx` via `validatePipeline()`,
   which checks (a) node id regex `^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$`,
   (b) unique node ids, (c) graph cycles (Kahn's algorithm), and (d)
   unknown node types against the descriptor registry. Validation
   errors are displayed in the JSON tab and block save. The server-side
-  `PipelineModelValidator` still only checks `name` and
-  `definition != null` — the same checks need to be echoed server-side
-  (extend
-  [PipelineModelValidator](../../loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/validation/PipelineModelValidator.java)
-  and expose the descriptor registry server-side).
+  validation is now implemented in
+  [`PipelineValidationService`](../../loom/services/rest/src/main/java/io/metaloom/loom/rest/validation/PipelineValidationService.java)
+  which performs all the same checks as the client-side validator,
+  including node type validation against the
+  [`NodeDescriptorRegistry`](../../cortex/nodes/common-api/src/main/java/io/metaloom/loom/nodes/spec/NodeDescriptorRegistry.java).
+  The service is wired via Dagger in
+  [`RESTModule`](../../loom/services/rest/src/main/java/io/metaloom/loom/rest/dagger/RESTModule.java)
+  and used by
+  [`PipelineEndpointService`](../../loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/PipelineEndpointService.java)
+  for both create and update operations. Comprehensive tests are in
+  [`PipelineValidationServiceTest`](../../loom/services/rest/src/test/java/io/metaloom/loom/rest/validation/PipelineValidationServiceTest.java).
 
 - [ ] **10. Per-pipeline WS event filtering.** Accept
   `?pipeline=<name>` on the event WS handshake and filter events in
