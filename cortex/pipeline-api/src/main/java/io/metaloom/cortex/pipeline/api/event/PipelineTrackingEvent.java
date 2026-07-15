@@ -22,7 +22,8 @@ public class PipelineTrackingEvent {
 		NODE_COMPLETED,
 		NODE_FAILED,
 		NODE_SKIPPED,
-		NODE_BUFFERED
+		NODE_BUFFERED,
+		NODE_STATS
 	}
 
 	private final Type type;

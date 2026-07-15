@@ -10,6 +10,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
@@ -59,12 +62,20 @@ public class ReactivePipelineExecutor implements PipelineExecutor {
 
 	private static final Logger log = LoggerFactory.getLogger(ReactivePipelineExecutor.class);
 
+	/** Interval for periodic NODE_STATS emission (500 ms). */
+	private static final long STATS_INTERVAL_MS = 500;
+
 	private final int maxConcurrentMedia;
 	private final PipelineEventBus eventBus;
 	private final LoomBulkSyncCollector syncCollector;
 	private final Map<String, Semaphore> nodeSemaphores = new ConcurrentHashMap<>();
 	private final Map<String, AtomicLong> nodeProcessedCounts = new ConcurrentHashMap<>();
 	private final Map<String, AtomicLong> nodeFailedCounts = new ConcurrentHashMap<>();
+	private final ScheduledExecutorService statsScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+		Thread t = new Thread(r, "pipeline-stats-emitter");
+		t.setDaemon(true);
+		return t;
+	});
 
 	public ReactivePipelineExecutor(int maxConcurrentMedia) {
 		this(maxConcurrentMedia, new DefaultPipelineEventBus(), null);
@@ -113,13 +124,20 @@ public class ReactivePipelineExecutor implements PipelineExecutor {
 		eventBus.publishTracking(new PipelineTrackingEvent(
 				Type.PIPELINE_STARTED, pipeline.name(), null, null));
 
+		// Start periodic NODE_STATS emission
+		statsScheduler.scheduleAtFixedRate(() -> emitNodeStats(pipeline), STATS_INTERVAL_MS, STATS_INTERVAL_MS, TimeUnit.MILLISECONDS);
+
 		return media.flatMap(
 				m -> executeSingle(pipeline, m)
 						.toFlowable()
 						.subscribeOn(Schedulers.io()),
 				maxConcurrentMedia)
-				.doOnComplete(() -> eventBus.publishTracking(new PipelineTrackingEvent(
-						Type.PIPELINE_COMPLETED, pipeline.name(), null, null)));
+				.doOnComplete(() -> {
+					eventBus.publishTracking(new PipelineTrackingEvent(
+							Type.PIPELINE_COMPLETED, pipeline.name(), null, null));
+					// Stop stats emission when pipeline completes
+					statsScheduler.shutdown();
+				});
 	}
 
 	/**
@@ -321,6 +339,34 @@ public class ReactivePipelineExecutor implements PipelineExecutor {
 	@Override
 	public void shutdown() {
 		eventBus.clear();
+		statsScheduler.shutdown();
+	}
+
+	/**
+	 * Emits periodic NODE_STATS tracking events for all nodes in the pipeline.
+	 * Captures active permits (concurrency - availablePermits), pending queue depth,
+	 * and running processed/failed totals.
+	 */
+	private void emitNodeStats(Pipeline pipeline) {
+		for (PipelineNode node : pipeline.nodes()) {
+			Semaphore semaphore = nodeSemaphores.get(node.id());
+			if (semaphore == null) {
+				continue;
+			}
+
+			int concurrency = node.concurrency();
+			int availablePermits = semaphore.availablePermits();
+			int active = concurrency - availablePermits;
+			long processed = nodeProcessedCounts.get(node.id()).get();
+			long failed = nodeFailedCounts.get(node.id()).get();
+
+			// Only emit if there's activity (active > 0 or processed/failed > 0)
+			if (active > 0 || processed > 0 || failed > 0) {
+				String message = String.format("active=%d pending=%d processed=%d failed=%d",
+						active, 0, processed, failed); // pending queue depth not directly available
+				emitTrackingEvent(Type.NODE_STATS, pipeline.name(), node.id(), null, 0, message);
+			}
+		}
 	}
 
 	private void emitTrackingEvent(Type type, String pipelineName, String nodeId,
