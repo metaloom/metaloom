@@ -102,6 +102,7 @@ public interface PipelineExamples extends ExampleValues {
 		PipelineRunListResponse model = new PipelineRunListResponse();
 		model.add(pipelineRunRecord());
 		model.add(pipelineRunRecord());
+		model.setMetainfo(pagingInfo());
 		model.getMetainfo().setTotalCount(2);
 		model.getMetainfo().setPerPage(30L);
 		return model;

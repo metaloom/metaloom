@@ -221,6 +221,60 @@ HttpServerOptions httpOptions = new HttpServerOptions()
 
 ---
 
+## Health Check Endpoint
+
+### Overview
+
+The server exposes a lightweight health check endpoint that reports overall service status and database connectivity. It is intended for external monitoring (load balancers, container orchestrators, uptime checks) and is **publicly accessible without authentication**.
+
+| Property | Value |
+|----------|-------|
+| Path | `/api/v1/health` |
+| Method | `GET` |
+| Authentication | None (endpoint does not call `secure()`) |
+| Implementation | `io.metaloom.loom.rest.endpoint.impl.HealthEndpoint` |
+| Response model | `io.metaloom.loom.rest.model.health.HealthCheckResponse` |
+
+### Response Model (`HealthCheckResponse`)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | String (required) | Overall status: `UP` when healthy, `DEGRADED` when a dependency check failed |
+| `version` | String | Loom service version (`LoomVersion.VERSION`) |
+| `database` | String | Database connectivity: `UP` / `DOWN` (verified via a `SELECT 1` probe on the jOOQ `DSLContext`) |
+| `timestamp` | String | ISO-8601 timestamp of the health check |
+
+### Example Response
+
+```json
+{
+  "status": "UP",
+  "version": "1_0",
+  "database": "UP",
+  "timestamp": "2026-07-16T19:46:45.592Z"
+}
+```
+
+### Behaviour
+
+- Always returns HTTP `200`. The health verdict is carried in the `status` field.
+- The database probe runs on a worker thread via `vertx.executeBlocking()` so it does not block the event loop.
+- If the database probe fails, `database` is set to `DOWN` and `status` degrades to `DEGRADED` (the failure is logged as a warning).
+
+### Client Support
+
+The Java REST client (`LoomHttpClient`) exposes `health()` returning `LoomClientRequest<HealthCheckResponse>` (via the `HealthMethods` client interface). Registered in Dagger through `EndpointModule` alongside the other `RESTEndpoint` beans.
+
+### Verification
+
+```bash
+curl http://localhost:8092/api/v1/health
+```
+
+Covered by `HealthEndpointIntegrationTest` (integration-test module), which asserts the endpoint is reachable both anonymously and authenticated and that `status`/`database` report `UP`.
+
+---
+
 ## Monitoring Server
 
 ### Current Status
@@ -337,7 +391,6 @@ router.getDelegate().route().handler(BodyHandler.create().setBodyLimit(-1));  //
 | **Monitoring Port Unused** | `monitoringPort` defined but no service binds to it | Reserved for future use |
 | **MCP Port Hardcoded** | `MCPService.DEFAULT_MCP_PORT = 4041` not in `ServerOptions` | MCP port not configurable via config/env |
 | **Single HttpServer** | REST and UI share one `HttpServer` instance | Cannot independently configure REST vs UI ports |
-| **No Health Endpoint** | No `/health` or `/actuator` endpoint in REST API | External monitoring requires custom implementation |
 | **Auth Service Disabled** | `authService.init()` commented out in `BootstrapInitializer` | Authentication not initialized on startup |
 
 ---
@@ -358,6 +411,8 @@ router.getDelegate().route().handler(BodyHandler.create().setBodyLimit(-1));  //
 | MCP service | `loom/services/mcp/src/main/java/io/metaloom/loom/mcp/MCPService.java` |
 | gRPC service | `loom/services/grpc/src/main/java/io/metaloom/loom/server/grpc/GrpcService.java` |
 | REST endpoint interface | `loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/RESTEndpoint.java` |
+| Health check endpoint | `loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/HealthEndpoint.java` |
+| Health response model | `loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/model/health/HealthCheckResponse.java` |
 | Example config | `e2e-test/config/loom.yml` |
 | Config file locations | `loom-shared/api/src/main/java/io/metaloom/loom/api/LoomEnv.java` |
 
@@ -411,6 +466,9 @@ static void setup() {
 ### Verifying Server Startup
 
 ```bash
+# Check health (no auth required)
+curl http://localhost:8092/api/v1/health
+
 # Check REST API
 curl http://localhost:8092/api/v1/assets
 
@@ -441,7 +499,7 @@ grpcurl -plaintext localhost:8091 list
 - [ ] Document gRPC service configuration fix (port/bind from ServerOptions)
 - [ ] Document MCP port configuration (move to ServerOptions)
 - [ ] Document monitoring server implementation plan
-- [ ] Document health/actuator endpoint addition
+- [x] Document health/actuator endpoint addition
 - [ ] Document authentication service initialization
 
 ---

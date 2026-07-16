@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(mvn -q -T 8 test-compile -DskipTests -pl loom-shared/rest-model,loom-client/common,loom-client/rest,loom/services/rest,integration-test -am)"
+      "Bash(mvn -q -T 8 test-compile -DskipTests -pl loom-shared/rest-model,loom-client/common,loom-client/rest,loom/services/rest,integration-test -am)",
+      "Bash(mvn -q -T 8 install -Dmaven.test.skip=true -pl loom-shared/rest-model,loom-client/common,loom-client/rest,loom/services/rest -am)",
+      "Bash(env)"
     ]
   }
 }
