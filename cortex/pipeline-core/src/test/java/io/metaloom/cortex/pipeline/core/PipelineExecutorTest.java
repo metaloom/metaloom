@@ -627,6 +627,214 @@ class PipelineExecutorTest {
 		syncExecutor.shutdown();
 	}
 
+	@Test
+	void testNodeTimeout() {
+		// Test that a node with a timeout fails when it exceeds the timeout
+		AtomicInteger processCount = new AtomicInteger(0);
+
+		AbstractPipelineNode slowNode = new AbstractPipelineNode("slow", "Slow Node",
+				NodeMode.PARALLEL, true, 1) {
+			@Override
+			public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {
+				processCount.incrementAndGet();
+				try {
+					Thread.sleep(200); // Sleep longer than timeout
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+				}
+				return NodeResult.success(id(), 200);
+			}
+		};
+		slowNode.setSource(true);
+		slowNode.setTimeoutMs(50); // 50ms timeout
+
+		Pipeline pipeline = DefaultPipeline.builder("timeout-test")
+				.source(slowNode)
+				.build();
+
+		LoomMedia media = new StubLoomMedia("/test/slow.mp4", true);
+		PipelineResult result = executor.execute(pipeline, media);
+
+		assertFalse(result.isSuccess(), "Pipeline should fail due to timeout");
+		NodeResult nodeResult = result.getNodeResults().get("slow");
+		assertEquals(NodeState.FAILED, nodeResult.getState());
+		assertTrue(nodeResult.getMessage().contains("timeout") || nodeResult.getMessage().contains("timed out"),
+				"Error message should mention timeout: " + nodeResult.getMessage());
+		assertEquals(1, processCount.get(), "Node should have been executed once");
+	}
+
+	@Test
+	void testNodeTimeoutNotTriggered() {
+		// Test that a node completes successfully when it finishes within the timeout
+		AtomicInteger processCount = new AtomicInteger(0);
+
+		AbstractPipelineNode fastNode = new AbstractPipelineNode("fast", "Fast Node",
+				NodeMode.PARALLEL, true, 1) {
+			@Override
+			public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {
+				processCount.incrementAndGet();
+				try {
+					Thread.sleep(10); // Sleep shorter than timeout
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+				}
+				return NodeResult.success(id(), 10);
+			}
+		};
+		fastNode.setSource(true);
+		fastNode.setTimeoutMs(100); // 100ms timeout
+
+		Pipeline pipeline = DefaultPipeline.builder("timeout-test-fast")
+				.source(fastNode)
+				.build();
+
+		LoomMedia media = new StubLoomMedia("/test/fast.mp4", true);
+		PipelineResult result = executor.execute(pipeline, media);
+
+		assertTrue(result.isSuccess(), "Pipeline should succeed");
+		NodeResult nodeResult = result.getNodeResults().get("fast");
+		assertEquals(NodeState.COMPLETED, nodeResult.getState());
+		assertEquals(1, processCount.get(), "Node should have been executed once");
+	}
+
+	@Test
+	void testNodeTimeoutZeroMeansNoTimeout() {
+		// Test that timeoutMs=0 means no timeout (indefinite)
+		AtomicInteger processCount = new AtomicInteger(0);
+
+		AbstractPipelineNode slowNode = new AbstractPipelineNode("slow", "Slow Node",
+				NodeMode.PARALLEL, true, 1) {
+			@Override
+			public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {
+				processCount.incrementAndGet();
+				try {
+					Thread.sleep(200);
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+				}
+				return NodeResult.success(id(), 200);
+			}
+		};
+		slowNode.setSource(true);
+		slowNode.setTimeoutMs(0); // No timeout
+
+		Pipeline pipeline = DefaultPipeline.builder("timeout-test-zero")
+				.source(slowNode)
+				.build();
+
+		LoomMedia media = new StubLoomMedia("/test/slow-zero.mp4", true);
+		PipelineResult result = executor.execute(pipeline, media);
+
+		assertTrue(result.isSuccess(), "Pipeline should succeed with no timeout");
+		NodeResult nodeResult = result.getNodeResults().get("slow");
+		assertEquals(NodeState.COMPLETED, nodeResult.getState());
+		assertEquals(1, processCount.get(), "Node should have been executed once");
+	}
+
+	@Test
+	void testNodeTimeoutNegativeMeansNoTimeout() {
+		// Test that negative timeout means no timeout
+		AtomicInteger processCount = new AtomicInteger(0);
+
+		AbstractPipelineNode slowNode = new AbstractPipelineNode("slow", "Slow Node",
+				NodeMode.PARALLEL, true, 1) {
+			@Override
+			public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {
+				processCount.incrementAndGet();
+				try {
+					Thread.sleep(200);
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+				}
+				return NodeResult.success(id(), 200);
+			}
+		};
+		slowNode.setSource(true);
+		slowNode.setTimeoutMs(-1); // Negative = no timeout
+
+		Pipeline pipeline = DefaultPipeline.builder("timeout-test-negative")
+				.source(slowNode)
+				.build();
+
+		LoomMedia media = new StubLoomMedia("/test/slow-negative.mp4", true);
+		PipelineResult result = executor.execute(pipeline, media);
+
+		assertTrue(result.isSuccess(), "Pipeline should succeed with negative timeout");
+		NodeResult nodeResult = result.getNodeResults().get("slow");
+		assertEquals(NodeState.COMPLETED, nodeResult.getState());
+		assertEquals(1, processCount.get(), "Node should have been executed once");
+	}
+
+	@Test
+	void testNodeTimeoutInDAG() {
+		// Test timeout in a multi-node DAG - downstream nodes should be skipped when upstream times out
+		CopyOnWriteArrayList<String> executionLog = new CopyOnWriteArrayList<>();
+
+		AbstractPipelineNode slowNode = new AbstractPipelineNode("slow", "Slow Node",
+				NodeMode.PARALLEL, true, 1) {
+			@Override
+			public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {
+				executionLog.add("slow-start");
+				try {
+					Thread.sleep(200);
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+				}
+				executionLog.add("slow-end");
+				return NodeResult.success(id(), 200);
+			}
+		};
+		slowNode.setSource(true);
+		slowNode.setTimeoutMs(50);
+
+		AbstractPipelineNode downstreamNode = new AbstractPipelineNode("downstream", "Downstream Node",
+				NodeMode.PARALLEL, true, 1) {
+			@Override
+			public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {
+				executionLog.add("downstream");
+				return NodeResult.success(id(), 10);
+			}
+		};
+
+		slowNode.connectTo(downstreamNode);
+
+		Pipeline pipeline = DefaultPipeline.builder("timeout-dag-test")
+				.source(slowNode)
+				.build();
+
+		LoomMedia media = new StubLoomMedia("/test/dag-timeout.mp4", true);
+		PipelineResult result = executor.execute(pipeline, media);
+
+		// Debug: print all node results
+		System.out.println("=== Pipeline Result ===");
+		System.out.println("isSuccess: " + result.isSuccess());
+		for (Map.Entry<String, NodeResult> entry : result.getNodeResults().entrySet()) {
+			System.out.println("  Node: " + entry.getKey() + " -> " + entry.getValue());
+		}
+
+		// Pipeline is considered successful if all nodes are COMPLETED or SKIPPED
+		// The slow node FAILED, but downstream was SKIPPED (due to blocking dependency failure)
+		// So isSuccess() returns false because slow node is FAILED
+		assertFalse(result.isSuccess(), "Pipeline should fail due to timeout");
+		NodeResult slowResult = result.getNodeResults().get("slow");
+		assertNotNull(slowResult, "Slow node should be in results");
+		assertEquals(NodeState.FAILED, slowResult.getState());
+		assertTrue(slowResult.getMessage().contains("timeout") || slowResult.getMessage().contains("timed out"),
+				"Error message should mention timeout: " + slowResult.getMessage());
+
+		NodeResult downstreamResult = result.getNodeResults().get("downstream");
+		assertNotNull(downstreamResult, "Downstream node should be in results");
+		assertEquals(NodeState.SKIPPED, downstreamResult.getState());
+		assertTrue(downstreamResult.getMessage().contains("Dependency slow failed"),
+				"Downstream should be skipped due to failed dependency: " + downstreamResult.getMessage());
+
+		// Verify execution order - slow started but downstream never ran
+		// Note: timeout cancels the RxJava Single but the thread may still complete
+		// So slow-end might be in the log even though the result was a timeout
+		assertTrue(executionLog.contains("slow-start"));
+		assertFalse(executionLog.contains("downstream"));
+	}
+
 	// --- Helper classes ---
 
 	/**

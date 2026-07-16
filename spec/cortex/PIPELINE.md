@@ -1039,7 +1039,7 @@ class MyNodePipelineTest extends AbstractPipelineNodeTest {
 
 ### Pipeline Integration
 
-- [ ] **No per-node timeout**: Executor doesn't enforce timeouts on individual node executions. Hung node (e.g., LLM call) blocks semaphore indefinitely.
+- [x] **Per-node timeout**: Implemented with configurable `timeoutMs` property on `PipelineNode`, default timeouts from Cortex config (`CortexOptions.DEFAULT_TIMEOUTS`), and proper timeout handling in `ReactivePipelineExecutor` using RxJava's `timeout()` operator. Hung nodes (e.g., LLM calls) now fail with timeout error instead of blocking semaphore indefinitely.
 - [ ] **No retry mechanism**: `retryFailed` option in `AbstractNodeOptions` declared but never checked by executor. Failed nodes not retried.
 - [ ] **Virtual thread support missing**: Executor uses RxJava `Schedulers.io()` with platform threads. I/O-bound nodes (whisper, OCR, LLM, facedetect) could benefit from `Thread.ofVirtual()`-based scheduler.
 

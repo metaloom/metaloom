@@ -29,7 +29,11 @@ public class CortexNodeAdapter extends AbstractPipelineNode {
 	private final FilesystemNode<?, ?> wrappedNode;
 
 	public CortexNodeAdapter(FilesystemNode<?, ?> wrappedNode, NodeMode mode, boolean blocking, int concurrency) {
-		this(wrappedNode.name(), wrappedNode, mode, blocking, concurrency);
+		this(wrappedNode.name(), wrappedNode, mode, blocking, concurrency, 0);
+	}
+
+	public CortexNodeAdapter(FilesystemNode<?, ?> wrappedNode, NodeMode mode, boolean blocking, int concurrency, long timeoutMs) {
+		this(wrappedNode.name(), wrappedNode, mode, blocking, concurrency, timeoutMs);
 	}
 
 	/**
@@ -37,7 +41,11 @@ public class CortexNodeAdapter extends AbstractPipelineNode {
 	 * Useful when a downstream node expects a specific upstream node id that does not match the wrapped node's own name.
 	 */
 	public CortexNodeAdapter(String id, FilesystemNode<?, ?> wrappedNode, NodeMode mode, boolean blocking, int concurrency) {
-		super(id, wrappedNode.name(), mode, blocking, concurrency);
+		this(id, wrappedNode, mode, blocking, concurrency, 0);
+	}
+
+	public CortexNodeAdapter(String id, FilesystemNode<?, ?> wrappedNode, NodeMode mode, boolean blocking, int concurrency, long timeoutMs) {
+		super(id, wrappedNode.name(), mode, blocking, concurrency, false, timeoutMs);
 		this.wrappedNode = wrappedNode;
 	}
 

@@ -252,10 +252,13 @@ public class ReactivePipelineExecutor implements PipelineExecutor {
 
 	/**
 	 * Execute a single node on a single media item, respecting per-node concurrency
-	 * via semaphore, cache, dry-run, and sync-to-loom semantics.
+	 * via semaphore, cache, dry-run, sync-to-loom semantics, and execution timeout.
 	 */
 	private Single<NodeResult> executeNodeReactive(Pipeline pipeline, PipelineNode node,
 			LoomMedia media, Map<String, NodeResult> upstream) {
+
+		long timeoutMs = node.timeoutMs();
+		boolean hasTimeout = timeoutMs > 0;
 
 		return Single.<NodeResult>fromCallable(() -> {
 			Semaphore semaphore = nodeSemaphores.get(node.id());
@@ -301,6 +304,8 @@ public class ReactivePipelineExecutor implements PipelineExecutor {
 			}
 		})
 		.subscribeOn(Schedulers.io())
+		// Apply timeout if configured
+		.compose(single -> hasTimeout ? single.timeout(timeoutMs, TimeUnit.MILLISECONDS) : single)
 		.doOnSuccess(result -> {
 			eventBus.publish(new NodeCompletionEvent(node.id(), media, result));
 			Type trackingType = switch (result.getState()) {
@@ -323,8 +328,16 @@ public class ReactivePipelineExecutor implements PipelineExecutor {
 		.onErrorReturn(e -> {
 			log.error("Node {} failed on {}: {}", node.id(), media.absolutePath(), e.getMessage(), e);
 			nodeFailedCounts.get(node.id()).incrementAndGet();
-			emitTrackingEvent(Type.NODE_FAILED, pipeline.name(), node.id(), media, 0, e.getMessage());
-			return NodeResult.failed(node.id(), 0, e.getMessage());
+			
+			// Check if this was a timeout
+			String message = e.getMessage();
+			if (hasTimeout && (e instanceof java.util.concurrent.TimeoutException || 
+					(message != null && message.contains("timeout")))) {
+				message = "Node execution timed out after " + timeoutMs + "ms";
+			}
+			
+			emitTrackingEvent(Type.NODE_FAILED, pipeline.name(), node.id(), media, 0, message);
+			return NodeResult.failed(node.id(), 0, message);
 		});
 	}
 

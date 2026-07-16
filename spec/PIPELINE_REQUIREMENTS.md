@@ -90,7 +90,7 @@ Legend: `[x]` done · `[~]` partial · `[ ]` pending
 - [x] A failing node is caught and turned into a `FAILED` result instead of crashing the run.
 - [x] A failed **blocking** dependency causes downstream nodes to be skipped (`"Dependency <id> failed"`).
 - [x] Blocking scene-detection error handling fixed (no more `printStackTrace` + `System.in.read()` hang).
-- [ ] **Per-node execution timeout** — a hung node (e.g. an LLM call) currently blocks its semaphore indefinitely.
+- [x] **Per-node execution timeout** — implemented with configurable timeout per node (via `timeoutMs` property), default timeouts from Cortex config, and proper timeout handling in the executor.
 - [ ] **Retry mechanism** — the `retryFailed` option exists but is never honoured by the executor.
 - [ ] **Work-order result routing** — `ProcessorEndpoint.handleWorkOrderResult` is a TODO dead-end; run failures are not surfaced back to the caller.
 

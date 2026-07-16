@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 
 import dagger.Module;
 import dagger.Provides;
+import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.node.hash.ChunkHashNode;
 import io.metaloom.cortex.node.hash.MD5Node;
 import io.metaloom.cortex.node.hash.SHA256Node;
@@ -39,30 +40,40 @@ public class PipelineNodeFactoryModule {
 	public static NodeFactory provideNodeFactory(
 		SHA512Node sha512, SHA256Node sha256, MD5Node md5, ChunkHashNode chunkHash,
 		ThumbnailNode thumbnail,
-		LoomPipelineLoader pipelineLoader) {
+		LoomPipelineLoader pipelineLoader,
+		CortexOptions cortexOptions) {
 
 		RegistryNodeFactory factory = new RegistryNodeFactory();
 		// Register cortex nodes by the type strings we expect to see in
 		// pipeline JSON. Multiple aliases per node are supported so pipeline
 		// authors can use either the semantic name or the node's own name.
-		factory.register("sha512", def -> adapt(sha512, def));
-		factory.register("sha256", def -> adapt(sha256, def));
-		factory.register("md5", def -> adapt(md5, def));
-		factory.register("chunk-hash", def -> adapt(chunkHash, def));
-		factory.register("thumbnail", def -> adapt(thumbnail, def));
+		factory.register("sha512", def -> adapt(sha512, def, cortexOptions));
+		factory.register("sha256", def -> adapt(sha256, def, cortexOptions));
+		factory.register("md5", def -> adapt(md5, def, cortexOptions));
+		factory.register("chunk-hash", def -> adapt(chunkHash, def, cortexOptions));
+		factory.register("thumbnail", def -> adapt(thumbnail, def, cortexOptions));
 
 		log.info("Registered {} node producers with the pipeline node factory", factory.registeredTypes().size());
 		pipelineLoader.setNodeFactory(factory);
 		return factory;
 	}
 
-	private static PipelineNode adapt(io.metaloom.cortex.api.node.FilesystemNode<?, ?> wrapped, io.vertx.core.json.JsonObject nodeDef) {
+	private static PipelineNode adapt(io.metaloom.cortex.api.node.FilesystemNode<?, ?> wrapped, io.vertx.core.json.JsonObject nodeDef, CortexOptions cortexOptions) {
 		String id = nodeDef.getString("id", wrapped.name());
 		NodeMode mode = NodeMode.valueOf(nodeDef.getString("mode", "PARALLEL"));
 		boolean blocking = nodeDef.getBoolean("blocking", true);
 		int concurrency = nodeDef.getInteger("concurrency", 1);
 		boolean syncToLoom = nodeDef.getBoolean("syncToLoom", false);
-		CortexNodeAdapter adapter = new CortexNodeAdapter(id, wrapped, mode, blocking, concurrency);
+		
+		// Use timeout from JSON if specified, otherwise fall back to default from config
+		long timeoutMs = nodeDef.getLong("timeoutMs", 0L);
+		if (timeoutMs == 0) {
+			// Try to get default timeout from config based on node type
+			String nodeType = nodeDef.getString("type", wrapped.name());
+			timeoutMs = cortexOptions.getDefaultTimeoutMs(nodeType);
+		}
+		
+		CortexNodeAdapter adapter = new CortexNodeAdapter(id, wrapped, mode, blocking, concurrency, timeoutMs);
 		if (syncToLoom) {
 			adapter.setSyncToLoom(true);
 		}

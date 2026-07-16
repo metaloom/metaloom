@@ -6,4 +6,8 @@ public interface CortexNodeOptions {
 
 	void setEnabled(boolean flag);
 
+	long getTimeoutMs();
+
+	void setTimeoutMs(long timeoutMs);
+
 }

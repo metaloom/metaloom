@@ -202,6 +202,15 @@ public interface PipelineNode {
 	}
 
 	/**
+	 * Optional execution timeout for this node in milliseconds.
+	 * If the node execution exceeds this timeout, it will be cancelled and marked as FAILED.
+	 * A value of 0 or negative means no timeout (indefinite).
+	 */
+	default long timeoutMs() {
+		return 0;
+	}
+
+	/**
 	 * Initialize the node (called once before the pipeline starts processing).
 	 */
 	default void initialize() {

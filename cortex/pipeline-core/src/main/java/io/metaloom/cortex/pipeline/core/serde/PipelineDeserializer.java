@@ -168,6 +168,7 @@ public class PipelineDeserializer {
 		boolean blocking = nodeDef.path("blocking").asBoolean(true);
 		int concurrency = nodeDef.path("concurrency").asInt(1);
 		boolean syncToLoom = nodeDef.path("syncToLoom").asBoolean(false);
+		long timeoutMs = nodeDef.path("timeoutMs").asLong(0);
 		boolean source = "source".equals(type) || id.equals(sourceNodeId);
 
 		// Parse dependencies (stored for connection reconstruction)
@@ -203,7 +204,7 @@ public class PipelineDeserializer {
 		}
 
 		return new DeserializedNode(id, nodeName, mode, blocking, concurrency,
-				syncToLoom, options, source, dependencies, conditionalDeps);
+				syncToLoom, timeoutMs, options, source, dependencies, conditionalDeps);
 	}
 
 	private static <E extends Enum<E>> E parseEnum(String value, Class<E> enumType, E defaultValue) {
@@ -254,10 +255,10 @@ public class PipelineDeserializer {
 		private final Map<String, FilterBranch> parsedCondDeps;
 
 		DeserializedNode(String id, String name, NodeMode mode, boolean blocking,
-				int concurrency, boolean syncToLoom,
+				int concurrency, boolean syncToLoom, long timeoutMs,
 				Map<String, Object> options, boolean source,
 				Set<String> parsedDeps, Map<String, FilterBranch> parsedCondDeps) {
-			super(id, name, mode, blocking, concurrency, syncToLoom);
+			super(id, name, mode, blocking, concurrency, syncToLoom, timeoutMs);
 			this.options = options != null ? Collections.unmodifiableMap(options) : Collections.emptyMap();
 			this.source = source;
 			this.parsedDeps = parsedDeps != null ? parsedDeps : Collections.emptySet();

@@ -30,23 +30,30 @@ public abstract class AbstractPipelineNode implements PipelineNode {
 	private boolean source;
 	private boolean syncToLoom;
 	private NodeCacheProvider cacheProvider;
+	private long timeoutMs;
 
 	private final List<PipelineNode> children = new ArrayList<>();
 	private final Set<String> parentIds = new HashSet<>();
 	private final Map<String, FilterBranch> conditionalDependencies = new HashMap<>();
 
 	protected AbstractPipelineNode(String id, String name, NodeMode mode, boolean blocking, int concurrency) {
-		this(id, name, mode, blocking, concurrency, false);
+		this(id, name, mode, blocking, concurrency, false, 0);
 	}
 
 	protected AbstractPipelineNode(String id, String name, NodeMode mode, boolean blocking, int concurrency,
 			boolean syncToLoom) {
+		this(id, name, mode, blocking, concurrency, syncToLoom, 0);
+	}
+
+	protected AbstractPipelineNode(String id, String name, NodeMode mode, boolean blocking, int concurrency,
+			boolean syncToLoom, long timeoutMs) {
 		this.id = id;
 		this.name = name;
 		this.mode = mode;
 		this.blocking = blocking;
 		this.concurrency = concurrency;
 		this.syncToLoom = syncToLoom;
+		this.timeoutMs = timeoutMs;
 	}
 
 	@Override
@@ -150,8 +157,17 @@ public abstract class AbstractPipelineNode implements PipelineNode {
 	}
 
 	@Override
+	public long timeoutMs() {
+		return timeoutMs;
+	}
+
+	public void setTimeoutMs(long timeoutMs) {
+		this.timeoutMs = timeoutMs;
+	}
+
+	@Override
 	public String toString() {
 		return id + " [" + mode + (blocking ? ", blocking" : "") + ", concurrency=" + concurrency
-				+ (syncToLoom ? ", sync" : "") + "]";
+				+ (syncToLoom ? ", sync" : "") + (timeoutMs > 0 ? ", timeout=" + timeoutMs + "ms" : "") + "]";
 	}
 }

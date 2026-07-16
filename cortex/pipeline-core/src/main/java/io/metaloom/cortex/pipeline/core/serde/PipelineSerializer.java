@@ -124,6 +124,7 @@ public class PipelineSerializer {
 		obj.put("blocking", node.isBlocking());
 		obj.put("concurrency", node.concurrency());
 		obj.put("syncToLoom", node.syncToLoom());
+		obj.put("timeoutMs", node.timeoutMs());
 
 		// Dependencies
 		ArrayNode deps = mapper.createArrayNode();

@@ -59,9 +59,9 @@ assertPipelinesEqual(original, restored);
 @Test
 void testFullPipelineRoundTrip() throws JsonProcessingException {
 PipelineNode filesystem = sourceNode("filesystem", "Filesystem Source");
-PipelineNode sha512 = processorNode("sha512", "SHA-512 Hash", NodeMode.PARALLEL, true, 4, true, Map.of());
-PipelineNode tika = processorNode("tika", "Tika Extractor", NodeMode.PARALLEL, true, 2, false, Map.of());
-PipelineNode fingerprint = processorNode("fingerprint", "Video Fingerprint", NodeMode.SEQUENTIAL, true, 1, true,
+PipelineNode sha512 = processorNode("sha512", "SHA-512 Hash", NodeMode.PARALLEL, true, 4, true, 30000L, Map.of());
+PipelineNode tika = processorNode("tika", "Tika Extractor", NodeMode.PARALLEL, true, 2, false, 120000L, Map.of());
+PipelineNode fingerprint = processorNode("fingerprint", "Video Fingerprint", NodeMode.SEQUENTIAL, true, 1, true, 300000L,
 Map.of("processIncomplete", false, "timeout", 30000L));
 
 filesystem.connectTo(sha512);
@@ -116,13 +116,37 @@ Map<String, Object> options = Map.of(
 );
 
 PipelineNode fs = sourceNode("fs", "FS");
-PipelineNode whisper = processorNode("whisper", "Whisper", NodeMode.SEQUENTIAL, true, 1, true, options);
+PipelineNode whisper = processorNode("whisper", "Whisper", NodeMode.SEQUENTIAL, true, 1, true, 600000L, options);
 
 fs.connectTo(whisper);
 
 Pipeline original = DefaultPipeline.builder("options-pipeline")
 .description("Pipeline testing complex options")
 .priority(10)
+.enabled(true)
+.dryRun(false)
+.source(fs)
+.build();
+
+Pipeline restored = roundTrip(original);
+
+assertPipelinesEqual(original, restored);
+}
+
+@Test
+void testPipelineWithTimeouts() throws JsonProcessingException {
+PipelineNode fs = sourceNode("fs", "FS");
+PipelineNode fastNode = processorNode("fast", "Fast Node", NodeMode.PARALLEL, true, 4, false, 1000L, Map.of());
+PipelineNode slowNode = processorNode("slow", "Slow Node", NodeMode.SEQUENTIAL, true, 1, true, 300000L, Map.of());
+PipelineNode noTimeoutNode = processorNode("no-timeout", "No Timeout Node", NodeMode.PARALLEL, true, 2, false, 0L, Map.of());
+
+fs.connectTo(fastNode);
+fs.connectTo(slowNode);
+fs.connectTo(noTimeoutNode);
+
+Pipeline original = DefaultPipeline.builder("timeout-pipeline")
+.description("Pipeline with various timeout configurations")
+.priority(20)
 .enabled(true)
 .dryRun(false)
 .source(fs)
@@ -202,6 +226,7 @@ assertEquals(expected.mode(), actual.mode(), ctx + ".mode");
 assertEquals(expected.isBlocking(), actual.isBlocking(), ctx + ".blocking");
 assertEquals(expected.concurrency(), actual.concurrency(), ctx + ".concurrency");
 assertEquals(expected.syncToLoom(), actual.syncToLoom(), ctx + ".syncToLoom");
+assertEquals(expected.timeoutMs(), actual.timeoutMs(), ctx + ".timeoutMs");
 assertEquals(expected.dependencies(), actual.dependencies(), ctx + ".dependencies");
 assertEquals(expected.conditionalDependencies(), actual.conditionalDependencies(), ctx + ".conditionalDependencies");
 assertEquals(expected.options(), actual.options(), ctx + ".options");
@@ -210,14 +235,19 @@ assertEquals(expected.options(), actual.options(), ctx + ".options");
 // --- Node factories ---
 
 private static PipelineNode sourceNode(String id, String name) {
-TestNode node = new TestNode(id, name, NodeMode.PARALLEL, true, 1, false, Map.of());
+TestNode node = new TestNode(id, name, NodeMode.PARALLEL, true, 1, false, 0, Map.of());
 node.setSource(true);
 return node;
 }
 
 private static PipelineNode processorNode(String id, String name, NodeMode mode, boolean blocking,
 int concurrency, boolean syncToLoom, Map<String, Object> options) {
-return new TestNode(id, name, mode, blocking, concurrency, syncToLoom, options);
+return new TestNode(id, name, mode, blocking, concurrency, syncToLoom, 0, options);
+}
+
+private static PipelineNode processorNode(String id, String name, NodeMode mode, boolean blocking,
+int concurrency, boolean syncToLoom, long timeoutMs, Map<String, Object> options) {
+return new TestNode(id, name, mode, blocking, concurrency, syncToLoom, timeoutMs, options);
 }
 
 /**
@@ -229,7 +259,13 @@ private final Map<String, Object> options;
 
 TestNode(String id, String name, NodeMode mode, boolean blocking,
 int concurrency, boolean syncToLoom, Map<String, Object> options) {
-super(id, name, mode, blocking, concurrency, syncToLoom);
+super(id, name, mode, blocking, concurrency, syncToLoom, 0);
+this.options = options != null ? Map.copyOf(options) : Map.of();
+}
+
+TestNode(String id, String name, NodeMode mode, boolean blocking,
+int concurrency, boolean syncToLoom, long timeoutMs, Map<String, Object> options) {
+super(id, name, mode, blocking, concurrency, syncToLoom, timeoutMs);
 this.options = options != null ? Map.copyOf(options) : Map.of();
 }
 

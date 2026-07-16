@@ -8,6 +8,8 @@ public abstract class AbstractNodeOptions<T extends AbstractNodeOptions<T>> impl
 
 	private boolean retryFailed;
 
+	private long timeoutMs;
+
 	protected abstract T self();
 
 	@Override
@@ -36,6 +38,15 @@ public abstract class AbstractNodeOptions<T extends AbstractNodeOptions<T>> impl
 	public T setRetryFailed(boolean retryFailed) {
 		this.retryFailed = retryFailed;
 		return self();
+	}
+
+	public long getTimeoutMs() {
+		return timeoutMs;
+	}
+
+	@Override
+	public void setTimeoutMs(long timeoutMs) {
+		this.timeoutMs = timeoutMs;
 	}
 
 }
