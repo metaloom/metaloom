@@ -22,6 +22,7 @@ import io.metaloom.loom.rest.endpoint.impl.CommentEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.EmbeddingEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.GraphQLEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.GroupEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.HealthEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.NodeDescriptorEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.LibraryEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.OAuth2Endpoint;
@@ -61,6 +62,7 @@ public class EndpointModule {
 		CollectionEndpoint collectionEndpoint,
 		EmbeddingEndpoint embeddingEndpoint,
 		GraphQLEndpoint graphQLEndpoint,
+		HealthEndpoint healthEndpoint,
 		TaskEndpoint taskEndoint,
 		TagEndpoint tagEndpoint,
 		WebhookEndpoint webhookEndpoint,
@@ -93,6 +95,7 @@ public class EndpointModule {
 			collectionEndpoint,
 			embeddingEndpoint,
 			graphQLEndpoint,
+			healthEndpoint,
 			taskEndoint,
 			tagEndpoint,
 			webhookEndpoint,

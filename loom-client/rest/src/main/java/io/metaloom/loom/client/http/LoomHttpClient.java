@@ -9,6 +9,7 @@ import io.metaloom.loom.client.common.method.ClientMethods;
 import io.metaloom.loom.client.http.impl.LoomHttpClientImpl;
 import io.metaloom.loom.rest.model.graphql.GraphQLRequest;
 import io.metaloom.loom.rest.model.graphql.GraphQLResponse;
+import io.metaloom.loom.rest.model.health.HealthCheckResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunListResponse;
 
 public interface LoomHttpClient extends ClientSettings, LoomClient {
@@ -82,5 +83,12 @@ public interface LoomHttpClient extends ClientSettings, LoomClient {
 	 * @return request that can be executed synchronously or asynchronously
 	 */
 	LoomClientRequest<GraphQLResponse> executeGraphQL(GraphQLRequest request);
+
+	/**
+	 * Health check endpoint
+	 * 
+	 * @return request that can be executed synchronously or asynchronously
+	 */
+	LoomClientRequest<HealthCheckResponse> health();
 
 }

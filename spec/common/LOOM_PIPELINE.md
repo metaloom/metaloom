@@ -80,15 +80,22 @@ Gaps:
 Working: Flyway [`V2.19__add_pipeline.sql`](../../loom/db/flyway/src/main/resources/db/migration/V2.19__add_pipeline.sql)
 (pipeline table with JSONB definition, permissions), `Pipeline` model,
 `PipelineDao` interface, `PipelineDaoImpl` (jOOQ) with full CRUD via
-`AbstractJooqDao`. Pipeline runs now flow end-to-end via the new
-`POST /pipelines/:uuid/run` → `WorkOrder(PIPELINE_RUN)` →
-`PipelineWorkOrderHandler.run-pipeline` chain, but no server-side run
-record is persisted.
+`AbstractJooqDao`. **Pipeline run persistence is now implemented:**
+Flyway [`V2.29__add_pipeline_run.sql`](../../loom/db/flyway/src/main/resources/db/migration/V2.29__add_pipeline_run.sql)
+creates the `pipeline_run` table with UUID PK, pipeline reference,
+version, timestamps, status enum (PENDING/RUNNING/SUCCESS/FAILED/PARTIAL/CANCELLED),
+media/success/failure/skipped counts, dry-run flag, error message,
+duration, and JSONB meta. The `PipelineRun` model, `PipelineRunDao`
+interface, and `PipelineRunDaoImpl` (jOOQ) provide full CRUD with
+paged queries and filtering by status/dry-run. Pipeline runs are
+created at `RUNNING` status when `POST /pipelines/:uuid/run` is
+called, and the `PipelineWorkOrderHandler` includes the
+`pipelineRunUuid` in the work order payload. Cortex's
+`LoomControlChannel` sends a `PIPELINE_RUN_COMPLETED` WebSocket
+message on `PIPELINE_COMPLETED` events.
 
 Gaps:
 
-- No `pipeline_run` history table — pipeline runs are not persisted;
-  UI `RunHistory` component shows hard-coded mock data.
 - No `pipeline_node_stats` timeseries table — `NODE_STATS` events
   (once emitted) would have nowhere to land.
 - No server-side JSONB schema validation of `definition` — validator
@@ -97,20 +104,22 @@ Gaps:
 - No demo seeding of default pipeline definitions (permissions are
   seeded, definitions are not).
 
-### Loom REST / WebSocket — ~65%
+### Loom REST / WebSocket — ~75%
 
 Working: [`PipelineEndpoint`](../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/PipelineEndpoint.java)
 CRUD (POST/GET/PUT/DELETE on `/api/v1/pipelines`) with permission
-enforcement, [`PipelineModelValidator`](../../loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/validation/PipelineModelValidator.java)
+enforcement, **`POST /api/v1/pipelines/:uuid/run` to trigger execution
+on demand**, [`PipelineModelValidator`](../../loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/validation/PipelineModelValidator.java)
 (basic), `PipelineEventEndpoint` WS at `/api/v1/pipelines/events/ws`,
 `PipelineEventBroadcaster`, `ProcessorEndpoint.handlePipelineEvent`
-forwarding.
+forwarding, **`GET /api/v1/pipelines/:uuid/runs` for pipeline run
+history** with paging/filtering/sorting, **WebSocket authentication**
+on both event and processor endpoints via `?token=<jwt>` query
+parameter validated by `WebSocketAuthenticator` (delegating to
+`LoomAuthenticationHandler`).
 
 Gaps:
 
-- No `POST /api/v1/pipelines/:uuid/run` to trigger execution on demand.
-- No WebSocket authentication on the event or processor endpoints
-  (endpoint comment acknowledges this as a TODO).
 - No per-pipeline event filtering — broadcaster fan-outs every event to
   every subscriber.
 - No backpressure — a slow subscriber can back up the broadcaster.

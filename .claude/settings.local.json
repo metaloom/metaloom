@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mvn -q -T 8 test-compile -DskipTests -pl loom-shared/rest-model,loom-client/common,loom-client/rest,loom/services/rest,integration-test -am)"
+    ]
+  }
+}

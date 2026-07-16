@@ -53,6 +53,11 @@
             <version>${loom.client.version}</version>
         </dependency>
         <dependency>
+            <groupId>io.metaloom.loom.shared</groupId>
+            <artifactId>loom-rest-model</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
             <groupId>io.metaloom.cortex</groupId>
             <artifactId>cortex-cli</artifactId>
             <version>${loom.cortex.version}</version>

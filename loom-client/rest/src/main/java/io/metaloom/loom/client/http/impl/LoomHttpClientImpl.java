@@ -46,6 +46,7 @@ import io.metaloom.loom.rest.model.attachment.AttachmentResponse;
 import io.metaloom.loom.rest.model.attachment.AttachmentUpdateRequest;
 import io.metaloom.loom.rest.model.auth.AuthLoginRequest;
 import io.metaloom.loom.rest.model.auth.AuthLoginResponse;
+import io.metaloom.loom.rest.model.health.HealthCheckResponse;
 import io.metaloom.loom.rest.model.pool.AssetPoolCreateRequest;
 import io.metaloom.loom.rest.model.pool.AssetPoolListResponse;
 import io.metaloom.loom.rest.model.pool.AssetPoolResponse;
@@ -1152,6 +1153,11 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<GraphQLResponse> executeGraphQL(GraphQLRequest request) {
 		return postRequest("graphql", request, GraphQLResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<HealthCheckResponse> health() {
+		return getRequest("health", HealthCheckResponse.class);
 	}
 
 }
