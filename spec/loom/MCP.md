@@ -225,16 +225,20 @@ public interface MCPTool {
 
 ### 4.2 MCPToolDescriptor
 
-A `record` with three fields:
+A `record` with four fields:
 
-| Field         | Type       | Description                                    |
-|---------------|------------|------------------------------------------------|
-| `name`        | `String`   | Unique tool name (e.g. `"search_assets"`)      |
-| `description` | `String`   | Human-readable description                     |
-| `inputSchema` | `JsonObject` | JSON Schema describing accepted parameters   |
+| Field                 | Type       | Description                                    |
+|-----------------------|------------|------------------------------------------------|
+| `name`                | `String`   | Unique tool name (e.g. `"search_assets"`)      |
+| `description`         | `String`   | Human-readable description                     |
+| `inputSchema`         | `JsonObject` | JSON Schema describing accepted parameters   |
+| `requiredPermissions` | `List<String>` | Permissions required to invoke this tool (e.g., `["READ_ASSET"]`) |
 
 The `buildInputSchema(List<MCPToolParam>)` helper constructs the schema from
 a list of `MCPToolParam(name, type, description, required)` records.
+
+The `toJson()` method includes `requiredPermissions` in the output when present,
+allowing clients to discover permission requirements.
 
 ### 4.3 MCPToolRegistry
 
@@ -282,6 +286,7 @@ To add a new tool:
 | Name         | `search_assets` |
 | Description  | Search for assets by filename, MIME type, tags, or metadata. Returns a paginated list of matching assets with key metadata fields. |
 | Class        | `SearchAssetsTool` |
+| Required Permissions | `READ_ASSET` |
 
 **Parameters:**
 
@@ -305,6 +310,7 @@ of assets without applying filters.
 | Name         | `get_asset` |
 | Description  | Load complete metadata for a single asset, including file info, hashes, media properties, geo location, and components. |
 | Class        | `GetAssetTool` |
+| Required Permissions | `READ_ASSET` |
 
 **Parameters:**
 
@@ -322,6 +328,7 @@ size, sha512, initialOrigin, firstSeen, s3Bucket, s3ObjectPath).
 | Name         | `search_transcript` |
 | Description  | Search across transcripts and extracted text from all assets. |
 | Class        | `SearchTranscriptTool` |
+| Required Permissions | `READ_ASSET` |
 
 **Parameters:**
 
@@ -342,6 +349,7 @@ Elasticsearch/Lucene integration that is not yet implemented.
 | Name         | `list_collections` |
 | Description  | List available asset collections. Collections group assets for spaces or topics. |
 | Class        | `ListCollectionsTool` |
+| Required Permissions | `READ_COLLECTION` |
 
 **Parameters:**
 
@@ -358,6 +366,7 @@ Elasticsearch/Lucene integration that is not yet implemented.
 | Name         | `asset_statistics` |
 | Description  | Get aggregate statistics about the asset library: total count, storage used, MIME type distribution. |
 | Class        | `AssetStatisticsTool` |
+| Required Permissions | `READ_ASSET` |
 
 **Parameters:**
 
@@ -398,43 +407,61 @@ this format. Other tools reuse the same helper.
 
 ### 7.1 Current State
 
-**The MCP server does NOT currently implement authentication.**
+**The MCP server implements authentication across all transports.**
 
-- The MCP HTTP server (`MCPService`) runs on a separate port (4041) from the
-  REST API (6333).
-- There is no JWT token check, no API key validation, and no CORS
-  authentication handler on any MCP endpoint.
-- The SSE, message, and WebSocket endpoints are all unauthenticated.
-- Tools inject `DaoCollection` directly and access the database without any
-  permission checks.
+Authentication is disabled by default and can be enabled via the
+`LOOM_MCP_AUTH_ENABLED` environment variable (or `mcp.auth.enabled` in
+configuration). When enabled, the following authentication mechanisms are
+supported:
 
-### 7.2 Security Implications
+| Transport | Endpoint | Authentication Methods |
+|-----------|----------|------------------------|
+| SSE | `GET /mcp/sse` | `?token=<jwt>` query parameter OR `Authorization: Bearer <jwt>` header |
+| Message | `POST /mcp/message` | `Authorization: Bearer <jwt>` header OR `X-API-Key` header |
+| WebSocket | `GET /mcp/ws` | `?token=<jwt>` query parameter (via `WebSocketAuthenticator`) |
 
-- Anyone with network access to port 4041 can list tools, call tools, and
-  read asset data (including S3 bucket names and object paths).
-- The MCP server should NOT be exposed to untrusted networks in its current
-  form.
-- In a production deployment, the MCP port should be bound to localhost or an
-  internal network only.
+### 7.2 Configuration
 
-### 7.3 Planned Authentication
+| Option | Environment Variable | Default | Description |
+|--------|---------------------|---------|-------------|
+| `mcp.auth.enabled` | `LOOM_MCP_AUTH_ENABLED` | `false` | Enable authentication on all MCP endpoints |
+| `mcp.auth.strictMode` | `LOOM_MCP_AUTH_STRICT_MODE` | `false` | Require valid credentials on every request (reject unauthenticated) |
+| `mcp.auth.allowedOrigins` | `LOOM_MCP_AUTH_ALLOWED_ORIGINS` | `*` | Comma-separated list of allowed origins for SSE CORS |
 
-The following authentication mechanisms are planned but not yet implemented:
+When `strictMode` is `false` (lenient mode), requests without valid credentials
+are accepted but logged with a warning. When `strictMode` is `true`, requests
+without valid credentials are rejected with HTTP 401 (or WS close code 4401).
 
-1. **JWT token via Authorization header** — Reuse the same JWT infrastructure
-   as the REST API (`LoomAuthenticationHandler`). The MCP server would
-   validate the bearer token on the SSE/message/WS endpoints.
+### 7.3 Implementation Details
 
-2. **API token via custom header** — Accept an API token (managed via the
-   REST API's `/api/v1/tokens` endpoint) as a `X-API-Key` header.
+The authentication infrastructure reuses existing components:
 
-3. **WebSocket token query parameter** — Reuse the `?token=<jwt>` pattern
-   from the existing WebSocket endpoints (see
-   [WEBSOCKET.md](WEBSOCKET.md) section 2.1).
+1. **`MCPAuthenticationHandler`** — New handler in `loom/services/auth-common` that:
+   - Extracts credentials from HTTP requests (query params, headers)
+   - Validates JWT tokens via `LoomAuthenticationHandler.authenticateToken()`
+   - Validates API keys via `TokenDao.findByToken()`
+   - Applies CORS headers based on `allowedOrigins` configuration
 
-4. **Permission-scoped tools** — Each tool descriptor could declare required
-   permissions (e.g. `READ_ASSET`, `READ_COLLECTION`) that are checked
-   before dispatch.
+2. **`WebSocketAuthenticator`** — Reused from REST WebSocket endpoints
+   (`loom/services/rest`) to validate `?token=` query parameter on WS upgrade
+
+3. **`LoomAuthorizationProvider`** — Reused for permission checking via
+   Vert.x `PermissionBasedAuthorization`
+
+4. **`MCPToolDescriptor.requiredPermissions`** — Each tool declares required
+   permissions (e.g., `READ_ASSET`, `READ_COLLECTION`) that are checked
+   before dispatch in `MCPToolRegistry.dispatch()`
+
+### 7.4 Security Implications
+
+- When authentication is **disabled** (default), the MCP server behaves as
+  before — no auth checks, CORS allows all origins. Suitable for local
+  development only.
+- When authentication is **enabled**, all endpoints require valid credentials.
+  The MCP port (4041) should still not be exposed to untrusted networks
+  without additional network-level security (firewall, VPN, etc.).
+- Tools access DAOs directly but now go through permission checks in
+  `MCPToolRegistry.dispatch()` before execution.
 
 ---
 
@@ -560,6 +587,11 @@ result messages.
 | `SearchTranscriptTool` | `io.metaloom.loom.mcp.tool.impl`           | Search transcripts tool                  |
 | `ListCollectionsTool`  | `io.metaloom.loom.mcp.tool.impl`           | List collections tool                    |
 | `AssetStatisticsTool`  | `io.metaloom.loom.mcp.tool.impl`           | Asset statistics tool                    |
+| `MCPAuthenticationHandler` | `io.metaloom.loom.auth`                | MCP HTTP authentication (JWT + API key)  |
+| `WebSocketAuthenticator` | `io.metaloom.loom.rest.service.impl`     | WebSocket authentication (token query)   |
+| `LoomAuthenticationHandler` | `io.metaloom.loom.auth`                | JWT authentication (shared with REST)    |
+| `LoomAuthorizationProvider` | `io.metaloom.loom.auth`                | Permission checking (shared with REST)   |
+| `TokenDao`             | `io.metaloom.loom.db.model.token`          | API token validation                     |
 
 ---
 
@@ -588,13 +620,13 @@ improvement. AI agents can use this list to identify work items.
 - [x] SSE `endpoint` event sent on connection to tell client where to POST
 - [x] POST message endpoint with session ID query parameter
 - [x] Body handler with 1 MB body limit on message endpoint
-- [x] CORS `Access-Control-Allow-Origin: *` header on SSE endpoint
+- [x] CORS `Access-Control-Allow-Origin: *` header on SSE endpoint (configurable via `LOOM_MCP_AUTH_ALLOWED_ORIGINS`)
 - [ ] SSE heartbeat/keepalive (connections may time out on long idle)
-- [ ] WebSocket authentication (no auth on WS endpoint)
-- [ ] SSE authentication (no auth on SSE endpoint)
-- [ ] Message endpoint authentication (no auth on POST endpoint)
+- [x] WebSocket authentication (token via `?token=` query param, reuses `WebSocketAuthenticator`)
+- [x] SSE authentication (token via `?token=` query param OR `Authorization: Bearer` header)
+- [x] Message endpoint authentication (requires `Authorization: Bearer` header OR `X-API-Key` header)
 - [ ] Configurable body limit (hardcoded to 1 MB, not configurable)
-- [ ] MCP server port is not configurable via LoomOptions (hardcoded to 4041 or 0)
+- [x] MCP server port configurable via `LoomOptions` (`LOOM_SERVER_MCP_PORT`, default 4041)
 
 ### 11.3 Tools
 
@@ -625,14 +657,16 @@ improvement. AI agents can use this list to identify work items.
 ### 11.4 Authentication and Security
 
 - [x] MCP server runs on a separate port from the REST API (4041 vs 6333)
-- [ ] No authentication on any MCP endpoint (SSE, message, WebSocket)
-- [ ] No permission checks on tool execution
+- [x] Authentication on all MCP endpoints (SSE, message, WebSocket) via `LOOM_MCP_AUTH_ENABLED`
+- [x] JWT token via `Authorization: Bearer` header (SSE, message)
+- [x] JWT token via `?token=` query parameter (SSE, WebSocket)
+- [x] API key via `X-API-Key` header (message endpoint)
+- [x] Permission checks on tool execution via `MCPToolDescriptor.requiredPermissions`
+- [x] Strict/lenient mode via `LOOM_MCP_AUTH_STRICT_MODE`
+- [x] Configurable CORS allowed origins via `LOOM_MCP_AUTH_ALLOWED_ORIGINS`
+- [x] Reuses `LoomAuthenticationHandler` and `WebSocketAuthenticator` from REST API
 - [ ] No rate limiting on MCP endpoints
 - [ ] No audit logging of tool calls
-- [ ] No API key or token support
-- [ ] Tools access DAOs directly without permission checks (bypasses REST API auth)
-- [ ] CORS on SSE endpoint allows all origins (`*`) — acceptable for local dev, not production
-- [ ] MCP server does not use the `LoomAuthenticationHandler` used by the REST API
 
 ### 11.5 Resources (MCP Resources)
 
@@ -664,7 +698,7 @@ improvement. AI agents can use this list to identify work items.
 - [x] Separate `loom-service-mcp` Maven module with minimal dependencies
 - [x] `MCPService.getToolRegistry()` exposes registry for in-process callers
 - [x] `MCPService.getServer()` exposes HTTP server for test port discovery
-- [ ] MCP port not configurable via `LoomOptions` (hardcoded to 4041)
+- [x] MCP port configurable via `LoomOptions` (`LOOM_SERVER_MCP_PORT`, default 4041)
 - [ ] No health check endpoint for MCP server
 - [ ] No metrics/observability for MCP server (tool call count, latency, etc.)
 - [ ] No graceful shutdown timeout (server.close() is immediate)
@@ -689,18 +723,18 @@ but are otherwise independent services. Key connection points:
 
 | Concern             | REST API                          | MCP Server                          |
 |---------------------|-----------------------------------|-------------------------------------|
-| Port                | 6333 (configurable)               | 4041 (hardcoded)                    |
-| Authentication      | JWT cookie + OAuth2 + API tokens  | None (see section 7)                |
+| Port                | 6333 (configurable)               | 4041 (configurable via `LOOM_SERVER_MCP_PORT`) |
+| Authentication      | JWT cookie + OAuth2 + API tokens  | JWT (header/query), API key (header), strict/lenient mode |
 | Protocol            | HTTP REST                         | JSON-RPC 2.0                        |
 | Data access         | via `*EndpointService` -> DAO     | via `DaoCollection` -> DAO (direct) |
 | Path prefix         | `/api/v1`                         | `/mcp/sse`, `/mcp/message`, `/mcp/ws` |
 | Body limit          | Unlimited (`-1`)                  | 1 MB                                |
-| CORS                | All origins, all methods          | `*` on SSE only                     |
-| Tool operations     | Full CRUD on all resources        | Read-only (search, get, list, stats) |
+| CORS                | All origins, all methods          | Configurable via `LOOM_MCP_AUTH_ALLOWED_ORIGINS` |
+| Tool operations     | Full CRUD on all resources        | Read-only (search, get, list, stats) with permission checks |
 | Pipeline operations | `POST /pipelines/:uuid/run`       | Not exposed                         |
 | WebSocket           | Processor + pipeline events       | MCP JSON-RPC over WS                |
 
-The MCP tools bypass the REST API's authentication and permission layers
-entirely, accessing DAOs directly. This is by design for simplicity but
-represents a security gap that should be addressed before production use
-(see section 7.3).
+The MCP tools access DAOs directly but now go through permission checks in
+`MCPToolRegistry.dispatch()` before execution. Authentication infrastructure
+(`LoomAuthenticationHandler`, `WebSocketAuthenticator`, `LoomAuthorizationProvider`,
+`TokenDao`) is shared with the REST API.
