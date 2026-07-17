@@ -2,25 +2,31 @@ package io.metaloom.loom.mcp.model;
 
 import java.util.List;
 
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 /**
  * Describes an MCP tool that can be invoked by clients.
  *
- * @param name        Unique tool name
- * @param description Human-readable description of what the tool does
- * @param inputSchema JSON Schema object describing the tool's parameters
+ * @param name               Unique tool name
+ * @param description        Human-readable description of what the tool does
+ * @param inputSchema        JSON Schema object describing the tool's parameters
+ * @param requiredPermissions List of permissions required to invoke this tool (e.g., ["READ_ASSET"])
  */
-public record MCPToolDescriptor(String name, String description, JsonObject inputSchema) {
+public record MCPToolDescriptor(String name, String description, JsonObject inputSchema, List<String> requiredPermissions) {
 
 	/**
 	 * Convert to the JSON representation expected by the MCP tools/list response.
 	 */
 	public JsonObject toJson() {
-		return new JsonObject()
+		JsonObject json = new JsonObject()
 			.put("name", name)
 			.put("description", description)
 			.put("inputSchema", inputSchema);
+		if (requiredPermissions != null && !requiredPermissions.isEmpty()) {
+			json.put("requiredPermissions", new JsonArray(requiredPermissions));
+		}
+		return json;
 	}
 
 	/**

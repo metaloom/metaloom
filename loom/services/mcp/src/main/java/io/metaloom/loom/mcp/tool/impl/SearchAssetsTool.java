@@ -41,7 +41,8 @@ public class SearchAssetsTool implements MCPTool {
 				new MCPToolParam("query", "string", "Free-text search query (matched against filename, origin, metadata)", false),
 				new MCPToolParam("mimeType", "string", "Filter by MIME type (e.g. 'image/jpeg', 'video/*')", false),
 				new MCPToolParam("limit", "integer", "Maximum number of results to return (default: 25)", false)
-			))
+			)),
+			List.of("READ_ASSET")
 		);
 	}
 

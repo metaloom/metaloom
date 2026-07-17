@@ -39,7 +39,8 @@ public class GetAssetTool implements MCPTool {
 			"Load complete metadata for a single asset, including file info, hashes, media properties, geo location, and components. Accepts either a UUID or SHA-512 hash.",
 			MCPToolDescriptor.buildInputSchema(List.of(
 				new MCPToolParam("assetId", "string", "Asset UUID or SHA-512 hash", true)
-			))
+			)),
+			List.of("READ_ASSET")
 		);
 	}
 

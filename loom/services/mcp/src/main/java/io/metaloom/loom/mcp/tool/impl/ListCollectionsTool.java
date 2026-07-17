@@ -41,7 +41,8 @@ public class ListCollectionsTool implements MCPTool {
 			"List available asset collections. Collections group assets together for spaces or topics. Returns collection names and UUIDs.",
 			MCPToolDescriptor.buildInputSchema(List.of(
 				new MCPToolParam("limit", "integer", "Maximum number of collections to return (default: 25)", false)
-			))
+			)),
+			List.of("READ_COLLECTION")
 		);
 	}
 

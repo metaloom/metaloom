@@ -12,17 +12,22 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.loom.api.options.LoomOptions;
+import io.metaloom.loom.auth.LoomAuthenticationHandler;
+import io.metaloom.loom.auth.MCPAuthenticationHandler;
+import io.metaloom.loom.auth.WebSocketAuthenticator;
 import io.metaloom.loom.common.service.AbstractService;
 import io.metaloom.loom.mcp.handler.MCPJsonRpcHandler;
 import io.metaloom.loom.mcp.model.JsonRpcRequest;
 import io.metaloom.loom.mcp.model.JsonRpcResponse;
 import io.metaloom.loom.mcp.tool.MCPToolRegistry;
+import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpServer;
 import io.vertx.core.http.HttpServerOptions;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.http.ServerWebSocket;
 import io.vertx.core.json.JsonObject;
+import io.vertx.ext.auth.User;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.handler.BodyHandler;
 
@@ -48,6 +53,14 @@ import io.vertx.ext.web.handler.BodyHandler;
  *   <li>In a clustered Vert.x deployment, tools can run on different nodes.</li>
  *   <li>The EventBus provides natural back-pressure and request/reply semantics.</li>
  * </ul>
+ *
+ * <h3>Authentication</h3>
+ * <p>Authentication can be enabled via {@code LOOM_MCP_AUTH_ENABLED} and supports:</p>
+ * <ul>
+ *   <li><strong>SSE (/mcp/sse)</strong>: Token via {@code ?token=} query parameter OR {@code Authorization: Bearer} header</li>
+ *   <li><strong>Message (/mcp/message)</strong>: Token via {@code Authorization: Bearer} header OR {@code X-API-Key} header</li>
+ *   <li><strong>WebSocket (/mcp/ws)</strong>: Token via {@code ?token=} query parameter (handled by {@link WebSocketAuthenticator})</li>
+ * </ul>
  */
 @Singleton
 public class MCPService extends AbstractService {
@@ -61,6 +74,8 @@ public class MCPService extends AbstractService {
 
 	private final MCPJsonRpcHandler jsonRpcHandler;
 	private final MCPToolRegistry toolRegistry;
+	private final MCPAuthenticationHandler mcpAuthHandler;
+	private final WebSocketAuthenticator wsAuthenticator;
 
 	/**
 	 * Connected SSE sessions: sessionId → response (kept open for server-sent events).
@@ -68,10 +83,14 @@ public class MCPService extends AbstractService {
 	private final Map<String, HttpServerResponse> sseSessions = new ConcurrentHashMap<>();
 
 	@Inject
-	public MCPService(Vertx vertx, LoomOptions options, MCPJsonRpcHandler jsonRpcHandler, MCPToolRegistry toolRegistry) {
+	public MCPService(Vertx vertx, LoomOptions options, MCPJsonRpcHandler jsonRpcHandler, 
+			MCPToolRegistry toolRegistry, MCPAuthenticationHandler mcpAuthHandler, 
+			WebSocketAuthenticator wsAuthenticator) {
 		super(vertx, options);
 		this.jsonRpcHandler = jsonRpcHandler;
 		this.toolRegistry = toolRegistry;
+		this.mcpAuthHandler = mcpAuthHandler;
+		this.wsAuthenticator = wsAuthenticator;
 	}
 
 	/**
@@ -80,7 +99,7 @@ public class MCPService extends AbstractService {
 	 * the MCP server will also use port 0 (OS-assigned).
 	 */
 	public HttpServer start() throws InterruptedException, ExecutionException {
-		int port = options().getServer().getRestPort() == 0 ? 0 : DEFAULT_MCP_PORT;
+		int port = options().getServer().getRestPort() == 0 ? 0 : options().getServer().getMcpPort();
 		return start(port);
 	}
 
@@ -122,25 +141,44 @@ public class MCPService extends AbstractService {
 	 */
 	private void setupSseEndpoint(Router router) {
 		router.get(MCPConstants.SSE_PATH).handler(rc -> {
-			String sessionId = UUID.randomUUID().toString();
-			HttpServerResponse response = rc.response();
-			response.setChunked(true);
-			response.putHeader("Content-Type", "text/event-stream");
-			response.putHeader("Cache-Control", "no-cache");
-			response.putHeader("Connection", "keep-alive");
-			response.putHeader("Access-Control-Allow-Origin", "*");
+			// Apply CORS headers based on auth configuration
+			mcpAuthHandler.applyCorsHeaders(rc);
 
-			sseSessions.put(sessionId, response);
-			log.info("SSE session opened: {}", sessionId);
+			// Authenticate if enabled
+			if (mcpAuthHandler.isEnabled()) {
+				mcpAuthHandler.authenticateHttp(rc, "sse")
+					.onSuccess(user -> {
+						// Store user in routing context for later use
+						rc.put("mcpUser", user);
+						handleSseConnection(rc);
+					})
+					.onFailure(err -> {
+						rc.response().setStatusCode(401).end("Unauthorized: " + err.getMessage());
+					});
+			} else {
+				handleSseConnection(rc);
+			}
+		});
+	}
 
-			// Send the endpoint event so the client knows where to POST messages
-			String endpointUrl = MCPConstants.MESSAGE_PATH + "?sessionId=" + sessionId;
-			sendSseEvent(response, "endpoint", endpointUrl);
+	private void handleSseConnection(io.vertx.ext.web.RoutingContext rc) {
+		String sessionId = UUID.randomUUID().toString();
+		HttpServerResponse response = rc.response();
+		response.setChunked(true);
+		response.putHeader("Content-Type", "text/event-stream");
+		response.putHeader("Cache-Control", "no-cache");
+		response.putHeader("Connection", "keep-alive");
 
-			response.closeHandler(v -> {
-				sseSessions.remove(sessionId);
-				log.info("SSE session closed: {}", sessionId);
-			});
+		sseSessions.put(sessionId, response);
+		log.info("SSE session opened: {}", sessionId);
+
+		// Send the endpoint event so the client knows where to POST messages
+		String endpointUrl = MCPConstants.MESSAGE_PATH + "?sessionId=" + sessionId;
+		sendSseEvent(response, "endpoint", endpointUrl);
+
+		response.closeHandler(v -> {
+			sseSessions.remove(sessionId);
+			log.info("SSE session closed: {}", sessionId);
 		});
 	}
 
@@ -150,48 +188,65 @@ public class MCPService extends AbstractService {
 	 */
 	private void setupMessageEndpoint(Router router) {
 		router.post(MCPConstants.MESSAGE_PATH).handler(rc -> {
-			String sessionId = rc.queryParams().get("sessionId");
-			JsonObject body;
-			try {
-				body = rc.body().asJsonObject();
-			} catch (Exception e) {
-				log.warn("Failed to parse MCP message body", e);
-				rc.response().setStatusCode(400).end(
-					JsonRpcResponse.error(null, MCPConstants.ERR_PARSE_ERROR, "Invalid JSON").toJson().encode());
+			// Authenticate if enabled
+			if (mcpAuthHandler.isEnabled()) {
+				mcpAuthHandler.authenticateHttp(rc, "message")
+					.onSuccess(user -> {
+						rc.put("mcpUser", user);
+						handleMessageRequest(rc);
+					})
+					.onFailure(err -> {
+						rc.response().setStatusCode(401).end("Unauthorized: " + err.getMessage());
+					});
+			} else {
+				handleMessageRequest(rc);
+			}
+		});
+	}
+
+	private void handleMessageRequest(io.vertx.ext.web.RoutingContext rc) {
+		String sessionId = rc.queryParams().get("sessionId");
+		User user = rc.get("mcpUser");
+		JsonObject body;
+		try {
+			body = rc.body().asJsonObject();
+		} catch (Exception e) {
+			log.warn("Failed to parse MCP message body", e);
+			rc.response().setStatusCode(400).end(
+				JsonRpcResponse.error(null, MCPConstants.ERR_PARSE_ERROR, "Invalid JSON").toJson().encode());
+			return;
+		}
+
+		JsonRpcRequest request = JsonRpcRequest.fromJson(body);
+		jsonRpcHandler.handle(request, user).onComplete(ar -> {
+			if (ar.failed()) {
+				JsonRpcResponse errorResp = JsonRpcResponse.error(
+					request.getId(), MCPConstants.ERR_INTERNAL, ar.cause().getMessage());
+				rc.response().setStatusCode(500).end(errorResp.toJson().encode());
+				return;
+			}
+			JsonRpcResponse response = ar.result();
+			if (response == null) {
+				// Notification — no response required
+				rc.response().setStatusCode(202).end();
 				return;
 			}
 
-			JsonRpcRequest request = JsonRpcRequest.fromJson(body);
-			jsonRpcHandler.handle(request).onComplete(ar -> {
-				if (ar.failed()) {
-					JsonRpcResponse errorResp = JsonRpcResponse.error(
-						request.getId(), MCPConstants.ERR_INTERNAL, ar.cause().getMessage());
-					rc.response().setStatusCode(500).end(errorResp.toJson().encode());
-					return;
-				}
-				JsonRpcResponse response = ar.result();
-				if (response == null) {
-					// Notification — no response required
-					rc.response().setStatusCode(202).end();
-					return;
-				}
+			String jsonStr = response.toJson().encode();
 
-				String jsonStr = response.toJson().encode();
+			// Send via HTTP response
+			rc.response()
+				.putHeader("Content-Type", "application/json")
+				.setStatusCode(200)
+				.end(jsonStr);
 
-				// Send via HTTP response
-				rc.response()
-					.putHeader("Content-Type", "application/json")
-					.setStatusCode(200)
-					.end(jsonStr);
-
-				// Also push to the SSE stream if session is active
-				if (sessionId != null) {
-					HttpServerResponse sseResponse = sseSessions.get(sessionId);
-					if (sseResponse != null) {
-						sendSseEvent(sseResponse, MCPConstants.SSE_EVENT_MESSAGE, jsonStr);
-					}
+			// Also push to the SSE stream if session is active
+			if (sessionId != null) {
+				HttpServerResponse sseResponse = sseSessions.get(sessionId);
+				if (sseResponse != null) {
+					sendSseEvent(sseResponse, MCPConstants.SSE_EVENT_MESSAGE, jsonStr);
 				}
-			});
+			}
 		});
 	}
 
@@ -234,6 +289,22 @@ public class MCPService extends AbstractService {
 		String connId = UUID.randomUUID().toString();
 		log.info("MCP WebSocket connected: {}", connId);
 
+		// Authenticate WebSocket if enabled
+		if (mcpAuthHandler.isEnabled()) {
+			wsAuthenticator.authenticate(ws, "mcp")
+				.onSuccess(user -> {
+					handleAuthenticatedWebSocket(ws, connId, user);
+				})
+				.onFailure(err -> {
+					// WebSocketAuthenticator already closes the connection with 4401
+					log.warn("MCP WebSocket authentication failed: {}", err.getMessage());
+				});
+		} else {
+			handleAuthenticatedWebSocket(ws, connId, null);
+		}
+	}
+
+	private void handleAuthenticatedWebSocket(ServerWebSocket ws, String connId, User user) {
 		ws.textMessageHandler(text -> {
 			JsonObject body;
 			try {
@@ -245,7 +316,7 @@ public class MCPService extends AbstractService {
 			}
 
 			JsonRpcRequest request = JsonRpcRequest.fromJson(body);
-			jsonRpcHandler.handle(request).onComplete(ar -> {
+			jsonRpcHandler.handle(request, user).onComplete(ar -> {
 				if (ar.failed()) {
 					JsonRpcResponse error = JsonRpcResponse.error(
 						request.getId(), MCPConstants.ERR_INTERNAL, ar.cause().getMessage());

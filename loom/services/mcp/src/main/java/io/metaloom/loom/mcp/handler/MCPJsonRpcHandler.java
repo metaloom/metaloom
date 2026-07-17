@@ -15,6 +15,7 @@ import io.metaloom.loom.mcp.tool.MCPToolRegistry;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import io.vertx.ext.auth.User;
 
 /**
  * Handles incoming MCP JSON-RPC 2.0 requests and produces responses.
@@ -23,6 +24,9 @@ import io.vertx.core.json.JsonObject;
  * {@link MCPToolRegistry#dispatch} — this keeps the handler decoupled from
  * individual tool implementations and allows tools to be registered/unregistered
  * at runtime.</p>
+ *
+ * <p>When a user is authenticated, their permissions are checked before tool
+ * execution via {@link MCPToolRegistry#dispatch(String, JsonObject, User)}.</p>
  */
 @Singleton
 public class MCPJsonRpcHandler {
@@ -38,21 +42,26 @@ public class MCPJsonRpcHandler {
 
 	/**
 	 * Process an incoming JSON-RPC request and return the response.
+	 *
+	 * @param request the JSON-RPC request
+	 * @param user the authenticated user (may be null if auth is disabled)
+	 * @return future with the JSON-RPC response
 	 */
-	public Future<JsonRpcResponse> handle(JsonRpcRequest request) {
+	public Future<JsonRpcResponse> handle(JsonRpcRequest request, User user) {
 		if (request.getMethod() == null) {
 			return Future.succeededFuture(
 				JsonRpcResponse.error(request.getId(), ERR_INVALID_REQUEST, "Missing method"));
 		}
 
-		log.debug("MCP request: method={} id={}", request.getMethod(), request.getId());
+		log.debug("MCP request: method={} id={} user={}", request.getMethod(), request.getId(), 
+			user != null ? user.principal().getString("uuid") : "anonymous");
 
 		return switch (request.getMethod()) {
 			case METHOD_INITIALIZE -> handleInitialize(request);
 			case METHOD_INITIALIZED -> handleInitialized(request);
 			case METHOD_PING -> handlePing(request);
 			case METHOD_TOOLS_LIST -> handleToolsList(request);
-			case METHOD_TOOLS_CALL -> handleToolsCall(request);
+			case METHOD_TOOLS_CALL -> handleToolsCall(request, user);
 			case METHOD_RESOURCES_LIST -> handleResourcesList(request);
 			case METHOD_RESOURCES_READ -> handleResourcesRead(request);
 			default -> Future.succeededFuture(
@@ -99,7 +108,7 @@ public class MCPJsonRpcHandler {
 		return Future.succeededFuture(JsonRpcResponse.success(request.getId(), result));
 	}
 
-	private Future<JsonRpcResponse> handleToolsCall(JsonRpcRequest request) {
+	private Future<JsonRpcResponse> handleToolsCall(JsonRpcRequest request, User user) {
 		JsonObject params = request.getParams();
 		if (params == null) {
 			return Future.succeededFuture(
@@ -112,8 +121,8 @@ public class MCPJsonRpcHandler {
 		}
 		JsonObject arguments = params.getJsonObject("arguments", new JsonObject());
 
-		// Dispatch via EventBus
-		return toolRegistry.dispatch(toolName, arguments)
+		// Dispatch via EventBus with permission checking
+		return toolRegistry.dispatch(toolName, arguments, user)
 			.map(toolResult -> JsonRpcResponse.success(request.getId(), toolResult))
 			.recover(err -> {
 				log.error("Tool call failed: {}", toolName, err);

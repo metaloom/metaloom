@@ -8,6 +8,8 @@ public class ServerOptions implements Option {
 
 	public static final int DEFAULT_MONITORING_PORT = 8989;
 
+	public static final int DEFAULT_MCP_PORT = 4041;
+
 	public static final String DEFAULT_BIND_ADDRESS = "0.0.0.0";
 
 	@EnvironmentVariable(name = "LOOM_SERVER_GRPC_PORT", description = "Override the gRPC server port.")
@@ -21,6 +23,9 @@ public class ServerOptions implements Option {
 
 	@EnvironmentVariable(name = "LOOM_SERVER_MON_PORT", description = "Override the monitoring server port.")
 	private int monitoringPort = DEFAULT_MONITORING_PORT;
+
+	@EnvironmentVariable(name = "LOOM_SERVER_MCP_PORT", description = "Override the MCP server port.")
+	private int mcpPort = DEFAULT_MCP_PORT;
 
 	public int getGrpcPort() {
 		return grpcPort;
@@ -49,6 +54,15 @@ public class ServerOptions implements Option {
 		return this;
 	}
 
+	public int getMcpPort() {
+		return mcpPort;
+	}
+
+	public ServerOptions setMcpPort(int mcpPort) {
+		this.mcpPort = mcpPort;
+		return this;
+	}
+
 	public String getBindAddress() {
 		return bindAddress;
 	}
@@ -64,5 +78,6 @@ public class ServerOptions implements Option {
 		OptionUtils.applyEnv("LOOM_SERVER_GRPC_BIND_ADDRESS", this::setBindAddress);
 		OptionUtils.applyEnvInt("LOOM_SERVER_REST_PORT", this::setRestPort);
 		OptionUtils.applyEnvInt("LOOM_SERVER_MON_PORT", this::setMonitoringPort);
+		OptionUtils.applyEnvInt("LOOM_SERVER_MCP_PORT", this::setMcpPort);
 	}
 }

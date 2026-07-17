@@ -1,5 +1,6 @@
 package io.metaloom.loom.db.jooq.dao.token;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import javax.inject.Inject;
@@ -13,6 +14,7 @@ import io.metaloom.loom.db.jooq.AbstractJooqDao;
 import io.metaloom.loom.db.jooq.tables.JooqToken;
 import io.metaloom.loom.db.model.token.Token;
 import io.metaloom.loom.db.model.token.TokenDao;
+import io.vertx.core.Future;
 
 @Singleton
 public class TokenDaoImpl extends AbstractJooqDao<Token> implements TokenDao {
@@ -44,5 +46,19 @@ public class TokenDaoImpl extends AbstractJooqDao<Token> implements TokenDao {
 		token.setToken(tokenValue);
 		setCreatorEditor(token, userUuid);
 		return token;
+	}
+
+	@Override
+	public Future<Optional<Token>> findByToken(String tokenValue) {
+		return Future.future(promise -> {
+			try {
+				Optional<Token> optional = ctx().selectFrom(JooqToken.TOKEN)
+					.where(JooqToken.TOKEN.TOKEN_.eq(tokenValue))
+					.fetchOptionalInto(TokenImpl.class);
+				promise.complete(optional);
+			} catch (Exception e) {
+				promise.fail(e);
+			}
+		});
 	}
 }

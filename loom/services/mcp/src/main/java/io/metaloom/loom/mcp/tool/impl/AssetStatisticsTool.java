@@ -40,7 +40,8 @@ public class AssetStatisticsTool implements MCPTool {
 			"Get aggregate statistics about the asset library: total count, storage used, MIME type distribution, and more. Useful for understanding what content is available.",
 			MCPToolDescriptor.buildInputSchema(List.of(
 				new MCPToolParam("collection", "string", "Optional collection UUID to scope statistics", false)
-			))
+			)),
+			List.of("READ_ASSET")
 		);
 	}
 

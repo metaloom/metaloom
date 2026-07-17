@@ -39,7 +39,8 @@ public class SearchTranscriptTool implements MCPTool {
 			MCPToolDescriptor.buildInputSchema(List.of(
 				new MCPToolParam("query", "string", "Text to search for in transcripts/documents", true),
 				new MCPToolParam("limit", "integer", "Maximum number of results (default: 10)", false)
-			))
+			)),
+			List.of("READ_ASSET")
 		);
 	}
 

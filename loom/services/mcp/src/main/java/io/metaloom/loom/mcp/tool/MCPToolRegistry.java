@@ -2,6 +2,7 @@ package io.metaloom.loom.mcp.tool;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -12,6 +13,7 @@ import javax.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.metaloom.loom.auth.LoomAuthorizationProvider;
 import io.metaloom.loom.mcp.MCPConstants;
 import io.metaloom.loom.mcp.dagger.MCPTools;
 import io.metaloom.loom.mcp.model.MCPToolDescriptor;
@@ -19,6 +21,8 @@ import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.eventbus.MessageConsumer;
 import io.vertx.core.json.JsonObject;
+import io.vertx.ext.auth.User;
+import io.vertx.ext.auth.authorization.AuthorizationProvider;
 
 /**
  * Central registry for all MCP tools.
@@ -34,6 +38,10 @@ import io.vertx.core.json.JsonObject;
  *   <li>Future extensibility for WebSocket-bridged tool calls from external
  *       processes.</li>
  * </ul>
+ *
+ * <p>Permission checks are performed before tool execution when a user is
+ * authenticated. Tools declare required permissions in their
+ * {@link MCPToolDescriptor#requiredPermissions()}.</p>
  */
 @Singleton
 public class MCPToolRegistry {
@@ -43,10 +51,12 @@ public class MCPToolRegistry {
 	private final Vertx vertx;
 	private final Map<String, MCPTool> tools = new ConcurrentHashMap<>();
 	private final Map<String, MessageConsumer<JsonObject>> consumers = new ConcurrentHashMap<>();
+	private final AuthorizationProvider authorizationProvider;
 
 	@Inject
-	public MCPToolRegistry(Vertx vertx, @MCPTools Set<MCPTool> injectedTools) {
+	public MCPToolRegistry(Vertx vertx, @MCPTools Set<MCPTool> injectedTools, LoomAuthorizationProvider authorizationProvider) {
 		this.vertx = vertx;
+		this.authorizationProvider = authorizationProvider;
 		for (MCPTool tool : injectedTools) {
 			register(tool);
 		}
@@ -91,19 +101,60 @@ public class MCPToolRegistry {
 	}
 
 	/**
-	 * Dispatch a tool call via the Vert.x EventBus.
+	 * Dispatch a tool call via the Vert.x EventBus with permission checking.
 	 *
 	 * @param toolName  The tool to invoke.
 	 * @param arguments The arguments JSON.
+	 * @param user      The authenticated user (may be null if auth is disabled).
 	 * @return A future with the tool result.
 	 */
-	public Future<JsonObject> dispatch(String toolName, JsonObject arguments) {
+	public Future<JsonObject> dispatch(String toolName, JsonObject arguments, User user) {
 		if (!tools.containsKey(toolName)) {
 			return Future.failedFuture("Unknown tool: " + toolName);
 		}
+
+		MCPTool tool = tools.get(toolName);
+		MCPToolDescriptor descriptor = tool.descriptor();
+		List<String> requiredPermissions = descriptor.requiredPermissions();
+
+		// Check permissions if user is authenticated and tool requires permissions
+		if (user != null && requiredPermissions != null && !requiredPermissions.isEmpty()) {
+			return checkPermissions(user, requiredPermissions)
+				.compose(hasPermission -> {
+					if (!hasPermission) {
+						return Future.failedFuture("Missing required permissions: " + requiredPermissions);
+					}
+					String address = MCPConstants.EVENTBUS_TOOL_PREFIX + toolName;
+					return vertx.eventBus().<JsonObject>request(address, arguments)
+						.map(msg -> msg.body());
+				});
+		}
+
+		// No permission check needed (no user or no required permissions)
 		String address = MCPConstants.EVENTBUS_TOOL_PREFIX + toolName;
 		return vertx.eventBus().<JsonObject>request(address, arguments)
 			.map(msg -> msg.body());
+	}
+
+	/**
+	 * Check if the user has all required permissions.
+	 */
+	private Future<Boolean> checkPermissions(User user, List<String> requiredPermissions) {
+		return authorizationProvider.getAuthorizations(user)
+			.map(v -> {
+				// Check if user has all required permissions
+				for (String perm : requiredPermissions) {
+					if (!user.isAuthorized(io.vertx.ext.auth.authorization.PermissionBasedAuthorization.create(perm))) {
+						log.warn("User {} missing permission: {}", user.principal().getString("uuid"), perm);
+						return false;
+					}
+				}
+				return true;
+			})
+			.recover(err -> {
+				log.error("Permission check failed", err);
+				return Future.succeededFuture(false);
+			});
 	}
 
 	/**
