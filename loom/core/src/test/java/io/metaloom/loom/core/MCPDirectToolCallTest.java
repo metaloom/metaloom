@@ -106,7 +106,7 @@ public class MCPDirectToolCallTest {
 			for (ToolCall call : response.toolCalls()) {
 				log.info("  -> Dispatching tool: {} with args: {}", call.name(), call.arguments());
 
-				JsonObject result = toolRegistry.dispatch(call.name(), call.arguments())
+				JsonObject result = toolRegistry.dispatch(call.name(), call.arguments(), null)
 					.toCompletionStage().toCompletableFuture().get();
 
 				String resultText = extractTextContent(result);

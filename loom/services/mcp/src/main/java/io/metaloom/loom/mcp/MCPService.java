@@ -14,7 +14,7 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.loom.api.options.LoomOptions;
 import io.metaloom.loom.auth.LoomAuthenticationHandler;
 import io.metaloom.loom.auth.MCPAuthenticationHandler;
-import io.metaloom.loom.auth.WebSocketAuthenticator;
+import io.metaloom.loom.rest.service.impl.WebSocketAuthenticator;
 import io.metaloom.loom.common.service.AbstractService;
 import io.metaloom.loom.mcp.handler.MCPJsonRpcHandler;
 import io.metaloom.loom.mcp.model.JsonRpcRequest;

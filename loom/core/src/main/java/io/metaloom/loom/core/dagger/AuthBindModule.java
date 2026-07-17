@@ -4,7 +4,6 @@ import dagger.Binds;
 import dagger.Module;
 import io.metaloom.loom.auth.AuthenticationService;
 import io.metaloom.loom.auth.LoomAuthenticationHandler;
-import io.metaloom.loom.auth.MCPAuthenticationHandler;
 import io.metaloom.loom.auth.jwt.AuthenticationServiceImpl;
 import io.metaloom.loom.auth.jwt.LoomJWTAuthHandlerImpl;
 
@@ -16,7 +15,4 @@ public abstract class AuthBindModule {
 
 	@Binds
 	abstract LoomAuthenticationHandler bindAuthHandler(LoomJWTAuthHandlerImpl e);
-
-	@Binds
-	abstract MCPAuthenticationHandler bindMcpAuthHandler(io.metaloom.loom.auth.MCPAuthenticationHandler e);
 }

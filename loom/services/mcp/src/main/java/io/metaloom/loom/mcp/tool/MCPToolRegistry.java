@@ -144,7 +144,7 @@ public class MCPToolRegistry {
 			.map(v -> {
 				// Check if user has all required permissions
 				for (String perm : requiredPermissions) {
-					if (!user.isAuthorized(io.vertx.ext.auth.authorization.PermissionBasedAuthorization.create(perm))) {
+					if (!io.vertx.ext.auth.authorization.PermissionBasedAuthorization.create(perm).match(user)) {
 						log.warn("User {} missing permission: {}", user.principal().getString("uuid"), perm);
 						return false;
 					}

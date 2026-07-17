@@ -5,7 +5,7 @@ import javax.inject.Singleton;
 import dagger.Module;
 import dagger.Provides;
 import io.metaloom.loom.auth.MCPAuthenticationHandler;
-import io.metaloom.loom.auth.WebSocketAuthenticator;
+import io.metaloom.loom.rest.service.impl.WebSocketAuthenticator;
 import io.vertx.core.Vertx;
 import io.vertx.ext.web.Router;
 
