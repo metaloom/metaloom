@@ -1,9 +1,12 @@
 package io.metaloom.cortex.node.llm;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import io.metaloom.cortex.api.option.node.AbstractNodeOptions;
+import io.metaloom.cortex.api.option.node.ValidationResult;
 
 public class LLMNodeOptions extends AbstractNodeOptions<LLMNodeOptions> {
 
@@ -30,5 +33,23 @@ public class LLMNodeOptions extends AbstractNodeOptions<LLMNodeOptions> {
 	@Override
 	protected LLMNodeOptions self() {
 		return this;
+	}
+
+	@Override
+	public ValidationResult validate() {
+		List<String> errors = new ArrayList<>();
+		errors.addAll(validateCommon());
+		
+		// ollamaUrl must not be empty
+		if (ollamaUrl == null || ollamaUrl.isBlank()) {
+			errors.add("ollamaUrl must not be empty");
+		}
+		
+		// prompts must not be empty
+		if (prompts == null || prompts.isEmpty()) {
+			errors.add("prompts must not be empty");
+		}
+		
+		return errors.isEmpty() ? ValidationResult.valid() : ValidationResult.invalid(errors);
 	}
 }

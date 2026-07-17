@@ -10,4 +10,12 @@ public interface CortexNodeOptions {
 
 	void setTimeoutMs(long timeoutMs);
 
+	/**
+	 * Validate the options and return a validation result.
+	 * 
+	 * @return ValidationResult containing any errors, or valid if no errors
+	 */
+	default ValidationResult validate() {
+		return ValidationResult.valid();
+	}
 }

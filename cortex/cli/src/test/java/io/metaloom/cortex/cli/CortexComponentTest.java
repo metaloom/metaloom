@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import io.metaloom.cortex.Cortex;
 import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.cli.dagger.CortexComponent;
 import io.metaloom.cortex.cli.dagger.DaggerCortexComponent;
 import picocli.CommandLine;
@@ -17,7 +18,9 @@ public class CortexComponentTest {
 
 	@Test
 	public void testDaggerSetup() {
-		CortexComponent component = DaggerCortexComponent.builder().build();
+		CortexOptions options = new CortexOptions();
+		options.setMetaPath(Paths.get("target/test-meta"));
+		CortexComponent component = DaggerCortexComponent.builder().options(options).build();
 		Cortex cortex = component.cortex();
 		// cortex.checkNodes();
 		CommandLine cli = component.cli();
@@ -26,7 +29,9 @@ public class CortexComponentTest {
 	
 	@Test
 	public void testSubCompoentHandling() {
-		CortexComponent component = DaggerCortexComponent.builder().build();
+		CortexOptions options = new CortexOptions();
+		options.setMetaPath(Paths.get("target/test-meta"));
+		CortexComponent component = DaggerCortexComponent.builder().options(options).build();
 		LoomMedia media = component.loader().load(Paths.get("target/test"));
 		assertNotNull(media);
 		assertEquals("target/test", media.path().toString());

@@ -1,6 +1,10 @@
 package io.metaloom.cortex.node.hash;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import io.metaloom.cortex.api.option.node.AbstractNodeOptions;
+import io.metaloom.cortex.api.option.node.ValidationResult;
 
 public class HashNodeOptions extends AbstractNodeOptions<HashNodeOptions> {
 
@@ -55,4 +59,16 @@ public class HashNodeOptions extends AbstractNodeOptions<HashNodeOptions> {
 		return this;
 	}
 
+	@Override
+	public ValidationResult validate() {
+		List<String> errors = new ArrayList<>();
+		errors.addAll(validateCommon());
+		
+		// At least one hash algorithm must be enabled
+		if (!md5 && !sha256 && !sha512 && !chunkHash) {
+			errors.add("At least one hash algorithm must be enabled (md5, sha256, sha512, or chunkHash)");
+		}
+		
+		return errors.isEmpty() ? ValidationResult.valid() : ValidationResult.invalid(errors);
+	}
 }

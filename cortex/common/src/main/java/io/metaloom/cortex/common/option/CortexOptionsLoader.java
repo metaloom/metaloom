@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Map;
 import java.util.Objects;
 
 import javax.inject.Inject;
@@ -26,6 +27,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.api.option.node.CortexNodeOptions;
+import io.metaloom.cortex.api.option.node.ValidationResult;
 
 @Singleton
 public class CortexOptionsLoader {
@@ -96,6 +98,20 @@ public class CortexOptionsLoader {
 
 	private void validateOptions(CortexOptions options) {
 		Objects.requireNonNull(options.getMetaPath(), "The metaPath must be specified");
+		
+		// Validate all node options
+		if (options.getNodes() != null) {
+			for (Map.Entry<String, CortexNodeOptions> entry : options.getNodes().entrySet()) {
+				String nodeKey = entry.getKey();
+				CortexNodeOptions nodeOptions = entry.getValue();
+				if (nodeOptions != null) {
+					ValidationResult result = nodeOptions.validate();
+					if (result.isInvalid()) {
+						throw new IllegalStateException("Invalid configuration for node '" + nodeKey + "': " + String.join("; ", result.getErrors()));
+					}
+				}
+			}
+		}
 	}
 
 	public CortexOptions load(Path configFile) {
@@ -159,6 +175,7 @@ public class CortexOptionsLoader {
 	 */
 	public CortexOptions generateDefaultConfig() {
 		CortexOptions options = new CortexOptions();
+		options.setMetaPath(Paths.get(System.getProperty("user.home"), ".cache", "metaloom", "cortex", "meta"));
 		return options;
 	}
 

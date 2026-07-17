@@ -16,6 +16,9 @@ public class CortexOptions {
 
 	private int monitoringPort = 8093;
 
+	// Maximum number of media items to process concurrently (media-level concurrency)
+	private int maxConcurrentMedia = 4;
+
 	// Default timeout values for different node types (in milliseconds)
 	private static final Map<String, Long> DEFAULT_TIMEOUTS = createDefaultTimeouts();
 
@@ -91,6 +94,27 @@ public class CortexOptions {
 
 	public CortexOptions setMonitoringPort(int monitoringPort) {
 		this.monitoringPort = monitoringPort;
+		return this;
+	}
+
+	/**
+	 * Get the maximum number of media items to process concurrently.
+	 * This controls media-level concurrency in the pipeline executor.
+	 * 
+	 * @return max concurrent media items (default: 4)
+	 */
+	public int getMaxConcurrentMedia() {
+		return maxConcurrentMedia;
+	}
+
+	/**
+	 * Set the maximum number of media items to process concurrently.
+	 * 
+	 * @param maxConcurrentMedia max concurrent media items
+	 * @return this for chaining
+	 */
+	public CortexOptions setMaxConcurrentMedia(int maxConcurrentMedia) {
+		this.maxConcurrentMedia = maxConcurrentMedia;
 		return this;
 	}
 

@@ -1,0 +1,80 @@
+package io.metaloom.cortex.node.captioning;
+
+import static io.metaloom.cortex.api.option.assertj.OptionsAssertions.assertThat;
+
+import org.junit.jupiter.api.Test;
+
+import io.metaloom.cortex.api.option.node.ValidationResult;
+
+public class CaptioningNodeOptionsValidationTest {
+
+	@Test
+	public void testDefaultOptionsValid() {
+		CaptioningNodeOptions options = new CaptioningNodeOptions();
+		assertThat(options).isValid();
+	}
+
+	@Test
+	public void testCustomSmolVLMHostValid() {
+		CaptioningNodeOptions options = new CaptioningNodeOptions();
+		options.setSmolVLMHost("custom-host");
+		io.metaloom.cortex.node.captioning.assertj.CaptioningNodeAssertions.assertThat(options)
+			.isValid().hasSmolVLMHost("custom-host");
+	}
+
+	@Test
+	public void testEmptySmolVLMHostInvalid() {
+		CaptioningNodeOptions options = new CaptioningNodeOptions();
+		options.setSmolVLMHost("");
+		assertThat(options).isInvalid().hasErrorCount(1).hasError("smolVLMHost must not be empty");
+	}
+
+	@Test
+	public void testNullSmolVLMHostInvalid() {
+		CaptioningNodeOptions options = new CaptioningNodeOptions();
+		options.setSmolVLMHost(null);
+		assertThat(options).isInvalid().hasError("smolVLMHost must not be empty");
+	}
+
+	@Test
+	public void testCustomSmolVLMPortValid() {
+		CaptioningNodeOptions options = new CaptioningNodeOptions();
+		options.setSmolVLMPort(9000);
+		io.metaloom.cortex.node.captioning.assertj.CaptioningNodeAssertions.assertThat(options)
+			.isValid().hasSmolVLMPort(9000);
+	}
+
+	@Test
+	public void testZeroSmolVLMPortInvalid() {
+		CaptioningNodeOptions options = new CaptioningNodeOptions();
+		options.setSmolVLMPort(0);
+		assertThat(options).isInvalid().hasError("smolVLMPort must be positive");
+	}
+
+	@Test
+	public void testNegativeSmolVLMPortInvalid() {
+		CaptioningNodeOptions options = new CaptioningNodeOptions();
+		options.setSmolVLMPort(-1);
+		assertThat(options).isInvalid().hasError("smolVLMPort must be positive");
+	}
+
+	@Test
+	public void testNegativeTimeoutInvalid() {
+		CaptioningNodeOptions options = new CaptioningNodeOptions();
+		options.setTimeoutMs(-1);
+		assertThat(options).isInvalid().hasError("timeoutMs must be non-negative");
+	}
+
+	@Test
+	public void testValidationResultDirect() {
+		CaptioningNodeOptions options = new CaptioningNodeOptions();
+		options.setSmolVLMHost("");
+		
+		ValidationResult result = options.validate();
+		assertThat(result).isInvalid().hasErrorCount(1).hasError("smolVLMHost must not be empty");
+		
+		CaptioningNodeOptions validOptions = new CaptioningNodeOptions();
+		ValidationResult validResult = validOptions.validate();
+		assertThat(validResult).isValid().hasNoErrors();
+	}
+}

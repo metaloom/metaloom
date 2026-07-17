@@ -1,8 +1,12 @@
 package io.metaloom.cortex.node.quality;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import javax.inject.Inject;
 
 import io.metaloom.cortex.api.option.node.AbstractNodeOptions;
+import io.metaloom.cortex.api.option.node.ValidationResult;
 
 public class QualityNodeOptions extends AbstractNodeOptions<QualityNodeOptions> {
 
@@ -59,5 +63,18 @@ public class QualityNodeOptions extends AbstractNodeOptions<QualityNodeOptions> 
 	public QualityNodeOptions setCheckAudioBitrate(boolean checkAudioBitrate) {
 		this.checkAudioBitrate = checkAudioBitrate;
 		return this;
+	}
+
+	@Override
+	public ValidationResult validate() {
+		List<String> errors = new ArrayList<>();
+		errors.addAll(validateCommon());
+		
+		// At least one quality check must be enabled
+		if (!checkBlurriness && !checkResolution && !checkVideoBitrate && !checkAudioBitrate) {
+			errors.add("At least one quality check must be enabled (checkBlurriness, checkResolution, checkVideoBitrate, or checkAudioBitrate)");
+		}
+		
+		return errors.isEmpty() ? ValidationResult.valid() : ValidationResult.invalid(errors);
 	}
 }

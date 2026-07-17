@@ -1,8 +1,11 @@
 package io.metaloom.cortex.node.facedetect;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 import io.metaloom.cortex.api.option.node.AbstractNodeOptions;
+import io.metaloom.cortex.api.option.node.ValidationResult;
 
 public class FacedetectNodeOptions extends AbstractNodeOptions<FacedetectNodeOptions> {
 
@@ -111,5 +114,48 @@ public class FacedetectNodeOptions extends AbstractNodeOptions<FacedetectNodeOpt
 
 	public void setCapabilities(Set<FacedetectNodeCapabilities> capabilities) {
 		this.capabilities = capabilities;
+	}
+
+	@Override
+	public ValidationResult validate() {
+		List<String> errors = new ArrayList<>();
+		errors.addAll(validateCommon());
+		
+		// videoChopRate must be positive
+		if (videoChopRate <= 0) {
+			errors.add("videoChopRate must be positive, got " + videoChopRate);
+		}
+		
+		// videoScaleSize must be positive
+		if (videoScaleSize <= 0) {
+			errors.add("videoScaleSize must be positive, got " + videoScaleSize);
+		}
+		
+		// faceClusterMinimum must be positive
+		if (faceClusterMinimum <= 0) {
+			errors.add("faceClusterMinimum must be positive, got " + faceClusterMinimum);
+		}
+		
+		// faceClusterEPS must be positive
+		if (faceClusterEPS <= 0) {
+			errors.add("faceClusterEPS must be positive, got " + faceClusterEPS);
+		}
+		
+		// minFaceHeightFactor must be between 0 and 1
+		if (minFaceHeightFactor <= 0 || minFaceHeightFactor > 1) {
+			errors.add("minFaceHeightFactor must be between 0 and 1, got " + minFaceHeightFactor);
+		}
+		
+		// inspirefacePackPath must not be empty
+		if (inspirefacePackPath == null || inspirefacePackPath.isBlank()) {
+			errors.add("inspirefacePackPath must not be empty");
+		}
+		
+		// capabilities must not be empty
+		if (capabilities == null || capabilities.isEmpty()) {
+			errors.add("capabilities must not be empty");
+		}
+		
+		return errors.isEmpty() ? ValidationResult.valid() : ValidationResult.invalid(errors);
 	}
 }

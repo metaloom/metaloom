@@ -111,7 +111,7 @@ Legend: `[x]` done · `[~]` partial · `[ ]` pending
 - [x] Dry-run mode (all nodes skipped, no side effects).
 - [x] On-demand run trigger (`POST /api/v1/pipelines/:uuid/run` → work order → Cortex).
 - [~] Media selection for a run — resolved from `pathGlobs` only; **UUID-based** selection still logs a warning and is skipped.
-- [ ] Configurable `maxConcurrentMedia` (currently hard-coded to `4` in `CortexBindModule`).
+- [x] Configurable `maxConcurrentMedia` — implemented via `CortexOptions.setMaxConcurrentMedia()` with default value of 4, used by `ReactivePipelineExecutor` through Dagger injection in `CortexBindModule`.
 - [ ] Virtual-thread scheduler option for I/O-bound nodes (whisper, OCR, LLM, facedetect).
 
 ### 3.4 Custom nodes
@@ -120,7 +120,7 @@ Legend: `[x]` done · `[~]` partial · `[ ]` pending
 - [x] Node descriptors published to the UI (`NodeDescriptorRegistry`) for the palette and parameter editor.
 - [x] Reference examples for adding custom nodes (`examples/cortex-custom-node`, `examples/cortex-custom-cli`).
 - [~] Only **5** node types are registered with the factory today (hash family + thumbnail); the remaining ~10 legacy nodes must be added as they are exercised.
-- [ ] **Node option validation** — invalid configs (negative concurrency, empty model paths) are caught only at runtime.
+- [x] **Node option validation** — implemented validation framework for all node options. Invalid configs (negative concurrency, empty model paths, etc.) are caught at config load time and pipeline creation with descriptive error messages.
 - [ ] **Node versioning** — no way to invalidate cached results when a node's algorithm changes.
 
 ### 3.5 Event handling

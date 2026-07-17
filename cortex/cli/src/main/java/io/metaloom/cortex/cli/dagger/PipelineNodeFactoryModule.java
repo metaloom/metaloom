@@ -8,6 +8,8 @@ import org.slf4j.LoggerFactory;
 import dagger.Module;
 import dagger.Provides;
 import io.metaloom.cortex.api.option.CortexOptions;
+import io.metaloom.cortex.api.option.node.CortexNodeOptions;
+import io.metaloom.cortex.api.option.node.ValidationResult;
 import io.metaloom.cortex.node.hash.ChunkHashNode;
 import io.metaloom.cortex.node.hash.MD5Node;
 import io.metaloom.cortex.node.hash.SHA256Node;
@@ -65,6 +67,11 @@ public class PipelineNodeFactoryModule {
 		int concurrency = nodeDef.getInteger("concurrency", 1);
 		boolean syncToLoom = nodeDef.getBoolean("syncToLoom", false);
 		
+		// Validate concurrency
+		if (concurrency <= 0) {
+			throw new IllegalStateException("Node '" + id + "': concurrency must be positive, got " + concurrency);
+		}
+		
 		// Use timeout from JSON if specified, otherwise fall back to default from config
 		long timeoutMs = nodeDef.getLong("timeoutMs", 0L);
 		if (timeoutMs == 0) {
@@ -73,10 +80,27 @@ public class PipelineNodeFactoryModule {
 			timeoutMs = cortexOptions.getDefaultTimeoutMs(nodeType);
 		}
 		
+		// Validate timeout
+		if (timeoutMs < 0) {
+			throw new IllegalStateException("Node '" + id + "': timeoutMs must be non-negative, got " + timeoutMs);
+		}
+		
 		CortexNodeAdapter adapter = new CortexNodeAdapter(id, wrapped, mode, blocking, concurrency, timeoutMs);
 		if (syncToLoom) {
 			adapter.setSyncToLoom(true);
 		}
+		
+		// Validate node options if available in cortexOptions
+		if (cortexOptions != null && cortexOptions.getNodes() != null) {
+			CortexNodeOptions nodeOptions = cortexOptions.getNodes().get(wrapped.name());
+			if (nodeOptions != null) {
+				ValidationResult result = nodeOptions.validate();
+				if (result.isInvalid()) {
+					throw new IllegalStateException("Node '" + id + "' options validation failed: " + String.join("; ", result.getErrors()));
+				}
+			}
+		}
+		
 		return adapter;
 	}
 }

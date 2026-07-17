@@ -7,6 +7,7 @@ import dagger.Module;
 import dagger.Provides;
 import io.metaloom.cortex.Cortex;
 import io.metaloom.cortex.api.meta.MetaStorage;
+import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.meta.MetaStorageImpl;
 import io.metaloom.cortex.impl.CortexImpl;
 import io.metaloom.cortex.impl.loom.LoomBulkSyncWriterImpl;
@@ -76,8 +77,8 @@ public abstract class CortexBindModule {
 
 	@Provides
 	@Singleton
-	public static PipelineExecutor providePipelineExecutor(PipelineEventBus eventBus, LoomBulkSyncCollector collector) {
-		return new ReactivePipelineExecutor(4, eventBus, collector);
+	public static PipelineExecutor providePipelineExecutor(PipelineEventBus eventBus, LoomBulkSyncCollector collector, CortexOptions options) {
+		return new ReactivePipelineExecutor(options.getMaxConcurrentMedia(), eventBus, collector);
 	}
 
 	@Provides

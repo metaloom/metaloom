@@ -1,6 +1,10 @@
 package io.metaloom.cortex.node.whisper;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import io.metaloom.cortex.api.option.node.AbstractNodeOptions;
+import io.metaloom.cortex.api.option.node.ValidationResult;
 
 public class WhisperOptions extends AbstractNodeOptions<WhisperOptions> {
 
@@ -69,5 +73,33 @@ public class WhisperOptions extends AbstractNodeOptions<WhisperOptions> {
 
 	public void setGpuDevice(int gpuDevice) {
 		this.gpuDevice = gpuDevice;
+	}
+
+	@Override
+	public ValidationResult validate() {
+		List<String> errors = new ArrayList<>();
+		errors.addAll(validateCommon());
+		
+		// Model path must not be empty
+		if (modelPath == null || modelPath.isBlank()) {
+			errors.add("modelPath must not be empty");
+		}
+		
+		// Temperature must be non-negative
+		if (temperature < 0) {
+			errors.add("temperature must be non-negative, got " + temperature);
+		}
+		
+		// Temperature increment must be non-negative
+		if (temperatureInc < 0) {
+			errors.add("temperatureInc must be non-negative, got " + temperatureInc);
+		}
+		
+		// GPU device must be non-negative
+		if (gpuDevice < 0) {
+			errors.add("gpuDevice must be non-negative, got " + gpuDevice);
+		}
+		
+		return errors.isEmpty() ? ValidationResult.valid() : ValidationResult.invalid(errors);
 	}
 }

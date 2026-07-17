@@ -1027,8 +1027,8 @@ class MyNodePipelineTest extends AbstractPipelineNodeTest {
 
 ### Configuration
 
-- [ ] **Node options not validated**: No validation framework for node options. Invalid configs (negative concurrency, empty model paths) caught only at runtime.
-- [ ] **Hardcoded `maxConcurrentMedia`**: Set to 4 in `CortexBindModule`; not configurable via CortexOptions or environment.
+- [x] **Node options not validated**: Implemented validation framework for node options. All node options classes now have a `validate()` method that checks configuration at load time (config file, pipeline creation). Invalid configs (negative concurrency, empty model paths, etc.) are caught early with descriptive error messages.
+- [x] **Configurable `maxConcurrentMedia`**: Implemented via `CortexOptions.setMaxConcurrentMedia()` with default value of 4, used by `ReactivePipelineExecutor` through Dagger injection in `CortexBindModule`. Can be configured via YAML config file, environment variables, or CLI flags.
 
 ### Persistence & Caching
 

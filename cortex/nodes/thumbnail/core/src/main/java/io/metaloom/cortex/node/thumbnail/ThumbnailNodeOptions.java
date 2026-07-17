@@ -1,8 +1,12 @@
 package io.metaloom.cortex.node.thumbnail;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import javax.inject.Inject;
 
 import io.metaloom.cortex.api.option.node.AbstractNodeOptions;
+import io.metaloom.cortex.api.option.node.ValidationResult;
 
 public class ThumbnailNodeOptions extends AbstractNodeOptions<ThumbnailNodeOptions> {
 
@@ -51,4 +55,26 @@ public class ThumbnailNodeOptions extends AbstractNodeOptions<ThumbnailNodeOptio
 		return this;
 	}
 
+	@Override
+	public ValidationResult validate() {
+		List<String> errors = new ArrayList<>();
+		errors.addAll(validateCommon());
+		
+		// tileSize must be positive
+		if (tileSize <= 0) {
+			errors.add("tileSize must be positive, got " + tileSize);
+		}
+		
+		// cols must be positive
+		if (cols <= 0) {
+			errors.add("cols must be positive, got " + cols);
+		}
+		
+		// rows must be positive
+		if (rows <= 0) {
+			errors.add("rows must be positive, got " + rows);
+		}
+		
+		return errors.isEmpty() ? ValidationResult.valid() : ValidationResult.invalid(errors);
+	}
 }
