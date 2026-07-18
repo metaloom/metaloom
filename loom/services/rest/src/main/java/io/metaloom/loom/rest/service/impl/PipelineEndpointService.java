@@ -35,11 +35,15 @@ import io.metaloom.loom.rest.model.pipeline.PipelineRunRequest;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineUpdateRequest;
 import io.metaloom.loom.rest.model.pipeline.PipelineVersionRestoreRequest;
+import io.metaloom.loom.pipeline.engine.PipelineRunEngine;
+import io.metaloom.loom.pipeline.graph.GraphValidationException;
+import io.metaloom.loom.pipeline.graph.PipelineGraph;
+import io.metaloom.loom.pipeline.graph.PipelineGraphNode;
+import io.metaloom.loom.pipeline.graph.PipelineGraphParser;
 import io.metaloom.loom.rest.model.processor.ProcessorCapability;
-import io.metaloom.loom.rest.model.processor.workorder.WorkOrder;
-import io.metaloom.loom.rest.model.processor.workorder.WorkOrderResult;
+import io.metaloom.loom.rest.model.processor.message.ProcessorMessageType;
+import io.metaloom.loom.rest.model.processor.message.SourceTaskMessage;
 import io.metaloom.loom.rest.model.processor.workorder.WorkOrderStatus;
-import io.metaloom.loom.rest.model.processor.workorder.WorkOrderType;
 import io.metaloom.loom.rest.service.AbstractCRUDEndpointService;
 import io.metaloom.loom.rest.service.impl.ProcessorRegistry.ConnectedProcessor;
 import io.metaloom.loom.rest.validation.LoomModelValidator;
@@ -53,34 +57,34 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 
 	private static final Logger log = LoggerFactory.getLogger(PipelineEndpointService.class);
 
-	/**
-	 * How long to wait for a processor to acknowledge a dispatched pipeline work
-	 * order before declaring the run failed. This is a <em>dispatch</em> watchdog,
-	 * not a run timeout: the ack arrives as soon as the processor has resolved the
-	 * media selection and started executing, long before the pipeline finishes.
-	 */
-	private static final long WORK_ORDER_ACK_TIMEOUT_MS = 60_000;
 
 	private final ProcessorRegistry processorRegistry;
 	private final PipelineValidationService pipelineValidationService;
 	private final PipelineRunDao pipelineRunDao;
 	private final PipelineVersionDao pipelineVersionDao;
-	private final WorkOrderResultRegistry workOrderResultRegistry;
 	private final PipelineRunTracker pipelineRunTracker;
+
+	private final PipelineRunRegistry pipelineRunRegistry;
+
+	private final WebSocketNodeDispatcher nodeDispatcher;
+
+	private final PipelineGraphParser graphParser;
 
 	@Inject
 	public PipelineEndpointService(PipelineDao pipelineDao, DaoCollection daos, LoomModelBuilder modelBuilder,
 		LoomModelValidator validator, ProcessorRegistry processorRegistry,
 		PipelineValidationService pipelineValidationService, PipelineRunDao pipelineRunDao,
-		PipelineVersionDao pipelineVersionDao, WorkOrderResultRegistry workOrderResultRegistry,
-		PipelineRunTracker pipelineRunTracker) {
+		PipelineVersionDao pipelineVersionDao, PipelineRunTracker pipelineRunTracker, PipelineRunRegistry pipelineRunRegistry,
+		WebSocketNodeDispatcher nodeDispatcher) {
 		super(pipelineDao, daos, modelBuilder, validator);
 		this.processorRegistry = processorRegistry;
 		this.pipelineValidationService = pipelineValidationService;
 		this.pipelineRunDao = pipelineRunDao;
 		this.pipelineVersionDao = pipelineVersionDao;
-		this.workOrderResultRegistry = workOrderResultRegistry;
 		this.pipelineRunTracker = pipelineRunTracker;
+		this.pipelineRunRegistry = pipelineRunRegistry;
+		this.nodeDispatcher = nodeDispatcher;
+		this.graphParser = new PipelineGraphParser();
 	}
 
 	@Override
@@ -253,103 +257,91 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 			// Get the latest version for the run
 			PipelineVersion latestVersion = pipelineVersionDao.loadLatestByPipeline(pipeline.getUuid());
 			int pipelineVersion = latestVersion != null ? latestVersion.getVersionNumber() : 1;
+			String pipelineName = latestVersion != null ? latestVersion.getName() : String.valueOf(pipeline.getUuid());
+			boolean dryRun = request.isDryRun() != null
+				? request.isDryRun()
+				: (latestVersion != null && latestVersion.isDryRun());
+
+			// Build the executable graph up front. A definition that cannot run as
+			// drawn is an error the caller should see now, not a green run that
+			// quietly did nothing.
+			PipelineGraph graph;
+			try {
+				graph = graphParser.parse(pipelineName,
+					latestVersion != null ? latestVersion.getDefinition() : null,
+					latestVersion == null || latestVersion.isEnabled(), dryRun, pipelineVersion);
+			} catch (GraphValidationException e) {
+				log.warn("Refusing to run pipeline '{}': {}", pipelineName, e.getMessage());
+				response.setDispatched(false).setMessage(e.getMessage());
+				lrc.send(response, 400);
+				return;
+			}
 
 			// Create a pipeline run record to track this execution
 			PipelineRun runRecord = pipelineRunDao.createPipelineRun(lrc.userUuid(), pipeline.getUuid(), pipelineVersion);
 			runRecord.setStatus("RUNNING");
-			runRecord.setDryRun(request.isDryRun() != null ? request.isDryRun() : (latestVersion != null ? latestVersion.isDryRun() : false));
+			runRecord.setDryRun(dryRun);
 			pipelineRunDao.store(runRecord);
-
-			JsonObject params = new JsonObject()
-				.put("command", "run-pipeline")
-				.put("pipelineUuid", pipeline.getUuid().toString())
-				.put("pipelineName", latestVersion != null ? latestVersion.getName() : "unknown")
-				.put("pipelineRunUuid", runRecord.getUuid().toString())
-				.put("pipelineVersion", pipelineVersion);
-			if (request.getMediaUuids() != null && !request.getMediaUuids().isEmpty()) {
-				params.put("mediaUuids", new io.vertx.core.json.JsonArray(
-					request.getMediaUuids().stream().map(u -> u.toString()).toList()));
-			}
-			if (request.getPathGlobs() != null && !request.getPathGlobs().isEmpty()) {
-				params.put("pathGlobs", new io.vertx.core.json.JsonArray(request.getPathGlobs()));
-			}
-			if (request.isDryRun() != null) {
-				params.put("dryRun", request.isDryRun());
-			}
-
-			WorkOrder workOrder = new WorkOrder()
-				.setWorkOrderId(workOrderId)
-				.setType(WorkOrderType.PIPELINE_RUN)
-				.setRequiredCapability(ProcessorCapability.CPU)
-				.setAssetUuids(request.getMediaUuids())
-				.setParameters(params);
-
-			// Watch for the processor's acknowledgement so a work order that is never
-			// picked up does not strand the run at RUNNING forever. Note this is the
-			// *dispatch* ack, not run completion — a successful ack leaves the run
-			// RUNNING and the terminal state arrives later via PIPELINE_RUN_COMPLETED.
 			UUID runUuid = runRecord.getUuid();
-			workOrderResultRegistry.registerWithTimeout(workOrderId,
-				result -> onWorkOrderAck(runUuid, result), WORK_ORDER_ACK_TIMEOUT_MS);
 
-			boolean dispatched = processorRegistry.dispatchWorkOrder(processor.nodeId, workOrder);
+			// The engine owns the graph and decides what runs next; Cortex only ever
+			// sees one node at a time.
+			PipelineRunEngine engine = new PipelineRunEngine(graph, nodeDispatcher, runUuid);
+			engine.onCompletion(summary -> pipelineRunTracker.complete(runUuid, summary.getDurationMs(),
+				(int) summary.getMediaCount(), (int) summary.getSuccessCount(),
+				(int) summary.getFailureCount(), (int) summary.getSkippedCount()));
+			pipelineRunRegistry.register(runUuid, engine);
+			engine.start();
+
+			if (request.getMediaUuids() != null && !request.getMediaUuids().isEmpty()) {
+				log.warn("Run {} requested {} media uuid(s); uuid-based selection is not implemented "
+					+ "and only pathGlobs are honoured", runUuid, request.getMediaUuids().size());
+			}
+
+			// Hand the source node to a worker. Everything else follows from the
+            // items it streams back.
+			PipelineGraphNode sourceNode = graph.getSourceNode();
+			SourceTaskMessage sourceTask = new SourceTaskMessage()
+				.setRunUuid(runUuid)
+				.setNodeId(sourceNode.getId())
+				.setNodeKind(sourceNode.getKind())
+				.setOptions(sourceOptions(sourceNode, request));
+
+			boolean dispatched = processorRegistry.send(processor.nodeId, ProcessorMessageType.SOURCE_TASK, sourceTask);
 			if (!dispatched) {
 				// The socket was gone by the time we wrote to it. Nothing will ever
-				// acknowledge this work order, so close the run out immediately
-				// rather than waiting for the watchdog.
-				workOrderResultRegistry.cancel(workOrderId);
+				// enumerate, so close the run out immediately rather than leaving it
+				// RUNNING forever.
+				pipelineRunRegistry.unregister(runUuid);
 				pipelineRunTracker.fail(runUuid, "Processor was not reachable");
 			}
+
 			response
 				.setProcessorNodeId(processor.nodeId)
 				.setDispatched(dispatched)
-				.setMessage(dispatched ? "Work order dispatched" : "Processor was not reachable");
+				.setMessage(dispatched ? "Source task dispatched" : "Processor was not reachable");
 
-			log.info("Pipeline '{}' run dispatched (workOrderId={}, pipelineRunUuid={}, processor={}, ok={})",
-				latestVersion != null ? latestVersion.getName() : pipeline.getUuid(), workOrderId, runRecord.getUuid(), processor.nodeId, dispatched);
+			log.info("Pipeline '{}' run started (pipelineRunUuid={}, nodes={}, processor={}, ok={})",
+				pipelineName, runUuid, graph.size(), processor.nodeId, dispatched);
 			lrc.send(response, dispatched ? 202 : 503);
 		});
 	}
 
 	/**
-	 * Handle the processor's acknowledgement of a dispatched pipeline work order.
+	 * Resolve the options the source node should run with.
 	 *
-	 * <p>The ack reports whether the processor accepted and started the work, not
-	 * whether the pipeline finished. Three outcomes matter:</p>
-	 * <ul>
-	 *   <li><b>FAILED</b> — the processor could not start (unknown pipeline, bad
-	 *       parameters, timed-out watchdog). The run is closed as FAILED.</li>
-	 *   <li><b>COMPLETED with zero media</b> — the selection resolved to nothing,
-	 *       so the pipeline never runs and will never emit PIPELINE_RUN_COMPLETED.
-	 *       Close the run out now, otherwise it strands at RUNNING.</li>
-	 *   <li><b>COMPLETED with media</b> — execution is under way. Leave the run
-	 *       RUNNING; {@code ProcessorEndpoint} closes it when the terminal
-	 *       PIPELINE_RUN_COMPLETED message arrives.</li>
-	 * </ul>
+	 * <p>The definition supplies the defaults; a run request may override the
+	 * selection. Note the paths are resolved on the <em>worker</em>, so a path the
+	 * chosen processor cannot see yields an empty run rather than an error.</p>
 	 */
-	private void onWorkOrderAck(UUID runUuid, WorkOrderResult result) {
-		if (result == null) {
-			return;
+	private java.util.Map<String, Object> sourceOptions(PipelineGraphNode sourceNode, PipelineRunRequest request) {
+		java.util.Map<String, Object> options = new java.util.LinkedHashMap<>(sourceNode.getOptions());
+		if (request.getPathGlobs() != null && !request.getPathGlobs().isEmpty()) {
+			options.put("pathGlobs", request.getPathGlobs());
 		}
-		if (result.getStatus() == WorkOrderStatus.FAILED) {
-			String error = result.getErrorMessage() != null ? result.getErrorMessage()
-				: "Processor reported work order failure";
-			log.warn("Pipeline run {} failed at dispatch: {}", runUuid, error);
-			pipelineRunTracker.fail(runUuid, error);
-			return;
-		}
-
-		JsonObject payload = result.getResult();
-		Integer mediaCount = payload != null ? payload.getInteger("mediaCount") : null;
-		if (mediaCount != null && mediaCount == 0) {
-			log.info("Pipeline run {} resolved no media — closing out immediately", runUuid);
-			pipelineRunTracker.complete(runUuid, 0L, 0, 0, 0, 0);
-			return;
-		}
-
-		log.debug("Pipeline run {} acknowledged by processor ({} media dispatched) — awaiting completion",
-			runUuid, mediaCount);
+		return options;
 	}
+
 
 	/**
 	 * List pipeline runs for a specific pipeline.

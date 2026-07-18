@@ -1,8 +1,9 @@
 # Variant C — Implementation Plan
 
-> **Status: IN PROGRESS.** Phase 1 steps P1.1–P1.5 have landed (see §2.2, §2.7,
-> §2.8, §2.9 and §2.10). P1.6 (end-to-end wiring) remains, and the old engine's
-> removal was deliberately deferred until after it — see §2.10.
+> **Status: IN PROGRESS.** Phase 1 is functionally complete — steps P1.1–P1.6
+> have landed (§2.2, §2.7–§2.11). Loom now owns the graph and drives execution
+> one node at a time. **P1.7 remains**: deleting the superseded in-Cortex engine,
+> deferred from P1.5 so the replacement could be proven first (§2.10).
 >
 > Phased implementation plan for **Variant C**: moving pipeline execution off
 > Cortex and onto Loom, leaving Cortex as a node executor.
@@ -192,8 +193,8 @@ green.
 | **P1.3** | Protocol: fix the envelope, add `SOURCE_*` / `NODE_TASK` messages | ✅ **done** — see §2.8 |
 | **P1.4** | `cortex/node-runtime` + source runner; Cortex answers tasks | ✅ **done** — see §2.9 |
 | **P1.5** | Test migration (10 classes, §5.8) | ✅ **done** — see §2.10 |
-| P1.6 | Wire end to end; demo pipelines green (§5.9) | ⬜ next |
-| P1.7 | Delete the old engine + rewire Dagger (deferred from P1.5) | ⬜ |
+| **P1.6** | Wire end to end; run driven by the engine (§5.9) | ✅ **done** — see §2.11 |
+| P1.7 | Delete the old engine + rewire Dagger (deferred from P1.5) | ⬜ **next** |
 
 **P1.1 verification:** full reactor `install` green; 5 new ServiceLoader guard
 tests; 23 `PipelineValidationServiceTest` cases (the real descriptor consumer)
@@ -448,6 +449,59 @@ with `expected SUCCESS but was SKIPPED` — the nodes skip because their test me
 is not processable in this environment. Verified identical on a stashed clean
 tree. Unrelated to this work, but worth fixing: these are the hash nodes, which
 are among the few genuinely executable kinds.
+
+## 2.11 P1.6 — end to end, as built
+
+Landed 2026-07-18. `POST /api/v1/pipelines/:uuid/run` now drives the Variant C
+path: Loom parses the definition, owns the graph, and dispatches one node at a
+time.
+
+**The run endpoint was rewritten onto the engine:**
+
+1. Parse the stored definition into a `PipelineGraph`. **A definition that cannot
+   execute as drawn now returns `400` with the reason** instead of dispatching a
+   run that would quietly do nothing — this is the single most important
+   behavioural change in Phase 1.
+2. Create the `pipeline_run` record.
+3. Build a `PipelineRunEngine`, register completion into `PipelineRunTracker`,
+   register the engine in `PipelineRunRegistry`, start it.
+4. Dispatch a `SOURCE_TASK` for the graph's source node, with options taken from
+   the definition and overridden by the request's `pathGlobs`.
+5. Respond `202`.
+
+Everything after that is driven by inbound messages: `SOURCE_ITEMS` creates
+items, `SOURCE_COMPLETE` closes enumeration, and each `NODE_TASK_RESULT` advances
+one item until the run closes itself.
+
+**The old work-order machinery is gone from this path.** `WorkOrder`,
+`WorkOrderType`, the `WorkOrderResultRegistry` callback and the 60-second
+dispatch watchdog were all scaffolding for a dispatch model that no longer
+exists — the engine closes its own run, so there is nothing for a watchdog to
+guard. `mediaUuids` is still accepted and still unimplemented; it now warns
+explicitly rather than being silently dropped.
+
+**`PipelineRunEndToEndTest`** is the test this feature has never had. It starts
+from the JSON the UI actually writes and drives a complete run against a scripted
+worker: two files enumerated, `sha256` then `thumbnail` per item, run closed as
+`SUCCESS`. It also covers a failed upstream skipping its blocking downstream, dry
+run dispatching nothing, an empty selection closing immediately, a late message
+for a finished run being ignored, and the envelope round trip.
+
+That test is what the `edges[]`/`dependencies[]` defect needed: it asserts the
+graph survives from stored definition through to a downstream node reading its
+upstream's output. The first assertion — `assertEquals(3, graph.size())` — fails
+if the graph ever collapses again.
+
+**Verification:** 7 end-to-end tests green; full clean reactor build green; every
+prior step still passing — P1.1 (5), P1.2 (28), P1.3 (13), P1.4 (17), P1.5
+(136 + 47).
+
+⚠️ **Two pre-existing failures confirmed by stashing the whole change and
+rebuilding**, both unrelated:
+
+- `CombinedEndpointTest.testBasics` — `404 Path not Found: /api/v1/locations`.
+- 13 `*ModelBuilderTest` classes in `loom/services/rest` — 16 failures + 6 errors,
+  **identical counts before and after**.
 
 ---
 
@@ -1040,6 +1094,10 @@ it explicitly; it is easy to under-estimate and it is what protects the refactor
 - [x] **P1.3 landed** — string-concatenated envelope replaced; 6 message types and
       5 DTOs added; `WebSocketNodeDispatcher` + `PipelineRunRegistry`; inbound
       routing in `ProcessorEndpoint`; 13 protocol round-trip tests
+- [x] **P1.6 landed** — the run endpoint drives `PipelineRunEngine`; an
+      unexecutable definition now returns 400 instead of a silent no-op run; the
+      work-order watchdog removed; `PipelineRunEndToEndTest` covers a full run
+      from stored definition to closed run
 - [x] **P1.5 landed** — `AbstractNodeChainTest` replaces the executor-based
       harness; 9 test classes migrated; dead reactive-operator API and the Cortex
       serde deleted. Executor removal deferred to P1.7 with reasoning (§2.10)
