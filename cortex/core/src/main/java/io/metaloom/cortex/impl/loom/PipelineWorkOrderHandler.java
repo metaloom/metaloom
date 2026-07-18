@@ -1,222 +1,86 @@
 package io.metaloom.cortex.impl.loom;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.stream.Collectors;
-
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.common.media.LoomMediaLoader;
-import io.metaloom.cortex.node.source.fs.FilesystemMediaScanner;
-import io.metaloom.cortex.pipeline.api.Pipeline;
-import io.metaloom.cortex.pipeline.api.PipelineExecutor;
-import io.metaloom.cortex.pipeline.api.PipelineManager;
-import io.metaloom.cortex.pipeline.api.PipelineResult;
-import io.metaloom.cortex.pipeline.api.PipelineRunContext;
-import io.metaloom.cortex.pipeline.loader.LoomPipelineLoader;
+import io.metaloom.cortex.pipeline.api.sync.LoomBulkSyncCollector;
 import io.metaloom.loom.rest.model.processor.workorder.WorkOrder;
 import io.metaloom.loom.rest.model.processor.workorder.WorkOrderResult;
 import io.metaloom.loom.rest.model.processor.workorder.WorkOrderStatus;
-import io.metaloom.loom.rest.model.processor.workorder.WorkOrderType;
-import io.reactivex.rxjava3.core.Flowable;
-import io.reactivex.rxjava3.schedulers.Schedulers;
-import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
+/**
+ * Handles the remaining work-order commands.
+ *
+ * <p>This class used to drive pipeline execution on Cortex: it resolved a pipeline
+ * by name, expanded path globs, and ran the local DAG executor. All of that moved
+ * to Loom — the engine there owns the graph and dispatches individual node tasks,
+ * which arrive as {@code NODE_TASK} and are handled by {@link PipelineTaskHandler}.
+ * The {@code run-pipeline}, {@code reload-pipelines} and {@code list-pipelines}
+ * commands went with it: Cortex no longer holds pipelines to run, reload or list.</p>
+ *
+ * <p>What remains is {@code flush-sync}, which is genuinely Cortex-local — it drains
+ * results computed here that have not yet been pushed to Loom.</p>
+ */
 @Singleton
 public class PipelineWorkOrderHandler {
 
 	private static final Logger log = LoggerFactory.getLogger(PipelineWorkOrderHandler.class);
 
-	private final PipelineExecutor pipelineExecutor;
-	private final PipelineManager pipelineManager;
-	private final LoomPipelineLoader pipelineLoader;
-	private final LoomMediaLoader mediaLoader;
+	private static final String COMMAND_FLUSH_SYNC = "flush-sync";
+
+	private final LoomBulkSyncCollector syncCollector;
 
 	@Inject
-	public PipelineWorkOrderHandler(PipelineExecutor pipelineExecutor, PipelineManager pipelineManager,
-			LoomPipelineLoader pipelineLoader, LoomMediaLoader mediaLoader) {
-		this.pipelineExecutor = pipelineExecutor;
-		this.pipelineManager = pipelineManager;
-		this.pipelineLoader = pipelineLoader;
-		this.mediaLoader = mediaLoader;
+	public PipelineWorkOrderHandler(LoomBulkSyncCollector syncCollector) {
+		this.syncCollector = syncCollector;
 	}
 
+	/**
+	 * Execute a work order.
+	 *
+	 * @param workOrder the order
+	 * @return the outcome, never null
+	 */
 	public WorkOrderResult handle(WorkOrder workOrder) {
 		WorkOrderResult result = new WorkOrderResult().setWorkOrderId(workOrder.getWorkOrderId());
-		JsonObject payload = new JsonObject();
+		String command = resolveCommand(workOrder);
 		try {
-			String command = resolveCommand(workOrder);
-			switch (command) {
-				case "reload-pipelines":
-					int loaded = pipelineLoader.loadAndRegister();
-					payload.put("pipelinesLoaded", loaded);
-					break;
-				case "flush-sync":
-					int flushed = pipelineExecutor.flushSync();
-					payload.put("flushedSyncEntries", flushed);
-					break;
-				case "list-pipelines":
-					List<String> names = pipelineManager.pipelines().stream().map(p -> p.name()).collect(Collectors.toList());
-					payload.put("pipelineNames", new JsonArray(names));
-					payload.put("pipelineCount", names.size());
-					break;
-				case "run-pipeline":
-					handleRunPipeline(workOrder, payload);
-					break;
-				default:
-					throw new IllegalArgumentException("Unsupported work-order command: " + command);
+			if (!COMMAND_FLUSH_SYNC.equals(command)) {
+				// Either a removed command or one this worker never supported.
+				// Fail loudly: a silent success here would look like work happened.
+				throw new IllegalArgumentException("Unsupported work order command: '" + command
+					+ "'. Only '" + COMMAND_FLUSH_SYNC + "' remains - pipeline execution is driven "
+					+ "by NODE_TASK messages from Loom.");
 			}
-			result.setStatus(WorkOrderStatus.COMPLETED).setResult(payload);
-			log.info("Processed work order {} using command '{}'", workOrder.getWorkOrderId(), command);
+			int flushed = syncCollector.flush();
+			log.info("Flushed {} pending sync entries", flushed);
+			return result
+				.setStatus(WorkOrderStatus.COMPLETED)
+				.setResult(new JsonObject().put("flushedSyncEntries", flushed));
 		} catch (Exception e) {
-			log.error("Failed to process work order {}", workOrder.getWorkOrderId(), e);
-			result.setStatus(WorkOrderStatus.FAILED).setErrorMessage(e.getMessage()).setResult(payload);
+			log.error("Work order {} ({}) failed", workOrder.getWorkOrderId(), command, e);
+			return result
+				.setStatus(WorkOrderStatus.FAILED)
+				.setErrorMessage(e.getMessage());
 		}
-		return result;
 	}
 
+	/**
+	 * @param workOrder the order
+	 * @return the command name, or null when none was supplied
+	 */
 	private String resolveCommand(WorkOrder workOrder) {
-		if (workOrder.getParameters() != null) {
-			String command = workOrder.getParameters().getString("command");
+		JsonObject parameters = workOrder.getParameters();
+		if (parameters != null) {
+			String command = parameters.getString("command");
 			if (command != null && !command.isBlank()) {
 				return command;
 			}
 		}
-		WorkOrderType type = workOrder.getType();
-		if (type == null) {
-			throw new IllegalArgumentException("Work order has no type");
-		}
-		return switch (type) {
-			case FILESYSTEM_SCAN -> "reload-pipelines";
-			case FINGERPRINT -> "flush-sync";
-			case PIPELINE_RUN -> "run-pipeline";
-		};
+		return workOrder.getType() != null ? workOrder.getType().name() : null;
 	}
-
-	/**
-	 * Handle a {@code run-pipeline} command. The pipeline is resolved by name from
-	 * the work-order parameters and executed either against an explicit selection
-	 * given in those parameters, or — when none is given — against the selection
-	 * owned by the pipeline's own source node.
-	 *
-	 * <p>The execution runs asynchronously on an IO scheduler; the work-order
-	 * response reports what was dispatched, not the eventual pipeline result —
-	 * progress is observable via the pipeline events WebSocket.</p>
-	 */
-	private void handleRunPipeline(WorkOrder workOrder, JsonObject payload) throws IOException {
-		JsonObject params = workOrder.getParameters();
-		if (params == null) {
-			throw new IllegalArgumentException("run-pipeline: missing parameters");
-		}
-		String pipelineName = params.getString("pipelineName");
-		if (pipelineName == null || pipelineName.isBlank()) {
-			throw new IllegalArgumentException("run-pipeline: missing 'pipelineName' parameter");
-		}
-		
-		// Extract pipeline run UUID for tracking
-		String pipelineRunUuidStr = params.getString("pipelineRunUuid");
-		UUID pipelineRunUuid = pipelineRunUuidStr != null ? UUID.fromString(pipelineRunUuidStr) : null;
-
-		Optional<Pipeline> maybe = pipelineManager.pipeline(pipelineName);
-		if (maybe.isEmpty()) {
-			throw new IllegalStateException("run-pipeline: no pipeline registered with name '" + pipelineName + "'");
-		}
-		Pipeline pipeline = maybe.get();
-
-		payload.put("pipelineName", pipelineName);
-		if (pipelineRunUuid != null) {
-			payload.put("pipelineRunUuid", pipelineRunUuid.toString());
-		}
-
-		// Correlate the tracking events emitted by this execution with the Loom
-		// pipeline_run record, so Loom can close the run out when it completes.
-		PipelineRunContext runContext = PipelineRunContext.of(
-			pipelineRunUuid != null ? pipelineRunUuid.toString() : null);
-
-		// A work order may narrow the run to an explicit media selection. Only
-		// when it requests none at all does the pipeline's own source node decide
-		// what to process — the handler no longer discovers media itself.
-		//
-		// A requested-but-unresolvable selection must never fall through to the
-		// source node: that would widen the run from the handful of items the
-		// caller asked for to everything the source is configured to scan.
-		Flowable<PipelineResult> execution;
-		if (hasExplicitSelection(params)) {
-			List<LoomMedia> media = resolveSelection(params);
-			payload.put("selection", "explicit");
-			payload.put("mediaCount", media.size());
-			if (media.isEmpty()) {
-				log.warn("run-pipeline: no media resolved for pipeline '{}' — pipeline will not execute", pipelineName);
-				payload.put("message", "no media resolved from selection");
-				return;
-			}
-			execution = pipelineExecutor.execute(pipeline, Flowable.fromIterable(media), runContext);
-			payload.put("message", "dispatched " + media.size() + " media items");
-		} else {
-			execution = pipelineExecutor.execute(pipeline, runContext);
-			payload.put("selection", "source-node");
-			payload.put("message", "dispatched pipeline '" + pipelineName + "' using its configured source node");
-		}
-
-		execution
-			.subscribeOn(Schedulers.io())
-			.subscribe(
-				res -> log.debug("Pipeline '{}' processed media {}", pipelineName, res.getMedia().absolutePath()),
-				err -> log.error("Pipeline '{}' execution error", pipelineName, err),
-				() -> log.info("Pipeline '{}' execution completed", pipelineName));
-	}
-
-	/**
-	 * Whether the work order asked for a specific set of media rather than
-	 * leaving the selection to the pipeline's source node.
-	 */
-	private static boolean hasExplicitSelection(JsonObject params) {
-		return isNonEmptyArray(params.getJsonArray("pathGlobs"))
-			|| isNonEmptyArray(params.getJsonArray("mediaUuids"));
-	}
-
-	/**
-	 * Resolve an explicit media selection. Path globs are expanded via
-	 * {@link FilesystemMediaScanner}; UUID-based selection is not implemented yet
-	 * and contributes nothing.
-	 */
-	private List<LoomMedia> resolveSelection(JsonObject params) throws IOException {
-		if (isNonEmptyArray(params.getJsonArray("mediaUuids"))) {
-			// UUID → path resolution requires a Loom client lookup which is not
-			// wired into this handler yet. Warn so the gap is visible to the
-			// caller rather than silently ignored.
-			log.warn("run-pipeline: mediaUuids parameter received but UUID-based media resolution is not yet implemented; use pathGlobs");
-		}
-		return FilesystemMediaScanner.expand(stringList(params.getJsonArray("pathGlobs"))).stream()
-			.map(mediaLoader::load)
-			.collect(Collectors.toList());
-	}
-
-	private static boolean isNonEmptyArray(JsonArray array) {
-		return array != null && !array.isEmpty();
-	}
-
-	private static List<String> stringList(JsonArray array) {
-		if (array == null) {
-			return List.of();
-		}
-		List<String> values = new ArrayList<>();
-		for (int i = 0; i < array.size(); i++) {
-			String value = array.getString(i);
-			if (value != null && !value.isBlank()) {
-				values.add(value);
-			}
-		}
-		return values;
-	}
-
 }

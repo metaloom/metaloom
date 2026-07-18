@@ -106,7 +106,7 @@ class RegistryNodeFactoryTest {
 
 	/**
 	 * An unregistered type resolves to {@code null}, which
-	 * {@code LoomPipelineLoader} currently turns into a stub node that logs and
+	 * the factory currently turns into a stub node that logs and
 	 * returns success — so a pipeline built entirely from unimplemented node
 	 * types runs green. Making that a hard failure is Task 3; this pins the
 	 * factory's half of the contract, which is unchanged by it.

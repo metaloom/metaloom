@@ -24,7 +24,6 @@ import io.metaloom.cortex.node.thumbnail.ThumbnailNode;
 import io.metaloom.cortex.pipeline.api.NodeMode;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 import io.metaloom.cortex.pipeline.core.node.CortexNodeAdapter;
-import io.metaloom.cortex.pipeline.loader.LoomPipelineLoader;
 import io.metaloom.cortex.pipeline.loader.NodeFactory;
 import io.metaloom.cortex.pipeline.loader.RegistryNodeFactory;
 import io.vertx.core.json.JsonArray;
@@ -49,7 +48,6 @@ public class PipelineNodeFactoryModule {
 	public static NodeFactory provideNodeFactory(
 		SHA512Node sha512, SHA256Node sha256, MD5Node md5, ChunkHashNode chunkHash,
 		ThumbnailNode thumbnail,
-		LoomPipelineLoader pipelineLoader,
 		LoomMediaLoader mediaLoader,
 		FilesystemSourceNodeOptions fsSourceOptions,
 		CortexOptions cortexOptions) {
@@ -70,7 +68,6 @@ public class PipelineNodeFactoryModule {
 		factory.register("thumbnail", def -> adapt(thumbnail, def, cortexOptions));
 
 		log.info("Registered {} node producers with the pipeline node factory", factory.registeredTypes().size());
-		pipelineLoader.setNodeFactory(factory);
 		return factory;
 	}
 

@@ -9,7 +9,7 @@ import io.reactivex.rxjava3.core.Flowable;
  * <p>Plain {@link PipelineNode} source implementations only mark themselves via
  * {@link PipelineNode#isSource()} — the media stream itself has to be supplied by
  * the caller of
- * {@link io.metaloom.cortex.pipeline.api.PipelineExecutor#execute(io.metaloom.cortex.pipeline.api.Pipeline, Flowable, io.metaloom.cortex.pipeline.api.PipelineRunContext)}.
+ * the Cortex source runtime, which forwards the stream to Loom in batches.
  * That forces every caller to reimplement media discovery, which is what this
  * interface removes: a {@code MediaSourceNode} owns its own selection logic and
  * hands the executor a ready {@link Flowable}.</p>
@@ -21,7 +21,7 @@ import io.reactivex.rxjava3.core.Flowable;
  * so implementations should stream rather than materialise a full list where the
  * underlying source allows it.</p>
  *
- * @see io.metaloom.cortex.pipeline.api.PipelineExecutor#execute(io.metaloom.cortex.pipeline.api.Pipeline, io.metaloom.cortex.pipeline.api.PipelineRunContext)
+ * @see io.metaloom.cortex.runtime.SourceTaskRunner
  */
 public interface MediaSourceNode extends PipelineNode {
 

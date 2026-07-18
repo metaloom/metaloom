@@ -18,7 +18,7 @@ import io.reactivex.rxjava3.core.Flowable;
  *
  * <p>As a {@link MediaSourceNode} its {@link #stream()} is the single configured
  * asset, so a pipeline built around it can be run via
- * {@link io.metaloom.cortex.pipeline.api.PipelineExecutor#execute(io.metaloom.cortex.pipeline.api.Pipeline, io.metaloom.cortex.pipeline.api.PipelineRunContext)}
+ * the Loom-side pipeline engine, which dispatches one node task at a time
  * without the caller supplying a media stream.</p>
  */
 public class AssetSourceNode extends AbstractPipelineNode implements MediaSourceNode {

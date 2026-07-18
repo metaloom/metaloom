@@ -1,9 +1,9 @@
 # Variant C — Implementation Plan
 
-> **Status: IN PROGRESS.** Phase 1 is functionally complete — steps P1.1–P1.6
-> have landed (§2.2, §2.7–§2.11). Loom now owns the graph and drives execution
-> one node at a time. **P1.7 remains**: deleting the superseded in-Cortex engine,
-> deferred from P1.5 so the replacement could be proven first (§2.10).
+> **Status: PHASE 1 COMPLETE.** Steps P1.1–P1.7 have landed (§2.2, §2.7–§2.12).
+> Loom owns the graph and drives execution one node at a time; the in-Cortex
+> engine has been removed. **Phase 2 (durability, §6) has not started** — run
+> state is still in memory, so a Loom restart loses in-flight runs.
 >
 > Phased implementation plan for **Variant C**: moving pipeline execution off
 > Cortex and onto Loom, leaving Cortex as a node executor.
@@ -194,7 +194,7 @@ green.
 | **P1.4** | `cortex/node-runtime` + source runner; Cortex answers tasks | ✅ **done** — see §2.9 |
 | **P1.5** | Test migration (10 classes, §5.8) | ✅ **done** — see §2.10 |
 | **P1.6** | Wire end to end; run driven by the engine (§5.9) | ✅ **done** — see §2.11 |
-| P1.7 | Delete the old engine + rewire Dagger (deferred from P1.5) | ⬜ **next** |
+| **P1.7** | Delete the old engine + rewire Dagger (deferred from P1.5) | ✅ **done** — see §2.12 |
 
 **P1.1 verification:** full reactor `install` green; 5 new ServiceLoader guard
 tests; 23 `PipelineValidationServiceTest` cases (the real descriptor consumer)
@@ -502,6 +502,62 @@ rebuilding**, both unrelated:
 - `CombinedEndpointTest.testBasics` — `404 Path not Found: /api/v1/locations`.
 - 13 `*ModelBuilderTest` classes in `loom/services/rest` — 16 failures + 6 errors,
   **identical counts before and after**.
+
+## 2.12 P1.7 — the old engine removed
+
+Landed 2026-07-18, once P1.6 had proven the replacement. **Phase 1 is complete.**
+
+**Deleted from Cortex:**
+
+| Class | Superseded by |
+|---|---|
+| `ReactivePipelineExecutor` | `PipelineRunEngine` (Loom) + `NodeTaskRunner` (Cortex) |
+| `DefaultPipeline`, `Pipeline` | `PipelineGraph` (Loom) |
+| `DefaultPipelineManager`, `PipelineManager` | — Loom loads definitions from its own database |
+| `PipelineExecutor`, `PipelineRunContext` | the `NODE_TASK` / `NODE_TASK_RESULT` protocol |
+| `LoomPipelineLoader` | `PipelineGraphParser` (Loom) — the second parser is gone |
+
+With it went `PipelineExecutorTest`, `PipelineRunCompletionTest`,
+`SourceDrivenExecutionTest`, `PipelineWorkOrderHandlerTest` and
+`PipelineIntegrationTest`.
+
+**Rewired:**
+
+- `PipelineWorkOrderHandler` reduced from four commands to one. `run-pipeline`,
+  `reload-pipelines` and `list-pipelines` are meaningless now that Cortex holds
+  no pipelines; only `flush-sync` remains, and it talks to the sync collector
+  directly. An unknown command now **fails loudly** rather than falling through.
+- `CortexBindModule` lost its `PipelineExecutor` and `PipelineManager` providers.
+- `CortexBootstrapInitializer` lost the `NodeFactory` field that existed purely to
+  force eager instantiation, because `RegistryNodeFactory` no longer pushes itself
+  onto a loader as a construction side effect. That was flagged as "deliberate but
+  fragile" in the original spec; it is now simply unnecessary.
+- `PipelineNodeFactoryModule` (both the real one and the `examples/` copy) no
+  longer wires a loader.
+- `PipelinePersistenceIntegrationTest` was **rewritten rather than deleted**. It
+  runs the nodes in the order Loom would dispatch them, so it still proves what it
+  always did: node outputs reach Loom through `LoomNode` and are persisted.
+- Stale `{@link}` javadoc pointing at the deleted classes was cleaned up rather
+  than left dangling.
+
+**Verification:** full clean reactor build green. 104 pipeline-core tests (down
+from 136 — the 32 executor tests went with the executor), 28 loom/pipeline, 17
+node-runtime, 43 loom REST pipeline tests, 17 loom endpoint tests, and the
+migrated node tests all pass. No `ReactivePipelineExecutor`, `DefaultPipeline`,
+`PipelineManager` or `LoomPipelineLoader` reference remains anywhere in Cortex.
+
+### What Phase 1 achieved
+
+- 🟢 **One parser.** Loom reads `edges[]` — the shape the UI writes. The
+  `edges[]`/`dependencies[]` divergence cannot recur, because there is no second
+  parser to diverge from.
+- 🟢 **Unexecutable definitions fail loudly.** A graph that cannot run as drawn
+  returns `400`; an unknown node kind, an ambiguous source and a cycle are all
+  errors rather than a silently smaller run.
+- 🟢 **Filter branches are expressible** from the stored format for the first time.
+- 🟢 **The orchestrator no longer depends on its workers**, enforced by the build.
+- 🟢 **A real end-to-end test exists** covering stored definition → dispatch →
+  results → closed run.
 
 ---
 
@@ -1094,6 +1150,9 @@ it explicitly; it is easy to under-estimate and it is what protects the refactor
 - [x] **P1.3 landed** — string-concatenated envelope replaced; 6 message types and
       5 DTOs added; `WebSocketNodeDispatcher` + `PipelineRunRegistry`; inbound
       routing in `ProcessorEndpoint`; 13 protocol round-trip tests
+- [x] **P1.7 landed** — `ReactivePipelineExecutor`, `DefaultPipeline`,
+      `PipelineManager` and `LoomPipelineLoader` deleted; work-order handler
+      reduced to `flush-sync`; Dagger rewired. **Phase 1 complete**
 - [x] **P1.6 landed** — the run endpoint drives `PipelineRunEngine`; an
       unexecutable definition now returns 400 instead of a silent no-op run; the
       work-order watchdog removed; `PipelineRunEndToEndTest` covers a full run

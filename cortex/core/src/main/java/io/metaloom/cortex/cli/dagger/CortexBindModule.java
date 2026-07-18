@@ -11,15 +11,11 @@ import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.meta.MetaStorageImpl;
 import io.metaloom.cortex.impl.CortexImpl;
 import io.metaloom.cortex.impl.loom.LoomBulkSyncWriterImpl;
-import io.metaloom.cortex.pipeline.api.PipelineExecutor;
-import io.metaloom.cortex.pipeline.api.PipelineManager;
 import io.metaloom.cortex.pipeline.api.event.PipelineEventBus;
 import io.metaloom.cortex.pipeline.api.sync.LoomBulkSyncCollector;
 import io.metaloom.cortex.pipeline.common.event.DefaultPipelineEventBus;
 import io.metaloom.cortex.pipeline.common.sync.DefaultLoomBulkSyncCollector;
 import io.metaloom.cortex.pipeline.common.sync.DefaultLoomBulkSyncCollector.BulkSyncWriter;
-import io.metaloom.cortex.pipeline.core.DefaultPipelineManager;
-import io.metaloom.cortex.pipeline.core.executor.ReactivePipelineExecutor;
 import io.metaloom.cortex.processor.MediaProcessor;
 import io.metaloom.cortex.processor.impl.DefaultMediaProcessorImpl;
 import io.metaloom.cortex.scanner.FilesystemProcessor;
@@ -57,11 +53,6 @@ public abstract class CortexBindModule {
 		return Vertx.vertx();
 	}
 
-	@Provides
-	@Singleton
-	public static PipelineManager providePipelineManager() {
-		return new DefaultPipelineManager();
-	}
 
 	@Provides
 	@Singleton
@@ -75,11 +66,6 @@ public abstract class CortexBindModule {
 		return new DefaultLoomBulkSyncCollector(writer);
 	}
 
-	@Provides
-	@Singleton
-	public static PipelineExecutor providePipelineExecutor(PipelineEventBus eventBus, LoomBulkSyncCollector collector, CortexOptions options) {
-		return new ReactivePipelineExecutor(options.getMaxConcurrentMedia(), eventBus, collector);
-	}
 
 	@Provides
 	public static LinuxFilesystemScanner bindFilesystemScanner() {

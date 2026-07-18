@@ -16,11 +16,9 @@ import io.metaloom.cortex.node.hash.SHA512Node;
 import io.metaloom.cortex.node.loom.LoomNode;
 import io.metaloom.cortex.node.loom.LoomNodeOptions;
 import io.metaloom.cortex.pipeline.api.NodeMode;
-import io.metaloom.cortex.pipeline.api.Pipeline;
-import io.metaloom.cortex.pipeline.api.PipelineResult;
+import io.metaloom.cortex.pipeline.api.NodeResult;
+import io.metaloom.cortex.pipeline.api.NodeState;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
-import io.metaloom.cortex.pipeline.core.DefaultPipeline;
-import io.metaloom.cortex.pipeline.core.executor.ReactivePipelineExecutor;
 import io.metaloom.cortex.pipeline.core.node.AssetSourceNode;
 import io.metaloom.cortex.pipeline.core.node.CortexNodeAdapter;
 import io.metaloom.loom.api.Loom;
@@ -89,24 +87,23 @@ public class PipelinePersistenceIntegrationTest extends AbstractIntegrationTest 
 			CortexNodeAdapter md5Adapter = new CortexNodeAdapter("md5sum", md5Node, NodeMode.PARALLEL, true, 1);
 			CortexNodeAdapter loomAdapter = new CortexNodeAdapter(loomNode, NodeMode.SEQUENTIAL, true, 1);
 
-			source.connectTo(sha512Adapter);
-			sha512Adapter.connectTo(md5Adapter);
-			md5Adapter.connectTo(loomAdapter);
-
-			Pipeline pipeline = DefaultPipeline.builder("persistence-integration")
-				.description("Verify pipeline node outputs are persisted through LoomNode")
-				.source(source)
-				.build();
-
-			// 4. Execute and flush
-			ReactivePipelineExecutor executor = new ReactivePipelineExecutor(2);
-			try {
-				PipelineResult result = executor.execute(pipeline, media);
-				assertThat(result.isSuccess()).as("Pipeline should succeed").isTrue();
-				loomNode.flush();
-			} finally {
-				executor.shutdown();
+			// 4. Run the chain and flush.
+			//
+			// The graph is evaluated on Loom now, so this test no longer builds a
+			// Pipeline or drives an in-Cortex executor. It runs the nodes in the
+			// order Loom would dispatch them, handing each the outputs of the ones
+			// before it - which is exactly the contract a node is given. What is
+			// under test here is unchanged: that node outputs reach Loom through
+			// LoomNode and are persisted.
+			java.util.Map<String, NodeResult> results = new java.util.LinkedHashMap<>();
+			for (PipelineNode node : java.util.List.of(sha512Adapter, md5Adapter, loomAdapter)) {
+				NodeResult nodeResult = node.process(media, java.util.Map.copyOf(results));
+				assertThat(nodeResult.getState())
+					.as("Node '%s' should not fail", node.id())
+					.isNotEqualTo(NodeState.FAILED);
+				results.put(node.id(), nodeResult);
 			}
+			loomNode.flush();
 
 			// 5. Reload the asset from Loom and assert MD5 was persisted
 			AssetResponse reloaded = client.loadAsset(sha512).sync().body();

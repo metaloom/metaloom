@@ -19,7 +19,6 @@ import io.metaloom.cortex.node.thumbnail.ThumbnailNode;
 import io.metaloom.cortex.pipeline.api.NodeMode;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 import io.metaloom.cortex.pipeline.core.node.CortexNodeAdapter;
-import io.metaloom.cortex.pipeline.loader.LoomPipelineLoader;
 import io.metaloom.cortex.pipeline.loader.NodeFactory;
 import io.metaloom.cortex.pipeline.loader.RegistryNodeFactory;
 
@@ -45,7 +44,6 @@ public class PipelineNodeFactoryModule {
 		SHA512Node sha512, SHA256Node sha256, MD5Node md5, ChunkHashNode chunkHash,
 		ThumbnailNode thumbnail,
 		CustomNode custom,
-		LoomPipelineLoader pipelineLoader,
 		CortexOptions cortexOptions) {
 
 		RegistryNodeFactory factory = new RegistryNodeFactory();
@@ -57,7 +55,6 @@ public class PipelineNodeFactoryModule {
 		factory.register("custom", def -> adapt(custom, def, cortexOptions));
 
 		log.info("Registered {} node producers with the pipeline node factory", factory.registeredTypes().size());
-		pipelineLoader.setNodeFactory(factory);
 		return factory;
 	}
 
