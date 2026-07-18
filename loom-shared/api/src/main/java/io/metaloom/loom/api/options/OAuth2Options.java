@@ -113,6 +113,26 @@ public class OAuth2Options implements Option {
 	}
 
 	@Override
+	public void validate(OptionErrors errors) {
+		// A disabled OAuth2 setup is never read at runtime, so partially filled values are not an error.
+		if (!enabled) {
+			return;
+		}
+		errors.notBlank("clientId", clientId)
+			.notBlank("clientSecret", clientSecret)
+			.notBlank("scope", scope)
+			.url("authUrl", authUrl)
+			.url("tokenUrl", tokenUrl)
+			.url("userInfoUrl", userInfoUrl)
+			.url("callbackUrl", callbackUrl);
+
+		// The logout / end session endpoint is optional, but must be a valid URL when set.
+		if (logoutUrl != null && !logoutUrl.isBlank()) {
+			errors.url("logoutUrl", logoutUrl);
+		}
+	}
+
+	@Override
 	public void overrideWithEnv() {
 		OptionUtils.applyEnvBoolean("LOOM_OAUTH2_ENABLED", this::setEnabled);
 		OptionUtils.applyEnv("LOOM_OAUTH2_CLIENT_ID", this::setClientId);

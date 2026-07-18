@@ -1,5 +1,8 @@
 package io.metaloom.loom.api.options;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 public class ServerOptions implements Option {
 
 	public static final int DEFAULT_GRPC_PORT = 8091;
@@ -70,6 +73,29 @@ public class ServerOptions implements Option {
 	public ServerOptions setBindAddress(String bindAddress) {
 		this.bindAddress = bindAddress;
 		return this;
+	}
+
+	@Override
+	public void validate(OptionErrors errors) {
+		errors.host("bindAddress", bindAddress)
+			.port("grpcPort", grpcPort)
+			.port("restPort", restPort)
+			.port("monitoringPort", monitoringPort)
+			.port("mcpPort", mcpPort);
+
+		// The servers all bind to the same address and would otherwise fail late with a port collision.
+		Map<Integer, String> seen = new LinkedHashMap<>();
+		checkDistinct(errors, seen, "grpcPort", grpcPort);
+		checkDistinct(errors, seen, "restPort", restPort);
+		checkDistinct(errors, seen, "monitoringPort", monitoringPort);
+		checkDistinct(errors, seen, "mcpPort", mcpPort);
+	}
+
+	private static void checkDistinct(OptionErrors errors, Map<Integer, String> seen, String field, int port) {
+		String previous = seen.putIfAbsent(port, field);
+		if (previous != null) {
+			errors.add(field, "must not use the same port as " + previous + " (" + port + ")");
+		}
 	}
 
 	@Override

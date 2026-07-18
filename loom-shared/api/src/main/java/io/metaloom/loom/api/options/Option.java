@@ -14,6 +14,16 @@ public interface Option {
 	Logger log = LoggerFactory.getLogger(Option.class);
 
 	/**
+	 * Validate this option and its sub options. Implementations must report <b>all</b> problems into the given collector instead of throwing, so
+	 * that the whole configuration can be checked in one pass.
+	 *
+	 * @param errors
+	 *            collector which is already scoped to the path of this option
+	 */
+	default void validate(OptionErrors errors) {
+	}
+
+	/**
 	 * Override the annotated methods and fields of this option class and referenced sub options with environment variables.
 	 */
 	default void overrideWithEnv() {

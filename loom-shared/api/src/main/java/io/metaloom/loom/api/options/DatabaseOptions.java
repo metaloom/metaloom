@@ -121,6 +121,22 @@ public class DatabaseOptions implements Option {
 	}
 
 	@Override
+	public void validate(OptionErrors errors) {
+		errors.host("host", host)
+			.port("port", port)
+			.notBlank("username", username)
+			.notBlank("password", password)
+			.notBlank("databaseName", databaseName)
+			.min("minPoolSize", minPoolSize, 1)
+			.min("maxPoolSize", maxPoolSize, 1)
+			.min("acquireIncrement", acquireIncrement, 1);
+
+		if (minPoolSize >= 1 && maxPoolSize >= 1 && maxPoolSize < minPoolSize) {
+			errors.add("maxPoolSize", "must be greater than or equal to minPoolSize (" + minPoolSize + ") but was " + maxPoolSize);
+		}
+	}
+
+	@Override
 	public void overrideWithEnv() {
 		OptionUtils.applyEnv("LOOM_DB_HOST", this::setHost);
 		OptionUtils.applyEnvInt("LOOM_DB_PORT", this::setPort);

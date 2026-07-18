@@ -172,8 +172,34 @@ public class OptionUtils {
 	}
 
 	/**
+	 * Resolve the name of the environment variable which can be used to override the given field. Used to enrich validation errors with an
+	 * actionable hint.
+	 *
+	 * @param cls
+	 *            the option class declaring the field, may be null
+	 * @param fieldName
+	 *            the name of the field
+	 * @return the environment variable name or null when the field is not annotated with {@link EnvironmentVariable}
+	 */
+	static String envVarNameFor(Class<?> cls, String fieldName) {
+		while (cls != null && cls != Object.class) {
+			try {
+				Field field = cls.getDeclaredField(fieldName);
+				EnvironmentVariable envInfo = field.getAnnotation(EnvironmentVariable.class);
+				if (envInfo != null) {
+					return envInfo.name();
+				}
+			} catch (NoSuchFieldException e) {
+				// Continue with the super class
+			}
+			cls = cls.getSuperclass();
+		}
+		return null;
+	}
+
+	/**
 	 * Helper to check whether the given text is empty or null.
-	 * 
+	 *
 	 * @param text
 	 * @return
 	 */

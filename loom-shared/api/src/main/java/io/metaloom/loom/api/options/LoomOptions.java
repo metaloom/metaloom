@@ -1,5 +1,7 @@
 package io.metaloom.loom.api.options;
 
+import io.metaloom.loom.api.error.ConfigurationValidationException;
+
 public class LoomOptions implements Option {
 
 	private DatabaseOptions database = new DatabaseOptions();
@@ -41,7 +43,23 @@ public class LoomOptions implements Option {
 		this.auth = auth;
 	}
 
+	@Override
+	public void validate(OptionErrors errors) {
+		errors.nested("database", database)
+			.nested("server", server)
+			.nested("auth", auth);
+	}
+
+	/**
+	 * Validate the whole option tree and fail with a single exception listing every detected problem.
+	 *
+	 * @throws ConfigurationValidationException
+	 *             when at least one setting is missing or invalid
+	 */
 	public void validate() {
+		OptionErrors errors = new OptionErrors();
+		validate(errors);
+		errors.throwOnError();
 	}
 
 }
