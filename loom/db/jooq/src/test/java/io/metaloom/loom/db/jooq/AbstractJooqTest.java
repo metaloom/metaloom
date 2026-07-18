@@ -7,6 +7,7 @@ import io.metaloom.loom.db.DatabaseTest;
 import io.metaloom.loom.db.FixtureElementProvider;
 import io.metaloom.loom.db.dagger.DaoCollection;
 import io.metaloom.loom.db.jooq.test.dagger.JooqTestContext;
+import io.metaloom.loom.db.model.pipeline.PipelineVersionDao;
 import io.metaloom.loom.db.transaction.TransactionCallable;
 
 public abstract class AbstractJooqTest implements DatabaseTest, FixtureElementProvider {
@@ -25,5 +26,10 @@ public abstract class AbstractJooqTest implements DatabaseTest, FixtureElementPr
 		ctx.transaction(t -> {
 			callable.accept(null);
 		});
+	}
+
+	@Override
+	public PipelineVersionDao pipelineVersionDao() {
+		return daos().pipelineVersionDao();
 	}
 }

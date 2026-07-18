@@ -77,6 +77,10 @@
             <artifactId>cortex-loom-node</artifactId>
             <version>${loom.cortex.version}</version>
         </dependency>
+        <dependency>
+            <groupId>info.picocli</groupId>
+            <artifactId>picocli</artifactId>
+        </dependency>
 
         <!--Test-->
         <dependency>

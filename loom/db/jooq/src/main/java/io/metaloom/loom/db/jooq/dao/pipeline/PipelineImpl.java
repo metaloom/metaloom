@@ -1,81 +1,35 @@
 package io.metaloom.loom.db.jooq.dao.pipeline;
 
+import java.util.UUID;
+
 import io.metaloom.loom.db.jooq.AbstractEditableElement;
 import io.metaloom.loom.db.model.pipeline.Pipeline;
 import io.vertx.core.json.JsonObject;
 
 public class PipelineImpl extends AbstractEditableElement<Pipeline> implements Pipeline {
 
-	private String name;
-	private String description;
-	private JsonObject definition;
-	private boolean enabled = true;
-	private int priority;
-	private boolean dryRun;
+	private UUID latestVersionUuid;
+	private JsonObject meta;
 
 	@Override
-	public String getName() {
-		return name;
+	public UUID getLatestVersionUuid() {
+		return latestVersionUuid;
 	}
 
 	@Override
-	public Pipeline setName(String name) {
-		this.name = name;
+	public Pipeline setLatestVersionUuid(UUID latestVersionUuid) {
+		this.latestVersionUuid = latestVersionUuid;
 		return this;
 	}
 
 	@Override
-	public String getDescription() {
-		return description;
+	public JsonObject getMeta() {
+		return meta;
 	}
 
 	@Override
-	public Pipeline setDescription(String description) {
-		this.description = description;
-		return this;
-	}
-
-	@Override
-	public JsonObject getDefinition() {
-		return definition;
-	}
-
-	@Override
-	public Pipeline setDefinition(JsonObject definition) {
-		this.definition = definition;
-		return this;
-	}
-
-	@Override
-	public boolean isEnabled() {
-		return enabled;
-	}
-
-	@Override
-	public Pipeline setEnabled(boolean enabled) {
-		this.enabled = enabled;
-		return this;
-	}
-
-	@Override
-	public int getPriority() {
-		return priority;
-	}
-
-	@Override
-	public Pipeline setPriority(int priority) {
-		this.priority = priority;
-		return this;
-	}
-
-	@Override
-	public boolean isDryRun() {
-		return dryRun;
-	}
-
-	@Override
-	public Pipeline setDryRun(boolean dryRun) {
-		this.dryRun = dryRun;
+	public Pipeline setMeta(JsonObject meta) {
+		this.meta = meta;
 		return this;
 	}
 

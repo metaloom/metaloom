@@ -43,6 +43,7 @@ import io.metaloom.loom.db.jooq.tables.JooqPerson;
 import io.metaloom.loom.db.jooq.tables.JooqPersonImage;
 import io.metaloom.loom.db.jooq.tables.JooqPipeline;
 import io.metaloom.loom.db.jooq.tables.JooqPipelineRun;
+import io.metaloom.loom.db.jooq.tables.JooqPipelineVersion;
 import io.metaloom.loom.db.jooq.tables.JooqProject;
 import io.metaloom.loom.db.jooq.tables.JooqProjectCollection;
 import io.metaloom.loom.db.jooq.tables.JooqProjectLibrary;
@@ -277,6 +278,11 @@ public class Tables {
      * History of pipeline executions
      */
     public static final JooqPipelineRun PIPELINE_RUN = JooqPipelineRun.PIPELINE_RUN;
+
+    /**
+     * Version history of pipeline definitions
+     */
+    public static final JooqPipelineVersion PIPELINE_VERSION = JooqPipelineVersion.PIPELINE_VERSION;
 
     /**
      * The table <code>public.project</code>.

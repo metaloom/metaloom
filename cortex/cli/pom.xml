@@ -33,6 +33,10 @@
             <groupId>io.metaloom.cortex</groupId>
             <artifactId>cortex-core</artifactId>
         </dependency>
+        <dependency>
+            <groupId>info.picocli</groupId>
+            <artifactId>picocli</artifactId>
+        </dependency>
 
         <!--Test-->
         <dependency>

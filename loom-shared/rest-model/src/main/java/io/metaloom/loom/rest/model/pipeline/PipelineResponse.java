@@ -1,12 +1,26 @@
 package io.metaloom.loom.rest.model.pipeline;
 
+import java.util.UUID;
+
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
 
 import io.metaloom.loom.rest.model.common.AbstractCreatorEditorRestResponse;
 import io.vertx.core.json.JsonObject;
 
+/**
+ * Flattened pipeline response. The {@code uuid} identifies the pipeline; {@link #getVersionUuid()} and {@link #getVersionNumber()} identify the version the
+ * remaining fields were rendered from.
+ */
 public class PipelineResponse extends AbstractCreatorEditorRestResponse<PipelineResponse> implements PipelineModel<PipelineResponse> {
+
+	@JsonProperty(required = true)
+	@JsonPropertyDescription("The UUID of the pipeline version this response was rendered from")
+	private UUID versionUuid;
+
+	@JsonProperty(required = true)
+	@JsonPropertyDescription("The version number this response was rendered from")
+	private Integer versionNumber;
 
 	@JsonProperty(required = true)
 	@JsonPropertyDescription("The name of the pipeline")
@@ -33,6 +47,28 @@ public class PipelineResponse extends AbstractCreatorEditorRestResponse<Pipeline
 	private Boolean dryRun;
 
 	public PipelineResponse() {
+	}
+
+	@Override
+	public UUID getVersionUuid() {
+		return versionUuid;
+	}
+
+	@Override
+	public PipelineResponse setVersionUuid(UUID versionUuid) {
+		this.versionUuid = versionUuid;
+		return this;
+	}
+
+	@Override
+	public Integer getVersionNumber() {
+		return versionNumber;
+	}
+
+	@Override
+	public PipelineResponse setVersionNumber(Integer versionNumber) {
+		this.versionNumber = versionNumber;
+		return this;
 	}
 
 	@Override

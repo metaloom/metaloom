@@ -48,6 +48,8 @@ public interface LoomCoreComponent {
 
 	AuthenticationService authService();
 
+	io.metaloom.loom.server.grpc.GrpcService grpcService();
+
 	@Component.Builder
 	interface Builder {
 

@@ -13,6 +13,8 @@
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<!-- Must match the io.grpc artifacts pulled in via vertx-grpc -->
+		<protoc.grpc.version>1.65.0</protoc.grpc.version>
 	</properties>
 
 	<dependencies>
@@ -37,10 +39,10 @@
 				<version>0.6.1</version>
 				<configuration>
 					<protocArtifact>
-						com.google.protobuf:protoc:3.2.0:exe:${os.detected.classifier}</protocArtifact>
+						com.google.protobuf:protoc:${protobuf.version}:exe:${os.detected.classifier}</protocArtifact>
 					<pluginId>grpc-java</pluginId>
 					<pluginArtifact>
-						io.grpc:protoc-gen-grpc-java:1.52.1:exe:${os.detected.classifier}</pluginArtifact>
+						io.grpc:protoc-gen-grpc-java:${protoc.grpc.version}:exe:${os.detected.classifier}</pluginArtifact>
 				</configuration>
 				<executions>
 					<execution>

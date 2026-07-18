@@ -14,6 +14,7 @@ import io.metaloom.loom.auth.AuthenticationService;
 import io.metaloom.loom.mcp.MCPService;
 import io.metaloom.loom.rest.RESTService;
 import io.metaloom.loom.rest.UIService;
+import io.metaloom.loom.server.grpc.GrpcService;
 import io.vertx.core.http.HttpServer;
 
 @Singleton
@@ -21,7 +22,7 @@ public class BootstrapInitializer {
 
 	public static final Logger log = LoggerFactory.getLogger(BootstrapInitializer.class);
 
-	// private final GrpcService grpcService;
+	private final GrpcService grpcService;
 
 	private final RESTService restService;
 
@@ -40,8 +41,9 @@ public class BootstrapInitializer {
 	private final HttpServer httpServer;
 
 	@Inject
-	public BootstrapInitializer(RESTService restService, UIService uiService, MCPService mcpService, AuthenticationService authService,
+	public BootstrapInitializer(GrpcService grpcService, RESTService restService, UIService uiService, MCPService mcpService, AuthenticationService authService,
 		Flyway flyway, DatabaseInitializer initializer, DemoDatabaseInitializer demoInitializer, HttpServer httpServer) {
+		this.grpcService = grpcService;
 		this.restService = restService;
 		this.uiService = uiService;
 		this.mcpService = mcpService;
@@ -110,6 +112,13 @@ public class BootstrapInitializer {
 		} catch (Exception e) {
 			throw new RuntimeException("Error while starting MCP service", e);
 		}
+
+		try {
+			log.info("Starting gRPC service");
+			grpcService.start();
+		} catch (Exception e) {
+			throw new RuntimeException("Error while starting gRPC service", e);
+		}
 	}
 
 	public RESTService getRestService() {
@@ -120,8 +129,13 @@ public class BootstrapInitializer {
 		return mcpService;
 	}
 
+	public GrpcService getGrpcService() {
+		return grpcService;
+	}
+
 	public void deinit() {
 		mcpService.stop();
 		restService.stop();
+		grpcService.stop();
 	}
 }

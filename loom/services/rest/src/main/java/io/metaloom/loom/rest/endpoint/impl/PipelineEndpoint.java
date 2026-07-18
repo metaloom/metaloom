@@ -49,6 +49,9 @@ public class PipelineEndpoint extends AbstractEndpoint {
 		secure(basePath() + "/:uuid");
 		secure(basePath() + "/:uuid/run");
 		secure(basePath() + "/:uuid/runs");
+		secure(basePath() + "/:uuid/versions");
+		secure(basePath() + "/:uuid/versions/:version");
+		secure(basePath() + "/:uuid/versions/:version/restore");
 
 		// Create
 		addRoute(basePath(), POST,
@@ -70,7 +73,7 @@ public class PipelineEndpoint extends AbstractEndpoint {
 
 		// Delete
 		addRoute(basePath() + "/:uuid", DELETE,
-			"Delete a pipeline",
+			"Delete a pipeline and all its versions",
 			null,
 			examples.deleteResponseExample(),
 			lrc -> {
@@ -109,6 +112,33 @@ public class PipelineEndpoint extends AbstractEndpoint {
 			examples.pipelineRunListResponseExample(),
 			lrc -> {
 				service.listRuns(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		// Pipeline Versions
+		// List all versions of a pipeline
+		addListRoute(basePath() + "/:uuid/versions", GET,
+			"Load a paged list of pipeline versions",
+			examples.pipelineVersionListResponseExample(),
+			lrc -> {
+				service.listVersions(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		// Load a specific version of a pipeline
+		addRoute(basePath() + "/:uuid/versions/:version", GET,
+			"Load a specific pipeline version",
+			null,
+			examples.pipelineVersionResponseExample(),
+			lrc -> {
+				service.loadVersion(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamInt("version"));
+			});
+
+		// Restore a pipeline version (creates a new version with restored content)
+		addRoute(basePath() + "/:uuid/versions/:version/restore", POST,
+			"Restore a pipeline version",
+			examples.pipelineVersionRestoreRequestExample(),
+			examples.pipelineVersionRestoreResponseExample(),
+			lrc -> {
+				service.restoreVersion(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamInt("version"));
 			});
 	}
 }

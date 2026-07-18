@@ -40,12 +40,10 @@
     </dependency>
 
     <!-- Needed services -->
-    <!--
     <dependency>
       <groupId>io.metaloom.loom.service</groupId>
       <artifactId>loom-service-grpc</artifactId>
     </dependency>
-    -->
     <dependency>
       <groupId>io.metaloom.loom.service</groupId>
       <artifactId>loom-service-rest</artifactId>

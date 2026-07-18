@@ -1,0 +1,39 @@
+// Standard gRPC health checking protocol.
+// See https://github.com/grpc/grpc/blob/master/doc/health-checking.md
+//
+// The proto package must remain "grpc.health.v1" so that the service is
+// reachable under its well known name grpc.health.v1.Health.
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "io.metaloom.loom.proto.health";
+option java_outer_classname = "HealthProto";
+
+package grpc.health.v1;
+
+// The health checking service definition.
+service Health {
+  // Check the serving status of a single service.
+  rpc Check (HealthCheckRequest) returns (HealthCheckResponse) {}
+
+  // Watch the serving status of a single service. The current status is sent
+  // immediately and every subsequent change is streamed to the client.
+  rpc Watch (HealthCheckRequest) returns (stream HealthCheckResponse) {}
+}
+
+// The request for a health check. An empty service name refers to the server
+// as a whole.
+message HealthCheckRequest {
+  string service = 1;
+}
+
+// The response for a health check.
+message HealthCheckResponse {
+  enum ServingStatus {
+    UNKNOWN = 0;
+    SERVING = 1;
+    NOT_SERVING = 2;
+    SERVICE_UNKNOWN = 3;
+  }
+  ServingStatus status = 1;
+}

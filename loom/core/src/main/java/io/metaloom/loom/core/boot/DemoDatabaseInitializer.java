@@ -47,6 +47,8 @@ import io.metaloom.loom.db.model.perm.Permission;
 import io.metaloom.loom.db.model.perm.PermissionDao;
 import io.metaloom.loom.db.model.pipeline.Pipeline;
 import io.metaloom.loom.db.model.pipeline.PipelineDao;
+import io.metaloom.loom.db.model.pipeline.PipelineVersion;
+import io.metaloom.loom.db.model.pipeline.PipelineVersionDao;
 import io.metaloom.loom.db.model.pool.AssetPool;
 import io.metaloom.loom.db.model.pool.AssetPoolDao;
 import io.metaloom.loom.db.model.reaction.Reaction;
@@ -109,6 +111,7 @@ public class DemoDatabaseInitializer {
 	private final DetectionDao detectionDao;
 	private final AssetComponentDao assetComponentDao;
 	private final ChatDao chatDao;
+	private final PipelineVersionDao pipelineVersionDao;
 
 	@Inject
 	public DemoDatabaseInitializer(UserDao userDao, AssetDao assetDao, SpaceDao spaceDao,
@@ -116,7 +119,7 @@ public class DemoDatabaseInitializer {
 		GroupDao groupDao, RoleDao roleDao, PermissionDao permissionDao, TaskDao taskDao,
 		AnnotationDao annotationDao, ReactionDao reactionDao, TokenDao tokenDao,
 		CommentDao commentDao, BlacklistDao blacklistDao, ClusterDao clusterDao, PersonDao personDao, DetectionDao detectionDao,
-		AssetComponentDao assetComponentDao, ChatDao chatDao) {
+		AssetComponentDao assetComponentDao, ChatDao chatDao, PipelineVersionDao pipelineVersionDao) {
 		this.userDao = userDao;
 		this.assetDao = assetDao;
 		this.spaceDao = spaceDao;
@@ -139,6 +142,7 @@ public class DemoDatabaseInitializer {
 		this.detectionDao = detectionDao;
 		this.assetComponentDao = assetComponentDao;
 		this.chatDao = chatDao;
+		this.pipelineVersionDao = pipelineVersionDao;
 	}
 
 	/**
@@ -741,12 +745,28 @@ public class DemoDatabaseInitializer {
 		pipeline.setEditor(admin);
 		pipeline.setCreated(Instant.now());
 		pipeline.setEdited(Instant.now());
-		pipeline.setDescription(description);
-		pipeline.setEnabled(enabled);
-		pipeline.setPriority(priority);
-		pipeline.setDryRun(dryRun);
-		pipeline.setDefinition(definition);
+		pipeline.setMeta(new JsonObject());
 		pipelineDao.store(pipeline);
+
+		// Create v1 version in pipeline_version table
+		PipelineVersion version = pipelineVersionDao.createVersion(
+			admin.getUuid(),
+			pipeline.getUuid(),
+			1,
+			name,
+			description,
+			definition,
+			enabled,
+			priority,
+			dryRun,
+			new JsonObject()
+		);
+		pipelineVersionDao.store(version);
+
+		// Update pipeline with latest version reference
+		pipeline.setLatestVersionUuid(version.getUuid());
+		pipelineDao.update(pipeline);
+
 		log.info("Created demo pipeline: {}", name);
 		return pipeline;
 	}

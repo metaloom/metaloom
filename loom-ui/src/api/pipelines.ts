@@ -2,8 +2,14 @@ import { API_BASE_URL } from "./config";
 
 // ── Types matching the Loom REST API pipeline models ──────────────────
 
+/**
+ * Flattened pipeline model. `uuid` identifies the pipeline; `versionUuid` and
+ * `versionNumber` identify the version the remaining fields were rendered from.
+ */
 export interface PipelineResponse {
   uuid: string;
+  versionUuid: string;
+  versionNumber: number;
   name: string;
   description?: string;
   definition?: Record<string, unknown>;

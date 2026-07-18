@@ -39,9 +39,27 @@ public interface PipelineExamples extends ExampleValues {
 		return new ExampleImpl(pipelineRunListResponse(), "The pipeline run list response", HttpResponseStatus.OK);
 	}
 
+	default Example pipelineVersionListResponseExample() {
+		return new ExampleImpl(pipelineVersionListResponse(), "The pipeline version list response", HttpResponseStatus.OK);
+	}
+
+	default Example pipelineVersionResponseExample() {
+		return new ExampleImpl(pipelineVersionResponse(), "The pipeline version response", HttpResponseStatus.OK);
+	}
+
+	default Example pipelineVersionRestoreRequestExample() {
+		return new ExampleImpl(pipelineVersionRestoreRequest(), "The pipeline version restore request", HttpResponseStatus.CREATED);
+	}
+
+	default Example pipelineVersionRestoreResponseExample() {
+		return new ExampleImpl(pipelineVersionRestoreResponse(), "The pipeline version restore response", HttpResponseStatus.CREATED);
+	}
+
 	default PipelineResponse pipelineResponse() {
 		PipelineResponse model = new PipelineResponse();
 		model.setUuid(uuidC());
+		model.setVersionUuid(UUID.randomUUID());
+		model.setVersionNumber(1);
 		model.setName("my-pipeline");
 		model.setDescription("A sample pipeline");
 		model.setDefinition(new JsonObject().put("nodes", new io.vertx.core.json.JsonArray()));
@@ -122,6 +140,44 @@ public interface PipelineExamples extends ExampleValues {
 		model.setSkippedCount(2);
 		model.setDryRun(false);
 		model.setDurationMs(45000L);
+		return model;
+	}
+
+	/**
+	 * A pipeline rendered from one of its historic versions. Same flattened model as {@link #pipelineResponse()} — {@code uuid} is the pipeline,
+	 * {@code versionUuid}/{@code versionNumber} pin the version.
+	 */
+	default PipelineResponse pipelineVersionResponse() {
+		PipelineResponse model = pipelineResponse();
+		model.setVersionUuid(UUID.randomUUID());
+		model.setVersionNumber(2);
+		return model;
+	}
+
+	default PipelineVersionListResponse pipelineVersionListResponse() {
+		PipelineVersionListResponse model = new PipelineVersionListResponse();
+		model.add(pipelineVersionResponse());
+		model.add(pipelineVersionResponse());
+		model.setMetainfo(pagingInfo());
+		return model;
+	}
+
+	default PipelineVersionRestoreRequest pipelineVersionRestoreRequest() {
+		PipelineVersionRestoreRequest model = new PipelineVersionRestoreRequest();
+		model.setName("restored-pipeline");
+		model.setDescription("Restored from version 1");
+		return model;
+	}
+
+	/**
+	 * Restoring a version creates a new latest version, so the response is the pipeline rendered from that new version.
+	 */
+	default PipelineResponse pipelineVersionRestoreResponse() {
+		PipelineResponse model = pipelineResponse();
+		model.setName("restored-pipeline");
+		model.setDescription("Restored from version 1");
+		model.setVersionUuid(UUID.randomUUID());
+		model.setVersionNumber(2);
 		return model;
 	}
 

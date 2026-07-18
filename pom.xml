@@ -25,6 +25,10 @@
         <jackson.version>2.18.2</jackson.version>
         <loom-test-env.version>0.0.1-SNAPSHOT</loom-test-env.version>
         <avro.version>1.12.0</avro.version>
+        <!-- Version required by vertx-grpc-common. Pinned centrally because grpc-protobuf
+             otherwise drags in an older protobuf-java into some modules, and generated
+             protobuf code only runs against the runtime it was generated for. -->
+        <protobuf.version>4.29.3</protobuf.version>
     </properties>
 
     <scm>
@@ -69,6 +73,16 @@
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>com.google.protobuf</groupId>
+                <artifactId>protobuf-java</artifactId>
+                <version>${protobuf.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.google.protobuf</groupId>
+                <artifactId>protobuf-java-util</artifactId>
+                <version>${protobuf.version}</version>
+            </dependency>
             <dependency>
                 <groupId>io.vertx</groupId>
                 <artifactId>vertx-core</artifactId>

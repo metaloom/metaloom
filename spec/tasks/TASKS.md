@@ -2029,3 +2029,22 @@ Tasks should be prioritized based on:
 5. **Feature completeness** (GraphQL registration, gRPC, scheduling)
 
 When implementing a task, **update the corresponding spec file** in `spec/loom/` to reflect the changes.
+
+
+
+
+
+
+
+# Pipeline REST Model — DONE
+
+* [x] Refactor PipelineResponseModel. Move all fields from PipelineVersionResponse to PipelineResponseModel
+* [x] Add a version reference to the PipelineResponseModel.
+We esentially want to flatten the response model down and not expose two different models. This however must not affect the way the data is persisted in the DAO layer.  In the DAO Layer we keep two seperated logical elements. Only in the REST API those will be merged to ease access and simplify the domain model.
+
+Implemented: `PipelineResponse` now carries `versionUuid` + `versionNumber` plus all
+former version fields. `PipelineVersionModel`, `PipelineVersionResponse` and
+`PipelineVersionRestoreResponse` were deleted — the version endpoints return the same
+flattened `PipelineResponse`. The DAO layer is untouched: `Pipeline` and
+`PipelineVersion` remain two separate elements and `Pipeline.latestVersionUuid` still
+drives persistence. See `spec/loom/RESTAPI.md` §3.5.

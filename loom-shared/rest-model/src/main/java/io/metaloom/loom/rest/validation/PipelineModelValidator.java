@@ -21,10 +21,10 @@ public interface PipelineModelValidator extends ModelValidator {
 
 	default void validate(PipelineResponse response) {
 		validateCreatorEditorResponse(response);
+		requireNonNull(response.getVersionUuid(), "A pipeline version UUID must be set");
+		requireNonNull(response.getVersionNumber(), "A pipeline version number must be set");
 		requireNonNullOrEmpty(response.getName(), "A pipeline name must be set");
-		if (response.getDefinition() != null) {
-			validateDefinition(response.getDefinition());
-		}
+		requireNonNull(response.getDefinition(), "A pipeline definition must be set");
 	}
 
 	default void validate(PipelineCreateRequest request) {

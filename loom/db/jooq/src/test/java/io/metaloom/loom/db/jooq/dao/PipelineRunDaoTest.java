@@ -12,6 +12,8 @@ import io.metaloom.loom.db.model.pipeline.Pipeline;
 import io.metaloom.loom.db.model.pipeline.PipelineDao;
 import io.metaloom.loom.db.model.pipeline.PipelineRun;
 import io.metaloom.loom.db.model.pipeline.PipelineRunDao;
+import io.metaloom.loom.db.model.pipeline.PipelineVersion;
+import io.metaloom.loom.db.model.pipeline.PipelineVersionDao;
 import io.metaloom.loom.db.model.user.User;
 import io.vertx.core.json.JsonObject;
 
@@ -20,9 +22,27 @@ public class PipelineRunDaoTest extends AbstractJooqTest implements CRUDDaoTestc
 	@Override
 	public PipelineRun createElement(User user, int i) {
 		Pipeline pipeline = pipelineDao().createPipeline(user, "pipeline_" + i);
-		pipeline.setDefinition(new JsonObject().put("nodes", new io.vertx.core.json.JsonArray()));
-		pipeline.setEnabled(true);
+		pipeline.setMeta(new JsonObject().put("key", "value"));
 		pipelineDao().store(pipeline);
+
+		// Create v1 version
+		PipelineVersion version = pipelineVersionDao().createVersion(
+			user.getUuid(),
+			pipeline.getUuid(),
+			1,
+			"pipeline_" + i,
+			"Test pipeline " + i,
+			new JsonObject().put("nodes", new io.vertx.core.json.JsonArray()),
+			true,
+			i,
+			false,
+			new JsonObject().put("versionKey", "versionValue")
+		);
+		pipelineVersionDao().store(version);
+
+		// Update pipeline with latest version reference
+		pipeline.setLatestVersionUuid(version.getUuid());
+		pipelineDao().update(pipeline);
 
 		PipelineRun run = pipelineRunDao().createPipelineRun(user.getUuid(), pipeline.getUuid(), 1);
 		run.setStatus("SUCCESS");
@@ -53,6 +73,11 @@ public class PipelineRunDaoTest extends AbstractJooqTest implements CRUDDaoTestc
 	@Override
 	public PipelineRunDao getDao() {
 		return pipelineRunDao();
+	}
+
+	@Override
+	public PipelineVersionDao pipelineVersionDao() {
+		return daos().pipelineVersionDao();
 	}
 
 	@Override

@@ -35,9 +35,22 @@
       <artifactId>loom-db-api</artifactId>
     </dependency>
     <dependency>
-      <groupId>io.metaloom.vertx</groupId>
-      <artifactId>vertx-grpc-jwt</artifactId>
-      <version>0.0.1-SNAPSHOT</version>
+      <groupId>io.metaloom.loom.service</groupId>
+      <artifactId>loom-service-auth-common</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.vertx</groupId>
+      <artifactId>vertx-auth-jwt</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.vertx</groupId>
+      <artifactId>vertx-grpc-server</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>io.vertx</groupId>
+      <artifactId>vertx-grpc-client</artifactId>
+      <scope>test</scope>
     </dependency>
   </dependencies>
 

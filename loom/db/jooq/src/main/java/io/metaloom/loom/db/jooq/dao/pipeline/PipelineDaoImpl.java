@@ -46,16 +46,22 @@ public class PipelineDaoImpl extends AbstractJooqDao<Pipeline> implements Pipeli
 	@Override
 	public Pipeline createPipeline(UUID userUuid, String name) {
 		Pipeline pipeline = new PipelineImpl();
-		pipeline.setName(name);
 		setCreatorEditor(pipeline, userUuid);
 		return pipeline;
 	}
 
 	@Override
+	public Pipeline loadWithLatestVersion(UUID id) {
+		return ctx().selectFrom(PIPELINE)
+			.where(PIPELINE.UUID.eq(id))
+			.fetchOneInto(getPojoClass());
+	}
+
+	@Override
 	protected SelectConditionStep<?> applyFilter(SelectConditionStep<?> query, Filter filter) {
 		FilterKey key = filter.filterKey();
-		if (key == LoomFilterKey.NAME) {
-			return query.and(PIPELINE.NAME.eq(filter.valueStr()));
+		if (key == LoomFilterKey.UUID) {
+			return query.and(PIPELINE.UUID.eq(UUID.fromString(filter.valueStr())));
 		}
 		return super.applyFilter(query, filter);
 	}

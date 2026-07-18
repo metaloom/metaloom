@@ -1,32 +1,18 @@
 package io.metaloom.loom.db.model.pipeline;
 
+import java.util.UUID;
+
 import io.metaloom.loom.db.CUDElement;
 import io.vertx.core.json.JsonObject;
 
 public interface Pipeline extends CUDElement<Pipeline> {
 
-	String getName();
+	UUID getLatestVersionUuid();
 
-	Pipeline setName(String name);
+	Pipeline setLatestVersionUuid(UUID latestVersionUuid);
 
-	String getDescription();
+	JsonObject getMeta();
 
-	Pipeline setDescription(String description);
-
-	JsonObject getDefinition();
-
-	Pipeline setDefinition(JsonObject definition);
-
-	boolean isEnabled();
-
-	Pipeline setEnabled(boolean enabled);
-
-	int getPriority();
-
-	Pipeline setPriority(int priority);
-
-	boolean isDryRun();
-
-	Pipeline setDryRun(boolean dryRun);
+	Pipeline setMeta(JsonObject meta);
 
 }

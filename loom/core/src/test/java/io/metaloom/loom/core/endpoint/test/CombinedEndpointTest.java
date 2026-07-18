@@ -2,6 +2,7 @@ package io.metaloom.loom.core.endpoint.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import java.io.FileNotFoundException;
@@ -236,35 +237,55 @@ public class CombinedEndpointTest extends AbstractEndpointTest {
 			pipelineRequest.setDryRun(false);
 			PipelineResponse pipeline = client.createPipeline(pipelineRequest).sync().body();
 			assertNotNull(pipeline.getUuid(), "Pipeline UUID should not be null");
+			assertNotNull(pipeline.getMeta(), "Pipeline meta should not be null");
+			// The response is flattened: the version fields are served inline, no second request needed.
+			assertNotNull(pipeline.getVersionUuid(), "Pipeline version UUID should not be null");
+			assertEquals(1, pipeline.getVersionNumber(), "A freshly created pipeline is at version 1");
 			assertEquals("test-pipeline", pipeline.getName());
 			assertEquals("A test pipeline for combined endpoint test", pipeline.getDescription());
-			assertNotNull(pipeline.getDefinition(), "Pipeline definition should not be null");
+			assertNotNull(pipeline.getDefinition(), "Pipeline definition should be served inline");
 			assertEquals(true, pipeline.isEnabled());
-			assertEquals(Integer.valueOf(10), pipeline.getPriority());
+			assertEquals(10, pipeline.getPriority());
 			assertEquals(false, pipeline.isDryRun());
 
 			// Load pipeline
 			PipelineResponse loadedPipeline = client.loadPipeline(pipeline.getUuid()).sync().body();
 			assertNotNull(loadedPipeline);
 			assertEquals(pipeline.getUuid(), loadedPipeline.getUuid());
+			assertEquals(pipeline.getVersionUuid(), loadedPipeline.getVersionUuid());
 			assertEquals("test-pipeline", loadedPipeline.getName());
+			assertNotNull(loadedPipeline.getDefinition(), "Loaded pipeline definition should be served inline");
 
-			// Update pipeline
+			// Update pipeline — creates a new version, so the flattened response advances to v2
 			PipelineUpdateRequest pipelineUpdateRequest = new PipelineUpdateRequest();
 			pipelineUpdateRequest.setName("updated-pipeline");
 			pipelineUpdateRequest.setDescription("Updated description");
 			pipelineUpdateRequest.setEnabled(false);
 			pipelineUpdateRequest.setPriority(20);
 			PipelineResponse updatedPipeline = client.updatePipeline(pipeline.getUuid(), pipelineUpdateRequest).sync().body();
+			assertEquals(pipeline.getUuid(), updatedPipeline.getUuid(), "The pipeline UUID is stable across versions");
+			assertNotNull(updatedPipeline.getMeta(), "Updated pipeline meta should not be null");
+			assertNotNull(updatedPipeline.getVersionUuid(), "Updated pipeline version UUID should not be null");
+			assertNotEquals(pipeline.getVersionUuid(), updatedPipeline.getVersionUuid(), "An update must produce a new version");
+			assertEquals(2, updatedPipeline.getVersionNumber(), "An update advances the version number");
 			assertEquals("updated-pipeline", updatedPipeline.getName());
 			assertEquals("Updated description", updatedPipeline.getDescription());
 			assertEquals(false, updatedPipeline.isEnabled());
-			assertEquals(Integer.valueOf(20), updatedPipeline.getPriority());
+			assertEquals(20, updatedPipeline.getPriority());
+			// Not supplied in the update request — must be carried over from the previous version.
+			assertNotNull(updatedPipeline.getDefinition(), "Definition should carry over from the previous version");
 
-			// List pipelines
+			// List pipelines — entries are flattened too, so the definition is present without a per-item fetch
 			PipelineListResponse pipelineList = client.listPipelines().sync().body();
 			assertNotNull(pipelineList);
 			assertFalse(pipelineList.getData().isEmpty(), "Pipeline list should not be empty");
+			PipelineResponse listed = pipelineList.getData().stream()
+				.filter(p -> pipeline.getUuid().equals(p.getUuid()))
+				.findFirst()
+				.orElseThrow(() -> new AssertionError("Created pipeline missing from list"));
+			assertEquals("updated-pipeline", listed.getName(), "List entries render from the latest version");
+			assertEquals(2, listed.getVersionNumber());
+			assertNotNull(listed.getDefinition(), "List entries should carry the definition inline");
 
 			// Delete pipeline
 			client.deletePipeline(pipeline.getUuid()).sync().body();

@@ -211,6 +211,7 @@ Most resource endpoints follow a standard CRUD pattern:
 | Embedding               | `/api/v1/embeddings`                   | GET, POST, DELETE        | CRUD + attachment sub-resources            |
 | Webhook                 | `/api/v1/webhooks`                     | GET, POST, DELETE        | Standard CRUD                              |
 | Pipeline                | `/api/v1/pipelines`                    | GET, POST, DELETE        | CRUD + `/:uuid/run` (POST) for execution   |
+| Pipeline Versions       | `/api/v1/pipelines/:uuid/versions`     | GET, POST                | Version history + `/:version/restore` (POST) |
 | Pipeline Events (WS)    | `/api/v1/pipelines/events/ws`          | WebSocket                | Live pipeline event stream                 |
 | Processor               | `/api/v1/processors`                   | GET, WebSocket           | List/load processors + WS for processor nodes |
 | Node Descriptors        | `/api/v1/pipeline/node-descriptors`    | GET                      | Pipeline node descriptor registry          |
@@ -254,7 +255,44 @@ The asset endpoint is the most complex, supporting:
   `processorNodeId`.
 - Returns 202 (Accepted) on success, 503 if no processor available.
 
-### 3.5 WebSocket Endpoints
+### 3.5 Pipeline Versions and the Flattened Pipeline Model
+
+Persistence keeps a pipeline and its versions as **two separate elements** — the
+`pipeline` and `pipeline_version` tables, with `pipeline.latest_version_uuid`
+pointing at the current revision. Every mutation (create, update, restore)
+appends a new `pipeline_version` row rather than editing one in place.
+
+The REST API deliberately **does not** mirror that split. There is a single
+`PipelineResponse` model that merges both halves, so a client never has to issue
+a second request just to learn a pipeline's name or definition:
+
+| Field | Meaning |
+|-------|---------|
+| `uuid` | The **pipeline** UUID — stable across all versions |
+| `versionUuid` | The `pipeline_version` this payload was rendered from |
+| `versionNumber` | Sequential version number (1, 2, 3, …) |
+| `name`, `description`, `definition`, `enabled`, `priority`, `dryRun` | Version-scoped fields, served inline |
+| `meta` | Custom metadata |
+| `status` | Creator/editor info |
+
+The same flattened model is returned by every pipeline-shaped endpoint:
+
+- `GET /api/v1/pipelines` and `GET /api/v1/pipelines/:uuid` — rendered from the
+  latest version. The list resolves all versions in a single batched query, so
+  entries carry their definition without an N+1 lookup.
+- `POST /api/v1/pipelines` and `POST /api/v1/pipelines/:uuid` — rendered from the
+  version the call just created.
+- `GET /api/v1/pipelines/:uuid/versions` — paged history. Each entry keeps `uuid`
+  as the pipeline UUID and pins the revision via `versionUuid`/`versionNumber`;
+  the creator/editor status is that of the version's author.
+- `GET /api/v1/pipelines/:uuid/versions/:version` — one historic version.
+- `POST /api/v1/pipelines/:uuid/versions/:version/restore` — copies the named
+  version into a **new** latest version and returns the pipeline rendered from
+  it (201).
+
+Deleting a pipeline removes all of its versions.
+
+### 3.6 WebSocket Endpoints
 
 The REST API exposes two WebSocket endpoints. Full protocol details, message
 formats, authentication, and lifecycle are documented in
@@ -275,7 +313,7 @@ formats, authentication, and lifecycle are documented in
 - Events are JSON-encoded `PipelineEventMessage` objects.
 - Authentication via `?token=<jwt>` query parameter.
 
-### 3.6 GraphQL Endpoint
+### 3.7 GraphQL Endpoint
 
 - `POST /api/v1/graphql` - Executes a GraphQL query.
 - Request body: JSON with `query`, optional `operationName`, optional `variables`.

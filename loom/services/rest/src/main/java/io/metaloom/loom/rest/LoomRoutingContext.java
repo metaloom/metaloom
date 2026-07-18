@@ -121,6 +121,14 @@ public class LoomRoutingContext {
 		return UUID.fromString(val);
 	}
 
+	public int pathParamInt(String key) {
+		String val = pathParam(key);
+		if (val == null) {
+			throw new LoomRestException(400, LoomRestErrorCode.BAD_PATH_PARAMS, "Path parameter " + key + " not found");
+		}
+		return Integer.parseInt(val);
+	}
+
 	public AssetId pathParamAssetId(String key) {
 		String val = pathParam(key);
 		if (val == null) {

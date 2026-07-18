@@ -13,4 +13,9 @@ public interface PipelineDao extends CRUDDao<Pipeline> {
 
 	Pipeline createPipeline(UUID userUuid, String name);
 
+	/**
+	 * Load a pipeline with its latest version populated.
+	 */
+	Pipeline loadWithLatestVersion(UUID id);
+
 }
