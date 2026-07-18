@@ -169,6 +169,9 @@ List endpoints (`addListRoute`) support the following query parameters
 - Each CRUD operation maps to a specific permission (e.g. `CREATE_USER`,
   `READ_USER`, `UPDATE_USER`, `DELETE_USER`).
 - Missing permissions result in HTTP 403 with `MISSING_PERM` error code.
+- Permissions are global per type; the stored `resource` value is not enforced.
+- See [PERMISSION.md](PERMISSION.md) for the RBAC model, the permission
+  taxonomy, and known gaps in enforcement.
 
 ---
 

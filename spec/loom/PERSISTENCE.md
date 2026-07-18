@@ -517,7 +517,8 @@ This section tracks the status of each persistence entity and its associated fea
 | Detection | Missing test | `DetectionDaoTest` not yet created |
 | Chat | Missing test | `ChatDaoTest` not yet created |
 | AssetBinary | Missing test | No `AssetBinaryDaoTest` found |
-| Permission | Missing test | No `PermissionDaoTest` found |
+| Permission | Thin test | `PermissionDaoTest` exists but only asserts non-nullity - see [PERMISSION.md](PERMISSION.md) §9 |
+| Role | Missing test | `RoleDaoTest` exists but is an empty class with zero tests |
 
 ### jOOQ Generated Tables
 

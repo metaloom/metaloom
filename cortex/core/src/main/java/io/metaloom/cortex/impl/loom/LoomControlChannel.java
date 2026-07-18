@@ -387,6 +387,7 @@ public class LoomControlChannel {
 		PipelineEventMessage outgoing = new PipelineEventMessage()
 			.setType(PipelineEventType.valueOf(event.getType().name()))
 			.setPipelineName(event.getPipelineName())
+			.setPipelineRunUuid(event.getPipelineRunUuid())
 			.setNodeId(event.getNodeId())
 			.setMediaPath(event.getMediaPath())
 			.setTimestamp(event.getTimestamp())
@@ -394,13 +395,24 @@ public class LoomControlChannel {
 			.setMessage(event.getMessage());
 		sendMessage(new ProcessorMessage(ProcessorMessageType.PIPELINE_EVENT, JsonObject.mapFrom(outgoing)));
 
-		// If this is a pipeline completion event, also send a PIPELINE_RUN_COMPLETED message
+		// If this is a pipeline completion event, also send a PIPELINE_RUN_COMPLETED
+		// message carrying the run correlation id and the per-media aggregate
+		// counters, so Loom can close out the pipeline_run record.
 		if (event.getType() == PipelineTrackingEvent.Type.PIPELINE_COMPLETED) {
 			JsonObject completionPayload = new JsonObject()
 				.put("pipelineName", event.getPipelineName())
+				.put("pipelineRunUuid", event.getPipelineRunUuid())
 				.put("timestamp", event.getTimestamp())
 				.put("durationMs", event.getDurationMs())
 				.put("message", event.getMessage());
+			PipelineTrackingEvent.RunCounters counters = event.getCounters();
+			if (counters != null) {
+				completionPayload
+					.put("mediaCount", counters.getMediaCount())
+					.put("successCount", counters.getSuccessCount())
+					.put("failureCount", counters.getFailureCount())
+					.put("skippedCount", counters.getSkippedCount());
+			}
 			sendMessage(new ProcessorMessage(ProcessorMessageType.PIPELINE_RUN_COMPLETED, completionPayload));
 		}
 	}

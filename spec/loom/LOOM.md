@@ -8,6 +8,7 @@
 > - [WEBSOCKET.md](WEBSOCKET.md) - Processor and pipeline-events WebSocket protocols
 > - [MCP.md](MCP.md) - Model Context Protocol server (AI tool integration)
 > - [PERSISTENCE.md](PERSISTENCE.md) - Database layer, jOOQ DAOs, Flyway migrations
+> - [PERMISSION.md](PERMISSION.md) - RBAC permission system, roles, groups, enforcement
 > - [PIPELINE_CONTEXT.md](PIPELINE_CONTEXT.md) - Cortex pipeline execution engine
 > - [EVENTBUS.md](EVENTBUS.md) - Event bus systems (pipeline events, Vert.x EventBus, WebSocket fan-out)
 > - [SERVER.md](SERVER.md) - (placeholder) Server startup and lifecycle
@@ -306,9 +307,13 @@ for endpoint details.
   `PermissionBasedAuthorization`.
 - Each CRUD operation maps to a specific permission (e.g. `CREATE_USER`,
   `READ_USER`, `UPDATE_USER`, `DELETE_USER`).
-- Roles group permissions; users are assigned roles.
-- Groups organize users for collective access control.
+- Roles group permissions; groups hold roles; users are assigned to groups.
+  There is no direct user-to-role binding.
+- Permissions are global per type - the `resource` column is stored but not
+  enforced.
 - The `DatabaseInitializer` creates default roles and permissions at startup.
+
+See [PERMISSION.md](PERMISSION.md) for the full specification.
 
 ### 5.5 Entity Management
 

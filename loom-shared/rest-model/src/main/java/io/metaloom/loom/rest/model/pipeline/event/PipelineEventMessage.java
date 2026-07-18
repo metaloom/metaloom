@@ -22,6 +22,9 @@ public class PipelineEventMessage implements RestModel {
 	@JsonPropertyDescription("Name of the pipeline that emitted this event")
 	private String pipelineName;
 
+	@JsonPropertyDescription("UUID of the pipeline_run this event belongs to (null for untracked runs)")
+	private String pipelineRunUuid;
+
 	@JsonPropertyDescription("ID of the pipeline node (null for pipeline-level events)")
 	private String nodeId;
 
@@ -77,6 +80,15 @@ public class PipelineEventMessage implements RestModel {
 
 	public PipelineEventMessage setPipelineName(String pipelineName) {
 		this.pipelineName = pipelineName;
+		return this;
+	}
+
+	public String getPipelineRunUuid() {
+		return pipelineRunUuid;
+	}
+
+	public PipelineEventMessage setPipelineRunUuid(String pipelineRunUuid) {
+		this.pipelineRunUuid = pipelineRunUuid;
 		return this;
 	}
 

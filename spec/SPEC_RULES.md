@@ -1,3 +1,5 @@
+# Specification Rules
+
 * Include progress
 * Write the specification in a way so that it is useful for an AI Coding Agent
 * Include Test Setup for the feature / specification
@@ -10,3 +12,4 @@
 * Include a "Conventions and Gotchas" section highlighting non-obvious patterns, common pitfalls, and things to avoid
 * Include a "Where do I find ...?" cheat sheet table mapping concepts to file paths
 * When multiple subsystems exist, clearly delineate which subsystem is covered by which spec file to avoid duplication
+* Include the GIT HEAD REVISION of the checkout and Current Date/Time in the footer of the documentation file.

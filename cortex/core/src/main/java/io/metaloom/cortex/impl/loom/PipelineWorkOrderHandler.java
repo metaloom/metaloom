@@ -24,6 +24,7 @@ import io.metaloom.cortex.common.media.LoomMediaLoader;
 import io.metaloom.cortex.pipeline.api.Pipeline;
 import io.metaloom.cortex.pipeline.api.PipelineExecutor;
 import io.metaloom.cortex.pipeline.api.PipelineManager;
+import io.metaloom.cortex.pipeline.api.PipelineRunContext;
 import io.metaloom.cortex.pipeline.loader.LoomPipelineLoader;
 import io.metaloom.loom.rest.model.processor.workorder.WorkOrder;
 import io.metaloom.loom.rest.model.processor.workorder.WorkOrderResult;
@@ -147,8 +148,13 @@ public class PipelineWorkOrderHandler {
 			return;
 		}
 
+		// Correlate the tracking events emitted by this execution with the Loom
+		// pipeline_run record, so Loom can close the run out when it completes.
+		PipelineRunContext runContext = PipelineRunContext.of(
+			pipelineRunUuid != null ? pipelineRunUuid.toString() : null);
+
 		Flowable<LoomMedia> stream = Flowable.fromIterable(media);
-		pipelineExecutor.execute(pipeline, stream)
+		pipelineExecutor.execute(pipeline, stream, runContext)
 			.subscribeOn(Schedulers.io())
 			.subscribe(
 				res -> log.debug("Pipeline '{}' processed media {}", pipelineName, res.getMedia().absolutePath()),

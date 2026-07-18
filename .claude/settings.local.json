@@ -3,7 +3,15 @@
     "allow": [
       "Bash(mvn -q -T 8 test-compile -DskipTests -pl loom-shared/rest-model,loom-client/common,loom-client/rest,loom/services/rest,integration-test -am)",
       "Bash(mvn -q -T 8 install -Dmaven.test.skip=true -pl loom-shared/rest-model,loom-client/common,loom-client/rest,loom/services/rest -am)",
-      "Bash(env)"
+      "Bash(env)",
+      "Read(//tmp/**)",
+      "Bash(unzip -l /home/defaultuser/.m2/repository/io/metaloom/vertx/vertx-web-openapi-core/0.0.1-SNAPSHOT/vertx-web-openapi-core-0.0.1-SNAPSHOT.jar)",
+      "Bash(unzip -l /home/defaultuser/.m2/repository/io/metaloom/vertx/vertx-web-openapi-generator/0.0.1-SNAPSHOT/vertx-web-openapi-generator-0.0.1-SNAPSHOT.jar)",
+      "Read(//home/defaultuser/.m2/repository/io/metaloom/vertx/vertx-web-openapi-core/0.0.1-SNAPSHOT/**)",
+      "Bash(javap -cp vertx-web-openapi-core-0.0.1-SNAPSHOT.jar io.metaloom.vertx.route.ApiRoute io.metaloom.vertx.route.AbstractApiRouteImpl)",
+      "Read(//home/defaultuser/.m2/repository/io/metaloom/vertx/vertx-web-openapi-generator/0.0.1-SNAPSHOT/**)",
+      "Bash(javap -p -cp vertx-web-openapi-generator-0.0.1-SNAPSHOT.jar io.metaloom.vertx.openapi.OpenAPIGenerator 'io.metaloom.vertx.openapi.OpenAPIGenerator$Builder')",
+      "Bash(xargs cat)"
     ]
   }
 }

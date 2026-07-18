@@ -3,6 +3,8 @@ package io.metaloom.loom.rest.endpoint.impl;
 import static io.metaloom.loom.rest.RESTConstants.API_V1_PATH;
 import static io.vertx.core.http.HttpMethod.GET;
 
+import java.util.UUID;
+
 import javax.inject.Inject;
 
 import org.slf4j.Logger;
@@ -11,9 +13,6 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.loom.rest.AbstractEndpoint;
 import io.metaloom.loom.rest.EndpointDependencies;
 import io.metaloom.loom.rest.model.ModelExamples;
-import io.metaloom.loom.db.dagger.DaoCollection;
-import io.metaloom.loom.db.model.pipeline.PipelineRun;
-import io.metaloom.loom.db.model.pipeline.PipelineRunDao;
 import io.metaloom.loom.rest.model.pipeline.event.PipelineEventMessage;
 import io.metaloom.loom.rest.model.processor.ProcessorListResponse;
 import io.metaloom.loom.rest.model.processor.ProcessorResponse;
@@ -24,6 +23,7 @@ import io.metaloom.loom.rest.model.processor.message.ProcessorMessageType;
 import io.metaloom.loom.rest.model.processor.message.ProcessorRegistration;
 import io.metaloom.loom.rest.model.processor.workorder.WorkOrderResult;
 import io.metaloom.loom.rest.service.impl.PipelineEventBroadcaster;
+import io.metaloom.loom.rest.service.impl.PipelineRunTracker;
 import io.metaloom.loom.rest.service.impl.ProcessorRegistry;
 import io.metaloom.loom.rest.service.impl.ProcessorRegistry.ConnectedProcessor;
 import io.metaloom.loom.rest.service.impl.WebSocketAuthenticator;
@@ -57,19 +57,19 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 	private final PipelineEventBroadcaster pipelineEventBroadcaster;
 	private final WebSocketAuthenticator authenticator;
 	private final WorkOrderResultRegistry workOrderResultRegistry;
-	private final PipelineRunDao pipelineRunDao;
+	private final PipelineRunTracker pipelineRunTracker;
 	private final ModelExamples examples;
 
 	@Inject
 	public ProcessorEndpoint(ProcessorRegistry registry, PipelineEventBroadcaster pipelineEventBroadcaster,
 			WebSocketAuthenticator authenticator, WorkOrderResultRegistry workOrderResultRegistry,
-			PipelineRunDao pipelineRunDao, EndpointDependencies deps, ModelExamples examples) {
+			PipelineRunTracker pipelineRunTracker, EndpointDependencies deps, ModelExamples examples) {
 		super(deps);
 		this.registry = registry;
 		this.pipelineEventBroadcaster = pipelineEventBroadcaster;
 		this.authenticator = authenticator;
 		this.workOrderResultRegistry = workOrderResultRegistry;
-		this.pipelineRunDao = pipelineRunDao;
+		this.pipelineRunTracker = pipelineRunTracker;
 		this.examples = examples;
 	}
 
@@ -303,17 +303,36 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 		}
 		JsonObject body = msg.getBody();
 		String pipelineName = body.getString("pipelineName");
-		Long timestamp = body.getLong("timestamp");
+		String runUuidStr = body.getString("pipelineRunUuid");
 		Long durationMs = body.getLong("durationMs");
 		String message = body.getString("message");
 
-		log.info("Pipeline run completed: pipeline={}, duration={}ms, message={}", pipelineName, durationMs, message);
+		log.info("Pipeline run completed: pipeline={}, run={}, duration={}ms, message={}",
+			pipelineName, runUuidStr, durationMs, message);
 
-		// Find the latest pipeline run for this pipeline and update it
-		// We need to find the pipeline by name first
-		// For now, we'll just log - in a full implementation we'd look up the pipeline run
-		// and update its status, duration, etc.
-		// TODO: Implement pipeline run completion tracking
+		// An untracked run (offline Cortex, CLI batch) reports completion without a
+		// run id. There is nothing to persist — the event is still broadcast to UI
+		// subscribers via the PIPELINE_EVENT that preceded this message.
+		if (runUuidStr == null || runUuidStr.isBlank()) {
+			log.debug("PIPELINE_RUN_COMPLETED for pipeline '{}' carried no pipelineRunUuid — nothing to persist",
+				pipelineName);
+			return;
+		}
+
+		UUID runUuid;
+		try {
+			runUuid = UUID.fromString(runUuidStr);
+		} catch (IllegalArgumentException e) {
+			log.warn("PIPELINE_RUN_COMPLETED carried a malformed pipelineRunUuid '{}'", runUuidStr);
+			return;
+		}
+
+		int mediaCount = body.getInteger("mediaCount", 0);
+		int successCount = body.getInteger("successCount", 0);
+		int failureCount = body.getInteger("failureCount", 0);
+		int skippedCount = body.getInteger("skippedCount", 0);
+
+		pipelineRunTracker.complete(runUuid, durationMs, mediaCount, successCount, failureCount, skippedCount);
 	}
 
 	private void sendError(ServerWebSocket ws, String message) {

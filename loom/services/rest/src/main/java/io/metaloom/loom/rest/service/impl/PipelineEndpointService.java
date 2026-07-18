@@ -37,6 +37,8 @@ import io.metaloom.loom.rest.model.pipeline.PipelineUpdateRequest;
 import io.metaloom.loom.rest.model.pipeline.PipelineVersionRestoreRequest;
 import io.metaloom.loom.rest.model.processor.ProcessorCapability;
 import io.metaloom.loom.rest.model.processor.workorder.WorkOrder;
+import io.metaloom.loom.rest.model.processor.workorder.WorkOrderResult;
+import io.metaloom.loom.rest.model.processor.workorder.WorkOrderStatus;
 import io.metaloom.loom.rest.model.processor.workorder.WorkOrderType;
 import io.metaloom.loom.rest.service.AbstractCRUDEndpointService;
 import io.metaloom.loom.rest.service.impl.ProcessorRegistry.ConnectedProcessor;
@@ -51,21 +53,34 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 
 	private static final Logger log = LoggerFactory.getLogger(PipelineEndpointService.class);
 
+	/**
+	 * How long to wait for a processor to acknowledge a dispatched pipeline work
+	 * order before declaring the run failed. This is a <em>dispatch</em> watchdog,
+	 * not a run timeout: the ack arrives as soon as the processor has resolved the
+	 * media selection and started executing, long before the pipeline finishes.
+	 */
+	private static final long WORK_ORDER_ACK_TIMEOUT_MS = 60_000;
+
 	private final ProcessorRegistry processorRegistry;
 	private final PipelineValidationService pipelineValidationService;
 	private final PipelineRunDao pipelineRunDao;
 	private final PipelineVersionDao pipelineVersionDao;
+	private final WorkOrderResultRegistry workOrderResultRegistry;
+	private final PipelineRunTracker pipelineRunTracker;
 
 	@Inject
 	public PipelineEndpointService(PipelineDao pipelineDao, DaoCollection daos, LoomModelBuilder modelBuilder,
 		LoomModelValidator validator, ProcessorRegistry processorRegistry,
 		PipelineValidationService pipelineValidationService, PipelineRunDao pipelineRunDao,
-		PipelineVersionDao pipelineVersionDao) {
+		PipelineVersionDao pipelineVersionDao, WorkOrderResultRegistry workOrderResultRegistry,
+		PipelineRunTracker pipelineRunTracker) {
 		super(pipelineDao, daos, modelBuilder, validator);
 		this.processorRegistry = processorRegistry;
 		this.pipelineValidationService = pipelineValidationService;
 		this.pipelineRunDao = pipelineRunDao;
 		this.pipelineVersionDao = pipelineVersionDao;
+		this.workOrderResultRegistry = workOrderResultRegistry;
+		this.pipelineRunTracker = pipelineRunTracker;
 	}
 
 	@Override
@@ -269,7 +284,22 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 				.setAssetUuids(request.getMediaUuids())
 				.setParameters(params);
 
+			// Watch for the processor's acknowledgement so a work order that is never
+			// picked up does not strand the run at RUNNING forever. Note this is the
+			// *dispatch* ack, not run completion — a successful ack leaves the run
+			// RUNNING and the terminal state arrives later via PIPELINE_RUN_COMPLETED.
+			UUID runUuid = runRecord.getUuid();
+			workOrderResultRegistry.registerWithTimeout(workOrderId,
+				result -> onWorkOrderAck(runUuid, result), WORK_ORDER_ACK_TIMEOUT_MS);
+
 			boolean dispatched = processorRegistry.dispatchWorkOrder(processor.nodeId, workOrder);
+			if (!dispatched) {
+				// The socket was gone by the time we wrote to it. Nothing will ever
+				// acknowledge this work order, so close the run out immediately
+				// rather than waiting for the watchdog.
+				workOrderResultRegistry.cancel(workOrderId);
+				pipelineRunTracker.fail(runUuid, "Processor was not reachable");
+			}
 			response
 				.setProcessorNodeId(processor.nodeId)
 				.setDispatched(dispatched)
@@ -279,6 +309,46 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 				latestVersion != null ? latestVersion.getName() : pipeline.getUuid(), workOrderId, runRecord.getUuid(), processor.nodeId, dispatched);
 			lrc.send(response, dispatched ? 202 : 503);
 		});
+	}
+
+	/**
+	 * Handle the processor's acknowledgement of a dispatched pipeline work order.
+	 *
+	 * <p>The ack reports whether the processor accepted and started the work, not
+	 * whether the pipeline finished. Three outcomes matter:</p>
+	 * <ul>
+	 *   <li><b>FAILED</b> — the processor could not start (unknown pipeline, bad
+	 *       parameters, timed-out watchdog). The run is closed as FAILED.</li>
+	 *   <li><b>COMPLETED with zero media</b> — the selection resolved to nothing,
+	 *       so the pipeline never runs and will never emit PIPELINE_RUN_COMPLETED.
+	 *       Close the run out now, otherwise it strands at RUNNING.</li>
+	 *   <li><b>COMPLETED with media</b> — execution is under way. Leave the run
+	 *       RUNNING; {@code ProcessorEndpoint} closes it when the terminal
+	 *       PIPELINE_RUN_COMPLETED message arrives.</li>
+	 * </ul>
+	 */
+	private void onWorkOrderAck(UUID runUuid, WorkOrderResult result) {
+		if (result == null) {
+			return;
+		}
+		if (result.getStatus() == WorkOrderStatus.FAILED) {
+			String error = result.getErrorMessage() != null ? result.getErrorMessage()
+				: "Processor reported work order failure";
+			log.warn("Pipeline run {} failed at dispatch: {}", runUuid, error);
+			pipelineRunTracker.fail(runUuid, error);
+			return;
+		}
+
+		JsonObject payload = result.getResult();
+		Integer mediaCount = payload != null ? payload.getInteger("mediaCount") : null;
+		if (mediaCount != null && mediaCount == 0) {
+			log.info("Pipeline run {} resolved no media — closing out immediately", runUuid);
+			pipelineRunTracker.complete(runUuid, 0L, 0, 0, 0, 0);
+			return;
+		}
+
+		log.debug("Pipeline run {} acknowledged by processor ({} media dispatched) — awaiting completion",
+			runUuid, mediaCount);
 	}
 
 	/**
