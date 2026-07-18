@@ -122,6 +122,8 @@ export default defineConfig({
 | `login-backend.spec.ts` | Integration | Yes | Real login against backend |
 | `pipeline-backend.spec.ts` | Integration | Yes | Pipeline editor with real node descriptors |
 | `pipeline-loading.spec.ts` | Integration | Yes | Pipeline loading & canvas rendering |
+| `pipeline-versions.spec.ts` | Integration | Yes | Version badge, history dropdown, restore round-trip |
+| `pipeline-versions-mocked.spec.ts` | UI Smoke | No (mocked) | Version badge/history/restore mechanics in isolation |
 | `assets-backend.spec.ts` | Integration | Yes | Asset browser with real data |
 | `collections-backend.spec.ts` | Integration | Yes | Collection CRUD |
 | `detections-backend.spec.ts` | Integration | Yes | Face/object detection views |
@@ -520,7 +522,74 @@ const handleRun = async () => {
 };
 ```
 
-### 6.7 Validation
+### 6.7 Pipeline Versioning
+
+Every pipeline is stored as a `pipeline` row pointing at a `latest_version_uuid`;
+the name/description/definition/enabled/priority/dryRun fields live on
+`pipeline_version` rows. The REST layer flattens the two back together, so a
+`PipelineResponse` carries **both** `uuid` (the pipeline) and
+`versionUuid` + `versionNumber` (the version it was rendered from). There is no
+`version` field — see [RESTAPI.md](../RESTAPI.md#35-pipeline-versions-and-the-flattened-pipeline-model).
+
+#### Endpoints used by the UI
+
+| Endpoint | UI usage |
+|----------|----------|
+| `GET /api/v1/pipelines/:uuid/versions` | Populate the version history dropdown (paged, cursor-based) |
+| `GET /api/v1/pipelines/:uuid/versions/:n` | Available via `loadPipelineVersion` (not yet used by the editor) |
+| `POST /api/v1/pipelines/:uuid/versions/:n/restore` | Restore a version — responds **201** |
+
+API client: `src/api/pipelines.ts` → `listPipelineVersions`, `loadPipelineVersion`,
+`restorePipelineVersion`. `listPipelineVersions` degrades to `[]` when the
+endpoint is absent, mirroring `listPipelineRuns`.
+
+#### UI surfaces
+
+1. **Version badge** (`PipelineVersionBadge`) — a compact monospace `v<n>` chip
+   absolutely positioned at the top-left of the node editor
+   (`data-testid="pipeline-version-badge"`). Deliberately minimal so it does not
+   obstruct the canvas.
+2. **Version history dropdown** — clicking the badge opens a `Popover`
+   (`data-testid="pipeline-version-list"`) listing every version newest-first,
+   each row showing the version number, creation timestamp and author. The
+   current version is highlighted and tagged `current`; all others expose a
+   restore icon button.
+3. **Inspector chip** — the right-hand `PipelineInspector` header repeats the
+   current version as a chip (`data-testid="pipeline-inspector-version"`) so the
+   version is visible even when the canvas is scrolled or the JSON tab is open.
+
+#### Restore semantics (important)
+
+Restore is **copy-forward, not a rewind**: the server copies the requested
+version's contents into a *brand-new* version and repoints the pipeline at it.
+Restoring v1 while v4 is current yields **v5**, and nothing is deleted. The UI
+states this in the confirmation dialog and reports it as "Restored v1 as v5".
+
+#### Restore flow
+
+```
+Badge click → loadVersions() → GET /versions
+Restore icon → setRestoreConfirm(n) → confirmation dialog
+  (warns if the editor is dirty — restoring discards local edits)
+Confirm → POST /versions/:n/restore → 201 PipelineResponse
+  → toPipeline(resp) → setSelected + patch pipelines[]
+  → clear addedNodes / nodeDisplayNames / graphJson / selection / validation
+  → setDirty(false)
+  → setCanvasReloadKey(k => k + 1)   ← forces the canvas to rebuild
+```
+
+`PipelineCanvas` normally resets its React Flow graph only when `pipeline.id`
+changes. Because a restore keeps the same pipeline id, the canvas takes a
+`reloadKey` prop and its reset effect depends on `[pipeline?.id, reloadKey]`.
+Bumping `canvasReloadKey` is what makes the restored definition appear in the
+node editor automatically.
+
+A successful **save** also mints a new version: `handleSave` adopts the
+`versionUuid` / `versionNumber` from the update response so the badge and
+history stay in sync — but it deliberately does *not* bump `reloadKey`, since
+the canvas already shows exactly what was saved.
+
+### 6.8 Validation
 
 **File:** `src/features/pipeline/PipelineEditor.tsx` (lines ~1300-1450)
 
@@ -535,7 +604,7 @@ Validation runs on:
 - Save (blocking)
 - Graph change (clears stale errors)
 
-### 6.8 JSON View (Canvas Tab)
+### 6.9 JSON View (Canvas Tab)
 
 Two panels:
 1. **Loaded Definition** — Server-persisted pipeline definition (read-only, syntax highlighted)
@@ -543,7 +612,7 @@ Two panels:
 3. **Validity Indicator** — Green/red dot based on `graphJson` presence
 4. **Validation Errors** — Listed below if any
 
-### 6.9 Event Handling Summary
+### 6.10 Event Handling Summary
 
 | Event Source | Handler | State Mutation |
 |--------------|---------|----------------|
@@ -557,7 +626,7 @@ Two panels:
 | Save | `handleSave` | `POST /pipelines/:uuid` → `setDirty(false)` |
 | Run | `handleRun` | `POST /pipelines/:uuid/run` → notification |
 
-### 6.10 CRUD Handling
+### 6.11 CRUD Handling
 
 | Operation | UI Action | API Call | Optimistic? |
 |-----------|-----------|----------|-------------|
@@ -582,6 +651,8 @@ Two panels:
 | `PipelineInspector` | `src/features/pipeline/PipelineEditor.tsx` | Right stats panel |
 | `NodeDetailSidebar` | `src/features/pipeline/PipelineEditor.tsx` | Collapsible node config panel |
 | `RunHistory` | `src/features/pipeline/PipelineEditor.tsx` | Run history list |
+| `PipelineVersionBadge` | `src/features/pipeline/PipelineEditor.tsx` | `v<n>` canvas badge + version history dropdown + restore |
+| `toPipeline` | `src/features/pipeline/PipelineEditor.tsx` | Maps `PipelineResponse` (incl. version fields) to the local `Pipeline` type |
 | `CommandPaletteContent` | `src/features/pipeline/PipelineEditor.tsx` | N-key node search modal |
 | `AssetBrowser` | `src/features/assets/AssetBrowser.tsx` | Asset grid/list with filters |
 | `AssetDetail` | `src/features/assetDetail/AssetDetail.tsx` | Asset detail with media, timeline, sidebar |
@@ -597,6 +668,7 @@ Two panels:
 | `Sidebar` | `src/layout/Sidebar.tsx` | Collapsible navigation |
 | `LoginPage` | `src/features/auth/LoginPage.tsx` | Login form |
 | `listPipelines` / `updatePipeline` / `runPipeline` | `src/api/pipelines.ts` | Pipeline API client |
+| `listPipelineVersions` / `loadPipelineVersion` / `restorePipelineVersion` | `src/api/pipelines.ts` | Pipeline version API client |
 | `listAssets` / `loadAsset` | `src/api/assets.ts` | Asset API client |
 | `fetchNodeDescriptors` | `src/api/nodeDescriptors.ts` | Node descriptor API client |
 | `validatePipeline` | `src/features/pipeline/PipelineEditor.tsx` | Pipeline validation logic |
@@ -915,7 +987,7 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
 - [ ] Pipeline creation UI (only editing existing)
 - [ ] Pipeline deletion UI
 - [ ] Pipeline duplication/clone
-- [ ] Pipeline versioning/history
+- [x] Pipeline versioning (version badge, history dropdown, restore)
 - [ ] Collaborative editing (multi-user)
 - [ ] Minimap node color by category
 - [ ] Edge label editing (inline)
@@ -956,7 +1028,7 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
 | `/collections` | ✅ CRUD | Asset drag-drop to collection |
 | `/tasks` | ✅ CRUD, board view | Bulk operations, filters |
 | `/tags` | ✅ CRUD, grouped | Bulk tag/untag |
-| `/pipelines` | ✅ List, load, update, run | Create, delete, clone, versioning |
+| `/pipelines` | ✅ List, load, update, run, versions, restore | Create, delete, clone |
 | `/pipeline/node-descriptors` | ✅ Load for palette | Real-time updates |
 | `/processors` | ✅ List, WS connection | Detailed worker management |
 | `/clusters` | ✅ List | Cluster management UI |
@@ -976,6 +1048,7 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
 - [x] Login page (UI + backend)
 - [x] Pipeline editor (backend: descriptors, add nodes, connectors, categories)
 - [x] Pipeline loading
+- [x] Pipeline versioning (backend + mocked)
 - [x] Assets (backend)
 - [x] Collections (backend)
 - [x] Detections (backend)
@@ -1020,7 +1093,7 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
 - [ ] **Task Creation from Asset** — Only in Tasks view
 - [ ] **Transcript Editing** — Read-only
 - [ ] **Face Cluster Management** — Merge/split/rename UI missing
-- [ ] **Pipeline Versioning** — No history/diff
+- [ ] **Pipeline Version Diff** — History and restore exist; no side-by-side diff between versions
 - [ ] **Collaborative Editing** — No real-time multi-user
 - [ ] **Undo/Redo** — Not implemented anywhere
 - [ ] **Bulk Operations** — Assets, tags, tasks, pipelines
@@ -1041,7 +1114,8 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
 | Pipeline creation | `POST /api/v1/pipelines` | ✅ Exists, UI missing |
 | Pipeline deletion | `DELETE /api/v1/pipelines/:uuid` | ✅ Exists, UI missing |
 | Pipeline cloning | `POST /api/v1/pipelines` with source | ❌ Not in API |
-| Pipeline versioning | `GET /api/v1/pipelines/:uuid/versions` | ❌ Not in API |
+| Pipeline versioning | `GET /api/v1/pipelines/:uuid/versions` | ✅ Exists, UI implemented |
+| Pipeline version restore | `POST /api/v1/pipelines/:uuid/versions/:n/restore` | ✅ Exists, UI implemented |
 | GraphQL queries | `POST /api/v1/graphql` | ⚠️ Implemented but not registered |
 | Metrics dashboard | `GET /api/v1/metrics` | ❌ Not in API |
 | Health check | `GET /api/v1/health` | ❌ Not in API |
@@ -1093,7 +1167,7 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
 Core Framework:     ████████████████████████████████  100%
 Authentication:     ██████████████████████████████    90%
 Asset Management:   ████████████████████████████████  95%
-Pipeline Editor:    ██████████████████████████████    90%
+Pipeline Editor:    ███████████████████████████████   93%
 Admin Panels:       ████████████████████████████████  95%
 Monitoring/Chat:    ████████████████████████          70%
 Testing:            ████████████████████████████████  85%

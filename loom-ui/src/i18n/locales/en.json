@@ -594,7 +594,30 @@
       "validationMultipleSource": "Pipeline has multiple source nodes — only one is allowed",
       "validationUnknownType": "Unknown node type: \"{{type}}\" — not found in descriptor registry",
       "validationOk": "Pipeline validation passed",
-      "validationTitle": "Validation"
+      "validationTitle": "Validation",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Saved",
+      "saveTooltip": "Save pipeline",
+      "savedTooltip": "No unsaved changes",
+      "saveOk": "Pipeline saved",
+      "running": "Running…",
+      "runDispatched": "Pipeline run dispatched",
+      "runNoProcessor": "No processor available"
+    },
+    "version": {
+      "title": "Version History",
+      "badgeTooltip": "Current version — click to view history",
+      "loading": "Loading versions…",
+      "empty": "No version history available",
+      "current": "current",
+      "restore": "Restore",
+      "restoreTooltip": "Restore version {{version}}",
+      "restoreTitle": "Restore Version",
+      "restoreMessage": "Restore version {{version}}? This creates a new version with the contents of v{{version}} — nothing is deleted.",
+      "restoreDirtyWarning": "You have unsaved changes. Restoring will discard them.",
+      "restoreOk": "Restored v{{from}} as v{{to}}",
+      "restoreFailed": "Restore failed"
     },
     "node": {
       "s3Source": {

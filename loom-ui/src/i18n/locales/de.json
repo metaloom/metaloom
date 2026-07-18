@@ -585,7 +585,30 @@
       "validationMultipleSource": "Pipeline hat mehrere Quellknoten — nur einer ist erlaubt",
       "validationUnknownType": "Unbekannter Knotentyp: \"{{type}}\" — nicht in der Descriptor-Registry gefunden",
       "validationOk": "Pipeline-Validierung erfolgreich",
-      "validationTitle": "Validierung"
+      "validationTitle": "Validierung",
+      "save": "Speichern",
+      "saving": "Speichert…",
+      "saved": "Gespeichert",
+      "saveTooltip": "Pipeline speichern",
+      "savedTooltip": "Keine ungespeicherten Änderungen",
+      "saveOk": "Pipeline gespeichert",
+      "running": "Läuft…",
+      "runDispatched": "Pipeline-Lauf gestartet",
+      "runNoProcessor": "Kein Prozessor verfügbar"
+    },
+    "version": {
+      "title": "Versionsverlauf",
+      "badgeTooltip": "Aktuelle Version — klicken für den Verlauf",
+      "loading": "Versionen werden geladen…",
+      "empty": "Kein Versionsverlauf verfügbar",
+      "current": "aktuell",
+      "restore": "Wiederherstellen",
+      "restoreTooltip": "Version {{version}} wiederherstellen",
+      "restoreTitle": "Version wiederherstellen",
+      "restoreMessage": "Version {{version}} wiederherstellen? Dabei wird eine neue Version mit dem Inhalt von v{{version}} erstellt — es wird nichts gelöscht.",
+      "restoreDirtyWarning": "Sie haben ungespeicherte Änderungen. Beim Wiederherstellen gehen diese verloren.",
+      "restoreOk": "v{{from}} als v{{to}} wiederhergestellt",
+      "restoreFailed": "Wiederherstellen fehlgeschlagen"
     },
     "node": {
       "s3Source": {

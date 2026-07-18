@@ -149,6 +149,80 @@ export async function runPipeline(token: string, uuid: string, request: Pipeline
   return handleResponse<PipelineRunResponse>(res);
 }
 
+// ── Pipeline Versions ─────────────────────────────────────────────────
+
+/**
+ * A pipeline version is rendered as a regular `PipelineResponse`: `uuid` is
+ * always the pipeline UUID, while `versionUuid` / `versionNumber` identify the
+ * specific version. In a version listing `status.creator` / `status.created`
+ * describe the author of that version rather than the pipeline itself.
+ */
+export interface PipelineVersionListResponse {
+  data: PipelineResponse[];
+  _metainfo?: {
+    totalCount?: number;
+    perPage?: number;
+    lastUuid?: string;
+  };
+}
+
+/** Optional body for a version restore — both fields default to the restored version's values. */
+export interface PipelineVersionRestoreRequest {
+  name?: string;
+  description?: string;
+}
+
+/**
+ * List the version history of a pipeline (newest first as returned by the server).
+ * Endpoint: `GET /api/v1/pipelines/:uuid/versions`.
+ * Degrades gracefully to an empty array when the endpoint is not deployed yet.
+ */
+export async function listPipelineVersions(token: string, uuid: string): Promise<PipelineResponse[]> {
+  const res = await fetch(`${API_BASE_URL}/pipelines/${encodeURIComponent(uuid)}/versions`, {
+    method: "GET",
+    headers: authHeaders(token),
+  });
+  if (!res.ok) return [];
+  const body = await res.json() as PipelineVersionListResponse | PipelineResponse[];
+  if (Array.isArray(body)) return body;
+  return body.data ?? [];
+}
+
+/**
+ * Load a single version of a pipeline.
+ * Endpoint: `GET /api/v1/pipelines/:uuid/versions/:versionNumber`.
+ */
+export async function loadPipelineVersion(token: string, uuid: string, versionNumber: number): Promise<PipelineResponse> {
+  const res = await fetch(`${API_BASE_URL}/pipelines/${encodeURIComponent(uuid)}/versions/${versionNumber}`, {
+    method: "GET",
+    headers: authHeaders(token),
+  });
+  return handleResponse<PipelineResponse>(res);
+}
+
+/**
+ * Restore a previous version of a pipeline.
+ *
+ * Restore is a *copy-forward*: the server creates a **new** version whose
+ * content is copied from `versionNumber` and repoints the pipeline at it. The
+ * returned `PipelineResponse` therefore carries the newly created
+ * `versionNumber` (e.g. restoring v1 while v4 is latest yields v5), not the
+ * one that was requested. Responds with HTTP 201.
+ */
+export async function restorePipelineVersion(
+  token: string,
+  uuid: string,
+  versionNumber: number,
+  request: PipelineVersionRestoreRequest = {},
+): Promise<PipelineResponse> {
+  const res = await fetch(`${API_BASE_URL}/pipelines/${encodeURIComponent(uuid)}/versions/${versionNumber}/restore`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(request),
+  });
+  return handleResponse<PipelineResponse>(res);
+}
+
 // ── Pipeline Run History ──────────────────────────────────────────────
 
 export interface PipelineRunRecord {

@@ -158,6 +158,10 @@ export interface PipelineRun {
 
 export interface Pipeline {
   id: string;
+  /** UUID of the pipeline_version row this pipeline was rendered from. */
+  versionUuid?: string;
+  /** Sequential version number (1, 2, 3 …) of the currently loaded version. */
+  versionNumber?: number;
   spaceId: string;
   name: string;
   description: string;

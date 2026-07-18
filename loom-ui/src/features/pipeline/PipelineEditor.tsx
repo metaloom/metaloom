@@ -13,7 +13,7 @@ import {
   List, ListItemButton, ListItemText, ListItemIcon, Switch, Stack, Avatar, Collapse, TextField,
   InputAdornment, Popper, ClickAwayListener, MenuItem,
   Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button,
-  Snackbar, Alert,
+  Snackbar, Alert, Popover, CircularProgress,
 } from "@mui/material";
 import {
   PlayArrowOutlined, AccountTreeOutlined, CheckCircleOutline,
@@ -31,7 +31,7 @@ import {
   DateRange, Block, VerifiedOutlined, PlaylistRemoveOutlined,
   ImageSearchOutlined, FaceRetouchingNatural, Face, Description,
   TransformOutlined, CloseOutlined, SearchOutlined,
-  SaveOutlined,
+  SaveOutlined, HistoryOutlined, RestoreOutlined,
 } from "@mui/icons-material";
 import { Tabs, Tab } from "@mui/material";
 import { tokens } from "../../theme";
@@ -40,6 +40,7 @@ import {
   listPipelines, PipelineResponse,
   updatePipeline, runPipeline, listPipelineRuns, type PipelineUpdateRequest,
   type PipelineRunRecord,
+  listPipelineVersions, restorePipelineVersion,
 } from "../../api/pipelines";
 import { useAuth } from "../../context/AuthContext";
 import { useSpace } from "../../context/SpaceContext";
@@ -485,6 +486,183 @@ function NodeDetailPanel({ nodeId, pipeline }: { nodeId: string | null; pipeline
   );
 }
 
+// ── REST → domain mapping ─────────────────────────────────────────────────
+
+/**
+ * Map the flattened REST pipeline model onto the local domain type. Used both
+ * for the initial listing and whenever a version restore hands us a fresh
+ * server-rendered pipeline.
+ */
+function toPipeline(p: PipelineResponse): Pipeline {
+  return {
+    id: p.uuid,
+    versionUuid: p.versionUuid,
+    versionNumber: p.versionNumber,
+    spaceId: "",
+    name: p.name,
+    description: p.description ?? "",
+    enabled: p.enabled,
+    priority: p.priority,
+    dryRun: p.dryRun,
+    definition: {
+      nodes: ((p.definition as any)?.nodes ?? []) as Pipeline["definition"]["nodes"],
+      edges: ((p.definition as any)?.edges ?? []) as Pipeline["definition"]["edges"],
+    },
+    runs: [],
+    createdAt: p.status?.created ?? "",
+    updatedAt: p.status?.edited ?? "",
+  };
+}
+
+// ── Version badge + version history dropdown ──────────────────────────────
+
+/**
+ * Minimal `v<n>` badge overlaid on the top-left of the node editor. Clicking it
+ * opens the version history, from which any previous version can be restored.
+ */
+function PipelineVersionBadge({
+  pipeline, versions, loading, restoring, onOpen, onRestore,
+}: {
+  pipeline: Pipeline;
+  versions: PipelineResponse[];
+  loading: boolean;
+  restoring: number | null;
+  onOpen: () => void;
+  onRestore: (versionNumber: number) => void;
+}) {
+  const { t } = useTranslation();
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+
+  const handleClick = (e: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(e.currentTarget);
+    onOpen();
+  };
+
+  const current = pipeline.versionNumber;
+  const open = Boolean(anchorEl);
+
+  return (
+    <>
+      <Tooltip title={t("pipeline.version.badgeTooltip")}>
+        <Chip
+          data-testid="pipeline-version-badge"
+          icon={<HistoryOutlined sx={{ fontSize: 12 }} />}
+          label={current !== undefined ? `v${current}` : "—"}
+          size="small"
+          onClick={handleClick}
+          sx={{
+            height: 20,
+            fontSize: "0.68rem",
+            fontWeight: 700,
+            fontFamily: "monospace",
+            bgcolor: tokens.bg.overlay,
+            border: `1px solid ${tokens.border.default}`,
+            color: tokens.text.secondary,
+            cursor: "pointer",
+            backdropFilter: "blur(4px)",
+            "& .MuiChip-icon": { color: tokens.text.tertiary, ml: 0.5 },
+            "&:hover": { bgcolor: tokens.bg.hover, borderColor: tokens.primary.main, color: tokens.primary.light },
+          }}
+        />
+      </Tooltip>
+
+      <Popover
+        open={open}
+        anchorEl={anchorEl}
+        onClose={() => setAnchorEl(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+        transformOrigin={{ vertical: "top", horizontal: "left" }}
+        PaperProps={{
+          "data-testid": "pipeline-version-list",
+          sx: {
+            mt: 0.5,
+            width: 300,
+            maxHeight: 360,
+            bgcolor: tokens.bg.panel,
+            border: `1px solid ${tokens.border.default}`,
+            borderRadius: tokens.radius.lg,
+            overflow: "auto",
+          },
+        }}
+      >
+        <Box sx={{ px: 1.5, py: 1, borderBottom: `1px solid ${tokens.border.subtle}`, position: "sticky", top: 0, bgcolor: tokens.bg.panel, zIndex: 1 }}>
+          <Typography variant="caption" fontWeight={700} sx={{ textTransform: "uppercase", letterSpacing: "0.07em", color: tokens.text.tertiary, fontSize: "0.68rem" }}>
+            {t("pipeline.version.title")}
+          </Typography>
+        </Box>
+
+        {loading && (
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1.5 }}>
+            <CircularProgress size={12} />
+            <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>
+              {t("pipeline.version.loading")}
+            </Typography>
+          </Box>
+        )}
+
+        {!loading && versions.length === 0 && (
+          <Typography data-testid="pipeline-version-empty" variant="caption" sx={{ display: "block", color: tokens.text.tertiary, fontSize: "0.7rem", p: 1.5 }}>
+            {t("pipeline.version.empty")}
+          </Typography>
+        )}
+
+        {!loading && versions.map(v => {
+          const isCurrent = v.versionNumber === current;
+          const isRestoring = restoring === v.versionNumber;
+          const author = v.status?.creator?.name;
+          const created = v.status?.created ? new Date(v.status.created).toLocaleString() : "";
+          return (
+            <Box
+              key={v.versionUuid ?? v.versionNumber}
+              data-testid={`pipeline-version-item-${v.versionNumber}`}
+              sx={{
+                px: 1.5, py: 1,
+                borderBottom: `1px solid ${tokens.border.subtle}`,
+                display: "flex", alignItems: "center", gap: 1,
+                bgcolor: isCurrent ? tokens.primary.subtle : "transparent",
+              }}
+            >
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+                  <Typography variant="caption" fontWeight={700} sx={{ fontFamily: "monospace", fontSize: "0.72rem", color: isCurrent ? tokens.primary.light : tokens.text.primary }}>
+                    v{v.versionNumber}
+                  </Typography>
+                  {isCurrent && (
+                    <Chip
+                      label={t("pipeline.version.current")}
+                      size="small"
+                      sx={{ height: 14, fontSize: "0.55rem", bgcolor: `${tokens.primary.main}22`, color: tokens.primary.light }}
+                    />
+                  )}
+                </Box>
+                <Typography variant="caption" sx={{ display: "block", color: tokens.text.tertiary, fontSize: "0.65rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {[created, author].filter(Boolean).join(" · ")}
+                </Typography>
+              </Box>
+              {!isCurrent && (
+                <Tooltip title={t("pipeline.version.restoreTooltip", { version: v.versionNumber })}>
+                  <span>
+                    <IconButton
+                      data-testid={`pipeline-version-restore-${v.versionNumber}`}
+                      aria-label={t("pipeline.version.restoreTooltip", { version: v.versionNumber })}
+                      size="small"
+                      disabled={restoring !== null}
+                      onClick={() => { setAnchorEl(null); onRestore(v.versionNumber); }}
+                      sx={{ color: tokens.text.tertiary, "&:hover": { color: tokens.primary.light } }}
+                    >
+                      {isRestoring ? <CircularProgress size={13} /> : <RestoreOutlined sx={{ fontSize: 15 }} />}
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              )}
+            </Box>
+          );
+        })}
+      </Popover>
+    </>
+  );
+}
+
 // ── Pipeline Inspector (right stats panel) ────────────────────────────────
 function PipelineInspector({ pipeline, runs, runsLoading }: { pipeline: Pipeline | null; runs: PipelineRunRecord[]; runsLoading: boolean }) {
   const { t } = useTranslation();
@@ -507,6 +685,9 @@ function PipelineInspector({ pipeline, runs, runsLoading }: { pipeline: Pipeline
         <Typography variant="subtitle2" fontWeight={700} sx={{ fontSize: "0.875rem", mb: 0.25 }}>{pipeline.name}</Typography>
         <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.4, display: "block" }}>{pipeline.description}</Typography>
         <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap", mt: 0.75 }}>
+          {pipeline.versionNumber !== undefined && (
+            <Chip data-testid="pipeline-inspector-version" label={`v${pipeline.versionNumber}`} size="small" sx={{ height: 16, fontSize: "0.62rem", fontFamily: "monospace", bgcolor: tokens.primary.subtle, color: tokens.primary.light }} />
+          )}
           <Chip label={pipeline.enabled ? t("pipeline.inspector.enabled") : t("pipeline.inspector.disabled")} size="small" sx={{ height: 16, fontSize: "0.62rem", bgcolor: pipeline.enabled ? `${tokens.accent.green}22` : tokens.bg.overlay, color: pipeline.enabled ? tokens.accent.green : tokens.text.tertiary }} />
           <Chip label={`${t("pipeline.inspector.priority")} ${pipeline.priority}`} size="small" sx={{ height: 16, fontSize: "0.62rem", bgcolor: tokens.bg.overlay }} />
           {pipeline.dryRun && <Chip label={t("pipeline.inspector.dryRun")} size="small" sx={{ height: 16, fontSize: "0.62rem", bgcolor: `${tokens.accent.amber}22`, color: tokens.accent.amber }} />}
@@ -810,7 +991,7 @@ function NodeDetailSidebar({
 function PipelineCanvas({
   pipeline, onNodeSelect, externalNodes, nodeDisplayNames, descriptors,
   onDeleteNode, activeNodeIds, onGraphChange, removalTrigger, autoArrangeTrigger,
-  onEdgeTypeChange,
+  onEdgeTypeChange, reloadKey,
 }: {
   pipeline: Pipeline | null;
   onNodeSelect: (id: string | null) => void;
@@ -823,6 +1004,8 @@ function PipelineCanvas({
   removalTrigger?: { nodeId: string; key: number } | null;
   autoArrangeTrigger?: number;
   onEdgeTypeChange?: (edgeId: string, edgeType: EdgeKind) => void;
+  /** Bumped by the parent to force a full graph reload of the same pipeline (e.g. after a version restore). */
+  reloadKey?: number;
 }) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -841,14 +1024,15 @@ function PipelineCanvas({
     if (onDeleteNode) onDeleteNode(nodeId, (node?.data?.label as string) ?? nodeId);
   }, [nodes, onDeleteNode]);
 
-  // Only reset graph when the pipeline itself changes
+  // Only reset the graph when the pipeline itself changes, or when the parent
+  // explicitly asks for a reload (version restore).
   useEffect(() => {
     if (!pipeline) { setNodes([]); setEdges([]); return; }
     setNodes(toRFNodes(pipeline.definition.nodes, null, descriptors, handleNodeDelete, activeNodeIds));
     setEdges(toRFEdges(pipeline.definition.edges));
     setSelectedId(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pipeline?.id]);
+  }, [pipeline?.id, reloadKey]);
 
   // Handle node removal from parent
   useEffect(() => {
@@ -1470,6 +1654,14 @@ export default function PipelineEditor() {
   const [pipelineRuns, setPipelineRuns] = useState<PipelineRunRecord[]>([]);
   const [runsLoading, setRunsLoading] = useState(false);
 
+  // Version history
+  const [versions, setVersions] = useState<PipelineResponse[]>([]);
+  const [versionsLoading, setVersionsLoading] = useState(false);
+  const [restoringVersion, setRestoringVersion] = useState<number | null>(null);
+  const [restoreConfirm, setRestoreConfirm] = useState<number | null>(null);
+  /** Bumped to force PipelineCanvas to rebuild the graph for the same pipeline id. */
+  const [canvasReloadKey, setCanvasReloadKey] = useState(0);
+
   // Save / Run state
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1484,22 +1676,7 @@ export default function PipelineEditor() {
   useEffect(() => {
     if (!token) return;
     listPipelines(token).then(resp => {
-      const ps: Pipeline[] = (resp.data ?? []).map((p: PipelineResponse) => ({
-        id: p.uuid,
-        spaceId: "",
-        name: p.name,
-        description: p.description ?? "",
-        enabled: p.enabled,
-        priority: p.priority,
-        dryRun: p.dryRun,
-        definition: {
-          nodes: ((p.definition as any)?.nodes ?? []) as Pipeline["definition"]["nodes"],
-          edges: ((p.definition as any)?.edges ?? []) as Pipeline["definition"]["edges"],
-        },
-        runs: [],
-        createdAt: p.status?.created ?? "",
-        updatedAt: p.status?.edited ?? "",
-      }));
+      const ps: Pipeline[] = (resp.data ?? []).map(toPipeline);
       setPipelines(ps);
       setSelected(ps[0] ?? null);
       setLoading(false);
@@ -1515,6 +1692,54 @@ export default function PipelineEditor() {
       .catch(() => setPipelineRuns([]))
       .finally(() => setRunsLoading(false));
   }, [token, selected?.id]);
+
+  // Load version history for the selected pipeline. Re-runs whenever the
+  // pipeline's own version changes (save / restore) so the list stays fresh.
+  const loadVersions = useCallback(() => {
+    if (!token || !selected) { setVersions([]); return; }
+    setVersionsLoading(true);
+    listPipelineVersions(token, selected.id)
+      .then(vs => setVersions([...vs].sort((a, b) => b.versionNumber - a.versionNumber)))
+      .catch(() => setVersions([]))
+      .finally(() => setVersionsLoading(false));
+  }, [token, selected?.id]);
+
+  useEffect(() => {
+    loadVersions();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, selected?.id, selected?.versionUuid]);
+
+  /**
+   * Restore a previous version. The server copies the requested version forward
+   * into a brand-new version and returns the resulting pipeline, which we adopt
+   * wholesale — clearing any local canvas edits and forcing the node editor to
+   * rebuild from the restored definition.
+   */
+  const handleRestoreVersion = useCallback(async (versionNumber: number) => {
+    if (!token || !selected || restoringVersion !== null) return;
+    setRestoringVersion(versionNumber);
+    try {
+      const resp = await restorePipelineVersion(token, selected.id, versionNumber);
+      const restored = toPipeline(resp);
+      setSelected(restored);
+      setPipelines(prev => prev.map(p => (p.id === restored.id ? restored : p)));
+      // Drop local editing state — it belongs to the version we just replaced.
+      setAddedNodes([]);
+      setNodeDisplayNames({});
+      setGraphJson(null);
+      setSelectedNodeId(null);
+      setNodeDetailOpen(false);
+      setValidationErrors([]);
+      setDirty(false);
+      setCanvasReloadKey(k => k + 1);
+      notify("success", t("pipeline.version.restoreOk", { from: versionNumber, to: restored.versionNumber }));
+    } catch (err) {
+      notify("error", (err as Error).message || t("pipeline.version.restoreFailed"));
+    } finally {
+      setRestoringVersion(null);
+      setRestoreConfirm(null);
+    }
+  }, [token, selected, restoringVersion, notify, t]);
 
   const handleNodeSelect = useCallback((id: string | null) => {
     setSelectedNodeId(id);
@@ -1636,9 +1861,15 @@ export default function PipelineEditor() {
         priority: selected.priority,
         dryRun: selected.dryRun,
       };
-      await updatePipeline(token, selected.id, req);
+      const resp = await updatePipeline(token, selected.id, req);
+      // A save creates a new version server-side — adopt the new version
+      // metadata so the badge and the history list stay in sync. The canvas is
+      // deliberately left untouched (it already shows what we just saved).
+      const versioned: Pipeline = { ...selected, versionUuid: resp.versionUuid, versionNumber: resp.versionNumber };
+      setSelected(versioned);
+      setPipelines(prev => prev.map(p => (p.id === versioned.id ? versioned : p)));
       setDirty(false);
-      notify("success", t("pipeline.editor.saveOk") || "Pipeline saved");
+      notify("success", t("pipeline.editor.saveOk"));
     } catch (err) {
       notify("error", (err as Error).message || "Save failed");
     } finally {
@@ -1831,7 +2062,20 @@ export default function PipelineEditor() {
 
             {/* Visual tab */}
             {canvasTab === 0 && (
-              <Box data-testid="pipeline-canvas" sx={{ flex: 1, overflow: "hidden" }}>
+              <Box data-testid="pipeline-canvas" sx={{ flex: 1, overflow: "hidden", position: "relative" }}>
+                {/* Minimal version badge overlaid on the editor — click for history */}
+                {selected && (
+                  <Box sx={{ position: "absolute", top: 8, left: 8, zIndex: 5 }}>
+                    <PipelineVersionBadge
+                      pipeline={selected}
+                      versions={versions}
+                      loading={versionsLoading}
+                      restoring={restoringVersion}
+                      onOpen={loadVersions}
+                      onRestore={n => setRestoreConfirm(n)}
+                    />
+                  </Box>
+                )}
                 <PipelineCanvas
                   pipeline={selected}
                   onNodeSelect={handleNodeSelect}
@@ -1844,6 +2088,7 @@ export default function PipelineEditor() {
                   removalTrigger={removalTrigger}
                   autoArrangeTrigger={autoArrangeTrigger}
                   onEdgeTypeChange={handleEdgeTypeChange}
+                  reloadKey={canvasReloadKey}
                 />
               </Box>
             )}
@@ -2196,6 +2441,48 @@ export default function PipelineEditor() {
           <PipelineInspector pipeline={selected} runs={pipelineRuns} runsLoading={runsLoading} />
         </Box>
       </Box>
+
+      {/* Restore version confirmation dialog */}
+      <Dialog
+        open={restoreConfirm !== null}
+        onClose={() => restoringVersion === null && setRestoreConfirm(null)}
+        PaperProps={{
+          sx: {
+            bgcolor: tokens.bg.panel,
+            border: `1px solid ${tokens.border.default}`,
+            borderRadius: tokens.radius.lg,
+            minWidth: 360,
+          },
+        }}
+      >
+        <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700 }}>
+          {t("pipeline.version.restoreTitle")}
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ fontSize: "0.85rem", color: tokens.text.secondary }}>
+            {t("pipeline.version.restoreMessage", { version: restoreConfirm })}
+          </DialogContentText>
+          {dirty && (
+            <DialogContentText sx={{ fontSize: "0.8rem", color: tokens.accent.amber, mt: 1 }}>
+              {t("pipeline.version.restoreDirtyWarning")}
+            </DialogContentText>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setRestoreConfirm(null)} disabled={restoringVersion !== null} sx={{ color: tokens.text.secondary, textTransform: "none" }}>
+            {t("common.cancel")}
+          </Button>
+          <Button
+            data-testid="pipeline-version-restore-confirm"
+            onClick={() => restoreConfirm !== null && handleRestoreVersion(restoreConfirm)}
+            disabled={restoringVersion !== null}
+            startIcon={restoringVersion !== null ? <CircularProgress size={13} /> : <RestoreOutlined sx={{ fontSize: 15 }} />}
+            sx={{ color: tokens.primary.light, textTransform: "none", fontWeight: 600 }}
+          >
+            {t("pipeline.version.restore")}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Delete node confirmation dialog */}
       <Dialog
