@@ -20,14 +20,11 @@ import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.node.facedetect.video.VideoFaceScanner;
 import io.metaloom.cortex.pipeline.api.NodeState;
-import io.metaloom.cortex.pipeline.api.Pipeline;
 import io.metaloom.cortex.pipeline.api.PipelineResult;
 import io.metaloom.cortex.pipeline.api.event.NodeCompletionEvent;
 import io.metaloom.cortex.pipeline.api.event.PipelineTrackingEvent;
-import io.metaloom.cortex.pipeline.core.DefaultPipeline;
-import io.metaloom.cortex.pipeline.core.node.AssetSourceNode;
 import io.metaloom.cortex.pipeline.core.node.CortexNodeAdapter;
-import io.metaloom.cortex.pipeline.test.AbstractPipelineNodeTest;
+import io.metaloom.cortex.pipeline.test.AbstractNodeChainTest;
 import io.metaloom.cortex.pipeline.test.CapturingNode;
 import io.metaloom.cortex.pipeline.test.StubLoomMedia;
 import io.metaloom.video.facedetect.inspireface.InspireFacedetector;
@@ -40,7 +37,7 @@ import io.metaloom.video.facedetect.inspireface.InspireFacedetector;
  * pipeline adapter integration, event dispatch, output chaining, and
  * media type filtering.</p>
  */
-class FacedetectNodePipelineTest extends AbstractPipelineNodeTest {
+class FacedetectNodePipelineTest extends AbstractNodeChainTest {
 
 	@TempDir
 	File tempDir;
@@ -177,15 +174,7 @@ class FacedetectNodePipelineTest extends AbstractPipelineNodeTest {
 	void testDryRunPipeline() throws Exception {
 		CortexNodeAdapter adapter = createAdapter(2);
 
-		AssetSourceNode source = new AssetSourceNode(videoMedia);
-		source.connectTo(adapter);
-
-		Pipeline pipeline = DefaultPipeline.builder("dryrun-test")
-				.dryRun(true)
-				.source(source)
-				.build();
-
-		PipelineResult result = executor.execute(pipeline, videoMedia);
+		PipelineResult result = executeDryRun(videoMedia, adapter);
 
 		assertThat(result).isDryRun();
 		assertThat(result).node("facedetect").isSkipped();

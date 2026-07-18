@@ -4,13 +4,10 @@ import java.util.Map;
 
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.pipeline.api.NodeResult;
-import io.metaloom.cortex.pipeline.api.Pipeline;
 import io.metaloom.cortex.pipeline.api.PipelineResult;
 import io.metaloom.cortex.pipeline.api.filter.FilterBranch;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
-import io.metaloom.cortex.pipeline.core.DefaultPipeline;
-import io.metaloom.cortex.pipeline.core.node.AssetSourceNode;
-import io.metaloom.cortex.pipeline.test.AbstractPipelineNodeTest;
+import io.metaloom.cortex.pipeline.test.AbstractNodeChainTest;
 
 /**
  * Shared fixture for the concrete filter node tests. Extends the standard
@@ -24,11 +21,11 @@ import io.metaloom.cortex.pipeline.test.AbstractPipelineNodeTest;
  *       {@code process()} call for the decision-table cases. Cheap, and it can
  *       inject upstream results that no real node would produce.</li>
  *   <li>{@link #route(LoomMedia, AbstractFilterNode, PipelineNode...)} — a real
- *       executor run through {@link #PASS_NODE} / {@link #REJECT_NODE}, which is
+ *       run through {@link #PASS_NODE} / {@link #REJECT_NODE}, which is
  *       what proves the {@code filter_passed} output is wired to the branch.</li>
  * </ul>
  */
-abstract class AbstractFilterNodeTest extends AbstractPipelineNodeTest {
+abstract class AbstractFilterNodeTest extends AbstractNodeChainTest {
 
 	/** Id of the node connected to the filter's {@link FilterBranch#PASS} branch. */
 	protected static final String PASS_NODE = "pass-branch";
@@ -79,21 +76,15 @@ abstract class AbstractFilterNodeTest extends AbstractPipelineNodeTest {
 	 * @param upstream nodes to chain between the source and the filter, in order
 	 */
 	protected PipelineResult route(LoomMedia media, AbstractFilterNode filter, PipelineNode... upstream) {
-		AssetSourceNode source = new AssetSourceNode(media);
-		PipelineNode prev = source;
-		for (PipelineNode node : upstream) {
-			prev.connectTo(node);
-			prev = node;
-		}
-		prev.connectTo(filter);
+		PipelineNode[] chain = new PipelineNode[upstream.length + 1];
+		System.arraycopy(upstream, 0, chain, 0, upstream.length);
+		chain[upstream.length] = filter;
 
-		filter.connectTo(passNode(filter), FilterBranch.PASS);
-		filter.connectTo(rejectNode(filter), FilterBranch.REJECT);
-
-		Pipeline pipeline = DefaultPipeline.builder("filter-routing-test")
-				.source(source)
-				.build();
-		return executor.execute(pipeline, media);
+		// Run everything up to and including the filter, then apply the branch
+		// decision the Loom engine would make: only the node wired to the matching
+		// branch runs; the other is skipped.
+		return executeWithBranches(media, filter.id(), chain,
+			passNode(filter), rejectNode(filter));
 	}
 
 	private PipelineNode passNode(AbstractFilterNode filter) {

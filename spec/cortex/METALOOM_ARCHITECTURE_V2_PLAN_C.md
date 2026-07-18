@@ -1,7 +1,8 @@
 # Variant C — Implementation Plan
 
-> **Status: IN PROGRESS.** Phase 1 steps P1.1–P1.4 have landed (see §2.2, §2.7,
-> §2.8 and §2.9); P1.5 (test migration) and P1.6 (end-to-end wiring) remain.
+> **Status: IN PROGRESS.** Phase 1 steps P1.1–P1.5 have landed (see §2.2, §2.7,
+> §2.8, §2.9 and §2.10). P1.6 (end-to-end wiring) remains, and the old engine's
+> removal was deliberately deferred until after it — see §2.10.
 >
 > Phased implementation plan for **Variant C**: moving pipeline execution off
 > Cortex and onto Loom, leaving Cortex as a node executor.
@@ -190,8 +191,9 @@ green.
 | **P1.2** | `loom/pipeline` module: graph model + engine against a fake dispatcher | ✅ **done** — see §2.7 |
 | **P1.3** | Protocol: fix the envelope, add `SOURCE_*` / `NODE_TASK` messages | ✅ **done** — see §2.8 |
 | **P1.4** | `cortex/node-runtime` + source runner; Cortex answers tasks | ✅ **done** — see §2.9 |
-| P1.5 | Test migration (10 classes, §5.8), then delete the old engine | ⬜ next |
-| P1.6 | Wire end to end; demo pipelines green (§5.9) | ⬜ |
+| **P1.5** | Test migration (10 classes, §5.8) | ✅ **done** — see §2.10 |
+| P1.6 | Wire end to end; demo pipelines green (§5.9) | ⬜ next |
+| P1.7 | Delete the old engine + rewire Dagger (deferred from P1.5) | ⬜ |
 
 **P1.1 verification:** full reactor `install` green; 5 new ServiceLoader guard
 tests; 23 `PipelineValidationServiceTest` cases (the real descriptor consumer)
@@ -387,6 +389,65 @@ happy-path test would have surfaced.
 ⚠️ **The Dagger staleness gotcha recurred**, as predicted in §2.8: adding a
 constructor parameter to `LoomControlChannel` required a full `clean` rebuild
 before `DaggerCortexComponent` regenerated.
+
+## 2.10 P1.5 — test migration, as built
+
+Landed 2026-07-18. The ten test classes that depended on the in-Cortex executor
+now run against a harness that does not need it, and the unambiguously dead code
+is gone.
+
+**`AbstractNodeChainTest` replaces `AbstractPipelineNodeTest`.** It executes nodes
+in a linear chain directly — node 1, then node 2 with node 1's outputs — which is
+exactly the guarantee the Loom engine offers a node, without scheduling,
+concurrency or branch routing. The assertion surface is unchanged, so migrating
+each node test was a one-line change of the `extends` clause.
+
+| Migrated | How |
+|---|---|
+| 8 `*NodePipelineTest` classes | `extends` change; `testDryRunPipeline` rewritten onto `executeDryRun(...)` |
+| `AbstractFilterNodeTest` | `route(...)` reimplemented on `executeWithBranches(...)`, preserving all 16 branch assertions |
+
+**Deleted:**
+
+- `MediaContext`, `PartitionedFlowable`, and `PipelineNode.apply()` /
+  `isPartitioning()` / `partition()` — the reactive-operator API the executor
+  never called. `AbstractFilterNode`'s overrides went with them.
+- `PipelineSerializer` / `PipelineDeserializer` and their two tests. Loom owns
+  the definition format now; a second parser is the defect this plan exists to
+  remove.
+- `AbstractPipelineNodeTest`.
+
+### 🔶 The executor deletion was deferred to after P1.6 — deliberately
+
+§5.7 lists `ReactivePipelineExecutor`, `DefaultPipeline`, `DefaultPipelineManager`
+and `LoomPipelineLoader` for removal here. They are still present, and that is a
+considered deviation rather than an omission.
+
+Deleting them now would leave Cortex with **no working execution path at all**:
+the old one gone, the new one not yet wired end to end. P1.6 is precisely the step
+that proves the replacement and gets the demo pipelines green. Removing the
+incumbent before its replacement is demonstrated gives up the ability to compare
+behaviour at exactly the moment that comparison is most useful — and this document
+already recommends the same discipline for V4 ("run both … until the queue path is
+proven").
+
+The cost is a temporary duplicate: 32 executor-specific tests
+(`PipelineExecutorTest`, `PipelineRunCompletionTest`, `SourceDrivenExecutionTest`)
+still run and still pass. They should be deleted together with the executor as the
+first act of P1.7, along with rewiring `CortexBindModule` and reducing
+`PipelineWorkOrderHandler` to `flush-sync`.
+
+**Verification:** 136 pipeline-core tests green (including all 8 filter tests via
+the reimplemented `route()`), 47 migrated node tests green, full clean reactor
+build green, and every prior step still passing — P1.1 (5), P1.2 (28), P1.3 (13),
+P1.4 (17), plus the Loom endpoint tests (17).
+
+⚠️ **A pre-existing failure was confirmed, not introduced.** `MD5NodeTest`,
+`SHA512NodeTest`, `SHA256NodeTest`, `ChunkHashNodeTest` and `HashMediaTest` fail
+with `expected SUCCESS but was SKIPPED` — the nodes skip because their test media
+is not processable in this environment. Verified identical on a stashed clean
+tree. Unrelated to this work, but worth fixing: these are the hash nodes, which
+are among the few genuinely executable kinds.
 
 ---
 
@@ -979,6 +1040,9 @@ it explicitly; it is easy to under-estimate and it is what protects the refactor
 - [x] **P1.3 landed** — string-concatenated envelope replaced; 6 message types and
       5 DTOs added; `WebSocketNodeDispatcher` + `PipelineRunRegistry`; inbound
       routing in `ProcessorEndpoint`; 13 protocol round-trip tests
+- [x] **P1.5 landed** — `AbstractNodeChainTest` replaces the executor-based
+      harness; 9 test classes migrated; dead reactive-operator API and the Cortex
+      serde deleted. Executor removal deferred to P1.7 with reasoning (§2.10)
 - [x] **P1.4 landed** — `cortex/node-runtime` with `NodeTaskRunner` and
       `SourceTaskRunner`; control channel answers `NODE_TASK` / `SOURCE_TASK` /
       `SOURCE_ITEMS_ACK`; 17 tests. Added **additively** — the old engine is

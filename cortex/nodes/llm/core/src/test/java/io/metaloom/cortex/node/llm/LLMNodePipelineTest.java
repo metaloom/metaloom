@@ -19,14 +19,11 @@ import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.pipeline.api.NodeState;
-import io.metaloom.cortex.pipeline.api.Pipeline;
 import io.metaloom.cortex.pipeline.api.PipelineResult;
 import io.metaloom.cortex.pipeline.api.event.NodeCompletionEvent;
 import io.metaloom.cortex.pipeline.api.event.PipelineTrackingEvent;
-import io.metaloom.cortex.pipeline.core.DefaultPipeline;
-import io.metaloom.cortex.pipeline.core.node.AssetSourceNode;
 import io.metaloom.cortex.pipeline.core.node.CortexNodeAdapter;
-import io.metaloom.cortex.pipeline.test.AbstractPipelineNodeTest;
+import io.metaloom.cortex.pipeline.test.AbstractNodeChainTest;
 import io.metaloom.cortex.pipeline.test.CapturingNode;
 import io.metaloom.cortex.pipeline.test.StubLoomMedia;
 
@@ -38,7 +35,7 @@ import io.metaloom.cortex.pipeline.test.StubLoomMedia;
  * This tests the pipeline adapter integration, event dispatch, output
  * chaining, and prompt configuration.</p>
  */
-class LLMNodePipelineTest extends AbstractPipelineNodeTest {
+class LLMNodePipelineTest extends AbstractNodeChainTest {
 
 	private static final String FAKE_LLM_RESULT = "{\"title\":\"Test Video\",\"genre\":\"documentary\",\"year\":\"2024\"}";
 
@@ -190,15 +187,7 @@ class LLMNodePipelineTest extends AbstractPipelineNodeTest {
 	void testDryRunPipeline() throws Exception {
 		CortexNodeAdapter adapter = createAdapter();
 
-		AssetSourceNode source = new AssetSourceNode(media);
-		source.connectTo(adapter);
-
-		Pipeline pipeline = DefaultPipeline.builder("dryrun-test")
-				.dryRun(true)
-				.source(source)
-				.build();
-
-		PipelineResult result = executor.execute(pipeline, media);
+		PipelineResult result = executeDryRun(media, adapter);
 
 		assertThat(result).isDryRun();
 		assertThat(result).node("llm").isSkipped();

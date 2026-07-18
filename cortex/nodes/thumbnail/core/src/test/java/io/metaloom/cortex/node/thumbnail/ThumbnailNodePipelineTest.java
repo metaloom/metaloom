@@ -17,14 +17,11 @@ import io.metaloom.cortex.api.node.ResultOrigin;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.pipeline.api.NodeState;
-import io.metaloom.cortex.pipeline.api.Pipeline;
 import io.metaloom.cortex.pipeline.api.PipelineResult;
 import io.metaloom.cortex.pipeline.api.event.NodeCompletionEvent;
 import io.metaloom.cortex.pipeline.api.event.PipelineTrackingEvent;
-import io.metaloom.cortex.pipeline.core.DefaultPipeline;
-import io.metaloom.cortex.pipeline.core.node.AssetSourceNode;
 import io.metaloom.cortex.pipeline.core.node.CortexNodeAdapter;
-import io.metaloom.cortex.pipeline.test.AbstractPipelineNodeTest;
+import io.metaloom.cortex.pipeline.test.AbstractNodeChainTest;
 import io.metaloom.cortex.pipeline.test.CapturingNode;
 import io.metaloom.cortex.pipeline.test.StubLoomMedia;
 
@@ -36,7 +33,7 @@ import io.metaloom.cortex.pipeline.test.StubLoomMedia;
  * adapter integration, event dispatch, output chaining, and media type
  * filtering (video only).</p>
  */
-class ThumbnailNodePipelineTest extends AbstractPipelineNodeTest {
+class ThumbnailNodePipelineTest extends AbstractNodeChainTest {
 
 	private static final String FAKE_THUMBNAIL_PATH = "/tmp/thumbnails/test.thumb";
 
@@ -161,15 +158,7 @@ class ThumbnailNodePipelineTest extends AbstractPipelineNodeTest {
 	void testDryRunPipeline() throws Exception {
 		CortexNodeAdapter adapter = createAdapter();
 
-		AssetSourceNode source = new AssetSourceNode(videoMedia);
-		source.connectTo(adapter);
-
-		Pipeline pipeline = DefaultPipeline.builder("dryrun-test")
-				.dryRun(true)
-				.source(source)
-				.build();
-
-		PipelineResult result = executor.execute(pipeline, videoMedia);
+		PipelineResult result = executeDryRun(videoMedia, adapter);
 
 		assertThat(result).isDryRun();
 		assertThat(result).node("thumbnail").isSkipped();
