@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.metaloom.cortex.node.facedescription.FaceDescription;
 import io.metaloom.cortex.node.facedescription.FacedescriptionNode;
+import io.metaloom.cortex.node.facedetect.FacedetectNodeModule;
 import io.metaloom.cortex.node.facedetect.FacedetectNodeOptions;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.option.CortexOptions;
@@ -21,6 +22,7 @@ import io.metaloom.cortex.common.node.media.LoomClientMock;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.client.common.LoomClientException;
 import io.metaloom.loom.cortex.node.facedetect.AbstractFacedetectMediaTest;
+import io.metaloom.video.facedetect.inspireface.InspireFacedetector;
 import io.metaloom.video4j.utils.ImageUtils;
 
 public class FacedescriptionNodeTest extends AbstractFacedetectMediaTest {
@@ -51,8 +53,10 @@ public class FacedescriptionNodeTest extends AbstractFacedetectMediaTest {
 	public FacedescriptionNode mockNode() throws FileNotFoundException, LoomClientException {
 		LoomClient client = LoomClientMock.mockClient();
 		FacedetectNodeOptions option = new FacedetectNodeOptions();
+		option.setInspirefacePackPath("packs/Pikachu");
 		option.setMinFaceHeightFactor(0.05f).setVideoScaleSize(512);
 		ObjectMapper mapper = new ObjectMapper();
-		return new FacedescriptionNode(client, new CortexOptions(), option, mapper);
+		InspireFacedetector inspireface = FacedetectNodeModule.inspirefaceDetector(option);
+		return new FacedescriptionNode(client, new CortexOptions(), option, mapper, inspireface);
 	}
 }

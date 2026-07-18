@@ -15,7 +15,7 @@ import javax.inject.Singleton;
 
 @Singleton
 @Component(modules = { CortexBindModule.class, CortexMediaModule.class, PicoCLIModule.class, LoomStorageModule.class, NodeCollectionModule.class,
-	CortexClientModule.class })
+	PipelineNodeFactoryModule.class, CortexClientModule.class })
 public interface CortexComponent {
 
 	Cortex cortex();
