@@ -1,0 +1,19 @@
+# Node descriptor providers, discovered via ServiceLoader.
+# Merged from the former cortex/nodes/*-api modules (2026-07-18).
+# A provider added here becomes visible to pipeline validation and the UI palette.
+io.metaloom.loom.nodes.spec.CaptioningDescriptorProvider
+io.metaloom.loom.nodes.spec.ConsistencyDescriptorProvider
+io.metaloom.loom.nodes.spec.DedupDescriptorProvider
+io.metaloom.loom.nodes.spec.FacedetectDescriptorProvider
+io.metaloom.loom.nodes.spec.FilterDescriptorProvider
+io.metaloom.loom.nodes.spec.FingerprintDescriptorProvider
+io.metaloom.loom.nodes.spec.HashDescriptorProvider
+io.metaloom.loom.nodes.spec.LlmDescriptorProvider
+io.metaloom.loom.nodes.spec.LoomNodeDescriptorProvider
+io.metaloom.loom.nodes.spec.OcrDescriptorProvider
+io.metaloom.loom.nodes.spec.QualityDescriptorProvider
+io.metaloom.loom.nodes.spec.SceneDetectionDescriptorProvider
+io.metaloom.loom.nodes.spec.SourceDescriptorProvider
+io.metaloom.loom.nodes.spec.ThumbnailDescriptorProvider
+io.metaloom.loom.nodes.spec.TikaDescriptorProvider
+io.metaloom.loom.nodes.spec.WhisperDescriptorProvider

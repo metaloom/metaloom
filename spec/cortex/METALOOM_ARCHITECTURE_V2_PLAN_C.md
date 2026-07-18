@@ -1,6 +1,7 @@
 # Variant C — Implementation Plan
 
-> **Status: PLAN. Nothing here is built.**
+> **Status: IN PROGRESS.** Phase 1 step P1.1 has landed (see §2.6); everything
+> else is still a plan.
 >
 > Phased implementation plan for **Variant C**: moving pipeline execution off
 > Cortex and onto Loom, leaving Cortex as a node executor.
@@ -93,17 +94,43 @@ Two residual caveats, both of which Phase 1 must handle:
   back to Cortex for the source node** — one saved round trip per item, and it
   keeps the source's semantics in one place.
 
-### 2.2 🔴 Loom already depends on Cortex — backwards
+### 2.2 ✅ Loom depended on Cortex — inverted in P1.1
 
-`loom/services/rest/pom.xml` depends on **ten** `cortex-*-api` modules
-(`cortex-nodes-common-api`, `cortex-source-api`, `cortex-filter-api`,
-`cortex-hash-api`, …) for node descriptors used by validation and the UI
-palette. Tellingly, `NodeDescriptorRegistry` lives in a *cortex* module under an
-`io.metaloom.loom.nodes.spec` **loom package** — the naming already concedes it
-is shared.
+> **Resolved 2026-07-18 (step P1.1).** Previously `loom/services/rest`
+> depended on **17** `cortex-*-api` modules for node descriptors, and
+> `NodeDescriptorRegistry` lived in a *cortex* module under an
+> `io.metaloom.loom.nodes.spec` **loom package** — the naming already conceded
+> it was shared.
 
-**Consequence:** Phase 1 must reverse this. An orchestrator cannot depend on its
-workers. Descriptors move to a shared module; both sides depend on it.
+Investigation showed the situation was cleaner than it looked:
+
+- Each `cortex/nodes/*-api` module contained **exactly one** class.
+- **Only `loom/services/rest` consumed them** (4 files). No Cortex code imported
+  `io.metaloom.loom.nodes.spec` at all, and node `core` modules did not depend
+  on their sibling `api` module.
+- All 27 classes already shared one package, so relocating them required **zero
+  import changes** — only pom edits.
+
+They were Loom artefacts living in the Cortex tree. Resolution:
+
+| Change | Detail |
+|---|---|
+| New module | `loom-shared/node-model` (`loom-node-model`) — descriptor metadata only, no runtime dependency on either side |
+| Moved | all 27 classes, package unchanged |
+| Deleted | 17 `cortex/nodes/*-api` modules |
+| `loom/services/rest` | 17 `cortex-*` deps → **1** `loom-node-model` dep; the Loom tree now has **no** `io.metaloom.cortex` pom reference |
+
+⚠️ **The subtle part was `ServiceLoader`.** Providers are discovered via
+`META-INF/services/io.metaloom.loom.nodes.spec.NodeDescriptorProvider`, and each
+of the 16 provider modules shipped its own copy. Merging modules meant merging
+16 service files into one — a change that fails *silently*: a dropped line
+removes a node kind from validation and the UI palette while everything still
+compiles and every other test still passes.
+
+`NodeDescriptorServiceLoaderTest` in the new module guards this: it asserts 16
+providers load, 29 kinds register, one kind from each former module is present,
+and no kind is advertised twice. It was verified to actually fail (3 of 5 tests,
+with a precise diagnostic) when a single service entry is removed.
 
 ### 2.3 ✅ The offline CLI path is unaffected
 
@@ -138,6 +165,45 @@ rewriting it in Phase 3 is waste.
 `node-runtime` that executes a *set* of nodes over one media item. In Phase 1
 that set always has size 1. In Phase 3 it is a segment. Same code path, same
 tests, no rewrite.
+
+---
+
+## 2.6 Decisions taken
+
+Recorded 2026-07-18. These were the open questions blocking Phase 1 start.
+
+| # | Question | Decision | Consequence |
+|---|---|---|---|
+| Q1 | Must standalone Cortex pipeline execution survive? | **No — Loom-only is acceptable** | `node-runtime` needs no local driver. Offline use is limited to the legacy `cortex process run --actions` path. ⚠️ The README and website claims about standalone use must be updated before Phase 1 ships |
+| Q4 | Push or pull dispatch? | **Push for Phase 1** | Loom sends `NODE_TASK` when a node becomes ready. Accepted risk: Phase 2 leases favour pull, so the protocol will change twice |
+| Q5 | Version the definition format? | **Yes, from the start** | The format gains `syncToLoom`, filter branches, and typed options; version it before the first breaking change rather than after |
+
+**Sequencing:** Phase 1 is being executed step by step (P1.1 … P1.6, see §5), not
+as one large change. Each step is independently reviewable and leaves the build
+green.
+
+### Step status
+
+| Step | Scope | Status |
+|---|---|---|
+| **P1.1** | Invert the Loom→Cortex dependency; extract `loom-shared/node-model` | ✅ **done** — see §2.2 |
+| P1.2 | `loom/pipeline` module: graph model + engine against a fake dispatcher | ⬜ next |
+| P1.3 | Protocol: fix the envelope, add `SOURCE_*` / `NODE_TASK` messages | ⬜ |
+| P1.4 | `cortex/node-runtime` + `source-runtime`; shrink `pipeline-core` | ⬜ |
+| P1.5 | Test migration (10 classes, §5.8) | ⬜ |
+| P1.6 | Wire end to end; demo pipelines green (§5.9) | ⬜ |
+
+**P1.1 verification:** full reactor `install` green; 5 new ServiceLoader guard
+tests; 23 `PipelineValidationServiceTest` cases (the real descriptor consumer)
+green; 187 Cortex node/pipeline tests green.
+
+⚠️ **Pre-existing failure, unrelated to this work.**
+`NodeDescriptorEndpointTest` has 2 of 6 tests failing
+(`testListAllNodeDescriptors`, `testFilterNodesHaveFilterCategory`): the
+endpoint returns a JSON *object* where the test decodes a JSON *array*, so the
+client times out after 10 s. **Confirmed identical on the pre-change tree**, so
+P1.1 neither caused nor fixed it. It should be fixed on its own — it is the only
+coverage of the descriptor REST surface the UI palette depends on.
 
 ---
 
@@ -211,9 +277,11 @@ finishable:
 
 ```
 loom-shared/
-  node-model/          # NEW — moved out of cortex/nodes/*-api
+  node-model/          # DONE (P1.1) — moved out of cortex/nodes/*-api
                        #   NodeDescriptor, NodeCategory, NodeInput/Output,
-                       #   NodeParameter, NodeDescriptorRegistry
+                       #   NodeParameter, NodeDescriptorRegistry,
+                       #   + the 16 *DescriptorProvider impls and the merged
+                       #   META-INF/services registry
   pipeline-model/      # NEW — wire types
                        #   PipelineDefinition, NodeDefinition, EdgeDefinition,
                        #   NodeResultDTO, NodeState, NodeOutputKey,
@@ -717,6 +785,9 @@ it explicitly; it is easy to under-estimate and it is what protects the refactor
 ## 11. Progress Assessment
 
 - [x] Code-verified findings that reshape the plan (§2)
+- [x] **P1.1 landed** — Loom→Cortex dependency inverted, `loom-shared/node-model`
+      created, 17 `cortex/nodes/*-api` modules deleted, ServiceLoader merge
+      guarded by a test proven to fail on a dropped entry
 - [x] §2.1 updated 2026-07-18 — `filesystem-source` is implemented; the
       `MediaSourceNode.stream()` SPI turns out to be the right seam for Phase 1
 - [ ] **Make `FilesystemMediaScanner` lazy** (§2.1) — it materialises the whole

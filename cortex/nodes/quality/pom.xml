@@ -14,7 +14,6 @@
     <name>MetaLoom // Cortex :: Nodes :: Quality</name>
 
     <modules>
-        <module>api</module>
         <module>core</module>
     </modules>
 </project>

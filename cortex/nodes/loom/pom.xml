@@ -14,7 +14,6 @@
     <name>MetaLoom // Cortex :: Nodes :: Loom</name>
 
     <modules>
-        <module>api</module>
         <module>core</module>
     </modules>
 </project>

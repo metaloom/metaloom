@@ -14,7 +14,6 @@
     <name>MetaLoom // Cortex :: Nodes :: OCR</name>
 
     <modules>
-        <module>api</module>
         <module>core</module>
     </modules>
 </project>
