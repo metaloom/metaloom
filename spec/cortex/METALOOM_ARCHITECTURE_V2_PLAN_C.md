@@ -1,7 +1,7 @@
 # Variant C — Implementation Plan
 
-> **Status: IN PROGRESS.** Phase 1 steps P1.1 and P1.2 have landed (see §2.2 and
-> §2.7); everything from P1.3 on is still a plan.
+> **Status: IN PROGRESS.** Phase 1 steps P1.1, P1.2 and P1.3 have landed (see
+> §2.2, §2.7 and §2.8); everything from P1.4 on is still a plan.
 >
 > Phased implementation plan for **Variant C**: moving pipeline execution off
 > Cortex and onto Loom, leaving Cortex as a node executor.
@@ -188,8 +188,8 @@ green.
 |---|---|---|
 | **P1.1** | Invert the Loom→Cortex dependency; extract `loom-shared/node-model` | ✅ **done** — see §2.2 |
 | **P1.2** | `loom/pipeline` module: graph model + engine against a fake dispatcher | ✅ **done** — see §2.7 |
-| P1.3 | Protocol: fix the envelope, add `SOURCE_*` / `NODE_TASK` messages | ⬜ next |
-| P1.4 | `cortex/node-runtime` + `source-runtime`; shrink `pipeline-core` | ⬜ |
+| **P1.3** | Protocol: fix the envelope, add `SOURCE_*` / `NODE_TASK` messages | ✅ **done** — see §2.8 |
+| P1.4 | `cortex/node-runtime` + `source-runtime`; shrink `pipeline-core` | ⬜ next |
 | P1.5 | Test migration (10 classes, §5.8) | ⬜ |
 | P1.6 | Wire end to end; demo pipelines green (§5.9) | ⬜ |
 
@@ -269,6 +269,66 @@ model is tested with no WebSocket, no worker and no database — which is why
 when a cortex dependency is added. The orchestrator/worker boundary is the point
 of the module, and a convenient import is exactly how such a boundary gets
 quietly undone.
+
+## 2.8 P1.3 — the protocol, as built
+
+Landed 2026-07-18. Loom can now dispatch node tasks and route replies; the Cortex
+side that answers them is P1.4.
+
+**The envelope no longer assembles itself by string concatenation.**
+`ProcessorRegistry.dispatchWorkOrder` used to build
+`"{\"type\":\"WORK_ORDER\",\"body\":" + json + "}"` by hand. It is now a generic
+`send(nodeId, type, body)` that serialises a real `ProcessorMessage`, handles a
+null body, and is type-checked rather than relying on a string literal.
+
+**Six message types**, mirroring the design in §5.5:
+
+| Loom → Cortex | Cortex → Loom |
+|---|---|
+| `SOURCE_TASK` | `SOURCE_ITEMS` |
+| `SOURCE_ITEMS_ACK` | `SOURCE_COMPLETE` |
+| `NODE_TASK` | `NODE_TASK_RESULT` |
+
+**Five DTOs** in `loom-shared/rest-model/…/processor/message/`:
+`SourceTaskMessage`, `SourceItemsMessage`, `SourceItemsAckMessage`,
+`SourceCompleteMessage`, `NodeTaskResultMessage`. They reuse the pipeline wire
+types rather than duplicating them — `rest-model` now depends on
+`pipeline-model`, and `NodeTask`/`NodeTaskResult`/`MediaRef` gained Jackson
+constructors so they serialise directly.
+
+**Two new components in `loom/services/rest`:**
+
+- `WebSocketNodeDispatcher` — the production `NodeDispatcher`. Selects a
+  processor and sends `NODE_TASK`. Returns **false** when no worker is available
+  or the socket died between selection and write, which is what lets the engine
+  settle the node instead of waiting for a result that cannot arrive.
+- `PipelineRunRegistry` — maps run id to engine so inbound messages can be
+  routed. Self-cleaning: it deregisters on run completion, otherwise the map
+  would grow for the process lifetime.
+
+`ProcessorEndpoint` handles the three inbound types. Each `SOURCE_ITEMS` batch is
+acknowledged, which is the only backpressure in the source path. A message for an
+unknown or already-finished run is logged and dropped rather than treated as a
+protocol error — a late reply is normal and must not disconnect a worker.
+
+**Verification:** 13 new tests (11 protocol round-trip, 2 dispatcher). The
+round-trip tests encode exactly as Loom does and decode exactly as Cortex will,
+including a path containing quotes, backslashes, newlines and non-ASCII — the
+contract is pinned *before* the Cortex side is written against it. Full reactor
+build green; `ProcessorEndpointTest` (9) and `PipelineRunCompletionEndpointTest`
+(8) still pass.
+
+⚠️ **A clean rebuild was required.** Adding a constructor parameter to
+`ProcessorEndpoint` left `DaggerLoomCoreComponent` in `loom/core` generated
+against the old 7-argument factory, and all 9 `ProcessorEndpointTest` cases failed
+with `NoSuchMethodError` until the reactor was rebuilt with `clean`. This is the
+Dagger staleness gotcha the specs already warn about; expect it again in P1.4.
+
+⚠️ **Known Phase 1 limitations, deliberate.** Dispatch is fire-and-forget: no
+lease, no timeout, no retry, so a worker that accepts a task and then dies leaves
+that node outstanding. Worker selection still hardcodes `CPU` because nothing yet
+declares what a node kind needs. Run state remains in memory. All three are Phase
+2 items.
 
 ---
 
@@ -856,6 +916,9 @@ it explicitly; it is easy to under-estimate and it is what protects the refactor
 - [x] **P1.2 landed** — `loom-shared/pipeline-model` + `loom/pipeline`; the
       `edges[]` schema defect closed structurally; filter branches expressible;
       28 tests against a fake dispatcher; cortex dependency banned by the build
+- [x] **P1.3 landed** — string-concatenated envelope replaced; 6 message types and
+      5 DTOs added; `WebSocketNodeDispatcher` + `PipelineRunRegistry`; inbound
+      routing in `ProcessorEndpoint`; 13 protocol round-trip tests
 - [x] §2.1 updated 2026-07-18 — `filesystem-source` is implemented; the
       `MediaSourceNode.stream()` SPI turns out to be the right seam for Phase 1
 - [ ] **Make `FilesystemMediaScanner` lazy** (§2.1) — it materialises the whole

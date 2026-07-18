@@ -34,6 +34,12 @@
       <groupId>io.metaloom.loom.shared</groupId>
       <artifactId>loom-api</artifactId>
     </dependency>
+    <!-- Pipeline wire types (NodeTask, NodeTaskResult, MediaRef) reused by the
+         processor WebSocket messages rather than duplicated as DTOs. -->
+    <dependency>
+      <groupId>io.metaloom.loom.shared</groupId>
+      <artifactId>loom-pipeline-model</artifactId>
+    </dependency>
     <dependency>
       <groupId>io.metaloom.utils</groupId>
       <artifactId>utils</artifactId>

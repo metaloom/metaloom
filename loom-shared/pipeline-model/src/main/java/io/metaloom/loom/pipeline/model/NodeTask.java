@@ -6,6 +6,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 /**
  * A single unit of work: apply one node to one media item.
  *
@@ -29,8 +32,12 @@ public class NodeTask {
 	private final Map<String, Object> options;
 	private final Map<String, Map<String, Object>> upstreamOutputs;
 
-	public NodeTask(UUID taskUuid, UUID runUuid, String itemId, String nodeId, String nodeKind,
-		MediaRef media, Map<String, Object> options, Map<String, Map<String, Object>> upstreamOutputs) {
+	@JsonCreator
+	public NodeTask(@JsonProperty("taskUuid") UUID taskUuid, @JsonProperty("runUuid") UUID runUuid,
+		@JsonProperty("itemId") String itemId, @JsonProperty("nodeId") String nodeId,
+		@JsonProperty("nodeKind") String nodeKind, @JsonProperty("media") MediaRef media,
+		@JsonProperty("options") Map<String, Object> options,
+		@JsonProperty("upstreamOutputs") Map<String, Map<String, Object>> upstreamOutputs) {
 		this.taskUuid = Objects.requireNonNull(taskUuid, "A task uuid must be set");
 		this.runUuid = runUuid;
 		this.itemId = Objects.requireNonNull(itemId, "An item id must be set");

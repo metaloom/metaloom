@@ -6,6 +6,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 /**
  * Outcome of a single {@link NodeTask}.
  *
@@ -22,8 +26,10 @@ public class NodeTaskResult {
 	private final String message;
 	private final Map<String, Object> outputs;
 
-	public NodeTaskResult(UUID taskUuid, String nodeId, NodeState state, long durationMs,
-		String message, Map<String, Object> outputs) {
+	@JsonCreator
+	public NodeTaskResult(@JsonProperty("taskUuid") UUID taskUuid, @JsonProperty("nodeId") String nodeId,
+		@JsonProperty("state") NodeState state, @JsonProperty("durationMs") long durationMs,
+		@JsonProperty("message") String message, @JsonProperty("outputs") Map<String, Object> outputs) {
 		this.taskUuid = taskUuid;
 		this.nodeId = Objects.requireNonNull(nodeId, "A node id must be set");
 		this.state = Objects.requireNonNull(state, "A node state must be set");
@@ -79,6 +85,7 @@ public class NodeTaskResult {
 	 *
 	 * @return the verdict, or null when this node is not a filter
 	 */
+	@JsonIgnore
 	public Boolean getFilterPassed() {
 		Object value = outputs.get(FilterBranch.FILTER_PASSED);
 		if (value instanceof Boolean) {

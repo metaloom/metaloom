@@ -59,6 +59,10 @@
       <artifactId>loom-node-model</artifactId>
     </dependency>
     <dependency>
+      <groupId>io.metaloom.loom</groupId>
+      <artifactId>loom-pipeline</artifactId>
+    </dependency>
+    <dependency>
       <groupId>io.metaloom.video</groupId>
       <artifactId>video4j-fingerprint</artifactId>
     </dependency>

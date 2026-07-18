@@ -28,6 +28,15 @@ public enum ProcessorMessageType {
 	/** Pipeline run completed notification from processor */
 	PIPELINE_RUN_COMPLETED,
 
+	/** A batch of media items discovered by a source node (Variant C) */
+	SOURCE_ITEMS,
+
+	/** The source node finished enumerating (Variant C) */
+	SOURCE_COMPLETE,
+
+	/** Outcome of a single node task (Variant C) */
+	NODE_TASK_RESULT,
+
 	// --- Messages FROM loom TO processor ---
 
 	/** Registration acknowledgement from loom */
@@ -38,6 +47,15 @@ public enum ProcessorMessageType {
 
 	/** Work order dispatched to processor */
 	WORK_ORDER,
+
+	/** Instructs a processor to run a source node and stream back what it finds (Variant C) */
+	SOURCE_TASK,
+
+	/** Acknowledges a SOURCE_ITEMS batch, releasing the processor to send the next (Variant C) */
+	SOURCE_ITEMS_ACK,
+
+	/** A single unit of work: apply one node to one media item (Variant C) */
+	NODE_TASK,
 
 	/** Error message */
 	ERROR

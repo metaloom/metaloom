@@ -17,10 +17,13 @@ import io.metaloom.loom.rest.model.processor.ProcessorCapability;
 import io.metaloom.loom.rest.model.processor.ProcessorResponse;
 import io.metaloom.loom.rest.model.processor.ProcessorState;
 import io.metaloom.loom.rest.model.processor.SystemStatusInfo;
+import io.metaloom.loom.rest.model.processor.message.ProcessorMessage;
+import io.metaloom.loom.rest.model.processor.message.ProcessorMessageType;
 import io.metaloom.loom.rest.model.processor.message.ProcessorRegistration;
 import io.metaloom.loom.rest.model.processor.workorder.WorkOrder;
 import io.vertx.core.http.ServerWebSocket;
 import io.vertx.core.json.Json;
+import io.vertx.core.json.JsonObject;
 
 /**
  * Registry that tracks all connected processor (cortex) nodes.
@@ -130,13 +133,31 @@ public class ProcessorRegistry {
 	 * Dispatch a work order to a specific processor.
 	 */
 	public boolean dispatchWorkOrder(String nodeId, WorkOrder workOrder) {
+		return send(nodeId, ProcessorMessageType.WORK_ORDER, workOrder);
+	}
+
+	/**
+	 * Send a typed message to a specific processor.
+	 *
+	 * <p>The envelope used to be assembled by string concatenation, which happened to
+	 * survive small work orders and would not survive a payload containing a quote, a
+	 * newline, or a null body. It is now serialised like any other model.</p>
+	 *
+	 * @param nodeId the target processor
+	 * @param type   the message type
+	 * @param body   the payload, may be null for types that carry none
+	 * @return true when the message was written; false when the processor is unknown
+	 *         or its socket is gone
+	 */
+	public boolean send(String nodeId, ProcessorMessageType type, Object body) {
 		ConnectedProcessor processor = processors.get(nodeId);
 		if (processor == null || processor.ws == null || processor.ws.isClosed()) {
+			log.debug("Cannot send {} to '{}': processor unknown or disconnected", type, nodeId);
 			return false;
 		}
-		String json = Json.encode(workOrder);
-		processor.ws.writeTextMessage(
-			"{\"type\":\"WORK_ORDER\",\"body\":" + json + "}");
+		ProcessorMessage message = new ProcessorMessage(type,
+			body == null ? null : JsonObject.mapFrom(body));
+		processor.ws.writeTextMessage(Json.encode(message));
 		return true;
 	}
 

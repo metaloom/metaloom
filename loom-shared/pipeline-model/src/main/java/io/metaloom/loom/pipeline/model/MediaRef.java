@@ -2,6 +2,9 @@ package io.metaloom.loom.pipeline.model;
 
 import java.util.Objects;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 /**
  * Reference to a single media item.
  *
@@ -18,7 +21,9 @@ public class MediaRef {
 	private final String sha512;
 	private final long size;
 
-	public MediaRef(String path, String sha512, long size) {
+	@JsonCreator
+	public MediaRef(@JsonProperty("path") String path, @JsonProperty("sha512") String sha512,
+		@JsonProperty("size") long size) {
 		this.path = Objects.requireNonNull(path, "A media path must be set");
 		this.sha512 = sha512;
 		this.size = size;
