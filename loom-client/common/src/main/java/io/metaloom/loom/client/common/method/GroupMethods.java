@@ -17,6 +17,10 @@ public interface GroupMethods {
 
 	LoomClientRequest<GroupResponse> updateGroup(UUID groupUuid, GroupUpdateRequest request);
 
+	LoomClientRequest<GroupResponse> patchGroup(UUID groupUuid, GroupUpdateRequest request);
+
+	LoomClientRequest<GroupResponse> replaceGroup(UUID groupUuid, GroupUpdateRequest request);
+
 	LoomClientRequest<GroupListResponse> listGroups();
 
 	LoomClientRequest<NoResponse> deleteGroup(UUID groupUuid);

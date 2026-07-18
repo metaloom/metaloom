@@ -1,6 +1,6 @@
 package io.metaloom.cortex.node.consistency;
 
-import static io.metaloom.cortex.api.option.assertj.OptionsAssertions.assertThat;
+import static io.metaloom.cortex.node.consistency.assertj.ConsistencyNodeAssertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 

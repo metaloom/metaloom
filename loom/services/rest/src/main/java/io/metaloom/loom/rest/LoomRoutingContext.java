@@ -21,6 +21,8 @@ import io.metaloom.loom.rest.model.message.GenericMessageResponse;
 import io.metaloom.loom.rest.parameter.FilterParameters;
 import io.metaloom.loom.rest.parameter.PagingParameters;
 import io.metaloom.loom.rest.parameter.SortParameters;
+import io.metaloom.loom.rest.validation.ReplaceValidator;
+import io.metaloom.loom.rest.validation.ValidationException;
 import io.vertx.core.Future;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.core.json.JsonObject;
@@ -52,6 +54,23 @@ public class LoomRoutingContext {
 	 */
 	public JsonObject bodyAsJson() {
 		return rc.body().asJsonObject();
+	}
+
+	/**
+	 * Assert that the request body contains every replaceable field of the given request model. Used for full replace (PUT) routes.
+	 *
+	 * @param clazz
+	 * @throws ValidationException
+	 *             When the body could not be parsed or is incomplete. Mapped to HTTP 400.
+	 */
+	public void requireFullBody(Class<? extends RestRequestModel> clazz) {
+		JsonObject body;
+		try {
+			body = bodyAsJson();
+		} catch (Exception e) {
+			throw new ValidationException("The request body could not be parsed as a JSON object.");
+		}
+		ReplaceValidator.assertComplete(body, clazz);
 	}
 
 	public void send(RestResponseModel<?> response) {

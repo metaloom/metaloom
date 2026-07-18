@@ -3,7 +3,9 @@ package io.metaloom.loom.rest.endpoint.impl;
 import static io.metaloom.loom.rest.RESTConstants.API_V1_PATH;
 import static io.vertx.core.http.HttpMethod.DELETE;
 import static io.vertx.core.http.HttpMethod.GET;
+import static io.vertx.core.http.HttpMethod.PATCH;
 import static io.vertx.core.http.HttpMethod.POST;
+import static io.vertx.core.http.HttpMethod.PUT;
 
 import javax.inject.Inject;
 
@@ -14,6 +16,7 @@ import io.metaloom.loom.api.asset.AssetId;
 import io.metaloom.loom.rest.AbstractEndpoint;
 import io.metaloom.loom.rest.EndpointDependencies;
 import io.metaloom.loom.rest.model.ModelExamples;
+import io.metaloom.loom.rest.model.asset.AssetUpdateRequest;
 import io.metaloom.loom.rest.service.impl.AssetEndpointService;
 import io.metaloom.loom.rest.service.impl.AssetBinaryEndpointService;
 import io.metaloom.loom.rest.service.impl.DetectionEndpointService;
@@ -118,6 +121,24 @@ public class AssetEndpoint extends AbstractEndpoint {
 				service.update(lrc, AssetId.assetId(hash));
 			});
 
+		addRoute(basePath() + "/sha512/:sha512", PATCH,
+			"Partially update an asset by SHA-512 hash. Only the fields present in the request body are modified.",
+			examples.assetUpdateRequestExample(),
+			examples.assetResponseExample(),
+			lrc -> {
+				SHA512 hash = SHA512.fromString(lrc.pathParam("sha512"));
+				service.update(lrc, AssetId.assetId(hash));
+			});
+
+		addRoute(basePath() + "/sha512/:sha512", PUT,
+			"Replace an asset by SHA-512 hash. All replaceable fields must be present in the request body.",
+			examples.assetUpdateRequestExample(),
+			examples.assetResponseExample(),
+			replaceHandler(AssetUpdateRequest.class, lrc -> {
+				SHA512 hash = SHA512.fromString(lrc.pathParam("sha512"));
+				service.update(lrc, AssetId.assetId(hash));
+			}));
+
 		addRoute(basePath() + "/sha512/:sha512", DELETE,
 			"Delete an asset by SHA-512 hash",
 			null,
@@ -144,6 +165,22 @@ public class AssetEndpoint extends AbstractEndpoint {
 			lrc -> {
 				service.update(lrc, lrc.pathParamUUID("uuid"));
 			});
+
+		addRoute(basePath() + "/:uuid", PATCH,
+			"Partially update an asset by UUID. Only the fields present in the request body are modified.",
+			examples.assetUpdateRequestExample(),
+			examples.assetResponseExample(),
+			lrc -> {
+				service.update(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		addRoute(basePath() + "/:uuid", PUT,
+			"Replace an asset by UUID. All replaceable fields must be present in the request body.",
+			examples.assetUpdateRequestExample(),
+			examples.assetResponseExample(),
+			replaceHandler(AssetUpdateRequest.class, lrc -> {
+				service.update(lrc, lrc.pathParamUUID("uuid"));
+			}));
 
 		addRoute(basePath() + "/:uuid", DELETE,
 			"Delete an asset by UUID",

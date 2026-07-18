@@ -97,6 +97,22 @@ public abstract class AbstractEndpoint implements RESTEndpoint {
 		});
 	}
 
+	/**
+	 * Wrap an update handler so that it first rejects (400) any request body which does not carry all replaceable fields of the given request model.
+	 *
+	 * Use this for full replace (PUT) routes. Partial update (PATCH) routes use the bare handler.
+	 *
+	 * @param requestClass
+	 * @param handler
+	 * @return
+	 */
+	public Handler<LoomRoutingContext> replaceHandler(Class<? extends RestRequestModel> requestClass, Handler<LoomRoutingContext> handler) {
+		return lrc -> {
+			lrc.requireFullBody(requestClass);
+			handler.handle(lrc);
+		};
+	}
+
 	public void secure(String path) {
 		apiRouter().getDelegate().route(path).handler(deps.authHandler);
 	}

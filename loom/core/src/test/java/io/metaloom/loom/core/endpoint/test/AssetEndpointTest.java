@@ -5,11 +5,14 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.ArrayList;
+
 import org.junit.jupiter.api.Test;
 
 import io.metaloom.loom.client.common.LoomClientException;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.endpoint.AbstractCRUDEndpointTest;
+import io.metaloom.loom.core.endpoint.ReplaceEndpointTestcases;
 import io.metaloom.loom.rest.model.assertj.Assertions;
 import io.metaloom.loom.rest.model.asset.AssetBulkCreateRequest;
 import io.metaloom.loom.rest.model.asset.AssetBulkItemResponse;
@@ -32,11 +35,77 @@ import io.metaloom.loom.rest.model.asset.info.VideoInfo;
 import io.metaloom.utils.hash.SHA512;
 import io.vertx.core.json.JsonObject;
 
-public class AssetEndpointTest extends AbstractCRUDEndpointTest {
+public class AssetEndpointTest extends AbstractCRUDEndpointTest implements ReplaceEndpointTestcases {
 
 	// A unique SHA512 that does not collide with fixture data
 	private static final SHA512 CREATE_SHA512 = SHA512.fromString(
 		"aa000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001");
+
+	/**
+	 * Build an update request which carries every replaceable field of the asset model. Kind specific fields are annotated with {@code @ReplaceOptional}
+	 * and are thus not required for a full replace.
+	 */
+	private AssetUpdateRequest fullUpdateRequest(String filename) {
+		AssetUpdateRequest request = new AssetUpdateRequest();
+		request.setFilename(filename);
+		request.setMeta(new JsonObject());
+		request.setTags(new ArrayList<>());
+		request.setFile(new FileInfo().setMimeType(IMAGE_MIMETYPE).setFilename(filename).setSize(1024L).setOrigin(INITIAL_ORIGIN));
+		request.setHashes(new HashInfo().setSHA512(SHA512SUM));
+		request.setMedia(new MediaInfo().setWidth(800).setHeight(600));
+		return request;
+	}
+
+	@Test
+	@Override
+	public void testPatch() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			final String NEW_NAME = "patched.jpg";
+			AssetUpdateRequest request = new AssetUpdateRequest();
+			request.setFile(new FileInfo().setFilename(NEW_NAME));
+			AssetResponse response = client.patchAsset(ASSET_UUID, request).sync().body();
+			assertEquals(NEW_NAME, response.getFile().getFilename());
+			assertEquals(NEW_NAME, client.loadAsset(ASSET_UUID).sync().body().getFile().getFilename());
+		}
+	}
+
+	@Test
+	@Override
+	public void testReplace() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			final String NEW_NAME = "replaced.jpg";
+			AssetResponse response = client.replaceAsset(ASSET_UUID, fullUpdateRequest(NEW_NAME)).sync().body();
+			assertEquals(NEW_NAME, response.getFile().getFilename());
+			assertEquals(NEW_NAME, client.loadAsset(ASSET_UUID).sync().body().getFile().getFilename());
+		}
+	}
+
+	@Test
+	@Override
+	public void testReplaceRejectsPartialBody() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			AssetUpdateRequest request = new AssetUpdateRequest();
+			request.setFile(new FileInfo().setFilename("only_a_file.jpg"));
+			expect(400, "Bad Request", client.replaceAsset(ASSET_UUID, request));
+		}
+	}
+
+	/**
+	 * The SHA-512 routes use a literal path prefix which must be registered before the :uuid wildcard. This asserts the wildcard does not swallow them.
+	 */
+	@Test
+	public void testReplaceBySHA512() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			final String NEW_NAME = "replaced_by_hash.jpg";
+			AssetResponse response = client.replaceAsset(SHA512SUM, fullUpdateRequest(NEW_NAME)).sync().body();
+			assertEquals(NEW_NAME, response.getFile().getFilename());
+			assertEquals(ASSET_UUID, response.getUuid());
+		}
+	}
 
 	@Override
 	protected void testCreate(LoomHttpClient client) throws LoomClientException {

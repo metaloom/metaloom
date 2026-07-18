@@ -1,24 +1,15 @@
 package io.metaloom.cortex.node.ocr.assertj;
 
-import org.assertj.core.api.AbstractAssert;
-
+import io.metaloom.cortex.api.option.assertj.AbstractCortexNodeOptionsAssert;
 import io.metaloom.cortex.node.ocr.OCRNodeOptions;
-import io.metaloom.cortex.api.option.assertj.CortexNodeOptionsAssert;
 
 /**
  * AssertJ assertions for {@link OCRNodeOptions}.
  */
-public class OCRNodeOptionsAssert extends CortexNodeOptionsAssert {
+public class OCRNodeOptionsAssert extends AbstractCortexNodeOptionsAssert<OCRNodeOptionsAssert, OCRNodeOptions> {
 
 	public OCRNodeOptionsAssert(OCRNodeOptions actual) {
-		super(actual);
-	}
-
-	/**
-	 * Get the actual object as OCRNodeOptions.
-	 */
-	private OCRNodeOptions ocrOptions() {
-		return (OCRNodeOptions) actual;
+		super(actual, OCRNodeOptionsAssert.class);
 	}
 
 	/**
@@ -26,8 +17,8 @@ public class OCRNodeOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public OCRNodeOptionsAssert hasTessDataPath(String expectedPath) {
 		isNotNull();
-		if (!expectedPath.equals(ocrOptions().getTessDataPath())) {
-			failWithMessage("Expected tessDataPath to be '%s' but was '%s'", expectedPath, ocrOptions().getTessDataPath());
+		if (!expectedPath.equals(actual.getTessDataPath())) {
+			failWithMessage("Expected tessDataPath to be '%s' but was '%s'", expectedPath, actual.getTessDataPath());
 		}
 		return this;
 	}
@@ -37,7 +28,7 @@ public class OCRNodeOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public OCRNodeOptionsAssert hasTessDataPath() {
 		isNotNull();
-		if (ocrOptions().getTessDataPath() == null || ocrOptions().getTessDataPath().isBlank()) {
+		if (actual.getTessDataPath() == null || actual.getTessDataPath().isBlank()) {
 			failWithMessage("Expected tessDataPath to be set but it was empty");
 		}
 		return this;
@@ -48,8 +39,8 @@ public class OCRNodeOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public OCRNodeOptionsAssert hasLanguage(String expectedLanguage) {
 		isNotNull();
-		if (!expectedLanguage.equals(ocrOptions().getLanguage())) {
-			failWithMessage("Expected language to be '%s' but was '%s'", expectedLanguage, ocrOptions().getLanguage());
+		if (!expectedLanguage.equals(actual.getLanguage())) {
+			failWithMessage("Expected language to be '%s' but was '%s'", expectedLanguage, actual.getLanguage());
 		}
 		return this;
 	}

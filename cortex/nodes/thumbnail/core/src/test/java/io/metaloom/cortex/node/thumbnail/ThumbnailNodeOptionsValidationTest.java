@@ -1,6 +1,6 @@
 package io.metaloom.cortex.node.thumbnail;
 
-import static io.metaloom.cortex.api.option.assertj.OptionsAssertions.assertThat;
+import static io.metaloom.cortex.node.thumbnail.assertj.ThumbnailNodeAssertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 
@@ -18,7 +18,7 @@ public class ThumbnailNodeOptionsValidationTest {
 	public void testCustomTileSizeValid() {
 		ThumbnailNodeOptions options = new ThumbnailNodeOptions();
 		options.setTileSize(512);
-		io.metaloom.cortex.node.thumbnail.assertj.ThumbnailNodeAssertions.assertThat(options)
+		assertThat(options)
 			.isValid().hasTileSize(512);
 	}
 
@@ -40,7 +40,7 @@ public class ThumbnailNodeOptionsValidationTest {
 	public void testCustomColsValid() {
 		ThumbnailNodeOptions options = new ThumbnailNodeOptions();
 		options.setCols(8);
-		io.metaloom.cortex.node.thumbnail.assertj.ThumbnailNodeAssertions.assertThat(options)
+		assertThat(options)
 			.isValid().hasCols(8);
 	}
 
@@ -62,7 +62,7 @@ public class ThumbnailNodeOptionsValidationTest {
 	public void testCustomRowsValid() {
 		ThumbnailNodeOptions options = new ThumbnailNodeOptions();
 		options.setRows(2);
-		io.metaloom.cortex.node.thumbnail.assertj.ThumbnailNodeAssertions.assertThat(options)
+		assertThat(options)
 			.isValid().hasRows(2);
 	}
 

@@ -1,7 +1,6 @@
 package io.metaloom.cortex.node.thumbnail;
 
 import static io.metaloom.cortex.pipeline.test.assertj.PipelineAssertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;

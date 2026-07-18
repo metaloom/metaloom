@@ -1,6 +1,6 @@
 package io.metaloom.cortex.node.scene;
 
-import static io.metaloom.cortex.api.option.assertj.OptionsAssertions.assertThat;
+import static io.metaloom.cortex.node.scene.assertj.SceneDetectionNodeAssertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 

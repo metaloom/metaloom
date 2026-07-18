@@ -1,6 +1,6 @@
 package io.metaloom.cortex.node.hash;
 
-import static io.metaloom.cortex.api.option.assertj.OptionsAssertions.assertThat;
+import static io.metaloom.cortex.node.hash.assertj.HashNodeAssertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 
@@ -31,8 +31,7 @@ public class HashNodeOptionsValidationTest {
 		options.setSHA256(false);
 		options.setSHA512(false);
 		options.setChunkHash(false);
-		// Use specific HashNodeAssertions for node-specific methods
-		io.metaloom.cortex.node.hash.assertj.HashNodeAssertions.assertThat(options)
+		assertThat(options)
 			.isValid().hasMD5(true).hasSHA256(false).hasSHA512(false).hasChunkHash(false);
 	}
 
@@ -43,7 +42,7 @@ public class HashNodeOptionsValidationTest {
 		options.setSHA256(false);
 		options.setSHA512(true);
 		options.setChunkHash(false);
-		io.metaloom.cortex.node.hash.assertj.HashNodeAssertions.assertThat(options)
+		assertThat(options)
 			.isValid().hasMD5(false).hasSHA256(false).hasSHA512(true).hasChunkHash(false);
 	}
 

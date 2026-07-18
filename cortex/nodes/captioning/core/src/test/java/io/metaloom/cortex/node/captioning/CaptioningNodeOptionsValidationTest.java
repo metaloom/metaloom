@@ -1,6 +1,6 @@
 package io.metaloom.cortex.node.captioning;
 
-import static io.metaloom.cortex.api.option.assertj.OptionsAssertions.assertThat;
+import static io.metaloom.cortex.node.captioning.assertj.CaptioningNodeAssertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 
@@ -18,7 +18,7 @@ public class CaptioningNodeOptionsValidationTest {
 	public void testCustomSmolVLMHostValid() {
 		CaptioningNodeOptions options = new CaptioningNodeOptions();
 		options.setSmolVLMHost("custom-host");
-		io.metaloom.cortex.node.captioning.assertj.CaptioningNodeAssertions.assertThat(options)
+		assertThat(options)
 			.isValid().hasSmolVLMHost("custom-host");
 	}
 
@@ -40,7 +40,7 @@ public class CaptioningNodeOptionsValidationTest {
 	public void testCustomSmolVLMPortValid() {
 		CaptioningNodeOptions options = new CaptioningNodeOptions();
 		options.setSmolVLMPort(9000);
-		io.metaloom.cortex.node.captioning.assertj.CaptioningNodeAssertions.assertThat(options)
+		assertThat(options)
 			.isValid().hasSmolVLMPort(9000);
 	}
 

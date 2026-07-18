@@ -50,6 +50,26 @@ public interface AssetMethods {
 
 	LoomClientRequest<AssetResponse> updateAsset(AssetId id, AssetUpdateRequest request);
 
+	default LoomClientRequest<AssetResponse> patchAsset(UUID uuid, AssetUpdateRequest request) {
+		return patchAsset(assetId(uuid), request);
+	}
+
+	default LoomClientRequest<AssetResponse> patchAsset(SHA512 hash, AssetUpdateRequest request) {
+		return patchAsset(assetId(hash), request);
+	}
+
+	LoomClientRequest<AssetResponse> patchAsset(AssetId id, AssetUpdateRequest request);
+
+	default LoomClientRequest<AssetResponse> replaceAsset(UUID uuid, AssetUpdateRequest request) {
+		return replaceAsset(assetId(uuid), request);
+	}
+
+	default LoomClientRequest<AssetResponse> replaceAsset(SHA512 hash, AssetUpdateRequest request) {
+		return replaceAsset(assetId(hash), request);
+	}
+
+	LoomClientRequest<AssetResponse> replaceAsset(AssetId id, AssetUpdateRequest request);
+
 	LoomClientRequest<AssetListResponse> listAssets();
 
 	LoomClientRequest<AssetBulkResponse> bulkCreateAssets(AssetBulkCreateRequest request);

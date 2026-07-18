@@ -40,6 +40,14 @@
             <type>test-jar</type>
             <scope>test</scope>
         </dependency>
+        <!-- NodeAssertions extends OptionsAssertions, which lives in the cortex-api test-jar -->
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-api</artifactId>
+            <version>${project.version}</version>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>

@@ -1,6 +1,6 @@
 package io.metaloom.cortex.node.facedetect;
 
-import static io.metaloom.cortex.api.option.assertj.OptionsAssertions.assertThat;
+import static io.metaloom.cortex.node.facedetect.assertj.FacedetectNodeAssertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 
@@ -18,7 +18,7 @@ public class FacedetectNodeOptionsValidationTest {
 	public void testCustomVideoChopRateValid() {
 		FacedetectNodeOptions options = new FacedetectNodeOptions();
 		options.setVideoChopRate(10);
-		io.metaloom.cortex.node.facedetect.assertj.FacedetectNodeAssertions.assertThat(options)
+		assertThat(options)
 			.isValid().hasVideoChopRate(10);
 	}
 
@@ -40,7 +40,7 @@ public class FacedetectNodeOptionsValidationTest {
 	public void testCustomVideoScaleSizeValid() {
 		FacedetectNodeOptions options = new FacedetectNodeOptions();
 		options.setVideoScaleSize(320);
-		io.metaloom.cortex.node.facedetect.assertj.FacedetectNodeAssertions.assertThat(options)
+		assertThat(options)
 			.isValid().hasVideoScaleSize(320);
 	}
 
@@ -62,7 +62,7 @@ public class FacedetectNodeOptionsValidationTest {
 	public void testCustomFaceClusterMinimumValid() {
 		FacedetectNodeOptions options = new FacedetectNodeOptions();
 		options.setFaceClusterMinimum(3);
-		io.metaloom.cortex.node.facedetect.assertj.FacedetectNodeAssertions.assertThat(options)
+		assertThat(options)
 			.isValid().hasFaceClusterMinimum(3);
 	}
 
@@ -77,7 +77,7 @@ public class FacedetectNodeOptionsValidationTest {
 	public void testCustomFaceClusterEPSValid() {
 		FacedetectNodeOptions options = new FacedetectNodeOptions();
 		options.setFaceClusterEPS(0.5f);
-		io.metaloom.cortex.node.facedetect.assertj.FacedetectNodeAssertions.assertThat(options)
+		assertThat(options)
 			.isValid().hasFaceClusterEPS(0.5f);
 	}
 
@@ -99,7 +99,7 @@ public class FacedetectNodeOptionsValidationTest {
 	public void testMinFaceHeightFactorValid() {
 		FacedetectNodeOptions options = new FacedetectNodeOptions();
 		options.setMinFaceHeightFactor(0.1f);
-		io.metaloom.cortex.node.facedetect.assertj.FacedetectNodeAssertions.assertThat(options)
+		assertThat(options)
 			.isValid().hasMinFaceHeightFactor(0.1f);
 	}
 
@@ -142,7 +142,7 @@ public class FacedetectNodeOptionsValidationTest {
 	public void testCustomInspirefacePackPathValid() {
 		FacedetectNodeOptions options = new FacedetectNodeOptions();
 		options.setInspirefacePackPath("custom/path");
-		io.metaloom.cortex.node.facedetect.assertj.FacedetectNodeAssertions.assertThat(options)
+		assertThat(options)
 			.isValid().hasInspirefacePackPath("custom/path");
 	}
 

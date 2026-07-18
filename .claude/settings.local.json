@@ -11,7 +11,9 @@
       "Bash(javap -cp vertx-web-openapi-core-0.0.1-SNAPSHOT.jar io.metaloom.vertx.route.ApiRoute io.metaloom.vertx.route.AbstractApiRouteImpl)",
       "Read(//home/defaultuser/.m2/repository/io/metaloom/vertx/vertx-web-openapi-generator/0.0.1-SNAPSHOT/**)",
       "Bash(javap -p -cp vertx-web-openapi-generator-0.0.1-SNAPSHOT.jar io.metaloom.vertx.openapi.OpenAPIGenerator 'io.metaloom.vertx.openapi.OpenAPIGenerator$Builder')",
-      "Bash(xargs cat)"
+      "Bash(xargs cat)",
+      "Bash(python3 -)",
+      "Bash(mvn test *)"
     ]
   }
 }

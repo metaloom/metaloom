@@ -1,16 +1,60 @@
 package io.metaloom.loom.core.endpoint.test;
 
 import static io.metaloom.loom.rest.model.assertj.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import org.junit.jupiter.api.Test;
 
 import io.metaloom.loom.client.common.LoomClientException;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.endpoint.AbstractCRUDEndpointTest;
+import io.metaloom.loom.core.endpoint.ReplaceEndpointTestcases;
 import io.metaloom.loom.rest.model.group.GroupCreateRequest;
 import io.metaloom.loom.rest.model.group.GroupListResponse;
 import io.metaloom.loom.rest.model.group.GroupResponse;
 import io.metaloom.loom.rest.model.group.GroupUpdateRequest;
+import io.vertx.core.json.JsonObject;
 
-public class GroupEndpointTest extends AbstractCRUDEndpointTest {
+public class GroupEndpointTest extends AbstractCRUDEndpointTest implements ReplaceEndpointTestcases {
+
+	@Test
+	@Override
+	public void testPatch() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			GroupUpdateRequest update = new GroupUpdateRequest();
+			update.setName("patched-name");
+			GroupResponse response = client.patchGroup(GROUP_UUID, update).sync().body();
+			assertThat(response).isValid();
+			assertEquals("patched-name", client.loadGroup(GROUP_UUID).sync().body().getName());
+		}
+	}
+
+	@Test
+	@Override
+	public void testReplace() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			GroupUpdateRequest update = new GroupUpdateRequest();
+			update.setName("replaced-name");
+			update.setMeta(new JsonObject());
+			GroupResponse response = client.replaceGroup(GROUP_UUID, update).sync().body();
+			assertThat(response).isValid();
+			assertEquals("replaced-name", client.loadGroup(GROUP_UUID).sync().body().getName());
+		}
+	}
+
+	@Test
+	@Override
+	public void testReplaceRejectsPartialBody() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			// The meta field is missing
+			GroupUpdateRequest update = new GroupUpdateRequest();
+			update.setName("only-name");
+			expect(400, "Bad Request", client.replaceGroup(GROUP_UUID, update));
+		}
+	}
 
 	@Override
 	protected void testRead(LoomHttpClient client) throws LoomClientException {

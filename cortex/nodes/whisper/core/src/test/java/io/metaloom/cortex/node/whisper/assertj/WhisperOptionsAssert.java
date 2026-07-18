@@ -1,24 +1,15 @@
 package io.metaloom.cortex.node.whisper.assertj;
 
-import org.assertj.core.api.AbstractAssert;
-
+import io.metaloom.cortex.api.option.assertj.AbstractCortexNodeOptionsAssert;
 import io.metaloom.cortex.node.whisper.WhisperOptions;
-import io.metaloom.cortex.api.option.assertj.CortexNodeOptionsAssert;
 
 /**
  * AssertJ assertions for {@link WhisperOptions}.
  */
-public class WhisperOptionsAssert extends CortexNodeOptionsAssert {
+public class WhisperOptionsAssert extends AbstractCortexNodeOptionsAssert<WhisperOptionsAssert, WhisperOptions> {
 
 	public WhisperOptionsAssert(WhisperOptions actual) {
-		super(actual);
-	}
-
-	/**
-	 * Get the actual object as WhisperOptions.
-	 */
-	private WhisperOptions whisperOptions() {
-		return (WhisperOptions) actual;
+		super(actual, WhisperOptionsAssert.class);
 	}
 
 	/**
@@ -26,8 +17,8 @@ public class WhisperOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public WhisperOptionsAssert hasModelPath(String expectedPath) {
 		isNotNull();
-		if (!expectedPath.equals(whisperOptions().getModelPath())) {
-			failWithMessage("Expected modelPath to be '%s' but was '%s'", expectedPath, whisperOptions().getModelPath());
+		if (!expectedPath.equals(actual.getModelPath())) {
+			failWithMessage("Expected modelPath to be '%s' but was '%s'", expectedPath, actual.getModelPath());
 		}
 		return this;
 	}
@@ -37,7 +28,7 @@ public class WhisperOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public WhisperOptionsAssert hasModelPath() {
 		isNotNull();
-		if (whisperOptions().getModelPath() == null || whisperOptions().getModelPath().isBlank()) {
+		if (actual.getModelPath() == null || actual.getModelPath().isBlank()) {
 			failWithMessage("Expected modelPath to be set but it was empty");
 		}
 		return this;
@@ -48,8 +39,8 @@ public class WhisperOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public WhisperOptionsAssert hasTemperature(float expectedTemp) {
 		isNotNull();
-		if (Float.compare(whisperOptions().getTemperature(), expectedTemp) != 0) {
-			failWithMessage("Expected temperature to be %f but was %f", expectedTemp, whisperOptions().getTemperature());
+		if (Float.compare(actual.getTemperature(), expectedTemp) != 0) {
+			failWithMessage("Expected temperature to be %f but was %f", expectedTemp, actual.getTemperature());
 		}
 		return this;
 	}
@@ -59,8 +50,8 @@ public class WhisperOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public WhisperOptionsAssert hasLanguage(String expectedLanguage) {
 		isNotNull();
-		if (!expectedLanguage.equals(whisperOptions().getLanguage())) {
-			failWithMessage("Expected language to be '%s' but was '%s'", expectedLanguage, whisperOptions().getLanguage());
+		if (!expectedLanguage.equals(actual.getLanguage())) {
+			failWithMessage("Expected language to be '%s' but was '%s'", expectedLanguage, actual.getLanguage());
 		}
 		return this;
 	}
@@ -70,8 +61,8 @@ public class WhisperOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public WhisperOptionsAssert hasUseGpu(boolean expected) {
 		isNotNull();
-		if (whisperOptions().isUseGpu() != expected) {
-			failWithMessage("Expected useGpu to be %s but was %s", expected, whisperOptions().isUseGpu());
+		if (actual.isUseGpu() != expected) {
+			failWithMessage("Expected useGpu to be %s but was %s", expected, actual.isUseGpu());
 		}
 		return this;
 	}
@@ -81,8 +72,8 @@ public class WhisperOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public WhisperOptionsAssert hasGpuDevice(int expectedDevice) {
 		isNotNull();
-		if (whisperOptions().getGpuDevice() != expectedDevice) {
-			failWithMessage("Expected gpuDevice to be %d but was %d", expectedDevice, whisperOptions().getGpuDevice());
+		if (actual.getGpuDevice() != expectedDevice) {
+			failWithMessage("Expected gpuDevice to be %d but was %d", expectedDevice, actual.getGpuDevice());
 		}
 		return this;
 	}

@@ -1,6 +1,6 @@
 package io.metaloom.cortex.node.ocr;
 
-import static io.metaloom.cortex.api.option.assertj.OptionsAssertions.assertThat;
+import static io.metaloom.cortex.node.ocr.assertj.OCRNodeAssertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 
@@ -18,7 +18,7 @@ public class OCRNodeOptionsValidationTest {
 	public void testCustomTessDataPathValid() {
 		OCRNodeOptions options = new OCRNodeOptions();
 		options.setTessDataPath("/custom/tessdata");
-		io.metaloom.cortex.node.ocr.assertj.OCRNodeAssertions.assertThat(options)
+		assertThat(options)
 			.isValid().hasTessDataPath("/custom/tessdata");
 	}
 
@@ -40,7 +40,7 @@ public class OCRNodeOptionsValidationTest {
 	public void testCustomLanguageValid() {
 		OCRNodeOptions options = new OCRNodeOptions();
 		options.setLanguage("deu");
-		io.metaloom.cortex.node.ocr.assertj.OCRNodeAssertions.assertThat(options)
+		assertThat(options)
 			.isValid().hasLanguage("deu");
 	}
 

@@ -611,7 +611,7 @@ Both Loom and Cortex use **Dagger 2** extensively:
 | **Dagger** | After touching generic types on nodes/services, do a clean build — stale generated code causes confusing compile errors |
 | **jOOQ generated sources** | Live inside `src/jooq/java`; never edit by hand — rerun `loom/db/jooq/generate.sh` after schema changes |
 | **New DB fields** | Need: (a) Flyway `V*.sql`, (b) jOOQ regeneration, (c) DAO API changes in `loom/db/api`, (d) impl updates in `loom/db/jooq` and `loom/db/memory`, (e) contract tests in `loom/db/api-test` |
-| **REST updates** | Loom uses `POST` for both create AND update (not PUT/PATCH) |
+| **REST updates** | `POST` is used for create AND update on all endpoints (kept for backward compatibility). User/Group/Asset additionally support `PATCH` (= the POST partial update) and `PUT` (full replace — 400 if any replaceable field is absent). See [RESTAPI.md](loom/RESTAPI.md) §1.2 |
 | **WebSocket auth** | Token via `?token=<jwt>` query param (browsers can't send custom headers on WS upgrade) |
 | **Test assertions** | Use domain-specific `AbstractAssert` subclasses — don't roll your own equality checks |
 | **Cortex nodes** | Two hierarchies: Cortex-level (CLI) and Pipeline-level (DAG) — bridged by `CortexNodeAdapter`. Never extend both bases |
@@ -665,3 +665,8 @@ Additional living notes are kept under `/memories/repo/`:
 ---
 
 *This document is maintained as the primary entry point for AI coding agents. When in doubt, start here and follow the cross-references to the detailed specification files.*
+
+---
+
+_Git HEAD revision: `ff598947b9f0203f6254869961b8359f7fc2f790`_
+_Last updated: 2026-07-18 16:33 UTC_

@@ -1,6 +1,6 @@
 package io.metaloom.cortex.node.tika;
 
-import static io.metaloom.cortex.api.option.assertj.OptionsAssertions.assertThat;
+import static io.metaloom.cortex.node.tika.assertj.TikaNodeAssertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 

@@ -1,24 +1,15 @@
 package io.metaloom.cortex.node.quality.assertj;
 
-import org.assertj.core.api.AbstractAssert;
-
+import io.metaloom.cortex.api.option.assertj.AbstractCortexNodeOptionsAssert;
 import io.metaloom.cortex.node.quality.QualityNodeOptions;
-import io.metaloom.cortex.api.option.assertj.CortexNodeOptionsAssert;
 
 /**
  * AssertJ assertions for {@link QualityNodeOptions}.
  */
-public class QualityNodeOptionsAssert extends CortexNodeOptionsAssert {
+public class QualityNodeOptionsAssert extends AbstractCortexNodeOptionsAssert<QualityNodeOptionsAssert, QualityNodeOptions> {
 
 	public QualityNodeOptionsAssert(QualityNodeOptions actual) {
-		super(actual);
-	}
-
-	/**
-	 * Get the actual object as QualityNodeOptions.
-	 */
-	private QualityNodeOptions qualityOptions() {
-		return (QualityNodeOptions) actual;
+		super(actual, QualityNodeOptionsAssert.class);
 	}
 
 	/**
@@ -26,8 +17,8 @@ public class QualityNodeOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public QualityNodeOptionsAssert hasCheckBlurriness(boolean expected) {
 		isNotNull();
-		if (qualityOptions().isCheckBlurriness() != expected) {
-			failWithMessage("Expected checkBlurriness to be %s but was %s", expected, qualityOptions().isCheckBlurriness());
+		if (actual.isCheckBlurriness() != expected) {
+			failWithMessage("Expected checkBlurriness to be %s but was %s", expected, actual.isCheckBlurriness());
 		}
 		return this;
 	}
@@ -37,8 +28,8 @@ public class QualityNodeOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public QualityNodeOptionsAssert hasCheckResolution(boolean expected) {
 		isNotNull();
-		if (qualityOptions().isCheckResolution() != expected) {
-			failWithMessage("Expected checkResolution to be %s but was %s", expected, qualityOptions().isCheckResolution());
+		if (actual.isCheckResolution() != expected) {
+			failWithMessage("Expected checkResolution to be %s but was %s", expected, actual.isCheckResolution());
 		}
 		return this;
 	}
@@ -48,8 +39,8 @@ public class QualityNodeOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public QualityNodeOptionsAssert hasCheckVideoBitrate(boolean expected) {
 		isNotNull();
-		if (qualityOptions().isCheckVideoBitrate() != expected) {
-			failWithMessage("Expected checkVideoBitrate to be %s but was %s", expected, qualityOptions().isCheckVideoBitrate());
+		if (actual.isCheckVideoBitrate() != expected) {
+			failWithMessage("Expected checkVideoBitrate to be %s but was %s", expected, actual.isCheckVideoBitrate());
 		}
 		return this;
 	}
@@ -59,8 +50,8 @@ public class QualityNodeOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public QualityNodeOptionsAssert hasCheckAudioBitrate(boolean expected) {
 		isNotNull();
-		if (qualityOptions().isCheckAudioBitrate() != expected) {
-			failWithMessage("Expected checkAudioBitrate to be %s but was %s", expected, qualityOptions().isCheckAudioBitrate());
+		if (actual.isCheckAudioBitrate() != expected) {
+			failWithMessage("Expected checkAudioBitrate to be %s but was %s", expected, actual.isCheckAudioBitrate());
 		}
 		return this;
 	}
@@ -70,7 +61,7 @@ public class QualityNodeOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public QualityNodeOptionsAssert hasAtLeastOneCheckEnabled() {
 		isNotNull();
-		if (!qualityOptions().isCheckBlurriness() && !qualityOptions().isCheckResolution() && !qualityOptions().isCheckVideoBitrate() && !qualityOptions().isCheckAudioBitrate()) {
+		if (!actual.isCheckBlurriness() && !actual.isCheckResolution() && !actual.isCheckVideoBitrate() && !actual.isCheckAudioBitrate()) {
 			failWithMessage("Expected at least one quality check to be enabled but all are disabled");
 		}
 		return this;

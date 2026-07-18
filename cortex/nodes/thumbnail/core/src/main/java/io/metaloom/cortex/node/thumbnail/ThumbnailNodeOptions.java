@@ -37,6 +37,11 @@ public class ThumbnailNodeOptions extends AbstractNodeOptions<ThumbnailNodeOptio
 		return tileSize;
 	}
 
+	public ThumbnailNodeOptions setTileSize(int tileSize) {
+		this.tileSize = tileSize;
+		return this;
+	}
+
 	public int getCols() {
 		return cols;
 	}

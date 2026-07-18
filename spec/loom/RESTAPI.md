@@ -22,14 +22,35 @@
 | Method   | Usage                                                        |
 |----------|--------------------------------------------------------------|
 | `GET`    | List (collection) or load (single) resources                |
-| `POST`   | Create a resource **or** update a resource (Loom uses POST for updates instead of PUT/PATCH) |
+| `POST`   | Create a resource **or** update a resource (`POST /resource/:uuid` is the update mechanism on all endpoints) |
 | `DELETE` | Delete a resource                                           |
 | `OPTIONS`| CORS preflight (handled by CorsHandler)                     |
-| `PATCH`  | Not used by the server (supported in CORS, but no endpoints) |
-| `PUT`    | Not used by the server (supported in CORS, but no endpoints) |
+| `PATCH`  | Partial update — `PATCH /resource/:uuid` (User, Group, Asset only)     |
+| `PUT`    | Full replace — `PUT /resource/:uuid` (User, Group, Asset only)         |
 
-> **Note:** Loom uses `POST` for both create and update operations. Updates are
-> performed via `POST /resource/:uuid` rather than `PUT /resource/:uuid`.
+> **Note:** `POST /resource/:uuid` remains the update mechanism on **all**
+> endpoints and is retained for backward compatibility. `PUT` and `PATCH` are a
+> pilot on the User, Group and Asset endpoints; the remaining endpoints are
+> follow-up work.
+
+**PATCH** is semantically identical to `POST /resource/:uuid` — only the fields
+present in the request body are modified. It shares the same service call.
+
+**PUT** uses the same service call but is preceded by a completeness check: the
+request body must carry **every** replaceable field of the request model.
+Violations are rejected with **400** and a `GenericMessageResponse` naming the
+missing fields. Note that PUT does *not* null out absent fields — the check
+rejects an incomplete body rather than performing a destructive replace.
+
+- A field which is **present but `null`** counts as present (an explicit null
+  clears the field). Only **absent** fields are rejected.
+- Which fields are required is derived from the Jackson introspection of the
+  request model; properties annotated `@ReplaceOptional` opt out. See §6.5.
+- **Java client caveat:** `LoomJson.mapper` is configured with
+  `Include.NON_NULL`, so the Java client omits null fields on the wire. A client
+  PUT therefore only passes validation if every required field is set to a
+  non-null value, and the Java client cannot send an explicit `null` to clear a
+  field via PUT. Raw HTTP clients can.
 
 ### 1.3 Content Types
 
@@ -181,13 +202,15 @@ List endpoints (`addListRoute`) support the following query parameters
 
 Most resource endpoints follow a standard CRUD pattern:
 
-| Operation | Method | Path                    |
-|-----------|--------|-------------------------|
-| Create    | POST   | `/api/v1/{resource}`    |
-| List      | GET    | `/api/v1/{resource}`    |
-| Load      | GET    | `/api/v1/{resource}/:uuid` |
-| Update    | POST   | `/api/v1/{resource}/:uuid` |
-| Delete    | DELETE | `/api/v1/{resource}/:uuid` |
+| Operation          | Method | Path                       | Availability          |
+|--------------------|--------|----------------------------|-----------------------|
+| Create             | POST   | `/api/v1/{resource}`       | all endpoints         |
+| List               | GET    | `/api/v1/{resource}`       | all endpoints         |
+| Load               | GET    | `/api/v1/{resource}/:uuid` | all endpoints         |
+| Update             | POST   | `/api/v1/{resource}/:uuid` | all endpoints         |
+| Update (partial)   | PATCH  | `/api/v1/{resource}/:uuid` | users, groups, assets |
+| Replace (full)     | PUT    | `/api/v1/{resource}/:uuid` | users, groups, assets |
+| Delete             | DELETE | `/api/v1/{resource}/:uuid` | all endpoints         |
 
 ### 3.2 Endpoint Inventory
 
@@ -195,9 +218,9 @@ Most resource endpoints follow a standard CRUD pattern:
 |-------------------------|----------------------------------------|--------------------------|--------------------------------------------|
 | Login                   | `/api/v1/login`                        | POST                     | Username/password login, sets JWT cookie   |
 | OAuth2                  | `/api/v1/auth/oauth2`                  | GET (login/callback/logout) | BFF pattern with PKCE                  |
-| User                    | `/api/v1/users`                        | GET, POST, DELETE        | Standard CRUD                              |
+| User                    | `/api/v1/users`                        | GET, POST, PUT, PATCH, DELETE        | Standard CRUD                              |
 | Role                    | `/api/v1/roles`                        | GET, POST, DELETE        | Standard CRUD                              |
-| Group                   | `/api/v1/groups`                       | GET, POST, DELETE        | Standard CRUD (list uses `addRoute` not `addListRoute`) |
+| Group                   | `/api/v1/groups`                       | GET, POST, PUT, PATCH, DELETE        | Standard CRUD (list uses `addRoute` not `addListRoute`) |
 | Token                   | `/api/v1/tokens`                       | GET, POST, DELETE        | API token management                       |
 | Person                  | `/api/v1/persons`                      | GET, POST, DELETE        | Standard CRUD                              |
 | Space                   | `/api/v1/spaces`                       | GET, POST, DELETE        | Standard CRUD                              |
@@ -219,8 +242,8 @@ Most resource endpoints follow a standard CRUD pattern:
 | Processor               | `/api/v1/processors`                   | GET, WebSocket           | List/load processors + WS for processor nodes |
 | Node Descriptors        | `/api/v1/pipeline/node-descriptors`    | GET                      | Pipeline node descriptor registry          |
 | Content Types           | `/api/v1/pipeline/content-types`       | GET                      | Content type catalog                       |
-| Asset                   | `/api/v1/assets`                       | GET, POST, DELETE        | CRUD + SHA-512 lookup + bulk + sub-resources |
-| Asset (SHA-512)         | `/api/v1/assets/sha512/:sha512`        | GET, POST, DELETE        | Hash-based asset operations                |
+| Asset                   | `/api/v1/assets`                       | GET, POST, PUT, PATCH, DELETE        | CRUD + SHA-512 lookup + bulk + sub-resources |
+| Asset (SHA-512)         | `/api/v1/assets/sha512/:sha512`        | GET, POST, PUT, PATCH, DELETE        | Hash-based asset operations                |
 | Asset Bulk              | `/api/v1/assets/bulk/create`           | POST                     | Bulk create assets                         |
 | Asset Bulk              | `/api/v1/assets/bulk/update`           | POST                     | Bulk update assets                         |
 | Asset Tags              | `/api/v1/assets/:uuid/tags`            | POST, DELETE             | Tag/untag an asset                         |
@@ -480,6 +503,18 @@ try (LoomClient client = LoomHttpClient.builder()
 
 - `LoomModelValidator` validates request models.
 - `ValidationException` results in HTTP 400.
+- `ReplaceValidator` backs the full replace (PUT) completeness check. It derives
+  the set of required JSON property names from the Jackson introspection of the
+  request model — which matches the actual wire format (including
+  `@JsonProperty` renames) and automatically excludes fields with no accessors,
+  such as `AssetUpdateRequest.dominantColor`. Properties annotated
+  `@ReplaceOptional` opt out; `AssetUpdateRequest` uses this for the kind
+  specific blocks (`image`, `video`, `audio`, `document`, `geo`, `timeline`,
+  `s3`, `consistency`, `fingerprint`) which are meaningless for most assets.
+- The check runs against the **raw** `JsonObject` body, not the parsed model —
+  the model cannot distinguish an absent field from an explicit null.
+- `AbstractEndpoint.replaceHandler(Class, Handler)` wraps an update handler with
+  the check; `LoomRoutingContext.requireFullBody(Class)` performs it.
 
 ### 6.6 Error Handling
 
@@ -536,6 +571,10 @@ fixes, or are incomplete. AI agents can use this list to identify work items.
 - [x] Consistent error responses (`GenericMessageResponse`)
 - [x] Consistent query parameters for list endpoints
 - [x] Consistent path parameter naming (`:uuid`)
+- [x] PUT (full replace) and PATCH (partial update) implemented for the User,
+  Group and Asset endpoints, backed by `ReplaceValidator`
+- [ ] PUT/PATCH not yet rolled out to the remaining CRUD endpoints (they still
+  only support `POST /resource/:uuid` for updates)
 - [ ] GraphQL endpoint is implemented but commented out in `EndpointModule` - not registered
 - [ ] `GroupEndpoint` uses `addRoute` instead of `addListRoute` for the list
   endpoint (missing query parameter documentation for OpenAPI)
@@ -592,6 +631,9 @@ fixes, or are incomplete. AI agents can use this list to identify work items.
 - [ ] WebSocket endpoints are not documented in the OpenAPI spec (see [WEBSOCKET.md](WEBSOCKET.md) for WebSocket docs)
 - [ ] No OpenAPI schema definitions for request/response models (only examples)
 - [ ] No OpenAPI security scheme definitions
+- [ ] The external `OpenAPIGenerator` emits **every** HTTP verb for every path
+  regardless of which methods were actually registered, so the generated
+  `openapi.json` cannot be used to verify per-route method support
 
 ### 7.6 Error Handling
 
@@ -646,3 +688,8 @@ fixes, or are incomplete. AI agents can use this list to identify work items.
 - [ ] MCP server (port 4041) has no authentication — tools bypass REST API auth and access DAOs directly (see [MCP.md](MCP.md))
 - [ ] MCP server port is hardcoded to 4041, not configurable via `LoomOptions`
 - [ ] MCP tools are read-only (search, get, list, stats) — no tools for create/update/delete operations
+
+---
+
+_Git HEAD revision: `ff598947b9f0203f6254869961b8359f7fc2f790`_
+_Last updated: 2026-07-18 16:33 UTC_

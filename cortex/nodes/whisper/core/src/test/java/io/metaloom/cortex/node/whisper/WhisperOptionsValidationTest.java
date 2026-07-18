@@ -1,6 +1,6 @@
 package io.metaloom.cortex.node.whisper;
 
-import static io.metaloom.cortex.api.option.assertj.OptionsAssertions.assertThat;
+import static io.metaloom.cortex.node.whisper.assertj.WhisperNodeAssertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 
@@ -18,7 +18,7 @@ public class WhisperOptionsValidationTest {
 	public void testCustomModelPathValid() {
 		WhisperOptions options = new WhisperOptions();
 		options.setModelPath("models/ggml-tiny.bin");
-		io.metaloom.cortex.node.whisper.assertj.WhisperNodeAssertions.assertThat(options)
+		assertThat(options)
 			.isValid().hasModelPath("models/ggml-tiny.bin");
 	}
 
@@ -47,7 +47,7 @@ public class WhisperOptionsValidationTest {
 	public void testZeroTemperatureValid() {
 		WhisperOptions options = new WhisperOptions();
 		options.setTemperature(0.0f);
-		io.metaloom.cortex.node.whisper.assertj.WhisperNodeAssertions.assertThat(options)
+		assertThat(options)
 			.isValid().hasTemperature(0.0f);
 	}
 
@@ -55,7 +55,7 @@ public class WhisperOptionsValidationTest {
 	public void testPositiveTemperatureValid() {
 		WhisperOptions options = new WhisperOptions();
 		options.setTemperature(0.5f);
-		io.metaloom.cortex.node.whisper.assertj.WhisperNodeAssertions.assertThat(options)
+		assertThat(options)
 			.isValid().hasTemperature(0.5f);
 	}
 
@@ -70,7 +70,7 @@ public class WhisperOptionsValidationTest {
 	public void testLanguageValid() {
 		WhisperOptions options = new WhisperOptions();
 		options.setLanguage("en");
-		io.metaloom.cortex.node.whisper.assertj.WhisperNodeAssertions.assertThat(options)
+		assertThat(options)
 			.isValid().hasLanguage("en");
 	}
 
@@ -85,11 +85,11 @@ public class WhisperOptionsValidationTest {
 	public void testGpuDeviceValid() {
 		WhisperOptions options = new WhisperOptions();
 		options.setGpuDevice(0);
-		io.metaloom.cortex.node.whisper.assertj.WhisperNodeAssertions.assertThat(options)
+		assertThat(options)
 			.isValid().hasGpuDevice(0);
 		
 		options.setGpuDevice(1);
-		io.metaloom.cortex.node.whisper.assertj.WhisperNodeAssertions.assertThat(options)
+		assertThat(options)
 			.isValid().hasGpuDevice(1);
 	}
 
@@ -97,11 +97,11 @@ public class WhisperOptionsValidationTest {
 	public void testUseGpuValid() {
 		WhisperOptions options = new WhisperOptions();
 		options.setUseGpu(true);
-		io.metaloom.cortex.node.whisper.assertj.WhisperNodeAssertions.assertThat(options)
+		assertThat(options)
 			.isValid().hasUseGpu(true);
 		
 		options.setUseGpu(false);
-		io.metaloom.cortex.node.whisper.assertj.WhisperNodeAssertions.assertThat(options)
+		assertThat(options)
 			.isValid().hasUseGpu(false);
 	}
 

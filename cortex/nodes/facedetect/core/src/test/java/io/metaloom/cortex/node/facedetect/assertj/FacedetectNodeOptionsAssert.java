@@ -1,24 +1,15 @@
 package io.metaloom.cortex.node.facedetect.assertj;
 
-import org.assertj.core.api.AbstractAssert;
-
+import io.metaloom.cortex.api.option.assertj.AbstractCortexNodeOptionsAssert;
 import io.metaloom.cortex.node.facedetect.FacedetectNodeOptions;
-import io.metaloom.cortex.api.option.assertj.CortexNodeOptionsAssert;
 
 /**
  * AssertJ assertions for {@link FacedetectNodeOptions}.
  */
-public class FacedetectNodeOptionsAssert extends CortexNodeOptionsAssert {
+public class FacedetectNodeOptionsAssert extends AbstractCortexNodeOptionsAssert<FacedetectNodeOptionsAssert, FacedetectNodeOptions> {
 
 	public FacedetectNodeOptionsAssert(FacedetectNodeOptions actual) {
-		super(actual);
-	}
-
-	/**
-	 * Get the actual object as FacedetectNodeOptions.
-	 */
-	private FacedetectNodeOptions faceOptions() {
-		return (FacedetectNodeOptions) actual;
+		super(actual, FacedetectNodeOptionsAssert.class);
 	}
 
 	/**
@@ -26,8 +17,8 @@ public class FacedetectNodeOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public FacedetectNodeOptionsAssert hasVideoChopRate(int expectedRate) {
 		isNotNull();
-		if (faceOptions().getVideoChopRate() != expectedRate) {
-			failWithMessage("Expected videoChopRate to be %d but was %d", expectedRate, faceOptions().getVideoChopRate());
+		if (actual.getVideoChopRate() != expectedRate) {
+			failWithMessage("Expected videoChopRate to be %d but was %d", expectedRate, actual.getVideoChopRate());
 		}
 		return this;
 	}
@@ -37,8 +28,8 @@ public class FacedetectNodeOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public FacedetectNodeOptionsAssert hasVideoScaleSize(int expectedSize) {
 		isNotNull();
-		if (faceOptions().getVideoScaleSize() != expectedSize) {
-			failWithMessage("Expected videoScaleSize to be %d but was %d", expectedSize, faceOptions().getVideoScaleSize());
+		if (actual.getVideoScaleSize() != expectedSize) {
+			failWithMessage("Expected videoScaleSize to be %d but was %d", expectedSize, actual.getVideoScaleSize());
 		}
 		return this;
 	}
@@ -48,8 +39,8 @@ public class FacedetectNodeOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public FacedetectNodeOptionsAssert hasFaceClusterMinimum(int expectedMinimum) {
 		isNotNull();
-		if (faceOptions().getFaceClusterMinimum() != expectedMinimum) {
-			failWithMessage("Expected faceClusterMinimum to be %d but was %d", expectedMinimum, faceOptions().getFaceClusterMinimum());
+		if (actual.getFaceClusterMinimum() != expectedMinimum) {
+			failWithMessage("Expected faceClusterMinimum to be %d but was %d", expectedMinimum, actual.getFaceClusterMinimum());
 		}
 		return this;
 	}
@@ -59,8 +50,8 @@ public class FacedetectNodeOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public FacedetectNodeOptionsAssert hasFaceClusterEPS(float expectedEPS) {
 		isNotNull();
-		if (Float.compare(faceOptions().getFaceClusterEPS(), expectedEPS) != 0) {
-			failWithMessage("Expected faceClusterEPS to be %f but was %f", expectedEPS, faceOptions().getFaceClusterEPS());
+		if (Float.compare(actual.getFaceClusterEPS(), expectedEPS) != 0) {
+			failWithMessage("Expected faceClusterEPS to be %f but was %f", expectedEPS, actual.getFaceClusterEPS());
 		}
 		return this;
 	}
@@ -70,8 +61,8 @@ public class FacedetectNodeOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public FacedetectNodeOptionsAssert hasMinFaceHeightFactor(float expectedFactor) {
 		isNotNull();
-		if (Float.compare(faceOptions().getMinFaceHeightFactor(), expectedFactor) != 0) {
-			failWithMessage("Expected minFaceHeightFactor to be %f but was %f", expectedFactor, faceOptions().getMinFaceHeightFactor());
+		if (Float.compare(actual.getMinFaceHeightFactor(), expectedFactor) != 0) {
+			failWithMessage("Expected minFaceHeightFactor to be %f but was %f", expectedFactor, actual.getMinFaceHeightFactor());
 		}
 		return this;
 	}
@@ -81,8 +72,8 @@ public class FacedetectNodeOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public FacedetectNodeOptionsAssert hasInspirefacePackPath(String expectedPath) {
 		isNotNull();
-		if (!expectedPath.equals(faceOptions().getInspirefacePackPath())) {
-			failWithMessage("Expected inspirefacePackPath to be '%s' but was '%s'", expectedPath, faceOptions().getInspirefacePackPath());
+		if (!expectedPath.equals(actual.getInspirefacePackPath())) {
+			failWithMessage("Expected inspirefacePackPath to be '%s' but was '%s'", expectedPath, actual.getInspirefacePackPath());
 		}
 		return this;
 	}
@@ -92,8 +83,8 @@ public class FacedetectNodeOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public FacedetectNodeOptionsAssert hasCapability(io.metaloom.cortex.node.facedetect.FacedetectNodeCapabilities capability) {
 		isNotNull();
-		if (faceOptions().getCapabilities() == null || !faceOptions().getCapabilities().contains(capability)) {
-			failWithMessage("Expected capabilities to contain '%s' but got: %s", capability, faceOptions().getCapabilities());
+		if (actual.getCapabilities() == null || !actual.getCapabilities().contains(capability)) {
+			failWithMessage("Expected capabilities to contain '%s' but got: %s", capability, actual.getCapabilities());
 		}
 		return this;
 	}

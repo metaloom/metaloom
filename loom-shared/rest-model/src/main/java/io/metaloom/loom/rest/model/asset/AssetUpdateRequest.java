@@ -18,6 +18,7 @@ import io.metaloom.loom.rest.model.asset.info.MediaInfo;
 import io.metaloom.loom.rest.model.asset.info.VideoInfo;
 import io.metaloom.loom.rest.model.asset.location.AssetS3Meta;
 import io.metaloom.loom.rest.model.tag.TagReference;
+import io.metaloom.loom.rest.validation.ReplaceOptional;
 import io.vertx.core.json.JsonObject;
 
 public class AssetUpdateRequest implements RestRequestModel, AssetModel<AssetUpdateRequest> {
@@ -35,9 +36,11 @@ public class AssetUpdateRequest implements RestRequestModel, AssetModel<AssetUpd
 	private JsonObject meta;
 
 	@JsonPropertyDescription("Timeline information on the asset.")
+	@ReplaceOptional
 	private List<AnnotationResponse> timeline;
 
 	@JsonPropertyDescription("S3 meta information on the asset. (only set when S3 is being utilized).")
+	@ReplaceOptional
 	private AssetS3Meta s3;
 
 	// @JsonPropertyDescription("The local path of the asset. This will only be returned when the asset was created using a local path.")
@@ -50,30 +53,37 @@ public class AssetUpdateRequest implements RestRequestModel, AssetModel<AssetUpd
 	private FileInfo file;
 
 	@JsonPropertyDescription("Information about consistency checks on the the asset.")
+	@ReplaceOptional
 	private ConsistencyInfo consistency;
 
 	@JsonPropertyDescription("A set of different computed hashes for the asset.")
 	private HashInfo hashes;
 
 	@JsonPropertyDescription("Information about the media fingerprints")
+	@ReplaceOptional
 	private FingerprintInfo fingerprint;
 
 	@JsonPropertyDescription("Information about common media properties (e.g. duration, dimension)")
 	private MediaInfo media;
 
 	@JsonPropertyDescription("Information about the image component of the asset (if present)")
+	@ReplaceOptional
 	private ImageInfo image;
 
 	@JsonPropertyDescription("Information about the video component of the asset (if present)")
+	@ReplaceOptional
 	private VideoInfo video;
 
 	@JsonPropertyDescription("Information about the audio component of the asset (if present)")
+	@ReplaceOptional
 	private AudioInfo audio;
 
 	@JsonPropertyDescription("Information about the document (text) component of the asset (if present)")
+	@ReplaceOptional
 	private DocumentInfo document;
 
 	@JsonPropertyDescription("The geo spatial location of the asset.")
+	@ReplaceOptional
 	private GeoLocationInfo geo;
 
 	public AssetUpdateRequest() {

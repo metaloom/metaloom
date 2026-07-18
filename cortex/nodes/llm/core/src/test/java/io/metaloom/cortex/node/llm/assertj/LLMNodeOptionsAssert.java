@@ -1,24 +1,15 @@
 package io.metaloom.cortex.node.llm.assertj;
 
-import org.assertj.core.api.AbstractAssert;
-
+import io.metaloom.cortex.api.option.assertj.AbstractCortexNodeOptionsAssert;
 import io.metaloom.cortex.node.llm.LLMNodeOptions;
-import io.metaloom.cortex.api.option.assertj.CortexNodeOptionsAssert;
 
 /**
  * AssertJ assertions for {@link LLMNodeOptions}.
  */
-public class LLMNodeOptionsAssert extends CortexNodeOptionsAssert {
+public class LLMNodeOptionsAssert extends AbstractCortexNodeOptionsAssert<LLMNodeOptionsAssert, LLMNodeOptions> {
 
 	public LLMNodeOptionsAssert(LLMNodeOptions actual) {
-		super(actual);
-	}
-
-	/**
-	 * Get the actual object as LLMNodeOptions.
-	 */
-	private LLMNodeOptions llmOptions() {
-		return (LLMNodeOptions) actual;
+		super(actual, LLMNodeOptionsAssert.class);
 	}
 
 	/**
@@ -26,8 +17,8 @@ public class LLMNodeOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public LLMNodeOptionsAssert hasOllamaUrl(String expectedUrl) {
 		isNotNull();
-		if (!expectedUrl.equals(llmOptions().ollamaUrl())) {
-			failWithMessage("Expected ollamaUrl to be '%s' but was '%s'", expectedUrl, llmOptions().ollamaUrl());
+		if (!expectedUrl.equals(actual.ollamaUrl())) {
+			failWithMessage("Expected ollamaUrl to be '%s' but was '%s'", expectedUrl, actual.ollamaUrl());
 		}
 		return this;
 	}
@@ -37,7 +28,7 @@ public class LLMNodeOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public LLMNodeOptionsAssert hasOllamaUrl() {
 		isNotNull();
-		if (llmOptions().ollamaUrl() == null || llmOptions().ollamaUrl().isBlank()) {
+		if (actual.ollamaUrl() == null || actual.ollamaUrl().isBlank()) {
 			failWithMessage("Expected ollamaUrl to be set but it was empty");
 		}
 		return this;
@@ -48,7 +39,7 @@ public class LLMNodeOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public LLMNodeOptionsAssert hasPromptCount(int expectedCount) {
 		isNotNull();
-		int actualCount = llmOptions().getPrompts() != null ? llmOptions().getPrompts().size() : 0;
+		int actualCount = actual.getPrompts() != null ? actual.getPrompts().size() : 0;
 		if (actualCount != expectedCount) {
 			failWithMessage("Expected %d prompts but got %d", expectedCount, actualCount);
 		}
@@ -60,8 +51,8 @@ public class LLMNodeOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public LLMNodeOptionsAssert hasPrompt(String promptId) {
 		isNotNull();
-		if (llmOptions().getPrompts() == null || !llmOptions().getPrompts().containsKey(promptId)) {
-			failWithMessage("Expected prompts to contain '%s' but got: %s", promptId, llmOptions().getPrompts());
+		if (actual.getPrompts() == null || !actual.getPrompts().containsKey(promptId)) {
+			failWithMessage("Expected prompts to contain '%s' but got: %s", promptId, actual.getPrompts());
 		}
 		return this;
 	}
@@ -71,7 +62,7 @@ public class LLMNodeOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public LLMNodeOptionsAssert hasPrompts() {
 		isNotNull();
-		if (llmOptions().getPrompts() == null || llmOptions().getPrompts().isEmpty()) {
+		if (actual.getPrompts() == null || actual.getPrompts().isEmpty()) {
 			failWithMessage("Expected prompts to be non-empty but it was empty");
 		}
 		return this;

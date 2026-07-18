@@ -16,12 +16,73 @@ import io.metaloom.loom.api.sort.SortDirection;
 import io.metaloom.loom.client.common.LoomClientException;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.endpoint.AbstractCRUDEndpointTest;
+import io.metaloom.loom.core.endpoint.ReplaceEndpointTestcases;
 import io.metaloom.loom.rest.model.user.UserCreateRequest;
 import io.metaloom.loom.rest.model.user.UserListResponse;
 import io.metaloom.loom.rest.model.user.UserResponse;
 import io.metaloom.loom.rest.model.user.UserUpdateRequest;
+import io.vertx.core.json.JsonObject;
 
-public class UserEndpointTest extends AbstractCRUDEndpointTest {
+public class UserEndpointTest extends AbstractCRUDEndpointTest implements ReplaceEndpointTestcases {
+
+	// NOTE: These testcases can only assert that the request is accepted, not that a field changed. UserEndpointService.update carries a "TODO update"
+	// and applies nothing but meta, and UserModelBuilder.toResponse does not map meta - so no field written by an update is observable through the read
+	// API. This affects the pre-existing POST update identically (see testUpdate, which likewise only asserts validity). Once the service applies the
+	// name/email fields, these testcases should assert the round-trip like GroupEndpointTest does.
+
+	@Test
+	@Override
+	public void testPatch() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			UserUpdateRequest update = new UserUpdateRequest();
+			update.setUsername("patched-username");
+			UserResponse response = client.patchUser(USER_UUID, update).sync().body();
+			assertThat(response).isValid();
+		}
+	}
+
+	@Test
+	@Override
+	public void testReplace() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			UserUpdateRequest update = new UserUpdateRequest();
+			update.setUsername("replaced-username");
+			update.setFirstname("Joe");
+			update.setLastname("Doe");
+			update.setEmail("joe@doe.tld");
+			update.setMeta(new JsonObject());
+			UserResponse response = client.replaceUser(USER_UUID, update).sync().body();
+			assertThat(response).isValid();
+		}
+	}
+
+	/**
+	 * {@code secure(basePath() + "*")} installs the auth handler on the path with no method filter, so the new PUT/PATCH routes must be authenticated
+	 * without any extra wiring. This asserts that they are.
+	 */
+	@Test
+	public void testReplaceAndPatchRequireAuth() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			// Deliberately no loginAdmin(client)
+			UserUpdateRequest update = new UserUpdateRequest();
+			update.setUsername("nope");
+			expect(401, "Unauthorized", client.patchUser(USER_UUID, update));
+			expect(401, "Unauthorized", client.replaceUser(USER_UUID, update));
+		}
+	}
+
+	@Test
+	@Override
+	public void testReplaceRejectsPartialBody() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			UserUpdateRequest update = new UserUpdateRequest();
+			update.setUsername("only-username");
+			expect(400, "Bad Request", client.replaceUser(USER_UUID, update));
+		}
+	}
 
 	@Test
 	public void testBasics() throws Exception {

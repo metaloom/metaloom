@@ -1,24 +1,15 @@
 package io.metaloom.cortex.node.captioning.assertj;
 
-import org.assertj.core.api.AbstractAssert;
-
+import io.metaloom.cortex.api.option.assertj.AbstractCortexNodeOptionsAssert;
 import io.metaloom.cortex.node.captioning.CaptioningNodeOptions;
-import io.metaloom.cortex.api.option.assertj.CortexNodeOptionsAssert;
 
 /**
  * AssertJ assertions for {@link CaptioningNodeOptions}.
  */
-public class CaptioningNodeOptionsAssert extends CortexNodeOptionsAssert {
+public class CaptioningNodeOptionsAssert extends AbstractCortexNodeOptionsAssert<CaptioningNodeOptionsAssert, CaptioningNodeOptions> {
 
 	public CaptioningNodeOptionsAssert(CaptioningNodeOptions actual) {
-		super(actual);
-	}
-
-	/**
-	 * Get the actual object as CaptioningNodeOptions.
-	 */
-	private CaptioningNodeOptions captionOptions() {
-		return (CaptioningNodeOptions) actual;
+		super(actual, CaptioningNodeOptionsAssert.class);
 	}
 
 	/**
@@ -26,8 +17,8 @@ public class CaptioningNodeOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public CaptioningNodeOptionsAssert hasSmolVLMHost(String expectedHost) {
 		isNotNull();
-		if (!expectedHost.equals(captionOptions().getSmolVLMHost())) {
-			failWithMessage("Expected smolVLMHost to be '%s' but was '%s'", expectedHost, captionOptions().getSmolVLMHost());
+		if (!expectedHost.equals(actual.getSmolVLMHost())) {
+			failWithMessage("Expected smolVLMHost to be '%s' but was '%s'", expectedHost, actual.getSmolVLMHost());
 		}
 		return this;
 	}
@@ -37,8 +28,8 @@ public class CaptioningNodeOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public CaptioningNodeOptionsAssert hasSmolVLMPort(int expectedPort) {
 		isNotNull();
-		if (captionOptions().getSmolVLMPort() != expectedPort) {
-			failWithMessage("Expected smolVLMPort to be %d but was %d", expectedPort, captionOptions().getSmolVLMPort());
+		if (actual.getSmolVLMPort() != expectedPort) {
+			failWithMessage("Expected smolVLMPort to be %d but was %d", expectedPort, actual.getSmolVLMPort());
 		}
 		return this;
 	}

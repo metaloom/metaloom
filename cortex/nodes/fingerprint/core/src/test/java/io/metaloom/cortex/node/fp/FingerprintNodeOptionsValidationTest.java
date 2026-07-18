@@ -1,6 +1,6 @@
 package io.metaloom.cortex.node.fp;
 
-import static io.metaloom.cortex.api.option.assertj.OptionsAssertions.assertThat;
+import static io.metaloom.cortex.node.fp.assertj.FingerprintNodeAssertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 

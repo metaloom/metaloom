@@ -1,6 +1,6 @@
 package io.metaloom.cortex.node.dedup;
 
-import static io.metaloom.cortex.api.option.assertj.OptionsAssertions.assertThat;
+import static io.metaloom.cortex.node.dedup.assertj.DedupNodeAssertions.assertThat;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -21,7 +21,7 @@ public class DedupNodeOptionsValidationTest {
 	public void testCustomDupFolderValid() {
 		DedupNodeOptions options = new DedupNodeOptions();
 		options.setDupFolder(Paths.get("custom/duplicates"));
-		io.metaloom.cortex.node.dedup.assertj.DedupNodeAssertions.assertThat(options)
+		assertThat(options)
 			.isValid().hasDupFolder(Paths.get("custom/duplicates"));
 	}
 

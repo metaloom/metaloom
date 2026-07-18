@@ -17,6 +17,10 @@ public interface UserMethods {
 
 	LoomClientRequest<UserResponse> updateUser(UUID userUuid, UserUpdateRequest request);
 
+	LoomClientRequest<UserResponse> patchUser(UUID userUuid, UserUpdateRequest request);
+
+	LoomClientRequest<UserResponse> replaceUser(UUID userUuid, UserUpdateRequest request);
+
 	LoomClientRequest<UserListResponse> listUsers();
 
 	LoomClientRequest<NoResponse> deleteUser(UUID userUuid);

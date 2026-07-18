@@ -1,7 +1,6 @@
 package io.metaloom.loom.cortex.node.thumbnail;
 
 import static io.metaloom.cortex.media.test.assertj.NodeAssertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;

@@ -1,24 +1,15 @@
 package io.metaloom.cortex.node.thumbnail.assertj;
 
-import org.assertj.core.api.AbstractAssert;
-
+import io.metaloom.cortex.api.option.assertj.AbstractCortexNodeOptionsAssert;
 import io.metaloom.cortex.node.thumbnail.ThumbnailNodeOptions;
-import io.metaloom.cortex.api.option.assertj.CortexNodeOptionsAssert;
 
 /**
  * AssertJ assertions for {@link ThumbnailNodeOptions}.
  */
-public class ThumbnailNodeOptionsAssert extends CortexNodeOptionsAssert {
+public class ThumbnailNodeOptionsAssert extends AbstractCortexNodeOptionsAssert<ThumbnailNodeOptionsAssert, ThumbnailNodeOptions> {
 
 	public ThumbnailNodeOptionsAssert(ThumbnailNodeOptions actual) {
-		super(actual);
-	}
-
-	/**
-	 * Get the actual object as ThumbnailNodeOptions.
-	 */
-	private ThumbnailNodeOptions thumbOptions() {
-		return (ThumbnailNodeOptions) actual;
+		super(actual, ThumbnailNodeOptionsAssert.class);
 	}
 
 	/**
@@ -26,8 +17,8 @@ public class ThumbnailNodeOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public ThumbnailNodeOptionsAssert hasTileSize(int expectedSize) {
 		isNotNull();
-		if (thumbOptions().getTileSize() != expectedSize) {
-			failWithMessage("Expected tileSize to be %d but was %d", expectedSize, thumbOptions().getTileSize());
+		if (actual.getTileSize() != expectedSize) {
+			failWithMessage("Expected tileSize to be %d but was %d", expectedSize, actual.getTileSize());
 		}
 		return this;
 	}
@@ -37,8 +28,8 @@ public class ThumbnailNodeOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public ThumbnailNodeOptionsAssert hasCols(int expectedCols) {
 		isNotNull();
-		if (thumbOptions().getCols() != expectedCols) {
-			failWithMessage("Expected cols to be %d but was %d", expectedCols, thumbOptions().getCols());
+		if (actual.getCols() != expectedCols) {
+			failWithMessage("Expected cols to be %d but was %d", expectedCols, actual.getCols());
 		}
 		return this;
 	}
@@ -48,8 +39,8 @@ public class ThumbnailNodeOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public ThumbnailNodeOptionsAssert hasRows(int expectedRows) {
 		isNotNull();
-		if (thumbOptions().getRows() != expectedRows) {
-			failWithMessage("Expected rows to be %d but was %d", expectedRows, thumbOptions().getRows());
+		if (actual.getRows() != expectedRows) {
+			failWithMessage("Expected rows to be %d but was %d", expectedRows, actual.getRows());
 		}
 		return this;
 	}

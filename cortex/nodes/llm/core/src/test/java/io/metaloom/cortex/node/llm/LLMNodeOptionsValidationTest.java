@@ -1,6 +1,6 @@
 package io.metaloom.cortex.node.llm;
 
-import static io.metaloom.cortex.api.option.assertj.OptionsAssertions.assertThat;
+import static io.metaloom.cortex.node.llm.assertj.LLMNodeAssertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 
@@ -42,7 +42,7 @@ public class LLMNodeOptionsValidationTest {
 		LLMNodeOptions options = new LLMNodeOptions();
 		options.setOllamaUrl("http://localhost:11434");
 		options.setPrompts(java.util.Map.of("test", new LLMNodePrompt()));
-		io.metaloom.cortex.node.llm.assertj.LLMNodeAssertions.assertThat(options)
+		assertThat(options)
 			.isValid().hasOllamaUrl("http://localhost:11434");
 	}
 
@@ -54,7 +54,7 @@ public class LLMNodeOptionsValidationTest {
 			"prompt2", new LLMNodePrompt(),
 			"prompt3", new LLMNodePrompt()
 		));
-		io.metaloom.cortex.node.llm.assertj.LLMNodeAssertions.assertThat(options)
+		assertThat(options)
 			.isValid().hasPromptCount(3).hasPrompt("prompt1").hasPrompt("prompt2").hasPrompt("prompt3");
 	}
 

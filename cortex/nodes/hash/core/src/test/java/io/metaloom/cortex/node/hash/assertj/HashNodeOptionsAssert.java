@@ -1,24 +1,15 @@
 package io.metaloom.cortex.node.hash.assertj;
 
-import org.assertj.core.api.AbstractAssert;
-
+import io.metaloom.cortex.api.option.assertj.AbstractCortexNodeOptionsAssert;
 import io.metaloom.cortex.node.hash.HashNodeOptions;
-import io.metaloom.cortex.api.option.assertj.CortexNodeOptionsAssert;
 
 /**
  * AssertJ assertions for {@link HashNodeOptions}.
  */
-public class HashNodeOptionsAssert extends CortexNodeOptionsAssert {
+public class HashNodeOptionsAssert extends AbstractCortexNodeOptionsAssert<HashNodeOptionsAssert, HashNodeOptions> {
 
 	public HashNodeOptionsAssert(HashNodeOptions actual) {
-		super(actual);
-	}
-
-	/**
-	 * Get the actual object as HashNodeOptions.
-	 */
-	private HashNodeOptions hashOptions() {
-		return (HashNodeOptions) actual;
+		super(actual, HashNodeOptionsAssert.class);
 	}
 
 	/**
@@ -26,8 +17,8 @@ public class HashNodeOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public HashNodeOptionsAssert hasMD5(boolean expected) {
 		isNotNull();
-		if (hashOptions().isMD5() != expected) {
-			failWithMessage("Expected MD5 to be %s but was %s", expected, hashOptions().isMD5());
+		if (actual.isMD5() != expected) {
+			failWithMessage("Expected MD5 to be %s but was %s", expected, actual.isMD5());
 		}
 		return this;
 	}
@@ -37,8 +28,8 @@ public class HashNodeOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public HashNodeOptionsAssert hasSHA256(boolean expected) {
 		isNotNull();
-		if (hashOptions().isSHA256() != expected) {
-			failWithMessage("Expected SHA256 to be %s but was %s", expected, hashOptions().isSHA256());
+		if (actual.isSHA256() != expected) {
+			failWithMessage("Expected SHA256 to be %s but was %s", expected, actual.isSHA256());
 		}
 		return this;
 	}
@@ -48,8 +39,8 @@ public class HashNodeOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public HashNodeOptionsAssert hasSHA512(boolean expected) {
 		isNotNull();
-		if (hashOptions().isSHA512() != expected) {
-			failWithMessage("Expected SHA512 to be %s but was %s", expected, hashOptions().isSHA512());
+		if (actual.isSHA512() != expected) {
+			failWithMessage("Expected SHA512 to be %s but was %s", expected, actual.isSHA512());
 		}
 		return this;
 	}
@@ -59,8 +50,8 @@ public class HashNodeOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public HashNodeOptionsAssert hasChunkHash(boolean expected) {
 		isNotNull();
-		if (hashOptions().isChunkHash() != expected) {
-			failWithMessage("Expected chunkHash to be %s but was %s", expected, hashOptions().isChunkHash());
+		if (actual.isChunkHash() != expected) {
+			failWithMessage("Expected chunkHash to be %s but was %s", expected, actual.isChunkHash());
 		}
 		return this;
 	}
@@ -70,7 +61,7 @@ public class HashNodeOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public HashNodeOptionsAssert hasAtLeastOneAlgorithmEnabled() {
 		isNotNull();
-		if (!hashOptions().isMD5() && !hashOptions().isSHA256() && !hashOptions().isSHA512() && !hashOptions().isChunkHash()) {
+		if (!actual.isMD5() && !actual.isSHA256() && !actual.isSHA512() && !actual.isChunkHash()) {
 			failWithMessage("Expected at least one hash algorithm to be enabled but all are disabled");
 		}
 		return this;

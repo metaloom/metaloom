@@ -1,26 +1,17 @@
 package io.metaloom.cortex.node.dedup.assertj;
 
-import org.assertj.core.api.AbstractAssert;
-
-import io.metaloom.cortex.node.dedup.DedupNodeOptions;
-import io.metaloom.cortex.api.option.assertj.CortexNodeOptionsAssert;
-
 import java.nio.file.Path;
+
+import io.metaloom.cortex.api.option.assertj.AbstractCortexNodeOptionsAssert;
+import io.metaloom.cortex.node.dedup.DedupNodeOptions;
 
 /**
  * AssertJ assertions for {@link DedupNodeOptions}.
  */
-public class DedupNodeOptionsAssert extends CortexNodeOptionsAssert {
+public class DedupNodeOptionsAssert extends AbstractCortexNodeOptionsAssert<DedupNodeOptionsAssert, DedupNodeOptions> {
 
 	public DedupNodeOptionsAssert(DedupNodeOptions actual) {
-		super(actual);
-	}
-
-	/**
-	 * Get the actual object as DedupNodeOptions.
-	 */
-	private DedupNodeOptions dedupOptions() {
-		return (DedupNodeOptions) actual;
+		super(actual, DedupNodeOptionsAssert.class);
 	}
 
 	/**
@@ -28,8 +19,8 @@ public class DedupNodeOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public DedupNodeOptionsAssert hasDupFolder(Path expectedPath) {
 		isNotNull();
-		if (!expectedPath.equals(dedupOptions().getDupFolder())) {
-			failWithMessage("Expected dupFolder to be '%s' but was '%s'", expectedPath, dedupOptions().getDupFolder());
+		if (!expectedPath.equals(actual.getDupFolder())) {
+			failWithMessage("Expected dupFolder to be '%s' but was '%s'", expectedPath, actual.getDupFolder());
 		}
 		return this;
 	}
@@ -39,7 +30,7 @@ public class DedupNodeOptionsAssert extends CortexNodeOptionsAssert {
 	 */
 	public DedupNodeOptionsAssert hasDupFolder() {
 		isNotNull();
-		if (dedupOptions().getDupFolder() == null) {
+		if (actual.getDupFolder() == null) {
 			failWithMessage("Expected dupFolder to be set but it was null");
 		}
 		return this;

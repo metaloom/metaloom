@@ -3,7 +3,9 @@ package io.metaloom.loom.rest.endpoint.impl;
 import static io.metaloom.loom.rest.RESTConstants.API_V1_PATH;
 import static io.vertx.core.http.HttpMethod.DELETE;
 import static io.vertx.core.http.HttpMethod.GET;
+import static io.vertx.core.http.HttpMethod.PATCH;
 import static io.vertx.core.http.HttpMethod.POST;
+import static io.vertx.core.http.HttpMethod.PUT;
 
 import javax.inject.Inject;
 
@@ -13,6 +15,7 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.loom.rest.AbstractEndpoint;
 import io.metaloom.loom.rest.EndpointDependencies;
 import io.metaloom.loom.rest.model.ModelExamples;
+import io.metaloom.loom.rest.model.group.GroupUpdateRequest;
 import io.metaloom.loom.rest.service.impl.GroupEndpointService;
 
 public class GroupEndpoint extends AbstractEndpoint {
@@ -62,6 +65,24 @@ public class GroupEndpoint extends AbstractEndpoint {
 			lrc -> {
 				service.update(lrc, lrc.pathParamUUID("uuid"));
 			});
+
+		// Update (partial)
+		addRoute(basePath() + "/:uuid", PATCH,
+			"Partially update a group. Only the fields present in the request body are modified.",
+			examples.groupUpdateRequestExample(),
+			examples.groupResponseExample(),
+			lrc -> {
+				service.update(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		// Replace (full)
+		addRoute(basePath() + "/:uuid", PUT,
+			"Replace a group. All replaceable fields must be present in the request body.",
+			examples.groupUpdateRequestExample(),
+			examples.groupResponseExample(),
+			replaceHandler(GroupUpdateRequest.class, lrc -> {
+				service.update(lrc, lrc.pathParamUUID("uuid"));
+			}));
 
 		// Delete
 		addRoute(basePath() + "/:uuid", DELETE,

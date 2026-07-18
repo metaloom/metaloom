@@ -324,6 +324,16 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	}
 
 	@Override
+	public LoomClientHttpRequest<UserResponse> patchUser(UUID userUuid, UserUpdateRequest request) {
+		return patchRequest("users/" + userUuid, request, UserResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<UserResponse> replaceUser(UUID userUuid, UserUpdateRequest request) {
+		return putRequest("users/" + userUuid, request, UserResponse.class);
+	}
+
+	@Override
 	public LoomClientHttpRequest<UserListResponse> listUsers() {
 		return getRequest("users", UserListResponse.class);
 	}
@@ -361,6 +371,16 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<AssetResponse> updateAsset(AssetId assetId, AssetUpdateRequest request) {
 		return postRequest(assetPath(assetId), request, AssetResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<AssetResponse> patchAsset(AssetId assetId, AssetUpdateRequest request) {
+		return patchRequest(assetPath(assetId), request, AssetResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<AssetResponse> replaceAsset(AssetId assetId, AssetUpdateRequest request) {
+		return putRequest(assetPath(assetId), request, AssetResponse.class);
 	}
 
 	@Override
@@ -803,6 +823,16 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<NoResponse> deleteGroup(UUID groupUuid) {
 		return deleteRequest("groups/" + groupUuid);
+	}
+
+	@Override
+	public LoomClientHttpRequest<GroupResponse> patchGroup(UUID uuid, GroupUpdateRequest request) {
+		return patchRequest("groups/" + uuid, request, GroupResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<GroupResponse> replaceGroup(UUID uuid, GroupUpdateRequest request) {
+		return putRequest("groups/" + uuid, request, GroupResponse.class);
 	}
 
 	@Override

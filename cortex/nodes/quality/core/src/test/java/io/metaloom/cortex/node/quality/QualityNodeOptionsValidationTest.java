@@ -1,6 +1,6 @@
 package io.metaloom.cortex.node.quality;
 
-import static io.metaloom.cortex.api.option.assertj.OptionsAssertions.assertThat;
+import static io.metaloom.cortex.node.quality.assertj.QualityNodeAssertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 
@@ -21,7 +21,7 @@ public class QualityNodeOptionsValidationTest {
 		options.setCheckResolution(true);
 		options.setCheckVideoBitrate(true);
 		options.setCheckAudioBitrate(true);
-		io.metaloom.cortex.node.quality.assertj.QualityNodeAssertions.assertThat(options)
+		assertThat(options)
 			.isValid()
 			.hasCheckBlurriness(true)
 			.hasCheckResolution(true)
@@ -36,7 +36,7 @@ public class QualityNodeOptionsValidationTest {
 		options.setCheckResolution(false);
 		options.setCheckVideoBitrate(false);
 		options.setCheckAudioBitrate(false);
-		io.metaloom.cortex.node.quality.assertj.QualityNodeAssertions.assertThat(options)
+		assertThat(options)
 			.isValid()
 			.hasCheckBlurriness(true)
 			.hasCheckResolution(false)
