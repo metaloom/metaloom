@@ -67,6 +67,7 @@
 
     <modules>
         <module>common</module>
+        <module>pipeline</module>
         <module>db</module>
         <module>services</module>
         <module>core</module>
@@ -98,6 +99,11 @@
             <dependency>
                 <groupId>io.metaloom.loom.shared</groupId>
                 <artifactId>loom-node-model</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.loom.shared</groupId>
+                <artifactId>loom-pipeline-model</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

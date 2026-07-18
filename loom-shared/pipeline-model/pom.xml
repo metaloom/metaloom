@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.metaloom.loom.shared</groupId>
+        <artifactId>loom-shared</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>loom-pipeline-model</artifactId>
+    <name>MetaLoom // Loom :: Shared :: Pipeline Model</name>
+
+    <description>
+        Wire model for pipeline execution: the value types exchanged between the
+        Loom-side pipeline engine and the Cortex node executors (node tasks,
+        task results, media references, node state).
+
+        Deliberately free of Vert.x and of both runtimes - it is the contract,
+        not an implementation. Cortex keeps its own internal NodeResult; the
+        types here are what crosses the network.
+    </description>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>io.metaloom</groupId>
+                <artifactId>bom</artifactId>
+                <type>pom</type>
+                <scope>import</scope>
+                <version>${project.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+    </dependencies>
+</project>

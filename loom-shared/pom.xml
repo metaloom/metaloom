@@ -63,6 +63,7 @@
   <modules>
     <module>api</module>
     <module>node-model</module>
+    <module>pipeline-model</module>
     <module>rest-model</module>
     <module>rest-model-test</module>
     <module>proto</module>

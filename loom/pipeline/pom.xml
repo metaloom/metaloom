@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.metaloom.loom</groupId>
+        <artifactId>loom</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>loom-pipeline</artifactId>
+    <name>MetaLoom // Loom :: Pipeline</name>
+
+    <description>
+        The Loom-side pipeline execution engine: it owns the graph, decides which
+        node runs next for each media item, and hands the work to a NodeDispatcher.
+
+        This module must NOT depend on any cortex artifact. It is the orchestrator;
+        Cortex is the worker. Dispatch is an SPI so the engine is testable without
+        a WebSocket or a running Cortex.
+    </description>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>io.metaloom</groupId>
+                <artifactId>bom</artifactId>
+                <type>pom</type>
+                <scope>import</scope>
+                <version>${project.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.metaloom.loom.shared</groupId>
+            <artifactId>loom-pipeline-model</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.loom.shared</groupId>
+            <artifactId>loom-node-model</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.vertx</groupId>
+            <artifactId>vertx-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!--
+              The orchestrator must never depend on the worker. This boundary is the
+              whole point of the module, and it is the kind of thing a convenient
+              import quietly undoes - so it is enforced by the build rather than by
+              convention.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>3.4.1</version>
+                <executions>
+                    <execution>
+                        <id>ban-cortex-dependencies</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <bannedDependencies>
+                                    <excludes>
+                                        <exclude>io.metaloom.cortex:*</exclude>
+                                    </excludes>
+                                    <message>
+                                        loom-pipeline must not depend on any cortex artifact.
+                                        Loom orchestrates; Cortex executes. If you need a type
+                                        from Cortex, it belongs in loom-shared/pipeline-model
+                                        (the wire contract) instead.
+                                    </message>
+                                </bannedDependencies>
+                            </rules>
+                            <fail>true</fail>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

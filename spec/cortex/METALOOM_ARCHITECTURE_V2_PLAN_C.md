@@ -1,7 +1,7 @@
 # Variant C — Implementation Plan
 
-> **Status: IN PROGRESS.** Phase 1 step P1.1 has landed (see §2.6); everything
-> else is still a plan.
+> **Status: IN PROGRESS.** Phase 1 steps P1.1 and P1.2 have landed (see §2.2 and
+> §2.7); everything from P1.3 on is still a plan.
 >
 > Phased implementation plan for **Variant C**: moving pipeline execution off
 > Cortex and onto Loom, leaving Cortex as a node executor.
@@ -187,8 +187,8 @@ green.
 | Step | Scope | Status |
 |---|---|---|
 | **P1.1** | Invert the Loom→Cortex dependency; extract `loom-shared/node-model` | ✅ **done** — see §2.2 |
-| P1.2 | `loom/pipeline` module: graph model + engine against a fake dispatcher | ⬜ next |
-| P1.3 | Protocol: fix the envelope, add `SOURCE_*` / `NODE_TASK` messages | ⬜ |
+| **P1.2** | `loom/pipeline` module: graph model + engine against a fake dispatcher | ✅ **done** — see §2.7 |
+| P1.3 | Protocol: fix the envelope, add `SOURCE_*` / `NODE_TASK` messages | ⬜ next |
 | P1.4 | `cortex/node-runtime` + `source-runtime`; shrink `pipeline-core` | ⬜ |
 | P1.5 | Test migration (10 classes, §5.8) | ⬜ |
 | P1.6 | Wire end to end; demo pipelines green (§5.9) | ⬜ |
@@ -204,6 +204,71 @@ endpoint returns a JSON *object* where the test decodes a JSON *array*, so the
 client times out after 10 s. **Confirmed identical on the pre-change tree**, so
 P1.1 neither caused nor fixed it. It should be fixed on its own — it is the only
 coverage of the descriptor REST surface the UI palette depends on.
+
+## 2.7 P1.2 — the engine, as built
+
+Landed 2026-07-18. Two new modules, no behaviour change to the running system yet
+(nothing calls the engine; P1.3 wires the protocol).
+
+| Module | Contents |
+|---|---|
+| `loom-shared/pipeline-model` (`loom-pipeline-model`) | The wire contract: `NodeState`, `FilterBranch`, `MediaRef`, `NodeTask`, `NodeTaskResult`. Free of Vert.x and of both runtimes |
+| `loom/pipeline` (`loom-pipeline`) | `PipelineGraph`, `PipelineGraphNode`, `PipelineGraphParser`, `NodeDispatcher` (SPI), `PipelineRunEngine`, `ItemState`, `RunSummary` |
+
+**The schema defect is closed structurally.** `PipelineGraphParser` reads
+`edges[]` — the shape the UI actually writes — and builds the full graph. It also
+keeps reading `nodes[].dependencies[]` as a fallback so older Cortex-serde
+definitions still load; `edges` wins when both are present. Because Variant C
+leaves exactly one parser, the two formats cannot drift apart again.
+
+Two gaps in the old Loom format are now expressible:
+
+- **filter branches** — an edge may carry `"branch": "PASS" | "REJECT" | "ANY"`,
+  which is what makes PASS/REJECT routing authorable from the UI at all;
+- **`syncToLoom`, `blocking` and per-node `options`** — read from the node
+  declaration. `blocking` defaults to **true** (failing open would hide upstream
+  errors) and `syncToLoom` to **false** (results must be opted into).
+
+⚠️ The parser *reads* these; `PipelineValidationService` and the UI editor do not
+yet *write* them. Closing that is P1.3/P1.6 work.
+
+**Ambiguity is now an error.** The previous loader picked the first
+dependency-free node as the source, which is how a broken graph became a
+plausible one-node run. `PipelineGraphParser` throws on: no source, more than one
+declared source, several dependency-free candidates, dangling edge references,
+duplicate ids, and cycles.
+
+**Evaluation semantics are preserved deliberately** — they are what the Cortex
+executor already does and what existing tests pin down:
+
+| Rule | Behaviour |
+|---|---|
+| Readiness | a node runs once every dependency holds a terminal result |
+| Failed dependency | skips the dependent node **if that node is blocking** — blocking is a property of the *dependent*, not the dependency |
+| Skipped dependency | does **not** cascade |
+| Filter branch | consults only *direct* conditional dependencies, so filter skipping is not transitive |
+| Dry run | every node skipped, nothing dispatched |
+| Disabled pipeline | completes immediately with no work |
+
+Two decisions worth recording:
+
+- **The source node is not dispatched.** Its `{path, source}` output is derivable
+  from the discovered item, so Loom synthesises it — saving one network round
+  trip per item (§2.1).
+- **An undispatchable node fails rather than stalling.** If no worker accepts the
+  task, the node is failed immediately instead of leaving the run waiting for a
+  result that will never arrive.
+
+**Verification:** 28 tests (13 parser, 15 engine), full reactor `install` green.
+The engine is exercised through a `FakeNodeDispatcher`, so the entire evaluation
+model is tested with no WebSocket, no worker and no database — which is why
+`NodeDispatcher` is an interface.
+
+`loom/pipeline` also carries a `maven-enforcer-plugin` rule banning
+`io.metaloom.cortex:*`. It was verified to fail the build with a clear message
+when a cortex dependency is added. The orchestrator/worker boundary is the point
+of the module, and a convenient import is exactly how such a boundary gets
+quietly undone.
 
 ---
 
@@ -282,16 +347,16 @@ loom-shared/
                        #   NodeParameter, NodeDescriptorRegistry,
                        #   + the 16 *DescriptorProvider impls and the merged
                        #   META-INF/services registry
-  pipeline-model/      # NEW — wire types
+  pipeline-model/      # DONE (P1.2) — wire types
                        #   PipelineDefinition, NodeDefinition, EdgeDefinition,
                        #   NodeResultDTO, NodeState, NodeOutputKey,
                        #   NodeTask, NodeTaskResult, SourceTask, SourceItem
 loom/
-  pipeline/            # NEW — the engine
-                       #   PipelineGraph (from DefaultPipeline)
-                       #   PipelineRunEngine (from ReactivePipelineExecutor)
-                       #   NodeDispatcher (SPI — impl lives in services/rest)
-                       #   RunState, ItemState (in-memory in Phase 1)
+  pipeline/            # DONE (P1.2) — the engine
+                       #   PipelineGraph, PipelineGraphNode, PipelineGraphParser
+                       #   PipelineRunEngine (replaces ReactivePipelineExecutor)
+                       #   NodeDispatcher (SPI — impl lands in services/rest in P1.3)
+                       #   ItemState, RunSummary (in-memory in Phase 1)
 cortex/
   node-runtime/        # NEW — shrunk from pipeline-core
                        #   NodeTaskRunner: run N nodes over 1 media item
@@ -788,6 +853,9 @@ it explicitly; it is easy to under-estimate and it is what protects the refactor
 - [x] **P1.1 landed** — Loom→Cortex dependency inverted, `loom-shared/node-model`
       created, 17 `cortex/nodes/*-api` modules deleted, ServiceLoader merge
       guarded by a test proven to fail on a dropped entry
+- [x] **P1.2 landed** — `loom-shared/pipeline-model` + `loom/pipeline`; the
+      `edges[]` schema defect closed structurally; filter branches expressible;
+      28 tests against a fake dispatcher; cortex dependency banned by the build
 - [x] §2.1 updated 2026-07-18 — `filesystem-source` is implemented; the
       `MediaSourceNode.stream()` SPI turns out to be the right seam for Phase 1
 - [ ] **Make `FilesystemMediaScanner` lazy** (§2.1) — it materialises the whole
