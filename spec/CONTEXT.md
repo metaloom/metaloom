@@ -55,7 +55,12 @@ spec/
 ├── cortex/                      # Cortex processing node specifications
 │   ├── BUILD.md                 # Build, container, native dependencies
 │   ├── CONFIGURATION.md         # YAML config, CLI flags, env vars, per-node options
-│   └── CORTEX.md                # General architecture, module map, startup lifecycle
+│   ├── CORTEX.md                # General architecture, module map, startup lifecycle
+│   ├── METALOOM_ARCHITECTURE.md      # Plain-language Loom↔Cortex interaction (as built)
+│   ├── METALOOM_ARCHITECTURE_TASK.md # Work items for the interaction + scaling
+│   ├── METALOOM_ARCHITECTURE_V2.md   # Proposed multi-instance topology (design)
+│   ├── METALOOM_ARCHITECTURE_V2_TASK.md # Work items for the V2 topology
+│   └── METALOOM_ARCHITECTURE_V2_PLAN_C.md # Phased plan: move execution to Loom
 ├── loom/                        # Loom backend service specifications
 │   ├── BUILD.md                 # Loom build pipeline
 │   ├── CONFIGURATION.md         # Configuration system
@@ -64,7 +69,6 @@ spec/
 │   ├── GRPC.md                  # gRPC API
 │   ├── LOOM.md                  # Overall architecture, module layout, startup lifecycle
 │   ├── MCP.md                   # Model Context Protocol server (AI tool integration)
-│   ├── PERMISSION.md            # (empty - permission model placeholder)
 │   ├── PERSISTENCE.md           # Database layer, jOOQ DAOs, Flyway migrations
 │   ├── RESTAPI.md               # REST API endpoints, authentication, clients, OpenAPI
 │   ├── SERVER.md                # Server startup and lifecycle
@@ -108,11 +112,27 @@ which is why it is documented as a feature rather than per component.
 
 🔴 **Before starting any pipeline work, read the "two things to know" section at
 the top of [PIPELINE.md](features/pipeline/PIPELINE.md).** As of 2026-07-18 the
-feature has two defects that break it end-to-end: Loom and Cortex use
-incompatible definition JSON schemas (`edges[]` vs `dependencies[]`), so a
-UI-authored graph collapses to a single node on execution; and pipeline runs
-never transition out of `RUNNING`. Both are unaddressed. Do not assume the
-happy path works.
+feature is broken end-to-end in **three independent places**, all of which fail
+*silently* — a run goes green having done nothing:
+
+1. Loom and Cortex use incompatible definition JSON schemas (`edges[]` vs
+   `dependencies[]`), so a UI-authored graph collapses to a single node.
+2. Only **6 of 29** node kinds are executable; the other 23 resolve to a stub
+   that reports success.
+3. Results barely return: the bulk writer forwards **only hash values**
+   (transcripts, faces, OCR, thumbnails are discarded), and the streaming run
+   path **never flushes its buffer**, so a run with under 100 results typically
+   sends nothing.
+
+Do not assume the happy path works. See
+[cortex/METALOOM_ARCHITECTURE.md](cortex/METALOOM_ARCHITECTURE.md) §12 for the
+consolidated working/broken assessment.
+
+✅ **Run completion tracking was fixed on 2026-07-18.** Older notes in this file
+and elsewhere claiming runs "never transition out of `RUNNING`" are **stale** —
+runs now close as `SUCCESS`/`PARTIAL`/`FAILED` with real durations and counters.
+The remaining gap is that a run killed by an upstream error or cancellation
+emits no completion event and depends on the dispatch watchdog.
 
 ### Pipeline nodes (`features/pipeline-nodes/`)
 
@@ -144,7 +164,6 @@ Complementary to `PIPELINE.md`, which covers how nodes are *composed and run*.
 | [CONFIGURATION.md](loom/CONFIGURATION.md) | Configuration system, `LoomOptions` validation |
 | [BUILD.md](loom/BUILD.md) | Loom build pipeline |
 | [GRAPHQL.md](loom/GRAPHQL.md) | GraphQL API (placeholder) |
-| [PERMISSION.md](loom/PERMISSION.md) | Permission model (empty placeholder) |
 | [ui/LOOM_UI.md](loom/ui/LOOM_UI.md) | Loom UI specification |
 | [ui/PIPELINE_EDITOR.md](loom/ui/PIPELINE_EDITOR.md) | Pipeline Editor - React Flow canvas, CRUD, validation |
 
@@ -162,7 +181,9 @@ loom/
 │   ├── jooq/        # jOOQ-based DAO implementations
 │   ├── jooq-gen/    # jOOQ code generation strategy (prefixes with "Jooq")
 │   ├── flyway/      # SQL migration scripts (V1__, V2.*__)
-│   └── memory/      # In-memory DAO implementation for fast tests
+│   ├── fs/          # Filesystem-backed DAO implementation
+│   ├── hibernate/   # Hibernate-backed DAO implementation
+│   └── memory/      # In-memory DAO impl for fast tests (⚠️ no pipeline DAOs)
 ├── services/        # Service layer (parent)
 │   ├── rest/        # REST API, WebSocket endpoints, pipeline event broadcaster
 │   ├── grpc/        # gRPC service (planned)
@@ -247,7 +268,10 @@ mvn -T 8 test-compile -q -DskipTests
 | Spec File | Description |
 |-----------|-------------|
 | [CORTEX.md](cortex/CORTEX.md) | **Main entry point** - architecture, module map, startup lifecycle, CLI commands, online/offline modes |
-| [CONFIGURATION.md](cortex/CONFIGURATION.md) | Configuration - YAML config file, CLI flags, environment variables, per-node options |
+| [METALOOM_ARCHITECTURE.md](cortex/METALOOM_ARCHITECTURE.md) | **How Loom and Cortex actually interact** - registration, REST vs WebSocket, run dispatch, results, failure handling, monitoring, daemonization. Plain language, code-verified |
+| [METALOOM_ARCHITECTURE_V2.md](cortex/METALOOM_ARCHITECTURE_V2.md) | **Proposed** multi-instance topology — four variants compared (flat pool, tree, Loom-orchestrated, segmented), node whitelist, affinity, orchestration models, async node delegation. Design only — not built |
+| [METALOOM_ARCHITECTURE_V2_PLAN_C.md](cortex/METALOOM_ARCHITECTURE_V2_PLAN_C.md) | **Proposed** phased plan for moving pipeline execution from Cortex to Loom (Variant C). Phase 1 is shared with Variant D |
+| [CONFIGURATION.md](cortex/CONFIGURATION.md) | Configuration - YAML config file, CLI flags, environment variables, per-node options. ⚠️ The documented YAML precedence does not work — see METALOOM_ARCHITECTURE.md §8 |
 | [BUILD.md](cortex/BUILD.md) | Build system - Maven modules, container image, native dependencies, fast-compile recipes |
 | [../features/pipeline-nodes/NODES.md](features/pipeline-nodes/NODES.md) | Node system - lifecycle, MetaStorage, two-level hierarchy, per-node reference |
 | [../features/pipeline/PIPELINE.md](features/pipeline/PIPELINE.md) | Pipeline execution engine - DAG, RxJava 3, serde, caching, sync, Loom bridge |
@@ -263,7 +287,8 @@ cortex/
 ├── nodes/               # Concrete processing nodes (parent POM)
 │   ├── common-api/      # Common node API
 │   ├── filter-api/      # Filter node API
-│   ├── source-api/      # Source node API
+│   ├── source-api/      # Source node API (descriptors)
+│   ├── filesystem-source/ # Filesystem source node impl + FilesystemMediaScanner
 │   ├── hash/            # SHA-512, SHA-256, MD5, chunk-hash
 │   ├── fingerprint/     # Video fingerprinting
 │   ├── facedetect/      # Face detection + embeddings (InspireFace)
@@ -617,8 +642,11 @@ Both Loom and Cortex use **Dagger 2** extensively:
 | **Cortex nodes** | Two hierarchies: Cortex-level (CLI) and Pipeline-level (DAG) — bridged by `CortexNodeAdapter`. Never extend both bases |
 | **Pipeline nodes** | Must have exactly one source node; IDs must match `^[a-z0-9]([a-z0-9\-]{0,62}[a-z0-9])?$` |
 | **Pipeline definition JSON** | 🔴 Loom writes `nodes[]` + `edges[]`; the Cortex loader reads `nodes[].dependencies[]` and ignores `edges`. Authored pipelines do not execute as drawn — see [PIPELINE.md](features/pipeline/PIPELINE.md) §9.2 |
-| **Pipeline runs** | 🔴 Never transition out of `RUNNING`; all counter columns are dead |
-| **Pipeline node types** | Only 5 of 29 advertised kinds are executable; the rest silently stub out as *successes* |
+| **Pipeline runs** | ✅ Now close correctly with real counters (fixed 2026-07-18). Older "always RUNNING" notes are stale. Gap: an errored/cancelled run emits no completion event |
+| **Pipeline node types** | 🔴 Only 6 of 29 advertised kinds are executable; the rest silently stub out as *successes* |
+| **Result sync** | 🔴 Only `sha512`/`sha256`/`md5`/`chunkHash` reach Loom — all other node outputs are dropped by the bulk writer. The streaming run path never flushes at completion |
+| **Cortex `cortex.yml`** | 🔴 Never read on the server path despite what [CONFIGURATION.md](cortex/CONFIGURATION.md) documents |
+| **Cortex shutdown** | 🔴 No shutdown hook — `SIGTERM` abandons in-flight work and loses buffered results |
 | **Pipeline validation** | Logic is triplicated (loom-shared, loom-rest, UI). Only the loom-rest copy checks node types and is tested |
 | **MCP tools** | Registered via Dagger multibinding (`Set<MCPTool>`), dispatched via Vert.x EventBus (`mcp.tool.<name>`) |
 
@@ -640,27 +668,33 @@ Both Loom and Cortex use **Dagger 2** extensively:
 - [x] Conventions and gotchas highlighted
 - [x] Pipeline feature specs unified into `features/pipeline/` (2026-07-18) and
       verified against the code
+- [x] Loom↔Cortex interaction documented end to end
+      ([cortex/METALOOM_ARCHITECTURE.md](cortex/METALOOM_ARCHITECTURE.md))
+- [x] Multi-instance topology proposal captured
+      ([cortex/METALOOM_ARCHITECTURE_V2.md](cortex/METALOOM_ARCHITECTURE_V2.md))
+- [x] Stale `/memories/repo/` references removed (2026-07-18)
+- [x] `loom/db` module list corrected (`fs`, `hibernate` were missing)
 - [ ] Remaining feature areas (assets, auth, search) not yet extracted into
       `features/` — they are still documented per component
-- [ ] `loom/PERMISSION.md` and `AGENTS.md` are empty placeholders
+- [ ] `spec/AGENTS.md` is an empty placeholder; there is no permission-model
+      spec at all (`loom/PERMISSION.md` was referenced by older revisions but
+      does not exist)
+- [ ] `cortex/CONFIGURATION.md` still documents a YAML precedence chain that does
+      not work; `cortex/CORTEX.md` still describes the reconnect backoff as
+      exponential (it is linear)
 
 ---
 
-## 8. Related Memory Files
+## 8. Related Notes
 
-Additional living notes are kept under `/memories/repo/`:
+⚠️ Earlier revisions of this file listed living notes under `/memories/repo/`
+(`metaloom-cortex-architecture.md`, `cortex-pipeline-detailed.md`, and others).
+**That directory does not exist in this checkout.** Those cross-references are
+stale and were removed on 2026-07-18. Everything that mattered from them is
+either in the `spec/` tree or must be re-derived from the code.
 
-| File | Description |
-|------|-------------|
-| `metaloom-cortex-architecture.md` | Detailed Cortex architecture notes |
-| `cortex-pipeline-detailed.md` | Pipeline execution engine deep dive |
-| `cortex-vertx5-websocket-client-note.md` | Vert.x 5 WebSocket client patterns |
-| `yolo4j-opencv-ffm-migration-note.md` | YOLO4J OpenCV FFM migration notes |
-| `loom-graalvm-native-build-note.md` | GraalVM native build notes |
-| `metaloom-website-reactor-module-note.md` | Website reactor module notes |
-| `metaloom-website-docs-symlink-note.md` | Website docs symlink notes |
-| `asset-pool-delete-pk-note.md` | Asset pool delete primary key notes |
-| `cortex-opencv-ffm-facedetect-scene-note.md` | OpenCV FFM face detect scene notes |
+The authoritative specs are the ones catalogued in §2 of this file. When a spec
+and the code disagree, **the code wins** — and fix the spec in the same change.
 
 ---
 
@@ -668,5 +702,5 @@ Additional living notes are kept under `/memories/repo/`:
 
 ---
 
-_Git HEAD revision: `ff598947b9f0203f6254869961b8359f7fc2f790`_
-_Last updated: 2026-07-18 16:33 UTC_
+_Git HEAD revision: `92bc1153e50c43efb65e4d78874823c9ec1f4408`_
+_Last updated: 2026-07-18 19:10 UTC_

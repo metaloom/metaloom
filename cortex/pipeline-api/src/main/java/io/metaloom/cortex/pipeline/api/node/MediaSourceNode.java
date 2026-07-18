@@ -1,0 +1,42 @@
+package io.metaloom.cortex.pipeline.api.node;
+
+import io.metaloom.cortex.api.media.LoomMedia;
+import io.reactivex.rxjava3.core.Flowable;
+
+/**
+ * A source node that can enumerate the media items it yields.
+ *
+ * <p>Plain {@link PipelineNode} source implementations only mark themselves via
+ * {@link PipelineNode#isSource()} — the media stream itself has to be supplied by
+ * the caller of
+ * {@link io.metaloom.cortex.pipeline.api.PipelineExecutor#execute(io.metaloom.cortex.pipeline.api.Pipeline, Flowable, io.metaloom.cortex.pipeline.api.PipelineRunContext)}.
+ * That forces every caller to reimplement media discovery, which is what this
+ * interface removes: a {@code MediaSourceNode} owns its own selection logic and
+ * hands the executor a ready {@link Flowable}.</p>
+ *
+ * <h2>Laziness</h2>
+ * <p>{@link #stream()} must return a <em>cold</em> {@link Flowable}: no filesystem
+ * or network work may happen until subscription, and every subscription must
+ * re-enumerate. The executor subscribes once per run and relies on backpressure,
+ * so implementations should stream rather than materialise a full list where the
+ * underlying source allows it.</p>
+ *
+ * @see io.metaloom.cortex.pipeline.api.PipelineExecutor#execute(io.metaloom.cortex.pipeline.api.Pipeline, io.metaloom.cortex.pipeline.api.PipelineRunContext)
+ */
+public interface MediaSourceNode extends PipelineNode {
+
+	/**
+	 * Enumerate the media items this source yields.
+	 *
+	 * @return a cold, backpressure-aware flowable of media items; never {@code null}
+	 */
+	Flowable<LoomMedia> stream();
+
+	/**
+	 * A {@code MediaSourceNode} is always a source node.
+	 */
+	@Override
+	default boolean isSource() {
+		return true;
+	}
+}

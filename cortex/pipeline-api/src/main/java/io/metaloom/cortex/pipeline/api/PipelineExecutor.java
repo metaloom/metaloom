@@ -3,6 +3,8 @@ package io.metaloom.cortex.pipeline.api;
 import java.util.List;
 
 import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.pipeline.api.node.MediaSourceNode;
+import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 import io.reactivex.rxjava3.core.Flowable;
 
 /**
@@ -59,6 +61,32 @@ public interface PipelineExecutor {
 	 * @return flowable of pipeline results
 	 */
 	Flowable<PipelineResult> execute(Pipeline pipeline, Flowable<LoomMedia> media, PipelineRunContext runContext);
+
+	/**
+	 * Execute the given pipeline, taking the media selection from the pipeline's own
+	 * source node.
+	 *
+	 * <p>This is the preferred entry point for pipelines whose source node knows what
+	 * to process (e.g. {@code filesystem-source}). Callers no longer need to discover
+	 * media themselves — the selection lives with the node that declares it, so it is
+	 * configured once in the pipeline definition rather than reimplemented per caller.</p>
+	 *
+	 * @param pipeline   the pipeline definition; its source node must implement
+	 *                   {@link MediaSourceNode}
+	 * @param runContext correlation context for this execution, never {@code null}
+	 * @return flowable of pipeline results, or an error flowable if the pipeline's
+	 *         source node cannot enumerate media
+	 */
+	default Flowable<PipelineResult> execute(Pipeline pipeline, PipelineRunContext runContext) {
+		PipelineNode source = pipeline.sourceNode();
+		if (!(source instanceof MediaSourceNode mediaSource)) {
+			return Flowable.error(new IllegalStateException("Pipeline '" + pipeline.name()
+				+ "' cannot be executed without an explicit media selection: its source node '"
+				+ (source != null ? source.id() : "<none>") + "' does not implement "
+				+ MediaSourceNode.class.getSimpleName()));
+		}
+		return execute(pipeline, mediaSource.stream(), runContext);
+	}
 
 	/**
 	 * Execute the given pipeline on a batch of media items and flush to Loom at the end.

@@ -211,12 +211,13 @@ sync results back to the Loom REST API. Two mechanisms exist:
 
 ### Pipeline-Only Nodes (AbstractPipelineNode subclasses)
 
-| Node | Description |
-|---|---|
-| `AssetSourceNode` | Source node that emits a single configured media asset |
-| `LoomFetchNode` | Fetches user metadata (tags, annotations) from Loom backend |
-| `CortexNodeAdapter` | Wraps a `FilesystemNode` as a `PipelineNode` for DAG execution |
-| `AbstractFilterNode` subclasses | Filter nodes (see below) |
+| Node | Module | `kind` | Description |
+|---|---|---|---|
+| `FilesystemSourceNode` | `nodes/filesystem-source` | `filesystem-source` | Source node that enumerates media files from a directory tree or a set of path globs |
+| `AssetSourceNode` | `pipeline-core` | (not registered) | Source node that emits a single configured media asset |
+| `LoomFetchNode` | `pipeline-core` | `loom-fetch` (descriptor only) | Fetches user metadata (tags, annotations) from Loom backend |
+| `CortexNodeAdapter` | `pipeline-core` | — | Wraps a `FilesystemNode` as a `PipelineNode` for DAG execution |
+| `AbstractFilterNode` subclasses | `pipeline-core` | `filter-*` | Filter nodes (see below) |
 
 ### Filter Nodes (AbstractFilterNode subclasses)
 
@@ -263,14 +264,64 @@ They are **pipeline-only** constructs - they do not exist at the Cortex level.
 
 ### Source Nodes
 
-Source nodes yield media items for the pipeline. They implement
-`SourceNode<I, T>` (a marker interface extending `CortexNode`).
+Source nodes yield media items for the pipeline. There are two distinct notions
+of "source", and confusing them is a common mistake:
+
+| Concept | Interface | Meaning |
+|---|---|---|
+| **Marks itself as the entry point** | `PipelineNode.isSource()` | The DAG's root. Says nothing about where media comes from |
+| **Produces the media stream** | `MediaSourceNode` (pipeline-api) | Owns its own selection and can enumerate it via `Flowable<LoomMedia> stream()` |
+| **Cortex-level marker** | `SourceNode<I, T>` | Marker interface extending `CortexNode`, used by the legacy CLI hierarchy |
+
+#### `MediaSourceNode` — self-describing selection
+
+Historically the media stream was always supplied by the *caller* of
+`PipelineExecutor.execute(pipeline, Flowable<LoomMedia>, runContext)`, so every
+caller reimplemented its own discovery. `MediaSourceNode` moves that
+responsibility onto the node:
+
+```java
+public interface MediaSourceNode extends PipelineNode {
+    Flowable<LoomMedia> stream();
+    default boolean isSource() { return true; }
+}
+```
+
+This enables the source-driven entry point, where the pipeline decides what to
+process:
+
+```java
+pipelineExecutor.execute(pipeline, runContext);   // no media argument
+```
+
+The default implementation on `PipelineExecutor` resolves `pipeline.sourceNode()`,
+requires it to be a `MediaSourceNode`, and subscribes to its `stream()`. A
+pipeline whose source is only a marker fails fast with an `IllegalStateException`
+naming the offending node.
+
+**Contract**: `stream()` must return a **cold** `Flowable` — no filesystem or
+network work before subscription, and every subscription re-enumerates. This is
+what lets a node instance registered once in a `PipelineManager` pick up files
+added since the previous run.
+
+**`FilesystemSourceNode`** (`nodes/filesystem-source`, kind `filesystem-source`):
+- Enumerates either a root directory (walked recursively) or a set of path globs.
+- Globs take precedence when both are configured.
+- Falls back to `FilesystemSourceNodeOptions` defaults when the pipeline
+  definition supplies no selection; a node with no selection from either source
+  is rejected at construction.
+- Glob/walk logic lives in `FilesystemMediaScanner` — the **single**
+  implementation of path-based media discovery in Cortex. `PipelineWorkOrderHandler`
+  reuses it rather than carrying its own copy.
+- `process()` records `path` and `source=filesystem` for the item currently
+  flowing through the DAG; the enumeration itself happens in `stream()`.
 
 **`AssetSourceNode`** (pipeline-level):
 - Emits exactly one configured `LoomMedia` per pipeline run.
 - Uses `AtomicBoolean` to ensure single emission.
 - Returns `NodeResult.skipped()` on subsequent invocations.
 - Sets `setSource(true)` in the constructor.
+- Implements `MediaSourceNode`; its `stream()` is the single configured asset.
 
 **`FilesystemNode`** (Cortex-level):
 - Extends `SourceNode` and adds `process(NodeContext<I>)`.
@@ -320,6 +371,7 @@ Every node has its own options class extending `AbstractNodeOptions<T>`:
 | LLM | `LLMNodeOptions` | `ollamaUrl`, `prompts` (Map of prompt configs) |
 | Captioning | `CaptioningNodeOptions` | `smolVLMHost`, `smolVLMPort` |
 | Dedup | `DedupNodeOptions` | `dupFolder` (Path) |
+| Filesystem Source | `FilesystemSourceNodeOptions` | `path` (String), `pathGlobs` (List&lt;String&gt;) — defaults used when the pipeline definition supplies no selection |
 | Scene | `SceneDetectionOptions` | (no custom fields) |
 | Consistency | `ConsistencyNodeOptions` | (no custom fields) |
 | Loom | `LoomNodeOptions` | (no custom fields) |
@@ -579,6 +631,22 @@ fixes, or further development.
       be formalized and tested for all state transitions.
 
 ### Node Implementations
+
+- [x] **`filesystem-source` implemented** (`nodes/filesystem-source`): the
+      descriptor had been advertised by `cortex-source-api` with no runtime
+      behind it, so the kind resolved to a success-reporting stub. It is now a
+      real `MediaSourceNode` and is registered in `PipelineNodeFactoryModule`.
+      Path discovery is consolidated in `FilesystemMediaScanner`; the copy that
+      lived in `PipelineWorkOrderHandler` was removed.
+
+- [ ] **`loom-fetch` has no runtime**: `LoomFetchNode` exists in `pipeline-core`
+      but no producer is registered for the `loom-fetch` kind, so the descriptor
+      advertised by `cortex-source-api` still stubs out as a success. It is also
+      not a `MediaSourceNode`, so it cannot drive a run on its own.
+
+- [ ] **`AssetSourceNode` is not registered as a kind**: it implements
+      `MediaSourceNode` and is used programmatically and in tests, but pipeline
+      JSON cannot select it.
 
 - [ ] **CaptioningNode video support**: The `CaptioningNode.compute()` returns
       `ctx.skipped("not implemented")` for video and audio media. Video

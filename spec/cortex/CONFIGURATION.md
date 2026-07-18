@@ -3,13 +3,13 @@
 > This document covers all configurable settings for Cortex: the YAML
 > config file, CLI flags, environment variables, and per-node options.
 > It is a companion to [CORTEX.md](CORTEX.md) (general overview) and
-> [NODES.md](NODES.md) (node-specific options).
+> [NODES.md](../features/pipeline-nodes/NODES.md) (node-specific options).
 >
 > **Cross-references**:
 > - [CORTEX.md](CORTEX.md) — Architecture, module map, startup lifecycle
 > - [BUILD.md](BUILD.md) — Build, container, native dependencies
-> - [PIPELINE.md](PIPELINE.md) — Pipeline engine configuration
-> - [NODES.md](NODES.md) — Per-node options classes and MetaStorage
+> - [PIPELINE.md](../features/pipeline/PIPELINE.md) — Pipeline engine configuration
+> - [NODES.md](../features/pipeline-nodes/NODES.md) — Per-node options classes and MetaStorage
 
 ---
 
@@ -53,6 +53,13 @@ loom:
   port: 7733
   token: ${LOOM_TOKEN}
 nodes:
+  filesystem-source:
+    enabled: true
+    # Default selection, used when a pipeline definition supplies neither
+    # `path` nor `pathGlobs` for its filesystem-source node.
+    path: /media/library
+    pathGlobs:
+      - "/media/library/**.mp4"
   hash:
     enabled: true
     sha512: true
@@ -168,6 +175,7 @@ constant.
 
 | Node | Config Key | Options Class | Key Fields |
 |---|---|---|---|
+| Filesystem Source | `filesystem-source` | `FilesystemSourceNodeOptions` | `path` (String), `pathGlobs` (List&lt;String&gt;) — defaults for the source node's selection; `pathGlobs` wins over `path` |
 | Hash | `hash` | `HashNodeOptions` | `md5`, `sha256`, `sha512`, `chunkHash` (booleans) |
 | Facedetect | `facedetection` | `FacedetectNodeOptions` | `videoChopRate`, `videoScaleSize`, `faceClusterMinimum`, `faceClusterEPS`, `minFaceHeightFactor`, `inspirefacePackPath`, `capabilities` |
 | Whisper | `whisper` | `WhisperOptions` | `modelPath`, `temperature`, `temperatureInc`, `language`, `useGpu`, `gpuDevice` |
@@ -182,7 +190,7 @@ constant.
 | Tika | `tika` | `TikaNodeOptions` | (tika-specific fields) |
 | Loom | `loom` | `LoomNodeOptions` | (no custom fields) |
 
-> **See [NODES.md](NODES.md) Section 5** for the full node options reference
+> **See [NODES.md](../features/pipeline-nodes/NODES.md) Section 5** for the full node options reference
 > with all fields and their types.
 
 ---
@@ -203,8 +211,46 @@ definition JSON.
 | Options | `options()` | empty map | Arbitrary key-value config for pipeline-loaded nodes |
 | Cache provider | `cacheProvider()` | `null` | Optional `NodeCacheProvider` for result caching |
 
-> **See [PIPELINE.md](PIPELINE.md)** for the full pipeline configuration
-> and execution model.
+### 5.1 Source Node Selection (`filesystem-source`)
+
+The `filesystem-source` node declares which media a pipeline processes. Its
+selection is read from the node's own entry in the pipeline definition JSON:
+
+```json
+{
+  "id": "filesystem-source",
+  "type": "filesystem-source",
+  "path": "/media/inbox",
+  "pathGlobs": ["/media/inbox/**.mp4", "/archive/*.mkv"]
+}
+```
+
+| Key | Type | Description |
+|---|---|---|
+| `path` | String | Root directory, walked recursively |
+| `pathGlobs` | String[] | Globs to expand; **takes precedence** over `path` |
+
+Resolution order for the selection is: definition `pathGlobs` → definition
+`path` → configured `filesystem-source` defaults (§4.2). A node that ends up
+with no selection from any of these is rejected at construction rather than
+silently processing nothing.
+
+Because the node implements `MediaSourceNode`, a pipeline built around it is run
+without the caller supplying media:
+
+```java
+pipelineExecutor.execute(pipeline, runContext);
+```
+
+A `run-pipeline` work order may still override the selection with its own
+`pathGlobs`. When it supplies **no** selection parameters, the source node's
+configuration decides what is processed. A work order that requests a selection
+which resolves to nothing does *not* fall back to the source node — that would
+widen the run from the requested items to the node's entire configured tree.
+
+> **See [PIPELINE.md](../features/pipeline/PIPELINE.md)** for the full pipeline configuration
+> and execution model, and [NODES.md](../features/pipeline-nodes/NODES.md) §4 for the
+> `MediaSourceNode` contract.
 
 ---
 

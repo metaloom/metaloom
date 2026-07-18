@@ -8,11 +8,11 @@
 > **Subsystem-specific specs** (do not duplicate content from these):
 > - [CONFIGURATION.md](CONFIGURATION.md) — `CortexOptions`, env vars, CLI flags, YAML config
 > - [BUILD.md](BUILD.md) — Maven build, container image, native dependencies
-> - [PIPELINE.md](PIPELINE.md) — Pipeline DAG engine, executor, events, caching, sync
-> - [NODES.md](NODES.md) — Node lifecycle, MetaStorage, per-node reference, filter nodes
+> - [PIPELINE.md](../features/pipeline/PIPELINE.md) — Pipeline DAG engine, executor, events, caching, sync
+> - [NODES.md](../features/pipeline-nodes/NODES.md) — Node lifecycle, MetaStorage, per-node reference, filter nodes
 >
 > **Companion docs in the Loom spec directory**:
-> - [../loom/PIPELINE_CONTEXT.md](../loom/PIPELINE_CONTEXT.md) — Loom-side pipeline persistence + event bridge
+> - [../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) — Loom-side pipeline persistence + event bridge (PIPELINE_CONTEXT.md was merged into it)
 > - [../loom/WEBSOCKET.md](../loom/WEBSOCKET.md) — Processor WebSocket protocol (Loom perspective)
 > - [../METALOOM.md](../METALOOM.md) — Top-level project context
 
@@ -348,7 +348,7 @@ mvn test -pl cortex/pipeline-core
 - **Two node hierarchies**: Cortex-level nodes (`CortexNode` /
   `AbstractMediaNode`) and pipeline-level nodes (`PipelineNode` /
   `AbstractPipelineNode`) are bridged by `CortexNodeAdapter`. Do not
-  mix them without the adapter. See [NODES.md](NODES.md).
+  mix them without the adapter. See [NODES.md](../features/pipeline-nodes/NODES.md).
 - **Offline mode**: When `LoomClient` is null, all Loom-dependent
   components must gracefully degrade. Never NPE a null `LoomClient`.
 - **Vert.x**: Cortex uses Vert.x 5 (shared with Loom). The Vert.x

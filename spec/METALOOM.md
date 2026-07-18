@@ -4,8 +4,14 @@ This document is the entry point for AI coding tasks inside the
 [metaloom](../) repository. It summarises the module layout, key
 frameworks, and the "where do I look?" pointers that new tasks need.
 
-> Additional living notes are kept under `/memories/repo/` (see the
-> memory tool). Long-form docs live in [loom/doc/src/main/docs](../loom/doc/src/main/docs).
+> Long-form human-facing docs live in
+> [loom/doc/src/main/docs](../loom/doc/src/main/docs). Specifications for
+> AI agents live alongside this file under [spec/](.) — start at
+> [CONTEXT.md](CONTEXT.md).
+>
+> ⚠️ Older revisions referenced living notes under `/memories/repo/`.
+> **That directory does not exist in this checkout.** Any cross-reference
+> to it is stale; use the `spec/` tree instead.
 
 ---
 
@@ -59,7 +65,7 @@ Canonical, human-facing documentation lives under
 | Cortex overview | [cortex/_index.adoc](../loom/doc/src/main/docs/cortex/_index.adoc) |
 | Cortex pipeline nodes | [cortex/nodes/index.adoc](../loom/doc/src/main/docs/cortex/nodes/index.adoc) |
 | Cortex configuration | [cortex/configuration/index.adoc](../loom/doc/src/main/docs/cortex/configuration/index.adoc) |
-| Generated OpenAPI spec | [src/main/generated/openapi.json](../loom/doc/src/main/docs/../../loom/doc/src/main/generated/openapi.json) |
+| Generated OpenAPI spec | [openapi.json](../loom/doc/src/main/generated/openapi.json) |
 
 The developer bootstrap notes live in
 [loom/DEVELOPMENT.md](../loom/DEVELOPMENT.md) and
@@ -100,9 +106,14 @@ api        # DAO/model interfaces – io.metaloom.loom.db.model.*
 api-test   # shared abstract test cases per DAO
 flyway     # SQL migrations + FlywayHelper (schema management)
 memory     # in-memory DAO impl (mostly for tests / offline)
+fs         # filesystem-backed DAO impl
+hibernate  # Hibernate-backed DAO impl
 jooq-gen   # jOOQ code-generation project (produces sources into jooq/src/jooq/java)
 jooq       # jOOQ-based DAO implementation (production impl)
 ```
+
+⚠️ `memory` has **no pipeline DAOs**, so pipelines require the jOOQ
+backend. See [features/pipeline/PIPELINE.md](features/pipeline/PIPELINE.md) §3.
 
 ### DAO Model (API)
 
@@ -327,34 +338,61 @@ api  common  fs  core-media  nodes  processor  core  cli  container
 pipeline-api  pipeline-common  pipeline-core
 ```
 
-### Cortex Actions & Nodes
+### Cortex Nodes
 
-Two parallel trees exist:
+> ⚠️ Earlier revisions of this file described a `cortex/actions/` module
+> tree alongside `cortex/nodes/`. **`cortex/actions/` does not exist** and
+> is not a reactor module. There is only `cortex/nodes/`. The CLI
+> `-a` / `--actions` flag *does* exist (`ProcessCommand`, `ServerCommand`)
+> but it selects node names — it does not map to a separate module tree.
 
-- [cortex/actions/](../cortex/actions/): higher-level CLI action
-  handlers (`captioning, consistency, dedup, facedetect, fingerprint,
-  hash, llm, loom, ocr, scene-detection, thumbnail, tika, whisper`).
-  These map to CLI `--actions` flags.
-- [cortex/nodes/](../cortex/nodes/): the corresponding
-  `AbstractMediaNode`/`AbstractPipelineNode` implementations that run
-  inside a pipeline (same list + `quality`, `filter-api`, `common-api`,
-  `source-api`).
+All processing nodes live under [cortex/nodes/](../cortex/nodes/):
+`captioning, consistency, dedup, facedetect, fingerprint, hash, llm,
+loom, ocr, quality, scene-detection, thumbnail, tika, whisper`, plus the
+descriptor/API modules `common-api`, `filter-api`, `source-api`.
 
-Each node follows the lifecycle `enabled? → exists? → processable? →
+Two node hierarchies coexist and are bridged by `CortexNodeAdapter` —
+the legacy Cortex tree (`AbstractMediaNode`) and the pipeline tree
+(`AbstractPipelineNode`). Never extend both bases. See
+[features/pipeline-nodes/NODES.md](features/pipeline-nodes/NODES.md).
+
+Legacy nodes follow the lifecycle `enabled? → exists? → processable? →
 compute()` (see [cortex nodes doc](../loom/doc/src/main/docs/cortex/nodes/index.adoc)).
-The `loom` node forwards results back to the Loom REST API — this is
-what makes Cortex "online mode" work.
 
 ### Pipeline Engine
 
 `pipeline-api` / `pipeline-core` / `pipeline-common` implement a DAG
-executor built on `CompletableFuture` (no Reactor / RxJava). Detailed
-reference notes are in `/memories/repo/cortex-pipeline-detailed.md`.
+executor built on **RxJava 3** (`Flowable`, `Single`), with backpressure
+and per-node concurrency as first-class concerns.
+
+> ⚠️ Earlier revisions of this file claimed the executor was built on
+> `CompletableFuture` "(no Reactor / RxJava)". **That was wrong.** There is
+> no `CompletableFuture` anywhere in `ReactivePipelineExecutor`. If you find
+> a reference to a `DAGPipelineExecutor`, it is stale — the class does not
+> exist.
+
+The canonical reference is
+[features/pipeline/PIPELINE.md](features/pipeline/PIPELINE.md). Do **not**
+rely on the `/memories/repo/` notes referenced by older revisions of this
+file — that directory does not exist in this checkout.
 
 Key entry points:
 - `CortexCLIMain` in [cortex/cli/src/main/java/io/metaloom/cortex/cli/CortexCLIMain.java](../cortex/cli/src/main/java/io/metaloom/cortex/cli/CortexCLIMain.java)
+- Executor: `cortex/pipeline-core/…/executor/ReactivePipelineExecutor.java`
 - Dagger component: `io.metaloom.cortex.cli.dagger.CortexComponent`
   (generated `DaggerCortexComponent` under `target/generated-sources`).
+
+### How Cortex talks to Loom
+
+Cortex opens a WebSocket to Loom (`/api/v1/processors/ws`) and registers
+itself; Loom pushes work orders down that connection. Progress travels
+back as events on the same socket, while result *data* goes over REST.
+Loom never dials out to Cortex.
+
+See [cortex/METALOOM_ARCHITECTURE.md](cortex/METALOOM_ARCHITECTURE.md)
+for the full interaction, and
+[cortex/METALOOM_ARCHITECTURE_V2.md](cortex/METALOOM_ARCHITECTURE_V2.md)
+for the proposed multi-instance topology.
 
 ### Media Decorator Pattern
 
@@ -380,7 +418,11 @@ decorator interfaces (`HashMedia`, `FacedetectMedia`, …). See the
 | SQL migrations | [loom/db/flyway/src/main/resources/db/migration](../loom/db/flyway/src/main/resources/db/migration/) |
 | Test DB pool setup | [loom-test-env](../loom-test-env/), [loom/fixture](../loom/fixture/), [loom/DEVELOPMENT.md](../loom/DEVELOPMENT.md) |
 | Cortex pipeline nodes | [cortex/nodes](../cortex/nodes/) |
-| Cortex CLI actions | [cortex/actions](../cortex/actions/) |
+| Cortex CLI commands | `cortex/core/src/main/java/io/metaloom/cortex/cli/cmd/` |
+| Pipeline engine | `cortex/pipeline-api`, `pipeline-core`, `pipeline-common` |
+| Pipeline executor | `cortex/pipeline-core/…/executor/ReactivePipelineExecutor.java` |
+| Loom↔Cortex control channel | `cortex/core/…/impl/loom/LoomControlChannel.java` |
+| Loom-side processor registry | `loom/services/rest/…/service/impl/ProcessorRegistry.java` |
 | Documentation source | [loom/doc/src/main/docs](../loom/doc/src/main/docs/) |
 | Container builds | [loom/containers](../loom/containers/) + [cortex/container](../cortex/container/) |
 
@@ -409,4 +451,34 @@ decorator interfaces (`HashMedia`, `FacedetectMedia`, …). See the
 - **UI dev server** talks to a running backend — use
   [start-server.sh](../start-server.sh) (or the demo container from
   [e2e.sh](../e2e.sh)) alongside `npm run dev`.
+- **Cortex nodes**: two hierarchies (legacy `AbstractMediaNode` and
+  pipeline `AbstractPipelineNode`) bridged by `CortexNodeAdapter`. Never
+  extend both.
+- **A green pipeline run may have done nothing.** Only 5 of 29 advertised
+  node kinds are executable; the rest resolve to a stub that reports
+  success. See
+  [cortex/METALOOM_ARCHITECTURE.md](cortex/METALOOM_ARCHITECTURE.md) §12.
+- **This file has been wrong before.** It previously claimed a
+  `CompletableFuture` executor and a `cortex/actions/` module, both false.
+  When a statement here matters to your change, verify it against the code
+  and fix this file in the same commit.
+
+---
+
+## 12. Progress Assessment
+
+- [x] Module layout corrected against `pom.xml` (2026-07-18)
+- [x] Pipeline engine corrected: RxJava 3, not `CompletableFuture`
+- [x] Removed the non-existent `cortex/actions/` tree
+- [x] Removed stale `/memories/repo/` cross-references
+- [x] `loom/db` module list completed (`fs`, `hibernate`)
+- [x] Loom↔Cortex interaction summarised with pointers to the detail specs
+- [ ] `spec/AGENTS.md` and `spec/loom/PERMISSION.md` are still empty placeholders
+- [ ] Feature areas other than pipeline (assets, auth, search) are not yet
+      extracted into `features/`
+
+---
+
+_Git HEAD revision: `92bc1153e50c43efb65e4d78874823c9ec1f4408`_
+_Last updated: 2026-07-18 19:10 UTC_
 

@@ -1,5 +1,8 @@
 package io.metaloom.cortex.cli.dagger;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import javax.inject.Singleton;
 
 import org.slf4j.Logger;
@@ -10,6 +13,9 @@ import dagger.Provides;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.api.option.node.CortexNodeOptions;
 import io.metaloom.cortex.api.option.node.ValidationResult;
+import io.metaloom.cortex.common.media.LoomMediaLoader;
+import io.metaloom.cortex.node.source.fs.FilesystemSourceNode;
+import io.metaloom.cortex.node.source.fs.FilesystemSourceNodeOptions;
 import io.metaloom.cortex.node.hash.ChunkHashNode;
 import io.metaloom.cortex.node.hash.MD5Node;
 import io.metaloom.cortex.node.hash.SHA256Node;
@@ -21,6 +27,7 @@ import io.metaloom.cortex.pipeline.core.node.CortexNodeAdapter;
 import io.metaloom.cortex.pipeline.loader.LoomPipelineLoader;
 import io.metaloom.cortex.pipeline.loader.NodeFactory;
 import io.metaloom.cortex.pipeline.loader.RegistryNodeFactory;
+import io.vertx.core.json.JsonArray;
 
 /**
  * Dagger module that populates the {@link RegistryNodeFactory} with the
@@ -43,9 +50,16 @@ public class PipelineNodeFactoryModule {
 		SHA512Node sha512, SHA256Node sha256, MD5Node md5, ChunkHashNode chunkHash,
 		ThumbnailNode thumbnail,
 		LoomPipelineLoader pipelineLoader,
+		LoomMediaLoader mediaLoader,
+		FilesystemSourceNodeOptions fsSourceOptions,
 		CortexOptions cortexOptions) {
 
 		RegistryNodeFactory factory = new RegistryNodeFactory();
+
+		// Source nodes are pipeline-level constructs rather than FilesystemNodes,
+		// so they are constructed directly instead of via the CortexNodeAdapter.
+		factory.register("filesystem-source", def -> filesystemSource(def, mediaLoader, fsSourceOptions));
+
 		// Register cortex nodes by the type strings we expect to see in
 		// pipeline JSON. Multiple aliases per node are supported so pipeline
 		// authors can use either the semantic name or the node's own name.
@@ -58,6 +72,40 @@ public class PipelineNodeFactoryModule {
 		log.info("Registered {} node producers with the pipeline node factory", factory.registeredTypes().size());
 		pipelineLoader.setNodeFactory(factory);
 		return factory;
+	}
+
+	/**
+	 * Build a {@code filesystem-source} node from its JSON definition. The
+	 * selection may be given as a single {@code path} or as a {@code pathGlobs}
+	 * array; when neither is present the node falls back to the configured
+	 * {@link FilesystemSourceNodeOptions} defaults.
+	 */
+	private static PipelineNode filesystemSource(io.vertx.core.json.JsonObject nodeDef,
+		LoomMediaLoader mediaLoader, FilesystemSourceNodeOptions defaults) {
+
+		String id = nodeDef.getString("id", FilesystemSourceNode.DEFAULT_ID);
+		String path = nodeDef.getString("path");
+
+		List<String> globs = new ArrayList<>();
+		JsonArray globArray = nodeDef.getJsonArray("pathGlobs");
+		if (globArray != null) {
+			for (int i = 0; i < globArray.size(); i++) {
+				String glob = globArray.getString(i);
+				if (glob != null && !glob.isBlank()) {
+					globs.add(glob);
+				}
+			}
+		}
+
+		if (defaults != null) {
+			ValidationResult result = defaults.validate();
+			if (result.isInvalid()) {
+				throw new IllegalStateException("Node '" + id + "' options validation failed: "
+					+ String.join("; ", result.getErrors()));
+			}
+		}
+
+		return FilesystemSourceNode.create(id, mediaLoader, path, globs, defaults);
 	}
 
 	private static PipelineNode adapt(io.metaloom.cortex.api.node.FilesystemNode<?, ?> wrapped, io.vertx.core.json.JsonObject nodeDef, CortexOptions cortexOptions) {

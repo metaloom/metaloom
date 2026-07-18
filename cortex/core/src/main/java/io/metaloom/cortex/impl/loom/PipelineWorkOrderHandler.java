@@ -1,17 +1,11 @@
 package io.metaloom.cortex.impl.loom;
 
 import java.io.IOException;
-import java.nio.file.FileSystems;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.PathMatcher;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -21,9 +15,11 @@ import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.common.media.LoomMediaLoader;
+import io.metaloom.cortex.node.source.fs.FilesystemMediaScanner;
 import io.metaloom.cortex.pipeline.api.Pipeline;
 import io.metaloom.cortex.pipeline.api.PipelineExecutor;
 import io.metaloom.cortex.pipeline.api.PipelineManager;
+import io.metaloom.cortex.pipeline.api.PipelineResult;
 import io.metaloom.cortex.pipeline.api.PipelineRunContext;
 import io.metaloom.cortex.pipeline.loader.LoomPipelineLoader;
 import io.metaloom.loom.rest.model.processor.workorder.WorkOrder;
@@ -107,12 +103,14 @@ public class PipelineWorkOrderHandler {
 	}
 
 	/**
-	 * Handle a {@code run-pipeline} command. The pipeline is resolved by name
-	 * from the work-order parameters and executed against a media selection
-	 * built from {@code pathGlobs}. The execution runs asynchronously on an IO
-	 * scheduler; the work-order response reports the number of media items
-	 * that were dispatched, not the eventual pipeline result — progress is
-	 * observable via the pipeline events WebSocket.
+	 * Handle a {@code run-pipeline} command. The pipeline is resolved by name from
+	 * the work-order parameters and executed either against an explicit selection
+	 * given in those parameters, or — when none is given — against the selection
+	 * owned by the pipeline's own source node.
+	 *
+	 * <p>The execution runs asynchronously on an IO scheduler; the work-order
+	 * response reports what was dispatched, not the eventual pipeline result —
+	 * progress is observable via the pipeline events WebSocket.</p>
 	 */
 	private void handleRunPipeline(WorkOrder workOrder, JsonObject payload) throws IOException {
 		JsonObject params = workOrder.getParameters();
@@ -134,18 +132,9 @@ public class PipelineWorkOrderHandler {
 		}
 		Pipeline pipeline = maybe.get();
 
-		List<LoomMedia> media = collectMedia(params);
 		payload.put("pipelineName", pipelineName);
-		payload.put("mediaCount", media.size());
-
 		if (pipelineRunUuid != null) {
 			payload.put("pipelineRunUuid", pipelineRunUuid.toString());
-		}
-
-		if (media.isEmpty()) {
-			log.warn("run-pipeline: no media resolved for pipeline '{}' — pipeline will not execute", pipelineName);
-			payload.put("message", "no media resolved from selection");
-			return;
 		}
 
 		// Correlate the tracking events emitted by this execution with the Loom
@@ -153,81 +142,81 @@ public class PipelineWorkOrderHandler {
 		PipelineRunContext runContext = PipelineRunContext.of(
 			pipelineRunUuid != null ? pipelineRunUuid.toString() : null);
 
-		Flowable<LoomMedia> stream = Flowable.fromIterable(media);
-		pipelineExecutor.execute(pipeline, stream, runContext)
+		// A work order may narrow the run to an explicit media selection. Only
+		// when it requests none at all does the pipeline's own source node decide
+		// what to process — the handler no longer discovers media itself.
+		//
+		// A requested-but-unresolvable selection must never fall through to the
+		// source node: that would widen the run from the handful of items the
+		// caller asked for to everything the source is configured to scan.
+		Flowable<PipelineResult> execution;
+		if (hasExplicitSelection(params)) {
+			List<LoomMedia> media = resolveSelection(params);
+			payload.put("selection", "explicit");
+			payload.put("mediaCount", media.size());
+			if (media.isEmpty()) {
+				log.warn("run-pipeline: no media resolved for pipeline '{}' — pipeline will not execute", pipelineName);
+				payload.put("message", "no media resolved from selection");
+				return;
+			}
+			execution = pipelineExecutor.execute(pipeline, Flowable.fromIterable(media), runContext);
+			payload.put("message", "dispatched " + media.size() + " media items");
+		} else {
+			execution = pipelineExecutor.execute(pipeline, runContext);
+			payload.put("selection", "source-node");
+			payload.put("message", "dispatched pipeline '" + pipelineName + "' using its configured source node");
+		}
+
+		execution
 			.subscribeOn(Schedulers.io())
 			.subscribe(
 				res -> log.debug("Pipeline '{}' processed media {}", pipelineName, res.getMedia().absolutePath()),
 				err -> log.error("Pipeline '{}' execution error", pipelineName, err),
-				() -> log.info("Pipeline '{}' execution completed for {} media items", pipelineName, media.size()));
-		payload.put("message", "dispatched " + media.size() + " media items");
+				() -> log.info("Pipeline '{}' execution completed", pipelineName));
 	}
 
 	/**
-	 * Resolve a media selection from {@code pathGlobs}. Each glob is expanded
-	 * against the current working directory; matching files are wrapped as
-	 * {@link LoomMedia}. Non-existent paths are silently skipped.
+	 * Whether the work order asked for a specific set of media rather than
+	 * leaving the selection to the pipeline's source node.
 	 */
-	private List<LoomMedia> collectMedia(JsonObject params) throws IOException {
-		List<LoomMedia> media = new ArrayList<>();
-		JsonArray globs = params.getJsonArray("pathGlobs");
-		if (globs != null) {
-			for (int i = 0; i < globs.size(); i++) {
-				String glob = globs.getString(i);
-				if (glob == null || glob.isBlank()) {
-					continue;
-				}
-				expandGlob(glob).forEach(p -> media.add(mediaLoader.load(p)));
-			}
-		}
-		if (params.getJsonArray("mediaUuids") != null && !params.getJsonArray("mediaUuids").isEmpty()) {
+	private static boolean hasExplicitSelection(JsonObject params) {
+		return isNonEmptyArray(params.getJsonArray("pathGlobs"))
+			|| isNonEmptyArray(params.getJsonArray("mediaUuids"));
+	}
+
+	/**
+	 * Resolve an explicit media selection. Path globs are expanded via
+	 * {@link FilesystemMediaScanner}; UUID-based selection is not implemented yet
+	 * and contributes nothing.
+	 */
+	private List<LoomMedia> resolveSelection(JsonObject params) throws IOException {
+		if (isNonEmptyArray(params.getJsonArray("mediaUuids"))) {
 			// UUID → path resolution requires a Loom client lookup which is not
-			// wired into this handler yet. Emit a warning so the caller sees the
-			// gap in the work-order response.
+			// wired into this handler yet. Warn so the gap is visible to the
+			// caller rather than silently ignored.
 			log.warn("run-pipeline: mediaUuids parameter received but UUID-based media resolution is not yet implemented; use pathGlobs");
 		}
-		return media;
+		return FilesystemMediaScanner.expand(stringList(params.getJsonArray("pathGlobs"))).stream()
+			.map(mediaLoader::load)
+			.collect(Collectors.toList());
 	}
 
-	private static List<Path> expandGlob(String glob) throws IOException {
-		Path base = Paths.get(".").toAbsolutePath().normalize();
-		// If the glob contains a fixed prefix without wildcards, walk from there
-		int wildIdx = firstWildcardIndex(glob);
-		if (wildIdx < 0) {
-			// Literal path
-			Path literal = Paths.get(glob).toAbsolutePath().normalize();
-			return Files.exists(literal) ? List.of(literal) : List.of();
-		}
-		Path root = base;
-		String pattern = glob;
-		if (wildIdx > 0) {
-			int lastSlash = glob.lastIndexOf('/', wildIdx);
-			if (lastSlash > 0) {
-				root = Paths.get(glob.substring(0, lastSlash)).toAbsolutePath().normalize();
-				pattern = glob.substring(lastSlash + 1);
-			}
-		}
-		if (!Files.exists(root)) {
+	private static boolean isNonEmptyArray(JsonArray array) {
+		return array != null && !array.isEmpty();
+	}
+
+	private static List<String> stringList(JsonArray array) {
+		if (array == null) {
 			return List.of();
 		}
-		final Path effectiveRoot = root;
-		PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:" + pattern);
-		try (Stream<Path> stream = Files.walk(effectiveRoot)) {
-			return stream
-				.filter(Files::isRegularFile)
-				.filter(p -> matcher.matches(effectiveRoot.relativize(p)))
-				.collect(Collectors.toList());
-		}
-	}
-
-	private static int firstWildcardIndex(String glob) {
-		for (int i = 0; i < glob.length(); i++) {
-			char c = glob.charAt(i);
-			if (c == '*' || c == '?' || c == '[' || c == '{') {
-				return i;
+		List<String> values = new ArrayList<>();
+		for (int i = 0; i < array.size(); i++) {
+			String value = array.getString(i);
+			if (value != null && !value.isBlank()) {
+				values.add(value);
 			}
 		}
-		return -1;
+		return values;
 	}
 
 }

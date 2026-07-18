@@ -6,6 +6,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.pipeline.api.NodeMode;
 import io.metaloom.cortex.pipeline.api.NodeResult;
+import io.metaloom.cortex.pipeline.api.node.MediaSourceNode;
+import io.reactivex.rxjava3.core.Flowable;
 
 /**
  * Source node that emits exactly one configured media asset per pipeline run.
@@ -13,8 +15,13 @@ import io.metaloom.cortex.pipeline.api.NodeResult;
  * <p>The first invocation returns {@link NodeResult#success(String, long, Map)}
  * with the configured asset path. Subsequent invocations in the same run return
  * {@link NodeResult#skipped(String, String)}.</p>
+ *
+ * <p>As a {@link MediaSourceNode} its {@link #stream()} is the single configured
+ * asset, so a pipeline built around it can be run via
+ * {@link io.metaloom.cortex.pipeline.api.PipelineExecutor#execute(io.metaloom.cortex.pipeline.api.Pipeline, io.metaloom.cortex.pipeline.api.PipelineRunContext)}
+ * without the caller supplying a media stream.</p>
  */
-public class AssetSourceNode extends AbstractPipelineNode {
+public class AssetSourceNode extends AbstractPipelineNode implements MediaSourceNode {
 
 	private static final String OUTPUT_PATH = "path";
 	private static final String OUTPUT_SOURCE = "source";
@@ -48,6 +55,11 @@ public class AssetSourceNode extends AbstractPipelineNode {
 		return NodeResult.success(id(), 0, Map.of(
 			OUTPUT_PATH, asset.absolutePath(),
 			OUTPUT_SOURCE, "asset"));
+	}
+
+	@Override
+	public Flowable<LoomMedia> stream() {
+		return Flowable.just(asset);
 	}
 
 	public LoomMedia asset() {

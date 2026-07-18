@@ -935,11 +935,12 @@ turns each node definition into a real, adapter-wrapped node.
 🔴 **See §9.2 — the loader reads `dependencies[]` but Loom writes `edges[]`.**
 This is the highest-priority defect in the feature.
 
-🔴 **Only 5 of 29 descriptor kinds are registered**: `sha512`, `sha256`, `md5`,
-`chunk-hash`, `thumbnail`. Every other type resolves to a `StubPipelineNode`
-that **logs and reports success** — a silent no-op that looks like a passing
-run. The registry's 29 advertised kinds (`whisper`, `ocr`, `llm`, `facedetect`,
-`tika`, all `filter-*`, …) are selectable in the UI palette but do nothing.
+🔴 **Only 6 of 29 descriptor kinds are registered**: `filesystem-source`,
+`sha512`, `sha256`, `md5`, `chunk-hash`, `thumbnail`. Every other type resolves
+to a `StubPipelineNode` that **logs and reports success** — a silent no-op that
+looks like a passing run. The registry's remaining advertised kinds (`whisper`,
+`ocr`, `llm`, `facedetect`, `tika`, all `filter-*`, …) are selectable in the UI
+palette but do nothing.
 
 ⚠️ `CortexBootstrapInitializer` holds a `@SuppressWarnings("unused") NodeFactory`
 field purely to force Dagger eager instantiation, because
@@ -1215,7 +1216,7 @@ issue, not a code issue.
 
 - [ ] **Definition schema mismatch** — Loom writes `edges[]`, Cortex reads
       `dependencies[]`; loaded pipelines collapse to one node (Task 1)
-- [ ] **Node type coverage** — only 5 of 29 kinds registered; the rest silently
+- [ ] **Node type coverage** — only 6 of 29 kinds registered; the rest silently
       stub out as successes (Task 3)
 
 **Serious:**

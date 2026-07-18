@@ -1,0 +1,683 @@
+# Variant C — Implementation Plan
+
+> **Status: PLAN. Nothing here is built.**
+>
+> Phased implementation plan for **Variant C**: moving pipeline execution off
+> Cortex and onto Loom, leaving Cortex as a node executor.
+>
+> **Design rationale, trade-offs, and the comparison against Variants A/B/D live
+> in [METALOOM_ARCHITECTURE_V2.md](METALOOM_ARCHITECTURE_V2.md) §5 and §7.**
+> This document does not re-argue the choice; it plans the work.
+>
+> **Current-state reference:**
+> [METALOOM_ARCHITECTURE.md](METALOOM_ARCHITECTURE.md) ·
+> [../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md)
+>
+> Verified against the code at `92bc115` on 2026-07-18.
+
+---
+
+## 1. Direction of travel
+
+**Execution moves from Cortex → Loom.** Loom evaluates the graph and decides
+what runs next; Cortex executes individual node invocations on request.
+
+| | Today | Variant C |
+|---|---|---|
+| Holds the graph | Cortex (`DefaultPipeline`) | **Loom** |
+| Decides what runs next | Cortex (`ReactivePipelineExecutor`) | **Loom** |
+| Executes a node | Cortex | Cortex *(unchanged)* |
+| Executes the source | Cortex | Cortex *(unchanged — see §5.4)* |
+| Parses the definition | **both**, incompatibly | Loom only |
+
+That last row is not a side note. Two of the three currently-broken end-to-end
+paths exist purely because two parsers disagree; a single parser removes the
+class of bug rather than fixing an instance of it.
+
+---
+
+## 2. Five findings that shape this plan
+
+Established by reading the code, not the specs. Each one changes the work.
+
+### 2.1 🔴 `filesystem-source` does not exist
+
+Every seeded demo pipeline starts with a `filesystem-source` node. That kind has
+a **descriptor only** — UI metadata in `cortex/nodes/source-api`. There is no
+implementation, and it is not in the factory's registered set (`sha512`,
+`sha256`, `md5`, `chunk-hash`, `thumbnail`). It currently resolves to a stub
+that reports success.
+
+The only source implementation that exists is `AssetSourceNode`, which emits a
+single pre-configured media item once.
+
+**Consequence:** the source node this whole plan depends on must be **written
+from scratch** in Phase 1. It is new code, not a port. `LinuxFilesystemScanner`
+(`cortex/fs`) is the reusable part.
+
+### 2.2 🔴 Loom already depends on Cortex — backwards
+
+`loom/services/rest/pom.xml` depends on **ten** `cortex-*-api` modules
+(`cortex-nodes-common-api`, `cortex-source-api`, `cortex-filter-api`,
+`cortex-hash-api`, …) for node descriptors used by validation and the UI
+palette. Tellingly, `NodeDescriptorRegistry` lives in a *cortex* module under an
+`io.metaloom.loom.nodes.spec` **loom package** — the naming already concedes it
+is shared.
+
+**Consequence:** Phase 1 must reverse this. An orchestrator cannot depend on its
+workers. Descriptors move to a shared module; both sides depend on it.
+
+### 2.3 ✅ The offline CLI path is unaffected
+
+`cortex process run` goes through `FilesystemProcessorImpl`, which drives the
+**legacy** `FilesystemNode` tree — not `PipelineExecutor`. Removing the pipeline
+engine does not break offline batch processing.
+
+**Consequence:** less risk than expected. But see §9.4 — "Cortex is useful
+standalone" becomes a weaker claim, and that is a product decision.
+
+### 2.4 ⚠️ Ten test classes depend on the executor harness
+
+`AbstractPipelineNodeTest` builds a linear pipeline and runs the real executor.
+Eight concrete node tests extend it (`MD5NodePipelineTest`,
+`SHA512NodePipelineTest`, `ChunkHashNodePipelineTest`,
+`ThumbnailNodePipelineTest`, `FingerprintNodePipelineTest`,
+`LLMNodePipelineTest`, `FacedetectNodePipelineTest`, `WhisperNodePipelineTest`)
+plus `AbstractFilterNodeTest`.
+
+**Consequence:** when the executor leaves Cortex, that harness dies. A
+replacement single-node harness is Phase 1 work, and it touches ten files. This
+is the largest mechanical cost in Phase 1.
+
+### 2.5 ⚠️ Phase 3 needs back what Phase 1 would delete
+
+Affinity groups (Phase 3) require Cortex to run a *subgraph* locally — which is
+a small DAG engine. Deleting `ReactivePipelineExecutor` outright in Phase 1 and
+rewriting it in Phase 3 is waste.
+
+**Consequence — the single most important planning decision here:** Phase 1
+**shrinks and relocates** the engine rather than deleting it. Cortex keeps a
+`node-runtime` that executes a *set* of nodes over one media item. In Phase 1
+that set always has size 1. In Phase 3 it is a segment. Same code path, same
+tests, no rewrite.
+
+---
+
+## 3. Prerequisites
+
+Variant C does not remove the need to fix what is broken. From
+[METALOOM_ARCHITECTURE_TASK.md](METALOOM_ARCHITECTURE_TASK.md):
+
+| Prerequisite | Why it blocks this plan |
+|---|---|
+| **Task 1** — unregistered kinds fail loudly | Otherwise Phase 1's "it works" criterion is unverifiable — a green run proves nothing |
+| **Task 2–4** — results actually return | Phase 1 exit criteria include results landing on assets |
+| **Task 9** — stable worker identity | Loom must address a specific worker per node task |
+| **Task 10** — heartbeat timeout | A dead worker must stop receiving node tasks |
+| **Task 14** — secured control channel | Node tasks carry more than today's work orders |
+| **V11** — node capability whitelist | Loom must know which worker can run which kind |
+| **V1** — shared storage decision | Workers must see the media a task names |
+
+Tasks 1–4 and V11 are hard blockers. The rest can land alongside Phase 1 but
+must precede Phase 2.
+
+---
+
+## 4. Target architecture
+
+```mermaid
+graph TB
+    subgraph LOOM["Loom"]
+        API["REST / UI"]
+        DEF["Pipeline definition<br/>+ versions (existing)"]
+        ENG["loom/pipeline<br/>DAG evaluator + run state"]
+        DISP["Dispatcher<br/>worker selection"]
+        ST[("Run + item + node state")]
+    end
+
+    subgraph CTX["Cortex — node executor"]
+        RT["node-runtime<br/>runs N nodes over 1 media item"]
+        SRC["source-runtime<br/>filesystem scan"]
+        NODES["node implementations<br/>(unchanged)"]
+        META[("xattr / MetaStorage")]
+    end
+
+    API --> DEF --> ENG
+    ENG <--> ST
+    ENG --> DISP
+    DISP -->|"SOURCE_TASK"| SRC
+    SRC -->|"SOURCE_ITEMS (batched)"| ENG
+    DISP -->|"NODE_TASK"| RT
+    RT --> NODES --> META
+    RT -->|"NODE_TASK_RESULT"| ENG
+```
+
+---
+
+## 5. Phase 1 — restructuring and first delegation
+
+**Goal:** a UI-authored pipeline executes end to end with **Loom driving**, one
+node at a time, against **one** worker, with in-memory run state.
+
+**Explicit non-goals** — deferred to Phase 2, and stating them keeps Phase 1
+finishable:
+
+- durability of execution state (a Loom restart may lose in-flight runs)
+- retries, leases, timeouts on node tasks
+- multi-worker scheduling or load awareness
+- batching of node dispatch (source emission *is* batched — §5.4)
+- per-node result persistence
+- affinity or segments
+
+### 5.1 Module layout
+
+```
+loom-shared/
+  node-model/          # NEW — moved out of cortex/nodes/*-api
+                       #   NodeDescriptor, NodeCategory, NodeInput/Output,
+                       #   NodeParameter, NodeDescriptorRegistry
+  pipeline-model/      # NEW — wire types
+                       #   PipelineDefinition, NodeDefinition, EdgeDefinition,
+                       #   NodeResultDTO, NodeState, NodeOutputKey,
+                       #   NodeTask, NodeTaskResult, SourceTask, SourceItem
+loom/
+  pipeline/            # NEW — the engine
+                       #   PipelineGraph (from DefaultPipeline)
+                       #   PipelineRunEngine (from ReactivePipelineExecutor)
+                       #   NodeDispatcher (SPI — impl lives in services/rest)
+                       #   RunState, ItemState (in-memory in Phase 1)
+cortex/
+  node-runtime/        # NEW — shrunk from pipeline-core
+                       #   NodeTaskRunner: run N nodes over 1 media item
+                       #   (N == 1 in Phase 1, a segment in Phase 3)
+  pipeline-api/        # SHRINKS — keeps PipelineNode, NodeResult (internal),
+                       #   AbstractPipelineNode; loses Pipeline, PipelineManager,
+                       #   PipelineExecutor
+  pipeline-core/       # SHRINKS — keeps node base classes + filters;
+                       #   loses DefaultPipeline, executor, serde
+  pipeline-common/     # KEEPS caches + sync; loses nothing initially
+```
+
+`loom/pipeline` must **not** depend on any `cortex-*` artifact. Enforce it with
+the build (`maven-enforcer-plugin` banned-dependencies) so the boundary cannot
+regress silently.
+
+### 5.2 The shared-model split
+
+`NodeResult` today is `io.metaloom.cortex.pipeline.api.NodeResult`, holding live
+objects. It cannot go on the wire as-is.
+
+**Keep two types, map at the boundary:**
+
+| Type | Lives in | Purpose |
+|---|---|---|
+| `NodeResult` (internal) | `cortex/pipeline-api` | what a node returns in-process |
+| `NodeResultDTO` (wire) | `loom-shared/pipeline-model` | what crosses the network |
+
+Resist collapsing them into one. The internal type will grow
+implementation-specific concerns; the wire type must stay stable and versioned.
+Map once, in `node-runtime`.
+
+Move the descriptor modules (§2.2) in the same change — that is what lets
+`loom/services/rest` drop its ten `cortex-*-api` dependencies.
+
+### 5.3 Definition parsing and the schema fix
+
+Loom becomes the only parser. Concretely:
+
+- `loom/pipeline` reads the Loom format (`nodes[]` + `edges[]`) — the one the UI
+  writes and `PipelineValidationService` already validates.
+- `LoomPipelineLoader` and the Cortex-side `PipelineDeserializer` are deleted.
+- The `edges[]` vs `dependencies[]` divergence **cannot recur**, because there is
+  no second parser.
+
+This closes [PIPELINE_TASKS](../features/pipeline/PIPELINE_TASKS.md) Task 1
+structurally. If Variant C proceeds, do **not** separately fix the Cortex loader
+first — that work would be thrown away.
+
+⚠️ Loom's format has no `syncToLoom`, no `conditionalDependencies` (filter
+branches), and no per-node `options`. Phase 1 must extend the format for all
+three, or filters and result sync stay broken. Coordinate with
+[Task 4](METALOOM_ARCHITECTURE_TASK.md).
+
+### 5.4 Source execution
+
+The source node stays on Cortex and streams discovered media to Loom.
+
+```mermaid
+sequenceDiagram
+    participant L as Loom (engine)
+    participant C as Cortex (source-runtime)
+    participant FS as Filesystem
+
+    L->>C: SOURCE_TASK {runUuid, nodeId, kind, options{pathGlobs}}
+    C->>FS: walk + match
+    loop batches of N
+        C->>L: SOURCE_ITEMS {runUuid, items[], seq}
+        L->>L: create item state per entry
+        L-->>C: SOURCE_ITEMS_ACK {seq}
+    end
+    C->>L: SOURCE_COMPLETE {runUuid, totalCount}
+```
+
+Decisions:
+
+- **Batch from day one.** A 100 000-file scan must not become 100 000 WebSocket
+  frames. Default batch 250 items. This is the one place Phase 1 cannot defer
+  batching.
+- **Ack-based backpressure.** Cortex waits for `SOURCE_ITEMS_ACK` before sending
+  the next batch. Crude but sufficient, and it prevents a fast scanner from
+  burying a slow engine. Credit-based flow control can come in Phase 2.
+- **A source item is a reference, not content:** absolute path, size, mtime.
+  **Do not hash in the source** — hashing is a node, and doing it in the source
+  hides cost and breaks the model.
+- `SOURCE_COMPLETE` carries the total so Loom knows when discovery ended; a run
+  cannot complete before it arrives.
+
+**New code required (§2.1):** `FilesystemSourceNode` over `LinuxFilesystemScanner`,
+honouring `pathGlobs`, plus its registration as an executable kind.
+
+### 5.5 Node task protocol
+
+New message types on the existing processor WebSocket:
+
+| Type | Direction | Body |
+|---|---|---|
+| `SOURCE_TASK` | Loom → Cortex | runUuid, nodeId, kind, options |
+| `SOURCE_ITEMS` | Cortex → Loom | runUuid, seq, items[] |
+| `SOURCE_ITEMS_ACK` | Loom → Cortex | runUuid, seq |
+| `SOURCE_COMPLETE` | Cortex → Loom | runUuid, totalCount, error? |
+| `NODE_TASK` | Loom → Cortex | taskUuid, runUuid, itemUuid, nodeId, kind, options, media{path, sha512?}, upstream{} |
+| `NODE_TASK_RESULT` | Cortex → Loom | taskUuid, state, durationMs, outputs{}, message? |
+
+⚠️ **Fix the envelope first.** `ProcessorRegistry.dispatchWorkOrder` currently
+builds its message by **string concatenation**
+(`"{\"type\":\"WORK_ORDER\",\"body\":" + json + "}"`). That is survivable for
+today's small work orders and a liability for a protocol carrying node payloads.
+Replace it with real serialisation before adding any message type.
+
+**Upstream results.** A node needs its upstream outputs. Phase 1 ships them
+inline in `NODE_TASK`, but **only the keys the node declares it needs** —
+`NodeDescriptor` already models `inputs`. Use it. Inline shipping of large
+values (thumbnails, embeddings, transcripts) is a known Phase 2 problem
+(§6.5); Phase 1 should assert a payload size ceiling and fail loudly above it
+rather than silently degrading.
+
+### 5.6 The engine
+
+`loom/pipeline` in Phase 1 is deliberately simple:
+
+1. Load definition → `PipelineGraph` (topological order, cycle check — reuse the
+   existing Kahn's implementation from `PipelineValidationService`).
+2. Dispatch the source task; on each `SOURCE_ITEMS` batch, create item states.
+3. Per item, compute the ready set: nodes whose blocking dependencies are
+   `COMPLETED` and whose filter branch matches.
+4. Dispatch one `NODE_TASK` per ready node.
+5. On `NODE_TASK_RESULT`, record it, recompute the ready set, dispatch again.
+6. When every item is terminal and the source is complete, roll up the run.
+
+Preserve today's semantics exactly — they are tested and understood:
+
+- a `FAILED` **blocking** dependency skips the dependent node
+- a `SKIPPED` dependency does **not** cascade
+- filter branches follow `filter_passed` on a *direct* conditional dependency
+- dry-run skips every node
+
+Where Phase 1 differs from today, say so in the code: run state is in-memory,
+there are no retries, and there is exactly one worker.
+
+`NodeDispatcher` is an interface in `loom/pipeline`, implemented in
+`loom/services/rest` over the processor WebSocket — so the engine is testable
+with a fake dispatcher and no WebSocket at all.
+
+### 5.7 What leaves Cortex
+
+| Deleted | Reduced to |
+|---|---|
+| `ReactivePipelineExecutor` | `NodeTaskRunner` in `cortex/node-runtime` (§2.5) |
+| `DefaultPipeline`, `DefaultPipelineManager` | — (Loom owns the graph) |
+| `LoomPipelineLoader`, `RegistryNodeFactory` stub fallback | node-kind registry only |
+| `PipelineSerializer` / `PipelineDeserializer` | — (Loom owns the format) |
+| `PipelineWorkOrderHandler` run/reload/list commands | `flush-sync` retained |
+| `MediaContext`, `PartitionedFlowable`, `apply()`/`partition()` | — **dead code today**; delete, do not port |
+
+**Kept unchanged:** every node implementation, `AbstractPipelineNode`,
+`AbstractFilterNode` and the 8 filters, `CortexNodeAdapter`, MetaStorage, the
+caches, and the legacy CLI path.
+
+### 5.8 Test migration
+
+| Work | Detail |
+|---|---|
+| **New** `AbstractNodeTaskTest` on Cortex | Invokes one node with synthetic upstream results. Must keep the ergonomics of today's `execute(media, nodes...)` so the ten dependants (§2.4) migrate mechanically |
+| **Migrate** 8 node tests + `AbstractFilterNodeTest` | Assertions stay; only the harness changes |
+| **Move + rewrite** `PipelineExecutorTest` | Into `loom/pipeline`, against a fake `NodeDispatcher`. Keep every existing case: DAG ordering, skip semantics, filter branches, dry-run, disabled pipeline |
+| **New** protocol round-trip tests | Every new message type, both directions |
+| **New** source streaming tests | Batching, ack backpressure, empty result, unreadable path |
+| **New** loader/parser test | The absent `LoomPipelineLoader` test is why the schema bug survived — its replacement must not repeat that |
+| **New** end-to-end test | Definition → source → 2 nodes → results on assets, with a real Cortex |
+
+### 5.9 Exit criteria
+
+Phase 1 is done when **all** hold:
+
+- [ ] A UI-authored pipeline (`filesystem-source → sha512 → thumbnail`) runs end
+      to end, driven by Loom, against one Cortex.
+- [ ] The graph executes **as drawn** — verified by asserting node count and
+      order, not by a green run.
+- [ ] Results land on assets in Postgres.
+- [ ] The three seeded demo pipelines execute.
+- [ ] No `cortex-*` dependency remains in `loom/services/rest` or
+      `loom/pipeline`, enforced by the build.
+- [ ] All ten migrated node tests pass.
+- [ ] `cortex process run` still works (regression check on the legacy path).
+- [ ] A node kind no worker supports fails loudly.
+
+---
+
+## 6. Phase 2 — durability and correctness
+
+Phase 1 proves the model. **Phase 2 makes it survive contact with production.**
+The theme: *it works → **it survives** → it scales.*
+
+Nothing here is optional if Variant C is to be run in anger — Phase 1's
+in-memory state means a Loom restart strands every in-flight item mid-graph.
+
+### 6.1 Durable execution state
+
+The core of the phase. Per-run, per-item, per-node state in Postgres:
+
+```
+pipeline_run          (exists)
+pipeline_run_item     NEW — uuid, run_uuid, media_path, sha512, state, created
+pipeline_node_task    NEW — uuid, item_uuid, node_id, state, attempt,
+                            leased_by, lease_expires_at, started, finished,
+                            duration_ms, error, outputs JSONB
+```
+
+Follow the project's DB convention: Flyway migration → jOOQ regeneration →
+`db/api` DAO → **both** jooq and memory impls → `db/api-test` contract test.
+
+This simultaneously closes long-standing gaps: **A-PE3** (per-node stats table),
+**A-PE4** (intermediate node results on Loom), and **R10** — none of which have
+a home today. That is a real bonus and worth sequencing here rather than later.
+
+⚠️ **Write volume is the risk.** 100 000 items × 10 nodes = 1 000 000 task rows
+per run. Bulk upserts, not row-at-a-time. Consider retaining terminal task rows
+only in aggregate after a retention window.
+
+### 6.2 Node task lifecycle
+
+- **Leases with expiry** — a task leased to a worker that dies returns to
+  pending. This is the same mechanism as [V4](METALOOM_ARCHITECTURE_V2_TASK.md)
+  and must not be built twice.
+- **Retries with backoff**, capped by `attempt`. This is finally where
+  `retryFailed` — advertised by 10 descriptors and read by nothing — becomes
+  real.
+- **Per-task timeouts**, enforced by Loom rather than only by the worker.
+- **Dead-letter** after N attempts, retaining the error history.
+- **Idempotency.** A task must be safely re-executable: key on
+  `(itemUuid, nodeId, pipelineVersion)`. Duplicate delivery is inevitable once
+  retries exist.
+
+### 6.3 Scheduling across workers
+
+Phase 1 targets one worker. Phase 2 makes it a pool:
+
+- Filter candidates by the **node whitelist** (V11) and capability.
+- Prefer workers by live load — after fixing `cpuLoad`
+  ([Task 7](METALOOM_ARCHITECTURE_TASK.md)); scheduling on today's broken metric
+  would be worse than not scheduling.
+- **Per-run concurrency ceiling** so one large run cannot consume the fleet.
+- Park rather than fail when no worker supports a kind, with a timeout.
+
+### 6.4 Flow control end to end
+
+Phase 1 backpressures only the source. Phase 2 needs a global bound: cap
+in-flight items per run and per worker, and stop pulling from the source when
+the cap is reached. Without this, a fast scan and slow nodes produce unbounded
+item state.
+
+### 6.5 Large payload handling
+
+Inline upstream results (§5.5) do not survive real data — embeddings,
+thumbnails, and transcripts are large and are exactly what downstream nodes
+consume.
+
+Options, to be decided with measurements:
+
+| Option | Note |
+|---|---|
+| Content-addressed side channel | Worker fetches by hash over REST; Loom stores once |
+| Shared storage handoff | Write to the shared mount, pass a reference — cheap if V1 chose a shared mount |
+| Keep worker-local + affinity | Pre-figures Phase 3; avoids the transfer entirely |
+
+The third is the reason affinity exists. Do not over-invest here before Phase 3.
+
+### 6.6 Observability
+
+- Per-node events with **origin attribution** (which worker ran it).
+- Run inspection API: where is each item, what failed, what is retrying.
+- Metrics ([Task 15](METALOOM_ARCHITECTURE_TASK.md)) — dispatch latency, queue
+  depth, per-kind failure rate.
+- ⚠️ **Do not forward per-item-per-node events to the UI.** At 100 000 items
+  that is a flood. Aggregate — see §7.3.
+
+### 6.7 Phase 2 exit criteria
+
+- [ ] A Loom restart mid-run resumes without losing or duplicating work.
+- [ ] A killed worker's in-flight tasks are reassigned and complete.
+- [ ] A poison item dead-letters with history instead of retrying forever.
+- [ ] A run spreads across ≥3 workers, respecting whitelists.
+- [ ] A 100 000-item run completes without unbounded memory or DB write stalls.
+
+---
+
+## 7. Phase 3 — full DAG, batching, affinity
+
+### 7.1 The DAG manager
+
+Phases 1–2 give a correct-but-naive evaluator. Phase 3 makes it a real
+scheduler.
+
+**What it should own:**
+
+| Concern | Responsibility |
+|---|---|
+| Topology | Immutable graph per pipeline *version*; cached, never re-parsed per item |
+| Item state | Which nodes are done / running / pending / failed / skipped |
+| Readiness | Which nodes are dispatchable now — deps satisfied, branch resolved |
+| Placement | Which worker, how many items batched |
+| Assimilation | Record results, unblock downstream, detect terminal state |
+| Policy | Retry/backoff, timeout, priority, quota per node kind |
+| Accounting | Per-run and per-kind resource usage |
+
+**Resilience mechanisms:**
+
+- **Idempotent, durable, resumable** — every decision reconstructible from
+  persisted state. No scheduler state that exists only in memory.
+- **Leases everywhere.** Worker death, hangs, partitions, and scale-down all
+  reduce to "the lease expired". One mechanism, not four.
+- **Circuit breaker per node kind.** If `whisper` fails on 90% of tasks across
+  workers, stop dispatching it and surface that, rather than burning the fleet
+  and the dead-letter queue. This is the highest-value resilience feature and
+  the one most often omitted.
+- **Bulkheads.** Per-run and per-kind concurrency ceilings so one pathological
+  run or one broken node kind cannot starve everything else.
+- **Poison detection.** An item failing the same node repeatedly is quarantined
+  with its history — never retried indefinitely.
+- **Graceful degradation.** No worker for a kind → park with a timeout, not an
+  immediate run failure. Workers come and go.
+
+**Reacting to load and faults:**
+
+- **Adaptive dispatch width** from live worker load and queue depth, rather than
+  a fixed concurrency number.
+- **Priority with aging** — pipeline priority plus run priority, with aging so
+  low-priority runs cannot starve forever.
+- **Node-kind-aware pacing.** A `whisper` task costs seconds; a `md5` task costs
+  milliseconds. One dispatch policy cannot serve both — pace per kind.
+- **Straggler handling.** Optional speculative re-dispatch of the slowest
+  outstanding tasks near run end. Expensive; measure before adopting.
+- **Drain-aware placement.** Never place work on a worker that announced
+  `TERMINATING`.
+
+### 7.2 Batching
+
+The concern raised — that per-asset processing could overwhelm the API — is
+correct, and it applies on **four** axes, not just events:
+
+| Axis | Batch what | Notes |
+|---|---|---|
+| Source | discovered items | already batched in Phase 1 (§5.4) |
+| Dispatch | N items × same node × same worker in one `NODE_TASK_BATCH` | the biggest win; turns 1 000 000 messages into ~4 000 |
+| Results | N results in one `NODE_TASK_RESULT_BATCH` | symmetric; same win |
+| Persistence | bulk upserts of task state | 1 000 000 row-at-a-time writes will not work |
+
+**Adaptive sizing:** batch large for cheap nodes (hashing — 500+), small for
+expensive ones (whisper — 1). Fixed batch sizes get this wrong in both
+directions. Derive it from observed per-task duration per kind.
+
+**Partial batch failure** must be explicit: a batch result reports per-item
+outcomes, never a single status for the whole batch. Getting this wrong turns
+one bad file into 500 failed items.
+
+### 7.3 Event aggregation
+
+Distinct from batching and easy to overlook. Today every node × every item emits
+tracking events forwarded to every UI subscriber. At 100 000 items × 10 nodes
+that is millions of events for a UI that renders a progress bar.
+
+- Aggregate to per-node counters, pushed on a timer (the existing `NODE_STATS`
+  shape, done properly and with `pending` no longer hardcoded to 0).
+- Emit per-item events **only** for failures and terminal states.
+- Let a client opt into a detailed stream for a *single* item when debugging.
+
+### 7.4 Affinity groups
+
+The mechanism that keeps Variant C's round trips from dominating — and the
+reason §2.5 says not to delete the engine.
+
+- Definition gains `affinity: "<group>"` per node
+  ([V12](METALOOM_ARCHITECTURE_V2_TASK.md)).
+- Loom computes **segments**: maximal connected subgraphs sharing an affinity
+  group *and* executable by one worker's whitelist.
+- Dispatch becomes `SEGMENT_TASK` — a mini-pipeline plus item(s).
+- Cortex's `node-runtime` runs the segment locally with results staying in
+  memory. **This is the Phase 1 runner with N > 1** — no new engine.
+- Results return once per segment, not once per node.
+
+**Default to one group per pipeline.** A default of "each node its own group"
+silently makes every pipeline maximally chatty. Distribution must be deliberate.
+
+**Validate satisfiability at save time.** A group spanning `sha512` and
+`facedetect` needs one worker permitted to run both; if none exists, say so
+precisely at save rather than failing as an empty run.
+
+For video, this is where the performance case is won: decode-once,
+analyse-many stays in one process instead of re-reading the file per node.
+
+---
+
+## 8. Sequencing summary
+
+| Phase | Theme | Ends when |
+|---|---|---|
+| **0** | Prerequisites (§3) | Silent failures are gone; whitelist exists |
+| **1** | It works | Loom drives a real pipeline over one worker, in memory |
+| **2** | It survives | Restart-safe, retrying, multi-worker, durable state |
+| **3** | It scales | Real scheduler, batching everywhere, affinity segments |
+
+Phase 1 is a **refactor with a working demo**, not a production system. Do not
+let it acquire Phase 2 scope; the module boundaries and the protocol are the
+deliverable.
+
+---
+
+## 9. Risks
+
+### 9.1 🔴 Granularity — the defining risk
+
+Hashing a small file takes milliseconds; a round trip is comparable or worse.
+Phase 1 will be **slower than today** on small files, possibly much slower, and
+that is expected rather than a defect. The mitigations are Phase 3 (batching and
+affinity).
+
+**Guard against it:** benchmark at the end of Phase 1 against the Variant A
+baseline ([V0](METALOOM_ARCHITECTURE_V2_TASK.md)). If the gap is worse than
+roughly 5× on a hash-only pipeline, reconsider before starting Phase 2 —
+Variant D reaches most of the same goal without ever paying this cost.
+
+### 9.2 🔴 Loom becomes a stateful scheduler and a per-step SPOF
+
+Today Loom is involved at run start and finish. Afterwards it is on the path of
+every node transition. Its availability and write throughput become the ceiling
+for all processing.
+
+### 9.3 ⚠️ Payload size
+
+§6.5. Inline upstream results work for hashes and break for embeddings,
+transcripts, and thumbnails — the outputs that matter most.
+
+### 9.4 ⚠️ Standalone Cortex weakens
+
+`cortex process run` survives (§2.3), but it drives the *legacy* node tree. After
+Phase 1, Cortex cannot execute a pipeline without Loom. The README markets
+Cortex as un-opinionated and usable offline at scale.
+
+**This is a product decision, not an engineering one, and it should be made
+before Phase 1 starts.** If standalone pipeline execution must survive, the
+`node-runtime` needs a local driver — which is Phase 3's segment runner with the
+segment being the whole graph. Cheap if planned, expensive if retrofitted.
+
+### 9.5 ⚠️ Test migration is the bulk of Phase 1's mechanical cost
+
+Ten test classes (§2.4), plus new protocol, source, and engine tests. Budget for
+it explicitly; it is easy to under-estimate and it is what protects the refactor.
+
+---
+
+## 10. Open questions
+
+1. **Does standalone Cortex pipeline execution need to survive?** (§9.4) —
+   answer before Phase 1.
+2. **Where do intermediate results live?** (§6.5) — inline, side channel, shared
+   storage, or avoided via affinity.
+3. **Task state retention.** 1 000 000 rows per run is real. How long are
+   per-node task rows kept, and at what granularity after that?
+4. **Is `NODE_TASK` dispatch pull or push?** Push is simpler for Phase 1; pull
+   composes better with leases and worker-side backpressure in Phase 2. Choosing
+   pull later means changing the protocol twice.
+5. **Does the definition format become versioned?** It must gain `syncToLoom`,
+   filter branches, options, and later affinity — four breaking changes to
+   stored JSONB. Version it now.
+6. **Is Variant D the better target after all?** (§9.1) — Phase 1 is largely
+   shared between C and D, so this can be answered *after* Phase 1 with real
+   numbers rather than guessed ones. That is a deliberate property of this plan.
+
+---
+
+## 11. Progress Assessment
+
+- [x] Code-verified findings that reshape the plan (§2)
+- [x] Prerequisites mapped to existing task lists
+- [x] Phase 1 scoped with explicit non-goals and exit criteria
+- [x] Module layout, shared-model split, and dependency inversion specified
+- [x] Source-node streaming designed with batching and backpressure from day one
+- [x] Node task protocol specified
+- [x] Deletion list separated from the "shrink, don't delete" decision (§2.5)
+- [x] Test migration cost identified and sized
+- [x] Phase 2 proposed: durability, leases, retries, scheduling, flow control
+- [x] Phase 3: DAG manager proposal, four-axis batching, event aggregation,
+      affinity segments
+- [x] Risks and open questions recorded
+- [ ] **Standalone-Cortex decision** (Q1) — blocks Phase 1 start
+- [ ] **Definition format versioning decision** (Q5) — blocks Phase 1 schema work
+- [ ] **Push vs pull dispatch decision** (Q4) — cheap now, expensive later
+- [ ] Phase 1 benchmark against the Variant A baseline (§9.1)
+- [ ] Task state retention policy (Q3)
+
+---
+
+_Git HEAD revision: `92bc1153e50c43efb65e4d78874823c9ec1f4408`_
+_Last updated: 2026-07-18 19:50 UTC_

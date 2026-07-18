@@ -40,6 +40,13 @@
             <artifactId>progressbar</artifactId>
         </dependency>
 
+        <!-- Sources -->
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-filesystem-source-node</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
         <!-- Actions -->
         <dependency>
             <groupId>io.metaloom.cortex</groupId>

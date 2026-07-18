@@ -29,6 +29,12 @@
             <groupId>io.metaloom.cortex</groupId>
             <artifactId>cortex-processor</artifactId>
         </dependency>
+        <!-- FilesystemMediaScanner, used to expand work-order path selections -->
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-filesystem-source-node</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <dependency>
             <groupId>io.metaloom.cortex</groupId>
             <artifactId>cortex-pipeline-api</artifactId>

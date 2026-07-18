@@ -6,50 +6,6 @@ This file tracks tasks for missing implementations, gaps, and improvements ident
 
 ## REST API Tasks
 
-### Task: Implement PUT/PATCH Support for REST Endpoints
-
-**Argumentation Summary:** The REST API currently uses POST for both create and update operations, which deviates from REST conventions. PUT/PATCH support would improve API consistency and interoperability.
-
-**Improvement Summary:** Add PUT and PATCH method handlers to the REST routing infrastructure, update endpoint registration to support these methods, and maintain backward compatibility with existing POST-based updates.
-
-```
-Implement PUT and PATCH HTTP method support for REST endpoints in the Loom server.
-
-**Current State (from RESTAPI.md):**
-- Loom uses POST for both create and update operations
-- PUT and PATCH are listed as "Not used by the server" in the HTTP Methods table
-- CORS configuration supports PUT/PATCH but no endpoints implement them
-
-**Files to Modify:**
-1. `loom/services/rest/src/main/java/io/metaloom/loom/rest/ApiRouter.java` - Add PUT/PATCH route registration methods
-2. `loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/AbstractEndpoint.java` - Add securePut/securePatch helpers
-3. Individual endpoint implementations (UserEndpoint, AssetEndpoint, etc.) - Add PUT/PATCH handlers
-4. `loom-shared/rest-model` - Ensure DTOs support partial updates for PATCH
-
-**Implementation Steps:**
-1. Add `addPutRoute()` and `addPatchRoute()` methods to `ApiRouter` similar to `addRoute()`/`addPostRoute()`
-2. Update `AbstractEndpoint` with `securePut()` and `securePatch()` helper methods
-3. For each CRUD endpoint, add PUT handler (full replacement) and PATCH handler (partial update)
-4. Maintain backward compatibility - keep POST update handlers working
-5. Update OpenAPI spec generation to document PUT/PATCH endpoints
-6. Add validation for PUT (full object required) vs PATCH (partial object allowed)
-
-**References:** 
-- RESTAPI.md sections 1.2, 1.7, 3.1
-- LOOM.md section 2 (EndpointModule registration)
-
-**Test Requirements:**
-- Unit tests for PUT/PATCH route registration in ApiRouter
-- Integration tests for each endpoint supporting PUT/PATCH
-- Verify backward compatibility with existing POST update calls
-- OpenAPI spec includes PUT/PATCH operations
-```
-
-**References:** RESTAPI.md, LOOM.md
-**Test Requirements:** Unit tests for route registration, integration tests for each endpoint, OpenAPI verification
-
----
-
 ### Task: Add Request Body Size Limits for Security
 
 **Argumentation Summary:** The REST API currently has no body size limit (`BodyHandler.create().setBodyLimit(-1)`), which poses a security risk for DoS attacks via large payloads.

@@ -13,7 +13,12 @@
       "Bash(javap -p -cp vertx-web-openapi-generator-0.0.1-SNAPSHOT.jar io.metaloom.vertx.openapi.OpenAPIGenerator 'io.metaloom.vertx.openapi.OpenAPIGenerator$Builder')",
       "Bash(xargs cat)",
       "Bash(python3 -)",
-      "Bash(mvn test *)"
+      "Bash(mvn test *)",
+      "Bash(unzip -o -q /home/defaultuser/.m2/repository/io/metaloom/vertx/vertx-web-openapi-core/0.0.1-SNAPSHOT/vertx-web-openapi-core-0.0.1-SNAPSHOT.jar -d core)",
+      "Bash(javap -cp core io.metaloom.vertx.router.ApiRouter)",
+      "Bash(unzip -o -q /home/defaultuser/.m2/repository/io/metaloom/vertx/vertx-web-openapi-generator/0.0.1-SNAPSHOT/vertx-web-openapi-generator-0.0.1-SNAPSHOT.jar -d gen)",
+      "Bash(javap -cp gen:core io.metaloom.vertx.openapi.OpenAPIGenerator 'io.metaloom.vertx.openapi.OpenAPIGenerator$Builder')",
+      "Bash(javap -cp core io.metaloom.vertx.route.ApiRoute)"
     ]
   }
 }
