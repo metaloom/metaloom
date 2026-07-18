@@ -24,7 +24,9 @@ import io.metaloom.loom.db.dagger.DaoCollection;
 import io.metaloom.loom.db.model.pipeline.Pipeline;
 import io.metaloom.loom.db.model.pipeline.PipelineDao;
 import io.metaloom.loom.db.model.pipeline.PipelineRun;
+import io.metaloom.loom.db.model.pipeline.PipelineNodeTaskDao;
 import io.metaloom.loom.db.model.pipeline.PipelineRunDao;
+import io.metaloom.loom.db.model.pipeline.PipelineRunItemDao;
 import io.metaloom.loom.db.model.pipeline.PipelineVersion;
 import io.metaloom.loom.db.model.pipeline.PipelineVersionDao;
 import io.metaloom.loom.rest.LoomRoutingContext;
@@ -36,6 +38,7 @@ import io.metaloom.loom.rest.model.pipeline.PipelineRunResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineUpdateRequest;
 import io.metaloom.loom.rest.model.pipeline.PipelineVersionRestoreRequest;
 import io.metaloom.loom.pipeline.engine.PipelineRunEngine;
+import io.metaloom.loom.pipeline.engine.RunStateStore;
 import io.metaloom.loom.pipeline.graph.GraphValidationException;
 import io.metaloom.loom.pipeline.graph.PipelineGraph;
 import io.metaloom.loom.pipeline.graph.PipelineGraphNode;
@@ -69,13 +72,16 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 	private final WebSocketNodeDispatcher nodeDispatcher;
 
 	private final PipelineGraphParser graphParser;
+	private final PipelineRunItemDao pipelineRunItemDao;
+	private final PipelineNodeTaskDao pipelineNodeTaskDao;
 
 	@Inject
 	public PipelineEndpointService(PipelineDao pipelineDao, DaoCollection daos, LoomModelBuilder modelBuilder,
 		LoomModelValidator validator, ProcessorRegistry processorRegistry,
 		PipelineValidationService pipelineValidationService, PipelineRunDao pipelineRunDao,
 		PipelineVersionDao pipelineVersionDao, PipelineRunTracker pipelineRunTracker, PipelineRunRegistry pipelineRunRegistry,
-		WebSocketNodeDispatcher nodeDispatcher) {
+		WebSocketNodeDispatcher nodeDispatcher, PipelineRunItemDao pipelineRunItemDao,
+		PipelineNodeTaskDao pipelineNodeTaskDao) {
 		super(pipelineDao, daos, modelBuilder, validator);
 		this.processorRegistry = processorRegistry;
 		this.pipelineValidationService = pipelineValidationService;
@@ -84,6 +90,8 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 		this.pipelineRunTracker = pipelineRunTracker;
 		this.pipelineRunRegistry = pipelineRunRegistry;
 		this.nodeDispatcher = nodeDispatcher;
+		this.pipelineRunItemDao = pipelineRunItemDao;
+		this.pipelineNodeTaskDao = pipelineNodeTaskDao;
 		this.graphParser = new PipelineGraphParser();
 	}
 
@@ -285,8 +293,11 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 			UUID runUuid = runRecord.getUuid();
 
 			// The engine owns the graph and decides what runs next; Cortex only ever
-			// sees one node at a time.
-			PipelineRunEngine engine = new PipelineRunEngine(graph, nodeDispatcher, runUuid);
+			// sees one node at a time. State goes to Postgres through the store, so the
+			// run is not lost with the process that started it.
+			RunStateStore stateStore = new DaoRunStateStore(pipelineRunItemDao, pipelineNodeTaskDao, runUuid,
+				lrc.userUuid());
+			PipelineRunEngine engine = new PipelineRunEngine(graph, nodeDispatcher, runUuid, stateStore);
 			engine.onCompletion(summary -> pipelineRunTracker.complete(runUuid, summary.getDurationMs(),
 				(int) summary.getMediaCount(), (int) summary.getSuccessCount(),
 				(int) summary.getFailureCount(), (int) summary.getSkippedCount()));

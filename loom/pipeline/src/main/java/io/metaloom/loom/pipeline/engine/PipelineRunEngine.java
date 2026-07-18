@@ -70,6 +70,7 @@ public class PipelineRunEngine {
 	private final PipelineGraph graph;
 	private final NodeDispatcher dispatcher;
 	private final UUID runUuid;
+	private final RunStateStore store;
 
 	private final Map<String, ItemState> items = new LinkedHashMap<>();
 	private final List<Consumer<RunSummary>> completionListeners = new ArrayList<>();
@@ -80,14 +81,19 @@ public class PipelineRunEngine {
 	private long startedAt;
 	private long itemSequence;
 
-	public PipelineRunEngine(PipelineGraph graph, NodeDispatcher dispatcher, UUID runUuid) {
+	public PipelineRunEngine(PipelineGraph graph, NodeDispatcher dispatcher, UUID runUuid, RunStateStore store) {
 		this.graph = graph;
 		this.dispatcher = dispatcher;
 		this.runUuid = runUuid;
+		this.store = store == null ? RunStateStore.NOOP : store;
+	}
+
+	public PipelineRunEngine(PipelineGraph graph, NodeDispatcher dispatcher, UUID runUuid) {
+		this(graph, dispatcher, runUuid, RunStateStore.NOOP);
 	}
 
 	public PipelineRunEngine(PipelineGraph graph, NodeDispatcher dispatcher) {
-		this(graph, dispatcher, null);
+		this(graph, dispatcher, null, RunStateStore.NOOP);
 	}
 
 	/**
@@ -137,7 +143,10 @@ public class PipelineRunEngine {
 			return null;
 		}
 
-		String itemId = "item-" + (++itemSequence);
+		long itemSeq = ++itemSequence;
+		// Identity comes from the store, not from a counter, so a run recovered after a
+		// restart can still match an arriving result to its item.
+		String itemId = store.itemDiscovered(runUuid, itemSeq, media).toString();
 		ItemState state = new ItemState(itemId, media);
 		items.put(itemId, state);
 
@@ -146,11 +155,10 @@ public class PipelineRunEngine {
 		outputs.put(OUTPUT_PATH, media.getPath());
 		outputs.put(OUTPUT_SOURCE, source.getKind());
 
-		if (graph.isDryRun()) {
-			state.record(NodeTaskResult.skipped(source.getId(), "dry-run"));
-		} else {
-			state.record(NodeTaskResult.completed(null, source.getId(), 0, outputs));
-		}
+		NodeTaskResult sourceResult = graph.isDryRun()
+			? NodeTaskResult.skipped(source.getId(), "dry-run")
+			: NodeTaskResult.completed(null, source.getId(), 0, outputs);
+		record(state, sourceResult);
 
 		advance(state);
 		checkComplete();
@@ -191,7 +199,7 @@ public class PipelineRunEngine {
 			log.warn("Duplicate result for node '{}' on item '{}' - ignoring", result.getNodeId(), itemId);
 			return;
 		}
-		state.record(result);
+		record(state, result);
 		advance(state);
 		checkComplete();
 	}
@@ -240,7 +248,7 @@ public class PipelineRunEngine {
 
 				NodeTaskResult skip = evaluateSkip(state, node);
 				if (skip != null) {
-					state.record(skip);
+					record(state, skip);
 					progressed = true;
 					continue;
 				}
@@ -299,6 +307,7 @@ public class PipelineRunEngine {
 			state.getMedia(), node.getOptions(), collectUpstreamOutputs(state, node));
 
 		state.markInFlight(node.getId(), taskUuid);
+		store.taskDispatched(itemUuid(state), task);
 		boolean accepted;
 		try {
 			accepted = dispatcher.dispatch(task);
@@ -310,7 +319,7 @@ public class PipelineRunEngine {
 		if (!accepted) {
 			// No worker could take it. Fail the node rather than leaving the run
 			// stalled forever waiting for a result that will never arrive.
-			state.record(NodeTaskResult.failed(taskUuid, node.getId(), 0,
+			record(state, NodeTaskResult.failed(taskUuid, node.getId(), 0,
 				"No worker available for node kind '" + node.getKind() + "'"));
 			return true;
 		}
@@ -335,6 +344,35 @@ public class PipelineRunEngine {
 		return upstream;
 	}
 
+	/**
+	 * Settle a node and tell the store about it.
+	 *
+	 * <p>Every path that settles a node goes through here - a completed dispatch, a
+	 * skip, and a refused dispatch alike. Recording in only some of them is how a
+	 * recovered run ends up re-running work it already did.</p>
+	 */
+	private void record(ItemState state, NodeTaskResult result) {
+		state.record(result);
+		UUID itemUuid = itemUuid(state);
+		store.taskSettled(itemUuid, result);
+		if (state.isComplete(graph.size())) {
+			store.itemSettled(itemUuid, state.outcome());
+		}
+	}
+
+	/**
+	 * @param state the item
+	 * @return its store-assigned id, or null when the id is not a UUID (which only
+	 *         happens with a store that does not persist)
+	 */
+	private UUID itemUuid(ItemState state) {
+		try {
+			return UUID.fromString(state.getItemId());
+		} catch (IllegalArgumentException e) {
+			return null;
+		}
+	}
+
 	private void checkComplete() {
 		if (runComplete || !sourceComplete) {
 			return;
@@ -345,6 +383,9 @@ public class PipelineRunEngine {
 			}
 		}
 		runComplete = true;
+		// A batching store must drain here, or the tail of the run - the part that
+		// says how it ended - is exactly what gets lost.
+		store.flush();
 		RunSummary summary = buildSummary();
 		log.info("Run {} complete: {}", runUuid, summary);
 		for (Consumer<RunSummary> listener : completionListeners) {

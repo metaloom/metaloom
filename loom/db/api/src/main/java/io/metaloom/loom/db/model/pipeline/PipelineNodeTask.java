@@ -1,0 +1,86 @@
+package io.metaloom.loom.db.model.pipeline;
+
+import java.time.Instant;
+import java.util.UUID;
+
+import io.metaloom.loom.db.CUDElement;
+import io.vertx.core.json.JsonObject;
+
+/**
+ * One node execution against one media item.
+ *
+ * <p>The row is created when the engine decides a node is ready and updated as the
+ * task is leased, completes, or is reclaimed. Because
+ * {@code (item_uuid, node_id)} is unique, a duplicate delivery cannot produce a
+ * second execution record - which is what makes retries safe.</p>
+ */
+public interface PipelineNodeTask extends CUDElement<PipelineNodeTask> {
+
+	UUID getItemUuid();
+
+	PipelineNodeTask setItemUuid(UUID itemUuid);
+
+	/** @return denormalised from the item so run-scoped queries need no join */
+	UUID getRunUuid();
+
+	PipelineNodeTask setRunUuid(UUID runUuid);
+
+	String getNodeId();
+
+	PipelineNodeTask setNodeId(String nodeId);
+
+	String getNodeKind();
+
+	PipelineNodeTask setNodeKind(String nodeKind);
+
+	/** @return PENDING, RUNNING, COMPLETED, FAILED, SKIPPED or DEAD_LETTER */
+	String getState();
+
+	PipelineNodeTask setState(String state);
+
+	/** @return how many times this task has been dispatched */
+	int getAttempt();
+
+	PipelineNodeTask setAttempt(int attempt);
+
+	/** @return attempt ceiling before the task is dead-lettered */
+	int getMaxAttempts();
+
+	PipelineNodeTask setMaxAttempts(int maxAttempts);
+
+	/** @return processor node id currently holding the task, or null */
+	String getLeasedBy();
+
+	PipelineNodeTask setLeasedBy(String leasedBy);
+
+	/** @return when the lease lapses and the task returns to PENDING */
+	Instant getLeaseExpiresAt();
+
+	PipelineNodeTask setLeaseExpiresAt(Instant leaseExpiresAt);
+
+	Instant getStarted();
+
+	PipelineNodeTask setStarted(Instant started);
+
+	Instant getFinished();
+
+	PipelineNodeTask setFinished(Instant finished);
+
+	Long getDurationMs();
+
+	PipelineNodeTask setDurationMs(Long durationMs);
+
+	String getErrorMessage();
+
+	PipelineNodeTask setErrorMessage(String errorMessage);
+
+	/** @return node outputs, consumed as inputs by downstream nodes */
+	JsonObject getOutputs();
+
+	PipelineNodeTask setOutputs(JsonObject outputs);
+
+	JsonObject getMeta();
+
+	PipelineNodeTask setMeta(JsonObject meta);
+
+}

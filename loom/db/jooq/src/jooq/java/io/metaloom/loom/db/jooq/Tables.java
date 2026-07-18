@@ -42,7 +42,9 @@ import io.metaloom.loom.db.jooq.tables.JooqLoom;
 import io.metaloom.loom.db.jooq.tables.JooqPerson;
 import io.metaloom.loom.db.jooq.tables.JooqPersonImage;
 import io.metaloom.loom.db.jooq.tables.JooqPipeline;
+import io.metaloom.loom.db.jooq.tables.JooqPipelineNodeTask;
 import io.metaloom.loom.db.jooq.tables.JooqPipelineRun;
+import io.metaloom.loom.db.jooq.tables.JooqPipelineRunItem;
 import io.metaloom.loom.db.jooq.tables.JooqPipelineVersion;
 import io.metaloom.loom.db.jooq.tables.JooqProject;
 import io.metaloom.loom.db.jooq.tables.JooqProjectCollection;
@@ -275,9 +277,19 @@ public class Tables {
     public static final JooqPipeline PIPELINE = JooqPipeline.PIPELINE;
 
     /**
+     * One node execution against one media item
+     */
+    public static final JooqPipelineNodeTask PIPELINE_NODE_TASK = JooqPipelineNodeTask.PIPELINE_NODE_TASK;
+
+    /**
      * History of pipeline executions
      */
     public static final JooqPipelineRun PIPELINE_RUN = JooqPipelineRun.PIPELINE_RUN;
+
+    /**
+     * One media item discovered by a run's source node
+     */
+    public static final JooqPipelineRunItem PIPELINE_RUN_ITEM = JooqPipelineRunItem.PIPELINE_RUN_ITEM;
 
     /**
      * Version history of pipeline definitions

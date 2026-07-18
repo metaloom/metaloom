@@ -27,6 +27,8 @@ import io.metaloom.loom.db.model.detection.DetectionDao;
 import io.metaloom.loom.db.model.webhook.WebhookDao;
 import io.metaloom.loom.db.model.pipeline.PipelineDao;
 import io.metaloom.loom.db.model.pipeline.PipelineRunDao;
+import io.metaloom.loom.db.model.pipeline.PipelineNodeTaskDao;
+import io.metaloom.loom.db.model.pipeline.PipelineRunItemDao;
 import io.metaloom.loom.db.model.pipeline.PipelineVersionDao;
 import io.metaloom.loom.db.model.pool.AssetPoolDao;
 /**
@@ -101,6 +103,10 @@ public interface DaoCollection {
 	PipelineRunDao pipelineRunDao();
 
 	PipelineVersionDao pipelineVersionDao();
+
+	PipelineRunItemDao pipelineRunItemDao();
+
+	PipelineNodeTaskDao pipelineNodeTaskDao();
 
 	// Asset Pool
 

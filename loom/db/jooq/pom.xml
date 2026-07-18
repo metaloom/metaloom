@@ -237,7 +237,9 @@
 										<forcedType>
 											<userType>io.vertx.core.json.JsonObject</userType>
 											<converter>io.metaloom.loom.db.jooq.converter.JsonObjectConverter</converter>
-											<includeExpression>.*\.meta.*</includeExpression>
+											<!-- pipeline_node_task.outputs holds node outputs and is read
+											     as a JsonObject like meta, so it needs the same converter. -->
+											<includeExpression>.*\.meta.*|.*\.outputs</includeExpression>
 										</forcedType>
 									</forcedTypes>
 								</database>

@@ -16,6 +16,8 @@ import io.metaloom.loom.db.jooq.dao.comment.CommentDaoImpl;
 import io.metaloom.loom.db.jooq.dao.embedding.EmbeddingDaoImpl;
 import io.metaloom.loom.db.jooq.dao.pipeline.PipelineDaoImpl;
 import io.metaloom.loom.db.jooq.dao.pipeline.PipelineRunDaoImpl;
+import io.metaloom.loom.db.jooq.dao.pipeline.PipelineNodeTaskDaoImpl;
+import io.metaloom.loom.db.jooq.dao.pipeline.PipelineRunItemDaoImpl;
 import io.metaloom.loom.db.jooq.dao.pipeline.PipelineVersionDaoImpl;
 import io.metaloom.loom.db.jooq.dao.pool.AssetPoolDaoImpl;
 import io.metaloom.loom.db.jooq.dao.group.GroupDaoImpl;
@@ -47,6 +49,8 @@ import io.metaloom.loom.db.model.detection.DetectionDao;
 import io.metaloom.loom.db.model.person.PersonDao;
 import io.metaloom.loom.db.model.pipeline.PipelineDao;
 import io.metaloom.loom.db.model.pipeline.PipelineRunDao;
+import io.metaloom.loom.db.model.pipeline.PipelineNodeTaskDao;
+import io.metaloom.loom.db.model.pipeline.PipelineRunItemDao;
 import io.metaloom.loom.db.model.pipeline.PipelineVersionDao;
 import io.metaloom.loom.db.model.pool.AssetPoolDao;
 import io.metaloom.loom.db.model.group.GroupDao;
@@ -138,6 +142,12 @@ public abstract class JooqLoomDaoBindModule {
 
 	@Binds
 	abstract PipelineVersionDao pipelineVersionDao(PipelineVersionDaoImpl dao);
+
+	@Binds
+	abstract PipelineRunItemDao pipelineRunItemDao(PipelineRunItemDaoImpl dao);
+
+	@Binds
+	abstract PipelineNodeTaskDao pipelineNodeTaskDao(PipelineNodeTaskDaoImpl dao);
 
 	@Binds
 	abstract AssetPoolDao assetPoolDao(AssetPoolDaoImpl dao);

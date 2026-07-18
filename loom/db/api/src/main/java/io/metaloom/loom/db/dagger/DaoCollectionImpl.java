@@ -22,6 +22,8 @@ import io.metaloom.loom.db.model.library.LibraryDao;
 import io.metaloom.loom.db.model.person.PersonDao;
 import io.metaloom.loom.db.model.pipeline.PipelineDao;
 import io.metaloom.loom.db.model.pipeline.PipelineRunDao;
+import io.metaloom.loom.db.model.pipeline.PipelineNodeTaskDao;
+import io.metaloom.loom.db.model.pipeline.PipelineRunItemDao;
 import io.metaloom.loom.db.model.pipeline.PipelineVersionDao;
 import io.metaloom.loom.db.model.pool.AssetPoolDao;
 import io.metaloom.loom.db.model.perm.PermissionDao;
@@ -62,6 +64,8 @@ public class DaoCollectionImpl implements DaoCollection {
 	private final Lazy<PipelineDao> pipelineDao;
 	private final Lazy<PipelineRunDao> pipelineRunDao;
 	private final Lazy<PipelineVersionDao> pipelineVersionDao;
+	private final Lazy<PipelineRunItemDao> pipelineRunItemDao;
+	private final Lazy<PipelineNodeTaskDao> pipelineNodeTaskDao;
 	private final Lazy<AssetPoolDao> assetPoolDao;
 	private final Lazy<PersonDao> personDao;
 	private final Lazy<DetectionDao> detectionDao;
@@ -77,6 +81,7 @@ public class DaoCollectionImpl implements DaoCollection {
 		Lazy<ClusterDao> clusterDao, Lazy<EmbeddingDao> embeddingDao, Lazy<TokenDao> tokenDao,
 		Lazy<TagDao> tagDao, Lazy<AttachmentDao> attachmentDao, Lazy<PipelineDao> pipelineDao,
 		Lazy<PipelineRunDao> pipelineRunDao, Lazy<PipelineVersionDao> pipelineVersionDao,
+		Lazy<PipelineRunItemDao> pipelineRunItemDao, Lazy<PipelineNodeTaskDao> pipelineNodeTaskDao,
 		Lazy<AssetPoolDao> assetPoolDao, Lazy<PersonDao> personDao,
 		Lazy<DetectionDao> detectionDao, Lazy<ChatDao> chatDao) {
 		this.userDao = userDao;
@@ -104,6 +109,8 @@ public class DaoCollectionImpl implements DaoCollection {
 		this.pipelineDao = pipelineDao;
 		this.pipelineRunDao = pipelineRunDao;
 		this.pipelineVersionDao = pipelineVersionDao;
+		this.pipelineRunItemDao = pipelineRunItemDao;
+		this.pipelineNodeTaskDao = pipelineNodeTaskDao;
 		this.assetPoolDao = assetPoolDao;
 		this.personDao = personDao;
 		this.detectionDao = detectionDao;
@@ -233,6 +240,16 @@ public class DaoCollectionImpl implements DaoCollection {
 	@Override
 	public PipelineVersionDao pipelineVersionDao() {
 		return pipelineVersionDao.get();
+	}
+
+	@Override
+	public PipelineRunItemDao pipelineRunItemDao() {
+		return pipelineRunItemDao.get();
+	}
+
+	@Override
+	public PipelineNodeTaskDao pipelineNodeTaskDao() {
+		return pipelineNodeTaskDao.get();
 	}
 
 	@Override

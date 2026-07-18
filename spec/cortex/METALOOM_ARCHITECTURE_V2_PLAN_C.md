@@ -561,6 +561,131 @@ migrated node tests all pass. No `ReactivePipelineExecutor`, `DefaultPipeline`,
 
 ---
 
+## 2.13 P2.1 — durable state, as built
+
+`V2.31__add_pipeline_execution_state.sql` adds `pipeline_run_item` and
+`pipeline_node_task`, plus the DAO layer over them. Landed 2026-07-18.
+
+### Two corrections to §6.1
+
+**§6.1 said to write "both jooq and memory impls". That instruction was wrong.**
+`loom/db/memory` contains six files and implements only `Token` and `User`;
+there is no memory Dagger module and no memory test suite. Writing memory impls
+would have invented a pattern the codebase abandoned. The real convention is:
+jOOQ impl + a test in `loom/db/jooq/src/test` implementing the shared
+`CRUDDaoTestcases` interface — all 20 existing implementors do exactly that.
+⚠️ `loom/db/README.md` still advertises `fs`, `memory` and `hibernate` as live
+implementations; only `jooq` is. That README is misleading and should be fixed.
+
+**The idempotency key is `(item_uuid, node_id)`, not the
+`(itemUuid, nodeId, pipelineVersion)` §6.2 proposed.** An item belongs to
+exactly one run and a run pins exactly one pipeline version, so the version
+column would be functionally dependent on the item — a wider index buying
+nothing.
+
+### Schema decisions
+
+| Decision | Reason |
+|---|---|
+| Both tables carry the CUD audit quartet | Every other table does; deviating for row-count reasons would fork the base classes. Write volume is addressed by bulk insert and retention, not by shaving columns |
+| `run_uuid` denormalised onto `pipeline_node_task` | Run-scoped queries — the common case — need no join through the item |
+| `UNIQUE (run_uuid, item_seq)` on items | A source that reconnects and replays a batch cannot double-insert |
+| `UNIQUE (item_uuid, node_id)` on tasks | The idempotency key: duplicate delivery cannot produce a second execution record |
+| Partial index on `(lease_expires_at) WHERE state = 'RUNNING'` | The reaper's only query, over a small slice of a table that grows to millions of terminal rows |
+| No new permission enum values | Both tables are sub-resources of a run, guarded by the existing `READ_PIPELINE_RUN` |
+
+The jOOQ `forcedType` include expression was widened to
+`.*\.meta.*|.*\.outputs` so `pipeline_node_task.outputs` maps to `JsonObject`
+like `meta` does, rather than to a raw JSONB string.
+
+### Verification
+
+25 tests, all green: 11 on `PipelineRunItemDaoTest`, 14 on
+`PipelineNodeTaskDaoTest`, each inheriting the 5 shared CRUD cases and adding
+targeted ones — constraint enforcement, cascade deletes, ordering, the reaper
+query, and the bounded sweep.
+
+**Two anti-vacuity measures, both of which changed the outcome:**
+
+1. The constraint tests originally used a bare `assertThrows(Exception.class,
+   …)`, which would have passed on *any* failure. They now assert the specific
+   constraint name appears in the exception chain.
+2. `testExpiredLeasesAreFoundAndLiveOnesAreNot` is meaningless on this machine,
+   which runs UTC — it cannot distinguish correct UTC pinning from accidental
+   system-zone agreement. Re-running the class under
+   `-Duser.timezone=America/New_York` proves the lease query is actually
+   zone-correct. Without that run, `PipelineNodeTaskDaoImpl.toLocal` would have
+   been unverified on any non-UTC deployment.
+
+⚠️ **The test pool must be re-seeded after adding a migration.** DB tests draw
+from an external `testdatabase-provider` pool rather than a fresh container, so
+`V2.31` was invisible until `PoolSetupRunner` (in `loom/fixture`) rebuilt the
+template. Every DAO test fails with `relation … does not exist` until that is
+done — this is a required step, not an optional one, and it is not currently
+mentioned anywhere near the migration directory.
+
+⚠️ **18 pre-existing failures in `loom/db/jooq`, unrelated to this work.**
+`PipelineDaoTest`, `BlacklistDaoTest`, `AssetLocationDaoTest`, `TokenDaoTest`
+and `PipelineVersionDaoTest` fail with `duplicate key … _pkey` because the
+fixtures `PoolSetupRunner` seeds collide with UUIDs those tests insert.
+**Confirmed identical on the stashed pre-change tree**, so P2.1 neither caused
+nor fixed them. They are worth fixing separately — they mean the DAO suite has
+not been green from a clean pool for some time.
+
+## 2.14 P2.2 — the persistence port, as built
+
+`RunStateStore` in `loom/pipeline` is the seam between deciding and remembering.
+The engine reports four things — item discovered, task dispatched, task settled,
+item settled — plus a flush on completion. Landed 2026-07-18.
+
+### Item identity moved to the store
+
+The engine used to mint `"item-1"`, `"item-2"` from an in-memory counter.
+`itemDiscovered` now **returns** the id instead, and the engine adopts it. This
+looks like a small change and is the load-bearing one: after a restart the
+counter starts again at zero, so an arriving `NODE_TASK_RESULT` could never be
+matched back to its item. Identity has to come from the thing that survives.
+
+### Every settle path reports
+
+There are three ways a node settles — a result arrives, the engine skips it, or
+no worker accepts the dispatch — and all three now funnel through one private
+`record(...)`. This was previously three separate `state.record(...)` call
+sites, which is exactly the shape that leaves one path silently unrecorded and a
+recovered run re-running work it already declined. `PipelineRunEnginePersistenceTest`
+covers each path separately rather than trusting the happy path to imply them.
+
+### `DaoRunStateStore` — batching, and why the flush order matters
+
+A 100 000 item run over a 10 node graph is over a million task rows, so rows
+accumulate and are written with `storeBatch`. Two constraints shape it:
+
+- **Items flush before tasks**, always — task rows carry a foreign key to their
+  item, so the reverse order fails the whole batch.
+- **Item UUIDs are assigned client-side** rather than by the column default,
+  because the engine needs the id immediately, long before the row is flushed.
+- A flush failure is **logged, not propagated**: losing state is bad, but killing
+  a run that could still finish its work is worse.
+
+### Verification
+
+9 new engine tests (37 total in `loom/pipeline`), plus the full REST pipeline
+suite green: 7 `PipelineRunEndToEndTest`, 11 `ProcessorProtocolSerdeTest`, 23
+`PipelineValidationServiceTest`, 11 `PipelineRunStatusResolverTest`, 2
+`WebSocketNodeDispatcherTest`. Full reactor build green.
+
+⚠️ The pre-existing `*ModelBuilderTest` failures (16 failures + 6 errors) are
+unchanged from Phase 1 — same classes, same counts.
+
+### What P2.2 does *not* do
+
+State is now written, but nothing **reads** it back yet. A restart still loses
+in-flight runs, because rehydration is P2.4. Dispatch still has no lease, so a
+worker that dies holding a task leaves it `RUNNING` forever — the column and the
+reaper query exist (P2.1) but nothing sweeps them yet. That is P2.3.
+
+---
+
 ## 3. Prerequisites
 
 Variant C does not remove the need to fix what is broken. From
