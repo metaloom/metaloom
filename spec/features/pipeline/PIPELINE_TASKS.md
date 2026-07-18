@@ -163,9 +163,10 @@ counters→status mapping including the `PARTIAL` case. Test that the
 ## Task 3: Register the remaining node types, and fail loudly on unknown ones
 
 **Argumentation Summary:** `NodeDescriptorRegistry` advertises **29 kinds** to
-the UI palette, but `PipelineNodeFactoryModule` registers only **5** with
-`RegistryNodeFactory` (`sha512`, `sha256`, `md5`, `chunk-hash`, `thumbnail`).
-The other 24 — `whisper`, `ocr`, `llm`, `facedetect`, `tika`, every `filter-*` —
+the UI palette, but `PipelineNodeFactoryModule` registers only **6** with
+`RegistryNodeFactory` (`filesystem-source`, `sha512`, `sha256`, `md5`,
+`chunk-hash`, `thumbnail`).
+The other 23 — `whisper`, `ocr`, `llm`, `facedetect`, `tika`, every `filter-*` —
 resolve to `StubPipelineNode`, which logs and **returns success**. A user can
 assemble a pipeline entirely from nodes that do nothing and watch it run green.
 Silent success is worse than a hard failure here.

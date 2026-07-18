@@ -40,20 +40,58 @@ class of bug rather than fixing an instance of it.
 
 Established by reading the code, not the specs. Each one changes the work.
 
-### 2.1 🔴 `filesystem-source` does not exist
+### 2.1 ✅ `filesystem-source` now exists — and fits this plan well
 
-Every seeded demo pipeline starts with a `filesystem-source` node. That kind has
-a **descriptor only** — UI metadata in `cortex/nodes/source-api`. There is no
-implementation, and it is not in the factory's registered set (`sha512`,
-`sha256`, `md5`, `chunk-hash`, `thumbnail`). It currently resolves to a stub
-that reports success.
+> **Updated 2026-07-18.** This was previously a 🔴 blocker: the kind had a
+> descriptor only and resolved to a success-reporting stub. **It has since been
+> implemented.** Phase 1 no longer starts by writing a source node.
 
-The only source implementation that exists is `AssetSourceNode`, which emits a
-single pre-configured media item once.
+What now exists:
 
-**Consequence:** the source node this whole plan depends on must be **written
-from scratch** in Phase 1. It is new code, not a port. `LinuxFilesystemScanner`
-(`cortex/fs`) is the reusable part.
+| Artefact | Location |
+|---|---|
+| `FilesystemSourceNode` | `cortex/nodes/filesystem-source` |
+| `FilesystemSourceNodeOptions` (defaults: `path`, `pathGlobs`) | same module |
+| `FilesystemMediaScanner` (`expand(globs)`, `walk(root)`) | same module |
+| `FilesystemSourceNodeModule` (Dagger) | same module |
+| Factory registration for kind `filesystem-source` | `PipelineNodeFactoryModule` |
+| Tests | `FilesystemSourceNodeTest`, `FilesystemSourceNodeOptionsTest` |
+
+The executable set is now **6 of 29** kinds (`filesystem-source`, `sha512`,
+`sha256`, `md5`, `chunk-hash`, `thumbnail`), not 5.
+
+**This is better for the plan than a from-scratch node would have been**, because
+of the SPI that came with it. `MediaSourceNode` exposes:
+
+```java
+Flowable<LoomMedia> stream();   // cold — walks on subscription
+```
+
+That is exactly the seam Variant C needs. The Cortex `source-runtime` (§5.4)
+subscribes to `stream()` and forwards batches over the wire instead of into the
+local engine. **The node is reused unchanged; only its sink changes.** Globs take
+precedence over `root`, and both fall back to configured defaults — semantics
+Phase 1 should preserve rather than reinvent.
+
+Two residual caveats, both of which Phase 1 must handle:
+
+- ⚠️ **It materialises the whole selection.** `FilesystemMediaScanner.expand()`
+  and `walk()` both return `List<Path>`, so the entire file list is built in
+  memory before the first item is emitted. The `MediaSourceNode` Javadoc
+  explicitly advises against this — *"implementations should stream rather than
+  materialise a full list where the selection may be large"* — so the node
+  currently contradicts its own SPI's guidance. At 100 000 files this defeats
+  the ack-based backpressure in §5.4, because Cortex has already paid the memory
+  cost before the first batch is sent. **Converting the scanner to a lazy
+  `Flowable` is Phase 1 work**, and it is worth doing regardless of Variant C —
+  today's local engine has the same exposure.
+- ⚠️ **The node has two roles that split across the boundary.** `stream()`
+  enumerates; `process()` additionally returns `{path, source}` per item. In
+  Variant C the enumeration happens on Cortex while per-item evaluation happens
+  on Loom. Since the source's own `process()` output is trivially derivable from
+  a `SourceItem`, **Loom should synthesise it rather than issuing a `NODE_TASK`
+  back to Cortex for the source node** — one saved round trip per item, and it
+  keeps the source's semantics in one place.
 
 ### 2.2 🔴 Loom already depends on Cortex — backwards
 
@@ -235,10 +273,18 @@ This closes [PIPELINE_TASKS](../features/pipeline/PIPELINE_TASKS.md) Task 1
 structurally. If Variant C proceeds, do **not** separately fix the Cortex loader
 first — that work would be thrown away.
 
-⚠️ Loom's format has no `syncToLoom`, no `conditionalDependencies` (filter
-branches), and no per-node `options`. Phase 1 must extend the format for all
-three, or filters and result sync stay broken. Coordinate with
-[Task 4](METALOOM_ARCHITECTURE_TASK.md).
+⚠️ Loom's format still lacks `syncToLoom` and `conditionalDependencies` (filter
+branches). Phase 1 must extend it for both, or result sync and filter routing
+stay broken. Coordinate with [Task 4](METALOOM_ARCHITECTURE_TASK.md).
+
+**Per-node options are a partial exception.** The `filesystem-source` work
+established a precedent: its factory producer reads `path` and `pathGlobs`
+directly off the node definition, falling back to configured defaults. So
+per-node options *are* already carried for at least one kind — but ad hoc, read
+by each producer rather than through a declared schema. Phase 1 should
+generalise this into a typed `options` object validated against
+`NodeDescriptor.parameters`, and keep the defaults-fallback behaviour that node
+already has.
 
 ### 5.4 Source execution
 
@@ -273,9 +319,20 @@ Decisions:
   hides cost and breaks the model.
 - `SOURCE_COMPLETE` carries the total so Loom knows when discovery ended; a run
   cannot complete before it arrives.
+- **Synthesise the source node's own result on Loom** rather than round-tripping
+  a `NODE_TASK` for it (§2.1) — its `{path, source}` output is derivable from
+  the `SourceItem`.
 
-**New code required (§2.1):** `FilesystemSourceNode` over `LinuxFilesystemScanner`,
-honouring `pathGlobs`, plus its registration as an executable kind.
+**Reuses existing code (§2.1).** `FilesystemSourceNode` and its
+`MediaSourceNode.stream()` contract already provide the enumeration; the
+`source-runtime` subscribes and forwards batches instead of feeding the local
+engine.
+
+**Required change:** make the scan lazy. `FilesystemMediaScanner.expand()` and
+`walk()` return `List<Path>`, materialising the full selection before the first
+emission, which defeats the backpressure above. Convert them to a lazy
+`Flowable<Path>` walk. This is a genuine improvement to the existing node, not
+Variant C scaffolding — the local engine benefits identically.
 
 ### 5.5 Node task protocol
 
@@ -660,6 +717,11 @@ it explicitly; it is easy to under-estimate and it is what protects the refactor
 ## 11. Progress Assessment
 
 - [x] Code-verified findings that reshape the plan (§2)
+- [x] §2.1 updated 2026-07-18 — `filesystem-source` is implemented; the
+      `MediaSourceNode.stream()` SPI turns out to be the right seam for Phase 1
+- [ ] **Make `FilesystemMediaScanner` lazy** (§2.1) — it materialises the whole
+      selection, defeating source backpressure. Worth fixing today, independent
+      of Variant C
 - [x] Prerequisites mapped to existing task lists
 - [x] Phase 1 scoped with explicit non-goals and exit criteria
 - [x] Module layout, shared-model split, and dependency inversion specified

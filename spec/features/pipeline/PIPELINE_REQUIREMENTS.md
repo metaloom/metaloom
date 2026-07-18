@@ -152,7 +152,7 @@ Legend: `[x]` done · `[~]` partial · `[ ]` pending
 - [x] Node descriptors published to the UI (`NodeDescriptorRegistry`) for the palette and parameter editor.
 - [x] Reference examples for adding custom nodes (`examples/cortex-custom-node`, `examples/cortex-custom-cli`).
 - [x] Node option validation at config-load and pipeline-creation time.
-- [~] **A-CN1 — Node type coverage.** The descriptor registry advertises **29 kinds** to the UI palette; only **5** are registered with the executable factory (`sha512`, `sha256`, `md5`, `chunk-hash`, `thumbnail`). The other 24 — including `whisper`, `ocr`, `llm`, `facedetect`, `tika`, and every `filter-*` — are selectable in the editor but silently fall back to no-op stubs that *report success*. A user can build a pipeline entirely out of nodes that do nothing and see a green run.
+- [~] **A-CN1 — Node type coverage.** The descriptor registry advertises **29 kinds** to the UI palette; only **6** are registered with the executable factory (`filesystem-source`, `sha512`, `sha256`, `md5`, `chunk-hash`, `thumbnail`). The other 23 — including `whisper`, `ocr`, `llm`, `facedetect`, `tika`, and every `filter-*` — are selectable in the editor but silently fall back to no-op stubs that *report success*. A user can build a pipeline entirely out of nodes that do nothing and see a green run.
 - [ ] **A-CN2 — Node versioning** — no way to invalidate cached results when a node's algorithm changes.
 - [ ] **A-CN3 — Result caching is not wired in production.** No code calls `setCacheProvider`, and there is no Dagger provider for any `NodeCacheProvider`, so caching is test-only. Both persistent caches also stringify all values, so a cached `boolean` returns as a `String`.
 

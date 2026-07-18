@@ -28,7 +28,7 @@ Two things frame everything below, and skipping them leads to building the
 wrong thing.
 
 **Distribution multiplies whatever the system already does.** MetaLoom
-currently reports success for work it did not do — 24 of 29 node kinds are
+currently reports success for work it did not do — 23 of 29 node kinds are
 silent no-ops, only hash values are ever synced, and the streaming run path
 never flushes its result buffer. Distributing that across a fleet does not
 surface those problems; it hides them further, because now you cannot even tell
@@ -353,7 +353,7 @@ forward and delivered first.**
 The reasoning, in order:
 
 1. **Build the whitelist now, independent of any variant.** It is small, it is
-   useful immediately (least privilege, and it makes the "5 of 29 kinds are
+   useful immediately (least privilege, and it makes the "6 of 29 kinds are
    real" problem *visible* rather than silent), and every variant except A
    depends on it. There is no scenario where this is wasted work.
 
@@ -447,7 +447,7 @@ nodes:
 |---|---|
 | **Least privilege** | A DMZ or tenant-shared worker runs hashing only — it never receives an LLM prompt, never gets Loom-sync credentials |
 | **Cost control** | Expensive GPU instances only accept the nodes that need a GPU |
-| **Makes the stub problem visible** | Today 24 of 29 kinds silently no-op. If workers advertise what they can *really* run, the gap becomes queryable instead of invisible — a direct complement to [Task 1](METALOOM_ARCHITECTURE_TASK.md) |
+| **Makes the stub problem visible** | Today 23 of 29 kinds silently no-op. If workers advertise what they can *really* run, the gap becomes queryable instead of invisible — a direct complement to [Task 1](METALOOM_ARCHITECTURE_TASK.md) |
 | **Rollout safety** | A new node implementation can be enabled on one worker and observed before fleet-wide rollout |
 | **Prerequisite for C and D** | Both need it; neither is possible without it |
 

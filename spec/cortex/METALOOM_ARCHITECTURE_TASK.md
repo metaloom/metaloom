@@ -55,8 +55,9 @@ needed at all. It is the cheapest task with the largest possible consequence.
 ## Task 1: Fail loudly on unregistered node types
 
 **Argumentation Summary:** The node descriptor registry advertises **29** node
-kinds to the UI palette, but only **5** are registered with the executable
-factory (`sha512`, `sha256`, `md5`, `chunk-hash`, `thumbnail`). The other 24 —
+kinds to the UI palette, but only **6** are registered with the executable
+factory (`filesystem-source`, `sha512`, `sha256`, `md5`, `chunk-hash`,
+`thumbnail`). The other 23 —
 including `whisper`, `ocr`, `llm`, `facedetect`, `tika`, and every `filter-*` —
 fall back to a stub that logs at **debug** level and returns `COMPLETED`. A user
 can assemble a pipeline entirely out of nodes that do nothing and watch it run
@@ -77,7 +78,7 @@ instead of a silent success, and stop advertising kinds that cannot run.
    mid-run.
 
 3. Surface the constraint in the UI. NodeDescriptorRegistry should distinguish
-   "advertised" from "executable". The palette must visibly mark the 24
+   "advertised" from "executable". The palette must visibly mark the 23
    non-executable kinds as unavailable rather than offering them as normal.
    Server-side validation (PipelineValidationService) should reject them on
    save with a specific message.

@@ -539,7 +539,7 @@ against per-item distribution on the same corpus.
 is handed, and Loom has no idea what any instance can actually run. That blocks
 heterogeneous fleets (one GPU box among CPU boxes), blocks least-privilege
 deployment (an exposed worker must not receive LLM prompts or Loom-sync
-credentials), and leaves the "5 of 29 kinds are real" gap invisible. This is the
+credentials), and leaves the "6 of 29 kinds are real" gap invisible. This is the
 **single highest-value task in this file**: it is small, it is useful on its own
 regardless of which variant is ever built, and Variants C and D are impossible
 without it.
@@ -575,7 +575,7 @@ outcome.
 
 6. Report the fleet-wide union of supported kinds via REST so the UI can show
    which palette entries are actually runnable. This complements
-   METALOOM_ARCHITECTURE_TASK.md Task 1 - together they turn "24 kinds
+   METALOOM_ARCHITECTURE_TASK.md Task 1 - together they turn "23 kinds
    silently no-op" into a queryable fact.
 ```
 

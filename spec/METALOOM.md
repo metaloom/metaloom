@@ -454,7 +454,7 @@ decorator interfaces (`HashMedia`, `FacedetectMedia`, …). See the
 - **Cortex nodes**: two hierarchies (legacy `AbstractMediaNode` and
   pipeline `AbstractPipelineNode`) bridged by `CortexNodeAdapter`. Never
   extend both.
-- **A green pipeline run may have done nothing.** Only 5 of 29 advertised
+- **A green pipeline run may have done nothing.** Only 6 of 29 advertised
   node kinds are executable; the rest resolve to a stub that reports
   success. See
   [cortex/METALOOM_ARCHITECTURE.md](cortex/METALOOM_ARCHITECTURE.md) §12.

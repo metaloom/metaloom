@@ -63,10 +63,10 @@ almost nothing:
    drawn in the UI arrives at Cortex as a pile of *disconnected* nodes, and only
    the first one runs.
 2. **Most node types are not actually wired up.** The UI palette offers 29 kinds
-   of node. Only 5 (`sha512`, `sha256`, `md5`, `chunk-hash`, `thumbnail`) map to
-   real code. The other 24 — including face detection, transcription, OCR, and
-   every filter — silently resolve to a stub that **reports success without
-   doing anything**.
+   of node. Only 6 (`filesystem-source`, `sha512`, `sha256`, `md5`, `chunk-hash`,
+   `thumbnail`) map to real code. The other 23 — including face detection,
+   transcription, OCR, and every filter — silently resolve to a stub that
+   **reports success without doing anything**.
 3. **Almost nothing gets sent back.** The result-sync path forwards only hash
    values; transcripts, faces, OCR text and thumbnails are computed and then
    discarded. And the streaming path that a real run uses never flushes its
@@ -615,7 +615,7 @@ Being blunt about the state of things, because the failure modes are all silent.
 
 - 🔴 **A UI-authored pipeline does not run as drawn** — `edges` vs
   `dependencies`; it collapses to just the source node
-- 🔴 **24 of 29 node kinds are silent no-ops** that report success
+- 🔴 **23 of 29 node kinds are silent no-ops** that report success
 - 🔴 **Only hash values are ever synced to Loom.** Transcripts, faces, OCR,
   fingerprints, and thumbnails are computed and then discarded
 - 🔴 **The streaming run path never flushes its result buffer**, so a run with
