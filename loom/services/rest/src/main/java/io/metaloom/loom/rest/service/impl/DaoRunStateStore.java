@@ -48,6 +48,15 @@ public class DaoRunStateStore implements RunStateStore {
 	/** How many buffered rows trigger an automatic flush. */
 	public static final int DEFAULT_BATCH_SIZE = 500;
 
+	/**
+	 * How long a worker may hold a task before it is presumed dead.
+	 *
+	 * <p>Generous on purpose: reclaiming a task from a worker that is merely slow
+	 * causes duplicate work, which is worse than waiting a while longer to notice a
+	 * genuine death.</p>
+	 */
+	public static final long DEFAULT_LEASE_MS = 10 * 60 * 1000L;
+
 	private final PipelineRunItemDao itemDao;
 	private final PipelineNodeTaskDao taskDao;
 	private final UUID runUuid;
@@ -97,7 +106,11 @@ public class DaoRunStateStore implements RunStateStore {
 		row.setUuid(task.getTaskUuid());
 		row.setState("RUNNING");
 		row.setAttempt(1);
-		row.setStarted(Instant.now());
+		Instant now = Instant.now();
+		row.setStarted(now);
+		// The lease is what makes a dead worker recoverable: without an expiry this row
+		// stays RUNNING forever and its item never settles.
+		row.setLeaseExpiresAt(now.plusMillis(DEFAULT_LEASE_MS));
 
 		pendingTasks.put(key(itemUuid, task.getNodeId()), row);
 		flushIfFull();
@@ -122,6 +135,9 @@ public class DaoRunStateStore implements RunStateStore {
 		}
 
 		row.setState(stateOf(result.getState()));
+		// A settled task is no longer leased. Leaving the expiry set would make the
+		// reaper consider finished work reclaimable.
+		row.setLeaseExpiresAt(null);
 		row.setDurationMs(result.getDurationMs());
 		row.setErrorMessage(result.getMessage());
 		row.setFinished(Instant.now());

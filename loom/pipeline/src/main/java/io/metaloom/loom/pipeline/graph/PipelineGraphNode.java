@@ -16,6 +16,9 @@ import io.metaloom.loom.pipeline.model.FilterBranch;
  */
 public class PipelineGraphNode {
 
+	/** Attempts allowed when a node merely says {@code retryFailed: true}. */
+	public static final int DEFAULT_RETRY_ATTEMPTS = 2;
+
 	private final String id;
 	private final String kind;
 	private final String name;
@@ -87,6 +90,43 @@ public class PipelineGraphNode {
 	/** @return per-node options from the definition, never null */
 	public Map<String, Object> getOptions() {
 		return options;
+	}
+
+	/**
+	 * How many times this node may be attempted before it is given up on.
+	 *
+	 * <p>This is where {@code retryFailed} finally does something. Ten descriptors
+	 * have advertised the parameter since the node model was written and nothing has
+	 * ever read it - a node that declared itself retryable was retried zero times.</p>
+	 *
+	 * <p>An explicit {@code maxAttempts} option wins over the boolean, so a node can
+	 * ask for more than one retry.</p>
+	 *
+	 * @return the attempt ceiling, always at least 1
+	 */
+	public int getMaxAttempts() {
+		Object explicit = options.get("maxAttempts");
+		if (explicit instanceof Number) {
+			return Math.max(1, ((Number) explicit).intValue());
+		}
+		if (explicit instanceof String) {
+			try {
+				return Math.max(1, Integer.parseInt((String) explicit));
+			} catch (NumberFormatException e) {
+				// Fall through to the boolean rather than failing the whole run over a
+				// malformed option.
+			}
+		}
+		return isRetryFailed() ? DEFAULT_RETRY_ATTEMPTS : 1;
+	}
+
+	/** @return true when the definition asked for failures to be retried */
+	public boolean isRetryFailed() {
+		Object value = options.get("retryFailed");
+		if (value instanceof Boolean) {
+			return (Boolean) value;
+		}
+		return value instanceof String && Boolean.parseBoolean((String) value);
 	}
 
 	/** @return ids of the nodes that must reach a terminal state before this one runs */

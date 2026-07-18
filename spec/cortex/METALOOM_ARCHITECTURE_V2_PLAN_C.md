@@ -684,6 +684,74 @@ in-flight runs, because rehydration is P2.4. Dispatch still has no lease, so a
 worker that dies holding a task leaves it `RUNNING` forever — the column and the
 reaper query exist (P2.1) but nothing sweeps them yet. That is P2.3.
 
+## 2.15 P2.3 — the task lifecycle, as built
+
+Leases, retries with backoff, and dead-lettering. Landed 2026-07-18.
+
+### `retryFailed` finally does something
+
+Ten descriptors have advertised the `retryFailed` parameter since the node model
+was written, and **nothing has ever read it** — a node that declared itself
+retryable was retried exactly zero times. `PipelineGraphNode.getMaxAttempts()`
+now reads it (`true` → 2 attempts), and an explicit `maxAttempts` option
+overrides it for nodes wanting more.
+
+Two paths reach a retry, and both are capped by the same ceiling:
+
+- **A `FAILED` result** is no longer automatically final. If the node asked to be
+  retried and has attempts left, it is handed back instead of settled.
+- **A lost task** — reported by the reaper when a lease lapses — is either
+  re-dispatched or dead-lettered.
+
+`onNodeTaskLost` must always do one of those two. A reclaimed task that is
+neither retried nor settled leaves its item stuck mid-graph and the run never
+completes — a worse failure than the one being recovered from.
+
+### Backoff needed a seam
+
+Retrying in a tight loop turns one broken worker into a stampede, but a blocking
+sleep inside the engine would stall every other item — all mutating entry points
+are serialised on the engine's monitor. `RetryScheduler` splits the decision from
+the wait: production can hand it to a Vert.x timer, tests run retries
+synchronously and stay deterministic. Backoff doubles from 1 s and is capped at
+60 s so a high attempt count cannot park a node for hours.
+
+A deferred retry re-enters through `retryNow`, which re-checks state — by the
+time a delayed retry fires, the run may have completed or the node may have
+settled another way.
+
+### `LeaseReaper` — the only thing that turns a dead worker into progress
+
+Dispatch is fire-and-forget over a WebSocket, so a worker that crashes never
+reports back and nothing else notices. The reaper sweeps `loadExpiredLeases` and
+hands each lapsed task to its engine. Four properties are deliberate:
+
+| Property | Reason |
+|---|---|
+| Leases are generous (10 min) | Reclaiming from a merely slow worker causes duplicate work; waiting longer to notice a real death is the cheaper error |
+| Duplicate execution is **accepted** | This is why `(item_uuid, node_id)` is unique — the second result is recognised as a duplicate rather than recorded twice |
+| A task whose run is gone is dead-lettered, not skipped | Otherwise the row is re-read on every sweep for the life of the process |
+| `sweepQuietly` never throws | `scheduleWithFixedDelay` cancels permanently on exception — an escaping error would silently stop all lease recovery, the exact failure this class prevents |
+
+Started from `RESTService.start()`, which owns the run registry the reaper hands
+tasks back to. ⚠️ Without that wiring the class would be dead code and leases
+would never be reclaimed — worth checking if the startup sequence is ever
+reorganised.
+
+### Verification
+
+16 new tests: 11 `PipelineRunEngineRetryTest`, 5 `LeaseReaperTest`. The first two
+retry tests form a deliberate pair — one asserts a *single* dispatch without
+`retryFailed`, the other asserts *two* with it — so neither can pass vacuously
+against an engine that always or never retries. `loom/pipeline` is now 48 tests.
+
+### Deferred to P2.7
+
+`leased_by` is not populated. Time-based reclaim works without knowing which
+worker held the task, and worker attribution belongs with the rest of
+observability. Until then `countLeasedBy` has no production caller — it is
+exercised only by its DAO test.
+
 ---
 
 ## 3. Prerequisites

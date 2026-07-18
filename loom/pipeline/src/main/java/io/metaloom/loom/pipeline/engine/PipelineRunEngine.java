@@ -64,6 +64,12 @@ public class PipelineRunEngine {
 
 	private static final Logger log = LoggerFactory.getLogger(PipelineRunEngine.class);
 
+	/** First retry waits this long; each further attempt doubles it. */
+	public static final long DEFAULT_RETRY_BASE_DELAY_MS = 1_000;
+
+	/** Ceiling on the backoff, so a high attempt count cannot park a node for hours. */
+	public static final long MAX_RETRY_DELAY_MS = 60_000;
+
 	private static final String OUTPUT_PATH = "path";
 	private static final String OUTPUT_SOURCE = "source";
 
@@ -71,6 +77,8 @@ public class PipelineRunEngine {
 	private final NodeDispatcher dispatcher;
 	private final UUID runUuid;
 	private final RunStateStore store;
+	private RetryScheduler retryScheduler = RetryScheduler.IMMEDIATE;
+	private long retryBaseDelayMs = DEFAULT_RETRY_BASE_DELAY_MS;
 
 	private final Map<String, ItemState> items = new LinkedHashMap<>();
 	private final List<Consumer<RunSummary>> completionListeners = new ArrayList<>();
@@ -199,9 +207,138 @@ public class PipelineRunEngine {
 			log.warn("Duplicate result for node '{}' on item '{}' - ignoring", result.getNodeId(), itemId);
 			return;
 		}
+
+		// A failure is not automatically final. If the node asked to be retried and has
+		// attempts left, hand it back rather than settling it - otherwise `retryFailed`
+		// would remain the decoration it has always been.
+		if (result.getState() == NodeState.FAILED && shouldRetry(state, result.getNodeId())) {
+			scheduleRetry(state, result.getNodeId(), describe(result));
+			return;
+		}
+
 		record(state, result);
 		advance(state);
 		checkComplete();
+	}
+
+	/**
+	 * Called when a dispatched task will never report back - typically because its
+	 * lease expired and the worker holding it is presumed dead.
+	 *
+	 * <p>Re-dispatches when attempts remain, and dead-letters otherwise. A lost task
+	 * that is neither retried nor settled stalls its item forever, so this method
+	 * must always do one of the two.</p>
+	 *
+	 * @param itemId the item
+	 * @param nodeId the node whose task was lost
+	 * @param reason why it was reclaimed, for the dead-letter record
+	 */
+	public synchronized void onNodeTaskLost(String itemId, String nodeId, String reason) {
+		requireStarted();
+		ItemState state = items.get(itemId);
+		if (state == null) {
+			log.warn("Lost task for unknown item '{}' in run {} - ignoring", itemId, runUuid);
+			return;
+		}
+		if (state.isSettled(nodeId)) {
+			// The result won the race against the reaper. Nothing to reclaim.
+			log.debug("Node '{}' on item '{}' already settled - ignoring reclaim", nodeId, itemId);
+			return;
+		}
+		if (!state.isInFlight(nodeId)) {
+			log.debug("Node '{}' on item '{}' is not in flight - ignoring reclaim", nodeId, itemId);
+			return;
+		}
+
+		state.clearInFlight(nodeId);
+		if (shouldRetry(state, nodeId)) {
+			scheduleRetry(state, nodeId, reason);
+			return;
+		}
+
+		record(state, NodeTaskResult.failed(null, nodeId, 0,
+			"Dead-lettered after " + state.attemptsFor(nodeId) + " attempt(s): " + reason));
+		advance(state);
+		checkComplete();
+	}
+
+	/**
+	 * @return true when the node may be attempted again
+	 */
+	private boolean shouldRetry(ItemState state, String nodeId) {
+		PipelineGraphNode node = graph.getNode(nodeId);
+		if (node == null) {
+			return false;
+		}
+		return state.attemptsFor(nodeId) < node.getMaxAttempts();
+	}
+
+	/**
+	 * Hand a node back for another attempt after a backoff.
+	 *
+	 * <p>The retry runs outside this method's synchronised block when the scheduler
+	 * defers it, and re-enters through {@link #retryNow}, which re-checks state - by
+	 * the time a delayed retry fires the run may have completed or the node may have
+	 * settled some other way.</p>
+	 */
+	private void scheduleRetry(ItemState state, String nodeId, String reason) {
+		state.clearInFlight(nodeId);
+		int attempt = state.attemptsFor(nodeId);
+		long delay = backoffFor(attempt);
+		log.info("Retrying node '{}' on item '{}' (attempt {} of {}) in {}ms after: {}",
+			nodeId, state.getItemId(), attempt + 1, graph.getNode(nodeId).getMaxAttempts(), delay, reason);
+
+		String itemId = state.getItemId();
+		retryScheduler.schedule(delay, () -> retryNow(itemId, nodeId));
+	}
+
+	/**
+	 * Re-enter the engine to dispatch a retry.
+	 *
+	 * @param itemId the item
+	 * @param nodeId the node to attempt again
+	 */
+	private synchronized void retryNow(String itemId, String nodeId) {
+		ItemState state = items.get(itemId);
+		if (state == null || state.isSettled(nodeId) || state.isInFlight(nodeId)) {
+			return;
+		}
+		advance(state);
+		checkComplete();
+	}
+
+	/**
+	 * Exponential backoff, capped.
+	 *
+	 * @param attempt attempts already made
+	 * @return how long to wait before the next one
+	 */
+	long backoffFor(int attempt) {
+		if (attempt <= 0) {
+			return 0;
+		}
+		long delay = retryBaseDelayMs << Math.min(attempt - 1, 20);
+		return Math.min(delay, MAX_RETRY_DELAY_MS);
+	}
+
+	private static String describe(NodeTaskResult result) {
+		return result.getMessage() == null ? "node failed" : result.getMessage();
+	}
+
+	/**
+	 * Replace the retry scheduler, e.g. with one backed by a Vert.x timer.
+	 *
+	 * @param scheduler the scheduler; null restores the immediate default
+	 */
+	public synchronized void setRetryScheduler(RetryScheduler scheduler) {
+		this.retryScheduler = scheduler == null ? RetryScheduler.IMMEDIATE : scheduler;
+	}
+
+	/**
+	 * @param baseDelayMs delay before the first retry; each further attempt doubles it
+	 */
+	public synchronized void setRetryBaseDelayMs(long baseDelayMs) {
+		this.retryBaseDelayMs = Math.max(0, baseDelayMs);
 	}
 
 	/** @return true when the run has reached a terminal state */
@@ -307,6 +444,7 @@ public class PipelineRunEngine {
 			state.getMedia(), node.getOptions(), collectUpstreamOutputs(state, node));
 
 		state.markInFlight(node.getId(), taskUuid);
+		state.recordAttempt(node.getId());
 		store.taskDispatched(itemUuid(state), task);
 		boolean accepted;
 		try {

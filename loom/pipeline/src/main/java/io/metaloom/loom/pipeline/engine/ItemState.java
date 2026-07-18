@@ -22,6 +22,7 @@ public class ItemState {
 	private final MediaRef media;
 	private final Map<String, NodeTaskResult> results = new LinkedHashMap<>();
 	private final Map<String, UUID> inFlight = new LinkedHashMap<>();
+	private final Map<String, Integer> attempts = new LinkedHashMap<>();
 
 	ItemState(String itemId, MediaRef media) {
 		this.itemId = itemId;
@@ -48,6 +49,30 @@ public class ItemState {
 
 	void markInFlight(String nodeId, UUID taskUuid) {
 		inFlight.put(nodeId, taskUuid);
+	}
+
+	/**
+	 * Give up on the in-flight task for a node without settling it, so it can be
+	 * dispatched again.
+	 */
+	void clearInFlight(String nodeId) {
+		inFlight.remove(nodeId);
+	}
+
+	/**
+	 * @param nodeId the node
+	 * @return how many times it has been handed to a worker
+	 */
+	int attemptsFor(String nodeId) {
+		return attempts.getOrDefault(nodeId, 0);
+	}
+
+	/**
+	 * @param nodeId the node
+	 * @return the new attempt count
+	 */
+	int recordAttempt(String nodeId) {
+		return attempts.merge(nodeId, 1, Integer::sum);
 	}
 
 	boolean isSettled(String nodeId) {

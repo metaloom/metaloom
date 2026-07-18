@@ -13,6 +13,7 @@ import io.metaloom.loom.api.options.LoomOptions;
 import io.metaloom.loom.common.service.AbstractService;
 import io.metaloom.loom.rest.dagger.RESTEndpoints;
 import io.metaloom.loom.rest.endpoint.RESTEndpoint;
+import io.metaloom.loom.rest.service.impl.LeaseReaper;
 import io.metaloom.loom.rest.model.message.GenericMessageResponse;
 import io.metaloom.vertx.router.ApiRouter;
 import io.vertx.core.Vertx;
@@ -32,15 +33,17 @@ public class RESTService extends AbstractService {
 	private final ApiRouter router;
 	private final Set<RESTEndpoint> endpoints;
 	private final ServerFailureHandler failureHandler;
+	private final LeaseReaper leaseReaper;
 
 	@Inject
 	public RESTService(Vertx vertx, LoomOptions options, HttpServer server, @Named("restApiRouter") ApiRouter router,
-		@RESTEndpoints Set<RESTEndpoint> endpoints, ServerFailureHandler failureHandler) {
+		@RESTEndpoints Set<RESTEndpoint> endpoints, ServerFailureHandler failureHandler, LeaseReaper leaseReaper) {
 		super(vertx, options);
 		this.server = server;
 		this.router = router;
 		this.endpoints = endpoints;
 		this.failureHandler = failureHandler;
+		this.leaseReaper = leaseReaper;
 	}
 
 	public void start() {
@@ -49,6 +52,11 @@ public class RESTService extends AbstractService {
 		setupRouter();
 
 		server.requestHandler(router);
+
+		// Tied to the REST service because that is what owns the run registry the
+		// reaper hands reclaimed tasks back to. Without this running, a worker that
+		// dies mid-task stalls its run permanently.
+		leaseReaper.start();
 	}
 
 	public void setupRouter() {
