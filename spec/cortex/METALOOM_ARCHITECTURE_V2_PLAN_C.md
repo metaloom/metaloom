@@ -1,7 +1,7 @@
 # Variant C — Implementation Plan
 
-> **Status: IN PROGRESS.** Phase 1 steps P1.1, P1.2 and P1.3 have landed (see
-> §2.2, §2.7 and §2.8); everything from P1.4 on is still a plan.
+> **Status: IN PROGRESS.** Phase 1 steps P1.1–P1.4 have landed (see §2.2, §2.7,
+> §2.8 and §2.9); P1.5 (test migration) and P1.6 (end-to-end wiring) remain.
 >
 > Phased implementation plan for **Variant C**: moving pipeline execution off
 > Cortex and onto Loom, leaving Cortex as a node executor.
@@ -189,8 +189,8 @@ green.
 | **P1.1** | Invert the Loom→Cortex dependency; extract `loom-shared/node-model` | ✅ **done** — see §2.2 |
 | **P1.2** | `loom/pipeline` module: graph model + engine against a fake dispatcher | ✅ **done** — see §2.7 |
 | **P1.3** | Protocol: fix the envelope, add `SOURCE_*` / `NODE_TASK` messages | ✅ **done** — see §2.8 |
-| P1.4 | `cortex/node-runtime` + `source-runtime`; shrink `pipeline-core` | ⬜ next |
-| P1.5 | Test migration (10 classes, §5.8) | ⬜ |
+| **P1.4** | `cortex/node-runtime` + source runner; Cortex answers tasks | ✅ **done** — see §2.9 |
+| P1.5 | Test migration (10 classes, §5.8), then delete the old engine | ⬜ next |
 | P1.6 | Wire end to end; demo pipelines green (§5.9) | ⬜ |
 
 **P1.1 verification:** full reactor `install` green; 5 new ServiceLoader guard
@@ -330,6 +330,64 @@ that node outstanding. Worker selection still hardcodes `CPU` because nothing ye
 declares what a node kind needs. Run state remains in memory. All three are Phase
 2 items.
 
+## 2.9 P1.4 — the Cortex side, as built
+
+Landed 2026-07-18. Cortex can now answer node tasks and stream a source; what
+remains is migrating the old tests (P1.5) and wiring a run end to end (P1.6).
+
+**Added, not swapped.** The old in-Cortex engine is untouched and still passing.
+Deleting it before its ten dependent test classes are migrated would break the
+build for the duration of P1.5, so the new path was built alongside and the
+deletion moved into P1.5 where the tests move with it.
+
+| Component | Role |
+|---|---|
+| `cortex/node-runtime` (`cortex-node-runtime`) | New module — the reduced executor |
+| `NodeTaskRunner` | Runs a node over one media item and answers |
+| `NodeResultMapper` | The single place internal and wire results meet |
+| `SourceTaskRunner` | Enumerates a source, batches, waits for acks |
+| `PipelineTaskHandler` (`cortex/core`) | Binds both runners to the protocol |
+| `LoomControlChannel` | Now dispatches `NODE_TASK`, `SOURCE_TASK`, `SOURCE_ITEMS_ACK` |
+
+**`NodeTaskRunner` runs a *set* of nodes over one media item**, where the set has
+size 1 today. That shape is deliberate: affinity groups (Phase 3) dispatch a
+subgraph so intermediate results stay in-process, and keeping the shape now makes
+that a change of N rather than a rewrite. This is §2.5 honoured in code.
+
+**The node factory and every producer are reused unchanged.** Options are
+flattened onto the JSON node definition because that is where existing producers
+read them from — `filesystem-source` reads `path` directly — so no producer
+needed rewriting.
+
+**The source node is reused unchanged too.** `PipelineTaskHandler` builds it via
+the same factory and takes `MediaSourceNode.stream()`; only the sink differs.
+Instead of feeding the local executor, batches go over the wire.
+
+**Every dispatched task gets exactly one answer.** A node that throws, returns
+null, or names an unregistered kind all come back as a definite `FAILED`. The
+engine holds an item's progress until a result arrives, so a silently dropped
+task would stall the run rather than fail it.
+
+**Work runs on `Schedulers.io()`, never the WebSocket thread.** A transcription
+task would otherwise stall heartbeats and every other message for minutes.
+
+**Verification:** 17 tests (9 runner, 8 source). Full clean reactor build green;
+all prior steps still pass — P1.1 (5), P1.2 (28), P1.3 (13), plus
+`PipelineValidationServiceTest` (23), `ProcessorEndpointTest` (9),
+`PipelineRunCompletionEndpointTest` (8), and the untouched Cortex pipeline tests
+(32).
+
+⚠️ **A real bug was caught by the cancel test.** `cancel()` released the ack latch,
+which the scan loop could not distinguish from a genuine acknowledgement — so a
+cancelled source carried on scanning and sending batches after the connection was
+gone. Cancellation is now tracked separately from acking. Worth noting because
+the failure mode was "keeps working after it should have stopped", which no
+happy-path test would have surfaced.
+
+⚠️ **The Dagger staleness gotcha recurred**, as predicted in §2.8: adding a
+constructor parameter to `LoomControlChannel` required a full `clean` rebuild
+before `DaggerCortexComponent` regenerated.
+
 ---
 
 ## 3. Prerequisites
@@ -418,9 +476,11 @@ loom/
                        #   NodeDispatcher (SPI — impl lands in services/rest in P1.3)
                        #   ItemState, RunSummary (in-memory in Phase 1)
 cortex/
-  node-runtime/        # NEW — shrunk from pipeline-core
+  node-runtime/        # DONE (P1.4) — shrunk from pipeline-core
                        #   NodeTaskRunner: run N nodes over 1 media item
                        #   (N == 1 in Phase 1, a segment in Phase 3)
+                       #   SourceTaskRunner: batched, ack-throttled enumeration
+                       #   NodeResultMapper: internal <-> wire results
   pipeline-api/        # SHRINKS — keeps PipelineNode, NodeResult (internal),
                        #   AbstractPipelineNode; loses Pipeline, PipelineManager,
                        #   PipelineExecutor
@@ -919,6 +979,11 @@ it explicitly; it is easy to under-estimate and it is what protects the refactor
 - [x] **P1.3 landed** — string-concatenated envelope replaced; 6 message types and
       5 DTOs added; `WebSocketNodeDispatcher` + `PipelineRunRegistry`; inbound
       routing in `ProcessorEndpoint`; 13 protocol round-trip tests
+- [x] **P1.4 landed** — `cortex/node-runtime` with `NodeTaskRunner` and
+      `SourceTaskRunner`; control channel answers `NODE_TASK` / `SOURCE_TASK` /
+      `SOURCE_ITEMS_ACK`; 17 tests. Added **additively** — the old engine is
+      untouched and still passing, so nothing is broken before P1.5 migrates its
+      tests
 - [x] §2.1 updated 2026-07-18 — `filesystem-source` is implemented; the
       `MediaSourceNode.stream()` SPI turns out to be the right seam for Phase 1
 - [ ] **Make `FilesystemMediaScanner` lazy** (§2.1) — it materialises the whole

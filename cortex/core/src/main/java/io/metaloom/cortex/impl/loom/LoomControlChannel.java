@@ -24,7 +24,10 @@ import io.metaloom.loom.rest.model.pipeline.event.PipelineEventMessage;
 import io.metaloom.loom.rest.model.pipeline.event.PipelineEventType;
 import io.metaloom.loom.rest.model.processor.ProcessorCapability;
 import io.metaloom.loom.rest.model.processor.SystemStatusInfo;
+import io.metaloom.loom.pipeline.model.NodeTask;
 import io.metaloom.loom.rest.model.processor.message.ProcessorMessage;
+import io.metaloom.loom.rest.model.processor.message.SourceItemsAckMessage;
+import io.metaloom.loom.rest.model.processor.message.SourceTaskMessage;
 import io.metaloom.loom.rest.model.processor.message.ProcessorMessageType;
 import io.metaloom.loom.rest.model.processor.message.ProcessorRegistration;
 import io.metaloom.loom.rest.model.processor.workorder.WorkOrder;
@@ -53,6 +56,8 @@ public class LoomControlChannel {
 	private final PipelineEventBus pipelineEventBus;
 	private final PipelineWorkOrderHandler workOrderHandler;
 
+	private final PipelineTaskHandler taskHandler;
+
 	private final AtomicBoolean started = new AtomicBoolean(false);
 	private final AtomicBoolean connected = new AtomicBoolean(false);
 	private final AtomicBoolean registered = new AtomicBoolean(false);
@@ -79,11 +84,12 @@ public class LoomControlChannel {
 
 	@Inject
 	public LoomControlChannel(Vertx vertx, CortexOptions options, PipelineEventBus pipelineEventBus,
-			PipelineWorkOrderHandler workOrderHandler) {
+			PipelineWorkOrderHandler workOrderHandler, PipelineTaskHandler taskHandler) {
 		this.vertx = vertx;
 		this.options = options;
 		this.pipelineEventBus = pipelineEventBus;
 		this.workOrderHandler = workOrderHandler;
+		this.taskHandler = taskHandler;
 	}
 
 	public void start() {
@@ -353,6 +359,15 @@ public class LoomControlChannel {
 			case WORK_ORDER:
 				handleWorkOrder(message);
 				break;
+			case NODE_TASK:
+				handleNodeTask(message);
+				break;
+			case SOURCE_TASK:
+				handleSourceTask(message);
+				break;
+			case SOURCE_ITEMS_ACK:
+				handleSourceItemsAck(message);
+				break;
 			case ERROR:
 				connectionError = message.getBody() != null ? message.getBody().getString("message") : "unknown";
 				log.warn("Loom reported websocket error: {}", connectionError);
@@ -361,6 +376,62 @@ public class LoomControlChannel {
 				log.debug("Ignoring processor websocket message type {}", message.getType());
 				break;
 		}
+	}
+
+	/**
+	 * Execute one node against one media item and answer with the outcome.
+	 *
+	 * <p>Handing off to {@link PipelineTaskHandler} keeps the work off this
+	 * connection's thread - a transcription task would otherwise stall heartbeats
+	 * and every other message for minutes.</p>
+	 */
+	private void handleNodeTask(ProcessorMessage message) {
+		if (message.getBody() == null) {
+			log.warn("Ignoring NODE_TASK without body");
+			return;
+		}
+		NodeTask task;
+		try {
+			task = message.getBody().mapTo(NodeTask.class);
+		} catch (Exception e) {
+			log.warn("Failed to parse NODE_TASK payload: {}", message.getBody(), e);
+			return;
+		}
+		taskHandler.handleNodeTask(task, this::sendMessage);
+	}
+
+	/**
+	 * Run a source node and stream what it enumerates back in acknowledged batches.
+	 */
+	private void handleSourceTask(ProcessorMessage message) {
+		if (message.getBody() == null) {
+			log.warn("Ignoring SOURCE_TASK without body");
+			return;
+		}
+		SourceTaskMessage task;
+		try {
+			task = message.getBody().mapTo(SourceTaskMessage.class);
+		} catch (Exception e) {
+			log.warn("Failed to parse SOURCE_TASK payload: {}", message.getBody(), e);
+			return;
+		}
+		taskHandler.handleSourceTask(task, this::sendMessage);
+	}
+
+	/** Release the source runner to send its next batch. */
+	private void handleSourceItemsAck(ProcessorMessage message) {
+		if (message.getBody() == null) {
+			log.warn("Ignoring SOURCE_ITEMS_ACK without body");
+			return;
+		}
+		SourceItemsAckMessage ack;
+		try {
+			ack = message.getBody().mapTo(SourceItemsAckMessage.class);
+		} catch (Exception e) {
+			log.warn("Failed to parse SOURCE_ITEMS_ACK payload: {}", message.getBody(), e);
+			return;
+		}
+		taskHandler.handleSourceItemsAck(ack.getRunUuid(), ack.getSeq());
 	}
 
 	private void handleWorkOrder(ProcessorMessage message) {

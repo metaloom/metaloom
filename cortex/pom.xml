@@ -29,6 +29,7 @@
         <module>pipeline-api</module>
         <module>pipeline-common</module>
         <module>pipeline-core</module>
+        <module>node-runtime</module>
     </modules>
 
     <properties>
@@ -107,6 +108,11 @@
             <dependency>
                 <groupId>io.metaloom.cortex</groupId>
                 <artifactId>cortex-pipeline-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.cortex</groupId>
+                <artifactId>cortex-node-runtime</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
