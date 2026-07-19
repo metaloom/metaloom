@@ -1,0 +1,29 @@
+{
+  "uuid" : "fa086950-2857-496d-b414-d07acac48ea2",
+  "status" : {
+    "creator" : {
+      "uuid" : "6793ad7e-200c-432b-8e64-62b9f9544ece",
+      "name" : "creatorEditor"
+    },
+    "created" : "2018-10-12T14:15:06Z",
+    "editor" : {
+      "uuid" : "6793ad7e-200c-432b-8e64-62b9f9544ece",
+      "name" : "creatorEditor"
+    },
+    "edited" : "2018-10-12T14:15:06Z"
+  },
+  "title" : "the_title",
+  "area" : {
+    "from" : 0,
+    "to" : 0,
+    "width" : 0,
+    "height" : 0,
+    "startX" : 0,
+    "startY" : 0
+  },
+  "description" : "the_description",
+  "tasks" : [ ],
+  "comments" : [ ],
+  "tags" : [ ],
+  "assetUuid" : "56ac17f2-a003-413a-ad38-303a05808eb7"
+}

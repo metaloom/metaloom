@@ -8,6 +8,9 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -32,8 +35,17 @@ import io.vertx.core.json.JsonObject;
 
 public abstract class AbstractModelBuilderTest implements TestValues {
 
+	/**
+	 * Set to true to overwrite the stored models with the currently built output instead of asserting against them.
+	 */
+	public static final String UPDATE_MODELS_PROP = "model.update";
+
+	private static final Path MODEL_SOURCE_DIR = Paths.get("src", "test", "resources", "model");
+
 	public LoomModelBuilder builder() {
-		DaoCollection daos = mock(DaoCollection.class);
+		// RETURNS_MOCKS yields a stub for every dao accessor and empty collections for their
+		// list-returning methods, so builders that reach for additional daos don't NPE here.
+		DaoCollection daos = mock(DaoCollection.class, Mockito.RETURNS_MOCKS);
 		LoomModelValidator validator = new LoomModelValidatorImpl();
 		UserDao userDao = mock(UserDao.class);
 		User user = mock(User.class);
@@ -51,13 +63,19 @@ public abstract class AbstractModelBuilderTest implements TestValues {
 	}
 
 	public void assertWithModel(String json, String modelName) throws IOException {
+		if (Boolean.getBoolean(UPDATE_MODELS_PROP)) {
+			Path target = MODEL_SOURCE_DIR.resolve(modelName);
+			Files.createDirectories(target.getParent());
+			Files.writeString(target, json, Charset.defaultCharset());
+			System.out.println("Updated model file " + target);
+			return;
+		}
 		try (InputStream ins = getClass().getResourceAsStream("/model/" + modelName)) {
-			if (ins == null) {
-				System.out.println(json);
-			}
-			assertNotNull(ins, "Model file " + modelName + " not found in test resources");
+			assertNotNull(ins, "Model file " + modelName + " not found in test resources."
+				+ " Re-run with -D" + UPDATE_MODELS_PROP + "=true to regenerate the stored models.");
 			String model = IOUtils.toString(ins, Charset.defaultCharset());
-			assertEquals(model, json, "The json did not match with the stored model.");
+			assertEquals(model, json, "The json did not match with the stored model."
+				+ " Re-run with -D" + UPDATE_MODELS_PROP + "=true to regenerate the stored models.");
 		}
 	}
 

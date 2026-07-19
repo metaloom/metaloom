@@ -147,10 +147,14 @@ public class DaoRunStateStore implements RunStateStore {
 		String key = key(itemUuid, result.getNodeId());
 		PipelineNodeTask row = pendingTasks.get(key);
 
-		if (row == null && flushedTasks.contains(key)) {
-			// Already on disk from its dispatch. Update in place.
-			updateSettledTask(itemUuid, result);
-			return;
+		if (row == null) {
+			// Not buffered. It may still be on disk from its dispatch - a flush can
+			// happen between dispatching a node and its result arriving. Ask the
+			// database rather than assuming, because fabricating a second row collides
+			// on the primary key: the worker echoes the task uuid back.
+			if (updateSettledTask(itemUuid, result)) {
+				return;
+			}
 		}
 
 		if (row == null) {
@@ -281,12 +285,11 @@ public class DaoRunStateStore implements RunStateStore {
 	/**
 	 * Apply a settle to a task row that has already been written.
 	 */
-	private void updateSettledTask(UUID itemUuid, NodeTaskResult result) {
+	private boolean updateSettledTask(UUID itemUuid, NodeTaskResult result) {
 		try {
 			PipelineNodeTask stored = taskDao.loadByItemAndNode(itemUuid, result.getNodeId());
 			if (stored == null) {
-				log.warn("Task '{}' for item {} was recorded as flushed but is missing", result.getNodeId(), itemUuid);
-				return;
+				return false;
 			}
 			stored.setState(stateOf(result.getState()));
 			stored.setLeaseExpiresAt(null);
@@ -297,8 +300,10 @@ public class DaoRunStateStore implements RunStateStore {
 				stored.setOutputs(new JsonObject(result.getOutputs()));
 			}
 			taskDao.update(stored);
+			return true;
 		} catch (Exception e) {
 			log.error("Failed to update settled task '{}' for item {}", result.getNodeId(), itemUuid, e);
+			return false;
 		}
 	}
 

@@ -30,12 +30,14 @@ public class AssetModelBuilderTest extends AbstractModelBuilderTest {
 		assertWithModel(list, "asset.list_response");
 	}
 
-	private Asset mockAsset(String title) {
+	private Asset mockAsset(String filename) {
 		Asset asset = mock(Asset.class);
-		when(asset.getUuid()).thenReturn(TASK_UUID);
+		when(asset.getUuid()).thenReturn(ASSET_UUID);
+		when(asset.getFilename()).thenReturn(filename);
 		when(asset.getSHA512()).thenReturn(SHA512SUM);
 		when(asset.getSHA256()).thenReturn(SHA256SUM);
 		when(asset.getMD5()).thenReturn(MD5SUM);
+		mockCreatorEditor(asset);
 		return asset;
 	}
 

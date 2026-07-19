@@ -1,5 +1,6 @@
 {
   "data" : [ {
+    "uuid" : "6635ac54-5a27-4d15-904e-8a74c7ac5bb0",
     "status" : {
       "creator" : {
         "uuid" : "6793ad7e-200c-432b-8e64-62b9f9544ece",
@@ -9,9 +10,9 @@
         "uuid" : "6793ad7e-200c-432b-8e64-62b9f9544ece",
         "name" : "creatorEditor"
       }
-    },
-    "name" : "the_role_name"
+    }
   }, {
+    "uuid" : "6635ac54-5a27-4d15-904e-8a74c7ac5bb0",
     "status" : {
       "creator" : {
         "uuid" : "6793ad7e-200c-432b-8e64-62b9f9544ece",
@@ -21,10 +22,10 @@
         "uuid" : "6793ad7e-200c-432b-8e64-62b9f9544ece",
         "name" : "creatorEditor"
       }
-    },
-    "name" : "the_role_name"
+    }
   } ],
   "_metainfo" : {
+    "lastUuid" : "6635ac54-5a27-4d15-904e-8a74c7ac5bb0",
     "perPage" : 25,
     "totalCount" : 2
   }

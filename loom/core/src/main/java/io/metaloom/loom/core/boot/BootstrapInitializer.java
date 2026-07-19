@@ -137,5 +137,17 @@ public class BootstrapInitializer {
 		mcpService.stop();
 		restService.stop();
 		grpcService.stop();
+		// Stopping the services unregisters their handlers but leaves the socket bound.
+		// A process that starts a server, shuts it down and starts another - which is
+		// what a test suite does - then fails to bind with "Address already in use".
+		try {
+			httpServer.close().toCompletionStage().toCompletableFuture().get();
+			log.info("HTTP server closed");
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			log.warn("Interrupted while closing the HTTP server");
+		} catch (Exception e) {
+			log.error("Failed to close the HTTP server", e);
+		}
 	}
 }

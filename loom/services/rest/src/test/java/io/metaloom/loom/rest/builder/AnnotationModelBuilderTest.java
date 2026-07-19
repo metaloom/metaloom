@@ -1,6 +1,7 @@
 package io.metaloom.loom.rest.builder;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 
@@ -30,7 +31,11 @@ public class AnnotationModelBuilderTest extends AbstractModelBuilderTest {
 
 	private Annotation mockAnnotation() {
 		Annotation annotation = mock(Annotation.class);
-		annotation.setTitle("the_title");
+		when(annotation.getUuid()).thenReturn(ANNOTATION_UUID);
+		when(annotation.getAssetUuid()).thenReturn(ASSET_UUID);
+		when(annotation.getTitle()).thenReturn("the_title");
+		when(annotation.getDescription()).thenReturn("the_description");
+		mockCreatorEditor(annotation);
 		return annotation;
 	}
 }

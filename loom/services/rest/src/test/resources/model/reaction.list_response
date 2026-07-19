@@ -1,0 +1,14 @@
+{
+  "data" : [ {
+    "uuid" : "c3005050-e386-4228-90be-cab874a46fd9",
+    "status" : { }
+  }, {
+    "uuid" : "c3005050-e386-4228-90be-cab874a46fd9",
+    "status" : { }
+  } ],
+  "_metainfo" : {
+    "lastUuid" : "c3005050-e386-4228-90be-cab874a46fd9",
+    "perPage" : 25,
+    "totalCount" : 2
+  }
+}

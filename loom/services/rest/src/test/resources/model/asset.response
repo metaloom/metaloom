@@ -1,0 +1,45 @@
+{
+  "uuid" : "56ac17f2-a003-413a-ad38-303a05808eb7",
+  "status" : {
+    "creator" : {
+      "uuid" : "6793ad7e-200c-432b-8e64-62b9f9544ece",
+      "name" : "creatorEditor"
+    },
+    "created" : "2018-10-12T14:15:06Z",
+    "editor" : {
+      "uuid" : "6793ad7e-200c-432b-8e64-62b9f9544ece",
+      "name" : "creatorEditor"
+    },
+    "edited" : "2018-10-12T14:15:06Z"
+  },
+  "social" : {
+    "rating" : {
+      "stars" : 0,
+      "upVotes" : 0,
+      "downVotes" : 0
+    },
+    "reactions" : { }
+  },
+  "tags" : [ ],
+  "annotations" : [ ],
+  "collections" : [ ],
+  "embeddings" : [ ],
+  "file" : {
+    "filename" : "primary",
+    "size" : 0
+  },
+  "consistency" : {
+    "zeroChunkCount" : 0
+  },
+  "hashes" : {
+    "sha512" : "dbf5dae6e3825ac5b2b595a37b3945a91bb67e9dad85c1e4ff5c3fdb2948b1100d71dc4e1ebd9a854928c34c5f71a81cd0f258f4652aee3aa2345742177ba3e7",
+    "sha256" : "d7e2763589f1c2f393cc44414c5c7595cd711ba9c3284894227b0304c8c29e57",
+    "md5" : "f29192026939e824b7763507af02c06f"
+  },
+  "geoComponents" : [ ],
+  "imageComponents" : [ ],
+  "videoComponents" : [ ],
+  "audioComponents" : [ ],
+  "documentComponents" : [ ],
+  "locations" : [ ]
+}

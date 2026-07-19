@@ -1,4 +1,5 @@
 {
+  "uuid" : "ef5702dd-0dcb-404b-86d7-9982ad28d6c1",
   "status" : {
     "creator" : {
       "uuid" : "6793ad7e-200c-432b-8e64-62b9f9544ece",
@@ -9,6 +10,5 @@
       "name" : "creatorEditor"
     }
   },
-  "username" : "joeDoe",
-  "enabled" : false
+  "name" : "primary"
 }
