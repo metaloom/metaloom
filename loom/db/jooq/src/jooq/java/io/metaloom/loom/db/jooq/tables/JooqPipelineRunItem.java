@@ -168,7 +168,7 @@ public class JooqPipelineRunItem extends TableImpl<JooqPipelineRunItemRecord> {
 
     @Override
     public List<Index> getIndexes() {
-        return Arrays.asList(Indexes.IDX_PIPELINE_RUN_ITEM_RUN_STATE, Indexes.IDX_PIPELINE_RUN_ITEM_RUN_UUID);
+        return Arrays.asList(Indexes.IDX_PIPELINE_RUN_ITEM_MEDIA_PATH, Indexes.IDX_PIPELINE_RUN_ITEM_RUN_STATE, Indexes.IDX_PIPELINE_RUN_ITEM_RUN_UUID);
     }
 
     @Override

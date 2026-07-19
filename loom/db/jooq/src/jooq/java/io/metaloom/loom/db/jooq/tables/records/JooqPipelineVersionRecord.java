@@ -11,7 +11,6 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 import org.jooq.Field;
-import org.jooq.JSONB;
 import org.jooq.Record1;
 import org.jooq.Record12;
 import org.jooq.Row12;
@@ -22,7 +21,7 @@ import org.jooq.impl.UpdatableRecordImpl;
  * Version history of pipeline definitions
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqPipelineVersionRecord extends UpdatableRecordImpl<JooqPipelineVersionRecord> implements Record12<UUID, UUID, Integer, String, String, JSONB, Boolean, Integer, Boolean, JsonObject, LocalDateTime, UUID> {
+public class JooqPipelineVersionRecord extends UpdatableRecordImpl<JooqPipelineVersionRecord> implements Record12<UUID, UUID, Integer, String, String, JsonObject, Boolean, Integer, Boolean, JsonObject, LocalDateTime, UUID> {
 
     private static final long serialVersionUID = 1L;
 
@@ -108,7 +107,7 @@ public class JooqPipelineVersionRecord extends UpdatableRecordImpl<JooqPipelineV
      * Setter for <code>public.pipeline_version.definition</code>. Pipeline
      * definition JSON at this version
      */
-    public void setDefinition(JSONB value) {
+    public void setDefinition(JsonObject value) {
         set(5, value);
     }
 
@@ -116,8 +115,8 @@ public class JooqPipelineVersionRecord extends UpdatableRecordImpl<JooqPipelineV
      * Getter for <code>public.pipeline_version.definition</code>. Pipeline
      * definition JSON at this version
      */
-    public JSONB getDefinition() {
-        return (JSONB) get(5);
+    public JsonObject getDefinition() {
+        return (JsonObject) get(5);
     }
 
     /**
@@ -230,12 +229,12 @@ public class JooqPipelineVersionRecord extends UpdatableRecordImpl<JooqPipelineV
     // -------------------------------------------------------------------------
 
     @Override
-    public Row12<UUID, UUID, Integer, String, String, JSONB, Boolean, Integer, Boolean, JsonObject, LocalDateTime, UUID> fieldsRow() {
+    public Row12<UUID, UUID, Integer, String, String, JsonObject, Boolean, Integer, Boolean, JsonObject, LocalDateTime, UUID> fieldsRow() {
         return (Row12) super.fieldsRow();
     }
 
     @Override
-    public Row12<UUID, UUID, Integer, String, String, JSONB, Boolean, Integer, Boolean, JsonObject, LocalDateTime, UUID> valuesRow() {
+    public Row12<UUID, UUID, Integer, String, String, JsonObject, Boolean, Integer, Boolean, JsonObject, LocalDateTime, UUID> valuesRow() {
         return (Row12) super.valuesRow();
     }
 
@@ -265,7 +264,7 @@ public class JooqPipelineVersionRecord extends UpdatableRecordImpl<JooqPipelineV
     }
 
     @Override
-    public Field<JSONB> field6() {
+    public Field<JsonObject> field6() {
         return JooqPipelineVersion.PIPELINE_VERSION.DEFINITION;
     }
 
@@ -325,7 +324,7 @@ public class JooqPipelineVersionRecord extends UpdatableRecordImpl<JooqPipelineV
     }
 
     @Override
-    public JSONB component6() {
+    public JsonObject component6() {
         return getDefinition();
     }
 
@@ -385,7 +384,7 @@ public class JooqPipelineVersionRecord extends UpdatableRecordImpl<JooqPipelineV
     }
 
     @Override
-    public JSONB value6() {
+    public JsonObject value6() {
         return getDefinition();
     }
 
@@ -450,7 +449,7 @@ public class JooqPipelineVersionRecord extends UpdatableRecordImpl<JooqPipelineV
     }
 
     @Override
-    public JooqPipelineVersionRecord value6(JSONB value) {
+    public JooqPipelineVersionRecord value6(JsonObject value) {
         setDefinition(value);
         return this;
     }
@@ -492,7 +491,7 @@ public class JooqPipelineVersionRecord extends UpdatableRecordImpl<JooqPipelineV
     }
 
     @Override
-    public JooqPipelineVersionRecord values(UUID value1, UUID value2, Integer value3, String value4, String value5, JSONB value6, Boolean value7, Integer value8, Boolean value9, JsonObject value10, LocalDateTime value11, UUID value12) {
+    public JooqPipelineVersionRecord values(UUID value1, UUID value2, Integer value3, String value4, String value5, JsonObject value6, Boolean value7, Integer value8, Boolean value9, JsonObject value10, LocalDateTime value11, UUID value12) {
         value1(value1);
         value2(value2);
         value3(value3);
@@ -522,7 +521,7 @@ public class JooqPipelineVersionRecord extends UpdatableRecordImpl<JooqPipelineV
     /**
      * Create a detached, initialised JooqPipelineVersionRecord
      */
-    public JooqPipelineVersionRecord(UUID uuid, UUID pipelineUuid, Integer versionNumber, String name, String description, JSONB definition, Boolean enabled, Integer priority, Boolean dryRun, JsonObject meta, LocalDateTime created, UUID creatorUuid) {
+    public JooqPipelineVersionRecord(UUID uuid, UUID pipelineUuid, Integer versionNumber, String name, String description, JsonObject definition, Boolean enabled, Integer priority, Boolean dryRun, JsonObject meta, LocalDateTime created, UUID creatorUuid) {
         super(JooqPipelineVersion.PIPELINE_VERSION);
 
         setUuid(uuid);

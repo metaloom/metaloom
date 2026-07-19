@@ -239,7 +239,7 @@
 											<converter>io.metaloom.loom.db.jooq.converter.JsonObjectConverter</converter>
 											<!-- pipeline_node_task.outputs holds node outputs and is read
 											     as a JsonObject like meta, so it needs the same converter. -->
-											<includeExpression>.*\.meta.*|.*\.outputs</includeExpression>
+											<includeExpression>.*\.meta.*|.*\.outputs|.*\.definition</includeExpression>
 										</forcedType>
 									</forcedTypes>
 								</database>

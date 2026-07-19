@@ -72,6 +72,16 @@ public class DaoRunStateStore implements RunStateStore {
 	private final List<PipelineRunItem> pendingItems = new ArrayList<>();
 	/** Keyed by item + node so a settle updates the dispatch row rather than adding one. */
 	private final Map<String, PipelineNodeTask> pendingTasks = new LinkedHashMap<>();
+	/**
+	 * Tasks already written to the database.
+	 *
+	 * <p>Once a dispatch row has been flushed, the buffer no longer holds it, and a
+	 * later settle must <em>update</em> that row. Without this it looks like a task
+	 * that was never dispatched, and re-inserting it collides on the primary key -
+	 * the worker echoes the task uuid back, so the fabricated row carries the same
+	 * one.</p>
+	 */
+	private final java.util.Set<String> flushedTasks = new java.util.LinkedHashSet<>();
 
 	public DaoRunStateStore(PipelineRunDao runDao, PipelineRunItemDao itemDao, PipelineNodeTaskDao taskDao,
 		UUID runUuid, UUID userUuid) {
@@ -136,6 +146,13 @@ public class DaoRunStateStore implements RunStateStore {
 		}
 		String key = key(itemUuid, result.getNodeId());
 		PipelineNodeTask row = pendingTasks.get(key);
+
+		if (row == null && flushedTasks.contains(key)) {
+			// Already on disk from its dispatch. Update in place.
+			updateSettledTask(itemUuid, result);
+			return;
+		}
+
 		if (row == null) {
 			// Settled without a dispatch: a skip, or the synthesised source node. Both
 			// are real decisions and have to be recorded, or recovery would re-run them.
@@ -248,6 +265,7 @@ public class DaoRunStateStore implements RunStateStore {
 			}
 			if (!pendingTasks.isEmpty()) {
 				taskDao.storeBatch(new ArrayList<>(pendingTasks.values()));
+				flushedTasks.addAll(pendingTasks.keySet());
 				pendingTasks.clear();
 			}
 			log.debug("Flushed {} item(s) and {} task(s)", items, tasks);
@@ -257,6 +275,30 @@ public class DaoRunStateStore implements RunStateStore {
 			log.error("Failed to flush {} item(s) and {} task(s) of run state", items, tasks, e);
 			pendingItems.clear();
 			pendingTasks.clear();
+		}
+	}
+
+	/**
+	 * Apply a settle to a task row that has already been written.
+	 */
+	private void updateSettledTask(UUID itemUuid, NodeTaskResult result) {
+		try {
+			PipelineNodeTask stored = taskDao.loadByItemAndNode(itemUuid, result.getNodeId());
+			if (stored == null) {
+				log.warn("Task '{}' for item {} was recorded as flushed but is missing", result.getNodeId(), itemUuid);
+				return;
+			}
+			stored.setState(stateOf(result.getState()));
+			stored.setLeaseExpiresAt(null);
+			stored.setDurationMs(result.getDurationMs());
+			stored.setErrorMessage(result.getMessage());
+			stored.setFinished(Instant.now());
+			if (!result.getOutputs().isEmpty()) {
+				stored.setOutputs(new JsonObject(result.getOutputs()));
+			}
+			taskDao.update(stored);
+		} catch (Exception e) {
+			log.error("Failed to update settled task '{}' for item {}", result.getNodeId(), itemUuid, e);
 		}
 	}
 

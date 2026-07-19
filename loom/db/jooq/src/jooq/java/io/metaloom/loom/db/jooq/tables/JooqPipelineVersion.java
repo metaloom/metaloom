@@ -20,7 +20,6 @@ import org.jooq.Field;
 import org.jooq.ForeignKey;
 import org.jooq.Function12;
 import org.jooq.Index;
-import org.jooq.JSONB;
 import org.jooq.Name;
 import org.jooq.Record;
 import org.jooq.Records;
@@ -90,7 +89,7 @@ public class JooqPipelineVersion extends TableImpl<JooqPipelineVersionRecord> {
      * The column <code>public.pipeline_version.definition</code>. Pipeline
      * definition JSON at this version
      */
-    public final TableField<JooqPipelineVersionRecord, JSONB> DEFINITION = createField(DSL.name("definition"), SQLDataType.JSONB.nullable(false).defaultValue(DSL.field("'{}'::jsonb", SQLDataType.JSONB)), this, "Pipeline definition JSON at this version");
+    public final TableField<JooqPipelineVersionRecord, JsonObject> DEFINITION = createField(DSL.name("definition"), SQLDataType.JSONB.nullable(false).defaultValue(DSL.field("'{}'::jsonb", SQLDataType.JSONB)), this, "Pipeline definition JSON at this version", new JsonObjectConverter());
 
     /**
      * The column <code>public.pipeline_version.enabled</code>. Pipeline enabled
@@ -253,14 +252,14 @@ public class JooqPipelineVersion extends TableImpl<JooqPipelineVersionRecord> {
     // -------------------------------------------------------------------------
 
     @Override
-    public Row12<java.util.UUID, java.util.UUID, Integer, String, String, JSONB, Boolean, Integer, Boolean, JsonObject, LocalDateTime, java.util.UUID> fieldsRow() {
+    public Row12<java.util.UUID, java.util.UUID, Integer, String, String, JsonObject, Boolean, Integer, Boolean, JsonObject, LocalDateTime, java.util.UUID> fieldsRow() {
         return (Row12) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function12<? super java.util.UUID, ? super java.util.UUID, ? super Integer, ? super String, ? super String, ? super JSONB, ? super Boolean, ? super Integer, ? super Boolean, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function12<? super java.util.UUID, ? super java.util.UUID, ? super Integer, ? super String, ? super String, ? super JsonObject, ? super Boolean, ? super Integer, ? super Boolean, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -268,7 +267,7 @@ public class JooqPipelineVersion extends TableImpl<JooqPipelineVersionRecord> {
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function12<? super java.util.UUID, ? super java.util.UUID, ? super Integer, ? super String, ? super String, ? super JSONB, ? super Boolean, ? super Integer, ? super Boolean, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function12<? super java.util.UUID, ? super java.util.UUID, ? super Integer, ? super String, ? super String, ? super JsonObject, ? super Boolean, ? super Integer, ? super Boolean, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }
