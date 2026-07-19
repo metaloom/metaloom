@@ -805,7 +805,8 @@ public class PipelineRunEngine {
 	private boolean dispatch(ItemState state, PipelineGraphNode node) {
 		UUID taskUuid = UUID.randomUUID();
 		NodeTask task = new NodeTask(taskUuid, runUuid, state.getItemId(), node.getId(), node.getKind(),
-			state.getMedia(), node.getOptions(), collectUpstreamOutputs(state, node));
+			state.getMedia(), node.getOptions(), collectUpstreamOutputs(state, node),
+			graph.getResultBatchSize());
 
 		state.markInFlight(node.getId(), taskUuid);
 		state.recordAttempt(node.getId());

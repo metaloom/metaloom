@@ -31,13 +31,15 @@ public class NodeTask {
 	private final MediaRef media;
 	private final Map<String, Object> options;
 	private final Map<String, Map<String, Object>> upstreamOutputs;
+	private final int resultBatchSize;
 
 	@JsonCreator
 	public NodeTask(@JsonProperty("taskUuid") UUID taskUuid, @JsonProperty("runUuid") UUID runUuid,
 		@JsonProperty("itemId") String itemId, @JsonProperty("nodeId") String nodeId,
 		@JsonProperty("nodeKind") String nodeKind, @JsonProperty("media") MediaRef media,
 		@JsonProperty("options") Map<String, Object> options,
-		@JsonProperty("upstreamOutputs") Map<String, Map<String, Object>> upstreamOutputs) {
+		@JsonProperty("upstreamOutputs") Map<String, Map<String, Object>> upstreamOutputs,
+		@JsonProperty("resultBatchSize") Integer resultBatchSize) {
 		this.taskUuid = Objects.requireNonNull(taskUuid, "A task uuid must be set");
 		this.runUuid = runUuid;
 		this.itemId = Objects.requireNonNull(itemId, "An item id must be set");
@@ -48,6 +50,25 @@ public class NodeTask {
 		this.upstreamOutputs = upstreamOutputs == null
 			? Map.of()
 			: Collections.unmodifiableMap(new LinkedHashMap<>(upstreamOutputs));
+		// Carried on the task so a worker serving several runs batches each one to its
+		// own pipeline's setting, without needing separate run-level bookkeeping.
+		this.resultBatchSize = resultBatchSize == null ? 1 : Math.max(1, resultBatchSize);
+	}
+
+	/**
+	 * Convenience overload for the unbatched case.
+	 */
+	public NodeTask(UUID taskUuid, UUID runUuid, String itemId, String nodeId, String nodeKind, MediaRef media,
+		Map<String, Object> options, Map<String, Map<String, Object>> upstreamOutputs) {
+		this(taskUuid, runUuid, itemId, nodeId, nodeKind, media, options, upstreamOutputs, 1);
+	}
+
+	/**
+	 * @return how many results the worker may accumulate before sending; 1 means send
+	 *         each one as it happens
+	 */
+	public int getResultBatchSize() {
+		return resultBatchSize;
 	}
 
 	public UUID getTaskUuid() {

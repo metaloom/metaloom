@@ -5,11 +5,7 @@
 > Loom owns the pipeline graph and dispatches node tasks — or whole affinity
 > segments — to Cortex workers. Run state is durable, leases reclaim work from
 > dead workers, and a restart resumes. Of Phase 3, affinity segmentation, event
-> aggregation and circuit breakers have landed; **batching (P3.4) is
-> deliberately blocked** on measurements that do not exist.
->
-> ⚠️ **A benchmark disproved this plan's stated justification for affinity**
-> (§2.9). Read that before extending it.
+> aggregation, circuit breakers and result batching have landed.
 >
 > This document is the **record of the work and the decisions behind it**. For
 > what the system does today, see
@@ -48,9 +44,9 @@ class of bug rather than fixing an instance of it.
 
 Established by reading the code, not the specs. Each one changes the work.
 
-### 2.1 ✅ `filesystem-source` now exists — and fits this plan well
+### 2.1 DONE: `filesystem-source` now exists — and fits this plan well
 
-> **Updated 2026-07-18.** This was previously a 🔴 blocker: the kind had a
+> **Updated 2026-07-18.** This was previously a Risk: blocker: the kind had a
 > descriptor only and resolved to a success-reporting stub. **It has since been
 > implemented.** Phase 1 no longer starts by writing a source node.
 
@@ -83,7 +79,7 @@ Phase 1 should preserve rather than reinvent.
 
 Two residual caveats, both of which Phase 1 must handle:
 
-- ⚠️ **It materialises the whole selection.** `FilesystemMediaScanner.expand()`
+- **Note:** **It materialises the whole selection.** `FilesystemMediaScanner.expand()`
   and `walk()` both return `List<Path>`, so the entire file list is built in
   memory before the first item is emitted. The `MediaSourceNode` Javadoc
   explicitly advises against this — *"implementations should stream rather than
@@ -93,7 +89,7 @@ Two residual caveats, both of which Phase 1 must handle:
   cost before the first batch is sent. **Converting the scanner to a lazy
   `Flowable` is Phase 1 work**, and it is worth doing regardless of Variant C —
   today's local engine has the same exposure.
-- ⚠️ **The node has two roles that split across the boundary.** `stream()`
+- **Note:** **The node has two roles that split across the boundary.** `stream()`
   enumerates; `process()` additionally returns `{path, source}` per item. In
   Variant C the enumeration happens on Cortex while per-item evaluation happens
   on Loom. Since the source's own `process()` output is trivially derivable from
@@ -101,7 +97,7 @@ Two residual caveats, both of which Phase 1 must handle:
   back to Cortex for the source node** — one saved round trip per item, and it
   keeps the source's semantics in one place.
 
-### 2.2 ✅ Loom depended on Cortex — inverted in P1.1
+### 2.2 DONE: Loom depended on Cortex — inverted in P1.1
 
 > **Resolved 2026-07-18 (step P1.1).** Previously `loom/services/rest`
 > depended on **17** `cortex-*-api` modules for node descriptors, and
@@ -127,7 +123,7 @@ They were Loom artefacts living in the Cortex tree. Resolution:
 | Deleted | 17 `cortex/nodes/*-api` modules |
 | `loom/services/rest` | 17 `cortex-*` deps → **1** `loom-node-model` dep; the Loom tree now has **no** `io.metaloom.cortex` pom reference |
 
-⚠️ **The subtle part was `ServiceLoader`.** Providers are discovered via
+**Note:** **The subtle part was `ServiceLoader`.** Providers are discovered via
 `META-INF/services/io.metaloom.loom.nodes.spec.NodeDescriptorProvider`, and each
 of the 16 provider modules shipped its own copy. Merging modules meant merging
 16 service files into one — a change that fails *silently*: a dropped line
@@ -139,7 +135,7 @@ providers load, 29 kinds register, one kind from each former module is present,
 and no kind is advertised twice. It was verified to actually fail (3 of 5 tests,
 with a precise diagnostic) when a single service entry is removed.
 
-### 2.3 ✅ The offline CLI path is unaffected
+### 2.3 DONE: The offline CLI path is unaffected
 
 `cortex process run` goes through `FilesystemProcessorImpl`, which drives the
 **legacy** `FilesystemNode` tree — not `PipelineExecutor`. Removing the pipeline
@@ -148,7 +144,7 @@ engine does not break offline batch processing.
 **Consequence:** less risk than expected. But see §8.4 — "Cortex is useful
 standalone" becomes a weaker claim, and that is a product decision.
 
-### 2.4 ⚠️ Ten test classes depend on the executor harness
+### 2.4 NOTE: Ten test classes depend on the executor harness
 
 `AbstractPipelineNodeTest` builds a linear pipeline and runs the real executor.
 Eight concrete node tests extend it (`MD5NodePipelineTest`,
@@ -161,7 +157,7 @@ plus `AbstractFilterNodeTest`.
 replacement single-node harness is Phase 1 work, and it touches ten files. This
 is the largest mechanical cost in Phase 1.
 
-### 2.5 ⚠️ Phase 3 needs back what Phase 1 would delete
+### 2.5 NOTE: Phase 3 needs back what Phase 1 would delete
 
 Affinity groups (Phase 3) require Cortex to run a *subgraph* locally — which is
 a small DAG engine. Deleting `ReactivePipelineExecutor` outright in Phase 1 and
@@ -181,7 +177,7 @@ Recorded 2026-07-18. These were the open questions blocking Phase 1 start.
 
 | # | Question | Decision | Consequence |
 |---|---|---|---|
-| Q1 | Must standalone Cortex pipeline execution survive? | **No — Loom-only is acceptable** | `node-runtime` needs no local driver. Offline use is limited to the legacy `cortex process run --actions` path. ⚠️ The README and website claims about standalone use must be updated before Phase 1 ships |
+| Q1 | Must standalone Cortex pipeline execution survive? | **No — Loom-only is acceptable** | `node-runtime` needs no local driver. Offline use is limited to the legacy `cortex process run --actions` path. Note: The README and website claims about standalone use must be updated before Phase 1 ships |
 | Q4 | Push or pull dispatch? | **Push for Phase 1** | Loom sends `NODE_TASK` when a node becomes ready. Accepted risk: Phase 2 leases favour pull, so the protocol will change twice |
 | Q5 | Version the definition format? | **Yes, from the start** | The format gains `syncToLoom`, filter branches, and typed options; version it before the first breaking change rather than after |
 
@@ -193,19 +189,19 @@ green.
 
 | Step | Scope | Status |
 |---|---|---|
-| **P1.1** | Invert the Loom→Cortex dependency; extract `loom-shared/node-model` | ✅ **done** — see §2.2 |
-| **P1.2** | `loom/pipeline` module: graph model + engine against a fake dispatcher | ✅ **done** — see §2.7 |
-| **P1.3** | Protocol: fix the envelope, add `SOURCE_*` / `NODE_TASK` messages | ✅ **done** — see §2.8 |
-| **P1.4** | `cortex/node-runtime` + source runner; Cortex answers tasks | ✅ **done** — see §2.9 |
-| **P1.5** | Test migration (10 classes, §5.8) | ✅ **done** — see §2.10 |
-| **P1.6** | Wire end to end; run driven by the engine (§5.9) | ✅ **done** — see §2.11 |
-| **P1.7** | Delete the old engine + rewire Dagger (deferred from P1.5) | ✅ **done** — see §2.12 |
+| **P1.1** | Invert the Loom→Cortex dependency; extract `loom-shared/node-model` | **done** |
+| **P1.2** | `loom/pipeline` module: graph model + engine against a fake dispatcher | **done** |
+| **P1.3** | Protocol: fix the envelope, add `SOURCE_*` / `NODE_TASK` messages | **done** |
+| **P1.4** | `cortex/node-runtime` + source runner; Cortex answers tasks | **done** |
+| **P1.5** | Test migration (10 classes, §5.8) | **done** |
+| **P1.6** | Wire end to end; run driven by the engine (§5.9) | **done** |
+| **P1.7** | Delete the old engine + rewire Dagger (deferred from P1.5) | **done** |
 
 **P1.1 verification:** full reactor `install` green; 5 new ServiceLoader guard
 tests; 23 `PipelineValidationServiceTest` cases (the real descriptor consumer)
 green; 187 Cortex node/pipeline tests green.
 
-⚠️ **Pre-existing failure, unrelated to this work.**
+**Note:** **Pre-existing failure, unrelated to this work.**
 `NodeDescriptorEndpointTest` has 2 of 6 tests failing
 (`testListAllNodeDescriptors`, `testFilterNodesHaveFilterCategory`): the
 endpoint returns a JSON *object* where the test decodes a JSON *array*, so the
@@ -221,7 +217,7 @@ component does and why* now lives in
 record of **when and in what order**, plus the decisions that would otherwise be
 invisible.
 
-### Phase 1 — restructuring and first delegation ✅ complete
+### Phase 1 — restructuring and first delegation — COMPLETE
 
 | Step | Scope | Notes |
 |---|---|---|
@@ -237,7 +233,7 @@ invisible.
 added the new runtime alongside the old engine; P1.5 deferred the executor
 deletion into a new P1.7 so the replacement could be proven first.
 
-### Phase 2 — durability and correctness ✅ complete
+### Phase 2 — durability and correctness — COMPLETE
 
 | Step | Scope | Notes |
 |---|---|---|
@@ -249,112 +245,34 @@ deletion into a new P1.7 so the replacement could be proven first.
 | **P2.6** | Per-run in-flight ceiling + source-ack backpressure | Two liveness bugs found and fixed — see below |
 | **P2.7** | Worker attribution (`leased_by`) | Run inspection API **not** built; still open |
 
-### Phase 3 — DAG, affinity, resilience 🔶 partially complete
+### Phase 3 — DAG, affinity, resilience — IN PROGRESS
 
 | Step | Scope | Status |
 |---|---|---|
-| **P3.1** | `affinity` in the definition; segment computation; save-time validation | ✅ |
-| **P3.2** | `SEGMENT_TASK` protocol + Cortex segment runner | ✅ |
-| **P3.3** | Engine dispatches segments; filter edges bound segments | ✅ |
-| **P3.5** | Event aggregation — per-node counters on a timer | ✅ taken **ahead of** P3.4 |
-| **P3.6** | Circuit breaker per node kind **and per-kind concurrency ceiling** | ✅ |
-| **P3.3b** | `activeCount` / `pendingCount` in `NODE_STATS` | ✅ closes the §6.3 gap |
-| **P3.4** | Dispatch/result batching | ⛔ **blocked** — see below |
+| **P3.1** | `affinity` in the definition; segment computation; save-time validation | **done** |
+| **P3.2** | `SEGMENT_TASK` protocol + Cortex segment runner | **done** |
+| **P3.3** | Engine dispatches segments; filter edges bound segments | **done** |
+| **P3.5** | Event aggregation — per-node counters on a timer | **done** taken **ahead of** P3.4 |
+| **P3.6** | Circuit breaker per node kind **and per-kind concurrency ceiling** | **done** |
+| **P3.3b** | `activeCount` / `pendingCount` in `NODE_STATS` | **done** closes the §6.3 gap |
+| **P3.4** | Result batching, static size from the pipeline definition | **done** |
 
-**On P3.4's blocker.** §6.2 requires batch sizes "derived from observed per-task
-duration per kind". That was read as needing an up-front benchmark, and the
-benchmark that was run measured the wrong thing to supply it. But *observed*
-means observed **at runtime** — and the engine already records `durationMs` on
-every result, so a sizer could adapt itself without any prior measurement. The
-blocker is therefore dissolvable. What is **not** dissolved is whether batching
-is worth building at all: §2.9 showed its stated justification shares the
-disproved re-read premise, and its real benefit — fewer messages — is the same
-unmeasured network saving affinity delivers. **Measure first** (task 1), then
-decide.
+**On P3.4.** `resultBatchSize` in the pipeline definition, default 1 (send each
+result as it happens, i.e. the previous behaviour). A worker accumulates results
+per run and sends them together once the size is reached.
 
----
+The size trigger alone is not sufficient: a run's tail never reaches it — a
+500-item run batched at 200 ends with 100 results in the buffer — so a periodic
+flush sends partial batches after a short hold. **The size trigger is the
+optimisation; the timer is what makes batching correct.**
 
-## 2.8 Corrections to this plan, discovered by building it
+Batching is a transport concern only. Each entry is assimilated through the same
+single-result path, so retries, dead-lettering and downstream unblocking are
+unchanged, and there is no batch-level verdict that could let one bad result
+spoil the others.
 
-Recorded because each one contradicts something written earlier in this document.
-
-**§5.1 said to write "both jooq and memory impls". Wrong.** `loom/db/memory`
-implements only `Token` and `User`, has no Dagger module and no test suite.
-Writing memory impls would have invented a pattern the codebase abandoned. All 20
-existing DAOs are jOOQ-only with a shared `CRUDDaoTestcases` contract test.
-
-**§5.2's idempotency key was wider than needed.** `(item_uuid, node_id)` suffices;
-an item belongs to one run and a run pins one pipeline version, so the version
-column is functionally dependent.
-
-**§6.4's "decode-once" justification is not supported by measurement** — see
-§2.9. This is the most consequential correction in the document.
-
-**Q4 (push vs pull) was revisited and stands.** Phase 2 leases were expected to
-favour pull. In practice push + leases + a per-worker in-flight cap achieves the
-same backpressure without a second protocol rewrite, so push was kept.
-
-### Bugs the tests caught, worth remembering
-
-| Bug | Why it mattered |
-|---|---|
-| In-flight counter leaked on retry and reclaim | Enough leaked slots wedge a run permanently at capacity — indistinguishable from a hang |
-| `pumpDeferred` re-dispatched nodes awaiting a retry | Defeated the backoff entirely; retries would have fired immediately |
-| `segmentReady` called `evaluateSkip` on nodes with unsettled internal deps | 20 tests failed with a NullPointer |
-| Un-parking a circuit-broken kind recursed without bound | Stack overflow with the default immediate scheduler |
-
-Three of these four are the same shape: **every new reason to *not* dispatch needs
-an explicit answer to "what wakes it up?"** Capacity, retry backoff and circuit
-parking each introduced a state that is neither settled nor in flight, and each
-one needed its own release path.
-
----
-
-## 2.9 🔴 Benchmark result — the affinity premise is not what we assumed
-
-Run 2026-07-19 on real media (`SegmentDispatchBenchmark`, `cortex/nodes/hash/core`).
-10 files, **155.3 MiB**, graph `sha512 → md5` — two nodes that both read the whole
-file. Median of 3 rounds after warmup.
-
-| Mode | Median |
-|---|---|
-| Per-node dispatch (media resolved twice) | 281 ms |
-| Segment dispatch (media resolved once) | 279 ms |
-| **Ratio** | **1.01×** |
-
-**The worker-side saving is approximately zero.**
-
-§6.4 claims affinity wins because "decode-once, analyse-many stays in one process
-instead of re-reading the file per node". **The measurement does not support
-this.** Resolving the media handle once is cheap and saves almost nothing, because
-`LoomMedia` is a lightweight file reference, **not** a decoded shareable artifact.
-Both nodes still read the file in both modes.
-
-Two confounds bound how far this generalises, and neither rescues the claim:
-
-1. **Page cache** — 155 MiB against 63 GiB of RAM, so the second read comes from
-   memory. On a cold cache or a network mount, per-node looks worse — but that
-   penalty comes from *re-reading*, which segmenting does not prevent.
-2. **Hashing has no decode step**, so there is no expensive intermediate state to
-   share. A video pipeline might — but only if nodes shared decoded frames, and
-   **the node API has nowhere to put them**: nodes receive upstream *outputs*.
-
-**What affinity actually delivers is one round trip instead of N**, plus one
-dispatch decision instead of N. Real, worth having at 100 000 items — but a
-*network and orchestration* saving, not an I/O one, and this harness cannot see it
-(no socket, no Loom).
-
-**Decode-once is unimplemented, not merely unmeasured.** Making it real needs a
-shared per-segment context — a node API change no phase of this plan scoped.
-
-Consequences are tracked as tasks 1 and 2 in
-[METALOOM_ARCHITECTURE_TASK.md](METALOOM_ARCHITECTURE_TASK.md). The javadoc on
-`SegmentTaskRunner` and its test have been corrected in code.
-
-**This is the value of running it.** Three steps were built on a stated reason that
-one afternoon's measurement shows to be unfounded. The work is not wasted — the
-round-trip saving is real — but the *reason* recorded throughout this plan was
-wrong, and would have gone on being wrong.
+Deriving the size adaptively from observed durations is a later refinement, not
+needed to make batching useful.
 
 ---
 
@@ -426,11 +344,11 @@ processor endpoint. Full reactor build green, 147 engine tests passing.
 
 | Criterion | |
 |---|---|
-| A Loom restart mid-run resumes without losing or duplicating work | ✅ ⚠️ with one exception: a run whose **source** had not finished enumerating cannot be resumed faithfully — the unscanned files were never recorded anywhere. Such a run completes with what it knew and is marked accordingly |
-| A killed worker's in-flight tasks are reassigned and complete | ✅ |
-| A poison item dead-letters with history instead of retrying forever | ✅ |
-| A run spreads across workers, respecting whitelists | ✅ ⚠️ verified by unit tests over the selection logic, **not** by a real ≥3 worker deployment |
-| A 100 000-item run completes without unbounded memory or DB write stalls | ⛔ **not met** — the mechanisms exist (batched writes, in-flight ceiling, source-ack backpressure) but **no run of that size has been executed**. Tracked in [the task list](METALOOM_ARCHITECTURE_TASK.md) |
+| A Loom restart mid-run resumes without losing or duplicating work | **done** — with one exception: a run whose **source** had not finished enumerating cannot be resumed faithfully — the unscanned files were never recorded anywhere. Such a run completes with what it knew and is marked accordingly |
+| A killed worker's in-flight tasks are reassigned and complete | **done** |
+| A poison item dead-letters with history instead of retrying forever | **done** |
+| A run spreads across workers, respecting whitelists | **done** — but verified by unit tests over the selection logic, **not** by a real ≥3 worker deployment |
+| A 100 000-item run completes without unbounded memory or DB write stalls | **not met** — the mechanisms exist (batched writes, in-flight ceiling, source-ack backpressure) but **no run of that size has been executed**. Tracked in [the task list](METALOOM_ARCHITECTURE_TASK.md) |
 
 The last criterion cannot be honestly ticked from unit tests, and it is the same
 measurement §8.1 asks for.
@@ -560,7 +478,7 @@ deliverable.
 
 ## 8. Risks
 
-### 8.1 🔴 Granularity — the defining risk
+### 8.1 RISK: Granularity — the defining risk
 
 Hashing a small file takes milliseconds; a round trip is comparable or worse.
 Phase 1 will be **slower than today** on small files, possibly much slower, and
@@ -572,18 +490,18 @@ baseline ([V0](METALOOM_ARCHITECTURE_TASK.md)). If the gap is worse than
 roughly 5× on a hash-only pipeline, reconsider before starting Phase 2 —
 Variant D reaches most of the same goal without ever paying this cost.
 
-### 8.2 🔴 Loom becomes a stateful scheduler and a per-step SPOF
+### 8.2 RISK: Loom becomes a stateful scheduler and a per-step SPOF
 
 Today Loom is involved at run start and finish. Afterwards it is on the path of
 every node transition. Its availability and write throughput become the ceiling
 for all processing.
 
-### 8.3 ⚠️ Payload size
+### 8.3 NOTE: Payload size
 
 §6.5. Inline upstream results work for hashes and break for embeddings,
 transcripts, and thumbnails — the outputs that matter most.
 
-### 8.4 ⚠️ Standalone Cortex weakens
+### 8.4 NOTE: Standalone Cortex weakens
 
 `cortex process run` survives (§2.3), but it drives the *legacy* node tree. After
 Phase 1, Cortex cannot execute a pipeline without Loom. The README markets
@@ -594,7 +512,7 @@ before Phase 1 starts.** If standalone pipeline execution must survive, the
 `node-runtime` needs a local driver — which is Phase 3's segment runner with the
 segment being the whole graph. Cheap if planned, expensive if retrofitted.
 
-### 8.5 ⚠️ Test migration is the bulk of Phase 1's mechanical cost
+### 8.5 NOTE: Test migration is the bulk of Phase 1's mechanical cost
 
 Ten test classes (§2.4), plus new protocol, source, and engine tests. Budget for
 it explicitly; it is easy to under-estimate and it is what protects the refactor.
@@ -603,10 +521,13 @@ it explicitly; it is easy to under-estimate and it is what protects the refactor
 
 ## 9. Open questions
 
-1. **Does standalone Cortex pipeline execution need to survive?** (§8.4) —
-   answer before Phase 1.
-2. **Where do intermediate results live?** (§6.5) — inline, side channel, shared
-   storage, or avoided via affinity.
+1. ~~**Does standalone Cortex pipeline execution need to survive?**~~ —
+   **ANSWERED: no, not at the moment.** Cortex is a worker. The docs still claim
+   otherwise; correcting them is task 4 in
+   [METALOOM_ARCHITECTURE_TASK.md](METALOOM_ARCHITECTURE_TASK.md).
+2. ~~**Where do intermediate results live?**~~ — **ANSWERED: the node
+   implementation caches them.** Out of scope for the current work; captured as a
+   task in [../tasks/TASKS.md](../tasks/TASKS.md).
 3. **Task state retention.** 1 000 000 rows per run is real. How long are
    per-node task rows kept, and at what granularity after that?
 4. **Is `NODE_TASK` dispatch pull or push?** Push is simpler for Phase 1; pull
@@ -615,9 +536,7 @@ it explicitly; it is easy to under-estimate and it is what protects the refactor
 5. **Does the definition format become versioned?** It must gain `syncToLoom`,
    filter branches, options, and later affinity — four breaking changes to
    stored JSONB. Version it now.
-6. **Is Variant D the better target after all?** (§8.1) — Phase 1 is largely
-   shared between C and D, so this can be answered *after* Phase 1 with real
-   numbers rather than guessed ones. That is a deliberate property of this plan.
+
 
 ---
 
@@ -625,26 +544,26 @@ it explicitly; it is easy to under-estimate and it is what protects the refactor
 
 ### Delivered
 
-- [x] **Phase 1 complete** (P1.1–P1.7) — Loom owns the graph; the in-Cortex engine
+- [DONE] **Phase 1 complete** (P1.1–P1.7) — Loom owns the graph; the in-Cortex engine
       is gone; one parser instead of two incompatible ones
-- [x] **Phase 2 complete** (P2.1–P2.7) — durable run state, leases, retries,
+- [DONE] **Phase 2 complete** (P2.1–P2.7) — durable run state, leases, retries,
       dead-lettering, restart recovery, node whitelisting, flow control end to end
-- [x] **Phase 3 partial** (P3.1, P3.2, P3.3, P3.5, P3.6) — affinity segments
+- [DONE] **Phase 3 partial** (P3.1, P3.2, P3.3, P3.5, P3.6) — affinity segments
       dispatched as units, aggregated progress events, per-kind circuit breakers
-- [x] The `edges[]` schema defect closed **structurally**, not patched
-- [x] An unexecutable definition fails at save/run time instead of producing a
+- [DONE] The `edges[]` schema defect closed **structurally**, not patched
+- [DONE] An unexecutable definition fails at save/run time instead of producing a
       green run that did nothing
-- [x] **Benchmark run** — and it disproved this plan's stated case for affinity (§2.9)
 
 ### Decisions taken
 
 | # | Question | Decision |
 |---|---|---|
 | Q1 | Must standalone Cortex execution survive? | **No** — Loom-only is acceptable |
-| Q3 | Task state retention | ⛔ **still open** |
+| Q2 | Where do intermediate results live? | **In the node implementation's own cache.** Out of scope here — tracked in [../tasks/TASKS.md](../tasks/TASKS.md) |
+| Q3 | Task state retention | **still open** |
 | Q4 | Push or pull dispatch? | **Push**, revisited at Phase 2 and kept — push + leases + per-worker caps gives the same backpressure without a second protocol rewrite |
-| Q5 | Version the definition format? | Agreed **yes**, ⛔ **not done** — the format has since gained four fields without a version |
-| — | Is Variant D the better target? | **Moot.** Segmented dispatch *is* what was built; per-node is the degenerate case of a segment |
+| Q5 | Version the definition format? | Agreed **yes**, **not done** — the format has since gained four fields without a version |
+
 
 ### Outstanding
 
@@ -652,15 +571,15 @@ Tracked in full in
 [METALOOM_ARCHITECTURE_TASK.md](METALOOM_ARCHITECTURE_TASK.md). The two that
 gate everything else:
 
-- [ ] **Measure the round-trip saving** (task 1) — the justification for this
+- [TODO] **Measure the round-trip saving** (task 1) — the justification for this
       entire architecture is still unquantified
-- [ ] **Decide whether decode-once is wanted** (task 2) — a node API change, not a
+- [TODO] **Decide whether decode-once is wanted** (task 2) — a node API change, not a
       scheduling one
 
-- [ ] **P3.4 batching** — blocked on task 1, and its premise needs re-deriving
-- [ ] Phase 2 exit criterion "a 100 000-item run completes without unbounded
+- [TODO] **P3.4 batching** — blocked on task 1, and its premise needs re-deriving
+- [TODO] Phase 2 exit criterion "a 100 000-item run completes without unbounded
       memory" — the mechanisms exist; **no run of that size has been executed**
-- [ ] Multi-worker spread verified by unit tests over the selection logic, **not**
+- [TODO] Multi-worker spread verified by unit tests over the selection logic, **not**
       by a real ≥3 worker deployment
 
 ---

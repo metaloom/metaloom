@@ -23,10 +23,14 @@ import java.util.Map;
  */
 public class PipelineGraph {
 
+	/** Send each result as it is produced, unless the definition says otherwise. */
+	public static final int DEFAULT_RESULT_BATCH_SIZE = 1;
+
 	private final String name;
 	private final boolean enabled;
 	private final boolean dryRun;
 	private final int priority;
+	private int resultBatchSize = DEFAULT_RESULT_BATCH_SIZE;
 	private final Map<String, PipelineGraphNode> nodes;
 	private final Map<String, List<String>> children;
 	private final List<String> topologicalOrder;
@@ -71,6 +75,26 @@ public class PipelineGraph {
 	 */
 	public boolean isDryRun() {
 		return dryRun;
+	}
+
+	/**
+	 * How many node results a worker may accumulate before sending them together.
+	 *
+	 * <p>Taken verbatim from the pipeline definition. A cheap node over many small
+	 * files produces a result per item per node, and at scale that is a lot of very
+	 * small messages; batching trades a little latency for far fewer of them.</p>
+	 *
+	 * <p>1 means send each result as it happens, which is the previous behaviour and
+	 * the default — batching is something a pipeline opts into.</p>
+	 *
+	 * @return the batch size, never below 1
+	 */
+	public int getResultBatchSize() {
+		return resultBatchSize;
+	}
+
+	void setResultBatchSize(int resultBatchSize) {
+		this.resultBatchSize = Math.max(1, resultBatchSize);
 	}
 
 	public int getPriority() {

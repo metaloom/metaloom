@@ -52,6 +52,10 @@ public class PipelineTaskHandler {
 	private final LoomMediaLoader mediaLoader;
 	private final NodeTaskRunner nodeTaskRunner;
 	private final SegmentTaskRunner segmentTaskRunner;
+	private final io.metaloom.cortex.runtime.ResultBatcher resultBatcher;
+
+	/** How often partially-filled result batches are swept. */
+	private static final long BATCH_FLUSH_INTERVAL_MS = 250;
 	private final SourceTaskRunner sourceTaskRunner;
 
 	/** Sends a message back to Loom. */
@@ -68,6 +72,14 @@ public class PipelineTaskHandler {
 		// Same factory and media loader: a segment is the same work with N > 1, so it
 		// must resolve nodes and media exactly as a single task does.
 		this.segmentTaskRunner = new SegmentTaskRunner(nodeFactory::createNode, mediaLoader::load);
+		// The sink is supplied per call, because the connection to answer on is a
+		// property of the task, not of this handler.
+		this.resultBatcher = new io.metaloom.cortex.runtime.ResultBatcher();
+		// A run's tail never reaches the batch size, so without this the last results
+		// of every batched run are never sent and the run cannot close. The size
+		// trigger is the optimisation; this timer is what makes batching correct.
+		Schedulers.io().schedulePeriodicallyDirect(this::flushExpiredResults,
+			BATCH_FLUSH_INTERVAL_MS, BATCH_FLUSH_INTERVAL_MS, java.util.concurrent.TimeUnit.MILLISECONDS);
 		this.sourceTaskRunner = new SourceTaskRunner();
 	}
 
@@ -92,12 +104,25 @@ public class PipelineTaskHandler {
 				log.error("Unexpected failure running {}", task, t);
 				result = NodeTaskResult.failed(task.getTaskUuid(), task.getNodeId(), 0, String.valueOf(t));
 			}
-			sender.send(new ProcessorMessage(ProcessorMessageType.NODE_TASK_RESULT,
-				JsonObject.mapFrom(new NodeTaskResultMessage()
-					.setRunUuid(task.getRunUuid())
-					.setItemId(task.getItemId())
-					.setResult(result))));
+			// Batched when the pipeline asks for it; sent immediately when it does not.
+			resultBatcher.add(task.getRunUuid(), task.getItemId(), result, task.getResultBatchSize(),
+				batch -> sender.send(new ProcessorMessage(ProcessorMessageType.NODE_TASK_RESULT_BATCH,
+					JsonObject.mapFrom(batch))));
 		});
+	}
+
+	/**
+	 * Send any result batch that has waited long enough.
+	 *
+	 * <p>Never throws: a periodic task that throws is cancelled permanently, which
+	 * would silently strand the tail of every batched run from then on.</p>
+	 */
+	private void flushExpiredResults() {
+		try {
+			resultBatcher.flushExpired();
+		} catch (Exception e) {
+			log.error("Failed to flush pending result batches", e);
+		}
 	}
 
 	/**

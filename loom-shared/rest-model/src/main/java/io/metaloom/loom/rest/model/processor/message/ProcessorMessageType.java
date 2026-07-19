@@ -66,6 +66,12 @@ public enum ProcessorMessageType {
 	/** Per-node outcomes of a SEGMENT_TASK; never a single verdict for the segment */
 	SEGMENT_TASK_RESULT,
 
+	/**
+	 * Several NODE_TASK_RESULTs for one run, sent together. Purely a transport
+	 * saving - each entry is assimilated exactly as if it had arrived alone.
+	 */
+	NODE_TASK_RESULT_BATCH,
+
 	/** Error message */
 	ERROR
 }

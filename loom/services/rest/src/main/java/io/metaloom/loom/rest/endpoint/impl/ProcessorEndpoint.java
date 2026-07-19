@@ -206,6 +206,9 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 				case SEGMENT_TASK_RESULT:
 					handleSegmentTaskResult(ws, msg, nodeIdHolder[0]);
 					break;
+				case NODE_TASK_RESULT_BATCH:
+					handleNodeTaskResultBatch(ws, msg, nodeIdHolder[0]);
+					break;
 				case NODE_TASK_RESULT:
 					handleNodeTaskResult(ws, msg, nodeIdHolder[0]);
 					break;
@@ -408,6 +411,39 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 			return;
 		}
 		engine.onSegmentTaskResult(body.getItemId(), body.getSegmentId(), body.getResults(), body.getError());
+	}
+
+	/**
+	 * Assimilate several results that travelled together.
+	 *
+	 * <p>Each entry goes through the ordinary single-result path, so batching stays a
+	 * transport detail: retries, dead-lettering and downstream unblocking behave
+	 * exactly as they would have one message at a time. One malformed entry is
+	 * skipped rather than discarding the rest of the batch.</p>
+	 */
+	private void handleNodeTaskResultBatch(ServerWebSocket ws, ProcessorMessage msg, String nodeId) {
+		if (nodeId == null) {
+			sendError(ws, "Not registered. Send REGISTER first.");
+			return;
+		}
+		if (msg.getBody() == null) {
+			sendError(ws, "NODE_TASK_RESULT_BATCH message must include a body");
+			return;
+		}
+		io.metaloom.loom.pipeline.model.NodeTaskResultBatch body =
+			msg.getBody().mapTo(io.metaloom.loom.pipeline.model.NodeTaskResultBatch.class);
+		PipelineRunEngine engine = resolveEngine(ws, body.getRunUuid(), "NODE_TASK_RESULT_BATCH");
+		if (engine == null) {
+			return;
+		}
+		for (io.metaloom.loom.pipeline.model.NodeTaskResultBatch.Entry entry : body.getEntries()) {
+			try {
+				engine.onNodeTaskResult(entry.getItemId(), entry.getResult());
+			} catch (Exception e) {
+				log.error("Failed to assimilate result for item '{}' in run {}", entry.getItemId(),
+					body.getRunUuid(), e);
+			}
+		}
 	}
 
 	private void handleNodeTaskResult(ServerWebSocket ws, ProcessorMessage msg, String nodeId) {

@@ -140,7 +140,12 @@ public class PipelineGraphParser {
 		}
 
 		String sourceId = resolveSourceNode(name, nodes, dependencies);
-		return new PipelineGraph(name, enabled, dryRun, priority, nodes, sourceId);
+		PipelineGraph graph = new PipelineGraph(name, enabled, dryRun, priority, nodes, sourceId);
+		// Pipeline-wide rather than per-node: a worker accumulates whatever it has
+		// finished for a run, and which node produced it does not change the cost of
+		// the message.
+		graph.setResultBatchSize(definition.getInteger("resultBatchSize", PipelineGraph.DEFAULT_RESULT_BATCH_SIZE));
+		return graph;
 	}
 
 	private void applyEdges(String name, JsonArray edges, Set<String> nodeIds,
