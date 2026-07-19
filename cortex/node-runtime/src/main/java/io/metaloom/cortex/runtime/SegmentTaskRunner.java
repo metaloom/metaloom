@@ -23,9 +23,17 @@ import io.vertx.core.json.JsonObject;
  * Runs a whole affinity segment locally, keeping intermediate results in memory.
  *
  * <p>This is {@link NodeTaskRunner} with N &gt; 1, which is what the Phase 1 runner
- * was shaped for. The saving is twofold: one round trip instead of one per node,
- * and — more importantly for video — the media handle is resolved once, so a
- * five-node pipeline opens and decodes the file once rather than five times.</p>
+ * was shaped for. The saving is <strong>one round trip instead of N</strong>, plus
+ * one dispatch decision instead of N.</p>
+ *
+ * <p>⚠️ It is <em>not</em> a decode-once saving, despite the obvious appeal of that
+ * idea. The media handle is resolved once, but {@link LoomMedia} is a lightweight
+ * file reference rather than a decoded artifact, so each node still reads what it
+ * needs itself. A benchmark over 155 MiB of real video measured segment dispatch at
+ * 1.01× per-node dispatch — within noise. Genuine decode-once would need a shared
+ * per-segment context for nodes to publish expensive artifacts into, which this API
+ * does not have: nodes receive upstream <em>outputs</em>, and there is nowhere for a
+ * frame buffer to live.</p>
  *
  * <h2>Local semantics must match the engine's</h2>
  *

@@ -1186,6 +1186,75 @@ tested directly. What §7.1 also asks for and is **not** built is a per-kind
 *concurrency ceiling* — today the only ceiling is the per-run `maxInFlight`, so
 one expensive kind can still occupy every slot in a run.
 
+## 2.25 🔴 Benchmark result — the affinity premise is not what we assumed
+
+Run 2026-07-19 on real media (`SegmentDispatchBenchmark`, `cortex/nodes/hash/core`).
+10 files, **155.3 MiB**, graph `sha512 → md5` — two nodes that both read the whole
+file. Median of 3 measured rounds after warmup.
+
+| Mode | Median |
+|---|---|
+| Per-node dispatch (media resolved twice) | 281 ms |
+| Segment dispatch (media resolved once) | 279 ms |
+| **Ratio** | **1.01×** |
+
+**The worker-side saving is approximately zero.** 2 ms across 155 MiB.
+
+### Why, and what it means for §7.4
+
+§7.4 claims affinity wins because "decode-once, analyse-many stays in one process
+instead of re-reading the file per node", and §2.21 repeated that as *the*
+headline saving. **The measurement does not support this.**
+
+Resolving the media handle once is cheap and saves almost nothing, because
+`LoomMedia` is a lightweight file reference — **not** a decoded, shareable
+artifact. Both nodes still read the file themselves in both modes. Segmenting
+changes *who dispatches the work*, not *how many times the bytes are read*.
+
+⚠️ Two confounds bound how far this generalises, and neither rescues the original
+claim:
+
+1. **Page cache.** 155 MiB against 63 GiB of RAM, so the second read is served
+   from memory. On a cold cache or a network mount the per-node mode would look
+   worse — but that penalty comes from *re-reading*, which segmenting does not
+   currently prevent.
+2. **Hashing has no decode step.** These nodes have no expensive intermediate
+   state to share. A video pipeline might — but only if nodes actually shared
+   decoded frames, and **the current node API has no mechanism for that**. Nodes
+   receive `Map<String, NodeResult>` of upstream *outputs*; there is nowhere for
+   a decoded frame buffer to live.
+
+### The corrected case for affinity
+
+What P3.1–P3.3 actually deliver is **one round trip instead of N**, plus one
+dispatch decision instead of N. That is real and worth having at 100 000 items —
+but it is a *network and orchestration* saving, not an I/O one, and this harness
+does not measure it (no socket, no Loom).
+
+**Decode-once remains unimplemented, not merely unmeasured.** Making it real needs
+a shared per-segment context that nodes can put expensive artifacts into — a node
+API change that no phase of this plan has scoped.
+
+### Consequences
+
+- [ ] **Rewrite §7.4's justification** — "saves round trips" is supportable;
+      "decode once" is not, as built.
+- [ ] **Correct §2.21.** `testTheMediaIsResolvedOnceForTheWholeSegment` proves the
+      handle is resolved once; it does *not* prove the file is read once, and the
+      javadoc claiming a five-node pipeline "decodes once" is wrong.
+- [ ] **Measure the round-trip saving**, which is the actual benefit. Needs a
+      Loom + Cortex deployment; this harness cannot see it.
+- [ ] **Scope a shared segment context** if decode-once is genuinely wanted — it is
+      a node API change, not a scheduling one.
+- [ ] ⚠️ **P3.4's premise is now doubtful too.** Batching was justified partly by
+      the same re-read intuition. Its real benefit is fewer messages, which — like
+      affinity — is a network saving this harness cannot measure.
+
+**This is the value of running it.** Three steps of Phase 3 were built on a claim
+that a two-hour measurement shows to be unfounded in its stated form. The work is
+not wasted — the round-trip saving is real — but the *reason* recorded throughout
+this plan was wrong, and would have gone on being wrong.
+
 ---
 
 ## 3. Prerequisites

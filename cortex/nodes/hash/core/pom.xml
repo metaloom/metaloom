@@ -14,4 +14,15 @@
 
     <name>MetaLoom // Cortex :: Nodes :: Hash</name>
 
+    <dependencies>
+        <!-- Test only: the segment-vs-per-node benchmark drives the real executors
+             over real media. Nothing in main depends on the runtime. -->
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-node-runtime</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
 </project>

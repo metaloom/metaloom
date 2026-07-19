@@ -123,8 +123,9 @@ public class SegmentTaskRunnerTest {
 
 		runner().run(task(List.of(segNode("a", true), segNode("b", true, "a"), segNode("c", true, "b")), Map.of()));
 
-		// This is the actual saving for video: one open and decode instead of one per
-		// node. If this ever becomes 3, affinity has stopped paying for itself.
+		// Resolving the handle once is correct, but note what this does NOT prove: the
+		// nodes still read the file themselves, so this is not a decode-once saving.
+		// Measured at 1.01x against per-node dispatch over 155 MiB of real video.
 		assertEquals(1, mediaResolutions.get(), "A segment must open the media once, not once per node");
 	}
 
