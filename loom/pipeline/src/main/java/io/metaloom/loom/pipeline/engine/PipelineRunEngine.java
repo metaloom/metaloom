@@ -95,6 +95,9 @@ public class PipelineRunEngine {
 	private int inFlightCount;
 	private final List<Runnable> capacityWaiters = new ArrayList<>();
 	private final java.util.Set<String> parkedKinds = new java.util.LinkedHashSet<>();
+	/** Outstanding tasks per node kind, for the per-kind ceiling. */
+	private final Map<String, Integer> inFlightByKind = new LinkedHashMap<>();
+	private final Map<String, Integer> maxInFlightByKind = new LinkedHashMap<>();
 	/** Suppresses re-scheduling while an un-park is already sweeping. */
 	private boolean unparking;
 	private long retryBaseDelayMs = DEFAULT_RETRY_BASE_DELAY_MS;
@@ -522,6 +525,12 @@ public class PipelineRunEngine {
 					continue;
 				}
 
+				if (atKindCapacity(node.getKind())) {
+					// This kind is at its ceiling. Leave the node ready; pumpDeferred()
+					// picks it up when one of its siblings finishes.
+					continue;
+				}
+
 				if (!allowedByCircuit(node.getKind())) {
 					// This kind is failing everywhere. Park rather than fail: the problem
 					// is usually environmental and usually gets fixed, and failing a
@@ -603,6 +612,11 @@ public class PipelineRunEngine {
 		if (graph.isDryRun()) {
 			// Nothing is dispatched in a dry run; the per-node path records the skips.
 			return false;
+		}
+		for (String kind : segment.getNodeKinds()) {
+			if (atKindCapacity(kind)) {
+				return false;
+			}
 		}
 		for (String nodeId : segment.getNodeIds()) {
 			if (state.isSettled(nodeId) || state.isInFlight(nodeId) || state.isAwaitingRetry(nodeId)) {
@@ -686,6 +700,9 @@ public class PipelineRunEngine {
 		for (String nodeId : segment.getNodeIds()) {
 			state.markInFlight(nodeId, taskUuid);
 			state.recordAttempt(nodeId);
+			// Per kind rather than per dispatch: a segment genuinely occupies capacity
+			// for every kind it carries, even though it is one outstanding request.
+			acquireKind(graph.getNode(nodeId).getKind());
 		}
 		// One dispatch, one slot: a segment is a single outstanding request no matter
 		// how many nodes it carries.
@@ -792,6 +809,7 @@ public class PipelineRunEngine {
 
 		state.markInFlight(node.getId(), taskUuid);
 		state.recordAttempt(node.getId());
+		acquireKind(node.getKind());
 		inFlightCount++;
 
 		String worker;
@@ -844,6 +862,7 @@ public class PipelineRunEngine {
 		notifySettled(state, result);
 		if (state.isInFlight(result.getNodeId())) {
 			inFlightCount = Math.max(0, inFlightCount - 1);
+			releaseKind(result.getNodeId());
 		}
 		state.record(result);
 		UUID itemUuid = itemUuid(state);
@@ -955,8 +974,65 @@ public class PipelineRunEngine {
 	private void releaseInFlight(ItemState state, String nodeId) {
 		if (state.isInFlight(nodeId)) {
 			inFlightCount = Math.max(0, inFlightCount - 1);
+			releaseKind(nodeId);
 			state.clearInFlight(nodeId);
 		}
+	}
+
+	private void acquireKind(String nodeKind) {
+		inFlightByKind.merge(nodeKind, 1, Integer::sum);
+	}
+
+	/**
+	 * Release a node's kind slot.
+	 *
+	 * <p>Takes a node id rather than a kind so callers cannot pair an acquire on one
+	 * kind with a release on another - the mistake that leaks a slot, and enough
+	 * leaked slots wedge a kind permanently at its ceiling.</p>
+	 */
+	private void releaseKind(String nodeId) {
+		PipelineGraphNode node = graph.getNode(nodeId);
+		if (node == null) {
+			return;
+		}
+		inFlightByKind.computeIfPresent(node.getKind(), (k, count) -> count <= 1 ? null : count - 1);
+	}
+
+	/**
+	 * @param nodeKind the kind
+	 * @return true when this kind already holds as many tasks as it may
+	 */
+	private boolean atKindCapacity(String nodeKind) {
+		Integer ceiling = maxInFlightByKind.get(nodeKind);
+		if (ceiling == null || ceiling <= 0) {
+			return false;
+		}
+		return inFlightByKind.getOrDefault(nodeKind, 0) >= ceiling;
+	}
+
+	/**
+	 * Cap how much of a run one node kind may occupy.
+	 *
+	 * <p>The per-run ceiling stops one run consuming the fleet; this stops one
+	 * <em>kind</em> consuming a run. Without it a graph containing both transcription
+	 * and hashing lets the slow kind take every slot, and the cheap work that could
+	 * have finished in the meantime simply waits.</p>
+	 *
+	 * @param nodeKind the kind
+	 * @param max      ceiling; 0 or less removes it
+	 */
+	public synchronized void setMaxInFlightForKind(String nodeKind, int max) {
+		if (max <= 0) {
+			maxInFlightByKind.remove(nodeKind);
+		} else {
+			maxInFlightByKind.put(nodeKind, max);
+		}
+		pumpDeferred();
+	}
+
+	/** @return outstanding tasks for this kind */
+	public synchronized int getInFlightForKind(String nodeKind) {
+		return inFlightByKind.getOrDefault(nodeKind, 0);
 	}
 
 	/** @return true when this run already has as much outstanding work as it may */
@@ -1042,6 +1118,33 @@ public class PipelineRunEngine {
 	/** @return outstanding dispatched tasks */
 	public synchronized int getInFlightCount() {
 		return inFlightCount;
+	}
+
+	/**
+	 * Per-node counts of work outstanding and work waiting.
+	 *
+	 * <p>"Waiting" means ready or blocked but not yet settled or dispatched — held
+	 * back by a ceiling, a parked kind, or an unfinished dependency. Reporting it as
+	 * zero, as the events previously did, makes a saturated run look idle.</p>
+	 *
+	 * @return node id to {@code [active, pending]}
+	 */
+	public synchronized Map<String, int[]> nodeProgressSnapshot() {
+		Map<String, int[]> snapshot = new LinkedHashMap<>();
+		for (String nodeId : graph.getTopologicalOrder()) {
+			snapshot.put(nodeId, new int[] { 0, 0 });
+		}
+		for (ItemState state : items.values()) {
+			for (String nodeId : graph.getTopologicalOrder()) {
+				int[] counts = snapshot.get(nodeId);
+				if (state.isInFlight(nodeId)) {
+					counts[0]++;
+				} else if (!state.isSettled(nodeId)) {
+					counts[1]++;
+				}
+			}
+		}
+		return snapshot;
 	}
 
 	/**

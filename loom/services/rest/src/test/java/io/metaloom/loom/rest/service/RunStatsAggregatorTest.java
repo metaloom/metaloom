@@ -164,6 +164,37 @@ public class RunStatsAggregatorTest {
 	}
 
 	@Test
+	void testLiveActiveAndPendingCountsAreReported() {
+		CapturingBroadcaster broadcaster = new CapturingBroadcaster();
+		RunStatsAggregator aggregator = aggregator(broadcaster);
+		aggregator.setProgressSupplier(() -> java.util.Map.of("hash", new int[] { 3, 17 }));
+
+		aggregator.onNodeSettled("i1", "/a.mp4", "hash", NodeState.COMPLETED, null);
+		aggregator.flush();
+
+		// Reporting pending as a hardcoded zero, as the events previously did, makes a
+		// saturated run look idle.
+		PipelineEventMessage stats = broadcaster.ofType(PipelineEventType.NODE_STATS).get(0);
+		assertEquals(3, stats.getActiveCount());
+		assertEquals(17, stats.getPendingCount());
+	}
+
+	@Test
+	void testAFailingProgressSupplierDoesNotStopTheFlush() {
+		CapturingBroadcaster broadcaster = new CapturingBroadcaster();
+		RunStatsAggregator aggregator = aggregator(broadcaster);
+		aggregator.setProgressSupplier(() -> {
+			throw new IllegalStateException("engine gone");
+		});
+
+		aggregator.onNodeSettled("i1", "/a.mp4", "hash", NodeState.COMPLETED, null);
+
+		// Counters are still worth sending even when the live snapshot is unavailable.
+		assertEquals(1, aggregator.flush());
+		assertEquals(1L, broadcaster.ofType(PipelineEventType.NODE_STATS).get(0).getProcessedCount());
+	}
+
+	@Test
 	void testABrokenSubscriberDoesNotStopTheRun() {
 		PipelineEventBroadcaster exploding = new PipelineEventBroadcaster() {
 			@Override

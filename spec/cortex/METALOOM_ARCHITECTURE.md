@@ -713,7 +713,8 @@ used to happen.
 | **A bad file cannot stall a run** | Repeated failures on one item are given up on, with the history kept, rather than retried forever |
 | **A broken node type cannot burn the fleet** | If a node type starts failing on nearly everything, it is set aside and retried periodically instead of failing every remaining item |
 | **One run cannot consume everything** | Each run has a ceiling on outstanding work, and a scan is slowed down when its run is saturated |
-| **Failures are reported individually; progress is summarised** | You are told which file failed and why, promptly. Volume is reported as counts, not as one message per file |
+| **One slow node type cannot consume a run** | Each node type can be given its own ceiling, so transcription cannot occupy every slot while hashing waits behind it |
+| **Failures are reported individually; progress is summarised** | You are told which file failed and why, promptly. Volume is reported as counts, not as one message per file — including how much is running and how much is still waiting |
 
 ### Two limits worth knowing
 

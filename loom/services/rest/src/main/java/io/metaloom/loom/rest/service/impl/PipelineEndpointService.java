@@ -317,6 +317,7 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 			RunStatsAggregator statsAggregator = new RunStatsAggregator(runUuid, graph.getName(),
 				pipelineEventBroadcaster);
 			engine.onNodeSettled(statsAggregator);
+			statsAggregator.setProgressSupplier(engine::nodeProgressSnapshot);
 			long statsTimer = vertx.setPeriodic(STATS_INTERVAL_MS, timerId -> statsAggregator.flush());
 			engine.onCompletion(summary -> {
 				vertx.cancelTimer(statsTimer);

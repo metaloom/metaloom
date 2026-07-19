@@ -33,15 +33,14 @@ Related list, referenced rather than duplicated:
 | **4** | [Correct the standalone-Cortex claims](#4-correct-the-standalone-cortex-claims) | Docs describe a capability that was removed |
 | **5** | [Run inspection API](#5-run-inspection-api) | State is recorded and unreachable |
 | **6** | [Fix `cpuLoad`, then schedule on it](#6-fix-cpuload-then-schedule-on-it) | Blocks load-aware placement |
-| **7** | [Per-kind concurrency ceiling](#7-per-kind-concurrency-ceiling) | One slow kind can occupy a whole run |
-| **8** | [Settle the shared-storage model](#8-settle-the-shared-storage-model) | Determines whether any worker can run any node |
-| **9** | [Sync more than hashes](#9-sync-more-than-hashes) | Most node output still never reaches an asset |
-| **10** | [Stable worker identity](#10-stable-worker-identity) | Leases and attribution key on an unstable id |
-| **11** | [Secure the control channel](#11-secure-the-control-channel) | Unauthenticated dispatch surface |
-| **12** | [Prometheus metrics](#12-prometheus-metrics) | No operational visibility |
-| **13** | [Graceful shutdown with drain](#13-graceful-shutdown-with-drain) | Scale-down relies on lease expiry |
-| **14** | [Batching](#14-dispatch-and-result-batching) | Deliberately blocked on task 1 |
-| **15** | [Smaller corrections](#15-smaller-corrections) | Known, bounded, low-risk |
+| **7** | [Settle the shared-storage model](#7-settle-the-shared-storage-model) | Determines whether any worker can run any node |
+| **8** | [Sync more than hashes](#8-sync-more-than-hashes) | Most node output still never reaches an asset |
+| **9** | [Stable worker identity](#9-stable-worker-identity) | Leases and attribution key on an unstable id |
+| **10** | [Secure the control channel](#10-secure-the-control-channel) | Unauthenticated dispatch surface |
+| **11** | [Prometheus metrics](#11-prometheus-metrics) | No operational visibility |
+| **12** | [Graceful shutdown with drain](#12-graceful-shutdown-with-drain) | Scale-down relies on lease expiry |
+| **13** | [Batching](#13-dispatch-and-result-batching) | Deliberately blocked on task 1 |
+| **14** | [Smaller corrections](#14-smaller-corrections) | Known, bounded, low-risk |
 
 ---
 
@@ -61,7 +60,7 @@ exactly what that harness cannot see, because it has no socket and no Loom.
 - [ ] Compare against the pre-Variant-C in-process executor if a build still exists
 
 **Done when** there is a number for what a round trip costs, and therefore for what
-affinity is worth. Tasks 7 and 14 both depend on the per-kind durations.
+affinity is worth. Task 13 depends on the per-kind durations.
 
 ---
 
@@ -144,18 +143,7 @@ not scheduling, which is why load-aware placement was deliberately not built.
 
 ---
 
-## 7. Per-kind concurrency ceiling
-
-The circuit breaker isolates a *broken* kind. It does not stop a *slow* one from
-occupying every slot: the only ceiling today is the per-run `maxInFlight`, so a
-whisper-heavy graph can starve hashing within the same run.
-
-- [ ] Per-kind in-flight ceiling alongside the per-run one
-- [ ] Derive defaults from the per-kind durations produced by task 1
-
----
-
-## 8. Settle the shared-storage model
+## 7. Settle the shared-storage model
 
 Every worker assumes it can open any path Loom sends. Nothing verifies that, and a
 worker that cannot see the file fails every task it is given.
@@ -170,7 +158,7 @@ both placement constraints.
 
 ---
 
-## 9. Sync more than hashes
+## 8. Sync more than hashes
 
 `LoomNode` writes hashes back to the asset. Output from every other kind —
 thumbnails, embeddings, OCR text, transcripts, detections — is computed, persisted
@@ -184,7 +172,7 @@ into `pipeline_node_task.outputs`, and then **never mapped onto the asset**.
 
 ---
 
-## 10. Stable worker identity
+## 9. Stable worker identity
 
 Worker ids are not stable across restarts, yet `leased_by`, lease reclaim and
 origin attribution all key on them — so a restarted worker is a different worker
@@ -196,7 +184,7 @@ as far as the system is concerned.
 
 ---
 
-## 11. Secure the control channel
+## 10. Secure the control channel
 
 The processor WebSocket accepts registration and dispatches work with no
 authentication. Under Variant C this surface is larger than it was: it carries task
@@ -208,7 +196,7 @@ payloads and results, not just status.
 
 ---
 
-## 12. Prometheus metrics
+## 11. Prometheus metrics
 
 - [ ] Dispatch latency, queue depth, per-kind failure rate
 - [ ] Circuit breaker state per kind
@@ -217,7 +205,7 @@ payloads and results, not just status.
 
 ---
 
-## 13. Graceful shutdown with drain
+## 12. Graceful shutdown with drain
 
 A worker stopped mid-task relies on lease expiry to have its work reassigned, which
 costs a full lease interval per task.
@@ -228,7 +216,7 @@ costs a full lease interval per task.
 
 ---
 
-## 14. Dispatch and result batching
+## 13. Dispatch and result batching
 
 **Deliberately blocked on task 1.** §7.2 of the plan requires batch sizes "derived
 from observed per-task duration per kind" and warns that fixed sizes get it wrong
@@ -238,7 +226,10 @@ in both directions. Those durations do not exist yet.
 re-read intuition the benchmark disproved. The real benefit is fewer messages —
 the same benefit affinity delivers, and equally unmeasured.
 
-- [ ] Re-derive the case from task 1's numbers
+- [ ] Re-derive the case from task 1's numbers. Note the *sizing* blocker is
+      dissolvable without a prior benchmark — "observed per-task duration per kind"
+      can be observed at runtime, and the engine already records `durationMs` on
+      every result. What is not dissolved is whether batching is worth building
 - [ ] If justified: `NODE_TASK_BATCH` / `NODE_TASK_RESULT_BATCH`, N items × one
       node × one worker
 - [ ] **Per-item outcomes, never one status per batch** — otherwise one bad file
@@ -246,10 +237,8 @@ the same benefit affinity delivers, and equally unmeasured.
 
 ---
 
-## 15. Smaller corrections
+## 14. Smaller corrections
 
-- [ ] **`activeCount` / `pendingCount` in `NODE_STATS`** — still absent; the engine
-      knows both (`getInFlightCount`, deferred nodes)
 - [ ] **Filter the Cortex `PIPELINE_EVENT` passthrough** — it bypasses the
       aggregator. Nothing should send them under Variant C, so it is dead weight
       rather than an active flood, but it contradicts the aggregation policy

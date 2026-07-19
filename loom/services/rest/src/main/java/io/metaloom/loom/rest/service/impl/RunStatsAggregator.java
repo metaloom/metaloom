@@ -60,6 +60,8 @@ public class RunStatsAggregator implements io.metaloom.loom.pipeline.engine.Pipe
 	private final String pipelineName;
 	private final PipelineEventBroadcaster broadcaster;
 	private final Map<String, NodeCounters> counters = new ConcurrentHashMap<>();
+	/** Supplies live active/pending counts; absent when no engine is attached. */
+	private volatile java.util.function.Supplier<Map<String, int[]>> progressSupplier;
 
 	/** Set when something has changed since the last flush, so idle runs stay quiet. */
 	private volatile boolean dirty;
@@ -104,11 +106,24 @@ public class RunStatsAggregator implements io.metaloom.loom.pipeline.engine.Pipe
 		}
 		dirty = false;
 
+		Map<String, int[]> progress = Map.of();
+		java.util.function.Supplier<Map<String, int[]>> supplier = progressSupplier;
+		if (supplier != null) {
+			try {
+				progress = supplier.get();
+			} catch (Exception e) {
+				log.error("Could not read live progress for run {}", runUuid, e);
+			}
+		}
+
 		int sent = 0;
 		for (Map.Entry<String, NodeCounters> entry : snapshot().entrySet()) {
 			NodeCounters node = entry.getValue();
+			int[] live = progress.getOrDefault(entry.getKey(), new int[] { 0, 0 });
 			try {
 				broadcaster.broadcast(new PipelineEventMessage()
+					.setActiveCount(live[0])
+					.setPendingCount(live[1])
 					.setType(PipelineEventType.NODE_STATS)
 					.setPipelineName(pipelineName)
 					.setPipelineRunUuid(runUuid.toString())
@@ -122,6 +137,18 @@ public class RunStatsAggregator implements io.metaloom.loom.pipeline.engine.Pipe
 			}
 		}
 		return sent;
+	}
+
+	/**
+	 * Attach a source of live active/pending counts.
+	 *
+	 * <p>Kept separate from the settle callback because these are not counters - they
+	 * are a snapshot of the present, and only the engine knows them.</p>
+	 *
+	 * @param supplier node id to {@code [active, pending]}
+	 */
+	public void setProgressSupplier(java.util.function.Supplier<Map<String, int[]>> supplier) {
+		this.progressSupplier = supplier;
 	}
 
 	/** @return a stable copy of the counters, for tests and inspection */

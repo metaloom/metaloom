@@ -257,8 +257,20 @@ deletion into a new P1.7 so the replacement could be proven first.
 | **P3.2** | `SEGMENT_TASK` protocol + Cortex segment runner | ✅ |
 | **P3.3** | Engine dispatches segments; filter edges bound segments | ✅ |
 | **P3.5** | Event aggregation — per-node counters on a timer | ✅ taken **ahead of** P3.4 |
-| **P3.6** | Circuit breaker per node kind | ✅ per-kind *concurrency ceiling* still open |
-| **P3.4** | Dispatch/result batching | ⛔ **blocked** — needs measurements that do not exist |
+| **P3.6** | Circuit breaker per node kind **and per-kind concurrency ceiling** | ✅ |
+| **P3.3b** | `activeCount` / `pendingCount` in `NODE_STATS` | ✅ closes the §6.3 gap |
+| **P3.4** | Dispatch/result batching | ⛔ **blocked** — see below |
+
+**On P3.4's blocker.** §6.2 requires batch sizes "derived from observed per-task
+duration per kind". That was read as needing an up-front benchmark, and the
+benchmark that was run measured the wrong thing to supply it. But *observed*
+means observed **at runtime** — and the engine already records `durationMs` on
+every result, so a sizer could adapt itself without any prior measurement. The
+blocker is therefore dissolvable. What is **not** dissolved is whether batching
+is worth building at all: §2.9 showed its stated justification shares the
+disproved re-read premise, and its real benefit — fewer messages — is the same
+unmeasured network saving affinity delivers. **Measure first** (task 1), then
+decide.
 
 ---
 
