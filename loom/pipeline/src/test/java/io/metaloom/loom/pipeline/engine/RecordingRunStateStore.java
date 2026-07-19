@@ -37,9 +37,12 @@ public class RecordingRunStateStore implements RunStateStore {
 	}
 
 	@Override
-	public void taskDispatched(UUID itemUuid, NodeTask task) {
+	public void taskDispatched(UUID itemUuid, NodeTask task, String workerId) {
 		dispatched.add(task);
+		dispatchedWorkers.add(workerId);
 	}
+
+	public final List<String> dispatchedWorkers = new ArrayList<>();
 
 	@Override
 	public void taskSettled(UUID itemUuid, NodeTaskResult result) {

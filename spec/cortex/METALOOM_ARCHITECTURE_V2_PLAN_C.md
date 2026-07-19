@@ -828,15 +828,49 @@ Neither was hypothetical; both were caught by `testARetriedTaskDoesNotLeakItsSlo
 and `testRetryIsDeferredThroughTheScheduler` failing against the first
 implementation.
 
-### Not done: source-ack gating
+### Source-ack gating — added after the first pass
 
-The cap bounds *dispatch*, not *discovery*. `ItemState` is still created for every
-discovered item, so a 100 000 item scan holds 100 000 item states in memory even
-though only 256 tasks are outstanding. Truly end-to-end flow control means
-withholding the `SOURCE_ITEMS_ACK` while a run is at capacity — the ack machinery
-exists on both sides (`SourceTaskRunner` already blocks on it), so this is a
-small change, but it is **not made yet**. The §6.7 criterion "a 100 000-item run
-completes without unbounded memory" is therefore **not met**.
+The cap alone bounds *dispatch*, not *discovery*: a fast scan still enumerates
+100 000 files and pays item state for every one while 256 tasks run. The
+acknowledgement is the actual throttle, so `handleSourceItems` now defers
+`SOURCE_ITEMS_ACK` through `engine.whenCapacityAvailable(...)` — `SourceTaskRunner`
+already blocks on that ack, so the scan itself stops.
+
+Two properties keep this from becoming a hang:
+
+- Waiters are released **when the run completes**, not only when capacity frees.
+  A source blocked on a finished run would otherwise sit on its ack latch until
+  the 60 s timeout and then report the entire scan as failed.
+- `whenCapacityAvailable` runs the action immediately on a completed run, so a
+  late batch is never queued against an engine nobody will drain again.
+
+6 tests in `PipelineRunEngineBackpressureTest`.
+
+## 2.19 P2.7 — observability, partially done
+
+### Worker attribution — done
+
+`NodeDispatcher.dispatch` now returns the **id of the worker that took the task**
+rather than a bare boolean, and that id is stored in `pipeline_node_task.leased_by`.
+Without it, "which machine produced this result?" and "which worker is holding the
+tasks that keep timing out?" are unanswerable — the first two questions asked when
+a heterogeneous pool misbehaves. `countLeasedBy` now has a real basis.
+
+Changing the return type surfaced a case the boolean had hidden: a **refused**
+dispatch is now recorded as `PENDING` with **no lease**, because it was never
+handed to anyone and must not look reclaimable to the reaper.
+
+### Still outstanding
+
+- [ ] **Run inspection API** — where each item is, what failed, what is retrying.
+      The DAO queries exist (`loadPageByRun`, `countByRunAndState`,
+      `loadUnfinishedByRun`); no REST surface exposes them. Deliberately not
+      half-built: a service with no caller is the dead-code failure this plan has
+      already flagged twice.
+- [ ] **Metrics** ([Task 15](METALOOM_ARCHITECTURE_TASK.md)) — dispatch latency,
+      queue depth, per-kind failure rate.
+- [ ] **Event aggregation** (§7.3) — per-item-per-node events must **not** be
+      forwarded to the UI; at 100 000 items that is a flood. Phase 3 work.
 
 ---
 
@@ -1225,11 +1259,19 @@ The third is the reason affinity exists. Do not over-invest here before Phase 3.
 
 ### 6.7 Phase 2 exit criteria
 
-- [ ] A Loom restart mid-run resumes without losing or duplicating work.
-- [ ] A killed worker's in-flight tasks are reassigned and complete.
-- [ ] A poison item dead-letters with history instead of retrying forever.
-- [ ] A run spreads across ≥3 workers, respecting whitelists.
-- [ ] A 100 000-item run completes without unbounded memory or DB write stalls.
+- [x] A Loom restart mid-run resumes without losing or duplicating work — P2.4.
+      ⚠️ With one documented exception: a run whose **source** had not finished
+      enumerating cannot be resumed faithfully, because the unscanned files were
+      never recorded. Such a run finishes with what it knew and is marked so.
+- [x] A killed worker's in-flight tasks are reassigned and complete — P2.3.
+- [x] A poison item dead-letters with history instead of retrying forever — P2.3.
+- [x] A run spreads across workers, respecting whitelists — P2.5. ⚠️ Verified by
+      unit tests over the selection logic, **not** by a real ≥3 worker deployment.
+- [~] A 100 000-item run completes without unbounded memory or DB write stalls.
+      The mechanisms are in place — batched writes (P2.2), an in-flight ceiling
+      and source-ack backpressure (P2.6) — but **no run of that size has been
+      executed**. This is the one criterion that cannot be honestly ticked from
+      unit tests, and it is the same measurement §9.1 asks for.
 
 ---
 

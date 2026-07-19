@@ -40,9 +40,9 @@ public class LeaseReaperTest {
 		final List<NodeTask> dispatched = new ArrayList<>();
 
 		@Override
-		public boolean dispatch(NodeTask task) {
+		public String dispatch(NodeTask task) {
 			dispatched.add(task);
-			return true;
+			return "worker-a";
 		}
 	}
 

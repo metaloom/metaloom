@@ -41,14 +41,14 @@ public class WebSocketNodeDispatcher implements NodeDispatcher {
 	}
 
 	@Override
-	public boolean dispatch(NodeTask task) {
+	public String dispatch(NodeTask task) {
 		// Capability is still CPU for everything, because no node kind declares what
 		// hardware it needs. The node-kind whitelist is the part that works: a worker
 		// restricted to particular kinds will only be offered those.
 		ConnectedProcessor processor = registry.selectProcessor(ProcessorCapability.CPU, task.getNodeKind());
 		if (processor == null) {
 			log.warn("No online processor accepts node kind '{}' for {}", task.getNodeKind(), task);
-			return false;
+			return null;
 		}
 
 		boolean sent = registry.send(processor.nodeId, ProcessorMessageType.NODE_TASK, task);
@@ -56,11 +56,11 @@ public class WebSocketNodeDispatcher implements NodeDispatcher {
 			// The socket closed between selection and write. Reporting false lets the
 			// engine settle the node rather than wait for a result that cannot arrive.
 			log.warn("Processor '{}' went away before {} could be sent", processor.nodeId, task);
-			return false;
+			return null;
 		}
 		if (log.isDebugEnabled()) {
 			log.debug("Dispatched {} to processor '{}'", task, processor.nodeId);
 		}
-		return true;
+		return processor.nodeId;
 	}
 }

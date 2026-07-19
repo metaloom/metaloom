@@ -69,9 +69,9 @@ public class PipelineRunEndToEndTest {
 		private final List<NodeTask> inbox = new ArrayList<>();
 
 		@Override
-		public boolean dispatch(NodeTask task) {
+		public String dispatch(NodeTask task) {
 			inbox.add(task);
-			return true;
+			return "scripted-worker";
 		}
 
 		NodeTask take(String nodeId) {

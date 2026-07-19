@@ -21,10 +21,13 @@ public class FakeNodeDispatcher implements NodeDispatcher {
 	private boolean acceptAll = true;
 
 	@Override
-	public boolean dispatch(NodeTask task) {
+	public String dispatch(NodeTask task) {
 		dispatched.add(task);
-		return acceptByKind.getOrDefault(task.getNodeKind(), acceptAll);
+		return acceptByKind.getOrDefault(task.getNodeKind(), acceptAll) ? WORKER_ID : null;
 	}
+
+	/** Identity reported for accepted tasks. */
+	public static final String WORKER_ID = "fake-worker";
 
 	/** Make dispatch fail for one node kind, simulating "no worker supports this". */
 	public FakeNodeDispatcher rejectKind(String kind) {

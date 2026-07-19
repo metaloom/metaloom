@@ -1,7 +1,7 @@
 package io.metaloom.loom.rest.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Map;
@@ -33,7 +33,7 @@ public class WebSocketNodeDispatcherTest {
 	void testDispatchFailsWhenNoProcessorIsConnected() {
 		WebSocketNodeDispatcher dispatcher = new WebSocketNodeDispatcher(new ProcessorRegistry());
 
-		assertFalse(dispatcher.dispatch(task()),
+		assertNull(dispatcher.dispatch(task()),
 			"With no worker connected the dispatcher must report failure so the engine "
 				+ "can settle the node rather than stall the run");
 	}

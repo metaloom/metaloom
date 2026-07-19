@@ -22,9 +22,15 @@ public interface NodeDispatcher {
 	 * <p>Implementations must not block. The result arrives asynchronously via
 	 * {@link PipelineRunEngine#onNodeTaskResult}.</p>
 	 *
+	 * <p>The identity of the chosen worker is returned rather than a bare boolean so
+	 * it can be recorded against the task. Without it, "which machine produced this
+	 * result?" and "which worker is holding the tasks that keep timing out?" are
+	 * unanswerable - and those are the first two questions asked when a heterogeneous
+	 * pool misbehaves.</p>
+	 *
 	 * @param task the work to perform
-	 * @return true when the task was handed off; false when no worker could take it,
-	 *         in which case the engine fails the node rather than waiting forever
+	 * @return the id of the worker that took it, or null when none could, in which
+	 *         case the engine fails the node rather than waiting forever
 	 */
-	boolean dispatch(NodeTask task);
+	String dispatch(NodeTask task);
 }

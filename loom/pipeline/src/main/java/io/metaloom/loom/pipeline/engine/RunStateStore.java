@@ -45,8 +45,9 @@ public interface RunStateStore {
 	 *
 	 * @param itemUuid the item
 	 * @param task     the dispatched task
+	 * @param workerId the worker that took it, or null when none did
 	 */
-	void taskDispatched(UUID itemUuid, NodeTask task);
+	void taskDispatched(UUID itemUuid, NodeTask task, String workerId);
 
 	/**
 	 * Record a node's terminal outcome, whether it ran, was skipped, or failed.
@@ -99,7 +100,7 @@ public interface RunStateStore {
 		}
 
 		@Override
-		public void taskDispatched(UUID itemUuid, NodeTask task) {
+		public void taskDispatched(UUID itemUuid, NodeTask task, String workerId) {
 		}
 
 		@Override

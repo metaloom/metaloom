@@ -105,20 +105,25 @@ public class DaoRunStateStore implements RunStateStore {
 	}
 
 	@Override
-	public synchronized void taskDispatched(UUID itemUuid, NodeTask task) {
+	public synchronized void taskDispatched(UUID itemUuid, NodeTask task, String workerId) {
 		if (itemUuid == null) {
 			return;
 		}
 		PipelineNodeTask row = taskDao.createNodeTask(userUuid, itemUuid, task.getRunUuid(), task.getNodeId(),
 			task.getNodeKind());
 		row.setUuid(task.getTaskUuid());
-		row.setState("RUNNING");
+		// A refused dispatch is recorded as PENDING with no lease: it was never handed
+		// to anyone, so it must not look reclaimable.
+		row.setState(workerId == null ? "PENDING" : "RUNNING");
+		row.setLeasedBy(workerId);
 		row.setAttempt(1);
 		Instant now = Instant.now();
 		row.setStarted(now);
-		// The lease is what makes a dead worker recoverable: without an expiry this row
-		// stays RUNNING forever and its item never settles.
-		row.setLeaseExpiresAt(now.plusMillis(DEFAULT_LEASE_MS));
+		if (workerId != null) {
+			// The lease is what makes a dead worker recoverable: without an expiry this
+			// row stays RUNNING forever and its item never settles.
+			row.setLeaseExpiresAt(now.plusMillis(DEFAULT_LEASE_MS));
+		}
 
 		pendingTasks.put(key(itemUuid, task.getNodeId()), row);
 		flushIfFull();

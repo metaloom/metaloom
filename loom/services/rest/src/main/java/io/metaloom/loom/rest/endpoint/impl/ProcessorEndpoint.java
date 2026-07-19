@@ -343,8 +343,15 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 		}
 		log.debug("Run {} received {} source item(s) in batch {}", body.getRunUuid(), count, body.getSeq());
 
-		registry.send(nodeId, ProcessorMessageType.SOURCE_ITEMS_ACK,
-			new SourceItemsAckMessage().setRunUuid(body.getRunUuid()).setSeq(body.getSeq()));
+		// The acknowledgement is the throttle. Holding it back while the run is at
+		// capacity stops the scan itself, which is the only thing that bounds memory -
+		// capping dispatch alone still lets a fast source pile up item state for media
+		// nobody will process for hours.
+		if (engine.isAtCapacity()) {
+			log.debug("Run {} is at capacity; holding the ack for batch {}", body.getRunUuid(), body.getSeq());
+		}
+		engine.whenCapacityAvailable(() -> registry.send(nodeId, ProcessorMessageType.SOURCE_ITEMS_ACK,
+			new SourceItemsAckMessage().setRunUuid(body.getRunUuid()).setSeq(body.getSeq())));
 	}
 
 	/**

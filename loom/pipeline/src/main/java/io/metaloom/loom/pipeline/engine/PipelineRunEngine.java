@@ -89,6 +89,7 @@ public class PipelineRunEngine {
 	private RetryScheduler retryScheduler = RetryScheduler.IMMEDIATE;
 	private int maxInFlight = DEFAULT_MAX_IN_FLIGHT;
 	private int inFlightCount;
+	private final List<Runnable> capacityWaiters = new ArrayList<>();
 	private long retryBaseDelayMs = DEFAULT_RETRY_BASE_DELAY_MS;
 
 	private final Map<String, ItemState> items = new LinkedHashMap<>();
@@ -536,16 +537,18 @@ public class PipelineRunEngine {
 		state.markInFlight(node.getId(), taskUuid);
 		state.recordAttempt(node.getId());
 		inFlightCount++;
-		store.taskDispatched(itemUuid(state), task);
-		boolean accepted;
+
+		String worker;
 		try {
-			accepted = dispatcher.dispatch(task);
+			worker = dispatcher.dispatch(task);
 		} catch (Exception e) {
 			log.error("Dispatch of {} threw", task, e);
-			accepted = false;
+			worker = null;
 		}
+		// Recorded after the attempt so the chosen worker can be stored with it.
+		store.taskDispatched(itemUuid(state), task, worker);
 
-		if (!accepted) {
+		if (worker == null) {
 			// No worker could take it. Fail the node rather than leaving the run
 			// stalled forever waiting for a result that will never arrive.
 			record(state, NodeTaskResult.failed(taskUuid, node.getId(), 0,
@@ -633,6 +636,7 @@ public class PipelineRunEngine {
 	 * when its own item happened to progress, which it cannot do while it is blocked.</p>
 	 */
 	private void pumpDeferred() {
+		releaseCapacityWaiters();
 		if (atCapacity()) {
 			return;
 		}
@@ -651,6 +655,52 @@ public class PipelineRunEngine {
 	 */
 	public synchronized boolean isAtCapacity() {
 		return atCapacity();
+	}
+
+	/**
+	 * Run an action once this run has room for more work.
+	 *
+	 * <p>This is what turns the in-flight ceiling into real backpressure. Capping
+	 * dispatch alone bounds how much is <em>outstanding</em>, not how much has been
+	 * <em>discovered</em> - a fast scan still piles up item state for media nobody
+	 * will look at for hours. Deferring the source acknowledgement until there is
+	 * room stops the scan itself, which is the only thing that actually bounds
+	 * memory.</p>
+	 *
+	 * <p>Runs immediately when there is already room. Waiters are also released when
+	 * the run completes, so a source is never left waiting on a run that has stopped
+	 * consuming.</p>
+	 *
+	 * @param action typically "acknowledge the batch"
+	 */
+	public synchronized void whenCapacityAvailable(Runnable action) {
+		if (!atCapacity() || runComplete) {
+			action.run();
+			return;
+		}
+		capacityWaiters.add(action);
+	}
+
+	/**
+	 * Release anything waiting for room.
+	 *
+	 * <p>Waiters are drained before dispatching further work, so a source that has
+	 * been held back gets to send its next batch rather than being starved by items
+	 * already in the engine.</p>
+	 */
+	private void releaseCapacityWaiters() {
+		if (capacityWaiters.isEmpty() || (atCapacity() && !runComplete)) {
+			return;
+		}
+		List<Runnable> waiting = new ArrayList<>(capacityWaiters);
+		capacityWaiters.clear();
+		for (Runnable action : waiting) {
+			try {
+				action.run();
+			} catch (Exception e) {
+				log.error("Capacity waiter threw", e);
+			}
+		}
 	}
 
 	/** @return outstanding dispatched tasks */
@@ -676,6 +726,8 @@ public class PipelineRunEngine {
 			}
 		}
 		runComplete = true;
+		// Never leave a source blocked on a run that has stopped consuming.
+		releaseCapacityWaiters();
 		// A batching store must drain here, or the tail of the run - the part that
 		// says how it ended - is exactly what gets lost.
 		store.flush();
