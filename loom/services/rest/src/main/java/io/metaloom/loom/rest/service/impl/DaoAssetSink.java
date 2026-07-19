@@ -60,7 +60,7 @@ public class DaoAssetSink implements AssetSink {
 		Asset asset = assetDao.loadBySHA512(SHA512.fromString(sha512));
 		boolean created = false;
 		if (asset == null) {
-			asset = assetDao.createAsset(userUuid, SHA512.fromString(sha512), null, filenameOf(media),
+			asset = assetDao.createAsset(userUuid, SHA512.fromString(sha512), mimeTypeOf(media), filenameOf(media),
 				"pipeline", Math.max(0, media.getSize()));
 			created = true;
 		}
@@ -103,6 +103,43 @@ public class DaoAssetSink implements AssetSink {
 				log.info("Node '{}' output '{}' has no asset mapping and was not persisted", nodeId, key);
 			}
 		}
+	}
+
+	/**
+	 * Best-effort mime type, from the filename extension alone.
+	 *
+	 * <p>{@code asset.mime_type} is NOT NULL, so something has to be supplied. It cannot
+	 * be sniffed from the content: the file lives on the worker that scanned it, and
+	 * Loom has no access to it - only the path and the hashes ever cross the wire.
+	 * {@link MediaRef} carries no mime type either, so the extension is all there is.</p>
+	 *
+	 * <p>A wrong guess is preferable to a failed insert, which is what happened before:
+	 * passing null aborted the whole write and the hash reached no asset at all. When
+	 * the extension is unknown the generic type is used rather than a guess.</p>
+	 */
+	private static String mimeTypeOf(MediaRef media) {
+		String filename = filenameOf(media).toLowerCase();
+		int dot = filename.lastIndexOf('.');
+		String extension = dot < 0 ? "" : filename.substring(dot + 1);
+		return switch (extension) {
+			case "mp4", "m4v" -> "video/mp4";
+			case "mov" -> "video/quicktime";
+			case "mkv" -> "video/x-matroska";
+			case "webm" -> "video/webm";
+			case "avi" -> "video/x-msvideo";
+			case "jpg", "jpeg" -> "image/jpeg";
+			case "png" -> "image/png";
+			case "gif" -> "image/gif";
+			case "webp" -> "image/webp";
+			case "tif", "tiff" -> "image/tiff";
+			case "mp3" -> "audio/mpeg";
+			case "wav" -> "audio/wav";
+			case "flac" -> "audio/flac";
+			case "ogg" -> "audio/ogg";
+			case "pdf" -> "application/pdf";
+			case "txt" -> "text/plain";
+			default -> "application/octet-stream";
+		};
 	}
 
 	private static String filenameOf(MediaRef media) {

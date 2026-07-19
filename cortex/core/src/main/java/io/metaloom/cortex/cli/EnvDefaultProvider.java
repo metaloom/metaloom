@@ -19,6 +19,8 @@ public class EnvDefaultProvider implements IDefaultValueProvider {
 		OPTION_ENV_MAP.put("--port", "LOOM_PORT");
 		OPTION_ENV_MAP.put("--monitoring-port", "CORTEX_MONITORING_PORT");
 		OPTION_ENV_MAP.put("--meta-path", "CORTEX_META_PATH");
+		OPTION_ENV_MAP.put("--node-id", "CORTEX_NODE_ID");
+		OPTION_ENV_MAP.put("--node-kinds", "CORTEX_NODE_KINDS");
 	}
 
 	@Override

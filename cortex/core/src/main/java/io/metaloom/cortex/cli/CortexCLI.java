@@ -2,6 +2,7 @@ package io.metaloom.cortex.cli;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Set;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -33,6 +34,12 @@ public class CortexCLI implements Runnable {
 	private int monitoringPort = DEFAULT_MONITORING_PORT;
 
 	private Path metaPath = Paths.get(System.getProperty("user.home"), ".cache", "metaloom", "cortex", "meta");
+
+	/** Null means "generate one per process". */
+	private String nodeId;
+
+	/** Null means "announce everything this worker can run". */
+	private Set<String> nodeKinds;
 
 	@Spec
 	CommandSpec spec;
@@ -91,6 +98,24 @@ public class CortexCLI implements Runnable {
 		this.metaPath = metaPath;
 	}
 
+	public String getNodeId() {
+		return nodeId;
+	}
+
+	@Option(names = { "--node-id" }, description = "Identity this worker registers under. Generated per process when unset. Env: CORTEX_NODE_ID", scope = ScopeType.INHERIT)
+	public void setNodeId(String nodeId) {
+		this.nodeId = nodeId;
+	}
+
+	public Set<String> getNodeKinds() {
+		return nodeKinds;
+	}
+
+	@Option(names = { "--node-kinds" }, split = ",", description = "Node kinds this worker will execute, comma separated. Announces everything it can run when unset. Env: CORTEX_NODE_KINDS", scope = ScopeType.INHERIT)
+	public void setNodeKinds(Set<String> nodeKinds) {
+		this.nodeKinds = nodeKinds;
+	}
+
 	/**
 	 * Build {@link CortexOptions} from the parsed CLI values.
 	 */
@@ -102,6 +127,10 @@ public class CortexCLI implements Runnable {
 		options.setLoom(loom);
 		options.setMonitoringPort(monitoringPort);
 		options.setMetaPath(metaPath);
+		// Left null when unset - CortexOptions treats null as "no restriction", and
+		// passing an empty set instead would read as "run nothing".
+		options.setNodeId(nodeId);
+		options.setNodeKinds(nodeKinds);
 		return options;
 	}
 

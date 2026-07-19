@@ -102,6 +102,31 @@
             <artifactId>loom-fixture</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- Container based integration tests. These run the published images
+             rather than booting Loom and Cortex in this JVM, so they exercise the
+             Containerfiles, the packaged jars and the env-var configuration path
+             that a real deployment uses. -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>

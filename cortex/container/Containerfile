@@ -22,14 +22,33 @@ RUN apt-get update && \
 
 ENV PATH="/usr/local/cuda-13.2/bin:${PATH}"
 
-# OpenCV 4.10 JNI (Debian Trixie)
+# OpenCV runtime dependencies.
+#
+# The OpenCV libraries themselves are NOT installed from apt. The libopencv_ffm.so
+# bundled in the opencv-ffm jar is linked against OpenCV 5.1 (soname .so.501), while
+# Debian Trixie ships 4.10 - installing the distro packages produced an image that
+# died on startup with:
+#   UnsatisfiedLinkError: libopencv_video.so.501: cannot open shared object file
+# The 5.1 libraries are staged into the build context by build-container.sh and
+# copied in below. What apt provides here is only what OpenCV links *against*:
+# ffmpeg, which OpenCV's videoio backend needs.
+#
+# adduser is listed explicitly: it used to arrive transitively via the libopencv
+# packages, and dropping those broke the user-creation step below.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    libopencv-contrib410:amd64 \
-    libopencv-core410:amd64 \
-    libopencv410-jni \
-    libopencv-imgproc410:amd64 && \
+    adduser \
+    libavcodec61 \
+    libavformat61 \
+    libavutil59 \
+    libswscale8 \
+    libswresample5 && \
     rm -rf /var/lib/apt/lists/*
+
+# OpenCV 5.1 shared libraries, staged by build-container.sh from a local OpenCV
+# build (see cortex/container/build-container.sh for how to point at one).
+ADD ./cortex/container/target/opencv-libs /opt/opencv/lib
+ENV LD_LIBRARY_PATH="/opt/opencv/lib"
 
 WORKDIR  /opt
 
