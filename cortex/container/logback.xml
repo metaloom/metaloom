@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Logging for the containerised Cortex worker.
+
+  Without this the jar carries no logback configuration at all, so logback falls back
+  to its BasicConfigurator - root at DEBUG - and the container emits every netty,
+  vert.x and DNS resolver line it produces. Referenced explicitly from the
+  Containerfile CMD via -Dlogback.configurationFile.
+
+  Levels mirror loom/common/src/main/resources/logback.default.xml.
+-->
+<configuration>
+
+	<statusListener class="ch.qos.logback.core.status.NopStatusListener" />
+
+	<appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+		<encoder>
+			<pattern>%d{HH:mm:ss.SSS} %-5level [%thread] [%logger{20}] - %msg%n</pattern>
+		</encoder>
+	</appender>
+
+	<!-- Cortex's own lifecycle logging stays visible. Integration tests wait on
+	     "Connected to Loom control websocket", which is logged here at INFO. -->
+	<logger name="io.metaloom" level="INFO" />
+	<logger name="io.vertx" level="INFO" />
+
+	<root level="ERROR">
+		<appender-ref ref="STDOUT" />
+	</root>
+</configuration>

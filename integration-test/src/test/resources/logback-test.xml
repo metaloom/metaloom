@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Logging for the integration tests.
+
+  This module had no logging configuration, so logback used its BasicConfigurator and
+  everything - including the Docker HTTP client's wire logging - printed at DEBUG. A
+  single container test produced tens of thousands of lines, most of them hex dumps of
+  the Docker API traffic, which buried the assertion failure that mattered.
+-->
+<configuration>
+
+	<appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+		<encoder>
+			<pattern>%d{HH:mm:ss.SSS} %-5level [%logger{25}] - %msg%n</pattern>
+		</encoder>
+	</appender>
+
+	<!-- Wire and connection-pool logging for the Docker API. By far the loudest
+	     source, and of no interest unless Testcontainers itself is being debugged. -->
+	<logger name="com.github.dockerjava" level="WARN" />
+	<logger name="org.testcontainers" level="INFO" />
+
+	<!-- Container output, relayed by MetaLoomTestContext under container.<name> when
+	     -Dmetaloom.containerLogs=true. The containers now log at INFO/ERROR
+	     themselves, so this passes their output through as-is. -->
+	<logger name="container" level="INFO" />
+
+	<logger name="io.metaloom" level="INFO" />
+
+	<root level="WARN">
+		<appender-ref ref="STDOUT" />
+	</root>
+</configuration>

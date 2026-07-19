@@ -28,4 +28,7 @@ VOLUME /plugins
 VOLUME /keystore
 VOLUME /config
 
-CMD [ "java", "-Djna.tmpdir=/tmp/.jna", "-Duser.dir=/loom", "-jar" , "loom.jar"]
+# logback.default.xml ships inside the jar, but logback only auto-loads a file named
+# logback.xml, so without this it falls back to BasicConfigurator - root at DEBUG -
+# and the container logs every jOOQ statement it executes.
+CMD [ "java", "-Djna.tmpdir=/tmp/.jna", "-Duser.dir=/loom", "-Dlogback.configurationFile=logback.default.xml", "-jar" , "loom.jar"]

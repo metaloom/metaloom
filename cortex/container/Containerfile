@@ -70,10 +70,11 @@ RUN adduser --disabled-password --uid 1000 --ingroup root --home /cortex --gecos
     chown 1000:0 /cortex -R && \
     chmod 770 /cortex -R
 ADD --chown=1000:0 ./cortex/container/target/cortex-cli/cortex-cli.jar /cortex/cortex-cli.jar
+ADD --chown=1000:0 ./cortex/container/logback.xml /cortex/logback.xml
 
 USER cortex
 WORKDIR /cortex
 VOLUME /config
 VOLUME /meta
 
-CMD [ "/opt/java25/bin/java", "-Djna.tmpdir=/tmp/.jna", "-Duser.dir=/cortex", "--enable-native-access=ALL-UNNAMED", "-jar", "cortex-cli.jar", "server", "start"]
+CMD [ "/opt/java25/bin/java", "-Djna.tmpdir=/tmp/.jna", "-Duser.dir=/cortex", "-Dlogback.configurationFile=/cortex/logback.xml", "--enable-native-access=ALL-UNNAMED", "-jar", "cortex-cli.jar", "server", "start"]
