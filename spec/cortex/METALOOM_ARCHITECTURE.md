@@ -6,8 +6,8 @@
 >
 > This document favours plain language over precision-by-jargon, but it does
 > **not** soften the facts. Where something is documented but not actually
-> built, it says so. Every claim was checked against the code at
-> `92bc115` on 2026-07-18.
+> built, it says so. Every claim was checked against
+> the code; last verified 2026-07-19.
 >
 > **Deeper references:** [CORTEX.md](CORTEX.md) ·
 > [../loom/LOOM.md](../loom/LOOM.md) ·
@@ -19,13 +19,6 @@
 > [METALOOM_ARCHITECTURE_TASK.md](METALOOM_ARCHITECTURE_TASK.md)
 
 ---
-
-> ⚠️ **Staleness note (2026-07-19).** Sections 1–5, 7, 8, 12, 13 describe the
-> system accurately. **Sections 6, 9, 10 and 11 were written against the previous
-> architecture**, in which a Cortex worker received a run and executed the whole
-> pipeline itself. Loom now owns the graph and dispatches individual node tasks.
-> **[§14](#14-how-a-pipeline-runs) supersedes them** wherever
-> they disagree; rewriting them is an open task.
 
 ## 1. The system in one page
 
@@ -293,94 +286,30 @@ forward.
 
 ## 6. How Loom tells Cortex what to run
 
-A user clicks "Run" in the UI. Here is the whole journey.
+You start a run against a pipeline, optionally narrowing which media it covers.
+Loom then works out what needs doing and hands out the work.
 
-```mermaid
-sequenceDiagram
-    participant UI as Loom UI
-    participant L as Loom
-    participant DB as Database
-    participant C as Cortex
-    participant FS as Filesystem
+A worker is never given "a pipeline". It is given a single, concrete instruction:
+run this node against this file, or run this short sequence of nodes against this
+file. It answers, and waits to be told what to do next. Everything about ordering,
+what depends on what, and what happens after a failure is decided by Loom.
 
-    UI->>L: POST /api/v1/pipelines/:uuid/run
-    L->>L: pick a worker (needs CPU, highest priority)
-    alt no worker online
-        L-->>UI: 503 — nothing available
-    end
-    L->>DB: create run record, status = RUNNING
-    L->>C: WORK_ORDER (over the open WebSocket)
-    C-->>L: WORK_ORDER_RESULT — "accepted, N files"
-    L-->>UI: 202 Accepted
-    Note over C,FS: work now happens in the background
-    C->>FS: expand path globs, walk folders
-    loop each media item
-        C->>FS: run the graph over the file
-        C-->>L: PIPELINE_EVENT (progress)
-        L-->>UI: forwarded live
-    end
-    C->>L: results, via REST bulk update
-    C->>L: PIPELINE_RUN_COMPLETED (final counts)
-    L->>DB: run status = SUCCESS / PARTIAL / FAILED
-```
+Two kinds of instruction exist, and the difference is only about efficiency:
 
-### Choosing the worker
+- **One node against one file** — the ordinary case.
+- **Several connected nodes against one file** — when a pipeline has asked for
+  those nodes to be grouped, so they run on the same machine instead of being
+  handed out separately.
 
-Loom filters the registry to workers that are `ONLINE` and have the required
-capability, sorts by priority, and takes the first. If none match, the request
-fails with **503** and no run record is created.
+Selecting the media is itself a piece of work given to a worker: one worker walks
+the filesystem and streams back what it finds, in batches, while Loom starts
+processing the earlier items before the scan has finished.
 
-> ⚠️ The required capability is **hardcoded to `CPU`** at the call site. And
-> since every worker registers with identical priority, "highest priority wins"
-> in practice means *whichever happens to sort first*. There is **no
-> load-balancing, no round-robin, and no queueing** — one worker is chosen and
-> the load figures it has been dutifully reporting are never consulted.
-
-### What the work order says
-
-| Parameter | Meaning | Honoured? |
-|---|---|---|
-| `command` | which of four actions to take | ✅ |
-| `pipelineName` | which recipe to run | ✅ — matched **by name string** |
-| `pipelineUuid`, `pipelineVersion` | which recipe, precisely | ❌ sent, then ignored |
-| `pipelineRunUuid` | correlation id for tracking | ✅ |
-| `pathGlobs` | **which files to process** | ✅ — the only working selector |
-| `mediaUuids` | process these specific assets | ❌ logs a warning, does nothing |
-| `dryRun` | run without side effects | ❌ sent and stored, never read by the worker |
-
-**On "configuring the start folder":** there is no start-folder concept in the
-code. Media selection is done entirely by `pathGlobs` — shell-style patterns
-such as `/media/incoming/**/*.mp4`. Cortex splits each pattern at the first
-wildcard, treats the fixed prefix as the directory to walk, and matches the rest
-against every file underneath, to unlimited depth. A pattern with no wildcard is
-treated as a literal file path.
-
-> ⚠️ These paths are resolved **on the worker, relative to its own working
-> directory**, and a path that does not exist yields an empty list *silently*.
-> Loom has no idea what any worker can see. Selecting a folder in the UI that
-> the worker cannot reach produces a green, instant, empty run.
-
-### The four commands a worker understands
-
-| Command | What it does |
-|---|---|
-| `run-pipeline` | resolve the recipe by name, expand the globs, start processing |
-| `reload-pipelines` | re-fetch pipeline definitions from Loom over REST |
-| `flush-sync` | push any buffered results to Loom now |
-| `list-pipelines` | report which recipes this worker has loaded |
-
-### Two meanings of "done"
-
-This trips people up. `WORK_ORDER_RESULT` comes back within milliseconds and
-means **"accepted, I found N files"** — not "finished". The real completion
-signal is `PIPELINE_RUN_COMPLETED`, which may arrive hours later.
-
-Loom guards against a worker that never answers with a **60-second watchdog** on
-the *acknowledgement*. If the ack says zero files were found, the run is closed
-as `SUCCESS` immediately, since no completion message will ever arrive. The
-first terminal verdict wins, so a late watchdog cannot overwrite a real result.
+**A pipeline that cannot run is rejected when you start it**, with a reason. See
+[§14](#14-how-a-pipeline-runs) for what a run does from beginning to end.
 
 ---
+
 
 ## 7. Monitoring and health
 
@@ -456,195 +385,119 @@ that processes a folder and exits, which suits a Cron job or a Kubernetes `Job`.
 
 ## 9. How results get back to Loom
 
-Results take the **REST** road, not the WebSocket, and they are **batched**.
+A worker answers every piece of work it is given. That answer says what the node
+produced, how long it took, and whether it succeeded, was skipped, or failed.
 
-1. A node finishes successfully and is marked `syncToLoom`.
-2. Its output is added to a buffer.
-3. When the buffer reaches **100 entries**, or someone calls `flush-sync`, the
-   whole batch is posted to Loom's bulk asset update endpoint in one request.
-4. Loom attaches the values to the matching assets as metadata.
+Loom records each answer as it arrives, works out what it unblocks, and hands out
+whatever became ready. Nothing is lost if Loom restarts — see
+[§14](#14-how-a-pipeline-runs).
 
-Entries are grouped by SHA-512, which is how a result finds its asset. **An item
-with no SHA-512 is skipped silently** — so a hashing node effectively has to run
-upstream for results to be attributable at all.
+**Results can be grouped.** A cheap node over thousands of small files produces
+thousands of tiny answers. A pipeline can ask for them to be sent in batches
+instead, which trades a little delay for far fewer messages. The default is to send
+each result immediately, so this is something a pipeline opts into.
 
-If the bulk write fails, the batch is **put back in the buffer** and retried on
-the next flush. That is a reasonable default, but note it retries forever with
-no dead-letter and no cap, so a persistently failing Loom means an
-ever-growing in-memory buffer.
+A partly-filled batch is sent after a short wait rather than being held until it
+fills, so the end of a run is never left sitting on a worker.
 
-> 🔴 **Only hashes actually make the trip.** The writer that builds the REST
-> request reads exactly four output keys — `sha512`, `sha256`, `md5`,
-> `chunkHash` — and discards everything else. **Transcripts, captions, OCR text,
-> face embeddings, fingerprints, and thumbnails never reach Loom through this
-> path at all.** The code concedes this in a comment: other outputs "can be
-> plumbed here as their corresponding update fields are exercised". So the
-> expensive analysis Cortex is built for is, today, computed and then dropped on
-> the floor as far as the central database is concerned. It survives only in the
-> local xattr storage described below.
->
-> 🔴 **The streaming path never flushes at the end.** A flush happens at 100
-> entries, at the end of an `executeBatch` call, or on an explicit `flush-sync`
-> command — but the streaming `execute()` used by the `run-pipeline` work order
-> has **no flush on completion**. A run that finishes with fewer than 100
-> pending entries leaves them sitting in memory indefinitely. Since 100 items is
-> a large run, the common case is that a pipeline run sends **nothing**.
->
-> ⚠️ **A cached result is never synced.** A cache hit returns early, before the
-> collection step — so re-running a pipeline over already-processed media syncs
-> nothing to Loom, even for the four hash fields that do work.
->
-> ⚠️ The buffer drain is **not atomic** despite its comment saying so; entries
-> added concurrently between the copy and the clear are lost.
-
-### Results are also stored locally, independently
-
-Separately from any of this, Cortex writes what it learns **next to the file
-itself** — in Linux extended attributes (xattr), or a sidecar file. This is what
-the README means by "un-opinionated": Cortex does not move, import, or reshape
-your media, and it does not need Loom in order to be useful. Run it offline and
-the knowledge still accumulates on disk.
-
-> ⚠️ **Only explicitly flagged results are ever sent.** A node syncs only if
-> `syncToLoom` is set on it, and only when it `COMPLETED`. Failures and skips
-> are never synced. Critically, **the Loom UI's saved format has no
-> `syncToLoom` field at all**, so it defaults to `false` — meaning that even
-> after the graph-schema bug is fixed, a UI-authored pipeline would still send
-> **nothing** back. This is a second, independent break in the same round trip.
->
-> ⚠️ There is also no store on Loom for *intermediate* node results. Only
-> whitelisted outputs land, and only as flat asset metadata — there is no
-> per-node result or stats table.
+**One gap worth knowing:** hashes are written back onto the asset, but output from
+other node types — thumbnails, embeddings, extracted text, transcripts, detections
+— is recorded against the run and **not yet mapped onto the asset itself**. The
+work is done and stored; it simply is not surfaced where you would look for it.
+This is an open task.
 
 ---
 
 ## 10. What "reactive processing" means here
 
-"Reactive" is used in a specific technical sense, and the specs disagree about
-it — [METALOOM.md](../METALOOM.md) claims the engine is built on
-`CompletableFuture` with "no RxJava". **That is stale and wrong.** The engine is
-**RxJava 3**.
+Mostly it means *nothing blocks waiting for something else to finish*.
 
-In plain terms, reactive processing means the engine treats media as a
-**flowing stream** rather than a list to be chewed through:
+A run does not wait for the whole filesystem scan before it starts processing —
+the first files are being worked on while the scan is still going. A worker does
+not sit idle waiting for one slow file. Loom does not stop handing out work
+because one node is slow.
 
-- **Nothing is loaded up front.** Files are pulled in as capacity frees up, so a
-  folder of a million files does not become a million objects in memory.
-- **The consumer sets the pace.** This is *backpressure*: the slow part of the
-  system throttles the fast part automatically, rather than the fast part
-  flooding a queue until something falls over.
-- **Independent work overlaps.** While one file waits on disk, another is being
-  hashed, and a third is having faces detected. The graph decides what *must* be
-  sequential; everything else can proceed in parallel.
-- **Failure is a value, not an explosion.** A node that throws produces a
-  `FAILED` result that flows onward like any other, so one bad file cannot take
-  down the run.
+The practical consequences are the ones worth remembering:
 
-Concretely there are two throttles:
-
-| Level | Mechanism | Default |
-|---|---|---|
-| How many files in flight at once | RxJava `flatMap` width | **4** |
-| How many files inside one node at once | a semaphore per node | **1** |
-
-> ⚠️ **The 4 is effectively hardcoded in a deployed container.** There is no CLI
-> flag or env var for `maxConcurrentMedia`, and the YAML file is never read
-> (§8), so it is always 4. On a 32-core machine, this is the binding constraint
-> — and it is the single most important number to make configurable before any
-> scaling work.
->
-> ⚠️ **Per-node throttling is not actually reactive.** It is a blocking
-> semaphore acquired inside the work itself, so a saturated node **parks
-> threads** rather than exerting backpressure upstream. The per-file timeout is
-> applied *outside* the permit, so a hung node keeps its permit and starves its
-> peers anyway. The genuine backpressure is the `flatMap` width alone.
+- **Work is spread out rather than done in strict order.** Two files are processed
+  at the same time, so "file 1 finished before file 2 started" is not something
+  you can rely on.
+- **The system pushes back when it is busy** rather than accepting unbounded work.
+  A scan is slowed down when its run already has as much outstanding as it allows.
+- **Order within one file is still guaranteed.** A node never runs before the
+  nodes it depends on.
 
 ---
 
 ## 11. What happens when a node fails
 
-The guiding principle: **one bad file, or one bad step, must not kill the run.**
+A failure is treated as a result, not a crash. One bad file does not stop a run.
 
 | Situation | What happens |
 |---|---|
-| A node throws an exception | caught, converted to a `FAILED` result, `NODE_FAILED` emitted; the run continues |
-| A node exceeds its timeout | treated as a failure (per-node, opt-in, `0` = no limit) |
-| A dependency failed and **this node is blocking** | it is **skipped** with `"Dependency <id> failed"` |
-| A dependency failed and **this node is not blocking** | it **runs anyway**, with the failed result visible in its inputs |
-| A filter rejected the item | nodes on the non-matching branch are skipped |
-| Dry-run mode | every node is skipped, no side effects |
-| The whole file fails | that file is marked a failure; other files are unaffected |
+| A node fails on one file | Recorded as failed. Nodes that depend on it are skipped for **that file only** |
+| A node is marked as non-blocking | Nodes after it still run, and can see that it failed |
+| A node type asks to be retried | It gets another attempt, with a growing delay between tries |
+| It keeps failing | Given up on after a set number of attempts, keeping the history of why |
+| A worker dies mid-task | The work is given to another worker |
+| A node type fails on nearly everything | Set aside for a while, then tried again cautiously, so one broken node type does not consume the fleet |
 
-A run's final verdict is derived from the tally: no failures → `SUCCESS`; all
-media failed → `FAILED`; anything in between → `PARTIAL`.
-
-Known sharp edges:
-
-- **There are no retries.** A `retryFailed` parameter is advertised by 10 node
-  descriptors in the UI, but **nothing reads it**. A transient failure — a
-  network blip, a busy GPU — is permanent for that item.
-- **Skips do not cascade the way people expect.** The check is on the *child's*
-  own blocking flag, applies only to *direct* parents, and fires only on
-  `FAILED`, not on `SKIPPED`. Since a skipped node is `SKIPPED` rather than
-  `FAILED`, its own children do not skip — so a grandchild of a rejecting filter
-  will happily run unless it is explicitly wired to that filter's branch.
-- **A failed node's duration is discarded** (recorded as 0), so you cannot see
-  whether it failed fast or hung.
-- **Unregistered node types report success.** This is the most dangerous
-  behaviour in the system: a node kind with no implementation resolves to a stub
-  that logs and returns `COMPLETED`. A pipeline built entirely from unimplemented
-  nodes produces a fully green run having done nothing at all.
-- **The executor is single-use.** Its internal stats scheduler is shut down
-  after the first run, so a **second run on the same instance throws** — and
-  Dagger provides it as a singleton. This is a live production hazard.
-- **`node.shutdown()` is never called**, so nodes holding native resources
-  (OpenCV, whisper.cpp, InspireFace) leak.
+The distinction that matters most in practice: **a failure affects one file, not the
+run.** A run reports how many items succeeded, failed and were skipped, and finishes
+either way. Failures are reported individually and name the file; volume is reported
+as counts.
 
 ---
 
+
 ## 12. What actually works today
 
-Being blunt about the state of things, because the failure modes are all silent.
+Being blunt about the state of things, because several of the remaining problems
+fail quietly.
 
 **Works:**
 
-- ✅ Cortex connects, registers, heartbeats, reconnects, and reports health
-- ✅ Live progress events reach the UI, with filtering and drop-on-full handling
-- ✅ Pipelines can be authored, validated, versioned, and restored in Loom
-- ✅ Run records are created and closed out with real counters — **on the happy
-  path**; a run killed by an upstream error or cancellation emits no completion
-  event and relies on the watchdog
-- ✅ DAG ordering, concurrency, timeouts and filters — **now evaluated on Loom**
-  by `PipelineRunEngine`; the in-Cortex engine has been deleted
-- ✅ Run state survives a Loom restart; a dead worker's tasks are reclaimed
-- ✅ An unexecutable pipeline definition fails at run time with a 400, instead of
-  producing a green run that did nothing
-- ✅ Local xattr / sidecar storage of results next to the media
-- ✅ Offline/CLI batch processing, which bypasses all the Loom coupling
+- Cortex connects, registers, heartbeats, reconnects, and reports health
+- Pipelines can be authored, validated, versioned, and restored
+- **A pipeline authored in the UI now runs as drawn.** It used to collapse to just
+  the source node, because the editor and the worker read the same file
+  differently. Only Loom reads it now
+- **An unrunnable pipeline is rejected when you start it**, with a reason, instead
+  of reporting a green run that did nothing
+- Work is decided by Loom and executed by workers, one piece at a time
+- A run survives a Loom restart; a dead worker's work is reassigned
+- Repeated failures on one file are given up on, keeping the history
+- A node type failing everywhere is set aside rather than consuming the fleet
+- Live progress reaches the UI as counts, with failures named individually
+- Results can be grouped to reduce message volume
+- Local sidecar storage of results next to the media
+- Offline CLI batch processing, which bypasses Loom entirely
 
-**Broken end-to-end:**
+**Still broken or missing:**
 
-- 🔴 **A UI-authored pipeline does not run as drawn** — `edges` vs
-  `dependencies`; it collapses to just the source node
-- 🔴 **23 of 29 node kinds are silent no-ops** that report success
-- 🔴 **Only hash values are ever synced to Loom.** Transcripts, faces, OCR,
-  fingerprints, and thumbnails are computed and then discarded
-- 🔴 **The streaming run path never flushes its result buffer**, so a run with
-  under 100 results typically sends nothing at all
-- 🔴 **A UI-authored pipeline syncs no results**, because `syncToLoom` is absent
-  from the UI format and defaults to `false`
+- **Most node types do nothing.** Only a handful of the advertised node kinds are
+  actually implemented; the rest report success without doing work. This is the
+  single most misleading behaviour left
+- **Only hashes reach the asset.** Transcripts, faces, OCR, fingerprints and
+  thumbnails are computed and recorded against the run, but never mapped onto the
+  asset where you would look for them
+- **`syncToLoom` is not set by the UI**, so a UI-authored pipeline stores less than
+  the author expects
+- **No way to inspect a run in detail.** Where each file got to, what failed and
+  what is retrying is all recorded and none of it is reachable over the API
+- **The control channel is unauthenticated**, and now carries work and results
+- **Worker load is measured incorrectly**, so work is placed by configured priority
+  rather than by how busy a machine is
 
 **Not built, despite appearing in docs or UI:**
 
-- 🟡 GPU routing · `mediaUuids` selection · `dryRun` on the worker ·
-  `retryFailed` · the YAML config file · heartbeat timeouts · TLS on the control
+- GPU routing · selecting media by id · the YAML config file · TLS on the control
   channel · REST authentication from Cortex
 
-The common thread: **every one of these fails quietly.** Nothing errors, nothing
-alerts — you get a green run. That is the single most important property to fix,
-and it is why [§14](#14-turning-cortex-into-a-processing-grid) argues against
-building distribution on this foundation before the silent-success behaviour is
-gone.
+The common thread among the remaining problems is unchanged: **they fail quietly.**
+A node that does nothing and a result that is never stored both look like success.
+That is still the most important property to fix, and it is why the open task list
+puts truthfulness ahead of performance.
 
 ---
 
@@ -669,10 +522,6 @@ gone.
 ---
 
 ## 14. How a pipeline runs
-
-> **This section supersedes §6, §9, §10 and §11 wherever they disagree.** Those
-> describe an earlier arrangement in which a Cortex worker was handed a run and
-> executed the whole pipeline itself. That is no longer how MetaLoom works.
 
 ### Who decides what
 
@@ -750,13 +599,15 @@ being handed out one at a time.
 By default **everything is in one group**, so a pipeline is only split across
 machines when someone asks for it.
 
-🔴 **What this saves is network round trips — not repeated file reads.** It is
-tempting to assume grouping lets a video be decoded once and analysed many times.
-It does not: each node still reads the file itself, because there is no way for one
-node to hand a decoded frame to the next. A measurement over 155 MiB of video found
-grouping **1.01×** faster than not grouping — within noise. The round-trip saving is
-real but has not been measured. Whether genuine decode-once is wanted is an open
-product question, and answering "yes" means changing how nodes exchange data.
+**What grouping saves is round trips.** Sending each node separately costs a
+message and a reply per node per file; grouping five nodes into one exchange
+removes four of them, and keeps related work on one machine, which is also what
+makes node-type restrictions and shared storage tractable.
+
+It does **not** currently avoid re-reading the file. Each node still opens what it
+needs, because there is no way for one node to hand a decoded frame to the next.
+Making that possible is a node-level caching question, tracked in
+[../tasks/TASKS.md](../tasks/TASKS.md).
 
 ---
 
@@ -805,10 +656,8 @@ Being explicit, because these are the claims most likely to be assumed:
 - [x] Affinity groups described **with the benchmark that corrects their stated
       purpose**
 - [x] Unproven claims stated as unproven (§15)
-- [ ] ⚠️ **§6, §9, §10 and §11 not yet rewritten** — they describe the
-      pre-Variant-C model where a worker executed a whole run. §14 supersedes them,
-      but the contradiction should be resolved properly rather than left to a
-      cross-reference
+- [x] §6, §9, §10 and §11 rewritten for the current model — the document no
+      longer contradicts itself
 - [ ] Deployment guide (Kubernetes manifests, Helm) — none exist in the repo
 - [ ] Security review of the control channel (no TLS, lenient auth, no REST token)
 - [ ] **Round-trip cost and saving unmeasured** — the justification for this whole

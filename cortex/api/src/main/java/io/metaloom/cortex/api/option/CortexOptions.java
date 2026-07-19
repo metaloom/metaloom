@@ -3,6 +3,7 @@ package io.metaloom.cortex.api.option;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import io.metaloom.cortex.api.option.node.CortexNodeOptions;
 
@@ -15,6 +16,26 @@ public class CortexOptions {
 	private Path metaPath;
 
 	private int monitoringPort = 8093;
+
+	/**
+	 * Node kinds this worker is willing to execute.
+	 *
+	 * <p>Null or empty means "anything", which keeps a worker that predates
+	 * whitelisting in the pool rather than silently dropping it out. Setting it lets a
+	 * deployment dedicate machines to particular work - GPU boxes to embeddings, the
+	 * one host with the media mounted to filesystem scanning.</p>
+	 */
+	private Set<String> nodeKinds;
+
+	/**
+	 * Identity this worker registers under.
+	 *
+	 * <p>Generated per process when unset, which means a restarted worker is a
+	 * different worker as far as Loom is concerned - leases, attribution and the
+	 * in-flight count all key on this. Setting it makes the identity survive a
+	 * restart.</p>
+	 */
+	private String nodeId;
 
 	// Maximum number of media items to process concurrently (media-level concurrency)
 	private int maxConcurrentMedia = 4;
@@ -90,6 +111,30 @@ public class CortexOptions {
 
 	public int getMonitoringPort() {
 		return monitoringPort;
+	}
+
+	/**
+	 * @return the accepted node kinds, or null/empty when the worker accepts anything
+	 */
+	public Set<String> getNodeKinds() {
+		return nodeKinds;
+	}
+
+	public CortexOptions setNodeKinds(Set<String> nodeKinds) {
+		this.nodeKinds = nodeKinds;
+		return this;
+	}
+
+	/**
+	 * @return the configured worker identity, or null to generate one per process
+	 */
+	public String getNodeId() {
+		return nodeId;
+	}
+
+	public CortexOptions setNodeId(String nodeId) {
+		this.nodeId = nodeId;
+		return this;
 	}
 
 	public CortexOptions setMonitoringPort(int monitoringPort) {

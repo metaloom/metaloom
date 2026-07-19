@@ -38,6 +38,18 @@ public interface PipelineRunItemDao extends CRUDDao<PipelineRunItem> {
 	long countByRunAndState(UUID runUuid, String state);
 
 	/**
+	 * Find the most recently finished item for a path, from any run.
+	 *
+	 * <p>Used to reuse what an earlier run already computed for the same file. Keyed
+	 * on path because at discovery time nothing else is known - the source reports a
+	 * path and a size, and the hash is precisely what has not been computed yet.</p>
+	 *
+	 * @param mediaPath absolute path of the file
+	 * @return the newest settled item for that path, or null when the file is new
+	 */
+	PipelineRunItem loadLatestSettledByPath(String mediaPath);
+
+	/**
 	 * Create an unsaved item.
 	 *
 	 * @param userUuid  who owns the run

@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.Cortex;
+import dagger.Lazy;
 import io.metaloom.cortex.api.node.CortexNode;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.impl.boot.CortexBootstrapInitializer;
@@ -20,14 +21,23 @@ public class CortexImpl implements Cortex {
 	private static final Logger log = LoggerFactory.getLogger(CortexImpl.class);
 
 	private final CortexOptions options;
-	private final Set<CortexNode<?, ?>> nodes;
+	/**
+	 * Deferred on purpose.
+	 *
+	 * <p>Injecting the set directly builds every node the worker was compiled with -
+	 * face detection loading its model pack, whisper, OCR and the rest - merely to
+	 * start up. A worker that only hashes has no business initialising any of that,
+	 * and on a machine without the models it cannot even start. Nothing outside
+	 * {@link #checkNodes()} reads this.</p>
+	 */
+	private final Lazy<Set<CortexNode<?, ?>>> nodes;
 	private final CortexBootstrapInitializer boot;
 
 	private boolean shutdown = true;
 	private CountDownLatch latch = new CountDownLatch(1);
 
 	@Inject
-	public CortexImpl(CortexOptions options, Set<CortexNode<?, ?>> nodes, CortexBootstrapInitializer boot) {
+	public CortexImpl(CortexOptions options, Lazy<Set<CortexNode<?, ?>>> nodes, CortexBootstrapInitializer boot) {
 		this.options = options;
 		this.nodes = nodes;
 		this.boot = boot;
@@ -35,7 +45,7 @@ public class CortexImpl implements Cortex {
 
 	@Override
 	public void checkNodes() {
-		for (CortexNode<?, ?> node : nodes) {
+		for (CortexNode<?, ?> node : nodes.get()) {
 			System.out.println(node.options());
 		}
 	}

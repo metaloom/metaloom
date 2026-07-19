@@ -145,6 +145,7 @@ public class PipelineGraphParser {
 		// finished for a run, and which node produced it does not change the cost of
 		// the message.
 		graph.setResultBatchSize(definition.getInteger("resultBatchSize", PipelineGraph.DEFAULT_RESULT_BATCH_SIZE));
+		graph.setReuseResults(definition.getBoolean("reuseResults", false));
 		return graph;
 	}
 

@@ -180,6 +180,40 @@ public class DaoRunStateStore implements RunStateStore {
 	}
 
 	@Override
+	public java.util.Optional<NodeTaskResult> previousResult(MediaRef media, String nodeId) {
+		try {
+			PipelineRunItem previous = itemDao.loadLatestSettledByPath(media.getPath());
+			if (previous == null) {
+				return java.util.Optional.empty();
+			}
+			// The file may have been replaced since. Size is the only cheap signal the
+			// source gives us, so a mismatch means recompute rather than trust.
+			Long knownSize = previous.getSizeBytes();
+			if (knownSize == null || media.getSize() < 0 || knownSize != media.getSize()) {
+				log.debug("Not reusing results for {}: size changed or unknown", media.getPath());
+				return java.util.Optional.empty();
+			}
+
+			PipelineNodeTask task = taskDao.loadByItemAndNode(previous.getUuid(), nodeId);
+			if (task == null || !"COMPLETED".equals(task.getState())) {
+				// Only a success is worth adopting. Reusing a failure would make an
+				// outage permanent, and reusing a skip would carry no outputs anyway.
+				return java.util.Optional.empty();
+			}
+			JsonObject outputs = task.getOutputs();
+			if (outputs == null || outputs.isEmpty()) {
+				return java.util.Optional.empty();
+			}
+			return java.util.Optional.of(NodeTaskResult.completed(null, nodeId,
+				task.getDurationMs() == null ? 0 : task.getDurationMs(), outputs.getMap()));
+		} catch (Exception e) {
+			// Reuse is an optimisation; never let it break a run.
+			log.error("Failed to look up a previous result for '{}' on {}", nodeId, media.getPath(), e);
+			return java.util.Optional.empty();
+		}
+	}
+
+	@Override
 	public synchronized void sourceCompleted(UUID runUuid, long totalCount) {
 		// Items must be on disk before the run is marked fully enumerated, or a crash
 		// in between leaves a run that claims to know all its media but does not.

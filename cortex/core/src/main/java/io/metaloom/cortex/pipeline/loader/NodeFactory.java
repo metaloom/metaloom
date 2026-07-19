@@ -21,4 +21,10 @@ public interface NodeFactory {
 	 */
 	PipelineNode createNode(JsonObject nodeDef);
 
+	/**
+	 * @return the node kinds this worker can execute; the ground truth behind what it
+	 *         announces to Loom
+	 */
+	java.util.Set<String> registeredTypes();
+
 }

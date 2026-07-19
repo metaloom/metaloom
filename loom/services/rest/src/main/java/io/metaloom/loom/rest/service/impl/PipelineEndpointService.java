@@ -9,6 +9,7 @@ import static io.metaloom.loom.db.model.perm.Permission.RESTORE_PIPELINE_VERSION
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -260,17 +261,9 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 				request = new PipelineRunRequest();
 			}
 
-			ConnectedProcessor processor = processorRegistry.selectProcessor(ProcessorCapability.CPU);
 			PipelineRunResponse response = new PipelineRunResponse();
 			UUID workOrderId = UUID.randomUUID();
 			response.setWorkOrderId(workOrderId);
-
-			if (processor == null) {
-				response.setDispatched(false).setMessage("No processor available");
-				log.warn("Rejected pipeline run for pipeline {}: no processor registered", pipeline.getUuid());
-				lrc.send(response, 503);
-				return;
-			}
 
 			// Get the latest version for the run
 			PipelineVersion latestVersion = pipelineVersionDao.loadLatestByPipeline(pipeline.getUuid());
@@ -295,6 +288,21 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 				return;
 			}
 
+			// The source has to go to a worker that will actually run it - a pool where
+			// the only online worker is restricted to hashing cannot start a scan. This
+			// is checked after parsing because the source's kind comes from the graph.
+			String sourceKind = graph.getSourceNode().getKind();
+			ConnectedProcessor processor = processorRegistry.selectProcessorForKinds(ProcessorCapability.CPU,
+				List.of(sourceKind));
+			if (processor == null) {
+				response.setDispatched(false)
+					.setMessage("No processor available for source node kind '" + sourceKind + "'");
+				log.warn("Rejected pipeline run for pipeline {}: no processor accepts source kind '{}'",
+					pipeline.getUuid(), sourceKind);
+				lrc.send(response, 503);
+				return;
+			}
+
 			// Create a pipeline run record to track this execution
 			PipelineRun runRecord = pipelineRunDao.createPipelineRun(lrc.userUuid(), pipeline.getUuid(), pipelineVersion);
 			runRecord.setStatus("RUNNING");
@@ -308,6 +316,10 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 			RunStateStore stateStore = new DaoRunStateStore(pipelineRunDao, pipelineRunItemDao, pipelineNodeTaskDao,
 				runUuid, lrc.userUuid());
 			PipelineRunEngine engine = new PipelineRunEngine(graph, nodeDispatcher, runUuid, stateStore);
+			// Outputs of nodes marked syncToLoom land on the asset, not just in the run
+			// record. Without this the hash a pipeline computes is invisible everywhere
+			// an asset is actually looked at.
+			engine.setAssetSink(new DaoAssetSink(daos().assetDao(), lrc.userUuid()));
 			engine.onCompletion(summary -> pipelineRunTracker.complete(runUuid, summary.getDurationMs(),
 				(int) summary.getMediaCount(), (int) summary.getSuccessCount(),
 				(int) summary.getFailureCount(), (int) summary.getSkippedCount()));

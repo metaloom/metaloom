@@ -89,6 +89,7 @@ public class PipelineRunEngine {
 	private final NodeDispatcher dispatcher;
 	private final UUID runUuid;
 	private final RunStateStore store;
+	private AssetSink assetSink = AssetSink.NOOP;
 	private RetryScheduler retryScheduler = RetryScheduler.IMMEDIATE;
 	private NodeKindCircuitBreaker circuitBreaker;
 	private int maxInFlight = DEFAULT_MAX_IN_FLIGHT;
@@ -525,6 +526,14 @@ public class PipelineRunEngine {
 					continue;
 				}
 
+				// Adopting an earlier run's result is checked before every gate below:
+				// there is no point queueing for capacity, or waiting out a circuit
+				// breaker, to recompute something already known.
+				if (adoptPreviousResult(state, node)) {
+					progressed = true;
+					continue;
+				}
+
 				if (atKindCapacity(node.getKind())) {
 					// This kind is at its ceiling. Leave the node ready; pumpDeferred()
 					// picks it up when one of its siblings finishes.
@@ -860,6 +869,7 @@ public class PipelineRunEngine {
 	 */
 	private void record(ItemState state, NodeTaskResult result) {
 		recordCircuitOutcome(result);
+		syncToLoom(state, result);
 		notifySettled(state, result);
 		if (state.isInFlight(result.getNodeId())) {
 			inFlightCount = Math.max(0, inFlightCount - 1);
@@ -952,6 +962,39 @@ public class PipelineRunEngine {
 		this.circuitBreaker = breaker;
 	}
 
+	/**
+	 * Hand a node's outputs to the asset sink when the definition asked for it.
+	 *
+	 * <p>Only completed nodes with outputs qualify: a skip produced nothing, and a
+	 * failure's message is not asset data. This is what finally makes {@code
+	 * syncToLoom} mean something - it has been parsed into the graph and read by
+	 * nothing since the format gained it.</p>
+	 */
+	private void syncToLoom(ItemState state, NodeTaskResult result) {
+		if (result.getState() != NodeState.COMPLETED || result.getOutputs().isEmpty()) {
+			return;
+		}
+		PipelineGraphNode node = graph.getNode(result.getNodeId());
+		if (node == null || !node.isSyncToLoom()) {
+			return;
+		}
+		try {
+			assetSink.persist(state.getMedia(), result.getNodeId(), result.getOutputs());
+		} catch (Exception e) {
+			// Losing the write is bad; failing the run that produced the data is worse.
+			log.error("Failed to persist outputs of node '{}' for {}", result.getNodeId(), state.getMedia(), e);
+		}
+	}
+
+	/**
+	 * Install a destination for outputs of nodes marked {@code syncToLoom}.
+	 *
+	 * @param sink the sink; null restores the discarding default
+	 */
+	public synchronized void setAssetSink(AssetSink sink) {
+		this.assetSink = sink == null ? AssetSink.NOOP : sink;
+	}
+
 	private void notifySettled(ItemState state, NodeTaskResult result) {
 		for (NodeSettleListener listener : settleListeners) {
 			try {
@@ -962,6 +1005,46 @@ public class PipelineRunEngine {
 				log.error("Node settle listener threw", e);
 			}
 		}
+	}
+
+	/**
+	 * Settle a node from a result an earlier run produced, if one applies.
+	 *
+	 * <p>Recorded as {@code COMPLETED} carrying the original outputs, <strong>not</strong>
+	 * as a skip. A skip carries nothing, and every downstream node would lose the
+	 * value it depends on - the hash would vanish and the pipeline would quietly do
+	 * less on the second run than the first.</p>
+	 *
+	 * @return true when the node was settled from a previous result
+	 */
+	private boolean adoptPreviousResult(ItemState state, PipelineGraphNode node) {
+		if (!graph.isReuseResults() || graph.isDryRun()) {
+			return false;
+		}
+		java.util.Optional<NodeTaskResult> previous;
+		try {
+			previous = store.previousResult(state.getMedia(), node.getId());
+		} catch (Exception e) {
+			// Reuse is an optimisation. If the lookup fails, run the node.
+			log.error("Could not look up a previous result for node '{}'", node.getId(), e);
+			return false;
+		}
+		if (previous.isEmpty()) {
+			return false;
+		}
+
+		NodeTaskResult reused = previous.get();
+		log.debug("Reusing the previous result of node '{}' for {}", node.getId(), state.getMedia().getPath());
+		// Deliberately not routed through recordCircuitOutcome: nothing executed, and
+		// counting a reuse as a success would mask a kind that is failing everywhere.
+		state.record(NodeTaskResult.completed(null, node.getId(), 0, reused.getOutputs()));
+		syncToLoom(state, state.getResults().get(node.getId()));
+		notifySettled(state, state.getResults().get(node.getId()));
+		if (state.isComplete(graph.size())) {
+			store.itemSettled(itemUuid(state), state.outcome());
+		}
+		store.taskSettled(itemUuid(state), state.getResults().get(node.getId()));
+		return true;
 	}
 
 	/**

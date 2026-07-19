@@ -62,6 +62,15 @@
             <artifactId>cortex-cli</artifactId>
             <version>${loom.cortex.version}</version>
         </dependency>
+        <!-- The Dagger component lives in cortex-cli but half its modules
+             (CortexClientModule, CortexMediaModule, ...) live in cortex-core, so a
+             module that constructs a Cortex needs both on the classpath. It does not
+             arrive transitively. -->
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-core</artifactId>
+            <version>${loom.cortex.version}</version>
+        </dependency>
         <dependency>
             <groupId>io.metaloom.cortex</groupId>
             <artifactId>cortex-pipeline-core</artifactId>

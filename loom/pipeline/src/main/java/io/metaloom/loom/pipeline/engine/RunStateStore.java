@@ -78,6 +78,25 @@ public interface RunStateStore {
 	void sourceCompleted(UUID runUuid, long totalCount);
 
 	/**
+	 * Look up what an earlier run already produced for this file and node.
+	 *
+	 * <p>The one read on an otherwise write-only interface. It exists so a second run
+	 * over unchanged media does not recompute what is already known - the expensive
+	 * part of most pipelines is the node, not the dispatch.</p>
+	 *
+	 * <p>An implementation must only return a result it is confident still applies:
+	 * the file may have changed since. Returning empty is always safe, and the
+	 * default does exactly that.</p>
+	 *
+	 * @param media  the item, carrying path and size
+	 * @param nodeId the node
+	 * @return the previous outcome, or empty when there is none or it cannot be trusted
+	 */
+	default java.util.Optional<NodeTaskResult> previousResult(MediaRef media, String nodeId) {
+		return java.util.Optional.empty();
+	}
+
+	/**
 	 * Push any buffered writes.
 	 *
 	 * <p>Called when a run completes. An implementation that batches <em>must</em>

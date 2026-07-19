@@ -78,6 +78,19 @@ public class PipelineRunItemDaoImpl extends AbstractJooqDao<PipelineRunItem> imp
 	}
 
 	@Override
+	public PipelineRunItem loadLatestSettledByPath(String mediaPath) {
+		return ctx().selectFrom(PIPELINE_RUN_ITEM)
+			.where(PIPELINE_RUN_ITEM.MEDIA_PATH.eq(mediaPath))
+			// Only a finished item tells us anything reusable; one still in flight has
+			// not decided what it found.
+			.and(PIPELINE_RUN_ITEM.STATE.in(TERMINAL_STATES))
+			.orderBy(PIPELINE_RUN_ITEM.CREATED.desc())
+			.limit(1)
+			.fetchOptionalInto(getPojoClass())
+			.orElse(null);
+	}
+
+	@Override
 	public long countByRunAndState(UUID runUuid, String state) {
 		return ctx().fetchCount(PIPELINE_RUN_ITEM,
 			PIPELINE_RUN_ITEM.RUN_UUID.eq(runUuid).and(PIPELINE_RUN_ITEM.STATE.eq(state)));

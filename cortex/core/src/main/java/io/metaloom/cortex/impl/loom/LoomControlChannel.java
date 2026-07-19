@@ -64,7 +64,9 @@ public class LoomControlChannel {
 	private final AtomicBoolean registered = new AtomicBoolean(false);
 	private final AtomicLong reconnectAttempts = new AtomicLong(0);
 
-	private final String nodeId = "cortex-" + UUID.randomUUID();
+	private final String nodeId;
+	/** Lazy so merely constructing the channel does not build every node. */
+	private final dagger.Lazy<io.metaloom.cortex.pipeline.loader.NodeFactory> nodeFactory;
 
 	private WebSocketClient webSocketClient;
 	private WebSocket websocket;
@@ -85,9 +87,16 @@ public class LoomControlChannel {
 
 	@Inject
 	public LoomControlChannel(Vertx vertx, CortexOptions options, PipelineEventBus pipelineEventBus,
-			PipelineWorkOrderHandler workOrderHandler, PipelineTaskHandler taskHandler) {
+			PipelineWorkOrderHandler workOrderHandler, PipelineTaskHandler taskHandler,
+			dagger.Lazy<io.metaloom.cortex.pipeline.loader.NodeFactory> nodeFactory) {
+		this.nodeFactory = nodeFactory;
 		this.vertx = vertx;
 		this.options = options;
+		// A configured id survives a restart; a generated one does not, and Loom keys
+		// leases and attribution on it.
+		this.nodeId = options.getNodeId() != null && !options.getNodeId().isBlank()
+			? options.getNodeId()
+			: "cortex-" + UUID.randomUUID();
 		this.pipelineEventBus = pipelineEventBus;
 		this.workOrderHandler = workOrderHandler;
 		this.taskHandler = taskHandler;
@@ -281,9 +290,35 @@ public class LoomControlChannel {
 			.setName("cortex")
 			.setPriority(100)
 			.setHost(resolveSelfHost())
-			.setCapabilities(EnumSet.of(ProcessorCapability.CPU, ProcessorCapability.IO));
+			.setCapabilities(EnumSet.of(ProcessorCapability.CPU, ProcessorCapability.IO))
+			// Declaring what this worker will run is what lets Loom keep a heterogeneous
+			// pool: a null or empty set means "anything", so an unconfigured worker keeps
+			// receiving everything rather than dropping out.
+			.setNodeKinds(announcedNodeKinds());
 
 		sendMessage(new ProcessorMessage(ProcessorMessageType.REGISTER, JsonObject.mapFrom(registration)));
+	}
+
+	/**
+	 * What this worker tells Loom it can run.
+	 *
+	 * <p>Defaults to what the node factory actually has, so a worker cannot advertise
+	 * work it is unable to perform - the two would otherwise drift, and the failure
+	 * looks like a task dispatched to a worker that then cannot run it. An explicit
+	 * setting narrows that further, for dedicating a machine to part of a pipeline.</p>
+	 */
+	private java.util.Set<String> announcedNodeKinds() {
+		java.util.Set<String> configured = options.getNodeKinds();
+		if (configured != null && !configured.isEmpty()) {
+			return configured;
+		}
+		try {
+			return nodeFactory.get().registeredTypes();
+		} catch (Exception e) {
+			// Announcing nothing means "accepts anything", which is the safe fallback.
+			log.warn("Could not determine executable node kinds; registering as unrestricted", e);
+			return null;
+		}
 	}
 
 	private String resolveSelfHost() {

@@ -31,6 +31,7 @@ public class PipelineGraph {
 	private final boolean dryRun;
 	private final int priority;
 	private int resultBatchSize = DEFAULT_RESULT_BATCH_SIZE;
+	private boolean reuseResults;
 	private final Map<String, PipelineGraphNode> nodes;
 	private final Map<String, List<String>> children;
 	private final List<String> topologicalOrder;
@@ -95,6 +96,24 @@ public class PipelineGraph {
 
 	void setResultBatchSize(int resultBatchSize) {
 		this.resultBatchSize = Math.max(1, resultBatchSize);
+	}
+
+	/**
+	 * Whether a node may adopt a result an earlier run already produced for the same
+	 * unchanged file.
+	 *
+	 * <p>Off by default, deliberately. Reuse is wrong whenever the reason for
+	 * re-running is that something about the node changed, so a pipeline has to ask
+	 * for it rather than inherit it.</p>
+	 *
+	 * @return true when reuse is enabled for this pipeline
+	 */
+	public boolean isReuseResults() {
+		return reuseResults;
+	}
+
+	void setReuseResults(boolean reuseResults) {
+		this.reuseResults = reuseResults;
 	}
 
 	public int getPriority() {
