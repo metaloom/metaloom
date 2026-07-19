@@ -16,6 +16,9 @@ import io.metaloom.loom.pipeline.model.FilterBranch;
  */
 public class PipelineGraphNode {
 
+	/** Group used when a node declares none: one group for the whole pipeline. */
+	public static final String DEFAULT_AFFINITY = "default";
+
 	/** Attempts allowed when a node merely says {@code retryFailed: true}. */
 	public static final int DEFAULT_RETRY_ATTEMPTS = 2;
 
@@ -25,18 +28,21 @@ public class PipelineGraphNode {
 	private final boolean source;
 	private final boolean blocking;
 	private final boolean syncToLoom;
+	private final String affinity;
 	private final Map<String, Object> options;
 	private final List<String> dependencies;
 	private final Map<String, FilterBranch> conditionalDependencies;
 
 	PipelineGraphNode(String id, String kind, String name, boolean source, boolean blocking, boolean syncToLoom,
-		Map<String, Object> options, List<String> dependencies, Map<String, FilterBranch> conditionalDependencies) {
+		String affinity, Map<String, Object> options, List<String> dependencies,
+		Map<String, FilterBranch> conditionalDependencies) {
 		this.id = Objects.requireNonNull(id, "A node id must be set");
 		this.kind = Objects.requireNonNull(kind, "A node kind must be set");
 		this.name = name == null ? id : name;
 		this.source = source;
 		this.blocking = blocking;
 		this.syncToLoom = syncToLoom;
+		this.affinity = affinity == null || affinity.isBlank() ? DEFAULT_AFFINITY : affinity;
 		this.options = options == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(options));
 		this.dependencies = dependencies == null ? List.of() : List.copyOf(dependencies);
 		this.conditionalDependencies = conditionalDependencies == null
@@ -46,6 +52,25 @@ public class PipelineGraphNode {
 
 	public String getId() {
 		return id;
+	}
+
+	/**
+	 * The affinity group this node belongs to.
+	 *
+	 * <p>Nodes sharing a group and connected in the graph are executed together on one
+	 * worker, with intermediate results staying in that worker's memory instead of
+	 * round-tripping through Loom. For video this is where the performance case is
+	 * won: decode once and analyse many, rather than re-reading the file per node.</p>
+	 *
+	 * <p><strong>Everything defaults to one group per pipeline.</strong> The tempting
+	 * default - each node its own group - silently makes every pipeline maximally
+	 * chatty, which is exactly the cost Variant C has to justify. Distribution is
+	 * something an author opts into.</p>
+	 *
+	 * @return the group name, never null
+	 */
+	public String getAffinity() {
+		return affinity;
 	}
 
 	/**

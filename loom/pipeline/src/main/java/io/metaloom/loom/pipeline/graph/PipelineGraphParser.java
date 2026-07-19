@@ -134,6 +134,7 @@ public class PipelineGraphParser {
 
 			JsonObject options = node.getJsonObject("options");
 			nodes.put(id, new PipelineGraphNode(id, kind, node.getString("name"), source, blocking, syncToLoom,
+				node.getString("affinity"),
 				options == null ? Map.of() : options.getMap(),
 				dependencies.get(id), conditional.get(id)));
 		}

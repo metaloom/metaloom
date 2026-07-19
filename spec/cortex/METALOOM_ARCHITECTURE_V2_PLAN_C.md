@@ -872,6 +872,78 @@ handed to anyone and must not look reclaimable to the reaper.
 - [ ] **Event aggregation** (§7.3) — per-item-per-node events must **not** be
       forwarded to the UI; at 100 000 items that is a flood. Phase 3 work.
 
+## 2.20 P3.1 — affinity segments, as built
+
+The first step of Phase 3, and pure graph logic: nothing is dispatched
+differently yet. Landed 2026-07-19.
+
+### Step breakdown for Phase 3
+
+| Step | Scope | Status |
+|---|---|---|
+| **P3.1** | `affinity` in the definition; segment computation; save-time validation | ✅ **done** |
+| **P3.2** | `SEGMENT_TASK` protocol + Cortex segment runner (the P1.4 runner with N > 1) | pending |
+| **P3.3** | Engine dispatches segments rather than single nodes | pending |
+| **P3.4** | Dispatch/result batching, N items × same node × same worker | pending |
+| **P3.5** | Event aggregation (§7.3) | pending |
+| **P3.6** | Circuit breaker per node kind + per-kind bulkheads (§7.1) | pending |
+
+P3.1 first because it is the only part that is pure computation — segments can be
+proven correct without a worker, a socket, or a database, and P3.2/P3.3 both
+build on the segments it produces.
+
+### Connectivity, not just a shared label
+
+`PipelineSegmenter` groups nodes that share an affinity group **and are connected
+through edges within that group**. Two nodes labelled `video` on separate
+branches are *not* one unit of work — no intermediate result passes between them,
+so merging would pin unrelated work to one machine and gain nothing.
+
+**The default is one group per pipeline**, as §7.4 requires. A default of
+"each node its own group" would silently make every pipeline maximally chatty,
+which is the precise cost Variant C has to justify.
+
+### A merged group can deadlock, and that had to be handled
+
+This was the non-obvious part. Grouping nodes merges their dependencies, so for
+`a → b → c` with `a` and `c` in one group, the `ac` segment depends on `b` while
+`b` depends on `ac` — neither can ever start. `splitUntilAcyclic` detects the
+cycle between segments and falls back to per-node dispatch for that group. Chatty
+but runnable; a pipeline that hangs on its first item is strictly worse.
+
+### Validation warns rather than rejects
+
+§7.4 says to validate satisfiability at save. Implemented as **warnings, not
+errors** — deliberately diverging from the rest of `PipelineValidationService`,
+which throws.
+
+Rejecting a save because a GPU worker happens to be offline would make editing a
+pipeline depend on which machines are up, and it contradicts §7.1's own
+"graceful degradation: no worker for a kind → park with a timeout, not an
+immediate run failure". Two warnings are produced:
+
+- **`GROUP_SPLIT`** — the grouping written is not the grouping that will run.
+- **`UNPLACEABLE`** — no single worker covers the segment's kinds, so it will
+  park. Note this is *not* the same as "some worker runs each kind": a fleet with
+  one decode worker and one facedetect worker satisfies both kinds individually
+  and still cannot run a segment spanning them. A naive per-kind check misses
+  this entirely; `AffinityValidatorTest` pins the case.
+
+The fleet check is injected as a `Predicate<List<String>>` rather than read from
+`ProcessorRegistry`, keeping `loom/pipeline` free of worker concerns and testable
+without a running Cortex.
+
+### Verification
+
+20 new tests (`loom/pipeline` now 90): 12 on segmentation, 8 on validation. Full
+reactor build green.
+
+### Not yet wired
+
+Segments are computed but **nothing consumes them** — the engine still dispatches
+one node at a time, and no endpoint surfaces the warnings. That is P3.2/P3.3, and
+until then affinity is inert: declaring it changes nothing at runtime.
+
 ---
 
 ## 3. Prerequisites
@@ -1505,7 +1577,6 @@ it explicitly; it is easy to under-estimate and it is what protects the refactor
 - [ ] **Standalone-Cortex decision** (Q1) — blocks Phase 1 start
 - [ ] **Definition format versioning decision** (Q5) — blocks Phase 1 schema work
 - [ ] **Push vs pull dispatch decision** (Q4) — cheap now, expensive later
-- [ ] Phase 1 benchmark against the Variant A baseline (§9.1)
 - [ ] Task state retention policy (Q3)
 
 ---
