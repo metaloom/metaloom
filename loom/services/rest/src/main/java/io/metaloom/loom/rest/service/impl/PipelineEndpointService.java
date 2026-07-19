@@ -73,6 +73,8 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 
 	private final PipelineGraphParser graphParser;
 	private final PipelineEventBroadcaster pipelineEventBroadcaster;
+	private final io.metaloom.loom.pipeline.engine.NodeKindCircuitBreaker circuitBreaker =
+		new io.metaloom.loom.pipeline.engine.NodeKindCircuitBreaker();
 	private final io.vertx.core.Vertx vertx;
 
 	/** How often aggregated node counters are pushed to subscribers. */
@@ -321,6 +323,12 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 				// One last push so the final counts are not left a timer-tick stale.
 				statsAggregator.flush();
 			});
+
+			// Shared across runs on purpose: a kind broken by a missing model file or an
+			// expired key is broken for everyone, and per-run breakers would each have to
+			// rediscover that.
+			engine.setCircuitBreaker(circuitBreaker);
+			engine.setRetryScheduler((delayMs, action) -> vertx.setTimer(Math.max(1, delayMs), t -> action.run()));
 
 			pipelineRunRegistry.register(runUuid, engine);
 			engine.start();

@@ -90,9 +90,13 @@ public class PipelineRunEngine {
 	private final UUID runUuid;
 	private final RunStateStore store;
 	private RetryScheduler retryScheduler = RetryScheduler.IMMEDIATE;
+	private NodeKindCircuitBreaker circuitBreaker;
 	private int maxInFlight = DEFAULT_MAX_IN_FLIGHT;
 	private int inFlightCount;
 	private final List<Runnable> capacityWaiters = new ArrayList<>();
+	private final java.util.Set<String> parkedKinds = new java.util.LinkedHashSet<>();
+	/** Suppresses re-scheduling while an un-park is already sweeping. */
+	private boolean unparking;
 	private long retryBaseDelayMs = DEFAULT_RETRY_BASE_DELAY_MS;
 
 	private final Map<String, ItemState> items = new LinkedHashMap<>();
@@ -518,6 +522,13 @@ public class PipelineRunEngine {
 					continue;
 				}
 
+				if (!allowedByCircuit(node.getKind())) {
+					// This kind is failing everywhere. Park rather than fail: the problem
+					// is usually environmental and usually gets fixed, and failing a
+					// hundred thousand items over a missing model file helps nobody.
+					continue;
+				}
+
 				// A multi-node segment is dispatched as a unit so its intermediate
 				// results never leave the worker. Falls through to per-node dispatch
 				// when the segment is a single node, or when no worker will take it
@@ -829,6 +840,7 @@ public class PipelineRunEngine {
 	 * recovered run ends up re-running work it already did.</p>
 	 */
 	private void record(ItemState state, NodeTaskResult result) {
+		recordCircuitOutcome(result);
 		notifySettled(state, result);
 		if (state.isInFlight(result.getNodeId())) {
 			inFlightCount = Math.max(0, inFlightCount - 1);
@@ -852,6 +864,72 @@ public class PipelineRunEngine {
 		} catch (IllegalArgumentException e) {
 			return null;
 		}
+	}
+
+	/**
+	 * Ask the breaker, and make sure something will come back to try again.
+	 *
+	 * <p>A parked node is neither settled nor in flight, so nothing would naturally
+	 * revisit it - a run whose only remaining work is parked would simply stop. The
+	 * retry scheduler is reused to poke the engine once the cooldown has elapsed.</p>
+	 */
+	private boolean allowedByCircuit(String nodeKind) {
+		if (circuitBreaker == null) {
+			return true;
+		}
+		if (circuitBreaker.allowDispatch(nodeKind)) {
+			return true;
+		}
+		// Re-entrancy guard. An un-park sweeps the run, which walks straight back
+		// through here; without this, a scheduler that runs actions immediately - the
+		// default - would schedule, sweep, re-park and re-schedule forever, and the
+		// cooldown it is supposed to be honouring would never elapse.
+		if (unparking || parkedKinds.contains(nodeKind)) {
+			return false;
+		}
+		long parkedFor = circuitBreaker.parkedForMs(nodeKind);
+		parkedKinds.add(nodeKind);
+		log.warn("Node kind '{}' is parked by its circuit breaker; retrying in {}ms", nodeKind, parkedFor);
+		retryScheduler.schedule(parkedFor, () -> unparkKind(nodeKind));
+		return false;
+	}
+
+	private synchronized void unparkKind(String nodeKind) {
+		parkedKinds.remove(nodeKind);
+		unparking = true;
+		try {
+			pumpDeferred();
+			checkComplete();
+		} finally {
+			unparking = false;
+		}
+	}
+
+	/**
+	 * Tell the breaker how a node turned out.
+	 *
+	 * <p>Only real executions count. A skip says nothing about whether the kind works,
+	 * and counting skips would let a heavily filtered pipeline look like a broken
+	 * one.</p>
+	 */
+	private void recordCircuitOutcome(NodeTaskResult result) {
+		if (circuitBreaker == null || result.getState() == NodeState.SKIPPED) {
+			return;
+		}
+		PipelineGraphNode node = graph.getNode(result.getNodeId());
+		if (node != null) {
+			circuitBreaker.record(node.getKind(), result.getState() == NodeState.COMPLETED);
+		}
+	}
+
+	/**
+	 * Install a shared circuit breaker.
+	 *
+	 * @param breaker the breaker, shared across runs so a kind broken everywhere is
+	 *                seen as such; null disables the feature
+	 */
+	public synchronized void setCircuitBreaker(NodeKindCircuitBreaker breaker) {
+		this.circuitBreaker = breaker;
 	}
 
 	private void notifySettled(ItemState state, NodeTaskResult result) {

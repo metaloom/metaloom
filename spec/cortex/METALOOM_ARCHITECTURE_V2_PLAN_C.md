@@ -1127,6 +1127,65 @@ unchanged). Full reactor build green.
       §7.3 explicitly calls out `pending` being hardcoded. The engine knows both
       (`getInFlightCount`, deferred nodes) — this is a small follow-up.
 
+## 2.24 P3.6 — circuit breakers, as built
+
+§7.1 calls this "the highest-value resilience feature and the one most often
+omitted". Landed 2026-07-19.
+
+### What it protects against
+
+A kind broken for an environmental reason — a model file missing from every
+worker, a GPU driver fault, an expired API key — otherwise burns the fleet and
+fills the dead-letter queue with a hundred thousand identical failures. Worse,
+those failures are indistinguishable *in the data* from a hundred thousand
+genuinely bad files.
+
+Keyed by **kind, not worker**: a dead worker is already handled by leases. What
+leases cannot see is a kind failing on *every* worker, which is exactly the case
+where retrying harder makes things worse.
+
+### Opening is deliberately reluctant
+
+Both a minimum sample (20) and a sustained failure rate (90%) are required. A
+breaker that trips on early noise would stop a healthy kind because the first two
+files happened to be corrupt — worse than having no breaker at all.
+
+Recovery resets the counters. Without that, the first failure after a successful
+probe would put the ratio straight back over the threshold and the kind could
+never recover. Only **one probe** is admitted while half-open, or a recovering
+kind gets hit by the whole backlog and knocks itself straight back over.
+
+**Skips are not counted.** A skip says nothing about whether a kind works, and
+counting them would make a heavily filtered pipeline look like a broken one.
+
+### The bug this step introduced, and the fix
+
+Parking a kind creates a hazard the rest of the engine does not have: a parked
+node is neither settled nor in flight, so **nothing revisits it**. A run whose
+only remaining work was parked would hang forever — turning a recoverable fault
+into a permanent one, which is worse than the failure being prevented.
+
+The engine therefore schedules its own un-park through `RetryScheduler`. The
+first implementation of that **stack-overflowed**: the default scheduler runs
+actions immediately, so it scheduled, swept, re-parked and re-scheduled without
+bound, and the cooldown it was honouring could never elapse. Caught by
+`testSkipsDoNotCountAgainstAKind`. Fixed with a re-entrancy guard, and production
+now installs a real Vert.x timer-backed scheduler rather than relying on the
+immediate default.
+
+### Verification
+
+17 new tests (12 breaker, 5 engine integration); `loom/pipeline` now 118. The
+feature is **opt-in** — with no breaker installed the engine behaves exactly as
+before, which one test pins directly.
+
+### Bulkheads — partially done
+
+Per-kind isolation is achieved: one broken kind is parked while others carry on,
+tested directly. What §7.1 also asks for and is **not** built is a per-kind
+*concurrency ceiling* — today the only ceiling is the per-run `maxInFlight`, so
+one expensive kind can still occupy every slot in a run.
+
 ---
 
 ## 3. Prerequisites
