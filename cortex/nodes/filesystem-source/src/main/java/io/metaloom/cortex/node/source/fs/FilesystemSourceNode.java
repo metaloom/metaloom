@@ -1,9 +1,18 @@
 package io.metaloom.cortex.node.source.fs;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,19 +23,29 @@ import io.metaloom.cortex.pipeline.api.NodeMode;
 import io.metaloom.cortex.pipeline.api.NodeResult;
 import io.metaloom.cortex.pipeline.api.node.MediaSourceNode;
 import io.metaloom.cortex.pipeline.core.node.AbstractPipelineNode;
+import io.metaloom.fs.FileIndexStore;
+import io.metaloom.fs.FileInfo;
+import io.metaloom.fs.FileState;
+import io.metaloom.fs.ScanResult;
+import io.metaloom.fs.linux.LinuxFileIndex;
+import io.metaloom.fs.linux.LinuxFilesystemScanner;
+import io.metaloom.fs.linux.impl.AvroFileIndexStore;
+import io.metaloom.fs.linux.impl.LinuxFilesystemScannerImpl;
 import io.reactivex.rxjava3.core.Flowable;
 
 /**
  * Source node that reads media files from the filesystem as pipeline input.
  *
- * <p>The selection is either a set of path globs or a single root directory that
- * is walked recursively. Globs take precedence when both are configured. Because
- * the node implements {@link MediaSourceNode}, a pipeline built around it can be
- * executed without the caller discovering media itself:</p>
+ * <p>The selection is either a set of path globs or a single root directory. Globs
+ * take precedence when both are configured.</p>
  *
- * <pre>
- * pipelineExecutor.execute(pipeline, runContext);
- * </pre>
+ * <p>In <b>root mode</b> the node performs a <em>differential</em> scan using the
+ * {@code differential-filesystem-scanner}: a per-root index is persisted locally
+ * (Apache Avro) and reloaded on each run, so only files whose {@link FileState} is
+ * contained in the configured emit-set (new / modified / moved / present / deleted)
+ * flow downstream. This lets re-runs skip unchanged media. In <b>glob mode</b> the
+ * node keeps enumerating every match on each run (differential scanning is
+ * root-only, because the scanner diffs a single directory tree).</p>
  *
  * <p>Corresponds to the {@code filesystem-source} node descriptor in
  * {@code cortex-source-api}.</p>
@@ -39,18 +58,31 @@ public class FilesystemSourceNode extends AbstractPipelineNode implements MediaS
 
 	private static final String OUTPUT_PATH = "path";
 	private static final String OUTPUT_SOURCE = "source";
+	private static final String OUTPUT_STATE = "state";
 
 	private final LoomMediaLoader mediaLoader;
 	private final Path root;
 	private final List<String> pathGlobs;
+	private final Set<FileState> emitStates;
+	private final Path indexBaseDir;
+
+	private final FileIndexStore indexStore = new AvroFileIndexStore();
 
 	/**
-	 * @param id          node id within the pipeline
-	 * @param mediaLoader loader used to wrap discovered paths as {@link LoomMedia}
-	 * @param root        root directory to walk; may be {@code null} if globs are given
-	 * @param pathGlobs   globs to expand; takes precedence over {@code root}
+	 * Per-run map of emitted absolute path -> diff state, exposed by {@link #process}. Populated by {@link #stream()} on each subscription.
 	 */
-	public FilesystemSourceNode(String id, LoomMediaLoader mediaLoader, Path root, List<String> pathGlobs) {
+	private final Map<String, FileState> lastStates = new ConcurrentHashMap<>();
+
+	/**
+	 * @param id           node id within the pipeline
+	 * @param mediaLoader  loader used to wrap discovered paths as {@link LoomMedia}
+	 * @param root         root directory to scan differentially; may be {@code null} if globs are given
+	 * @param pathGlobs    globs to expand; takes precedence over {@code root}
+	 * @param emitStates   file states emitted downstream in root mode; {@code null}/empty falls back to new+modified+moved
+	 * @param indexBaseDir local base directory for the persisted per-root index; required when a root is used
+	 */
+	public FilesystemSourceNode(String id, LoomMediaLoader mediaLoader, Path root, List<String> pathGlobs,
+		Set<FileState> emitStates, Path indexBaseDir) {
 		super(id, "Filesystem Source", NodeMode.SEQUENTIAL, true, 1);
 		if (mediaLoader == null) {
 			throw new IllegalArgumentException("A media loader must be provided");
@@ -60,49 +92,108 @@ public class FilesystemSourceNode extends AbstractPipelineNode implements MediaS
 			throw new IllegalArgumentException(
 				"Node '" + id + "': either a root path or at least one path glob must be configured");
 		}
+		if (root != null && indexBaseDir == null) {
+			throw new IllegalArgumentException(
+				"Node '" + id + "': an index base directory is required for differential (root) scanning");
+		}
 		this.mediaLoader = mediaLoader;
 		this.root = root;
 		this.pathGlobs = hasGlobs ? List.copyOf(pathGlobs) : List.of();
+		this.emitStates = (emitStates == null || emitStates.isEmpty())
+			? EnumSet.of(FileState.NEW, FileState.MODIFIED, FileState.MOVED)
+			: EnumSet.copyOf(emitStates);
+		this.indexBaseDir = indexBaseDir;
 		setSource(true);
 	}
 
 	/**
 	 * Enumerate the configured selection.
 	 *
-	 * <p>The returned flowable is cold — the filesystem is walked on subscription,
-	 * so a node instance registered once in a pipeline re-scans on every run and
-	 * picks up files added since the last one.</p>
+	 * <p>The returned flowable is cold — the filesystem is scanned on subscription,
+	 * so a node instance registered once in a pipeline re-scans on every run.</p>
 	 */
 	@Override
 	public Flowable<LoomMedia> stream() {
 		return Flowable.defer(() -> {
-			List<Path> paths = scan();
-			log.info("Node '{}' resolved {} media file(s) from {}", id(), paths.size(), describeSelection());
+			lastStates.clear();
+			if (!pathGlobs.isEmpty()) {
+				List<Path> paths = FilesystemMediaScanner.expand(pathGlobs);
+				log.info("Node '{}' resolved {} media file(s) from globs {} (differential scanning is root-only)",
+					id(), paths.size(), pathGlobs);
+				return Flowable.fromIterable(paths);
+			}
+			List<Path> paths = differentialScan();
+			log.info("Node '{}' resolved {} changed media file(s) from root {} (emitStates={})",
+				id(), paths.size(), root, emitStates);
 			return Flowable.fromIterable(paths);
 		}).map(mediaLoader::load);
 	}
 
-	private List<Path> scan() throws Exception {
-		if (!pathGlobs.isEmpty()) {
-			return FilesystemMediaScanner.expand(pathGlobs);
+	/**
+	 * Run a differential scan of the root against the persisted index, persist the updated index and return the paths whose state is in the emit-set.
+	 */
+	private List<Path> differentialScan() throws IOException {
+		if (root == null || !Files.exists(root)) {
+			log.debug("Node '{}' root {} does not exist — nothing to emit", id(), root);
+			return List.of();
 		}
-		return FilesystemMediaScanner.walk(root);
+
+		Path indexFile = indexFileFor(root);
+		LinuxFileIndex index = indexStore.load(indexFile);
+		LinuxFilesystemScanner scanner = new LinuxFilesystemScannerImpl(index);
+		ScanResult result = scanner.scan(root);
+		indexStore.store(indexFile, scanner.getIndex());
+
+		List<Path> emitted = new ArrayList<>();
+		collect(result.added(), FileState.NEW, emitted);
+		collect(result.modified(), FileState.MODIFIED, emitted);
+		collect(result.moved(), FileState.MOVED, emitted);
+		collect(result.present(), FileState.PRESENT, emitted);
+		collect(result.deleted(), FileState.DELETED, emitted);
+		return emitted;
+	}
+
+	private void collect(Set<FileInfo> infos, FileState state, List<Path> emitted) {
+		if (!emitStates.contains(state)) {
+			return;
+		}
+		for (FileInfo info : infos) {
+			Path path = info.path().toAbsolutePath().normalize();
+			emitted.add(path);
+			lastStates.put(path.toString(), state);
+		}
 	}
 
 	/**
-	 * Emits the resolved path for the media item currently flowing through the DAG.
-	 * The actual enumeration happens in {@link #stream()}; this only records the
-	 * source in the per-media result map for downstream nodes and the UI.
+	 * Resolve the dedicated, folder-specific index file for a root. The file name is derived from a hash of the absolute root path, so each start path obtains
+	 * its own index.
+	 */
+	private Path indexFileFor(Path root) {
+		String canonical = root.toAbsolutePath().normalize().toString();
+		return indexBaseDir.resolve(sha256Hex(canonical) + ".avro");
+	}
+
+	private static String sha256Hex(String value) {
+		try {
+			MessageDigest digest = MessageDigest.getInstance("SHA-256");
+			return HexFormat.of().formatHex(digest.digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+		} catch (NoSuchAlgorithmException e) {
+			// SHA-256 is a required algorithm on every JRE.
+			throw new IllegalStateException("SHA-256 is not available", e);
+		}
+	}
+
+	/**
+	 * Emits the resolved path and diff state for the media item currently flowing through the DAG. The actual enumeration happens in {@link #stream()}; this only
+	 * records the source/state in the per-media result map for downstream nodes and the UI.
 	 */
 	@Override
 	public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {
+		FileState state = lastStates.get(media.absolutePath());
 		return NodeResult.success(id(), 0, Map.of(
 			OUTPUT_PATH, media.absolutePath(),
-			OUTPUT_SOURCE, "filesystem"));
-	}
-
-	private String describeSelection() {
-		return pathGlobs.isEmpty() ? "root " + root : "globs " + pathGlobs;
+			OUTPUT_SOURCE, "filesystem",
+			OUTPUT_STATE, state != null ? state.name() : FileState.UNKNOWN.name()));
 	}
 
 	/**
@@ -120,18 +211,26 @@ public class FilesystemSourceNode extends AbstractPipelineNode implements MediaS
 	}
 
 	/**
-	 * Build a node from a pipeline JSON node definition, falling back to the
-	 * configured defaults when the definition omits a selection.
+	 * The file states that are emitted downstream in root mode.
+	 */
+	public Set<FileState> emitStates() {
+		return emitStates;
+	}
+
+	/**
+	 * Build a node from a pipeline JSON node definition, falling back to the configured defaults when the definition omits a selection.
 	 *
-	 * @param id          node id
-	 * @param mediaLoader media loader
-	 * @param path        {@code path} from the definition, may be {@code null}
-	 * @param globs       {@code pathGlobs} from the definition, may be empty
-	 * @param defaults    configured defaults, may be {@code null}
+	 * @param id           node id
+	 * @param mediaLoader  media loader
+	 * @param path         {@code path} from the definition, may be {@code null}
+	 * @param globs        {@code pathGlobs} from the definition, may be empty
+	 * @param emitStates   {@code emitStates} from the definition, may be empty
+	 * @param defaults     configured defaults, may be {@code null}
+	 * @param indexBaseDir local base directory for the persisted per-root index
 	 * @return a configured node
 	 */
 	public static FilesystemSourceNode create(String id, LoomMediaLoader mediaLoader, String path,
-		List<String> globs, FilesystemSourceNodeOptions defaults) {
+		List<String> globs, List<String> emitStates, FilesystemSourceNodeOptions defaults, Path indexBaseDir) {
 
 		List<String> effectiveGlobs = globs != null && !globs.isEmpty()
 			? globs
@@ -141,10 +240,35 @@ public class FilesystemSourceNode extends AbstractPipelineNode implements MediaS
 			? path
 			: (defaults != null ? defaults.getPath() : null);
 
+		List<String> effectiveStates = emitStates != null && !emitStates.isEmpty()
+			? emitStates
+			: (defaults != null ? defaults.getEmitStates() : FilesystemSourceNodeOptions.DEFAULT_EMIT_STATES);
+
 		Path root = effectivePath != null && !effectivePath.isBlank()
 			? Paths.get(effectivePath).toAbsolutePath().normalize()
 			: null;
 
-		return new FilesystemSourceNode(id, mediaLoader, root, effectiveGlobs);
+		return new FilesystemSourceNode(id, mediaLoader, root, effectiveGlobs, parseStates(effectiveStates), indexBaseDir);
+	}
+
+	/**
+	 * Parse file state names into an {@link EnumSet}, ignoring blank/unknown entries (options validation rejects unknown states earlier).
+	 */
+	static Set<FileState> parseStates(List<String> names) {
+		Set<FileState> states = EnumSet.noneOf(FileState.class);
+		if (names == null) {
+			return states;
+		}
+		for (String name : names) {
+			if (name == null || name.isBlank()) {
+				continue;
+			}
+			try {
+				states.add(FileState.valueOf(name.trim().toUpperCase()));
+			} catch (IllegalArgumentException e) {
+				log.warn("Ignoring unknown file state '{}' in emitStates", name);
+			}
+		}
+		return states;
 	}
 }

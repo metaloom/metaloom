@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,11 +21,15 @@ import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.common.media.LoomMediaLoader;
 import io.metaloom.cortex.pipeline.api.NodeResult;
 import io.metaloom.cortex.pipeline.api.NodeState;
+import io.metaloom.fs.FileState;
 
 public class FilesystemSourceNodeTest {
 
 	@TempDir
 	Path root;
+
+	@TempDir
+	Path indexDir;
 
 	private LoomMediaLoader mediaLoader;
 
@@ -47,7 +52,11 @@ public class FilesystemSourceNodeTest {
 	}
 
 	private FilesystemSourceNode rootNode() {
-		return new FilesystemSourceNode("fs-source", mediaLoader, root, List.of());
+		return new FilesystemSourceNode("fs-source", mediaLoader, root, List.of(), null, indexDir);
+	}
+
+	private FilesystemSourceNode rootNode(Set<FileState> emitStates) {
+		return new FilesystemSourceNode("fs-source", mediaLoader, root, List.of(), emitStates, indexDir);
 	}
 
 	@Test
@@ -55,8 +64,10 @@ public class FilesystemSourceNodeTest {
 		assertThat(rootNode().isSource()).isTrue();
 	}
 
+	// --- Initial scan ------------------------------------------------------
+
 	@Test
-	public void testStreamWalksConfiguredRoot() {
+	public void testInitialScanEmitsAllFilesAsNew() {
 		List<Path> emitted = rootNode().stream()
 			.map(LoomMedia::path)
 			.toList()
@@ -68,7 +79,7 @@ public class FilesystemSourceNodeTest {
 	@Test
 	public void testStreamUsesGlobsInPreferenceToRoot() {
 		FilesystemSourceNode node = new FilesystemSourceNode("fs-source", mediaLoader, root,
-			List.of(root + "/a.mp4"));
+			List.of(root + "/a.mp4"), null, indexDir);
 
 		List<Path> emitted = node.stream().map(LoomMedia::path).toList().blockingGet();
 
@@ -88,33 +99,69 @@ public class FilesystemSourceNodeTest {
 		assertThat(emitted).contains(late);
 	}
 
+	// --- Differential behavior --------------------------------------------
+
 	@Test
-	public void testStreamRescansOnEachSubscription() throws IOException {
+	public void testUnchangedRerunEmitsNothing() {
 		FilesystemSourceNode node = rootNode();
-
 		assertThat(node.stream().count().blockingGet()).isEqualTo(2);
-
-		Files.writeString(root.resolve("c.mp4"), "c");
-
-		// A node registered once in a pipeline must pick up new files on a re-run.
-		assertThat(node.stream().count().blockingGet()).isEqualTo(3);
+		// Nothing changed - the persisted index makes the second run a no-op.
+		assertThat(node.stream().count().blockingGet()).isZero();
 	}
 
 	@Test
-	public void testStreamOnEmptyDirectoryCompletesWithoutEmitting() throws IOException {
-		Path empty = Files.createDirectory(root.resolve("empty"));
-		FilesystemSourceNode node = new FilesystemSourceNode("fs-source", mediaLoader, empty, List.of());
+	public void testDetectsAddedFile() throws IOException {
+		FilesystemSourceNode node = rootNode();
+		node.stream().count().blockingGet();
 
+		Path c = Files.writeString(root.resolve("c.mp4"), "c");
+
+		List<Path> emitted = node.stream().map(LoomMedia::path).toList().blockingGet();
+		assertThat(emitted).containsExactly(c);
+	}
+
+	@Test
+	public void testDetectsModifiedFile() throws IOException {
+		FilesystemSourceNode node = rootNode();
+		node.stream().count().blockingGet();
+
+		Files.writeString(root.resolve("a.mp4"), "a much longer content changing the size");
+
+		List<Path> emitted = node.stream().map(LoomMedia::path).toList().blockingGet();
+		assertThat(emitted).containsExactly(videoA);
+	}
+
+	@Test
+	public void testEmitStatesCanSelectRemovedFilesOnly() throws IOException {
+		FilesystemSourceNode node = rootNode(Set.of(FileState.DELETED));
+		// First run: a and b are NEW but only DELETED is emitted -> nothing.
 		assertThat(node.stream().count().blockingGet()).isZero();
+
+		Files.delete(videoB);
+
+		List<Path> emitted = node.stream().map(LoomMedia::path).toList().blockingGet();
+		assertThat(emitted).containsExactly(videoB);
+	}
+
+	@Test
+	public void testEmitStatesEverythingKeepsEmittingPresentFiles() {
+		FilesystemSourceNode node = rootNode(Set.of(
+			FileState.NEW, FileState.MODIFIED, FileState.MOVED, FileState.PRESENT, FileState.DELETED));
+
+		assertThat(node.stream().count().blockingGet()).isEqualTo(2);
+		// With PRESENT included, an unchanged re-run still emits both files.
+		assertThat(node.stream().count().blockingGet()).isEqualTo(2);
 	}
 
 	@Test
 	public void testStreamOnMissingRootCompletesWithoutEmitting() {
 		FilesystemSourceNode node = new FilesystemSourceNode("fs-source", mediaLoader,
-			root.resolve("does-not-exist"), List.of());
+			root.resolve("does-not-exist"), List.of(), null, indexDir);
 
 		assertThat(node.stream().count().blockingGet()).isZero();
 	}
+
+	// --- process() ---------------------------------------------------------
 
 	@Test
 	public void testProcessReportsThePathOfTheCurrentMedia() {
@@ -128,24 +175,43 @@ public class FilesystemSourceNodeTest {
 	}
 
 	@Test
+	public void testProcessReportsDiffState() {
+		FilesystemSourceNode node = rootNode();
+		node.stream().count().blockingGet();
+
+		NodeResult result = node.process(mediaLoader.load(videoA), Map.of());
+		assertThat((Object) result.getOutput("state")).isEqualTo("NEW");
+	}
+
+	// --- Validation & factory ---------------------------------------------
+
+	@Test
 	public void testNodeWithoutAnySelectionIsRejected() {
-		assertThatThrownBy(() -> new FilesystemSourceNode("fs-source", mediaLoader, null, List.of()))
+		assertThatThrownBy(() -> new FilesystemSourceNode("fs-source", mediaLoader, null, List.of(), null, indexDir))
 			.isInstanceOf(IllegalArgumentException.class)
 			.hasMessageContaining("root path or at least one path glob");
 	}
 
 	@Test
 	public void testNodeWithoutMediaLoaderIsRejected() {
-		assertThatThrownBy(() -> new FilesystemSourceNode("fs-source", null, root, List.of()))
+		assertThatThrownBy(() -> new FilesystemSourceNode("fs-source", null, root, List.of(), null, indexDir))
 			.isInstanceOf(IllegalArgumentException.class)
 			.hasMessageContaining("media loader");
+	}
+
+	@Test
+	public void testRootNodeWithoutIndexDirIsRejected() {
+		assertThatThrownBy(() -> new FilesystemSourceNode("fs-source", mediaLoader, root, List.of(), null, null))
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("index base directory");
 	}
 
 	@Test
 	public void testCreateFallsBackToConfiguredDefaultPath() {
 		FilesystemSourceNodeOptions defaults = new FilesystemSourceNodeOptions().setPath(root.toString());
 
-		FilesystemSourceNode node = FilesystemSourceNode.create("fs-source", mediaLoader, null, List.of(), defaults);
+		FilesystemSourceNode node = FilesystemSourceNode.create("fs-source", mediaLoader, null, List.of(), List.of(),
+			defaults, indexDir);
 
 		assertThat(node.root()).isEqualTo(root);
 		assertThat(node.stream().count().blockingGet()).isEqualTo(2);
@@ -156,10 +222,19 @@ public class FilesystemSourceNodeTest {
 		FilesystemSourceNodeOptions defaults = new FilesystemSourceNodeOptions()
 			.setPathGlobs(List.of(root + "/a.mp4"));
 
-		FilesystemSourceNode node = FilesystemSourceNode.create("fs-source", mediaLoader, null, List.of(), defaults);
+		FilesystemSourceNode node = FilesystemSourceNode.create("fs-source", mediaLoader, null, List.of(), List.of(),
+			defaults, indexDir);
 
 		assertThat(node.pathGlobs()).containsExactly(root + "/a.mp4");
 		assertThat(node.stream().count().blockingGet()).isEqualTo(1);
+	}
+
+	@Test
+	public void testCreateUsesDefinitionEmitStates() {
+		FilesystemSourceNode node = FilesystemSourceNode.create("fs-source", mediaLoader, root.toString(), List.of(),
+			List.of("DELETED"), null, indexDir);
+
+		assertThat(node.emitStates()).containsExactly(FileState.DELETED);
 	}
 
 	@Test
@@ -168,15 +243,15 @@ public class FilesystemSourceNodeTest {
 			.setPath(root.resolve("ignored").toString());
 
 		FilesystemSourceNode node = FilesystemSourceNode.create("fs-source", mediaLoader, root.toString(),
-			List.of(), defaults);
+			List.of(), List.of(), defaults, indexDir);
 
 		assertThat(node.root()).isEqualTo(root);
 	}
 
 	@Test
 	public void testCreateWithNoSelectionAnywhereIsRejected() {
-		assertThatThrownBy(() -> FilesystemSourceNode.create("fs-source", mediaLoader, null, List.of(),
-			new FilesystemSourceNodeOptions()))
+		assertThatThrownBy(() -> FilesystemSourceNode.create("fs-source", mediaLoader, null, List.of(), List.of(),
+			new FilesystemSourceNodeOptions(), indexDir))
 			.isInstanceOf(IllegalArgumentException.class);
 	}
 }

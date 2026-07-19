@@ -56,7 +56,7 @@ public class PipelineNodeFactoryModule {
 
 		// Source nodes are pipeline-level constructs rather than FilesystemNodes,
 		// so they are constructed directly instead of via the CortexNodeAdapter.
-		factory.register("filesystem-source", def -> filesystemSource(def, mediaLoader, fsSourceOptions));
+		factory.register("filesystem-source", def -> filesystemSource(def, mediaLoader, fsSourceOptions, cortexOptions));
 
 		// Register cortex nodes by the type strings we expect to see in
 		// pipeline JSON. Multiple aliases per node are supported so pipeline
@@ -78,21 +78,13 @@ public class PipelineNodeFactoryModule {
 	 * {@link FilesystemSourceNodeOptions} defaults.
 	 */
 	private static PipelineNode filesystemSource(io.vertx.core.json.JsonObject nodeDef,
-		LoomMediaLoader mediaLoader, FilesystemSourceNodeOptions defaults) {
+		LoomMediaLoader mediaLoader, FilesystemSourceNodeOptions defaults, CortexOptions cortexOptions) {
 
 		String id = nodeDef.getString("id", FilesystemSourceNode.DEFAULT_ID);
 		String path = nodeDef.getString("path");
 
-		List<String> globs = new ArrayList<>();
-		JsonArray globArray = nodeDef.getJsonArray("pathGlobs");
-		if (globArray != null) {
-			for (int i = 0; i < globArray.size(); i++) {
-				String glob = globArray.getString(i);
-				if (glob != null && !glob.isBlank()) {
-					globs.add(glob);
-				}
-			}
-		}
+		List<String> globs = readStringArray(nodeDef, "pathGlobs");
+		List<String> emitStates = readStringArray(nodeDef, "emitStates");
 
 		if (defaults != null) {
 			ValidationResult result = defaults.validate();
@@ -102,7 +94,33 @@ public class PipelineNodeFactoryModule {
 			}
 		}
 
-		return FilesystemSourceNode.create(id, mediaLoader, path, globs, defaults);
+		// Resolve the local base directory for the persisted per-root indexes:
+		// an explicit indexPath option wins, otherwise derive it from the meta path.
+		String configuredIndexPath = defaults != null ? defaults.getIndexPath() : null;
+		java.nio.file.Path indexBaseDir;
+		if (configuredIndexPath != null && !configuredIndexPath.isBlank()) {
+			indexBaseDir = java.nio.file.Paths.get(configuredIndexPath).toAbsolutePath().normalize();
+		} else if (cortexOptions != null && cortexOptions.getMetaPath() != null) {
+			indexBaseDir = cortexOptions.getMetaPath().resolve("filesystem-index");
+		} else {
+			indexBaseDir = null;
+		}
+
+		return FilesystemSourceNode.create(id, mediaLoader, path, globs, emitStates, defaults, indexBaseDir);
+	}
+
+	private static List<String> readStringArray(io.vertx.core.json.JsonObject nodeDef, String field) {
+		List<String> values = new ArrayList<>();
+		JsonArray array = nodeDef.getJsonArray(field);
+		if (array != null) {
+			for (int i = 0; i < array.size(); i++) {
+				String value = array.getString(i);
+				if (value != null && !value.isBlank()) {
+					values.add(value);
+				}
+			}
+		}
+		return values;
 	}
 
 	private static PipelineNode adapt(io.metaloom.cortex.api.node.FilesystemNode<?, ?> wrapped, io.vertx.core.json.JsonObject nodeDef, CortexOptions cortexOptions) {

@@ -55,4 +55,35 @@ public class FilesystemSourceNodeOptionsTest {
 		assertThat(options.getPath()).isEqualTo("/media");
 		assertThat(options.getPathGlobs()).hasSize(2);
 	}
+
+	@Test
+	public void testEmitStatesDefaultToNewModifiedMoved() {
+		assertThat(new FilesystemSourceNodeOptions().getEmitStates())
+			.containsExactlyInAnyOrder("NEW", "MODIFIED", "MOVED");
+	}
+
+	@Test
+	public void testValidEmitStatesAreAccepted() {
+		FilesystemSourceNodeOptions options = new FilesystemSourceNodeOptions()
+			.setEmitStates(List.of("NEW", "DELETED"));
+
+		assertThat(options.validate().isInvalid()).isFalse();
+	}
+
+	@Test
+	public void testUnknownEmitStateIsRejected() {
+		FilesystemSourceNodeOptions options = new FilesystemSourceNodeOptions()
+			.setEmitStates(List.of("NEW", "BOGUS"));
+
+		assertThat(options.validate().isInvalid()).isTrue();
+		assertThat(options.validate().getErrors()).anyMatch(e -> e.contains("emitStates"));
+	}
+
+	@Test
+	public void testNullEmitStatesIsNormalisedToDefaults() {
+		FilesystemSourceNodeOptions options = new FilesystemSourceNodeOptions().setEmitStates(null);
+
+		assertThat(options.getEmitStates()).containsExactlyInAnyOrder("NEW", "MODIFIED", "MOVED");
+		assertThat(options.validate().isInvalid()).isFalse();
+	}
 }

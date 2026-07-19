@@ -31,6 +31,11 @@
             <groupId>io.metaloom.cortex</groupId>
             <artifactId>cortex-common</artifactId>
         </dependency>
+        <!-- Differential filesystem scanner used for incremental (differential) source scanning. -->
+        <dependency>
+            <groupId>io.metaloom.utils</groupId>
+            <artifactId>differential-filesystem-scanner</artifactId>
+        </dependency>
     </dependencies>
 
 </project>
