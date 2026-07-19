@@ -23,16 +23,18 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class SegmentTaskResult {
 
 	private final UUID taskUuid;
+	private final UUID runUuid;
 	private final String itemId;
 	private final String segmentId;
 	private final List<NodeTaskResult> results;
 	private final String error;
 
 	@JsonCreator
-	public SegmentTaskResult(@JsonProperty("taskUuid") UUID taskUuid, @JsonProperty("itemId") String itemId,
-		@JsonProperty("segmentId") String segmentId, @JsonProperty("results") List<NodeTaskResult> results,
-		@JsonProperty("error") String error) {
+	public SegmentTaskResult(@JsonProperty("taskUuid") UUID taskUuid, @JsonProperty("runUuid") UUID runUuid,
+		@JsonProperty("itemId") String itemId, @JsonProperty("segmentId") String segmentId,
+		@JsonProperty("results") List<NodeTaskResult> results, @JsonProperty("error") String error) {
 		this.taskUuid = taskUuid;
+		this.runUuid = runUuid;
 		this.itemId = Objects.requireNonNull(itemId, "An item id must be set");
 		this.segmentId = segmentId;
 		this.results = results == null ? List.of() : List.copyOf(results);
@@ -41,6 +43,11 @@ public class SegmentTaskResult {
 
 	public UUID getTaskUuid() {
 		return taskUuid;
+	}
+
+	/** @return the run this belongs to, so Loom can route it back to the right engine */
+	public UUID getRunUuid() {
+		return runUuid;
 	}
 
 	public String getItemId() {

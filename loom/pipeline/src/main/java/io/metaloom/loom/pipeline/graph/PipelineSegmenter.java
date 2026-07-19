@@ -80,6 +80,14 @@ public class PipelineSegmenter {
 				if (!affinity.equals(graph.getNode(neighbour).getAffinity())) {
 					continue;
 				}
+				if (isFilterEdge(graph, current, neighbour)) {
+					// A filter edge ends the segment. The worker applies blocking-skip
+					// rules locally but knows nothing about branch verdicts, so a filter
+					// inside a segment would run the branch node regardless of the
+					// verdict - silently changing what the pipeline does. Routing stays
+					// with the engine, which is the only thing that implements it.
+					continue;
+				}
 				found.add(neighbour);
 				queue.add(neighbour);
 			}
@@ -93,6 +101,14 @@ public class PipelineSegmenter {
 			}
 		}
 		return ordered;
+	}
+
+	/**
+	 * @return true when either node depends on the other through a filter branch
+	 */
+	private boolean isFilterEdge(PipelineGraph graph, String a, String b) {
+		return graph.getNode(a).getConditionalDependencies().containsKey(b)
+			|| graph.getNode(b).getConditionalDependencies().containsKey(a);
 	}
 
 	private List<String> neighboursOf(PipelineGraph graph, String nodeId) {

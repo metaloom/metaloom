@@ -120,8 +120,8 @@ public class PipelineTaskHandler {
 				// something unexpected. Still answer: a silent drop stalls every node in
 				// the segment, not just one.
 				log.error("Unexpected failure running {}", task, t);
-				result = new SegmentTaskResult(task.getTaskUuid(), task.getItemId(), task.getSegmentId(),
-					java.util.List.of(), String.valueOf(t));
+				result = new SegmentTaskResult(task.getTaskUuid(), task.getRunUuid(), task.getItemId(),
+					task.getSegmentId(), java.util.List.of(), String.valueOf(t));
 			}
 			sender.send(new ProcessorMessage(ProcessorMessageType.SEGMENT_TASK_RESULT,
 				JsonObject.mapFrom(result)));

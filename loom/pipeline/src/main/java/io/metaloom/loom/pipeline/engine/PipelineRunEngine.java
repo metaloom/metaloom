@@ -12,6 +12,9 @@ import org.slf4j.LoggerFactory;
 
 import io.metaloom.loom.pipeline.graph.PipelineGraph;
 import io.metaloom.loom.pipeline.graph.PipelineGraphNode;
+import io.metaloom.loom.pipeline.graph.PipelineSegment;
+import io.metaloom.loom.pipeline.model.SegmentNode;
+import io.metaloom.loom.pipeline.model.SegmentTask;
 import io.metaloom.loom.pipeline.model.FilterBranch;
 import io.metaloom.loom.pipeline.model.MediaRef;
 import io.metaloom.loom.pipeline.model.NodeState;
@@ -481,6 +484,20 @@ public class PipelineRunEngine {
 					continue;
 				}
 
+				// A multi-node segment is dispatched as a unit so its intermediate
+				// results never leave the worker. Falls through to per-node dispatch
+				// when the segment is a single node, or when no worker will take it
+				// whole.
+				PipelineSegment segment = graph.getSegmentFor(nodeId);
+				if (segment != null && !segment.isSingleNode() && segmentReady(state, segment)) {
+					Boolean settled = dispatchSegment(state, segment);
+					if (settled != null) {
+						progressed |= settled;
+						continue;
+					}
+					// null means no worker took the segment whole; fall back to nodes.
+				}
+
 				// A rejected dispatch settles the node immediately, which can unblock
 				// children in this same pass.
 				progressed |= dispatch(state, node);
@@ -520,6 +537,200 @@ public class PipelineRunEngine {
 			if (branch != FilterBranch.ANY && !branch.admits(depResult.getFilterPassed())) {
 				return NodeTaskResult.skipped(node.getId(),
 					"Filter branch " + branch + " not taken on dependency " + dep);
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * A segment can only go out as a unit if <em>every</em> node in it is ready.
+	 *
+	 * <p>Partial dispatch is not an option: the worker runs the whole list, so a
+	 * segment whose middle node is still waiting on something outside would execute
+	 * that node before its dependency settled.</p>
+	 */
+	private boolean segmentReady(ItemState state, PipelineSegment segment) {
+		for (String dep : segment.getDependencies()) {
+			if (!state.isSettled(dep)) {
+				return false;
+			}
+		}
+		if (graph.isDryRun()) {
+			// Nothing is dispatched in a dry run; the per-node path records the skips.
+			return false;
+		}
+		for (String nodeId : segment.getNodeIds()) {
+			if (state.isSettled(nodeId) || state.isInFlight(nodeId) || state.isAwaitingRetry(nodeId)) {
+				// Something already touched part of this segment - a retry of one node,
+				// say. Dispatching the whole thing again would re-run its siblings.
+				return false;
+			}
+			if (skippedByExternalDependency(state, segment, graph.getNode(nodeId))) {
+				// The engine, not the worker, owns decisions that depend on nodes outside
+				// the segment. Hand the whole thing to the per-node path so those skips
+				// are recorded properly.
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Would this node be skipped because of something <em>outside</em> its segment?
+	 *
+	 * <p>Only external dependencies are consulted. A node's dependencies inside the
+	 * segment have no result yet - the worker produces them - so asking about them
+	 * here would be both meaningless and, since {@code evaluateSkip} assumes settled
+	 * dependencies, a null dereference.</p>
+	 */
+	private boolean skippedByExternalDependency(ItemState state, PipelineSegment segment, PipelineGraphNode node) {
+		for (String dep : node.getDependencies()) {
+			if (segment.getNodeIds().contains(dep)) {
+				continue;
+			}
+			NodeTaskResult depResult = state.getResults().get(dep);
+			if (depResult == null) {
+				// Not settled yet, so this is not a skip - segmentReady's own dependency
+				// check decides whether the segment can go at all.
+				continue;
+			}
+			if (depResult.getState() == NodeState.FAILED && node.isBlocking()) {
+				return true;
+			}
+			FilterBranch branch = node.branchFor(dep);
+			if (branch != FilterBranch.ANY && !branch.admits(depResult.getFilterPassed())) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Dispatch a whole segment.
+	 *
+	 * @return true when it settled synchronously, false when results will arrive
+	 *         later, or null when no worker would take it and the caller should fall
+	 *         back to per-node dispatch
+	 */
+	private Boolean dispatchSegment(ItemState state, PipelineSegment segment) {
+		UUID taskUuid = UUID.randomUUID();
+		List<SegmentNode> segNodes = new ArrayList<>();
+		for (String nodeId : segment.getNodeIds()) {
+			PipelineGraphNode node = graph.getNode(nodeId);
+			segNodes.add(new SegmentNode(node.getId(), node.getKind(), node.isBlocking(), node.getOptions(),
+				node.getDependencies()));
+		}
+
+		SegmentTask task = new SegmentTask(taskUuid, runUuid, state.getItemId(), segment.getId(),
+			segment.getAffinity(), state.getMedia(), segNodes, collectSegmentInputs(state, segment));
+
+		String worker;
+		try {
+			worker = dispatcher.dispatch(task);
+		} catch (Exception e) {
+			log.error("Segment dispatch of {} threw", task, e);
+			worker = null;
+		}
+		if (worker == null) {
+			// No worker is permitted to run every kind in the segment. Falling back to
+			// per-node keeps the run moving, at the cost affinity was meant to avoid.
+			log.debug("No worker took segment {} whole; falling back to per-node dispatch", segment.getId());
+			return null;
+		}
+
+		for (String nodeId : segment.getNodeIds()) {
+			state.markInFlight(nodeId, taskUuid);
+			state.recordAttempt(nodeId);
+		}
+		// One dispatch, one slot: a segment is a single outstanding request no matter
+		// how many nodes it carries.
+		inFlightCount++;
+		store.taskDispatched(itemUuid(state), toNodeTask(task, segment), worker);
+		return false;
+	}
+
+	/**
+	 * Outputs a segment needs from outside itself.
+	 */
+	private Map<String, Map<String, Object>> collectSegmentInputs(ItemState state, PipelineSegment segment) {
+		Map<String, Map<String, Object>> upstream = new LinkedHashMap<>();
+		for (String dep : segment.getDependencies()) {
+			NodeTaskResult depResult = state.getResults().get(dep);
+			if (depResult != null && !depResult.getOutputs().isEmpty()) {
+				upstream.put(dep, depResult.getOutputs());
+			}
+		}
+		return upstream;
+	}
+
+	/**
+	 * Represent a segment to the state store, which records per node task.
+	 *
+	 * <p>Attributed to the segment's first node: the store's key is
+	 * {@code (item, node)}, and the remaining nodes get their rows when their results
+	 * arrive.</p>
+	 */
+	private NodeTask toNodeTask(SegmentTask task, PipelineSegment segment) {
+		String first = segment.getNodeIds().get(0);
+		return new NodeTask(task.getTaskUuid(), runUuid, task.getItemId(), first,
+			graph.getNode(first).getKind(), task.getMedia(), Map.of(), task.getUpstreamOutputs());
+	}
+
+	/**
+	 * Assimilate the per-node outcomes of a segment.
+	 *
+	 * <p>Applied one node at a time through the ordinary result path, so retries,
+	 * dead-lettering and downstream unblocking behave exactly as they do for
+	 * individually dispatched nodes.</p>
+	 *
+	 * @param itemId  the item
+	 * @param results the per-node outcomes
+	 * @param error   a segment-level failure, or null
+	 */
+	public synchronized void onSegmentTaskResult(String itemId, String segmentId, List<NodeTaskResult> results,
+		String error) {
+		requireStarted();
+		ItemState state = items.get(itemId);
+		if (state == null) {
+			log.warn("Segment result for unknown item '{}' in run {} - ignoring", itemId, runUuid);
+			return;
+		}
+
+		if (error != null && (results == null || results.isEmpty())) {
+			// Nothing ran. Fail every node of the segment, or they stay in flight
+			// forever waiting for results that will not come.
+			PipelineSegment segment = findSegment(segmentId);
+			if (segment != null) {
+				for (String nodeId : segment.getNodeIds()) {
+					if (!state.isSettled(nodeId)) {
+						releaseInFlight(state, nodeId);
+						state.record(NodeTaskResult.failed(null, nodeId, 0, "Segment failed: " + error));
+						store.taskSettled(itemUuid(state), state.getResults().get(nodeId));
+					}
+				}
+			}
+			advance(state);
+			pumpDeferred();
+			checkComplete();
+			return;
+		}
+
+		for (NodeTaskResult result : results) {
+			if (state.isSettled(result.getNodeId())) {
+				log.warn("Duplicate segment result for node '{}' on item '{}' - ignoring", result.getNodeId(), itemId);
+				continue;
+			}
+			record(state, result);
+		}
+		advance(state);
+		pumpDeferred();
+		checkComplete();
+	}
+
+	private PipelineSegment findSegment(String segmentId) {
+		for (PipelineSegment segment : graph.getSegments()) {
+			if (segment.getId().equals(segmentId)) {
+				return segment;
 			}
 		}
 		return null;

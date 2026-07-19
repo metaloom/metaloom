@@ -68,8 +68,8 @@ public class SegmentTaskRunner {
 			// Nothing can run, so report it at segment level rather than inventing an
 			// identical failure for every node.
 			log.error("Could not resolve media for {}", task, e);
-			return new SegmentTaskResult(task.getTaskUuid(), task.getItemId(), task.getSegmentId(),
-				List.of(), describe(e));
+			return new SegmentTaskResult(task.getTaskUuid(), task.getRunUuid(), task.getItemId(),
+				task.getSegmentId(), List.of(), describe(e));
 		}
 
 		// Seeded with what came from outside the segment; nodes inside it add to this
@@ -92,7 +92,8 @@ public class SegmentTaskRunner {
 			results.put(node.getNodeId(), NodeResultMapper.toLocal(result));
 		}
 
-		return new SegmentTaskResult(task.getTaskUuid(), task.getItemId(), task.getSegmentId(), wireResults, null);
+		return new SegmentTaskResult(task.getTaskUuid(), task.getRunUuid(), task.getItemId(), task.getSegmentId(),
+			wireResults, null);
 	}
 
 	/**

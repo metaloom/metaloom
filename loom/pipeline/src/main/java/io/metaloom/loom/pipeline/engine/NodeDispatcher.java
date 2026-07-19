@@ -33,4 +33,18 @@ public interface NodeDispatcher {
 	 *         case the engine fails the node rather than waiting forever
 	 */
 	String dispatch(NodeTask task);
+
+	/**
+	 * Send a whole affinity segment to a worker.
+	 *
+	 * <p>Defaults to refusing, so an implementation that predates segments keeps
+	 * working: the engine falls back to dispatching the segment's nodes one at a
+	 * time rather than failing them.</p>
+	 *
+	 * @param task the segment
+	 * @return the id of the worker that took it, or null when none could
+	 */
+	default String dispatch(io.metaloom.loom.pipeline.model.SegmentTask task) {
+		return null;
+	}
 }

@@ -1009,6 +1009,73 @@ time, so the Cortex side is complete and unreachable. That is P3.3: teach
 `PipelineRunEngine` to dispatch segments — at which point affinity finally does
 something at runtime.
 
+## 2.22 P3.3 — segment dispatch, as built
+
+Affinity now changes what crosses the network. Landed 2026-07-19.
+
+### A filter edge ends a segment — found while wiring this
+
+`SegmentTaskRunner` implements blocking-skip rules but knows **nothing about
+filter branch verdicts**; branch routing lives only in the engine. A filter edge
+inside a segment would therefore have run the branch node regardless of the
+verdict — silently changing what the pipeline does, which is precisely the
+failure P3.2's javadoc warned against.
+
+`PipelineSegmenter` now treats a conditional edge as a boundary. The alternative
+— implementing branch routing in the worker too — would duplicate the semantics
+in two places and invite exactly the drift being avoided.
+
+⚠️ This is a **retroactive correction to P3.1**: as originally landed, the
+segmenter would have merged across filter edges. Nothing had consumed segments
+yet, so no behaviour was ever wrong, but the bug was real.
+
+### Dispatch, and the fallbacks
+
+| Situation | Behaviour |
+|---|---|
+| Multi-node segment, worker covers all kinds | One `SEGMENT_TASK` |
+| Single-node segment | Unchanged `NODE_TASK` — per-node dispatch is a segment of one |
+| No worker covers every kind | **Falls back to per-node dispatch.** Chatty beats stalled |
+| Dry run | Nothing dispatched; the per-node path records skips |
+| Part of the segment already touched (a retry) | Per-node, so siblings are not re-run |
+
+`selectProcessorForKinds` requires **one** worker permitted to run *every* kind —
+distinct from calling the per-kind check repeatedly, since a fleet with one decode
+worker and one facedetect worker covers both kinds and can still not run a
+segment spanning them.
+
+**A segment counts as one in-flight slot**, not one per node. Counting per node
+would let a two-node segment saturate a cap of one and stall everything behind it.
+
+### A real bug caught by the existing tests
+
+`segmentReady` initially called `evaluateSkip` on every node in the segment. That
+method assumes all dependencies are settled — true between segments, false
+*inside* one, where a node's dependencies are produced by the worker and have no
+result yet. 20 tests failed with a NullPointer. The fix, `skippedByExternalDependency`,
+consults only dependencies outside the segment: what happens inside is the
+worker's business, and the engine has no business guessing about it.
+
+### Assimilation reuses the ordinary path
+
+`onSegmentTaskResult` applies each node outcome through the same `record(...)`
+used for individual results, so retries, dead-lettering and downstream unblocking
+behave identically. A segment-level error (media unopenable) fails **every** node
+in the segment — otherwise they stay in flight forever waiting for results that
+will never come.
+
+### Verification
+
+11 new tests (`loom/pipeline` now 101). Full reactor build green; the pre-existing
+`*ModelBuilderTest` failures remain 16 + 6, unchanged since Phase 1.
+
+### Now measurable
+
+With P3.3 in, the **same pipeline can be run both ways** — grouped and ungrouped —
+against the same fleet. That is a considerably more useful benchmark than the
+Variant A comparison §9.1 originally asked for, and it is now available without
+further work.
+
 ---
 
 ## 3. Prerequisites

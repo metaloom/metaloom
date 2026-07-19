@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 
 import io.metaloom.loom.pipeline.engine.NodeDispatcher;
 import io.metaloom.loom.pipeline.model.NodeTask;
+import io.metaloom.loom.pipeline.model.SegmentTask;
 import io.metaloom.loom.rest.model.processor.ProcessorCapability;
 import io.metaloom.loom.rest.model.processor.message.ProcessorMessageType;
 import io.metaloom.loom.rest.service.impl.ProcessorRegistry.ConnectedProcessor;
@@ -60,6 +61,26 @@ public class WebSocketNodeDispatcher implements NodeDispatcher {
 		}
 		if (log.isDebugEnabled()) {
 			log.debug("Dispatched {} to processor '{}'", task, processor.nodeId);
+		}
+		return processor.nodeId;
+	}
+
+	@Override
+	public String dispatch(SegmentTask task) {
+		// A segment needs one worker permitted to run *every* kind in it. "Some worker
+		// runs each kind" is not enough - a fleet with one decode worker and one
+		// facedetect worker satisfies both kinds and can still not run a segment
+		// spanning them.
+		ConnectedProcessor processor = registry.selectProcessorForKinds(ProcessorCapability.CPU, task.getNodeKinds());
+		if (processor == null) {
+			log.debug("No online processor accepts all of {} for {}", task.getNodeKinds(), task);
+			return null;
+		}
+
+		boolean sent = registry.send(processor.nodeId, ProcessorMessageType.SEGMENT_TASK, task);
+		if (!sent) {
+			log.warn("Processor '{}' went away before {} could be sent", processor.nodeId, task);
+			return null;
 		}
 		return processor.nodeId;
 	}

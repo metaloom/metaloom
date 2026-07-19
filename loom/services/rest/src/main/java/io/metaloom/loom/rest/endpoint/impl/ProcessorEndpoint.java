@@ -203,6 +203,9 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 				case SOURCE_COMPLETE:
 					handleSourceComplete(ws, msg, nodeIdHolder[0]);
 					break;
+				case SEGMENT_TASK_RESULT:
+					handleSegmentTaskResult(ws, msg, nodeIdHolder[0]);
+					break;
 				case NODE_TASK_RESULT:
 					handleNodeTaskResult(ws, msg, nodeIdHolder[0]);
 					break;
@@ -382,6 +385,31 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 	/**
 	 * Handle the outcome of a single node task and let the engine advance the item.
 	 */
+	/**
+	 * Assimilate the per-node outcomes of a segment.
+	 */
+	private void handleSegmentTaskResult(ServerWebSocket ws, ProcessorMessage msg, String nodeId) {
+		if (nodeId == null) {
+			sendError(ws, "Not registered. Send REGISTER first.");
+			return;
+		}
+		if (msg.getBody() == null) {
+			sendError(ws, "SEGMENT_TASK_RESULT message must include a body");
+			return;
+		}
+		io.metaloom.loom.pipeline.model.SegmentTaskResult body =
+			msg.getBody().mapTo(io.metaloom.loom.pipeline.model.SegmentTaskResult.class);
+		PipelineRunEngine engine = resolveEngine(ws, body.getRunUuid(), "SEGMENT_TASK_RESULT");
+		if (engine == null) {
+			return;
+		}
+		if (body.getItemId() == null) {
+			sendError(ws, "SEGMENT_TASK_RESULT requires an itemId");
+			return;
+		}
+		engine.onSegmentTaskResult(body.getItemId(), body.getSegmentId(), body.getResults(), body.getError());
+	}
+
 	private void handleNodeTaskResult(ServerWebSocket ws, ProcessorMessage msg, String nodeId) {
 		if (nodeId == null) {
 			sendError(ws, "Not registered. Send REGISTER first.");

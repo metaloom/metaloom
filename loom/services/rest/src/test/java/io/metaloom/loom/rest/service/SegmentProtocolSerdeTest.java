@@ -103,7 +103,8 @@ public class SegmentProtocolSerdeTest {
 	@Test
 	void testSegmentResultSurvivesTheRoundTrip() {
 		UUID taskUuid = UUID.randomUUID();
-		SegmentTaskResult original = new SegmentTaskResult(taskUuid, "item-1", "seg-1",
+		UUID runUuid = UUID.randomUUID();
+		SegmentTaskResult original = new SegmentTaskResult(taskUuid, runUuid, "item-1", "seg-1",
 			List.of(
 				NodeTaskResult.completed(taskUuid, "decode", 120, Map.of("frames", 300)),
 				NodeTaskResult.skipped("face", "Dependency decode failed")),
@@ -111,6 +112,7 @@ public class SegmentProtocolSerdeTest {
 
 		SegmentTaskResult parsed = JsonObject.mapFrom(original).mapTo(SegmentTaskResult.class);
 
+		assertEquals(runUuid, parsed.getRunUuid(), "Loom routes the result back by run, so this must survive");
 		assertEquals(2, parsed.getResults().size());
 		// Per-node outcomes, never one verdict for the segment: a single status would
 		// turn one bad node into a wholly failed item.
@@ -122,8 +124,8 @@ public class SegmentProtocolSerdeTest {
 
 	@Test
 	void testASegmentLevelErrorSurvives() {
-		SegmentTaskResult original = new SegmentTaskResult(UUID.randomUUID(), "item-1", "seg-1", List.of(),
-			"file vanished");
+		SegmentTaskResult original = new SegmentTaskResult(UUID.randomUUID(), UUID.randomUUID(), "item-1", "seg-1",
+			List.of(), "file vanished");
 
 		SegmentTaskResult parsed = JsonObject.mapFrom(original).mapTo(SegmentTaskResult.class);
 

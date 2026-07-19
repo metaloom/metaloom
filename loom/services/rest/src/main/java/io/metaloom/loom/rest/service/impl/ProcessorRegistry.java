@@ -151,6 +151,28 @@ public class ProcessorRegistry {
 	}
 
 	/**
+	 * Find a worker permitted to run every one of the given kinds.
+	 *
+	 * <p>Distinct from calling {@link #selectProcessor(ProcessorCapability, String)}
+	 * per kind: a segment must run entirely on one machine, so partial coverage across
+	 * the fleet is no coverage at all.</p>
+	 *
+	 * @param requiredCapability capability the worker must have, or null for any
+	 * @param nodeKinds          every kind the work needs
+	 * @return the best matching processor, or null when none covers them all
+	 */
+	public ConnectedProcessor selectProcessorForKinds(ProcessorCapability requiredCapability,
+		java.util.List<String> nodeKinds) {
+		return processors.values().stream()
+			.filter(p -> p.state == ProcessorState.ONLINE)
+			.filter(p -> requiredCapability == null || (p.capabilities != null && p.capabilities.contains(requiredCapability)))
+			.filter(p -> nodeKinds == null || nodeKinds.stream().allMatch(p::accepts))
+			.sorted((a, b) -> Integer.compare(b.priority, a.priority))
+			.findFirst()
+			.orElse(null);
+	}
+
+	/**
 	 * Dispatch a work order to a specific processor.
 	 */
 	public boolean dispatchWorkOrder(String nodeId, WorkOrder workOrder) {

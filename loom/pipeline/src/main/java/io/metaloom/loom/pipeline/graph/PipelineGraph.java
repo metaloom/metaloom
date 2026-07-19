@@ -31,6 +31,7 @@ public class PipelineGraph {
 	private final Map<String, List<String>> children;
 	private final List<String> topologicalOrder;
 	private final String sourceNodeId;
+	private volatile List<PipelineSegment> segments;
 
 	PipelineGraph(String name, boolean enabled, boolean dryRun, int priority,
 		Map<String, PipelineGraphNode> nodes, String sourceNodeId) {
@@ -116,6 +117,39 @@ public class PipelineGraph {
 	 * @return every node id in dependency order - a node always appears after all of
 	 *         its dependencies
 	 */
+	/**
+	 * The affinity segments of this graph.
+	 *
+	 * <p>Computed once and cached: the topology belongs to the pipeline version, not
+	 * to an item, and re-deriving it per item would put graph analysis on the hot
+	 * path of every dispatch.</p>
+	 *
+	 * @return segments in dependency order
+	 */
+	public List<PipelineSegment> getSegments() {
+		List<PipelineSegment> local = segments;
+		if (local == null) {
+			// Idempotent, so a benign race just recomputes rather than needing a lock on
+			// the read path.
+			local = new PipelineSegmenter().segment(this);
+			segments = local;
+		}
+		return local;
+	}
+
+	/**
+	 * @param nodeId the node
+	 * @return the segment it belongs to, or null for the source node
+	 */
+	public PipelineSegment getSegmentFor(String nodeId) {
+		for (PipelineSegment segment : getSegments()) {
+			if (segment.getNodeIds().contains(nodeId)) {
+				return segment;
+			}
+		}
+		return null;
+	}
+
 	public List<String> getTopologicalOrder() {
 		return topologicalOrder;
 	}
