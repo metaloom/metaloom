@@ -20,6 +20,13 @@
 
 ---
 
+> ⚠️ **Staleness note (2026-07-19).** Sections 1–5, 7, 8, 12, 13 describe the
+> system accurately. **Sections 6, 9, 10 and 11 were written against the previous
+> architecture**, in which a Cortex worker received a run and executed the whole
+> pipeline itself. Loom now owns the graph and dispatches individual node tasks.
+> **[§14](#14-how-a-pipeline-runs) supersedes them** wherever
+> they disagree; rewriting them is an open task.
+
 ## 1. The system in one page
 
 MetaLoom is a **Digital Asset Management (DAM)** platform. You point it at a
@@ -607,7 +614,11 @@ Being blunt about the state of things, because the failure modes are all silent.
 - ✅ Run records are created and closed out with real counters — **on the happy
   path**; a run killed by an upstream error or cancellation emits no completion
   event and relies on the watchdog
-- ✅ The reactive engine itself — DAG ordering, concurrency, timeouts, filters
+- ✅ DAG ordering, concurrency, timeouts and filters — **now evaluated on Loom**
+  by `PipelineRunEngine`; the in-Cortex engine has been deleted
+- ✅ Run state survives a Loom restart; a dead worker's tasks are reclaimed
+- ✅ An unexecutable pipeline definition fails at run time with a 400, instead of
+  producing a green run that did nothing
 - ✅ Local xattr / sidecar storage of results next to the media
 - ✅ Offline/CLI batch processing, which bypasses all the Loom coupling
 
@@ -657,70 +668,152 @@ gone.
 
 ---
 
-## 14. Scaling beyond one worker
+## 14. How a pipeline runs
 
-Everything above describes MetaLoom as it is built today: **one Loom, and one
-or more Cortex workers that each execute a whole run by themselves.**
+> **This section supersedes §6, §9, §10 and §11 wherever they disagree.** Those
+> describe an earlier arrangement in which a Cortex worker was handed a run and
+> executed the whole pipeline itself. That is no longer how MetaLoom works.
 
-The design work on running many Cortex instances as a coordinated pool — the
-flat processing grid, the hierarchical tree topology, deferred/delegating
-nodes, and how orchestration would be driven — is a **proposal**, not a
-description of the system, and is kept separately so that this document stays
-a faithful account of what exists:
+### Who decides what
 
-| Document | Contains |
+**Loom owns the pipeline. Cortex does the work it is asked to do.**
+
+Loom holds the graph, reads the definition, decides which node runs next, and
+records what happened. A Cortex worker is given one piece of work at a time — run
+*this* node against *this* file — and answers with the outcome. It holds no
+pipelines and makes no scheduling decisions.
+
+The important consequence is that **the definition is read in exactly one place**.
+Previously both sides parsed it, and disagreed: the editor wrote one shape and the
+worker read another, so pipelines that looked correct in the UI quietly did
+nothing. A single reader removes that whole class of problem rather than fixing
+instances of it.
+
+### What a run does
+
+Starting a run selects media, then processes each item through the graph.
+
+1. A worker walks the filesystem and streams back what it finds, in batches.
+2. As items arrive, Loom works out which nodes are ready for each one and sends
+   them out.
+3. Workers answer; Loom records each outcome and works out what that unblocks.
+4. The run finishes when everything discovered has been fully processed.
+
+**A pipeline that cannot run is rejected when you start it**, with a reason —
+unknown node types, no source, circular dependencies, edges to nodes that do not
+exist. It does not start and quietly finish having done nothing, which is what
+used to happen.
+
+### What MetaLoom guarantees
+
+| Guarantee | What it means in practice |
 |---|---|
-| [METALOOM_ARCHITECTURE_V2.md](METALOOM_ARCHITECTURE_V2.md) | The multi-instance design: flat pool vs. tree, orchestration models, async node delegation, failure semantics |
-| [METALOOM_ARCHITECTURE_V2_TASK.md](METALOOM_ARCHITECTURE_V2_TASK.md) | Work items for that design |
-| [METALOOM_ARCHITECTURE_TASK.md](METALOOM_ARCHITECTURE_TASK.md) | Work items for the system as built — including the prerequisites the V2 work depends on |
+| **A run survives a restart** | Progress is recorded as it happens. If Loom restarts, in-flight runs resume from where they were. Work already done is not repeated |
+| **A worker dying does not lose work** | Every dispatched task has a deadline. Work from a worker that never answers is given to another one |
+| **A bad file cannot stall a run** | Repeated failures on one item are given up on, with the history kept, rather than retried forever |
+| **A broken node type cannot burn the fleet** | If a node type starts failing on nearly everything, it is set aside and retried periodically instead of failing every remaining item |
+| **One run cannot consume everything** | Each run has a ceiling on outstanding work, and a scan is slowed down when its run is saturated |
+| **Failures are reported individually; progress is summarised** | You are told which file failed and why, promptly. Volume is reported as counts, not as one message per file |
 
-**The one thing to carry across:** distributing work across machines multiplies
-whatever the system already does. Since MetaLoom currently reports success for
-work it did not do ([§12](#12-what-actually-works-today)), the silent-failure
-defects must be closed *before* any topology work begins — otherwise a fleet
-produces a fleet of quiet lies instead of one.
+### Two limits worth knowing
 
-## 15. Conventions and gotchas
+**A scan interrupted by a restart cannot be resumed.** If Loom restarts while a
+worker is still enumerating files, the files it had not reached yet were never
+recorded anywhere. The run completes with the media it already knew about, and is
+**marked as such** — it does not claim to have processed a folder it only partly
+saw.
 
-| Area | Gotcha |
-|---|---|
-| **Direction of travel** | Cortex always dials Loom; Loom never dials Cortex |
-| **Two return roads** | progress over WebSocket, result data over REST — unrelated paths |
-| **Definitions are pulled** | `reload-pipelines` is a nudge; the recipe comes over REST |
-| **"Done" is ambiguous** | `WORK_ORDER_RESULT` means *accepted*; `PIPELINE_RUN_COMPLETED` means *finished* |
-| **Paths are worker-relative** | globs resolve on the worker's CWD; a bad path yields a silent empty run |
-| **Green ≠ done** | unimplemented node kinds report success |
-| **Only hashes sync** | every other node output is dropped before the REST call |
-| **Streaming runs never flush** | under 100 results, nothing is sent |
-| **Cache hits skip sync** | a re-run over cached media sends nothing |
-| **Worker identity is ephemeral** | random per process start, never persisted |
-| **Load data is collected, never used** | and `cpuLoad` is computed incorrectly anyway |
-| **`cortex.yml` is not read** | on the server path, despite the docs |
-| **No shutdown hook** | `SIGTERM` loses up to 100 buffered results |
-| **Executor is single-use** | a second run on the same instance throws |
-| **Specs can be stale** | `METALOOM.md` claims `CompletableFuture`; it is RxJava 3 |
+**Duplicate work is possible, and preferred to stalling.** A worker that is merely
+slow can have its task reassigned while it is still working. A node may therefore
+run twice on the same file. Results are recorded once, so this costs time rather
+than correctness — and the alternative, waiting indefinitely for a worker that may
+be dead, is worse.
+
+### Putting work on the right machine
+
+Not every worker can do every job. A worker can declare which node types it
+accepts, so a GPU machine can be reserved for models and a machine with the media
+mounted can be reserved for scanning. A worker that declares nothing accepts
+everything.
+
+⚠️ Work is currently placed by **configured priority**, not by how busy a machine
+is, because the load figure workers report is wrong. Placing work on a bad
+measurement would be worse than not using it at all. Fixing that is an open task.
+
+### Grouping nodes onto one machine
+
+Nodes can be marked as belonging to the same **affinity group**. Connected nodes in
+the same group are sent to one worker together and run there as a unit, rather than
+being handed out one at a time.
+
+By default **everything is in one group**, so a pipeline is only split across
+machines when someone asks for it.
+
+🔴 **What this saves is network round trips — not repeated file reads.** It is
+tempting to assume grouping lets a video be decoded once and analysed many times.
+It does not: each node still reads the file itself, because there is no way for one
+node to hand a decoded frame to the next. A measurement over 155 MiB of video found
+grouping **1.01×** faster than not grouping — within noise. The round-trip saving is
+real but has not been measured. Whether genuine decode-once is wanted is an open
+product question, and answering "yes" means changing how nodes exchange data.
 
 ---
 
-## 16. Progress Assessment
+## 15. What is not yet proven
+
+Being explicit, because these are the claims most likely to be assumed:
+
+- **The cost this architecture pays has never been measured.** Sending each node to
+  a worker individually costs a network round trip. Nobody has measured what that
+  costs, and therefore nobody has measured what grouping saves.
+- **No run at realistic scale has been executed.** The mechanisms for handling
+  100 000 items exist and are individually tested. A run of that size has not been
+  performed.
+- **Spreading a run across several machines is proven in tests, not in a
+  deployment.** The placement logic is tested; a real multi-worker cluster has not
+  been run.
+
+---
+
+## 16. Conventions and gotchas
+
+> Developer-facing notes. Everything above is requirements and behaviour; this is
+> the small set of things that will otherwise cost someone an afternoon.
+
+- **Dagger 2 annotation processing is stale-prone.** After changing an injected
+  constructor, run a full `mvn clean install` — an incremental build leaves the
+  generated factory on the old signature and fails at runtime with
+  `NoSuchMethodError`.
+- **DB tests draw from an external pool, not a fresh container.** After adding a
+  Flyway migration you **must** re-seed it with `PoolSetupRunner` from
+  `loom/fixture`, or every DAO test fails with `relation … does not exist`.
+- **The `loom/pipeline` module may not depend on Cortex.** Enforced by
+  `maven-enforcer`; it is what keeps the orchestrator independent of its workers.
+- **Node options are flattened to the top level** when a task is turned back into
+  a node definition, because that is where the existing node producers read them.
+
+---
+
+## 17. Progress Assessment
 
 - [x] Plain-language overview of Loom and Cortex
-- [x] Registration mechanism documented, including identity and persistence gaps
-- [x] REST vs WebSocket split explained with rationale
-- [x] Status reporting documented across all three meanings
-- [x] Run dispatch, media selection, and the two meanings of "done"
-- [x] Monitoring endpoints and their Kubernetes mapping
-- [x] Daemonization answered, with the shutdown data-loss gap
-- [x] Result return path, batching, retry, and local xattr storage
-- [x] Reactive processing explained in plain terms, stale spec corrected
-- [x] Node failure semantics and their sharp edges
-- [x] Honest working / broken assessment
-- [x] Processing-grid design investigated with blockers and sequencing
+- [x] Registration, REST/WebSocket split, status reporting, monitoring
+- [x] Daemonization, result return path, reactive processing, node failure
+- [x] **How a pipeline runs, in requirements terms** (§14)
+- [x] Durability, recovery, leases, retries and flow control described
+- [x] Affinity groups described **with the benchmark that corrects their stated
+      purpose**
+- [x] Unproven claims stated as unproven (§15)
+- [ ] ⚠️ **§6, §9, §10 and §11 not yet rewritten** — they describe the
+      pre-Variant-C model where a worker executed a whole run. §14 supersedes them,
+      but the contradiction should be resolved properly rather than left to a
+      cross-reference
 - [ ] Deployment guide (Kubernetes manifests, Helm) — none exist in the repo
 - [ ] Security review of the control channel (no TLS, lenient auth, no REST token)
-- [ ] Capacity/benchmark figures — no measurements exist to cite
+- [ ] **Round-trip cost and saving unmeasured** — the justification for this whole
+      architecture. Tracked as task 1
+- [ ] No run at 100 000-item scale has been executed
 
 ---
 
-_Git HEAD revision: `92bc1153e50c43efb65e4d78874823c9ec1f4408`_
-_Last updated: 2026-07-18 18:45 UTC_
+_Last updated: 2026-07-19_

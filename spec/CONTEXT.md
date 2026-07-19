@@ -58,8 +58,7 @@ spec/
 │   ├── CORTEX.md                # General architecture, module map, startup lifecycle
 │   ├── METALOOM_ARCHITECTURE.md      # Plain-language Loom↔Cortex interaction (as built)
 │   ├── METALOOM_ARCHITECTURE_TASK.md # Work items for the interaction + scaling
-│   ├── METALOOM_ARCHITECTURE_V2.md   # Proposed multi-instance topology (design)
-│   ├── METALOOM_ARCHITECTURE_V2_TASK.md # Work items for the V2 topology
+│   ├── METALOOM_ARCHITECTURE_V2_PLAN_C.md # Variant C: the record of the work
 │   └── METALOOM_ARCHITECTURE_V2_PLAN_C.md # Phased plan: move execution to Loom
 ├── loom/                        # Loom backend service specifications
 │   ├── BUILD.md                 # Loom build pipeline
@@ -269,7 +268,7 @@ mvn -T 8 test-compile -q -DskipTests
 |-----------|-------------|
 | [CORTEX.md](cortex/CORTEX.md) | **Main entry point** - architecture, module map, startup lifecycle, CLI commands, online/offline modes |
 | [METALOOM_ARCHITECTURE.md](cortex/METALOOM_ARCHITECTURE.md) | **How Loom and Cortex actually interact** - registration, REST vs WebSocket, run dispatch, results, failure handling, monitoring, daemonization. Plain language, code-verified |
-| [METALOOM_ARCHITECTURE_V2.md](cortex/METALOOM_ARCHITECTURE_V2.md) | **Proposed** multi-instance topology — four variants compared (flat pool, tree, Loom-orchestrated, segmented), node whitelist, affinity, orchestration models, async node delegation. Design only — not built |
+| [METALOOM_ARCHITECTURE_V2_PLAN_C.md](cortex/METALOOM_ARCHITECTURE_V2_PLAN_C.md) | **Variant C** — the architecture that was built: Loom owns the graph and dispatches node tasks and affinity segments to Cortex workers. Phase-by-phase record, decisions, and the benchmark that corrected its own premise |
 | [METALOOM_ARCHITECTURE_V2_PLAN_C.md](cortex/METALOOM_ARCHITECTURE_V2_PLAN_C.md) | **Proposed** phased plan for moving pipeline execution from Cortex to Loom (Variant C). Phase 1 is shared with Variant D |
 | [CONFIGURATION.md](cortex/CONFIGURATION.md) | Configuration - YAML config file, CLI flags, environment variables, per-node options. ⚠️ The documented YAML precedence does not work — see METALOOM_ARCHITECTURE.md §8 |
 | [BUILD.md](cortex/BUILD.md) | Build system - Maven modules, container image, native dependencies, fast-compile recipes |
@@ -671,7 +670,7 @@ Both Loom and Cortex use **Dagger 2** extensively:
 - [x] Loom↔Cortex interaction documented end to end
       ([cortex/METALOOM_ARCHITECTURE.md](cortex/METALOOM_ARCHITECTURE.md))
 - [x] Multi-instance topology proposal captured
-      ([cortex/METALOOM_ARCHITECTURE_V2.md](cortex/METALOOM_ARCHITECTURE_V2.md))
+      ([cortex/METALOOM_ARCHITECTURE_V2_PLAN_C.md](cortex/METALOOM_ARCHITECTURE_V2_PLAN_C.md))
 - [x] Stale `/memories/repo/` references removed (2026-07-18)
 - [x] `loom/db` module list corrected (`fs`, `hibernate` were missing)
 - [ ] Remaining feature areas (assets, auth, search) not yet extracted into

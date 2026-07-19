@@ -391,7 +391,7 @@ Loom never dials out to Cortex.
 
 See [cortex/METALOOM_ARCHITECTURE.md](cortex/METALOOM_ARCHITECTURE.md)
 for the full interaction, and
-[cortex/METALOOM_ARCHITECTURE_V2.md](cortex/METALOOM_ARCHITECTURE_V2.md)
+[cortex/METALOOM_ARCHITECTURE_V2_PLAN_C.md](cortex/METALOOM_ARCHITECTURE_V2_PLAN_C.md)
 for the proposed multi-instance topology.
 
 ### Media Decorator Pattern
