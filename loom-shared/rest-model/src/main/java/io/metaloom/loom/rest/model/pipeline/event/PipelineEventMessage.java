@@ -54,6 +54,10 @@ public class PipelineEventMessage implements RestModel {
 	@JsonPropertyDescription("Total items that failed in this node since pipeline start")
 	private Long failedCount;
 
+	@JsonProperty("skippedCount")
+	@JsonPropertyDescription("How many items this node skipped rather than processed")
+	private Long skippedCount;
+
 	public PipelineEventMessage() {
 	}
 
@@ -166,6 +170,15 @@ public class PipelineEventMessage implements RestModel {
 
 	public Long getFailedCount() {
 		return failedCount;
+	}
+
+	public Long getSkippedCount() {
+		return skippedCount;
+	}
+
+	public PipelineEventMessage setSkippedCount(Long skippedCount) {
+		this.skippedCount = skippedCount;
+		return this;
 	}
 
 	public PipelineEventMessage setFailedCount(Long failedCount) {

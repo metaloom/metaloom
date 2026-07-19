@@ -97,6 +97,7 @@ public class PipelineRunEngine {
 
 	private final Map<String, ItemState> items = new LinkedHashMap<>();
 	private final List<Consumer<RunSummary>> completionListeners = new ArrayList<>();
+	private final List<NodeSettleListener> settleListeners = new ArrayList<>();
 
 	private boolean started;
 	private boolean sourceComplete;
@@ -117,6 +118,39 @@ public class PipelineRunEngine {
 
 	public PipelineRunEngine(PipelineGraph graph, NodeDispatcher dispatcher) {
 		this(graph, dispatcher, null, RunStateStore.NOOP);
+	}
+
+	/**
+	 * Notified each time a node reaches a terminal state.
+	 *
+	 * <p>Deliberately minimal. At 100 000 items over a 10 node graph this fires a
+	 * million times, so it carries identifiers rather than objects and listeners are
+	 * expected to aggregate rather than forward.</p>
+	 */
+	@FunctionalInterface
+	public interface NodeSettleListener {
+
+		/**
+		 * @param itemId    the item
+		 * @param mediaPath the file, so a failure notification names something a person
+		 *                  can act on rather than an opaque id
+		 * @param nodeId    the node
+		 * @param state     its terminal state
+		 * @param message   failure detail or skip reason, may be null
+		 */
+		void onNodeSettled(String itemId, String mediaPath, String nodeId, NodeState state, String message);
+	}
+
+	/**
+	 * Register a per-node progress callback.
+	 *
+	 * <p>⚠️ Fires on the engine thread while the monitor is held, so a listener must
+	 * not block or call back into the engine.</p>
+	 *
+	 * @param listener the listener
+	 */
+	public synchronized void onNodeSettled(NodeSettleListener listener) {
+		settleListeners.add(listener);
 	}
 
 	/**
@@ -795,6 +829,7 @@ public class PipelineRunEngine {
 	 * recovered run ends up re-running work it already did.</p>
 	 */
 	private void record(ItemState state, NodeTaskResult result) {
+		notifySettled(state, result);
 		if (state.isInFlight(result.getNodeId())) {
 			inFlightCount = Math.max(0, inFlightCount - 1);
 		}
@@ -816,6 +851,18 @@ public class PipelineRunEngine {
 			return UUID.fromString(state.getItemId());
 		} catch (IllegalArgumentException e) {
 			return null;
+		}
+	}
+
+	private void notifySettled(ItemState state, NodeTaskResult result) {
+		for (NodeSettleListener listener : settleListeners) {
+			try {
+				listener.onNodeSettled(state.getItemId(), state.getMedia() == null ? null : state.getMedia().getPath(),
+					result.getNodeId(), result.getState(), result.getMessage());
+			} catch (Exception e) {
+				// A misbehaving observer must not derail the run it is observing.
+				log.error("Node settle listener threw", e);
+			}
 		}
 	}
 

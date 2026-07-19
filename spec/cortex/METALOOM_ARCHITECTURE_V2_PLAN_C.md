@@ -1076,6 +1076,57 @@ against the same fleet. That is a considerably more useful benchmark than the
 Variant A comparison §9.1 originally asked for, and it is now available without
 further work.
 
+## 2.23 P3.5 — event aggregation, as built
+
+**Taken ahead of P3.4, deliberately.** §7.2 requires adaptive batch sizes
+"derived from observed per-task duration per kind" and warns that fixed sizes get
+it wrong in both directions. No such measurements exist, so P3.4 would be built
+on guesses. P3.5 has no such dependency. Landed 2026-07-19.
+
+### The gap this closed
+
+Under Variant C the engine settles nodes on Loom, and **nothing published
+progress from it at all** — the only remaining publisher is a passthrough of
+`PIPELINE_EVENT` messages from Cortex, which no longer runs pipelines. The UI
+had no live progress for a Variant C run.
+
+`RunStatsAggregator` subscribes to a new `NodeSettleListener` on the engine and:
+
+- **counts** successes and skips per node, pushed as `NODE_STATS` on a 1 s timer;
+- **forwards failures immediately**, because they are rare, individually
+  actionable, and aggregating them leaves a UI able to say "300 failed" but not
+  *which files*.
+
+A 100 000 item run over a 10 node graph settles a million nodes. One frame each
+is millions of messages to move a progress bar in percent.
+
+### Details that matter
+
+| Decision | Reason |
+|---|---|
+| The listener carries `mediaPath`, not just `itemId` | A failure notification naming an opaque UUID is useless to an operator |
+| A flush with nothing changed sends **nothing** | Otherwise a finished or stalled run re-sends identical counters every tick forever |
+| A final flush on run completion | The last counts would otherwise be up to a tick stale |
+| Listener exceptions are caught | It fires on the engine thread with the monitor held; observation must never break the thing observed |
+| `skippedCount` added to the event model | Counting a skip as processed overstates what the run did |
+
+### Verification
+
+9 new tests. `loom/services/rest` now 127 (16 + 6 pre-existing failures,
+unchanged). Full reactor build green.
+
+### Still outstanding in §7.3
+
+- [ ] **Per-item opt-in stream for debugging a single item.** Not built.
+- [ ] ⚠️ **The Cortex `PIPELINE_EVENT` passthrough is still unfiltered.** A worker
+      that emits per-item events would bypass this aggregation entirely. Under
+      Variant C nothing should be sending them, which makes it dead weight rather
+      than an active flood — but it is an open path that contradicts the policy
+      this step establishes.
+- [ ] `activeCount` / `pendingCount` are still absent from the pushed snapshot;
+      §7.3 explicitly calls out `pending` being hardcoded. The engine knows both
+      (`getInFlightCount`, deferred nodes) — this is a small follow-up.
+
 ---
 
 ## 3. Prerequisites

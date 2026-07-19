@@ -72,6 +72,11 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 	private final WebSocketNodeDispatcher nodeDispatcher;
 
 	private final PipelineGraphParser graphParser;
+	private final PipelineEventBroadcaster pipelineEventBroadcaster;
+	private final io.vertx.core.Vertx vertx;
+
+	/** How often aggregated node counters are pushed to subscribers. */
+	private static final long STATS_INTERVAL_MS = 1000;
 	private final PipelineRunItemDao pipelineRunItemDao;
 	private final PipelineNodeTaskDao pipelineNodeTaskDao;
 
@@ -81,7 +86,8 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 		PipelineValidationService pipelineValidationService, PipelineRunDao pipelineRunDao,
 		PipelineVersionDao pipelineVersionDao, PipelineRunTracker pipelineRunTracker, PipelineRunRegistry pipelineRunRegistry,
 		WebSocketNodeDispatcher nodeDispatcher, PipelineRunItemDao pipelineRunItemDao,
-		PipelineNodeTaskDao pipelineNodeTaskDao) {
+		PipelineNodeTaskDao pipelineNodeTaskDao, PipelineEventBroadcaster pipelineEventBroadcaster,
+		io.vertx.core.Vertx vertx) {
 		super(pipelineDao, daos, modelBuilder, validator);
 		this.processorRegistry = processorRegistry;
 		this.pipelineValidationService = pipelineValidationService;
@@ -92,6 +98,8 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 		this.nodeDispatcher = nodeDispatcher;
 		this.pipelineRunItemDao = pipelineRunItemDao;
 		this.pipelineNodeTaskDao = pipelineNodeTaskDao;
+		this.pipelineEventBroadcaster = pipelineEventBroadcaster;
+		this.vertx = vertx;
 		this.graphParser = new PipelineGraphParser();
 	}
 
@@ -301,6 +309,19 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 			engine.onCompletion(summary -> pipelineRunTracker.complete(runUuid, summary.getDurationMs(),
 				(int) summary.getMediaCount(), (int) summary.getSuccessCount(),
 				(int) summary.getFailureCount(), (int) summary.getSkippedCount()));
+			// Aggregated progress: per-node counters on a timer, individual events only
+			// for failures. Forwarding every settle would be millions of frames to move
+			// a progress bar.
+			RunStatsAggregator statsAggregator = new RunStatsAggregator(runUuid, graph.getName(),
+				pipelineEventBroadcaster);
+			engine.onNodeSettled(statsAggregator);
+			long statsTimer = vertx.setPeriodic(STATS_INTERVAL_MS, timerId -> statsAggregator.flush());
+			engine.onCompletion(summary -> {
+				vertx.cancelTimer(statsTimer);
+				// One last push so the final counts are not left a timer-tick stale.
+				statsAggregator.flush();
+			});
+
 			pipelineRunRegistry.register(runUuid, engine);
 			engine.start();
 
