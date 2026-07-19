@@ -944,6 +944,71 @@ Segments are computed but **nothing consumes them** — the engine still dispatc
 one node at a time, and no endpoint surfaces the warnings. That is P3.2/P3.3, and
 until then affinity is inert: declaring it changes nothing at runtime.
 
+## 2.21 P3.2 — the segment protocol and runner, as built
+
+`SEGMENT_TASK` / `SEGMENT_TASK_RESULT`, plus `SegmentTaskRunner` on the Cortex
+side. Landed 2026-07-19.
+
+### The P1.4 prediction held
+
+`NodeTaskRunner`'s javadoc claimed keeping the shape "N nodes over one media item"
+would make affinity "a change of N, not a rewrite". That turned out to be
+accurate: `SegmentTaskRunner` reuses `NodeInstantiator`, `MediaResolver` and
+`NodeResultMapper` unchanged, and `PipelineTaskHandler` constructs it from the
+same node factory and media loader. **This is why §2.5 said to shrink the
+executor rather than delete it.**
+
+### The media handle is resolved once
+
+The headline saving, and the one with a test asserting it directly
+(`testTheMediaIsResolvedOnceForTheWholeSegment`). Under per-node dispatch a
+five-node video pipeline opens and decodes the file five times because nothing
+survives between tasks. As one segment it decodes once. If that assertion ever
+reads 3 instead of 1, affinity has stopped paying for itself.
+
+### Local semantics must match the engine's
+
+Within a segment the runner applies exactly the rule `PipelineRunEngine` applies
+between them: a failed dependency skips a **blocking** dependent; a non-blocking
+one runs anyway and sees the failure in its inputs; a *skip* does not cascade.
+If these diverged, moving a node into an affinity group would silently change
+what the pipeline does — the one thing an optimisation must never do. The tests
+mirror the engine's cases deliberately.
+
+`NodeResultMapper.toLocal` was added for this and differs from
+`toUpstreamResults` in a way worth noting: it preserves the real state, because a
+downstream node **inside** a segment may genuinely need to see that its
+dependency failed. Between segments the engine has already made that decision;
+within one, nobody has.
+
+### Per-node outcomes, never one verdict
+
+`SegmentTaskResult` carries a list. A segment reporting a single status would
+turn one bad node into a wholly failed item and discard the results of nodes that
+ran fine before it. Skipped nodes are reported **explicitly** rather than
+omitted — an absent result leaves the engine waiting for a node nobody will run.
+A segment-level `error` exists only for the case where nothing could run at all
+(the media could not be opened), rather than inventing an identical failure per
+node.
+
+### Verification
+
+21 new tests: 12 `SegmentTaskRunnerTest`, 9 `SegmentProtocolSerdeTest`. The serde
+tests exist because these payloads only ever live as JSON between two processes —
+P1.3's lesson was that a silently broken wire format is invisible until a worker
+receives a node with no options.
+
+⚠️ **`RecordingNode` extends `AbstractPipelineNode`** rather than implementing
+`PipelineNode` directly. Implementing it directly required stubbing four
+graph-wiring methods a segment never uses; the base class was already there.
+
+### Not yet wired
+
+Loom **never sends** a `SEGMENT_TASK`. The engine still dispatches one node at a
+time, so the Cortex side is complete and unreachable. That is P3.3: teach
+`PipelineRunEngine` to dispatch segments — at which point affinity finally does
+something at runtime.
+
 ---
 
 ## 3. Prerequisites

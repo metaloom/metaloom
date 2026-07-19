@@ -56,6 +56,29 @@ public final class NodeResultMapper {
 		return upstream;
 	}
 
+	/**
+	 * Convert a wire result back into the local shape.
+	 *
+	 * <p>Needed only within a segment, where a node's result becomes the next node's
+	 * input without ever leaving the process. Unlike
+	 * {@link #toUpstreamResults(Map)} this preserves the real state, because a
+	 * downstream node in the same segment genuinely may need to see that its
+	 * dependency failed - the Loom engine is not there to decide for it.</p>
+	 *
+	 * @param result the wire result
+	 * @return the local result
+	 */
+	public static NodeResult toLocal(NodeTaskResult result) {
+		switch (result.getState()) {
+			case FAILED:
+				return NodeResult.failed(result.getNodeId(), result.getDurationMs(), result.getMessage());
+			case SKIPPED:
+				return NodeResult.skipped(result.getNodeId(), result.getMessage());
+			default:
+				return NodeResult.success(result.getNodeId(), result.getDurationMs(), result.getOutputs());
+		}
+	}
+
 	private static io.metaloom.loom.pipeline.model.NodeState toWireState(NodeState state) {
 		if (state == null) {
 			return io.metaloom.loom.pipeline.model.NodeState.FAILED;

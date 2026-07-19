@@ -57,6 +57,15 @@ public enum ProcessorMessageType {
 	/** A single unit of work: apply one node to one media item (Variant C) */
 	NODE_TASK,
 
+	/**
+	 * Several connected nodes applied to one media item, run together on one worker
+	 * so intermediate results never cross the network (affinity groups, Phase 3).
+	 */
+	SEGMENT_TASK,
+
+	/** Per-node outcomes of a SEGMENT_TASK; never a single verdict for the segment */
+	SEGMENT_TASK_RESULT,
+
 	/** Error message */
 	ERROR
 }

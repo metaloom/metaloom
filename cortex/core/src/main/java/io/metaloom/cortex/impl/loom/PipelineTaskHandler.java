@@ -15,10 +15,13 @@ import io.metaloom.cortex.pipeline.api.node.MediaSourceNode;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 import io.metaloom.cortex.pipeline.loader.NodeFactory;
 import io.metaloom.cortex.runtime.NodeTaskRunner;
+import io.metaloom.cortex.runtime.SegmentTaskRunner;
 import io.metaloom.cortex.runtime.SourceTaskRunner;
 import io.metaloom.loom.pipeline.model.MediaRef;
 import io.metaloom.loom.pipeline.model.NodeTask;
 import io.metaloom.loom.pipeline.model.NodeTaskResult;
+import io.metaloom.loom.pipeline.model.SegmentTask;
+import io.metaloom.loom.pipeline.model.SegmentTaskResult;
 import io.metaloom.loom.rest.model.processor.message.NodeTaskResultMessage;
 import io.metaloom.loom.rest.model.processor.message.ProcessorMessage;
 import io.metaloom.loom.rest.model.processor.message.ProcessorMessageType;
@@ -48,6 +51,7 @@ public class PipelineTaskHandler {
 	private final NodeFactory nodeFactory;
 	private final LoomMediaLoader mediaLoader;
 	private final NodeTaskRunner nodeTaskRunner;
+	private final SegmentTaskRunner segmentTaskRunner;
 	private final SourceTaskRunner sourceTaskRunner;
 
 	/** Sends a message back to Loom. */
@@ -61,6 +65,9 @@ public class PipelineTaskHandler {
 		this.nodeFactory = nodeFactory;
 		this.mediaLoader = mediaLoader;
 		this.nodeTaskRunner = new NodeTaskRunner(nodeFactory::createNode, mediaLoader::load);
+		// Same factory and media loader: a segment is the same work with N > 1, so it
+		// must resolve nodes and media exactly as a single task does.
+		this.segmentTaskRunner = new SegmentTaskRunner(nodeFactory::createNode, mediaLoader::load);
 		this.sourceTaskRunner = new SourceTaskRunner();
 	}
 
@@ -90,6 +97,34 @@ public class PipelineTaskHandler {
 					.setRunUuid(task.getRunUuid())
 					.setItemId(task.getItemId())
 					.setResult(result))));
+		});
+	}
+
+	/**
+	 * Run a whole affinity segment and answer with one result per node.
+	 *
+	 * <p>Same shape as {@link #handleNodeTask}, and off the connection thread for the
+	 * same reason - more so here, since a segment is by construction longer-running
+	 * than a single node.</p>
+	 *
+	 * @param task   the segment
+	 * @param sender used to send the result
+	 */
+	public void handleSegmentTask(SegmentTask task, MessageSender sender) {
+		Schedulers.io().scheduleDirect(() -> {
+			SegmentTaskResult result;
+			try {
+				result = segmentTaskRunner.run(task);
+			} catch (Throwable t) {
+				// The runner converts per-node failures itself, so reaching here means
+				// something unexpected. Still answer: a silent drop stalls every node in
+				// the segment, not just one.
+				log.error("Unexpected failure running {}", task, t);
+				result = new SegmentTaskResult(task.getTaskUuid(), task.getItemId(), task.getSegmentId(),
+					java.util.List.of(), String.valueOf(t));
+			}
+			sender.send(new ProcessorMessage(ProcessorMessageType.SEGMENT_TASK_RESULT,
+				JsonObject.mapFrom(result)));
 		});
 	}
 

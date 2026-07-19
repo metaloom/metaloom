@@ -25,6 +25,7 @@ import io.metaloom.loom.rest.model.pipeline.event.PipelineEventType;
 import io.metaloom.loom.rest.model.processor.ProcessorCapability;
 import io.metaloom.loom.rest.model.processor.SystemStatusInfo;
 import io.metaloom.loom.pipeline.model.NodeTask;
+import io.metaloom.loom.pipeline.model.SegmentTask;
 import io.metaloom.loom.rest.model.processor.message.ProcessorMessage;
 import io.metaloom.loom.rest.model.processor.message.SourceItemsAckMessage;
 import io.metaloom.loom.rest.model.processor.message.SourceTaskMessage;
@@ -362,6 +363,9 @@ public class LoomControlChannel {
 			case NODE_TASK:
 				handleNodeTask(message);
 				break;
+			case SEGMENT_TASK:
+				handleSegmentTask(message);
+				break;
 			case SOURCE_TASK:
 				handleSourceTask(message);
 				break;
@@ -398,6 +402,24 @@ public class LoomControlChannel {
 			return;
 		}
 		taskHandler.handleNodeTask(task, this::sendMessage);
+	}
+
+	/**
+	 * Execute a whole affinity segment and answer with one result per node.
+	 */
+	private void handleSegmentTask(ProcessorMessage message) {
+		if (message.getBody() == null) {
+			log.warn("Ignoring SEGMENT_TASK without body");
+			return;
+		}
+		SegmentTask task;
+		try {
+			task = message.getBody().mapTo(SegmentTask.class);
+		} catch (Exception e) {
+			log.warn("Failed to parse SEGMENT_TASK payload: {}", message.getBody(), e);
+			return;
+		}
+		taskHandler.handleSegmentTask(task, this::sendMessage);
 	}
 
 	/**
