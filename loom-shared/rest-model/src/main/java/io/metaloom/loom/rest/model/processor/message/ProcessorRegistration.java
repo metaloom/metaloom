@@ -33,6 +33,11 @@ public class ProcessorRegistration implements RestModel {
 	@JsonPropertyDescription("Capabilities offered by this processor node")
 	private Set<ProcessorCapability> capabilities;
 
+	@JsonProperty("nodeKinds")
+	@JsonPropertyDescription("Node kinds this processor is willing to execute. An empty or absent set means it "
+		+ "accepts any kind, which is how a worker that predates whitelisting behaves.")
+	private Set<String> nodeKinds;
+
 	public String getNodeId() {
 		return nodeId;
 	}
@@ -66,6 +71,24 @@ public class ProcessorRegistration implements RestModel {
 
 	public ProcessorRegistration setHost(String host) {
 		this.host = host;
+		return this;
+	}
+
+	/**
+	 * Restrict this worker to a subset of node kinds.
+	 *
+	 * <p>This is what lets a deployment dedicate machines to particular work - GPU
+	 * boxes to embeddings, a single host with the media mount to filesystem sources -
+	 * instead of every worker having to be able to do everything.</p>
+	 *
+	 * @return the accepted kinds, or null/empty when the worker accepts anything
+	 */
+	public Set<String> getNodeKinds() {
+		return nodeKinds;
+	}
+
+	public ProcessorRegistration setNodeKinds(Set<String> nodeKinds) {
+		this.nodeKinds = nodeKinds;
 		return this;
 	}
 

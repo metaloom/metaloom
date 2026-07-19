@@ -65,6 +65,18 @@ public interface RunStateStore {
 	void itemSettled(UUID itemUuid, ItemOutcome outcome);
 
 	/**
+	 * Record that the source finished enumerating.
+	 *
+	 * <p>Recovery needs this to tell two very different situations apart: a run whose
+	 * source completed can be finished faithfully, whereas one that was still scanning
+	 * has media that were never recorded anywhere and cannot be.</p>
+	 *
+	 * @param runUuid    the run
+	 * @param totalCount how many items the source produced
+	 */
+	void sourceCompleted(UUID runUuid, long totalCount);
+
+	/**
 	 * Push any buffered writes.
 	 *
 	 * <p>Called when a run completes. An implementation that batches <em>must</em>
@@ -96,6 +108,10 @@ public interface RunStateStore {
 
 		@Override
 		public void itemSettled(UUID itemUuid, ItemOutcome outcome) {
+		}
+
+		@Override
+		public void sourceCompleted(UUID runUuid, long totalCount) {
 		}
 
 		@Override

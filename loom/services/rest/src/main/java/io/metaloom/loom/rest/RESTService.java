@@ -14,6 +14,7 @@ import io.metaloom.loom.common.service.AbstractService;
 import io.metaloom.loom.rest.dagger.RESTEndpoints;
 import io.metaloom.loom.rest.endpoint.RESTEndpoint;
 import io.metaloom.loom.rest.service.impl.LeaseReaper;
+import io.metaloom.loom.rest.service.impl.PipelineRunRecovery;
 import io.metaloom.loom.rest.model.message.GenericMessageResponse;
 import io.metaloom.vertx.router.ApiRouter;
 import io.vertx.core.Vertx;
@@ -34,16 +35,19 @@ public class RESTService extends AbstractService {
 	private final Set<RESTEndpoint> endpoints;
 	private final ServerFailureHandler failureHandler;
 	private final LeaseReaper leaseReaper;
+	private final PipelineRunRecovery runRecovery;
 
 	@Inject
 	public RESTService(Vertx vertx, LoomOptions options, HttpServer server, @Named("restApiRouter") ApiRouter router,
-		@RESTEndpoints Set<RESTEndpoint> endpoints, ServerFailureHandler failureHandler, LeaseReaper leaseReaper) {
+		@RESTEndpoints Set<RESTEndpoint> endpoints, ServerFailureHandler failureHandler, LeaseReaper leaseReaper,
+		PipelineRunRecovery runRecovery) {
 		super(vertx, options);
 		this.server = server;
 		this.router = router;
 		this.endpoints = endpoints;
 		this.failureHandler = failureHandler;
 		this.leaseReaper = leaseReaper;
+		this.runRecovery = runRecovery;
 	}
 
 	public void start() {
@@ -57,6 +61,14 @@ public class RESTService extends AbstractService {
 		// reaper hands reclaimed tasks back to. Without this running, a worker that
 		// dies mid-task stalls its run permanently.
 		leaseReaper.start();
+
+		// Before the reaper starts sweeping: runs left mid-flight by a restart need
+		// their engines back, or the reaper would find their tasks with no engine to
+		// hand them to and dead-letter perfectly recoverable work.
+		int recovered = runRecovery.recoverAll();
+		if (recovered > 0) {
+			log.info("Resumed {} pipeline run(s) after restart", recovered);
+		}
 	}
 
 	public void setupRouter() {

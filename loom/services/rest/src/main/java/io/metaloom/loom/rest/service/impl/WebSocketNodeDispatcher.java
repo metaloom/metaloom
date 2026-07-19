@@ -42,12 +42,12 @@ public class WebSocketNodeDispatcher implements NodeDispatcher {
 
 	@Override
 	public boolean dispatch(NodeTask task) {
-		// Capability is hardcoded to CPU because nothing yet declares what a node
-		// needs. Once node kinds carry a capability requirement this becomes a real
-		// routing decision rather than a placeholder.
-		ConnectedProcessor processor = registry.selectProcessor(ProcessorCapability.CPU);
+		// Capability is still CPU for everything, because no node kind declares what
+		// hardware it needs. The node-kind whitelist is the part that works: a worker
+		// restricted to particular kinds will only be offered those.
+		ConnectedProcessor processor = registry.selectProcessor(ProcessorCapability.CPU, task.getNodeKind());
 		if (processor == null) {
-			log.warn("No online processor available for node task {}", task);
+			log.warn("No online processor accepts node kind '{}' for {}", task.getNodeKind(), task);
 			return false;
 		}
 

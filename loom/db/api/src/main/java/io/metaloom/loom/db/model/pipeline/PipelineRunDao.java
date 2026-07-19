@@ -27,6 +27,15 @@ public interface PipelineRunDao extends CRUDDao<PipelineRun> {
 	PipelineRun loadLatestByPipeline(UUID pipelineUuid);
 
 	/**
+	 * Load every run in the given status.
+	 *
+	 * <p>Recovery uses this to find runs left mid-flight by a restart: a process that
+	 * dies never gets to move its runs out of {@code RUNNING}, so on the next start
+	 * that status means "was in progress when we stopped".</p>
+	 */
+	List<PipelineRun> loadByStatus(String status);
+
+	/**
 	 * Create a new pipeline run record.
 	 */
 	PipelineRun createPipelineRun(UUID userUuid, UUID pipelineUuid, int pipelineVersion);

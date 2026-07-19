@@ -51,6 +51,13 @@ public class RecordingRunStateStore implements RunStateStore {
 		itemOutcomes.put(itemUuid, outcome);
 	}
 
+	public long sourceCompletedCount = -1;
+
+	@Override
+	public void sourceCompleted(UUID runUuid, long totalCount) {
+		sourceCompletedCount = totalCount;
+	}
+
 	@Override
 	public void flush() {
 		flushCount++;

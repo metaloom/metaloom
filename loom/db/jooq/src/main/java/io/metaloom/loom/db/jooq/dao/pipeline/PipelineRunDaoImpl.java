@@ -76,6 +76,14 @@ public class PipelineRunDaoImpl extends AbstractJooqDao<PipelineRun> implements 
 	}
 
 	@Override
+	public List<PipelineRun> loadByStatus(String status) {
+		return ctx().selectFrom(PIPELINE_RUN)
+			.where(PIPELINE_RUN.STATUS.eq(status))
+			.orderBy(PIPELINE_RUN.STARTED.asc())
+			.fetchInto(getPojoClass());
+	}
+
+	@Override
 	public PipelineRun loadLatestByPipeline(UUID pipelineUuid) {
 		return ctx().selectFrom(PIPELINE_RUN)
 			.where(PIPELINE_RUN.PIPELINE_UUID.eq(pipelineUuid))

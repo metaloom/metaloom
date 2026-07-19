@@ -23,6 +23,7 @@ public class ItemState {
 	private final Map<String, NodeTaskResult> results = new LinkedHashMap<>();
 	private final Map<String, UUID> inFlight = new LinkedHashMap<>();
 	private final Map<String, Integer> attempts = new LinkedHashMap<>();
+	private final java.util.Set<String> awaitingRetry = new java.util.LinkedHashSet<>();
 
 	ItemState(String itemId, MediaRef media) {
 		this.itemId = itemId;
@@ -73,6 +74,25 @@ public class ItemState {
 	 */
 	int recordAttempt(String nodeId) {
 		return attempts.merge(nodeId, 1, Integer::sum);
+	}
+
+	/**
+	 * Mark a node as waiting out its retry backoff.
+	 *
+	 * <p>Such a node is neither settled nor in flight, so without this marker anything
+	 * that sweeps for ready work would dispatch it immediately and the backoff would
+	 * never actually happen.</p>
+	 */
+	void markAwaitingRetry(String nodeId) {
+		awaitingRetry.add(nodeId);
+	}
+
+	void clearAwaitingRetry(String nodeId) {
+		awaitingRetry.remove(nodeId);
+	}
+
+	boolean isAwaitingRetry(String nodeId) {
+		return awaitingRetry.contains(nodeId);
 	}
 
 	boolean isSettled(String nodeId) {

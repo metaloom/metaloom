@@ -295,8 +295,8 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 			// The engine owns the graph and decides what runs next; Cortex only ever
 			// sees one node at a time. State goes to Postgres through the store, so the
 			// run is not lost with the process that started it.
-			RunStateStore stateStore = new DaoRunStateStore(pipelineRunItemDao, pipelineNodeTaskDao, runUuid,
-				lrc.userUuid());
+			RunStateStore stateStore = new DaoRunStateStore(pipelineRunDao, pipelineRunItemDao, pipelineNodeTaskDao,
+				runUuid, lrc.userUuid());
 			PipelineRunEngine engine = new PipelineRunEngine(graph, nodeDispatcher, runUuid, stateStore);
 			engine.onCompletion(summary -> pipelineRunTracker.complete(runUuid, summary.getDurationMs(),
 				(int) summary.getMediaCount(), (int) summary.getSuccessCount(),

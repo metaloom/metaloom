@@ -752,6 +752,92 @@ worker held the task, and worker attribution belongs with the rest of
 observability. Until then `countLeasedBy` has no production caller — it is
 exercised only by its DAO test.
 
+## 2.16 P2.4 — restart recovery, as built
+
+`PipelineRunRecovery` runs from `RESTService.start()`, before the reaper begins
+sweeping — otherwise the reaper would find tasks belonging to runs whose engines
+had not been rebuilt yet and dead-letter perfectly recoverable work.
+
+A process that dies never moves its runs out of `RUNNING`, so on the next start
+that status means "was in progress when we stopped". For each such run the graph
+is rebuilt from its pinned `pipeline_version`, settled node results are replayed,
+and the engine resumes.
+
+### The source enumeration is not recoverable, and saying so matters
+
+Node results survive because they were persisted as they settled. The **source
+scan does not**: the Cortex worker enumerating the filesystem died with the
+connection, and files it had not yet reached were never recorded anywhere. Such a
+run is finished with only the media already known, and `resume(false)` keeps it
+from reporting complete — presenting a partial scan as a whole one is the kind of
+silent wrongness this codebase already has too much of. `sourceCompleted` is
+therefore persisted into `pipeline_run.meta` so recovery can tell the two cases
+apart.
+
+### Design points
+
+| Point | Reason |
+|---|---|
+| `restoreItem` dispatches nothing | Restoring is separate from resuming, so the engine sees every item before deciding. Otherwise the first fully-finished item would close the run before the rest were read back |
+| Attempt counts are restored too | Without this a restart silently resets the retry budget, and a poison item could retry forever, one restart at a time |
+| `RUNNING`/`PENDING` tasks are left unsettled | Their worker is gone; leaving them unsettled makes them ready again |
+| A missing `pipeline_version` fails the run | There is no graph to resume against; leaving it `RUNNING` forever is worse |
+| One bad run cannot block the others | Each is recovered in its own try/catch |
+
+7 tests pin both failure directions: re-running a completed node (duplicate side
+effects — a second thumbnail, a second LLM bill) and skipping one that never ran.
+
+## 2.17 P2.5 — worker selection, as built
+
+`ProcessorRegistration` gains `nodeKinds`, and `selectProcessor` filters on it.
+This is what allows a heterogeneous pool — GPU boxes for embeddings, the one host
+holding the media mount for filesystem sources.
+
+**An absent or empty whitelist means "accepts anything."** A worker registered
+before whitelisting existed declares no kinds; treating that as "accepts nothing"
+would silently remove every existing deployment from the pool on upgrade.
+
+⚠️ Selection is still by declared priority. Load-based selection is deliberately
+**not** attempted, because `cpuLoad` is known broken
+([Task 7](METALOOM_ARCHITECTURE_TASK.md)) and scheduling on a wrong metric is
+worse than scheduling on none.
+
+## 2.18 P2.6 — flow control, as built
+
+`maxInFlight` (default 256) bounds outstanding tasks per run. Without it a fast
+source and slow nodes produce unbounded outstanding work, and one large run
+consumes the fleet. A node held back is left unsettled and undispatched;
+`pumpDeferred()` sweeps every item when capacity frees, because deferred work on
+item B is otherwise only reconsidered when item B progresses — which it cannot,
+being blocked.
+
+### Two real defects, both caught by the new tests
+
+1. **The in-flight counter leaked.** `onNodeTaskLost` and `scheduleRetry` cleared
+   the in-flight marker *before* `record()`, so the decrement never fired. Enough
+   leaked slots wedge a run permanently at capacity with nothing outstanding —
+   indistinguishable from a hang. Every path that ends a dispatched task without
+   settling it now goes through one `releaseInFlight`.
+2. **`pumpDeferred` defeated the retry backoff entirely.** A node awaiting a
+   scheduled retry is neither settled nor in flight, so the pump swept it up and
+   re-dispatched it immediately — the backoff added in P2.3 would never have
+   happened. `ItemState` now marks such nodes `awaitingRetry` and `advance()`
+   skips them.
+
+Neither was hypothetical; both were caught by `testARetriedTaskDoesNotLeakItsSlot`
+and `testRetryIsDeferredThroughTheScheduler` failing against the first
+implementation.
+
+### Not done: source-ack gating
+
+The cap bounds *dispatch*, not *discovery*. `ItemState` is still created for every
+discovered item, so a 100 000 item scan holds 100 000 item states in memory even
+though only 256 tasks are outstanding. Truly end-to-end flow control means
+withholding the `SOURCE_ITEMS_ACK` while a run is at capacity — the ack machinery
+exists on both sides (`SourceTaskRunner` already blocks on it), so this is a
+small change, but it is **not made yet**. The §6.7 criterion "a 100 000-item run
+completes without unbounded memory" is therefore **not met**.
+
 ---
 
 ## 3. Prerequisites

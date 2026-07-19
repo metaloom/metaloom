@@ -12,6 +12,8 @@ import org.slf4j.LoggerFactory;
 
 import io.metaloom.loom.db.model.pipeline.PipelineNodeTask;
 import io.metaloom.loom.db.model.pipeline.PipelineNodeTaskDao;
+import io.metaloom.loom.db.model.pipeline.PipelineRun;
+import io.metaloom.loom.db.model.pipeline.PipelineRunDao;
 import io.metaloom.loom.db.model.pipeline.PipelineRunItem;
 import io.metaloom.loom.db.model.pipeline.PipelineRunItemDao;
 import io.metaloom.loom.pipeline.engine.ItemState.ItemOutcome;
@@ -57,6 +59,10 @@ public class DaoRunStateStore implements RunStateStore {
 	 */
 	public static final long DEFAULT_LEASE_MS = 10 * 60 * 1000L;
 
+	/** Marks in {@code pipeline_run.meta} that the source finished enumerating. */
+	public static final String META_SOURCE_COMPLETE = "sourceComplete";
+
+	private final PipelineRunDao runDao;
 	private final PipelineRunItemDao itemDao;
 	private final PipelineNodeTaskDao taskDao;
 	private final UUID runUuid;
@@ -67,12 +73,14 @@ public class DaoRunStateStore implements RunStateStore {
 	/** Keyed by item + node so a settle updates the dispatch row rather than adding one. */
 	private final Map<String, PipelineNodeTask> pendingTasks = new LinkedHashMap<>();
 
-	public DaoRunStateStore(PipelineRunItemDao itemDao, PipelineNodeTaskDao taskDao, UUID runUuid, UUID userUuid) {
-		this(itemDao, taskDao, runUuid, userUuid, DEFAULT_BATCH_SIZE);
+	public DaoRunStateStore(PipelineRunDao runDao, PipelineRunItemDao itemDao, PipelineNodeTaskDao taskDao,
+		UUID runUuid, UUID userUuid) {
+		this(runDao, itemDao, taskDao, runUuid, userUuid, DEFAULT_BATCH_SIZE);
 	}
 
-	public DaoRunStateStore(PipelineRunItemDao itemDao, PipelineNodeTaskDao taskDao, UUID runUuid, UUID userUuid,
-		int batchSize) {
+	public DaoRunStateStore(PipelineRunDao runDao, PipelineRunItemDao itemDao, PipelineNodeTaskDao taskDao,
+		UUID runUuid, UUID userUuid, int batchSize) {
+		this.runDao = runDao;
 		this.itemDao = itemDao;
 		this.taskDao = taskDao;
 		this.runUuid = runUuid;
@@ -163,6 +171,26 @@ public class DaoRunStateStore implements RunStateStore {
 		if (stored != null) {
 			stored.setState(outcome.name());
 			itemDao.update(stored);
+		}
+	}
+
+	@Override
+	public synchronized void sourceCompleted(UUID runUuid, long totalCount) {
+		// Items must be on disk before the run is marked fully enumerated, or a crash
+		// in between leaves a run that claims to know all its media but does not.
+		flush();
+		try {
+			PipelineRun run = runDao.load(runUuid);
+			if (run == null) {
+				return;
+			}
+			JsonObject meta = run.getMeta() == null ? new JsonObject() : run.getMeta();
+			meta.put(META_SOURCE_COMPLETE, true);
+			meta.put("sourceItemCount", totalCount);
+			run.setMeta(meta);
+			runDao.update(run);
+		} catch (Exception e) {
+			log.error("Failed to mark run {} as fully enumerated", runUuid, e);
 		}
 	}
 

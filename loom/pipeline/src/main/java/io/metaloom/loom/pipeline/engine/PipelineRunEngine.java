@@ -64,6 +64,15 @@ public class PipelineRunEngine {
 
 	private static final Logger log = LoggerFactory.getLogger(PipelineRunEngine.class);
 
+	/**
+	 * How many node tasks one run may have outstanding at once.
+	 *
+	 * <p>Without a ceiling a fast source and slow nodes produce unbounded outstanding
+	 * work: a 100 000 item scan would dispatch every ready node immediately, and one
+	 * large run would consume the entire worker fleet.</p>
+	 */
+	public static final int DEFAULT_MAX_IN_FLIGHT = 256;
+
 	/** First retry waits this long; each further attempt doubles it. */
 	public static final long DEFAULT_RETRY_BASE_DELAY_MS = 1_000;
 
@@ -78,6 +87,8 @@ public class PipelineRunEngine {
 	private final UUID runUuid;
 	private final RunStateStore store;
 	private RetryScheduler retryScheduler = RetryScheduler.IMMEDIATE;
+	private int maxInFlight = DEFAULT_MAX_IN_FLIGHT;
+	private int inFlightCount;
 	private long retryBaseDelayMs = DEFAULT_RETRY_BASE_DELAY_MS;
 
 	private final Map<String, ItemState> items = new LinkedHashMap<>();
@@ -174,6 +185,67 @@ public class PipelineRunEngine {
 	}
 
 	/**
+	 * Rebuild an item from persisted state, without dispatching anything.
+	 *
+	 * <p>Used by recovery to put the engine back where it was before a restart. The
+	 * settled results are adopted as-is: a node that already ran must <em>not</em> run
+	 * again, which is the entire point of having persisted them.</p>
+	 *
+	 * <p>Nothing is dispatched here. Call {@link #resume()} once every item has been
+	 * restored, so the engine sees a complete picture before it starts making
+	 * decisions - otherwise it could complete the run on the first restored item,
+	 * before the rest have been read back.</p>
+	 *
+	 * @param itemId  the item's persisted id
+	 * @param media   the item
+	 * @param settled results already recorded, by node id
+	 * @param attempts how many times each node had been dispatched, by node id
+	 */
+	public synchronized void restoreItem(String itemId, MediaRef media, Map<String, NodeTaskResult> settled,
+		Map<String, Integer> attempts) {
+		requireStarted();
+		ItemState state = new ItemState(itemId, media);
+		if (settled != null) {
+			for (NodeTaskResult result : settled.values()) {
+				state.record(result);
+			}
+		}
+		if (attempts != null) {
+			// Carrying the attempt count over is what stops a restart from silently
+			// resetting the retry budget and letting a poison item run forever.
+			attempts.forEach((nodeId, count) -> {
+				for (int i = 0; i < count; i++) {
+					state.recordAttempt(nodeId);
+				}
+			});
+		}
+		items.put(itemId, state);
+	}
+
+	/**
+	 * Resume a restored run: dispatch whatever is now ready.
+	 *
+	 * <p>A node that was in flight when the process died is simply unsettled here, so
+	 * it becomes ready again and is dispatched. Its lease row is stale, which the
+	 * reaper tidies up.</p>
+	 *
+	 * @param sourceWasComplete whether the source had finished enumerating before the
+	 *                          restart; a run whose source was still scanning cannot
+	 *                          be completed faithfully, because the files it had not
+	 *                          reached yet were never recorded
+	 */
+	public synchronized void resume(boolean sourceWasComplete) {
+		requireStarted();
+		sourceComplete = sourceWasComplete;
+		log.info("Resuming run {} with {} restored item(s), source {}", runUuid, items.size(),
+			sourceWasComplete ? "complete" : "INCOMPLETE - remaining media were never recorded");
+		for (ItemState state : items.values()) {
+			advance(state);
+		}
+		checkComplete();
+	}
+
+	/**
 	 * Called once the source has finished enumerating.
 	 *
 	 * @param totalCount number of items the source produced, for reconciliation
@@ -181,6 +253,7 @@ public class PipelineRunEngine {
 	public synchronized void onSourceComplete(long totalCount) {
 		requireStarted();
 		sourceComplete = true;
+		store.sourceCompleted(runUuid, totalCount);
 		if (totalCount != items.size()) {
 			log.warn("Run {} source reported {} items but {} were received", runUuid, totalCount, items.size());
 		}
@@ -213,11 +286,15 @@ public class PipelineRunEngine {
 		// would remain the decoration it has always been.
 		if (result.getState() == NodeState.FAILED && shouldRetry(state, result.getNodeId())) {
 			scheduleRetry(state, result.getNodeId(), describe(result));
+			// The failed attempt released its slot; someone else may be waiting for it.
+			pumpDeferred();
 			return;
 		}
 
 		record(state, result);
 		advance(state);
+		// Capacity may have just freed up for work deferred on other items.
+		pumpDeferred();
 		checkComplete();
 	}
 
@@ -250,7 +327,7 @@ public class PipelineRunEngine {
 			return;
 		}
 
-		state.clearInFlight(nodeId);
+		releaseInFlight(state, nodeId);
 		if (shouldRetry(state, nodeId)) {
 			scheduleRetry(state, nodeId, reason);
 			return;
@@ -259,6 +336,8 @@ public class PipelineRunEngine {
 		record(state, NodeTaskResult.failed(null, nodeId, 0,
 			"Dead-lettered after " + state.attemptsFor(nodeId) + " attempt(s): " + reason));
 		advance(state);
+		// The dead-lettered task released its slot; hand it to whoever is waiting.
+		pumpDeferred();
 		checkComplete();
 	}
 
@@ -282,7 +361,8 @@ public class PipelineRunEngine {
 	 * settled some other way.</p>
 	 */
 	private void scheduleRetry(ItemState state, String nodeId, String reason) {
-		state.clearInFlight(nodeId);
+		releaseInFlight(state, nodeId);
+		state.markAwaitingRetry(nodeId);
 		int attempt = state.attemptsFor(nodeId);
 		long delay = backoffFor(attempt);
 		log.info("Retrying node '{}' on item '{}' (attempt {} of {}) in {}ms after: {}",
@@ -300,7 +380,11 @@ public class PipelineRunEngine {
 	 */
 	private synchronized void retryNow(String itemId, String nodeId) {
 		ItemState state = items.get(itemId);
-		if (state == null || state.isSettled(nodeId) || state.isInFlight(nodeId)) {
+		if (state == null) {
+			return;
+		}
+		state.clearAwaitingRetry(nodeId);
+		if (state.isSettled(nodeId) || state.isInFlight(nodeId)) {
 			return;
 		}
 		advance(state);
@@ -375,7 +459,7 @@ public class PipelineRunEngine {
 		while (progressed) {
 			progressed = false;
 			for (String nodeId : graph.getTopologicalOrder()) {
-				if (state.isSettled(nodeId) || state.isInFlight(nodeId)) {
+				if (state.isSettled(nodeId) || state.isInFlight(nodeId) || state.isAwaitingRetry(nodeId)) {
 					continue;
 				}
 				PipelineGraphNode node = graph.getNode(nodeId);
@@ -387,6 +471,12 @@ public class PipelineRunEngine {
 				if (skip != null) {
 					record(state, skip);
 					progressed = true;
+					continue;
+				}
+
+				if (atCapacity()) {
+					// Leave the node unsettled and undispatched. It stays ready, and
+					// pumpDeferred() picks it up as soon as something finishes.
 					continue;
 				}
 
@@ -445,6 +535,7 @@ public class PipelineRunEngine {
 
 		state.markInFlight(node.getId(), taskUuid);
 		state.recordAttempt(node.getId());
+		inFlightCount++;
 		store.taskDispatched(itemUuid(state), task);
 		boolean accepted;
 		try {
@@ -490,6 +581,9 @@ public class PipelineRunEngine {
 	 * recovered run ends up re-running work it already did.</p>
 	 */
 	private void record(ItemState state, NodeTaskResult result) {
+		if (state.isInFlight(result.getNodeId())) {
+			inFlightCount = Math.max(0, inFlightCount - 1);
+		}
 		state.record(result);
 		UUID itemUuid = itemUuid(state);
 		store.taskSettled(itemUuid, result);
@@ -509,6 +603,67 @@ public class PipelineRunEngine {
 		} catch (IllegalArgumentException e) {
 			return null;
 		}
+	}
+
+	/**
+	 * Stop counting a node against the in-flight ceiling.
+	 *
+	 * <p>Every path that ends a dispatched task without settling it - a retry, a
+	 * reclaim - must come through here. Clearing the in-flight marker without
+	 * decrementing leaks a slot, and enough leaked slots wedge the run permanently at
+	 * capacity with nothing outstanding.</p>
+	 */
+	private void releaseInFlight(ItemState state, String nodeId) {
+		if (state.isInFlight(nodeId)) {
+			inFlightCount = Math.max(0, inFlightCount - 1);
+			state.clearInFlight(nodeId);
+		}
+	}
+
+	/** @return true when this run already has as much outstanding work as it may */
+	private boolean atCapacity() {
+		return maxInFlight > 0 && inFlightCount >= maxInFlight;
+	}
+
+	/**
+	 * Give every item a chance to dispatch work that was held back by the cap.
+	 *
+	 * <p>A node deferred on item B is not reconsidered when item A finishes unless
+	 * something sweeps the whole set - without this, deferred work would only resume
+	 * when its own item happened to progress, which it cannot do while it is blocked.</p>
+	 */
+	private void pumpDeferred() {
+		if (atCapacity()) {
+			return;
+		}
+		for (ItemState state : items.values()) {
+			if (atCapacity()) {
+				return;
+			}
+			if (!state.isComplete(graph.size())) {
+				advance(state);
+			}
+		}
+	}
+
+	/**
+	 * @return true when the run is holding as many tasks as it is allowed to
+	 */
+	public synchronized boolean isAtCapacity() {
+		return atCapacity();
+	}
+
+	/** @return outstanding dispatched tasks */
+	public synchronized int getInFlightCount() {
+		return inFlightCount;
+	}
+
+	/**
+	 * @param maxInFlight ceiling on outstanding tasks; 0 or less means unlimited
+	 */
+	public synchronized void setMaxInFlight(int maxInFlight) {
+		this.maxInFlight = maxInFlight;
+		pumpDeferred();
 	}
 
 	private void checkComplete() {

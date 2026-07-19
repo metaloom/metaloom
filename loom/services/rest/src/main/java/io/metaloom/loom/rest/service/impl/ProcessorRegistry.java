@@ -51,6 +51,7 @@ public class ProcessorRegistry {
 		processor.host = registration.getHost();
 		processor.priority = registration.getPriority();
 		processor.capabilities = registration.getCapabilities();
+		processor.nodeKinds = registration.getNodeKinds();
 		processor.state = ProcessorState.ONLINE;
 		processor.lastSeen = Instant.now();
 		processor.ws = ws;
@@ -121,9 +122,29 @@ public class ProcessorRegistry {
 	 * @return the best matching processor, or null if none is available
 	 */
 	public ConnectedProcessor selectProcessor(ProcessorCapability requiredCapability) {
+		return selectProcessor(requiredCapability, null);
+	}
+
+	/**
+	 * Find a worker for a specific kind of node.
+	 *
+	 * <p>Adds whitelist filtering to the capability check, so a run can be spread over
+	 * a pool of workers that are each restricted to part of the graph - GPU boxes for
+	 * embeddings, the host holding the media mount for filesystem sources.</p>
+	 *
+	 * <p>Selection is still by declared priority. Load-based selection is deliberately
+	 * not attempted: {@code cpuLoad} is known to be broken, and scheduling on a wrong
+	 * metric is worse than scheduling on none.</p>
+	 *
+	 * @param requiredCapability capability the worker must have, or null for any
+	 * @param nodeKind           kind of node to run, or null to ignore whitelists
+	 * @return the best matching processor, or null when none will take it
+	 */
+	public ConnectedProcessor selectProcessor(ProcessorCapability requiredCapability, String nodeKind) {
 		return processors.values().stream()
 			.filter(p -> p.state == ProcessorState.ONLINE)
 			.filter(p -> requiredCapability == null || (p.capabilities != null && p.capabilities.contains(requiredCapability)))
+			.filter(p -> nodeKind == null || p.accepts(nodeKind))
 			.sorted((a, b) -> Integer.compare(b.priority, a.priority))
 			.findFirst()
 			.orElse(null);
@@ -186,6 +207,19 @@ public class ProcessorRegistry {
 		public String host;
 		public int priority;
 		public Set<ProcessorCapability> capabilities;
+		/** Node kinds this worker accepts; null or empty means "anything". */
+		public Set<String> nodeKinds;
+
+		/**
+		 * @param nodeKind the kind of work
+		 * @return true when this worker will take it
+		 */
+		public boolean accepts(String nodeKind) {
+			// An empty whitelist means unrestricted, so a worker registered before
+			// whitelisting existed keeps receiving everything rather than silently
+			// dropping out of the pool.
+			return nodeKinds == null || nodeKinds.isEmpty() || nodeKinds.contains(nodeKind);
+		}
 		public ProcessorState state;
 		public Instant lastSeen;
 		public SystemStatusInfo systemStatus;

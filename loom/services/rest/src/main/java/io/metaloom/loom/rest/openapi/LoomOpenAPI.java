@@ -37,7 +37,7 @@ public class LoomOpenAPI {
 		ServerFailureHandler failureHandler = null;
 		// Only the router is needed to describe the API; start() - which is what would
 		// use the reaper - is never called here.
-		RESTService rest = new RESTService(vertx, options, server, router, endpoints, failureHandler, null);
+		RESTService rest = new RESTService(vertx, options, server, router, endpoints, failureHandler, null, null);
 		rest.setupRouter();
 
 		Builder builder = OpenAPIGenerator.builder();
