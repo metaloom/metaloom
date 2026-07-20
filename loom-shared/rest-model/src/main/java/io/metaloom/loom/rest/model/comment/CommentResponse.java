@@ -1,5 +1,7 @@
 package io.metaloom.loom.rest.model.comment;
 
+import java.util.UUID;
+
 import io.metaloom.loom.rest.model.asset.location.social.SocialInfo;
 import io.metaloom.loom.rest.model.common.AbstractCreatorEditorRestResponse;
 
@@ -8,6 +10,8 @@ public class CommentResponse extends AbstractCreatorEditorRestResponse<CommentRe
 	private String title;
 
 	private String text;
+
+	private UUID assetUuid;
 
 	private SocialInfo social;
 
@@ -30,6 +34,15 @@ public class CommentResponse extends AbstractCreatorEditorRestResponse<CommentRe
 	@Override
 	public CommentResponse setText(String text) {
 		this.text = text;
+		return this;
+	}
+
+	public UUID getAssetUuid() {
+		return assetUuid;
+	}
+
+	public CommentResponse setAssetUuid(UUID assetUuid) {
+		this.assetUuid = assetUuid;
 		return this;
 	}
 

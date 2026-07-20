@@ -10,11 +10,14 @@ public class LoomOptions implements Option {
 
 	private AuthenticationOptions auth = new AuthenticationOptions();
 
+	private StorageOptions storage = new StorageOptions();
+
 	@Override
 	public void overrideWithEnv() {
 		database.overrideWithEnv();
 		server.overrideWithEnv();
 		auth.overrideWithEnv();
+		storage.overrideWithEnv();
 	}
 
 	public DatabaseOptions getDatabase() {
@@ -43,11 +46,21 @@ public class LoomOptions implements Option {
 		this.auth = auth;
 	}
 
+	public StorageOptions getStorage() {
+		return storage;
+	}
+
+	public LoomOptions setStorage(StorageOptions storage) {
+		this.storage = storage;
+		return this;
+	}
+
 	@Override
 	public void validate(OptionErrors errors) {
 		errors.nested("database", database)
 			.nested("server", server)
-			.nested("auth", auth);
+			.nested("auth", auth)
+			.nested("storage", storage);
 	}
 
 	/**

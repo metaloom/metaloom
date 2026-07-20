@@ -3,7 +3,7 @@ import {
   Box, Typography, Chip, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, IconButton, Drawer, Divider, Button,
   Dialog, DialogActions, DialogContent, DialogTitle, TextField, CircularProgress,
-  FormControl, InputLabel, Select, MenuItem,
+  FormControl, InputLabel, Select, MenuItem, Menu,
 } from "@mui/material";
 import {
   TaskAltOutlined,
@@ -13,6 +13,10 @@ import {
 import { tokens } from "../../theme";
 import { useAuth } from "../../context/AuthContext";
 import { createTask, deleteTask, listTasks, TaskResponse, updateTask } from "../../api/tasks";
+import {
+  createTaskReaction, deleteTaskReaction, listTaskReactions,
+  ReactionResponseItem, TaskReactionType,
+} from "../../api/reactions";
 import { useTranslation } from "react-i18next";
 
 const priorityColor: Record<string, string> = {
@@ -23,6 +27,16 @@ const priorityColor: Record<string, string> = {
 };
 
 const PRIORITIES = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
+
+// ── Reactions ─────────────────────────────────────────────────────────────
+const REACTION_TYPES: TaskReactionType[] = ["THUMBSUP", "THUMBSDOWN", "SATISFIED", "PLUS_ONE", "MINUS_ONE"];
+const REACTION_EMOJI: Record<TaskReactionType, string> = {
+  THUMBSUP: "👍",
+  THUMBSDOWN: "👎",
+  SATISFIED: "🤣",
+  PLUS_ONE: "➕",
+  MINUS_ONE: "➖",
+};
 
 // ── Priority selector (shared by create dialog + edit drawer) ─────────────
 function PrioritySelect({ value, onChange, testId }: { value: string; onChange: (v: string) => void; testId: string }) {
@@ -59,10 +73,39 @@ function TaskDetailDrawer({
   onStartEdit: () => void;
   onDelete: () => void;
 }) {
+  // Hooks must run unconditionally and before any early return.
+  const { t } = useTranslation();
+  const { token, userUuid } = useAuth();
+  const [reactions, setReactions] = useState<ReactionResponseItem[]>([]);
+  const [reactionMenuAnchor, setReactionMenuAnchor] = useState<null | HTMLElement>(null);
+
+  const taskUuid = task?.uuid;
+  useEffect(() => {
+    if (!token || !taskUuid) {
+      setReactions([]);
+      return;
+    }
+    listTaskReactions(token, taskUuid)
+      .then((resp) => setReactions(resp.data ?? []))
+      .catch(() => setReactions([]));
+  }, [token, taskUuid]);
+
+  const handleAddReaction = async (type: TaskReactionType) => {
+    setReactionMenuAnchor(null);
+    if (!token || !taskUuid) return;
+    const created = await createTaskReaction(token, taskUuid, { type });
+    setReactions((prev) => [created, ...prev]);
+  };
+
+  const handleDeleteReaction = async (reactionUuid: string) => {
+    if (!token || !taskUuid) return;
+    await deleteTaskReaction(token, taskUuid, reactionUuid);
+    setReactions((prev) => prev.filter((r) => r.uuid !== reactionUuid));
+  };
+
   if (!task) return null;
   const prio = task.priority?.toUpperCase() ?? "MEDIUM";
   const pc = priorityColor[prio] ?? tokens.text.tertiary;
-  const { t } = useTranslation();
 
   return (
     <Drawer
@@ -142,6 +185,72 @@ function TaskDetailDrawer({
                 {content}
               </Box>
             ))}
+          </Box>
+
+          <Divider sx={{ borderColor: tokens.border.subtle }} />
+
+          {/* Reactions */}
+          <Box>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
+              <Typography sx={{ color: tokens.text.tertiary, fontSize: "0.8rem", fontWeight: 600 }}>
+                {t("tasks.reactions.title")}
+              </Typography>
+              <Button
+                size="small"
+                startIcon={<AddOutlined sx={{ fontSize: 14 }} />}
+                onClick={(e) => setReactionMenuAnchor(e.currentTarget)}
+                data-testid="tasks-react-button"
+              >
+                {t("tasks.reactions.add")}
+              </Button>
+              <Menu
+                anchorEl={reactionMenuAnchor}
+                open={!!reactionMenuAnchor}
+                onClose={() => setReactionMenuAnchor(null)}
+              >
+                {REACTION_TYPES.map((type) => (
+                  <MenuItem
+                    key={type}
+                    onClick={() => handleAddReaction(type)}
+                    data-testid={`tasks-react-option-${type}`}
+                  >
+                    <Box component="span" sx={{ mr: 1 }}>{REACTION_EMOJI[type]}</Box>
+                    {t(`tasks.reactions.type.${type}`)}
+                  </MenuItem>
+                ))}
+              </Menu>
+            </Box>
+            {reactions.length === 0 ? (
+              <Typography variant="body2" sx={{ color: tokens.text.tertiary, fontSize: "0.8rem" }}>
+                {t("tasks.reactions.empty")}
+              </Typography>
+            ) : (
+              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
+                {reactions.map((r) => {
+                  const type = r.type as TaskReactionType | undefined;
+                  const emoji = type ? REACTION_EMOJI[type] : "•";
+                  const owned = !!userUuid && r.status?.creator?.uuid === userUuid;
+                  return (
+                    <Chip
+                      key={r.uuid}
+                      size="small"
+                      data-testid="tasks-reaction-chip"
+                      label={
+                        <Box component="span">
+                          <Box component="span" sx={{ mr: 0.5 }}>{emoji}</Box>
+                          {type ? t(`tasks.reactions.type.${type}`) : (r.type ?? "")}
+                        </Box>
+                      }
+                      onDelete={owned ? () => handleDeleteReaction(r.uuid) : undefined}
+                      deleteIcon={
+                        <CloseOutlined data-testid="tasks-reaction-delete" sx={{ fontSize: 14 }} />
+                      }
+                      sx={{ bgcolor: tokens.bg.base, border: `1px solid ${tokens.border.subtle}`, fontSize: "0.72rem" }}
+                    />
+                  );
+                })}
+              </Box>
+            )}
           </Box>
         </Box>
       </Box>

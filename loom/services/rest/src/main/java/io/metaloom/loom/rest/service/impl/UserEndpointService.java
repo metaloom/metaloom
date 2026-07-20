@@ -85,6 +85,18 @@ public class UserEndpointService extends AbstractCRUDEndpointService<UserDao, Us
 		}, modelBuilder::toResponse);
 	}
 
+	/**
+	 * Load the currently authenticated user. No READ_USER permission is required - any authenticated user may read their own record. Authentication
+	 * is enforced by the endpoint's secure() handler.
+	 */
+	public void me(LoomRoutingContext lrc) {
+		User user = dao().load(lrc.userUuid());
+		if (user == null) {
+			throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "User not found.");
+		}
+		lrc.send(modelBuilder.toResponse(user));
+	}
+
 	public void list(LoomRoutingContext lrc) {
 		list(lrc, READ_USER, modelBuilder::toUserList);
 	}

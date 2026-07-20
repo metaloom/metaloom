@@ -13,6 +13,8 @@ public class CommentImpl extends AbstractEditableElement<Comment> implements Com
 
 	private UUID taskUuid;
 
+	private UUID assetUuid;
+
 	@Override
 	public String getTitle() {
 		return title;
@@ -43,6 +45,17 @@ public class CommentImpl extends AbstractEditableElement<Comment> implements Com
 	@Override
 	public Comment setTaskUuid(UUID taskUuid) {
 		this.taskUuid = taskUuid;
+		return this;
+	}
+
+	@Override
+	public UUID getAssetUuid() {
+		return assetUuid;
+	}
+
+	@Override
+	public Comment setAssetUuid(UUID assetUuid) {
+		this.assetUuid = assetUuid;
 		return this;
 	}
 

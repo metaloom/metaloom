@@ -82,35 +82,6 @@ Legend: ✅ done · ⚠️ partial · ❌ missing
 
 ---
 
-## Task: Support region (time + area) tagging of assets
-
-**Argumentation Summary:** The `tag_asset` join table carries `time_from`, `time_to`, `areaStartX/Y`, `areaWidth/Height` ([V2.8__add_asset.sql](../../../loom/db/flyway/src/main/resources/db/migration/V2.8__add_asset.sql) lines 95-110), the DB model [AssetTag.java](../../../loom/db/api/src/main/java/io/metaloom/loom/db/model/tag/AssetTag.java) exposes all six accessors, and [TagResponse.java](../../../loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/model/tag/TagResponse.java) returns an `area` (`AreaInfo`). But `TagEndpointService.tagAsset` ([TagEndpointService.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/TagEndpointService.java) lines 92-113) only sets name/collection/meta and never reads region data, and `TagCreateRequest` has no area/time fields — so a region tag can never be created. The UI has no region-tagging affordance either: [AssetDetail.tsx](../../../loom-ui/src/features/assetDetail/AssetDetail.tsx) has a `VideoTimeline` and a `ZoomableImage` but tags are plain strings with no time/area binding. DOMAIN.md ([../DOMAIN.md](../DOMAIN.md), Tag row) explicitly calls out region tagging.
-
-**Improvement Summary:** Extend the REST request model and service to accept time/area, then add UI to draw a box / pick a time range when tagging an asset.
-
-```
-1. REST (backend): add optional time_from/time_to + AreaInfo (or the four area ints)
-   to TagCreateRequest.java. In TagEndpointService.tagAsset, after createAssetTag,
-   call setTimeFrom/setTimeTo/setAreaStartX/Y/Width/Height from the request before
-   dao().store(tag)/tagAsset(...).
-2. UI client: extend the tagAsset request type (see the "Persist asset tagging" task)
-   with optional time { from, to } and area { x, y, width, height }.
-3. UI: in AssetDetail.tsx, allow creating a region tag from ZoomableImage
-   (rubber-band box → area) and from VideoTimeline (selection → time_from/time_to);
-   render existing region tags using TagResponse.area / AreaInfo. Non-region tags
-   remain supported (all fields optional).
-```
-
-**References:**
-- REST: [TagEndpointService.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/TagEndpointService.java), [TagCreateRequest.java](../../../loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/model/tag/TagCreateRequest.java), [TagResponse.java](../../../loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/model/tag/TagResponse.java)
-- DB: [AssetTag.java](../../../loom/db/api/src/main/java/io/metaloom/loom/db/model/tag/AssetTag.java), [V2.8__add_asset.sql](../../../loom/db/flyway/src/main/resources/db/migration/V2.8__add_asset.sql)
-- UI: [AssetDetail.tsx](../../../loom-ui/src/features/assetDetail/AssetDetail.tsx), [assets.ts](../../../loom-ui/src/api/assets.ts)
-
-**Test Requirements:**
-- Backend test: tagAsset with area+time persists and is returned in TagResponse.area.
-- e2e: draw a region on an image asset, tag it, reload, assert the region tag is shown.
-
----
 
 ## Task: Expose and integrate per-user tag rating (`tag_user_meta`)
 

@@ -13,6 +13,7 @@ import io.metaloom.loom.rest.ServerFailureHandler;
 import io.metaloom.loom.rest.endpoint.RESTEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.AssetEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.GroupEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.MeEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.UserEndpoint;
 import io.metaloom.loom.rest.model.ModelExamples;
 import io.metaloom.vertx.openapi.OpenAPIGenerator;
@@ -33,7 +34,8 @@ public class LoomOpenAPI {
 		ModelExamples examples = new ModelExamples();
 		endpoints.add(new UserEndpoint(null, deps, examples));
 		endpoints.add(new GroupEndpoint(null, deps, examples));
-		endpoints.add(new AssetEndpoint(null, null, null, null, null, null, deps, examples));
+		endpoints.add(new AssetEndpoint(null, null, null, null, null, null, null, null, deps, examples));
+		endpoints.add(new MeEndpoint(null, deps, examples));
 		ServerFailureHandler failureHandler = null;
 		// Only the router is needed to describe the API; start() - which is what would
 		// use the reaper - is never called here.

@@ -23,6 +23,7 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.loom.api.error.LoomRestErrorCode;
 import io.metaloom.loom.api.error.LoomRestException;
 import io.metaloom.loom.db.dagger.DaoCollection;
+import io.metaloom.loom.db.model.asset.AssetBinary;
 import io.metaloom.loom.db.model.pipeline.Pipeline;
 import io.metaloom.loom.db.model.pipeline.PipelineDao;
 import io.metaloom.loom.db.model.pipeline.PipelineRun;
@@ -262,136 +263,188 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 				request = new PipelineRunRequest();
 			}
 
-			PipelineRunResponse response = new PipelineRunResponse();
-			UUID workOrderId = UUID.randomUUID();
-			response.setWorkOrderId(workOrderId);
-
-			// Get the latest version for the run
-			PipelineVersion latestVersion = pipelineVersionDao.loadLatestByPipeline(pipeline.getUuid());
-			int pipelineVersion = latestVersion != null ? latestVersion.getVersionNumber() : 1;
-			String pipelineName = latestVersion != null ? latestVersion.getName() : String.valueOf(pipeline.getUuid());
-			boolean dryRun = request.isDryRun() != null
-				? request.isDryRun()
-				: (latestVersion != null && latestVersion.isDryRun());
-
-			// Build the executable graph up front. A definition that cannot run as
-			// drawn is an error the caller should see now, not a green run that
-			// quietly did nothing.
-			PipelineGraph graph;
-			try {
-				graph = graphParser.parse(pipelineName,
-					latestVersion != null ? latestVersion.getDefinition() : null,
-					latestVersion == null || latestVersion.isEnabled(), dryRun, pipelineVersion);
-			} catch (GraphValidationException e) {
-				log.warn("Refusing to run pipeline '{}': {}", pipelineName, e.getMessage());
-				response.setDispatched(false).setMessage(e.getMessage());
-				lrc.send(response, 400);
-				return;
-			}
-
-			// The source has to go to a worker that will actually run it - a pool where
-			// the only online worker is restricted to hashing cannot start a scan. This
-			// is checked after parsing because the source's kind comes from the graph.
-			String sourceKind = graph.getSourceNode().getKind();
-			ConnectedProcessor processor = processorRegistry.selectProcessorForKinds(ProcessorCapability.CPU,
-				List.of(sourceKind));
-			if (processor == null) {
-				response.setDispatched(false)
-					.setMessage("No processor available for source node kind '" + sourceKind + "'");
-				log.warn("Rejected pipeline run for pipeline {}: no processor accepts source kind '{}'",
-					pipeline.getUuid(), sourceKind);
-				lrc.send(response, 503);
-				return;
-			}
-
-			// Create a pipeline run record to track this execution
-			PipelineRun runRecord = pipelineRunDao.createPipelineRun(lrc.userUuid(), pipeline.getUuid(), pipelineVersion);
-			runRecord.setStatus("RUNNING");
-			runRecord.setDryRun(dryRun);
-			pipelineRunDao.store(runRecord);
-			UUID runUuid = runRecord.getUuid();
-
-			// The engine owns the graph and decides what runs next; Cortex only ever
-			// sees one node at a time. State goes to Postgres through the store, so the
-			// run is not lost with the process that started it.
-			RunStateStore stateStore = new DaoRunStateStore(pipelineRunDao, pipelineRunItemDao, pipelineNodeTaskDao,
-				runUuid, lrc.userUuid());
-			PipelineRunEngine engine = new PipelineRunEngine(graph, nodeDispatcher, runUuid, stateStore);
-			// Outputs of nodes marked syncToLoom land on the asset, not just in the run
-			// record. Without this the hash a pipeline computes is invisible everywhere
-			// an asset is actually looked at.
-			engine.setAssetSink(new DaoAssetSink(daos().assetDao(), lrc.userUuid()));
-			engine.onCompletion(summary -> pipelineRunTracker.complete(runUuid, summary.getDurationMs(),
-				(int) summary.getMediaCount(), (int) summary.getSuccessCount(),
-				(int) summary.getFailureCount(), (int) summary.getSkippedCount()));
-			// Aggregated progress: per-node counters on a timer, individual events only
-			// for failures. Forwarding every settle would be millions of frames to move
-			// a progress bar.
-			RunStatsAggregator statsAggregator = new RunStatsAggregator(runUuid, graph.getName(),
-				pipelineEventBroadcaster);
-			engine.onNodeSettled(statsAggregator);
-			statsAggregator.setProgressSupplier(engine::nodeProgressSnapshot);
-			long statsTimer = vertx.setPeriodic(STATS_INTERVAL_MS, timerId -> statsAggregator.flush());
-			engine.onCompletion(summary -> {
-				vertx.cancelTimer(statsTimer);
-				// One last push so the final counts are not left a timer-tick stale.
-				statsAggregator.flush();
-			});
-
-			// Shared across runs on purpose: a kind broken by a missing model file or an
-			// expired key is broken for everyone, and per-run breakers would each have to
-			// rediscover that.
-			engine.setCircuitBreaker(circuitBreaker);
-			engine.setRetryScheduler((delayMs, action) -> vertx.setTimer(Math.max(1, delayMs), t -> action.run()));
-
-			pipelineRunRegistry.register(runUuid, engine);
-			engine.start();
-
-			if (request.getMediaUuids() != null && !request.getMediaUuids().isEmpty()) {
-				log.warn("Run {} requested {} media uuid(s); uuid-based selection is not implemented "
-					+ "and only pathGlobs are honoured", runUuid, request.getMediaUuids().size());
-			}
-
-			// Hand the source node to a worker. Everything else follows from the
-            // items it streams back.
-			PipelineGraphNode sourceNode = graph.getSourceNode();
-			SourceTaskMessage sourceTask = new SourceTaskMessage()
-				.setRunUuid(runUuid)
-				.setNodeId(sourceNode.getId())
-				.setNodeKind(sourceNode.getKind())
-				.setOptions(sourceOptions(sourceNode, request));
-
-			boolean dispatched = processorRegistry.send(processor.nodeId, ProcessorMessageType.SOURCE_TASK, sourceTask);
-			if (!dispatched) {
-				// The socket was gone by the time we wrote to it. Nothing will ever
-				// enumerate, so close the run out immediately rather than leaving it
-				// RUNNING forever.
-				pipelineRunRegistry.unregister(runUuid);
-				pipelineRunTracker.fail(runUuid, "Processor was not reachable");
-			}
-
-			response
-				.setProcessorNodeId(processor.nodeId)
-				.setDispatched(dispatched)
-				.setMessage(dispatched ? "Source task dispatched" : "Processor was not reachable");
-
-			log.info("Pipeline '{}' run started (pipelineRunUuid={}, nodes={}, processor={}, ok={})",
-				pipelineName, runUuid, graph.size(), processor.nodeId, dispatched);
-			lrc.send(response, dispatched ? 202 : 503);
+			RunDispatch result = dispatchRun(pipeline, lrc.userUuid(), request);
+			lrc.send(result.response, result.status);
 		});
+	}
+
+	/**
+	 * Trigger a pipeline run scoped to a single asset. Used by the asset-created auto-trigger, which has no request context of its own. The asset is
+	 * resolved to its stored binary path and handed to the pipeline source node (see {@link #sourceOptions}).
+	 *
+	 * @param pipelineUuid
+	 *            the pipeline to run
+	 * @param assetUuid
+	 *            the asset to process
+	 * @param userUuid
+	 *            the user the run is attributed to (typically the asset creator)
+	 * @return the dispatch outcome
+	 */
+	public PipelineRunResponse runForAsset(UUID pipelineUuid, UUID assetUuid, UUID userUuid) {
+		Pipeline pipeline = dao().loadWithLatestVersion(pipelineUuid);
+		if (pipeline == null) {
+			return new PipelineRunResponse().setDispatched(false).setMessage("Pipeline not found: " + pipelineUuid);
+		}
+		PipelineRunRequest request = new PipelineRunRequest().setMediaUuids(List.of(assetUuid));
+		return dispatchRun(pipeline, userUuid, request).response;
+	}
+
+	/**
+	 * Shared run-dispatch core used by both the REST {@link #run} endpoint and the asset auto-trigger. Returns the response together with the HTTP
+	 * status the REST endpoint should send, rather than writing to a routing context, so it can be called without one.
+	 */
+	private RunDispatch dispatchRun(Pipeline pipeline, UUID userUuid, PipelineRunRequest request) {
+		PipelineRunResponse response = new PipelineRunResponse();
+		response.setWorkOrderId(UUID.randomUUID());
+
+		// Get the latest version for the run
+		PipelineVersion latestVersion = pipelineVersionDao.loadLatestByPipeline(pipeline.getUuid());
+		int pipelineVersion = latestVersion != null ? latestVersion.getVersionNumber() : 1;
+		String pipelineName = latestVersion != null ? latestVersion.getName() : String.valueOf(pipeline.getUuid());
+		boolean dryRun = request.isDryRun() != null
+			? request.isDryRun()
+			: (latestVersion != null && latestVersion.isDryRun());
+
+		// Build the executable graph up front. A definition that cannot run as
+		// drawn is an error the caller should see now, not a green run that
+		// quietly did nothing.
+		PipelineGraph graph;
+		try {
+			graph = graphParser.parse(pipelineName,
+				latestVersion != null ? latestVersion.getDefinition() : null,
+				latestVersion == null || latestVersion.isEnabled(), dryRun, pipelineVersion);
+		} catch (GraphValidationException e) {
+			log.warn("Refusing to run pipeline '{}': {}", pipelineName, e.getMessage());
+			return new RunDispatch(response.setDispatched(false).setMessage(e.getMessage()), 400);
+		}
+
+		// The source has to go to a worker that will actually run it - a pool where
+		// the only online worker is restricted to hashing cannot start a scan. This
+		// is checked after parsing because the source's kind comes from the graph.
+		String sourceKind = graph.getSourceNode().getKind();
+		ConnectedProcessor processor = processorRegistry.selectProcessorForKinds(ProcessorCapability.CPU,
+			List.of(sourceKind));
+		if (processor == null) {
+			log.warn("Rejected pipeline run for pipeline {}: no processor accepts source kind '{}'",
+				pipeline.getUuid(), sourceKind);
+			return new RunDispatch(response.setDispatched(false)
+				.setMessage("No processor available for source node kind '" + sourceKind + "'"), 503);
+		}
+
+		// Create a pipeline run record to track this execution
+		PipelineRun runRecord = pipelineRunDao.createPipelineRun(userUuid, pipeline.getUuid(), pipelineVersion);
+		runRecord.setStatus("RUNNING");
+		runRecord.setDryRun(dryRun);
+		pipelineRunDao.store(runRecord);
+		UUID runUuid = runRecord.getUuid();
+
+		// The engine owns the graph and decides what runs next; Cortex only ever
+		// sees one node at a time. State goes to Postgres through the store, so the
+		// run is not lost with the process that started it.
+		RunStateStore stateStore = new DaoRunStateStore(pipelineRunDao, pipelineRunItemDao, pipelineNodeTaskDao,
+			runUuid, userUuid);
+		PipelineRunEngine engine = new PipelineRunEngine(graph, nodeDispatcher, runUuid, stateStore);
+		// Outputs of nodes marked syncToLoom land on the asset, not just in the run
+		// record. Without this the hash a pipeline computes is invisible everywhere
+		// an asset is actually looked at.
+		engine.setAssetSink(new DaoAssetSink(daos().assetDao(), userUuid));
+		engine.onCompletion(summary -> pipelineRunTracker.complete(runUuid, summary.getDurationMs(),
+			(int) summary.getMediaCount(), (int) summary.getSuccessCount(),
+			(int) summary.getFailureCount(), (int) summary.getSkippedCount()));
+		// Aggregated progress: per-node counters on a timer, individual events only
+		// for failures. Forwarding every settle would be millions of frames to move
+		// a progress bar.
+		RunStatsAggregator statsAggregator = new RunStatsAggregator(runUuid, graph.getName(),
+			pipelineEventBroadcaster);
+		engine.onNodeSettled(statsAggregator);
+		statsAggregator.setProgressSupplier(engine::nodeProgressSnapshot);
+		long statsTimer = vertx.setPeriodic(STATS_INTERVAL_MS, timerId -> statsAggregator.flush());
+		engine.onCompletion(summary -> {
+			vertx.cancelTimer(statsTimer);
+			// One last push so the final counts are not left a timer-tick stale.
+			statsAggregator.flush();
+		});
+
+		// Shared across runs on purpose: a kind broken by a missing model file or an
+		// expired key is broken for everyone, and per-run breakers would each have to
+		// rediscover that.
+		engine.setCircuitBreaker(circuitBreaker);
+		engine.setRetryScheduler((delayMs, action) -> vertx.setTimer(Math.max(1, delayMs), t -> action.run()));
+
+		pipelineRunRegistry.register(runUuid, engine);
+		engine.start();
+
+		// Hand the source node to a worker. Everything else follows from the
+		// items it streams back.
+		PipelineGraphNode sourceNode = graph.getSourceNode();
+		SourceTaskMessage sourceTask = new SourceTaskMessage()
+			.setRunUuid(runUuid)
+			.setNodeId(sourceNode.getId())
+			.setNodeKind(sourceNode.getKind())
+			.setOptions(sourceOptions(sourceNode, request));
+
+		boolean dispatched = processorRegistry.send(processor.nodeId, ProcessorMessageType.SOURCE_TASK, sourceTask);
+		if (!dispatched) {
+			// The socket was gone by the time we wrote to it. Nothing will ever
+			// enumerate, so close the run out immediately rather than leaving it
+			// RUNNING forever.
+			pipelineRunRegistry.unregister(runUuid);
+			pipelineRunTracker.fail(runUuid, "Processor was not reachable");
+		}
+
+		response
+			.setProcessorNodeId(processor.nodeId)
+			.setDispatched(dispatched)
+			.setMessage(dispatched ? "Source task dispatched" : "Processor was not reachable");
+
+		log.info("Pipeline '{}' run started (pipelineRunUuid={}, nodes={}, processor={}, ok={})",
+			pipelineName, runUuid, graph.size(), processor.nodeId, dispatched);
+		return new RunDispatch(response, dispatched ? 202 : 503);
+	}
+
+	/** Result of {@link #dispatchRun}: the response plus the HTTP status the REST endpoint should send. */
+	private static final class RunDispatch {
+		final PipelineRunResponse response;
+		final int status;
+
+		RunDispatch(PipelineRunResponse response, int status) {
+			this.response = response;
+			this.status = status;
+		}
 	}
 
 	/**
 	 * Resolve the options the source node should run with.
 	 *
 	 * <p>The definition supplies the defaults; a run request may override the
-	 * selection. Note the paths are resolved on the <em>worker</em>, so a path the
-	 * chosen processor cannot see yields an empty run rather than an error.</p>
+	 * selection with either {@code pathGlobs} or a set of asset UUIDs. When asset
+	 * UUIDs are given they are resolved to their stored binary paths: a single
+	 * asset is passed as {@code path} (and {@code assetUuid}) — what the asset and
+	 * filesystem source nodes read directly — while multiple assets fall back to
+	 * {@code pathGlobs}. Note the paths are resolved on the <em>worker</em>, so a
+	 * path the chosen processor cannot see yields an empty run rather than an error.</p>
 	 */
 	private java.util.Map<String, Object> sourceOptions(PipelineGraphNode sourceNode, PipelineRunRequest request) {
 		java.util.Map<String, Object> options = new java.util.LinkedHashMap<>(sourceNode.getOptions());
 		if (request.getPathGlobs() != null && !request.getPathGlobs().isEmpty()) {
 			options.put("pathGlobs", request.getPathGlobs());
+		}
+		if (request.getMediaUuids() != null && !request.getMediaUuids().isEmpty()) {
+			java.util.List<String> paths = new java.util.ArrayList<>();
+			for (UUID assetUuid : request.getMediaUuids()) {
+				AssetBinary binary = daos().assetBinaryDao().loadByAssetUuid(assetUuid);
+				if (binary != null && binary.getPath() != null) {
+					paths.add(binary.getPath());
+				} else {
+					log.warn("No stored binary path for asset {}; it cannot be included in the run", assetUuid);
+				}
+			}
+			if (paths.size() == 1) {
+				options.put("path", paths.get(0));
+				options.put("assetUuid", request.getMediaUuids().get(0).toString());
+			} else if (paths.size() > 1) {
+				options.put("pathGlobs", paths);
+			}
 		}
 		return options;
 	}

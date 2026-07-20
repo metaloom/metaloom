@@ -19,6 +19,8 @@ import io.metaloom.loom.rest.model.ModelExamples;
 import io.metaloom.loom.rest.model.asset.AssetUpdateRequest;
 import io.metaloom.loom.rest.service.impl.AssetEndpointService;
 import io.metaloom.loom.rest.service.impl.AssetBinaryEndpointService;
+import io.metaloom.loom.rest.service.impl.AssetUploadEndpointService;
+import io.metaloom.loom.rest.service.impl.CommentEndpointService;
 import io.metaloom.loom.rest.service.impl.DetectionEndpointService;
 import io.metaloom.loom.rest.service.impl.ReactionEndpointService;
 import io.metaloom.loom.rest.service.impl.TagEndpointService;
@@ -30,25 +32,30 @@ public class AssetEndpoint extends AbstractEndpoint {
 	private static final Logger log = LoggerFactory.getLogger(AssetEndpoint.class);
 
 	private final AssetEndpointService service;
+	private final AssetUploadEndpointService uploadService;
 	private final TagEndpointService tagService;
 	private final AssetBinaryEndpointService binaryService;
 	private final ReactionEndpointService reactionService;
+	private final CommentEndpointService commentService;
 	private final DetectionEndpointService detectionService;
 	private final TranscriptEndpointService transcriptService;
 	private final ModelExamples examples;
 
 	@Inject
-	public AssetEndpoint(AssetEndpointService service, TagEndpointService tagService,
+	public AssetEndpoint(AssetEndpointService service, AssetUploadEndpointService uploadService, TagEndpointService tagService,
 		AssetBinaryEndpointService binaryService,
 		ReactionEndpointService reactionService,
+		CommentEndpointService commentService,
 		DetectionEndpointService detectionService,
 		TranscriptEndpointService transcriptService,
 		EndpointDependencies deps, ModelExamples examples) {
 		super(deps);
 		this.service = service;
+		this.uploadService = uploadService;
 		this.tagService = tagService;
 		this.binaryService = binaryService;
 		this.reactionService = reactionService;
+		this.commentService = commentService;
 		this.detectionService = detectionService;
 		this.transcriptService = transcriptService;
 		this.examples = examples;
@@ -99,6 +106,14 @@ public class AssetEndpoint extends AbstractEndpoint {
 			examples.assetBulkResponseExample(),
 			lrc -> {
 				service.bulkUpdate(lrc);
+			});
+
+		// --- Upload route (multipart, literal prefix — registered before :uuid wildcard) ---
+
+		addRoute(basePath() + "/upload", POST,
+			"Upload a file to create an asset. Expects a multipart request with one file part and a 'libraryUuid' form field.",
+			lrc -> {
+				uploadService.upload(lrc);
 			});
 
 		// --- SHA-512 routes (literal prefix — registered before :uuid wildcard) ---
@@ -234,6 +249,24 @@ public class AssetEndpoint extends AbstractEndpoint {
 			"Update an reaction for an asset",
 			lrc -> {
 				reactionService.updateAssetReaction(lrc, lrc.pathParamAssetId("uuid"), lrc.pathParamUUID("reactionUuid"));
+			});
+
+		// --- COMMENT (UUID-based sub-resource) ---
+
+		addRoute(basePath() + "/:uuid/comments", POST,
+			"Create a new comment on an asset",
+			examples.commentCreateRequestExample(),
+			examples.commentResponseExample(),
+			lrc -> {
+				commentService.createForAsset(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/comments", GET,
+			"List the comments on an asset",
+			null,
+			examples.commentListResponseExample(),
+			lrc -> {
+				commentService.listForAsset(lrc, lrc.pathParamUUID("uuid"));
 			});
 
 		// --- DETECTION (UUID-based sub-resource) ---

@@ -73,20 +73,37 @@ public class TagDaoImpl extends AbstractJooqDao<Tag> implements TagDao {
 		DaoUtils.requireUuid(tag, "tag");
 		DaoUtils.requireUuid(asset, "asset");
 
-		ctx().insertInto(TAG_ASSET,
-			TAG_ASSET.TAG_UUID, TAG_ASSET.ASSET_UUID)
-			.values(tag.getUuid(), asset.getUuid())
+		// The region (time + area) belongs to the tag<->asset relationship and is thus stored on the join row.
+		ctx().insertInto(TAG_ASSET)
+			.set(TAG_ASSET.TAG_UUID, tag.getUuid())
+			.set(TAG_ASSET.ASSET_UUID, asset.getUuid())
+			.set(TAG_ASSET.TIME_FROM, toInt(tag.getTimeFrom()))
+			.set(TAG_ASSET.TIME_TO, toInt(tag.getTimeTo()))
+			.set(TAG_ASSET.AREASTARTX, tag.getAreaStartX())
+			.set(TAG_ASSET.AREASTARTY, tag.getAreaStartY())
+			.set(TAG_ASSET.AREAWIDTH, tag.getAreaWidth())
+			.set(TAG_ASSET.AREAHEIGHT, tag.getAreaHeight())
 			.execute();
+	}
+
+	private static Integer toInt(Long value) {
+		return value == null ? null : value.intValue();
 	}
 
 	@Override
 	public List<AssetTag> assetTags(Asset asset) {
 		DaoUtils.requireUuid(asset, "asset");
 
-		return ctx().select(getTable())
-			.from(getTable())
+		// Select the tag columns plus the region columns from the join row so the returned
+		// AssetTag pojos carry the time/area of the relationship. Using an explicit flat column
+		// list (rather than select(getTable())) ensures fetchInto maps every column by name.
+		return ctx().select(TAG.asterisk(),
+			TAG_ASSET.TIME_FROM, TAG_ASSET.TIME_TO,
+			TAG_ASSET.AREASTARTX, TAG_ASSET.AREASTARTY,
+			TAG_ASSET.AREAWIDTH, TAG_ASSET.AREAHEIGHT)
+			.from(TAG)
 			.join(TAG_ASSET)
-			.on(TAG_ASSET.ASSET_UUID.eq(TAG_ASSET.ASSET_UUID))
+			.on(TAG.UUID.eq(TAG_ASSET.TAG_UUID))
 			.where(TAG_ASSET.ASSET_UUID.eq(asset.getUuid()))
 			.fetchInto(AssetTagImpl.class);
 	}

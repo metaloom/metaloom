@@ -23,6 +23,8 @@ import io.metaloom.cortex.node.hash.SHA512Node;
 import io.metaloom.cortex.node.thumbnail.ThumbnailNode;
 import io.metaloom.cortex.pipeline.api.NodeMode;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
+import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.pipeline.core.node.AssetSourceNode;
 import io.metaloom.cortex.pipeline.core.node.CortexNodeAdapter;
 import io.metaloom.cortex.pipeline.loader.NodeFactory;
 import io.metaloom.cortex.pipeline.loader.RegistryNodeFactory;
@@ -57,6 +59,10 @@ public class PipelineNodeFactoryModule {
 		// Source nodes are pipeline-level constructs rather than FilesystemNodes,
 		// so they are constructed directly instead of via the CortexNodeAdapter.
 		factory.register("filesystem-source", def -> filesystemSource(def, mediaLoader, fsSourceOptions, cortexOptions));
+
+		// Asset source: run a pipeline against a single asset. Loom injects the asset's
+		// stored path as the 'path' option when it dispatches an asset-scoped run.
+		factory.register("asset-source", def -> assetSource(def, mediaLoader));
 
 		// Register cortex nodes by the type strings we expect to see in
 		// pipeline JSON. Multiple aliases per node are supported so pipeline
@@ -107,6 +113,20 @@ public class PipelineNodeFactoryModule {
 		}
 
 		return FilesystemSourceNode.create(id, mediaLoader, path, globs, emitStates, defaults, indexBaseDir);
+	}
+
+	/**
+	 * Build an {@code asset-source} node from its JSON definition. The single asset it emits is identified by the {@code path} option, which Loom fills
+	 * in from the asset's stored binary location when it dispatches an asset-scoped run.
+	 */
+	private static PipelineNode assetSource(io.vertx.core.json.JsonObject nodeDef, LoomMediaLoader mediaLoader) {
+		String id = nodeDef.getString("id", "asset-source");
+		String path = nodeDef.getString("path");
+		if (path == null || path.isBlank()) {
+			throw new IllegalStateException("Node '" + id + "' (asset-source) requires a 'path' option identifying the asset file");
+		}
+		LoomMedia media = mediaLoader.load(java.nio.file.Paths.get(path));
+		return new AssetSourceNode(id, "Asset Source", media);
 	}
 
 	private static List<String> readStringArray(io.vertx.core.json.JsonObject nodeDef, String field) {

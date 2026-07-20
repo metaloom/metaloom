@@ -1,0 +1,42 @@
+{
+  "data" : [ {
+    "uuid" : "a1b2c3d4-0000-4000-8000-000000000001",
+    "status" : {
+      "creator" : {
+        "uuid" : "6793ad7e-200c-432b-8e64-62b9f9544ece",
+        "name" : "creatorEditor"
+      },
+      "created" : "2018-10-12T14:15:06Z",
+      "editor" : {
+        "uuid" : "6793ad7e-200c-432b-8e64-62b9f9544ece",
+        "name" : "creatorEditor"
+      },
+      "edited" : "2018-10-12T14:15:06Z"
+    },
+    "title" : "title_0",
+    "text" : "text_0",
+    "assetUuid" : "56ac17f2-a003-413a-ad38-303a05808eb7"
+  }, {
+    "uuid" : "a1b2c3d4-0000-4000-8000-000000000001",
+    "status" : {
+      "creator" : {
+        "uuid" : "6793ad7e-200c-432b-8e64-62b9f9544ece",
+        "name" : "creatorEditor"
+      },
+      "created" : "2018-10-12T14:15:06Z",
+      "editor" : {
+        "uuid" : "6793ad7e-200c-432b-8e64-62b9f9544ece",
+        "name" : "creatorEditor"
+      },
+      "edited" : "2018-10-12T14:15:06Z"
+    },
+    "title" : "title_1",
+    "text" : "text_1",
+    "assetUuid" : "56ac17f2-a003-413a-ad38-303a05808eb7"
+  } ],
+  "_metainfo" : {
+    "lastUuid" : "a1b2c3d4-0000-4000-8000-000000000001",
+    "perPage" : 25,
+    "totalCount" : 2
+  }
+}

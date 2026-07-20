@@ -107,6 +107,46 @@
     },
     "empty": {
       "noMatch": "Keine Assets entsprechen Ihren Filtern"
+    },
+    "button": {
+      "upload": "Hochladen",
+      "uploading": "Wird hochgeladen…",
+      "select": "Auswählen",
+      "cancelSelect": "Abbrechen",
+      "cancel": "Abbrechen",
+      "delete": "Löschen",
+      "apply": "Anwenden",
+      "bulkTag": "Taggen",
+      "bulkDelete": "Löschen"
+    },
+    "select": {
+      "count": "{{count}} ausgewählt"
+    },
+    "dialog": {
+      "upload": "Asset hochladen",
+      "delete": "Asset löschen",
+      "bulkTag": "{{count}} Assets taggen"
+    },
+    "upload": {
+      "pickFile": "Datei auswählen…",
+      "library": "Bibliothek",
+      "origin": "Herkunft"
+    },
+    "label": {
+      "tag": "Tag"
+    },
+    "confirm": {
+      "delete": "{{name}} löschen? Dies kann nicht rückgängig gemacht werden."
+    },
+    "toast": {
+      "uploaded": "Asset hochgeladen",
+      "uploadFailed": "Hochladen fehlgeschlagen",
+      "deleted": "Asset gelöscht",
+      "deleteFailed": "Asset konnte nicht gelöscht werden",
+      "bulkDeleted": "{{count}} Assets gelöscht",
+      "bulkDeletedPartial": "{{ok}} Assets gelöscht, {{failed}} fehlgeschlagen",
+      "bulkTagged": "{{count}} Assets getaggt",
+      "bulkTagFailed": "Assets konnten nicht getaggt werden"
     }
   },
   "library": {
@@ -243,6 +283,18 @@
       "title": "Aufgabendetails",
       "created": "Erstellt",
       "lastEdited": "Zuletzt bearbeitet"
+    },
+    "reactions": {
+      "title": "Reaktionen",
+      "add": "Reagieren",
+      "empty": "Noch keine Reaktionen",
+      "type": {
+        "THUMBSUP": "Daumen hoch",
+        "THUMBSDOWN": "Daumen runter",
+        "SATISFIED": "Zufrieden",
+        "PLUS_ONE": "+1",
+        "MINUS_ONE": "-1"
+      }
     },
     "empty": "Keine Aufgaben gefunden"
   },
@@ -509,10 +561,12 @@
         "created": "Erstellt"
       },
       "menu": {
+        "rename": "Schlüssel umbenennen",
         "delete": "Schlüssel löschen"
       },
       "dialog": {
         "create": "API-Schlüssel erstellen",
+        "edit": "API-Schlüssel umbenennen",
         "keyName": "Schlüsselname",
         "keyPlaceholder": "z. B. CI-Pipeline-Schlüssel",
         "creating": "Wird erstellt…",
@@ -920,9 +974,11 @@
     },
     "button": {
       "addPerson": "Person hinzufügen",
+      "addCluster": "Cluster hinzufügen",
       "cancel": "Abbrechen",
       "create": "Erstellen",
-      "assign": "Zuweisen"
+      "assign": "Zuweisen",
+      "save": "Speichern"
     },
     "count": {
       "faces": "{{count}} Gesichter",
@@ -942,6 +998,9 @@
     },
     "dialog": {
       "addPerson": "Person hinzufügen",
+      "editPerson": "Person bearbeiten",
+      "addCluster": "Cluster hinzufügen",
+      "editCluster": "Cluster bearbeiten",
       "assign": "Cluster einer Person zuweisen",
       "selectPerson": "Person auswählen…"
     }
@@ -1121,6 +1180,17 @@
       "transcript": "Transkript",
       "faces": "Gesichter ({{count}})"
     },
+    "comment": {
+      "addPlaceholder": "Kommentar schreiben…",
+      "post": "Kommentar senden",
+      "edit": "Kommentar bearbeiten",
+      "delete": "Kommentar löschen",
+      "save": "Speichern",
+      "cancel": "Abbrechen",
+      "postError": "Kommentar konnte nicht gesendet werden",
+      "editError": "Kommentar konnte nicht aktualisiert werden",
+      "deleteError": "Kommentar konnte nicht gelöscht werden"
+    },
     "meta": {
       "title": "Metadaten",
       "size": "Größe",
@@ -1133,10 +1203,33 @@
     },
     "action": {
       "process": "Verarbeiten",
-      "createTask": "Aufgabe erstellen"
+      "createTask": "Aufgabe erstellen",
+      "save": "Speichern",
+      "delete": "Löschen",
+      "noPipelines": "Keine Pipelines verfügbar"
+    },
+    "dialog": {
+      "delete": "Asset löschen"
+    },
+    "confirm": {
+      "delete": "{{name}} löschen? Dies kann nicht rückgängig gemacht werden."
+    },
+    "toast": {
+      "saved": "Asset gespeichert",
+      "saveFailed": "Asset konnte nicht gespeichert werden",
+      "deleted": "Asset gelöscht",
+      "deleteFailed": "Asset konnte nicht gelöscht werden",
+      "processStarted": "Verarbeitung gestartet",
+      "processFailed": "Verarbeitung konnte nicht gestartet werden"
     },
     "tag": {
-      "addPlaceholder": "Tag hinzufügen…"
+      "addPlaceholder": "Tag hinzufügen…",
+      "regionToggle": "Region taggen: Box im Bild zeichnen oder Bereich auf der Zeitleiste wählen",
+      "regionHintImage": "Box im Bild zeichnen…",
+      "regionHintVideo": "Bereich auf der Zeitleiste ziehen…",
+      "regionCaptured": "Region erfasst — Namen eingeben und Enter drücken",
+      "regionTooltip": "Region-Tag (Zeit / Bereich)",
+      "newRegion": "neue Region"
     },
     "sidebar": {
       "filterPlaceholder": "Filtern…"

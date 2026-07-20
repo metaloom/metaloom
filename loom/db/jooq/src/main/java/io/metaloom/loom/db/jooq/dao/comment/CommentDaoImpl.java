@@ -41,10 +41,11 @@ public class CommentDaoImpl extends AbstractJooqDao<Comment> implements CommentD
 	}
 
 	@Override
-	public Comment createComment(UUID userUuid, String title, String text) {
+	public Comment createComment(UUID userUuid, UUID assetUuid, String title, String text) {
 		Comment comment = new CommentImpl();
 		comment.setTitle(title);
 		comment.setText(text);
+		comment.setAssetUuid(assetUuid);
 		setCreatorEditor(comment, userUuid);
 		return comment;
 	}
@@ -53,6 +54,13 @@ public class CommentDaoImpl extends AbstractJooqDao<Comment> implements CommentD
 	public List<Comment> loadForTask(UUID taskUuid) {
 		return ctx().select(getTable()).from(getTable())
 			.where(COMMENT.TASK_UUID.eq(taskUuid))
+			.fetchInto(getPojoClass());
+	}
+
+	@Override
+	public List<Comment> loadForAsset(UUID assetUuid) {
+		return ctx().select(getTable()).from(getTable())
+			.where(COMMENT.ASSET_UUID.eq(assetUuid))
 			.fetchInto(getPojoClass());
 	}
 

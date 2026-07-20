@@ -36,8 +36,8 @@ import {
   SpaceResponse,
 } from "../../api/spaces";
 import {
-  listTokens, createToken, deleteToken as deleteTokenApi,
-  TokenResponse,
+  listTokens, createToken, deleteToken as deleteTokenApi, updateToken,
+  TokenResponse, TokenUpdateRequest,
 } from "../../api/tokens";
 
 // ── Spaces Table ──────────────────────────────────────────────────────────
@@ -923,6 +923,8 @@ function ApiKeysAdmin() {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [menuKeyId, setMenuKeyId] = useState<string | null>(null);
   const [createdToken, setCreatedToken] = useState<string | null>(null);
+  const [editKey, setEditKey] = useState<TokenResponse | null>(null);
+  const [editName, setEditName] = useState("");
 
   useEffect(() => {
     if (!authToken) return;
@@ -949,6 +951,23 @@ function ApiKeysAdmin() {
       setKeys(prev => prev.filter(k => k.uuid !== uuid));
     } catch { /* ignore */ }
     setMenuAnchor(null); setMenuKeyId(null);
+  };
+
+  const openEdit = (k: TokenResponse) => {
+    setEditKey(k);
+    setEditName(k.name);
+    setMenuAnchor(null); setMenuKeyId(null);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!authToken || !editKey) return;
+    const name = editName.trim();
+    const request: TokenUpdateRequest = { name: name || undefined };
+    try {
+      await updateToken(authToken, editKey.uuid, request);
+      setKeys(prev => prev.map(k => k.uuid === editKey.uuid ? { ...k, name } : k));
+      setEditKey(null);
+    } catch { /* ignore */ }
   };
 
   return (
@@ -1011,6 +1030,9 @@ function ApiKeysAdmin() {
         </Table>
       </TableContainer>
       <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => { setMenuAnchor(null); setMenuKeyId(null); }}>
+        <MenuItem onClick={() => { const k = keys.find(k => k.uuid === menuKeyId); if (k) openEdit(k); }} sx={{ gap: 1, fontSize: "0.82rem" }}>
+          <EditOutlined sx={{ fontSize: 16 }} /> {t("admin.apiKeys.menu.rename")}
+        </MenuItem>
         <MenuItem onClick={() => menuKeyId && handleDelete(menuKeyId)} sx={{ gap: 1, fontSize: "0.82rem", color: tokens.accent.red }}>
           <DeleteOutlineOutlined sx={{ fontSize: 16 }} /> {t("admin.apiKeys.menu.delete")}
         </MenuItem>
@@ -1065,6 +1087,37 @@ function ApiKeysAdmin() {
               {creating ? t("admin.apiKeys.dialog.creating") : t("admin.apiKeys.dialog.createKey")}
             </Button>
           )}
+        </DialogActions>
+      </Dialog>
+
+      {/* Rename API Key dialog */}
+      <Dialog open={Boolean(editKey)} onClose={() => setEditKey(null)} maxWidth="sm" fullWidth
+        PaperProps={{ sx: { bgcolor: tokens.bg.surface, border: `1px solid ${tokens.border.subtle}` } }}>
+        <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1, pb: 1 }}>
+          <EditOutlined sx={{ fontSize: 18, color: tokens.primary.main }} />
+          <Typography fontWeight={700} sx={{ fontSize: "1rem" }}>{t("admin.apiKeys.dialog.edit")}</Typography>
+          <IconButton size="small" onClick={() => setEditKey(null)} sx={{ ml: "auto" }}>
+            <CloseOutlined sx={{ fontSize: 16 }} />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 1 }}>
+          <Stack spacing={2.5}>
+            <TextField
+              label={t("admin.apiKeys.dialog.keyName")}
+              placeholder={t("admin.apiKeys.dialog.keyPlaceholder")}
+              value={editName}
+              onChange={e => setEditName(e.target.value)}
+              size="small"
+              fullWidth
+              autoFocus
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+          <Button size="small" onClick={() => setEditKey(null)}>{t("common.cancel")}</Button>
+          <Button size="small" variant="contained" onClick={handleSaveEdit} disabled={!editName.trim()}>
+            {t("common.save")}
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

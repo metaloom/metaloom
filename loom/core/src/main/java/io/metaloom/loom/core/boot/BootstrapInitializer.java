@@ -14,6 +14,7 @@ import io.metaloom.loom.auth.AuthenticationService;
 import io.metaloom.loom.mcp.MCPService;
 import io.metaloom.loom.rest.RESTService;
 import io.metaloom.loom.rest.UIService;
+import io.metaloom.loom.rest.service.impl.AssetPipelineTrigger;
 import io.metaloom.loom.server.grpc.GrpcService;
 import io.vertx.core.http.HttpServer;
 
@@ -40,9 +41,12 @@ public class BootstrapInitializer {
 
 	private final HttpServer httpServer;
 
+	private final AssetPipelineTrigger assetPipelineTrigger;
+
 	@Inject
 	public BootstrapInitializer(GrpcService grpcService, RESTService restService, UIService uiService, MCPService mcpService, AuthenticationService authService,
-		Flyway flyway, DatabaseInitializer initializer, DemoDatabaseInitializer demoInitializer, HttpServer httpServer) {
+		Flyway flyway, DatabaseInitializer initializer, DemoDatabaseInitializer demoInitializer, HttpServer httpServer,
+		AssetPipelineTrigger assetPipelineTrigger) {
 		this.grpcService = grpcService;
 		this.restService = restService;
 		this.uiService = uiService;
@@ -52,6 +56,7 @@ public class BootstrapInitializer {
 		this.initializer = initializer;
 		this.demoInitializer = demoInitializer;
 		this.httpServer = httpServer;
+		this.assetPipelineTrigger = assetPipelineTrigger;
 	}
 
 	public void init(boolean migrate) throws IOException {
@@ -96,6 +101,13 @@ public class BootstrapInitializer {
 			uiService.start();
 		} catch (Exception e) {
 			throw new RuntimeException("Error while starting UI service", e);
+		}
+
+		try {
+			log.info("Registering asset pipeline trigger");
+			assetPipelineTrigger.register();
+		} catch (Exception e) {
+			throw new RuntimeException("Error while registering asset pipeline trigger", e);
 		}
 
 		try {

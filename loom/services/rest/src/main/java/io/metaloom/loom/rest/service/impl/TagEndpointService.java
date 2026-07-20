@@ -26,6 +26,7 @@ import io.metaloom.loom.db.model.tag.TagDao;
 import io.metaloom.loom.rest.LoomRoutingContext;
 import io.metaloom.loom.rest.builder.LoomModelBuilder;
 import io.metaloom.loom.rest.model.RestResponseModel;
+import io.metaloom.loom.rest.model.annotation.AreaInfo;
 import io.metaloom.loom.rest.model.tag.TagCreateRequest;
 import io.metaloom.loom.rest.model.tag.TagUpdateRequest;
 import io.metaloom.loom.rest.service.AbstractCRUDEndpointService;
@@ -104,6 +105,16 @@ public class TagEndpointService extends AbstractCRUDEndpointService<TagDao, Tag>
 			UUID userUuid = lrc.userUuid();
 			AssetTag tag = dao().createAssetTag(userUuid, name, collection);
 			update(request::getMeta, tag::setMeta);
+
+			AreaInfo area = request.getArea();
+			if (area != null) {
+				update(area::getHeight, tag::setAreaHeight);
+				update(area::getWidth, tag::setAreaWidth);
+				update(area::getStartX, tag::setAreaStartX);
+				update(area::getStartY, tag::setAreaStartY);
+				update(area::getFrom, tag::setTimeFrom);
+				update(area::getTo, tag::setTimeTo);
+			}
 
 			dao().store(tag);
 			dao().tagAsset(tag, asset);

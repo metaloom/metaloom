@@ -50,27 +50,6 @@ Legend: ✅ covered · ⚠️ partial / dead code / backend bug · ❌ missing.
 
 ---
 
-## Task: Wire Cluster create/update/delete into the face-detection UI
-
-**Argumentation Summary:** [clusters.ts](../../../loom-ui/src/api/clusters.ts) implements the full CRUD surface of [ClusterEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/ClusterEndpoint.java) (`createCluster`, `updateCluster`, `deleteCluster`, `loadCluster`, `listClusters`). But only `listClusters` is actually invoked anywhere — `grep` shows usages solely in [FaceDetectionManagement.tsx](../../../loom-ui/src/features/faceDetection/FaceDetectionManagement.tsx) and [AssetDetail.tsx](../../../loom-ui/src/features/assetDetail/AssetDetail.tsx), both read-only. `createCluster`/`updateCluster`/`deleteCluster` are dead code: the UI cannot create, rename, or delete a cluster even though the backend supports it.
-
-**Improvement Summary:** Add cluster create/rename/delete controls to the face-detection clusters panel, wiring the existing client functions.
-
-```
-1. In loom-ui/src/features/faceDetection/ClustersPanel.tsx (currently only renders the listed
-   clusters) add: a "Create cluster" action, per-cluster rename (calls updateCluster), and delete
-   (calls deleteCluster) — mirror the pattern already used for persons in PersonsPanel.tsx
-   (apiUpdatePerson/apiDeletePerson).
-2. Import createCluster/updateCluster/deleteCluster from ../../api/clusters and refresh the list
-   held in FaceDetectionManagement.tsx after each mutation.
-```
-
-**References:**
-- REST: [ClusterEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/ClusterEndpoint.java)
-- UI: [clusters.ts](../../../loom-ui/src/api/clusters.ts), [ClustersPanel.tsx](../../../loom-ui/src/features/faceDetection/ClustersPanel.tsx), [FaceDetectionManagement.tsx](../../../loom-ui/src/features/faceDetection/FaceDetectionManagement.tsx), reference [PersonsPanel.tsx](../../../loom-ui/src/features/faceDetection/PersonsPanel.tsx)
-
-**Test Requirements:**
-- New e2e spec `loom-ui/e2e/clusters-backend.spec.ts`: create a cluster from the UI, rename it, delete it, asserting each state via the clusters panel (no clusters spec exists today).
 
 ---
 

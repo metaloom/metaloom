@@ -1,22 +1,56 @@
-import React from "react";
+import React, { useState } from "react";
 import {
-  Box, Typography, Paper, Avatar, Chip, IconButton, Tooltip,
+  Box, Typography, Paper, Avatar, Chip, IconButton, Tooltip, Dialog, DialogTitle,
+  DialogContent, DialogActions, Button, TextField,
 } from "@mui/material";
 import {
-  GroupWorkOutlined, LinkOutlined,
+  GroupWorkOutlined, LinkOutlined, EditOutlined, DeleteOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { FaceCluster, Person } from "../../types";
 import { useTranslation } from "react-i18next";
+import { useAuth } from "../../context/AuthContext";
+import { deleteCluster as apiDeleteCluster, updateCluster as apiUpdateCluster } from "../../api/clusters";
 
 interface ClustersPanelProps {
   clusters: FaceCluster[];
   persons: Person[];
   onAssignCluster: (clusterId: string) => void;
+  onClusterDeleted?: (id: string) => void;
+  onClusterUpdated?: (cluster: FaceCluster) => void;
 }
 
-export default function ClustersPanel({ clusters, persons, onAssignCluster }: ClustersPanelProps) {
+export default function ClustersPanel({ clusters, persons, onAssignCluster, onClusterDeleted, onClusterUpdated }: ClustersPanelProps) {
   const { t } = useTranslation();
+  const { token } = useAuth();
+  const [editCluster, setEditCluster] = useState<FaceCluster | null>(null);
+  const [editName, setEditName] = useState("");
+
+  const handleDelete = async (id: string) => {
+    if (!token) return;
+    try {
+      await apiDeleteCluster(token, id);
+      onClusterDeleted?.(id);
+    } catch (e) {
+      console.error("Failed to delete cluster", e);
+    }
+  };
+
+  const openEdit = (cluster: FaceCluster) => {
+    setEditCluster(cluster);
+    setEditName(cluster.label);
+  };
+
+  const handleUpdate = async () => {
+    if (!editCluster || !token) return;
+    try {
+      await apiUpdateCluster(token, editCluster.id, { name: editName });
+      onClusterUpdated?.({ ...editCluster, label: editName });
+    } catch (e) {
+      console.error("Failed to update cluster", e);
+    }
+    setEditCluster(null);
+  };
 
   return (
     <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 2 }}>
@@ -53,6 +87,14 @@ export default function ClustersPanel({ clusters, persons, onAssignCluster }: Cl
                   </IconButton>
                 </Tooltip>
               )}
+              <Box sx={{ display: "flex", flexDirection: "column" }}>
+                <IconButton size="small" onClick={() => openEdit(cluster)}>
+                  <EditOutlined sx={{ fontSize: 16 }} />
+                </IconButton>
+                <IconButton size="small" onClick={() => handleDelete(cluster.id)}>
+                  <DeleteOutlined sx={{ fontSize: 16 }} />
+                </IconButton>
+              </Box>
             </Box>
             {/* Face thumbnails grid */}
             <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap", p: 1.5 }}>
@@ -76,6 +118,25 @@ export default function ClustersPanel({ clusters, persons, onAssignCluster }: Cl
           <Typography variant="body2" color="text.secondary">{t("faceDetection.empty.clusters")}</Typography>
         </Box>
       )}
+
+      {/* Edit Cluster Dialog */}
+      <Dialog open={!!editCluster} onClose={() => setEditCluster(null)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontSize: "0.95rem", fontWeight: 700 }}>{t("faceDetection.dialog.editCluster")}</DialogTitle>
+        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: "8px !important" }}>
+          <TextField
+            label={t("faceDetection.label.name")}
+            value={editName}
+            onChange={e => setEditName(e.target.value)}
+            size="small"
+            fullWidth
+            autoFocus
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditCluster(null)} size="small">{t("faceDetection.button.cancel")}</Button>
+          <Button onClick={handleUpdate} variant="contained" size="small" disabled={!editName.trim()}>{t("faceDetection.button.save")}</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

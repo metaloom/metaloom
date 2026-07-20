@@ -19,34 +19,6 @@ Legend: ✅ covered · ⚠️ partial / not persisted / weak coverage · ❌ mis
 
 ---
 
-## Task: Wire Token (API key) rename/update into the Admin UI
-
-**Argumentation Summary:** The REST API exposes `POST /api/v1/tokens/:uuid` for updating a token, and the UI client `updateToken()` (plus `loadToken()`) already exists in [tokens.ts](../../../loom-ui/src/api/tokens.ts). However a grep of `loom-ui/src` shows `updateToken`/`loadToken` are **never invoked** from any screen — `ApiKeysAdmin` in [AdminArea.tsx](../../../loom-ui/src/features/admin/AdminArea.tsx) only wires `listTokens`, `createToken`, and `deleteToken`. There is therefore no way in the UI to rename an existing API key, even though the backend supports it.
-
-**Improvement Summary:** Add a rename (edit) action to the API Keys admin table that calls the existing `updateToken()` client, mirroring the edit dialogs already present for Groups and Users.
-
-```
-In loom-ui/src/features/admin/AdminArea.tsx, function ApiKeysAdmin() (starts ~line 915):
-- Import updateToken (and optionally loadToken) from ../../api/tokens (currently only listTokens,
-  createToken, deleteToken/deleteTokenApi are imported).
-- Add a "Rename" MenuItem to the existing per-row <Menu> (next to the Delete item ~line 1013-1017).
-- Add an edit dialog with a single "name" TextField, pre-filled from the selected TokenResponse.name,
-  that on save calls updateToken(authToken, uuid, { name }) and updates local `keys` state.
-- Reuse the TokenUpdateRequest shape ({ name?: string }) already defined in tokens.ts.
-The backend TokenEndpointService.update already applies request.getName(), so no server change is needed.
-```
-
-**References:**
-- [loom-ui/src/api/tokens.ts](../../../loom-ui/src/api/tokens.ts) — `updateToken`, `loadToken` (unused)
-- [loom-ui/src/features/admin/AdminArea.tsx](../../../loom-ui/src/features/admin/AdminArea.tsx) — `ApiKeysAdmin`
-- `loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/TokenEndpoint.java` — `POST /tokens/:uuid`
-- `loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/TokenEndpointService.java` — `update()`
-
-**Test Requirements:**
-- Extend the new `tokens-backend.spec.ts` (see next task) with a "rename an API key" case: create a key, open its menu, rename it, and assert the new name renders in the table.
-
----
-
 ## Task: Add an end-to-end spec for Token (API key) management
 
 **Argumentation Summary:** `ApiKeysAdmin` performs real create / list / delete against `GET|POST|DELETE /api/v1/tokens`, yet there is **no `tokens-backend.spec.ts`** in `loom-ui/e2e/` — every other RBAC element (users, groups, roles) has one. Token CRUD is entirely untested at the UI level.

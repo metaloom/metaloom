@@ -96,4 +96,64 @@ test.describe("Assets – full backend e2e", () => {
     // "drone-coastal.mp4" should be visible, others should be filtered
     await expect(page.getByText("drone-coastal.mp4")).toBeVisible({ timeout: 5_000 });
   });
+
+  test("asset create → edit → delete via API", async ({ page }) => {
+    // Load the app so relative /api/v1 fetches hit the Vite proxy → backend.
+    await page.goto("/");
+
+    // A valid 128-hex SHA-512 (SHA512.fromString requires exactly 128 hex chars).
+    const sha512 = "b".repeat(128);
+
+    const result = await page.evaluate(async (sha) => {
+      // Authenticate directly against the REST API to obtain a bearer token.
+      const loginRes = await fetch(`/api/v1/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: "admin", password: "finger" }),
+      });
+      if (!loginRes.ok) return { error: `login failed ${loginRes.status}` };
+      const token = (await loginRes.json()).token as string;
+      const headers = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
+
+      // Create (metadata) — mandatory: file.{filename,mimeType,origin,size} + hashes.sha512.
+      const createRes = await fetch(`/api/v1/assets`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          file: { filename: "e2e-created.bin", mimeType: "application/octet-stream", origin: "e2e", size: 5 },
+          hashes: { sha512: sha },
+        }),
+      });
+      const created = await createRes.json();
+      if (!created.uuid) return { error: "create failed", created };
+
+      // Edit metadata (partial update).
+      const updateRes = await fetch(`/api/v1/assets/${created.uuid}`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ filename: "e2e-renamed.bin", meta: { reviewed: true } }),
+      });
+      const updated = await updateRes.json();
+
+      // Load to confirm the rename stuck.
+      const loadRes = await fetch(`/api/v1/assets/${created.uuid}`, { headers });
+      const loaded = await loadRes.json();
+
+      // Delete.
+      const deleteRes = await fetch(`/api/v1/assets/${created.uuid}`, { method: "DELETE", headers });
+
+      return {
+        createdUuid: created.uuid,
+        updatedFilename: updated.file?.filename,
+        loadedFilename: loaded.file?.filename,
+        deleteStatus: deleteRes.status,
+      };
+    }, sha512);
+
+    expect(result).not.toHaveProperty("error");
+    const r = result as Record<string, unknown>;
+    expect(r.createdUuid).toBeTruthy();
+    expect(r.loadedFilename).toBe("e2e-renamed.bin");
+    expect([200, 204]).toContain(r.deleteStatus);
+  });
 });

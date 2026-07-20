@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyDescription;
 
 import io.metaloom.loom.rest.model.MetaModel;
 import io.metaloom.loom.rest.model.RestRequestModel;
+import io.metaloom.loom.rest.model.annotation.AreaInfo;
 import io.vertx.core.json.JsonObject;
 
 public class TagCreateRequest implements MetaModel<TagCreateRequest>, RestRequestModel {
@@ -20,6 +21,10 @@ public class TagCreateRequest implements MetaModel<TagCreateRequest>, RestReques
 	@JsonProperty(required = false)
 	@JsonPropertyDescription("Additional custom meta properties for the element.")
 	private JsonObject meta;
+
+	@JsonProperty(required = false)
+	@JsonPropertyDescription("Spatial or temporal area of the asset that the tag references.")
+	private AreaInfo area;
 
 	public TagCreateRequest() {
 	}
@@ -50,6 +55,15 @@ public class TagCreateRequest implements MetaModel<TagCreateRequest>, RestReques
 	@Override
 	public TagCreateRequest setMeta(JsonObject meta) {
 		this.meta = meta;
+		return this;
+	}
+
+	public AreaInfo getArea() {
+		return area;
+	}
+
+	public TagCreateRequest setArea(AreaInfo area) {
+		this.area = area;
 		return this;
 	}
 

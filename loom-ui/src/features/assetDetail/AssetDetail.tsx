@@ -5,6 +5,8 @@ import {
   Box, Typography, Chip, IconButton, Tab, Tabs,
   Tooltip, LinearProgress, TextField, InputAdornment,
   Menu, MenuItem, ListItemIcon, ListItemText,
+  Button, CircularProgress,
+  Dialog, DialogTitle, DialogContent, DialogActions,
 } from "@mui/material";
 import {
   ArrowBack, PlayArrowOutlined, PauseOutlined,
@@ -12,19 +14,23 @@ import {
   ThumbUpAltOutlined, TaskAltOutlined, AccountTreeOutlined,
   FaceOutlined, SearchOutlined,
   MoreVertOutlined, SendOutlined, AddTaskOutlined,
-  CollectionsOutlined,
+  CollectionsOutlined, CropFreeOutlined, SaveOutlined, DeleteOutlineOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { Asset, AssetType, AssetStatus, Comment, Annotation, Reaction, Task, TranscriptSection, DetectedFace, FaceCluster, Person } from "../../types";
 import { useAuth } from "../../context/AuthContext";
-import { loadAsset as apiLoadAsset, AssetResponse } from "../../api/assets";
+import { useToast } from "../../context/ToastContext";
+import { loadAsset as apiLoadAsset, updateAsset, deleteAsset, AssetResponse, TagReference } from "../../api/assets";
+import { listPipelines, runPipeline, PipelineResponse } from "../../api/pipelines";
+import { tagAsset as apiTagAsset, untagAsset as apiUntagAsset } from "../../api/tags";
+import { AreaInfo } from "../../api/annotations";
 import { listPersons, PersonResponse } from "../../api/persons";
 import { listClusters, ClusterResponse as ClusterApiResponse } from "../../api/clusters";
 import { listAssetDetections } from "../../api/detections";
 import { listAssetTranscripts } from "../../api/transcripts";
 import { AnnotationResponseItem } from "../../api/annotations";
 import { listAssetReactions, ReactionResponseItem } from "../../api/reactions";
-import { listComments, CommentResponse } from "../../api/comments";
+import { listCommentsForAsset, createCommentForAsset, updateComment, deleteComment, CommentResponse } from "../../api/comments";
 import { apiToAsset, formatDuration, formatBytes, userName, tagBreadcrumb } from "./helpers";
 import { VideoTimeline, TimelineMarker } from "./VideoTimeline";
 import { ZoomableImage } from "./ZoomableImage";
@@ -36,12 +42,25 @@ import { TranscriptPanel } from "./TranscriptPanel";
 import { FaceDetectionPanel } from "./FaceDetectionPanel";
 
 
+// Map a REST comment response onto the local Comment view model.
+function commentResponseToComment(c: CommentResponse, assetId: string): Comment {
+  return {
+    id: c.uuid,
+    assetId: c.assetUuid ?? assetId,
+    authorId: c.status?.creator?.uuid ?? "",
+    title: c.title,
+    text: c.text ?? "",
+    createdAt: c.status?.created ?? "",
+    updatedAt: c.status?.edited ?? c.status?.created ?? "",
+  };
+}
+
 // ── Main Asset Detail ─────────────────────────────────────────────────────
 export default function AssetDetail() {
   const { t: tAD } = useTranslation("translation", { keyPrefix: "assetDetail" });
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { token } = useAuth();
+  const { token, userUuid } = useAuth();
   const [asset, setAsset] = useState<Asset | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
@@ -60,9 +79,21 @@ export default function AssetDetail() {
   const [hoveredMarkerId, setHoveredMarkerId] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [tagInput, setTagInput] = useState("");
+  const [commentInput, setCommentInput] = useState("");
+  const [postingComment, setPostingComment] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [assetTags, setAssetTags] = useState<TagReference[]>([]);
+  const [regionMode, setRegionMode] = useState(false);
+  const [pendingArea, setPendingArea] = useState<AreaInfo | null>(null);
   const tagInputRef = useRef<HTMLInputElement>(null);
   const [actionMenuAnchor, setActionMenuAnchor] = useState<null | HTMLElement>(null);
   const [pipelineMenuAnchor, setPipelineMenuAnchor] = useState<null | HTMLElement>(null);
+  const { showToast } = useToast();
+  const { t: tCommon } = useTranslation();
+  const [editName, setEditName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [pipelines, setPipelines] = useState<PipelineResponse[]>([]);
   // Draggable left/right split (percentage)
   const [leftPct, setLeftPct] = useState(60);
   const isDragging = useRef(false);
@@ -74,7 +105,10 @@ export default function AssetDetail() {
     if (!id || !token) return;
     // Load asset from real API
     apiLoadAsset(token, id).then(resp => {
-      setAsset(apiToAsset(resp));
+      const mapped = apiToAsset(resp);
+      setAsset(mapped);
+      setEditName(mapped.name);
+      setAssetTags(resp.tags ?? []);
       // Extract collections from the asset response
       setAssetCollections((resp.collections ?? []).map(c => ({ uuid: c.uuid, name: c.name })));
       // Extract annotations from the asset response
@@ -95,6 +129,9 @@ export default function AssetDetail() {
       setAnnotations(restAnnotations);
     }).catch(() => { /* asset not found */ });
 
+    // Load pipelines for the "Process" menu
+    listPipelines(token).then(resp => setPipelines(resp.data ?? [])).catch(() => { /* pipelines optional */ });
+
     // Load reactions from REST
     listAssetReactions(token, id).then(resp => {
       const restReactions: Reaction[] = (resp.data ?? []).map((r: ReactionResponseItem) => ({
@@ -110,15 +147,7 @@ export default function AssetDetail() {
 
     // Comments from REST API, other social features still use mock services
     Promise.all([
-      token ? listComments(token).then(r => (r.data ?? []).map((c: CommentResponse): Comment => ({
-        id: c.uuid,
-        assetId: id,
-        authorId: c.status?.creator?.uuid ?? "",
-        title: c.title,
-        text: c.text ?? "",
-        createdAt: c.status?.created ?? "",
-        updatedAt: c.status?.edited ?? c.status?.created ?? "",
-      }))) : Promise.resolve([] as Comment[]),
+      token ? listCommentsForAsset(token, id).then(r => (r.data ?? []).map((c: CommentResponse) => commentResponseToComment(c, id))) : Promise.resolve([] as Comment[]),
       Promise.resolve([] as Task[]),
       token ? listAssetTranscripts(token, id).then(resp => {
         const sections: TranscriptSection[] = [];
@@ -172,6 +201,46 @@ export default function AssetDetail() {
     });
   }, [id, token]);
 
+  // ── Comment authoring handlers ──────────────────────────────────────
+  const handlePostComment = useCallback(async () => {
+    const text = commentInput.trim();
+    if (!text || !token || !id || postingComment) return;
+    setPostingComment(true);
+    try {
+      const created = await createCommentForAsset(token, id, { text });
+      setComments(prev => [commentResponseToComment(created, id), ...prev]);
+      setCommentInput("");
+    } catch {
+      showToast(tAD("comment.postError"), "error");
+    } finally {
+      setPostingComment(false);
+    }
+  }, [commentInput, token, id, postingComment, showToast, tAD]);
+
+  const handleEditComment = useCallback(async (commentId: string, text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed || !token) return;
+    try {
+      const updated = await updateComment(token, commentId, { text: trimmed });
+      setComments(prev => prev.map(c => (c.id === commentId
+        ? commentResponseToComment(updated, c.assetId)
+        : c)));
+      setEditingCommentId(null);
+    } catch {
+      showToast(tAD("comment.editError"), "error");
+    }
+  }, [token, showToast, tAD]);
+
+  const handleDeleteComment = useCallback(async (commentId: string) => {
+    if (!token) return;
+    try {
+      await deleteComment(token, commentId);
+      setComments(prev => prev.filter(c => c.id !== commentId));
+    } catch {
+      showToast(tAD("comment.deleteError"), "error");
+    }
+  }, [token, showToast, tAD]);
+
   // Draggable divider handlers
   const handleDividerMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -213,6 +282,86 @@ export default function AssetDetail() {
   const isVideo = asset.type === "video";
   const duration = asset.duration ?? 0;
 
+  // ── Asset metadata edit / delete / process ──────────────────────────────
+  const nameDirty = editName.trim() !== "" && editName.trim() !== asset.name;
+
+  const handleSave = () => {
+    if (!token || !nameDirty) return;
+    setSaving(true);
+    updateAsset(token, asset.id, { filename: editName.trim(), meta: asset.metadata })
+      .then(resp => {
+        setAsset(apiToAsset(resp));
+        setEditName(apiToAsset(resp).name);
+        showToast(tAD("toast.saved"), "success");
+      })
+      .catch(() => showToast(tAD("toast.saveFailed"), "error"))
+      .finally(() => setSaving(false));
+  };
+
+  const handleDeleteAsset = () => {
+    if (!token) return;
+    deleteAsset(token, asset.id)
+      .then(() => {
+        showToast(tAD("toast.deleted"), "success");
+        navigate("/assets");
+      })
+      .catch(() => showToast(tAD("toast.deleteFailed"), "error"));
+  };
+
+  const handleRunPipeline = (pipelineUuid: string) => {
+    if (!token) return;
+    setPipelineMenuAnchor(null);
+    setActionMenuAnchor(null);
+    runPipeline(token, pipelineUuid, { mediaUuids: [asset.id] })
+      .then(resp => showToast(resp.dispatched ? tAD("toast.processStarted") : (resp.message || tAD("toast.processFailed")), resp.dispatched ? "success" : "error"))
+      .catch(() => showToast(tAD("toast.processFailed"), "error"));
+  };
+
+  // ── Region tagging helpers ──────────────────────────────────────────────
+  // Area coordinates are stored as normalized permille (0-1000) because the DB columns are ints.
+  const DEFAULT_TAG_COLLECTION = "default";
+  const toPermille = (v: number) => Math.round(v * 1000);
+  const fromPermille = (v: number) => v / 1000;
+  const isSpatial = (a?: AreaInfo) => !!a && a.startX != null && a.startY != null && a.width != null && a.height != null;
+  const isTemporal = (a?: AreaInfo) => !!a && a.from != null;
+
+  const reloadTags = () => {
+    if (!token) return Promise.resolve();
+    return apiLoadAsset(token, asset.id).then(resp => {
+      setAsset(apiToAsset(resp));
+      setAssetTags(resp.tags ?? []);
+    }).catch(() => { /* reload failed */ });
+  };
+
+  const handleAddTag = (rawName: string) => {
+    const name = rawName.trim();
+    if (!name || !token) return;
+    const request = { name, collection: DEFAULT_TAG_COLLECTION, ...(pendingArea ? { area: pendingArea } : {}) };
+    apiTagAsset(token, asset.id, request).then(() => reloadTags()).catch(() => { /* tag failed */ });
+    setTagInput("");
+    setPendingArea(null);
+    setRegionMode(false);
+  };
+
+  const handleRemoveTag = (uuid: string) => {
+    if (!token) return;
+    apiUntagAsset(token, asset.id, uuid).then(() => reloadTags()).catch(() => { /* untag failed */ });
+  };
+
+  // Existing spatial region tags (normalized 0-1) plus the in-progress selection preview.
+  const imageRegions = [
+    ...assetTags.filter(t => isSpatial(t.area)).map(t => ({
+      id: t.uuid, label: t.name, color: tokens.primary.main,
+      x: fromPermille(t.area!.startX!), y: fromPermille(t.area!.startY!),
+      width: fromPermille(t.area!.width!), height: fromPermille(t.area!.height!),
+    })),
+    ...(isSpatial(pendingArea ?? undefined) ? [{
+      id: "__pending__", label: tagInput || tAD("tag.newRegion"), color: tokens.accent.amber,
+      x: fromPermille(pendingArea!.startX!), y: fromPermille(pendingArea!.startY!),
+      width: fromPermille(pendingArea!.width!), height: fromPermille(pendingArea!.height!),
+    }] : []),
+  ];
+
   // Build timeline markers
   const markers: TimelineMarker[] = [
     ...comments.filter(c => c.timestampStart != null).map(c => ({
@@ -226,6 +375,11 @@ export default function AssetDetail() {
     ...reactions.filter(r => r.timestamp != null).map(r => ({
       time: r.timestamp!, type: "reaction" as const,
       color: reactionColor[r.type] ?? tokens.text.secondary, label: r.type, id: r.id,
+    })),
+    ...assetTags.filter(t => isTemporal(t.area)).map(t => ({
+      // area.from/to are milliseconds; the timeline works in seconds.
+      time: t.area!.from! / 1000, endTime: t.area!.to != null ? t.area!.to / 1000 : undefined,
+      type: "tag" as const, color: tokens.primary.main, label: t.name, id: t.uuid,
     })),
   ];
 
@@ -253,7 +407,14 @@ export default function AssetDetail() {
           <ArrowBack sx={{ fontSize: 18 }} />
         </IconButton>
         <Box sx={{ flex: 1, overflow: "hidden" }}>
-          <Typography variant="h6" fontWeight={700} noWrap sx={{ fontSize: "0.95rem" }}>{asset.name}</Typography>
+          <TextField
+            value={editName}
+            onChange={e => setEditName(e.target.value)}
+            variant="standard"
+            fullWidth
+            InputProps={{ disableUnderline: true, sx: { fontSize: "0.95rem", fontWeight: 700 } }}
+            sx={{ "& .MuiInput-root:hover": { bgcolor: tokens.bg.elevated }, borderRadius: tokens.radius.sm, px: 0.5 }}
+          />
           <Box sx={{ display: "flex", gap: 0.75, alignItems: "center", flexWrap: "wrap" }}>
             <Chip label={asset.type} size="small" sx={{ height: 16, fontSize: "0.65rem", bgcolor: tokens.bg.elevated }} />
             <Chip
@@ -280,6 +441,21 @@ export default function AssetDetail() {
             ))}
           </Box>
         </Box>
+        {/* Save filename/meta */}
+        <Tooltip title={tAD("action.save")}>
+          <span>
+            <Button
+              size="small"
+              variant="contained"
+              startIcon={saving ? <CircularProgress size={13} /> : <SaveOutlined sx={{ fontSize: 15 }} />}
+              disabled={!nameDirty || saving}
+              onClick={handleSave}
+              sx={{ fontSize: "0.75rem" }}
+            >
+              {tAD("action.save")}
+            </Button>
+          </span>
+        </Tooltip>
         {/* Actions menu */}
         <IconButton size="small" onClick={e => setActionMenuAnchor(e.currentTarget)}>
           <MoreVertOutlined sx={{ fontSize: 18 }} />
@@ -294,6 +470,10 @@ export default function AssetDetail() {
             <ListItemIcon><AddTaskOutlined sx={{ fontSize: 16 }} /></ListItemIcon>
             <ListItemText primaryTypographyProps={{ fontSize: "0.85rem" }}>{tAD("action.createTask")}</ListItemText>
           </MenuItem>
+          <MenuItem onClick={() => { setActionMenuAnchor(null); setDeleteOpen(true); }}>
+            <ListItemIcon><DeleteOutlineOutlined sx={{ fontSize: 16, color: tokens.accent.red }} /></ListItemIcon>
+            <ListItemText primaryTypographyProps={{ fontSize: "0.85rem", color: tokens.accent.red }}>{tAD("action.delete")}</ListItemText>
+          </MenuItem>
         </Menu>
         <Menu
           anchorEl={pipelineMenuAnchor}
@@ -302,8 +482,12 @@ export default function AssetDetail() {
           anchorOrigin={{ vertical: "top", horizontal: "right" }}
           transformOrigin={{ vertical: "top", horizontal: "left" }}
         >
-          {([] as { id: string; name: string }[]).map(p => (
-            <MenuItem key={p.id} onClick={() => { setPipelineMenuAnchor(null); setActionMenuAnchor(null); }} sx={{ gap: 1 }}>
+          {pipelines.length === 0 ? (
+            <MenuItem disabled sx={{ gap: 1 }}>
+              <Typography variant="body2" sx={{ fontSize: "0.82rem", color: tokens.text.tertiary }}>{tAD("action.noPipelines")}</Typography>
+            </MenuItem>
+          ) : pipelines.map(p => (
+            <MenuItem key={p.uuid} onClick={() => handleRunPipeline(p.uuid)} sx={{ gap: 1 }}>
               <AccountTreeOutlined sx={{ fontSize: 14, color: tokens.primary.main }} />
               <Typography variant="body2" sx={{ fontSize: "0.82rem" }}>{p.name}</Typography>
             </MenuItem>
@@ -344,6 +528,15 @@ export default function AssetDetail() {
               <ZoomableImage
                 src={asset.url || asset.thumbnailUrl}
                 alt={asset.name}
+                selectMode={regionMode}
+                regions={imageRegions}
+                onRegionSelect={r => {
+                  setPendingArea({
+                    startX: toPermille(r.x), startY: toPermille(r.y),
+                    width: toPermille(r.width), height: toPermille(r.height),
+                  });
+                  tagInputRef.current?.focus();
+                }}
               />
             )}
           </Box>
@@ -359,6 +552,11 @@ export default function AssetDetail() {
                 onSeek={setCurrentTime}
                 onMarkerClick={handleMarkerClick}
                 onMarkerHover={setHoveredMarkerId}
+                rangeMode={regionMode}
+                onRangeSelect={(from, to) => {
+                  setPendingArea({ from: Math.round(from * 1000), to: Math.round(to * 1000) });
+                  tagInputRef.current?.focus();
+                }}
                 onMarkerDrag={(markerId, edge, newTime) => {
                   // Update comment or annotation time when dragging handles
                   const comment = comments.find(c => c.id === markerId);
@@ -389,21 +587,46 @@ export default function AssetDetail() {
             </Box>
           )}
 
-          {/* Tags — editable */}
-          <Box sx={{ px: 2, py: 1, bgcolor: tokens.bg.surface, display: "flex", gap: 0.5, flexWrap: "wrap", alignItems: "center", borderTop: `1px solid ${tokens.border.subtle}` }}>
-            {asset.tags.map(t => {
-              const bc = tagBreadcrumb(t);
+          {/* Tags — editable (persisted via the /assets/:uuid/tags endpoint) */}
+          <Box sx={{ px: 2, py: 1, bgcolor: tokens.bg.surface, display: "flex", gap: 0.5, flexWrap: "wrap", alignItems: "center", borderTop: `1px solid ${tokens.border.subtle}` }} data-testid="asset-tags">
+            {assetTags.map(t => {
+              const region = !!t.area && (isSpatial(t.area) || isTemporal(t.area));
+              const bc = tagBreadcrumb(t.name);
+              const title = region ? tAD("tag.regionTooltip") : (bc || "");
               return (
-                <Tooltip key={t} title={bc || ""} placement="top" arrow>
+                <Tooltip key={t.uuid} title={title} placement="top" arrow>
                   <Chip
-                    label={t}
+                    label={t.name}
                     size="small"
-                    onDelete={() => { asset.tags = asset.tags.filter(tag => tag !== t); setAsset({ ...asset }); }}
-                    sx={{ height: 20, fontSize: "0.7rem", bgcolor: tokens.bg.elevated, color: tokens.text.secondary }}
+                    icon={region ? <CropFreeOutlined sx={{ fontSize: 12 }} /> : undefined}
+                    onDelete={() => handleRemoveTag(t.uuid)}
+                    data-testid={region ? "region-tag-chip" : "tag-chip"}
+                    sx={{
+                      height: 20, fontSize: "0.7rem",
+                      bgcolor: region ? `${tokens.primary.main}22` : tokens.bg.elevated,
+                      color: region ? tokens.primary.main : tokens.text.secondary,
+                      "& .MuiChip-icon": { color: tokens.primary.main },
+                    }}
                   />
                 </Tooltip>
               );
             })}
+            {/* Region-tag toggle: draw a box (image) or select a time range (video) for the next tag. */}
+            <Tooltip title={tAD("tag.regionToggle")} placement="top" arrow>
+              <IconButton
+                size="small"
+                onClick={() => { setRegionMode(m => !m); setPendingArea(null); }}
+                data-testid="region-mode-toggle"
+                sx={{ p: 0.25, color: regionMode ? tokens.primary.main : tokens.text.tertiary, bgcolor: regionMode ? `${tokens.primary.main}18` : "transparent" }}
+              >
+                <CropFreeOutlined sx={{ fontSize: 15 }} />
+              </IconButton>
+            </Tooltip>
+            {regionMode && (
+              <Typography variant="caption" sx={{ fontSize: "0.66rem", color: pendingArea ? tokens.accent.green : tokens.text.tertiary }}>
+                {pendingArea ? tAD("tag.regionCaptured") : (isVideo ? tAD("tag.regionHintVideo") : tAD("tag.regionHintImage"))}
+              </Typography>
+            )}
             <TextField
               inputRef={tagInputRef}
               value={tagInput}
@@ -411,20 +634,13 @@ export default function AssetDetail() {
               onKeyDown={e => {
                 if (e.key === "Enter" && tagInput.trim()) {
                   e.preventDefault();
-                  const newTag = tagInput.trim();
-                  if (!asset.tags.includes(newTag)) {
-                    asset.tags = [...asset.tags, newTag];
-                    setAsset({ ...asset });
-                  }
-                  setTagInput("");
-                } else if (e.key === "Backspace" && tagInput === "" && asset.tags.length > 0) {
-                  asset.tags = asset.tags.slice(0, -1);
-                  setAsset({ ...asset });
+                  handleAddTag(tagInput);
                 }
               }}
               placeholder={tAD("tag.addPlaceholder")}
               size="small"
               variant="standard"
+              inputProps={{ "data-testid": "tag-input" }}
               sx={{ minWidth: 80, maxWidth: 140, "& .MuiInput-root": { fontSize: "0.75rem" }, "& .MuiInput-underline:before": { borderBottom: "none" }, "& .MuiInput-underline:hover:before": { borderBottom: `1px solid ${tokens.border.default}` } }}
             />
           </Box>
@@ -577,6 +793,34 @@ export default function AssetDetail() {
               const filtered = sq ? comments.filter(c => (c.title?.toLowerCase().includes(sq)) || c.text.toLowerCase().includes(sq) || userName(c.authorId).toLowerCase().includes(sq)) : comments;
               return (
               <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
+                {/* Composer */}
+                <Box sx={{ display: "flex", alignItems: "flex-end", gap: 0.75, mb: 0.5 }}>
+                  <TextField
+                    fullWidth
+                    multiline
+                    maxRows={4}
+                    size="small"
+                    value={commentInput}
+                    onChange={(e) => setCommentInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handlePostComment();
+                      }
+                    }}
+                    placeholder={tAD("comment.addPlaceholder")}
+                    disabled={!token || postingComment}
+                    inputProps={{ "aria-label": tAD("comment.addPlaceholder") }}
+                  />
+                  <IconButton
+                    aria-label={tAD("comment.post")}
+                    color="primary"
+                    disabled={!commentInput.trim() || !token || postingComment}
+                    onClick={handlePostComment}
+                  >
+                    {postingComment ? <CircularProgress size={18} /> : <SendOutlined fontSize="small" />}
+                  </IconButton>
+                </Box>
                 {filtered.length === 0 ? (
                   <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 4, gap: 1 }}>
                     <ChatBubbleOutlineOutlined sx={{ fontSize: 32, color: tokens.text.tertiary }} />
@@ -589,6 +833,12 @@ export default function AssetDetail() {
                     highlighted={highlightedId === c.id || hoveredMarkerId === c.id}
                     onTimeClick={(t) => { setCurrentTime(t); setHighlightedId(null); }}
                     onHover={setHoveredMarkerId}
+                    currentUserUuid={userUuid}
+                    editing={editingCommentId === c.id}
+                    onStartEdit={() => setEditingCommentId(c.id)}
+                    onCancelEdit={() => setEditingCommentId(null)}
+                    onEdit={handleEditComment}
+                    onDelete={handleDeleteComment}
                   />
                 ))}
               </Box>
@@ -715,6 +965,18 @@ export default function AssetDetail() {
           </Box>
         </Box>
       )}
+
+      {/* Delete confirmation */}
+      <Dialog open={deleteOpen} onClose={() => setDeleteOpen(false)} PaperProps={{ sx: { bgcolor: tokens.bg.panel, border: `1px solid ${tokens.border.default}`, minWidth: 340 } }}>
+        <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700, pb: 1 }}>{tAD("dialog.delete")}</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary">{tAD("confirm.delete", { name: asset.name })}</Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setDeleteOpen(false)} size="small" sx={{ color: tokens.text.secondary }}>{tCommon("assets.button.cancel")}</Button>
+          <Button onClick={handleDeleteAsset} size="small" variant="contained" sx={{ bgcolor: tokens.accent.red, "&:hover": { bgcolor: tokens.accent.red } }}>{tCommon("assets.button.delete")}</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

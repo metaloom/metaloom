@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "./config";
-import { AnnotationResponseItem } from "./annotations";
+import { AnnotationResponseItem, AreaInfo } from "./annotations";
 
 // ── Types matching the Loom REST API response models ──────────────────
 
@@ -22,6 +22,8 @@ export interface TagReference {
   name: string;
   collection: string;
   color?: string;
+  /** Spatial/temporal region of the asset this tag references (region tags only). */
+  area?: AreaInfo;
 }
 
 export interface CollectionRef {
@@ -113,7 +115,8 @@ export interface AssetCreateRequest {
     size?: number;
     origin?: string;
   };
-  hash?: {
+  // NOTE: the backend field is `hashes` (plural). `sha512` is required for a create to succeed.
+  hashes?: {
     sha512?: string;
   };
   tags?: { name: string; collection?: string }[];
@@ -123,6 +126,36 @@ export interface AssetCreateRequest {
 export interface AssetUpdateRequest {
   filename?: string;
   meta?: Record<string, unknown>;
+}
+
+// ── Bulk request/response models (POST /assets/bulk/create|update) ─────
+
+export interface AssetBulkCreateRequest {
+  assets: AssetCreateRequest[];
+}
+
+export interface AssetBulkUpdateEntry {
+  hashes: { sha512: string };
+  update: AssetUpdateRequest;
+}
+
+export interface AssetBulkUpdateRequest {
+  assets: AssetBulkUpdateEntry[];
+}
+
+export interface AssetBulkItemResponse {
+  index: number;
+  uuid?: string;
+  sha512?: string;
+  status: "CREATED" | "UPDATED" | "FAILED";
+  error?: string;
+}
+
+export interface AssetBulkResponse {
+  items: AssetBulkItemResponse[];
+  total: number;
+  created: number;
+  failed: number;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -200,4 +233,59 @@ export async function deleteAsset(
     const text = await res.text().catch(() => "");
     throw new Error(`Delete failed ${res.status}: ${text}`);
   }
+}
+
+// ── Upload API (multipart) ────────────────────────────────────────────
+
+/**
+ * Upload a real file to create an asset. The backend persists the bytes, creates
+ * the asset from the derived file metadata and sha512, and dispatches an event so
+ * a matching pipeline can process it.
+ *
+ * Note: no `Content-Type` header is set — the browser sets the multipart boundary.
+ */
+export async function uploadAsset(
+  token: string,
+  file: File,
+  libraryUuid: string,
+  opts?: { origin?: string }
+): Promise<AssetResponse> {
+  const form = new FormData();
+  form.append("file", file, file.name);
+  form.append("libraryUuid", libraryUuid);
+  if (opts?.origin) {
+    form.append("origin", opts.origin);
+  }
+  const res = await fetch(`${API_BASE_URL}/assets/upload`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  return handleResponse<AssetResponse>(res);
+}
+
+// ── Bulk API ──────────────────────────────────────────────────────────
+
+export async function bulkCreateAssets(
+  token: string,
+  request: AssetBulkCreateRequest
+): Promise<AssetBulkResponse> {
+  const res = await fetch(`${API_BASE_URL}/assets/bulk/create`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(request),
+  });
+  return handleResponse<AssetBulkResponse>(res);
+}
+
+export async function bulkUpdateAssets(
+  token: string,
+  request: AssetBulkUpdateRequest
+): Promise<AssetBulkResponse> {
+  const res = await fetch(`${API_BASE_URL}/assets/bulk/update`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(request),
+  });
+  return handleResponse<AssetBulkResponse>(res);
 }

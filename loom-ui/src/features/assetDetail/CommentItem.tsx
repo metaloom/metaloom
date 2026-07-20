@@ -1,11 +1,39 @@
-import React from "react";
-import { Avatar, Box, Chip, Typography } from "@mui/material";
-import { AccessTimeOutlined } from "@mui/icons-material";
+import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Avatar, Box, Button, Chip, IconButton, TextField, Tooltip, Typography } from "@mui/material";
+import { AccessTimeOutlined, EditOutlined, DeleteOutlineOutlined } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { Comment } from "../../types";
 import { formatDuration, userName } from "./helpers";
 
-export function CommentItem({ comment, highlighted, onTimeClick, onHover }: { comment: Comment; highlighted: boolean; onTimeClick?: (t: number) => void; onHover?: (id: string | null) => void }) {
+export function CommentItem({
+  comment,
+  highlighted,
+  onTimeClick,
+  onHover,
+  currentUserUuid,
+  editing,
+  onStartEdit,
+  onCancelEdit,
+  onEdit,
+  onDelete,
+}: {
+  comment: Comment;
+  highlighted: boolean;
+  onTimeClick?: (t: number) => void;
+  onHover?: (id: string | null) => void;
+  currentUserUuid?: string | null;
+  editing?: boolean;
+  onStartEdit?: (id: string) => void;
+  onCancelEdit?: () => void;
+  onEdit?: (id: string, text: string) => void;
+  onDelete?: (id: string) => void;
+}) {
+  const { t } = useTranslation("translation", { keyPrefix: "assetDetail" });
+  const [draft, setDraft] = useState(comment.text);
+  const isAuthor = !!currentUserUuid && comment.authorId === currentUserUuid;
+  const canEdit = isAuthor && !!onEdit && !!onDelete;
+
   return (
     <Box
       onMouseEnter={() => onHover?.(comment.id)}
@@ -19,6 +47,7 @@ export function CommentItem({ comment, highlighted, onTimeClick, onHover }: { co
         border: highlighted ? `1px solid ${tokens.primary.glow}` : "1px solid transparent",
         transition: "all 160ms ease",
         cursor: "default",
+        "&:hover .comment-actions": { opacity: 1 },
       }}
     >
       <Avatar sx={{ width: 26, height: 26, fontSize: "0.65rem", bgcolor: tokens.bg.overlay, color: tokens.text.secondary, flexShrink: 0 }}>
@@ -41,13 +70,58 @@ export function CommentItem({ comment, highlighted, onTimeClick, onHover }: { co
           <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem", ml: "auto" }}>
             {new Date(comment.createdAt).toLocaleDateString()}
           </Typography>
+          {canEdit && !editing && (
+            <Box className="comment-actions" sx={{ display: "flex", gap: 0.25, opacity: 0, transition: "opacity 120ms ease" }}>
+              <Tooltip title={t("comment.edit")}>
+                <IconButton
+                  size="small"
+                  aria-label={t("comment.edit")}
+                  data-testid="comment-edit"
+                  onClick={() => { setDraft(comment.text); onStartEdit?.(comment.id); }}
+                  sx={{ p: 0.25 }}
+                >
+                  <EditOutlined sx={{ fontSize: 15 }} />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title={t("comment.delete")}>
+                <IconButton
+                  size="small"
+                  aria-label={t("comment.delete")}
+                  data-testid="comment-delete"
+                  onClick={() => onDelete?.(comment.id)}
+                  sx={{ p: 0.25, color: tokens.accent.red }}
+                >
+                  <DeleteOutlineOutlined sx={{ fontSize: 15 }} />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          )}
         </Box>
         {comment.title && (
           <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.8rem", color: tokens.text.primary, mb: 0.25 }}>{comment.title}</Typography>
         )}
-        <Typography variant="body2" sx={{ fontSize: "0.82rem", color: tokens.text.secondary, lineHeight: 1.55 }}>
-          {comment.text}
-        </Typography>
+        {editing ? (
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75, mt: 0.5 }}>
+            <TextField
+              fullWidth
+              multiline
+              maxRows={6}
+              size="small"
+              autoFocus
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              inputProps={{ "aria-label": t("comment.edit"), "data-testid": "comment-edit-field" }}
+            />
+            <Box sx={{ display: "flex", gap: 0.75, justifyContent: "flex-end" }}>
+              <Button size="small" data-testid="comment-cancel" onClick={() => onCancelEdit?.()}>{t("comment.cancel")}</Button>
+              <Button size="small" variant="contained" data-testid="comment-save" disabled={!draft.trim()} onClick={() => onEdit?.(comment.id, draft)}>{t("comment.save")}</Button>
+            </Box>
+          </Box>
+        ) : (
+          <Typography variant="body2" sx={{ fontSize: "0.82rem", color: tokens.text.secondary, lineHeight: 1.55 }}>
+            {comment.text}
+          </Typography>
+        )}
       </Box>
     </Box>
   );

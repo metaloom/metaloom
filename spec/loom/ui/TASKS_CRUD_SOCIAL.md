@@ -29,73 +29,6 @@ and `assignedTo`/`reactions` are commented-out placeholders in
 No UI gap can exist for endpoints the backend does not expose; these are backend feature
 gaps, out of scope for this UI-coverage document.
 
----
-
-## Task: Expose task priority in the create/edit UI
-
-**Argumentation Summary:** The REST create endpoint accepts a `priority`
-(`TaskPriority` = LOW/MEDIUM/HIGH/CRITICAL) —
-[TaskCreateRequest.java](../../../loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/model/task/TaskCreateRequest.java)
-carries the field and `POST /api/v1/tasks`
-([TaskEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/TaskEndpoint.java) lines 52-59) persists it. The UI, however, never sends it: `handleCreateTask` in
-[TasksView.tsx](../../../loom-ui/src/features/tasks/TasksView.tsx) (lines 208-221) posts only
-`title` + `description`, and there is no priority selector in the create dialog or edit drawer.
-Every task therefore falls back to the display default `"MEDIUM"` (line 37/127), so priority is
-effectively read-only in the product even though the API supports setting it at creation.
-
-**Improvement Summary:** Add a priority dropdown to the create dialog (and edit drawer) and
-send it through the `tasks.ts` client.
-
-```
-- Add a MUI Select/ToggleButtonGroup bound to a `newPriority` state (default MEDIUM) in the
-  create Dialog in TasksView.tsx, offering LOW/MEDIUM/HIGH/CRITICAL.
-- Pass `priority` in the createTask(...) call (tasks.ts already types priority on
-  TaskCreateRequest at line 32, so no client change is needed for create).
-- REST caveat: TaskUpdateRequest.java has NO priority field, so editing priority after
-  creation is not yet possible server-side. If edit-time priority is desired, add `priority`
-  to TaskUpdateRequest.java + TaskEndpointService.update, then add it to tasks.ts
-  TaskUpdateRequest and the edit drawer. Otherwise scope this task to create-time only.
-```
-
-**References:**
-- REST: [TaskEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/TaskEndpoint.java), [TaskCreateRequest.java](../../../loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/model/task/TaskCreateRequest.java), [TaskUpdateRequest.java](../../../loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/model/task/TaskUpdateRequest.java), [TaskPriority.java](../../../loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/model/task/TaskPriority.java)
-- UI: [tasks.ts](../../../loom-ui/src/api/tasks.ts), [TasksView.tsx](../../../loom-ui/src/features/tasks/TasksView.tsx)
-
-**Test Requirements:**
-- Extend [tasks-backend.spec.ts](../../../loom-ui/e2e/tasks-backend.spec.ts) create flow to pick a non-default priority and assert the resulting row/drawer chip renders that priority.
-- Unit test that `createTask` serialises `priority` into the POST body.
-
----
-
-## Task: Integrate task reactions (create/list/update/delete) in the UI
-
-**Argumentation Summary:** The REST API exposes a full reaction sub-resource on tasks —
-`POST/GET /api/v1/tasks/:taskUuid/reactions`, `GET/POST/DELETE
-/api/v1/tasks/:taskUuid/reactions/:reactionUuid`
-([TaskEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/TaskEndpoint.java) lines 96-116). The UI has zero coverage: [reactions.ts](../../../loom-ui/src/api/reactions.ts) only
-implements `listAssetReactions`/`loadAssetReaction`, and [TasksView.tsx](../../../loom-ui/src/features/tasks/TasksView.tsx)
-renders no reaction affordance. Users cannot react to a task or see task reactions.
-
-**Improvement Summary:** Add task-reaction client functions and surface them in the task
-detail drawer.
-
-```
-- Add to reactions.ts: listTaskReactions(token, taskUuid), createTaskReaction(token,
-  taskUuid, {type, rating}), updateTaskReaction(...), deleteTaskReaction(token, taskUuid,
-  reactionUuid) targeting /tasks/:taskUuid/reactions[/:reactionUuid].
-- ReactionType values come from the backend enum: THUMBSUP/THUMBSDOWN/SATISFIED/PLUS_ONE/
-  MINUS_ONE (ReactionType.java); rating is an Integer (ReactionModel.java).
-- In TaskDetailDrawer (TasksView.tsx) add a reactions section: load on open, render existing
-  reactions as chips, add a react button, allow deleting the current user's reaction.
-```
-
-**References:**
-- REST: [TaskEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/TaskEndpoint.java), [ReactionEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/ReactionEndpoint.java), [ReactionModel.java](../../../loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/model/reaction/ReactionModel.java), `ReactionType` enum (`io.metaloom.loom.api.reaction.ReactionType`)
-- UI: [reactions.ts](../../../loom-ui/src/api/reactions.ts), [TasksView.tsx](../../../loom-ui/src/features/tasks/TasksView.tsx)
-
-**Test Requirements:**
-- New e2e: open a task, add a reaction, assert it appears, delete it, assert it is gone.
-- Unit tests for the four new `reactions.ts` task functions (URL + method + body).
 
 ---
 
@@ -135,39 +68,6 @@ a comment-composer.
 
 ---
 
-## Task: Wire comment authoring (create/edit/delete) into a UI surface
-
-**Argumentation Summary:** [comments.ts](../../../loom-ui/src/api/comments.ts) implements the
-full CRUD client — `listComments`, `loadComment`, `createComment`, `updateComment`,
-`deleteComment` — matching `POST /api/v1/comments`, `POST/DELETE/GET /api/v1/comments/:uuid`
-([CommentEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/CommentEndpoint.java) lines 52-94). But only `listComments` is ever invoked
-(read-only, in [AssetDetail.tsx](../../../loom-ui/src/features/assetDetail/AssetDetail.tsx)
-line 113); `createComment`, `updateComment`, `deleteComment`, and `loadComment` are dead code
-— defined but rendered in no screen. The AssetDetail "Comments" tab lists comments but offers
-no way to post, edit, or remove one.
-
-**Improvement Summary:** Add a comment composer + edit/delete controls to the AssetDetail
-comments tab, invoking the existing (currently unused) client functions.
-
-```
-- In AssetDetail.tsx comments tab (around line 577+), add a text input + submit that calls
-  createComment(token, {title?, text}) and refreshes the list.
-- Add inline edit (updateComment) and delete (deleteComment) controls per comment for the
-  authoring user.
-- Verify how a comment is scoped to the asset — the flat POST /comments has no assetUuid in
-  CommentCreateRequest, so confirm the association path in CommentEndpointService before
-  wiring (may require a service/route addition on the backend).
-```
-
-**References:**
-- REST: [CommentEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/CommentEndpoint.java), [CommentCreateRequest.java](../../../loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/model/comment/CommentCreateRequest.java)
-- UI: [comments.ts](../../../loom-ui/src/api/comments.ts), [AssetDetail.tsx](../../../loom-ui/src/features/assetDetail/AssetDetail.tsx)
-
-**Test Requirements:**
-- E2E: on an asset detail, post a comment, edit it, delete it; assert each step.
-- Unit tests confirming `createComment`/`updateComment`/`deleteComment` hit the right URL/method.
-
----
 
 ## Task: Integrate comment reactions in the UI
 

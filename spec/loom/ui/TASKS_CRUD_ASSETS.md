@@ -22,42 +22,6 @@
 
 Legend: ✅ covered · ⚠️ partial / client present but unwired · ❌ missing · — not applicable
 
----
-
-## Task: Wire Asset create, update, and delete into the UI
-
-**Argumentation Summary:** The REST `AssetEndpoint` exposes `POST /assets` (create), `POST|PATCH|PUT /assets/:uuid` (update), `DELETE /assets/:uuid` (delete), plus SHA-512 variants and `/bulk/create` + `/bulk/update`. The UI client [assets.ts](../../../loom-ui/src/api/assets.ts) already implements `createAsset`, `updateAsset`, and `deleteAsset`, but a repo-wide grep shows they are **never imported or called** anywhere outside `api/assets.ts` — only `listAssets`/`loadAsset` are wired. [AssetBrowser.tsx](../../../loom-ui/src/features/assets/AssetBrowser.tsx) has no "New / Upload" affordance and [AssetDetail.tsx](../../../loom-ui/src/features/assetDetail/AssetDetail.tsx) has no Save/Edit/Delete controls, so a user cannot create, rename, edit metadata, or delete an asset through the UI.
-
-**Improvement Summary:** Surface the existing (currently dead) client functions in the UI: an asset create/register dialog in the browser, an editable metadata/filename form with a Save action in the detail view, and a delete action with confirmation.
-
-```
-1. AssetBrowser (features/assets/AssetBrowser.tsx):
-   - Add a "New asset" / "Register asset" button in the toolbar (next to the
-     view-mode toggles around line 328) that opens a dialog collecting file
-     metadata (mimeType, filename, size, origin) + optional sha512 + tags,
-     and calls createAsset(token, AssetCreateRequest) then refreshes listAssets.
-   - Add a per-tile delete affordance (hover action) calling deleteAsset(token, uuid).
-2. AssetDetail (features/assetDetail/AssetDetail.tsx):
-   - Make filename + meta editable and add a Save button calling
-     updateAsset(token, uuid, { filename, meta }).
-   - Add a Delete button (with confirmation) calling deleteAsset then navigating
-     back to /assets.
-3. Consider exposing bulk create/update (POST /assets/bulk/create, /bulk/update)
-   for multi-select operations — no client method exists for these yet; add
-   bulkCreateAssets / bulkUpdateAssets to assets.ts if wiring them.
-```
-
-**References:**
-- REST: [AssetEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/AssetEndpoint.java) (lines 70–191, bulk 88–102)
-- UI client: [assets.ts](../../../loom-ui/src/api/assets.ts) (`createAsset` 166, `updateAsset` 178, `deleteAsset` 191)
-- UI screens: [AssetBrowser.tsx](../../../loom-ui/src/features/assets/AssetBrowser.tsx), [AssetDetail.tsx](../../../loom-ui/src/features/assetDetail/AssetDetail.tsx)
-
-**Test Requirements:**
-- Extend [assets-backend.spec.ts](../../../loom-ui/e2e/assets-backend.spec.ts) with create → edit metadata → delete flows against the backend.
-- Unit test the create dialog request mapping and the detail edit/save handler.
-
----
-
 ## Task: Add Asset Binary upload and download support
 
 **Argumentation Summary:** REST exposes binary handling in two places: `POST /assets/:uuid/binary` (create), `GET /assets/:uuid/binary` (load), `DELETE /assets/:uuid/binary` (delete) in [AssetEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/AssetEndpoint.java) (lines 327–349), plus a standalone [AssetBinaryEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/AssetBinaryEndpoint.java) with full CRUD/list at `/binaries`. The UI has **no binary client whatsoever** — there is no `binaries.ts`, and both [AssetBrowser.tsx](../../../loom-ui/src/features/assets/AssetBrowser.tsx) and [AssetDetail.tsx](../../../loom-ui/src/features/assetDetail/AssetDetail.tsx) set `thumbnailUrl: ""` / rely on an `asset.url` that is never populated. A user cannot upload a binary for a registered asset nor download/preview the original.

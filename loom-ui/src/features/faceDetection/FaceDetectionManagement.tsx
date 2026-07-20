@@ -12,7 +12,7 @@ import { FaceCluster, Person } from "../../types";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
 import { listPersons, createPerson as apiCreatePerson, PersonResponse } from "../../api/persons";
-import { listClusters as apiListClusters, ClusterResponse } from "../../api/clusters";
+import { listClusters as apiListClusters, createCluster as apiCreateCluster, ClusterResponse } from "../../api/clusters";
 import ClustersPanel from "./ClustersPanel";
 import PersonsPanel from "./PersonsPanel";
 
@@ -22,6 +22,8 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
   const [query, setQuery] = useState("");
   const [activeSection, setActiveSection] = useState<"clusters" | "persons">("clusters");
   const [createPersonOpen, setCreatePersonOpen] = useState(false);
+  const [createClusterOpen, setCreateClusterOpen] = useState(false);
+  const [newClusterName, setNewClusterName] = useState("");
   const [newPersonAlias, setNewPersonAlias] = useState("");
   const [newPersonFirstname, setNewPersonFirstname] = useState("");
   const [newPersonLastname, setNewPersonLastname] = useState("");
@@ -96,6 +98,18 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
     setCreatePersonOpen(false);
   };
 
+  const handleCreateCluster = async () => {
+    if (!newClusterName.trim() || !token) return;
+    try {
+      const resp = await apiCreateCluster(token, { name: newClusterName });
+      setClusters(prev => [...prev, toUiCluster(resp)]);
+    } catch (e) {
+      console.error("Failed to create cluster", e);
+    }
+    setNewClusterName("");
+    setCreateClusterOpen(false);
+  };
+
   const handleAssignCluster = async () => {
     if (!assignOpen || !assignPersonId) return;
     // TODO: implement cluster-to-person assignment via REST API when backend supports it
@@ -161,6 +175,16 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
             }}
           />
         </Box>
+        {activeSection === "clusters" && (
+          <Button
+            size="small"
+            startIcon={<AddOutlined sx={{ fontSize: 14 }} />}
+            onClick={() => setCreateClusterOpen(true)}
+            sx={{ ml: "auto", textTransform: "none", fontSize: "0.78rem" }}
+          >
+            {t("faceDetection.button.addCluster")}
+          </Button>
+        )}
         {activeSection === "persons" && (
           <Button
             size="small"
@@ -180,6 +204,8 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
             clusters={filteredClusters}
             persons={persons}
             onAssignCluster={(clusterId) => { setAssignOpen(clusterId); setAssignPersonId(""); }}
+            onClusterDeleted={(id) => setClusters(prev => prev.filter(c => c.id !== id))}
+            onClusterUpdated={(updated) => setClusters(prev => prev.map(c => c.id === updated.id ? updated : c))}
           />
         )}
         {activeSection === "persons" && (
@@ -191,6 +217,25 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
           />
         )}
       </Box>
+
+      {/* Create Cluster Dialog */}
+      <Dialog open={createClusterOpen} onClose={() => setCreateClusterOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontSize: "0.95rem", fontWeight: 700 }}>{t("faceDetection.dialog.addCluster")}</DialogTitle>
+        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: "8px !important" }}>
+          <TextField
+            label={t("faceDetection.label.name")}
+            value={newClusterName}
+            onChange={e => setNewClusterName(e.target.value)}
+            size="small"
+            fullWidth
+            autoFocus
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCreateClusterOpen(false)} size="small">{t("faceDetection.button.cancel")}</Button>
+          <Button onClick={handleCreateCluster} variant="contained" size="small" disabled={!newClusterName.trim()}>{t("faceDetection.button.create")}</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Create Person Dialog */}
       <Dialog open={createPersonOpen} onClose={() => setCreatePersonOpen(false)} maxWidth="xs" fullWidth>

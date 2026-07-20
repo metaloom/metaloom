@@ -1,21 +1,28 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box, Typography, TextField, InputAdornment, Chip, IconButton,
   ToggleButtonGroup, ToggleButton, Paper, Skeleton, Tooltip,
   FormControl, Select, MenuItem, SelectChangeEvent,
+  Button, Checkbox, CircularProgress, InputLabel,
+  Dialog, DialogTitle, DialogContent, DialogActions,
 } from "@mui/material";
 import {
   SearchOutlined, GridViewOutlined, FormatListBulletedOutlined,
   PlayCircleOutline, ImageOutlined, AudiotrackOutlined, InsertDriveFileOutlined,
   FilterListOutlined, Circle, PhotoSizeSelectSmallOutlined,
   PhotoSizeSelectActualOutlined, PhotoSizeSelectLargeOutlined,
+  CloudUploadOutlined, DeleteOutlined, LocalOfferOutlined, CloseOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { Asset, AssetType, AssetStatus } from "../../types";
 import { useAuth } from "../../context/AuthContext";
-import { listAssets, AssetResponse } from "../../api/assets";
+import {
+  listAssets, AssetResponse, uploadAsset, deleteAsset, bulkUpdateAssets,
+} from "../../api/assets";
+import { listLibraries, LibraryResponse } from "../../api/libraries";
 import { useSpace } from "../../context/SpaceContext";
+import { useToast } from "../../context/ToastContext";
 import { useTranslation } from "react-i18next";
 
 function formatBytes(bytes: number): string {
@@ -74,6 +81,7 @@ function toAsset(r: AssetResponse): Asset {
     height: video?.height ?? image?.height,
     fileSize: r.file?.size ?? 0,
     mimeType: mime,
+    sha512: r.hashes?.sha512,
     thumbnailUrl: "",
     url: "",
     ownerId: r.status?.creator?.uuid ?? "",
@@ -88,27 +96,69 @@ function toAsset(r: AssetResponse): Asset {
 // ── Asset Card (grid mode) ────────────────────────────────────────────────
 type CardSize = "small" | "medium" | "large";
 
-function AssetCard({ asset, cardSize = "medium" }: { asset: Asset; cardSize?: CardSize }) {
+interface CardProps {
+  asset: Asset;
+  cardSize?: CardSize;
+  selectionMode?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (id: string) => void;
+  onDelete?: (asset: Asset) => void;
+}
+
+function AssetCard({ asset, cardSize = "medium", selectionMode = false, selected = false, onToggleSelect, onDelete }: CardProps) {
   const navigate = useNavigate();
   const sc = statusColor[asset.status];
+
+  const handleClick = () => {
+    if (selectionMode) {
+      onToggleSelect?.(asset.id);
+    } else {
+      navigate(`/assets/${asset.id}`);
+    }
+  };
 
   return (
     <Paper
       elevation={0}
-      onClick={() => navigate(`/assets/${asset.id}`)}
+      onClick={handleClick}
       sx={{
         cursor: "pointer",
+        position: "relative",
         bgcolor: tokens.bg.elevated,
-        border: `1px solid ${tokens.border.subtle}`,
+        border: `1px solid ${selected ? tokens.primary.main : tokens.border.subtle}`,
         borderRadius: tokens.radius.lg,
         overflow: "hidden",
         transition: "border-color 140ms ease, box-shadow 140ms ease",
         "&:hover": {
-          borderColor: tokens.border.strong,
+          borderColor: selected ? tokens.primary.main : tokens.border.strong,
           boxShadow: `0 4px 20px rgba(0,0,0,0.35)`,
         },
+        "&:hover .asset-actions": { opacity: 1 },
       }}
     >
+      {/* Selection checkbox */}
+      {selectionMode && (
+        <Checkbox
+          checked={selected}
+          onClick={(e) => { e.stopPropagation(); onToggleSelect?.(asset.id); }}
+          size="small"
+          sx={{ position: "absolute", top: 2, left: 2, zIndex: 3, color: "#fff", "&.Mui-checked": { color: tokens.primary.main }, bgcolor: "rgba(0,0,0,0.4)", borderRadius: 1, p: 0.25 }}
+        />
+      )}
+      {/* Hover delete action */}
+      {!selectionMode && onDelete && (
+        <Box className="asset-actions" sx={{ position: "absolute", top: 6, right: 6, zIndex: 3, opacity: 0, transition: "opacity 140ms ease" }}>
+          <Tooltip title="Delete asset">
+            <IconButton
+              size="small"
+              onClick={(e) => { e.stopPropagation(); onDelete(asset); }}
+              sx={{ bgcolor: "rgba(0,0,0,0.6)", color: tokens.accent.red, width: 24, height: 24, "&:hover": { bgcolor: "rgba(0,0,0,0.8)" } }}
+            >
+              <DeleteOutlined sx={{ fontSize: 13 }} />
+            </IconButton>
+          </Tooltip>
+        </Box>
+      )}
       {/* Thumbnail */}
       <Box sx={{ position: "relative", paddingTop: "56.25%", bgcolor: tokens.bg.overlay }}>
         <img
@@ -165,21 +215,47 @@ function AssetCard({ asset, cardSize = "medium" }: { asset: Asset; cardSize?: Ca
 }
 
 // ── Asset Row (list mode) ─────────────────────────────────────────────────
-function AssetRow({ asset }: { asset: Asset }) {
+interface RowProps {
+  asset: Asset;
+  selectionMode?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (id: string) => void;
+  onDelete?: (asset: Asset) => void;
+}
+
+function AssetRow({ asset, selectionMode = false, selected = false, onToggleSelect, onDelete }: RowProps) {
   const navigate = useNavigate();
   const sc = statusColor[asset.status];
 
+  const handleClick = () => {
+    if (selectionMode) {
+      onToggleSelect?.(asset.id);
+    } else {
+      navigate(`/assets/${asset.id}`);
+    }
+  };
+
   return (
     <Box
-      onClick={() => navigate(`/assets/${asset.id}`)}
+      onClick={handleClick}
       sx={{
         display: "flex", alignItems: "center", gap: 1.5,
         px: 1.5, py: 1,
         borderRadius: tokens.radius.md,
         cursor: "pointer",
-        "&:hover": { bgcolor: tokens.bg.hover },
+        bgcolor: selected ? tokens.primary.subtle : "transparent",
+        "&:hover": { bgcolor: selected ? tokens.primary.subtle : tokens.bg.hover },
+        "&:hover .asset-row-delete": { opacity: 1 },
       }}
     >
+      {selectionMode && (
+        <Checkbox
+          checked={selected}
+          onClick={(e) => { e.stopPropagation(); onToggleSelect?.(asset.id); }}
+          size="small"
+          sx={{ p: 0.25, color: tokens.text.tertiary, "&.Mui-checked": { color: tokens.primary.main } }}
+        />
+      )}
       <Box sx={{ width: 48, height: 32, borderRadius: tokens.radius.sm, overflow: "hidden", flexShrink: 0, bgcolor: tokens.bg.overlay }}>
         <img src={asset.thumbnailUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} loading="lazy" />
       </Box>
@@ -204,6 +280,16 @@ function AssetRow({ asset }: { asset: Asset }) {
         {formatBytes(asset.fileSize)}
       </Typography>
       <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: sc, flexShrink: 0 }} />
+      {!selectionMode && onDelete && (
+        <IconButton
+          className="asset-row-delete"
+          size="small"
+          onClick={(e) => { e.stopPropagation(); onDelete(asset); }}
+          sx={{ opacity: 0, transition: "opacity 140ms ease", color: tokens.accent.red, width: 24, height: 24 }}
+        >
+          <DeleteOutlined sx={{ fontSize: 14 }} />
+        </IconButton>
+      )}
     </Box>
   );
 }
@@ -217,6 +303,7 @@ export default function AssetBrowser({ embedded = false }: Props) {
   const { activeSpace } = useSpace();
   const { token } = useAuth();
   const { t } = useTranslation();
+  const { showToast } = useToast();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [filtered, setFiltered] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
@@ -227,18 +314,129 @@ export default function AssetBrowser({ embedded = false }: Props) {
   const [typeFilter, setTypeFilter] = useState<AssetType | "all">("all");
   const [libraryFilter, setLibraryFilter] = useState<string>("all");
 
-  useEffect(() => {
+  // Libraries (for the upload dialog target)
+  const [libraries, setLibraries] = useState<LibraryResponse[]>([]);
+
+  // Upload dialog
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadLibrary, setUploadLibrary] = useState("");
+  const [uploadOrigin, setUploadOrigin] = useState("upload");
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Delete confirmation
+  const [deleteTarget, setDeleteTarget] = useState<Asset | null>(null);
+
+  // Multi-select + bulk
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkTagOpen, setBulkTagOpen] = useState(false);
+  const [bulkTag, setBulkTag] = useState("");
+  const [bulkBusy, setBulkBusy] = useState(false);
+
+  const reload = useCallback(() => {
     if (!token) return;
     setLoading(true);
     listAssets(token).then((resp) => {
       const mapped = (resp.data ?? []).map(toAsset);
       setAssets(mapped);
-      setFiltered(mapped);
       setLoading(false);
     }).catch(() => {
       setLoading(false);
     });
   }, [token]);
+
+  useEffect(() => {
+    reload();
+  }, [reload]);
+
+  useEffect(() => {
+    if (!token) return;
+    listLibraries(token).then(resp => setLibraries(resp.data ?? [])).catch(() => { /* libraries optional */ });
+  }, [token]);
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const exitSelection = () => { setSelectionMode(false); setSelected(new Set()); };
+
+  const handleUpload = async () => {
+    if (!token || !uploadFile || !uploadLibrary) return;
+    setUploading(true);
+    try {
+      const resp = await uploadAsset(token, uploadFile, uploadLibrary, { origin: uploadOrigin.trim() || undefined });
+      setAssets(prev => [toAsset(resp), ...prev]);
+      setUploadOpen(false);
+      setUploadFile(null);
+      showToast(t("assets.toast.uploaded"), "success");
+    } catch {
+      showToast(t("assets.toast.uploadFailed"), "error");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!token || !deleteTarget) return;
+    try {
+      await deleteAsset(token, deleteTarget.id);
+      setAssets(prev => prev.filter(a => a.id !== deleteTarget.id));
+      setDeleteTarget(null);
+      showToast(t("assets.toast.deleted"), "success");
+    } catch {
+      showToast(t("assets.toast.deleteFailed"), "error");
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!token || selected.size === 0) return;
+    setBulkBusy(true);
+    const ids = Array.from(selected);
+    const results = await Promise.allSettled(ids.map(id => deleteAsset(token, id)));
+    const okIds = ids.filter((_, i) => results[i].status === "fulfilled");
+    setAssets(prev => prev.filter(a => !okIds.includes(a.id)));
+    const failed = ids.length - okIds.length;
+    showToast(
+      failed === 0 ? t("assets.toast.bulkDeleted", { count: okIds.length })
+        : t("assets.toast.bulkDeletedPartial", { ok: okIds.length, failed }),
+      failed === 0 ? "success" : "error"
+    );
+    setBulkBusy(false);
+    exitSelection();
+  };
+
+  const handleBulkTag = async () => {
+    if (!token || selected.size === 0 || !bulkTag.trim()) return;
+    setBulkBusy(true);
+    // Bulk update is keyed by sha512; resolve it from the loaded asset responses.
+    const selectedAssets = assets.filter(a => selected.has(a.id));
+    const entries = selectedAssets
+      .filter(a => a.sha512)
+      .map(a => ({
+        hashes: { sha512: a.sha512! },
+        update: { meta: { tags: [...a.tags, bulkTag.trim()] } },
+      }));
+    try {
+      if (entries.length > 0) {
+        await bulkUpdateAssets(token, { assets: entries });
+      }
+      showToast(t("assets.toast.bulkTagged", { count: entries.length }), "success");
+      setBulkTagOpen(false);
+      setBulkTag("");
+      exitSelection();
+      reload();
+    } catch {
+      showToast(t("assets.toast.bulkTagFailed"), "error");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
 
   useEffect(() => {
     let res = assets;
@@ -351,7 +549,52 @@ export default function AssetBrowser({ embedded = false }: Props) {
               <Tooltip title={t("assets.tooltip.large")}><PhotoSizeSelectLargeOutlined sx={{ fontSize: 14 }} /></Tooltip>
             </ToggleButton>
           </ToggleButtonGroup>
+
+          <Box sx={{ flexGrow: 1 }} />
+
+          <Button
+            size="small"
+            variant="text"
+            onClick={() => { if (selectionMode) exitSelection(); else setSelectionMode(true); }}
+            sx={{ color: selectionMode ? tokens.primary.main : tokens.text.secondary, fontSize: "0.78rem" }}
+          >
+            {selectionMode ? t("assets.button.cancelSelect") : t("assets.button.select")}
+          </Button>
+
+          <Button
+            size="small"
+            variant="contained"
+            startIcon={<CloudUploadOutlined sx={{ fontSize: 16 }} />}
+            onClick={() => {
+              setUploadFile(null);
+              setUploadOrigin("upload");
+              setUploadLibrary(libraries[0]?.uuid ?? "");
+              setUploadOpen(true);
+            }}
+            sx={{ fontSize: "0.78rem" }}
+          >
+            {t("assets.button.upload")}
+          </Button>
         </Box>
+
+        {/* Bulk action bar (visible in selection mode) */}
+        {selectionMode && (
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, bgcolor: tokens.primary.subtle, borderRadius: tokens.radius.md, px: 1.25, py: 0.75 }}>
+            <Typography variant="caption" sx={{ fontSize: "0.75rem", color: tokens.primary.light, fontWeight: 600 }}>
+              {t("assets.select.count", { count: selected.size })}
+            </Typography>
+            <Box sx={{ flexGrow: 1 }} />
+            <Button size="small" startIcon={<LocalOfferOutlined sx={{ fontSize: 15 }} />} disabled={selected.size === 0 || bulkBusy}
+              onClick={() => { setBulkTag(""); setBulkTagOpen(true); }} sx={{ fontSize: "0.75rem", color: tokens.text.secondary }}>
+              {t("assets.button.bulkTag")}
+            </Button>
+            <Button size="small" startIcon={<DeleteOutlined sx={{ fontSize: 15 }} />} disabled={selected.size === 0 || bulkBusy}
+              onClick={handleBulkDelete} sx={{ fontSize: "0.75rem", color: tokens.accent.red }}>
+              {t("assets.button.bulkDelete")}
+            </Button>
+            <IconButton size="small" onClick={exitSelection}><CloseOutlined sx={{ fontSize: 16 }} /></IconButton>
+          </Box>
+        )}
 
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
           <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.72rem" }}>
@@ -383,19 +626,94 @@ export default function AssetBrowser({ embedded = false }: Props) {
           </Box>
         ) : viewMode === "grid" ? (
           <Box sx={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${cardSize === "small" ? "120px" : cardSize === "large" ? "260px" : "190px"}, 1fr))`, gap: cardSize === "small" ? 1 : 2 }}>
-            {filtered.map(a => <AssetCard key={a.id} asset={a} cardSize={cardSize} />)}
+            {filtered.map(a => (
+              <AssetCard
+                key={a.id}
+                asset={a}
+                cardSize={cardSize}
+                selectionMode={selectionMode}
+                selected={selected.has(a.id)}
+                onToggleSelect={toggleSelect}
+                onDelete={setDeleteTarget}
+              />
+            ))}
           </Box>
         ) : (
           <Paper elevation={0} sx={{ bgcolor: tokens.bg.elevated, border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.lg, overflow: "hidden" }}>
             {filtered.map((a, i) => (
               <React.Fragment key={a.id}>
-                <AssetRow asset={a} />
+                <AssetRow
+                  asset={a}
+                  selectionMode={selectionMode}
+                  selected={selected.has(a.id)}
+                  onToggleSelect={toggleSelect}
+                  onDelete={setDeleteTarget}
+                />
                 {i < filtered.length - 1 && <Box sx={{ height: 1, bgcolor: tokens.border.subtle, mx: 1.5 }} />}
               </React.Fragment>
             ))}
           </Paper>
         )}
       </Box>
+
+      {/* Upload dialog */}
+      <Dialog open={uploadOpen} onClose={() => !uploading && setUploadOpen(false)} PaperProps={{ sx: { bgcolor: tokens.bg.panel, border: `1px solid ${tokens.border.default}`, minWidth: 420 } }}>
+        <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700, pb: 1 }}>{t("assets.dialog.upload")}</DialogTitle>
+        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: "8px !important" }}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            hidden
+            onChange={e => setUploadFile(e.target.files?.[0] ?? null)}
+          />
+          <Button variant="outlined" startIcon={<CloudUploadOutlined sx={{ fontSize: 16 }} />} onClick={() => fileInputRef.current?.click()} sx={{ justifyContent: "flex-start" }}>
+            {uploadFile ? uploadFile.name : t("assets.upload.pickFile")}
+          </Button>
+          {uploadFile && (
+            <Typography variant="caption" color="text.secondary">
+              {uploadFile.type || "application/octet-stream"} · {formatBytes(uploadFile.size)}
+            </Typography>
+          )}
+          <FormControl size="small" fullWidth>
+            <InputLabel>{t("assets.upload.library")}</InputLabel>
+            <Select value={uploadLibrary} label={t("assets.upload.library")} onChange={(e: SelectChangeEvent) => setUploadLibrary(e.target.value)}>
+              {libraries.map(l => <MenuItem key={l.uuid} value={l.uuid}>{l.name}</MenuItem>)}
+            </Select>
+          </FormControl>
+          <TextField label={t("assets.upload.origin")} size="small" value={uploadOrigin} onChange={e => setUploadOrigin(e.target.value)} fullWidth />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setUploadOpen(false)} size="small" disabled={uploading} sx={{ color: tokens.text.secondary }}>{t("assets.button.cancel")}</Button>
+          <Button onClick={handleUpload} size="small" variant="contained" disabled={!uploadFile || !uploadLibrary || uploading}
+            startIcon={uploading ? <CircularProgress size={14} /> : undefined}>
+            {uploading ? t("assets.button.uploading") : t("assets.button.upload")}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete confirmation */}
+      <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)} PaperProps={{ sx: { bgcolor: tokens.bg.panel, border: `1px solid ${tokens.border.default}`, minWidth: 340 } }}>
+        <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700, pb: 1 }}>{t("assets.dialog.delete")}</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary">{t("assets.confirm.delete", { name: deleteTarget?.name })}</Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setDeleteTarget(null)} size="small" sx={{ color: tokens.text.secondary }}>{t("assets.button.cancel")}</Button>
+          <Button onClick={handleDelete} size="small" variant="contained" sx={{ bgcolor: tokens.accent.red, "&:hover": { bgcolor: tokens.accent.red } }}>{t("assets.button.delete")}</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Bulk tag dialog */}
+      <Dialog open={bulkTagOpen} onClose={() => !bulkBusy && setBulkTagOpen(false)} PaperProps={{ sx: { bgcolor: tokens.bg.panel, border: `1px solid ${tokens.border.default}`, minWidth: 360 } }}>
+        <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700, pb: 1 }}>{t("assets.dialog.bulkTag", { count: selected.size })}</DialogTitle>
+        <DialogContent sx={{ pt: "8px !important" }}>
+          <TextField label={t("assets.label.tag")} size="small" value={bulkTag} onChange={e => setBulkTag(e.target.value)} autoFocus fullWidth />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setBulkTagOpen(false)} size="small" disabled={bulkBusy} sx={{ color: tokens.text.secondary }}>{t("assets.button.cancel")}</Button>
+          <Button onClick={handleBulkTag} size="small" variant="contained" disabled={!bulkTag.trim() || bulkBusy}>{t("assets.button.apply")}</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

@@ -45,6 +45,7 @@ export interface Asset {
   height?: number;
   fileSize: number; // bytes
   mimeType: string;
+  sha512?: string; // content hash, used as the key for bulk update
   thumbnailUrl: string;
   url: string;
   ownerId: string;

@@ -6,6 +6,7 @@ export interface CommentResponse {
   uuid: string;
   title?: string;
   text?: string;
+  assetUuid?: string;
   meta?: Record<string, unknown>;
   status?: {
     creator?: { uuid: string; name?: string };
@@ -62,6 +63,36 @@ export async function listComments(token: string): Promise<CommentListResponse> 
     headers: authHeaders(token),
   });
   return handleResponse<CommentListResponse>(res);
+}
+
+export async function listCommentsForAsset(
+  token: string,
+  assetUuid: string
+): Promise<CommentListResponse> {
+  const res = await fetch(
+    `${API_BASE_URL}/assets/${encodeURIComponent(assetUuid)}/comments`,
+    {
+      method: "GET",
+      headers: authHeaders(token),
+    }
+  );
+  return handleResponse<CommentListResponse>(res);
+}
+
+export async function createCommentForAsset(
+  token: string,
+  assetUuid: string,
+  request: CommentCreateRequest
+): Promise<CommentResponse> {
+  const res = await fetch(
+    `${API_BASE_URL}/assets/${encodeURIComponent(assetUuid)}/comments`,
+    {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify(request),
+    }
+  );
+  return handleResponse<CommentResponse>(res);
 }
 
 export async function loadComment(

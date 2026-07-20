@@ -148,36 +148,49 @@ public class AssetEndpointService extends AbstractCRUDEndpointService<AssetDao, 
 		create(lrc, CREATE_ASSET, () -> {
 			AssetCreateRequest request = lrc.requestBody(AssetCreateRequest.class);
 			validator.validate(request);
-
-			UUID userUuid = lrc.userUuid();
-			HashInfo hashes = request.getHashes();
-
-			// Mandatory fields
-			SHA512 sha512sum = hashes.getSHA512();
-			String mimeType = request.getFile().getMimeType();
-			String filename = request.getFile().getFilename();
-			String origin = request.getFile().getOrigin();
-			Long size = request.getFile().getSize();
-
-			Asset asset = dao().createAsset(userUuid, sha512sum, mimeType, filename, origin, size);
-			updateAssetFields(request, asset);
-
-			// Store asset first so it gets a UUID (needed for FK constraints on child entities)
-			dao().store(asset);
-
-			// Create initial embedding for asset
-			for (EmbeddingCreateRequest embeddingRequest : request.getEmbeddings()) {
-				Float[] vectorData = embeddingRequest.getVector();
-				Embedding embedding = daos().embeddingDao().createEmbedding(userUuid, asset.getUuid(), vectorData,
-					EmbeddingType.VIDEO4J_FINGERPRINT_V2);
-				daos().embeddingDao().store(embedding);
-			}
-
-			// Create component records
-			createComponents(userUuid, asset.getUuid(), request);
-
-			return asset;
+			return createAsset(lrc.userUuid(), request);
 		}, modelBuilder::toResponse);
+	}
+
+	/**
+	 * Create, persist and fully materialize an asset (embeddings + component records) from a create request. Shared by the JSON create endpoint and
+	 * the multipart upload endpoint so both go through identical persistence logic. The caller is responsible for permission checks, validation and
+	 * for publishing any {@code asset.created} event.
+	 *
+	 * @param userUuid
+	 *            the creator
+	 * @param request
+	 *            the create request. Mandatory fields ({@code hashes.sha512} and {@code file.{mimeType,filename,origin,size}}) must be present.
+	 * @return the stored asset (carrying its generated UUID)
+	 */
+	public Asset createAsset(UUID userUuid, AssetCreateRequest request) {
+		HashInfo hashes = request.getHashes();
+
+		// Mandatory fields
+		SHA512 sha512sum = hashes.getSHA512();
+		String mimeType = request.getFile().getMimeType();
+		String filename = request.getFile().getFilename();
+		String origin = request.getFile().getOrigin();
+		Long size = request.getFile().getSize();
+
+		Asset asset = dao().createAsset(userUuid, sha512sum, mimeType, filename, origin, size);
+		updateAssetFields(request, asset);
+
+		// Store asset first so it gets a UUID (needed for FK constraints on child entities)
+		dao().store(asset);
+
+		// Create initial embedding for asset
+		for (EmbeddingCreateRequest embeddingRequest : request.getEmbeddings()) {
+			Float[] vectorData = embeddingRequest.getVector();
+			Embedding embedding = daos().embeddingDao().createEmbedding(userUuid, asset.getUuid(), vectorData,
+				EmbeddingType.VIDEO4J_FINGERPRINT_V2);
+			daos().embeddingDao().store(embedding);
+		}
+
+		// Create component records
+		createComponents(userUuid, asset.getUuid(), request);
+
+		return asset;
 	}
 
 	private void createComponents(UUID userUuid, UUID assetUuid, AssetCreateRequest model) {

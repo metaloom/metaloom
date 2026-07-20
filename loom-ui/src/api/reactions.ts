@@ -24,6 +24,14 @@ export interface ReactionListResponse {
   };
 }
 
+/** Reaction type values, matching the backend `io.metaloom.loom.api.reaction.ReactionType` enum. */
+export type TaskReactionType = "THUMBSUP" | "THUMBSDOWN" | "SATISFIED" | "PLUS_ONE" | "MINUS_ONE";
+
+export interface ReactionCreateRequest {
+  type?: TaskReactionType;
+  rating?: number;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────
 
 function authHeaders(token: string): Record<string, string> {
@@ -57,4 +65,58 @@ export async function loadAssetReaction(token: string, assetUuid: string, reacti
     headers: authHeaders(token),
   });
   return handleResponse<ReactionResponseItem>(res);
+}
+
+// ── API for task reactions (sub-resource of tasks) ────────────────────
+
+/** List the reactions of a task. GET /tasks/:taskUuid/reactions */
+export async function listTaskReactions(token: string, taskUuid: string): Promise<ReactionListResponse> {
+  const res = await fetch(`${API_BASE_URL}/tasks/${encodeURIComponent(taskUuid)}/reactions`, {
+    method: "GET",
+    headers: authHeaders(token),
+  });
+  return handleResponse<ReactionListResponse>(res);
+}
+
+/** Create a reaction on a task. POST /tasks/:taskUuid/reactions */
+export async function createTaskReaction(token: string, taskUuid: string, request: ReactionCreateRequest): Promise<ReactionResponseItem> {
+  const res = await fetch(`${API_BASE_URL}/tasks/${encodeURIComponent(taskUuid)}/reactions`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(request),
+  });
+  return handleResponse<ReactionResponseItem>(res);
+}
+
+/** Update a task reaction. POST /tasks/:taskUuid/reactions/:reactionUuid (update is POST, not PUT/PATCH). */
+export async function updateTaskReaction(
+  token: string,
+  taskUuid: string,
+  reactionUuid: string,
+  request: ReactionCreateRequest,
+): Promise<ReactionResponseItem> {
+  const res = await fetch(
+    `${API_BASE_URL}/tasks/${encodeURIComponent(taskUuid)}/reactions/${encodeURIComponent(reactionUuid)}`,
+    {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify(request),
+    },
+  );
+  return handleResponse<ReactionResponseItem>(res);
+}
+
+/** Delete a task reaction. DELETE /tasks/:taskUuid/reactions/:reactionUuid (204). */
+export async function deleteTaskReaction(token: string, taskUuid: string, reactionUuid: string): Promise<void> {
+  const res = await fetch(
+    `${API_BASE_URL}/tasks/${encodeURIComponent(taskUuid)}/reactions/${encodeURIComponent(reactionUuid)}`,
+    {
+      method: "DELETE",
+      headers: authHeaders(token),
+    },
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
 }

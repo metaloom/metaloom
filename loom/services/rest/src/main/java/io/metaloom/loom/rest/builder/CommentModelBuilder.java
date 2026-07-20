@@ -10,6 +10,8 @@ public interface CommentModelBuilder extends ModelBuilder, UserModelBuilder {
 	default CommentResponse toResponse(Comment comment) {
 		CommentResponse response = new CommentResponse();
 		response.setTitle(comment.getTitle());
+		response.setText(comment.getText());
+		response.setAssetUuid(comment.getAssetUuid());
 		response.setUuid(comment.getUuid());
 		setStatus(comment, response);
 		return response;

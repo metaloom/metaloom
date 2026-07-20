@@ -26,7 +26,17 @@ public interface TagModelBuilder extends ModelBuilder, UserModelBuilder {
 
 	default TagReference toReference(Tag tag) {
 		TagReference reference = new TagReference();
-		return reference.setName(tag.getName()).setUuid(tag.getUuid());
+		reference.setName(tag.getName()).setUuid(tag.getUuid());
+		if (tag instanceof AssetTag at && hasRegion(at)) {
+			reference.setArea(tagArea(at));
+		}
+		return reference;
+	}
+
+	default boolean hasRegion(AssetTag tag) {
+		return tag.getTimeFrom() != null || tag.getTimeTo() != null
+			|| tag.getAreaStartX() != null || tag.getAreaStartY() != null
+			|| tag.getAreaWidth() != null || tag.getAreaHeight() != null;
 	}
 
 	default TagListResponse toTagList(Page<Tag> page) {

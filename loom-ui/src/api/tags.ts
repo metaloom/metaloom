@@ -1,4 +1,7 @@
 import { API_BASE_URL } from "./config";
+import type { AreaInfo } from "./annotations";
+
+export type { AreaInfo };
 
 // ── Types matching the Loom REST API tag models ───────────────────────
 
@@ -7,6 +10,8 @@ export interface TagResponse {
   name: string;
   collection: string;
   color?: string;
+  /** Spatial/temporal region of the asset this tag references (region tags only). */
+  area?: AreaInfo;
   status?: {
     creator?: { uuid: string; name: string };
     created?: string;
@@ -29,6 +34,8 @@ export interface TagListResponse {
 export interface TagCreateRequest {
   name: string;
   collection: string;
+  /** Optional spatial/temporal region of the asset to tag. Omit for a plain tag. */
+  area?: AreaInfo;
   meta?: Record<string, unknown>;
 }
 
@@ -96,6 +103,37 @@ export async function deleteTag(token: string, uuid: string): Promise<void> {
     method: "DELETE",
     headers: authHeaders(token),
   });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+}
+
+// ── Asset tagging (/assets/:uuid/tags) ────────────────────────────────
+
+/** Tag an asset. Pass `area` to create a region (time + area) tag. Returns the created tag (201). */
+export async function tagAsset(
+  token: string,
+  assetUuid: string,
+  request: TagCreateRequest,
+): Promise<TagResponse> {
+  const res = await fetch(`${API_BASE_URL}/assets/${encodeURIComponent(assetUuid)}/tags`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(request),
+  });
+  return handleResponse<TagResponse>(res);
+}
+
+/** Remove a tag from an asset (204). */
+export async function untagAsset(token: string, assetUuid: string, tagUuid: string): Promise<void> {
+  const res = await fetch(
+    `${API_BASE_URL}/assets/${encodeURIComponent(assetUuid)}/tags/${encodeURIComponent(tagUuid)}`,
+    {
+      method: "DELETE",
+      headers: authHeaders(token),
+    },
+  );
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(`API error ${res.status}: ${text}`);

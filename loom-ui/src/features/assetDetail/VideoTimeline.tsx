@@ -6,7 +6,7 @@ import { formatDuration } from "./helpers";
 export interface TimelineMarker {
   time: number;
   endTime?: number;
-  type: "comment" | "annotation" | "reaction";
+  type: "comment" | "annotation" | "reaction" | "tag";
   color: string;
   label: string;
   id: string;
@@ -21,6 +21,8 @@ export function VideoTimeline({
   onMarkerClick,
   onMarkerHover,
   onMarkerDrag,
+  rangeMode = false,
+  onRangeSelect,
 }: {
   duration: number;
   currentTime: number;
@@ -30,10 +32,16 @@ export function VideoTimeline({
   onMarkerClick: (id: string, type: string) => void;
   onMarkerHover: (id: string | null) => void;
   onMarkerDrag?: (markerId: string, edge: "start" | "end", newTime: number) => void;
+  /** When true, dragging on the timeline creates a new time-range selection instead of seeking. */
+  rangeMode?: boolean;
+  /** Called with the selected range (seconds) on mouse-up. */
+  onRangeSelect?: (from: number, to: number) => void;
 }) {
   const barRef = useRef<HTMLDivElement>(null);
   const markerBarRef = useRef<HTMLDivElement>(null);
   const [draggingMarker, setDraggingMarker] = useState<{ id: string; edge: "start" | "end" } | null>(null);
+  const ranging = useRef(false);
+  const [rangeSel, setRangeSel] = useState<{ start: number; end: number } | null>(null);
 
   const handleBarClick = (e: React.MouseEvent) => {
     if (!barRef.current) return;
@@ -43,12 +51,45 @@ export function VideoTimeline({
   };
 
   const handleMarkerBarClick = (e: React.MouseEvent) => {
-    if (draggingMarker) return;
+    if (draggingMarker || ranging.current) return;
     if (!markerBarRef.current) return;
     const rect = markerBarRef.current.getBoundingClientRect();
     const pct = (e.clientX - rect.left) / rect.width;
     onSeek(Math.max(0, Math.min(duration, pct * duration)));
   };
+
+  // Drag-to-create a new time-range selection (only while range mode is active).
+  const timeAt = useCallback((clientX: number) => {
+    if (!markerBarRef.current) return 0;
+    const rect = markerBarRef.current.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    return Math.round(pct * duration * 10) / 10;
+  }, [duration]);
+
+  const handleRangeStart = useCallback((e: React.MouseEvent) => {
+    if (!rangeMode) return;
+    e.stopPropagation();
+    e.preventDefault();
+    ranging.current = true;
+    const start = timeAt(e.clientX);
+    setRangeSel({ start, end: start });
+    const onMove = (ev: MouseEvent) => {
+      setRangeSel(prev => (prev ? { ...prev, end: timeAt(ev.clientX) } : prev));
+    };
+    const onUp = (ev: MouseEvent) => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      const end = timeAt(ev.clientX);
+      const from = Math.min(start, end);
+      const to = Math.max(start, end);
+      // Keep ranging flagged through the click event that follows mouse-up, then clear.
+      if (to - from > 0.1) onRangeSelect?.(from, to);
+      setRangeSel(null);
+      setTimeout(() => { ranging.current = false; }, 0);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, [rangeMode, timeAt, onRangeSelect]);
 
   // Draggable marker handle
   const handleMarkerDragStart = useCallback((e: React.MouseEvent, markerId: string, edge: "start" | "end") => {
@@ -92,12 +133,32 @@ export function VideoTimeline({
       <Box
         ref={markerBarRef}
         onClick={handleMarkerBarClick}
+        onMouseDown={handleRangeStart}
+        data-testid="video-timeline-bar"
         sx={{
           position: "relative", height: 28, bgcolor: `${tokens.bg.overlay}88`,
-          borderRadius: "0 0 3px 3px", cursor: "pointer",
+          borderRadius: "0 0 3px 3px", cursor: rangeMode ? "crosshair" : "pointer",
           borderTop: `1px solid ${tokens.border.subtle}`,
         }}
       >
+        {/* In-progress range selection */}
+        {rangeSel && duration > 0 && (() => {
+          const from = Math.min(rangeSel.start, rangeSel.end);
+          const to = Math.max(rangeSel.start, rangeSel.end);
+          return (
+            <Box
+              sx={{
+                position: "absolute",
+                left: `${(from / duration) * 100}%`,
+                width: `${((to - from) / duration) * 100}%`,
+                top: 2, bottom: 2,
+                bgcolor: `${tokens.primary.main}33`,
+                border: `1px dashed ${tokens.primary.main}`,
+                borderRadius: 1, zIndex: 2, pointerEvents: "none",
+              }}
+            />
+          );
+        })()}
         {/* Range highlights for all annotations with endTime */}
         {markers.filter(m => m.endTime && m.endTime > m.time).map(m => {
           const left = (m.time / duration) * 100;

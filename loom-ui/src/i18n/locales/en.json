@@ -107,6 +107,46 @@
     },
     "empty": {
       "noMatch": "No assets match your filters"
+    },
+    "button": {
+      "upload": "Upload",
+      "uploading": "Uploading…",
+      "select": "Select",
+      "cancelSelect": "Cancel",
+      "cancel": "Cancel",
+      "delete": "Delete",
+      "apply": "Apply",
+      "bulkTag": "Tag",
+      "bulkDelete": "Delete"
+    },
+    "select": {
+      "count": "{{count}} selected"
+    },
+    "dialog": {
+      "upload": "Upload Asset",
+      "delete": "Delete Asset",
+      "bulkTag": "Tag {{count}} assets"
+    },
+    "upload": {
+      "pickFile": "Choose a file…",
+      "library": "Library",
+      "origin": "Origin"
+    },
+    "label": {
+      "tag": "Tag"
+    },
+    "confirm": {
+      "delete": "Delete {{name}}? This cannot be undone."
+    },
+    "toast": {
+      "uploaded": "Asset uploaded",
+      "uploadFailed": "Upload failed",
+      "deleted": "Asset deleted",
+      "deleteFailed": "Failed to delete asset",
+      "bulkDeleted": "Deleted {{count}} assets",
+      "bulkDeletedPartial": "Deleted {{ok}} assets, {{failed}} failed",
+      "bulkTagged": "Tagged {{count}} assets",
+      "bulkTagFailed": "Failed to tag assets"
     }
   },
   "library": {
@@ -252,6 +292,18 @@
       "title": "Task Detail",
       "created": "Created",
       "lastEdited": "Last Edited"
+    },
+    "reactions": {
+      "title": "Reactions",
+      "add": "React",
+      "empty": "No reactions yet",
+      "type": {
+        "THUMBSUP": "Thumbs up",
+        "THUMBSDOWN": "Thumbs down",
+        "SATISFIED": "Satisfied",
+        "PLUS_ONE": "+1",
+        "MINUS_ONE": "-1"
+      }
     },
     "empty": "No tasks found"
   },
@@ -518,10 +570,12 @@
         "created": "Created"
       },
       "menu": {
+        "rename": "Rename Key",
         "delete": "Delete Key"
       },
       "dialog": {
         "create": "Create API Key",
+        "edit": "Rename API Key",
         "keyName": "Key name",
         "keyPlaceholder": "e.g. CI Pipeline Key",
         "creating": "Creating…",
@@ -929,6 +983,7 @@
     },
     "button": {
       "addPerson": "Add Person",
+      "addCluster": "Add Cluster",
       "cancel": "Cancel",
       "create": "Create",
       "assign": "Assign",
@@ -956,6 +1011,8 @@
     "dialog": {
       "addPerson": "Add Person",
       "editPerson": "Edit Person",
+      "addCluster": "Add Cluster",
+      "editCluster": "Edit Cluster",
       "assign": "Assign Cluster to Person",
       "selectPerson": "Select a person…"
     }
@@ -1135,6 +1192,17 @@
       "transcript": "Transcript",
       "faces": "Faces ({{count}})"
     },
+    "comment": {
+      "addPlaceholder": "Write a comment…",
+      "post": "Post comment",
+      "edit": "Edit comment",
+      "delete": "Delete comment",
+      "save": "Save",
+      "cancel": "Cancel",
+      "postError": "Failed to post comment",
+      "editError": "Failed to update comment",
+      "deleteError": "Failed to delete comment"
+    },
     "meta": {
       "title": "Metadata",
       "size": "Size",
@@ -1147,10 +1215,33 @@
     },
     "action": {
       "process": "Process",
-      "createTask": "Create Task"
+      "createTask": "Create Task",
+      "save": "Save",
+      "delete": "Delete",
+      "noPipelines": "No pipelines available"
+    },
+    "dialog": {
+      "delete": "Delete Asset"
+    },
+    "confirm": {
+      "delete": "Delete {{name}}? This cannot be undone."
+    },
+    "toast": {
+      "saved": "Asset saved",
+      "saveFailed": "Failed to save asset",
+      "deleted": "Asset deleted",
+      "deleteFailed": "Failed to delete asset",
+      "processStarted": "Processing started",
+      "processFailed": "Failed to start processing"
     },
     "tag": {
-      "addPlaceholder": "Add tag…"
+      "addPlaceholder": "Add tag…",
+      "regionToggle": "Tag a region: draw a box on the image or select a range on the timeline",
+      "regionHintImage": "Draw a box on the image…",
+      "regionHintVideo": "Drag a range on the timeline…",
+      "regionCaptured": "Region captured — type a name and press Enter",
+      "regionTooltip": "Region tag (time / area)",
+      "newRegion": "new region"
     },
     "sidebar": {
       "filterPlaceholder": "Filter…"

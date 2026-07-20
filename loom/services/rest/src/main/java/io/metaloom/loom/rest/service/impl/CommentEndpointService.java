@@ -5,6 +5,7 @@ import static io.metaloom.loom.db.model.perm.Permission.DELETE_COMMENT;
 import static io.metaloom.loom.db.model.perm.Permission.READ_COMMENT;
 import static io.metaloom.loom.db.model.perm.Permission.UPDATE_COMMENT;
 
+import java.util.List;
 import java.util.UUID;
 
 import javax.inject.Inject;
@@ -16,6 +17,7 @@ import io.metaloom.loom.db.model.comment.CommentDao;
 import io.metaloom.loom.rest.LoomRoutingContext;
 import io.metaloom.loom.rest.builder.LoomModelBuilder;
 import io.metaloom.loom.rest.model.comment.CommentCreateRequest;
+import io.metaloom.loom.rest.model.comment.CommentListResponse;
 import io.metaloom.loom.rest.model.comment.CommentModel;
 import io.metaloom.loom.rest.model.comment.CommentUpdateRequest;
 import io.metaloom.loom.rest.service.AbstractCRUDEndpointService;
@@ -59,6 +61,31 @@ public class CommentEndpointService extends AbstractCRUDEndpointService<CommentD
 			update(request, comment);
 			return comment;
 		}, modelBuilder::toResponse);
+	}
+
+	public void createForAsset(LoomRoutingContext lrc, UUID assetUuid) {
+		create(lrc, CREATE_COMMENT, () -> {
+			CommentCreateRequest request = lrc.requestBody(CommentCreateRequest.class);
+			validator.validate(request);
+
+			UUID userUuid = lrc.userUuid();
+			String title = request.getTitle();
+			String text = request.getText();
+			Comment comment = dao().createComment(userUuid, assetUuid, title, text);
+			update(request, comment);
+			return comment;
+		}, modelBuilder::toResponse);
+	}
+
+	public void listForAsset(LoomRoutingContext lrc, UUID assetUuid) {
+		checkPerm(lrc, READ_COMMENT, () -> {
+			List<Comment> comments = dao().loadForAsset(assetUuid);
+			CommentListResponse response = new CommentListResponse();
+			for (Comment comment : comments) {
+				response.add(modelBuilder.toResponse(comment));
+			}
+			lrc.send(response);
+		});
 	}
 
 	@Override
