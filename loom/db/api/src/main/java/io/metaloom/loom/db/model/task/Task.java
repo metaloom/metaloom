@@ -1,5 +1,6 @@
 package io.metaloom.loom.db.model.task;
 
+import io.metaloom.loom.api.task.TaskPriority;
 import io.metaloom.loom.db.CUDElement;
 
 public interface Task extends CUDElement<Task> {
@@ -11,5 +12,9 @@ public interface Task extends CUDElement<Task> {
 	String getDescription();
 
 	Task setDescription(String description);
+
+	TaskPriority getPriority();
+
+	Task setPriority(TaskPriority priority);
 
 }

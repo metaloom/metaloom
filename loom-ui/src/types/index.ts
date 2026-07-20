@@ -4,7 +4,7 @@ export type AssetType = "video" | "image" | "audio" | "document" | "unknown";
 export type AssetStatus = "processing" | "ready" | "failed" | "archived";
 export type TaskStatus = "open" | "in_progress" | "review" | "done" | "blocked";
 export type TaskPriority = "low" | "medium" | "high" | "critical";
-export type PipelineStatus = "idle" | "running" | "success" | "failed" | "paused";
+export type PipelineStatus = "idle" | "running" | "success" | "failed" | "paused" | "cancelled";
 export type ReactionType = "approve" | "flag" | "reject" | "favorite" | "question";
 
 // Spaces

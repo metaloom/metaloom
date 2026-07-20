@@ -210,7 +210,14 @@
     },
     "form": {
       "title": "Titel",
-      "description": "Beschreibung"
+      "description": "Beschreibung",
+      "priority": "Priorität"
+    },
+    "priority": {
+      "LOW": "Niedrig",
+      "MEDIUM": "Mittel",
+      "HIGH": "Hoch",
+      "CRITICAL": "Kritisch"
     },
     "dialog": {
       "newTitle": "Aufgabe erstellen",
@@ -595,6 +602,7 @@
       "running": "Läuft…",
       "runDispatched": "Pipeline-Lauf gestartet",
       "runNoProcessor": "Kein Prozessor verfügbar",
+      "runCancelled": "Pipeline-Lauf abgebrochen",
       "newPipeline": "Neue Pipeline",
       "newPipelineTitle": "Neue Pipeline",
       "clonePipelineTitle": "Pipeline klonen",
@@ -712,7 +720,8 @@
       "error": "Fehler",
       "errors": "Fehler",
       "noRuns": "Noch keine Läufe aufgezeichnet",
-      "loading": "Läufe werden geladen…"
+      "loading": "Läufe werden geladen…",
+      "cancel": "Lauf abbrechen"
     },
     "inspector": {
       "empty": "Wählen Sie eine Pipeline zur Inspektion",

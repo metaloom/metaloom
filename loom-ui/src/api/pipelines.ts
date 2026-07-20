@@ -268,3 +268,21 @@ export async function listPipelineRuns(token: string, uuid: string): Promise<Pip
   if (Array.isArray(body)) return body;
   return body.data ?? [];
 }
+
+/**
+ * Cancel an in-flight pipeline run.
+ *
+ * Stops the run's engine dispatching further node tasks and marks the run
+ * `CANCELLED`. In-flight worker tasks are left to settle naturally.
+ * Endpoint: `POST /api/v1/pipelines/:uuid/runs/:runUuid/cancel`.
+ */
+export async function cancelPipelineRun(token: string, pipelineUuid: string, runUuid: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/pipelines/${encodeURIComponent(pipelineUuid)}/runs/${encodeURIComponent(runUuid)}/cancel`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+}

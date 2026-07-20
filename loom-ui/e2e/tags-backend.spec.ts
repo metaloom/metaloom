@@ -25,6 +25,51 @@ async function loginAndGoToTags(page: Page) {
   await expect(page.getByRole("heading", { name: "Tags" })).toBeVisible({ timeout: 10_000 });
 }
 
+/**
+ * Create a tag via the header inputs (mirrors the create/delete tests) and wait
+ * for it to render.
+ */
+async function createTag(page: Page, name: string, collection: string) {
+  await page.getByPlaceholder("Tag name…").fill(name);
+  await page.getByPlaceholder("Collection…").fill(collection);
+  await page.getByPlaceholder("Tag name…").press("Enter");
+  await expect(page.getByText(name, { exact: true })).toBeVisible({ timeout: 10_000 });
+}
+
+/** Delete a tag via its row context menu (mirrors the delete test) — used for cleanup. */
+async function deleteTagViaMenu(page: Page, name: string) {
+  const tagRow = page.getByText(name, { exact: true });
+  await tagRow.hover();
+  await tagRow.locator("..").locator("button").last().click();
+  await page.getByRole("menuitem", { name: /delete/i }).click();
+  await expect(page.getByText(name, { exact: true })).toBeHidden({ timeout: 5_000 });
+}
+
+/**
+ * Reparent a tag by dragging its row onto a collection header.
+ *
+ * The tags tree uses native HTML5 drag-and-drop and stores the drag source in
+ * React state (`dragId`) rather than in `dataTransfer` — so Playwright's mouse
+ * based `dragTo` will not trigger the React handlers. We dispatch the real
+ * dragstart/dragover/drop events (sharing one DataTransfer) on the label
+ * elements; the events bubble to the draggable row / drop-target header Box so
+ * `onDragStart` (→ setDragId) and `onDrop` (→ updateTag) fire.
+ */
+async function dragTagToCollection(page: Page, tagName: string, collectionName: string) {
+  const source = page.getByText(tagName, { exact: true });
+  const target = page.getByText(collectionName, { exact: true });
+  const dataTransfer = await page.evaluateHandle(() => new DataTransfer());
+  await source.dispatchEvent("dragstart", { dataTransfer });
+  await target.dispatchEvent("dragover", { dataTransfer });
+  await target.dispatchEvent("drop", { dataTransfer });
+  await source.dispatchEvent("dragend", { dataTransfer });
+}
+
+/** Read the child-count Chip badge rendered next to a collection header. */
+function collectionCountChip(page: Page, collection: string) {
+  return page.getByText(collection, { exact: true }).locator("..").locator(".MuiChip-label");
+}
+
 test.describe("Tags – full backend e2e", () => {
   test("tag list loads and displays demo tags", async ({ page }) => {
     await loginAndGoToTags(page);
@@ -135,5 +180,66 @@ test.describe("Tags – full backend e2e", () => {
     const expectedCount = countAfterCreate - 1;
     await expect(page.getByText(new RegExp(`${expectedCount} tags across`))).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText("delete-me-tag")).toBeHidden({ timeout: 5_000 });
+  });
+
+  test("edit a tag's name and collection then verify after reload", async ({ page }) => {
+    await loginAndGoToTags(page);
+    await expect(page.getByText(/[1-9]\d* tags across/)).toBeVisible({ timeout: 10_000 });
+
+    // Create a throwaway tag to edit (avoid mutating demo data)
+    await createTag(page, "edit-src-tag", "editcol-a");
+
+    // Open its detail sidebar
+    await page.getByText("edit-src-tag", { exact: true }).click();
+    await expect(page.getByText("Tag Details")).toBeVisible({ timeout: 5_000 });
+
+    // Change both the name and the collection, then save (fill clears first)
+    await page.getByLabel("Name").fill("edit-dst-tag");
+    await page.getByRole("textbox", { name: "Collection", exact: true }).fill("editcol-b");
+    await page.getByRole("button", { name: "Save" }).click();
+
+    // Reload from the backend (in-memory auth is dropped, so re-login + navigate)
+    await loginAndGoToTags(page);
+    await expect(page.getByText(/[1-9]\d* tags across/)).toBeVisible({ timeout: 10_000 });
+
+    // The renamed tag lives under the new collection; the emptied source collection is gone
+    await expect(page.getByText("edit-dst-tag", { exact: true })).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText("editcol-b", { exact: true })).toBeVisible({ timeout: 5_000 });
+    await expect(collectionCountChip(page, "editcol-b")).toHaveText("1");
+    await expect(page.getByText("editcol-a", { exact: true })).toBeHidden({ timeout: 5_000 });
+    await expect(page.getByText("edit-src-tag", { exact: true })).toBeHidden({ timeout: 5_000 });
+
+    // Cleanup — keep the suite idempotent
+    await deleteTagViaMenu(page, "edit-dst-tag");
+  });
+
+  test("drag a tag onto another collection header to reparent it", async ({ page }) => {
+    await loginAndGoToTags(page);
+    await expect(page.getByText(/[1-9]\d* tags across/)).toBeVisible({ timeout: 10_000 });
+
+    // Tag to move, plus an anchor tag so the target collection header exists as a drop target
+    await createTag(page, "drag-src-tag", "dragcol-a");
+    await createTag(page, "drag-anchor-tag", "dragcol-b");
+    await expect(page.getByText("dragcol-a", { exact: true })).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText("dragcol-b", { exact: true })).toBeVisible({ timeout: 5_000 });
+
+    // Drag the tag from collection A onto collection B's header
+    await dragTagToCollection(page, "drag-src-tag", "dragcol-b");
+
+    // In-session: the tag moved under B (count 2) and the emptied A header is gone
+    await expect(collectionCountChip(page, "dragcol-b")).toHaveText("2", { timeout: 5_000 });
+    await expect(page.getByText("dragcol-a", { exact: true })).toBeHidden({ timeout: 5_000 });
+
+    // Reload from the backend and re-assert the reparent persisted server-side
+    await loginAndGoToTags(page);
+    await expect(page.getByText(/[1-9]\d* tags across/)).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("drag-src-tag", { exact: true })).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText("dragcol-b", { exact: true })).toBeVisible({ timeout: 5_000 });
+    await expect(collectionCountChip(page, "dragcol-b")).toHaveText("2");
+    await expect(page.getByText("dragcol-a", { exact: true })).toBeHidden({ timeout: 5_000 });
+
+    // Cleanup — keep the suite idempotent
+    await deleteTagViaMenu(page, "drag-src-tag");
+    await deleteTagViaMenu(page, "drag-anchor-tag");
   });
 });

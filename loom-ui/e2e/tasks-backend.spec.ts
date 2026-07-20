@@ -56,20 +56,31 @@ test.describe("Tasks – backend e2e", () => {
     const createdTitle = `E2E task ${unique}`;
     const updatedTitle = `E2E task updated ${unique}`;
 
-    // Create
+    // Create with a non-default priority (HIGH) so we can assert it persists.
     await page.getByTestId("tasks-create-button").click();
     await page.getByTestId("tasks-title-input").fill(createdTitle);
     await page.getByTestId("tasks-description-input").fill("Created by Playwright e2e");
+    await page.getByTestId("tasks-priority-select").click();
+    await page.getByTestId("tasks-priority-select-option-HIGH").click();
     await page.getByTestId("tasks-create-submit-button").click();
     await expect(page.getByText(createdTitle)).toBeVisible({ timeout: 10_000 });
 
-    // Edit
+    // The chosen priority must round-trip through the backend, not fall back to MEDIUM.
+    const createdRow = page.locator("tbody tr").filter({ hasText: createdTitle }).first();
+    await expect(createdRow.getByTestId("tasks-row-priority-chip")).toHaveText("HIGH", { timeout: 10_000 });
+
+    // Edit – change both title and priority (CRITICAL).
     await page.getByText(createdTitle).click();
     await page.getByTestId("tasks-edit-button").click();
     await page.getByTestId("tasks-edit-title-input").fill(updatedTitle);
+    await page.getByTestId("tasks-edit-priority-select").click();
+    await page.getByTestId("tasks-edit-priority-select-option-CRITICAL").click();
     await page.getByTestId("tasks-save-button").click();
     await expect(page.getByRole("heading", { name: updatedTitle })).toBeVisible({ timeout: 10_000 });
-    await expect(page.locator("tbody tr").filter({ hasText: updatedTitle }).first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("tasks-drawer-priority-chip")).toHaveText("CRITICAL", { timeout: 10_000 });
+    const updatedRow = page.locator("tbody tr").filter({ hasText: updatedTitle }).first();
+    await expect(updatedRow).toBeVisible({ timeout: 10_000 });
+    await expect(updatedRow.getByTestId("tasks-row-priority-chip")).toHaveText("CRITICAL", { timeout: 10_000 });
 
     // Delete
     await page.getByTestId("tasks-delete-button").click();

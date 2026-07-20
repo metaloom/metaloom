@@ -1,5 +1,6 @@
 package io.metaloom.loom.rest.model.task;
 
+import io.metaloom.loom.api.task.TaskPriority;
 import io.metaloom.loom.rest.model.RestRequestModel;
 import io.metaloom.loom.rest.model.common.AbstractMetaModel;
 
@@ -8,6 +9,8 @@ public class TaskUpdateRequest extends AbstractMetaModel<TaskUpdateRequest> impl
 	private String title;
 
 	private String description;
+
+	private TaskPriority priority;
 
 	public String getTitle() {
 		return title;
@@ -24,6 +27,15 @@ public class TaskUpdateRequest extends AbstractMetaModel<TaskUpdateRequest> impl
 
 	public TaskUpdateRequest setDescription(String description) {
 		this.description = description;
+		return this;
+	}
+
+	public TaskPriority getPriority() {
+		return priority;
+	}
+
+	public TaskUpdateRequest setPriority(TaskPriority priority) {
+		this.priority = priority;
 		return this;
 	}
 

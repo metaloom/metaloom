@@ -3,6 +3,7 @@ import {
   Box, Typography, Chip, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, IconButton, Drawer, Divider, Button,
   Dialog, DialogActions, DialogContent, DialogTitle, TextField, CircularProgress,
+  FormControl, InputLabel, Select, MenuItem,
 } from "@mui/material";
 import {
   TaskAltOutlined,
@@ -20,6 +21,31 @@ const priorityColor: Record<string, string> = {
   MEDIUM: tokens.accent.blue,
   LOW: tokens.text.tertiary,
 };
+
+const PRIORITIES = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
+
+// ── Priority selector (shared by create dialog + edit drawer) ─────────────
+function PrioritySelect({ value, onChange, testId }: { value: string; onChange: (v: string) => void; testId: string }) {
+  const { t } = useTranslation();
+  return (
+    <FormControl size="small" fullWidth>
+      <InputLabel id={`${testId}-label`}>{t("tasks.form.priority")}</InputLabel>
+      <Select
+        labelId={`${testId}-label`}
+        label={t("tasks.form.priority")}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        SelectDisplayProps={{ "data-testid": testId } as React.HTMLAttributes<HTMLDivElement>}
+      >
+        {PRIORITIES.map((p) => (
+          <MenuItem key={p} value={p} data-testid={`${testId}-option-${p}`}>
+            {t(`tasks.priority.${p}`)}
+          </MenuItem>
+        ))}
+      </Select>
+    </FormControl>
+  );
+}
 
 // ── Task Detail Drawer ────────────────────────────────────────────────────
 function TaskDetailDrawer({
@@ -83,6 +109,7 @@ function TaskDetailDrawer({
               icon={<FlagOutlined sx={{ fontSize: 13, ml: "6px !important" }} />}
               label={prio}
               size="small"
+              data-testid="tasks-drawer-priority-chip"
               sx={{ bgcolor: `${pc}22`, color: pc, border: `1px solid ${pc}44`, fontWeight: 700 }}
             />
           </Box>
@@ -145,7 +172,7 @@ function TaskRow({ task, onSelect }: { task: TaskResponse; onSelect: (t: TaskRes
         </Box>
       </TableCell>
       <TableCell>
-        <Chip label={prio} size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: `${pc}22`, color: pc, fontWeight: 700 }} />
+        <Chip label={prio} size="small" data-testid="tasks-row-priority-chip" sx={{ height: 18, fontSize: "0.65rem", bgcolor: `${pc}22`, color: pc, fontWeight: 700 }} />
       </TableCell>
       <TableCell>
         <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>
@@ -168,8 +195,10 @@ export default function TasksView() {
   const [saving, setSaving] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newDescription, setNewDescription] = useState("");
+  const [newPriority, setNewPriority] = useState("MEDIUM");
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  const [editPriority, setEditPriority] = useState("MEDIUM");
 
   const loadTaskList = useCallback(() => {
     if (!token) {
@@ -190,6 +219,7 @@ export default function TasksView() {
   const openCreateDialog = () => {
     setNewTitle("");
     setNewDescription("");
+    setNewPriority("MEDIUM");
     setCreateOpen(true);
   };
 
@@ -197,6 +227,7 @@ export default function TasksView() {
     if (!selectedTask) return;
     setEditTitle(selectedTask.title ?? "");
     setEditDescription(selectedTask.description ?? "");
+    setEditPriority(selectedTask.priority?.toUpperCase() ?? "MEDIUM");
     setEditMode(true);
   };
 
@@ -212,6 +243,7 @@ export default function TasksView() {
       const created = await createTask(token, {
         title: newTitle.trim(),
         description: newDescription.trim() || undefined,
+        priority: newPriority,
       });
       setTasks((prev) => [created, ...prev]);
       setCreateOpen(false);
@@ -227,6 +259,7 @@ export default function TasksView() {
       const updated = await updateTask(token, selectedTask.uuid, {
         title: editTitle.trim(),
         description: editDescription.trim() || undefined,
+        priority: editPriority,
       });
       setTasks((prev) => prev.map((task) => (task.uuid === updated.uuid ? updated : task)));
       setSelectedTask(updated);
@@ -332,6 +365,7 @@ export default function TasksView() {
             multiline
             minRows={3}
           />
+          <PrioritySelect value={editPriority} onChange={setEditPriority} testId="tasks-edit-priority-select" />
           <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
             <Button size="small" onClick={() => setEditMode(false)}>{t("tasks.button.cancel")}</Button>
             <Button size="small" variant="contained" onClick={handleSaveEdit} disabled={saving || !editTitle.trim()} data-testid="tasks-save-button">
@@ -371,6 +405,7 @@ export default function TasksView() {
             multiline
             minRows={3}
           />
+          <PrioritySelect value={newPriority} onChange={setNewPriority} testId="tasks-priority-select" />
         </DialogContent>
         <DialogActions>
           <Button size="small" onClick={() => setCreateOpen(false)}>{t("tasks.button.cancel")}</Button>

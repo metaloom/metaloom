@@ -3,6 +3,7 @@ package io.metaloom.loom.rest.model.task;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.metaloom.loom.api.task.TaskPriority;
 import io.metaloom.loom.rest.model.comment.CommentResponse;
 import io.metaloom.loom.rest.model.common.AbstractCreatorEditorRestResponse;
 

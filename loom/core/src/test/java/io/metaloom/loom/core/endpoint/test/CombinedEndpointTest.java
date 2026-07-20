@@ -53,7 +53,7 @@ import io.metaloom.loom.rest.model.pipeline.PipelineListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineUpdateRequest;
 import io.metaloom.loom.rest.model.task.TaskCreateRequest;
-import io.metaloom.loom.rest.model.task.TaskPriority;
+import io.metaloom.loom.api.task.TaskPriority;
 import io.metaloom.loom.rest.model.task.TaskResponse;
 import io.metaloom.loom.test.TestEnvHelper;
 import io.metaloom.loom.test.data.TestDataCollection;

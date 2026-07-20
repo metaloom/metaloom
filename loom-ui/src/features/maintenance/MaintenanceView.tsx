@@ -1,20 +1,103 @@
-import React from "react";
-import { Box, Typography, Chip, Divider, LinearProgress } from "@mui/material";
+import React, { useEffect, useState } from "react";
+import { Box, Typography, Chip, Divider } from "@mui/material";
 import {
   BuildOutlined, StorageOutlined, MemoryOutlined, UpdateOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { useTranslation } from "react-i18next";
+import { useAuth } from "../../context/AuthContext";
+import { getHealth, HealthCheckResponse } from "../../api/health";
 
-const statusItems = [
-  { label: "Database", status: "Healthy", icon: <StorageOutlined sx={{ fontSize: 18 }} />, progress: 34 },
-  { label: "Object Storage (S3)", status: "Healthy", icon: <StorageOutlined sx={{ fontSize: 18 }} />, progress: 61 },
-  { label: "Memory", status: "Healthy", icon: <MemoryOutlined sx={{ fontSize: 18 }} />, progress: 48 },
-  { label: "Pipeline Workers", status: "Running", icon: <BuildOutlined sx={{ fontSize: 18 }} />, progress: 22 },
+// Visual state for a status chip: which token palette to paint it with.
+type Tone = "green" | "amber" | "red" | "neutral";
+
+function toneStyles(tone: Tone) {
+  switch (tone) {
+    case "green":
+      return { bgcolor: "rgba(52,213,138,0.15)", color: tokens.accent.green };
+    case "amber":
+      return { bgcolor: "rgba(245,166,35,0.15)", color: tokens.accent.amber };
+    case "red":
+      return { bgcolor: "rgba(240,84,110,0.15)", color: tokens.accent.red };
+    case "neutral":
+    default:
+      return { bgcolor: tokens.bg.overlay, color: tokens.text.tertiary };
+  }
+}
+
+function StatusChip({ label, tone, testId }: { label: string; tone: Tone; testId?: string }) {
+  return (
+    <Chip
+      label={label}
+      size="small"
+      data-testid={testId}
+      sx={{
+        ...toneStyles(tone),
+        fontWeight: 600,
+        fontSize: "0.72rem",
+        height: 22,
+      }}
+    />
+  );
+}
+
+// Cards that have no backend metric yet — rendered but gated as "no metric".
+const gatedItems = [
+  { key: "storage", label: "Object Storage (S3)", icon: <StorageOutlined sx={{ fontSize: 18 }} /> },
+  { key: "memory", label: "Memory", icon: <MemoryOutlined sx={{ fontSize: 18 }} /> },
+  { key: "workers", label: "Pipeline Workers", icon: <BuildOutlined sx={{ fontSize: 18 }} /> },
 ];
+
+/** Map the health payload's `database` field to a display label + tone. */
+function databaseStatus(health: HealthCheckResponse | null, failed: boolean): { label: string; tone: Tone } {
+  if (failed || !health || !health.database) return { label: "Unknown", tone: "neutral" };
+  if (health.database === "UP") return { label: "Healthy", tone: "green" };
+  return { label: "Unavailable", tone: "red" };
+}
+
+/** Map the overall `status` field to a display label + tone. */
+function overallStatus(health: HealthCheckResponse | null, failed: boolean): { label: string; tone: Tone } {
+  if (failed || !health) return { label: "Unknown", tone: "neutral" };
+  if (health.status === "UP") return { label: "Operational", tone: "green" };
+  if (health.status === "DEGRADED") return { label: "Degraded", tone: "amber" };
+  return { label: health.status, tone: "neutral" };
+}
+
+const cardSx = {
+  p: 2.5,
+  border: `1px solid ${tokens.border.subtle}`,
+  borderRadius: tokens.radius.md,
+  bgcolor: tokens.bg.surface,
+};
 
 export default function MaintenanceView() {
   const { t } = useTranslation();
+  const { token } = useAuth();
+  const [health, setHealth] = useState<HealthCheckResponse | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    getHealth(token)
+      .then((resp) => {
+        if (cancelled) return;
+        setHealth(resp);
+        setFailed(false);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error("Failed to load health status", err);
+        setFailed(true);
+      });
+    return () => { cancelled = true; };
+  }, [token]);
+
+  const db = databaseStatus(health, failed);
+  const overall = overallStatus(health, failed);
+  const version = health?.version ?? "unknown";
+  const checkedAt = health?.timestamp ? new Date(health.timestamp).toLocaleString() : null;
+
   return (
     <Box sx={{ flex: 1, overflow: "auto", p: 4, maxWidth: 720, mx: "auto" }}>
       <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 1 }}>
@@ -29,62 +112,47 @@ export default function MaintenanceView() {
 
       <Divider sx={{ mb: 3 }} />
 
-      {/* System info summary */}
-      <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", mb: 3 }}>
-        <Chip icon={<UpdateOutlined />} label="Last restart: 2 days ago" size="small" variant="outlined" />
-        <Chip label="Version 0.9.4-alpha" size="small" variant="outlined" />
-        <Chip label="Uptime: 48h 12m" size="small" variant="outlined" />
+      {/* System info summary — driven by GET /health */}
+      <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", alignItems: "center", mb: 3 }}>
+        <StatusChip label={overall.label} tone={overall.tone} testId="health-overall-status" />
+        <Chip label={`Version ${version}`} size="small" variant="outlined" data-testid="health-version" />
+        {checkedAt && (
+          <Chip
+            icon={<UpdateOutlined />}
+            label={`Checked: ${checkedAt}`}
+            size="small"
+            variant="outlined"
+            data-testid="health-timestamp"
+          />
+        )}
       </Box>
 
       {/* Status cards */}
       <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        {statusItems.map((item) => (
-          <Box
-            key={item.label}
-            sx={{
-              p: 2.5,
-              border: `1px solid ${tokens.border.subtle}`,
-              borderRadius: tokens.radius.md,
-              bgcolor: tokens.bg.surface,
-            }}
-          >
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5 }}>
+        {/* Database — real status from the health check */}
+        <Box sx={cardSx} data-testid="health-card-database">
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <StorageOutlined sx={{ fontSize: 18 }} />
+              <Typography variant="body2" fontWeight={600} color="text.primary">
+                Database
+              </Typography>
+            </Box>
+            <StatusChip label={db.label} tone={db.tone} testId="health-status-database" />
+          </Box>
+        </Box>
+
+        {/* Gated cards — no backend metric available yet */}
+        {gatedItems.map((item) => (
+          <Box key={item.key} sx={cardSx} data-testid={`health-card-${item.key}`}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                 {item.icon}
-                <Typography variant="body2" fontWeight={600} color="text.primary">
+                <Typography variant="body2" fontWeight={600} color="text.secondary">
                   {item.label}
                 </Typography>
               </Box>
-              <Chip
-                label={item.status}
-                size="small"
-                sx={{
-                  bgcolor: item.status === "Healthy" ? "rgba(76,175,80,0.15)" : "rgba(255,183,77,0.15)",
-                  color: item.status === "Healthy" ? tokens.accent.green : tokens.accent.amber,
-                  fontWeight: 600,
-                  fontSize: "0.72rem",
-                  height: 22,
-                }}
-              />
-            </Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-              <LinearProgress
-                variant="determinate"
-                value={item.progress}
-                sx={{
-                  flex: 1,
-                  height: 6,
-                  borderRadius: 3,
-                  bgcolor: tokens.bg.overlay,
-                  "& .MuiLinearProgress-bar": {
-                    bgcolor: item.progress > 80 ? tokens.accent.red : tokens.primary.main,
-                    borderRadius: 3,
-                  },
-                }}
-              />
-              <Typography variant="caption" color="text.secondary" sx={{ minWidth: 32, textAlign: "right" }}>
-                {item.progress}%
-              </Typography>
+              <StatusChip label="No metric available" tone="neutral" testId={`health-status-${item.key}`} />
             </Box>
           </Box>
         ))}

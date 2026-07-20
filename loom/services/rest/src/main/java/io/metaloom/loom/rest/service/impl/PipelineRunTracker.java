@@ -68,6 +68,20 @@ public class PipelineRunTracker {
 		return apply(runUuid, PipelineRunStatusResolver.FAILED, null, 0, 0, 0, 0, errorMessage);
 	}
 
+	/**
+	 * Close a run out as {@code CANCELLED} — used when an operator stops an in-flight run.
+	 * Counters are left at zero, like {@link #fail}, because the mid-flight tallies are not
+	 * reported. {@code CANCELLED} is terminal, so this both records the cancel and, via the
+	 * "first terminal verdict wins" guard in {@link #apply}, blocks any late natural
+	 * completion from overwriting it.
+	 *
+	 * @param runUuid the run to cancel
+	 * @return true if the run was updated, false if it was missing or already terminal
+	 */
+	public boolean cancel(UUID runUuid) {
+		return apply(runUuid, PipelineRunStatusResolver.CANCELLED, null, 0, 0, 0, 0, null);
+	}
+
 	private boolean apply(UUID runUuid, String status, Long durationMs, int mediaCount,
 			int successCount, int failureCount, int skippedCount, String errorMessage) {
 		if (runUuid == null) {

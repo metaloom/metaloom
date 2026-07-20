@@ -6,6 +6,7 @@ package io.metaloom.loom.db.jooq.tables;
 
 import io.metaloom.loom.db.jooq.JooqPublic;
 import io.metaloom.loom.db.jooq.Keys;
+import io.metaloom.loom.db.jooq.enums.JooqTaskPriority;
 import io.metaloom.loom.db.jooq.enums.JooqTaskStatus;
 import io.metaloom.loom.db.jooq.tables.records.JooqTaskRecord;
 
@@ -80,11 +81,6 @@ public class JooqTask extends TableImpl<JooqTaskRecord> {
     public final TableField<JooqTaskRecord, JooqTaskStatus> STATUS = createField(DSL.name("status"), SQLDataType.VARCHAR.defaultValue(DSL.field("'PENDING'::task_status", SQLDataType.VARCHAR)).asEnumDataType(io.metaloom.loom.db.jooq.enums.JooqTaskStatus.class), this, "Current status of the task (e.g. PENDING, REJECTED)");
 
     /**
-     * The column <code>public.task.priority</code>.
-     */
-    public final TableField<JooqTaskRecord, Integer> PRIORITY = createField(DSL.name("priority"), SQLDataType.INTEGER, this, "");
-
-    /**
      * The column <code>public.task.created</code>.
      */
     public final TableField<JooqTaskRecord, LocalDateTime> CREATED = createField(DSL.name("created"), SQLDataType.LOCALDATETIME(6).nullable(false).defaultValue(DSL.field("now()", SQLDataType.LOCALDATETIME)), this, "");
@@ -103,6 +99,12 @@ public class JooqTask extends TableImpl<JooqTaskRecord> {
      * The column <code>public.task.editor_uuid</code>.
      */
     public final TableField<JooqTaskRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID.nullable(false), this, "");
+
+    /**
+     * The column <code>public.task.priority</code>. Priority of the task (LOW,
+     * MEDIUM, HIGH, CRITICAL)
+     */
+    public final TableField<JooqTaskRecord, JooqTaskPriority> PRIORITY = createField(DSL.name("priority"), SQLDataType.VARCHAR.nullable(false).defaultValue(DSL.field("'MEDIUM'::task_priority", SQLDataType.VARCHAR)).asEnumDataType(io.metaloom.loom.db.jooq.enums.JooqTaskPriority.class), this, "Priority of the task (LOW, MEDIUM, HIGH, CRITICAL)");
 
     private JooqTask(Name alias, Table<JooqTaskRecord> aliased) {
         this(alias, aliased, null);
@@ -221,14 +223,14 @@ public class JooqTask extends TableImpl<JooqTaskRecord> {
     // -------------------------------------------------------------------------
 
     @Override
-    public Row10<java.util.UUID, String, String, LocalDateTime, JooqTaskStatus, Integer, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
+    public Row10<java.util.UUID, String, String, LocalDateTime, JooqTaskStatus, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID, JooqTaskPriority> fieldsRow() {
         return (Row10) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function10<? super java.util.UUID, ? super String, ? super String, ? super LocalDateTime, ? super JooqTaskStatus, ? super Integer, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function10<? super java.util.UUID, ? super String, ? super String, ? super LocalDateTime, ? super JooqTaskStatus, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super JooqTaskPriority, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -236,7 +238,7 @@ public class JooqTask extends TableImpl<JooqTaskRecord> {
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function10<? super java.util.UUID, ? super String, ? super String, ? super LocalDateTime, ? super JooqTaskStatus, ? super Integer, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function10<? super java.util.UUID, ? super String, ? super String, ? super LocalDateTime, ? super JooqTaskStatus, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super JooqTaskPriority, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }

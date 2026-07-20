@@ -19,7 +19,7 @@ import {
   PlayArrowOutlined, AccountTreeOutlined, CheckCircleOutline,
   ErrorOutline, CloudUploadOutlined, FilterAltOutlined,
   SettingsOutlined, CloudDownloadOutlined, MemoryOutlined,
-  CircleOutlined, AccessTimeOutlined, BarChartOutlined,
+  CircleOutlined, AccessTimeOutlined, BarChartOutlined, StopCircleOutlined,
   TerminalOutlined, ExpandLessOutlined, ExpandMoreOutlined,
   ChevronRightOutlined, ChevronLeftOutlined,
   AddOutlined, CenterFocusStrongOutlined, VideocamOutlined,
@@ -39,7 +39,7 @@ import { tokens } from "../../theme";
 import { Pipeline, PipelineNode, EdgeKind } from "../../types";
 import {
   listPipelines, PipelineResponse,
-  updatePipeline, runPipeline, listPipelineRuns, type PipelineUpdateRequest,
+  updatePipeline, runPipeline, cancelPipelineRun, listPipelineRuns, type PipelineUpdateRequest,
   createPipeline, deletePipeline, type PipelineCreateRequest,
   type PipelineRunRecord,
   listPipelineVersions, restorePipelineVersion,
@@ -458,7 +458,7 @@ function toRFEdges(edges: Pipeline["definition"]["edges"]): RFEdge[] {
 }
 
 // ── Run History Panel ─────────────────────────────────────────────────────
-function RunHistory({ runs, loading }: { runs: PipelineRunRecord[]; loading?: boolean }) {
+function RunHistory({ runs, loading, onCancel }: { runs: PipelineRunRecord[]; loading?: boolean; onCancel?: (runUuid: string) => void }) {
   const { t } = useTranslation();
   if (loading) {
     return (
@@ -494,6 +494,7 @@ function RunHistory({ runs, loading }: { runs: PipelineRunRecord[]; loading?: bo
         const isSuccess = status === "success" || status === "completed";
         const isFailed = status === "failed" || status === "error";
         const isRunning = status === "running" || status === "active";
+        const isCancelled = status === "cancelled" || status === "canceled";
         const dateStr = r.started ? new Date(r.started).toLocaleString() : "";
         return (
           <Paper key={r.uuid} elevation={0} sx={{ bgcolor: tokens.bg.overlay, border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, p: 1.25 }}>
@@ -501,7 +502,8 @@ function RunHistory({ runs, loading }: { runs: PipelineRunRecord[]; loading?: bo
               {isSuccess ? <CheckCircleOutline sx={{ fontSize: 14, color: tokens.accent.green }} /> :
                 isFailed ? <ErrorOutline sx={{ fontSize: 14, color: tokens.accent.red }} /> :
                   isRunning ? <CircleOutlined sx={{ fontSize: 14, color: tokens.accent.amber }} /> :
-                    <CircleOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />}
+                    isCancelled ? <Block sx={{ fontSize: 14, color: tokens.text.tertiary }} /> :
+                      <CircleOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />}
               <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.75rem", color: isSuccess ? tokens.accent.green : isFailed ? tokens.accent.red : isRunning ? tokens.accent.amber : tokens.text.tertiary }}>
                 {r.status}
               </Typography>
@@ -511,6 +513,19 @@ function RunHistory({ runs, loading }: { runs: PipelineRunRecord[]; loading?: bo
               <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem", ml: "auto" }}>
                 {dateStr}
               </Typography>
+              {isRunning && onCancel && (
+                <Tooltip title={t("pipeline.runHistory.cancel") || "Cancel run"}>
+                  <IconButton
+                    data-testid={`pipeline-run-cancel-${r.uuid}`}
+                    aria-label={t("pipeline.runHistory.cancel") || "Cancel run"}
+                    size="small"
+                    onClick={() => onCancel(r.uuid)}
+                    sx={{ width: 20, height: 20, color: tokens.text.tertiary, "&:hover": { color: tokens.accent.red } }}
+                  >
+                    <StopCircleOutlined sx={{ fontSize: 15 }} />
+                  </IconButton>
+                </Tooltip>
+              )}
             </Box>
             <Box sx={{ display: "flex", gap: 1 }}>
               <Typography variant="caption" sx={{ color: tokens.text.secondary, fontSize: "0.7rem" }}>
@@ -760,7 +775,7 @@ function PipelineVersionBadge({
 }
 
 // ── Pipeline Inspector (right stats panel) ────────────────────────────────
-function PipelineInspector({ pipeline, runs, runsLoading }: { pipeline: Pipeline | null; runs: PipelineRunRecord[]; runsLoading: boolean }) {
+function PipelineInspector({ pipeline, runs, runsLoading, onCancelRun }: { pipeline: Pipeline | null; runs: PipelineRunRecord[]; runsLoading: boolean; onCancelRun?: (runUuid: string) => void }) {
   const { t } = useTranslation();
   if (!pipeline) {
     return (
@@ -772,7 +787,11 @@ function PipelineInspector({ pipeline, runs, runsLoading }: { pipeline: Pipeline
   }
 
   const latestRun = runs[0];
-  const runStatusColor: Record<string, string> = { success: tokens.accent.green, failed: tokens.accent.red, running: tokens.accent.amber, idle: tokens.text.tertiary, paused: tokens.text.tertiary };
+  const runStatusColor: Record<string, string> = { success: tokens.accent.green, failed: tokens.accent.red, running: tokens.accent.amber, cancelled: tokens.text.tertiary, idle: tokens.text.tertiary, paused: tokens.text.tertiary };
+  // Normalise like RunHistory already does, so the banner is robust to the server's
+  // upper-case status vocabulary (RUNNING / CANCELLED / …) as well as mocked lower-case.
+  const latestStatus = latestRun ? latestRun.status.toLowerCase() : "";
+  const latestIsRunning = latestStatus === "running" || latestStatus === "active";
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
@@ -792,23 +811,37 @@ function PipelineInspector({ pipeline, runs, runsLoading }: { pipeline: Pipeline
 
       {/* Latest run status */}
       {latestRun && (
-        <Box data-testid="pipeline-run-banner" data-status={latestRun.status} sx={{ px: 2, py: 1, bgcolor: `${runStatusColor[latestRun.status] ?? runStatusColor.idle}0a`, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", gap: 1 }}>
-          {latestRun.status === "success" || latestRun.status === "completed" ? <CheckCircleOutline sx={{ fontSize: 14, color: tokens.accent.green }} /> :
-            latestRun.status === "failed" || latestRun.status === "error" ? <ErrorOutline sx={{ fontSize: 14, color: tokens.accent.red }} /> :
-              latestRun.status === "running" || latestRun.status === "active" ? <CircleOutlined sx={{ fontSize: 14, color: tokens.accent.amber, animation: "spin 1s linear infinite", "@keyframes spin": { from: { transform: "rotate(0deg)" }, to: { transform: "rotate(360deg)" } } }} /> :
-                <CircleOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />}
-          <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.75rem", color: runStatusColor[latestRun.status] ?? tokens.text.tertiary }}>
-            {latestRun.status === "running" || latestRun.status === "active" ? t("pipeline.inspector.runningNow") : `${t("pipeline.inspector.lastRun")} ${latestRun.status}`}
+        <Box data-testid="pipeline-run-banner" data-status={latestRun.status} sx={{ px: 2, py: 1, bgcolor: `${runStatusColor[latestStatus] ?? runStatusColor.idle}0a`, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", gap: 1 }}>
+          {latestStatus === "success" || latestStatus === "completed" ? <CheckCircleOutline sx={{ fontSize: 14, color: tokens.accent.green }} /> :
+            latestStatus === "failed" || latestStatus === "error" ? <ErrorOutline sx={{ fontSize: 14, color: tokens.accent.red }} /> :
+              latestIsRunning ? <CircleOutlined sx={{ fontSize: 14, color: tokens.accent.amber, animation: "spin 1s linear infinite", "@keyframes spin": { from: { transform: "rotate(0deg)" }, to: { transform: "rotate(360deg)" } } }} /> :
+                latestStatus === "cancelled" || latestStatus === "canceled" ? <Block sx={{ fontSize: 14, color: tokens.text.tertiary }} /> :
+                  <CircleOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />}
+          <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.75rem", color: runStatusColor[latestStatus] ?? tokens.text.tertiary }}>
+            {latestIsRunning ? t("pipeline.inspector.runningNow") : `${t("pipeline.inspector.lastRun")} ${latestRun.status}`}
           </Typography>
           <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem", ml: "auto" }}>
             · {latestRun.successCount} / {latestRun.mediaCount} {t("pipeline.runHistory.assets")}
           </Typography>
+          {latestIsRunning && onCancelRun && (
+            <Tooltip title={t("pipeline.runHistory.cancel") || "Cancel run"}>
+              <IconButton
+                data-testid="pipeline-run-banner-cancel"
+                aria-label={t("pipeline.runHistory.cancel") || "Cancel run"}
+                size="small"
+                onClick={() => onCancelRun(latestRun.uuid)}
+                sx={{ width: 20, height: 20, color: tokens.text.tertiary, "&:hover": { color: tokens.accent.red } }}
+              >
+                <StopCircleOutlined sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+          )}
         </Box>
       )}
 
       {/* Scrollable run history */}
       <Box sx={{ flex: 1, overflow: "auto" }}>
-        <RunHistory runs={runs} loading={runsLoading} />
+        <RunHistory runs={runs} loading={runsLoading} onCancel={onCancelRun} />
       </Box>
     </Box>
   );
@@ -2235,6 +2268,18 @@ export default function PipelineEditor() {
     }
   }, [token, selected, running, notify, t, loadRuns]);
 
+  const handleCancelRun = useCallback(async (runUuid: string) => {
+    if (!token || !selected) return;
+    try {
+      await cancelPipelineRun(token, selected.id, runUuid);
+      notify("success", t("pipeline.editor.runCancelled") || "Pipeline run cancelled");
+      // Refresh so the run flips to cancelled immediately.
+      loadRuns();
+    } catch (err) {
+      notify("error", (err as Error).message || "Cancel failed");
+    }
+  }, [token, selected, notify, t, loadRuns]);
+
   // Global keyboard shortcuts (H = help, N = command palette)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -2827,7 +2872,7 @@ export default function PipelineEditor() {
           </Tooltip>
         )}
         <Box sx={{ flex: 1, overflow: "hidden" }}>
-          <PipelineInspector pipeline={selected} runs={pipelineRuns} runsLoading={runsLoading} />
+          <PipelineInspector pipeline={selected} runs={pipelineRuns} runsLoading={runsLoading} onCancelRun={handleCancelRun} />
         </Box>
       </Box>
 

@@ -1,12 +1,12 @@
-package io.metaloom.loom.rest.model.task;
+package io.metaloom.loom.api.task;
 
 public enum TaskPriority {
 
 	LOW,
 
-	HIGH,
-
 	MEDIUM,
+
+	HIGH,
 
 	CRITICAL;
 }

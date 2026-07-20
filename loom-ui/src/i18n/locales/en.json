@@ -219,7 +219,14 @@
     },
     "form": {
       "title": "Title",
-      "description": "Description"
+      "description": "Description",
+      "priority": "Priority"
+    },
+    "priority": {
+      "LOW": "Low",
+      "MEDIUM": "Medium",
+      "HIGH": "High",
+      "CRITICAL": "Critical"
     },
     "dialog": {
       "newTitle": "Create Task",
@@ -604,6 +611,7 @@
       "running": "Running…",
       "runDispatched": "Pipeline run dispatched",
       "runNoProcessor": "No processor available",
+      "runCancelled": "Pipeline run cancelled",
       "newPipeline": "New pipeline",
       "newPipelineTitle": "New Pipeline",
       "clonePipelineTitle": "Clone Pipeline",
@@ -721,7 +729,8 @@
       "error": "error",
       "errors": "errors",
       "noRuns": "No runs recorded yet",
-      "loading": "Loading runs…"
+      "loading": "Loading runs…",
+      "cancel": "Cancel run"
     },
     "inspector": {
       "empty": "Select a pipeline to inspect",

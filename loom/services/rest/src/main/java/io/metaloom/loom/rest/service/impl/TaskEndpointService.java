@@ -76,11 +76,13 @@ public class TaskEndpointService extends AbstractCRUDEndpointService<TaskDao, Ta
 	private void applyCreateRequest(TaskCreateRequest request, Task task) {
 		super.update(request::getMeta, task::setMeta);
 		super.update(request::getDescription, task::setDescription);
+		super.update(request::getPriority, task::setPriority);
 	}
 
 	private void applyUpdateRequest(TaskUpdateRequest request, Task task) {
 		super.update(request::getMeta, task::setMeta);
 		super.update(request::getTitle, task::setTitle);
 		super.update(request::getDescription, task::setDescription);
+		super.update(request::getPriority, task::setPriority);
 	}
 }

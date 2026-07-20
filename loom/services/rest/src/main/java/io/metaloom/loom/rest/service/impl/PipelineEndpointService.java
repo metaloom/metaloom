@@ -6,6 +6,7 @@ import static io.metaloom.loom.db.model.perm.Permission.READ_PIPELINE;
 import static io.metaloom.loom.db.model.perm.Permission.UPDATE_PIPELINE;
 import static io.metaloom.loom.db.model.perm.Permission.READ_PIPELINE_VERSION;
 import static io.metaloom.loom.db.model.perm.Permission.RESTORE_PIPELINE_VERSION;
+import static io.metaloom.loom.db.model.perm.Permission.UPDATE_PIPELINE_RUN;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -412,6 +413,49 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 			io.metaloom.loom.db.page.Page<PipelineRun> page = pipelineRunDao.loadPageByPipeline(pipelineUuid, from, limit, filterParameters.filters(), sortParameters.sortBy(), sortParameters.sortOrder());
 			io.metaloom.loom.rest.model.RestResponseModel<?> response = modelBuilder.toPipelineRunList(page);
 			lrc.send(response);
+		});
+	}
+
+	/**
+	 * Cancel an in-flight pipeline run.
+	 *
+	 * <p>Marks the run {@code CANCELLED} and stops its engine dispatching further node
+	 * tasks. In-flight worker tasks cannot be recalled - the dispatcher has no reverse
+	 * signal - so they settle naturally and their late results are ignored by the
+	 * tracker's terminal guard.</p>
+	 *
+	 * <p>The run is marked terminal <em>before</em> the engine is stopped, so a run that
+	 * completes naturally in the same instant cannot overwrite the cancellation.</p>
+	 */
+	public void cancelRun(LoomRoutingContext lrc, UUID pipelineUuid, UUID runUuid) {
+		checkPerm(lrc, UPDATE_PIPELINE_RUN, () -> {
+			PipelineRun run = pipelineRunDao.load(runUuid);
+			if (run == null || !pipelineUuid.equals(run.getPipelineUuid())) {
+				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Pipeline run not found.");
+			}
+			if (PipelineRunStatusResolver.isTerminal(run.getStatus())) {
+				throw new LoomRestException(409, LoomRestErrorCode.CONFLICT,
+					"Pipeline run is already " + run.getStatus() + ".");
+			}
+
+			// Mark terminal first so a natural completion racing this request cannot win.
+			boolean applied = pipelineRunTracker.cancel(runUuid);
+
+			// Stop the live engine if one is present. It may be absent - an offline run, or
+			// one lost to a Loom restart - in which case the cancel is still recorded above.
+			PipelineRunEngine engine = pipelineRunRegistry.get(runUuid);
+			if (engine != null) {
+				engine.cancel();
+				pipelineRunRegistry.unregister(runUuid);
+			}
+
+			if (!applied) {
+				// The run reached a terminal state between the check above and the cancel.
+				throw new LoomRestException(409, LoomRestErrorCode.CONFLICT,
+					"Pipeline run completed before it could be cancelled.");
+			}
+
+			lrc.send(new io.metaloom.loom.rest.model.message.GenericMessageResponse().setMessage("Pipeline run cancelled"));
 		});
 	}
 

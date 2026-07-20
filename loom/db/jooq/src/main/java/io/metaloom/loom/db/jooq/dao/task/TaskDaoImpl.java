@@ -14,6 +14,7 @@ import org.jooq.DSLContext;
 import org.jooq.Table;
 import org.jooq.TableRecord;
 
+import io.metaloom.loom.api.task.TaskPriority;
 import io.metaloom.loom.db.jooq.AbstractJooqDao;
 import io.metaloom.loom.db.jooq.tables.JooqTask;
 import io.metaloom.loom.db.model.task.Task;
@@ -46,6 +47,7 @@ public class TaskDaoImpl extends AbstractJooqDao<Task> implements TaskDao {
 	public Task createTask(UUID userUuid, String title) {
 		Task task = new TaskImpl();
 		task.setTitle(title);
+		task.setPriority(TaskPriority.MEDIUM);
 		setCreatorEditor(task, userUuid);
 		return task;
 	}

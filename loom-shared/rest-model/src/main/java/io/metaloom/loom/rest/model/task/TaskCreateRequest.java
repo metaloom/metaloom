@@ -1,5 +1,6 @@
 package io.metaloom.loom.rest.model.task;
 
+import io.metaloom.loom.api.task.TaskPriority;
 import io.metaloom.loom.rest.model.RestRequestModel;
 import io.metaloom.loom.rest.model.common.AbstractMetaModel;
 

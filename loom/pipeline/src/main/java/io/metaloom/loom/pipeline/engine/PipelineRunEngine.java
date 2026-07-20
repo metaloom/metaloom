@@ -110,6 +110,7 @@ public class PipelineRunEngine {
 	private boolean started;
 	private boolean sourceComplete;
 	private boolean runComplete;
+	private boolean cancelled;
 	private long startedAt;
 	private long itemSequence;
 
@@ -191,6 +192,35 @@ public class PipelineRunEngine {
 	}
 
 	/**
+	 * Stop the run: dispatch no further node tasks and settle the engine.
+	 *
+	 * <p>In-flight tasks cannot be recalled - the dispatcher has no reverse signal - so
+	 * they are left to settle naturally; their late results are absorbed without
+	 * dispatching anything downstream, because {@link #advance} is short-circuited once
+	 * this flag is set and {@link #checkComplete} no-ops once {@code runComplete} is.</p>
+	 *
+	 * <p>Idempotent, and a no-op on a run that has already reached a terminal state.
+	 * Completion listeners are deliberately <em>not</em> fired: the terminal transition
+	 * of the {@code pipeline_run} row and the registry cleanup are owned by the caller,
+	 * exactly as they are on the dispatch-failure teardown path. Firing them here would
+	 * drive the normal completion listener, which derives a SUCCESS/PARTIAL/FAILED status
+	 * rather than a cancellation.</p>
+	 */
+	public synchronized void cancel() {
+		if (runComplete) {
+			return;
+		}
+		cancelled = true;
+		// No further items will be accepted or expected, and any source held for capacity
+		// must be released or it waits forever on a run that has stopped consuming.
+		sourceComplete = true;
+		runComplete = true;
+		releaseCapacityWaiters();
+		store.flush();
+		log.info("Run {} cancelled: {}", runUuid, buildSummary());
+	}
+
+	/**
 	 * Called for each media item the source enumerates.
 	 *
 	 * <p>The source node's own result is recorded here, which is what makes the rest
@@ -201,6 +231,11 @@ public class PipelineRunEngine {
 	 */
 	public synchronized String onItemDiscovered(MediaRef media) {
 		requireStarted();
+		if (cancelled) {
+			// A source still enumerating when the run was cancelled: drop the item rather
+			// than tripping the sourceComplete guard below with an IllegalStateException.
+			return null;
+		}
 		if (sourceComplete) {
 			throw new IllegalStateException("Source already reported complete for run " + runUuid);
 		}
@@ -499,6 +534,11 @@ public class PipelineRunEngine {
 	 * results for nodes that are skipped rather than executed.
 	 */
 	private void advance(ItemState state) {
+		if (cancelled) {
+			// The run was cancelled; dispatch nothing further. Late in-flight results still
+			// settle through record(), but must not spawn new downstream work.
+			return;
+		}
 		boolean progressed = true;
 		// A skip settles a node without a round trip, which can immediately make its
 		// children ready - so keep going until nothing new settles.

@@ -36,6 +36,7 @@ export interface TaskCreateRequest {
 export interface TaskUpdateRequest {
   title?: string;
   description?: string;
+  priority?: string;
   meta?: Record<string, unknown>;
 }
 
