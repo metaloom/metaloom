@@ -20,6 +20,8 @@ import io.metaloom.loom.rest.model.processor.ProcessorCapability;
 import io.metaloom.loom.rest.model.processor.ProcessorResponse;
 import io.metaloom.loom.rest.model.processor.ProcessorState;
 import io.metaloom.loom.rest.model.processor.SystemStatusInfo;
+import io.metaloom.loom.rest.model.processor.event.ProcessorEventMessage;
+import io.metaloom.loom.rest.model.processor.event.ProcessorEventType;
 import io.metaloom.loom.rest.model.processor.message.ProcessorMessage;
 import io.metaloom.loom.rest.model.processor.message.ProcessorMessageType;
 import io.metaloom.loom.rest.model.processor.message.ProcessorRegistration;
@@ -46,17 +48,35 @@ public class ProcessorRegistry {
 	 */
 	private final DaoCollection daos;
 
+	/**
+	 * Fan-out for live processor events to UI clients over the single UI events socket.
+	 * May be null in pure-unit tests that exercise the in-memory registry without the
+	 * broadcaster; every emit is guarded so those tests stay broadcast-free.
+	 */
+	private final PipelineEventBroadcaster broadcaster;
+
 	@Inject
-	public ProcessorRegistry(DaoCollection daos) {
+	public ProcessorRegistry(DaoCollection daos, PipelineEventBroadcaster broadcaster) {
 		this.daos = daos;
+		this.broadcaster = broadcaster;
 	}
 
 	/**
-	 * Construct a registry without persistence. Used by tests that only exercise the
-	 * in-memory selection logic; {@link #register} then behaves exactly as before.
+	 * Construct a registry with persistence but without event broadcasting. Used by
+	 * persistence tests; {@link #register} reconciles the durable record but emits no
+	 * UI events.
+	 */
+	public ProcessorRegistry(DaoCollection daos) {
+		this(daos, null);
+	}
+
+	/**
+	 * Construct a registry without persistence or event broadcasting. Used by tests that
+	 * only exercise the in-memory selection logic; {@link #register} then behaves exactly
+	 * as before and emits no events.
 	 */
 	public ProcessorRegistry() {
-		this(null);
+		this(null, null);
 	}
 
 	/**
@@ -86,6 +106,9 @@ public class ProcessorRegistry {
 
 		processors.put(nodeId, processor);
 		log.info("Processor registered: {} ({})", registration.getName(), nodeId);
+
+		broadcast(new ProcessorEventMessage(ProcessorEventType.REGISTERED, nodeId)
+			.setProcessor(toResponse(processor)));
 	}
 
 	/**
@@ -135,6 +158,7 @@ public class ProcessorRegistry {
 		ConnectedProcessor removed = processors.remove(nodeId);
 		if (removed != null) {
 			log.info("Processor unregistered: {} ({})", removed.name, nodeId);
+			broadcast(new ProcessorEventMessage(ProcessorEventType.DISCONNECTED, nodeId));
 		}
 	}
 
@@ -145,6 +169,8 @@ public class ProcessorRegistry {
 		ConnectedProcessor processor = processors.get(nodeId);
 		if (processor != null) {
 			processor.lastSeen = Instant.now();
+			broadcast(new ProcessorEventMessage(ProcessorEventType.HEARTBEAT, nodeId)
+				.setLastSeen(processor.lastSeen));
 		}
 	}
 
@@ -156,6 +182,8 @@ public class ProcessorRegistry {
 		if (processor != null) {
 			processor.systemStatus = status;
 			processor.lastSeen = Instant.now();
+			broadcast(new ProcessorEventMessage(ProcessorEventType.STATUS_UPDATED, nodeId)
+				.setProcessor(toResponse(processor)));
 		}
 	}
 
@@ -167,6 +195,18 @@ public class ProcessorRegistry {
 		if (processor != null) {
 			processor.state = state;
 			processor.lastSeen = Instant.now();
+			broadcast(new ProcessorEventMessage(ProcessorEventType.STATE_CHANGED, nodeId)
+				.setProcessor(toResponse(processor)));
+		}
+	}
+
+	/**
+	 * Fan a processor event out to UI subscribers when a broadcaster is wired.
+	 * No-op in unit tests that construct the registry without one.
+	 */
+	private void broadcast(ProcessorEventMessage event) {
+		if (broadcaster != null) {
+			broadcaster.broadcastProcessorEvent(event);
 		}
 	}
 
@@ -279,6 +319,7 @@ public class ProcessorRegistry {
 	public ProcessorResponse toResponse(ConnectedProcessor processor) {
 		ProcessorResponse response = new ProcessorResponse();
 		response.setUuid(UUID.nameUUIDFromBytes(processor.nodeId.getBytes()));
+		response.setNodeId(processor.nodeId);
 		response.setName(processor.name);
 		response.setHost(processor.host);
 		response.setPriority(processor.priority);

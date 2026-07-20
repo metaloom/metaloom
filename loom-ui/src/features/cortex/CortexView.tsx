@@ -1,16 +1,19 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Box, Typography, Chip, IconButton, Menu, MenuItem, Divider, Tooltip, Paper,
-  TextField, InputAdornment, FormControl, Select, SelectChangeEvent, ToggleButtonGroup, ToggleButton,
+  TextField, InputAdornment, FormControl, Select, SelectChangeEvent, CircularProgress,
 } from "@mui/material";
 import {
   MemoryOutlined, StorageOutlined,
   MoreVertOutlined, PauseOutlined, PlayArrowOutlined,
   StopOutlined, RestartAltOutlined, DnsOutlined,
-  SearchOutlined, FilterListOutlined, HelpOutlineOutlined,
+  SearchOutlined, HelpOutlineOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { useTranslation } from "react-i18next";
+import { useAuth } from "../../context/AuthContext";
+import { listProcessors, Processor } from "../../api/processors";
+import { subscribeProcessorEvents, ProcessorEventMessage } from "../../api/pipelineEvents";
 
 interface WorkerNode {
   id: string;
@@ -20,16 +23,55 @@ interface WorkerNode {
   status: "online" | "offline" | "starting" | "terminating" | "paused";
   stats: { cpu: number; gpu: number; io: number; memory: number };
   capabilities: ("GPU" | "CPU" | "IO")[];
+  lastSeen?: string;
 }
 
-const WORKERS: WorkerNode[] = [
-  { id: "w1", name: "cortex-gpu-01", host: "10.0.1.10:9090", priority: 1, status: "online", stats: { cpu: 42, gpu: 78, io: 31, memory: 55 }, capabilities: ["GPU", "CPU"] },
-  { id: "w2", name: "cortex-gpu-02", host: "10.0.1.11:9090", priority: 2, status: "online", stats: { cpu: 68, gpu: 91, io: 45, memory: 72 }, capabilities: ["GPU", "CPU", "IO"] },
-  { id: "w3", name: "cortex-cpu-01", host: "10.0.1.20:9090", priority: 3, status: "online", stats: { cpu: 25, gpu: 0, io: 60, memory: 38 }, capabilities: ["CPU", "IO"] },
-  { id: "w4", name: "cortex-cpu-02", host: "10.0.1.21:9090", priority: 4, status: "paused", stats: { cpu: 5, gpu: 0, io: 8, memory: 22 }, capabilities: ["CPU", "IO"] },
-  { id: "w5", name: "cortex-io-01", host: "10.0.1.30:9090", priority: 5, status: "starting", stats: { cpu: 12, gpu: 0, io: 15, memory: 18 }, capabilities: ["IO"] },
-  { id: "w6", name: "cortex-gpu-03", host: "10.0.1.12:9090", priority: 1, status: "offline", stats: { cpu: 0, gpu: 0, io: 0, memory: 0 }, capabilities: ["GPU", "CPU"] },
-];
+// ── Map a REST/live processor snapshot to the card render shape ────────────
+function pct(v?: number): number {
+  return Math.max(0, Math.min(100, Math.round(v ?? 0)));
+}
+
+function memoryPct(p: Processor): number {
+  const used = p.systemStatus?.memoryUsed;
+  const total = p.systemStatus?.memoryTotal;
+  if (!used || !total || total <= 0) return 0;
+  return Math.max(0, Math.min(100, Math.round((used / total) * 100)));
+}
+
+function processorToWorker(p: Processor): WorkerNode {
+  return {
+    id: p.nodeId,
+    name: p.name,
+    host: p.host ?? "",
+    priority: p.priority ?? 0,
+    status: (p.state ? p.state.toLowerCase() : "offline") as WorkerNode["status"],
+    stats: {
+      cpu: pct(p.systemStatus?.cpuLoad),
+      gpu: pct(p.systemStatus?.gpuLoad),
+      io: pct(p.systemStatus?.ioLoad),
+      memory: memoryPct(p),
+    },
+    capabilities: p.capabilities ?? [],
+    lastSeen: p.lastSeen,
+  };
+}
+
+// ── Relative "last seen" formatting ────────────────────────────────────────
+function formatLastSeen(iso: string | undefined, now: number): string | null {
+  if (!iso) return null;
+  const then = Date.parse(iso);
+  if (Number.isNaN(then)) return null;
+  const secs = Math.max(0, Math.round((now - then) / 1000));
+  if (secs < 5) return "just now";
+  if (secs < 60) return `${secs}s ago`;
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  return `${hrs}h ago`;
+}
+
+/** A worker is considered stale when no signal has arrived for this long. */
+const STALE_AFTER_MS = 30_000;
 
 const statusColor: Record<WorkerNode["status"], string> = {
   online: tokens.accent.green,
@@ -117,14 +159,19 @@ function HeartbeatIndicator({ active }: { active: boolean }) {
 }
 
 // ── Worker Card ───────────────────────────────────────────────────────────
-function WorkerCard({ worker, onChangeStatus }: { worker: WorkerNode; onChangeStatus: (id: string, status: WorkerNode["status"]) => void }) {
+function WorkerCard({ worker, now, onChangeStatus }: { worker: WorkerNode; now: number; onChangeStatus: (id: string, status: WorkerNode["status"]) => void }) {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const sc = statusColor[worker.status];
   const { t } = useTranslation();
+  const lastSeenLabel = formatLastSeen(worker.lastSeen, now);
+  const stale = worker.status === "online" && worker.lastSeen != null
+    && !Number.isNaN(Date.parse(worker.lastSeen))
+    && now - Date.parse(worker.lastSeen) > STALE_AFTER_MS;
 
   return (
     <Paper
       elevation={0}
+      data-testid={`worker-card-${worker.id}`}
       sx={{
         display: "flex", alignItems: "center", gap: 2, p: 2,
         border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.lg,
@@ -137,12 +184,19 @@ function WorkerCard({ worker, onChangeStatus }: { worker: WorkerNode; onChangeSt
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
           <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.88rem" }}>{worker.name}</Typography>
-          <Chip label={worker.status} size="small" sx={{ height: 18, fontSize: "0.64rem", fontWeight: 600, bgcolor: `${sc}18`, color: sc }} />
+          <Chip data-testid={`worker-status-${worker.id}`} label={worker.status} size="small" sx={{ height: 18, fontSize: "0.64rem", fontWeight: 600, bgcolor: `${sc}18`, color: sc }} />
           <HeartbeatIndicator active={worker.status === "online"} />
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 0.75 }}>
           <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.72rem", fontFamily: "monospace" }}>{worker.host}</Typography>
           <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>P{worker.priority}</Typography>
+          {lastSeenLabel && (
+            <Tooltip title={t("cortex.lastSeen.tooltip")} arrow>
+              <Typography variant="caption" sx={{ fontSize: "0.68rem", color: stale ? tokens.accent.amber : tokens.text.tertiary }}>
+                {stale ? "⚠ " : ""}{t("cortex.lastSeen.label", { time: lastSeenLabel })}
+              </Typography>
+            </Tooltip>
+          )}
         </Box>
         <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
           {[
@@ -195,12 +249,80 @@ function WorkerCard({ worker, onChangeStatus }: { worker: WorkerNode; onChangeSt
 
 // ── Main Cortex View ──────────────────────────────────────────────────────
 export default function CortexView() {
-  const [workers, setWorkers] = useState<WorkerNode[]>(WORKERS);
+  const { token } = useAuth();
+  const [workers, setWorkers] = useState<WorkerNode[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<WorkerNode["status"] | "all">("all");
   const [capFilter, setCapFilter] = useState<"all" | "GPU" | "CPU" | "IO">("all");
-  const [filtered, setFiltered] = useState<WorkerNode[]>(WORKERS);
+  const [filtered, setFiltered] = useState<WorkerNode[]>([]);
+  const [now, setNow] = useState<number>(() => Date.now());
   const { t } = useTranslation();
+
+  // Initial REST snapshot.
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    setLoading(true);
+    listProcessors(token)
+      .then((resp) => {
+        if (cancelled) return;
+        setWorkers((resp.data ?? []).map(processorToWorker));
+        setError(null);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error("Failed to load processors", err);
+        setError(String(err?.message ?? err));
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [token]);
+
+  // Live processor events over the shared UI socket.
+  const handleEvent = useCallback((event: ProcessorEventMessage) => {
+    setWorkers((prev) => {
+      switch (event.type) {
+        case "REGISTERED":
+        case "STATE_CHANGED":
+        case "STATUS_UPDATED": {
+          if (!event.processor) return prev;
+          const worker = processorToWorker(event.processor);
+          const idx = prev.findIndex((w) => w.id === worker.id);
+          if (idx === -1) return [...prev, worker];
+          const next = prev.slice();
+          next[idx] = worker;
+          return next;
+        }
+        case "HEARTBEAT": {
+          const idx = prev.findIndex((w) => w.id === event.nodeId);
+          if (idx === -1) return prev;
+          const next = prev.slice();
+          next[idx] = { ...next[idx], lastSeen: event.lastSeen ?? next[idx].lastSeen };
+          return next;
+        }
+        case "DISCONNECTED": {
+          // Keep the card (offline, persisted) rather than dropping it.
+          const idx = prev.findIndex((w) => w.id === event.nodeId);
+          if (idx === -1) return prev;
+          const next = prev.slice();
+          next[idx] = { ...next[idx], status: "offline" };
+          return next;
+        }
+        default:
+          return prev;
+      }
+    });
+  }, []);
+
+  useEffect(() => subscribeProcessorEvents(handleEvent, token), [handleEvent, token]);
+
+  // Tick a clock so relative "last seen" / staleness re-renders without new events.
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 5000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     let res = workers;
@@ -299,14 +421,24 @@ export default function CortexView() {
       {/* Worker list */}
       <Box sx={{ flex: 1, overflow: "auto", p: 2.5 }}>
         <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, maxWidth: 900 }}>
-          {filtered.length === 0 ? (
+          {loading ? (
+            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 200, gap: 1.5 }}>
+              <CircularProgress size={28} />
+              <Typography variant="body2" color="text.secondary">{t("cortex.loading")}</Typography>
+            </Box>
+          ) : error ? (
+            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 200, gap: 1 }}>
+              <DnsOutlined sx={{ fontSize: 36, color: tokens.accent.red }} />
+              <Typography variant="body2" color="text.secondary">{t("cortex.error")}</Typography>
+            </Box>
+          ) : filtered.length === 0 ? (
             <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 200, gap: 1 }}>
               <DnsOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
               <Typography variant="body2" color="text.secondary">{t("cortex.empty")}</Typography>
             </Box>
           ) : (
             filtered.map(w => (
-              <WorkerCard key={w.id} worker={w} onChangeStatus={handleChangeStatus} />
+              <WorkerCard key={w.id} worker={w} now={now} onChangeStatus={handleChangeStatus} />
             ))
           )}
         </Box>

@@ -491,36 +491,6 @@ via a read-only UI-facing broadcast of processor state changes, or by polling
 
 ---
 
-## Task 11: Pipeline version diff view
-
-**Argumentation Summary:** Versioning (badge, history dropdown, restore) is
-implemented, but there is no way to see *what changed* between two versions.
-Restore is copy-forward and irreversible-by-omission, so an author restoring an
-old version is flying blind about what they are about to reintroduce.
-
-**Improvement Summary:** Add a side-by-side (or inline) diff between any two
-pipeline versions, using the existing version-load endpoint.
-
-```
-1. Use loadPipelineVersion(token, uuid, n) (already in src/api/pipelines.ts) to
-   fetch two versions' definitions.
-2. Render a structural diff: added/removed/changed nodes, edges, parameters, and
-   affinity groups. A JSON diff is acceptable as a first cut; a graph-level diff
-   (highlight changed nodes on a read-only canvas) is the stretch goal.
-3. Entry point from the version history dropdown ("Compare with current").
-```
-
-**References:**
-- `loom-ui/src/features/pipeline/PipelineEditor.tsx` (`PipelineVersionBadge`, version history)
-- `loom-ui/src/api/pipelines.ts` (`loadPipelineVersion`)
-- [PIPELINE_EDITOR.md](PIPELINE_EDITOR.md) §6.7, [LOOM_UI.md](LOOM_UI.md) §12.8 (version diff missing)
-
-**Test Requirements:**
-- UI test: edit + save to mint a new version, open the diff against the previous,
-  assert the changed node/parameter is reported.
-
----
-
 ## Task 12: React error boundaries and global 401 handling
 
 **Argumentation Summary:** There is no React error boundary anywhere, so a render

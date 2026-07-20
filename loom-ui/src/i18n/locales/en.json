@@ -775,6 +775,12 @@
       "clearFilters": "Clear filters"
     },
     "empty": "No workers match your filters",
+    "loading": "Loading workers…",
+    "error": "Failed to load workers",
+    "lastSeen": {
+      "label": "seen {{time}}",
+      "tooltip": "Time since the last heartbeat or status update"
+    },
     "stat": {
       "cpu": "CPU",
       "gpu": "GPU",

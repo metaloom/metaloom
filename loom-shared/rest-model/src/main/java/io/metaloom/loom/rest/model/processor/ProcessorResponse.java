@@ -13,6 +13,10 @@ import io.metaloom.loom.rest.model.common.AbstractResponse;
  */
 public class ProcessorResponse extends AbstractResponse<ProcessorResponse> {
 
+	@JsonProperty(required = false)
+	@JsonPropertyDescription("Stable node id of the processor. The uuid is derived from this and it is the natural key for correlating REST snapshots with live processor events.")
+	private String nodeId;
+
 	@JsonProperty(required = true)
 	@JsonPropertyDescription("Human readable name of the processor node")
 	private String name;
@@ -40,6 +44,15 @@ public class ProcessorResponse extends AbstractResponse<ProcessorResponse> {
 	@JsonProperty(required = false)
 	@JsonPropertyDescription("Timestamp when the processor was last seen")
 	private Instant lastSeen;
+
+	public String getNodeId() {
+		return nodeId;
+	}
+
+	public ProcessorResponse setNodeId(String nodeId) {
+		this.nodeId = nodeId;
+		return this;
+	}
 
 	public String getName() {
 		return name;

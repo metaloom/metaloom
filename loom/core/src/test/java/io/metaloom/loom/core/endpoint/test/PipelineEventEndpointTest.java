@@ -73,6 +73,16 @@ public class PipelineEventEndpointTest {
 		return future.get(10, TimeUnit.SECONDS);
 	}
 
+	/**
+	 * The pipeline events socket is multiplexed: processor lifecycle frames
+	 * ({@code channel == "PROCESSOR"}, e.g. the REGISTERED emitted when the test
+	 * processor connects) share the same connection. A UI client routes by channel;
+	 * these tests only assert on pipeline frames, so they skip processor ones.
+	 */
+	private static boolean isPipelineFrame(JsonObject frame) {
+		return !"PROCESSOR".equals(frame.getString("channel"));
+	}
+
 	private JsonObject sendAndReceive(WebSocket ws, JsonObject message) throws Exception {
 		CompletableFuture<JsonObject> future = new CompletableFuture<>();
 		ws.textMessageHandler(text -> future.complete(new JsonObject(text)));
@@ -123,7 +133,10 @@ public class PipelineEventEndpointTest {
 			// 1. Connect a UI subscriber to the pipeline events WebSocket
 			WebSocket uiWs = connectPipelineEventsWs(vertx);
 			CompletableFuture<JsonObject> receivedEvent = new CompletableFuture<>();
-			uiWs.textMessageHandler(text -> receivedEvent.complete(new JsonObject(text)));
+			uiWs.textMessageHandler(text -> {
+				JsonObject frame = new JsonObject(text);
+				if (isPipelineFrame(frame)) receivedEvent.complete(frame);
+			});
 
 			// 2. Connect a processor and register it
 			WebSocket processorWs = connectProcessorWs(vertx);
@@ -159,11 +172,15 @@ public class PipelineEventEndpointTest {
 			CompletableFuture<Void> got1 = new CompletableFuture<>();
 			CompletableFuture<Void> got2 = new CompletableFuture<>();
 			uiWs1.textMessageHandler(text -> {
-				received1.add(new JsonObject(text));
+				JsonObject frame = new JsonObject(text);
+				if (!isPipelineFrame(frame)) return;
+				received1.add(frame);
 				got1.complete(null);
 			});
 			uiWs2.textMessageHandler(text -> {
-				received2.add(new JsonObject(text));
+				JsonObject frame = new JsonObject(text);
+				if (!isPipelineFrame(frame)) return;
+				received2.add(frame);
 				got2.complete(null);
 			});
 
@@ -236,7 +253,9 @@ public class PipelineEventEndpointTest {
 			CopyOnWriteArrayList<JsonObject> received = new CopyOnWriteArrayList<>();
 			CompletableFuture<Void> gotAll = new CompletableFuture<>();
 			uiWs.textMessageHandler(text -> {
-				received.add(new JsonObject(text));
+				JsonObject frame = new JsonObject(text);
+				if (!isPipelineFrame(frame)) return;
+				received.add(frame);
 				if (received.size() >= 4) {
 					gotAll.complete(null);
 				}
@@ -279,7 +298,10 @@ public class PipelineEventEndpointTest {
 		try {
 			WebSocket uiWs = connectPipelineEventsWs(vertx);
 			CompletableFuture<JsonObject> receivedEvent = new CompletableFuture<>();
-			uiWs.textMessageHandler(text -> receivedEvent.complete(new JsonObject(text)));
+			uiWs.textMessageHandler(text -> {
+				JsonObject frame = new JsonObject(text);
+				if (isPipelineFrame(frame)) receivedEvent.complete(frame);
+			});
 
 			WebSocket processorWs = connectProcessorWs(vertx);
 			sendAndReceive(processorWs, registerMessage("proc-ev-stats"));

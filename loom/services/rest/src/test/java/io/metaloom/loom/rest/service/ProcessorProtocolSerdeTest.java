@@ -15,6 +15,12 @@ import io.metaloom.loom.pipeline.model.MediaRef;
 import io.metaloom.loom.pipeline.model.NodeState;
 import io.metaloom.loom.pipeline.model.NodeTask;
 import io.metaloom.loom.pipeline.model.NodeTaskResult;
+import java.time.Instant;
+
+import io.metaloom.loom.rest.model.processor.ProcessorResponse;
+import io.metaloom.loom.rest.model.processor.ProcessorState;
+import io.metaloom.loom.rest.model.processor.event.ProcessorEventMessage;
+import io.metaloom.loom.rest.model.processor.event.ProcessorEventType;
 import io.metaloom.loom.rest.model.processor.message.NodeTaskResultMessage;
 import io.metaloom.loom.rest.model.processor.message.ProcessorMessage;
 import io.metaloom.loom.rest.model.processor.message.ProcessorMessageType;
@@ -201,6 +207,43 @@ public class ProcessorProtocolSerdeTest {
 
 		assertEquals(17, decoded.getTotalCount());
 		assertTrue(decoded.getError().contains("permission denied"));
+	}
+
+	@Test
+	void testProcessorEventCarriesChannelDiscriminatorAndSnapshot() {
+		// Processor events share the UI socket with pipeline events; the `channel`
+		// discriminator is how a client routes a frame without a second connection.
+		ProcessorResponse snapshot = new ProcessorResponse()
+			.setNodeId("node-1")
+			.setName("cortex-gpu-01")
+			.setState(ProcessorState.PAUSED);
+		ProcessorEventMessage event = new ProcessorEventMessage(ProcessorEventType.STATE_CHANGED, "node-1")
+			.setProcessor(snapshot);
+
+		String wire = Json.encode(event);
+		JsonObject raw = new JsonObject(wire);
+		assertEquals("PROCESSOR", raw.getString("channel"), "channel discriminator must always serialize");
+		assertEquals("STATE_CHANGED", raw.getString("type"));
+
+		ProcessorEventMessage decoded = new JsonObject(wire).mapTo(ProcessorEventMessage.class);
+		assertEquals(ProcessorEventType.STATE_CHANGED, decoded.getType());
+		assertEquals("node-1", decoded.getNodeId());
+		assertNotNull(decoded.getProcessor());
+		assertEquals("node-1", decoded.getProcessor().getNodeId());
+		assertEquals(ProcessorState.PAUSED, decoded.getProcessor().getState());
+	}
+
+	@Test
+	void testHeartbeatEventIsLightweight() {
+		Instant seen = Instant.now();
+		ProcessorEventMessage event = new ProcessorEventMessage(ProcessorEventType.HEARTBEAT, "node-2")
+			.setLastSeen(seen);
+
+		ProcessorEventMessage decoded = new JsonObject(Json.encode(event)).mapTo(ProcessorEventMessage.class);
+		assertEquals(ProcessorEventType.HEARTBEAT, decoded.getType());
+		assertEquals("node-2", decoded.getNodeId());
+		assertNull(decoded.getProcessor(), "heartbeat must not carry a full snapshot");
+		assertEquals(seen, decoded.getLastSeen());
 	}
 
 	@Test

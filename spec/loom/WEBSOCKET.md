@@ -286,10 +286,21 @@ containing `ProcessorResponse` items with: `uuid`, `name`, `host`, `priority`,
 
 ### 4.1 Purpose
 
-The pipeline events WebSocket streams live pipeline tracking events to UI
-clients. It is **read-only** from the client side - clients do not send
-messages. Events flow from processor nodes via the `ProcessorEndpoint` into
-the `PipelineEventBroadcaster` and then fan out to all connected subscribers.
+The pipeline events WebSocket is the **single UI-facing event socket**. It is
+**read-only** from the client side - clients do not send messages. To avoid
+opening additional sockets from a browser, it is **multiplexed** and carries two
+kinds of frame, discriminated by an optional top-level `channel` field:
+
+| `channel` value | Frame model              | Source                                            |
+|-----------------|--------------------------|---------------------------------------------------|
+| *(absent)*      | `PipelineEventMessage`   | Processor nodes → `ProcessorEndpoint` → `PipelineEventBroadcaster.broadcast()` |
+| `"PROCESSOR"`   | `ProcessorEventMessage`  | `ProcessorRegistry` state changes → `PipelineEventBroadcaster.broadcastProcessorEvent()` |
+
+Pipeline frames keep their original wire format (no `channel` field, treated as
+the default pipeline channel) so existing clients are unaffected. A client routes
+each frame by inspecting `channel`. Processor frames are **not** pipeline-scoped:
+the `?pipeline=` filter (§4.3) is bypassed for them, so a filtered subscriber
+still receives fleet-wide processor updates.
 
 ### 4.2 Authentication
 
@@ -340,6 +351,35 @@ public enum PipelineEventType {
     NODE_STATS             // Periodic per-node throughput snapshot (active, pending, processed, failed counts)
 }
 ```
+
+### 4.5b Processor Event Message (`channel: "PROCESSOR"`)
+
+Processor lifecycle frames are JSON-encoded `ProcessorEventMessage` objects
+emitted by `ProcessorRegistry` whenever a processor registers, changes state,
+reports metrics, heartbeats, or disconnects:
+
+| Field       | Type                  | Description                                                     |
+|-------------|-----------------------|-----------------------------------------------------------------|
+| `channel`   | String                | Always `"PROCESSOR"` — the multiplexing discriminator            |
+| `type`      | `ProcessorEventType`  | `REGISTERED`, `STATE_CHANGED`, `STATUS_UPDATED`, `HEARTBEAT`, `DISCONNECTED` |
+| `nodeId`    | String                | Node id of the processor (stable UI key)                        |
+| `processor` | `ProcessorResponse`   | Full snapshot on `REGISTERED` / `STATE_CHANGED` / `STATUS_UPDATED`; null otherwise |
+| `lastSeen`  | Instant               | Carried on `HEARTBEAT` (lightweight; no full snapshot)          |
+
+```java
+public enum ProcessorEventType {
+    REGISTERED,      // Processor registered / re-registered (full snapshot)
+    STATE_CHANGED,   // State transition incl. ONLINE→OFFLINE on disconnect (full snapshot)
+    STATUS_UPDATED,  // Fresh system metrics: CPU/GPU/IO/memory (full snapshot)
+    HEARTBEAT,       // Keepalive; carries only nodeId + lastSeen
+    DISCONNECTED     // Processor unregistered; carries only nodeId
+}
+```
+
+A processor disconnect naturally produces `STATE_CHANGED`→`OFFLINE` (the close
+handler calls `updateState(nodeId, OFFLINE)`) followed by `DISCONNECTED`
+(`unregister`), letting the UI show the card as "offline (persisted)" rather than
+dropping it.
 
 ### 4.6 Backpressure
 

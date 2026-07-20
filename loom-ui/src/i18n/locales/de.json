@@ -766,6 +766,12 @@
       "clearFilters": "Filter zurücksetzen"
     },
     "empty": "Keine Worker entsprechen Ihren Filtern",
+    "loading": "Worker werden geladen…",
+    "error": "Worker konnten nicht geladen werden",
+    "lastSeen": {
+      "label": "gesehen {{time}}",
+      "tooltip": "Zeit seit dem letzten Heartbeat oder Status-Update"
+    },
     "stat": {
       "cpu": "CPU",
       "gpu": "GPU",

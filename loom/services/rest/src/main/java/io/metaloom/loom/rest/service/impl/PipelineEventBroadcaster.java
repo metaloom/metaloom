@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.loom.rest.model.pipeline.event.PipelineEventMessage;
+import io.metaloom.loom.rest.model.processor.event.ProcessorEventMessage;
 import io.vertx.core.http.ServerWebSocket;
 import io.vertx.core.json.Json;
 
@@ -94,6 +95,35 @@ public class PipelineEventBroadcaster {
 			if (!subscriber.matches(event)) {
 				continue;
 			}
+			if (ws.isClosed()) {
+				subscribers.remove(ws);
+				continue;
+			}
+			if (json == null) {
+				json = Json.encode(event);
+			}
+			subscriber.send(json);
+		}
+	}
+
+	/**
+	 * Broadcast a processor lifecycle event to <b>all</b> subscribers of the UI
+	 * events socket.
+	 *
+	 * <p>Processor events share the single UI-facing WebSocket with pipeline
+	 * events (multiplexed via the {@code channel} discriminator). Unlike pipeline
+	 * events they are <b>not</b> pipeline-scoped, so the per-subscriber
+	 * {@code ?pipeline=} filter is deliberately bypassed — a client filtering on
+	 * a pipeline still receives fleet-wide processor updates.</p>
+	 */
+	public void broadcastProcessorEvent(ProcessorEventMessage event) {
+		if (subscribers.isEmpty()) {
+			return;
+		}
+		String json = null; // lazy-encode — only serialize once we have a live subscriber
+		for (var entry : subscribers.entrySet()) {
+			ServerWebSocket ws = entry.getKey();
+			Subscriber subscriber = entry.getValue();
 			if (ws.isClosed()) {
 				subscribers.remove(ws);
 				continue;
