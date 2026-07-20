@@ -295,7 +295,7 @@ public class LoomControlChannel {
 			// pool: a null or empty whitelist means "anything", so an unconfigured worker
 			// keeps receiving everything rather than dropping out. The blacklist narrows
 			// that by refusing specific kinds even when the whitelist would admit them.
-			.setNodeWhitelist(announcedNodeKinds())
+			.setNodeWhitelist(announcedNodeWhitelist())
 			.setNodeBlacklist(options.getNodeBlacklist());
 
 		sendMessage(new ProcessorMessage(ProcessorMessageType.REGISTER, JsonObject.mapFrom(registration)));
@@ -309,7 +309,7 @@ public class LoomControlChannel {
 	 * looks like a task dispatched to a worker that then cannot run it. An explicit
 	 * setting narrows that further, for dedicating a machine to part of a pipeline.</p>
 	 */
-	private java.util.Set<String> announcedNodeKinds() {
+	private java.util.Set<String> announcedNodeWhitelist() {
 		java.util.Set<String> configured = options.getNodeWhitelist();
 		if (configured != null && !configured.isEmpty()) {
 			return configured;

@@ -35,138 +35,14 @@
 
 ---
 
-## Task 1: Persist registered Cortex instances and their node-kind restrictions
-
-**Argumentation Summary:** Registered Cortex/processor instances live **only in
-`ProcessorRegistry`'s in-memory `ConcurrentHashMap`** and die with the Loom
-process. Their node-kind whitelist (`ConnectedProcessor.nodeKinds`) is set once,
-at WebSocket registration, from what the worker announces — there is no `ProcessorDao`,
-no Flyway migration, and no way to remember or override a worker's restriction
-across reconnects or restarts. This blocks every dynamic-restriction story: you
-cannot set a worker's `nodeWhitelist` / `nodeBlacklist` from the UI if there is
-nowhere durable to record the decision, and a restart would silently discard it.
-
-**Improvement Summary:** Introduce a persisted `cortex_instance` (processor)
-record keyed by the stable `nodeId`, tracking identity plus an
-administrator-managed **`nodeWhitelist` and `nodeBlacklist`** (each a set of node
-kinds), and reconcile the in-memory registry against it on registration. This is
-greenfield — mirror the existing DAO/Flyway/DTO layering used by simpler
-resources such as [blacklist](../../features/pipeline/PIPELINE.md) and `person`.
-
-```
-This is a backend-first task that unblocks the UI tasks below; do it in the
-Loom server, then expose it (Task 2) and consume it (Task 4).
-
-1. Flyway migration `V2.33__add_cortex_instance.sql` (next free version after
-   V2.32) in loom/db/flyway/.../db/migration/:
-   - Table `cortex_instance` (uuid PK, node_id UNIQUE, name, host, priority,
-     last_seen, state, first_registered, meta/created/creator columns to match
-     the AbstractJooqDao convention).
-   - A representation of the `nodeWhitelist` and `nodeBlacklist`. Prefer a child
-     table `cortex_instance_node_kind (instance_uuid, node_kind, list)` where
-     list ∈ {WHITELIST, BLACKLIST}, so a kind can be queried and indexed, over an
-     opaque JSONB blob.
-   - `MANAGE_CORTEX_INSTANCE` / `READ_CORTEX_INSTANCE` permissions, following the
-     `*_PIPELINE` permission pattern (see V2.19).
-
-2. DAO layer:
-   - `loom/db/api/.../model/cortex/CortexInstance` + `CortexInstanceDao`
-     (interface), exposed on `DaoCollection`.
-   - jOOQ impl in `loom/db/jooq/.../dao/cortex/` (regenerate jOOQ after the
-     migration). Provide `loadByNodeId`, `findAll`, and upsert.
-   - ⚠️ `loom/db/memory` has no pipeline DAOs; decide whether cortex-instance
-     persistence needs a memory impl or is jOOQ-only, and state it explicitly.
-
-3. Wire persistence into ProcessorRegistry.register(...): on REGISTER, upsert
-   the cortex_instance row (identity + last_seen + state) and, when an
-   admin-managed restriction exists in the DB, apply it to the in-memory
-   ConnectedProcessor (nodeWhitelist / nodeBlacklist) rather than blindly
-   trusting what the worker announced. The worker-announced set becomes the
-   DEFAULT, the DB record is the OVERRIDE.
-
-4. Document the new persistence + restriction model in
-   ../../features/pipeline-nodes/NODES.md — add a "Node Restriction &
-   Cortex-Instance Persistence" section covering: the rename of the announced
-   nodeKinds field to nodeWhitelist, the new nodeBlacklist, the cortex_instance
-   table, the DAO, and the startup-config vs DB-override precedence. Cross-link
-   it from PIPELINE.md §12.
-```
-
-**References:**
-- [../../features/pipeline-nodes/NODES.md](../../features/pipeline-nodes/NODES.md) (add the new section here)
-- [../../features/pipeline/PIPELINE.md](../../features/pipeline/PIPELINE.md) §12 (processor protocol)
-- `loom/services/rest/.../service/impl/ProcessorRegistry.java` (`ConnectedProcessor.nodeKinds`, `accepts`)
-- `loom/db/flyway/.../db/migration/V2.32__*.sql` (latest migration; new one is `V2.33`)
-- `loom/db/api/.../model/blacklist/BlacklistDao.java`, `loom/db/jooq/.../dao/` (DAO pattern to mirror)
-
-**Test Requirements:**
-- `CortexInstanceDaoTest` — CRUD via the generic DAO harness, plus `loadByNodeId`,
-  upsert-on-reregister (no duplicate rows for the same `nodeId`), and
-  `nodeWhitelist` / `nodeBlacklist` round-trip.
-- Flyway migration applies cleanly on a fresh DB and is idempotent within the
-  test container (`testdatabase-provider` pool `loom-dev`).
-- `ProcessorRegistry` test: a worker reconnecting picks up its persisted DB
-  restriction override (nodeWhitelist / nodeBlacklist), not just its announced set.
-
----
-
-## Task 2: REST endpoints to read and manage Cortex-instance node restrictions
-
-**Status:** ✅ Done — `ProcessorResponse` now carries `nodeWhitelist`/`nodeBlacklist`/`persisted`;
-`GET /processors` merges live + persisted-offline instances; `PUT /processors/:nodeId/restrictions`
-(perm `MANAGE_CORTEX_INSTANCE`) persists via `CortexInstanceDao` and re-applies to the live worker;
-`DELETE /processors/:nodeId` forgets an offline instance (409 while online). Covered by
-`ProcessorEndpointTest` and `ProcessorRegistryPersistenceTest`.
-
-**Argumentation Summary:** `ProcessorEndpoint` exposes only `GET /api/v1/processors`
-and `GET /api/v1/processors/:uuid`, both reading ephemeral in-memory state.
-There is no write surface, so an operator cannot change a worker's `nodeWhitelist`
-or `nodeBlacklist` without editing its `--node-kinds` flag and restarting it.
-Once Task 1 gives us a durable record, the UI needs endpoints to mutate it.
-
-**Improvement Summary:** Add authenticated CRUD-style routes for the persisted
-restriction, and enrich the read model so the UI can show each worker's
-`nodeWhitelist`, `nodeBlacklist`, and whether it is currently connected.
-
-```
-1. Extend loom/services/rest/.../endpoint/impl/ProcessorEndpoint.java:
-   - GET  /api/v1/processors           -> ProcessorListResponse, now merged with
-                                          persisted cortex_instance rows so
-                                          offline-but-known workers still appear.
-   - GET  /api/v1/processors/:nodeId    -> ProcessorResponse incl. nodeWhitelist
-                                          / nodeBlacklist.
-   - PUT  /api/v1/processors/:nodeId/restrictions
-          body { nodeWhitelist: string[], nodeBlacklist: string[] } -> persists
-          via CortexInstanceDao and re-applies to the live ConnectedProcessor if
-          connected. Permission MANAGE_CORTEX_INSTANCE.
-   - DELETE /api/v1/processors/:nodeId  -> forget a persisted (offline) instance.
-   Add each new secured path to the individually-enumerated auth list (a new
-   processor route is unauthenticated until listed — see PIPELINE.md §11).
-
-2. DTOs in loom-shared/rest-model/.../processor/: extend ProcessorResponse with
-   nodeWhitelist / nodeBlacklist / persisted flag; add
-   ProcessorRestrictionUpdateRequest.
-
-3. When restrictions change on a connected worker, decide and document whether a
-   STATE_CHANGE / re-dispatch is needed for in-flight segments, or whether the
-   change only affects future selection (selectProcessorForKinds).
-```
-
-**References:**
-- `loom/services/rest/.../endpoint/impl/ProcessorEndpoint.java`
-- `loom/services/rest/.../service/impl/ProcessorRegistry.java` (`selectProcessorForKinds`, `toResponse`)
-- `loom-shared/rest-model/.../processor/ProcessorResponse.java`, `ProcessorListResponse.java`
-- [../../features/pipeline/PIPELINE.md](../../features/pipeline/PIPELINE.md) §11 (auth-path enumeration), §12.1
-
-**Test Requirements:**
-- Endpoint tests: list merges live + persisted; `PUT /restrictions` persists and
-  is reflected in a subsequent `selectProcessorForKinds`; permission enforced
-  (401/403 without `MANAGE_CORTEX_INSTANCE`); `DELETE` only allowed for offline
-  instances.
-
----
-
 ## Task 3: Rename the whitelist and add a `nodeBlacklist`
+
+**Status:** ✅ Done — `nodeKinds` renamed to `nodeWhitelist` across `ProcessorRegistration`,
+`CortexOptions`, `ConnectedProcessor`, and `LoomControlChannel.announcedNodeWhitelist()`;
+`nodeBlacklist` added with blacklist-wins `accepts(kind)`; `--node-whitelist` / `--node-blacklist`
+(+ `CORTEX_NODE_WHITELIST` / `CORTEX_NODE_BLACKLIST`) in `CortexCLI`. **No backward-compat alias**
+for the old `--node-kinds` / `CORTEX_NODE_KINDS` — dropped by decision (clean break). Covered by
+`ProcessorWhitelistTest` (accepts cases) and `CortexCLITest` (flag parsing).
 
 **Argumentation Summary:** Restriction today is a single whitelist under the
 awkwardly-named `nodeKinds` field: `ConnectedProcessor.accepts(kind)` returns
@@ -199,8 +75,9 @@ backward-compatible default.
    ProcessorRegistration field; extend the cortex side (CortexOptions +
    --node-blacklist / CORTEX_NODE_BLACKLIST in CortexCLI, alongside the renamed
    --node-whitelist / CORTEX_NODE_WHITELIST) so the blacklist can be set at
-   startup too. Keep --node-kinds / CORTEX_NODE_KINDS as deprecated aliases for
-   one release so existing deployments do not break.
+   startup too. No backward-compat alias for the old --node-kinds /
+   CORTEX_NODE_KINDS: it is a clean break (dropped by decision — no deployments
+   to preserve).
 
 4. Update announcedNodeKinds() (rename accordingly) in LoomControlChannel and
    document the precedence (DB override > CLI/env; blacklist > whitelist) in
@@ -210,71 +87,17 @@ backward-compatible default.
 **References:**
 - `loom/services/rest/.../service/impl/ProcessorRegistry.java` (`accepts`, `selectProcessorForKinds`, `ConnectedProcessor.nodeKinds` → `nodeWhitelist`)
 - `loom-shared/rest-model/.../processor/message/ProcessorRegistration.java` (`nodeKinds` → `nodeWhitelist`, add `nodeBlacklist`)
-- `cortex/api/.../option/CortexOptions.java` (`nodeKinds` → `nodeWhitelist`), `cortex/core/.../cli/CortexCLI.java` (`--node-kinds` → `--node-whitelist`, add `--node-blacklist`), `EnvDefaultProvider.java`
-- `cortex/core/.../impl/loom/LoomControlChannel.java` (`announcedNodeKinds`)
+- `cortex/api/.../option/CortexOptions.java` (`nodeKinds` → `nodeWhitelist`), `cortex/core/.../cli/CortexCLI.java` (`--node-whitelist`, `--node-blacklist`), `EnvDefaultProvider.java`
+- `cortex/core/.../impl/loom/LoomControlChannel.java` (`announcedNodeWhitelist`)
 
 **Test Requirements:**
 - Unit tests for `accepts` covering blacklist-wins, empty-whitelist-unrestricted,
   and whitelist∩blacklist conflict. Extend `ProcessorWhitelistTest`.
 - Cortex CLI test that `--node-whitelist a,b` and `--node-blacklist c` populate
-  `CortexOptions`, and that the deprecated `--node-kinds` alias still maps to
-  `nodeWhitelist`.
+  `CortexOptions`.
 
 ---
 
-## Task 4: Cortex / Processor management view — replace the mock and edit restrictions
-
-**Status:** ✅ Done — `src/api/processors.ts` gained `getProcessor`, `updateProcessorRestrictions`,
-`forgetProcessor` and the restriction/persisted fields; `CortexView` shows each worker's
-whitelist/blacklist chips, a "Remembered" badge for offline-persisted workers, a node-restriction
-editor dialog (Autocomplete of node kinds) with optimistic save + toast, and a forget action.
-`cortex.*` i18n keys added to en/de. Covered by `e2e/cortex-backend.spec.ts`. (Note: the view was
-already migrated off the mock `WORKERS` array before this task; this task added the restriction UI.)
-
-**Argumentation Summary:** `loom-ui/src/features/cortex/CortexView.tsx` renders a
-**hardcoded `WORKERS` array** — there is no `processors` API client, no live
-data, and the LOOM_UI spec's claim that it hits `/api/v1/processors` + WS is
-aspirational. With Tasks 1–3 landing real state and a restriction API, the UI
-must become the place operators actually set a worker's `nodeWhitelist` /
-`nodeBlacklist`, which is the "dynamically from within the loom-ui" requirement.
-
-**Improvement Summary:** Build a `src/api/processors.ts` client, wire `CortexView`
-to real data, and add a node-restriction editor per worker (multi-select of node
-kinds sourced from `NodeRegistryContext.descriptors`) with a `nodeWhitelist` and
-a `nodeBlacklist`.
-
-```
-1. src/api/processors.ts: listProcessors(token), getProcessor(token, nodeId),
-   updateProcessorRestrictions(token, nodeId, { nodeWhitelist, nodeBlacklist }),
-   forgetProcessor(token, nodeId) — mirroring src/api/pipelines.ts conventions
-   (authHeaders, handleResponse).
-
-2. CortexView.tsx:
-   - Replace WORKERS with a useEffect([token]) load; keep the mock behind a
-     mock-service fallback for offline dev (pattern used elsewhere).
-   - Show each worker's capabilities AND its nodeWhitelist / nodeBlacklist. Mark
-     persisted-but-offline instances distinctly from live ones.
-   - Add a "Node restrictions" editor: two Autocomplete/multi-selects of node
-     kinds (from useNodeRegistry().descriptors -> kind), one for nodeWhitelist and
-     one for nodeBlacklist, saving via updateProcessorRestrictions. Optimistic
-     update + ToastContext feedback, matching PipelineEditor's save UX.
-
-3. i18n: add keys under cortex.* to en.json and de.json (no bare fallbacks).
-```
-
-**References:**
-- `loom-ui/src/features/cortex/CortexView.tsx` (the mock `WORKERS` array)
-- `loom-ui/src/api/pipelines.ts` (client conventions), `src/api/config.ts`
-- `loom-ui/src/context/NodeRegistryContext.tsx` (`descriptors` for the kind list)
-- [LOOM_UI.md](LOOM_UI.md) §3.1 (Cortex Workers row), §14 (still-mocked features)
-
-**Test Requirements:**
-- Playwright `cortex-backend.spec.ts`: list renders real processors; opening a
-  worker shows its nodeWhitelist / nodeBlacklist; editing them and saving
-  round-trips through `PUT /restrictions` and the change is reflected on reload.
-- Update the LOOM_UI.md §14 mock table row for Cortex once real.
-
----
 
 ## Task 6: Surface affinity validation warnings in the editor and on save
 

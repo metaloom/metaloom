@@ -117,4 +117,43 @@ public class ProcessorWhitelistTest {
 		assertTrue(!restricted.accepts("embedding"));
 	}
 
+	@Test
+	void testBlacklistExcludesAKindTheWhitelistWouldAdmit() {
+		ProcessorRegistry registry = new ProcessorRegistry();
+		ConnectedProcessor worker = register(registry, "gpu-box", 1, Set.of("embedding", "sha512"));
+		worker.nodeBlacklist = Set.of("embedding");
+
+		// The blacklist wins: a kind the whitelist admits is still refused.
+		assertTrue(worker.accepts("sha512"));
+		assertTrue(!worker.accepts("embedding"));
+		assertNull(registry.selectProcessor(ProcessorCapability.CPU, "embedding"),
+			"A blacklisted kind must exclude the worker from selection");
+		assertNotNull(registry.selectProcessor(ProcessorCapability.CPU, "sha512"));
+	}
+
+	@Test
+	void testBlacklistOnAnUnrestrictedWorkerRefusesOnlyThatKind() {
+		ProcessorRegistry registry = new ProcessorRegistry();
+		// "Runs everything except whisper": empty/unrestricted whitelist + a blacklist.
+		ConnectedProcessor worker = register(registry, "generalist", 1, Set.of());
+		worker.nodeBlacklist = Set.of("whisper");
+
+		assertTrue(!worker.accepts("whisper"));
+		assertTrue(worker.accepts("embedding"));
+		assertTrue(worker.accepts("sha512"));
+		assertNull(registry.selectProcessor(ProcessorCapability.CPU, "whisper"));
+		assertNotNull(registry.selectProcessor(ProcessorCapability.CPU, "embedding"));
+	}
+
+	@Test
+	void testWhitelistBlacklistConflictResolvesToRefused() {
+		ProcessorRegistry registry = new ProcessorRegistry();
+		ConnectedProcessor worker = register(registry, "conflicted", 1, Set.of("sha512"));
+		// The same kind appears in both lists; blacklist-wins makes it refused.
+		worker.nodeBlacklist = Set.of("sha512");
+
+		assertTrue(!worker.accepts("sha512"));
+		assertNull(registry.selectProcessor(ProcessorCapability.CPU, "sha512"));
+	}
+
 }
