@@ -608,7 +608,17 @@
       "restoreMessage": "Version {{version}} wiederherstellen? Dabei wird eine neue Version mit dem Inhalt von v{{version}} erstellt — es wird nichts gelöscht.",
       "restoreDirtyWarning": "Sie haben ungespeicherte Änderungen. Beim Wiederherstellen gehen diese verloren.",
       "restoreOk": "v{{from}} als v{{to}} wiederhergestellt",
-      "restoreFailed": "Wiederherstellen fehlgeschlagen"
+      "restoreFailed": "Wiederherstellen fehlgeschlagen",
+      "compareTooltip": "v{{version}} mit aktueller Version vergleichen"
+    },
+    "diff": {
+      "title": "Vergleich v{{from}} → v{{to}} (aktuell)",
+      "loading": "Versionen werden geladen…",
+      "empty": "Keine Unterschiede",
+      "failed": "Versionen konnten nicht geladen werden",
+      "close": "Schließen",
+      "base": "v{{version}}",
+      "current": "v{{version}} (aktuell)"
     },
     "node": {
       "s3Source": {

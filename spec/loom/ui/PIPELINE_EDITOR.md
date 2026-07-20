@@ -1102,7 +1102,6 @@ interface PipelineNodeData {
 | Validation only on save | Errors discovered late | Run validation on change (not implemented) |
 | Mock video playback | Asset detail not real | N/A (different feature) |
 | WebSocket pipeline events not connected | No live run updates | Refresh run history manually |
-| No pipeline versioning | No history/diff | Manual backup |
 | Command palette doesn't show categories | Hard to browse | Use Add Node bar with category chips |
 
 ---

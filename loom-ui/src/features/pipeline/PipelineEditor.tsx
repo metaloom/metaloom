@@ -32,6 +32,7 @@ import {
   ImageSearchOutlined, FaceRetouchingNatural, Face, Description,
   TransformOutlined, CloseOutlined, SearchOutlined,
   SaveOutlined, HistoryOutlined, RestoreOutlined,
+  CompareArrowsOutlined,
 } from "@mui/icons-material";
 import { Tabs, Tab } from "@mui/material";
 import { tokens } from "../../theme";
@@ -46,6 +47,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useSpace } from "../../context/SpaceContext";
 import { useNodeRegistry } from "../../context/NodeRegistryContext";
 import type { NodeDescriptor, NodeCategory } from "../../types/nodeDescriptors";
+import { PipelineVersionDiff } from "./PipelineVersionDiff";
 
 // ── Category-based node styling ───────────────────────────────────────────
 const categoryConfig: Record<NodeCategory, { color: string; icon: React.ReactNode; bg: string }> = {
@@ -521,7 +523,7 @@ function toPipeline(p: PipelineResponse): Pipeline {
  * opens the version history, from which any previous version can be restored.
  */
 function PipelineVersionBadge({
-  pipeline, versions, loading, restoring, onOpen, onRestore,
+  pipeline, versions, loading, restoring, onOpen, onRestore, onCompare,
 }: {
   pipeline: Pipeline;
   versions: PipelineResponse[];
@@ -529,6 +531,7 @@ function PipelineVersionBadge({
   restoring: number | null;
   onOpen: () => void;
   onRestore: (versionNumber: number) => void;
+  onCompare: (versionNumber: number) => void;
 }) {
   const { t } = useTranslation();
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
@@ -640,20 +643,35 @@ function PipelineVersionBadge({
                 </Typography>
               </Box>
               {!isCurrent && (
-                <Tooltip title={t("pipeline.version.restoreTooltip", { version: v.versionNumber })}>
-                  <span>
-                    <IconButton
-                      data-testid={`pipeline-version-restore-${v.versionNumber}`}
-                      aria-label={t("pipeline.version.restoreTooltip", { version: v.versionNumber })}
-                      size="small"
-                      disabled={restoring !== null}
-                      onClick={() => { setAnchorEl(null); onRestore(v.versionNumber); }}
-                      sx={{ color: tokens.text.tertiary, "&:hover": { color: tokens.primary.light } }}
-                    >
-                      {isRestoring ? <CircularProgress size={13} /> : <RestoreOutlined sx={{ fontSize: 15 }} />}
-                    </IconButton>
-                  </span>
-                </Tooltip>
+                <>
+                  <Tooltip title={t("pipeline.version.compareTooltip", { version: v.versionNumber })}>
+                    <span>
+                      <IconButton
+                        data-testid={`pipeline-version-compare-${v.versionNumber}`}
+                        aria-label={t("pipeline.version.compareTooltip", { version: v.versionNumber })}
+                        size="small"
+                        onClick={() => { setAnchorEl(null); onCompare(v.versionNumber); }}
+                        sx={{ color: tokens.text.tertiary, "&:hover": { color: tokens.primary.light } }}
+                      >
+                        <CompareArrowsOutlined sx={{ fontSize: 15 }} />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                  <Tooltip title={t("pipeline.version.restoreTooltip", { version: v.versionNumber })}>
+                    <span>
+                      <IconButton
+                        data-testid={`pipeline-version-restore-${v.versionNumber}`}
+                        aria-label={t("pipeline.version.restoreTooltip", { version: v.versionNumber })}
+                        size="small"
+                        disabled={restoring !== null}
+                        onClick={() => { setAnchorEl(null); onRestore(v.versionNumber); }}
+                        sx={{ color: tokens.text.tertiary, "&:hover": { color: tokens.primary.light } }}
+                      >
+                        {isRestoring ? <CircularProgress size={13} /> : <RestoreOutlined sx={{ fontSize: 15 }} />}
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                </>
               )}
             </Box>
           );
@@ -1659,6 +1677,8 @@ export default function PipelineEditor() {
   const [versionsLoading, setVersionsLoading] = useState(false);
   const [restoringVersion, setRestoringVersion] = useState<number | null>(null);
   const [restoreConfirm, setRestoreConfirm] = useState<number | null>(null);
+  /** Version number being compared against current, or null when the diff is closed. */
+  const [diffTarget, setDiffTarget] = useState<number | null>(null);
   /** Bumped to force PipelineCanvas to rebuild the graph for the same pipeline id. */
   const [canvasReloadKey, setCanvasReloadKey] = useState(0);
 
@@ -2073,6 +2093,7 @@ export default function PipelineEditor() {
                       restoring={restoringVersion}
                       onOpen={loadVersions}
                       onRestore={n => setRestoreConfirm(n)}
+                      onCompare={n => setDiffTarget(n)}
                     />
                   </Box>
                 )}
@@ -2441,6 +2462,18 @@ export default function PipelineEditor() {
           <PipelineInspector pipeline={selected} runs={pipelineRuns} runsLoading={runsLoading} />
         </Box>
       </Box>
+
+      {/* Version diff — compare a previous version with the current one */}
+      {selected && (
+        <PipelineVersionDiff
+          open={diffTarget !== null}
+          onClose={() => setDiffTarget(null)}
+          uuid={selected.id}
+          token={token}
+          baseVersion={diffTarget}
+          currentVersion={selected.versionNumber}
+        />
+      )}
 
       {/* Restore version confirmation dialog */}
       <Dialog

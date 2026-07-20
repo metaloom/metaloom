@@ -639,6 +639,55 @@ Two panels:
 
 > **Note:** Pipeline creation/deletion not implemented in UI — only editing existing pipelines.
 
+### 6.12 Pipeline Version Diff
+
+Restore is copy-forward and irreversible-by-omission (see §6.7), so before
+reinstating an old version an author needs to see *what* it would reintroduce.
+The version diff renders a side-by-side comparison between any previous version
+and the current one.
+
+#### Endpoints used by the UI
+
+| Endpoint | UI usage |
+|----------|----------|
+| `GET /api/v1/pipelines/:uuid/versions/:n` | Fetch both sides via `loadPipelineVersion` — the base version and the current version |
+
+#### UI surfaces
+
+1. **Compare action** — every non-current row of the version-history `Popover`
+   exposes a compare icon button (`CompareArrowsOutlined`,
+   `data-testid="pipeline-version-compare-<n>"`) beside the restore button.
+   Clicking it closes the popover and opens the diff of `v<n>` against current.
+2. **Diff dialog** (`PipelineVersionDiff`, `src/features/pipeline/PipelineVersionDiff.tsx`)
+   — a full-width MUI `Dialog` (`data-testid="pipeline-version-diff"`) showing
+   two aligned monospace JSON columns: base `v<n>` on the left, current on the
+   right. Added lines are green, removed lines red, changed lines amber. Each
+   non-identical row carries `data-testid="pipeline-version-diff-changed"`;
+   identical rows carry `pipeline-version-diff-same`. Loading, error
+   (`pipeline-version-diff-error`) and "no differences"
+   (`pipeline-version-diff-empty`) states are handled. Closed via
+   `pipeline-version-diff-close`.
+
+#### Diff engine
+
+`src/features/pipeline/pipelineDiff.ts` is a pure module (no React):
+`normalizeDefinition` recursively sorts object keys and orders `nodes` / `edges`
+by `id` before pretty-printing, so reordering alone never registers as a change;
+`diffLines` runs a longest-common-subsequence line alignment, folding adjacent
+remove+add pairs into single `changed` rows; `hasChanges` backs the empty state.
+The raw server `definition` is diffed directly — it is already free of the
+cosmetic React-Flow keys that `getGraphJson` strips from local canvas state.
+
+#### Diff flow
+
+```
+Compare icon (v<n>) → setDiffTarget(n) → <PipelineVersionDiff open>
+  → Promise.all(loadPipelineVersion(base), loadPipelineVersion(current))
+  → normalizeDefinition(each) → diffLines(base, current)
+  → render side-by-side columns (green add / red remove / amber change)
+Close → setDiffTarget(null)
+```
+
 ---
 
 ## 7. Key Classes Reference
@@ -651,7 +700,9 @@ Two panels:
 | `PipelineInspector` | `src/features/pipeline/PipelineEditor.tsx` | Right stats panel |
 | `NodeDetailSidebar` | `src/features/pipeline/PipelineEditor.tsx` | Collapsible node config panel |
 | `RunHistory` | `src/features/pipeline/PipelineEditor.tsx` | Run history list |
-| `PipelineVersionBadge` | `src/features/pipeline/PipelineEditor.tsx` | `v<n>` canvas badge + version history dropdown + restore |
+| `PipelineVersionBadge` | `src/features/pipeline/PipelineEditor.tsx` | `v<n>` canvas badge + version history dropdown + restore + compare |
+| `PipelineVersionDiff` | `src/features/pipeline/PipelineVersionDiff.tsx` | Side-by-side JSON diff dialog between a previous version and current |
+| `normalizeDefinition` / `diffLines` | `src/features/pipeline/pipelineDiff.ts` | Pure version-diff engine (stable JSON + LCS line diff) |
 | `toPipeline` | `src/features/pipeline/PipelineEditor.tsx` | Maps `PipelineResponse` (incl. version fields) to the local `Pipeline` type |
 | `CommandPaletteContent` | `src/features/pipeline/PipelineEditor.tsx` | N-key node search modal |
 | `AssetBrowser` | `src/features/assets/AssetBrowser.tsx` | Asset grid/list with filters |
@@ -988,6 +1039,7 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
 - [ ] Pipeline deletion UI
 - [ ] Pipeline duplication/clone
 - [x] Pipeline versioning (version badge, history dropdown, restore)
+- [x] Pipeline version diff (side-by-side JSON, compare with current)
 - [ ] Collaborative editing (multi-user)
 - [ ] Minimap node color by category
 - [ ] Edge label editing (inline)
@@ -1093,7 +1145,7 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
 - [ ] **Task Creation from Asset** — Only in Tasks view
 - [ ] **Transcript Editing** — Read-only
 - [ ] **Face Cluster Management** — Merge/split/rename UI missing
-- [ ] **Pipeline Version Diff** — History and restore exist; no side-by-side diff between versions
+- [x] **Pipeline Version Diff** — Side-by-side JSON diff between a previous version and current (see §6.12)
 - [ ] **Collaborative Editing** — No real-time multi-user
 - [ ] **Undo/Redo** — Not implemented anywhere
 - [ ] **Bulk Operations** — Assets, tags, tasks, pipelines

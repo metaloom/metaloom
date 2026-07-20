@@ -617,7 +617,17 @@
       "restoreMessage": "Restore version {{version}}? This creates a new version with the contents of v{{version}} — nothing is deleted.",
       "restoreDirtyWarning": "You have unsaved changes. Restoring will discard them.",
       "restoreOk": "Restored v{{from}} as v{{to}}",
-      "restoreFailed": "Restore failed"
+      "restoreFailed": "Restore failed",
+      "compareTooltip": "Compare v{{version}} with current"
+    },
+    "diff": {
+      "title": "Compare v{{from}} → v{{to}} (current)",
+      "loading": "Loading versions…",
+      "empty": "No differences",
+      "failed": "Failed to load versions",
+      "close": "Close",
+      "base": "v{{version}}",
+      "current": "v{{version}} (current)"
     },
     "node": {
       "s3Source": {

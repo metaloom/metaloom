@@ -18,7 +18,8 @@
       "Bash(javap -cp core io.metaloom.vertx.router.ApiRouter)",
       "Bash(unzip -o -q /home/defaultuser/.m2/repository/io/metaloom/vertx/vertx-web-openapi-generator/0.0.1-SNAPSHOT/vertx-web-openapi-generator-0.0.1-SNAPSHOT.jar -d gen)",
       "Bash(javap -cp gen:core io.metaloom.vertx.openapi.OpenAPIGenerator 'io.metaloom.vertx.openapi.OpenAPIGenerator$Builder')",
-      "Bash(javap -cp core io.metaloom.vertx.route.ApiRoute)"
+      "Bash(javap -cp core io.metaloom.vertx.route.ApiRoute)",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('src/i18n/locales/en.json'\\)\\); import sys; v=d.get\\('pipeline',{}\\).get\\('version'\\); print\\(json.dumps\\(v,indent=2,ensure_ascii=False\\)\\)\")"
     ]
   }
 }
