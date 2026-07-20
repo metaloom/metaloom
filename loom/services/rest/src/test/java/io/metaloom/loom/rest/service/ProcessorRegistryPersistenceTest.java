@@ -64,6 +64,33 @@ public class ProcessorRegistryPersistenceTest {
 	}
 
 	@Test
+	void testUpdateRestrictionsAppliesToLiveSelection() {
+		CortexInstanceDao dao = mock(CortexInstanceDao.class);
+		DaoCollection daos = mock(DaoCollection.class);
+		when(daos.cortexInstanceDao()).thenReturn(dao);
+
+		// Seed a fresh record on first registration, then let both load and upsert echo state.
+		when(dao.loadByNodeId("w3")).thenReturn(null, new CortexInstanceImpl().setNodeId("w3"));
+		when(dao.createCortexInstance("w3", "w3")).thenReturn(new CortexInstanceImpl().setNodeId("w3"));
+		when(dao.upsertByNodeId(any())).thenAnswer(inv -> inv.getArgument(0));
+
+		ProcessorRegistry registry = new ProcessorRegistry(daos);
+		registry.register("w3", registration("w3", Set.of(), Set.of()), null);
+
+		// Admin narrows the worker to {sha256} and forbids {embedding}.
+		registry.updateRestrictions("w3", Set.of("sha256"), Set.of("embedding"), null);
+
+		ConnectedProcessor processor = registry.get("w3");
+		assertEquals(Set.of("sha256"), processor.nodeWhitelist);
+		assertEquals(Set.of("embedding"), processor.nodeBlacklist);
+		// The restriction must take effect for live segment selection immediately.
+		assertTrue(registry.selectProcessorForKinds(null, java.util.List.of("sha256")) != null,
+			"A whitelisted kind must still select the worker");
+		assertTrue(registry.selectProcessorForKinds(null, java.util.List.of("embedding")) == null,
+			"A blacklisted kind must exclude the worker from selection");
+	}
+
+	@Test
 	void testFirstRegistrationSeedsFromAnnounced() {
 		CortexInstanceDao dao = mock(CortexInstanceDao.class);
 		DaoCollection daos = mock(DaoCollection.class);

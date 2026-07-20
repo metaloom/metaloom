@@ -34,6 +34,21 @@ export interface Processor {
   capabilities?: ProcessorCapability[];
   systemStatus?: SystemStatusInfo;
   lastSeen?: string;
+  /** Node kinds this worker is permitted to run; empty/absent means unrestricted. */
+  nodeWhitelist?: string[];
+  /** Node kinds this worker is forbidden to run; takes precedence over the whitelist. */
+  nodeBlacklist?: string[];
+  /**
+   * Whether Loom durably remembers this worker in the cortex_instance table. Persisted
+   * workers stay listed (and their restrictions editable) even while offline.
+   */
+  persisted?: boolean;
+}
+
+/** Body for {@link updateProcessorRestrictions}. Both lists replace the persisted values. */
+export interface ProcessorRestrictionUpdateRequest {
+  nodeWhitelist: string[];
+  nodeBlacklist: string[];
 }
 
 export interface ProcessorListResponse {
@@ -72,4 +87,45 @@ export async function listProcessors(token: string): Promise<ProcessorListRespon
     headers: authHeaders(token),
   });
   return handleResponse<ProcessorListResponse>(res);
+}
+
+/** Load a single processor (live or persisted-but-offline) by its stable node id. */
+export async function getProcessor(token: string, nodeId: string): Promise<Processor> {
+  const res = await fetch(`${API_BASE_URL}/processors/${encodeURIComponent(nodeId)}`, {
+    method: "GET",
+    headers: authHeaders(token),
+  });
+  return handleResponse<Processor>(res);
+}
+
+/**
+ * Persist the node-kind whitelist/blacklist for a worker. Applies to the live worker
+ * immediately when connected, and survives reconnects/restarts. Requires MANAGE_CORTEX_INSTANCE.
+ */
+export async function updateProcessorRestrictions(
+  token: string,
+  nodeId: string,
+  req: ProcessorRestrictionUpdateRequest,
+): Promise<Processor> {
+  const res = await fetch(`${API_BASE_URL}/processors/${encodeURIComponent(nodeId)}/restrictions`, {
+    method: "PUT",
+    headers: authHeaders(token),
+    body: JSON.stringify(req),
+  });
+  return handleResponse<Processor>(res);
+}
+
+/**
+ * Forget a persisted (offline) worker. Only permitted while the worker is disconnected;
+ * an online worker returns 409. Requires MANAGE_CORTEX_INSTANCE.
+ */
+export async function forgetProcessor(token: string, nodeId: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/processors/${encodeURIComponent(nodeId)}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
 }

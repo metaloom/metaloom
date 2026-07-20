@@ -112,6 +112,12 @@ Loom server, then expose it (Task 2) and consume it (Task 4).
 
 ## Task 2: REST endpoints to read and manage Cortex-instance node restrictions
 
+**Status:** ✅ Done — `ProcessorResponse` now carries `nodeWhitelist`/`nodeBlacklist`/`persisted`;
+`GET /processors` merges live + persisted-offline instances; `PUT /processors/:nodeId/restrictions`
+(perm `MANAGE_CORTEX_INSTANCE`) persists via `CortexInstanceDao` and re-applies to the live worker;
+`DELETE /processors/:nodeId` forgets an offline instance (409 while online). Covered by
+`ProcessorEndpointTest` and `ProcessorRegistryPersistenceTest`.
+
 **Argumentation Summary:** `ProcessorEndpoint` exposes only `GET /api/v1/processors`
 and `GET /api/v1/processors/:uuid`, both reading ephemeral in-memory state.
 There is no write surface, so an operator cannot change a worker's `nodeWhitelist`
@@ -218,6 +224,13 @@ backward-compatible default.
 
 ## Task 4: Cortex / Processor management view — replace the mock and edit restrictions
 
+**Status:** ✅ Done — `src/api/processors.ts` gained `getProcessor`, `updateProcessorRestrictions`,
+`forgetProcessor` and the restriction/persisted fields; `CortexView` shows each worker's
+whitelist/blacklist chips, a "Remembered" badge for offline-persisted workers, a node-restriction
+editor dialog (Autocomplete of node kinds) with optimistic save + toast, and a forget action.
+`cortex.*` i18n keys added to en/de. Covered by `e2e/cortex-backend.spec.ts`. (Note: the view was
+already migrated off the mock `WORKERS` array before this task; this task added the restriction UI.)
+
 **Argumentation Summary:** `loom-ui/src/features/cortex/CortexView.tsx` renders a
 **hardcoded `WORKERS` array** — there is no `processors` API client, no live
 data, and the LOOM_UI spec's claim that it hits `/api/v1/processors` + WS is
@@ -260,9 +273,6 @@ a `nodeBlacklist`.
   worker shows its nodeWhitelist / nodeBlacklist; editing them and saving
   round-trips through `PUT /restrictions` and the change is reflected on reload.
 - Update the LOOM_UI.md §14 mock table row for Cortex once real.
-
----
-
 
 ---
 

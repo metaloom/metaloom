@@ -1,7 +1,10 @@
 package io.metaloom.loom.rest.service.impl;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -327,7 +330,141 @@ public class ProcessorRegistry {
 		response.setCapabilities(processor.capabilities);
 		response.setSystemStatus(processor.systemStatus);
 		response.setLastSeen(processor.lastSeen);
+		response.setNodeWhitelist(processor.nodeWhitelist);
+		response.setNodeBlacklist(processor.nodeBlacklist);
+		// A live worker is persisted whenever a durable store is wired (register() upserts it).
+		response.setPersisted(daos != null);
 		return response;
+	}
+
+	/**
+	 * Build a REST response for a persisted-but-offline cortex instance, i.e. a worker Loom
+	 * remembers (with its admin-managed restrictions) but which is not currently connected.
+	 */
+	public ProcessorResponse toResponse(CortexInstance instance) {
+		ProcessorResponse response = new ProcessorResponse();
+		response.setUuid(UUID.nameUUIDFromBytes(instance.getNodeId().getBytes()));
+		response.setNodeId(instance.getNodeId());
+		response.setName(instance.getName());
+		response.setHost(instance.getHost());
+		response.setPriority(instance.getPriority());
+		response.setState(ProcessorState.OFFLINE);
+		response.setCapabilities(null);
+		response.setSystemStatus(null);
+		response.setLastSeen(instance.getLastSeen());
+		response.setNodeWhitelist(instance.getNodeWhitelist());
+		response.setNodeBlacklist(instance.getNodeBlacklist());
+		response.setPersisted(true);
+		return response;
+	}
+
+	/**
+	 * Build the list shown in the Cortex view: every live processor plus every persisted
+	 * cortex instance that is not currently connected, so an operator can still see and edit
+	 * an offline worker's restrictions. Live rows win over persisted ones for the same nodeId.
+	 *
+	 * <p>The durable lookup is defensive: a persistence failure degrades to the live-only list
+	 * rather than breaking the view.</p>
+	 */
+	public List<ProcessorResponse> listAllResponses() {
+		List<ProcessorResponse> responses = new ArrayList<>();
+		Set<String> liveNodeIds = new HashSet<>();
+		for (ConnectedProcessor p : processors.values()) {
+			liveNodeIds.add(p.nodeId);
+			responses.add(toResponse(p));
+		}
+		if (daos != null) {
+			try {
+				daos.cortexInstanceDao().findAll().forEach(instance -> {
+					if (!liveNodeIds.contains(instance.getNodeId())) {
+						responses.add(toResponse(instance));
+					}
+				});
+			} catch (Exception e) {
+				log.warn("Could not enumerate persisted cortex instances; returning live processors only", e);
+			}
+		}
+		return responses;
+	}
+
+	/**
+	 * @return true when a worker with the given node id is currently connected.
+	 */
+	public boolean isConnected(String nodeId) {
+		return processors.containsKey(nodeId);
+	}
+
+	/**
+	 * Load a persisted (possibly offline) cortex instance as a response.
+	 *
+	 * @return the response, or null when no durable record exists (or persistence is disabled)
+	 */
+	public ProcessorResponse loadPersisted(String nodeId) {
+		if (daos == null) {
+			return null;
+		}
+		CortexInstance instance = daos.cortexInstanceDao().loadByNodeId(nodeId);
+		return instance == null ? null : toResponse(instance);
+	}
+
+	/**
+	 * Persist administrator-managed node-kind restrictions for a worker and, when that worker
+	 * is currently connected, re-apply them to the live {@link ConnectedProcessor} so
+	 * {@link #selectProcessorForKinds} honours the change immediately.
+	 *
+	 * @param nodeId      stable worker identity
+	 * @param whitelist   kinds the worker may run (empty/null = unrestricted)
+	 * @param blacklist   kinds the worker must refuse (wins over the whitelist)
+	 * @param editorUuid  the acting user, recorded on the durable row
+	 * @return the updated response (live processor when connected, else the persisted row)
+	 */
+	public ProcessorResponse updateRestrictions(String nodeId, Set<String> whitelist, Set<String> blacklist, UUID editorUuid) {
+		if (daos == null) {
+			throw new IllegalStateException("Cannot persist restrictions without a database");
+		}
+		CortexInstanceDao dao = daos.cortexInstanceDao();
+		CortexInstance instance = dao.loadByNodeId(nodeId);
+		if (instance == null) {
+			ConnectedProcessor live = processors.get(nodeId);
+			instance = dao.createCortexInstance(nodeId, live != null ? live.name : nodeId);
+		}
+		instance.setNodeWhitelist(whitelist);
+		instance.setNodeBlacklist(blacklist);
+		if (editorUuid != null) {
+			instance.setEditorUuid(editorUuid);
+		}
+		CortexInstance persisted = dao.upsertByNodeId(instance);
+
+		ConnectedProcessor live = processors.get(nodeId);
+		if (live != null) {
+			live.nodeWhitelist = persisted.getNodeWhitelist();
+			live.nodeBlacklist = persisted.getNodeBlacklist();
+			ProcessorResponse response = toResponse(live);
+			// Let open Cortex views reflect the new restriction without a reload.
+			broadcast(new ProcessorEventMessage(ProcessorEventType.STATUS_UPDATED, nodeId).setProcessor(response));
+			return response;
+		}
+		return toResponse(persisted);
+	}
+
+	/**
+	 * Forget a persisted cortex instance. Only valid for a worker that is not currently
+	 * connected; the caller is responsible for that guard ({@link #isConnected(String)}).
+	 *
+	 * @return true when a durable record was removed, false when none existed
+	 */
+	public boolean forget(String nodeId) {
+		if (daos == null) {
+			return false;
+		}
+		CortexInstanceDao dao = daos.cortexInstanceDao();
+		CortexInstance instance = dao.loadByNodeId(nodeId);
+		if (instance == null) {
+			return false;
+		}
+		// The cortex_instance_node_kind child rows cascade on delete (see V2.33 migration).
+		dao.delete(instance.getUuid());
+		return true;
 	}
 
 	/**

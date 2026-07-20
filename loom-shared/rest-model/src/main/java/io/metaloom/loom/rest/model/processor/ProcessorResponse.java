@@ -45,6 +45,18 @@ public class ProcessorResponse extends AbstractResponse<ProcessorResponse> {
 	@JsonPropertyDescription("Timestamp when the processor was last seen")
 	private Instant lastSeen;
 
+	@JsonProperty(required = false)
+	@JsonPropertyDescription("Node kinds this worker is permitted to run. An empty/absent whitelist means unrestricted.")
+	private Set<String> nodeWhitelist;
+
+	@JsonProperty(required = false)
+	@JsonPropertyDescription("Node kinds this worker is explicitly forbidden to run. Takes precedence over the whitelist.")
+	private Set<String> nodeBlacklist;
+
+	@JsonProperty(required = false)
+	@JsonPropertyDescription("Whether this worker is known in the durable cortex_instance table. Persisted workers remain listed (and their restrictions editable) even while offline.")
+	private Boolean persisted;
+
 	public String getNodeId() {
 		return nodeId;
 	}
@@ -114,6 +126,33 @@ public class ProcessorResponse extends AbstractResponse<ProcessorResponse> {
 
 	public ProcessorResponse setLastSeen(Instant lastSeen) {
 		this.lastSeen = lastSeen;
+		return this;
+	}
+
+	public Set<String> getNodeWhitelist() {
+		return nodeWhitelist;
+	}
+
+	public ProcessorResponse setNodeWhitelist(Set<String> nodeWhitelist) {
+		this.nodeWhitelist = nodeWhitelist;
+		return this;
+	}
+
+	public Set<String> getNodeBlacklist() {
+		return nodeBlacklist;
+	}
+
+	public ProcessorResponse setNodeBlacklist(Set<String> nodeBlacklist) {
+		this.nodeBlacklist = nodeBlacklist;
+		return this;
+	}
+
+	public Boolean getPersisted() {
+		return persisted;
+	}
+
+	public ProcessorResponse setPersisted(Boolean persisted) {
+		this.persisted = persisted;
 		return this;
 	}
 

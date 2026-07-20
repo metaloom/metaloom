@@ -2,17 +2,22 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   Box, Typography, Chip, IconButton, Menu, MenuItem, Divider, Tooltip, Paper,
   TextField, InputAdornment, FormControl, Select, SelectChangeEvent, CircularProgress,
+  Dialog, DialogTitle, DialogContent, DialogActions, Button, Autocomplete,
 } from "@mui/material";
 import {
   MemoryOutlined, StorageOutlined,
   MoreVertOutlined, PauseOutlined, PlayArrowOutlined,
   StopOutlined, RestartAltOutlined, DnsOutlined,
-  SearchOutlined, HelpOutlineOutlined,
+  SearchOutlined, HelpOutlineOutlined, TuneOutlined, DeleteOutlineOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
-import { listProcessors, Processor } from "../../api/processors";
+import { useToast } from "../../context/ToastContext";
+import { useNodeRegistry } from "../../context/NodeRegistryContext";
+import {
+  listProcessors, Processor, updateProcessorRestrictions, forgetProcessor,
+} from "../../api/processors";
 import { subscribeProcessorEvents, ProcessorEventMessage } from "../../api/pipelineEvents";
 
 interface WorkerNode {
@@ -23,6 +28,9 @@ interface WorkerNode {
   status: "online" | "offline" | "starting" | "terminating" | "paused";
   stats: { cpu: number; gpu: number; io: number; memory: number };
   capabilities: ("GPU" | "CPU" | "IO")[];
+  nodeWhitelist: string[];
+  nodeBlacklist: string[];
+  persisted: boolean;
   lastSeen?: string;
 }
 
@@ -52,6 +60,9 @@ function processorToWorker(p: Processor): WorkerNode {
       memory: memoryPct(p),
     },
     capabilities: p.capabilities ?? [],
+    nodeWhitelist: p.nodeWhitelist ?? [],
+    nodeBlacklist: p.nodeBlacklist ?? [],
+    persisted: p.persisted ?? false,
     lastSeen: p.lastSeen,
   };
 }
@@ -158,9 +169,76 @@ function HeartbeatIndicator({ active }: { active: boolean }) {
   );
 }
 
+// ── Node restrictions editor ───────────────────────────────────────────────
+function RestrictionsDialog({ worker, nodeKinds, onClose, onSave }: {
+  worker: WorkerNode;
+  nodeKinds: string[];
+  onClose: () => void;
+  onSave: (id: string, whitelist: string[], blacklist: string[]) => Promise<void>;
+}) {
+  const { t } = useTranslation();
+  const [whitelist, setWhitelist] = useState<string[]>(worker.nodeWhitelist);
+  const [blacklist, setBlacklist] = useState<string[]>(worker.nodeBlacklist);
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onSave(worker.id, whitelist, blacklist);
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open onClose={onClose} maxWidth="sm" fullWidth data-testid="worker-restrictions-dialog">
+      <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700 }}>
+        {t("cortex.restrictions.title", { name: worker.name })}
+      </DialogTitle>
+      <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2.5, pt: 1 }}>
+        <Autocomplete
+          multiple
+          options={nodeKinds}
+          value={whitelist}
+          onChange={(_e, v) => setWhitelist(v)}
+          data-testid="worker-whitelist-input"
+          renderInput={(params) => (
+            <TextField {...params} label={t("cortex.restrictions.whitelist")} placeholder={t("cortex.restrictions.whitelistPlaceholder")} size="small" />
+          )}
+        />
+        <Autocomplete
+          multiple
+          options={nodeKinds}
+          value={blacklist}
+          onChange={(_e, v) => setBlacklist(v)}
+          data-testid="worker-blacklist-input"
+          renderInput={(params) => (
+            <TextField {...params} label={t("cortex.restrictions.blacklist")} placeholder={t("cortex.restrictions.blacklistPlaceholder")} size="small" />
+          )}
+        />
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button onClick={onClose} disabled={saving} size="small">{t("cortex.restrictions.cancel")}</Button>
+        <Button onClick={handleSave} disabled={saving} variant="contained" size="small" data-testid="worker-restrictions-save">
+          {saving ? <CircularProgress size={16} /> : t("cortex.restrictions.save")}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 // ── Worker Card ───────────────────────────────────────────────────────────
-function WorkerCard({ worker, now, onChangeStatus }: { worker: WorkerNode; now: number; onChangeStatus: (id: string, status: WorkerNode["status"]) => void }) {
+function WorkerCard({ worker, now, nodeKinds, onChangeStatus, onSaveRestrictions, onForget }: {
+  worker: WorkerNode;
+  now: number;
+  nodeKinds: string[];
+  onChangeStatus: (id: string, status: WorkerNode["status"]) => void;
+  onSaveRestrictions: (id: string, whitelist: string[], blacklist: string[]) => Promise<void>;
+  onForget: (id: string) => void;
+}) {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+  const [editing, setEditing] = useState(false);
   const sc = statusColor[worker.status];
   const { t } = useTranslation();
   const lastSeenLabel = formatLastSeen(worker.lastSeen, now);
@@ -185,6 +263,16 @@ function WorkerCard({ worker, now, onChangeStatus }: { worker: WorkerNode; now: 
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
           <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.88rem" }}>{worker.name}</Typography>
           <Chip data-testid={`worker-status-${worker.id}`} label={worker.status} size="small" sx={{ height: 18, fontSize: "0.64rem", fontWeight: 600, bgcolor: `${sc}18`, color: sc }} />
+          {worker.status === "offline" && worker.persisted && (
+            <Tooltip title={t("cortex.badge.persistedTooltip")} arrow>
+              <Chip
+                data-testid={`worker-badge-persisted-${worker.id}`}
+                label={t("cortex.badge.persisted")}
+                size="small"
+                sx={{ height: 18, fontSize: "0.62rem", fontWeight: 600, bgcolor: `${tokens.primary.main}18`, color: tokens.primary.main }}
+              />
+            </Tooltip>
+          )}
           <HeartbeatIndicator active={worker.status === "online"} />
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 0.75 }}>
@@ -213,16 +301,40 @@ function WorkerCard({ worker, now, onChangeStatus }: { worker: WorkerNode; now: 
         </Box>
       </Box>
 
-      <Box sx={{ display: "flex", gap: 0.5, flexShrink: 0 }}>
-        {worker.capabilities.map(cap => (
-          <Chip key={cap} label={cap} size="small" sx={{ height: 20, fontSize: "0.65rem", fontWeight: 600, bgcolor: tokens.bg.overlay, color: tokens.text.secondary, borderRadius: tokens.radius.sm }} />
-        ))}
+      <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 0.5, flexShrink: 0 }}>
+        <Box sx={{ display: "flex", gap: 0.5 }}>
+          {worker.capabilities.map(cap => (
+            <Chip key={cap} label={cap} size="small" sx={{ height: 20, fontSize: "0.65rem", fontWeight: 600, bgcolor: tokens.bg.overlay, color: tokens.text.secondary, borderRadius: tokens.radius.sm }} />
+          ))}
+        </Box>
+        {worker.nodeWhitelist.length > 0 && (
+          <Box data-testid={`worker-whitelist-${worker.id}`} sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", justifyContent: "flex-end", maxWidth: 260 }}>
+            {worker.nodeWhitelist.map(kind => (
+              <Tooltip key={`wl-${kind}`} title={t("cortex.restrictions.allowTooltip")} arrow>
+                <Chip label={kind} size="small" sx={{ height: 18, fontSize: "0.6rem", fontWeight: 600, bgcolor: `${tokens.accent.green}18`, color: tokens.accent.green, borderRadius: tokens.radius.sm }} />
+              </Tooltip>
+            ))}
+          </Box>
+        )}
+        {worker.nodeBlacklist.length > 0 && (
+          <Box data-testid={`worker-blacklist-${worker.id}`} sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", justifyContent: "flex-end", maxWidth: 260 }}>
+            {worker.nodeBlacklist.map(kind => (
+              <Tooltip key={`bl-${kind}`} title={t("cortex.restrictions.denyTooltip")} arrow>
+                <Chip label={kind} size="small" sx={{ height: 18, fontSize: "0.6rem", fontWeight: 600, bgcolor: `${tokens.accent.red}18`, color: tokens.accent.red, borderRadius: tokens.radius.sm }} />
+              </Tooltip>
+            ))}
+          </Box>
+        )}
       </Box>
 
       <IconButton size="small" onClick={e => setMenuAnchor(e.currentTarget)} sx={{ flexShrink: 0 }}>
         <MoreVertOutlined sx={{ fontSize: 18 }} />
       </IconButton>
       <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}>
+        <MenuItem data-testid={`worker-menu-restrictions-${worker.id}`} onClick={() => { setMenuAnchor(null); setEditing(true); }} sx={{ gap: 1.25, fontSize: "0.82rem" }}>
+          <TuneOutlined sx={{ fontSize: 16 }} /> {t("cortex.menu.restrictions")}
+        </MenuItem>
+        <Divider />
         {worker.status === "online" && (
           <MenuItem onClick={() => { setMenuAnchor(null); onChangeStatus(worker.id, "paused"); }} sx={{ gap: 1.25, fontSize: "0.82rem" }}>
             <PauseOutlined sx={{ fontSize: 16 }} /> {t("cortex.menu.pause")}
@@ -238,11 +350,25 @@ function WorkerCard({ worker, now, onChangeStatus }: { worker: WorkerNode; now: 
             <RestartAltOutlined sx={{ fontSize: 16 }} /> {t("cortex.menu.restart")}
           </MenuItem>
         )}
-        <Divider />
-        <MenuItem onClick={() => { setMenuAnchor(null); onChangeStatus(worker.id, "terminating"); }} sx={{ gap: 1.25, fontSize: "0.82rem", color: tokens.accent.red }}>
+        {(worker.status === "online" || worker.status === "paused") && (
+          <MenuItem onClick={() => { setMenuAnchor(null); onChangeStatus(worker.id, "terminating"); }} sx={{ gap: 1.25, fontSize: "0.82rem", color: tokens.accent.red }}>
             <StopOutlined sx={{ fontSize: 16 }} /> {t("cortex.menu.terminate")}
-        </MenuItem>
+          </MenuItem>
+        )}
+        {worker.status === "offline" && worker.persisted && (
+          <MenuItem data-testid={`worker-menu-forget-${worker.id}`} onClick={() => { setMenuAnchor(null); onForget(worker.id); }} sx={{ gap: 1.25, fontSize: "0.82rem", color: tokens.accent.red }}>
+            <DeleteOutlineOutlined sx={{ fontSize: 16 }} /> {t("cortex.menu.forget")}
+          </MenuItem>
+        )}
       </Menu>
+      {editing && (
+        <RestrictionsDialog
+          worker={worker}
+          nodeKinds={nodeKinds}
+          onClose={() => setEditing(false)}
+          onSave={onSaveRestrictions}
+        />
+      )}
     </Paper>
   );
 }
@@ -250,6 +376,10 @@ function WorkerCard({ worker, now, onChangeStatus }: { worker: WorkerNode; now: 
 // ── Main Cortex View ──────────────────────────────────────────────────────
 export default function CortexView() {
   const { token } = useAuth();
+  const { showToast } = useToast();
+  const { descriptors } = useNodeRegistry();
+  // Guard against a malformed/empty descriptors payload so the whole view never blanks.
+  const nodeKinds = (descriptors ?? []).map(d => d.kind).sort();
   const [workers, setWorkers] = useState<WorkerNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -337,6 +467,32 @@ export default function CortexView() {
 
   const handleChangeStatus = (id: string, status: WorkerNode["status"]) => {
     setWorkers(prev => prev.map(w => w.id === id ? { ...w, status } : w));
+  };
+
+  const handleSaveRestrictions = async (id: string, whitelist: string[], blacklist: string[]) => {
+    if (!token) return;
+    try {
+      const updated = await updateProcessorRestrictions(token, id, { nodeWhitelist: whitelist, nodeBlacklist: blacklist });
+      // Optimistically reflect the persisted restriction on the card.
+      setWorkers(prev => prev.map(w => w.id === id
+        ? { ...w, nodeWhitelist: updated.nodeWhitelist ?? whitelist, nodeBlacklist: updated.nodeBlacklist ?? blacklist, persisted: updated.persisted ?? true }
+        : w));
+      showToast(t("cortex.restrictions.saved"), "success");
+    } catch (err) {
+      showToast(t("cortex.restrictions.saveError", { error: (err as Error).message }), "error");
+      throw err;
+    }
+  };
+
+  const handleForget = async (id: string) => {
+    if (!token) return;
+    try {
+      await forgetProcessor(token, id);
+      setWorkers(prev => prev.filter(w => w.id !== id));
+      showToast(t("cortex.forget.done"), "success");
+    } catch (err) {
+      showToast(t("cortex.forget.error", { error: (err as Error).message }), "error");
+    }
   };
 
   const onlineCount = workers.filter(w => w.status === "online").length;
@@ -438,7 +594,15 @@ export default function CortexView() {
             </Box>
           ) : (
             filtered.map(w => (
-              <WorkerCard key={w.id} worker={w} now={now} onChangeStatus={handleChangeStatus} />
+              <WorkerCard
+                key={w.id}
+                worker={w}
+                now={now}
+                nodeKinds={nodeKinds}
+                onChangeStatus={handleChangeStatus}
+                onSaveRestrictions={handleSaveRestrictions}
+                onForget={handleForget}
+              />
             ))
           )}
         </Box>

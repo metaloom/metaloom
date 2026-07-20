@@ -809,7 +809,30 @@
       "pause": "Pause",
       "resume": "Resume",
       "restart": "Restart",
-      "terminate": "Terminate"
+      "terminate": "Terminate",
+      "restrictions": "Node restrictions",
+      "forget": "Forget worker"
+    },
+    "badge": {
+      "persisted": "Remembered",
+      "persistedTooltip": "This worker is offline but Loom remembers it and its node restrictions."
+    },
+    "restrictions": {
+      "title": "Node restrictions — {{name}}",
+      "whitelist": "Allowed node kinds",
+      "blacklist": "Denied node kinds",
+      "whitelistPlaceholder": "Leave empty to allow all kinds",
+      "blacklistPlaceholder": "Kinds this worker must never run",
+      "allowTooltip": "Allowed node kind",
+      "denyTooltip": "Denied node kind (overrides the allow list)",
+      "save": "Save",
+      "cancel": "Cancel",
+      "saved": "Node restrictions saved",
+      "saveError": "Failed to save restrictions: {{error}}"
+    },
+    "forget": {
+      "done": "Worker forgotten",
+      "error": "Failed to forget worker: {{error}}"
     }
   },
   "detection": {

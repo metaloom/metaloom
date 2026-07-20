@@ -18,6 +18,7 @@ import io.metaloom.loom.core.LoomCoreTestExtension;
 import io.metaloom.loom.rest.model.auth.AuthLoginResponse;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpClient;
+import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.WebSocket;
 import io.vertx.core.http.WebSocketClient;
 import io.vertx.core.http.WebSocketConnectOptions;
@@ -418,7 +419,170 @@ public class ProcessorEndpointTest {
 		}
 	}
 
+	// ── Node-restriction tests (Task 2/4) ─────────────────────────────────
+
+	@Test
+	public void testUpdateAndReadRestrictions() throws Exception {
+		Vertx vertx = Vertx.vertx();
+		try {
+			WebSocket ws = connectWs(vertx);
+			sendAndReceive(ws, registerMessage("node-restrict", "cortex-restrict-01", "10.0.2.10:9090", 1, "GPU", "CPU"));
+
+			try (LoomHttpClient client = loom.httpClient()) {
+				loginAdmin(client);
+				String token = client.getToken();
+
+				JsonObject body = new JsonObject()
+					.put("nodeWhitelist", new JsonArray().add("sha256").add("fingerprint"))
+					.put("nodeBlacklist", new JsonArray().add("loom"));
+				int[] status = new int[1];
+				JsonObject putResp = httpSend(vertx, HttpMethod.PUT, "/api/v1/processors/node-restrict/restrictions", token, body, status);
+				assertEquals(200, status[0], "PUT /restrictions should succeed for an admin");
+				assertTrue(putResp.getJsonArray("nodeWhitelist").contains("sha256"));
+				assertTrue(putResp.getJsonArray("nodeBlacklist").contains("loom"));
+
+				// The persisted restriction round-trips on a subsequent read.
+				JsonObject getResp = httpGet(vertx, "/api/v1/processors/node-restrict", token);
+				assertTrue(getResp.getJsonArray("nodeWhitelist").contains("sha256"));
+				assertTrue(getResp.getJsonArray("nodeBlacklist").contains("loom"));
+				assertEquals(Boolean.TRUE, getResp.getBoolean("persisted"), "A DB-backed worker is persisted");
+			}
+
+			ws.close();
+		} finally {
+			vertx.close();
+		}
+	}
+
+	@Test
+	public void testListMergesPersistedOffline() throws Exception {
+		Vertx vertx = Vertx.vertx();
+		try {
+			try (LoomHttpClient client = loom.httpClient()) {
+				loginAdmin(client);
+				String token = client.getToken();
+
+				// PUT for a nodeId that never connected creates a persisted-but-offline instance.
+				JsonObject body = new JsonObject()
+					.put("nodeWhitelist", new JsonArray().add("whisper"))
+					.put("nodeBlacklist", new JsonArray());
+				int[] status = new int[1];
+				httpSend(vertx, HttpMethod.PUT, "/api/v1/processors/ghost-node/restrictions", token, body, status);
+				assertEquals(200, status[0]);
+
+				JsonObject listResp = httpGet(vertx, "/api/v1/processors", token);
+				JsonObject ghost = findByNodeId(listResp.getJsonArray("data"), "ghost-node");
+				assertNotNull(ghost, "The offline persisted worker must still appear in the list");
+				assertEquals("OFFLINE", ghost.getString("state"));
+				assertEquals(Boolean.TRUE, ghost.getBoolean("persisted"));
+				assertTrue(ghost.getJsonArray("nodeWhitelist").contains("whisper"));
+			}
+		} finally {
+			vertx.close();
+		}
+	}
+
+	@Test
+	public void testForgetOnlyWhenOffline() throws Exception {
+		Vertx vertx = Vertx.vertx();
+		try {
+			WebSocket ws = connectWs(vertx);
+			sendAndReceive(ws, registerMessage("node-del", "cortex-del-01", "10.0.2.20:9090", 1, "CPU"));
+
+			try (LoomHttpClient client = loom.httpClient()) {
+				loginAdmin(client);
+				String token = client.getToken();
+
+				// Ensure a persisted row exists.
+				JsonObject body = new JsonObject().put("nodeWhitelist", new JsonArray().add("sha256")).put("nodeBlacklist", new JsonArray());
+				int[] status = new int[1];
+				httpSend(vertx, HttpMethod.PUT, "/api/v1/processors/node-del/restrictions", token, body, status);
+				assertEquals(200, status[0]);
+
+				// Online worker cannot be forgotten.
+				httpSend(vertx, HttpMethod.DELETE, "/api/v1/processors/node-del", token, null, status);
+				assertEquals(409, status[0], "Forgetting an online worker must be rejected");
+
+				// Disconnect, then forget.
+				ws.close();
+				Thread.sleep(500);
+				httpSend(vertx, HttpMethod.DELETE, "/api/v1/processors/node-del", token, null, status);
+				assertEquals(204, status[0], "An offline persisted worker can be forgotten");
+
+				// It is gone.
+				httpSend(vertx, HttpMethod.GET, "/api/v1/processors/node-del", token, null, status);
+				assertEquals(404, status[0]);
+			}
+		} finally {
+			vertx.close();
+		}
+	}
+
+	@Test
+	public void testRestrictionsRequireAuthentication() throws Exception {
+		Vertx vertx = Vertx.vertx();
+		try {
+			int[] status = new int[1];
+			JsonObject body = new JsonObject().put("nodeWhitelist", new JsonArray()).put("nodeBlacklist", new JsonArray());
+			// No token → the secure() auth handler rejects before the handler runs.
+			httpSend(vertx, HttpMethod.PUT, "/api/v1/processors/node-x/restrictions", null, body, status);
+			assertEquals(401, status[0], "PUT /restrictions without a token must be unauthorized");
+		} finally {
+			vertx.close();
+		}
+	}
+
 	// ── HTTP helpers ──────────────────────────────────────────────────────
+
+	/**
+	 * Perform a raw HTTP request, capturing the status code in {@code statusOut[0]} and
+	 * returning the JSON body (empty object for a 204/no-content response).
+	 */
+	private JsonObject httpSend(Vertx vertx, HttpMethod method, String path, String token, JsonObject body, int[] statusOut) throws Exception {
+		HttpClient client = vertx.createHttpClient();
+		CompletableFuture<JsonObject> future = new CompletableFuture<>();
+
+		client.request(method, restPort(), "localhost", path)
+			.compose(req -> {
+				if (token != null) {
+					req.putHeader("Authorization", "Bearer " + token);
+				}
+				if (body != null) {
+					req.putHeader("Content-Type", "application/json");
+					return req.send(body.encode());
+				}
+				return req.send();
+			})
+			.compose(resp -> {
+				statusOut[0] = resp.statusCode();
+				return resp.body();
+			})
+			.onSuccess(buf -> {
+				// Error responses (401 "Unauthorized", 404/409 JSON) may not be JSON objects;
+				// the caller asserts on the status code, so a non-JSON body is not a failure.
+				try {
+					future.complete(buf == null || buf.length() == 0 ? new JsonObject() : new JsonObject(buf));
+				} catch (Exception e) {
+					future.complete(new JsonObject());
+				}
+			})
+			.onFailure(future::completeExceptionally);
+
+		return future.get(10, TimeUnit.SECONDS);
+	}
+
+	private JsonObject findByNodeId(JsonArray data, String nodeId) {
+		if (data == null) {
+			return null;
+		}
+		for (int i = 0; i < data.size(); i++) {
+			JsonObject obj = data.getJsonObject(i);
+			if (nodeId.equals(obj.getString("nodeId"))) {
+				return obj;
+			}
+		}
+		return null;
+	}
 
 	/**
 	 * Perform a raw HTTP GET and return the response body as JsonObject.

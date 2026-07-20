@@ -1,7 +1,9 @@
 package io.metaloom.loom.rest.endpoint.impl;
 
 import static io.metaloom.loom.rest.RESTConstants.API_V1_PATH;
+import static io.vertx.core.http.HttpMethod.DELETE;
 import static io.vertx.core.http.HttpMethod.GET;
+import static io.vertx.core.http.HttpMethod.PUT;
 
 import java.util.UUID;
 
@@ -10,9 +12,13 @@ import javax.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.metaloom.loom.api.error.LoomRestErrorCode;
+import io.metaloom.loom.api.error.LoomRestException;
+import io.metaloom.loom.db.model.perm.Permission;
 import io.metaloom.loom.rest.AbstractEndpoint;
 import io.metaloom.loom.rest.EndpointDependencies;
 import io.metaloom.loom.rest.model.ModelExamples;
+import io.metaloom.loom.rest.model.processor.ProcessorRestrictionUpdateRequest;
 import io.metaloom.loom.rest.model.pipeline.event.PipelineEventMessage;
 import io.metaloom.loom.rest.model.processor.ProcessorListResponse;
 import io.metaloom.loom.rest.model.processor.ProcessorResponse;
@@ -116,15 +122,17 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 
 		secure(basePath());
 		secure(basePath() + "/:uuid");
+		secure(basePath() + "/:uuid/restrictions");
 
-		// List all registered processors
+		// List all registered processors, merged with persisted-but-offline instances so an
+		// operator can still see and edit a remembered worker's restrictions while it is down.
 		addListRoute(basePath(), GET,
 			"Load a list of registered processor nodes",
 			examples.processorListResponseExample(),
 			lrc -> {
 				ProcessorListResponse list = new ProcessorListResponse();
-				for (ConnectedProcessor p : registry.getAll()) {
-					list.add(registry.toResponse(p));
+				for (ProcessorResponse resp : registry.listAllResponses()) {
+					list.add(resp);
 				}
 				lrc.send(list, 200);
 			});
@@ -138,7 +146,7 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 				String uuid = lrc.pathParam("uuid");
 				ConnectedProcessor processor = registry.get(uuid);
 				if (processor == null) {
-					// Try to find by UUID
+					// Try to find by derived UUID among live processors
 					for (ConnectedProcessor p : registry.getAll()) {
 						ProcessorResponse resp = registry.toResponse(p);
 						if (resp.getUuid().toString().equals(uuid)) {
@@ -146,11 +154,53 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 							return;
 						}
 					}
+					// Fall back to a persisted-but-offline instance keyed by nodeId
+					ProcessorResponse persisted = registry.loadPersisted(uuid);
+					if (persisted != null) {
+						lrc.send(persisted, 200);
+						return;
+					}
 					lrc.sendText("{\"message\":\"Processor not found\"}", "application/json", 404);
 					return;
 				}
 				lrc.send(registry.toResponse(processor), 200);
 			});
+
+		// Update the administrator-managed node-kind restrictions of a cortex instance.
+		addRoute(basePath() + "/:uuid/restrictions", PUT,
+			"Update the node-kind restrictions (whitelist/blacklist) of a cortex instance",
+			null,
+			examples.processorResponseExample(),
+			lrc -> lrc.requirePerm(Permission.MANAGE_CORTEX_INSTANCE)
+				.onSuccess(l -> {
+					String nodeId = lrc.pathParam("uuid");
+					ProcessorRestrictionUpdateRequest req = lrc.requestBody(ProcessorRestrictionUpdateRequest.class);
+					ProcessorResponse resp = registry.updateRestrictions(nodeId, req.getNodeWhitelist(), req.getNodeBlacklist(), lrc.userUuid());
+					lrc.send(resp, 200);
+				})
+				.onFailure(e -> {
+					throw new LoomRestException(403, LoomRestErrorCode.MISSING_PERM, "Invalid permissions");
+				}));
+
+		// Forget a persisted (offline) cortex instance.
+		addRoute(basePath() + "/:uuid", DELETE,
+			"Forget a persisted cortex instance. Only permitted while the worker is offline.",
+			lrc -> lrc.requirePerm(Permission.MANAGE_CORTEX_INSTANCE)
+				.onSuccess(l -> {
+					String nodeId = lrc.pathParam("uuid");
+					if (registry.isConnected(nodeId)) {
+						lrc.sendText("{\"message\":\"Worker is online; disconnect before forgetting\"}", "application/json", 409);
+						return;
+					}
+					if (!registry.forget(nodeId)) {
+						lrc.sendText("{\"message\":\"Processor not found\"}", "application/json", 404);
+						return;
+					}
+					lrc.sendNoContent();
+				})
+				.onFailure(e -> {
+					throw new LoomRestException(403, LoomRestErrorCode.MISSING_PERM, "Invalid permissions");
+				}));
 	}
 
 	/**

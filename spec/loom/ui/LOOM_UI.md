@@ -182,7 +182,7 @@ VITE_API_BASE_URL=/api/v1 VITE_PROXY_TARGET=http://localhost:8092 npm run test:e
 | **Face Detection** | `/detection/faces` | `FaceDetectionView` | Cluster management, person assignment, face gallery | `GET /api/v1/clusters`, `GET /api/v1/persons` |
 | **Chat (Loom Agent)** | `/` | `ChatView` | Conversational AI assistant with asset/task/pipeline references | `POST /api/v1/graphql` (not yet registered) |
 | **Pipeline Editor** | `/pipelines` | `PipelineEditor` | React Flow canvas, node palette, validation, run history, JSON view | `GET/POST /api/v1/pipelines`, `POST /api/v1/pipelines/:uuid/run`, `GET /api/v1/pipeline/node-descriptors` |
-| **Cortex Workers** | `/cortex` | `CortexView` | Worker status, CPU/GPU/IO metrics, pause/resume/terminate | `GET /api/v1/processors`, `WS /api/v1/processors/ws` |
+| **Cortex Workers** | `/cortex` | `CortexView` | Worker status, CPU/GPU/IO metrics, pause/resume/terminate, node-restriction (whitelist/blacklist) editing, forget offline worker | `GET /api/v1/processors` (live + persisted-offline merged), `GET/PUT /api/v1/processors/:nodeId/restrictions`, `DELETE /api/v1/processors/:nodeId`, `WS /api/v1/processors/ws` |
 | **Monitoring** | `/monitoring` | `MonitoringView` | 14-day rolling metrics: ingestion, pipeline runs, latency, storage, tasks, agent usage | `GET /api/v1/metrics` (not implemented) |
 | **Asset Pools** | `/asset-pools` | `AssetPoolsView` | Pool CRUD, asset assignment, replication | `GET/POST/DELETE /api/v1/pools` |
 | **Admin: Spaces** | `/admin/spaces` | `SpacesView` | Space CRUD | `GET/POST/DELETE /api/v1/spaces` |
@@ -1184,6 +1184,8 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
 | OAuth2 callback | `GET /api/v1/auth/oauth2/callback` | ✅ Exists, UI missing |
 | WebSocket pipeline events | `WS /api/v1/pipelines/events/ws` | ✅ Exists, UI not connected |
 | WebSocket processor | `WS /api/v1/processors/ws` | ✅ Exists, CortexView connects |
+| Processor restrictions | `GET/PUT /api/v1/processors/:nodeId/restrictions` | ✅ Exists, CortexView edits |
+| Forget processor | `DELETE /api/v1/processors/:nodeId` | ✅ Exists, CortexView (offline only) |
 | Asset bulk create | `POST /api/v1/assets/bulk/create` | ✅ Exists, UI missing |
 | Asset bulk update | `POST /api/v1/assets/bulk/update` | ✅ Exists, UI missing |
 | Asset tags CRUD | `POST/DELETE /api/v1/assets/:uuid/tags` | ✅ Exists, UI partial |
@@ -1214,7 +1216,7 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
 | **Collection Data** | Mock in `CollectionsView` | Connect to `/api/v1/collections` |
 | **Tag Data** | Mock in `TagsView` | Connect to `/api/v1/tags` |
 | **Asset Pool Data** | Mock in `AssetPoolsView` | Connect to `/api/v1/pools` |
-| **Cortex Worker Data** | Loads from API (`/api/v1/processors`) | WS connection for live updates |
+| **Cortex Worker Data** | Real: live REST + WS updates; per-worker node-restriction (whitelist/blacklist) editing and forget of offline instances | ✅ Real |
 | **Pipeline Run History** | Loads from API (`listPipelineRuns`) | ✅ Real |
 | **Node Descriptors** | Loads from API (`fetchNodeDescriptors`) | ✅ Real |
 

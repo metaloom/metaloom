@@ -800,7 +800,30 @@
       "pause": "Pausieren",
       "resume": "Fortsetzen",
       "restart": "Neustarten",
-      "terminate": "Beenden"
+      "terminate": "Beenden",
+      "restrictions": "Node-Einschränkungen",
+      "forget": "Worker vergessen"
+    },
+    "badge": {
+      "persisted": "Gemerkt",
+      "persistedTooltip": "Dieser Worker ist offline, aber Loom merkt sich ihn samt seinen Node-Einschränkungen."
+    },
+    "restrictions": {
+      "title": "Node-Einschränkungen — {{name}}",
+      "whitelist": "Erlaubte Node-Typen",
+      "blacklist": "Verbotene Node-Typen",
+      "whitelistPlaceholder": "Leer lassen, um alle Typen zuzulassen",
+      "blacklistPlaceholder": "Typen, die dieser Worker nie ausführen darf",
+      "allowTooltip": "Erlaubter Node-Typ",
+      "denyTooltip": "Verbotener Node-Typ (überschreibt die Zulassungsliste)",
+      "save": "Speichern",
+      "cancel": "Abbrechen",
+      "saved": "Node-Einschränkungen gespeichert",
+      "saveError": "Einschränkungen konnten nicht gespeichert werden: {{error}}"
+    },
+    "forget": {
+      "done": "Worker vergessen",
+      "error": "Worker konnte nicht vergessen werden: {{error}}"
     }
   },
   "detection": {
