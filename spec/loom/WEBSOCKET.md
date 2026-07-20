@@ -13,15 +13,41 @@
 
 The Loom server exposes two WebSocket endpoints:
 
-| Endpoint              | Path                          | Direction             | Purpose                                  |
-|-----------------------|-------------------------------|-----------------------|------------------------------------------|
-| Processor WebSocket   | `/api/v1/processors/ws`       | Bidirectional         | Cortex processor nodes register, receive work orders, and report results/events |
-| Pipeline Events WebSocket | `/api/v1/pipelines/events/ws` | Server -> Client (read-only) | UI clients receive live pipeline tracking events |
+| Endpoint              | Path                          | Client population        | Direction             | Purpose                                  |
+|-----------------------|-------------------------------|--------------------------|-----------------------|------------------------------------------|
+| Processor WebSocket   | `/api/v1/processors/ws`       | Cortex **worker nodes** (JVM processes) | Bidirectional         | Workers register, receive work orders, and report results/events |
+| UI Events WebSocket   | `/api/v1/pipelines/events/ws` | **Browsers** (UI clients) | Server -> Client (read-only) | UI clients receive live pipeline **and** processor events (multiplexed — see §4) |
 
 Both endpoints use the standard HTTP WebSocket upgrade. Authentication is
 performed **after** the upgrade completes because browsers cannot attach
 custom `Authorization` headers to WebSocket handshakes. Instead, a JWT bearer
 token is passed as a `?token=<jwt>` query parameter.
+
+### 1.1 Why two endpoints, and why they are not merged
+
+The two endpoints serve **different client populations with different roles**,
+and are deliberately kept separate:
+
+- **Processor WebSocket** is a *worker* control channel. The peers are Cortex
+  processor nodes — long-lived backend JVM processes, not browsers. It is
+  **bidirectional** and trusted to a high degree: after registering, a peer can
+  receive work orders and report results (see §3). Its auth context is
+  "a processor node joining the fleet".
+- **UI Events WebSocket** is a *read-only broadcast* channel for browsers. The
+  peer never sends application messages; it only receives events. Its auth
+  context is "a signed-in user watching the system". To avoid a browser opening
+  more than one socket, this channel is **multiplexed**: it carries both
+  pipeline events and processor lifecycle events over a single connection,
+  discriminated by a `channel` field (see §4). A browser therefore holds exactly
+  **one** WebSocket to the backend regardless of how many views are open.
+
+Merging the two into one endpoint is intentionally avoided: it would mix the
+worker control protocol with the browser broadcast protocol, blur two distinct
+auth roles onto one route, and widen the trust surface — while saving no
+connections, since each browser already uses a single socket. The
+`WebSocketAuthenticator.authenticate(ws, name)` call is passed a per-endpoint
+name (`"processor"` vs `"pipeline-events"`) precisely so the two roles stay
+distinguishable in logs and future policy.
 
 ---
 
