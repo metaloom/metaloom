@@ -11,7 +11,7 @@ import "reactflow/dist/style.css";
 import {
   Box, Typography, Chip, Paper, Divider, IconButton, Tooltip,
   List, ListItemButton, ListItemText, ListItemIcon, Switch, Stack, Avatar, Collapse, TextField,
-  InputAdornment, Popper, ClickAwayListener, MenuItem,
+  Autocomplete, InputAdornment, Popper, ClickAwayListener, MenuItem,
   Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button,
   Snackbar, Alert, Popover, CircularProgress,
 } from "@mui/material";
@@ -50,6 +50,23 @@ import { useSpace } from "../../context/SpaceContext";
 import { useNodeRegistry } from "../../context/NodeRegistryContext";
 import type { NodeDescriptor, NodeCategory } from "../../types/nodeDescriptors";
 import { PipelineVersionDiff } from "./PipelineVersionDiff";
+
+// Default affinity group name. Mirrors PipelineGraphNode.DEFAULT_AFFINITY on the
+// Loom side: a null/blank affinity collapses to "default" (one group per node).
+const DEFAULT_AFFINITY = "default";
+
+// Derive a stable colour for a non-default affinity group from its name, so nodes
+// sharing a group visibly share a colour on the canvas. Returns null for the
+// implicit "default" group (rendered neutrally).
+function affinityColor(affinity: string | undefined): string | null {
+  if (!affinity || affinity === DEFAULT_AFFINITY) return null;
+  let hash = 0;
+  for (let i = 0; i < affinity.length; i++) {
+    hash = (hash * 31 + affinity.charCodeAt(i)) | 0;
+  }
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 65%, 55%)`;
+}
 
 // ── Category-based node styling ───────────────────────────────────────────
 const categoryConfig: Record<NodeCategory, { color: string; icon: React.ReactNode; bg: string }> = {
@@ -148,6 +165,11 @@ function PipelineNodeComponent({ data, selected, id }: NodeProps) {
   const [hovered, setHovered] = useState(false);
   const onDelete = data.onDelete as ((nodeId: string) => void) | undefined;
 
+  // Affinity group: nodes sharing a non-default group are outlined + badged in a
+  // group-derived colour so the resulting pipeline segment is legible at a glance.
+  const affinity = (data.affinity as string | undefined) || DEFAULT_AFFINITY;
+  const groupColor = affinityColor(affinity);
+
   // When the node is not currently processing, tint its side borders to reflect
   // the last result received over the pipeline-events socket.
   const resultColor = lastResult === "completed" ? tokens.accent.green : lastResult === "failed" ? tokens.accent.red : null;
@@ -158,6 +180,7 @@ function PipelineNodeComponent({ data, selected, id }: NodeProps) {
       data-testid={`pipeline-node-${id}`}
       data-active={isActive ? "true" : "false"}
       data-result={lastResult ?? "none"}
+      data-affinity={affinity}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       sx={{
@@ -176,6 +199,11 @@ function PipelineNodeComponent({ data, selected, id }: NodeProps) {
           : `0 2px 8px rgba(0,0,0,0.4)`,
         transition: "border-color 120ms ease, box-shadow 120ms ease",
         position: "relative",
+        // Group outline (offset ring) for non-default affinity groups.
+        ...(groupColor && {
+          outline: `2px dashed ${groupColor}`,
+          outlineOffset: 3,
+        }),
         ...(isActive && {
           animation: "pulse-active 2s ease-in-out infinite",
           "@keyframes pulse-active": {
@@ -185,6 +213,37 @@ function PipelineNodeComponent({ data, selected, id }: NodeProps) {
         }),
       }}
     >
+      {/* Affinity group badge */}
+      {groupColor && (
+        <Box
+          data-testid={`pipeline-node-affinity-badge-${id}`}
+          sx={{
+            position: "absolute",
+            top: -9,
+            left: 8,
+            px: 0.75,
+            height: 15,
+            display: "flex",
+            alignItems: "center",
+            gap: 0.4,
+            borderRadius: 999,
+            bgcolor: groupColor,
+            color: "#fff",
+            fontSize: "0.56rem",
+            fontWeight: 700,
+            letterSpacing: "0.02em",
+            lineHeight: 1,
+            zIndex: 9,
+            boxShadow: "0 1px 3px rgba(0,0,0,0.4)",
+            maxWidth: 120,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {affinity}
+        </Box>
+      )}
       {/* Active indicator dot */}
       {isActive && !hovered && (
         <Box
@@ -352,12 +411,19 @@ function toRFNodes(pnodes: PipelineNode[], selectedId: string | null, descriptor
         label: n.label,
         description: n.description,
         category,
+        // Preserve the descriptor kind (definition `type`) in node data so
+        // getGraphJson can emit the real node type on save instead of the
+        // category. Without this the canvas serialization corrupts node types.
+        kind: n.type,
         nodeIcon: desc ? resolveNodeIcon(desc) : undefined,
         inputs: connectors.inputs,
         outputs: connectors.outputs,
         onDelete,
         isActive: activeNodeIds?.has(n.id) ?? false,
         lastResult: nodeResults?.[n.id],
+        // Affinity is a top-level field on the definition node; surface it in the
+        // React Flow node data so the renderer and getGraphJson can see it.
+        affinity: n.affinity ?? DEFAULT_AFFINITY,
         ...n.data,
       },
     };
@@ -750,7 +816,7 @@ function PipelineInspector({ pipeline, runs, runsLoading }: { pipeline: Pipeline
 
 // ── Node Detail Sidebar (second collapsible right panel) ──────────────────
 function NodeDetailSidebar({
-  nodeId, pipeline, open, onClose, onDisplayNameChange, onParameterChange,
+  nodeId, pipeline, open, onClose, onDisplayNameChange, onParameterChange, onAffinityChange,
 }: {
   nodeId: string | null;
   pipeline: Pipeline | null;
@@ -758,18 +824,26 @@ function NodeDetailSidebar({
   onClose: () => void;
   onDisplayNameChange?: (nodeId: string, name: string) => void;
   onParameterChange?: (nodeId: string, key: string, value: unknown) => void;
+  onAffinityChange?: (nodeId: string, value: string) => void;
 }) {
   const { getDescriptor } = useNodeRegistry();
   const node = (nodeId && pipeline) ? pipeline.definition.nodes.find(n => n.id === nodeId) ?? null : null;
   const desc = node ? getDescriptor(node.type) : undefined;
   const cfg = desc ? nodeVisualConfig(desc) : (node ? categoryConfig.ANALYSIS : null);
   const [displayName, setDisplayName] = useState("");
+  const [affinity, setAffinity] = useState(DEFAULT_AFFINITY);
   const [detailTab, setDetailTab] = useState(0);
   const { t } = useTranslation();
 
-  // Sync display name when node changes
+  // Distinct affinity groups already used in the graph, for the autocomplete.
+  const affinityOptions = pipeline
+    ? [...new Set(pipeline.definition.nodes.map(n => n.affinity || DEFAULT_AFFINITY))]
+    : [DEFAULT_AFFINITY];
+
+  // Sync display name + affinity when node changes
   useEffect(() => {
     setDisplayName((node as any)?.displayName ?? "");
+    setAffinity(node?.affinity || DEFAULT_AFFINITY);
     setDetailTab(0);
   }, [nodeId]);
 
@@ -848,6 +922,37 @@ function NodeDetailSidebar({
                   fullWidth
                   InputProps={{ readOnly: true }}
                   sx={{ "& .MuiInputBase-root": { fontSize: "0.78rem" } }}
+                />
+
+                {/* Affinity group — nodes sharing a group are dispatched together as
+                    one segment. Free text with an autocomplete of groups already used. */}
+                <Autocomplete
+                  freeSolo
+                  size="small"
+                  options={affinityOptions}
+                  value={affinity}
+                  onChange={(_, val) => {
+                    const v = (typeof val === "string" ? val : "").trim() || DEFAULT_AFFINITY;
+                    setAffinity(v);
+                    if (onAffinityChange && nodeId) onAffinityChange(nodeId, v);
+                  }}
+                  onInputChange={(_, val) => {
+                    const v = val.trim() || DEFAULT_AFFINITY;
+                    setAffinity(v);
+                    if (onAffinityChange && nodeId) onAffinityChange(nodeId, v);
+                  }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label={t("pipeline.nodeDetail.affinity")}
+                      placeholder={DEFAULT_AFFINITY}
+                      size="small"
+                      fullWidth
+                      helperText={t("pipeline.nodeDetail.affinityHelp")}
+                      inputProps={{ ...params.inputProps, "data-testid": "pipeline-node-affinity-input" }}
+                      sx={{ "& .MuiInputBase-root": { fontSize: "0.78rem" }, "& .MuiFormHelperText-root": { fontSize: "0.62rem" } }}
+                    />
+                  )}
                 />
 
                 {/* Dynamic parameter editor (from NodeDescriptor.parameters) */}
@@ -1019,7 +1124,7 @@ function NodeDetailSidebar({
 
 // ── Canvas ────────────────────────────────────────────────────────────────
 function PipelineCanvas({
-  pipeline, onNodeSelect, externalNodes, nodeDisplayNames, descriptors,
+  pipeline, onNodeSelect, externalNodes, nodeDisplayNames, nodeAffinities, descriptors,
   onDeleteNode, activeNodeIds, nodeResults, onGraphChange, removalTrigger, autoArrangeTrigger,
   onEdgeTypeChange, reloadKey,
 }: {
@@ -1027,6 +1132,7 @@ function PipelineCanvas({
   onNodeSelect: (id: string | null) => void;
   externalNodes?: RFNode[];
   nodeDisplayNames?: Record<string, string>;
+  nodeAffinities?: Record<string, string>;
   descriptors: NodeDescriptor[];
   onDeleteNode?: (nodeId: string, label: string) => void;
   activeNodeIds?: Set<string>;
@@ -1170,6 +1276,19 @@ function PipelineCanvas({
     }));
   }, [nodeDisplayNames, setNodes]);
 
+  // Apply affinity-group changes made in the NodeDetailSidebar into the live
+  // canvas node data, without resetting positions (same channel as display names).
+  useEffect(() => {
+    if (!nodeAffinities) return;
+    setNodes(nds => nds.map(n => {
+      const aff = nodeAffinities[n.id];
+      if (aff !== undefined && n.data.affinity !== aff) {
+        return { ...n, data: { ...n.data, affinity: aff } };
+      }
+      return n;
+    }));
+  }, [nodeAffinities, setNodes]);
+
   const onNodeClick = useCallback((_: React.MouseEvent, node: RFNode) => {
     setSelectedId(node.id);
     onNodeSelect(node.id);
@@ -1290,16 +1409,26 @@ function PipelineCanvas({
 
   // Expose nodes/edges for JSON view
   const getGraphJson = useCallback(() => {
-    const nodeData = nodes.map(n => ({
-      id: n.id,
-      type: (n.data as any).category ?? "unknown",
-      label: n.data.label,
-      description: n.data.description,
-      position: n.position,
-      ...(Object.keys(n.data).filter(k => !["label", "description", "category", "nodeIcon", "inputs", "outputs", "onDelete", "isActive", "displayName"].includes(k)).length > 0
-        ? { config: Object.fromEntries(Object.entries(n.data).filter(([k]) => !["label", "description", "category", "nodeIcon", "inputs", "outputs", "onDelete", "isActive", "displayName"].includes(k))) }
-        : {}),
-    }));
+    // Keys handled explicitly above / not part of the persisted config. `affinity`
+    // is lifted to the node top level (the shape Loom's PipelineGraphParser reads),
+    // so it must be excluded from the nested `config` bag too.
+    const RESERVED = ["label", "description", "category", "kind", "nodeIcon", "inputs", "outputs", "onDelete", "isActive", "lastResult", "displayName", "affinity"];
+    const nodeData = nodes.map(n => {
+      const affinity = (n.data as any).affinity as string | undefined;
+      const configEntries = Object.entries(n.data).filter(([k]) => !RESERVED.includes(k));
+      return {
+        id: n.id,
+        // Prefer the preserved descriptor kind; fall back to category only for
+        // legacy nodes that predate kind preservation.
+        type: (n.data as any).kind ?? (n.data as any).category ?? "unknown",
+        label: n.data.label,
+        description: n.data.description,
+        position: n.position,
+        // Only emit non-default affinity — keeps the JSON clean and backward compatible.
+        ...(affinity && affinity !== DEFAULT_AFFINITY ? { affinity } : {}),
+        ...(configEntries.length > 0 ? { config: Object.fromEntries(configEntries) } : {}),
+      };
+    });
     const edgeData = edges.map(e => ({
       id: e.id,
       source: e.source,
@@ -1663,6 +1792,7 @@ export default function PipelineEditor() {
   const [nodeDetailOpen, setNodeDetailOpen] = useState(false);
   const [addedNodes, setAddedNodes] = useState<RFNode[]>([]);
   const [nodeDisplayNames, setNodeDisplayNames] = useState<Record<string, string>>({});
+  const [nodeAffinities, setNodeAffinities] = useState<Record<string, string>>({});
   const [addNodeOpen, setAddNodeOpen] = useState(false);
   const [addNodeIdx, setAddNodeIdx] = useState(0);
   const addNodeBarRef = useRef<HTMLDivElement>(null);
@@ -1820,6 +1950,7 @@ export default function PipelineEditor() {
       // Drop local editing state — it belongs to the version we just replaced.
       setAddedNodes([]);
       setNodeDisplayNames({});
+      setNodeAffinities({});
       setGraphJson(null);
       setSelectedNodeId(null);
       setNodeDetailOpen(false);
@@ -1855,6 +1986,20 @@ export default function PipelineEditor() {
     }
   }, [selected]);
 
+  // Persist affinity-group changes from the NodeDetailSidebar. Writes the
+  // top-level `affinity` field on the definition node (the shape Loom reads) and
+  // pushes it to the live canvas via the nodeAffinities channel.
+  const handleAffinityChange = useCallback((nodeId: string, value: string) => {
+    if (!selected) return;
+    const node = selected.definition.nodes.find(n => n.id === nodeId);
+    if (node) {
+      node.affinity = value;
+      setSelected({ ...selected });
+      setNodeAffinities(prev => ({ ...prev, [nodeId]: value }));
+      setDirty(true);
+    }
+  }, [selected]);
+
   // Persist edge type changes (PASS / REJECT / ANY) into the pipeline definition
   const handleEdgeTypeChange = useCallback((edgeId: string, edgeType: EdgeKind) => {
     if (!selected) return;
@@ -1883,6 +2028,7 @@ export default function PipelineEditor() {
         label: desc.name,
         description: desc.description,
         category: desc.category,
+        kind: desc.kind,
         nodeIcon: resolveNodeIcon(desc),
         inputs: connectors.inputs,
         outputs: connectors.outputs,
@@ -1976,6 +2122,7 @@ export default function PipelineEditor() {
     setSelected(p);
     setSelectedNodeId(null);
     setNodeDetailOpen(false);
+    setNodeAffinities({});
     setDirty(false);
   }, []);
 
@@ -2320,6 +2467,7 @@ export default function PipelineEditor() {
                   onNodeSelect={handleNodeSelect}
                   externalNodes={addedNodes}
                   nodeDisplayNames={nodeDisplayNames}
+                  nodeAffinities={nodeAffinities}
                   descriptors={descriptors}
                   onDeleteNode={handleDeleteNodeRequest}
                   activeNodeIds={activeNodeIds}
@@ -2656,6 +2804,7 @@ export default function PipelineEditor() {
         onClose={() => setNodeDetailOpen(false)}
         onDisplayNameChange={handleDisplayNameChange}
         onParameterChange={handleParameterChange}
+        onAffinityChange={handleAffinityChange}
       />
 
       {/* Stats inspector panel */}

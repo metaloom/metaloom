@@ -743,6 +743,8 @@
       "displayName": "Display Name",
       "maxChars": "Max 15 characters",
       "description": "Description",
+      "affinity": "Affinity group",
+      "affinityHelp": "Nodes sharing a group are dispatched together as one segment.",
       "configuration": "Configuration",
       "nodeId": "Node ID",
       "processingLog": "Processing Log",

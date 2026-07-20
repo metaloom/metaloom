@@ -734,6 +734,8 @@
       "displayName": "Anzeigename",
       "maxChars": "Max. 15 Zeichen",
       "description": "Beschreibung",
+      "affinity": "Affinitätsgruppe",
+      "affinityHelp": "Knoten derselben Gruppe werden gemeinsam als ein Segment ausgeführt.",
       "configuration": "Konfiguration",
       "nodeId": "Knoten-ID",
       "processingLog": "Verarbeitungsprotokoll",

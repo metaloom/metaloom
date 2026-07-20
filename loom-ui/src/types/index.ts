@@ -131,6 +131,12 @@ export interface PipelineNode {
   label: string;
   description: string;
   position: { x: number; y: number };
+  /**
+   * Affinity group name. Nodes sharing an affinity are dispatched together as a
+   * single pipeline segment by the engine. Optional; a missing/blank value means
+   * the implicit "default" group. Persisted as a top-level field on each node.
+   */
+  affinity?: string;
   data: Record<string, unknown>;
 }
 

@@ -263,51 +263,6 @@ a `nodeBlacklist`.
 
 ---
 
-## Task 5: Pipeline editor — assign and visualise node affinity groups
-
-**Argumentation Summary:** Affinity is the headline of the pipeline refactor —
-`PipelineGraphNode.affinity` decides how the graph is cut into `PipelineSegment`s
-and therefore whether a five-node video pipeline decodes once or five times. Yet
-the pipeline editor has no concept of it: nodes cannot be assigned a group, the
-definition JSON the UI writes carries no `affinity` field, and the segmentation
-is invisible. Authors cannot influence the single most impactful performance
-lever the engine exposes.
-
-**Improvement Summary:** Add an `affinity` field to the node config UI and
-persist it in the definition, and render segment membership on the canvas
-(e.g. colored group outline / badge) so authors can see how their graph will be
-dispatched.
-
-```
-1. NodeDetailSidebar (Config tab) in PipelineEditor.tsx: add an "Affinity group"
-   input (free text with an autocomplete of groups already used in the graph;
-   default placeholder "default"). handleParameterChange-style write to
-   selected.definition.nodes[].affinity + setDirty(true).
-
-2. Persist it: include affinity in the node objects written to the definition on
-   save. Confirm the Loom-side definition schema and PipelineGraphParser
-   (reads node.getString("affinity")) agree on the field name and location.
-
-3. Canvas visualisation: group nodes sharing an affinity with a subtle tinted
-   container/outline and a small group label on each node, so a segment is
-   legible at a glance. Distinguish the implicit "default" group from
-   author-assigned ones.
-
-4. Keep it optional and backward compatible — a definition with no affinity
-   fields must still load and default every node to "default".
-```
-
-**References:**
-- `loom-ui/src/features/pipeline/PipelineEditor.tsx` (`NodeDetailSidebar`, `handleParameterChange`, `handleSave`)
-- `loom/pipeline/.../graph/PipelineGraphNode.java` (`affinity`, `DEFAULT_AFFINITY`), `PipelineGraphParser.java:137`
-- `loom/pipeline/.../graph/PipelineSegmenter.java`, `PipelineSegment.java`
-- [PIPELINE_EDITOR.md](PIPELINE_EDITOR.md) §13 (node detail sidebar), §7 (node rendering)
-
-**Test Requirements:**
-- Playwright: assign an affinity group to two connected nodes, save, reload, and
-  assert the field persists in the definition and the grouping renders.
-- A serde check that a UI-written definition with `affinity` fields parses via
-  `PipelineGraphParser` into the expected segments.
 
 ---
 
@@ -390,38 +345,6 @@ accepts.
 - UI test with a mocked processor list: kinds accepted by no online worker render
   disabled/greyed; kinds accepted by at least one render normally; the state
   updates when the processor list changes.
-
----
-
-## Task 8: Pipeline create / delete / clone UI
-
-**Argumentation Summary:** The editor only *edits* existing pipelines. `POST` and
-`DELETE /api/v1/pipelines` exist and `createPipeline`/`deletePipeline` are already
-in `src/api/pipelines.ts`, but no UI calls them, so operators must use the raw
-API to bootstrap or remove a pipeline — a glaring gap for a visual authoring tool.
-
-**Improvement Summary:** Add create, delete, and clone affordances to the
-pipeline list, reusing the existing API client and validation.
-
-```
-1. Pipeline list (PipelineEditor.tsx): "New pipeline" button -> dialog (name,
-   description) -> createPipeline -> select the new pipeline with an empty/source
-   -only canvas. "Delete" (with confirm, mirroring the node-delete dialog) ->
-   deletePipeline -> drop from pipelines[] and reselect.
-2. "Clone": createPipeline seeded with the selected pipeline's current
-   definition (deep-copied nodes/edges/affinity). No backend clone endpoint
-   exists, so do it client-side via create-with-definition.
-3. Handle the dirty-flag interaction: warn on delete/switch when unsaved.
-```
-
-**References:**
-- `loom-ui/src/api/pipelines.ts` (`createPipeline`, `deletePipeline` — already present, unused)
-- `loom-ui/src/features/pipeline/PipelineEditor.tsx` (pipeline list, delete-confirm dialog)
-- [LOOM_UI.md](LOOM_UI.md) §12.3 / §13 (create/delete listed as UI-missing)
-
-**Test Requirements:**
-- Playwright: create a pipeline, verify it appears and is selectable; clone it and
-  verify the definition matches; delete it and verify removal.
 
 
 ## Task 12: React error boundaries and global 401 handling
