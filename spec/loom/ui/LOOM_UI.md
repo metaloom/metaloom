@@ -1154,8 +1154,17 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
 - [ ] **Error Boundaries** — No graceful error UI
 - [ ] **Offline Support** — No service worker
 - [ ] **Virtualized Lists** — Large datasets may lag
-- [ ] **WebSocket Reconnection** — Cortex WS lacks auto-reconnect
-- [ ] **Pipeline Event WS** — Not connected in UI (see [WEBSOCKET.md](../WEBSOCKET.md))
+- [x] **WebSocket Reconnection** — the shared UI events socket
+      (`src/api/pipelineEvents.ts`) auto-reconnects with exponential backoff
+      (1s→30s cap, reset on open, suppressed on close code `4401`)
+- [x] **Pipeline Event WS** — the pipeline editor
+      (`src/features/pipeline/PipelineEditor.tsx`) subscribes via
+      `subscribePipelineEvents`, driving live node activity (`isActive` pulse),
+      per-node last-result tint (`NODE_COMPLETED`/`NODE_FAILED`), and a live run
+      banner + run-history refresh (`PIPELINE_STARTED`/`PIPELINE_COMPLETED`).
+      Events are filtered client-side by `pipelineName` (the socket is shared
+      with the Cortex view, so no `?pipeline=` URL filter). See
+      [WEBSOCKET.md](../WEBSOCKET.md)
 
 ---
 

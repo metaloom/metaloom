@@ -65,6 +65,7 @@ type ProcessorEventListener = (event: ProcessorEventMessage) => void;
 
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let reconnectAttempts = 0;
 let currentToken: string | null = null;
 const pipelineListeners = new Set<PipelineEventListener>();
 const processorListeners = new Set<ProcessorEventListener>();
@@ -82,6 +83,7 @@ function ensureConnection() {
   ws = new WebSocket(url);
 
   ws.onopen = () => {
+    reconnectAttempts = 0;
     console.log("[ui-events] WebSocket connected");
   };
 
@@ -110,7 +112,10 @@ function ensureConnection() {
       return;
     }
     if (totalListeners() > 0) {
-      reconnectTimer = setTimeout(ensureConnection, 3000);
+      // Exponential backoff: 1s, 2s, 4s, … capped at 30s.
+      const delay = Math.min(30000, 1000 * 2 ** reconnectAttempts);
+      reconnectAttempts += 1;
+      reconnectTimer = setTimeout(ensureConnection, delay);
     }
   };
 
@@ -132,6 +137,7 @@ function subscribe(add: () => void, remove: () => void, token: string | null): (
   if (token !== currentToken && ws) {
     ws.close();
     ws = null;
+    reconnectAttempts = 0;
   }
   currentToken = token;
   add();
@@ -144,6 +150,7 @@ function subscribe(add: () => void, remove: () => void, token: string | null): (
         clearTimeout(reconnectTimer);
         reconnectTimer = null;
       }
+      reconnectAttempts = 0;
       ws?.close();
       ws = null;
       currentToken = null;

@@ -43,6 +43,7 @@ import {
   type PipelineRunRecord,
   listPipelineVersions, restorePipelineVersion,
 } from "../../api/pipelines";
+import { subscribePipelineEvents, type PipelineEventMessage } from "../../api/pipelineEvents";
 import { useAuth } from "../../context/AuthContext";
 import { useSpace } from "../../context/SpaceContext";
 import { useNodeRegistry } from "../../context/NodeRegistryContext";
@@ -140,20 +141,29 @@ function PipelineNodeComponent({ data, selected, id }: NodeProps) {
   const nodeIcon = data.nodeIcon as React.ReactNode | undefined;
   const isSource = category === "SOURCE";
   const isActive = data.isActive as boolean | undefined;
+  const lastResult = data.lastResult as "completed" | "failed" | undefined;
   const inputs = isSource ? [] : ((data.inputs as ConnectorDef[] | undefined) ?? [{ name: "Input", dataType: "media" as ConnectorDataType }]);
   const outputs = (data.outputs as ConnectorDef[] | undefined) ?? [{ name: "Output", dataType: "media" as ConnectorDataType }];
   const [hovered, setHovered] = useState(false);
   const onDelete = data.onDelete as ((nodeId: string) => void) | undefined;
 
+  // When the node is not currently processing, tint its side borders to reflect
+  // the last result received over the pipeline-events socket.
+  const resultColor = lastResult === "completed" ? tokens.accent.green : lastResult === "failed" ? tokens.accent.red : null;
+  const sideBorderColor = selected ? cfg.color : (!isActive && resultColor) ? resultColor : tokens.border.default;
+
   return (
     <Box
+      data-testid={`pipeline-node-${id}`}
+      data-active={isActive ? "true" : "false"}
+      data-result={lastResult ?? "none"}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       sx={{
         minWidth: 180,
         bgcolor: tokens.bg.elevated,
-        borderLeft: `1.5px solid ${selected ? cfg.color : tokens.border.default}`,
-        borderRight: `1.5px solid ${selected ? cfg.color : tokens.border.default}`,
+        borderLeft: `1.5px solid ${sideBorderColor}`,
+        borderRight: `1.5px solid ${sideBorderColor}`,
         borderTop: `3px solid ${cfg.color}`,
         borderBottom: `3px solid ${cfg.color}`,
         borderRadius: tokens.radius.md,
@@ -322,7 +332,7 @@ const nodeTypes = { pipelineNode: PipelineNodeComponent };
 
 // ── Convert pipeline nodes to React Flow format ───────────────────────────
 
-function toRFNodes(pnodes: PipelineNode[], selectedId: string | null, descriptors: NodeDescriptor[], onDelete?: (nodeId: string) => void, activeNodeIds?: Set<string>): RFNode[] {
+function toRFNodes(pnodes: PipelineNode[], selectedId: string | null, descriptors: NodeDescriptor[], onDelete?: (nodeId: string) => void, activeNodeIds?: Set<string>, nodeResults?: Record<string, "completed" | "failed">): RFNode[] {
   // Build a lookup map once
   const descMap = new Map(descriptors.map(d => [d.kind, d]));
 
@@ -346,6 +356,7 @@ function toRFNodes(pnodes: PipelineNode[], selectedId: string | null, descriptor
         outputs: connectors.outputs,
         onDelete,
         isActive: activeNodeIds?.has(n.id) ?? false,
+        lastResult: nodeResults?.[n.id],
         ...n.data,
       },
     };
@@ -714,7 +725,7 @@ function PipelineInspector({ pipeline, runs, runsLoading }: { pipeline: Pipeline
 
       {/* Latest run status */}
       {latestRun && (
-        <Box sx={{ px: 2, py: 1, bgcolor: `${runStatusColor[latestRun.status] ?? runStatusColor.idle}0a`, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", gap: 1 }}>
+        <Box data-testid="pipeline-run-banner" data-status={latestRun.status} sx={{ px: 2, py: 1, bgcolor: `${runStatusColor[latestRun.status] ?? runStatusColor.idle}0a`, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", gap: 1 }}>
           {latestRun.status === "success" || latestRun.status === "completed" ? <CheckCircleOutline sx={{ fontSize: 14, color: tokens.accent.green }} /> :
             latestRun.status === "failed" || latestRun.status === "error" ? <ErrorOutline sx={{ fontSize: 14, color: tokens.accent.red }} /> :
               latestRun.status === "running" || latestRun.status === "active" ? <CircleOutlined sx={{ fontSize: 14, color: tokens.accent.amber, animation: "spin 1s linear infinite", "@keyframes spin": { from: { transform: "rotate(0deg)" }, to: { transform: "rotate(360deg)" } } }} /> :
@@ -1008,7 +1019,7 @@ function NodeDetailSidebar({
 // ── Canvas ────────────────────────────────────────────────────────────────
 function PipelineCanvas({
   pipeline, onNodeSelect, externalNodes, nodeDisplayNames, descriptors,
-  onDeleteNode, activeNodeIds, onGraphChange, removalTrigger, autoArrangeTrigger,
+  onDeleteNode, activeNodeIds, nodeResults, onGraphChange, removalTrigger, autoArrangeTrigger,
   onEdgeTypeChange, reloadKey,
 }: {
   pipeline: Pipeline | null;
@@ -1018,6 +1029,7 @@ function PipelineCanvas({
   descriptors: NodeDescriptor[];
   onDeleteNode?: (nodeId: string, label: string) => void;
   activeNodeIds?: Set<string>;
+  nodeResults?: Record<string, "completed" | "failed">;
   onGraphChange?: (json: any) => void;
   removalTrigger?: { nodeId: string; key: number } | null;
   autoArrangeTrigger?: number;
@@ -1046,7 +1058,7 @@ function PipelineCanvas({
   // explicitly asks for a reload (version restore).
   useEffect(() => {
     if (!pipeline) { setNodes([]); setEdges([]); return; }
-    setNodes(toRFNodes(pipeline.definition.nodes, null, descriptors, handleNodeDelete, activeNodeIds));
+    setNodes(toRFNodes(pipeline.definition.nodes, null, descriptors, handleNodeDelete, activeNodeIds, nodeResults));
     setEdges(toRFEdges(pipeline.definition.edges));
     setSelectedId(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1117,13 +1129,14 @@ function PipelineCanvas({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoArrangeTrigger]);
 
-  // Keep onDelete callback up to date
+  // Keep onDelete callback and live run state (isActive / lastResult) up to date
+  // without resetting node positions.
   useEffect(() => {
     setNodes(nds => nds.map(n => ({
       ...n,
-      data: { ...n.data, onDelete: handleNodeDelete, isActive: activeNodeIds?.has(n.id) ?? false },
+      data: { ...n.data, onDelete: handleNodeDelete, isActive: activeNodeIds?.has(n.id) ?? false, lastResult: nodeResults?.[n.id] },
     })));
-  }, [handleNodeDelete, activeNodeIds, setNodes]);
+  }, [handleNodeDelete, activeNodeIds, nodeResults, setNodes]);
 
   // Append externally-added nodes
   useEffect(() => {
@@ -1132,12 +1145,12 @@ function PipelineCanvas({
         const existingIds = new Set(prev.map(n => n.id));
         const newOnes = externalNodes.filter(n => !existingIds.has(n.id)).map(n => ({
           ...n,
-          data: { ...n.data, onDelete: handleNodeDelete, isActive: activeNodeIds?.has(n.id) ?? false },
+          data: { ...n.data, onDelete: handleNodeDelete, isActive: activeNodeIds?.has(n.id) ?? false, lastResult: nodeResults?.[n.id] },
         }));
         return newOnes.length > 0 ? [...prev, ...newOnes] : prev;
       });
     }
-  }, [externalNodes, setNodes, handleNodeDelete, activeNodeIds]);
+  }, [externalNodes, setNodes, handleNodeDelete, activeNodeIds, nodeResults]);
 
   // Update selection state without resetting positions
   useEffect(() => {
@@ -1656,7 +1669,11 @@ export default function PipelineEditor() {
   const [canvasTab, setCanvasTab] = useState<0 | 1>(0); // 0 = Visual, 1 = JSON
   const [graphJson, setGraphJson] = useState<any>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ nodeId: string; label: string } | null>(null);
-  const [activeNodeIds] = useState<Set<string>>(() => new Set()); // Populated by pipeline events
+  // Live run state, driven by the pipeline-events WebSocket (see the subscription
+  // effect below). `activeNodeIds` pulses nodes currently processing; `nodeResults`
+  // tints a node green/red once it completes/fails.
+  const [activeNodeIds, setActiveNodeIds] = useState<Set<string>>(() => new Set());
+  const [nodeResults, setNodeResults] = useState<Record<string, "completed" | "failed">>({});
   const [removalTrigger, setRemovalTrigger] = useState<{ nodeId: string; key: number } | null>(null);
   const removalKeyRef = useRef(0);
   const [showHelp, setShowHelp] = useState(false);
@@ -1703,8 +1720,10 @@ export default function PipelineEditor() {
     }).catch(() => setLoading(false));
   }, [token]);
 
-  // Load run history for the selected pipeline
-  useEffect(() => {
+  // Load run history for the selected pipeline. Extracted into a callback so live
+  // pipeline events (PIPELINE_STARTED / PIPELINE_COMPLETED) and a manual run
+  // dispatch can refresh the list without a reselect.
+  const loadRuns = useCallback(() => {
     if (!token || !selected) { setPipelineRuns([]); return; }
     setRunsLoading(true);
     listPipelineRuns(token, selected.id)
@@ -1712,6 +1731,53 @@ export default function PipelineEditor() {
       .catch(() => setPipelineRuns([]))
       .finally(() => setRunsLoading(false));
   }, [token, selected?.id]);
+
+  useEffect(() => { loadRuns(); }, [loadRuns]);
+
+  // Reset live run state and subscribe to the pipeline-events WebSocket while a
+  // pipeline is selected. The socket is shared (see api/pipelineEvents.ts) and
+  // multiplexed, so we filter incoming frames by pipeline name here. Returns the
+  // unsubscribe fn, which tears the subscription down on unmount / selection switch.
+  useEffect(() => {
+    setActiveNodeIds(new Set());
+    setNodeResults({});
+    if (!selected) return;
+    const selectedName = selected.name;
+    const handleEvent = (event: PipelineEventMessage) => {
+      if (event.pipelineName !== selectedName) return;
+      switch (event.type) {
+        case "NODE_STARTED":
+          if (event.nodeId) setActiveNodeIds(prev => { const next = new Set(prev); next.add(event.nodeId!); return next; });
+          break;
+        case "NODE_COMPLETED":
+          if (event.nodeId) {
+            setActiveNodeIds(prev => { const next = new Set(prev); next.delete(event.nodeId!); return next; });
+            setNodeResults(prev => ({ ...prev, [event.nodeId!]: "completed" }));
+          }
+          break;
+        case "NODE_FAILED":
+          if (event.nodeId) {
+            setActiveNodeIds(prev => { const next = new Set(prev); next.delete(event.nodeId!); return next; });
+            setNodeResults(prev => ({ ...prev, [event.nodeId!]: "failed" }));
+          }
+          break;
+        case "NODE_SKIPPED":
+        case "NODE_BUFFERED":
+        case "NODE_STATS":
+          if (event.nodeId) setActiveNodeIds(prev => { const next = new Set(prev); next.delete(event.nodeId!); return next; });
+          break;
+        case "PIPELINE_STARTED":
+          setNodeResults({});
+          loadRuns();
+          break;
+        case "PIPELINE_COMPLETED":
+          setActiveNodeIds(new Set());
+          loadRuns();
+          break;
+      }
+    };
+    return subscribePipelineEvents(handleEvent, token);
+  }, [token, selected?.id, selected?.name, loadRuns]);
 
   // Load version history for the selected pipeline. Re-runs whenever the
   // pipeline's own version changes (save / restore) so the list stays fresh.
@@ -1908,12 +1974,15 @@ export default function PipelineEditor() {
           ? (t("pipeline.editor.runDispatched") || "Pipeline run dispatched")
           : (resp.message || t("pipeline.editor.runNoProcessor") || "No processor available"),
       );
+      // Refresh the run list so the freshly-dispatched run shows immediately;
+      // subsequent PIPELINE_* events keep it live.
+      if (resp.dispatched) loadRuns();
     } catch (err) {
       notify("error", (err as Error).message || "Run failed");
     } finally {
       setRunning(false);
     }
-  }, [token, selected, running, notify, t]);
+  }, [token, selected, running, notify, t, loadRuns]);
 
   // Global keyboard shortcuts (H = help, N = command palette)
   useEffect(() => {
@@ -2105,6 +2174,7 @@ export default function PipelineEditor() {
                   descriptors={descriptors}
                   onDeleteNode={handleDeleteNodeRequest}
                   activeNodeIds={activeNodeIds}
+                  nodeResults={nodeResults}
                   onGraphChange={handleGraphChange}
                   removalTrigger={removalTrigger}
                   autoArrangeTrigger={autoArrangeTrigger}
@@ -2376,7 +2446,7 @@ export default function PipelineEditor() {
                 <TerminalOutlined sx={{ fontSize: 14, color: tokens.primary.main }} />
                 <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.75rem", flex: 1 }}>{t("pipeline.editor.systemLog")}</Typography>
                 {selected && (
-                  <Typography variant="caption" sx={{ fontSize: "0.68rem", color: tokens.text.tertiary }}>
+                  <Typography data-testid="pipeline-log-status" variant="caption" sx={{ fontSize: "0.68rem", color: tokens.text.tertiary }}>
                     {selected.name} · {pipelineRuns[0]?.status ?? t("pipeline.editor.noRuns")}
                   </Typography>
                 )}

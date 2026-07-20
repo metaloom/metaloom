@@ -459,38 +459,6 @@ reconnection.
 
 ---
 
-## Task 10: Live processor updates via WebSocket in the Cortex view
-
-**Argumentation Summary:** Even after Task 4 gives `CortexView` real data, it will
-be a point-in-time REST snapshot. Worker heartbeats, state changes
-(ONLINE/OFFLINE/paused), and system-status metrics arrive continuously over the
-processor protocol, so a static list goes stale immediately.
-
-**Improvement Summary:** Reflect live processor state in `CortexView` — ideally
-via a read-only UI-facing broadcast of processor state changes, or by polling
-`GET /api/v1/processors` on an interval until such a channel exists.
-
-```
-1. Preferred: a UI-facing processor-events stream (server broadcast of
-   REGISTER/STATE_CHANGE/STATUS_UPDATE, analogous to PipelineEventBroadcaster).
-   If out of scope, poll listProcessors on a short interval and diff.
-2. Update worker cards live: state transitions, last-seen staleness, CPU/GPU/IO
-   rings from SystemStatusInfo. Show "offline (persisted)" for known-but-absent
-   instances (Task 1).
-3. Auto-reconnect / resume polling on focus.
-```
-
-**References:**
-- `loom-ui/src/features/cortex/CortexView.tsx`, `src/api/processors.ts` (Task 4)
-- `loom/services/rest/.../service/impl/ProcessorRegistry.java` (`updateState`, `updateStatus`, `heartbeat`)
-- [../../features/pipeline/PIPELINE.md](../../features/pipeline/PIPELINE.md) §12.1 (processor messages)
-
-**Test Requirements:**
-- UI test: a processor going OFFLINE is reflected without manual reload; a new
-  registration appears; metrics update.
-
----
-
 ## Task 12: React error boundaries and global 401 handling
 
 **Argumentation Summary:** There is no React error boundary anywhere, so a render
