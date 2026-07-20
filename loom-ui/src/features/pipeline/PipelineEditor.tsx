@@ -32,7 +32,7 @@ import {
   ImageSearchOutlined, FaceRetouchingNatural, Face, Description,
   TransformOutlined, CloseOutlined, SearchOutlined,
   SaveOutlined, HistoryOutlined, RestoreOutlined,
-  CompareArrowsOutlined,
+  CompareArrowsOutlined, DeleteOutline,
 } from "@mui/icons-material";
 import { Tabs, Tab } from "@mui/material";
 import { tokens } from "../../theme";
@@ -40,6 +40,7 @@ import { Pipeline, PipelineNode, EdgeKind } from "../../types";
 import {
   listPipelines, PipelineResponse,
   updatePipeline, runPipeline, listPipelineRuns, type PipelineUpdateRequest,
+  createPipeline, deletePipeline, type PipelineCreateRequest,
   type PipelineRunRecord,
   listPipelineVersions, restorePipelineVersion,
 } from "../../api/pipelines";
@@ -1669,6 +1670,13 @@ export default function PipelineEditor() {
   const [canvasTab, setCanvasTab] = useState<0 | 1>(0); // 0 = Visual, 1 = JSON
   const [graphJson, setGraphJson] = useState<any>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ nodeId: string; label: string } | null>(null);
+  // Pipeline create / clone / delete + unsaved-switch guard state.
+  const [createDialog, setCreateDialog] = useState<{ mode: "new" | "clone"; name: string; description: string } | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [deletePipelineConfirm, setDeletePipelineConfirm] = useState(false);
+  const [deletingPipeline, setDeletingPipeline] = useState(false);
+  /** Pipeline the user tried to switch to while unsaved; drives the discard-confirm dialog. */
+  const [pendingSwitch, setPendingSwitch] = useState<Pipeline | null>(null);
   // Live run state, driven by the pipeline-events WebSocket (see the subscription
   // effect below). `activeNodeIds` pulses nodes currently processing; `nodeResults`
   // tints a node green/red once it completes/fails.
@@ -1963,6 +1971,102 @@ export default function PipelineEditor() {
     }
   }, [token, selected, saving, graphJson, descriptors, notify, t]);
 
+  // Select a pipeline in the sidebar, resetting the per-node inspector state.
+  const applySelect = useCallback((p: Pipeline) => {
+    setSelected(p);
+    setSelectedNodeId(null);
+    setNodeDetailOpen(false);
+    setDirty(false);
+  }, []);
+
+  // Clicking a pipeline in the list. When there are unsaved edits, defer the
+  // switch behind a discard-confirm instead of silently dropping them.
+  const handleSelectPipeline = useCallback((p: Pipeline) => {
+    if (p.id === selected?.id) return;
+    if (dirty) {
+      setPendingSwitch(p);
+      return;
+    }
+    applySelect(p);
+  }, [selected, dirty, applySelect]);
+
+  const confirmSwitch = useCallback(() => {
+    if (pendingSwitch) applySelect(pendingSwitch);
+    setPendingSwitch(null);
+  }, [pendingSwitch, applySelect]);
+
+  // Create a brand-new pipeline or clone the selected one. Clone seeds the new
+  // pipeline with a deep copy of the current definition (validated first, as a
+  // save would be); "new" starts from an empty source-only canvas.
+  const handleCreateConfirm = useCallback(async () => {
+    if (!token || !createDialog || creating) return;
+    const name = createDialog.name.trim();
+    if (!name) {
+      notify("error", t("pipeline.editor.nameRequired"));
+      return;
+    }
+    let definition: { nodes: unknown[]; edges: unknown[] };
+    const req: PipelineCreateRequest = { name, description: createDialog.description.trim() };
+    if (createDialog.mode === "clone" && selected) {
+      // Clone the persisted definition — it preserves node `type` (the descriptor
+      // kind). The live canvas serialization (graphJson) rewrites `type` to the
+      // node category, so it is unsuitable as a clone source.
+      definition = JSON.parse(JSON.stringify({
+        nodes: selected.definition.nodes ?? [],
+        edges: selected.definition.edges ?? [],
+      }));
+      const nodesForValidation = (definition.nodes as any[]).map(n => ({ id: n.id, type: n.type ?? n.category, label: n.label }));
+      const edgesForValidation = (definition.edges as any[]).map(e => ({ source: e.source, target: e.target }));
+      const errors = validatePipeline(nodesForValidation, edgesForValidation, descriptors);
+      if (errors.length > 0) {
+        notify("error", errors[0].message);
+        return;
+      }
+      req.enabled = selected.enabled;
+      req.priority = selected.priority;
+      req.dryRun = selected.dryRun;
+    } else {
+      definition = { nodes: [], edges: [] };
+      req.enabled = true;
+      req.priority = 0;
+      req.dryRun = false;
+    }
+    req.definition = definition as Record<string, unknown>;
+    setCreating(true);
+    try {
+      const resp = await createPipeline(token, req);
+      const np = toPipeline(resp);
+      setPipelines(prev => [...prev, np]);
+      applySelect(np);
+      setCanvasReloadKey(k => k + 1);
+      setCreateDialog(null);
+      notify("success", createDialog.mode === "clone" ? t("pipeline.editor.cloneOk") : t("pipeline.editor.createOk"));
+    } catch (err) {
+      notify("error", (err as Error).message || "Create failed");
+    } finally {
+      setCreating(false);
+    }
+  }, [token, createDialog, creating, selected, descriptors, notify, t, applySelect]);
+
+  const handleDeletePipeline = useCallback(async () => {
+    if (!token || !selected || deletingPipeline) return;
+    setDeletingPipeline(true);
+    try {
+      await deletePipeline(token, selected.id);
+      const rest = pipelines.filter(p => p.id !== selected.id);
+      setPipelines(rest);
+      const next = rest[0] ?? null;
+      if (next) applySelect(next); else { setSelected(null); setDirty(false); }
+      setCanvasReloadKey(k => k + 1);
+      setDeletePipelineConfirm(false);
+      notify("success", t("pipeline.editor.deleteOk"));
+    } catch (err) {
+      notify("error", (err as Error).message || "Delete failed");
+    } finally {
+      setDeletingPipeline(false);
+    }
+  }, [token, selected, deletingPipeline, pipelines, notify, t, applySelect]);
+
   const handleRun = useCallback(async () => {
     if (!token || !selected || running) return;
     setRunning(true);
@@ -2030,8 +2134,18 @@ export default function PipelineEditor() {
     <Box sx={{ display: "flex", height: "100%", overflow: "hidden", bgcolor: tokens.bg.base }}>
       {/* Pipeline list */}
       <Box sx={{ width: 220, flexShrink: 0, borderRight: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", flexDirection: "column" }}>
-        <Box sx={{ px: 2, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}` }}>
-          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("pipeline.editor.title")}</Typography>
+        <Box sx={{ px: 2, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", gap: 1 }}>
+          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem", flex: 1 }}>{t("pipeline.editor.title")}</Typography>
+          <Tooltip title={t("pipeline.editor.newPipeline")}>
+            <IconButton
+              size="small"
+              data-testid="pipeline-create-button"
+              onClick={() => setCreateDialog({ mode: "new", name: "", description: "" })}
+              sx={{ color: tokens.text.secondary, "&:hover": { color: tokens.primary.light } }}
+            >
+              <AddOutlined sx={{ fontSize: 18 }} />
+            </IconButton>
+          </Tooltip>
         </Box>
         <List dense sx={{ p: 1, flex: 1, overflow: "auto" }}>
           {pipelines.map(p => {
@@ -2040,8 +2154,9 @@ export default function PipelineEditor() {
             return (
               <ListItemButton
                 key={p.id}
+                data-testid={`pipeline-list-item-${p.id}`}
                 selected={selected?.id === p.id}
-                onClick={() => { setSelected(p); setSelectedNodeId(null); setNodeDetailOpen(false); }}
+                onClick={() => handleSelectPipeline(p)}
                 sx={{ borderRadius: tokens.radius.md, mb: 0.5 }}
               >
                 <ListItemText
@@ -2130,6 +2245,40 @@ export default function PipelineEditor() {
                     }}
                   />
                 </span>
+              </Tooltip>
+              <Tooltip title={t("pipeline.editor.clonePipelineTitle")}>
+                <Chip
+                  icon={<ContentCopy sx={{ fontSize: 13 }} />}
+                  label={t("pipeline.editor.clone")}
+                  size="small"
+                  data-testid="pipeline-clone-button"
+                  onClick={() => setCreateDialog({ mode: "clone", name: `${selected.name} (copy)`, description: selected.description })}
+                  sx={{
+                    bgcolor: tokens.bg.overlay,
+                    border: `1px solid ${tokens.border.default}`,
+                    color: tokens.text.secondary,
+                    cursor: "pointer",
+                    fontWeight: 500,
+                    "&:hover": { bgcolor: tokens.bg.hover, borderColor: tokens.primary.main, color: tokens.primary.light },
+                  }}
+                />
+              </Tooltip>
+              <Tooltip title={t("pipeline.editor.deletePipelineTitle")}>
+                <Chip
+                  icon={<DeleteOutline sx={{ fontSize: 14 }} />}
+                  label={t("common.delete")}
+                  size="small"
+                  data-testid="pipeline-delete-button"
+                  onClick={() => setDeletePipelineConfirm(true)}
+                  sx={{
+                    bgcolor: `${tokens.accent.red}18`,
+                    border: `1px solid ${tokens.accent.red}55`,
+                    color: tokens.accent.red,
+                    cursor: "pointer",
+                    fontWeight: 500,
+                    "&:hover": { bgcolor: `${tokens.accent.red}28`, borderColor: tokens.accent.red },
+                  }}
+                />
               </Tooltip>
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                 <Typography variant="caption" sx={{ fontSize: "0.72rem", color: tokens.text.tertiary }}>{t("pipeline.editor.enabled")}</Typography>
@@ -2619,6 +2768,140 @@ export default function PipelineEditor() {
             sx={{ fontWeight: 600 }}
           >
             {t("common.delete")}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Create / clone pipeline dialog */}
+      <Dialog
+        open={Boolean(createDialog)}
+        onClose={() => !creating && setCreateDialog(null)}
+        PaperProps={{
+          sx: {
+            bgcolor: tokens.bg.panel,
+            border: `1px solid ${tokens.border.default}`,
+            borderRadius: tokens.radius.lg,
+            minWidth: 380,
+          },
+        }}
+      >
+        <DialogTitle data-testid="pipeline-create-dialog" sx={{ fontSize: "1rem", fontWeight: 700 }}>
+          {createDialog?.mode === "clone" ? t("pipeline.editor.clonePipelineTitle") : t("pipeline.editor.newPipelineTitle")}
+        </DialogTitle>
+        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
+          <TextField
+            autoFocus
+            fullWidth
+            size="small"
+            label={t("pipeline.editor.nameLabel")}
+            data-testid="pipeline-create-name"
+            value={createDialog?.name ?? ""}
+            onChange={e => setCreateDialog(d => (d ? { ...d, name: e.target.value } : d))}
+            onKeyDown={e => { if (e.key === "Enter" && createDialog?.name.trim()) { e.preventDefault(); handleCreateConfirm(); } }}
+            sx={{ mt: 1 }}
+          />
+          <TextField
+            fullWidth
+            size="small"
+            label={t("pipeline.editor.descriptionLabel")}
+            value={createDialog?.description ?? ""}
+            onChange={e => setCreateDialog(d => (d ? { ...d, description: e.target.value } : d))}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setCreateDialog(null)} disabled={creating} sx={{ color: tokens.text.secondary, textTransform: "none" }}>
+            {t("common.cancel")}
+          </Button>
+          <Button
+            data-testid="pipeline-create-confirm"
+            onClick={handleCreateConfirm}
+            variant="contained"
+            disabled={creating || !createDialog?.name.trim()}
+            startIcon={creating ? <CircularProgress size={13} /> : undefined}
+            sx={{ fontWeight: 600, textTransform: "none" }}
+          >
+            {createDialog?.mode === "clone" ? t("pipeline.editor.clone") : t("pipeline.editor.create")}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete pipeline confirmation dialog */}
+      <Dialog
+        open={deletePipelineConfirm}
+        onClose={() => !deletingPipeline && setDeletePipelineConfirm(false)}
+        PaperProps={{
+          sx: {
+            bgcolor: tokens.bg.panel,
+            border: `1px solid ${tokens.border.default}`,
+            borderRadius: tokens.radius.lg,
+            minWidth: 360,
+          },
+        }}
+      >
+        <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700 }}>
+          {t("pipeline.editor.deletePipelineTitle")}
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ fontSize: "0.85rem", color: tokens.text.secondary }}>
+            {t("pipeline.editor.deletePipelineMessage", { name: selected?.name ?? "" })}
+          </DialogContentText>
+          {dirty && (
+            <DialogContentText sx={{ fontSize: "0.8rem", color: tokens.accent.amber, mt: 1 }}>
+              {t("pipeline.editor.switchDirtyMessage")}
+            </DialogContentText>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setDeletePipelineConfirm(false)} disabled={deletingPipeline} sx={{ color: tokens.text.secondary }}>
+            {t("common.cancel")}
+          </Button>
+          <Button
+            data-testid="pipeline-delete-confirm"
+            onClick={handleDeletePipeline}
+            variant="contained"
+            color="error"
+            disabled={deletingPipeline}
+            startIcon={deletingPipeline ? <CircularProgress size={13} /> : undefined}
+            sx={{ fontWeight: 600 }}
+          >
+            {t("common.delete")}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Unsaved-changes guard when switching pipelines */}
+      <Dialog
+        open={Boolean(pendingSwitch)}
+        onClose={() => setPendingSwitch(null)}
+        PaperProps={{
+          sx: {
+            bgcolor: tokens.bg.panel,
+            border: `1px solid ${tokens.border.default}`,
+            borderRadius: tokens.radius.lg,
+            minWidth: 360,
+          },
+        }}
+      >
+        <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700 }}>
+          {t("pipeline.editor.switchDirtyTitle")}
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ fontSize: "0.85rem", color: tokens.text.secondary }}>
+            {t("pipeline.editor.switchDirtyMessage")}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setPendingSwitch(null)} sx={{ color: tokens.text.secondary }}>
+            {t("common.cancel")}
+          </Button>
+          <Button
+            data-testid="pipeline-switch-confirm"
+            onClick={confirmSwitch}
+            variant="contained"
+            color="error"
+            sx={{ fontWeight: 600 }}
+          >
+            {t("pipeline.editor.discard")}
           </Button>
         </DialogActions>
       </Dialog>

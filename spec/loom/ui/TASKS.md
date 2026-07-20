@@ -423,41 +423,6 @@ pipeline list, reusing the existing API client and validation.
 - Playwright: create a pipeline, verify it appears and is selectable; clone it and
   verify the definition matches; delete it and verify removal.
 
----
-
-## Task 9: Connect the pipeline-events WebSocket for live run status in the editor
-
-**Argumentation Summary:** `GET /api/v1/pipelines/events/ws` exists and
-`src/api/pipelineEvents.ts` is present, but the editor never subscribes. Run
-history is fetched only on selection change, so a run appears static and node
-`isActive` pulsing is never driven by real events. The refactor's whole tracking
-pipeline (Cortex → Loom broadcaster → UI) has no consumer here.
-
-**Improvement Summary:** Subscribe to the pipeline-events WebSocket while a
-pipeline is selected and drive live node activity + run status from it, with
-reconnection.
-
-```
-1. In PipelineEditor, open the events WS (optional ?pipeline=<name> filter) on
-   selection; close on unmount/switch. Add token as ?token=<jwt> query param
-   (WS auth per WEBSOCKET.md).
-2. Map NODE_STARTED/NODE_COMPLETED/NODE_FAILED to node isActive/last-result
-   styling on the canvas; map PIPELINE_STARTED/COMPLETED and RUN_COMPLETED to a
-   live run banner and to refreshing the run history list.
-3. Implement reconnect with backoff (LOOM_UI notes Cortex WS lacks auto-reconnect
-   — apply the same fix here).
-```
-
-**References:**
-- `loom-ui/src/api/pipelineEvents.ts`, `loom-ui/src/features/pipeline/PipelineEditor.tsx`
-- [../../features/pipeline/PIPELINE.md](../../features/pipeline/PIPELINE.md) §12.2 (events WS, `PipelineEventMessage`)
-- [../WEBSOCKET.md](../WEBSOCKET.md) (WS auth), [LOOM_UI.md](LOOM_UI.md) §12.8 (WS not connected)
-
-**Test Requirements:**
-- UI test with a mock WS server: emitted node/pipeline events update canvas
-  activity and the run banner; a dropped socket reconnects.
-
----
 
 ## Task 12: React error boundaries and global 401 handling
 
