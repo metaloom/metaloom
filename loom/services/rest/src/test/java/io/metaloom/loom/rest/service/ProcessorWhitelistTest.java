@@ -30,7 +30,7 @@ public class ProcessorWhitelistTest {
 			.setName(nodeId)
 			.setPriority(priority)
 			.setCapabilities(Set.of(ProcessorCapability.CPU))
-			.setNodeKinds(kinds);
+			.setNodeWhitelist(kinds);
 		// No socket: selection is a pure decision over registered metadata, so it can
 		// be tested without a transport.
 		registry.register(nodeId, registration, null);

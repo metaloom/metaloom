@@ -207,7 +207,7 @@ public class PipelineAffinitySegmentIntegrationTest extends AbstractIntegrationT
 		options.setNodeId(nodeId);
 		// 0 => ephemeral; three workers on the 8093 default would collide.
 		options.setMonitoringPort(0);
-		options.setNodeKinds(nodeKinds);
+		options.setNodeWhitelist(nodeKinds);
 		options.getLoom().setHostname("localhost").setPort(loomRestPort);
 
 		Cortex cortex = DaggerCortexComponent.builder().options(options).build().cortex();

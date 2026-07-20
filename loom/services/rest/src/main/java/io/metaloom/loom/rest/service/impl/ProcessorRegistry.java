@@ -13,6 +13,9 @@ import javax.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.metaloom.loom.db.dagger.DaoCollection;
+import io.metaloom.loom.db.model.cortex.CortexInstance;
+import io.metaloom.loom.db.model.cortex.CortexInstanceDao;
 import io.metaloom.loom.rest.model.processor.ProcessorCapability;
 import io.metaloom.loom.rest.model.processor.ProcessorResponse;
 import io.metaloom.loom.rest.model.processor.ProcessorState;
@@ -37,12 +40,32 @@ public class ProcessorRegistry {
 
 	private final Map<String, ConnectedProcessor> processors = new ConcurrentHashMap<>();
 
+	/**
+	 * Durable store of registered instances and their admin-managed restrictions. May be
+	 * null in pure-unit selection tests that exercise the in-memory registry without a DB.
+	 */
+	private final DaoCollection daos;
+
 	@Inject
+	public ProcessorRegistry(DaoCollection daos) {
+		this.daos = daos;
+	}
+
+	/**
+	 * Construct a registry without persistence. Used by tests that only exercise the
+	 * in-memory selection logic; {@link #register} then behaves exactly as before.
+	 */
 	public ProcessorRegistry() {
+		this(null);
 	}
 
 	/**
 	 * Register a processor node with its WebSocket connection.
+	 *
+	 * <p>The worker-announced whitelist/blacklist are applied as the DEFAULT. When a
+	 * {@code cortex_instance} record already carries an administrator-managed restriction,
+	 * that OVERRIDE is applied to the in-memory {@link ConnectedProcessor} instead of
+	 * blindly trusting what the worker announced, and it survives reconnects.</p>
 	 */
 	public void register(String nodeId, ProcessorRegistration registration, ServerWebSocket ws) {
 		ConnectedProcessor processor = new ConnectedProcessor();
@@ -51,12 +74,58 @@ public class ProcessorRegistry {
 		processor.host = registration.getHost();
 		processor.priority = registration.getPriority();
 		processor.capabilities = registration.getCapabilities();
-		processor.nodeKinds = registration.getNodeKinds();
+		processor.nodeWhitelist = registration.getNodeWhitelist();
+		processor.nodeBlacklist = registration.getNodeBlacklist();
 		processor.state = ProcessorState.ONLINE;
 		processor.lastSeen = Instant.now();
 		processor.ws = ws;
+
+		// Reconcile against the durable record: persist identity + presence, and let an
+		// admin-managed restriction override the announced one.
+		reconcilePersistedRestriction(nodeId, registration, processor);
+
 		processors.put(nodeId, processor);
 		log.info("Processor registered: {} ({})", registration.getName(), nodeId);
+	}
+
+	/**
+	 * Persist the worker's identity/presence into {@code cortex_instance} and apply any
+	 * administrator-managed whitelist/blacklist override to the connected processor.
+	 *
+	 * <p>On the first registration the announced restriction is seeded as the record's
+	 * default; on later registrations the persisted restriction is authoritative (the
+	 * admin may have edited it), so it wins over whatever the worker re-announces.</p>
+	 */
+	private void reconcilePersistedRestriction(String nodeId, ProcessorRegistration registration, ConnectedProcessor processor) {
+		if (daos == null) {
+			return;
+		}
+		try {
+			CortexInstanceDao dao = daos.cortexInstanceDao();
+			CortexInstance instance = dao.loadByNodeId(nodeId);
+			if (instance == null) {
+				// First registration: seed the record from what the worker announced.
+				instance = dao.createCortexInstance(nodeId, registration.getName());
+				instance.setNodeWhitelist(registration.getNodeWhitelist());
+				instance.setNodeBlacklist(registration.getNodeBlacklist());
+			} else {
+				// Known worker: keep the (possibly admin-edited) restriction, refresh identity.
+				instance.setName(registration.getName());
+			}
+			instance.setHost(registration.getHost());
+			instance.setPriority(registration.getPriority());
+			instance.setState(processor.state == null ? null : processor.state.name());
+			instance.setLastSeen(processor.lastSeen);
+			CortexInstance persisted = dao.upsertByNodeId(instance);
+
+			// The persisted record is the override: apply its restriction to the live processor.
+			processor.nodeWhitelist = persisted.getNodeWhitelist();
+			processor.nodeBlacklist = persisted.getNodeBlacklist();
+		} catch (Exception e) {
+			// Persistence must never take a worker offline: fall back to the announced
+			// restriction (already set on the processor) and keep serving.
+			log.warn("Could not persist/reconcile cortex instance '{}'; using announced restriction", nodeId, e);
+		}
 	}
 
 	/**
@@ -230,17 +299,24 @@ public class ProcessorRegistry {
 		public int priority;
 		public Set<ProcessorCapability> capabilities;
 		/** Node kinds this worker accepts; null or empty means "anything". */
-		public Set<String> nodeKinds;
+		public Set<String> nodeWhitelist;
+		/** Node kinds this worker refuses; null or empty means "refuse nothing". */
+		public Set<String> nodeBlacklist;
 
 		/**
 		 * @param nodeKind the kind of work
 		 * @return true when this worker will take it
 		 */
 		public boolean accepts(String nodeKind) {
+			// The blacklist wins: a kind explicitly refused is never accepted, even when
+			// the whitelist would admit it.
+			if (nodeBlacklist != null && nodeBlacklist.contains(nodeKind)) {
+				return false;
+			}
 			// An empty whitelist means unrestricted, so a worker registered before
 			// whitelisting existed keeps receiving everything rather than silently
 			// dropping out of the pool.
-			return nodeKinds == null || nodeKinds.isEmpty() || nodeKinds.contains(nodeKind);
+			return nodeWhitelist == null || nodeWhitelist.isEmpty() || nodeWhitelist.contains(nodeKind);
 		}
 		public ProcessorState state;
 		public Instant lastSeen;

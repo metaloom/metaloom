@@ -10,6 +10,7 @@ import io.metaloom.loom.db.model.blacklist.BlacklistDao;
 import io.metaloom.loom.db.model.chat.ChatDao;
 import io.metaloom.loom.db.model.cluster.ClusterDao;
 import io.metaloom.loom.db.model.collection.CollectionDao;
+import io.metaloom.loom.db.model.cortex.CortexInstanceDao;
 import io.metaloom.loom.db.model.comment.CommentDao;
 import io.metaloom.loom.db.model.embedding.EmbeddingDao;
 import io.metaloom.loom.db.model.group.GroupDao;
@@ -185,6 +186,12 @@ public interface DaoProvider extends DaoCollection {
 
 	default ChatDao chatDao() {
 		return daos().chatDao();
+	}
+
+	// Cortex Instance
+
+	default CortexInstanceDao cortexInstanceDao() {
+		return daos().cortexInstanceDao();
 	}
 
 }

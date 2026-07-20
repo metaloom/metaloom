@@ -30,6 +30,8 @@ import io.metaloom.loom.db.jooq.tables.JooqCollection;
 import io.metaloom.loom.db.jooq.tables.JooqCollectionAsset;
 import io.metaloom.loom.db.jooq.tables.JooqCollectionCluster;
 import io.metaloom.loom.db.jooq.tables.JooqComment;
+import io.metaloom.loom.db.jooq.tables.JooqCortexInstance;
+import io.metaloom.loom.db.jooq.tables.JooqCortexInstanceNodeKind;
 import io.metaloom.loom.db.jooq.tables.JooqDetection;
 import io.metaloom.loom.db.jooq.tables.JooqEmbedding;
 import io.metaloom.loom.db.jooq.tables.JooqEmbeddingCluster;
@@ -215,6 +217,16 @@ public class Tables {
      * Stores comments on tasks, annotations..
      */
     public static final JooqComment COMMENT = JooqComment.COMMENT;
+
+    /**
+     * A registered Cortex/processor worker, keyed by its stable node_id
+     */
+    public static final JooqCortexInstance CORTEX_INSTANCE = JooqCortexInstance.CORTEX_INSTANCE;
+
+    /**
+     * Per-worker node-kind whitelist/blacklist entries
+     */
+    public static final JooqCortexInstanceNodeKind CORTEX_INSTANCE_NODE_KIND = JooqCortexInstanceNodeKind.CORTEX_INSTANCE_NODE_KIND;
 
     /**
      * Stores object and face detections within assets

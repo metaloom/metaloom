@@ -18,14 +18,23 @@ public class CortexOptions {
 	private int monitoringPort = 8093;
 
 	/**
-	 * Node kinds this worker is willing to execute.
+	 * Node kinds this worker is willing to execute (the whitelist).
 	 *
 	 * <p>Null or empty means "anything", which keeps a worker that predates
 	 * whitelisting in the pool rather than silently dropping it out. Setting it lets a
 	 * deployment dedicate machines to particular work - GPU boxes to embeddings, the
 	 * one host with the media mounted to filesystem scanning.</p>
 	 */
-	private Set<String> nodeKinds;
+	private Set<String> nodeWhitelist;
+
+	/**
+	 * Node kinds this worker refuses to execute (the blacklist).
+	 *
+	 * <p>Complements the whitelist so a machine can accept everything except a couple
+	 * of expensive kinds without enumerating the whole allow-list. A blacklisted kind
+	 * is refused even when the whitelist would admit it.</p>
+	 */
+	private Set<String> nodeBlacklist;
 
 	/**
 	 * Identity this worker registers under.
@@ -114,14 +123,26 @@ public class CortexOptions {
 	}
 
 	/**
-	 * @return the accepted node kinds, or null/empty when the worker accepts anything
+	 * @return the accepted node kinds (whitelist), or null/empty when the worker accepts anything
 	 */
-	public Set<String> getNodeKinds() {
-		return nodeKinds;
+	public Set<String> getNodeWhitelist() {
+		return nodeWhitelist;
 	}
 
-	public CortexOptions setNodeKinds(Set<String> nodeKinds) {
-		this.nodeKinds = nodeKinds;
+	public CortexOptions setNodeWhitelist(Set<String> nodeWhitelist) {
+		this.nodeWhitelist = nodeWhitelist;
+		return this;
+	}
+
+	/**
+	 * @return the refused node kinds (blacklist), or null/empty when the worker refuses nothing
+	 */
+	public Set<String> getNodeBlacklist() {
+		return nodeBlacklist;
+	}
+
+	public CortexOptions setNodeBlacklist(Set<String> nodeBlacklist) {
+		this.nodeBlacklist = nodeBlacklist;
 		return this;
 	}
 

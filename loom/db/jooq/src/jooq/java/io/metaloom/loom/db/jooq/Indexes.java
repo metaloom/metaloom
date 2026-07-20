@@ -21,6 +21,7 @@ import io.metaloom.loom.db.jooq.tables.JooqBlacklist;
 import io.metaloom.loom.db.jooq.tables.JooqCluster;
 import io.metaloom.loom.db.jooq.tables.JooqCollectionAsset;
 import io.metaloom.loom.db.jooq.tables.JooqCollectionCluster;
+import io.metaloom.loom.db.jooq.tables.JooqCortexInstanceNodeKind;
 import io.metaloom.loom.db.jooq.tables.JooqDetection;
 import io.metaloom.loom.db.jooq.tables.JooqEmbedding;
 import io.metaloom.loom.db.jooq.tables.JooqFlywaySchemaHistory;
@@ -82,6 +83,7 @@ public class Indexes {
     public static final Index EMBEDDING_ASSET_UUID_IDX = Internal.createIndex(DSL.name("embedding_asset_uuid_idx"), JooqEmbedding.EMBEDDING, new OrderField[] { JooqEmbedding.EMBEDDING.ASSET_UUID }, false);
     public static final Index FLYWAY_SCHEMA_HISTORY_S_IDX = Internal.createIndex(DSL.name("flyway_schema_history_s_idx"), JooqFlywaySchemaHistory.FLYWAY_SCHEMA_HISTORY, new OrderField[] { JooqFlywaySchemaHistory.FLYWAY_SCHEMA_HISTORY.SUCCESS }, false);
     public static final Index GROUP_NAME_IDX = Internal.createIndex(DSL.name("group_name_idx"), JooqGroup.GROUP, new OrderField[] { JooqGroup.GROUP.NAME }, true);
+    public static final Index IDX_CORTEX_INSTANCE_NODE_KIND_KIND = Internal.createIndex(DSL.name("idx_cortex_instance_node_kind_kind"), JooqCortexInstanceNodeKind.CORTEX_INSTANCE_NODE_KIND, new OrderField[] { JooqCortexInstanceNodeKind.CORTEX_INSTANCE_NODE_KIND.NODE_KIND }, false);
     public static final Index IDX_PIPELINE_NODE_TASK_EXPIRED_LEASE = Internal.createIndex(DSL.name("idx_pipeline_node_task_expired_lease"), JooqPipelineNodeTask.PIPELINE_NODE_TASK, new OrderField[] { JooqPipelineNodeTask.PIPELINE_NODE_TASK.LEASE_EXPIRES_AT }, false);
     public static final Index IDX_PIPELINE_NODE_TASK_ITEM_UUID = Internal.createIndex(DSL.name("idx_pipeline_node_task_item_uuid"), JooqPipelineNodeTask.PIPELINE_NODE_TASK, new OrderField[] { JooqPipelineNodeTask.PIPELINE_NODE_TASK.ITEM_UUID }, false);
     public static final Index IDX_PIPELINE_NODE_TASK_RUN_STATE = Internal.createIndex(DSL.name("idx_pipeline_node_task_run_state"), JooqPipelineNodeTask.PIPELINE_NODE_TASK, new OrderField[] { JooqPipelineNodeTask.PIPELINE_NODE_TASK.RUN_UUID, JooqPipelineNodeTask.PIPELINE_NODE_TASK.STATE }, false);

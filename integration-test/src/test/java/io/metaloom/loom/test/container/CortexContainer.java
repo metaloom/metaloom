@@ -43,7 +43,7 @@ public class CortexContainer extends GenericContainer<CortexContainer> {
 		withEnv("LOOM_PORT", String.valueOf(LoomContainer.REST_PORT));
 		withEnv("CORTEX_NODE_ID", nodeId);
 		if (nodeKinds != null && !nodeKinds.isEmpty()) {
-			withEnv("CORTEX_NODE_KINDS", String.join(",", nodeKinds));
+			withEnv("CORTEX_NODE_WHITELIST", String.join(",", nodeKinds));
 		}
 		// The image defaults metaPath under $HOME, which is fine, but pinning it keeps
 		// one worker's metadata out of another's if the home directory is ever shared.

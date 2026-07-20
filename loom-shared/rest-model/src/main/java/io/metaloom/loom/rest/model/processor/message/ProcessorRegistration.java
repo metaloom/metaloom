@@ -33,10 +33,15 @@ public class ProcessorRegistration implements RestModel {
 	@JsonPropertyDescription("Capabilities offered by this processor node")
 	private Set<ProcessorCapability> capabilities;
 
-	@JsonProperty("nodeKinds")
+	@JsonProperty("nodeWhitelist")
 	@JsonPropertyDescription("Node kinds this processor is willing to execute. An empty or absent set means it "
 		+ "accepts any kind, which is how a worker that predates whitelisting behaves.")
-	private Set<String> nodeKinds;
+	private Set<String> nodeWhitelist;
+
+	@JsonProperty("nodeBlacklist")
+	@JsonPropertyDescription("Node kinds this processor explicitly refuses to execute. Takes precedence over the "
+		+ "whitelist for any kind that appears in both. An empty or absent set means it refuses nothing.")
+	private Set<String> nodeBlacklist;
 
 	public String getNodeId() {
 		return nodeId;
@@ -75,7 +80,7 @@ public class ProcessorRegistration implements RestModel {
 	}
 
 	/**
-	 * Restrict this worker to a subset of node kinds.
+	 * Restrict this worker to a subset of node kinds (the whitelist).
 	 *
 	 * <p>This is what lets a deployment dedicate machines to particular work - GPU
 	 * boxes to embeddings, a single host with the media mount to filesystem sources -
@@ -83,12 +88,30 @@ public class ProcessorRegistration implements RestModel {
 	 *
 	 * @return the accepted kinds, or null/empty when the worker accepts anything
 	 */
-	public Set<String> getNodeKinds() {
-		return nodeKinds;
+	public Set<String> getNodeWhitelist() {
+		return nodeWhitelist;
 	}
 
-	public ProcessorRegistration setNodeKinds(Set<String> nodeKinds) {
-		this.nodeKinds = nodeKinds;
+	public ProcessorRegistration setNodeWhitelist(Set<String> nodeWhitelist) {
+		this.nodeWhitelist = nodeWhitelist;
+		return this;
+	}
+
+	/**
+	 * Kinds this worker refuses to run (the blacklist).
+	 *
+	 * <p>Complements the whitelist: a worker can accept everything except a couple of
+	 * expensive kinds without having to enumerate the whole allow-list. A kind present
+	 * in the blacklist is rejected even when the whitelist would otherwise admit it.</p>
+	 *
+	 * @return the refused kinds, or null/empty when the worker refuses nothing
+	 */
+	public Set<String> getNodeBlacklist() {
+		return nodeBlacklist;
+	}
+
+	public ProcessorRegistration setNodeBlacklist(Set<String> nodeBlacklist) {
+		this.nodeBlacklist = nodeBlacklist;
 		return this;
 	}
 

@@ -39,7 +39,10 @@ public class CortexCLI implements Runnable {
 	private String nodeId;
 
 	/** Null means "announce everything this worker can run". */
-	private Set<String> nodeKinds;
+	private Set<String> nodeWhitelist;
+
+	/** Null/empty means "refuse nothing". */
+	private Set<String> nodeBlacklist;
 
 	@Spec
 	CommandSpec spec;
@@ -107,13 +110,22 @@ public class CortexCLI implements Runnable {
 		this.nodeId = nodeId;
 	}
 
-	public Set<String> getNodeKinds() {
-		return nodeKinds;
+	public Set<String> getNodeWhitelist() {
+		return nodeWhitelist;
 	}
 
-	@Option(names = { "--node-kinds" }, split = ",", description = "Node kinds this worker will execute, comma separated. Announces everything it can run when unset. Env: CORTEX_NODE_KINDS", scope = ScopeType.INHERIT)
-	public void setNodeKinds(Set<String> nodeKinds) {
-		this.nodeKinds = nodeKinds;
+	@Option(names = { "--node-whitelist" }, split = ",", description = "Node kinds this worker will execute, comma separated. Announces everything it can run when unset. Env: CORTEX_NODE_WHITELIST", scope = ScopeType.INHERIT)
+	public void setNodeWhitelist(Set<String> nodeWhitelist) {
+		this.nodeWhitelist = nodeWhitelist;
+	}
+
+	public Set<String> getNodeBlacklist() {
+		return nodeBlacklist;
+	}
+
+	@Option(names = { "--node-blacklist" }, split = ",", description = "Node kinds this worker refuses, comma separated. Takes precedence over the whitelist. Refuses nothing when unset. Env: CORTEX_NODE_BLACKLIST", scope = ScopeType.INHERIT)
+	public void setNodeBlacklist(Set<String> nodeBlacklist) {
+		this.nodeBlacklist = nodeBlacklist;
 	}
 
 	/**
@@ -130,7 +142,8 @@ public class CortexCLI implements Runnable {
 		// Left null when unset - CortexOptions treats null as "no restriction", and
 		// passing an empty set instead would read as "run nothing".
 		options.setNodeId(nodeId);
-		options.setNodeKinds(nodeKinds);
+		options.setNodeWhitelist(nodeWhitelist);
+		options.setNodeBlacklist(nodeBlacklist);
 		return options;
 	}
 

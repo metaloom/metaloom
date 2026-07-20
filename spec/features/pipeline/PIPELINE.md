@@ -807,6 +807,15 @@ Cortex side (`LoomControlChannel`): opens the WS, sends
 tracking event as `PIPELINE_EVENT`; sends `PIPELINE_RUN_COMPLETED` on
 `PIPELINE_COMPLETED`.
 
+`ProcessorRegistration` carries the worker's node-kind restriction as
+`nodeWhitelist` (kinds it will run) and `nodeBlacklist` (kinds it refuses).
+On `REGISTER`, `ProcessorRegistry` persists the worker as a durable
+`cortex_instance` row and reconciles this announced restriction against an
+administrator-managed override stored there. See the
+[Node Restriction & Cortex-Instance Persistence](../pipeline-nodes/NODES.md#11-node-restriction--cortex-instance-persistence)
+section in NODES.md for the field rename, the schema, and the
+startup-config-vs-DB-override precedence.
+
 ### 12.2 Pipeline events WebSocket
 
 `GET /api/v1/pipelines/events/ws` — registered with `.order(-1000)` so the

@@ -30,6 +30,8 @@ import io.metaloom.loom.db.jooq.tables.JooqCollection;
 import io.metaloom.loom.db.jooq.tables.JooqCollectionAsset;
 import io.metaloom.loom.db.jooq.tables.JooqCollectionCluster;
 import io.metaloom.loom.db.jooq.tables.JooqComment;
+import io.metaloom.loom.db.jooq.tables.JooqCortexInstance;
+import io.metaloom.loom.db.jooq.tables.JooqCortexInstanceNodeKind;
 import io.metaloom.loom.db.jooq.tables.JooqDetection;
 import io.metaloom.loom.db.jooq.tables.JooqEmbedding;
 import io.metaloom.loom.db.jooq.tables.JooqEmbeddingCluster;
@@ -229,6 +231,16 @@ public class JooqPublic extends SchemaImpl {
      * Stores comments on tasks, annotations..
      */
     public final JooqComment COMMENT = JooqComment.COMMENT;
+
+    /**
+     * A registered Cortex/processor worker, keyed by its stable node_id
+     */
+    public final JooqCortexInstance CORTEX_INSTANCE = JooqCortexInstance.CORTEX_INSTANCE;
+
+    /**
+     * Per-worker node-kind whitelist/blacklist entries
+     */
+    public final JooqCortexInstanceNodeKind CORTEX_INSTANCE_NODE_KIND = JooqCortexInstanceNodeKind.CORTEX_INSTANCE_NODE_KIND;
 
     /**
      * Stores object and face detections within assets
@@ -459,6 +471,8 @@ public class JooqPublic extends SchemaImpl {
             JooqCollectionAsset.COLLECTION_ASSET,
             JooqCollectionCluster.COLLECTION_CLUSTER,
             JooqComment.COMMENT,
+            JooqCortexInstance.CORTEX_INSTANCE,
+            JooqCortexInstanceNodeKind.CORTEX_INSTANCE_NODE_KIND,
             JooqDetection.DETECTION,
             JooqEmbedding.EMBEDDING,
             JooqEmbeddingCluster.EMBEDDING_CLUSTER,

@@ -795,3 +795,82 @@ fixes, or further development.
 - [ ] **No node versioning**: Nodes have no version field. When a node's
       algorithm changes (e.g. a new hash function), there is no way to
       invalidate cached results from the previous version.
+
+---
+
+## 11. Node Restriction & Cortex-Instance Persistence
+
+A worker (Cortex/processor) does not have to be able to run every kind of node.
+A deployment can dedicate machines to particular work — GPU boxes to embeddings,
+the one host with the media mount to filesystem sources — by restricting which
+node **kinds** a worker will accept. This section covers how that restriction is
+expressed, persisted, and reconciled.
+
+### Whitelist and blacklist (the `nodeKinds` rename)
+
+The single announced field `nodeKinds` has been split into two, because "the
+kinds a worker will run" and "the kinds a worker refuses" are different
+questions and a single list answered only the first:
+
+| Field | Meaning |
+|---|---|
+| `nodeWhitelist` | Kinds this worker will run. Null/empty means **anything**, so a worker that predates whitelisting keeps receiving everything rather than dropping out of the pool. |
+| `nodeBlacklist` | Kinds this worker refuses. Takes precedence over the whitelist: a kind in the blacklist is rejected even when the whitelist would admit it. Null/empty means **refuse nothing**. |
+
+The rename touches the whole worker-restriction path and nothing else (in
+particular it is unrelated to `SegmentTask.getNodeKinds()` /
+`PipelineSegment.getNodeKinds()`, which mean "the kinds contained in a pipeline
+segment"):
+
+- `ProcessorRegistration` (rest-model) — announced `nodeWhitelist` / `nodeBlacklist`.
+- `ConnectedProcessor` (`ProcessorRegistry`) — `accepts(kind)` returns false for a
+  blacklisted kind, otherwise true when the whitelist is empty or contains the kind.
+- `CortexOptions` / `CortexCLI` (worker config) — `--node-whitelist` /
+  `--node-blacklist` flags (env `CORTEX_NODE_WHITELIST` / `CORTEX_NODE_BLACKLIST`);
+  `LoomControlChannel.sendRegister()` announces both. The whitelist still defaults
+  to the node factory's `registeredTypes()` so a worker cannot advertise work it
+  cannot perform.
+
+### The `cortex_instance` record
+
+Previously a registered worker lived only in `ProcessorRegistry`'s in-memory map
+and died with the Loom process; its restriction was whatever it announced, with
+no way to remember or override it. Registration is now backed by a durable record
+(migration `V2.33__add_cortex_instance.sql`):
+
+- **`cortex_instance`** — one row per worker, keyed by the stable `node_id`
+  (`UNIQUE`). Tracks identity (`name`, `host`, `priority`), presence (`last_seen`,
+  `state`, `first_registered`), and the standard `meta`/audit columns. The
+  `creator_uuid` / `editor_uuid` audit columns are **nullable** because a row is
+  created by the machine that registers, with no user; the admin override path (UI)
+  fills `editor_uuid` when it edits.
+- **`cortex_instance_node_kind`** `(instance_uuid, node_kind, list)` — the
+  whitelist/blacklist as a queryable/indexable child table (`list ∈ {WHITELIST,
+  BLACKLIST}`), so a single kind can be looked up across all workers rather than
+  buried in an opaque JSONB blob.
+- Permissions `MANAGE_CORTEX_INSTANCE` / `READ_CORTEX_INSTANCE` (two-permission
+  model: manage = write, read = view).
+
+Persistence is jOOQ-only (`CortexInstanceDao` / `CortexInstanceDaoImpl`, exposed on
+`DaoCollection`); there is deliberately **no in-memory DAO**, matching the pipeline
+DAOs. The DAO provides `loadByNodeId`, `findAll`, and `upsertByNodeId` (insert or
+update keyed by `node_id`, so re-registration never creates a duplicate row), and
+round-trips both kind lists through the child table.
+
+### Startup-config (DEFAULT) vs DB-override (OVERRIDE) precedence
+
+On `REGISTER`, `ProcessorRegistry.register(...)` reconciles the announced
+restriction against the persisted record:
+
+1. **First registration** (no row for the `node_id`): the announced
+   `nodeWhitelist` / `nodeBlacklist` are the **DEFAULT** and are seeded into a new
+   `cortex_instance` row, and applied to the in-memory `ConnectedProcessor`.
+2. **Reconnect / restart** (row exists): identity and presence are refreshed, but
+   the persisted whitelist/blacklist are the **OVERRIDE** — they are applied to the
+   `ConnectedProcessor` instead of blindly trusting what the worker re-announced,
+   and they survive across reconnects. An administrator edits them via the record
+   (Task 2/UI), and the change sticks even though the worker keeps announcing its
+   own set.
+
+Persistence failures never take a worker offline: if the reconcile step throws, the
+registry falls back to the announced restriction and keeps serving.

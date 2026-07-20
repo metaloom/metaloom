@@ -183,7 +183,7 @@ public class PipelineDistributedExecutionIntegrationTest extends AbstractIntegra
 		options.setNodeId(nodeId);
 		// 0 => ephemeral. Two workers on the 8093 default would fail the second bind.
 		options.setMonitoringPort(0);
-		options.setNodeKinds(nodeKinds);
+		options.setNodeWhitelist(nodeKinds);
 		options.getLoom().setHostname("localhost").setPort(loomRestPort);
 
 		Cortex cortex = DaggerCortexComponent.builder().options(options).build().cortex();

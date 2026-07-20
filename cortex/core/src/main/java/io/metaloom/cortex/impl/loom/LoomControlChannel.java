@@ -292,9 +292,11 @@ public class LoomControlChannel {
 			.setHost(resolveSelfHost())
 			.setCapabilities(EnumSet.of(ProcessorCapability.CPU, ProcessorCapability.IO))
 			// Declaring what this worker will run is what lets Loom keep a heterogeneous
-			// pool: a null or empty set means "anything", so an unconfigured worker keeps
-			// receiving everything rather than dropping out.
-			.setNodeKinds(announcedNodeKinds());
+			// pool: a null or empty whitelist means "anything", so an unconfigured worker
+			// keeps receiving everything rather than dropping out. The blacklist narrows
+			// that by refusing specific kinds even when the whitelist would admit them.
+			.setNodeWhitelist(announcedNodeKinds())
+			.setNodeBlacklist(options.getNodeBlacklist());
 
 		sendMessage(new ProcessorMessage(ProcessorMessageType.REGISTER, JsonObject.mapFrom(registration)));
 	}
@@ -308,7 +310,7 @@ public class LoomControlChannel {
 	 * setting narrows that further, for dedicating a machine to part of a pipeline.</p>
 	 */
 	private java.util.Set<String> announcedNodeKinds() {
-		java.util.Set<String> configured = options.getNodeKinds();
+		java.util.Set<String> configured = options.getNodeWhitelist();
 		if (configured != null && !configured.isEmpty()) {
 			return configured;
 		}

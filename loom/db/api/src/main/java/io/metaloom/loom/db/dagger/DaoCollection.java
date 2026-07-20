@@ -9,6 +9,7 @@ import io.metaloom.loom.db.model.attachment.AttachmentDao;
 import io.metaloom.loom.db.model.blacklist.BlacklistDao;
 import io.metaloom.loom.db.model.chat.ChatDao;
 import io.metaloom.loom.db.model.cluster.ClusterDao;
+import io.metaloom.loom.db.model.cortex.CortexInstanceDao;
 import io.metaloom.loom.db.model.collection.CollectionDao;
 import io.metaloom.loom.db.model.comment.CommentDao;
 import io.metaloom.loom.db.model.embedding.EmbeddingDao;
@@ -123,5 +124,9 @@ public interface DaoCollection {
 	// Chat
 
 	ChatDao chatDao();
+
+	// Cortex Instance
+
+	CortexInstanceDao cortexInstanceDao();
 
 }
