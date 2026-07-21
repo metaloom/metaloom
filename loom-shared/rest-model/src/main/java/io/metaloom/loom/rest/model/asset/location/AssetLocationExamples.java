@@ -25,6 +25,10 @@ public interface AssetLocationExamples extends ExampleValues {
 	
 	default AssetLocationResponse locationResponse() {
 		AssetLocationResponse model = new AssetLocationResponse();
+		model.setMimeType("video/mp4");
+		model.setPoolUuid(uuidB());
+		model.setState("PRESENT");
+		model.setLicense("CC-BY-4.0");
 		model.setFilesystem(new AssetLocationFilesystemInfo().setFilekey(new FileKey(42L, 12L, 12L, 3L)).setLastSeen(DATE_NEW)
 			.setPath("/the-current-path/bigbuckbunny-4k.mp4"));
 		model.setS3(new AssetS3Meta().setBucket("big_bucket").setObjectPath("themovie"));

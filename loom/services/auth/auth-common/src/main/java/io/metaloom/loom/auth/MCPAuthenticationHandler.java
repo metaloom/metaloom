@@ -3,6 +3,7 @@ package io.metaloom.loom.auth;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -26,7 +27,7 @@ import io.vertx.ext.web.RoutingContext;
  * <ul>
  *   <li><strong>SSE (/mcp/sse)</strong>: Token via {@code ?token=} query parameter OR {@code Authorization: Bearer} header</li>
  *   <li><strong>Message (/mcp/message)</strong>: Token via {@code Authorization: Bearer} header OR {@code X-API-Key} header</li>
- *   <li><strong>WebSocket (/mcp/ws)</strong>: Token via {@code ?token=} query parameter (handled by {@link WebSocketAuthenticator})</li>
+ *   <li><strong>WebSocket (/mcp/ws)</strong>: Token via {@code ?token=} query parameter (handled by {@code WebSocketAuthenticator})</li>
  * </ul>
  *
  * <p>Authentication can be enabled/disabled via {@code LOOM_MCP_AUTH_ENABLED} and
@@ -121,10 +122,18 @@ public class MCPAuthenticationHandler {
 				log.debug("JWT validation failed, trying API key: {}", err.getMessage());
 				return validateApiKey(token);
 			})
-			.onSuccess(user -> {
-				if (user != null) {
-					log.debug("Authenticated MCP {} request from {}", endpointType, context.request().remoteAddress());
+			.compose(user -> {
+				// A token was supplied but matched neither a valid JWT nor a known API key. Reject it
+				// rather than falling through to anonymous access - an invalid credential is an
+				// authentication failure regardless of strict/lenient mode (which only governs whether
+				// requests with *no* credentials are tolerated).
+				if (user == null) {
+					return Future.failedFuture("Invalid authentication credentials");
 				}
+				return Future.succeededFuture(user);
+			})
+			.onSuccess(user -> {
+				log.debug("Authenticated MCP {} request from {}", endpointType, context.request().remoteAddress());
 			})
 			.onFailure(err -> {
 				log.warn("Rejecting MCP {} request from {}: {}", endpointType, context.request().remoteAddress(), err.getMessage());
@@ -165,11 +174,21 @@ public class MCPAuthenticationHandler {
 
 	/**
 	 * Validate an API key against the TokenDao.
+	 *
+	 * <p>Resolves the key to a {@link User} carrying the owning user's uuid. The owner is the token's
+	 * creator ({@code creator_uuid} column); the token record has no separate user column, so the
+	 * creator uuid is authoritative for permission resolution.</p>
 	 */
 	private Future<User> validateApiKey(String apiKey) {
 		return tokenDao.findByToken(apiKey)
 			.map(optionalToken -> optionalToken
-				.map(token -> User.create(new io.vertx.core.json.JsonObject().put("uuid", token.getUserUuid())))
+				.map(token -> {
+					UUID userUuid = token.getCreatorUuid();
+					if (userUuid == null) {
+						return null;
+					}
+					return User.create(new io.vertx.core.json.JsonObject().put("uuid", userUuid.toString()));
+				})
 				.orElse(null));
 	}
 

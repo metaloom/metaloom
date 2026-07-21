@@ -39,6 +39,14 @@ public interface PipelineExamples extends ExampleValues {
 		return new ExampleImpl(pipelineRunListResponse(), "The pipeline run list response", HttpResponseStatus.OK);
 	}
 
+	default Example pipelineRunRecordExample() {
+		return new ExampleImpl(pipelineRunRecord(), "The pipeline run detail response", HttpResponseStatus.OK);
+	}
+
+	default Example pipelineRunItemListResponseExample() {
+		return new ExampleImpl(pipelineRunItemListResponse(), "The pipeline run item list response", HttpResponseStatus.OK);
+	}
+
 	default Example pipelineVersionListResponseExample() {
 		return new ExampleImpl(pipelineVersionListResponse(), "The pipeline version list response", HttpResponseStatus.OK);
 	}
@@ -140,6 +148,28 @@ public interface PipelineExamples extends ExampleValues {
 		model.setSkippedCount(2);
 		model.setDryRun(false);
 		model.setDurationMs(45000L);
+		return model;
+	}
+
+	default PipelineRunItemListResponse pipelineRunItemListResponse() {
+		PipelineRunItemListResponse model = new PipelineRunItemListResponse();
+		model.add(pipelineRunItemRecord());
+		model.add(pipelineRunItemRecord());
+		model.setMetainfo(pagingInfo());
+		model.getMetainfo().setTotalCount(2);
+		model.getMetainfo().setPerPage(25L);
+		return model;
+	}
+
+	default PipelineRunItemRecord pipelineRunItemRecord() {
+		PipelineRunItemRecord model = new PipelineRunItemRecord();
+		model.setUuid(UUID.randomUUID());
+		model.setRunUuid(UUID.randomUUID());
+		model.setItemSeq(1);
+		model.setMediaPath("/media/example.mp4");
+		model.setSha512("0f8ef1c9...");
+		model.setSizeBytes(1048576L);
+		model.setState("SUCCESS");
 		return model;
 	}
 

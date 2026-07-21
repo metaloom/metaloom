@@ -98,7 +98,9 @@ import io.metaloom.loom.rest.model.person.PersonUpdateRequest;
 import io.metaloom.loom.rest.model.pipeline.PipelineCreateRequest;
 import io.metaloom.loom.rest.model.pipeline.PipelineListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineResponse;
+import io.metaloom.loom.rest.model.pipeline.PipelineRunItemListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunListResponse;
+import io.metaloom.loom.rest.model.pipeline.PipelineRunRecord;
 import io.metaloom.loom.rest.model.pipeline.PipelineUpdateRequest;
 import io.metaloom.loom.rest.model.space.SpaceCreateRequest;
 import io.metaloom.loom.rest.model.space.SpaceListResponse;
@@ -571,6 +573,16 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 
 	public LoomClientHttpRequest<PipelineRunListResponse> listPipelineRuns(UUID pipelineUuid) {
 		return getRequest("pipelines/" + pipelineUuid + "/runs", PipelineRunListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<PipelineRunRecord> loadPipelineRun(UUID pipelineUuid, UUID runUuid) {
+		return getRequest("pipelines/" + pipelineUuid + "/runs/" + runUuid, PipelineRunRecord.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<PipelineRunItemListResponse> listPipelineRunItems(UUID pipelineUuid, UUID runUuid) {
+		return getRequest("pipelines/" + pipelineUuid + "/runs/" + runUuid + "/items", PipelineRunItemListResponse.class);
 	}
 
 	@Override

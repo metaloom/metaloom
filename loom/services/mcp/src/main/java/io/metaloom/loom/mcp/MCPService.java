@@ -67,9 +67,6 @@ public class MCPService extends AbstractService {
 
 	private static final Logger log = LoggerFactory.getLogger(MCPService.class);
 
-	/** Default MCP server port. */
-	public static final int DEFAULT_MCP_PORT = 4041;
-
 	private HttpServer server;
 
 	private final MCPJsonRpcHandler jsonRpcHandler;
@@ -94,7 +91,8 @@ public class MCPService extends AbstractService {
 	}
 
 	/**
-	 * Start the MCP HTTP server on the default port.
+	 * Start the MCP HTTP server on the configured port
+	 * ({@code server.mcpPort} / {@code LOOM_SERVER_MCP_PORT}, default 4041).
 	 * When the REST server port in the options is set to 0 (test mode),
 	 * the MCP server will also use port 0 (OS-assigned).
 	 */

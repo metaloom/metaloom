@@ -793,6 +793,12 @@
       "loading": "Loading runs…",
       "cancel": "Cancel run"
     },
+    "runDetail": {
+      "title": "Run Detail",
+      "items": "Items",
+      "noItems": "No items recorded for this run",
+      "loading": "Loading items…"
+    },
     "inspector": {
       "empty": "Select a pipeline to inspect",
       "enabled": "enabled",
@@ -976,6 +982,8 @@
     "label": {
       "confidence": "Confidence: {{pct}}%"
     },
+    "confirmError": "Failed to confirm detection",
+    "rejectError": "Failed to delete detection",
     "empty": "No object detections found"
   },
   "faceDetection": {
@@ -1238,6 +1246,17 @@
       "created": "Created",
       "description": "Description"
     },
+    "location": {
+      "title": "Location(s)",
+      "empty": "No storage location — the asset has no binary yet.",
+      "pool": "Pool",
+      "path": "Path",
+      "state": "State",
+      "license": "License",
+      "locked": "Locked",
+      "mime": "MIME",
+      "viewPool": "View storage pool"
+    },
     "action": {
       "process": "Process",
       "createTask": "Create Task",
@@ -1275,6 +1294,25 @@
       "regionCaptured": "Region captured — type a name and press Enter",
       "regionTooltip": "Region tag (time / area)",
       "newRegion": "new region"
+    },
+    "detection": {
+      "label": "Detections",
+      "defaultLabel": "object",
+      "modeToggle": "Detection mode: draw a box on the image to add an object detection",
+      "bulkToggle": "Bulk mode: draw several boxes, then save them all at once",
+      "hint": "Draw a box on the image to add a detection",
+      "bulkHint": "Draw boxes, then Save all",
+      "redrawHint": "Draw the new box for the selected detection",
+      "staged": "staged",
+      "saveAll": "Save all ({{count}})",
+      "confidence": "Confidence",
+      "redraw": "Redraw bounding box",
+      "confirm": "Confirm detection",
+      "delete": "Delete detection",
+      "empty": "No detections yet — draw a box to add one",
+      "createError": "Failed to create detection",
+      "updateError": "Failed to update detection",
+      "deleteError": "Failed to delete detection"
     },
     "sidebar": {
       "filterPlaceholder": "Filter…"

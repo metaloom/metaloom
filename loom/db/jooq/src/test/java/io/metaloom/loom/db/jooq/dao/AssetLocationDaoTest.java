@@ -1,6 +1,13 @@
 package io.metaloom.loom.db.jooq.dao;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
+
+import org.junit.jupiter.api.Test;
 
 import io.metaloom.loom.db.CRUDDaoTestcases;
 import io.metaloom.loom.db.jooq.AbstractJooqTest;
@@ -32,6 +39,37 @@ public class AssetLocationDaoTest extends AbstractJooqTest implements CRUDDaoTes
 	@Override
 	public void assertUpdate(AssetLocation updatedAsset) {
 		assertEquals("new path", updatedAsset.getPath());
+	}
+
+	@Test
+	public void testFindForAsset() {
+		AssetLocationDao dao = assetLocationDao();
+
+		// An asset without any stored location must yield an empty result.
+		assertTrue(dao.findForAsset(UUID.randomUUID()).isEmpty(), "A random asset must not have any locations");
+
+		AtomicReference<UUID> ref = new AtomicReference<>();
+		transaction(t -> {
+			AssetLocation location = dao.createAssetLocation("/pool/movie.mp4", ASSET_UUID, ADMIN_UUID, LIBRARY_UUID);
+			location.setMimeType("video/mp4");
+			location.setState("PRESENT");
+			location.setLicense("CC-BY-4.0");
+			location.setLockedByUuid(ADMIN_UUID);
+			dao.store(location);
+			ref.set(location.getUuid());
+		});
+
+		List<AssetLocation> found = dao.findForAsset(ASSET_UUID);
+		assertEquals(1, found.size(), "The asset should have exactly one location");
+
+		AssetLocation loaded = found.get(0);
+		assertEquals(ref.get(), loaded.getUuid());
+		assertEquals(ASSET_UUID, loaded.getAssetUuid());
+		assertEquals("/pool/movie.mp4", loaded.getPath());
+		assertEquals("video/mp4", loaded.getMimeType());
+		assertEquals("PRESENT", loaded.getState());
+		assertEquals("CC-BY-4.0", loaded.getLicense());
+		assertEquals(ADMIN_UUID, loaded.getLockedByUuid());
 	}
 
 }

@@ -99,6 +99,7 @@ server:
   bindAddress: "0.0.0.0"
   restPort: 8092
   monitoringPort: 8989
+  mcpPort: 4041
 
 auth:
   keystorePassword: "8qA9uBbdaEFp"
@@ -554,6 +555,7 @@ server:
   bindAddress: "0.0.0.0"
   restPort: 8092
   monitoringPort: 8989
+  mcpPort: 4041
 
 auth:
   keystorePassword: "testpassword123"

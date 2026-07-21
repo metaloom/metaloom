@@ -16,12 +16,14 @@ import {
   MoreVertOutlined, SendOutlined, AddTaskOutlined,
   CollectionsOutlined, CropFreeOutlined, SaveOutlined, DeleteOutlineOutlined,
   DownloadOutlined, UploadFileOutlined,
+  StorageOutlined, LockOutlined, LaunchOutlined,
+  CenterFocusStrongOutlined, CheckOutlined, AddOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { Asset, AssetType, AssetStatus, Comment, Annotation, Task, TranscriptSection, DetectedFace, FaceCluster, Person } from "../../types";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
-import { loadAsset as apiLoadAsset, updateAsset, deleteAsset, AssetResponse, TagReference } from "../../api/assets";
+import { loadAsset as apiLoadAsset, updateAsset, deleteAsset, AssetResponse, TagReference, AssetLocationInfo } from "../../api/assets";
 import { uploadAssetBinary, downloadAssetBinary, deleteAssetBinary } from "../../api/binaries";
 import MediaPlaceholder from "../../components/MediaPlaceholder";
 import { listPipelines, runPipeline, PipelineResponse } from "../../api/pipelines";
@@ -29,7 +31,10 @@ import { tagAsset as apiTagAsset, untagAsset as apiUntagAsset } from "../../api/
 import { AreaInfo } from "../../api/annotations";
 import { listPersons, PersonResponse } from "../../api/persons";
 import { listClusters, ClusterResponse as ClusterApiResponse } from "../../api/clusters";
-import { listAssetDetections } from "../../api/detections";
+import {
+  listAssetDetections, createDetection, updateDetection, deleteDetection,
+  bulkCreateDetections, DetectionResponse,
+} from "../../api/detections";
 import { listAssetTranscripts } from "../../api/transcripts";
 import { AnnotationResponseItem } from "../../api/annotations";
 import { listAssetReactions, createAssetReaction, deleteAssetReaction, ReactionResponseItem, TaskReactionType } from "../../api/reactions";
@@ -74,6 +79,7 @@ export default function AssetDetail() {
   const [faceClusters, setFaceClusters] = useState<FaceCluster[]>([]);
   const [persons, setPersons] = useState<Person[]>([]);
   const [assetCollections, setAssetCollections] = useState<{ uuid: string; name: string }[]>([]);
+  const [assetLocations, setAssetLocations] = useState<AssetLocationInfo[]>([]);
   const [tab, setTab] = useState(0);
   const [sidebarQuery, setSidebarQuery] = useState("");
   const [currentTime, setCurrentTime] = useState(0);
@@ -88,6 +94,12 @@ export default function AssetDetail() {
   const [assetTags, setAssetTags] = useState<TagReference[]>([]);
   const [regionMode, setRegionMode] = useState(false);
   const [pendingArea, setPendingArea] = useState<AreaInfo | null>(null);
+  // Object-detection bounding-box editing on the central image.
+  const [detections, setDetections] = useState<DetectionResponse[]>([]);
+  const [detectionMode, setDetectionMode] = useState(false);
+  const [redrawId, setRedrawId] = useState<string | null>(null);
+  const [bulkMode, setBulkMode] = useState(false);
+  const [stagedBoxes, setStagedBoxes] = useState<{ x: number; y: number; width: number; height: number }[]>([]);
   const tagInputRef = useRef<HTMLInputElement>(null);
   const [actionMenuAnchor, setActionMenuAnchor] = useState<null | HTMLElement>(null);
   const [pipelineMenuAnchor, setPipelineMenuAnchor] = useState<null | HTMLElement>(null);
@@ -106,8 +118,17 @@ export default function AssetDetail() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [binaryBusy, setBinaryBusy] = useState(false);
 
+  // Refresh the asset's object detections from the backend (used after each mutation).
+  const reloadDetections = useCallback(() => {
+    if (!token || !id) return Promise.resolve();
+    return listAssetDetections(token, id)
+      .then(resp => setDetections((resp.data ?? []).filter(d => d.type === "objectdetection")))
+      .catch(() => { /* detection load failed */ });
+  }, [token, id]);
+
   useEffect(() => {
     if (!id || !token) return;
+    reloadDetections();
     // Load asset from real API
     apiLoadAsset(token, id).then(resp => {
       const mapped = apiToAsset(resp);
@@ -116,6 +137,8 @@ export default function AssetDetail() {
       setAssetTags(resp.tags ?? []);
       // Extract collections from the asset response
       setAssetCollections((resp.collections ?? []).map(c => ({ uuid: c.uuid, name: c.name })));
+      // Storage locations of the binary (path / pool / state / license)
+      setAssetLocations(resp.locations ?? []);
       // Extract annotations from the asset response
       const restAnnotations: Annotation[] = (resp.annotations ?? []).map((a: AnnotationResponseItem) => ({
         id: a.uuid ?? "",
@@ -196,7 +219,7 @@ export default function AssetDetail() {
       setFaceClusters(clusters);
       setPersons(pers);
     });
-  }, [id, token]);
+  }, [id, token, reloadDetections]);
 
   // ── Comment authoring handlers ──────────────────────────────────────
   const handlePostComment = useCallback(async () => {
@@ -257,6 +280,87 @@ export default function AssetDetail() {
       showToast(tAD("reaction.deleteError"), "error");
     }
   }, [token, id, showToast, tAD]);
+
+  // ── Object-detection handlers ───────────────────────────────────────
+  // Detections use normalized (0-1) bbox coordinates, matching ZoomableImage regions.
+  const DEFAULT_DETECTION_CONFIDENCE = 1;
+
+  const handleCreateDetection = useCallback(async (box: { x: number; y: number; width: number; height: number }) => {
+    if (!token || !id) return;
+    try {
+      const created = await createDetection(token, id, {
+        type: "objectdetection",
+        bboxX: box.x, bboxY: box.y, bboxWidth: box.width, bboxHeight: box.height,
+        confidence: DEFAULT_DETECTION_CONFIDENCE,
+      });
+      setDetections(prev => [...prev, created]);
+    } catch {
+      showToast(tAD("detection.createError"), "error");
+    }
+  }, [token, id, showToast, tAD]);
+
+  const handleBulkSaveDetections = useCallback(async () => {
+    if (!token || !id || stagedBoxes.length === 0) return;
+    try {
+      await bulkCreateDetections(token, id, {
+        detections: stagedBoxes.map(b => ({
+          type: "objectdetection",
+          bboxX: b.x, bboxY: b.y, bboxWidth: b.width, bboxHeight: b.height,
+          confidence: DEFAULT_DETECTION_CONFIDENCE,
+        })),
+      });
+      setStagedBoxes([]);
+      await reloadDetections();
+    } catch {
+      showToast(tAD("detection.createError"), "error");
+    }
+  }, [token, id, stagedBoxes, reloadDetections, showToast, tAD]);
+
+  const handleUpdateDetectionBox = useCallback(async (uuid: string, box: { x: number; y: number; width: number; height: number }) => {
+    if (!token || !id) return;
+    try {
+      const updated = await updateDetection(token, id, uuid, {
+        bboxX: box.x, bboxY: box.y, bboxWidth: box.width, bboxHeight: box.height,
+      });
+      setDetections(prev => prev.map(d => (d.uuid === uuid ? updated : d)));
+    } catch {
+      showToast(tAD("detection.updateError"), "error");
+    }
+  }, [token, id, showToast, tAD]);
+
+  const handleUpdateDetectionConfidence = useCallback(async (uuid: string, confidence: number) => {
+    if (!token || !id) return;
+    try {
+      const updated = await updateDetection(token, id, uuid, { confidence });
+      setDetections(prev => prev.map(d => (d.uuid === uuid ? updated : d)));
+    } catch {
+      showToast(tAD("detection.updateError"), "error");
+    }
+  }, [token, id, showToast, tAD]);
+
+  const handleConfirmDetection = useCallback(async (uuid: string) => {
+    if (!token || !id) return;
+    const det = detections.find(d => d.uuid === uuid);
+    try {
+      const updated = await updateDetection(token, id, uuid, {
+        meta: { ...(det?.meta ?? {}), confirmed: true },
+      });
+      setDetections(prev => prev.map(d => (d.uuid === uuid ? updated : d)));
+    } catch {
+      showToast(tAD("detection.updateError"), "error");
+    }
+  }, [token, id, detections, showToast, tAD]);
+
+  const handleDeleteDetection = useCallback(async (uuid: string) => {
+    if (!token || !id) return;
+    try {
+      await deleteDetection(token, id, uuid);
+      setDetections(prev => prev.filter(d => d.uuid !== uuid));
+      if (redrawId === uuid) setRedrawId(null);
+    } catch {
+      showToast(tAD("detection.deleteError"), "error");
+    }
+  }, [token, id, redrawId, showToast, tAD]);
 
   // Draggable divider handlers
   const handleDividerMouseDown = useCallback((e: React.MouseEvent) => {
@@ -338,7 +442,10 @@ export default function AssetDetail() {
   // Refresh the core asset (mime type / derived type can change after a binary swap).
   const reloadAsset = () => {
     if (!token) return;
-    apiLoadAsset(token, asset.id).then(resp => setAsset(apiToAsset(resp))).catch(() => {});
+    apiLoadAsset(token, asset.id).then(resp => {
+      setAsset(apiToAsset(resp));
+      setAssetLocations(resp.locations ?? []);
+    }).catch(() => {});
   };
 
   const handleBinaryUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -420,6 +527,24 @@ export default function AssetDetail() {
       width: fromPermille(pendingArea!.width!), height: fromPermille(pendingArea!.height!),
     }] : []),
   ];
+
+  // Object-detection bounding boxes overlaid on the image while in detection mode.
+  const detectionLabel = (d: DetectionResponse) => ((d.meta as Record<string, unknown> | undefined)?.label as string) ?? tAD("detection.defaultLabel");
+  const isConfirmed = (d: DetectionResponse) => ((d.meta as Record<string, unknown> | undefined)?.confirmed) === true;
+  const detectionRegions = detectionMode
+    ? [
+        ...detections.map(d => ({
+          id: d.uuid,
+          label: `${detectionLabel(d)} · ${Math.round(d.confidence * 100)}%`,
+          color: isConfirmed(d) ? tokens.accent.green : tokens.accent.amber,
+          x: d.bboxX, y: d.bboxY, width: d.bboxWidth, height: d.bboxHeight,
+        })),
+        ...stagedBoxes.map((b, i) => ({
+          id: `__staged_${i}__`, label: tAD("detection.staged"), color: tokens.primary.main,
+          x: b.x, y: b.y, width: b.width, height: b.height,
+        })),
+      ]
+    : [];
 
   // Build timeline markers
   const markers: TimelineMarker[] = [
@@ -602,9 +727,20 @@ export default function AssetDetail() {
               <ZoomableImage
                 src={asset.url}
                 alt={asset.name}
-                selectMode={regionMode}
-                regions={imageRegions}
+                selectMode={regionMode || detectionMode}
+                regions={[...imageRegions, ...detectionRegions]}
                 onRegionSelect={r => {
+                  if (detectionMode) {
+                    if (redrawId) {
+                      handleUpdateDetectionBox(redrawId, r);
+                      setRedrawId(null);
+                    } else if (bulkMode) {
+                      setStagedBoxes(prev => [...prev, r]);
+                    } else {
+                      handleCreateDetection(r);
+                    }
+                    return;
+                  }
                   setPendingArea({
                     startX: toPermille(r.x), startY: toPermille(r.y),
                     width: toPermille(r.width), height: toPermille(r.height),
@@ -721,6 +857,89 @@ export default function AssetDetail() {
             />
           </Box>
 
+          {/* Object detections — editable bounding boxes overlaid on the central image */}
+          {!isVideo && asset.url && (
+            <Box sx={{ px: 2, py: 1, bgcolor: tokens.bg.surface, borderTop: `1px solid ${tokens.border.subtle}` }} data-testid="asset-detections">
+              <Box sx={{ display: "flex", gap: 0.5, alignItems: "center", flexWrap: "wrap" }}>
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>{tAD("detection.label")}</Typography>
+                <Tooltip title={tAD("detection.modeToggle")} placement="top" arrow>
+                  <IconButton
+                    size="small"
+                    data-testid="detection-mode-toggle"
+                    onClick={() => setDetectionMode(m => {
+                      const next = !m;
+                      if (!next) { setRedrawId(null); setBulkMode(false); setStagedBoxes([]); }
+                      return next;
+                    })}
+                    sx={{ p: 0.25, color: detectionMode ? tokens.primary.main : tokens.text.tertiary, bgcolor: detectionMode ? `${tokens.primary.main}18` : "transparent" }}
+                  >
+                    <CenterFocusStrongOutlined sx={{ fontSize: 15 }} />
+                  </IconButton>
+                </Tooltip>
+                {detectionMode && (
+                  <>
+                    <Tooltip title={tAD("detection.bulkToggle")} placement="top" arrow>
+                      <IconButton
+                        size="small"
+                        data-testid="detection-bulk-toggle"
+                        onClick={() => { setBulkMode(b => !b); setRedrawId(null); }}
+                        sx={{ p: 0.25, color: bulkMode ? tokens.primary.main : tokens.text.tertiary, bgcolor: bulkMode ? `${tokens.primary.main}18` : "transparent" }}
+                      >
+                        <AddOutlined sx={{ fontSize: 15 }} />
+                      </IconButton>
+                    </Tooltip>
+                    {stagedBoxes.length > 0 && (
+                      <Button size="small" startIcon={<SaveOutlined sx={{ fontSize: 14 }} />} data-testid="detection-bulk-save" onClick={handleBulkSaveDetections} sx={{ fontSize: "0.68rem", py: 0 }}>
+                        {tAD("detection.saveAll", { count: stagedBoxes.length })}
+                      </Button>
+                    )}
+                    <Typography variant="caption" sx={{ fontSize: "0.66rem", color: redrawId ? tokens.accent.green : tokens.text.tertiary }}>
+                      {redrawId ? tAD("detection.redrawHint") : bulkMode ? tAD("detection.bulkHint") : tAD("detection.hint")}
+                    </Typography>
+                  </>
+                )}
+              </Box>
+              {detectionMode && (
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, mt: 0.75 }}>
+                  {detections.length === 0 && (
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>{tAD("detection.empty")}</Typography>
+                  )}
+                  {detections.map(d => (
+                    <Box key={d.uuid} data-testid="detection-row" sx={{ display: "flex", alignItems: "center", gap: 0.75, py: 0.25, px: 0.5, borderRadius: tokens.radius.sm, bgcolor: isConfirmed(d) ? `${tokens.accent.green}0d` : "transparent" }}>
+                      <Typography variant="caption" sx={{ flex: 1, minWidth: 0, fontSize: "0.72rem", textTransform: "capitalize" }} noWrap>{detectionLabel(d)}</Typography>
+                      <TextField
+                        type="number"
+                        size="small"
+                        variant="standard"
+                        key={`${d.uuid}-${d.confidence}`}
+                        defaultValue={d.confidence}
+                        inputProps={{ step: 0.05, min: 0, max: 1, "data-testid": "detection-confidence", "aria-label": tAD("detection.confidence") }}
+                        onKeyDown={e => { if (e.key === "Enter") { (e.target as HTMLInputElement).blur(); } }}
+                        onBlur={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v !== d.confidence) handleUpdateDetectionConfidence(d.uuid, v); }}
+                        sx={{ width: 54, "& .MuiInput-root": { fontSize: "0.72rem" } }}
+                      />
+                      <Tooltip title={tAD("detection.redraw")} placement="top" arrow>
+                        <IconButton size="small" data-testid="detection-redraw" onClick={() => { setDetectionMode(true); setBulkMode(false); setRedrawId(d.uuid); }} sx={{ p: 0.25, color: redrawId === d.uuid ? tokens.primary.main : tokens.text.tertiary }}>
+                          <CropFreeOutlined sx={{ fontSize: 14 }} />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title={tAD("detection.confirm")} placement="top" arrow>
+                        <IconButton size="small" data-testid="detection-confirm" onClick={() => handleConfirmDetection(d.uuid)} sx={{ p: 0.25, color: isConfirmed(d) ? tokens.accent.green : tokens.text.tertiary }}>
+                          <CheckOutlined sx={{ fontSize: 14 }} />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title={tAD("detection.delete")} placement="top" arrow>
+                        <IconButton size="small" data-testid="detection-delete" onClick={() => handleDeleteDetection(d.uuid)} sx={{ p: 0.25, color: tokens.text.tertiary, "&:hover": { color: tokens.accent.red } }}>
+                          <DeleteOutlineOutlined sx={{ fontSize: 14 }} />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
+                  ))}
+                </Box>
+              )}
+            </Box>
+          )}
+
           {/* Description */}
           <Box sx={{ px: 2, py: 1.5, bgcolor: tokens.bg.surface, borderTop: `1px solid ${tokens.border.subtle}` }}>
             <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.07em", color: tokens.text.tertiary, fontSize: "0.68rem", display: "block", mb: 0.75 }}>
@@ -769,6 +988,68 @@ export default function AssetDetail() {
                 </Box>
               ))}
             </Box>
+          </Box>
+
+          {/* Storage location(s) — pool / path / state / license of the binary */}
+          <Box sx={{ px: 2, py: 2, borderTop: `1px solid ${tokens.border.subtle}` }} data-testid="asset-locations">
+            <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.07em", color: tokens.text.tertiary, fontSize: "0.68rem", display: "flex", alignItems: "center", gap: 0.5 }}>
+              <StorageOutlined sx={{ fontSize: 13 }} />
+              {tAD("location.title")}
+            </Typography>
+            {assetLocations.length === 0 ? (
+              <Typography sx={{ mt: 1, color: tokens.text.tertiary, fontSize: "0.8rem" }}>
+                {tAD("location.empty")}
+              </Typography>
+            ) : (
+              <Box sx={{ mt: 1, display: "flex", flexDirection: "column", gap: 1.5 }}>
+                {assetLocations.map((loc, li) => {
+                  const path = loc.filesystem?.path ?? loc.s3?.objectPath;
+                  const rows: [string, React.ReactNode][] = [];
+                  if (loc.poolUuid) {
+                    rows.push([tAD("location.pool"), (
+                      <Box
+                        component="span"
+                        role="link"
+                        tabIndex={0}
+                        data-testid="asset-location-pool-link"
+                        onClick={() => navigate("/asset-pools")}
+                        onKeyDown={e => { if (e.key === "Enter") navigate("/asset-pools"); }}
+                        sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, color: tokens.primary.main, cursor: "pointer", fontSize: "0.8rem", "&:hover": { textDecoration: "underline" } }}
+                      >
+                        {loc.poolUuid}
+                        <Tooltip title={tAD("location.viewPool")}><LaunchOutlined sx={{ fontSize: 12 }} /></Tooltip>
+                      </Box>
+                    )]);
+                  }
+                  if (path) rows.push([tAD("location.path"), <Typography sx={{ fontSize: "0.8rem", color: tokens.text.secondary, fontFamily: "monospace", wordBreak: "break-all" }}>{path}</Typography>]);
+                  if (loc.mimeType) rows.push([tAD("location.mime"), <Typography sx={{ fontSize: "0.8rem", color: tokens.text.secondary }}>{loc.mimeType}</Typography>]);
+                  if (loc.state) rows.push([tAD("location.state"), <Chip label={loc.state} size="small" data-testid="asset-location-state" sx={{ height: 18, fontSize: "0.65rem", bgcolor: tokens.bg.elevated }} />]);
+                  if (loc.license) rows.push([tAD("location.license"), <Typography sx={{ fontSize: "0.8rem", color: tokens.text.secondary }}>{loc.license}</Typography>]);
+                  if (loc.lockedByUuid) rows.push([tAD("location.locked"), (
+                    <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, color: tokens.accent.amber, fontSize: "0.8rem" }}>
+                      <LockOutlined sx={{ fontSize: 12 }} />{loc.lockedByUuid}
+                    </Box>
+                  )]);
+                  return (
+                    <Box key={loc.uuid ?? li} data-testid="asset-location" sx={{ border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, overflow: "hidden" }}>
+                      {rows.map(([k, v], idx) => (
+                        <Box
+                          key={k}
+                          sx={{
+                            display: "grid", gridTemplateColumns: "120px 1fr", px: 1.5, py: 0.85, alignItems: "center",
+                            borderBottom: idx < rows.length - 1 ? `1px solid ${tokens.border.subtle}` : "none",
+                            bgcolor: idx % 2 === 0 ? "transparent" : "rgba(255,255,255,0.02)",
+                          }}
+                        >
+                          <Typography sx={{ color: tokens.text.tertiary, fontSize: "0.8rem" }}>{k}</Typography>
+                          {v}
+                        </Box>
+                      ))}
+                    </Box>
+                  );
+                })}
+              </Box>
+            )}
           </Box>
 
           {/* Transcript — inline in content area, synced with player */}

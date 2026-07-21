@@ -49,6 +49,8 @@ public class PipelineEndpoint extends AbstractEndpoint {
 		secure(basePath() + "/:uuid");
 		secure(basePath() + "/:uuid/run");
 		secure(basePath() + "/:uuid/runs");
+		secure(basePath() + "/:uuid/runs/:runUuid");
+		secure(basePath() + "/:uuid/runs/:runUuid/items");
 		secure(basePath() + "/:uuid/runs/:runUuid/cancel");
 		secure(basePath() + "/:uuid/versions");
 		secure(basePath() + "/:uuid/versions/:version");
@@ -113,6 +115,23 @@ public class PipelineEndpoint extends AbstractEndpoint {
 			examples.pipelineRunListResponseExample(),
 			lrc -> {
 				service.listRuns(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		// Load a single pipeline run
+		addRoute(basePath() + "/:uuid/runs/:runUuid", GET,
+			"Load a single pipeline run",
+			null,
+			examples.pipelineRunRecordExample(),
+			lrc -> {
+				service.loadRun(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("runUuid"));
+			});
+
+		// List the items of a single pipeline run
+		addListRoute(basePath() + "/:uuid/runs/:runUuid/items", GET,
+			"Load a paged list of items for a pipeline run",
+			examples.pipelineRunItemListResponseExample(),
+			lrc -> {
+				service.listRunItems(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("runUuid"));
 			});
 
 		// Cancel an in-flight pipeline run

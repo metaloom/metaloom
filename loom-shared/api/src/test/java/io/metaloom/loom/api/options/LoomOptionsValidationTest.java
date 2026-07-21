@@ -88,6 +88,22 @@ public class LoomOptionsValidationTest {
 	}
 
 	@Test
+	public void testInvalidMcpPort() {
+		LoomOptions options = validOptions();
+		options.getServer().setMcpPort(70000);
+		assertSingleError(options, "server.mcpPort");
+	}
+
+	@Test
+	public void testDuplicateMcpPort() {
+		LoomOptions options = validOptions();
+		options.getServer().setMcpPort(options.getServer().getRestPort());
+		List<String> errors = errorsOf(options);
+		assertEquals(1, errors.size(), "Expected a single error but got: " + errors);
+		assertTrue(errors.get(0).contains("must not use the same port as restPort"), "Unexpected message: " + errors.get(0));
+	}
+
+	@Test
 	public void testNegativePoolSize() {
 		LoomOptions options = validOptions();
 		options.getDatabase().setMinPoolSize(-1);

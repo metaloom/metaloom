@@ -23,9 +23,4 @@ public class TagRatingRequest implements RestRequestModel {
 		return this;
 	}
 
-	@Override
-	public TagRatingRequest self() {
-		return this;
-	}
-
 }

@@ -1,6 +1,7 @@
 package io.metaloom.loom.graphql;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -29,6 +30,7 @@ import io.metaloom.loom.db.model.asset.AssetImageComp;
 import io.metaloom.loom.db.model.asset.AssetLocation;
 import io.metaloom.loom.db.model.asset.AssetLocationDao;
 import io.metaloom.loom.db.model.asset.AssetVideoComp;
+import io.metaloom.loom.db.model.perm.Permission;
 import io.metaloom.utils.hash.SHA512;
 
 /**
@@ -174,12 +176,82 @@ public class LoomGraphQLProviderTest {
 		assertEquals("application/pdf", locations.get(0).get("mimeType"));
 	}
 
+	@Test
+	void testUnauthenticatedQueryFails() {
+		Asset asset = mockAsset(ASSET_UUID, "test.jpg", "image/jpeg", 1024L);
+		when(assetDao.load(ASSET_UUID)).thenReturn(asset);
+
+		String query = "{ asset(uuid: \"" + ASSET_UUID + "\") { uuid filename } }";
+		// No permission checker in the context -> request is treated as unauthenticated.
+		ExecutionResult result = execute(query, null);
+
+		assertFalse(result.getErrors().isEmpty(), "Expected an authentication error");
+		Map<String, Object> extensions = result.getErrors().get(0).getExtensions();
+		assertNotNull(extensions);
+		assertEquals("UNAUTHENTICATED", extensions.get("code"));
+		Map<String, Object> data = result.getData();
+		assertNull(data.get("asset"), "No data should be returned for an unauthenticated request");
+	}
+
+	@Test
+	void testQueryFailsWithoutPermission() {
+		Asset asset = mockAsset(ASSET_UUID, "test.jpg", "image/jpeg", 1024L);
+		when(assetDao.load(ASSET_UUID)).thenReturn(asset);
+
+		String query = "{ asset(uuid: \"" + ASSET_UUID + "\") { uuid filename } }";
+		// Authenticated user without the READ_ASSET permission.
+		ExecutionResult result = execute(query, perm -> false);
+
+		assertFalse(result.getErrors().isEmpty(), "Expected a permission error");
+		Map<String, Object> extensions = result.getErrors().get(0).getExtensions();
+		assertNotNull(extensions);
+		assertEquals("FORBIDDEN", extensions.get("code"));
+		assertEquals(Permission.READ_ASSET.name(), extensions.get("permission"));
+	}
+
+	@Test
+	void testFieldLevelPermissionDenial() {
+		Asset asset = mockAsset(ASSET_UUID, "doc.pdf", "application/pdf", 3000L);
+		when(assetDao.load(ASSET_UUID)).thenReturn(asset);
+
+		AssetLocation location = mock(AssetLocation.class);
+		when(location.getUuid()).thenReturn(UUID.randomUUID());
+		when(location.getPath()).thenReturn("/data/files/doc.pdf");
+		when(location.getAssetUuid()).thenReturn(ASSET_UUID);
+		doReturn(Stream.of(location)).when(locationDao).findAll();
+
+		// User may read assets but not asset locations.
+		GraphQLPermissionChecker checker = perm -> perm == Permission.READ_ASSET;
+
+		String query = "{ asset(uuid: \"" + ASSET_UUID + "\") { uuid filename locations { path } } }";
+		ExecutionResult result = execute(query, checker);
+
+		// The locations field (declared non-null) is denied. GraphQL null propagation bubbles that up to the
+		// nullable asset, so the whole asset becomes null while the error identifies the denied field.
+		assertFalse(result.getErrors().isEmpty(), "Expected a field level permission error");
+		Map<String, Object> extensions = result.getErrors().get(0).getExtensions();
+		assertEquals("FORBIDDEN", extensions.get("code"));
+		assertEquals(Permission.READ_ASSET_LOCATION.name(), extensions.get("permission"));
+
+		Map<String, Object> data = result.getData();
+		assertNull(data.get("asset"), "Denied non-null field propagates null to the parent asset");
+	}
+
 	// --- Helpers ---
 
-	@SuppressWarnings("unchecked")
+	/**
+	 * Execute a query as a fully authorized user (all permissions granted).
+	 */
 	private ExecutionResult execute(String query) {
-		return provider.graphQL().execute(
-			ExecutionInput.newExecutionInput().query(query).build());
+		return execute(query, perm -> true);
+	}
+
+	private ExecutionResult execute(String query, GraphQLPermissionChecker checker) {
+		ExecutionInput.Builder builder = ExecutionInput.newExecutionInput().query(query);
+		if (checker != null) {
+			builder.graphQLContext(Map.of(GraphQLPermissionChecker.CONTEXT_KEY, checker));
+		}
+		return provider.graphQL().execute(builder.build());
 	}
 
 	private Asset mockAsset(UUID uuid, String filename, String mimeType, long size) {

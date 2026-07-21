@@ -15,6 +15,14 @@ public class AssetLocationImpl extends AbstractEditableElement<AssetLocation> im
 
 	private String mimeType;
 
+	private UUID poolUuid;
+
+	private String state;
+
+	private String license;
+
+	private UUID lockedByUuid;
+
 	private Long filekeyInode;
 
 	private long filekeyStDev;
@@ -64,6 +72,50 @@ public class AssetLocationImpl extends AbstractEditableElement<AssetLocation> im
 	@Override
 	public AssetLocation setMimeType(String mimeType) {
 		this.mimeType = mimeType;
+		return this;
+	}
+
+	@Override
+	public UUID getPoolUuid() {
+		return poolUuid;
+	}
+
+	@Override
+	public AssetLocation setPoolUuid(UUID poolUuid) {
+		this.poolUuid = poolUuid;
+		return this;
+	}
+
+	@Override
+	public String getState() {
+		return state;
+	}
+
+	@Override
+	public AssetLocation setState(String state) {
+		this.state = state;
+		return this;
+	}
+
+	@Override
+	public String getLicense() {
+		return license;
+	}
+
+	@Override
+	public AssetLocation setLicense(String license) {
+		this.license = license;
+		return this;
+	}
+
+	@Override
+	public UUID getLockedByUuid() {
+		return lockedByUuid;
+	}
+
+	@Override
+	public AssetLocation setLockedByUuid(UUID lockedByUuid) {
+		this.lockedByUuid = lockedByUuid;
 		return this;
 	}
 

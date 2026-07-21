@@ -1,7 +1,9 @@
 package io.metaloom.loom.db.jooq.dao.asset.location;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -49,6 +51,17 @@ public class AssetLocationDaoImpl extends AbstractJooqDao<AssetLocation> impleme
 		location.setAssetUuid(assetUuid);
 		location.setLibraryUuid(libraryUuid);
 		return location;
+	}
+
+	@Override
+	public List<AssetLocation> findForAsset(UUID assetUuid) {
+		Objects.requireNonNull(assetUuid, "Asset uuid must not be null");
+		return ctx()
+			.select(getTable())
+			.from(getTable())
+			.where(JooqAssetLocation.ASSET_LOCATION.ASSET_UUID.eq(assetUuid))
+			.fetchStreamInto(getPojoClass())
+			.collect(Collectors.toList());
 	}
 
 	// @Override

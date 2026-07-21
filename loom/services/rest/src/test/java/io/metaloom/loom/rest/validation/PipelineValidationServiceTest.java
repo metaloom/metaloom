@@ -39,7 +39,9 @@ public class PipelineValidationServiceTest {
         registry.register(createDescriptor("md5", "MD5 Hash", NodeCategory.ANALYSIS));
         registry.register(createDescriptor("thumbnail", "Thumbnail", NodeCategory.ANALYSIS));
         registry.register(createDescriptor("facedetect", "Face Detect", NodeCategory.ANALYSIS));
-        
+        registry.register(createDescriptor("filter-mimetype", "Mime Type Filter", NodeCategory.FILTER));
+        registry.register(createDescriptor("filesystem-source", "Filesystem Source", NodeCategory.SOURCE));
+
         service = new PipelineValidationService(registry);
     }
 
@@ -355,6 +357,117 @@ public class PipelineValidationServiceTest {
         assertDoesNotThrow(() -> service.validateDefinition(definition));
     }
 
+    // ── Reachability tests ──────────────────────────────────────────────────
+
+    @Test
+    public void testUnreachableNodeIsRejected() {
+        // 'orphan' is a second dependency-free root left behind after 'source' was
+        // marked as the source. It is connected to nothing the source produces.
+        JsonObject definition = createPipelineDefinition(
+            List.of(
+                createSourceNode("source", "filesystem-source"),
+                createNode("hash", "sha256"),
+                createNode("orphan", "md5")
+            ),
+            List.of(createEdge("source", "hash"))
+        );
+
+        ValidationException ex = assertThrows(ValidationException.class,
+            () -> service.validateDefinition(definition));
+        assertTrue(ex.getMessage().contains("Unreachable"), ex.getMessage());
+        assertTrue(ex.getMessage().contains("orphan"), ex.getMessage());
+    }
+
+    @Test
+    public void testFullyConnectedGraphFromDeclaredSourceIsReachable() {
+        JsonObject definition = createPipelineDefinition(
+            List.of(
+                createSourceNode("source", "filesystem-source"),
+                createNode("hash", "sha256"),
+                createNode("thumb", "thumbnail")
+            ),
+            List.of(
+                createEdge("source", "hash"),
+                createEdge("hash", "thumb")
+            )
+        );
+
+        assertDoesNotThrow(() -> service.validateDefinition(definition));
+    }
+
+    // ── Filter branch tests ─────────────────────────────────────────────────
+
+    @Test
+    public void testBranchEdgesFromFilterNodeAreAllowed() {
+        JsonObject definition = createPipelineDefinition(
+            List.of(
+                createSourceNode("source", "filesystem-source"),
+                createNode("filter", "filter-mimetype"),
+                createNode("keep", "sha256"),
+                createNode("drop", "md5")
+            ),
+            List.of(
+                createEdge("source", "filter"),
+                createBranchEdge("filter", "keep", "PASS"),
+                createBranchEdge("filter", "drop", "REJECT")
+            )
+        );
+
+        assertDoesNotThrow(() -> service.validateDefinition(definition));
+    }
+
+    @Test
+    public void testBranchEdgeFromNonFilterNodeIsRejected() {
+        JsonObject definition = createPipelineDefinition(
+            List.of(
+                createSourceNode("source", "filesystem-source"),
+                createNode("hash", "sha256"),
+                createNode("thumb", "thumbnail")
+            ),
+            List.of(
+                createEdge("source", "hash"),
+                createBranchEdge("hash", "thumb", "PASS") // 'hash' is not a filter
+            )
+        );
+
+        ValidationException ex = assertThrows(ValidationException.class,
+            () -> service.validateDefinition(definition));
+        assertTrue(ex.getMessage().contains("not a filter node"), ex.getMessage());
+    }
+
+    @Test
+    public void testUnknownBranchValueIsRejected() {
+        JsonObject definition = createPipelineDefinition(
+            List.of(
+                createSourceNode("source", "filesystem-source"),
+                createNode("filter", "filter-mimetype"),
+                createNode("keep", "sha256")
+            ),
+            List.of(
+                createEdge("source", "filter"),
+                createBranchEdge("filter", "keep", "MAYBE")
+            )
+        );
+
+        ValidationException ex = assertThrows(ValidationException.class,
+            () -> service.validateDefinition(definition));
+        assertTrue(ex.getMessage().contains("unknown branch"), ex.getMessage());
+    }
+
+    @Test
+    public void testAnyBranchFromNonFilterNodeIsAllowed() {
+        // An explicit ANY branch is just a plain edge and needs no filter upstream.
+        JsonObject definition = createPipelineDefinition(
+            List.of(
+                createSourceNode("source", "filesystem-source"),
+                createNode("hash", "sha256")
+            ),
+            List.of(createBranchEdge("source", "hash", "ANY"))
+        );
+
+        assertDoesNotThrow(() -> service.validateDefinition(definition));
+    }
+
     // ── Empty pipeline tests ────────────────────────────────────────────────
 
     @Test
@@ -405,9 +518,17 @@ public class PipelineValidationServiceTest {
             .put("type", type);
     }
 
+    private JsonObject createSourceNode(String id, String type) {
+        return createNode(id, type).put("source", true);
+    }
+
     private JsonObject createEdge(String source, String target) {
         return new JsonObject()
             .put("source", source)
             .put("target", target);
+    }
+
+    private JsonObject createBranchEdge(String source, String target, String branch) {
+        return createEdge(source, target).put("branch", branch);
     }
 }

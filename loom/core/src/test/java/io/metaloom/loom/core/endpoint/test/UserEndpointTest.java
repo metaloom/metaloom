@@ -104,7 +104,7 @@ public class UserEndpointTest extends AbstractCRUDEndpointTest implements Replac
 				client.createUser(userRequest).sync().body();
 			}
 
-			UserListResponse listResponse = client.listUsers().addLimit(12).sync().body();
+			UserListResponse listResponse = client.listUsers().sync().body();
 			assertEquals(25, listResponse.getData().size(), "There should have been 25 users loaded");
 
 			UUID uuid = listResponse.getData().get(0).getUuid();

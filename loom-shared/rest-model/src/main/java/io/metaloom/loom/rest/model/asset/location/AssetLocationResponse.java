@@ -13,6 +13,21 @@ public class AssetLocationResponse extends AbstractCreatorEditorRestResponse<Ass
 
 	private UUID assetUuid;
 
+	@JsonPropertyDescription("Reference to the storage pool in which the binary of this location is stored.")
+	private UUID poolUuid;
+
+	@JsonPropertyDescription("Mime type of the binary at this location.")
+	private String mimeType;
+
+	@JsonPropertyDescription("Current state of the location (e.g. whether the binary is present or missing).")
+	private String state;
+
+	@JsonPropertyDescription("License which applies to the binary at this location.")
+	private String license;
+
+	@JsonPropertyDescription("Uuid of the user which currently holds a lock on this location.")
+	private UUID lockedByUuid;
+
 	@JsonPropertyDescription("Information about the location of the asset in the filesystem.")
 	private AssetLocationFilesystemInfo filesystem;
 
@@ -20,6 +35,51 @@ public class AssetLocationResponse extends AbstractCreatorEditorRestResponse<Ass
 	private AssetS3Meta s3;
 
 	public AssetLocationResponse() {
+	}
+
+	public UUID getPoolUuid() {
+		return poolUuid;
+	}
+
+	public AssetLocationResponse setPoolUuid(UUID poolUuid) {
+		this.poolUuid = poolUuid;
+		return this;
+	}
+
+	public String getMimeType() {
+		return mimeType;
+	}
+
+	public AssetLocationResponse setMimeType(String mimeType) {
+		this.mimeType = mimeType;
+		return this;
+	}
+
+	public String getState() {
+		return state;
+	}
+
+	public AssetLocationResponse setState(String state) {
+		this.state = state;
+		return this;
+	}
+
+	public String getLicense() {
+		return license;
+	}
+
+	public AssetLocationResponse setLicense(String license) {
+		this.license = license;
+		return this;
+	}
+
+	public UUID getLockedByUuid() {
+		return lockedByUuid;
+	}
+
+	public AssetLocationResponse setLockedByUuid(UUID lockedByUuid) {
+		this.lockedByUuid = lockedByUuid;
+		return this;
 	}
 
 	public UUID getLibraryUuid() {

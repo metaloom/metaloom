@@ -22,7 +22,7 @@ use to answer user questions about the content stored in Loom.
 |---------------------|-----------------------------------------|
 | MCP Service         | `loom/services/mcp`                     |
 | Main class          | `io.metaloom.loom.mcp.MCPService`       |
-| Default port        | `4041` (`DEFAULT_MCP_PORT`)             |
+| Default port        | `4041` (`ServerOptions.DEFAULT_MCP_PORT`, `LOOM_SERVER_MCP_PORT`) |
 | Protocol version    | `2025-03-26` (`MCP_PROTOCOL_VERSION`)  |
 
 ### 1.2 Architecture
@@ -111,7 +111,9 @@ results or for clients that prefer a single bidirectional connection.
 
 ### 2.3 Port Configuration
 
-- Default port: `4041` (`MCPService.DEFAULT_MCP_PORT`).
+- Configurable via `options().getServer().getMcpPort()` — set through the
+  `server.mcpPort` config key or the `LOOM_SERVER_MCP_PORT` environment
+  variable. Default: `4041` (`ServerOptions.DEFAULT_MCP_PORT`).
 - When the REST server port is set to `0` (test mode), the MCP server also
   uses port `0` (OS-assigned random port). This is determined by checking
   `options().getServer().getRestPort() == 0`.

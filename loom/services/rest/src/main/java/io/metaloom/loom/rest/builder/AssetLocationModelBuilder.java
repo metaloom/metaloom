@@ -16,6 +16,11 @@ public interface AssetLocationModelBuilder extends ModelBuilder, UserModelBuilde
 		model.setMeta(location.getMeta());
 		model.setLibraryUuid(location.getLibraryUuid());
 		model.setAssetUuid(location.getAssetUuid());
+		model.setMimeType(location.getMimeType());
+		model.setPoolUuid(location.getPoolUuid());
+		model.setState(location.getState());
+		model.setLicense(location.getLicense());
+		model.setLockedByUuid(location.getLockedByUuid());
 		model.setFilesystem(filesystemLocationInfo(location));
 		setStatus(location, model);
 		return model;

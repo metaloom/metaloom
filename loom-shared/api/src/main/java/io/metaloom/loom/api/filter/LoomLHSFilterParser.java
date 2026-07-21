@@ -8,6 +8,7 @@ public class LoomLHSFilterParser extends LHSFilterParserImpl {
 		super();
 		register(LoomFilterKey.FILE_SIZE);
 		register(LoomFilterKey.USERNAME);
+		register(LoomFilterKey.STATUS);
 	}
 
 }

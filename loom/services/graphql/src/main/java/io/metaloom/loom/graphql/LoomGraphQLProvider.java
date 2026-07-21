@@ -5,6 +5,7 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -15,12 +16,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import graphql.GraphQL;
+import graphql.GraphqlErrorException;
 import graphql.language.IntValue;
 import graphql.schema.Coercing;
 import graphql.schema.CoercingParseLiteralException;
 import graphql.schema.CoercingParseValueException;
 import graphql.schema.CoercingSerializeException;
 import graphql.schema.DataFetcher;
+import graphql.schema.DataFetchingEnvironment;
 import graphql.schema.GraphQLScalarType;
 import graphql.schema.GraphQLSchema;
 import graphql.schema.idl.RuntimeWiring;
@@ -37,6 +40,7 @@ import io.metaloom.loom.db.model.asset.AssetImageComp;
 import io.metaloom.loom.db.model.asset.AssetLocation;
 import io.metaloom.loom.db.model.asset.AssetLocationDao;
 import io.metaloom.loom.db.model.asset.AssetVideoComp;
+import io.metaloom.loom.db.model.perm.Permission;
 
 /**
  * Builds and provides the {@link GraphQL} execution engine for the Loom GraphQL API.
@@ -110,16 +114,19 @@ public class LoomGraphQLProvider {
 
 		// Query root
 		DataFetcher<Asset> assetFetcher = env -> {
+			requirePermission(env, Permission.READ_ASSET);
 			String uuidStr = env.getArgument("uuid");
 			return assetDao.load(UUID.fromString(uuidStr));
 		};
 
 		DataFetcher<List<? extends Asset>> assetsFetcher = env -> {
+			requirePermission(env, Permission.READ_ASSET);
 			return assetDao.findAll().collect(Collectors.toList());
 		};
 
 		// Asset field resolvers
 		DataFetcher<List<? extends AssetLocation>> locationsFetcher = env -> {
+			requirePermission(env, Permission.READ_ASSET_LOCATION);
 			Asset asset = env.getSource();
 			return locationDao.findAll()
 				.filter(loc -> asset.getUuid().equals(loc.getAssetUuid()))
@@ -127,16 +134,19 @@ public class LoomGraphQLProvider {
 		};
 
 		DataFetcher<List<AssetImageComp>> imageCompsFetcher = env -> {
+			requirePermission(env, Permission.READ_ASSET);
 			Asset asset = env.getSource();
 			return componentDao.loadImageComps(asset.getUuid());
 		};
 
 		DataFetcher<List<AssetVideoComp>> videoCompsFetcher = env -> {
+			requirePermission(env, Permission.READ_ASSET);
 			Asset asset = env.getSource();
 			return componentDao.loadVideoComps(asset.getUuid());
 		};
 
 		DataFetcher<List<AssetAudioComp>> audioCompsFetcher = env -> {
+			requirePermission(env, Permission.READ_ASSET);
 			Asset asset = env.getSource();
 			return componentDao.loadAudioComps(asset.getUuid());
 		};
@@ -194,5 +204,39 @@ public class LoomGraphQLProvider {
 	 */
 	public GraphQL graphQL() {
 		return graphQL;
+	}
+
+	/**
+	 * Enforce that the current request is authorized for the given permission before the field is resolved.
+	 *
+	 * <p>The {@link GraphQLPermissionChecker} is looked up from the execution {@link graphql.GraphQLContext}. It is
+	 * supplied by the transport layer once the user's authorizations have been resolved (see the REST GraphQL
+	 * endpoint). When no checker is present the request is treated as unauthenticated.</p>
+	 *
+	 * @param env
+	 *            the data fetching environment
+	 * @param permission
+	 *            the permission required to resolve the field
+	 * @throws GraphqlErrorException
+	 *             when the request is unauthenticated or lacks the permission. The error carries a {@code code}
+	 *             extension of {@code UNAUTHENTICATED} or {@code FORBIDDEN} respectively.
+	 */
+	private static void requirePermission(DataFetchingEnvironment env, Permission permission) {
+		GraphQLPermissionChecker checker = env.getGraphQlContext().get(GraphQLPermissionChecker.CONTEXT_KEY);
+		if (checker == null) {
+			throw GraphqlErrorException.newErrorException()
+				.message("Not authenticated")
+				.extensions(Map.of("code", "UNAUTHENTICATED"))
+				.build();
+		}
+		if (!checker.hasPermission(permission)) {
+			if (log.isDebugEnabled()) {
+				log.debug("Request is lacking permission {}", permission);
+			}
+			throw GraphqlErrorException.newErrorException()
+				.message("Missing permission " + permission.name())
+				.extensions(Map.of("code", "FORBIDDEN", "permission", permission.name()))
+				.build();
+		}
 	}
 }

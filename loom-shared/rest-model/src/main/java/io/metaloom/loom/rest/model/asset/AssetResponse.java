@@ -15,7 +15,7 @@ import io.metaloom.loom.rest.model.asset.info.GeoLocationInfo;
 import io.metaloom.loom.rest.model.asset.info.HashInfo;
 import io.metaloom.loom.rest.model.asset.info.ImageInfo;
 import io.metaloom.loom.rest.model.asset.info.VideoInfo;
-import io.metaloom.loom.rest.model.asset.location.AssetLocationReference;
+import io.metaloom.loom.rest.model.asset.location.AssetLocationResponse;
 import io.metaloom.loom.rest.model.asset.location.social.SocialInfo;
 import io.metaloom.loom.rest.model.collection.CollectionResponse;
 import io.metaloom.loom.rest.model.common.AbstractCreatorEditorRestResponse;
@@ -84,8 +84,8 @@ public class AssetResponse extends AbstractCreatorEditorRestResponse<AssetRespon
 	// @JsonPropertyDescription("S3 meta information on the asset. (only set when S3 is being utilized).")
 	// private AssetS3Meta s3;
 
-	@JsonPropertyDescription("Information about the actual binary media that is represented by the asset.")
-	private List<AssetLocationReference> locations = new ArrayList<>();
+	@JsonPropertyDescription("Information about the storage locations of the actual binary media that is represented by the asset.")
+	private List<AssetLocationResponse> locations = new ArrayList<>();
 
 	// public AssetKind getKind() {
 	// return kind;
@@ -249,16 +249,16 @@ public class AssetResponse extends AbstractCreatorEditorRestResponse<AssetRespon
 		return this;
 	}
 
-	public List<AssetLocationReference> getLocations() {
+	public List<AssetLocationResponse> getLocations() {
 		return locations;
 	}
 
-	public AssetResponse setLocations(List<AssetLocationReference> locations) {
+	public AssetResponse setLocations(List<AssetLocationResponse> locations) {
 		this.locations = locations;
 		return this;
 	}
 
-	public void addLocation(AssetLocationReference location) {
+	public void addLocation(AssetLocationResponse location) {
 		getLocations().add(location);
 	}
 

@@ -4,6 +4,7 @@ import static io.metaloom.loom.db.model.perm.Permission.CREATE_PIPELINE;
 import static io.metaloom.loom.db.model.perm.Permission.DELETE_PIPELINE;
 import static io.metaloom.loom.db.model.perm.Permission.READ_PIPELINE;
 import static io.metaloom.loom.db.model.perm.Permission.UPDATE_PIPELINE;
+import static io.metaloom.loom.db.model.perm.Permission.READ_PIPELINE_RUN;
 import static io.metaloom.loom.db.model.perm.Permission.READ_PIPELINE_VERSION;
 import static io.metaloom.loom.db.model.perm.Permission.RESTORE_PIPELINE_VERSION;
 import static io.metaloom.loom.db.model.perm.Permission.UPDATE_PIPELINE_RUN;
@@ -29,6 +30,7 @@ import io.metaloom.loom.db.model.pipeline.PipelineDao;
 import io.metaloom.loom.db.model.pipeline.PipelineRun;
 import io.metaloom.loom.db.model.pipeline.PipelineNodeTaskDao;
 import io.metaloom.loom.db.model.pipeline.PipelineRunDao;
+import io.metaloom.loom.db.model.pipeline.PipelineRunItem;
 import io.metaloom.loom.db.model.pipeline.PipelineRunItemDao;
 import io.metaloom.loom.db.model.pipeline.PipelineVersion;
 import io.metaloom.loom.db.model.pipeline.PipelineVersionDao;
@@ -465,6 +467,42 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 			}
 			io.metaloom.loom.db.page.Page<PipelineRun> page = pipelineRunDao.loadPageByPipeline(pipelineUuid, from, limit, filterParameters.filters(), sortParameters.sortBy(), sortParameters.sortOrder());
 			io.metaloom.loom.rest.model.RestResponseModel<?> response = modelBuilder.toPipelineRunList(page);
+			lrc.send(response);
+		});
+	}
+
+	/**
+	 * Load a single pipeline run.
+	 */
+	public void loadRun(LoomRoutingContext lrc, UUID pipelineUuid, UUID runUuid) {
+		checkPerm(lrc, READ_PIPELINE_RUN, () -> {
+			PipelineRun run = pipelineRunDao.load(runUuid);
+			if (run == null || !pipelineUuid.equals(run.getPipelineUuid())) {
+				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Pipeline run not found.");
+			}
+			lrc.send(modelBuilder.toPipelineRunRecord(run));
+		});
+	}
+
+	/**
+	 * List the items of a single pipeline run.
+	 */
+	public void listRunItems(LoomRoutingContext lrc, UUID pipelineUuid, UUID runUuid) {
+		checkPerm(lrc, READ_PIPELINE_RUN, () -> {
+			PipelineRun run = pipelineRunDao.load(runUuid);
+			if (run == null || !pipelineUuid.equals(run.getPipelineUuid())) {
+				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Pipeline run not found.");
+			}
+			io.metaloom.loom.rest.parameter.PagingParameters pagingParameters = lrc.pagingParams();
+			io.metaloom.loom.rest.parameter.FilterParameters filterParameters = lrc.filterParams();
+			io.metaloom.loom.rest.parameter.SortParameters sortParameters = lrc.sortParams();
+			UUID from = pagingParameters.from();
+			int limit = pagingParameters.limit();
+			if (log.isDebugEnabled()) {
+				log.debug("Loading run item page from {} limit: {}", from, limit);
+			}
+			io.metaloom.loom.db.page.Page<PipelineRunItem> page = pipelineRunItemDao.loadPageByRun(runUuid, from, limit, filterParameters.filters(), sortParameters.sortBy(), sortParameters.sortOrder());
+			io.metaloom.loom.rest.model.RestResponseModel<?> response = modelBuilder.toPipelineRunItemList(page);
 			lrc.send(response);
 		});
 	}

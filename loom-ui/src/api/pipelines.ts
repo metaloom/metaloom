@@ -269,6 +269,60 @@ export async function listPipelineRuns(token: string, uuid: string): Promise<Pip
   return body.data ?? [];
 }
 
+// ── Pipeline Run Items ────────────────────────────────────────────────
+
+export interface PipelineRunItemRecord {
+  uuid: string;
+  runUuid: string;
+  itemSeq: number;
+  mediaPath?: string;
+  sha512?: string;
+  sizeBytes?: number;
+  state: string;
+  errorMessage?: string;
+}
+
+export interface PipelineRunItemListResponse {
+  data: PipelineRunItemRecord[];
+  metainfo?: {
+    totalCount?: number;
+    currentPage?: number;
+    pageCount?: number;
+    perPage?: number;
+  };
+}
+
+/**
+ * Load a single pipeline run (detail view).
+ * Endpoint: `GET /api/v1/pipelines/:uuid/runs/:runUuid`.
+ */
+export async function loadPipelineRun(token: string, pipelineUuid: string, runUuid: string): Promise<PipelineRunRecord> {
+  const res = await fetch(`${API_BASE_URL}/pipelines/${encodeURIComponent(pipelineUuid)}/runs/${encodeURIComponent(runUuid)}`, {
+    method: "GET",
+    headers: authHeaders(token),
+  });
+  return handleResponse<PipelineRunRecord>(res);
+}
+
+/**
+ * Fetch the items discovered/processed by a single pipeline run (paged).
+ * Endpoint: `GET /api/v1/pipelines/:uuid/runs/:runUuid/items`.
+ * Degrades gracefully to an empty array when the endpoint is not deployed
+ * yet or the run has no items.
+ */
+export async function listPipelineRunItems(token: string, pipelineUuid: string, runUuid: string): Promise<PipelineRunItemRecord[]> {
+  const res = await fetch(`${API_BASE_URL}/pipelines/${encodeURIComponent(pipelineUuid)}/runs/${encodeURIComponent(runUuid)}/items`, {
+    method: "GET",
+    headers: authHeaders(token),
+  });
+  if (!res.ok) {
+    return [];
+  }
+  const body = await res.json() as PipelineRunItemListResponse | PipelineRunItemRecord[];
+  if (Array.isArray(body)) return body;
+  return body.data ?? [];
+}
+
 /**
  * Cancel an in-flight pipeline run.
  *

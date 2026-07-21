@@ -5,10 +5,13 @@ import java.util.UUID;
 
 import io.metaloom.loom.db.model.pipeline.Pipeline;
 import io.metaloom.loom.db.model.pipeline.PipelineRun;
+import io.metaloom.loom.db.model.pipeline.PipelineRunItem;
 import io.metaloom.loom.db.model.pipeline.PipelineVersion;
 import io.metaloom.loom.db.page.Page;
 import io.metaloom.loom.rest.model.pipeline.PipelineListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineResponse;
+import io.metaloom.loom.rest.model.pipeline.PipelineRunItemListResponse;
+import io.metaloom.loom.rest.model.pipeline.PipelineRunItemRecord;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunRecord;
 import io.metaloom.loom.rest.model.pipeline.PipelineVersionListResponse;
@@ -99,6 +102,23 @@ public interface PipelineModelBuilder extends ModelBuilder, UserModelBuilder {
 
 	default PipelineRunListResponse toPipelineRunList(Page<PipelineRun> page) {
 		return setPage(new PipelineRunListResponse(), page, this::toPipelineRunRecord);
+	}
+
+	default PipelineRunItemRecord toPipelineRunItemRecord(PipelineRunItem item) {
+		PipelineRunItemRecord record = new PipelineRunItemRecord();
+		record.setUuid(item.getUuid());
+		record.setRunUuid(item.getRunUuid());
+		record.setItemSeq(item.getItemSeq());
+		record.setMediaPath(item.getMediaPath());
+		record.setSha512(item.getSha512());
+		record.setSizeBytes(item.getSizeBytes());
+		record.setState(item.getState());
+		record.setErrorMessage(item.getErrorMessage());
+		return record;
+	}
+
+	default PipelineRunItemListResponse toPipelineRunItemList(Page<PipelineRunItem> page) {
+		return setPage(new PipelineRunItemListResponse(), page, this::toPipelineRunItemRecord);
 	}
 
 }

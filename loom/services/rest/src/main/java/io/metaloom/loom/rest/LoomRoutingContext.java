@@ -14,6 +14,7 @@ import io.metaloom.loom.api.error.LoomRestException;
 import io.metaloom.loom.auth.LoomAuthorizationProvider;
 import io.metaloom.loom.auth.LoomUser;
 import io.metaloom.loom.db.model.perm.Permission;
+import io.metaloom.loom.graphql.GraphQLPermissionChecker;
 import io.metaloom.loom.rest.json.LoomJson;
 import io.metaloom.loom.rest.model.RestRequestModel;
 import io.metaloom.loom.rest.model.RestResponseModel;
@@ -109,6 +110,21 @@ public class LoomRoutingContext {
 
 	public LoomUser loomUser() {
 		return new LoomUser(user());
+	}
+
+	/**
+	 * Resolve the current user's authorizations and return a synchronous {@link GraphQLPermissionChecker}.
+	 *
+	 * <p>Authorization loading is asynchronous (it may hit the database), so it is performed once here. The returned
+	 * checker can then be evaluated synchronously for every field of a GraphQL query and is passed into the GraphQL
+	 * execution context.</p>
+	 *
+	 * @return future that succeeds with a permission checker bound to the current user
+	 */
+	public Future<GraphQLPermissionChecker> permissionChecker() {
+		User user = user();
+		return authorizationProvider.getAuthorizations(user)
+			.map(v -> (GraphQLPermissionChecker) perm -> PermissionBasedAuthorization.create(perm.name()).match(user));
 	}
 
 	public Future<LoomRoutingContext> requirePerm(Permission... perms) {

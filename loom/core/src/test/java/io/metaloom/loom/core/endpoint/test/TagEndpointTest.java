@@ -1,12 +1,18 @@
 package io.metaloom.loom.core.endpoint.test;
 
 import static io.metaloom.loom.rest.model.assertj.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+
+import org.junit.jupiter.api.Test;
 
 import io.metaloom.loom.client.common.LoomClientException;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.endpoint.AbstractCRUDEndpointTest;
 import io.metaloom.loom.rest.model.tag.TagCreateRequest;
 import io.metaloom.loom.rest.model.tag.TagListResponse;
+import io.metaloom.loom.rest.model.tag.TagRatingRequest;
+import io.metaloom.loom.rest.model.tag.TagRatingResponse;
 import io.metaloom.loom.rest.model.tag.TagResponse;
 import io.metaloom.loom.rest.model.tag.TagUpdateRequest;
 
@@ -42,6 +48,41 @@ public class TagEndpointTest extends AbstractCRUDEndpointTest {
 		update.setName("updated-name");
 		TagResponse response = client.updateTag(TAG_UUID, update).sync().body();
 		assertThat(response).isValid();
+	}
+
+	@Test
+	public void testRating() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+
+			// No rating yet
+			TagRatingResponse initial = client.loadTagRating(TAG_UUID).sync().body();
+			assertNull(initial.getRating(), "The tag should not carry a rating initially");
+
+			// Set a rating
+			TagRatingResponse rated = client.rateTag(TAG_UUID, new TagRatingRequest().setRating(8)).sync().body();
+			assertEquals(Integer.valueOf(8), rated.getRating());
+
+			// Read it back
+			TagRatingResponse read = client.loadTagRating(TAG_UUID).sync().body();
+			assertEquals(Integer.valueOf(8), read.getRating());
+
+			// Update in place
+			client.rateTag(TAG_UUID, new TagRatingRequest().setRating(3)).sync().body();
+			assertEquals(Integer.valueOf(3), client.loadTagRating(TAG_UUID).sync().body().getRating());
+
+			// Remove it
+			client.deleteTagRating(TAG_UUID).sync().body();
+			assertNull(client.loadTagRating(TAG_UUID).sync().body().getRating(), "The rating should have been removed");
+		}
+	}
+
+	@Test
+	public void testRatingValidation() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			expect(400, "Bad Request", client.rateTag(TAG_UUID, new TagRatingRequest().setRating(42)));
+		}
 	}
 
 	@Override

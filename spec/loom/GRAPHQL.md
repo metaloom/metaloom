@@ -21,7 +21,7 @@ granular data fetching than the REST API provides.
 - **GraphQL Java Version:** 25.0
 - **Schema Loading:** SDL file at `src/main/resources/loom.graphqls`
 - **Integration:** Built but **not yet registered** in `EndpointModule` (see [LOOM.md](LOOM.md#2-module-layout))
-- **Authentication:** Not yet implemented (would need JWT/OAuth2 integration like REST)
+- **Authentication:** JWT / OAuth2 required on the endpoint plus field-level permission checks (see [§5.4](#54-authentication--authorization))
 
 ### 1.2 Relationship to Other APIs
 
@@ -263,6 +263,48 @@ To expose the GraphQL API, the following needs to be implemented:
 
 4. **CORS** - Configure for GraphQL endpoint (same as REST)
 
+### 5.4 Authentication & Authorization
+
+The GraphQL endpoint reuses the REST authentication and authorization stack — no
+GraphQL-specific auth infrastructure is introduced.
+
+**Endpoint authentication (JWT / OAuth2).** `GraphQLEndpoint.register()` calls
+`secure(basePath())`, which attaches the same `LoomAuthenticationHandler`
+(`LoomJWTAuthHandlerImpl`) used by every secured REST route. Requests without a
+valid bearer token (HttpOnly cookie or `Authorization` header) are rejected with
+HTTP `401` before the query is ever parsed. OAuth2 tokens are validated through
+the same handler as the REST API.
+
+**Field-level authorization (permissions).** Before executing a query the
+endpoint resolves the caller's authorizations once via
+`LoomRoutingContext.permissionChecker()` (which loads permissions through
+`LoomAuthorizationProvider`) and passes the resulting synchronous
+`GraphQLPermissionChecker` into the GraphQL execution context under
+`GraphQLPermissionChecker.CONTEXT_KEY`. Each data fetcher calls
+`requirePermission(env, <Permission>)`, mirroring `requirePerm(...)` on the REST
+side:
+
+| Field | Required permission |
+|-------|---------------------|
+| `Query.asset`, `Query.assets` | `READ_ASSET` |
+| `Asset.imageComponents` / `videoComponents` / `audioComponents` | `READ_ASSET` |
+| `Asset.locations` | `READ_ASSET_LOCATION` |
+
+**Error semantics.** A denied field throws a `GraphqlErrorException` surfaced in
+`ExecutionResult.getErrors()` with a `code` extension:
+
+- Missing/absent permission checker → `{ "code": "UNAUTHENTICATED" }`
+- Authenticated but lacking the permission →
+  `{ "code": "FORBIDDEN", "permission": "READ_ASSET" }`
+
+Because list fields such as `locations` are declared non-null (`[AssetLocation!]!`),
+a denial null-propagates up to the nearest nullable parent (the `asset`), per the
+GraphQL spec, while the error still pinpoints the denied field.
+
+The `loom-service-graphql` module stays free of any auth dependency: it only
+references the `Permission` enum from `loom-db-api` and the transport-supplied
+`GraphQLPermissionChecker` callback.
+
 ### 5.3 Missing: GraphiQL / Playground
 
 For development, a GraphiQL endpoint should be added:
@@ -437,7 +479,7 @@ database configuration from `DaoCollection` / `LoomOptions`.
 
 - GraphQL Java returns errors in `ExecutionResult.getErrors()`
 - DAO exceptions bubble up as GraphQL errors
-- No custom error extensions implemented yet
+- Authorization failures carry a `code` extension (`UNAUTHENTICATED` / `FORBIDDEN`); other errors have no custom extensions yet (see [§5.4](#54-authentication--authorization))
 
 ### 9.5 UUID Handling
 
@@ -500,7 +542,7 @@ database configuration from `DaoCollection` / `LoomOptions`.
   - Nested components query
   - Asset not found
   - Invalid query error handling
-- [ ] Authentication integration (JWT/OAuth2 like REST)
+- [x] Authentication integration (JWT/OAuth2 like REST) + field-level permission checks
 - [ ] CORS configuration for GraphQL endpoint
 - [ ] GraphiQL / Playground for development
 

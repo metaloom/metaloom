@@ -182,3 +182,93 @@ test.describe("Detections – backend e2e", () => {
     expect((result as Record<string, unknown>).detectionCount).toBe(3);
   });
 });
+
+/**
+ * UI-driven detection CRUD on the asset detail view's central image.
+ *
+ * Prerequisites — set env vars before running:
+ *   VITE_API_BASE_URL  – points to the running Loom backend (e.g. /api/v1)
+ *   VITE_PROXY_TARGET  – proxy target for the Vite dev server (e.g. http://localhost:8092)
+ *
+ * Unlike the raw-fetch tests above, this drives the real UI: it draws a bounding
+ * box on the image to create a detection, edits its confidence, then navigates
+ * away and back (client-side re-fetch) to prove the create + edit persisted, and
+ * finally deletes it — asserting the delete also survives a round-trip.
+ *
+ * Manually-created detections get the default label "object" (demo detections use
+ * real labels like car/person), so the test isolates its own rows by that label.
+ */
+const DETECTION_IMAGE_ASSET = "sunset-beach.jpg";
+
+async function loginAndGoToAssets(page: Page) {
+  await page.goto("/");
+  await page.getByPlaceholder("Username").fill("admin");
+  await page.getByPlaceholder("Password").fill("finger");
+  await page.getByRole("button", { name: /sign in/i }).click();
+  await expect(page.getByPlaceholder("Username")).toBeHidden({ timeout: 10_000 });
+  await page.getByRole("button", { name: "Assets" }).first().click();
+  await expect(page.getByRole("heading", { name: "Assets" })).toBeVisible({ timeout: 10_000 });
+}
+
+async function openDetectionImageAsset(page: Page) {
+  const link = page.getByText(DETECTION_IMAGE_ASSET).first();
+  await expect(link).toBeVisible({ timeout: 10_000 });
+  await link.click();
+  await expect(page).toHaveURL(/\/assets\/[0-9a-f-]+/, { timeout: 5_000 });
+  await expect(page.getByTestId("asset-detections")).toBeVisible({ timeout: 10_000 });
+  // Enter detection mode so the overlay + row list render.
+  await page.getByTestId("detection-mode-toggle").click();
+}
+
+async function drawBox(page: Page, x0: number, y0: number, x1: number, y1: number) {
+  const image = page.getByTestId("zoomable-image");
+  await expect(image).toBeVisible();
+  const box = await image.boundingBox();
+  if (!box) throw new Error("zoomable-image has no bounding box");
+  await page.mouse.move(box.x + box.width * x0, box.y + box.height * y0);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * x1, box.y + box.height * y1, { steps: 10 });
+  await page.mouse.up();
+}
+
+test.describe("Detections – UI-driven CRUD e2e", () => {
+  test("create, edit confidence and delete a detection through the object-detection screen", async ({ page }) => {
+    await loginAndGoToAssets(page);
+    await openDetectionImageAsset(page);
+
+    // Manually-created detections carry the default "object" label.
+    const objectRows = page.getByTestId("detection-row").filter({ hasText: "object" });
+    const initialCount = await objectRows.count();
+
+    // ── Create: draw a box on the image ─────────────────────────────────
+    await drawBox(page, 0.25, 0.25, 0.6, 0.6);
+    await expect(objectRows).toHaveCount(initialCount + 1, { timeout: 10_000 });
+
+    // ── Edit: set the confidence of the newly created detection ─────────
+    const newRow = objectRows.last();
+    const confidence = newRow.getByTestId("detection-confidence");
+    await confidence.fill("0.5");
+    await confidence.press("Enter");
+
+    // ── Reload (client-side re-fetch) and assert create + edit persisted ─
+    await page.locator('[data-testid="ArrowBackIcon"]').click();
+    await expect(page.getByRole("heading", { name: "Assets" })).toBeVisible({ timeout: 10_000 });
+    await openDetectionImageAsset(page);
+
+    const persistedRows = page.getByTestId("detection-row").filter({ hasText: "object" });
+    await expect(persistedRows).toHaveCount(initialCount + 1, { timeout: 10_000 });
+    // The edited confidence survived the round-trip.
+    await expect(persistedRows.last().getByTestId("detection-confidence")).toHaveValue("0.5", { timeout: 10_000 });
+
+    // ── Delete and assert the deletion persists across a reload ─────────
+    await persistedRows.last().getByTestId("detection-delete").click();
+    await expect(page.getByTestId("detection-row").filter({ hasText: "object" }))
+      .toHaveCount(initialCount, { timeout: 10_000 });
+
+    await page.locator('[data-testid="ArrowBackIcon"]').click();
+    await expect(page.getByRole("heading", { name: "Assets" })).toBeVisible({ timeout: 10_000 });
+    await openDetectionImageAsset(page);
+    await expect(page.getByTestId("detection-row").filter({ hasText: "object" }))
+      .toHaveCount(initialCount, { timeout: 10_000 });
+  });
+});

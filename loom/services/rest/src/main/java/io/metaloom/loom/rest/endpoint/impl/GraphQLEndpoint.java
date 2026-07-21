@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import graphql.ExecutionInput;
 import graphql.ExecutionResult;
+import io.metaloom.loom.graphql.GraphQLPermissionChecker;
 import io.metaloom.loom.graphql.LoomGraphQLProvider;
 import io.metaloom.loom.rest.AbstractEndpoint;
 import io.metaloom.loom.rest.EndpointDependencies;
@@ -48,13 +49,25 @@ public class GraphQLEndpoint extends AbstractEndpoint {
 	@Override
 	public void register() {
 		log.info("Registering GraphQL endpoint");
+		// Require authentication (JWT / OAuth2) for the GraphQL endpoint, reusing the same handler as the REST API.
+		secure(basePath());
 		addRoute(basePath(), POST, "Execute a GraphQL query", lrc -> {
 			handleGraphQL(lrc);
 		});
 	}
 
-	@SuppressWarnings("unchecked")
 	private void handleGraphQL(LoomRoutingContext lrc) {
+		// Resolve the authenticated user's permissions first so field level checks can run synchronously during
+		// GraphQL execution, then hand a permission checker to the data fetchers via the execution context.
+		lrc.permissionChecker()
+			.onSuccess(checker -> executeGraphQL(lrc, checker))
+			.onFailure(e -> {
+				log.error("Failed to resolve permissions for GraphQL request", e);
+				lrc.error("Failed to resolve permissions: " + e.getMessage());
+			});
+	}
+
+	private void executeGraphQL(LoomRoutingContext lrc, GraphQLPermissionChecker checker) {
 		try {
 			JsonObject body = lrc.bodyAsJson();
 
@@ -66,7 +79,8 @@ public class GraphQLEndpoint extends AbstractEndpoint {
 			}
 
 			ExecutionInput.Builder builder = ExecutionInput.newExecutionInput()
-				.query(query);
+				.query(query)
+				.graphQLContext(Map.of(GraphQLPermissionChecker.CONTEXT_KEY, checker));
 			if (operationName != null) {
 				builder.operationName(operationName);
 			}

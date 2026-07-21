@@ -1,10 +1,17 @@
 package io.metaloom.loom.rest.validation;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
+import io.metaloom.loom.nodes.spec.NodeCategory;
+import io.metaloom.loom.nodes.spec.NodeDescriptor;
 import io.metaloom.loom.nodes.spec.NodeDescriptorRegistry;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -24,6 +31,8 @@ import io.vertx.core.json.JsonObject;
  *   <li>Graph cycles (Kahn's algorithm)</li>
  *   <li>Unknown node types against the descriptor registry</li>
  *   <li>Edge references point to existing node IDs</li>
+ *   <li>Every node is reachable from the pipeline source</li>
+ *   <li>PASS/REJECT branch edges originate from a {@link NodeCategory#FILTER} node</li>
  * </ul>
  */
 public class PipelineValidationService {
@@ -53,7 +62,11 @@ public class PipelineValidationService {
 
         Set<String> nodeIds = new HashSet<>();
         List<String> allNodeIds = new ArrayList<>();
-        
+        // Kept so the branch and reachability checks below can consult a node's kind and
+        // whether it was explicitly marked as a source, without re-walking the array.
+        Map<String, String> nodeTypes = new HashMap<>();
+        Set<String> declaredSources = new LinkedHashSet<>();
+
         // Validate nodes
         for (int i = 0; i < nodes.size(); i++) {
             JsonObject node = nodes.getJsonObject(i);
@@ -78,11 +91,15 @@ public class PipelineValidationService {
             if (type == null || type.isBlank()) {
                 throw new ValidationException("Node \"" + id + "\" is missing a type");
             }
-            
+
             // Validate node type against descriptor registry
             if (!nodeDescriptorRegistry.contains(type)) {
                 throw new ValidationException(
                     "Unknown node type: \"" + type + "\" — not found in descriptor registry");
+            }
+            nodeTypes.put(id, type);
+            if (node.getBoolean("source", false)) {
+                declaredSources.add(id);
             }
         }
 
@@ -117,6 +134,110 @@ public class PipelineValidationService {
                 throw new ValidationException(
                     "Cycle detected in pipeline graph — nodes form a circular dependency");
             }
+
+            // A PASS/REJECT edge only makes sense downstream of a filter: those are the
+            // only nodes that emit a filter_passed verdict for the branch to read.
+            validateBranchesOriginateFromFilters(edges, nodeTypes);
+
+            // A node the source cannot reach would never be dispatched. Silently ignoring
+            // it is how a broken graph used to look like it ran green while doing nothing;
+            // reject it instead.
+            validateReachableFromSource(allNodeIds, edges, declaredSources);
+        }
+    }
+
+    /**
+     * Reject PASS/REJECT branch edges whose source node is not a filter.
+     *
+     * <p>Only a {@link NodeCategory#FILTER} node writes the {@code filter_passed}
+     * verdict that a conditional edge routes on, so a branch declared off any other
+     * kind can never be taken - it is a wiring mistake, not a valid pipeline.</p>
+     */
+    private void validateBranchesOriginateFromFilters(JsonArray edges, Map<String, String> nodeTypes) {
+        for (int i = 0; i < edges.size(); i++) {
+            JsonObject edge = edges.getJsonObject(i);
+            String branch = edge.getString("branch");
+            if (branch == null || branch.isBlank()) {
+                continue;
+            }
+            String normalized = branch.trim().toUpperCase();
+            if (normalized.equals("ANY")) {
+                continue;
+            }
+            String source = edge.getString("source");
+            String target = edge.getString("target");
+            if (!normalized.equals("PASS") && !normalized.equals("REJECT")) {
+                throw new ValidationException("Edge \"" + source + "\" -> \"" + target
+                    + "\" has unknown branch \"" + branch + "\" — expected ANY, PASS or REJECT");
+            }
+            String type = nodeTypes.get(source);
+            NodeDescriptor descriptor = type == null ? null : nodeDescriptorRegistry.get(type);
+            if (descriptor == null || descriptor.getCategory() != NodeCategory.FILTER) {
+                throw new ValidationException("Edge \"" + source + "\" -> \"" + target + "\" declares branch "
+                    + normalized + " but \"" + source + "\" is not a filter node — only filter nodes emit "
+                    + "PASS/REJECT branches");
+            }
+        }
+    }
+
+    /**
+     * Reject definitions with nodes that cannot be reached from the source.
+     *
+     * <p>The start set is the explicitly declared source(s) when present, otherwise the
+     * dependency-free roots. Walking the directed graph from there, any node left
+     * unvisited is an orphan: connected to nothing the source produces, so it can never
+     * run. A common way to introduce one is to mark a source node explicitly and leave a
+     * second, disconnected root behind.</p>
+     */
+    private void validateReachableFromSource(List<String> nodeIds, JsonArray edges, Set<String> declaredSources) {
+        Map<String, List<String>> adjacency = new HashMap<>();
+        Map<String, Integer> inDegree = new HashMap<>();
+        for (String id : nodeIds) {
+            adjacency.put(id, new ArrayList<>());
+            inDegree.put(id, 0);
+        }
+        for (int i = 0; i < edges.size(); i++) {
+            JsonObject edge = edges.getJsonObject(i);
+            String source = edge.getString("source");
+            String target = edge.getString("target");
+            if (source != null && target != null && adjacency.containsKey(source) && inDegree.containsKey(target)) {
+                adjacency.get(source).add(target);
+                inDegree.put(target, inDegree.get(target) + 1);
+            }
+        }
+
+        Set<String> start = new LinkedHashSet<>();
+        if (!declaredSources.isEmpty()) {
+            start.addAll(declaredSources);
+        } else {
+            for (String id : nodeIds) {
+                if (inDegree.get(id) == 0) {
+                    start.add(id);
+                }
+            }
+        }
+        if (start.isEmpty()) {
+            // No root at all means every node is on a cycle, which cycle detection has
+            // already rejected. Nothing left to say here.
+            return;
+        }
+
+        Set<String> reachable = new HashSet<>(start);
+        Deque<String> queue = new ArrayDeque<>(start);
+        while (!queue.isEmpty()) {
+            String id = queue.poll();
+            for (String target : adjacency.get(id)) {
+                if (reachable.add(target)) {
+                    queue.add(target);
+                }
+            }
+        }
+
+        if (reachable.size() != nodeIds.size()) {
+            List<String> orphans = new ArrayList<>(nodeIds);
+            orphans.removeAll(reachable);
+            throw new ValidationException("Unreachable node(s): " + orphans
+                + " — every node must be reachable from the pipeline source");
         }
     }
 

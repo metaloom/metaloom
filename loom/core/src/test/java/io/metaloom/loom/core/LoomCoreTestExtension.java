@@ -2,6 +2,7 @@ package io.metaloom.loom.core;
 
 import java.io.File;
 import java.time.Duration;
+import java.util.function.Consumer;
 
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
@@ -25,6 +26,22 @@ public class LoomCoreTestExtension implements BeforeEachCallback, AfterEachCallb
 	public static LoomProviderExtension ext = LoomProviderExtension.create();
 
 	private LoomCoreComponent loomInternal;
+
+	private Consumer<LoomOptions> optionsCustomizer = o -> {
+	};
+
+	/**
+	 * Register a customizer that is applied to the {@link LoomOptions} right before the Dagger
+	 * component is built in {@link #beforeEach(ExtensionContext)}. Use this to toggle options that
+	 * are read at injection time - e.g. MCP authentication ({@code o.getAuth().setMcpAuthEnabled(true)}).
+	 *
+	 * @param customizer options customizer, applied once per boot
+	 * @return this extension for fluent chaining
+	 */
+	public LoomCoreTestExtension withOptions(Consumer<LoomOptions> customizer) {
+		this.optionsCustomizer = customizer;
+		return this;
+	}
 
 	public LoomHttpClient httpClient() {
 		return LoomHttpClient.builder()
@@ -71,6 +88,11 @@ public class LoomCoreTestExtension implements BeforeEachCallback, AfterEachCallb
 		if (keystoreFile.exists()) {
 			keystoreFile.delete();
 		}
+		// Apply test-specific option overrides before the component is built. Auth flags such as
+		// mcpAuthEnabled are read at injection time (MCPAuthenticationHandler constructor), so the
+		// customizer must run before DaggerLoomCoreComponent is built below.
+		optionsCustomizer.accept(options);
+
 		LoomOptionsLookup optionsLookup = new LoomOptionsLookup(baseFolder, options);
 		loomInternal = DaggerLoomCoreComponent.builder().configuration(optionsLookup).build();
 		loomInternal.boot().init(false);

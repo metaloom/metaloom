@@ -48,6 +48,7 @@ import io.metaloom.loom.rest.model.library.LibraryCreateRequest;
 import io.metaloom.loom.rest.model.library.LibraryResponse;
 import io.metaloom.loom.rest.model.reaction.ReactionCreateRequest;
 import io.metaloom.loom.rest.model.reaction.ReactionResponse;
+import io.metaloom.loom.rest.model.reaction.ReactionUpdateRequest;
 import io.metaloom.loom.rest.model.tag.TagCreateRequest;
 import io.metaloom.loom.rest.model.tag.TagResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineCreateRequest;
@@ -238,6 +239,20 @@ public class CombinedEndpointTest extends AbstractEndpointTest {
 			ReactionResponse reaction1 = client.createAssetReaction(asset.getUuid(), reactionRequest).sync().body();
 			ReactionResponse reaction2 = client.createCommentReaction(comment.getUuid(), reactionRequest).sync().body();
 			ReactionResponse reaction3 = client.createTaskReaction(task.getUuid(), reactionRequest).sync().body();
+
+			// The rating and type must round-trip through create and the reload.
+			assertEquals(42, reaction1.getRating(), "The created asset reaction should carry the rating");
+			assertEquals(ReactionType.PLUS_ONE, reaction1.getType(), "The created asset reaction should carry the type");
+			ReactionResponse reloadedReaction = client.loadAssetReaction(asset.getUuid(), reaction1.getUuid()).sync().body();
+			assertEquals(42, reloadedReaction.getRating(), "The reloaded asset reaction should still carry the rating");
+
+			// Updating the reaction persists the new rating.
+			ReactionUpdateRequest reactionUpdateRequest = new ReactionUpdateRequest();
+			reactionUpdateRequest.setRating(7);
+			reactionUpdateRequest.setType(ReactionType.THUMBSUP);
+			ReactionResponse updatedReaction = client.updateAssetReaction(asset.getUuid(), reaction1.getUuid(), reactionUpdateRequest).sync().body();
+			assertEquals(7, updatedReaction.getRating(), "The updated asset reaction should carry the new rating");
+			assertEquals(ReactionType.THUMBSUP, updatedReaction.getType(), "The updated asset reaction should carry the new type");
 
 			// Pipeline CRUD
 			PipelineCreateRequest pipelineRequest = new PipelineCreateRequest();

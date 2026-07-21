@@ -11,14 +11,16 @@ import { tokens } from "../../theme";
 import { DetectedObject } from "../../types";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
+import { useToast } from "../../context/ToastContext";
 import { listAssets, AssetResponse } from "../../api/assets";
-import { listAssetDetections } from "../../api/detections";
+import { listAssetDetections, updateDetection, deleteDetection } from "../../api/detections";
 
 export default function ObjectDetectionManagement() {
   const [query, setQuery] = useState("");
   const [decisions, setDecisions] = useState<Record<string, "confirmed" | "rejected">>({});
   const { t } = useTranslation();
   const { token } = useAuth();
+  const { showToast } = useToast();
   const [assetMap, setAssetMap] = useState<Record<string, AssetResponse>>({});
   const [detectedObjects, setDetectedObjects] = useState<DetectedObject[]>([]);
 
@@ -64,6 +66,27 @@ export default function ObjectDetectionManagement() {
   const filtered = query.trim()
     ? grouped.filter(([label]) => label.toLowerCase().includes(query.toLowerCase()))
     : grouped;
+
+  // Confirm marks the detection as reviewed (meta.confirmed); reject deletes it. Both persist.
+  const handleConfirm = async (obj: DetectedObject) => {
+    if (!token) return;
+    try {
+      await updateDetection(token, obj.assetId, obj.id, { meta: { label: obj.label, confirmed: true } });
+      setDecisions(prev => ({ ...prev, [obj.id]: "confirmed" }));
+    } catch {
+      showToast(t("objectDetection.confirmError"), "error");
+    }
+  };
+
+  const handleReject = async (obj: DetectedObject) => {
+    if (!token) return;
+    try {
+      await deleteDetection(token, obj.assetId, obj.id);
+      setDetectedObjects(prev => prev.filter(o => o.id !== obj.id));
+    } catch {
+      showToast(t("objectDetection.rejectError"), "error");
+    }
+  };
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
@@ -117,8 +140,8 @@ export default function ObjectDetectionManagement() {
                         <Chip label={dec} size="small" sx={{ height: 18, fontSize: "0.64rem", fontWeight: 600, bgcolor: dec === "confirmed" ? `${tokens.accent.green}18` : `${tokens.accent.red}18`, color: dec === "confirmed" ? tokens.accent.green : tokens.accent.red }} />
                       ) : (
                         <Box sx={{ display: "flex", gap: 0.5 }}>
-                          <Tooltip title={t("objectDetection.tooltip.confirm")}><IconButton size="small" onClick={() => setDecisions(prev => ({ ...prev, [obj.id]: "confirmed" }))} sx={{ width: 24, height: 24, bgcolor: `${tokens.accent.green}18`, "&:hover": { bgcolor: `${tokens.accent.green}33` } }}><CheckOutlined sx={{ fontSize: 12, color: tokens.accent.green }} /></IconButton></Tooltip>
-                          <Tooltip title={t("objectDetection.tooltip.reject")}><IconButton size="small" onClick={() => setDecisions(prev => ({ ...prev, [obj.id]: "rejected" }))} sx={{ width: 24, height: 24, bgcolor: `${tokens.accent.red}18`, "&:hover": { bgcolor: `${tokens.accent.red}33` } }}><CloseOutlined sx={{ fontSize: 12, color: tokens.accent.red }} /></IconButton></Tooltip>
+                          <Tooltip title={t("objectDetection.tooltip.confirm")}><IconButton size="small" data-testid="objectdetection-confirm" onClick={() => handleConfirm(obj)} sx={{ width: 24, height: 24, bgcolor: `${tokens.accent.green}18`, "&:hover": { bgcolor: `${tokens.accent.green}33` } }}><CheckOutlined sx={{ fontSize: 12, color: tokens.accent.green }} /></IconButton></Tooltip>
+                          <Tooltip title={t("objectDetection.tooltip.reject")}><IconButton size="small" data-testid="objectdetection-reject" onClick={() => handleReject(obj)} sx={{ width: 24, height: 24, bgcolor: `${tokens.accent.red}18`, "&:hover": { bgcolor: `${tokens.accent.red}33` } }}><CloseOutlined sx={{ fontSize: 12, color: tokens.accent.red }} /></IconButton></Tooltip>
                         </Box>
                       )}
                     </Box>

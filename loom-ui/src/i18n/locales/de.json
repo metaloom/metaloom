@@ -784,6 +784,12 @@
       "loading": "Läufe werden geladen…",
       "cancel": "Lauf abbrechen"
     },
+    "runDetail": {
+      "title": "Lauf-Detail",
+      "items": "Einträge",
+      "noItems": "Keine Einträge für diesen Lauf aufgezeichnet",
+      "loading": "Einträge werden geladen…"
+    },
     "inspector": {
       "empty": "Wählen Sie eine Pipeline zur Inspektion",
       "enabled": "aktiviert",
@@ -967,6 +973,8 @@
     "label": {
       "confidence": "Konfidenz: {{pct}}%"
     },
+    "confirmError": "Erkennung konnte nicht bestätigt werden",
+    "rejectError": "Erkennung konnte nicht gelöscht werden",
     "empty": "Keine Objekterkennungen gefunden"
   },
   "faceDetection": {
@@ -1226,6 +1234,17 @@
       "created": "Erstellt",
       "description": "Beschreibung"
     },
+    "location": {
+      "title": "Speicherort(e)",
+      "empty": "Kein Speicherort – das Asset hat noch keine Binärdatei.",
+      "pool": "Pool",
+      "path": "Pfad",
+      "state": "Status",
+      "license": "Lizenz",
+      "locked": "Gesperrt",
+      "mime": "MIME",
+      "viewPool": "Speicher-Pool anzeigen"
+    },
     "action": {
       "process": "Verarbeiten",
       "createTask": "Aufgabe erstellen",
@@ -1263,6 +1282,25 @@
       "regionCaptured": "Region erfasst — Namen eingeben und Enter drücken",
       "regionTooltip": "Region-Tag (Zeit / Bereich)",
       "newRegion": "neue Region"
+    },
+    "detection": {
+      "label": "Erkennungen",
+      "defaultLabel": "Objekt",
+      "modeToggle": "Erkennungsmodus: Box im Bild zeichnen, um eine Objekterkennung hinzuzufügen",
+      "bulkToggle": "Massenmodus: mehrere Boxen zeichnen und alle auf einmal speichern",
+      "hint": "Box im Bild zeichnen, um eine Erkennung hinzuzufügen",
+      "bulkHint": "Boxen zeichnen, dann „Alle speichern“",
+      "redrawHint": "Neue Box für die ausgewählte Erkennung zeichnen",
+      "staged": "vorgemerkt",
+      "saveAll": "Alle speichern ({{count}})",
+      "confidence": "Konfidenz",
+      "redraw": "Begrenzungsrahmen neu zeichnen",
+      "confirm": "Erkennung bestätigen",
+      "delete": "Erkennung löschen",
+      "empty": "Noch keine Erkennungen — Box zeichnen, um eine hinzuzufügen",
+      "createError": "Erkennung konnte nicht erstellt werden",
+      "updateError": "Erkennung konnte nicht aktualisiert werden",
+      "deleteError": "Erkennung konnte nicht gelöscht werden"
     },
     "sidebar": {
       "filterPlaceholder": "Filtern…"

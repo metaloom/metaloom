@@ -27,7 +27,7 @@ import io.metaloom.loom.rest.model.asset.info.GeoLocationInfo;
 import io.metaloom.loom.rest.model.asset.info.HashInfo;
 import io.metaloom.loom.rest.model.asset.info.ImageInfo;
 import io.metaloom.loom.rest.model.asset.info.VideoInfo;
-import io.metaloom.loom.rest.model.asset.location.AssetLocationReference;
+import io.metaloom.loom.rest.model.asset.location.AssetLocationResponse;
 import io.metaloom.loom.rest.model.asset.location.license.LicenseInfo;
 import io.metaloom.loom.rest.model.asset.location.social.SocialInfo;
 import io.metaloom.loom.rest.model.tag.TagReference;
@@ -88,9 +88,9 @@ public interface AssetModelBuilder extends ModelBuilder, UserModelBuilder, Asset
 			.map(this::toDocumentInfo).collect(Collectors.toList());
 		response.setDocumentComponents(docList);
 
-		List<AssetLocation> locations = new ArrayList<>();
-		List<AssetLocationReference> locationRefs = locations.stream().map(this::toReference).collect(Collectors.toList());
-		response.setLocations(locationRefs);
+		List<AssetLocation> locations = daos().assetLocationDao().findForAsset(assetUuid);
+		List<AssetLocationResponse> locationModels = locations.stream().map(this::toResponse).collect(Collectors.toList());
+		response.setLocations(locationModels);
 
 		response.setTags(assetTags(asset));
 		List<Annotation> annotations = daos().annotationDao().loadForAsset(assetUuid);

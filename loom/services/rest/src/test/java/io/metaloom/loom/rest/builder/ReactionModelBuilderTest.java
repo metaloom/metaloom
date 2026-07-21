@@ -33,6 +33,9 @@ public class ReactionModelBuilderTest extends AbstractModelBuilderTest {
 	private Reaction mockReaction(String title) {
 		Reaction reaction = mock(Reaction.class);
 		when(reaction.getUuid()).thenReturn(TASK_UUID);
+		when(reaction.getType()).thenReturn("THUMBSUP");
+		when(reaction.getRating()).thenReturn(5);
+		mockCreatorEditor(reaction);
 		return reaction;
 	}
 

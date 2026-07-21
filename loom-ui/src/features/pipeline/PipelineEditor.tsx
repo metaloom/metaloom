@@ -13,7 +13,7 @@ import {
   List, ListItemButton, ListItemText, ListItemIcon, Switch, Stack, Avatar, Collapse, TextField,
   Autocomplete, InputAdornment, Popper, ClickAwayListener, MenuItem,
   Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button,
-  Snackbar, Alert, Popover, CircularProgress,
+  Snackbar, Alert, Popover, CircularProgress, Drawer,
 } from "@mui/material";
 import {
   PlayArrowOutlined, AccountTreeOutlined, CheckCircleOutline,
@@ -42,6 +42,7 @@ import {
   updatePipeline, runPipeline, cancelPipelineRun, listPipelineRuns, type PipelineUpdateRequest,
   createPipeline, deletePipeline, type PipelineCreateRequest,
   type PipelineRunRecord,
+  listPipelineRunItems, type PipelineRunItemRecord,
   listPipelineVersions, restorePipelineVersion,
 } from "../../api/pipelines";
 import { subscribePipelineEvents, type PipelineEventMessage } from "../../api/pipelineEvents";
@@ -458,7 +459,7 @@ function toRFEdges(edges: Pipeline["definition"]["edges"]): RFEdge[] {
 }
 
 // ── Run History Panel ─────────────────────────────────────────────────────
-function RunHistory({ runs, loading, onCancel }: { runs: PipelineRunRecord[]; loading?: boolean; onCancel?: (runUuid: string) => void }) {
+function RunHistory({ runs, loading, onCancel, onSelect }: { runs: PipelineRunRecord[]; loading?: boolean; onCancel?: (runUuid: string) => void; onSelect?: (run: PipelineRunRecord) => void }) {
   const { t } = useTranslation();
   if (loading) {
     return (
@@ -497,7 +498,21 @@ function RunHistory({ runs, loading, onCancel }: { runs: PipelineRunRecord[]; lo
         const isCancelled = status === "cancelled" || status === "canceled";
         const dateStr = r.started ? new Date(r.started).toLocaleString() : "";
         return (
-          <Paper key={r.uuid} elevation={0} sx={{ bgcolor: tokens.bg.overlay, border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, p: 1.25 }}>
+          <Paper
+            key={r.uuid}
+            elevation={0}
+            data-testid={`pipeline-run-row-${r.uuid}`}
+            onClick={onSelect ? () => onSelect(r) : undefined}
+            sx={{
+              bgcolor: tokens.bg.overlay,
+              border: `1px solid ${tokens.border.subtle}`,
+              borderRadius: tokens.radius.md,
+              p: 1.25,
+              cursor: onSelect ? "pointer" : "default",
+              transition: "border-color 0.15s, background-color 0.15s",
+              ...(onSelect ? { "&:hover": { borderColor: tokens.border.default, bgcolor: tokens.bg.surface } } : {}),
+            }}
+          >
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
               {isSuccess ? <CheckCircleOutline sx={{ fontSize: 14, color: tokens.accent.green }} /> :
                 isFailed ? <ErrorOutline sx={{ fontSize: 14, color: tokens.accent.red }} /> :
@@ -519,7 +534,7 @@ function RunHistory({ runs, loading, onCancel }: { runs: PipelineRunRecord[]; lo
                     data-testid={`pipeline-run-cancel-${r.uuid}`}
                     aria-label={t("pipeline.runHistory.cancel") || "Cancel run"}
                     size="small"
-                    onClick={() => onCancel(r.uuid)}
+                    onClick={(e) => { e.stopPropagation(); onCancel(r.uuid); }}
                     sx={{ width: 20, height: 20, color: tokens.text.tertiary, "&:hover": { color: tokens.accent.red } }}
                   >
                     <StopCircleOutlined sx={{ fontSize: 15 }} />
@@ -546,6 +561,119 @@ function RunHistory({ runs, loading, onCancel }: { runs: PipelineRunRecord[]; lo
         );
       })}
     </Box>
+  );
+}
+
+// ── Run Detail Drawer ─────────────────────────────────────────────────────
+
+/** Map a run-item state to an accent colour. Unknown states fall back to tertiary. */
+function runItemStateColor(state: string): string {
+  switch (state.toUpperCase()) {
+    case "SUCCESS": return tokens.accent.green;
+    case "FAILED": return tokens.accent.red;
+    case "RUNNING": return tokens.accent.amber;
+    case "PENDING": return tokens.accent.blue;
+    case "SKIPPED": return tokens.text.tertiary;
+    default: return tokens.text.tertiary;
+  }
+}
+
+function RunDetailDrawer({ run, items, loading, onClose }: {
+  run: PipelineRunRecord | null;
+  items: PipelineRunItemRecord[];
+  loading?: boolean;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const open = !!run;
+  const accent = run ? runItemStateColor(run.status) : tokens.text.tertiary;
+  return (
+    <Drawer
+      anchor="right"
+      open={open}
+      onClose={onClose}
+      PaperProps={{ sx: { width: 440, bgcolor: tokens.bg.surface, border: `1px solid ${tokens.border.default}`, backgroundImage: "none" } }}
+      data-testid="pipeline-run-detail-drawer"
+    >
+      <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+        {/* Header */}
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, p: 2, borderBottom: `1px solid ${tokens.border.subtle}` }}>
+          <Box sx={{ width: 4, height: 28, borderRadius: 2, bgcolor: accent }} />
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Typography variant="subtitle1" fontWeight={700} noWrap>
+              {t("pipeline.runDetail.title")}
+            </Typography>
+            {run && (
+              <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontFamily: "monospace" }} noWrap>
+                {run.uuid}
+              </Typography>
+            )}
+          </Box>
+          {run && (
+            <Chip
+              label={run.status}
+              size="small"
+              sx={{ bgcolor: `${accent}22`, color: accent, border: `1px solid ${accent}44`, fontWeight: 700 }}
+            />
+          )}
+          <IconButton size="small" onClick={onClose} aria-label="close" data-testid="pipeline-run-detail-close">
+            <CloseOutlined sx={{ fontSize: 18 }} />
+          </IconButton>
+        </Box>
+
+        {/* Body */}
+        <Box sx={{ flex: 1, overflow: "auto", p: 2, display: "flex", flexDirection: "column", gap: 1 }}>
+          <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.07em", color: tokens.text.tertiary, fontSize: "0.68rem" }}>
+            {t("pipeline.runDetail.items")}
+          </Typography>
+          {loading ? (
+            <Typography variant="caption" sx={{ color: tokens.text.tertiary }} data-testid="pipeline-run-items-loading">
+              {t("pipeline.runDetail.loading")}
+            </Typography>
+          ) : items.length === 0 ? (
+            <Typography variant="caption" sx={{ color: tokens.text.tertiary }} data-testid="pipeline-run-items-empty">
+              {t("pipeline.runDetail.noItems")}
+            </Typography>
+          ) : (
+            items.map(item => {
+              const c = runItemStateColor(item.state);
+              return (
+                <Paper
+                  key={item.uuid}
+                  elevation={0}
+                  data-testid="pipeline-run-item"
+                  data-state={item.state}
+                  sx={{ bgcolor: tokens.bg.overlay, border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, p: 1.25 }}
+                >
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+                    <Chip
+                      label={item.state}
+                      size="small"
+                      sx={{ height: 18, fontSize: "0.6rem", bgcolor: `${c}22`, color: c, border: `1px solid ${c}44`, fontWeight: 700 }}
+                    />
+                    <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem", ml: "auto" }}>
+                      #{item.itemSeq}
+                    </Typography>
+                  </Box>
+                  <Typography variant="caption" sx={{ color: tokens.text.secondary, fontSize: "0.72rem", display: "block", wordBreak: "break-all" }}>
+                    {item.mediaPath}
+                  </Typography>
+                  {item.errorMessage && (
+                    <Typography
+                      variant="caption"
+                      data-testid="pipeline-run-item-error"
+                      sx={{ color: tokens.accent.red, fontSize: "0.65rem", display: "block", mt: 0.5, fontFamily: "monospace", wordBreak: "break-all" }}
+                    >
+                      {item.errorMessage}
+                    </Typography>
+                  )}
+                </Paper>
+              );
+            })
+          )}
+        </Box>
+      </Box>
+    </Drawer>
   );
 }
 
@@ -775,7 +903,7 @@ function PipelineVersionBadge({
 }
 
 // ── Pipeline Inspector (right stats panel) ────────────────────────────────
-function PipelineInspector({ pipeline, runs, runsLoading, onCancelRun }: { pipeline: Pipeline | null; runs: PipelineRunRecord[]; runsLoading: boolean; onCancelRun?: (runUuid: string) => void }) {
+function PipelineInspector({ pipeline, runs, runsLoading, onCancelRun, onSelectRun }: { pipeline: Pipeline | null; runs: PipelineRunRecord[]; runsLoading: boolean; onCancelRun?: (runUuid: string) => void; onSelectRun?: (run: PipelineRunRecord) => void }) {
   const { t } = useTranslation();
   if (!pipeline) {
     return (
@@ -841,7 +969,7 @@ function PipelineInspector({ pipeline, runs, runsLoading, onCancelRun }: { pipel
 
       {/* Scrollable run history */}
       <Box sx={{ flex: 1, overflow: "auto" }}>
-        <RunHistory runs={runs} loading={runsLoading} onCancel={onCancelRun} />
+        <RunHistory runs={runs} loading={runsLoading} onCancel={onCancelRun} onSelect={onSelectRun} />
       </Box>
     </Box>
   );
@@ -1859,6 +1987,10 @@ export default function PipelineEditor() {
   // Live run history from the server
   const [pipelineRuns, setPipelineRuns] = useState<PipelineRunRecord[]>([]);
   const [runsLoading, setRunsLoading] = useState(false);
+  // Run detail drill-down (drawer): the selected run and its items.
+  const [selectedRun, setSelectedRun] = useState<PipelineRunRecord | null>(null);
+  const [runItems, setRunItems] = useState<PipelineRunItemRecord[]>([]);
+  const [runItemsLoading, setRunItemsLoading] = useState(false);
 
   // Version history
   const [versions, setVersions] = useState<PipelineResponse[]>([]);
@@ -1904,6 +2036,22 @@ export default function PipelineEditor() {
   }, [token, selected?.id]);
 
   useEffect(() => { loadRuns(); }, [loadRuns]);
+
+  // Open the run-detail drawer for a run and fetch its items.
+  const openRunDetail = useCallback((run: PipelineRunRecord) => {
+    setSelectedRun(run);
+    if (!token || !selected) { setRunItems([]); return; }
+    setRunItemsLoading(true);
+    listPipelineRunItems(token, selected.id, run.uuid)
+      .then(items => setRunItems(items))
+      .catch(() => setRunItems([]))
+      .finally(() => setRunItemsLoading(false));
+  }, [token, selected?.id]);
+
+  const closeRunDetail = useCallback(() => {
+    setSelectedRun(null);
+    setRunItems([]);
+  }, []);
 
   // Reset live run state and subscribe to the pipeline-events WebSocket while a
   // pipeline is selected. The socket is shared (see api/pipelineEvents.ts) and
@@ -2872,9 +3020,12 @@ export default function PipelineEditor() {
           </Tooltip>
         )}
         <Box sx={{ flex: 1, overflow: "hidden" }}>
-          <PipelineInspector pipeline={selected} runs={pipelineRuns} runsLoading={runsLoading} onCancelRun={handleCancelRun} />
+          <PipelineInspector pipeline={selected} runs={pipelineRuns} runsLoading={runsLoading} onCancelRun={handleCancelRun} onSelectRun={openRunDetail} />
         </Box>
       </Box>
+
+      {/* Run detail drill-down drawer */}
+      <RunDetailDrawer run={selectedRun} items={runItems} loading={runItemsLoading} onClose={closeRunDetail} />
 
       {/* Version diff — compare a previous version with the current one */}
       {selected && (

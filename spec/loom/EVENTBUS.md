@@ -195,7 +195,7 @@ This is the critical bridge between the in-process cortex `PipelineEventBus` and
 
 ### 3.9 UI Client
 
-**`loom-ui/src/api/pipelineEvents.ts`** - TypeScript client that opens a WebSocket to `/api/v1/pipelines/events/ws`, parses `PipelineEventMessage` JSON, and dispatches to registered listeners. Supports lazy connection, auto-reconnect (3s delay), and token auth via `?token=` query param.
+**`loom-ui/src/api/pipelineEvents.ts`** - TypeScript client that opens a WebSocket to `/api/v1/pipelines/events/ws`, parses `PipelineEventMessage` JSON, and dispatches to registered listeners. Supports lazy connection, auto-reconnect with exponential backoff + jitter (bounded by `maxAttempts`, default 10), connection-state events (`connecting`/`connected`/`disconnected`/`failed`) via `subscribeConnectionState`, tunable via `configureReconnect`, and token auth via `?token=` query param.
 
 **`loom-ui/src/Pipeline/PipelineArea.tsx`** - React component that subscribes to live events and updates `nodeStates` in real time, mapping `PipelineEventType` -> visual node status (`processing`, `completed`, `failed`, `skipped`, `buffered`).
 

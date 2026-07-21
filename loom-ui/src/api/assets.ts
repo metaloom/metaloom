@@ -76,6 +76,49 @@ export interface CreatorEditorStatus {
   edited?: string;
 }
 
+/** Linux filesystem key identifying a file (see FileKey.java). */
+export interface FileKeyInfo {
+  inode?: number;
+  stDev?: number;
+  edate?: number;
+  edateNano?: number;
+}
+
+/** Filesystem placement of a location (see AssetLocationFilesystemInfo.java). */
+export interface AssetLocationFilesystemInfo {
+  path?: string;
+  filekey?: FileKeyInfo;
+  lastSeen?: string;
+}
+
+/** S3 placement of a location (see AssetS3Meta.java). */
+export interface AssetS3Meta {
+  bucket?: string;
+  objectPath?: string;
+}
+
+/**
+ * A storage location of the asset binary, embedded in the asset response.
+ * Matches AssetLocationResponse built by AssetLocationModelBuilder.java.
+ */
+export interface AssetLocationInfo {
+  uuid: string;
+  status?: CreatorEditorStatus;
+  meta?: Record<string, unknown>;
+  assetUuid?: string;
+  libraryUuid?: string;
+  /** Reference to the storage pool holding the binary; links to the Asset Pools view. */
+  poolUuid?: string;
+  mimeType?: string;
+  /** Current state of the location (e.g. "PRESENT", "MISSING"). */
+  state?: string;
+  license?: string;
+  /** Uuid of the user currently holding a lock on this location. */
+  lockedByUuid?: string;
+  filesystem?: AssetLocationFilesystemInfo;
+  s3?: AssetS3Meta;
+}
+
 export interface AssetResponse {
   uuid: string;
   status?: CreatorEditorStatus;
@@ -90,7 +133,7 @@ export interface AssetResponse {
   videoComponents?: VideoInfo[];
   audioComponents?: AudioInfo[];
   documentComponents?: DocumentInfo[];
-  locations?: unknown[];
+  locations?: AssetLocationInfo[];
   embeddings?: unknown[];
   fingerprint?: unknown;
   social?: unknown;

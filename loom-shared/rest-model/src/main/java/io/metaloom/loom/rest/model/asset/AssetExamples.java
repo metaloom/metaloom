@@ -50,7 +50,7 @@ public interface AssetExamples extends ExampleValues, AssetLocationExamples {
 		model.setFile(assetFileInfo());
 		// model.getLicenses().add(new LicenseInfo().setName("license-name").setVersion("v1"));
 		model.setMeta(meta());
-		model.addLocation(locationReference());
+		model.addLocation(locationResponse());
 		model.setGeo(assetGeoLocation())
 			.setAnnotations(assetAnnotations());
 

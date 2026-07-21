@@ -389,7 +389,6 @@ router.getDelegate().route().handler(BodyHandler.create().setBodyLimit(-1));  //
 | **gRPC Port Hardcoded** | `GrpcService` uses `port=0` and `host=localhost` instead of `ServerOptions` | gRPC port not configurable via config/env |
 | **gRPC Service Disabled** | `GrpcService` is commented out in `BootstrapInitializer` constructor | gRPC not started by default |
 | **Monitoring Port Unused** | `monitoringPort` defined but no service binds to it | Reserved for future use |
-| **MCP Port Hardcoded** | `MCPService.DEFAULT_MCP_PORT = 4041` not in `ServerOptions` | MCP port not configurable via config/env |
 | **Single HttpServer** | REST and UI share one `HttpServer` instance | Cannot independently configure REST vs UI ports |
 | **Auth Service Disabled** | `authService.init()` commented out in `BootstrapInitializer` | Authentication not initialized on startup |
 

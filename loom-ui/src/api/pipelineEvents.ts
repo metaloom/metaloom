@@ -45,6 +45,85 @@ export interface ProcessorEventMessage {
   lastSeen?: string;
 }
 
+// --- Reconnection configuration ---
+//
+// Reconnections use exponential backoff with jitter and a bounded number of
+// attempts. Jitter spreads retries out so that many clients waking from a
+// server restart don't reconnect in lock-step (thundering herd).
+
+export interface ReconnectOptions {
+  /** First-attempt delay in ms; doubled on each subsequent attempt. */
+  baseDelayMs: number;
+  /** Upper bound on the (pre-jitter) backoff delay in ms. */
+  maxDelayMs: number;
+  /** Maximum number of reconnection attempts before giving up. */
+  maxAttempts: number;
+  /** When true, multiply the delay by 0.5 + random() to de-synchronize peers. */
+  jitter: boolean;
+}
+
+const DEFAULT_RECONNECT_OPTIONS: ReconnectOptions = {
+  baseDelayMs: 1000,
+  maxDelayMs: 30000,
+  maxAttempts: 10,
+  jitter: true,
+};
+
+let reconnectOptions: ReconnectOptions = { ...DEFAULT_RECONNECT_OPTIONS };
+
+/** Override reconnection behaviour. Merges over the current options. */
+export function configureReconnect(opts: Partial<ReconnectOptions>): void {
+  reconnectOptions = { ...reconnectOptions, ...opts };
+}
+
+/** Current reconnection options (a copy — mutating it has no effect). */
+export function getReconnectOptions(): ReconnectOptions {
+  return { ...reconnectOptions };
+}
+
+/**
+ * Backoff delay for a given zero-based attempt:
+ *
+ *   delay = min(baseDelay * 2^attempt, maxDelay)
+ *
+ * and, when jitter is enabled, `delay *= 0.5 + random()` so the effective
+ * delay lands anywhere in [0.5x, 1.5x) of the capped value.
+ */
+export function computeReconnectDelay(
+  attempt: number,
+  opts: ReconnectOptions = reconnectOptions,
+): number {
+  const capped = Math.min(opts.maxDelayMs, opts.baseDelayMs * 2 ** attempt);
+  if (!opts.jitter) {
+    return capped;
+  }
+  return capped * (0.5 + Math.random());
+}
+
+// --- Connection state events ---
+
+export type ConnectionState = "connecting" | "connected" | "disconnected" | "failed";
+type ConnectionStateListener = (state: ConnectionState) => void;
+const connectionStateListeners = new Set<ConnectionStateListener>();
+
+/**
+ * Observe connection-lifecycle transitions: `connecting` (socket opening),
+ * `connected` (handshake complete), `disconnected` (socket closed, a retry may
+ * follow) and `failed` (retry budget exhausted). Returns an unsubscribe fn.
+ */
+export function subscribeConnectionState(listener: ConnectionStateListener): () => void {
+  connectionStateListeners.add(listener);
+  return () => {
+    connectionStateListeners.delete(listener);
+  };
+}
+
+function emitConnectionState(state: ConnectionState): void {
+  for (const listener of connectionStateListeners) {
+    listener(state);
+  }
+}
+
 // --- WebSocket URL derivation ---
 
 function buildWsUrl(token: string | null): string {
@@ -81,9 +160,11 @@ function ensureConnection() {
 
   const url = buildWsUrl(currentToken);
   ws = new WebSocket(url);
+  emitConnectionState("connecting");
 
   ws.onopen = () => {
     reconnectAttempts = 0;
+    emitConnectionState("connected");
     console.log("[ui-events] WebSocket connected");
   };
 
@@ -106,14 +187,23 @@ function ensureConnection() {
 
   ws.onclose = (e) => {
     ws = null;
+    emitConnectionState("disconnected");
     // 4401 = unauthorized close code from server; do not attempt to reconnect
     if (e.code === 4401) {
       console.error("[ui-events] Unauthorized, WebSocket closed");
+      emitConnectionState("failed");
       return;
     }
     if (totalListeners() > 0) {
-      // Exponential backoff: 1s, 2s, 4s, … capped at 30s.
-      const delay = Math.min(30000, 1000 * 2 ** reconnectAttempts);
+      if (reconnectAttempts >= reconnectOptions.maxAttempts) {
+        console.error(
+          `[ui-events] Giving up after ${reconnectAttempts} reconnection attempts`,
+        );
+        emitConnectionState("failed");
+        return;
+      }
+      // Exponential backoff with jitter (see computeReconnectDelay).
+      const delay = computeReconnectDelay(reconnectAttempts);
       reconnectAttempts += 1;
       reconnectTimer = setTimeout(ensureConnection, delay);
     }
