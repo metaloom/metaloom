@@ -35,4 +35,44 @@ public interface TagDao extends CRUDDao<Tag> {
 
 	List<AssetTag> assetTags(Asset asset);
 
+	// TAG - USER RATING (tag_user_meta)
+
+	default void storeUserRating(UUID tagUuid, User user, int rating) {
+		storeUserRating(tagUuid, user.getUuid(), rating);
+	}
+
+	/**
+	 * Upsert the rating for the given tag and user in the <code>tag_user_meta</code> relation.
+	 *
+	 * @param tagUuid
+	 * @param userUuid
+	 * @param rating
+	 */
+	void storeUserRating(UUID tagUuid, UUID userUuid, int rating);
+
+	default Integer readUserRating(UUID tagUuid, User user) {
+		return readUserRating(tagUuid, user.getUuid());
+	}
+
+	/**
+	 * Load the rating which the given user assigned to the tag or <code>null</code> when no rating was stored.
+	 *
+	 * @param tagUuid
+	 * @param userUuid
+	 * @return
+	 */
+	Integer readUserRating(UUID tagUuid, UUID userUuid);
+
+	default void deleteUserRating(UUID tagUuid, User user) {
+		deleteUserRating(tagUuid, user.getUuid());
+	}
+
+	/**
+	 * Remove the user's rating for the tag.
+	 *
+	 * @param tagUuid
+	 * @param userUuid
+	 */
+	void deleteUserRating(UUID tagUuid, UUID userUuid);
+
 }

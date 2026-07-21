@@ -14,6 +14,9 @@ public interface UserModelBuilder extends ModelBuilder {
 	default UserResponse toResponse(User user) {
 		UserResponse response = new UserResponse();
 		response.setUsername(user.getUsername());
+		response.setFirstname(user.getFirstname());
+		response.setLastname(user.getLastname());
+		response.setEmail(user.getEmail());
 		response.setUuid(user.getUuid());
 		setStatus(user, response);
 		return response;

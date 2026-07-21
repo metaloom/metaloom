@@ -23,6 +23,26 @@ public interface TagExamples extends ExampleValues {
 		return new ExampleImpl(tagListResponse(), "The tag list response", HttpResponseStatus.OK);
 	}
 
+	default Example tagRatingRequestExample() {
+		return new ExampleImpl(tagRatingRequest(), "The tag rating request", HttpResponseStatus.OK);
+	}
+
+	default Example tagRatingResponseExample() {
+		return new ExampleImpl(tagRatingResponse(), "The tag rating response", HttpResponseStatus.OK);
+	}
+
+	default TagRatingRequest tagRatingRequest() {
+		TagRatingRequest model = new TagRatingRequest();
+		model.setRating(7);
+		return model;
+	}
+
+	default TagRatingResponse tagRatingResponse() {
+		TagRatingResponse model = new TagRatingResponse();
+		model.setRating(7);
+		return model;
+	}
+
 	default TagResponse tagResponse() {
 		TagResponse model = new TagResponse();
 		model.setUuid(uuidB());

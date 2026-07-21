@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import { CommentResponse } from "./comments";
 
 // ── Types matching the Loom REST API task models ──────────────────────
 
@@ -7,6 +8,7 @@ export interface TaskResponse {
   title: string;
   description?: string;
   priority?: string;
+  comments?: CommentResponse[];
   meta?: Record<string, unknown>;
   status?: {
     creator?: { uuid: string; name: string };

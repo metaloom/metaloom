@@ -18,6 +18,8 @@ public interface CommentDao extends CRUDDao<Comment> {
 
 	Comment createComment(UUID userUuid, UUID assetUuid, String title, String text);
 
+	Comment createCommentForTask(UUID userUuid, UUID taskUuid, String title, String text);
+
 	List<Comment> loadForTask(UUID taskUuid);
 
 	List<Comment> loadForAsset(UUID assetUuid);

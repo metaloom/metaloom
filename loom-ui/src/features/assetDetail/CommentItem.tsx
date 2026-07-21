@@ -5,6 +5,7 @@ import { AccessTimeOutlined, EditOutlined, DeleteOutlineOutlined } from "@mui/ic
 import { tokens } from "../../theme";
 import { Comment } from "../../types";
 import { formatDuration, userName } from "./helpers";
+import { CommentReactionBar } from "./CommentReactionBar";
 
 export function CommentItem({
   comment,
@@ -12,6 +13,7 @@ export function CommentItem({
   onTimeClick,
   onHover,
   currentUserUuid,
+  token,
   editing,
   onStartEdit,
   onCancelEdit,
@@ -23,6 +25,7 @@ export function CommentItem({
   onTimeClick?: (t: number) => void;
   onHover?: (id: string | null) => void;
   currentUserUuid?: string | null;
+  token?: string | null;
   editing?: boolean;
   onStartEdit?: (id: string) => void;
   onCancelEdit?: () => void;
@@ -118,9 +121,12 @@ export function CommentItem({
             </Box>
           </Box>
         ) : (
-          <Typography variant="body2" sx={{ fontSize: "0.82rem", color: tokens.text.secondary, lineHeight: 1.55 }}>
-            {comment.text}
-          </Typography>
+          <>
+            <Typography variant="body2" sx={{ fontSize: "0.82rem", color: tokens.text.secondary, lineHeight: 1.55 }}>
+              {comment.text}
+            </Typography>
+            <CommentReactionBar commentUuid={comment.id} token={token} currentUserUuid={currentUserUuid} />
+          </>
         )}
       </Box>
     </Box>

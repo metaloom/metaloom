@@ -296,7 +296,13 @@
         "MINUS_ONE": "-1"
       }
     },
-    "empty": "Keine Aufgaben gefunden"
+    "empty": "Keine Aufgaben gefunden",
+    "comments": {
+      "title": "Kommentare",
+      "addPlaceholder": "Kommentar schreiben…",
+      "post": "Kommentar senden",
+      "empty": "Noch keine Kommentare"
+    }
   },
   "monitoring": {
     "title": "Monitoring & Statistiken",
@@ -368,6 +374,7 @@
       "collectionHelper": "Sammlung ändern, um den Tag in eine andere Gruppe zu verschieben",
       "placeholder": "z. B. Kategorie",
       "helper": "Sammlung ändern, um den Tag in eine andere Gruppe zu verschieben",
+      "rating": "Deine Bewertung",
       "save": "Speichern"
     }
   },
@@ -1170,6 +1177,18 @@
       "deleteError": "Pool konnte nicht gelöscht werden"
     }
   },
+  "reactions": {
+    "title": "Reaktionen",
+    "add": "Reagieren",
+    "empty": "Noch keine Reaktionen",
+    "type": {
+      "THUMBSUP": "Daumen hoch",
+      "THUMBSDOWN": "Daumen runter",
+      "SATISFIED": "Zufrieden",
+      "PLUS_ONE": "+1",
+      "MINUS_ONE": "-1"
+    }
+  },
   "assetDetail": {
     "tab": {
       "overview": "Übersicht",
@@ -1191,6 +1210,12 @@
       "editError": "Kommentar konnte nicht aktualisiert werden",
       "deleteError": "Kommentar konnte nicht gelöscht werden"
     },
+    "reaction": {
+      "addError": "Reaktion konnte nicht hinzugefügt werden",
+      "deleteError": "Reaktion konnte nicht gelöscht werden",
+      "thumbsUp": "Daumen hoch",
+      "thumbsDown": "Daumen runter"
+    },
     "meta": {
       "title": "Metadaten",
       "size": "Größe",
@@ -1206,7 +1231,10 @@
       "createTask": "Aufgabe erstellen",
       "save": "Speichern",
       "delete": "Löschen",
-      "noPipelines": "Keine Pipelines verfügbar"
+      "noPipelines": "Keine Pipelines verfügbar",
+      "download": "Herunterladen",
+      "uploadBinary": "Binärdatei hochladen / ersetzen",
+      "removeBinary": "Binärdatei entfernen"
     },
     "dialog": {
       "delete": "Asset löschen"
@@ -1220,7 +1248,12 @@
       "deleted": "Asset gelöscht",
       "deleteFailed": "Asset konnte nicht gelöscht werden",
       "processStarted": "Verarbeitung gestartet",
-      "processFailed": "Verarbeitung konnte nicht gestartet werden"
+      "processFailed": "Verarbeitung konnte nicht gestartet werden",
+      "binaryUploaded": "Binärdatei hochgeladen",
+      "binaryUploadFailed": "Binärdatei konnte nicht hochgeladen werden",
+      "binaryDownloadFailed": "Binärdatei konnte nicht heruntergeladen werden",
+      "binaryRemoved": "Binärdatei entfernt",
+      "binaryRemoveFailed": "Binärdatei konnte nicht entfernt werden"
     },
     "tag": {
       "addPlaceholder": "Tag hinzufügen…",

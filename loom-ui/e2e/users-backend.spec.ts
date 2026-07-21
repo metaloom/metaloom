@@ -51,7 +51,7 @@ test.describe("Users – full backend e2e", () => {
     await expect(page.getByText("pw-test-user")).toBeVisible({ timeout: 10_000 });
   });
 
-  test("edit a user", async ({ page }) => {
+  test("edit a user and persist a changed field", async ({ page }) => {
     await loginAndGoToUsers(page);
     await expect(page.getByText("pw-test-user")).toBeVisible({ timeout: 10_000 });
 
@@ -62,11 +62,16 @@ test.describe("Users – full backend e2e", () => {
     // Verify the edit dialog opens with the username field
     await expect(page.getByLabel("Username")).toHaveValue("pw-test-user", { timeout: 5_000 });
 
-    // Close the dialog
+    // Change the firstname and save
+    await page.getByLabel("Firstname").fill("Edited");
     await page.getByRole("button", { name: /save/i }).click();
 
     // The user should still be visible in the table
     await expect(page.getByText("pw-test-user")).toBeVisible({ timeout: 10_000 });
+
+    // Reopen the row and assert the changed firstname was persisted
+    await page.getByRole("row").filter({ hasText: "pw-test-user" }).getByRole("button").first().click();
+    await expect(page.getByLabel("Firstname")).toHaveValue("Edited", { timeout: 5_000 });
   });
 
   test("delete a user", async ({ page }) => {

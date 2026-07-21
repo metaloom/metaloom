@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createComment,
   createCommentForAsset,
+  createCommentForTask,
+  listCommentsForTask,
   updateComment,
   deleteComment,
 } from "./comments";
@@ -38,6 +40,28 @@ describe("comments API client", () => {
     expect(options.headers.Authorization).toBe(`Bearer ${TOKEN}`);
     expect(options.headers["Content-Type"]).toBe("application/json");
     expect(options.body).toBe(JSON.stringify({ text: "hi" }));
+  });
+
+  it("createCommentForTask POSTs to the task-scoped comments route", async () => {
+    const fetchMock = mockFetchOk({ uuid: "c1", text: "hi" });
+
+    await createCommentForTask(TOKEN, "t1", { text: "hi" });
+
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toBe(`${API_BASE_URL}/tasks/t1/comments`);
+    expect(options.method).toBe("POST");
+    expect(options.headers.Authorization).toBe(`Bearer ${TOKEN}`);
+    expect(options.body).toBe(JSON.stringify({ text: "hi" }));
+  });
+
+  it("listCommentsForTask GETs the task-scoped comments route", async () => {
+    const fetchMock = mockFetchOk({ data: [] });
+
+    await listCommentsForTask(TOKEN, "t1");
+
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toBe(`${API_BASE_URL}/tasks/t1/comments`);
+    expect(options.method).toBe("GET");
   });
 
   it("createComment POSTs to the global comments route", async () => {

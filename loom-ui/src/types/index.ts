@@ -5,7 +5,6 @@ export type AssetStatus = "processing" | "ready" | "failed" | "archived";
 export type TaskStatus = "open" | "in_progress" | "review" | "done" | "blocked";
 export type TaskPriority = "low" | "medium" | "high" | "critical";
 export type PipelineStatus = "idle" | "running" | "success" | "failed" | "paused" | "cancelled";
-export type ReactionType = "approve" | "flag" | "reject" | "favorite" | "question";
 
 // Spaces
 export interface Space {
@@ -111,17 +110,6 @@ export interface Annotation {
   timestampEnd?: number;
   region?: { x: number; y: number; width: number; height: number }; // normalized 0-1
   color: string;
-  createdAt: string;
-}
-
-// Reactions
-export interface Reaction {
-  id: string;
-  assetId: string;
-  userId: string;
-  type: ReactionType;
-  rating?: number; // 1-5
-  timestamp?: number; // video position
   createdAt: string;
 }
 

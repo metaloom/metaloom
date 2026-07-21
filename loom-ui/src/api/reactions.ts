@@ -67,6 +67,49 @@ export async function loadAssetReaction(token: string, assetUuid: string, reacti
   return handleResponse<ReactionResponseItem>(res);
 }
 
+/** Create a reaction on an asset. POST /assets/:assetUuid/reactions */
+export async function createAssetReaction(token: string, assetUuid: string, request: ReactionCreateRequest): Promise<ReactionResponseItem> {
+  const res = await fetch(`${API_BASE_URL}/assets/${encodeURIComponent(assetUuid)}/reactions`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(request),
+  });
+  return handleResponse<ReactionResponseItem>(res);
+}
+
+/** Update an asset reaction. POST /assets/:assetUuid/reactions/:reactionUuid (update is POST, not PUT/PATCH). */
+export async function updateAssetReaction(
+  token: string,
+  assetUuid: string,
+  reactionUuid: string,
+  request: ReactionCreateRequest,
+): Promise<ReactionResponseItem> {
+  const res = await fetch(
+    `${API_BASE_URL}/assets/${encodeURIComponent(assetUuid)}/reactions/${encodeURIComponent(reactionUuid)}`,
+    {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify(request),
+    },
+  );
+  return handleResponse<ReactionResponseItem>(res);
+}
+
+/** Delete an asset reaction. DELETE /assets/:assetUuid/reactions/:reactionUuid (204). */
+export async function deleteAssetReaction(token: string, assetUuid: string, reactionUuid: string): Promise<void> {
+  const res = await fetch(
+    `${API_BASE_URL}/assets/${encodeURIComponent(assetUuid)}/reactions/${encodeURIComponent(reactionUuid)}`,
+    {
+      method: "DELETE",
+      headers: authHeaders(token),
+    },
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+}
+
 // ── API for task reactions (sub-resource of tasks) ────────────────────
 
 /** List the reactions of a task. GET /tasks/:taskUuid/reactions */
@@ -110,6 +153,60 @@ export async function updateTaskReaction(
 export async function deleteTaskReaction(token: string, taskUuid: string, reactionUuid: string): Promise<void> {
   const res = await fetch(
     `${API_BASE_URL}/tasks/${encodeURIComponent(taskUuid)}/reactions/${encodeURIComponent(reactionUuid)}`,
+    {
+      method: "DELETE",
+      headers: authHeaders(token),
+    },
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+}
+
+// ── API for comment reactions (sub-resource of comments) ──────────────
+
+/** List the reactions of a comment. GET /comments/:commentUuid/reactions */
+export async function listCommentReactions(token: string, commentUuid: string): Promise<ReactionListResponse> {
+  const res = await fetch(`${API_BASE_URL}/comments/${encodeURIComponent(commentUuid)}/reactions`, {
+    method: "GET",
+    headers: authHeaders(token),
+  });
+  return handleResponse<ReactionListResponse>(res);
+}
+
+/** Create a reaction on a comment. POST /comments/:commentUuid/reactions */
+export async function createCommentReaction(token: string, commentUuid: string, request: ReactionCreateRequest): Promise<ReactionResponseItem> {
+  const res = await fetch(`${API_BASE_URL}/comments/${encodeURIComponent(commentUuid)}/reactions`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(request),
+  });
+  return handleResponse<ReactionResponseItem>(res);
+}
+
+/** Update a comment reaction. POST /comments/:commentUuid/reactions/:reactionUuid (update is POST, not PUT/PATCH). */
+export async function updateCommentReaction(
+  token: string,
+  commentUuid: string,
+  reactionUuid: string,
+  request: ReactionCreateRequest,
+): Promise<ReactionResponseItem> {
+  const res = await fetch(
+    `${API_BASE_URL}/comments/${encodeURIComponent(commentUuid)}/reactions/${encodeURIComponent(reactionUuid)}`,
+    {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify(request),
+    },
+  );
+  return handleResponse<ReactionResponseItem>(res);
+}
+
+/** Delete a comment reaction. DELETE /comments/:commentUuid/reactions/:reactionUuid (204). */
+export async function deleteCommentReaction(token: string, commentUuid: string, reactionUuid: string): Promise<void> {
+  const res = await fetch(
+    `${API_BASE_URL}/comments/${encodeURIComponent(commentUuid)}/reactions/${encodeURIComponent(reactionUuid)}`,
     {
       method: "DELETE",
       headers: authHeaders(token),

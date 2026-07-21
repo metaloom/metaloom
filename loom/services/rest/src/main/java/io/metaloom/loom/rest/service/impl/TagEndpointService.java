@@ -28,6 +28,8 @@ import io.metaloom.loom.rest.builder.LoomModelBuilder;
 import io.metaloom.loom.rest.model.RestResponseModel;
 import io.metaloom.loom.rest.model.annotation.AreaInfo;
 import io.metaloom.loom.rest.model.tag.TagCreateRequest;
+import io.metaloom.loom.rest.model.tag.TagRatingRequest;
+import io.metaloom.loom.rest.model.tag.TagRatingResponse;
 import io.metaloom.loom.rest.model.tag.TagUpdateRequest;
 import io.metaloom.loom.rest.service.AbstractCRUDEndpointService;
 import io.metaloom.loom.rest.validation.LoomModelValidator;
@@ -137,6 +139,53 @@ public class TagEndpointService extends AbstractCRUDEndpointService<TagDao, Tag>
 				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Tag not found " + tagUuid);
 			}
 			dao().untagAsset(tag, asset);
+			lrc.sendNoContent();
+		});
+	}
+
+	public void rateTag(LoomRoutingContext lrc, UUID tagUuid) {
+		checkPerm(lrc, UPDATE_TAG, () -> {
+			TagRatingRequest request = lrc.requestBody(TagRatingRequest.class);
+			validator.validate(request);
+
+			Tag tag = dao().load(tagUuid);
+			if (tag == null) {
+				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Tag not found " + tagUuid);
+			}
+
+			UUID userUuid = lrc.userUuid();
+			int rating = request.getRating();
+			dao().storeUserRating(tagUuid, userUuid, rating);
+
+			TagRatingResponse response = new TagRatingResponse().setRating(rating);
+			lrc.send(response, 200);
+		});
+	}
+
+	public void readTagRating(LoomRoutingContext lrc, UUID tagUuid) {
+		checkPerm(lrc, READ_TAG, () -> {
+			Tag tag = dao().load(tagUuid);
+			if (tag == null) {
+				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Tag not found " + tagUuid);
+			}
+
+			UUID userUuid = lrc.userUuid();
+			Integer rating = dao().readUserRating(tagUuid, userUuid);
+
+			TagRatingResponse response = new TagRatingResponse().setRating(rating);
+			lrc.send(response, 200);
+		});
+	}
+
+	public void deleteTagRating(LoomRoutingContext lrc, UUID tagUuid) {
+		checkPerm(lrc, UPDATE_TAG, () -> {
+			Tag tag = dao().load(tagUuid);
+			if (tag == null) {
+				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Tag not found " + tagUuid);
+			}
+
+			UUID userUuid = lrc.userUuid();
+			dao().deleteUserRating(tagUuid, userUuid);
 			lrc.sendNoContent();
 		});
 	}

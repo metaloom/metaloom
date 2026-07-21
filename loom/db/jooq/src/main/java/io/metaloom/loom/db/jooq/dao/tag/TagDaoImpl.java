@@ -3,8 +3,10 @@ package io.metaloom.loom.db.jooq.dao.tag;
 import static io.metaloom.loom.db.jooq.tables.JooqAnnotationTag.ANNOTATION_TAG;
 import static io.metaloom.loom.db.jooq.tables.JooqTag.TAG;
 import static io.metaloom.loom.db.jooq.tables.JooqTagAsset.TAG_ASSET;
+import static io.metaloom.loom.db.jooq.tables.JooqTagUserMeta.TAG_USER_META;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import javax.inject.Inject;
@@ -138,6 +140,46 @@ public class TagDaoImpl extends AbstractJooqDao<Tag> implements TagDao {
 		ctx().deleteFrom(ANNOTATION_TAG)
 			.where(ANNOTATION_TAG.TAG_UUID.eq(tag.getUuid())
 				.and(ANNOTATION_TAG.ANNOTATION_UUID.eq(annotation.getUuid())))
+			.execute();
+	}
+
+	@Override
+	public void storeUserRating(UUID tagUuid, UUID userUuid, int rating) {
+		Objects.requireNonNull(tagUuid, "A tag uuid must be provided");
+		Objects.requireNonNull(userUuid, "A user uuid must be provided");
+
+		// tag_user_meta has a composite (tag_uuid, user_uuid) primary key and no uuid column, so we
+		// upsert on the key instead of using the base store() impl.
+		ctx().insertInto(TAG_USER_META)
+			.set(TAG_USER_META.TAG_UUID, tagUuid)
+			.set(TAG_USER_META.USER_UUID, userUuid)
+			.set(TAG_USER_META.RATING, rating)
+			.onConflict(TAG_USER_META.TAG_UUID, TAG_USER_META.USER_UUID)
+			.doUpdate()
+			.set(TAG_USER_META.RATING, rating)
+			.execute();
+	}
+
+	@Override
+	public Integer readUserRating(UUID tagUuid, UUID userUuid) {
+		Objects.requireNonNull(tagUuid, "A tag uuid must be provided");
+		Objects.requireNonNull(userUuid, "A user uuid must be provided");
+
+		return ctx().select(TAG_USER_META.RATING)
+			.from(TAG_USER_META)
+			.where(TAG_USER_META.TAG_UUID.eq(tagUuid)
+				.and(TAG_USER_META.USER_UUID.eq(userUuid)))
+			.fetchOne(TAG_USER_META.RATING);
+	}
+
+	@Override
+	public void deleteUserRating(UUID tagUuid, UUID userUuid) {
+		Objects.requireNonNull(tagUuid, "A tag uuid must be provided");
+		Objects.requireNonNull(userUuid, "A user uuid must be provided");
+
+		ctx().deleteFrom(TAG_USER_META)
+			.where(TAG_USER_META.TAG_UUID.eq(tagUuid)
+				.and(TAG_USER_META.USER_UUID.eq(userUuid)))
 			.execute();
 	}
 

@@ -114,6 +114,8 @@ import io.metaloom.loom.rest.model.role.RoleResponse;
 import io.metaloom.loom.rest.model.role.RoleUpdateRequest;
 import io.metaloom.loom.rest.model.tag.TagCreateRequest;
 import io.metaloom.loom.rest.model.tag.TagListResponse;
+import io.metaloom.loom.rest.model.tag.TagRatingRequest;
+import io.metaloom.loom.rest.model.tag.TagRatingResponse;
 import io.metaloom.loom.rest.model.tag.TagResponse;
 import io.metaloom.loom.rest.model.tag.TagUpdateRequest;
 import io.metaloom.loom.rest.model.task.TaskCreateRequest;
@@ -877,6 +879,16 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 		return postRequest("comments", request, CommentResponse.class);
 	}
 
+	@Override
+	public LoomClientHttpRequest<CommentResponse> createTaskComment(UUID taskUuid, CommentCreateRequest request) {
+		return postRequest("tasks/" + taskUuid + "/comments", request, CommentResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<CommentListResponse> listTaskComments(UUID taskUuid) {
+		return getRequest("tasks/" + taskUuid + "/comments", CommentListResponse.class);
+	}
+
 	// BLACKLIST
 
 	@Override
@@ -1080,6 +1092,21 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<TagResponse> createTag(TagCreateRequest request) {
 		return postRequest("/tags", request, TagResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<TagRatingResponse> rateTag(UUID uuid, TagRatingRequest request) {
+		return postRequest("/tags/" + uuid + "/rating", request, TagRatingResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<TagRatingResponse> loadTagRating(UUID uuid) {
+		return getRequest("/tags/" + uuid + "/rating", TagRatingResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> deleteTagRating(UUID uuid) {
+		return deleteRequest("/tags/" + uuid + "/rating");
 	}
 
 	// TOKEN

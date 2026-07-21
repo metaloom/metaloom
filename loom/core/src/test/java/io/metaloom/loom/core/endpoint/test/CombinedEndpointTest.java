@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -39,6 +40,7 @@ import io.metaloom.loom.rest.model.attachment.AttachmentResponse;
 import io.metaloom.loom.rest.model.collection.CollectionCreateRequest;
 import io.metaloom.loom.rest.model.collection.CollectionResponse;
 import io.metaloom.loom.rest.model.comment.CommentCreateRequest;
+import io.metaloom.loom.rest.model.comment.CommentListResponse;
 import io.metaloom.loom.rest.model.comment.CommentResponse;
 import io.metaloom.loom.rest.model.embedding.EmbeddingCreateRequest;
 import io.metaloom.loom.rest.model.embedding.EmbeddingResponse;
@@ -213,6 +215,21 @@ public class CombinedEndpointTest extends AbstractEndpointTest {
 			commentRequest.setTitle("Feedback");
 			commentRequest.setText("ABCDEFG");
 			CommentResponse comment = client.createComment(commentRequest).sync().body();
+
+			// Task comment
+			CommentCreateRequest taskCommentRequest = new CommentCreateRequest();
+			taskCommentRequest.setTitle("Task feedback");
+			taskCommentRequest.setText("Please also update the outro");
+			CommentResponse taskComment = client.createTaskComment(task.getUuid(), taskCommentRequest).sync().body();
+			assertNotNull(taskComment.getUuid(), "The created task comment should have a uuid");
+
+			CommentListResponse taskComments = client.listTaskComments(task.getUuid()).sync().body();
+			assertTrue(taskComments.getData().stream().anyMatch(c -> c.getUuid().equals(taskComment.getUuid())),
+				"The task comment listing should contain the created comment");
+
+			TaskResponse reloadedTask = client.loadTask(task.getUuid()).sync().body();
+			assertTrue(reloadedTask.getComments().stream().anyMatch(c -> c.getUuid().equals(taskComment.getUuid())),
+				"The reloaded task should embed the created comment");
 
 			// Reactions
 			ReactionCreateRequest reactionRequest = new ReactionCreateRequest();

@@ -19,6 +19,12 @@ export interface TagResponse {
     edited?: string;
   };
   meta?: Record<string, unknown>;
+  /** The current user's rating for this tag (populated client-side via loadTagRating). */
+  userRating?: number;
+}
+
+export interface TagRatingResponse {
+  rating?: number;
 }
 
 export interface TagListResponse {
@@ -100,6 +106,39 @@ export async function updateTag(token: string, uuid: string, request: TagUpdateR
 
 export async function deleteTag(token: string, uuid: string): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/tags/${encodeURIComponent(uuid)}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+}
+
+// ── Per-user tag rating (/tags/:uuid/rating) ──────────────────────────
+
+/** Set the current user's rating for a tag. */
+export async function rateTag(token: string, uuid: string, rating: number): Promise<TagRatingResponse> {
+  const res = await fetch(`${API_BASE_URL}/tags/${encodeURIComponent(uuid)}/rating`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({ rating }),
+  });
+  return handleResponse<TagRatingResponse>(res);
+}
+
+/** Load the current user's rating for a tag. `rating` is undefined/null when the user has not rated it. */
+export async function loadTagRating(token: string, uuid: string): Promise<TagRatingResponse> {
+  const res = await fetch(`${API_BASE_URL}/tags/${encodeURIComponent(uuid)}/rating`, {
+    method: "GET",
+    headers: authHeaders(token),
+  });
+  return handleResponse<TagRatingResponse>(res);
+}
+
+/** Remove the current user's rating for a tag (204). */
+export async function deleteTagRating(token: string, uuid: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/tags/${encodeURIComponent(uuid)}/rating`, {
     method: "DELETE",
     headers: authHeaders(token),
   });

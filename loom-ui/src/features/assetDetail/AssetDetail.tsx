@@ -15,12 +15,15 @@ import {
   FaceOutlined, SearchOutlined,
   MoreVertOutlined, SendOutlined, AddTaskOutlined,
   CollectionsOutlined, CropFreeOutlined, SaveOutlined, DeleteOutlineOutlined,
+  DownloadOutlined, UploadFileOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
-import { Asset, AssetType, AssetStatus, Comment, Annotation, Reaction, Task, TranscriptSection, DetectedFace, FaceCluster, Person } from "../../types";
+import { Asset, AssetType, AssetStatus, Comment, Annotation, Task, TranscriptSection, DetectedFace, FaceCluster, Person } from "../../types";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { loadAsset as apiLoadAsset, updateAsset, deleteAsset, AssetResponse, TagReference } from "../../api/assets";
+import { uploadAssetBinary, downloadAssetBinary, deleteAssetBinary } from "../../api/binaries";
+import MediaPlaceholder from "../../components/MediaPlaceholder";
 import { listPipelines, runPipeline, PipelineResponse } from "../../api/pipelines";
 import { tagAsset as apiTagAsset, untagAsset as apiUntagAsset } from "../../api/tags";
 import { AreaInfo } from "../../api/annotations";
@@ -29,14 +32,14 @@ import { listClusters, ClusterResponse as ClusterApiResponse } from "../../api/c
 import { listAssetDetections } from "../../api/detections";
 import { listAssetTranscripts } from "../../api/transcripts";
 import { AnnotationResponseItem } from "../../api/annotations";
-import { listAssetReactions, ReactionResponseItem } from "../../api/reactions";
+import { listAssetReactions, createAssetReaction, deleteAssetReaction, ReactionResponseItem, TaskReactionType } from "../../api/reactions";
 import { listCommentsForAsset, createCommentForAsset, updateComment, deleteComment, CommentResponse } from "../../api/comments";
 import { apiToAsset, formatDuration, formatBytes, userName, tagBreadcrumb } from "./helpers";
 import { VideoTimeline, TimelineMarker } from "./VideoTimeline";
 import { ZoomableImage } from "./ZoomableImage";
 import { CommentItem } from "./CommentItem";
 import { AnnotationItem } from "./AnnotationItem";
-import { ReactionChip, reactionColor } from "./ReactionChip";
+import { ReactionsPanel } from "../reactions/ReactionsPanel";
 import { TaskItem } from "./TaskItem";
 import { TranscriptPanel } from "./TranscriptPanel";
 import { FaceDetectionPanel } from "./FaceDetectionPanel";
@@ -64,7 +67,7 @@ export default function AssetDetail() {
   const [asset, setAsset] = useState<Asset | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
-  const [reactions, setReactions] = useState<Reaction[]>([]);
+  const [reactions, setReactions] = useState<ReactionResponseItem[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [transcriptSections, setTranscriptSections] = useState<TranscriptSection[]>([]);
   const [detectedFaces, setDetectedFaces] = useState<DetectedFace[]>([]);
@@ -100,6 +103,8 @@ export default function AssetDetail() {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const intervalRef = useRef<number | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [binaryBusy, setBinaryBusy] = useState(false);
 
   useEffect(() => {
     if (!id || !token) return;
@@ -133,17 +138,9 @@ export default function AssetDetail() {
     listPipelines(token).then(resp => setPipelines(resp.data ?? [])).catch(() => { /* pipelines optional */ });
 
     // Load reactions from REST
-    listAssetReactions(token, id).then(resp => {
-      const restReactions: Reaction[] = (resp.data ?? []).map((r: ReactionResponseItem) => ({
-        id: r.uuid ?? "",
-        assetId: id,
-        userId: r.status?.creator?.uuid ?? "",
-        type: (r.type?.toLowerCase() ?? "approve") as Reaction["type"],
-        rating: r.rating,
-        createdAt: r.status?.created ?? "",
-      }));
-      setReactions(restReactions);
-    }).catch(() => { /* reactions load failed */ });
+    listAssetReactions(token, id)
+      .then(resp => setReactions(resp.data ?? []))
+      .catch(() => { /* reactions load failed */ });
 
     // Comments from REST API, other social features still use mock services
     Promise.all([
@@ -241,6 +238,26 @@ export default function AssetDetail() {
     }
   }, [token, showToast, tAD]);
 
+  const handleAddReaction = useCallback(async (type: TaskReactionType) => {
+    if (!token || !id) return;
+    try {
+      const created = await createAssetReaction(token, id, { type });
+      setReactions(prev => [created, ...prev]);
+    } catch {
+      showToast(tAD("reaction.addError"), "error");
+    }
+  }, [token, id, showToast, tAD]);
+
+  const handleDeleteReaction = useCallback(async (reactionUuid: string) => {
+    if (!token || !id) return;
+    try {
+      await deleteAssetReaction(token, id, reactionUuid);
+      setReactions(prev => prev.filter(r => r.uuid !== reactionUuid));
+    } catch {
+      showToast(tAD("reaction.deleteError"), "error");
+    }
+  }, [token, id, showToast, tAD]);
+
   // Draggable divider handlers
   const handleDividerMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -317,6 +334,48 @@ export default function AssetDetail() {
       .catch(() => showToast(tAD("toast.processFailed"), "error"));
   };
 
+  // ── Binary upload / download / remove ───────────────────────────────────
+  // Refresh the core asset (mime type / derived type can change after a binary swap).
+  const reloadAsset = () => {
+    if (!token) return;
+    apiLoadAsset(token, asset.id).then(resp => setAsset(apiToAsset(resp))).catch(() => {});
+  };
+
+  const handleBinaryUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file
+    if (!token || !file) return;
+    setBinaryBusy(true);
+    uploadAssetBinary(token, asset.id, file)
+      .then(() => {
+        showToast(tAD("toast.binaryUploaded"), "success");
+        reloadAsset();
+      })
+      .catch(() => showToast(tAD("toast.binaryUploadFailed"), "error"))
+      .finally(() => setBinaryBusy(false));
+  };
+
+  const handleBinaryDownload = () => {
+    if (!token) return;
+    setBinaryBusy(true);
+    downloadAssetBinary(token, asset.id, asset.name)
+      .catch(() => showToast(tAD("toast.binaryDownloadFailed"), "error"))
+      .finally(() => setBinaryBusy(false));
+  };
+
+  const handleBinaryRemove = () => {
+    if (!token) return;
+    setActionMenuAnchor(null);
+    setBinaryBusy(true);
+    deleteAssetBinary(token, asset.id)
+      .then(() => {
+        showToast(tAD("toast.binaryRemoved"), "success");
+        reloadAsset();
+      })
+      .catch(() => showToast(tAD("toast.binaryRemoveFailed"), "error"))
+      .finally(() => setBinaryBusy(false));
+  };
+
   // ── Region tagging helpers ──────────────────────────────────────────────
   // Area coordinates are stored as normalized permille (0-1000) because the DB columns are ints.
   const DEFAULT_TAG_COLLECTION = "default";
@@ -371,10 +430,6 @@ export default function AssetDetail() {
     ...annotations.filter(a => a.timestampStart != null).map(a => ({
       time: a.timestampStart!, endTime: a.timestampEnd ?? undefined, type: "annotation" as const,
       color: a.color, label: a.title, id: a.id,
-    })),
-    ...reactions.filter(r => r.timestamp != null).map(r => ({
-      time: r.timestamp!, type: "reaction" as const,
-      color: reactionColor[r.type] ?? tokens.text.secondary, label: r.type, id: r.id,
     })),
     ...assetTags.filter(t => isTemporal(t.area)).map(t => ({
       // area.from/to are milliseconds; the timeline works in seconds.
@@ -456,6 +511,21 @@ export default function AssetDetail() {
             </Button>
           </span>
         </Tooltip>
+        {/* Download binary */}
+        <Tooltip title={tAD("action.download")}>
+          <span>
+            <IconButton size="small" onClick={handleBinaryDownload} disabled={binaryBusy}>
+              {binaryBusy ? <CircularProgress size={16} /> : <DownloadOutlined sx={{ fontSize: 18 }} />}
+            </IconButton>
+          </span>
+        </Tooltip>
+        {/* Hidden input for binary upload / replace */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          style={{ display: "none" }}
+          onChange={handleBinaryUpload}
+        />
         {/* Actions menu */}
         <IconButton size="small" onClick={e => setActionMenuAnchor(e.currentTarget)}>
           <MoreVertOutlined sx={{ fontSize: 18 }} />
@@ -469,6 +539,14 @@ export default function AssetDetail() {
           <MenuItem onClick={() => { setActionMenuAnchor(null); /* create task action */ }}>
             <ListItemIcon><AddTaskOutlined sx={{ fontSize: 16 }} /></ListItemIcon>
             <ListItemText primaryTypographyProps={{ fontSize: "0.85rem" }}>{tAD("action.createTask")}</ListItemText>
+          </MenuItem>
+          <MenuItem disabled={binaryBusy} onClick={() => { setActionMenuAnchor(null); fileInputRef.current?.click(); }}>
+            <ListItemIcon><UploadFileOutlined sx={{ fontSize: 16 }} /></ListItemIcon>
+            <ListItemText primaryTypographyProps={{ fontSize: "0.85rem" }}>{tAD("action.uploadBinary")}</ListItemText>
+          </MenuItem>
+          <MenuItem disabled={binaryBusy} onClick={handleBinaryRemove}>
+            <ListItemIcon><DeleteOutlineOutlined sx={{ fontSize: 16 }} /></ListItemIcon>
+            <ListItemText primaryTypographyProps={{ fontSize: "0.85rem" }}>{tAD("action.removeBinary")}</ListItemText>
           </MenuItem>
           <MenuItem onClick={() => { setActionMenuAnchor(null); setDeleteOpen(true); }}>
             <ListItemIcon><DeleteOutlineOutlined sx={{ fontSize: 16, color: tokens.accent.red }} /></ListItemIcon>
@@ -503,11 +581,7 @@ export default function AssetDetail() {
           <Box sx={{ position: "relative", bgcolor: "#000", aspectRatio: isVideo ? "16/9" : "auto", maxHeight: { xs: 240, lg: 380 }, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
             {isVideo ? (
               <>
-                <img
-                  src={asset.thumbnailUrl}
-                  alt={asset.name}
-                  style={{ width: "100%", height: "100%", objectFit: "contain", opacity: playing ? 0 : 1 }}
-                />
+                <MediaPlaceholder type={asset.type} iconSize={64} bgcolor="#000" />
                 {/* Overlay controls */}
                 <Box
                   sx={{
@@ -524,9 +598,9 @@ export default function AssetDetail() {
                   </IconButton>
                 </Box>
               </>
-            ) : (
+            ) : asset.url ? (
               <ZoomableImage
-                src={asset.url || asset.thumbnailUrl}
+                src={asset.url}
                 alt={asset.name}
                 selectMode={regionMode}
                 regions={imageRegions}
@@ -538,6 +612,8 @@ export default function AssetDetail() {
                   tagInputRef.current?.focus();
                 }}
               />
+            ) : (
+              <MediaPlaceholder type={asset.type} iconSize={64} bgcolor="#000" />
             )}
           </Box>
 
@@ -834,6 +910,7 @@ export default function AssetDetail() {
                     onTimeClick={(t) => { setCurrentTime(t); setHighlightedId(null); }}
                     onHover={setHoveredMarkerId}
                     currentUserUuid={userUuid}
+                    token={token}
                     editing={editingCommentId === c.id}
                     onStartEdit={() => setEditingCommentId(c.id)}
                     onCancelEdit={() => setEditingCommentId(null)}
@@ -871,18 +948,13 @@ export default function AssetDetail() {
 
             {/* Reactions tab */}
             {tab === 3 && (
-              <Box>
-                {reactions.length === 0 ? (
-                  <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 4, gap: 1 }}>
-                    <ThumbUpAltOutlined sx={{ fontSize: 32, color: tokens.text.tertiary }} />
-                    <Typography variant="body2" color="text.secondary">{tAD("empty.noReactions")}</Typography>
-                  </Box>
-                ) : (
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
-                    {reactions.map(r => <ReactionChip key={r.id} reaction={r} />)}
-                  </Box>
-                )}
-              </Box>
+              <ReactionsPanel
+                reactions={reactions}
+                currentUserUuid={userUuid}
+                onAdd={handleAddReaction}
+                onDelete={handleDeleteReaction}
+                testIdPrefix="assets"
+              />
             )}
 
             {/* Tasks tab */}

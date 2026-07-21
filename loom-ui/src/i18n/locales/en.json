@@ -305,7 +305,13 @@
         "MINUS_ONE": "-1"
       }
     },
-    "empty": "No tasks found"
+    "empty": "No tasks found",
+    "comments": {
+      "title": "Comments",
+      "addPlaceholder": "Write a comment…",
+      "post": "Post comment",
+      "empty": "No comments yet"
+    }
   },
   "monitoring": {
     "title": "Monitoring & Statistics",
@@ -377,6 +383,7 @@
       "collectionHelper": "Change collection to move tag to a different group",
       "placeholder": "e.g. category",
       "helper": "Change collection to move tag to a different group",
+      "rating": "Your rating",
       "save": "Save"
     }
   },
@@ -1182,6 +1189,18 @@
       "deleteError": "Failed to delete pool"
     }
   },
+  "reactions": {
+    "title": "Reactions",
+    "add": "React",
+    "empty": "No reactions yet",
+    "type": {
+      "THUMBSUP": "Thumbs up",
+      "THUMBSDOWN": "Thumbs down",
+      "SATISFIED": "Satisfied",
+      "PLUS_ONE": "+1",
+      "MINUS_ONE": "-1"
+    }
+  },
   "assetDetail": {
     "tab": {
       "overview": "Overview",
@@ -1203,6 +1222,12 @@
       "editError": "Failed to update comment",
       "deleteError": "Failed to delete comment"
     },
+    "reaction": {
+      "addError": "Failed to add reaction",
+      "deleteError": "Failed to delete reaction",
+      "thumbsUp": "Thumbs up",
+      "thumbsDown": "Thumbs down"
+    },
     "meta": {
       "title": "Metadata",
       "size": "Size",
@@ -1218,7 +1243,10 @@
       "createTask": "Create Task",
       "save": "Save",
       "delete": "Delete",
-      "noPipelines": "No pipelines available"
+      "noPipelines": "No pipelines available",
+      "download": "Download",
+      "uploadBinary": "Upload / Replace binary",
+      "removeBinary": "Remove binary"
     },
     "dialog": {
       "delete": "Delete Asset"
@@ -1232,7 +1260,12 @@
       "deleted": "Asset deleted",
       "deleteFailed": "Failed to delete asset",
       "processStarted": "Processing started",
-      "processFailed": "Failed to start processing"
+      "processFailed": "Failed to start processing",
+      "binaryUploaded": "Binary uploaded",
+      "binaryUploadFailed": "Failed to upload binary",
+      "binaryDownloadFailed": "Failed to download binary",
+      "binaryRemoved": "Binary removed",
+      "binaryRemoveFailed": "Failed to remove binary"
     },
     "tag": {
       "addPlaceholder": "Add tag…",

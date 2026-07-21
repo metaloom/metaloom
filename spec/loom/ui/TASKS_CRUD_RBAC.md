@@ -19,30 +19,6 @@ Legend: ✅ covered · ⚠️ partial / not persisted / weak coverage · ❌ mis
 
 ---
 
-## Task: Add an end-to-end spec for Token (API key) management
-
-**Argumentation Summary:** `ApiKeysAdmin` performs real create / list / delete against `GET|POST|DELETE /api/v1/tokens`, yet there is **no `tokens-backend.spec.ts`** in `loom-ui/e2e/` — every other RBAC element (users, groups, roles) has one. Token CRUD is entirely untested at the UI level.
-
-**Improvement Summary:** Create `loom-ui/e2e/tokens-backend.spec.ts` covering the full API-key lifecycle exercised by the UI, following the structure of the existing RBAC specs.
-
-```
-Create loom-ui/e2e/tokens-backend.spec.ts modeled on loom-ui/e2e/groups-backend.spec.ts:
-- loginAndGoToApiKeys(page): login as admin/finger, click the "API Keys" sidebar entry
-  (route /admin/api-keys), assert the API Keys heading is visible.
-- Test "create an API key": click "Create Key", fill the key-name field, submit, assert the
-  one-time token value is shown in the create dialog and the new key row appears in the table.
-- Test "rename an API key": once the rename action lands (previous task), verify the updated name.
-- Test "delete an API key": open the row's overflow menu, click Delete, assert the row disappears.
-Reuse the tab labels/routes wired in AdminArea.tsx (t("admin.tab.*"), <Route path="api-keys" ...>).
-```
-
-**References:**
-- [loom-ui/src/features/admin/AdminArea.tsx](../../../loom-ui/src/features/admin/AdminArea.tsx) — `ApiKeysAdmin`, `/admin/api-keys` route
-- [loom-ui/e2e/groups-backend.spec.ts](../../../loom-ui/e2e/groups-backend.spec.ts) — reference structure
-- `loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/TokenEndpoint.java`
-
-**Test Requirements:**
-- New Playwright spec asserting create (with one-time token reveal), delete, and (after the rename task) update against a live backend with demo data.
 
 ---
 
@@ -81,30 +57,3 @@ E2E (loom-ui/e2e/roles-backend.spec.ts):
 - Backend unit/endpoint test (`RoleEndpointTest`) asserting that an update request with a `permissions` list is reflected in a subsequent role read.
 
 ---
-
-## Task: Persist and e2e-verify User profile-field edits
-
-**Argumentation Summary:** The Users admin edit dialog and `ProfileView` both submit `username/firstname/lastname/email` via `updateUser()`, but `UserEndpointService.update()` only applies `update(request::getMeta, user::setMeta)` — it **ignores** the username and name/email fields even though `UserUpdateRequest` defines them. Consequently the "edit a user" case in [users-backend.spec.ts](../../../loom-ui/e2e/users-backend.spec.ts) merely opens the dialog and clicks Save **without changing or asserting any value**, so it cannot detect that edits are dropped. (Note: enable/disable and password reset are intentionally out of scope — REST exposes neither; `enabled` is read-only on `UserResponse` and there is no password field on the request models.)
-
-**Improvement Summary:** Apply the profile fields in the backend update, then strengthen the user-edit e2e to change a field and assert the new value persists.
-
-```
-Backend (loom/services/rest/.../service/impl/UserEndpointService.java, update()):
-- In addition to meta, apply request.getUsername()/getFirstname()/getLastname()/getEmail() to the
-  User via the existing update(getter, setter) helper pattern before setEditor/save.
-
-E2E (loom-ui/e2e/users-backend.spec.ts, "edit a user"):
-- Change the firstname (or email) in the edit dialog, save, reopen the row, and assert the field
-  shows the new value — replacing the current no-op open/save.
-```
-
-**References:**
-- [loom-ui/src/api/users.ts](../../../loom-ui/src/api/users.ts) — `updateUser`, `UserUpdateRequest`
-- [loom-ui/src/features/admin/AdminArea.tsx](../../../loom-ui/src/features/admin/AdminArea.tsx) — `UsersAdmin` edit dialog
-- [loom-ui/src/features/profile/ProfileView.tsx](../../../loom-ui/src/features/profile/ProfileView.tsx) — self-service `updateUser`
-- `loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/UserEndpointService.java` — `update()`
-- [loom-ui/e2e/users-backend.spec.ts](../../../loom-ui/e2e/users-backend.spec.ts)
-
-**Test Requirements:**
-- E2E test that edits a user field and asserts the persisted change after reload.
-- Backend endpoint test (`UserEndpointTest`) asserting an updated username/email is returned on a subsequent read.

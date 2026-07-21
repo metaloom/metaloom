@@ -51,6 +51,16 @@ public class CommentDaoImpl extends AbstractJooqDao<Comment> implements CommentD
 	}
 
 	@Override
+	public Comment createCommentForTask(UUID userUuid, UUID taskUuid, String title, String text) {
+		Comment comment = new CommentImpl();
+		comment.setTitle(title);
+		comment.setText(text);
+		comment.setTaskUuid(taskUuid);
+		setCreatorEditor(comment, userUuid);
+		return comment;
+	}
+
+	@Override
 	public List<Comment> loadForTask(UUID taskUuid) {
 		return ctx().select(getTable()).from(getTable())
 			.where(COMMENT.TASK_UUID.eq(taskUuid))

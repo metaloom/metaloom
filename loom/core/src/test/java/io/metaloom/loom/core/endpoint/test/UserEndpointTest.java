@@ -25,11 +25,6 @@ import io.vertx.core.json.JsonObject;
 
 public class UserEndpointTest extends AbstractCRUDEndpointTest implements ReplaceEndpointTestcases {
 
-	// NOTE: These testcases can only assert that the request is accepted, not that a field changed. UserEndpointService.update carries a "TODO update"
-	// and applies nothing but meta, and UserModelBuilder.toResponse does not map meta - so no field written by an update is observable through the read
-	// API. This affects the pre-existing POST update identically (see testUpdate, which likewise only asserts validity). Once the service applies the
-	// name/email fields, these testcases should assert the round-trip like GroupEndpointTest does.
-
 	@Test
 	@Override
 	public void testPatch() throws Exception {
@@ -37,8 +32,13 @@ public class UserEndpointTest extends AbstractCRUDEndpointTest implements Replac
 			loginAdmin(client);
 			UserUpdateRequest update = new UserUpdateRequest();
 			update.setUsername("patched-username");
+			update.setEmail("patched@doe.tld");
 			UserResponse response = client.patchUser(USER_UUID, update).sync().body();
 			assertThat(response).isValid();
+
+			UserResponse loaded = client.loadUser(USER_UUID).sync().body();
+			assertEquals("patched-username", loaded.getUsername());
+			assertEquals("patched@doe.tld", loaded.getEmail());
 		}
 	}
 
@@ -55,6 +55,12 @@ public class UserEndpointTest extends AbstractCRUDEndpointTest implements Replac
 			update.setMeta(new JsonObject());
 			UserResponse response = client.replaceUser(USER_UUID, update).sync().body();
 			assertThat(response).isValid();
+
+			UserResponse loaded = client.loadUser(USER_UUID).sync().body();
+			assertEquals("replaced-username", loaded.getUsername());
+			assertEquals("Joe", loaded.getFirstname());
+			assertEquals("Doe", loaded.getLastname());
+			assertEquals("joe@doe.tld", loaded.getEmail());
 		}
 	}
 
@@ -175,8 +181,13 @@ public class UserEndpointTest extends AbstractCRUDEndpointTest implements Replac
 	protected void testUpdate(LoomHttpClient client) throws LoomClientException {
 		UserUpdateRequest update = new UserUpdateRequest();
 		update.setUsername("updated-username");
+		update.setEmail("updated@doe.tld");
 		UserResponse response = client.updateUser(USER_UUID, update).sync().body();
 		assertThat(response).isValid();
+
+		UserResponse loaded = client.loadUser(USER_UUID).sync().body();
+		assertEquals("updated-username", loaded.getUsername());
+		assertEquals("updated@doe.tld", loaded.getEmail());
 	}
 
 	@Test

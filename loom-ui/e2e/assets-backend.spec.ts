@@ -26,6 +26,17 @@ async function loginAndGoToAssets(page: Page) {
   await expect(page.getByRole("heading", { name: "Assets" })).toBeVisible({ timeout: 10_000 });
 }
 
+/** Log in and open the detail view for the given demo asset (fresh backend read of its tags). */
+async function loginAndOpenAsset(page: Page, filename: string) {
+  await loginAndGoToAssets(page);
+  const assetLink = page.getByText(filename).first();
+  await expect(assetLink).toBeVisible({ timeout: 10_000 });
+  await assetLink.click();
+  await expect(page).toHaveURL(/\/assets\/[0-9a-f-]+/, { timeout: 5_000 });
+  // The editable tag row is the source of truth for persisted tags.
+  await expect(page.getByTestId("asset-tags")).toBeVisible({ timeout: 5_000 });
+}
+
 test.describe("Assets – full backend e2e", () => {
   test("asset list loads and displays assets from the API", async ({ page }) => {
     await loginAndGoToAssets(page);
@@ -155,5 +166,119 @@ test.describe("Assets – full backend e2e", () => {
     expect(r.createdUuid).toBeTruthy();
     expect(r.loadedFilename).toBe("e2e-renamed.bin");
     expect([200, 204]).toContain(r.deleteStatus);
+  });
+
+  test("asset binary upload → preview → delete via API", async ({ page }) => {
+    // Load the app so relative /api/v1 fetches hit the Vite proxy → backend.
+    await page.goto("/");
+
+    const result = await page.evaluate(async () => {
+      const loginRes = await fetch(`/api/v1/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: "admin", password: "finger" }),
+      });
+      if (!loginRes.ok) return { error: `login failed ${loginRes.status}` };
+      const token = (await loginRes.json()).token as string;
+      const jsonHeaders = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
+      const authHeader = { Authorization: `Bearer ${token}` };
+
+      // A binary needs a library to associate its new row with on first upload.
+      const libsRes = await fetch(`/api/v1/libraries`, { headers: jsonHeaders });
+      const libraryUuid = (await libsRes.json())?.data?.[0]?.uuid as string | undefined;
+      if (!libraryUuid) return { error: "no libraries found" };
+
+      // A per-run unique 128-hex SHA-512 (Date.now hex, zero-padded) avoids collisions
+      // with assets left behind by a previous failed run.
+      const sha512 = Date.now().toString(16).padStart(128, "0");
+
+      // Create the asset (metadata only) that will receive the binary bytes.
+      const createRes = await fetch(`/api/v1/assets`, {
+        method: "POST",
+        headers: jsonHeaders,
+        body: JSON.stringify({
+          file: { filename: "e2e-binary.bin", mimeType: "application/octet-stream", origin: "e2e", size: 11 },
+          hashes: { sha512 },
+        }),
+      });
+      const asset = await createRes.json();
+      if (!asset.uuid) return { error: "asset create failed", asset };
+
+      // Upload raw bytes as multipart. No Content-Type header — the browser sets the boundary.
+      const bytes = new TextEncoder().encode("hello-bytes");
+      const form = new FormData();
+      form.append("file", new Blob([bytes], { type: "application/octet-stream" }), "e2e-binary.bin");
+      form.append("libraryUuid", libraryUuid);
+      const uploadRes = await fetch(`/api/v1/assets/${asset.uuid}/binary/data`, {
+        method: "POST",
+        headers: authHeader,
+        body: form,
+      });
+      const uploaded = await uploadRes.json();
+
+      // Load the binary metadata row (records where the bytes live on disk).
+      const metaRes = await fetch(`/api/v1/assets/${asset.uuid}/binary`, { headers: jsonHeaders });
+      const meta = await metaRes.json();
+
+      // Preview / download the raw bytes back and confirm they match what was uploaded.
+      const previewRes = await fetch(`/api/v1/assets/${asset.uuid}/binary/data`, { headers: authHeader });
+      const previewText = previewRes.ok ? new TextDecoder().decode(new Uint8Array(await previewRes.arrayBuffer())) : "";
+
+      // Delete the binary, then the asset itself, then confirm the binary is gone.
+      const deleteBinaryRes = await fetch(`/api/v1/assets/${asset.uuid}/binary`, { method: "DELETE", headers: authHeader });
+      const afterBinaryRes = await fetch(`/api/v1/assets/${asset.uuid}/binary/data`, { headers: authHeader });
+      const deleteAssetRes = await fetch(`/api/v1/assets/${asset.uuid}`, { method: "DELETE", headers: authHeader });
+
+      return {
+        assetUuid: asset.uuid,
+        uploadStatus: uploadRes.status,
+        uploadedBinaryUuid: uploaded.uuid,
+        binaryPath: meta?.filesystem?.path,
+        previewStatus: previewRes.status,
+        previewText,
+        deleteBinaryStatus: deleteBinaryRes.status,
+        afterBinaryStatus: afterBinaryRes.status,
+        deleteAssetStatus: deleteAssetRes.status,
+      };
+    });
+
+    expect(result).not.toHaveProperty("error");
+    const r = result as Record<string, unknown>;
+    expect(r.assetUuid).toBeTruthy();
+    expect([200, 201]).toContain(r.uploadStatus);
+    expect(r.uploadedBinaryUuid).toBeTruthy();
+    expect(r.binaryPath).toBeTruthy();
+    expect(r.previewStatus).toBe(200);
+    expect(r.previewText).toBe("hello-bytes");
+    expect([200, 204]).toContain(r.deleteBinaryStatus);
+    // The binary bytes must be gone after the delete.
+    expect(r.afterBinaryStatus).toBe(404);
+    expect([200, 204]).toContain(r.deleteAssetStatus);
+  });
+
+  test("tag an asset from the detail view and verify add/remove persist across reload", async ({ page }) => {
+    const TAG_NAME = "pw-asset-tag";
+    const assetTags = page.getByTestId("asset-tags");
+    const tagChip = assetTags.getByTestId("tag-chip").filter({ hasText: TAG_NAME });
+
+    // Open the asset and add a tag via the editable tag input (Enter submits).
+    await loginAndOpenAsset(page, "sunset-beach.jpg");
+    await assetTags.getByTestId("tag-input").fill(TAG_NAME);
+    await assetTags.getByTestId("tag-input").press("Enter");
+
+    // reloadTags() re-fetches the asset, so a visible chip means the POST persisted.
+    await expect(tagChip).toBeVisible({ timeout: 10_000 });
+
+    // Reload from the backend (re-login drops in-memory auth) and confirm it stuck.
+    await loginAndOpenAsset(page, "sunset-beach.jpg");
+    await expect(tagChip).toBeVisible({ timeout: 10_000 });
+
+    // Remove the tag via the chip's delete icon; the row refreshes from the backend.
+    await tagChip.locator(".MuiChip-deleteIcon").click();
+    await expect(tagChip).toBeHidden({ timeout: 10_000 });
+
+    // Reload again and confirm the removal persisted.
+    await loginAndOpenAsset(page, "sunset-beach.jpg");
+    await expect(tagChip).toBeHidden({ timeout: 10_000 });
   });
 });

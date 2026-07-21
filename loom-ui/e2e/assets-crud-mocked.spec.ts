@@ -124,7 +124,8 @@ test.describe("Asset CRUD – mocked request mapping", () => {
 
     await page.getByRole("button", { name: "Select" }).click();
     await page.getByRole("checkbox").first().click();
-    await page.getByRole("button", { name: "Tag" }).first().click();
+    // Exact match: a substring "Tag" also matches the sidebar "Tags" nav button.
+    await page.getByRole("button", { name: "Tag", exact: true }).first().click();
     await page.getByRole("dialog").getByRole("textbox").fill("reviewed");
     await Promise.all([
       page.waitForRequest("**/api/v1/assets/bulk/update"),

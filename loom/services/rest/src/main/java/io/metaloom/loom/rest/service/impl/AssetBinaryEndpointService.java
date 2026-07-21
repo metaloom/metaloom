@@ -13,6 +13,8 @@ import javax.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.metaloom.loom.api.error.LoomRestErrorCode;
+import io.metaloom.loom.api.error.LoomRestException;
 import io.metaloom.loom.db.dagger.DaoCollection;
 import io.metaloom.loom.db.model.asset.AssetBinary;
 import io.metaloom.loom.db.model.asset.AssetBinaryDao;
@@ -23,16 +25,22 @@ import io.metaloom.loom.rest.model.asset.binary.AssetBinaryFilesystemInfo;
 import io.metaloom.loom.rest.model.asset.binary.AssetBinaryUpdateRequest;
 import io.metaloom.loom.rest.service.AbstractCRUDEndpointService;
 import io.metaloom.loom.rest.validation.LoomModelValidator;
+import io.vertx.core.file.FileSystem;
+import io.vertx.core.http.HttpHeaders;
+import io.vertx.core.http.HttpServerResponse;
 
 @Singleton
 public class AssetBinaryEndpointService extends AbstractCRUDEndpointService<AssetBinaryDao, AssetBinary> {
 
 	private static final Logger log = LoggerFactory.getLogger(AssetBinaryEndpointService.class);
 
+	private final FileSystem fileSystem;
+
 	@Inject
 	public AssetBinaryEndpointService(AssetBinaryDao assetLocationDao, DaoCollection daos, LoomModelBuilder modelBuilder,
-		LoomModelValidator validator) {
+		LoomModelValidator validator, FileSystem fileSystem) {
 		super(assetLocationDao, daos, modelBuilder, validator);
+		this.fileSystem = fileSystem;
 	}
 
 	@Override
@@ -91,6 +99,35 @@ public class AssetBinaryEndpointService extends AbstractCRUDEndpointService<Asse
 		load(lrc, READ_ASSET_BINARY, () -> {
 			return dao().loadByAssetUuid(assetUuid);
 		}, modelBuilder::toResponse);
+	}
+
+	/**
+	 * Stream the raw binary bytes for the given asset. Sends the file directly on the underlying HTTP response (bypassing the JSON model builder) with
+	 * the stored mime type and an {@code attachment} content disposition. Responds 404 when no binary row exists or the file is missing on disk.
+	 *
+	 * <p>
+	 * Note: {@link HttpServerResponse#sendFile(String)} does not honour HTTP {@code Range} requests, so seek/scrubbing of large media is not supported
+	 * by this route yet.
+	 * </p>
+	 */
+	public void downloadByAssetUuid(LoomRoutingContext lrc, UUID assetUuid) {
+		checkPerm(lrc, READ_ASSET_BINARY, () -> {
+			AssetBinary binary = dao().loadByAssetUuid(assetUuid);
+			if (binary == null || binary.getPath() == null) {
+				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "No binary found for asset.");
+			}
+			String path = binary.getPath();
+			if (!fileSystem.existsBlocking(path)) {
+				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Binary file is missing on disk.");
+			}
+			String mimeType = binary.getMimeType() != null ? binary.getMimeType() : "application/octet-stream";
+			String fileName = java.nio.file.Paths.get(path).getFileName().toString();
+
+			HttpServerResponse response = lrc.routingContext().response();
+			response.putHeader(HttpHeaders.CONTENT_TYPE, mimeType);
+			response.putHeader("Content-Disposition", "attachment; filename=\"" + fileName + "\"");
+			response.sendFile(path);
+		});
 	}
 
 	public void createForAsset(LoomRoutingContext lrc, UUID assetUuid) {

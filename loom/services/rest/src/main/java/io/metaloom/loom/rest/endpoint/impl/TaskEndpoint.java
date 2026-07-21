@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.loom.rest.AbstractEndpoint;
 import io.metaloom.loom.rest.EndpointDependencies;
 import io.metaloom.loom.rest.model.ModelExamples;
+import io.metaloom.loom.rest.service.impl.CommentEndpointService;
 import io.metaloom.loom.rest.service.impl.ReactionEndpointService;
 import io.metaloom.loom.rest.service.impl.TaskEndpointService;
 
@@ -22,14 +23,17 @@ public class TaskEndpoint extends AbstractEndpoint  {
 
 	private final TaskEndpointService service;
 	private final ReactionEndpointService reactionService;
+	private final CommentEndpointService commentService;
 	private final ModelExamples examples;
 
 
 	@Inject
-	public TaskEndpoint(TaskEndpointService service, ReactionEndpointService reactionService, EndpointDependencies deps, ModelExamples examples) {
+	public TaskEndpoint(TaskEndpointService service, ReactionEndpointService reactionService, CommentEndpointService commentService,
+		EndpointDependencies deps, ModelExamples examples) {
 		super( deps);
-		this.service = service; 
+		this.service = service;
 		this.reactionService = reactionService;
+		this.commentService = commentService;
 		this.examples = examples;
 	}
 
@@ -114,6 +118,24 @@ public class TaskEndpoint extends AbstractEndpoint  {
 		addRoute(basePath() + "/:taskUuid/reactions/:reactionUuid", POST, "Update a reaction for a task", lrc -> {
 			reactionService.updateTaskReaction(lrc, lrc.pathParamUUID("taskUuid"), lrc.pathParamUUID("reactionUuid"));
 		});
+
+		// COMMENT
+
+		addRoute(basePath() + "/:taskUuid/comments", POST,
+			"Create a new comment on a task",
+			examples.commentCreateRequestExample(),
+			examples.commentResponseExample(),
+			lrc -> {
+				commentService.createForTask(lrc, lrc.pathParamUUID("taskUuid"));
+			});
+
+		addRoute(basePath() + "/:taskUuid/comments", GET,
+			"List the comments on a task",
+			null,
+			examples.commentListResponseExample(),
+			lrc -> {
+				commentService.listForTask(lrc, lrc.pathParamUUID("taskUuid"));
+			});
 
 	}
 }

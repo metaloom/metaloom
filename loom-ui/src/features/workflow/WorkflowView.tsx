@@ -23,6 +23,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
 import { listAssets, AssetResponse } from "../../api/assets";
 import { listAssetDetections, DetectionResponse } from "../../api/detections";
+import { persistAssetRating, hydrateAssetRatings } from "./ratingPersistence";
 
 function apiToWorkflowAsset(r: AssetResponse): Asset {
   const mime = r.file?.mimeType ?? "";
@@ -221,7 +222,7 @@ function RatingMode({
           <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.78rem" }}>{t("workflow.rating.label")}:</Typography>
           <Rating value={rating} max={10} onChange={(_, v) => v !== null && onRate(v)} size="small"
             sx={{ "& .MuiRating-iconFilled": { color: tokens.accent.amber }, "& .MuiRating-iconEmpty": { color: tokens.text.tertiary } }} />
-          <Typography variant="caption" fontWeight={600} sx={{ minWidth: 20, textAlign: "center" }}>{rating || "—"}</Typography>
+          <Typography variant="caption" fontWeight={600} data-testid="workflow-rating-value" sx={{ minWidth: 20, textAlign: "center" }}>{rating || "—"}</Typography>
         </Box>
       </Box>
       <Box sx={{ px: 1 }}>
@@ -728,6 +729,7 @@ export default function WorkflowView() {
   const [currentIdx, setCurrentIdx] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
   const [ratings, setRatings] = useState<Record<string, number>>({});
+  const [ratingReactionUuids, setRatingReactionUuids] = useState<Record<string, string>>({});
   const [assetTags, setAssetTags] = useState<Record<string, string[]>>({});
   const [dedupDecisions, setDedupDecisions] = useState<Record<number, "confirmed" | "rejected">>({});
   const [selectedClusterIdx, setSelectedClusterIdx] = useState(0);
@@ -750,6 +752,11 @@ export default function WorkflowView() {
       const map: Record<string, string[]> = {};
       loaded.forEach(a => { map[a.id] = [...a.tags]; });
       setAssetTags(map);
+      // Hydrate any previously persisted ratings so bulk-review work survives reloads.
+      hydrateAssetRatings(token, loaded.map(a => a.id)).then(({ ratings, reactionUuids }) => {
+        setRatings(ratings);
+        setRatingReactionUuids(reactionUuids);
+      }).catch(() => {});
     }).catch(() => {});
   }, [token]);
 
@@ -827,7 +834,16 @@ export default function WorkflowView() {
 
   const goNext = useCallback(() => { setCurrentIdx(i => Math.min(i + 1, maxIdx)); setSelectedClusterIdx(0); setSelectedObjIdx(0); }, [maxIdx]);
   const goPrev = useCallback(() => { setCurrentIdx(i => Math.max(i - 1, 0)); setSelectedClusterIdx(0); setSelectedObjIdx(0); }, []);
-  const handleRate = useCallback((rating: number) => { setRatings(prev => ({ ...prev, [currentAsset.id]: rating })); }, [currentAsset]);
+  const handleRate = useCallback((rating: number) => {
+    const assetId = currentAsset?.id;
+    if (!assetId) return;
+    // Optimistically reflect the rating locally, then persist it as an asset reaction.
+    setRatings(prev => ({ ...prev, [assetId]: rating }));
+    if (!token) return;
+    persistAssetRating(token, assetId, rating, ratingReactionUuids[assetId])
+      .then(uuid => setRatingReactionUuids(prev => ({ ...prev, [assetId]: uuid })))
+      .catch(() => {});
+  }, [currentAsset, token, ratingReactionUuids]);
   const handleAddTag = useCallback((tag: string) => {
     setAssetTags(prev => { const cur = prev[currentAsset.id] ?? []; if (cur.includes(tag)) return prev; return { ...prev, [currentAsset.id]: [...cur, tag] }; });
   }, [currentAsset]);

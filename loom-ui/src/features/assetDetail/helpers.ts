@@ -1,5 +1,19 @@
-import { Asset, AssetType, AssetStatus } from "../../types";
+import { Asset, AssetType, AssetStatus, Comment } from "../../types";
 import { AssetResponse } from "../../api/assets";
+import { CommentResponse } from "../../api/comments";
+
+/** Map a REST comment response onto the local Comment view model. */
+export function commentResponseToComment(c: CommentResponse, assetId = ""): Comment {
+  return {
+    id: c.uuid,
+    assetId: c.assetUuid ?? assetId,
+    authorId: c.status?.creator?.uuid ?? "",
+    title: c.title,
+    text: c.text ?? "",
+    createdAt: c.status?.created ?? "",
+    updatedAt: c.status?.edited ?? c.status?.created ?? "",
+  };
+}
 
 /** Map a Loom REST AssetResponse to the local Asset type used by the UI. */
 export function apiToAsset(r: AssetResponse): Asset {

@@ -21,6 +21,10 @@ public interface CommentMethods {
 
 	LoomClientRequest<CommentListResponse> listCommentsForAnnotation(UUID annotationUuid);
 
+	LoomClientRequest<CommentResponse> createTaskComment(UUID taskUuid, CommentCreateRequest request);
+
+	LoomClientRequest<CommentListResponse> listTaskComments(UUID taskUuid);
+
 	LoomClientRequest<NoResponse> deleteComment(UUID commentUuid);
 
 }

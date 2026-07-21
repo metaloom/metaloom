@@ -22,31 +22,6 @@
 
 Legend: ✅ covered · ⚠️ partial / client present but unwired · ❌ missing · — not applicable
 
-## Task: Add Asset Binary upload and download support
-
-**Argumentation Summary:** REST exposes binary handling in two places: `POST /assets/:uuid/binary` (create), `GET /assets/:uuid/binary` (load), `DELETE /assets/:uuid/binary` (delete) in [AssetEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/AssetEndpoint.java) (lines 327–349), plus a standalone [AssetBinaryEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/AssetBinaryEndpoint.java) with full CRUD/list at `/binaries`. The UI has **no binary client whatsoever** — there is no `binaries.ts`, and both [AssetBrowser.tsx](../../../loom-ui/src/features/assets/AssetBrowser.tsx) and [AssetDetail.tsx](../../../loom-ui/src/features/assetDetail/AssetDetail.tsx) set `thumbnailUrl: ""` / rely on an `asset.url` that is never populated. A user cannot upload a binary for a registered asset nor download/preview the original.
-
-**Improvement Summary:** Create a binary API client and wire upload (multipart POST) + download/preview into the asset detail (and optionally an upload-with-binary path in the browser).
-
-```
-1. New client loom-ui/src/api/binaries.ts:
-   - uploadAssetBinary(token, assetUuid, File) → POST /assets/:uuid/binary (multipart)
-   - getAssetBinaryUrl(assetUuid) / fetchAssetBinary(token, assetUuid) → GET /assets/:uuid/binary
-   - deleteAssetBinary(token, assetUuid) → DELETE /assets/:uuid/binary
-   - Optionally standalone list/load against /binaries (AssetBinaryEndpoint).
-2. AssetDetail: use the binary GET as the media <img>/<video> src (replace the
-   empty thumbnailUrl / unresolved asset.url around lines 323, 345), and add
-   Upload / Replace / Remove binary controls.
-3. AssetBrowser: populate tile thumbnails from the binary endpoint instead of "".
-```
-
-**References:**
-- REST: [AssetEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/AssetEndpoint.java) (327–349), [AssetBinaryEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/AssetBinaryEndpoint.java)
-- UI: (no client yet) [AssetDetail.tsx](../../../loom-ui/src/features/assetDetail/AssetDetail.tsx), [AssetBrowser.tsx](../../../loom-ui/src/features/assets/AssetBrowser.tsx)
-
-**Test Requirements:**
-- e2e: upload a binary to an asset, assert preview/thumbnail renders, then delete it.
-- Unit test the multipart request construction in `binaries.ts`.
 
 ---
 
@@ -208,25 +183,3 @@ Legend: ✅ covered · ⚠️ partial / client present but unwired · ❌ missin
 
 ---
 
-## Task: Add e2e coverage for Asset write operations and missing domain specs
-
-**Argumentation Summary:** [assets-backend.spec.ts](../../../loom-ui/e2e/assets-backend.spec.ts) covers only read paths (list, navigate to detail, metadata display, search). There is **no e2e spec** for annotations, blacklist, attachments, asset components, or asset binary, and no coverage of asset create/update/delete. Only [pools-backend.spec.ts](../../../loom-ui/e2e/pools-backend.spec.ts) fully exercises write CRUD. As the tasks above add UI write capabilities, matching backend e2e specs are required to prevent regressions.
-
-**Improvement Summary:** Add/extend e2e specs so every UI write operation in this domain has backend coverage.
-
-```
-Add or extend under loom-ui/e2e/:
-- assets-backend.spec.ts: asset create → edit metadata → delete; binary upload →
-  preview → delete.
-- annotations-backend.spec.ts: create/edit(time+area)/delete annotation on asset.
-- blacklist-backend.spec.ts: create/edit/delete entry; blacklist-from-asset.
-- components-backend.spec.ts: create/edit/delete a component per modality; transcript edit.
-- attachments-backend.spec.ts: attachment create → thumbnail render → delete.
-Mirror the structure of pools-backend.spec.ts (create → assert → cleanup).
-```
-
-**References:**
-- Existing: [assets-backend.spec.ts](../../../loom-ui/e2e/assets-backend.spec.ts), [pools-backend.spec.ts](../../../loom-ui/e2e/pools-backend.spec.ts)
-
-**Test Requirements:**
-- New specs must run against the real backend and clean up created entities.

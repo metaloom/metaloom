@@ -381,6 +381,20 @@ public class AssetEndpoint extends AbstractEndpoint {
 				binaryService.deleteByAssetUuid(lrc, lrc.pathParamUUID("uuid"));
 			});
 
+		// --- BINARY DATA (raw bytes) ---
+
+		addRoute(basePath() + "/:uuid/binary/data", POST,
+			"Upload raw file bytes into the binary for an existing asset. Expects a multipart request with one file part; a 'libraryUuid' form field is required only when the asset has no binary yet.",
+			lrc -> {
+				uploadService.uploadForAsset(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/binary/data", GET,
+			"Download the raw binary bytes for the asset.",
+			lrc -> {
+				binaryService.downloadByAssetUuid(lrc, lrc.pathParamUUID("uuid"));
+			});
+
 	}
 
 	public String basePath() {

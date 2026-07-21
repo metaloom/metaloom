@@ -95,6 +95,36 @@ export async function createCommentForAsset(
   return handleResponse<CommentResponse>(res);
 }
 
+export async function listCommentsForTask(
+  token: string,
+  taskUuid: string
+): Promise<CommentListResponse> {
+  const res = await fetch(
+    `${API_BASE_URL}/tasks/${encodeURIComponent(taskUuid)}/comments`,
+    {
+      method: "GET",
+      headers: authHeaders(token),
+    }
+  );
+  return handleResponse<CommentListResponse>(res);
+}
+
+export async function createCommentForTask(
+  token: string,
+  taskUuid: string,
+  request: CommentCreateRequest
+): Promise<CommentResponse> {
+  const res = await fetch(
+    `${API_BASE_URL}/tasks/${encodeURIComponent(taskUuid)}/comments`,
+    {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify(request),
+    }
+  );
+  return handleResponse<CommentResponse>(res);
+}
+
 export async function loadComment(
   token: string,
   uuid: string

@@ -9,6 +9,8 @@ import io.metaloom.loom.client.common.LoomClientRequest;
 import io.metaloom.loom.rest.model.NoResponse;
 import io.metaloom.loom.rest.model.tag.TagCreateRequest;
 import io.metaloom.loom.rest.model.tag.TagListResponse;
+import io.metaloom.loom.rest.model.tag.TagRatingRequest;
+import io.metaloom.loom.rest.model.tag.TagRatingResponse;
 import io.metaloom.loom.rest.model.tag.TagResponse;
 import io.metaloom.loom.rest.model.tag.TagUpdateRequest;
 import io.metaloom.utils.hash.SHA512;
@@ -24,6 +26,14 @@ public interface TagMethods {
 	LoomClientRequest<TagListResponse> listTags();
 
 	LoomClientRequest<NoResponse> deleteTag(UUID tagUuid);
+
+	// TAG - USER RATING
+
+	LoomClientRequest<TagRatingResponse> rateTag(UUID tagUuid, TagRatingRequest request);
+
+	LoomClientRequest<TagRatingResponse> loadTagRating(UUID tagUuid);
+
+	LoomClientRequest<NoResponse> deleteTagRating(UUID tagUuid);
 
 	// TAG - ASSET
 

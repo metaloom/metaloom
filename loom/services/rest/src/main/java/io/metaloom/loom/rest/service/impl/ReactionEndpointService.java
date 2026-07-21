@@ -32,6 +32,7 @@ import io.metaloom.loom.rest.builder.LoomModelBuilder;
 import io.metaloom.loom.rest.model.reaction.ReactionCreateRequest;
 import io.metaloom.loom.rest.model.reaction.ReactionListResponse;
 import io.metaloom.loom.rest.model.reaction.ReactionResponse;
+import io.metaloom.loom.rest.model.reaction.ReactionUpdateRequest;
 import io.metaloom.loom.rest.parameter.FilterParameters;
 import io.metaloom.loom.rest.parameter.PagingParameters;
 import io.metaloom.loom.rest.parameter.SortParameters;
@@ -64,8 +65,9 @@ public class ReactionEndpointService extends AbstractEndpointService {
 			validator.validate(request);
 
 			UUID userUuid = lrc.userUuid();
-			String type = request.getType().name();
+			String type = request.getType() == null ? null : request.getType().name();
 			Reaction element = creator.createReaction(userUuid, type);
+			element.setRating(request.getRating());
 			dao().store(element);
 			ReactionResponse response = modelBuilder.toResponse(element);
 			lrc.send(response, 201);
@@ -98,6 +100,17 @@ public class ReactionEndpointService extends AbstractEndpointService {
 	protected void update(LoomRoutingContext lrc, Permission permission, Supplier<Reaction> loader) {
 		checkPerm(lrc, permission, () -> {
 			Reaction reaction = loader.get();
+			if (reaction == null) {
+				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Reaction not found");
+			}
+			ReactionUpdateRequest request = lrc.requestBody(ReactionUpdateRequest.class);
+			validator.validate(request);
+			if (request.getType() != null) {
+				reaction.setType(request.getType().name());
+			}
+			if (request.getRating() != null) {
+				reaction.setRating(request.getRating());
+			}
 			dao().update(reaction);
 			ReactionResponse response = modelBuilder.toResponse(reaction);
 			lrc.send(response, 200);

@@ -21,36 +21,6 @@ Legend: ✅ done · ⚠️ partial · ❌ missing
 
 ---
 
-## Task: Persist asset tagging/untagging from the UI (wire the `/assets/:uuid/tags` endpoints)
-
-**Argumentation Summary:** The REST API exposes asset tagging via `AssetEndpoint` — `POST /assets/:uuid/tags` (`tagService.tagAsset`) and `DELETE /assets/:uuid/tags/:tagUuid` (`tagService.untagAsset`) — see [AssetEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/AssetEndpoint.java) lines 193-205 and [TagEndpointService.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/TagEndpointService.java) `tagAsset`/`untagAsset`. The UI presents an editable tag input in [AssetDetail.tsx](../../../loom-ui/src/features/assetDetail/AssetDetail.tsx) (lines ~392-425), but the Enter/Backspace handlers only mutate `asset.tags` in local React state — they never call any API. Neither [assets.ts](../../../loom-ui/src/api/assets.ts) nor [tags.ts](../../../loom-ui/src/api/tags.ts) contains a `tagAsset`/`untagAsset` client function. Tags added or removed in the asset detail view are silently lost on reload.
-
-**Improvement Summary:** Add API client functions for the asset-tag sub-resource and wire the asset-detail tag chips to actually persist.
-
-```
-1. In loom-ui/src/api/assets.ts (or tags.ts), add:
-   - tagAsset(token, assetUuid, request: TagCreateRequest): POST `${API_BASE_URL}/assets/${uuid}/tags`
-     (returns the created tag, 201). Note the request body is a TagCreateRequest
-     ({ name, collection, meta }) — see TagEndpointService.tagAsset lines 92-113.
-   - untagAsset(token, assetUuid, tagUuid): DELETE `${API_BASE_URL}/assets/${uuid}/tags/${tagUuid}`
-     (204 No Content) — see TagEndpointService.untagAsset lines 117-131.
-2. In AssetDetail.tsx, replace the local-only array mutation in the tag input's
-   onKeyDown (add on Enter, remove on Backspace) and the TagChip onDelete handler
-   (line ~401) with calls to the new client fns, then refresh from loadAsset so
-   the persisted tag list (AssetResponse.tags: TagReference[]) is authoritative.
-3. The current UI treats tags as bare strings; TagReference in assets.ts already
-   carries { uuid, name, collection, color } — use uuid for untag, name+collection
-   for tag creation.
-```
-
-**References:**
-- REST: [AssetEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/AssetEndpoint.java), [TagEndpointService.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/TagEndpointService.java)
-- UI: [assets.ts](../../../loom-ui/src/api/assets.ts), [tags.ts](../../../loom-ui/src/api/tags.ts), [AssetDetail.tsx](../../../loom-ui/src/features/assetDetail/AssetDetail.tsx)
-
-**Test Requirements:**
-- e2e (extend [assets-backend.spec.ts](../../../loom-ui/e2e/assets-backend.spec.ts)): open an asset, add a tag, reload, assert the tag persists; remove a tag, reload, assert it is gone.
-- Unit test for the new `tagAsset`/`untagAsset` client fns (URL, method, headers, 201/204 handling).
-
 ---
 
 ## Task: Support tag color end-to-end (REST request fields + UI color picker)
@@ -82,32 +52,6 @@ Legend: ✅ done · ⚠️ partial · ❌ missing
 
 ---
 
-
-## Task: Expose and integrate per-user tag rating (`tag_user_meta`)
-
-**Argumentation Summary:** The domain models per-user tag rating in `tag_user_meta` (`tag_uuid`, `user_uuid`, `rating`, `meta`) — [V2.2__add_tag.sql](../../../loom/db/flyway/src/main/resources/db/migration/V2.2__add_tag.sql) lines 24-34 — and jOOQ has generated `JooqTagUserMeta`. DOMAIN.md ([../DOMAIN.md](../DOMAIN.md)) states "per-user rating in `tag_user_meta`". Yet there is **no REST endpoint** for it: [TagEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/TagEndpoint.java) has only core CRUD, [TagDao.java](../../../loom/db/api/src/main/java/io/metaloom/loom/db/model/tag/TagDao.java) has no user-meta method, no `TagResponse` field carries rating, and the UI ([tags.ts](../../../loom-ui/src/api/tags.ts), [TagsView.tsx](../../../loom-ui/src/features/tags/TagsView.tsx)) has no rating control. (The aggregate `tag.rating` column is likewise unexposed in any REST model.) This is a full-stack gap: the UI cannot rate a tag because the API does not offer it.
-
-**Improvement Summary:** Add REST endpoints (and DAO ops) to set/read the current user's rating for a tag, expose it in the response, and add a rating control in the tags UI.
-
-```
-1. DB/DAO: add TagDao methods to upsert/load a tag_user_meta row for (tag, user).
-2. REST: add routes on TagEndpoint, e.g. POST `/tags/:uuid/rating` (body { rating })
-   using the authenticated user (lrc.userUuid()) and GET to read it; optionally
-   surface the caller's rating (and/or aggregate tag.rating) on TagResponse.
-3. UI client: add rateTag(token, uuid, rating) and a userRating field to TagResponse
-   in tags.ts.
-4. UI: add a star/rating widget to the TagsView detail sidebar (TagsView.tsx,
-   lines ~411-441) bound to the new endpoint.
-```
-
-**References:**
-- DB: [V2.2__add_tag.sql](../../../loom/db/flyway/src/main/resources/db/migration/V2.2__add_tag.sql), [TagDao.java](../../../loom/db/api/src/main/java/io/metaloom/loom/db/model/tag/TagDao.java)
-- REST: [TagEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/TagEndpoint.java), [TagEndpointService.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/TagEndpointService.java), [TagResponse.java](../../../loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/model/tag/TagResponse.java)
-- UI: [tags.ts](../../../loom-ui/src/api/tags.ts), [TagsView.tsx](../../../loom-ui/src/features/tags/TagsView.tsx)
-
-**Test Requirements:**
-- Backend test: rate a tag as user A, verify the row and that A's read returns it while another user's does not.
-- e2e: set a rating in the tags UI, reload, assert it persists.
 
 ---
 

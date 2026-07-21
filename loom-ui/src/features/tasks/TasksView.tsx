@@ -3,20 +3,25 @@ import {
   Box, Typography, Chip, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, IconButton, Drawer, Divider, Button,
   Dialog, DialogActions, DialogContent, DialogTitle, TextField, CircularProgress,
-  FormControl, InputLabel, Select, MenuItem, Menu,
+  FormControl, InputLabel, Select, MenuItem,
 } from "@mui/material";
 import {
   TaskAltOutlined,
   CloseOutlined, CalendarTodayOutlined, FlagOutlined, AddOutlined,
-  EditOutlined, DeleteOutlined,
+  EditOutlined, DeleteOutlined, SendOutlined, ChatBubbleOutlineOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { useAuth } from "../../context/AuthContext";
+import { useToast } from "../../context/ToastContext";
 import { createTask, deleteTask, listTasks, TaskResponse, updateTask } from "../../api/tasks";
 import {
   createTaskReaction, deleteTaskReaction, listTaskReactions,
   ReactionResponseItem, TaskReactionType,
 } from "../../api/reactions";
+import { CommentResponse, createCommentForTask, listCommentsForTask } from "../../api/comments";
+import { ReactionsPanel } from "../reactions/ReactionsPanel";
+import { CommentItem } from "../assetDetail/CommentItem";
+import { commentResponseToComment } from "../assetDetail/helpers";
 import { useTranslation } from "react-i18next";
 
 const priorityColor: Record<string, string> = {
@@ -27,16 +32,6 @@ const priorityColor: Record<string, string> = {
 };
 
 const PRIORITIES = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
-
-// ── Reactions ─────────────────────────────────────────────────────────────
-const REACTION_TYPES: TaskReactionType[] = ["THUMBSUP", "THUMBSDOWN", "SATISFIED", "PLUS_ONE", "MINUS_ONE"];
-const REACTION_EMOJI: Record<TaskReactionType, string> = {
-  THUMBSUP: "👍",
-  THUMBSDOWN: "👎",
-  SATISFIED: "🤣",
-  PLUS_ONE: "➕",
-  MINUS_ONE: "➖",
-};
 
 // ── Priority selector (shared by create dialog + edit drawer) ─────────────
 function PrioritySelect({ value, onChange, testId }: { value: string; onChange: (v: string) => void; testId: string }) {
@@ -76,8 +71,11 @@ function TaskDetailDrawer({
   // Hooks must run unconditionally and before any early return.
   const { t } = useTranslation();
   const { token, userUuid } = useAuth();
+  const { showToast } = useToast();
   const [reactions, setReactions] = useState<ReactionResponseItem[]>([]);
-  const [reactionMenuAnchor, setReactionMenuAnchor] = useState<null | HTMLElement>(null);
+  const [comments, setComments] = useState<CommentResponse[]>([]);
+  const [commentInput, setCommentInput] = useState("");
+  const [postingComment, setPostingComment] = useState(false);
 
   const taskUuid = task?.uuid;
   useEffect(() => {
@@ -90,8 +88,15 @@ function TaskDetailDrawer({
       .catch(() => setReactions([]));
   }, [token, taskUuid]);
 
+  useEffect(() => {
+    setComments(task?.comments ?? []);
+    if (!token || !taskUuid) return;
+    listCommentsForTask(token, taskUuid)
+      .then((resp) => setComments(resp.data ?? []))
+      .catch(() => { /* keep the embedded comments on failure */ });
+  }, [token, taskUuid, task?.comments]);
+
   const handleAddReaction = async (type: TaskReactionType) => {
-    setReactionMenuAnchor(null);
     if (!token || !taskUuid) return;
     const created = await createTaskReaction(token, taskUuid, { type });
     setReactions((prev) => [created, ...prev]);
@@ -101,6 +106,21 @@ function TaskDetailDrawer({
     if (!token || !taskUuid) return;
     await deleteTaskReaction(token, taskUuid, reactionUuid);
     setReactions((prev) => prev.filter((r) => r.uuid !== reactionUuid));
+  };
+
+  const handlePostComment = async () => {
+    const text = commentInput.trim();
+    if (!text || !token || !taskUuid || postingComment) return;
+    setPostingComment(true);
+    try {
+      const created = await createCommentForTask(token, taskUuid, { text });
+      setComments((prev) => [created, ...prev]);
+      setCommentInput("");
+    } catch {
+      showToast(t("assetDetail.comment.postError"), "error");
+    } finally {
+      setPostingComment(false);
+    }
   };
 
   if (!task) return null;
@@ -190,65 +210,67 @@ function TaskDetailDrawer({
           <Divider sx={{ borderColor: tokens.border.subtle }} />
 
           {/* Reactions */}
+          <ReactionsPanel
+            reactions={reactions}
+            currentUserUuid={userUuid}
+            onAdd={handleAddReaction}
+            onDelete={handleDeleteReaction}
+            testIdPrefix="tasks"
+          />
+
+          <Divider sx={{ borderColor: tokens.border.subtle }} />
+
+          {/* Comments */}
           <Box>
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
-              <Typography sx={{ color: tokens.text.tertiary, fontSize: "0.8rem", fontWeight: 600 }}>
-                {t("tasks.reactions.title")}
-              </Typography>
-              <Button
+            <Typography sx={{ color: tokens.text.tertiary, fontSize: "0.8rem", fontWeight: 600, mb: 1 }}>
+              {t("tasks.comments.title")}
+            </Typography>
+            <Box sx={{ display: "flex", alignItems: "flex-end", gap: 0.75, mb: 1 }}>
+              <TextField
+                fullWidth
+                multiline
+                maxRows={4}
                 size="small"
-                startIcon={<AddOutlined sx={{ fontSize: 14 }} />}
-                onClick={(e) => setReactionMenuAnchor(e.currentTarget)}
-                data-testid="tasks-react-button"
+                value={commentInput}
+                onChange={(e) => setCommentInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handlePostComment();
+                  }
+                }}
+                placeholder={t("tasks.comments.addPlaceholder")}
+                disabled={!token || postingComment}
+                inputProps={{ "aria-label": t("tasks.comments.addPlaceholder"), "data-testid": "tasks-comment-input" }}
+              />
+              <IconButton
+                aria-label={t("tasks.comments.post")}
+                data-testid="tasks-comment-post"
+                color="primary"
+                disabled={!commentInput.trim() || !token || postingComment}
+                onClick={handlePostComment}
               >
-                {t("tasks.reactions.add")}
-              </Button>
-              <Menu
-                anchorEl={reactionMenuAnchor}
-                open={!!reactionMenuAnchor}
-                onClose={() => setReactionMenuAnchor(null)}
-              >
-                {REACTION_TYPES.map((type) => (
-                  <MenuItem
-                    key={type}
-                    onClick={() => handleAddReaction(type)}
-                    data-testid={`tasks-react-option-${type}`}
-                  >
-                    <Box component="span" sx={{ mr: 1 }}>{REACTION_EMOJI[type]}</Box>
-                    {t(`tasks.reactions.type.${type}`)}
-                  </MenuItem>
-                ))}
-              </Menu>
+                {postingComment ? <CircularProgress size={18} /> : <SendOutlined fontSize="small" />}
+              </IconButton>
             </Box>
-            {reactions.length === 0 ? (
-              <Typography variant="body2" sx={{ color: tokens.text.tertiary, fontSize: "0.8rem" }}>
-                {t("tasks.reactions.empty")}
-              </Typography>
+            {comments.length === 0 ? (
+              <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 3, gap: 1 }}>
+                <ChatBubbleOutlineOutlined sx={{ fontSize: 28, color: tokens.text.tertiary }} />
+                <Typography variant="body2" sx={{ color: tokens.text.tertiary, fontSize: "0.8rem" }}>
+                  {t("tasks.comments.empty")}
+                </Typography>
+              </Box>
             ) : (
-              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
-                {reactions.map((r) => {
-                  const type = r.type as TaskReactionType | undefined;
-                  const emoji = type ? REACTION_EMOJI[type] : "•";
-                  const owned = !!userUuid && r.status?.creator?.uuid === userUuid;
-                  return (
-                    <Chip
-                      key={r.uuid}
-                      size="small"
-                      data-testid="tasks-reaction-chip"
-                      label={
-                        <Box component="span">
-                          <Box component="span" sx={{ mr: 0.5 }}>{emoji}</Box>
-                          {type ? t(`tasks.reactions.type.${type}`) : (r.type ?? "")}
-                        </Box>
-                      }
-                      onDelete={owned ? () => handleDeleteReaction(r.uuid) : undefined}
-                      deleteIcon={
-                        <CloseOutlined data-testid="tasks-reaction-delete" sx={{ fontSize: 14 }} />
-                      }
-                      sx={{ bgcolor: tokens.bg.base, border: `1px solid ${tokens.border.subtle}`, fontSize: "0.72rem" }}
-                    />
-                  );
-                })}
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+                {comments.map((c) => (
+                  <CommentItem
+                    key={c.uuid}
+                    comment={commentResponseToComment(c)}
+                    highlighted={false}
+                    currentUserUuid={userUuid}
+                    token={token}
+                  />
+                ))}
               </Box>
             )}
           </Box>

@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from "react";
 import {
   Box, Typography, IconButton, TextField, Tooltip, Chip, Divider, Menu, MenuItem,
-  InputAdornment, Button, Paper,
+  InputAdornment, Button, Paper, Rating,
 } from "@mui/material";
 import {
   ExpandMore, ChevronRight, AddOutlined, EditOutlined,
@@ -13,6 +13,7 @@ import { tokens } from "../../theme";
 import { useAuth } from "../../context/AuthContext";
 import {
   listTags, createTag, updateTag, deleteTag as apiDeleteTag,
+  rateTag, loadTagRating, deleteTagRating,
   TagResponse,
 } from "../../api/tags";
 import { useTranslation } from "react-i18next";
@@ -191,6 +192,7 @@ export default function TagsView() {
   const [selectedNode, setSelectedNode] = useState<TagNode | null>(null);
   const [editName, setEditName] = useState("");
   const [editCollection, setEditCollection] = useState("");
+  const [rating, setRating] = useState<number | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
 
   // ── Load tags from API ──────────────────────────────────────────────
@@ -281,8 +283,32 @@ export default function TagsView() {
     if (node.isTag) {
       setEditName(node.label);
       setEditCollection(node.collection);
+      setRating(null);
+      if (token) {
+        loadTagRating(token, node.id)
+          .then(r => setRating(r.rating ?? null))
+          .catch(() => setRating(null));
+      }
     }
-  }, []);
+  }, [token]);
+
+  // Per-user rating is persisted immediately (not via the Save button).
+  const handleRate = async (value: number | null) => {
+    if (!selectedNode?.isTag || !token) return;
+    setRating(value);
+    try {
+      if (value === null) {
+        await deleteTagRating(token, selectedNode.id);
+      } else {
+        await rateTag(token, selectedNode.id, value);
+      }
+    } catch {
+      // Reload the persisted value on failure to keep the widget in sync.
+      loadTagRating(token, selectedNode.id)
+        .then(r => setRating(r.rating ?? null))
+        .catch(() => setRating(null));
+    }
+  };
 
   // ── Derived state ──────────────────────────────────────────────────
   const totalTags = allTags.length;
@@ -425,6 +451,21 @@ export default function TagsView() {
                 placeholder={t("tags.detail.collectionPlaceholder")}
                 helperText={t("tags.detail.collectionHelper")}
               />
+              <Box data-testid="tags-rating" sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+                <Typography variant="caption" sx={{ color: tokens.text.secondary, fontSize: "0.75rem" }}>
+                  {t("tags.detail.rating")}
+                </Typography>
+                <Rating
+                  value={rating}
+                  max={10}
+                  size="small"
+                  onChange={(_, v) => handleRate(v)}
+                  sx={{
+                    "& .MuiRating-iconFilled": { color: tokens.accent.amber },
+                    "& .MuiRating-iconEmpty": { color: tokens.text.tertiary },
+                  }}
+                />
+              </Box>
               <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>
                 UUID: {selectedNode.id}
               </Typography>

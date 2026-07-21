@@ -88,6 +88,33 @@ public class TagEndpoint extends AbstractEndpoint {
 			lrc -> {
 				service.load(lrc, lrc.pathParamUUID("uuid"));
 			});
+
+		// Set the current user's rating for the tag
+		addRoute(basePath() + "/:uuid/rating", POST,
+			"Set the current user's rating for a tag",
+			examples.tagRatingRequestExample(),
+			examples.tagRatingResponseExample(),
+			lrc -> {
+				service.rateTag(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		// Read the current user's rating for the tag
+		addRoute(basePath() + "/:uuid/rating", GET,
+			"Load the current user's rating for a tag",
+			null,
+			examples.tagRatingResponseExample(),
+			lrc -> {
+				service.readTagRating(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		// Remove the current user's rating for the tag
+		addRoute(basePath() + "/:uuid/rating", DELETE,
+			"Remove the current user's rating for a tag",
+			null,
+			examples.deleteResponseExample(),
+			lrc -> {
+				service.deleteTagRating(lrc, lrc.pathParamUUID("uuid"));
+			});
 	}
 
 }

@@ -72,7 +72,10 @@ public class UserEndpointService extends AbstractCRUDEndpointService<UserDao, Us
 			if (user == null) {
 				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "User not found.");
 			}
-			// TODO update
+			update(request::getUsername, user::setUsername);
+			update(request::getFirstname, user::setFirstname);
+			update(request::getLastname, user::setLastname);
+			update(request::getEmail, user::setEmail);
 			update(request::getMeta, user::setMeta);
 			setEditor(user, userUuid);
 			return user;

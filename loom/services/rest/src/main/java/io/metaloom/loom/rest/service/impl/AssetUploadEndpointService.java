@@ -1,6 +1,7 @@
 package io.metaloom.loom.rest.service.impl;
 
 import static io.metaloom.loom.db.model.perm.Permission.CREATE_ASSET;
+import static io.metaloom.loom.db.model.perm.Permission.CREATE_ASSET_BINARY;
 
 import java.nio.file.Paths;
 import java.time.Instant;
@@ -69,15 +70,7 @@ public class AssetUploadEndpointService extends AbstractEndpointService {
 	 */
 	public void upload(LoomRoutingContext lrc) {
 		checkPerm(lrc, CREATE_ASSET, () -> {
-			if (lrc.fileUploads().isEmpty()) {
-				throw new LoomRestException(400, LoomRestErrorCode.UPLOAD_DATA_MISSING, "No uploads found in request.");
-			}
-			if (lrc.fileUploads().size() > 1) {
-				throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST,
-					"Upload with multiple files in one request is currently not supported");
-			}
-
-			FileUpload upload = lrc.fileUploads().get(0);
+			FileUpload upload = singleUpload(lrc);
 			UUID userUuid = lrc.userUuid();
 			UUID libraryUuid = requiredLibraryUuid(lrc);
 			String origin = formValue(lrc, "origin", DEFAULT_ORIGIN);
@@ -114,6 +107,52 @@ public class AssetUploadEndpointService extends AbstractEndpointService {
 			log.info("Uploaded asset {} ({} bytes, {}) stored at {}", asset.getUuid(), size, mimeType, storedPath);
 			lrc.send(modelBuilder.toResponse(asset), 201);
 		});
+	}
+
+	/**
+	 * Upload raw file bytes for an already existing asset. Expects exactly one file part. The bytes are persisted content-addressed and the asset's
+	 * binary row is either updated (when one already exists) or created. When no binary exists yet a {@code libraryUuid} form field is required so the
+	 * new row can be associated with a library; when replacing an existing binary the library association is preserved.
+	 */
+	public void uploadForAsset(LoomRoutingContext lrc, UUID assetUuid) {
+		checkPerm(lrc, CREATE_ASSET_BINARY, () -> {
+			FileUpload upload = singleUpload(lrc);
+			UUID userUuid = lrc.userUuid();
+			String mimeType = upload.contentType();
+			SHA512 sha512 = HashUtils.computeSHA512(Paths.get(upload.uploadedFileName()));
+			String storedPath = persist(upload.uploadedFileName(), sha512);
+
+			AssetBinary existing = daos.assetBinaryDao().loadByAssetUuid(assetUuid);
+			AssetBinary binary;
+			if (existing != null) {
+				existing.setPath(storedPath);
+				existing.setMimeType(mimeType);
+				setEditor(existing, userUuid);
+				binary = daos.assetBinaryDao().update(existing);
+			} else {
+				UUID libraryUuid = requiredLibraryUuid(lrc);
+				binary = daos.assetBinaryDao().createAssetBinary(storedPath, assetUuid, userUuid, libraryUuid);
+				binary.setMimeType(mimeType);
+				daos.assetBinaryDao().store(binary);
+			}
+
+			log.info("Stored binary for asset {} ({}) at {}", assetUuid, mimeType, storedPath);
+			lrc.send(modelBuilder.toResponse(binary), 201);
+		});
+	}
+
+	/**
+	 * Return the single uploaded file part or fail with a 400 when there are zero or more than one file parts.
+	 */
+	private FileUpload singleUpload(LoomRoutingContext lrc) {
+		if (lrc.fileUploads().isEmpty()) {
+			throw new LoomRestException(400, LoomRestErrorCode.UPLOAD_DATA_MISSING, "No uploads found in request.");
+		}
+		if (lrc.fileUploads().size() > 1) {
+			throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST,
+				"Upload with multiple files in one request is currently not supported");
+		}
+		return lrc.fileUploads().get(0);
 	}
 
 	/**
