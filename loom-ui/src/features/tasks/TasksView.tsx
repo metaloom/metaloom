@@ -18,7 +18,7 @@ import {
   createTaskReaction, deleteTaskReaction, listTaskReactions,
   ReactionResponseItem, TaskReactionType,
 } from "../../api/reactions";
-import { CommentResponse, createCommentForTask, listCommentsForTask } from "../../api/comments";
+import { CommentResponse, createCommentForTask, listCommentsForTask, updateComment, deleteComment } from "../../api/comments";
 import { ReactionsPanel } from "../reactions/ReactionsPanel";
 import { CommentItem } from "../assetDetail/CommentItem";
 import { commentResponseToComment } from "../assetDetail/helpers";
@@ -76,6 +76,7 @@ function TaskDetailDrawer({
   const [comments, setComments] = useState<CommentResponse[]>([]);
   const [commentInput, setCommentInput] = useState("");
   const [postingComment, setPostingComment] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
 
   const taskUuid = task?.uuid;
   useEffect(() => {
@@ -120,6 +121,28 @@ function TaskDetailDrawer({
       showToast(t("assetDetail.comment.postError"), "error");
     } finally {
       setPostingComment(false);
+    }
+  };
+
+  const handleEditComment = async (commentId: string, text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed || !token) return;
+    try {
+      const updated = await updateComment(token, commentId, { text: trimmed });
+      setComments((prev) => prev.map((c) => (c.uuid === commentId ? updated : c)));
+      setEditingCommentId(null);
+    } catch {
+      showToast(t("assetDetail.comment.editError"), "error");
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!token) return;
+    try {
+      await deleteComment(token, commentId);
+      setComments((prev) => prev.filter((c) => c.uuid !== commentId));
+    } catch {
+      showToast(t("assetDetail.comment.deleteError"), "error");
     }
   };
 
@@ -269,6 +292,11 @@ function TaskDetailDrawer({
                     highlighted={false}
                     currentUserUuid={userUuid}
                     token={token}
+                    editing={editingCommentId === c.uuid}
+                    onStartEdit={() => setEditingCommentId(c.uuid)}
+                    onCancelEdit={() => setEditingCommentId(null)}
+                    onEdit={handleEditComment}
+                    onDelete={handleDeleteComment}
                   />
                 ))}
               </Box>

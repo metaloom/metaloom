@@ -7,6 +7,11 @@ import {
   createCommentReaction,
   updateCommentReaction,
   deleteCommentReaction,
+  listAnnotationReactions,
+  loadAnnotationReaction,
+  createAnnotationReaction,
+  updateAnnotationReaction,
+  deleteAnnotationReaction,
 } from "./reactions";
 import { API_BASE_URL } from "./config";
 
@@ -129,5 +134,73 @@ describe("comment reactions API client", () => {
 
     const [url] = fetchMock.mock.calls[0];
     expect(url).toBe(`${API_BASE_URL}/comments/a%20b%2Fc/reactions/r%20x`);
+  });
+});
+
+describe("annotation reactions API client", () => {
+  it("listAnnotationReactions GETs the annotation-scoped reactions route", async () => {
+    const fetchMock = mockFetchOk({ data: [] });
+
+    await listAnnotationReactions(TOKEN, "n1");
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toBe(`${API_BASE_URL}/annotations/n1/reactions`);
+    expect(options.method).toBe("GET");
+    expect(options.headers.Authorization).toBe(`Bearer ${TOKEN}`);
+  });
+
+  it("loadAnnotationReaction GETs the reaction uuid route", async () => {
+    const fetchMock = mockFetchOk({ uuid: "r1", type: "THUMBSUP" });
+
+    await loadAnnotationReaction(TOKEN, "n1", "r1");
+
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toBe(`${API_BASE_URL}/annotations/n1/reactions/r1`);
+    expect(options.method).toBe("GET");
+    expect(options.headers.Authorization).toBe(`Bearer ${TOKEN}`);
+  });
+
+  it("createAnnotationReaction POSTs to the annotation-scoped reactions route", async () => {
+    const fetchMock = mockFetchOk({ uuid: "r1", type: "THUMBSUP" });
+
+    await createAnnotationReaction(TOKEN, "n1", { type: "THUMBSUP" });
+
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toBe(`${API_BASE_URL}/annotations/n1/reactions`);
+    expect(options.method).toBe("POST");
+    expect(options.headers["Content-Type"]).toBe("application/json");
+    expect(options.body).toBe(JSON.stringify({ type: "THUMBSUP" }));
+  });
+
+  it("updateAnnotationReaction POSTs (not PUT) to the reaction uuid route", async () => {
+    const fetchMock = mockFetchOk({ uuid: "r1", type: "THUMBSDOWN" });
+
+    await updateAnnotationReaction(TOKEN, "n1", "r1", { type: "THUMBSDOWN" });
+
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toBe(`${API_BASE_URL}/annotations/n1/reactions/r1`);
+    expect(options.method).toBe("POST");
+    expect(options.body).toBe(JSON.stringify({ type: "THUMBSDOWN" }));
+  });
+
+  it("deleteAnnotationReaction DELETEs the reaction uuid route", async () => {
+    const fetchMock = mockFetchOk();
+
+    await deleteAnnotationReaction(TOKEN, "n1", "r1");
+
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toBe(`${API_BASE_URL}/annotations/n1/reactions/r1`);
+    expect(options.method).toBe("DELETE");
+    expect(options.headers.Authorization).toBe(`Bearer ${TOKEN}`);
+  });
+
+  it("encodes annotation and reaction uuids into the URL path", async () => {
+    const fetchMock = mockFetchOk();
+
+    await deleteAnnotationReaction(TOKEN, "a b/c", "r d/e");
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe(`${API_BASE_URL}/annotations/a%20b%2Fc/reactions/r%20d%2Fe`);
   });
 });

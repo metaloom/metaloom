@@ -217,3 +217,69 @@ export async function deleteCommentReaction(token: string, commentUuid: string, 
     throw new Error(`API error ${res.status}: ${text}`);
   }
 }
+
+// ── API for annotation reactions (sub-resource of annotations) ────────
+
+/** List the reactions of an annotation. GET /annotations/:annotationUuid/reactions */
+export async function listAnnotationReactions(token: string, annotationUuid: string): Promise<ReactionListResponse> {
+  const res = await fetch(`${API_BASE_URL}/annotations/${encodeURIComponent(annotationUuid)}/reactions`, {
+    method: "GET",
+    headers: authHeaders(token),
+  });
+  return handleResponse<ReactionListResponse>(res);
+}
+
+/** Load a single annotation reaction. GET /annotations/:annotationUuid/reactions/:reactionUuid */
+export async function loadAnnotationReaction(token: string, annotationUuid: string, reactionUuid: string): Promise<ReactionResponseItem> {
+  const res = await fetch(
+    `${API_BASE_URL}/annotations/${encodeURIComponent(annotationUuid)}/reactions/${encodeURIComponent(reactionUuid)}`,
+    {
+      method: "GET",
+      headers: authHeaders(token),
+    },
+  );
+  return handleResponse<ReactionResponseItem>(res);
+}
+
+/** Create a reaction on an annotation. POST /annotations/:annotationUuid/reactions */
+export async function createAnnotationReaction(token: string, annotationUuid: string, request: ReactionCreateRequest): Promise<ReactionResponseItem> {
+  const res = await fetch(`${API_BASE_URL}/annotations/${encodeURIComponent(annotationUuid)}/reactions`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(request),
+  });
+  return handleResponse<ReactionResponseItem>(res);
+}
+
+/** Update an annotation reaction. POST /annotations/:annotationUuid/reactions/:reactionUuid (update is POST, not PUT/PATCH). */
+export async function updateAnnotationReaction(
+  token: string,
+  annotationUuid: string,
+  reactionUuid: string,
+  request: ReactionCreateRequest,
+): Promise<ReactionResponseItem> {
+  const res = await fetch(
+    `${API_BASE_URL}/annotations/${encodeURIComponent(annotationUuid)}/reactions/${encodeURIComponent(reactionUuid)}`,
+    {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify(request),
+    },
+  );
+  return handleResponse<ReactionResponseItem>(res);
+}
+
+/** Delete an annotation reaction. DELETE /annotations/:annotationUuid/reactions/:reactionUuid (204). */
+export async function deleteAnnotationReaction(token: string, annotationUuid: string, reactionUuid: string): Promise<void> {
+  const res = await fetch(
+    `${API_BASE_URL}/annotations/${encodeURIComponent(annotationUuid)}/reactions/${encodeURIComponent(reactionUuid)}`,
+    {
+      method: "DELETE",
+      headers: authHeaders(token),
+    },
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+}

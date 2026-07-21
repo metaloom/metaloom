@@ -1221,6 +1221,8 @@ export default function AssetDetail() {
                     highlighted={highlightedId === a.id || hoveredMarkerId === a.id}
                     onTimeClick={(t) => { setCurrentTime(t); setHighlightedId(null); }}
                     onHover={setHoveredMarkerId}
+                    token={token}
+                    currentUserUuid={userUuid}
                   />
                 ))}
               </Box>

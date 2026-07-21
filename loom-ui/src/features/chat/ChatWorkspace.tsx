@@ -9,10 +9,12 @@ import {
   PlayCircleOutline, ImageOutlined, TaskAltOutlined,
   AccountTreeOutlined, CollectionsOutlined, AccessTimeOutlined,
   ArrowForwardIos, DragIndicator,
+  Add, ChatBubbleOutline, DeleteOutline, ViewSidebarOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { ChatMessage, ChatReference } from "../../types";
 import { mockChatService } from "../../mock/services";
+import { listChats, loadChat, createChat, updateChat, deleteChat, ChatResponse } from "../../api/chat";
 import { useSpace } from "../../context/SpaceContext";
 import { useTranslation } from "react-i18next";
 import AssetBrowser from "../assets/AssetBrowser";
@@ -389,6 +391,7 @@ function CollectionRow({ collection }: { collection: CollectionResponse }) {
 // ── Main Chat Workspace ───────────────────────────────────────────────────
 export default function ChatWorkspace() {
   const { activeSpace } = useSpace();
+  const { token } = useAuth();
   const { t } = useTranslation();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -396,6 +399,9 @@ export default function ChatWorkspace() {
   const [workspaceMode, setWorkspaceMode] = useState<"overview" | "assets">("overview");
   const [chatWidth, setChatWidth] = useState(440);
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<ChatResponse[]>([]);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [railOpen, setRailOpen] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const isDragging = useRef(false);
 
@@ -418,15 +424,50 @@ export default function ChatWorkspace() {
     window.addEventListener("mouseup", onUp);
   }, [chatWidth]);
 
+  // Load the list of persisted conversations for the session rail.
   useEffect(() => {
-    mockChatService.getHistory().then(setMessages);
-  }, []);
+    if (!token) return;
+    listChats(token)
+      .then(res => setSessions(res.data ?? []))
+      .catch(e => console.error("Failed to list chats", e));
+  }, [token]);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // Start a fresh, empty conversation. The backend session is created lazily
+  // on the first sendMessage, so we never persist empty sessions.
+  const newChat = () => {
+    setSessionId(null);
+    setMessages([]);
+  };
+
+  const loadSession = async (uuid: string) => {
+    if (!token) return;
+    try {
+      const res = await loadChat(token, uuid);
+      setMessages(res.messages ?? []);
+      setSessionId(uuid);
+    } catch (e) {
+      console.error("Failed to load chat", e);
+    }
+  };
+
+  const handleDeleteSession = async (uuid: string) => {
+    if (!token) return;
+    try {
+      await deleteChat(token, uuid);
+      setSessions(prev => prev.filter(s => s.uuid !== uuid));
+      if (sessionId === uuid) {
+        newChat();
+      }
+    } catch (e) {
+      console.error("Failed to delete chat", e);
+    }
+  };
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || sending) return;
@@ -436,7 +477,8 @@ export default function ChatWorkspace() {
       content: text.trim(),
       createdAt: new Date().toISOString(),
     };
-    setMessages(prev => [...prev, userMsg]);
+    const historyWithUser = [...messages, userMsg];
+    setMessages(historyWithUser);
     setInput("");
     setSending(true);
 
@@ -446,8 +488,26 @@ export default function ChatWorkspace() {
     }
 
     try {
+      // Assistant-reply generation is unchanged — still produced client-side.
       const response = await mockChatService.sendMessage(text, activeSpace?.id ?? "");
-      setMessages(prev => [...prev, response]);
+      const fullHistory = [...historyWithUser, response];
+      setMessages(fullHistory);
+
+      // Persist the exchange. A failed persist must not break the in-memory chat.
+      if (token) {
+        try {
+          if (sessionId === null) {
+            const title = text.trim().slice(0, 40) || t("chat.sessions.newChat");
+            const created = await createChat(token, { title, messages: fullHistory });
+            setSessionId(created.uuid);
+            setSessions(prev => [created, ...prev]);
+          } else {
+            await updateChat(token, sessionId, { messages: fullHistory });
+          }
+        } catch (e) {
+          console.error("Failed to persist chat", e);
+        }
+      }
     } finally {
       setSending(false);
     }
@@ -462,6 +522,76 @@ export default function ChatWorkspace() {
 
   return (
     <Box sx={{ display: "flex", height: "100%", overflow: "hidden" }}>
+      {/* ── Sessions rail ── */}
+      {railOpen && (
+        <Box
+          sx={{
+            width: 220,
+            flexShrink: 0,
+            display: { xs: "none", md: "flex" },
+            flexDirection: "column",
+            bgcolor: tokens.bg.base,
+            borderRight: `1px solid ${tokens.border.subtle}`,
+          }}
+        >
+          <Box sx={{ px: 1.5, py: 1.5, borderBottom: `1px solid ${tokens.border.subtle}` }}>
+            <Box
+              role="button"
+              onClick={newChat}
+              sx={{
+                display: "flex", alignItems: "center", gap: 1,
+                px: 1.25, py: 1, borderRadius: tokens.radius.md,
+                border: `1px solid ${tokens.border.default}`,
+                cursor: "pointer", color: tokens.text.primary,
+                "&:hover": { bgcolor: tokens.bg.hover, borderColor: tokens.primary.main },
+                transition: "all 120ms ease",
+              }}
+            >
+              <Add sx={{ fontSize: 16 }} />
+              <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.78rem" }}>
+                {t("chat.sessions.newChat")}
+              </Typography>
+            </Box>
+          </Box>
+          <Box sx={{ flex: 1, overflow: "auto", py: 0.5 }}>
+            {sessions.length === 0 ? (
+              <Typography variant="caption" sx={{ px: 2, py: 1.5, display: "block", color: tokens.text.tertiary, fontSize: "0.72rem" }}>
+                {t("chat.sessions.empty")}
+              </Typography>
+            ) : (
+              sessions.map((s) => (
+                <Box
+                  key={s.uuid}
+                  onClick={() => loadSession(s.uuid)}
+                  sx={{
+                    display: "flex", alignItems: "center", gap: 1,
+                    mx: 1, px: 1.25, py: 0.9, borderRadius: tokens.radius.md,
+                    cursor: "pointer",
+                    bgcolor: sessionId === s.uuid ? tokens.primary.subtle : "transparent",
+                    border: `1px solid ${sessionId === s.uuid ? tokens.primary.main : "transparent"}`,
+                    "&:hover": { bgcolor: sessionId === s.uuid ? tokens.primary.subtle : tokens.bg.hover },
+                    "&:hover .chat-del": { opacity: 1 },
+                    transition: "background-color 120ms ease",
+                  }}
+                >
+                  <ChatBubbleOutline sx={{ fontSize: 14, color: tokens.text.tertiary, flexShrink: 0 }} />
+                  <Typography variant="caption" noWrap sx={{ flex: 1, fontSize: "0.76rem", color: tokens.text.primary }}>
+                    {s.title || t("chat.sessions.untitled")}
+                  </Typography>
+                  <IconButton
+                    className="chat-del"
+                    size="small"
+                    onClick={(e) => { e.stopPropagation(); handleDeleteSession(s.uuid); }}
+                    sx={{ opacity: 0, p: 0.25, color: tokens.text.tertiary, "&:hover": { color: tokens.accent.red }, transition: "opacity 120ms ease" }}
+                  >
+                    <DeleteOutline sx={{ fontSize: 14 }} />
+                  </IconButton>
+                </Box>
+              ))
+            )}
+          </Box>
+        </Box>
+      )}
       {/* ── Left: Chat column ── */}
       <Box
         sx={{
@@ -476,6 +606,15 @@ export default function ChatWorkspace() {
       >
         {/* Header */}
         <Box sx={{ px: 2.5, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", gap: 1 }}>
+          <Tooltip title={t("chat.sessions.toggle")}>
+            <IconButton
+              size="small"
+              onClick={() => setRailOpen(o => !o)}
+              sx={{ display: { xs: "none", md: "inline-flex" }, color: tokens.text.secondary, mr: 0.25 }}
+            >
+              <ViewSidebarOutlined sx={{ fontSize: 18 }} />
+            </IconButton>
+          </Tooltip>
           <Box
             sx={{
               width: 28, height: 28, borderRadius: "50%",

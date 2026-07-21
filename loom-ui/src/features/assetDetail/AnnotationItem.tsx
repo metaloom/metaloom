@@ -4,8 +4,9 @@ import { AccessTimeOutlined } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { Annotation } from "../../types";
 import { formatDuration, userName } from "./helpers";
+import { AnnotationReactionBar } from "./AnnotationReactionBar";
 
-export function AnnotationItem({ ann, highlighted, onTimeClick, onHover }: { ann: Annotation; highlighted: boolean; onTimeClick?: (t: number) => void; onHover?: (id: string | null) => void }) {
+export function AnnotationItem({ ann, highlighted, onTimeClick, onHover, token, currentUserUuid }: { ann: Annotation; highlighted: boolean; onTimeClick?: (t: number) => void; onHover?: (id: string | null) => void; token?: string | null; currentUserUuid?: string | null }) {
   return (
     <Box
       onMouseEnter={() => onHover?.(ann.id)}
@@ -41,6 +42,7 @@ export function AnnotationItem({ ann, highlighted, onTimeClick, onHover }: { ann
         <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem" }}>
           {userName(ann.authorId)}
         </Typography>
+        <AnnotationReactionBar annotationUuid={ann.id} token={token} currentUserUuid={currentUserUuid} />
       </Box>
     </Box>
   );

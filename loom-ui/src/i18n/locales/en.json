@@ -437,6 +437,12 @@
       "placeholder": "Ask about assets, collections, tasks, pipelines…",
       "helper": "Enter to send · Shift+Enter for new line"
     },
+    "sessions": {
+      "newChat": "New chat",
+      "empty": "No conversations yet",
+      "untitled": "Untitled",
+      "toggle": "Toggle conversation list"
+    },
     "panel": {
       "recentAssets": "Recent Assets",
       "activeTasks": "Active Tasks",

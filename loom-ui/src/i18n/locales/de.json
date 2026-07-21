@@ -428,6 +428,12 @@
       "placeholder": "Fragen Sie nach Assets, Sammlungen, Aufgaben, Pipelines…",
       "helper": "Enter zum Senden · Shift+Enter für neue Zeile"
     },
+    "sessions": {
+      "newChat": "Neuer Chat",
+      "empty": "Noch keine Unterhaltungen",
+      "untitled": "Unbenannt",
+      "toggle": "Unterhaltungsliste umschalten"
+    },
     "panel": {
       "recentAssets": "Neueste Assets",
       "activeTasks": "Aktive Aufgaben",
