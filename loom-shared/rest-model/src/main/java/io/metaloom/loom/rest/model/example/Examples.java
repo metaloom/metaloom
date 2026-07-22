@@ -8,6 +8,7 @@ import io.metaloom.loom.rest.model.asset.binary.AssetBinaryExamples;
 import io.metaloom.loom.rest.model.attachment.AttachmentExamples;
 import io.metaloom.loom.rest.model.blacklist.BlacklistExamples;
 import io.metaloom.loom.rest.model.chat.ChatExamples;
+import io.metaloom.loom.rest.model.skill.SkillExamples;
 import io.metaloom.loom.rest.model.pool.AssetPoolExamples;
 import io.metaloom.loom.rest.model.auth.AuthLoginExamples;
 import io.metaloom.loom.rest.model.cluster.ClusterExamples;
@@ -43,6 +44,7 @@ public interface Examples extends
 	AttachmentExamples,
 	BlacklistExamples,
 	ChatExamples,
+	SkillExamples,
 	ClusterExamples,
 	CommentExamples,
 	CollectionExamples,

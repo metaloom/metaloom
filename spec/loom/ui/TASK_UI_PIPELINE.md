@@ -6,16 +6,12 @@ Node Task, Cortex Instance) and the node/editor surface. Pipelines and nodes are
 most complex area of the product, so this file is intentionally more granular than the
 other TASK_UI_* files. Follows [../../TASKS.template.md](../../TASKS.template.md).
 
-> **Important — the spec's CRUD matrix is stale.** [PIPELINE_EDITOR.md](PIPELINE_EDITOR.md)
-> section 5.1 still marks pipeline **Create** and **Delete** as "❌ Not implemented".
-> That is no longer true: [PipelineEditor.tsx](loom-ui/src/features/pipeline/PipelineEditor.tsx)
-> now wires `createPipeline` (handleCreate ~line 2365), `deletePipeline`
-> (~line 2383, with a confirm dialog ~line 3175), `cancelPipelineRun`, run history
-> (`listPipelineRuns` / `listPipelineRunItems`), version history + restore
-> (`listPipelineVersions` / `restorePipelineVersion` + `PipelineVersionDiff`), and a
-> live event feed (`subscribePipelineEvents`). This file reflects the **actual code**,
-> not the stale matrix. The first task below is to fix that matrix so the spec stops
-> lying about what exists.
+> **Note:** the CRUD matrix in [PIPELINE_EDITOR.md](PIPELINE_EDITOR.md) §5.1 has been
+> corrected to match the shipped code: Create, Delete, Cancel Run, run history +
+> run-item drill-down, version history/diff/restore, and the live event feed are all
+> implemented in [PipelineEditor.tsx](loom-ui/src/features/pipeline/PipelineEditor.tsx)
+> (see §5.5 there). The only remaining single-run gap is `loadPipelineRun`, which is
+> defined but never called — tracked as a task below.
 
 ## Coverage Matrix
 
@@ -23,7 +19,7 @@ other TASK_UI_* files. Follows [../../TASKS.template.md](../../TASKS.template.md
 |------------------|-----------------------------------|-----------|-------------|
 | Pipeline | `GET /api/v1/pipelines` · list | Implemented | `listPipelines` → pipeline list sidebar in [PipelineEditor.tsx](loom-ui/src/features/pipeline/PipelineEditor.tsx) |
 | Pipeline | `GET /api/v1/pipelines/:uuid` · get | Implemented | `loadPipeline`; list response carries flattened definition |
-| Pipeline | `POST /api/v1/pipelines` · create | Implemented | `createPipeline` (handleCreate ~2365) — contrary to stale matrix |
+| Pipeline | `POST /api/v1/pipelines` · create | Implemented | `createPipeline` (handleCreateConfirm ~2329) |
 | Pipeline | `POST /api/v1/pipelines/:uuid` · update | Implemented | `updatePipeline`, canvas edit → Save; optimistic |
 | Pipeline | `DELETE /api/v1/pipelines/:uuid` · delete | Implemented | `deletePipeline` (~2383) + confirm dialog (~3175) |
 | Pipeline Run | `POST /api/v1/pipelines/:uuid/run` · trigger | Implemented | `runPipeline`, Run button; handles `dispatched` false → toast |
@@ -46,44 +42,10 @@ other TASK_UI_* files. Follows [../../TASKS.template.md](../../TASKS.template.md
 | Pipeline Events (WS) | `/api/v1/pipelines/events/ws` · live event stream | Implemented | `subscribePipelineEvents` → live run updates (handleEvent ~2065); also legacy [PipelineArea.tsx](loom-ui/src/Pipeline/PipelineArea.tsx) |
 | Processor Events (WS) | `/api/v1/processors/ws` (UI-side status) | Implemented | `subscribeProcessorEvents` → live processor state in CortexView |
 | Node CRUD (in-editor) | add / delete / move / re-parameterize / edit edge type | Implemented | Local mutation, synced on save (PIPELINE_EDITOR.md §5.3) |
-| Monitoring | cross-pipeline run stats | **Partial / mock** | [MonitoringArea.tsx](loom-ui/src/features/monitoring/MonitoringArea.tsx) renders pipeline-run KPIs/charts from **synthetic data** with hardcoded deltas (`delta="+8%"`), not real aggregated `listPipelineRuns` |
+| Monitoring | cross-pipeline run stats (`GET /api/v1/pipelines/runs/stats`) | Implemented | [MonitoringArea.tsx](loom-ui/src/features/monitoring/MonitoringArea.tsx) feeds the pipeline-run KPI + success/failed/skipped chart from the aggregation endpoint (`loadPipelineRunStats`, [runMetrics.ts](loom-ui/src/features/monitoring/runMetrics.ts)); deltas computed from the real series; remaining synthetic panels carry a "Sample data" badge |
 
 ---
 
-## Task: Correct the stale CRUD matrix in the pipeline editor spec
-
-**Argumentation Summary:** [PIPELINE_EDITOR.md](PIPELINE_EDITOR.md) §5.1 states pipeline
-Create and Delete are "❌ Not implemented" and §5.2 calls Update "The Only Implemented
-Write". The actual editor implements create, delete, run, cancel, version restore, and
-run-history — so the reference document actively misleads any agent or developer who
-trusts it, and every downstream task derived from it starts from a false premise.
-
-**Improvement Summary:** Bring §5 (and any other section that asserts write coverage)
-into line with the shipped [PipelineEditor.tsx](loom-ui/src/features/pipeline/PipelineEditor.tsx),
-so the spec documents what exists and only flags the genuine remaining gaps below.
-
-```
-Update PIPELINE_EDITOR.md so its CRUD matrix and prose match the code.
-
-- §5.1 CRUD Matrix: mark Create (✅ `createPipeline`, handleCreate), Delete
-  (✅ `deletePipeline` + confirm dialog), Run (already ✅), and add rows for
-  Cancel Run, Version Restore, and Run-History read.
-- §5.2: it is no longer "the only implemented write" — retitle to describe the
-  save/update flow specifically.
-- Add a short subsection documenting run history, run-item drill-down, version
-  diff/restore, and the live pipeline-event subscription, cross-linking the
-  component functions (RunHistory, PipelineInspector, PipelineVersionDiff).
-- Verify every other "not implemented" claim in the file against the current
-  source before leaving it in place.
-```
-
-**References:**
-- [PIPELINE_EDITOR.md](PIPELINE_EDITOR.md) §5 (CRUD Matrix / Update Flow / Node CRUD / Run)
-- [PipelineEditor.tsx](loom-ui/src/features/pipeline/PipelineEditor.tsx) — handleCreate, handleDelete, handleCancelRun, restore, RunHistory, PipelineInspector
-- [pipelines.ts](loom-ui/src/api/pipelines.ts) — client functions
-
-**Test Requirements:**
-- Documentation-only change; no runtime test. Reviewer confirms each matrix cell against a grep of the named function in the source.
 
 ## Task: Expose Node Task (per-node execution) state in the run-item drill-down
 
@@ -194,37 +156,6 @@ by id, giving live, focused status for the run the user is actually watching.
 - API-client test: `loadPipelineRun` GETs the single-run path with UUIDs encoded.
 - Component test: opening a run id not present in the list fetches it via `loadPipelineRun` and renders its detail.
 - Component test: a RUNNING run detail reconciles its status from `loadPipelineRun`.
-
-## Task: Replace synthetic monitoring charts with real cross-pipeline run data
-
-**Argumentation Summary:** [MonitoringArea.tsx](loom-ui/src/features/monitoring/MonitoringArea.tsx)
-presents pipeline-run KPIs and success/failed bar charts, but the numbers are **synthetic** —
-hardcoded deltas (`delta="+8%"`) and sample series rather than aggregated
-`listPipelineRuns` results. A dashboard that shows invented figures is worse than none: it
-looks authoritative while being fictional.
-
-**Improvement Summary:** Aggregate real run outcomes across pipelines into the monitoring
-KPIs and charts (success/failed/skipped counts over time), or, until an aggregation endpoint
-exists, clearly label the panels as sample data.
-
-```
-- Preferred: add a lightweight aggregation source. Either a backend stats endpoint
-  (e.g. GET /api/v1/pipelines/runs/stats) or a client-side roll-up that calls
-  listPipelineRuns per pipeline and sums success/failure/skipped counts and recent
-  activity. Feed the KPI cards and the success/failed bar chart from that.
-- Remove hardcoded deltas; compute deltas from the real series or drop them.
-- Interim: if real data is not yet wired, add an explicit "sample data" badge to each
-  synthetic panel so it cannot be mistaken for live metrics.
-```
-
-**References:**
-- [MonitoringArea.tsx](loom-ui/src/features/monitoring/MonitoringArea.tsx) (~line 139, 168–177)
-- [pipelines.ts](loom-ui/src/api/pipelines.ts) — `listPipelineRuns`
-- [DOMAIN.md](../DOMAIN.md) group 5 (Pipeline Run status + success/failure/skipped counts)
-
-**Test Requirements:**
-- Component test: KPI values and chart series derive from mocked run data, not constants.
-- Component test: with no real data wired, each synthetic panel shows a "sample data" badge.
 
 ## Task: Add a global cross-pipeline run activity view
 

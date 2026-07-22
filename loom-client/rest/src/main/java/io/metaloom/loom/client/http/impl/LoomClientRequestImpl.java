@@ -68,7 +68,13 @@ public class LoomClientRequestImpl<T extends RestResponseModel<T>> implements Lo
 
 	private Request build() {
 		Builder builder = new Request.Builder().url(urlBuilder.build());
-		builder.method(method, body);
+		RequestBody requestBody = body;
+		// OkHttp rejects body-less POST/PUT/PATCH requests. Use an empty body for
+		// routes which do not consume a payload (e.g. POST /assets/:uuid/tasks/:taskUuid).
+		if (requestBody == null && ("POST".equals(method) || "PUT".equals(method) || "PATCH".equals(method))) {
+			requestBody = RequestBody.create(new byte[0]);
+		}
+		builder.method(method, requestBody);
 		String token = loomClient.getToken();
 		if (token != null) {
 			builder.header("Authorization", "Bearer " + token);

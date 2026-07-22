@@ -6,8 +6,10 @@ package io.metaloom.loom.db.jooq.tables;
 
 import io.metaloom.loom.db.jooq.JooqPublic;
 import io.metaloom.loom.db.jooq.Keys;
+import io.metaloom.loom.db.jooq.converter.JsonArrayConverter;
 import io.metaloom.loom.db.jooq.converter.JsonObjectConverter;
 import io.metaloom.loom.db.jooq.tables.records.JooqChatRecord;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 import java.time.LocalDateTime;
@@ -18,7 +20,6 @@ import java.util.function.Function;
 import org.jooq.Field;
 import org.jooq.ForeignKey;
 import org.jooq.Function8;
-import org.jooq.JSONB;
 import org.jooq.Name;
 import org.jooq.Record;
 import org.jooq.Records;
@@ -70,7 +71,7 @@ public class JooqChat extends TableImpl<JooqChatRecord> {
      * The column <code>public.chat.messages</code>. JSON array of chat messages
      * (role, content, metadata, asset references)
      */
-    public final TableField<JooqChatRecord, JSONB> MESSAGES = createField(DSL.name("messages"), SQLDataType.JSONB.nullable(false).defaultValue(DSL.field("'[]'::jsonb", SQLDataType.JSONB)), this, "JSON array of chat messages (role, content, metadata, asset references)");
+    public final TableField<JooqChatRecord, JsonArray> MESSAGES = createField(DSL.name("messages"), SQLDataType.JSONB.nullable(false).defaultValue(DSL.field("'[]'::jsonb", SQLDataType.JSONB)), this, "JSON array of chat messages (role, content, metadata, asset references)", new JsonArrayConverter());
 
     /**
      * The column <code>public.chat.meta</code>.
@@ -214,14 +215,14 @@ public class JooqChat extends TableImpl<JooqChatRecord> {
     // -------------------------------------------------------------------------
 
     @Override
-    public Row8<java.util.UUID, String, JSONB, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
+    public Row8<java.util.UUID, String, JsonArray, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
         return (Row8) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function8<? super java.util.UUID, ? super String, ? super JSONB, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function8<? super java.util.UUID, ? super String, ? super JsonArray, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -229,7 +230,7 @@ public class JooqChat extends TableImpl<JooqChatRecord> {
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function8<? super java.util.UUID, ? super String, ? super JSONB, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function8<? super java.util.UUID, ? super String, ? super JsonArray, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }

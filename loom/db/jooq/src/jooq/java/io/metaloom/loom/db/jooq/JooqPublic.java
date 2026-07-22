@@ -55,6 +55,7 @@ import io.metaloom.loom.db.jooq.tables.JooqReaction;
 import io.metaloom.loom.db.jooq.tables.JooqRole;
 import io.metaloom.loom.db.jooq.tables.JooqRoleGroup;
 import io.metaloom.loom.db.jooq.tables.JooqRolePermission;
+import io.metaloom.loom.db.jooq.tables.JooqSkill;
 import io.metaloom.loom.db.jooq.tables.JooqTag;
 import io.metaloom.loom.db.jooq.tables.JooqTagAsset;
 import io.metaloom.loom.db.jooq.tables.JooqTagCluster;
@@ -358,6 +359,12 @@ public class JooqPublic extends SchemaImpl {
     public final JooqRolePermission ROLE_PERMISSION = JooqRolePermission.ROLE_PERMISSION;
 
     /**
+     * Stores user-owned agent skills (SKILL.md-style instruction packages for
+     * the chat agent)
+     */
+    public final JooqSkill SKILL = JooqSkill.SKILL;
+
+    /**
      * Tag on various elements. Tags are not user specifc
      */
     public final JooqTag TAG = JooqTag.TAG;
@@ -496,6 +503,7 @@ public class JooqPublic extends SchemaImpl {
             JooqRole.ROLE,
             JooqRoleGroup.ROLE_GROUP,
             JooqRolePermission.ROLE_PERMISSION,
+            JooqSkill.SKILL,
             JooqTag.TAG,
             JooqTagAsset.TAG_ASSET,
             JooqTagCluster.TAG_CLUSTER,

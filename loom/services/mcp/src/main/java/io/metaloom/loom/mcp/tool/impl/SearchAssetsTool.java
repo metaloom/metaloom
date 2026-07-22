@@ -12,6 +12,7 @@ import io.metaloom.loom.db.page.Page;
 import io.metaloom.loom.mcp.model.MCPToolDescriptor;
 import io.metaloom.loom.mcp.model.MCPToolDescriptor.MCPToolParam;
 import io.metaloom.loom.mcp.tool.MCPTool;
+import io.metaloom.loom.mcp.tool.MCPToolResults;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -57,6 +58,7 @@ public class SearchAssetsTool implements MCPTool {
 			Page<Asset> page = assetDao.loadPage(null, limit, null, null, null);
 
 			JsonArray items = new JsonArray();
+			JsonArray references = new JsonArray();
 			for (Asset asset : page) {
 				JsonObject item = new JsonObject()
 					.put("uuid", asset.getUuid().toString())
@@ -65,24 +67,14 @@ public class SearchAssetsTool implements MCPTool {
 					.put("size", asset.getSize())
 					.put("sha512", asset.getSHA512() != null ? asset.getSHA512().toString() : null);
 				items.add(item);
+				references.add(MCPToolResults.reference("asset", asset.getUuid().toString(), asset.getFilename()));
 			}
 
-			JsonObject result = mcpTextResult("Found " + items.size() + " assets.\n" + items.encodePrettily());
+			JsonObject result = MCPToolResults.mcpResultWithReferences("Found " + items.size() + " assets.\n" + items.encodePrettily(), references);
 			return Future.succeededFuture(result);
 		} catch (Exception e) {
 			return Future.failedFuture(e);
 		}
-	}
-
-	/**
-	 * Wrap a text string in MCP content format.
-	 */
-	static JsonObject mcpTextResult(String text) {
-		return new JsonObject()
-			.put("content", new JsonArray()
-				.add(new JsonObject()
-					.put("type", "text")
-					.put("text", text)));
 	}
 
 }

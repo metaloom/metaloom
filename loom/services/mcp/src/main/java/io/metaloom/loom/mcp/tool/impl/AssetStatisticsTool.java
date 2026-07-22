@@ -1,6 +1,6 @@
 package io.metaloom.loom.mcp.tool.impl;
 
-import static io.metaloom.loom.mcp.tool.impl.SearchAssetsTool.mcpTextResult;
+import static io.metaloom.loom.mcp.tool.MCPToolResults.mcpTextResult;
 
 import java.util.List;
 

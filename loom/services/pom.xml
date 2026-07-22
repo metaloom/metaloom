@@ -58,6 +58,7 @@
         <module>eventbus</module>
         <module>webhook</module>
         <module>mcp</module>
+        <module>ai</module>
     </modules>
 
 

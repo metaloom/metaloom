@@ -1,6 +1,8 @@
 package io.metaloom.loom.mcp.tool.impl;
 
-import static io.metaloom.loom.mcp.tool.impl.SearchAssetsTool.mcpTextResult;
+import static io.metaloom.loom.mcp.tool.MCPToolResults.mcpResultWithReferences;
+import static io.metaloom.loom.mcp.tool.MCPToolResults.mcpTextResult;
+import static io.metaloom.loom.mcp.tool.MCPToolResults.reference;
 
 import java.util.List;
 
@@ -15,6 +17,7 @@ import io.metaloom.loom.mcp.model.MCPToolDescriptor;
 import io.metaloom.loom.mcp.model.MCPToolDescriptor.MCPToolParam;
 import io.metaloom.loom.mcp.tool.MCPTool;
 import io.vertx.core.Future;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 /**
@@ -70,7 +73,8 @@ public class GetAssetTool implements MCPTool {
 				.put("s3Bucket", asset.getS3BucketName())
 				.put("s3ObjectPath", asset.getS3ObjectPath());
 
-			return Future.succeededFuture(mcpTextResult(info.encodePrettily()));
+			return Future.succeededFuture(mcpResultWithReferences(info.encodePrettily(),
+				new JsonArray().add(reference("asset", asset.getUuid().toString(), asset.getFilename()))));
 		} catch (Exception e) {
 			return Future.failedFuture(e);
 		}

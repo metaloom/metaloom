@@ -54,6 +54,10 @@
     </dependency>
     <dependency>
       <groupId>io.metaloom.loom.service</groupId>
+      <artifactId>loom-service-ai</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.metaloom.loom.service</groupId>
       <artifactId>loom-service-auth-common</artifactId>
     </dependency>
     <dependency>

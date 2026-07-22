@@ -20,7 +20,7 @@ import {
   CenterFocusStrongOutlined, CheckOutlined, AddOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
-import { Asset, AssetType, AssetStatus, Comment, Annotation, Task, TranscriptSection, DetectedFace, FaceCluster, Person } from "../../types";
+import { Asset, AssetType, AssetStatus, Comment, Annotation, TranscriptSection, DetectedFace, FaceCluster, Person } from "../../types";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { loadAsset as apiLoadAsset, updateAsset, deleteAsset, AssetResponse, TagReference, AssetLocationInfo } from "../../api/assets";
@@ -39,13 +39,14 @@ import { listAssetTranscripts } from "../../api/transcripts";
 import { AnnotationResponseItem } from "../../api/annotations";
 import { listAssetReactions, createAssetReaction, deleteAssetReaction, ReactionResponseItem, TaskReactionType } from "../../api/reactions";
 import { listCommentsForAsset, createCommentForAsset, updateComment, deleteComment, CommentResponse } from "../../api/comments";
+import { listAssetTasks, assignTaskToAsset, createTask, TaskResponse } from "../../api/tasks";
 import { apiToAsset, formatDuration, formatBytes, userName, tagBreadcrumb } from "./helpers";
 import { VideoTimeline, TimelineMarker } from "./VideoTimeline";
 import { ZoomableImage } from "./ZoomableImage";
 import { CommentItem } from "./CommentItem";
 import { AnnotationItem } from "./AnnotationItem";
 import { ReactionsPanel } from "../reactions/ReactionsPanel";
-import { TaskItem } from "./TaskItem";
+import { TaskItem, taskPriorityColor, taskStatusColor } from "./TaskItem";
 import { TranscriptPanel } from "./TranscriptPanel";
 import { FaceDetectionPanel } from "./FaceDetectionPanel";
 
@@ -73,7 +74,7 @@ export default function AssetDetail() {
   const [comments, setComments] = useState<Comment[]>([]);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [reactions, setReactions] = useState<ReactionResponseItem[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasks, setTasks] = useState<TaskResponse[]>([]);
   const [transcriptSections, setTranscriptSections] = useState<TranscriptSection[]>([]);
   const [detectedFaces, setDetectedFaces] = useState<DetectedFace[]>([]);
   const [faceClusters, setFaceClusters] = useState<FaceCluster[]>([]);
@@ -86,7 +87,14 @@ export default function AssetDetail() {
   const [playing, setPlaying] = useState(false);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [hoveredMarkerId, setHoveredMarkerId] = useState<string | null>(null);
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [selectedTask, setSelectedTask] = useState<TaskResponse | null>(null);
+  // Create-task dialog (creates a task and assigns it to this asset)
+  const [taskCreateOpen, setTaskCreateOpen] = useState(false);
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskDescription, setTaskDescription] = useState("");
+  const [taskPriority, setTaskPriority] = useState("MEDIUM");
+  const [taskDueDate, setTaskDueDate] = useState("");
+  const [creatingTask, setCreatingTask] = useState(false);
   const [tagInput, setTagInput] = useState("");
   const [commentInput, setCommentInput] = useState("");
   const [postingComment, setPostingComment] = useState(false);
@@ -165,10 +173,10 @@ export default function AssetDetail() {
       .then(resp => setReactions(resp.data ?? []))
       .catch(() => { /* reactions load failed */ });
 
-    // Comments from REST API, other social features still use mock services
+    // Comments, tasks and transcripts from the REST API
     Promise.all([
       token ? listCommentsForAsset(token, id).then(r => (r.data ?? []).map((c: CommentResponse) => commentResponseToComment(c, id))) : Promise.resolve([] as Comment[]),
-      Promise.resolve([] as Task[]),
+      token ? listAssetTasks(token, id).then(r => r.data ?? []).catch(() => [] as TaskResponse[]) : Promise.resolve([] as TaskResponse[]),
       token ? listAssetTranscripts(token, id).then(resp => {
         const sections: TranscriptSection[] = [];
         for (const tr of (resp.data ?? [])) {
@@ -220,6 +228,34 @@ export default function AssetDetail() {
       setPersons(pers);
     });
   }, [id, token, reloadDetections]);
+
+  // ── Create-task handler (creates the task, then assigns it to this asset) ──
+  const handleCreateTask = useCallback(async () => {
+    const title = taskTitle.trim();
+    if (!title || !token || !id || creatingTask) return;
+    setCreatingTask(true);
+    try {
+      const created = await createTask(token, {
+        title,
+        description: taskDescription.trim() || undefined,
+        priority: taskPriority,
+        // The REST API expects second precision (yyyy-MM-dd'T'HH:mm:ssX)
+        dueDate: taskDueDate ? new Date(taskDueDate).toISOString().replace(/\.\d{3}Z$/, "Z") : undefined,
+      });
+      await assignTaskToAsset(token, id, created.uuid);
+      const refreshed = await listAssetTasks(token, id).then(r => r.data ?? []).catch(() => null);
+      setTasks(prev => refreshed ?? [created, ...prev]);
+      setTaskCreateOpen(false);
+      setTaskTitle("");
+      setTaskDescription("");
+      setTaskPriority("MEDIUM");
+      setTaskDueDate("");
+    } catch {
+      showToast(tAD("taskCreate.error"), "error");
+    } finally {
+      setCreatingTask(false);
+    }
+  }, [taskTitle, taskDescription, taskPriority, taskDueDate, token, id, creatingTask, showToast, tAD]);
 
   // ── Comment authoring handlers ──────────────────────────────────────
   const handlePostComment = useCallback(async () => {
@@ -652,7 +688,7 @@ export default function AssetDetail() {
           onChange={handleBinaryUpload}
         />
         {/* Actions menu */}
-        <IconButton size="small" onClick={e => setActionMenuAnchor(e.currentTarget)}>
+        <IconButton data-testid="asset-actions-menu-button" size="small" onClick={e => setActionMenuAnchor(e.currentTarget)}>
           <MoreVertOutlined sx={{ fontSize: 18 }} />
         </IconButton>
         <Menu anchorEl={actionMenuAnchor} open={Boolean(actionMenuAnchor)} onClose={() => setActionMenuAnchor(null)}>
@@ -661,7 +697,7 @@ export default function AssetDetail() {
             <ListItemText primaryTypographyProps={{ fontSize: "0.85rem" }}>{tAD("action.process")}</ListItemText>
             <Typography variant="caption" sx={{ ml: 2, color: tokens.text.tertiary }}>▸</Typography>
           </MenuItem>
-          <MenuItem onClick={() => { setActionMenuAnchor(null); /* create task action */ }}>
+          <MenuItem data-testid="asset-task-create-menu-item" onClick={() => { setActionMenuAnchor(null); setTaskCreateOpen(true); }}>
             <ListItemIcon><AddTaskOutlined sx={{ fontSize: 16 }} /></ListItemIcon>
             <ListItemText primaryTypographyProps={{ fontSize: "0.85rem" }}>{tAD("action.createTask")}</ListItemText>
           </MenuItem>
@@ -1248,7 +1284,7 @@ export default function AssetDetail() {
                     <TaskAltOutlined sx={{ fontSize: 32, color: tokens.text.tertiary }} />
                     <Typography variant="body2" color="text.secondary">{tAD("empty.noTasks")}</Typography>
                   </Box>
-                ) : tasks.map(t => <TaskItem key={t.id} task={t} onClick={() => setSelectedTask(t)} />)}
+                ) : tasks.map(t => <TaskItem key={t.uuid} task={t} onClick={() => setSelectedTask(t)} />)}
               </Box>
             )}
 
@@ -1272,6 +1308,7 @@ export default function AssetDetail() {
           sx={{ position: "fixed", inset: 0, bgcolor: "rgba(0,0,0,0.5)", zIndex: 1200, display: "flex", justifyContent: "flex-end" }}
         >
           <Box
+            data-testid="asset-task-drawer"
             onClick={(e) => e.stopPropagation()}
             sx={{
               width: 420, bgcolor: tokens.bg.surface, borderLeft: `1px solid ${tokens.border.default}`,
@@ -1285,41 +1322,105 @@ export default function AssetDetail() {
             </Box>
             <Box sx={{ flex: 1, overflow: "auto", p: 2.5, display: "flex", flexDirection: "column", gap: 2 }}>
               {/* Title + Priority */}
-              <Box>
-                <Box sx={{ display: "flex", gap: 1, alignItems: "flex-start", mb: 1 }}>
-                  <Box sx={{ width: 4, height: 20, borderRadius: 2, bgcolor: { critical: tokens.accent.red, high: tokens.accent.amber, medium: tokens.accent.blue, low: tokens.text.tertiary }[selectedTask.priority], mt: 0.3, flexShrink: 0 }} />
-                  <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem", lineHeight: 1.3 }}>{selectedTask.title}</Typography>
-                </Box>
-                <Typography variant="body2" sx={{ color: tokens.text.secondary, lineHeight: 1.6 }}>{selectedTask.description}</Typography>
-              </Box>
-              {/* Meta grid */}
-              <Box sx={{ border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, overflow: "hidden" }}>
-                {[
-                  [tAD("taskDetail.status"), <Chip label={selectedTask.status.replace("_", " ")} size="small" sx={{ height: 18, fontSize: "0.7rem", bgcolor: `${{ open: tokens.accent.blue, in_progress: tokens.accent.amber, review: tokens.primary.main, done: tokens.accent.green, blocked: tokens.accent.red }[selectedTask.status]}22`, color: { open: tokens.accent.blue, in_progress: tokens.accent.amber, review: tokens.primary.main, done: tokens.accent.green, blocked: tokens.accent.red }[selectedTask.status] }} />],
-                  [tAD("taskDetail.priority"), <Chip label={selectedTask.priority} size="small" sx={{ height: 18, fontSize: "0.7rem", bgcolor: `${{ critical: tokens.accent.red, high: tokens.accent.amber, medium: tokens.accent.blue, low: tokens.text.tertiary }[selectedTask.priority]}22`, color: { critical: tokens.accent.red, high: tokens.accent.amber, medium: tokens.accent.blue, low: tokens.text.tertiary }[selectedTask.priority], fontWeight: 700 }} />],
-                  [tAD("taskDetail.assignee"), <Typography sx={{ fontSize: "0.82rem", color: tokens.text.secondary }}>{selectedTask.assigneeId}</Typography>],
-                  [tAD("taskDetail.dueDate"), <Typography sx={{ fontSize: "0.82rem", color: selectedTask.dueDate && new Date(selectedTask.dueDate) < new Date() ? tokens.accent.red : tokens.text.secondary }}>{selectedTask.dueDate ? new Date(selectedTask.dueDate).toLocaleDateString() : "—"}</Typography>],
-                  [tAD("taskDetail.created"), <Typography sx={{ fontSize: "0.82rem", color: tokens.text.secondary }}>{new Date(selectedTask.createdAt).toLocaleDateString()}</Typography>],
-                ].map(([label, content], idx) => (
-                  <Box key={String(label)} sx={{ display: "grid", gridTemplateColumns: "100px 1fr", px: 1.5, py: 0.85, borderBottom: idx < 4 ? `1px solid ${tokens.border.subtle}` : "none", bgcolor: idx % 2 === 0 ? "transparent" : "rgba(255,255,255,0.02)", alignItems: "center" }}>
-                    <Typography sx={{ color: tokens.text.tertiary, fontSize: "0.8rem" }}>{label}</Typography>
-                    {content}
-                  </Box>
-                ))}
-              </Box>
-              {/* Tags */}
-              {selectedTask.tags.length > 0 && (
-                <Box>
-                  <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.06em", color: tokens.text.tertiary, fontSize: "0.68rem", display: "block", mb: 0.75 }}>{tAD("taskDetail.tags")}</Typography>
-                  <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
-                    {selectedTask.tags.map(t => <Chip key={t} label={t} size="small" sx={{ height: 20, fontSize: "0.7rem", bgcolor: tokens.bg.elevated }} />)}
-                  </Box>
-                </Box>
-              )}
+              {(() => {
+                const prio = selectedTask.priority?.toUpperCase() ?? "MEDIUM";
+                const pc = taskPriorityColor[prio] ?? tokens.text.tertiary;
+                const status = selectedTask.taskStatus?.toUpperCase();
+                const sc = (status && taskStatusColor[status]) || tokens.text.tertiary;
+                const rows: [string, React.ReactNode][] = [
+                  [tAD("taskDetail.status"), status
+                    ? <Chip data-testid="asset-task-drawer-status-chip" label={tCommon(`tasks.status.${status}`, status)} size="small" sx={{ height: 18, fontSize: "0.7rem", bgcolor: `${sc}22`, color: sc }} />
+                    : <Typography sx={{ fontSize: "0.82rem", color: tokens.text.secondary }}>—</Typography>],
+                  [tAD("taskDetail.priority"), <Chip data-testid="asset-task-drawer-priority-chip" label={tCommon(`tasks.priority.${prio}`, prio)} size="small" sx={{ height: 18, fontSize: "0.7rem", bgcolor: `${pc}22`, color: pc, fontWeight: 700 }} />],
+                  [tAD("taskDetail.dueDate"), <Typography data-testid="asset-task-drawer-due-date" sx={{ fontSize: "0.82rem", color: selectedTask.dueDate && new Date(selectedTask.dueDate) < new Date() ? tokens.accent.red : tokens.text.secondary }}>{selectedTask.dueDate ? new Date(selectedTask.dueDate).toLocaleDateString() : "—"}</Typography>],
+                  [tAD("taskDetail.created"), <Typography sx={{ fontSize: "0.82rem", color: tokens.text.secondary }}>{selectedTask.status?.created ? new Date(selectedTask.status.created).toLocaleDateString() : "—"}</Typography>],
+                ];
+                return (
+                  <>
+                    <Box>
+                      <Box sx={{ display: "flex", gap: 1, alignItems: "flex-start", mb: 1 }}>
+                        <Box sx={{ width: 4, height: 20, borderRadius: 2, bgcolor: pc, mt: 0.3, flexShrink: 0 }} />
+                        <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem", lineHeight: 1.3 }}>{selectedTask.title}</Typography>
+                      </Box>
+                      {selectedTask.description && <Typography variant="body2" sx={{ color: tokens.text.secondary, lineHeight: 1.6 }}>{selectedTask.description}</Typography>}
+                    </Box>
+                    {/* Meta grid */}
+                    <Box sx={{ border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, overflow: "hidden" }}>
+                      {rows.map(([label, content], idx) => (
+                        <Box key={String(label)} sx={{ display: "grid", gridTemplateColumns: "100px 1fr", px: 1.5, py: 0.85, borderBottom: idx < rows.length - 1 ? `1px solid ${tokens.border.subtle}` : "none", bgcolor: idx % 2 === 0 ? "transparent" : "rgba(255,255,255,0.02)", alignItems: "center" }}>
+                          <Typography sx={{ color: tokens.text.tertiary, fontSize: "0.8rem" }}>{label}</Typography>
+                          {content}
+                        </Box>
+                      ))}
+                    </Box>
+                  </>
+                );
+              })()}
             </Box>
           </Box>
         </Box>
       )}
+
+      {/* Create task dialog */}
+      <Dialog open={taskCreateOpen} onClose={() => setTaskCreateOpen(false)} PaperProps={{ sx: { bgcolor: tokens.bg.panel, border: `1px solid ${tokens.border.default}`, minWidth: 380 } }}>
+        <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700, pb: 1 }}>{tAD("taskCreate.title")}</DialogTitle>
+        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 1.5, pt: "8px !important" }}>
+          <TextField
+            value={taskTitle}
+            onChange={e => setTaskTitle(e.target.value)}
+            label={tCommon("tasks.form.title")}
+            size="small"
+            fullWidth
+            autoFocus
+            inputProps={{ "data-testid": "asset-task-create-title-input" }}
+          />
+          <TextField
+            value={taskDescription}
+            onChange={e => setTaskDescription(e.target.value)}
+            label={tCommon("tasks.form.description")}
+            size="small"
+            fullWidth
+            multiline
+            minRows={2}
+            inputProps={{ "data-testid": "asset-task-create-description-input" }}
+          />
+          <TextField
+            value={taskPriority}
+            onChange={e => setTaskPriority(e.target.value)}
+            label={tCommon("tasks.form.priority")}
+            size="small"
+            select
+            SelectProps={{ native: true }}
+            inputProps={{ "data-testid": "asset-task-create-priority-select" }}
+          >
+            {["LOW", "MEDIUM", "HIGH", "CRITICAL"].map(p => (
+              <option key={p} value={p}>{tCommon(`tasks.priority.${p}`)}</option>
+            ))}
+          </TextField>
+          <TextField
+            value={taskDueDate}
+            onChange={e => setTaskDueDate(e.target.value)}
+            label={tAD("taskCreate.dueDate")}
+            size="small"
+            type="date"
+            InputLabelProps={{ shrink: true }}
+            inputProps={{ "data-testid": "asset-task-create-due-date-input" }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setTaskCreateOpen(false)} size="small" sx={{ color: tokens.text.secondary }}>{tCommon("tasks.button.cancel")}</Button>
+          <Button
+            data-testid="asset-task-create-submit-button"
+            onClick={handleCreateTask}
+            size="small"
+            variant="contained"
+            disabled={!taskTitle.trim() || creatingTask}
+            startIcon={creatingTask ? <CircularProgress size={13} /> : undefined}
+          >
+            {tCommon("tasks.button.create")}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Delete confirmation */}
       <Dialog open={deleteOpen} onClose={() => setDeleteOpen(false)} PaperProps={{ sx: { bgcolor: tokens.bg.panel, border: `1px solid ${tokens.border.default}`, minWidth: 340 } }}>

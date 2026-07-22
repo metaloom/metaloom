@@ -24,6 +24,7 @@ import io.metaloom.loom.rest.service.impl.CommentEndpointService;
 import io.metaloom.loom.rest.service.impl.DetectionEndpointService;
 import io.metaloom.loom.rest.service.impl.ReactionEndpointService;
 import io.metaloom.loom.rest.service.impl.TagEndpointService;
+import io.metaloom.loom.rest.service.impl.TaskEndpointService;
 import io.metaloom.loom.rest.service.impl.TranscriptEndpointService;
 import io.metaloom.utils.hash.SHA512;
 
@@ -39,6 +40,7 @@ public class AssetEndpoint extends AbstractEndpoint {
 	private final CommentEndpointService commentService;
 	private final DetectionEndpointService detectionService;
 	private final TranscriptEndpointService transcriptService;
+	private final TaskEndpointService taskService;
 	private final ModelExamples examples;
 
 	@Inject
@@ -48,6 +50,7 @@ public class AssetEndpoint extends AbstractEndpoint {
 		CommentEndpointService commentService,
 		DetectionEndpointService detectionService,
 		TranscriptEndpointService transcriptService,
+		TaskEndpointService taskService,
 		EndpointDependencies deps, ModelExamples examples) {
 		super(deps);
 		this.service = service;
@@ -58,6 +61,7 @@ public class AssetEndpoint extends AbstractEndpoint {
 		this.commentService = commentService;
 		this.detectionService = detectionService;
 		this.transcriptService = transcriptService;
+		this.taskService = taskService;
 		this.examples = examples;
 	}
 
@@ -217,6 +221,30 @@ public class AssetEndpoint extends AbstractEndpoint {
 			"Remove a tag from an asset",
 			lrc -> {
 				tagService.untagAsset(lrc, lrc.pathParamAssetId("uuid"), lrc.pathParamUUID("tagUuid"));
+			});
+
+		// --- TASK (UUID-based sub-resource) ---
+
+		addRoute(basePath() + "/:uuid/tasks", GET,
+			"List the tasks assigned to the asset",
+			null,
+			examples.taskListResponseExample(),
+			lrc -> {
+				taskService.listAssetTasks(lrc, lrc.pathParamAssetId("uuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/tasks/:taskUuid", POST,
+			"Assign an existing task to the asset",
+			null,
+			examples.taskResponseExample(),
+			lrc -> {
+				taskService.assignAssetTask(lrc, lrc.pathParamAssetId("uuid"), lrc.pathParamUUID("taskUuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/tasks/:taskUuid", DELETE,
+			"Unassign a task from the asset",
+			lrc -> {
+				taskService.unassignAssetTask(lrc, lrc.pathParamAssetId("uuid"), lrc.pathParamUUID("taskUuid"));
 			});
 
 		// --- REACTION (UUID-based sub-resource) ---

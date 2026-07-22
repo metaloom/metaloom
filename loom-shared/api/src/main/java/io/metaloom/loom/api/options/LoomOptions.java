@@ -12,12 +12,15 @@ public class LoomOptions implements Option {
 
 	private StorageOptions storage = new StorageOptions();
 
+	private AiOptions ai = new AiOptions();
+
 	@Override
 	public void overrideWithEnv() {
 		database.overrideWithEnv();
 		server.overrideWithEnv();
 		auth.overrideWithEnv();
 		storage.overrideWithEnv();
+		ai.overrideWithEnv();
 	}
 
 	public DatabaseOptions getDatabase() {
@@ -55,12 +58,22 @@ public class LoomOptions implements Option {
 		return this;
 	}
 
+	public AiOptions getAi() {
+		return ai;
+	}
+
+	public LoomOptions setAi(AiOptions ai) {
+		this.ai = ai;
+		return this;
+	}
+
 	@Override
 	public void validate(OptionErrors errors) {
 		errors.nested("database", database)
 			.nested("server", server)
 			.nested("auth", auth)
-			.nested("storage", storage);
+			.nested("storage", storage)
+			.nested("ai", ai);
 	}
 
 	/**

@@ -31,7 +31,7 @@ Sources of truth used for this analysis:
 | **Processor Status** | `GET /api/v1/processors` (list) | **Implemented** | [loom-ui/src/api/processors.ts](../../../loom-ui/src/api/processors.ts) (`listProcessors`), consumed by the cortex feature. |
 | **Processor Status** | `GET /api/v1/processors/:nodeId` (load) | **Implemented** | [processors.ts](../../../loom-ui/src/api/processors.ts) (`getProcessor`). |
 | **Node Descriptors** | `GET /api/v1/pipeline/node-descriptors`, `/:kind`, `/content-types` | **Implemented** | [loom-ui/src/api/nodeDescriptors.ts](../../../loom-ui/src/api/nodeDescriptors.ts). |
-| **Metrics (dashboard)** | *(no REST endpoint — `GET /api/v1/metrics` does not exist)* | **Mock only** | [MonitoringArea.tsx](../../../loom-ui/src/features/monitoring/MonitoringArea.tsx) renders every KPI/chart from `src/mock/data.ts` (`METRICS`). This is a UI-but-no-REST inversion: the dashboard is fully synthetic and consumes zero live system data. |
+| **Metrics (dashboard)** | *(no general `GET /api/v1/metrics`; pipeline-run stats via `GET /api/v1/pipelines/runs/stats`)* | **Partial** | [MonitoringArea.tsx](../../../loom-ui/src/features/monitoring/MonitoringArea.tsx) feeds the pipeline-run KPI + chart from the run-stats aggregation endpoint; all other KPIs/charts still render from `src/mock/data.ts` (`METRICS`) and are badged "Sample data". |
 
 **Headline finding:** Webhook has a full REST CRUD surface (5 operations, permissions
 `CREATE/READ/UPDATE/DELETE_WEBHOOK`) but **zero UI** — no API client, no admin tab, no

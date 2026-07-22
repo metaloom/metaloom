@@ -1,5 +1,46 @@
 import { API_BASE_URL } from "./config";
-import { ChatMessage } from "../types";
+import { ChatMessage, ChatReference, ChatToolCall } from "../types";
+
+/**
+ * Reference shape used by the backend (persisted messages and tool_end events):
+ * entities are identified by `uuid`, while the UI's ChatReference uses `id`.
+ */
+export interface BackendChatReference {
+  type: string;
+  uuid?: string;
+  id?: string;
+  label: string;
+}
+
+/** Map a backend reference ({type, uuid, label}) onto the UI ChatReference ({type, id, label}). */
+export function toChatReference(raw: BackendChatReference): ChatReference {
+  return {
+    type: raw.type as ChatReference["type"],
+    id: raw.uuid ?? raw.id ?? "",
+    label: raw.label,
+  };
+}
+
+/**
+ * Map a persisted backend message (CHAT.md §4.3 schema) onto the UI ChatMessage.
+ * Tolerates legacy mock-era messages which already carry UI-shaped references.
+ */
+export function toChatMessage(raw: Record<string, unknown>): ChatMessage {
+  const references = Array.isArray(raw.references)
+    ? (raw.references as BackendChatReference[]).map(toChatReference).filter(r => r.id !== "")
+    : undefined;
+  return {
+    id: (raw.id as string) ?? `msg_${Math.random().toString(36).slice(2)}`,
+    role: (raw.role as ChatMessage["role"]) ?? "assistant",
+    content: (raw.content as string) ?? "",
+    createdAt: (raw.createdAt as string) ?? new Date().toISOString(),
+    reasoning: (raw.reasoning as string) || undefined,
+    toolCalls: Array.isArray(raw.toolCalls) ? (raw.toolCalls as ChatToolCall[]) : undefined,
+    references: references && references.length > 0 ? references : undefined,
+    actions: Array.isArray(raw.actions) ? (raw.actions as ChatMessage["actions"]) : undefined,
+    suggestedFollowUps: Array.isArray(raw.suggestedFollowUps) ? (raw.suggestedFollowUps as string[]) : undefined,
+  };
+}
 
 export interface ChatResponse {
   uuid: string;
@@ -64,7 +105,10 @@ export async function loadChat(token: string, uuid: string): Promise<ChatRespons
     method: "GET",
     headers: authHeaders(token),
   });
-  return handleResponse<ChatResponse>(res);
+  const chat = await handleResponse<ChatResponse>(res);
+  // Persisted messages use the backend schema — normalize them for the UI
+  chat.messages = (chat.messages ?? []).map(m => toChatMessage(m as unknown as Record<string, unknown>));
+  return chat;
 }
 
 export async function createChat(token: string, request: ChatCreateRequest): Promise<ChatResponse> {

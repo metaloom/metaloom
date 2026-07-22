@@ -23,4 +23,8 @@ public interface Comment extends CUDElement<Comment>, MetaElement<Comment> {
 
 	Comment setAssetUuid(UUID assetUuid);
 
+	UUID getParentUuid();
+
+	Comment setParentUuid(UUID parentUuid);
+
 }

@@ -1,6 +1,7 @@
 package io.metaloom.loom.mcp.tool.impl;
 
-import static io.metaloom.loom.mcp.tool.impl.SearchAssetsTool.mcpTextResult;
+import static io.metaloom.loom.mcp.tool.MCPToolResults.mcpResultWithReferences;
+import static io.metaloom.loom.mcp.tool.MCPToolResults.reference;
 
 import java.util.List;
 
@@ -55,14 +56,16 @@ public class ListCollectionsTool implements MCPTool {
 			Page<Collection> page = collectionDao.loadPage(null, limit, null, null, null);
 
 			JsonArray items = new JsonArray();
+			JsonArray references = new JsonArray();
 			for (Collection collection : page) {
 				items.add(new JsonObject()
 					.put("uuid", collection.getUuid().toString())
 					.put("name", collection.getName()));
+				references.add(reference("collection", collection.getUuid().toString(), collection.getName()));
 			}
 
 			return Future.succeededFuture(
-				mcpTextResult("Found " + items.size() + " collections.\n" + items.encodePrettily()));
+				mcpResultWithReferences("Found " + items.size() + " collections.\n" + items.encodePrettily(), references));
 		} catch (Exception e) {
 			return Future.failedFuture(e);
 		}

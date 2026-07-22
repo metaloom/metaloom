@@ -43,6 +43,10 @@ public interface PipelineExamples extends ExampleValues {
 		return new ExampleImpl(pipelineRunRecord(), "The pipeline run detail response", HttpResponseStatus.OK);
 	}
 
+	default Example pipelineRunStatsResponseExample() {
+		return new ExampleImpl(pipelineRunStatsResponse(), "The pipeline run stats response", HttpResponseStatus.OK);
+	}
+
 	default Example pipelineRunItemListResponseExample() {
 		return new ExampleImpl(pipelineRunItemListResponse(), "The pipeline run item list response", HttpResponseStatus.OK);
 	}
@@ -148,6 +152,23 @@ public interface PipelineExamples extends ExampleValues {
 		model.setSkippedCount(2);
 		model.setDryRun(false);
 		model.setDurationMs(45000L);
+		return model;
+	}
+
+	default PipelineRunStatsResponse pipelineRunStatsResponse() {
+		PipelineRunStatsResponse model = new PipelineRunStatsResponse();
+		model.add(new PipelineRunDayStatsRecord()
+			.setDate("2026-07-21")
+			.setRunCount(4)
+			.setSuccessCount(120)
+			.setFailureCount(3)
+			.setSkippedCount(7));
+		model.add(new PipelineRunDayStatsRecord()
+			.setDate("2026-07-22")
+			.setRunCount(2)
+			.setSuccessCount(58)
+			.setFailureCount(0)
+			.setSkippedCount(1));
 		return model;
 	}
 

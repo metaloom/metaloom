@@ -2,8 +2,6 @@
 
 export type AssetType = "video" | "image" | "audio" | "document" | "unknown";
 export type AssetStatus = "processing" | "ready" | "failed" | "archived";
-export type TaskStatus = "open" | "in_progress" | "review" | "done" | "blocked";
-export type TaskPriority = "low" | "medium" | "high" | "critical";
 export type PipelineStatus = "idle" | "running" | "success" | "failed" | "paused" | "cancelled";
 
 // Spaces
@@ -49,7 +47,6 @@ export interface Asset {
   url: string;
   ownerId: string;
   collectionIds: string[];
-  taskIds: string[];
   createdAt: string;
   updatedAt: string;
   metadata: Record<string, string | number | boolean>;
@@ -66,23 +63,6 @@ export interface Collection {
   color: string;
   createdAt: string;
   updatedAt: string;
-}
-
-// Tasks
-export interface Task {
-  id: string;
-  spaceId: string;
-  title: string;
-  description: string;
-  status: TaskStatus;
-  priority: TaskPriority;
-  assigneeId: string;
-  assetId?: string;
-  collectionId?: string;
-  dueDate?: string;
-  createdAt: string;
-  updatedAt: string;
-  tags: string[];
 }
 
 // Comments
@@ -268,11 +248,24 @@ export interface AgentAction {
   result?: string;
 }
 
+/** A tool invocation recorded on a persisted assistant message (CHAT.md §4.3). */
+export interface ChatToolCall {
+  id: string;
+  name: string;
+  args?: Record<string, unknown>;
+  resultSummary?: string;
+  isError?: boolean;
+  durationMs?: number;
+}
+
 export interface ChatMessage {
   id: string;
   role: ChatMessageRole;
   content: string;
   createdAt: string;
+  /** Model reasoning ("thinking") — hidden by default in the UI. */
+  reasoning?: string;
+  toolCalls?: ChatToolCall[];
   references?: ChatReference[];
   actions?: AgentAction[];
   suggestedFollowUps?: string[];

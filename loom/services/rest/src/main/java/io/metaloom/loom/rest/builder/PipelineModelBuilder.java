@@ -1,19 +1,26 @@
 package io.metaloom.loom.rest.builder;
 
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import io.metaloom.loom.db.model.pipeline.Pipeline;
 import io.metaloom.loom.db.model.pipeline.PipelineRun;
+import io.metaloom.loom.db.model.pipeline.PipelineRunDayStats;
 import io.metaloom.loom.db.model.pipeline.PipelineRunItem;
 import io.metaloom.loom.db.model.pipeline.PipelineVersion;
 import io.metaloom.loom.db.page.Page;
 import io.metaloom.loom.rest.model.pipeline.PipelineListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineResponse;
+import io.metaloom.loom.rest.model.pipeline.PipelineRunDayStatsRecord;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunItemListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunItemRecord;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunRecord;
+import io.metaloom.loom.rest.model.pipeline.PipelineRunStatsResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineVersionListResponse;
 
 /**
@@ -102,6 +109,28 @@ public interface PipelineModelBuilder extends ModelBuilder, UserModelBuilder {
 
 	default PipelineRunListResponse toPipelineRunList(Page<PipelineRun> page) {
 		return setPage(new PipelineRunListResponse(), page, this::toPipelineRunRecord);
+	}
+
+	/**
+	 * Render daily run stats as a zero-filled window of {@code days} buckets ending at {@code today}, oldest first.
+	 */
+	default PipelineRunStatsResponse toPipelineRunStats(List<PipelineRunDayStats> stats, LocalDate today, int days) {
+		Map<LocalDate, PipelineRunDayStats> byDate = stats.stream()
+			.collect(Collectors.toMap(PipelineRunDayStats::getDate, Function.identity()));
+		PipelineRunStatsResponse response = new PipelineRunStatsResponse();
+		for (int i = days - 1; i >= 0; i--) {
+			LocalDate date = today.minusDays(i);
+			PipelineRunDayStats day = byDate.get(date);
+			PipelineRunDayStatsRecord record = new PipelineRunDayStatsRecord().setDate(date.toString());
+			if (day != null) {
+				record.setRunCount(day.getRunCount());
+				record.setSuccessCount(day.getSuccessCount());
+				record.setFailureCount(day.getFailureCount());
+				record.setSkippedCount(day.getSkippedCount());
+			}
+			response.add(record);
+		}
+		return response;
 	}
 
 	default PipelineRunItemRecord toPipelineRunItemRecord(PipelineRunItem item) {

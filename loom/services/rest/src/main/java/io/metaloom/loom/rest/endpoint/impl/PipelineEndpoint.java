@@ -46,6 +46,7 @@ public class PipelineEndpoint extends AbstractEndpoint {
 		// Secure CRUD paths without catching nested technical paths like
 		// /api/v1/pipelines/events/ws which is handled by PipelineEventEndpoint.
 		secure(basePath());
+		secure(basePath() + "/runs/stats");
 		secure(basePath() + "/:uuid");
 		secure(basePath() + "/:uuid/run");
 		secure(basePath() + "/:uuid/runs");
@@ -55,6 +56,15 @@ public class PipelineEndpoint extends AbstractEndpoint {
 		secure(basePath() + "/:uuid/versions");
 		secure(basePath() + "/:uuid/versions/:version");
 		secure(basePath() + "/:uuid/versions/:version/restore");
+
+		// Cross-pipeline run stats (literal prefix — registered before :uuid wildcard)
+		addRoute(basePath() + "/runs/stats", GET,
+			"Load aggregated daily pipeline run statistics across all pipelines",
+			null,
+			examples.pipelineRunStatsResponseExample(),
+			lrc -> {
+				service.loadRunStats(lrc);
+			});
 
 		// Create
 		addRoute(basePath(), POST,

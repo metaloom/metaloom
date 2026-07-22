@@ -10,6 +10,7 @@ public interface ClientMethods extends
 	AttachmentMethods,
 	BlacklistMethods,
 	ChatMethods,
+	SkillMethods,
 	ClusterMethods,
 	DetectionMethods,
 	GroupMethods,

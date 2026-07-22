@@ -12,6 +12,8 @@
       }
     },
     "title" : "primary",
+    "taskStatus" : "REVIEW",
+    "dueDate" : "2018-10-12T14:15:06Z",
     "comments" : [ ]
   }, {
     "uuid" : "c3005050-e386-4228-90be-cab874a46fd9",
@@ -26,6 +28,8 @@
       }
     },
     "title" : "secondary",
+    "taskStatus" : "REVIEW",
+    "dueDate" : "2018-10-12T14:15:06Z",
     "comments" : [ ]
   } ],
   "_metainfo" : {

@@ -1,5 +1,5 @@
 import {
-  MetricSeries, ChatMessage,
+  MetricSeries,
   DetectedFace, FaceCluster, Person,
   DetectedObject,
 } from "../types";
@@ -59,59 +59,6 @@ export const METRICS: {
   ],
 };
 
-// ── Chat History ──────────────────────────────────────────────────────────
-export const INITIAL_CHAT: ChatMessage[] = [
-  {
-    id: "msg0", role: "system", content: "Loom Agent is ready. Ask me about assets, collections, tasks, pipelines, or let me help you find and organize content.",
-    createdAt: daysAgo(1), suggestedFollowUps: [
-      "Show me assets that need review",
-      "What pipelines ran today?",
-      "Create a collection from flagged assets",
-      "Find comments around 00:43 in the finals video",
-    ],
-  },
-  {
-    id: "msg1", role: "user", content: "Show me the latest assets in Campaign Alpha",
-    createdAt: hoursAgo(3),
-  },
-  {
-    id: "msg2", role: "assistant",
-    content: "Here are the most recently updated assets in **Campaign Alpha**. The hero video and 15-second social cut are both ready. The BTS footage has a failed ingest that needs attention.",
-    createdAt: hoursAgo(3),
-    references: [
-      { type: "asset", id: "a1", label: "Hero_Campaign_30s_Final.mp4" },
-      { type: "asset", id: "a2", label: "Hero_Campaign_15s_Cut.mp4" },
-      { type: "asset", id: "a9", label: "Behind_The_Scenes_BTS.mp4" },
-    ],
-    suggestedFollowUps: [
-      "Open the hero video",
-      "Show tasks for Campaign Alpha",
-      "Why did the BTS ingest fail?",
-    ],
-  },
-  {
-    id: "msg3", role: "user", content: "Why did the BTS ingest fail?",
-    createdAt: hoursAgo(2),
-  },
-  {
-    id: "msg4", role: "assistant",
-    content: "The BTS footage failed during encoding. The metadata shows a **corrupt audio track at 03:14**. The source file is available on Deck 3.\n\nI've already created a task to re-ingest it and assigned it to Marcus.",
-    createdAt: hoursAgo(2),
-    references: [
-      { type: "asset", id: "a9", label: "Behind_The_Scenes_BTS.mp4" },
-      { type: "task", id: "t8", label: "Re-ingest BTS footage" },
-    ],
-    actions: [
-      { id: "act1", label: "Task created", description: "Re-ingest BTS footage assigned to Marcus Webb", status: "done", result: "Task t8 created" },
-    ],
-    suggestedFollowUps: [
-      "Show all blocked tasks",
-      "Open the re-ingest task",
-    ],
-  },
-];
-
-// ── Face Detection ────────────────────────────────────────────────────────
 export const DETECTED_FACES: DetectedFace[] = [];
 
 export const FACE_CLUSTERS: FaceCluster[] = [];

@@ -34,7 +34,8 @@
       "tasks": "Aufgaben",
       "detection": "Erkennung",
       "tags": "Tags",
-      "workflow": "Workflow"
+      "workflow": "Workflow",
+      "skills": "Skills"
     },
     "admin": {
       "assetPools": "Asset-Pools",
@@ -273,11 +274,10 @@
       "created": "Erstellt"
     },
     "status": {
-      "open": "Offen",
-      "inProgress": "In Bearbeitung",
-      "review": "Überprüfung",
-      "done": "Erledigt",
-      "blocked": "Blockiert"
+      "PENDING": "Ausstehend",
+      "REJECTED": "Abgelehnt",
+      "ACCEPTED": "Angenommen",
+      "REVIEW": "Überprüfung"
     },
     "drawer": {
       "title": "Aufgabendetails",
@@ -307,6 +307,8 @@
   "monitoring": {
     "title": "Monitoring & Statistiken",
     "subtitle": "Rollende 14-Tage-Metriken",
+    "sampleData": "Beispieldaten",
+    "loadError": "Pipeline-Läufe konnten nicht geladen werden",
     "kpi": {
       "dailyIngest": "Tägliche Ingestion",
       "assets": "Assets",
@@ -337,6 +339,7 @@
       "assets": "Assets",
       "success": "Erfolg",
       "failed": "Fehlgeschlagen",
+      "skipped": "Übersprungen",
       "open": "Offen",
       "overdue": "Überfällig",
       "avg": "Ø",
@@ -451,6 +454,25 @@
       "duration": "Dauer",
       "dimensions": "Abmessungen",
       "open": "Öffnen"
+    },
+    "reasoning": {
+      "thinking": "denkt nach… ({{seconds}}s)",
+      "show": "Überlegungen anzeigen",
+      "hide": "Überlegungen ausblenden"
+    },
+    "streaming": {
+      "stop": "Generierung stoppen"
+    },
+    "error": {
+      "busy": "Der Agent arbeitet noch an diesem Chat — bitte gleich erneut versuchen",
+      "llm": "Die Agent-Anfrage ist fehlgeschlagen",
+      "aborted": "Generierung gestoppt"
+    },
+    "skills": {
+      "title": "Skills",
+      "active": "Aktive Skills ({{count}})",
+      "none": "Noch keine Skills — unter Skills anlegen",
+      "manage": "Skills verwalten"
     }
   },
   "admin": {
@@ -1333,13 +1355,51 @@
       "title": "Aufgabendetails",
       "status": "Status",
       "priority": "Priorität",
-      "assignee": "Zugewiesen an",
       "dueDate": "Fälligkeitsdatum",
-      "created": "Erstellt",
-      "tags": "Tags"
+      "created": "Erstellt"
+    },
+    "taskCreate": {
+      "title": "Aufgabe erstellen",
+      "dueDate": "Fälligkeitsdatum",
+      "error": "Aufgabe konnte nicht erstellt werden"
     },
     "annotations": {
       "label": "Annotationen:"
+    }
+  },
+  "skills": {
+    "title": "Skills",
+    "subtitle": "Anweisungspakete für den Chat-Agenten — pro Unterhaltung aktivierbar",
+    "create": "Neuer Skill",
+    "edit": "Skill bearbeiten",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "delete": "Löschen",
+    "deleteTitle": "Skill löschen",
+    "deleteConfirm": "Skill \"{{name}}\" löschen? Installierte Kopien anderer Benutzer bleiben erhalten.",
+    "saved": "Skill gespeichert",
+    "deleted": "Skill gelöscht",
+    "saveFailed": "Speichern des Skills fehlgeschlagen",
+    "installFailed": "Installation des Skills fehlgeschlagen",
+    "installed": "Installiert als \"{{name}}\"",
+    "install": "Installieren",
+    "own": "Eigener",
+    "empty": "Noch keine Skills",
+    "libraryEmpty": "Noch keine veröffentlichten Skills anderer Benutzer",
+    "tabMine": "Meine Skills",
+    "tabLibrary": "Bibliothek",
+    "originBadge": "Aus der geteilten Bibliothek installiert",
+    "installedBadge": "installiert",
+    "updateAvailable": "Der Ursprungs-Skill wurde seit der Installation aktualisiert",
+    "descriptionHelper": "Wird dem Agenten vorab gezeigt — möglichst vollständig formulieren (max. 1024 Zeichen)",
+    "contentHelper": "Vollständige Markdown-Anweisungen — werden vom Agenten bei Bedarf geladen",
+    "columns": {
+      "name": "Name",
+      "description": "Beschreibung",
+      "enabled": "Aktiviert",
+      "published": "Veröffentlicht",
+      "content": "Anweisungen (Markdown)",
+      "author": "Autor"
     }
   }
 }

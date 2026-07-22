@@ -5,13 +5,13 @@ package io.metaloom.loom.db.jooq.tables.records;
 
 
 import io.metaloom.loom.db.jooq.tables.JooqChat;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 import org.jooq.Field;
-import org.jooq.JSONB;
 import org.jooq.Record1;
 import org.jooq.Record8;
 import org.jooq.Row8;
@@ -22,7 +22,7 @@ import org.jooq.impl.UpdatableRecordImpl;
  * Stores LLM chat sessions with message history
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqChatRecord extends UpdatableRecordImpl<JooqChatRecord> implements Record8<UUID, String, JSONB, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> {
+public class JooqChatRecord extends UpdatableRecordImpl<JooqChatRecord> implements Record8<UUID, String, JsonArray, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> {
 
     private static final long serialVersionUID = 1L;
 
@@ -60,7 +60,7 @@ public class JooqChatRecord extends UpdatableRecordImpl<JooqChatRecord> implemen
      * Setter for <code>public.chat.messages</code>. JSON array of chat messages
      * (role, content, metadata, asset references)
      */
-    public void setMessages(JSONB value) {
+    public void setMessages(JsonArray value) {
         set(2, value);
     }
 
@@ -68,8 +68,8 @@ public class JooqChatRecord extends UpdatableRecordImpl<JooqChatRecord> implemen
      * Getter for <code>public.chat.messages</code>. JSON array of chat messages
      * (role, content, metadata, asset references)
      */
-    public JSONB getMessages() {
-        return (JSONB) get(2);
+    public JsonArray getMessages() {
+        return (JsonArray) get(2);
     }
 
     /**
@@ -156,12 +156,12 @@ public class JooqChatRecord extends UpdatableRecordImpl<JooqChatRecord> implemen
     // -------------------------------------------------------------------------
 
     @Override
-    public Row8<UUID, String, JSONB, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> fieldsRow() {
+    public Row8<UUID, String, JsonArray, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> fieldsRow() {
         return (Row8) super.fieldsRow();
     }
 
     @Override
-    public Row8<UUID, String, JSONB, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> valuesRow() {
+    public Row8<UUID, String, JsonArray, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> valuesRow() {
         return (Row8) super.valuesRow();
     }
 
@@ -176,7 +176,7 @@ public class JooqChatRecord extends UpdatableRecordImpl<JooqChatRecord> implemen
     }
 
     @Override
-    public Field<JSONB> field3() {
+    public Field<JsonArray> field3() {
         return JooqChat.CHAT.MESSAGES;
     }
 
@@ -216,7 +216,7 @@ public class JooqChatRecord extends UpdatableRecordImpl<JooqChatRecord> implemen
     }
 
     @Override
-    public JSONB component3() {
+    public JsonArray component3() {
         return getMessages();
     }
 
@@ -256,7 +256,7 @@ public class JooqChatRecord extends UpdatableRecordImpl<JooqChatRecord> implemen
     }
 
     @Override
-    public JSONB value3() {
+    public JsonArray value3() {
         return getMessages();
     }
 
@@ -298,7 +298,7 @@ public class JooqChatRecord extends UpdatableRecordImpl<JooqChatRecord> implemen
     }
 
     @Override
-    public JooqChatRecord value3(JSONB value) {
+    public JooqChatRecord value3(JsonArray value) {
         setMessages(value);
         return this;
     }
@@ -334,7 +334,7 @@ public class JooqChatRecord extends UpdatableRecordImpl<JooqChatRecord> implemen
     }
 
     @Override
-    public JooqChatRecord values(UUID value1, String value2, JSONB value3, JsonObject value4, LocalDateTime value5, UUID value6, LocalDateTime value7, UUID value8) {
+    public JooqChatRecord values(UUID value1, String value2, JsonArray value3, JsonObject value4, LocalDateTime value5, UUID value6, LocalDateTime value7, UUID value8) {
         value1(value1);
         value2(value2);
         value3(value3);
@@ -360,7 +360,7 @@ public class JooqChatRecord extends UpdatableRecordImpl<JooqChatRecord> implemen
     /**
      * Create a detached, initialised JooqChatRecord
      */
-    public JooqChatRecord(UUID uuid, String title, JSONB messages, JsonObject meta, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid) {
+    public JooqChatRecord(UUID uuid, String title, JsonArray messages, JsonObject meta, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid) {
         super(JooqChat.CHAT);
 
         setUuid(uuid);

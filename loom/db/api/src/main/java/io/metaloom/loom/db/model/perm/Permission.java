@@ -81,6 +81,9 @@ public enum Permission {
 	// Chat
 	CREATE_CHAT, READ_CHAT, DELETE_CHAT, UPDATE_CHAT,
 
+	// Skill
+	CREATE_SKILL, READ_SKILL, DELETE_SKILL, UPDATE_SKILL,
+
 	// Cortex Instance (registered processor worker)
 	MANAGE_CORTEX_INSTANCE, READ_CORTEX_INSTANCE;
 

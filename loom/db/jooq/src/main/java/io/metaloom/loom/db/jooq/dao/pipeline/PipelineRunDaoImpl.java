@@ -3,6 +3,7 @@ package io.metaloom.loom.db.jooq.dao.pipeline;
 import static io.metaloom.loom.db.jooq.tables.JooqPipelineRun.PIPELINE_RUN;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -10,10 +11,13 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import org.jooq.DSLContext;
+import org.jooq.DatePart;
+import org.jooq.Field;
 import org.jooq.Record;
 import org.jooq.SelectConditionStep;
 import org.jooq.Table;
 import org.jooq.TableRecord;
+import org.jooq.impl.DSL;
 
 import io.metaloom.filter.Filter;
 import io.metaloom.filter.FilterKey;
@@ -26,6 +30,7 @@ import io.metaloom.loom.db.jooq.AbstractJooqDao;
 import io.metaloom.loom.db.jooq.tables.JooqPipelineRun;
 import io.metaloom.loom.db.model.pipeline.PipelineRun;
 import io.metaloom.loom.db.model.pipeline.PipelineRunDao;
+import io.metaloom.loom.db.model.pipeline.PipelineRunDayStats;
 
 @Singleton
 public class PipelineRunDaoImpl extends AbstractJooqDao<PipelineRun> implements PipelineRunDao {
@@ -91,6 +96,26 @@ public class PipelineRunDaoImpl extends AbstractJooqDao<PipelineRun> implements 
 			.limit(1)
 			.fetchOptionalInto(getPojoClass())
 			.orElse(null);
+	}
+
+	@Override
+	public List<PipelineRunDayStats> loadDailyStats(LocalDateTime since) {
+		Field<LocalDateTime> day = DSL.trunc(PIPELINE_RUN.STARTED, DatePart.DAY);
+		Field<Integer> runCount = DSL.count();
+		Field<Integer> successSum = DSL.sum(DSL.coalesce(PIPELINE_RUN.SUCCESS_COUNT, DSL.inline(0))).cast(Integer.class);
+		Field<Integer> failureSum = DSL.sum(DSL.coalesce(PIPELINE_RUN.FAILURE_COUNT, DSL.inline(0))).cast(Integer.class);
+		Field<Integer> skippedSum = DSL.sum(DSL.coalesce(PIPELINE_RUN.SKIPPED_COUNT, DSL.inline(0))).cast(Integer.class);
+		return ctx().select(day, runCount, successSum, failureSum, skippedSum)
+			.from(PIPELINE_RUN)
+			.where(PIPELINE_RUN.STARTED.ge(since))
+			.groupBy(day)
+			.orderBy(day.asc())
+			.fetch(r -> new PipelineRunDayStats(
+				r.value1().toLocalDate(),
+				r.value2(),
+				r.value3(),
+				r.value4(),
+				r.value5()));
 	}
 
 	@Override

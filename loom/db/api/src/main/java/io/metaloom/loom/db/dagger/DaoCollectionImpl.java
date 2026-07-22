@@ -31,6 +31,7 @@ import io.metaloom.loom.db.model.perm.PermissionDao;
 import io.metaloom.loom.db.model.space.SpaceDao;
 import io.metaloom.loom.db.model.reaction.ReactionDao;
 import io.metaloom.loom.db.model.role.RoleDao;
+import io.metaloom.loom.db.model.skill.SkillDao;
 import io.metaloom.loom.db.model.tag.TagDao;
 import io.metaloom.loom.db.model.task.TaskDao;
 import io.metaloom.loom.db.model.token.TokenDao;
@@ -71,6 +72,7 @@ public class DaoCollectionImpl implements DaoCollection {
 	private final Lazy<PersonDao> personDao;
 	private final Lazy<DetectionDao> detectionDao;
 	private final Lazy<ChatDao> chatDao;
+	private final Lazy<SkillDao> skillDao;
 	private final Lazy<CortexInstanceDao> cortexInstanceDao;
 
 	@Inject
@@ -86,6 +88,7 @@ public class DaoCollectionImpl implements DaoCollection {
 		Lazy<PipelineRunItemDao> pipelineRunItemDao, Lazy<PipelineNodeTaskDao> pipelineNodeTaskDao,
 		Lazy<AssetPoolDao> assetPoolDao, Lazy<PersonDao> personDao,
 		Lazy<DetectionDao> detectionDao, Lazy<ChatDao> chatDao,
+		Lazy<SkillDao> skillDao,
 		Lazy<CortexInstanceDao> cortexInstanceDao) {
 		this.userDao = userDao;
 		this.groupDao = groupDao;
@@ -118,6 +121,7 @@ public class DaoCollectionImpl implements DaoCollection {
 		this.personDao = personDao;
 		this.detectionDao = detectionDao;
 		this.chatDao = chatDao;
+		this.skillDao = skillDao;
 		this.cortexInstanceDao = cortexInstanceDao;
 	}
 
@@ -274,6 +278,11 @@ public class DaoCollectionImpl implements DaoCollection {
 	@Override
 	public ChatDao chatDao() {
 		return chatDao.get();
+	}
+
+	@Override
+	public SkillDao skillDao() {
+		return skillDao.get();
 	}
 
 	@Override

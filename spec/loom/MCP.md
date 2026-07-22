@@ -281,6 +281,23 @@ To add a new tool:
 
 ## 5. Registered Tools
 
+### 5.0 Reference envelopes
+
+Besides the standard MCP `content` items, tool results may carry an additional
+`references` array which lists the loom domain entities the result is about:
+
+```json
+{ "content": [{ "type": "text", "text": "…" }],
+  "references": [{ "type": "asset", "uuid": "…", "label": "beach.mp4" }] }
+```
+
+`type ∈ asset | collection | task | comment | pipeline | annotation`; `label` is
+the filename / title / name. External MCP clients simply ignore the extra field;
+the loom chat agent ([ui/CHAT.md](ui/CHAT.md) §6) extracts it to render entity
+chips for tool results. Built via `MCPToolResults.mcpResultWithReferences(...)`.
+Currently populated by `search_assets`, `get_asset`, `search_transcript` and
+`list_collections`; `asset_statistics` carries no references.
+
 ### 5.1 search_assets
 
 | Field        | Value |

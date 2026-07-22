@@ -4,9 +4,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.time.Instant;
 
 import org.junit.jupiter.api.Test;
 
+import io.metaloom.loom.api.task.TaskStatus;
 import io.metaloom.loom.db.model.task.Task;
 import io.metaloom.loom.db.page.Page;
 import io.metaloom.loom.rest.model.task.TaskListResponse;
@@ -34,6 +36,8 @@ public class TaskModelBuilderTest extends AbstractModelBuilderTest {
 		Task task = mock(Task.class);
 		when(task.getUuid()).thenReturn(TASK_UUID);
 		when(task.getTitle()).thenReturn(title);
+		when(task.getStatus()).thenReturn(TaskStatus.REVIEW);
+		when(task.getDueDate()).thenReturn(Instant.parse("2018-10-12T14:15:06Z"));
 		return task;
 	}
 }

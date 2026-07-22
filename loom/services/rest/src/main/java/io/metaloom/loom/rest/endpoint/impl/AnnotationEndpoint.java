@@ -15,6 +15,7 @@ import io.metaloom.loom.rest.EndpointDependencies;
 import io.metaloom.loom.rest.model.ModelExamples;
 import io.metaloom.loom.rest.service.impl.AnnotationEndpointService;
 import io.metaloom.loom.rest.service.impl.ReactionEndpointService;
+import io.metaloom.loom.rest.service.impl.TaskEndpointService;
 
 public class AnnotationEndpoint extends AbstractEndpoint {
 
@@ -23,14 +24,17 @@ public class AnnotationEndpoint extends AbstractEndpoint {
 	private final ReactionEndpointService reactionService;
 
 	private final AnnotationEndpointService service;
+	private final TaskEndpointService taskService;
 	private final ModelExamples examples;
 
 	@Inject
-	public AnnotationEndpoint(AnnotationEndpointService service, ReactionEndpointService reactionService, EndpointDependencies deps,
+	public AnnotationEndpoint(AnnotationEndpointService service, ReactionEndpointService reactionService, TaskEndpointService taskService,
+		EndpointDependencies deps,
 		ModelExamples examples) {
 		super(deps);
 		this.service = service;
 		this.reactionService = reactionService;
+		this.taskService = taskService;
 		this.examples = examples;
 	}
 
@@ -115,6 +119,30 @@ public class AnnotationEndpoint extends AbstractEndpoint {
 		addRoute(basePath() + "/:annotationUuid/reactions/:reactionUuid", POST, "Update the reaction on the annotation", lrc -> {
 			reactionService.updateAnnotationReaction(lrc, lrc.pathParamUUID("annotationUuid"), lrc.pathParamUUID("reactionUuid"));
 		});
+
+		// TASK
+
+		addRoute(basePath() + "/:annotationUuid/tasks", GET,
+			"List the tasks assigned to the annotation",
+			null,
+			examples.taskListResponseExample(),
+			lrc -> {
+				taskService.listAnnotationTasks(lrc, lrc.pathParamUUID("annotationUuid"));
+			});
+
+		addRoute(basePath() + "/:annotationUuid/tasks/:taskUuid", POST,
+			"Assign an existing task to the annotation",
+			null,
+			examples.taskResponseExample(),
+			lrc -> {
+				taskService.assignAnnotationTask(lrc, lrc.pathParamUUID("annotationUuid"), lrc.pathParamUUID("taskUuid"));
+			});
+
+		addRoute(basePath() + "/:annotationUuid/tasks/:taskUuid", DELETE,
+			"Unassign a task from the annotation",
+			lrc -> {
+				taskService.unassignAnnotationTask(lrc, lrc.pathParamUUID("annotationUuid"), lrc.pathParamUUID("taskUuid"));
+			});
 	}
 
 }

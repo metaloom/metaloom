@@ -2,6 +2,9 @@ package io.metaloom.loom.core.endpoint.test;
 
 import static io.metaloom.loom.rest.model.assertj.Assertions.assertThat;
 
+import java.time.Instant;
+
+import io.metaloom.loom.api.task.TaskStatus;
 import io.metaloom.loom.client.common.LoomClientException;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.endpoint.AbstractCRUDEndpointTest;
@@ -22,8 +25,12 @@ public class TaskEndpointTest extends AbstractCRUDEndpointTest {
 	protected void testCreate(LoomHttpClient client) throws LoomClientException {
 		TaskCreateRequest request = new TaskCreateRequest();
 		request.setTitle("dummy title");
+		request.setTaskStatus(TaskStatus.REVIEW);
+		request.setDueDate(Instant.parse("2026-08-01T12:00:00Z"));
 		TaskResponse task = client.createTask(request).sync().body();
 		assertThat(task).isValid();
+		org.assertj.core.api.Assertions.assertThat(task.getTaskStatus()).as("taskStatus").isEqualTo(TaskStatus.REVIEW);
+		org.assertj.core.api.Assertions.assertThat(task.getDueDate()).as("dueDate").isEqualTo(Instant.parse("2026-08-01T12:00:00Z"));
 
 		TaskResponse task2 = client.loadTask(task.getUuid()).sync().body();
 		assertThat(task).matches(task2);
@@ -40,8 +47,12 @@ public class TaskEndpointTest extends AbstractCRUDEndpointTest {
 		TaskUpdateRequest update = new TaskUpdateRequest();
 		update.setTitle("updated-title");
 		update.setDescription("updated-description");
+		update.setTaskStatus(TaskStatus.ACCEPTED);
+		update.setDueDate(Instant.parse("2026-09-01T12:00:00Z"));
 		TaskResponse response = client.updateTask(TASK_UUID, update).sync().body();
 		assertThat(response).isValid();
+		org.assertj.core.api.Assertions.assertThat(response.getTaskStatus()).as("taskStatus").isEqualTo(TaskStatus.ACCEPTED);
+		org.assertj.core.api.Assertions.assertThat(response.getDueDate()).as("dueDate").isEqualTo(Instant.parse("2026-09-01T12:00:00Z"));
 	}
 
 	@Override

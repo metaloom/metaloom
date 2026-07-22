@@ -21,7 +21,7 @@ Authoritative REST routes were read from
 | Collection | `/api/v1/collections` · GET (list) | Implemented | `useEffect` → `listCollections` |
 | Collection | `/api/v1/collections/:uuid` · GET (read one) | Missing | `loadCollection` exists in [collections.ts](../../../loom-ui/src/api/collections.ts) but is never called; no detail/deep-link view (see Task 4) |
 | Library | `/api/v1/libraries` · POST (create) | Implemented | [LibraryView.tsx](../../../loom-ui/src/features/library/LibraryView.tsx) `handleCreate` → `createLibrary` (sends `name` + `meta.description`) |
-| Library | `/api/v1/libraries/:uuid` · POST (update) | **Partial** | `handleUpdate` sends **only `name`**; edit dialog has no description field, so `meta` is silently dropped (Task 2) |
+| Library | `/api/v1/libraries/:uuid` · POST (update) | Implemented | `handleUpdate` → `updateLibrary` (sends `name` + merged `meta` with `description`; edit dialog pre-fills and edits the description) |
 | Library | `/api/v1/libraries/:uuid` · DELETE | Implemented | `handleDelete` → `deleteLibrary` |
 | Library | `/api/v1/libraries` · GET (list) | Implemented | `useEffect` → `listLibraries` |
 | Library | `/api/v1/libraries/:uuid` · GET (read one) | Missing | `loadLibrary` unused; detail comes from the list row |
@@ -50,8 +50,9 @@ hierarchy, tag_collection (the Collection entity — note the Tag `collection` f
 free-text grouper string, unrelated to the Collection entity), library↔collection, and
 space↔library / space↔collection. Because the server offers no endpoint, these cannot be
 turned into UI-only tasks; they require REST work first and are out of scope here. The one
-exception with usable data is library↔asset — see Task 3, where the association is already
-present client-side via `asset.locations[].libraryUuid`.
+exception with usable data is library↔asset — implemented: [LibraryView.tsx](../../../loom-ui/src/features/library/LibraryView.tsx)
+scopes the asset list, sidebar counts and header stats to the selected library via
+`asset.locations[].libraryUuid` ([libraryAssets.ts](../../../loom-ui/src/features/library/libraryAssets.ts)).
 
 ---
 
@@ -102,82 +103,6 @@ should be refreshable (expose a `reload()` on the context or re-fetch on navigat
   transitions; assert `setActiveSpace` writes to and reads back from localStorage.
 - Test fallback when the fetch rejects (spaces stays `[]`, no throw).
 - Component test the selector: renders space names, changing it updates `activeSpace`.
-
----
-
-## Task: Make the Library edit dialog preserve and edit the description (meta)
-
-**Argumentation Summary:** `createLibrary` in
-[LibraryView.tsx](../../../loom-ui/src/features/library/LibraryView.tsx) writes the
-description into `meta.description`, and the list read-path renders it. But the **edit**
-path (`handleUpdate`) sends only `{ name }`, and the edit dialog exposes only a name field.
-`LibraryUpdateRequest` supports a `meta` JsonObject, so the UI is under-using the update
-operation and will wipe / never surface an existing description on edit.
-
-**Improvement Summary:** Add a description field to the edit dialog and send `meta` on update.
-
-```
-In loom-ui/src/features/library/LibraryView.tsx:
-  - Add an editDesc state, initialized from selectedLib.description when the edit dialog opens
-    (alongside the existing setEditName in the Edit IconButton onClick).
-  - Add a multiline "Description" TextField to the Edit library dialog (mirror the Create
-    dialog's newDesc field).
-  - In handleUpdate, pass meta to updateLibrary: meta: editDesc.trim()
-    ? { description: editDesc.trim() } : undefined, so LibraryUpdateRequest.meta is populated.
-  - Update local state after the call so the description shown in the detail header and used
-    for filtering reflects the edit (currently only `name` is merged back).
-Edge cases: clearing the description (empty string) should send an empty/omitted meta
-consistently with create; preserve any non-description keys already present in meta rather
-than overwriting the whole object if the library carries other meta fields.
-```
-
-**References:**
-- [loom-ui/src/features/library/LibraryView.tsx](../../../loom-ui/src/features/library/LibraryView.tsx)
-- [loom-ui/src/api/libraries.ts](../../../loom-ui/src/api/libraries.ts) (`updateLibrary`)
-- [LibraryUpdateRequest.java](../../../loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/model/library/LibraryUpdateRequest.java)
-
-**Test Requirements:**
-- Component test: open edit on a library with a description, assert the field is pre-filled,
-  change it, submit, and assert `updateLibrary` is called with `meta.description`.
-- Assert the detail header reflects the updated description after save.
-
----
-
-## Task: Scope the Library asset list to the selected library
-
-**Argumentation Summary:** [LibraryView.tsx](../../../loom-ui/src/features/library/LibraryView.tsx)
-calls `listAssets(token)` and renders **every** asset regardless of which library is
-selected; `assetCount` is hard-coded to `0` and the sidebar/detail counts (`assets.length`)
-are the global totals. The library↔asset association is available client-side: each
-`AssetResponse.locations[]` carries a `libraryUuid`
-([assets.ts](../../../loom-ui/src/api/assets.ts) `AssetLocationInfo.libraryUuid`), and upload
-already assigns a library. So the UI can scope correctly with no new REST endpoint.
-
-**Improvement Summary:** Filter the displayed assets (and all counts) to the selected library
-by matching `asset.locations[].libraryUuid` against `selectedLib.id`.
-
-```
-In loom-ui/src/features/library/LibraryView.tsx:
-  - Add a predicate assetInLibrary(a, libId) = (a.locations ?? []).some(l => l.libraryUuid === libId).
-  - In the filteredAssets useMemo, first restrict to selectedLib && assetInLibrary(a, selectedLib.id)
-    before applying the text query.
-  - Compute each sidebar row's asset count from the real association instead of the hard-coded 0
-    and instead of the global assets.length used in the secondary text and detail stats
-    (videoCount/imageCount/totalSize must be derived from the library-scoped set).
-Edge cases: assets with no locations (exclude); assets present in multiple libraries (count in
-each); no selected library (empty state); keep behavior correct when the assets list and the
-libraries list resolve in either order.
-```
-
-**References:**
-- [loom-ui/src/features/library/LibraryView.tsx](../../../loom-ui/src/features/library/LibraryView.tsx)
-- [loom-ui/src/api/assets.ts](../../../loom-ui/src/api/assets.ts) (`AssetResponse.locations`, `AssetLocationInfo.libraryUuid`)
-
-**Test Requirements:**
-- Unit test the filter: given assets with mixed `locations[].libraryUuid`, assert only those
-  belonging to the selected library are returned, and the derived counts match.
-- Component test: selecting a different library changes the rendered asset set and the header
-  video/image/size stats.
 
 ---
 

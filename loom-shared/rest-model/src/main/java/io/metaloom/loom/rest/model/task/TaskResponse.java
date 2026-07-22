@@ -1,9 +1,15 @@
 package io.metaloom.loom.rest.model.task;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonPropertyDescription;
+
 import io.metaloom.loom.api.task.TaskPriority;
+import io.metaloom.loom.api.task.TaskStatus;
 import io.metaloom.loom.rest.model.comment.CommentResponse;
 import io.metaloom.loom.rest.model.common.AbstractCreatorEditorRestResponse;
 
@@ -14,6 +20,13 @@ public class TaskResponse extends AbstractCreatorEditorRestResponse<TaskResponse
 	private String description;
 
 	private TaskPriority priority;
+
+	private TaskStatus taskStatus;
+
+	@JsonProperty(required = false)
+	@JsonPropertyDescription("ISO8601 formatted due date string.")
+	@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ssX")
+	private Instant dueDate;
 
 	private List<CommentResponse> comments = new ArrayList<>();
 
@@ -51,6 +64,28 @@ public class TaskResponse extends AbstractCreatorEditorRestResponse<TaskResponse
 	@Override
 	public TaskResponse setPriority(TaskPriority priority) {
 		this.priority = priority;
+		return this;
+	}
+
+	@Override
+	public TaskStatus getTaskStatus() {
+		return taskStatus;
+	}
+
+	@Override
+	public TaskResponse setTaskStatus(TaskStatus taskStatus) {
+		this.taskStatus = taskStatus;
+		return this;
+	}
+
+	@Override
+	public Instant getDueDate() {
+		return dueDate;
+	}
+
+	@Override
+	public TaskResponse setDueDate(Instant dueDate) {
+		this.dueDate = dueDate;
 		return this;
 	}
 

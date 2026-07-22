@@ -269,6 +269,38 @@ export async function listPipelineRuns(token: string, uuid: string): Promise<Pip
   return body.data ?? [];
 }
 
+// ── Pipeline Run Stats ────────────────────────────────────────────────
+
+export interface PipelineRunDayStats {
+  /** Calendar day of the bucket (ISO 8601 date, e.g. "2026-07-22"). */
+  date: string;
+  /** Number of pipeline runs started on this day (across all pipelines). */
+  runCount: number;
+  /** Sum of successfully processed media items of runs started on this day. */
+  successCount: number;
+  /** Sum of failed media items of runs started on this day. */
+  failureCount: number;
+  /** Sum of skipped media items of runs started on this day. */
+  skippedCount: number;
+}
+
+export interface PipelineRunStatsResponse {
+  /** Daily buckets, oldest first, zero-filled for days without runs. */
+  daily: PipelineRunDayStats[];
+}
+
+/**
+ * Load aggregated daily run statistics across all pipelines.
+ * Endpoint: `GET /api/v1/pipelines/runs/stats`.
+ */
+export async function loadPipelineRunStats(token: string): Promise<PipelineRunStatsResponse> {
+  const res = await fetch(`${API_BASE_URL}/pipelines/runs/stats`, {
+    method: "GET",
+    headers: authHeaders(token),
+  });
+  return handleResponse<PipelineRunStatsResponse>(res);
+}
+
 // ── Pipeline Run Items ────────────────────────────────────────────────
 
 export interface PipelineRunItemRecord {

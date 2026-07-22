@@ -8,6 +8,10 @@ export interface TaskResponse {
   title: string;
   description?: string;
   priority?: string;
+  // Workflow status of the task (PENDING | REJECTED | ACCEPTED | REVIEW).
+  // Named taskStatus because "status" carries the creator/editor audit info.
+  taskStatus?: string;
+  dueDate?: string;
   comments?: CommentResponse[];
   meta?: Record<string, unknown>;
   status?: {
@@ -32,6 +36,8 @@ export interface TaskCreateRequest {
   title: string;
   description?: string;
   priority?: string;
+  taskStatus?: string;
+  dueDate?: string;
   meta?: Record<string, unknown>;
 }
 
@@ -39,6 +45,8 @@ export interface TaskUpdateRequest {
   title?: string;
   description?: string;
   priority?: string;
+  taskStatus?: string;
+  dueDate?: string;
   meta?: Record<string, unknown>;
 }
 
@@ -97,6 +105,35 @@ export async function updateTask(token: string, uuid: string, request: TaskUpdat
 
 export async function deleteTask(token: string, uuid: string): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/tasks/${encodeURIComponent(uuid)}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+}
+
+// ── Asset task assignment ─────────────────────────────────────────────
+
+export async function listAssetTasks(token: string, assetUuid: string): Promise<TaskListResponse> {
+  const res = await fetch(`${API_BASE_URL}/assets/${encodeURIComponent(assetUuid)}/tasks`, {
+    method: "GET",
+    headers: authHeaders(token),
+  });
+  return handleResponse<TaskListResponse>(res);
+}
+
+export async function assignTaskToAsset(token: string, assetUuid: string, taskUuid: string): Promise<TaskResponse> {
+  const res = await fetch(`${API_BASE_URL}/assets/${encodeURIComponent(assetUuid)}/tasks/${encodeURIComponent(taskUuid)}`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+  return handleResponse<TaskResponse>(res);
+}
+
+export async function unassignTaskFromAsset(token: string, assetUuid: string, taskUuid: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/assets/${encodeURIComponent(assetUuid)}/tasks/${encodeURIComponent(taskUuid)}`, {
     method: "DELETE",
     headers: authHeaders(token),
   });

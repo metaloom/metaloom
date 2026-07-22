@@ -34,7 +34,8 @@
       "tasks": "Tasks",
       "detection": "Detection",
       "tags": "Tags",
-      "workflow": "Workflow"
+      "workflow": "Workflow",
+      "skills": "Skills"
     },
     "admin": {
       "assetPools": "Asset Pools",
@@ -282,11 +283,10 @@
       "created": "Created"
     },
     "status": {
-      "open": "Open",
-      "inProgress": "In Progress",
-      "review": "Review",
-      "done": "Done",
-      "blocked": "Blocked"
+      "PENDING": "Pending",
+      "REJECTED": "Rejected",
+      "ACCEPTED": "Accepted",
+      "REVIEW": "Review"
     },
     "drawer": {
       "title": "Task Detail",
@@ -316,6 +316,8 @@
   "monitoring": {
     "title": "Monitoring & Statistics",
     "subtitle": "14-day rolling metrics",
+    "sampleData": "Sample data",
+    "loadError": "Failed to load pipeline run data",
     "kpi": {
       "dailyIngest": "Daily Ingest",
       "assets": "assets",
@@ -346,6 +348,7 @@
       "assets": "Assets",
       "success": "Success",
       "failed": "Failed",
+      "skipped": "Skipped",
       "open": "Open",
       "overdue": "Overdue",
       "avg": "Avg",
@@ -460,6 +463,25 @@
       "duration": "Duration",
       "dimensions": "Dimensions",
       "open": "Open"
+    },
+    "reasoning": {
+      "thinking": "thinking… ({{seconds}}s)",
+      "show": "Show reasoning",
+      "hide": "Hide reasoning"
+    },
+    "streaming": {
+      "stop": "Stop generating"
+    },
+    "error": {
+      "busy": "The agent is still working on this chat — try again in a moment",
+      "llm": "The agent request failed",
+      "aborted": "Generation stopped"
+    },
+    "skills": {
+      "title": "Skills",
+      "active": "Active skills ({{count}})",
+      "none": "No skills yet — create one under Skills",
+      "manage": "Manage skills"
     }
   },
   "admin": {
@@ -1345,13 +1367,51 @@
       "title": "Task Detail",
       "status": "Status",
       "priority": "Priority",
-      "assignee": "Assignee",
       "dueDate": "Due Date",
-      "created": "Created",
-      "tags": "Tags"
+      "created": "Created"
+    },
+    "taskCreate": {
+      "title": "Create Task",
+      "dueDate": "Due Date",
+      "error": "Failed to create task"
     },
     "annotations": {
       "label": "Annotations:"
+    }
+  },
+  "skills": {
+    "title": "Skills",
+    "subtitle": "Instruction packages the chat agent can apply — activate them per conversation",
+    "create": "New skill",
+    "edit": "Edit skill",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "deleteTitle": "Delete skill",
+    "deleteConfirm": "Delete the skill \"{{name}}\"? Installed copies of other users are not affected.",
+    "saved": "Skill saved",
+    "deleted": "Skill deleted",
+    "saveFailed": "Saving the skill failed",
+    "installFailed": "Installing the skill failed",
+    "installed": "Installed as \"{{name}}\"",
+    "install": "Install",
+    "own": "Yours",
+    "empty": "No skills yet",
+    "libraryEmpty": "No published skills from other users yet",
+    "tabMine": "My skills",
+    "tabLibrary": "Library",
+    "originBadge": "Installed from the shared library",
+    "installedBadge": "installed",
+    "updateAvailable": "The origin skill was updated since you installed it",
+    "descriptionHelper": "Shown to the agent up front — make it action-complete (max 1024 chars)",
+    "contentHelper": "Full markdown instructions — loaded by the agent on demand",
+    "columns": {
+      "name": "Name",
+      "description": "Description",
+      "enabled": "Enabled",
+      "published": "Published",
+      "content": "Instructions (markdown)",
+      "author": "Author"
     }
   }
 }

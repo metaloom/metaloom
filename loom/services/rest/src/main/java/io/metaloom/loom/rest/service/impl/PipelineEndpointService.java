@@ -84,6 +84,12 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 
 	/** How often aggregated node counters are pushed to subscribers. */
 	private static final long STATS_INTERVAL_MS = 1000;
+
+	/** Default window (in days) for the cross-pipeline run stats endpoint. */
+	private static final int RUN_STATS_DEFAULT_DAYS = 14;
+
+	/** Upper bound for the run stats {@code days} query parameter. */
+	private static final int RUN_STATS_MAX_DAYS = 90;
 	private final PipelineRunItemDao pipelineRunItemDao;
 	private final PipelineNodeTaskDao pipelineNodeTaskDao;
 
@@ -468,6 +474,31 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 			io.metaloom.loom.db.page.Page<PipelineRun> page = pipelineRunDao.loadPageByPipeline(pipelineUuid, from, limit, filterParameters.filters(), sortParameters.sortBy(), sortParameters.sortOrder());
 			io.metaloom.loom.rest.model.RestResponseModel<?> response = modelBuilder.toPipelineRunList(page);
 			lrc.send(response);
+		});
+	}
+
+	/**
+	 * Load aggregated daily run statistics across all pipelines.
+	 *
+	 * <p>Returns a zero-filled window of daily buckets (default {@value #RUN_STATS_DEFAULT_DAYS} days,
+	 * clamped to 1..{@value #RUN_STATS_MAX_DAYS} via the {@code days} query parameter) ending today.</p>
+	 */
+	public void loadRunStats(LoomRoutingContext lrc) {
+		checkPerm(lrc, READ_PIPELINE_RUN, () -> {
+			int days = RUN_STATS_DEFAULT_DAYS;
+			List<String> daysParam = lrc.queryParam("days");
+			if (daysParam != null && !daysParam.isEmpty()) {
+				try {
+					days = Integer.parseInt(daysParam.get(0));
+				} catch (NumberFormatException e) {
+					throw new LoomRestException(400, LoomRestErrorCode.BAD_QUERY_PARAMS, "Invalid days parameter.");
+				}
+				days = Math.max(1, Math.min(RUN_STATS_MAX_DAYS, days));
+			}
+			java.time.LocalDate today = java.time.LocalDate.now();
+			java.time.LocalDateTime since = today.minusDays(days - 1L).atStartOfDay();
+			List<io.metaloom.loom.db.model.pipeline.PipelineRunDayStats> stats = pipelineRunDao.loadDailyStats(since);
+			lrc.send(modelBuilder.toPipelineRunStats(stats, today, days));
 		});
 	}
 

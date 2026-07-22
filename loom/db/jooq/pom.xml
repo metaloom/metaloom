@@ -241,6 +241,12 @@
 											     as a JsonObject like meta, so it needs the same converter. -->
 											<includeExpression>.*\.meta.*|.*\.outputs|.*\.definition</includeExpression>
 										</forcedType>
+										<forcedType>
+											<userType>io.vertx.core.json.JsonArray</userType>
+											<converter>io.metaloom.loom.db.jooq.converter.JsonArrayConverter</converter>
+											<!-- chat.messages holds the chat transcript as a JSON array -->
+											<includeExpression>chat\.messages</includeExpression>
+										</forcedType>
 									</forcedTypes>
 								</database>
 								<target>

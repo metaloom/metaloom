@@ -45,7 +45,6 @@ export function apiToAsset(r: AssetResponse): Asset {
     url: "",
     ownerId: r.status?.creator?.uuid ?? "",
     collectionIds: (r.collections ?? []).map(c => c.uuid),
-    taskIds: [],
     createdAt: r.status?.created ?? "",
     updatedAt: r.status?.edited ?? "",
     metadata: {},

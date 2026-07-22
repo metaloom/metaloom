@@ -10,6 +10,7 @@ import io.metaloom.loom.db.jooq.dao.asset.binary.AssetBinaryDaoImpl;
 import io.metaloom.loom.db.jooq.dao.attachment.AttachmentDaoImpl;
 import io.metaloom.loom.db.jooq.dao.blacklist.BlacklistDaoImpl;
 import io.metaloom.loom.db.jooq.dao.chat.ChatDaoImpl;
+import io.metaloom.loom.db.jooq.dao.skill.SkillDaoImpl;
 import io.metaloom.loom.db.jooq.dao.cluster.ClusterDaoImpl;
 import io.metaloom.loom.db.jooq.dao.collection.CollectionDaoImpl;
 import io.metaloom.loom.db.jooq.dao.comment.CommentDaoImpl;
@@ -61,6 +62,7 @@ import io.metaloom.loom.db.model.perm.PermissionDao;
 import io.metaloom.loom.db.model.space.SpaceDao;
 import io.metaloom.loom.db.model.reaction.ReactionDao;
 import io.metaloom.loom.db.model.role.RoleDao;
+import io.metaloom.loom.db.model.skill.SkillDao;
 import io.metaloom.loom.db.model.tag.TagDao;
 import io.metaloom.loom.db.model.task.TaskDao;
 import io.metaloom.loom.db.model.token.TokenDao;
@@ -162,6 +164,9 @@ public abstract class JooqLoomDaoBindModule {
 
 	@Binds
 	abstract ChatDao chatDao(ChatDaoImpl dao);
+
+	@Binds
+	abstract SkillDao skillDao(SkillDaoImpl dao);
 
 	@Binds
 	abstract CortexInstanceDao cortexInstanceDao(CortexInstanceDaoImpl dao);

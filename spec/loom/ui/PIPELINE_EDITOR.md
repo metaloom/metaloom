@@ -144,6 +144,12 @@ src/features/pipeline/PipelineEditor.tsx  (single file, ~2400 lines)
 | Graph change | `handleGraphChange` | `PipelineCanvas` → `PipelineEditor` | `setGraphJson`, `setDirty(true)`, clears validation |
 | Save | `handleSave` | `PipelineEditor` | Validates, `POST /pipelines/:uuid`, `setDirty(false)` |
 | Run | `handleRun` | `PipelineEditor` | `POST /pipelines/:uuid/run`, notify |
+| Create pipeline | `handleCreateConfirm` | `PipelineEditor` | Validates dialog input, `POST /pipelines`, selects new pipeline |
+| Delete pipeline | `handleDeletePipeline` | `PipelineEditor` | Confirm dialog → `DELETE /pipelines/:uuid`, clears selection |
+| Cancel run | `handleCancelRun` | `PipelineEditor` | `POST /pipelines/:uuid/runs/:runUuid/cancel`, refreshes history |
+| Open run detail | `openRunDetail` | `PipelineEditor` | Loads run items (`listPipelineRunItems`), opens detail dialog |
+| Restore version | `handleRestoreVersion` | `PipelineEditor` | `POST /pipelines/:uuid/versions/:version/restore`, reloads |
+| Pipeline event | `handleEvent` (via `subscribePipelineEvents`) | `PipelineEditor` | Live run banner, refreshes run history on start/complete |
 | Auto-arrange | `setAutoArrangeTrigger` | `PipelineEditor` | Triggers layout effect |
 | Keyboard (H/N/A/Del) | `keydown` handler | `PipelineEditor` | Various (help, palette, arrange, delete) |
 | Log resize | `handleLogDividerMouseDown` | `PipelineEditor` | `setLogHeight` |
@@ -289,7 +295,7 @@ const handleSave = useCallback(async () => {
 Run history is **server-authoritative**, fetched on selection change:
 
 ```typescript
-// PipelineEditor.tsx ~line 1670
+// PipelineEditor.tsx ~line 2029
 useEffect(() => {
   if (!token || !selected) { setPipelineRuns([]); return; }
   setRunsLoading(true);
@@ -345,20 +351,34 @@ export async function listPipelines(token: string): Promise<PipelineListResponse
 // Load single pipeline (not used directly — list returns full data)
 export async function loadPipeline(token: string, uuid: string): Promise<PipelineResponse> { ... }
 
-// Create pipeline (not used in UI)
+// Create pipeline (used by handleCreateConfirm — create dialog)
 export async function createPipeline(token: string, request: PipelineCreateRequest): Promise<PipelineResponse> { ... }
 
 // Update pipeline (used by handleSave)
 export async function updatePipeline(token: string, uuid: string, request: PipelineUpdateRequest): Promise<PipelineResponse> { ... }
 
-// Delete pipeline (not used in UI)
+// Delete pipeline (used by handleDeletePipeline — toolbar action + confirm dialog)
 export async function deletePipeline(token: string, uuid: string): Promise<void> { ... }
 
 // Run pipeline (used by handleRun)
 export async function runPipeline(token: string, uuid: string, request: PipelineRunRequest = {}): Promise<PipelineRunResponse> { ... }
 
-// Run history
+// Run history (RunHistory / PipelineInspector)
 export async function listPipelineRuns(token: string, uuid: string): Promise<PipelineRunRecord[]> { ... }
+
+// Single run (defined but never called — no single-run refresh / deep-link yet)
+export async function loadPipelineRun(token: string, pipelineUuid: string, runUuid: string): Promise<PipelineRunRecord> { ... }
+
+// Run-item drill-down (openRunDetail)
+export async function listPipelineRunItems(token: string, pipelineUuid: string, runUuid: string): Promise<PipelineRunItemRecord[]> { ... }
+
+// Cancel an in-flight run (handleCancelRun)
+export async function cancelPipelineRun(token: string, pipelineUuid: string, runUuid: string): Promise<void> { ... }
+
+// Version history + diff + restore (version panel, PipelineVersionDiff)
+export async function listPipelineVersions(token: string, uuid: string): Promise<PipelineResponse[]> { ... }
+export async function loadPipelineVersion(token: string, uuid: string, versionNumber: number): Promise<PipelineResponse> { ... }
+export async function restorePipelineVersion(token: string, uuid: string, versionNumber: number, ...): Promise<PipelineResponse> { ... }
 ```
 
 ### 4.2 Request/Response Types
@@ -424,14 +444,20 @@ useEffect(() => {
 
 | Operation | UI Implementation | API Endpoint | Optimistic? |
 |-----------|-------------------|--------------|-------------|
-| **Create** | ❌ Not implemented | `POST /api/v1/pipelines` | N/A |
+| **Create** | ✅ Create dialog (`handleCreateConfirm` → `createPipeline`) | `POST /api/v1/pipelines` | No |
 | **Read (List)** | ✅ Pipeline list sidebar | `GET /api/v1/pipelines` | No |
 | **Read (Single)** | ✅ Select in list | Via list response | No |
-| **Update** | ✅ Canvas edit → Save button | `POST /api/v1/pipelines/:uuid` | Yes |
-| **Delete** | ❌ Not implemented | `DELETE /api/v1/pipelines/:uuid` | N/A |
-| **Run** | ✅ Run button | `POST /api/v1/pipelines/:uuid/run` | No |
+| **Update** | ✅ Canvas edit → Save button (`handleSave` → `updatePipeline`) | `POST /api/v1/pipelines/:uuid` | Yes |
+| **Delete** | ✅ Toolbar action + confirm dialog (`handleDeletePipeline` → `deletePipeline`) | `DELETE /api/v1/pipelines/:uuid` | No |
+| **Run** | ✅ Run button (`handleRun` → `runPipeline`) | `POST /api/v1/pipelines/:uuid/run` | No |
+| **Cancel Run** | ✅ Cancel control on RUNNING rows (`handleCancelRun` → `cancelPipelineRun`) | `POST /api/v1/pipelines/:uuid/runs/:runUuid/cancel` | No |
+| **Run History (list)** | ✅ `listPipelineRuns` → `RunHistory` / `PipelineInspector` | `GET /api/v1/pipelines/:uuid/runs` | No |
+| **Run (single)** | ❌ `loadPipelineRun` defined but never called — no single-run refresh / deep-link | `GET /api/v1/pipelines/:uuid/runs/:runUuid` | N/A |
+| **Run Items** | ✅ `openRunDetail` → `listPipelineRunItems` (drill-down dialog) | `GET /api/v1/pipelines/:uuid/runs/:runUuid/items` | No |
+| **Version List** | ✅ `listPipelineVersions` (version panel) | `GET /api/v1/pipelines/:uuid/versions` | No |
+| **Version Restore** | ✅ `restorePipelineVersion` + `PipelineVersionDiff` preview | `POST /api/v1/pipelines/:uuid/versions/:version/restore` | No |
 
-### 5.2 Update Flow (The Only Implemented Write)
+### 5.2 Update Flow (Save)
 
 ```
 User edits canvas
@@ -495,6 +521,26 @@ const handleRun = useCallback(async () => {
 **Response handling:**
 - `dispatched: true` → Work order sent to processor, run will appear in history
 - `dispatched: false` → No processor available (503 equivalent), shows message
+
+### 5.5 Run History, Drill-Down, Versions & Live Events
+
+Beyond the base CRUD, the editor wires the full run/version surface:
+
+- **Run history** — `listPipelineRuns` is fetched on selection change (see §3.4) and rendered
+  by `RunHistory` (~line 462), embedded both in the log panel and in `PipelineInspector`
+  (~line 906). RUNNING rows expose a Cancel control (`handleCancelRun` ~2419 →
+  `cancelPipelineRun`).
+- **Run-item drill-down** — clicking a run opens `openRunDetail` (~2041), which loads its
+  items via `listPipelineRunItems` and shows per-item state/error in a detail dialog.
+  (Per-node task state is *not* exposed — no REST endpoint; see TASK_UI_PIPELINE.md.)
+- **Version history / diff / restore** — `listPipelineVersions` (~2106) feeds the version
+  panel; selecting versions opens
+  [PipelineVersionDiff.tsx](../../../loom-ui/src/features/pipeline/PipelineVersionDiff.tsx)
+  (fetches both definitions via `loadPipelineVersion` and renders a node/edge diff);
+  `restorePipelineVersion` (~2127) creates a new latest version from a historic one.
+- **Live pipeline events** — `subscribePipelineEvents` (~2098, shared multiplexed WebSocket
+  `/api/v1/pipelines/events/ws`) drives the run banner and refreshes run history on
+  `PIPELINE_STARTED` / `PIPELINE_COMPLETED`.
 
 ---
 
@@ -985,14 +1031,14 @@ const handleParameterChange = useCallback((nodeId, key, value) => {
 ### 14.1 Content
 
 ```tsx
-<PipelineInspector pipeline={selected} runs={pipelineRuns} runsLoading={runsLoading} />
+<PipelineInspector pipeline={selected} runs={pipelineRuns} runsLoading={runsLoading} onCancelRun={handleCancelRun} onSelectRun={openRunDetail} />
 ```
 
 **Displays:**
 - Pipeline name + description
 - Chips: Enabled/Disabled, Priority, Dry Run
 - Latest run status banner (color-coded)
-- Scrollable `RunHistory` list
+- Scrollable `RunHistory` list (rows cancellable while RUNNING, clickable → run-item drill-down)
 
 ### 14.2 Empty State
 
@@ -1094,14 +1140,12 @@ interface PipelineNodeData {
 
 | Issue | Impact | Workaround |
 |-------|--------|------------|
-| No pipeline creation UI | Users cannot create new pipelines | Use API directly |
-| No pipeline deletion UI | Users cannot delete pipelines | Use API directly |
 | No undo/redo | Accidental changes irreversible | Manual re-edit |
 | Dirty flag not persisted | Navigate away = lose changes | Save before navigating |
 | No collaborative editing | Multi-user conflicts | Single editor at a time |
 | Validation only on save | Errors discovered late | Run validation on change (not implemented) |
 | Mock video playback | Asset detail not real | N/A (different feature) |
-| WebSocket pipeline events not connected | No live run updates | Refresh run history manually |
+| `loadPipelineRun` never called | No single-run refresh / deep-link | Re-fetch the whole run list |
 | Command palette doesn't show categories | Hard to browse | Use Add Node bar with category chips |
 
 ---

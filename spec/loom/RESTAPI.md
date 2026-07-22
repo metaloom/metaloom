@@ -229,10 +229,13 @@ Most resource endpoints follow a standard CRUD pattern:
 | Tag                     | `/api/v1/tags`                         | GET, POST, DELETE        | Standard CRUD                              |
 | Task                    | `/api/v1/tasks`                        | GET, POST, DELETE        | CRUD + reaction sub-resources              |
 | Comment                 | `/api/v1/comments`                     | GET, POST, DELETE        | CRUD + reaction sub-resources              |
-| Annotation              | `/api/v1/annotations`                  | GET, POST, DELETE        | CRUD + reaction sub-resources              |
+| Annotation              | `/api/v1/annotations`                  | GET, POST, DELETE        | CRUD + reaction + task sub-resources       |
+| Annotation Tasks        | `/api/v1/annotations/:annotationUuid/tasks` | GET, POST, DELETE   | Assign/unassign existing tasks             |
 | Reaction                | `/api/v1/reactions`                    | GET, DELETE              | List, load, delete + asset-scoped reactions |
 | Blacklist               | `/api/v1/blacklists`                   | GET, POST, DELETE        | Standard CRUD                              |
 | Chat                    | `/api/v1/chats`                        | GET, POST, DELETE        | Standard CRUD                              |
+| Chat Agent Stream (SSE) | `/api/v1/chats/:uuid/stream`           | POST, DELETE             | POST runs the chat agent for a new user message and streams the run as Server-Sent Events (event vocabulary in [ui/CHAT.md](ui/CHAT.md) §4.2); DELETE cancels the active run (204). Body: `{message, skillUuids[], think?}`. 409 when a run is already active. |
+| Skill                   | `/api/v1/skills`                       | GET, POST, DELETE        | Owner-scoped CRUD (users only ever see their own skills) + `/library` (GET, published skills of all users) + `/:uuid/install` (POST, copy a published skill into the callers set with `originSkillUuid` provenance) |
 | Cluster                 | `/api/v1/clusters`                     | GET, POST, DELETE        | Standard CRUD                              |
 | Embedding               | `/api/v1/embeddings`                   | GET, POST, DELETE        | CRUD + attachment sub-resources            |
 | Webhook                 | `/api/v1/webhooks`                     | GET, POST, DELETE        | Standard CRUD                              |
@@ -247,6 +250,7 @@ Most resource endpoints follow a standard CRUD pattern:
 | Asset Bulk              | `/api/v1/assets/bulk/create`           | POST                     | Bulk create assets                         |
 | Asset Bulk              | `/api/v1/assets/bulk/update`           | POST                     | Bulk update assets                         |
 | Asset Tags              | `/api/v1/assets/:uuid/tags`            | POST, DELETE             | Tag/untag an asset                         |
+| Asset Tasks             | `/api/v1/assets/:uuid/tasks`           | GET, POST, DELETE        | Assign/unassign existing tasks             |
 | Asset Reactions         | `/api/v1/assets/:uuid/reactions`       | GET, POST, DELETE        | Reactions on assets                        |
 | Asset Detections        | `/api/v1/assets/:uuid/detections`      | GET, POST, DELETE        | Detections on assets + bulk create         |
 | Asset Transcripts       | `/api/v1/assets/:uuid/transcripts`     | GET, POST, DELETE        | Transcripts on assets                      |
@@ -268,6 +272,7 @@ The asset endpoint is the most complex, supporting:
 - Bulk create (`/assets/bulk/create`) and bulk update (`/assets/bulk/update`)
 - Sub-resources:
   - Tags: `/assets/:uuid/tags`, `/assets/:uuid/tags/:tagUuid`
+  - Tasks: `/assets/:uuid/tasks` (GET paged list), `/assets/:uuid/tasks/:taskUuid` (POST assign, DELETE unassign)
   - Reactions: `/assets/:uuid/reactions`, `/assets/:uuid/reactions/:reactionUuid`
   - Detections: `/assets/:uuid/detections`, `/assets/:uuid/detections/:detectionUuid`, `/assets/:uuid/detections/bulk`
   - Transcripts: `/assets/:uuid/transcripts`, `/assets/:uuid/transcripts/:transcriptUuid`
@@ -425,7 +430,7 @@ interfaces, providing a unified API surface:
 
 - `UserMethods`, `AssetMethods`, `AssetLocationMethods`, `AssetBinaryMethods`,
   `AssetComponentMethods`, `AssetPoolMethods`, `AttachmentMethods`,
-  `BlacklistMethods`, `ChatMethods`, `ClusterMethods`, `DetectionMethods`,
+  `BlacklistMethods`, `ChatMethods`, `SkillMethods`, `ClusterMethods`, `DetectionMethods`,
   `GroupMethods`, `RoleMethods`, `CollectionMethods`, `AnnotationMethods`,
   `TaskMethods`, `TagMethods`, `AuthenticationMethods`, `ReactionMethods`,
   `TokenMethods`, `LibraryMethods`, `PersonMethods`, `PipelineMethods`,

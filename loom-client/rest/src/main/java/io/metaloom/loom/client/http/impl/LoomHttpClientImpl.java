@@ -63,6 +63,10 @@ import io.metaloom.loom.rest.model.chat.ChatCreateRequest;
 import io.metaloom.loom.rest.model.chat.ChatListResponse;
 import io.metaloom.loom.rest.model.chat.ChatResponse;
 import io.metaloom.loom.rest.model.chat.ChatUpdateRequest;
+import io.metaloom.loom.rest.model.skill.SkillCreateRequest;
+import io.metaloom.loom.rest.model.skill.SkillListResponse;
+import io.metaloom.loom.rest.model.skill.SkillResponse;
+import io.metaloom.loom.rest.model.skill.SkillUpdateRequest;
 import io.metaloom.loom.rest.model.collection.CollectionCreateRequest;
 import io.metaloom.loom.rest.model.collection.CollectionListResponse;
 import io.metaloom.loom.rest.model.collection.CollectionResponse;
@@ -101,6 +105,7 @@ import io.metaloom.loom.rest.model.pipeline.PipelineResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunItemListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunRecord;
+import io.metaloom.loom.rest.model.pipeline.PipelineRunStatsResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineUpdateRequest;
 import io.metaloom.loom.rest.model.space.SpaceCreateRequest;
 import io.metaloom.loom.rest.model.space.SpaceListResponse;
@@ -576,6 +581,11 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	}
 
 	@Override
+	public LoomClientHttpRequest<PipelineRunStatsResponse> loadPipelineRunStats() {
+		return getRequest("pipelines/runs/stats", PipelineRunStatsResponse.class);
+	}
+
+	@Override
 	public LoomClientHttpRequest<PipelineRunRecord> loadPipelineRun(UUID pipelineUuid, UUID runUuid) {
 		return getRequest("pipelines/" + pipelineUuid + "/runs/" + runUuid, PipelineRunRecord.class);
 	}
@@ -955,6 +965,43 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 		return postRequest("chats", request, ChatResponse.class);
 	}
 
+	// SKILL
+
+	@Override
+	public LoomClientHttpRequest<SkillListResponse> listSkills() {
+		return getRequest("skills", SkillListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<SkillResponse> loadSkill(UUID uuid) {
+		return getRequest("skills/" + uuid, SkillResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> deleteSkill(UUID uuid) {
+		return deleteRequest("skills/" + uuid);
+	}
+
+	@Override
+	public LoomClientHttpRequest<SkillResponse> updateSkill(UUID uuid, SkillUpdateRequest request) {
+		return postRequest("skills/" + uuid, request, SkillResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<SkillResponse> createSkill(SkillCreateRequest request) {
+		return postRequest("skills", request, SkillResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<SkillListResponse> listSkillLibrary() {
+		return getRequest("skills/library", SkillListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<SkillResponse> installSkill(UUID uuid) {
+		return postRequest("skills/" + uuid + "/install", SkillResponse.class);
+	}
+
 	// ROLE
 
 	@Override
@@ -1007,6 +1054,40 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<TaskResponse> createTask(TaskCreateRequest request) {
 		return postRequest("tasks", request, TaskResponse.class);
+	}
+
+	// TASK - ASSET
+
+	@Override
+	public LoomClientHttpRequest<TaskListResponse> listAssetTasks(AssetId assetId) {
+		return getRequest(assetPath(assetId) + "/tasks", TaskListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<TaskResponse> assignTaskToAsset(AssetId assetId, UUID taskUuid) {
+		return postRequest(assetPath(assetId) + "/tasks/" + taskUuid, TaskResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> unassignTaskFromAsset(AssetId assetId, UUID taskUuid) {
+		return deleteRequest(assetPath(assetId) + "/tasks/" + taskUuid);
+	}
+
+	// TASK - ANNOTATION
+
+	@Override
+	public LoomClientHttpRequest<TaskListResponse> listAnnotationTasks(UUID annotationUuid) {
+		return getRequest("annotations/" + annotationUuid + "/tasks", TaskListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<TaskResponse> assignTaskToAnnotation(UUID annotationUuid, UUID taskUuid) {
+		return postRequest("annotations/" + annotationUuid + "/tasks/" + taskUuid, TaskResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> unassignTaskFromAnnotation(UUID annotationUuid, UUID taskUuid) {
+		return deleteRequest("annotations/" + annotationUuid + "/tasks/" + taskUuid);
 	}
 
 	// ATTACHMENT

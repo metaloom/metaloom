@@ -12,7 +12,7 @@ import {
   PersonOutlined, LogoutOutlined,
   LocalOfferOutlined, DnsOutlined, GroupsOutlined,
   SecurityOutlined, VpnKeyOutlined, BlockOutlined,
-  SpeedOutlined, VisibilityOutlined, StorageOutlined,
+  SpeedOutlined, VisibilityOutlined, StorageOutlined, AutoFixHighOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../theme";
 import { useAuth } from "../context/AuthContext";
@@ -36,6 +36,7 @@ function userNavItems(t: (k: string) => string): NavItem[] {
     { label: t("sidebar.nav.detection"), path: "/detection", icon: <VisibilityOutlined fontSize="small" /> },
     { label: t("sidebar.nav.tags"), path: "/tags", icon: <LocalOfferOutlined fontSize="small" /> },
     { label: t("sidebar.nav.workflow"), path: "/workflow", icon: <SpeedOutlined fontSize="small" /> },
+    { label: t("sidebar.nav.skills"), path: "/skills", icon: <AutoFixHighOutlined fontSize="small" /> },
   ];
 }
 

@@ -1,6 +1,6 @@
-import React from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Box, Typography, Paper, Grid,
+  Box, Typography, Paper, Grid, Chip, Alert,
 } from "@mui/material";
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line,
@@ -14,10 +14,29 @@ import {
 import { tokens } from "../../theme";
 import { METRICS } from "../../mock/data";
 import { useTranslation } from "react-i18next";
+import { useAuth } from "../../context/AuthContext";
+import { loadPipelineRunStats, PipelineRunDayStats } from "../../api/pipelines";
+import { subscribePipelineEvents, PipelineEventMessage } from "../../api/pipelineEvents";
+import { formatDeltaPct, summarizeRunStats } from "./runMetrics";
+
+// ── Sample data badge ─────────────────────────────────────────────────────
+// Marks panels that still render synthetic demo series so they cannot be
+// mistaken for live metrics.
+function SampleDataBadge() {
+  const { t } = useTranslation();
+  return (
+    <Chip
+      data-testid="sample-data-badge"
+      label={t("monitoring.sampleData")}
+      size="small"
+      sx={{ height: 16, fontSize: "0.6rem", bgcolor: `${tokens.accent.amber}22`, color: tokens.accent.amber }}
+    />
+  );
+}
 
 // ── KPI Card ──────────────────────────────────────────────────────────────
 function KPICard({
-  title, value, unit, delta, color, icon, subtitle,
+  title, value, unit, delta, color, icon, subtitle, sample, testId,
 }: {
   title: string;
   value: string | number;
@@ -26,10 +45,13 @@ function KPICard({
   color: string;
   icon: React.ReactNode;
   subtitle?: string;
+  sample?: boolean;
+  testId?: string;
 }) {
   return (
     <Paper
       elevation={0}
+      data-testid={testId}
       sx={{
         bgcolor: tokens.bg.elevated,
         border: `1px solid ${tokens.border.subtle}`,
@@ -51,9 +73,12 @@ function KPICard({
     >
       <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
         <Box>
-          <Typography variant="caption" sx={{ textTransform: "uppercase", letterSpacing: "0.07em", color: tokens.text.tertiary, fontSize: "0.68rem" }}>
-            {title}
-          </Typography>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+            <Typography variant="caption" sx={{ textTransform: "uppercase", letterSpacing: "0.07em", color: tokens.text.tertiary, fontSize: "0.68rem" }}>
+              {title}
+            </Typography>
+            {sample && <SampleDataBadge />}
+          </Box>
           <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.5, mt: 0.25 }}>
             <Typography variant="h4" fontWeight={700} sx={{ fontSize: "1.75rem", color: tokens.text.primary, lineHeight: 1 }}>
               {value}
@@ -76,10 +101,17 @@ function KPICard({
 }
 
 // ── Chart Card ────────────────────────────────────────────────────────────
-function ChartCard({ title, children, height = 160 }: { title: string; children: React.ReactNode; height?: number }) {
+function ChartCard({ title, children, height = 160, sample, testId }: {
+  title: string;
+  children: React.ReactNode;
+  height?: number;
+  sample?: boolean;
+  testId?: string;
+}) {
   return (
     <Paper
       elevation={0}
+      data-testid={testId}
       sx={{
         bgcolor: tokens.bg.elevated,
         border: `1px solid ${tokens.border.subtle}`,
@@ -87,8 +119,9 @@ function ChartCard({ title, children, height = 160 }: { title: string; children:
         overflow: "hidden",
       }}
     >
-      <Box sx={{ px: 2, py: 1.5, borderBottom: `1px solid ${tokens.border.subtle}` }}>
+      <Box sx={{ px: 2, py: 1.5, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.875rem" }}>{title}</Typography>
+        {sample && <SampleDataBadge />}
       </Box>
       <Box sx={{ p: 1.5, height }}>
         {children}
@@ -117,11 +150,50 @@ const tooltipStyle = {
 // ── Main Monitoring Area ──────────────────────────────────────────────────
 export default function MonitoringArea() {
   const { t } = useTranslation();
+  const { token } = useAuth();
+
+  // Real cross-pipeline run stats from GET /pipelines/runs/stats.
+  // null = still loading; an empty bucket list is a valid (all-zero) result.
+  const [runStats, setRunStats] = useState<PipelineRunDayStats[] | null>(null);
+  const [runStatsError, setRunStatsError] = useState(false);
+
+  const loadRunStats = useCallback(() => {
+    if (!token) return;
+    loadPipelineRunStats(token)
+      .then(response => {
+        setRunStats(response.daily ?? []);
+        setRunStatsError(false);
+      })
+      .catch(() => {
+        setRunStats([]);
+        setRunStatsError(true);
+      });
+  }, [token]);
+
+  useEffect(() => { loadRunStats(); }, [loadRunStats]);
+
+  // Live refresh: any pipeline start/completion re-fetches the roll-up.
+  useEffect(() => {
+    const handle = (event: PipelineEventMessage) => {
+      if (event.type === "PIPELINE_STARTED" || event.type === "PIPELINE_COMPLETED") {
+        loadRunStats();
+      }
+    };
+    return subscribePipelineEvents(handle, token);
+  }, [token, loadRunStats]);
+
+  const runSummary = useMemo(() => summarizeRunStats(runStats ?? []), [runStats]);
+  const runChartData = useMemo(() => (runStats ?? []).map(b => ({
+    ts: b.date,
+    success: b.successCount,
+    failed: b.failureCount,
+    skipped: b.skippedCount,
+  })), [runStats]);
+
   // Compute KPI snapshot values from latest data points
   const lastIngestion = METRICS.ingestion[0].data.slice(-1)[0]?.value ?? 0;
   const lastLatency = METRICS.latency[0].data.slice(-1)[0]?.value ?? 0;
   const storageLatest = METRICS.storage[0].data.slice(-1)[0]?.value ?? 0;
-  const totalRuns = METRICS.pipelineRuns.reduce((acc, s) => acc + (s.data.slice(-7).reduce((a, b) => a + b.value, 0)), 0);
   const openTasks = METRICS.taskBacklog[0].data.slice(-1)[0]?.value ?? 0;
   const chatQueries = METRICS.chatUsage[0].data.reduce((a, b) => a + b.value, 0);
 
@@ -133,21 +205,25 @@ export default function MonitoringArea() {
       </Box>
 
       <Box sx={{ flex: 1, overflow: "auto", p: 2.5 }}>
+        {runStatsError && (
+          <Alert severity="warning" sx={{ mb: 2 }}>{t("monitoring.loadError")}</Alert>
+        )}
+
         {/* KPI Row */}
         <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 2, mb: 3 }}>
-          <KPICard title={t("monitoring.kpi.dailyIngest")} value={lastIngestion} unit={t("monitoring.kpi.assets")} delta="+14%" color={tokens.primary.main} icon={<CloudUploadOutlined />} subtitle={t("monitoring.kpi.assetsToday")} />
-          <KPICard title={t("monitoring.kpi.pipelineRuns")} value={totalRuns} unit={t("monitoring.kpi.runs")} delta="+8%" color={tokens.accent.teal} icon={<AccountTreeOutlined />} subtitle={t("monitoring.kpi.allPipelines")} />
-          <KPICard title={t("monitoring.kpi.avgLatency")} value={lastLatency} unit="ms" delta={lastLatency > 400 ? "+5%" : "-3%"} color={tokens.accent.blue} icon={<SpeedOutlined />} subtitle={t("monitoring.kpi.processingPipeline")} />
-          <KPICard title={t("monitoring.kpi.storageUsed")} value={storageLatest.toFixed(1)} unit="TB" color={tokens.accent.amber} icon={<StorageOutlined />} subtitle={t("monitoring.kpi.totalLibraries")} />
-          <KPICard title={t("monitoring.kpi.openTasks")} value={openTasks} delta="-2%" color={tokens.accent.green} icon={<TaskAltOutlined />} subtitle={t("monitoring.kpi.allProjects")} />
-          <KPICard title={t("monitoring.kpi.agentQueries")} value={chatQueries} color={tokens.primary.light} icon={<AutoAwesome />} subtitle={t("monitoring.kpi.totalAgentQueries")} />
-          <KPICard title={t("monitoring.kpi.annotations")} value={METRICS.annotations[0].data.reduce((a, b) => a + b.value, 0)} color={tokens.accent.red} icon={<BookmarkBorderOutlined />} subtitle={t("monitoring.kpi.newAnnotations")} />
+          <KPICard title={t("monitoring.kpi.dailyIngest")} value={lastIngestion} unit={t("monitoring.kpi.assets")} delta="+14%" color={tokens.primary.main} icon={<CloudUploadOutlined />} subtitle={t("monitoring.kpi.assetsToday")} sample />
+          <KPICard title={t("monitoring.kpi.pipelineRuns")} value={runStats === null ? "—" : runSummary.totalRuns7d} unit={t("monitoring.kpi.runs")} delta={formatDeltaPct(runSummary.runsDeltaPct)} color={tokens.accent.teal} icon={<AccountTreeOutlined />} subtitle={t("monitoring.kpi.allPipelines")} testId="kpi-pipeline-runs" />
+          <KPICard title={t("monitoring.kpi.avgLatency")} value={lastLatency} unit="ms" delta={lastLatency > 400 ? "+5%" : "-3%"} color={tokens.accent.blue} icon={<SpeedOutlined />} subtitle={t("monitoring.kpi.processingPipeline")} sample />
+          <KPICard title={t("monitoring.kpi.storageUsed")} value={storageLatest.toFixed(1)} unit="TB" color={tokens.accent.amber} icon={<StorageOutlined />} subtitle={t("monitoring.kpi.totalLibraries")} sample />
+          <KPICard title={t("monitoring.kpi.openTasks")} value={openTasks} delta="-2%" color={tokens.accent.green} icon={<TaskAltOutlined />} subtitle={t("monitoring.kpi.allProjects")} sample />
+          <KPICard title={t("monitoring.kpi.agentQueries")} value={chatQueries} color={tokens.primary.light} icon={<AutoAwesome />} subtitle={t("monitoring.kpi.totalAgentQueries")} sample />
+          <KPICard title={t("monitoring.kpi.annotations")} value={METRICS.annotations[0].data.reduce((a, b) => a + b.value, 0)} color={tokens.accent.red} icon={<BookmarkBorderOutlined />} subtitle={t("monitoring.kpi.newAnnotations")} sample />
         </Box>
 
         {/* Charts Grid */}
         <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr", lg: "2fr 1fr 1fr" }, gap: 2 }}>
           {/* Ingestion throughput */}
-          <ChartCard title={t("monitoring.chart.ingestion")} height={180}>
+          <ChartCard title={t("monitoring.chart.ingestion")} height={180} sample>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={METRICS.ingestion[0].data} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
                 <defs>
@@ -165,22 +241,24 @@ export default function MonitoringArea() {
             </ResponsiveContainer>
           </ChartCard>
 
-          {/* Pipeline runs */}
-          <ChartCard title={t("monitoring.chart.pipelineRuns")} height={180}>
+          {/* Pipeline runs — real cross-pipeline aggregation */}
+          <ChartCard title={t("monitoring.chart.pipelineRuns")} height={180} testId="monitoring-runs-chart">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={METRICS.pipelineRuns[0].data.map((d, i) => ({ ts: d.ts, success: d.value, failed: METRICS.pipelineRuns[1].data[i]?.value ?? 0 }))} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
+              <BarChart data={runChartData} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
                 <CartesianGrid stroke={tokens.border.subtle} vertical={false} />
                 <XAxis dataKey="ts" tickFormatter={v => new Date(v).toLocaleDateString("en", { day: "numeric" })} tick={{ ...chartStyle, fill: tokens.text.tertiary }} tickLine={false} axisLine={false} />
                 <YAxis tick={{ ...chartStyle, fill: tokens.text.tertiary }} tickLine={false} axisLine={false} />
                 <Tooltip {...tooltipStyle} />
-                <Bar dataKey="success" name="Success" fill={tokens.accent.green} radius={[2, 2, 0, 0]} stackId="runs" />
-                <Bar dataKey="failed" name="Failed" fill={tokens.accent.red} radius={[2, 2, 0, 0]} stackId="runs" />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar dataKey="success" name={t("monitoring.series.success")} fill={tokens.accent.green} radius={[2, 2, 0, 0]} stackId="runs" />
+                <Bar dataKey="failed" name={t("monitoring.series.failed")} fill={tokens.accent.red} radius={[2, 2, 0, 0]} stackId="runs" />
+                <Bar dataKey="skipped" name={t("monitoring.series.skipped")} fill={tokens.accent.amber} radius={[2, 2, 0, 0]} stackId="runs" />
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
 
           {/* Task backlog */}
-          <ChartCard title={t("monitoring.chart.taskBacklog")} height={180}>
+          <ChartCard title={t("monitoring.chart.taskBacklog")} height={180} sample>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={METRICS.taskBacklog[0].data.map((d, i) => ({ ts: d.ts, open: d.value, overdue: METRICS.taskBacklog[1].data[i]?.value ?? 0 }))} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
                 <CartesianGrid stroke={tokens.border.subtle} vertical={false} />
@@ -194,7 +272,7 @@ export default function MonitoringArea() {
           </ChartCard>
 
           {/* Processing latency */}
-          <ChartCard title={t("monitoring.chart.latency")} height={170}>
+          <ChartCard title={t("monitoring.chart.latency")} height={170} sample>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={METRICS.latency[0].data.map((d, i) => ({ ts: d.ts, avg: d.value, p99: METRICS.latency[1].data[i]?.value ?? 0 }))} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
                 <CartesianGrid stroke={tokens.border.subtle} vertical={false} />
@@ -208,7 +286,7 @@ export default function MonitoringArea() {
           </ChartCard>
 
           {/* Storage growth */}
-          <ChartCard title={t("monitoring.chart.storage")} height={170}>
+          <ChartCard title={t("monitoring.chart.storage")} height={170} sample>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={METRICS.storage[0].data} margin={{ top: 5, right: 5, bottom: 0, left: -10 }}>
                 <defs>
@@ -227,7 +305,7 @@ export default function MonitoringArea() {
           </ChartCard>
 
           {/* Agent chat usage */}
-          <ChartCard title={t("monitoring.chart.agentUsage")} height={170}>
+          <ChartCard title={t("monitoring.chart.agentUsage")} height={170} sample>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={METRICS.chatUsage[0].data.map((d, i) => ({ ts: d.ts, queries: d.value, actions: METRICS.chatUsage[1].data[i]?.value ?? 0 }))} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
                 <CartesianGrid stroke={tokens.border.subtle} vertical={false} />

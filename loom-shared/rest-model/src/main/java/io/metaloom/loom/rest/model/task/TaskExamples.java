@@ -1,5 +1,9 @@
 package io.metaloom.loom.rest.model.task;
 
+import java.time.Instant;
+
+import io.metaloom.loom.api.task.TaskPriority;
+import io.metaloom.loom.api.task.TaskStatus;
 import io.metaloom.loom.rest.model.example.Example;
 import io.metaloom.loom.rest.model.example.ExampleValues;
 import io.metaloom.loom.rest.model.example.impl.ExampleImpl;
@@ -27,6 +31,9 @@ public interface TaskExamples extends ExampleValues {
 		TaskResponse model = new TaskResponse();
 		model.setUuid(uuidA());
 		model.setTitle("The title");
+		model.setPriority(TaskPriority.MEDIUM);
+		model.setTaskStatus(TaskStatus.PENDING);
+		model.setDueDate(Instant.parse("2026-08-01T12:00:00Z"));
 		model.setMeta(meta());
 		return model;
 	}
@@ -34,6 +41,9 @@ public interface TaskExamples extends ExampleValues {
 	default TaskCreateRequest taskCreateRequest() {
 		TaskCreateRequest model = new TaskCreateRequest();
 		model.setTitle("The title");
+		model.setPriority(TaskPriority.MEDIUM);
+		model.setTaskStatus(TaskStatus.PENDING);
+		model.setDueDate(Instant.parse("2026-08-01T12:00:00Z"));
 		model.setMeta(meta());
 		return model;
 	}
@@ -41,6 +51,9 @@ public interface TaskExamples extends ExampleValues {
 	default TaskUpdateRequest taskUpdateRequest() {
 		TaskUpdateRequest model = new TaskUpdateRequest();
 		model.setTitle("The title");
+		model.setPriority(TaskPriority.HIGH);
+		model.setTaskStatus(TaskStatus.REVIEW);
+		model.setDueDate(Instant.parse("2026-08-01T12:00:00Z"));
 		model.setMeta(meta());
 		return model;
 	}
