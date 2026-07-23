@@ -71,6 +71,33 @@ public class SkillEndpoint extends AbstractEndpoint {
 				service.install(lrc, lrc.pathParamUUID("uuid"));
 			});
 
+		// Skill Versions
+		// List all versions of a skill (must be registered before /:uuid so "versions" is not consumed as a uuid)
+		addListRoute(basePath() + "/:uuid/versions", GET,
+			"Load a paged list of a skills versions",
+			examples.skillVersionListResponseExample(),
+			lrc -> {
+				service.listVersions(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		// Load a specific version of a skill
+		addRoute(basePath() + "/:uuid/versions/:version", GET,
+			"Load a specific skill version",
+			null,
+			examples.skillResponseExample(),
+			lrc -> {
+				service.loadVersion(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamInt("version"));
+			});
+
+		// Revert a skill to a specific version (deletes all newer versions and re-points the active version)
+		addRoute(basePath() + "/:uuid/versions/:version/restore", POST,
+			"Revert a skill to a specific version, deleting all newer versions",
+			null,
+			examples.skillResponseExample(),
+			lrc -> {
+				service.restoreVersion(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamInt("version"));
+			});
+
 		// Update
 		addRoute(basePath() + "/:uuid", POST,
 			"Update a skill",

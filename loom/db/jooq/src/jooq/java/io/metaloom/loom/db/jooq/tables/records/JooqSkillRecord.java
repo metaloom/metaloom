@@ -12,8 +12,8 @@ import java.util.UUID;
 
 import org.jooq.Field;
 import org.jooq.Record1;
-import org.jooq.Record12;
-import org.jooq.Row12;
+import org.jooq.Record11;
+import org.jooq.Row11;
 import org.jooq.impl.UpdatableRecordImpl;
 
 
@@ -22,7 +22,7 @@ import org.jooq.impl.UpdatableRecordImpl;
  * chat agent)
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqSkillRecord extends UpdatableRecordImpl<JooqSkillRecord> implements Record12<UUID, String, String, String, Boolean, Boolean, UUID, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> {
+public class JooqSkillRecord extends UpdatableRecordImpl<JooqSkillRecord> implements Record11<UUID, String, Boolean, Boolean, UUID, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID, UUID> {
 
     private static final long serialVersionUID = 1L;
 
@@ -57,43 +57,11 @@ public class JooqSkillRecord extends UpdatableRecordImpl<JooqSkillRecord> implem
     }
 
     /**
-     * Setter for <code>public.skill.description</code>. Short description which
-     * gets injected into the agent system prompt
-     */
-    public void setDescription(String value) {
-        set(2, value);
-    }
-
-    /**
-     * Getter for <code>public.skill.description</code>. Short description which
-     * gets injected into the agent system prompt
-     */
-    public String getDescription() {
-        return (String) get(2);
-    }
-
-    /**
-     * Setter for <code>public.skill.content</code>. Full markdown instructions
-     * of the skill
-     */
-    public void setContent(String value) {
-        set(3, value);
-    }
-
-    /**
-     * Getter for <code>public.skill.content</code>. Full markdown instructions
-     * of the skill
-     */
-    public String getContent() {
-        return (String) get(3);
-    }
-
-    /**
      * Setter for <code>public.skill.enabled</code>. Owner-level default on/off
      * toggle
      */
     public void setEnabled(Boolean value) {
-        set(4, value);
+        set(2, value);
     }
 
     /**
@@ -101,7 +69,7 @@ public class JooqSkillRecord extends UpdatableRecordImpl<JooqSkillRecord> implem
      * toggle
      */
     public Boolean getEnabled() {
-        return (Boolean) get(4);
+        return (Boolean) get(2);
     }
 
     /**
@@ -109,7 +77,7 @@ public class JooqSkillRecord extends UpdatableRecordImpl<JooqSkillRecord> implem
      * visible in the shared skill library
      */
     public void setPublished(Boolean value) {
-        set(5, value);
+        set(3, value);
     }
 
     /**
@@ -117,7 +85,7 @@ public class JooqSkillRecord extends UpdatableRecordImpl<JooqSkillRecord> implem
      * visible in the shared skill library
      */
     public Boolean getPublished() {
-        return (Boolean) get(5);
+        return (Boolean) get(3);
     }
 
     /**
@@ -125,7 +93,7 @@ public class JooqSkillRecord extends UpdatableRecordImpl<JooqSkillRecord> implem
      * reference to the published skill this one was installed from
      */
     public void setOriginSkillUuid(UUID value) {
-        set(6, value);
+        set(4, value);
     }
 
     /**
@@ -133,77 +101,93 @@ public class JooqSkillRecord extends UpdatableRecordImpl<JooqSkillRecord> implem
      * reference to the published skill this one was installed from
      */
     public UUID getOriginSkillUuid() {
-        return (UUID) get(6);
+        return (UUID) get(4);
     }
 
     /**
      * Setter for <code>public.skill.meta</code>.
      */
     public void setMeta(JsonObject value) {
-        set(7, value);
+        set(5, value);
     }
 
     /**
      * Getter for <code>public.skill.meta</code>.
      */
     public JsonObject getMeta() {
-        return (JsonObject) get(7);
+        return (JsonObject) get(5);
     }
 
     /**
      * Setter for <code>public.skill.created</code>. Creation timestamp
      */
     public void setCreated(LocalDateTime value) {
-        set(8, value);
+        set(6, value);
     }
 
     /**
      * Getter for <code>public.skill.created</code>. Creation timestamp
      */
     public LocalDateTime getCreated() {
-        return (LocalDateTime) get(8);
+        return (LocalDateTime) get(6);
     }
 
     /**
      * Setter for <code>public.skill.creator_uuid</code>.
      */
     public void setCreatorUuid(UUID value) {
-        set(9, value);
+        set(7, value);
     }
 
     /**
      * Getter for <code>public.skill.creator_uuid</code>.
      */
     public UUID getCreatorUuid() {
-        return (UUID) get(9);
+        return (UUID) get(7);
     }
 
     /**
      * Setter for <code>public.skill.edited</code>. Last edit timestamp
      */
     public void setEdited(LocalDateTime value) {
-        set(10, value);
+        set(8, value);
     }
 
     /**
      * Getter for <code>public.skill.edited</code>. Last edit timestamp
      */
     public LocalDateTime getEdited() {
-        return (LocalDateTime) get(10);
+        return (LocalDateTime) get(8);
     }
 
     /**
      * Setter for <code>public.skill.editor_uuid</code>.
      */
     public void setEditorUuid(UUID value) {
-        set(11, value);
+        set(9, value);
     }
 
     /**
      * Getter for <code>public.skill.editor_uuid</code>.
      */
     public UUID getEditorUuid() {
-        return (UUID) get(11);
+        return (UUID) get(9);
+    }
+
+    /**
+     * Setter for <code>public.skill.active_version_uuid</code>. Reference to
+     * the currently active skill_version record
+     */
+    public void setActiveVersionUuid(UUID value) {
+        set(10, value);
+    }
+
+    /**
+     * Getter for <code>public.skill.active_version_uuid</code>. Reference to
+     * the currently active skill_version record
+     */
+    public UUID getActiveVersionUuid() {
+        return (UUID) get(10);
     }
 
     // -------------------------------------------------------------------------
@@ -216,17 +200,17 @@ public class JooqSkillRecord extends UpdatableRecordImpl<JooqSkillRecord> implem
     }
 
     // -------------------------------------------------------------------------
-    // Record12 type implementation
+    // Record11 type implementation
     // -------------------------------------------------------------------------
 
     @Override
-    public Row12<UUID, String, String, String, Boolean, Boolean, UUID, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> fieldsRow() {
-        return (Row12) super.fieldsRow();
+    public Row11<UUID, String, Boolean, Boolean, UUID, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID, UUID> fieldsRow() {
+        return (Row11) super.fieldsRow();
     }
 
     @Override
-    public Row12<UUID, String, String, String, Boolean, Boolean, UUID, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> valuesRow() {
-        return (Row12) super.valuesRow();
+    public Row11<UUID, String, Boolean, Boolean, UUID, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID, UUID> valuesRow() {
+        return (Row11) super.valuesRow();
     }
 
     @Override
@@ -240,53 +224,48 @@ public class JooqSkillRecord extends UpdatableRecordImpl<JooqSkillRecord> implem
     }
 
     @Override
-    public Field<String> field3() {
-        return JooqSkill.SKILL.DESCRIPTION;
-    }
-
-    @Override
-    public Field<String> field4() {
-        return JooqSkill.SKILL.CONTENT;
-    }
-
-    @Override
-    public Field<Boolean> field5() {
+    public Field<Boolean> field3() {
         return JooqSkill.SKILL.ENABLED;
     }
 
     @Override
-    public Field<Boolean> field6() {
+    public Field<Boolean> field4() {
         return JooqSkill.SKILL.PUBLISHED;
     }
 
     @Override
-    public Field<UUID> field7() {
+    public Field<UUID> field5() {
         return JooqSkill.SKILL.ORIGIN_SKILL_UUID;
     }
 
     @Override
-    public Field<JsonObject> field8() {
+    public Field<JsonObject> field6() {
         return JooqSkill.SKILL.META;
     }
 
     @Override
-    public Field<LocalDateTime> field9() {
+    public Field<LocalDateTime> field7() {
         return JooqSkill.SKILL.CREATED;
     }
 
     @Override
-    public Field<UUID> field10() {
+    public Field<UUID> field8() {
         return JooqSkill.SKILL.CREATOR_UUID;
     }
 
     @Override
-    public Field<LocalDateTime> field11() {
+    public Field<LocalDateTime> field9() {
         return JooqSkill.SKILL.EDITED;
     }
 
     @Override
-    public Field<UUID> field12() {
+    public Field<UUID> field10() {
         return JooqSkill.SKILL.EDITOR_UUID;
+    }
+
+    @Override
+    public Field<UUID> field11() {
+        return JooqSkill.SKILL.ACTIVE_VERSION_UUID;
     }
 
     @Override
@@ -300,53 +279,48 @@ public class JooqSkillRecord extends UpdatableRecordImpl<JooqSkillRecord> implem
     }
 
     @Override
-    public String component3() {
-        return getDescription();
-    }
-
-    @Override
-    public String component4() {
-        return getContent();
-    }
-
-    @Override
-    public Boolean component5() {
+    public Boolean component3() {
         return getEnabled();
     }
 
     @Override
-    public Boolean component6() {
+    public Boolean component4() {
         return getPublished();
     }
 
     @Override
-    public UUID component7() {
+    public UUID component5() {
         return getOriginSkillUuid();
     }
 
     @Override
-    public JsonObject component8() {
+    public JsonObject component6() {
         return getMeta();
     }
 
     @Override
-    public LocalDateTime component9() {
+    public LocalDateTime component7() {
         return getCreated();
     }
 
     @Override
-    public UUID component10() {
+    public UUID component8() {
         return getCreatorUuid();
     }
 
     @Override
-    public LocalDateTime component11() {
+    public LocalDateTime component9() {
         return getEdited();
     }
 
     @Override
-    public UUID component12() {
+    public UUID component10() {
         return getEditorUuid();
+    }
+
+    @Override
+    public UUID component11() {
+        return getActiveVersionUuid();
     }
 
     @Override
@@ -360,53 +334,48 @@ public class JooqSkillRecord extends UpdatableRecordImpl<JooqSkillRecord> implem
     }
 
     @Override
-    public String value3() {
-        return getDescription();
-    }
-
-    @Override
-    public String value4() {
-        return getContent();
-    }
-
-    @Override
-    public Boolean value5() {
+    public Boolean value3() {
         return getEnabled();
     }
 
     @Override
-    public Boolean value6() {
+    public Boolean value4() {
         return getPublished();
     }
 
     @Override
-    public UUID value7() {
+    public UUID value5() {
         return getOriginSkillUuid();
     }
 
     @Override
-    public JsonObject value8() {
+    public JsonObject value6() {
         return getMeta();
     }
 
     @Override
-    public LocalDateTime value9() {
+    public LocalDateTime value7() {
         return getCreated();
     }
 
     @Override
-    public UUID value10() {
+    public UUID value8() {
         return getCreatorUuid();
     }
 
     @Override
-    public LocalDateTime value11() {
+    public LocalDateTime value9() {
         return getEdited();
     }
 
     @Override
-    public UUID value12() {
+    public UUID value10() {
         return getEditorUuid();
+    }
+
+    @Override
+    public UUID value11() {
+        return getActiveVersionUuid();
     }
 
     @Override
@@ -422,67 +391,61 @@ public class JooqSkillRecord extends UpdatableRecordImpl<JooqSkillRecord> implem
     }
 
     @Override
-    public JooqSkillRecord value3(String value) {
-        setDescription(value);
-        return this;
-    }
-
-    @Override
-    public JooqSkillRecord value4(String value) {
-        setContent(value);
-        return this;
-    }
-
-    @Override
-    public JooqSkillRecord value5(Boolean value) {
+    public JooqSkillRecord value3(Boolean value) {
         setEnabled(value);
         return this;
     }
 
     @Override
-    public JooqSkillRecord value6(Boolean value) {
+    public JooqSkillRecord value4(Boolean value) {
         setPublished(value);
         return this;
     }
 
     @Override
-    public JooqSkillRecord value7(UUID value) {
+    public JooqSkillRecord value5(UUID value) {
         setOriginSkillUuid(value);
         return this;
     }
 
     @Override
-    public JooqSkillRecord value8(JsonObject value) {
+    public JooqSkillRecord value6(JsonObject value) {
         setMeta(value);
         return this;
     }
 
     @Override
-    public JooqSkillRecord value9(LocalDateTime value) {
+    public JooqSkillRecord value7(LocalDateTime value) {
         setCreated(value);
         return this;
     }
 
     @Override
-    public JooqSkillRecord value10(UUID value) {
+    public JooqSkillRecord value8(UUID value) {
         setCreatorUuid(value);
         return this;
     }
 
     @Override
-    public JooqSkillRecord value11(LocalDateTime value) {
+    public JooqSkillRecord value9(LocalDateTime value) {
         setEdited(value);
         return this;
     }
 
     @Override
-    public JooqSkillRecord value12(UUID value) {
+    public JooqSkillRecord value10(UUID value) {
         setEditorUuid(value);
         return this;
     }
 
     @Override
-    public JooqSkillRecord values(UUID value1, String value2, String value3, String value4, Boolean value5, Boolean value6, UUID value7, JsonObject value8, LocalDateTime value9, UUID value10, LocalDateTime value11, UUID value12) {
+    public JooqSkillRecord value11(UUID value) {
+        setActiveVersionUuid(value);
+        return this;
+    }
+
+    @Override
+    public JooqSkillRecord values(UUID value1, String value2, Boolean value3, Boolean value4, UUID value5, JsonObject value6, LocalDateTime value7, UUID value8, LocalDateTime value9, UUID value10, UUID value11) {
         value1(value1);
         value2(value2);
         value3(value3);
@@ -494,7 +457,6 @@ public class JooqSkillRecord extends UpdatableRecordImpl<JooqSkillRecord> implem
         value9(value9);
         value10(value10);
         value11(value11);
-        value12(value12);
         return this;
     }
 
@@ -512,13 +474,11 @@ public class JooqSkillRecord extends UpdatableRecordImpl<JooqSkillRecord> implem
     /**
      * Create a detached, initialised JooqSkillRecord
      */
-    public JooqSkillRecord(UUID uuid, String name, String description, String content, Boolean enabled, Boolean published, UUID originSkillUuid, JsonObject meta, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid) {
+    public JooqSkillRecord(UUID uuid, String name, Boolean enabled, Boolean published, UUID originSkillUuid, JsonObject meta, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid, UUID activeVersionUuid) {
         super(JooqSkill.SKILL);
 
         setUuid(uuid);
         setName(name);
-        setDescription(description);
-        setContent(content);
         setEnabled(enabled);
         setPublished(published);
         setOriginSkillUuid(originSkillUuid);
@@ -527,5 +487,6 @@ public class JooqSkillRecord extends UpdatableRecordImpl<JooqSkillRecord> implem
         setCreatorUuid(creatorUuid);
         setEdited(edited);
         setEditorUuid(editorUuid);
+        setActiveVersionUuid(activeVersionUuid);
     }
 }

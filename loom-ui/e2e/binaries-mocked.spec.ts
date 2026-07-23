@@ -36,11 +36,13 @@ interface Captured {
   binaryUploadContentTypes: string[];
   binaryDownloads: number;
   binaryDeletes: number;
+  binaryMetaCreates: number;
+  binaryMetaCreateBodies: unknown[];
 }
 
 /** Install baseline + binary REST mocks. Returns a record of captured binary requests. */
 async function mockRest(page: Page): Promise<Captured> {
-  const captured: Captured = { binaryUploads: 0, binaryUploadContentTypes: [], binaryDownloads: 0, binaryDeletes: 0 };
+  const captured: Captured = { binaryUploads: 0, binaryUploadContentTypes: [], binaryDownloads: 0, binaryDeletes: 0, binaryMetaCreates: 0, binaryMetaCreateBodies: [] };
 
   // Catch-all first (lowest priority): empty lists for anything unmatched.
   await page.route("**/api/v1/**", route =>
@@ -68,9 +70,16 @@ async function mockRest(page: Page): Promise<Captured> {
   // Binary metadata route (GET / DELETE) — registered before /binary/data so the
   // more specific data route (added later, higher priority) still wins for uploads/downloads.
   await page.route(/\/api\/v1\/assets\/[0-9a-f-]+\/binary$/, route => {
-    if (route.request().method() === "DELETE") {
+    const req = route.request();
+    if (req.method() === "DELETE") {
       captured.binaryDeletes += 1;
       return route.fulfill({ status: 204, body: "" });
+    }
+    // POST = register binary metadata (JSON), no bytes streamed.
+    if (req.method() === "POST") {
+      captured.binaryMetaCreates += 1;
+      try { captured.binaryMetaCreateBodies.push(req.postDataJSON()); } catch { /* non-JSON */ }
+      return route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify(binaryResponse()) });
     }
     return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(binaryResponse()) });
   });
@@ -134,6 +143,30 @@ test.describe("Asset binary – mocked request mapping", () => {
     ]);
 
     expect(captured.binaryDeletes).toBe(1);
+  });
+
+  test("register existing binary sends a JSON POST to /binary (no bytes)", async ({ page }) => {
+    const captured = await mockRest(page);
+    await login(page);
+    await openAssetDetail(page);
+
+    // Open the actions menu and pick "Register existing binary".
+    await page.locator('[data-testid="MoreVertOutlinedIcon"]').click();
+    await page.getByTestId("asset-register-binary-menu-item").click();
+
+    // Enter a filesystem path and submit.
+    await page.getByTestId("asset-register-binary-path-input").fill("/storage/ab/cd/photo.jpg");
+    const [createReq] = await Promise.all([
+      page.waitForRequest(req => /\/binary$/.test(req.url()) && req.method() === "POST"),
+      page.getByTestId("asset-register-binary-submit-button").click(),
+    ]);
+
+    expect(createReq.method()).toBe("POST");
+    expect(createReq.headers()["content-type"] ?? "").toContain("application/json");
+    expect(captured.binaryMetaCreates).toBe(1);
+    expect(captured.binaryMetaCreateBodies[0]).toMatchObject({
+      filesystem: { path: "/storage/ab/cd/photo.jpg" },
+    });
   });
 
   test("download button issues a GET to /binary/data", async ({ page }) => {

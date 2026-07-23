@@ -3,10 +3,13 @@ package io.metaloom.loom.rest.service.impl;
 import static io.metaloom.loom.db.model.perm.Permission.CREATE_SKILL;
 import static io.metaloom.loom.db.model.perm.Permission.DELETE_SKILL;
 import static io.metaloom.loom.db.model.perm.Permission.READ_SKILL;
+import static io.metaloom.loom.db.model.perm.Permission.READ_SKILL_VERSION;
+import static io.metaloom.loom.db.model.perm.Permission.RESTORE_SKILL_VERSION;
 import static io.metaloom.loom.db.model.perm.Permission.UPDATE_SKILL;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import javax.inject.Inject;
@@ -17,6 +20,8 @@ import io.metaloom.loom.api.error.LoomRestException;
 import io.metaloom.loom.db.dagger.DaoCollection;
 import io.metaloom.loom.db.model.skill.Skill;
 import io.metaloom.loom.db.model.skill.SkillDao;
+import io.metaloom.loom.db.model.skill.SkillVersion;
+import io.metaloom.loom.db.model.skill.SkillVersionDao;
 import io.metaloom.loom.db.page.Page;
 import io.metaloom.loom.rest.LoomRoutingContext;
 import io.metaloom.loom.rest.builder.LoomModelBuilder;
@@ -33,17 +38,27 @@ import io.metaloom.loom.rest.validation.LoomModelValidator;
  * Skills are user-specific: every operation is scoped to the skills owned by the calling user. Since loom permissions are global per entity type (e.g.
  * READ_SKILL gates the feature, not individual skills), the per-object ownership checks are enforced here in the service layer. Foreign skills are only
  * reachable through the published-skill library and the install (copy) operation.
+ *
+ * <p>
+ * The versioned body ({@code description} + {@code content}) lives in the {@code skill_version} table. The skill row holds only an
+ * {@code active_version_uuid} pointer; the DAO projects the active version's body back onto the {@link Skill} POJO on load. Every edit that changes the body
+ * appends a new version; reverting to a version deletes all newer versions and re-points the active version.
  */
 @Singleton
 public class SkillEndpointService extends AbstractCRUDEndpointService<SkillDao, Skill> {
 
+	private final SkillVersionDao skillVersionDao;
+
 	@Inject
-	public SkillEndpointService(SkillDao skillDao, DaoCollection daos, LoomModelBuilder modelBuilder, LoomModelValidator validator) {
+	public SkillEndpointService(SkillDao skillDao, SkillVersionDao skillVersionDao, DaoCollection daos, LoomModelBuilder modelBuilder,
+		LoomModelValidator validator) {
 		super(skillDao, daos, modelBuilder, validator);
+		this.skillVersionDao = skillVersionDao;
 	}
 
 	@Override
 	public void delete(LoomRoutingContext lrc, UUID uuid) {
+		// The skill_version.skill_uuid FK cascades on delete, so removing the skill removes all its versions.
 		delete(lrc, DELETE_SKILL, () -> {
 			return loadOwned(lrc, uuid);
 		});
@@ -98,7 +113,12 @@ public class SkillEndpointService extends AbstractCRUDEndpointService<SkillDao, 
 
 			UUID userUuid = lrc.userUuid();
 			Skill skill = dao().createSkill(userUuid, request.getName(), request.getDescription(), request.getContent());
-			update(request, skill);
+			applyToggles(request, skill);
+			dao().store(skill);
+
+			// Create the initial version (v1) and point the skill at it.
+			appendVersion(userUuid, skill, 1, request.getDescription(), request.getContent());
+			dao().update(skill);
 			return skill;
 		}, modelBuilder::toResponse);
 	}
@@ -113,8 +133,25 @@ public class SkillEndpointService extends AbstractCRUDEndpointService<SkillDao, 
 			if (skill == null) {
 				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Element not found.");
 			}
-			update(request, skill);
-			setEditor(skill, lrc.userUuid());
+			UUID userUuid = lrc.userUuid();
+
+			// name / enabled / published / meta are owner-level fields on the skill row (not versioned).
+			applyToggles(request, skill);
+
+			// A new version is appended only when the versioned body (description or content) actually changes.
+			String newDescription = request.getDescription();
+			String newContent = request.getContent();
+			boolean bodyChanged = (newDescription != null && !Objects.equals(newDescription, skill.getDescription()))
+				|| (newContent != null && !Objects.equals(newContent, skill.getContent()));
+			if (bodyChanged) {
+				String description = newDescription != null ? newDescription : skill.getDescription();
+				String content = newContent != null ? newContent : skill.getContent();
+				SkillVersion latest = skillVersionDao.loadLatestBySkill(skill.getUuid());
+				int nextVersion = latest != null ? latest.getVersionNumber() + 1 : 1;
+				appendVersion(userUuid, skill, nextVersion, description, content);
+			}
+
+			setEditor(skill, userUuid);
 			return skill;
 		}, modelBuilder::toResponse);
 	}
@@ -138,8 +175,77 @@ public class SkillEndpointService extends AbstractCRUDEndpointService<SkillDao, 
 			Skill copy = dao().createSkill(userUuid, freeName(userUuid, source.getName()), source.getDescription(), source.getContent());
 			copy.setMeta(source.getMeta());
 			copy.setOriginSkillUuid(source.getUuid());
+			dao().store(copy);
+
+			// The installed copy starts its own version history at v1.
+			appendVersion(userUuid, copy, 1, source.getDescription(), source.getContent());
+			dao().update(copy);
 			return copy;
 		}, modelBuilder::toResponse);
+	}
+
+	/**
+	 * List the versions of a skill (newest handling is left to the client; the DAO returns them in the requested sort order).
+	 */
+	public void listVersions(LoomRoutingContext lrc, UUID skillUuid) {
+		checkPerm(lrc, READ_SKILL_VERSION, () -> {
+			Skill skill = loadOwned(lrc, skillUuid);
+			if (skill == null) {
+				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Element not found.");
+			}
+			PagingParameters paging = lrc.pagingParams();
+			Page<SkillVersion> page = skillVersionDao.loadPageBySkill(skillUuid, paging.from(), paging.limit(), lrc.filterParams().filters(),
+				lrc.sortParams().sortBy(), lrc.sortParams().sortOrder());
+			lrc.send(modelBuilder.toSkillVersionList(skill, page));
+		});
+	}
+
+	/**
+	 * Load a specific version of a skill.
+	 */
+	public void loadVersion(LoomRoutingContext lrc, UUID skillUuid, int versionNumber) {
+		checkPerm(lrc, READ_SKILL_VERSION, () -> {
+			Skill skill = loadOwned(lrc, skillUuid);
+			if (skill == null) {
+				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Element not found.");
+			}
+			SkillVersion version = skillVersionDao.loadBySkillAndVersion(skillUuid, versionNumber);
+			if (version == null) {
+				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Skill version not found.");
+			}
+			lrc.send(modelBuilder.toVersionResponse(skill, version));
+		});
+	}
+
+	/**
+	 * Revert a skill to a specific version. This deletes all versions newer than the target and re-points the skill's active version at the target. No new
+	 * version is created.
+	 */
+	public void restoreVersion(LoomRoutingContext lrc, UUID skillUuid, int versionNumber) {
+		checkPerm(lrc, RESTORE_SKILL_VERSION, () -> {
+			Skill skill = loadOwned(lrc, skillUuid);
+			if (skill == null) {
+				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Element not found.");
+			}
+			SkillVersion target = skillVersionDao.loadBySkillAndVersion(skillUuid, versionNumber);
+			if (target == null) {
+				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Skill version not found.");
+			}
+
+			UUID userUuid = lrc.userUuid();
+			// Re-point the active version to the target first so the following delete never removes the referenced (active) row.
+			skill.setActiveVersionUuid(target.getUuid());
+			skill.setActiveVersionNumber(target.getVersionNumber());
+			skill.setDescription(target.getDescription());
+			skill.setContent(target.getContent());
+			setEditor(skill, userUuid);
+			dao().update(skill);
+
+			// Discard every version newer than the one we reverted to.
+			skillVersionDao.deleteVersionsAfter(skillUuid, target.getVersionNumber());
+
+			lrc.send(modelBuilder.toResponse(skill));
+		});
 	}
 
 	private Skill loadOwned(LoomRoutingContext lrc, UUID uuid) {
@@ -149,6 +255,19 @@ public class SkillEndpointService extends AbstractCRUDEndpointService<SkillDao, 
 			return null;
 		}
 		return skill;
+	}
+
+	/**
+	 * Create + store a new version of the given skill and re-point the skill's active-version fields at it (in memory). The caller is responsible for
+	 * persisting the skill row.
+	 */
+	private void appendVersion(UUID userUuid, Skill skill, int versionNumber, String description, String content) {
+		SkillVersion version = skillVersionDao.createVersion(userUuid, skill.getUuid(), versionNumber, description, content, skill.getMeta());
+		skillVersionDao.store(version);
+		skill.setActiveVersionUuid(version.getUuid());
+		skill.setActiveVersionNumber(versionNumber);
+		skill.setDescription(description);
+		skill.setContent(content);
 	}
 
 	private String freeName(UUID userUuid, String name) {
@@ -180,10 +299,12 @@ public class SkillEndpointService extends AbstractCRUDEndpointService<SkillDao, 
 		return originEdited != null && copyCreated != null && originEdited.isAfter(copyCreated);
 	}
 
-	private void update(SkillModel<?> model, Skill skill) {
+	/**
+	 * Apply the non-versioned, owner-level fields (name, enabled, published, meta) from the request onto the skill row. The versioned body
+	 * ({@code description} / {@code content}) is handled separately via {@link #appendVersion}.
+	 */
+	private void applyToggles(SkillModel<?> model, Skill skill) {
 		update(model::getName, skill::setName);
-		update(model::getDescription, skill::setDescription);
-		update(model::getContent, skill::setContent);
 		update(model::getEnabled, skill::setEnabled);
 		update(model::getPublished, skill::setPublished);
 		update(model::getMeta, skill::setMeta);

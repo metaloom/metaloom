@@ -21,6 +21,7 @@ export function VideoTimeline({
   onMarkerClick,
   onMarkerHover,
   onMarkerDrag,
+  onMarkerDragEnd,
   rangeMode = false,
   onRangeSelect,
 }: {
@@ -32,6 +33,8 @@ export function VideoTimeline({
   onMarkerClick: (id: string, type: string) => void;
   onMarkerHover: (id: string | null) => void;
   onMarkerDrag?: (markerId: string, edge: "start" | "end", newTime: number) => void;
+  /** Called once on drag release (mouse-up) with the final edge position, for persistence. */
+  onMarkerDragEnd?: (markerId: string, edge: "start" | "end", newTime: number) => void;
   /** When true, dragging on the timeline creates a new time-range selection instead of seeking. */
   rangeMode?: boolean;
   /** Called with the selected range (seconds) on mouse-up. */
@@ -96,11 +99,13 @@ export function VideoTimeline({
     e.stopPropagation();
     e.preventDefault();
     setDraggingMarker({ id: markerId, edge });
+    let lastTime = 0;
     const onMove = (ev: MouseEvent) => {
       if (!markerBarRef.current) return;
       const rect = markerBarRef.current.getBoundingClientRect();
       const pct = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
       const time = Math.round(pct * duration * 10) / 10;
+      lastTime = time;
       onSeek(time);
       onMarkerDrag?.(markerId, edge, time);
     };
@@ -108,10 +113,11 @@ export function VideoTimeline({
       setDraggingMarker(null);
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
+      onMarkerDragEnd?.(markerId, edge, lastTime);
     };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
-  }, [duration, onSeek, onMarkerDrag]);
+  }, [duration, onSeek, onMarkerDrag, onMarkerDragEnd]);
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: "4px" }}>

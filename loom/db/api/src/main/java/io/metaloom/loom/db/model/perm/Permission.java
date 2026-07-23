@@ -84,6 +84,9 @@ public enum Permission {
 	// Skill
 	CREATE_SKILL, READ_SKILL, DELETE_SKILL, UPDATE_SKILL,
 
+	// Skill Version
+	READ_SKILL_VERSION, RESTORE_SKILL_VERSION,
+
 	// Cortex Instance (registered processor worker)
 	MANAGE_CORTEX_INSTANCE, READ_CORTEX_INSTANCE;
 

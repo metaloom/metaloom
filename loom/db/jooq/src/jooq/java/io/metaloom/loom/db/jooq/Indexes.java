@@ -33,6 +33,7 @@ import io.metaloom.loom.db.jooq.tables.JooqPipelineVersion;
 import io.metaloom.loom.db.jooq.tables.JooqReaction;
 import io.metaloom.loom.db.jooq.tables.JooqRole;
 import io.metaloom.loom.db.jooq.tables.JooqRolePermission;
+import io.metaloom.loom.db.jooq.tables.JooqSkillVersion;
 import io.metaloom.loom.db.jooq.tables.JooqTag;
 import io.metaloom.loom.db.jooq.tables.JooqToken;
 import io.metaloom.loom.db.jooq.tables.JooqTokenPermission;
@@ -95,6 +96,7 @@ public class Indexes {
     public static final Index IDX_PIPELINE_RUN_STATUS = Internal.createIndex(DSL.name("idx_pipeline_run_status"), JooqPipelineRun.PIPELINE_RUN, new OrderField[] { JooqPipelineRun.PIPELINE_RUN.STATUS }, false);
     public static final Index IDX_PIPELINE_VERSION_PIPELINE_UUID = Internal.createIndex(DSL.name("idx_pipeline_version_pipeline_uuid"), JooqPipelineVersion.PIPELINE_VERSION, new OrderField[] { JooqPipelineVersion.PIPELINE_VERSION.PIPELINE_UUID }, false);
     public static final Index IDX_PIPELINE_VERSION_VERSION_NUMBER = Internal.createIndex(DSL.name("idx_pipeline_version_version_number"), JooqPipelineVersion.PIPELINE_VERSION, new OrderField[] { JooqPipelineVersion.PIPELINE_VERSION.PIPELINE_UUID, JooqPipelineVersion.PIPELINE_VERSION.VERSION_NUMBER }, false);
+    public static final Index IDX_SKILL_VERSION_SKILL_UUID = Internal.createIndex(DSL.name("idx_skill_version_skill_uuid"), JooqSkillVersion.SKILL_VERSION, new OrderField[] { JooqSkillVersion.SKILL_VERSION.SKILL_UUID }, false);
     public static final Index REACTION_CREATOR_UUID_TYPE_ANNOTATION_UUID_IDX = Internal.createIndex(DSL.name("reaction_creator_uuid_type_annotation_uuid_idx"), JooqReaction.REACTION, new OrderField[] { JooqReaction.REACTION.CREATOR_UUID, JooqReaction.REACTION.TYPE, JooqReaction.REACTION.ANNOTATION_UUID }, true);
     public static final Index REACTION_CREATOR_UUID_TYPE_ASSET_UUID_IDX = Internal.createIndex(DSL.name("reaction_creator_uuid_type_asset_uuid_idx"), JooqReaction.REACTION, new OrderField[] { JooqReaction.REACTION.CREATOR_UUID, JooqReaction.REACTION.TYPE, JooqReaction.REACTION.ASSET_UUID }, true);
     public static final Index REACTION_CREATOR_UUID_TYPE_COMMENT_UUID_IDX = Internal.createIndex(DSL.name("reaction_creator_uuid_type_comment_uuid_idx"), JooqReaction.REACTION, new OrderField[] { JooqReaction.REACTION.CREATOR_UUID, JooqReaction.REACTION.TYPE, JooqReaction.REACTION.COMMENT_UUID }, true);

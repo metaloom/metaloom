@@ -24,6 +24,7 @@ import io.metaloom.loom.rest.model.skill.SkillCreateRequest;
 import io.metaloom.loom.rest.model.skill.SkillListResponse;
 import io.metaloom.loom.rest.model.skill.SkillResponse;
 import io.metaloom.loom.rest.model.skill.SkillUpdateRequest;
+import io.metaloom.loom.rest.model.skill.SkillVersionListResponse;
 
 public class SkillEndpointTest extends AbstractCRUDEndpointTest {
 
@@ -35,6 +36,12 @@ public class SkillEndpointTest extends AbstractCRUDEndpointTest {
 		return client.createSkill(request).sync().body();
 	}
 
+	private SkillResponse updateContent(LoomHttpClient client, java.util.UUID uuid, String content) throws LoomClientException {
+		SkillUpdateRequest update = new SkillUpdateRequest();
+		update.setContent(content);
+		return client.updateSkill(uuid, update).sync().body();
+	}
+
 	private void loginJoeDoe(LoomHttpClient client) throws LoomClientException {
 		// The joedoe fixture user only carries READ_USER by default. Direct user grants are limited to a single
 		// permission per user (user_permission PK), so the skill permissions are granted via a group + role instead.
@@ -42,7 +49,8 @@ public class SkillEndpointTest extends AbstractCRUDEndpointTest {
 		User joedoe = daos.userDao().load(USER_UUID);
 		Role role = daos.roleDao().createRole(ADMIN_UUID, "skill-test-role");
 		daos.roleDao().store(role);
-		for (Permission perm : List.of(Permission.CREATE_SKILL, Permission.READ_SKILL, Permission.UPDATE_SKILL, Permission.DELETE_SKILL)) {
+		for (Permission perm : List.of(Permission.CREATE_SKILL, Permission.READ_SKILL, Permission.UPDATE_SKILL, Permission.DELETE_SKILL,
+			Permission.READ_SKILL_VERSION, Permission.RESTORE_SKILL_VERSION)) {
 			daos.permissionDao().grantRolePermission(role.getUuid(), perm, "test");
 		}
 		Group group = daos.groupDao().create(joedoe, "skill-test-group");
@@ -151,6 +159,97 @@ public class SkillEndpointTest extends AbstractCRUDEndpointTest {
 			loginAdmin(client);
 			SkillResponse loaded = client.loadSkill(adminSkill.getUuid()).sync().body();
 			assertEquals("admin-owned", loaded.getName());
+		}
+	}
+
+	@Test
+	public void testVersionIncrementAndList() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			SkillResponse created = createSkill(client, "versioned-skill");
+			assertEquals(1, created.getVersionNumber(), "A freshly created skill should be at version 1");
+
+			SkillResponse v2 = updateContent(client, created.getUuid(), "content v2");
+			assertEquals(2, v2.getVersionNumber(), "A content edit should append a new version");
+			SkillResponse v3 = updateContent(client, created.getUuid(), "content v3");
+			assertEquals(3, v3.getVersionNumber());
+
+			SkillVersionListResponse versions = client.listSkillVersions(created.getUuid()).sync().body();
+			assertNotNull(versions.getData());
+			assertEquals(3, versions.getData().size(), "All three versions should be listed");
+
+			// The historic version still carries its original body
+			SkillResponse historic = client.loadSkillVersion(created.getUuid(), 1).sync().body();
+			assertEquals(1, historic.getVersionNumber());
+			assertEquals("# versioned-skill\nInstructions for the agent.", historic.getContent(), "v1 must retain its original content");
+
+			// The active skill reflects the newest content
+			SkillResponse loaded = client.loadSkill(created.getUuid()).sync().body();
+			assertEquals("content v3", loaded.getContent());
+			assertEquals(3, loaded.getVersionNumber());
+		}
+	}
+
+	@Test
+	public void testToggleDoesNotBumpVersion() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			SkillResponse created = createSkill(client, "toggle-skill");
+
+			// A toggle-only update (no body change) must not append a version
+			SkillUpdateRequest publish = new SkillUpdateRequest();
+			publish.setPublished(true);
+			SkillResponse toggled = client.updateSkill(created.getUuid(), publish).sync().body();
+			assertEquals(1, toggled.getVersionNumber(), "Toggling published must not append a new version");
+			assertTrue(toggled.getPublished());
+
+			SkillVersionListResponse versions = client.listSkillVersions(created.getUuid()).sync().body();
+			assertEquals(1, versions.getData().size(), "There should still be a single version after a toggle-only edit");
+		}
+	}
+
+	@Test
+	public void testRevertDeletesNewerVersions() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			SkillResponse created = createSkill(client, "revert-skill");
+			String originalContent = created.getContent();
+			updateContent(client, created.getUuid(), "content v2");
+			updateContent(client, created.getUuid(), "content v3");
+
+			// Revert to v1 → newer versions are deleted and the active version is re-pointed
+			SkillResponse reverted = client.restoreSkillVersion(created.getUuid(), 1).sync().body();
+			assertEquals(1, reverted.getVersionNumber(), "After reverting, the active version should be v1");
+			assertEquals(originalContent, reverted.getContent(), "The reverted skill should carry v1's content");
+
+			SkillVersionListResponse versions = client.listSkillVersions(created.getUuid()).sync().body();
+			assertEquals(1, versions.getData().size(), "Reverting to v1 must delete v2 and v3");
+
+			// The deleted versions are gone
+			expect(404, "Not Found", client.loadSkillVersion(created.getUuid(), 2));
+			expect(404, "Not Found", client.loadSkillVersion(created.getUuid(), 3));
+
+			// A subsequent edit continues numbering from the reverted version
+			SkillResponse next = updateContent(client, created.getUuid(), "content v2-again");
+			assertEquals(2, next.getVersionNumber(), "Editing after a revert should produce a fresh v2");
+		}
+	}
+
+	@Test
+	public void testVersionCrossUserIsolation() throws Exception {
+		SkillResponse adminSkill;
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			adminSkill = createSkill(client, "admin-versioned");
+			updateContent(client, adminSkill.getUuid(), "admin content v2");
+		}
+
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginJoeDoe(client);
+			// A foreign skill's versions must be indistinguishable from missing ones
+			expect(404, "Not Found", client.listSkillVersions(adminSkill.getUuid()));
+			expect(404, "Not Found", client.loadSkillVersion(adminSkill.getUuid(), 1));
+			expect(404, "Not Found", client.restoreSkillVersion(adminSkill.getUuid(), 1));
 		}
 	}
 

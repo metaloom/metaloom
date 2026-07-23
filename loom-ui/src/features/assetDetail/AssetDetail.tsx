@@ -15,7 +15,7 @@ import {
   FaceOutlined, SearchOutlined,
   MoreVertOutlined, SendOutlined, AddTaskOutlined,
   CollectionsOutlined, CropFreeOutlined, SaveOutlined, DeleteOutlineOutlined,
-  DownloadOutlined, UploadFileOutlined,
+  DownloadOutlined, UploadFileOutlined, LinkOutlined,
   StorageOutlined, LockOutlined, LaunchOutlined,
   CenterFocusStrongOutlined, CheckOutlined, AddOutlined,
 } from "@mui/icons-material";
@@ -24,7 +24,7 @@ import { Asset, AssetType, AssetStatus, Comment, Annotation, TranscriptSection, 
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { loadAsset as apiLoadAsset, updateAsset, deleteAsset, AssetResponse, TagReference, AssetLocationInfo } from "../../api/assets";
-import { uploadAssetBinary, downloadAssetBinary, deleteAssetBinary } from "../../api/binaries";
+import { uploadAssetBinary, downloadAssetBinary, deleteAssetBinary, createAssetBinaryMeta } from "../../api/binaries";
 import MediaPlaceholder from "../../components/MediaPlaceholder";
 import { listPipelines, runPipeline, PipelineResponse } from "../../api/pipelines";
 import { tagAsset as apiTagAsset, untagAsset as apiUntagAsset } from "../../api/tags";
@@ -35,8 +35,8 @@ import {
   listAssetDetections, createDetection, updateDetection, deleteDetection,
   bulkCreateDetections, DetectionResponse,
 } from "../../api/detections";
-import { listAssetTranscripts } from "../../api/transcripts";
-import { AnnotationResponseItem } from "../../api/annotations";
+import { listAssetTranscripts, createTranscript, updateTranscript, deleteTranscript, TranscriptResponse } from "../../api/transcripts";
+import { AnnotationResponseItem, createAnnotation, updateAnnotation, deleteAnnotation } from "../../api/annotations";
 import { listAssetReactions, createAssetReaction, deleteAssetReaction, ReactionResponseItem, TaskReactionType } from "../../api/reactions";
 import { listCommentsForAsset, createCommentForAsset, updateComment, deleteComment, CommentResponse } from "../../api/comments";
 import { listAssetTasks, assignTaskToAsset, createTask, TaskResponse } from "../../api/tasks";
@@ -64,6 +64,55 @@ function commentResponseToComment(c: CommentResponse, assetId: string): Comment 
   };
 }
 
+// Map a REST annotation response onto the local Annotation view model.
+function annotationResponseToAnnotation(a: AnnotationResponseItem, assetId: string): Annotation {
+  return {
+    id: a.uuid ?? "",
+    assetId: a.assetUuid ?? assetId,
+    authorId: a.status?.creator?.uuid ?? "",
+    type: a.type,
+    title: a.title ?? "",
+    description: a.description ?? "",
+    timestampStart: a.area?.from != null ? a.area.from / 1000 : undefined,
+    timestampEnd: a.area?.to != null ? a.area.to / 1000 : undefined,
+    region: a.area?.width != null && a.area?.height != null && a.area?.startX != null && a.area?.startY != null
+      ? { x: a.area.startX, y: a.area.startY, width: a.area.width, height: a.area.height }
+      : undefined,
+    color: tokens.accent.amber,
+    createdAt: a.status?.created ?? "",
+  };
+}
+
+// A single transcript kept as its own group so update/delete stay keyed on the
+// transcript uuid (an asset may have several — different source/language).
+interface TranscriptGroup {
+  uuid: string;
+  source?: string;
+  lang?: string;
+  sections: TranscriptSection[];
+}
+
+// Map a REST transcript response onto a local TranscriptGroup view model.
+function transcriptResponseToGroup(tr: TranscriptResponse): TranscriptGroup {
+  return {
+    uuid: tr.uuid,
+    source: tr.source,
+    lang: tr.lang,
+    sections: (tr.transcriptJson?.sections ?? []).map(s => ({
+      id: s.id,
+      title: s.title,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      words: (s.words ?? []).map(w => ({
+        word: w.word,
+        startTime: w.startTime,
+        endTime: w.endTime,
+        confidence: w.confidence,
+      })),
+    })),
+  };
+}
+
 // ── Main Asset Detail ─────────────────────────────────────────────────────
 export default function AssetDetail() {
   const { t: tAD } = useTranslation("translation", { keyPrefix: "assetDetail" });
@@ -75,7 +124,12 @@ export default function AssetDetail() {
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [reactions, setReactions] = useState<ReactionResponseItem[]>([]);
   const [tasks, setTasks] = useState<TaskResponse[]>([]);
-  const [transcriptSections, setTranscriptSections] = useState<TranscriptSection[]>([]);
+  const [transcripts, setTranscripts] = useState<TranscriptGroup[]>([]);
+  // Add-transcript dialog (captures source + language, then creates an empty transcript)
+  const [transcriptAddOpen, setTranscriptAddOpen] = useState(false);
+  const [transcriptSource, setTranscriptSource] = useState("");
+  const [transcriptLang, setTranscriptLang] = useState("");
+  const [creatingTranscript, setCreatingTranscript] = useState(false);
   const [detectedFaces, setDetectedFaces] = useState<DetectedFace[]>([]);
   const [faceClusters, setFaceClusters] = useState<FaceCluster[]>([]);
   const [persons, setPersons] = useState<Person[]>([]);
@@ -99,6 +153,10 @@ export default function AssetDetail() {
   const [commentInput, setCommentInput] = useState("");
   const [postingComment, setPostingComment] = useState(false);
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [annotationTitleInput, setAnnotationTitleInput] = useState("");
+  const [annotationDescInput, setAnnotationDescInput] = useState("");
+  const [postingAnnotation, setPostingAnnotation] = useState(false);
+  const [editingAnnotationId, setEditingAnnotationId] = useState<string | null>(null);
   const [assetTags, setAssetTags] = useState<TagReference[]>([]);
   const [regionMode, setRegionMode] = useState(false);
   const [pendingArea, setPendingArea] = useState<AreaInfo | null>(null);
@@ -125,6 +183,8 @@ export default function AssetDetail() {
   const intervalRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [binaryBusy, setBinaryBusy] = useState(false);
+  const [registerBinaryOpen, setRegisterBinaryOpen] = useState(false);
+  const [registerBinaryPath, setRegisterBinaryPath] = useState("");
 
   // Refresh the asset's object detections from the backend (used after each mutation).
   const reloadDetections = useCallback(() => {
@@ -148,20 +208,7 @@ export default function AssetDetail() {
       // Storage locations of the binary (path / pool / state / license)
       setAssetLocations(resp.locations ?? []);
       // Extract annotations from the asset response
-      const restAnnotations: Annotation[] = (resp.annotations ?? []).map((a: AnnotationResponseItem) => ({
-        id: a.uuid ?? "",
-        assetId: a.assetUuid ?? id,
-        authorId: a.status?.creator?.uuid ?? "",
-        title: a.title ?? "",
-        description: a.description ?? "",
-        timestampStart: a.area?.from != null ? a.area.from / 1000 : undefined,
-        timestampEnd: a.area?.to != null ? a.area.to / 1000 : undefined,
-        region: a.area?.width != null && a.area?.height != null && a.area?.startX != null && a.area?.startY != null
-          ? { x: a.area.startX, y: a.area.startY, width: a.area.width, height: a.area.height }
-          : undefined,
-        color: tokens.accent.amber,
-        createdAt: a.status?.created ?? "",
-      }));
+      const restAnnotations: Annotation[] = (resp.annotations ?? []).map((a: AnnotationResponseItem) => annotationResponseToAnnotation(a, id));
       setAnnotations(restAnnotations);
     }).catch(() => { /* asset not found */ });
 
@@ -177,29 +224,7 @@ export default function AssetDetail() {
     Promise.all([
       token ? listCommentsForAsset(token, id).then(r => (r.data ?? []).map((c: CommentResponse) => commentResponseToComment(c, id))) : Promise.resolve([] as Comment[]),
       token ? listAssetTasks(token, id).then(r => r.data ?? []).catch(() => [] as TaskResponse[]) : Promise.resolve([] as TaskResponse[]),
-      token ? listAssetTranscripts(token, id).then(resp => {
-        const sections: TranscriptSection[] = [];
-        for (const tr of (resp.data ?? [])) {
-          const json = tr.transcriptJson;
-          if (json?.sections) {
-            for (const s of json.sections) {
-              sections.push({
-                id: s.id,
-                title: s.title,
-                startTime: s.startTime,
-                endTime: s.endTime,
-                words: (s.words ?? []).map(w => ({
-                  word: w.word,
-                  startTime: w.startTime,
-                  endTime: w.endTime,
-                  confidence: w.confidence,
-                })),
-              });
-            }
-          }
-        }
-        return sections;
-      }) : Promise.resolve([] as TranscriptSection[]),
+      token ? listAssetTranscripts(token, id).then(resp => (resp.data ?? []).map(transcriptResponseToGroup)) : Promise.resolve([] as TranscriptGroup[]),
       token ? listAssetDetections(token, id).then(resp => (resp.data ?? [])
         .filter(d => d.type === "facedetection")
         .map((d): DetectedFace => ({
@@ -222,7 +247,7 @@ export default function AssetDetail() {
     ]).then(([c, t, tr, faces, clusters, pers]) => {
       setComments(c);
       setTasks(t);
-      setTranscriptSections(tr);
+      setTranscripts(tr);
       setDetectedFaces(faces);
       setFaceClusters(clusters);
       setPersons(pers);
@@ -297,6 +322,55 @@ export default function AssetDetail() {
     }
   }, [token, showToast, tAD]);
 
+  // ── Annotation authoring handlers ───────────────────────────────────
+  const handleCreateAnnotation = useCallback(async () => {
+    const title = annotationTitleInput.trim();
+    if (!title || !token || !id || postingAnnotation) return;
+    setPostingAnnotation(true);
+    try {
+      const created = await createAnnotation(token, {
+        type: "FEEDBACK",
+        title,
+        description: annotationDescInput.trim(),
+        assetUuid: id,
+        ...(pendingArea ? { area: pendingArea } : {}),
+      });
+      setAnnotations(prev => [annotationResponseToAnnotation(created, id), ...prev]);
+      setAnnotationTitleInput("");
+      setAnnotationDescInput("");
+      setPendingArea(null);
+      setRegionMode(false);
+    } catch {
+      showToast(tAD("annotation.addError"), "error");
+    } finally {
+      setPostingAnnotation(false);
+    }
+  }, [annotationTitleInput, annotationDescInput, pendingArea, token, id, postingAnnotation, showToast, tAD]);
+
+  const handleEditAnnotation = useCallback(async (annotationId: string, title: string, description: string) => {
+    const trimmed = title.trim();
+    if (!trimmed || !token) return;
+    try {
+      const updated = await updateAnnotation(token, annotationId, { title: trimmed, description: description.trim() });
+      setAnnotations(prev => prev.map(a => (a.id === annotationId
+        ? annotationResponseToAnnotation(updated, a.assetId)
+        : a)));
+      setEditingAnnotationId(null);
+    } catch {
+      showToast(tAD("annotation.editError"), "error");
+    }
+  }, [token, showToast, tAD]);
+
+  const handleDeleteAnnotation = useCallback(async (annotationId: string) => {
+    if (!token) return;
+    try {
+      await deleteAnnotation(token, annotationId);
+      setAnnotations(prev => prev.filter(a => a.id !== annotationId));
+    } catch {
+      showToast(tAD("annotation.deleteError"), "error");
+    }
+  }, [token, showToast, tAD]);
+
   const handleAddReaction = useCallback(async (type: TaskReactionType) => {
     if (!token || !id) return;
     try {
@@ -316,6 +390,49 @@ export default function AssetDetail() {
       showToast(tAD("reaction.deleteError"), "error");
     }
   }, [token, id, showToast, tAD]);
+
+  // ── Transcript handlers ─────────────────────────────────────────────
+  // Persist section edits (title on blur, boundary nudges) for one transcript.
+  const handleTranscriptSectionsChange = useCallback(async (transcriptUuid: string, sections: TranscriptSection[]) => {
+    // Optimistic local update keeps the panel responsive.
+    setTranscripts(prev => prev.map(tr => (tr.uuid === transcriptUuid ? { ...tr, sections } : tr)));
+    if (!token || !id) return;
+    try {
+      await updateTranscript(token, id, transcriptUuid, { transcriptJson: { sections } });
+    } catch {
+      showToast(tAD("transcript.updateError"), "error");
+    }
+  }, [token, id, showToast, tAD]);
+
+  const handleDeleteTranscript = useCallback(async (transcriptUuid: string) => {
+    if (!token || !id) return;
+    try {
+      await deleteTranscript(token, id, transcriptUuid);
+      setTranscripts(prev => prev.filter(tr => tr.uuid !== transcriptUuid));
+    } catch {
+      showToast(tAD("transcript.deleteError"), "error");
+    }
+  }, [token, id, showToast, tAD]);
+
+  const handleAddTranscript = useCallback(async () => {
+    if (!token || !id) return;
+    setCreatingTranscript(true);
+    try {
+      const created = await createTranscript(token, id, {
+        source: transcriptSource.trim() || undefined,
+        lang: transcriptLang.trim() || undefined,
+        transcriptJson: { sections: [] },
+      });
+      setTranscripts(prev => [...prev, transcriptResponseToGroup(created)]);
+      setTranscriptAddOpen(false);
+      setTranscriptSource("");
+      setTranscriptLang("");
+    } catch {
+      showToast(tAD("transcript.createError"), "error");
+    } finally {
+      setCreatingTranscript(false);
+    }
+  }, [token, id, transcriptSource, transcriptLang, showToast, tAD]);
 
   // ── Object-detection handlers ───────────────────────────────────────
   // Detections use normalized (0-1) bbox coordinates, matching ZoomableImage regions.
@@ -519,6 +636,26 @@ export default function AssetDetail() {
       .finally(() => setBinaryBusy(false));
   };
 
+  // Register binary *metadata* — point the asset at bytes already present on disk
+  // (no upload). The backend requires libraryUuid, sourced from the asset itself.
+  const handleRegisterBinary = () => {
+    const path = registerBinaryPath.trim();
+    if (!token || !path) return;
+    setBinaryBusy(true);
+    createAssetBinaryMeta(token, asset.id, {
+      libraryUuid: asset.libraryId,
+      filesystem: { path },
+    })
+      .then(() => {
+        showToast(tAD("toast.binaryRegistered"), "success");
+        setRegisterBinaryOpen(false);
+        setRegisterBinaryPath("");
+        reloadAsset();
+      })
+      .catch(() => showToast(tAD("toast.binaryRegisterFailed"), "error"))
+      .finally(() => setBinaryBusy(false));
+  };
+
   // ── Region tagging helpers ──────────────────────────────────────────────
   // Area coordinates are stored as normalized permille (0-1000) because the DB columns are ints.
   const DEFAULT_TAG_COLLECTION = "default";
@@ -701,10 +838,22 @@ export default function AssetDetail() {
             <ListItemIcon><AddTaskOutlined sx={{ fontSize: 16 }} /></ListItemIcon>
             <ListItemText primaryTypographyProps={{ fontSize: "0.85rem" }}>{tAD("action.createTask")}</ListItemText>
           </MenuItem>
+          <MenuItem data-testid="asset-transcript-create-menu-item" onClick={() => { setActionMenuAnchor(null); setTranscriptAddOpen(true); }}>
+            <ListItemIcon><AddOutlined sx={{ fontSize: 16 }} /></ListItemIcon>
+            <ListItemText primaryTypographyProps={{ fontSize: "0.85rem" }}>{tAD("action.addTranscript")}</ListItemText>
+          </MenuItem>
           <MenuItem disabled={binaryBusy} onClick={() => { setActionMenuAnchor(null); fileInputRef.current?.click(); }}>
             <ListItemIcon><UploadFileOutlined sx={{ fontSize: 16 }} /></ListItemIcon>
             <ListItemText primaryTypographyProps={{ fontSize: "0.85rem" }}>{tAD("action.uploadBinary")}</ListItemText>
           </MenuItem>
+          {/* Register bytes that already exist on disk (no upload). The route always inserts,
+              so only offer it when the asset has no binary/location yet. */}
+          {assetLocations.length === 0 && (
+            <MenuItem data-testid="asset-register-binary-menu-item" disabled={binaryBusy} onClick={() => { setActionMenuAnchor(null); setRegisterBinaryOpen(true); }}>
+              <ListItemIcon><LinkOutlined sx={{ fontSize: 16 }} /></ListItemIcon>
+              <ListItemText primaryTypographyProps={{ fontSize: "0.85rem" }}>{tAD("action.registerBinary")}</ListItemText>
+            </MenuItem>
+          )}
           <MenuItem disabled={binaryBusy} onClick={handleBinaryRemove}>
             <ListItemIcon><DeleteOutlineOutlined sx={{ fontSize: 16 }} /></ListItemIcon>
             <ListItemText primaryTypographyProps={{ fontSize: "0.85rem" }}>{tAD("action.removeBinary")}</ListItemText>
@@ -820,6 +969,19 @@ export default function AssetDetail() {
                     else if (edge === "end") ann.timestampEnd = newTime;
                     setAnnotations([...annotations]);
                   }
+                }}
+                onMarkerDragEnd={(markerId) => {
+                  // Persist annotation time-range edits to the backend on drag release.
+                  if (!token) return;
+                  const ann = annotations.find(a => a.id === markerId);
+                  if (!ann) return; // comments have no time-persist endpoint wired
+                  const area: AreaInfo = {
+                    ...(ann.timestampStart != null ? { from: Math.round(ann.timestampStart * 1000) } : {}),
+                    ...(ann.timestampEnd != null ? { to: Math.round(ann.timestampEnd * 1000) } : {}),
+                  };
+                  updateAnnotation(token, markerId, { area }).catch(() => {
+                    showToast(tAD("annotation.editError"), "error");
+                  });
                 }}
               />
             </Box>
@@ -1088,15 +1250,35 @@ export default function AssetDetail() {
             )}
           </Box>
 
-          {/* Transcript — inline in content area, synced with player */}
-          {transcriptSections.length > 0 && (
+          {/* Transcripts — inline in content area, synced with player. One panel
+              per transcript (an asset may carry several — different source/language). */}
+          {transcripts.length > 0 && (
             <Box sx={{ px: 2, py: 2, borderTop: `1px solid ${tokens.border.subtle}` }}>
-              <TranscriptPanel
-                sections={transcriptSections}
-                currentTime={currentTime}
-                onSeek={setCurrentTime}
-                onSectionsChange={setTranscriptSections}
-              />
+              {transcripts.map(tr => (
+                <Box key={tr.uuid} sx={{ mb: 2, "&:last-of-type": { mb: 0 } }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+                    <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.07em", color: tokens.text.tertiary, fontSize: "0.68rem", flex: 1 }}>
+                      {[tr.source, tr.lang].filter(Boolean).join(" · ") || tAD("transcript.untitled")}
+                    </Typography>
+                    <Tooltip title={tAD("transcript.delete")} placement="top" arrow>
+                      <IconButton
+                        size="small"
+                        data-testid="transcript-delete"
+                        onClick={() => handleDeleteTranscript(tr.uuid)}
+                        sx={{ p: 0.25, color: tokens.text.tertiary, "&:hover": { color: tokens.accent.red } }}
+                      >
+                        <DeleteOutlineOutlined sx={{ fontSize: 14 }} />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                  <TranscriptPanel
+                    sections={tr.sections}
+                    currentTime={currentTime}
+                    onSeek={setCurrentTime}
+                    onSectionsChange={sections => handleTranscriptSectionsChange(tr.uuid, sections)}
+                  />
+                </Box>
+              ))}
             </Box>
           )}
         </Box>
@@ -1245,6 +1427,55 @@ export default function AssetDetail() {
               const filtered = sq ? annotations.filter(a => a.title.toLowerCase().includes(sq) || (a.description?.toLowerCase().includes(sq) ?? false)) : annotations;
               return (
               <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
+                {/* Composer */}
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, mb: 0.5 }} data-testid="annotation-composer">
+                  <TextField
+                    fullWidth
+                    size="small"
+                    value={annotationTitleInput}
+                    onChange={(e) => setAnnotationTitleInput(e.target.value)}
+                    placeholder={tAD("annotation.titlePlaceholder")}
+                    disabled={!token || postingAnnotation}
+                    inputProps={{ "aria-label": tAD("annotation.titlePlaceholder"), "data-testid": "annotation-new-title" }}
+                  />
+                  <Box sx={{ display: "flex", alignItems: "flex-end", gap: 0.75 }}>
+                    <TextField
+                      fullWidth
+                      multiline
+                      maxRows={4}
+                      size="small"
+                      value={annotationDescInput}
+                      onChange={(e) => setAnnotationDescInput(e.target.value)}
+                      placeholder={tAD("annotation.addPlaceholder")}
+                      disabled={!token || postingAnnotation}
+                      inputProps={{ "aria-label": tAD("annotation.addPlaceholder"), "data-testid": "annotation-new-desc" }}
+                    />
+                    <Tooltip title={tAD("tag.regionToggle")} placement="top" arrow>
+                      <IconButton
+                        size="small"
+                        onClick={() => { setRegionMode(m => !m); setPendingArea(null); }}
+                        data-testid="annotation-region-toggle"
+                        sx={{ p: 0.5, color: regionMode ? tokens.primary.main : tokens.text.tertiary, bgcolor: regionMode ? `${tokens.primary.main}18` : "transparent" }}
+                      >
+                        <CropFreeOutlined sx={{ fontSize: 18 }} />
+                      </IconButton>
+                    </Tooltip>
+                    <IconButton
+                      aria-label={tAD("annotation.add")}
+                      color="primary"
+                      disabled={!annotationTitleInput.trim() || !token || postingAnnotation}
+                      onClick={handleCreateAnnotation}
+                      data-testid="annotation-post"
+                    >
+                      {postingAnnotation ? <CircularProgress size={18} /> : <SendOutlined fontSize="small" />}
+                    </IconButton>
+                  </Box>
+                  {regionMode && (
+                    <Typography variant="caption" sx={{ fontSize: "0.66rem", color: pendingArea ? tokens.accent.green : tokens.text.tertiary }}>
+                      {pendingArea ? tAD("tag.regionCaptured") : (isVideo ? tAD("tag.regionHintVideo") : tAD("tag.regionHintImage"))}
+                    </Typography>
+                  )}
+                </Box>
                 {filtered.length === 0 ? (
                   <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 4, gap: 1 }}>
                     <BookmarkBorderOutlined sx={{ fontSize: 32, color: tokens.text.tertiary }} />
@@ -1259,6 +1490,11 @@ export default function AssetDetail() {
                     onHover={setHoveredMarkerId}
                     token={token}
                     currentUserUuid={userUuid}
+                    editing={editingAnnotationId === a.id}
+                    onStartEdit={() => setEditingAnnotationId(a.id)}
+                    onCancelEdit={() => setEditingAnnotationId(null)}
+                    onEdit={handleEditAnnotation}
+                    onDelete={handleDeleteAnnotation}
                   />
                 ))}
               </Box>
@@ -1431,6 +1667,74 @@ export default function AssetDetail() {
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={() => setDeleteOpen(false)} size="small" sx={{ color: tokens.text.secondary }}>{tCommon("assets.button.cancel")}</Button>
           <Button onClick={handleDeleteAsset} size="small" variant="contained" sx={{ bgcolor: tokens.accent.red, "&:hover": { bgcolor: tokens.accent.red } }}>{tCommon("assets.button.delete")}</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Add transcript */}
+      <Dialog open={transcriptAddOpen} onClose={() => setTranscriptAddOpen(false)} PaperProps={{ sx: { bgcolor: tokens.bg.panel, border: `1px solid ${tokens.border.default}`, minWidth: 380 } }}>
+        <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700, pb: 1 }}>{tAD("transcriptCreate.title")}</DialogTitle>
+        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 1.5, pt: "8px !important" }}>
+          <TextField
+            value={transcriptSource}
+            onChange={e => setTranscriptSource(e.target.value)}
+            label={tAD("transcriptCreate.source")}
+            size="small"
+            fullWidth
+            autoFocus
+            inputProps={{ "data-testid": "transcript-create-source-input" }}
+          />
+          <TextField
+            value={transcriptLang}
+            onChange={e => setTranscriptLang(e.target.value)}
+            label={tAD("transcriptCreate.lang")}
+            size="small"
+            fullWidth
+            inputProps={{ "data-testid": "transcript-create-lang-input" }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setTranscriptAddOpen(false)} size="small" sx={{ color: tokens.text.secondary }}>{tCommon("assets.button.cancel")}</Button>
+          <Button
+            data-testid="transcript-create-submit-button"
+            onClick={handleAddTranscript}
+            size="small"
+            variant="contained"
+            disabled={creatingTranscript}
+            startIcon={creatingTranscript ? <CircularProgress size={13} /> : undefined}
+          >
+            {tCommon("tasks.button.create")}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Register existing binary */}
+      <Dialog open={registerBinaryOpen} onClose={() => setRegisterBinaryOpen(false)} PaperProps={{ sx: { bgcolor: tokens.bg.panel, border: `1px solid ${tokens.border.default}`, minWidth: 420 } }}>
+        <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700, pb: 1 }}>{tAD("registerBinary.title")}</DialogTitle>
+        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 1.5, pt: "8px !important" }}>
+          <Typography variant="body2" color="text.secondary">{tAD("registerBinary.description")}</Typography>
+          <TextField
+            value={registerBinaryPath}
+            onChange={e => setRegisterBinaryPath(e.target.value)}
+            label={tAD("registerBinary.pathLabel")}
+            placeholder={tAD("registerBinary.pathPlaceholder")}
+            size="small"
+            fullWidth
+            autoFocus
+            inputProps={{ "data-testid": "asset-register-binary-path-input" }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setRegisterBinaryOpen(false)} size="small" sx={{ color: tokens.text.secondary }}>{tCommon("assets.button.cancel")}</Button>
+          <Button
+            data-testid="asset-register-binary-submit-button"
+            onClick={handleRegisterBinary}
+            size="small"
+            variant="contained"
+            disabled={!registerBinaryPath.trim() || binaryBusy}
+            startIcon={binaryBusy ? <CircularProgress size={13} /> : undefined}
+          >
+            {tAD("registerBinary.submit")}
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

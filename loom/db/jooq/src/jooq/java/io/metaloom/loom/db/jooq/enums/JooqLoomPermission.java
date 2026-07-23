@@ -245,7 +245,11 @@ public enum JooqLoomPermission implements EnumType {
 
     DELETE_SKILL("DELETE_SKILL"),
 
-    UPDATE_SKILL("UPDATE_SKILL");
+    UPDATE_SKILL("UPDATE_SKILL"),
+
+    READ_SKILL_VERSION("READ_SKILL_VERSION"),
+
+    RESTORE_SKILL_VERSION("RESTORE_SKILL_VERSION");
 
     private final String literal;
 

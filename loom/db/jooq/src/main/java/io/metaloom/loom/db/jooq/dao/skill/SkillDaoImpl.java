@@ -1,6 +1,7 @@
 package io.metaloom.loom.db.jooq.dao.skill;
 
 import static io.metaloom.loom.db.jooq.tables.JooqSkill.SKILL;
+import static io.metaloom.loom.db.jooq.tables.JooqSkillVersion.SKILL_VERSION;
 
 import java.util.List;
 import java.util.Objects;
@@ -10,7 +11,9 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import org.jooq.DSLContext;
+import org.jooq.Record;
 import org.jooq.SelectConditionStep;
+import org.jooq.SelectJoinStep;
 import org.jooq.Table;
 import org.jooq.TableRecord;
 
@@ -45,6 +48,22 @@ public class SkillDaoImpl extends AbstractJooqDao<Skill> implements SkillDao {
 		return SkillImpl.class;
 	}
 
+	/**
+	 * Base select that joins the active {@link io.metaloom.loom.db.model.skill.SkillVersion} so that the versioned body ({@code description},
+	 * {@code content}) and the active {@code version_number} are projected back onto the {@link SkillImpl} POJO. This keeps every reader of
+	 * {@code Skill#getContent()} / {@code getDescription()} working even though those columns no longer live on the skill row.
+	 */
+	private SelectJoinStep<Record> selectWithActiveVersion() {
+		return ctx()
+			.select(
+				SKILL.asterisk(),
+				SKILL_VERSION.DESCRIPTION,
+				SKILL_VERSION.CONTENT,
+				SKILL_VERSION.VERSION_NUMBER.as("active_version_number"))
+			.from(SKILL)
+			.leftJoin(SKILL_VERSION).on(SKILL.ACTIVE_VERSION_UUID.eq(SKILL_VERSION.UUID));
+	}
+
 	@Override
 	public Skill createSkill(UUID userUuid, String name, String description, String content) {
 		Skill skill = new SkillImpl();
@@ -56,11 +75,16 @@ public class SkillDaoImpl extends AbstractJooqDao<Skill> implements SkillDao {
 	}
 
 	@Override
+	public Skill load(UUID uuid) {
+		return selectWithActiveVersion()
+			.where(SKILL.UUID.eq(uuid))
+			.fetchOneInto(SkillImpl.class);
+	}
+
+	@Override
 	public Page<Skill> findByCreator(UUID userUuid, UUID fromId, int pageSize, List<Filter> filters, SortKey sortBy, SortDirection sortDirection) {
 		Objects.requireNonNull(userUuid, "The user uuid must be provided");
-		SelectConditionStep<?> query = ctx()
-			.select(getTable())
-			.from(getTable())
+		SelectConditionStep<?> query = selectWithActiveVersion()
 			.where(SKILL.CREATOR_UUID.eq(userUuid));
 
 		return loadPage(query, fromId, pageSize, filters, sortBy, sortDirection);
@@ -72,9 +96,7 @@ public class SkillDaoImpl extends AbstractJooqDao<Skill> implements SkillDao {
 		if (uuids.isEmpty()) {
 			return List.of();
 		}
-		return ctx()
-			.select(getTable())
-			.from(getTable())
+		return selectWithActiveVersion()
 			.where(SKILL.UUID.in(uuids))
 			.fetchInto(SkillImpl.class)
 			.stream()
@@ -84,9 +106,7 @@ public class SkillDaoImpl extends AbstractJooqDao<Skill> implements SkillDao {
 
 	@Override
 	public Page<Skill> findPublished(UUID fromId, int pageSize, List<Filter> filters, SortKey sortBy, SortDirection sortDirection) {
-		SelectConditionStep<?> query = ctx()
-			.select(getTable())
-			.from(getTable())
+		SelectConditionStep<?> query = selectWithActiveVersion()
 			.where(SKILL.PUBLISHED.isTrue());
 
 		return loadPage(query, fromId, pageSize, filters, sortBy, sortDirection);
@@ -96,9 +116,7 @@ public class SkillDaoImpl extends AbstractJooqDao<Skill> implements SkillDao {
 	public Skill loadByName(UUID userUuid, String name) {
 		Objects.requireNonNull(userUuid, "The user uuid must be provided");
 		Objects.requireNonNull(name, "The name must be provided");
-		return ctx()
-			.select(getTable())
-			.from(getTable())
+		return selectWithActiveVersion()
 			.where(SKILL.CREATOR_UUID.eq(userUuid).and(SKILL.NAME.eq(name)))
 			.fetchOneInto(SkillImpl.class);
 	}

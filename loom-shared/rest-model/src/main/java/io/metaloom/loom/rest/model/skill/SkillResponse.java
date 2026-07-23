@@ -20,6 +20,10 @@ public class SkillResponse extends AbstractCreatorEditorRestResponse<SkillRespon
 
 	private Boolean updateAvailable;
 
+	private UUID versionUuid;
+
+	private Integer versionNumber;
+
 	@Override
 	public String getName() {
 		return name;
@@ -93,6 +97,31 @@ public class SkillResponse extends AbstractCreatorEditorRestResponse<SkillRespon
 
 	public SkillResponse setUpdateAvailable(Boolean updateAvailable) {
 		this.updateAvailable = updateAvailable;
+		return this;
+	}
+
+	/**
+	 * UUID of the skill_version this response was rendered from. On a plain skill response this is the active version; on a version-list entry it is the
+	 * historic version.
+	 */
+	public UUID getVersionUuid() {
+		return versionUuid;
+	}
+
+	public SkillResponse setVersionUuid(UUID versionUuid) {
+		this.versionUuid = versionUuid;
+		return this;
+	}
+
+	/**
+	 * Version number of the rendered skill_version (active version on a plain skill response, historic version on a version-list entry).
+	 */
+	public Integer getVersionNumber() {
+		return versionNumber;
+	}
+
+	public SkillResponse setVersionNumber(Integer versionNumber) {
+		this.versionNumber = versionNumber;
 		return this;
 	}
 

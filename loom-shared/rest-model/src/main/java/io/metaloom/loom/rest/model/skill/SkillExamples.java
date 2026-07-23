@@ -23,6 +23,10 @@ public interface SkillExamples extends ExampleValues {
 		return new ExampleImpl(skillListResponse(), "The skill list response", HttpResponseStatus.OK);
 	}
 
+	default Example skillVersionListResponseExample() {
+		return new ExampleImpl(skillVersionListResponse(), "The skill version list response", HttpResponseStatus.OK);
+	}
+
 	default SkillResponse skillResponse() {
 		SkillResponse model = new SkillResponse();
 		model.setUuid(uuidC());
@@ -41,6 +45,21 @@ public interface SkillExamples extends ExampleValues {
 		model.setMetainfo(pagingInfo());
 		model.add(skillResponse());
 		model.add(skillResponse());
+		return model;
+	}
+
+	default SkillResponse skillVersionResponse() {
+		SkillResponse model = skillResponse();
+		model.setVersionUuid(uuidB());
+		model.setVersionNumber(1);
+		return model;
+	}
+
+	default SkillVersionListResponse skillVersionListResponse() {
+		SkillVersionListResponse model = new SkillVersionListResponse();
+		model.setMetainfo(pagingInfo());
+		model.add(skillVersionResponse());
+		model.add(skillVersionResponse());
 		return model;
 	}
 

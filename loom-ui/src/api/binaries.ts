@@ -17,6 +17,18 @@ export interface AssetBinaryResponse {
   mimeType?: string;
 }
 
+/**
+ * Request body for registering binary *metadata* (POST /assets/:uuid/binary).
+ * Mirrors the backend `AssetBinaryCreateRequest`. The backend currently consumes
+ * `filesystem.path` + `libraryUuid` (+ optional `meta`); `s3` is not yet implemented.
+ */
+export interface AssetBinaryCreateRequest {
+  libraryUuid?: string;
+  filesystem?: { path: string; lastSeen?: string };
+  s3?: { bucket: string; objectPath: string };
+  meta?: Record<string, unknown>;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────
 
 function authHeaders(token: string): Record<string, string> {
@@ -119,6 +131,29 @@ export async function loadAssetBinaryMeta(
     {
       method: "GET",
       headers: authHeaders(token),
+    }
+  );
+  return handleResponse<AssetBinaryResponse>(res);
+}
+
+/**
+ * Register binary *metadata* for an asset — point it at bytes that already exist
+ * (e.g. a filesystem path / S3 object) rather than streaming the bytes.
+ *
+ * Unlike {@link uploadAssetBinary} this sends no bytes. The backend requires
+ * `libraryUuid` and creates a new binary row (POST /assets/:uuid/binary).
+ */
+export async function createAssetBinaryMeta(
+  token: string,
+  assetUuid: string,
+  request: AssetBinaryCreateRequest
+): Promise<AssetBinaryResponse> {
+  const res = await fetch(
+    `${API_BASE_URL}/assets/${encodeURIComponent(assetUuid)}/binary`,
+    {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify(request),
     }
   );
   return handleResponse<AssetBinaryResponse>(res);

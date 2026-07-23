@@ -20,6 +20,10 @@ public class SkillImpl extends AbstractEditableElement<Skill> implements Skill {
 
 	private UUID originSkillUuid;
 
+	private UUID activeVersionUuid;
+
+	private int activeVersionNumber;
+
 	private JsonObject meta;
 
 	@Override
@@ -85,6 +89,28 @@ public class SkillImpl extends AbstractEditableElement<Skill> implements Skill {
 	@Override
 	public Skill setOriginSkillUuid(UUID originSkillUuid) {
 		this.originSkillUuid = originSkillUuid;
+		return this;
+	}
+
+	@Override
+	public UUID getActiveVersionUuid() {
+		return activeVersionUuid;
+	}
+
+	@Override
+	public Skill setActiveVersionUuid(UUID activeVersionUuid) {
+		this.activeVersionUuid = activeVersionUuid;
+		return this;
+	}
+
+	@Override
+	public int getActiveVersionNumber() {
+		return activeVersionNumber;
+	}
+
+	@Override
+	public Skill setActiveVersionNumber(int activeVersionNumber) {
+		this.activeVersionNumber = activeVersionNumber;
 		return this;
 	}
 

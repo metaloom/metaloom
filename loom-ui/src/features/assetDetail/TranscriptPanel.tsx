@@ -1,6 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Box, Chip, IconButton, Tooltip, Typography } from "@mui/material";
+import { Box, Chip, IconButton, InputBase, Tooltip, Typography } from "@mui/material";
 import { ArrowUpwardOutlined, ArrowDownwardOutlined } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { TranscriptSection } from "../../types";
@@ -19,6 +19,15 @@ export function TranscriptPanel({
 }) {
   const { t: tAD } = useTranslation("translation", { keyPrefix: "assetDetail" });
   const sectionColors = [tokens.accent.blue, tokens.accent.green, tokens.accent.amber, "#c077db", tokens.primary.main, tokens.accent.red];
+
+  // Local draft for the section title being edited; commits to onSectionsChange on blur.
+  const [editingTitle, setEditingTitle] = useState<{ id: string; value: string } | null>(null);
+
+  const commitTitle = (idx: number, value: string) => {
+    setEditingTitle(null);
+    if (value === sections[idx].title) return;
+    onSectionsChange(sections.map((s, i) => (i === idx ? { ...s, title: value } : s)));
+  };
 
   const moveBoundary = (idx: number, direction: "up" | "down") => {
     const updated = [...sections];
@@ -102,9 +111,19 @@ export function TranscriptPanel({
               }}
             >
               <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.75 }}>
-                <Typography variant="caption" fontWeight={700} sx={{ fontSize: "0.78rem", color }}>
-                  {section.title}
-                </Typography>
+                <InputBase
+                  value={editingTitle?.id === section.id ? editingTitle.value : section.title}
+                  onFocus={() => setEditingTitle({ id: section.id, value: section.title })}
+                  onChange={e => setEditingTitle({ id: section.id, value: e.target.value })}
+                  onKeyDown={e => { if (e.key === "Enter") { (e.target as HTMLInputElement).blur(); } }}
+                  onBlur={e => commitTitle(idx, e.target.value)}
+                  inputProps={{ "data-testid": "transcript-section-title", "aria-label": tAD("transcript.sectionTitle") }}
+                  sx={{
+                    fontSize: "0.78rem", fontWeight: 700, color,
+                    "& .MuiInputBase-input": { p: 0, color, fontWeight: 700, fontSize: "0.78rem" },
+                    "&:hover .MuiInputBase-input": { textDecoration: "underline dotted" },
+                  }}
+                />
                 <Chip
                   label={`${formatDuration(Math.round(section.startTime))} – ${formatDuration(Math.round(section.endTime))}`}
                   size="small"

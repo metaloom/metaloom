@@ -33,6 +33,10 @@ Loom is an advanced media asset management system designed to ease the managemen
 
 Apache License, Version 2.0
 
+## Attribution
+
+Portions of the code in this project were co-authored with the assistance of AI.
+
 ## Testing
 
 All DAO/Database and some integration tests utilize the a prefilled database test pool.

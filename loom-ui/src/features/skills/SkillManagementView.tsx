@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle,
+  Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle,
   IconButton, Switch, Tab, Table, TableBody, TableCell, TableHead, TableRow,
   Tabs, TextField, Tooltip, Typography,
 } from "@mui/material";
 import {
-  Add, DeleteOutline, DownloadOutlined, EditOutlined, UpgradeOutlined,
+  Add, DeleteOutline, DownloadOutlined, EditOutlined, HistoryOutlined, RestoreOutlined, UpgradeOutlined,
 } from "@mui/icons-material";
 import { useTranslation } from "react-i18next";
 import Title from "../../components/Title";
@@ -13,8 +13,8 @@ import { tokens } from "../../theme";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import {
-  createSkill, deleteSkill, installSkill, listSkillLibrary, listSkills,
-  SkillResponse, updateSkill,
+  createSkill, deleteSkill, installSkill, listSkillLibrary, listSkills, listSkillVersions,
+  restoreSkillVersion, SkillResponse, updateSkill,
 } from "../../api/skills";
 
 interface EditorState {
@@ -22,6 +22,8 @@ interface EditorState {
   name: string;
   description: string;
   content: string;
+  /** Active version number of the skill being edited (undefined for a new skill). */
+  activeVersion?: number;
 }
 
 /**
@@ -38,6 +40,10 @@ export default function SkillManagementView() {
   const [library, setLibrary] = useState<SkillResponse[]>([]);
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<SkillResponse | null>(null);
+  const [versions, setVersions] = useState<SkillResponse[]>([]);
+  const [versionsLoading, setVersionsLoading] = useState(false);
+  const [restoreConfirm, setRestoreConfirm] = useState<number | null>(null);
+  const [restoring, setRestoring] = useState<number | null>(null);
 
   const refresh = useCallback(() => {
     if (!token) return;
@@ -46,6 +52,46 @@ export default function SkillManagementView() {
   }, [token]);
 
   useEffect(refresh, [refresh]);
+
+  const editorUuid = editor?.uuid;
+  const loadVersions = useCallback(() => {
+    if (!token || !editorUuid) {
+      setVersions([]);
+      return;
+    }
+    setVersionsLoading(true);
+    listSkillVersions(token, editorUuid)
+      // Newest version first
+      .then(list => setVersions([...list].sort((a, b) => (b.versionNumber ?? 0) - (a.versionNumber ?? 0))))
+      .catch(() => setVersions([]))
+      .finally(() => setVersionsLoading(false));
+  }, [token, editorUuid]);
+
+  useEffect(loadVersions, [loadVersions]);
+
+  const handleRevert = async (versionNumber: number) => {
+    if (!token || !editor?.uuid) return;
+    setRestoring(versionNumber);
+    try {
+      const updated = await restoreSkillVersion(token, editor.uuid, versionNumber);
+      // Adopt the reverted body back into the open editor
+      setEditor(prev => prev && {
+        ...prev,
+        description: updated.description,
+        content: updated.content,
+        activeVersion: updated.versionNumber ?? versionNumber,
+      });
+      setRestoreConfirm(null);
+      loadVersions();
+      refresh();
+      showToast(t("skills.version.reverted", { version: versionNumber }), "success");
+    } catch (e) {
+      console.error("Failed to revert skill version", e);
+      showToast(t("skills.version.revertFailed"), "error");
+    } finally {
+      setRestoring(null);
+    }
+  };
 
   const handleSave = async () => {
     if (!token || !editor) return;
@@ -179,7 +225,7 @@ export default function SkillManagementView() {
                   <Switch size="small" checked={skill.published} onChange={() => handleToggle(skill, "published")} data-testid={`skill-published-${skill.name}`} />
                 </TableCell>
                 <TableCell align="right">
-                  <IconButton size="small" onClick={() => setEditor({ uuid: skill.uuid, name: skill.name, description: skill.description, content: skill.content })} data-testid={`skill-edit-${skill.name}`}>
+                  <IconButton size="small" onClick={() => setEditor({ uuid: skill.uuid, name: skill.name, description: skill.description, content: skill.content, activeVersion: skill.versionNumber ?? undefined })} data-testid={`skill-edit-${skill.name}`}>
                     <EditOutlined sx={{ fontSize: 16 }} />
                   </IconButton>
                   <IconButton size="small" onClick={() => setDeleteTarget(skill)} sx={{ color: tokens.accent.red }} data-testid={`skill-delete-${skill.name}`}>
@@ -269,6 +315,61 @@ export default function SkillManagementView() {
             InputProps={{ sx: { fontFamily: "monospace", fontSize: "0.8rem" } }}
             inputProps={{ "data-testid": "skill-editor-content" }}
           />
+          <Typography variant="caption" sx={{ color: tokens.text.tertiary, mt: -1 }}>{t("skills.version.saveHint")}</Typography>
+
+          {/* Version history — only for an existing skill */}
+          {editor?.uuid && (
+            <Box data-testid="skill-version-history" sx={{ borderTop: `1px solid ${tokens.border.subtle}`, pt: 1.5 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 1 }}>
+                <HistoryOutlined sx={{ fontSize: 16, color: tokens.text.secondary }} />
+                <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.8rem" }}>{t("skills.version.title")}</Typography>
+              </Box>
+              {versionsLoading ? (
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }} data-testid="skill-version-loading">
+                  <CircularProgress size={14} />
+                  <Typography variant="caption" sx={{ color: tokens.text.tertiary }}>{t("skills.version.loading")}</Typography>
+                </Box>
+              ) : versions.length === 0 ? (
+                <Typography variant="caption" sx={{ color: tokens.text.tertiary }} data-testid="skill-version-empty">{t("skills.version.empty")}</Typography>
+              ) : (
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, maxHeight: 200, overflow: "auto" }}>
+                  {versions.map(v => {
+                    const n = v.versionNumber ?? 0;
+                    const isCurrent = n === editor?.activeVersion;
+                    const meta = [v.status?.created ? new Date(v.status.created).toLocaleString() : null, v.status?.creator?.name]
+                      .filter(Boolean).join(" · ");
+                    return (
+                      <Box
+                        key={v.versionUuid ?? n}
+                        data-testid={`skill-version-item-${n}`}
+                        sx={{
+                          display: "flex", alignItems: "center", gap: 1, px: 1, py: 0.5, borderRadius: 1,
+                          bgcolor: isCurrent ? tokens.bg.elevated : "transparent",
+                        }}
+                      >
+                        <Chip label={t("skills.version.badge", { version: n })} size="small" sx={{ height: 18, fontSize: "0.64rem" }} />
+                        {isCurrent && (
+                          <Chip label={t("skills.version.current")} size="small" color="primary" sx={{ height: 18, fontSize: "0.62rem" }} data-testid="skill-version-current" />
+                        )}
+                        <Typography variant="caption" sx={{ color: tokens.text.tertiary, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{meta}</Typography>
+                        {!isCurrent && (
+                          restoring === n ? (
+                            <CircularProgress size={14} />
+                          ) : (
+                            <Tooltip title={t("skills.version.revert")}>
+                              <IconButton size="small" onClick={() => setRestoreConfirm(n)} data-testid={`skill-version-revert-${n}`}>
+                                <RestoreOutlined sx={{ fontSize: 16 }} />
+                              </IconButton>
+                            </Tooltip>
+                          )
+                        )}
+                      </Box>
+                    );
+                  })}
+                </Box>
+              )}
+            </Box>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditor(null)}>{t("skills.cancel")}</Button>
@@ -293,6 +394,25 @@ export default function SkillManagementView() {
           <Button onClick={() => setDeleteTarget(null)}>{t("skills.cancel")}</Button>
           <Button color="error" variant="contained" onClick={handleDelete} data-testid="skill-delete-confirm">
             {t("skills.delete")}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Revert confirmation */}
+      <Dialog open={restoreConfirm !== null} onClose={() => setRestoreConfirm(null)} data-testid="skill-version-revert-dialog">
+        <DialogTitle sx={{ fontSize: "1rem" }}>{t("skills.version.revertTitle", { version: restoreConfirm ?? "" })}</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">{t("skills.version.revertConfirm", { version: restoreConfirm ?? "" })}</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRestoreConfirm(null)}>{t("skills.cancel")}</Button>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={() => restoreConfirm !== null && handleRevert(restoreConfirm)}
+            data-testid="skill-version-revert-confirm"
+          >
+            {t("skills.version.revert")}
           </Button>
         </DialogActions>
       </Dialog>

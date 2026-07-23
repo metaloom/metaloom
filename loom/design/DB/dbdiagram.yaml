@@ -2,100 +2,101 @@ Project LOOM {
   Note: '''
     # MetaLoom - Loom 1.0 Database model
 
+    Reflects the schema produced by the Flyway migrations
+    (loom/db/flyway/.../db/migration) up to and including V2.37.
+    Regenerate this file from the migrations when the schema changes;
+    do not hand-edit it to describe a design that is not yet migrated.
   '''
 }
-//// -- LEVEL 1
-//// -- Tables and References
 
-// Creating tables
-
-Table loom as LOOM [headercolor: #4B82B0] {
-  db_rev varchar
-  last_used_timestamp timestamp [default: `now()`, not null]
-}
+//// ==========================================================================
+//// ACL / Identity
+//// ==========================================================================
 
 Table user as U [headercolor: #16a085] {
-  uuid uuid [increment]
+  uuid uuid [pk, default: `uuid_generate_v4()`]
   username varchar [unique, not null]
   firstname varchar
   lastname varchar
   email varchar
   enabled boolean [default: true, not null, note: "Flag to enable or disable the user."]
-  sso boolean [default: false, not null, note: "Flag that indicates that the user was created via SSO mappings"]
-  meta jsonb [note: "Custom meta properties to the element"]
+  deleted boolean [default: false, not null]
+  sso boolean [default: false, not null, note: "User was created via SSO mappings"]
   password_hash varchar
-  
-  created timestamp [default: `now()`]
-  creator_uuid uuid  [ref: > U.uuid]
-  edited timestamp [default: `now()`]
-  editor_uuid uuid [ref: > U.uuid]
-  
+  meta jsonb [note: "Custom meta properties to the element"]
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+
   Indexes {
-    (uuid) [pk]
     (username) [unique]
   }
 }
 
 Table token as AK [headercolor: #16A085] {
-  uuid uuid [increment]
-  name varchar [not null]
-  user_uuid uuid [ref: > U.uuid]
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  name varchar
   description varchar
-  token varchar [not null]
-  created timestamp [default: `now()`]
+  token varchar [unique, not null]
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null, note: "Owner; ON DELETE CASCADE"]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [not null]
+
   meta jsonb [note: "Custom meta properties to the element"]
-  
+
   Indexes {
-    (uuid) [pk]
     (token) [unique]
-    (user_uuid)
-    (user_uuid, name) [unique]
+    (creator_uuid, name) [unique]
+    (creator_uuid)
   }
 }
 
 Table role as R [headercolor: #16a085] {
-  uuid uuid [increment]
+  uuid uuid [pk, default: `uuid_generate_v4()`]
   name varchar [unique, not null]
-  meta jsonb [note: "Custom meta properties to the element"]
-  
+  meta jsonb
+
   created timestamp [default: `now()`, not null]
-  creator_uuid uuid  [ref: > U.uuid]
-  edited timestamp [default: `now()`]
-  editor_uuid uuid [ref: > U.uuid]
-  
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+
   Indexes {
-    (uuid) [pk]
     (name) [unique]
   }
 }
 
-Table role_permission as PERM [headercolor: #24BAB1] {
-  role_uuid uuid [ref: > R.uuid]
+Table role_permission [headercolor: #24BAB1] {
+  role_uuid uuid [ref: > R.uuid, note: "ON DELETE CASCADE"]
   resource varchar [not null]
-  permission loom_permission [note: "Permission granted / granted to the resource", not null]
-  
+  permission loom_permission [not null, note: "Permission granted to the resource"]
+
   Indexes {
-    (role_uuid) [pk]
+    (role_uuid, permission) [pk]
     (role_uuid, resource, permission) [unique]
   }
 }
 
-Table user_permission as UPERM [headercolor: #24BAB1] {
-  user_uuid uuid [ref: > U.uuid]
+Table user_permission [headercolor: #24BAB1] {
+  user_uuid uuid [ref: > U.uuid, note: "ON DELETE CASCADE"]
   resource varchar [not null]
-  permission loom_permission [note: "Permission granted / granted to the resource", not null]
-  
+  permission loom_permission [not null]
+
   Indexes {
-    (user_uuid) [pk]
+    (user_uuid) [pk, note: "One direct-grant row per user (grant test perms via group+role)"]
     (user_uuid, resource, permission) [unique]
   }
 }
 
-Table token_permission as TPERM [headercolor: #24BAB1] {
+Table token_permission [headercolor: #24BAB1] {
   token_uuid uuid [ref: > AK.uuid]
   resource varchar [not null]
-  permission loom_permission [note: "Permission granted / granted to the resource", not null]
-  
+  permission loom_permission [not null]
+
   Indexes {
     (token_uuid) [pk]
     (token_uuid, resource, permission) [unique]
@@ -103,334 +104,232 @@ Table token_permission as TPERM [headercolor: #24BAB1] {
 }
 
 Table group as G [headercolor: #16a085] {
-  uuid uuid [increment]
+  uuid uuid [pk, default: `uuid_generate_v4()`]
   name varchar [unique, not null]
-  meta jsonb [note: "Custom meta properties to the element"]
-  
+  meta jsonb
+
   created timestamp [default: `now()`, not null]
-  creator_uuid uuid  [ref: > U.uuid]
-  edited timestamp [default: `now()`]
-  editor_uuid uuid [ref: > U.uuid]
-  
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+
   Indexes {
-    (uuid) [pk]
     (name) [unique]
   }
 }
- 
+
 Table role_group as RG {
-   group_uuid uuid [ref: > G.uuid, not null]
-   role_uuid uuid [ref: > R.uuid, not null]
-   
+  group_uuid uuid [ref: > G.uuid, not null, note: "ON DELETE CASCADE"]
+  role_uuid uuid [ref: > R.uuid, not null, note: "ON DELETE CASCADE"]
+
   Indexes {
     (group_uuid, role_uuid) [pk]
   }
 }
 
 Table user_group as UG {
-   user_uuid uuid [ref: > U.uuid, not null]
-   group_uuid uuid [ref: > G.uuid, not null]
-   
+  user_uuid uuid [ref: > U.uuid, not null, note: "ON DELETE CASCADE"]
+  group_uuid uuid [ref: > G.uuid, not null, note: "ON DELETE CASCADE"]
+
   Indexes {
     (user_uuid, group_uuid) [pk]
   }
 }
 
+tablegroup ACL {
+  user
+  token
+  role
+  group
+  role_permission
+  user_permission
+  token_permission
+  role_group
+  user_group
+}
 
-// Tag
+//// ==========================================================================
+//// Tag
+//// ==========================================================================
 
 Table tag as T [headercolor: #16a085] {
-  uuid uuid [increment]
+  uuid uuid [pk, default: `uuid_generate_v4()`]
   name varchar [not null]
   collection varchar [not null]
-  meta jsonb [note: "Custom meta properties to the element"]
+  meta jsonb
   rating int [note: "Absolute or buffered/precomputed rating information"]
+  color char(6)
 
   created timestamp [default: `now()`, not null]
-  creator_uuid uuid  [ref: > U.uuid, not null]
-  edited timestamp [default: `now()`]
-  editor_uuid uuid [ref: > U.uuid]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
 
   Indexes {
-    (uuid) [pk]
     (name, collection) [unique]
   }
 
-  note: "Tag on various elements. Tags are not user specifc"
+  note: "Tag on various elements. Tags are not user specific"
 }
 
 Table tag_user_meta as TUM {
   tag_uuid uuid [ref: > T.uuid, not null]
   user_uuid uuid [ref: > U.uuid, not null]
   rating int [not null, note: "Rating of the tag by the user"]
-  meta jsonb [note: "Custom meta properties"]
+  meta jsonb
 
   Indexes {
     (tag_uuid, user_uuid) [pk]
   }
 }
 
-
 Table tag_asset {
   tag_uuid uuid [ref: > T.uuid, not null]
   asset_uuid uuid [ref: > ASSET.uuid, not null]
-  
+
+  // Spatial / temporal placement of the tag on the asset
+  time_from int
+  time_to int
+  areaStartX int
+  areaStartY int
+  areaWidth int
+  areaHeight int
+
   Indexes {
     (tag_uuid, asset_uuid) [pk]
   }
-  
+
   note: "Store tag <-> asset reference"
 }
-
 
 Table tag_collection {
   tag_uuid uuid [ref: > T.uuid, not null]
   collection_uuid uuid [ref: > COLLECTION.uuid, not null]
-  
+
   Indexes {
     (tag_uuid, collection_uuid) [pk]
   }
-  
-  note: "Store tag <-> collection reference"
 }
-
 
 Table tag_cluster {
   tag_uuid uuid [ref: > T.uuid, not null]
   cluster_uuid uuid [ref: > CLUSTER.uuid, not null]
-  
+
   Indexes {
     (tag_uuid, cluster_uuid) [pk]
   }
-  
-  note: "Store tag <-> cluster reference"
 }
 
 tablegroup Tagging {
   tag
+  tag_user_meta
   tag_asset
   tag_collection
-  tag_user_meta
   tag_cluster
 }
 
-Table person as PERSON [headercolor: #16a085] {
-  uuid uuid [increment]
-
-  first_name varchar [not null]
-  last_name varchar [not null]
-
-  meta jsonb [note: "Custom meta properties to the asset"]
-
-  created timestamp [default: `now()`, not null]
-  creator_uuid uuid  [ref: > U.uuid]
-  edited timestamp [default: `now()`]
-  editor_uuid uuid [ref: > U.uuid]
-
-  Indexes {
-    (uuid) [unique]
-  }
-}
-
-// Used to link face clusters (face_identity) to actual persons
-Table person_identity {
-  person_uuid uuid [ref: > person.uuid]
-  face_identity_uuid uuid [ref: > FACE_IDENTITY.uuid]
-
-  confirmed boolean
-  confidence float
-  source face_source
-
-  confirmed_at timestamp
-}
-
-// Used to form face clusters
-Table face_identity as FACE_IDENTITY [headercolor: #16a085] {
-  uuid uuid [increment]
-
-  created timestamp [default: `now()`, not null]
-  confidence float
-  source face_source [note: "The source of the face identity"]
-  model_version varchar
-  centroid_embedding float[]
-
-  confirmed_at timestamp [default: null]
-}
-
-
-Table face_identity_member {
-  face_identity_uuid uuid [ref: > FACE_IDENTITY.uuid]
-  asset_face_comp_uuid uuid [ref: > asset_face_comp.uuid]
-
-  confidence float
-  source face_source
-}
-
-
-
-tablegroup Face {
-  face_identity
-  face_identity_member
-  asset_face_comp
-  person
-  person_identity
-}
-
-// Asset
+//// ==========================================================================
+//// Asset (content-addressed) + storage locations + pools
+//// ==========================================================================
 
 Table asset as ASSET [headercolor: #16a085] {
-  uuid uuid [increment]
-
-  // Common properties
-  sha512sum varchar [not null]
+  uuid uuid [unique, default: `uuid_generate_v4()`, note: "Referenced by all child tables"]
+  sha512sum varchar [pk, note: "Content identity / primary key"]
   size bigint [not null]
-  sha256sum varchar [not null]
-  md5sum varchar [not null]
-  chunk_hash varchar [not null]
-  zero_chunk_count bigint [not null]
+
+  // Hashes are computed incrementally by Cortex nodes -> nullable
+  sha256sum varchar
+  md5sum varchar
+  chunk_hash varchar
+  zero_chunk_count bigint
+
   mime_type varchar [not null]
-  meta jsonb [note: "Custom meta properties to the asset"]
-  author varchar
-  initial_origin varchar [note: "Document the initial origin of the binary (e.g. first filepath encountered, first s3 path, url, hash)",not null]
-  
+  filename varchar [not null]
+  initial_origin varchar [not null, note: "First filepath / s3 path / url / hash encountered"]
+  first_seen timestamp [default: `now()`, not null]
+  meta jsonb
+
   created timestamp [default: `now()`, not null]
-  creator_uuid uuid  [ref: > U.uuid]
-  edited timestamp [default: `now()`]
-  editor_uuid uuid [ref: > U.uuid]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
 
-  // TODO same mime_type in binary to override the value?
-  license varchar
-
-  // S3
-  // Whenever the props change the asset_binary information has to be checked
-  // Information must be mutable to avoid broken images in case of bucket changes
+  // Legacy inline S3 pointer (storage is normally modelled via asset_location + asset_pool)
   s3_bucket_name varchar
   s3_object_path varchar
 
-  Indexes {
-    (sha512sum) [pk]
-    (uuid) [unique]
-  }
-  
-  note: "This table stores information on the binary component of the asset"
+  note: "Stores the binary/content component of the asset. Media-specific columns were extracted into asset_*_comp tables (V2.18)."
 }
 
-Table asset_geo_comp {
-  uuid uuid [increment]
-  asset_uuid uuid [ref: > ASSET.uuid, not null]
-  source varchar [note: "Name of the source for the geo info - e.g. exif data"]
-  geo_lon decimal(9,6)
-  geo_lat decimal(8,6)
+Table asset_location as ASSET_LOC [headercolor: #16a085] {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  asset_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE; UNIQUE (one location per asset)"]
+  library_uuid uuid [ref: > LIB.uuid, not null, note: "ON DELETE CASCADE"]
+  pool_uuid uuid [ref: > asset_pool.uuid, note: "Storage pool holding the binary"]
+
+  path varchar [not null, note: "Currently known path in the filesystem"]
+
+  // Filekey used by the filesystem scanner to identify the file
+  filekey_inode int
+  filekey_stdev int
+  filekey_edate_nano int
+  filekey_edate int
+
+  meta jsonb
+  mime_type varchar
+  license varchar
+  state varchar
+  locked_by_uuid uuid [ref: > U.uuid]
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
 
   Indexes {
-    (uuid) [unique]
-    (geo_lon, geo_lat) // Unsure whether this works for null,null
+    (path)
+    (asset_uuid) [unique]
   }
+
+  note: "Tracks media found by the scanner. Decoupled from the content-addressed asset row."
 }
 
-Table asset_doc_comp {
-  uuid uuid [increment]
-  asset_uuid uuid [ref: > ASSET.uuid, not null]
-  doc_plain_text varchar [note: "Extracted text of the document"]
-  doc_word_count int
+Table asset_pool [headercolor: #16a085] {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  name varchar [unique, not null]
+  meta jsonb
+
+  // Filesystem pool (NULL when S3 pool) — CHECK enforces exactly one of fs_path / s3_bucket
+  fs_path varchar
+
+  // S3 pool (NULL when filesystem pool)
+  s3_bucket varchar
+  s3_region varchar
+  s3_endpoint varchar
+
+  free_space bigint
+  used_space bigint
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
 
   Indexes {
-    (uuid) [unique]
+    (name) [unique]
   }
-}
 
-Table asset_face_comp {
-  uuid uuid [increment]
-  asset_uuid uuid [ref: > ASSET.uuid, not null]
-  source varchar [note: "Additional source information (e.g. face number by dlib)"]
-
-  // Spatial / temporal origin of the embedding
-  frame int [note: "Source frame where the face has been detected."]
-  height int [note: "Area info where the face has been detected."]
-  width  int [note: "Area info where the face has been detected."]
-  startX int [note: "Area info where the face has been detected."]
-  startY int [note: "Area info where the face has been detected."]
-
-  data float[] [not null, note: "Actual embedding data of the face"]
-
-  Indexes {
-    (uuid) [unique]
-  }
-}
-
-
-Table asset_image_comp {
-  uuid uuid [increment]
-  asset_uuid uuid [ref: > ASSET.uuid, not null]
-  image_fingerprint varchar [note: "Image fingerprint information"]
-  image_dominant_color varchar
-  
-  Indexes {
-    (uuid) [unique]
-  }
-}
-
-Table asset_transcript_comp {
-  uuid uuid [increment]
-  asset_uuid uuid [ref: > ASSET.uuid, not null]
-
-  // High-level searchable fields
-  lang varchar
-  transcript_text text [note: "Full concatenated transcript"]
-  duration int [note: "Total duration (seconds)"]
-  
-  // Optional useful metadata
-  model varchar [note: "e.g. whisper-1"]
-  source varchar [note: "pipeline/source of transcription"]
-  
-  // Full raw Whisper response
-  transcript_json jsonb [note: "Full Whisper output including segments, tokens, etc."]
-
-  created timestamp [default: `now()`]
-
-  Indexes {
-    (uuid) [unique]
-    (asset_uuid)
-    (lang)
-    (transcript_text) [type: gin, note: "Full-text search"]
-    (transcript_json) [type: gin]
-  }
-}
-
-Table asset_video_comp {
-  uuid uuid [increment]
-  asset_uuid uuid [ref: > ASSET.uuid, not null]
-  media_width  int [note: "Only set for images, video"]
-  media_height int [note: "Only set for images, video"]
-  duration int [note: "Duration of the video, audio"]
-  video_fingerprint varchar [note: "Video fingerprint information"]
-
-  Indexes {
-    (uuid) [unique]
-  }
-}
-
-Table asset_audio_comp {
-  uuid uuid [increment]
-  asset_uuid uuid [ref: > ASSET.uuid, not null]
-  audio_bpm int
-  audio_sampling_rate int
-  audio_channels int
-  audio_encoding varchar [note: "Store the audio encoding used for the binary (e.g. mp3, flac)"]
-  audio_fingerprint varchar [note: "Audio fingerprint information"]
-  duration int [note: "Duration of the video, audio"]
-
-  Indexes {
-    (uuid) [unique]
-  }
+  note: "Storage pool for asset binaries: either a filesystem directory or an S3 bucket."
 }
 
 Table asset_remix {
-  asset_a_uuid uuid [ref: > ASSET.uuid, not null]
-  asset_b_uuid uuid [ref: > ASSET.uuid, not null]
-  meta jsonb [note: "Custom meta properties to the element"]
+  asset_a_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE"]
+  asset_b_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE"]
+  meta jsonb
   created timestamp [default: `now()`, not null]
-  creator_uuid uuid  [ref: > U.uuid, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [not null]
 
   Indexes {
     (asset_a_uuid)
@@ -440,113 +339,263 @@ Table asset_remix {
   note: "Store information on remixes of binaries."
 }
 
-Table asset_location as ASSET_LOC [headercolor: #16a085] {
-  uuid uuid [increment]
-  asset_uuid uuid [ref: > ASSET.uuid, not null, note: "Reference to the media binary that contains the actual data for the asset."]
+Table asset_user_meta as AUM [headercolor: #16A085] {
+  asset_uuid uuid [ref: > ASSET.uuid, not null]
+  user_uuid uuid [ref: > U.uuid, not null]
+  meta jsonb [note: "Custom meta properties"]
 
-  path varchar [not null, note: "Currently known path to the asset in the filesystem"]
-  
-  // Store the filekey that is used to identify the file by the filesystem scanner
-  filekey_inode int
-  filekey_stdev int
-  filekey_edate_nano int
-  filekey_edate int
-
-  state varchar
-  locked_by_uuid uuid [ref: > U.uuid]
-  // Locking reason can be stored in meta? or state? Do we need a dedicated field?
-
-  created timestamp [default: `now()`, not null]
-  creator_uuid uuid  [ref: > U.uuid, not null]
-  edited timestamp [default: `now()`]
-  editor_uuid uuid [ref: > U.uuid]
-  
   Indexes {
-    (uuid) [pk]
-    (path)
+    (asset_uuid, user_uuid) [pk]
   }
 
-  note: "Assets keep track of media that has been found by the scanner. Multiple assets may share the same binary thus the properties will be decoupled from binary."
+  note: "User specific metadata added to assets"
 }
 
+Table asset_task {
+  asset_uuid uuid [ref: > ASSET.uuid, not null]
+  task_uuid uuid [ref: > TASK.uuid, not null, note: "ON DELETE CASCADE"]
+
+  Indexes {
+    (asset_uuid, task_uuid) [pk]
+  }
+}
 
 tablegroup Assets {
   asset
-  asset_doc_comp
-  asset_geo_comp
-  asset_transcript_comp
-  asset_video_comp
-  asset_audio_comp
   asset_location
+  asset_pool
   asset_remix
   asset_user_meta
+  asset_task
 }
 
-// Embedding
+//// ==========================================================================
+//// Asset components (per-dimension node results; 1:N per asset, keyed by source)
+//// ==========================================================================
 
-Table embedding as EMBEDDING [headercolor: #16A085] {
-  uuid uuid [increment]
-  meta jsonb [note: "Custom meta properties to the embedding."]
-  source varchar [note: "Additional source information (e.g. face number by dlib)"]
-
-  // Spatial / temporal origin of the embedding
-  frame int [note: "Source frame where the face has been detected."]
-  areaHeight int [note: "Area info where the face has been detected."]
-  areaWidth  int [note: "Area info where the face has been detected."]
-  areaStartX int [note: "Area info where the face has been detected."]
-  areaStartY int [note: "Area info where the face has been detected."]
-
-  // Actual embedding data
-  data float[] [not null, note: "Actual embedding data"]
-  id int [note: "Additional id which references the embedding in the binary. (A binary can have multiple embeddings)"]
-  type embedding_type [note: "Type of the embedding (e.g. dlib_facemark)", not null]
+Table asset_geo_comp {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  asset_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE"]
+  source varchar [note: "Origin of the geo info - e.g. exif"]
+  geo_lon decimal(9,6)
+  geo_lat decimal(8,6)
+  geo_alias varchar
 
   created timestamp [default: `now()`, not null]
-  creator_uuid uuid  [ref: > U.uuid, not null]
-  edited timestamp [default: `now()`]
-  editor_uuid uuid [ref: > U.uuid]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+
+  Indexes {
+    (asset_uuid)
+    (geo_lon, geo_lat)
+  }
+}
+
+Table asset_doc_comp {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  asset_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE"]
+  source varchar
+  doc_plain_text text [note: "Extracted text of the document"]
+  doc_word_count int
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+
+  Indexes {
+    (asset_uuid)
+  }
+}
+
+Table asset_image_comp {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  asset_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE"]
+  source varchar
+  image_dominant_color varchar
+  media_width int
+  media_height int
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+
+  Indexes {
+    (asset_uuid)
+  }
+}
+
+Table asset_video_comp {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  asset_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE"]
+  source varchar
+  media_width int
+  media_height int
+  media_duration bigint
+  video_bitrate int
+  video_encoding varchar
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+
+  Indexes {
+    (asset_uuid)
+  }
+}
+
+Table asset_audio_comp {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  asset_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE"]
+  source varchar
+  audio_bpm int
+  audio_sampling_rate int
+  audio_channels int
+  audio_bitrate int
+  audio_encoding varchar [note: "e.g. mp3, flac"]
+  media_duration bigint
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+
+  Indexes {
+    (asset_uuid)
+  }
+}
+
+Table asset_transcript_comp {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  asset_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE"]
+  source varchar [note: "pipeline/source of transcription"]
+  lang varchar
+  transcript_text text [note: "Full concatenated transcript"]
+  duration int
+  model varchar [note: "e.g. whisper-1"]
+  transcript_json jsonb [note: "Full Whisper output including segments, tokens, etc."]
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+
+  Indexes {
+    (asset_uuid)
+    (lang)
+  }
+}
+
+Table asset_json_comp {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  asset_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE"]
+  source varchar [note: "Name of the source node that produced this data"]
+  schema_type varchar [note: "Optional schema label (e.g. yolo-detection, face-embedding)"]
+  data jsonb
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+
+  Indexes {
+    (asset_uuid)
+    (schema_type)
+  }
+
+  note: "Generic JSON component data produced by Cortex processing nodes"
+}
+
+tablegroup AssetComponents {
+  asset_geo_comp
+  asset_doc_comp
+  asset_image_comp
+  asset_video_comp
+  asset_audio_comp
+  asset_transcript_comp
+  asset_json_comp
+}
+
+//// ==========================================================================
+//// Detection / Embedding / Cluster
+//// ==========================================================================
+
+Table detection [headercolor: #16A085] {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  type varchar [not null, note: "e.g. facedetection, objectdetection"]
+  frame_number int [default: 0, not null, note: "0 for images"]
+
+  // Bounding box, normalized 0-1
+  bbox_x real [default: 0, not null]
+  bbox_y real [default: 0, not null]
+  bbox_width real [default: 0, not null]
+  bbox_height real [default: 0, not null]
+
+  confidence real [default: 0, not null]
+  meta jsonb [note: "e.g. gender, age, label, face angle"]
 
   asset_uuid uuid [ref: > ASSET.uuid, not null]
 
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+
   Indexes {
-    (uuid) [pk]
-    (asset_uuid) [note: "Index to allow faster selection of embeddings of an binary"]
+    (asset_uuid)
+    (type)
   }
 
-  note: "Embedding information which was extracted from a binary."
+  note: "Object and face detections within assets"
 }
 
-Enum embedding_type {
-  DLIB_FACE_RESNET_v1
-  VIDEO4J_FINGERPRINT_V1
+Table embedding as EMBEDDING [headercolor: #16A085] {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  meta jsonb
+  source varchar
+
+  // Spatial / temporal origin of the embedding
+  fromTime int
+  toTime int
+  areaHeight int
+  areaWidth int
+  areaStartX int
+  areaStartY int
+
+  vector real[] [not null, note: "Embedding vector (plain PG array; not pgvector)"]
+  type varchar [not null, note: "Type of the embedding (e.g. dlib_facemark)"]
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+
+  asset_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE"]
+
+  Indexes {
+    (asset_uuid)
+  }
 }
 
 Table cluster as CLUSTER [headercolor: #16A085] {
-  uuid uuid [increment]
-  name varchar [note: "Name of the cluster. (e.g. name of a person)", not null]
-  meta jsonb [note: "Custom meta properties to the embedding."]
-  type cluster_type [note: "Type of the cluster (e.g. person)", not null]
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  name varchar [unique, not null, note: "e.g. name of a person"]
+  meta jsonb
+  type varchar [not null, note: "e.g. person"]
 
   created timestamp [default: `now()`, not null]
-  creator_uuid uuid  [ref: > U.uuid, not null]
-  edited timestamp [default: `now()`]
-  editor_uuid uuid [ref: > U.uuid]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
 
   Indexes {
-    (uuid) [pk]
     (name) [unique]
   }
-  
-  note: '''
-    Generic cluster that aggregates multiple embeddings. 
-    A cluster could for example represent a person which can have multiple face embeddings.
-    Alternatively media fingerprint embeddings can be used to group media together by visual similarity.
-  '''
-}
 
-Enum cluster_type {
-  PERSON
-  REMIX
+  note: "Generic cluster aggregating multiple embeddings (e.g. a person, or visually-similar media)."
 }
 
 Table embedding_cluster {
@@ -556,42 +605,78 @@ Table embedding_cluster {
   Indexes {
     (embedding_uuid, cluster_uuid) [pk]
   }
-
-  note: "List embeddings for clusters"
 }
 
-tablegroup  Embeddings {
-    embedding
-    cluster
-    embedding_cluster
+Table collection_cluster {
+  collection_uuid uuid [ref: > COLLECTION.uuid, not null, note: "ON DELETE CASCADE"]
+  cluster_uuid uuid [ref: > CLUSTER.uuid, not null, note: "ON DELETE CASCADE"]
+
+  Indexes {
+    (collection_uuid, cluster_uuid) [pk]
+    (collection_uuid)
+    (cluster_uuid)
+  }
 }
 
-// Asset Collection
+tablegroup DetectionEmbedding {
+  detection
+  embedding
+  cluster
+  embedding_cluster
+  collection_cluster
+}
 
-// What is the difference between tags and collections? Don't those serve the same purpose?
+//// ==========================================================================
+//// Person
+//// ==========================================================================
+
+Table person as PERSON [headercolor: #16a085] {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  alias varchar
+  firstname varchar
+  lastname varchar
+  meta jsonb
+  primary_image_uuid uuid [ref: > ASSET.uuid, note: "Primary gallery image; ON DELETE SET NULL"]
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+}
+
+Table person_image {
+  person_uuid uuid [ref: > PERSON.uuid, not null, note: "ON DELETE CASCADE"]
+  asset_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE"]
+
+  Indexes {
+    (person_uuid, asset_uuid) [pk]
+  }
+
+  note: "Gallery of pictures associated with a person"
+}
+
+tablegroup Person {
+  person
+  person_image
+}
+
+//// ==========================================================================
+//// Collection / Library / Project
+//// ==========================================================================
 
 Table collection as COLLECTION [headercolor: #16A085] {
-  uuid uuid [increment]
+  uuid uuid [pk, default: `uuid_generate_v4()`]
   name varchar [unique, not null]
-  meta jsonb [note: "Custom meta properties"]
+  meta jsonb
   description varchar
-  
-  created timestamp [default: `now()`, not null]
-  creator_uuid uuid  [ref: > U.uuid, not null]
-  edited timestamp [default: `now()`]
-  editor_uuid uuid [ref: > U.uuid]
   parent_collection_uuid uuid [ref: > COLLECTION.uuid]
-  
-  //thumbail varchar
-  Indexes {
-    (uuid) [pk]
-  }
-  
-  note: '''
-    Collections are used to group assets together.
-    
-    A collection may be a folder which groups together assets for a project.
-  '''
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+
+  note: "Collections group assets together (e.g. a project folder)."
 }
 
 Table collection_asset {
@@ -603,194 +688,586 @@ Table collection_asset {
     (collection_uuid)
     (asset_uuid)
   }
-
-  note: '''
-    Track assets that belong to a collection.
-  '''
 }
 
-Table collection_cluster {
-  collection_uuid uuid [ref: > COLLECTION.uuid, not null]
-  cluster_uuid uuid [ref: > CLUSTER.uuid, not null]
+Table library as LIB [headercolor: #16a085] {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  name varchar [not null]
+  meta jsonb
+  description varchar
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+}
+
+Table library_asset {
+  library_uuid uuid [ref: > LIB.uuid, not null]
+  asset_uuid uuid [ref: > ASSET.uuid, not null]
 
   Indexes {
-    (collection_uuid, cluster_uuid) [pk]
-    (collection_uuid)
-    (cluster_uuid)
+    (library_uuid, asset_uuid) [pk]
   }
-
-  note: '''
-    Track clusters of embeddings that belong to a collection.
-  '''
 }
 
+Table library_collection {
+  library_uuid uuid [ref: > LIB.uuid, not null]
+  collection_uuid uuid [ref: > COLLECTION.uuid, not null]
 
-tablegroup AssetCollection {
+  Indexes {
+    (library_uuid, collection_uuid) [pk]
+  }
+}
+
+Table project as PROJECT [headercolor: #16a085] {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  name varchar [not null]
+  meta jsonb
+  description varchar
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+
+  note: "Permissions for this resource are named SPACE_* (renamed from PROJECT_* in V2.22)."
+}
+
+Table project_library {
+  project_uuid uuid [ref: > PROJECT.uuid, not null]
+  library_uuid uuid [ref: > LIB.uuid, not null]
+
+  Indexes {
+    (project_uuid, library_uuid) [pk]
+  }
+}
+
+Table project_collection {
+  project_uuid uuid [ref: > PROJECT.uuid, not null]
+  collection_uuid uuid [ref: > COLLECTION.uuid, not null]
+
+  Indexes {
+    (project_uuid, collection_uuid) [pk]
+  }
+}
+
+tablegroup CollectionLibraryProject {
   collection
   collection_asset
-  collection_cluster
+  library
+  library_asset
+  library_collection
+  project
+  project_library
+  project_collection
 }
 
-// Vector Index Configuration
+//// ==========================================================================
+//// Attachment
+//// ==========================================================================
 
-Table vector_config {
-  uuid uuid [increment]
-  name varchar [unique, not null]
-  weights jsonb [note: "Index definition which lists the weights for each component that should be included in the index"]
+Table attachment_binary {
+  sha512sum varchar [pk, note: "Content identity of the attachment binary"]
+  size bigint [not null]
 
-  note:  '''
-    This table stores the custom index definition that will be used when creating custom indices in a vector database that list specific aspects of loom data.
-
-    A custom configuration may define that a specific meta property should be added to the index when generating the vector.
-    This feature can be used to generate a custom recommendation feature by including and ranking and encoding specific properties as vectors.
-  '''
+  Indexes {
+    (sha512sum) [unique]
+  }
 }
 
+Table attachment {
+  uuid uuid [unique, default: `uuid_generate_v4()`]
+  binary_sha512sum varchar [ref: > attachment_binary.sha512sum, not null]
 
-// Comment
+  embedding_uuid uuid [ref: > EMBEDDING.uuid]
+  asset_uuid uuid [ref: > ASSET.uuid]
 
-Table comment as COMMENT [headercolor: #16A085] {
-  uuid uuid [increment]
-  title varchar [note: "Comment title"]
-  content varchar [note: "Comment text", not null]
-  user_uuid uuid [ref: > U.uuid, not null]
-  created varchar  [note: "Creation timestamp", not null]
-  edited varchar  [note: "Edit timestamp"]
-  // editor is also user, admin edits are hidden?
-  parent_uuid uuid [ref: > COMMENT.uuid]
+  mime_type varchar [not null]
+  type attachment_type [not null]
+  filename varchar [not null]
+  meta jsonb
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
 
   Indexes {
     (uuid) [pk]
   }
 
-  note: "Stores comments on tasks, annotations.."
+  note: "Binary attachment (e.g. thumbnail) linked to an asset or embedding."
 }
 
-// TODO maybe better to use a  root_comment_uuid field in task
-Table comment_task {
-  comment_uuid uuid [ref: > COMMENT.uuid, not null]
-  task_uuid uuid [ref: > TASK.uuid, not null]
-
-  Indexes {
-    (comment_uuid, task_uuid) [pk]
-  }
+tablegroup Attachment {
+  attachment
+  attachment_binary
 }
 
-Table comment_annotaion {
-  comment_uuid uuid [ref: > COMMENT.uuid, not null]
-  annotation_uuid uuid [ref: > ANNOTATION.uuid, not null]
-
-  Indexes {
-    (comment_uuid, annotation_uuid) [pk]
-  }
-}
-
-tablegroup Comment {
-  comment
-  comment_task
-  comment_annotaion
-}
-
-// Blacklist
-
-Table blacklist as BLACKLIST [headercolor: #16A085] {
-  uuid uuid [increment]
-  asset_uuid uuid [ref: > ASSET.uuid, note: "Blacklisted binary", not null] 
-  
-  created varchar  [note: "Creation timestamp", not null]
-  creator_uuid  uuid [ref: > U.uuid, note: "Creator of the blacklist entry", not null]
-  edited timestamp [default: `now()`]
-  editor_uuid uuid [ref: > U.uuid]
-
-  type varchar [note: "Type of the blacklist entry (e.g. copyright claim)"]
-  review_count int [note: "Amount of times this blacklist entry has been reviewed.", default: 1]
-  meta jsonb [note: "Custom meta properties of the block entry. May contain additional information on the reason."]
-
-  Indexes {
-    (uuid) [pk]
-    (asset_uuid, creator_uuid) [unique, note: "Allow only one blacklist entry per user for a binary"]
-  }
-
-  note: '''
-    Stores information on blocked binaries.
-    A binary can be blocked due to copyright claim issues or because the virus scanner marked it.
-    '''
-}
-
-tablegroup Blacklist {
-  blacklist
-}
-
-// Reaction
-
-Table reaction as REACTION [headercolor: #16A085] {
-  uuid uuid [increment]
-  type varchar [note: "Type of the reaction (e.g. thumbsup)"]
-  rating int [note: "Rating by the user"]
-  meta jsonb [note: "Custom meta properties to the reaction."]
-  
-  created timestamp [note: "Creation timestamp",default: `now()`, not null]
-  creator_uuid uuid [note: "Creator of the reaction", ref: > U.uuid, not null]
-  edited timestamp [default: `now()`]
-  editor_uuid uuid [ref: > U.uuid]
-
-  asset_uuid uuid [ref: <> ASSET.uuid]
-  comment_uuid uuid [ref: <> COMMENT.uuid]
-  annotation_uuid uuid [ref: <> ANNOTATION.uuid]
-
-  Indexes {
-    (uuid) [pk]
-    (creator_uuid, type, asset_uuid) [unique, note: "Prevent duplicate same type reactions on a specific asset"]
-    (creator_uuid, type, comment_uuid) [unique, note: "Prevent duplicate same type reactions on a specific comment"]
-    (creator_uuid, type, annotation_uuid) [unique, note: "Prevent duplicate same type reactions on a specific annotation"]
-  }
-  
-  note: "Stores social reactions on multiple elements"
-}
-
-tablegroup Reaction {
-  reaction
-}
-
-// Annotation
+//// ==========================================================================
+//// Annotation
+//// ==========================================================================
 
 Table annotation as ANNOTATION [headercolor: #16A085] {
-  uuid uuid [increment]
+  uuid uuid [pk, default: `uuid_generate_v4()`]
   type annotation_type [not null]
-  
-  asset_uuid uuid [ref: > ASSET.uuid, not null]
-  creator_uuid  uuid [ref: > U.uuid, not null]
-  created timestamp [note: "Creation timestamp", default: `now()`, not null]
+  asset_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE"]
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+
   title varchar
   description varchar
-  
-  // Spatial / Temporal information
+
   time_from int
   time_to int
   areaStartX int
   areaStartY int
-  areaWidth  int
+  areaWidth int
   areaHeight int
 
-  meta jsonb [note: "Custom meta properties"]
-  thumbail varchar [note: "Reference to the thumbnail that depics the annotated element/area"]
+  meta jsonb
+  thumbnail varchar [note: "Thumbnail depicting the annotated element/area"]
 
-  Indexes {
-    (uuid) [pk]
-  }
-  
-  note: "This table contains asset annotation entries which can be used to create chapters or sections to assign tasks to."
+  note: "Asset annotations used to create chapters/sections or to attach tasks."
 }
 
-Table annotation_tag as ANNOTATION_TAGS {
-  annotation_uuid   uuid [ref: > ANNOTATION.uuid, not null]
-  tag_uuid          uuid [ref: > T.uuid, not null]
+Table annotation_task {
+  annotation_uuid uuid [ref: > ANNOTATION.uuid, not null, note: "ON DELETE CASCADE"]
+  task_uuid uuid [ref: > TASK.uuid, not null, note: "ON DELETE CASCADE"]
+
+  Indexes {
+    (annotation_uuid, task_uuid) [pk]
+  }
+}
+
+Table annotation_asset {
+  annotation_uuid uuid [ref: > ANNOTATION.uuid, not null, note: "ON DELETE CASCADE"]
+  asset_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE"]
+
+  Indexes {
+    (annotation_uuid, asset_uuid) [pk]
+  }
+}
+
+Table annotation_tag {
+  annotation_uuid uuid [ref: > ANNOTATION.uuid, not null, note: "ON DELETE CASCADE"]
+  tag_uuid uuid [ref: > T.uuid, not null, note: "ON DELETE CASCADE"]
 
   Indexes {
     (annotation_uuid, tag_uuid) [pk]
   }
 }
 
+tablegroup Annotation {
+  annotation
+  annotation_task
+  annotation_asset
+  annotation_tag
+}
+
+//// ==========================================================================
+//// Task
+//// ==========================================================================
+
+Table task as TASK [headercolor: #16A085] {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  title varchar [not null]
+  content varchar [note: "Description of the task"]
+  due_date timestamp
+  status task_status [default: "PENDING"]
+  priority task_priority [default: "MEDIUM", not null]
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+}
+
+tablegroup Task {
+  task
+}
+
+//// ==========================================================================
+//// Social: comment, reaction, blacklist
+//// ==========================================================================
+
+Table comment as COMMENT [headercolor: #16A085] {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  title varchar
+  text varchar [not null]
+  parent_uuid uuid [ref: > COMMENT.uuid, note: "ON DELETE CASCADE"]
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+
+  // Comment target (one of)
+  task_uuid uuid [ref: > TASK.uuid, note: "ON DELETE CASCADE"]
+  asset_uuid uuid [ref: > ASSET.uuid]
+  annotation_uuid uuid [ref: > ANNOTATION.uuid]
+
+  note: "Stores comments on tasks, annotations, assets."
+}
+
+Table reaction as REACTION [headercolor: #16A085] {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  type varchar [note: "e.g. thumbsup"]
+  rating int
+  meta jsonb
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+
+  // Reaction target (one of)
+  asset_uuid uuid [ref: > ASSET.uuid]
+  task_uuid uuid [ref: > TASK.uuid, note: "ON DELETE CASCADE"]
+  comment_uuid uuid [ref: > COMMENT.uuid, note: "ON DELETE CASCADE"]
+  annotation_uuid uuid [ref: > ANNOTATION.uuid]
+
+  Indexes {
+    (creator_uuid, type, asset_uuid) [unique]
+    (creator_uuid, type, comment_uuid) [unique]
+    (creator_uuid, type, annotation_uuid) [unique]
+  }
+
+  note: "Stores social reactions on multiple elements"
+}
+
+Table blacklist as BLACKLIST [headercolor: #16A085] {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  asset_uuid uuid [ref: > ASSET.uuid, not null, note: "Blacklisted asset; ON DELETE CASCADE"]
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+
+  type varchar [note: "e.g. copyright claim"]
+  review_count int [default: 1]
+  meta jsonb
+
+  Indexes {
+    (asset_uuid, creator_uuid) [unique, note: "One blacklist entry per user per asset"]
+  }
+
+  note: "Blocked binaries (copyright claim, virus scanner, ...)."
+}
+
+tablegroup Social {
+  comment
+  reaction
+  blacklist
+}
+
+//// ==========================================================================
+//// Pipeline definitions, versions, runs and per-node execution ledger
+//// ==========================================================================
+
+Table pipeline [headercolor: #4B82B0] {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  latest_version_uuid uuid [ref: > pipeline_version.uuid, note: "Current pipeline_version"]
+  meta jsonb
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+
+  note: "name/description/definition/enabled/priority/dry_run moved to pipeline_version (V2.30)."
+}
+
+Table pipeline_version [headercolor: #4B82B0] {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  pipeline_uuid uuid [ref: > pipeline.uuid, not null, note: "ON DELETE CASCADE"]
+  version_number int [not null]
+  name varchar [not null]
+  description varchar
+  definition jsonb [default: `'{}'`, not null]
+  enabled boolean [default: true, not null]
+  priority int [default: 0, not null]
+  dry_run boolean [default: false, not null]
+  meta jsonb
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+
+  Indexes {
+    (pipeline_uuid, version_number) [unique]
+    (pipeline_uuid)
+  }
+
+  note: "Immutable version history of pipeline definitions"
+}
+
+Table pipeline_run [headercolor: #4B82B0] {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  pipeline_uuid uuid [ref: > pipeline.uuid, not null, note: "ON DELETE CASCADE"]
+  pipeline_version int [default: 1, not null]
+  started timestamp [default: `now()`, not null]
+  finished timestamp
+  status varchar [default: "PENDING", not null, note: "PENDING, RUNNING, SUCCESS, FAILED, PARTIAL, CANCELLED"]
+  media_count int [default: 0, not null]
+  success_count int [default: 0, not null]
+  failure_count int [default: 0, not null]
+  skipped_count int [default: 0, not null]
+  dry_run boolean [default: false, not null]
+  error_message varchar
+  duration_ms bigint
+  meta jsonb
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+
+  Indexes {
+    (pipeline_uuid)
+    (started)
+    (status)
+  }
+
+  note: "History of pipeline executions"
+}
+
+Table pipeline_run_item [headercolor: #4B82B0] {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  run_uuid uuid [ref: > pipeline_run.uuid, not null, note: "ON DELETE CASCADE"]
+  item_seq bigint [not null, note: "Discovery order; idempotent re-delivery key"]
+  media_path varchar [not null]
+  sha512 varchar [note: "Once a hashing node has produced one"]
+  size_bytes bigint [note: "-1 when unknown"]
+  state varchar [default: "PENDING", not null, note: "PENDING, RUNNING, SUCCESS, FAILED, SKIPPED"]
+  error_message varchar
+  meta jsonb
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+
+  Indexes {
+    (run_uuid, item_seq) [unique]
+    (run_uuid)
+    (run_uuid, state)
+    (media_path)
+  }
+
+  note: "One media item discovered by a run's source node"
+}
+
+Table pipeline_node_task [headercolor: #4B82B0] {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  item_uuid uuid [ref: > pipeline_run_item.uuid, not null, note: "ON DELETE CASCADE"]
+  run_uuid uuid [ref: > pipeline_run.uuid, not null, note: "Denormalised; ON DELETE CASCADE"]
+  node_id varchar [not null, note: "Graph-local node id"]
+  node_kind varchar [not null, note: "Routes the task to a capable worker"]
+  state varchar [default: "PENDING", not null, note: "PENDING, RUNNING, COMPLETED, FAILED, SKIPPED, DEAD_LETTER"]
+  attempt int [default: 0, not null]
+  max_attempts int [default: 1, not null]
+  leased_by varchar [note: "Processor node id currently holding the task"]
+  lease_expires_at timestamp
+  started timestamp
+  finished timestamp
+  duration_ms bigint
+  error_message varchar
+  outputs jsonb [note: "Node outputs consumed by downstream nodes"]
+  meta jsonb
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+
+  Indexes {
+    (item_uuid, node_id) [unique, note: "Idempotency key: a node runs at most once per item"]
+    (item_uuid)
+    (run_uuid, state)
+    (lease_expires_at) [note: "Partial index WHERE state = 'RUNNING' (lease reaper)"]
+  }
+
+  note: "One node execution against one media item"
+}
+
+Table cortex_instance [headercolor: #4B82B0] {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  node_id varchar [unique, not null, note: "Stable worker identity"]
+  name varchar
+  host varchar [note: "e.g. 10.0.1.10:9090"]
+  priority int [default: 0, not null, note: "Higher = preferred"]
+  last_seen timestamp
+  state varchar [note: "e.g. ONLINE"]
+  first_registered timestamp [default: `now()`, not null]
+
+  meta jsonb
+  // Audit columns are nullable: rows are created by the machine that registers (no user)
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid]
+
+  note: "A registered Cortex/processor worker, keyed by its stable node_id"
+}
+
+Table cortex_instance_node_kind [headercolor: #4B82B0] {
+  instance_uuid uuid [ref: > cortex_instance.uuid, not null, note: "ON DELETE CASCADE"]
+  node_kind varchar [not null]
+  list varchar [not null, note: "CHECK: WHITELIST or BLACKLIST"]
+
+  Indexes {
+    (instance_uuid, node_kind, list) [pk]
+    (node_kind)
+  }
+
+  note: "Per-worker node-kind whitelist/blacklist entries"
+}
+
+tablegroup Pipeline {
+  pipeline
+  pipeline_version
+  pipeline_run
+  pipeline_run_item
+  pipeline_node_task
+  cortex_instance
+  cortex_instance_node_kind
+}
+
+//// ==========================================================================
+//// Chat / Skill (agent)
+//// ==========================================================================
+
+Table chat [headercolor: #16A085] {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  title varchar [not null]
+  messages jsonb [default: `'[]'`, not null, note: "role, content, metadata, asset references"]
+  meta jsonb
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+
+  note: "LLM chat sessions with message history"
+}
+
+Table skill [headercolor: #16A085] {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  name varchar [not null, note: "Machine-friendly, unique per owner"]
+  enabled boolean [default: true, not null]
+  published boolean [default: false, not null]
+  origin_skill_uuid uuid [ref: > skill.uuid, note: "Published skill this was installed from; ON DELETE SET NULL"]
+  active_version_uuid uuid [ref: > skill_version.uuid, note: "Currently active version"]
+  meta jsonb
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+
+  Indexes {
+    (creator_uuid, name) [unique]
+  }
+
+  note: "User-owned agent skills. description/content live on skill_version (V2.37)."
+}
+
+Table skill_version [headercolor: #16A085] {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  skill_uuid uuid [ref: > skill.uuid, not null, note: "ON DELETE CASCADE"]
+  version_number int [not null]
+  description varchar [not null]
+  content text [not null]
+  meta jsonb
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+
+  Indexes {
+    (skill_uuid, version_number) [unique]
+    (skill_uuid)
+  }
+
+  note: "Immutable snapshots of the versioned skill body"
+}
+
+tablegroup Agent {
+  chat
+  skill
+  skill_version
+}
+
+//// ==========================================================================
+//// Config / connectivity / misc
+//// ==========================================================================
+
+Table vector_config {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  name varchar [unique, not null]
+  weights jsonb [note: "Weights per component to include in a generated vector index"]
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+
+  note: "Custom vector index definitions used to build indices in an external vector database."
+}
+
+Table webhook as W [headercolor: #16a085] {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  url varchar [not null]
+  status varchar
+  active boolean [default: true, not null]
+  triggers loom_events [note: "Trigger which invokes the webhook"]
+  secretToken varchar
+  meta jsonb
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+
+  note: "Registered webhooks"
+}
+
+Table loom as LOOM [headercolor: #4B82B0] {
+  db_rev varchar
+  last_used_timestamp timestamp [default: `now()`, not null]
+
+  note: "Singleton bookkeeping row (no primary key)."
+}
+
+tablegroup Config {
+  vector_config
+  webhook
+  loom
+}
+
+//// ==========================================================================
+//// Enums
+//// ==========================================================================
+
+Enum task_status {
+  PENDING
+  REJECTED
+  ACCEPTED
+  REVIEW
+}
+
+Enum task_priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
 
 Enum annotation_type {
   FEEDBACK
@@ -798,295 +1275,213 @@ Enum annotation_type {
   CHAPTER
 }
 
-tablegroup Annotation {
-  annotation
-  annotation_tag
-}
-
-
-// Tasks
-
-Table task as TASK [headercolor: #16A085] {
-  uuid uuid [increment]
-  title varchar [not null, note: "Title of the task"]
-  content varchar [note: "Description of the task"]
-  due_date timestamp
-  status task_status [note: "Current status of the task (e.g. PENDING, REJECTED)", default: "PENDING"]
-  priority int
-
-  created timestamp [default: `now()`, not null]
-  creator_uuid uuid [ref: > U.uuid, not null]
-  edited timestamp [default: `now()`]
-  editor_uuid uuid [ref: > U.uuid]
-
-  Indexes {
-    (uuid) [pk]
-  }
-}
-
-Table task_asset {
-  task_uuid uuid [ref: > TASK.uuid, not null]
-  asset_uuid uuid [ref: > ASSET.uuid, not null]
-  
-  Indexes {
-    (task_uuid, asset_uuid) [pk]
-  }
-}
-
-Table task_annotation {
-  task_uuid uuid [ref: > TASK.uuid, not null]
-  annotation_uuid uuid [ref: > ANNOTATION.uuid, not null]
-
-  Indexes {
-    (task_uuid, annotation_uuid) [pk]
-  }
-}
-
-enum task_status {
-  PENDING
-  REJECTED
-  ACCEPTED
-  REVIEW
-}
-
-tablegroup Task {
-  task  
-  task_annotation
-  task_asset
-}
-
-
-Table asset_user_meta as AUM [headercolor: #16A085] {
-  asset_uuid uuid [ref: > ASSET.uuid, not null]
-  user_uuid uuid [ref: > U.uuid, not null]
-  meta varchar [note: "Custom meta properties"]
-  
-  // Timestamps and editors will be updated in ASSET
-
-  Indexes {
-    (asset_uuid, user_uuid) [pk]
-  }
-
-  note: "Stores user specific metadata that can be added to assets"
-}
-
-
-Table webhook as W [headercolor: #16a085] {
-  uuid uuid [increment]
-  url varchar [not null]
-  status varchar
-  active boolean [default: true, not null]
-  triggers loom_events [note: "List of triggers which can invoke the webhook"]
-  secretToken varchar [note: "Secret token which webhook services can use to authenticate the request."]
-  meta jsonb [note: "Custom meta properties to the element"]
-  
-  created timestamp [default: `now()`, not null]
-  creator_uuid uuid [ref: > U.uuid, not null]
-  edited timestamp [default: `now()`]
-  editor_uuid uuid [ref: > U.uuid]
-  
-  Indexes {
-    (uuid) [pk]
-  }
-  
-  note: "Table which stores the registered webhooks"
-}
-
-
-// Libary
-
-Table library as LIB [headercolor: #16a085] {
- uuid uuid [increment]
- name varchar [not null]
- meta jsonb [note: "Custom meta properties to the element"]
- description varchar
-
- created timestamp [default: `now()`, not null]
- creator_uuid uuid [ref: > U.uuid, not null]
- edited timestamp [default: `now()`]
- editor_uuid uuid [ref: > U.uuid]
-
- Indexes {
-    (uuid) [pk]
-    (name) [unique]
-  }
-}
-
-Table library_asset {
- library_uuid uuid [ref: > LIB.uuid, not null]
- asset_uuid   uuid [ref: > ASSET.uuid, not null]
- 
- Indexes {
-    (library_uuid, asset_uuid) [pk]
- }
-}
-
-Table library_collection {
- library_uuid uuid [ref: > LIB.uuid, not null]
- collection_uuid   uuid [ref: > COLLECTION.uuid, not null]
-
- Indexes {
-    (library_uuid, collection_uuid) [pk]
- }
-}
-
-tablegroup Library {
-  library
-  library_asset
-  library_collection
-}
-
-// Project
-
-Table project as PROJECT [headercolor: #16a085] {
- uuid uuid [increment]
- name varchar [not null]
- meta jsonb [note: "Custom meta properties to the element"]
- description varchar
-
- created timestamp [default: `now()`, not null]
- creator_uuid uuid [ref: > U.uuid, not null]
- edited timestamp [default: `now()`]
- editor_uuid uuid [ref: > U.uuid]
-
- Indexes {
-    (uuid) [pk]
-    (name) [unique]
-  }
-}
-
-Table project_collection {
- project_uuid uuid [ref: > PROJECT.uuid, not null]
- collection_uuid   uuid [ref: > COLLECTION.uuid, not null]
-
- Indexes {
-    (project_uuid, collection_uuid) [pk]
- }
-}
-
-Table project_library {
- project_uuid uuid [ref: > PROJECT.uuid, not null]
- library_uuid   uuid [ref: > LIB.uuid, not null]
-
- Indexes {
-    (project_uuid, library_uuid) [pk]
- }
-}
-
-tablegroup Project {
-  project
-  project_collection
-  project_library
-}
-
-// Other
-
-tablegroup Others {
-  loom
-}
-
-tablegroup Connectivity {
-  webhook
-}
-
-
-tablegroup ACL {
-  user
-  role
-  group
-  user_group
-  role_group
-  token
-  role_permission
-  user_permission
-  token_permission
-}
-
-
-// Enums
-
-Enum face_source {
-  AUTO
-  MANUAL
+Enum attachment_type {
+  ASSET_THUMBNAIL
+  EMBEDDING_ATTACHMENT
 }
 
 Enum loom_events {
-
   USER_LOGGED_IN
   USER_CREATED
   USER_UPDATED
   USER_DELETED
   USER_MAPPED
-  
   GROUP_CREATED
   GROUP_UPDATED
   GROUP_DELETED
-  
   ROLE_CREATED
   ROLE_UPDATED
   ROLE_DELETED
-
   ASSET_UPLOADED
   ASSET_CREATED
   ASSET_UPDATED
   ASSET_DELETED
   ASSET_TAGGED
-  
   TAG_CREATED
   TAG_DELETED
-  TAG_UPDATED  
- 
+  TAG_UPDATED
   WEBHOOK_CREATED
   WEBHOOK_DELETED
   WEBHOOK_UPDATED
-  
-  //note: "List of events which can trigger a webhook"
 }
-
 
 Enum loom_permission {
-  // U
-  CREATE_USER
-  READ_USER
-  UPDATE_USER
-  DELETE_USER
-  
-  // G
-  CREATE_GROUP
-  READ_GROUP
-  UPDATE_GROUP
-  DELETE_GROUP
-  
-  // R
-  CREATE_ROLE
-  READ_ROLE
-  UPDATE_ROLE
-  DELETE_ROLE
-  
-  // T
-  CREATE_TAG
-  READ_TAG
-  UPDATE_TAG
-  DELETE_TAG
-  
-  // A
+  // Annotation
+  CREATE_ANNOTATION
+  READ_ANNOTATION
+  DELETE_ANNOTATION
+  UPDATE_ANNOTATION
+
+  // Asset
   CREATE_ASSET
   READ_ASSET
-  UPDATE_ASSET
   DELETE_ASSET
-  UPLOAD_ASSET
-  DOWNLOAD_ASSET
-  LOCK_ASSET
-  UNLOCK_ASSET
-  
-  // W
+  UPDATE_ASSET
+
+  // Asset Location
+  CREATE_ASSET_LOCATION
+  READ_ASSET_LOCATION
+  DELETE_ASSET_LOCATION
+  UPDATE_ASSET_LOCATION
+
+  // Asset Binary
+  CREATE_ASSET_BINARY
+  READ_ASSET_BINARY
+  DELETE_ASSET_BINARY
+  UPDATE_ASSET_BINARY
+
+  // Asset Pool
+  CREATE_ASSET_POOL
+  READ_ASSET_POOL
+  DELETE_ASSET_POOL
+  UPDATE_ASSET_POOL
+
+  // Attachment
+  CREATE_ATTACHMENT
+  READ_ATTACHMENT
+  DELETE_ATTACHMENT
+  UPDATE_ATTACHMENT
+
+  // User
+  CREATE_USER
+  READ_USER
+  DELETE_USER
+  UPDATE_USER
+
+  // Role
+  CREATE_ROLE
+  READ_ROLE
+  DELETE_ROLE
+  UPDATE_ROLE
+
+  // Group
+  CREATE_GROUP
+  READ_GROUP
+  DELETE_GROUP
+  UPDATE_GROUP
+
+  // Space (renamed from Project in V2.22)
+  CREATE_SPACE
+  READ_SPACE
+  DELETE_SPACE
+  UPDATE_SPACE
+
+  // Cluster
+  CREATE_CLUSTER
+  READ_CLUSTER
+  DELETE_CLUSTER
+  UPDATE_CLUSTER
+
+  // Collection
+  CREATE_COLLECTION
+  READ_COLLECTION
+  DELETE_COLLECTION
+  UPDATE_COLLECTION
+
+  // Comment
+  CREATE_COMMENT
+  READ_COMMENT
+  DELETE_COMMENT
+  UPDATE_COMMENT
+
+  // Embedding
+  CREATE_EMBEDDING
+  READ_EMBEDDING
+  DELETE_EMBEDDING
+  UPDATE_EMBEDDING
+
+  // Reaction
+  CREATE_REACTION
+  READ_REACTION
+  DELETE_REACTION
+  UPDATE_REACTION
+
+  // Task
+  CREATE_TASK
+  READ_TASK
+  DELETE_TASK
+  UPDATE_TASK
+
+  // Tag
+  CREATE_TAG
+  READ_TAG
+  DELETE_TAG
+  UPDATE_TAG
+
+  // Tag + Asset
+  TAG_ASSET
+  UNTAG_ASSET
+
+  // Token
+  CREATE_TOKEN
+  READ_TOKEN
+  DELETE_TOKEN
+  UPDATE_TOKEN
+
+  // WebHook
   CREATE_WEBHOOK
   READ_WEBHOOK
+  DELETE_WEBHOOK
   UPDATE_WEBHOOK
-  DELETE_WEBHOOK  
+
+  // Library
+  CREATE_LIBRARY
+  READ_LIBRARY
+  DELETE_LIBRARY
+  UPDATE_LIBRARY
+
+  // Pipeline
+  CREATE_PIPELINE
+  READ_PIPELINE
+  UPDATE_PIPELINE
+  DELETE_PIPELINE
+
+  // Blacklist
+  CREATE_BLACKLIST
+  READ_BLACKLIST
+  DELETE_BLACKLIST
+  UPDATE_BLACKLIST
+
+  // Person
+  CREATE_PERSON
+  READ_PERSON
+  DELETE_PERSON
+  UPDATE_PERSON
+
+  // Detection
+  CREATE_DETECTION
+  READ_DETECTION
+  DELETE_DETECTION
+  UPDATE_DETECTION
+
+  // Chat
+  CREATE_CHAT
+  READ_CHAT
+  DELETE_CHAT
+  UPDATE_CHAT
+
+  // Pipeline Run
+  CREATE_PIPELINE_RUN
+  READ_PIPELINE_RUN
+  UPDATE_PIPELINE_RUN
+  DELETE_PIPELINE_RUN
+
+  // Pipeline Version
+  CREATE_PIPELINE_VERSION
+  READ_PIPELINE_VERSION
+  RESTORE_PIPELINE_VERSION
+
+  // Cortex Instance
+  MANAGE_CORTEX_INSTANCE
+  READ_CORTEX_INSTANCE
+
+  // Skill
+  CREATE_SKILL
+  READ_SKILL
+  DELETE_SKILL
+  UPDATE_SKILL
+
+  // Skill Version
+  READ_SKILL_VERSION
+  RESTORE_SKILL_VERSION
 }
-
-Ref: "asset"."edited" < "asset"."created"
-
-
-Ref: "collection"."description" < "collection"."uuid"

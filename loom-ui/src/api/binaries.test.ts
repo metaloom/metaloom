@@ -4,6 +4,7 @@ import {
   fetchAssetBinaryBlob,
   downloadAssetBinary,
   loadAssetBinaryMeta,
+  createAssetBinaryMeta,
   deleteAssetBinary,
 } from "./binaries";
 import { API_BASE_URL } from "./config";
@@ -130,6 +131,47 @@ describe("binaries API client", () => {
     expect(options.method).toBe("GET");
     expect(options.headers["Content-Type"]).toBe("application/json");
     expect(meta.filesystem?.path).toBe("/x");
+  });
+
+  it("createAssetBinaryMeta POSTs a JSON body to the metadata route (not /binary/data)", async () => {
+    const fetchMock = mockFetchOk({ uuid: "b1", assetUuid: "a1" });
+    const request = {
+      libraryUuid: "lib-1",
+      filesystem: { path: "/data/clip.mp4" },
+    };
+
+    await createAssetBinaryMeta(TOKEN, "a1", request);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, options] = fetchMock.mock.calls[0];
+    // Metadata create is the plain /binary route, not the raw-bytes /binary/data route.
+    expect(url).toBe(`${API_BASE_URL}/assets/a1/binary`);
+    expect(options.method).toBe("POST");
+    expect(options.headers.Authorization).toBe(`Bearer ${TOKEN}`);
+    expect(options.headers["Content-Type"]).toBe("application/json");
+    expect(JSON.parse(options.body as string)).toEqual(request);
+  });
+
+  it("createAssetBinaryMeta encodes the asset uuid into the URL path", async () => {
+    const fetchMock = mockFetchOk();
+
+    await createAssetBinaryMeta(TOKEN, "a b/c", { filesystem: { path: "/x" } });
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe(`${API_BASE_URL}/assets/a%20b%2Fc/binary`);
+  });
+
+  it("createAssetBinaryMeta throws on a non-ok response", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      text: async () => "libraryUuid required",
+    } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      createAssetBinaryMeta(TOKEN, "a1", { filesystem: { path: "/x" } })
+    ).rejects.toThrow(/400/);
   });
 
   it("deleteAssetBinary DELETEs the binary route", async () => {

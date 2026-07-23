@@ -67,6 +67,7 @@ import io.metaloom.loom.rest.model.skill.SkillCreateRequest;
 import io.metaloom.loom.rest.model.skill.SkillListResponse;
 import io.metaloom.loom.rest.model.skill.SkillResponse;
 import io.metaloom.loom.rest.model.skill.SkillUpdateRequest;
+import io.metaloom.loom.rest.model.skill.SkillVersionListResponse;
 import io.metaloom.loom.rest.model.collection.CollectionCreateRequest;
 import io.metaloom.loom.rest.model.collection.CollectionListResponse;
 import io.metaloom.loom.rest.model.collection.CollectionResponse;
@@ -1000,6 +1001,21 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<SkillResponse> installSkill(UUID uuid) {
 		return postRequest("skills/" + uuid + "/install", SkillResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<SkillVersionListResponse> listSkillVersions(UUID uuid) {
+		return getRequest("skills/" + uuid + "/versions", SkillVersionListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<SkillResponse> loadSkillVersion(UUID uuid, int versionNumber) {
+		return getRequest("skills/" + uuid + "/versions/" + versionNumber, SkillResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<SkillResponse> restoreSkillVersion(UUID uuid, int versionNumber) {
+		return postRequest("skills/" + uuid + "/versions/" + versionNumber + "/restore", SkillResponse.class);
 	}
 
 	// ROLE

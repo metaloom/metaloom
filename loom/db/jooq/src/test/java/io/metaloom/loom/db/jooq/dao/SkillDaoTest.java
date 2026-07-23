@@ -17,6 +17,7 @@ import io.metaloom.loom.db.CRUDDaoTestcases;
 import io.metaloom.loom.db.jooq.AbstractJooqTest;
 import io.metaloom.loom.db.model.skill.Skill;
 import io.metaloom.loom.db.model.skill.SkillDao;
+import io.metaloom.loom.db.model.skill.SkillVersion;
 import io.metaloom.loom.db.model.user.User;
 import io.metaloom.loom.db.page.Page;
 
@@ -39,8 +40,9 @@ public class SkillDaoTest extends AbstractJooqTest implements CRUDDaoTestcases<S
 	@Override
 	public void assertCreate(Skill createdElement) {
 		assertEquals("skill_0", createdElement.getName());
-		assertEquals("description_0", createdElement.getDescription());
-		assertEquals("# Skill 0\nInstructions.", createdElement.getContent());
+		// The versioned body (description/content) lives on skill_version; a skill row that has no linked version projects null.
+		assertNull(createdElement.getDescription(), "A skill without an active version projects a null description");
+		assertNull(createdElement.getContent(), "A skill without an active version projects null content");
 		assertTrue(createdElement.isEnabled(), "New skills should be enabled by default");
 		assertFalse(createdElement.isPublished(), "New skills should not be published by default");
 		assertNull(createdElement.getOriginSkillUuid(), "New skills should not carry an origin reference");
@@ -48,9 +50,8 @@ public class SkillDaoTest extends AbstractJooqTest implements CRUDDaoTestcases<S
 
 	@Override
 	public void updateElement(Skill skill) {
+		// Only the non-versioned owner-level fields round-trip through the skill row; description/content live on skill_version.
 		skill.setName("updated_name");
-		skill.setDescription("updated_description");
-		skill.setContent("updated content");
 		skill.setEnabled(false);
 		skill.setPublished(true);
 	}
@@ -58,10 +59,31 @@ public class SkillDaoTest extends AbstractJooqTest implements CRUDDaoTestcases<S
 	@Override
 	public void assertUpdate(Skill updatedSkill) {
 		assertEquals("updated_name", updatedSkill.getName());
-		assertEquals("updated_description", updatedSkill.getDescription());
-		assertEquals("updated content", updatedSkill.getContent());
 		assertFalse(updatedSkill.isEnabled(), "The updated enabled flag should round-trip through the DB");
 		assertTrue(updatedSkill.isPublished(), "The updated published flag should round-trip through the DB");
+	}
+
+	@Test
+	public void testActiveVersionProjection() {
+		User user = dummyUser();
+		Skill skill = getDao().createSkill(user, "proj_skill", "ignored", "ignored");
+		getDao().store(skill);
+
+		// Without an active version the body projects null.
+		Skill bare = getDao().load(skill.getUuid());
+		assertNull(bare.getDescription());
+		assertNull(bare.getContent());
+
+		SkillVersion version = skillVersionDao().createVersion(user.getUuid(), skill.getUuid(), 1, "desc-v1", "content-v1", null);
+		skillVersionDao().store(version);
+		skill.setActiveVersionUuid(version.getUuid());
+		getDao().update(skill);
+
+		Skill loaded = getDao().load(skill.getUuid());
+		assertEquals("desc-v1", loaded.getDescription(), "The active version's description should be projected onto the skill");
+		assertEquals("content-v1", loaded.getContent(), "The active version's content should be projected onto the skill");
+		assertEquals(1, loaded.getActiveVersionNumber(), "The active version number should be projected onto the skill");
+		assertEquals(version.getUuid(), loaded.getActiveVersionUuid());
 	}
 
 	@Test

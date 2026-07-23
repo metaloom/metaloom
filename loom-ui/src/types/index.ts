@@ -84,6 +84,7 @@ export interface Annotation {
   id: string;
   assetId: string;
   authorId: string;
+  type?: string;
   title: string;
   description: string;
   timestampStart?: number;

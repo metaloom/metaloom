@@ -28,6 +28,7 @@ import io.metaloom.loom.db.model.space.SpaceDao;
 import io.metaloom.loom.db.model.reaction.ReactionDao;
 import io.metaloom.loom.db.model.role.RoleDao;
 import io.metaloom.loom.db.model.skill.SkillDao;
+import io.metaloom.loom.db.model.skill.SkillVersionDao;
 import io.metaloom.loom.db.model.tag.TagDao;
 import io.metaloom.loom.db.model.task.TaskDao;
 import io.metaloom.loom.db.model.token.TokenDao;
@@ -193,6 +194,10 @@ public interface DaoProvider extends DaoCollection {
 
 	default SkillDao skillDao() {
 		return daos().skillDao();
+	}
+
+	default SkillVersionDao skillVersionDao() {
+		return daos().skillVersionDao();
 	}
 
 	// Cortex Instance

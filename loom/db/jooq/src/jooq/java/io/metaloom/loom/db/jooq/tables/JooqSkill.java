@@ -17,11 +17,11 @@ import java.util.function.Function;
 
 import org.jooq.Field;
 import org.jooq.ForeignKey;
-import org.jooq.Function12;
+import org.jooq.Function11;
 import org.jooq.Name;
 import org.jooq.Record;
 import org.jooq.Records;
-import org.jooq.Row12;
+import org.jooq.Row11;
 import org.jooq.Schema;
 import org.jooq.SelectField;
 import org.jooq.Table;
@@ -67,18 +67,6 @@ public class JooqSkill extends TableImpl<JooqSkillRecord> {
     public final TableField<JooqSkillRecord, String> NAME = createField(DSL.name("name"), SQLDataType.VARCHAR.nullable(false), this, "Machine-friendly skill name, unique per owner");
 
     /**
-     * The column <code>public.skill.description</code>. Short description which
-     * gets injected into the agent system prompt
-     */
-    public final TableField<JooqSkillRecord, String> DESCRIPTION = createField(DSL.name("description"), SQLDataType.VARCHAR.nullable(false), this, "Short description which gets injected into the agent system prompt");
-
-    /**
-     * The column <code>public.skill.content</code>. Full markdown instructions
-     * of the skill
-     */
-    public final TableField<JooqSkillRecord, String> CONTENT = createField(DSL.name("content"), SQLDataType.CLOB.nullable(false), this, "Full markdown instructions of the skill");
-
-    /**
      * The column <code>public.skill.enabled</code>. Owner-level default on/off
      * toggle
      */
@@ -120,6 +108,12 @@ public class JooqSkill extends TableImpl<JooqSkillRecord> {
      * The column <code>public.skill.editor_uuid</code>.
      */
     public final TableField<JooqSkillRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID.nullable(false), this, "");
+
+    /**
+     * The column <code>public.skill.active_version_uuid</code>. Reference to
+     * the currently active skill_version record
+     */
+    public final TableField<JooqSkillRecord, java.util.UUID> ACTIVE_VERSION_UUID = createField(DSL.name("active_version_uuid"), SQLDataType.UUID, this, "Reference to the currently active skill_version record");
 
     private JooqSkill(Name alias, Table<JooqSkillRecord> aliased) {
         this(alias, aliased, null);
@@ -171,12 +165,13 @@ public class JooqSkill extends TableImpl<JooqSkillRecord> {
 
     @Override
     public List<ForeignKey<JooqSkillRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.SKILL__SKILL_ORIGIN_SKILL_UUID_FKEY, Keys.SKILL__SKILL_CREATOR_UUID_FKEY, Keys.SKILL__SKILL_EDITOR_UUID_FKEY);
+        return Arrays.asList(Keys.SKILL__SKILL_ORIGIN_SKILL_UUID_FKEY, Keys.SKILL__SKILL_CREATOR_UUID_FKEY, Keys.SKILL__SKILL_EDITOR_UUID_FKEY, Keys.SKILL__SKILL_ACTIVE_VERSION_UUID_FKEY);
     }
 
     private transient JooqSkill _skill;
     private transient JooqUser _skillCreatorUuidFkey;
     private transient JooqUser _skillEditorUuidFkey;
+    private transient JooqSkillVersion _skillVersion;
 
     /**
      * Get the implicit join path to the <code>public.skill</code> table.
@@ -208,6 +203,17 @@ public class JooqSkill extends TableImpl<JooqSkillRecord> {
             _skillEditorUuidFkey = new JooqUser(this, Keys.SKILL__SKILL_EDITOR_UUID_FKEY);
 
         return _skillEditorUuidFkey;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.skill_version</code>
+     * table.
+     */
+    public JooqSkillVersion skillVersion() {
+        if (_skillVersion == null)
+            _skillVersion = new JooqSkillVersion(this, Keys.SKILL__SKILL_ACTIVE_VERSION_UUID_FKEY);
+
+        return _skillVersion;
     }
 
     @Override
@@ -250,18 +256,18 @@ public class JooqSkill extends TableImpl<JooqSkillRecord> {
     }
 
     // -------------------------------------------------------------------------
-    // Row12 type methods
+    // Row11 type methods
     // -------------------------------------------------------------------------
 
     @Override
-    public Row12<java.util.UUID, String, String, String, Boolean, Boolean, java.util.UUID, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
-        return (Row12) super.fieldsRow();
+    public Row11<java.util.UUID, String, Boolean, Boolean, java.util.UUID, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID, java.util.UUID> fieldsRow() {
+        return (Row11) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function12<? super java.util.UUID, ? super String, ? super String, ? super String, ? super Boolean, ? super Boolean, ? super java.util.UUID, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function11<? super java.util.UUID, ? super String, ? super Boolean, ? super Boolean, ? super java.util.UUID, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -269,7 +275,7 @@ public class JooqSkill extends TableImpl<JooqSkillRecord> {
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function12<? super java.util.UUID, ? super String, ? super String, ? super String, ? super Boolean, ? super Boolean, ? super java.util.UUID, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function11<? super java.util.UUID, ? super String, ? super Boolean, ? super Boolean, ? super java.util.UUID, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }

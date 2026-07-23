@@ -56,6 +56,7 @@ import io.metaloom.loom.db.jooq.tables.JooqRole;
 import io.metaloom.loom.db.jooq.tables.JooqRoleGroup;
 import io.metaloom.loom.db.jooq.tables.JooqRolePermission;
 import io.metaloom.loom.db.jooq.tables.JooqSkill;
+import io.metaloom.loom.db.jooq.tables.JooqSkillVersion;
 import io.metaloom.loom.db.jooq.tables.JooqTag;
 import io.metaloom.loom.db.jooq.tables.JooqTagAsset;
 import io.metaloom.loom.db.jooq.tables.JooqTagCluster;
@@ -349,6 +350,11 @@ public class Tables {
      * the chat agent)
      */
     public static final JooqSkill SKILL = JooqSkill.SKILL;
+
+    /**
+     * Version history of the versioned skill body (description + content)
+     */
+    public static final JooqSkillVersion SKILL_VERSION = JooqSkillVersion.SKILL_VERSION;
 
     /**
      * Tag on various elements. Tags are not user specifc

@@ -44,6 +44,18 @@ export interface TranscriptListResponse {
   };
 }
 
+export interface TranscriptCreateRequest {
+  source?: string;
+  lang?: string;
+  transcriptText?: string;
+  duration?: number; // whole seconds — send integers
+  model?: string;
+  transcriptJson?: { sections?: TranscriptSectionResponse[] };
+  meta?: Record<string, unknown>;
+}
+
+export type TranscriptUpdateRequest = TranscriptCreateRequest;
+
 function authHeaders(token: string): Record<string, string> {
   return {
     "Content-Type": "application/json",
@@ -68,4 +80,67 @@ export async function listAssetTranscripts(
     headers: authHeaders(token),
   });
   return handleResponse<TranscriptListResponse>(res);
+}
+
+export async function createTranscript(
+  token: string,
+  assetUuid: string,
+  request: TranscriptCreateRequest
+): Promise<TranscriptResponse> {
+  const res = await fetch(`${API_BASE_URL}/assets/${encodeURIComponent(assetUuid)}/transcripts`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(request),
+  });
+  return handleResponse<TranscriptResponse>(res);
+}
+
+export async function loadTranscript(
+  token: string,
+  assetUuid: string,
+  transcriptUuid: string
+): Promise<TranscriptResponse> {
+  const res = await fetch(
+    `${API_BASE_URL}/assets/${encodeURIComponent(assetUuid)}/transcripts/${encodeURIComponent(transcriptUuid)}`,
+    {
+      method: "GET",
+      headers: authHeaders(token),
+    }
+  );
+  return handleResponse<TranscriptResponse>(res);
+}
+
+export async function updateTranscript(
+  token: string,
+  assetUuid: string,
+  transcriptUuid: string,
+  request: TranscriptUpdateRequest
+): Promise<TranscriptResponse> {
+  const res = await fetch(
+    `${API_BASE_URL}/assets/${encodeURIComponent(assetUuid)}/transcripts/${encodeURIComponent(transcriptUuid)}`,
+    {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify(request),
+    }
+  );
+  return handleResponse<TranscriptResponse>(res);
+}
+
+export async function deleteTranscript(
+  token: string,
+  assetUuid: string,
+  transcriptUuid: string
+): Promise<void> {
+  const res = await fetch(
+    `${API_BASE_URL}/assets/${encodeURIComponent(assetUuid)}/transcripts/${encodeURIComponent(transcriptUuid)}`,
+    {
+      method: "DELETE",
+      headers: authHeaders(token),
+    }
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
 }

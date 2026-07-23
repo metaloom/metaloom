@@ -56,6 +56,7 @@ import io.metaloom.loom.db.jooq.tables.JooqRole;
 import io.metaloom.loom.db.jooq.tables.JooqRoleGroup;
 import io.metaloom.loom.db.jooq.tables.JooqRolePermission;
 import io.metaloom.loom.db.jooq.tables.JooqSkill;
+import io.metaloom.loom.db.jooq.tables.JooqSkillVersion;
 import io.metaloom.loom.db.jooq.tables.JooqTag;
 import io.metaloom.loom.db.jooq.tables.JooqTagAsset;
 import io.metaloom.loom.db.jooq.tables.JooqTagCluster;
@@ -365,6 +366,11 @@ public class JooqPublic extends SchemaImpl {
     public final JooqSkill SKILL = JooqSkill.SKILL;
 
     /**
+     * Version history of the versioned skill body (description + content)
+     */
+    public final JooqSkillVersion SKILL_VERSION = JooqSkillVersion.SKILL_VERSION;
+
+    /**
      * Tag on various elements. Tags are not user specifc
      */
     public final JooqTag TAG = JooqTag.TAG;
@@ -504,6 +510,7 @@ public class JooqPublic extends SchemaImpl {
             JooqRoleGroup.ROLE_GROUP,
             JooqRolePermission.ROLE_PERMISSION,
             JooqSkill.SKILL,
+            JooqSkillVersion.SKILL_VERSION,
             JooqTag.TAG,
             JooqTagAsset.TAG_ASSET,
             JooqTagCluster.TAG_CLUSTER,
