@@ -648,21 +648,28 @@ fixes, or further development.
 
 ### Architecture and Design
 
-- [ ] **Unify the two NodeResult classes**: There are two separate `NodeResult`
-      classes - `io.metaloom.cortex.api.node.NodeResult` (Cortex-level, used
-      by `AbstractMediaNode`) and `io.metaloom.cortex.pipeline.api.NodeResult`
-      (pipeline-level, used by `PipelineNode`). The `CortexNodeAdapter`
-      converts between them, but this duality is confusing and error-prone.
-      Consider unifying into a single result type.
+- [x] **NodeResult classes unified**: there is now a single
+      `io.metaloom.cortex.api.node.NodeResult` used by both the Cortex-level node
+      API (produced by `NodeContext.next()/abort()`) and the pipeline-level
+      `PipelineNode`. The former `io.metaloom.cortex.pipeline.api.NodeResult` was
+      deleted. The unified type carries the superset: `state`, an optional
+      `nodeId` (null outside a DAG, stamped by the adapter via
+      `NodeResult.withNode(id, durationMs)`), `durationMs`, an optional `message`
+      (skip reason / failure cause), the output map, and the typed
+      `NodeOutputKey` accessors.
 
-- [ ] **Unify the two NodeContext/NodeResult state enums**: The Cortex-level
-      uses `ResultState` (SUCCESS, SKIPPED, FAILED) while the pipeline-level
-      uses `NodeState` (PENDING, RUNNING, COMPLETED, FAILED, SKIPPED). These
-      should be aligned or merged.
+- [x] **Node/pipeline state enums unified**: the pipeline
+      `io.metaloom.cortex.pipeline.api.NodeState` (whose `PENDING`/`RUNNING` were
+      never used) was deleted; results use the terminal `ResultState`
+      (SUCCESS/SKIPPED/FAILED) everywhere. The wire enum
+      `io.metaloom.loom.pipeline.model.NodeState` is a separate contract and is
+      untouched; `NodeResultMapper.toWireState` maps `SUCCESS→COMPLETED`,
+      `SKIPPED→SKIPPED`, `FAILED→FAILED` explicitly.
 
-- [ ] **Formalize the CortexNodeAdapter mapping**: The adapter manually
-      converts between Cortex and pipeline result types. This mapping should
-      be formalized and tested for all state transitions.
+- [x] **CortexNodeAdapter mapping simplified**: with one result type the adapter
+      no longer converts between two shapes — it stamps the wrapped node's result
+      with the adapter's pipeline id and elapsed time (`withNode`), preserving the
+      node's own state, message and outputs. Covered by `CortexNodeAdapterTest`.
 
 ### Node Implementations
 
