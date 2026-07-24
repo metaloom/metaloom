@@ -14,6 +14,7 @@ import dagger.Lazy;
 import io.metaloom.cortex.api.node.CortexNode;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.impl.boot.CortexBootstrapInitializer;
+import io.metaloom.cortex.pipeline.api.sync.LoomBulkSyncCollector;
 
 @Singleton
 public class CortexImpl implements Cortex {
@@ -32,15 +33,25 @@ public class CortexImpl implements Cortex {
 	 */
 	private final Lazy<Set<CortexNode<?, ?>>> nodes;
 	private final CortexBootstrapInitializer boot;
+	private final LoomBulkSyncCollector syncCollector;
 
 	private boolean shutdown = true;
 	private CountDownLatch latch = new CountDownLatch(1);
 
+	/**
+	 * JVM shutdown hook that flushes the bulk-sync buffer so a {@code SIGTERM} does not silently discard already-computed
+	 * results that have not yet reached Loom. Registered in {@link #run(boolean)} and removed again during a graceful
+	 * {@link #shutdown()} (which flushes explicitly).
+	 */
+	private Thread syncFlushHook;
+
 	@Inject
-	public CortexImpl(CortexOptions options, Lazy<Set<CortexNode<?, ?>>> nodes, CortexBootstrapInitializer boot) {
+	public CortexImpl(CortexOptions options, Lazy<Set<CortexNode<?, ?>>> nodes, CortexBootstrapInitializer boot,
+		LoomBulkSyncCollector syncCollector) {
 		this.options = options;
 		this.nodes = nodes;
 		this.boot = boot;
+		this.syncCollector = syncCollector;
 	}
 
 	@Override
@@ -60,6 +71,7 @@ public class CortexImpl implements Cortex {
 		try {
 			log.info("Starting Cortex...");
 			shutdown = false;
+			registerSyncFlushHook();
 			boot.init(options.getMonitoringPort());
 		} catch (Exception e) {
 			log.error("Error while starting Cortex", e);
@@ -79,6 +91,10 @@ public class CortexImpl implements Cortex {
 			return;
 		}
 		log.info("Cortex shutting down...");
+		// Flush pending sync results while the Loom client is still available, then drop the JVM hook (it is only a
+		// safety net for abrupt exits such as SIGTERM).
+		flushSyncBuffer();
+		unregisterSyncFlushHook();
 		try {
 			boot.deinit();
 		} catch (Exception e) {
@@ -106,6 +122,47 @@ public class CortexImpl implements Cortex {
 	@Override
 	public Integer actualMonitoringPort() {
 		return boot.actualMonitoringPort();
+	}
+
+	/**
+	 * Register a JVM shutdown hook that flushes the bulk-sync buffer. This closes the window in which an abrupt exit
+	 * (e.g. {@code SIGTERM}) would discard results that were computed but not yet pushed to Loom. A graceful
+	 * {@link #shutdown()} flushes explicitly and removes the hook again, so it only fires on abrupt termination.
+	 */
+	private synchronized void registerSyncFlushHook() {
+		if (syncFlushHook != null) {
+			return;
+		}
+		syncFlushHook = new Thread(this::flushSyncBuffer, "cortex-sync-flush");
+		Runtime.getRuntime().addShutdownHook(syncFlushHook);
+	}
+
+	private synchronized void unregisterSyncFlushHook() {
+		if (syncFlushHook == null) {
+			return;
+		}
+		try {
+			Runtime.getRuntime().removeShutdownHook(syncFlushHook);
+		} catch (IllegalStateException e) {
+			// The JVM is already shutting down and running hooks - nothing to remove.
+			log.debug("Could not remove sync-flush shutdown hook, JVM is already shutting down.", e);
+		}
+		syncFlushHook = null;
+	}
+
+	/**
+	 * Flush any results still buffered in the bulk-sync collector to Loom. Safe to call multiple times - an empty buffer
+	 * is a no-op - and never throws, so it is safe to run from a shutdown hook.
+	 */
+	private void flushSyncBuffer() {
+		try {
+			int flushed = syncCollector.flush();
+			if (flushed > 0) {
+				log.info("Flushed {} pending sync result(s) to Loom during shutdown.", flushed);
+			}
+		} catch (Exception e) {
+			log.error("Error while flushing sync buffer during shutdown.", e);
+		}
 	}
 
 }
