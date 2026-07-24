@@ -28,12 +28,16 @@ import io.metaloom.ai.genai.utils.TextUtils;
 import io.metaloom.cortex.node.facedetect.FacedetectNodeOptions;
 import io.metaloom.cortex.api.node.NodeOutputKey;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
+import io.metaloom.loom.rest.model.jsoncomp.JsonCompCreateRequest;
+import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
 import io.metaloom.video.facedetect.face.Face;
 import io.metaloom.video.facedetect.face.FaceBox;
 import io.metaloom.video.facedetect.inspireface.InspireFacedetector;
@@ -94,7 +98,7 @@ public class FacedescriptionNode extends AbstractMediaNode<FacedetectNodeOptions
 	protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws IOException {
 		LoomMedia media = ctx.media();
 		if (media.isVideo() || media.isImage()) {
-			return processFaces(ctx);
+			return processFaces(ctx, asset);
 		} else {
 			return ctx.skipped("No visual media").next();
 		}
@@ -108,7 +112,7 @@ public class FacedescriptionNode extends AbstractMediaNode<FacedetectNodeOptions
 	 * The collected descriptions are emitted as a JSON array under the
 	 * {@code face_description} output key.
 	 */
-	private NodeResult processFaces(NodeContext<LoomMedia> ctx) throws IOException {
+	private NodeResult processFaces(NodeContext<LoomMedia> ctx, AssetResponse asset) throws IOException {
 		Object countObj = ctx.upstreamOutput("facedetect", "face_count");
 		int upstreamCount = countObj != null ? Integer.parseInt(countObj.toString()) : -1;
 		if (upstreamCount == 0) {
@@ -157,7 +161,30 @@ public class FacedescriptionNode extends AbstractMediaNode<FacedetectNodeOptions
 
 		String json = mapper.writeValueAsString(descriptions);
 		ctx.output(OUTPUT_FACE_DESCRIPTION, json);
+		persist(ctx, asset, json);
 		return ctx.next();
+	}
+
+	/**
+	 * Persist the per-face descriptions as a {@code face-description} JSON component and record a ledger entry. Best-effort and a no-op when the asset
+	 * is not yet known to Loom or we run offline.
+	 */
+	private void persist(NodeContext<LoomMedia> ctx, AssetResponse asset, String facesJson) {
+		if (asset == null || client() == null) {
+			return;
+		}
+		try {
+			JsonCompCreateRequest request = new JsonCompCreateRequest();
+			request.setNodeKind(name());
+			request.setSchemaType("face-description");
+			request.setVariant("");
+			request.setData(new JsonObject().put("faces", new JsonArray(facesJson)));
+			java.util.UUID compUuid = client().createAssetJsonComp(asset.getUuid(), request).sync().body().getUuid();
+			recordNodeResult(asset, ctx, ResultState.SUCCESS, null, MODEL.id(), resultRef("asset_json_comp", compUuid));
+		} catch (Exception e) {
+			logger.warn("Failed to persist face descriptions for asset {}: {}", asset.getUuid(), e.getMessage());
+			recordNodeResult(asset, ctx, ResultState.FAILED, e.getMessage(), MODEL.id(), null);
+		}
 	}
 
 	/**

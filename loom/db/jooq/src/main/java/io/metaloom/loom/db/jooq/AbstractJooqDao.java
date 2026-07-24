@@ -104,6 +104,49 @@ public abstract class AbstractJooqDao<T extends Element<T>> implements JooqDao, 
 
 	}
 
+	/**
+	 * Insert the element, or update the conflicting row when the given natural-key columns already exist. Returns the row's uuid.
+	 *
+	 * <p>
+	 * This is the idempotent counterpart to {@link #store(Element)} for tables that carry a {@code UNIQUE} natural key: a node that runs again rewrites
+	 * its own row instead of hitting the constraint. The natural-key columns and the creation-audit columns ({@code uuid}, {@code created},
+	 * {@code creator_uuid}) are excluded from the UPDATE set so first-write provenance survives.
+	 * </p>
+	 *
+	 * @param element   the element to persist; its uuid is populated on return
+	 * @param keyFields the natural-key columns the unique constraint is defined on
+	 * @return the uuid of the inserted or updated row
+	 */
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	protected UUID upsert(T element, Field<?>... keyFields) {
+		TableRecord<?> reco = ctx().newRecord(getTable(), element);
+		if (element.getUuid() == null) {
+			reco.reset("uuid");
+		}
+		java.util.Set<String> excluded = new java.util.HashSet<>(List.of("uuid", "created", "creator_uuid"));
+		for (Field<?> key : keyFields) {
+			excluded.add(key.getName());
+		}
+		java.util.Map<Field<?>, Object> updates = new java.util.LinkedHashMap<>();
+		for (Field<?> field : reco.fields()) {
+			if (reco.changed(field) && !excluded.contains(field.getName())) {
+				updates.put(field, reco.get(field));
+			}
+		}
+		UUID uuid = ctx().insertInto(getTable())
+			.set(reco)
+			.onConflict(keyFields)
+			.doUpdate()
+			.set((java.util.Map) updates)
+			.returning(getTable().field("uuid", UUID.class))
+			.fetchOne("uuid", UUID.class);
+		if (uuid == null) {
+			throw new RuntimeException("Key null!!");
+		}
+		element.setUuid(uuid);
+		return uuid;
+	}
+
 	@Override
 	public void storeBatch(List<T> elements) {
 		if (elements == null || elements.isEmpty()) {

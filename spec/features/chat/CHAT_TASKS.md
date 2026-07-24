@@ -16,12 +16,12 @@ new entries: [../../TASKS.template.md](../../TASKS.template.md).
 | B4 sharing (publish/library/install) | ✅ done | Copy + `origin_skill_uuid` provenance, name-collision suffix, derived `updateAvailable`; re-install yields a fresh suffixed copy |
 | B5 genai-utils streaming | ✅ done (Ollama) | `generateStreamWithTools` + thinking-flag fix in `generateStream` |
 | B6 MCP reference envelopes | ✅ done | `MCPToolResults` helper; 4 of 5 tools populate references; `MCPToolReferencesTest` |
-| B7 `loom/services/ai` loop | ✅ done | `AgentLoop`/`AgentService`/`SkillPromptBuilder`/`ReferenceExtractor`/`load_skill`; `AiOptions` (`LOOM_AI_*`); `AgentLoopTest` (9 tests, fake streamer) |
+| B7 `loom/agent/chat` loop | ✅ done | `AgentLoop`/`AgentService`/`SkillPromptBuilder`/`ReferenceExtractor`/`load_skill`; `AiOptions` (`LOOM_AI_*`); `AgentLoopTest` (9 tests, fake streamer) |
 | B8 SSE stream endpoint | ✅ done | `POST/DELETE /chats/:uuid/stream` in the ai module (avoids rest↔mcp dependency cycle); `ChatStreamEndpointTest` (sequence, 404, 400, 409+cancel) |
 | B9 streaming swap-in + auto-title | ✅ done | `StreamingTurnStreamer` opt-in via `LOOM_AI_STREAMING=true` (default: turn-granular blocking); auto-title after first exchange |
 
 Notable deviations from the original task text:
-- The stream endpoint lives in `loom/services/ai` (not `loom-service-rest`) because
+- The stream endpoint lives in `loom/agent/chat` (not `loom-service-rest`) because
   the MCP module depends on the rest module — the endpoint is contributed to the
   REST endpoint set via `AiEndpointModule`.
 - `ReferenceExtractor` only consumes the structured `references` field (all loom

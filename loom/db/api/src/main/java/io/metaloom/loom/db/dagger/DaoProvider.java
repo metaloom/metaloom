@@ -9,6 +9,7 @@ import io.metaloom.loom.db.model.asset.AssetBinaryDao;
 import io.metaloom.loom.db.model.attachment.AttachmentDao;
 import io.metaloom.loom.db.model.blacklist.BlacklistDao;
 import io.metaloom.loom.db.model.chat.ChatDao;
+import io.metaloom.loom.db.model.chatsession.ChatSessionDao;
 import io.metaloom.loom.db.model.cluster.ClusterDao;
 import io.metaloom.loom.db.model.collection.CollectionDao;
 import io.metaloom.loom.db.model.cortex.CortexInstanceDao;
@@ -204,6 +205,12 @@ public interface DaoProvider extends DaoCollection {
 
 	default SkillVersionDao skillVersionDao() {
 		return daos().skillVersionDao();
+	}
+
+	// Chat Session
+
+	default ChatSessionDao chatSessionDao() {
+		return daos().chatSessionDao();
 	}
 
 	// Cortex Instance

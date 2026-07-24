@@ -70,6 +70,7 @@
         <module>pipeline</module>
         <module>db</module>
         <module>services</module>
+        <module>agent</module>
         <module>core</module>
         <module>fixture</module>
         <module>cli</module>
@@ -258,8 +259,13 @@
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>io.metaloom.loom.service</groupId>
-                <artifactId>loom-service-ai</artifactId>
+                <groupId>io.metaloom.loom.agent</groupId>
+                <artifactId>loom-agent-chat</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.loom.agent</groupId>
+                <artifactId>loom-agent-sandbox</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

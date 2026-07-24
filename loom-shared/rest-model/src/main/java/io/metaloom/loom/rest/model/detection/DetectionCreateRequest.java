@@ -8,6 +8,14 @@ public class DetectionCreateRequest extends AbstractMetaModel<DetectionCreateReq
 
 	private String type;
 
+	private String nodeKind;
+
+	private String producerVersion;
+
+	private String label;
+
+	private Integer detectionIndex;
+
 	private Integer frameNumber;
 
 	private Float bboxX;
@@ -28,6 +36,42 @@ public class DetectionCreateRequest extends AbstractMetaModel<DetectionCreateReq
 	@Override
 	public DetectionCreateRequest setType(String type) {
 		this.type = type;
+		return this;
+	}
+
+	public String getNodeKind() {
+		return nodeKind;
+	}
+
+	public DetectionCreateRequest setNodeKind(String nodeKind) {
+		this.nodeKind = nodeKind;
+		return this;
+	}
+
+	public String getProducerVersion() {
+		return producerVersion;
+	}
+
+	public DetectionCreateRequest setProducerVersion(String producerVersion) {
+		this.producerVersion = producerVersion;
+		return this;
+	}
+
+	public String getLabel() {
+		return label;
+	}
+
+	public DetectionCreateRequest setLabel(String label) {
+		this.label = label;
+		return this;
+	}
+
+	public Integer getDetectionIndex() {
+		return detectionIndex;
+	}
+
+	public DetectionCreateRequest setDetectionIndex(Integer detectionIndex) {
+		this.detectionIndex = detectionIndex;
 		return this;
 	}
 

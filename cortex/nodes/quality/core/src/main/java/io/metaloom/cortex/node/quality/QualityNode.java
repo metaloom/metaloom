@@ -12,14 +12,19 @@ import javax.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.UUID;
+
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.NodeOutputKey;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
+import io.metaloom.loom.rest.model.jsoncomp.JsonCompCreateRequest;
+import io.vertx.core.json.JsonObject;
 import io.metaloom.opencv.core.CvType;
 import io.metaloom.opencv.core.Mat;
 import io.metaloom.video4j.Video4j;
@@ -65,15 +70,15 @@ public class QualityNode extends AbstractMediaNode<QualityNodeOptions> {
 	protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
 		LoomMedia media = ctx.media();
 		if (media.isImage()) {
-			return processImage(ctx);
+			return processImage(ctx, asset);
 		} else if (media.isVideo()) {
-			return processVideo(ctx);
+			return processVideo(ctx, asset);
 		} else {
 			return ctx.skipped("No visual media").next();
 		}
 	}
 
-	private NodeResult processImage(NodeContext<LoomMedia> ctx) throws IOException {
+	private NodeResult processImage(NodeContext<LoomMedia> ctx, AssetResponse asset) throws IOException {
 		LoomMedia media = ctx.media();
 		BufferedImage image = ImageIO.read(media.file());
 		if (image == null) {
@@ -95,10 +100,11 @@ public class QualityNode extends AbstractMediaNode<QualityNodeOptions> {
 		}
 
 		ctx.output(OUTPUT_QUALITY_FLAG, "SUCCESS");
+		persist(ctx, asset);
 		return ctx.origin(COMPUTED).next();
 	}
 
-	private NodeResult processVideo(NodeContext<LoomMedia> ctx) {
+	private NodeResult processVideo(NodeContext<LoomMedia> ctx, AssetResponse asset) {
 		LoomMedia media = ctx.media();
 		QualityNodeOptions opts = options();
 
@@ -123,10 +129,36 @@ public class QualityNode extends AbstractMediaNode<QualityNodeOptions> {
 			}
 
 			ctx.output(OUTPUT_QUALITY_FLAG, "SUCCESS");
+			persist(ctx, asset);
 			return ctx.origin(COMPUTED).next();
 		} catch (Exception e) {
 			log.error("Failed to process video quality", e);
 			return ctx.failure(e.getMessage()).next();
+		}
+	}
+
+	/**
+	 * Persist the computed quality metrics as a {@code quality} JSON component and record a ledger entry. The typed image/video component tables do not
+	 * carry blurriness/fps/frame-count, so the full metric set is stored as an opaque payload. Best-effort and a no-op when the asset is not yet known to
+	 * Loom or we run offline.
+	 */
+	private void persist(NodeContext<LoomMedia> ctx, AssetResponse asset) {
+		if (asset == null || client() == null) {
+			return;
+		}
+		try {
+			JsonObject data = new JsonObject();
+			ctx.outputs().forEach(data::put);
+			JsonCompCreateRequest request = new JsonCompCreateRequest();
+			request.setNodeKind(name());
+			request.setSchemaType("quality");
+			request.setVariant("");
+			request.setData(data);
+			UUID compUuid = client().createAssetJsonComp(asset.getUuid(), request).sync().body().getUuid();
+			recordNodeResult(asset, ctx, ResultState.SUCCESS, null, null, resultRef("asset_json_comp", compUuid));
+		} catch (Exception e) {
+			log.warn("Failed to persist quality metrics for asset {}: {}", asset.getUuid(), e.getMessage());
+			recordNodeResult(asset, ctx, ResultState.FAILED, e.getMessage(), null, null);
 		}
 	}
 

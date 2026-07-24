@@ -87,6 +87,9 @@ public enum Permission {
 	// Skill Version
 	READ_SKILL_VERSION, RESTORE_SKILL_VERSION,
 
+	// Chat Session (publishable session record + shared session library)
+	CREATE_CHAT_SESSION, READ_CHAT_SESSION, DELETE_CHAT_SESSION, UPDATE_CHAT_SESSION,
+
 	// Cortex Instance (registered processor worker)
 	MANAGE_CORTEX_INSTANCE, READ_CORTEX_INSTANCE;
 

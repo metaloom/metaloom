@@ -11,13 +11,15 @@ import javax.inject.Inject;
 
 import io.metaloom.cortex.api.node.NodeOutputKey;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.node.payload.ConsistencyPayload;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
+import io.metaloom.loom.rest.model.asset.AssetUpdateRequest;
+import io.metaloom.loom.rest.model.asset.info.ConsistencyInfo;
 import io.metaloom.utils.hash.partial.PartialFile;
 
 public class ConsistencyNode extends AbstractMediaNode<ConsistencyNodeOptions> {
@@ -59,8 +61,27 @@ public class ConsistencyNode extends AbstractMediaNode<ConsistencyNodeOptions> {
 				long count = computeZeroChunks(media);
 				ctx.output(OUTPUT_ZERO_CHUNK_COUNT, count);
 				ctx.output(OUTPUT_IS_COMPLETE, count == 0);
+				persist(ctx, asset, count);
 				return ctx.origin(COMPUTED).next();
 			}
+		}
+	}
+
+	/**
+	 * Persist the computed zero-chunk count onto the asset's consistency block and record a ledger entry. Best-effort and a no-op when the asset is not
+	 * yet known to Loom or we run offline.
+	 */
+	private void persist(NodeContext<LoomMedia> ctx, AssetResponse asset, long zeroChunkCount) {
+		if (asset == null || client() == null) {
+			return;
+		}
+		try {
+			client().updateAsset(asset.getUuid(),
+				new AssetUpdateRequest().setConsistency(new ConsistencyInfo().setZeroChunkCount(zeroChunkCount))).sync();
+			recordNodeResult(asset, ctx, ResultState.SUCCESS, null, null, null);
+		} catch (Exception e) {
+			log.warn("Failed to persist consistency for asset {}: {}", asset.getUuid(), e.getMessage());
+			recordNodeResult(asset, ctx, ResultState.FAILED, e.getMessage(), null, null);
 		}
 	}
 

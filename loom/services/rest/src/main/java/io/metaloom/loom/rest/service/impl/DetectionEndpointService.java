@@ -175,6 +175,7 @@ public class DetectionEndpointService extends AbstractEndpointService {
 			int failed = 0;
 
 			List<Detection> detections = new ArrayList<>();
+			int index = 0;
 			for (DetectionCreateRequest itemRequest : items) {
 				try {
 					validator.validate(itemRequest);
@@ -182,16 +183,22 @@ public class DetectionEndpointService extends AbstractEndpointService {
 					Detection detection = dao().createDetection(userUuid, type);
 					detection.setAssetUuid(assetUuid);
 					applyCreateFields(itemRequest, detection);
+					// When the caller does not number its detections, assign the index from batch position so each row has a distinct natural key
+					// (asset, node_kind, frame_number, detection_index) and a node re-run upserts rather than duplicates.
+					if (itemRequest.getDetectionIndex() == null) {
+						detection.setDetectionIndex(index);
+					}
 					detections.add(detection);
 				} catch (Exception e) {
 					log.warn("Bulk create detection item failed: {}", e.getMessage());
 					failed++;
 				}
+				index++;
 			}
 
-			// Store batch
-			dao().storeBatch(detections);
+			// Upsert each on its natural key so re-running the producing node replaces its own rows instead of appending duplicates.
 			for (Detection detection : detections) {
+				dao().upsertDetection(detection);
 				response.add(modelBuilder.toResponse(detection));
 				created++;
 			}
@@ -214,6 +221,20 @@ public class DetectionEndpointService extends AbstractEndpointService {
 	}
 
 	private void applyCreateFields(DetectionCreateRequest request, Detection detection) {
+		// Node-produced detections carry their own provenance and identity discriminators; manual detections leave these unset (node_kind stays
+		// "manual", detection_index defaults to 0).
+		if (request.getNodeKind() != null) {
+			detection.setNodeKind(request.getNodeKind());
+		}
+		if (request.getProducerVersion() != null) {
+			detection.setProducerVersion(request.getProducerVersion());
+		}
+		if (request.getLabel() != null) {
+			detection.setLabel(request.getLabel());
+		}
+		if (request.getDetectionIndex() != null) {
+			detection.setDetectionIndex(request.getDetectionIndex());
+		}
 		if (request.getFrameNumber() != null) {
 			detection.setFrameNumber(request.getFrameNumber());
 		}

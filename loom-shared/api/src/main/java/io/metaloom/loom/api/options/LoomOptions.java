@@ -14,6 +14,8 @@ public class LoomOptions implements Option {
 
 	private AiOptions ai = new AiOptions();
 
+	private SandboxOptions sandbox = new SandboxOptions();
+
 	@Override
 	public void overrideWithEnv() {
 		database.overrideWithEnv();
@@ -21,6 +23,7 @@ public class LoomOptions implements Option {
 		auth.overrideWithEnv();
 		storage.overrideWithEnv();
 		ai.overrideWithEnv();
+		sandbox.overrideWithEnv();
 	}
 
 	public DatabaseOptions getDatabase() {
@@ -67,13 +70,23 @@ public class LoomOptions implements Option {
 		return this;
 	}
 
+	public SandboxOptions getSandbox() {
+		return sandbox;
+	}
+
+	public LoomOptions setSandbox(SandboxOptions sandbox) {
+		this.sandbox = sandbox;
+		return this;
+	}
+
 	@Override
 	public void validate(OptionErrors errors) {
 		errors.nested("database", database)
 			.nested("server", server)
 			.nested("auth", auth)
 			.nested("storage", storage)
-			.nested("ai", ai);
+			.nested("ai", ai)
+			.nested("sandbox", sandbox);
 	}
 
 	/**

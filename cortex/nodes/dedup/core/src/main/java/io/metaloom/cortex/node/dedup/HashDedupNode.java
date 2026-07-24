@@ -13,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.option.CortexOptions;
@@ -106,6 +107,9 @@ public class HashDedupNode extends AbstractMediaNode<DedupNodeOptions> {
 								}
 							}
 							moveMedia(ctx, targetFolder, "Dup Of: " + pathB);
+							// Record that this file was deduplicated against an existing asset; the side effect is a filesystem move, so there is no
+							// typed payload - only the ledger marker.
+							recordNodeResult(asset, ctx, ResultState.SUCCESS, "duplicate of " + pathB, null, null);
 							// We don't want to store the updated path for this media or alter the original file path.
 							return ctx.next();
 						}

@@ -137,6 +137,12 @@ import io.metaloom.loom.rest.model.token.TokenUpdateRequest;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompCreateRequest;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompListResponse;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompResponse;
+import io.metaloom.loom.rest.model.fingerprintcomp.FingerprintCompCreateRequest;
+import io.metaloom.loom.rest.model.fingerprintcomp.FingerprintCompListResponse;
+import io.metaloom.loom.rest.model.fingerprintcomp.FingerprintCompResponse;
+import io.metaloom.loom.rest.model.segmentcomp.SegmentCompCreateRequest;
+import io.metaloom.loom.rest.model.segmentcomp.SegmentCompListResponse;
+import io.metaloom.loom.rest.model.segmentcomp.SegmentCompResponse;
 import io.metaloom.loom.rest.model.noderesult.NodeResultCreateRequest;
 import io.metaloom.loom.rest.model.noderesult.NodeResultListResponse;
 import io.metaloom.loom.rest.model.noderesult.NodeResultResponse;
@@ -881,6 +887,50 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<NoResponse> deleteAssetJsonComp(UUID assetUuid, UUID compUuid) {
 		return deleteRequest("assets/" + assetUuid + "/json-comps/" + compUuid);
+	}
+
+	// ASSET FINGERPRINT COMPONENT
+
+	@Override
+	public LoomClientHttpRequest<FingerprintCompResponse> createAssetFingerprintComp(UUID assetUuid, FingerprintCompCreateRequest request) {
+		return postRequest("assets/" + assetUuid + "/fingerprints", request, FingerprintCompResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<FingerprintCompResponse> loadAssetFingerprintComp(UUID assetUuid, UUID compUuid) {
+		return getRequest("assets/" + assetUuid + "/fingerprints/" + compUuid, FingerprintCompResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<FingerprintCompListResponse> listAssetFingerprintComps(UUID assetUuid) {
+		return getRequest("assets/" + assetUuid + "/fingerprints", FingerprintCompListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> deleteAssetFingerprintComp(UUID assetUuid, UUID compUuid) {
+		return deleteRequest("assets/" + assetUuid + "/fingerprints/" + compUuid);
+	}
+
+	// ASSET SEGMENT COMPONENT (scenes, silence, shots, chapters)
+
+	@Override
+	public LoomClientHttpRequest<SegmentCompListResponse> createAssetSegmentComps(UUID assetUuid, SegmentCompCreateRequest request) {
+		return postRequest("assets/" + assetUuid + "/segments", request, SegmentCompListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<SegmentCompResponse> loadAssetSegmentComp(UUID assetUuid, UUID compUuid) {
+		return getRequest("assets/" + assetUuid + "/segments/" + compUuid, SegmentCompResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<SegmentCompListResponse> listAssetSegmentComps(UUID assetUuid) {
+		return getRequest("assets/" + assetUuid + "/segments", SegmentCompListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> deleteAssetSegmentComp(UUID assetUuid, UUID compUuid) {
+		return deleteRequest("assets/" + assetUuid + "/segments/" + compUuid);
 	}
 
 	// GROUP

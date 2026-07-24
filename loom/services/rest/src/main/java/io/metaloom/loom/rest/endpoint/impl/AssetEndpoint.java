@@ -22,8 +22,10 @@ import io.metaloom.loom.rest.service.impl.AssetBinaryEndpointService;
 import io.metaloom.loom.rest.service.impl.AssetUploadEndpointService;
 import io.metaloom.loom.rest.service.impl.CommentEndpointService;
 import io.metaloom.loom.rest.service.impl.DetectionEndpointService;
+import io.metaloom.loom.rest.service.impl.FingerprintCompEndpointService;
 import io.metaloom.loom.rest.service.impl.JsonCompEndpointService;
 import io.metaloom.loom.rest.service.impl.NodeResultEndpointService;
+import io.metaloom.loom.rest.service.impl.SegmentCompEndpointService;
 import io.metaloom.loom.rest.service.impl.ReactionEndpointService;
 import io.metaloom.loom.rest.service.impl.TagEndpointService;
 import io.metaloom.loom.rest.service.impl.TaskEndpointService;
@@ -44,6 +46,8 @@ public class AssetEndpoint extends AbstractEndpoint {
 	private final TranscriptEndpointService transcriptService;
 	private final NodeResultEndpointService nodeResultService;
 	private final JsonCompEndpointService jsonCompService;
+	private final FingerprintCompEndpointService fingerprintService;
+	private final SegmentCompEndpointService segmentService;
 	private final TaskEndpointService taskService;
 	private final ModelExamples examples;
 
@@ -56,6 +60,8 @@ public class AssetEndpoint extends AbstractEndpoint {
 		TranscriptEndpointService transcriptService,
 		NodeResultEndpointService nodeResultService,
 		JsonCompEndpointService jsonCompService,
+		FingerprintCompEndpointService fingerprintService,
+		SegmentCompEndpointService segmentService,
 		TaskEndpointService taskService,
 		EndpointDependencies deps, ModelExamples examples) {
 		super(deps);
@@ -69,6 +75,8 @@ public class AssetEndpoint extends AbstractEndpoint {
 		this.transcriptService = transcriptService;
 		this.nodeResultService = nodeResultService;
 		this.jsonCompService = jsonCompService;
+		this.fingerprintService = fingerprintService;
+		this.segmentService = segmentService;
 		this.taskService = taskService;
 		this.examples = examples;
 	}
@@ -453,6 +461,70 @@ public class AssetEndpoint extends AbstractEndpoint {
 			examples.deleteResponseExample(),
 			lrc -> {
 				jsonCompService.deleteJsonComp(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("compUuid"));
+			});
+
+		// --- FINGERPRINT COMPONENT (asset_fingerprint_comp, UUID-based sub-resource) ---
+
+		addRoute(basePath() + "/:uuid/fingerprints", POST,
+			"Persist (upsert) a perceptual fingerprint component for an asset",
+			examples.fingerprintCompCreateRequestExample(),
+			examples.fingerprintCompResponseExample(),
+			lrc -> {
+				fingerprintService.createFingerprintComp(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/fingerprints", GET,
+			"List fingerprint components for an asset",
+			null,
+			examples.fingerprintCompListResponseExample(),
+			lrc -> {
+				fingerprintService.listFingerprintComps(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/fingerprints/:compUuid", GET,
+			"Load a fingerprint component for an asset",
+			lrc -> {
+				fingerprintService.loadFingerprintComp(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("compUuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/fingerprints/:compUuid", DELETE,
+			"Delete a fingerprint component for an asset",
+			null,
+			examples.deleteResponseExample(),
+			lrc -> {
+				fingerprintService.deleteFingerprintComp(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("compUuid"));
+			});
+
+		// --- SEGMENT COMPONENT (asset_segment_comp: scenes, silence, shots, chapters) ---
+
+		addRoute(basePath() + "/:uuid/segments", POST,
+			"Replace the whole set of time-ranged segments for an asset (surplus rows from a shorter re-run are deleted)",
+			examples.segmentCompCreateRequestExample(),
+			examples.segmentCompListResponseExample(),
+			lrc -> {
+				segmentService.createSegmentComps(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/segments", GET,
+			"List segment components for an asset",
+			null,
+			examples.segmentCompListResponseExample(),
+			lrc -> {
+				segmentService.listSegmentComps(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/segments/:compUuid", GET,
+			"Load a segment component for an asset",
+			lrc -> {
+				segmentService.loadSegmentComp(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("compUuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/segments/:compUuid", DELETE,
+			"Delete a segment component for an asset",
+			null,
+			examples.deleteResponseExample(),
+			lrc -> {
+				segmentService.deleteSegmentComp(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("compUuid"));
 			});
 
 		// --- BINARY (UUID-based sub-resource, one-to-one) ---

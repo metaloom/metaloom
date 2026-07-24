@@ -10,6 +10,7 @@ import org.flywaydb.core.Flyway;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.metaloom.loom.agent.sandbox.SandboxReaper;
 import io.metaloom.loom.auth.AuthenticationService;
 import io.metaloom.loom.mcp.MCPService;
 import io.metaloom.loom.rest.RESTService;
@@ -43,10 +44,12 @@ public class BootstrapInitializer {
 
 	private final AssetPipelineTrigger assetPipelineTrigger;
 
+	private final SandboxReaper sandboxReaper;
+
 	@Inject
 	public BootstrapInitializer(GrpcService grpcService, RESTService restService, UIService uiService, MCPService mcpService, AuthenticationService authService,
 		Flyway flyway, DatabaseInitializer initializer, DemoDatabaseInitializer demoInitializer, HttpServer httpServer,
-		AssetPipelineTrigger assetPipelineTrigger) {
+		AssetPipelineTrigger assetPipelineTrigger, SandboxReaper sandboxReaper) {
 		this.grpcService = grpcService;
 		this.restService = restService;
 		this.uiService = uiService;
@@ -57,6 +60,7 @@ public class BootstrapInitializer {
 		this.demoInitializer = demoInitializer;
 		this.httpServer = httpServer;
 		this.assetPipelineTrigger = assetPipelineTrigger;
+		this.sandboxReaper = sandboxReaper;
 	}
 
 	public void init(boolean migrate) throws IOException {
@@ -131,6 +135,13 @@ public class BootstrapInitializer {
 		} catch (Exception e) {
 			throw new RuntimeException("Error while starting gRPC service", e);
 		}
+
+		try {
+			log.info("Starting coding sandbox reaper");
+			sandboxReaper.start();
+		} catch (Exception e) {
+			log.warn("Error while starting the coding sandbox reaper — continuing startup", e);
+		}
 	}
 
 	public RESTService getRestService() {
@@ -146,6 +157,7 @@ public class BootstrapInitializer {
 	}
 
 	public void deinit() {
+		sandboxReaper.stop();
 		mcpService.stop();
 		restService.stop();
 		grpcService.stop();

@@ -12,6 +12,7 @@ public interface LoomModelBuilder extends
 	AssetModelBuilder,
 	BlacklistModelBuilder,
 	ChatModelBuilder,
+	ChatSessionModelBuilder,
 	SkillModelBuilder,
 	CollectionModelBuilder,
 	ClusterModelBuilder,
@@ -32,6 +33,8 @@ public interface LoomModelBuilder extends
 	ReactionModelBuilder,
 	NodeResultModelBuilder,
 	JsonCompModelBuilder,
+	FingerprintCompModelBuilder,
+	SegmentCompModelBuilder,
 	WebhookModelBuilder {
 
 	default GenericMessageResponse elementNotFound(String msg) {

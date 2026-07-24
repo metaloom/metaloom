@@ -1,5 +1,7 @@
 package io.metaloom.loom.db.jooq.dao.embedding;
 
+import static io.metaloom.loom.db.jooq.tables.JooqEmbedding.EMBEDDING;
+
 import java.util.UUID;
 
 import javax.inject.Inject;
@@ -54,9 +56,7 @@ public class EmbeddingDaoImpl extends AbstractJooqDao<Embedding> implements Embe
 
 	@Override
 	public void store(Embedding element) {
-		if (element.getDimensions() == null && element.getVector() != null) {
-			element.setDimensions(element.getVector().length);
-		}
+		backfillDimensions(element);
 		TableRecord<?> reco = ctx().newRecord(getTable(), element);
 		if (element.getUuid() == null) {
 			reco.reset("uuid");
@@ -69,7 +69,20 @@ public class EmbeddingDaoImpl extends AbstractJooqDao<Embedding> implements Embe
 			throw new RuntimeException("Key null!!");
 		}
 		element.setUuid(uuid);
-		System.out.println("Element: " + element);
+	}
+
+	@Override
+	public Embedding upsertEmbedding(Embedding element) {
+		backfillDimensions(element);
+		// Idempotent on the (asset_uuid, node_kind, type, frame_number, subject_index) unique key.
+		upsert(element, EMBEDDING.ASSET_UUID, EMBEDDING.NODE_KIND, EMBEDDING.TYPE, EMBEDDING.FRAME_NUMBER, EMBEDDING.SUBJECT_INDEX);
+		return element;
+	}
+
+	private void backfillDimensions(Embedding element) {
+		if (element.getDimensions() == null && element.getVector() != null) {
+			element.setDimensions(element.getVector().length);
+		}
 	}
 
 }

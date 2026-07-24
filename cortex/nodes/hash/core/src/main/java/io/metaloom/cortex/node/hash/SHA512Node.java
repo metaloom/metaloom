@@ -10,9 +10,9 @@ import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.node.NodeOutputKey;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.node.payload.HashPayload;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
@@ -52,6 +52,9 @@ public class SHA512Node extends AbstractMediaNode<HashNodeOptions> {
 		SHA512 hash = HashUtils.computeSHA512(media.file());
 		media.setSHA512(hash);
 		ctx.output(OUTPUT_SHA512, hash.toString());
+		// The SHA-512 is the asset's content identity, so when the asset already exists in Loom there is nothing to write back - only record the
+		// ledger marker that this node ran on the asset.
+		recordNodeResult(asset, ctx, ResultState.SUCCESS, null, null, null);
 		return ctx.origin(COMPUTED).next();
 	}
 

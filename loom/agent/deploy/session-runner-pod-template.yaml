@@ -1,0 +1,63 @@
+# REFERENCE ONLY — annotated equivalent of the Pod the Loom backend POSTs at runtime
+# (see io.metaloom.loom.agent.sandbox.backend.KubernetesBackend#podManifest). You do not apply
+# this directly; the backend fills in <session> (the chat uuid), <token>, and a unique name per
+# session, and applies the values from LOOM_AGENT_SANDBOX_* options.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: loom-runner-<session>-<rand>
+  labels:
+    app: loom-session-runner        # matched by the NetworkPolicy + quota
+    loom-session: "<session>"
+spec:
+  restartPolicy: Never
+  activeDeadlineSeconds: 3600       # hard kernel-level backstop == LOOM_AGENT_SANDBOX_MAX_SESSION_S
+  automountServiceAccountToken: false   # the runner needs no API access
+  enableServiceLinks: false
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: runner
+      image: metaloom/loom-session-runner:latest
+      ports:
+        - containerPort: 8080
+      env:
+        - name: RUNNER_TOKEN            # per-session bearer token (backend-generated)
+          value: "<token>"
+        - name: RUNNER_WORKSPACE
+          value: /workspace
+        - name: RUNNER_PORT
+          value: "8080"
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: "1"
+          memory: 512Mi
+      readinessProbe:
+        httpGet:
+          path: /healthz
+          port: 8080
+        initialDelaySeconds: 1
+        periodSeconds: 2
+      volumeMounts:
+        - name: workspace
+          mountPath: /workspace
+        - name: tmp
+          mountPath: /tmp
+  volumes:
+    - name: workspace
+      emptyDir:
+        sizeLimit: 512Mi
+    - name: tmp
+      emptyDir:
+        sizeLimit: 64Mi

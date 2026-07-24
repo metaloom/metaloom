@@ -16,12 +16,14 @@ import io.metaloom.ai.genai.llm.prompt.Prompt;
 import io.metaloom.ai.genai.llm.prompt.impl.PromptImpl;
 import io.metaloom.cortex.api.node.NodeOutputKey;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
+import io.metaloom.loom.rest.model.jsoncomp.JsonCompCreateRequest;
 import io.vertx.core.json.JsonObject;
 
 public class LLMNode extends AbstractMediaNode<LLMNodeOptions> {
@@ -88,9 +90,33 @@ public class LLMNode extends AbstractMediaNode<LLMNodeOptions> {
 			JsonObject json = provider.generateJson(llmCtx);
 
 			ctx.output(resultKey(promptId), json.encode());
+			persist(ctx, asset, promptId, modelName, json);
 		}
 
 		return NodeResult.success(ctx.outputs());
+	}
+
+	/**
+	 * Persist one prompt's LLM result as an {@code llm} JSON component (variant = prompt id) and record a ledger entry. Best-effort and a no-op when the
+	 * asset is not yet known to Loom or we run offline.
+	 */
+	private void persist(NodeContext<LoomMedia> ctx, AssetResponse asset, String promptId, String modelName, JsonObject json) {
+		if (asset == null || client() == null) {
+			return;
+		}
+		try {
+			JsonCompCreateRequest request = new JsonCompCreateRequest();
+			request.setNodeKind(name());
+			request.setSchemaType("llm");
+			request.setVariant(promptId);
+			request.setProducerVersion(modelName);
+			request.setData(json);
+			java.util.UUID compUuid = client().createAssetJsonComp(asset.getUuid(), request).sync().body().getUuid();
+			recordNodeResult(asset, ctx, ResultState.SUCCESS, null, modelName, resultRef("asset_json_comp", compUuid));
+		} catch (Exception e) {
+			log.warn("Failed to persist llm result for asset {}: {}", asset.getUuid(), e.getMessage());
+			recordNodeResult(asset, ctx, ResultState.FAILED, e.getMessage(), modelName, null);
+		}
 	}
 
 }

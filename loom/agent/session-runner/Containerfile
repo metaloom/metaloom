@@ -1,0 +1,32 @@
+# Loom Session Runner — the isolated per-session exec container for the coding agent loop.
+#
+# The ONLY process is runnerd (a stdlib-only HTTP daemon). No credentials ever enter this
+# image; the Loom backend drives it over HTTP with a per-session bearer token. All hardening
+# (read-only rootfs, dropped caps, non-root, limits, egress policy) is applied by the
+# pod/container spec at runtime — see deploy/ and the podman/kubernetes backends — not baked
+# in here.
+#
+# Build:  ./build.sh
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    RUNNER_WORKSPACE=/workspace \
+    RUNNER_PORT=8080
+
+# Minimal tooling so `run_shell` can do python / bash / curl / installs.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends bash curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    # non-root runtime user; the pod also enforces runAsNonRoot.
+    && useradd --uid 10001 --create-home --shell /usr/sbin/nologin runner \
+    && mkdir -p /workspace \
+    && chown runner:runner /workspace
+
+COPY runnerd.py /opt/runnerd/runnerd.py
+
+USER 10001
+WORKDIR /workspace
+EXPOSE 8080
+
+CMD ["python", "/opt/runnerd/runnerd.py"]

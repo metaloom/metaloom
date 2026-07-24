@@ -34,7 +34,7 @@ public class LoomOpenAPI {
 		ModelExamples examples = new ModelExamples();
 		endpoints.add(new UserEndpoint(null, deps, examples));
 		endpoints.add(new GroupEndpoint(null, deps, examples));
-		endpoints.add(new AssetEndpoint(null, null, null, null, null, null, null, null, null, null, null, deps, examples));
+		endpoints.add(new AssetEndpoint(null, null, null, null, null, null, null, null, null, null, null, null, null, deps, examples));
 		endpoints.add(new MeEndpoint(null, deps, examples));
 		ServerFailureHandler failureHandler = null;
 		// Only the router is needed to describe the API; start() - which is what would

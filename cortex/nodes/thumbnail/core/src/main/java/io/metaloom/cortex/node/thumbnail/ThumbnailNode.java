@@ -16,9 +16,9 @@ import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.node.NodeOutputKey;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.context.NodeContext;
-import io.metaloom.cortex.api.node.payload.ImagePayload;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
@@ -90,7 +90,9 @@ public class ThumbnailNode extends AbstractMediaNode<ThumbnailNodeOptions> {
 					ctx.output(OUTPUT_THUMBNAIL_PATH, thumbnailPath.toString());
 				}
 			}
-			Path thumbnailPath = resolveThumbnailPath(media);
+			// The thumbnail bytes live in the local thumbnail_bin cache; record the ledger marker that this node produced it for the asset. Uploading
+			// the bytes into the asset binary subsystem requires a target library the node does not have, so that remains a follow-up.
+			recordNodeResult(asset, ctx, ResultState.SUCCESS, null, null, null);
 			return ctx.origin(COMPUTED).next();
 		} catch (Exception e) {
 			log.error("Failed to compute thumbnail", e);

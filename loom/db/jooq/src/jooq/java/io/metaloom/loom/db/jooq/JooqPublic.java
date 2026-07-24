@@ -28,6 +28,9 @@ import io.metaloom.loom.db.jooq.tables.JooqAttachment;
 import io.metaloom.loom.db.jooq.tables.JooqAttachmentBinary;
 import io.metaloom.loom.db.jooq.tables.JooqBlacklist;
 import io.metaloom.loom.db.jooq.tables.JooqChat;
+import io.metaloom.loom.db.jooq.tables.JooqChatSession;
+import io.metaloom.loom.db.jooq.tables.JooqChatSessionContextRef;
+import io.metaloom.loom.db.jooq.tables.JooqChatSessionSkill;
 import io.metaloom.loom.db.jooq.tables.JooqCluster;
 import io.metaloom.loom.db.jooq.tables.JooqCollection;
 import io.metaloom.loom.db.jooq.tables.JooqCollectionAsset;
@@ -266,6 +269,24 @@ public class JooqPublic extends SchemaImpl {
      * Stores LLM chat sessions with message history
      */
     public final JooqChat CHAT = JooqChat.CHAT;
+
+    /**
+     * Publishable record behind one chat: transcript-derived name/description,
+     * tags, publish flag and a /session filesystem snapshot
+     */
+    public final JooqChatSession CHAT_SESSION = JooqChatSession.CHAT_SESSION;
+
+    /**
+     * Live references from a session to other published sessions, with per-part
+     * (chat history / skills / filesystem) toggles
+     */
+    public final JooqChatSessionContextRef CHAT_SESSION_CONTEXT_REF = JooqChatSessionContextRef.CHAT_SESSION_CONTEXT_REF;
+
+    /**
+     * Skill versions active for a chat session (pins
+     * skill_version.version_number)
+     */
+    public final JooqChatSessionSkill CHAT_SESSION_SKILL = JooqChatSessionSkill.CHAT_SESSION_SKILL;
 
     /**
      * Generic cluster that aggregates multiple embeddings. 
@@ -550,6 +571,9 @@ public class JooqPublic extends SchemaImpl {
             JooqAttachmentBinary.ATTACHMENT_BINARY,
             JooqBlacklist.BLACKLIST,
             JooqChat.CHAT,
+            JooqChatSession.CHAT_SESSION,
+            JooqChatSessionContextRef.CHAT_SESSION_CONTEXT_REF,
+            JooqChatSessionSkill.CHAT_SESSION_SKILL,
             JooqCluster.CLUSTER,
             JooqCollection.COLLECTION,
             JooqCollectionAsset.COLLECTION_ASSET,

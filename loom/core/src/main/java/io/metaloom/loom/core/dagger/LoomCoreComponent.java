@@ -6,7 +6,7 @@ import dagger.BindsInstance;
 import dagger.Component;
 import io.metaloom.loom.api.options.LoomOptionsLookup;
 import io.metaloom.loom.auth.AuthenticationService;
-import io.metaloom.loom.ai.dagger.AiEndpointModule;
+import io.metaloom.loom.agent.chat.dagger.ChatEndpointModule;
 import io.metaloom.loom.auth.jwt.AuthModule;
 import io.metaloom.loom.common.dagger.LoomModule;
 import io.metaloom.loom.common.dagger.VertxModule;
@@ -40,7 +40,7 @@ import io.metaloom.loom.rest.dagger.RESTModule;
 	RESTModule.class,
 	MCPModule.class,
 	MCPToolModule.class,
-	AiEndpointModule.class,
+	ChatEndpointModule.class,
 	RoutingContextModule.class })
 public interface LoomCoreComponent {
 
@@ -48,7 +48,7 @@ public interface LoomCoreComponent {
 
 	BootstrapInitializer boot();
 
-	io.metaloom.loom.ai.AgentService agentService();
+	io.metaloom.loom.agent.chat.AgentService agentService();
 
 	AuthenticationService authService();
 

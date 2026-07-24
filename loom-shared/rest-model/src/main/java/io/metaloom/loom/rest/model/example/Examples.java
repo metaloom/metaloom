@@ -8,6 +8,7 @@ import io.metaloom.loom.rest.model.asset.binary.AssetBinaryExamples;
 import io.metaloom.loom.rest.model.attachment.AttachmentExamples;
 import io.metaloom.loom.rest.model.blacklist.BlacklistExamples;
 import io.metaloom.loom.rest.model.chat.ChatExamples;
+import io.metaloom.loom.rest.model.chatsession.ChatSessionExamples;
 import io.metaloom.loom.rest.model.skill.SkillExamples;
 import io.metaloom.loom.rest.model.pool.AssetPoolExamples;
 import io.metaloom.loom.rest.model.auth.AuthLoginExamples;
@@ -17,8 +18,10 @@ import io.metaloom.loom.rest.model.comment.CommentExamples;
 import io.metaloom.loom.rest.model.detection.DetectionExamples;
 import io.metaloom.loom.rest.model.embedding.EmbeddingExamples;
 import io.metaloom.loom.rest.model.example.impl.ExampleImpl;
+import io.metaloom.loom.rest.model.fingerprintcomp.FingerprintCompExamples;
 import io.metaloom.loom.rest.model.group.GroupExamples;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompExamples;
+import io.metaloom.loom.rest.model.segmentcomp.SegmentCompExamples;
 import io.metaloom.loom.rest.model.library.LibraryExamples;
 import io.metaloom.loom.rest.model.noderesult.NodeResultExamples;
 import io.metaloom.loom.rest.model.person.PersonExamples;
@@ -47,6 +50,7 @@ public interface Examples extends
 	BlacklistExamples,
 	ChatExamples,
 	SkillExamples,
+	ChatSessionExamples,
 	ClusterExamples,
 	CommentExamples,
 	CollectionExamples,
@@ -66,6 +70,8 @@ public interface Examples extends
 	ProcessorExamples,
 	NodeResultExamples,
 	JsonCompExamples,
+	FingerprintCompExamples,
+	SegmentCompExamples,
 	TranscriptExamples,
 	WebhookExamples {
 

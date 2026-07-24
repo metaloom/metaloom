@@ -18,6 +18,7 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.NodeOutputKey;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.node.payload.BoundingBox;
 import io.metaloom.cortex.api.node.payload.Detection;
@@ -28,6 +29,8 @@ import io.metaloom.cortex.node.facedetect.video.VideoFaceScanner;
 import io.metaloom.cortex.node.facedetect.video.VideoFaceScannerReport;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
+import io.metaloom.loom.rest.model.detection.DetectionBulkCreateRequest;
+import io.metaloom.loom.rest.model.detection.DetectionCreateRequest;
 import io.metaloom.video.facedetect.face.Face;
 import io.metaloom.video.facedetect.face.FaceBox;
 import io.metaloom.video.facedetect.inspireface.InspireFacedetector;
@@ -74,15 +77,15 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 	protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws IOException {
 		LoomMedia media = ctx.media();
 		if (media.isVideo()) {
-			return processVideo(ctx);
+			return processVideo(ctx, asset);
 		} else if (media.isImage()) {
-			return processImage(ctx);
+			return processImage(ctx, asset);
 		} else {
 			return ctx.skipped("No visual media").next();
 		}
 	}
 
-	private NodeResult processImage(NodeContext<LoomMedia> ctx) throws IOException {
+	private NodeResult processImage(NodeContext<LoomMedia> ctx, AssetResponse asset) throws IOException {
 		LoomMedia media = ctx.media();
 		BufferedImage image = ImageIO.read(media.file());
 		List<? extends Face> faces = inspireface.detectFaces(image);
@@ -100,10 +103,11 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 					0, 1.0f, "face"));
 			}
 		}
+		persist(ctx, asset, detections);
 		return ctx.origin(COMPUTED).next();
 	}
 
-	private NodeResult processVideo(NodeContext<LoomMedia> ctx) {
+	private NodeResult processVideo(NodeContext<LoomMedia> ctx, AssetResponse asset) {
 		LoomMedia media = ctx.media();
 
 		try (VideoFile video = Videos.open(media.absolutePath())) {
@@ -121,10 +125,44 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 					new BoundingBox(box.getStartX(), box.getStartY(), box.getWidth(), box.getHeight()),
 					frameIndex, 1.0f, "face"));
 			}
+			persist(ctx, asset, detections);
 			return ctx.origin(COMPUTED).next();
 		} catch (InterruptedException | IOException | URISyntaxException e) {
 			log.error("Failed to process video", e);
 			return ctx.failure(e.getMessage()).next();
+		}
+	}
+
+	/**
+	 * Persist detected faces as the asset's {@code facedetect} detection set and record a ledger entry. Each face becomes a detection row keyed by
+	 * (asset, node_kind, frame_number, detection_index), so re-running the node upserts rather than appends. Best-effort and a no-op when the asset is
+	 * not yet known to Loom or we run offline.
+	 */
+	private void persist(NodeContext<LoomMedia> ctx, AssetResponse asset, List<Detection> detections) {
+		if (asset == null || client() == null) {
+			return;
+		}
+		try {
+			List<DetectionCreateRequest> items = new ArrayList<>();
+			int index = 0;
+			for (Detection detection : detections) {
+				BoundingBox box = detection.boundingBox();
+				items.add(new DetectionCreateRequest()
+					.setType("face")
+					.setNodeKind(name())
+					.setDetectionIndex(index++)
+					.setFrameNumber(detection.frameIndex())
+					.setBboxX((float) box.x())
+					.setBboxY((float) box.y())
+					.setBboxWidth((float) box.width())
+					.setBboxHeight((float) box.height())
+					.setConfidence(detection.confidence()));
+			}
+			client().bulkCreateAssetDetections(asset.getUuid(), new DetectionBulkCreateRequest().setDetections(items)).sync();
+			recordNodeResult(asset, ctx, ResultState.SUCCESS, null, null, resultRef("detection"));
+		} catch (Exception e) {
+			log.warn("Failed to persist detections for asset {}: {}", asset.getUuid(), e.getMessage());
+			recordNodeResult(asset, ctx, ResultState.FAILED, e.getMessage(), null, null);
 		}
 	}
 

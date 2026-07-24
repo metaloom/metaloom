@@ -19,6 +19,15 @@ public interface DetectionDao extends CRUDDao<Detection> {
 
 	Detection createDetection(UUID userUuid, String type);
 
+	/**
+	 * Insert the detection, or replace the conflicting row keyed by {@code (asset_uuid, node_kind, frame_number, detection_index)}. A face-detection
+	 * node that runs again rewrites its own rows instead of appending duplicates.
+	 *
+	 * @param detection the detection to persist; its uuid is populated on return
+	 * @return the persisted detection
+	 */
+	Detection upsertDetection(Detection detection);
+
 	Detection loadAssetDetection(AssetId assetId, UUID detectionUuid);
 
 	Page<Detection> loadPageForAsset(AssetId assetId, UUID fromId, int pageSize, List<Filter> filters, SortKey sortBy, SortDirection sortDirection);

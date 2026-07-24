@@ -61,6 +61,13 @@ public class DetectionDaoImpl extends AbstractJooqDao<Detection> implements Dete
 	}
 
 	@Override
+	public Detection upsertDetection(Detection detection) {
+		// Idempotent on the (asset_uuid, node_kind, frame_number, detection_index) unique key.
+		upsert(detection, DETECTION.ASSET_UUID, DETECTION.NODE_KIND, DETECTION.FRAME_NUMBER, DETECTION.DETECTION_INDEX);
+		return detection;
+	}
+
+	@Override
 	public Page<Detection> loadPageForAsset(AssetId assetId, UUID fromId, int pageSize, List<Filter> filters, SortKey sortBy,
 		SortDirection sortDirection) {
 		SelectConditionStep<Record> query = null;

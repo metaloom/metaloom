@@ -35,7 +35,8 @@
    "detection": "Detection",
    "tags": "Tags",
    "workflow": "Workflow",
-   "skills": "Skills"
+   "skills": "Skills",
+   "chatSessions": "Chat Sessions"
   },
   "admin": {
    "assetPools": "Asset Pools",

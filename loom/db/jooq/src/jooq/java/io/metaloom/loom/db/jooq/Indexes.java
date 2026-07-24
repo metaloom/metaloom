@@ -20,6 +20,8 @@ import io.metaloom.loom.db.jooq.tables.JooqAssetVideoComp;
 import io.metaloom.loom.db.jooq.tables.JooqAttachment;
 import io.metaloom.loom.db.jooq.tables.JooqAttachmentBinary;
 import io.metaloom.loom.db.jooq.tables.JooqBlacklist;
+import io.metaloom.loom.db.jooq.tables.JooqChatSession;
+import io.metaloom.loom.db.jooq.tables.JooqChatSessionContextRef;
 import io.metaloom.loom.db.jooq.tables.JooqCluster;
 import io.metaloom.loom.db.jooq.tables.JooqCollectionAsset;
 import io.metaloom.loom.db.jooq.tables.JooqCollectionCluster;
@@ -93,6 +95,9 @@ public class Indexes {
     public static final Index IDX_ASSET_TRANSCRIPT_COMP_LANG = Internal.createIndex(DSL.name("idx_asset_transcript_comp_lang"), JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP, new OrderField[] { JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP.LANG }, false);
     public static final Index IDX_ASSET_VIDEO_COMP_ASSET_UUID = Internal.createIndex(DSL.name("idx_asset_video_comp_asset_uuid"), JooqAssetVideoComp.ASSET_VIDEO_COMP, new OrderField[] { JooqAssetVideoComp.ASSET_VIDEO_COMP.ASSET_UUID }, false);
     public static final Index IDX_ATTACHMENT_ASSET_UUID = Internal.createIndex(DSL.name("idx_attachment_asset_uuid"), JooqAttachment.ATTACHMENT, new OrderField[] { JooqAttachment.ATTACHMENT.ASSET_UUID }, false);
+    public static final Index IDX_CHAT_SESSION_CONTEXT_REF_SOURCE = Internal.createIndex(DSL.name("idx_chat_session_context_ref_source"), JooqChatSessionContextRef.CHAT_SESSION_CONTEXT_REF, new OrderField[] { JooqChatSessionContextRef.CHAT_SESSION_CONTEXT_REF.SOURCE_SESSION_UUID }, false);
+    public static final Index IDX_CHAT_SESSION_CREATOR = Internal.createIndex(DSL.name("idx_chat_session_creator"), JooqChatSession.CHAT_SESSION, new OrderField[] { JooqChatSession.CHAT_SESSION.CREATOR_UUID }, false);
+    public static final Index IDX_CHAT_SESSION_PUBLISHED = Internal.createIndex(DSL.name("idx_chat_session_published"), JooqChatSession.CHAT_SESSION, new OrderField[] { JooqChatSession.CHAT_SESSION.PUBLISHED }, false);
     public static final Index IDX_CORTEX_INSTANCE_NODE_KIND_KIND = Internal.createIndex(DSL.name("idx_cortex_instance_node_kind_kind"), JooqCortexInstanceNodeKind.CORTEX_INSTANCE_NODE_KIND, new OrderField[] { JooqCortexInstanceNodeKind.CORTEX_INSTANCE_NODE_KIND.NODE_KIND }, false);
     public static final Index IDX_DETECTION_ASSET_UUID = Internal.createIndex(DSL.name("idx_detection_asset_uuid"), JooqDetection.DETECTION, new OrderField[] { JooqDetection.DETECTION.ASSET_UUID }, false);
     public static final Index IDX_DETECTION_LABEL = Internal.createIndex(DSL.name("idx_detection_label"), JooqDetection.DETECTION, new OrderField[] { JooqDetection.DETECTION.LABEL }, false);

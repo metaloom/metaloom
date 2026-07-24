@@ -20,6 +20,8 @@ import TagsView from "../features/tags/TagsView";
 import CortexView from "../features/cortex/CortexView";
 import WorkflowView from "../features/workflow/WorkflowView";
 import SkillManagementView from "../features/skills/SkillManagementView";
+import ChatSessionsView from "../features/chatSessions/ChatSessionsView";
+import ChatSessionDetail from "../features/chatSessions/ChatSessionDetail";
 import AssetPoolsView from "../features/assetPools/AssetPoolsView";
 import { LayoutContext } from "../context/LayoutContext";
 
@@ -48,6 +50,8 @@ export default function AppShell() {
           <Route path="/collections" element={<CollectionsView />} />
           <Route path="/tasks" element={<TasksView />} />
           <Route path="/skills" element={<SkillManagementView />} />
+          <Route path="/chat/sessions" element={<ChatSessionsView />} />
+          <Route path="/chat/sessions/:id" element={<ChatSessionDetail />} />
           <Route path="/pipelines" element={<PipelineEditor />} />
           <Route path="/detection" element={<DetectionManagement />} />
           <Route path="/faces" element={<Navigate to="/detection" replace />} />

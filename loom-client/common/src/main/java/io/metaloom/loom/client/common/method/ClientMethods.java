@@ -31,6 +31,8 @@ public interface ClientMethods extends
 	TranscriptMethods,
 	NodeResultMethods,
 	JsonCompMethods,
+	FingerprintCompMethods,
+	SegmentCompMethods,
 	GraphQLMethods,
 	HealthMethods {
 

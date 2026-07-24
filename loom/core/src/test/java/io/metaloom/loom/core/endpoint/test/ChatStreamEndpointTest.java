@@ -17,8 +17,8 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 
 import io.metaloom.ai.genai.llm.ToolCall;
-import io.metaloom.loom.ai.loop.TurnResult;
-import io.metaloom.loom.ai.loop.TurnStreamer;
+import io.metaloom.loom.agent.chat.loop.TurnResult;
+import io.metaloom.loom.agent.chat.loop.TurnStreamer;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.endpoint.AbstractEndpointTest;
 import io.metaloom.loom.rest.model.auth.AuthLoginResponse;

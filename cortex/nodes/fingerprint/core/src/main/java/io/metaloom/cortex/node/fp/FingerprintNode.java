@@ -13,14 +13,18 @@ import javax.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.UUID;
+
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.NodeOutputKey;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
+import io.metaloom.loom.rest.model.fingerprintcomp.FingerprintCompCreateRequest;
 import io.metaloom.video4j.Video4j;
 import io.metaloom.video4j.VideoFile;
 import io.metaloom.video4j.Videos;
@@ -33,6 +37,9 @@ public class FingerprintNode extends AbstractMediaNode<FingerprintNodeOptions> {
 	public static final Logger log = LoggerFactory.getLogger(FingerprintNode.class);
 
 	public static final NodeOutputKey<String> OUTPUT_FINGERPRINT = NodeOutputKey.of("fingerprint", String.class);
+
+	/** Identifier of the fingerprint algorithm this node produces; part of the persisted component's natural key. */
+	private static final String ALGORITHM = "metaloom-multisector-v1";
 
 	/**
 	 * Upper bound for the in-memory skip cache. Fingerprinting a video is expensive, so we remember which media were already
@@ -112,6 +119,9 @@ public class FingerprintNode extends AbstractMediaNode<FingerprintNodeOptions> {
 				String value = hash != null ? hash : "NULL";
 				ctx.output(OUTPUT_FINGERPRINT, value);
 				fingerprintCache.put(media.absolutePath(), value);
+				if (hash != null) {
+					persist(ctx, asset, hash);
+				}
 				print(ctx, hash != null ? "DONE" : "NULL", "");
 				return ctx.origin(COMPUTED).next();
 			} catch (Exception e) {
@@ -122,6 +132,28 @@ public class FingerprintNode extends AbstractMediaNode<FingerprintNodeOptions> {
 				ctx.output(OUTPUT_FINGERPRINT, "NULL");
 				return ctx.failure(e.getMessage()).next();
 			}
+		}
+	}
+
+	/**
+	 * Persist the computed whole-video fingerprint as a sector-0 {@code asset_fingerprint_comp} row and record a ledger entry. Best-effort and a no-op
+	 * when the asset is not yet known to Loom or we run offline.
+	 */
+	private void persist(NodeContext<LoomMedia> ctx, AssetResponse asset, String fingerprint) {
+		if (asset == null || client() == null) {
+			return;
+		}
+		try {
+			FingerprintCompCreateRequest request = new FingerprintCompCreateRequest();
+			request.setNodeKind(name());
+			request.setAlgorithm(ALGORITHM);
+			request.setSectorIndex(0);
+			request.setFingerprint(fingerprint);
+			UUID compUuid = client().createAssetFingerprintComp(asset.getUuid(), request).sync().body().getUuid();
+			recordNodeResult(asset, ctx, ResultState.SUCCESS, null, ALGORITHM, resultRef("asset_fingerprint_comp", compUuid));
+		} catch (Exception e) {
+			log.warn("Failed to persist fingerprint for asset {}: {}", asset.getUuid(), e.getMessage());
+			recordNodeResult(asset, ctx, ResultState.FAILED, e.getMessage(), ALGORITHM, null);
 		}
 	}
 
