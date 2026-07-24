@@ -272,6 +272,7 @@ public class AssetEndpointService extends AbstractCRUDEndpointService<AssetDao, 
 			update(hashes::getMD5, asset::setMD5);
 			update(hashes::getSHA256, asset::setSHA256);
 			update(hashes::getSHA512, asset::setSHA512);
+			update(hashes::getChunkHash, asset::setChunkHash);
 		}
 
 		ConsistencyInfo consistency = model.getConsistency();

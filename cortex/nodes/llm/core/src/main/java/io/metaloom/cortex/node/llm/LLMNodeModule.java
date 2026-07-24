@@ -4,6 +4,8 @@ import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
 import dagger.multibindings.IntoSet;
+import io.metaloom.ai.genai.llm.LLMProvider;
+import io.metaloom.ai.genai.llm.ollama.OllamaLLMProvider;
 import io.metaloom.cortex.api.node.FilesystemNode;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractNodeModule;
@@ -17,6 +19,11 @@ public abstract class LLMNodeModule extends AbstractNodeModule {
 	@Binds
 	@IntoSet
 	abstract FilesystemNode<?, ?> bindNode(LLMNode node);
+
+	@Provides
+	public static LLMProvider llmProvider() {
+		return new OllamaLLMProvider();
+	}
 
 	@IntoSet
 	@Provides

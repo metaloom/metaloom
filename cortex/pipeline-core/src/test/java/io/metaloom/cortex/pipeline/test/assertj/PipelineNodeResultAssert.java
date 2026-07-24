@@ -2,8 +2,8 @@ package io.metaloom.cortex.pipeline.test.assertj;
 
 import org.assertj.core.api.AbstractAssert;
 
-import io.metaloom.cortex.pipeline.api.NodeResult;
-import io.metaloom.cortex.pipeline.api.NodeState;
+import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.ResultState;
 
 /**
  * AssertJ asserter for a single pipeline-level {@link NodeResult}.
@@ -17,7 +17,7 @@ public class PipelineNodeResultAssert extends AbstractAssert<PipelineNodeResultA
 
 	public PipelineNodeResultAssert isCompleted() {
 		isNotNull();
-		if (actual.getState() != NodeState.COMPLETED) {
+		if (actual.getState() != ResultState.SUCCESS) {
 			failWithMessage("Expected node <%s> to be COMPLETED but was <%s>",
 					actual.getNodeId(), actual.getState());
 		}
@@ -26,7 +26,7 @@ public class PipelineNodeResultAssert extends AbstractAssert<PipelineNodeResultA
 
 	public PipelineNodeResultAssert isSkipped() {
 		isNotNull();
-		if (actual.getState() != NodeState.SKIPPED) {
+		if (actual.getState() != ResultState.SKIPPED) {
 			failWithMessage("Expected node <%s> to be SKIPPED but was <%s>",
 					actual.getNodeId(), actual.getState());
 		}
@@ -35,7 +35,7 @@ public class PipelineNodeResultAssert extends AbstractAssert<PipelineNodeResultA
 
 	public PipelineNodeResultAssert isFailed() {
 		isNotNull();
-		if (actual.getState() != NodeState.FAILED) {
+		if (actual.getState() != ResultState.FAILED) {
 			failWithMessage("Expected node <%s> to be FAILED but was <%s>",
 					actual.getNodeId(), actual.getState());
 		}

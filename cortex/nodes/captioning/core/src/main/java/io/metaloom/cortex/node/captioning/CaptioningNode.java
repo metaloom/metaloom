@@ -1,5 +1,7 @@
 package io.metaloom.cortex.node.captioning;
 
+import static io.metaloom.cortex.api.node.ResultOrigin.LOCAL;
+
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 
@@ -12,6 +14,7 @@ import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.option.CortexOptions;
+import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
@@ -25,10 +28,16 @@ public class CaptioningNode extends AbstractMediaNode<CaptioningNodeOptions> {
 
 	public static final NodeOutputKey<String> OUTPUT_CAPTION = NodeOutputKey.of("caption_result", String.class);
 
+	/** Upper bound for the in-heap skip cache. Captioning via the vision model is expensive, so we remember the caption produced for each media during
+	 * this worker's lifetime and re-emit it instead of recomputing. Non-durable - the durable copy lives in Loom. */
+	private static final int RESULT_CACHE_SIZE = 10_000;
+
+	private final LocalResultCache<String> resultCache = new LocalResultCache<>(RESULT_CACHE_SIZE);
+
 	@Inject
-	public CaptioningNode(@Nullable LoomClient client, CortexOptions cortexOption, CaptioningNodeOptions option) {
+	public CaptioningNode(@Nullable LoomClient client, CortexOptions cortexOption, CaptioningNodeOptions option, SmolVLMClient smolvlmClient) {
 		super(client, cortexOption, option);
-		this.smolvlmClient = new SmolVLMClient(option.getSmolVLMHost(), option.getSmolVLMPort());
+		this.smolvlmClient = smolvlmClient;
 	}
 
 	@Override
@@ -46,9 +55,18 @@ public class CaptioningNode extends AbstractMediaNode<CaptioningNodeOptions> {
 		LoomMedia media = ctx.media();
 		try {
 			if (media.isImage()) {
+				String path = media.absolutePath();
+				// Re-emit a locally cached caption instead of re-running the vision model. On a hit the durable copy already exists in Loom, so we
+				// also skip re-persisting.
+				String cached = resultCache.get(path);
+				if (cached != null) {
+					ctx.output(OUTPUT_CAPTION, cached);
+					return ctx.origin(LOCAL).next();
+				}
 				BufferedImage image = ImageUtils.load(media.file());
 				String result = smolvlmClient.captionByImage(image, 512);
 				ctx.output(OUTPUT_CAPTION, result);
+				resultCache.put(path, result);
 				persist(ctx, asset, result);
 				return ctx.next();
 			} else if (media.isVideo()) {

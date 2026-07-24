@@ -1,6 +1,7 @@
 package io.metaloom.cortex.node.consistency;
 
 import static io.metaloom.cortex.api.node.ResultOrigin.COMPUTED;
+import static io.metaloom.cortex.api.node.ResultOrigin.LOCAL;
 import static io.metaloom.cortex.api.node.ResultOrigin.REMOTE;
 
 import java.io.IOException;
@@ -15,6 +16,7 @@ import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.option.CortexOptions;
+import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
@@ -26,6 +28,11 @@ public class ConsistencyNode extends AbstractMediaNode<ConsistencyNodeOptions> {
 
 	public static final NodeOutputKey<Long> OUTPUT_ZERO_CHUNK_COUNT = NodeOutputKey.of("zero_chunk_count", Long.class);
 	public static final NodeOutputKey<Boolean> OUTPUT_IS_COMPLETE = NodeOutputKey.of("is_complete", Boolean.class);
+
+	/** In-heap skip cache of the computed zero-chunk count, keyed by media path, to avoid re-scanning a file within this worker's lifetime. Non-durable
+	 * - the durable copy lives in Loom. */
+	private final LocalResultCache<Long> resultCache = new LocalResultCache<>(50_000);
+
 	@Inject
 	public ConsistencyNode(@Nullable LoomClient client, CortexOptions cortexOption, ConsistencyNodeOptions options) {
 		super(client, cortexOption, options);
@@ -45,11 +52,20 @@ public class ConsistencyNode extends AbstractMediaNode<ConsistencyNodeOptions> {
 	@Override
 	protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
 		LoomMedia media = ctx.media();
+		String path = media.absolutePath();
+
+		Long cached = resultCache.get(path);
+		if (cached != null) {
+			ctx.output(OUTPUT_ZERO_CHUNK_COUNT, cached);
+			ctx.output(OUTPUT_IS_COMPLETE, cached == 0);
+			return ctx.origin(LOCAL).next();
+		}
 
 		if (asset == null) {
 			long count = computeZeroChunks(media);
 			ctx.output(OUTPUT_ZERO_CHUNK_COUNT, count);
 			ctx.output(OUTPUT_IS_COMPLETE, count == 0);
+			resultCache.put(path, count);
 			return ctx.origin(COMPUTED).next();
 		} else {
 			Long dbCount = asset.getConsistency() != null ? asset.getConsistency().getZeroChunkCount() : null;
@@ -61,6 +77,7 @@ public class ConsistencyNode extends AbstractMediaNode<ConsistencyNodeOptions> {
 				long count = computeZeroChunks(media);
 				ctx.output(OUTPUT_ZERO_CHUNK_COUNT, count);
 				ctx.output(OUTPUT_IS_COMPLETE, count == 0);
+				resultCache.put(path, count);
 				persist(ctx, asset, count);
 				return ctx.origin(COMPUTED).next();
 			}

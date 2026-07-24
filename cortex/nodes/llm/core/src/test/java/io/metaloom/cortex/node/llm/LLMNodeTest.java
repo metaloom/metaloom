@@ -45,7 +45,7 @@ public class LLMNodeTest extends AbstractBasicNodeTest<LLMNode> {
 		LLMNodeOptions options = new LLMNodeOptions();
 		options.setOllamaUrl(TestEnv.OLLAMA_URL);
 		options.setEnabled(true);
-		return new LLMNode(null, cortexOptions, options);
+		return new LLMNode(null, cortexOptions, options, new io.metaloom.ai.genai.llm.ollama.OllamaLLMProvider());
 	}
 
 }

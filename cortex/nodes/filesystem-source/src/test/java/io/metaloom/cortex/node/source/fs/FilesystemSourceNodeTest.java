@@ -19,8 +19,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.common.media.LoomMediaLoader;
-import io.metaloom.cortex.pipeline.api.NodeResult;
-import io.metaloom.cortex.pipeline.api.NodeState;
+import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.fs.FileState;
 
 public class FilesystemSourceNodeTest {
@@ -169,7 +169,7 @@ public class FilesystemSourceNodeTest {
 
 		NodeResult result = rootNode().process(media, Map.of());
 
-		assertThat(result.getState()).isEqualTo(NodeState.COMPLETED);
+		assertThat(result.getState()).isEqualTo(ResultState.SUCCESS);
 		assertThat((Object) result.getOutput("path")).isEqualTo(videoA.toString());
 		assertThat((Object) result.getOutput("source")).isEqualTo("filesystem");
 	}

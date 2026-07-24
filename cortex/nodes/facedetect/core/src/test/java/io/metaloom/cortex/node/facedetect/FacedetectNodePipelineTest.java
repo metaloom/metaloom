@@ -19,7 +19,7 @@ import io.metaloom.cortex.api.node.ResultOrigin;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.node.facedetect.video.VideoFaceScanner;
-import io.metaloom.cortex.pipeline.api.NodeState;
+import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.pipeline.api.PipelineResult;
 import io.metaloom.cortex.pipeline.api.event.NodeCompletionEvent;
 import io.metaloom.cortex.pipeline.api.event.PipelineTrackingEvent;
@@ -126,7 +126,7 @@ class FacedetectNodePipelineTest extends AbstractNodeChainTest {
 		execute(videoMedia, adapter);
 
 		NodeCompletionEvent event = assertCompletionEvent("facedetect");
-		assertThat(event.getResult().getState()).isEqualTo(NodeState.COMPLETED);
+		assertThat(event.getResult().getState()).isEqualTo(ResultState.SUCCESS);
 	}
 
 	@Test

@@ -8,8 +8,7 @@ import org.junit.jupiter.api.Test;
 
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.pipeline.api.NodeMode;
-import io.metaloom.cortex.pipeline.api.NodeResult;
-import io.metaloom.cortex.pipeline.api.NodeState;
+import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.pipeline.test.StubLoomMedia;
 
 /**
@@ -31,29 +30,32 @@ class CortexNodeAdapterTest {
 		StubFilesystemNode node = StubFilesystemNode.succeeding("hasher", Map.of("sha512", "abc", "bytes", 42));
 		NodeResult result = adapt(node).process(MEDIA, Map.of());
 
-		assertThat(result.getState()).isEqualTo(NodeState.COMPLETED);
+		assertThat(result.getState()).isEqualTo(ResultState.SUCCESS);
 		assertThat(result.getNodeId()).isEqualTo("hasher");
 		assertThat(result.getOutput()).containsExactlyInAnyOrderEntriesOf(Map.of("sha512", "abc", "bytes", 42));
 	}
 
 	@Test
 	void testSkippedMapsToSkipped() {
+		// Node and pipeline results are the same type now: the adapter stamps identity + timing and preserves the node's own state and message (skip reason).
 		StubFilesystemNode node = new StubFilesystemNode("hasher",
-				ctx -> new io.metaloom.cortex.api.node.NodeResult(ResultState.SKIPPED));
+				ctx -> new io.metaloom.cortex.api.node.NodeResult(null, ResultState.SKIPPED, 0, "unprocessable", java.util.Map.of()));
 		NodeResult result = adapt(node).process(MEDIA, Map.of());
 
-		assertThat(result.getState()).isEqualTo(NodeState.SKIPPED);
-		assertThat(result.getMessage()).isEqualTo("Node skipped");
+		assertThat(result.getState()).isEqualTo(ResultState.SKIPPED);
+		assertThat(result.getNodeId()).isEqualTo("hasher");
+		assertThat(result.getMessage()).isEqualTo("unprocessable");
 	}
 
 	@Test
 	void testFailedMapsToFailed() {
 		StubFilesystemNode node = new StubFilesystemNode("hasher",
-				ctx -> new io.metaloom.cortex.api.node.NodeResult(ResultState.FAILED));
+				ctx -> new io.metaloom.cortex.api.node.NodeResult(null, ResultState.FAILED, 0, "boom", java.util.Map.of()));
 		NodeResult result = adapt(node).process(MEDIA, Map.of());
 
-		assertThat(result.getState()).isEqualTo(NodeState.FAILED);
-		assertThat(result.getMessage()).isEqualTo("Node failed");
+		assertThat(result.getState()).isEqualTo(ResultState.FAILED);
+		assertThat(result.getNodeId()).isEqualTo("hasher");
+		assertThat(result.getMessage()).isEqualTo("boom");
 	}
 
 	@Test
@@ -61,7 +63,7 @@ class CortexNodeAdapterTest {
 		StubFilesystemNode node = new StubFilesystemNode("hasher", ctx -> null);
 		NodeResult result = adapt(node).process(MEDIA, Map.of());
 
-		assertThat(result.getState()).isEqualTo(NodeState.FAILED);
+		assertThat(result.getState()).isEqualTo(ResultState.FAILED);
 		assertThat(result.getMessage()).isEqualTo("Node returned null result");
 	}
 
@@ -72,7 +74,7 @@ class CortexNodeAdapterTest {
 		});
 		NodeResult result = adapt(node).process(MEDIA, Map.of());
 
-		assertThat(result.getState()).isEqualTo(NodeState.FAILED);
+		assertThat(result.getState()).isEqualTo(ResultState.FAILED);
 		assertThat(result.getMessage()).isEqualTo("native handle closed");
 	}
 

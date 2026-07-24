@@ -1,6 +1,7 @@
 package io.metaloom.cortex.node.tika;
 
 import static io.metaloom.cortex.api.node.ResultOrigin.COMPUTED;
+import static io.metaloom.cortex.api.node.ResultOrigin.LOCAL;
 
 import javax.annotation.Nullable;
 import javax.inject.Inject;
@@ -16,6 +17,7 @@ import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.option.CortexOptions;
+import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
@@ -28,6 +30,10 @@ public class TikaNode extends AbstractMediaNode<TikaNodeOptions> {
 
 	public static final NodeOutputKey<String> OUTPUT_TIKA_FLAGS = NodeOutputKey.of("tika_flags", String.class);
 	public static final NodeOutputKey<String> OUTPUT_TIKA_CONTENT = NodeOutputKey.of("tika_content", String.class);
+
+	/** In-heap skip cache of extracted Tika content, keyed by media path, to avoid re-parsing within this worker's lifetime. Non-durable - the durable
+	 * copy lives in Loom. */
+	private final LocalResultCache<String> resultCache = new LocalResultCache<>(50_000);
 
 	@Inject
 	public TikaNode(@Nullable LoomClient client, CortexOptions cortexOption, TikaNodeOptions options) {
@@ -48,12 +54,22 @@ public class TikaNode extends AbstractMediaNode<TikaNodeOptions> {
 	@Override
 	protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
 		LoomMedia media = ctx.media();
+		String path = media.absolutePath();
+		if (resultCache.has(path)) {
+			String cached = resultCache.get(path);
+			ctx.output(OUTPUT_TIKA_FLAGS, "DONE");
+			if (cached != null) {
+				ctx.output(OUTPUT_TIKA_CONTENT, cached);
+			}
+			return ctx.origin(LOCAL).next();
+		}
 		try {
 			String result = MediaTikaParser.parse(media);
 			ctx.output(OUTPUT_TIKA_FLAGS, "DONE");
 			if (result != null) {
 				ctx.output(OUTPUT_TIKA_CONTENT, result);
 			}
+			resultCache.put(path, result);
 			persist(ctx, asset, result);
 			return ctx.origin(COMPUTED).next();
 		} catch (Exception e) {

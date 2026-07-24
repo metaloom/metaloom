@@ -18,7 +18,7 @@ import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
-import io.metaloom.cortex.pipeline.api.NodeState;
+import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.pipeline.api.PipelineResult;
 import io.metaloom.cortex.pipeline.api.event.NodeCompletionEvent;
 import io.metaloom.cortex.pipeline.api.event.PipelineTrackingEvent;
@@ -62,7 +62,7 @@ class LLMNodePipelineTest extends AbstractNodeChainTest {
 		prompt.setPrompt("Extract metadata from ${name}");
 		options.setPrompts(Map.of(promptId, prompt));
 
-		LLMNode node = spy(new LLMNode(null, new CortexOptions(), options));
+		LLMNode node = spy(new LLMNode(null, new CortexOptions(), options, new io.metaloom.ai.genai.llm.ollama.OllamaLLMProvider()));
 
 		// Stub the compute method to avoid Ollama HTTP calls
 		doAnswer(invocation -> {
@@ -120,7 +120,7 @@ class LLMNodePipelineTest extends AbstractNodeChainTest {
 		options.setPrompts(Map.of("describe", prompt1, "categorize", prompt2));
 
 		CortexOptions cortexOptions = new CortexOptions();
-		LLMNode node = spy(new LLMNode(null, cortexOptions, options));
+		LLMNode node = spy(new LLMNode(null, cortexOptions, options, new io.metaloom.ai.genai.llm.ollama.OllamaLLMProvider()));
 
 		doAnswer(invocation -> {
 			NodeContext<LoomMedia> ctx = invocation.getArgument(0);
@@ -151,7 +151,7 @@ class LLMNodePipelineTest extends AbstractNodeChainTest {
 		execute(media, adapter);
 
 		NodeCompletionEvent event = assertCompletionEvent("llm");
-		assertThat(event.getResult().getState()).isEqualTo(NodeState.COMPLETED);
+		assertThat(event.getResult().getState()).isEqualTo(ResultState.SUCCESS);
 	}
 
 	@Test

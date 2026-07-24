@@ -7,7 +7,7 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.pipeline.api.NodeResult;
+import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.pipeline.api.cache.NodeCacheProvider;
 
 /**

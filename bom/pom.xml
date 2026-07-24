@@ -278,6 +278,11 @@
                 <artifactId>genai-utils</artifactId>
                 <version>0.0.1-SNAPSHOT</version>
             </dependency>
+            <dependency>
+                <groupId>io.metaloom.utils</groupId>
+                <artifactId>genai-utils-mock-llm-server</artifactId>
+                <version>0.0.1-SNAPSHOT</version>
+            </dependency>
 
             <!-- jOOQ / persistance -->
             <dependency>

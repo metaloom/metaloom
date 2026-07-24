@@ -3,7 +3,7 @@ package io.metaloom.loom.pipeline.model;
 /**
  * Terminal and non-terminal states a node can hold for a single media item.
  *
- * <p>Mirrors {@code io.metaloom.cortex.pipeline.api.NodeState} by name so that the
+ * <p>Mirrors {@code io.metaloom.cortex.api.node.ResultState} by name so that the
  * two can be mapped with {@code valueOf(name())} at the wire boundary. Adding a
  * value on one side without the other breaks that mapping at runtime rather than
  * at compile time - change both together.</p>

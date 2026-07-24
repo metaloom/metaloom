@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import io.metaloom.cortex.api.option.CortexOptions;
-import io.metaloom.cortex.pipeline.api.NodeState;
+import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.pipeline.api.PipelineResult;
 import io.metaloom.cortex.pipeline.api.event.NodeCompletionEvent;
 import io.metaloom.cortex.pipeline.api.event.PipelineTrackingEvent;
@@ -105,10 +105,10 @@ public class MD5NodePipelineTest extends AbstractNodeChainTest {
 		execute(media, adapter);
 
 		NodeCompletionEvent sourceEvent = assertCompletionEvent("asset-source");
-		assertThat(sourceEvent.getResult().getState()).isEqualTo(NodeState.COMPLETED);
+		assertThat(sourceEvent.getResult().getState()).isEqualTo(ResultState.SUCCESS);
 
 		NodeCompletionEvent md5Event = assertCompletionEvent("md5");
-		assertThat(md5Event.getResult().getState()).isEqualTo(NodeState.COMPLETED);
+		assertThat(md5Event.getResult().getState()).isEqualTo(ResultState.SUCCESS);
 		assertThat(md5Event.getMedia()).isSameAs(media);
 	}
 

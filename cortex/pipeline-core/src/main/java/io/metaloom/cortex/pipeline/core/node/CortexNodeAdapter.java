@@ -10,17 +10,18 @@ import io.metaloom.cortex.api.node.FilesystemNode;
 import io.metaloom.cortex.api.node.SourceNode;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.pipeline.api.NodeMode;
-import io.metaloom.cortex.pipeline.api.NodeResult;
 
 /**
  * Adapter that wraps an existing {@link FilesystemNode} as a {@link io.metaloom.cortex.pipeline.api.node.PipelineNode}.
  * This allows the pipeline system to reuse all existing Cortex nodes.
  *
- * <p>The adapter converts upstream pipeline {@link NodeResult} outputs into a
+ * <p>The adapter converts upstream {@link NodeResult} outputs into a
  * {@code Map<String, Map<String, Object>>} that the wrapped node can access
- * via {@link NodeContext#upstreamOutputs()}. It also extracts the node's
- * outputs from the cortex-level result and forwards them in the pipeline-level result.</p>
+ * via {@link NodeContext#upstreamOutputs()}. Since node and pipeline results are
+ * now the same {@link NodeResult} type, it simply stamps the wrapped node's result
+ * with this adapter's pipeline id and elapsed time via {@link NodeResult#withNode}.</p>
  */
 public class CortexNodeAdapter extends AbstractPipelineNode {
 
@@ -61,22 +62,15 @@ public class CortexNodeAdapter extends AbstractPipelineNode {
 			// Convert pipeline NodeResult map → upstream outputs map for the cortex node
 			Map<String, Map<String, Object>> upstreamOutputs = toUpstreamOutputs(upstreamResults);
 
-			io.metaloom.cortex.api.node.NodeResult result = wrappedNode.process(media, upstreamOutputs);
+			NodeResult result = wrappedNode.process(media, upstreamOutputs);
 			long elapsed = System.currentTimeMillis() - start;
 			if (result == null) {
 				return NodeResult.failed(id(), elapsed, "Node returned null result");
 			}
-			switch (result.getState()) {
-				case SUCCESS:
-					// Forward the cortex-level outputs to the pipeline-level result
-					Map<String, Object> outputs = result.getOutputs();
-					return NodeResult.success(id(), elapsed, outputs);
-				case SKIPPED:
-					return NodeResult.skipped(id(), "Node skipped");
-				case FAILED:
-				default:
-					return NodeResult.failed(id(), elapsed, "Node failed");
-			}
+			// Node and pipeline results are the same type now; stamp this adapter's
+			// pipeline id and measured elapsed onto the node's result, preserving its
+			// state, message (skip reason / failure cause) and outputs.
+			return result.withNode(id(), elapsed);
 		} catch (Exception e) {
 			long elapsed = System.currentTimeMillis() - start;
 			log.error("Error executing cortex node {}: {}", id(), e.getMessage(), e);

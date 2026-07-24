@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.pipeline.api.NodeResult;
+import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.pipeline.api.PipelineResult;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 import io.metaloom.cortex.pipeline.test.StubLoomMedia;

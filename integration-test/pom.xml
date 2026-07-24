@@ -86,12 +86,69 @@
             <artifactId>cortex-loom-node</artifactId>
             <version>${loom.cortex.version}</version>
         </dependency>
+        <!-- Processing nodes exercised end-to-end by the *NodeIntegrationTest suite. -->
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-consistency-node</artifactId>
+            <version>${loom.cortex.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-tika-node</artifactId>
+            <version>${loom.cortex.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-quality-node</artifactId>
+            <version>${loom.cortex.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-scene-detection-node</artifactId>
+            <version>${loom.cortex.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-thumbnail-node</artifactId>
+            <version>${loom.cortex.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-fingerprint-node</artifactId>
+            <version>${loom.cortex.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-facedetect-node</artifactId>
+            <version>${loom.cortex.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-ocr-node</artifactId>
+            <version>${loom.cortex.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-whisper-node</artifactId>
+            <version>${loom.cortex.version}</version>
+        </dependency>
         <dependency>
             <groupId>info.picocli</groupId>
             <artifactId>picocli</artifactId>
         </dependency>
 
         <!--Test-->
+        <!-- Mock OpenAI-compatible LLM server + the genai-utils client it is driven through. -->
+        <dependency>
+            <groupId>io.metaloom.utils</groupId>
+            <artifactId>genai-utils-mock-llm-server</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.utils</groupId>
+            <artifactId>genai-utils</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>io.metaloom.loom.test</groupId>
             <artifactId>loom-test-env</artifactId>

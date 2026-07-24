@@ -26,7 +26,7 @@ public class CaptioningNodeTest extends AbstractBasicNodeTest<CaptioningNode> {
 	public CaptioningNode mockNode(LoomClient client, CortexOptions cortexOptions) {
 		CaptioningNodeOptions options = new CaptioningNodeOptions();
 		options.setEnabled(true);
-		return new CaptioningNode(null, cortexOptions, options);
+		return new CaptioningNode(null, cortexOptions, options, new SmolVLMClient("localhost", 8080));
 	}
 
 }

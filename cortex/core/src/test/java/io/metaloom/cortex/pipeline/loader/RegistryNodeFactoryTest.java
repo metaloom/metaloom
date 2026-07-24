@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.pipeline.api.NodeMode;
-import io.metaloom.cortex.pipeline.api.NodeResult;
+import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 import io.metaloom.cortex.pipeline.core.node.AbstractPipelineNode;
 import io.vertx.core.json.JsonObject;

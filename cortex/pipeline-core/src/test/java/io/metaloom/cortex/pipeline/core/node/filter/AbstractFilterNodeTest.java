@@ -3,7 +3,7 @@ package io.metaloom.cortex.pipeline.core.node.filter;
 import java.util.Map;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.pipeline.api.NodeResult;
+import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.pipeline.api.PipelineResult;
 import io.metaloom.cortex.pipeline.api.filter.FilterBranch;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;

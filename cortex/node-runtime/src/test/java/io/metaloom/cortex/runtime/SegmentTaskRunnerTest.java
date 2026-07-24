@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.pipeline.api.NodeResult;
+import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.pipeline.api.NodeMode;
 import io.metaloom.cortex.pipeline.core.node.AbstractPipelineNode;
 import io.metaloom.cortex.pipeline.test.StubLoomMedia;
@@ -174,7 +174,7 @@ public class SegmentTaskRunnerTest {
 
 		assertEquals(NodeState.COMPLETED, result.getResults().get(1).getState());
 		assertEquals(1, b.seenInputs.size(), "A non-blocking node runs despite the failure");
-		assertEquals(io.metaloom.cortex.pipeline.api.NodeState.FAILED,
+		assertEquals(io.metaloom.cortex.api.node.ResultState.FAILED,
 			b.seenInputs.get(0).get("a").getState(), "and must be able to see it in its inputs");
 	}
 

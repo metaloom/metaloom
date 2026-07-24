@@ -10,8 +10,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.pipeline.api.NodeResult;
-import io.metaloom.cortex.pipeline.api.NodeState;
+import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 import io.metaloom.loom.pipeline.model.NodeTaskResult;
 import io.metaloom.loom.pipeline.model.SegmentNode;
@@ -114,7 +114,7 @@ public class SegmentTaskRunner {
 		}
 		for (String dep : node.getDependencies()) {
 			NodeResult depResult = results.get(dep);
-			if (depResult != null && depResult.getState() == NodeState.FAILED) {
+			if (depResult != null && depResult.getState() == ResultState.FAILED) {
 				return "Dependency " + dep + " failed";
 			}
 		}

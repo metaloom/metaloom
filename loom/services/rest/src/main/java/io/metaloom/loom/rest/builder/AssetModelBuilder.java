@@ -165,6 +165,7 @@ public interface AssetModelBuilder extends ModelBuilder, UserModelBuilder, Asset
 		hashes.setSHA512(asset.getSHA512());
 		hashes.setSHA256(asset.getSHA256());
 		hashes.setMD5(asset.getMD5());
+		hashes.setChunkHash(asset.getChunkHash());
 		return hashes;
 	}
 

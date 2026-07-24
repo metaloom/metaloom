@@ -11,8 +11,8 @@ import org.junit.jupiter.api.BeforeEach;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.FilesystemNode;
 import io.metaloom.cortex.pipeline.api.NodeMode;
-import io.metaloom.cortex.pipeline.api.NodeResult;
-import io.metaloom.cortex.pipeline.api.NodeState;
+import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.pipeline.api.PipelineResult;
 import io.metaloom.cortex.pipeline.api.event.NodeCompletionEvent;
 import io.metaloom.cortex.pipeline.api.event.PipelineTrackingEvent;
@@ -206,9 +206,9 @@ public abstract class AbstractNodeChainTest {
 		eventBus.publishTracking(new PipelineTrackingEvent(type, pipelineName, nodeId, media.absolutePath()));
 	}
 
-	private static PipelineTrackingEvent.Type trackingTypeFor(NodeState state) {
+	private static PipelineTrackingEvent.Type trackingTypeFor(ResultState state) {
 		switch (state) {
-			case COMPLETED:
+			case SUCCESS:
 				return PipelineTrackingEvent.Type.NODE_COMPLETED;
 			case FAILED:
 				return PipelineTrackingEvent.Type.NODE_FAILED;

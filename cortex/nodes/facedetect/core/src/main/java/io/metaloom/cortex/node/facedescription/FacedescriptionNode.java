@@ -32,6 +32,7 @@ import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.option.CortexOptions;
+import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
@@ -50,6 +51,10 @@ public class FacedescriptionNode extends AbstractMediaNode<FacedetectNodeOptions
 	private static final LargeLanguageModel MODEL = FaceDescriptionModel.OLLAMA_GEMMA3_27B_Q8;
 
 	public static final NodeOutputKey<String> OUTPUT_FACE_DESCRIPTION = NodeOutputKey.of("face_description", String.class);
+
+	/** In-heap skip cache of the per-face description JSON, keyed by media path, to avoid re-running the vision LLM within this worker's lifetime.
+	 * Non-durable - the durable copy lives in Loom. */
+	private final LocalResultCache<String> resultCache = new LocalResultCache<>(50_000);
 
 	public static final String PROMPT = """
 		Describe the face. Output only valid JSON without wrapper.
@@ -113,6 +118,13 @@ public class FacedescriptionNode extends AbstractMediaNode<FacedetectNodeOptions
 	 * {@code face_description} output key.
 	 */
 	private NodeResult processFaces(NodeContext<LoomMedia> ctx, AssetResponse asset) throws IOException {
+		String path = ctx.media().absolutePath();
+		String cached = resultCache.get(path);
+		if (cached != null) {
+			ctx.output(OUTPUT_FACE_DESCRIPTION, cached);
+			return ctx.origin(io.metaloom.cortex.api.node.ResultOrigin.LOCAL).next();
+		}
+
 		Object countObj = ctx.upstreamOutput("facedetect", "face_count");
 		int upstreamCount = countObj != null ? Integer.parseInt(countObj.toString()) : -1;
 		if (upstreamCount == 0) {
@@ -161,6 +173,7 @@ public class FacedescriptionNode extends AbstractMediaNode<FacedetectNodeOptions
 
 		String json = mapper.writeValueAsString(descriptions);
 		ctx.output(OUTPUT_FACE_DESCRIPTION, json);
+		resultCache.put(path, json);
 		persist(ctx, asset, json);
 		return ctx.next();
 	}

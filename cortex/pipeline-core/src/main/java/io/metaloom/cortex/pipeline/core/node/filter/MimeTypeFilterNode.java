@@ -4,7 +4,7 @@ import java.util.Map;
 import java.util.Set;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.pipeline.api.NodeResult;
+import io.metaloom.cortex.api.node.NodeResult;
 
 /**
  * In-pipeline MIME type / media type filter. More granular than the pipeline-level

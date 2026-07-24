@@ -1,6 +1,7 @@
 package io.metaloom.cortex.node.hash;
 
 import static io.metaloom.cortex.api.node.ResultOrigin.COMPUTED;
+import static io.metaloom.cortex.api.node.ResultOrigin.LOCAL;
 import static io.metaloom.cortex.api.node.ResultOrigin.REMOTE;
 
 import javax.annotation.Nullable;
@@ -15,6 +16,7 @@ import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
+import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
@@ -28,6 +30,10 @@ public class SHA256Node extends AbstractMediaNode<HashNodeOptions> {
 	public static final Logger log = LoggerFactory.getLogger(SHA256Node.class);
 
 	public static final NodeOutputKey<String> OUTPUT_SHA256 = NodeOutputKey.of("sha256", String.class);
+
+	/** In-heap skip cache of computed hashes, keyed by media path, to avoid re-reading a file within this worker's lifetime. Non-durable - the durable
+	 * copy lives in Loom. */
+	private final LocalResultCache<String> resultCache = new LocalResultCache<>(100_000);
 
 	@Inject
 	public SHA256Node(@Nullable LoomClient client, CortexOptions cortexOption, HashNodeOptions options) {
@@ -50,12 +56,18 @@ public class SHA256Node extends AbstractMediaNode<HashNodeOptions> {
 			String sha256 = asset.getHashes().getSHA256().toString();
 			ctx.output(OUTPUT_SHA256, sha256);
 			return ctx.origin(REMOTE).next();
-		} else {
-			SHA256 hash = HashUtils.computeSHA256(ctx.media().file());
-			ctx.output(OUTPUT_SHA256, hash.toString());
-			persist(ctx, asset, hash);
-			return ctx.origin(COMPUTED).next();
 		}
+		String path = ctx.media().absolutePath();
+		String cached = resultCache.get(path);
+		if (cached != null) {
+			ctx.output(OUTPUT_SHA256, cached);
+			return ctx.origin(LOCAL).next();
+		}
+		SHA256 hash = HashUtils.computeSHA256(ctx.media().file());
+		ctx.output(OUTPUT_SHA256, hash.toString());
+		resultCache.put(path, hash.toString());
+		persist(ctx, asset, hash);
+		return ctx.origin(COMPUTED).next();
 	}
 
 	/**

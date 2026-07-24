@@ -3,7 +3,7 @@ package io.metaloom.cortex.pipeline.api.cache;
 import java.util.Optional;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.pipeline.api.NodeResult;
+import io.metaloom.cortex.api.node.NodeResult;
 
 /**
  * Cache abstraction for node results. Enables pluggable caching strategies:

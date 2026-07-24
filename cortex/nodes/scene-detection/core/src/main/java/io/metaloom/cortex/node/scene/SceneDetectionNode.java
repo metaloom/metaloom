@@ -1,6 +1,7 @@
 package io.metaloom.cortex.node.scene;
 
 import static io.metaloom.cortex.api.node.ResultOrigin.COMPUTED;
+import static io.metaloom.cortex.api.node.ResultOrigin.LOCAL;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -18,6 +19,7 @@ import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
+import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.cortex.media.scene.Scene;
 import io.metaloom.cortex.media.scene.SceneDetectionResult;
@@ -33,6 +35,10 @@ public class SceneDetectionNode extends AbstractMediaNode<SceneDetectionOptions>
 	public static final Logger log = LoggerFactory.getLogger(SceneDetectionNode.class);
 
 	public static final NodeOutputKey<String> OUTPUT_SCENE_DETECTION = NodeOutputKey.of("scene_detection", String.class);
+
+	/** In-heap skip cache of the scene-detection output, keyed by media path, to avoid re-running optical-flow detection within this worker's lifetime.
+	 * Non-durable - the durable copy lives in Loom. */
+	private final LocalResultCache<String> resultCache = new LocalResultCache<>(50_000);
 
 	private OpticalFlowSceneDetector detector = new OpticalFlowSceneDetector();
 
@@ -59,9 +65,16 @@ public class SceneDetectionNode extends AbstractMediaNode<SceneDetectionOptions>
 	protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws IOException {
 		LoomMedia media = ctx.media();
 		if (media.isVideo()) {
+			String path = media.absolutePath();
+			String cached = resultCache.get(path);
+			if (cached != null) {
+				ctx.output(OUTPUT_SCENE_DETECTION, cached);
+				return ctx.origin(LOCAL).next();
+			}
 			VideoFile video = VideoFile.open(media.path());
 			SceneDetectionResult result = detector.detect(video);
 			ctx.output(OUTPUT_SCENE_DETECTION, result.toString());
+			resultCache.put(path, result.toString());
 			persist(ctx, asset, result);
 			return ctx.origin(COMPUTED).next();
 		} else {

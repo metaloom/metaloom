@@ -5,7 +5,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.pipeline.api.NodeMode;
-import io.metaloom.cortex.pipeline.api.NodeResult;
+import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.pipeline.api.node.MediaSourceNode;
 import io.reactivex.rxjava3.core.Flowable;
 

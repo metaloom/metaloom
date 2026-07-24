@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import io.metaloom.cortex.api.option.CortexOptions;
-import io.metaloom.cortex.pipeline.api.NodeState;
+import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.pipeline.api.PipelineResult;
 import io.metaloom.cortex.pipeline.api.event.NodeCompletionEvent;
 import io.metaloom.cortex.pipeline.api.event.PipelineTrackingEvent;
@@ -90,7 +90,7 @@ class ChunkHashNodePipelineTest extends AbstractNodeChainTest {
 		execute(media, adapter);
 
 		NodeCompletionEvent event = assertCompletionEvent("chunk-hash");
-		assertThat(event.getResult().getState()).isEqualTo(NodeState.COMPLETED);
+		assertThat(event.getResult().getState()).isEqualTo(ResultState.SUCCESS);
 		assertThat(event.getMedia()).isSameAs(media);
 	}
 

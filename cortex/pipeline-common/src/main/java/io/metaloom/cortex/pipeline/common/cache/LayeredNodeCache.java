@@ -4,7 +4,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.pipeline.api.NodeResult;
+import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.pipeline.api.cache.NodeCacheProvider;
 
 /**

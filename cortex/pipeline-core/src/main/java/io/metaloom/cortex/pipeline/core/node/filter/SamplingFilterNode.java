@@ -5,7 +5,7 @@ import java.util.Random;
 import java.util.Set;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.pipeline.api.NodeResult;
+import io.metaloom.cortex.api.node.NodeResult;
 
 /**
  * Randomly passes a configured percentage of items. Items that do not pass

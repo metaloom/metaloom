@@ -14,8 +14,8 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.pipeline.api.NodeResult;
-import io.metaloom.cortex.pipeline.api.NodeState;
+import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.utils.hash.SHA512;
 
 class AssetSourceNodeTest {
@@ -29,11 +29,11 @@ class AssetSourceNodeTest {
 		NodeResult first = node.process(null, Map.of());
 		NodeResult second = node.process(null, Map.of());
 
-		assertEquals(NodeState.COMPLETED, first.getState());
+		assertEquals(ResultState.SUCCESS, first.getState());
 		assertEquals("/tmp/my-asset.mp4", first.getOutput("path"));
 		assertEquals("asset", first.getOutput("source"));
 
-		assertEquals(NodeState.SKIPPED, second.getState());
+		assertEquals(ResultState.SKIPPED, second.getState());
 		assertTrue(node.isSource());
 		assertSame(asset, node.asset());
 	}

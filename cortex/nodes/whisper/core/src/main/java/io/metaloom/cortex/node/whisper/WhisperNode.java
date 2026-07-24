@@ -1,6 +1,7 @@
 package io.metaloom.cortex.node.whisper;
 
 import static io.metaloom.cortex.api.node.ResultOrigin.COMPUTED;
+import static io.metaloom.cortex.api.node.ResultOrigin.LOCAL;
 
 import java.io.File;
 import java.util.UUID;
@@ -19,6 +20,7 @@ import io.metaloom.cortex.api.node.ResultOrigin;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
+import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.cortex.media.whisper.TranscriptionSegment;
 import io.metaloom.cortex.media.whisper.WhisperResult;
@@ -34,6 +36,12 @@ public class WhisperNode extends AbstractMediaNode<WhisperOptions> {
 	public static final Logger log = LoggerFactory.getLogger(WhisperNode.class);
 
 	public static final NodeOutputKey<String> OUTPUT_WHISPER_RESULT = NodeOutputKey.of("whisper_result", String.class);
+
+	/** Upper bound for the in-heap skip cache. Transcription is expensive, so we remember the transcript JSON produced for each media during this
+	 * worker's lifetime and re-emit it instead of recomputing. Non-durable - the durable copy lives in Loom. */
+	private static final int RESULT_CACHE_SIZE = 10_000;
+
+	private final LocalResultCache<String> resultCache = new LocalResultCache<>(RESULT_CACHE_SIZE);
 
 	private WhisperMediaProcessor processor;
 
@@ -63,10 +71,19 @@ public class WhisperNode extends AbstractMediaNode<WhisperOptions> {
 		String path = media.absolutePath();
 		String model = new File(options().getModelPath()).getName();
 
+		// Re-emit a locally cached transcript instead of re-running whisper. On a hit the durable copy already exists in Loom, so we also skip
+		// re-persisting.
+		String cached = resultCache.get(path);
+		if (cached != null) {
+			ctx.output(OUTPUT_WHISPER_RESULT, cached);
+			return ctx.origin(LOCAL).next();
+		}
+
 		try {
 			WhisperResult result = processor.process(path);
 			String json = result.toJson();
 			ctx.output(OUTPUT_WHISPER_RESULT, json);
+			resultCache.put(path, json);
 
 			// Persist the transcript payload and the processing ledger entry via the Loom REST API.
 			// This two-step "write typed payload -> record node result" shape is the template every persisting node follows.

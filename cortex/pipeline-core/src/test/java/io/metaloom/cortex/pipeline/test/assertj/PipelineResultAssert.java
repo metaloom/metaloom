@@ -2,8 +2,8 @@ package io.metaloom.cortex.pipeline.test.assertj;
 
 import org.assertj.core.api.AbstractAssert;
 
-import io.metaloom.cortex.pipeline.api.NodeResult;
-import io.metaloom.cortex.pipeline.api.NodeState;
+import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.pipeline.api.PipelineResult;
 
 /**
@@ -72,7 +72,7 @@ public class PipelineResultAssert extends AbstractAssert<PipelineResultAssert, P
 		if (nodeResult == null) {
 			failWithMessage("Expected node <%s> to be present but it was not. Available: %s",
 					nodeId, actual.getNodeResults().keySet());
-		} else if (nodeResult.getState() != NodeState.COMPLETED) {
+		} else if (nodeResult.getState() != ResultState.SUCCESS) {
 			failWithMessage("Expected node <%s> to be COMPLETED but was <%s>",
 					nodeId, nodeResult.getState());
 		}
@@ -88,7 +88,7 @@ public class PipelineResultAssert extends AbstractAssert<PipelineResultAssert, P
 		if (nodeResult == null) {
 			failWithMessage("Expected node <%s> to be present but it was not. Available: %s",
 					nodeId, actual.getNodeResults().keySet());
-		} else if (nodeResult.getState() != NodeState.SKIPPED) {
+		} else if (nodeResult.getState() != ResultState.SKIPPED) {
 			failWithMessage("Expected node <%s> to be SKIPPED but was <%s>",
 					nodeId, nodeResult.getState());
 		}

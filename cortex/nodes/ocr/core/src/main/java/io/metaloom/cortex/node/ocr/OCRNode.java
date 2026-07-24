@@ -13,6 +13,7 @@ import io.metaloom.cortex.api.node.ResultOrigin;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
+import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
@@ -26,6 +27,10 @@ public class OCRNode extends AbstractMediaNode<OCRNodeOptions> {
 	public static final Logger log = LoggerFactory.getLogger(OCRNode.class);
 
 	public static final NodeOutputKey<String> OUTPUT_OCR_TEXT = NodeOutputKey.of("ocr_text", String.class);
+
+	/** In-heap skip cache of recognized text, keyed by media path, to avoid re-running OCR within this worker's lifetime. Non-durable - the durable copy
+	 * lives in Loom. */
+	private final LocalResultCache<String> resultCache = new LocalResultCache<>(50_000);
 
 	private final OCRProvider provider;
 
@@ -48,9 +53,16 @@ public class OCRNode extends AbstractMediaNode<OCRNodeOptions> {
 	@Override
 	protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
 		LoomMedia media = ctx.media();
+		String path = media.absolutePath();
+		String cached = resultCache.get(path);
+		if (cached != null) {
+			ctx.output(OUTPUT_OCR_TEXT, cached);
+			return ctx.origin(ResultOrigin.LOCAL).next();
+		}
 		String text = provider.recognizeText(media.file(), options().getLanguage());
 		ctx.output(OUTPUT_OCR_TEXT, text);
 		ctx.info("OCR extracted " + text.length() + " chars via " + provider.name());
+		resultCache.put(path, text);
 		persist(ctx, asset, text);
 		return ctx.origin(ResultOrigin.COMPUTED).next();
 	}

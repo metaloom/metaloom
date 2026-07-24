@@ -105,56 +105,61 @@ is also used for xattr/sidecar persistence.
 
 ## 2. Node Data Persistence
 
-### MetaStorage System
+### Persistence model (typed component + node-result ledger)
 
-Node results are persisted using the `MetaStorage` system, which stores
-typed metadata on media files via `LoomMetaKey<T>`.
+> ⚠️ The former `MetaStorage` / `LoomMetaKey<T>` / per-node `*MetaStorage`
+> system (xattr / AVRO / FS sidecars written onto the media file) has been
+> **removed**. Node results are no longer stored on the file. They are
+> persisted into the **Loom backend** as typed **asset components** plus a
+> node-agnostic **processing ledger**, and cached in-heap for the worker's
+> lifetime (see LocalResultCache below).
 
-**`MetaStorage` interface**:
-- `has(media, metaKey)` / `get(media, metaKey)` / `put(media, metaKey, value)`
-- `append(media, metaKey, value)` - append to a list-valued key
-- `getAll(media, metaKey)` - get all values for a list-valued key
-- `setSHA512(media, hash)` / `getSHA512(media)` - convenience for SHA-512
+Every persisting node follows the same two-step shape inside
+`compute(ctx, asset)`, guarded by `asset != null && client() != null` (a clean
+no-op in offline mode):
 
-**`LoomMetaKey<T>`**:
-- Fields: `key()` (string), `version()` (int), `type()` (`LoomMetaCoreType`),
-  `getValueClazz()` (class)
-- Created via `LoomMetaKey.metaKey(name, version, type, valueClass)`
-- The `type` field determines which `LoomMetaTypeHandler` handles storage.
+1. **Write the typed payload** to a per-asset REST sub-resource. The endpoint
+   **upserts** a row in the matching `asset_*_comp` (or `detection`) table on its
+   natural key, so a re-run replaces its own row instead of duplicating it.
+2. **Record the ledger** via `client().createAssetNodeResult(assetUuid, …)` — a
+   row in the node-agnostic `asset_node_result` table (`nodeKind`,
+   `producerVersion`, `state`, `origin`, `durationMs`, and an advisory
+   `result_ref` `{table, uuids}` pointer to the payload). This is centralised in
+   `AbstractMediaNode.recordNodeResult(...)` / `resultRef(...)` so nodes do not
+   duplicate the boilerplate. It is **best-effort**: a ledger failure is logged
+   and never fails the node.
 
-**`LoomMetaCoreType`** (storage backends):
+**Per-node payload target** (all reached through the `LoomClient`):
 
-| Type | Description |
-|---|---|
-| `XATTR` | Linux extended attributes on the media file itself |
-| `FS` | Filesystem-based storage (sidecar files) |
-| `HEAP` | In-memory storage |
-| `AVRO` | Avro-serialized binary storage |
+| Node(s) | Payload target (REST → table) | Client method |
+|---|---|---|
+| Hash (`md5`/`sha256`/`sha512`/`chunk-hash`) | `POST assets/:uuid` update → `asset` row columns | `updateAsset` |
+| Fingerprint | `assets/:uuid/fingerprints` → `asset_fingerprint_comp` | `createAssetFingerprintComp` |
+| Consistency | `POST assets/:uuid` update → `asset` consistency block | `updateAsset` |
+| Facedetect | `assets/:uuid/detections/bulk` → `detection` (upsert) | `bulkCreateAssetDetections` |
+| Whisper | `assets/:uuid/transcripts` → `asset_transcript_comp` | `createAssetTranscript` |
+| SceneDetection | `assets/:uuid/segments` → `asset_segment_comp` (whole-set replace) | `createAssetSegmentComps` |
+| OCR, Tika, Quality, LLM, Captioning, Facedescription | `assets/:uuid/json-comps` → `asset_json_comp` (distinct `schemaType`) | `createAssetJsonComp` |
+| Thumbnail | ledger only (bytes stay in the local thumbnail cache) | `createAssetNodeResult` |
+| HashDedup | ledger only (side effect: moves duplicate files) | `createAssetNodeResult` |
 
-**`MetaStorageImpl`** delegates to the appropriate `LoomMetaTypeHandler`
-based on the key's `LoomMetaCoreType`. Handlers are discovered via Dagger
-multibindings (`Set<LoomMetaTypeHandler>`).
+The fingerprint (`asset_fingerprint_comp`) and segment (`asset_segment_comp`)
+REST resources were added for this. The segment resource is a **whole-set
+replace** (`replaceSegmentComps`), so a shorter re-run deletes the surplus rows.
+The `detection` and `embedding` DAOs gained conflict-safe `upsertDetection` /
+`upsertEmbedding` methods on their natural keys.
 
-### Per-Node MetaStorage
-
-Each node that persists data has its own `*MetaStorage` class extending
-`AbstractMetaStorage`:
-
-| Node | MetaStorage Class | Key Examples | Storage Type |
-|---|---|---|---|
-| Hash | `HashMetaStorage` | `sha512`, `sha256`, `md5`, `chunk_hash` | XATTR |
-| Fingerprint | `FingerprintMetaStorage` | `fingerprint` | XATTR |
-| Facedetect | `FacedetectionMetaStorage` | `facedetect_count`, `facedetect_flag`, `facedetect_result` | XATTR + AVRO |
-| Thumbnail | `ThumbnailMetaStorage` | thumbnail binary data | FS |
-| Consistency | `ConsistencyMetaStorage` | consistency data | XATTR |
-| Scene | `SceneDetectionMetaStorage` | scene data | XATTR |
-| Tika | `TikaMetaStorage` | tika content/flags | XATTR |
-| Whisper | `WhisperMetaStorage` | transcription data | XATTR |
+⚠️ **Media components are not yet split per node.** The component tables carry
+per-component discriminators (`stream_index`, `sector_index`, `seq`,
+`frame_number`), so multiple audio tracks / video streams / fingerprint sectors
+*can* be stored — but the current nodes emit a single component each: Whisper
+writes `streamIndex = 0`, Fingerprint writes `sectorIndex = 0` (whole asset).
+Multi-track / multi-stream extraction is open work.
 
 ### Pipeline-Level Caching (NodeCacheProvider)
 
-In addition to MetaStorage, the pipeline system provides a separate caching
-layer for `NodeResult` objects:
+In addition to the per-node `LocalResultCache`, the pipeline system provides a
+separate caching layer for `NodeResult` objects:
 
 | Implementation | Description |
 |---|---|
@@ -168,18 +173,46 @@ The pipeline executor checks the cache before invoking `process()`. On a
 cache hit, the node is skipped and the cached result is used. On success,
 the result is cached. Only `COMPLETED` results are cached.
 
+### In-Heap Local Result Cache (`LocalResultCache`)
+
+Separate from the pipeline `NodeCacheProvider`, every result-producing
+`AbstractMediaNode` keeps its own **in-heap, worker-lifetime skip cache** via
+`io.metaloom.cortex.common.cache.LocalResultCache<V>` — a bounded, thread-safe,
+access-order LRU keyed by the media's absolute path.
+
+- On a **hit**, the node re-emits the cached output(s), returns
+  `ResultOrigin.LOCAL`, and **skips both re-computation and re-persistence** (the
+  durable copy already lives in Loom).
+- The cache is **non-durable by design** — it only avoids recomputing within a
+  single worker's lifetime; it does not survive a restart. The durable copy is
+  the Loom component/ledger written on the first pass.
+- `FingerprintNode` keeps its own equivalent LRU (its hit path skips in
+  `isProcessable()` rather than re-emitting). Side-effect nodes (`HashDedup`,
+  `FingerprintDedup`, `LoomNode`) hold no cacheable result.
+
+What each node caches: hash string / `SHA512` (hash nodes), zero-chunk count
+(consistency), recognized text (OCR), Tika content, scene-detection output,
+face count+flag snapshot (facedetect), per-face JSON (facedescription), caption,
+transcript JSON (whisper), per-prompt outputs (LLM), metric snapshot (quality),
+thumbnail path (thumbnail, itself backed by the durable `.thumb` file).
+
 ### Loom Backend Sync
 
-Nodes that produce metadata (hashes, fingerprints, transcripts, etc.) can
-sync results back to the Loom REST API. Two mechanisms exist:
+Nodes persist results back to the Loom REST API. Two mechanisms coexist:
 
-1. **Direct sync** (legacy, in-node): Nodes like `WhisperNode` directly call
-   `client().createAssetTranscript(...)` inside `compute()`.
-2. **Bulk sync** (pipeline-level): Nodes with `syncToLoom() == true` have
-   their results collected by `LoomBulkSyncCollector`, which batches and
-   flushes to Loom via the bulk API.
-3. **LoomNode**: A dedicated node that accumulates `AssetBulkUpdateEntry`
-   objects and flushes them in batches of 50.
+1. **Per-node persistence** (the primary path): each node writes its typed
+   payload + records the `asset_node_result` ledger inside `compute()`, as
+   described under *Persistence model* above. This is how transcripts, faces,
+   fingerprints, scenes, OCR/Tika/LLM/caption/quality JSON, hashes and
+   consistency reach Loom.
+2. **Bulk hash sync** via **`LoomNode`**: a dedicated sink node that accumulates
+   `AssetBulkUpdateEntry` objects (SHA-512 plus upstream MD5/SHA-256) and flushes
+   them to `bulkUpdateAssets` in batches of 50. This predates per-node hash
+   persistence and now overlaps with it — both write hash columns on the `asset`
+   row.
+
+> The pipeline-level `LoomBulkSyncCollector` / `syncToLoom()` mechanism still
+> exists in `pipeline-common` but is not on the per-node persistence path above.
 
 ---
 
@@ -193,7 +226,7 @@ sync results back to the Loom REST API. Two mechanisms exist:
 | `SHA256Node` | hash | `sha256` | `sha256` (String) | Any file | Computes SHA-256 hash |
 | `SHA512Node` | hash | `sha512` | `sha512` (String) | Any file | Computes SHA-512 hash |
 | `ChunkHashNode` | hash | `chunk-hash` | `chunk_hash` (String) | Any file | Computes chunk hash for dedup |
-| `FingerprintNode` | fingerprint | `fingerprint` | `fingerprint` (String) | Video only | Multi-sector video fingerprint; checks xattr first, then Loom |
+| `FingerprintNode` | fingerprint | `fingerprint` | `fingerprint` (String) | Video only | Multi-sector video fingerprint; checks in-heap cache, then Loom; persists sector-0 to `asset_fingerprint_comp` |
 | `ConsistencyNode` | consistency | `consistency` | `zero_chunk_count` (Long), `is_complete` (Boolean) | Video, Audio | Counts zero chunks to detect incomplete files |
 | `ThumbnailNode` | thumbnail | `thumbnail` | `thumbnail_flag` (String), `thumbnail_path` (String) | Video only | Generates contact-sheet thumbnails; checks upstream consistency |
 | `FacedetectNode` | facedetect | `facedetect` | `face_count` (Integer), `facedetect_flag` (String) | Video, Image | Face detection via InspireFace; video uses frame scanning |
@@ -585,10 +618,11 @@ and cached results.
 - `getSHA512()`, `setSHA512()`, `hasSHA512()` - content-based identity
 - `listXAttr()` - extended attributes listing
 
-The media decorator pattern (e.g. `HashMedia`, `FacedetectMedia`) is
-implemented via `MetaStorage` typed accessors rather than interface
-decoration. Each `*MetaStorage` class provides typed getters/setters for
-its domain-specific metadata.
+`LoomMedia` carries only the SHA-512 identity (`getSHA512()`/`setSHA512()`) for
+downstream nodes. The former `MetaStorage`-backed media decorators (`HashMedia`,
+`FacedetectMedia`, …) that exposed per-domain typed accessors were removed
+together with the `MetaStorage` system; domain results now live in Loom (§2) and
+in the per-node `LocalResultCache`, not on the media handle.
 
 ### Pipeline Node IDs
 
@@ -660,23 +694,29 @@ fixes, or further development.
       code for storing updated paths and a `System.in.read()` blocking call
       in the error path that should be removed.
 
-- [ ] **LLMNode creates a new LLM provider per invocation**: Each call to
-      `compute()` creates a new `OllamaLLMProvider` and `LargeLanguageModelImpl`.
-      These should be reused or injected for efficiency.
+- [x] **LLMNode provider is now injected**: the `LLMProvider` is a constructor-
+      injected field (Dagger provides `OllamaLLMProvider` by default) instead of a
+      fresh `new OllamaLLMProvider()` per `compute()`. The backend protocol is
+      selectable via `LLMNodeOptions.providerType()` (`OLLAMA` default, `VLLM` for
+      an OpenAI-compatible endpoint), which is what lets the integration test drive
+      the node against the `MockLLMServer`. The per-call `LargeLanguageModelImpl`
+      (a cheap value object carrying model id + url) is still built per prompt.
 
-- [ ] **WhisperNode persists transcript directly**: The `WhisperNode` calls
-      `client().createAssetTranscript()` inside `compute()`, bypassing the
-      pipeline's `syncToLoom()` mechanism. This should be refactored to use
-      the bulk sync collector.
+- [x] **In-node persistence is now the standard**: every result-producing node
+      writes its typed payload + `asset_node_result` ledger inside `compute()`
+      (see §2). `WhisperNode`'s `createAssetTranscript()` is the reference, not a
+      special case; the `syncToLoom()` / bulk-collector path was **not** adopted
+      for this. `LoomNode` still bulk-updates hash columns and now overlaps the
+      per-node hash writes.
 
 - [ ] **LoomNode does not extend AbstractMediaNode**: `LoomNode` extends
       `AbstractFilesystemNode` directly, skipping the `isProcessable()` /
       `compute()` lifecycle. It also does not use `NodeOutputKey` for outputs.
       This is inconsistent with the rest of the node system.
 
-- [ ] **ThumbnailNode duplicate variable**: `resolveThumbnailPath(media)` is
-      called twice in `compute()` - once inside the try block and once after
-      the try block. The second call is dead code.
+- [x] **ThumbnailNode duplicate variable**: the dead second
+      `resolveThumbnailPath(media)` call after the try block was removed; the
+      node now records a ledger entry and caches the thumbnail path.
 
 ### Configuration
 
@@ -702,12 +742,11 @@ fixes, or further development.
       method logs a warning and does nothing. This prevents full cache
       invalidation.
 
-- [ ] **MetaStorage and NodeCacheProvider are separate systems**: The
-      `MetaStorage` system (xattr/avro/fs) and the `NodeCacheProvider`
-      system (heap/xattr/sidecar) both persist node results but are
-      independent. This creates confusion about where data is stored
-      and potential redundancy. Consider unifying or clearly documenting
-      the separation.
+- [x] **MetaStorage removed**: the old xattr/AVRO/FS `MetaStorage` system is
+      gone (see §2). Node results now live in Loom (typed component + ledger);
+      recompute avoidance is the in-heap `LocalResultCache`. Two caching layers
+      still coexist — the per-node `LocalResultCache` and the pipeline
+      `NodeCacheProvider` — which is worth documenting to avoid confusion.
 
 - [ ] **No cache eviction strategy for SidecarFileNodeCache**: Sidecar
       cache files accumulate indefinitely with no cleanup mechanism.
@@ -874,3 +913,76 @@ restriction against the persisted record:
 
 Persistence failures never take a worker offline: if the reconcile step throws, the
 registry falls back to the announced restriction and keeps serving.
+
+---
+
+## 12. Node Capability Matrix
+
+Compact per-node status. Verified against the code and test tree.
+
+**Columns**
+- **Unit test runs node** — a unit test that actually invokes the node's
+  `process`/`compute` (not just an `*OptionsValidationTest`).
+- **Integration test** — exercised by an `integration-test` pipeline run
+  (only the registered kinds `filesystem-source`, `sha512`, `md5`, `chunk-hash`,
+  `thumbnail`, `loom` are driven end-to-end there).
+- **Persists into Loom** — writes a typed payload and/or the
+  `asset_node_result` ledger via the `LoomClient`.
+- **Caches (what)** — in-heap `LocalResultCache` (worker-lifetime, non-durable)
+  unless noted.
+- **Media components** — whether the node emits per-component results
+  (multiple audio tracks / video streams / fingerprint sectors / temporal
+  segments). "No" = single whole-asset result.
+
+| Node | Unit test runs node | Integration test | Persists into Loom | Caches (what) | Media components |
+|---|---|---|---|---|---|
+| `FilesystemSourceNode` | Yes | Yes | n/a (source; emits path) | No | No |
+| `SHA512Node` | Yes | Yes | Yes - `asset` row + ledger | Yes - `SHA512` (100k) | No |
+| `SHA256Node` | Yes | No | Yes - `asset` row + ledger | Yes - hash string (100k) | No |
+| `MD5Node` | Yes | Yes | Yes - `asset` row + ledger | Yes - hash string (100k) | No |
+| `ChunkHashNode` | Yes | Yes | Yes - `asset` row + ledger | Yes - hash string (100k) | No |
+| `FingerprintNode` | Yes | No | Yes - `asset_fingerprint_comp` + ledger | Yes - fingerprint (own LRU 100k) | Partial - sector 0 only |
+| `ConsistencyNode` | Yes | No | Yes - `asset` consistency block + ledger | Yes - zero-chunk count | No |
+| `ThumbnailNode` | Yes | Yes | Partial - ledger only (bytes stay local) | Yes - thumb path (+ durable `.thumb`) | No |
+| `FacedetectNode` | Yes | No | Yes - `detection` (bulk upsert) + ledger | Yes - count+flag snapshot | Partial - per-frame detections |
+| `FacedescriptionNode` | Yes | No | Yes - `asset_json_comp` + ledger | Yes - per-face JSON | No (image only) |
+| `OCRNode` | Yes | No | Yes - `asset_json_comp` + ledger | Yes - recognized text | No |
+| `TikaNode` | Yes | No | Yes - `asset_json_comp` + ledger | Yes - Tika content | No |
+| `WhisperNode` | Yes (+ persistence test) | No | Yes - `asset_transcript_comp` + ledger | Yes - transcript JSON | Partial - 1 track (`streamIndex 0`) |
+| `LLMNode` | Yes | No | Yes - `asset_json_comp` per prompt + ledger | Yes - per-prompt outputs | No |
+| `QualityNode` | No (options only) | No | Yes - `asset_json_comp` + ledger | Yes - metric snapshot | Partial - image/video block |
+| `SceneDetectionNode` | Yes | No | Yes - `asset_segment_comp` (replace) + ledger | Yes - scene output | Yes - scenes (`seq` set) |
+| `CaptioningNode` | Yes | No | Yes - `asset_json_comp` + ledger | Yes - caption | No (image only) |
+| `HashDedupNode` | No (empty stub) | No | Partial - ledger only (side effect) | No (moves files) | No |
+| `FingerprintDedupNode` | No (empty stub) | No | No (node is a stub) | No | No |
+| `LoomNode` | Yes | Yes | Yes - bulk `asset` hash update | No (in-heap batch buffer, not a result cache) | No |
+
+**Notable gaps**
+- **No unit test that runs the node**: `QualityNode` (only options validation),
+  `HashDedupNode` / `FingerprintDedupNode` (test classes are empty stubs).
+- **Integration coverage**: beyond the 6 registered pipeline kinds, per-node
+  end-to-end integration tests now live in `integration-test`
+  (`io.metaloom.loom.test.integration.node.*NodeIntegrationTest`). Each boots a
+  real in-process Loom (REST + pooled DB), runs the production node against a real
+  file with a real `LoomHttpClient`, and asserts the typed payload reached its
+  component table and is readable back via REST. Covered: hash (md5/sha256/
+  sha512/chunk-hash), consistency, tika, quality, scene, thumbnail, fingerprint,
+  facedetect, ocr, whisper, loom. The compute is stubbed for nodes needing a
+  native model / external runtime (ocr → `OCRProvider`, whisper →
+  `WhisperMediaProcessor`, facedetect → `InspireFacedetector`) while the file,
+  client, persistence and REST read-back remain real; the video4j nodes (quality,
+  scene, thumbnail, fingerprint) run real OpenCV compute and self-skip
+  (`assumeVideo4j()`) when the native runtime is absent. The LLM-family nodes
+  (`llm`, `captioning`, `facedescription`) are covered by driving them against the
+  `genai-utils` `MockLLMServer` (OpenAI-compatible) instead of a live Ollama /
+  SmolVLM backend: `LLMNode` now takes an injectable `LLMProvider` + a
+  `providerType` option (default Ollama; the IT injects `VLLMLLMProvider`),
+  `CaptioningNode` takes an injectable `SmolVLMClient`, and `FacedescriptionNode`'s
+  `processFace` seam is routed to the mock. Every node kind now has an end-to-end
+  integration test.
+- **Media components**: only `SceneDetectionNode` emits a genuine multi-row
+  component set today; `FacedetectNode` rows are frame-indexed. Whisper and
+  Fingerprint are hard-wired to a single index; true multi-track / multi-stream
+  extraction is open.
+- `FingerprintDedupNode` is still a `not implemented` stub; `HashDedupNode`
+  retains dead code (`System.in.read()`).

@@ -16,8 +16,8 @@ import io.metaloom.cortex.node.hash.SHA512Node;
 import io.metaloom.cortex.node.loom.LoomNode;
 import io.metaloom.cortex.node.loom.LoomNodeOptions;
 import io.metaloom.cortex.pipeline.api.NodeMode;
-import io.metaloom.cortex.pipeline.api.NodeResult;
-import io.metaloom.cortex.pipeline.api.NodeState;
+import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 import io.metaloom.cortex.pipeline.core.node.AssetSourceNode;
 import io.metaloom.cortex.pipeline.core.node.CortexNodeAdapter;
@@ -68,6 +68,7 @@ public class PipelinePersistenceIntegrationTest extends AbstractIntegrationTest 
 			createReq.setFile(new FileInfo()
 				.setFilename(tempFile.getName())
 				.setMimeType("application/octet-stream")
+				.setOrigin(tempFile.getAbsolutePath())
 				.setSize(tempFile.length()));
 			createReq.setHashes(new HashInfo().setSHA512(sha512));
 			AssetResponse created = client.createAsset(createReq).sync().body();
@@ -100,7 +101,7 @@ public class PipelinePersistenceIntegrationTest extends AbstractIntegrationTest 
 				NodeResult nodeResult = node.process(media, java.util.Map.copyOf(results));
 				assertThat(nodeResult.getState())
 					.as("Node '%s' should not fail", node.id())
-					.isNotEqualTo(NodeState.FAILED);
+					.isNotEqualTo(ResultState.FAILED);
 				results.put(node.id(), nodeResult);
 			}
 			loomNode.flush();

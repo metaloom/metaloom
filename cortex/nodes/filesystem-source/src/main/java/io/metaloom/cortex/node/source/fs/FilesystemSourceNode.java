@@ -20,7 +20,7 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.common.media.LoomMediaLoader;
 import io.metaloom.cortex.pipeline.api.NodeMode;
-import io.metaloom.cortex.pipeline.api.NodeResult;
+import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.pipeline.api.node.MediaSourceNode;
 import io.metaloom.cortex.pipeline.core.node.AbstractPipelineNode;
 import io.metaloom.fs.FileIndexStore;

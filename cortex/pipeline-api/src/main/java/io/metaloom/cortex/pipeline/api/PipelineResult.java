@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Map;
 
 import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.ResultState;
 
 /**
  * Result of executing a full pipeline on a single media item.
@@ -47,7 +49,7 @@ public class PipelineResult {
 
 	public boolean isSuccess() {
 		return nodeResults.values().stream()
-				.allMatch(r -> r.getState() == NodeState.COMPLETED || r.getState() == NodeState.SKIPPED);
+				.allMatch(r -> r.getState() == ResultState.SUCCESS || r.getState() == ResultState.SKIPPED);
 	}
 
 	@Override

@@ -1,12 +1,15 @@
 package io.metaloom.cortex.node.facedetect;
 
 import static io.metaloom.cortex.api.node.ResultOrigin.COMPUTED;
+import static io.metaloom.cortex.api.node.ResultOrigin.LOCAL;
 
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import javax.annotation.Nullable;
 import javax.imageio.ImageIO;
@@ -23,6 +26,7 @@ import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.node.payload.BoundingBox;
 import io.metaloom.cortex.api.node.payload.Detection;
 import io.metaloom.cortex.api.option.CortexOptions;
+import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.cortex.node.facedetect.video.VideoFace;
 import io.metaloom.cortex.node.facedetect.video.VideoFaceScanner;
@@ -44,6 +48,10 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 
 	public static final NodeOutputKey<Integer> OUTPUT_FACE_COUNT = NodeOutputKey.of("face_count", Integer.class);
 	public static final NodeOutputKey<String> OUTPUT_FACEDETECT_FLAG = NodeOutputKey.of("facedetect_flag", String.class);
+
+	/** In-heap skip cache of the face-detection outputs (count + flag), keyed by media path, to avoid re-scanning within this worker's lifetime.
+	 * Non-durable - the durable detections live in Loom. */
+	private final LocalResultCache<Map<String, Object>> resultCache = new LocalResultCache<>(50_000);
 
 	private static final int WINDOW_COUNT = 50;
 
@@ -76,13 +84,30 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 	@Override
 	protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws IOException {
 		LoomMedia media = ctx.media();
+		String path = media.absolutePath();
+
+		// Re-emit the locally cached face counts instead of re-scanning. On a hit the durable detections already exist in Loom, so we also skip
+		// re-persisting.
+		Map<String, Object> cached = resultCache.get(path);
+		if (cached != null) {
+			cached.forEach(ctx::output);
+			return ctx.origin(LOCAL).next();
+		}
+
+		NodeResult result;
 		if (media.isVideo()) {
-			return processVideo(ctx, asset);
+			result = processVideo(ctx, asset);
 		} else if (media.isImage()) {
-			return processImage(ctx, asset);
+			result = processImage(ctx, asset);
 		} else {
 			return ctx.skipped("No visual media").next();
 		}
+
+		// Snapshot the outputs for the worker-lifetime skip cache once detection actually ran (the flag is set on both "faces found" and "none").
+		if (ctx.outputs().containsKey(OUTPUT_FACEDETECT_FLAG.key())) {
+			resultCache.put(path, new HashMap<>(ctx.outputs()));
+		}
+		return result;
 	}
 
 	private NodeResult processImage(NodeContext<LoomMedia> ctx, AssetResponse asset) throws IOException {

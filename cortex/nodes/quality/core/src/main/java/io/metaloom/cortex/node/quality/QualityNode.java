@@ -1,6 +1,7 @@
 package io.metaloom.cortex.node.quality;
 
 import static io.metaloom.cortex.api.node.ResultOrigin.COMPUTED;
+import static io.metaloom.cortex.api.node.ResultOrigin.LOCAL;
 
 import java.awt.image.BufferedImage;
 import java.io.IOException;
@@ -12,6 +13,8 @@ import javax.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 import io.metaloom.cortex.api.media.LoomMedia;
@@ -20,6 +23,7 @@ import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
+import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
@@ -45,6 +49,12 @@ public class QualityNode extends AbstractMediaNode<QualityNodeOptions> {
 	public static final NodeOutputKey<Long> OUTPUT_VIDEO_FRAME_COUNT = NodeOutputKey.of("video_frame_count", Long.class);
 	public static final NodeOutputKey<String> OUTPUT_QUALITY_FLAG = NodeOutputKey.of("quality_flag", String.class);
 
+	/** Upper bound for the in-heap skip cache. Blurriness/resolution analysis decodes frames, so we remember the metric set produced for each media
+	 * during this worker's lifetime and re-emit it instead of recomputing. Non-durable - the durable copy lives in Loom. */
+	private static final int RESULT_CACHE_SIZE = 50_000;
+
+	private final LocalResultCache<Map<String, Object>> resultCache = new LocalResultCache<>(RESULT_CACHE_SIZE);
+
 	@Inject
 	public QualityNode(@Nullable LoomClient client, CortexOptions cortexOption, QualityNodeOptions options) {
 		super(client, cortexOption, options);
@@ -69,13 +79,30 @@ public class QualityNode extends AbstractMediaNode<QualityNodeOptions> {
 	@Override
 	protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
 		LoomMedia media = ctx.media();
+		String path = media.absolutePath();
+
+		// Re-emit the locally cached metric set instead of re-decoding frames. On a hit the durable copy already exists in Loom, so we also skip
+		// re-persisting.
+		Map<String, Object> cached = resultCache.get(path);
+		if (cached != null) {
+			cached.forEach(ctx::output);
+			return ctx.origin(LOCAL).next();
+		}
+
+		NodeResult result;
 		if (media.isImage()) {
-			return processImage(ctx, asset);
+			result = processImage(ctx, asset);
 		} else if (media.isVideo()) {
-			return processVideo(ctx, asset);
+			result = processVideo(ctx, asset);
 		} else {
 			return ctx.skipped("No visual media").next();
 		}
+
+		// Snapshot the outputs for the worker-lifetime skip cache, but only for a successful run.
+		if ("SUCCESS".equals(ctx.outputs().get(OUTPUT_QUALITY_FLAG.key()))) {
+			resultCache.put(path, new HashMap<>(ctx.outputs()));
+		}
+		return result;
 	}
 
 	private NodeResult processImage(NodeContext<LoomMedia> ctx, AssetResponse asset) throws IOException {

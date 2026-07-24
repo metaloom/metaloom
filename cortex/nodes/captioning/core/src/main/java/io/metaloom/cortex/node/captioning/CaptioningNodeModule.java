@@ -26,4 +26,9 @@ public abstract class CaptioningNodeModule extends AbstractNodeModule {
 	public static CaptioningNodeOptions options(CortexOptions options) {
 		return nodeOptions(options, "captioning", new CaptioningNodeOptions());
 	}
+
+	@Provides
+	public static SmolVLMClient smolVLMClient(CaptioningNodeOptions options) {
+		return new SmolVLMClient(options.getSmolVLMHost(), options.getSmolVLMPort());
+	}
 }

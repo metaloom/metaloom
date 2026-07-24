@@ -4,8 +4,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
-import io.metaloom.cortex.pipeline.api.NodeResult;
-import io.metaloom.cortex.pipeline.api.NodeState;
+import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.loom.pipeline.model.NodeTaskResult;
 
 /**
@@ -17,9 +17,10 @@ import io.metaloom.loom.pipeline.model.NodeTaskResult;
  * against and must stay stable. This class is the single place they meet - mapping
  * in more than one place is how such pairs drift.</p>
  *
- * <p>The two {@code NodeState} enums are mapped by <strong>name</strong>. They are
- * intentionally name-aligned, so adding a value to one without the other breaks
- * this at runtime rather than at compile time. Change both together.</p>
+ * <p>Cortex's terminal {@link ResultState} is mapped <strong>explicitly</strong> to the
+ * wire {@code NodeState} in {@code toWireState} ({@code SUCCESS→COMPLETED},
+ * {@code SKIPPED→SKIPPED}, {@code FAILED→FAILED}). The wire enum additionally has
+ * {@code PENDING}/{@code RUNNING}, which a terminal result never produces.</p>
  */
 public final class NodeResultMapper {
 
@@ -79,10 +80,18 @@ public final class NodeResultMapper {
 		}
 	}
 
-	private static io.metaloom.loom.pipeline.model.NodeState toWireState(NodeState state) {
+	private static io.metaloom.loom.pipeline.model.NodeState toWireState(ResultState state) {
 		if (state == null) {
 			return io.metaloom.loom.pipeline.model.NodeState.FAILED;
 		}
-		return io.metaloom.loom.pipeline.model.NodeState.valueOf(state.name());
+		switch (state) {
+			case SUCCESS:
+				return io.metaloom.loom.pipeline.model.NodeState.COMPLETED;
+			case SKIPPED:
+				return io.metaloom.loom.pipeline.model.NodeState.SKIPPED;
+			case FAILED:
+			default:
+				return io.metaloom.loom.pipeline.model.NodeState.FAILED;
+		}
 	}
 }

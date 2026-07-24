@@ -5,12 +5,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import io.metaloom.ai.genai.llm.LLMProviderType;
 import io.metaloom.cortex.api.option.node.AbstractNodeOptions;
 import io.metaloom.cortex.api.option.node.ValidationResult;
 
 public class LLMNodeOptions extends AbstractNodeOptions<LLMNodeOptions> {
 
 	private String ollamaUrl = "http://127.0.0.1:11434";
+
+	/** The LLM backend protocol. Defaults to Ollama; set to {@code VLLM} for an OpenAI-compatible endpoint. */
+	private LLMProviderType providerType = LLMProviderType.OLLAMA;
 
 	private Map<String, LLMNodePrompt> prompts = new HashMap<>();
 
@@ -20,6 +24,15 @@ public class LLMNodeOptions extends AbstractNodeOptions<LLMNodeOptions> {
 
 	public void setOllamaUrl(String ollamaUrl) {
 		this.ollamaUrl = ollamaUrl;
+	}
+
+	public LLMProviderType providerType() {
+		return providerType;
+	}
+
+	public LLMNodeOptions setProviderType(LLMProviderType providerType) {
+		this.providerType = providerType;
+		return this;
 	}
 
 	public Map<String, LLMNodePrompt> getPrompts() {

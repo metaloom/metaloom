@@ -4,7 +4,7 @@ import java.util.Map;
 
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.pipeline.api.NodeMode;
-import io.metaloom.cortex.pipeline.api.NodeResult;
+import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.pipeline.core.node.AbstractPipelineNode;
 
 /**

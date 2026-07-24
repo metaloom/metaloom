@@ -7,6 +7,7 @@ import java.util.Map;
 import io.metaloom.cortex.api.node.NodeOutputKey;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.ResultOrigin;
+import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.media.LoomMedia;
 
@@ -20,6 +21,7 @@ public class NodeContextImpl<I> implements NodeContext<I> {
 	private String info;
 	private ResultOrigin origin;
 	private String skipReason;
+	private String failureCause;
 	private Map<String, Object> outputs;
 
 	@SuppressWarnings("unchecked")
@@ -90,15 +92,15 @@ public class NodeContextImpl<I> implements NodeContext<I> {
 	@Override
 	public NodeResult next() {
 		if (skipReason != null) {
-			return NodeResult.skipped();
+			return new NodeResult(null, ResultState.SKIPPED, duration(), skipReason, Collections.emptyMap());
 		} else {
-			return NodeResult.success(outputs());
+			return new NodeResult(null, ResultState.SUCCESS, duration(), null, outputs());
 		}
 	}
 
 	@Override
 	public NodeResult abort() {
-		return NodeResult.failed();
+		return new NodeResult(null, ResultState.FAILED, duration(), failureCause, Collections.emptyMap());
 	}
 
 	@Override
@@ -119,6 +121,7 @@ public class NodeContextImpl<I> implements NodeContext<I> {
 
 	@Override
 	public NodeContext<I> failure(String cause) {
+		this.failureCause = cause;
 		return this;
 	}
 

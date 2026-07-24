@@ -4,7 +4,7 @@ import java.util.Map;
 import java.util.Set;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.pipeline.api.NodeResult;
+import io.metaloom.cortex.api.node.NodeResult;
 
 /**
  * Generic filter that checks a single numeric output from an upstream node against

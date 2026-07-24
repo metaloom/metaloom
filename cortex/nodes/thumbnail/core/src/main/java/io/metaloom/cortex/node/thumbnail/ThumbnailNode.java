@@ -1,6 +1,7 @@
 package io.metaloom.cortex.node.thumbnail;
 
 import static io.metaloom.cortex.api.node.ResultOrigin.COMPUTED;
+import static io.metaloom.cortex.api.node.ResultOrigin.LOCAL;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -20,6 +21,7 @@ import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
+import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
@@ -37,7 +39,10 @@ public class ThumbnailNode extends AbstractMediaNode<ThumbnailNodeOptions> {
 	public static final NodeOutputKey<String> OUTPUT_THUMBNAIL_FLAG = NodeOutputKey.of("thumbnail_flag", String.class);
 	public static final NodeOutputKey<String> OUTPUT_THUMBNAIL_PATH = NodeOutputKey.of("thumbnail_path", String.class);
 
-	
+	/** In-heap skip cache of the generated thumbnail path, keyed by media path, to avoid re-rendering the contact sheet within this worker's lifetime.
+	 * The rendered file itself is a durable local artifact under {@code metaPath/thumbnail_bin}. */
+	private final LocalResultCache<String> resultCache = new LocalResultCache<>(50_000);
+
 	private final PreviewGenerator gen;
 	private final CortexOptions cortexOptions;
 
@@ -80,6 +85,12 @@ public class ThumbnailNode extends AbstractMediaNode<ThumbnailNodeOptions> {
 		LoomMedia media = ctx.media();
 		try {
 			String path = media.absolutePath();
+			String cached = resultCache.get(path);
+			if (cached != null) {
+				ctx.output(OUTPUT_THUMBNAIL_FLAG, "DONE");
+				ctx.output(OUTPUT_THUMBNAIL_PATH, cached);
+				return ctx.origin(LOCAL).next();
+			}
 			try (VideoFile video = Videos.open(path)) {
 				Path thumbnailPath = resolveThumbnailPath(media);
 				Files.createDirectories(thumbnailPath.getParent());
@@ -88,6 +99,7 @@ public class ThumbnailNode extends AbstractMediaNode<ThumbnailNodeOptions> {
 					ctx.print("DONE", "");
 					ctx.output(OUTPUT_THUMBNAIL_FLAG, "DONE");
 					ctx.output(OUTPUT_THUMBNAIL_PATH, thumbnailPath.toString());
+					resultCache.put(path, thumbnailPath.toString());
 				}
 			}
 			// The thumbnail bytes live in the local thumbnail_bin cache; record the ledger marker that this node produced it for the asset. Uploading

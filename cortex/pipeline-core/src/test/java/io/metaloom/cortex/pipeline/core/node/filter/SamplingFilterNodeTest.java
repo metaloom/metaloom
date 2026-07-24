@@ -8,7 +8,7 @@ import java.util.Random;
 
 import org.junit.jupiter.api.Test;
 
-import io.metaloom.cortex.pipeline.api.NodeResult;
+import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.pipeline.api.PipelineResult;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 import io.metaloom.cortex.pipeline.test.StubLoomMedia;

@@ -1,6 +1,6 @@
 package io.metaloom.cortex.pipeline.api.event;
 
-import io.metaloom.cortex.pipeline.api.NodeResult;
+import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.media.LoomMedia;
 
 /**

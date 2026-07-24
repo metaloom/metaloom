@@ -7,7 +7,7 @@ import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.pipeline.api.NodeMode;
-import io.metaloom.cortex.pipeline.api.NodeResult;
+import io.metaloom.cortex.api.node.NodeResult;
 
 /**
  * Pipeline node that fetches user metadata (tags, annotations, descriptions) from the Loom backend server.

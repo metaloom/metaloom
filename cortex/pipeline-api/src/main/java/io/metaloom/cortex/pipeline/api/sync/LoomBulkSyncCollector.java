@@ -1,7 +1,7 @@
 package io.metaloom.cortex.pipeline.api.sync;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.pipeline.api.NodeResult;
+import io.metaloom.cortex.api.node.NodeResult;
 
 /**
  * Collects node results that are marked for Loom synchronization and flushes them
