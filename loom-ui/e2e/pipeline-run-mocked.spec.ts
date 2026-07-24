@@ -98,7 +98,7 @@ async function mockBackend(page: Page, opts: RunOptions = {}) {
       route.fulfill({ status, contentType: "application/json", body: JSON.stringify({ message: "boom" }) });
       return;
     }
-    const resp = opts.runResponse ?? { workOrderId: "wo-1", processorNodeId: "node-1", dispatched: true };
+    const resp = opts.runResponse ?? { runUuid: "run-1", processorNodeId: "node-1", dispatched: true };
     if (resp.dispatched) runsState.runs = [run("running")];
     route.fulfill({ status, contentType: "application/json", body: JSON.stringify(resp) });
   });
@@ -174,7 +174,7 @@ test.describe("Pipeline run trigger – mocked", () => {
 
   test("a not-dispatched response surfaces the no-processor info toast without a history refresh", async ({ page }) => {
     const { runTrigger, runsFetch } = await mockBackend(page, {
-      runResponse: { workOrderId: "", dispatched: false, message: "No processor available" },
+      runResponse: { runUuid: "", dispatched: false, message: "No processor available" },
     });
     const { registered } = mockEventsSocket(page);
     await registered;

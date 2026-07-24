@@ -22,7 +22,7 @@
     </properties>
 
     <modules>
-        <module>cortex-custom-cli</module>
+        <module>cortex-custom</module>
         <module>cortex-custom-node</module>
     </modules>
 

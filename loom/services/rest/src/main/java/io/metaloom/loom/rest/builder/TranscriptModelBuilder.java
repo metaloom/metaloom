@@ -13,6 +13,8 @@ public interface TranscriptModelBuilder extends ModelBuilder, UserModelBuilder {
 		TranscriptResponse response = new TranscriptResponse();
 		response.setUuid(comp.getUuid());
 		response.setSource(comp.getNodeKind());
+		response.setProducerVersion(comp.getProducerVersion());
+		response.setStreamIndex(comp.getStreamIndex());
 		response.setLang(comp.getLang());
 		response.setTranscriptText(comp.getTranscriptText());
 		response.setDuration(comp.getDuration());

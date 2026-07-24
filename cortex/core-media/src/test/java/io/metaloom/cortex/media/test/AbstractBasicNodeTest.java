@@ -3,18 +3,12 @@ package io.metaloom.cortex.media.test;
 import static io.metaloom.cortex.media.test.assertj.NodeAssertions.assertThat;
 
 import java.io.IOException;
-import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.FilesystemNode;
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.media.type.handler.impl.AvroLoomMetaTypeHandlerImpl;
-import io.metaloom.cortex.api.media.type.handler.impl.HeapLoomMetaTypeHandlerImpl;
-import io.metaloom.cortex.api.media.type.handler.impl.XAttrLoomMetaTypeHandlerImpl;
-import io.metaloom.cortex.api.meta.MetaStorage;
-import io.metaloom.cortex.common.meta.MetaStorageImpl;
 import io.metaloom.loom.test.data.TestMedia;
 
 public abstract class AbstractBasicNodeTest<T extends FilesystemNode<?, ?>> extends AbstractNodeTest<T> implements NodeTestcases {
@@ -139,10 +133,4 @@ public abstract class AbstractBasicNodeTest<T extends FilesystemNode<?, ?>> exte
 	}
 
 	protected abstract void disableNode(T nodeMock);
-
-	@Override
-	public MetaStorage storage() {
-		return new MetaStorageImpl(
-			Set.of(new HeapLoomMetaTypeHandlerImpl(), new AvroLoomMetaTypeHandlerImpl(options()), new XAttrLoomMetaTypeHandlerImpl()));
-	}
 }

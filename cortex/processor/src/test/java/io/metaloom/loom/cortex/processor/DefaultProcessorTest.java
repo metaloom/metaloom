@@ -43,8 +43,7 @@ public class DefaultProcessorTest {
 		Set<FilesystemNode<?, ?>> nodes = Set.of(new SHA512Node(null, options, new HashNodeOptions()));
 		LinuxFilesystemScanner scanner = new LinuxFilesystemScannerImpl();
 		LoomMediaLoader loader = mock(LoomMediaLoader.class);
-		
-		//MetaStorage storage = new MetaStorageImpl(null)
+
 		LoomMedia media = new LoomMediaImpl(null);
 		when(loader.load(Mockito.any())).thenReturn(media);
 		FilesystemProcessor  fsProcessor = new FilesystemProcessorImpl(scanner, nodes, loader);

@@ -51,7 +51,6 @@ public class FingerprintNodeTest extends AbstractBasicNodeTest<FingerprintNode> 
 	@Override
 	public FingerprintNode mockNode(LoomClient client, CortexOptions cortexOptions) {
 		FingerprintNodeOptions options = new FingerprintNodeOptions();
-		FingerprintMetaStorage metaStorage = new FingerprintMetaStorage(storage());
-		return new FingerprintNode(client, cortexOptions, options, metaStorage);
+		return new FingerprintNode(client, cortexOptions, options);
 	}
 }

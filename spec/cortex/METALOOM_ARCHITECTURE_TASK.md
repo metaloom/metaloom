@@ -128,8 +128,8 @@ into `pipeline_node_task.outputs`, and then **never mapped onto the asset**.
 - [ ] Map non-hash node outputs to asset fields, per kind
 - [ ] Honour `syncToLoom` from the definition — it is parsed into the graph and
       read by nothing
-- [ ] Verify the end-of-run flush drains (`flush-sync` is the only remaining
-      work-order command)
+- [ ] Verify the end-of-run flush drains (the `flush-sync` work-order command has
+      since been removed; superseded — see PIPELINE.md §12)
 
 ---
 

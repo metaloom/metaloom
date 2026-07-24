@@ -31,8 +31,6 @@ import io.metaloom.loom.rest.model.processor.message.SourceItemsAckMessage;
 import io.metaloom.loom.rest.model.processor.message.SourceTaskMessage;
 import io.metaloom.loom.rest.model.processor.message.ProcessorMessageType;
 import io.metaloom.loom.rest.model.processor.message.ProcessorRegistration;
-import io.metaloom.loom.rest.model.processor.workorder.WorkOrder;
-import io.metaloom.loom.rest.model.processor.workorder.WorkOrderResult;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.WebSocket;
 import io.vertx.core.http.WebSocketClient;
@@ -55,7 +53,6 @@ public class LoomControlChannel {
 	private final Vertx vertx;
 	private final CortexOptions options;
 	private final PipelineEventBus pipelineEventBus;
-	private final PipelineWorkOrderHandler workOrderHandler;
 
 	private final PipelineTaskHandler taskHandler;
 
@@ -87,7 +84,7 @@ public class LoomControlChannel {
 
 	@Inject
 	public LoomControlChannel(Vertx vertx, CortexOptions options, PipelineEventBus pipelineEventBus,
-			PipelineWorkOrderHandler workOrderHandler, PipelineTaskHandler taskHandler,
+			PipelineTaskHandler taskHandler,
 			dagger.Lazy<io.metaloom.cortex.pipeline.loader.NodeFactory> nodeFactory) {
 		this.nodeFactory = nodeFactory;
 		this.vertx = vertx;
@@ -98,7 +95,6 @@ public class LoomControlChannel {
 			? options.getNodeId()
 			: "cortex-" + UUID.randomUUID();
 		this.pipelineEventBus = pipelineEventBus;
-		this.workOrderHandler = workOrderHandler;
 		this.taskHandler = taskHandler;
 	}
 
@@ -394,9 +390,6 @@ public class LoomControlChannel {
 			case HEARTBEAT_ACK:
 				lastHeartbeatAckAt = System.currentTimeMillis();
 				break;
-			case WORK_ORDER:
-				handleWorkOrder(message);
-				break;
 			case NODE_TASK:
 				handleNodeTask(message);
 				break;
@@ -491,23 +484,6 @@ public class LoomControlChannel {
 			return;
 		}
 		taskHandler.handleSourceItemsAck(ack.getRunUuid(), ack.getSeq());
-	}
-
-	private void handleWorkOrder(ProcessorMessage message) {
-		if (message.getBody() == null) {
-			log.warn("Ignoring WORK_ORDER without body");
-			return;
-		}
-		WorkOrder workOrder;
-		try {
-			workOrder = message.getBody().mapTo(WorkOrder.class);
-		} catch (Exception e) {
-			log.warn("Failed to parse WORK_ORDER payload: {}", message.getBody(), e);
-			return;
-		}
-
-		WorkOrderResult result = workOrderHandler.handle(workOrder);
-		sendMessage(new ProcessorMessage(ProcessorMessageType.WORK_ORDER_RESULT, JsonObject.mapFrom(result)));
 	}
 
 	private void forwardPipelineTrackingEvent(PipelineTrackingEvent event) {

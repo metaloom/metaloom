@@ -61,10 +61,7 @@ class FingerprintNodePipelineTest extends AbstractNodeChainTest {
 		when(options.isEnabled()).thenReturn(enabled);
 		when(options.isProcessIncomplete()).thenReturn(true);
 
-		FingerprintMetaStorage metaStorage = mock(FingerprintMetaStorage.class);
-		when(metaStorage.hasFingerprint(any())).thenReturn(false);
-
-		FingerprintNode node = spy(new FingerprintNode(null, new CortexOptions(), options, metaStorage));
+		FingerprintNode node = spy(new FingerprintNode(null, new CortexOptions(), options));
 
 		// Stub the compute method to avoid native Video4j calls
 		doAnswer(invocation -> {
@@ -175,10 +172,10 @@ class FingerprintNodePipelineTest extends AbstractNodeChainTest {
 		when(options.isEnabled()).thenReturn(true);
 		when(options.isProcessIncomplete()).thenReturn(true);
 
-		FingerprintMetaStorage metaStorage = mock(FingerprintMetaStorage.class);
-		when(metaStorage.hasFingerprint(any())).thenReturn(true);
+		FingerprintNode node = spy(new FingerprintNode(null, new CortexOptions(), options));
 
-		FingerprintNode node = spy(new FingerprintNode(null, new CortexOptions(), options, metaStorage));
+		// Seed the in-memory skip cache so the node treats the media as already fingerprinted
+		node.markFingerprinted(media, FAKE_FINGERPRINT);
 
 		doAnswer(invocation -> {
 			NodeContext<LoomMedia> ctx = invocation.getArgument(0);

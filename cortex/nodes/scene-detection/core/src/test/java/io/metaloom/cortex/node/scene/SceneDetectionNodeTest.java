@@ -9,7 +9,6 @@ import java.io.IOException;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.option.CortexOptions;
-import io.metaloom.cortex.media.scene.SceneDetectionResult;
 import io.metaloom.cortex.media.test.AbstractBasicNodeTest;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.test.data.TestMedia;
@@ -23,11 +22,9 @@ public class SceneDetectionNodeTest extends AbstractBasicNodeTest<SceneDetection
 
 	@Override
 	protected void assertProcessed(TestMedia testMedia, LoomMedia media, NodeResult result, SceneDetectionNode nodeMock) {
-		SceneDetectionMetaStorage sceneStorage = new SceneDetectionMetaStorage(storage());
 		assertThat(media).hasSHA512();
-
-		SceneDetectionResult detection = sceneStorage.getSceneDetectionResult(media);
-		System.out.println("Scenes: " + detection.scenes());
+		assertThat(result).hasOutput(SceneDetectionNode.OUTPUT_SCENE_DETECTION);
+		System.out.println("Scenes: " + result.get(SceneDetectionNode.OUTPUT_SCENE_DETECTION));
 	}
 
 	@Override

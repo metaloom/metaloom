@@ -74,7 +74,7 @@ invisible.
 | **P1.4** | `cortex/node-runtime` with `NodeTaskRunner` + `SourceTaskRunner` | Added **additively** — the old engine kept running until P1.5 migrated its tests |
 | **P1.5** | Test migration | `AbstractNodeChainTest` replaces the executor harness; 9 classes migrated |
 | **P1.6** | Wire end to end | An unexecutable definition now returns **400** instead of a silent no-op run |
-| **P1.7** | Delete the old engine; rewire Dagger | `ReactivePipelineExecutor`, `DefaultPipeline`, `PipelineManager`, `LoomPipelineLoader` gone; work-order handler reduced to `flush-sync` |
+| **P1.7** | Delete the old engine; rewire Dagger | `ReactivePipelineExecutor`, `DefaultPipeline`, `PipelineManager`, `LoomPipelineLoader` gone; work-order handler reduced to `flush-sync` (superseded: WorkOrder removed entirely — see PIPELINE.md §12) |
 
 **Deliberate deviations, both documented rather than silently reordered:** P1.4
 added the new runtime alongside the old engine; P1.5 deferred the executor

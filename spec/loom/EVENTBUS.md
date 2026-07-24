@@ -142,7 +142,7 @@ This is the critical bridge between the in-process cortex `PipelineEventBus` and
 1. On `start()`, subscribes to tracking events: `pipelineEventBus.subscribeTracking(this::forwardPipelineTrackingEvent)`
 2. Connects a WebSocket client to loom's `/api/v1/processors/ws` and sends a `REGISTER` message.
 3. For each `PipelineTrackingEvent`, converts it to `PipelineEventMessage` and wraps in `ProcessorMessage(PIPELINE_EVENT, ...)`, sends over WebSocket.
-4. Also handles heartbeats, status updates, work orders, and reconnection with exponential backoff.
+4. Also handles heartbeats, status updates, source/node tasks (via `PipelineTaskHandler`), and reconnection with exponential backoff.
 
 ### 3.5 PipelineEventBroadcaster (Loom-side Fan-out)
 
@@ -167,7 +167,7 @@ This is the critical bridge between the in-process cortex `PipelineEventBus` and
 - Route: `GET /api/v1/processors/ws` (WebSocket upgrade).
 - Processor nodes connect, register, and exchange `ProcessorMessage` envelopes.
 - The `PIPELINE_EVENT` message type handler (`handlePipelineEvent`) deserializes the body to `PipelineEventMessage` and calls `pipelineEventBroadcaster.broadcast(event)`.
-- Also dispatches `WORK_ORDER` messages to processors via `ProcessorRegistry.dispatchWorkOrder()`.
+- Also dispatches `SOURCE_TASK` and `NODE_TASK` messages to processors via `ProcessorRegistry.send()` (the latter driven by the loom-side `PipelineRunEngine` / `WebSocketNodeDispatcher`).
 
 ### 3.7 Vert.x EventBus (MCP Tool Dispatch Only)
 
@@ -190,8 +190,8 @@ This is the critical bridge between the in-process cortex `PipelineEventBus` and
 - Fields: `type` (`ProcessorMessageType`), `body` (`JsonObject`).
 
 **ProcessorMessageType**:
-- Processor->Loom: `REGISTER`, `HEARTBEAT`, `STATUS_UPDATE`, `STATE_CHANGE`, `WORK_ORDER_RESULT`, `PIPELINE_EVENT`.
-- Loom->Processor: `REGISTERED`, `HEARTBEAT_ACK`, `WORK_ORDER`, `ERROR`.
+- Processor->Loom: `REGISTER`, `HEARTBEAT`, `STATUS_UPDATE`, `STATE_CHANGE`, `SOURCE_ITEMS`, `SOURCE_COMPLETE`, `NODE_TASK_RESULT`, `NODE_TASK_RESULT_BATCH`, `SEGMENT_TASK_RESULT`, `PIPELINE_RUN_COMPLETED`, `PIPELINE_EVENT`.
+- Loom->Processor: `REGISTERED`, `HEARTBEAT_ACK`, `SOURCE_TASK`, `SOURCE_ITEMS_ACK`, `NODE_TASK`, `SEGMENT_TASK`, `ERROR`.
 
 ### 3.9 UI Client
 
@@ -268,12 +268,12 @@ End-to-end tests using real Vert.x server:
 
 ### 5.2 Pipeline Run Trigger
 
-The REST endpoint `POST /api/v1/pipelines/{id}/run` (handled by `PipelineEndpointService`) triggers pipeline execution by dispatching a `WorkOrder` (type `PIPELINE_RUN`) to a registered processor via `processorRegistry.selectProcessor(CPU)` and `processorRegistry.dispatchWorkOrder()`. The response includes `PipelineRunResponse` with `workOrderId`, `processorNodeId`, and `dispatched` flag. The doc notes that per-node status can be observed on the pipeline events WebSocket.
+The REST endpoint `POST /api/v1/pipelines/{id}/run` (handled by `PipelineEndpointService`) triggers pipeline execution by selecting a processor via `processorRegistry.selectProcessorForKinds(CPU, [sourceKind])`, creating a `pipeline_run` row, building a `PipelineRunEngine`, and handing the pipeline's source node to the worker as a `SOURCE_TASK` (`processorRegistry.send()`). The engine then drives the run by dispatching individual `NODE_TASK`s via `WebSocketNodeDispatcher`. The response includes `PipelineRunResponse` with `runUuid`, `processorNodeId`, and `dispatched` flag. Per-node status can be observed on the pipeline events WebSocket.
 
-### 5.3 Processor Registry and Work Orders
+### 5.3 Processor Registry and Run Dispatch
 
-- `ProcessorRegistry` tracks connected processor nodes (state, heartbeat, status, capabilities).
-- `WorkOrderResultRegistry` maps work-order UUIDs to completion callbacks with optional timeout.
+- `ProcessorRegistry` tracks connected processor nodes (state, heartbeat, status, capabilities) and sends messages to them via `send()`.
+- `WebSocketNodeDispatcher` sends the `PipelineRunEngine`'s `NODE_TASK`s over the processor socket; run completion is closed out by `PipelineRunTracker`.
 - These are in `loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/`.
 
 ---
@@ -387,13 +387,14 @@ This could **replace** the current `PipelineEventBroadcaster` + `PipelineEventEn
 | NodeCompletionEvent | `cortex/pipeline-api/src/main/java/io/metaloom/cortex/pipeline/api/event/NodeCompletionEvent.java` |
 | ReactivePipelineExecutor | `cortex/pipeline-core/src/main/java/io/metaloom/cortex/pipeline/core/executor/ReactivePipelineExecutor.java` |
 | LoomControlChannel (bridge) | `cortex/core/src/main/java/io/metaloom/cortex/impl/loom/LoomControlChannel.java` |
-| PipelineWorkOrderHandler | `cortex/core/src/main/java/io/metaloom/cortex/impl/loom/PipelineWorkOrderHandler.java` |
+| PipelineTaskHandler | `cortex/core/src/main/java/io/metaloom/cortex/impl/loom/PipelineTaskHandler.java` |
 | PipelineEventEndpoint (UI WS) | `loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/PipelineEventEndpoint.java` |
 | ProcessorEndpoint (processor WS) | `loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/ProcessorEndpoint.java` |
 | PipelineEventBroadcaster | `loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/PipelineEventBroadcaster.java` |
 | WebSocketAuthenticator | `loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/WebSocketAuthenticator.java` |
 | ProcessorRegistry | `loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/ProcessorRegistry.java` |
-| WorkOrderResultRegistry | `loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/WorkOrderResultRegistry.java` |
+| WebSocketNodeDispatcher | `loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/WebSocketNodeDispatcher.java` |
+| PipelineRunEngine | `loom/pipeline/src/main/java/io/metaloom/loom/pipeline/engine/PipelineRunEngine.java` |
 | PipelineEndpointService (REST) | `loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/PipelineEndpointService.java` |
 | MCPService (WebSocket + SSE) | `loom/services/mcp/src/main/java/io/metaloom/loom/mcp/MCPService.java` |
 | MCPToolRegistry (EventBus dispatch) | `loom/services/mcp/src/main/java/io/metaloom/loom/mcp/tool/MCPToolRegistry.java` |

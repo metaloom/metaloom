@@ -1,0 +1,4 @@
+# The only runtime dependency: an asyncio WebSocket client for the control
+# plane. The REST data plane uses the Python standard library (urllib), so this
+# is the whole dependency footprint.
+websockets>=12

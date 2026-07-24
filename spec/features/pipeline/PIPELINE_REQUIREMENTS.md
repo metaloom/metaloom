@@ -62,12 +62,12 @@ Legend: ✅ Met · 🟡 Partially met (deviation noted) · 🔴 Not met / signif
 
 | # | Requirement | Status | Notes & deviations |
 |---|-------------|--------|--------------------|
-| R1 | Pipelines are executed on the Cortex processor instances | ✅ | `ReactivePipelineExecutor` runs inside Cortex; Loom only dispatches work orders. No deviation. |
+| R1 | Pipelines are executed on the Cortex processor instances | ✅ | Nodes run inside Cortex workers; Loom's `PipelineRunEngine` only dispatches `SOURCE_TASK` / `NODE_TASK` messages. No deviation. |
 | R2 | Pipelines send their status / updates via API calls back to the Loom backend | 🟡 | **Deviation:** live status is *not* sent as discrete REST calls. It travels over the **processor WebSocket** (`/api/v1/processors/ws`) as `PIPELINE_EVENT` / `PIPELINE_RUN_COMPLETED` messages. Only bulk **result data** uses REST (`bulkUpdateAssets`). Met if "API calls" means "reported back to Loom over its network interface"; a deviation if REST is meant strictly. |
 | R3 | Pipelines can be constructed in the Loom UI and persisted on the Loom backend server | 🟡 | Authoring and persistence work (`PipelineEditor.tsx` + REST CRUD + `pipeline`/`pipeline_version` tables). **Deviation:** what is persisted cannot be executed. Loom stores the graph as `nodes[]` + `edges[]`; the Cortex loader reads `nodes[].dependencies[]` and ignores `edges` entirely, so a UI-authored pipeline loads on Cortex as disconnected nodes and collapses to just its source node. The round trip is broken. |
 | R4 | Pipelines always have a start node which emits assets | ✅ | Exactly one source node is enforced by `DefaultPipeline`; `AssetSourceNode` emits the asset(s). No deviation. |
 | R5 | Additional nodes (facedetect, sha512, …) extract further metadata from assets | ✅ | ~18 processing nodes exist (hash family, facedetect, whisper, tika, OCR, quality, …). No deviation. |
-| R6 | Pipeline execution results are tracked on the Loom server | 🟡 | **Run-level tracking now works** (implemented 2026-07-18): runs transition to `SUCCESS`/`PARTIAL`/`FAILED` with real durations and all four counters populated, and an unacknowledged work order is failed by a dispatch watchdog rather than stranding at `RUNNING`. **Remaining deviation:** tracking is run-level only — there is still **no per-node result or stats table**, so node-by-node execution results are not tracked on the server. |
+| R6 | Pipeline execution results are tracked on the Loom server | 🟡 | **Run-level tracking now works** (implemented 2026-07-18): runs transition to `SUCCESS`/`PARTIAL`/`FAILED` with real durations and all four counters populated, and an unreachable processor fails the run synchronously at dispatch rather than stranding at `RUNNING`. **Remaining deviation:** tracking is run-level only — there is still **no per-node result or stats table**, so node-by-node execution results are not tracked on the server. |
 | R7 | Special pipeline nodes allow filtering of asset results (DateFilter, …) | ✅ | 8 concrete filter nodes implemented (`AssetAttributeFilterNode`, `BlacklistFilterNode`, `DateFilterNode`, `DuplicateFilterNode`, `MimeTypeFilterNode`, `QualityFilterNode`, `SamplingFilterNode`, `ThresholdFilterNode`) with PASS/REJECT branching. *Note:* older specs also listed a `SizeFilterNode` — **it does not exist**. *Minor note:* the older `PipelineFilter`/`MediaFilter` SPI is orphaned — cleanup pending, not a functional deviation. |
 | R8 | Pipelines are serialized / deserialized via JSON | ✅ | `PipelineSerializer` / `PipelineDeserializer`, round-trip guaranteed and tested (`PipelineSerdeRoundTripTest`). No deviation. |
 | R9 | Pipeline execution is backpressure-aware and reactive | ✅ | Built on RxJava 3 `Flowable`; `flatMap(fn, maxConcurrentMedia)` bounds in-flight items; per-node semaphores. No deviation. |
@@ -106,7 +106,7 @@ Legend: `[x]` done · `[~]` partial · `[ ]` pending
 - [x] A failed **blocking** dependency causes downstream nodes to be skipped (`"Dependency <id> failed"`).
 - [x] **Per-node execution timeout** — `PipelineNode.timeoutMs()` is honoured by the executor; hung nodes fail instead of holding a semaphore forever.
 - [ ] **A-EH1 — Retry mechanism.** `retryFailed` is advertised as a node parameter by 10 descriptor providers but is never read by the executor. Either implement it or remove it from the descriptors.
-- [x] **A-EH2 — Work-order result routing.** The run path registers a callback with `WorkOrderResultRegistry`, including a 60 s dispatch watchdog that fails the run when no processor acknowledges the work order.
+- [x] **A-EH2 — Run completion routing.** The run is closed out through `PipelineRunTracker` (from the engine's `onCompletion` hook and the worker's `PIPELINE_RUN_COMPLETED`); an unreachable processor fails the run synchronously at dispatch. (Superseded: the old `WorkOrderResultRegistry` + 60 s ack watchdog was removed — see PIPELINE.md §12.)
 
 ### 3.2 Persistence
 
@@ -138,7 +138,7 @@ Legend: `[x]` done · `[~]` partial · `[ ]` pending
 - [x] Per-node concurrency via semaphores; media-level concurrency via `maxConcurrentMedia`.
 - [x] Configurable `maxConcurrentMedia` via `CortexOptions` (default 4), injected in `CortexBindModule`.
 - [x] Dry-run mode (all nodes skipped, no side effects).
-- [x] On-demand run trigger (`POST /api/v1/pipelines/:uuid/run` → work order → Cortex).
+- [x] On-demand run trigger (`POST /api/v1/pipelines/:uuid/run` → `SOURCE_TASK` + engine-driven `NODE_TASK`s → Cortex).
 - [~] **A-EX1 — Media selection for a run** resolves `pathGlobs` only; UUID-based selection logs a warning and is skipped, even though the UI and DTO both offer it.
 - [ ] **A-EX2 — Processor capability selection** is hardcoded to `CPU`; a GPU-only pipeline cannot request a GPU processor.
 - [ ] **A-EX3 — Executor instances are single-use.** A second `execute()` on the same (Dagger-singleton) executor throws `RejectedExecutionException` because the stats scheduler is shut down after the first run.
@@ -150,7 +150,7 @@ Legend: `[x]` done · `[~]` partial · `[ ]` pending
 
 - [x] JSON node definitions resolve to real Cortex nodes via `RegistryNodeFactory` + `CortexNodeAdapter`.
 - [x] Node descriptors published to the UI (`NodeDescriptorRegistry`) for the palette and parameter editor.
-- [x] Reference examples for adding custom nodes (`examples/cortex-custom-node`, `examples/cortex-custom-cli`).
+- [x] Reference examples for adding custom nodes (`examples/cortex-custom-node`, `examples/cortex-custom`).
 - [x] Node option validation at config-load and pipeline-creation time.
 - [~] **A-CN1 — Node type coverage.** The descriptor registry advertises **29 kinds** to the UI palette; only **6** are registered with the executable factory (`filesystem-source`, `sha512`, `sha256`, `md5`, `chunk-hash`, `thumbnail`). The other 23 — including `whisper`, `ocr`, `llm`, `facedetect`, `tika`, and every `filter-*` — are selectable in the editor but silently fall back to no-op stubs that *report success*. A user can build a pipeline entirely out of nodes that do nothing and see a green run.
 - [ ] **A-CN2 — Node versioning** — no way to invalidate cached results when a node's algorithm changes.

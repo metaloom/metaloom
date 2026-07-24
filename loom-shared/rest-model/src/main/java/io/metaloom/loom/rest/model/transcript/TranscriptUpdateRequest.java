@@ -8,6 +8,8 @@ public class TranscriptUpdateRequest extends AbstractMetaModel<TranscriptUpdateR
 	implements RestRequestModel, TranscriptModel<TranscriptUpdateRequest> {
 
 	private String source;
+	private String producerVersion;
+	private Integer streamIndex;
 	private String lang;
 	private String transcriptText;
 	private Long duration;
@@ -22,6 +24,28 @@ public class TranscriptUpdateRequest extends AbstractMetaModel<TranscriptUpdateR
 	@Override
 	public TranscriptUpdateRequest setSource(String source) {
 		this.source = source;
+		return this;
+	}
+
+	@Override
+	public String getProducerVersion() {
+		return producerVersion;
+	}
+
+	@Override
+	public TranscriptUpdateRequest setProducerVersion(String producerVersion) {
+		this.producerVersion = producerVersion;
+		return this;
+	}
+
+	@Override
+	public Integer getStreamIndex() {
+		return streamIndex;
+	}
+
+	@Override
+	public TranscriptUpdateRequest setStreamIndex(Integer streamIndex) {
+		this.streamIndex = streamIndex;
 		return this;
 	}
 

@@ -8,6 +8,8 @@ public class TranscriptCreateRequest extends AbstractMetaModel<TranscriptCreateR
 	implements RestRequestModel, TranscriptModel<TranscriptCreateRequest> {
 
 	private String source;
+	private String producerVersion;
+	private Integer streamIndex;
 	private String lang;
 	private String transcriptText;
 	private Long duration;
@@ -22,6 +24,28 @@ public class TranscriptCreateRequest extends AbstractMetaModel<TranscriptCreateR
 	@Override
 	public TranscriptCreateRequest setSource(String source) {
 		this.source = source;
+		return this;
+	}
+
+	@Override
+	public String getProducerVersion() {
+		return producerVersion;
+	}
+
+	@Override
+	public TranscriptCreateRequest setProducerVersion(String producerVersion) {
+		this.producerVersion = producerVersion;
+		return this;
+	}
+
+	@Override
+	public Integer getStreamIndex() {
+		return streamIndex;
+	}
+
+	@Override
+	public TranscriptCreateRequest setStreamIndex(Integer streamIndex) {
+		this.streamIndex = streamIndex;
 		return this;
 	}
 

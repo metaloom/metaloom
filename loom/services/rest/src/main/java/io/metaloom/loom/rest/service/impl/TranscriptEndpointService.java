@@ -47,8 +47,15 @@ public class TranscriptEndpointService extends AbstractEndpointService {
 			String source = request.getSource();
 
 			AssetTranscriptComp comp = compDao.createTranscriptComp(userUuid, assetUuid, source);
+			// stream_index and lang are part of the component identity and must be set before the upsert so the natural key matches.
+			if (request.getStreamIndex() != null) {
+				comp.setStreamIndex(request.getStreamIndex());
+			}
 			if (request.getLang() != null) {
 				comp.setLang(request.getLang());
+			}
+			if (request.getProducerVersion() != null) {
+				comp.setProducerVersion(request.getProducerVersion());
 			}
 			if (request.getTranscriptText() != null) {
 				comp.setTranscriptText(request.getTranscriptText());
@@ -62,7 +69,9 @@ public class TranscriptEndpointService extends AbstractEndpointService {
 			if (request.getTranscriptJson() != null) {
 				comp.setTranscriptJson(request.getTranscriptJson());
 			}
-			compDao.storeTranscriptComp(comp);
+			// Upsert on (asset_uuid, node_kind, stream_index, lang): re-running the producing node replaces its own row instead of hitting the
+			// unique constraint.
+			compDao.upsertTranscriptComp(comp);
 			TranscriptResponse response = modelBuilder.toTranscriptResponse(comp);
 			lrc.send(response, 201);
 		});
@@ -98,6 +107,12 @@ public class TranscriptEndpointService extends AbstractEndpointService {
 			}
 			if (request.getSource() != null) {
 				comp.setNodeKind(request.getSource());
+			}
+			if (request.getProducerVersion() != null) {
+				comp.setProducerVersion(request.getProducerVersion());
+			}
+			if (request.getStreamIndex() != null) {
+				comp.setStreamIndex(request.getStreamIndex());
 			}
 			if (request.getLang() != null) {
 				comp.setLang(request.getLang());

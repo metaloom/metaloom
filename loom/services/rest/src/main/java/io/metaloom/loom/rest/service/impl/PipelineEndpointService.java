@@ -51,7 +51,6 @@ import io.metaloom.loom.pipeline.graph.PipelineGraphParser;
 import io.metaloom.loom.rest.model.processor.ProcessorCapability;
 import io.metaloom.loom.rest.model.processor.message.ProcessorMessageType;
 import io.metaloom.loom.rest.model.processor.message.SourceTaskMessage;
-import io.metaloom.loom.rest.model.processor.workorder.WorkOrderStatus;
 import io.metaloom.loom.rest.service.AbstractCRUDEndpointService;
 import io.metaloom.loom.rest.service.impl.ProcessorRegistry.ConnectedProcessor;
 import io.metaloom.loom.rest.validation.LoomModelValidator;
@@ -247,8 +246,9 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 	}
 
 	/**
-	 * Trigger a pipeline run by dispatching a {@link WorkOrder} of type
-	 * {@link WorkOrderType#PIPELINE_RUN} to a registered processor.
+	 * Trigger a pipeline run: select a processor and hand it the pipeline's source
+	 * node as a {@code SOURCE_TASK}. From there the {@link PipelineRunEngine} owns the
+	 * graph and dispatches individual {@code NODE_TASK}s as items stream back.
 	 *
 	 * <p>Callers only need {@link io.metaloom.loom.db.model.perm.Permission#READ_PIPELINE}
 	 * — this endpoint does not mutate the pipeline definition itself; it merely
@@ -303,7 +303,6 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 	 */
 	private RunDispatch dispatchRun(Pipeline pipeline, UUID userUuid, PipelineRunRequest request) {
 		PipelineRunResponse response = new PipelineRunResponse();
-		response.setWorkOrderId(UUID.randomUUID());
 
 		// Get the latest version for the run
 		PipelineVersion latestVersion = pipelineVersionDao.loadLatestByPipeline(pipeline.getUuid());
@@ -345,6 +344,7 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 		runRecord.setDryRun(dryRun);
 		pipelineRunDao.store(runRecord);
 		UUID runUuid = runRecord.getUuid();
+		response.setRunUuid(runUuid);
 
 		// The engine owns the graph and decides what runs next; Cortex only ever
 		// sees one node at a time. State goes to Postgres through the store, so the

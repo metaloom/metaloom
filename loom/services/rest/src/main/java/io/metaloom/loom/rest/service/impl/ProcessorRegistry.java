@@ -28,7 +28,6 @@ import io.metaloom.loom.rest.model.processor.event.ProcessorEventType;
 import io.metaloom.loom.rest.model.processor.message.ProcessorMessage;
 import io.metaloom.loom.rest.model.processor.message.ProcessorMessageType;
 import io.metaloom.loom.rest.model.processor.message.ProcessorRegistration;
-import io.metaloom.loom.rest.model.processor.workorder.WorkOrder;
 import io.vertx.core.http.ServerWebSocket;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
@@ -282,13 +281,6 @@ public class ProcessorRegistry {
 			.sorted((a, b) -> Integer.compare(b.priority, a.priority))
 			.findFirst()
 			.orElse(null);
-	}
-
-	/**
-	 * Dispatch a work order to a specific processor.
-	 */
-	public boolean dispatchWorkOrder(String nodeId, WorkOrder workOrder) {
-		return send(nodeId, ProcessorMessageType.WORK_ORDER, workOrder);
 	}
 
 	/**

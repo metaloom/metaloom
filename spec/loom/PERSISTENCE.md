@@ -235,6 +235,28 @@ Migrations live in `loom/db/flyway/src/main/resources/db/migration/`. They are P
 | `V2.26__add_person` | Person table (alias, firstname, lastname, primary_image_uuid) + person_image gallery |
 | `V2.27__add_detection` | Detection table (object/face detections: type, bbox, confidence, frame_number) + detection permissions |
 | `V2.28__add_chat` | Chat table (title, messages JSONB array) + chat permissions |
+| `V2.29__add_pipeline_run` | Pipeline run history table (status, counts, duration) + `*_PIPELINE_RUN` permissions |
+| `V2.30__add_pipeline_version` | Immutable pipeline_version history; name/definition/enabled/priority/dry_run move off `pipeline` onto the version + version permissions |
+| `V2.31__add_pipeline_execution_state` | Durable per-item / per-node execution ledger: `pipeline_run_item`, `pipeline_node_task` (leases, retries, idempotency keys) |
+| `V2.32__add_pipeline_run_item_path_index` | Index on `pipeline_run_item.media_path` |
+| `V2.33__add_cortex_instance` | Registered worker record `cortex_instance` + `cortex_instance_node_kind` whitelist/blacklist + `MANAGE/READ_CORTEX_INSTANCE` |
+| `V2.34__add_task_priority` | `task.priority` column + `task_priority` enum (LOW/MEDIUM/HIGH/CRITICAL) |
+| `V2.35__add_task_delete_cascade` | `ON DELETE CASCADE` for comment/reaction FKs into task and comment |
+| `V2.36__add_skill` | User-owned agent `skill` table + `*_SKILL` permissions |
+| `V2.37__add_skill_version` | Immutable `skill_version` history; description/content move off `skill` onto the version + version permissions |
+| `V2.38__rework_asset_components` | **Rework** geo/doc/image/video/audio comps onto the shared component contract (provenance columns, per-table idempotency key, nullable audit columns) |
+| `V2.39__rework_asset_transcript_comp` | **Rework** transcript comp: per-track FK, `lang` in the key, generated `tsvector` FTS column |
+| `V2.40__rework_asset_json_comp` | **Rework** the generic sink: `schema_type NOT NULL`, `variant` discriminator, GIN index on `data` |
+| `V2.41__add_asset_fingerprint_comp` | Multi-sector perceptual fingerprint component, indexed for dedup lookups |
+| `V2.42__add_asset_segment_comp` | Time-ranged segment component (scenes, silence, shots, chapters) |
+| `V2.43__rework_detection_embedding` | **Rework** detection + embedding: provenance, idempotency keys, `embedding.detection_uuid` FK, one geometry convention, cascade on `detection.asset_uuid` |
+| `V2.44__attachment_provenance` | `attachment` becomes the derived-binary sink: node provenance, `variant`, new `attachment_type` values, cascade on `asset_uuid` |
+| `V2.45__add_asset_node_result` | `asset_node_result` per-asset processing ledger (node-agnostic "has node X @ version V run") |
+| `V2.46__asset_identity` | `asset.uuid` promoted to PK, `sha512sum` becomes `NOT NULL UNIQUE`, adds `is_complete`, drops legacy inline S3 columns |
+| `V2.47__machine_written_audit_columns` | Nullable `creator_uuid`/`editor_uuid` on `attachment` (result tables recreated nullable in V2.38–V2.43) |
+| `V2.48__fix_asset_location_key_and_annotation_cascade` | Drops `asset_location UNIQUE (asset_uuid)` for the real key `(library_uuid, path)`; cascades reaction/comment → annotation |
+| `V2.49__version_pointer_delete_behaviour` | `pipeline.latest_version_uuid` / `skill.active_version_uuid` → `ON DELETE SET NULL` so the version cycle no longer blocks deletes |
+| `V2.50__add_blacklist_name` | Adds the `blacklist.name` column the whole stack already referenced |
 
 ### Common Migration Patterns
 
@@ -331,7 +353,11 @@ All tests are in `loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/dao/`:
 | `UserDaoTest` | User |
 | `AssetDaoTest` | Asset (also tests meta CRUD) |
 | `AssetLocationDaoTest` | AssetLocation |
-| `AssetJsonCompDaoTest` | AssetJsonComp |
+| `AssetComponentKeyTest` | Asset geo/doc/image/video/audio components — identity keys, coexistence, upsert |
+| `AssetTranscriptCompDaoTest` | Asset transcript component — per-track, model-upgrade upsert, FTS |
+| `AssetFingerprintSegmentCompDaoTest` | Asset fingerprint + segment components |
+| `AssetJsonCompDaoTest` | AssetJsonComp (generic sink) |
+| `AssetNodeResultDaoTest` | AssetNodeResult (processing ledger) |
 | `AttachmentDaoTest` | Attachment |
 | `BlacklistDaoTest` | Blacklist |
 | `ClusterDaoTest` | Cluster |
@@ -342,14 +368,24 @@ All tests are in `loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/dao/`:
 | `LibraryDaoTest` | Library |
 | `PersonDaoTest` | Person |
 | `PipelineDaoTest` | Pipeline |
+| `PipelineVersionDaoTest` | PipelineVersion |
+| `PipelineRunDaoTest` | PipelineRun |
+| `PipelineRunItemDaoTest` | PipelineRunItem |
+| `PipelineNodeTaskDaoTest` | PipelineNodeTask |
+| `CortexInstanceDaoTest` | CortexInstance |
+| `SkillDaoTest` | Skill |
+| `SkillVersionDaoTest` | SkillVersion |
 | `ReactionDaoTest` | Reaction |
-| `RoleDaoTest` | Role |
+| `RoleDaoTest` | Role — ⚠️ empty class, no tests (see In-Progress/TODO) |
 | `SpaceDaoTest` | Space |
 | `TagDaoTest` | Tag |
-| `TaskDaoTest` | Task |
+| `TagUserRatingDaoTest` | Tag user rating |
+| `TaskDaoTest` | Task (includes comment-subtree cascade) |
 | `TokenDaoTest` | Token |
 | `WebhookDaoTest` | Webhook |
 | `AnnotationDaoTest` | Annotation |
+
+*(Helper `PipelineFixtures` is a shared fixture builder, not a test.)*
 
 ### FixtureElementProvider
 
@@ -377,27 +413,35 @@ The following entities have full DAO + model + migration + jOOQ table support:
 | Role | `RoleDao` | `role` | Named roles with permissions |
 | Group | `GroupDao` | `group` | User groups with role assignments |
 | Permission | `PermissionDao` | `user_permission`, `role_permission`, `token_permission` | Per-resource permissions |
-| Asset | `AssetDao` | `asset` | SHA-512 hash, media metadata, S3 storage, geo, doc text |
-| AssetLocation | `AssetLocationDao` | `asset_location` | File path, library ref, lock state, pool ref |
+| Asset | `AssetDao` | `asset` | `uuid` PK (V2.46), `sha512sum NOT NULL UNIQUE` content key, hashes, size, `is_complete` |
+| AssetLocation | `AssetLocationDao` | `asset_location` | File path, library ref, lock state, pool ref; key `(library_uuid, path)` (V2.48) |
 | AssetBinary | `AssetBinaryDao` | `attachment_binary` | Binary storage by SHA-512 |
-| AssetComponent | `AssetComponentDao` | `asset_*_comp` | Extracted component data (geo, doc, image, video, audio, transcript, json) |
+| AssetComponent | `AssetComponentDao` | `asset_geo/doc/image/video/audio/transcript/fingerprint/segment/json_comp` | Node results on the shared component contract (node_kind/producer_version/run/task provenance, `UNIQUE(asset, node_kind, discriminators)`) — V2.38–V2.42. The generic `asset_json_comp` sink is REST-exposed as a slim, customer-facing endpoint at `/assets/:uuid/json-comps` (see `JsonCompEndpointService`) for cortex nodes to persist agnostic JSON results. |
+| AssetNodeResult | `AssetNodeResultDao` | `asset_node_result` | Per-asset processing ledger: has node X @ version V run, and its outcome (V2.45) |
 | AssetPool | `AssetPoolDao` | `asset_pool` | Storage pool (filesystem or S3), free/used space |
 | Library | `LibraryDao` | `library` | Named library with assets and collections |
 | Collection | `CollectionDao` | `collection` | Asset grouping with parent collection hierarchy |
 | Space | `SpaceDao` | `project` (renamed) | Named space with libraries and collections |
 | Tag | `TagDao` | `tag` | Tags with name, collection, rating, color |
-| Embedding | `EmbeddingDao` | `embedding` | Vector data with source, area, time range |
+| Embedding | `EmbeddingDao` | `embedding` | Vector data with provenance, `detection_uuid` FK, `dimensions` (V2.43) |
 | Cluster | `ClusterDao` | `cluster` | Aggregates embeddings (e.g. person identity) |
 | Annotation | `AnnotationDao` | `annotation` | FEEDBACK/TAG/CHAPTER types on assets |
 | Comment | `CommentDao` | `comment` | Comments on tasks, annotations, assets |
 | Reaction | `ReactionDao` | `reaction` | Social reactions (thumbsup, rating) |
-| Task | `TaskDao` | `task` | Tasks with status (PENDING/REJECTED/ACCEPTED/REVIEW) |
+| Task | `TaskDao` | `task` | Tasks with status + `priority` (LOW/MEDIUM/HIGH/CRITICAL, V2.34) |
 | Webhook | `WebhookDao` | `webhook` | Event-driven webhooks with secret token |
-| Blacklist | `BlacklistDao` | `blacklist` | Blocked assets with type and review count |
-| Attachment | `AttachmentDao` | `attachment` | Thumbnails and embedding attachments |
+| Blacklist | `BlacklistDao` | `blacklist` | Blocked assets with `name` (V2.50), type and review count |
+| Attachment | `AttachmentDao` | `attachment` | Derived-binary sink: thumbnails, contact sheets, poster frames, proxies (V2.44) |
 | Person | `PersonDao` | `person` | Person identity with image gallery |
-| Detection | `DetectionDao` | `detection` | Object/face detections (bbox, confidence, frame) |
-| Pipeline | `PipelineDao` | `pipeline` | Processing pipeline definitions (JSONB, enabled, priority, dry_run) |
+| Detection | `DetectionDao` | `detection` | Object/face detections with provenance + idempotency key (V2.43) |
+| Pipeline | `PipelineDao` | `pipeline` | Pipeline; name/definition/etc. live on `pipeline_version` (V2.30) |
+| PipelineVersion | `PipelineVersionDao` | `pipeline_version` | Immutable version history of a pipeline definition (V2.30) |
+| PipelineRun | `PipelineRunDao` | `pipeline_run` | Run history: status, counts, duration (V2.29) |
+| PipelineRunItem | `PipelineRunItemDao` | `pipeline_run_item` | One media item discovered by a run's source node (V2.31) |
+| PipelineNodeTask | `PipelineNodeTaskDao` | `pipeline_node_task` | One node execution against one item: leases, retries, idempotency (V2.31) |
+| CortexInstance | `CortexInstanceDao` | `cortex_instance`, `cortex_instance_node_kind` | Registered worker + node-kind whitelist/blacklist (V2.33) |
+| Skill | `SkillDao` | `skill` | User-owned agent skill; body lives on `skill_version` (V2.36) |
+| SkillVersion | `SkillVersionDao` | `skill_version` | Immutable version history of a skill body (V2.37) |
 | Chat | `ChatDao` | `chat` | LLM chat sessions with message history (JSONB) |
 
 ## Key Patterns for AI Agents
@@ -493,21 +537,28 @@ This section tracks the status of each persistence entity and its associated fea
 | Asset | V2.8 | AssetDao | AssetDaoImpl | AssetImpl | AssetDaoTest | SHA-512 hash, media metadata, S3, geo |
 | AssetLocation | V2.10 | AssetLocationDao | AssetLocationDaoImpl | AssetLocationImpl | AssetLocationDaoTest | File paths, library ref, pool ref |
 | AssetBinary | V2.13 | AssetBinaryDao | AssetBinaryDaoImpl | - | - | Binary storage by SHA-512 |
-| AssetComponent | V2.18+ | AssetComponentDao | AssetComponentDaoImpl | - | - | Geo, doc, image, video, audio, transcript, json components |
-| Embedding | V2.12 | EmbeddingDao | EmbeddingDaoImpl | EmbeddingImpl | EmbeddingDaoTest | Vector data with area/time |
+| AssetComponent | V2.18/V2.38+ | AssetComponentDao | AssetComponentDaoImpl | `Abstract/*CompImpl` | AssetComponentKeyTest, AssetTranscriptCompDaoTest, AssetFingerprintSegmentCompDaoTest, AssetJsonCompDaoTest | 9 comp tables on the shared contract; upsert-by-key |
+| AssetNodeResult | V2.45 | AssetNodeResultDao | AssetNodeResultDaoImpl | AssetNodeResultImpl | AssetNodeResultDaoTest | Per-asset processing ledger |
+| Embedding | V2.12/V2.43 | EmbeddingDao | EmbeddingDaoImpl | EmbeddingImpl | EmbeddingDaoTest | Vector + provenance + detection FK |
 | Cluster | V2.12 | ClusterDao | ClusterDaoImpl | ClusterImpl | ClusterDaoTest | Embedding clusters (person identity) |
 | Annotation | V2.16 | AnnotationDao | AnnotationDaoImpl | AnnotationImpl | AnnotationDaoTest | FEEDBACK/TAG/CHAPTER types |
 | Comment | V2.17 | CommentDao | CommentDaoImpl | CommentImpl | CommentDaoTest | Comments on tasks/annotations/assets |
 | Reaction | V2.17 | ReactionDao | ReactionDaoImpl | ReactionImpl | ReactionDaoTest | Social reactions |
 | Webhook | V2.15 | WebhookDao | WebhookDaoImpl | WebhookImpl | WebhookDaoTest | Event webhooks |
-| Blacklist | V2.14 | BlacklistDao | BlacklistDaoImpl | BlacklistImpl | BlacklistDaoTest | Blocked assets |
-| Attachment | V2.13 | AttachmentDao | AttachmentDaoImpl | AttachmentImpl | AttachmentDaoTest | Thumbnails, embedding attachments |
+| Blacklist | V2.14/V2.50 | BlacklistDao | BlacklistDaoImpl | BlacklistImpl | BlacklistDaoTest | Blocked assets (with `name`) |
+| Attachment | V2.13/V2.44 | AttachmentDao | AttachmentDaoImpl | AttachmentImpl | AttachmentDaoTest | Derived-binary sink |
 | AssetPool | V2.20 | AssetPoolDao | AssetPoolDaoImpl | AssetPoolImpl | - | Storage pools (FS or S3) |
 | Person | V2.26 | PersonDao | PersonDaoImpl | PersonImpl | PersonDaoTest | Person identity with image gallery |
-| Detection | V2.27 | DetectionDao | DetectionDaoImpl | DetectionImpl | - | Object/face detections (bbox, confidence) |
-| Pipeline | V2.19 | PipelineDao | PipelineDaoImpl | PipelineImpl | PipelineDaoTest | Processing pipeline definitions |
+| Detection | V2.27/V2.43 | DetectionDao | DetectionDaoImpl | DetectionImpl | - | Object/face detections (bbox, confidence) |
+| Pipeline | V2.19 | PipelineDao | PipelineDaoImpl | PipelineImpl | PipelineDaoTest | Pipeline (definition on version) |
+| PipelineVersion | V2.30 | PipelineVersionDao | PipelineVersionDaoImpl | PipelineVersionImpl | PipelineVersionDaoTest | Immutable version history |
+| PipelineRun | V2.29 | PipelineRunDao | PipelineRunDaoImpl | PipelineRunImpl | PipelineRunDaoTest | Run history |
+| PipelineRunItem | V2.31 | PipelineRunItemDao | PipelineRunItemDaoImpl | PipelineRunItemImpl | PipelineRunItemDaoTest | Per-item execution state |
+| PipelineNodeTask | V2.31 | PipelineNodeTaskDao | PipelineNodeTaskDaoImpl | PipelineNodeTaskImpl | PipelineNodeTaskDaoTest | Per-node execution state (leases/retries) |
+| CortexInstance | V2.33 | CortexInstanceDao | CortexInstanceDaoImpl | CortexInstanceImpl | CortexInstanceDaoTest | Registered worker + node-kind lists |
+| Skill | V2.36 | SkillDao | SkillDaoImpl | SkillImpl | SkillDaoTest | User-owned agent skill |
+| SkillVersion | V2.37 | SkillVersionDao | SkillVersionDaoImpl | SkillVersionImpl | SkillVersionDaoTest | Immutable skill body history |
 | Chat | V2.28 | ChatDao | ChatDaoImpl | ChatImpl | - | LLM chat sessions with message history |
-| AssetJsonComp | V2.23 | - | - | - | AssetJsonCompDaoTest | Generic JSON component from Cortex nodes |
 
 ### In-Progress / TODO
 
@@ -517,14 +568,16 @@ This section tracks the status of each persistence entity and its associated fea
 | Detection | Missing test | `DetectionDaoTest` not yet created |
 | Chat | Missing test | `ChatDaoTest` not yet created |
 | AssetBinary | Missing test | No `AssetBinaryDaoTest` found |
-| Permission | Thin test | `PermissionDaoTest` exists but only asserts non-nullity - see [PERMISSION.md](PERMISSION.md) §9 |
+| VectorConfig | Missing DAO | `vector_config` table (V2.6) has a jOOQ table but no domain DAO |
+| Loom | ✅ Done | `loom` singleton row (V2.5) has `LoomDao`/`LoomDaoImpl` (load/createLoom/update); covered by `LoomDaoTest` |
+| Permission | Thin test | `PermissionDaoTest` exists but only asserts non-nullity - see [PERMISSIONS.md](../features/permissions/PERMISSIONS.md) §9 |
 | Role | Missing test | `RoleDaoTest` exists but is an empty class with zero tests |
 
 ### jOOQ Generated Tables
 
 Generated table classes are in `loom/db/jooq/src/jooq/java/io/metaloom/loom/db/jooq/tables/`. Key tables:
 
-`JooqUser`, `JooqToken`, `JooqRole`, `JooqRolePermission`, `JooqUserPermission`, `JooqTokenPermission`, `JooqGroup`, `JooqRoleGroup`, `JooqUserGroup`, `JooqTag`, `JooqTagAsset`, `JooqTagUserMeta`, `JooqTagCollection`, `JooqTask`, `JooqAsset`, `JooqAssetRemix`, `JooqAssetLocation`, `JooqAssetUserMeta`, `JooqAssetTask`, `JooqCollection`, `JooqCollectionAsset`, `JooqCollectionCluster`, `JooqLibrary`, `JooqLibraryAsset`, `JooqLibraryCollection`, `JooqProject`, `JooqProjectLibrary`, `JooqProjectCollection`, `JooqEmbedding`, `JooqEmbeddingCluster`, `JooqCluster`, `JooqAnnotation`, `JooqAnnotationTask`, `JooqAnnotationAsset`, `JooqAnnotationTag`, `JooqComment`, `JooqReaction`, `JooqWebhook`, `JooqBlacklist`, `JooqAttachment`, `JooqAttachmentBinary`, `JooqAssetPool`, `JooqAssetGeoComp`, `JooqAssetDocComp`, `JooqAssetImageComp`, `JooqAssetVideoComp`, `JooqAssetAudioComp`, `JooqAssetTranscriptComp`, `JooqAssetJsonComp`, `JooqPerson`, `JooqPipeline`, `JooqChat`, `JooqLoom`, `JooqFlywaySchemaHistory`
+`JooqUser`, `JooqToken`, `JooqRole`, `JooqRolePermission`, `JooqUserPermission`, `JooqTokenPermission`, `JooqGroup`, `JooqRoleGroup`, `JooqUserGroup`, `JooqTag`, `JooqTagAsset`, `JooqTagUserMeta`, `JooqTagCollection`, `JooqTagCluster`, `JooqTask`, `JooqAsset`, `JooqAssetRemix`, `JooqAssetLocation`, `JooqAssetUserMeta`, `JooqAssetTask`, `JooqCollection`, `JooqCollectionAsset`, `JooqCollectionCluster`, `JooqLibrary`, `JooqLibraryAsset`, `JooqLibraryCollection`, `JooqProject`, `JooqProjectLibrary`, `JooqProjectCollection`, `JooqEmbedding`, `JooqEmbeddingCluster`, `JooqCluster`, `JooqAnnotation`, `JooqAnnotationTask`, `JooqAnnotationAsset`, `JooqAnnotationTag`, `JooqComment`, `JooqReaction`, `JooqWebhook`, `JooqBlacklist`, `JooqAttachment`, `JooqAttachmentBinary`, `JooqAssetPool`, `JooqAssetGeoComp`, `JooqAssetDocComp`, `JooqAssetImageComp`, `JooqAssetVideoComp`, `JooqAssetAudioComp`, `JooqAssetTranscriptComp`, `JooqAssetJsonComp`, `JooqAssetFingerprintComp`, `JooqAssetSegmentComp`, `JooqAssetNodeResult`, `JooqPerson`, `JooqPersonImage`, `JooqDetection`, `JooqPipeline`, `JooqPipelineVersion`, `JooqPipelineRun`, `JooqPipelineRunItem`, `JooqPipelineNodeTask`, `JooqCortexInstance`, `JooqCortexInstanceNodeKind`, `JooqSkill`, `JooqSkillVersion`, `JooqChat`, `JooqVectorConfig`, `JooqLoom`, `JooqFlywaySchemaHistory`
 
 ### Migration File Index
 
@@ -558,4 +611,30 @@ loom/db/flyway/src/main/resources/db/migration/
   V2.26__add_person.sql                    - Person, person_image
   V2.27__add_detection.sql                 - Detection
   V2.28__add_chat.sql                      - Chat
+  V2.29__add_pipeline_run.sql              - Pipeline run history + run permissions
+  V2.30__add_pipeline_version.sql          - Pipeline version history (definition moves off pipeline)
+  V2.31__add_pipeline_execution_state.sql  - pipeline_run_item, pipeline_node_task
+  V2.32__add_pipeline_run_item_path_index.sql - Index on run item media_path
+  V2.33__add_cortex_instance.sql           - cortex_instance, cortex_instance_node_kind
+  V2.34__add_task_priority.sql             - task.priority + task_priority enum
+  V2.35__add_task_delete_cascade.sql       - Comment/reaction cascade into task/comment
+  V2.36__add_skill.sql                     - Skill
+  V2.37__add_skill_version.sql             - Skill version history (body moves off skill)
+  V2.38__rework_asset_components.sql       - Rework geo/doc/image/video/audio comps (shared contract)
+  V2.39__rework_asset_transcript_comp.sql  - Rework transcript comp (per-track, FTS)
+  V2.40__rework_asset_json_comp.sql        - Rework generic json comp (variant, GIN)
+  V2.41__add_asset_fingerprint_comp.sql    - Fingerprint component
+  V2.42__add_asset_segment_comp.sql        - Segment component (scenes/silence/chapters)
+  V2.43__rework_detection_embedding.sql    - Rework detection + embedding (provenance, FK, geometry)
+  V2.44__attachment_provenance.sql         - Attachment as derived-binary sink
+  V2.45__add_asset_node_result.sql         - Per-asset processing ledger
+  V2.46__asset_identity.sql                - uuid PK, sha512sum NOT NULL UNIQUE, is_complete
+  V2.47__machine_written_audit_columns.sql - Nullable audit columns on machine-written rows
+  V2.48__fix_asset_location_key_and_annotation_cascade.sql - (library_uuid, path) key; annotation cascades
+  V2.49__version_pointer_delete_behaviour.sql - Version pointers ON DELETE SET NULL
+  V2.50__add_blacklist_name.sql            - blacklist.name column
 ```
+
+---
+
+*Schema current through `V2.50`. GIT HEAD: `b3b619287fd4d557c3adb232f6354a37702c3690` · Updated: 2026-07-24*

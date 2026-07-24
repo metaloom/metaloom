@@ -99,8 +99,8 @@ graph TB
 
     subgraph CORTEX["Cortex — the workshop (many workers)"]
         LCC["LoomControlChannel<br/>the phone line"]
-        WOH["WorkOrderHandler"]
-        EXEC["ReactivePipelineExecutor<br/>runs the graph"]
+        PTH["PipelineTaskHandler"]
+        EXEC["Node runner<br/>runs one node at a time"]
         NODES["Nodes: hash, facedetect,<br/>whisper, OCR, thumbnail…"]
         FILES[("Media files<br/>+ xattr metadata")]
     end
@@ -108,10 +108,10 @@ graph TB
     UI -->|"REST: save / run"| REST
     UI -->|"WebSocket: live progress"| EVWS
     REST --> DB
-    REST -->|"dispatch work order"| REG
+    REST -->|"SOURCE_TASK + engine drives NODE_TASKs"| REG
     REG --> WS
     WS <-->|"one long-lived connection"| LCC
-    LCC --> WOH --> EXEC --> NODES --> FILES
+    LCC --> PTH --> EXEC --> NODES --> FILES
     EXEC -->|"progress events"| LCC
     LCC -->|"PIPELINE_EVENT"| WS --> EVWS
     NODES -->|"results, REST bulk"| REST
@@ -206,8 +206,9 @@ conversation.**
 |---|---|
 | `REGISTER` — introduce myself | `REGISTERED` — acknowledged |
 | `HEARTBEAT` — still alive | `HEARTBEAT_ACK` |
-| `STATUS_UPDATE` — machine load | `WORK_ORDER` — **do this** |
-| `WORK_ORDER_RESULT` — accepted / failed | `ERROR` |
+| `STATUS_UPDATE` — machine load | `SOURCE_TASK` — **enumerate this source** |
+| `SOURCE_ITEMS` / `SOURCE_COMPLETE` — what I found | `NODE_TASK` — **run this one node** |
+| `NODE_TASK_RESULT` — node outcome | `ERROR` |
 | `PIPELINE_EVENT` — live progress | |
 | `PIPELINE_RUN_COMPLETED` — final tally | |
 
@@ -224,8 +225,9 @@ There are exactly **three** places where Cortex calls Loom's REST API:
 | load asset by SHA-512 | look up an existing asset before processing |
 
 Note the important one: **pipeline definitions are pulled over REST, not pushed
-over the WebSocket.** The `reload-pipelines` work order does not carry a recipe
-— it is just a nudge telling Cortex to go and re-fetch over REST.
+over the WebSocket.** Cortex fetches them on startup via
+`LoomPipelineLoader.loadAndRegister()`; a `SOURCE_TASK` names the source node to
+run but does not carry the recipe.
 
 ### A third road, for the UI only
 
@@ -506,7 +508,7 @@ puts truthfulness ahead of performance.
 | Need | Path |
 |---|---|
 | Cortex ↔ Loom control channel | `cortex/core/…/impl/loom/LoomControlChannel.java` |
-| Work-order handling | `cortex/core/…/impl/loom/PipelineWorkOrderHandler.java` |
+| Source/node task handling | `cortex/core/…/impl/loom/PipelineTaskHandler.java` |
 | Health / readiness | `cortex/core/…/impl/monitoring/` |
 | Startup + shutdown | `cortex/core/…/impl/boot/CortexBootstrapInitializer.java` |
 | The execution engine | `cortex/pipeline-core/…/executor/ReactivePipelineExecutor.java` |

@@ -121,10 +121,10 @@ public interface PipelineExamples extends ExampleValues {
 
 	default PipelineRunResponse pipelineRunResponse() {
 		PipelineRunResponse model = new PipelineRunResponse();
-		model.setWorkOrderId(UUID.randomUUID());
+		model.setRunUuid(UUID.randomUUID());
 		model.setProcessorNodeId("cortex-01");
 		model.setDispatched(true);
-		model.setMessage("Work order dispatched");
+		model.setMessage("Pipeline run dispatched");
 		return model;
 	}
 

@@ -77,6 +77,12 @@ asserts the node count matches.
 
 ## Task 2: Make pipeline runs report completion — ✅ DONE (2026-07-18)
 
+> **⚠️ Superseded:** the WorkOrder mechanism (`WorkOrderResultRegistry`,
+> `PipelineWorkOrderHandler`, the 60 s ack watchdog) described below was
+> **removed**. Runs now close through `PipelineRunEngine` → `PipelineRunTracker`,
+> and an unreachable processor fails the run synchronously at dispatch. See
+> PIPELINE.md §12 for the current flow. The narrative below is kept as history.
+>
 > **Implemented.** Cortex now threads a `PipelineRunContext` through the
 > executor so every tracking event carries the run id, and `PIPELINE_COMPLETED`
 > carries the real elapsed duration plus per-media counters.
@@ -332,7 +338,7 @@ filter node still routes the PASS branch correctly.
 
 **Argumentation Summary:** The untested code is precisely where the defects are.
 `pipeline-common` has no test directory. `LoomPipelineLoader` has no test — one
-would have caught Task 1 immediately. `PipelineWorkOrderHandler`,
+would have caught Task 1 immediately. `PipelineTaskHandler`,
 `LoomControlChannel`, `RegistryNodeFactory`, and `CortexNodeAdapter` have no
 direct tests. None of the 8 concrete filter nodes is tested. No test calls
 `execute()` twice, which is why Task 4's defect went unnoticed.
@@ -353,9 +359,10 @@ Priority order:
 2. Filter node tests: one per concrete filter in
    pipeline-core/.../node/filter/. Assert both the filter_passed output AND
    downstream PASS/REJECT routing through the executor.
-3. PipelineWorkOrderHandlerTest — all four commands (reload-pipelines,
-   flush-sync, list-pipelines, run-pipeline), the WorkOrderType -> command
-   fallback mapping, expandGlob, and the unknown-command FAILED path.
+3. PipelineTaskHandlerTest — SOURCE_TASK enumeration + SOURCE_ITEMS/
+   SOURCE_COMPLETE streaming, NODE_TASK execution + NODE_TASK_RESULT, and the
+   failure path. (Superseded: the old WorkOrder command handler is gone — see
+   PIPELINE.md §12.)
 4. CortexNodeAdapterTest — direct unit test of state mapping
    (SUCCESS->COMPLETED, SKIPPED->SKIPPED, FAILED->FAILED), null-result
    handling, upstream output conversion, and id override.
@@ -404,7 +411,7 @@ they unblock.
    - POST /run with no processor registered -> 503 and assert NO pipeline_run
      row is created
    - POST /run with a registered processor -> 202, and assert the dispatched
-     work order payload shape
+     `SOURCE_TASK` (`SourceTaskMessage`) payload shape
    - DELETE /:uuid removes versions and runs
 
 3. While here: PipelineDaoTest/PipelineVersionDaoTest exercise only the generic
@@ -541,9 +548,10 @@ Decide implement-or-delete for each:
    (contradicting its own javadoc) and has zero callers. Delete the SPI and fix
    the javadoc, or wire it as a pipeline-level pre-filter.
 
-5. mediaUuids — accepted by PipelineRunRequest and the work-order handler, then
-   warn-logged as unimplemented. The UI offers it. Implement resolution from
-   asset UUIDs to LoomMedia, or remove it from the DTO and UI.
+5. mediaUuids — accepted by PipelineRunRequest and now resolved to stored binary
+   paths in PipelineEndpointService.sourceOptions (fed into the SOURCE_TASK
+   options). Largely addressed; verify UI coverage of the single-asset vs
+   multi-asset paths.
 
 6. Processor capability is hardcoded to CPU in PipelineEndpointService.run.
    Derive the required capability from the pipeline's node types so a
@@ -598,9 +606,10 @@ another.
    MemPipelineRunDao, or document the limitation explicitly and make the
    backend fail fast with a clear message on pipeline access.
 
-5. ProcessorRegistry.dispatchWorkOrder builds its envelope by string
-   concatenation: "{\"type\":\"WORK_ORDER\",\"body\":" + json + "}". Serialise a
-   ProcessorMessage instead.
+5. ~~ProcessorRegistry.dispatchWorkOrder builds its envelope by string
+   concatenation.~~ Superseded: `dispatchWorkOrder` was removed with the WorkOrder
+   subsystem; run dispatch now serialises typed `SourceTaskMessage` / `NodeTask`
+   messages through `ProcessorRegistry.send()`. See PIPELINE.md §12.
 
 6. ProcessorEndpoint returns a hand-built JSON 404 body for an unknown
    processor instead of the standard error model, and its lookup does a linear

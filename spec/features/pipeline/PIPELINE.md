@@ -70,11 +70,13 @@ graph TB
         BC[PipelineEventBroadcaster]
         EVW[PipelineEventEndpoint<br/>/api/v1/pipelines/events/ws]
         REG[ProcessorRegistry]
+        ENG[PipelineRunEngine<br/>owns the DAG]
+        DSP[WebSocketNodeDispatcher]
     end
 
     subgraph CORTEX["Cortex Processor"]
         LCC[LoomControlChannel]
-        WOH[PipelineWorkOrderHandler]
+        PTH[PipelineTaskHandler]
         LPL[LoomPipelineLoader<br/>+ RegistryNodeFactory]
         PM[PipelineManager]
         EX[ReactivePipelineExecutor]
@@ -86,11 +88,14 @@ graph TB
     REST --> VAL
     REST --> DB
     ED -->|POST /run| REST
-    REST --> REG
-    REG -->|WORK_ORDER| PROC
+    REST -->|select processor| REG
+    REST -->|SOURCE_TASK dispatch| PROC
+    REST --> ENG
+    ENG -->|NODE_TASK| DSP
+    DSP --> PROC
     PROC <-->|WebSocket| LCC
-    LCC --> WOH
-    WOH --> EX
+    LCC --> PTH
+    PTH --> EX
     LPL -->|GET /api/v1/pipelines| REST
     LPL --> PM
     PM --> EX
@@ -125,7 +130,7 @@ graph TB
 | `cortex/pipeline-common` | `DefaultPipelineEventBus`, cache impls, `DefaultLoomBulkSyncCollector` |
 | `cortex/common/…/node` | Legacy base classes: `AbstractCortexNode`, `AbstractFilesystemNode`, `AbstractMediaNode` |
 | `cortex/nodes/` | Concrete processing nodes + `common-api`/`filter-api`/`source-api` descriptor providers |
-| `cortex/core` | Runtime wiring, `LoomPipelineLoader`, `RegistryNodeFactory`, `LoomControlChannel`, `PipelineWorkOrderHandler` |
+| `cortex/core` | Runtime wiring, `LoomPipelineLoader`, `RegistryNodeFactory`, `LoomControlChannel`, `PipelineTaskHandler` |
 | `cortex/cli` | `PipelineNodeFactoryModule` (node type registration), `NodeCollectionModule` |
 
 ### Loom
@@ -135,7 +140,8 @@ graph TB
 | `loom/db/api` | `Pipeline`, `PipelineVersion`, `PipelineRun` models + DAO interfaces |
 | `loom/db/jooq` | jOOQ DAO implementations |
 | `loom/db/flyway` | `V2.19__add_pipeline.sql`, `V2.29__add_pipeline_run.sql`, `V2.30__add_pipeline_version.sql` |
-| `loom/services/rest` | `PipelineEndpoint`, `PipelineEventEndpoint`, `ProcessorEndpoint`, `PipelineEndpointService`, `PipelineEventBroadcaster`, `PipelineValidationService`, `ProcessorRegistry`, `WorkOrderResultRegistry` |
+| `loom/pipeline` | `PipelineRunEngine` (owns the DAG, drives `NODE_TASK` dispatch), run state store |
+| `loom/services/rest` | `PipelineEndpoint`, `PipelineEventEndpoint`, `ProcessorEndpoint`, `PipelineEndpointService`, `PipelineEventBroadcaster`, `PipelineValidationService`, `ProcessorRegistry`, `WebSocketNodeDispatcher`, `PipelineRunTracker` |
 | `loom-shared/rest-model` | `PipelineModel` + request/response DTOs, event DTOs, `PipelineModelValidator` |
 | `loom-client/rest` | `PipelineMethods` (incomplete — see §12) |
 | `loom-ui/src/features/pipeline` | `PipelineEditor.tsx` — the real editor |
@@ -760,7 +766,7 @@ Notes:
 
 `PipelineResponse`, `PipelineCreateRequest`, `PipelineUpdateRequest` (all
 optional), `PipelineRunRequest` (`mediaUuids`, `pathGlobs`, `dryRun`),
-`PipelineRunResponse` (`workOrderId`, `processorNodeId`, `dispatched`,
+`PipelineRunResponse` (`runUuid`, `processorNodeId`, `dispatched`,
 `message`), `PipelineRunRecord` (⚠️ `started`/`finished` are **ISO-8601
 Strings**, `status` is a String), `PipelineVersionRestoreRequest`, and the three
 list responses.
@@ -797,8 +803,9 @@ Strict mode (reject when no token) is opt-in via env `LOOM_WS_STRICT_AUTH=true`.
 Envelope: `ProcessorMessage { ProcessorMessageType type; JsonObject body }`.
 
 `ProcessorMessageType`: `REGISTER, HEARTBEAT, STATUS_UPDATE, STATE_CHANGE,
-WORK_ORDER_RESULT, PIPELINE_EVENT, PIPELINE_RUN_COMPLETED, REGISTERED,
-HEARTBEAT_ACK, WORK_ORDER, ERROR`
+PIPELINE_EVENT, PIPELINE_RUN_COMPLETED, SOURCE_ITEMS, SOURCE_COMPLETE,
+NODE_TASK_RESULT, REGISTERED, HEARTBEAT_ACK, SOURCE_TASK, SOURCE_ITEMS_ACK,
+NODE_TASK, SEGMENT_TASK, SEGMENT_TASK_RESULT, NODE_TASK_RESULT_BATCH, ERROR`
 
 Cortex side (`LoomControlChannel`): opens the WS, sends
 `REGISTER(ProcessorRegistration)`, then periodic `HEARTBEAT` (10 s) and
@@ -835,89 +842,75 @@ a subscriber matches, removes closed sockets inline, and **drops messages when
 timestamp, durationMs, message, activeCount, pendingCount, processedCount,
 failedCount`.
 
-### 12.3 Work-order flow (the broken path)
+### 12.3 Pipeline run flow (SOURCE_TASK + engine)
 
-1. `POST /:uuid/run` → `PipelineEndpointService.run`.
-2. `processorRegistry.selectProcessor(ProcessorCapability.CPU)` — filters
-   `state == ONLINE` + capability, sorts by priority DESC.
-   ⚠️ Capability is **hardcoded to `CPU`**.
-3. No processor → `PipelineRunResponse{dispatched=false}`, HTTP **503**, and
-   **no `pipeline_run` row is created**.
-4. Otherwise a `pipeline_run` row is created with status `"RUNNING"`.
-5. `WorkOrder{ type=PIPELINE_RUN, requiredCapability=CPU, assetUuids,
-   parameters={command:"run-pipeline", pipelineUuid, pipelineName,
-   pipelineRunUuid, pipelineVersion, [mediaUuids], [pathGlobs], [dryRun]} }`.
-6. `ProcessorRegistry.dispatchWorkOrder` writes a **hand-concatenated** envelope
-   string `"{\"type\":\"WORK_ORDER\",\"body\":" + json + "}"` instead of
-   serialising a `ProcessorMessage`. ⚠️ Fragile.
-7. HTTP 202.
-8. Cortex `LoomControlChannel` decodes `WORK_ORDER` → `PipelineWorkOrderHandler`.
-   Sends back `WORK_ORDER_RESULT` (`COMPLETED`, or `FAILED` + `errorMessage`).
-9. Loom `ProcessorEndpoint.handleWorkOrderResult` →
-   `WorkOrderResultRegistry.complete(result)`.
+1. `POST /:uuid/run` → `PipelineEndpointService.run` → `dispatchRun`. (The asset
+   auto-trigger calls `dispatchRun` directly, without a routing context.)
+2. `graphParser.parse(...)` turns the latest version's `definition` into an
+   executable `PipelineGraph`. A definition that cannot run as drawn is an error
+   the caller sees now: `GraphValidationException` → `dispatched=false`,
+   HTTP **400**, and **no `pipeline_run` row**.
+3. `processorRegistry.selectProcessorForKinds(ProcessorCapability.CPU,
+   [sourceKind])` — the highest-priority `ONLINE` processor whose node-kind
+   restriction accepts the pipeline's **source-node kind**. ⚠️ Capability is
+   still **hardcoded to `CPU`**; the kind list comes from the parsed graph.
+4. No such processor → `PipelineRunResponse{dispatched=false}`, HTTP **503**, and
+   **no `pipeline_run` row is created**. (This synchronous 503 replaces the old
+   ack watchdog — there is no timeout mechanism anymore.)
+5. Otherwise a `pipeline_run` row is created with status `"RUNNING"` and the
+   response carries the real `runUuid`.
+6. A `PipelineRunEngine` is built over the graph with a `DaoRunStateStore` (run
+   state is persisted to Postgres, so a run is not lost with the process that
+   started it), an asset sink for `syncToLoom` outputs, completion / node-settled
+   hooks, and a shared circuit breaker + retry scheduler. It is registered in
+   `pipelineRunRegistry` and `start()`ed.
+7. The pipeline's **source node** is handed to the chosen worker as a
+   `SOURCE_TASK` (`SourceTaskMessage{ runUuid, nodeId, nodeKind, options }`) via
+   `processorRegistry.send(...)`. HTTP **202**. If the socket is already gone,
+   the run is failed immediately via `pipelineRunTracker.fail(...)` (HTTP 503).
 
-**Commands** — `PipelineWorkOrderHandler` resolves `parameters.command` if
-present, else maps from `WorkOrderType` (`FILESYSTEM_SCAN`→`reload-pipelines`,
-`FINGERPRINT`→`flush-sync`, `PIPELINE_RUN`→`run-pipeline`):
+**Streaming, once the source task lands:**
 
-| Command | Action | Result payload |
-|---|---|---|
-| `reload-pipelines` | `pipelineLoader.loadAndRegister()` | `pipelinesLoaded` |
-| `flush-sync` | `pipelineExecutor.flushSync()` | `flushedSyncEntries` |
-| `list-pipelines` | `pipelineManager.pipelines()` names | `pipelineNames`, `pipelineCount` |
-| `run-pipeline` | resolve by name, expand `pathGlobs`, execute | `pipelineName`, `mediaCount`, `pipelineRunUuid?`, `message` |
+- The worker (cortex `PipelineTaskHandler`) runs the source node and streams
+  discovered items back as `SOURCE_ITEMS` batches, each acked by the engine with
+  `SOURCE_ITEMS_ACK`, ending with `SOURCE_COMPLETE`.
+- For each item the engine (loom-side) owns the DAG and dispatches **individual
+  `NODE_TASK` messages** via `WebSocketNodeDispatcher`. The worker runs each node
+  (`NodeTaskRunner`) and replies with `NODE_TASK_RESULT` /
+  `NODE_TASK_RESULT_BATCH`. Affinity segments go out as `SEGMENT_TASK` and come
+  back as `SEGMENT_TASK_RESULT`.
+- Cortex only ever sees one node (or segment) at a time; the engine decides what
+  runs next.
 
-`run-pipeline` is deliberately **fire-and-forget**: it subscribes on
-`Schedulers.io()` with log-only callbacks and immediately reports
-*"dispatched N media items"* — not outcomes.
+### 12.3.1 Run completion
 
-### 12.3.1 Run completion (implemented 2026-07-18)
+Runs close out through `PipelineRunTracker` (this tracker path is **unchanged**
+and still valid).
 
-Runs are closed out through two complementary paths.
+1. When the DAG drains, the engine's `onCompletion` hook calls
+   `pipelineRunTracker.complete(runUuid, durationMs, mediaCount, success,
+   failure, skipped)`.
+2. Independently, the worker sends `PIPELINE_RUN_COMPLETED`;
+   `ProcessorEndpoint.handlePipelineRunCompleted` parses it and also routes to
+   `PipelineRunTracker.complete(…)`.
+3. The tracker derives the status via `PipelineRunStatusResolver` and writes
+   `status`, `finished`, `duration_ms` and all four counters.
 
-**Normal path — the processor reports completion:**
-
-1. `handleRunPipeline` builds a `PipelineRunContext` from the work order's
-   `pipelineRunUuid` and passes it to
-   `PipelineExecutor.execute(pipeline, media, runContext)`.
-2. `ReactivePipelineExecutor` stamps that run id onto **every** tracking event,
-   and accumulates per-media outcome counters for the subscription. A media item
-   is a *failure* if `!PipelineResult.isSuccess()`, *skipped* if it succeeded
-   but no node reached `COMPLETED` (dry-run, or filtered out), otherwise a
-   *success*.
-3. On completion it emits `PIPELINE_COMPLETED` via
-   `PipelineTrackingEvent.pipelineCompleted(…)` with the real elapsed time and a
-   `RunCounters` record.
-4. `LoomControlChannel` forwards the run id and counters in both the
-   `PIPELINE_EVENT` and the `PIPELINE_RUN_COMPLETED` message.
-5. `ProcessorEndpoint.handlePipelineRunCompleted` parses them and calls
-   `PipelineRunTracker.complete(…)`, which derives the status via
-   `PipelineRunStatusResolver` and writes `status`, `finished`, `duration_ms`
-   and all four counters.
-
-**Watchdog path — the processor never answers:**
-
-`PipelineEndpointService.run` registers a **60 s dispatch watchdog**
-(`WORK_ORDER_ACK_TIMEOUT_MS`) via `workOrderResultRegistry.registerWithTimeout`.
-This guards the *ack*, not the run: an ack arrives as soon as the processor has
-resolved its media selection. `onWorkOrderAck` then decides:
-
-| Ack | Action |
-|---|---|
-| `FAILED` (or watchdog fired) | close the run as `FAILED` with the error |
-| `COMPLETED`, `mediaCount == 0` | close as `SUCCESS` immediately — the pipeline never runs, so no `PIPELINE_RUN_COMPLETED` will ever arrive |
-| `COMPLETED`, `mediaCount > 0` | leave `RUNNING`; the normal path closes it |
-
-A failed `dispatchWorkOrder` cancels the watchdog and fails the run at once.
+If the `SOURCE_TASK` cannot be delivered (dead socket), `dispatchRun` fails the
+run at once via `pipelineRunTracker.fail(...)`. There is **no 60 s ack
+watchdog** — an unavailable processor is caught synchronously at dispatch: a
+`503` when `selectProcessorForKinds` returns null, or an immediate `fail(...)`
+when the send does not reach the worker.
 
 **Status mapping** (`PipelineRunStatusResolver`, unit-tested in isolation):
 no failures → `SUCCESS`; `failures >= media` → `FAILED`; otherwise → `PARTIAL`.
 Counters are clamped and inconsistent reports fail closed to `FAILED`.
 
 ⚠️ **First terminal verdict wins.** `PipelineRunTracker` refuses to touch a run
-already in `SUCCESS`/`FAILED`/`PARTIAL`/`CANCELLED`, so a late watchdog cannot
-overwrite a real result. Both paths funnel through the tracker for exactly this
-reason — do not write run status from anywhere else.
+already in `SUCCESS`/`FAILED`/`PARTIAL`/`CANCELLED`, so a late `PIPELINE_RUN_COMPLETED`
+cannot overwrite the verdict the engine's `onCompletion` already wrote (or vice
+versa). Both paths funnel through the tracker for exactly this reason — do not
+write run status from anywhere else.
 
 ⚠️ **Use `PipelineRunDao.update()`, not `store()`,** to modify an existing run.
 `AbstractJooqDao.store()` is INSERT-only and will violate the primary key.
@@ -926,9 +919,11 @@ reason — do not write run status from anywhere else.
 `null` run id. That is normal — the message is ignored for persistence rather
 than treated as an error.
 
-⚠️ `mediaUuids` is accepted by the DTO and the handler, then explicitly
-warn-logged as unimplemented. Only `pathGlobs` (expanded against the Cortex
-process CWD) actually selects media.
+`mediaUuids` and `pathGlobs` on the run request both feed
+`sourceOptions(...)`: `pathGlobs` is passed through as-is, while `mediaUuids` are
+resolved to their stored binary paths (a single asset as `path`/`assetUuid`,
+several as `pathGlobs`). ⚠️ Paths are resolved on the **worker**, so a path the
+chosen processor cannot see yields an empty run rather than an error.
 
 ### 12.4 Pipeline loading (Cortex startup)
 
@@ -1075,8 +1070,7 @@ issue, not a code issue.
 - **`LoomPipelineLoader` has no test.** A single loader test would have caught
   the `edges`/`dependencies` mismatch (§9.2).
 - No test for `RegistryNodeFactory` / `PipelineNodeFactoryModule`,
-  `PipelineWorkOrderHandler` (any of the 4 commands, `expandGlob`,
-  `resolveCommand`), `LoomControlChannel`, or `CortexNodeAdapter` directly.
+  `PipelineTaskHandler`, `LoomControlChannel`, or `CortexNodeAdapter` directly.
 - **None of the 8 concrete filter nodes has a test.**
 - No test calls `execute()` twice on one executor — which would immediately
   surface the `statsScheduler` defect (§6.3).
@@ -1093,8 +1087,7 @@ issue, not a code issue.
   `/versions/:version`, `/versions/:version/restore`) — only mocked Playwright
   specs. Root cause: `PipelineMethods` on the Java client lacks those methods.
 - No test for `POST /:uuid/run` (dispatch, 503-no-processor, payload shape).
-- No test for `GET /:uuid/runs`, `WorkOrderResultRegistry`, or
-  `PipelineModelValidator`.
+- No test for `GET /:uuid/runs` or `PipelineModelValidator`.
 - No test that `DELETE /:uuid` removes versions and runs.
 - DAO tests never exercise `loadWithLatestVersion`, `loadByUuids`,
   `loadByPipelineAndVersion`, or `loadLatestByPipeline`.
@@ -1117,14 +1110,16 @@ issue, not a code issue.
 | `DefaultLoomBulkSyncCollector` | `…pipeline.common.sync` | Batches sync-eligible results |
 | `LoomPipelineLoader` | `io.metaloom.cortex.pipeline.loader` | Loads definitions from Loom |
 | `RegistryNodeFactory` | `io.metaloom.cortex.pipeline.loader` | Type string → concrete node |
-| `LoomControlChannel` | `io.metaloom.cortex.impl.loom` | WS client: register, heartbeat, work orders |
-| `PipelineWorkOrderHandler` | `io.metaloom.cortex.impl.loom` | 4 work-order commands |
+| `LoomControlChannel` | `io.metaloom.cortex.impl.loom` | WS client: register, heartbeat, source/node tasks |
+| `PipelineTaskHandler` | `io.metaloom.cortex.impl.loom` | Runs `SOURCE_TASK` / `NODE_TASK` / `SEGMENT_TASK` from Loom |
+| `PipelineRunEngine` | `io.metaloom.loom.pipeline.engine` | Loom-side DAG driver; dispatches `NODE_TASK`s |
+| `WebSocketNodeDispatcher` | `io.metaloom.loom.rest.service.impl` | Sends `NODE_TASK`s to the worker socket |
+| `PipelineRunTracker` | `io.metaloom.loom.rest.service.impl` | Closes runs; derives status, writes counters |
 | `PipelineEndpoint` | `io.metaloom.loom.rest.endpoint.impl` | REST routes |
 | `PipelineEndpointService` | `io.metaloom.loom.rest.service.impl` | CRUD + versioning + run dispatch |
 | `PipelineValidationService` | `io.metaloom.loom.rest.validation` | Server-side definition validation |
 | `PipelineEventBroadcaster` | `io.metaloom.loom.rest.service.impl` | Fan-out to UI WS subscribers |
 | `ProcessorRegistry` | `io.metaloom.loom.rest.service.impl` | Processor selection + dispatch |
-| `WorkOrderResultRegistry` | `io.metaloom.loom.rest.service.impl` | Callback registry (⚠️ unused by run path) |
 | `PipelineModelBuilder` | `io.metaloom.loom.rest.builder` | `Pipeline` + `PipelineVersion` → `PipelineResponse` |
 
 ---
@@ -1144,7 +1139,8 @@ issue, not a code issue.
 | Pipeline loader + node factory | `cortex/core/…/pipeline/loader/` |
 | Node type registration | `cortex/cli/…/dagger/PipelineNodeFactoryModule.java` |
 | Cortex Dagger wiring | `cortex/core/…/cli/dagger/CortexBindModule.java` |
-| Control channel / work orders | `cortex/core/…/impl/loom/` |
+| Control channel / task handler | `cortex/core/…/impl/loom/` |
+| Run engine (loom-side DAG driver) | `loom/pipeline/…/engine/PipelineRunEngine.java` |
 | Node descriptors | `cortex/nodes/common-api/…/spec/` |
 | REST endpoints | `loom/services/rest/…/endpoint/impl/Pipeline*.java`, `ProcessorEndpoint.java` |
 | REST services | `loom/services/rest/…/service/impl/` |
@@ -1216,8 +1212,8 @@ issue, not a code issue.
 - [x] Configurable `maxConcurrentMedia`
 - [x] **Run completion tracking** — run id correlated end-to-end, real durations
       and per-media counters persisted, status derived as
-      SUCCESS/PARTIAL/FAILED, dispatch watchdog for unacknowledged work orders
-      (Task 2, done 2026-07-18)
+      SUCCESS/PARTIAL/FAILED via `PipelineRunTracker`; an unreachable processor is
+      caught synchronously at dispatch (503 / immediate fail) (Task 2, done 2026-07-18)
 
 ### Broken or missing
 

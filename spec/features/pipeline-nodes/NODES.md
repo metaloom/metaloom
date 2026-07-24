@@ -311,8 +311,8 @@ added since the previous run.
   definition supplies no selection; a node with no selection from either source
   is rejected at construction.
 - Glob/walk logic lives in `FilesystemMediaScanner` — the **single**
-  implementation of path-based media discovery in Cortex. `PipelineWorkOrderHandler`
-  reuses it rather than carrying its own copy.
+  implementation of path-based media discovery in Cortex, driven through
+  `FilesystemSourceNode` when the worker runs a `SOURCE_TASK`.
 - `process()` records `path` and `source=filesystem` for the item currently
   flowing through the DAG; the enumeration itself happens in `stream()`.
 

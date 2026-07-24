@@ -30,6 +30,8 @@ public interface LoomModelBuilder extends
 	PipelineModelBuilder,
 	SpaceModelBuilder,
 	ReactionModelBuilder,
+	NodeResultModelBuilder,
+	JsonCompModelBuilder,
 	WebhookModelBuilder {
 
 	default GenericMessageResponse elementNotFound(String msg) {

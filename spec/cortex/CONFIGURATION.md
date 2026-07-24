@@ -242,11 +242,12 @@ without the caller supplying media:
 pipelineExecutor.execute(pipeline, runContext);
 ```
 
-A `run-pipeline` work order may still override the selection with its own
-`pathGlobs`. When it supplies **no** selection parameters, the source node's
-configuration decides what is processed. A work order that requests a selection
-which resolves to nothing does *not* fall back to the source node — that would
-widen the run from the requested items to the node's entire configured tree.
+A run request may still override the selection with its own `pathGlobs` (carried
+in the `SOURCE_TASK` options). When it supplies **no** selection parameters, the
+source node's configuration decides what is processed. A request that specifies a
+selection which resolves to nothing does *not* fall back to the source node —
+that would widen the run from the requested items to the node's entire configured
+tree.
 
 > **See [PIPELINE.md](../features/pipeline/PIPELINE.md)** for the full pipeline configuration
 > and execution model, and [NODES.md](../features/pipeline-nodes/NODES.md) §4 for the

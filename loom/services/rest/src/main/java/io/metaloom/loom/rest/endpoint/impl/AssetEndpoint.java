@@ -22,6 +22,8 @@ import io.metaloom.loom.rest.service.impl.AssetBinaryEndpointService;
 import io.metaloom.loom.rest.service.impl.AssetUploadEndpointService;
 import io.metaloom.loom.rest.service.impl.CommentEndpointService;
 import io.metaloom.loom.rest.service.impl.DetectionEndpointService;
+import io.metaloom.loom.rest.service.impl.JsonCompEndpointService;
+import io.metaloom.loom.rest.service.impl.NodeResultEndpointService;
 import io.metaloom.loom.rest.service.impl.ReactionEndpointService;
 import io.metaloom.loom.rest.service.impl.TagEndpointService;
 import io.metaloom.loom.rest.service.impl.TaskEndpointService;
@@ -40,6 +42,8 @@ public class AssetEndpoint extends AbstractEndpoint {
 	private final CommentEndpointService commentService;
 	private final DetectionEndpointService detectionService;
 	private final TranscriptEndpointService transcriptService;
+	private final NodeResultEndpointService nodeResultService;
+	private final JsonCompEndpointService jsonCompService;
 	private final TaskEndpointService taskService;
 	private final ModelExamples examples;
 
@@ -50,6 +54,8 @@ public class AssetEndpoint extends AbstractEndpoint {
 		CommentEndpointService commentService,
 		DetectionEndpointService detectionService,
 		TranscriptEndpointService transcriptService,
+		NodeResultEndpointService nodeResultService,
+		JsonCompEndpointService jsonCompService,
 		TaskEndpointService taskService,
 		EndpointDependencies deps, ModelExamples examples) {
 		super(deps);
@@ -61,6 +67,8 @@ public class AssetEndpoint extends AbstractEndpoint {
 		this.commentService = commentService;
 		this.detectionService = detectionService;
 		this.transcriptService = transcriptService;
+		this.nodeResultService = nodeResultService;
+		this.jsonCompService = jsonCompService;
 		this.taskService = taskService;
 		this.examples = examples;
 	}
@@ -381,6 +389,70 @@ public class AssetEndpoint extends AbstractEndpoint {
 			examples.deleteResponseExample(),
 			lrc -> {
 				transcriptService.deleteAssetTranscript(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("transcriptUuid"));
+			});
+
+		// --- NODE RESULT LEDGER (UUID-based sub-resource) ---
+
+		addRoute(basePath() + "/:uuid/node-results", POST,
+			"Record (upsert) a node processing result for an asset",
+			examples.nodeResultCreateRequestExample(),
+			examples.nodeResultResponseExample(),
+			lrc -> {
+				nodeResultService.createAssetNodeResult(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/node-results", GET,
+			"List node processing results for an asset",
+			null,
+			examples.nodeResultListResponseExample(),
+			lrc -> {
+				nodeResultService.listAssetNodeResults(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/node-results/:nodeResultUuid", GET,
+			"Load a node processing result for an asset",
+			lrc -> {
+				nodeResultService.loadAssetNodeResult(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("nodeResultUuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/node-results/:nodeResultUuid", DELETE,
+			"Delete a node processing result for an asset",
+			null,
+			examples.deleteResponseExample(),
+			lrc -> {
+				nodeResultService.deleteAssetNodeResult(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("nodeResultUuid"));
+			});
+
+		// --- GENERIC JSON COMPONENT (asset_json_comp, UUID-based sub-resource) ---
+
+		addRoute(basePath() + "/:uuid/json-comps", POST,
+			"Persist (upsert) a generic JSON component result for an asset",
+			examples.jsonCompCreateRequestExample(),
+			examples.jsonCompResponseExample(),
+			lrc -> {
+				jsonCompService.createJsonComp(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/json-comps", GET,
+			"List generic JSON component results for an asset",
+			null,
+			examples.jsonCompListResponseExample(),
+			lrc -> {
+				jsonCompService.listJsonComps(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/json-comps/:compUuid", GET,
+			"Load a generic JSON component result for an asset",
+			lrc -> {
+				jsonCompService.loadJsonComp(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("compUuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/json-comps/:compUuid", DELETE,
+			"Delete a generic JSON component result for an asset",
+			null,
+			examples.deleteResponseExample(),
+			lrc -> {
+				jsonCompService.deleteJsonComp(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("compUuid"));
 			});
 
 		// --- BINARY (UUID-based sub-resource, one-to-one) ---

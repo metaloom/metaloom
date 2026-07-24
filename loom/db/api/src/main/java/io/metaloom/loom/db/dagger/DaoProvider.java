@@ -16,6 +16,7 @@ import io.metaloom.loom.db.model.comment.CommentDao;
 import io.metaloom.loom.db.model.embedding.EmbeddingDao;
 import io.metaloom.loom.db.model.group.GroupDao;
 import io.metaloom.loom.db.model.library.LibraryDao;
+import io.metaloom.loom.db.model.loom.LoomDao;
 import io.metaloom.loom.db.model.perm.PermissionDao;
 import io.metaloom.loom.db.model.detection.DetectionDao;
 import io.metaloom.loom.db.model.person.PersonDao;
@@ -209,6 +210,12 @@ public interface DaoProvider extends DaoCollection {
 
 	default CortexInstanceDao cortexInstanceDao() {
 		return daos().cortexInstanceDao();
+	}
+
+	// System
+
+	default LoomDao loomDao() {
+		return daos().loomDao();
 	}
 
 }

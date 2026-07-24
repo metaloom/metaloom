@@ -391,7 +391,7 @@ and Loom control channel.
 | Integration test script | `it.sh` (project root) |
 | E2E test script | `e2e.sh` (project root) |
 | Custom node example | `examples/cortex-custom-node/` |
-| Custom CLI example | `examples/cortex-custom-cli/` |
+| Custom example | `examples/cortex-custom/` |
 
 ---
 

@@ -281,10 +281,13 @@ The asset endpoint is the most complex, supporting:
 ### 3.4 Pipeline Run Endpoint
 
 - `POST /api/v1/pipelines/:uuid/run` - Triggers execution of a pipeline.
-- Dispatches a `WorkOrder` of type `PIPELINE_RUN` to a registered processor.
-- Returns `PipelineRunResponse` with `workOrderId`, `dispatched` flag, and
+- Selects a processor, creates a `pipeline_run` row, builds a `PipelineRunEngine`,
+  and dispatches a `SOURCE_TASK` to the worker; the engine then drives the run via
+  `NODE_TASK`s.
+- Returns `PipelineRunResponse` with `runUuid`, `dispatched` flag, and
   `processorNodeId`.
-- Returns 202 (Accepted) on success, 503 if no processor available.
+- Returns 202 (Accepted) on success, 400 if the definition cannot run as drawn,
+  503 if no processor accepts the source node's kind.
 
 ### 3.5 Pipeline Versions and the Flattened Pipeline Model
 
@@ -333,8 +336,10 @@ formats, authentication, and lifecycle are documented in
 
 - Bidirectional WebSocket for cortex processor nodes.
 - Messages: `REGISTER`, `HEARTBEAT`, `STATUS_UPDATE`, `STATE_CHANGE`,
-  `WORK_ORDER_RESULT`, `PIPELINE_EVENT` (processor -> loom);
-  `REGISTERED`, `HEARTBEAT_ACK`, `WORK_ORDER`, `ERROR` (loom -> processor).
+  `SOURCE_ITEMS`, `SOURCE_COMPLETE`, `NODE_TASK_RESULT`, `PIPELINE_RUN_COMPLETED`,
+  `PIPELINE_EVENT` (processor -> loom);
+  `REGISTERED`, `HEARTBEAT_ACK`, `SOURCE_TASK`, `SOURCE_ITEMS_ACK`, `NODE_TASK`,
+  `SEGMENT_TASK`, `ERROR` (loom -> processor).
 - Authentication via `?token=<jwt>` query parameter.
 
 #### Pipeline Events WebSocket (`/api/v1/pipelines/events/ws`)
@@ -545,7 +550,7 @@ fixes, or are incomplete. AI agents can use this list to identify work items.
 - [x] Asset bulk create/update operations
 - [x] Sub-resource pattern (tags, reactions, detections, transcripts, binary, components on assets)
 - [x] Reactions on tasks, comments, annotations, assets
-- [x] Pipeline run endpoint with work order dispatch
+- [x] Pipeline run endpoint with `SOURCE_TASK` dispatch + engine-driven `NODE_TASK`s
 - [x] WebSocket endpoints for processor and pipeline events
 - [x] Node descriptor and content type catalog endpoints
 - [x] Token management endpoints (API tokens)

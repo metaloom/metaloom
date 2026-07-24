@@ -134,6 +134,12 @@ import io.metaloom.loom.rest.model.token.TokenCreateRequest;
 import io.metaloom.loom.rest.model.token.TokenListResponse;
 import io.metaloom.loom.rest.model.token.TokenResponse;
 import io.metaloom.loom.rest.model.token.TokenUpdateRequest;
+import io.metaloom.loom.rest.model.jsoncomp.JsonCompCreateRequest;
+import io.metaloom.loom.rest.model.jsoncomp.JsonCompListResponse;
+import io.metaloom.loom.rest.model.jsoncomp.JsonCompResponse;
+import io.metaloom.loom.rest.model.noderesult.NodeResultCreateRequest;
+import io.metaloom.loom.rest.model.noderesult.NodeResultListResponse;
+import io.metaloom.loom.rest.model.noderesult.NodeResultResponse;
 import io.metaloom.loom.rest.model.transcript.TranscriptCreateRequest;
 import io.metaloom.loom.rest.model.transcript.TranscriptListResponse;
 import io.metaloom.loom.rest.model.transcript.TranscriptResponse;
@@ -831,6 +837,50 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<NoResponse> deleteAssetTranscript(UUID assetUuid, UUID transcriptUuid) {
 		return deleteRequest("assets/" + assetUuid + "/transcripts/" + transcriptUuid);
+	}
+
+	// ASSET NODE RESULT (processing ledger)
+
+	@Override
+	public LoomClientHttpRequest<NodeResultResponse> createAssetNodeResult(UUID assetUuid, NodeResultCreateRequest request) {
+		return postRequest("assets/" + assetUuid + "/node-results", request, NodeResultResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NodeResultResponse> loadAssetNodeResult(UUID assetUuid, UUID nodeResultUuid) {
+		return getRequest("assets/" + assetUuid + "/node-results/" + nodeResultUuid, NodeResultResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NodeResultListResponse> listAssetNodeResults(UUID assetUuid) {
+		return getRequest("assets/" + assetUuid + "/node-results", NodeResultListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> deleteAssetNodeResult(UUID assetUuid, UUID nodeResultUuid) {
+		return deleteRequest("assets/" + assetUuid + "/node-results/" + nodeResultUuid);
+	}
+
+	// ASSET JSON COMPONENT (generic node result sink)
+
+	@Override
+	public LoomClientHttpRequest<JsonCompResponse> createAssetJsonComp(UUID assetUuid, JsonCompCreateRequest request) {
+		return postRequest("assets/" + assetUuid + "/json-comps", request, JsonCompResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<JsonCompResponse> loadAssetJsonComp(UUID assetUuid, UUID compUuid) {
+		return getRequest("assets/" + assetUuid + "/json-comps/" + compUuid, JsonCompResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<JsonCompListResponse> listAssetJsonComps(UUID assetUuid) {
+		return getRequest("assets/" + assetUuid + "/json-comps", JsonCompListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> deleteAssetJsonComp(UUID assetUuid, UUID compUuid) {
+		return deleteRequest("assets/" + assetUuid + "/json-comps/" + compUuid);
 	}
 
 	// GROUP

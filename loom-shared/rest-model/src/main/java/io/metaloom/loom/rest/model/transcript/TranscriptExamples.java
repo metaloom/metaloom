@@ -29,6 +29,8 @@ public interface TranscriptExamples extends ExampleValues {
 		TranscriptResponse model = new TranscriptResponse();
 		model.setUuid(uuidC());
 		model.setSource("whisper");
+		model.setProducerVersion("ggml-base");
+		model.setStreamIndex(0);
 		model.setLang("en");
 		model.setModel("ggml-base");
 		model.setTranscriptText("Hello world. This is a test transcription.");
@@ -45,6 +47,8 @@ public interface TranscriptExamples extends ExampleValues {
 	default TranscriptCreateRequest transcriptCreateRequest() {
 		TranscriptCreateRequest model = new TranscriptCreateRequest();
 		model.setSource("whisper");
+		model.setProducerVersion("ggml-base");
+		model.setStreamIndex(0);
 		model.setLang("en");
 		model.setModel("ggml-base");
 		model.setTranscriptText("Hello world. This is a test transcription.");

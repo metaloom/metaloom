@@ -29,6 +29,8 @@ public interface ClientMethods extends
 	CommentMethods,
 	EmbeddingMethods,
 	TranscriptMethods,
+	NodeResultMethods,
+	JsonCompMethods,
 	GraphQLMethods,
 	HealthMethods {
 

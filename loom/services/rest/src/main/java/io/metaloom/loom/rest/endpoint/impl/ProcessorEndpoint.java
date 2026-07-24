@@ -33,14 +33,12 @@ import io.metaloom.loom.rest.model.processor.message.SourceItemsAckMessage;
 import io.metaloom.loom.rest.model.processor.message.SourceItemsMessage;
 import io.metaloom.loom.rest.model.processor.message.ProcessorMessageType;
 import io.metaloom.loom.rest.model.processor.message.ProcessorRegistration;
-import io.metaloom.loom.rest.model.processor.workorder.WorkOrderResult;
 import io.metaloom.loom.rest.service.impl.PipelineEventBroadcaster;
 import io.metaloom.loom.rest.service.impl.PipelineRunRegistry;
 import io.metaloom.loom.rest.service.impl.PipelineRunTracker;
 import io.metaloom.loom.rest.service.impl.ProcessorRegistry;
 import io.metaloom.loom.rest.service.impl.ProcessorRegistry.ConnectedProcessor;
 import io.metaloom.loom.rest.service.impl.WebSocketAuthenticator;
-import io.metaloom.loom.rest.service.impl.WorkOrderResultRegistry;
 import io.vertx.core.http.ServerWebSocket;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
@@ -58,8 +56,8 @@ import io.vertx.core.json.JsonObject;
  *   <li>Loom responds with {@code REGISTERED} acknowledgement</li>
  *   <li>Processor sends periodic {@code HEARTBEAT} messages; loom replies with {@code HEARTBEAT_ACK}</li>
  *   <li>Processor sends {@code STATUS_UPDATE} with system metrics</li>
- *   <li>Loom sends {@code WORK_ORDER} messages to dispatch work</li>
- *   <li>Processor sends {@code WORK_ORDER_RESULT} when work completes</li>
+ *   <li>Loom sends {@code NODE_TASK} / {@code SOURCE_TASK} / {@code SEGMENT_TASK} messages to dispatch work</li>
+ *   <li>Processor streams back {@code SOURCE_ITEMS} and reports {@code NODE_TASK_RESULT} / {@code SEGMENT_TASK_RESULT}</li>
  * </ol>
  */
 public class ProcessorEndpoint extends AbstractEndpoint {
@@ -69,7 +67,6 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 	private final ProcessorRegistry registry;
 	private final PipelineEventBroadcaster pipelineEventBroadcaster;
 	private final WebSocketAuthenticator authenticator;
-	private final WorkOrderResultRegistry workOrderResultRegistry;
 	private final PipelineRunTracker pipelineRunTracker;
 
 	private final PipelineRunRegistry pipelineRunRegistry;
@@ -77,7 +74,7 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 
 	@Inject
 	public ProcessorEndpoint(ProcessorRegistry registry, PipelineEventBroadcaster pipelineEventBroadcaster,
-			WebSocketAuthenticator authenticator, WorkOrderResultRegistry workOrderResultRegistry,
+			WebSocketAuthenticator authenticator,
 			PipelineRunTracker pipelineRunTracker, PipelineRunRegistry pipelineRunRegistry,
 			EndpointDependencies deps, ModelExamples examples) {
 		super(deps);
@@ -85,7 +82,6 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 		this.pipelineRunRegistry = pipelineRunRegistry;
 		this.pipelineEventBroadcaster = pipelineEventBroadcaster;
 		this.authenticator = authenticator;
-		this.workOrderResultRegistry = workOrderResultRegistry;
 		this.pipelineRunTracker = pipelineRunTracker;
 		this.examples = examples;
 	}
@@ -238,9 +234,6 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 				case STATE_CHANGE:
 					handleStateChange(ws, msg, nodeIdHolder[0]);
 					break;
-				case WORK_ORDER_RESULT:
-					handleWorkOrderResult(ws, msg, nodeIdHolder[0]);
-					break;
 				case PIPELINE_EVENT:
 					handlePipelineEvent(ws, msg, nodeIdHolder[0]);
 					break;
@@ -334,25 +327,6 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 		}
 		ProcessorState state = ProcessorState.valueOf(msg.getBody().getString("state"));
 		registry.updateState(nodeId, state);
-	}
-
-	private void handleWorkOrderResult(ServerWebSocket ws, ProcessorMessage msg, String nodeId) {
-		if (nodeId == null) {
-			sendError(ws, "Not registered. Send REGISTER first.");
-			return;
-		}
-		if (msg.getBody() == null) {
-			sendError(ws, "WORK_ORDER_RESULT message must include a body");
-			return;
-		}
-		WorkOrderResult result = msg.getBody().mapTo(WorkOrderResult.class);
-		log.info("Work order result received from {}: workOrderId={}, status={}",
-			nodeId, result.getWorkOrderId(), result.getStatus());
-		boolean routed = workOrderResultRegistry.complete(result);
-		if (!routed) {
-			log.debug("No registered callback for work order {} (result logged only)",
-				result.getWorkOrderId());
-		}
 	}
 
 	private void handlePipelineEvent(ServerWebSocket ws, ProcessorMessage msg, String nodeId) {

@@ -15,7 +15,7 @@ The Loom server exposes two WebSocket endpoints:
 
 | Endpoint              | Path                          | Client population        | Direction             | Purpose                                  |
 |-----------------------|-------------------------------|--------------------------|-----------------------|------------------------------------------|
-| Processor WebSocket   | `/api/v1/processors/ws`       | Cortex **worker nodes** (JVM processes) | Bidirectional         | Workers register, receive work orders, and report results/events |
+| Processor WebSocket   | `/api/v1/processors/ws`       | Cortex **worker nodes** (JVM processes) | Bidirectional         | Workers register, receive source/node tasks, and report results/events |
 | UI Events WebSocket   | `/api/v1/pipelines/events/ws` | **Browsers** (UI clients) | Server -> Client (read-only) | UI clients receive live pipeline **and** processor events (multiplexed — see §4) |
 
 Both endpoints use the standard HTTP WebSocket upgrade. Authentication is
@@ -31,7 +31,7 @@ and are deliberately kept separate:
 - **Processor WebSocket** is a *worker* control channel. The peers are Cortex
   processor nodes — long-lived backend JVM processes, not browsers. It is
   **bidirectional** and trusted to a high degree: after registering, a peer can
-  receive work orders and report results (see §3). Its auth context is
+  receive source/node tasks and report results (see §3). Its auth context is
   "a processor node joining the fleet".
 - **UI Events WebSocket** is a *read-only broadcast* channel for browsers. The
   peer never sends application messages; it only receives events. Its auth
@@ -143,7 +143,12 @@ All messages use the `ProcessorMessage` JSON envelope:
 | `HEARTBEAT`      | (none)                      | Keepalive ping; server replies with `HEARTBEAT_ACK` |
 | `STATUS_UPDATE`  | `SystemStatusInfo`          | System metrics (CPU, memory, GPU, I/O, disk)     |
 | `STATE_CHANGE`   | `{ "state": "ONLINE" }`     | Processor state change notification              |
-| `WORK_ORDER_RESULT` | `WorkOrderResult`        | Result of a completed work order                 |
+| `SOURCE_ITEMS`   | `SourceItemsMessage`        | A batch of media items discovered by a source node |
+| `SOURCE_COMPLETE`| `SourceCompleteMessage`     | The source node finished enumerating             |
+| `NODE_TASK_RESULT` | `NodeTaskResult`          | Outcome of a single `NODE_TASK`                   |
+| `NODE_TASK_RESULT_BATCH` | `NodeTaskResultBatch` | Outcomes of several node tasks in one frame       |
+| `SEGMENT_TASK_RESULT` | `SegmentTaskResult`    | Per-node outcomes of a `SEGMENT_TASK`            |
+| `PIPELINE_RUN_COMPLETED` | `{ runUuid, counters }` | Run finished; closes the run via `PipelineRunTracker` |
 | `PIPELINE_EVENT` | `PipelineEventMessage`      | Pipeline tracking event (forwarded to UI clients)|
 
 #### Messages FROM loom TO processor
@@ -152,7 +157,10 @@ All messages use the `ProcessorMessage` JSON envelope:
 |------------------|-----------------------------|--------------------------------------------------|
 | `REGISTERED`     | `ProcessorResponse` (as body) | Registration acknowledgement with processor info |
 | `HEARTBEAT_ACK`  | (none)                      | Heartbeat pong                                   |
-| `WORK_ORDER`     | `WorkOrder`                 | Work order dispatched to the processor           |
+| `SOURCE_TASK`    | `SourceTaskMessage`         | Run a source node and stream back what it finds  |
+| `SOURCE_ITEMS_ACK` | (ack)                     | Acknowledges a `SOURCE_ITEMS` batch, releasing the next |
+| `NODE_TASK`      | `NodeTask`                  | Apply one node to one media item                 |
+| `SEGMENT_TASK`   | `SegmentTask`               | Apply an affinity group of nodes to one media item |
 | `ERROR`          | `{ "message": "..." }`      | Error message                                    |
 
 ### 3.5 Connection Lifecycle
@@ -176,11 +184,19 @@ Processor                           Loom
    | -- STATUS_UPDATE -->             |
    |   { cpuLoad, memoryUsed, ... }   |
    |                                  |
-   | <-- WORK_ORDER --                |
-   |   { workOrderId, type, ... }     |
+   | <-- SOURCE_TASK --               |
+   |   { runUuid, nodeId, nodeKind }  |
    |                                  |
-   | -- WORK_ORDER_RESULT -->         |
-   |   { workOrderId, status, ... }   |
+   | -- SOURCE_ITEMS -->              |
+   |   { runUuid, items[] }           |
+   | <-- SOURCE_ITEMS_ACK --          |
+   | -- SOURCE_COMPLETE -->           |
+   |                                  |
+   | <-- NODE_TASK --                 |
+   |   { runUuid, nodeId, mediaRef }  |
+   |                                  |
+   | -- NODE_TASK_RESULT -->          |
+   |   { runUuid, nodeId, state, ... }|
    |                                  |
    | -- PIPELINE_EVENT -->            |
    |   { type, pipelineName, ... }    |
@@ -244,46 +260,73 @@ The `STATUS_UPDATE` message body contains `SystemStatusInfo`:
 | `diskUsed`     | Long    | Used disk space in bytes             |
 | `diskTotal`    | Long    | Total disk space in bytes            |
 
-### 3.10 Work Order
+### 3.10 Source Task
 
-The server dispatches `WORK_ORDER` messages to processors:
+To start a run the server dispatches one `SOURCE_TASK` (`SourceTaskMessage`) to a
+selected processor. The worker runs the source node and streams what it finds
+back as `SOURCE_ITEMS` batches (each acked with `SOURCE_ITEMS_ACK`), ending with
+`SOURCE_COMPLETE`:
 
-| Field                | Type                    | Description                              |
-|----------------------|-------------------------|------------------------------------------|
-| `workOrderId`        | UUID                    | Unique identifier for the work order     |
-| `type`               | `WorkOrderType`         | `FINGERPRINT`, `FILESYSTEM_SCAN`, or `PIPELINE_RUN` |
-| `requiredCapability` | `ProcessorCapability`   | `IO`, `CPU`, or `GPU`                    |
-| `assetUuids`         | List\<UUID\>            | Asset UUIDs to process (for FINGERPRINT) |
-| `assetLocationUuid`  | UUID                    | Asset location to scan (for FILESYSTEM_SCAN) |
-| `parameters`         | JsonObject              | Additional parameters                    |
+| Field      | Type                    | Description                              |
+|------------|-------------------------|------------------------------------------|
+| `runUuid`  | UUID                    | The `pipeline_run` this source task belongs to |
+| `nodeId`   | String                  | Id of the source node in the graph       |
+| `nodeKind` | String                  | Descriptor kind of the source node       |
+| `options`  | Map\<String, Object\>   | Source selection (`pathGlobs`, `path`, `assetUuid`, …) |
 
-### 3.11 Work Order Result
+### 3.11 Node Task and Node Task Result
 
-The processor reports results via `WORK_ORDER_RESULT`:
+For each discovered item the `PipelineRunEngine` dispatches individual
+`NODE_TASK` (`NodeTask`) messages via `WebSocketNodeDispatcher`. The worker runs
+the node and replies with `NODE_TASK_RESULT` (`NodeTaskResult`), batched as
+`NODE_TASK_RESULT_BATCH` when several settle together. Affinity groups go out as
+`SEGMENT_TASK` and return as `SEGMENT_TASK_RESULT` (one entry per node).
 
-| Field          | Type            | Description                              |
-|----------------|-----------------|------------------------------------------|
-| `workOrderId`  | UUID            | UUID of the work order this result belongs to |
-| `status`       | `WorkOrderStatus` | `PENDING`, `IN_PROGRESS`, `COMPLETED`, or `FAILED` |
-| `errorMessage` | String          | Error message if the work order failed   |
-| `result`       | JsonObject      | Result data                              |
+`NodeTask`:
 
-### 3.12 Work Order Result Registry
+| Field             | Type                    | Description                              |
+|-------------------|-------------------------|------------------------------------------|
+| `taskUuid`        | UUID                    | Unique identifier for this node task     |
+| `runUuid`         | UUID                    | The `pipeline_run` this task belongs to  |
+| `itemId`          | String                  | Media item this task applies to          |
+| `nodeId`          | String                  | Graph node to apply                      |
+| `nodeKind`        | String                  | Descriptor kind of the node              |
+| `media`           | `MediaRef`              | `{ path, sha512, size }` of the item     |
+| `options`         | Map\<String, Object\>   | Node options from the definition         |
+| `upstreamOutputs` | Map\<String, Map\>      | Outputs of upstream nodes this one depends on |
 
-- `WorkOrderResultRegistry` maps work-order UUIDs to completion callbacks.
-- When a `WORK_ORDER_RESULT` arrives, `WorkOrderResultRegistry.complete()`
-  invokes the registered callback (if any) and removes the entry.
-- Callers can register with a timeout via `registerWithTimeout()`; if no
-  result arrives within the timeout, a failed `WorkOrderResult` is produced.
-- If no callback is registered for a work order, the result is logged but
-  silently discarded.
+`NodeTaskResult`:
 
-### 3.13 Processor Selection for Work Orders
+| Field        | Type                  | Description                              |
+|--------------|-----------------------|------------------------------------------|
+| `taskUuid`   | UUID                  | UUID of the node task this result answers |
+| `nodeId`     | String                | Graph node that produced the result      |
+| `state`      | `NodeState`           | `PENDING`, `RUNNING`, `COMPLETED`, `FAILED`, or `SKIPPED` |
+| `durationMs` | long                  | Node execution time                      |
+| `message`    | String                | Optional status / error message          |
+| `outputs`    | Map\<String, Object\> | Node outputs (synced to the asset when `syncToLoom`) |
 
-- `ProcessorRegistry.selectProcessor(capability)` selects the online processor
-  with the highest priority that has the required capability.
-- Selection filters by `ProcessorState.ONLINE` and the required capability.
-- If no processor is available, the pipeline run endpoint returns 503.
+### 3.12 Run Engine and Completion
+
+- The `PipelineRunEngine` (loom-side, `loom/pipeline`) owns the DAG for a run,
+  decides what runs next, and persists run state through a `RunStateStore` so a
+  run survives the process that started it.
+- When the DAG drains, the engine closes the run via `PipelineRunTracker`. The
+  worker also sends `PIPELINE_RUN_COMPLETED`, which
+  `ProcessorEndpoint.handlePipelineRunCompleted` routes to the same tracker.
+- `PipelineRunTracker` derives the final status via `PipelineRunStatusResolver`
+  and writes `status`, `finished`, `duration_ms`, and the counters. The first
+  terminal verdict wins.
+
+### 3.13 Processor Selection for a Run
+
+- `ProcessorRegistry.selectProcessorForKinds(capability, kinds)` selects the
+  highest-priority `ONLINE` processor whose node-kind restriction accepts the
+  pipeline's source-node kind.
+- Selection filters by `ProcessorState.ONLINE`, the required capability
+  (currently hardcoded to `CPU`), and the source kind.
+- If no processor is available, the pipeline run endpoint returns 503 and no
+  `pipeline_run` row is created. There is no ack watchdog.
 
 ### 3.14 Error Handling
 
@@ -450,21 +493,24 @@ UI Client                            Loom
 ### 5.1 Pipeline Run Dispatch
 
 The `POST /api/v1/pipelines/:uuid/run` REST endpoint triggers pipeline
-execution by dispatching a `WORK_ORDER` of type `PIPELINE_RUN` to a selected
-processor via `ProcessorRegistry.dispatchWorkOrder()`.
+execution by selecting a processor with
+`ProcessorRegistry.selectProcessorForKinds(CPU, [sourceKind])`, creating a
+`pipeline_run` row (status `RUNNING`), building a `PipelineRunEngine`, and
+handing the pipeline's **source node** to the worker as a `SOURCE_TASK`. The
+engine then drives the run by dispatching individual `NODE_TASK`s via
+`WebSocketNodeDispatcher` (see §3.10–3.12).
 
-The `WorkOrder` is sent as a `WORK_ORDER` message over the processor's
+The `SourceTaskMessage` is sent as a `SOURCE_TASK` message over the processor's
 WebSocket connection:
 
 ```json
 {
-  "type": "WORK_ORDER",
+  "type": "SOURCE_TASK",
   "body": {
-    "workOrderId": "uuid",
-    "type": "PIPELINE_RUN",
-    "requiredCapability": "CPU",
-    "assetUuids": ["uuid1", "uuid2"],
-    "parameters": { ... }
+    "runUuid": "uuid",
+    "nodeId": "filesystem-source",
+    "nodeKind": "filesystem-source",
+    "options": { "pathGlobs": ["/data/**"] }
   }
 }
 ```
@@ -496,9 +542,9 @@ identify work items.
 - [x] Heartbeat/keepalive mechanism
 - [x] System status reporting (CPU, memory, GPU, I/O, disk)
 - [x] State change notifications
-- [x] Work order dispatch from server to processor
-- [x] Work order result reporting from processor to server
-- [x] Work order result callback registry with timeout support
+- [x] `SOURCE_TASK` dispatch and `SOURCE_ITEMS`/`SOURCE_COMPLETE` streaming
+- [x] `NODE_TASK` dispatch from server to processor and `NODE_TASK_RESULT` reporting back
+- [x] Run completion tracking via `PipelineRunEngine` + `PipelineRunTracker`
 - [x] Pipeline event broadcasting with per-pipeline filtering
 - [x] Backpressure handling with bounded per-subscriber queue
 - [x] REST routes for listing and loading registered processors
@@ -535,7 +581,7 @@ identify work items.
 - [ ] Processor list endpoint does not support pagination (returns all processors)
 - [ ] Processor list endpoint does not support filtering by state, capability, or online status
 - [ ] No REST endpoint to force-disconnect a processor
-- [ ] No REST endpoint to send a `STATE_CHANGE` or `WORK_ORDER` to a specific processor
+- [ ] No REST endpoint to send a `STATE_CHANGE` or `NODE_TASK` to a specific processor
 - [ ] No REST endpoint for pipeline event subscriber count or status
 
 ### 6.5 Error Handling and Resilience
@@ -546,7 +592,7 @@ identify work items.
 - [ ] No automatic reconnection logic on the server side (processors must reconnect manually)
 - [ ] No dead-letter mechanism for dropped pipeline events (events are silently dropped when queue is full)
 - [ ] No error reporting to UI clients when a processor disconnects mid-pipeline
-- [ ] `ProcessorRegistry.dispatchWorkOrder` returns `false` if the processor WebSocket is closed, but the caller (pipeline run endpoint) does not retry or queue the work order
+- [ ] `ProcessorRegistry.send` returns `false` if the processor WebSocket is closed; the run endpoint fails the run immediately rather than retrying or queueing the task
 
 ### 6.6 Documentation and OpenAPI
 
@@ -564,7 +610,7 @@ identify work items.
 ### 6.7 Testing
 
 - [ ] No WebSocket endpoint integration tests
-- [ ] No processor registration/heartbeat/work-order flow tests
+- [ ] No processor registration/heartbeat/source-task/node-task flow tests
 - [ ] No pipeline event broadcasting tests
 - [ ] No WebSocket authentication tests (valid token, invalid token, missing token, strict mode)
 - [ ] No backpressure / queue overflow tests

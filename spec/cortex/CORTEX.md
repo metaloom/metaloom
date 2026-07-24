@@ -48,8 +48,8 @@ Cortex operates in two modes:
 
 | Mode | Condition | Behaviour |
 |---|---|---|
-| **Online** | Loom host + port configured (`--hostname` / `--port` or env vars) | Connects to Loom via WebSocket, registers capabilities, receives work orders, syncs results back |
-| **Offline** | No Loom host configured | Runs standalone; no WebSocket, no work orders, no result sync. Processing is driven by the `process run` CLI command |
+| **Online** | Loom host + port configured (`--hostname` / `--port` or env vars) | Connects to Loom via WebSocket, registers capabilities, receives source/node tasks, syncs results back |
+| **Offline** | No Loom host configured | Runs standalone; no WebSocket, no source/node tasks, no result sync. Processing is driven by the `process run` CLI command |
 
 The `LoomClient` is `@Nullable` in Dagger — when the host is absent,
 `CortexClientModule` returns `null`, and all Loom-dependent components
@@ -138,8 +138,8 @@ graph TD
 | `PipelineNodeFactoryModule` | `io.metaloom.cortex.cli.dagger` | Dagger: RegistryNodeFactory populated with concrete node producers |
 | `LoomStorageModule` | `io.metaloom.cortex.cli.dagger` | Dagger: multibindings for `LoomMetaTypeHandler` (XATTR, FS, HEAP, AVRO) |
 | `CortexBootstrapInitializer` | `io.metaloom.cortex.impl.boot` | Starts monitoring HTTP server + Loom control channel |
-| `LoomControlChannel` | `io.metaloom.cortex.impl.loom` | WebSocket client to Loom (`/api/v1/processors/ws`); registration, heartbeat, work orders, pipeline event forwarding |
-| `PipelineWorkOrderHandler` | `io.metaloom.cortex.impl.loom` | Handles work orders from Loom (reload-pipelines, flush-sync, list-pipelines, run-pipeline) |
+| `LoomControlChannel` | `io.metaloom.cortex.impl.loom` | WebSocket client to Loom (`/api/v1/processors/ws`); registration, heartbeat, source/node tasks, pipeline event forwarding |
+| `PipelineTaskHandler` | `io.metaloom.cortex.impl.loom` | Runs `SOURCE_TASK` / `NODE_TASK` / `SEGMENT_TASK` from Loom and reports results back |
 | `MonitoringService` | `io.metaloom.cortex.impl.monitoring` | Vert.x HTTP server for health/ready endpoints |
 | `HealthEndpoint` | `io.metaloom.cortex.impl.monitoring` | `/api/health` and `/api/ready` endpoints |
 | `MediaProcessor` | `io.metaloom.cortex.processor` | Interface for CLI-driven batch processing |
@@ -200,18 +200,21 @@ ProcessCommand.run(enabledNodes, path)
               // Walks directory, applies enabled Cortex nodes to each file
 ```
 
-### 4.4 Work-Order-Driven Mode (Online)
+### 4.4 Task-Driven Mode (Online)
 
 When Cortex is running in server mode and connected to Loom, the
-`LoomControlChannel` receives `WORK_ORDER` messages. The
-`PipelineWorkOrderHandler` dispatches them:
+`LoomControlChannel` receives the run's task messages from Loom and hands them to
+`PipelineTaskHandler`. Loom's `PipelineRunEngine` owns the DAG; Cortex only ever
+sees one unit of work at a time:
 
-| Work-order command | Handler action |
+| Message from Loom | Handler action |
 |---|---|
-| `reload-pipelines` | `LoomPipelineLoader.loadAndRegister()` — fetches pipeline definitions from Loom REST API |
-| `flush-sync` | `PipelineExecutor.flushSync()` — drains pending `LoomBulkSyncCollector` entries |
-| `list-pipelines` | Returns registered pipeline names |
-| `run-pipeline` | Resolves pipeline by name, collects media from `pathGlobs`, executes reactively |
+| `SOURCE_TASK` | Runs the source node and streams discovered items back as `SOURCE_ITEMS` batches (acked with `SOURCE_ITEMS_ACK`), ending with `SOURCE_COMPLETE` |
+| `NODE_TASK` | Applies one node to one media item and replies with `NODE_TASK_RESULT` (batched as `NODE_TASK_RESULT_BATCH`) |
+| `SEGMENT_TASK` | Runs an affinity group of connected nodes on one item and replies with `SEGMENT_TASK_RESULT` |
+
+Pipeline definitions are still loaded on startup via
+`LoomPipelineLoader.loadAndRegister()` (fetched from the Loom REST API).
 
 ---
 
@@ -276,8 +279,8 @@ Cortex to the Loom server. It uses Vert.x 5's `WebSocketClient`.
 | 4 | `HEARTBEAT` | Cortex → Loom | Sent every 10 seconds |
 | 5 | `HEARTBEAT_ACK` | Loom → Cortex | Acknowledgement |
 | 6 | `STATUS_UPDATE` | Cortex → Loom | System status (CPU, memory, disk) every 20 seconds |
-| 7 | `WORK_ORDER` | Loom → Cortex | Work order (reload-pipelines, flush-sync, run-pipeline, etc.) |
-| 8 | `WORK_ORDER_RESULT` | Cortex → Loom | Result of processing the work order |
+| 7 | `SOURCE_TASK` / `NODE_TASK` | Loom → Cortex | A source node to enumerate, or a single node to apply to one item |
+| 8 | `NODE_TASK_RESULT` / `SOURCE_ITEMS` | Cortex → Loom | Node outcome, or a batch of discovered items |
 | 9 | `PIPELINE_EVENT` | Cortex → Loom | Forwarded pipeline tracking event (NODE_STARTED, NODE_COMPLETED, etc.) |
 | 10 | `ERROR` | Loom → Cortex | Error message |
 
@@ -379,7 +382,7 @@ mvn test -pl cortex/pipeline-core
 | Dagger bindings | `cortex/core/src/main/java/io/metaloom/cortex/cli/dagger/CortexBindModule.java` |
 | Options/config loading | `cortex/common/src/main/java/io/metaloom/cortex/common/option/CortexOptionsLoader.java` |
 | Loom WebSocket client | `cortex/core/src/main/java/io/metaloom/cortex/impl/loom/LoomControlChannel.java` |
-| Work-order handler | `cortex/core/src/main/java/io/metaloom/cortex/impl/loom/PipelineWorkOrderHandler.java` |
+| Task handler | `cortex/core/src/main/java/io/metaloom/cortex/impl/loom/PipelineTaskHandler.java` |
 | Monitoring/health | `cortex/core/src/main/java/io/metaloom/cortex/impl/monitoring/` |
 | Pipeline loader | `cortex/core/src/main/java/io/metaloom/cortex/pipeline/loader/LoomPipelineLoader.java` |
 | Node factory | `cortex/core/src/main/java/io/metaloom/cortex/pipeline/loader/RegistryNodeFactory.java` |
@@ -396,7 +399,7 @@ mvn test -pl cortex/pipeline-core
 
 - [x] Module map documented
 - [x] Key classes reference table
-- [x] Startup lifecycle (server, process, work-order modes)
+- [x] Startup lifecycle (server, process, task-driven modes)
 - [x] Dagger DI wiring documented
 - [x] Monitoring endpoints documented
 - [x] Loom control channel (WebSocket) protocol documented

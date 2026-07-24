@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Set;
 
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterEach;
@@ -13,15 +12,8 @@ import org.junit.jupiter.api.BeforeEach;
 
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.media.LoomMetaKey;
-import io.metaloom.cortex.api.media.impl.LoomMetaKeyImpl;
-import io.metaloom.cortex.api.media.type.LoomMetaCoreType;
-import io.metaloom.cortex.api.media.type.handler.impl.HeapLoomMetaTypeHandlerImpl;
-import io.metaloom.cortex.api.meta.MetaDataStream;
-import io.metaloom.cortex.api.meta.MetaStorage;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.media.impl.LoomMediaImpl;
-import io.metaloom.cortex.common.meta.MetaStorageImpl;
 import io.metaloom.loom.test.TestEnvHelper;
 import io.metaloom.loom.test.data.AudioData;
 import io.metaloom.loom.test.data.DocData;
@@ -37,21 +29,6 @@ import io.metaloom.utils.hash.SHA512;
  * Abstract class for tests which utilize test data files.
  */
 public abstract class AbstractMediaTest implements DocData, ImageData, VideoData, AudioData, OtherData {
-
-	public static final LoomMetaKey<String> DUMMY_FS_STR_KEY = new LoomMetaKeyImpl<>("dummy_fs_str", 0, LoomMetaCoreType.FS, String.class);
-
-	public static final LoomMetaKey<MetaDataStream> DUMMY_FS_BIN_KEY = new LoomMetaKeyImpl<>("dummy_fs_bin", 0, LoomMetaCoreType.FS,
-		MetaDataStream.class);
-
-	public static final LoomMetaKey<MetaDataStream> DUMMY_XATTR_BIN_KEY = new LoomMetaKeyImpl<>("dummy_xattr_bin", 0, LoomMetaCoreType.XATTR,
-		MetaDataStream.class);
-
-	public static final LoomMetaKey<String> DUMMY_XATTR_STR_KEY = new LoomMetaKeyImpl<>("dummy_xattr_str", 0, LoomMetaCoreType.XATTR, String.class);
-
-	public static final LoomMetaKey<String> DUMMY_HEAP_STR_KEY = new LoomMetaKeyImpl<>("dummy_heap_str", 0, LoomMetaCoreType.HEAP, String.class);
-
-	public static final LoomMetaKey<MetaDataStream> DUMMY_HEAP_BIN_KEY = new LoomMetaKeyImpl<>("dummy_heap_str", 0, LoomMetaCoreType.HEAP,
-		MetaDataStream.class);
 
 	protected TestDataCollection data;
 
@@ -93,15 +70,6 @@ public abstract class AbstractMediaTest implements DocData, ImageData, VideoData
 
 	protected LoomMedia media(Path path) {
 		return new LoomMediaImpl(path);
-	}
-
-	/**
-	 * Tests may override this method in order to provide custom storage implementations.
-	 * 
-	 * @return
-	 */
-	public MetaStorage storage() {
-		return new MetaStorageImpl(Set.of(new HeapLoomMetaTypeHandlerImpl()));
 	}
 
 	@Override

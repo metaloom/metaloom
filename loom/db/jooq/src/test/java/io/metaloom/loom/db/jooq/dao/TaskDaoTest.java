@@ -1,5 +1,6 @@
 package io.metaloom.loom.db.jooq.dao;
 
+import static io.metaloom.loom.db.jooq.tables.JooqAnnotationTask.ANNOTATION_TASK;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -11,10 +12,12 @@ import java.util.stream.StreamSupport;
 
 import org.junit.jupiter.api.Test;
 
+import io.metaloom.loom.api.annotation.AnnotationType;
 import io.metaloom.loom.api.task.TaskPriority;
 import io.metaloom.loom.api.task.TaskStatus;
 import io.metaloom.loom.db.CRUDDaoTestcases;
 import io.metaloom.loom.db.jooq.AbstractJooqTest;
+import io.metaloom.loom.db.model.annotation.Annotation;
 import io.metaloom.loom.db.model.comment.Comment;
 import io.metaloom.loom.db.model.task.Task;
 import io.metaloom.loom.db.model.task.TaskDao;
@@ -122,6 +125,28 @@ public class TaskDaoTest extends AbstractJooqTest implements CRUDDaoTestcases<Ta
 		getDao().unassignFromAsset(task.getUuid(), ASSET_UUID);
 		page = getDao().loadPageForAsset(ASSET_UUID, null, 10, null, null, null);
 		assertTrue(stream(page).noneMatch(t -> t.getUuid().equals(task.getUuid())), "The unassigned task should no longer be listed");
+	}
+
+	@Test
+	public void testDeleteCascadesAnnotationTaskLink() {
+		User user = dummyUser();
+
+		Annotation annotation = annotationDao().createAnnotation(user, asset(), "annotation", AnnotationType.FEEDBACK);
+		annotationDao().store(annotation);
+
+		Task task = getDao().createTask(user, "annotated_task");
+		getDao().store(task);
+		getDao().assignToAnnotation(task.getUuid(), annotation.getUuid());
+
+		assertEquals(1, context.ctx().fetchCount(ANNOTATION_TASK, ANNOTATION_TASK.TASK_UUID.eq(task.getUuid())),
+			"The annotation_task link should exist before deletion");
+
+		getDao().delete(task);
+
+		assertNull(getDao().load(task.getUuid()), "The task is gone");
+		assertEquals(0, context.ctx().fetchCount(ANNOTATION_TASK, ANNOTATION_TASK.TASK_UUID.eq(task.getUuid())),
+			"The annotation_task link must have cascaded");
+		assertNotNull(annotationDao().load(annotation.getUuid()), "The annotation must survive deletion of the task");
 	}
 
 	@Test

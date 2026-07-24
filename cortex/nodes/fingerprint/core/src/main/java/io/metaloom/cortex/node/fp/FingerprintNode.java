@@ -3,6 +3,10 @@ package io.metaloom.cortex.node.fp;
 import static io.metaloom.cortex.api.node.ResultOrigin.COMPUTED;
 import static io.metaloom.cortex.api.node.ResultOrigin.REMOTE;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 
@@ -30,18 +34,44 @@ public class FingerprintNode extends AbstractMediaNode<FingerprintNodeOptions> {
 
 	public static final NodeOutputKey<String> OUTPUT_FINGERPRINT = NodeOutputKey.of("fingerprint", String.class);
 
+	/**
+	 * Upper bound for the in-memory skip cache. Fingerprinting a video is expensive, so we remember which media were already
+	 * fingerprinted during this worker's lifetime to avoid recomputation. The cache is intentionally non-durable — the durable
+	 * copy lives in Loom, which is checked first in {@link #compute(NodeContext, AssetResponse)}.
+	 */
+	private static final int FINGERPRINT_CACHE_SIZE = 100_000;
+
 	private MultiSectorVideoFingerprinter hasher = new MultiSectorVideoFingerprinterImpl();
 
-	private final FingerprintMetaStorage metaStorage;
+	/**
+	 * Lightweight in-memory LRU cache of media paths that already have a fingerprint, keyed by absolute path.
+	 */
+	private final Map<String, String> fingerprintCache = Collections.synchronizedMap(new LinkedHashMap<>(16, 0.75f, true) {
+		private static final long serialVersionUID = 1L;
+
+		@Override
+		protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
+			return size() > FINGERPRINT_CACHE_SIZE;
+		}
+	});
 
 	static {
 		Video4j.init();
 	}
 
 	@Inject
-	public FingerprintNode(@Nullable LoomClient client, CortexOptions cortexOption, FingerprintNodeOptions options, FingerprintMetaStorage metaStorage) {
+	public FingerprintNode(@Nullable LoomClient client, CortexOptions cortexOption, FingerprintNodeOptions options) {
 		super(client, cortexOption, options);
-		this.metaStorage = metaStorage;
+	}
+
+	/**
+	 * Visible for testing: seed the in-memory skip cache so the node treats the given media as already fingerprinted.
+	 *
+	 * @param media
+	 * @param fingerprint
+	 */
+	void markFingerprinted(LoomMedia media, String fingerprint) {
+		fingerprintCache.put(media.absolutePath(), fingerprint);
 	}
 
 	@Override
@@ -56,8 +86,8 @@ public class FingerprintNode extends AbstractMediaNode<FingerprintNodeOptions> {
 			return false;
 		}
 
-		// Skip if fingerprint was already computed
-		if (metaStorage.hasFingerprint(media)) {
+		// Skip if fingerprint was already computed during this worker's lifetime
+		if (fingerprintCache.containsKey(media.absolutePath())) {
 			return false;
 		}
 
@@ -81,7 +111,7 @@ public class FingerprintNode extends AbstractMediaNode<FingerprintNodeOptions> {
 				String hash = computeFingerprint(media);
 				String value = hash != null ? hash : "NULL";
 				ctx.output(OUTPUT_FINGERPRINT, value);
-				metaStorage.setFingerprint(media, value);
+				fingerprintCache.put(media.absolutePath(), value);
 				print(ctx, hash != null ? "DONE" : "NULL", "");
 				return ctx.origin(COMPUTED).next();
 			} catch (Exception e) {

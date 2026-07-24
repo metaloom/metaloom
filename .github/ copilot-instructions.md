@@ -12,7 +12,7 @@
 * loom-client       - Java Clients
 * loom-test-env     - Shared test data
 * integration-test  - IT 
-* cortex-custom-cli - Example project which shows how the cortex part can be extended
+* cortex-custom - Example project which shows how the cortex part can be extended
 
 # Test Notes
 

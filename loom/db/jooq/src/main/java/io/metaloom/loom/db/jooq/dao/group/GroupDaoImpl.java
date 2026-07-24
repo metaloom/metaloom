@@ -127,11 +127,11 @@ public class GroupDaoImpl extends AbstractJooqDao<Group> implements GroupDao {
 
 	@Override
 	public List<Role> loadRoles(Group group) {
-		return ctx().select(GROUP)
+		return ctx().select(ROLE.fields())
 			.from(ROLE)
 			.join(ROLE_GROUP)
-			.on(ROLE_GROUP.GROUP_UUID.eq(group.getUuid()))
-			.where(GROUP.UUID.eq(group.getUuid()))
+			.on(ROLE_GROUP.ROLE_UUID.eq(ROLE.UUID))
+			.where(ROLE_GROUP.GROUP_UUID.eq(group.getUuid()))
 			.fetchInto(RoleImpl.class);
 	}
 

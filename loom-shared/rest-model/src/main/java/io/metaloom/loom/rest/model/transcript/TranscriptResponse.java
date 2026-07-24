@@ -7,6 +7,8 @@ public class TranscriptResponse extends AbstractCreatorEditorRestResponse<Transc
 	implements TranscriptModel<TranscriptResponse> {
 
 	private String source;
+	private String producerVersion;
+	private Integer streamIndex;
 	private String lang;
 	private String transcriptText;
 	private Long duration;
@@ -22,6 +24,28 @@ public class TranscriptResponse extends AbstractCreatorEditorRestResponse<Transc
 	@Override
 	public TranscriptResponse setSource(String source) {
 		this.source = source;
+		return this;
+	}
+
+	@Override
+	public String getProducerVersion() {
+		return producerVersion;
+	}
+
+	@Override
+	public TranscriptResponse setProducerVersion(String producerVersion) {
+		this.producerVersion = producerVersion;
+		return this;
+	}
+
+	@Override
+	public Integer getStreamIndex() {
+		return streamIndex;
+	}
+
+	@Override
+	public TranscriptResponse setStreamIndex(Integer streamIndex) {
+		this.streamIndex = streamIndex;
 		return this;
 	}
 

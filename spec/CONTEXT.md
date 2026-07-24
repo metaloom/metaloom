@@ -320,15 +320,15 @@ cortex/
 | `CortexComponent` | `io.metaloom.cortex.cli.dagger` | Dagger component wiring all modules |
 | `CortexBindModule` | `io.metaloom.cortex.cli.dagger` | Dagger bindings: Cortex, MediaProcessor, PipelineExecutor, etc. |
 | `CortexBootstrapInitializer` | `io.metaloom.cortex.impl.boot` | Starts monitoring HTTP + Loom control channel |
-| `LoomControlChannel` | `io.metaloom.cortex.impl.loom` | WebSocket client to Loom; registration, heartbeat, work orders |
-| `PipelineWorkOrderHandler` | `io.metaloom.cortex.impl.loom` | Handles work orders from Loom |
+| `LoomControlChannel` | `io.metaloom.cortex.impl.loom` | WebSocket client to Loom; registration, heartbeat, source/node tasks |
+| `PipelineTaskHandler` | `io.metaloom.cortex.impl.loom` | Runs `SOURCE_TASK` / `NODE_TASK` / `SEGMENT_TASK` from Loom |
 | `RegistryNodeFactory` | `io.metaloom.cortex.pipeline.loader` | Maps JSON node definitions to concrete PipelineNode impls |
 
 #### Online vs Offline Mode
 
 | Mode | Condition | Behaviour |
 |------|-----------|-----------|
-| **Online** | Loom host + port configured | Connects to Loom via WebSocket, registers capabilities, receives work orders, syncs results |
+| **Online** | Loom host + port configured | Connects to Loom via WebSocket, registers capabilities, receives source/node tasks, syncs results |
 | **Offline** | No Loom host configured | Runs standalone; driven by `cortex process run` CLI command |
 
 #### Build Commands
@@ -534,7 +534,7 @@ mvn test -Dloom.external=true -pl e2e-test
 
 | Example | Description |
 |---------|-------------|
-| `cortex-custom-cli/` | Demonstrates adding custom CLI commands to Cortex |
+| `cortex-custom/` | Demonstrates extending Cortex with custom code |
 | `cortex-custom-node/` | Demonstrates implementing a custom Cortex processing node |
 
 #### Structure (each example)
@@ -613,7 +613,7 @@ Both Loom and Cortex use **Dagger 2** extensively:
 | Cortex processing nodes | `cortex/nodes/` |
 | Pipeline engine (API / impl / shared) | `cortex/pipeline-api/`, `cortex/pipeline-core/`, `cortex/pipeline-common/` |
 | Pipeline loading + node type registration | `cortex/core/.../pipeline/loader/`, `cortex/cli/.../dagger/PipelineNodeFactoryModule.java` |
-| Loom↔Cortex control channel & work orders | `cortex/core/.../impl/loom/` |
+| Loom↔Cortex control channel & task handler | `cortex/core/.../impl/loom/` |
 | Pipeline REST endpoints & services | `loom/services/rest/.../endpoint/impl/Pipeline*.java`, `.../service/impl/` |
 | Pipeline DB migrations | `loom/db/flyway/.../V2.19__add_pipeline.sql`, `V2.29__add_pipeline_run.sql`, `V2.30__add_pipeline_version.sql` |
 | Pipeline UI editor | `loom-ui/src/features/pipeline/PipelineEditor.tsx` |
@@ -623,7 +623,7 @@ Both Loom and Cortex use **Dagger 2** extensively:
 | Website content | `website/content/` |
 | Integration tests | `integration-test/src/test/java/io/metaloom/loom/test/integration/` |
 | E2E tests | `e2e-test/src/test/java/io/metaloom/loom/studio/test/` |
-| Examples | `examples/cortex-custom-cli/`, `examples/cortex-custom-node/` |
+| Examples | `examples/cortex-custom/`, `examples/cortex-custom-node/` |
 
 ---
 

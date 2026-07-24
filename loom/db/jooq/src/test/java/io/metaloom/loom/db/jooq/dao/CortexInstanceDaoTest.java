@@ -1,7 +1,9 @@
 package io.metaloom.loom.db.jooq.dao;
 
+import static io.metaloom.loom.db.jooq.tables.JooqCortexInstanceNodeKind.CORTEX_INSTANCE_NODE_KIND;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Set;
@@ -124,6 +126,37 @@ public class CortexInstanceDaoTest extends AbstractJooqTest implements CRUDDaoTe
 		CortexInstance loaded = cortexInstanceDao().load(ref.get().getUuid());
 		assertEquals(Set.of("a", "b", "c"), loaded.getNodeWhitelist());
 		assertEquals(Set.of("x", "y"), loaded.getNodeBlacklist());
+	}
+
+	private int nodeKindCount(CortexInstance instance) {
+		return context.ctx().fetchCount(CORTEX_INSTANCE_NODE_KIND, CORTEX_INSTANCE_NODE_KIND.INSTANCE_UUID.eq(instance.getUuid()));
+	}
+
+	/**
+	 * Deleting a cortex instance cascades its {@code cortex_instance_node_kind} whitelist/blacklist entries (FK
+	 * {@code instance_uuid ... ON DELETE CASCADE} from {@code V2.33__add_cortex_instance.sql}); a stranded row would
+	 * otherwise dangle with no owning instance.
+	 */
+	@Test
+	void testDeletingInstanceCascadesNodeKinds() {
+		AtomicReference<CortexInstance> ref = new AtomicReference<>();
+		transaction(t -> {
+			CortexInstance instance = cortexInstanceDao().createCortexInstance("cascade-node", "cascade");
+			instance.setNodeWhitelist(Set.of("sha512", "facedetect"));
+			instance.setNodeBlacklist(Set.of("whisper"));
+			cortexInstanceDao().store(instance);
+			ref.set(instance);
+		});
+		CortexInstance instance = ref.get();
+
+		// 2 whitelist + 1 blacklist entries land in the child table.
+		assertEquals(3, nodeKindCount(instance), "The node-kind whitelist/blacklist rows should exist before the delete");
+
+		cortexInstanceDao().delete(instance.getUuid());
+
+		assertNull(cortexInstanceDao().load(instance.getUuid()), "The instance row is gone");
+		assertNull(cortexInstanceDao().loadByNodeId("cascade-node"), "The instance is no longer loadable by its node id");
+		assertEquals(0, nodeKindCount(instance), "The cortex_instance_node_kind rows must have cascaded with the instance");
 	}
 
 }

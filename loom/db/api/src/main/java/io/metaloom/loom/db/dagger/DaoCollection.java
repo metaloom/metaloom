@@ -16,6 +16,7 @@ import io.metaloom.loom.db.model.comment.CommentDao;
 import io.metaloom.loom.db.model.embedding.EmbeddingDao;
 import io.metaloom.loom.db.model.group.GroupDao;
 import io.metaloom.loom.db.model.library.LibraryDao;
+import io.metaloom.loom.db.model.loom.LoomDao;
 import io.metaloom.loom.db.model.perm.PermissionDao;
 import io.metaloom.loom.db.model.space.SpaceDao;
 import io.metaloom.loom.db.model.reaction.ReactionDao;
@@ -139,5 +140,9 @@ public interface DaoCollection {
 	// Cortex Instance
 
 	CortexInstanceDao cortexInstanceDao();
+
+	// System
+
+	LoomDao loomDao();
 
 }

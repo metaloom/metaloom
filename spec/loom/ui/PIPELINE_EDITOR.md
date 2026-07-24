@@ -403,7 +403,7 @@ interface PipelineRunRequest {
 
 // PipelineRunResponse (from run)
 interface PipelineRunResponse {
-  workOrderId: string;
+  runUuid: string;            // the pipeline-run UUID
   processorNodeId?: string;
   dispatched: boolean;
   message?: string;
@@ -519,7 +519,7 @@ const handleRun = useCallback(async () => {
 ```
 
 **Response handling:**
-- `dispatched: true` → Work order sent to processor, run will appear in history
+- `dispatched: true` → Source task sent to processor, run will appear in history
 - `dispatched: false` → No processor available (503 equivalent), shows message
 
 ### 5.5 Run History, Drill-Down, Versions & Live Events

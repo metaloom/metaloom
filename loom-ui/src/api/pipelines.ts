@@ -65,7 +65,7 @@ export interface PipelineRunRequest {
 }
 
 export interface PipelineRunResponse {
-  workOrderId: string;
+  runUuid: string;
   processorNodeId?: string;
   dispatched: boolean;
   message?: string;
@@ -136,9 +136,9 @@ export async function deletePipeline(token: string, uuid: string): Promise<void>
 }
 
 /**
- * Trigger execution of a pipeline. Loom dispatches a WORK_ORDER to a
- * registered processor which then runs the pipeline against the
- * requested media selection.
+ * Trigger execution of a pipeline. Loom hands the pipeline's source node to a
+ * registered processor as a SOURCE_TASK; the run engine then dispatches
+ * per-node tasks as media items stream back.
  */
 export async function runPipeline(token: string, uuid: string, request: PipelineRunRequest = {}): Promise<PipelineRunResponse> {
   const res = await fetch(`${API_BASE_URL}/pipelines/${encodeURIComponent(uuid)}/run`, {

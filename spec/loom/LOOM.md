@@ -33,7 +33,7 @@ system. It is responsible for:
 - **Persisting pipeline results** - data collected by Cortex processing
   pipelines is stored in the Loom database.
 - **Managing processing workers** - Cortex worker nodes connect to Loom via
-  a WebSocket API, register their capabilities, and receive work orders.
+  a WebSocket API, register their capabilities, and receive source/node tasks.
 - **Exposing APIs** - REST, gRPC (planned), GraphQL (planned), and MCP for
   AI agent integration.
 
@@ -44,7 +44,7 @@ processes ("cortex" nodes) that:
 
 1. Connect to Loom via the processor WebSocket (`/api/v1/processors/ws`)
 2. Register their capabilities (IO, CPU, GPU)
-3. Receive work orders (e.g. `PIPELINE_RUN`, `FINGERPRINT`, `FILESYSTEM_SCAN`)
+3. Receive source/node tasks (`SOURCE_TASK`, `NODE_TASK`, `SEGMENT_TASK`)
 4. Execute pipeline node chains against media assets
 5. Report pipeline tracking events back to Loom (which fans them out to UI
    clients via `/api/v1/pipelines/events/ws`)
@@ -364,8 +364,10 @@ Cortex worker nodes connect to Loom via the **processor WebSocket** at
 4. Loom responds with `REGISTERED` and assigns a UUID.
 5. Cortex sends periodic `HEARTBEAT` (10s) and `STATUS_UPDATE` (20s) messages.
 6. Cortex sends `PIPELINE_EVENT` messages as pipeline nodes execute.
-7. Loom dispatches `WORK_ORDER` messages to Cortex (e.g. `PIPELINE_RUN`).
-8. Cortex responds with `WORK_ORDER_RESULT` when work completes.
+7. Loom starts a run by dispatching a `SOURCE_TASK` and then individual
+   `NODE_TASK` messages (driven by the loom-side `PipelineRunEngine`).
+8. Cortex responds with `SOURCE_ITEMS` / `NODE_TASK_RESULT` and finally
+   `PIPELINE_RUN_COMPLETED` when the run finishes.
 
 See [WEBSOCKET.md](WEBSOCKET.md) for the full protocol specification.
 
@@ -589,11 +591,11 @@ to identify work items.
 
 ### 9.5 Loom-Cortex Integration
 
-- [x] Processor WebSocket protocol with registration, heartbeat, work orders
+- [x] Processor WebSocket protocol with registration, heartbeat, source/node tasks
 - [x] Pipeline event broadcasting to UI clients
 - [x] Pipeline definition loading from Loom DB to Cortex
 - [x] Bulk sync of pipeline results back to Loom
-- [x] Work order dispatch (PIPELINE_RUN, FINGERPRINT, FILESYSTEM_SCAN)
+- [x] Run dispatch via `SOURCE_TASK` + `NODE_TASK` driven by `PipelineRunEngine`
 - [ ] No automatic reconnection protocol for processors after server restart
 - [ ] No heartbeat timeout / idle detection on processor connections
 - [ ] No dead-letter mechanism for dropped pipeline events

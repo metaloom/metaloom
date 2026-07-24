@@ -20,6 +20,8 @@ import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
+import io.metaloom.loom.rest.model.jsoncomp.JsonCompCreateRequest;
+import io.vertx.core.json.JsonObject;
 
 /**
  * Hello-world example of a custom Cortex node that processes assets.
@@ -32,7 +34,9 @@ import io.metaloom.loom.rest.model.asset.AssetResponse;
  *       {@link NodeContext#output(String, Object)} so downstream nodes can consume them.</li>
  *   <li>Consuming <b>upstream outputs</b> from a dependency node (e.g. an SHA-256 hash produced
  *       by an earlier node in the pipeline) via {@link NodeContext#upstreamOutput(String, String)}.</li>
- *   <li>Returning a typed {@link HelloWorldPayload} so the pipeline runner can inspect the result.</li>
+ *   <li>Persisting the result <b>agnostically</b> into the {@code asset_json_comp} table via a thin
+ *       Loom REST call ({@code createAssetJsonComp}) — no dedicated component table or DB dependency
+ *       required. This is the lightweight, customer-facing persistence path.</li>
  * </ul>
  */
 public class HelloWorldNode extends AbstractMediaNode<HelloWorldNodeOptions> {
@@ -44,6 +48,9 @@ public class HelloWorldNode extends AbstractMediaNode<HelloWorldNodeOptions> {
 
 	/** Output key for the estimated word count. */
 	public static final String OUTPUT_WORD_COUNT = "word_count";
+
+	/** Schema-type label under which the result payload is stored in {@code asset_json_comp}. */
+	public static final String SCHEMA_TYPE = "hello-world";
 
 	@Inject
 	public HelloWorldNode(@Nullable LoomClient client, CortexOptions cortexOption, HelloWorldNodeOptions options) {
@@ -87,7 +94,23 @@ public class HelloWorldNode extends AbstractMediaNode<HelloWorldNodeOptions> {
 		// Log what we did
 		ctx.info("Computed file_size=" + fileSize + ", word_count=" + wordCount);
 
-		// Return the typed payload — the pipeline stores it in the NodeResult
+		// --- Persist the result agnostically into asset_json_comp via REST ---
+		// When running online (a LoomClient is configured and the asset is known), the result is
+		// posted to the generic JSON component sink. The payload shape is opaque to Loom — no
+		// dedicated table is required — which keeps this example lightweight and customer-facing.
+		if (!isOfflineMode() && asset != null) {
+			JsonObject data = new JsonObject()
+				.put(OUTPUT_FILE_SIZE, fileSize)
+				.put(OUTPUT_WORD_COUNT, wordCount);
+			JsonCompCreateRequest request = new JsonCompCreateRequest()
+				.setNodeKind(name())        // "hello-world" — part of the component identity
+				.setSchemaType(SCHEMA_TYPE) // shape label for the payload
+				.setData(data);
+			client().createAssetJsonComp(asset.getUuid(), request).sync();
+			log.info("Persisted hello-world result for asset {} into asset_json_comp", asset.getUuid());
+		}
+
+		// Feed the outputs downstream and mark the result as computed.
 		return ctx.origin(COMPUTED).next();
 	}
 

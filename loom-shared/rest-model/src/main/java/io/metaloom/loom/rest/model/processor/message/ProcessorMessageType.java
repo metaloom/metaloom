@@ -19,9 +19,6 @@ public enum ProcessorMessageType {
 	/** State change notification from processor */
 	STATE_CHANGE,
 
-	/** Work order result from processor */
-	WORK_ORDER_RESULT,
-
 	/** Pipeline tracking event from processor (forwarded to UI clients) */
 	PIPELINE_EVENT,
 
@@ -44,9 +41,6 @@ public enum ProcessorMessageType {
 
 	/** Heartbeat pong from loom */
 	HEARTBEAT_ACK,
-
-	/** Work order dispatched to processor */
-	WORK_ORDER,
 
 	/** Instructs a processor to run a source node and stream back what it finds (Variant C) */
 	SOURCE_TASK,

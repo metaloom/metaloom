@@ -18,7 +18,9 @@ import io.metaloom.loom.rest.model.detection.DetectionExamples;
 import io.metaloom.loom.rest.model.embedding.EmbeddingExamples;
 import io.metaloom.loom.rest.model.example.impl.ExampleImpl;
 import io.metaloom.loom.rest.model.group.GroupExamples;
+import io.metaloom.loom.rest.model.jsoncomp.JsonCompExamples;
 import io.metaloom.loom.rest.model.library.LibraryExamples;
+import io.metaloom.loom.rest.model.noderesult.NodeResultExamples;
 import io.metaloom.loom.rest.model.person.PersonExamples;
 import io.metaloom.loom.rest.model.pipeline.PipelineExamples;
 import io.metaloom.loom.rest.model.processor.ProcessorExamples;
@@ -62,6 +64,8 @@ public interface Examples extends
 	PersonExamples,
 	PipelineExamples,
 	ProcessorExamples,
+	NodeResultExamples,
+	JsonCompExamples,
 	TranscriptExamples,
 	WebhookExamples {
 

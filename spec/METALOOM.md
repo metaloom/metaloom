@@ -385,7 +385,7 @@ Key entry points:
 ### How Cortex talks to Loom
 
 Cortex opens a WebSocket to Loom (`/api/v1/processors/ws`) and registers
-itself; Loom pushes work orders down that connection. Progress travels
+itself; Loom pushes source/node tasks down that connection. Progress travels
 back as events on the same socket, while result *data* goes over REST.
 Loom never dials out to Cortex.
 

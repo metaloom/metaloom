@@ -4,19 +4,12 @@ import static io.metaloom.cortex.media.test.assertj.NodeAssertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import java.io.IOException;
-import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.media.type.handler.impl.AvroLoomMetaTypeHandlerImpl;
-import io.metaloom.cortex.api.media.type.handler.impl.FSLoomMetaTypeHandlerImpl;
-import io.metaloom.cortex.api.media.type.handler.impl.HeapLoomMetaTypeHandlerImpl;
-import io.metaloom.cortex.api.media.type.handler.impl.XAttrLoomMetaTypeHandlerImpl;
-import io.metaloom.cortex.api.meta.MetaStorage;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.option.CortexOptions;
-import io.metaloom.cortex.common.meta.MetaStorageImpl;
 import io.metaloom.cortex.media.test.AbstractBasicNodeTest;
 import io.metaloom.cortex.media.whisper.WhisperResult;
 import io.metaloom.loom.client.common.LoomClient;
@@ -75,7 +68,8 @@ public class WhisperNodeTest extends AbstractBasicNodeTest<WhisperNode> {
 	protected void assertProcessed(TestMedia testMedia, LoomMedia media, NodeResult result, WhisperNode nodeMock) {
 		assertThat(media).hasSHA512();
 
-		WhisperResult whisperResult = whisperStorage().getWhisperResult(media);
+		String json = result.get(WhisperNode.OUTPUT_WHISPER_RESULT);
+		WhisperResult whisperResult = WhisperResult.fromJson(json);
 		System.out.println("Segments: " + whisperResult.segments().size());
 		for (var segment : whisperResult.segments()) {
 			System.out.println("[" + segment.getFrom() + " - " + segment.getTo() + "] " + segment.getText());
@@ -157,17 +151,6 @@ public class WhisperNodeTest extends AbstractBasicNodeTest<WhisperNode> {
 		WhisperMediaProcessor processor = new WhisperMediaProcessor(options);
 		// Pass null for client to use offline mode
 		return new WhisperNode(null, cortexOptions, options, processor);
-	}
-
-	public WhisperMetaStorage whisperStorage() {
-		return new WhisperMetaStorage(storage());
-	}
-
-	@Override
-	public MetaStorage storage() {
-		return new MetaStorageImpl(
-			Set.of(new HeapLoomMetaTypeHandlerImpl(), new AvroLoomMetaTypeHandlerImpl(options()),
-				new XAttrLoomMetaTypeHandlerImpl(), new FSLoomMetaTypeHandlerImpl(options())));
 	}
 
 }

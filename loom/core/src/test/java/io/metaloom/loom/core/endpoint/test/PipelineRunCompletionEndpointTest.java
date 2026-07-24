@@ -18,7 +18,6 @@ import io.metaloom.loom.db.model.pipeline.PipelineRun;
 import io.metaloom.loom.db.model.pipeline.PipelineRunDao;
 import io.metaloom.loom.rest.model.auth.AuthLoginResponse;
 import io.metaloom.loom.rest.service.impl.PipelineRunTracker;
-import io.metaloom.loom.rest.service.impl.WorkOrderResultRegistry;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.WebSocket;
 import io.vertx.core.http.WebSocketClient;
@@ -254,36 +253,6 @@ public class PipelineRunCompletionEndpointTest {
 			ws.close();
 		} finally {
 			vertx.close();
-		}
-	}
-
-	// ── Dispatch watchdog ────────────────────────────────────────────────
-
-	@Test
-	@DisplayName("A work order that is never acknowledged marks the run FAILED")
-	void testDispatchTimeoutMarksRunFailed() throws Exception {
-		try (LoomHttpClient client = loom.httpClient()) {
-			loginAdmin(client);
-			PipelineRun run = createRunningRun();
-
-			// Mirror the wiring in PipelineEndpointService.run: a watchdog that
-			// fails the run when no processor ever acknowledges the work order.
-			PipelineRunTracker tracker = new PipelineRunTracker(runDao());
-			WorkOrderResultRegistry registry = new WorkOrderResultRegistry();
-			UUID workOrderId = UUID.randomUUID();
-			CompletableFuture<Void> fired = new CompletableFuture<>();
-
-			registry.registerWithTimeout(workOrderId, result -> {
-				tracker.fail(run.getUuid(), result.getErrorMessage());
-				fired.complete(null);
-			}, 300);
-
-			fired.get(5, TimeUnit.SECONDS);
-
-			PipelineRun reloaded = runDao().load(run.getUuid());
-			assertThat(reloaded.getStatus()).isEqualTo("FAILED");
-			assertThat(reloaded.getFinished()).isNotNull();
-			assertThat(reloaded.getErrorMessage()).contains("timed out");
 		}
 	}
 
