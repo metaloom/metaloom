@@ -18,12 +18,12 @@ import java.util.function.Function;
 
 import org.jooq.Field;
 import org.jooq.ForeignKey;
-import org.jooq.Function9;
+import org.jooq.Function10;
 import org.jooq.Index;
 import org.jooq.Name;
 import org.jooq.Record;
 import org.jooq.Records;
-import org.jooq.Row9;
+import org.jooq.Row10;
 import org.jooq.Schema;
 import org.jooq.SelectField;
 import org.jooq.Table;
@@ -107,6 +107,12 @@ public class JooqBlacklist extends TableImpl<JooqBlacklistRecord> {
      */
     public final TableField<JooqBlacklistRecord, JsonObject> META = createField(DSL.name("meta"), SQLDataType.JSONB, this, "Custom meta properties of the block entry. May contain additional information on the reason.", new JsonObjectConverter());
 
+    /**
+     * The column <code>public.blacklist.name</code>. Human readable label for
+     * the entry, e.g. the name of the claim
+     */
+    public final TableField<JooqBlacklistRecord, String> NAME = createField(DSL.name("name"), SQLDataType.VARCHAR, this, "Human readable label for the entry, e.g. the name of the claim");
+
     private JooqBlacklist(Name alias, Table<JooqBlacklistRecord> aliased) {
         this(alias, aliased, null);
     }
@@ -157,11 +163,22 @@ public class JooqBlacklist extends TableImpl<JooqBlacklistRecord> {
 
     @Override
     public List<ForeignKey<JooqBlacklistRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.BLACKLIST__BLACKLIST_CREATOR_UUID_FKEY, Keys.BLACKLIST__BLACKLIST_EDITOR_UUID_FKEY);
+        return Arrays.asList(Keys.BLACKLIST__BLACKLIST_ASSET_UUID_FKEY, Keys.BLACKLIST__BLACKLIST_CREATOR_UUID_FKEY, Keys.BLACKLIST__BLACKLIST_EDITOR_UUID_FKEY);
     }
 
+    private transient JooqAsset _asset;
     private transient JooqUser _blacklistCreatorUuidFkey;
     private transient JooqUser _blacklistEditorUuidFkey;
+
+    /**
+     * Get the implicit join path to the <code>public.asset</code> table.
+     */
+    public JooqAsset asset() {
+        if (_asset == null)
+            _asset = new JooqAsset(this, Keys.BLACKLIST__BLACKLIST_ASSET_UUID_FKEY);
+
+        return _asset;
+    }
 
     /**
      * Get the implicit join path to the <code>public.user</code> table, via the
@@ -225,18 +242,18 @@ public class JooqBlacklist extends TableImpl<JooqBlacklistRecord> {
     }
 
     // -------------------------------------------------------------------------
-    // Row9 type methods
+    // Row10 type methods
     // -------------------------------------------------------------------------
 
     @Override
-    public Row9<java.util.UUID, java.util.UUID, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID, String, Integer, JsonObject> fieldsRow() {
-        return (Row9) super.fieldsRow();
+    public Row10<java.util.UUID, java.util.UUID, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID, String, Integer, JsonObject, String> fieldsRow() {
+        return (Row10) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function9<? super java.util.UUID, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super String, ? super Integer, ? super JsonObject, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function10<? super java.util.UUID, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super String, ? super Integer, ? super JsonObject, ? super String, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -244,7 +261,7 @@ public class JooqBlacklist extends TableImpl<JooqBlacklistRecord> {
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function9<? super java.util.UUID, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super String, ? super Integer, ? super JsonObject, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function10<? super java.util.UUID, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super String, ? super Integer, ? super JsonObject, ? super String, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }

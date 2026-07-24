@@ -114,10 +114,11 @@ public class JooqCollectionAsset extends TableImpl<JooqCollectionAssetRecord> {
 
     @Override
     public List<ForeignKey<JooqCollectionAssetRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.COLLECTION_ASSET__COLLECTION_ASSET_COLLECTION_UUID_FKEY);
+        return Arrays.asList(Keys.COLLECTION_ASSET__COLLECTION_ASSET_COLLECTION_UUID_FKEY, Keys.COLLECTION_ASSET__COLLECTION_ASSET_ASSET_UUID_FKEY);
     }
 
     private transient JooqCollection _collection;
+    private transient JooqAsset _asset;
 
     /**
      * Get the implicit join path to the <code>public.collection</code> table.
@@ -127,6 +128,16 @@ public class JooqCollectionAsset extends TableImpl<JooqCollectionAssetRecord> {
             _collection = new JooqCollection(this, Keys.COLLECTION_ASSET__COLLECTION_ASSET_COLLECTION_UUID_FKEY);
 
         return _collection;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.asset</code> table.
+     */
+    public JooqAsset asset() {
+        if (_asset == null)
+            _asset = new JooqAsset(this, Keys.COLLECTION_ASSET__COLLECTION_ASSET_ASSET_UUID_FKEY);
+
+        return _asset;
     }
 
     @Override

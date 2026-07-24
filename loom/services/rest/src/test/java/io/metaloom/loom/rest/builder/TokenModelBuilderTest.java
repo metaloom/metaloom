@@ -35,6 +35,9 @@ public class TokenModelBuilderTest extends AbstractModelBuilderTest {
 		Token token = mock(Token.class);
 		when(token.getUuid()).thenReturn(TOKEN_UUID);
 		when(token.getName()).thenReturn(name);
+		// The response carries a creator/editor block; without a creator uuid the builder
+		// leaves it empty (machine-written rows).
+		mockCreatorEditorRefs(token);
 		return token;
 	}
 

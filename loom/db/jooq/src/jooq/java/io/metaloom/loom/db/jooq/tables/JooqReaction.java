@@ -169,11 +169,12 @@ public class JooqReaction extends TableImpl<JooqReactionRecord> {
 
     @Override
     public List<ForeignKey<JooqReactionRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.REACTION__REACTION_CREATOR_UUID_FKEY, Keys.REACTION__REACTION_EDITOR_UUID_FKEY, Keys.REACTION__REACTION_TASK_UUID_FKEY, Keys.REACTION__REACTION_COMMENT_UUID_FKEY, Keys.REACTION__REACTION_ANNOTATION_UUID_FKEY);
+        return Arrays.asList(Keys.REACTION__REACTION_CREATOR_UUID_FKEY, Keys.REACTION__REACTION_EDITOR_UUID_FKEY, Keys.REACTION__REACTION_ASSET_UUID_FKEY, Keys.REACTION__REACTION_TASK_UUID_FKEY, Keys.REACTION__REACTION_COMMENT_UUID_FKEY, Keys.REACTION__REACTION_ANNOTATION_UUID_FKEY);
     }
 
     private transient JooqUser _reactionCreatorUuidFkey;
     private transient JooqUser _reactionEditorUuidFkey;
+    private transient JooqAsset _asset;
     private transient JooqTask _task;
     private transient JooqComment _comment;
     private transient JooqAnnotation _annotation;
@@ -198,6 +199,16 @@ public class JooqReaction extends TableImpl<JooqReactionRecord> {
             _reactionEditorUuidFkey = new JooqUser(this, Keys.REACTION__REACTION_EDITOR_UUID_FKEY);
 
         return _reactionEditorUuidFkey;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.asset</code> table.
+     */
+    public JooqAsset asset() {
+        if (_asset == null)
+            _asset = new JooqAsset(this, Keys.REACTION__REACTION_ASSET_UUID_FKEY);
+
+        return _asset;
     }
 
     /**

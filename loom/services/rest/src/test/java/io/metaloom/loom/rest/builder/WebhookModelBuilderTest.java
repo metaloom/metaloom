@@ -33,6 +33,9 @@ public class WebhookModelBuilderTest extends AbstractModelBuilderTest {
 	private Webhook mockWebhook() {
 		Webhook hook = mock(Webhook.class);
 		when(hook.getUuid()).thenReturn(WEBHOOK_UUID);
+		// The response carries a creator/editor block; without a creator uuid the builder
+		// leaves it empty (machine-written rows).
+		mockCreatorEditorRefs(hook);
 		return hook;
 	}
 }

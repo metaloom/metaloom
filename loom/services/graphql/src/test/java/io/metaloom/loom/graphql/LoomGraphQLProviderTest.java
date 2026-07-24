@@ -124,7 +124,7 @@ public class LoomGraphQLProviderTest {
 
 		AssetImageComp imageComp = mock(AssetImageComp.class);
 		when(imageComp.getUuid()).thenReturn(UUID.randomUUID());
-		when(imageComp.getSource()).thenReturn("exif");
+		when(imageComp.getNodeKind()).thenReturn("exif");
 		when(imageComp.getImageDominantColor()).thenReturn("#ff0000");
 		when(imageComp.getMediaWidth()).thenReturn(1920);
 		when(imageComp.getMediaHeight()).thenReturn(1080);

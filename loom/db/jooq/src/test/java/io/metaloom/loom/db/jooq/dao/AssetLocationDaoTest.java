@@ -23,7 +23,8 @@ public class AssetLocationDaoTest extends AbstractJooqTest implements CRUDDaoTes
 
 	@Override
 	public AssetLocation createElement(User user, int i) {
-		return assetLocationDao().createAssetLocation(DUMMY_IMAGE_ORIGIN, ASSET_UUID, ADMIN_UUID, LIBRARY_UUID);
+		// The natural key is (library_uuid, path), so each location needs its own path.
+		return assetLocationDao().createAssetLocation(DUMMY_IMAGE_ORIGIN + "_" + i, ASSET_UUID, ADMIN_UUID, LIBRARY_UUID);
 	}
 	@Override
 	public void assertCreate(AssetLocation createdElement) {
@@ -59,10 +60,15 @@ public class AssetLocationDaoTest extends AbstractJooqTest implements CRUDDaoTes
 			ref.set(location.getUuid());
 		});
 
+		// Several locations may share one asset - the same content can live at more than one
+		// path. The fixture already stores one, so the new one is additional.
 		List<AssetLocation> found = dao.findForAsset(ASSET_UUID);
-		assertEquals(1, found.size(), "The asset should have exactly one location");
+		assertTrue(found.size() >= 2, "The asset should carry the fixture location plus the one stored here");
 
-		AssetLocation loaded = found.get(0);
+		AssetLocation loaded = found.stream()
+			.filter(l -> ref.get().equals(l.getUuid()))
+			.findFirst()
+			.orElseThrow(() -> new AssertionError("The stored location was not returned for the asset"));
 		assertEquals(ref.get(), loaded.getUuid());
 		assertEquals(ASSET_UUID, loaded.getAssetUuid());
 		assertEquals("/pool/movie.mp4", loaded.getPath());

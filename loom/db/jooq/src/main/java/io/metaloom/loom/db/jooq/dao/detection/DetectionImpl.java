@@ -8,6 +8,16 @@ import io.vertx.core.json.JsonObject;
 
 public class DetectionImpl extends AbstractEditableElement<Detection> implements Detection {
 
+	private String nodeKind;
+
+	private String producerVersion = "";
+
+	private Integer detectionIndex = 0;
+
+	private String label;
+
+	private Long timeFrom;
+
 	private String type;
 
 	private Integer frameNumber;
@@ -25,6 +35,61 @@ public class DetectionImpl extends AbstractEditableElement<Detection> implements
 	private UUID assetUuid;
 
 	private JsonObject meta;
+
+	@Override
+	public String getNodeKind() {
+		return nodeKind;
+	}
+
+	@Override
+	public Detection setNodeKind(String nodeKind) {
+		this.nodeKind = nodeKind;
+		return this;
+	}
+
+	@Override
+	public String getProducerVersion() {
+		return producerVersion;
+	}
+
+	@Override
+	public Detection setProducerVersion(String producerVersion) {
+		this.producerVersion = producerVersion == null ? "" : producerVersion;
+		return this;
+	}
+
+	@Override
+	public Integer getDetectionIndex() {
+		return detectionIndex;
+	}
+
+	@Override
+	public Detection setDetectionIndex(Integer detectionIndex) {
+		this.detectionIndex = detectionIndex;
+		return this;
+	}
+
+	@Override
+	public String getLabel() {
+		return label;
+	}
+
+	@Override
+	public Detection setLabel(String label) {
+		this.label = label;
+		return this;
+	}
+
+	@Override
+	public Long getTimeFrom() {
+		return timeFrom;
+	}
+
+	@Override
+	public Detection setTimeFrom(Long timeFrom) {
+		this.timeFrom = timeFrom;
+		return this;
+	}
 
 	@Override
 	public String getType() {

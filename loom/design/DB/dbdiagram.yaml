@@ -3,9 +3,18 @@ Project LOOM {
     # MetaLoom - Loom 1.0 Database model
 
     Reflects the schema produced by the Flyway migrations
-    (loom/db/flyway/.../db/migration) up to and including V2.37.
+    (loom/db/flyway/.../db/migration) up to and including V2.50.
     Regenerate this file from the migrations when the schema changes;
     do not hand-edit it to describe a design that is not yet migrated.
+
+    Asset result model (V2.38-V2.47), see spec/features/db/DATABASE_TASKS.md:
+      - typed component tables carry the shared component contract:
+        node_kind / node_id / producer_version / run_uuid / task_uuid /
+        confidence, plus UNIQUE (asset_uuid, node_kind, <discriminators>).
+        A node that runs again replaces its own row instead of appending.
+      - asset_json_comp is the generic sink for results with no query
+        requirement.
+      - asset_node_result is the node-agnostic per-asset processing ledger.
   '''
 }
 
@@ -233,8 +242,8 @@ tablegroup Tagging {
 //// ==========================================================================
 
 Table asset as ASSET [headercolor: #16a085] {
-  uuid uuid [unique, default: `uuid_generate_v4()`, note: "Referenced by all child tables"]
-  sha512sum varchar [pk, note: "Content identity / primary key"]
+  uuid uuid [pk, default: `uuid_generate_v4()`, note: "Primary key since V2.46; every child table references it"]
+  sha512sum varchar [unique, not null, note: "Content identity / natural key"]
   size bigint [not null]
 
   // Hashes are computed incrementally by Cortex nodes -> nullable
@@ -242,6 +251,7 @@ Table asset as ASSET [headercolor: #16a085] {
   md5sum varchar
   chunk_hash varchar
   zero_chunk_count bigint
+  is_complete boolean [note: "ConsistencyNode verdict; NULL = not yet checked"]
 
   mime_type varchar [not null]
   filename varchar [not null]
@@ -254,16 +264,20 @@ Table asset as ASSET [headercolor: #16a085] {
   edited timestamp [default: `now()`, not null]
   editor_uuid uuid [ref: > U.uuid, not null]
 
-  // Legacy inline S3 pointer (storage is normally modelled via asset_location + asset_pool)
-  s3_bucket_name varchar
-  s3_object_path varchar
-
-  note: "Stores the binary/content component of the asset. Media-specific columns were extracted into asset_*_comp tables (V2.18)."
+  note: '''
+    Binary/content component of the asset.
+    IDENTITY RULE (V2.46): sha512sum stays NOT NULL, so no asset row exists before a
+    hashing node has run. Nodes upstream of hashing hold their outputs in
+    pipeline_node_task.outputs until identity exists.
+    PLACEMENT RULE: intrinsic properties of the bytes (hashes, size, zero_chunk_count,
+    is_complete) live here; everything derived by interpretation lives in a component
+    table keyed by its producing node.
+  '''
 }
 
 Table asset_location as ASSET_LOC [headercolor: #16a085] {
   uuid uuid [pk, default: `uuid_generate_v4()`]
-  asset_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE; UNIQUE (one location per asset)"]
+  asset_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE. NOT unique - several locations may share one asset (V2.48)"]
   library_uuid uuid [ref: > LIB.uuid, not null, note: "ON DELETE CASCADE"]
   pool_uuid uuid [ref: > asset_pool.uuid, note: "Storage pool holding the binary"]
 
@@ -288,10 +302,10 @@ Table asset_location as ASSET_LOC [headercolor: #16a085] {
 
   Indexes {
     (path)
-    (asset_uuid) [unique]
+    (library_uuid, path) [unique, note: "The natural key (V2.48)"]
   }
 
-  note: "Tracks media found by the scanner. Decoupled from the content-addressed asset row."
+  note: "Media found by the scanner. Several locations may share one asset - the same content can live at several paths and in several libraries. V2.20 had constrained this to one row per asset, which contradicted the table's purpose; V2.48 replaced that with the (library_uuid, path) key."
 }
 
 Table asset_pool [headercolor: #16a085] {
@@ -370,143 +384,359 @@ tablegroup Assets {
 }
 
 //// ==========================================================================
-//// Asset components (per-dimension node results; 1:N per asset, keyed by source)
+//// Asset components (typed node results; 1:N per asset)
+////
+//// Shared component contract (V2.38+) - every asset_*_comp table has:
+////   uuid pk, asset_uuid (ON DELETE CASCADE),
+////   node_kind not null, node_id, producer_version not null default '',
+////   run_uuid -> pipeline_run (SET NULL), task_uuid -> pipeline_node_task (SET NULL),
+////   confidence, meta,
+////   created/creator_uuid/edited/editor_uuid  (creator/editor NULLABLE: machine-written),
+////   UNIQUE (asset_uuid, node_kind, <typed discriminators>)
+////
+//// producer_version is NOT in the key: a re-run replaces the row and rewrites the
+//// version, and WHERE node_kind = ? AND producer_version <> ? finds stale results.
 //// ==========================================================================
 
 Table asset_geo_comp {
   uuid uuid [pk, default: `uuid_generate_v4()`]
   asset_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE"]
-  source varchar [note: "Origin of the geo info - e.g. exif"]
+
+  node_kind varchar [not null, note: "Producing node kind, e.g. tika, llm, manual"]
+  node_id varchar
+  producer_version varchar [not null, default: "", note: "Model/algorithm version"]
+  run_uuid uuid [ref: > pipeline_run.uuid, note: "ON DELETE SET NULL"]
+  task_uuid uuid [ref: > pipeline_node_task.uuid, note: "ON DELETE SET NULL"]
+  confidence real
+
+  method varchar [not null, default: "", note: "exif | xmp | gps-track | llm | manual"]
+  time_from bigint [not null, default: 0, note: "ms offset; 0 for stills"]
   geo_lon decimal(9,6)
   geo_lat decimal(8,6)
   geo_alias varchar
+  accuracy_m real
 
+  meta jsonb
   created timestamp [default: `now()`, not null]
-  creator_uuid uuid [ref: > U.uuid, not null]
+  creator_uuid uuid [ref: > U.uuid, note: "NULL when written by a worker"]
   edited timestamp [default: `now()`, not null]
-  editor_uuid uuid [ref: > U.uuid, not null]
+  editor_uuid uuid [ref: > U.uuid]
 
   Indexes {
+    (asset_uuid, node_kind, method, time_from) [unique]
     (asset_uuid)
     (geo_lon, geo_lat)
   }
+
+  note: "A drone video carries a whole GPS track: one row per time offset."
 }
 
 Table asset_doc_comp {
   uuid uuid [pk, default: `uuid_generate_v4()`]
   asset_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE"]
-  source varchar
+
+  node_kind varchar [not null]
+  node_id varchar
+  producer_version varchar [not null, default: ""]
+  run_uuid uuid [ref: > pipeline_run.uuid]
+  task_uuid uuid [ref: > pipeline_node_task.uuid]
+  confidence real
+
+  page_number int [not null, default: 0, note: "0 = whole document"]
+  page_count int
+  text_lang varchar
   doc_plain_text text [note: "Extracted text of the document"]
   doc_word_count int
+  text_search tsvector [note: "GENERATED ALWAYS AS to_tsvector('simple', doc_plain_text) STORED; GIN indexed"]
 
+  meta jsonb
   created timestamp [default: `now()`, not null]
-  creator_uuid uuid [ref: > U.uuid, not null]
+  creator_uuid uuid [ref: > U.uuid]
   edited timestamp [default: `now()`, not null]
-  editor_uuid uuid [ref: > U.uuid, not null]
+  editor_uuid uuid [ref: > U.uuid]
 
   Indexes {
+    (asset_uuid, node_kind, page_number) [unique]
     (asset_uuid)
+    (text_search) [type: gin]
   }
+
+  note: "Tika writes the whole document as page 0; OCR writes one row per page."
 }
 
 Table asset_image_comp {
   uuid uuid [pk, default: `uuid_generate_v4()`]
   asset_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE"]
-  source varchar
+
+  node_kind varchar [not null]
+  node_id varchar
+  producer_version varchar [not null, default: ""]
+  run_uuid uuid [ref: > pipeline_run.uuid]
+  task_uuid uuid [ref: > pipeline_node_task.uuid]
+  confidence real
+
+  stream_index int [not null, default: 0, note: "Multi-frame TIFF/GIF, embedded cover art"]
   image_dominant_color varchar
+  image_encoding varchar
   media_width int
   media_height int
+  orientation int
+  bit_depth int
+  blurriness real [note: "Quality node"]
 
+  meta jsonb
   created timestamp [default: `now()`, not null]
-  creator_uuid uuid [ref: > U.uuid, not null]
+  creator_uuid uuid [ref: > U.uuid]
   edited timestamp [default: `now()`, not null]
-  editor_uuid uuid [ref: > U.uuid, not null]
+  editor_uuid uuid [ref: > U.uuid]
 
   Indexes {
+    (asset_uuid, node_kind, stream_index) [unique]
     (asset_uuid)
   }
+
+  note: "Never gated on the asset mime type: an MP3 with cover art owns an image component."
 }
 
 Table asset_video_comp {
   uuid uuid [pk, default: `uuid_generate_v4()`]
   asset_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE"]
-  source varchar
+
+  node_kind varchar [not null]
+  node_id varchar
+  producer_version varchar [not null, default: ""]
+  run_uuid uuid [ref: > pipeline_run.uuid]
+  task_uuid uuid [ref: > pipeline_node_task.uuid]
+  confidence real
+
+  stream_index int [not null, default: 0]
   media_width int
   media_height int
-  media_duration bigint
+  media_duration bigint [note: "ms"]
   video_bitrate int
   video_encoding varchar
+  fps real [note: "Quality node"]
+  frame_count bigint [note: "Quality node"]
+  rotation int
+  blurriness real
 
+  meta jsonb
   created timestamp [default: `now()`, not null]
-  creator_uuid uuid [ref: > U.uuid, not null]
+  creator_uuid uuid [ref: > U.uuid]
   edited timestamp [default: `now()`, not null]
-  editor_uuid uuid [ref: > U.uuid, not null]
+  editor_uuid uuid [ref: > U.uuid]
 
   Indexes {
+    (asset_uuid, node_kind, stream_index) [unique]
     (asset_uuid)
   }
+
+  note: "Two producers of the same dimension yield two partially filled rows; the read side coalesces by producer precedence."
 }
 
-Table asset_audio_comp {
+Table asset_audio_comp as AUDIO_COMP {
   uuid uuid [pk, default: `uuid_generate_v4()`]
   asset_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE"]
-  source varchar
+
+  node_kind varchar [not null]
+  node_id varchar
+  producer_version varchar [not null, default: ""]
+  run_uuid uuid [ref: > pipeline_run.uuid]
+  task_uuid uuid [ref: > pipeline_node_task.uuid]
+  confidence real
+
+  stream_index int [not null, default: 0, note: "Which audio track"]
+  lang varchar
+  track_title varchar
+  is_default boolean
   audio_bpm int
   audio_sampling_rate int
   audio_channels int
   audio_bitrate int
   audio_encoding varchar [note: "e.g. mp3, flac"]
-  media_duration bigint
+  media_duration bigint [note: "ms"]
 
+  meta jsonb
   created timestamp [default: `now()`, not null]
-  creator_uuid uuid [ref: > U.uuid, not null]
+  creator_uuid uuid [ref: > U.uuid]
   edited timestamp [default: `now()`, not null]
-  editor_uuid uuid [ref: > U.uuid, not null]
+  editor_uuid uuid [ref: > U.uuid]
 
   Indexes {
+    (asset_uuid, node_kind, stream_index) [unique]
     (asset_uuid)
   }
+
+  note: "A video with a German and an English track has two rows."
 }
 
 Table asset_transcript_comp {
   uuid uuid [pk, default: `uuid_generate_v4()`]
   asset_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE"]
-  source varchar [note: "pipeline/source of transcription"]
-  lang varchar
-  transcript_text text [note: "Full concatenated transcript"]
-  duration int
-  model varchar [note: "e.g. whisper-1"]
-  transcript_json jsonb [note: "Full Whisper output including segments, tokens, etc."]
 
+  node_kind varchar [not null]
+  node_id varchar
+  producer_version varchar [not null, default: ""]
+  run_uuid uuid [ref: > pipeline_run.uuid]
+  task_uuid uuid [ref: > pipeline_node_task.uuid]
+  confidence real
+
+  stream_index int [not null, default: 0, note: "Which audio track was transcribed"]
+  lang varchar [not null, default: "", note: "BCP-47; '' = undetermined"]
+  audio_comp_uuid uuid [ref: > AUDIO_COMP.uuid, note: "ON DELETE SET NULL - a replaced track must not delete the transcript"]
+  model varchar [note: "Readable mirror of producer_version"]
+  transcript_text text [note: "Full concatenated transcript"]
+  duration bigint [note: "ms"]
+  word_count int
+  transcript_json jsonb [note: "Sections/words with timings; consumed by the UI"]
+  text_search tsvector [note: "GENERATED ... STORED; GIN indexed"]
+
+  meta jsonb
   created timestamp [default: `now()`, not null]
-  creator_uuid uuid [ref: > U.uuid, not null]
+  creator_uuid uuid [ref: > U.uuid]
   edited timestamp [default: `now()`, not null]
-  editor_uuid uuid [ref: > U.uuid, not null]
+  editor_uuid uuid [ref: > U.uuid]
 
   Indexes {
+    (asset_uuid, node_kind, stream_index, lang) [unique]
     (asset_uuid)
     (lang)
+    (audio_comp_uuid)
+    (text_search) [type: gin]
   }
+
+  note: "stream_index is in the key rather than the FK: an audio-only asset may be transcribed before any audio component exists."
+}
+
+Table asset_fingerprint_comp {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  asset_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE"]
+
+  node_kind varchar [not null]
+  node_id varchar
+  producer_version varchar [not null, default: ""]
+  run_uuid uuid [ref: > pipeline_run.uuid]
+  task_uuid uuid [ref: > pipeline_node_task.uuid]
+  confidence real
+
+  algorithm varchar [not null, note: "e.g. metaloom-multisector-v1"]
+  sector_index int [not null, default: 0]
+  time_from bigint [note: "ms"]
+  time_to bigint [note: "ms"]
+  fingerprint varchar [not null]
+
+  meta jsonb
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid]
+
+  Indexes {
+    (asset_uuid, node_kind, algorithm, sector_index) [unique]
+    (asset_uuid)
+    (algorithm, fingerprint) [note: "The dedup lookup"]
+  }
+
+  note: "Perceptual fingerprints, one row per sector. Added V2.41 so FingerprintDedupNode has a queryable home."
+}
+
+Table asset_segment_comp {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  asset_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE"]
+
+  node_kind varchar [not null]
+  node_id varchar
+  producer_version varchar [not null, default: ""]
+  run_uuid uuid [ref: > pipeline_run.uuid]
+  task_uuid uuid [ref: > pipeline_node_task.uuid]
+  confidence real
+
+  segment_type varchar [not null, note: "CHECK: SCENE | SILENCE | SHOT | CHAPTER"]
+  seq int [not null, note: "Ordinal within (asset, node_kind, segment_type)"]
+  time_from bigint [not null, note: "ms"]
+  time_to bigint [not null, note: "ms; CHECK time_to >= time_from"]
+  title varchar
+  score real
+
+  meta jsonb
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid]
+
+  Indexes {
+    (asset_uuid, node_kind, segment_type, seq) [unique]
+    (asset_uuid)
+    (asset_uuid, segment_type, time_from)
+  }
+
+  note: "Scenes, silence, shots, chapters. Replace-in-place is at the SET level: a re-run writes seq 0..N-1 and deletes seq >= N."
 }
 
 Table asset_json_comp {
   uuid uuid [pk, default: `uuid_generate_v4()`]
   asset_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE"]
-  source varchar [note: "Name of the source node that produced this data"]
-  schema_type varchar [note: "Optional schema label (e.g. yolo-detection, face-embedding)"]
-  data jsonb
 
+  node_kind varchar [not null, note: "Producing node kind, e.g. llm, captioning"]
+  node_id varchar
+  producer_version varchar [not null, default: ""]
+  run_uuid uuid [ref: > pipeline_run.uuid]
+  task_uuid uuid [ref: > pipeline_node_task.uuid]
+  confidence real
+
+  schema_type varchar [not null, note: "Shape label, e.g. yolo-detection, caption, llm-answer"]
+  variant varchar [not null, default: "", note: "Prompt id, model tag - what makes two results of one node distinct"]
+  data jsonb [not null, default: `'{}'`]
+
+  meta jsonb
   created timestamp [default: `now()`, not null]
-  creator_uuid uuid [ref: > U.uuid, not null]
+  creator_uuid uuid [ref: > U.uuid]
   edited timestamp [default: `now()`, not null]
-  editor_uuid uuid [ref: > U.uuid, not null]
+  editor_uuid uuid [ref: > U.uuid]
 
   Indexes {
+    (asset_uuid, node_kind, schema_type, variant) [unique]
     (asset_uuid)
     (schema_type)
+    (data) [type: gin]
   }
 
-  note: "Generic JSON component data produced by Cortex processing nodes"
+  note: "Generic sink for node results with no query requirement. A node kind graduates to a typed table when a query must filter inside data, when the UI renders it as a first-class object, or when it needs a foreign key."
+}
+
+Table asset_node_result {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  asset_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE"]
+
+  node_kind varchar [not null]
+  node_id varchar [not null, default: "", note: "'' when the node ran outside a pipeline"]
+  producer_version varchar [not null, default: ""]
+
+  state varchar [not null, note: "CHECK: SUCCESS | SKIPPED | FAILED (ResultState)"]
+  origin varchar [note: "CHECK: COMPUTED | LOCAL | REMOTE (ResultOrigin)"]
+  reason varchar [note: "Skip reason or failure detail"]
+
+  run_uuid uuid [ref: > pipeline_run.uuid, note: "ON DELETE SET NULL"]
+  task_uuid uuid [ref: > pipeline_node_task.uuid, note: "ON DELETE SET NULL"]
+  started timestamp
+  finished timestamp
+  duration_ms bigint
+
+  result_ref jsonb [note: "Advisory pointer to the rows written; NOT a foreign key"]
+  meta jsonb
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid]
+
+  Indexes {
+    (asset_uuid, node_kind, node_id) [unique]
+    (asset_uuid)
+    (node_kind, producer_version) [note: "The invalidation sweep"]
+    (run_uuid)
+  }
+
+  note: "Per-asset processing ledger: has node X at version V processed asset A, and what happened - regardless of which table the payload landed in. Permanent catalog state, unlike pipeline_node_task which is per run item and pruned with the run."
 }
 
 tablegroup AssetComponents {
@@ -516,68 +746,91 @@ tablegroup AssetComponents {
   asset_video_comp
   asset_audio_comp
   asset_transcript_comp
+  asset_fingerprint_comp
+  asset_segment_comp
   asset_json_comp
+  asset_node_result
 }
 
 //// ==========================================================================
 //// Detection / Embedding / Cluster
 //// ==========================================================================
 
-Table detection [headercolor: #16A085] {
+Table detection as DETECTION [headercolor: #16A085] {
   uuid uuid [pk, default: `uuid_generate_v4()`]
-  type varchar [not null, note: "e.g. facedetection, objectdetection"]
-  frame_number int [default: 0, not null, note: "0 for images"]
+  asset_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE (V2.43; V2.27 omitted it)"]
 
-  // Bounding box, normalized 0-1
+  node_kind varchar [not null, note: "e.g. facedetect, manual"]
+  node_id varchar
+  producer_version varchar [not null, default: ""]
+  run_uuid uuid [ref: > pipeline_run.uuid, note: "ON DELETE SET NULL"]
+  task_uuid uuid [ref: > pipeline_node_task.uuid, note: "ON DELETE SET NULL"]
+
+  type varchar [not null, note: "e.g. facedetection, objectdetection"]
+  label varchar [note: "Detected class for object detection; promoted out of meta so it can be indexed"]
+  frame_number int [default: 0, not null, note: "0 for images"]
+  detection_index int [default: 0, not null, note: "Ordinal within the frame"]
+  time_from bigint [note: "ms offset of the frame, for video"]
+
+  // Bounding box, normalized 0-1 - the single geometry convention
   bbox_x real [default: 0, not null]
   bbox_y real [default: 0, not null]
   bbox_width real [default: 0, not null]
   bbox_height real [default: 0, not null]
 
   confidence real [default: 0, not null]
-  meta jsonb [note: "e.g. gender, age, label, face angle"]
-
-  asset_uuid uuid [ref: > ASSET.uuid, not null]
+  meta jsonb [note: "e.g. gender, age, face angle"]
 
   created timestamp [default: `now()`, not null]
-  creator_uuid uuid [ref: > U.uuid, not null]
+  creator_uuid uuid [ref: > U.uuid, note: "NULL when written by a worker"]
   edited timestamp [default: `now()`, not null]
-  editor_uuid uuid [ref: > U.uuid, not null]
+  editor_uuid uuid [ref: > U.uuid]
 
   Indexes {
+    (asset_uuid, node_kind, frame_number, detection_index) [unique]
     (asset_uuid)
     (type)
+    (label)
   }
 
-  note: "Object and face detections within assets"
+  note: "Object and face detections within assets. Keyed so a re-run replaces rather than duplicating a whole frame's worth of detections."
 }
 
 Table embedding as EMBEDDING [headercolor: #16A085] {
   uuid uuid [pk, default: `uuid_generate_v4()`]
-  meta jsonb
-  source varchar
-
-  // Spatial / temporal origin of the embedding
-  fromTime int
-  toTime int
-  areaHeight int
-  areaWidth int
-  areaStartX int
-  areaStartY int
-
-  vector real[] [not null, note: "Embedding vector (plain PG array; not pgvector)"]
-  type varchar [not null, note: "Type of the embedding (e.g. dlib_facemark)"]
-
-  created timestamp [default: `now()`, not null]
-  creator_uuid uuid [ref: > U.uuid, not null]
-  edited timestamp [default: `now()`, not null]
-  editor_uuid uuid [ref: > U.uuid, not null]
-
   asset_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE"]
 
+  node_kind varchar [not null]
+  node_id varchar
+  producer_version varchar [not null, default: ""]
+  run_uuid uuid [ref: > pipeline_run.uuid]
+  task_uuid uuid [ref: > pipeline_node_task.uuid]
+  confidence real
+
+  type varchar [not null, note: "Type of the embedding (e.g. dlib_facemark, inspireface)"]
+  model varchar [note: "Readable mirror of producer_version"]
+  dimensions int [not null, note: "Length of vector; guards against comparing across models"]
+  vector real[] [not null, note: "Plain PG array, not pgvector. OPEN DECISION: in-Postgres ANN vs external index fed via vector_config - see DB_SCHEMA_FEEDBACK.md 4.2"]
+
+  detection_uuid uuid [ref: > DETECTION.uuid, note: "The detection this vector came from; ON DELETE CASCADE. NULL for whole-image / audio-window embeddings"]
+  frame_number int [default: 0, not null]
+  subject_index int [default: 0, not null, note: "Ordinal within the frame when there is no detection to key on"]
+  time_from bigint [note: "ms"]
+  time_to bigint [note: "ms"]
+
+  meta jsonb
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, note: "NULL when written by a worker"]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid]
+
   Indexes {
+    (asset_uuid, node_kind, type, frame_number, subject_index) [unique]
     (asset_uuid)
+    (detection_uuid)
   }
+
+  note: "V2.43 dropped the duplicated absolute-pixel geometry (areaStartX/...) - the region lives on the linked detection, in one convention. fromTime/toTime became time_from/time_to."
 }
 
 Table cluster as CLUSTER [headercolor: #16A085] {
@@ -780,24 +1033,35 @@ Table attachment {
   uuid uuid [unique, default: `uuid_generate_v4()`]
   binary_sha512sum varchar [ref: > attachment_binary.sha512sum, not null]
 
-  embedding_uuid uuid [ref: > EMBEDDING.uuid]
-  asset_uuid uuid [ref: > ASSET.uuid]
+  embedding_uuid uuid [ref: > EMBEDDING.uuid, note: "ON DELETE CASCADE"]
+  asset_uuid uuid [ref: > ASSET.uuid, note: "ON DELETE CASCADE (V2.44)"]
 
   mime_type varchar [not null]
   type attachment_type [not null]
   filename varchar [not null]
+
+  // Node provenance (V2.44) - NULL for user-uploaded attachments
+  node_kind varchar
+  node_id varchar
+  producer_version varchar [not null, default: ""]
+  variant varchar [not null, default: "", note: "sheet-1, t=00:10, ... within (asset, type, node_kind)"]
+  run_uuid uuid [ref: > pipeline_run.uuid, note: "ON DELETE SET NULL"]
+  task_uuid uuid [ref: > pipeline_node_task.uuid, note: "ON DELETE SET NULL"]
+
   meta jsonb
 
   created timestamp [default: `now()`, not null]
-  creator_uuid uuid [ref: > U.uuid, not null]
+  creator_uuid uuid [ref: > U.uuid, note: "NULL when written by a worker (V2.47)"]
   edited timestamp [default: `now()`, not null]
-  editor_uuid uuid [ref: > U.uuid, not null]
+  editor_uuid uuid [ref: > U.uuid]
 
   Indexes {
     (uuid) [pk]
+    (asset_uuid, type, node_kind, variant) [unique, note: "PARTIAL: WHERE asset_uuid IS NOT NULL AND node_kind IS NOT NULL"]
+    (asset_uuid)
   }
 
-  note: "Binary attachment (e.g. thumbnail) linked to an asset or embedding."
+  note: "Sink for derived binaries: thumbnails, contact sheets, poster frames, proxies. The two targets are NOT alternatives - an EMBEDDING_ATTACHMENT carries both the embedding it depicts and the asset that embedding came from, so there is deliberately no exactly-one-target constraint."
 }
 
 tablegroup Attachment {
@@ -909,7 +1173,7 @@ Table comment as COMMENT [headercolor: #16A085] {
   // Comment target (one of)
   task_uuid uuid [ref: > TASK.uuid, note: "ON DELETE CASCADE"]
   asset_uuid uuid [ref: > ASSET.uuid]
-  annotation_uuid uuid [ref: > ANNOTATION.uuid]
+  annotation_uuid uuid [ref: > ANNOTATION.uuid, note: "ON DELETE CASCADE (V2.48)"]
 
   note: "Stores comments on tasks, annotations, assets."
 }
@@ -929,7 +1193,7 @@ Table reaction as REACTION [headercolor: #16A085] {
   asset_uuid uuid [ref: > ASSET.uuid]
   task_uuid uuid [ref: > TASK.uuid, note: "ON DELETE CASCADE"]
   comment_uuid uuid [ref: > COMMENT.uuid, note: "ON DELETE CASCADE"]
-  annotation_uuid uuid [ref: > ANNOTATION.uuid]
+  annotation_uuid uuid [ref: > ANNOTATION.uuid, note: "ON DELETE CASCADE (V2.48)"]
 
   Indexes {
     (creator_uuid, type, asset_uuid) [unique]
@@ -949,6 +1213,7 @@ Table blacklist as BLACKLIST [headercolor: #16A085] {
   edited timestamp [default: `now()`, not null]
   editor_uuid uuid [ref: > U.uuid, not null]
 
+  name varchar [note: "Human readable label for the entry (added V2.50)"]
   type varchar [note: "e.g. copyright claim"]
   review_count int [default: 1]
   meta jsonb
@@ -972,7 +1237,7 @@ tablegroup Social {
 
 Table pipeline [headercolor: #4B82B0] {
   uuid uuid [pk, default: `uuid_generate_v4()`]
-  latest_version_uuid uuid [ref: > pipeline_version.uuid, note: "Current pipeline_version"]
+  latest_version_uuid uuid [ref: > pipeline_version.uuid, note: "Current pipeline_version; ON DELETE SET NULL (V2.49) so the cycle with pipeline_version.pipeline_uuid does not block deletes"]
   meta jsonb
 
   created timestamp [default: `now()`, not null]
@@ -1162,7 +1427,7 @@ Table skill [headercolor: #16A085] {
   enabled boolean [default: true, not null]
   published boolean [default: false, not null]
   origin_skill_uuid uuid [ref: > skill.uuid, note: "Published skill this was installed from; ON DELETE SET NULL"]
-  active_version_uuid uuid [ref: > skill_version.uuid, note: "Currently active version"]
+  active_version_uuid uuid [ref: > skill_version.uuid, note: "Currently active version; ON DELETE SET NULL (V2.49)"]
   meta jsonb
 
   created timestamp [default: `now()`, not null]
@@ -1278,6 +1543,13 @@ Enum annotation_type {
 Enum attachment_type {
   ASSET_THUMBNAIL
   EMBEDDING_ATTACHMENT
+
+  // Added V2.44 for node-produced derived binaries
+  CONTACT_SHEET
+  POSTER_FRAME
+  WAVEFORM
+  PROXY
+  EXTRACTED_AUDIO
 }
 
 Enum loom_events {

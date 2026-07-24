@@ -7,6 +7,8 @@ public class ClusterCreateRequest implements RestRequestModel, ClusterModel<Clus
 
 	private String name;
 
+	private String type;
+
 	private JsonObject meta;
 
 	@Override
@@ -17,6 +19,18 @@ public class ClusterCreateRequest implements RestRequestModel, ClusterModel<Clus
 	@Override
 	public ClusterCreateRequest setName(String name) {
 		this.name = name;
+		return this;
+	}
+
+	/**
+	 * Return the kind of cluster, e.g. "person". Optional - the endpoint falls back to a generic default.
+	 */
+	public String getType() {
+		return type;
+	}
+
+	public ClusterCreateRequest setType(String type) {
+		this.type = type;
 		return this;
 	}
 

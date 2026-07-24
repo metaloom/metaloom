@@ -32,7 +32,7 @@ public interface TranscriptExamples extends ExampleValues {
 		model.setLang("en");
 		model.setModel("ggml-base");
 		model.setTranscriptText("Hello world. This is a test transcription.");
-		model.setDuration(5000);
+		model.setDuration(5000L);
 		model.setTranscriptJson(new JsonObject()
 			.put("segments", new JsonArray()
 				.add(new JsonObject().put("text", "Hello world.").put("from", 0).put("to", 2500))
@@ -48,7 +48,7 @@ public interface TranscriptExamples extends ExampleValues {
 		model.setLang("en");
 		model.setModel("ggml-base");
 		model.setTranscriptText("Hello world. This is a test transcription.");
-		model.setDuration(5000);
+		model.setDuration(5000L);
 		model.setTranscriptJson(new JsonObject()
 			.put("segments", new JsonArray()
 				.add(new JsonObject().put("text", "Hello world.").put("from", 0).put("to", 2500))
@@ -60,7 +60,7 @@ public interface TranscriptExamples extends ExampleValues {
 		TranscriptUpdateRequest model = new TranscriptUpdateRequest();
 		model.setLang("de");
 		model.setTranscriptText("Hallo Welt. Dies ist eine Testtranskription.");
-		model.setDuration(5200);
+		model.setDuration(5200L);
 		model.setTranscriptJson(new JsonObject()
 			.put("segments", new JsonArray()
 				.add(new JsonObject().put("text", "Hallo Welt.").put("from", 0).put("to", 2600))

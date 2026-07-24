@@ -7,23 +7,20 @@ package io.metaloom.loom.db.jooq.tables;
 import io.metaloom.loom.db.jooq.Indexes;
 import io.metaloom.loom.db.jooq.JooqPublic;
 import io.metaloom.loom.db.jooq.Keys;
+import io.metaloom.loom.db.jooq.converter.JsonObjectConverter;
 import io.metaloom.loom.db.jooq.tables.records.JooqAssetVideoCompRecord;
+import io.vertx.core.json.JsonObject;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
 import org.jooq.Field;
 import org.jooq.ForeignKey;
-import org.jooq.Function12;
 import org.jooq.Index;
 import org.jooq.Name;
 import org.jooq.Record;
-import org.jooq.Records;
-import org.jooq.Row12;
 import org.jooq.Schema;
-import org.jooq.SelectField;
 import org.jooq.Table;
 import org.jooq.TableField;
 import org.jooq.TableOptions;
@@ -34,7 +31,9 @@ import org.jooq.impl.TableImpl;
 
 
 /**
- * Stores video-specific properties extracted from an asset
+ * Video stream properties. Two producers of the same dimension (e.g. tika
+ * probing and the quality node measuring) yield two partially filled rows - the
+ * read side coalesces them by producer precedence.
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
 public class JooqAssetVideoComp extends TableImpl<JooqAssetVideoCompRecord> {
@@ -65,9 +64,40 @@ public class JooqAssetVideoComp extends TableImpl<JooqAssetVideoCompRecord> {
     public final TableField<JooqAssetVideoCompRecord, java.util.UUID> ASSET_UUID = createField(DSL.name("asset_uuid"), SQLDataType.UUID.nullable(false), this, "");
 
     /**
-     * The column <code>public.asset_video_comp.source</code>.
+     * The column <code>public.asset_video_comp.node_kind</code>.
      */
-    public final TableField<JooqAssetVideoCompRecord, String> SOURCE = createField(DSL.name("source"), SQLDataType.VARCHAR, this, "");
+    public final TableField<JooqAssetVideoCompRecord, String> NODE_KIND = createField(DSL.name("node_kind"), SQLDataType.VARCHAR.nullable(false), this, "");
+
+    /**
+     * The column <code>public.asset_video_comp.node_id</code>.
+     */
+    public final TableField<JooqAssetVideoCompRecord, String> NODE_ID = createField(DSL.name("node_id"), SQLDataType.VARCHAR, this, "");
+
+    /**
+     * The column <code>public.asset_video_comp.producer_version</code>.
+     */
+    public final TableField<JooqAssetVideoCompRecord, String> PRODUCER_VERSION = createField(DSL.name("producer_version"), SQLDataType.VARCHAR.nullable(false).defaultValue(DSL.field("''::character varying", SQLDataType.VARCHAR)), this, "");
+
+    /**
+     * The column <code>public.asset_video_comp.run_uuid</code>.
+     */
+    public final TableField<JooqAssetVideoCompRecord, java.util.UUID> RUN_UUID = createField(DSL.name("run_uuid"), SQLDataType.UUID, this, "");
+
+    /**
+     * The column <code>public.asset_video_comp.task_uuid</code>.
+     */
+    public final TableField<JooqAssetVideoCompRecord, java.util.UUID> TASK_UUID = createField(DSL.name("task_uuid"), SQLDataType.UUID, this, "");
+
+    /**
+     * The column <code>public.asset_video_comp.confidence</code>.
+     */
+    public final TableField<JooqAssetVideoCompRecord, Float> CONFIDENCE = createField(DSL.name("confidence"), SQLDataType.REAL, this, "");
+
+    /**
+     * The column <code>public.asset_video_comp.stream_index</code>. Which video
+     * stream within the container. 0 for single-stream media.
+     */
+    public final TableField<JooqAssetVideoCompRecord, Integer> STREAM_INDEX = createField(DSL.name("stream_index"), SQLDataType.INTEGER.nullable(false).defaultValue(DSL.field("0", SQLDataType.INTEGER)), this, "Which video stream within the container. 0 for single-stream media.");
 
     /**
      * The column <code>public.asset_video_comp.media_width</code>.
@@ -80,9 +110,10 @@ public class JooqAssetVideoComp extends TableImpl<JooqAssetVideoCompRecord> {
     public final TableField<JooqAssetVideoCompRecord, Integer> MEDIA_HEIGHT = createField(DSL.name("media_height"), SQLDataType.INTEGER, this, "");
 
     /**
-     * The column <code>public.asset_video_comp.media_duration</code>.
+     * The column <code>public.asset_video_comp.media_duration</code>. Duration
+     * in milliseconds
      */
-    public final TableField<JooqAssetVideoCompRecord, Long> MEDIA_DURATION = createField(DSL.name("media_duration"), SQLDataType.BIGINT, this, "");
+    public final TableField<JooqAssetVideoCompRecord, Long> MEDIA_DURATION = createField(DSL.name("media_duration"), SQLDataType.BIGINT, this, "Duration in milliseconds");
 
     /**
      * The column <code>public.asset_video_comp.video_bitrate</code>.
@@ -95,14 +126,42 @@ public class JooqAssetVideoComp extends TableImpl<JooqAssetVideoCompRecord> {
     public final TableField<JooqAssetVideoCompRecord, String> VIDEO_ENCODING = createField(DSL.name("video_encoding"), SQLDataType.VARCHAR, this, "");
 
     /**
+     * The column <code>public.asset_video_comp.fps</code>. Frames per second,
+     * produced by the quality node
+     */
+    public final TableField<JooqAssetVideoCompRecord, Float> FPS = createField(DSL.name("fps"), SQLDataType.REAL, this, "Frames per second, produced by the quality node");
+
+    /**
+     * The column <code>public.asset_video_comp.frame_count</code>. Total frame
+     * count, produced by the quality node
+     */
+    public final TableField<JooqAssetVideoCompRecord, Long> FRAME_COUNT = createField(DSL.name("frame_count"), SQLDataType.BIGINT, this, "Total frame count, produced by the quality node");
+
+    /**
+     * The column <code>public.asset_video_comp.rotation</code>.
+     */
+    public final TableField<JooqAssetVideoCompRecord, Integer> ROTATION = createField(DSL.name("rotation"), SQLDataType.INTEGER, this, "");
+
+    /**
+     * The column <code>public.asset_video_comp.blurriness</code>.
+     */
+    public final TableField<JooqAssetVideoCompRecord, Float> BLURRINESS = createField(DSL.name("blurriness"), SQLDataType.REAL, this, "");
+
+    /**
+     * The column <code>public.asset_video_comp.meta</code>.
+     */
+    public final TableField<JooqAssetVideoCompRecord, JsonObject> META = createField(DSL.name("meta"), SQLDataType.JSONB, this, "", new JsonObjectConverter());
+
+    /**
      * The column <code>public.asset_video_comp.created</code>.
      */
     public final TableField<JooqAssetVideoCompRecord, LocalDateTime> CREATED = createField(DSL.name("created"), SQLDataType.LOCALDATETIME(6).nullable(false).defaultValue(DSL.field("now()", SQLDataType.LOCALDATETIME)), this, "");
 
     /**
-     * The column <code>public.asset_video_comp.creator_uuid</code>.
+     * The column <code>public.asset_video_comp.creator_uuid</code>. NULL when
+     * written by a Cortex worker rather than a user
      */
-    public final TableField<JooqAssetVideoCompRecord, java.util.UUID> CREATOR_UUID = createField(DSL.name("creator_uuid"), SQLDataType.UUID.nullable(false), this, "");
+    public final TableField<JooqAssetVideoCompRecord, java.util.UUID> CREATOR_UUID = createField(DSL.name("creator_uuid"), SQLDataType.UUID, this, "NULL when written by a Cortex worker rather than a user");
 
     /**
      * The column <code>public.asset_video_comp.edited</code>.
@@ -112,14 +171,14 @@ public class JooqAssetVideoComp extends TableImpl<JooqAssetVideoCompRecord> {
     /**
      * The column <code>public.asset_video_comp.editor_uuid</code>.
      */
-    public final TableField<JooqAssetVideoCompRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID.nullable(false), this, "");
+    public final TableField<JooqAssetVideoCompRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID, this, "");
 
     private JooqAssetVideoComp(Name alias, Table<JooqAssetVideoCompRecord> aliased) {
         this(alias, aliased, null);
     }
 
     private JooqAssetVideoComp(Name alias, Table<JooqAssetVideoCompRecord> aliased, Field<?>[] parameters) {
-        super(alias, null, aliased, parameters, DSL.comment("Stores video-specific properties extracted from an asset"), TableOptions.table());
+        super(alias, null, aliased, parameters, DSL.comment("Video stream properties. Two producers of the same dimension (e.g. tika probing and the quality node measuring) yield two partially filled rows - the read side coalesces them by producer precedence."), TableOptions.table());
     }
 
     /**
@@ -154,7 +213,7 @@ public class JooqAssetVideoComp extends TableImpl<JooqAssetVideoCompRecord> {
 
     @Override
     public List<Index> getIndexes() {
-        return Arrays.asList(Indexes.ASSET_VIDEO_COMP_ASSET_UUID_IDX);
+        return Arrays.asList(Indexes.IDX_ASSET_VIDEO_COMP_ASSET_UUID);
     }
 
     @Override
@@ -163,12 +222,51 @@ public class JooqAssetVideoComp extends TableImpl<JooqAssetVideoCompRecord> {
     }
 
     @Override
-    public List<ForeignKey<JooqAssetVideoCompRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.ASSET_VIDEO_COMP__ASSET_VIDEO_COMP_CREATOR_UUID_FKEY, Keys.ASSET_VIDEO_COMP__ASSET_VIDEO_COMP_EDITOR_UUID_FKEY);
+    public List<UniqueKey<JooqAssetVideoCompRecord>> getUniqueKeys() {
+        return Arrays.asList(Keys.ASSET_VIDEO_COMP_UNIQUE_KEY);
     }
 
+    @Override
+    public List<ForeignKey<JooqAssetVideoCompRecord, ?>> getReferences() {
+        return Arrays.asList(Keys.ASSET_VIDEO_COMP__ASSET_VIDEO_COMP_ASSET_UUID_FKEY, Keys.ASSET_VIDEO_COMP__ASSET_VIDEO_COMP_RUN_UUID_FKEY, Keys.ASSET_VIDEO_COMP__ASSET_VIDEO_COMP_TASK_UUID_FKEY, Keys.ASSET_VIDEO_COMP__ASSET_VIDEO_COMP_CREATOR_UUID_FKEY, Keys.ASSET_VIDEO_COMP__ASSET_VIDEO_COMP_EDITOR_UUID_FKEY);
+    }
+
+    private transient JooqAsset _asset;
+    private transient JooqPipelineRun _pipelineRun;
+    private transient JooqPipelineNodeTask _pipelineNodeTask;
     private transient JooqUser _assetVideoCompCreatorUuidFkey;
     private transient JooqUser _assetVideoCompEditorUuidFkey;
+
+    /**
+     * Get the implicit join path to the <code>public.asset</code> table.
+     */
+    public JooqAsset asset() {
+        if (_asset == null)
+            _asset = new JooqAsset(this, Keys.ASSET_VIDEO_COMP__ASSET_VIDEO_COMP_ASSET_UUID_FKEY);
+
+        return _asset;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.pipeline_run</code> table.
+     */
+    public JooqPipelineRun pipelineRun() {
+        if (_pipelineRun == null)
+            _pipelineRun = new JooqPipelineRun(this, Keys.ASSET_VIDEO_COMP__ASSET_VIDEO_COMP_RUN_UUID_FKEY);
+
+        return _pipelineRun;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.pipeline_node_task</code>
+     * table.
+     */
+    public JooqPipelineNodeTask pipelineNodeTask() {
+        if (_pipelineNodeTask == null)
+            _pipelineNodeTask = new JooqPipelineNodeTask(this, Keys.ASSET_VIDEO_COMP__ASSET_VIDEO_COMP_TASK_UUID_FKEY);
+
+        return _pipelineNodeTask;
+    }
 
     /**
      * Get the implicit join path to the <code>public.user</code> table, via the
@@ -229,29 +327,5 @@ public class JooqAssetVideoComp extends TableImpl<JooqAssetVideoCompRecord> {
     @Override
     public JooqAssetVideoComp rename(Table<?> name) {
         return new JooqAssetVideoComp(name.getQualifiedName(), null);
-    }
-
-    // -------------------------------------------------------------------------
-    // Row12 type methods
-    // -------------------------------------------------------------------------
-
-    @Override
-    public Row12<java.util.UUID, java.util.UUID, String, Integer, Integer, Long, Integer, String, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
-        return (Row12) super.fieldsRow();
-    }
-
-    /**
-     * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
-     */
-    public <U> SelectField<U> mapping(Function12<? super java.util.UUID, ? super java.util.UUID, ? super String, ? super Integer, ? super Integer, ? super Long, ? super Integer, ? super String, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
-        return convertFrom(Records.mapping(from));
-    }
-
-    /**
-     * Convenience mapping calling {@link SelectField#convertFrom(Class,
-     * Function)}.
-     */
-    public <U> SelectField<U> mapping(Class<U> toType, Function12<? super java.util.UUID, ? super java.util.UUID, ? super String, ? super Integer, ? super Integer, ? super Long, ? super Integer, ? super String, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
-        return convertFrom(toType, Records.mapping(from));
     }
 }

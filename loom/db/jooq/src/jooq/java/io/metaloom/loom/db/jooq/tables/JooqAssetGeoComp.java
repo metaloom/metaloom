@@ -7,7 +7,9 @@ package io.metaloom.loom.db.jooq.tables;
 import io.metaloom.loom.db.jooq.Indexes;
 import io.metaloom.loom.db.jooq.JooqPublic;
 import io.metaloom.loom.db.jooq.Keys;
+import io.metaloom.loom.db.jooq.converter.JsonObjectConverter;
 import io.metaloom.loom.db.jooq.tables.records.JooqAssetGeoCompRecord;
+import io.vertx.core.json.JsonObject;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -17,12 +19,12 @@ import java.util.function.Function;
 
 import org.jooq.Field;
 import org.jooq.ForeignKey;
-import org.jooq.Function10;
+import org.jooq.Function19;
 import org.jooq.Index;
 import org.jooq.Name;
 import org.jooq.Record;
 import org.jooq.Records;
-import org.jooq.Row10;
+import org.jooq.Row19;
 import org.jooq.Schema;
 import org.jooq.SelectField;
 import org.jooq.Table;
@@ -35,7 +37,8 @@ import org.jooq.impl.TableImpl;
 
 
 /**
- * Stores geo location information extracted from an asset
+ * Geo location extracted from an asset. Multiple rows per asset: one per
+ * producer, method and time offset (a drone video carries a whole GPS track).
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
 public class JooqAssetGeoComp extends TableImpl<JooqAssetGeoCompRecord> {
@@ -66,10 +69,49 @@ public class JooqAssetGeoComp extends TableImpl<JooqAssetGeoCompRecord> {
     public final TableField<JooqAssetGeoCompRecord, java.util.UUID> ASSET_UUID = createField(DSL.name("asset_uuid"), SQLDataType.UUID.nullable(false), this, "");
 
     /**
-     * The column <code>public.asset_geo_comp.source</code>. Name of the source
-     * for the geo info - e.g. exif data
+     * The column <code>public.asset_geo_comp.node_kind</code>. Producing node
+     * kind, e.g. tika, llm, manual
      */
-    public final TableField<JooqAssetGeoCompRecord, String> SOURCE = createField(DSL.name("source"), SQLDataType.VARCHAR, this, "Name of the source for the geo info - e.g. exif data");
+    public final TableField<JooqAssetGeoCompRecord, String> NODE_KIND = createField(DSL.name("node_kind"), SQLDataType.VARCHAR.nullable(false), this, "Producing node kind, e.g. tika, llm, manual");
+
+    /**
+     * The column <code>public.asset_geo_comp.node_id</code>.
+     */
+    public final TableField<JooqAssetGeoCompRecord, String> NODE_ID = createField(DSL.name("node_id"), SQLDataType.VARCHAR, this, "");
+
+    /**
+     * The column <code>public.asset_geo_comp.producer_version</code>.
+     * Model/algorithm version. Not part of the unique key: a re-run replaces
+     * the row.
+     */
+    public final TableField<JooqAssetGeoCompRecord, String> PRODUCER_VERSION = createField(DSL.name("producer_version"), SQLDataType.VARCHAR.nullable(false).defaultValue(DSL.field("''::character varying", SQLDataType.VARCHAR)), this, "Model/algorithm version. Not part of the unique key: a re-run replaces the row.");
+
+    /**
+     * The column <code>public.asset_geo_comp.run_uuid</code>.
+     */
+    public final TableField<JooqAssetGeoCompRecord, java.util.UUID> RUN_UUID = createField(DSL.name("run_uuid"), SQLDataType.UUID, this, "");
+
+    /**
+     * The column <code>public.asset_geo_comp.task_uuid</code>.
+     */
+    public final TableField<JooqAssetGeoCompRecord, java.util.UUID> TASK_UUID = createField(DSL.name("task_uuid"), SQLDataType.UUID, this, "");
+
+    /**
+     * The column <code>public.asset_geo_comp.confidence</code>.
+     */
+    public final TableField<JooqAssetGeoCompRecord, Float> CONFIDENCE = createField(DSL.name("confidence"), SQLDataType.REAL, this, "");
+
+    /**
+     * The column <code>public.asset_geo_comp.method</code>. How the position
+     * was derived: exif, xmp, gps-track, llm, manual
+     */
+    public final TableField<JooqAssetGeoCompRecord, String> METHOD = createField(DSL.name("method"), SQLDataType.VARCHAR.nullable(false).defaultValue(DSL.field("''::character varying", SQLDataType.VARCHAR)), this, "How the position was derived: exif, xmp, gps-track, llm, manual");
+
+    /**
+     * The column <code>public.asset_geo_comp.time_from</code>. Millisecond
+     * offset into the media; 0 for stills
+     */
+    public final TableField<JooqAssetGeoCompRecord, Long> TIME_FROM = createField(DSL.name("time_from"), SQLDataType.BIGINT.nullable(false).defaultValue(DSL.field("0", SQLDataType.BIGINT)), this, "Millisecond offset into the media; 0 for stills");
 
     /**
      * The column <code>public.asset_geo_comp.geo_lon</code>.
@@ -87,14 +129,26 @@ public class JooqAssetGeoComp extends TableImpl<JooqAssetGeoCompRecord> {
     public final TableField<JooqAssetGeoCompRecord, String> GEO_ALIAS = createField(DSL.name("geo_alias"), SQLDataType.VARCHAR, this, "");
 
     /**
+     * The column <code>public.asset_geo_comp.accuracy_m</code>. Reported
+     * accuracy in meters, when known
+     */
+    public final TableField<JooqAssetGeoCompRecord, Float> ACCURACY_M = createField(DSL.name("accuracy_m"), SQLDataType.REAL, this, "Reported accuracy in meters, when known");
+
+    /**
+     * The column <code>public.asset_geo_comp.meta</code>.
+     */
+    public final TableField<JooqAssetGeoCompRecord, JsonObject> META = createField(DSL.name("meta"), SQLDataType.JSONB, this, "", new JsonObjectConverter());
+
+    /**
      * The column <code>public.asset_geo_comp.created</code>.
      */
     public final TableField<JooqAssetGeoCompRecord, LocalDateTime> CREATED = createField(DSL.name("created"), SQLDataType.LOCALDATETIME(6).nullable(false).defaultValue(DSL.field("now()", SQLDataType.LOCALDATETIME)), this, "");
 
     /**
-     * The column <code>public.asset_geo_comp.creator_uuid</code>.
+     * The column <code>public.asset_geo_comp.creator_uuid</code>. NULL when
+     * written by a Cortex worker rather than a user
      */
-    public final TableField<JooqAssetGeoCompRecord, java.util.UUID> CREATOR_UUID = createField(DSL.name("creator_uuid"), SQLDataType.UUID.nullable(false), this, "");
+    public final TableField<JooqAssetGeoCompRecord, java.util.UUID> CREATOR_UUID = createField(DSL.name("creator_uuid"), SQLDataType.UUID, this, "NULL when written by a Cortex worker rather than a user");
 
     /**
      * The column <code>public.asset_geo_comp.edited</code>.
@@ -104,14 +158,14 @@ public class JooqAssetGeoComp extends TableImpl<JooqAssetGeoCompRecord> {
     /**
      * The column <code>public.asset_geo_comp.editor_uuid</code>.
      */
-    public final TableField<JooqAssetGeoCompRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID.nullable(false), this, "");
+    public final TableField<JooqAssetGeoCompRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID, this, "");
 
     private JooqAssetGeoComp(Name alias, Table<JooqAssetGeoCompRecord> aliased) {
         this(alias, aliased, null);
     }
 
     private JooqAssetGeoComp(Name alias, Table<JooqAssetGeoCompRecord> aliased, Field<?>[] parameters) {
-        super(alias, null, aliased, parameters, DSL.comment("Stores geo location information extracted from an asset"), TableOptions.table());
+        super(alias, null, aliased, parameters, DSL.comment("Geo location extracted from an asset. Multiple rows per asset: one per producer, method and time offset (a drone video carries a whole GPS track)."), TableOptions.table());
     }
 
     /**
@@ -146,7 +200,7 @@ public class JooqAssetGeoComp extends TableImpl<JooqAssetGeoCompRecord> {
 
     @Override
     public List<Index> getIndexes() {
-        return Arrays.asList(Indexes.ASSET_GEO_COMP_ASSET_UUID_IDX, Indexes.ASSET_GEO_COMP_GEO_LON_GEO_LAT_IDX);
+        return Arrays.asList(Indexes.IDX_ASSET_GEO_COMP_ASSET_UUID, Indexes.IDX_ASSET_GEO_COMP_POSITION);
     }
 
     @Override
@@ -155,12 +209,51 @@ public class JooqAssetGeoComp extends TableImpl<JooqAssetGeoCompRecord> {
     }
 
     @Override
-    public List<ForeignKey<JooqAssetGeoCompRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.ASSET_GEO_COMP__ASSET_GEO_COMP_CREATOR_UUID_FKEY, Keys.ASSET_GEO_COMP__ASSET_GEO_COMP_EDITOR_UUID_FKEY);
+    public List<UniqueKey<JooqAssetGeoCompRecord>> getUniqueKeys() {
+        return Arrays.asList(Keys.ASSET_GEO_COMP_UNIQUE_KEY);
     }
 
+    @Override
+    public List<ForeignKey<JooqAssetGeoCompRecord, ?>> getReferences() {
+        return Arrays.asList(Keys.ASSET_GEO_COMP__ASSET_GEO_COMP_ASSET_UUID_FKEY, Keys.ASSET_GEO_COMP__ASSET_GEO_COMP_RUN_UUID_FKEY, Keys.ASSET_GEO_COMP__ASSET_GEO_COMP_TASK_UUID_FKEY, Keys.ASSET_GEO_COMP__ASSET_GEO_COMP_CREATOR_UUID_FKEY, Keys.ASSET_GEO_COMP__ASSET_GEO_COMP_EDITOR_UUID_FKEY);
+    }
+
+    private transient JooqAsset _asset;
+    private transient JooqPipelineRun _pipelineRun;
+    private transient JooqPipelineNodeTask _pipelineNodeTask;
     private transient JooqUser _assetGeoCompCreatorUuidFkey;
     private transient JooqUser _assetGeoCompEditorUuidFkey;
+
+    /**
+     * Get the implicit join path to the <code>public.asset</code> table.
+     */
+    public JooqAsset asset() {
+        if (_asset == null)
+            _asset = new JooqAsset(this, Keys.ASSET_GEO_COMP__ASSET_GEO_COMP_ASSET_UUID_FKEY);
+
+        return _asset;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.pipeline_run</code> table.
+     */
+    public JooqPipelineRun pipelineRun() {
+        if (_pipelineRun == null)
+            _pipelineRun = new JooqPipelineRun(this, Keys.ASSET_GEO_COMP__ASSET_GEO_COMP_RUN_UUID_FKEY);
+
+        return _pipelineRun;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.pipeline_node_task</code>
+     * table.
+     */
+    public JooqPipelineNodeTask pipelineNodeTask() {
+        if (_pipelineNodeTask == null)
+            _pipelineNodeTask = new JooqPipelineNodeTask(this, Keys.ASSET_GEO_COMP__ASSET_GEO_COMP_TASK_UUID_FKEY);
+
+        return _pipelineNodeTask;
+    }
 
     /**
      * Get the implicit join path to the <code>public.user</code> table, via the
@@ -224,18 +317,18 @@ public class JooqAssetGeoComp extends TableImpl<JooqAssetGeoCompRecord> {
     }
 
     // -------------------------------------------------------------------------
-    // Row10 type methods
+    // Row19 type methods
     // -------------------------------------------------------------------------
 
     @Override
-    public Row10<java.util.UUID, java.util.UUID, String, BigDecimal, BigDecimal, String, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
-        return (Row10) super.fieldsRow();
+    public Row19<java.util.UUID, java.util.UUID, String, String, String, java.util.UUID, java.util.UUID, Float, String, Long, BigDecimal, BigDecimal, String, Float, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
+        return (Row19) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function10<? super java.util.UUID, ? super java.util.UUID, ? super String, ? super BigDecimal, ? super BigDecimal, ? super String, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function19<? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super Float, ? super String, ? super Long, ? super BigDecimal, ? super BigDecimal, ? super String, ? super Float, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -243,7 +336,7 @@ public class JooqAssetGeoComp extends TableImpl<JooqAssetGeoCompRecord> {
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function10<? super java.util.UUID, ? super java.util.UUID, ? super String, ? super BigDecimal, ? super BigDecimal, ? super String, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function19<? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super Float, ? super String, ? super Long, ? super BigDecimal, ? super BigDecimal, ? super String, ? super Float, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }

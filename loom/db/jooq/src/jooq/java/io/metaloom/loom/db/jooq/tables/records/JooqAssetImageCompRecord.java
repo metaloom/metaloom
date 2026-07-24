@@ -5,22 +5,24 @@ package io.metaloom.loom.db.jooq.tables.records;
 
 
 import io.metaloom.loom.db.jooq.tables.JooqAssetImageComp;
+import io.vertx.core.json.JsonObject;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 import org.jooq.Field;
 import org.jooq.Record1;
-import org.jooq.Record10;
-import org.jooq.Row10;
+import org.jooq.Record21;
+import org.jooq.Row21;
 import org.jooq.impl.UpdatableRecordImpl;
 
 
 /**
- * Stores image-specific properties extracted from an asset
+ * Image properties extracted from an asset. Never gated on the asset mime type:
+ * an MP3 with embedded cover art legitimately owns an image component.
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqAssetImageCompRecord extends UpdatableRecordImpl<JooqAssetImageCompRecord> implements Record10<UUID, UUID, String, String, Integer, Integer, LocalDateTime, UUID, LocalDateTime, UUID> {
+public class JooqAssetImageCompRecord extends UpdatableRecordImpl<JooqAssetImageCompRecord> implements Record21<UUID, UUID, String, String, String, UUID, UUID, Float, Integer, Integer, Integer, String, String, Integer, Integer, Float, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> {
 
     private static final long serialVersionUID = 1L;
 
@@ -53,115 +55,277 @@ public class JooqAssetImageCompRecord extends UpdatableRecordImpl<JooqAssetImage
     }
 
     /**
-     * Setter for <code>public.asset_image_comp.source</code>.
+     * Setter for <code>public.asset_image_comp.node_kind</code>.
      */
-    public void setSource(String value) {
+    public void setNodeKind(String value) {
         set(2, value);
     }
 
     /**
-     * Getter for <code>public.asset_image_comp.source</code>.
+     * Getter for <code>public.asset_image_comp.node_kind</code>.
      */
-    public String getSource() {
+    public String getNodeKind() {
         return (String) get(2);
     }
 
     /**
-     * Setter for <code>public.asset_image_comp.image_dominant_color</code>.
+     * Setter for <code>public.asset_image_comp.node_id</code>.
      */
-    public void setImageDominantColor(String value) {
+    public void setNodeId(String value) {
         set(3, value);
     }
 
     /**
-     * Getter for <code>public.asset_image_comp.image_dominant_color</code>.
+     * Getter for <code>public.asset_image_comp.node_id</code>.
      */
-    public String getImageDominantColor() {
+    public String getNodeId() {
         return (String) get(3);
+    }
+
+    /**
+     * Setter for <code>public.asset_image_comp.producer_version</code>.
+     */
+    public void setProducerVersion(String value) {
+        set(4, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_image_comp.producer_version</code>.
+     */
+    public String getProducerVersion() {
+        return (String) get(4);
+    }
+
+    /**
+     * Setter for <code>public.asset_image_comp.run_uuid</code>.
+     */
+    public void setRunUuid(UUID value) {
+        set(5, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_image_comp.run_uuid</code>.
+     */
+    public UUID getRunUuid() {
+        return (UUID) get(5);
+    }
+
+    /**
+     * Setter for <code>public.asset_image_comp.task_uuid</code>.
+     */
+    public void setTaskUuid(UUID value) {
+        set(6, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_image_comp.task_uuid</code>.
+     */
+    public UUID getTaskUuid() {
+        return (UUID) get(6);
+    }
+
+    /**
+     * Setter for <code>public.asset_image_comp.confidence</code>.
+     */
+    public void setConfidence(Float value) {
+        set(7, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_image_comp.confidence</code>.
+     */
+    public Float getConfidence() {
+        return (Float) get(7);
+    }
+
+    /**
+     * Setter for <code>public.asset_image_comp.stream_index</code>. Which image
+     * stream: multi-frame TIFF/GIF, embedded cover art. 0 for a plain image.
+     */
+    public void setStreamIndex(Integer value) {
+        set(8, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_image_comp.stream_index</code>. Which image
+     * stream: multi-frame TIFF/GIF, embedded cover art. 0 for a plain image.
+     */
+    public Integer getStreamIndex() {
+        return (Integer) get(8);
     }
 
     /**
      * Setter for <code>public.asset_image_comp.media_width</code>.
      */
     public void setMediaWidth(Integer value) {
-        set(4, value);
+        set(9, value);
     }
 
     /**
      * Getter for <code>public.asset_image_comp.media_width</code>.
      */
     public Integer getMediaWidth() {
-        return (Integer) get(4);
+        return (Integer) get(9);
     }
 
     /**
      * Setter for <code>public.asset_image_comp.media_height</code>.
      */
     public void setMediaHeight(Integer value) {
-        set(5, value);
+        set(10, value);
     }
 
     /**
      * Getter for <code>public.asset_image_comp.media_height</code>.
      */
     public Integer getMediaHeight() {
-        return (Integer) get(5);
+        return (Integer) get(10);
+    }
+
+    /**
+     * Setter for <code>public.asset_image_comp.image_dominant_color</code>.
+     */
+    public void setImageDominantColor(String value) {
+        set(11, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_image_comp.image_dominant_color</code>.
+     */
+    public String getImageDominantColor() {
+        return (String) get(11);
+    }
+
+    /**
+     * Setter for <code>public.asset_image_comp.image_encoding</code>. Encoding
+     * of the image stream (restored; V2.18 dropped it)
+     */
+    public void setImageEncoding(String value) {
+        set(12, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_image_comp.image_encoding</code>. Encoding
+     * of the image stream (restored; V2.18 dropped it)
+     */
+    public String getImageEncoding() {
+        return (String) get(12);
+    }
+
+    /**
+     * Setter for <code>public.asset_image_comp.orientation</code>.
+     */
+    public void setOrientation(Integer value) {
+        set(13, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_image_comp.orientation</code>.
+     */
+    public Integer getOrientation() {
+        return (Integer) get(13);
+    }
+
+    /**
+     * Setter for <code>public.asset_image_comp.bit_depth</code>.
+     */
+    public void setBitDepth(Integer value) {
+        set(14, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_image_comp.bit_depth</code>.
+     */
+    public Integer getBitDepth() {
+        return (Integer) get(14);
+    }
+
+    /**
+     * Setter for <code>public.asset_image_comp.blurriness</code>. Laplacian
+     * blurriness measure produced by the quality node
+     */
+    public void setBlurriness(Float value) {
+        set(15, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_image_comp.blurriness</code>. Laplacian
+     * blurriness measure produced by the quality node
+     */
+    public Float getBlurriness() {
+        return (Float) get(15);
+    }
+
+    /**
+     * Setter for <code>public.asset_image_comp.meta</code>.
+     */
+    public void setMeta(JsonObject value) {
+        set(16, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_image_comp.meta</code>.
+     */
+    public JsonObject getMeta() {
+        return (JsonObject) get(16);
     }
 
     /**
      * Setter for <code>public.asset_image_comp.created</code>.
      */
     public void setCreated(LocalDateTime value) {
-        set(6, value);
+        set(17, value);
     }
 
     /**
      * Getter for <code>public.asset_image_comp.created</code>.
      */
     public LocalDateTime getCreated() {
-        return (LocalDateTime) get(6);
+        return (LocalDateTime) get(17);
     }
 
     /**
-     * Setter for <code>public.asset_image_comp.creator_uuid</code>.
+     * Setter for <code>public.asset_image_comp.creator_uuid</code>. NULL when
+     * written by a Cortex worker rather than a user
      */
     public void setCreatorUuid(UUID value) {
-        set(7, value);
+        set(18, value);
     }
 
     /**
-     * Getter for <code>public.asset_image_comp.creator_uuid</code>.
+     * Getter for <code>public.asset_image_comp.creator_uuid</code>. NULL when
+     * written by a Cortex worker rather than a user
      */
     public UUID getCreatorUuid() {
-        return (UUID) get(7);
+        return (UUID) get(18);
     }
 
     /**
      * Setter for <code>public.asset_image_comp.edited</code>.
      */
     public void setEdited(LocalDateTime value) {
-        set(8, value);
+        set(19, value);
     }
 
     /**
      * Getter for <code>public.asset_image_comp.edited</code>.
      */
     public LocalDateTime getEdited() {
-        return (LocalDateTime) get(8);
+        return (LocalDateTime) get(19);
     }
 
     /**
      * Setter for <code>public.asset_image_comp.editor_uuid</code>.
      */
     public void setEditorUuid(UUID value) {
-        set(9, value);
+        set(20, value);
     }
 
     /**
      * Getter for <code>public.asset_image_comp.editor_uuid</code>.
      */
     public UUID getEditorUuid() {
-        return (UUID) get(9);
+        return (UUID) get(20);
     }
 
     // -------------------------------------------------------------------------
@@ -174,17 +338,17 @@ public class JooqAssetImageCompRecord extends UpdatableRecordImpl<JooqAssetImage
     }
 
     // -------------------------------------------------------------------------
-    // Record10 type implementation
+    // Record21 type implementation
     // -------------------------------------------------------------------------
 
     @Override
-    public Row10<UUID, UUID, String, String, Integer, Integer, LocalDateTime, UUID, LocalDateTime, UUID> fieldsRow() {
-        return (Row10) super.fieldsRow();
+    public Row21<UUID, UUID, String, String, String, UUID, UUID, Float, Integer, Integer, Integer, String, String, Integer, Integer, Float, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> fieldsRow() {
+        return (Row21) super.fieldsRow();
     }
 
     @Override
-    public Row10<UUID, UUID, String, String, Integer, Integer, LocalDateTime, UUID, LocalDateTime, UUID> valuesRow() {
-        return (Row10) super.valuesRow();
+    public Row21<UUID, UUID, String, String, String, UUID, UUID, Float, Integer, Integer, Integer, String, String, Integer, Integer, Float, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> valuesRow() {
+        return (Row21) super.valuesRow();
     }
 
     @Override
@@ -199,41 +363,96 @@ public class JooqAssetImageCompRecord extends UpdatableRecordImpl<JooqAssetImage
 
     @Override
     public Field<String> field3() {
-        return JooqAssetImageComp.ASSET_IMAGE_COMP.SOURCE;
+        return JooqAssetImageComp.ASSET_IMAGE_COMP.NODE_KIND;
     }
 
     @Override
     public Field<String> field4() {
-        return JooqAssetImageComp.ASSET_IMAGE_COMP.IMAGE_DOMINANT_COLOR;
+        return JooqAssetImageComp.ASSET_IMAGE_COMP.NODE_ID;
     }
 
     @Override
-    public Field<Integer> field5() {
+    public Field<String> field5() {
+        return JooqAssetImageComp.ASSET_IMAGE_COMP.PRODUCER_VERSION;
+    }
+
+    @Override
+    public Field<UUID> field6() {
+        return JooqAssetImageComp.ASSET_IMAGE_COMP.RUN_UUID;
+    }
+
+    @Override
+    public Field<UUID> field7() {
+        return JooqAssetImageComp.ASSET_IMAGE_COMP.TASK_UUID;
+    }
+
+    @Override
+    public Field<Float> field8() {
+        return JooqAssetImageComp.ASSET_IMAGE_COMP.CONFIDENCE;
+    }
+
+    @Override
+    public Field<Integer> field9() {
+        return JooqAssetImageComp.ASSET_IMAGE_COMP.STREAM_INDEX;
+    }
+
+    @Override
+    public Field<Integer> field10() {
         return JooqAssetImageComp.ASSET_IMAGE_COMP.MEDIA_WIDTH;
     }
 
     @Override
-    public Field<Integer> field6() {
+    public Field<Integer> field11() {
         return JooqAssetImageComp.ASSET_IMAGE_COMP.MEDIA_HEIGHT;
     }
 
     @Override
-    public Field<LocalDateTime> field7() {
+    public Field<String> field12() {
+        return JooqAssetImageComp.ASSET_IMAGE_COMP.IMAGE_DOMINANT_COLOR;
+    }
+
+    @Override
+    public Field<String> field13() {
+        return JooqAssetImageComp.ASSET_IMAGE_COMP.IMAGE_ENCODING;
+    }
+
+    @Override
+    public Field<Integer> field14() {
+        return JooqAssetImageComp.ASSET_IMAGE_COMP.ORIENTATION;
+    }
+
+    @Override
+    public Field<Integer> field15() {
+        return JooqAssetImageComp.ASSET_IMAGE_COMP.BIT_DEPTH;
+    }
+
+    @Override
+    public Field<Float> field16() {
+        return JooqAssetImageComp.ASSET_IMAGE_COMP.BLURRINESS;
+    }
+
+    @Override
+    public Field<JsonObject> field17() {
+        return JooqAssetImageComp.ASSET_IMAGE_COMP.META;
+    }
+
+    @Override
+    public Field<LocalDateTime> field18() {
         return JooqAssetImageComp.ASSET_IMAGE_COMP.CREATED;
     }
 
     @Override
-    public Field<UUID> field8() {
+    public Field<UUID> field19() {
         return JooqAssetImageComp.ASSET_IMAGE_COMP.CREATOR_UUID;
     }
 
     @Override
-    public Field<LocalDateTime> field9() {
+    public Field<LocalDateTime> field20() {
         return JooqAssetImageComp.ASSET_IMAGE_COMP.EDITED;
     }
 
     @Override
-    public Field<UUID> field10() {
+    public Field<UUID> field21() {
         return JooqAssetImageComp.ASSET_IMAGE_COMP.EDITOR_UUID;
     }
 
@@ -249,41 +468,96 @@ public class JooqAssetImageCompRecord extends UpdatableRecordImpl<JooqAssetImage
 
     @Override
     public String component3() {
-        return getSource();
+        return getNodeKind();
     }
 
     @Override
     public String component4() {
-        return getImageDominantColor();
+        return getNodeId();
     }
 
     @Override
-    public Integer component5() {
+    public String component5() {
+        return getProducerVersion();
+    }
+
+    @Override
+    public UUID component6() {
+        return getRunUuid();
+    }
+
+    @Override
+    public UUID component7() {
+        return getTaskUuid();
+    }
+
+    @Override
+    public Float component8() {
+        return getConfidence();
+    }
+
+    @Override
+    public Integer component9() {
+        return getStreamIndex();
+    }
+
+    @Override
+    public Integer component10() {
         return getMediaWidth();
     }
 
     @Override
-    public Integer component6() {
+    public Integer component11() {
         return getMediaHeight();
     }
 
     @Override
-    public LocalDateTime component7() {
+    public String component12() {
+        return getImageDominantColor();
+    }
+
+    @Override
+    public String component13() {
+        return getImageEncoding();
+    }
+
+    @Override
+    public Integer component14() {
+        return getOrientation();
+    }
+
+    @Override
+    public Integer component15() {
+        return getBitDepth();
+    }
+
+    @Override
+    public Float component16() {
+        return getBlurriness();
+    }
+
+    @Override
+    public JsonObject component17() {
+        return getMeta();
+    }
+
+    @Override
+    public LocalDateTime component18() {
         return getCreated();
     }
 
     @Override
-    public UUID component8() {
+    public UUID component19() {
         return getCreatorUuid();
     }
 
     @Override
-    public LocalDateTime component9() {
+    public LocalDateTime component20() {
         return getEdited();
     }
 
     @Override
-    public UUID component10() {
+    public UUID component21() {
         return getEditorUuid();
     }
 
@@ -299,41 +573,96 @@ public class JooqAssetImageCompRecord extends UpdatableRecordImpl<JooqAssetImage
 
     @Override
     public String value3() {
-        return getSource();
+        return getNodeKind();
     }
 
     @Override
     public String value4() {
-        return getImageDominantColor();
+        return getNodeId();
     }
 
     @Override
-    public Integer value5() {
+    public String value5() {
+        return getProducerVersion();
+    }
+
+    @Override
+    public UUID value6() {
+        return getRunUuid();
+    }
+
+    @Override
+    public UUID value7() {
+        return getTaskUuid();
+    }
+
+    @Override
+    public Float value8() {
+        return getConfidence();
+    }
+
+    @Override
+    public Integer value9() {
+        return getStreamIndex();
+    }
+
+    @Override
+    public Integer value10() {
         return getMediaWidth();
     }
 
     @Override
-    public Integer value6() {
+    public Integer value11() {
         return getMediaHeight();
     }
 
     @Override
-    public LocalDateTime value7() {
+    public String value12() {
+        return getImageDominantColor();
+    }
+
+    @Override
+    public String value13() {
+        return getImageEncoding();
+    }
+
+    @Override
+    public Integer value14() {
+        return getOrientation();
+    }
+
+    @Override
+    public Integer value15() {
+        return getBitDepth();
+    }
+
+    @Override
+    public Float value16() {
+        return getBlurriness();
+    }
+
+    @Override
+    public JsonObject value17() {
+        return getMeta();
+    }
+
+    @Override
+    public LocalDateTime value18() {
         return getCreated();
     }
 
     @Override
-    public UUID value8() {
+    public UUID value19() {
         return getCreatorUuid();
     }
 
     @Override
-    public LocalDateTime value9() {
+    public LocalDateTime value20() {
         return getEdited();
     }
 
     @Override
-    public UUID value10() {
+    public UUID value21() {
         return getEditorUuid();
     }
 
@@ -351,54 +680,120 @@ public class JooqAssetImageCompRecord extends UpdatableRecordImpl<JooqAssetImage
 
     @Override
     public JooqAssetImageCompRecord value3(String value) {
-        setSource(value);
+        setNodeKind(value);
         return this;
     }
 
     @Override
     public JooqAssetImageCompRecord value4(String value) {
-        setImageDominantColor(value);
+        setNodeId(value);
         return this;
     }
 
     @Override
-    public JooqAssetImageCompRecord value5(Integer value) {
+    public JooqAssetImageCompRecord value5(String value) {
+        setProducerVersion(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetImageCompRecord value6(UUID value) {
+        setRunUuid(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetImageCompRecord value7(UUID value) {
+        setTaskUuid(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetImageCompRecord value8(Float value) {
+        setConfidence(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetImageCompRecord value9(Integer value) {
+        setStreamIndex(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetImageCompRecord value10(Integer value) {
         setMediaWidth(value);
         return this;
     }
 
     @Override
-    public JooqAssetImageCompRecord value6(Integer value) {
+    public JooqAssetImageCompRecord value11(Integer value) {
         setMediaHeight(value);
         return this;
     }
 
     @Override
-    public JooqAssetImageCompRecord value7(LocalDateTime value) {
+    public JooqAssetImageCompRecord value12(String value) {
+        setImageDominantColor(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetImageCompRecord value13(String value) {
+        setImageEncoding(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetImageCompRecord value14(Integer value) {
+        setOrientation(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetImageCompRecord value15(Integer value) {
+        setBitDepth(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetImageCompRecord value16(Float value) {
+        setBlurriness(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetImageCompRecord value17(JsonObject value) {
+        setMeta(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetImageCompRecord value18(LocalDateTime value) {
         setCreated(value);
         return this;
     }
 
     @Override
-    public JooqAssetImageCompRecord value8(UUID value) {
+    public JooqAssetImageCompRecord value19(UUID value) {
         setCreatorUuid(value);
         return this;
     }
 
     @Override
-    public JooqAssetImageCompRecord value9(LocalDateTime value) {
+    public JooqAssetImageCompRecord value20(LocalDateTime value) {
         setEdited(value);
         return this;
     }
 
     @Override
-    public JooqAssetImageCompRecord value10(UUID value) {
+    public JooqAssetImageCompRecord value21(UUID value) {
         setEditorUuid(value);
         return this;
     }
 
     @Override
-    public JooqAssetImageCompRecord values(UUID value1, UUID value2, String value3, String value4, Integer value5, Integer value6, LocalDateTime value7, UUID value8, LocalDateTime value9, UUID value10) {
+    public JooqAssetImageCompRecord values(UUID value1, UUID value2, String value3, String value4, String value5, UUID value6, UUID value7, Float value8, Integer value9, Integer value10, Integer value11, String value12, String value13, Integer value14, Integer value15, Float value16, JsonObject value17, LocalDateTime value18, UUID value19, LocalDateTime value20, UUID value21) {
         value1(value1);
         value2(value2);
         value3(value3);
@@ -409,6 +804,17 @@ public class JooqAssetImageCompRecord extends UpdatableRecordImpl<JooqAssetImage
         value8(value8);
         value9(value9);
         value10(value10);
+        value11(value11);
+        value12(value12);
+        value13(value13);
+        value14(value14);
+        value15(value15);
+        value16(value16);
+        value17(value17);
+        value18(value18);
+        value19(value19);
+        value20(value20);
+        value21(value21);
         return this;
     }
 
@@ -426,15 +832,26 @@ public class JooqAssetImageCompRecord extends UpdatableRecordImpl<JooqAssetImage
     /**
      * Create a detached, initialised JooqAssetImageCompRecord
      */
-    public JooqAssetImageCompRecord(UUID uuid, UUID assetUuid, String source, String imageDominantColor, Integer mediaWidth, Integer mediaHeight, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid) {
+    public JooqAssetImageCompRecord(UUID uuid, UUID assetUuid, String nodeKind, String nodeId, String producerVersion, UUID runUuid, UUID taskUuid, Float confidence, Integer streamIndex, Integer mediaWidth, Integer mediaHeight, String imageDominantColor, String imageEncoding, Integer orientation, Integer bitDepth, Float blurriness, JsonObject meta, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid) {
         super(JooqAssetImageComp.ASSET_IMAGE_COMP);
 
         setUuid(uuid);
         setAssetUuid(assetUuid);
-        setSource(source);
-        setImageDominantColor(imageDominantColor);
+        setNodeKind(nodeKind);
+        setNodeId(nodeId);
+        setProducerVersion(producerVersion);
+        setRunUuid(runUuid);
+        setTaskUuid(taskUuid);
+        setConfidence(confidence);
+        setStreamIndex(streamIndex);
         setMediaWidth(mediaWidth);
         setMediaHeight(mediaHeight);
+        setImageDominantColor(imageDominantColor);
+        setImageEncoding(imageEncoding);
+        setOrientation(orientation);
+        setBitDepth(bitDepth);
+        setBlurriness(blurriness);
+        setMeta(meta);
         setCreated(created);
         setCreatorUuid(creatorUuid);
         setEdited(edited);

@@ -35,8 +35,13 @@ public class PoolingTest {
 		UserDao dao = new UserDaoImpl(ctx);
 
 		User u = new UserImpl();
-		u.setUuid(UUID.randomUUID());
+		UUID uuid = UUID.randomUUID();
+		u.setUuid(uuid);
 		u.setUsername("dummy");
+		// user.creator_uuid/editor_uuid are NOT NULL and the table references itself, so the
+		// first user has to be its own creator.
+		u.setCreatorUuid(uuid);
+		u.setEditorUuid(uuid);
 		dao.store(u);
 
 		Stream<? extends User> us = dao.findAll();

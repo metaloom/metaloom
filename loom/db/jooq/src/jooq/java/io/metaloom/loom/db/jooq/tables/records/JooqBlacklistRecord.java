@@ -12,8 +12,8 @@ import java.util.UUID;
 
 import org.jooq.Field;
 import org.jooq.Record1;
-import org.jooq.Record9;
-import org.jooq.Row9;
+import org.jooq.Record10;
+import org.jooq.Row10;
 import org.jooq.impl.UpdatableRecordImpl;
 
 
@@ -23,7 +23,7 @@ import org.jooq.impl.UpdatableRecordImpl;
  * scanner marked it.
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqBlacklistRecord extends UpdatableRecordImpl<JooqBlacklistRecord> implements Record9<UUID, UUID, LocalDateTime, UUID, LocalDateTime, UUID, String, Integer, JsonObject> {
+public class JooqBlacklistRecord extends UpdatableRecordImpl<JooqBlacklistRecord> implements Record10<UUID, UUID, LocalDateTime, UUID, LocalDateTime, UUID, String, Integer, JsonObject, String> {
 
     private static final long serialVersionUID = 1L;
 
@@ -161,6 +161,22 @@ public class JooqBlacklistRecord extends UpdatableRecordImpl<JooqBlacklistRecord
         return (JsonObject) get(8);
     }
 
+    /**
+     * Setter for <code>public.blacklist.name</code>. Human readable label for
+     * the entry, e.g. the name of the claim
+     */
+    public void setName(String value) {
+        set(9, value);
+    }
+
+    /**
+     * Getter for <code>public.blacklist.name</code>. Human readable label for
+     * the entry, e.g. the name of the claim
+     */
+    public String getName() {
+        return (String) get(9);
+    }
+
     // -------------------------------------------------------------------------
     // Primary key information
     // -------------------------------------------------------------------------
@@ -171,17 +187,17 @@ public class JooqBlacklistRecord extends UpdatableRecordImpl<JooqBlacklistRecord
     }
 
     // -------------------------------------------------------------------------
-    // Record9 type implementation
+    // Record10 type implementation
     // -------------------------------------------------------------------------
 
     @Override
-    public Row9<UUID, UUID, LocalDateTime, UUID, LocalDateTime, UUID, String, Integer, JsonObject> fieldsRow() {
-        return (Row9) super.fieldsRow();
+    public Row10<UUID, UUID, LocalDateTime, UUID, LocalDateTime, UUID, String, Integer, JsonObject, String> fieldsRow() {
+        return (Row10) super.fieldsRow();
     }
 
     @Override
-    public Row9<UUID, UUID, LocalDateTime, UUID, LocalDateTime, UUID, String, Integer, JsonObject> valuesRow() {
-        return (Row9) super.valuesRow();
+    public Row10<UUID, UUID, LocalDateTime, UUID, LocalDateTime, UUID, String, Integer, JsonObject, String> valuesRow() {
+        return (Row10) super.valuesRow();
     }
 
     @Override
@@ -230,6 +246,11 @@ public class JooqBlacklistRecord extends UpdatableRecordImpl<JooqBlacklistRecord
     }
 
     @Override
+    public Field<String> field10() {
+        return JooqBlacklist.BLACKLIST.NAME;
+    }
+
+    @Override
     public UUID component1() {
         return getUuid();
     }
@@ -275,6 +296,11 @@ public class JooqBlacklistRecord extends UpdatableRecordImpl<JooqBlacklistRecord
     }
 
     @Override
+    public String component10() {
+        return getName();
+    }
+
+    @Override
     public UUID value1() {
         return getUuid();
     }
@@ -317,6 +343,11 @@ public class JooqBlacklistRecord extends UpdatableRecordImpl<JooqBlacklistRecord
     @Override
     public JsonObject value9() {
         return getMeta();
+    }
+
+    @Override
+    public String value10() {
+        return getName();
     }
 
     @Override
@@ -374,7 +405,13 @@ public class JooqBlacklistRecord extends UpdatableRecordImpl<JooqBlacklistRecord
     }
 
     @Override
-    public JooqBlacklistRecord values(UUID value1, UUID value2, LocalDateTime value3, UUID value4, LocalDateTime value5, UUID value6, String value7, Integer value8, JsonObject value9) {
+    public JooqBlacklistRecord value10(String value) {
+        setName(value);
+        return this;
+    }
+
+    @Override
+    public JooqBlacklistRecord values(UUID value1, UUID value2, LocalDateTime value3, UUID value4, LocalDateTime value5, UUID value6, String value7, Integer value8, JsonObject value9, String value10) {
         value1(value1);
         value2(value2);
         value3(value3);
@@ -384,6 +421,7 @@ public class JooqBlacklistRecord extends UpdatableRecordImpl<JooqBlacklistRecord
         value7(value7);
         value8(value8);
         value9(value9);
+        value10(value10);
         return this;
     }
 
@@ -401,7 +439,7 @@ public class JooqBlacklistRecord extends UpdatableRecordImpl<JooqBlacklistRecord
     /**
      * Create a detached, initialised JooqBlacklistRecord
      */
-    public JooqBlacklistRecord(UUID uuid, UUID assetUuid, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid, String type, Integer reviewCount, JsonObject meta) {
+    public JooqBlacklistRecord(UUID uuid, UUID assetUuid, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid, String type, Integer reviewCount, JsonObject meta, String name) {
         super(JooqBlacklist.BLACKLIST);
 
         setUuid(uuid);
@@ -413,5 +451,6 @@ public class JooqBlacklistRecord extends UpdatableRecordImpl<JooqBlacklistRecord
         setType(type);
         setReviewCount(reviewCount);
         setMeta(meta);
+        setName(name);
     }
 }

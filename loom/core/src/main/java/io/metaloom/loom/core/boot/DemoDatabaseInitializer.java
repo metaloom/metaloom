@@ -849,13 +849,16 @@ public class DemoDatabaseInitializer {
 			cursor = endTime + 0.5;
 		}
 
+		// "source" is the producing node kind; the section timings above are seconds, the
+		// duration column is milliseconds.
 		AssetTranscriptComp comp = assetComponentDao.createTranscriptComp(admin.getUuid(), asset.getUuid(), source);
 		comp.setLang(lang);
 		comp.setModel(model);
+		comp.setProducerVersion(model);
 		comp.setTranscriptText(fullText.toString());
-		comp.setDuration((int) Math.ceil(cursor));
+		comp.setDuration((long) Math.ceil(cursor * 1000));
 		comp.setTranscriptJson(new JsonObject().put("sections", sections));
-		assetComponentDao.storeTranscriptComp(comp);
+		assetComponentDao.upsertTranscriptComp(comp);
 		log.info("Created demo transcript for asset: {} ({} sections)", asset.getFilename(), sectionTexts.length);
 	}
 }

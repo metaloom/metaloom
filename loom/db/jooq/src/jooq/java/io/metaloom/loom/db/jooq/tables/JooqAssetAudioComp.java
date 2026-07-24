@@ -7,23 +7,20 @@ package io.metaloom.loom.db.jooq.tables;
 import io.metaloom.loom.db.jooq.Indexes;
 import io.metaloom.loom.db.jooq.JooqPublic;
 import io.metaloom.loom.db.jooq.Keys;
+import io.metaloom.loom.db.jooq.converter.JsonObjectConverter;
 import io.metaloom.loom.db.jooq.tables.records.JooqAssetAudioCompRecord;
+import io.vertx.core.json.JsonObject;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
 import org.jooq.Field;
 import org.jooq.ForeignKey;
-import org.jooq.Function13;
 import org.jooq.Index;
 import org.jooq.Name;
 import org.jooq.Record;
-import org.jooq.Records;
-import org.jooq.Row13;
 import org.jooq.Schema;
-import org.jooq.SelectField;
 import org.jooq.Table;
 import org.jooq.TableField;
 import org.jooq.TableOptions;
@@ -34,7 +31,8 @@ import org.jooq.impl.TableImpl;
 
 
 /**
- * Stores audio-specific properties extracted from an asset
+ * Audio track properties. One row per track: a video with a German and an
+ * English track has two, discriminated by stream_index.
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
 public class JooqAssetAudioComp extends TableImpl<JooqAssetAudioCompRecord> {
@@ -65,9 +63,58 @@ public class JooqAssetAudioComp extends TableImpl<JooqAssetAudioCompRecord> {
     public final TableField<JooqAssetAudioCompRecord, java.util.UUID> ASSET_UUID = createField(DSL.name("asset_uuid"), SQLDataType.UUID.nullable(false), this, "");
 
     /**
-     * The column <code>public.asset_audio_comp.source</code>.
+     * The column <code>public.asset_audio_comp.node_kind</code>.
      */
-    public final TableField<JooqAssetAudioCompRecord, String> SOURCE = createField(DSL.name("source"), SQLDataType.VARCHAR, this, "");
+    public final TableField<JooqAssetAudioCompRecord, String> NODE_KIND = createField(DSL.name("node_kind"), SQLDataType.VARCHAR.nullable(false), this, "");
+
+    /**
+     * The column <code>public.asset_audio_comp.node_id</code>.
+     */
+    public final TableField<JooqAssetAudioCompRecord, String> NODE_ID = createField(DSL.name("node_id"), SQLDataType.VARCHAR, this, "");
+
+    /**
+     * The column <code>public.asset_audio_comp.producer_version</code>.
+     */
+    public final TableField<JooqAssetAudioCompRecord, String> PRODUCER_VERSION = createField(DSL.name("producer_version"), SQLDataType.VARCHAR.nullable(false).defaultValue(DSL.field("''::character varying", SQLDataType.VARCHAR)), this, "");
+
+    /**
+     * The column <code>public.asset_audio_comp.run_uuid</code>.
+     */
+    public final TableField<JooqAssetAudioCompRecord, java.util.UUID> RUN_UUID = createField(DSL.name("run_uuid"), SQLDataType.UUID, this, "");
+
+    /**
+     * The column <code>public.asset_audio_comp.task_uuid</code>.
+     */
+    public final TableField<JooqAssetAudioCompRecord, java.util.UUID> TASK_UUID = createField(DSL.name("task_uuid"), SQLDataType.UUID, this, "");
+
+    /**
+     * The column <code>public.asset_audio_comp.confidence</code>.
+     */
+    public final TableField<JooqAssetAudioCompRecord, Float> CONFIDENCE = createField(DSL.name("confidence"), SQLDataType.REAL, this, "");
+
+    /**
+     * The column <code>public.asset_audio_comp.stream_index</code>. Which audio
+     * track within the container
+     */
+    public final TableField<JooqAssetAudioCompRecord, Integer> STREAM_INDEX = createField(DSL.name("stream_index"), SQLDataType.INTEGER.nullable(false).defaultValue(DSL.field("0", SQLDataType.INTEGER)), this, "Which audio track within the container");
+
+    /**
+     * The column <code>public.asset_audio_comp.lang</code>. Track language as
+     * declared by the container
+     */
+    public final TableField<JooqAssetAudioCompRecord, String> LANG = createField(DSL.name("lang"), SQLDataType.VARCHAR, this, "Track language as declared by the container");
+
+    /**
+     * The column <code>public.asset_audio_comp.track_title</code>. Track title
+     * as declared by the container
+     */
+    public final TableField<JooqAssetAudioCompRecord, String> TRACK_TITLE = createField(DSL.name("track_title"), SQLDataType.VARCHAR, this, "Track title as declared by the container");
+
+    /**
+     * The column <code>public.asset_audio_comp.is_default</code>. Whether the
+     * container marks this as the default track
+     */
+    public final TableField<JooqAssetAudioCompRecord, Boolean> IS_DEFAULT = createField(DSL.name("is_default"), SQLDataType.BOOLEAN, this, "Whether the container marks this as the default track");
 
     /**
      * The column <code>public.asset_audio_comp.audio_bpm</code>.
@@ -90,15 +137,21 @@ public class JooqAssetAudioComp extends TableImpl<JooqAssetAudioCompRecord> {
     public final TableField<JooqAssetAudioCompRecord, Integer> AUDIO_BITRATE = createField(DSL.name("audio_bitrate"), SQLDataType.INTEGER, this, "");
 
     /**
-     * The column <code>public.asset_audio_comp.audio_encoding</code>. Store the
-     * audio encoding used (e.g. mp3, flac)
+     * The column <code>public.asset_audio_comp.audio_encoding</code>. Audio
+     * encoding used (e.g. mp3, flac)
      */
-    public final TableField<JooqAssetAudioCompRecord, String> AUDIO_ENCODING = createField(DSL.name("audio_encoding"), SQLDataType.VARCHAR, this, "Store the audio encoding used (e.g. mp3, flac)");
+    public final TableField<JooqAssetAudioCompRecord, String> AUDIO_ENCODING = createField(DSL.name("audio_encoding"), SQLDataType.VARCHAR, this, "Audio encoding used (e.g. mp3, flac)");
 
     /**
-     * The column <code>public.asset_audio_comp.media_duration</code>.
+     * The column <code>public.asset_audio_comp.media_duration</code>. Duration
+     * in milliseconds
      */
-    public final TableField<JooqAssetAudioCompRecord, Long> MEDIA_DURATION = createField(DSL.name("media_duration"), SQLDataType.BIGINT, this, "");
+    public final TableField<JooqAssetAudioCompRecord, Long> MEDIA_DURATION = createField(DSL.name("media_duration"), SQLDataType.BIGINT, this, "Duration in milliseconds");
+
+    /**
+     * The column <code>public.asset_audio_comp.meta</code>.
+     */
+    public final TableField<JooqAssetAudioCompRecord, JsonObject> META = createField(DSL.name("meta"), SQLDataType.JSONB, this, "", new JsonObjectConverter());
 
     /**
      * The column <code>public.asset_audio_comp.created</code>.
@@ -106,9 +159,10 @@ public class JooqAssetAudioComp extends TableImpl<JooqAssetAudioCompRecord> {
     public final TableField<JooqAssetAudioCompRecord, LocalDateTime> CREATED = createField(DSL.name("created"), SQLDataType.LOCALDATETIME(6).nullable(false).defaultValue(DSL.field("now()", SQLDataType.LOCALDATETIME)), this, "");
 
     /**
-     * The column <code>public.asset_audio_comp.creator_uuid</code>.
+     * The column <code>public.asset_audio_comp.creator_uuid</code>. NULL when
+     * written by a Cortex worker rather than a user
      */
-    public final TableField<JooqAssetAudioCompRecord, java.util.UUID> CREATOR_UUID = createField(DSL.name("creator_uuid"), SQLDataType.UUID.nullable(false), this, "");
+    public final TableField<JooqAssetAudioCompRecord, java.util.UUID> CREATOR_UUID = createField(DSL.name("creator_uuid"), SQLDataType.UUID, this, "NULL when written by a Cortex worker rather than a user");
 
     /**
      * The column <code>public.asset_audio_comp.edited</code>.
@@ -118,14 +172,14 @@ public class JooqAssetAudioComp extends TableImpl<JooqAssetAudioCompRecord> {
     /**
      * The column <code>public.asset_audio_comp.editor_uuid</code>.
      */
-    public final TableField<JooqAssetAudioCompRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID.nullable(false), this, "");
+    public final TableField<JooqAssetAudioCompRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID, this, "");
 
     private JooqAssetAudioComp(Name alias, Table<JooqAssetAudioCompRecord> aliased) {
         this(alias, aliased, null);
     }
 
     private JooqAssetAudioComp(Name alias, Table<JooqAssetAudioCompRecord> aliased, Field<?>[] parameters) {
-        super(alias, null, aliased, parameters, DSL.comment("Stores audio-specific properties extracted from an asset"), TableOptions.table());
+        super(alias, null, aliased, parameters, DSL.comment("Audio track properties. One row per track: a video with a German and an English track has two, discriminated by stream_index."), TableOptions.table());
     }
 
     /**
@@ -160,7 +214,7 @@ public class JooqAssetAudioComp extends TableImpl<JooqAssetAudioCompRecord> {
 
     @Override
     public List<Index> getIndexes() {
-        return Arrays.asList(Indexes.ASSET_AUDIO_COMP_ASSET_UUID_IDX);
+        return Arrays.asList(Indexes.IDX_ASSET_AUDIO_COMP_ASSET_UUID);
     }
 
     @Override
@@ -169,12 +223,51 @@ public class JooqAssetAudioComp extends TableImpl<JooqAssetAudioCompRecord> {
     }
 
     @Override
-    public List<ForeignKey<JooqAssetAudioCompRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.ASSET_AUDIO_COMP__ASSET_AUDIO_COMP_CREATOR_UUID_FKEY, Keys.ASSET_AUDIO_COMP__ASSET_AUDIO_COMP_EDITOR_UUID_FKEY);
+    public List<UniqueKey<JooqAssetAudioCompRecord>> getUniqueKeys() {
+        return Arrays.asList(Keys.ASSET_AUDIO_COMP_UNIQUE_KEY);
     }
 
+    @Override
+    public List<ForeignKey<JooqAssetAudioCompRecord, ?>> getReferences() {
+        return Arrays.asList(Keys.ASSET_AUDIO_COMP__ASSET_AUDIO_COMP_ASSET_UUID_FKEY, Keys.ASSET_AUDIO_COMP__ASSET_AUDIO_COMP_RUN_UUID_FKEY, Keys.ASSET_AUDIO_COMP__ASSET_AUDIO_COMP_TASK_UUID_FKEY, Keys.ASSET_AUDIO_COMP__ASSET_AUDIO_COMP_CREATOR_UUID_FKEY, Keys.ASSET_AUDIO_COMP__ASSET_AUDIO_COMP_EDITOR_UUID_FKEY);
+    }
+
+    private transient JooqAsset _asset;
+    private transient JooqPipelineRun _pipelineRun;
+    private transient JooqPipelineNodeTask _pipelineNodeTask;
     private transient JooqUser _assetAudioCompCreatorUuidFkey;
     private transient JooqUser _assetAudioCompEditorUuidFkey;
+
+    /**
+     * Get the implicit join path to the <code>public.asset</code> table.
+     */
+    public JooqAsset asset() {
+        if (_asset == null)
+            _asset = new JooqAsset(this, Keys.ASSET_AUDIO_COMP__ASSET_AUDIO_COMP_ASSET_UUID_FKEY);
+
+        return _asset;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.pipeline_run</code> table.
+     */
+    public JooqPipelineRun pipelineRun() {
+        if (_pipelineRun == null)
+            _pipelineRun = new JooqPipelineRun(this, Keys.ASSET_AUDIO_COMP__ASSET_AUDIO_COMP_RUN_UUID_FKEY);
+
+        return _pipelineRun;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.pipeline_node_task</code>
+     * table.
+     */
+    public JooqPipelineNodeTask pipelineNodeTask() {
+        if (_pipelineNodeTask == null)
+            _pipelineNodeTask = new JooqPipelineNodeTask(this, Keys.ASSET_AUDIO_COMP__ASSET_AUDIO_COMP_TASK_UUID_FKEY);
+
+        return _pipelineNodeTask;
+    }
 
     /**
      * Get the implicit join path to the <code>public.user</code> table, via the
@@ -235,29 +328,5 @@ public class JooqAssetAudioComp extends TableImpl<JooqAssetAudioCompRecord> {
     @Override
     public JooqAssetAudioComp rename(Table<?> name) {
         return new JooqAssetAudioComp(name.getQualifiedName(), null);
-    }
-
-    // -------------------------------------------------------------------------
-    // Row13 type methods
-    // -------------------------------------------------------------------------
-
-    @Override
-    public Row13<java.util.UUID, java.util.UUID, String, Integer, Integer, Integer, Integer, String, Long, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
-        return (Row13) super.fieldsRow();
-    }
-
-    /**
-     * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
-     */
-    public <U> SelectField<U> mapping(Function13<? super java.util.UUID, ? super java.util.UUID, ? super String, ? super Integer, ? super Integer, ? super Integer, ? super Integer, ? super String, ? super Long, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
-        return convertFrom(Records.mapping(from));
-    }
-
-    /**
-     * Convenience mapping calling {@link SelectField#convertFrom(Class,
-     * Function)}.
-     */
-    public <U> SelectField<U> mapping(Class<U> toType, Function13<? super java.util.UUID, ? super java.util.UUID, ? super String, ? super Integer, ? super Integer, ? super Integer, ? super Integer, ? super String, ? super Long, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
-        return convertFrom(toType, Records.mapping(from));
     }
 }

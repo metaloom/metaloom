@@ -74,9 +74,11 @@ public class TestFixtureProvider extends AbstractFixtureProvider {
 		Tag annotationTag = tagAnnotation(user, annotation, "important");
 
 		// Store embedding + cluster
-		Embedding embedding1 = createEmbedding(EMBEDDING_UUID, user, asset);
-		Embedding embedding2 = createEmbedding(UUID.randomUUID(), user, asset);
-		Embedding embedding3 = createEmbedding(UUID.randomUUID(), user, asset);
+		// Three faces of the same asset: the embedding identity is
+		// (asset, node kind, type, frame, subject), so they differ by subject index.
+		Embedding embedding1 = createEmbedding(EMBEDDING_UUID, user, asset, 0);
+		Embedding embedding2 = createEmbedding(UUID.randomUUID(), user, asset, 1);
+		Embedding embedding3 = createEmbedding(UUID.randomUUID(), user, asset, 2);
 		Cluster cluster = clusterEmbeddings(user, embedding1, embedding2, embedding3);
 
 		// Attachment for embedding
@@ -210,9 +212,10 @@ public class TestFixtureProvider extends AbstractFixtureProvider {
 		return cluster;
 	}
 
-	private Embedding createEmbedding(UUID uuid, User user, Asset asset) {
+	private Embedding createEmbedding(UUID uuid, User user, Asset asset, int subjectIndex) {
 		Embedding embedding = embeddingDao().createEmbedding(user, asset, VECTOR_DATA, EmbeddingType.DLIB_FACE_RESNET_v1);
 		embedding.setUuid(uuid);
+		embedding.setSubjectIndex(subjectIndex);
 		embeddingDao().store(embedding);
 		return embedding;
 	}
@@ -243,6 +246,10 @@ public class TestFixtureProvider extends AbstractFixtureProvider {
 		Asset asset = assetDao().createAsset(user, SHA512SUM, IMAGE_MIMETYPE, DUMMY_IMAGE_FILENAME, DUMMY_IMAGE_ORIGIN, 42L);
 		asset.setUuid(ASSET_UUID);
 		asset.setFilename("bigbuckbunny.mp4");
+		// The secondary hashes are what a fully processed asset looks like; tests that read
+		// them back (e.g. the GraphQL asset query) need them populated.
+		asset.setSHA256(SHA256SUM);
+		asset.setMD5(MD5SUM);
 		assetDao().store(asset);
 		return asset;
 	}

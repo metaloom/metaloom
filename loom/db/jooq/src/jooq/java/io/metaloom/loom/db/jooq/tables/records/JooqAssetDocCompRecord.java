@@ -5,22 +5,24 @@ package io.metaloom.loom.db.jooq.tables.records;
 
 
 import io.metaloom.loom.db.jooq.tables.JooqAssetDocComp;
+import io.vertx.core.json.JsonObject;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 import org.jooq.Field;
 import org.jooq.Record1;
-import org.jooq.Record9;
-import org.jooq.Row9;
+import org.jooq.Record18;
+import org.jooq.Row18;
 import org.jooq.impl.UpdatableRecordImpl;
 
 
 /**
- * Stores document/text extraction data from an asset
+ * Extracted text of a document or an image region. One row per producer per
+ * page: Tika writes the whole document as page 0, OCR writes one row per page.
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqAssetDocCompRecord extends UpdatableRecordImpl<JooqAssetDocCompRecord> implements Record9<UUID, UUID, String, String, Integer, LocalDateTime, UUID, LocalDateTime, UUID> {
+public class JooqAssetDocCompRecord extends UpdatableRecordImpl<JooqAssetDocCompRecord> implements Record18<UUID, UUID, String, String, String, UUID, UUID, Float, Integer, Integer, String, String, Integer, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> {
 
     private static final long serialVersionUID = 1L;
 
@@ -53,103 +55,233 @@ public class JooqAssetDocCompRecord extends UpdatableRecordImpl<JooqAssetDocComp
     }
 
     /**
-     * Setter for <code>public.asset_doc_comp.source</code>.
+     * Setter for <code>public.asset_doc_comp.node_kind</code>.
      */
-    public void setSource(String value) {
+    public void setNodeKind(String value) {
         set(2, value);
     }
 
     /**
-     * Getter for <code>public.asset_doc_comp.source</code>.
+     * Getter for <code>public.asset_doc_comp.node_kind</code>.
      */
-    public String getSource() {
+    public String getNodeKind() {
         return (String) get(2);
     }
 
     /**
-     * Setter for <code>public.asset_doc_comp.doc_plain_text</code>. Extracted
-     * text of the document
+     * Setter for <code>public.asset_doc_comp.node_id</code>.
      */
-    public void setDocPlainText(String value) {
+    public void setNodeId(String value) {
         set(3, value);
     }
 
     /**
-     * Getter for <code>public.asset_doc_comp.doc_plain_text</code>. Extracted
-     * text of the document
+     * Getter for <code>public.asset_doc_comp.node_id</code>.
+     */
+    public String getNodeId() {
+        return (String) get(3);
+    }
+
+    /**
+     * Setter for <code>public.asset_doc_comp.producer_version</code>.
+     */
+    public void setProducerVersion(String value) {
+        set(4, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_doc_comp.producer_version</code>.
+     */
+    public String getProducerVersion() {
+        return (String) get(4);
+    }
+
+    /**
+     * Setter for <code>public.asset_doc_comp.run_uuid</code>.
+     */
+    public void setRunUuid(UUID value) {
+        set(5, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_doc_comp.run_uuid</code>.
+     */
+    public UUID getRunUuid() {
+        return (UUID) get(5);
+    }
+
+    /**
+     * Setter for <code>public.asset_doc_comp.task_uuid</code>.
+     */
+    public void setTaskUuid(UUID value) {
+        set(6, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_doc_comp.task_uuid</code>.
+     */
+    public UUID getTaskUuid() {
+        return (UUID) get(6);
+    }
+
+    /**
+     * Setter for <code>public.asset_doc_comp.confidence</code>.
+     */
+    public void setConfidence(Float value) {
+        set(7, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_doc_comp.confidence</code>.
+     */
+    public Float getConfidence() {
+        return (Float) get(7);
+    }
+
+    /**
+     * Setter for <code>public.asset_doc_comp.page_number</code>. Page this text
+     * was extracted from; 0 means the whole document
+     */
+    public void setPageNumber(Integer value) {
+        set(8, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_doc_comp.page_number</code>. Page this text
+     * was extracted from; 0 means the whole document
+     */
+    public Integer getPageNumber() {
+        return (Integer) get(8);
+    }
+
+    /**
+     * Setter for <code>public.asset_doc_comp.page_count</code>.
+     */
+    public void setPageCount(Integer value) {
+        set(9, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_doc_comp.page_count</code>.
+     */
+    public Integer getPageCount() {
+        return (Integer) get(9);
+    }
+
+    /**
+     * Setter for <code>public.asset_doc_comp.text_lang</code>. Detected or
+     * configured language of the extracted text
+     */
+    public void setTextLang(String value) {
+        set(10, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_doc_comp.text_lang</code>. Detected or
+     * configured language of the extracted text
+     */
+    public String getTextLang() {
+        return (String) get(10);
+    }
+
+    /**
+     * Setter for <code>public.asset_doc_comp.doc_plain_text</code>.
+     */
+    public void setDocPlainText(String value) {
+        set(11, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_doc_comp.doc_plain_text</code>.
      */
     public String getDocPlainText() {
-        return (String) get(3);
+        return (String) get(11);
     }
 
     /**
      * Setter for <code>public.asset_doc_comp.doc_word_count</code>.
      */
     public void setDocWordCount(Integer value) {
-        set(4, value);
+        set(12, value);
     }
 
     /**
      * Getter for <code>public.asset_doc_comp.doc_word_count</code>.
      */
     public Integer getDocWordCount() {
-        return (Integer) get(4);
+        return (Integer) get(12);
+    }
+
+    /**
+     * Setter for <code>public.asset_doc_comp.meta</code>.
+     */
+    public void setMeta(JsonObject value) {
+        set(13, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_doc_comp.meta</code>.
+     */
+    public JsonObject getMeta() {
+        return (JsonObject) get(13);
     }
 
     /**
      * Setter for <code>public.asset_doc_comp.created</code>.
      */
     public void setCreated(LocalDateTime value) {
-        set(5, value);
+        set(14, value);
     }
 
     /**
      * Getter for <code>public.asset_doc_comp.created</code>.
      */
     public LocalDateTime getCreated() {
-        return (LocalDateTime) get(5);
+        return (LocalDateTime) get(14);
     }
 
     /**
-     * Setter for <code>public.asset_doc_comp.creator_uuid</code>.
+     * Setter for <code>public.asset_doc_comp.creator_uuid</code>. NULL when
+     * written by a Cortex worker rather than a user
      */
     public void setCreatorUuid(UUID value) {
-        set(6, value);
+        set(15, value);
     }
 
     /**
-     * Getter for <code>public.asset_doc_comp.creator_uuid</code>.
+     * Getter for <code>public.asset_doc_comp.creator_uuid</code>. NULL when
+     * written by a Cortex worker rather than a user
      */
     public UUID getCreatorUuid() {
-        return (UUID) get(6);
+        return (UUID) get(15);
     }
 
     /**
      * Setter for <code>public.asset_doc_comp.edited</code>.
      */
     public void setEdited(LocalDateTime value) {
-        set(7, value);
+        set(16, value);
     }
 
     /**
      * Getter for <code>public.asset_doc_comp.edited</code>.
      */
     public LocalDateTime getEdited() {
-        return (LocalDateTime) get(7);
+        return (LocalDateTime) get(16);
     }
 
     /**
      * Setter for <code>public.asset_doc_comp.editor_uuid</code>.
      */
     public void setEditorUuid(UUID value) {
-        set(8, value);
+        set(17, value);
     }
 
     /**
      * Getter for <code>public.asset_doc_comp.editor_uuid</code>.
      */
     public UUID getEditorUuid() {
-        return (UUID) get(8);
+        return (UUID) get(17);
     }
 
     // -------------------------------------------------------------------------
@@ -162,17 +294,17 @@ public class JooqAssetDocCompRecord extends UpdatableRecordImpl<JooqAssetDocComp
     }
 
     // -------------------------------------------------------------------------
-    // Record9 type implementation
+    // Record18 type implementation
     // -------------------------------------------------------------------------
 
     @Override
-    public Row9<UUID, UUID, String, String, Integer, LocalDateTime, UUID, LocalDateTime, UUID> fieldsRow() {
-        return (Row9) super.fieldsRow();
+    public Row18<UUID, UUID, String, String, String, UUID, UUID, Float, Integer, Integer, String, String, Integer, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> fieldsRow() {
+        return (Row18) super.fieldsRow();
     }
 
     @Override
-    public Row9<UUID, UUID, String, String, Integer, LocalDateTime, UUID, LocalDateTime, UUID> valuesRow() {
-        return (Row9) super.valuesRow();
+    public Row18<UUID, UUID, String, String, String, UUID, UUID, Float, Integer, Integer, String, String, Integer, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> valuesRow() {
+        return (Row18) super.valuesRow();
     }
 
     @Override
@@ -187,36 +319,81 @@ public class JooqAssetDocCompRecord extends UpdatableRecordImpl<JooqAssetDocComp
 
     @Override
     public Field<String> field3() {
-        return JooqAssetDocComp.ASSET_DOC_COMP.SOURCE;
+        return JooqAssetDocComp.ASSET_DOC_COMP.NODE_KIND;
     }
 
     @Override
     public Field<String> field4() {
-        return JooqAssetDocComp.ASSET_DOC_COMP.DOC_PLAIN_TEXT;
+        return JooqAssetDocComp.ASSET_DOC_COMP.NODE_ID;
     }
 
     @Override
-    public Field<Integer> field5() {
-        return JooqAssetDocComp.ASSET_DOC_COMP.DOC_WORD_COUNT;
+    public Field<String> field5() {
+        return JooqAssetDocComp.ASSET_DOC_COMP.PRODUCER_VERSION;
     }
 
     @Override
-    public Field<LocalDateTime> field6() {
-        return JooqAssetDocComp.ASSET_DOC_COMP.CREATED;
+    public Field<UUID> field6() {
+        return JooqAssetDocComp.ASSET_DOC_COMP.RUN_UUID;
     }
 
     @Override
     public Field<UUID> field7() {
+        return JooqAssetDocComp.ASSET_DOC_COMP.TASK_UUID;
+    }
+
+    @Override
+    public Field<Float> field8() {
+        return JooqAssetDocComp.ASSET_DOC_COMP.CONFIDENCE;
+    }
+
+    @Override
+    public Field<Integer> field9() {
+        return JooqAssetDocComp.ASSET_DOC_COMP.PAGE_NUMBER;
+    }
+
+    @Override
+    public Field<Integer> field10() {
+        return JooqAssetDocComp.ASSET_DOC_COMP.PAGE_COUNT;
+    }
+
+    @Override
+    public Field<String> field11() {
+        return JooqAssetDocComp.ASSET_DOC_COMP.TEXT_LANG;
+    }
+
+    @Override
+    public Field<String> field12() {
+        return JooqAssetDocComp.ASSET_DOC_COMP.DOC_PLAIN_TEXT;
+    }
+
+    @Override
+    public Field<Integer> field13() {
+        return JooqAssetDocComp.ASSET_DOC_COMP.DOC_WORD_COUNT;
+    }
+
+    @Override
+    public Field<JsonObject> field14() {
+        return JooqAssetDocComp.ASSET_DOC_COMP.META;
+    }
+
+    @Override
+    public Field<LocalDateTime> field15() {
+        return JooqAssetDocComp.ASSET_DOC_COMP.CREATED;
+    }
+
+    @Override
+    public Field<UUID> field16() {
         return JooqAssetDocComp.ASSET_DOC_COMP.CREATOR_UUID;
     }
 
     @Override
-    public Field<LocalDateTime> field8() {
+    public Field<LocalDateTime> field17() {
         return JooqAssetDocComp.ASSET_DOC_COMP.EDITED;
     }
 
     @Override
-    public Field<UUID> field9() {
+    public Field<UUID> field18() {
         return JooqAssetDocComp.ASSET_DOC_COMP.EDITOR_UUID;
     }
 
@@ -232,36 +409,81 @@ public class JooqAssetDocCompRecord extends UpdatableRecordImpl<JooqAssetDocComp
 
     @Override
     public String component3() {
-        return getSource();
+        return getNodeKind();
     }
 
     @Override
     public String component4() {
-        return getDocPlainText();
+        return getNodeId();
     }
 
     @Override
-    public Integer component5() {
-        return getDocWordCount();
+    public String component5() {
+        return getProducerVersion();
     }
 
     @Override
-    public LocalDateTime component6() {
-        return getCreated();
+    public UUID component6() {
+        return getRunUuid();
     }
 
     @Override
     public UUID component7() {
+        return getTaskUuid();
+    }
+
+    @Override
+    public Float component8() {
+        return getConfidence();
+    }
+
+    @Override
+    public Integer component9() {
+        return getPageNumber();
+    }
+
+    @Override
+    public Integer component10() {
+        return getPageCount();
+    }
+
+    @Override
+    public String component11() {
+        return getTextLang();
+    }
+
+    @Override
+    public String component12() {
+        return getDocPlainText();
+    }
+
+    @Override
+    public Integer component13() {
+        return getDocWordCount();
+    }
+
+    @Override
+    public JsonObject component14() {
+        return getMeta();
+    }
+
+    @Override
+    public LocalDateTime component15() {
+        return getCreated();
+    }
+
+    @Override
+    public UUID component16() {
         return getCreatorUuid();
     }
 
     @Override
-    public LocalDateTime component8() {
+    public LocalDateTime component17() {
         return getEdited();
     }
 
     @Override
-    public UUID component9() {
+    public UUID component18() {
         return getEditorUuid();
     }
 
@@ -277,36 +499,81 @@ public class JooqAssetDocCompRecord extends UpdatableRecordImpl<JooqAssetDocComp
 
     @Override
     public String value3() {
-        return getSource();
+        return getNodeKind();
     }
 
     @Override
     public String value4() {
-        return getDocPlainText();
+        return getNodeId();
     }
 
     @Override
-    public Integer value5() {
-        return getDocWordCount();
+    public String value5() {
+        return getProducerVersion();
     }
 
     @Override
-    public LocalDateTime value6() {
-        return getCreated();
+    public UUID value6() {
+        return getRunUuid();
     }
 
     @Override
     public UUID value7() {
+        return getTaskUuid();
+    }
+
+    @Override
+    public Float value8() {
+        return getConfidence();
+    }
+
+    @Override
+    public Integer value9() {
+        return getPageNumber();
+    }
+
+    @Override
+    public Integer value10() {
+        return getPageCount();
+    }
+
+    @Override
+    public String value11() {
+        return getTextLang();
+    }
+
+    @Override
+    public String value12() {
+        return getDocPlainText();
+    }
+
+    @Override
+    public Integer value13() {
+        return getDocWordCount();
+    }
+
+    @Override
+    public JsonObject value14() {
+        return getMeta();
+    }
+
+    @Override
+    public LocalDateTime value15() {
+        return getCreated();
+    }
+
+    @Override
+    public UUID value16() {
         return getCreatorUuid();
     }
 
     @Override
-    public LocalDateTime value8() {
+    public LocalDateTime value17() {
         return getEdited();
     }
 
     @Override
-    public UUID value9() {
+    public UUID value18() {
         return getEditorUuid();
     }
 
@@ -324,48 +591,102 @@ public class JooqAssetDocCompRecord extends UpdatableRecordImpl<JooqAssetDocComp
 
     @Override
     public JooqAssetDocCompRecord value3(String value) {
-        setSource(value);
+        setNodeKind(value);
         return this;
     }
 
     @Override
     public JooqAssetDocCompRecord value4(String value) {
-        setDocPlainText(value);
+        setNodeId(value);
         return this;
     }
 
     @Override
-    public JooqAssetDocCompRecord value5(Integer value) {
-        setDocWordCount(value);
+    public JooqAssetDocCompRecord value5(String value) {
+        setProducerVersion(value);
         return this;
     }
 
     @Override
-    public JooqAssetDocCompRecord value6(LocalDateTime value) {
-        setCreated(value);
+    public JooqAssetDocCompRecord value6(UUID value) {
+        setRunUuid(value);
         return this;
     }
 
     @Override
     public JooqAssetDocCompRecord value7(UUID value) {
+        setTaskUuid(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetDocCompRecord value8(Float value) {
+        setConfidence(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetDocCompRecord value9(Integer value) {
+        setPageNumber(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetDocCompRecord value10(Integer value) {
+        setPageCount(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetDocCompRecord value11(String value) {
+        setTextLang(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetDocCompRecord value12(String value) {
+        setDocPlainText(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetDocCompRecord value13(Integer value) {
+        setDocWordCount(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetDocCompRecord value14(JsonObject value) {
+        setMeta(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetDocCompRecord value15(LocalDateTime value) {
+        setCreated(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetDocCompRecord value16(UUID value) {
         setCreatorUuid(value);
         return this;
     }
 
     @Override
-    public JooqAssetDocCompRecord value8(LocalDateTime value) {
+    public JooqAssetDocCompRecord value17(LocalDateTime value) {
         setEdited(value);
         return this;
     }
 
     @Override
-    public JooqAssetDocCompRecord value9(UUID value) {
+    public JooqAssetDocCompRecord value18(UUID value) {
         setEditorUuid(value);
         return this;
     }
 
     @Override
-    public JooqAssetDocCompRecord values(UUID value1, UUID value2, String value3, String value4, Integer value5, LocalDateTime value6, UUID value7, LocalDateTime value8, UUID value9) {
+    public JooqAssetDocCompRecord values(UUID value1, UUID value2, String value3, String value4, String value5, UUID value6, UUID value7, Float value8, Integer value9, Integer value10, String value11, String value12, Integer value13, JsonObject value14, LocalDateTime value15, UUID value16, LocalDateTime value17, UUID value18) {
         value1(value1);
         value2(value2);
         value3(value3);
@@ -375,6 +696,15 @@ public class JooqAssetDocCompRecord extends UpdatableRecordImpl<JooqAssetDocComp
         value7(value7);
         value8(value8);
         value9(value9);
+        value10(value10);
+        value11(value11);
+        value12(value12);
+        value13(value13);
+        value14(value14);
+        value15(value15);
+        value16(value16);
+        value17(value17);
+        value18(value18);
         return this;
     }
 
@@ -392,14 +722,23 @@ public class JooqAssetDocCompRecord extends UpdatableRecordImpl<JooqAssetDocComp
     /**
      * Create a detached, initialised JooqAssetDocCompRecord
      */
-    public JooqAssetDocCompRecord(UUID uuid, UUID assetUuid, String source, String docPlainText, Integer docWordCount, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid) {
+    public JooqAssetDocCompRecord(UUID uuid, UUID assetUuid, String nodeKind, String nodeId, String producerVersion, UUID runUuid, UUID taskUuid, Float confidence, Integer pageNumber, Integer pageCount, String textLang, String docPlainText, Integer docWordCount, JsonObject meta, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid) {
         super(JooqAssetDocComp.ASSET_DOC_COMP);
 
         setUuid(uuid);
         setAssetUuid(assetUuid);
-        setSource(source);
+        setNodeKind(nodeKind);
+        setNodeId(nodeId);
+        setProducerVersion(producerVersion);
+        setRunUuid(runUuid);
+        setTaskUuid(taskUuid);
+        setConfidence(confidence);
+        setPageNumber(pageNumber);
+        setPageCount(pageCount);
+        setTextLang(textLang);
         setDocPlainText(docPlainText);
         setDocWordCount(docWordCount);
+        setMeta(meta);
         setCreated(created);
         setCreatorUuid(creatorUuid);
         setEdited(edited);

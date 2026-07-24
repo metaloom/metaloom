@@ -228,7 +228,7 @@ public class AssetComponentEndpointService extends AbstractEndpointService {
 	private AssetComponentResponse updateComponent(UUID compUuid, AssetComponentUpdateRequest request, UUID userUuid) {
 		AssetGeoComp geo = compDao.loadGeoComp(compUuid);
 		if (geo != null) {
-			update(request::getSource, geo::setSource);
+			update(request::getSource, geo::setNodeKind);
 			GeoLocationInfo info = request.getGeo();
 			if (info != null) {
 				update(info::getLon, geo::setGeoLon);
@@ -241,7 +241,7 @@ public class AssetComponentEndpointService extends AbstractEndpointService {
 		}
 		AssetImageComp image = compDao.loadImageComp(compUuid);
 		if (image != null) {
-			update(request::getSource, image::setSource);
+			update(request::getSource, image::setNodeKind);
 			ImageInfo info = request.getImage();
 			if (info != null) {
 				update(info::getDominantColor, image::setImageDominantColor);
@@ -254,7 +254,7 @@ public class AssetComponentEndpointService extends AbstractEndpointService {
 		}
 		AssetVideoComp video = compDao.loadVideoComp(compUuid);
 		if (video != null) {
-			update(request::getSource, video::setSource);
+			update(request::getSource, video::setNodeKind);
 			VideoInfo info = request.getVideo();
 			if (info != null) {
 				update(info::getBitrate, video::setVideoBitrate);
@@ -269,7 +269,7 @@ public class AssetComponentEndpointService extends AbstractEndpointService {
 		}
 		AssetAudioComp audio = compDao.loadAudioComp(compUuid);
 		if (audio != null) {
-			update(request::getSource, audio::setSource);
+			update(request::getSource, audio::setNodeKind);
 			AudioInfo info = request.getAudio();
 			if (info != null) {
 				update(info::getBpm, audio::setAudioBpm);
@@ -285,7 +285,7 @@ public class AssetComponentEndpointService extends AbstractEndpointService {
 		}
 		AssetDocComp doc = compDao.loadDocComp(compUuid);
 		if (doc != null) {
-			update(request::getSource, doc::setSource);
+			update(request::getSource, doc::setNodeKind);
 			DocumentInfo info = request.getDocument();
 			if (info != null) {
 				update(info::getPlainText, doc::setDocPlainText);
@@ -299,7 +299,7 @@ public class AssetComponentEndpointService extends AbstractEndpointService {
 		}
 		AssetTranscriptComp transcript = compDao.loadTranscriptComp(compUuid);
 		if (transcript != null) {
-			update(request::getSource, transcript::setSource);
+			update(request::getSource, transcript::setNodeKind);
 			TranscriptInfo info = request.getTranscript();
 			if (info != null) {
 				update(info::getLang, transcript::setLang);
@@ -314,7 +314,7 @@ public class AssetComponentEndpointService extends AbstractEndpointService {
 		}
 		AssetJsonComp json = compDao.loadJsonComp(compUuid);
 		if (json != null) {
-			update(request::getSource, json::setSource);
+			update(request::getSource, json::setNodeKind);
 			JsonComponentInfo info = request.getJson();
 			if (info != null) {
 				update(info::getSchemaType, json::setSchemaType);

@@ -18,9 +18,9 @@ public interface TranscriptModel<T extends TranscriptModel<T>> extends MetaModel
 
 	T setTranscriptText(String transcriptText);
 
-	Integer getDuration();
+	Long getDuration();
 
-	T setDuration(Integer duration);
+	T setDuration(Long duration);
 
 	String getModel();
 

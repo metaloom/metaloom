@@ -12,16 +12,17 @@ import java.util.UUID;
 
 import org.jooq.Field;
 import org.jooq.Record1;
-import org.jooq.Record16;
-import org.jooq.Row16;
+import org.jooq.Record22;
+import org.jooq.Row22;
 import org.jooq.impl.UpdatableRecordImpl;
 
 
 /**
- * Embedding information which was extracted from an asset.
+ * Embedding vectors extracted from an asset. The geometry lives on the linked
+ * detection - this table no longer carries a second, absolute-pixel copy of it.
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqEmbeddingRecord extends UpdatableRecordImpl<JooqEmbeddingRecord> implements Record16<UUID, JsonObject, String, Integer, Integer, Integer, Integer, Integer, Integer, Float[], String, LocalDateTime, UUID, LocalDateTime, UUID, UUID> {
+public class JooqEmbeddingRecord extends UpdatableRecordImpl<JooqEmbeddingRecord> implements Record22<UUID, UUID, String, String, String, UUID, UUID, Float, String, String, Integer, Float[], UUID, Integer, Integer, Long, Long, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> {
 
     private static final long serialVersionUID = 1L;
 
@@ -40,229 +41,321 @@ public class JooqEmbeddingRecord extends UpdatableRecordImpl<JooqEmbeddingRecord
     }
 
     /**
-     * Setter for <code>public.embedding.meta</code>. Custom meta properties to
-     * the embedding.
-     */
-    public void setMeta(JsonObject value) {
-        set(1, value);
-    }
-
-    /**
-     * Getter for <code>public.embedding.meta</code>. Custom meta properties to
-     * the embedding.
-     */
-    public JsonObject getMeta() {
-        return (JsonObject) get(1);
-    }
-
-    /**
-     * Setter for <code>public.embedding.source</code>. Additional source
-     * information (e.g. face number by dlib)
-     */
-    public void setSource(String value) {
-        set(2, value);
-    }
-
-    /**
-     * Getter for <code>public.embedding.source</code>. Additional source
-     * information (e.g. face number by dlib)
-     */
-    public String getSource() {
-        return (String) get(2);
-    }
-
-    /**
-     * Setter for <code>public.embedding.fromTime</code>.
-     */
-    public void setFromtime(Integer value) {
-        set(3, value);
-    }
-
-    /**
-     * Getter for <code>public.embedding.fromTime</code>.
-     */
-    public Integer getFromtime() {
-        return (Integer) get(3);
-    }
-
-    /**
-     * Setter for <code>public.embedding.toTime</code>.
-     */
-    public void setTotime(Integer value) {
-        set(4, value);
-    }
-
-    /**
-     * Getter for <code>public.embedding.toTime</code>.
-     */
-    public Integer getTotime() {
-        return (Integer) get(4);
-    }
-
-    /**
-     * Setter for <code>public.embedding.areaHeight</code>. Area info where the
-     * face has been detected.
-     */
-    public void setAreaheight(Integer value) {
-        set(5, value);
-    }
-
-    /**
-     * Getter for <code>public.embedding.areaHeight</code>. Area info where the
-     * face has been detected.
-     */
-    public Integer getAreaheight() {
-        return (Integer) get(5);
-    }
-
-    /**
-     * Setter for <code>public.embedding.areaWidth</code>. Area info where the
-     * face has been detected.
-     */
-    public void setAreawidth(Integer value) {
-        set(6, value);
-    }
-
-    /**
-     * Getter for <code>public.embedding.areaWidth</code>. Area info where the
-     * face has been detected.
-     */
-    public Integer getAreawidth() {
-        return (Integer) get(6);
-    }
-
-    /**
-     * Setter for <code>public.embedding.areaStartX</code>. Area info where the
-     * face has been detected.
-     */
-    public void setAreastartx(Integer value) {
-        set(7, value);
-    }
-
-    /**
-     * Getter for <code>public.embedding.areaStartX</code>. Area info where the
-     * face has been detected.
-     */
-    public Integer getAreastartx() {
-        return (Integer) get(7);
-    }
-
-    /**
-     * Setter for <code>public.embedding.areaStartY</code>. Area info where the
-     * face has been detected.
-     */
-    public void setAreastarty(Integer value) {
-        set(8, value);
-    }
-
-    /**
-     * Getter for <code>public.embedding.areaStartY</code>. Area info where the
-     * face has been detected.
-     */
-    public Integer getAreastarty() {
-        return (Integer) get(8);
-    }
-
-    /**
-     * Setter for <code>public.embedding.vector</code>. Actual embedding vector
-     * data
-     */
-    public void setVector(Float[] value) {
-        set(9, value);
-    }
-
-    /**
-     * Getter for <code>public.embedding.vector</code>. Actual embedding vector
-     * data
-     */
-    public Float[] getVector() {
-        return (Float[]) get(9);
-    }
-
-    /**
-     * Setter for <code>public.embedding.type</code>. Type of the embedding
-     * (e.g. dlib_facemark)
-     */
-    public void setType(String value) {
-        set(10, value);
-    }
-
-    /**
-     * Getter for <code>public.embedding.type</code>. Type of the embedding
-     * (e.g. dlib_facemark)
-     */
-    public String getType() {
-        return (String) get(10);
-    }
-
-    /**
-     * Setter for <code>public.embedding.created</code>.
-     */
-    public void setCreated(LocalDateTime value) {
-        set(11, value);
-    }
-
-    /**
-     * Getter for <code>public.embedding.created</code>.
-     */
-    public LocalDateTime getCreated() {
-        return (LocalDateTime) get(11);
-    }
-
-    /**
-     * Setter for <code>public.embedding.creator_uuid</code>.
-     */
-    public void setCreatorUuid(UUID value) {
-        set(12, value);
-    }
-
-    /**
-     * Getter for <code>public.embedding.creator_uuid</code>.
-     */
-    public UUID getCreatorUuid() {
-        return (UUID) get(12);
-    }
-
-    /**
-     * Setter for <code>public.embedding.edited</code>.
-     */
-    public void setEdited(LocalDateTime value) {
-        set(13, value);
-    }
-
-    /**
-     * Getter for <code>public.embedding.edited</code>.
-     */
-    public LocalDateTime getEdited() {
-        return (LocalDateTime) get(13);
-    }
-
-    /**
-     * Setter for <code>public.embedding.editor_uuid</code>.
-     */
-    public void setEditorUuid(UUID value) {
-        set(14, value);
-    }
-
-    /**
-     * Getter for <code>public.embedding.editor_uuid</code>.
-     */
-    public UUID getEditorUuid() {
-        return (UUID) get(14);
-    }
-
-    /**
      * Setter for <code>public.embedding.asset_uuid</code>.
      */
     public void setAssetUuid(UUID value) {
-        set(15, value);
+        set(1, value);
     }
 
     /**
      * Getter for <code>public.embedding.asset_uuid</code>.
      */
     public UUID getAssetUuid() {
-        return (UUID) get(15);
+        return (UUID) get(1);
+    }
+
+    /**
+     * Setter for <code>public.embedding.node_kind</code>.
+     */
+    public void setNodeKind(String value) {
+        set(2, value);
+    }
+
+    /**
+     * Getter for <code>public.embedding.node_kind</code>.
+     */
+    public String getNodeKind() {
+        return (String) get(2);
+    }
+
+    /**
+     * Setter for <code>public.embedding.node_id</code>.
+     */
+    public void setNodeId(String value) {
+        set(3, value);
+    }
+
+    /**
+     * Getter for <code>public.embedding.node_id</code>.
+     */
+    public String getNodeId() {
+        return (String) get(3);
+    }
+
+    /**
+     * Setter for <code>public.embedding.producer_version</code>.
+     */
+    public void setProducerVersion(String value) {
+        set(4, value);
+    }
+
+    /**
+     * Getter for <code>public.embedding.producer_version</code>.
+     */
+    public String getProducerVersion() {
+        return (String) get(4);
+    }
+
+    /**
+     * Setter for <code>public.embedding.run_uuid</code>.
+     */
+    public void setRunUuid(UUID value) {
+        set(5, value);
+    }
+
+    /**
+     * Getter for <code>public.embedding.run_uuid</code>.
+     */
+    public UUID getRunUuid() {
+        return (UUID) get(5);
+    }
+
+    /**
+     * Setter for <code>public.embedding.task_uuid</code>.
+     */
+    public void setTaskUuid(UUID value) {
+        set(6, value);
+    }
+
+    /**
+     * Getter for <code>public.embedding.task_uuid</code>.
+     */
+    public UUID getTaskUuid() {
+        return (UUID) get(6);
+    }
+
+    /**
+     * Setter for <code>public.embedding.confidence</code>.
+     */
+    public void setConfidence(Float value) {
+        set(7, value);
+    }
+
+    /**
+     * Getter for <code>public.embedding.confidence</code>.
+     */
+    public Float getConfidence() {
+        return (Float) get(7);
+    }
+
+    /**
+     * Setter for <code>public.embedding.type</code>. Type of the embedding,
+     * e.g. dlib_facemark, inspireface
+     */
+    public void setType(String value) {
+        set(8, value);
+    }
+
+    /**
+     * Getter for <code>public.embedding.type</code>. Type of the embedding,
+     * e.g. dlib_facemark, inspireface
+     */
+    public String getType() {
+        return (String) get(8);
+    }
+
+    /**
+     * Setter for <code>public.embedding.model</code>. Readable mirror of
+     * producer_version
+     */
+    public void setModel(String value) {
+        set(9, value);
+    }
+
+    /**
+     * Getter for <code>public.embedding.model</code>. Readable mirror of
+     * producer_version
+     */
+    public String getModel() {
+        return (String) get(9);
+    }
+
+    /**
+     * Setter for <code>public.embedding.dimensions</code>. Length of the
+     * vector. Guards against comparing vectors from different models.
+     */
+    public void setDimensions(Integer value) {
+        set(10, value);
+    }
+
+    /**
+     * Getter for <code>public.embedding.dimensions</code>. Length of the
+     * vector. Guards against comparing vectors from different models.
+     */
+    public Integer getDimensions() {
+        return (Integer) get(10);
+    }
+
+    /**
+     * Setter for <code>public.embedding.vector</code>. Embedding vector as a
+     * plain PostgreSQL array. OPEN DECISION: similarity search is either
+     * pgvector in Postgres or an external index fed via vector_config. Until
+     * that is decided this column is a staging buffer with no ANN index - see
+     * spec/features/DB_SCHEMA_FEEDBACK.md section 4.2.
+     */
+    public void setVector(Float[] value) {
+        set(11, value);
+    }
+
+    /**
+     * Getter for <code>public.embedding.vector</code>. Embedding vector as a
+     * plain PostgreSQL array. OPEN DECISION: similarity search is either
+     * pgvector in Postgres or an external index fed via vector_config. Until
+     * that is decided this column is a staging buffer with no ANN index - see
+     * spec/features/DB_SCHEMA_FEEDBACK.md section 4.2.
+     */
+    public Float[] getVector() {
+        return (Float[]) get(11);
+    }
+
+    /**
+     * Setter for <code>public.embedding.detection_uuid</code>. The detection
+     * this vector was computed from, when there is one. Whole-image and
+     * audio-window embeddings leave it NULL.
+     */
+    public void setDetectionUuid(UUID value) {
+        set(12, value);
+    }
+
+    /**
+     * Getter for <code>public.embedding.detection_uuid</code>. The detection
+     * this vector was computed from, when there is one. Whole-image and
+     * audio-window embeddings leave it NULL.
+     */
+    public UUID getDetectionUuid() {
+        return (UUID) get(12);
+    }
+
+    /**
+     * Setter for <code>public.embedding.frame_number</code>.
+     */
+    public void setFrameNumber(Integer value) {
+        set(13, value);
+    }
+
+    /**
+     * Getter for <code>public.embedding.frame_number</code>.
+     */
+    public Integer getFrameNumber() {
+        return (Integer) get(13);
+    }
+
+    /**
+     * Setter for <code>public.embedding.subject_index</code>. Ordinal of the
+     * subject within the frame, used when there is no detection row to key on
+     */
+    public void setSubjectIndex(Integer value) {
+        set(14, value);
+    }
+
+    /**
+     * Getter for <code>public.embedding.subject_index</code>. Ordinal of the
+     * subject within the frame, used when there is no detection row to key on
+     */
+    public Integer getSubjectIndex() {
+        return (Integer) get(14);
+    }
+
+    /**
+     * Setter for <code>public.embedding.time_from</code>. Start of the window
+     * this embedding covers, in milliseconds (audio/video)
+     */
+    public void setTimeFrom(Long value) {
+        set(15, value);
+    }
+
+    /**
+     * Getter for <code>public.embedding.time_from</code>. Start of the window
+     * this embedding covers, in milliseconds (audio/video)
+     */
+    public Long getTimeFrom() {
+        return (Long) get(15);
+    }
+
+    /**
+     * Setter for <code>public.embedding.time_to</code>.
+     */
+    public void setTimeTo(Long value) {
+        set(16, value);
+    }
+
+    /**
+     * Getter for <code>public.embedding.time_to</code>.
+     */
+    public Long getTimeTo() {
+        return (Long) get(16);
+    }
+
+    /**
+     * Setter for <code>public.embedding.meta</code>.
+     */
+    public void setMeta(JsonObject value) {
+        set(17, value);
+    }
+
+    /**
+     * Getter for <code>public.embedding.meta</code>.
+     */
+    public JsonObject getMeta() {
+        return (JsonObject) get(17);
+    }
+
+    /**
+     * Setter for <code>public.embedding.created</code>.
+     */
+    public void setCreated(LocalDateTime value) {
+        set(18, value);
+    }
+
+    /**
+     * Getter for <code>public.embedding.created</code>.
+     */
+    public LocalDateTime getCreated() {
+        return (LocalDateTime) get(18);
+    }
+
+    /**
+     * Setter for <code>public.embedding.creator_uuid</code>. NULL when written
+     * by a Cortex worker rather than a user
+     */
+    public void setCreatorUuid(UUID value) {
+        set(19, value);
+    }
+
+    /**
+     * Getter for <code>public.embedding.creator_uuid</code>. NULL when written
+     * by a Cortex worker rather than a user
+     */
+    public UUID getCreatorUuid() {
+        return (UUID) get(19);
+    }
+
+    /**
+     * Setter for <code>public.embedding.edited</code>.
+     */
+    public void setEdited(LocalDateTime value) {
+        set(20, value);
+    }
+
+    /**
+     * Getter for <code>public.embedding.edited</code>.
+     */
+    public LocalDateTime getEdited() {
+        return (LocalDateTime) get(20);
+    }
+
+    /**
+     * Setter for <code>public.embedding.editor_uuid</code>.
+     */
+    public void setEditorUuid(UUID value) {
+        set(21, value);
+    }
+
+    /**
+     * Getter for <code>public.embedding.editor_uuid</code>.
+     */
+    public UUID getEditorUuid() {
+        return (UUID) get(21);
     }
 
     // -------------------------------------------------------------------------
@@ -275,17 +368,17 @@ public class JooqEmbeddingRecord extends UpdatableRecordImpl<JooqEmbeddingRecord
     }
 
     // -------------------------------------------------------------------------
-    // Record16 type implementation
+    // Record22 type implementation
     // -------------------------------------------------------------------------
 
     @Override
-    public Row16<UUID, JsonObject, String, Integer, Integer, Integer, Integer, Integer, Integer, Float[], String, LocalDateTime, UUID, LocalDateTime, UUID, UUID> fieldsRow() {
-        return (Row16) super.fieldsRow();
+    public Row22<UUID, UUID, String, String, String, UUID, UUID, Float, String, String, Integer, Float[], UUID, Integer, Integer, Long, Long, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> fieldsRow() {
+        return (Row22) super.fieldsRow();
     }
 
     @Override
-    public Row16<UUID, JsonObject, String, Integer, Integer, Integer, Integer, Integer, Integer, Float[], String, LocalDateTime, UUID, LocalDateTime, UUID, UUID> valuesRow() {
-        return (Row16) super.valuesRow();
+    public Row22<UUID, UUID, String, String, String, UUID, UUID, Float, String, String, Integer, Float[], UUID, Integer, Integer, Long, Long, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> valuesRow() {
+        return (Row22) super.valuesRow();
     }
 
     @Override
@@ -294,78 +387,108 @@ public class JooqEmbeddingRecord extends UpdatableRecordImpl<JooqEmbeddingRecord
     }
 
     @Override
-    public Field<JsonObject> field2() {
-        return JooqEmbedding.EMBEDDING.META;
+    public Field<UUID> field2() {
+        return JooqEmbedding.EMBEDDING.ASSET_UUID;
     }
 
     @Override
     public Field<String> field3() {
-        return JooqEmbedding.EMBEDDING.SOURCE;
+        return JooqEmbedding.EMBEDDING.NODE_KIND;
     }
 
     @Override
-    public Field<Integer> field4() {
-        return JooqEmbedding.EMBEDDING.FROMTIME;
+    public Field<String> field4() {
+        return JooqEmbedding.EMBEDDING.NODE_ID;
     }
 
     @Override
-    public Field<Integer> field5() {
-        return JooqEmbedding.EMBEDDING.TOTIME;
+    public Field<String> field5() {
+        return JooqEmbedding.EMBEDDING.PRODUCER_VERSION;
     }
 
     @Override
-    public Field<Integer> field6() {
-        return JooqEmbedding.EMBEDDING.AREAHEIGHT;
+    public Field<UUID> field6() {
+        return JooqEmbedding.EMBEDDING.RUN_UUID;
     }
 
     @Override
-    public Field<Integer> field7() {
-        return JooqEmbedding.EMBEDDING.AREAWIDTH;
+    public Field<UUID> field7() {
+        return JooqEmbedding.EMBEDDING.TASK_UUID;
     }
 
     @Override
-    public Field<Integer> field8() {
-        return JooqEmbedding.EMBEDDING.AREASTARTX;
+    public Field<Float> field8() {
+        return JooqEmbedding.EMBEDDING.CONFIDENCE;
     }
 
     @Override
-    public Field<Integer> field9() {
-        return JooqEmbedding.EMBEDDING.AREASTARTY;
-    }
-
-    @Override
-    public Field<Float[]> field10() {
-        return JooqEmbedding.EMBEDDING.VECTOR;
-    }
-
-    @Override
-    public Field<String> field11() {
+    public Field<String> field9() {
         return JooqEmbedding.EMBEDDING.TYPE;
     }
 
     @Override
-    public Field<LocalDateTime> field12() {
-        return JooqEmbedding.EMBEDDING.CREATED;
+    public Field<String> field10() {
+        return JooqEmbedding.EMBEDDING.MODEL;
+    }
+
+    @Override
+    public Field<Integer> field11() {
+        return JooqEmbedding.EMBEDDING.DIMENSIONS;
+    }
+
+    @Override
+    public Field<Float[]> field12() {
+        return JooqEmbedding.EMBEDDING.VECTOR;
     }
 
     @Override
     public Field<UUID> field13() {
+        return JooqEmbedding.EMBEDDING.DETECTION_UUID;
+    }
+
+    @Override
+    public Field<Integer> field14() {
+        return JooqEmbedding.EMBEDDING.FRAME_NUMBER;
+    }
+
+    @Override
+    public Field<Integer> field15() {
+        return JooqEmbedding.EMBEDDING.SUBJECT_INDEX;
+    }
+
+    @Override
+    public Field<Long> field16() {
+        return JooqEmbedding.EMBEDDING.TIME_FROM;
+    }
+
+    @Override
+    public Field<Long> field17() {
+        return JooqEmbedding.EMBEDDING.TIME_TO;
+    }
+
+    @Override
+    public Field<JsonObject> field18() {
+        return JooqEmbedding.EMBEDDING.META;
+    }
+
+    @Override
+    public Field<LocalDateTime> field19() {
+        return JooqEmbedding.EMBEDDING.CREATED;
+    }
+
+    @Override
+    public Field<UUID> field20() {
         return JooqEmbedding.EMBEDDING.CREATOR_UUID;
     }
 
     @Override
-    public Field<LocalDateTime> field14() {
+    public Field<LocalDateTime> field21() {
         return JooqEmbedding.EMBEDDING.EDITED;
     }
 
     @Override
-    public Field<UUID> field15() {
+    public Field<UUID> field22() {
         return JooqEmbedding.EMBEDDING.EDITOR_UUID;
-    }
-
-    @Override
-    public Field<UUID> field16() {
-        return JooqEmbedding.EMBEDDING.ASSET_UUID;
     }
 
     @Override
@@ -374,78 +497,108 @@ public class JooqEmbeddingRecord extends UpdatableRecordImpl<JooqEmbeddingRecord
     }
 
     @Override
-    public JsonObject component2() {
-        return getMeta();
+    public UUID component2() {
+        return getAssetUuid();
     }
 
     @Override
     public String component3() {
-        return getSource();
+        return getNodeKind();
     }
 
     @Override
-    public Integer component4() {
-        return getFromtime();
+    public String component4() {
+        return getNodeId();
     }
 
     @Override
-    public Integer component5() {
-        return getTotime();
+    public String component5() {
+        return getProducerVersion();
     }
 
     @Override
-    public Integer component6() {
-        return getAreaheight();
+    public UUID component6() {
+        return getRunUuid();
     }
 
     @Override
-    public Integer component7() {
-        return getAreawidth();
+    public UUID component7() {
+        return getTaskUuid();
     }
 
     @Override
-    public Integer component8() {
-        return getAreastartx();
+    public Float component8() {
+        return getConfidence();
     }
 
     @Override
-    public Integer component9() {
-        return getAreastarty();
-    }
-
-    @Override
-    public Float[] component10() {
-        return getVector();
-    }
-
-    @Override
-    public String component11() {
+    public String component9() {
         return getType();
     }
 
     @Override
-    public LocalDateTime component12() {
-        return getCreated();
+    public String component10() {
+        return getModel();
+    }
+
+    @Override
+    public Integer component11() {
+        return getDimensions();
+    }
+
+    @Override
+    public Float[] component12() {
+        return getVector();
     }
 
     @Override
     public UUID component13() {
+        return getDetectionUuid();
+    }
+
+    @Override
+    public Integer component14() {
+        return getFrameNumber();
+    }
+
+    @Override
+    public Integer component15() {
+        return getSubjectIndex();
+    }
+
+    @Override
+    public Long component16() {
+        return getTimeFrom();
+    }
+
+    @Override
+    public Long component17() {
+        return getTimeTo();
+    }
+
+    @Override
+    public JsonObject component18() {
+        return getMeta();
+    }
+
+    @Override
+    public LocalDateTime component19() {
+        return getCreated();
+    }
+
+    @Override
+    public UUID component20() {
         return getCreatorUuid();
     }
 
     @Override
-    public LocalDateTime component14() {
+    public LocalDateTime component21() {
         return getEdited();
     }
 
     @Override
-    public UUID component15() {
+    public UUID component22() {
         return getEditorUuid();
-    }
-
-    @Override
-    public UUID component16() {
-        return getAssetUuid();
     }
 
     @Override
@@ -454,78 +607,108 @@ public class JooqEmbeddingRecord extends UpdatableRecordImpl<JooqEmbeddingRecord
     }
 
     @Override
-    public JsonObject value2() {
-        return getMeta();
+    public UUID value2() {
+        return getAssetUuid();
     }
 
     @Override
     public String value3() {
-        return getSource();
+        return getNodeKind();
     }
 
     @Override
-    public Integer value4() {
-        return getFromtime();
+    public String value4() {
+        return getNodeId();
     }
 
     @Override
-    public Integer value5() {
-        return getTotime();
+    public String value5() {
+        return getProducerVersion();
     }
 
     @Override
-    public Integer value6() {
-        return getAreaheight();
+    public UUID value6() {
+        return getRunUuid();
     }
 
     @Override
-    public Integer value7() {
-        return getAreawidth();
+    public UUID value7() {
+        return getTaskUuid();
     }
 
     @Override
-    public Integer value8() {
-        return getAreastartx();
+    public Float value8() {
+        return getConfidence();
     }
 
     @Override
-    public Integer value9() {
-        return getAreastarty();
-    }
-
-    @Override
-    public Float[] value10() {
-        return getVector();
-    }
-
-    @Override
-    public String value11() {
+    public String value9() {
         return getType();
     }
 
     @Override
-    public LocalDateTime value12() {
-        return getCreated();
+    public String value10() {
+        return getModel();
+    }
+
+    @Override
+    public Integer value11() {
+        return getDimensions();
+    }
+
+    @Override
+    public Float[] value12() {
+        return getVector();
     }
 
     @Override
     public UUID value13() {
+        return getDetectionUuid();
+    }
+
+    @Override
+    public Integer value14() {
+        return getFrameNumber();
+    }
+
+    @Override
+    public Integer value15() {
+        return getSubjectIndex();
+    }
+
+    @Override
+    public Long value16() {
+        return getTimeFrom();
+    }
+
+    @Override
+    public Long value17() {
+        return getTimeTo();
+    }
+
+    @Override
+    public JsonObject value18() {
+        return getMeta();
+    }
+
+    @Override
+    public LocalDateTime value19() {
+        return getCreated();
+    }
+
+    @Override
+    public UUID value20() {
         return getCreatorUuid();
     }
 
     @Override
-    public LocalDateTime value14() {
+    public LocalDateTime value21() {
         return getEdited();
     }
 
     @Override
-    public UUID value15() {
+    public UUID value22() {
         return getEditorUuid();
-    }
-
-    @Override
-    public UUID value16() {
-        return getAssetUuid();
     }
 
     @Override
@@ -535,97 +718,133 @@ public class JooqEmbeddingRecord extends UpdatableRecordImpl<JooqEmbeddingRecord
     }
 
     @Override
-    public JooqEmbeddingRecord value2(JsonObject value) {
-        setMeta(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value3(String value) {
-        setSource(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value4(Integer value) {
-        setFromtime(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value5(Integer value) {
-        setTotime(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value6(Integer value) {
-        setAreaheight(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value7(Integer value) {
-        setAreawidth(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value8(Integer value) {
-        setAreastartx(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value9(Integer value) {
-        setAreastarty(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value10(Float[] value) {
-        setVector(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value11(String value) {
-        setType(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value12(LocalDateTime value) {
-        setCreated(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value13(UUID value) {
-        setCreatorUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value14(LocalDateTime value) {
-        setEdited(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value15(UUID value) {
-        setEditorUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value16(UUID value) {
+    public JooqEmbeddingRecord value2(UUID value) {
         setAssetUuid(value);
         return this;
     }
 
     @Override
-    public JooqEmbeddingRecord values(UUID value1, JsonObject value2, String value3, Integer value4, Integer value5, Integer value6, Integer value7, Integer value8, Integer value9, Float[] value10, String value11, LocalDateTime value12, UUID value13, LocalDateTime value14, UUID value15, UUID value16) {
+    public JooqEmbeddingRecord value3(String value) {
+        setNodeKind(value);
+        return this;
+    }
+
+    @Override
+    public JooqEmbeddingRecord value4(String value) {
+        setNodeId(value);
+        return this;
+    }
+
+    @Override
+    public JooqEmbeddingRecord value5(String value) {
+        setProducerVersion(value);
+        return this;
+    }
+
+    @Override
+    public JooqEmbeddingRecord value6(UUID value) {
+        setRunUuid(value);
+        return this;
+    }
+
+    @Override
+    public JooqEmbeddingRecord value7(UUID value) {
+        setTaskUuid(value);
+        return this;
+    }
+
+    @Override
+    public JooqEmbeddingRecord value8(Float value) {
+        setConfidence(value);
+        return this;
+    }
+
+    @Override
+    public JooqEmbeddingRecord value9(String value) {
+        setType(value);
+        return this;
+    }
+
+    @Override
+    public JooqEmbeddingRecord value10(String value) {
+        setModel(value);
+        return this;
+    }
+
+    @Override
+    public JooqEmbeddingRecord value11(Integer value) {
+        setDimensions(value);
+        return this;
+    }
+
+    @Override
+    public JooqEmbeddingRecord value12(Float[] value) {
+        setVector(value);
+        return this;
+    }
+
+    @Override
+    public JooqEmbeddingRecord value13(UUID value) {
+        setDetectionUuid(value);
+        return this;
+    }
+
+    @Override
+    public JooqEmbeddingRecord value14(Integer value) {
+        setFrameNumber(value);
+        return this;
+    }
+
+    @Override
+    public JooqEmbeddingRecord value15(Integer value) {
+        setSubjectIndex(value);
+        return this;
+    }
+
+    @Override
+    public JooqEmbeddingRecord value16(Long value) {
+        setTimeFrom(value);
+        return this;
+    }
+
+    @Override
+    public JooqEmbeddingRecord value17(Long value) {
+        setTimeTo(value);
+        return this;
+    }
+
+    @Override
+    public JooqEmbeddingRecord value18(JsonObject value) {
+        setMeta(value);
+        return this;
+    }
+
+    @Override
+    public JooqEmbeddingRecord value19(LocalDateTime value) {
+        setCreated(value);
+        return this;
+    }
+
+    @Override
+    public JooqEmbeddingRecord value20(UUID value) {
+        setCreatorUuid(value);
+        return this;
+    }
+
+    @Override
+    public JooqEmbeddingRecord value21(LocalDateTime value) {
+        setEdited(value);
+        return this;
+    }
+
+    @Override
+    public JooqEmbeddingRecord value22(UUID value) {
+        setEditorUuid(value);
+        return this;
+    }
+
+    @Override
+    public JooqEmbeddingRecord values(UUID value1, UUID value2, String value3, String value4, String value5, UUID value6, UUID value7, Float value8, String value9, String value10, Integer value11, Float[] value12, UUID value13, Integer value14, Integer value15, Long value16, Long value17, JsonObject value18, LocalDateTime value19, UUID value20, LocalDateTime value21, UUID value22) {
         value1(value1);
         value2(value2);
         value3(value3);
@@ -642,6 +861,12 @@ public class JooqEmbeddingRecord extends UpdatableRecordImpl<JooqEmbeddingRecord
         value14(value14);
         value15(value15);
         value16(value16);
+        value17(value17);
+        value18(value18);
+        value19(value19);
+        value20(value20);
+        value21(value21);
+        value22(value22);
         return this;
     }
 
@@ -659,24 +884,30 @@ public class JooqEmbeddingRecord extends UpdatableRecordImpl<JooqEmbeddingRecord
     /**
      * Create a detached, initialised JooqEmbeddingRecord
      */
-    public JooqEmbeddingRecord(UUID uuid, JsonObject meta, String source, Integer fromtime, Integer totime, Integer areaheight, Integer areawidth, Integer areastartx, Integer areastarty, Float[] vector, String type, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid, UUID assetUuid) {
+    public JooqEmbeddingRecord(UUID uuid, UUID assetUuid, String nodeKind, String nodeId, String producerVersion, UUID runUuid, UUID taskUuid, Float confidence, String type, String model, Integer dimensions, Float[] vector, UUID detectionUuid, Integer frameNumber, Integer subjectIndex, Long timeFrom, Long timeTo, JsonObject meta, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid) {
         super(JooqEmbedding.EMBEDDING);
 
         setUuid(uuid);
-        setMeta(meta);
-        setSource(source);
-        setFromtime(fromtime);
-        setTotime(totime);
-        setAreaheight(areaheight);
-        setAreawidth(areawidth);
-        setAreastartx(areastartx);
-        setAreastarty(areastarty);
-        setVector(vector);
+        setAssetUuid(assetUuid);
+        setNodeKind(nodeKind);
+        setNodeId(nodeId);
+        setProducerVersion(producerVersion);
+        setRunUuid(runUuid);
+        setTaskUuid(taskUuid);
+        setConfidence(confidence);
         setType(type);
+        setModel(model);
+        setDimensions(dimensions);
+        setVector(vector);
+        setDetectionUuid(detectionUuid);
+        setFrameNumber(frameNumber);
+        setSubjectIndex(subjectIndex);
+        setTimeFrom(timeFrom);
+        setTimeTo(timeTo);
+        setMeta(meta);
         setCreated(created);
         setCreatorUuid(creatorUuid);
         setEdited(edited);
         setEditorUuid(editorUuid);
-        setAssetUuid(assetUuid);
     }
 }

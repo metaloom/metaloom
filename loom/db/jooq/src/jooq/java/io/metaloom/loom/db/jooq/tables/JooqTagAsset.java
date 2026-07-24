@@ -137,10 +137,11 @@ public class JooqTagAsset extends TableImpl<JooqTagAssetRecord> {
 
     @Override
     public List<ForeignKey<JooqTagAssetRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.TAG_ASSET__TAG_ASSET_TAG_UUID_FKEY);
+        return Arrays.asList(Keys.TAG_ASSET__TAG_ASSET_TAG_UUID_FKEY, Keys.TAG_ASSET__TAG_ASSET_ASSET_UUID_FKEY);
     }
 
     private transient JooqTag _tag;
+    private transient JooqAsset _asset;
 
     /**
      * Get the implicit join path to the <code>public.tag</code> table.
@@ -150,6 +151,16 @@ public class JooqTagAsset extends TableImpl<JooqTagAssetRecord> {
             _tag = new JooqTag(this, Keys.TAG_ASSET__TAG_ASSET_TAG_UUID_FKEY);
 
         return _tag;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.asset</code> table.
+     */
+    public JooqAsset asset() {
+        if (_asset == null)
+            _asset = new JooqAsset(this, Keys.TAG_ASSET__TAG_ASSET_ASSET_UUID_FKEY);
+
+        return _asset;
     }
 
     @Override

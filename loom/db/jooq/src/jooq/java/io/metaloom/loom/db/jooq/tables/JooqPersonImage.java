@@ -107,10 +107,11 @@ public class JooqPersonImage extends TableImpl<JooqPersonImageRecord> {
 
     @Override
     public List<ForeignKey<JooqPersonImageRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.PERSON_IMAGE__PERSON_IMAGE_PERSON_UUID_FKEY);
+        return Arrays.asList(Keys.PERSON_IMAGE__PERSON_IMAGE_PERSON_UUID_FKEY, Keys.PERSON_IMAGE__PERSON_IMAGE_ASSET_UUID_FKEY);
     }
 
     private transient JooqPerson _person;
+    private transient JooqAsset _asset;
 
     /**
      * Get the implicit join path to the <code>public.person</code> table.
@@ -120,6 +121,16 @@ public class JooqPersonImage extends TableImpl<JooqPersonImageRecord> {
             _person = new JooqPerson(this, Keys.PERSON_IMAGE__PERSON_IMAGE_PERSON_UUID_FKEY);
 
         return _person;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.asset</code> table.
+     */
+    public JooqAsset asset() {
+        if (_asset == null)
+            _asset = new JooqAsset(this, Keys.PERSON_IMAGE__PERSON_IMAGE_ASSET_UUID_FKEY);
+
+        return _asset;
     }
 
     @Override

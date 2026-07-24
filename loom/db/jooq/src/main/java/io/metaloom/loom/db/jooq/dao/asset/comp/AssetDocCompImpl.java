@@ -1,36 +1,45 @@
 package io.metaloom.loom.db.jooq.dao.asset.comp;
 
-import java.util.UUID;
-
-import io.metaloom.loom.db.jooq.AbstractEditableElement;
 import io.metaloom.loom.db.model.asset.AssetDocComp;
 
-public class AssetDocCompImpl extends AbstractEditableElement<AssetDocComp> implements AssetDocComp {
+public class AssetDocCompImpl extends AbstractAssetCompImpl<AssetDocComp> implements AssetDocComp {
 
-	private UUID assetUuid;
-	private String source;
+	private int pageNumber;
+	private Integer pageCount;
+	private String textLang;
 	private String docPlainText;
 	private Integer docWordCount;
 
 	@Override
-	public UUID getAssetUuid() {
-		return assetUuid;
+	public int getPageNumber() {
+		return pageNumber;
 	}
 
 	@Override
-	public AssetDocComp setAssetUuid(UUID assetUuid) {
-		this.assetUuid = assetUuid;
+	public AssetDocComp setPageNumber(int pageNumber) {
+		this.pageNumber = pageNumber;
 		return this;
 	}
 
 	@Override
-	public String getSource() {
-		return source;
+	public Integer getPageCount() {
+		return pageCount;
 	}
 
 	@Override
-	public AssetDocComp setSource(String source) {
-		this.source = source;
+	public AssetDocComp setPageCount(Integer pageCount) {
+		this.pageCount = pageCount;
+		return this;
+	}
+
+	@Override
+	public String getTextLang() {
+		return textLang;
+	}
+
+	@Override
+	public AssetDocComp setTextLang(String textLang) {
+		this.textLang = textLang;
 		return this;
 	}
 

@@ -36,9 +36,15 @@ import org.jooq.impl.TableImpl;
 
 
 /**
- * Assets keep track of media that has been found by the scanner. Multiple
- * asset_locations may share the same asset thus the properties will be
- * decoupled from asset.
+ * Media found by the scanner. Several locations may share one asset - that is
+ * the point of
+ * the table: the same content can live at several paths and in several
+ * libraries. The
+ * natural key is (library_uuid, path). If a canonical location is ever needed,
+ * model it as
+ * a pointer on asset or a partial unique index on an is_primary flag, not by
+ * constraining
+ * this table to one row per asset.
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
 public class JooqAssetLocation extends TableImpl<JooqAssetLocationRecord> {
@@ -157,7 +163,7 @@ public class JooqAssetLocation extends TableImpl<JooqAssetLocationRecord> {
     }
 
     private JooqAssetLocation(Name alias, Table<JooqAssetLocationRecord> aliased, Field<?>[] parameters) {
-        super(alias, null, aliased, parameters, DSL.comment("Assets keep track of media that has been found by the scanner. Multiple asset_locations may share the same asset thus the properties will be decoupled from asset."), TableOptions.table());
+        super(alias, null, aliased, parameters, DSL.comment("Media found by the scanner. Several locations may share one asset - that is the point of\nthe table: the same content can live at several paths and in several libraries. The\nnatural key is (library_uuid, path). If a canonical location is ever needed, model it as\na pointer on asset or a partial unique index on an is_primary flag, not by constraining\nthis table to one row per asset."), TableOptions.table());
     }
 
     /**
@@ -202,19 +208,30 @@ public class JooqAssetLocation extends TableImpl<JooqAssetLocationRecord> {
 
     @Override
     public List<UniqueKey<JooqAssetLocationRecord>> getUniqueKeys() {
-        return Arrays.asList(Keys.ASSET_LOCATION_UNIQUE_ASSET);
+        return Arrays.asList(Keys.ASSET_LOCATION_UNIQUE_LIBRARY_PATH);
     }
 
     @Override
     public List<ForeignKey<JooqAssetLocationRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.ASSET_LOCATION__ASSET_LOCATION_LIBRARY_UUID_FKEY, Keys.ASSET_LOCATION__ASSET_LOCATION_LOCKED_BY_UUID_FKEY, Keys.ASSET_LOCATION__ASSET_LOCATION_CREATOR_UUID_FKEY, Keys.ASSET_LOCATION__ASSET_LOCATION_EDITOR_UUID_FKEY, Keys.ASSET_LOCATION__ASSET_LOCATION_POOL_UUID_FKEY);
+        return Arrays.asList(Keys.ASSET_LOCATION__ASSET_LOCATION_ASSET_UUID_FKEY, Keys.ASSET_LOCATION__ASSET_LOCATION_LIBRARY_UUID_FKEY, Keys.ASSET_LOCATION__ASSET_LOCATION_LOCKED_BY_UUID_FKEY, Keys.ASSET_LOCATION__ASSET_LOCATION_CREATOR_UUID_FKEY, Keys.ASSET_LOCATION__ASSET_LOCATION_EDITOR_UUID_FKEY, Keys.ASSET_LOCATION__ASSET_LOCATION_POOL_UUID_FKEY);
     }
 
+    private transient JooqAsset _asset;
     private transient JooqLibrary _library;
     private transient JooqUser _assetLocationLockedByUuidFkey;
     private transient JooqUser _assetLocationCreatorUuidFkey;
     private transient JooqUser _assetLocationEditorUuidFkey;
     private transient JooqAssetPool _assetPool;
+
+    /**
+     * Get the implicit join path to the <code>public.asset</code> table.
+     */
+    public JooqAsset asset() {
+        if (_asset == null)
+            _asset = new JooqAsset(this, Keys.ASSET_LOCATION__ASSET_LOCATION_ASSET_UUID_FKEY);
+
+        return _asset;
+    }
 
     /**
      * Get the implicit join path to the <code>public.library</code> table.

@@ -137,10 +137,34 @@ public class JooqAssetRemix extends TableImpl<JooqAssetRemixRecord> {
 
     @Override
     public List<ForeignKey<JooqAssetRemixRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.ASSET_REMIX__ASSET_REMIX_CREATOR_UUID_FKEY);
+        return Arrays.asList(Keys.ASSET_REMIX__ASSET_REMIX_ASSET_A_UUID_FKEY, Keys.ASSET_REMIX__ASSET_REMIX_ASSET_B_UUID_FKEY, Keys.ASSET_REMIX__ASSET_REMIX_CREATOR_UUID_FKEY);
     }
 
+    private transient JooqAsset _assetRemixAssetAUuidFkey;
+    private transient JooqAsset _assetRemixAssetBUuidFkey;
     private transient JooqUser _user;
+
+    /**
+     * Get the implicit join path to the <code>public.asset</code> table, via
+     * the <code>asset_remix_asset_a_uuid_fkey</code> key.
+     */
+    public JooqAsset assetRemixAssetAUuidFkey() {
+        if (_assetRemixAssetAUuidFkey == null)
+            _assetRemixAssetAUuidFkey = new JooqAsset(this, Keys.ASSET_REMIX__ASSET_REMIX_ASSET_A_UUID_FKEY);
+
+        return _assetRemixAssetAUuidFkey;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.asset</code> table, via
+     * the <code>asset_remix_asset_b_uuid_fkey</code> key.
+     */
+    public JooqAsset assetRemixAssetBUuidFkey() {
+        if (_assetRemixAssetBUuidFkey == null)
+            _assetRemixAssetBUuidFkey = new JooqAsset(this, Keys.ASSET_REMIX__ASSET_REMIX_ASSET_B_UUID_FKEY);
+
+        return _assetRemixAssetBUuidFkey;
+    }
 
     /**
      * Get the implicit join path to the <code>public.user</code> table.

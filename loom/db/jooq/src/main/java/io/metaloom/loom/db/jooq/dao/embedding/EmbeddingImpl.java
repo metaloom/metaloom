@@ -8,7 +8,19 @@ import io.metaloom.loom.db.model.embedding.Embedding;
 
 public class EmbeddingImpl extends AbstractEditableElement<Embedding> implements Embedding {
 
-	private String source;
+	private String nodeKind;
+
+	private String producerVersion = "";
+
+	private String model;
+
+	private Integer dimensions;
+
+	private UUID detectionUuid;
+
+	private int frameNumber;
+
+	private int subjectIndex;
 
 	private Float[] vector;
 
@@ -20,13 +32,79 @@ public class EmbeddingImpl extends AbstractEditableElement<Embedding> implements
 	}
 
 	@Override
-	public String getSource() {
-		return source;
+	public String getNodeKind() {
+		return nodeKind;
 	}
 
 	@Override
-	public Embedding setSource(String source) {
-		this.source = source;
+	public Embedding setNodeKind(String nodeKind) {
+		this.nodeKind = nodeKind;
+		return this;
+	}
+
+	@Override
+	public String getProducerVersion() {
+		return producerVersion;
+	}
+
+	@Override
+	public Embedding setProducerVersion(String producerVersion) {
+		this.producerVersion = producerVersion == null ? "" : producerVersion;
+		return this;
+	}
+
+	@Override
+	public String getModel() {
+		return model;
+	}
+
+	@Override
+	public Embedding setModel(String model) {
+		this.model = model;
+		return this;
+	}
+
+	@Override
+	public Integer getDimensions() {
+		return dimensions;
+	}
+
+	@Override
+	public Embedding setDimensions(Integer dimensions) {
+		this.dimensions = dimensions;
+		return this;
+	}
+
+	@Override
+	public UUID getDetectionUuid() {
+		return detectionUuid;
+	}
+
+	@Override
+	public Embedding setDetectionUuid(UUID detectionUuid) {
+		this.detectionUuid = detectionUuid;
+		return this;
+	}
+
+	@Override
+	public int getFrameNumber() {
+		return frameNumber;
+	}
+
+	@Override
+	public Embedding setFrameNumber(int frameNumber) {
+		this.frameNumber = frameNumber;
+		return this;
+	}
+
+	@Override
+	public int getSubjectIndex() {
+		return subjectIndex;
+	}
+
+	@Override
+	public Embedding setSubjectIndex(int subjectIndex) {
+		this.subjectIndex = subjectIndex;
 		return this;
 	}
 

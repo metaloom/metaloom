@@ -58,7 +58,14 @@ public interface PipelineModelValidator extends ModelValidator {
 	default void validateDefinition(JsonObject definition) {
 		requireNonNull(definition, "A pipeline definition must be set");
 
-		JsonArray nodes = definition.getJsonArray("nodes");
+		// A client that sends the wrong shape must get a 400, not an internal error: reading
+		// it straight through getJsonArray throws ClassCastException when "nodes" is present
+		// but is, say, an object.
+		Object rawNodes = definition.getValue("nodes");
+		if (rawNodes != null && !(rawNodes instanceof JsonArray)) {
+			throw new ValidationException("Pipeline definition field \"nodes\" must be an array of nodes");
+		}
+		JsonArray nodes = (JsonArray) rawNodes;
 		if (nodes == null || nodes.isEmpty()) {
 			throw new ValidationException("Pipeline definition must contain at least one node");
 		}
@@ -90,7 +97,11 @@ public interface PipelineModelValidator extends ModelValidator {
 			}
 		}
 
-		JsonArray edges = definition.getJsonArray("edges");
+		Object rawEdges = definition.getValue("edges");
+		if (rawEdges != null && !(rawEdges instanceof JsonArray)) {
+			throw new ValidationException("Pipeline definition field \"edges\" must be an array of edges");
+		}
+		JsonArray edges = (JsonArray) rawEdges;
 		if (edges != null) {
 			for (int i = 0; i < edges.size(); i++) {
 				JsonObject edge = edges.getJsonObject(i);

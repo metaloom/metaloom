@@ -34,13 +34,16 @@ public interface UserModelBuilder extends ModelBuilder {
 	}
 
 	default void setStatus(CUDElement<?> element, AbstractCreatorEditorRestResponse<?> response) {
-		User creator = daos().userDao().load(element.getCreatorUuid());
-		User editor = daos().userDao().load(element.getEditorUuid());
+		// Creator and editor are absent on rows written by a Cortex worker rather than a user
+		// (asset components, detections, the processing ledger). Leave the reference unset
+		// instead of failing to build the response.
+		User creator = element.getCreatorUuid() == null ? null : daos().userDao().load(element.getCreatorUuid());
+		User editor = element.getEditorUuid() == null ? null : daos().userDao().load(element.getEditorUuid());
 		CreatorEditorStatus status = response.getStatus();
 		status.setCreated(element.getCreated());
 		status.setEdited(element.getEdited());
-		status.setCreator(toReference(creator));
-		status.setEditor(toReference(editor));
+		status.setCreator(creator == null ? null : toReference(creator));
+		status.setEditor(editor == null ? null : toReference(editor));
 	}
 
 }

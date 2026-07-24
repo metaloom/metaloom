@@ -18,10 +18,10 @@ export interface TranscriptSectionResponse {
 export interface TranscriptResponse {
   uuid: string;
   assetUuid?: string;
-  source?: string;
+  source?: string; // producing node kind (e.g. "whisper")
   lang?: string;
   transcriptText?: string;
-  duration?: number;
+  duration?: number; // milliseconds
   model?: string;
   transcriptJson?: {
     sections?: TranscriptSectionResponse[];
@@ -48,7 +48,7 @@ export interface TranscriptCreateRequest {
   source?: string;
   lang?: string;
   transcriptText?: string;
-  duration?: number; // whole seconds — send integers
+  duration?: number; // milliseconds — send integers
   model?: string;
   transcriptJson?: { sections?: TranscriptSectionResponse[] };
   meta?: Record<string, unknown>;

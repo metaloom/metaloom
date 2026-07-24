@@ -19,12 +19,12 @@ import java.util.function.Function;
 
 import org.jooq.Field;
 import org.jooq.ForeignKey;
-import org.jooq.Function12;
+import org.jooq.Function18;
 import org.jooq.Index;
 import org.jooq.Name;
 import org.jooq.Record;
 import org.jooq.Records;
-import org.jooq.Row12;
+import org.jooq.Row18;
 import org.jooq.Schema;
 import org.jooq.SelectField;
 import org.jooq.Table;
@@ -103,9 +103,10 @@ public class JooqAttachment extends TableImpl<JooqAttachmentRecord> {
     public final TableField<JooqAttachmentRecord, LocalDateTime> CREATED = createField(DSL.name("created"), SQLDataType.LOCALDATETIME(6).nullable(false).defaultValue(DSL.field("now()", SQLDataType.LOCALDATETIME)), this, "");
 
     /**
-     * The column <code>public.attachment.creator_uuid</code>.
+     * The column <code>public.attachment.creator_uuid</code>. NULL when written
+     * by a Cortex worker rather than a user (see cortex_instance)
      */
-    public final TableField<JooqAttachmentRecord, java.util.UUID> CREATOR_UUID = createField(DSL.name("creator_uuid"), SQLDataType.UUID.nullable(false), this, "");
+    public final TableField<JooqAttachmentRecord, java.util.UUID> CREATOR_UUID = createField(DSL.name("creator_uuid"), SQLDataType.UUID, this, "NULL when written by a Cortex worker rather than a user (see cortex_instance)");
 
     /**
      * The column <code>public.attachment.edited</code>.
@@ -113,9 +114,44 @@ public class JooqAttachment extends TableImpl<JooqAttachmentRecord> {
     public final TableField<JooqAttachmentRecord, LocalDateTime> EDITED = createField(DSL.name("edited"), SQLDataType.LOCALDATETIME(6).nullable(false).defaultValue(DSL.field("now()", SQLDataType.LOCALDATETIME)), this, "");
 
     /**
-     * The column <code>public.attachment.editor_uuid</code>.
+     * The column <code>public.attachment.editor_uuid</code>. NULL when written
+     * by a Cortex worker rather than a user (see cortex_instance)
      */
-    public final TableField<JooqAttachmentRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID.nullable(false), this, "");
+    public final TableField<JooqAttachmentRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID, this, "NULL when written by a Cortex worker rather than a user (see cortex_instance)");
+
+    /**
+     * The column <code>public.attachment.node_kind</code>. Producing node kind,
+     * e.g. thumbnail. NULL for user-uploaded attachments.
+     */
+    public final TableField<JooqAttachmentRecord, String> NODE_KIND = createField(DSL.name("node_kind"), SQLDataType.VARCHAR, this, "Producing node kind, e.g. thumbnail. NULL for user-uploaded attachments.");
+
+    /**
+     * The column <code>public.attachment.node_id</code>.
+     */
+    public final TableField<JooqAttachmentRecord, String> NODE_ID = createField(DSL.name("node_id"), SQLDataType.VARCHAR, this, "");
+
+    /**
+     * The column <code>public.attachment.producer_version</code>.
+     * Model/algorithm version of the producing node
+     */
+    public final TableField<JooqAttachmentRecord, String> PRODUCER_VERSION = createField(DSL.name("producer_version"), SQLDataType.VARCHAR.nullable(false).defaultValue(DSL.field("''::character varying", SQLDataType.VARCHAR)), this, "Model/algorithm version of the producing node");
+
+    /**
+     * The column <code>public.attachment.variant</code>. Sub-division within
+     * (asset, type, node_kind): sheet-1, t=00:10, ...
+     */
+    public final TableField<JooqAttachmentRecord, String> VARIANT = createField(DSL.name("variant"), SQLDataType.VARCHAR.nullable(false).defaultValue(DSL.field("''::character varying", SQLDataType.VARCHAR)), this, "Sub-division within (asset, type, node_kind): sheet-1, t=00:10, ...");
+
+    /**
+     * The column <code>public.attachment.run_uuid</code>. Pipeline run that
+     * produced this binary, when it was node-produced
+     */
+    public final TableField<JooqAttachmentRecord, java.util.UUID> RUN_UUID = createField(DSL.name("run_uuid"), SQLDataType.UUID, this, "Pipeline run that produced this binary, when it was node-produced");
+
+    /**
+     * The column <code>public.attachment.task_uuid</code>.
+     */
+    public final TableField<JooqAttachmentRecord, java.util.UUID> TASK_UUID = createField(DSL.name("task_uuid"), SQLDataType.UUID, this, "");
 
     private JooqAttachment(Name alias, Table<JooqAttachmentRecord> aliased) {
         this(alias, aliased, null);
@@ -157,7 +193,7 @@ public class JooqAttachment extends TableImpl<JooqAttachmentRecord> {
 
     @Override
     public List<Index> getIndexes() {
-        return Arrays.asList(Indexes.ATTACHMENT_UUID_IDX);
+        return Arrays.asList(Indexes.ATTACHMENT_ASSET_VARIANT_KEY, Indexes.ATTACHMENT_UUID_IDX, Indexes.IDX_ATTACHMENT_ASSET_UUID);
     }
 
     @Override
@@ -167,13 +203,16 @@ public class JooqAttachment extends TableImpl<JooqAttachmentRecord> {
 
     @Override
     public List<ForeignKey<JooqAttachmentRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.ATTACHMENT__ATTACHMENT_BINARY_SHA512SUM_FKEY, Keys.ATTACHMENT__ATTACHMENT_EMBEDDING_UUID_FKEY, Keys.ATTACHMENT__ATTACHMENT_CREATOR_UUID_FKEY, Keys.ATTACHMENT__ATTACHMENT_EDITOR_UUID_FKEY);
+        return Arrays.asList(Keys.ATTACHMENT__ATTACHMENT_BINARY_SHA512SUM_FKEY, Keys.ATTACHMENT__ATTACHMENT_EMBEDDING_UUID_FKEY, Keys.ATTACHMENT__ATTACHMENT_ASSET_UUID_FKEY, Keys.ATTACHMENT__ATTACHMENT_CREATOR_UUID_FKEY, Keys.ATTACHMENT__ATTACHMENT_EDITOR_UUID_FKEY, Keys.ATTACHMENT__ATTACHMENT_RUN_UUID_FKEY, Keys.ATTACHMENT__ATTACHMENT_TASK_UUID_FKEY);
     }
 
     private transient JooqAttachmentBinary _attachmentBinary;
     private transient JooqEmbedding _embedding;
+    private transient JooqAsset _asset;
     private transient JooqUser _attachmentCreatorUuidFkey;
     private transient JooqUser _attachmentEditorUuidFkey;
+    private transient JooqPipelineRun _pipelineRun;
+    private transient JooqPipelineNodeTask _pipelineNodeTask;
 
     /**
      * Get the implicit join path to the <code>public.attachment_binary</code>
@@ -197,6 +236,16 @@ public class JooqAttachment extends TableImpl<JooqAttachmentRecord> {
     }
 
     /**
+     * Get the implicit join path to the <code>public.asset</code> table.
+     */
+    public JooqAsset asset() {
+        if (_asset == null)
+            _asset = new JooqAsset(this, Keys.ATTACHMENT__ATTACHMENT_ASSET_UUID_FKEY);
+
+        return _asset;
+    }
+
+    /**
      * Get the implicit join path to the <code>public.user</code> table, via the
      * <code>attachment_creator_uuid_fkey</code> key.
      */
@@ -216,6 +265,27 @@ public class JooqAttachment extends TableImpl<JooqAttachmentRecord> {
             _attachmentEditorUuidFkey = new JooqUser(this, Keys.ATTACHMENT__ATTACHMENT_EDITOR_UUID_FKEY);
 
         return _attachmentEditorUuidFkey;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.pipeline_run</code> table.
+     */
+    public JooqPipelineRun pipelineRun() {
+        if (_pipelineRun == null)
+            _pipelineRun = new JooqPipelineRun(this, Keys.ATTACHMENT__ATTACHMENT_RUN_UUID_FKEY);
+
+        return _pipelineRun;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.pipeline_node_task</code>
+     * table.
+     */
+    public JooqPipelineNodeTask pipelineNodeTask() {
+        if (_pipelineNodeTask == null)
+            _pipelineNodeTask = new JooqPipelineNodeTask(this, Keys.ATTACHMENT__ATTACHMENT_TASK_UUID_FKEY);
+
+        return _pipelineNodeTask;
     }
 
     @Override
@@ -258,18 +328,18 @@ public class JooqAttachment extends TableImpl<JooqAttachmentRecord> {
     }
 
     // -------------------------------------------------------------------------
-    // Row12 type methods
+    // Row18 type methods
     // -------------------------------------------------------------------------
 
     @Override
-    public Row12<java.util.UUID, String, java.util.UUID, java.util.UUID, String, JooqAttachmentType, String, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
-        return (Row12) super.fieldsRow();
+    public Row18<java.util.UUID, String, java.util.UUID, java.util.UUID, String, JooqAttachmentType, String, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID, String, String, String, String, java.util.UUID, java.util.UUID> fieldsRow() {
+        return (Row18) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function12<? super java.util.UUID, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super String, ? super JooqAttachmentType, ? super String, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function18<? super java.util.UUID, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super String, ? super JooqAttachmentType, ? super String, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -277,7 +347,7 @@ public class JooqAttachment extends TableImpl<JooqAttachmentRecord> {
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function12<? super java.util.UUID, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super String, ? super JooqAttachmentType, ? super String, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function18<? super java.util.UUID, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super String, ? super JooqAttachmentType, ? super String, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }

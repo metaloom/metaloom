@@ -5,22 +5,21 @@ package io.metaloom.loom.db.jooq.tables.records;
 
 
 import io.metaloom.loom.db.jooq.tables.JooqAssetAudioComp;
+import io.vertx.core.json.JsonObject;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-import org.jooq.Field;
 import org.jooq.Record1;
-import org.jooq.Record13;
-import org.jooq.Row13;
 import org.jooq.impl.UpdatableRecordImpl;
 
 
 /**
- * Stores audio-specific properties extracted from an asset
+ * Audio track properties. One row per track: a video with a German and an
+ * English track has two, discriminated by stream_index.
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqAssetAudioCompRecord extends UpdatableRecordImpl<JooqAssetAudioCompRecord> implements Record13<UUID, UUID, String, Integer, Integer, Integer, Integer, String, Long, LocalDateTime, UUID, LocalDateTime, UUID> {
+public class JooqAssetAudioCompRecord extends UpdatableRecordImpl<JooqAssetAudioCompRecord> {
 
     private static final long serialVersionUID = 1L;
 
@@ -53,159 +52,311 @@ public class JooqAssetAudioCompRecord extends UpdatableRecordImpl<JooqAssetAudio
     }
 
     /**
-     * Setter for <code>public.asset_audio_comp.source</code>.
+     * Setter for <code>public.asset_audio_comp.node_kind</code>.
      */
-    public void setSource(String value) {
+    public void setNodeKind(String value) {
         set(2, value);
     }
 
     /**
-     * Getter for <code>public.asset_audio_comp.source</code>.
+     * Getter for <code>public.asset_audio_comp.node_kind</code>.
      */
-    public String getSource() {
+    public String getNodeKind() {
         return (String) get(2);
+    }
+
+    /**
+     * Setter for <code>public.asset_audio_comp.node_id</code>.
+     */
+    public void setNodeId(String value) {
+        set(3, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_audio_comp.node_id</code>.
+     */
+    public String getNodeId() {
+        return (String) get(3);
+    }
+
+    /**
+     * Setter for <code>public.asset_audio_comp.producer_version</code>.
+     */
+    public void setProducerVersion(String value) {
+        set(4, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_audio_comp.producer_version</code>.
+     */
+    public String getProducerVersion() {
+        return (String) get(4);
+    }
+
+    /**
+     * Setter for <code>public.asset_audio_comp.run_uuid</code>.
+     */
+    public void setRunUuid(UUID value) {
+        set(5, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_audio_comp.run_uuid</code>.
+     */
+    public UUID getRunUuid() {
+        return (UUID) get(5);
+    }
+
+    /**
+     * Setter for <code>public.asset_audio_comp.task_uuid</code>.
+     */
+    public void setTaskUuid(UUID value) {
+        set(6, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_audio_comp.task_uuid</code>.
+     */
+    public UUID getTaskUuid() {
+        return (UUID) get(6);
+    }
+
+    /**
+     * Setter for <code>public.asset_audio_comp.confidence</code>.
+     */
+    public void setConfidence(Float value) {
+        set(7, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_audio_comp.confidence</code>.
+     */
+    public Float getConfidence() {
+        return (Float) get(7);
+    }
+
+    /**
+     * Setter for <code>public.asset_audio_comp.stream_index</code>. Which audio
+     * track within the container
+     */
+    public void setStreamIndex(Integer value) {
+        set(8, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_audio_comp.stream_index</code>. Which audio
+     * track within the container
+     */
+    public Integer getStreamIndex() {
+        return (Integer) get(8);
+    }
+
+    /**
+     * Setter for <code>public.asset_audio_comp.lang</code>. Track language as
+     * declared by the container
+     */
+    public void setLang(String value) {
+        set(9, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_audio_comp.lang</code>. Track language as
+     * declared by the container
+     */
+    public String getLang() {
+        return (String) get(9);
+    }
+
+    /**
+     * Setter for <code>public.asset_audio_comp.track_title</code>. Track title
+     * as declared by the container
+     */
+    public void setTrackTitle(String value) {
+        set(10, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_audio_comp.track_title</code>. Track title
+     * as declared by the container
+     */
+    public String getTrackTitle() {
+        return (String) get(10);
+    }
+
+    /**
+     * Setter for <code>public.asset_audio_comp.is_default</code>. Whether the
+     * container marks this as the default track
+     */
+    public void setIsDefault(Boolean value) {
+        set(11, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_audio_comp.is_default</code>. Whether the
+     * container marks this as the default track
+     */
+    public Boolean getIsDefault() {
+        return (Boolean) get(11);
     }
 
     /**
      * Setter for <code>public.asset_audio_comp.audio_bpm</code>.
      */
     public void setAudioBpm(Integer value) {
-        set(3, value);
+        set(12, value);
     }
 
     /**
      * Getter for <code>public.asset_audio_comp.audio_bpm</code>.
      */
     public Integer getAudioBpm() {
-        return (Integer) get(3);
+        return (Integer) get(12);
     }
 
     /**
      * Setter for <code>public.asset_audio_comp.audio_sampling_rate</code>.
      */
     public void setAudioSamplingRate(Integer value) {
-        set(4, value);
+        set(13, value);
     }
 
     /**
      * Getter for <code>public.asset_audio_comp.audio_sampling_rate</code>.
      */
     public Integer getAudioSamplingRate() {
-        return (Integer) get(4);
+        return (Integer) get(13);
     }
 
     /**
      * Setter for <code>public.asset_audio_comp.audio_channels</code>.
      */
     public void setAudioChannels(Integer value) {
-        set(5, value);
+        set(14, value);
     }
 
     /**
      * Getter for <code>public.asset_audio_comp.audio_channels</code>.
      */
     public Integer getAudioChannels() {
-        return (Integer) get(5);
+        return (Integer) get(14);
     }
 
     /**
      * Setter for <code>public.asset_audio_comp.audio_bitrate</code>.
      */
     public void setAudioBitrate(Integer value) {
-        set(6, value);
+        set(15, value);
     }
 
     /**
      * Getter for <code>public.asset_audio_comp.audio_bitrate</code>.
      */
     public Integer getAudioBitrate() {
-        return (Integer) get(6);
+        return (Integer) get(15);
     }
 
     /**
-     * Setter for <code>public.asset_audio_comp.audio_encoding</code>. Store the
-     * audio encoding used (e.g. mp3, flac)
+     * Setter for <code>public.asset_audio_comp.audio_encoding</code>. Audio
+     * encoding used (e.g. mp3, flac)
      */
     public void setAudioEncoding(String value) {
-        set(7, value);
+        set(16, value);
     }
 
     /**
-     * Getter for <code>public.asset_audio_comp.audio_encoding</code>. Store the
-     * audio encoding used (e.g. mp3, flac)
+     * Getter for <code>public.asset_audio_comp.audio_encoding</code>. Audio
+     * encoding used (e.g. mp3, flac)
      */
     public String getAudioEncoding() {
-        return (String) get(7);
+        return (String) get(16);
     }
 
     /**
-     * Setter for <code>public.asset_audio_comp.media_duration</code>.
+     * Setter for <code>public.asset_audio_comp.media_duration</code>. Duration
+     * in milliseconds
      */
     public void setMediaDuration(Long value) {
-        set(8, value);
+        set(17, value);
     }
 
     /**
-     * Getter for <code>public.asset_audio_comp.media_duration</code>.
+     * Getter for <code>public.asset_audio_comp.media_duration</code>. Duration
+     * in milliseconds
      */
     public Long getMediaDuration() {
-        return (Long) get(8);
+        return (Long) get(17);
+    }
+
+    /**
+     * Setter for <code>public.asset_audio_comp.meta</code>.
+     */
+    public void setMeta(JsonObject value) {
+        set(18, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_audio_comp.meta</code>.
+     */
+    public JsonObject getMeta() {
+        return (JsonObject) get(18);
     }
 
     /**
      * Setter for <code>public.asset_audio_comp.created</code>.
      */
     public void setCreated(LocalDateTime value) {
-        set(9, value);
+        set(19, value);
     }
 
     /**
      * Getter for <code>public.asset_audio_comp.created</code>.
      */
     public LocalDateTime getCreated() {
-        return (LocalDateTime) get(9);
+        return (LocalDateTime) get(19);
     }
 
     /**
-     * Setter for <code>public.asset_audio_comp.creator_uuid</code>.
+     * Setter for <code>public.asset_audio_comp.creator_uuid</code>. NULL when
+     * written by a Cortex worker rather than a user
      */
     public void setCreatorUuid(UUID value) {
-        set(10, value);
+        set(20, value);
     }
 
     /**
-     * Getter for <code>public.asset_audio_comp.creator_uuid</code>.
+     * Getter for <code>public.asset_audio_comp.creator_uuid</code>. NULL when
+     * written by a Cortex worker rather than a user
      */
     public UUID getCreatorUuid() {
-        return (UUID) get(10);
+        return (UUID) get(20);
     }
 
     /**
      * Setter for <code>public.asset_audio_comp.edited</code>.
      */
     public void setEdited(LocalDateTime value) {
-        set(11, value);
+        set(21, value);
     }
 
     /**
      * Getter for <code>public.asset_audio_comp.edited</code>.
      */
     public LocalDateTime getEdited() {
-        return (LocalDateTime) get(11);
+        return (LocalDateTime) get(21);
     }
 
     /**
      * Setter for <code>public.asset_audio_comp.editor_uuid</code>.
      */
     public void setEditorUuid(UUID value) {
-        set(12, value);
+        set(22, value);
     }
 
     /**
      * Getter for <code>public.asset_audio_comp.editor_uuid</code>.
      */
     public UUID getEditorUuid() {
-        return (UUID) get(12);
+        return (UUID) get(22);
     }
 
     // -------------------------------------------------------------------------
@@ -215,311 +366,6 @@ public class JooqAssetAudioCompRecord extends UpdatableRecordImpl<JooqAssetAudio
     @Override
     public Record1<UUID> key() {
         return (Record1) super.key();
-    }
-
-    // -------------------------------------------------------------------------
-    // Record13 type implementation
-    // -------------------------------------------------------------------------
-
-    @Override
-    public Row13<UUID, UUID, String, Integer, Integer, Integer, Integer, String, Long, LocalDateTime, UUID, LocalDateTime, UUID> fieldsRow() {
-        return (Row13) super.fieldsRow();
-    }
-
-    @Override
-    public Row13<UUID, UUID, String, Integer, Integer, Integer, Integer, String, Long, LocalDateTime, UUID, LocalDateTime, UUID> valuesRow() {
-        return (Row13) super.valuesRow();
-    }
-
-    @Override
-    public Field<UUID> field1() {
-        return JooqAssetAudioComp.ASSET_AUDIO_COMP.UUID;
-    }
-
-    @Override
-    public Field<UUID> field2() {
-        return JooqAssetAudioComp.ASSET_AUDIO_COMP.ASSET_UUID;
-    }
-
-    @Override
-    public Field<String> field3() {
-        return JooqAssetAudioComp.ASSET_AUDIO_COMP.SOURCE;
-    }
-
-    @Override
-    public Field<Integer> field4() {
-        return JooqAssetAudioComp.ASSET_AUDIO_COMP.AUDIO_BPM;
-    }
-
-    @Override
-    public Field<Integer> field5() {
-        return JooqAssetAudioComp.ASSET_AUDIO_COMP.AUDIO_SAMPLING_RATE;
-    }
-
-    @Override
-    public Field<Integer> field6() {
-        return JooqAssetAudioComp.ASSET_AUDIO_COMP.AUDIO_CHANNELS;
-    }
-
-    @Override
-    public Field<Integer> field7() {
-        return JooqAssetAudioComp.ASSET_AUDIO_COMP.AUDIO_BITRATE;
-    }
-
-    @Override
-    public Field<String> field8() {
-        return JooqAssetAudioComp.ASSET_AUDIO_COMP.AUDIO_ENCODING;
-    }
-
-    @Override
-    public Field<Long> field9() {
-        return JooqAssetAudioComp.ASSET_AUDIO_COMP.MEDIA_DURATION;
-    }
-
-    @Override
-    public Field<LocalDateTime> field10() {
-        return JooqAssetAudioComp.ASSET_AUDIO_COMP.CREATED;
-    }
-
-    @Override
-    public Field<UUID> field11() {
-        return JooqAssetAudioComp.ASSET_AUDIO_COMP.CREATOR_UUID;
-    }
-
-    @Override
-    public Field<LocalDateTime> field12() {
-        return JooqAssetAudioComp.ASSET_AUDIO_COMP.EDITED;
-    }
-
-    @Override
-    public Field<UUID> field13() {
-        return JooqAssetAudioComp.ASSET_AUDIO_COMP.EDITOR_UUID;
-    }
-
-    @Override
-    public UUID component1() {
-        return getUuid();
-    }
-
-    @Override
-    public UUID component2() {
-        return getAssetUuid();
-    }
-
-    @Override
-    public String component3() {
-        return getSource();
-    }
-
-    @Override
-    public Integer component4() {
-        return getAudioBpm();
-    }
-
-    @Override
-    public Integer component5() {
-        return getAudioSamplingRate();
-    }
-
-    @Override
-    public Integer component6() {
-        return getAudioChannels();
-    }
-
-    @Override
-    public Integer component7() {
-        return getAudioBitrate();
-    }
-
-    @Override
-    public String component8() {
-        return getAudioEncoding();
-    }
-
-    @Override
-    public Long component9() {
-        return getMediaDuration();
-    }
-
-    @Override
-    public LocalDateTime component10() {
-        return getCreated();
-    }
-
-    @Override
-    public UUID component11() {
-        return getCreatorUuid();
-    }
-
-    @Override
-    public LocalDateTime component12() {
-        return getEdited();
-    }
-
-    @Override
-    public UUID component13() {
-        return getEditorUuid();
-    }
-
-    @Override
-    public UUID value1() {
-        return getUuid();
-    }
-
-    @Override
-    public UUID value2() {
-        return getAssetUuid();
-    }
-
-    @Override
-    public String value3() {
-        return getSource();
-    }
-
-    @Override
-    public Integer value4() {
-        return getAudioBpm();
-    }
-
-    @Override
-    public Integer value5() {
-        return getAudioSamplingRate();
-    }
-
-    @Override
-    public Integer value6() {
-        return getAudioChannels();
-    }
-
-    @Override
-    public Integer value7() {
-        return getAudioBitrate();
-    }
-
-    @Override
-    public String value8() {
-        return getAudioEncoding();
-    }
-
-    @Override
-    public Long value9() {
-        return getMediaDuration();
-    }
-
-    @Override
-    public LocalDateTime value10() {
-        return getCreated();
-    }
-
-    @Override
-    public UUID value11() {
-        return getCreatorUuid();
-    }
-
-    @Override
-    public LocalDateTime value12() {
-        return getEdited();
-    }
-
-    @Override
-    public UUID value13() {
-        return getEditorUuid();
-    }
-
-    @Override
-    public JooqAssetAudioCompRecord value1(UUID value) {
-        setUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqAssetAudioCompRecord value2(UUID value) {
-        setAssetUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqAssetAudioCompRecord value3(String value) {
-        setSource(value);
-        return this;
-    }
-
-    @Override
-    public JooqAssetAudioCompRecord value4(Integer value) {
-        setAudioBpm(value);
-        return this;
-    }
-
-    @Override
-    public JooqAssetAudioCompRecord value5(Integer value) {
-        setAudioSamplingRate(value);
-        return this;
-    }
-
-    @Override
-    public JooqAssetAudioCompRecord value6(Integer value) {
-        setAudioChannels(value);
-        return this;
-    }
-
-    @Override
-    public JooqAssetAudioCompRecord value7(Integer value) {
-        setAudioBitrate(value);
-        return this;
-    }
-
-    @Override
-    public JooqAssetAudioCompRecord value8(String value) {
-        setAudioEncoding(value);
-        return this;
-    }
-
-    @Override
-    public JooqAssetAudioCompRecord value9(Long value) {
-        setMediaDuration(value);
-        return this;
-    }
-
-    @Override
-    public JooqAssetAudioCompRecord value10(LocalDateTime value) {
-        setCreated(value);
-        return this;
-    }
-
-    @Override
-    public JooqAssetAudioCompRecord value11(UUID value) {
-        setCreatorUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqAssetAudioCompRecord value12(LocalDateTime value) {
-        setEdited(value);
-        return this;
-    }
-
-    @Override
-    public JooqAssetAudioCompRecord value13(UUID value) {
-        setEditorUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqAssetAudioCompRecord values(UUID value1, UUID value2, String value3, Integer value4, Integer value5, Integer value6, Integer value7, String value8, Long value9, LocalDateTime value10, UUID value11, LocalDateTime value12, UUID value13) {
-        value1(value1);
-        value2(value2);
-        value3(value3);
-        value4(value4);
-        value5(value5);
-        value6(value6);
-        value7(value7);
-        value8(value8);
-        value9(value9);
-        value10(value10);
-        value11(value11);
-        value12(value12);
-        value13(value13);
-        return this;
     }
 
     // -------------------------------------------------------------------------
@@ -536,18 +382,28 @@ public class JooqAssetAudioCompRecord extends UpdatableRecordImpl<JooqAssetAudio
     /**
      * Create a detached, initialised JooqAssetAudioCompRecord
      */
-    public JooqAssetAudioCompRecord(UUID uuid, UUID assetUuid, String source, Integer audioBpm, Integer audioSamplingRate, Integer audioChannels, Integer audioBitrate, String audioEncoding, Long mediaDuration, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid) {
+    public JooqAssetAudioCompRecord(UUID uuid, UUID assetUuid, String nodeKind, String nodeId, String producerVersion, UUID runUuid, UUID taskUuid, Float confidence, Integer streamIndex, String lang, String trackTitle, Boolean isDefault, Integer audioBpm, Integer audioSamplingRate, Integer audioChannels, Integer audioBitrate, String audioEncoding, Long mediaDuration, JsonObject meta, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid) {
         super(JooqAssetAudioComp.ASSET_AUDIO_COMP);
 
         setUuid(uuid);
         setAssetUuid(assetUuid);
-        setSource(source);
+        setNodeKind(nodeKind);
+        setNodeId(nodeId);
+        setProducerVersion(producerVersion);
+        setRunUuid(runUuid);
+        setTaskUuid(taskUuid);
+        setConfidence(confidence);
+        setStreamIndex(streamIndex);
+        setLang(lang);
+        setTrackTitle(trackTitle);
+        setIsDefault(isDefault);
         setAudioBpm(audioBpm);
         setAudioSamplingRate(audioSamplingRate);
         setAudioChannels(audioChannels);
         setAudioBitrate(audioBitrate);
         setAudioEncoding(audioEncoding);
         setMediaDuration(mediaDuration);
+        setMeta(meta);
         setCreated(created);
         setCreatorUuid(creatorUuid);
         setEdited(edited);

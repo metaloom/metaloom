@@ -1,14 +1,13 @@
 package io.metaloom.loom.db.jooq.dao.asset.comp;
 
-import java.util.UUID;
-
-import io.metaloom.loom.db.jooq.AbstractEditableElement;
 import io.metaloom.loom.db.model.asset.AssetAudioComp;
 
-public class AssetAudioCompImpl extends AbstractEditableElement<AssetAudioComp> implements AssetAudioComp {
+public class AssetAudioCompImpl extends AbstractAssetCompImpl<AssetAudioComp> implements AssetAudioComp {
 
-	private UUID assetUuid;
-	private String source;
+	private int streamIndex;
+	private String lang;
+	private String trackTitle;
+	private Boolean isDefault;
 	private Integer audioBpm;
 	private Integer audioSamplingRate;
 	private Integer audioChannels;
@@ -17,24 +16,46 @@ public class AssetAudioCompImpl extends AbstractEditableElement<AssetAudioComp> 
 	private Long mediaDuration;
 
 	@Override
-	public UUID getAssetUuid() {
-		return assetUuid;
+	public int getStreamIndex() {
+		return streamIndex;
 	}
 
 	@Override
-	public AssetAudioComp setAssetUuid(UUID assetUuid) {
-		this.assetUuid = assetUuid;
+	public AssetAudioComp setStreamIndex(int streamIndex) {
+		this.streamIndex = streamIndex;
 		return this;
 	}
 
 	@Override
-	public String getSource() {
-		return source;
+	public String getLang() {
+		return lang;
 	}
 
 	@Override
-	public AssetAudioComp setSource(String source) {
-		this.source = source;
+	public AssetAudioComp setLang(String lang) {
+		this.lang = lang;
+		return this;
+	}
+
+	@Override
+	public String getTrackTitle() {
+		return trackTitle;
+	}
+
+	@Override
+	public AssetAudioComp setTrackTitle(String trackTitle) {
+		this.trackTitle = trackTitle;
+		return this;
+	}
+
+	@Override
+	public Boolean getIsDefault() {
+		return isDefault;
+	}
+
+	@Override
+	public AssetAudioComp setIsDefault(Boolean isDefault) {
+		this.isDefault = isDefault;
 		return this;
 	}
 

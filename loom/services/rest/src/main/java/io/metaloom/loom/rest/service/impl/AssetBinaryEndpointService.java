@@ -78,7 +78,14 @@ public class AssetBinaryEndpointService extends AbstractCRUDEndpointService<Asse
 			UUID userUuid = lrc.userUuid();
 
 			AssetBinary location = dao().load(uuid);
-			// TODO update
+			if (request.getFilesystem() != null) {
+				AssetBinaryFilesystemInfo fsInfo = request.getFilesystem();
+				update(fsInfo::getPath, location::setPath);
+			} else if (request.getS3() != null) {
+				log.error("S3 support has not yet been implemented");
+				lrc.error("S3 support not yet implemented");
+				return null;
+			}
 			update(request::getMeta, location::setMeta);
 			setEditor(location, userUuid);
 			return location;

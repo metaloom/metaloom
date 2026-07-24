@@ -38,6 +38,9 @@ public class TaskModelBuilderTest extends AbstractModelBuilderTest {
 		when(task.getTitle()).thenReturn(title);
 		when(task.getStatus()).thenReturn(TaskStatus.REVIEW);
 		when(task.getDueDate()).thenReturn(Instant.parse("2018-10-12T14:15:06Z"));
+		// The response carries a creator/editor block; without a creator uuid the builder
+		// leaves it empty (machine-written rows).
+		mockCreatorEditorRefs(task);
 		return task;
 	}
 }

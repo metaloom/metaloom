@@ -102,7 +102,7 @@ public interface AssetModelBuilder extends ModelBuilder, UserModelBuilder, Asset
 
 	default GeoLocationInfo toGeoInfo(AssetGeoComp comp) {
 		GeoLocationInfo info = new GeoLocationInfo();
-		info.setSource(comp.getSource());
+		info.setSource(comp.getNodeKind());
 		info.setLat(comp.getGeoLat());
 		info.setLon(comp.getGeoLon());
 		info.setAlias(comp.getGeoAlias());
@@ -111,7 +111,7 @@ public interface AssetModelBuilder extends ModelBuilder, UserModelBuilder, Asset
 
 	default ImageInfo toImageInfo(AssetImageComp comp) {
 		ImageInfo info = new ImageInfo();
-		info.setSource(comp.getSource());
+		info.setSource(comp.getNodeKind());
 		info.setDominantColor(comp.getImageDominantColor());
 		info.setWidth(comp.getMediaWidth());
 		info.setHeight(comp.getMediaHeight());
@@ -120,7 +120,7 @@ public interface AssetModelBuilder extends ModelBuilder, UserModelBuilder, Asset
 
 	default VideoInfo toVideoInfo(AssetVideoComp comp) {
 		VideoInfo info = new VideoInfo();
-		info.setSource(comp.getSource());
+		info.setSource(comp.getNodeKind());
 		info.setBitrate(comp.getVideoBitrate());
 		info.setEncoding(comp.getVideoEncoding());
 		info.setWidth(comp.getMediaWidth());
@@ -131,7 +131,7 @@ public interface AssetModelBuilder extends ModelBuilder, UserModelBuilder, Asset
 
 	default AudioInfo toAudioInfo(AssetAudioComp comp) {
 		AudioInfo info = new AudioInfo();
-		info.setSource(comp.getSource());
+		info.setSource(comp.getNodeKind());
 		info.setBpm(comp.getAudioBpm());
 		info.setBitrate(comp.getAudioBitrate());
 		info.setChannels(comp.getAudioChannels());
@@ -143,7 +143,7 @@ public interface AssetModelBuilder extends ModelBuilder, UserModelBuilder, Asset
 
 	default DocumentInfo toDocumentInfo(AssetDocComp comp) {
 		DocumentInfo info = new DocumentInfo();
-		info.setSource(comp.getSource());
+		info.setSource(comp.getNodeKind());
 		info.setWordCount(comp.getDocWordCount() != null ? comp.getDocWordCount().longValue() : null);
 		info.setPlainText(comp.getDocPlainText());
 		return info;

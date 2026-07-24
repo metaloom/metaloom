@@ -5,6 +5,7 @@ package io.metaloom.loom.db.jooq.tables.records;
 
 
 import io.metaloom.loom.db.jooq.tables.JooqAssetJsonComp;
+import io.vertx.core.json.JsonObject;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -12,16 +13,19 @@ import java.util.UUID;
 import org.jooq.Field;
 import org.jooq.JSONB;
 import org.jooq.Record1;
-import org.jooq.Record9;
-import org.jooq.Row9;
+import org.jooq.Record16;
+import org.jooq.Row16;
 import org.jooq.impl.UpdatableRecordImpl;
 
 
 /**
- * Stores generic JSON component data produced by Cortex processing nodes
+ * Generic sink for node results with no query requirement. A node kind starts
+ * here and graduates to a typed component table when a query must filter on a
+ * field inside data, when the UI renders it as a first-class object, or when it
+ * needs a foreign key.
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqAssetJsonCompRecord extends UpdatableRecordImpl<JooqAssetJsonCompRecord> implements Record9<UUID, UUID, String, String, JSONB, LocalDateTime, UUID, LocalDateTime, UUID> {
+public class JooqAssetJsonCompRecord extends UpdatableRecordImpl<JooqAssetJsonCompRecord> implements Record16<UUID, UUID, String, String, String, UUID, UUID, Float, String, String, JSONB, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> {
 
     private static final long serialVersionUID = 1L;
 
@@ -54,105 +58,213 @@ public class JooqAssetJsonCompRecord extends UpdatableRecordImpl<JooqAssetJsonCo
     }
 
     /**
-     * Setter for <code>public.asset_json_comp.source</code>. Name of the source
-     * node that produced this data
+     * Setter for <code>public.asset_json_comp.node_kind</code>. Producing node
+     * kind, e.g. llm, captioning, facedescription
      */
-    public void setSource(String value) {
+    public void setNodeKind(String value) {
         set(2, value);
     }
 
     /**
-     * Getter for <code>public.asset_json_comp.source</code>. Name of the source
-     * node that produced this data
+     * Getter for <code>public.asset_json_comp.node_kind</code>. Producing node
+     * kind, e.g. llm, captioning, facedescription
      */
-    public String getSource() {
+    public String getNodeKind() {
         return (String) get(2);
     }
 
     /**
-     * Setter for <code>public.asset_json_comp.schema_type</code>. Optional
-     * schema type label for the JSON data (e.g. yolo-detection, face-embedding)
+     * Setter for <code>public.asset_json_comp.node_id</code>.
      */
-    public void setSchemaType(String value) {
+    public void setNodeId(String value) {
         set(3, value);
     }
 
     /**
-     * Getter for <code>public.asset_json_comp.schema_type</code>. Optional
-     * schema type label for the JSON data (e.g. yolo-detection, face-embedding)
+     * Getter for <code>public.asset_json_comp.node_id</code>.
      */
-    public String getSchemaType() {
+    public String getNodeId() {
         return (String) get(3);
     }
 
     /**
-     * Setter for <code>public.asset_json_comp.data</code>.
+     * Setter for <code>public.asset_json_comp.producer_version</code>.
      */
-    public void setData(JSONB value) {
+    public void setProducerVersion(String value) {
         set(4, value);
     }
 
     /**
-     * Getter for <code>public.asset_json_comp.data</code>.
+     * Getter for <code>public.asset_json_comp.producer_version</code>.
+     */
+    public String getProducerVersion() {
+        return (String) get(4);
+    }
+
+    /**
+     * Setter for <code>public.asset_json_comp.run_uuid</code>.
+     */
+    public void setRunUuid(UUID value) {
+        set(5, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_json_comp.run_uuid</code>.
+     */
+    public UUID getRunUuid() {
+        return (UUID) get(5);
+    }
+
+    /**
+     * Setter for <code>public.asset_json_comp.task_uuid</code>.
+     */
+    public void setTaskUuid(UUID value) {
+        set(6, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_json_comp.task_uuid</code>.
+     */
+    public UUID getTaskUuid() {
+        return (UUID) get(6);
+    }
+
+    /**
+     * Setter for <code>public.asset_json_comp.confidence</code>.
+     */
+    public void setConfidence(Float value) {
+        set(7, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_json_comp.confidence</code>.
+     */
+    public Float getConfidence() {
+        return (Float) get(7);
+    }
+
+    /**
+     * Setter for <code>public.asset_json_comp.schema_type</code>. Shape label
+     * for the payload, e.g. yolo-detection, caption, llm-answer
+     */
+    public void setSchemaType(String value) {
+        set(8, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_json_comp.schema_type</code>. Shape label
+     * for the payload, e.g. yolo-detection, caption, llm-answer
+     */
+    public String getSchemaType() {
+        return (String) get(8);
+    }
+
+    /**
+     * Setter for <code>public.asset_json_comp.variant</code>. Sub-division
+     * within the kind: prompt id, model tag, whatever makes two results of the
+     * same node distinct
+     */
+    public void setVariant(String value) {
+        set(9, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_json_comp.variant</code>. Sub-division
+     * within the kind: prompt id, model tag, whatever makes two results of the
+     * same node distinct
+     */
+    public String getVariant() {
+        return (String) get(9);
+    }
+
+    /**
+     * Setter for <code>public.asset_json_comp.data</code>. The payload. NOT
+     * NULL: "the node ran and produced nothing" is expressed by
+     * asset_node_result, not by a NULL payload.
+     */
+    public void setData(JSONB value) {
+        set(10, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_json_comp.data</code>. The payload. NOT
+     * NULL: "the node ran and produced nothing" is expressed by
+     * asset_node_result, not by a NULL payload.
      */
     public JSONB getData() {
-        return (JSONB) get(4);
+        return (JSONB) get(10);
+    }
+
+    /**
+     * Setter for <code>public.asset_json_comp.meta</code>.
+     */
+    public void setMeta(JsonObject value) {
+        set(11, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_json_comp.meta</code>.
+     */
+    public JsonObject getMeta() {
+        return (JsonObject) get(11);
     }
 
     /**
      * Setter for <code>public.asset_json_comp.created</code>.
      */
     public void setCreated(LocalDateTime value) {
-        set(5, value);
+        set(12, value);
     }
 
     /**
      * Getter for <code>public.asset_json_comp.created</code>.
      */
     public LocalDateTime getCreated() {
-        return (LocalDateTime) get(5);
+        return (LocalDateTime) get(12);
     }
 
     /**
-     * Setter for <code>public.asset_json_comp.creator_uuid</code>.
+     * Setter for <code>public.asset_json_comp.creator_uuid</code>. NULL when
+     * written by a Cortex worker rather than a user
      */
     public void setCreatorUuid(UUID value) {
-        set(6, value);
+        set(13, value);
     }
 
     /**
-     * Getter for <code>public.asset_json_comp.creator_uuid</code>.
+     * Getter for <code>public.asset_json_comp.creator_uuid</code>. NULL when
+     * written by a Cortex worker rather than a user
      */
     public UUID getCreatorUuid() {
-        return (UUID) get(6);
+        return (UUID) get(13);
     }
 
     /**
      * Setter for <code>public.asset_json_comp.edited</code>.
      */
     public void setEdited(LocalDateTime value) {
-        set(7, value);
+        set(14, value);
     }
 
     /**
      * Getter for <code>public.asset_json_comp.edited</code>.
      */
     public LocalDateTime getEdited() {
-        return (LocalDateTime) get(7);
+        return (LocalDateTime) get(14);
     }
 
     /**
      * Setter for <code>public.asset_json_comp.editor_uuid</code>.
      */
     public void setEditorUuid(UUID value) {
-        set(8, value);
+        set(15, value);
     }
 
     /**
      * Getter for <code>public.asset_json_comp.editor_uuid</code>.
      */
     public UUID getEditorUuid() {
-        return (UUID) get(8);
+        return (UUID) get(15);
     }
 
     // -------------------------------------------------------------------------
@@ -165,17 +277,17 @@ public class JooqAssetJsonCompRecord extends UpdatableRecordImpl<JooqAssetJsonCo
     }
 
     // -------------------------------------------------------------------------
-    // Record9 type implementation
+    // Record16 type implementation
     // -------------------------------------------------------------------------
 
     @Override
-    public Row9<UUID, UUID, String, String, JSONB, LocalDateTime, UUID, LocalDateTime, UUID> fieldsRow() {
-        return (Row9) super.fieldsRow();
+    public Row16<UUID, UUID, String, String, String, UUID, UUID, Float, String, String, JSONB, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> fieldsRow() {
+        return (Row16) super.fieldsRow();
     }
 
     @Override
-    public Row9<UUID, UUID, String, String, JSONB, LocalDateTime, UUID, LocalDateTime, UUID> valuesRow() {
-        return (Row9) super.valuesRow();
+    public Row16<UUID, UUID, String, String, String, UUID, UUID, Float, String, String, JSONB, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> valuesRow() {
+        return (Row16) super.valuesRow();
     }
 
     @Override
@@ -190,36 +302,71 @@ public class JooqAssetJsonCompRecord extends UpdatableRecordImpl<JooqAssetJsonCo
 
     @Override
     public Field<String> field3() {
-        return JooqAssetJsonComp.ASSET_JSON_COMP.SOURCE;
+        return JooqAssetJsonComp.ASSET_JSON_COMP.NODE_KIND;
     }
 
     @Override
     public Field<String> field4() {
-        return JooqAssetJsonComp.ASSET_JSON_COMP.SCHEMA_TYPE;
+        return JooqAssetJsonComp.ASSET_JSON_COMP.NODE_ID;
     }
 
     @Override
-    public Field<JSONB> field5() {
-        return JooqAssetJsonComp.ASSET_JSON_COMP.DATA;
+    public Field<String> field5() {
+        return JooqAssetJsonComp.ASSET_JSON_COMP.PRODUCER_VERSION;
     }
 
     @Override
-    public Field<LocalDateTime> field6() {
-        return JooqAssetJsonComp.ASSET_JSON_COMP.CREATED;
+    public Field<UUID> field6() {
+        return JooqAssetJsonComp.ASSET_JSON_COMP.RUN_UUID;
     }
 
     @Override
     public Field<UUID> field7() {
+        return JooqAssetJsonComp.ASSET_JSON_COMP.TASK_UUID;
+    }
+
+    @Override
+    public Field<Float> field8() {
+        return JooqAssetJsonComp.ASSET_JSON_COMP.CONFIDENCE;
+    }
+
+    @Override
+    public Field<String> field9() {
+        return JooqAssetJsonComp.ASSET_JSON_COMP.SCHEMA_TYPE;
+    }
+
+    @Override
+    public Field<String> field10() {
+        return JooqAssetJsonComp.ASSET_JSON_COMP.VARIANT;
+    }
+
+    @Override
+    public Field<JSONB> field11() {
+        return JooqAssetJsonComp.ASSET_JSON_COMP.DATA;
+    }
+
+    @Override
+    public Field<JsonObject> field12() {
+        return JooqAssetJsonComp.ASSET_JSON_COMP.META;
+    }
+
+    @Override
+    public Field<LocalDateTime> field13() {
+        return JooqAssetJsonComp.ASSET_JSON_COMP.CREATED;
+    }
+
+    @Override
+    public Field<UUID> field14() {
         return JooqAssetJsonComp.ASSET_JSON_COMP.CREATOR_UUID;
     }
 
     @Override
-    public Field<LocalDateTime> field8() {
+    public Field<LocalDateTime> field15() {
         return JooqAssetJsonComp.ASSET_JSON_COMP.EDITED;
     }
 
     @Override
-    public Field<UUID> field9() {
+    public Field<UUID> field16() {
         return JooqAssetJsonComp.ASSET_JSON_COMP.EDITOR_UUID;
     }
 
@@ -235,36 +382,71 @@ public class JooqAssetJsonCompRecord extends UpdatableRecordImpl<JooqAssetJsonCo
 
     @Override
     public String component3() {
-        return getSource();
+        return getNodeKind();
     }
 
     @Override
     public String component4() {
-        return getSchemaType();
+        return getNodeId();
     }
 
     @Override
-    public JSONB component5() {
-        return getData();
+    public String component5() {
+        return getProducerVersion();
     }
 
     @Override
-    public LocalDateTime component6() {
-        return getCreated();
+    public UUID component6() {
+        return getRunUuid();
     }
 
     @Override
     public UUID component7() {
+        return getTaskUuid();
+    }
+
+    @Override
+    public Float component8() {
+        return getConfidence();
+    }
+
+    @Override
+    public String component9() {
+        return getSchemaType();
+    }
+
+    @Override
+    public String component10() {
+        return getVariant();
+    }
+
+    @Override
+    public JSONB component11() {
+        return getData();
+    }
+
+    @Override
+    public JsonObject component12() {
+        return getMeta();
+    }
+
+    @Override
+    public LocalDateTime component13() {
+        return getCreated();
+    }
+
+    @Override
+    public UUID component14() {
         return getCreatorUuid();
     }
 
     @Override
-    public LocalDateTime component8() {
+    public LocalDateTime component15() {
         return getEdited();
     }
 
     @Override
-    public UUID component9() {
+    public UUID component16() {
         return getEditorUuid();
     }
 
@@ -280,36 +462,71 @@ public class JooqAssetJsonCompRecord extends UpdatableRecordImpl<JooqAssetJsonCo
 
     @Override
     public String value3() {
-        return getSource();
+        return getNodeKind();
     }
 
     @Override
     public String value4() {
-        return getSchemaType();
+        return getNodeId();
     }
 
     @Override
-    public JSONB value5() {
-        return getData();
+    public String value5() {
+        return getProducerVersion();
     }
 
     @Override
-    public LocalDateTime value6() {
-        return getCreated();
+    public UUID value6() {
+        return getRunUuid();
     }
 
     @Override
     public UUID value7() {
+        return getTaskUuid();
+    }
+
+    @Override
+    public Float value8() {
+        return getConfidence();
+    }
+
+    @Override
+    public String value9() {
+        return getSchemaType();
+    }
+
+    @Override
+    public String value10() {
+        return getVariant();
+    }
+
+    @Override
+    public JSONB value11() {
+        return getData();
+    }
+
+    @Override
+    public JsonObject value12() {
+        return getMeta();
+    }
+
+    @Override
+    public LocalDateTime value13() {
+        return getCreated();
+    }
+
+    @Override
+    public UUID value14() {
         return getCreatorUuid();
     }
 
     @Override
-    public LocalDateTime value8() {
+    public LocalDateTime value15() {
         return getEdited();
     }
 
     @Override
-    public UUID value9() {
+    public UUID value16() {
         return getEditorUuid();
     }
 
@@ -327,48 +544,90 @@ public class JooqAssetJsonCompRecord extends UpdatableRecordImpl<JooqAssetJsonCo
 
     @Override
     public JooqAssetJsonCompRecord value3(String value) {
-        setSource(value);
+        setNodeKind(value);
         return this;
     }
 
     @Override
     public JooqAssetJsonCompRecord value4(String value) {
-        setSchemaType(value);
+        setNodeId(value);
         return this;
     }
 
     @Override
-    public JooqAssetJsonCompRecord value5(JSONB value) {
-        setData(value);
+    public JooqAssetJsonCompRecord value5(String value) {
+        setProducerVersion(value);
         return this;
     }
 
     @Override
-    public JooqAssetJsonCompRecord value6(LocalDateTime value) {
-        setCreated(value);
+    public JooqAssetJsonCompRecord value6(UUID value) {
+        setRunUuid(value);
         return this;
     }
 
     @Override
     public JooqAssetJsonCompRecord value7(UUID value) {
+        setTaskUuid(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetJsonCompRecord value8(Float value) {
+        setConfidence(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetJsonCompRecord value9(String value) {
+        setSchemaType(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetJsonCompRecord value10(String value) {
+        setVariant(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetJsonCompRecord value11(JSONB value) {
+        setData(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetJsonCompRecord value12(JsonObject value) {
+        setMeta(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetJsonCompRecord value13(LocalDateTime value) {
+        setCreated(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetJsonCompRecord value14(UUID value) {
         setCreatorUuid(value);
         return this;
     }
 
     @Override
-    public JooqAssetJsonCompRecord value8(LocalDateTime value) {
+    public JooqAssetJsonCompRecord value15(LocalDateTime value) {
         setEdited(value);
         return this;
     }
 
     @Override
-    public JooqAssetJsonCompRecord value9(UUID value) {
+    public JooqAssetJsonCompRecord value16(UUID value) {
         setEditorUuid(value);
         return this;
     }
 
     @Override
-    public JooqAssetJsonCompRecord values(UUID value1, UUID value2, String value3, String value4, JSONB value5, LocalDateTime value6, UUID value7, LocalDateTime value8, UUID value9) {
+    public JooqAssetJsonCompRecord values(UUID value1, UUID value2, String value3, String value4, String value5, UUID value6, UUID value7, Float value8, String value9, String value10, JSONB value11, JsonObject value12, LocalDateTime value13, UUID value14, LocalDateTime value15, UUID value16) {
         value1(value1);
         value2(value2);
         value3(value3);
@@ -378,6 +637,13 @@ public class JooqAssetJsonCompRecord extends UpdatableRecordImpl<JooqAssetJsonCo
         value7(value7);
         value8(value8);
         value9(value9);
+        value10(value10);
+        value11(value11);
+        value12(value12);
+        value13(value13);
+        value14(value14);
+        value15(value15);
+        value16(value16);
         return this;
     }
 
@@ -395,14 +661,21 @@ public class JooqAssetJsonCompRecord extends UpdatableRecordImpl<JooqAssetJsonCo
     /**
      * Create a detached, initialised JooqAssetJsonCompRecord
      */
-    public JooqAssetJsonCompRecord(UUID uuid, UUID assetUuid, String source, String schemaType, JSONB data, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid) {
+    public JooqAssetJsonCompRecord(UUID uuid, UUID assetUuid, String nodeKind, String nodeId, String producerVersion, UUID runUuid, UUID taskUuid, Float confidence, String schemaType, String variant, JSONB data, JsonObject meta, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid) {
         super(JooqAssetJsonComp.ASSET_JSON_COMP);
 
         setUuid(uuid);
         setAssetUuid(assetUuid);
-        setSource(source);
+        setNodeKind(nodeKind);
+        setNodeId(nodeId);
+        setProducerVersion(producerVersion);
+        setRunUuid(runUuid);
+        setTaskUuid(taskUuid);
+        setConfidence(confidence);
         setSchemaType(schemaType);
+        setVariant(variant);
         setData(data);
+        setMeta(meta);
         setCreated(created);
         setCreatorUuid(creatorUuid);
         setEdited(edited);

@@ -2,39 +2,28 @@ package io.metaloom.loom.db.jooq.dao.asset.comp;
 
 import java.util.UUID;
 
-import io.metaloom.loom.db.jooq.AbstractEditableElement;
 import io.metaloom.loom.db.model.asset.AssetTranscriptComp;
 import io.vertx.core.json.JsonObject;
 
-public class AssetTranscriptCompImpl extends AbstractEditableElement<AssetTranscriptComp> implements AssetTranscriptComp {
+public class AssetTranscriptCompImpl extends AbstractAssetCompImpl<AssetTranscriptComp> implements AssetTranscriptComp {
 
-	private UUID assetUuid;
-	private String source;
-	private String lang;
+	private int streamIndex;
+	private String lang = "";
+	private UUID audioCompUuid;
 	private String transcriptText;
-	private Integer duration;
+	private Long duration;
+	private Integer wordCount;
 	private String model;
 	private JsonObject transcriptJson;
 
 	@Override
-	public UUID getAssetUuid() {
-		return assetUuid;
+	public int getStreamIndex() {
+		return streamIndex;
 	}
 
 	@Override
-	public AssetTranscriptComp setAssetUuid(UUID assetUuid) {
-		this.assetUuid = assetUuid;
-		return this;
-	}
-
-	@Override
-	public String getSource() {
-		return source;
-	}
-
-	@Override
-	public AssetTranscriptComp setSource(String source) {
-		this.source = source;
+	public AssetTranscriptComp setStreamIndex(int streamIndex) {
+		this.streamIndex = streamIndex;
 		return this;
 	}
 
@@ -45,7 +34,18 @@ public class AssetTranscriptCompImpl extends AbstractEditableElement<AssetTransc
 
 	@Override
 	public AssetTranscriptComp setLang(String lang) {
-		this.lang = lang;
+		this.lang = lang == null ? "" : lang;
+		return this;
+	}
+
+	@Override
+	public UUID getAudioCompUuid() {
+		return audioCompUuid;
+	}
+
+	@Override
+	public AssetTranscriptComp setAudioCompUuid(UUID audioCompUuid) {
+		this.audioCompUuid = audioCompUuid;
 		return this;
 	}
 
@@ -61,13 +61,24 @@ public class AssetTranscriptCompImpl extends AbstractEditableElement<AssetTransc
 	}
 
 	@Override
-	public Integer getDuration() {
+	public Long getDuration() {
 		return duration;
 	}
 
 	@Override
-	public AssetTranscriptComp setDuration(Integer duration) {
+	public AssetTranscriptComp setDuration(Long duration) {
 		this.duration = duration;
+		return this;
+	}
+
+	@Override
+	public Integer getWordCount() {
+		return wordCount;
+	}
+
+	@Override
+	public AssetTranscriptComp setWordCount(Integer wordCount) {
+		this.wordCount = wordCount;
 		return this;
 	}
 

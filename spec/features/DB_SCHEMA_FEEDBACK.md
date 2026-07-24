@@ -8,6 +8,28 @@
 > Findings were verified against the migrations under
 > `loom/db/flyway/src/main/resources/db/migration/`, not only against the diagram.
 > Where a claim depends on code, the relevant class is named.
+>
+> **Status:** the node-result findings were addressed by migrations `V2.38`–`V2.47`
+> (see [db/DATABASE_TASKS.md](db/DATABASE_TASKS.md)). Resolved findings are marked
+> **✅ RESOLVED** in place rather than deleted, so the reasoning stays readable.
+> Everything unmarked is still open.
+>
+> | Finding | Closed by |
+> |---|---|
+> | §2.1 split identity, §2.5 dead S3 columns, §3.8 `is_complete` | `V2.46` |
+> | §3.2 no idempotency key, §3.3 overloaded `source`, §3.4 no provenance, §8.2 audit columns | `V2.38`–`V2.42`, `V2.47` |
+> | §3.8 no fingerprint / segment home | `V2.41`, `V2.42` |
+> | §4.1 detection↔embedding link, §4.4 detection idempotency, §2.6 (detection only) | `V2.43` |
+> | §5.2 (partly) one geometry convention for detection+embedding | `V2.43` |
+> | §7.2 component permission model | documented in [permissions/PERMISSIONS.md](permissions/PERMISSIONS.md) §2.5 |
+> | §2.3 `asset_location UNIQUE (asset_uuid)` + missing `(library_uuid, path)` key | `V2.48` |
+> | §2.6 (partly) `reaction`/`comment` → `annotation` cascade | `V2.48` |
+> | §6.3 circular pipeline/version pointer blocking deletes | `V2.49` |
+>
+> One finding was **withdrawn**: §8.4's suggestion of an "exactly one target" CHECK on
+> `attachment` is wrong. An `EMBEDDING_ATTACHMENT` deliberately carries both the
+> embedding it depicts *and* the asset that embedding came from — the test fixture and
+> the embedding endpoints rely on it. `V2.44` records that in a comment instead.
 
 ---
 
@@ -43,7 +65,7 @@ ACL tables have primary keys that silently discard rows.
 
 ## 2. Asset core
 
-### 2.1 Split identity: `sha512sum` PK + `uuid` unique — HIGH
+### 2.1 Split identity: `sha512sum` PK + `uuid` unique — HIGH ✅ RESOLVED (`V2.46`)
 
 `asset` has `PRIMARY KEY (sha512sum)` and a separate `UNIQUE INDEX` on `uuid`. **Every child
 table FKs to `uuid`, not to the primary key.** Consequences:
@@ -90,7 +112,16 @@ node fills it (paired with `UNIQUE` so the row collapses onto an existing asset 
 turns out to be known), and give `pipeline_run_item` a real `asset_uuid` FK once identity is
 resolved.
 
-### 2.3 `asset_location UNIQUE (asset_uuid)` — HIGH
+> **Decision taken (`V2.46`), overriding the recommendation above:** `sha512sum` stays
+> `NOT NULL`, so an asset row still cannot exist before hashing. The node system already
+> assumes SHA-512 is available (`AbstractMediaNode` fetches the asset by SHA-512 in its
+> lifecycle) and `pipeline_run_item` already carries the pre-hash identity, so nodes
+> upstream of hashing hold their outputs in `pipeline_node_task.outputs` until identity
+> exists. Only the PK/FK split (§2.1) was fixed. The rule is recorded in a
+> `COMMENT ON TABLE "asset"` so it is not re-litigated. Content mutation and the
+> `pipeline_run_item.asset_uuid` FK (§6.1) remain open.
+
+### 2.3 `asset_location UNIQUE (asset_uuid)` — HIGH ✅ RESOLVED (`V2.48`)
 
 Introduced in `V2.20` under the comment "Enforce one binary per asset". It conflates two
 different things: *one binary blob per content hash* (true by construction — the hash **is** the
@@ -128,13 +159,13 @@ filesystems. `filekey_edate` as a 32-bit epoch overflows in 2038, and `edate_nan
 cannot hold a nanosecond field at all if it is ever used as a full nanosecond timestamp. All four
 should be `bigint`. This silently corrupts scanner change-detection rather than failing loudly.
 
-### 2.5 Dead legacy columns — LOW
+### 2.5 Dead legacy columns — LOW ✅ RESOLVED (`V2.46`)
 
 `asset.s3_bucket_name` / `asset.s3_object_path` are superseded by `asset_location.pool_uuid` →
 `asset_pool`. The diagram calls them "legacy". Two ways to point at S3 for the same asset is a
 correctness hazard; drop them.
 
-### 2.6 Deleting an asset is impossible — HIGH
+### 2.6 Deleting an asset is impossible — HIGH (partly resolved: `detection` in `V2.43`, `attachment` in `V2.44`; `reaction`/`comment` → `annotation` in `V2.48`. The remaining join tables are still open.)
 
 `ON DELETE CASCADE` was applied inconsistently. It is present on `asset_location`,
 `asset_remix`, `embedding`, `annotation`, `person_image`, `blacklist` and all `asset_*_comp`
@@ -201,7 +232,7 @@ The practical consequence: **the schema's asset-result surface is not being exer
 gaps have not surfaced yet.** They will all surface at once when the sync path is generalised.
 The fixes below are cheapest now, before there is data to migrate.
 
-### 3.2 No idempotency key on any component table — HIGH
+### 3.2 No idempotency key on any component table — HIGH ✅ RESOLVED (`V2.38`–`V2.42`)
 
 None of the seven `asset_*_comp` tables has a unique constraint beyond the surrogate PK, and
 `AssetComponentDao` exposes only `createXComp(userUuid, assetUuid, source)` / `loadXComps(assetUuid)`
@@ -230,7 +261,7 @@ and make the DAO do `INSERT … ON CONFLICT … DO UPDATE`. Note `source` is cur
 in every table; it must become `NOT NULL` for any of these keys to bite (Postgres treats NULLs
 as distinct).
 
-### 3.3 `source varchar` is doing too much work — HIGH
+### 3.3 `source varchar` is doing too much work — HIGH ✅ RESOLVED (`V2.38`–`V2.42`)
 
 `source` is simultaneously used for the extraction method (`'exif'`), the producing node
 (`'Name of the source node that produced this data'` — `asset_json_comp`), the pipeline
@@ -249,7 +280,7 @@ producer_version varchar            -- model/algorithm version: 'whisper-large-v
 `asset_transcript_comp` already has a `model` column — that instinct is correct and should be
 generalised, not kept as a one-off.
 
-### 3.4 No provenance link to the run that produced the result — HIGH
+### 3.4 No provenance link to the run that produced the result — HIGH ✅ RESOLVED (`V2.38`–`V2.45`)
 
 There is no FK from any result row to `pipeline_run`, `pipeline_node_task` or
 `pipeline_version`. The following questions cannot be answered by a query today:
@@ -304,7 +335,7 @@ query. It degrades to a scan filtered by `state`.
 
 Add `CREATE INDEX … ON pipeline_node_task (node_kind, state) WHERE state = 'PENDING';`
 
-### 3.8 Component coverage vs. the node list — MEDIUM
+### 3.8 Component coverage vs. the node list — MEDIUM ✅ RESOLVED (`V2.41`, `V2.42`, `V2.44`, `V2.46`)
 
 Mapping NODES.md §3 onto the seven component tables leaves real gaps:
 
@@ -333,7 +364,7 @@ is ever to be queried by content; today only `schema_type` is indexed.
 
 ## 4. Detection / embedding / cluster
 
-### 4.1 `detection` and `embedding` are not linked — HIGH
+### 4.1 `detection` and `embedding` are not linked — HIGH ✅ RESOLVED (`V2.43`)
 
 A face detection and the face embedding computed from that same detected region are the
 canonical pair, and there is no FK between the two tables. Both carry an independent copy of the
@@ -377,7 +408,7 @@ knows what is stale. Right now neither story is expressed.
 people with the same name cannot both be clusters. Should be `UNIQUE (type, name)` at minimum;
 for people, name uniqueness is wrong regardless.
 
-### 4.4 `detection` has no idempotency key — MEDIUM
+### 4.4 `detection` has no idempotency key — MEDIUM ✅ RESOLVED (`V2.43`)
 
 Same problem as §3.2, and worse in effect: re-running `FacedetectNode` on a video appends a
 complete second set of detections for every frame. There is no `(asset_uuid, type, frame_number,
@@ -441,7 +472,7 @@ run execute?" needs a two-column lookup instead of a join. Use
 Note the same pattern is handled *correctly* one table over: `skill.active_version_uuid` is a
 proper FK to `skill_version.uuid`. The pipeline side should match.
 
-### 6.3 Circular FK between `pipeline` and `pipeline_version` — LOW
+### 6.3 Circular FK between `pipeline` and `pipeline_version` — LOW ✅ RESOLVED (`V2.49`)
 
 `pipeline.latest_version_uuid → pipeline_version.uuid` and
 `pipeline_version.pipeline_uuid → pipeline.uuid`. Insert order requires a nullable column plus
@@ -502,7 +533,7 @@ unreachable:
 narrow one. This is a small migration with a large correctness payoff, and it is likely masking
 bugs today rather than merely limiting the model.
 
-### 7.2 No component-level permissions — LOW
+### 7.2 No component-level permissions — LOW ✅ RESOLVED (documented, no enum change)
 
 `loom_permission` has `*_ASSET`, `*_ASSET_LOCATION`, `*_ASSET_BINARY`, `*_ASSET_POOL`,
 `*_DETECTION`, `*_EMBEDDING` — but nothing for asset components. Component reads/writes are
@@ -523,7 +554,7 @@ For a system whose workers (`cortex_instance.host`, `last_seen`, `lease_expires_
 machines in different zones, this is a latent bug: lease expiry compares wall-clock values whose
 zone is implicit. Use `timestamptz` throughout. Cheap to change now, painful later.
 
-### 8.2 Audit columns on machine-written rows — MEDIUM
+### 8.2 Audit columns on machine-written rows — MEDIUM ✅ RESOLVED (`V2.38`–`V2.43`, `V2.47`)
 
 `creator_uuid`/`editor_uuid` are `NOT NULL` on every result table (`asset_*_comp`, `detection`,
 `embedding`) — but these rows are written by *workers*, not users. `cortex_instance` already
@@ -537,7 +568,7 @@ system/service principal and document it.
 Diagram note: "Singleton bookkeeping row (no primary key)." Nothing stops a second row.
 `CHECK (id = 1)` on a constant-valued PK column is the usual guard.
 
-### 8.4 `reaction` uniqueness is asymmetric — LOW
+### 8.4 `reaction` uniqueness is asymmetric — LOW (the `attachment` half of this finding was WITHDRAWN — see the status box)
 
 Unique indexes exist for `(creator_uuid, type, asset_uuid)`, `…comment_uuid`, `…annotation_uuid`
 — but not `…task_uuid`, although `task_uuid` is one of the four targets. Also, the four target

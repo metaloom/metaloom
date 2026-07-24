@@ -9,7 +9,7 @@ public class TranscriptResponse extends AbstractCreatorEditorRestResponse<Transc
 	private String source;
 	private String lang;
 	private String transcriptText;
-	private Integer duration;
+	private Long duration;
 	private String model;
 	private JsonObject transcriptJson;
 	private String assetUuid;
@@ -48,12 +48,12 @@ public class TranscriptResponse extends AbstractCreatorEditorRestResponse<Transc
 	}
 
 	@Override
-	public Integer getDuration() {
+	public Long getDuration() {
 		return duration;
 	}
 
 	@Override
-	public TranscriptResponse setDuration(Integer duration) {
+	public TranscriptResponse setDuration(Long duration) {
 		this.duration = duration;
 		return this;
 	}

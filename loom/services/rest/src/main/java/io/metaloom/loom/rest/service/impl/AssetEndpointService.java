@@ -21,6 +21,7 @@ import io.metaloom.loom.api.embedding.EmbeddingType;
 import io.metaloom.loom.db.dagger.DaoCollection;
 import io.metaloom.loom.db.model.asset.Asset;
 import io.metaloom.loom.db.model.asset.AssetAudioComp;
+import io.metaloom.loom.db.model.asset.AssetComponent;
 import io.metaloom.loom.db.model.asset.AssetComponentDao;
 import io.metaloom.loom.db.model.asset.AssetDao;
 import io.metaloom.loom.db.model.asset.AssetDocComp;
@@ -198,7 +199,7 @@ public class AssetEndpointService extends AbstractCRUDEndpointService<AssetDao, 
 
 		ImageInfo imageInfo = model.getImage();
 		if (imageInfo != null) {
-			AssetImageComp comp = compDao.createImageComp(userUuid, assetUuid, null);
+			AssetImageComp comp = compDao.createImageComp(userUuid, assetUuid, AssetComponent.NODE_KIND_MANUAL);
 			comp.setImageDominantColor(imageInfo.getDominantColor());
 			MediaInfo mediaInfo = model.getMedia();
 			if (mediaInfo != null) {
@@ -210,7 +211,7 @@ public class AssetEndpointService extends AbstractCRUDEndpointService<AssetDao, 
 
 		VideoInfo videoInfo = model.getVideo();
 		if (videoInfo != null) {
-			AssetVideoComp comp = compDao.createVideoComp(userUuid, assetUuid, null);
+			AssetVideoComp comp = compDao.createVideoComp(userUuid, assetUuid, AssetComponent.NODE_KIND_MANUAL);
 			comp.setVideoEncoding(videoInfo.getEncoding());
 			comp.setVideoBitrate(videoInfo.getBitrate());
 			MediaInfo mediaInfo = model.getMedia();
@@ -224,7 +225,7 @@ public class AssetEndpointService extends AbstractCRUDEndpointService<AssetDao, 
 
 		AudioInfo audioInfo = model.getAudio();
 		if (audioInfo != null) {
-			AssetAudioComp comp = compDao.createAudioComp(userUuid, assetUuid, null);
+			AssetAudioComp comp = compDao.createAudioComp(userUuid, assetUuid, AssetComponent.NODE_KIND_MANUAL);
 			comp.setAudioEncoding(audioInfo.getEncoding());
 			comp.setAudioSamplingRate(audioInfo.getSamplingRate());
 			comp.setAudioBpm(audioInfo.getBpm());
@@ -239,7 +240,7 @@ public class AssetEndpointService extends AbstractCRUDEndpointService<AssetDao, 
 
 		GeoLocationInfo geoInfo = model.getGeo();
 		if (geoInfo != null) {
-			AssetGeoComp comp = compDao.createGeoComp(userUuid, assetUuid, null);
+			AssetGeoComp comp = compDao.createGeoComp(userUuid, assetUuid, AssetComponent.NODE_KIND_MANUAL);
 			comp.setGeoLon(geoInfo.getLon());
 			comp.setGeoLat(geoInfo.getLat());
 			comp.setGeoAlias(geoInfo.getAlias());
@@ -248,7 +249,7 @@ public class AssetEndpointService extends AbstractCRUDEndpointService<AssetDao, 
 
 		DocumentInfo docInfo = model.getDocument();
 		if (docInfo != null) {
-			AssetDocComp comp = compDao.createDocComp(userUuid, assetUuid, null);
+			AssetDocComp comp = compDao.createDocComp(userUuid, assetUuid, AssetComponent.NODE_KIND_MANUAL);
 			comp.setDocWordCount(docInfo.getWordCount() != null ? docInfo.getWordCount().intValue() : null);
 			compDao.storeDocComp(comp);
 		}

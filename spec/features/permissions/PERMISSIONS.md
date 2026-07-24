@@ -139,6 +139,36 @@ and never populates `RoleResponse.setPermissions()`; the only `Permission`
 constants it references are the four guarding its own CRUD routes. Permissions
 sent to `POST /api/v1/roles` are silently accepted and dropped. See §7.3.
 
+### 2.5 Sub-resources are guarded by their parent
+
+**Rule: a table that only exists as a detail of another entity gets no
+permission values of its own. It is guarded by its parent's.**
+
+The precedent is `V2.31`, which states it in the migration itself: *"No new
+permissions are introduced: both tables are sub-resources of a run and are
+guarded by the existing `READ_PIPELINE_RUN` / `UPDATE_PIPELINE_RUN`."*
+
+Applied to the asset result tables added in `V2.38`–`V2.45`:
+
+| Table | Guarded by | Rationale |
+|---|---|---|
+| `asset_geo_comp`, `asset_doc_comp`, `asset_image_comp`, `asset_video_comp`, `asset_audio_comp`, `asset_transcript_comp` | `READ_ASSET` / `UPDATE_ASSET` | Typed component of one asset; meaningless without it |
+| `asset_json_comp` | `READ_ASSET` / `UPDATE_ASSET` | Generic component of one asset |
+| `asset_fingerprint_comp`, `asset_segment_comp` | `READ_ASSET` / `UPDATE_ASSET` | Same |
+| `asset_node_result` | `READ_ASSET` / `UPDATE_ASSET` | Per-asset processing state |
+
+`detection` and `embedding` keep their existing dedicated permissions. They are
+the exception, not a contradiction: both are exposed as first-class REST
+resources with their own endpoints, their grants already exist in the wild, and
+removing them would be a breaking change for no gain.
+
+Add `*_ASSET_COMPONENT` values **only** if the UI ever needs to grant component
+access independently of asset access. An unused enum value still has to be kept
+in sync across three layers (§2), so do not add one speculatively.
+
+See [../db/DATABASE_TASKS.md](../db/DATABASE_TASKS.md) §4 for the tables and
+their identity contract.
+
 ---
 
 ## 3. Database Schema

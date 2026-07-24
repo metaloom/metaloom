@@ -11,12 +11,15 @@ import io.metaloom.loom.db.jooq.tables.JooqAnnotationTask;
 import io.metaloom.loom.db.jooq.tables.JooqAsset;
 import io.metaloom.loom.db.jooq.tables.JooqAssetAudioComp;
 import io.metaloom.loom.db.jooq.tables.JooqAssetDocComp;
+import io.metaloom.loom.db.jooq.tables.JooqAssetFingerprintComp;
 import io.metaloom.loom.db.jooq.tables.JooqAssetGeoComp;
 import io.metaloom.loom.db.jooq.tables.JooqAssetImageComp;
 import io.metaloom.loom.db.jooq.tables.JooqAssetJsonComp;
 import io.metaloom.loom.db.jooq.tables.JooqAssetLocation;
+import io.metaloom.loom.db.jooq.tables.JooqAssetNodeResult;
 import io.metaloom.loom.db.jooq.tables.JooqAssetPool;
 import io.metaloom.loom.db.jooq.tables.JooqAssetRemix;
+import io.metaloom.loom.db.jooq.tables.JooqAssetSegmentComp;
 import io.metaloom.loom.db.jooq.tables.JooqAssetTask;
 import io.metaloom.loom.db.jooq.tables.JooqAssetTranscriptComp;
 import io.metaloom.loom.db.jooq.tables.JooqAssetUserMeta;
@@ -114,41 +117,90 @@ public class JooqPublic extends SchemaImpl {
     public final JooqAnnotationTask ANNOTATION_TASK = JooqAnnotationTask.ANNOTATION_TASK;
 
     /**
-     * This table stores information on the asset component of the asset
+     * The binary/content component of an asset, addressed by its SHA-512.
+     * 
+     * IDENTITY RULE: sha512sum stays NOT NULL, so an asset row cannot exist
+     * before a hashing
+     * node has run. That is deliberate - the node system already assumes
+     * SHA-512 is available
+     * (AbstractMediaNode fetches the asset by SHA-512 in its lifecycle), and
+     * pipeline_run_item
+     * carries the pre-hash identity (media_path plus a nullable sha512). Nodes
+     * upstream of
+     * hashing hold their outputs in pipeline_node_task.outputs, and the sync
+     * flushes them once
+     * identity exists.
+     * 
+     * PLACEMENT RULE: intrinsic properties of the BYTES (hashes, size,
+     * zero_chunk_count,
+     * is_complete) live here. Everything derived by interpretation lives in a
+     * component table
+     * (asset_*_comp), keyed by its producing node.
      */
     public final JooqAsset ASSET = JooqAsset.ASSET;
 
     /**
-     * Stores audio-specific properties extracted from an asset
+     * Audio track properties. One row per track: a video with a German and an
+     * English track has two, discriminated by stream_index.
      */
     public final JooqAssetAudioComp ASSET_AUDIO_COMP = JooqAssetAudioComp.ASSET_AUDIO_COMP;
 
     /**
-     * Stores document/text extraction data from an asset
+     * Extracted text of a document or an image region. One row per producer per
+     * page: Tika writes the whole document as page 0, OCR writes one row per
+     * page.
      */
     public final JooqAssetDocComp ASSET_DOC_COMP = JooqAssetDocComp.ASSET_DOC_COMP;
 
     /**
-     * Stores geo location information extracted from an asset
+     * Perceptual fingerprints of an asset, one row per sector. Indexed by
+     * (algorithm, fingerprint) so dedup is an index scan rather than a table
+     * walk.
+     */
+    public final JooqAssetFingerprintComp ASSET_FINGERPRINT_COMP = JooqAssetFingerprintComp.ASSET_FINGERPRINT_COMP;
+
+    /**
+     * Geo location extracted from an asset. Multiple rows per asset: one per
+     * producer, method and time offset (a drone video carries a whole GPS
+     * track).
      */
     public final JooqAssetGeoComp ASSET_GEO_COMP = JooqAssetGeoComp.ASSET_GEO_COMP;
 
     /**
-     * Stores image-specific properties extracted from an asset
+     * Image properties extracted from an asset. Never gated on the asset mime
+     * type: an MP3 with embedded cover art legitimately owns an image
+     * component.
      */
     public final JooqAssetImageComp ASSET_IMAGE_COMP = JooqAssetImageComp.ASSET_IMAGE_COMP;
 
     /**
-     * Stores generic JSON component data produced by Cortex processing nodes
+     * Generic sink for node results with no query requirement. A node kind
+     * starts here and graduates to a typed component table when a query must
+     * filter on a field inside data, when the UI renders it as a first-class
+     * object, or when it needs a foreign key.
      */
     public final JooqAssetJsonComp ASSET_JSON_COMP = JooqAssetJsonComp.ASSET_JSON_COMP;
 
     /**
-     * Assets keep track of media that has been found by the scanner. Multiple
-     * asset_locations may share the same asset thus the properties will be
-     * decoupled from asset.
+     * Media found by the scanner. Several locations may share one asset - that
+     * is the point of
+     * the table: the same content can live at several paths and in several
+     * libraries. The
+     * natural key is (library_uuid, path). If a canonical location is ever
+     * needed, model it as
+     * a pointer on asset or a partial unique index on an is_primary flag, not
+     * by constraining
+     * this table to one row per asset.
      */
     public final JooqAssetLocation ASSET_LOCATION = JooqAssetLocation.ASSET_LOCATION;
+
+    /**
+     * Per-asset processing ledger: has node X at version V processed asset A,
+     * and what happened - regardless of which table the payload landed in.
+     * Permanent catalog state, unlike pipeline_node_task which is per run item
+     * and is pruned with the run.
+     */
+    public final JooqAssetNodeResult ASSET_NODE_RESULT = JooqAssetNodeResult.ASSET_NODE_RESULT;
 
     /**
      * Storage pools for asset binaries. A pool represents either a filesystem
@@ -162,12 +214,22 @@ public class JooqPublic extends SchemaImpl {
     public final JooqAssetRemix ASSET_REMIX = JooqAssetRemix.ASSET_REMIX;
 
     /**
+     * Time-ranged results: scenes, silence, shot changes, chapters.
+     * Replace-in-place happens at the SET level: a re-run writes seq 0..N-1 and
+     * must delete rows with seq &gt;= N for that (asset_uuid, node_kind,
+     * segment_type). That is the one write path which is not a single upsert
+     * statement.
+     */
+    public final JooqAssetSegmentComp ASSET_SEGMENT_COMP = JooqAssetSegmentComp.ASSET_SEGMENT_COMP;
+
+    /**
      * The table <code>public.asset_task</code>.
      */
     public final JooqAssetTask ASSET_TASK = JooqAssetTask.ASSET_TASK;
 
     /**
-     * Stores transcript data for audio/video assets
+     * Transcript of one audio track of an asset. One row per (producer, track,
+     * language).
      */
     public final JooqAssetTranscriptComp ASSET_TRANSCRIPT_COMP = JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP;
 
@@ -177,7 +239,9 @@ public class JooqPublic extends SchemaImpl {
     public final JooqAssetUserMeta ASSET_USER_META = JooqAssetUserMeta.ASSET_USER_META;
 
     /**
-     * Stores video-specific properties extracted from an asset
+     * Video stream properties. Two producers of the same dimension (e.g. tika
+     * probing and the quality node measuring) yield two partially filled rows -
+     * the read side coalesces them by producer precedence.
      */
     public final JooqAssetVideoComp ASSET_VIDEO_COMP = JooqAssetVideoComp.ASSET_VIDEO_COMP;
 
@@ -245,12 +309,16 @@ public class JooqPublic extends SchemaImpl {
     public final JooqCortexInstanceNodeKind CORTEX_INSTANCE_NODE_KIND = JooqCortexInstanceNodeKind.CORTEX_INSTANCE_NODE_KIND;
 
     /**
-     * Stores object and face detections within assets
+     * Object and face detections within assets. One row per detected instance,
+     * keyed by (asset, producer, frame, ordinal) so a re-run replaces rather
+     * than duplicates.
      */
     public final JooqDetection DETECTION = JooqDetection.DETECTION;
 
     /**
-     * Embedding information which was extracted from an asset.
+     * Embedding vectors extracted from an asset. The geometry lives on the
+     * linked detection - this table no longer carries a second, absolute-pixel
+     * copy of it.
      */
     public final JooqEmbedding EMBEDDING = JooqEmbedding.EMBEDDING;
 
@@ -465,12 +533,15 @@ public class JooqPublic extends SchemaImpl {
             JooqAsset.ASSET,
             JooqAssetAudioComp.ASSET_AUDIO_COMP,
             JooqAssetDocComp.ASSET_DOC_COMP,
+            JooqAssetFingerprintComp.ASSET_FINGERPRINT_COMP,
             JooqAssetGeoComp.ASSET_GEO_COMP,
             JooqAssetImageComp.ASSET_IMAGE_COMP,
             JooqAssetJsonComp.ASSET_JSON_COMP,
             JooqAssetLocation.ASSET_LOCATION,
+            JooqAssetNodeResult.ASSET_NODE_RESULT,
             JooqAssetPool.ASSET_POOL,
             JooqAssetRemix.ASSET_REMIX,
+            JooqAssetSegmentComp.ASSET_SEGMENT_COMP,
             JooqAssetTask.ASSET_TASK,
             JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP,
             JooqAssetUserMeta.ASSET_USER_META,

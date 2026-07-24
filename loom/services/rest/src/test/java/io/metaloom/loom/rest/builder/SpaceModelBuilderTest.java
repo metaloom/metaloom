@@ -34,6 +34,9 @@ public class SpaceModelBuilderTest extends AbstractModelBuilderTest {
 		Space space = mock(Space.class);
 		when(space.getName()).thenReturn(name);
 		when(space.getUuid()).thenReturn(PROJECT_UUID);
+		// The response carries a creator/editor block; without a creator uuid the builder
+		// leaves it empty (machine-written rows).
+		mockCreatorEditorRefs(space);
 		return space;
 	}
 

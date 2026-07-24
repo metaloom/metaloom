@@ -10,7 +10,7 @@ public class TranscriptUpdateRequest extends AbstractMetaModel<TranscriptUpdateR
 	private String source;
 	private String lang;
 	private String transcriptText;
-	private Integer duration;
+	private Long duration;
 	private String model;
 	private JsonObject transcriptJson;
 
@@ -48,12 +48,12 @@ public class TranscriptUpdateRequest extends AbstractMetaModel<TranscriptUpdateR
 	}
 
 	@Override
-	public Integer getDuration() {
+	public Long getDuration() {
 		return duration;
 	}
 
 	@Override
-	public TranscriptUpdateRequest setDuration(Integer duration) {
+	public TranscriptUpdateRequest setDuration(Long duration) {
 		this.duration = duration;
 		return this;
 	}

@@ -4,7 +4,6 @@
 package io.metaloom.loom.db.jooq.tables;
 
 
-import io.metaloom.loom.db.jooq.Indexes;
 import io.metaloom.loom.db.jooq.JooqPublic;
 import io.metaloom.loom.db.jooq.Keys;
 import io.metaloom.loom.db.jooq.converter.JsonObjectConverter;
@@ -18,12 +17,11 @@ import java.util.function.Function;
 
 import org.jooq.Field;
 import org.jooq.ForeignKey;
-import org.jooq.Function18;
-import org.jooq.Index;
+import org.jooq.Function17;
 import org.jooq.Name;
 import org.jooq.Record;
 import org.jooq.Records;
-import org.jooq.Row18;
+import org.jooq.Row17;
 import org.jooq.Schema;
 import org.jooq.SelectField;
 import org.jooq.Table;
@@ -36,7 +34,25 @@ import org.jooq.impl.TableImpl;
 
 
 /**
- * This table stores information on the asset component of the asset
+ * The binary/content component of an asset, addressed by its SHA-512.
+ * 
+ * IDENTITY RULE: sha512sum stays NOT NULL, so an asset row cannot exist before
+ * a hashing
+ * node has run. That is deliberate - the node system already assumes SHA-512 is
+ * available
+ * (AbstractMediaNode fetches the asset by SHA-512 in its lifecycle), and
+ * pipeline_run_item
+ * carries the pre-hash identity (media_path plus a nullable sha512). Nodes
+ * upstream of
+ * hashing hold their outputs in pipeline_node_task.outputs, and the sync
+ * flushes them once
+ * identity exists.
+ * 
+ * PLACEMENT RULE: intrinsic properties of the BYTES (hashes, size,
+ * zero_chunk_count,
+ * is_complete) live here. Everything derived by interpretation lives in a
+ * component table
+ * (asset_*_comp), keyed by its producing node.
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
 public class JooqAsset extends TableImpl<JooqAssetRecord> {
@@ -57,14 +73,16 @@ public class JooqAsset extends TableImpl<JooqAssetRecord> {
     }
 
     /**
-     * The column <code>public.asset.uuid</code>.
+     * The column <code>public.asset.uuid</code>. Primary key. Every child table
+     * references this column.
      */
-    public final TableField<JooqAssetRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
+    public final TableField<JooqAssetRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "Primary key. Every child table references this column.");
 
     /**
-     * The column <code>public.asset.sha512sum</code>.
+     * The column <code>public.asset.sha512sum</code>. Content identity. Natural
+     * key, unique and not null.
      */
-    public final TableField<JooqAssetRecord, String> SHA512SUM = createField(DSL.name("sha512sum"), SQLDataType.VARCHAR.nullable(false), this, "");
+    public final TableField<JooqAssetRecord, String> SHA512SUM = createField(DSL.name("sha512sum"), SQLDataType.VARCHAR.nullable(false), this, "Content identity. Natural key, unique and not null.");
 
     /**
      * The column <code>public.asset.size</code>.
@@ -87,9 +105,10 @@ public class JooqAsset extends TableImpl<JooqAssetRecord> {
     public final TableField<JooqAssetRecord, String> CHUNK_HASH = createField(DSL.name("chunk_hash"), SQLDataType.VARCHAR, this, "");
 
     /**
-     * The column <code>public.asset.zero_chunk_count</code>.
+     * The column <code>public.asset.zero_chunk_count</code>. ConsistencyNode
+     * zero-chunk count, used to detect truncated files
      */
-    public final TableField<JooqAssetRecord, Long> ZERO_CHUNK_COUNT = createField(DSL.name("zero_chunk_count"), SQLDataType.BIGINT, this, "");
+    public final TableField<JooqAssetRecord, Long> ZERO_CHUNK_COUNT = createField(DSL.name("zero_chunk_count"), SQLDataType.BIGINT, this, "ConsistencyNode zero-chunk count, used to detect truncated files");
 
     /**
      * The column <code>public.asset.mime_type</code>.
@@ -140,21 +159,17 @@ public class JooqAsset extends TableImpl<JooqAssetRecord> {
     public final TableField<JooqAssetRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID.nullable(false), this, "");
 
     /**
-     * The column <code>public.asset.s3_bucket_name</code>.
+     * The column <code>public.asset.is_complete</code>. ConsistencyNode
+     * verdict. NULL = not yet checked.
      */
-    public final TableField<JooqAssetRecord, String> S3_BUCKET_NAME = createField(DSL.name("s3_bucket_name"), SQLDataType.VARCHAR, this, "");
-
-    /**
-     * The column <code>public.asset.s3_object_path</code>.
-     */
-    public final TableField<JooqAssetRecord, String> S3_OBJECT_PATH = createField(DSL.name("s3_object_path"), SQLDataType.VARCHAR, this, "");
+    public final TableField<JooqAssetRecord, Boolean> IS_COMPLETE = createField(DSL.name("is_complete"), SQLDataType.BOOLEAN, this, "ConsistencyNode verdict. NULL = not yet checked.");
 
     private JooqAsset(Name alias, Table<JooqAssetRecord> aliased) {
         this(alias, aliased, null);
     }
 
     private JooqAsset(Name alias, Table<JooqAssetRecord> aliased, Field<?>[] parameters) {
-        super(alias, null, aliased, parameters, DSL.comment("This table stores information on the asset component of the asset"), TableOptions.table());
+        super(alias, null, aliased, parameters, DSL.comment("The binary/content component of an asset, addressed by its SHA-512.\n\nIDENTITY RULE: sha512sum stays NOT NULL, so an asset row cannot exist before a hashing\nnode has run. That is deliberate - the node system already assumes SHA-512 is available\n(AbstractMediaNode fetches the asset by SHA-512 in its lifecycle), and pipeline_run_item\ncarries the pre-hash identity (media_path plus a nullable sha512). Nodes upstream of\nhashing hold their outputs in pipeline_node_task.outputs, and the sync flushes them once\nidentity exists.\n\nPLACEMENT RULE: intrinsic properties of the BYTES (hashes, size, zero_chunk_count,\nis_complete) live here. Everything derived by interpretation lives in a component table\n(asset_*_comp), keyed by its producing node."), TableOptions.table());
     }
 
     /**
@@ -188,13 +203,13 @@ public class JooqAsset extends TableImpl<JooqAssetRecord> {
     }
 
     @Override
-    public List<Index> getIndexes() {
-        return Arrays.asList(Indexes.ASSET_UUID_IDX);
+    public UniqueKey<JooqAssetRecord> getPrimaryKey() {
+        return Keys.ASSET_PKEY;
     }
 
     @Override
-    public UniqueKey<JooqAssetRecord> getPrimaryKey() {
-        return Keys.ASSET_PKEY;
+    public List<UniqueKey<JooqAssetRecord>> getUniqueKeys() {
+        return Arrays.asList(Keys.ASSET_SHA512SUM_KEY);
     }
 
     @Override
@@ -267,18 +282,18 @@ public class JooqAsset extends TableImpl<JooqAssetRecord> {
     }
 
     // -------------------------------------------------------------------------
-    // Row18 type methods
+    // Row17 type methods
     // -------------------------------------------------------------------------
 
     @Override
-    public Row18<java.util.UUID, String, Long, String, String, String, Long, String, String, String, LocalDateTime, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID, String, String> fieldsRow() {
-        return (Row18) super.fieldsRow();
+    public Row17<java.util.UUID, String, Long, String, String, String, Long, String, String, String, LocalDateTime, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID, Boolean> fieldsRow() {
+        return (Row17) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function18<? super java.util.UUID, ? super String, ? super Long, ? super String, ? super String, ? super String, ? super Long, ? super String, ? super String, ? super String, ? super LocalDateTime, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super String, ? super String, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function17<? super java.util.UUID, ? super String, ? super Long, ? super String, ? super String, ? super String, ? super Long, ? super String, ? super String, ? super String, ? super LocalDateTime, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super Boolean, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -286,7 +301,7 @@ public class JooqAsset extends TableImpl<JooqAssetRecord> {
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function18<? super java.util.UUID, ? super String, ? super Long, ? super String, ? super String, ? super String, ? super Long, ? super String, ? super String, ? super String, ? super LocalDateTime, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super String, ? super String, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function17<? super java.util.UUID, ? super String, ? super Long, ? super String, ? super String, ? super String, ? super Long, ? super String, ? super String, ? super String, ? super LocalDateTime, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super Boolean, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }

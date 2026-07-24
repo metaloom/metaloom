@@ -17,13 +17,14 @@ public class TokenDaoTest extends AbstractJooqTest implements CRUDDaoTestcases<T
 
 	@Override
 	public Token createElement(User user, int i) {
-		return getDao().createToken(user, "name_" + i, "TOKEN_VALUE");
+		// token.token is UNIQUE - every element needs its own value.
+		return getDao().createToken(user, "name_" + i, "TOKEN_VALUE_" + i);
 	}
 
 	@Override
 	public void assertCreate(Token createdElement) {
 		assertEquals("name_0", createdElement.getName());
-		assertEquals("TOKEN_VALUE", createdElement.getToken());
+		assertEquals("TOKEN_VALUE_0", createdElement.getToken());
 	}
 
 	@Override

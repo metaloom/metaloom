@@ -1,39 +1,13 @@
 package io.metaloom.loom.db.jooq.dao.asset.comp;
 
-import java.util.UUID;
-
-import io.metaloom.loom.db.jooq.AbstractEditableElement;
 import io.metaloom.loom.db.model.asset.AssetJsonComp;
 import io.vertx.core.json.JsonObject;
 
-public class AssetJsonCompImpl extends AbstractEditableElement<AssetJsonComp> implements AssetJsonComp {
+public class AssetJsonCompImpl extends AbstractAssetCompImpl<AssetJsonComp> implements AssetJsonComp {
 
-	private UUID assetUuid;
-	private String source;
 	private String schemaType;
-	private String data;
-
-	@Override
-	public UUID getAssetUuid() {
-		return assetUuid;
-	}
-
-	@Override
-	public AssetJsonComp setAssetUuid(UUID assetUuid) {
-		this.assetUuid = assetUuid;
-		return this;
-	}
-
-	@Override
-	public String getSource() {
-		return source;
-	}
-
-	@Override
-	public AssetJsonComp setSource(String source) {
-		this.source = source;
-		return this;
-	}
+	private String variant = "";
+	private JsonObject data;
 
 	@Override
 	public String getSchemaType() {
@@ -47,13 +21,24 @@ public class AssetJsonCompImpl extends AbstractEditableElement<AssetJsonComp> im
 	}
 
 	@Override
+	public String getVariant() {
+		return variant;
+	}
+
+	@Override
+	public AssetJsonComp setVariant(String variant) {
+		this.variant = variant == null ? "" : variant;
+		return this;
+	}
+
+	@Override
 	public JsonObject getData() {
-		return data != null ? new JsonObject(data) : null;
+		return data;
 	}
 
 	@Override
 	public AssetJsonComp setData(JsonObject data) {
-		this.data = data != null ? data.encode() : null;
+		this.data = data;
 		return this;
 	}
 }

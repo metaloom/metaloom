@@ -1,37 +1,26 @@
 package io.metaloom.loom.db.jooq.dao.asset.comp;
 
-import java.util.UUID;
-
-import io.metaloom.loom.db.jooq.AbstractEditableElement;
 import io.metaloom.loom.db.model.asset.AssetImageComp;
 
-public class AssetImageCompImpl extends AbstractEditableElement<AssetImageComp> implements AssetImageComp {
+public class AssetImageCompImpl extends AbstractAssetCompImpl<AssetImageComp> implements AssetImageComp {
 
-	private UUID assetUuid;
-	private String source;
+	private int streamIndex;
 	private String imageDominantColor;
+	private String imageEncoding;
 	private Integer mediaWidth;
 	private Integer mediaHeight;
+	private Integer orientation;
+	private Integer bitDepth;
+	private Float blurriness;
 
 	@Override
-	public UUID getAssetUuid() {
-		return assetUuid;
+	public int getStreamIndex() {
+		return streamIndex;
 	}
 
 	@Override
-	public AssetImageComp setAssetUuid(UUID assetUuid) {
-		this.assetUuid = assetUuid;
-		return this;
-	}
-
-	@Override
-	public String getSource() {
-		return source;
-	}
-
-	@Override
-	public AssetImageComp setSource(String source) {
-		this.source = source;
+	public AssetImageComp setStreamIndex(int streamIndex) {
+		this.streamIndex = streamIndex;
 		return this;
 	}
 
@@ -43,6 +32,17 @@ public class AssetImageCompImpl extends AbstractEditableElement<AssetImageComp> 
 	@Override
 	public AssetImageComp setImageDominantColor(String color) {
 		this.imageDominantColor = color;
+		return this;
+	}
+
+	@Override
+	public String getImageEncoding() {
+		return imageEncoding;
+	}
+
+	@Override
+	public AssetImageComp setImageEncoding(String encoding) {
+		this.imageEncoding = encoding;
 		return this;
 	}
 
@@ -65,6 +65,39 @@ public class AssetImageCompImpl extends AbstractEditableElement<AssetImageComp> 
 	@Override
 	public AssetImageComp setMediaHeight(Integer height) {
 		this.mediaHeight = height;
+		return this;
+	}
+
+	@Override
+	public Integer getOrientation() {
+		return orientation;
+	}
+
+	@Override
+	public AssetImageComp setOrientation(Integer orientation) {
+		this.orientation = orientation;
+		return this;
+	}
+
+	@Override
+	public Integer getBitDepth() {
+		return bitDepth;
+	}
+
+	@Override
+	public AssetImageComp setBitDepth(Integer bitDepth) {
+		this.bitDepth = bitDepth;
+		return this;
+	}
+
+	@Override
+	public Float getBlurriness() {
+		return blurriness;
+	}
+
+	@Override
+	public AssetImageComp setBlurriness(Float blurriness) {
+		this.blurriness = blurriness;
 		return this;
 	}
 }

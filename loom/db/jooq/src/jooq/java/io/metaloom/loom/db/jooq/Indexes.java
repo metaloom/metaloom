@@ -4,15 +4,17 @@
 package io.metaloom.loom.db.jooq;
 
 
-import io.metaloom.loom.db.jooq.tables.JooqAsset;
 import io.metaloom.loom.db.jooq.tables.JooqAssetAudioComp;
 import io.metaloom.loom.db.jooq.tables.JooqAssetDocComp;
+import io.metaloom.loom.db.jooq.tables.JooqAssetFingerprintComp;
 import io.metaloom.loom.db.jooq.tables.JooqAssetGeoComp;
 import io.metaloom.loom.db.jooq.tables.JooqAssetImageComp;
 import io.metaloom.loom.db.jooq.tables.JooqAssetJsonComp;
 import io.metaloom.loom.db.jooq.tables.JooqAssetLocation;
+import io.metaloom.loom.db.jooq.tables.JooqAssetNodeResult;
 import io.metaloom.loom.db.jooq.tables.JooqAssetPool;
 import io.metaloom.loom.db.jooq.tables.JooqAssetRemix;
+import io.metaloom.loom.db.jooq.tables.JooqAssetSegmentComp;
 import io.metaloom.loom.db.jooq.tables.JooqAssetTranscriptComp;
 import io.metaloom.loom.db.jooq.tables.JooqAssetVideoComp;
 import io.metaloom.loom.db.jooq.tables.JooqAttachment;
@@ -56,21 +58,11 @@ public class Indexes {
     // INDEX definitions
     // -------------------------------------------------------------------------
 
-    public static final Index ASSET_AUDIO_COMP_ASSET_UUID_IDX = Internal.createIndex(DSL.name("asset_audio_comp_asset_uuid_idx"), JooqAssetAudioComp.ASSET_AUDIO_COMP, new OrderField[] { JooqAssetAudioComp.ASSET_AUDIO_COMP.ASSET_UUID }, false);
-    public static final Index ASSET_DOC_COMP_ASSET_UUID_IDX = Internal.createIndex(DSL.name("asset_doc_comp_asset_uuid_idx"), JooqAssetDocComp.ASSET_DOC_COMP, new OrderField[] { JooqAssetDocComp.ASSET_DOC_COMP.ASSET_UUID }, false);
-    public static final Index ASSET_GEO_COMP_ASSET_UUID_IDX = Internal.createIndex(DSL.name("asset_geo_comp_asset_uuid_idx"), JooqAssetGeoComp.ASSET_GEO_COMP, new OrderField[] { JooqAssetGeoComp.ASSET_GEO_COMP.ASSET_UUID }, false);
-    public static final Index ASSET_GEO_COMP_GEO_LON_GEO_LAT_IDX = Internal.createIndex(DSL.name("asset_geo_comp_geo_lon_geo_lat_idx"), JooqAssetGeoComp.ASSET_GEO_COMP, new OrderField[] { JooqAssetGeoComp.ASSET_GEO_COMP.GEO_LON, JooqAssetGeoComp.ASSET_GEO_COMP.GEO_LAT }, false);
-    public static final Index ASSET_IMAGE_COMP_ASSET_UUID_IDX = Internal.createIndex(DSL.name("asset_image_comp_asset_uuid_idx"), JooqAssetImageComp.ASSET_IMAGE_COMP, new OrderField[] { JooqAssetImageComp.ASSET_IMAGE_COMP.ASSET_UUID }, false);
-    public static final Index ASSET_JSON_COMP_ASSET_UUID_IDX = Internal.createIndex(DSL.name("asset_json_comp_asset_uuid_idx"), JooqAssetJsonComp.ASSET_JSON_COMP, new OrderField[] { JooqAssetJsonComp.ASSET_JSON_COMP.ASSET_UUID }, false);
-    public static final Index ASSET_JSON_COMP_SCHEMA_TYPE_IDX = Internal.createIndex(DSL.name("asset_json_comp_schema_type_idx"), JooqAssetJsonComp.ASSET_JSON_COMP, new OrderField[] { JooqAssetJsonComp.ASSET_JSON_COMP.SCHEMA_TYPE }, false);
     public static final Index ASSET_LOCATION_PATH_IDX = Internal.createIndex(DSL.name("asset_location_path_idx"), JooqAssetLocation.ASSET_LOCATION, new OrderField[] { JooqAssetLocation.ASSET_LOCATION.PATH }, false);
     public static final Index ASSET_POOL_NAME_IDX = Internal.createIndex(DSL.name("asset_pool_name_idx"), JooqAssetPool.ASSET_POOL, new OrderField[] { JooqAssetPool.ASSET_POOL.NAME }, true);
     public static final Index ASSET_REMIX_ASSET_A_UUID_IDX = Internal.createIndex(DSL.name("asset_remix_asset_a_uuid_idx"), JooqAssetRemix.ASSET_REMIX, new OrderField[] { JooqAssetRemix.ASSET_REMIX.ASSET_A_UUID }, false);
     public static final Index ASSET_REMIX_ASSET_B_UUID_IDX = Internal.createIndex(DSL.name("asset_remix_asset_b_uuid_idx"), JooqAssetRemix.ASSET_REMIX, new OrderField[] { JooqAssetRemix.ASSET_REMIX.ASSET_B_UUID }, false);
-    public static final Index ASSET_TRANSCRIPT_COMP_ASSET_UUID_IDX = Internal.createIndex(DSL.name("asset_transcript_comp_asset_uuid_idx"), JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP, new OrderField[] { JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP.ASSET_UUID }, false);
-    public static final Index ASSET_TRANSCRIPT_COMP_LANG_IDX = Internal.createIndex(DSL.name("asset_transcript_comp_lang_idx"), JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP, new OrderField[] { JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP.LANG }, false);
-    public static final Index ASSET_UUID_IDX = Internal.createIndex(DSL.name("asset_uuid_idx"), JooqAsset.ASSET, new OrderField[] { JooqAsset.ASSET.UUID }, true);
-    public static final Index ASSET_VIDEO_COMP_ASSET_UUID_IDX = Internal.createIndex(DSL.name("asset_video_comp_asset_uuid_idx"), JooqAssetVideoComp.ASSET_VIDEO_COMP, new OrderField[] { JooqAssetVideoComp.ASSET_VIDEO_COMP.ASSET_UUID }, false);
+    public static final Index ATTACHMENT_ASSET_VARIANT_KEY = Internal.createIndex(DSL.name("attachment_asset_variant_key"), JooqAttachment.ATTACHMENT, new OrderField[] { JooqAttachment.ATTACHMENT.ASSET_UUID, JooqAttachment.ATTACHMENT.TYPE, JooqAttachment.ATTACHMENT.NODE_KIND, JooqAttachment.ATTACHMENT.VARIANT }, true);
     public static final Index ATTACHMENT_BINARY_SHA512SUM_IDX = Internal.createIndex(DSL.name("attachment_binary_sha512sum_idx"), JooqAttachmentBinary.ATTACHMENT_BINARY, new OrderField[] { JooqAttachmentBinary.ATTACHMENT_BINARY.SHA512SUM }, true);
     public static final Index ATTACHMENT_UUID_IDX = Internal.createIndex(DSL.name("attachment_uuid_idx"), JooqAttachment.ATTACHMENT, new OrderField[] { JooqAttachment.ATTACHMENT.UUID }, true);
     public static final Index BLACKLIST_ASSET_UUID_CREATOR_UUID_IDX = Internal.createIndex(DSL.name("blacklist_asset_uuid_creator_uuid_idx"), JooqBlacklist.BLACKLIST, new OrderField[] { JooqBlacklist.BLACKLIST.ASSET_UUID, JooqBlacklist.BLACKLIST.CREATOR_UUID }, true);
@@ -79,12 +71,34 @@ public class Indexes {
     public static final Index COLLECTION_ASSET_COLLECTION_UUID_IDX = Internal.createIndex(DSL.name("collection_asset_collection_uuid_idx"), JooqCollectionAsset.COLLECTION_ASSET, new OrderField[] { JooqCollectionAsset.COLLECTION_ASSET.COLLECTION_UUID }, false);
     public static final Index COLLECTION_CLUSTER_CLUSTER_UUID_IDX = Internal.createIndex(DSL.name("collection_cluster_cluster_uuid_idx"), JooqCollectionCluster.COLLECTION_CLUSTER, new OrderField[] { JooqCollectionCluster.COLLECTION_CLUSTER.CLUSTER_UUID }, false);
     public static final Index COLLECTION_CLUSTER_COLLECTION_UUID_IDX = Internal.createIndex(DSL.name("collection_cluster_collection_uuid_idx"), JooqCollectionCluster.COLLECTION_CLUSTER, new OrderField[] { JooqCollectionCluster.COLLECTION_CLUSTER.COLLECTION_UUID }, false);
-    public static final Index DETECTION_ASSET_UUID_IDX = Internal.createIndex(DSL.name("detection_asset_uuid_idx"), JooqDetection.DETECTION, new OrderField[] { JooqDetection.DETECTION.ASSET_UUID }, false);
-    public static final Index DETECTION_TYPE_IDX = Internal.createIndex(DSL.name("detection_type_idx"), JooqDetection.DETECTION, new OrderField[] { JooqDetection.DETECTION.TYPE }, false);
-    public static final Index EMBEDDING_ASSET_UUID_IDX = Internal.createIndex(DSL.name("embedding_asset_uuid_idx"), JooqEmbedding.EMBEDDING, new OrderField[] { JooqEmbedding.EMBEDDING.ASSET_UUID }, false);
     public static final Index FLYWAY_SCHEMA_HISTORY_S_IDX = Internal.createIndex(DSL.name("flyway_schema_history_s_idx"), JooqFlywaySchemaHistory.FLYWAY_SCHEMA_HISTORY, new OrderField[] { JooqFlywaySchemaHistory.FLYWAY_SCHEMA_HISTORY.SUCCESS }, false);
     public static final Index GROUP_NAME_IDX = Internal.createIndex(DSL.name("group_name_idx"), JooqGroup.GROUP, new OrderField[] { JooqGroup.GROUP.NAME }, true);
+    public static final Index IDX_ASSET_AUDIO_COMP_ASSET_UUID = Internal.createIndex(DSL.name("idx_asset_audio_comp_asset_uuid"), JooqAssetAudioComp.ASSET_AUDIO_COMP, new OrderField[] { JooqAssetAudioComp.ASSET_AUDIO_COMP.ASSET_UUID }, false);
+    public static final Index IDX_ASSET_DOC_COMP_ASSET_UUID = Internal.createIndex(DSL.name("idx_asset_doc_comp_asset_uuid"), JooqAssetDocComp.ASSET_DOC_COMP, new OrderField[] { JooqAssetDocComp.ASSET_DOC_COMP.ASSET_UUID }, false);
+    public static final Index IDX_ASSET_FINGERPRINT_COMP_ASSET_UUID = Internal.createIndex(DSL.name("idx_asset_fingerprint_comp_asset_uuid"), JooqAssetFingerprintComp.ASSET_FINGERPRINT_COMP, new OrderField[] { JooqAssetFingerprintComp.ASSET_FINGERPRINT_COMP.ASSET_UUID }, false);
+    public static final Index IDX_ASSET_FINGERPRINT_COMP_LOOKUP = Internal.createIndex(DSL.name("idx_asset_fingerprint_comp_lookup"), JooqAssetFingerprintComp.ASSET_FINGERPRINT_COMP, new OrderField[] { JooqAssetFingerprintComp.ASSET_FINGERPRINT_COMP.ALGORITHM, JooqAssetFingerprintComp.ASSET_FINGERPRINT_COMP.FINGERPRINT }, false);
+    public static final Index IDX_ASSET_GEO_COMP_ASSET_UUID = Internal.createIndex(DSL.name("idx_asset_geo_comp_asset_uuid"), JooqAssetGeoComp.ASSET_GEO_COMP, new OrderField[] { JooqAssetGeoComp.ASSET_GEO_COMP.ASSET_UUID }, false);
+    public static final Index IDX_ASSET_GEO_COMP_POSITION = Internal.createIndex(DSL.name("idx_asset_geo_comp_position"), JooqAssetGeoComp.ASSET_GEO_COMP, new OrderField[] { JooqAssetGeoComp.ASSET_GEO_COMP.GEO_LON, JooqAssetGeoComp.ASSET_GEO_COMP.GEO_LAT }, false);
+    public static final Index IDX_ASSET_IMAGE_COMP_ASSET_UUID = Internal.createIndex(DSL.name("idx_asset_image_comp_asset_uuid"), JooqAssetImageComp.ASSET_IMAGE_COMP, new OrderField[] { JooqAssetImageComp.ASSET_IMAGE_COMP.ASSET_UUID }, false);
+    public static final Index IDX_ASSET_JSON_COMP_ASSET_UUID = Internal.createIndex(DSL.name("idx_asset_json_comp_asset_uuid"), JooqAssetJsonComp.ASSET_JSON_COMP, new OrderField[] { JooqAssetJsonComp.ASSET_JSON_COMP.ASSET_UUID }, false);
+    public static final Index IDX_ASSET_JSON_COMP_DATA = Internal.createIndex(DSL.name("idx_asset_json_comp_data"), JooqAssetJsonComp.ASSET_JSON_COMP, new OrderField[] { JooqAssetJsonComp.ASSET_JSON_COMP.DATA }, false);
+    public static final Index IDX_ASSET_JSON_COMP_SCHEMA_TYPE = Internal.createIndex(DSL.name("idx_asset_json_comp_schema_type"), JooqAssetJsonComp.ASSET_JSON_COMP, new OrderField[] { JooqAssetJsonComp.ASSET_JSON_COMP.SCHEMA_TYPE }, false);
+    public static final Index IDX_ASSET_NODE_RESULT_ASSET_UUID = Internal.createIndex(DSL.name("idx_asset_node_result_asset_uuid"), JooqAssetNodeResult.ASSET_NODE_RESULT, new OrderField[] { JooqAssetNodeResult.ASSET_NODE_RESULT.ASSET_UUID }, false);
+    public static final Index IDX_ASSET_NODE_RESULT_PRODUCER = Internal.createIndex(DSL.name("idx_asset_node_result_producer"), JooqAssetNodeResult.ASSET_NODE_RESULT, new OrderField[] { JooqAssetNodeResult.ASSET_NODE_RESULT.NODE_KIND, JooqAssetNodeResult.ASSET_NODE_RESULT.PRODUCER_VERSION }, false);
+    public static final Index IDX_ASSET_NODE_RESULT_RUN_UUID = Internal.createIndex(DSL.name("idx_asset_node_result_run_uuid"), JooqAssetNodeResult.ASSET_NODE_RESULT, new OrderField[] { JooqAssetNodeResult.ASSET_NODE_RESULT.RUN_UUID }, false);
+    public static final Index IDX_ASSET_SEGMENT_COMP_ASSET_UUID = Internal.createIndex(DSL.name("idx_asset_segment_comp_asset_uuid"), JooqAssetSegmentComp.ASSET_SEGMENT_COMP, new OrderField[] { JooqAssetSegmentComp.ASSET_SEGMENT_COMP.ASSET_UUID }, false);
+    public static final Index IDX_ASSET_SEGMENT_COMP_TIMELINE = Internal.createIndex(DSL.name("idx_asset_segment_comp_timeline"), JooqAssetSegmentComp.ASSET_SEGMENT_COMP, new OrderField[] { JooqAssetSegmentComp.ASSET_SEGMENT_COMP.ASSET_UUID, JooqAssetSegmentComp.ASSET_SEGMENT_COMP.SEGMENT_TYPE, JooqAssetSegmentComp.ASSET_SEGMENT_COMP.TIME_FROM }, false);
+    public static final Index IDX_ASSET_TRANSCRIPT_COMP_ASSET_UUID = Internal.createIndex(DSL.name("idx_asset_transcript_comp_asset_uuid"), JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP, new OrderField[] { JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP.ASSET_UUID }, false);
+    public static final Index IDX_ASSET_TRANSCRIPT_COMP_AUDIO_COMP_UUID = Internal.createIndex(DSL.name("idx_asset_transcript_comp_audio_comp_uuid"), JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP, new OrderField[] { JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP.AUDIO_COMP_UUID }, false);
+    public static final Index IDX_ASSET_TRANSCRIPT_COMP_LANG = Internal.createIndex(DSL.name("idx_asset_transcript_comp_lang"), JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP, new OrderField[] { JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP.LANG }, false);
+    public static final Index IDX_ASSET_VIDEO_COMP_ASSET_UUID = Internal.createIndex(DSL.name("idx_asset_video_comp_asset_uuid"), JooqAssetVideoComp.ASSET_VIDEO_COMP, new OrderField[] { JooqAssetVideoComp.ASSET_VIDEO_COMP.ASSET_UUID }, false);
+    public static final Index IDX_ATTACHMENT_ASSET_UUID = Internal.createIndex(DSL.name("idx_attachment_asset_uuid"), JooqAttachment.ATTACHMENT, new OrderField[] { JooqAttachment.ATTACHMENT.ASSET_UUID }, false);
     public static final Index IDX_CORTEX_INSTANCE_NODE_KIND_KIND = Internal.createIndex(DSL.name("idx_cortex_instance_node_kind_kind"), JooqCortexInstanceNodeKind.CORTEX_INSTANCE_NODE_KIND, new OrderField[] { JooqCortexInstanceNodeKind.CORTEX_INSTANCE_NODE_KIND.NODE_KIND }, false);
+    public static final Index IDX_DETECTION_ASSET_UUID = Internal.createIndex(DSL.name("idx_detection_asset_uuid"), JooqDetection.DETECTION, new OrderField[] { JooqDetection.DETECTION.ASSET_UUID }, false);
+    public static final Index IDX_DETECTION_LABEL = Internal.createIndex(DSL.name("idx_detection_label"), JooqDetection.DETECTION, new OrderField[] { JooqDetection.DETECTION.LABEL }, false);
+    public static final Index IDX_DETECTION_TYPE = Internal.createIndex(DSL.name("idx_detection_type"), JooqDetection.DETECTION, new OrderField[] { JooqDetection.DETECTION.TYPE }, false);
+    public static final Index IDX_EMBEDDING_ASSET_UUID = Internal.createIndex(DSL.name("idx_embedding_asset_uuid"), JooqEmbedding.EMBEDDING, new OrderField[] { JooqEmbedding.EMBEDDING.ASSET_UUID }, false);
+    public static final Index IDX_EMBEDDING_DETECTION_UUID = Internal.createIndex(DSL.name("idx_embedding_detection_uuid"), JooqEmbedding.EMBEDDING, new OrderField[] { JooqEmbedding.EMBEDDING.DETECTION_UUID }, false);
     public static final Index IDX_PIPELINE_NODE_TASK_EXPIRED_LEASE = Internal.createIndex(DSL.name("idx_pipeline_node_task_expired_lease"), JooqPipelineNodeTask.PIPELINE_NODE_TASK, new OrderField[] { JooqPipelineNodeTask.PIPELINE_NODE_TASK.LEASE_EXPIRES_AT }, false);
     public static final Index IDX_PIPELINE_NODE_TASK_ITEM_UUID = Internal.createIndex(DSL.name("idx_pipeline_node_task_item_uuid"), JooqPipelineNodeTask.PIPELINE_NODE_TASK, new OrderField[] { JooqPipelineNodeTask.PIPELINE_NODE_TASK.ITEM_UUID }, false);
     public static final Index IDX_PIPELINE_NODE_TASK_RUN_STATE = Internal.createIndex(DSL.name("idx_pipeline_node_task_run_state"), JooqPipelineNodeTask.PIPELINE_NODE_TASK, new OrderField[] { JooqPipelineNodeTask.PIPELINE_NODE_TASK.RUN_UUID, JooqPipelineNodeTask.PIPELINE_NODE_TASK.STATE }, false);

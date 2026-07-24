@@ -21,6 +21,7 @@ import io.metaloom.loom.api.sort.SortDirection;
 import io.metaloom.loom.api.sort.SortKey;
 import io.metaloom.loom.db.jooq.AbstractJooqDao;
 import io.metaloom.loom.db.jooq.tables.JooqDetection;
+import io.metaloom.loom.db.model.asset.AssetComponent;
 import io.metaloom.loom.db.model.detection.Detection;
 import io.metaloom.loom.db.model.detection.DetectionDao;
 import io.metaloom.loom.db.page.Page;
@@ -52,6 +53,9 @@ public class DetectionDaoImpl extends AbstractJooqDao<Detection> implements Dete
 	public Detection createDetection(UUID userUuid, String type) {
 		Detection detection = new DetectionImpl();
 		detection.setType(type);
+		// Detections created through the API rather than by a node are attributed to the user.
+		// A node overrides this with its own kind before storing.
+		detection.setNodeKind(AssetComponent.NODE_KIND_MANUAL);
 		setCreatorEditor(detection, userUuid);
 		return detection;
 	}

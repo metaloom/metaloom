@@ -7,7 +7,9 @@ package io.metaloom.loom.db.jooq.tables;
 import io.metaloom.loom.db.jooq.Indexes;
 import io.metaloom.loom.db.jooq.JooqPublic;
 import io.metaloom.loom.db.jooq.Keys;
+import io.metaloom.loom.db.jooq.converter.JsonObjectConverter;
 import io.metaloom.loom.db.jooq.tables.records.JooqAssetImageCompRecord;
+import io.vertx.core.json.JsonObject;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -16,12 +18,12 @@ import java.util.function.Function;
 
 import org.jooq.Field;
 import org.jooq.ForeignKey;
-import org.jooq.Function10;
+import org.jooq.Function21;
 import org.jooq.Index;
 import org.jooq.Name;
 import org.jooq.Record;
 import org.jooq.Records;
-import org.jooq.Row10;
+import org.jooq.Row21;
 import org.jooq.Schema;
 import org.jooq.SelectField;
 import org.jooq.Table;
@@ -34,7 +36,8 @@ import org.jooq.impl.TableImpl;
 
 
 /**
- * Stores image-specific properties extracted from an asset
+ * Image properties extracted from an asset. Never gated on the asset mime type:
+ * an MP3 with embedded cover art legitimately owns an image component.
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
 public class JooqAssetImageComp extends TableImpl<JooqAssetImageCompRecord> {
@@ -65,14 +68,40 @@ public class JooqAssetImageComp extends TableImpl<JooqAssetImageCompRecord> {
     public final TableField<JooqAssetImageCompRecord, java.util.UUID> ASSET_UUID = createField(DSL.name("asset_uuid"), SQLDataType.UUID.nullable(false), this, "");
 
     /**
-     * The column <code>public.asset_image_comp.source</code>.
+     * The column <code>public.asset_image_comp.node_kind</code>.
      */
-    public final TableField<JooqAssetImageCompRecord, String> SOURCE = createField(DSL.name("source"), SQLDataType.VARCHAR, this, "");
+    public final TableField<JooqAssetImageCompRecord, String> NODE_KIND = createField(DSL.name("node_kind"), SQLDataType.VARCHAR.nullable(false), this, "");
 
     /**
-     * The column <code>public.asset_image_comp.image_dominant_color</code>.
+     * The column <code>public.asset_image_comp.node_id</code>.
      */
-    public final TableField<JooqAssetImageCompRecord, String> IMAGE_DOMINANT_COLOR = createField(DSL.name("image_dominant_color"), SQLDataType.VARCHAR, this, "");
+    public final TableField<JooqAssetImageCompRecord, String> NODE_ID = createField(DSL.name("node_id"), SQLDataType.VARCHAR, this, "");
+
+    /**
+     * The column <code>public.asset_image_comp.producer_version</code>.
+     */
+    public final TableField<JooqAssetImageCompRecord, String> PRODUCER_VERSION = createField(DSL.name("producer_version"), SQLDataType.VARCHAR.nullable(false).defaultValue(DSL.field("''::character varying", SQLDataType.VARCHAR)), this, "");
+
+    /**
+     * The column <code>public.asset_image_comp.run_uuid</code>.
+     */
+    public final TableField<JooqAssetImageCompRecord, java.util.UUID> RUN_UUID = createField(DSL.name("run_uuid"), SQLDataType.UUID, this, "");
+
+    /**
+     * The column <code>public.asset_image_comp.task_uuid</code>.
+     */
+    public final TableField<JooqAssetImageCompRecord, java.util.UUID> TASK_UUID = createField(DSL.name("task_uuid"), SQLDataType.UUID, this, "");
+
+    /**
+     * The column <code>public.asset_image_comp.confidence</code>.
+     */
+    public final TableField<JooqAssetImageCompRecord, Float> CONFIDENCE = createField(DSL.name("confidence"), SQLDataType.REAL, this, "");
+
+    /**
+     * The column <code>public.asset_image_comp.stream_index</code>. Which image
+     * stream: multi-frame TIFF/GIF, embedded cover art. 0 for a plain image.
+     */
+    public final TableField<JooqAssetImageCompRecord, Integer> STREAM_INDEX = createField(DSL.name("stream_index"), SQLDataType.INTEGER.nullable(false).defaultValue(DSL.field("0", SQLDataType.INTEGER)), this, "Which image stream: multi-frame TIFF/GIF, embedded cover art. 0 for a plain image.");
 
     /**
      * The column <code>public.asset_image_comp.media_width</code>.
@@ -85,14 +114,47 @@ public class JooqAssetImageComp extends TableImpl<JooqAssetImageCompRecord> {
     public final TableField<JooqAssetImageCompRecord, Integer> MEDIA_HEIGHT = createField(DSL.name("media_height"), SQLDataType.INTEGER, this, "");
 
     /**
+     * The column <code>public.asset_image_comp.image_dominant_color</code>.
+     */
+    public final TableField<JooqAssetImageCompRecord, String> IMAGE_DOMINANT_COLOR = createField(DSL.name("image_dominant_color"), SQLDataType.VARCHAR, this, "");
+
+    /**
+     * The column <code>public.asset_image_comp.image_encoding</code>. Encoding
+     * of the image stream (restored; V2.18 dropped it)
+     */
+    public final TableField<JooqAssetImageCompRecord, String> IMAGE_ENCODING = createField(DSL.name("image_encoding"), SQLDataType.VARCHAR, this, "Encoding of the image stream (restored; V2.18 dropped it)");
+
+    /**
+     * The column <code>public.asset_image_comp.orientation</code>.
+     */
+    public final TableField<JooqAssetImageCompRecord, Integer> ORIENTATION = createField(DSL.name("orientation"), SQLDataType.INTEGER, this, "");
+
+    /**
+     * The column <code>public.asset_image_comp.bit_depth</code>.
+     */
+    public final TableField<JooqAssetImageCompRecord, Integer> BIT_DEPTH = createField(DSL.name("bit_depth"), SQLDataType.INTEGER, this, "");
+
+    /**
+     * The column <code>public.asset_image_comp.blurriness</code>. Laplacian
+     * blurriness measure produced by the quality node
+     */
+    public final TableField<JooqAssetImageCompRecord, Float> BLURRINESS = createField(DSL.name("blurriness"), SQLDataType.REAL, this, "Laplacian blurriness measure produced by the quality node");
+
+    /**
+     * The column <code>public.asset_image_comp.meta</code>.
+     */
+    public final TableField<JooqAssetImageCompRecord, JsonObject> META = createField(DSL.name("meta"), SQLDataType.JSONB, this, "", new JsonObjectConverter());
+
+    /**
      * The column <code>public.asset_image_comp.created</code>.
      */
     public final TableField<JooqAssetImageCompRecord, LocalDateTime> CREATED = createField(DSL.name("created"), SQLDataType.LOCALDATETIME(6).nullable(false).defaultValue(DSL.field("now()", SQLDataType.LOCALDATETIME)), this, "");
 
     /**
-     * The column <code>public.asset_image_comp.creator_uuid</code>.
+     * The column <code>public.asset_image_comp.creator_uuid</code>. NULL when
+     * written by a Cortex worker rather than a user
      */
-    public final TableField<JooqAssetImageCompRecord, java.util.UUID> CREATOR_UUID = createField(DSL.name("creator_uuid"), SQLDataType.UUID.nullable(false), this, "");
+    public final TableField<JooqAssetImageCompRecord, java.util.UUID> CREATOR_UUID = createField(DSL.name("creator_uuid"), SQLDataType.UUID, this, "NULL when written by a Cortex worker rather than a user");
 
     /**
      * The column <code>public.asset_image_comp.edited</code>.
@@ -102,14 +164,14 @@ public class JooqAssetImageComp extends TableImpl<JooqAssetImageCompRecord> {
     /**
      * The column <code>public.asset_image_comp.editor_uuid</code>.
      */
-    public final TableField<JooqAssetImageCompRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID.nullable(false), this, "");
+    public final TableField<JooqAssetImageCompRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID, this, "");
 
     private JooqAssetImageComp(Name alias, Table<JooqAssetImageCompRecord> aliased) {
         this(alias, aliased, null);
     }
 
     private JooqAssetImageComp(Name alias, Table<JooqAssetImageCompRecord> aliased, Field<?>[] parameters) {
-        super(alias, null, aliased, parameters, DSL.comment("Stores image-specific properties extracted from an asset"), TableOptions.table());
+        super(alias, null, aliased, parameters, DSL.comment("Image properties extracted from an asset. Never gated on the asset mime type: an MP3 with embedded cover art legitimately owns an image component."), TableOptions.table());
     }
 
     /**
@@ -144,7 +206,7 @@ public class JooqAssetImageComp extends TableImpl<JooqAssetImageCompRecord> {
 
     @Override
     public List<Index> getIndexes() {
-        return Arrays.asList(Indexes.ASSET_IMAGE_COMP_ASSET_UUID_IDX);
+        return Arrays.asList(Indexes.IDX_ASSET_IMAGE_COMP_ASSET_UUID);
     }
 
     @Override
@@ -153,12 +215,51 @@ public class JooqAssetImageComp extends TableImpl<JooqAssetImageCompRecord> {
     }
 
     @Override
-    public List<ForeignKey<JooqAssetImageCompRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.ASSET_IMAGE_COMP__ASSET_IMAGE_COMP_CREATOR_UUID_FKEY, Keys.ASSET_IMAGE_COMP__ASSET_IMAGE_COMP_EDITOR_UUID_FKEY);
+    public List<UniqueKey<JooqAssetImageCompRecord>> getUniqueKeys() {
+        return Arrays.asList(Keys.ASSET_IMAGE_COMP_UNIQUE_KEY);
     }
 
+    @Override
+    public List<ForeignKey<JooqAssetImageCompRecord, ?>> getReferences() {
+        return Arrays.asList(Keys.ASSET_IMAGE_COMP__ASSET_IMAGE_COMP_ASSET_UUID_FKEY, Keys.ASSET_IMAGE_COMP__ASSET_IMAGE_COMP_RUN_UUID_FKEY, Keys.ASSET_IMAGE_COMP__ASSET_IMAGE_COMP_TASK_UUID_FKEY, Keys.ASSET_IMAGE_COMP__ASSET_IMAGE_COMP_CREATOR_UUID_FKEY, Keys.ASSET_IMAGE_COMP__ASSET_IMAGE_COMP_EDITOR_UUID_FKEY);
+    }
+
+    private transient JooqAsset _asset;
+    private transient JooqPipelineRun _pipelineRun;
+    private transient JooqPipelineNodeTask _pipelineNodeTask;
     private transient JooqUser _assetImageCompCreatorUuidFkey;
     private transient JooqUser _assetImageCompEditorUuidFkey;
+
+    /**
+     * Get the implicit join path to the <code>public.asset</code> table.
+     */
+    public JooqAsset asset() {
+        if (_asset == null)
+            _asset = new JooqAsset(this, Keys.ASSET_IMAGE_COMP__ASSET_IMAGE_COMP_ASSET_UUID_FKEY);
+
+        return _asset;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.pipeline_run</code> table.
+     */
+    public JooqPipelineRun pipelineRun() {
+        if (_pipelineRun == null)
+            _pipelineRun = new JooqPipelineRun(this, Keys.ASSET_IMAGE_COMP__ASSET_IMAGE_COMP_RUN_UUID_FKEY);
+
+        return _pipelineRun;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.pipeline_node_task</code>
+     * table.
+     */
+    public JooqPipelineNodeTask pipelineNodeTask() {
+        if (_pipelineNodeTask == null)
+            _pipelineNodeTask = new JooqPipelineNodeTask(this, Keys.ASSET_IMAGE_COMP__ASSET_IMAGE_COMP_TASK_UUID_FKEY);
+
+        return _pipelineNodeTask;
+    }
 
     /**
      * Get the implicit join path to the <code>public.user</code> table, via the
@@ -222,18 +323,18 @@ public class JooqAssetImageComp extends TableImpl<JooqAssetImageCompRecord> {
     }
 
     // -------------------------------------------------------------------------
-    // Row10 type methods
+    // Row21 type methods
     // -------------------------------------------------------------------------
 
     @Override
-    public Row10<java.util.UUID, java.util.UUID, String, String, Integer, Integer, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
-        return (Row10) super.fieldsRow();
+    public Row21<java.util.UUID, java.util.UUID, String, String, String, java.util.UUID, java.util.UUID, Float, Integer, Integer, Integer, String, String, Integer, Integer, Float, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
+        return (Row21) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function10<? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super Integer, ? super Integer, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function21<? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super Float, ? super Integer, ? super Integer, ? super Integer, ? super String, ? super String, ? super Integer, ? super Integer, ? super Float, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -241,7 +342,7 @@ public class JooqAssetImageComp extends TableImpl<JooqAssetImageCompRecord> {
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function10<? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super Integer, ? super Integer, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function21<? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super Float, ? super Integer, ? super Integer, ? super Integer, ? super String, ? super String, ? super Integer, ? super Integer, ? super Float, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }

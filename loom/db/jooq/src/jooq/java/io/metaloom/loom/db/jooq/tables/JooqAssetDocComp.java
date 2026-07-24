@@ -7,7 +7,9 @@ package io.metaloom.loom.db.jooq.tables;
 import io.metaloom.loom.db.jooq.Indexes;
 import io.metaloom.loom.db.jooq.JooqPublic;
 import io.metaloom.loom.db.jooq.Keys;
+import io.metaloom.loom.db.jooq.converter.JsonObjectConverter;
 import io.metaloom.loom.db.jooq.tables.records.JooqAssetDocCompRecord;
+import io.vertx.core.json.JsonObject;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -16,12 +18,12 @@ import java.util.function.Function;
 
 import org.jooq.Field;
 import org.jooq.ForeignKey;
-import org.jooq.Function9;
+import org.jooq.Function18;
 import org.jooq.Index;
 import org.jooq.Name;
 import org.jooq.Record;
 import org.jooq.Records;
-import org.jooq.Row9;
+import org.jooq.Row18;
 import org.jooq.Schema;
 import org.jooq.SelectField;
 import org.jooq.Table;
@@ -34,7 +36,8 @@ import org.jooq.impl.TableImpl;
 
 
 /**
- * Stores document/text extraction data from an asset
+ * Extracted text of a document or an image region. One row per producer per
+ * page: Tika writes the whole document as page 0, OCR writes one row per page.
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
 public class JooqAssetDocComp extends TableImpl<JooqAssetDocCompRecord> {
@@ -65,15 +68,56 @@ public class JooqAssetDocComp extends TableImpl<JooqAssetDocCompRecord> {
     public final TableField<JooqAssetDocCompRecord, java.util.UUID> ASSET_UUID = createField(DSL.name("asset_uuid"), SQLDataType.UUID.nullable(false), this, "");
 
     /**
-     * The column <code>public.asset_doc_comp.source</code>.
+     * The column <code>public.asset_doc_comp.node_kind</code>.
      */
-    public final TableField<JooqAssetDocCompRecord, String> SOURCE = createField(DSL.name("source"), SQLDataType.VARCHAR, this, "");
+    public final TableField<JooqAssetDocCompRecord, String> NODE_KIND = createField(DSL.name("node_kind"), SQLDataType.VARCHAR.nullable(false), this, "");
 
     /**
-     * The column <code>public.asset_doc_comp.doc_plain_text</code>. Extracted
-     * text of the document
+     * The column <code>public.asset_doc_comp.node_id</code>.
      */
-    public final TableField<JooqAssetDocCompRecord, String> DOC_PLAIN_TEXT = createField(DSL.name("doc_plain_text"), SQLDataType.CLOB, this, "Extracted text of the document");
+    public final TableField<JooqAssetDocCompRecord, String> NODE_ID = createField(DSL.name("node_id"), SQLDataType.VARCHAR, this, "");
+
+    /**
+     * The column <code>public.asset_doc_comp.producer_version</code>.
+     */
+    public final TableField<JooqAssetDocCompRecord, String> PRODUCER_VERSION = createField(DSL.name("producer_version"), SQLDataType.VARCHAR.nullable(false).defaultValue(DSL.field("''::character varying", SQLDataType.VARCHAR)), this, "");
+
+    /**
+     * The column <code>public.asset_doc_comp.run_uuid</code>.
+     */
+    public final TableField<JooqAssetDocCompRecord, java.util.UUID> RUN_UUID = createField(DSL.name("run_uuid"), SQLDataType.UUID, this, "");
+
+    /**
+     * The column <code>public.asset_doc_comp.task_uuid</code>.
+     */
+    public final TableField<JooqAssetDocCompRecord, java.util.UUID> TASK_UUID = createField(DSL.name("task_uuid"), SQLDataType.UUID, this, "");
+
+    /**
+     * The column <code>public.asset_doc_comp.confidence</code>.
+     */
+    public final TableField<JooqAssetDocCompRecord, Float> CONFIDENCE = createField(DSL.name("confidence"), SQLDataType.REAL, this, "");
+
+    /**
+     * The column <code>public.asset_doc_comp.page_number</code>. Page this text
+     * was extracted from; 0 means the whole document
+     */
+    public final TableField<JooqAssetDocCompRecord, Integer> PAGE_NUMBER = createField(DSL.name("page_number"), SQLDataType.INTEGER.nullable(false).defaultValue(DSL.field("0", SQLDataType.INTEGER)), this, "Page this text was extracted from; 0 means the whole document");
+
+    /**
+     * The column <code>public.asset_doc_comp.page_count</code>.
+     */
+    public final TableField<JooqAssetDocCompRecord, Integer> PAGE_COUNT = createField(DSL.name("page_count"), SQLDataType.INTEGER, this, "");
+
+    /**
+     * The column <code>public.asset_doc_comp.text_lang</code>. Detected or
+     * configured language of the extracted text
+     */
+    public final TableField<JooqAssetDocCompRecord, String> TEXT_LANG = createField(DSL.name("text_lang"), SQLDataType.VARCHAR, this, "Detected or configured language of the extracted text");
+
+    /**
+     * The column <code>public.asset_doc_comp.doc_plain_text</code>.
+     */
+    public final TableField<JooqAssetDocCompRecord, String> DOC_PLAIN_TEXT = createField(DSL.name("doc_plain_text"), SQLDataType.CLOB, this, "");
 
     /**
      * The column <code>public.asset_doc_comp.doc_word_count</code>.
@@ -81,14 +125,20 @@ public class JooqAssetDocComp extends TableImpl<JooqAssetDocCompRecord> {
     public final TableField<JooqAssetDocCompRecord, Integer> DOC_WORD_COUNT = createField(DSL.name("doc_word_count"), SQLDataType.INTEGER, this, "");
 
     /**
+     * The column <code>public.asset_doc_comp.meta</code>.
+     */
+    public final TableField<JooqAssetDocCompRecord, JsonObject> META = createField(DSL.name("meta"), SQLDataType.JSONB, this, "", new JsonObjectConverter());
+
+    /**
      * The column <code>public.asset_doc_comp.created</code>.
      */
     public final TableField<JooqAssetDocCompRecord, LocalDateTime> CREATED = createField(DSL.name("created"), SQLDataType.LOCALDATETIME(6).nullable(false).defaultValue(DSL.field("now()", SQLDataType.LOCALDATETIME)), this, "");
 
     /**
-     * The column <code>public.asset_doc_comp.creator_uuid</code>.
+     * The column <code>public.asset_doc_comp.creator_uuid</code>. NULL when
+     * written by a Cortex worker rather than a user
      */
-    public final TableField<JooqAssetDocCompRecord, java.util.UUID> CREATOR_UUID = createField(DSL.name("creator_uuid"), SQLDataType.UUID.nullable(false), this, "");
+    public final TableField<JooqAssetDocCompRecord, java.util.UUID> CREATOR_UUID = createField(DSL.name("creator_uuid"), SQLDataType.UUID, this, "NULL when written by a Cortex worker rather than a user");
 
     /**
      * The column <code>public.asset_doc_comp.edited</code>.
@@ -98,14 +148,14 @@ public class JooqAssetDocComp extends TableImpl<JooqAssetDocCompRecord> {
     /**
      * The column <code>public.asset_doc_comp.editor_uuid</code>.
      */
-    public final TableField<JooqAssetDocCompRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID.nullable(false), this, "");
+    public final TableField<JooqAssetDocCompRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID, this, "");
 
     private JooqAssetDocComp(Name alias, Table<JooqAssetDocCompRecord> aliased) {
         this(alias, aliased, null);
     }
 
     private JooqAssetDocComp(Name alias, Table<JooqAssetDocCompRecord> aliased, Field<?>[] parameters) {
-        super(alias, null, aliased, parameters, DSL.comment("Stores document/text extraction data from an asset"), TableOptions.table());
+        super(alias, null, aliased, parameters, DSL.comment("Extracted text of a document or an image region. One row per producer per page: Tika writes the whole document as page 0, OCR writes one row per page."), TableOptions.table());
     }
 
     /**
@@ -140,7 +190,7 @@ public class JooqAssetDocComp extends TableImpl<JooqAssetDocCompRecord> {
 
     @Override
     public List<Index> getIndexes() {
-        return Arrays.asList(Indexes.ASSET_DOC_COMP_ASSET_UUID_IDX);
+        return Arrays.asList(Indexes.IDX_ASSET_DOC_COMP_ASSET_UUID);
     }
 
     @Override
@@ -149,12 +199,51 @@ public class JooqAssetDocComp extends TableImpl<JooqAssetDocCompRecord> {
     }
 
     @Override
-    public List<ForeignKey<JooqAssetDocCompRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.ASSET_DOC_COMP__ASSET_DOC_COMP_CREATOR_UUID_FKEY, Keys.ASSET_DOC_COMP__ASSET_DOC_COMP_EDITOR_UUID_FKEY);
+    public List<UniqueKey<JooqAssetDocCompRecord>> getUniqueKeys() {
+        return Arrays.asList(Keys.ASSET_DOC_COMP_UNIQUE_KEY);
     }
 
+    @Override
+    public List<ForeignKey<JooqAssetDocCompRecord, ?>> getReferences() {
+        return Arrays.asList(Keys.ASSET_DOC_COMP__ASSET_DOC_COMP_ASSET_UUID_FKEY, Keys.ASSET_DOC_COMP__ASSET_DOC_COMP_RUN_UUID_FKEY, Keys.ASSET_DOC_COMP__ASSET_DOC_COMP_TASK_UUID_FKEY, Keys.ASSET_DOC_COMP__ASSET_DOC_COMP_CREATOR_UUID_FKEY, Keys.ASSET_DOC_COMP__ASSET_DOC_COMP_EDITOR_UUID_FKEY);
+    }
+
+    private transient JooqAsset _asset;
+    private transient JooqPipelineRun _pipelineRun;
+    private transient JooqPipelineNodeTask _pipelineNodeTask;
     private transient JooqUser _assetDocCompCreatorUuidFkey;
     private transient JooqUser _assetDocCompEditorUuidFkey;
+
+    /**
+     * Get the implicit join path to the <code>public.asset</code> table.
+     */
+    public JooqAsset asset() {
+        if (_asset == null)
+            _asset = new JooqAsset(this, Keys.ASSET_DOC_COMP__ASSET_DOC_COMP_ASSET_UUID_FKEY);
+
+        return _asset;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.pipeline_run</code> table.
+     */
+    public JooqPipelineRun pipelineRun() {
+        if (_pipelineRun == null)
+            _pipelineRun = new JooqPipelineRun(this, Keys.ASSET_DOC_COMP__ASSET_DOC_COMP_RUN_UUID_FKEY);
+
+        return _pipelineRun;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.pipeline_node_task</code>
+     * table.
+     */
+    public JooqPipelineNodeTask pipelineNodeTask() {
+        if (_pipelineNodeTask == null)
+            _pipelineNodeTask = new JooqPipelineNodeTask(this, Keys.ASSET_DOC_COMP__ASSET_DOC_COMP_TASK_UUID_FKEY);
+
+        return _pipelineNodeTask;
+    }
 
     /**
      * Get the implicit join path to the <code>public.user</code> table, via the
@@ -218,18 +307,18 @@ public class JooqAssetDocComp extends TableImpl<JooqAssetDocCompRecord> {
     }
 
     // -------------------------------------------------------------------------
-    // Row9 type methods
+    // Row18 type methods
     // -------------------------------------------------------------------------
 
     @Override
-    public Row9<java.util.UUID, java.util.UUID, String, String, Integer, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
-        return (Row9) super.fieldsRow();
+    public Row18<java.util.UUID, java.util.UUID, String, String, String, java.util.UUID, java.util.UUID, Float, Integer, Integer, String, String, Integer, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
+        return (Row18) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function9<? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super Integer, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function18<? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super Float, ? super Integer, ? super Integer, ? super String, ? super String, ? super Integer, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -237,7 +326,7 @@ public class JooqAssetDocComp extends TableImpl<JooqAssetDocCompRecord> {
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function9<? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super Integer, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function18<? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super Float, ? super Integer, ? super Integer, ? super String, ? super String, ? super Integer, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }

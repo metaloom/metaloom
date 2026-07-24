@@ -58,6 +58,7 @@ public class MCPDirectToolCallTest {
 	 */
 	@Test
 	public void testDirectToolCallLoop() throws Exception {
+		OllamaAvailability.assumeRunning();
 		MCPService mcpService = loom.internal().boot().getMcpService();
 		MCPToolRegistry toolRegistry = mcpService.getToolRegistry();
 
@@ -125,6 +126,7 @@ public class MCPDirectToolCallTest {
 	 */
 	@Test
 	public void testSingleTurnToolCall() throws Exception {
+		OllamaAvailability.assumeRunning();
 		MCPService mcpService = loom.internal().boot().getMcpService();
 		MCPToolRegistry toolRegistry = mcpService.getToolRegistry();
 

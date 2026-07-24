@@ -5,22 +5,22 @@ package io.metaloom.loom.db.jooq.tables.records;
 
 
 import io.metaloom.loom.db.jooq.tables.JooqAssetVideoComp;
+import io.vertx.core.json.JsonObject;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-import org.jooq.Field;
 import org.jooq.Record1;
-import org.jooq.Record12;
-import org.jooq.Row12;
 import org.jooq.impl.UpdatableRecordImpl;
 
 
 /**
- * Stores video-specific properties extracted from an asset
+ * Video stream properties. Two producers of the same dimension (e.g. tika
+ * probing and the quality node measuring) yield two partially filled rows - the
+ * read side coalesces them by producer precedence.
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqAssetVideoCompRecord extends UpdatableRecordImpl<JooqAssetVideoCompRecord> implements Record12<UUID, UUID, String, Integer, Integer, Long, Integer, String, LocalDateTime, UUID, LocalDateTime, UUID> {
+public class JooqAssetVideoCompRecord extends UpdatableRecordImpl<JooqAssetVideoCompRecord> {
 
     private static final long serialVersionUID = 1L;
 
@@ -53,143 +53,307 @@ public class JooqAssetVideoCompRecord extends UpdatableRecordImpl<JooqAssetVideo
     }
 
     /**
-     * Setter for <code>public.asset_video_comp.source</code>.
+     * Setter for <code>public.asset_video_comp.node_kind</code>.
      */
-    public void setSource(String value) {
+    public void setNodeKind(String value) {
         set(2, value);
     }
 
     /**
-     * Getter for <code>public.asset_video_comp.source</code>.
+     * Getter for <code>public.asset_video_comp.node_kind</code>.
      */
-    public String getSource() {
+    public String getNodeKind() {
         return (String) get(2);
+    }
+
+    /**
+     * Setter for <code>public.asset_video_comp.node_id</code>.
+     */
+    public void setNodeId(String value) {
+        set(3, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_video_comp.node_id</code>.
+     */
+    public String getNodeId() {
+        return (String) get(3);
+    }
+
+    /**
+     * Setter for <code>public.asset_video_comp.producer_version</code>.
+     */
+    public void setProducerVersion(String value) {
+        set(4, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_video_comp.producer_version</code>.
+     */
+    public String getProducerVersion() {
+        return (String) get(4);
+    }
+
+    /**
+     * Setter for <code>public.asset_video_comp.run_uuid</code>.
+     */
+    public void setRunUuid(UUID value) {
+        set(5, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_video_comp.run_uuid</code>.
+     */
+    public UUID getRunUuid() {
+        return (UUID) get(5);
+    }
+
+    /**
+     * Setter for <code>public.asset_video_comp.task_uuid</code>.
+     */
+    public void setTaskUuid(UUID value) {
+        set(6, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_video_comp.task_uuid</code>.
+     */
+    public UUID getTaskUuid() {
+        return (UUID) get(6);
+    }
+
+    /**
+     * Setter for <code>public.asset_video_comp.confidence</code>.
+     */
+    public void setConfidence(Float value) {
+        set(7, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_video_comp.confidence</code>.
+     */
+    public Float getConfidence() {
+        return (Float) get(7);
+    }
+
+    /**
+     * Setter for <code>public.asset_video_comp.stream_index</code>. Which video
+     * stream within the container. 0 for single-stream media.
+     */
+    public void setStreamIndex(Integer value) {
+        set(8, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_video_comp.stream_index</code>. Which video
+     * stream within the container. 0 for single-stream media.
+     */
+    public Integer getStreamIndex() {
+        return (Integer) get(8);
     }
 
     /**
      * Setter for <code>public.asset_video_comp.media_width</code>.
      */
     public void setMediaWidth(Integer value) {
-        set(3, value);
+        set(9, value);
     }
 
     /**
      * Getter for <code>public.asset_video_comp.media_width</code>.
      */
     public Integer getMediaWidth() {
-        return (Integer) get(3);
+        return (Integer) get(9);
     }
 
     /**
      * Setter for <code>public.asset_video_comp.media_height</code>.
      */
     public void setMediaHeight(Integer value) {
-        set(4, value);
+        set(10, value);
     }
 
     /**
      * Getter for <code>public.asset_video_comp.media_height</code>.
      */
     public Integer getMediaHeight() {
-        return (Integer) get(4);
+        return (Integer) get(10);
     }
 
     /**
-     * Setter for <code>public.asset_video_comp.media_duration</code>.
+     * Setter for <code>public.asset_video_comp.media_duration</code>. Duration
+     * in milliseconds
      */
     public void setMediaDuration(Long value) {
-        set(5, value);
+        set(11, value);
     }
 
     /**
-     * Getter for <code>public.asset_video_comp.media_duration</code>.
+     * Getter for <code>public.asset_video_comp.media_duration</code>. Duration
+     * in milliseconds
      */
     public Long getMediaDuration() {
-        return (Long) get(5);
+        return (Long) get(11);
     }
 
     /**
      * Setter for <code>public.asset_video_comp.video_bitrate</code>.
      */
     public void setVideoBitrate(Integer value) {
-        set(6, value);
+        set(12, value);
     }
 
     /**
      * Getter for <code>public.asset_video_comp.video_bitrate</code>.
      */
     public Integer getVideoBitrate() {
-        return (Integer) get(6);
+        return (Integer) get(12);
     }
 
     /**
      * Setter for <code>public.asset_video_comp.video_encoding</code>.
      */
     public void setVideoEncoding(String value) {
-        set(7, value);
+        set(13, value);
     }
 
     /**
      * Getter for <code>public.asset_video_comp.video_encoding</code>.
      */
     public String getVideoEncoding() {
-        return (String) get(7);
+        return (String) get(13);
+    }
+
+    /**
+     * Setter for <code>public.asset_video_comp.fps</code>. Frames per second,
+     * produced by the quality node
+     */
+    public void setFps(Float value) {
+        set(14, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_video_comp.fps</code>. Frames per second,
+     * produced by the quality node
+     */
+    public Float getFps() {
+        return (Float) get(14);
+    }
+
+    /**
+     * Setter for <code>public.asset_video_comp.frame_count</code>. Total frame
+     * count, produced by the quality node
+     */
+    public void setFrameCount(Long value) {
+        set(15, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_video_comp.frame_count</code>. Total frame
+     * count, produced by the quality node
+     */
+    public Long getFrameCount() {
+        return (Long) get(15);
+    }
+
+    /**
+     * Setter for <code>public.asset_video_comp.rotation</code>.
+     */
+    public void setRotation(Integer value) {
+        set(16, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_video_comp.rotation</code>.
+     */
+    public Integer getRotation() {
+        return (Integer) get(16);
+    }
+
+    /**
+     * Setter for <code>public.asset_video_comp.blurriness</code>.
+     */
+    public void setBlurriness(Float value) {
+        set(17, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_video_comp.blurriness</code>.
+     */
+    public Float getBlurriness() {
+        return (Float) get(17);
+    }
+
+    /**
+     * Setter for <code>public.asset_video_comp.meta</code>.
+     */
+    public void setMeta(JsonObject value) {
+        set(18, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_video_comp.meta</code>.
+     */
+    public JsonObject getMeta() {
+        return (JsonObject) get(18);
     }
 
     /**
      * Setter for <code>public.asset_video_comp.created</code>.
      */
     public void setCreated(LocalDateTime value) {
-        set(8, value);
+        set(19, value);
     }
 
     /**
      * Getter for <code>public.asset_video_comp.created</code>.
      */
     public LocalDateTime getCreated() {
-        return (LocalDateTime) get(8);
+        return (LocalDateTime) get(19);
     }
 
     /**
-     * Setter for <code>public.asset_video_comp.creator_uuid</code>.
+     * Setter for <code>public.asset_video_comp.creator_uuid</code>. NULL when
+     * written by a Cortex worker rather than a user
      */
     public void setCreatorUuid(UUID value) {
-        set(9, value);
+        set(20, value);
     }
 
     /**
-     * Getter for <code>public.asset_video_comp.creator_uuid</code>.
+     * Getter for <code>public.asset_video_comp.creator_uuid</code>. NULL when
+     * written by a Cortex worker rather than a user
      */
     public UUID getCreatorUuid() {
-        return (UUID) get(9);
+        return (UUID) get(20);
     }
 
     /**
      * Setter for <code>public.asset_video_comp.edited</code>.
      */
     public void setEdited(LocalDateTime value) {
-        set(10, value);
+        set(21, value);
     }
 
     /**
      * Getter for <code>public.asset_video_comp.edited</code>.
      */
     public LocalDateTime getEdited() {
-        return (LocalDateTime) get(10);
+        return (LocalDateTime) get(21);
     }
 
     /**
      * Setter for <code>public.asset_video_comp.editor_uuid</code>.
      */
     public void setEditorUuid(UUID value) {
-        set(11, value);
+        set(22, value);
     }
 
     /**
      * Getter for <code>public.asset_video_comp.editor_uuid</code>.
      */
     public UUID getEditorUuid() {
-        return (UUID) get(11);
+        return (UUID) get(22);
     }
 
     // -------------------------------------------------------------------------
@@ -199,289 +363,6 @@ public class JooqAssetVideoCompRecord extends UpdatableRecordImpl<JooqAssetVideo
     @Override
     public Record1<UUID> key() {
         return (Record1) super.key();
-    }
-
-    // -------------------------------------------------------------------------
-    // Record12 type implementation
-    // -------------------------------------------------------------------------
-
-    @Override
-    public Row12<UUID, UUID, String, Integer, Integer, Long, Integer, String, LocalDateTime, UUID, LocalDateTime, UUID> fieldsRow() {
-        return (Row12) super.fieldsRow();
-    }
-
-    @Override
-    public Row12<UUID, UUID, String, Integer, Integer, Long, Integer, String, LocalDateTime, UUID, LocalDateTime, UUID> valuesRow() {
-        return (Row12) super.valuesRow();
-    }
-
-    @Override
-    public Field<UUID> field1() {
-        return JooqAssetVideoComp.ASSET_VIDEO_COMP.UUID;
-    }
-
-    @Override
-    public Field<UUID> field2() {
-        return JooqAssetVideoComp.ASSET_VIDEO_COMP.ASSET_UUID;
-    }
-
-    @Override
-    public Field<String> field3() {
-        return JooqAssetVideoComp.ASSET_VIDEO_COMP.SOURCE;
-    }
-
-    @Override
-    public Field<Integer> field4() {
-        return JooqAssetVideoComp.ASSET_VIDEO_COMP.MEDIA_WIDTH;
-    }
-
-    @Override
-    public Field<Integer> field5() {
-        return JooqAssetVideoComp.ASSET_VIDEO_COMP.MEDIA_HEIGHT;
-    }
-
-    @Override
-    public Field<Long> field6() {
-        return JooqAssetVideoComp.ASSET_VIDEO_COMP.MEDIA_DURATION;
-    }
-
-    @Override
-    public Field<Integer> field7() {
-        return JooqAssetVideoComp.ASSET_VIDEO_COMP.VIDEO_BITRATE;
-    }
-
-    @Override
-    public Field<String> field8() {
-        return JooqAssetVideoComp.ASSET_VIDEO_COMP.VIDEO_ENCODING;
-    }
-
-    @Override
-    public Field<LocalDateTime> field9() {
-        return JooqAssetVideoComp.ASSET_VIDEO_COMP.CREATED;
-    }
-
-    @Override
-    public Field<UUID> field10() {
-        return JooqAssetVideoComp.ASSET_VIDEO_COMP.CREATOR_UUID;
-    }
-
-    @Override
-    public Field<LocalDateTime> field11() {
-        return JooqAssetVideoComp.ASSET_VIDEO_COMP.EDITED;
-    }
-
-    @Override
-    public Field<UUID> field12() {
-        return JooqAssetVideoComp.ASSET_VIDEO_COMP.EDITOR_UUID;
-    }
-
-    @Override
-    public UUID component1() {
-        return getUuid();
-    }
-
-    @Override
-    public UUID component2() {
-        return getAssetUuid();
-    }
-
-    @Override
-    public String component3() {
-        return getSource();
-    }
-
-    @Override
-    public Integer component4() {
-        return getMediaWidth();
-    }
-
-    @Override
-    public Integer component5() {
-        return getMediaHeight();
-    }
-
-    @Override
-    public Long component6() {
-        return getMediaDuration();
-    }
-
-    @Override
-    public Integer component7() {
-        return getVideoBitrate();
-    }
-
-    @Override
-    public String component8() {
-        return getVideoEncoding();
-    }
-
-    @Override
-    public LocalDateTime component9() {
-        return getCreated();
-    }
-
-    @Override
-    public UUID component10() {
-        return getCreatorUuid();
-    }
-
-    @Override
-    public LocalDateTime component11() {
-        return getEdited();
-    }
-
-    @Override
-    public UUID component12() {
-        return getEditorUuid();
-    }
-
-    @Override
-    public UUID value1() {
-        return getUuid();
-    }
-
-    @Override
-    public UUID value2() {
-        return getAssetUuid();
-    }
-
-    @Override
-    public String value3() {
-        return getSource();
-    }
-
-    @Override
-    public Integer value4() {
-        return getMediaWidth();
-    }
-
-    @Override
-    public Integer value5() {
-        return getMediaHeight();
-    }
-
-    @Override
-    public Long value6() {
-        return getMediaDuration();
-    }
-
-    @Override
-    public Integer value7() {
-        return getVideoBitrate();
-    }
-
-    @Override
-    public String value8() {
-        return getVideoEncoding();
-    }
-
-    @Override
-    public LocalDateTime value9() {
-        return getCreated();
-    }
-
-    @Override
-    public UUID value10() {
-        return getCreatorUuid();
-    }
-
-    @Override
-    public LocalDateTime value11() {
-        return getEdited();
-    }
-
-    @Override
-    public UUID value12() {
-        return getEditorUuid();
-    }
-
-    @Override
-    public JooqAssetVideoCompRecord value1(UUID value) {
-        setUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqAssetVideoCompRecord value2(UUID value) {
-        setAssetUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqAssetVideoCompRecord value3(String value) {
-        setSource(value);
-        return this;
-    }
-
-    @Override
-    public JooqAssetVideoCompRecord value4(Integer value) {
-        setMediaWidth(value);
-        return this;
-    }
-
-    @Override
-    public JooqAssetVideoCompRecord value5(Integer value) {
-        setMediaHeight(value);
-        return this;
-    }
-
-    @Override
-    public JooqAssetVideoCompRecord value6(Long value) {
-        setMediaDuration(value);
-        return this;
-    }
-
-    @Override
-    public JooqAssetVideoCompRecord value7(Integer value) {
-        setVideoBitrate(value);
-        return this;
-    }
-
-    @Override
-    public JooqAssetVideoCompRecord value8(String value) {
-        setVideoEncoding(value);
-        return this;
-    }
-
-    @Override
-    public JooqAssetVideoCompRecord value9(LocalDateTime value) {
-        setCreated(value);
-        return this;
-    }
-
-    @Override
-    public JooqAssetVideoCompRecord value10(UUID value) {
-        setCreatorUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqAssetVideoCompRecord value11(LocalDateTime value) {
-        setEdited(value);
-        return this;
-    }
-
-    @Override
-    public JooqAssetVideoCompRecord value12(UUID value) {
-        setEditorUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqAssetVideoCompRecord values(UUID value1, UUID value2, String value3, Integer value4, Integer value5, Long value6, Integer value7, String value8, LocalDateTime value9, UUID value10, LocalDateTime value11, UUID value12) {
-        value1(value1);
-        value2(value2);
-        value3(value3);
-        value4(value4);
-        value5(value5);
-        value6(value6);
-        value7(value7);
-        value8(value8);
-        value9(value9);
-        value10(value10);
-        value11(value11);
-        value12(value12);
-        return this;
     }
 
     // -------------------------------------------------------------------------
@@ -498,17 +379,28 @@ public class JooqAssetVideoCompRecord extends UpdatableRecordImpl<JooqAssetVideo
     /**
      * Create a detached, initialised JooqAssetVideoCompRecord
      */
-    public JooqAssetVideoCompRecord(UUID uuid, UUID assetUuid, String source, Integer mediaWidth, Integer mediaHeight, Long mediaDuration, Integer videoBitrate, String videoEncoding, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid) {
+    public JooqAssetVideoCompRecord(UUID uuid, UUID assetUuid, String nodeKind, String nodeId, String producerVersion, UUID runUuid, UUID taskUuid, Float confidence, Integer streamIndex, Integer mediaWidth, Integer mediaHeight, Long mediaDuration, Integer videoBitrate, String videoEncoding, Float fps, Long frameCount, Integer rotation, Float blurriness, JsonObject meta, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid) {
         super(JooqAssetVideoComp.ASSET_VIDEO_COMP);
 
         setUuid(uuid);
         setAssetUuid(assetUuid);
-        setSource(source);
+        setNodeKind(nodeKind);
+        setNodeId(nodeId);
+        setProducerVersion(producerVersion);
+        setRunUuid(runUuid);
+        setTaskUuid(taskUuid);
+        setConfidence(confidence);
+        setStreamIndex(streamIndex);
         setMediaWidth(mediaWidth);
         setMediaHeight(mediaHeight);
         setMediaDuration(mediaDuration);
         setVideoBitrate(videoBitrate);
         setVideoEncoding(videoEncoding);
+        setFps(fps);
+        setFrameCount(frameCount);
+        setRotation(rotation);
+        setBlurriness(blurriness);
+        setMeta(meta);
         setCreated(created);
         setCreatorUuid(creatorUuid);
         setEdited(edited);

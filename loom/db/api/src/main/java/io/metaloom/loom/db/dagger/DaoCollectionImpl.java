@@ -6,6 +6,7 @@ import javax.inject.Singleton;
 import dagger.Lazy;
 import io.metaloom.loom.db.model.annotation.AnnotationDao;
 import io.metaloom.loom.db.model.asset.AssetComponentDao;
+import io.metaloom.loom.db.model.asset.AssetNodeResultDao;
 import io.metaloom.loom.db.model.asset.AssetDao;
 import io.metaloom.loom.db.model.asset.AssetLocationDao;
 import io.metaloom.loom.db.model.asset.AssetBinaryDao;
@@ -48,6 +49,7 @@ public class DaoCollectionImpl implements DaoCollection {
 	private final Lazy<PermissionDao> permissionDao;
 	private final Lazy<AssetDao> assetDao;
 	private final Lazy<AssetComponentDao> assetComponentDao;
+	private final Lazy<AssetNodeResultDao> assetNodeResultDao;
 	private final Lazy<AssetLocationDao> assetLocationDao;
 	private final Lazy<AssetBinaryDao> assetBinaryDao;
 	private final Lazy<AttachmentDao> attachmentDao;
@@ -80,7 +82,7 @@ public class DaoCollectionImpl implements DaoCollection {
 	@Inject
 	public DaoCollectionImpl(Lazy<UserDao> userDao, Lazy<PermissionDao> permissionDao,
 		Lazy<RoleDao> roleDao, Lazy<GroupDao> groupDao, Lazy<AssetLocationDao> assetLocationDao, Lazy<AssetBinaryDao> assetBinaryDao, Lazy<AssetDao> assetDao,
-		Lazy<AssetComponentDao> assetComponentDao,
+		Lazy<AssetComponentDao> assetComponentDao, Lazy<AssetNodeResultDao> assetNodeResultDao,
 		Lazy<WebhookDao> webhookDao, Lazy<CollectionDao> collectionDao, Lazy<LibraryDao> libraryDao,
 		Lazy<AnnotationDao> annotationDao, Lazy<TaskDao> taskDao, Lazy<ReactionDao> reactionDao,
 		Lazy<BlacklistDao> blacklistDao, Lazy<CommentDao> commentDao, Lazy<SpaceDao> spaceDao,
@@ -97,6 +99,7 @@ public class DaoCollectionImpl implements DaoCollection {
 		this.roleDao = roleDao;
 		this.assetDao = assetDao;
 		this.assetComponentDao = assetComponentDao;
+		this.assetNodeResultDao = assetNodeResultDao;
 		this.permissionDao = permissionDao;
 		this.assetLocationDao = assetLocationDao;
 		this.assetBinaryDao = assetBinaryDao;
@@ -151,6 +154,11 @@ public class DaoCollectionImpl implements DaoCollection {
 	@Override
 	public AssetComponentDao assetComponentDao() {
 		return assetComponentDao.get();
+	}
+
+	@Override
+	public AssetNodeResultDao assetNodeResultDao() {
+		return assetNodeResultDao.get();
 	}
 
 	@Override

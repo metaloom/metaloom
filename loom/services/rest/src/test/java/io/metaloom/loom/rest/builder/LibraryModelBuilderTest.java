@@ -34,6 +34,9 @@ public class LibraryModelBuilderTest extends AbstractModelBuilderTest {
 		Library library = mock(Library.class);
 		when(library.getUuid()).thenReturn(LIBRARY_UUID);
 		when(library.getName()).thenReturn(name);
+		// The response carries a creator/editor block; without a creator uuid the builder
+		// leaves it empty (machine-written rows).
+		mockCreatorEditorRefs(library);
 		return library;
 	}
 

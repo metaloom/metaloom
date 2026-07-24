@@ -32,6 +32,9 @@ public class EmbeddingModelBuilderTest extends AbstractModelBuilderTest {
 	private Embedding mockEmbedding() {
 		Embedding embedding = mock(Embedding.class);
 		when(embedding.getUuid()).thenReturn(EMBEDDING_UUID);
+		// The response carries a creator/editor block; without a creator uuid the builder
+		// leaves it empty (machine-written rows).
+		mockCreatorEditorRefs(embedding);
 		return embedding;
 	}
 

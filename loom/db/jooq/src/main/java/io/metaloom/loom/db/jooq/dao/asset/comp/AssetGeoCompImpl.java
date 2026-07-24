@@ -1,37 +1,35 @@
 package io.metaloom.loom.db.jooq.dao.asset.comp;
 
-import java.util.UUID;
-
-import io.metaloom.loom.db.jooq.AbstractEditableElement;
 import io.metaloom.loom.db.model.asset.AssetGeoComp;
 
-public class AssetGeoCompImpl extends AbstractEditableElement<AssetGeoComp> implements AssetGeoComp {
+public class AssetGeoCompImpl extends AbstractAssetCompImpl<AssetGeoComp> implements AssetGeoComp {
 
-	private UUID assetUuid;
-	private String source;
+	private String method = "";
+	private long timeFrom;
 	private Double geoLon;
 	private Double geoLat;
 	private String geoAlias;
+	private Float accuracyM;
 
 	@Override
-	public UUID getAssetUuid() {
-		return assetUuid;
+	public String getMethod() {
+		return method;
 	}
 
 	@Override
-	public AssetGeoComp setAssetUuid(UUID assetUuid) {
-		this.assetUuid = assetUuid;
+	public AssetGeoComp setMethod(String method) {
+		this.method = method == null ? "" : method;
 		return this;
 	}
 
 	@Override
-	public String getSource() {
-		return source;
+	public long getTimeFrom() {
+		return timeFrom;
 	}
 
 	@Override
-	public AssetGeoComp setSource(String source) {
-		this.source = source;
+	public AssetGeoComp setTimeFrom(long timeFrom) {
+		this.timeFrom = timeFrom;
 		return this;
 	}
 
@@ -65,6 +63,17 @@ public class AssetGeoCompImpl extends AbstractEditableElement<AssetGeoComp> impl
 	@Override
 	public AssetGeoComp setGeoAlias(String geoAlias) {
 		this.geoAlias = geoAlias;
+		return this;
+	}
+
+	@Override
+	public Float getAccuracyM() {
+		return accuracyM;
+	}
+
+	@Override
+	public AssetGeoComp setAccuracyM(Float accuracyM) {
+		this.accuracyM = accuracyM;
 		return this;
 	}
 }

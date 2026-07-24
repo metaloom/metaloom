@@ -1,39 +1,28 @@
 package io.metaloom.loom.db.jooq.dao.asset.comp;
 
-import java.util.UUID;
-
-import io.metaloom.loom.db.jooq.AbstractEditableElement;
 import io.metaloom.loom.db.model.asset.AssetVideoComp;
 
-public class AssetVideoCompImpl extends AbstractEditableElement<AssetVideoComp> implements AssetVideoComp {
+public class AssetVideoCompImpl extends AbstractAssetCompImpl<AssetVideoComp> implements AssetVideoComp {
 
-	private UUID assetUuid;
-	private String source;
+	private int streamIndex;
 	private Integer mediaWidth;
 	private Integer mediaHeight;
 	private Long mediaDuration;
 	private Integer videoBitrate;
 	private String videoEncoding;
+	private Float fps;
+	private Long frameCount;
+	private Integer rotation;
+	private Float blurriness;
 
 	@Override
-	public UUID getAssetUuid() {
-		return assetUuid;
+	public int getStreamIndex() {
+		return streamIndex;
 	}
 
 	@Override
-	public AssetVideoComp setAssetUuid(UUID assetUuid) {
-		this.assetUuid = assetUuid;
-		return this;
-	}
-
-	@Override
-	public String getSource() {
-		return source;
-	}
-
-	@Override
-	public AssetVideoComp setSource(String source) {
-		this.source = source;
+	public AssetVideoComp setStreamIndex(int streamIndex) {
+		this.streamIndex = streamIndex;
 		return this;
 	}
 
@@ -89,6 +78,50 @@ public class AssetVideoCompImpl extends AbstractEditableElement<AssetVideoComp> 
 	@Override
 	public AssetVideoComp setVideoEncoding(String encoding) {
 		this.videoEncoding = encoding;
+		return this;
+	}
+
+	@Override
+	public Float getFps() {
+		return fps;
+	}
+
+	@Override
+	public AssetVideoComp setFps(Float fps) {
+		this.fps = fps;
+		return this;
+	}
+
+	@Override
+	public Long getFrameCount() {
+		return frameCount;
+	}
+
+	@Override
+	public AssetVideoComp setFrameCount(Long frameCount) {
+		this.frameCount = frameCount;
+		return this;
+	}
+
+	@Override
+	public Integer getRotation() {
+		return rotation;
+	}
+
+	@Override
+	public AssetVideoComp setRotation(Integer rotation) {
+		this.rotation = rotation;
+		return this;
+	}
+
+	@Override
+	public Float getBlurriness() {
+		return blurriness;
+	}
+
+	@Override
+	public AssetVideoComp setBlurriness(Float blurriness) {
+		this.blurriness = blurriness;
 		return this;
 	}
 }

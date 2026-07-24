@@ -29,7 +29,7 @@ public interface AssetComponentModelBuilder extends ModelBuilder, UserModelBuild
 		AssetComponentResponse response = new AssetComponentResponse();
 		setCommon(response, comp, AssetComponentType.GEO);
 		response.setGeo(new GeoLocationInfo()
-			.setSource(comp.getSource())
+			.setSource(comp.getNodeKind())
 			.setLon(comp.getGeoLon())
 			.setLat(comp.getGeoLat())
 			.setAlias(comp.getGeoAlias()));
@@ -40,7 +40,7 @@ public interface AssetComponentModelBuilder extends ModelBuilder, UserModelBuild
 		AssetComponentResponse response = new AssetComponentResponse();
 		setCommon(response, comp, AssetComponentType.IMAGE);
 		response.setImage(new ImageInfo()
-			.setSource(comp.getSource())
+			.setSource(comp.getNodeKind())
 			.setDominantColor(comp.getImageDominantColor())
 			.setWidth(comp.getMediaWidth())
 			.setHeight(comp.getMediaHeight()));
@@ -51,7 +51,7 @@ public interface AssetComponentModelBuilder extends ModelBuilder, UserModelBuild
 		AssetComponentResponse response = new AssetComponentResponse();
 		setCommon(response, comp, AssetComponentType.VIDEO);
 		response.setVideo(new VideoInfo()
-			.setSource(comp.getSource())
+			.setSource(comp.getNodeKind())
 			.setBitrate(comp.getVideoBitrate())
 			.setEncoding(comp.getVideoEncoding())
 			.setWidth(comp.getMediaWidth())
@@ -64,7 +64,7 @@ public interface AssetComponentModelBuilder extends ModelBuilder, UserModelBuild
 		AssetComponentResponse response = new AssetComponentResponse();
 		setCommon(response, comp, AssetComponentType.AUDIO);
 		response.setAudio(new AudioInfo()
-			.setSource(comp.getSource())
+			.setSource(comp.getNodeKind())
 			.setBpm(comp.getAudioBpm())
 			.setBitrate(comp.getAudioBitrate())
 			.setChannels(comp.getAudioChannels())
@@ -78,7 +78,7 @@ public interface AssetComponentModelBuilder extends ModelBuilder, UserModelBuild
 		AssetComponentResponse response = new AssetComponentResponse();
 		setCommon(response, comp, AssetComponentType.DOC);
 		response.setDocument(new DocumentInfo()
-			.setSource(comp.getSource())
+			.setSource(comp.getNodeKind())
 			.setWordCount(comp.getDocWordCount() != null ? comp.getDocWordCount().longValue() : null)
 			.setPlainText(comp.getDocPlainText()));
 		return response;
@@ -88,7 +88,7 @@ public interface AssetComponentModelBuilder extends ModelBuilder, UserModelBuild
 		AssetComponentResponse response = new AssetComponentResponse();
 		setCommon(response, comp, AssetComponentType.TRANSCRIPT);
 		response.setTranscript(new TranscriptInfo()
-			.setSource(comp.getSource())
+			.setSource(comp.getNodeKind())
 			.setLang(comp.getLang())
 			.setTranscriptText(comp.getTranscriptText())
 			.setDuration(comp.getDuration())
@@ -110,7 +110,7 @@ public interface AssetComponentModelBuilder extends ModelBuilder, UserModelBuild
 		response.setUuid(comp.getUuid());
 		response.setType(type);
 		response.setAssetUuid(comp.getAssetUuid());
-		response.setSource(comp.getSource());
+		response.setSource(comp.getNodeKind());
 		setStatus(comp, response);
 	}
 

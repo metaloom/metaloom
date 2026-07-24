@@ -74,8 +74,8 @@ public class WhisperNode extends AbstractMediaNode<WhisperOptions> {
 						.map(TranscriptionSegment::getText)
 						.collect(Collectors.joining(" ")));
 					if (!result.segments().isEmpty()) {
-						long lastTo = result.segments().get(result.segments().size() - 1).getTo();
-						request.setDuration((int) lastTo);
+						// Segment offsets are already milliseconds, which is what the field now holds.
+						request.setDuration(result.segments().get(result.segments().size() - 1).getTo());
 					}
 					request.setTranscriptJson(new JsonObject(json));
 					UUID assetUuid = asset.getUuid();

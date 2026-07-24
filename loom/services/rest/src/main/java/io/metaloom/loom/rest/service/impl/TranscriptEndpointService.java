@@ -97,7 +97,7 @@ public class TranscriptEndpointService extends AbstractEndpointService {
 				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Transcript not found.");
 			}
 			if (request.getSource() != null) {
-				comp.setSource(request.getSource());
+				comp.setNodeKind(request.getSource());
 			}
 			if (request.getLang() != null) {
 				comp.setLang(request.getLang());

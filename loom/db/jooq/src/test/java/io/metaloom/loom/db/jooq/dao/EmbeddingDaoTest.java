@@ -19,7 +19,11 @@ public class EmbeddingDaoTest extends AbstractJooqTest implements CRUDDaoTestcas
 	@Override
 	public Embedding createElement(User user, int i) {
 		Embedding embedding = getDao().createEmbedding(user, asset(), VECTOR_DATA, EmbeddingType.DLIB_FACE_RESNET_v1);
-		embedding.setSource("The source");
+		embedding.setNodeKind("facedetect");
+		embedding.setProducerVersion("dlib-v1");
+		// The identity is (asset, node kind, type, frame, subject) - vary the subject so a test
+		// that needs several embeddings of one asset does not collide on it.
+		embedding.setSubjectIndex(i);
 		return embedding;
 	}
 
@@ -27,17 +31,19 @@ public class EmbeddingDaoTest extends AbstractJooqTest implements CRUDDaoTestcas
 	public void assertCreate(Embedding createdElement) {
 		assertEquals(asset().getUuid(), createdElement.getAssetUuid());
 		assertEquals(EmbeddingType.DLIB_FACE_RESNET_v1, createdElement.getType());
-		assertEquals("The source", createdElement.getSource());
+		assertEquals("facedetect", createdElement.getNodeKind());
+		assertEquals(VECTOR_DATA.length, createdElement.getDimensions().intValue());
 	}
 
 	@Override
 	public void updateElement(Embedding element) {
-		element.setSource("42");
+		// Not "manual": the test fixture already owns (asset, manual, DLIB_FACE_RESNET_v1, 0, 0).
+		element.setNodeKind("facedescription");
 	}
 
 	@Override
 	public void assertUpdate(Embedding updatedElement) {
-		assertEquals("42", updatedElement.getSource());
+		assertEquals("facedescription", updatedElement.getNodeKind());
 	}
 
 }

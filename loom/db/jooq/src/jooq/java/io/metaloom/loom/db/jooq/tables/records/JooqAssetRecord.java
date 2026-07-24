@@ -12,42 +12,64 @@ import java.util.UUID;
 
 import org.jooq.Field;
 import org.jooq.Record1;
-import org.jooq.Record18;
-import org.jooq.Row18;
+import org.jooq.Record17;
+import org.jooq.Row17;
 import org.jooq.impl.UpdatableRecordImpl;
 
 
 /**
- * This table stores information on the asset component of the asset
+ * The binary/content component of an asset, addressed by its SHA-512.
+ * 
+ * IDENTITY RULE: sha512sum stays NOT NULL, so an asset row cannot exist before
+ * a hashing
+ * node has run. That is deliberate - the node system already assumes SHA-512 is
+ * available
+ * (AbstractMediaNode fetches the asset by SHA-512 in its lifecycle), and
+ * pipeline_run_item
+ * carries the pre-hash identity (media_path plus a nullable sha512). Nodes
+ * upstream of
+ * hashing hold their outputs in pipeline_node_task.outputs, and the sync
+ * flushes them once
+ * identity exists.
+ * 
+ * PLACEMENT RULE: intrinsic properties of the BYTES (hashes, size,
+ * zero_chunk_count,
+ * is_complete) live here. Everything derived by interpretation lives in a
+ * component table
+ * (asset_*_comp), keyed by its producing node.
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqAssetRecord extends UpdatableRecordImpl<JooqAssetRecord> implements Record18<UUID, String, Long, String, String, String, Long, String, String, String, LocalDateTime, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID, String, String> {
+public class JooqAssetRecord extends UpdatableRecordImpl<JooqAssetRecord> implements Record17<UUID, String, Long, String, String, String, Long, String, String, String, LocalDateTime, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID, Boolean> {
 
     private static final long serialVersionUID = 1L;
 
     /**
-     * Setter for <code>public.asset.uuid</code>.
+     * Setter for <code>public.asset.uuid</code>. Primary key. Every child table
+     * references this column.
      */
     public void setUuid(UUID value) {
         set(0, value);
     }
 
     /**
-     * Getter for <code>public.asset.uuid</code>.
+     * Getter for <code>public.asset.uuid</code>. Primary key. Every child table
+     * references this column.
      */
     public UUID getUuid() {
         return (UUID) get(0);
     }
 
     /**
-     * Setter for <code>public.asset.sha512sum</code>.
+     * Setter for <code>public.asset.sha512sum</code>. Content identity. Natural
+     * key, unique and not null.
      */
     public void setSha512sum(String value) {
         set(1, value);
     }
 
     /**
-     * Getter for <code>public.asset.sha512sum</code>.
+     * Getter for <code>public.asset.sha512sum</code>. Content identity. Natural
+     * key, unique and not null.
      */
     public String getSha512sum() {
         return (String) get(1);
@@ -110,14 +132,16 @@ public class JooqAssetRecord extends UpdatableRecordImpl<JooqAssetRecord> implem
     }
 
     /**
-     * Setter for <code>public.asset.zero_chunk_count</code>.
+     * Setter for <code>public.asset.zero_chunk_count</code>. ConsistencyNode
+     * zero-chunk count, used to detect truncated files
      */
     public void setZeroChunkCount(Long value) {
         set(6, value);
     }
 
     /**
-     * Getter for <code>public.asset.zero_chunk_count</code>.
+     * Getter for <code>public.asset.zero_chunk_count</code>. ConsistencyNode
+     * zero-chunk count, used to detect truncated files
      */
     public Long getZeroChunkCount() {
         return (Long) get(6);
@@ -256,31 +280,19 @@ public class JooqAssetRecord extends UpdatableRecordImpl<JooqAssetRecord> implem
     }
 
     /**
-     * Setter for <code>public.asset.s3_bucket_name</code>.
+     * Setter for <code>public.asset.is_complete</code>. ConsistencyNode
+     * verdict. NULL = not yet checked.
      */
-    public void setS3BucketName(String value) {
+    public void setIsComplete(Boolean value) {
         set(16, value);
     }
 
     /**
-     * Getter for <code>public.asset.s3_bucket_name</code>.
+     * Getter for <code>public.asset.is_complete</code>. ConsistencyNode
+     * verdict. NULL = not yet checked.
      */
-    public String getS3BucketName() {
-        return (String) get(16);
-    }
-
-    /**
-     * Setter for <code>public.asset.s3_object_path</code>.
-     */
-    public void setS3ObjectPath(String value) {
-        set(17, value);
-    }
-
-    /**
-     * Getter for <code>public.asset.s3_object_path</code>.
-     */
-    public String getS3ObjectPath() {
-        return (String) get(17);
+    public Boolean getIsComplete() {
+        return (Boolean) get(16);
     }
 
     // -------------------------------------------------------------------------
@@ -288,22 +300,22 @@ public class JooqAssetRecord extends UpdatableRecordImpl<JooqAssetRecord> implem
     // -------------------------------------------------------------------------
 
     @Override
-    public Record1<String> key() {
+    public Record1<UUID> key() {
         return (Record1) super.key();
     }
 
     // -------------------------------------------------------------------------
-    // Record18 type implementation
+    // Record17 type implementation
     // -------------------------------------------------------------------------
 
     @Override
-    public Row18<UUID, String, Long, String, String, String, Long, String, String, String, LocalDateTime, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID, String, String> fieldsRow() {
-        return (Row18) super.fieldsRow();
+    public Row17<UUID, String, Long, String, String, String, Long, String, String, String, LocalDateTime, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID, Boolean> fieldsRow() {
+        return (Row17) super.fieldsRow();
     }
 
     @Override
-    public Row18<UUID, String, Long, String, String, String, Long, String, String, String, LocalDateTime, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID, String, String> valuesRow() {
-        return (Row18) super.valuesRow();
+    public Row17<UUID, String, Long, String, String, String, Long, String, String, String, LocalDateTime, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID, Boolean> valuesRow() {
+        return (Row17) super.valuesRow();
     }
 
     @Override
@@ -387,13 +399,8 @@ public class JooqAssetRecord extends UpdatableRecordImpl<JooqAssetRecord> implem
     }
 
     @Override
-    public Field<String> field17() {
-        return JooqAsset.ASSET.S3_BUCKET_NAME;
-    }
-
-    @Override
-    public Field<String> field18() {
-        return JooqAsset.ASSET.S3_OBJECT_PATH;
+    public Field<Boolean> field17() {
+        return JooqAsset.ASSET.IS_COMPLETE;
     }
 
     @Override
@@ -477,13 +484,8 @@ public class JooqAssetRecord extends UpdatableRecordImpl<JooqAssetRecord> implem
     }
 
     @Override
-    public String component17() {
-        return getS3BucketName();
-    }
-
-    @Override
-    public String component18() {
-        return getS3ObjectPath();
+    public Boolean component17() {
+        return getIsComplete();
     }
 
     @Override
@@ -567,13 +569,8 @@ public class JooqAssetRecord extends UpdatableRecordImpl<JooqAssetRecord> implem
     }
 
     @Override
-    public String value17() {
-        return getS3BucketName();
-    }
-
-    @Override
-    public String value18() {
-        return getS3ObjectPath();
+    public Boolean value17() {
+        return getIsComplete();
     }
 
     @Override
@@ -673,19 +670,13 @@ public class JooqAssetRecord extends UpdatableRecordImpl<JooqAssetRecord> implem
     }
 
     @Override
-    public JooqAssetRecord value17(String value) {
-        setS3BucketName(value);
+    public JooqAssetRecord value17(Boolean value) {
+        setIsComplete(value);
         return this;
     }
 
     @Override
-    public JooqAssetRecord value18(String value) {
-        setS3ObjectPath(value);
-        return this;
-    }
-
-    @Override
-    public JooqAssetRecord values(UUID value1, String value2, Long value3, String value4, String value5, String value6, Long value7, String value8, String value9, String value10, LocalDateTime value11, JsonObject value12, LocalDateTime value13, UUID value14, LocalDateTime value15, UUID value16, String value17, String value18) {
+    public JooqAssetRecord values(UUID value1, String value2, Long value3, String value4, String value5, String value6, Long value7, String value8, String value9, String value10, LocalDateTime value11, JsonObject value12, LocalDateTime value13, UUID value14, LocalDateTime value15, UUID value16, Boolean value17) {
         value1(value1);
         value2(value2);
         value3(value3);
@@ -703,7 +694,6 @@ public class JooqAssetRecord extends UpdatableRecordImpl<JooqAssetRecord> implem
         value15(value15);
         value16(value16);
         value17(value17);
-        value18(value18);
         return this;
     }
 
@@ -721,7 +711,7 @@ public class JooqAssetRecord extends UpdatableRecordImpl<JooqAssetRecord> implem
     /**
      * Create a detached, initialised JooqAssetRecord
      */
-    public JooqAssetRecord(UUID uuid, String sha512sum, Long size, String sha256sum, String md5sum, String chunkHash, Long zeroChunkCount, String mimeType, String filename, String initialOrigin, LocalDateTime firstSeen, JsonObject meta, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid, String s3BucketName, String s3ObjectPath) {
+    public JooqAssetRecord(UUID uuid, String sha512sum, Long size, String sha256sum, String md5sum, String chunkHash, Long zeroChunkCount, String mimeType, String filename, String initialOrigin, LocalDateTime firstSeen, JsonObject meta, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid, Boolean isComplete) {
         super(JooqAsset.ASSET);
 
         setUuid(uuid);
@@ -740,7 +730,6 @@ public class JooqAssetRecord extends UpdatableRecordImpl<JooqAssetRecord> implem
         setCreatorUuid(creatorUuid);
         setEdited(edited);
         setEditorUuid(editorUuid);
-        setS3BucketName(s3BucketName);
-        setS3ObjectPath(s3ObjectPath);
+        setIsComplete(isComplete);
     }
 }

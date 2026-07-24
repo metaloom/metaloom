@@ -16,14 +16,15 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 
+import org.jooq.Check;
 import org.jooq.Field;
 import org.jooq.ForeignKey;
-import org.jooq.Function16;
+import org.jooq.Function22;
 import org.jooq.Index;
 import org.jooq.Name;
 import org.jooq.Record;
 import org.jooq.Records;
-import org.jooq.Row16;
+import org.jooq.Row22;
 import org.jooq.Schema;
 import org.jooq.SelectField;
 import org.jooq.Table;
@@ -31,12 +32,14 @@ import org.jooq.TableField;
 import org.jooq.TableOptions;
 import org.jooq.UniqueKey;
 import org.jooq.impl.DSL;
+import org.jooq.impl.Internal;
 import org.jooq.impl.SQLDataType;
 import org.jooq.impl.TableImpl;
 
 
 /**
- * Embedding information which was extracted from an asset.
+ * Embedding vectors extracted from an asset. The geometry lives on the linked
+ * detection - this table no longer carries a second, absolute-pixel copy of it.
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
 public class JooqEmbedding extends TableImpl<JooqEmbeddingRecord> {
@@ -62,62 +65,100 @@ public class JooqEmbedding extends TableImpl<JooqEmbeddingRecord> {
     public final TableField<JooqEmbeddingRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
 
     /**
-     * The column <code>public.embedding.meta</code>. Custom meta properties to
-     * the embedding.
+     * The column <code>public.embedding.asset_uuid</code>.
      */
-    public final TableField<JooqEmbeddingRecord, JsonObject> META = createField(DSL.name("meta"), SQLDataType.JSONB, this, "Custom meta properties to the embedding.", new JsonObjectConverter());
+    public final TableField<JooqEmbeddingRecord, java.util.UUID> ASSET_UUID = createField(DSL.name("asset_uuid"), SQLDataType.UUID.nullable(false), this, "");
 
     /**
-     * The column <code>public.embedding.source</code>. Additional source
-     * information (e.g. face number by dlib)
+     * The column <code>public.embedding.node_kind</code>.
      */
-    public final TableField<JooqEmbeddingRecord, String> SOURCE = createField(DSL.name("source"), SQLDataType.VARCHAR, this, "Additional source information (e.g. face number by dlib)");
+    public final TableField<JooqEmbeddingRecord, String> NODE_KIND = createField(DSL.name("node_kind"), SQLDataType.VARCHAR.nullable(false), this, "");
 
     /**
-     * The column <code>public.embedding.fromTime</code>.
+     * The column <code>public.embedding.node_id</code>.
      */
-    public final TableField<JooqEmbeddingRecord, Integer> FROMTIME = createField(DSL.name("fromTime"), SQLDataType.INTEGER, this, "");
+    public final TableField<JooqEmbeddingRecord, String> NODE_ID = createField(DSL.name("node_id"), SQLDataType.VARCHAR, this, "");
 
     /**
-     * The column <code>public.embedding.toTime</code>.
+     * The column <code>public.embedding.producer_version</code>.
      */
-    public final TableField<JooqEmbeddingRecord, Integer> TOTIME = createField(DSL.name("toTime"), SQLDataType.INTEGER, this, "");
+    public final TableField<JooqEmbeddingRecord, String> PRODUCER_VERSION = createField(DSL.name("producer_version"), SQLDataType.VARCHAR.nullable(false).defaultValue(DSL.field("''::character varying", SQLDataType.VARCHAR)), this, "");
 
     /**
-     * The column <code>public.embedding.areaHeight</code>. Area info where the
-     * face has been detected.
+     * The column <code>public.embedding.run_uuid</code>.
      */
-    public final TableField<JooqEmbeddingRecord, Integer> AREAHEIGHT = createField(DSL.name("areaHeight"), SQLDataType.INTEGER, this, "Area info where the face has been detected.");
+    public final TableField<JooqEmbeddingRecord, java.util.UUID> RUN_UUID = createField(DSL.name("run_uuid"), SQLDataType.UUID, this, "");
 
     /**
-     * The column <code>public.embedding.areaWidth</code>. Area info where the
-     * face has been detected.
+     * The column <code>public.embedding.task_uuid</code>.
      */
-    public final TableField<JooqEmbeddingRecord, Integer> AREAWIDTH = createField(DSL.name("areaWidth"), SQLDataType.INTEGER, this, "Area info where the face has been detected.");
+    public final TableField<JooqEmbeddingRecord, java.util.UUID> TASK_UUID = createField(DSL.name("task_uuid"), SQLDataType.UUID, this, "");
 
     /**
-     * The column <code>public.embedding.areaStartX</code>. Area info where the
-     * face has been detected.
+     * The column <code>public.embedding.confidence</code>.
      */
-    public final TableField<JooqEmbeddingRecord, Integer> AREASTARTX = createField(DSL.name("areaStartX"), SQLDataType.INTEGER, this, "Area info where the face has been detected.");
+    public final TableField<JooqEmbeddingRecord, Float> CONFIDENCE = createField(DSL.name("confidence"), SQLDataType.REAL, this, "");
 
     /**
-     * The column <code>public.embedding.areaStartY</code>. Area info where the
-     * face has been detected.
+     * The column <code>public.embedding.type</code>. Type of the embedding,
+     * e.g. dlib_facemark, inspireface
      */
-    public final TableField<JooqEmbeddingRecord, Integer> AREASTARTY = createField(DSL.name("areaStartY"), SQLDataType.INTEGER, this, "Area info where the face has been detected.");
+    public final TableField<JooqEmbeddingRecord, String> TYPE = createField(DSL.name("type"), SQLDataType.VARCHAR.nullable(false), this, "Type of the embedding, e.g. dlib_facemark, inspireface");
 
     /**
-     * The column <code>public.embedding.vector</code>. Actual embedding vector
-     * data
+     * The column <code>public.embedding.model</code>. Readable mirror of
+     * producer_version
      */
-    public final TableField<JooqEmbeddingRecord, Float[]> VECTOR = createField(DSL.name("vector"), SQLDataType.REAL.getArrayDataType(), this, "Actual embedding vector data");
+    public final TableField<JooqEmbeddingRecord, String> MODEL = createField(DSL.name("model"), SQLDataType.VARCHAR, this, "Readable mirror of producer_version");
 
     /**
-     * The column <code>public.embedding.type</code>. Type of the embedding
-     * (e.g. dlib_facemark)
+     * The column <code>public.embedding.dimensions</code>. Length of the
+     * vector. Guards against comparing vectors from different models.
      */
-    public final TableField<JooqEmbeddingRecord, String> TYPE = createField(DSL.name("type"), SQLDataType.VARCHAR.nullable(false), this, "Type of the embedding (e.g. dlib_facemark)");
+    public final TableField<JooqEmbeddingRecord, Integer> DIMENSIONS = createField(DSL.name("dimensions"), SQLDataType.INTEGER.nullable(false), this, "Length of the vector. Guards against comparing vectors from different models.");
+
+    /**
+     * The column <code>public.embedding.vector</code>. Embedding vector as a
+     * plain PostgreSQL array. OPEN DECISION: similarity search is either
+     * pgvector in Postgres or an external index fed via vector_config. Until
+     * that is decided this column is a staging buffer with no ANN index - see
+     * spec/features/DB_SCHEMA_FEEDBACK.md section 4.2.
+     */
+    public final TableField<JooqEmbeddingRecord, Float[]> VECTOR = createField(DSL.name("vector"), SQLDataType.REAL.getArrayDataType(), this, "Embedding vector as a plain PostgreSQL array. OPEN DECISION: similarity search is either pgvector in Postgres or an external index fed via vector_config. Until that is decided this column is a staging buffer with no ANN index - see spec/features/DB_SCHEMA_FEEDBACK.md section 4.2.");
+
+    /**
+     * The column <code>public.embedding.detection_uuid</code>. The detection
+     * this vector was computed from, when there is one. Whole-image and
+     * audio-window embeddings leave it NULL.
+     */
+    public final TableField<JooqEmbeddingRecord, java.util.UUID> DETECTION_UUID = createField(DSL.name("detection_uuid"), SQLDataType.UUID, this, "The detection this vector was computed from, when there is one. Whole-image and audio-window embeddings leave it NULL.");
+
+    /**
+     * The column <code>public.embedding.frame_number</code>.
+     */
+    public final TableField<JooqEmbeddingRecord, Integer> FRAME_NUMBER = createField(DSL.name("frame_number"), SQLDataType.INTEGER.nullable(false).defaultValue(DSL.field("0", SQLDataType.INTEGER)), this, "");
+
+    /**
+     * The column <code>public.embedding.subject_index</code>. Ordinal of the
+     * subject within the frame, used when there is no detection row to key on
+     */
+    public final TableField<JooqEmbeddingRecord, Integer> SUBJECT_INDEX = createField(DSL.name("subject_index"), SQLDataType.INTEGER.nullable(false).defaultValue(DSL.field("0", SQLDataType.INTEGER)), this, "Ordinal of the subject within the frame, used when there is no detection row to key on");
+
+    /**
+     * The column <code>public.embedding.time_from</code>. Start of the window
+     * this embedding covers, in milliseconds (audio/video)
+     */
+    public final TableField<JooqEmbeddingRecord, Long> TIME_FROM = createField(DSL.name("time_from"), SQLDataType.BIGINT, this, "Start of the window this embedding covers, in milliseconds (audio/video)");
+
+    /**
+     * The column <code>public.embedding.time_to</code>.
+     */
+    public final TableField<JooqEmbeddingRecord, Long> TIME_TO = createField(DSL.name("time_to"), SQLDataType.BIGINT, this, "");
+
+    /**
+     * The column <code>public.embedding.meta</code>.
+     */
+    public final TableField<JooqEmbeddingRecord, JsonObject> META = createField(DSL.name("meta"), SQLDataType.JSONB, this, "", new JsonObjectConverter());
 
     /**
      * The column <code>public.embedding.created</code>.
@@ -125,9 +166,10 @@ public class JooqEmbedding extends TableImpl<JooqEmbeddingRecord> {
     public final TableField<JooqEmbeddingRecord, LocalDateTime> CREATED = createField(DSL.name("created"), SQLDataType.LOCALDATETIME(6).nullable(false).defaultValue(DSL.field("now()", SQLDataType.LOCALDATETIME)), this, "");
 
     /**
-     * The column <code>public.embedding.creator_uuid</code>.
+     * The column <code>public.embedding.creator_uuid</code>. NULL when written
+     * by a Cortex worker rather than a user
      */
-    public final TableField<JooqEmbeddingRecord, java.util.UUID> CREATOR_UUID = createField(DSL.name("creator_uuid"), SQLDataType.UUID.nullable(false), this, "");
+    public final TableField<JooqEmbeddingRecord, java.util.UUID> CREATOR_UUID = createField(DSL.name("creator_uuid"), SQLDataType.UUID, this, "NULL when written by a Cortex worker rather than a user");
 
     /**
      * The column <code>public.embedding.edited</code>.
@@ -137,19 +179,14 @@ public class JooqEmbedding extends TableImpl<JooqEmbeddingRecord> {
     /**
      * The column <code>public.embedding.editor_uuid</code>.
      */
-    public final TableField<JooqEmbeddingRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID.nullable(false), this, "");
-
-    /**
-     * The column <code>public.embedding.asset_uuid</code>.
-     */
-    public final TableField<JooqEmbeddingRecord, java.util.UUID> ASSET_UUID = createField(DSL.name("asset_uuid"), SQLDataType.UUID.nullable(false), this, "");
+    public final TableField<JooqEmbeddingRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID, this, "");
 
     private JooqEmbedding(Name alias, Table<JooqEmbeddingRecord> aliased) {
         this(alias, aliased, null);
     }
 
     private JooqEmbedding(Name alias, Table<JooqEmbeddingRecord> aliased, Field<?>[] parameters) {
-        super(alias, null, aliased, parameters, DSL.comment("Embedding information which was extracted from an asset."), TableOptions.table());
+        super(alias, null, aliased, parameters, DSL.comment("Embedding vectors extracted from an asset. The geometry lives on the linked detection - this table no longer carries a second, absolute-pixel copy of it."), TableOptions.table());
     }
 
     /**
@@ -184,7 +221,7 @@ public class JooqEmbedding extends TableImpl<JooqEmbeddingRecord> {
 
     @Override
     public List<Index> getIndexes() {
-        return Arrays.asList(Indexes.EMBEDDING_ASSET_UUID_IDX);
+        return Arrays.asList(Indexes.IDX_EMBEDDING_ASSET_UUID, Indexes.IDX_EMBEDDING_DETECTION_UUID);
     }
 
     @Override
@@ -193,12 +230,62 @@ public class JooqEmbedding extends TableImpl<JooqEmbeddingRecord> {
     }
 
     @Override
-    public List<ForeignKey<JooqEmbeddingRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.EMBEDDING__EMBEDDING_CREATOR_UUID_FKEY, Keys.EMBEDDING__EMBEDDING_EDITOR_UUID_FKEY);
+    public List<UniqueKey<JooqEmbeddingRecord>> getUniqueKeys() {
+        return Arrays.asList(Keys.EMBEDDING_UNIQUE_KEY);
     }
 
+    @Override
+    public List<ForeignKey<JooqEmbeddingRecord, ?>> getReferences() {
+        return Arrays.asList(Keys.EMBEDDING__EMBEDDING_ASSET_UUID_FKEY, Keys.EMBEDDING__EMBEDDING_RUN_UUID_FKEY, Keys.EMBEDDING__EMBEDDING_TASK_UUID_FKEY, Keys.EMBEDDING__EMBEDDING_DETECTION_UUID_FKEY, Keys.EMBEDDING__EMBEDDING_CREATOR_UUID_FKEY, Keys.EMBEDDING__EMBEDDING_EDITOR_UUID_FKEY);
+    }
+
+    private transient JooqAsset _asset;
+    private transient JooqPipelineRun _pipelineRun;
+    private transient JooqPipelineNodeTask _pipelineNodeTask;
+    private transient JooqDetection _detection;
     private transient JooqUser _embeddingCreatorUuidFkey;
     private transient JooqUser _embeddingEditorUuidFkey;
+
+    /**
+     * Get the implicit join path to the <code>public.asset</code> table.
+     */
+    public JooqAsset asset() {
+        if (_asset == null)
+            _asset = new JooqAsset(this, Keys.EMBEDDING__EMBEDDING_ASSET_UUID_FKEY);
+
+        return _asset;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.pipeline_run</code> table.
+     */
+    public JooqPipelineRun pipelineRun() {
+        if (_pipelineRun == null)
+            _pipelineRun = new JooqPipelineRun(this, Keys.EMBEDDING__EMBEDDING_RUN_UUID_FKEY);
+
+        return _pipelineRun;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.pipeline_node_task</code>
+     * table.
+     */
+    public JooqPipelineNodeTask pipelineNodeTask() {
+        if (_pipelineNodeTask == null)
+            _pipelineNodeTask = new JooqPipelineNodeTask(this, Keys.EMBEDDING__EMBEDDING_TASK_UUID_FKEY);
+
+        return _pipelineNodeTask;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.detection</code> table.
+     */
+    public JooqDetection detection() {
+        if (_detection == null)
+            _detection = new JooqDetection(this, Keys.EMBEDDING__EMBEDDING_DETECTION_UUID_FKEY);
+
+        return _detection;
+    }
 
     /**
      * Get the implicit join path to the <code>public.user</code> table, via the
@@ -220,6 +307,13 @@ public class JooqEmbedding extends TableImpl<JooqEmbeddingRecord> {
             _embeddingEditorUuidFkey = new JooqUser(this, Keys.EMBEDDING__EMBEDDING_EDITOR_UUID_FKEY);
 
         return _embeddingEditorUuidFkey;
+    }
+
+    @Override
+    public List<Check<JooqEmbeddingRecord>> getChecks() {
+        return Arrays.asList(
+            Internal.createCheck(this, DSL.name("embedding_range_check"), "(((time_to IS NULL) OR (time_from IS NULL) OR (time_to >= time_from)))", true)
+        );
     }
 
     @Override
@@ -262,18 +356,18 @@ public class JooqEmbedding extends TableImpl<JooqEmbeddingRecord> {
     }
 
     // -------------------------------------------------------------------------
-    // Row16 type methods
+    // Row22 type methods
     // -------------------------------------------------------------------------
 
     @Override
-    public Row16<java.util.UUID, JsonObject, String, Integer, Integer, Integer, Integer, Integer, Integer, Float[], String, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID, java.util.UUID> fieldsRow() {
-        return (Row16) super.fieldsRow();
+    public Row22<java.util.UUID, java.util.UUID, String, String, String, java.util.UUID, java.util.UUID, Float, String, String, Integer, Float[], java.util.UUID, Integer, Integer, Long, Long, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
+        return (Row22) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function16<? super java.util.UUID, ? super JsonObject, ? super String, ? super Integer, ? super Integer, ? super Integer, ? super Integer, ? super Integer, ? super Integer, ? super Float[], ? super String, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function22<? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super Float, ? super String, ? super String, ? super Integer, ? super Float[], ? super java.util.UUID, ? super Integer, ? super Integer, ? super Long, ? super Long, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -281,7 +375,7 @@ public class JooqEmbedding extends TableImpl<JooqEmbeddingRecord> {
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function16<? super java.util.UUID, ? super JsonObject, ? super String, ? super Integer, ? super Integer, ? super Integer, ? super Integer, ? super Integer, ? super Integer, ? super Float[], ? super String, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function22<? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super Float, ? super String, ? super String, ? super Integer, ? super Float[], ? super java.util.UUID, ? super Integer, ? super Integer, ? super Long, ? super Long, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }

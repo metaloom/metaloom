@@ -8,7 +8,7 @@ public class TranscriptInfo implements RestModel {
 	private String source;
 	private String lang;
 	private String transcriptText;
-	private Integer duration;
+	private Long duration;
 	private String model;
 	private JsonObject transcriptJson;
 
@@ -39,11 +39,11 @@ public class TranscriptInfo implements RestModel {
 		return this;
 	}
 
-	public Integer getDuration() {
+	public Long getDuration() {
 		return duration;
 	}
 
-	public TranscriptInfo setDuration(Integer duration) {
+	public TranscriptInfo setDuration(Long duration) {
 		this.duration = duration;
 		return this;
 	}

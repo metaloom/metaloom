@@ -72,6 +72,15 @@
 			<artifactId>loom-db-api-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<!-- JooqModule.r2dbcConnectionFactory resolves the driver through the r2dbc SPI at
+		     runtime. Without an implementation on the classpath ConnectionFactories.get fails
+		     with "Available drivers: [ None ]". -->
+		<dependency>
+			<groupId>io.r2dbc</groupId>
+			<artifactId>r2dbc-postgresql</artifactId>
+			<version>0.8.10.RELEASE</version>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 
 	<profiles>
@@ -230,6 +239,13 @@
 									<name>
 										org.jooq.meta.postgres.PostgresDatabase</name>
 									<includes>.*</includes>
+									<!-- text_search columns are GENERATED ALWAYS AS ... STORED tsvector
+									     columns maintained by PostgreSQL. They must never appear in an
+									     INSERT/UPDATE, so they are kept out of the generated code entirely.
+									     includeExcludeColumns is required: by default includes/excludes
+									     apply to tables and other objects, not to columns. -->
+									<excludes>.*\.text_search</excludes>
+									<includeExcludeColumns>true</includeExcludeColumns>
 									<inputSchema>public</inputSchema>
 									<outputSchema>public</outputSchema>
 									<unsignedTypes>false</unsignedTypes>
@@ -238,8 +254,9 @@
 											<userType>io.vertx.core.json.JsonObject</userType>
 											<converter>io.metaloom.loom.db.jooq.converter.JsonObjectConverter</converter>
 											<!-- pipeline_node_task.outputs holds node outputs and is read
-											     as a JsonObject like meta, so it needs the same converter. -->
-											<includeExpression>.*\.meta.*|.*\.outputs|.*\.definition</includeExpression>
+											     as a JsonObject like meta, so it needs the same converter.
+											     asset_node_result.result_ref points at the rows a node wrote. -->
+											<includeExpression>.*\.meta.*|.*\.outputs|.*\.definition|.*\.result_ref</includeExpression>
 										</forcedType>
 										<forcedType>
 											<userType>io.vertx.core.json.JsonArray</userType>

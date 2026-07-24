@@ -5,6 +5,7 @@ import static io.metaloom.loom.rest.model.assertj.Assertions.assertThat;
 import io.metaloom.loom.client.common.LoomClientException;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.endpoint.AbstractCRUDEndpointTest;
+import io.metaloom.loom.api.annotation.AnnotationType;
 import io.metaloom.loom.rest.model.annotation.AnnotationCreateRequest;
 import io.metaloom.loom.rest.model.annotation.AnnotationListResponse;
 import io.metaloom.loom.rest.model.annotation.AnnotationResponse;
@@ -22,6 +23,7 @@ public class AnnotationEndpointTest extends AbstractCRUDEndpointTest {
 	protected void testCreate(LoomHttpClient client) throws LoomClientException {
 		AnnotationCreateRequest request = new AnnotationCreateRequest();
 		request.setTitle("dummy title");
+		request.setType(AnnotationType.FEEDBACK);
 		request.setAssetUuid(ASSET_UUID);
 		AnnotationResponse annotation = client.createAnnotation(request).sync().body();
 		assertThat(annotation).isValid();
@@ -49,6 +51,8 @@ public class AnnotationEndpointTest extends AbstractCRUDEndpointTest {
 		for (int i = 0; i < 100; i++) {
 			AnnotationCreateRequest request = new AnnotationCreateRequest();
 			request.setTitle("dummy title " + i);
+			request.setType(AnnotationType.FEEDBACK);
+			request.setAssetUuid(ASSET_UUID);
 			client.createAnnotation(request).sync().body();
 		}
 		AnnotationListResponse list = client.listAnnotations().sync().body();

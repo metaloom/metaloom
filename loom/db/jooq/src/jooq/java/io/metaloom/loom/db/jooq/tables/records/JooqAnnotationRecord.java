@@ -252,16 +252,16 @@ public class JooqAnnotationRecord extends UpdatableRecordImpl<JooqAnnotationReco
     }
 
     /**
-     * Setter for <code>public.annotation.thumbnail</code>. Reference to the
-     * thumbnail that depics the annotated element/area
+     * Setter for <code>public.annotation.thumbnail</code>. Superseded by an
+     * attachment of type POSTER_FRAME; kept until the annotation UI migrates.
      */
     public void setThumbnail(String value) {
         set(16, value);
     }
 
     /**
-     * Getter for <code>public.annotation.thumbnail</code>. Reference to the
-     * thumbnail that depics the annotated element/area
+     * Getter for <code>public.annotation.thumbnail</code>. Superseded by an
+     * attachment of type POSTER_FRAME; kept until the annotation UI migrates.
      */
     public String getThumbnail() {
         return (String) get(16);

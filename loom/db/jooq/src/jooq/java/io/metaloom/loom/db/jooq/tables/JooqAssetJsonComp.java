@@ -7,7 +7,9 @@ package io.metaloom.loom.db.jooq.tables;
 import io.metaloom.loom.db.jooq.Indexes;
 import io.metaloom.loom.db.jooq.JooqPublic;
 import io.metaloom.loom.db.jooq.Keys;
+import io.metaloom.loom.db.jooq.converter.JsonObjectConverter;
 import io.metaloom.loom.db.jooq.tables.records.JooqAssetJsonCompRecord;
+import io.vertx.core.json.JsonObject;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -16,13 +18,13 @@ import java.util.function.Function;
 
 import org.jooq.Field;
 import org.jooq.ForeignKey;
-import org.jooq.Function9;
+import org.jooq.Function16;
 import org.jooq.Index;
 import org.jooq.JSONB;
 import org.jooq.Name;
 import org.jooq.Record;
 import org.jooq.Records;
-import org.jooq.Row9;
+import org.jooq.Row16;
 import org.jooq.Schema;
 import org.jooq.SelectField;
 import org.jooq.Table;
@@ -35,7 +37,10 @@ import org.jooq.impl.TableImpl;
 
 
 /**
- * Stores generic JSON component data produced by Cortex processing nodes
+ * Generic sink for node results with no query requirement. A node kind starts
+ * here and graduates to a typed component table when a query must filter on a
+ * field inside data, when the UI renders it as a first-class object, or when it
+ * needs a foreign key.
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
 public class JooqAssetJsonComp extends TableImpl<JooqAssetJsonCompRecord> {
@@ -66,21 +71,60 @@ public class JooqAssetJsonComp extends TableImpl<JooqAssetJsonCompRecord> {
     public final TableField<JooqAssetJsonCompRecord, java.util.UUID> ASSET_UUID = createField(DSL.name("asset_uuid"), SQLDataType.UUID.nullable(false), this, "");
 
     /**
-     * The column <code>public.asset_json_comp.source</code>. Name of the source
-     * node that produced this data
+     * The column <code>public.asset_json_comp.node_kind</code>. Producing node
+     * kind, e.g. llm, captioning, facedescription
      */
-    public final TableField<JooqAssetJsonCompRecord, String> SOURCE = createField(DSL.name("source"), SQLDataType.VARCHAR, this, "Name of the source node that produced this data");
+    public final TableField<JooqAssetJsonCompRecord, String> NODE_KIND = createField(DSL.name("node_kind"), SQLDataType.VARCHAR.nullable(false), this, "Producing node kind, e.g. llm, captioning, facedescription");
 
     /**
-     * The column <code>public.asset_json_comp.schema_type</code>. Optional
-     * schema type label for the JSON data (e.g. yolo-detection, face-embedding)
+     * The column <code>public.asset_json_comp.node_id</code>.
      */
-    public final TableField<JooqAssetJsonCompRecord, String> SCHEMA_TYPE = createField(DSL.name("schema_type"), SQLDataType.VARCHAR, this, "Optional schema type label for the JSON data (e.g. yolo-detection, face-embedding)");
+    public final TableField<JooqAssetJsonCompRecord, String> NODE_ID = createField(DSL.name("node_id"), SQLDataType.VARCHAR, this, "");
 
     /**
-     * The column <code>public.asset_json_comp.data</code>.
+     * The column <code>public.asset_json_comp.producer_version</code>.
      */
-    public final TableField<JooqAssetJsonCompRecord, JSONB> DATA = createField(DSL.name("data"), SQLDataType.JSONB, this, "");
+    public final TableField<JooqAssetJsonCompRecord, String> PRODUCER_VERSION = createField(DSL.name("producer_version"), SQLDataType.VARCHAR.nullable(false).defaultValue(DSL.field("''::character varying", SQLDataType.VARCHAR)), this, "");
+
+    /**
+     * The column <code>public.asset_json_comp.run_uuid</code>.
+     */
+    public final TableField<JooqAssetJsonCompRecord, java.util.UUID> RUN_UUID = createField(DSL.name("run_uuid"), SQLDataType.UUID, this, "");
+
+    /**
+     * The column <code>public.asset_json_comp.task_uuid</code>.
+     */
+    public final TableField<JooqAssetJsonCompRecord, java.util.UUID> TASK_UUID = createField(DSL.name("task_uuid"), SQLDataType.UUID, this, "");
+
+    /**
+     * The column <code>public.asset_json_comp.confidence</code>.
+     */
+    public final TableField<JooqAssetJsonCompRecord, Float> CONFIDENCE = createField(DSL.name("confidence"), SQLDataType.REAL, this, "");
+
+    /**
+     * The column <code>public.asset_json_comp.schema_type</code>. Shape label
+     * for the payload, e.g. yolo-detection, caption, llm-answer
+     */
+    public final TableField<JooqAssetJsonCompRecord, String> SCHEMA_TYPE = createField(DSL.name("schema_type"), SQLDataType.VARCHAR.nullable(false), this, "Shape label for the payload, e.g. yolo-detection, caption, llm-answer");
+
+    /**
+     * The column <code>public.asset_json_comp.variant</code>. Sub-division
+     * within the kind: prompt id, model tag, whatever makes two results of the
+     * same node distinct
+     */
+    public final TableField<JooqAssetJsonCompRecord, String> VARIANT = createField(DSL.name("variant"), SQLDataType.VARCHAR.nullable(false).defaultValue(DSL.field("''::character varying", SQLDataType.VARCHAR)), this, "Sub-division within the kind: prompt id, model tag, whatever makes two results of the same node distinct");
+
+    /**
+     * The column <code>public.asset_json_comp.data</code>. The payload. NOT
+     * NULL: "the node ran and produced nothing" is expressed by
+     * asset_node_result, not by a NULL payload.
+     */
+    public final TableField<JooqAssetJsonCompRecord, JSONB> DATA = createField(DSL.name("data"), SQLDataType.JSONB.nullable(false).defaultValue(DSL.field("'{}'::jsonb", SQLDataType.JSONB)), this, "The payload. NOT NULL: \"the node ran and produced nothing\" is expressed by asset_node_result, not by a NULL payload.");
+
+    /**
+     * The column <code>public.asset_json_comp.meta</code>.
+     */
+    public final TableField<JooqAssetJsonCompRecord, JsonObject> META = createField(DSL.name("meta"), SQLDataType.JSONB, this, "", new JsonObjectConverter());
 
     /**
      * The column <code>public.asset_json_comp.created</code>.
@@ -88,9 +132,10 @@ public class JooqAssetJsonComp extends TableImpl<JooqAssetJsonCompRecord> {
     public final TableField<JooqAssetJsonCompRecord, LocalDateTime> CREATED = createField(DSL.name("created"), SQLDataType.LOCALDATETIME(6).nullable(false).defaultValue(DSL.field("now()", SQLDataType.LOCALDATETIME)), this, "");
 
     /**
-     * The column <code>public.asset_json_comp.creator_uuid</code>.
+     * The column <code>public.asset_json_comp.creator_uuid</code>. NULL when
+     * written by a Cortex worker rather than a user
      */
-    public final TableField<JooqAssetJsonCompRecord, java.util.UUID> CREATOR_UUID = createField(DSL.name("creator_uuid"), SQLDataType.UUID.nullable(false), this, "");
+    public final TableField<JooqAssetJsonCompRecord, java.util.UUID> CREATOR_UUID = createField(DSL.name("creator_uuid"), SQLDataType.UUID, this, "NULL when written by a Cortex worker rather than a user");
 
     /**
      * The column <code>public.asset_json_comp.edited</code>.
@@ -100,14 +145,14 @@ public class JooqAssetJsonComp extends TableImpl<JooqAssetJsonCompRecord> {
     /**
      * The column <code>public.asset_json_comp.editor_uuid</code>.
      */
-    public final TableField<JooqAssetJsonCompRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID.nullable(false), this, "");
+    public final TableField<JooqAssetJsonCompRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID, this, "");
 
     private JooqAssetJsonComp(Name alias, Table<JooqAssetJsonCompRecord> aliased) {
         this(alias, aliased, null);
     }
 
     private JooqAssetJsonComp(Name alias, Table<JooqAssetJsonCompRecord> aliased, Field<?>[] parameters) {
-        super(alias, null, aliased, parameters, DSL.comment("Stores generic JSON component data produced by Cortex processing nodes"), TableOptions.table());
+        super(alias, null, aliased, parameters, DSL.comment("Generic sink for node results with no query requirement. A node kind starts here and graduates to a typed component table when a query must filter on a field inside data, when the UI renders it as a first-class object, or when it needs a foreign key."), TableOptions.table());
     }
 
     /**
@@ -142,7 +187,7 @@ public class JooqAssetJsonComp extends TableImpl<JooqAssetJsonCompRecord> {
 
     @Override
     public List<Index> getIndexes() {
-        return Arrays.asList(Indexes.ASSET_JSON_COMP_ASSET_UUID_IDX, Indexes.ASSET_JSON_COMP_SCHEMA_TYPE_IDX);
+        return Arrays.asList(Indexes.IDX_ASSET_JSON_COMP_ASSET_UUID, Indexes.IDX_ASSET_JSON_COMP_DATA, Indexes.IDX_ASSET_JSON_COMP_SCHEMA_TYPE);
     }
 
     @Override
@@ -151,12 +196,51 @@ public class JooqAssetJsonComp extends TableImpl<JooqAssetJsonCompRecord> {
     }
 
     @Override
-    public List<ForeignKey<JooqAssetJsonCompRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.ASSET_JSON_COMP__ASSET_JSON_COMP_CREATOR_UUID_FKEY, Keys.ASSET_JSON_COMP__ASSET_JSON_COMP_EDITOR_UUID_FKEY);
+    public List<UniqueKey<JooqAssetJsonCompRecord>> getUniqueKeys() {
+        return Arrays.asList(Keys.ASSET_JSON_COMP_UNIQUE_KEY);
     }
 
+    @Override
+    public List<ForeignKey<JooqAssetJsonCompRecord, ?>> getReferences() {
+        return Arrays.asList(Keys.ASSET_JSON_COMP__ASSET_JSON_COMP_ASSET_UUID_FKEY, Keys.ASSET_JSON_COMP__ASSET_JSON_COMP_RUN_UUID_FKEY, Keys.ASSET_JSON_COMP__ASSET_JSON_COMP_TASK_UUID_FKEY, Keys.ASSET_JSON_COMP__ASSET_JSON_COMP_CREATOR_UUID_FKEY, Keys.ASSET_JSON_COMP__ASSET_JSON_COMP_EDITOR_UUID_FKEY);
+    }
+
+    private transient JooqAsset _asset;
+    private transient JooqPipelineRun _pipelineRun;
+    private transient JooqPipelineNodeTask _pipelineNodeTask;
     private transient JooqUser _assetJsonCompCreatorUuidFkey;
     private transient JooqUser _assetJsonCompEditorUuidFkey;
+
+    /**
+     * Get the implicit join path to the <code>public.asset</code> table.
+     */
+    public JooqAsset asset() {
+        if (_asset == null)
+            _asset = new JooqAsset(this, Keys.ASSET_JSON_COMP__ASSET_JSON_COMP_ASSET_UUID_FKEY);
+
+        return _asset;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.pipeline_run</code> table.
+     */
+    public JooqPipelineRun pipelineRun() {
+        if (_pipelineRun == null)
+            _pipelineRun = new JooqPipelineRun(this, Keys.ASSET_JSON_COMP__ASSET_JSON_COMP_RUN_UUID_FKEY);
+
+        return _pipelineRun;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.pipeline_node_task</code>
+     * table.
+     */
+    public JooqPipelineNodeTask pipelineNodeTask() {
+        if (_pipelineNodeTask == null)
+            _pipelineNodeTask = new JooqPipelineNodeTask(this, Keys.ASSET_JSON_COMP__ASSET_JSON_COMP_TASK_UUID_FKEY);
+
+        return _pipelineNodeTask;
+    }
 
     /**
      * Get the implicit join path to the <code>public.user</code> table, via the
@@ -220,18 +304,18 @@ public class JooqAssetJsonComp extends TableImpl<JooqAssetJsonCompRecord> {
     }
 
     // -------------------------------------------------------------------------
-    // Row9 type methods
+    // Row16 type methods
     // -------------------------------------------------------------------------
 
     @Override
-    public Row9<java.util.UUID, java.util.UUID, String, String, JSONB, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
-        return (Row9) super.fieldsRow();
+    public Row16<java.util.UUID, java.util.UUID, String, String, String, java.util.UUID, java.util.UUID, Float, String, String, JSONB, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
+        return (Row16) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function9<? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super JSONB, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function16<? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super Float, ? super String, ? super String, ? super JSONB, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -239,7 +323,7 @@ public class JooqAssetJsonComp extends TableImpl<JooqAssetJsonCompRecord> {
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function9<? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super JSONB, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function16<? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super Float, ? super String, ? super String, ? super JSONB, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }

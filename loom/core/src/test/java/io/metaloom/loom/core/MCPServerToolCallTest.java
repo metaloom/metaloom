@@ -99,6 +99,7 @@ public class MCPServerToolCallTest {
 	 */
 	@Test
 	public void testServerToolCallLoopWithLLM() throws Exception {
+		OllamaAvailability.assumeRunning();
 		int port = mcpPort();
 
 		// 1. Discover tools via MCP server

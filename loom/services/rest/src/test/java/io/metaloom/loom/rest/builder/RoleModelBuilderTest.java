@@ -32,6 +32,9 @@ public class RoleModelBuilderTest extends AbstractModelBuilderTest {
 	private Role mockRole() {
 		Role role = mock(Role.class);
 		when(role.getName()).thenReturn("the_role_name");
+		// The response carries a creator/editor block; without a creator uuid the builder
+		// leaves it empty (machine-written rows).
+		mockCreatorEditorRefs(role);
 		return role;
 	}
 

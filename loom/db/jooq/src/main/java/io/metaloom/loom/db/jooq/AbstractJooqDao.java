@@ -193,7 +193,11 @@ public abstract class AbstractJooqDao<T extends Element<T>> implements JooqDao, 
 		} else {
 			Field<UUID> field = getField(sortBy);
 			if (field == null) {
-				throw new LoomJooqException("Field for sortkey " + sortBy.getKey() + " not found for type " + getTypeName());
+				// The caller named a column this type does not have - a bad request, not an
+				// internal error. Mirrors applyFilter below, which rejects unknown filter keys
+				// the same way.
+				throw new LoomRestException(400, LoomRestErrorCode.BAD_QUERY_PARAMS,
+					"Unknown sort field " + sortBy.getKey() + " for " + getTypeName());
 			}
 			if (sortDirection == SortDirection.DESCENDING) {
 				query2 = query.orderBy(field.desc());

@@ -32,10 +32,10 @@ import io.metaloom.loom.rest.model.asset.info.GeoLocationInfo;
 import io.metaloom.loom.rest.model.asset.info.ImageInfo;
 import io.metaloom.loom.rest.model.asset.info.MediaInfo;
 import io.metaloom.loom.rest.model.asset.info.VideoInfo;
-import io.metaloom.loom.rest.model.asset.location.AssetLocationCreateRequest;
-import io.metaloom.loom.rest.model.asset.location.AssetLocationFilesystemInfo;
-import io.metaloom.loom.rest.model.asset.location.AssetLocationResponse;
-import io.metaloom.loom.rest.model.asset.location.FileKey;
+import io.metaloom.loom.rest.model.asset.binary.AssetBinaryCreateRequest;
+import io.metaloom.loom.rest.model.asset.binary.AssetBinaryFilesystemInfo;
+import io.metaloom.loom.rest.model.asset.binary.AssetBinaryResponse;
+import io.metaloom.loom.rest.model.asset.binary.FileKey;
 import io.metaloom.loom.rest.model.attachment.AttachmentResponse;
 import io.metaloom.loom.rest.model.collection.CollectionCreateRequest;
 import io.metaloom.loom.rest.model.collection.CollectionResponse;
@@ -60,6 +60,7 @@ import io.metaloom.loom.api.task.TaskPriority;
 import io.metaloom.loom.rest.model.task.TaskResponse;
 import io.metaloom.loom.test.TestEnvHelper;
 import io.metaloom.loom.test.data.TestDataCollection;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 public class CombinedEndpointTest extends AbstractEndpointTest {
@@ -178,13 +179,14 @@ public class CombinedEndpointTest extends AbstractEndpointTest {
 				}
 			}
 
-			// Create a location for the asset
-			AssetLocationCreateRequest locationRequest = new AssetLocationCreateRequest();
+			// Create a location for the asset. The asset_location table is served by the
+			// "binaries" resource - there is no /locations route.
+			AssetBinaryCreateRequest locationRequest = new AssetBinaryCreateRequest();
 			locationRequest.setLibraryUuid(library.getUuid());
 			locationRequest.setAssetUuid(asset.getUuid());
 			locationRequest.setFilesystem(
-				new AssetLocationFilesystemInfo().setLastSeen(Instant.now()).setPath(DUMMY_IMAGE_ORIGIN).setFilekey(new FileKey(42L, 42L, 42L, 42L)));
-			AssetLocationResponse location = client.createLocation(locationRequest).sync().body();
+				new AssetBinaryFilesystemInfo().setLastSeen(Instant.now()).setPath(DUMMY_IMAGE_ORIGIN).setFilekey(new FileKey(42L, 42L, 42L, 42L)));
+			AssetBinaryResponse location = client.createBinary(locationRequest).sync().body();
 
 			// Collection are used to group assets together (e.g. for a set of remixes)
 			CollectionCreateRequest collectionRequest = new CollectionCreateRequest();
@@ -258,18 +260,24 @@ public class CombinedEndpointTest extends AbstractEndpointTest {
 			PipelineCreateRequest pipelineRequest = new PipelineCreateRequest();
 			pipelineRequest.setName("test-pipeline");
 			pipelineRequest.setDescription("A test pipeline for combined endpoint test");
+			// The definition format is nodes[] + edges[], each node carrying an id and a type.
 			pipelineRequest.setDefinition(new JsonObject()
-				.put("nodes", new JsonObject()
-					.put("sha512", new JsonObject()
+				.put("nodes", new JsonArray()
+					.add(new JsonObject()
+						.put("id", "sha512")
+						.put("type", "sha512")
 						.put("name", "SHA-512 Hash")
 						.put("mode", "PARALLEL")
-						.put("concurrency", 4))));
+						.put("concurrency", 4)))
+				.put("edges", new JsonArray()));
+			pipelineRequest.setMeta(new JsonObject().put("owner", "combined-test"));
 			pipelineRequest.setEnabled(true);
 			pipelineRequest.setPriority(10);
 			pipelineRequest.setDryRun(false);
 			PipelineResponse pipeline = client.createPipeline(pipelineRequest).sync().body();
 			assertNotNull(pipeline.getUuid(), "Pipeline UUID should not be null");
 			assertNotNull(pipeline.getMeta(), "Pipeline meta should not be null");
+			assertEquals("combined-test", pipeline.getMeta().getString("owner"), "The meta should round-trip");
 			// The response is flattened: the version fields are served inline, no second request needed.
 			assertNotNull(pipeline.getVersionUuid(), "Pipeline version UUID should not be null");
 			assertEquals(1, pipeline.getVersionNumber(), "A freshly created pipeline is at version 1");

@@ -82,6 +82,19 @@ public abstract class AbstractModelBuilderTest implements TestValues {
 	public void mockCreatorEditor(CUDElement<?> element) {
 		Mockito.when(element.getCreated()).thenReturn(DATE_OLD);
 		Mockito.when(element.getEdited()).thenReturn(DATE_OLD);
+		mockCreatorEditorRefs(element);
+	}
+
+	/**
+	 * Mock only the creator/editor references, leaving the timestamps unset.
+	 *
+	 * <p>
+	 * The builder resolves those references through the user DAO and leaves the status block empty when the element has no creator - which is what a
+	 * row written by a Cortex worker looks like. An element that is meant to represent user-created data therefore has to carry the uuids, or the
+	 * test asserts machine-written output by accident.
+	 * </p>
+	 */
+	public void mockCreatorEditorRefs(CUDElement<?> element) {
 		Mockito.when(element.getCreatorUuid()).thenReturn(USER_UUID);
 		Mockito.when(element.getEditorUuid()).thenReturn(USER_UUID);
 	}

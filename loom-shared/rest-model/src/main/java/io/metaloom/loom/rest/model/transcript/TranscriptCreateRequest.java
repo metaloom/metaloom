@@ -10,7 +10,7 @@ public class TranscriptCreateRequest extends AbstractMetaModel<TranscriptCreateR
 	private String source;
 	private String lang;
 	private String transcriptText;
-	private Integer duration;
+	private Long duration;
 	private String model;
 	private JsonObject transcriptJson;
 
@@ -48,12 +48,12 @@ public class TranscriptCreateRequest extends AbstractMetaModel<TranscriptCreateR
 	}
 
 	@Override
-	public Integer getDuration() {
+	public Long getDuration() {
 		return duration;
 	}
 
 	@Override
-	public TranscriptCreateRequest setDuration(Integer duration) {
+	public TranscriptCreateRequest setDuration(Long duration) {
 		this.duration = duration;
 		return this;
 	}

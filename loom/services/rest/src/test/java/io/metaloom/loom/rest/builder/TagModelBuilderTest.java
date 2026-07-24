@@ -33,6 +33,9 @@ public class TagModelBuilderTest extends AbstractModelBuilderTest {
 	private Tag mockTag(String name) {
 		Tag tag = mock(Tag.class);
 		when(tag.getName()).thenReturn(name);
+		// The response carries a creator/editor block; without a creator uuid the builder
+		// leaves it empty (machine-written rows).
+		mockCreatorEditorRefs(tag);
 		return tag;
 	}
 

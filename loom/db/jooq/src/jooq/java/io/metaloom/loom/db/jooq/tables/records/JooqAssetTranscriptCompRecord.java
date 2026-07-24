@@ -5,6 +5,7 @@ package io.metaloom.loom.db.jooq.tables.records;
 
 
 import io.metaloom.loom.db.jooq.tables.JooqAssetTranscriptComp;
+import io.vertx.core.json.JsonObject;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -12,16 +13,17 @@ import java.util.UUID;
 import org.jooq.Field;
 import org.jooq.JSONB;
 import org.jooq.Record1;
-import org.jooq.Record12;
-import org.jooq.Row12;
+import org.jooq.Record21;
+import org.jooq.Row21;
 import org.jooq.impl.UpdatableRecordImpl;
 
 
 /**
- * Stores transcript data for audio/video assets
+ * Transcript of one audio track of an asset. One row per (producer, track,
+ * language).
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqAssetTranscriptCompRecord extends UpdatableRecordImpl<JooqAssetTranscriptCompRecord> implements Record12<UUID, UUID, String, String, String, Integer, String, JSONB, LocalDateTime, UUID, LocalDateTime, UUID> {
+public class JooqAssetTranscriptCompRecord extends UpdatableRecordImpl<JooqAssetTranscriptCompRecord> implements Record21<UUID, UUID, String, String, String, UUID, UUID, Float, Integer, String, UUID, String, String, Long, Integer, JSONB, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> {
 
     private static final long serialVersionUID = 1L;
 
@@ -54,33 +56,155 @@ public class JooqAssetTranscriptCompRecord extends UpdatableRecordImpl<JooqAsset
     }
 
     /**
-     * Setter for <code>public.asset_transcript_comp.source</code>.
-     * pipeline/source of transcription
+     * Setter for <code>public.asset_transcript_comp.node_kind</code>.
      */
-    public void setSource(String value) {
+    public void setNodeKind(String value) {
         set(2, value);
     }
 
     /**
-     * Getter for <code>public.asset_transcript_comp.source</code>.
-     * pipeline/source of transcription
+     * Getter for <code>public.asset_transcript_comp.node_kind</code>.
      */
-    public String getSource() {
+    public String getNodeKind() {
         return (String) get(2);
     }
 
     /**
-     * Setter for <code>public.asset_transcript_comp.lang</code>.
+     * Setter for <code>public.asset_transcript_comp.node_id</code>.
      */
-    public void setLang(String value) {
+    public void setNodeId(String value) {
         set(3, value);
     }
 
     /**
-     * Getter for <code>public.asset_transcript_comp.lang</code>.
+     * Getter for <code>public.asset_transcript_comp.node_id</code>.
+     */
+    public String getNodeId() {
+        return (String) get(3);
+    }
+
+    /**
+     * Setter for <code>public.asset_transcript_comp.producer_version</code>.
+     */
+    public void setProducerVersion(String value) {
+        set(4, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_transcript_comp.producer_version</code>.
+     */
+    public String getProducerVersion() {
+        return (String) get(4);
+    }
+
+    /**
+     * Setter for <code>public.asset_transcript_comp.run_uuid</code>.
+     */
+    public void setRunUuid(UUID value) {
+        set(5, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_transcript_comp.run_uuid</code>.
+     */
+    public UUID getRunUuid() {
+        return (UUID) get(5);
+    }
+
+    /**
+     * Setter for <code>public.asset_transcript_comp.task_uuid</code>.
+     */
+    public void setTaskUuid(UUID value) {
+        set(6, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_transcript_comp.task_uuid</code>.
+     */
+    public UUID getTaskUuid() {
+        return (UUID) get(6);
+    }
+
+    /**
+     * Setter for <code>public.asset_transcript_comp.confidence</code>.
+     */
+    public void setConfidence(Float value) {
+        set(7, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_transcript_comp.confidence</code>.
+     */
+    public Float getConfidence() {
+        return (Float) get(7);
+    }
+
+    /**
+     * Setter for <code>public.asset_transcript_comp.stream_index</code>. Which
+     * audio track was transcribed. Part of the unique key rather than relying
+     * on audio_comp_uuid, because an audio-only asset may be transcribed before
+     * any audio component row exists.
+     */
+    public void setStreamIndex(Integer value) {
+        set(8, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_transcript_comp.stream_index</code>. Which
+     * audio track was transcribed. Part of the unique key rather than relying
+     * on audio_comp_uuid, because an audio-only asset may be transcribed before
+     * any audio component row exists.
+     */
+    public Integer getStreamIndex() {
+        return (Integer) get(8);
+    }
+
+    /**
+     * Setter for <code>public.asset_transcript_comp.lang</code>. BCP-47
+     * language tag of the transcript; empty string means undetermined
+     */
+    public void setLang(String value) {
+        set(9, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_transcript_comp.lang</code>. BCP-47
+     * language tag of the transcript; empty string means undetermined
      */
     public String getLang() {
-        return (String) get(3);
+        return (String) get(9);
+    }
+
+    /**
+     * Setter for <code>public.asset_transcript_comp.audio_comp_uuid</code>. The
+     * audio component this transcript was produced from, when one is known
+     */
+    public void setAudioCompUuid(UUID value) {
+        set(10, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_transcript_comp.audio_comp_uuid</code>. The
+     * audio component this transcript was produced from, when one is known
+     */
+    public UUID getAudioCompUuid() {
+        return (UUID) get(10);
+    }
+
+    /**
+     * Setter for <code>public.asset_transcript_comp.model</code>. Readable
+     * mirror of producer_version, e.g. whisper-large-v3
+     */
+    public void setModel(String value) {
+        set(11, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_transcript_comp.model</code>. Readable
+     * mirror of producer_version, e.g. whisper-large-v3
+     */
+    public String getModel() {
+        return (String) get(11);
     }
 
     /**
@@ -88,7 +212,7 @@ public class JooqAssetTranscriptCompRecord extends UpdatableRecordImpl<JooqAsset
      * Full concatenated transcript
      */
     public void setTranscriptText(String value) {
-        set(4, value);
+        set(12, value);
     }
 
     /**
@@ -96,109 +220,127 @@ public class JooqAssetTranscriptCompRecord extends UpdatableRecordImpl<JooqAsset
      * Full concatenated transcript
      */
     public String getTranscriptText() {
-        return (String) get(4);
+        return (String) get(12);
     }
 
     /**
-     * Setter for <code>public.asset_transcript_comp.duration</code>.
+     * Setter for <code>public.asset_transcript_comp.duration</code>. Duration
+     * in milliseconds
      */
-    public void setDuration(Integer value) {
-        set(5, value);
+    public void setDuration(Long value) {
+        set(13, value);
     }
 
     /**
-     * Getter for <code>public.asset_transcript_comp.duration</code>.
+     * Getter for <code>public.asset_transcript_comp.duration</code>. Duration
+     * in milliseconds
      */
-    public Integer getDuration() {
-        return (Integer) get(5);
+    public Long getDuration() {
+        return (Long) get(13);
     }
 
     /**
-     * Setter for <code>public.asset_transcript_comp.model</code>. e.g.
-     * whisper-1
+     * Setter for <code>public.asset_transcript_comp.word_count</code>.
      */
-    public void setModel(String value) {
-        set(6, value);
+    public void setWordCount(Integer value) {
+        set(14, value);
     }
 
     /**
-     * Getter for <code>public.asset_transcript_comp.model</code>. e.g.
-     * whisper-1
+     * Getter for <code>public.asset_transcript_comp.word_count</code>.
      */
-    public String getModel() {
-        return (String) get(6);
+    public Integer getWordCount() {
+        return (Integer) get(14);
     }
 
     /**
      * Setter for <code>public.asset_transcript_comp.transcript_json</code>.
-     * Full Whisper output including segments, tokens, etc.
+     * Full model output including sections, words and timings. Consumed by the
+     * UI transcript panel.
      */
     public void setTranscriptJson(JSONB value) {
-        set(7, value);
+        set(15, value);
     }
 
     /**
      * Getter for <code>public.asset_transcript_comp.transcript_json</code>.
-     * Full Whisper output including segments, tokens, etc.
+     * Full model output including sections, words and timings. Consumed by the
+     * UI transcript panel.
      */
     public JSONB getTranscriptJson() {
-        return (JSONB) get(7);
+        return (JSONB) get(15);
+    }
+
+    /**
+     * Setter for <code>public.asset_transcript_comp.meta</code>.
+     */
+    public void setMeta(JsonObject value) {
+        set(16, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_transcript_comp.meta</code>.
+     */
+    public JsonObject getMeta() {
+        return (JsonObject) get(16);
     }
 
     /**
      * Setter for <code>public.asset_transcript_comp.created</code>.
      */
     public void setCreated(LocalDateTime value) {
-        set(8, value);
+        set(17, value);
     }
 
     /**
      * Getter for <code>public.asset_transcript_comp.created</code>.
      */
     public LocalDateTime getCreated() {
-        return (LocalDateTime) get(8);
+        return (LocalDateTime) get(17);
     }
 
     /**
-     * Setter for <code>public.asset_transcript_comp.creator_uuid</code>.
+     * Setter for <code>public.asset_transcript_comp.creator_uuid</code>. NULL
+     * when written by a Cortex worker rather than a user
      */
     public void setCreatorUuid(UUID value) {
-        set(9, value);
+        set(18, value);
     }
 
     /**
-     * Getter for <code>public.asset_transcript_comp.creator_uuid</code>.
+     * Getter for <code>public.asset_transcript_comp.creator_uuid</code>. NULL
+     * when written by a Cortex worker rather than a user
      */
     public UUID getCreatorUuid() {
-        return (UUID) get(9);
+        return (UUID) get(18);
     }
 
     /**
      * Setter for <code>public.asset_transcript_comp.edited</code>.
      */
     public void setEdited(LocalDateTime value) {
-        set(10, value);
+        set(19, value);
     }
 
     /**
      * Getter for <code>public.asset_transcript_comp.edited</code>.
      */
     public LocalDateTime getEdited() {
-        return (LocalDateTime) get(10);
+        return (LocalDateTime) get(19);
     }
 
     /**
      * Setter for <code>public.asset_transcript_comp.editor_uuid</code>.
      */
     public void setEditorUuid(UUID value) {
-        set(11, value);
+        set(20, value);
     }
 
     /**
      * Getter for <code>public.asset_transcript_comp.editor_uuid</code>.
      */
     public UUID getEditorUuid() {
-        return (UUID) get(11);
+        return (UUID) get(20);
     }
 
     // -------------------------------------------------------------------------
@@ -211,17 +353,17 @@ public class JooqAssetTranscriptCompRecord extends UpdatableRecordImpl<JooqAsset
     }
 
     // -------------------------------------------------------------------------
-    // Record12 type implementation
+    // Record21 type implementation
     // -------------------------------------------------------------------------
 
     @Override
-    public Row12<UUID, UUID, String, String, String, Integer, String, JSONB, LocalDateTime, UUID, LocalDateTime, UUID> fieldsRow() {
-        return (Row12) super.fieldsRow();
+    public Row21<UUID, UUID, String, String, String, UUID, UUID, Float, Integer, String, UUID, String, String, Long, Integer, JSONB, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> fieldsRow() {
+        return (Row21) super.fieldsRow();
     }
 
     @Override
-    public Row12<UUID, UUID, String, String, String, Integer, String, JSONB, LocalDateTime, UUID, LocalDateTime, UUID> valuesRow() {
-        return (Row12) super.valuesRow();
+    public Row21<UUID, UUID, String, String, String, UUID, UUID, Float, Integer, String, UUID, String, String, Long, Integer, JSONB, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> valuesRow() {
+        return (Row21) super.valuesRow();
     }
 
     @Override
@@ -236,51 +378,96 @@ public class JooqAssetTranscriptCompRecord extends UpdatableRecordImpl<JooqAsset
 
     @Override
     public Field<String> field3() {
-        return JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP.SOURCE;
+        return JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP.NODE_KIND;
     }
 
     @Override
     public Field<String> field4() {
-        return JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP.LANG;
+        return JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP.NODE_ID;
     }
 
     @Override
     public Field<String> field5() {
-        return JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP.TRANSCRIPT_TEXT;
+        return JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP.PRODUCER_VERSION;
     }
 
     @Override
-    public Field<Integer> field6() {
-        return JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP.DURATION;
+    public Field<UUID> field6() {
+        return JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP.RUN_UUID;
     }
 
     @Override
-    public Field<String> field7() {
+    public Field<UUID> field7() {
+        return JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP.TASK_UUID;
+    }
+
+    @Override
+    public Field<Float> field8() {
+        return JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP.CONFIDENCE;
+    }
+
+    @Override
+    public Field<Integer> field9() {
+        return JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP.STREAM_INDEX;
+    }
+
+    @Override
+    public Field<String> field10() {
+        return JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP.LANG;
+    }
+
+    @Override
+    public Field<UUID> field11() {
+        return JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP.AUDIO_COMP_UUID;
+    }
+
+    @Override
+    public Field<String> field12() {
         return JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP.MODEL;
     }
 
     @Override
-    public Field<JSONB> field8() {
+    public Field<String> field13() {
+        return JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP.TRANSCRIPT_TEXT;
+    }
+
+    @Override
+    public Field<Long> field14() {
+        return JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP.DURATION;
+    }
+
+    @Override
+    public Field<Integer> field15() {
+        return JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP.WORD_COUNT;
+    }
+
+    @Override
+    public Field<JSONB> field16() {
         return JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP.TRANSCRIPT_JSON;
     }
 
     @Override
-    public Field<LocalDateTime> field9() {
+    public Field<JsonObject> field17() {
+        return JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP.META;
+    }
+
+    @Override
+    public Field<LocalDateTime> field18() {
         return JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP.CREATED;
     }
 
     @Override
-    public Field<UUID> field10() {
+    public Field<UUID> field19() {
         return JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP.CREATOR_UUID;
     }
 
     @Override
-    public Field<LocalDateTime> field11() {
+    public Field<LocalDateTime> field20() {
         return JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP.EDITED;
     }
 
     @Override
-    public Field<UUID> field12() {
+    public Field<UUID> field21() {
         return JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP.EDITOR_UUID;
     }
 
@@ -296,51 +483,96 @@ public class JooqAssetTranscriptCompRecord extends UpdatableRecordImpl<JooqAsset
 
     @Override
     public String component3() {
-        return getSource();
+        return getNodeKind();
     }
 
     @Override
     public String component4() {
-        return getLang();
+        return getNodeId();
     }
 
     @Override
     public String component5() {
-        return getTranscriptText();
+        return getProducerVersion();
     }
 
     @Override
-    public Integer component6() {
-        return getDuration();
+    public UUID component6() {
+        return getRunUuid();
     }
 
     @Override
-    public String component7() {
+    public UUID component7() {
+        return getTaskUuid();
+    }
+
+    @Override
+    public Float component8() {
+        return getConfidence();
+    }
+
+    @Override
+    public Integer component9() {
+        return getStreamIndex();
+    }
+
+    @Override
+    public String component10() {
+        return getLang();
+    }
+
+    @Override
+    public UUID component11() {
+        return getAudioCompUuid();
+    }
+
+    @Override
+    public String component12() {
         return getModel();
     }
 
     @Override
-    public JSONB component8() {
+    public String component13() {
+        return getTranscriptText();
+    }
+
+    @Override
+    public Long component14() {
+        return getDuration();
+    }
+
+    @Override
+    public Integer component15() {
+        return getWordCount();
+    }
+
+    @Override
+    public JSONB component16() {
         return getTranscriptJson();
     }
 
     @Override
-    public LocalDateTime component9() {
+    public JsonObject component17() {
+        return getMeta();
+    }
+
+    @Override
+    public LocalDateTime component18() {
         return getCreated();
     }
 
     @Override
-    public UUID component10() {
+    public UUID component19() {
         return getCreatorUuid();
     }
 
     @Override
-    public LocalDateTime component11() {
+    public LocalDateTime component20() {
         return getEdited();
     }
 
     @Override
-    public UUID component12() {
+    public UUID component21() {
         return getEditorUuid();
     }
 
@@ -356,51 +588,96 @@ public class JooqAssetTranscriptCompRecord extends UpdatableRecordImpl<JooqAsset
 
     @Override
     public String value3() {
-        return getSource();
+        return getNodeKind();
     }
 
     @Override
     public String value4() {
-        return getLang();
+        return getNodeId();
     }
 
     @Override
     public String value5() {
-        return getTranscriptText();
+        return getProducerVersion();
     }
 
     @Override
-    public Integer value6() {
-        return getDuration();
+    public UUID value6() {
+        return getRunUuid();
     }
 
     @Override
-    public String value7() {
+    public UUID value7() {
+        return getTaskUuid();
+    }
+
+    @Override
+    public Float value8() {
+        return getConfidence();
+    }
+
+    @Override
+    public Integer value9() {
+        return getStreamIndex();
+    }
+
+    @Override
+    public String value10() {
+        return getLang();
+    }
+
+    @Override
+    public UUID value11() {
+        return getAudioCompUuid();
+    }
+
+    @Override
+    public String value12() {
         return getModel();
     }
 
     @Override
-    public JSONB value8() {
+    public String value13() {
+        return getTranscriptText();
+    }
+
+    @Override
+    public Long value14() {
+        return getDuration();
+    }
+
+    @Override
+    public Integer value15() {
+        return getWordCount();
+    }
+
+    @Override
+    public JSONB value16() {
         return getTranscriptJson();
     }
 
     @Override
-    public LocalDateTime value9() {
+    public JsonObject value17() {
+        return getMeta();
+    }
+
+    @Override
+    public LocalDateTime value18() {
         return getCreated();
     }
 
     @Override
-    public UUID value10() {
+    public UUID value19() {
         return getCreatorUuid();
     }
 
     @Override
-    public LocalDateTime value11() {
+    public LocalDateTime value20() {
         return getEdited();
     }
 
     @Override
-    public UUID value12() {
+    public UUID value21() {
         return getEditorUuid();
     }
 
@@ -418,66 +695,120 @@ public class JooqAssetTranscriptCompRecord extends UpdatableRecordImpl<JooqAsset
 
     @Override
     public JooqAssetTranscriptCompRecord value3(String value) {
-        setSource(value);
+        setNodeKind(value);
         return this;
     }
 
     @Override
     public JooqAssetTranscriptCompRecord value4(String value) {
-        setLang(value);
+        setNodeId(value);
         return this;
     }
 
     @Override
     public JooqAssetTranscriptCompRecord value5(String value) {
-        setTranscriptText(value);
+        setProducerVersion(value);
         return this;
     }
 
     @Override
-    public JooqAssetTranscriptCompRecord value6(Integer value) {
-        setDuration(value);
+    public JooqAssetTranscriptCompRecord value6(UUID value) {
+        setRunUuid(value);
         return this;
     }
 
     @Override
-    public JooqAssetTranscriptCompRecord value7(String value) {
+    public JooqAssetTranscriptCompRecord value7(UUID value) {
+        setTaskUuid(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetTranscriptCompRecord value8(Float value) {
+        setConfidence(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetTranscriptCompRecord value9(Integer value) {
+        setStreamIndex(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetTranscriptCompRecord value10(String value) {
+        setLang(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetTranscriptCompRecord value11(UUID value) {
+        setAudioCompUuid(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetTranscriptCompRecord value12(String value) {
         setModel(value);
         return this;
     }
 
     @Override
-    public JooqAssetTranscriptCompRecord value8(JSONB value) {
+    public JooqAssetTranscriptCompRecord value13(String value) {
+        setTranscriptText(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetTranscriptCompRecord value14(Long value) {
+        setDuration(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetTranscriptCompRecord value15(Integer value) {
+        setWordCount(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetTranscriptCompRecord value16(JSONB value) {
         setTranscriptJson(value);
         return this;
     }
 
     @Override
-    public JooqAssetTranscriptCompRecord value9(LocalDateTime value) {
+    public JooqAssetTranscriptCompRecord value17(JsonObject value) {
+        setMeta(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetTranscriptCompRecord value18(LocalDateTime value) {
         setCreated(value);
         return this;
     }
 
     @Override
-    public JooqAssetTranscriptCompRecord value10(UUID value) {
+    public JooqAssetTranscriptCompRecord value19(UUID value) {
         setCreatorUuid(value);
         return this;
     }
 
     @Override
-    public JooqAssetTranscriptCompRecord value11(LocalDateTime value) {
+    public JooqAssetTranscriptCompRecord value20(LocalDateTime value) {
         setEdited(value);
         return this;
     }
 
     @Override
-    public JooqAssetTranscriptCompRecord value12(UUID value) {
+    public JooqAssetTranscriptCompRecord value21(UUID value) {
         setEditorUuid(value);
         return this;
     }
 
     @Override
-    public JooqAssetTranscriptCompRecord values(UUID value1, UUID value2, String value3, String value4, String value5, Integer value6, String value7, JSONB value8, LocalDateTime value9, UUID value10, LocalDateTime value11, UUID value12) {
+    public JooqAssetTranscriptCompRecord values(UUID value1, UUID value2, String value3, String value4, String value5, UUID value6, UUID value7, Float value8, Integer value9, String value10, UUID value11, String value12, String value13, Long value14, Integer value15, JSONB value16, JsonObject value17, LocalDateTime value18, UUID value19, LocalDateTime value20, UUID value21) {
         value1(value1);
         value2(value2);
         value3(value3);
@@ -490,6 +821,15 @@ public class JooqAssetTranscriptCompRecord extends UpdatableRecordImpl<JooqAsset
         value10(value10);
         value11(value11);
         value12(value12);
+        value13(value13);
+        value14(value14);
+        value15(value15);
+        value16(value16);
+        value17(value17);
+        value18(value18);
+        value19(value19);
+        value20(value20);
+        value21(value21);
         return this;
     }
 
@@ -507,17 +847,26 @@ public class JooqAssetTranscriptCompRecord extends UpdatableRecordImpl<JooqAsset
     /**
      * Create a detached, initialised JooqAssetTranscriptCompRecord
      */
-    public JooqAssetTranscriptCompRecord(UUID uuid, UUID assetUuid, String source, String lang, String transcriptText, Integer duration, String model, JSONB transcriptJson, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid) {
+    public JooqAssetTranscriptCompRecord(UUID uuid, UUID assetUuid, String nodeKind, String nodeId, String producerVersion, UUID runUuid, UUID taskUuid, Float confidence, Integer streamIndex, String lang, UUID audioCompUuid, String model, String transcriptText, Long duration, Integer wordCount, JSONB transcriptJson, JsonObject meta, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid) {
         super(JooqAssetTranscriptComp.ASSET_TRANSCRIPT_COMP);
 
         setUuid(uuid);
         setAssetUuid(assetUuid);
-        setSource(source);
+        setNodeKind(nodeKind);
+        setNodeId(nodeId);
+        setProducerVersion(producerVersion);
+        setRunUuid(runUuid);
+        setTaskUuid(taskUuid);
+        setConfidence(confidence);
+        setStreamIndex(streamIndex);
         setLang(lang);
+        setAudioCompUuid(audioCompUuid);
+        setModel(model);
         setTranscriptText(transcriptText);
         setDuration(duration);
-        setModel(model);
+        setWordCount(wordCount);
         setTranscriptJson(transcriptJson);
+        setMeta(meta);
         setCreated(created);
         setCreatorUuid(creatorUuid);
         setEdited(edited);

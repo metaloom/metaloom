@@ -12,7 +12,7 @@ public interface TranscriptModelBuilder extends ModelBuilder, UserModelBuilder {
 	default TranscriptResponse toTranscriptResponse(AssetTranscriptComp comp) {
 		TranscriptResponse response = new TranscriptResponse();
 		response.setUuid(comp.getUuid());
-		response.setSource(comp.getSource());
+		response.setSource(comp.getNodeKind());
 		response.setLang(comp.getLang());
 		response.setTranscriptText(comp.getTranscriptText());
 		response.setDuration(comp.getDuration());

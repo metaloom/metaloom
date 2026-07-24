@@ -23,6 +23,9 @@ import io.metaloom.loom.rest.validation.LoomModelValidator;
 @Singleton
 public class ClusterEndpointService extends AbstractCRUDEndpointService<ClusterDao, Cluster> {
 
+	/** Used when a create request omits the type; the column is NOT NULL. */
+	private static final String DEFAULT_CLUSTER_TYPE = "generic";
+
 	@Inject
 	public ClusterEndpointService(ClusterDao clusterDao, DaoCollection daos, LoomModelBuilder modelBuilder, LoomModelValidator validator) {
 		super(clusterDao, daos, modelBuilder, validator);
@@ -51,10 +54,14 @@ public class ClusterEndpointService extends AbstractCRUDEndpointService<ClusterD
 			ClusterCreateRequest request = lrc.requestBody(ClusterCreateRequest.class);
 			validator.validate(request);
 
-			String name = null;
 			UUID userUuid = lrc.userUuid();
-			String type = null;
-			return dao().createCluster(userUuid, name, type);
+			String name = request.getName();
+			// cluster.type is NOT NULL. The request may omit it, so fall back to the generic
+			// kind rather than failing the insert.
+			String type = request.getType() == null ? DEFAULT_CLUSTER_TYPE : request.getType();
+			Cluster cluster = dao().createCluster(userUuid, name, type);
+			update(request::getMeta, cluster::setMeta);
+			return cluster;
 		}, modelBuilder::toResponse);
 	}
 

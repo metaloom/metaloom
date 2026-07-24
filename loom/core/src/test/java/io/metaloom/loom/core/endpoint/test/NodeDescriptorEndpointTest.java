@@ -53,7 +53,15 @@ public class NodeDescriptorEndpointTest {
 				return req.send();
 			})
 			.compose(resp -> resp.body())
-			.onSuccess(body -> future.complete(new JsonArray(body)))
+			// Decode inside a try: an exception thrown in onSuccess would otherwise leave the
+			// future uncompleted and turn a simple shape mismatch into a 10 second timeout.
+			.onSuccess(body -> {
+				try {
+					future.complete(new JsonArray(body));
+				} catch (Exception e) {
+					future.completeExceptionally(e);
+				}
+			})
 			.onFailure(future::completeExceptionally);
 		return future.get(10, TimeUnit.SECONDS);
 	}
@@ -67,9 +75,23 @@ public class NodeDescriptorEndpointTest {
 				return req.send();
 			})
 			.compose(resp -> resp.body())
-			.onSuccess(body -> future.complete(new JsonObject(body)))
+			.onSuccess(body -> {
+				try {
+					future.complete(new JsonObject(body));
+				} catch (Exception e) {
+					future.completeExceptionally(e);
+				}
+			})
 			.onFailure(future::completeExceptionally);
 		return future.get(10, TimeUnit.SECONDS);
+	}
+
+	/**
+	 * Load the node descriptor list. The route returns a combined object for the UI -
+	 * {"nodeDescriptors": [...], "contentTypes": [...]} - so the array lives under a key.
+	 */
+	private JsonArray nodeDescriptors(Vertx vertx, String token) throws Exception {
+		return httpGetObject(vertx, "/api/v1/pipeline/node-descriptors", token).getJsonArray("nodeDescriptors");
 	}
 
 	private int httpGetStatus(Vertx vertx, String path, String token) throws Exception {
@@ -92,7 +114,7 @@ public class NodeDescriptorEndpointTest {
 		Vertx vertx = Vertx.vertx();
 		try (LoomHttpClient client = loom.httpClient()) {
 			loginAdmin(client);
-			JsonArray descriptors = httpGetArray(vertx, "/api/v1/pipeline/node-descriptors", client.getToken());
+			JsonArray descriptors = nodeDescriptors(vertx, client.getToken());
 			assertNotNull(descriptors);
 			assertTrue(descriptors.size() >= 29, "Expected at least 29 descriptors but got " + descriptors.size());
 
@@ -198,7 +220,7 @@ public class NodeDescriptorEndpointTest {
 		Vertx vertx = Vertx.vertx();
 		try (LoomHttpClient client = loom.httpClient()) {
 			loginAdmin(client);
-			JsonArray descriptors = httpGetArray(vertx, "/api/v1/pipeline/node-descriptors", client.getToken());
+			JsonArray descriptors = nodeDescriptors(vertx, client.getToken());
 			for (int i = 0; i < descriptors.size(); i++) {
 				JsonObject desc = descriptors.getJsonObject(i);
 				if (desc.getString("kind").startsWith("filter-")) {

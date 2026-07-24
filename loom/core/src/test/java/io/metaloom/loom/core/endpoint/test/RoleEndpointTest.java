@@ -56,7 +56,7 @@ public class RoleEndpointTest extends AbstractCRUDEndpointTest {
 			});
 			assertEquals(400, ex.getStatusCode());
 			assertEquals("Bad Request", ex.getStatusMsg());
-			assertEquals("Internal Server Error Field for sortkey email not found for type Roles", ex.getResponse().getMessage());
+			assertEquals("Unknown sort field email for Roles", ex.getResponse().getMessage());
 		}
 	}
 

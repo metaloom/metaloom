@@ -34,6 +34,7 @@ import graphql.schema.idl.TypeRuntimeWiring;
 import io.metaloom.loom.db.dagger.DaoCollection;
 import io.metaloom.loom.db.model.asset.Asset;
 import io.metaloom.loom.db.model.asset.AssetAudioComp;
+import io.metaloom.loom.db.model.asset.AssetComponent;
 import io.metaloom.loom.db.model.asset.AssetComponentDao;
 import io.metaloom.loom.db.model.asset.AssetDao;
 import io.metaloom.loom.db.model.asset.AssetImageComp;
@@ -165,7 +166,13 @@ public class LoomGraphQLProvider {
 			return asset.getMD5() != null ? asset.getMD5().toString() : null;
 		};
 
-		// ImageComponent field resolvers
+		// Component field resolvers.
+		// The GraphQL "source" field keeps its name but is now backed by the component's
+		// producing node kind - the DB column was split into node_kind/producer_version.
+		DataFetcher<String> compSourceFetcher = env -> {
+			AssetComponent<?> comp = env.getSource();
+			return comp.getNodeKind();
+		};
 		DataFetcher<String> dominantColorFetcher = env -> {
 			AssetImageComp comp = env.getSource();
 			return comp.getImageDominantColor();
@@ -193,9 +200,14 @@ public class LoomGraphQLProvider {
 				.dataFetcher("sha256", sha256Fetcher)
 				.dataFetcher("md5", md5Fetcher))
 			.type(TypeRuntimeWiring.newTypeWiring("ImageComponent")
+				.dataFetcher("source", compSourceFetcher)
 				.dataFetcher("dominantColor", dominantColorFetcher)
 				.dataFetcher("width", widthFetcher)
 				.dataFetcher("height", heightFetcher))
+			.type(TypeRuntimeWiring.newTypeWiring("VideoComponent")
+				.dataFetcher("source", compSourceFetcher))
+			.type(TypeRuntimeWiring.newTypeWiring("AudioComponent")
+				.dataFetcher("source", compSourceFetcher))
 			.build();
 	}
 

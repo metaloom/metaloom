@@ -18,9 +18,15 @@ import org.jooq.impl.UpdatableRecordImpl;
 
 
 /**
- * Assets keep track of media that has been found by the scanner. Multiple
- * asset_locations may share the same asset thus the properties will be
- * decoupled from asset.
+ * Media found by the scanner. Several locations may share one asset - that is
+ * the point of
+ * the table: the same content can live at several paths and in several
+ * libraries. The
+ * natural key is (library_uuid, path). If a canonical location is ever needed,
+ * model it as
+ * a pointer on asset or a partial unique index on an is_primary flag, not by
+ * constraining
+ * this table to one row per asset.
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
 public class JooqAssetLocationRecord extends UpdatableRecordImpl<JooqAssetLocationRecord> implements Record18<UUID, UUID, UUID, String, Integer, Integer, Integer, Integer, JsonObject, String, String, String, UUID, LocalDateTime, UUID, LocalDateTime, UUID, UUID> {

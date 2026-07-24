@@ -152,13 +152,14 @@ public class JooqComment extends TableImpl<JooqCommentRecord> {
 
     @Override
     public List<ForeignKey<JooqCommentRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.COMMENT__COMMENT_PARENT_UUID_FKEY, Keys.COMMENT__COMMENT_CREATOR_UUID_FKEY, Keys.COMMENT__COMMENT_EDITOR_UUID_FKEY, Keys.COMMENT__COMMENT_TASK_UUID_FKEY, Keys.COMMENT__COMMENT_ANNOTATION_UUID_FKEY);
+        return Arrays.asList(Keys.COMMENT__COMMENT_PARENT_UUID_FKEY, Keys.COMMENT__COMMENT_CREATOR_UUID_FKEY, Keys.COMMENT__COMMENT_EDITOR_UUID_FKEY, Keys.COMMENT__COMMENT_TASK_UUID_FKEY, Keys.COMMENT__COMMENT_ASSET_UUID_FKEY, Keys.COMMENT__COMMENT_ANNOTATION_UUID_FKEY);
     }
 
     private transient JooqComment _comment;
     private transient JooqUser _commentCreatorUuidFkey;
     private transient JooqUser _commentEditorUuidFkey;
     private transient JooqTask _task;
+    private transient JooqAsset _asset;
     private transient JooqAnnotation _annotation;
 
     /**
@@ -201,6 +202,16 @@ public class JooqComment extends TableImpl<JooqCommentRecord> {
             _task = new JooqTask(this, Keys.COMMENT__COMMENT_TASK_UUID_FKEY);
 
         return _task;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.asset</code> table.
+     */
+    public JooqAsset asset() {
+        if (_asset == null)
+            _asset = new JooqAsset(this, Keys.COMMENT__COMMENT_ASSET_UUID_FKEY);
+
+        return _asset;
     }
 
     /**

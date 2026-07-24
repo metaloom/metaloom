@@ -107,10 +107,21 @@ public class JooqAssetTask extends TableImpl<JooqAssetTaskRecord> {
 
     @Override
     public List<ForeignKey<JooqAssetTaskRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.ASSET_TASK__ASSET_TASK_TASK_UUID_FKEY);
+        return Arrays.asList(Keys.ASSET_TASK__ASSET_TASK_ASSET_UUID_FKEY, Keys.ASSET_TASK__ASSET_TASK_TASK_UUID_FKEY);
     }
 
+    private transient JooqAsset _asset;
     private transient JooqTask _task;
+
+    /**
+     * Get the implicit join path to the <code>public.asset</code> table.
+     */
+    public JooqAsset asset() {
+        if (_asset == null)
+            _asset = new JooqAsset(this, Keys.ASSET_TASK__ASSET_TASK_ASSET_UUID_FKEY);
+
+        return _asset;
+    }
 
     /**
      * Get the implicit join path to the <code>public.task</code> table.

@@ -115,10 +115,21 @@ public class JooqAssetUserMeta extends TableImpl<JooqAssetUserMetaRecord> {
 
     @Override
     public List<ForeignKey<JooqAssetUserMetaRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.ASSET_USER_META__ASSET_USER_META_USER_UUID_FKEY);
+        return Arrays.asList(Keys.ASSET_USER_META__ASSET_USER_META_ASSET_UUID_FKEY, Keys.ASSET_USER_META__ASSET_USER_META_USER_UUID_FKEY);
     }
 
+    private transient JooqAsset _asset;
     private transient JooqUser _user;
+
+    /**
+     * Get the implicit join path to the <code>public.asset</code> table.
+     */
+    public JooqAsset asset() {
+        if (_asset == null)
+            _asset = new JooqAsset(this, Keys.ASSET_USER_META__ASSET_USER_META_ASSET_UUID_FKEY);
+
+        return _asset;
+    }
 
     /**
      * Get the implicit join path to the <code>public.user</code> table.

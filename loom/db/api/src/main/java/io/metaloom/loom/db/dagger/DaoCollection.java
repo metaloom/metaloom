@@ -2,6 +2,7 @@ package io.metaloom.loom.db.dagger;
 
 import io.metaloom.loom.db.model.annotation.AnnotationDao;
 import io.metaloom.loom.db.model.asset.AssetComponentDao;
+import io.metaloom.loom.db.model.asset.AssetNodeResultDao;
 import io.metaloom.loom.db.model.asset.AssetDao;
 import io.metaloom.loom.db.model.asset.AssetLocationDao;
 import io.metaloom.loom.db.model.asset.AssetBinaryDao;
@@ -64,6 +65,8 @@ public interface DaoCollection {
 	AssetDao assetDao();
 
 	AssetComponentDao assetComponentDao();
+
+	AssetNodeResultDao assetNodeResultDao();
 
 	// Attachment
 

@@ -137,10 +137,10 @@ public class JooqAnnotation extends TableImpl<JooqAnnotationRecord> {
     public final TableField<JooqAnnotationRecord, JsonObject> META = createField(DSL.name("meta"), SQLDataType.JSONB, this, "Custom meta properties", new JsonObjectConverter());
 
     /**
-     * The column <code>public.annotation.thumbnail</code>. Reference to the
-     * thumbnail that depics the annotated element/area
+     * The column <code>public.annotation.thumbnail</code>. Superseded by an
+     * attachment of type POSTER_FRAME; kept until the annotation UI migrates.
      */
-    public final TableField<JooqAnnotationRecord, String> THUMBNAIL = createField(DSL.name("thumbnail"), SQLDataType.VARCHAR, this, "Reference to the thumbnail that depics the annotated element/area");
+    public final TableField<JooqAnnotationRecord, String> THUMBNAIL = createField(DSL.name("thumbnail"), SQLDataType.VARCHAR, this, "Superseded by an attachment of type POSTER_FRAME; kept until the annotation UI migrates.");
 
     private JooqAnnotation(Name alias, Table<JooqAnnotationRecord> aliased) {
         this(alias, aliased, null);
@@ -187,11 +187,22 @@ public class JooqAnnotation extends TableImpl<JooqAnnotationRecord> {
 
     @Override
     public List<ForeignKey<JooqAnnotationRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.ANNOTATION__ANNOTATION_CREATOR_UUID_FKEY, Keys.ANNOTATION__ANNOTATION_EDITOR_UUID_FKEY);
+        return Arrays.asList(Keys.ANNOTATION__ANNOTATION_ASSET_UUID_FKEY, Keys.ANNOTATION__ANNOTATION_CREATOR_UUID_FKEY, Keys.ANNOTATION__ANNOTATION_EDITOR_UUID_FKEY);
     }
 
+    private transient JooqAsset _asset;
     private transient JooqUser _annotationCreatorUuidFkey;
     private transient JooqUser _annotationEditorUuidFkey;
+
+    /**
+     * Get the implicit join path to the <code>public.asset</code> table.
+     */
+    public JooqAsset asset() {
+        if (_asset == null)
+            _asset = new JooqAsset(this, Keys.ANNOTATION__ANNOTATION_ASSET_UUID_FKEY);
+
+        return _asset;
+    }
 
     /**
      * Get the implicit join path to the <code>public.user</code> table, via the

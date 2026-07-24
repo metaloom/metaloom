@@ -32,6 +32,9 @@ public class UserModelBuilderTest extends AbstractModelBuilderTest {
 	private User mockUser() {
 		User user = mock(User.class);
 		when(user.getUsername()).thenReturn("joeDoe");
+		// The response carries a creator/editor block; without a creator uuid the builder
+		// leaves it empty (machine-written rows).
+		mockCreatorEditorRefs(user);
 		return user;
 	}
 

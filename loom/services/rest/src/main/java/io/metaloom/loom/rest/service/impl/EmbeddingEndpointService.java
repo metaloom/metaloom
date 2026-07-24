@@ -55,7 +55,11 @@ public class EmbeddingEndpointService extends AbstractCRUDEndpointService<Embedd
 			Float[] data = request.getVector();
 			EmbeddingType type = request.getType() == null ? null : EmbeddingType.valueOf(request.getType().name());
 			UUID assetUuid = request.getAssetUuid();
-			return dao().createEmbedding(lrc.userUuid(), assetUuid, data, type);
+			Embedding embedding = dao().createEmbedding(lrc.userUuid(), assetUuid, data, type);
+			// "source" is the producing node kind and is part of the embedding identity
+			// (asset, node kind, type, frame, subject) - honour it on create, not only on update.
+			update(request::getSource, embedding::setNodeKind);
+			return embedding;
 		}, modelBuilder::toResponse);
 	}
 
@@ -74,7 +78,7 @@ public class EmbeddingEndpointService extends AbstractCRUDEndpointService<Embedd
 			if (type != null) {
 				embedding.setType(type);
 			}
-			update(request::getSource, embedding::setSource);
+			update(request::getSource, embedding::setNodeKind);
 			setEditor(embedding, userUuid);
 			return embedding;
 		}, modelBuilder::toResponse);

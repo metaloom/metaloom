@@ -18,12 +18,12 @@ import java.util.function.Function;
 
 import org.jooq.Field;
 import org.jooq.ForeignKey;
-import org.jooq.Function14;
+import org.jooq.Function22;
 import org.jooq.Index;
 import org.jooq.Name;
 import org.jooq.Record;
 import org.jooq.Records;
-import org.jooq.Row14;
+import org.jooq.Row22;
 import org.jooq.Schema;
 import org.jooq.SelectField;
 import org.jooq.Table;
@@ -36,7 +36,9 @@ import org.jooq.impl.TableImpl;
 
 
 /**
- * Stores object and face detections within assets
+ * Object and face detections within assets. One row per detected instance,
+ * keyed by (asset, producer, frame, ordinal) so a re-run replaces rather than
+ * duplicates.
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
 public class JooqDetection extends TableImpl<JooqDetectionRecord> {
@@ -62,58 +64,98 @@ public class JooqDetection extends TableImpl<JooqDetectionRecord> {
     public final TableField<JooqDetectionRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
 
     /**
-     * The column <code>public.detection.type</code>. Type of detection (e.g.
-     * facedetection, objectdetection)
+     * The column <code>public.detection.asset_uuid</code>.
      */
-    public final TableField<JooqDetectionRecord, String> TYPE = createField(DSL.name("type"), SQLDataType.VARCHAR.nullable(false), this, "Type of detection (e.g. facedetection, objectdetection)");
+    public final TableField<JooqDetectionRecord, java.util.UUID> ASSET_UUID = createField(DSL.name("asset_uuid"), SQLDataType.UUID.nullable(false), this, "");
+
+    /**
+     * The column <code>public.detection.node_kind</code>.
+     */
+    public final TableField<JooqDetectionRecord, String> NODE_KIND = createField(DSL.name("node_kind"), SQLDataType.VARCHAR.nullable(false), this, "");
+
+    /**
+     * The column <code>public.detection.node_id</code>.
+     */
+    public final TableField<JooqDetectionRecord, String> NODE_ID = createField(DSL.name("node_id"), SQLDataType.VARCHAR, this, "");
+
+    /**
+     * The column <code>public.detection.producer_version</code>.
+     */
+    public final TableField<JooqDetectionRecord, String> PRODUCER_VERSION = createField(DSL.name("producer_version"), SQLDataType.VARCHAR.nullable(false).defaultValue(DSL.field("''::character varying", SQLDataType.VARCHAR)), this, "");
+
+    /**
+     * The column <code>public.detection.run_uuid</code>.
+     */
+    public final TableField<JooqDetectionRecord, java.util.UUID> RUN_UUID = createField(DSL.name("run_uuid"), SQLDataType.UUID, this, "");
+
+    /**
+     * The column <code>public.detection.task_uuid</code>.
+     */
+    public final TableField<JooqDetectionRecord, java.util.UUID> TASK_UUID = createField(DSL.name("task_uuid"), SQLDataType.UUID, this, "");
+
+    /**
+     * The column <code>public.detection.type</code>. Kind of detection, e.g.
+     * facedetection, objectdetection
+     */
+    public final TableField<JooqDetectionRecord, String> TYPE = createField(DSL.name("type"), SQLDataType.VARCHAR.nullable(false), this, "Kind of detection, e.g. facedetection, objectdetection");
+
+    /**
+     * The column <code>public.detection.label</code>. Detected class for object
+     * detection, e.g. dog. Promoted out of meta so it can be indexed.
+     */
+    public final TableField<JooqDetectionRecord, String> LABEL = createField(DSL.name("label"), SQLDataType.VARCHAR, this, "Detected class for object detection, e.g. dog. Promoted out of meta so it can be indexed.");
 
     /**
      * The column <code>public.detection.frame_number</code>. Frame index within
-     * the media (0 for images)
+     * the media; 0 for images
      */
-    public final TableField<JooqDetectionRecord, Integer> FRAME_NUMBER = createField(DSL.name("frame_number"), SQLDataType.INTEGER.nullable(false).defaultValue(DSL.field("0", SQLDataType.INTEGER)), this, "Frame index within the media (0 for images)");
+    public final TableField<JooqDetectionRecord, Integer> FRAME_NUMBER = createField(DSL.name("frame_number"), SQLDataType.INTEGER.nullable(false).defaultValue(DSL.field("0", SQLDataType.INTEGER)), this, "Frame index within the media; 0 for images");
 
     /**
-     * The column <code>public.detection.bbox_x</code>. Bounding box X
-     * coordinate (normalized 0-1)
+     * The column <code>public.detection.detection_index</code>. Ordinal of this
+     * detection within the frame, starting at 0
      */
-    public final TableField<JooqDetectionRecord, Float> BBOX_X = createField(DSL.name("bbox_x"), SQLDataType.REAL.nullable(false).defaultValue(DSL.field("0", SQLDataType.REAL)), this, "Bounding box X coordinate (normalized 0-1)");
+    public final TableField<JooqDetectionRecord, Integer> DETECTION_INDEX = createField(DSL.name("detection_index"), SQLDataType.INTEGER.nullable(false).defaultValue(DSL.field("0", SQLDataType.INTEGER)), this, "Ordinal of this detection within the frame, starting at 0");
 
     /**
-     * The column <code>public.detection.bbox_y</code>. Bounding box Y
-     * coordinate (normalized 0-1)
+     * The column <code>public.detection.time_from</code>. Millisecond offset of
+     * the frame, for video
      */
-    public final TableField<JooqDetectionRecord, Float> BBOX_Y = createField(DSL.name("bbox_y"), SQLDataType.REAL.nullable(false).defaultValue(DSL.field("0", SQLDataType.REAL)), this, "Bounding box Y coordinate (normalized 0-1)");
+    public final TableField<JooqDetectionRecord, Long> TIME_FROM = createField(DSL.name("time_from"), SQLDataType.BIGINT, this, "Millisecond offset of the frame, for video");
 
     /**
-     * The column <code>public.detection.bbox_width</code>. Bounding box width
-     * (normalized 0-1)
+     * The column <code>public.detection.bbox_x</code>. Bounding box X,
+     * normalized 0-1. This is the single geometry convention; embedding no
+     * longer carries a second one.
      */
-    public final TableField<JooqDetectionRecord, Float> BBOX_WIDTH = createField(DSL.name("bbox_width"), SQLDataType.REAL.nullable(false).defaultValue(DSL.field("0", SQLDataType.REAL)), this, "Bounding box width (normalized 0-1)");
+    public final TableField<JooqDetectionRecord, Float> BBOX_X = createField(DSL.name("bbox_x"), SQLDataType.REAL.nullable(false).defaultValue(DSL.field("0", SQLDataType.REAL)), this, "Bounding box X, normalized 0-1. This is the single geometry convention; embedding no longer carries a second one.");
 
     /**
-     * The column <code>public.detection.bbox_height</code>. Bounding box height
-     * (normalized 0-1)
+     * The column <code>public.detection.bbox_y</code>.
      */
-    public final TableField<JooqDetectionRecord, Float> BBOX_HEIGHT = createField(DSL.name("bbox_height"), SQLDataType.REAL.nullable(false).defaultValue(DSL.field("0", SQLDataType.REAL)), this, "Bounding box height (normalized 0-1)");
+    public final TableField<JooqDetectionRecord, Float> BBOX_Y = createField(DSL.name("bbox_y"), SQLDataType.REAL.nullable(false).defaultValue(DSL.field("0", SQLDataType.REAL)), this, "");
 
     /**
-     * The column <code>public.detection.confidence</code>. Detection confidence
-     * score (0.0 - 1.0)
+     * The column <code>public.detection.bbox_width</code>.
      */
-    public final TableField<JooqDetectionRecord, Float> CONFIDENCE = createField(DSL.name("confidence"), SQLDataType.REAL.nullable(false).defaultValue(DSL.field("0", SQLDataType.REAL)), this, "Detection confidence score (0.0 - 1.0)");
+    public final TableField<JooqDetectionRecord, Float> BBOX_WIDTH = createField(DSL.name("bbox_width"), SQLDataType.REAL.nullable(false).defaultValue(DSL.field("0", SQLDataType.REAL)), this, "");
+
+    /**
+     * The column <code>public.detection.bbox_height</code>.
+     */
+    public final TableField<JooqDetectionRecord, Float> BBOX_HEIGHT = createField(DSL.name("bbox_height"), SQLDataType.REAL.nullable(false).defaultValue(DSL.field("0", SQLDataType.REAL)), this, "");
+
+    /**
+     * The column <code>public.detection.confidence</code>. Detection
+     * confidence, 0.0 - 1.0
+     */
+    public final TableField<JooqDetectionRecord, Float> CONFIDENCE = createField(DSL.name("confidence"), SQLDataType.REAL.nullable(false).defaultValue(DSL.field("0", SQLDataType.REAL)), this, "Detection confidence, 0.0 - 1.0");
 
     /**
      * The column <code>public.detection.meta</code>. Custom meta properties
-     * (e.g. gender, age, label, face angle)
+     * (e.g. gender, age, face angle)
      */
-    public final TableField<JooqDetectionRecord, JsonObject> META = createField(DSL.name("meta"), SQLDataType.JSONB, this, "Custom meta properties (e.g. gender, age, label, face angle)", new JsonObjectConverter());
-
-    /**
-     * The column <code>public.detection.asset_uuid</code>. UUID of the parent
-     * asset
-     */
-    public final TableField<JooqDetectionRecord, java.util.UUID> ASSET_UUID = createField(DSL.name("asset_uuid"), SQLDataType.UUID.nullable(false), this, "UUID of the parent asset");
+    public final TableField<JooqDetectionRecord, JsonObject> META = createField(DSL.name("meta"), SQLDataType.JSONB, this, "Custom meta properties (e.g. gender, age, face angle)", new JsonObjectConverter());
 
     /**
      * The column <code>public.detection.created</code>.
@@ -121,9 +163,10 @@ public class JooqDetection extends TableImpl<JooqDetectionRecord> {
     public final TableField<JooqDetectionRecord, LocalDateTime> CREATED = createField(DSL.name("created"), SQLDataType.LOCALDATETIME(6).nullable(false).defaultValue(DSL.field("now()", SQLDataType.LOCALDATETIME)), this, "");
 
     /**
-     * The column <code>public.detection.creator_uuid</code>.
+     * The column <code>public.detection.creator_uuid</code>. NULL when written
+     * by a Cortex worker rather than a user
      */
-    public final TableField<JooqDetectionRecord, java.util.UUID> CREATOR_UUID = createField(DSL.name("creator_uuid"), SQLDataType.UUID.nullable(false), this, "");
+    public final TableField<JooqDetectionRecord, java.util.UUID> CREATOR_UUID = createField(DSL.name("creator_uuid"), SQLDataType.UUID, this, "NULL when written by a Cortex worker rather than a user");
 
     /**
      * The column <code>public.detection.edited</code>.
@@ -133,14 +176,14 @@ public class JooqDetection extends TableImpl<JooqDetectionRecord> {
     /**
      * The column <code>public.detection.editor_uuid</code>.
      */
-    public final TableField<JooqDetectionRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID.nullable(false), this, "");
+    public final TableField<JooqDetectionRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID, this, "");
 
     private JooqDetection(Name alias, Table<JooqDetectionRecord> aliased) {
         this(alias, aliased, null);
     }
 
     private JooqDetection(Name alias, Table<JooqDetectionRecord> aliased, Field<?>[] parameters) {
-        super(alias, null, aliased, parameters, DSL.comment("Stores object and face detections within assets"), TableOptions.table());
+        super(alias, null, aliased, parameters, DSL.comment("Object and face detections within assets. One row per detected instance, keyed by (asset, producer, frame, ordinal) so a re-run replaces rather than duplicates."), TableOptions.table());
     }
 
     /**
@@ -175,7 +218,7 @@ public class JooqDetection extends TableImpl<JooqDetectionRecord> {
 
     @Override
     public List<Index> getIndexes() {
-        return Arrays.asList(Indexes.DETECTION_ASSET_UUID_IDX, Indexes.DETECTION_TYPE_IDX);
+        return Arrays.asList(Indexes.IDX_DETECTION_ASSET_UUID, Indexes.IDX_DETECTION_LABEL, Indexes.IDX_DETECTION_TYPE);
     }
 
     @Override
@@ -184,12 +227,51 @@ public class JooqDetection extends TableImpl<JooqDetectionRecord> {
     }
 
     @Override
-    public List<ForeignKey<JooqDetectionRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.DETECTION__DETECTION_CREATOR_UUID_FKEY, Keys.DETECTION__DETECTION_EDITOR_UUID_FKEY);
+    public List<UniqueKey<JooqDetectionRecord>> getUniqueKeys() {
+        return Arrays.asList(Keys.DETECTION_UNIQUE_KEY);
     }
 
+    @Override
+    public List<ForeignKey<JooqDetectionRecord, ?>> getReferences() {
+        return Arrays.asList(Keys.DETECTION__DETECTION_ASSET_UUID_FKEY, Keys.DETECTION__DETECTION_RUN_UUID_FKEY, Keys.DETECTION__DETECTION_TASK_UUID_FKEY, Keys.DETECTION__DETECTION_CREATOR_UUID_FKEY, Keys.DETECTION__DETECTION_EDITOR_UUID_FKEY);
+    }
+
+    private transient JooqAsset _asset;
+    private transient JooqPipelineRun _pipelineRun;
+    private transient JooqPipelineNodeTask _pipelineNodeTask;
     private transient JooqUser _detectionCreatorUuidFkey;
     private transient JooqUser _detectionEditorUuidFkey;
+
+    /**
+     * Get the implicit join path to the <code>public.asset</code> table.
+     */
+    public JooqAsset asset() {
+        if (_asset == null)
+            _asset = new JooqAsset(this, Keys.DETECTION__DETECTION_ASSET_UUID_FKEY);
+
+        return _asset;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.pipeline_run</code> table.
+     */
+    public JooqPipelineRun pipelineRun() {
+        if (_pipelineRun == null)
+            _pipelineRun = new JooqPipelineRun(this, Keys.DETECTION__DETECTION_RUN_UUID_FKEY);
+
+        return _pipelineRun;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.pipeline_node_task</code>
+     * table.
+     */
+    public JooqPipelineNodeTask pipelineNodeTask() {
+        if (_pipelineNodeTask == null)
+            _pipelineNodeTask = new JooqPipelineNodeTask(this, Keys.DETECTION__DETECTION_TASK_UUID_FKEY);
+
+        return _pipelineNodeTask;
+    }
 
     /**
      * Get the implicit join path to the <code>public.user</code> table, via the
@@ -253,18 +335,18 @@ public class JooqDetection extends TableImpl<JooqDetectionRecord> {
     }
 
     // -------------------------------------------------------------------------
-    // Row14 type methods
+    // Row22 type methods
     // -------------------------------------------------------------------------
 
     @Override
-    public Row14<java.util.UUID, String, Integer, Float, Float, Float, Float, Float, JsonObject, java.util.UUID, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
-        return (Row14) super.fieldsRow();
+    public Row22<java.util.UUID, java.util.UUID, String, String, String, java.util.UUID, java.util.UUID, String, String, Integer, Integer, Long, Float, Float, Float, Float, Float, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
+        return (Row22) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function14<? super java.util.UUID, ? super String, ? super Integer, ? super Float, ? super Float, ? super Float, ? super Float, ? super Float, ? super JsonObject, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function22<? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super Integer, ? super Integer, ? super Long, ? super Float, ? super Float, ? super Float, ? super Float, ? super Float, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -272,7 +354,7 @@ public class JooqDetection extends TableImpl<JooqDetectionRecord> {
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function14<? super java.util.UUID, ? super String, ? super Integer, ? super Float, ? super Float, ? super Float, ? super Float, ? super Float, ? super JsonObject, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function22<? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super Integer, ? super Integer, ? super Long, ? super Float, ? super Float, ? super Float, ? super Float, ? super Float, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }

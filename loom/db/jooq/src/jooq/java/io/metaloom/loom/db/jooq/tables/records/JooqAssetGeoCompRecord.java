@@ -5,6 +5,7 @@ package io.metaloom.loom.db.jooq.tables.records;
 
 
 import io.metaloom.loom.db.jooq.tables.JooqAssetGeoComp;
+import io.vertx.core.json.JsonObject;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -12,16 +13,17 @@ import java.util.UUID;
 
 import org.jooq.Field;
 import org.jooq.Record1;
-import org.jooq.Record10;
-import org.jooq.Row10;
+import org.jooq.Record19;
+import org.jooq.Row19;
 import org.jooq.impl.UpdatableRecordImpl;
 
 
 /**
- * Stores geo location information extracted from an asset
+ * Geo location extracted from an asset. Multiple rows per asset: one per
+ * producer, method and time offset (a drone video carries a whole GPS track).
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqAssetGeoCompRecord extends UpdatableRecordImpl<JooqAssetGeoCompRecord> implements Record10<UUID, UUID, String, BigDecimal, BigDecimal, String, LocalDateTime, UUID, LocalDateTime, UUID> {
+public class JooqAssetGeoCompRecord extends UpdatableRecordImpl<JooqAssetGeoCompRecord> implements Record19<UUID, UUID, String, String, String, UUID, UUID, Float, String, Long, BigDecimal, BigDecimal, String, Float, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> {
 
     private static final long serialVersionUID = 1L;
 
@@ -54,117 +56,255 @@ public class JooqAssetGeoCompRecord extends UpdatableRecordImpl<JooqAssetGeoComp
     }
 
     /**
-     * Setter for <code>public.asset_geo_comp.source</code>. Name of the source
-     * for the geo info - e.g. exif data
+     * Setter for <code>public.asset_geo_comp.node_kind</code>. Producing node
+     * kind, e.g. tika, llm, manual
      */
-    public void setSource(String value) {
+    public void setNodeKind(String value) {
         set(2, value);
     }
 
     /**
-     * Getter for <code>public.asset_geo_comp.source</code>. Name of the source
-     * for the geo info - e.g. exif data
+     * Getter for <code>public.asset_geo_comp.node_kind</code>. Producing node
+     * kind, e.g. tika, llm, manual
      */
-    public String getSource() {
+    public String getNodeKind() {
         return (String) get(2);
+    }
+
+    /**
+     * Setter for <code>public.asset_geo_comp.node_id</code>.
+     */
+    public void setNodeId(String value) {
+        set(3, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_geo_comp.node_id</code>.
+     */
+    public String getNodeId() {
+        return (String) get(3);
+    }
+
+    /**
+     * Setter for <code>public.asset_geo_comp.producer_version</code>.
+     * Model/algorithm version. Not part of the unique key: a re-run replaces
+     * the row.
+     */
+    public void setProducerVersion(String value) {
+        set(4, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_geo_comp.producer_version</code>.
+     * Model/algorithm version. Not part of the unique key: a re-run replaces
+     * the row.
+     */
+    public String getProducerVersion() {
+        return (String) get(4);
+    }
+
+    /**
+     * Setter for <code>public.asset_geo_comp.run_uuid</code>.
+     */
+    public void setRunUuid(UUID value) {
+        set(5, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_geo_comp.run_uuid</code>.
+     */
+    public UUID getRunUuid() {
+        return (UUID) get(5);
+    }
+
+    /**
+     * Setter for <code>public.asset_geo_comp.task_uuid</code>.
+     */
+    public void setTaskUuid(UUID value) {
+        set(6, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_geo_comp.task_uuid</code>.
+     */
+    public UUID getTaskUuid() {
+        return (UUID) get(6);
+    }
+
+    /**
+     * Setter for <code>public.asset_geo_comp.confidence</code>.
+     */
+    public void setConfidence(Float value) {
+        set(7, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_geo_comp.confidence</code>.
+     */
+    public Float getConfidence() {
+        return (Float) get(7);
+    }
+
+    /**
+     * Setter for <code>public.asset_geo_comp.method</code>. How the position
+     * was derived: exif, xmp, gps-track, llm, manual
+     */
+    public void setMethod(String value) {
+        set(8, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_geo_comp.method</code>. How the position
+     * was derived: exif, xmp, gps-track, llm, manual
+     */
+    public String getMethod() {
+        return (String) get(8);
+    }
+
+    /**
+     * Setter for <code>public.asset_geo_comp.time_from</code>. Millisecond
+     * offset into the media; 0 for stills
+     */
+    public void setTimeFrom(Long value) {
+        set(9, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_geo_comp.time_from</code>. Millisecond
+     * offset into the media; 0 for stills
+     */
+    public Long getTimeFrom() {
+        return (Long) get(9);
     }
 
     /**
      * Setter for <code>public.asset_geo_comp.geo_lon</code>.
      */
     public void setGeoLon(BigDecimal value) {
-        set(3, value);
+        set(10, value);
     }
 
     /**
      * Getter for <code>public.asset_geo_comp.geo_lon</code>.
      */
     public BigDecimal getGeoLon() {
-        return (BigDecimal) get(3);
+        return (BigDecimal) get(10);
     }
 
     /**
      * Setter for <code>public.asset_geo_comp.geo_lat</code>.
      */
     public void setGeoLat(BigDecimal value) {
-        set(4, value);
+        set(11, value);
     }
 
     /**
      * Getter for <code>public.asset_geo_comp.geo_lat</code>.
      */
     public BigDecimal getGeoLat() {
-        return (BigDecimal) get(4);
+        return (BigDecimal) get(11);
     }
 
     /**
      * Setter for <code>public.asset_geo_comp.geo_alias</code>.
      */
     public void setGeoAlias(String value) {
-        set(5, value);
+        set(12, value);
     }
 
     /**
      * Getter for <code>public.asset_geo_comp.geo_alias</code>.
      */
     public String getGeoAlias() {
-        return (String) get(5);
+        return (String) get(12);
+    }
+
+    /**
+     * Setter for <code>public.asset_geo_comp.accuracy_m</code>. Reported
+     * accuracy in meters, when known
+     */
+    public void setAccuracyM(Float value) {
+        set(13, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_geo_comp.accuracy_m</code>. Reported
+     * accuracy in meters, when known
+     */
+    public Float getAccuracyM() {
+        return (Float) get(13);
+    }
+
+    /**
+     * Setter for <code>public.asset_geo_comp.meta</code>.
+     */
+    public void setMeta(JsonObject value) {
+        set(14, value);
+    }
+
+    /**
+     * Getter for <code>public.asset_geo_comp.meta</code>.
+     */
+    public JsonObject getMeta() {
+        return (JsonObject) get(14);
     }
 
     /**
      * Setter for <code>public.asset_geo_comp.created</code>.
      */
     public void setCreated(LocalDateTime value) {
-        set(6, value);
+        set(15, value);
     }
 
     /**
      * Getter for <code>public.asset_geo_comp.created</code>.
      */
     public LocalDateTime getCreated() {
-        return (LocalDateTime) get(6);
+        return (LocalDateTime) get(15);
     }
 
     /**
-     * Setter for <code>public.asset_geo_comp.creator_uuid</code>.
+     * Setter for <code>public.asset_geo_comp.creator_uuid</code>. NULL when
+     * written by a Cortex worker rather than a user
      */
     public void setCreatorUuid(UUID value) {
-        set(7, value);
+        set(16, value);
     }
 
     /**
-     * Getter for <code>public.asset_geo_comp.creator_uuid</code>.
+     * Getter for <code>public.asset_geo_comp.creator_uuid</code>. NULL when
+     * written by a Cortex worker rather than a user
      */
     public UUID getCreatorUuid() {
-        return (UUID) get(7);
+        return (UUID) get(16);
     }
 
     /**
      * Setter for <code>public.asset_geo_comp.edited</code>.
      */
     public void setEdited(LocalDateTime value) {
-        set(8, value);
+        set(17, value);
     }
 
     /**
      * Getter for <code>public.asset_geo_comp.edited</code>.
      */
     public LocalDateTime getEdited() {
-        return (LocalDateTime) get(8);
+        return (LocalDateTime) get(17);
     }
 
     /**
      * Setter for <code>public.asset_geo_comp.editor_uuid</code>.
      */
     public void setEditorUuid(UUID value) {
-        set(9, value);
+        set(18, value);
     }
 
     /**
      * Getter for <code>public.asset_geo_comp.editor_uuid</code>.
      */
     public UUID getEditorUuid() {
-        return (UUID) get(9);
+        return (UUID) get(18);
     }
 
     // -------------------------------------------------------------------------
@@ -177,17 +317,17 @@ public class JooqAssetGeoCompRecord extends UpdatableRecordImpl<JooqAssetGeoComp
     }
 
     // -------------------------------------------------------------------------
-    // Record10 type implementation
+    // Record19 type implementation
     // -------------------------------------------------------------------------
 
     @Override
-    public Row10<UUID, UUID, String, BigDecimal, BigDecimal, String, LocalDateTime, UUID, LocalDateTime, UUID> fieldsRow() {
-        return (Row10) super.fieldsRow();
+    public Row19<UUID, UUID, String, String, String, UUID, UUID, Float, String, Long, BigDecimal, BigDecimal, String, Float, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> fieldsRow() {
+        return (Row19) super.fieldsRow();
     }
 
     @Override
-    public Row10<UUID, UUID, String, BigDecimal, BigDecimal, String, LocalDateTime, UUID, LocalDateTime, UUID> valuesRow() {
-        return (Row10) super.valuesRow();
+    public Row19<UUID, UUID, String, String, String, UUID, UUID, Float, String, Long, BigDecimal, BigDecimal, String, Float, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> valuesRow() {
+        return (Row19) super.valuesRow();
     }
 
     @Override
@@ -202,41 +342,86 @@ public class JooqAssetGeoCompRecord extends UpdatableRecordImpl<JooqAssetGeoComp
 
     @Override
     public Field<String> field3() {
-        return JooqAssetGeoComp.ASSET_GEO_COMP.SOURCE;
+        return JooqAssetGeoComp.ASSET_GEO_COMP.NODE_KIND;
     }
 
     @Override
-    public Field<BigDecimal> field4() {
+    public Field<String> field4() {
+        return JooqAssetGeoComp.ASSET_GEO_COMP.NODE_ID;
+    }
+
+    @Override
+    public Field<String> field5() {
+        return JooqAssetGeoComp.ASSET_GEO_COMP.PRODUCER_VERSION;
+    }
+
+    @Override
+    public Field<UUID> field6() {
+        return JooqAssetGeoComp.ASSET_GEO_COMP.RUN_UUID;
+    }
+
+    @Override
+    public Field<UUID> field7() {
+        return JooqAssetGeoComp.ASSET_GEO_COMP.TASK_UUID;
+    }
+
+    @Override
+    public Field<Float> field8() {
+        return JooqAssetGeoComp.ASSET_GEO_COMP.CONFIDENCE;
+    }
+
+    @Override
+    public Field<String> field9() {
+        return JooqAssetGeoComp.ASSET_GEO_COMP.METHOD;
+    }
+
+    @Override
+    public Field<Long> field10() {
+        return JooqAssetGeoComp.ASSET_GEO_COMP.TIME_FROM;
+    }
+
+    @Override
+    public Field<BigDecimal> field11() {
         return JooqAssetGeoComp.ASSET_GEO_COMP.GEO_LON;
     }
 
     @Override
-    public Field<BigDecimal> field5() {
+    public Field<BigDecimal> field12() {
         return JooqAssetGeoComp.ASSET_GEO_COMP.GEO_LAT;
     }
 
     @Override
-    public Field<String> field6() {
+    public Field<String> field13() {
         return JooqAssetGeoComp.ASSET_GEO_COMP.GEO_ALIAS;
     }
 
     @Override
-    public Field<LocalDateTime> field7() {
+    public Field<Float> field14() {
+        return JooqAssetGeoComp.ASSET_GEO_COMP.ACCURACY_M;
+    }
+
+    @Override
+    public Field<JsonObject> field15() {
+        return JooqAssetGeoComp.ASSET_GEO_COMP.META;
+    }
+
+    @Override
+    public Field<LocalDateTime> field16() {
         return JooqAssetGeoComp.ASSET_GEO_COMP.CREATED;
     }
 
     @Override
-    public Field<UUID> field8() {
+    public Field<UUID> field17() {
         return JooqAssetGeoComp.ASSET_GEO_COMP.CREATOR_UUID;
     }
 
     @Override
-    public Field<LocalDateTime> field9() {
+    public Field<LocalDateTime> field18() {
         return JooqAssetGeoComp.ASSET_GEO_COMP.EDITED;
     }
 
     @Override
-    public Field<UUID> field10() {
+    public Field<UUID> field19() {
         return JooqAssetGeoComp.ASSET_GEO_COMP.EDITOR_UUID;
     }
 
@@ -252,41 +437,86 @@ public class JooqAssetGeoCompRecord extends UpdatableRecordImpl<JooqAssetGeoComp
 
     @Override
     public String component3() {
-        return getSource();
+        return getNodeKind();
     }
 
     @Override
-    public BigDecimal component4() {
+    public String component4() {
+        return getNodeId();
+    }
+
+    @Override
+    public String component5() {
+        return getProducerVersion();
+    }
+
+    @Override
+    public UUID component6() {
+        return getRunUuid();
+    }
+
+    @Override
+    public UUID component7() {
+        return getTaskUuid();
+    }
+
+    @Override
+    public Float component8() {
+        return getConfidence();
+    }
+
+    @Override
+    public String component9() {
+        return getMethod();
+    }
+
+    @Override
+    public Long component10() {
+        return getTimeFrom();
+    }
+
+    @Override
+    public BigDecimal component11() {
         return getGeoLon();
     }
 
     @Override
-    public BigDecimal component5() {
+    public BigDecimal component12() {
         return getGeoLat();
     }
 
     @Override
-    public String component6() {
+    public String component13() {
         return getGeoAlias();
     }
 
     @Override
-    public LocalDateTime component7() {
+    public Float component14() {
+        return getAccuracyM();
+    }
+
+    @Override
+    public JsonObject component15() {
+        return getMeta();
+    }
+
+    @Override
+    public LocalDateTime component16() {
         return getCreated();
     }
 
     @Override
-    public UUID component8() {
+    public UUID component17() {
         return getCreatorUuid();
     }
 
     @Override
-    public LocalDateTime component9() {
+    public LocalDateTime component18() {
         return getEdited();
     }
 
     @Override
-    public UUID component10() {
+    public UUID component19() {
         return getEditorUuid();
     }
 
@@ -302,41 +532,86 @@ public class JooqAssetGeoCompRecord extends UpdatableRecordImpl<JooqAssetGeoComp
 
     @Override
     public String value3() {
-        return getSource();
+        return getNodeKind();
     }
 
     @Override
-    public BigDecimal value4() {
+    public String value4() {
+        return getNodeId();
+    }
+
+    @Override
+    public String value5() {
+        return getProducerVersion();
+    }
+
+    @Override
+    public UUID value6() {
+        return getRunUuid();
+    }
+
+    @Override
+    public UUID value7() {
+        return getTaskUuid();
+    }
+
+    @Override
+    public Float value8() {
+        return getConfidence();
+    }
+
+    @Override
+    public String value9() {
+        return getMethod();
+    }
+
+    @Override
+    public Long value10() {
+        return getTimeFrom();
+    }
+
+    @Override
+    public BigDecimal value11() {
         return getGeoLon();
     }
 
     @Override
-    public BigDecimal value5() {
+    public BigDecimal value12() {
         return getGeoLat();
     }
 
     @Override
-    public String value6() {
+    public String value13() {
         return getGeoAlias();
     }
 
     @Override
-    public LocalDateTime value7() {
+    public Float value14() {
+        return getAccuracyM();
+    }
+
+    @Override
+    public JsonObject value15() {
+        return getMeta();
+    }
+
+    @Override
+    public LocalDateTime value16() {
         return getCreated();
     }
 
     @Override
-    public UUID value8() {
+    public UUID value17() {
         return getCreatorUuid();
     }
 
     @Override
-    public LocalDateTime value9() {
+    public LocalDateTime value18() {
         return getEdited();
     }
 
     @Override
-    public UUID value10() {
+    public UUID value19() {
         return getEditorUuid();
     }
 
@@ -354,54 +629,108 @@ public class JooqAssetGeoCompRecord extends UpdatableRecordImpl<JooqAssetGeoComp
 
     @Override
     public JooqAssetGeoCompRecord value3(String value) {
-        setSource(value);
+        setNodeKind(value);
         return this;
     }
 
     @Override
-    public JooqAssetGeoCompRecord value4(BigDecimal value) {
+    public JooqAssetGeoCompRecord value4(String value) {
+        setNodeId(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetGeoCompRecord value5(String value) {
+        setProducerVersion(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetGeoCompRecord value6(UUID value) {
+        setRunUuid(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetGeoCompRecord value7(UUID value) {
+        setTaskUuid(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetGeoCompRecord value8(Float value) {
+        setConfidence(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetGeoCompRecord value9(String value) {
+        setMethod(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetGeoCompRecord value10(Long value) {
+        setTimeFrom(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetGeoCompRecord value11(BigDecimal value) {
         setGeoLon(value);
         return this;
     }
 
     @Override
-    public JooqAssetGeoCompRecord value5(BigDecimal value) {
+    public JooqAssetGeoCompRecord value12(BigDecimal value) {
         setGeoLat(value);
         return this;
     }
 
     @Override
-    public JooqAssetGeoCompRecord value6(String value) {
+    public JooqAssetGeoCompRecord value13(String value) {
         setGeoAlias(value);
         return this;
     }
 
     @Override
-    public JooqAssetGeoCompRecord value7(LocalDateTime value) {
+    public JooqAssetGeoCompRecord value14(Float value) {
+        setAccuracyM(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetGeoCompRecord value15(JsonObject value) {
+        setMeta(value);
+        return this;
+    }
+
+    @Override
+    public JooqAssetGeoCompRecord value16(LocalDateTime value) {
         setCreated(value);
         return this;
     }
 
     @Override
-    public JooqAssetGeoCompRecord value8(UUID value) {
+    public JooqAssetGeoCompRecord value17(UUID value) {
         setCreatorUuid(value);
         return this;
     }
 
     @Override
-    public JooqAssetGeoCompRecord value9(LocalDateTime value) {
+    public JooqAssetGeoCompRecord value18(LocalDateTime value) {
         setEdited(value);
         return this;
     }
 
     @Override
-    public JooqAssetGeoCompRecord value10(UUID value) {
+    public JooqAssetGeoCompRecord value19(UUID value) {
         setEditorUuid(value);
         return this;
     }
 
     @Override
-    public JooqAssetGeoCompRecord values(UUID value1, UUID value2, String value3, BigDecimal value4, BigDecimal value5, String value6, LocalDateTime value7, UUID value8, LocalDateTime value9, UUID value10) {
+    public JooqAssetGeoCompRecord values(UUID value1, UUID value2, String value3, String value4, String value5, UUID value6, UUID value7, Float value8, String value9, Long value10, BigDecimal value11, BigDecimal value12, String value13, Float value14, JsonObject value15, LocalDateTime value16, UUID value17, LocalDateTime value18, UUID value19) {
         value1(value1);
         value2(value2);
         value3(value3);
@@ -412,6 +741,15 @@ public class JooqAssetGeoCompRecord extends UpdatableRecordImpl<JooqAssetGeoComp
         value8(value8);
         value9(value9);
         value10(value10);
+        value11(value11);
+        value12(value12);
+        value13(value13);
+        value14(value14);
+        value15(value15);
+        value16(value16);
+        value17(value17);
+        value18(value18);
+        value19(value19);
         return this;
     }
 
@@ -429,15 +767,24 @@ public class JooqAssetGeoCompRecord extends UpdatableRecordImpl<JooqAssetGeoComp
     /**
      * Create a detached, initialised JooqAssetGeoCompRecord
      */
-    public JooqAssetGeoCompRecord(UUID uuid, UUID assetUuid, String source, BigDecimal geoLon, BigDecimal geoLat, String geoAlias, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid) {
+    public JooqAssetGeoCompRecord(UUID uuid, UUID assetUuid, String nodeKind, String nodeId, String producerVersion, UUID runUuid, UUID taskUuid, Float confidence, String method, Long timeFrom, BigDecimal geoLon, BigDecimal geoLat, String geoAlias, Float accuracyM, JsonObject meta, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid) {
         super(JooqAssetGeoComp.ASSET_GEO_COMP);
 
         setUuid(uuid);
         setAssetUuid(assetUuid);
-        setSource(source);
+        setNodeKind(nodeKind);
+        setNodeId(nodeId);
+        setProducerVersion(producerVersion);
+        setRunUuid(runUuid);
+        setTaskUuid(taskUuid);
+        setConfidence(confidence);
+        setMethod(method);
+        setTimeFrom(timeFrom);
         setGeoLon(geoLon);
         setGeoLat(geoLat);
         setGeoAlias(geoAlias);
+        setAccuracyM(accuracyM);
+        setMeta(meta);
         setCreated(created);
         setCreatorUuid(creatorUuid);
         setEdited(edited);
