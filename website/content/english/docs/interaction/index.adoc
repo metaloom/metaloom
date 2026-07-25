@@ -4,115 +4,92 @@ title: Loom & Cortex Interaction
 
 = Loom & Cortex Interaction
 
-Loom and Cortex are complementary components that can be deployed together or used independently.
+Loom is the brain; Cortex is the muscle. Loom stores assets, owns pipeline definitions and **drives**
+processing runs; Cortex is a fleet of worker daemons that register with Loom and execute the individual
+tasks Loom hands them.
 
 == Architecture Overview
 
 ----
-┌─────────────────────────────────────────────┐
-│  Loom (Media Asset Management Server)        │
-│                                             │
-│  REST API (:8092)  gRPC (:8091)             │
-│  PostgreSQL database                        │
-│  Pipeline definitions (stored in DB)        │
-│  WebSocket event bus (/pipelines/events/ws) │
-└───────────────────┬─────────────────────────┘
-                    │  REST API (LoomClient)
-                    │  Pipeline definitions
-                    │  Asset results (hashes, thumbs, ...)
-                    ▼
-┌─────────────────────────────────────────────┐
-│  Cortex (Media Processing Engine)            │
-│                                             │
-│  Monitoring API (:8093)                     │
-│  Pipeline executor (node graph)             │
-│  Local meta-path cache                      │
-└─────────────────────────────────────────────┘
-        │
-        │  reads media files
-        ▼
-   /media/assets/...
+┌───────────────────────────────────────────────────┐
+│  Loom (Media Asset Management Server)              │
+│                                                   │
+│  REST API + WebSocket + UI (:8092)  gRPC (:8091)  │
+│  PostgreSQL database                              │
+│  Pipeline definitions (versioned in DB)           │
+│  Pipeline run engine — owns the DAG, tracks runs  │
+└───────────────┬───────────────────────────────────┘
+                │  Processor WebSocket (/api/v1/processors/ws)
+                │   ▲ REGISTER + results     ▼ SOURCE/NODE/SEGMENT tasks
+                │  REST data plane (result payloads)
+                ▼
+┌───────────────────────────────────────────────────┐
+│  Cortex worker(s)  (Media Processing Daemon)      │
+│                                                   │
+│  Monitoring API (:8093)                           │
+│  Node runtime — runs one task at a time           │
+│  Advertises the node kinds it can run             │
+└───────────────┬───────────────────────────────────┘
+                │  reads media files (shared mount)
+                ▼
+           /media/assets/...
 ----
+
+Two planes connect the two components — do not confuse them:
+
+[options="header",cols="1,1,2"]
+|===
+| Plane | Transport | Carries
+| Control | Processor WebSocket (`/api/v1/processors/ws`) | Registration, heartbeats, task dispatch (source/node/segment), task results, live tracking events.
+| Data | REST (`LoomClient`) | The durable result payloads written back into Loom, keyed by asset.
+|===
+
+Cortex always dials *out* to Loom on port `8092`; **Loom never connects to Cortex.**
 
 == Online Mode
 
-In online mode Cortex establishes a connection to Loom and performs the following steps at startup:
+An online Cortex worker:
 
-. *Authenticate* — Cortex logs in to Loom using configured credentials.
-. *Load pipelines* — Cortex calls `GET /api/v1/pipelines` to retrieve the active pipeline definitions.
-. *Register node descriptors* — Cortex posts its available node capabilities to `GET /api/v1/node-descriptors` so Loom knows what analyses are available.
-. *Process assets* — For each asset in the configured source paths, Cortex runs the pipeline node graph.
-. *Push results* — The built-in `loom` node posts extracted metadata (hashes, thumbnails, embeddings, captions, …) back to Loom via the REST API.
-. *Emit events* — Processing progress is published over the WebSocket endpoint `GET /api/v1/pipelines/events/ws`.
+. *Registers* — opens the processor WebSocket, authenticates (`?token=<jwt>`), and announces the node
+  kinds it is willing to run. Loom persists it as a durable `cortex_instance`.
+. *Waits for work* — Loom's pipeline engine dispatches a **source task** to enumerate media, then a
+  **node task** per graph node per item (affinity work goes out as **segment tasks**).
+. *Runs one task at a time* — the worker executes the requested node and replies with the outcome
+  (`COMPLETED` / `FAILED` / `SKIPPED`) plus outputs for downstream nodes.
+. *Persists results* — the worker writes the durable payload to Loom over REST (see
+  link:../cortex/examples/[persistence path]).
+. *Streams progress* — tracking events flow back over the WebSocket; Loom re-broadcasts them to UI
+  clients on `/api/v1/pipelines/events/ws`.
+
+Loom, not the worker, decides what runs next. Every dispatched task gets exactly one result — a node
+that throws is reported `FAILED`, never dropped.
 
 === Connecting Cortex to Loom
 
 [source,bash]
 ----
-cortex --hostname loom.internal --port 7733 server start
+LOOM_HOST=loom.internal LOOM_PORT=8092 LOOM_TOKEN=<jwt> \
+  docker run --rm -e LOOM_HOST -e LOOM_PORT -e LOOM_TOKEN metaloom/cortex-server:latest
 ----
 
-Or via environment variables:
-
-[source,bash]
-----
-LOOM_HOST=loom.internal LOOM_PORT=7733 cortex server start
-----
-
-=== LoomNode
-
-The `loom` node is the bridge between Cortex and Loom.
-It reads the outputs published by upstream nodes in the pipeline (hashes, thumbnail paths, embeddings, …) and writes them to the corresponding Loom REST endpoints:
-
-* `POST /api/v1/assets` — create or update the asset record
-* `POST /api/v1/assets/:uuid/binary` — upload thumbnail
-* `POST /api/v1/embeddings` — store face or video fingerprint embeddings
+See link:../cortex/configuration/[Cortex Configuration] and link:../cortex/containers/[Cortex Containers].
 
 == Offline Mode
 
-In offline mode, Cortex operates without any network connection.
+With no Loom host reachable, Cortex runs standalone against local files:
 
-* No Loom server required.
-* Extracted metadata is stored in the local meta-path directory (default: `~/.cache/metaloom/cortex/meta`).
-* Extended file attributes (xattr) may also be written alongside the media files.
+* No Loom server required; registration, task dispatch and result sync degrade to no-ops.
+* Extracted metadata is stored in the local meta-path (default `~/.cache/metaloom/cortex/meta`) and
+  xattr.
 * Useful for pre-processing large archives, air-gapped environments, or development.
-
-[source,bash]
-----
-# Offline batch processing — no Loom flags needed
-cortex process run --actions sha256,sha512,tika,thumbnail /media/archive
-----
-
-== Pipeline Events
-
-While Cortex processes assets it publishes real-time events over a WebSocket:
-
-----
-ws://<loom-host>:8092/api/v1/pipelines/events/ws
-----
-
-Event payload example:
-
-[source,json]
-----
-{
-  "pipelineId": "550e8400-e29b-41d4-a716-446655440000",
-  "nodeId": "sha256",
-  "assetUuid": "7f3b2c10-...",
-  "status": "COMPLETED",
-  "duration": 42
-}
-----
-
-These events are consumed by the Loom UI to show live processing progress per pipeline and node.
 
 == Deployment Patterns
 
 [options="header",cols="1,2"]
 |===
 | Pattern | Description
-| *Side-car* | Cortex runs as a container next to Loom in the same pod/compose stack and processes assets continuously.
-| *CronJob* | Cortex runs as a Kubernetes CronJob on a schedule, processes new files, and exits.
-| *Manual batch* | A developer runs `cortex process run` locally against a mounted share.
+| *Worker Deployment* | One or more Cortex replicas run as a long-lived `Deployment`; scale replicas to add capacity.
+| *Specialised pool* | A separate Cortex Deployment advertises only heavy kinds (e.g. `facedetect`, `whisper`) and is scheduled onto GPU nodes; Loom routes those kinds to it.
+| *Side-car* | Cortex runs next to Loom in the same compose stack for small setups.
 | *Standalone* | Cortex runs offline with no Loom server; results stay local.
 |===

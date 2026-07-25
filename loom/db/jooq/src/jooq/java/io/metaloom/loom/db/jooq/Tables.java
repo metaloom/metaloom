@@ -47,6 +47,7 @@ import io.metaloom.loom.db.jooq.tables.JooqLibrary;
 import io.metaloom.loom.db.jooq.tables.JooqLibraryAsset;
 import io.metaloom.loom.db.jooq.tables.JooqLibraryCollection;
 import io.metaloom.loom.db.jooq.tables.JooqLoom;
+import io.metaloom.loom.db.jooq.tables.JooqMemoryDenyRule;
 import io.metaloom.loom.db.jooq.tables.JooqMemoryEntry;
 import io.metaloom.loom.db.jooq.tables.JooqPerson;
 import io.metaloom.loom.db.jooq.tables.JooqPersonImage;
@@ -364,6 +365,12 @@ public class Tables {
      * The table <code>public.loom</code>.
      */
     public static final JooqLoom LOOM = JooqLoom.LOOM;
+
+    /**
+     * Instance-wide denylist of regular expressions which must never be stored
+     * in the agent memory bank
+     */
+    public static final JooqMemoryDenyRule MEMORY_DENY_RULE = JooqMemoryDenyRule.MEMORY_DENY_RULE;
 
     /**
      * Agent memory bank: scoped markdown notes addressed by a path-like id

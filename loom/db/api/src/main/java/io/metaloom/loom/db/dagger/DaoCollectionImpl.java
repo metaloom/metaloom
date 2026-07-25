@@ -34,6 +34,7 @@ import io.metaloom.loom.db.model.space.SpaceDao;
 import io.metaloom.loom.db.model.reaction.ReactionDao;
 import io.metaloom.loom.db.model.role.RoleDao;
 import io.metaloom.loom.db.model.chatsession.ChatSessionDao;
+import io.metaloom.loom.db.model.memory.MemoryDenyRuleDao;
 import io.metaloom.loom.db.model.memory.MemoryEntryDao;
 import io.metaloom.loom.db.model.skill.SkillDao;
 import io.metaloom.loom.db.model.skill.SkillVersionDao;
@@ -82,6 +83,7 @@ public class DaoCollectionImpl implements DaoCollection {
 	private final Lazy<SkillVersionDao> skillVersionDao;
 	private final Lazy<ChatSessionDao> chatSessionDao;
 	private final Lazy<MemoryEntryDao> memoryEntryDao;
+	private final Lazy<MemoryDenyRuleDao> memoryDenyRuleDao;
 	private final Lazy<CortexInstanceDao> cortexInstanceDao;
 	private final Lazy<LoomDao> loomDao;
 
@@ -99,7 +101,7 @@ public class DaoCollectionImpl implements DaoCollection {
 		Lazy<AssetPoolDao> assetPoolDao, Lazy<PersonDao> personDao,
 		Lazy<DetectionDao> detectionDao, Lazy<ChatDao> chatDao,
 		Lazy<SkillDao> skillDao, Lazy<SkillVersionDao> skillVersionDao,
-		Lazy<ChatSessionDao> chatSessionDao, Lazy<MemoryEntryDao> memoryEntryDao,
+		Lazy<ChatSessionDao> chatSessionDao, Lazy<MemoryEntryDao> memoryEntryDao, Lazy<MemoryDenyRuleDao> memoryDenyRuleDao,
 		Lazy<CortexInstanceDao> cortexInstanceDao, Lazy<LoomDao> loomDao) {
 		this.userDao = userDao;
 		this.groupDao = groupDao;
@@ -137,6 +139,7 @@ public class DaoCollectionImpl implements DaoCollection {
 		this.skillVersionDao = skillVersionDao;
 		this.chatSessionDao = chatSessionDao;
 		this.memoryEntryDao = memoryEntryDao;
+		this.memoryDenyRuleDao = memoryDenyRuleDao;
 		this.cortexInstanceDao = cortexInstanceDao;
 		this.loomDao = loomDao;
 	}
@@ -319,6 +322,11 @@ public class DaoCollectionImpl implements DaoCollection {
 	@Override
 	public MemoryEntryDao memoryEntryDao() {
 		return memoryEntryDao.get();
+	}
+
+	@Override
+	public MemoryDenyRuleDao memoryDenyRuleDao() {
+		return memoryDenyRuleDao.get();
 	}
 
 	@Override

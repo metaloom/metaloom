@@ -1,0 +1,280 @@
+---
+title: Chat & AI Agent
+---
+
+Loom ships with a built-in **AI assistant** — an OpenAI-style chat, backed by a *server-side agentic
+loop* that runs inside the Loom backend. Users converse with their asset domain in natural language
+("find beach videos", "what tasks are open for me?", "summarize this clip's transcript") and the
+agent answers by calling Loom's own tools with the caller's permissions.
+
+The chat is more than a single conversation: work is organised into **Sessions** (publishable
+snapshots of a chat's working state, including any coding workspace), the agent draws on a persistent
+**Memory** bank of scoped notes that survive across conversations, its behaviour is steered by
+user-owned **Skills** (versioned, shareable instruction packages), and — when enabled — it can run
+code inside an isolated per-chat **coding sandbox**. Those four parts are described below.
+
+The chat is the landing page of the link:../../[Loom UI] (route `/`).
+
+== The Agentic Loop
+
+The backend runs a tool-calling loop against a Large Language Model. On each user message the loop:
+
+1. Builds the conversation from the persisted transcript plus the active system prompt.
+2. Streams the model's answer — assistant text, hidden *reasoning* ("thinking") chunks, and tool
+   calls — back to the browser as Server-Sent Events.
+3. Dispatches any tool calls in-process against Loom's tool registry (permission-checked), feeding
+   the results back to the model.
+4. Repeats until the model produces a final answer or the turn limit is reached.
+
+Tool failures become *error tool results* rather than aborting the run, so the model can react and
+retry — a run is resilient to a single failing tool.
+
+Built-in domain tools include `search_assets`, `get_asset`, `search_transcript`, `list_collections`
+and `asset_statistics`. Results carry structured **references** (asset · collection · task · comment
+· pipeline · annotation), which the UI renders as clickable chips inside the conversation.
+
+The LLM provider is pluggable and configured separately from the chat — see the provider settings in
+link:../configuration/[Loom Configuration].
+
+=== Streaming Endpoint
+
+[options="header",cols="1,3,3"]
+|===
+| Method | Path | Description
+| POST | `/api/v1/chats/:uuid/stream` | Send a user message; receive the agent run as an SSE event stream (text, reasoning, tool activity, references, final message).
+| DELETE | `/api/v1/chats/:uuid/stream` | Cancel the active run (204).
+|===
+
+A chat may have only one active run at a time; a concurrent request returns `409 AGENT_BUSY`.
+
+== Chats
+
+A **chat** is a stored conversation (`/api/v1/chats` CRUD). Its transcript — user and assistant
+messages, tool calls, reasoning and references — is persisted so a session can be reloaded and
+continued. The active skill set is stored per chat.
+
+== Sessions
+
+A **session** is a *publishable snapshot* of a chat's working state. Beyond the transcript, a session
+captures:
+
+* the **coding sandbox filesystem** (`/session` workspace contents), when the coding sandbox is used;
+* the **pinned skill versions** active at snapshot time;
+* **context references** to other published sessions, so one session can build on another.
+
+Sessions are owned per user, can be named, tagged, described and **published** for other users to
+reference. They are managed via `/api/v1/chat/sessions`. Publishing a session shares a reproducible
+working context, not just a chat log.
+
+== Skills
+
+A **skill** is a user-owned, `SKILL.md`-style markdown instruction package (name, description and a
+full markdown body) that steers the agent for a particular task.
+
+* Skills are **per user**; each user owns their own set (`/api/v1/skills` CRUD).
+* Skills are **activated per chat** — toggled in the chat's Skills panel and sent with every message.
+* Skills use **progressive disclosure**: only the name + description are placed in the system prompt;
+  the model pulls the full body on demand via a `load_skill` tool, keeping the context window small.
+* Skills are **versioned** and can be **published to a shared library**
+  (`GET /api/v1/skills/library`). Another user **installs** a published skill
+  (`POST /api/v1/skills/:uuid/install`), which *copies* it into their own set with provenance — so a
+  later edit by the author never silently changes an installed copy.
+
+Skills are managed in the UI at `/skills` (table, markdown editor, publish toggle, Library tab with
+install).
+
+=== Example Skill: memory-keeper
+
+A skill that teaches the agent to use the link:#memory[memory] tools — `list_memory`, `get_memory`,
+`put_memory`, `delete_memory` — to remember durable facts across conversations:
+
+[source,markdown]
+----
+---
+name: memory-keeper
+description: Remember durable facts about the user and their assets across chats using the memory tools.
+---
+
+# Memory Keeper
+
+You maintain a long-term memory of facts that stay useful beyond the current chat.
+
+## Before answering
+- Call `list_memory` to see what is already stored for the active scope.
+- Call `get_memory` to read any note whose title looks relevant to the question.
+
+## When you learn something durable
+Persist it with `put_memory` — a short, single-fact note with a descriptive title. Good candidates:
+- stable preferences ("prefers 16:9 thumbnails")
+- project facts ("the 'Summer2026' collection is the campaign master set")
+- decisions the user made that future chats should respect
+
+Keep one fact per note. Do **not** store secrets or transient chat state.
+
+## Housekeeping
+If a stored fact becomes wrong, correct it by overwriting the note with `put_memory`, or remove it
+with `delete_memory`. Never let a note contradict what the user just told you.
+----
+
+=== Example Skill: transcript-summarizer
+
+A domain skill that turns a request like "summarize this clip" into a tight, sourced summary:
+
+[source,markdown]
+----
+---
+name: transcript-summarizer
+description: Summarize a video/audio asset's transcript into a short, sourced bullet list.
+---
+
+# Transcript Summarizer
+
+When the user asks to summarize a clip:
+
+1. Resolve the asset with `get_asset` (or `search_assets` if only a name was given).
+2. Call `search_transcript` to pull the relevant transcript passages.
+3. Produce **5–8 bullets**, most important first. Each bullet is one sentence.
+4. End with a one-line **TL;DR**.
+
+If no transcript exists yet, say so plainly and suggest running a Whisper pipeline on the asset —
+do not invent content.
+----
+
+== Memory
+
+The agent has a persistent **memory bank** — scoped markdown notes it can read and write across
+conversations, so useful facts survive between chats.
+
+* Notes are **scoped** (e.g. per user / shared scopes) and quota-limited.
+* During a run the agent reads and writes memory through four tools: **`list_memory`** (enumerate
+  notes in a scope), **`get_memory`** (read one note), **`put_memory`** (create/overwrite a note),
+  and **`delete_memory`** (remove a note). An optional per-scope index note (`memory.md`) is inlined
+  into the system prompt for fast recall.
+* Users can browse and edit the memory bank from the UI. REST surface (`/api/v1/memory`):
+
+[options="header",cols="1,3,3"]
+|===
+| Method | Path | Description
+| GET | `/api/v1/memory/scopes` | List the caller's memory scopes with usage and quota.
+| GET | `/api/v1/memory` | List the notes of a scope.
+| GET | `/api/v1/memory/entry` | Read one note.
+| POST / PUT | `/api/v1/memory/entry` | Create / upsert a note.
+| DELETE | `/api/v1/memory/entry` | Delete a note.
+|===
+
+When the coding sandbox is enabled, the memory bank can also be materialized read-only into the
+runner so coding tasks can consult it.
+
+== Coding Sandbox
+
+Beyond querying the domain, the agent can run **coding tasks** (`run_shell`, `write_file`,
+`read_file`, `list_files`) inside a hardened, per-chat **Session Runner** container. This turns the
+chat into a lightweight coding agent operating on an isolated `/workspace`. It is **off by default**.
+
+* One **Session Runner** is provisioned *lazily* on the first coding tool call of a chat, and reaped
+  on idle-TTL or when a hard session time-box elapses.
+* The runner's only process is `runnerd`, a small standard-library HTTP daemon. **No credentials ever
+  enter the runner** — Loom drives it over HTTP with a per-session bearer token, confined to its
+  `/workspace`.
+* Loom holds the registry of live runners, applies a per-deployment concurrency cap, waits for
+  readiness, and destroys runners on chat reset / idle / max-session.
+
+```
+   Loom backend (SandboxOrchestrator)
+        │  create runner (per chat)         drive over HTTP + per-session token
+        ▼                                   ┌───────────────────────────────┐
+   Session Runner pod/container  ◀──────────┤ run_shell / write_file / ...  │
+   (runnerd, /workspace, no creds)          └───────────────────────────────┘
+        ▲  reaped on idle-TTL / max-session
+```
+
+=== Backends
+
+The backend is selected with `LOOM_AGENT_SANDBOX_BACKEND`:
+
+* **`podman`** (local dev) — runs a rootless, hardened container and reaches it on
+  `127.0.0.1:<published-port>`.
+* **`kubernetes`** (production, including OpenShift) — creates a Pod using the Loom pod's mounted
+  **service-account token**, and reaches it on the pod IP.
+
+=== Kubernetes RBAC & Isolation
+
+The Kubernetes backend spawns runner Pods at runtime, so the Loom **service account** needs
+permission to manage them:
+
+* RBAC allowing the Loom service account to `create` / `get` / `delete` pods in
+  `LOOM_AGENT_SANDBOX_NAMESPACE`.
+* Recommended guardrails on the `app: loom-session-runner` label: a `ResourceQuota`, a `LimitRange`,
+  and a **default-deny `NetworkPolicy`** (runners should have no egress).
+
+The runner Pod is hardened: `runAsNonRoot`, all capabilities dropped, read-only root filesystem,
+`automountServiceAccountToken: false`, seccomp `RuntimeDefault`, CPU/memory limits, a hard
+`activeDeadlineSeconds` backstop, and `emptyDir` workspace/tmp volumes. A reference Pod manifest ships
+at `loom/agent/deploy/session-runner-pod-template.yaml`; the backend POSTs the equivalent at runtime.
+
+[source,yaml]
+----
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: loom-session-runner-manager
+  namespace: loom-runners
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["create", "get", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: loom-session-runner-manager
+  namespace: loom-runners
+subjects:
+  - kind: ServiceAccount
+    name: loom            # the service account the Loom pod runs as
+    namespace: loom
+roleRef:
+  kind: Role
+  name: loom-session-runner-manager
+  apiGroup: rbac.authorization.k8s.io
+----
+
+=== The Runner Image
+
+Build and push the runner image so it matches `LOOM_AGENT_SANDBOX_IMAGE`:
+
+[source,bash]
+----
+loom/agent/session-runner/build.sh
+# default reference: metaloom/loom-session-runner:latest
+----
+
+See link:../../deployment/[Container Images] for the image overview.
+
+=== Sandbox Configuration (`LOOM_AGENT_SANDBOX_*`)
+
+[options="header",cols="2,1,3"]
+|===
+| Variable | Default | Meaning
+| `LOOM_AGENT_SANDBOX_ENABLED` | `false` | Master switch for the coding tools.
+| `LOOM_AGENT_SANDBOX_BACKEND` | `podman` | `podman` \| `kubernetes`.
+| `LOOM_AGENT_SANDBOX_IMAGE` | `metaloom/loom-session-runner:latest` | Runner image reference.
+| `LOOM_AGENT_SANDBOX_NAMESPACE` | (SA namespace) | Kubernetes namespace for runner pods.
+| `LOOM_AGENT_SANDBOX_IDLE_TTL_S` | `900` | Reap a runner after this much inactivity.
+| `LOOM_AGENT_SANDBOX_MAX_SESSION_S` | `3600` | Hard per-session time-box.
+| `LOOM_AGENT_SANDBOX_EXEC_TIMEOUT_S` | `120` | Default per-exec wall-clock timeout.
+| `LOOM_AGENT_SANDBOX_MAX_CONCURRENT` | `10` | Per-deployment cap on live runners.
+| `LOOM_AGENT_SANDBOX_READY_TIMEOUT_S` | `60` | How long to wait for a runner to become healthy.
+| `LOOM_AGENT_SANDBOX_CPU_REQUEST` / `_CPU_LIMIT` | `100m` / `1` | Runner CPU request / limit.
+| `LOOM_AGENT_SANDBOX_MEM_REQUEST` / `_MEM_LIMIT` | `128Mi` / `512Mi` | Runner memory request / limit.
+| `LOOM_AGENT_SANDBOX_WORKSPACE_SIZE` | `512Mi` | Workspace `emptyDir` size limit.
+|===
+
+Full operator notes live in `loom/agent/deploy/README.md` in the source repository.
+
+== Configuration
+
+The agent is configured via `LOOM_AI_*` (LLM provider + loop), the coding sandbox via
+`LOOM_AGENT_SANDBOX_*` (above), and the memory bank via `LOOM_AGENT_MEMORY_*`. The agent is **enabled
+by default** but needs a reachable LLM provider to answer; the coding sandbox and memory bank are
+**off** by default. See link:../configuration/[Loom Configuration] for the full tables.

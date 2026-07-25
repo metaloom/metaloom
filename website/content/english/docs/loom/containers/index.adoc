@@ -2,7 +2,9 @@
 title: Containers
 ---
 
-The Loom server is distributed as a Docker image.
+The Loom server is distributed as the `metaloom/loom-server` image (JVM and `-native` variants). For a
+zero-config first run, use the all-in-one `metaloom/loom-demo` image instead — see
+link:../../getting-started/[Getting Started]. The full image list is on link:../../deployment/[Container Images].
 
 == Running with Docker
 
@@ -16,8 +18,7 @@ docker run -d \
   -e LOOM_DB_HOST=postgres \
   -e LOOM_DB_PASSWORD=secret \
   -e LOOM_INITIAL_PASSWORD=admin123 \
-  -v loom-config:/app/config \
-  metaloom/loom:latest
+  metaloom/loom-server:latest
 ----
 
 == Docker Compose
@@ -34,7 +35,7 @@ services:
       POSTGRES_PASSWORD: secret
 
   loom:
-    image: metaloom/loom:latest
+    image: metaloom/loom-server:latest
     depends_on:
       - postgres
     ports:
@@ -45,3 +46,6 @@ services:
       LOOM_DB_PASSWORD: secret
       LOOM_INITIAL_PASSWORD: admin123
 ----
+
+To add processing, run one or more link:../../cortex/containers/[Cortex workers] pointed at this Loom
+instance on port `8092`.

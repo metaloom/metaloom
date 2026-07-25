@@ -41,6 +41,8 @@ import io.metaloom.loom.db.model.comment.Comment;
 import io.metaloom.loom.db.model.comment.CommentDao;
 import io.metaloom.loom.db.model.group.Group;
 import io.metaloom.loom.db.model.group.GroupDao;
+import io.metaloom.loom.db.model.memory.MemoryDenyRule;
+import io.metaloom.loom.db.model.memory.MemoryDenyRuleDao;
 import io.metaloom.loom.db.model.library.Library;
 import io.metaloom.loom.db.model.library.LibraryDao;
 import io.metaloom.loom.db.model.perm.Permission;
@@ -106,6 +108,7 @@ public class DemoDatabaseInitializer {
 	private final TokenDao tokenDao;
 	private final CommentDao commentDao;
 	private final BlacklistDao blacklistDao;
+	private final MemoryDenyRuleDao memoryDenyRuleDao;
 	private final ClusterDao clusterDao;
 	private final PersonDao personDao;
 	private final DetectionDao detectionDao;
@@ -118,7 +121,8 @@ public class DemoDatabaseInitializer {
 		TagDao tagDao, CollectionDao collectionDao, LibraryDao libraryDao, PipelineDao pipelineDao, AssetPoolDao assetPoolDao,
 		GroupDao groupDao, RoleDao roleDao, PermissionDao permissionDao, TaskDao taskDao,
 		AnnotationDao annotationDao, ReactionDao reactionDao, TokenDao tokenDao,
-		CommentDao commentDao, BlacklistDao blacklistDao, ClusterDao clusterDao, PersonDao personDao, DetectionDao detectionDao,
+		CommentDao commentDao, BlacklistDao blacklistDao, MemoryDenyRuleDao memoryDenyRuleDao, ClusterDao clusterDao, PersonDao personDao,
+		DetectionDao detectionDao,
 		AssetComponentDao assetComponentDao, ChatDao chatDao, PipelineVersionDao pipelineVersionDao) {
 		this.userDao = userDao;
 		this.assetDao = assetDao;
@@ -137,6 +141,7 @@ public class DemoDatabaseInitializer {
 		this.tokenDao = tokenDao;
 		this.commentDao = commentDao;
 		this.blacklistDao = blacklistDao;
+		this.memoryDenyRuleDao = memoryDenyRuleDao;
 		this.clusterDao = clusterDao;
 		this.personDao = personDao;
 		this.detectionDao = detectionDao;
@@ -449,6 +454,17 @@ public class DemoDatabaseInitializer {
 		createBlacklist(admin, videoAssets[1], "Copyright strike - pending review");
 		log.info("Created {} demo blacklist entries", 2);
 
+		// --- Memory deny rules ---
+		// Two shapes of rule, because they are the two an admin will actually write:
+		// several phrases folded into one rule via alternation, and a credential format.
+		createMemoryDenyRule(admin, "Confidential project codenames",
+			"(?i)\\b(project bluebird|operation nightfall|codename raven)\\b",
+			"This note names a confidential project codename. Summarise the work without naming the project.");
+		createMemoryDenyRule(admin, "AWS access key id",
+			"AKIA[0-9A-Z]{16}",
+			"This note looks like it contains an AWS access key. Credentials must never be stored in memory — rotate the key if it is real.");
+		log.info("Created {} demo memory deny rules", 2);
+
 		// --- Persons ---
 		createPerson(admin, "jdoe", "John", "Doe");
 		createPerson(admin, "asmith", "Alice", "Smith");
@@ -555,6 +571,21 @@ public class DemoDatabaseInitializer {
 		libraryDao.store(library);
 		log.info("Created demo library: {}", name);
 		return library;
+	}
+
+	/**
+	 * A denylist entry. The message is what the agent is told on rejection, so it explains the problem and what to do instead — never echoing the match.
+	 */
+	private MemoryDenyRule createMemoryDenyRule(User admin, String name, String pattern, String message) {
+		MemoryDenyRule rule = memoryDenyRuleDao.createMemoryDenyRule(admin.getUuid(), name, pattern, message);
+		rule.setUuid(UUIDUtils.randomUUID());
+		rule.setCreator(admin);
+		rule.setEditor(admin);
+		rule.setCreated(Instant.now());
+		rule.setEdited(Instant.now());
+		memoryDenyRuleDao.store(rule);
+		log.info("Created demo memory deny rule: {}", name);
+		return rule;
 	}
 
 	private Comment createComment(User admin, String title, String text) {

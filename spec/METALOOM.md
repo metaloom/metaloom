@@ -80,13 +80,22 @@ Reactor modules under [loom/](../loom/):
 ```
 common/        # shared utilities and constants
 db/            # persistence layer (see §4)
-services/      # service implementations (REST, gRPC, GraphQL, auth, …)
+services/      # service implementations (REST, gRPC, GraphQL, auth, mcp, …)
+agent/         # AI agent subsystem: chat (agentic loop + SSE), memory (bank), sandbox (coding
+               #   runner orchestrator); session-runner/ builds metaloom/loom-session-runner
 core/          # server core – wiring, lifecycle, main Vert.x verticle
 fixture/       # DB fixture / PoolSetupRunner
 cli/           # LoomCLI main class (loom/cli/src/main/java/io/metaloom/loom/cli/LoomCLI.java)
-containers/    # Dockerfiles + build-containers.sh
-doc/           # AsciiDoc documentation source
+containers/    # Dockerfiles + build-containers.sh (metaloom/loom-server, metaloom/loom-demo)
+doc/           # AsciiDoc documentation source + OpenAPI generator (ExampleGenerator)
 ```
+
+> **AI agent (added since 2026-07-18).** `loom/agent/{chat,memory,sandbox}` implement the Loom UI
+> chat: a server-side agentic loop (`POST /api/v1/chats/:uuid/stream`, SSE), a scoped markdown memory
+> bank (`/api/v1/memory`), publishable **chat sessions** (`/api/v1/chat/sessions`), versioned
+> **skills** (`/api/v1/skills` + `/library` + `/:uuid/install`), and an optional per-chat coding
+> sandbox that provisions hardened Session Runner containers via a podman or kubernetes backend
+> (`LOOM_AGENT_SANDBOX_*`). See [loom/ui/CHAT.md](loom/ui/CHAT.md).
 
 The service sub-modules ([loom/services/pom.xml](../loom/services/pom.xml)):
 
@@ -192,9 +201,12 @@ endpoint/impl/     # one *Endpoint class per resource
                    #   Asset, AssetBinary, AssetComponent, AssetPool,
                    #   Annotation, Attachment, Blacklist, Chat, Cluster,
                    #   Collection, Comment, Embedding, GraphQL, Group,
-                   #   Library, Login, NodeDescriptor, OAuth2, Person,
+                   #   Library, Login, Me, NodeDescriptor, OAuth2, Person,
                    #   Pipeline, PipelineEvent, Processor, Reaction,
-                   #   RESTInfo, Role, Space, Tag, Task, Token, User
+                   #   RESTInfo, Role, Skill, Space, Tag, Task, Token, User
+                   # (AI agent endpoints live outside services/rest:
+                   #   ChatStreamEndpoint → loom/agent/chat, MemoryEndpoint → loom/agent/memory;
+                   #   chat sessions under /api/v1/chat/sessions)
 builder/impl/      # request/response builders
 service/impl/      # service-layer wiring the endpoints to DAOs
 dagger/            # Dagger modules composing the REST verticle
@@ -335,8 +347,14 @@ Reactor children ([cortex/pom.xml](../cortex/pom.xml)):
 
 ```
 api  common  fs  core-media  nodes  processor  core  cli  container
-pipeline-api  pipeline-common  pipeline-core
+pipeline-api  pipeline-common  pipeline-core  node-runtime
 ```
+
+> **Cortex is a daemon that serves nodes.** In online mode Cortex registers with Loom over the
+> processor WebSocket and executes source/node/segment tasks that **Loom dispatches** — Loom owns the
+> pipeline DAG. `cortex/node-runtime` holds the per-task runners (`NodeTaskRunner`,
+> `SourceTaskRunner`, `SegmentTaskRunner`). It is deployed as `metaloom/cortex-server` and connects on
+> `LOOM_PORT` (default `8092`).
 
 ### Cortex Nodes
 
@@ -479,6 +497,6 @@ decorator interfaces (`HashMedia`, `FacedetectMedia`, …). See the
 
 ---
 
-_Git HEAD revision: `92bc1153e50c43efb65e4d78874823c9ec1f4408`_
-_Last updated: 2026-07-18 19:10 UTC_
+_Git HEAD revision: `6d454bc0e90fc6849f33b191fff84608367d66eb`_
+_Last updated: 2026-07-25 (added loom/agent AI subsystem, cortex/node-runtime, daemon execution model)_
 

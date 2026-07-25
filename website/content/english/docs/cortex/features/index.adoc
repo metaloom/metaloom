@@ -94,9 +94,10 @@ See link:examples[Cortex Examples] for a complete working example.
 
 == Deployment Flexibility
 
-Cortex can run as:
+Cortex is primarily a long-running worker daemon (the `metaloom/cortex-server` image) that registers
+with Loom and serves node tasks. It can run as:
 
-* A long-running daemon server (`cortex server start`)
-* A one-shot batch processor (`cortex process run <path>`)
-* A Kubernetes CronJob or Job workload
-* A standalone Docker container
+* One or more replicas of a Kubernetes `Deployment` — scale out to add processing capacity.
+* A specialised worker pool advertising only heavy node kinds (e.g. GPU-bound `facedetect`/`whisper`).
+* A side-car container next to Loom in a small compose stack.
+* A standalone/offline process against local files (no Loom server).

@@ -1,0 +1,35 @@
+---
+title: LLM Enrichment
+---
+
+The LLM node sends asset metadata to a **Large Language Model** and stores the model's response as
+enrichment — for example a classification, a set of suggested tags, or a description. Multiple prompts
+can be configured, each producing its own output.
+
+[cols="1,3"]
+|===
+| Kind | `llm`
+| Applies to | Any (operates on the asset's filename / metadata)
+| Inputs | Optional upstream outputs (e.g. a transcript or extracted text) can be referenced by prompts
+| Output keys | `llm_result_{promptId}` (String) — one per configured prompt
+| Requirements | An LLM provider service reachable from the worker. The node supports an OpenAI-compatible (vLLM) endpoint; CPU on the worker, the model runs in the service.
+| Persists to | `asset_json_comp` per prompt + `asset_node_result` ledger
+|===
+
+== Configuration
+
+`LLMNodeOptions`:
+
+[options="header",cols="1,2"]
+|===
+| Option | Meaning
+| provider URL | Base URL of the LLM provider service
+| `providerType` | Provider protocol — the default local provider, or `VLLM` for an OpenAI-compatible endpoint
+| `prompts` | A map of prompt definitions; each produces a `llm_result_{promptId}` output
+|===
+
+== Use Cases
+
+* **Auto-classification** — categorise assets from their metadata or transcript.
+* **Tag suggestions** — propose tags for review.
+* **Description generation** — draft human-readable summaries stored alongside the asset.

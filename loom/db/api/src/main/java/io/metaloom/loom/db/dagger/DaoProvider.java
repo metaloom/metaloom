@@ -30,6 +30,7 @@ import io.metaloom.loom.db.model.pool.AssetPoolDao;
 import io.metaloom.loom.db.model.space.SpaceDao;
 import io.metaloom.loom.db.model.reaction.ReactionDao;
 import io.metaloom.loom.db.model.role.RoleDao;
+import io.metaloom.loom.db.model.memory.MemoryDenyRuleDao;
 import io.metaloom.loom.db.model.memory.MemoryEntryDao;
 import io.metaloom.loom.db.model.skill.SkillDao;
 import io.metaloom.loom.db.model.skill.SkillVersionDao;
@@ -218,6 +219,10 @@ public interface DaoProvider extends DaoCollection {
 
 	default MemoryEntryDao memoryEntryDao() {
 		return daos().memoryEntryDao();
+	}
+
+	default MemoryDenyRuleDao memoryDenyRuleDao() {
+		return daos().memoryDenyRuleDao();
 	}
 
 	// Cortex Instance

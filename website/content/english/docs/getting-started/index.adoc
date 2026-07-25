@@ -8,11 +8,12 @@ No build tools or configuration files are required.
 
 == What You Will Run
 
-The demo bundle starts three services side by side:
+The demo image (`metaloom/loom-demo`) bundles everything in one container:
 
-* *Loom* — the asset management server (REST API on port 8092)
-* *Loom UI* — a browser-based management interface (default port 3000)
+* *Loom* — the asset management server (REST API, WebSocket and embedded UI, all on port 8092)
 * *Loom App* — a desktop client built with Electron (optional, launched separately)
+
+For the full set of images and their ports, see link:../deployment/[Container Images].
 
 == Prerequisites
 
@@ -28,11 +29,10 @@ The `metaloom/loom-demo` image bundles Loom together with a pre-seeded PostgreSQ
 docker run -d \
   --name loom-demo \
   -p 8092:8092 \
-  -p 3000:3000 \
   metaloom/loom-demo:latest
 ----
 
-Once the container is running, Loom is available at http://localhost:8092 and the web UI at http://localhost:3000.
+Once the container is running, Loom — and its embedded web UI — are available at http://localhost:8092.
 
 Default credentials:
 
@@ -40,15 +40,19 @@ Default credentials:
 |===
 | Field | Value
 | Username | `admin`
-| Password | `admin`
+| Password | `finger`
 |===
+
+(The password is set by `LOOM_INITIAL_PASSWORD`, which the demo image defaults to `finger`.)
 
 == Loom UI
 
 Loom UI is a browser-based management interface for the Loom server.
 It lets you browse assets, manage users, groups, roles, tags and API keys, and monitor running pipelines — all without touching the REST API directly.
 
-Open http://localhost:3000 after starting the demo container.
+Open http://localhost:8092 after starting the demo container. The first thing you land on is the
+link:../loom/chat/[AI assistant] chat; the asset browser, users, pipelines and settings are in the
+navigation.
 
 Key areas of the UI:
 

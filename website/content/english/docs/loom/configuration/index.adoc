@@ -4,17 +4,29 @@ title: Configuration
 
 = Configuration
 
-Loom is configured via a YAML file (`loom.yml`) with optional environment variable overrides.
+Loom is configured through a YAML file (`loom.yml`) with **environment-variable overrides** layered on
+top. The resolution order is:
+
+1. Load `loom.yml` from the first location that exists (see below), or fall back to built-in defaults.
+2. Apply environment variables — **any `LOOM_*` variable overrides the corresponding YAML value**.
+3. Validate the result (e.g. a keystore password must be present; one is generated if unset).
+
+So for container deployments you can skip the file entirely and configure everything with environment
+variables.
 
 == Config File Locations
 
 Loom looks for `loom.yml` in the following order (first match wins):
 
-. `config/loom.yml` — directory relative to the working directory
-. `~/.config/metaloom/loom.yml` — user home config
 . `/etc/metaloom/loom.yml` — system-wide config
+. `~/.config/metaloom/loom.yml` — user home config
+. `config/loom.yml` — relative to the working directory
+
+If none exist (and none is on the classpath), Loom writes a default `config/loom.yml` on first start.
 
 == Full Configuration Example
+
+Every top-level key maps to an options group. Only the keys you want to change need to be present.
 
 [source,yaml]
 ----
@@ -22,22 +34,42 @@ database:
   host: "127.0.0.1"
   port: 5432
   username: "postgres"
-  password: "secret"
+  password: "finger"
   databaseName: "loom"
   minPoolSize: 5
   acquireIncrement: 5
   maxPoolSize: 20
 
 server:
-  grpcPort: 8091
+  restPort: 8092          # REST API + WebSocket + UI
+  grpcPort: 8091          # gRPC
+  monitoringPort: 8989    # health / metrics
+  mcpPort: 4041           # Model Context Protocol server
   bindAddress: "0.0.0.0"
-  restPort: 8092
-  monitoringPort: 8989
 
 auth:
   keystorePath: "keystore.jceks"
-  keystorePassword: "change-me"
+  keystorePassword: "change-me"   # generated if omitted
   tokenExpirationTime: 3600
+  oauth2:
+    enabled: false
+    # clientId / clientSecret / authUrl / tokenUrl / userInfoUrl / callbackUrl / logoutUrl / scope
+
+storage:
+  uploadDirectory: "data/storage"   # where uploaded asset binaries are stored
+
+ai:                       # Chat & AI agent — see the "AI Agent" section below
+  enabled: true
+  providerType: "OLLAMA"
+  url: "http://127.0.0.1:11434"
+  modelId: "gpt-oss:20b"
+
+sandbox:                  # Agentic coding sandbox — off by default
+  enabled: false
+  backend: "podman"
+
+memory:                   # Agent memory bank — off by default
+  enabled: false
 ----
 
 == Environment Variables
@@ -64,10 +96,19 @@ Environment variables take precedence over values in `loom.yml`.
 [options="header",cols="2,1,2"]
 |===
 | Variable | Default | Description
-| `LOOM_SERVER_REST_PORT` | `8092` | HTTP REST port
+| `LOOM_SERVER_REST_PORT` | `8092` | HTTP REST port (REST + WebSocket + UI)
 | `LOOM_SERVER_GRPC_PORT` | `8091` | gRPC port
+| `LOOM_SERVER_MCP_PORT` | `4041` | Model Context Protocol server port
 | `LOOM_SERVER_GRPC_BIND_ADDRESS` | `0.0.0.0` | Bind address for all listeners
 | `LOOM_SERVER_MON_PORT` | `8989` | Monitoring/health port
+|===
+
+=== Storage
+
+[options="header",cols="2,1,2"]
+|===
+| Variable | Default | Description
+| `LOOM_STORAGE_UPLOAD_DIR` | `data/storage` | Directory where uploaded asset binaries are stored
 |===
 
 === Authentication
@@ -77,9 +118,76 @@ Environment variables take precedence over values in `loom.yml`.
 | Variable | Default | Description
 | `LOOM_INITIAL_PASSWORD` | _(random)_ | Initial admin password (first boot only)
 | `LOOM_TOKEN_EXPIRATION_TIME` | `3600` | JWT token lifetime in seconds
+| `LOOM_MCP_AUTH_ENABLED` | `false` | Require auth on the MCP endpoints
+| `LOOM_MCP_AUTH_STRICT_MODE` | `false` | Reject unauthenticated MCP calls (no lenient mode)
+| `LOOM_MCP_AUTH_ALLOWED_ORIGINS` | `*` | CORS origins allowed on the MCP SSE endpoint
+|===
+
+The keystore password is read from the `auth.keystorePassword` config key (a random one is generated
+if unset). See link:../authentication/[Authentication].
+
+=== OAuth2
+
+Optional OAuth2 login (BFF pattern). Set `LOOM_OAUTH2_ENABLED=true` and provide your provider's
+endpoints:
+
+[options="header",cols="2,3"]
+|===
+| Variable | Description
+| `LOOM_OAUTH2_ENABLED` | Enable OAuth2 authentication (default `false`)
+| `LOOM_OAUTH2_CLIENT_ID` / `LOOM_OAUTH2_CLIENT_SECRET` | Client credentials
+| `LOOM_OAUTH2_AUTH_URL` / `LOOM_OAUTH2_TOKEN_URL` / `LOOM_OAUTH2_USERINFO_URL` | Provider endpoints
+| `LOOM_OAUTH2_CALLBACK_URL` / `LOOM_OAUTH2_LOGOUT_URL` | Callback and logout URLs
+| `LOOM_OAUTH2_SCOPE` | Scopes to request (default `openid profile email`)
+|===
+
+=== AI Agent
+
+Settings for the built-in link:../chat/[Chat & AI Agent]. The agent is **enabled by default**
+(`LOOM_AI_ENABLED=true`) but needs a reachable LLM provider to answer.
+
+[options="header",cols="2,1,2"]
+|===
+| Variable | Default | Description
+| `LOOM_AI_ENABLED` | `true` | Master switch for the chat agent
+| `LOOM_AI_PROVIDER_TYPE` | `OLLAMA` | LLM provider (`OLLAMA` \| `VLLM`)
+| `LOOM_AI_URL` | `http://127.0.0.1:11434` | Provider base URL
+| `LOOM_AI_MODEL_ID` | `gpt-oss:20b` | Model id
+| `LOOM_AI_CONTEXT_WINDOW` | `16384` | Context window (tokens)
+| `LOOM_AI_MAX_TURNS` | `8` | Max tool-calling turns per message
+| `LOOM_AI_TOOL_TIMEOUT_MS` | `30000` | Per-tool timeout
+| `LOOM_AI_STREAMING` | `false` | Opt-in true token/reasoning streaming
+| `LOOM_AI_THINK_ENABLED` | _(model default)_ | Enable model "thinking" chunks
+| `LOOM_AI_TITLE_GENERATION` | _(on)_ | Auto-title a chat after the first exchange
+|===
+
+=== Coding Sandbox
+
+Settings for the per-chat coding sandbox (`LOOM_AGENT_SANDBOX_*`). Off unless
+`LOOM_AGENT_SANDBOX_ENABLED=true`. See link:../chat/#coding-sandbox[Chat & AI Agent — Coding Sandbox] for the full
+table and deployment (backends, Kubernetes RBAC, the runner image). Key switches:
+`LOOM_AGENT_SANDBOX_BACKEND` (`podman` \| `kubernetes`), `LOOM_AGENT_SANDBOX_IMAGE`,
+`LOOM_AGENT_SANDBOX_NAMESPACE`, `LOOM_AGENT_SANDBOX_IDLE_TTL_S`, `LOOM_AGENT_SANDBOX_MAX_SESSION_S`,
+`LOOM_AGENT_SANDBOX_MAX_CONCURRENT`.
+
+=== Agent Memory
+
+Settings for the agent link:../chat/#memory[memory bank] (`LOOM_AGENT_MEMORY_*`):
+
+[options="header",cols="2,1,2"]
+|===
+| Variable | Default | Description
+| `LOOM_AGENT_MEMORY_ENABLED` | `false` | Enable the memory bank
+| `LOOM_AGENT_MEMORY_MAX_ENTRIES_PER_SCOPE` | _(quota)_ | Max notes per scope
+| `LOOM_AGENT_MEMORY_MAX_ENTRY_BYTES` | _(quota)_ | Max size of a single note
+| `LOOM_AGENT_MEMORY_MAX_SCOPE_BYTES` | _(quota)_ | Max total size per scope
+| `LOOM_AGENT_MEMORY_MAX_WRITES_PER_RUN` | _(quota)_ | Max memory writes per agent run
+| `LOOM_AGENT_MEMORY_SHARED_SCOPES_ENABLED` | `false` | Allow shared (cross-user) scopes
+| `LOOM_AGENT_MEMORY_MOUNT_ENABLED` | `false` | Mount memory read-only into the coding sandbox
+| `LOOM_AGENT_MEMORY_MOUNT_PATH` | `/memory` | Sandbox mount path for memory
 |===
 
 == CLI
 
-The Loom server CLI is currently a stub (`TBD`).
-The main entry point is `LoomCLI`. Configuration is driven entirely via the YAML file and environment variables.
+The Loom server main entry point is `LoomCLI`. Configuration is driven via the YAML file and
+environment variables shown above.

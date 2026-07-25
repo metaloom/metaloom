@@ -233,6 +233,10 @@ Most resource endpoints follow a standard CRUD pattern:
 | Annotation Tasks        | `/api/v1/annotations/:annotationUuid/tasks` | GET, POST, DELETE   | Assign/unassign existing tasks             |
 | Reaction                | `/api/v1/reactions`                    | GET, DELETE              | List, load, delete + asset-scoped reactions |
 | Blacklist               | `/api/v1/blacklists`                   | GET, POST, DELETE        | Standard CRUD                              |
+| Agent Memory            | `/api/v1/memory`                       | GET                      | Scoped notes; nested ids travel as `?id=` (see `/memory/entry`) |
+| Agent Memory Scopes     | `/api/v1/memory/scopes`                | GET                      | The caller's scopes with usage and quota   |
+| Agent Memory Entry      | `/api/v1/memory/entry`                 | GET, POST, PUT, DELETE   | `?scope=&ref=&id=`; POST is create (409 on conflict), PUT upserts |
+| Memory Deny Rule        | `/api/v1/memory-deny-rules`            | GET, POST, DELETE        | Admin CRUD for the memory denylist; own `*_MEMORY_DENY_RULE` permissions |
 | Chat                    | `/api/v1/chats`                        | GET, POST, DELETE        | Standard CRUD                              |
 | Chat Agent Stream (SSE) | `/api/v1/chats/:uuid/stream`           | POST, DELETE             | POST runs the chat agent for a new user message and streams the run as Server-Sent Events (event vocabulary in [ui/CHAT.md](ui/CHAT.md) §4.2); DELETE cancels the active run (204). Body: `{message, skillUuids[], think?}`. 409 when a run is already active. |
 | Skill                   | `/api/v1/skills`                       | GET, POST, DELETE        | Owner-scoped CRUD (users only ever see their own skills) + `/library` (GET, published skills of all users) + `/:uuid/install` (POST, copy a published skill into the callers set with `originSkillUuid` provenance) |

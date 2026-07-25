@@ -495,7 +495,8 @@
    "groups": "Groups",
    "permissions": "Permissions",
    "apiKeys": "API Keys",
-   "blacklist": "Blacklist"
+   "blacklist": "Blacklist",
+   "memoryDenylist": "Memory Denylist"
   },
   "spaces": {
    "title": "Spaces",
@@ -646,6 +647,28 @@
     "expiry": "Expiry date (optional)"
    },
    "defaultReason": "Manual entry"
+  },
+  "memoryDenylist": {
+   "title": "Memory denylist",
+   "subtitle": "Patterns the chat agent may never store in its memory. A match rejects the write with the rule's message.",
+   "addRule": "Add rule",
+   "search": "Search rules",
+   "empty": "No deny rules configured.",
+   "table": {
+    "name": "Name",
+    "pattern": "Pattern",
+    "message": "Rejection message",
+    "enabled": "Enabled"
+   },
+   "dialog": {
+    "add": "Add deny rule",
+    "edit": "Edit deny rule",
+    "name": "Name",
+    "pattern": "Pattern (regex)",
+    "patternHelp": "Java regex. Cover several phrases in one rule with alternation, e.g. (?i)\\b(alpha|beta)\\b",
+    "message": "Rejection message",
+    "messageHelp": "Shown to the agent when a note is rejected. Explain what to do instead; never repeat the matched text."
+   }
   }
  },
  "pipeline": {

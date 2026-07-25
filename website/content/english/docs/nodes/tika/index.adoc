@@ -1,0 +1,28 @@
+---
+title: Tika
+---
+
+The Tika node extracts **format metadata and embedded text** from virtually any file type using Apache
+Tika — images (EXIF), audio/video containers, PDFs and Office documents.
+
+[cols="1,3"]
+|===
+| Kind | `tika`
+| Applies to | Image, Audio, Video, Document
+| Inputs | None
+| Output keys | `tika_flags` (String), `tika_content` (String, extracted text)
+| Requirements | CPU only — Apache Tika is pure JVM, no native dependency or external service.
+| Persists to | `asset_json_comp` + `asset_node_result` ledger
+|===
+
+== Configuration
+
+No custom options beyond the common node flags — Tika auto-detects the format and applies the
+appropriate parser.
+
+== Use Cases
+
+* **Universal metadata extraction** — pull EXIF, codec, author, page-count and similar fields across
+  many formats in one node.
+* **Embedded text indexing** — extract text from PDFs and Office documents for search.
+* **Format triage** — a cheap first-pass over heterogeneous ingest.

@@ -1,0 +1,36 @@
+---
+title: Quality
+---
+
+The quality node measures **perceptual quality metrics** of an image or video — resolution,
+blurriness (via a Laplacian measure) and bitrate — so low-quality assets can be flagged or filtered.
+
+[cols="1,3"]
+|===
+| Kind | `quality`
+| Applies to | Image, Video
+| Inputs | None
+| Output keys | `blurriness`, `image_width` / `image_height`, `video_width` / `video_height` / `video_fps` / `video_frame_count`, `quality_flag`
+| Requirements | OpenCV / video4j **native runtime**. CPU-bound. No GPU required.
+| Persists to | `asset_json_comp` + `asset_node_result` ledger
+|===
+
+== Configuration
+
+`QualityNodeOptions` toggle individual checks:
+
+[options="header",cols="1,2"]
+|===
+| Option | Meaning
+| `checkBlurriness` | Compute a blurriness score (Laplacian variance)
+| `checkResolution` | Record image/video dimensions
+| `checkVideoBitrate` | Measure the video bitrate
+| `checkAudioBitrate` | Measure the audio bitrate
+|===
+
+== Use Cases
+
+* **Quality gating** — pair with the link:../filters/[quality filter] to route low-quality assets
+  differently or skip them.
+* **Blurry-image detection** — flag out-of-focus photos.
+* **Library stats** — resolution/bitrate reporting across an asset pool.

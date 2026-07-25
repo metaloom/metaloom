@@ -1,0 +1,33 @@
+---
+title: OCR
+---
+
+The OCR node extracts text from images and document scans using **Tesseract** (via Tess4J). The
+recognized text is stored so it can be indexed and searched.
+
+[cols="1,3"]
+|===
+| Kind | `ocr`
+| Applies to | Image
+| Inputs | None
+| Output keys | `ocr_text` (String)
+| Requirements | Tesseract / Tess4J plus its `tessdata` language files on the worker. CPU-bound; storage for the tessdata models.
+| Persists to | `asset_json_comp` + `asset_node_result` ledger
+|===
+
+== Configuration
+
+`OCRNodeOptions`:
+
+[options="header",cols="1,2"]
+|===
+| Option | Meaning
+| `tessDataPath` | Path to the Tesseract `tessdata` directory
+| `language` | Recognition language(s), e.g. `eng`, `deu`
+|===
+
+== Use Cases
+
+* **Searchable scans** — index text from screenshots, receipts and scanned documents.
+* **Document workflows** — surface embedded text for classification or routing.
+* **Compliance** — find images that contain particular text.

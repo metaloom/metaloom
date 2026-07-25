@@ -13,4 +13,5 @@ It exposes a REST API over HTTP, a gRPC API (planned), and a GraphQL API (planne
 * *Configuration* — YAML config file and environment variables. See link:configuration[Configuration].
 * *Artifacts* — Maven coordinates, containers and the Helm chart. See link:artifacts[Artifacts].
 * *Features* — Assets, users, groups, roles, tags, pipelines and more. See link:features[Features].
+* *Chat & AI Agent* — Conversational assistant with Sessions, Skills, Memory and an optional coding sandbox. See link:chat[Chat & AI Agent].
 * *Examples* — Code snippets from the `/examples` module. See link:examples[Examples].

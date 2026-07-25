@@ -10,7 +10,11 @@ See link:../maven-artifacts/[Maven Artifacts] for the BOM and the primary client
 
 == Containers
 
-See link:../containers/[Containers] for the standalone Docker and Docker Compose examples.
+Loom ships as `metaloom/loom-server` (production) and `metaloom/loom-demo` (all-in-one). The AI agent's
+coding sandbox additionally uses the `metaloom/loom-session-runner` image. See
+link:../containers/[Containers] for the Docker / Compose examples and link:../../deployment/[Container Images]
+for the full list. The agentic modules (`loom/agent/chat`, `loom/agent/memory`, `loom/agent/sandbox`)
+are part of the server image and require no separate artifact.
 
 == Helm Chart
 

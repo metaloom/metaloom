@@ -5,6 +5,7 @@ import java.util.Set;
 import dagger.Module;
 import dagger.Provides;
 import dagger.multibindings.ElementsIntoSet;
+import io.metaloom.loom.agent.memory.rest.MemoryDenyRuleEndpoint;
 import io.metaloom.loom.agent.memory.rest.MemoryEndpoint;
 import io.metaloom.loom.agent.memory.sandbox.MemoryMaterializer;
 import io.metaloom.loom.agent.sandbox.SandboxProvisionListener;
@@ -36,11 +37,11 @@ public class MemoryModule {
 	@ElementsIntoSet
 	@Provides
 	@RESTEndpoints
-	static Set<RESTEndpoint> memoryEndpoints(LoomOptions options, MemoryEndpoint memoryEndpoint) {
+	static Set<RESTEndpoint> memoryEndpoints(LoomOptions options, MemoryEndpoint memoryEndpoint, MemoryDenyRuleEndpoint memoryDenyRuleEndpoint) {
 		if (!options.getMemory().isEnabled()) {
 			return Set.of();
 		}
-		return Set.of(memoryEndpoint);
+		return Set.of(memoryEndpoint, memoryDenyRuleEndpoint);
 	}
 
 }

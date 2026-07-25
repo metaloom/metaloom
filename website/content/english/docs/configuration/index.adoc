@@ -2,16 +2,45 @@
 title: Configuration
 ---
 
+= Configuration Overview
 
-[source,json]
-----
-{
-	"db": {
-		"host": "localhost",
-		"port": 5432
-	},
-	"server": {
-		"port": 8080
-	}
-}
-----
+MetaLoom has two independently configured runtime components. This page is a hub; follow the links for
+the full settings tables.
+
+[options="header",cols="1,2,2"]
+|===
+| Component | How it is configured | Reference
+| *Loom* (server) | `loom.yml` YAML file **plus** `LOOM_*` environment-variable overrides | link:../loom/configuration/[Loom Configuration]
+| *Cortex* (worker daemon) | Environment variables / CLI flags (optional `cortex.yml` for per-node options) | link:../cortex/configuration/[Cortex Configuration]
+|===
+
+== Loom
+
+Loom loads `loom.yml` from the first location that exists — `/etc/metaloom/loom.yml`,
+`~/.config/metaloom/loom.yml`, then `config/loom.yml` — and then applies environment-variable
+overrides on top, so any `LOOM_*` variable wins over the file. Configuration groups:
+
+* *database* — PostgreSQL connection + pool (`LOOM_DB_*`)
+* *server* — REST/gRPC/MCP/monitoring ports and bind address (`LOOM_SERVER_*`)
+* *auth* — keystore, token lifetime, OAuth2, MCP auth (`LOOM_INITIAL_PASSWORD`, `LOOM_TOKEN_EXPIRATION_TIME`, `LOOM_OAUTH2_*`, `LOOM_MCP_AUTH_*`)
+* *storage* — upload directory for asset binaries (`LOOM_STORAGE_UPLOAD_DIR`)
+* *ai* — the Chat & AI agent (`LOOM_AI_*`)
+* *sandbox* — the agentic coding sandbox (`LOOM_AGENT_SANDBOX_*`)
+* *memory* — the agent memory bank (`LOOM_AGENT_MEMORY_*`)
+
+See link:../loom/configuration/[Loom Configuration] for the full YAML example and every environment
+variable with defaults. The AI-agent, coding-sandbox and memory settings are also covered on the
+link:../loom/chat/[Chat & AI Agent] page (which also covers the coding sandbox).
+
+== Cortex
+
+A Cortex worker is configured with environment variables (or the equivalent CLI flags): `LOOM_HOST` /
+`LOOM_PORT` (default `8092`) to reach Loom, `LOOM_TOKEN` to authenticate, `CORTEX_MONITORING_PORT`,
+`CORTEX_META_PATH`, `CORTEX_NODE_ID`, and `CORTEX_NODE_WHITELIST` / `CORTEX_NODE_BLACKLIST` to control
+which node kinds it runs. See link:../cortex/configuration/[Cortex Configuration].
+
+== Precedence
+
+For both components, **environment variables override file/default values**. This makes container
+deployment straightforward: set the handful of `LOOM_*` / `CORTEX_*` variables you need and skip the
+config file entirely.

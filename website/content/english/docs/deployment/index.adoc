@@ -1,0 +1,58 @@
+---
+title: Container Images
+weight: 2
+---
+
+MetaLoom ships as a small set of OCI (Docker/Podman) container images. All images are published
+under the `metaloom/` namespace.
+
+== Image Overview
+
+[options="header",cols="2,3,2"]
+|===
+| Image | Purpose | Built from
+| `metaloom/loom-server` | The Loom backend server (REST/gRPC API, DB access, auth, UI). Production image. | `loom/containers/server`
+| `metaloom/loom-demo` | All-in-one demo: Loom server pre-seeded with a database and sample assets. Best for a first run. | `loom/containers/demo`
+| `metaloom/cortex-server` | The Cortex processing daemon (media analysis worker). Registers with Loom and serves nodes. | `cortex/container`
+| `metaloom/loom-session-runner` | The isolated per-chat coding sandbox spawned by the Loom AI agent. Not started manually — Loom provisions it on demand. See link:../loom/chat/#coding-sandbox[Chat & AI Agent — Coding Sandbox]. | `loom/agent/session-runner`
+|===
+
+Both `loom-server` and `loom-demo` are available in two variants:
+
+* **JVM** (default tag, e.g. `:latest`) — Eclipse Temurin JRE running the shaded JAR.
+* **Native** (`-native` suffix, e.g. `:latest-native`) — a GraalVM ahead-of-time compiled binary with
+  faster startup and lower memory.
+
+== Default Ports
+
+[options="header",cols="2,1,3"]
+|===
+| Service | Port | Notes
+| Loom REST API + WebSocket + UI | `8092` | The single port clients, the UI and Cortex workers all connect to. Env: `LOOM_SERVER_REST_PORT`
+| Loom gRPC | `8091` | Optional gRPC surface. Env: `LOOM_SERVER_GRPC_PORT`
+| Loom monitoring | `8989` | Health / metrics. Env: `LOOM_SERVER_MON_PORT`
+| Cortex monitoring | `8093` | Cortex health / readiness (`/api/health`, `/api/ready`). Env: `CORTEX_MONITORING_PORT`
+| Session Runner | `8080` | Internal only — reached by Loom over the pod/loopback network, never exposed publicly.
+|===
+
+NOTE: Cortex connects **out** to Loom on port `8092`; Loom never dials in to Cortex. Older
+documentation referenced a Cortex↔Loom port of `7733` — the current default is `8092`.
+
+== Building the Images
+
+[source,bash]
+----
+# Loom (JVM + native, demo + server) — requires a prior `mvn package` and `npm run build` in loom-ui
+loom/containers/build-containers.sh                 # all variants
+loom/containers/build-containers.sh jvm server      # only the JVM server image
+
+# Cortex (requires a local OpenCV 5.1 build; see the script header)
+cortex/container/build-container.sh
+
+# Session Runner (coding sandbox)
+loom/agent/session-runner/build.sh
+----
+
+See link:../getting-started/[Getting Started] to run the demo image, and
+link:../loom/containers/[Loom Containers] / link:../cortex/containers/[Cortex Containers] for
+production deployment examples.

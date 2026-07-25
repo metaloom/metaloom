@@ -1,0 +1,29 @@
+---
+title: Scene Detection
+---
+
+The scene detection node finds **scene boundaries** (cuts) in a video using optical-flow analysis, and
+emits the resulting segments. Each run replaces the whole segment set for the asset.
+
+[cols="1,3"]
+|===
+| Kind | `scene-detection`
+| Applies to | Video only
+| Inputs | None
+| Output keys | `scene_detection` (String / JSON list of scene boundaries)
+| Requirements | OpenCV / video4j **native runtime** (optical-flow analysis). CPU-bound; decoding long videos is heavy.
+| Persists to | `asset_segment_comp` (whole-set replace) + `asset_node_result` ledger
+|===
+
+The detector is `OpticalFlowSceneDetector`. Because segments are a whole-set replace, a shorter re-run
+deletes the surplus rows.
+
+== Configuration
+
+No custom options beyond the common node flags.
+
+== Use Cases
+
+* **Chaptering** — split a video into navigable scenes.
+* **Keyframe / per-scene thumbnails** — generate a preview per scene.
+* **Targeted analysis** — run heavier nodes (faces, captioning) once per scene instead of per frame.

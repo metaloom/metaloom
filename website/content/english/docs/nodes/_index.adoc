@@ -1,0 +1,60 @@
+---
+title: Nodes
+---
+
+Nodes are the atomic processing steps of MetaLoom. A link:../pipeline/[pipeline] is a graph of nodes,
+and link:../cortex/[Cortex] workers execute the individual node tasks that Loom dispatches. Each node
+has a unique *kind* (name) used to reference it in a pipeline definition and to route its work to a
+worker that can run it.
+
+When online, a node writes its result back to Loom over the REST API — a typed component plus a
+`asset_node_result` ledger row; offline, results stay in the worker's local cache. Downstream nodes
+read a dependency's **output keys**.
+
+== Node Catalogue
+
+[options="header",cols="2,2,3"]
+|===
+| Node | Applies to | Purpose
+| link:hash/[Hashing] (`md5`, `sha256`, `sha512`, `chunk-hash`) | Any file | Content hashes for identity and deduplication
+| link:fingerprint/[Fingerprint] (`fingerprint`) | Video | Perceptual video fingerprint for similarity search
+| link:consistency/[Consistency] (`consistency`) | Video, Audio | Detect incomplete / corrupt media
+| link:thumbnail/[Thumbnail] (`thumbnail`) | Video | Contact-sheet preview thumbnails
+| link:facedetect/[Face Detection] (`facedetect`) | Image, Video | Detect faces + embeddings
+| link:facedescription/[Face Description] (`facedescription`) | Image | Describe detected faces with a vision model
+| link:ocr/[OCR] (`ocr`) | Image | Extract text with Tesseract
+| link:tika/[Tika] (`tika`) | Any | Extract format metadata + text with Apache Tika
+| link:whisper/[Speech-to-Text] (`whisper`) | Video, Audio | Transcribe audio with Whisper
+| link:llm/[LLM Enrichment] (`llm`) | Any | Enrich metadata with a language model
+| link:captioning/[Captioning] (`captioning`) | Image | Natural-language image captions
+| link:quality/[Quality] (`quality`) | Image, Video | Resolution / blurriness / bitrate metrics
+| link:scene-detection/[Scene Detection] (`scene-detection`) | Video | Optical-flow scene boundaries
+| link:dedup/[Deduplication] (`sha512-dedup`, fingerprint dedup) | Any / Video | Detect and move duplicates
+| link:filesystem-source/[Filesystem Source] (`filesystem-source`) | — (source) | Enumerate media from disk
+| link:loom/[Loom Sync] (`loom`) | Any | Batch hash results back to Loom
+| link:filters/[Filters] (`filter-*`) | — (routing) | Route items down PASS/REJECT branches
+|===
+
+== Requirements at a Glance
+
+Most nodes are pure CPU. A few need a native library or an external model service:
+
+[options="header",cols="2,3"]
+|===
+| Requirement | Nodes
+| OpenCV / video4j native runtime | `fingerprint`, `thumbnail`, `quality`, `scene-detection`
+| InspireFace native runtime (GPU optional) | `facedetect`
+| Whisper runtime (whisper.cpp; GPU optional) | `whisper`
+| Tesseract (Tess4J) | `ocr`
+| An LLM provider service | `llm`, `facedescription`
+| A vision-language model service | `captioning`
+| CPU only | `md5`/`sha256`/`sha512`/`chunk-hash`, `consistency`, `tika`, `filesystem-source`, `loom`, filters, dedup
+|===
+
+Pin the heavy kinds to dedicated or GPU workers via `CORTEX_NODE_WHITELIST` — see
+link:../cortex/configuration/[Cortex Configuration].
+
+== Authoring Your Own Node
+
+Custom nodes are written in Java (extending `AbstractMediaNode`) or as a Python worker that speaks the
+wire protocol. See link:../cortex/examples/[Cortex Examples].

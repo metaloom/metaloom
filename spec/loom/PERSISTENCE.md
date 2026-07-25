@@ -257,6 +257,9 @@ Migrations live in `loom/db/flyway/src/main/resources/db/migration/`. They are P
 | `V2.48__fix_asset_location_key_and_annotation_cascade` | Drops `asset_location UNIQUE (asset_uuid)` for the real key `(library_uuid, path)`; cascades reaction/comment → annotation |
 | `V2.49__version_pointer_delete_behaviour` | `pipeline.latest_version_uuid` / `skill.active_version_uuid` → `ON DELETE SET NULL` so the version cycle no longer blocks deletes |
 | `V2.50__add_blacklist_name` | Adds the `blacklist.name` column the whole stack already referenced |
+| `V2.52__add_chat_session` | `chat_session` publishable session record + skill pins + context refs |
+| `V2.53__add_agent_memory` | `memory_entry` agent memory bank (scoped markdown notes) + `chat.space_uuid` |
+| `V2.54__add_memory_deny_rule` | `memory_deny_rule` instance-wide denylist of patterns that must never enter memory |
 
 ### Common Migration Patterns
 
@@ -422,6 +425,8 @@ The following entities have full DAO + model + migration + jOOQ table support:
 | Library | `LibraryDao` | `library` | Named library with assets and collections |
 | Collection | `CollectionDao` | `collection` | Asset grouping with parent collection hierarchy |
 | Space | `SpaceDao` | `project` (renamed) | Named space with libraries and collections |
+| MemoryEntry | `MemoryEntryDao` | `memory_entry` | Agent memory bank: scoped markdown notes keyed `(scope, scope_uuid, memory_id)`; `listIndex` projects header columns only, `stats` gives count+bytes for quotas (V2.53) |
+| MemoryDenyRule | `MemoryDenyRuleDao` | `memory_deny_rule` | Instance-wide denylist; `loadEnabled()` feeds the `put_memory` check, ordered by name so rejection is deterministic (V2.54) |
 | Tag | `TagDao` | `tag` | Tags with name, collection, rating, color |
 | Embedding | `EmbeddingDao` | `embedding` | Vector data with provenance, `detection_uuid` FK, `dimensions` (V2.43) |
 | Cluster | `ClusterDao` | `cluster` | Aggregates embeddings (e.g. person identity) |

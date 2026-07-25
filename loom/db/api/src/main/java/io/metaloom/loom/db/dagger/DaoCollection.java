@@ -22,6 +22,7 @@ import io.metaloom.loom.db.model.perm.PermissionDao;
 import io.metaloom.loom.db.model.space.SpaceDao;
 import io.metaloom.loom.db.model.reaction.ReactionDao;
 import io.metaloom.loom.db.model.role.RoleDao;
+import io.metaloom.loom.db.model.memory.MemoryDenyRuleDao;
 import io.metaloom.loom.db.model.memory.MemoryEntryDao;
 import io.metaloom.loom.db.model.skill.SkillDao;
 import io.metaloom.loom.db.model.skill.SkillVersionDao;
@@ -146,6 +147,8 @@ public interface DaoCollection {
 	// Agent Memory
 
 	MemoryEntryDao memoryEntryDao();
+
+	MemoryDenyRuleDao memoryDenyRuleDao();
 
 	// Cortex Instance
 

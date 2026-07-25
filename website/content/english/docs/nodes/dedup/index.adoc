@@ -1,0 +1,35 @@
+---
+title: Deduplication
+---
+
+The deduplication nodes detect duplicate media and move the extra copies aside. Two variants exist:
+one by exact content hash, one by perceptual video fingerprint.
+
+[cols="1,3"]
+|===
+| Kinds | `sha512-dedup` (hash dedup), fingerprint dedup
+| Applies to | Any file (hash) / Video (fingerprint)
+| Inputs | `sha512-dedup` requires an upstream link:../hash/[`sha512`]; fingerprint dedup requires an upstream link:../fingerprint/[`fingerprint`]
+| Output keys | None — the node has side effects (moves duplicate files)
+| Requirements | CPU only. **Storage**: duplicates are moved to a configured folder, so the worker needs write access there.
+| Persists to | `asset_node_result` ledger (the move itself is the side effect)
+|===
+
+NOTE: `sha512-dedup` is the working variant. Fingerprint-based dedup is currently a stub and does not
+yet move files.
+
+== Configuration
+
+`DedupNodeOptions`:
+
+[options="header",cols="1,2"]
+|===
+| Option | Meaning
+| `dupFolder` | Target directory that detected duplicates are moved into
+|===
+
+== Use Cases
+
+* **Ingest cleanup** — collapse byte-identical files as they are scanned from a folder or NAS.
+* **Near-duplicate video pruning** (once fingerprint dedup is implemented) — remove re-encodes of the
+  same footage.

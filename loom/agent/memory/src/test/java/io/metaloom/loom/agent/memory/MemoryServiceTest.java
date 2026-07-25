@@ -27,6 +27,8 @@ import io.metaloom.loom.db.model.chat.ChatDao;
 import io.metaloom.loom.db.model.chatsession.ChatSession;
 import io.metaloom.loom.db.model.chatsession.ChatSessionDao;
 import io.metaloom.loom.db.model.memory.MemoryEntry;
+import io.metaloom.loom.db.model.memory.MemoryDenyRule;
+import io.metaloom.loom.db.model.memory.MemoryDenyRuleDao;
 import io.metaloom.loom.db.model.memory.MemoryEntryDao;
 import io.metaloom.loom.db.model.memory.MemoryEntryDao.MemoryScopeStats;
 import io.metaloom.loom.db.model.user.User;
@@ -46,6 +48,7 @@ public class MemoryServiceTest {
 	private MemoryOptions memoryOptions;
 	private MemoryService service;
 	private MemoryScopeRef userScope;
+	private MemoryDenyRuleDao denyRuleDao;
 
 	@BeforeEach
 	public void setup() {
@@ -68,7 +71,10 @@ public class MemoryServiceTest {
 		LoomOptions options = new LoomOptions().setMemory(memoryOptions);
 
 		SandboxOrchestrator sandbox = mock(SandboxOrchestrator.class);
-		service = new MemoryService(daos, options, mock(MemoryScopeResolver.class), () -> sandbox);
+		denyRuleDao = mock(MemoryDenyRuleDao.class);
+		when(denyRuleDao.loadEnabled()).thenReturn(List.of());
+		when(daos.memoryDenyRuleDao()).thenReturn(denyRuleDao);
+		service = new MemoryService(daos, options, mock(MemoryScopeResolver.class), new MemoryDenylist(daos), () -> sandbox);
 		userScope = new MemoryScopeRef(MemoryScope.USER, USER_UUID, "user");
 
 		when(memoryEntryDao.stats(any(), any())).thenReturn(MemoryScopeStats.EMPTY);
@@ -256,6 +262,77 @@ public class MemoryServiceTest {
 	public void testIndexIsEmptyWithoutScopes() {
 		assertTrue(service.index(List.of(), 10).isEmpty());
 		verify(memoryEntryDao, never()).listIndex(any(), org.mockito.ArgumentMatchers.anyInt());
+	}
+
+	// -- denylist ------------------------------------------------------------
+
+	@Test
+	public void testDenyRuleRejectsTheWriteWithItsOwnMessage() {
+		denyRule("aws-key", "AKIA[0-9A-Z]{16}", "Never store credentials in memory.");
+
+		MemoryException e = assertThrows(MemoryException.class,
+			() -> service.put(ctx(), userScope, "notes.md", "the key is AKIAIOSFODNN7EXAMPLE ok", null));
+
+		// The rule's message is used verbatim, and the matched secret is never echoed back.
+		assertEquals("Never store credentials in memory.", e.getMessage());
+		assertFalse(e.getMessage().contains("AKIAIOSFODNN7EXAMPLE"));
+		verify(memoryEntryDao, never()).store(any());
+	}
+
+	@Test
+	public void testDenyRuleAlsoMatchesTheTitle() {
+		denyRule("aws-key", "AKIA[0-9A-Z]{16}", "Never store credentials in memory.");
+		assertThrows(MemoryException.class,
+			() -> service.put(ctx(), userScope, "notes.md", "harmless body", "AKIAIOSFODNN7EXAMPLE"));
+	}
+
+	@Test
+	public void testOneRuleCanCoverSeveralPhrases() {
+		denyRule("codenames", "(?i)\\b(project bluebird|operation nightfall)\\b", "Do not record confidential codenames.");
+
+		assertThrows(MemoryException.class, () -> service.put(ctx(), userScope, "a.md", "notes about Project Bluebird", null));
+		assertThrows(MemoryException.class, () -> service.put(ctx(), userScope, "b.md", "see OPERATION NIGHTFALL", null));
+		// A near-miss still goes through — the rule is anchored on word boundaries.
+		service.put(ctx(), userScope, "c.md", "bluebirds are nice", null);
+	}
+
+	@Test
+	public void testDisabledRulesAreNotApplied() {
+		// loadEnabled() is what the checker asks for, so a disabled rule simply never arrives.
+		when(denyRuleDao.loadEnabled()).thenReturn(List.of());
+		service.put(ctx(), userScope, "notes.md", "AKIAIOSFODNN7EXAMPLE", null);
+		verify(memoryEntryDao).store(any());
+	}
+
+	@Test
+	public void testDenylistRunsOnTheStrippedBodySoFrontmatterCannotHideAPhrase() {
+		denyRule("aws-key", "AKIA[0-9A-Z]{16}", "Never store credentials in memory.");
+		// The frontmatter is discarded before the check, so a phrase hidden there is not stored either.
+		service.put(ctx(), userScope, "notes.md", "---\nnote: AKIAIOSFODNN7EXAMPLE\n---\n\nclean body", null);
+		verify(memoryEntryDao).store(any());
+	}
+
+	@Test
+	public void testInvalidRulePatternIsSkippedRatherThanBlockingEveryWrite() {
+		denyRule("broken", "([unclosed", "should never be reached");
+		// A broken rule must not wedge the memory bank; it is logged and ignored.
+		service.put(ctx(), userScope, "notes.md", "anything", null);
+		verify(memoryEntryDao).store(any());
+	}
+
+	@Test
+	public void testDenylistLookupFailureDoesNotBlockWrites() {
+		when(denyRuleDao.loadEnabled()).thenThrow(new RuntimeException("db down"));
+		service.put(ctx(), userScope, "notes.md", "anything", null);
+		verify(memoryEntryDao).store(any());
+	}
+
+	private void denyRule(String name, String pattern, String message) {
+		MemoryDenyRule rule = mock(MemoryDenyRule.class);
+		when(rule.getName()).thenReturn(name);
+		when(rule.getPattern()).thenReturn(pattern);
+		when(rule.getMessage()).thenReturn(message);
+		when(denyRuleDao.loadEnabled()).thenReturn(List.of(rule));
 	}
 
 	private MCPCallerContext ctx() {

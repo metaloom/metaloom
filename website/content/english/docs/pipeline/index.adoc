@@ -2,151 +2,121 @@
 title: Pipeline Mechanism
 ---
 
-A *pipeline* is a directed acyclic graph (DAG) of processing nodes that Cortex executes on each media asset.
-Pipelines are defined in Loom (stored in the database) and loaded by Cortex at startup.
+A *pipeline* is a directed acyclic graph (DAG) of processing nodes applied to media assets.
+Pipelines are **authored in the Loom UI**, **stored on Loom** (versioned in the database), and
+**executed by Loom's pipeline engine**, which delegates the individual node tasks to registered
+link:../cortex/[Cortex] workers.
+
+== Execution Model: Loom Owns the Graph
+
+Earlier versions of MetaLoom pushed a whole pipeline definition to Cortex and let Cortex execute the
+graph. That is no longer the case. Today:
+
+. **Loom owns the DAG.** When a run starts, Loom parses the stored definition into an executable graph
+  and drives it with its own pipeline run engine.
+. **Loom selects a worker.** It picks a registered, online Cortex instance whose advertised node kinds
+  accept the pipeline's *source* kind, and sends it a **source task** to enumerate media items.
+. **Loom dispatches node tasks.** For each discovered item, Loom walks the DAG and dispatches one
+  **node task** per node to a suitable worker; affinity-grouped work goes out as **segment tasks**.
+  Cortex only ever sees one node (or segment) at a time and replies with a result.
+. **Loom tracks the run.** Run state (status, counters, durations) is persisted on Loom, so a run
+  survives the process that started it and is reported back to the UI live.
+
+```
+  Loom UI ──POST /run──▶ Loom pipeline engine ──SOURCE_TASK──▶ Cortex worker
+                              │  owns the DAG      ◀─SOURCE_ITEMS─┘
+                              ├──NODE_TASK────────▶ Cortex worker ─NODE_TASK_RESULT─▶
+                              └──SEGMENT_TASK─────▶ Cortex worker ─SEGMENT_TASK_RESULT─▶
+```
+
+This is what makes processing **horizontally scalable**: add Cortex workers to add capacity, and pin
+heavy node kinds to specific hardware — Loom routes each task to a worker that accepts its kind.
 
 == Pipeline Structure
 
-A pipeline has the following properties:
+A pipeline version has the following properties:
 
 [options="header",cols="1,1,3"]
 |===
 | Field | Type | Description
-| `name` | String | Unique identifier for the pipeline (lowercase, alphanumeric, hyphens)
-| `description` | String | Human-readable description
-| `priority` | int | When multiple pipelines match an asset, higher priority wins
-| `enabled` | boolean | Whether this pipeline is active
-| `dryRun` | boolean | When `true`, nodes log their actions but do not persist results
-| `sourceNode` | PipelineNode | The single entry-point node that yields media
-| `nodes` | List<PipelineNode> | All nodes, in topological order
+| `name` | String | Human-readable pipeline name.
+| `description` | String | Human-readable description.
+| `priority` | int | When multiple pipelines are candidates, higher priority wins.
+| `enabled` | boolean | Whether this pipeline is active.
+| `dryRun` | boolean | When `true`, nodes run but do not persist results.
+| `definition` | JSON | The node graph — `nodes[]` and `edges[]`.
 |===
+
+Pipelines are **versioned**: every save creates a new immutable `pipeline_version`; older versions can
+be viewed and restored. See link:../loom/rest-api/[REST API] for the endpoints.
 
 == Node Graph
 
-Each node in the graph has:
+The definition is a graph of `nodes[]` connected by `edges[]`:
 
-* A unique `id` (e.g. `sha256`, `thumbnail`)
-* Zero or more *upstream* connections it reads outputs from
-* Zero or more *downstream* connections it writes to
-* An optional *filter* that controls which assets reach this node (e.g. video-only, image-only)
-
-=== Connections
-
-Nodes are wired via `connectTo()`:
-
-[source,java]
+[source,json]
 ----
-sourceNode.connectTo(sha256Node);
-sha256Node.connectTo(thumbnailNode, FilterBranch.PASS);
-sha256Node.connectTo(dedupNode,     FilterBranch.PASS);
-----
-
-Connections carry a branch label (`PASS` / `FAIL`) so a filter node can route assets differently depending on the filter result.
-
-=== Topological Ordering
-
-`DefaultPipeline` discovers all nodes reachable from the source node via a BFS walk and sorts them in topological order.
-This ensures every node's dependencies are processed before it runs.
-
-== Node Lifecycle
-
-For each media asset, every node in the pipeline goes through this sequence:
-
-[source]
-----
-1. isEnabled()   → skip if node is turned off in options
-2. existsResult() → skip if result is already cached (meta-path or Loom)
-3. isProcessable() → skip if media type doesn't match (e.g. video-only node on an image)
-4. compute()     → run the actual analysis
+{
+  "nodes": [
+    { "id": "pn1", "type": "filesystem-source", "name": "File Source" },
+    { "id": "pn2", "type": "filter-mimetype",   "name": "MIME Filter" },
+    { "id": "pn3", "type": "sha256",            "name": "SHA-256 Hash" }
+  ],
+  "edges": [
+    { "id": "pe1", "source": "pn1", "target": "pn2" },
+    { "id": "pe2", "source": "pn2", "target": "pn3" }
+  ]
+}
 ----
 
-If any step returns `false`, the node is skipped and the pipeline moves to the next node.
+* Each node carries a graph `id` and a `type` — the **node kind** that Loom uses to route the task to
+  a worker that can run it.
+* A pipeline has exactly one **source** node (e.g. `filesystem-source`) that enumerates media.
+* **Filter** nodes (e.g. `filter-mimetype`) route items down `PASS` / `REJECT` branches so, for
+  example, a video-only branch never receives images.
+* Node kinds map to the built-in link:../nodes/[Nodes] (or your own custom nodes).
 
 == Node Outputs
 
-Nodes publish typed key-value outputs that downstream nodes can consume:
+A node returns a result carrying typed key-value **outputs** (e.g. `sha256`, `transcript`,
+`embedding`). Downstream nodes read a dependency's outputs, so a hash node upstream lets later nodes
+resolve the asset and content-address their work. Node results with sync enabled are written back to
+Loom as asset metadata; see link:../cortex/examples/[Cortex Examples] for the persistence path.
 
-[source,java]
+== Running a Pipeline
+
+Trigger a run over REST (or from the UI's Run button):
+
+[source,text]
 ----
-// Publishing an output
-ctx.output(OUTPUT_FILE_SIZE, fileSize);
-ctx.output(OUTPUT_SHA256, hashValue);
-
-// Reading an upstream output (from a node named "sha256")
-String hash = ctx.upstreamOutput("sha256", "sha256");
+POST /api/v1/pipelines/:uuid/run     # body: { mediaUuids, pathGlobs, dryRun }
+GET  /api/v1/pipelines/:uuid/runs    # run history with status + counters
 ----
 
-Output keys are defined as `NodeOutputKey<T>` constants on each node class.
-
-== Result Origins
-
-Each node result carries an origin that explains how the result was obtained:
-
-[options="header",cols="1,3"]
-|===
-| Origin | Meaning
-| `COMPUTED` | The node performed the analysis now
-| `REMOTE` | The result was already stored in Loom and loaded from there
-| `CACHED` | The result was read from the local meta-path cache
-|===
-
-== Pipeline Executor
-
-`ReactivePipelineExecutor` drives pipeline execution using RxJava.
-It:
-
-. Streams media assets from the source node.
-. For each asset, runs the topologically ordered nodes in sequence.
-. Collects `NodeResult` objects and emits them as `PipelineResult` events.
-. Publishes events to the `PipelineEventBus`, which forwards them to Loom over WebSocket.
-
-== Defining a Pipeline in Code
-
-[source,java]
-----
-// Build nodes
-LoomSourceNode source    = new LoomSourceNode(loomClient);
-SHA256Node    sha256    = new SHA256Node(loomClient, options, hashOptions);
-ThumbnailNode thumbnail = new ThumbnailNode(loomClient, options, thumbOptions);
-LoomNode      loom      = new LoomNode(loomClient, options, loomNodeOptions);
-
-// Wire the graph
-source.connectTo(sha256);
-sha256.connectTo(thumbnail);
-thumbnail.connectTo(loom);
-
-// Build the pipeline
-Pipeline pipeline = DefaultPipeline.builder("ingest")
-    .description("Default ingest pipeline")
-    .priority(10)
-    .source(source)
-    .build();
-----
+The response reports whether the run was dispatched, the assigned worker, and the `runUuid`. If no
+suitable online worker exists the run is rejected (`503`) rather than silently queued.
 
 == Dry-Run Mode
 
-When `dryRun = true`, nodes execute their `compute()` logic and log what they *would* do,
-but they do not write to the local cache, xattr, or Loom.
-This is useful for testing pipeline definitions against real media without side effects.
+When `dryRun = true`, nodes execute but do not persist results — useful for validating a pipeline
+against real media without side effects. It is a property of the pipeline definition (or the run
+request).
 
-[source,bash]
+== Live Progress (WebSocket)
+
+While a run executes, the engine emits structured tracking events which the UI consumes live:
+
+[source,text]
 ----
-# Dry-run mode is set via the pipeline definition in Loom (dryRun: true)
-# or by passing a flag during process run (TBD in CLI)
+ws://<loom-host>:8092/api/v1/pipelines/events/ws     # optional ?pipeline=<name> filter
 ----
+
+Each event identifies the pipeline, node, media item, status (`STARTED`, `COMPLETED`, `SKIPPED`,
+`FAILED`) and duration. The Loom UI subscribes to this stream to display live processing progress and
+per-node statistics.
 
 == Custom Nodes
 
-Any class extending `AbstractMediaNode<YourOptions>` can be added to a pipeline.
-See link:../cortex/examples[Cortex Examples] for a complete working example and Dagger wiring.
-
-== Pipeline Events (WebSocket)
-
-As the executor processes assets, it emits structured events to the Loom WebSocket endpoint:
-
-----
-ws://<loom-host>:8092/api/v1/pipelines/events/ws
-----
-
-Each event identifies the pipeline, node, asset UUID, status (`STARTED`, `COMPLETED`, `SKIPPED`, `FAILED`), and duration.
-The Loom UI subscribes to this stream to display live processing progress.
+Any node kind can be added by a custom Cortex worker that advertises it. See
+link:../cortex/examples/[Cortex Examples] for authoring a node in Java, assembling a custom daemon, or
+implementing a worker in Python.

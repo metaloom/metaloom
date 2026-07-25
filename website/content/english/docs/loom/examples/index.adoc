@@ -63,7 +63,8 @@ public class IngestExample {
 }
 ----
 
-== Cortex Custom CLI (from examples/)
+== Custom Cortex Workers (from examples/)
 
-The `cortex-custom-cli` example demonstrates how to build a Cortex CLI with a custom node added to the processing pipeline.
-See the link:../../cortex/examples[Cortex Examples] page for details.
+The repository also ships examples for extending the processing side: a custom node and custom
+daemon in Java (`cortex-custom-node`, `cortex-custom`) and a custom worker in Python
+(`cortex-python`). See the link:../../cortex/examples[Cortex Examples] page for details.

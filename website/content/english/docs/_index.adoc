@@ -19,7 +19,8 @@ This page is the quickest way to orient yourself in the platform and jump to the
 			</div>
 			<div class="docs-card-body">
 				<a href="getting-started/" class="docs-card-link">Demo Container</a>
-				<a href="getting-started/#loom-ui" class="docs-card-link">Loom UI</a>
+				<a href="deployment/" class="docs-card-link">Container Images</a>
+				<a href="loom/chat/" class="docs-card-link">Chat &amp; AI Agent</a>
 				<a href="getting-started/#loom-app" class="docs-card-link">Loom App</a>
 			</div>
 		</div>
@@ -35,7 +36,8 @@ This page is the quickest way to orient yourself in the platform and jump to the
 				<a href="loom/java-client/" class="docs-card-link">Java Client</a>
 				<a href="loom/authentication/" class="docs-card-link">Authentication</a>
 				<a href="loom/configuration/" class="docs-card-link">Configuration</a>
-				<a href="loom/artifacts/" class="docs-card-link">Artifacts</a>
+				<a href="loom/chat/" class="docs-card-link">Chat &amp; AI Agent</a>
+				<a href="loom/chat/#coding-sandbox" class="docs-card-link">Coding Sandbox</a>
 				<a href="loom/features/" class="docs-card-link">Features</a>
 				<a href="loom/examples/" class="docs-card-link">Examples</a>
 			</div>
@@ -48,12 +50,28 @@ This page is the quickest way to orient yourself in the platform and jump to the
 				<p>The media processing engine. Use these guides when you need node behavior, runtime configuration, deployment options or an overview of supported processing capabilities.</p>
 			</div>
 			<div class="docs-card-body">
-				<a href="cortex/nodes/" class="docs-card-link">Pipeline Nodes</a>
+				<a href="nodes/" class="docs-card-link">Pipeline Nodes</a>
 				<a href="cortex/features/" class="docs-card-link">Features</a>
 				<a href="cortex/configuration/" class="docs-card-link">Configuration</a>
 				<a href="cortex/monitoring/" class="docs-card-link">Monitoring API</a>
-				<a href="cortex/artifacts/" class="docs-card-link">Artifacts</a>
-				<a href="cortex/examples/" class="docs-card-link">Examples</a>
+				<a href="cortex/containers/" class="docs-card-link">Containers</a>
+				<a href="cortex/examples/" class="docs-card-link">Custom Nodes (Java/Python)</a>
+			</div>
+		</div>
+	</div>
+	<div class="col-lg-6 mb-4">
+		<div class="docs-card h-100">
+			<div class="docs-card-header">
+				<h2><a href="nodes/">Nodes</a></h2>
+				<p>The built-in Cortex processing nodes — the atomic steps a pipeline is built from. Each node page covers what it does, the media it applies to, its inputs and output keys, requirements and configuration.</p>
+			</div>
+			<div class="docs-card-body">
+				<a href="nodes/hash/" class="docs-card-link">Hashing</a>
+				<a href="nodes/facedetect/" class="docs-card-link">Face Detection</a>
+				<a href="nodes/whisper/" class="docs-card-link">Speech-to-Text</a>
+				<a href="nodes/captioning/" class="docs-card-link">Captioning</a>
+				<a href="nodes/thumbnail/" class="docs-card-link">Thumbnails</a>
+				<a href="nodes/filters/" class="docs-card-link">Filters</a>
 			</div>
 		</div>
 	</div>
@@ -85,7 +103,7 @@ The MetaLoom platform revolves around a small set of concepts that appear throug
 	<div class="col-md-6 col-xl-4 mb-4">
 		<div class="note p-4 h-100">
 			<h3>Pipeline</h3>
-			<p>A directed graph of processing nodes. Pipelines describe how Cortex evaluates assets and how results flow between nodes.</p>
+			<p>A directed graph of processing nodes, authored in the UI and stored on Loom. Loom's engine runs the graph and delegates node tasks to Cortex workers.</p>
 			<p><a href="pipeline/">See pipeline mechanism</a></p>
 		</div>
 	</div>
@@ -93,13 +111,13 @@ The MetaLoom platform revolves around a small set of concepts that appear throug
 		<div class="note p-4 h-100">
 			<h3>Node</h3>
 			<p>A single processing step such as hashing, OCR, thumbnail generation, face detection, captioning or synchronization back to Loom.</p>
-			<p><a href="cortex/nodes/">See pipeline nodes</a></p>
+			<p><a href="nodes/">See pipeline nodes</a></p>
 		</div>
 	</div>
 	<div class="col-md-6 col-xl-4 mb-4">
 		<div class="note p-4 h-100">
 			<h3>Online vs Offline</h3>
-			<p>Cortex can run standalone against local files or connected to Loom, where it loads pipeline definitions and persists extracted results remotely.</p>
+			<p>Cortex can run standalone against local files, or connected to Loom as a worker daemon that registers, receives node tasks, and persists results remotely.</p>
 			<p><a href="interaction/">See interaction model</a></p>
 		</div>
 	</div>
@@ -113,8 +131,8 @@ The MetaLoom platform revolves around a small set of concepts that appear throug
 	<div class="col-md-6 col-xl-4 mb-4">
 		<div class="note p-4 h-100">
 			<h3>Deployment</h3>
-			<p>Both systems ship as JVM artifacts and container images, with Kubernetes deployment paths for server and scheduled batch processing setups.</p>
-			<p><a href="loom/artifacts/">Loom artifacts</a> · <a href="cortex/artifacts/">Cortex artifacts</a></p>
+			<p>Both systems ship as JVM artifacts and container images (<code>loom-server</code>, <code>loom-demo</code>, <code>cortex-server</code>, <code>loom-session-runner</code>), with Kubernetes deployment paths.</p>
+			<p><a href="deployment/">Container images</a> · <a href="loom/artifacts/">Loom artifacts</a> · <a href="cortex/artifacts/">Cortex artifacts</a></p>
 		</div>
 	</div>
 </div>
@@ -138,7 +156,7 @@ Choose the documentation track that matches your task:
 
 | Understand how media gets processed
 | link:interaction/[Loom and Cortex Interaction]
-| link:pipeline/[Pipeline Mechanism], link:cortex/nodes/[Pipeline Nodes]
+| link:pipeline/[Pipeline Mechanism], link:nodes/[Nodes]
 
 | Deploy or operate the system
 | link:loom/artifacts/[Loom Artifacts], link:cortex/artifacts/[Cortex Artifacts]
@@ -147,6 +165,10 @@ Choose the documentation track that matches your task:
 | Learn the data model and feature surface
 | link:loom/features/[Loom Features]
 | link:cortex/features/[Cortex Features]
+
+| Use or deploy the AI assistant
+| link:loom/chat/[Chat & AI Agent]
+| link:loom/chat/#coding-sandbox[Coding Sandbox]
 |===
 
 == Architecture View

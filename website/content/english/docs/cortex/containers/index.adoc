@@ -2,31 +2,27 @@
 title: Containers
 ---
 
+Cortex is distributed as the `metaloom/cortex-server` image. It runs as a **daemon**: it connects to a
+Loom server, registers, and serves node tasks. See link:../../deployment/[Container Images] for the
+image overview.
+
 == Running with Docker
-
-[source,bash]
-----
-docker run --rm \
-  -e LOOM_HOST=loom.internal \
-  -e LOOM_PORT=7733 \
-  -v /media/assets:/data \
-  metaloom/cortex:latest \
-  process run /data
-----
-
-== Server Mode
 
 [source,bash]
 ----
 docker run -d \
   --name cortex \
+  --network dev \
   -p 8093:8093 \
-  -e LOOM_HOST=loom.internal \
-  -e LOOM_PORT=7733 \
-  -v cortex-meta:/root/.cache/metaloom/cortex/meta \
-  metaloom/cortex:latest \
-  server start
+  -e LOOM_HOST=loom \
+  -e LOOM_PORT=8092 \
+  -e LOOM_TOKEN=<jwt> \
+  -v /media/assets:/data \
+  metaloom/cortex-server:latest
 ----
+
+The media at `/data` must be the **same** paths Loom hands out — Loom sends a *reference* (a path),
+never the bytes, so the worker needs to see the shared media mount itself.
 
 == Docker Compose with Loom
 
@@ -42,7 +38,7 @@ services:
       POSTGRES_PASSWORD: secret
 
   loom:
-    image: metaloom/loom:latest
+    image: metaloom/loom-server:latest
     depends_on: [postgres]
     ports:
       - "8092:8092"
@@ -51,51 +47,58 @@ services:
       LOOM_DB_PASSWORD: secret
 
   cortex:
-    image: metaloom/cortex:latest
+    image: metaloom/cortex-server:latest
     depends_on: [loom]
-    command: server start
     environment:
       LOOM_HOST: loom
-      LOOM_PORT: 7733
+      LOOM_PORT: "8092"
     volumes:
       - /media/assets:/data
-      - cortex-meta:/root/.cache/metaloom/cortex/meta
-
-volumes:
-  cortex-meta:
 ----
 
-== Kubernetes CronJob
+== Kubernetes Deployment
 
-Cortex can run as a Kubernetes `CronJob` for scheduled batch processing:
+Because Cortex is a long-running worker (not a batch job), deploy it as a `Deployment` and scale the
+replica count to add processing capacity. Point each replica at the Loom service and wire the
+monitoring port to probes:
 
 [source,yaml]
 ----
-apiVersion: batch/v1
-kind: CronJob
+apiVersion: apps/v1
+kind: Deployment
 metadata:
-  name: cortex-ingest
+  name: cortex
 spec:
-  schedule: "*/15 * * * *"
-  jobTemplate:
+  replicas: 3
+  selector:
+    matchLabels: { app: cortex }
+  template:
+    metadata:
+      labels: { app: cortex }
     spec:
-      template:
-        spec:
-          containers:
-          - name: cortex
-            image: metaloom/cortex:latest
-            args: ["process", "run", "/data"]
-            env:
+      containers:
+        - name: cortex
+          image: metaloom/cortex-server:latest
+          env:
             - name: LOOM_HOST
               value: loom.svc.cluster.local
             - name: LOOM_PORT
-              value: "7733"
-            volumeMounts:
+              value: "8092"
+          ports:
+            - containerPort: 8093
+          livenessProbe:
+            httpGet: { path: /api/health, port: 8093 }
+          readinessProbe:
+            httpGet: { path: /api/ready, port: 8093 }
+          volumeMounts:
             - name: media
               mountPath: /data
-          volumes:
-          - name: media
-            persistentVolumeClaim:
-              claimName: media-pvc
-          restartPolicy: OnFailure
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: media-pvc
 ----
+
+TIP: To pin heavy node kinds (e.g. `facedetect`, `whisper`) to GPU nodes, run a second Deployment that
+advertises only those kinds and schedule it onto the GPU node pool. Loom routes each node task to a
+worker that accepts its kind. See link:../configuration/[Configuration].

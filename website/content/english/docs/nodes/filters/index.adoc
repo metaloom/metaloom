@@ -1,0 +1,41 @@
+---
+title: Filters
+---
+
+Filter nodes are **routing** nodes. Instead of producing metadata, a filter evaluates each item and
+splits the pipeline into a **PASS** and a **REJECT** branch, so downstream nodes only run on the items
+that match. They are a pipeline-only construct (they have no standalone Cortex node).
+
+[cols="1,3"]
+|===
+| Kinds | `filter-mimetype`, `filter-date`, `filter-size`, `filter-duplicate`, `filter-blacklist`, `filter-quality`, `filter-threshold`, `filter-asset-attribute`
+| Applies to | — (routing; sits between other nodes)
+| Inputs | The item, plus upstream outputs the filter evaluates (e.g. a quality filter reads the link:../quality/[quality] metrics)
+| Output keys | `filter_passed` (Boolean), `filter_reason` (String)
+| Requirements | CPU only.
+| Persists to | n/a (routing decision only)
+|===
+
+Downstream nodes declare a *conditional dependency* on the filter's `PASS` or `REJECT` branch; a node
+whose required branch does not match is skipped.
+
+== Available Filters
+
+[options="header",cols="1,3"]
+|===
+| Filter | Passes when…
+| `filter-mimetype` | The item's MIME type matches the configured pattern(s) — e.g. video only
+| `filter-date` | The item falls inside a configured date range
+| `filter-size` | The file size is within configured bounds
+| `filter-duplicate` | The item is (or is not) a duplicate
+| `filter-blacklist` | The item's path is not blacklisted
+| `filter-quality` | Upstream quality metrics meet configured thresholds
+| `filter-threshold` | A generic numeric output crosses a configured threshold
+| `filter-asset-attribute` | A Loom asset attribute matches the configured condition
+|===
+
+== Use Cases
+
+* **Type routing** — send only videos to the fingerprint/thumbnail branch and only images to OCR.
+* **Skip the unwanted** — drop blacklisted, duplicate, or low-quality items before expensive nodes.
+* **Windowed processing** — only process assets within a date range.

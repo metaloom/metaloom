@@ -52,6 +52,8 @@ public class MemoryService {
 
 	private final MemoryScopeResolver scopeResolver;
 
+	private final MemoryDenylist denylist;
+
 	/**
 	 * Lazily resolved on purpose: the orchestrator's provisioning listeners include the memory materializer, which needs this service — a direct injection
 	 * would be a construction cycle. Memory only reaches for the orchestrator after a successful write, long after construction.
@@ -59,10 +61,12 @@ public class MemoryService {
 	private final Provider<SandboxOrchestrator> sandbox;
 
 	@Inject
-	public MemoryService(DaoCollection daos, LoomOptions options, MemoryScopeResolver scopeResolver, Provider<SandboxOrchestrator> sandbox) {
+	public MemoryService(DaoCollection daos, LoomOptions options, MemoryScopeResolver scopeResolver, MemoryDenylist denylist,
+		Provider<SandboxOrchestrator> sandbox) {
 		this.daos = daos;
 		this.options = options;
 		this.scopeResolver = scopeResolver;
+		this.denylist = denylist;
 		this.sandbox = sandbox;
 	}
 
@@ -139,11 +143,15 @@ public class MemoryService {
 				+ " bytes. Split it or keep only the durable facts.");
 		}
 
+		String resolvedTitle = MemoryHeader.sanitizeTitle(title);
+		// The denylist runs on what would actually be stored — after frontmatter stripping and title
+		// sanitizing — so a rule cannot be evaded by hiding the phrase in a header the agent supplied.
+		denylist.check(resolvedTitle, body);
+
 		MemoryEntryDao dao = dao();
 		MemoryEntry existing = dao.loadByPath(scope.scope(), scope.scopeUuid(), id);
 		checkQuota(scope, existing, bytes.length);
 
-		String resolvedTitle = MemoryHeader.sanitizeTitle(title);
 		if (resolvedTitle == null) {
 			resolvedTitle = existing != null ? existing.getTitle() : MemoryId.defaultTitle(id);
 		}

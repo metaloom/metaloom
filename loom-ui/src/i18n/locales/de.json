@@ -486,7 +486,8 @@
    "groups": "Gruppen",
    "permissions": "Berechtigungen",
    "apiKeys": "API-Schlüssel",
-   "blacklist": "Sperrliste"
+   "blacklist": "Sperrliste",
+   "memoryDenylist": "Gedächtnis-Sperrliste"
   },
   "spaces": {
    "title": "Spaces",
@@ -637,6 +638,28 @@
     "expiry": "Ablaufdatum (optional)"
    },
    "defaultReason": "Manueller Eintrag"
+  },
+  "memoryDenylist": {
+   "title": "Gedächtnis-Sperrliste",
+   "subtitle": "Muster, die der Chat-Agent niemals in seinem Gedächtnis speichern darf. Ein Treffer lehnt den Schreibvorgang mit der Meldung der Regel ab.",
+   "addRule": "Regel hinzufügen",
+   "search": "Regeln durchsuchen",
+   "empty": "Keine Sperrregeln konfiguriert.",
+   "table": {
+    "name": "Name",
+    "pattern": "Muster",
+    "message": "Ablehnungsmeldung",
+    "enabled": "Aktiv"
+   },
+   "dialog": {
+    "add": "Sperrregel hinzufügen",
+    "edit": "Sperrregel bearbeiten",
+    "name": "Name",
+    "pattern": "Muster (Regex)",
+    "patternHelp": "Java-Regex. Mehrere Begriffe lassen sich per Alternation in einer Regel abdecken, z. B. (?i)\\b(alpha|beta)\\b",
+    "message": "Ablehnungsmeldung",
+    "messageHelp": "Wird dem Agenten bei einer Ablehnung angezeigt. Erkläre die Alternative; wiederhole niemals den gefundenen Text."
+   }
   }
  },
  "pipeline": {

@@ -25,7 +25,9 @@ Default port is `8092` (overridable via `LOOM_SERVER_REST_PORT`).
 
 == Interactive API (Swagger UI)
 
-A live Swagger UI is embedded in the link:/docs[Documentation] landing page and points to the OpenAPI spec at `/api/v1/openapi.json`.
+A live Swagger UI is embedded in the link:/docs[Documentation] landing page and points to the OpenAPI
+spec at `/api/v1/openapi.json`. The bundled spec is generated from the server's endpoint registry; see
+the note on regenerating it in the website build documentation (`spec/website/WEBSITE.md`).
 
 == Endpoint Reference
 
@@ -63,7 +65,14 @@ A live Swagger UI is embedded in the link:/docs[Documentation] landing page and 
 | POST   | `/api/v1/assets/:uuid/binary` | Upload binary data
 | GET    | `/api/v1/assets/:uuid/binary` | Download binary data
 | DELETE | `/api/v1/assets/:uuid/binary` | Delete binary data
+| POST   | `/api/v1/assets/:uuid/json-comps` | Upsert a generic JSON component (schema-agnostic node result sink)
+| GET    | `/api/v1/assets/:uuid/json-comps` | List an asset's JSON components
+| GET    | `/api/v1/assets/:uuid/components` | List typed asset components
+| POST   | `/api/v1/assets/:uuid/node-results` | Record a node-result ledger row (asset, nodeKind, nodeId)
 |===
+
+TIP: `json-comps` + `node-results` is the lightweight persistence path used by Cortex nodes. See
+link:../../cortex/examples/[Cortex Examples].
 
 === Users
 
@@ -115,15 +124,61 @@ A live Swagger UI is embedded in the link:/docs[Documentation] landing page and 
 
 === Pipelines
 
+Pipelines are versioned: each update creates a new immutable version. Runs are executed by Loom's
+engine and delegated to registered Cortex workers — see link:../../pipeline/[Pipeline Mechanism].
+
 [options="header",cols="1,3,3"]
 |===
 | Method | Path | Description
-| POST   | `/api/v1/pipelines` | Create pipeline definition
+| POST   | `/api/v1/pipelines` | Create pipeline (writes version 1)
 | GET    | `/api/v1/pipelines` | List pipelines
-| GET    | `/api/v1/pipelines/:uuid` | Load pipeline
-| POST   | `/api/v1/pipelines/:uuid` | Update pipeline
+| GET    | `/api/v1/pipelines/:uuid` | Load pipeline (latest version)
+| POST   | `/api/v1/pipelines/:uuid` | Update pipeline (creates a new version)
 | DELETE | `/api/v1/pipelines/:uuid` | Delete pipeline
-| GET    | `/api/v1/pipelines/events/ws` | WebSocket: live pipeline events
+| POST   | `/api/v1/pipelines/:uuid/run` | Start a run (body: `mediaUuids`, `pathGlobs`, `dryRun`)
+| GET    | `/api/v1/pipelines/:uuid/runs` | List run history with status + counters
+| GET    | `/api/v1/pipelines/:uuid/versions` | List versions
+| GET    | `/api/v1/pipelines/:uuid/versions/:version` | Load a specific version
+| POST   | `/api/v1/pipelines/:uuid/versions/:version/restore` | Restore a version as a new version
+| GET    | `/api/v1/pipelines/events/ws` | WebSocket: live pipeline run events
+|===
+
+=== Processors (Cortex workers)
+
+[options="header",cols="1,3,3"]
+|===
+| Method | Path | Description
+| GET    | `/api/v1/processors` | List registered Cortex workers and their state
+| GET    | `/api/v1/processors/:uuid` | Load one worker (capabilities, node-kind restriction)
+| GET    | `/api/v1/processors/ws` | WebSocket: the control channel Cortex workers connect to
+|===
+
+=== AI Agent — Chats
+
+[options="header",cols="1,3,3"]
+|===
+| Method | Path | Description
+| POST   | `/api/v1/chats` | Create a chat
+| GET    | `/api/v1/chats` | List chats
+| GET/POST/DELETE | `/api/v1/chats/:uuid` | Load / update / delete a chat
+| POST   | `/api/v1/chats/:uuid/stream` | Send a message; receive the agent run as an SSE stream
+| DELETE | `/api/v1/chats/:uuid/stream` | Cancel the active run
+|===
+
+See link:../chat/[Chat & AI Agent] for the streaming event protocol.
+
+=== AI Agent — Sessions, Skills, Memory
+
+[options="header",cols="1,3,3"]
+|===
+| Method | Path | Description
+| CRUD   | `/api/v1/chat/sessions` | Publishable snapshots of a chat's working state
+| CRUD   | `/api/v1/skills` | User-owned skill instruction packages
+| GET    | `/api/v1/skills/library` | Browse published skills
+| POST   | `/api/v1/skills/:uuid/install` | Install (copy) a published skill
+| GET    | `/api/v1/memory/scopes` | List the caller's memory scopes with usage + quota
+| GET    | `/api/v1/memory` | List notes of a scope
+| GET/POST/PUT/DELETE | `/api/v1/memory/entry` | Read / create / upsert / delete a memory note
 |===
 
 === Libraries
@@ -152,8 +207,10 @@ A live Swagger UI is embedded in the link:/docs[Documentation] landing page and 
 
 === Further Endpoints
 
-Additional endpoints exist for: `attachments`, `webhooks`, `tasks`, `comments`, `embeddings`, `spaces`, `annotations`, `asset-pools`, `asset-components`, `asset-binaries`, `tokens` (API keys), and `node-descriptors`.
-All follow the same CRUD pattern under `/api/v1/<resource>`.
+Additional endpoints exist for: `attachments`, `webhooks`, `tasks`, `comments`, `reactions`,
+`embeddings`, `spaces`, `annotations`, `persons`, `clusters`, `blacklists`, `pools` (asset pools),
+`tokens` (API keys), `me`, `health`, and the pipeline node metadata under `pipeline/node-descriptors`
+and `pipeline/content-types`. Most follow the same CRUD pattern under `/api/v1/<resource>`.
 
 == Error Responses
 

@@ -68,21 +68,8 @@ readinessProbe:
 
 == Changing the Port
 
-Via CLI:
+Set the monitoring port via environment variable:
 
 ----
-cortex server start --monitoring-port 9090
-----
-
-Via environment variable:
-
-----
-CORTEX_MONITORING_PORT=9090 cortex server start
-----
-
-Via YAML configuration (if applicable to the deployment):
-
-[source,yaml]
-----
-monitoringPort: 9090
+CORTEX_MONITORING_PORT=9090
 ----

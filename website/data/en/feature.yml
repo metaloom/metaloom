@@ -3,106 +3,106 @@ feature:
   enable : true
   image : images/extra/solen-feyissa-ATlYEZxGmZA-unsplash.jpg
   #image_webp : images/about/about-business-man.webp
-  title : Planned features
-  content : "This list contains some of the key features which are planned for Loom."
-  feature_item : 
+  title : Features
+  content : "A selection of the key features of the MetaLoom platform. Items marked (planned) are on the roadmap; everything else is implemented."
+  feature_item :
       # Icon: https://themify.me/themify-icons
     - title : Developer Centric
       icon : ti-user
-      content : The whole architecture of loom has a developer centric design which makes it easy to adapt it to your needs.
+      content : The whole architecture of Loom has a developer centric design which makes it easy to adapt it to your needs.
 
-    - title : REST API (planned)
+    - title : REST API
       icon : ti-settings
-      content : The loom server provides you with a powerful REST API which can be used to manage all resources.
+      content : The Loom server provides a powerful REST API which can be used to manage all resources, including a Java client and a generated OpenAPI specification.
+
+    - title : Chat & AI Agent
+      icon : ti-comments
+      content : A built-in conversational assistant backed by a server-side agentic loop. It answers questions about your assets in natural language, with per-chat Skills, a persistent Memory bank, publishable Sessions and an optional isolated coding sandbox.
 
     - title : GraphQL (planned)
       icon : ti-settings
       content : In addition to REST the server also provides a GraphQL API which allows you to fetch nested data in one step.
 
-    - title : ACL (planned)
+    - title : ACL
       icon : ti-credit-card
-      content : Loom comes with a powerful permission system. Permissions can be granted on a object level.
+      content : Loom comes with a powerful permission system. Permissions can be granted on an object level via users, groups and roles.
 
-    - title : SSO (planned)
+    - title : SSO
       icon : ti-key
-      content : SSO IAM providers such as RedHat Keycloak, Auth0, Okta will be natively supported. No need for complicated plugins. 
+      content : SSO IAM providers such as RedHat Keycloak, Auth0 and Okta are natively supported. No need for complicated plugins.
 
-    - title : Asset Store (planned)
+    - title : Asset Store
       icon : ti-files
-      content : Existing assets can be referenced from disk or S3. Alternatively files can be uploaded and stored locally or in a configured S3 bucket.
+      content : Existing assets can be referenced from disk. Alternatively files can be uploaded and stored locally (S3 backend planned).
 
-    - title : Media fingerprinting (planned)
+    - title : Media fingerprinting
       icon : ti-image
-      content : An extension can be attached which allows the generation of media fingerprints. These fingerprints can be used for asset blacklisting and similarly search using nearest neighbor search.
+      content : A perceptual media fingerprint can be generated for video content. These fingerprints can be used for asset blacklisting and similarity search using nearest neighbor search.
 
     - title : Image manipulation (planned)
       icon : ti-image
       content : Images can be resized and cropped. The focalpoint can be set on images in order to help generation of cropped images for responsive designs.
 
-    - title : Video thumbnail generation (planned)
+    - title : Video thumbnail generation
       icon : ti-video-clapper
-      content : Thumbnails can be automatically generated from video content.
+      content : Contact-sheet thumbnails are automatically generated from video content by the Cortex thumbnail node.
 
-    - title : Search (planned)
+    - title : Search
       icon : ti-search
-      content : The stored metadata can be indexed using Elasticsearch.
+      content : Stored metadata can be indexed for full-text and vector search (Elasticsearch, Lucene and Qdrant integrations).
 
-    - title : Tagging (planned)
+    - title : Tagging
       icon : ti-tag
-      content : Loom comes with a system which allows you to tag assets, namespaces and contents.
+      content : Loom comes with a system which allows you to tag assets, collections and content.
 
-    - title : Metadata (planned)
+    - title : Metadata
       icon : ti-layers-alt
-      content : Sometimes data can't be structured using the provided models. Loom thus provides you with options to add custom metadata to any element it stores. 
+      content : Beyond the structured models, Loom lets you attach custom metadata to any element it stores, together with user-generated content such as comments, reactions, ratings and annotations kept alongside your assets.
 
     - title : Import / Export (planned)
       icon : ti-import
       content : Selective data can be exported and re-imported in another instance.
 
-    - title : Metadata extraction (planned)
+    - title : Metadata extraction
       icon : ti-menu
-      content : Metadata from images, videos, documents will automatically be extracted and make accessible via REST or GraphQL API.
-
-    - title : User Content (planned)
-      icon : ti-comments
-      content : User specific content such as comments, taggings, ratings can be stored along with your assets or content elements.
+      content : Metadata from images, videos and documents is automatically extracted by Cortex nodes (hashes, transcripts, captions, OCR, faces, scenes …) and made accessible via the API.
 
     - title : Content Model (planned)
       icon : ti-layout
       content : Content models can be used to provide a structure for metadata that can be stored in addition to assets.
 
-    - title : Webhooks (planned)
+    - title : Webhooks
       icon : ti-server
-      content : The server provides webhooks that allow you to trigger other attached processes.
+      content : The server provides webhooks that allow you to trigger other attached processes when entities change.
 
 
   title_ops : Devops Features
   content_ops : "These various features help you to integrate Loom into your environment."
-  feature_item_ops : 
-    - title : Multiple Storage Options (planned)
+  feature_item_ops :
+    - title : Multiple Storage Options
       icon : ti-server
-      content : You can choose between different persistent modes. In-Memory, Filesystem, MariaDB, PostgreSQL
+      content : You can choose between different persistence backends — In-Memory, Filesystem, and PostgreSQL (jOOQ / Hibernate).
 
-    - title : Monitoring (planned)
+    - title : Monitoring
       icon : ti-dashboard
-      content : Monitoring data will be made accessible via a Prometheus scrape endpoint. You can thus track status of the instances via a Grafana dashboard.
+      content : Monitoring data is exposed via a Prometheus scrape endpoint, so you can track instance status from a Grafana dashboard.
+
+    - title : Cortex Processing Nodes
+      icon : ti-infinite
+      content : Media processing runs on a fleet of Cortex worker daemons that register with Loom and execute node tasks it dispatches. Scale out by adding workers, and pin heavy node kinds (face detection, speech-to-text) to dedicated or GPU hardware.
 
     - title : CLI (planned)
       icon : ti-announcement
       content : The CLI can be used to run admin tasks and also trigger synchronization tasks for new assets.
 
-    - title : Kubernetes support / Helm Chart (planned)
+    - title : Kubernetes support / Helm Chart
       icon : ti-announcement
-      content : Loom fully supports Kubernetes and comes with a Helm Chart that helps you deploy it in your K8S cluster.
+      content : Loom supports Kubernetes and ships a Helm Chart that helps you deploy it in your K8S cluster; Cortex workers deploy as scalable Deployments.
 
-    - title : Extensions (planned)
+    - title : Extensions
       icon : ti-server
-      content : Extensions can be registered in order to extend the functionality of Loom using Microservices or Serverless servies (e.g. AWS Lambda).
+      content : Extensions can be registered in order to extend the functionality of Loom, and custom Cortex processing nodes can be authored in Java or Python.
 
-    - title : Clustering (planned)
-      icon : ti-infinite
-      content : Multiple instances of Loom can form a cluster in order to help you scale your API.
-      
     - title : S3 (planned)
       icon : ti-cloud-up
       content : Assets can be referenced from an existing S3 bucket or you can choose to use a bucket to store newly uploaded assets.

@@ -93,6 +93,9 @@ public enum Permission {
 	// Agent Memory (scoped markdown notes the chat agent reads and writes)
 	CREATE_MEMORY, READ_MEMORY, DELETE_MEMORY, UPDATE_MEMORY,
 
+	// Agent Memory Denylist (instance-wide patterns that must never be stored)
+	CREATE_MEMORY_DENY_RULE, READ_MEMORY_DENY_RULE, DELETE_MEMORY_DENY_RULE, UPDATE_MEMORY_DENY_RULE,
+
 	// Cortex Instance (registered processor worker)
 	MANAGE_CORTEX_INSTANCE, READ_CORTEX_INSTANCE;
 

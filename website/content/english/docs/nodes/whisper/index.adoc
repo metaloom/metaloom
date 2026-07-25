@@ -1,0 +1,37 @@
+---
+title: Speech-to-Text (Whisper)
+---
+
+The Whisper node transcribes the audio track of a media file into text using a **Whisper**
+speech-to-text model. The transcript is stored as a first-class component so it can be searched and
+summarized.
+
+[cols="1,3"]
+|===
+| Kind | `whisper`
+| Applies to | Video, Audio
+| Inputs | None
+| Output keys | `whisper_result` (String, JSON transcript)
+| Requirements | A Whisper runtime (whisper.cpp or compatible) and a model file. CPU works; a **GPU** accelerates transcription and is enabled via options. Storage for the model file.
+| Persists to | `asset_transcript_comp` + `asset_node_result` ledger
+|===
+
+== Configuration
+
+`WhisperOptions`:
+
+[options="header",cols="1,2"]
+|===
+| Option | Meaning
+| `modelPath` | Path to the Whisper model file
+| `language` | Source language (or auto-detect)
+| `useGpu` / `gpuDevice` | Enable GPU acceleration and select the device
+| `temperature` / `temperatureInc` | Decoding temperature and fallback increment
+|===
+
+== Use Cases
+
+* **Subtitles & captions** — generate transcripts for video and audio assets.
+* **Transcript search** — power the chat's `search_transcript` tool and the
+  link:../../loom/chat/[transcript-summarizer skill].
+* **Downstream enrichment** — feed transcripts to link:../llm/[LLM] classification or summarization.

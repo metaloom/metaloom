@@ -58,6 +58,20 @@ Base class `AbstractMediaNode` and shared utilities for building custom nodes:
 </dependency>
 ----
 
+== Node Runtime
+
+The task runners that execute individual source / node / segment tasks dispatched by Loom
+(`NodeTaskRunner`, `SourceTaskRunner`, `SegmentTaskRunner`). Pull this in when building a custom daemon:
+
+[source,xml]
+----
+<dependency>
+    <groupId>io.metaloom.cortex</groupId>
+    <artifactId>cortex-node-runtime</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+</dependency>
+----
+
 == Built-in Nodes
 
 Each built-in node is packaged separately so you can include only the nodes you need:

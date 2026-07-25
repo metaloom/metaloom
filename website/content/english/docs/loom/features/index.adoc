@@ -73,11 +73,11 @@ They can be set at the global level or scoped to specific libraries or collectio
 
 == Pipelines
 
-*Pipelines* define the processing workflows that Cortex executes on assets.
+*Pipelines* define the media processing workflows.
 
 * Define a pipeline with a name, description, priority, and enabled flag
-* Pipelines are stored in Loom and loaded by Cortex at startup
-* Each pipeline maps to a directed node graph (see link:../../pipeline[Pipeline Mechanism])
+* Pipelines are authored in the UI and stored on Loom with immutable versioning
+* Runs are executed by Loom's engine, which delegates node tasks to registered Cortex workers (see link:../../pipeline[Pipeline Mechanism])
 * Pipeline execution results are tracked and surfaced as real-time WebSocket events
 
 == Webhooks

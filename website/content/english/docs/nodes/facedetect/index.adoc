@@ -1,0 +1,39 @@
+---
+title: Face Detection
+---
+
+The face detection node finds faces in images and video frames and, optionally, computes **face
+embeddings** (vectors) that can be used for recognition and clustering. Video is processed by scanning
+frames at a configurable rate.
+
+[cols="1,3"]
+|===
+| Kind | `facedetect`
+| Applies to | Image, Video
+| Inputs | None
+| Output keys | `face_count` (Integer), `facedetect_flag` (String); face bounding boxes + embedding vectors are persisted as detections
+| Requirements | **InspireFace native runtime** and its model pack. CPU works; a GPU-enabled pack accelerates video/large batches. Model files require local storage and memory.
+| Persists to | `detection` table (bulk upsert) + `asset_node_result` ledger
+|===
+
+== Configuration
+
+`FacedetectNodeOptions`:
+
+[options="header",cols="1,2"]
+|===
+| Option | Meaning
+| `inspirefacePackPath` | Path to the InspireFace model pack
+| `capabilities` | Which InspireFace capabilities to enable (detection, recognition, …)
+| `videoChopRate` | How often to sample frames from a video
+| `videoScaleSize` | Frame scale used before detection
+| `minFaceHeightFactor` | Minimum face size (as a fraction of frame height) to keep
+| `faceClusterMinimum` / `faceClusterEPS` | Clustering parameters for grouping embeddings into persons
+|===
+
+== Use Cases
+
+* **Face search & recognition** — match a query face against embeddings across the library.
+* **Person clustering** — group appearances of the same person via the embedding clusters.
+* **Content moderation / review** — flag assets that contain people.
+* Feed link:../facedescription/[Face Description] with detected faces.

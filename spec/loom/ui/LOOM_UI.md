@@ -191,6 +191,8 @@ VITE_API_BASE_URL=/api/v1 VITE_PROXY_TARGET=http://localhost:8092 npm run test:e
 | **Admin: Roles** | `/admin/permissions` | `RolesView` | Role CRUD, permission matrix | `GET/POST/DELETE /api/v1/roles` |
 | **Admin: API Keys** | `/admin/api-keys` | `ApiKeysView` | Token generation, listing, deletion | `GET/POST/DELETE /api/v1/tokens` |
 | **Admin: Blacklist** | `/admin/blacklist` | `BlacklistView` | IP/domain/fingerprint/user blacklist entries | `GET/POST/DELETE /api/v1/blacklists` |
+| **Admin: Memory Denylist** | `/admin/memory-denylist` | `MemoryDenylistAdmin` | Regex rules the agent may never store in memory, with the rejection message shown to the agent | `GET/POST/DELETE /api/v1/memory-deny-rules` |
+| **Agent Memory** | `/memory` | `MemoryView` | Browse and edit the agent's scoped markdown notes | `GET/POST/PUT/DELETE /api/v1/memory*` |
 | **Profile** | `/profile` | `ProfileView` | Name, email, username, role, language, theme | `GET/PUT /api/v1/users/:uuid` |
 | **Maintenance** | `/maintenance` | `MaintenanceView` | System health: DB, S3, memory, workers | `GET /api/v1/health` (not implemented) |
 | **Workflow** | `/workflow` | `WorkflowView` | Fullscreen keyboard-driven review modes | — |
@@ -218,7 +220,8 @@ Sidebar (collapsible)
     ├── Groups (/admin/groups)      → GroupsView
     ├── Permissions (/admin/permissions) → RolesView
     ├── API Keys (/admin/api-keys)  → ApiKeysView
-    └── Blacklist (/admin/blacklist) → BlacklistView
+    ├── Blacklist (/admin/blacklist) → BlacklistView
+    └── Memory Denylist (/admin/memory-denylist) → MemoryDenylistAdmin
 ```
 
 ---
@@ -998,7 +1001,7 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
 - [x] Cortex workers (status, metrics, pause/resume/terminate)
 - [x] Monitoring dashboard (14-day metrics, charts via Recharts)
 - [x] Asset pools (CRUD, asset assignment)
-- [x] Admin: Spaces, Users, Groups, Roles, API Keys, Blacklist
+- [x] Admin: Spaces, Users, Groups, Roles, API Keys, Blacklist, Memory Denylist
 - [x] Profile (name, email, username, role, language, theme)
 - [x] Maintenance view (system health)
 - [x] Workflow (fullscreen keyboard-driven review)

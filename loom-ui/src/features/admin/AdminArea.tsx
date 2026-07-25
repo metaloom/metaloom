@@ -18,6 +18,10 @@ import {
 import { Menu } from "@mui/material";
 import { tokens } from "../../theme";
 import { listBlacklists, createBlacklist, deleteBlacklist, BlacklistResponse } from "../../api/blacklist";
+import {
+  listMemoryDenyRules, createMemoryDenyRule, updateMemoryDenyRule, deleteMemoryDenyRule,
+  MemoryDenyRuleResponse,
+} from "../../api/memoryDenylist";
 import { useAuth } from "../../context/AuthContext";
 import {
   listUsers, createUser, updateUser, deleteUser,
@@ -1241,6 +1245,187 @@ function BlacklistAdmin() {
   );
 }
 
+
+// ── Memory denylist view ──────────────────────────────────────────────────
+
+/**
+ * Admin CRUD for the agent memory denylist.
+ *
+ * Each rule is one regular expression; a `put_memory` whose body or title matches is rejected with
+ * the rule's own message. Several phrases fit in a single rule through alternation, e.g.
+ * `(?i)\b(one|two|three)\b`.
+ */
+function MemoryDenylistAdmin() {
+  const { t } = useTranslation();
+  const { token } = useAuth();
+  const [rules, setRules] = useState<MemoryDenyRuleResponse[]>([]);
+  const [query, setQuery] = useState("");
+  const [editor, setEditor] = useState<{ uuid?: string; name: string; pattern: string; message: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadRules = useCallback(() => {
+    if (!token) return;
+    listMemoryDenyRules(token).then(r => setRules(r.data ?? [])).catch(() => setRules([]));
+  }, [token]);
+
+  useEffect(() => { loadRules(); }, [loadRules]);
+
+  const filtered = rules.filter(r => {
+    if (!query.trim()) return true;
+    const q = query.toLowerCase();
+    return r.name.toLowerCase().includes(q) || r.pattern.toLowerCase().includes(q);
+  });
+
+  const handleSave = () => {
+    if (!token || !editor) return;
+    setError(null);
+    const body = { name: editor.name.trim(), pattern: editor.pattern, message: editor.message.trim() };
+    const request = editor.uuid
+      ? updateMemoryDenyRule(token, editor.uuid, body)
+      : createMemoryDenyRule(token, body);
+    // The server compiles the pattern, so an invalid regex comes back as a 400 with the reason.
+    request.then(() => { loadRules(); setEditor(null); }).catch(e => setError(String(e)));
+  };
+
+  const handleToggle = (rule: MemoryDenyRuleResponse) => {
+    if (!token) return;
+    updateMemoryDenyRule(token, rule.uuid, { enabled: !rule.enabled }).then(loadRules).catch(e => setError(String(e)));
+  };
+
+  const handleDelete = (uuid: string) => {
+    if (!token) return;
+    deleteMemoryDenyRule(token, uuid).then(loadRules).catch(e => setError(String(e)));
+  };
+
+  return (
+    <Box data-testid="memory-denylist-admin">
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+        <Box>
+          <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>
+            {t("admin.memoryDenylist.title", "Memory denylist")}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            {t("admin.memoryDenylist.subtitle",
+              "Patterns the chat agent may never store in its memory. A match rejects the write with the rule's message.")}
+          </Typography>
+        </Box>
+        <Button startIcon={<BlockOutlined />} variant="contained" size="small" color="error"
+          onClick={() => setEditor({ name: "", pattern: "", message: "" })} data-testid="memory-denylist-add">
+          {t("admin.memoryDenylist.addRule", "Add rule")}
+        </Button>
+      </Box>
+
+      <TextField
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        placeholder={t("admin.memoryDenylist.search", "Search rules")}
+        size="small"
+        sx={{ mb: 1.5, maxWidth: 320 }}
+        fullWidth
+        InputProps={{
+          startAdornment: (
+            <InputAdornment position="start">
+              <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
+            </InputAdornment>
+          ),
+        }}
+      />
+
+      <TableContainer component={Paper} elevation={0}>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>{t("admin.memoryDenylist.table.name", "Name")}</TableCell>
+              <TableCell>{t("admin.memoryDenylist.table.pattern", "Pattern")}</TableCell>
+              <TableCell>{t("admin.memoryDenylist.table.message", "Rejection message")}</TableCell>
+              <TableCell>{t("admin.memoryDenylist.table.enabled", "Enabled")}</TableCell>
+              <TableCell align="right" />
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {filtered.map(r => (
+              <TableRow key={r.uuid} hover data-testid={`memory-denylist-row-${r.name}`}>
+                <TableCell>
+                  <Typography variant="caption" sx={{ color: tokens.text.primary, fontSize: "0.78rem" }}>{r.name}</Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography variant="caption" sx={{ fontFamily: "monospace", color: tokens.text.secondary, fontSize: "0.72rem" }}>
+                    {r.pattern}
+                  </Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography variant="caption" color="text.secondary">{r.message}</Typography>
+                </TableCell>
+                <TableCell>
+                  <Switch size="small" checked={r.enabled} onChange={() => handleToggle(r)}
+                    data-testid={`memory-denylist-toggle-${r.name}`} />
+                </TableCell>
+                <TableCell align="right">
+                  <IconButton size="small" onClick={() => setEditor({ uuid: r.uuid, name: r.name, pattern: r.pattern, message: r.message })}>
+                    <EditOutlined sx={{ fontSize: 15 }} />
+                  </IconButton>
+                  <IconButton size="small" onClick={() => handleDelete(r.uuid)}>
+                    <DeleteOutlineOutlined sx={{ fontSize: 15, color: tokens.accent.red }} />
+                  </IconButton>
+                </TableCell>
+              </TableRow>
+            ))}
+            {filtered.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={5}>
+                  <Typography variant="caption" color="text.secondary" data-testid="memory-denylist-empty">
+                    {t("admin.memoryDenylist.empty", "No deny rules configured.")}
+                  </Typography>
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      <Dialog open={editor !== null} onClose={() => setEditor(null)} maxWidth="sm" fullWidth
+        PaperProps={{ sx: { bgcolor: tokens.bg.surface, border: `1px solid ${tokens.border.subtle}` } }}>
+        <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1, pb: 1 }}>
+          <BlockOutlined sx={{ fontSize: 18, color: tokens.accent.red }} />
+          <Typography fontWeight={700} sx={{ fontSize: "1rem" }}>
+            {editor?.uuid ? t("admin.memoryDenylist.dialog.edit", "Edit deny rule") : t("admin.memoryDenylist.dialog.add", "Add deny rule")}
+          </Typography>
+          <IconButton size="small" onClick={() => setEditor(null)} sx={{ ml: "auto" }}>
+            <CloseOutlined sx={{ fontSize: 16 }} />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 1 }}>
+          <Stack spacing={2.5}>
+            <TextField label={t("admin.memoryDenylist.dialog.name", "Name")} size="small" fullWidth autoFocus
+              value={editor?.name ?? ""} onChange={e => setEditor(prev => prev && { ...prev, name: e.target.value })}
+              data-testid="memory-denylist-name" />
+            <TextField label={t("admin.memoryDenylist.dialog.pattern", "Pattern (regex)")} size="small" fullWidth
+              value={editor?.pattern ?? ""} onChange={e => setEditor(prev => prev && { ...prev, pattern: e.target.value })}
+              helperText={t("admin.memoryDenylist.dialog.patternHelp",
+                "Java regex. Cover several phrases in one rule with alternation, e.g. (?i)\\b(alpha|beta)\\b")}
+              InputProps={{ sx: { fontFamily: "monospace" } }}
+              data-testid="memory-denylist-pattern" />
+            <TextField label={t("admin.memoryDenylist.dialog.message", "Rejection message")} size="small" fullWidth multiline minRows={2}
+              value={editor?.message ?? ""} onChange={e => setEditor(prev => prev && { ...prev, message: e.target.value })}
+              helperText={t("admin.memoryDenylist.dialog.messageHelp",
+                "Shown to the agent when a note is rejected. Explain what to do instead; never repeat the matched text.")}
+              data-testid="memory-denylist-message" />
+            {error && <Typography variant="caption" sx={{ color: tokens.accent.red }} data-testid="memory-denylist-error">{error}</Typography>}
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button size="small" onClick={() => setEditor(null)}>{t("common.cancel")}</Button>
+          <Button size="small" variant="contained" color="error" onClick={handleSave}
+            disabled={!editor?.name.trim() || !editor?.pattern.trim() || !editor?.message.trim()}
+            data-testid="memory-denylist-save">
+            {t("common.save", "Save")}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+}
+
 // ── Permissions view ──────────────────────────────────────────────────────
 // ── Admin Area Shell ──────────────────────────────────────────────────────
 
@@ -1256,6 +1441,7 @@ export default function AdminArea() {
     { label: t("admin.tab.permissions"), path: "/admin/permissions" },
     { label: t("admin.tab.apiKeys"), path: "/admin/api-keys" },
     { label: t("admin.tab.blacklist"), path: "/admin/blacklist" },
+    { label: t("admin.tab.memoryDenylist"), path: "/admin/memory-denylist" },
   ];
 
   const tabIdx = ADMIN_TABS.findIndex(tab => location.pathname === tab.path);
@@ -1288,6 +1474,7 @@ export default function AdminArea() {
           <Route path="permissions" element={<AccessControlAdmin />} />
           <Route path="api-keys" element={<ApiKeysAdmin />} />
           <Route path="blacklist" element={<BlacklistAdmin />} />
+          <Route path="memory-denylist" element={<MemoryDenylistAdmin />} />
         </Routes>
       </Box>
     </Box>

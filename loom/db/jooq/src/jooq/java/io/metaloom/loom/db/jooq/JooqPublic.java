@@ -47,6 +47,7 @@ import io.metaloom.loom.db.jooq.tables.JooqLibrary;
 import io.metaloom.loom.db.jooq.tables.JooqLibraryAsset;
 import io.metaloom.loom.db.jooq.tables.JooqLibraryCollection;
 import io.metaloom.loom.db.jooq.tables.JooqLoom;
+import io.metaloom.loom.db.jooq.tables.JooqMemoryDenyRule;
 import io.metaloom.loom.db.jooq.tables.JooqMemoryEntry;
 import io.metaloom.loom.db.jooq.tables.JooqPerson;
 import io.metaloom.loom.db.jooq.tables.JooqPersonImage;
@@ -380,6 +381,12 @@ public class JooqPublic extends SchemaImpl {
     public final JooqLoom LOOM = JooqLoom.LOOM;
 
     /**
+     * Instance-wide denylist of regular expressions which must never be stored
+     * in the agent memory bank
+     */
+    public final JooqMemoryDenyRule MEMORY_DENY_RULE = JooqMemoryDenyRule.MEMORY_DENY_RULE;
+
+    /**
      * Agent memory bank: scoped markdown notes addressed by a path-like id
      */
     public final JooqMemoryEntry MEMORY_ENTRY = JooqMemoryEntry.MEMORY_ENTRY;
@@ -596,6 +603,7 @@ public class JooqPublic extends SchemaImpl {
             JooqLibraryAsset.LIBRARY_ASSET,
             JooqLibraryCollection.LIBRARY_COLLECTION,
             JooqLoom.LOOM,
+            JooqMemoryDenyRule.MEMORY_DENY_RULE,
             JooqMemoryEntry.MEMORY_ENTRY,
             JooqPerson.PERSON,
             JooqPersonImage.PERSON_IMAGE,

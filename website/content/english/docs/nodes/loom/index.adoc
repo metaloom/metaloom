@@ -1,0 +1,27 @@
+---
+title: Loom Sync
+---
+
+The Loom sync node is a **sink**: it accumulates hash results from upstream nodes and writes them back
+to the Loom backend in batches, keeping the number of REST calls low on large runs.
+
+[cols="1,3"]
+|===
+| Kind | `loom`
+| Applies to | Any file
+| Inputs | Upstream link:../hash/[hash] outputs — SHA-512 plus any MD5 / SHA-256
+| Output keys | None — the node has the side effect of bulk-updating the `asset` rows
+| Requirements | A Loom connection (`LOOM_HOST` / `LOOM_PORT` / `LOOM_TOKEN`). CPU only.
+| Persists to | `asset` hash columns via a bulk update (batches of 50)
+|===
+
+NOTE: Per-node persistence now also writes hash columns directly, so the `loom` node overlaps that
+path. It remains useful as an explicit batched hash sink.
+
+== Configuration
+
+No custom options beyond the common node flags.
+
+== Use Cases
+
+* **Efficient bulk hash sync** — flush many assets' hashes to Loom in batches during a large scan.

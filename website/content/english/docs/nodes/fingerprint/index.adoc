@@ -1,0 +1,32 @@
+---
+title: Fingerprint
+---
+
+The fingerprint node computes a **perceptual, multi-sector video fingerprint**. Unlike a content hash,
+the fingerprint is robust to transcoding, resolution changes and minor edits, so it can identify the
+*same footage* even when the file bytes differ.
+
+[cols="1,3"]
+|===
+| Kind | `fingerprint`
+| Applies to | Video only
+| Inputs | None (commonly runs alongside hashing)
+| Output keys | `fingerprint` (String)
+| Requirements | OpenCV / video4j **native runtime** (video decoding). CPU-bound; no GPU required. Decoding video is I/O- and CPU-heavy for long files.
+| Persists to | `asset_fingerprint_comp` (sector 0) + `asset_node_result` ledger
+|===
+
+The perceptual fingerprint is produced by the multi-sector algorithm from the `video4j-fingerprint`
+library. The node keeps its own in-heap cache to skip recomputation within a worker's lifetime.
+
+== Configuration
+
+No custom options beyond the common node flags (`enabled`, …). The node requires a worker with the
+video4j / OpenCV native libraries available.
+
+== Use Cases
+
+* **Near-duplicate video detection** — find re-encodes and trims of the same source (see
+  link:../dedup/[Deduplication]).
+* **Similarity search** — nearest-neighbour lookup over fingerprints to find related clips.
+* **Blacklisting** — match video content against a fingerprint blacklist even after re-encoding.

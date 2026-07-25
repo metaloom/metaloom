@@ -205,11 +205,24 @@ loom/
 │   ├── fs/          # Filesystem service
 │   └── eventbus/    # Placeholder (empty)
 ├── core/            # Bootstrap, server lifecycle, LoomImpl, BootstrapInitializer
+├── agent/           # AI agent subsystem (package io.metaloom.loom.agent.*)
+│   ├── chat/        # Agentic loop, ChatStreamEndpoint (SSE), AgentService, skills prompt builder
+│   ├── memory/      # Scoped markdown memory bank (MemoryService, MemoryEndpoint, memory tools)
+│   ├── sandbox/     # Coding sandbox orchestrator + podman/kubernetes backends, coding tools
+│   ├── session-runner/ # The per-chat Session Runner image (runnerd.py) — metaloom/loom-session-runner
+│   └── deploy/      # Sandbox deployment reference (k8s pod template, RBAC notes)
 ├── fixture/         # Test fixtures, PoolSetupRunner, TestDBPoolManager
 ├── cli/             # LoomCLI command-line interface
-├── containers/      # Dockerfiles + build-containers.sh
-└── doc/             # AsciiDoc documentation source
+├── containers/      # Dockerfiles + build-containers.sh (metaloom/loom-server, metaloom/loom-demo)
+└── doc/             # AsciiDoc documentation source + OpenAPI generator
 ```
+
+> **Chat / AI agent (added since 2026-07-18).** The chat, skills, memory and coding-sandbox
+> subsystems live under `loom/agent/`. Chat sessions (`ChatSession`, publishable snapshots with a
+> sandbox filesystem + pinned skill versions), skills (versioned, publishable) and the memory bank
+> are new. See [loom/ui/CHAT.md](loom/ui/CHAT.md). New migrations: `V2.28__add_chat`,
+> `V2.33__add_cortex_instance`, `V2.36__add_skill`, `V2.37__add_skill_version`,
+> `V2.45__add_asset_node_result`, `V2.52__add_chat_session`, `V2.53__add_agent_memory`.
 
 #### Shared Modules (outside `loom/`)
 
@@ -308,8 +321,17 @@ cortex/
 ├── container/           # Containerfile + build-container.sh for OCI image
 ├── pipeline-api/        # Pipeline, PipelineNode, PipelineExecutor, PipelineManager, events, cache SPIs
 ├── pipeline-core/       # DefaultPipeline, ReactivePipelineExecutor, AbstractPipelineNode, filters, JSON serde
-└── pipeline-common/     # DefaultPipelineEventBus, cache impls, DefaultLoomBulkSyncCollector
+├── pipeline-common/     # DefaultPipelineEventBus, cache impls, DefaultLoomBulkSyncCollector
+└── node-runtime/        # Task runners for Loom-dispatched work: NodeTaskRunner, SourceTaskRunner,
+                         #   SegmentTaskRunner, ResultBatcher, NodeResultMapper
 ```
+
+> **Execution model.** Loom now owns the pipeline DAG and dispatches individual source/node/segment
+> tasks to registered Cortex workers over the processor WebSocket; `cortex/node-runtime` runs one
+> task at a time and replies. Cortex is deployed as a long-running daemon (`metaloom/cortex-server`),
+> registering with Loom on `LOOM_PORT` (default `8092`). The `cortex/cli` picocli wrapper still
+> exists for local runs, but the primary online role is the daemon. See
+> [features/pipeline/PIPELINE.md](features/pipeline/PIPELINE.md) §12.3.
 
 #### Key Classes Reference (Cortex)
 
@@ -701,5 +723,5 @@ and the code disagree, **the code wins** — and fix the spec in the same change
 
 ---
 
-_Git HEAD revision: `92bc1153e50c43efb65e4d78874823c9ec1f4408`_
-_Last updated: 2026-07-18 19:10 UTC_
+_Git HEAD revision: `6d454bc0e90fc6849f33b191fff84608367d66eb`_
+_Last updated: 2026-07-25 (added loom/agent AI subsystem, cortex/node-runtime, daemon execution model)_

@@ -10,4 +10,6 @@ See link:../maven-artifacts/[Maven Artifacts] for the BOM-backed module list and
 
 == Containers
 
-See link:../containers/[Containers] for Docker, Docker Compose and Kubernetes batch examples.
+Cortex ships as the `metaloom/cortex-server` image. See link:../containers/[Containers] for Docker,
+Docker Compose and Kubernetes `Deployment` examples, and link:../../deployment/[Container Images] for
+the full image list.

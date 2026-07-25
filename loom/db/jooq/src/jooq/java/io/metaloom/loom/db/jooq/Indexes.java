@@ -31,6 +31,7 @@ import io.metaloom.loom.db.jooq.tables.JooqDetection;
 import io.metaloom.loom.db.jooq.tables.JooqEmbedding;
 import io.metaloom.loom.db.jooq.tables.JooqFlywaySchemaHistory;
 import io.metaloom.loom.db.jooq.tables.JooqGroup;
+import io.metaloom.loom.db.jooq.tables.JooqMemoryDenyRule;
 import io.metaloom.loom.db.jooq.tables.JooqMemoryEntry;
 import io.metaloom.loom.db.jooq.tables.JooqPipelineNodeTask;
 import io.metaloom.loom.db.jooq.tables.JooqPipelineRun;
@@ -107,6 +108,7 @@ public class Indexes {
     public static final Index IDX_DETECTION_TYPE = Internal.createIndex(DSL.name("idx_detection_type"), JooqDetection.DETECTION, new OrderField[] { JooqDetection.DETECTION.TYPE }, false);
     public static final Index IDX_EMBEDDING_ASSET_UUID = Internal.createIndex(DSL.name("idx_embedding_asset_uuid"), JooqEmbedding.EMBEDDING, new OrderField[] { JooqEmbedding.EMBEDDING.ASSET_UUID }, false);
     public static final Index IDX_EMBEDDING_DETECTION_UUID = Internal.createIndex(DSL.name("idx_embedding_detection_uuid"), JooqEmbedding.EMBEDDING, new OrderField[] { JooqEmbedding.EMBEDDING.DETECTION_UUID }, false);
+    public static final Index IDX_MEMORY_DENY_RULE_ENABLED = Internal.createIndex(DSL.name("idx_memory_deny_rule_enabled"), JooqMemoryDenyRule.MEMORY_DENY_RULE, new OrderField[] { JooqMemoryDenyRule.MEMORY_DENY_RULE.ENABLED }, false);
     public static final Index IDX_MEMORY_ENTRY_SCOPE = Internal.createIndex(DSL.name("idx_memory_entry_scope"), JooqMemoryEntry.MEMORY_ENTRY, new OrderField[] { JooqMemoryEntry.MEMORY_ENTRY.SCOPE, JooqMemoryEntry.MEMORY_ENTRY.SCOPE_UUID }, false);
     public static final Index IDX_PIPELINE_NODE_TASK_EXPIRED_LEASE = Internal.createIndex(DSL.name("idx_pipeline_node_task_expired_lease"), JooqPipelineNodeTask.PIPELINE_NODE_TASK, new OrderField[] { JooqPipelineNodeTask.PIPELINE_NODE_TASK.LEASE_EXPIRES_AT }, false);
     public static final Index IDX_PIPELINE_NODE_TASK_ITEM_UUID = Internal.createIndex(DSL.name("idx_pipeline_node_task_item_uuid"), JooqPipelineNodeTask.PIPELINE_NODE_TASK, new OrderField[] { JooqPipelineNodeTask.PIPELINE_NODE_TASK.ITEM_UUID }, false);

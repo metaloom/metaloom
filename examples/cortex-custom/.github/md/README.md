@@ -50,7 +50,7 @@ Build a runnable jar and start it, pointing it at your Loom backend:
 mvn -pl examples/cortex-custom -am package
 
 LOOM_HOST=localhost \
-LOOM_PORT=7733 \
+LOOM_PORT=8092 \
 CORTEX_MONITORING_PORT=8093 \
 java -jar examples/cortex-custom/target/cortex-custom-*.jar
 ```
@@ -60,7 +60,7 @@ java -jar examples/cortex-custom/target/cortex-custom-*.jar
 | Variable | Purpose | Default |
 |---|---|---|
 | `LOOM_HOST` | Loom backend host to register with | `localhost` |
-| `LOOM_PORT` | Loom backend port | `7733` |
+| `LOOM_PORT` | Loom backend port | `8092` |
 | `CORTEX_MONITORING_PORT` | health / readiness HTTP port | `8093` |
 | `CORTEX_META_PATH` | local sidecar metadata cache path | `~/.cache/metaloom/cortex/meta` |
 | `CORTEX_NODE_ID` | stable worker id | generated |
