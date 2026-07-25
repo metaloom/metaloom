@@ -77,7 +77,6 @@ import io.metaloom.loom.db.jooq.tables.JooqUser;
 import io.metaloom.loom.db.jooq.tables.JooqUserGroup;
 import io.metaloom.loom.db.jooq.tables.JooqUserPermission;
 import io.metaloom.loom.db.jooq.tables.JooqVectorConfig;
-import io.metaloom.loom.db.jooq.tables.JooqWebhook;
 
 import java.util.Arrays;
 import java.util.List;
@@ -540,11 +539,6 @@ public class JooqPublic extends SchemaImpl {
     public final JooqVectorConfig VECTOR_CONFIG = JooqVectorConfig.VECTOR_CONFIG;
 
     /**
-     * Table which stores the registered webhooks
-     */
-    public final JooqWebhook WEBHOOK = JooqWebhook.WEBHOOK;
-
-    /**
      * No further instances allowed
      */
     private JooqPublic() {
@@ -632,8 +626,7 @@ public class JooqPublic extends SchemaImpl {
             JooqUser.USER,
             JooqUserGroup.USER_GROUP,
             JooqUserPermission.USER_PERMISSION,
-            JooqVectorConfig.VECTOR_CONFIG,
-            JooqWebhook.WEBHOOK
+            JooqVectorConfig.VECTOR_CONFIG
         );
     }
 }

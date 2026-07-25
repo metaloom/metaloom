@@ -72,11 +72,13 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 	private final PipelineRunRegistry pipelineRunRegistry;
 	private final ModelExamples examples;
 
+	private final io.metaloom.loom.common.metrics.LoomMetrics metrics;
+
 	@Inject
 	public ProcessorEndpoint(ProcessorRegistry registry, PipelineEventBroadcaster pipelineEventBroadcaster,
 			WebSocketAuthenticator authenticator,
 			PipelineRunTracker pipelineRunTracker, PipelineRunRegistry pipelineRunRegistry,
-			EndpointDependencies deps, ModelExamples examples) {
+			EndpointDependencies deps, ModelExamples examples, io.metaloom.loom.common.metrics.LoomMetrics metrics) {
 		super(deps);
 		this.registry = registry;
 		this.pipelineRunRegistry = pipelineRunRegistry;
@@ -84,6 +86,7 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 		this.authenticator = authenticator;
 		this.pipelineRunTracker = pipelineRunTracker;
 		this.examples = examples;
+		this.metrics = metrics;
 	}
 
 	@Override
@@ -371,6 +374,7 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 				count++;
 			}
 		}
+		metrics.recordSourceItemsReceived(count);
 		log.debug("Run {} received {} source item(s) in batch {}", body.getRunUuid(), count, body.getSeq());
 
 		// The acknowledgement is the throttle. Holding it back while the run is at
@@ -463,11 +467,22 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 		for (io.metaloom.loom.pipeline.model.NodeTaskResultBatch.Entry entry : body.getEntries()) {
 			try {
 				engine.onNodeTaskResult(entry.getItemId(), entry.getResult());
+				recordNodeResultReceived(entry.getResult());
 			} catch (Exception e) {
 				log.error("Failed to assimilate result for item '{}' in run {}", entry.getItemId(),
 					body.getRunUuid(), e);
 			}
 		}
+	}
+
+	/** Record an inbound node result on the metrics catalog, keyed by node id and settled state. */
+	private void recordNodeResultReceived(io.metaloom.loom.pipeline.model.NodeTaskResult result) {
+		if (result == null) {
+			return;
+		}
+		String kind = result.getNodeId() == null ? "unknown" : result.getNodeId();
+		String state = result.getState() == null ? "unknown" : result.getState().name().toLowerCase();
+		metrics.recordNodeResultReceived(kind, state);
 	}
 
 	private void handleNodeTaskResult(ServerWebSocket ws, ProcessorMessage msg, String nodeId) {
@@ -489,6 +504,7 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 			return;
 		}
 		engine.onNodeTaskResult(body.getItemId(), body.getResult());
+		recordNodeResultReceived(body.getResult());
 	}
 
 	/**

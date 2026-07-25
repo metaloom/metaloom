@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.common.metrics.CortexMetrics;
 import io.metaloom.cortex.pipeline.common.sync.DefaultLoomBulkSyncCollector.BulkSyncWriter;
 import io.metaloom.cortex.pipeline.common.sync.DefaultLoomBulkSyncCollector.SyncEntry;
 import io.metaloom.loom.client.common.LoomClient;
@@ -45,10 +46,12 @@ public class LoomBulkSyncWriterImpl implements BulkSyncWriter {
 	private static final Logger log = LoggerFactory.getLogger(LoomBulkSyncWriterImpl.class);
 
 	private final LoomClient loomClient;
+	private final CortexMetrics metrics;
 
 	@Inject
-	public LoomBulkSyncWriterImpl(@Nullable LoomClient loomClient) {
+	public LoomBulkSyncWriterImpl(@Nullable LoomClient loomClient, CortexMetrics metrics) {
 		this.loomClient = loomClient;
+		this.metrics = metrics;
 	}
 
 	@Override
@@ -58,6 +61,7 @@ public class LoomBulkSyncWriterImpl implements BulkSyncWriter {
 		}
 		if (loomClient == null) {
 			log.warn("No LoomClient available. Dropping {} sync entries.", entries.size());
+			metrics.recordBulkSync("dropped_offline", entries.size());
 			return;
 		}
 
@@ -75,6 +79,10 @@ public class LoomBulkSyncWriterImpl implements BulkSyncWriter {
 			mergeOutputs(bulk.getUpdate(), entry.getResult());
 		}
 
+		if (skipped > 0) {
+			metrics.recordBulkSync("skipped_no_hash", skipped);
+		}
+
 		if (byHash.isEmpty()) {
 			log.warn("Bulk sync received {} entries but none had a SHA-512 identity. Nothing pushed.", entries.size());
 			return;
@@ -86,9 +94,11 @@ public class LoomBulkSyncWriterImpl implements BulkSyncWriter {
 
 		try {
 			loomClient.bulkUpdateAssets(request).sync();
+			metrics.recordBulkSync("synced", count);
 			log.info("Bulk-synced {} assets to Loom ({} entries in batch{}).",
 				count, entries.size(), skipped > 0 ? ", " + skipped + " skipped without hash" : "");
 		} catch (Exception e) {
+			metrics.recordBulkSync("failed", count);
 			log.error("Bulk sync of {} assets to Loom failed: {}", count, e.getMessage(), e);
 			throw e;
 		}

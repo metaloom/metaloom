@@ -36,6 +36,16 @@
             <artifactId>vertx-rx-java3</artifactId>
         </dependency>
 
+        <!-- Metrics -->
+        <dependency>
+            <groupId>io.vertx</groupId>
+            <artifactId>vertx-micrometer-metrics</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+
         <!--YAML-->
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>

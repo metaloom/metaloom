@@ -19,13 +19,15 @@ public class MonitoringService {
 
 	private final Vertx vertx;
 	private final HealthEndpoint healthEndpoint;
+	private final MetricsEndpoint metricsEndpoint;
 
 	private HttpServer httpServer;
 
 	@Inject
-	public MonitoringService(Vertx vertx, HealthEndpoint healthEndpoint) {
+	public MonitoringService(Vertx vertx, HealthEndpoint healthEndpoint, MetricsEndpoint metricsEndpoint) {
 		this.vertx = vertx;
 		this.healthEndpoint = healthEndpoint;
+		this.metricsEndpoint = metricsEndpoint;
 	}
 
 	public void init() {
@@ -37,6 +39,7 @@ public class MonitoringService {
 			log.info("Starting monitoring HTTP server on port {}", port);
 			Router router = Router.router(vertx);
 			healthEndpoint.register(router);
+			metricsEndpoint.register(router);
 
 			httpServer = vertx.createHttpServer().requestHandler(router);
 			httpServer.listen(port).toCompletionStage().toCompletableFuture().get();

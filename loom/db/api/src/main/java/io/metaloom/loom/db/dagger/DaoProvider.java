@@ -38,7 +38,6 @@ import io.metaloom.loom.db.model.tag.TagDao;
 import io.metaloom.loom.db.model.task.TaskDao;
 import io.metaloom.loom.db.model.token.TokenDao;
 import io.metaloom.loom.db.model.user.UserDao;
-import io.metaloom.loom.db.model.webhook.WebhookDao;
 
 public interface DaoProvider extends DaoCollection {
 
@@ -64,12 +63,6 @@ public interface DaoProvider extends DaoCollection {
 
 	default TokenDao tokenDao() {
 		return daos().tokenDao();
-	}
-
-	// Connectivity
-
-	default WebhookDao webhookDao() {
-		return daos().webhookDao();
 	}
 
 	// Asset

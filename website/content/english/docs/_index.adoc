@@ -38,6 +38,7 @@ This page is the quickest way to orient yourself in the platform and jump to the
 				<a href="loom/configuration/" class="docs-card-link">Configuration</a>
 				<a href="loom/chat/" class="docs-card-link">Chat &amp; AI Agent</a>
 				<a href="loom/features/" class="docs-card-link">Features</a>
+				<a href="loom/metrics/" class="docs-card-link">Metrics</a>
 				<a href="loom/examples/" class="docs-card-link">Examples</a>
 			</div>
 		</div>
@@ -50,9 +51,9 @@ This page is the quickest way to orient yourself in the platform and jump to the
 			</div>
 			<div class="docs-card-body">
 				<a href="nodes/" class="docs-card-link">Pipeline Nodes</a>
-				<a href="cortex/features/" class="docs-card-link">Features</a>
 				<a href="cortex/configuration/" class="docs-card-link">Configuration</a>
 				<a href="cortex/monitoring/" class="docs-card-link">Monitoring API</a>
+				<a href="cortex/metrics/" class="docs-card-link">Metrics</a>
 				<a href="cortex/containers/" class="docs-card-link">Containers</a>
 				<a href="cortex/examples/" class="docs-card-link">Custom Nodes (Java/Python)</a>
 			</div>
@@ -73,6 +74,21 @@ This page is the quickest way to orient yourself in the platform and jump to the
 			</div>
 		</div>
 	</div>
+	<div class="col-lg-6 mb-4">
+		<div class="docs-card h-100">
+			<div class="docs-card-header">
+				<h2><a href="ui/">Loom UI</a></h2>
+				<p>The browser-based management interface bundled in the Loom server. Browse assets, chat with the AI agent, edit pipelines, and manage users, roles and API keys — all from the browser, with a screenshot tour of every area.</p>
+			</div>
+			<div class="docs-card-body">
+				<a href="ui/" class="docs-card-link">Overview &amp; Screenshots</a>
+				<a href="ui/#chat" class="docs-card-link">Chat &amp; AI Agent</a>
+				<a href="ui/#assets" class="docs-card-link">Asset Management</a>
+				<a href="ui/#pipeline-editing" class="docs-card-link">Pipeline Editor</a>
+				<a href="ui/#administration" class="docs-card-link">Users, Roles &amp; API Keys</a>
+			</div>
+		</div>
+	</div>
 </div>
 ++++
 
@@ -81,7 +97,7 @@ This page is the quickest way to orient yourself in the platform and jump to the
 If you are new to the platform, this is the shortest reading order:
 
 1. Start with link:getting-started/[Getting Started] to run a local demo in minutes.
-2. Read link:interaction/[Loom and Cortex Interaction] to understand the system boundary.
+2. Read link:operation/[Operation] to understand the system boundary.
 3. Read link:pipeline/[Pipeline Mechanism] to understand how processing is modeled.
 4. Continue into link:loom/[Loom] or link:cortex/[Cortex] depending on whether you are integrating with the API or building processing workflows.
 
@@ -114,9 +130,9 @@ The MetaLoom platform revolves around a small set of concepts that appear throug
 	</div>
 	<div class="col-md-6 col-xl-4 mb-4">
 		<div class="note p-4 h-100">
-			<h3>Online vs Offline</h3>
-			<p>Cortex can run standalone against local files, or connected to Loom as a worker daemon that registers, receives node tasks, and persists results remotely.</p>
-			<p><a href="interaction/">See interaction model</a></p>
+			<h3>Operation</h3>
+			<p>Cortex runs as a worker daemon that registers with Loom, receives the node tasks Loom dispatches, and persists its results back over the REST API.</p>
+			<p><a href="operation/">See how it operates</a></p>
 		</div>
 	</div>
 	<div class="col-md-6 col-xl-4 mb-4">
@@ -153,16 +169,16 @@ Choose the documentation track that matches your task:
 | link:loom/authentication/[Authentication], link:loom/configuration/[Configuration]
 
 | Understand how media gets processed
-| link:interaction/[Loom and Cortex Interaction]
+| link:operation/[Operation]
 | link:pipeline/[Pipeline Mechanism], link:nodes/[Nodes]
 
 | Deploy or operate the system
 | link:loom/artifacts/[Loom Artifacts], link:cortex/artifacts/[Cortex Artifacts]
-| link:cortex/monitoring/[Monitoring], link:cortex/configuration/[Cortex Configuration]
+| link:cortex/monitoring/[Monitoring], link:loom/metrics/[Loom Metrics], link:cortex/metrics/[Cortex Metrics]
 
 | Learn the data model and feature surface
 | link:loom/features/[Loom Features]
-| link:cortex/features/[Cortex Features]
+| link:nodes/[Nodes]
 
 | Use or deploy the AI assistant
 | link:loom/chat/[Chat & AI Agent]
@@ -177,4 +193,4 @@ The overall system flow is:
 . Cortex loads or receives work, processes media through pipeline nodes and emits results.
 . Results are stored locally, sent back to Loom, and exposed through APIs, events and search systems.
 
-For the full interaction model, continue with link:interaction/[Loom and Cortex Interaction].
+For the full runtime model, continue with link:operation/[Operation].

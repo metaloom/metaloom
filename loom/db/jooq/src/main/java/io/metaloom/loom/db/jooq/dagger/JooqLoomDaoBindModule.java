@@ -40,7 +40,6 @@ import io.metaloom.loom.db.jooq.dao.tag.TagDaoImpl;
 import io.metaloom.loom.db.jooq.dao.task.TaskDaoImpl;
 import io.metaloom.loom.db.jooq.dao.token.TokenDaoImpl;
 import io.metaloom.loom.db.jooq.dao.user.UserDaoImpl;
-import io.metaloom.loom.db.jooq.dao.webhook.WebhookDaoImpl;
 import io.metaloom.loom.db.model.annotation.AnnotationDao;
 import io.metaloom.loom.db.model.asset.AssetComponentDao;
 import io.metaloom.loom.db.model.asset.AssetNodeResultDao;
@@ -79,7 +78,6 @@ import io.metaloom.loom.db.model.tag.TagDao;
 import io.metaloom.loom.db.model.task.TaskDao;
 import io.metaloom.loom.db.model.token.TokenDao;
 import io.metaloom.loom.db.model.user.UserDao;
-import io.metaloom.loom.db.model.webhook.WebhookDao;
 
 @Module
 public abstract class JooqLoomDaoBindModule {
@@ -98,9 +96,6 @@ public abstract class JooqLoomDaoBindModule {
 
 	@Binds
 	abstract TagDao tagDao(TagDaoImpl dao);
-
-	@Binds
-	abstract WebhookDao webhookDao(WebhookDaoImpl dao);
 
 	@Binds
 	abstract AssetDao assetDao(AssetDaoImpl dao);

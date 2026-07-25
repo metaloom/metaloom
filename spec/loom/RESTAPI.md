@@ -242,7 +242,6 @@ Most resource endpoints follow a standard CRUD pattern:
 | Skill                   | `/api/v1/skills`                       | GET, POST, DELETE        | Owner-scoped CRUD (users only ever see their own skills) + `/library` (GET, published skills of all users) + `/:uuid/install` (POST, copy a published skill into the callers set with `originSkillUuid` provenance) |
 | Cluster                 | `/api/v1/clusters`                     | GET, POST, DELETE        | Standard CRUD                              |
 | Embedding               | `/api/v1/embeddings`                   | GET, POST, DELETE        | CRUD + attachment sub-resources            |
-| Webhook                 | `/api/v1/webhooks`                     | GET, POST, DELETE        | Standard CRUD                              |
 | Pipeline                | `/api/v1/pipelines`                    | GET, POST, DELETE        | CRUD + `/:uuid/run` (POST) for execution   |
 | Pipeline Versions       | `/api/v1/pipelines/:uuid/versions`     | GET, POST                | Version history + `/:version/restore` (POST) |
 | Pipeline Events (WS)    | `/api/v1/pipelines/events/ws`          | WebSocket                | Live pipeline event stream                 |

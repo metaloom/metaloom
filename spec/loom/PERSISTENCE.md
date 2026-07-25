@@ -221,7 +221,6 @@ Migrations live in `loom/db/flyway/src/main/resources/db/migration/`. They are P
 | `V2.12__add_embedding` | Embedding (vector data), cluster, tag_cluster, embedding_cluster |
 | `V2.13__add_attachment` | Attachment binary, attachment (thumbnails, embedding attachments) |
 | `V2.14__add_blacklist` | Blacklist table for blocked assets |
-| `V2.15__add_webhook` | Webhook table with event triggers |
 | `V2.16__add_annotation` | Annotation (FEEDBACK/TAG/CHAPTER types), annotation_task, annotation_asset, annotation_tag |
 | `V2.17__add_social` | Comment, reaction tables |
 | `V2.18__add_asset_components` | Extracted component tables: asset_geo_comp, asset_doc_comp, asset_image_comp, asset_video_comp, asset_audio_comp, asset_transcript_comp |
@@ -385,7 +384,6 @@ All tests are in `loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/dao/`:
 | `TagUserRatingDaoTest` | Tag user rating |
 | `TaskDaoTest` | Task (includes comment-subtree cascade) |
 | `TokenDaoTest` | Token |
-| `WebhookDaoTest` | Webhook |
 | `AnnotationDaoTest` | Annotation |
 
 *(Helper `PipelineFixtures` is a shared fixture builder, not a test.)*
@@ -434,7 +432,6 @@ The following entities have full DAO + model + migration + jOOQ table support:
 | Comment | `CommentDao` | `comment` | Comments on tasks, annotations, assets |
 | Reaction | `ReactionDao` | `reaction` | Social reactions (thumbsup, rating) |
 | Task | `TaskDao` | `task` | Tasks with status + `priority` (LOW/MEDIUM/HIGH/CRITICAL, V2.34) |
-| Webhook | `WebhookDao` | `webhook` | Event-driven webhooks with secret token |
 | Blacklist | `BlacklistDao` | `blacklist` | Blocked assets with `name` (V2.50), type and review count |
 | Attachment | `AttachmentDao` | `attachment` | Derived-binary sink: thumbnails, contact sheets, poster frames, proxies (V2.44) |
 | Person | `PersonDao` | `person` | Person identity with image gallery |
@@ -549,7 +546,6 @@ This section tracks the status of each persistence entity and its associated fea
 | Annotation | V2.16 | AnnotationDao | AnnotationDaoImpl | AnnotationImpl | AnnotationDaoTest | FEEDBACK/TAG/CHAPTER types |
 | Comment | V2.17 | CommentDao | CommentDaoImpl | CommentImpl | CommentDaoTest | Comments on tasks/annotations/assets |
 | Reaction | V2.17 | ReactionDao | ReactionDaoImpl | ReactionImpl | ReactionDaoTest | Social reactions |
-| Webhook | V2.15 | WebhookDao | WebhookDaoImpl | WebhookImpl | WebhookDaoTest | Event webhooks |
 | Blacklist | V2.14/V2.50 | BlacklistDao | BlacklistDaoImpl | BlacklistImpl | BlacklistDaoTest | Blocked assets (with `name`) |
 | Attachment | V2.13/V2.44 | AttachmentDao | AttachmentDaoImpl | AttachmentImpl | AttachmentDaoTest | Derived-binary sink |
 | AssetPool | V2.20 | AssetPoolDao | AssetPoolDaoImpl | AssetPoolImpl | - | Storage pools (FS or S3) |
@@ -582,7 +578,7 @@ This section tracks the status of each persistence entity and its associated fea
 
 Generated table classes are in `loom/db/jooq/src/jooq/java/io/metaloom/loom/db/jooq/tables/`. Key tables:
 
-`JooqUser`, `JooqToken`, `JooqRole`, `JooqRolePermission`, `JooqUserPermission`, `JooqTokenPermission`, `JooqGroup`, `JooqRoleGroup`, `JooqUserGroup`, `JooqTag`, `JooqTagAsset`, `JooqTagUserMeta`, `JooqTagCollection`, `JooqTagCluster`, `JooqTask`, `JooqAsset`, `JooqAssetRemix`, `JooqAssetLocation`, `JooqAssetUserMeta`, `JooqAssetTask`, `JooqCollection`, `JooqCollectionAsset`, `JooqCollectionCluster`, `JooqLibrary`, `JooqLibraryAsset`, `JooqLibraryCollection`, `JooqProject`, `JooqProjectLibrary`, `JooqProjectCollection`, `JooqEmbedding`, `JooqEmbeddingCluster`, `JooqCluster`, `JooqAnnotation`, `JooqAnnotationTask`, `JooqAnnotationAsset`, `JooqAnnotationTag`, `JooqComment`, `JooqReaction`, `JooqWebhook`, `JooqBlacklist`, `JooqAttachment`, `JooqAttachmentBinary`, `JooqAssetPool`, `JooqAssetGeoComp`, `JooqAssetDocComp`, `JooqAssetImageComp`, `JooqAssetVideoComp`, `JooqAssetAudioComp`, `JooqAssetTranscriptComp`, `JooqAssetJsonComp`, `JooqAssetFingerprintComp`, `JooqAssetSegmentComp`, `JooqAssetNodeResult`, `JooqPerson`, `JooqPersonImage`, `JooqDetection`, `JooqPipeline`, `JooqPipelineVersion`, `JooqPipelineRun`, `JooqPipelineRunItem`, `JooqPipelineNodeTask`, `JooqCortexInstance`, `JooqCortexInstanceNodeKind`, `JooqSkill`, `JooqSkillVersion`, `JooqChat`, `JooqVectorConfig`, `JooqLoom`, `JooqFlywaySchemaHistory`
+`JooqUser`, `JooqToken`, `JooqRole`, `JooqRolePermission`, `JooqUserPermission`, `JooqTokenPermission`, `JooqGroup`, `JooqRoleGroup`, `JooqUserGroup`, `JooqTag`, `JooqTagAsset`, `JooqTagUserMeta`, `JooqTagCollection`, `JooqTagCluster`, `JooqTask`, `JooqAsset`, `JooqAssetRemix`, `JooqAssetLocation`, `JooqAssetUserMeta`, `JooqAssetTask`, `JooqCollection`, `JooqCollectionAsset`, `JooqCollectionCluster`, `JooqLibrary`, `JooqLibraryAsset`, `JooqLibraryCollection`, `JooqProject`, `JooqProjectLibrary`, `JooqProjectCollection`, `JooqEmbedding`, `JooqEmbeddingCluster`, `JooqCluster`, `JooqAnnotation`, `JooqAnnotationTask`, `JooqAnnotationAsset`, `JooqAnnotationTag`, `JooqComment`, `JooqReaction`, `JooqBlacklist`, `JooqAttachment`, `JooqAttachmentBinary`, `JooqAssetPool`, `JooqAssetGeoComp`, `JooqAssetDocComp`, `JooqAssetImageComp`, `JooqAssetVideoComp`, `JooqAssetAudioComp`, `JooqAssetTranscriptComp`, `JooqAssetJsonComp`, `JooqAssetFingerprintComp`, `JooqAssetSegmentComp`, `JooqAssetNodeResult`, `JooqPerson`, `JooqPersonImage`, `JooqDetection`, `JooqPipeline`, `JooqPipelineVersion`, `JooqPipelineRun`, `JooqPipelineRunItem`, `JooqPipelineNodeTask`, `JooqCortexInstance`, `JooqCortexInstanceNodeKind`, `JooqSkill`, `JooqSkillVersion`, `JooqChat`, `JooqVectorConfig`, `JooqLoom`, `JooqFlywaySchemaHistory`
 
 ### Migration File Index
 
@@ -602,7 +598,6 @@ loom/db/flyway/src/main/resources/db/migration/
   V2.12__add_embedding.sql                 - Embedding, cluster, join tables
   V2.13__add_attachment.sql                - Attachment, attachment_binary
   V2.14__add_blacklist.sql                 - Blacklist
-  V2.15__add_webhook.sql                   - Webhook
   V2.16__add_annotation.sql                - Annotation + join tables
   V2.17__add_social.sql                    - Comment, reaction
   V2.18__add_asset_components.sql          - Asset component tables (geo, doc, image, video, audio, transcript)

@@ -80,10 +80,6 @@ They can be set at the global level or scoped to specific libraries or collectio
 * Runs are executed by Loom's engine, which delegates node tasks to registered Cortex workers (see link:../../pipeline[Pipeline Mechanism])
 * Pipeline execution results are tracked and surfaced as real-time WebSocket events
 
-== Webhooks
-
-*Webhooks* allow Loom to push event notifications to external HTTP endpoints when entities are created, updated, or deleted.
-
 == Tasks
 
 *Tasks* represent asynchronous background operations (e.g. bulk ingestion).

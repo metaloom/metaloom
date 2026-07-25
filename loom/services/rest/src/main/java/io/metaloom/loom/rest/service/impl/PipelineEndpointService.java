@@ -67,6 +67,7 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 
 	private final ProcessorRegistry processorRegistry;
 	private final PipelineValidationService pipelineValidationService;
+	private final io.metaloom.loom.common.metrics.LoomMetrics metrics;
 	private final PipelineRunDao pipelineRunDao;
 	private final PipelineVersionDao pipelineVersionDao;
 	private final PipelineRunTracker pipelineRunTracker;
@@ -99,8 +100,9 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 		PipelineVersionDao pipelineVersionDao, PipelineRunTracker pipelineRunTracker, PipelineRunRegistry pipelineRunRegistry,
 		WebSocketNodeDispatcher nodeDispatcher, PipelineRunItemDao pipelineRunItemDao,
 		PipelineNodeTaskDao pipelineNodeTaskDao, PipelineEventBroadcaster pipelineEventBroadcaster,
-		io.vertx.core.Vertx vertx) {
+		io.vertx.core.Vertx vertx, io.metaloom.loom.common.metrics.LoomMetrics metrics) {
 		super(pipelineDao, daos, modelBuilder, validator);
+		this.metrics = metrics;
 		this.processorRegistry = processorRegistry;
 		this.pipelineValidationService = pipelineValidationService;
 		this.pipelineRunDao = pipelineRunDao;
@@ -321,6 +323,7 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 				latestVersion != null ? latestVersion.getDefinition() : null,
 				latestVersion == null || latestVersion.isEnabled(), dryRun, pipelineVersion);
 		} catch (GraphValidationException e) {
+			metrics.recordRunRejected("invalid_graph");
 			log.warn("Refusing to run pipeline '{}': {}", pipelineName, e.getMessage());
 			return new RunDispatch(response.setDispatched(false).setMessage(e.getMessage()), 400);
 		}
@@ -332,6 +335,7 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 		ConnectedProcessor processor = processorRegistry.selectProcessorForKinds(ProcessorCapability.CPU,
 			List.of(sourceKind));
 		if (processor == null) {
+			metrics.recordRunRejected("no_processor");
 			log.warn("Rejected pipeline run for pipeline {}: no processor accepts source kind '{}'",
 				pipeline.getUuid(), sourceKind);
 			return new RunDispatch(response.setDispatched(false)
@@ -343,6 +347,7 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 		runRecord.setStatus("RUNNING");
 		runRecord.setDryRun(dryRun);
 		pipelineRunDao.store(runRecord);
+		metrics.recordRunStarted();
 		UUID runUuid = runRecord.getUuid();
 		response.setRunUuid(runUuid);
 

@@ -1,0 +1,152 @@
+---
+title: Metrics
+---
+
+= Loom Metrics
+
+The Loom server exposes a **Prometheus scrape endpoint** at `GET /metrics` on a dedicated monitoring
+port. All Loom meters are prefixed `loom_`. For Cortex worker metrics see
+link:../../cortex/metrics/[Cortex Metrics]; for health and readiness endpoints see
+link:../../cortex/monitoring/[Monitoring API].
+
+== Endpoint
+
+[options="header",cols="2,1,3"]
+|===
+| Property | Value | Notes
+| Path | `/metrics` | Standard Prometheus text exposition format
+| Port | `8989` | Env `LOOM_SERVER_MON_PORT`
+| Auth | none | Internal monitoring surface — restrict at the network layer
+|===
+
+The metrics server is separate from the REST API server. A scrape of the REST port (`8092`) returns
+`404` by design; the same applies to the gRPC (`8091`) and MCP (`4041`) ports.
+
+[source,bash]
+----
+curl http://loom.internal:8989/metrics
+----
+
+=== Changing the port
+
+[source,bash]
+----
+LOOM_SERVER_MON_PORT=9091
+----
+
+== Pipeline Runs
+
+[options="header",cols="3,1,2,4"]
+|===
+| Metric | Type | Labels | Meaning
+| `loom_pipeline_runs_started_total` | counter | — | Pipeline runs dispatched by the engine.
+| `loom_pipeline_runs_completed_total` | counter | `status` = `success` \| `partial` \| `failed` \| `cancelled` | Runs that reached a terminal state.
+| `loom_pipeline_run_duration_seconds` | timer | `status` | Wall-clock duration of a complete run.
+| `loom_pipeline_runs_rejected_total` | counter | `reason` = `no_processor` \| `invalid_graph` | Runs refused up-front (no capable worker, or a graph that does not validate).
+| `loom_pipeline_runs_recovered_total` | counter | — | Runs re-adopted after a server restart.
+|===
+
+A rising `loom_pipeline_runs_rejected_total{reason="no_processor"}` is the clearest signal that your
+Cortex fleet does not advertise a node kind the pipeline needs.
+
+== Node Tasks
+
+[options="header",cols="3,1,2,4"]
+|===
+| Metric | Type | Labels | Meaning
+| `loom_node_tasks_dispatched_total` | counter | `kind` | Node tasks pushed to a worker, by node kind.
+| `loom_node_tasks_dispatch_failed_total` | counter | `reason` = `no_processor` \| `socket_gone` | Dispatch attempts that found no live worker.
+| `loom_node_results_received_total` | counter | `kind`, `state` = `success` \| `failed` \| `skipped` | Results reported back over the processor WebSocket.
+| `loom_source_items_received_total` | counter | — | Items enumerated by a source node and reported to Loom.
+| `loom_asset_node_results_written_total` | counter | `kind`, `state` | Durable `asset_node_result` ledger rows persisted.
+|===
+
+== Workers (Processors)
+
+[options="header",cols="3,1,2,4"]
+|===
+| Metric | Type | Labels | Meaning
+| `loom_processors_connected` | gauge | — | Currently connected Cortex workers.
+| `loom_processor_registrations_total` | counter | — | Successful worker registrations.
+| `loom_processor_disconnects_total` | counter | — | Worker disconnects.
+| `loom_processor_heartbeats_total` | counter | — | Heartbeats received.
+|===
+
+Per-worker CPU and memory are reported by the workers themselves — scrape those from each Cortex
+instance (`cortex_cpu_load`, `cortex_memory_used_bytes`, see link:../../cortex/metrics/[Cortex Metrics])
+rather than from Loom.
+
+== Leases and Events
+
+[options="header",cols="3,1,2,4"]
+|===
+| Metric | Type | Labels | Meaning
+| `loom_leases_reclaimed_total` | counter | — | Task leases reclaimed by the reaper after a worker went away.
+| `loom_orphans_deadlettered_total` | counter | — | Orphaned tasks moved to the dead-letter path.
+| `loom_pipeline_event_subscribers` | gauge | — | UI clients subscribed to the pipeline event stream.
+| `loom_pipeline_events_broadcast_total` | counter | — | Tracking events fanned out to subscribers.
+| `loom_pipeline_events_dropped_total` | counter | — | Events dropped because a subscriber could not keep up.
+| `loom_auth_failures_total` | counter | `type` = `jwt` \| `ws` \| `permission` | Rejected authentication / authorization attempts.
+|===
+
+== Runtime Metrics
+
+Vert.x built-in metrics and the Micrometer JVM binders share the same registry, so the scrape also
+carries:
+
+* `vertx_http_server_*`, `vertx_eventbus_*`, `vertx_pool_*` — HTTP server, event bus and pool metrics.
+* `jvm_memory_used_bytes`, `jvm_gc_*`, `jvm_threads_*`, `process_cpu_usage` — JVM and process metrics.
+
+NOTE: The jOOQ database connection pool is a c3p0 pool and is **not** covered by the Vert.x pool
+metrics. Use the JVM and query-level signals rather than assuming `vertx_pool_*` reflects database
+connections.
+
+== Prometheus Configuration
+
+[source,yaml]
+----
+scrape_configs:
+  - job_name: metaloom-loom
+    static_configs:
+      - targets: ["loom.internal:8989"]
+----
+
+In Kubernetes, expose the monitoring port on the Loom `Service` and annotate the pod:
+
+[source,yaml]
+----
+metadata:
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8989"
+    prometheus.io/path: "/metrics"
+----
+
+== Useful Queries
+
+[source,promql]
+----
+# Pipeline run failure ratio over 5 minutes
+sum(rate(loom_pipeline_runs_completed_total{status="failed"}[5m]))
+  / sum(rate(loom_pipeline_runs_completed_total[5m]))
+
+# Node task throughput by kind
+sum by (kind) (rate(loom_node_tasks_dispatched_total[5m]))
+
+# Alert when the worker fleet is empty
+loom_processors_connected == 0
+
+# Dropped UI events (subscriber backpressure)
+rate(loom_pipeline_events_dropped_total[5m]) > 0
+----
+
+== Naming Conventions
+
+Metric names follow Prometheus conventions: counters carry a `_total` suffix, timers are exported in
+base units as `_seconds`, and labels are deliberately low-cardinality — node kind, status, message
+type or a stable worker id. Asset UUIDs, file paths, run UUIDs and user ids are **never** used as
+label values.
+
+Timers are exported without a percentile histogram, so each one yields `_seconds_count`,
+`_seconds_sum` and `_seconds_max` series. Derive averages from `sum / count`; `histogram_quantile()`
+is not available for these meters.

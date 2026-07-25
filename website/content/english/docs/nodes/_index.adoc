@@ -7,9 +7,11 @@ and link:../cortex/[Cortex] workers execute the individual node tasks that Loom 
 has a unique *kind* (name) used to reference it in a pipeline definition and to route its work to a
 worker that can run it.
 
-When online, a node writes its result back to Loom over the REST API — a typed component plus a
-`asset_node_result` ledger row; offline, results stay in the worker's local cache. Downstream nodes
-read a dependency's **output keys**.
+A node writes its result back to Loom over the REST API — a typed component plus an
+`asset_node_result` ledger row. Downstream nodes read a dependency's **output keys**.
+
+Between them the built-in nodes cover any media file type — images, videos, audio and documents. What
+is actually analysed for a given asset depends entirely on which nodes the pipeline contains.
 
 The built-in nodes fall into four categories.
 
@@ -81,7 +83,55 @@ Most nodes are pure CPU. A few need a native library or an external model servic
 Pin the heavy kinds to dedicated or GPU workers via `CORTEX_NODE_WHITELIST` — see
 link:../cortex/configuration/[Cortex Configuration].
 
+== Processing Capabilities
+
+What the built-in node set gives you, and which node provides it:
+
+Asset hashing::
+link:hash/[`md5`, `sha256`, `sha512`, `chunk-hash`] run in parallel over any file. Hashes are the
+basis for exact deduplication and for skipping already-processed assets.
+
+Video fingerprinting::
+link:fingerprint/[`fingerprint`] computes a perceptual multi-sector fingerprint using the
+`video4j-fingerprint` library. It survives transcoding, resolution changes and minor edits, which
+makes near-duplicate detection possible at scale via vector similarity search.
+
+Face detection::
+link:facedetect/[`facedetect`] finds faces in images and video with the InspireFace library, returning
+bounding boxes, facial embeddings and the optimal focal point for cropped thumbnails.
+link:facedescription/[`facedescription`] then describes those faces with a vision model.
+
+Thumbnail generation::
+link:thumbnail/[`thumbnail`] renders contact-sheet previews from video frames and source images and
+uploads them to Loom as asset binaries.
+
+Metadata extraction::
+link:tika/[`tika`] uses Apache Tika to pull structured and unstructured metadata out of any supported
+format — EXIF from images, codec information from video, full text from documents.
+
+Scene detection::
+link:scene-detection/[`scene-detection`] splits video into scenes with an optical-flow detector,
+producing cut timestamps that can drive per-scene thumbnails or clips.
+
+OCR and speech-to-text::
+link:ocr/[`ocr`] extracts text from images and document pages with Tesseract;
+link:whisper/[`whisper`] transcribes audio and video soundtracks with the Whisper model.
+
+AI captioning and enrichment::
+link:captioning/[`captioning`] generates natural-language descriptions with a vision-language model
+(SmolVLM), and link:llm/[`llm`] enriches metadata through an LLM provider such as Ollama.
+
+Consistency checking::
+link:consistency/[`consistency`] validates that stored metadata — hashes, dimensions, codec
+information — still matches the file on disk, flagging inconsistencies for review or remediation.
+
 == Authoring Your Own Node
 
-Custom nodes are written in Java (extending `AbstractMediaNode`) or as a Python worker that speaks the
-wire protocol. See link:../cortex/examples/[Cortex Examples].
+Cortex is designed to be extended. A custom node in Java is three steps:
+
+. Extend `AbstractMediaNode<YourOptions>`.
+. Implement `name()`, `isProcessable()` and `compute()`.
+. Register the node via a Dagger module.
+
+Alternatively, write a worker in Python that speaks the wire protocol directly. Both routes have a
+complete working example in link:../cortex/examples/[Cortex Examples].

@@ -67,14 +67,6 @@ feature:
       icon : ti-menu
       content : Metadata from images, videos and documents is automatically extracted by Cortex nodes (hashes, transcripts, captions, OCR, faces, scenes …) and made accessible via the API.
 
-    - title : Content Model (planned)
-      icon : ti-layout
-      content : Content models can be used to provide a structure for metadata that can be stored in addition to assets.
-
-    - title : Webhooks
-      icon : ti-server
-      content : The server provides webhooks that allow you to trigger other attached processes when entities change.
-
 
   title_ops : Devops Features
   content_ops : "These various features help you to integrate Loom into your environment."

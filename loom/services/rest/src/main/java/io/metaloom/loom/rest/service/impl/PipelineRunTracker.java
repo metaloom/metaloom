@@ -9,6 +9,7 @@ import javax.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.metaloom.loom.common.metrics.LoomMetrics;
 import io.metaloom.loom.db.model.pipeline.PipelineRun;
 import io.metaloom.loom.db.model.pipeline.PipelineRunDao;
 
@@ -32,10 +33,17 @@ public class PipelineRunTracker {
 	private static final Logger log = LoggerFactory.getLogger(PipelineRunTracker.class);
 
 	private final PipelineRunDao pipelineRunDao;
+	private final LoomMetrics metrics;
 
 	@Inject
-	public PipelineRunTracker(PipelineRunDao pipelineRunDao) {
+	public PipelineRunTracker(PipelineRunDao pipelineRunDao, LoomMetrics metrics) {
 		this.pipelineRunDao = pipelineRunDao;
+		this.metrics = metrics;
+	}
+
+	/** Test convenience: a tracker without a metrics backend. */
+	public PipelineRunTracker(PipelineRunDao pipelineRunDao) {
+		this(pipelineRunDao, io.metaloom.loom.common.metrics.NoopLoomMetrics.INSTANCE);
 	}
 
 	/**
@@ -114,6 +122,8 @@ public class PipelineRunTracker {
 			// update(), not store() — store() is INSERT-only on the jOOQ DAOs and
 			// would fail the primary key constraint on an existing row.
 			pipelineRunDao.update(run);
+
+			metrics.recordRunCompleted(status.toLowerCase(), durationMs != null ? durationMs : 0L);
 
 			log.info("Pipeline run {} closed as {} (media={}, success={}, failure={}, skipped={}, duration={}ms)",
 				runUuid, status, mediaCount, successCount, failureCount, skippedCount, durationMs);

@@ -50,13 +50,20 @@ public class LeaseReaper {
 
 	private final PipelineNodeTaskDao taskDao;
 	private final PipelineRunRegistry runRegistry;
+	private final io.metaloom.loom.common.metrics.LoomMetrics metrics;
 
 	private ScheduledExecutorService scheduler;
 
 	@Inject
-	public LeaseReaper(PipelineNodeTaskDao taskDao, PipelineRunRegistry runRegistry) {
+	public LeaseReaper(PipelineNodeTaskDao taskDao, PipelineRunRegistry runRegistry, io.metaloom.loom.common.metrics.LoomMetrics metrics) {
 		this.taskDao = taskDao;
 		this.runRegistry = runRegistry;
+		this.metrics = metrics;
+	}
+
+	/** Test convenience: a reaper without a metrics backend. */
+	public LeaseReaper(PipelineNodeTaskDao taskDao, PipelineRunRegistry runRegistry) {
+		this(taskDao, runRegistry, io.metaloom.loom.common.metrics.NoopLoomMetrics.INSTANCE);
 	}
 
 	/**
@@ -128,6 +135,7 @@ public class LeaseReaper {
 			}
 		}
 		if (reclaimed > 0) {
+			metrics.recordLeasesReclaimed(reclaimed);
 			log.warn("Reclaimed {} task(s) with lapsed leases", reclaimed);
 		}
 		if (expired.size() == limit) {
@@ -172,6 +180,7 @@ public class LeaseReaper {
 			task.setLeaseExpiresAt(null);
 			task.setErrorMessage("Lease expired but run " + task.getRunUuid() + " is no longer active");
 			taskDao.update(task);
+			metrics.recordOrphansDeadlettered(1);
 			log.warn("Task {} belongs to inactive run {} - dead-lettered", task.getUuid(), task.getRunUuid());
 		} catch (Exception e) {
 			log.error("Failed to release orphaned task {}", task.getUuid(), e);

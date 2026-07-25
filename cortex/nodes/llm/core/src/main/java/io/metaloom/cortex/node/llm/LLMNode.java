@@ -89,6 +89,7 @@ public class LLMNode extends AbstractMediaNode<LLMNodeOptions> {
 		// re-persisting.
 		Map<String, Object> cached = resultCache.get(path);
 		if (cached != null) {
+			metrics.recordAiCacheHit("ollama");
 			cached.forEach(ctx::output);
 			return NodeResult.success(ctx.outputs());
 		}
@@ -103,7 +104,15 @@ public class LLMNode extends AbstractMediaNode<LLMNodeOptions> {
 			prompt.set("name", ctx.media().file().getName());
 			LLMContext llmCtx = LLMContext.ctx(prompt, model);
 
-			JsonObject json = provider.generateJson(llmCtx);
+			long aiStart = System.currentTimeMillis();
+			JsonObject json;
+			try {
+				json = provider.generateJson(llmCtx);
+			} catch (RuntimeException e) {
+				metrics.recordAiCall("ollama", false, System.currentTimeMillis() - aiStart);
+				throw e;
+			}
+			metrics.recordAiCall("ollama", true, System.currentTimeMillis() - aiStart);
 
 			ctx.output(resultKey(promptId), json.encode());
 			persist(ctx, asset, promptId, modelName, json);

@@ -1,25 +1,30 @@
 # MetaLoom — Monitoring & Health Specification
 
-> **Audience: AI coding agents.** How Loom and Cortex expose health, readiness and (future) metrics.
+> **Audience: AI coding agents.** How Loom and Cortex expose health, readiness and metrics.
 > Verified against the code on the revision in the footer. **Source of truth is the code** — if this
 > contradicts it, the code wins and fix this file in the same change.
 >
-> Related: [../../cortex/CORTEX.md](../../cortex/CORTEX.md), [../../loom/RESTAPI.md](../../loom/RESTAPI.md),
-> [../../loom/CONFIGURATION.md](../../loom/CONFIGURATION.md).
+> **Prometheus `/metrics` now exists** on both components' monitoring servers — the catalog, meter
+> names and instrumentation sites live in [METRICS.md](METRICS.md). This file covers health and
+> readiness; read METRICS.md for scraping.
+>
+> Related: [METRICS.md](METRICS.md), [../../cortex/CORTEX.md](../../cortex/CORTEX.md),
+> [../../loom/RESTAPI.md](../../loom/RESTAPI.md), [../../loom/CONFIGURATION.md](../../loom/CONFIGURATION.md).
 
 ---
 
 ## 1. TL;DR
 
-- **Cortex** runs a dedicated monitoring HTTP server (Vert.x) with **liveness** (`/api/health`) and
-  **readiness** (`/api/ready`) endpoints. Default port **8093**, env `CORTEX_MONITORING_PORT`.
+- **Cortex** runs a dedicated monitoring HTTP server (Vert.x) with **liveness** (`/api/health`),
+  **readiness** (`/api/ready`) and **`/metrics`** (Prometheus) endpoints. Default port **8093**, env
+  `CORTEX_MONITORING_PORT`.
 - **Loom** exposes a health check on its main REST API at **`GET /api/v1/health`** (status + version +
-  DB check). There is **no** separate Loom monitoring server running yet.
-- 🔴 **No Prometheus / `/metrics` endpoint exists** in either component today. The
-  `loom/services/monitoring` module is an **empty placeholder** and `ServerOptions.monitoringPort`
-  (`LOOM_SERVER_MON_PORT`, default 8989) is **configured but never bound** to a server.
-- Marketing/older docs mention "Prometheus scrape endpoint" and a Cortex `/metrics` route — both are
-  **aspirational**, not implemented.
+  DB check), **and** now runs a dedicated monitoring HTTP server serving **`/metrics`** on
+  `LOOM_SERVER_MON_PORT` (default **8989**), built out from the previously-empty
+  `loom/services/monitoring` module.
+- ✅ **Prometheus `/metrics` is implemented** on both components' monitoring ports (never on the REST
+  API port). Backend is Micrometer + a shared `PrometheusMeterRegistry` with Vert.x built-in metrics
+  enabled. See [METRICS.md](METRICS.md) for the full catalog, meter names and instrumentation sites.
 
 ---
 
@@ -91,9 +96,9 @@ secured.)
 
 | Setting | Default | Env | Bound? |
 |---|---|---|---|
-| Cortex monitoring port | `8093` | `CORTEX_MONITORING_PORT` | ✅ served by `MonitoringService` |
-| Loom REST port (serves `/api/v1/health`) | `8092` | `LOOM_SERVER_REST_PORT` | ✅ |
-| Loom monitoring port | `8989` | `LOOM_SERVER_MON_PORT` | 🔴 **configured but not bound to any server** |
+| Cortex monitoring port | `8093` | `CORTEX_MONITORING_PORT` | ✅ served by `MonitoringService` (health + ready + `/metrics`) |
+| Loom REST port (serves `/api/v1/health`) | `8092` | `LOOM_SERVER_REST_PORT` | ✅ (no `/metrics` here — a scrape 404s) |
+| Loom monitoring port | `8989` | `LOOM_SERVER_MON_PORT` | ✅ served by Loom `MonitoringService` (`/metrics`) |
 | Loom MCP port | `4041` | `LOOM_SERVER_MCP_PORT` | ✅ (MCP, not monitoring) |
 
 ---
@@ -122,7 +127,8 @@ secured.)
 | Loom health endpoint | `loom/services/rest/.../endpoint/impl/HealthEndpoint.java` |
 | Loom health DTO | `loom-shared/rest-model/.../health/HealthCheckResponse.java` |
 | Loom monitoring placeholder | `loom/services/monitoring/` |
-| Customer-facing doc | `website/content/english/docs/cortex/monitoring/index.adoc` |
+| Customer-facing doc (health/ready) | `website/content/english/docs/cortex/monitoring/index.adoc` |
+| Customer-facing doc (metrics) | `website/content/english/docs/loom/metrics/`, `.../cortex/metrics/` |
 
 ---
 
@@ -133,11 +139,11 @@ secured.)
   unregistered worker "ready".
 - **A Cortex worker can be *live* but not *ready* indefinitely** (offline mode, or Loom unreachable).
   That is by design; do not treat `not_ready` as a crash.
-- **No `/metrics` yet.** Do not document or depend on a Prometheus endpoint. If you add one, wire it to
-  `LOOM_SERVER_MON_PORT` on Loom and a `/metrics` route on the Cortex monitoring server, and update the
-  website page + this spec together.
-- **Loom health is on the REST port**, not a separate port — `LOOM_SERVER_MON_PORT` is reserved but
-  inert.
+- **`/metrics` lives on the monitoring port, never the REST port.** Loom serves it on
+  `LOOM_SERVER_MON_PORT` (8989) via a dedicated `MonitoringService`; Cortex adds it to the existing
+  monitoring server (8093). A scrape of the REST port (8092) 404s by design. See [METRICS.md](METRICS.md).
+- **Loom health is on the REST port**, but `LOOM_SERVER_MON_PORT` is **no longer inert** — it now
+  binds the metrics server.
 - Cortex serves `up` (lowercase) for liveness; Loom serves `UP` (uppercase) for its REST health. Do not
   assume a shared schema between the two.
 
@@ -158,15 +164,18 @@ secured.)
 - [x] Cortex liveness (`/api/health`) + readiness (`/api/ready`) implemented, with legacy aliases
 - [x] Readiness reflects connected **and** registered state; rich `loom` diagnostic object
 - [x] Loom `GET /api/v1/health` with version + DB connectivity check
-- [x] Website monitoring page corrected (removed the non-existent `/metrics` claim; fixed statuses)
-- [ ] **Prometheus / `/metrics` endpoint** — not implemented on either component
-- [ ] **Loom monitoring server** — `loom/services/monitoring` is an empty placeholder;
-      `LOOM_SERVER_MON_PORT` (8989) is configured but bound to nothing
-- [ ] Per-node / pipeline **metrics** (processed/skipped/failed counters exist in the executor but are
-      not exposed over HTTP)
+- [x] Website monitoring page documents the Prometheus scrape endpoints and ports
+- [x] **Prometheus / `/metrics` endpoint** — implemented on both components' monitoring ports
+      (Micrometer + shared `PrometheusMeterRegistry`, Vert.x built-ins enabled). See [METRICS.md](METRICS.md)
+- [x] **Loom monitoring server** — `loom/services/monitoring` built out; `LOOM_SERVER_MON_PORT` (8989)
+      now bound by `MonitoringService`, wired via `MonitoringModule` + `BootstrapInitializer`
+- [x] Per-node / pipeline **metrics** exposed over HTTP (`loom_node_results_received_total`,
+      `cortex_node_operations_total`, run outcomes, dispatch, workers, AI calls, resources)
 - [ ] Confirm and document whether `/api/v1/health` is auth-exempt for probes
+- [ ] c3p0 DB-pool gauges on Loom (Vert.x pool metrics do not cover the jOOQ c3p0 pool) — tracked in
+      [METRICS.md](METRICS.md)
 
 ---
 
-_GIT HEAD: `228b0f97274607c179b22e6d1ffa0885719d5fa1`_
-_Generated: 2026-07-25 (UTC)_
+_GIT HEAD: `bbeb9677b9ceccd7174ee676a68b092e9a6a582b`_
+_Generated: 2026-07-25 (UTC) — Prometheus `/metrics` + Loom monitoring server added; see METRICS.md_

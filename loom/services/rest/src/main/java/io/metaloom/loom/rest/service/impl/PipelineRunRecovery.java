@@ -59,12 +59,13 @@ public class PipelineRunRecovery {
 	private final PipelineRunRegistry registry;
 	private final WebSocketNodeDispatcher dispatcher;
 	private final PipelineRunTracker tracker;
+	private final io.metaloom.loom.common.metrics.LoomMetrics metrics;
 	private final PipelineGraphParser parser = new PipelineGraphParser();
 
 	@Inject
 	public PipelineRunRecovery(PipelineRunDao runDao, PipelineRunItemDao itemDao, PipelineNodeTaskDao taskDao,
 		PipelineVersionDao versionDao, PipelineRunRegistry registry, WebSocketNodeDispatcher dispatcher,
-		PipelineRunTracker tracker) {
+		PipelineRunTracker tracker, io.metaloom.loom.common.metrics.LoomMetrics metrics) {
 		this.runDao = runDao;
 		this.itemDao = itemDao;
 		this.taskDao = taskDao;
@@ -72,6 +73,7 @@ public class PipelineRunRecovery {
 		this.registry = registry;
 		this.dispatcher = dispatcher;
 		this.tracker = tracker;
+		this.metrics = metrics;
 	}
 
 	/**
@@ -103,6 +105,9 @@ public class PipelineRunRecovery {
 				log.error("Failed to recover run {}", run.getUuid(), e);
 				failRun(run, "Recovery failed: " + e.getMessage());
 			}
+		}
+		if (recovered > 0) {
+			metrics.recordRunRecovered(recovered);
 		}
 		return recovered;
 	}

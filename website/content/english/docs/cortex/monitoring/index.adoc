@@ -4,9 +4,13 @@ title: Monitoring API
 
 = Monitoring API
 
-A Cortex worker runs a lightweight monitoring HTTP server exposing **liveness** and **readiness**
-endpoints, designed for Kubernetes probes and load balancers. Loom exposes its own health check on the
-REST API.
+A Cortex worker runs a lightweight monitoring HTTP server exposing **liveness**, **readiness** and
+**Prometheus metrics** endpoints, designed for Kubernetes probes, load balancers and metrics scrapers.
+Loom exposes a health check on its REST API and its own Prometheus metrics endpoint on a dedicated
+monitoring port.
+
+This page covers health and readiness. The full metric catalogs live on their own pages:
+link:../../loom/metrics/[Loom Metrics] and link:../metrics/[Cortex Metrics].
 
 == Cortex Health Server
 
@@ -43,8 +47,9 @@ The embedded `loom` object reports the worker's connection to Loom:
 }
 ----
 
-In offline mode (`configured: false`) the worker reports `up` for liveness but stays `not_ready`, since
-there is no Loom to register with.
+Until the worker has both connected and registered, it reports `up` for liveness but stays
+`not_ready` — the `loom` object tells you which step is missing (`connected`, `registered`,
+`reconnectAttempts`, `error`).
 
 === Kubernetes Probe Configuration
 
@@ -95,9 +100,48 @@ GET /api/v1/health
 It verifies database connectivity; if the database is unreachable, `database` is `DOWN` and `status`
 becomes `DEGRADED`. See link:../../loom/rest-api/[REST API].
 
-== Metrics (planned)
+== Prometheus Metrics
 
-A dedicated **Prometheus metrics** endpoint and a separate Loom monitoring port
-(`LOOM_SERVER_MON_PORT`, default `8989`) are reserved for future use — the Loom `monitoring` module is
-currently a placeholder and neither Loom nor Cortex serves a `/metrics` endpoint yet. Until then, use
-the health/readiness endpoints above for probing and availability checks.
+Both components expose a **Prometheus scrape endpoint** at `GET /metrics` on their **monitoring
+port** — never on the REST API port. The response is standard Prometheus text format and includes JVM
+and process metrics (memory, GC, threads, CPU) alongside MetaLoom's own application metrics.
+
+[options="header",cols="1,1,2"]
+|===
+| Component | Endpoint | Port
+| Cortex | `GET /metrics` | `8093` (`CORTEX_MONITORING_PORT`) — shared with the health server
+| Loom | `GET /metrics` | `8989` (`LOOM_SERVER_MON_PORT`) — a dedicated monitoring server
+|===
+
+The endpoints are unauthenticated and intended for an internal Prometheus scraper; restrict access to
+the monitoring ports at the network layer. A scrape of Loom's REST port (`8092`) returns `404` — metrics
+live only on the monitoring port.
+
+=== Example Prometheus scrape config
+
+[source,yaml]
+----
+scrape_configs:
+  - job_name: metaloom-loom
+    static_configs:
+      - targets: ["loom.internal:8989"]
+  - job_name: metaloom-cortex
+    static_configs:
+      - targets: ["cortex-1.internal:8093", "cortex-2.internal:8093"]
+----
+
+=== Metric catalogs
+
+The individual meters, their labels and example PromQL queries are documented per component:
+
+* link:../../loom/metrics/[Loom Metrics] — pipeline runs, task dispatch, results, worker fleet,
+  leases, event fan-out and auth failures (`loom_*`).
+* link:../metrics/[Cortex Metrics] — Loom connection state, tasks, node operations, result egress,
+  AI-model calls and worker resources (`cortex_*`).
+
+=== Changing the Loom monitoring port
+
+[source,bash]
+----
+LOOM_SERVER_MON_PORT=9091
+----

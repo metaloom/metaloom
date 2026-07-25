@@ -11,6 +11,8 @@ import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.option.CortexOptions;
+import io.metaloom.cortex.common.metrics.CortexMetrics;
+import io.metaloom.cortex.common.metrics.NoopCortexMetrics;
 import io.metaloom.cortex.api.option.node.CortexNodeOptions;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
@@ -33,6 +35,14 @@ public abstract class AbstractMediaNode<T extends CortexNodeOptions> extends Abs
 
 	public static final Logger log = LoggerFactory.getLogger(AbstractMediaNode.class);
 
+	/**
+	 * Metrics catalog. Field-injected by Dagger for container-built nodes; defaults to a no-op so
+	 * manually-constructed nodes (tests, offline helpers) never NPE. Subclasses use it to record
+	 * upstream AI calls.
+	 */
+	@javax.inject.Inject
+	protected CortexMetrics metrics = NoopCortexMetrics.INSTANCE;
+
 	public AbstractMediaNode(LoomClient client, CortexOptions cortexOption, T option) {
 		super(client, cortexOption, option);
 	}
@@ -44,6 +54,7 @@ public abstract class AbstractMediaNode<T extends CortexNodeOptions> extends Abs
 		}
 		LoomMedia media = ctx.media();
 		if (!media.exists()) {
+			metrics.recordFileMissing();
 			return ctx.failure("File " + media.path() + " not found").abort();
 		}
 		if (!isProcessable(ctx)) {

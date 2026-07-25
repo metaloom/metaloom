@@ -1,0 +1,173 @@
+---
+title: Metrics
+---
+
+= Cortex Metrics
+
+A Cortex worker exposes a **Prometheus scrape endpoint** at `GET /metrics` on its monitoring port —
+the same server that serves the health and readiness probes. All Cortex meters are prefixed
+`cortex_`. For the server-side counterpart see link:../../loom/metrics/[Loom Metrics]; for liveness
+and readiness see link:../monitoring/[Monitoring API].
+
+== Endpoint
+
+[options="header",cols="2,1,3"]
+|===
+| Property | Value | Notes
+| Path | `/metrics` | Standard Prometheus text exposition format
+| Port | `8093` | Env `CORTEX_MONITORING_PORT` — shared with `/api/health` and `/api/ready`
+| Auth | none | Internal monitoring surface — restrict at the network layer
+|===
+
+[source,bash]
+----
+curl http://cortex-1.internal:8093/metrics
+----
+
+=== Changing the port
+
+[source,bash]
+----
+CORTEX_MONITORING_PORT=9090
+----
+
+== Loom Connection
+
+[options="header",cols="3,1,2,4"]
+|===
+| Metric | Type | Labels | Meaning
+| `cortex_loom_connected` | gauge | — | `1` while the processor WebSocket is open.
+| `cortex_loom_registered` | gauge | — | `1` once registration with Loom completed.
+| `cortex_loom_reconnect_attempts` | gauge | — | Consecutive reconnect attempts since the last successful connect.
+| `cortex_loom_reconnects_total` | counter | — | Reconnect attempts scheduled over the worker's lifetime.
+| `cortex_loom_messages_received_total` | counter | `type` = `registered` \| `heartbeat_ack` \| `source_task` \| `source_items_ack` \| `node_task` \| `segment_task` \| `error` | Control-channel messages received from Loom (the message type, lower-cased).
+|===
+
+`cortex_loom_connected` and `cortex_loom_registered` are the two gauges to alert on — a worker that is
+live but has `cortex_loom_registered == 0` will never receive work.
+
+== Tasks
+
+[options="header",cols="3,1,2,4"]
+|===
+| Metric | Type | Labels | Meaning
+| `cortex_tasks_received_total` | counter | `type` = `node` \| `segment` \| `source` | Tasks accepted from Loom.
+| `cortex_tasks_completed_total` | counter | `type`, `state` = `success` \| `failed` \| `skipped` | Task outcomes reported back.
+| `cortex_task_duration_seconds` | timer | `type` | End-to-end task execution time.
+|===
+
+== Node Operations
+
+[options="header",cols="3,1,2,4"]
+|===
+| Metric | Type | Labels | Meaning
+| `cortex_node_operations_total` | counter | `node_kind`, `state` = `success` \| `skipped` \| `failed` | Individual node executions, by node kind.
+| `cortex_node_operation_duration_seconds` | timer | `node_kind` | Per-node execution time.
+| `cortex_files_missing_total` | counter | — | Media files referenced by a task that no longer exist on disk.
+|===
+
+Node operations are counted once, at the task-handling choke point, keyed by the node kind carried in
+the task. A non-zero `cortex_files_missing_total` usually means Loom's asset paths and the worker's
+view of the shared media storage have diverged.
+
+== Result Egress
+
+[options="header",cols="3,1,2,4"]
+|===
+| Metric | Type | Labels | Meaning
+| `cortex_results_sent_total` | counter | — | Individual results written back to Loom.
+| `cortex_results_batches_sent_total` | counter | — | Batches flushed to Loom.
+| `cortex_bulk_sync_assets_total` | counter | `outcome` = `synced` \| `failed` \| `skipped_no_hash` \| `dropped_offline` | Assets processed by the bulk sync writer. `dropped_offline` counts entries discarded because no Loom client was available.
+| `cortex_source_items_enumerated_total` | counter | — | Items enumerated by a source task.
+| `cortex_source_ack_timeouts_total` | counter | — | Source batches Loom did not acknowledge in time.
+|===
+
+Comparing `rate(cortex_results_sent_total)` against `rate(cortex_node_operations_total)` shows whether
+results are reaching Loom as fast as the worker produces them.
+
+== AI Model Calls
+
+[options="header",cols="3,1,2,4"]
+|===
+| Metric | Type | Labels | Meaning
+| `cortex_ai_calls_total` | counter | `provider` = `ollama` \| `smolvlm` \| `whisper` \| `tesseract`, `outcome` = `success` \| `failure` | Calls to an upstream model service.
+| `cortex_ai_call_duration_seconds` | timer | `provider` | Latency of those calls.
+| `cortex_ai_cache_hits_total` | counter | `provider` | Calls avoided by the in-process skip cache.
+|===
+
+These are instrumented at the node call sites — the link:../../nodes/llm/[LLM],
+link:../../nodes/captioning/[Captioning], link:../../nodes/whisper/[Speech-to-Text] and
+link:../../nodes/ocr/[OCR] nodes — so they measure what the worker actually experienced, including
+network time to the model service.
+
+== Worker Resources
+
+[options="header",cols="3,1,2,4"]
+|===
+| Metric | Type | Labels | Meaning
+| `cortex_memory_used_bytes` | gauge | — | Heap in use, as also reported to Loom in the status heartbeat.
+| `cortex_memory_max_bytes` | gauge | — | Maximum heap the JVM may grow to.
+| `cortex_cpu_load` | gauge | — | Process CPU load.
+| `cortex_disk_used_bytes` / `cortex_disk_total_bytes` | gauge | — | Disk usage of the worker's working file store.
+|===
+
+Vert.x built-in metrics and the Micrometer JVM binders share the same registry, so `jvm_*`,
+`process_cpu_usage` and `vertx_*` families are exported alongside the `cortex_` meters.
+
+== Prometheus Configuration
+
+[source,yaml]
+----
+scrape_configs:
+  - job_name: metaloom-cortex
+    static_configs:
+      - targets: ["cortex-1.internal:8093", "cortex-2.internal:8093"]
+----
+
+With workers running as a Kubernetes `Deployment`, prefer service discovery over static targets so
+scaling the fleet does not require a config change:
+
+[source,yaml]
+----
+scrape_configs:
+  - job_name: metaloom-cortex
+    kubernetes_sd_configs:
+      - role: pod
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app]
+        regex: cortex-server
+        action: keep
+      - source_labels: [__address__]
+        regex: (.+?)(?::\d+)?
+        replacement: $1:8093
+        target_label: __address__
+----
+
+== Useful Queries
+
+[source,promql]
+----
+# Node failure ratio by kind over 5 minutes
+sum by (node_kind) (rate(cortex_node_operations_total{state="failed"}[5m]))
+  / sum by (node_kind) (rate(cortex_node_operations_total[5m]))
+
+# Mean node latency by kind
+sum by (node_kind) (rate(cortex_node_operation_duration_seconds_sum[5m]))
+  / sum by (node_kind) (rate(cortex_node_operation_duration_seconds_count[5m]))
+
+# Workers that are up but not registered with Loom
+cortex_loom_registered == 0
+
+# Model-service error rate by provider
+sum by (provider) (rate(cortex_ai_calls_total{outcome="failure"}[5m]))
+----
+
+== Naming Conventions
+
+Metric names follow Prometheus conventions: counters carry a `_total` suffix, timers are exported in
+base units as `_seconds`, and labels are deliberately low-cardinality — node kind, task type, message
+type or model provider. Asset UUIDs, file paths and run UUIDs are **never** used as label values.
+
+Timers are exported without a percentile histogram, so each one yields `_seconds_count`,
+`_seconds_sum` and `_seconds_max` series. Derive averages from `sum / count`; `histogram_quantile()`
+is not available for these meters.

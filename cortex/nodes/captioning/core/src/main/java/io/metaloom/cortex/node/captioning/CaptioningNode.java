@@ -60,11 +60,20 @@ public class CaptioningNode extends AbstractMediaNode<CaptioningNodeOptions> {
 				// also skip re-persisting.
 				String cached = resultCache.get(path);
 				if (cached != null) {
+					metrics.recordAiCacheHit("smolvlm");
 					ctx.output(OUTPUT_CAPTION, cached);
 					return ctx.origin(LOCAL).next();
 				}
 				BufferedImage image = ImageUtils.load(media.file());
-				String result = smolvlmClient.captionByImage(image, 512);
+				long aiStart = System.currentTimeMillis();
+				String result;
+				try {
+					result = smolvlmClient.captionByImage(image, 512);
+				} catch (RuntimeException e) {
+					metrics.recordAiCall("smolvlm", false, System.currentTimeMillis() - aiStart);
+					throw e;
+				}
+				metrics.recordAiCall("smolvlm", true, System.currentTimeMillis() - aiStart);
 				ctx.output(OUTPUT_CAPTION, result);
 				resultCache.put(path, result);
 				persist(ctx, asset, result);

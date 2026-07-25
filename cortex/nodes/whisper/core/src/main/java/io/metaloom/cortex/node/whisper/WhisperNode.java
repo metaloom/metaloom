@@ -75,12 +75,21 @@ public class WhisperNode extends AbstractMediaNode<WhisperOptions> {
 		// re-persisting.
 		String cached = resultCache.get(path);
 		if (cached != null) {
+			metrics.recordAiCacheHit("whisper");
 			ctx.output(OUTPUT_WHISPER_RESULT, cached);
 			return ctx.origin(LOCAL).next();
 		}
 
 		try {
-			WhisperResult result = processor.process(path);
+			long aiStart = System.currentTimeMillis();
+			WhisperResult result;
+			try {
+				result = processor.process(path);
+			} catch (Exception e) {
+				metrics.recordAiCall("whisper", false, System.currentTimeMillis() - aiStart);
+				throw e;
+			}
+			metrics.recordAiCall("whisper", true, System.currentTimeMillis() - aiStart);
 			String json = result.toJson();
 			ctx.output(OUTPUT_WHISPER_RESULT, json);
 			resultCache.put(path, json);

@@ -10,7 +10,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.common.media.LoomMediaLoader;
+import io.metaloom.cortex.common.metrics.CortexMetrics;
 import io.metaloom.cortex.pipeline.api.node.MediaSourceNode;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 import io.metaloom.cortex.pipeline.loader.NodeFactory;
@@ -18,6 +20,7 @@ import io.metaloom.cortex.runtime.NodeTaskRunner;
 import io.metaloom.cortex.runtime.SegmentTaskRunner;
 import io.metaloom.cortex.runtime.SourceTaskRunner;
 import io.metaloom.loom.pipeline.model.MediaRef;
+import io.metaloom.loom.pipeline.model.NodeState;
 import io.metaloom.loom.pipeline.model.NodeTask;
 import io.metaloom.loom.pipeline.model.NodeTaskResult;
 import io.metaloom.loom.pipeline.model.SegmentTask;
@@ -50,6 +53,7 @@ public class PipelineTaskHandler {
 
 	private final NodeFactory nodeFactory;
 	private final LoomMediaLoader mediaLoader;
+	private final CortexMetrics metrics;
 	private final NodeTaskRunner nodeTaskRunner;
 	private final SegmentTaskRunner segmentTaskRunner;
 	private final io.metaloom.cortex.runtime.ResultBatcher resultBatcher;
@@ -65,9 +69,10 @@ public class PipelineTaskHandler {
 	}
 
 	@Inject
-	public PipelineTaskHandler(NodeFactory nodeFactory, LoomMediaLoader mediaLoader) {
+	public PipelineTaskHandler(NodeFactory nodeFactory, LoomMediaLoader mediaLoader, CortexMetrics metrics) {
 		this.nodeFactory = nodeFactory;
 		this.mediaLoader = mediaLoader;
+		this.metrics = metrics;
 		this.nodeTaskRunner = new NodeTaskRunner(nodeFactory::createNode, mediaLoader::load);
 		// Same factory and media loader: a segment is the same work with N > 1, so it
 		// must resolve nodes and media exactly as a single task does.
@@ -94,6 +99,7 @@ public class PipelineTaskHandler {
 	 * @param sender used to send the result
 	 */
 	public void handleNodeTask(NodeTask task, MessageSender sender) {
+		metrics.recordTaskReceived("node");
 		Schedulers.io().scheduleDirect(() -> {
 			NodeTaskResult result;
 			try {
@@ -104,6 +110,7 @@ public class PipelineTaskHandler {
 				log.error("Unexpected failure running {}", task, t);
 				result = NodeTaskResult.failed(task.getTaskUuid(), task.getNodeId(), 0, String.valueOf(t));
 			}
+			recordNodeOutcome("node", task.getNodeKind(), result);
 			// Batched when the pipeline asks for it; sent immediately when it does not.
 			resultBatcher.add(task.getRunUuid(), task.getItemId(), result, task.getResultBatchSize(),
 				batch -> sender.send(new ProcessorMessage(ProcessorMessageType.NODE_TASK_RESULT_BATCH,
@@ -136,6 +143,7 @@ public class PipelineTaskHandler {
 	 * @param sender used to send the result
 	 */
 	public void handleSegmentTask(SegmentTask task, MessageSender sender) {
+		metrics.recordTaskReceived("segment");
 		Schedulers.io().scheduleDirect(() -> {
 			SegmentTaskResult result;
 			try {
@@ -148,9 +156,38 @@ public class PipelineTaskHandler {
 				result = new SegmentTaskResult(task.getTaskUuid(), task.getRunUuid(), task.getItemId(),
 					task.getSegmentId(), java.util.List.of(), String.valueOf(t));
 			}
+			metrics.recordTaskCompleted("segment", result.getError() == null ? "success" : "failed");
+			// Each node in the segment settles independently; record one node operation per result.
+			for (NodeTaskResult nodeResult : result.getResults()) {
+				metrics.recordNodeOperation(nodeResult.getNodeId(), toResultState(nodeResult.getState()), nodeResult.getDurationMs());
+			}
 			sender.send(new ProcessorMessage(ProcessorMessageType.SEGMENT_TASK_RESULT,
 				JsonObject.mapFrom(result)));
 		});
+	}
+
+	/** Record the per-node outcome of a single node task: task completion, duration and node operation. */
+	private void recordNodeOutcome(String taskType, String nodeKind, NodeTaskResult result) {
+		metrics.recordTaskCompleted(taskType, stateLabel(result.getState()));
+		metrics.recordTaskDuration(taskType, result.getDurationMs());
+		metrics.recordNodeOperation(nodeKind, toResultState(result.getState()), result.getDurationMs());
+	}
+
+	private static String stateLabel(NodeState state) {
+		return switch (state) {
+			case COMPLETED -> "success";
+			case FAILED -> "failed";
+			case SKIPPED -> "skipped";
+			default -> state.name().toLowerCase();
+		};
+	}
+
+	private static ResultState toResultState(NodeState state) {
+		return switch (state) {
+			case FAILED -> ResultState.FAILED;
+			case SKIPPED -> ResultState.SKIPPED;
+			default -> ResultState.SUCCESS;
+		};
 	}
 
 	/**
@@ -160,6 +197,7 @@ public class PipelineTaskHandler {
 	 * @param sender used to send batches and the completion signal
 	 */
 	public void handleSourceTask(SourceTaskMessage task, MessageSender sender) {
+		metrics.recordTaskReceived("source");
 		Schedulers.io().scheduleDirect(() -> {
 			UUID runUuid = task.getRunUuid();
 			Flowable<LoomMedia> stream;
@@ -182,6 +220,8 @@ public class PipelineTaskHandler {
 
 				@Override
 				public void sendComplete(long totalCount, String error) {
+					metrics.recordSourceItemsEnumerated(totalCount);
+					metrics.recordTaskCompleted("source", error == null ? "success" : "failed");
 					sender.send(completeMessage(runUuid, totalCount, error));
 				}
 			});

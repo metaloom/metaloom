@@ -12,8 +12,6 @@ public enum JooqType {
 
 	TAG,
 
-	WEBHOOK,
-
 	EXTENSION,
 
 	MODEL,

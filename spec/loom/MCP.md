@@ -666,7 +666,6 @@ improvement. AI agents can use this list to identify work items.
 - [ ] No tool for tag operations (create, list, assign to assets)
 - [ ] No tool for user/role/group management
 - [ ] No tool for embedding operations
-- [ ] No tool for webhook management
 - [ ] No tool for task/comment/annotation operations
 - [ ] No tool for GraphQL queries
 - [ ] No tool for processor status or registration

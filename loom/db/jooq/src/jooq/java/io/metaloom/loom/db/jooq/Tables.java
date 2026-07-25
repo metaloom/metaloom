@@ -77,7 +77,6 @@ import io.metaloom.loom.db.jooq.tables.JooqUser;
 import io.metaloom.loom.db.jooq.tables.JooqUserGroup;
 import io.metaloom.loom.db.jooq.tables.JooqUserPermission;
 import io.metaloom.loom.db.jooq.tables.JooqVectorConfig;
-import io.metaloom.loom.db.jooq.tables.JooqWebhook;
 
 
 /**
@@ -524,9 +523,4 @@ public class Tables {
      * including and ranking and encoding specific properties as vectors.
      */
     public static final JooqVectorConfig VECTOR_CONFIG = JooqVectorConfig.VECTOR_CONFIG;
-
-    /**
-     * Table which stores the registered webhooks
-     */
-    public static final JooqWebhook WEBHOOK = JooqWebhook.WEBHOOK;
 }

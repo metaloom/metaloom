@@ -56,7 +56,6 @@
         <module>lucene</module>
         <module>qdrant</module>
         <module>eventbus</module>
-        <module>webhook</module>
         <module>mcp</module>
     </modules>
 

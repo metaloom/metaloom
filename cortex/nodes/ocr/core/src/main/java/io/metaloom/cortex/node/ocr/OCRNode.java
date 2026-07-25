@@ -56,10 +56,19 @@ public class OCRNode extends AbstractMediaNode<OCRNodeOptions> {
 		String path = media.absolutePath();
 		String cached = resultCache.get(path);
 		if (cached != null) {
+			metrics.recordAiCacheHit("tesseract");
 			ctx.output(OUTPUT_OCR_TEXT, cached);
 			return ctx.origin(ResultOrigin.LOCAL).next();
 		}
-		String text = provider.recognizeText(media.file(), options().getLanguage());
+		long aiStart = System.currentTimeMillis();
+		String text;
+		try {
+			text = provider.recognizeText(media.file(), options().getLanguage());
+		} catch (Exception e) {
+			metrics.recordAiCall("tesseract", false, System.currentTimeMillis() - aiStart);
+			throw e;
+		}
+		metrics.recordAiCall("tesseract", true, System.currentTimeMillis() - aiStart);
 		ctx.output(OUTPUT_OCR_TEXT, text);
 		ctx.info("OCR extracted " + text.length() + " chars via " + provider.name());
 		resultCache.put(path, text);

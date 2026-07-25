@@ -1,0 +1,354 @@
+---
+title: Operation
+---
+
+= Operation
+
+How Loom and Cortex operate together at runtime.
+Loom is the brain; Cortex is the muscle. Loom stores assets, owns pipeline definitions and **drives**
+processing runs; Cortex is a fleet of worker daemons that register with Loom and execute the individual
+tasks Loom hands them.
+
+== Architecture Overview
+
+The platform is a set of separately deployed components. The dashed boxes below are **deployment
+boundaries** (containers / processes); solid boxes are the parts inside them. Loom and Cortex both read
+the shared media storage at the bottom.
+
+++++
+<div class="ml-figure">
+<svg viewBox="0 0 900 470" role="img" aria-labelledby="ml-arch-title ml-arch-desc" class="ml-arch-svg">
+  <title id="ml-arch-title">MetaLoom component architecture</title>
+  <desc id="ml-arch-desc">The browser talks to the Loom server over REST, WebSocket and SSE. Loom persists to PostgreSQL, dispatches processing tasks to Cortex workers over a WebSocket and receives results over REST, drives per-chat Session Runner sandboxes over HTTP, and calls an external LLM service. Loom and Cortex both read a shared media storage that spans the bottom.</desc>
+  <defs>
+    <marker id="ml-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#57cbcc"></path></marker>
+    <marker id="ml-arrow-muted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6b7681"></path></marker>
+  </defs>
+
+  <!-- Browser -->
+  <g>
+    <rect x="24" y="40" width="200" height="96" rx="10" class="ml-box-container"></rect>
+    <text x="36" y="60" class="ml-box-title">Browser / Loom App</text>
+    <rect x="36" y="70" width="176" height="52" rx="6" class="ml-box-part"></rect>
+    <text x="124" y="92" text-anchor="middle" class="ml-part-title">Loom UI</text>
+    <text x="124" y="109" text-anchor="middle" class="ml-part-sub">chat · assets · pipelines</text>
+  </g>
+
+  <!-- PostgreSQL -->
+  <g>
+    <rect x="24" y="236" width="200" height="80" rx="10" class="ml-box-container"></rect>
+    <text x="36" y="258" class="ml-box-title">PostgreSQL</text>
+    <text x="124" y="288" text-anchor="middle" class="ml-part-sub">persistent metadata store</text>
+  </g>
+
+  <!-- Loom Server -->
+  <g>
+    <rect x="300" y="34" width="290" height="300" rx="10" class="ml-box-container"></rect>
+    <text x="314" y="55" class="ml-box-title">Loom Server</text>
+    <text x="314" y="71" class="ml-box-tag">metaloom/loom-server</text>
+    <rect x="318" y="80" width="254" height="46" rx="6" class="ml-box-part"></rect>
+    <text x="445" y="100" text-anchor="middle" class="ml-part-title">REST · WebSocket · SSE API</text>
+    <text x="445" y="117" text-anchor="middle" class="ml-part-sub">:8092 · Auth (JWT / OAuth2)</text>
+    <rect x="318" y="134" width="254" height="46" rx="6" class="ml-box-part"></rect>
+    <text x="445" y="154" text-anchor="middle" class="ml-part-title">Pipeline Run Engine</text>
+    <text x="445" y="171" text-anchor="middle" class="ml-part-sub">owns the DAG · dispatches tasks</text>
+    <rect x="318" y="188" width="254" height="46" rx="6" class="ml-box-part"></rect>
+    <text x="445" y="208" text-anchor="middle" class="ml-part-title">AI Agent Loop</text>
+    <text x="445" y="225" text-anchor="middle" class="ml-part-sub">chat · skills · memory · sandbox</text>
+    <rect x="318" y="242" width="254" height="46" rx="6" class="ml-box-part"></rect>
+    <text x="445" y="262" text-anchor="middle" class="ml-part-title">DAOs (jOOQ)</text>
+    <text x="445" y="279" text-anchor="middle" class="ml-part-sub">assets · pipelines · chat</text>
+  </g>
+
+  <!-- Cortex worker -->
+  <g>
+    <rect x="666" y="40" width="210" height="120" rx="10" class="ml-box-container"></rect>
+    <text x="680" y="60" class="ml-box-title">Cortex Worker(s)</text>
+    <text x="680" y="76" class="ml-box-tag">metaloom/cortex-server</text>
+    <rect x="680" y="84" width="182" height="32" rx="6" class="ml-box-part"></rect>
+    <text x="771" y="105" text-anchor="middle" class="ml-part-title">Node Runtime</text>
+    <text x="771" y="140" text-anchor="middle" class="ml-part-sub">hash · whisper · face · ocr · scene …</text>
+  </g>
+
+  <!-- Session runner -->
+  <g>
+    <rect x="666" y="178" width="210" height="70" rx="10" class="ml-box-container"></rect>
+    <text x="680" y="198" class="ml-box-title">Session Runner</text>
+    <text x="680" y="214" class="ml-box-tag">loom-session-runner</text>
+    <text x="771" y="236" text-anchor="middle" class="ml-part-sub">per-chat coding sandbox</text>
+  </g>
+
+  <!-- LLM svc -->
+  <g>
+    <rect x="666" y="266" width="210" height="68" rx="10" class="ml-box-container"></rect>
+    <text x="680" y="286" class="ml-box-title">LLM / model svc</text>
+    <text x="771" y="308" text-anchor="middle" class="ml-part-sub">speech · vision · language</text>
+    <text x="771" y="324" text-anchor="middle" class="ml-part-sub">(external)</text>
+  </g>
+
+  <!-- Shared media storage (wide, bottom) -->
+  <g>
+    <rect x="24" y="384" width="868" height="62" rx="10" class="ml-box-container"></rect>
+    <text x="36" y="406" class="ml-box-title">Shared media storage</text>
+    <text x="458" y="428" text-anchor="middle" class="ml-part-sub">files referenced by path — read by both Loom and Cortex</text>
+  </g>
+
+  <!-- edges (orthogonal) -->
+  <!-- Browser <-> Loom API -->
+  <polyline points="224,100 300,100" class="ml-edge" marker-end="url(#ml-arrow)" marker-start="url(#ml-arrow)"></polyline>
+  <text x="262" y="92" text-anchor="middle" class="ml-edge-label">REST · WS · SSE</text>
+  <!-- Loom DAOs <-> Postgres -->
+  <polyline points="300,272 224,272" class="ml-edge" marker-end="url(#ml-arrow)" marker-start="url(#ml-arrow)"></polyline>
+  <text x="262" y="264" text-anchor="middle" class="ml-edge-label">jOOQ / SQL</text>
+  <!-- Pipeline engine <-> Cortex worker -->
+  <polyline points="590,157 628,157 628,100 666,100" class="ml-edge" marker-end="url(#ml-arrow)" marker-start="url(#ml-arrow)"></polyline>
+  <text x="648" y="92" text-anchor="middle" class="ml-edge-label">Processor WS · tasks ⇄ results</text>
+  <!-- AI agent -> session runner -->
+  <polyline points="590,211 666,211" class="ml-edge" marker-end="url(#ml-arrow)"></polyline>
+  <text x="628" y="204" text-anchor="middle" class="ml-edge-label">HTTP + token</text>
+  <!-- AI agent -> LLM -->
+  <polyline points="590,222 648,222 648,300 666,300" class="ml-edge" marker-end="url(#ml-arrow)"></polyline>
+  <text x="600" y="238" text-anchor="start" class="ml-edge-label">provider API</text>
+  <!-- Loom -> shared media -->
+  <polyline points="445,334 445,384" class="ml-edge-dashed" marker-end="url(#ml-arrow-muted)"></polyline>
+  <!-- Cortex -> shared media (down the right margin, no crossings) -->
+  <polyline points="876,150 886,150 886,384" class="ml-edge-dashed" marker-end="url(#ml-arrow-muted)"></polyline>
+</svg>
+</div>
+++++
+
+Two planes connect Loom and Cortex — do not confuse them:
+
+[options="header",cols="1,3,4"]
+|===
+| Plane | Transport | Carries
+| Control | Processor WebSocket (`/api/v1/processors/ws`) | Registration, heartbeats, task dispatch (source/node/segment), task results, live tracking events.
+| Data | REST (`LoomClient`) | The durable result payloads written back into Loom, keyed by asset.
+|===
+
+Cortex always dials *out* to Loom on port `8092`; **Loom never connects to Cortex.**
+
+== How Loom Dispatches Work
+
+Loom owns the pipeline graph and dispatches a task per asset to the Cortex fleet. Cortex A runs the
+**source node**, scans the shared filesystem and reports the discovered assets to Loom (Loom *reads*).
+Loom then dispatches processing tasks to Cortex B and C, which read their file and process it in
+parallel — each node colouring in at its own speed. Results return **asynchronously**: the faster
+worker (B) finishes and returns first, C follows later (Loom *writes*). The pipeline strip mirrors the
+active nodes.
+
+++++
+<div class="lda" id="lda"></div>
+<style>
+.lda{--font:"Segoe UI",system-ui,sans-serif;--fsMono:"JetBrains Mono","Consolas",monospace;--text:#cdd6df;--muted:#7f8b98;--panel:#1a1f26;--loom:#213040;--loomStroke:#4aa3ff;--inst:#1f2732;--instStroke:#323b46;--halo:#2fd4b6;--edge:#39434f;--edgeFlow:#2fd4b6;--fsBg:#182029;--fsBorder:#2b3542;--fsText:#aab6c2;--fsFolder:#4aa3ff;--fsRowHi:rgba(47,212,182,.16);--fsEdge:#37424e;--fsEdgeFlow:#57d0e0;font-family:var(--font);}
+.lda svg{width:100%;height:auto;display:block;}
+.lda .stage-label{font:600 .66rem/1 var(--font);letter-spacing:.13em;text-transform:uppercase;color:var(--muted);margin:8px 2px 2px;}
+.lda .caption{text-align:center;font-size:.92rem;color:var(--text);padding:8px 12px 6px;min-height:20px;}
+.lda .chip-bg{transition:stroke .25s;}
+.lda .chip-label{font:600 12px var(--font);pointer-events:none;}
+.lda .p-fill{pointer-events:none;}
+.lda .edge{fill:none;stroke:var(--edge);stroke-width:2;}
+.lda .edge-flow{fill:none;stroke:var(--edgeFlow);stroke-width:2.4;stroke-linecap:round;stroke-dasharray:4 10;opacity:0;transition:opacity .3s;}
+.lda .eg.flow .edge-flow{opacity:.9;animation:lda-dash 1.5s linear infinite;}
+.lda .eg.flowrev .edge-flow{opacity:.9;animation:lda-dashrev 1.5s linear infinite;}
+@keyframes lda-dash{to{stroke-dashoffset:-28;}}
+@keyframes lda-dashrev{to{stroke-dashoffset:28;}}
+.lda .fedge .edge{stroke:var(--fsEdge);stroke-dasharray:3 5;stroke-width:1.6;}
+.lda .fedge .edge-flow{stroke:var(--fsEdgeFlow);stroke-dasharray:3 7;}
+.lda .inst-box{fill:var(--inst);stroke:var(--instStroke);stroke-width:1.4;transition:stroke .25s;}
+.lda .inst.is-active .inst-box{stroke:var(--halo);stroke-width:1.9;}
+.lda .inst-title{font:650 13px var(--font);fill:var(--muted);}
+.lda .loom-box{fill:var(--loom);stroke:var(--loomStroke);stroke-width:1.8;transition:stroke .25s;}
+.lda .loom.is-active .loom-box{stroke:var(--halo);stroke-width:2.4;}
+.lda .loom-title{font:700 17px var(--font);fill:var(--text);}
+.lda .loom-io{font:600 10.5px var(--font);fill:var(--halo);text-anchor:middle;opacity:0;transition:opacity .25s;}
+.lda .loom.io-on .loom-io{opacity:1;}
+.lda .handle{stroke:var(--panel);stroke-width:1;}
+.lda .fs-panel{fill:var(--fsBg);stroke:var(--fsBorder);stroke-width:1.4;}
+.lda .fs-title{font:650 12px var(--font);fill:var(--muted);}
+.lda .fs-row-label{font:500 12px var(--fsMono);fill:var(--fsText);}
+.lda .fs-row-tag{font:600 9.5px var(--fsMono);fill:var(--muted);text-anchor:end;}
+.lda .fs-row-hi{fill:var(--fsRowHi);opacity:0;transition:opacity .25s;}
+.lda .fs-row.is-read .fs-row-hi{opacity:1;}
+.lda .fs-row.is-read .fs-row-label{fill:var(--text);}
+.lda .fs-ico-folder{fill:var(--fsFolder);}
+.lda .fs-ico-file{fill:none;stroke:var(--fsText);stroke-width:1.2;}
+.lda .fs-row.is-read .fs-ico-file{stroke:var(--halo);}
+.lda .pkt{opacity:0;}
+.lda .pkt-lbl{font:700 12px var(--font);text-anchor:middle;dominant-baseline:middle;}
+@media (prefers-reduced-motion: reduce){.lda .eg .edge-flow{animation:none !important;}}
+</style>
+<script>
+(function(){
+  var root=document.getElementById("lda"); if(!root) return;
+  var NS="http://www.w3.org/2000/svg";
+  function E(t,a,k){var e=document.createElementNS(NS,t);if(a)for(var n in a)e.setAttribute(n,a[n]);if(k)k.forEach(function(c){if(c)e.appendChild(c);});return e;}
+  function TXT(x,y,s,c,an){var t=E("text",{x:x,y:y,"class":c||""});if(an)t.setAttribute("text-anchor",an);t.textContent=s;return t;}
+  var clamp=function(p){return p<0?0:p>1?1:p;}, smooth=function(p){p=clamp(p);return p*p*(3-2*p);};
+  var TXTCOL="#cdd6df", DONE="#06231e", PKT="#2fd4b6", PKTT="#06231e";
+  var SH={source:"#4aa3ff",sha512:"#2fd4b6",thumbnail:"#5ec98f",facedetect:"#e2a24e",whisper:"#a48be0",loomsync:"#4fd0e0"};
+  var CLIP=0;
+  function chip(x,y,w,h,label,shade){
+    var g=E("g",{"class":"chip"});
+    var bg=E("rect",{x:x,y:y,width:w,height:h,rx:9,"class":"chip-bg",fill:shade,"fill-opacity":.12,stroke:shade+"55"});
+    var cid="ldacp"+(CLIP++); var clip=E("clipPath",{id:cid}); clip.appendChild(E("rect",{x:x,y:y,width:w,height:h,rx:9}));
+    var fill=E("rect",{x:x,y:y,width:0,height:h,"class":"p-fill",fill:shade,"fill-opacity":.85,"clip-path":"url(#"+cid+")"}); fill.style.display="none";
+    var lbl=TXT(x+w/2,y+h/2+4,label,"chip-label","middle"); lbl.setAttribute("fill",TXTCOL);
+    [clip,bg,fill,lbl].forEach(function(n){g.appendChild(n);});
+    return {g:g,box:{x:x,y:y,w:w,h:h},progress:function(p){p=clamp(p);
+      if(p<=0){fill.style.display="none";lbl.setAttribute("fill",TXTCOL);return;}
+      fill.style.display="";fill.setAttribute("width",(w*p).toFixed(1));
+      lbl.setAttribute("fill",p>0.62?DONE:TXTCOL);}};
+  }
+  function container(x,y,w,h,cls){return E("rect",{x:x,y:y,width:w,height:h,rx:14,"class":cls});}
+  function edge(d,cls){var g=E("g",{"class":"eg "+(cls||"")});var b=E("path",{d:d,"class":"edge"});g.appendChild(b);g.appendChild(E("path",{d:d,"class":"edge-flow"}));return {g:g,path:b};}
+  function bez(x1,y1,x2,y2){var mx=(x1+x2)/2;return "M"+x1+","+y1+" C"+mx+","+y1+" "+mx+","+y2+" "+x2+","+y2;}
+
+  var byKey={};
+  // ---- TOP ----
+  var top=E("svg",{viewBox:"0 0 940 424"});
+  var loom=E("g",{"class":"loom"});
+  loom.appendChild(container(22,158,140,108,"loom-box"));
+  loom.appendChild(TXT(92,208,"Loom","loom-title","middle"));
+  var loomIO=TXT(92,230,"","loom-io"); loom.appendChild(loomIO);
+  var loomAnchor={x:162,y:212};
+  var IX=300,IW=196,IH=118;
+  var instDefs=[
+    {name:"Cortex A",y:12,chips:[{k:"source",l:"filesystem-source"}]},
+    {name:"Cortex B",y:150,chips:[{k:"sha512",l:"sha512"},{k:"thumbnail",l:"thumbnail"}]},
+    {name:"Cortex C",y:288,chips:[{k:"facedetect",l:"facedetect"},{k:"whisper",l:"whisper"}]}
+  ];
+  var insts=[];
+  instDefs.forEach(function(d){
+    var g=E("g",{"class":"inst"});
+    g.appendChild(container(IX,d.y,IW,IH,"inst-box"));
+    g.appendChild(TXT(IX+16,d.y+23,d.name,"inst-title"));
+    var n=d.chips.length,cw=IW-30,ch=26,gap=10,availTop=d.y+38,availBot=d.y+IH-16,blockH=n*ch+(n-1)*gap;
+    var cy=availTop+(availBot-availTop-blockH)/2;
+    d.chips.forEach(function(cd){var c=chip(IX+15,cy,cw,ch,cd.l,SH[cd.k]);g.appendChild(c.g);(byKey[cd.k]=byKey[cd.k]||[]).push(c);cy+=ch+gap;});
+    insts.push({g:g,anchor:{x:IX,y:d.y+IH/2}});
+  });
+  // filesystem
+  var FSX=566,FSY=96,FSW=320,FSH=232;
+  var fs=E("g");
+  fs.appendChild(E("rect",{x:FSX,y:FSY,width:FSW,height:FSH,rx:12,"class":"fs-panel"}));
+  fs.appendChild(E("path",{d:"M"+(FSX+20)+","+(FSY+26)+" h13 l4,5 h15 v13 h-32 z","class":"fs-ico-folder"}));
+  fs.appendChild(TXT(FSX+58,FSY+40,"demo/","fs-title"));
+  var files=[{name:"beach.mp4",tag:"video"},{name:"sunset.jpg",tag:"image"}], fsRows=[];
+  files.forEach(function(f,i){
+    var ry=FSY+66+i*52; var row=E("g",{"class":"fs-row"});
+    row.appendChild(E("rect",{x:FSX+12,y:ry,width:FSW-24,height:40,rx:5,"class":"fs-row-hi"}));
+    row.appendChild(E("path",{d:"M"+(FSX+40)+","+(ry+10)+" h14 l6,6 v16 h-20 z","class":"fs-ico-file"}));
+    row.appendChild(TXT(FSX+74,ry+25,f.name,"fs-row-label"));
+    row.appendChild(TXT(FSX+FSW-20,ry+25,f.tag,"fs-row-tag"));
+    fs.appendChild(row); fsRows.push({g:row,anchor:{x:FSX,y:ry+20}});
+  });
+  var tEdges=insts.map(function(it){return edge(bez(loomAnchor.x,loomAnchor.y,it.anchor.x,it.anchor.y));});
+  var fTargets=[{x:FSX,y:FSY+33},fsRows[0].anchor,fsRows[1].anchor];
+  var fEdges=insts.map(function(it,i){return edge(bez(IX+IW,it.anchor.y,fTargets[i].x,fTargets[i].y),"fedge");});
+  tEdges.forEach(function(e){top.appendChild(e.g);});
+  fEdges.forEach(function(e){top.appendChild(e.g);});
+  top.appendChild(fs);
+  insts.forEach(function(it){top.appendChild(it.g);});
+  top.appendChild(loom);
+  function makePkt(){
+    var g=E("g",{"class":"pkt"});
+    var bg=E("rect",{x:-26,y:-12,width:52,height:23,rx:11.5,fill:PKT});
+    var lbl=TXT(0,1,"","pkt-lbl"); lbl.setAttribute("fill",PKTT);
+    g.appendChild(bg); g.appendChild(lbl); top.appendChild(g);
+    return {show:function(pt,text,big){g.style.opacity=1;g.setAttribute("transform","translate("+pt.x.toFixed(1)+","+pt.y.toFixed(1)+")");lbl.textContent=text;var w=Math.max(48,text.length*8+24)*(big?1.15:1),hh=big?27:23;bg.setAttribute("x",-w/2);bg.setAttribute("width",w);bg.setAttribute("y",-hh/2);bg.setAttribute("height",hh);bg.setAttribute("rx",hh/2);},hide:function(){g.style.opacity=0;}};
+  }
+  var P1=makePkt(),P2=makePkt();
+  // ---- PIPELINE ----
+  var pipe=E("svg",{viewBox:"0 0 940 240"}); var P={};
+  function pnode(key,x,y,w,h,label){var c=chip(x,y,w,h,label,SH[key]);P[key]=c;(byKey[key]=byKey[key]||[]).push(c);return c;}
+  var src=pnode("source",26,92,152,56,"filesystem-source");
+  var an=[pnode("sha512",396,12,150,46,"sha512"),pnode("thumbnail",396,66,150,46,"thumbnail"),pnode("facedetect",396,122,150,46,"facedetect"),pnode("whisper",396,176,150,46,"whisper")];
+  var out=pnode("loomsync",740,92,152,56,"loom-sync");
+  var pOut=an.map(function(n){return edge(bez(src.box.x+src.box.w,src.box.y+src.box.h/2,n.box.x,n.box.y+n.box.h/2));});
+  var pIn=an.map(function(n){return edge(bez(n.box.x+n.box.w,n.box.y+n.box.h/2,out.box.x,out.box.y+out.box.h/2));});
+  pOut.concat(pIn).forEach(function(e){pipe.appendChild(e.g);});
+  function handle(cx,cy){return E("circle",{cx:cx,cy:cy,r:4,"class":"handle",fill:"#66bb6a"});}
+  [src].concat(an).concat([out]).forEach(function(c){pipe.appendChild(handle(c.box.x,c.box.y+c.box.h/2));pipe.appendChild(handle(c.box.x+c.box.w,c.box.y+c.box.h/2));pipe.appendChild(c.g);});
+  // ---- assemble ----
+  function L(txt){var d=document.createElement("div");d.className="stage-label";d.textContent=txt;return d;}
+  var cap=document.createElement("div"); cap.className="caption";
+  root.appendChild(L("Loom ⇄ Cortex fleet ⇄ filesystem")); root.appendChild(top);
+  root.appendChild(L("Pipeline (in sync)")); root.appendChild(pipe); root.appendChild(cap);
+
+  // ---- timeline (async: Cortex B returns before C) ----
+  var T={discEnd:2600,asset:[1950,2600],dispEnd:3600,proc:3600,dur:{source:2100,sha512:2200,thumbnail:1300,facedetect:2600,whisper:3600},bRes:[5800,6950],cRes:[7200,8500],cycle:9400};
+  var CAP={discover:"Cortex A runs the source node and scans the filesystem — discovering the assets",dispatch:"It reports the assets to Loom, which dispatches a task per asset to Cortex B and C",proc:"Cortex B and C read their file and process it in parallel — each node at its own speed",bfirst:"Cortex B finished first and returns its result — Cortex C is still working",crecord:"Cortex C returns its result — Loom records both, then the next batch begins"};
+  var reduce=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function tog(el,cls,on){var k="_"+cls;if(el[k]===on)return;el[k]=on;el.classList.toggle(cls,on);}
+  function setProg(key,p){(byKey[key]||[]).forEach(function(c){c.progress(p);});}
+  function pathPt(e,u){var Ln=e.path.getTotalLength();return e.path.getPointAtLength(Ln*clamp(u));}
+  var ramp=function(t,a,b){return clamp((t-a)/(b-a));}, inr=function(t,r){return t>=r[0]&&t<r[1];};
+  function render(t){
+    var disc=t<T.discEnd, disp=t>=T.discEnd&&t<T.dispEnd, bProc=t>=T.proc&&t<T.bRes[0], cProc=t>=T.proc&&t<T.cRes[0], bRes=inr(t,T.bRes), cRes=inr(t,T.cRes);
+    cap.textContent=disc?CAP.discover:disp?CAP.dispatch:(t<T.bRes[0])?CAP.proc:(t<T.cRes[0])?CAP.bfirst:CAP.crecord;
+    var prog={source:0,sha512:0,thumbnail:0,facedetect:0,whisper:0,loomsync:0};
+    prog.source=disc?clamp(t/T.dur.source):1;
+    if(t>=T.proc){prog.sha512=clamp((t-T.proc)/T.dur.sha512);prog.thumbnail=clamp((t-T.proc)/T.dur.thumbnail);prog.facedetect=clamp((t-T.proc)/T.dur.facedetect);prog.whisper=clamp((t-T.proc)/T.dur.whisper);}
+    prog.loomsync=0.5*ramp(t,T.bRes[1],T.bRes[1]+450)+0.5*ramp(t,T.cRes[1],T.cRes[1]+450);
+    ["source","sha512","thumbnail","facedetect","whisper","loomsync"].forEach(function(k){setProg(k,prog[k]);});
+    tog(insts[0].g,"is-active",disc); tog(insts[1].g,"is-active",t>=T.proc&&t<T.bRes[1]); tog(insts[2].g,"is-active",t>=T.proc&&t<T.cRes[1]);
+    var reading=disp, writing=t>=T.bRes[0];
+    tog(loom,"is-active",reading||writing); tog(loom,"io-on",reading||writing);
+    loomIO.textContent=reading?"reading assets":writing?"writing results":"";
+    tog(fsRows[0].g,"is-read",disc||bProc); tog(fsRows[1].g,"is-read",disc||cProc);
+    tog(tEdges[1].g,"flow",disp); tog(tEdges[1].g,"flowrev",bRes); tog(tEdges[2].g,"flow",disp); tog(tEdges[2].g,"flowrev",cRes);
+    tog(fEdges[0].g,"flow",disc); tog(fEdges[1].g,"flowrev",bProc); tog(fEdges[2].g,"flowrev",cProc);
+    tog(pOut[0].g,"flow",bProc); tog(pOut[1].g,"flow",bProc); tog(pOut[2].g,"flow",cProc); tog(pOut[3].g,"flow",cProc);
+    tog(pIn[0].g,"flow",bRes); tog(pIn[1].g,"flow",bRes); tog(pIn[2].g,"flow",cRes); tog(pIn[3].g,"flow",cRes);
+    P1.hide(); P2.hide();
+    if(inr(t,T.asset)) P1.show(pathPt(tEdges[0],1-smooth(ramp(t,T.asset[0],T.asset[1]))),"assets",false);
+    if(disp){var u=smooth(ramp(t,T.discEnd,T.dispEnd));P1.show(pathPt(tEdges[1],u),"task",false);P2.show(pathPt(tEdges[2],u),"task",false);}
+    if(bRes) P1.show(pathPt(tEdges[1],1-smooth(ramp(t,T.bRes[0],T.bRes[1]))),"result",true);
+    if(cRes) P2.show(pathPt(tEdges[2],1-smooth(ramp(t,T.cRes[0],T.cRes[1]))),"result",true);
+  }
+  if(reduce){render(6400);return;}
+  var t0=null;
+  function frame(ts){if(t0===null)t0=ts;render((ts-t0)%T.cycle);requestAnimationFrame(frame);}
+  requestAnimationFrame(frame);
+})();
+</script>
+++++
+
+== Worker Lifecycle
+
+A Cortex worker connects to Loom and serves the tasks Loom dispatches:
+
+. *Registers* — opens the processor WebSocket, authenticates (`?token=<jwt>`), and announces the node
+  kinds it is willing to run. Loom persists it as a durable `cortex_instance`.
+. *Waits for work* — Loom's pipeline engine dispatches a **source task** to enumerate media, then a
+  **node task** per graph node per item (affinity work goes out as **segment tasks**).
+. *Runs one task at a time* — the worker executes the requested node and replies with the outcome
+  (`COMPLETED` / `FAILED` / `SKIPPED`) plus outputs for downstream nodes.
+. *Persists results* — the worker writes the durable payload to Loom over REST (see
+  link:../cortex/examples/[persistence path]).
+. *Streams progress* — tracking events flow back over the WebSocket; Loom re-broadcasts them to UI
+  clients on `/api/v1/pipelines/events/ws`.
+
+Loom, not the worker, decides what runs next. Every dispatched task gets exactly one result — a node
+that throws is reported `FAILED`, never dropped.
+
+=== Connecting Cortex to Loom
+
+[source,bash]
+----
+LOOM_HOST=loom.internal LOOM_PORT=8092 LOOM_TOKEN=<jwt> \
+  docker run --rm -e LOOM_HOST -e LOOM_PORT -e LOOM_TOKEN metaloom/cortex-server:latest
+----
+
+See link:../cortex/configuration/[Cortex Configuration] and link:../cortex/containers/[Cortex Containers].
+
+== Deployment Patterns
+
+[options="header",cols="1,3"]
+|===
+| Pattern | Description
+| *Worker Deployment* | One or more Cortex replicas run as a long-lived `Deployment`; scale replicas to add capacity.
+| *Specialised pool* | A separate Cortex Deployment advertises only heavy kinds (e.g. `facedetect`, `whisper`) and is scheduled onto GPU nodes; Loom routes those kinds to it.
+| *Side-car* | Cortex runs next to Loom in the same compose stack for small setups.
+|===

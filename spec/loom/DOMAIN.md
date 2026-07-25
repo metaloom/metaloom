@@ -20,7 +20,7 @@ These common columns are omitted from the table below.
 | 5 | Agent | Chat, Skill, Skill Version |
 | 6 | Pipeline / Processing (Cortex) | Pipeline, Pipeline Version, Pipeline Run, Run Item, Node Task, Cortex Instance |
 | 7 | Collaboration / Social | Task, Comment, Reaction |
-| 8 | System | Webhook, Loom |
+| 8 | System | Loom |
 
 ## Entities
 
@@ -103,7 +103,6 @@ These common columns are omitted from the table below.
 
 | Entity | Table(s) | Description | Key relations |
 |--------|----------|-------------|---------------|
-| **Webhook** | `webhook` | Outbound HTTP hook fired on `loom_events` (user/group/role/asset/tag/webhook lifecycle), with secret token. | — |
 | **Loom** | `loom` | Singleton system row: DB revision + last-used timestamp. | — |
 
 ## Relations

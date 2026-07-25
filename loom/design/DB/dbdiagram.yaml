@@ -1486,23 +1486,6 @@ Table vector_config {
   note: "Custom vector index definitions used to build indices in an external vector database."
 }
 
-Table webhook as W [headercolor: #16a085] {
-  uuid uuid [pk, default: `uuid_generate_v4()`]
-  url varchar [not null]
-  status varchar
-  active boolean [default: true, not null]
-  triggers loom_events [note: "Trigger which invokes the webhook"]
-  secretToken varchar
-  meta jsonb
-
-  created timestamp [default: `now()`, not null]
-  creator_uuid uuid [ref: > U.uuid, not null]
-  edited timestamp [default: `now()`, not null]
-  editor_uuid uuid [ref: > U.uuid, not null]
-
-  note: "Registered webhooks"
-}
-
 Table loom as LOOM [headercolor: #4B82B0] {
   db_rev varchar
   last_used_timestamp timestamp [default: `now()`, not null]
@@ -1512,7 +1495,6 @@ Table loom as LOOM [headercolor: #4B82B0] {
 
 tablegroup Config {
   vector_config
-  webhook
   loom
 }
 
@@ -1550,31 +1532,6 @@ Enum attachment_type {
   WAVEFORM
   PROXY
   EXTRACTED_AUDIO
-}
-
-Enum loom_events {
-  USER_LOGGED_IN
-  USER_CREATED
-  USER_UPDATED
-  USER_DELETED
-  USER_MAPPED
-  GROUP_CREATED
-  GROUP_UPDATED
-  GROUP_DELETED
-  ROLE_CREATED
-  ROLE_UPDATED
-  ROLE_DELETED
-  ASSET_UPLOADED
-  ASSET_CREATED
-  ASSET_UPDATED
-  ASSET_DELETED
-  ASSET_TAGGED
-  TAG_CREATED
-  TAG_DELETED
-  TAG_UPDATED
-  WEBHOOK_CREATED
-  WEBHOOK_DELETED
-  WEBHOOK_UPDATED
 }
 
 Enum loom_permission {
@@ -1689,12 +1646,6 @@ Enum loom_permission {
   READ_TOKEN
   DELETE_TOKEN
   UPDATE_TOKEN
-
-  // WebHook
-  CREATE_WEBHOOK
-  READ_WEBHOOK
-  DELETE_WEBHOOK
-  UPDATE_WEBHOOK
 
   // Library
   CREATE_LIBRARY

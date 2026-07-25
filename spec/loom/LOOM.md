@@ -28,7 +28,7 @@ Loom is the **backend service** of MetaLoom, a Digital Asset Management (DAM)
 system. It is responsible for:
 
 - **Managing data** - users, groups, roles, assets, face detections, object
-  detections, tags, collections, comments, annotations, tasks, webhooks,
+  detections, tags, collections, comments, annotations, tasks,
   embeddings, transcripts, chat, clusters, blacklists, and more.
 - **Persisting pipeline results** - data collected by Cortex processing
   pipelines is stored in the Loom database.
@@ -117,7 +117,6 @@ The Loom project (`loom/`) is a multi-module Maven project:
 | `loom/services/lucene` | Lucene search integration service |
 | `loom/services/qdrant` | Qdrant vector database integration service |
 | `loom/services/tika` | Apache Tika metadata extraction service |
-| `loom/services/webhook` | Webhook dispatch service |
 | `loom/services/monitoring` | Monitoring/metrics service |
 | `loom/services/plugins` | Plugin system |
 | `loom/services/fs` | Filesystem service |
@@ -338,7 +337,6 @@ operations, permissions, and DAO persistence):
 | Chats | `/api/v1/chats` | `ChatDao` |
 | Clusters | `/api/v1/clusters` | `ClusterDao` |
 | Embeddings | `/api/v1/embeddings` | `EmbeddingDao` |
-| Webhooks | `/api/v1/webhooks` | `WebhookDao` |
 | Pipelines | `/api/v1/pipelines` | `PipelineDao` |
 | Assets | `/api/v1/assets` | `AssetDao` |
 | Asset Pools | `/api/v1/pools` | `AssetPoolDao` |
@@ -693,50 +691,42 @@ modules:
 - How these services integrate with the REST API
 - How they relate to Cortex processing nodes
 
-### 10.7 Webhook System
-
-No spec file covers the `loom/services/webhook` module:
-- Webhook registration and management
-- Webhook event dispatch mechanism
-- Supported event types
-- Retry and failure handling
-
-### 10.8 Plugin System
+### 10.7 Plugin System
 
 No spec file covers the `loom/services/plugins` module:
 - Plugin registration and lifecycle
 - Plugin extension points
 - How plugins extend Loom's functionality
 
-### 10.9 Tika Metadata Extraction
+### 10.8 Tika Metadata Extraction
 
 No spec file covers the `loom/services/tika` module:
 - Apache Tika integration for metadata extraction
 - Supported file types and metadata fields
 - How Tika results are stored and exposed
 
-### 10.10 Filesystem Service
+### 10.9 Filesystem Service
 
 No spec file covers the `loom/services/fs` module:
 - Filesystem abstraction for asset storage
 - Local filesystem, S3, and other storage backends
 - How assets are stored and retrieved
 
-### 10.11 CLI
+### 10.10 CLI
 
 No spec file covers the `loom/cli` module:
 - Command-line interface for Loom
 - Available commands (start, stop, migrate, etc.)
 - How the CLI bootstraps the server
 
-### 10.12 Containers
+### 10.11 Containers
 
 No spec file covers the `loom/containers` module:
 - Server container definition
 - Demo container with pre-populated data
 - Container build and deployment
 
-### 10.13 Monitoring
+### 10.12 Monitoring
 
 No spec file covers the `loom/services/monitoring` module:
 - What metrics are exposed

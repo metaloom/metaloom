@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.loom.agent.sandbox.SandboxReaper;
 import io.metaloom.loom.auth.AuthenticationService;
 import io.metaloom.loom.mcp.MCPService;
+import io.metaloom.loom.monitoring.MonitoringService;
 import io.metaloom.loom.rest.RESTService;
 import io.metaloom.loom.rest.UIService;
 import io.metaloom.loom.rest.service.impl.AssetPipelineTrigger;
@@ -32,6 +33,8 @@ public class BootstrapInitializer {
 
 	private final MCPService mcpService;
 
+	private final MonitoringService monitoringService;
+
 	private final AuthenticationService authService;
 
 	private final Flyway flyway;
@@ -47,13 +50,15 @@ public class BootstrapInitializer {
 	private final SandboxReaper sandboxReaper;
 
 	@Inject
-	public BootstrapInitializer(GrpcService grpcService, RESTService restService, UIService uiService, MCPService mcpService, AuthenticationService authService,
+	public BootstrapInitializer(GrpcService grpcService, RESTService restService, UIService uiService, MCPService mcpService,
+		MonitoringService monitoringService, AuthenticationService authService,
 		Flyway flyway, DatabaseInitializer initializer, DemoDatabaseInitializer demoInitializer, HttpServer httpServer,
 		AssetPipelineTrigger assetPipelineTrigger, SandboxReaper sandboxReaper) {
 		this.grpcService = grpcService;
 		this.restService = restService;
 		this.uiService = uiService;
 		this.mcpService = mcpService;
+		this.monitoringService = monitoringService;
 		this.authService = authService;
 		this.flyway = flyway;
 		this.initializer = initializer;
@@ -130,6 +135,13 @@ public class BootstrapInitializer {
 		}
 
 		try {
+			log.info("Starting monitoring service");
+			monitoringService.start();
+		} catch (Exception e) {
+			throw new RuntimeException("Error while starting monitoring service", e);
+		}
+
+		try {
 			log.info("Starting gRPC service");
 			grpcService.start();
 		} catch (Exception e) {
@@ -158,6 +170,7 @@ public class BootstrapInitializer {
 
 	public void deinit() {
 		sandboxReaper.stop();
+		monitoringService.stop();
 		mcpService.stop();
 		restService.stop();
 		grpcService.stop();

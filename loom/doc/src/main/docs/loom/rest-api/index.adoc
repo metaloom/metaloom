@@ -154,7 +154,7 @@ A live Swagger UI is embedded in the link:/docs[Documentation] landing page and 
 
 === Further Endpoints
 
-Additional endpoints exist for: `attachments`, `webhooks`, `tasks`, `comments`, `embeddings`, `spaces`, `annotations`, `asset-pools`, `asset-components`, `asset-binaries`, `tokens` (API keys), and `node-descriptors`.
+Additional endpoints exist for: `attachments`, `tasks`, `comments`, `embeddings`, `spaces`, `annotations`, `asset-pools`, `asset-components`, `asset-binaries`, `tokens` (API keys), and `node-descriptors`.
 All follow the same CRUD pattern under `/api/v1/<resource>`.
 
 == Error Responses

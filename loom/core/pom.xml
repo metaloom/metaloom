@@ -53,6 +53,11 @@
       <artifactId>loom-service-mcp</artifactId>
     </dependency>
     <dependency>
+      <groupId>io.metaloom.loom.service</groupId>
+      <artifactId>loom-service-monitoring</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
       <groupId>io.metaloom.loom.agent</groupId>
       <artifactId>loom-agent-chat</artifactId>
     </dependency>

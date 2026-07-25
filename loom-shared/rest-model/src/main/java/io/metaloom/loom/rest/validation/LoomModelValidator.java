@@ -34,7 +34,6 @@ public interface LoomModelValidator extends
 	FingerprintCompModelValidator,
 	SegmentCompModelValidator,
 	TranscriptModelValidator,
-	WebhookModelValidator,
 	LoginModelValidator {
 
 }

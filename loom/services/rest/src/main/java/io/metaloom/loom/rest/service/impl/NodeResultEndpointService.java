@@ -33,11 +33,14 @@ import io.metaloom.loom.rest.validation.LoomModelValidator;
 public class NodeResultEndpointService extends AbstractEndpointService {
 
 	private final AssetNodeResultDao nodeResultDao;
+	private final io.metaloom.loom.common.metrics.LoomMetrics metrics;
 
 	@Inject
-	public NodeResultEndpointService(AssetNodeResultDao nodeResultDao, LoomModelBuilder modelBuilder, LoomModelValidator validator) {
+	public NodeResultEndpointService(AssetNodeResultDao nodeResultDao, LoomModelBuilder modelBuilder, LoomModelValidator validator,
+		io.metaloom.loom.common.metrics.LoomMetrics metrics) {
 		super(modelBuilder, validator);
 		this.nodeResultDao = nodeResultDao;
+		this.metrics = metrics;
 	}
 
 	public void createAssetNodeResult(LoomRoutingContext lrc, UUID assetUuid) {
@@ -66,6 +69,9 @@ public class NodeResultEndpointService extends AbstractEndpointService {
 			}
 			// Upsert on (asset_uuid, node_kind, node_id): re-running a node rewrites its single ledger row.
 			nodeResultDao.upsert(result);
+			metrics.recordAssetNodeResultWritten(
+				request.getNodeKind() == null ? "unknown" : request.getNodeKind(),
+				request.getState() == null ? "unknown" : String.valueOf(request.getState()).toLowerCase());
 			NodeResultResponse response = modelBuilder.toNodeResultResponse(result);
 			lrc.send(response, 201);
 		});

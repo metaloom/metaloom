@@ -16,27 +16,17 @@ Crucially, **the pipeline graph lives on Loom, not on Cortex**. Loom owns the DA
 individual tasks — a source task to enumerate media, then one node task per graph node per item — to
 whichever registered Cortex instance is allowed to run that kind. Cortex only ever sees one node (or
 affinity segment) at a time and answers with a result. See link:../pipeline/[Pipeline Mechanism] and
-link:../interaction/[Loom & Cortex Interaction].
+link:../operation/[Operation].
 
 This lets you scale processing horizontally: run many Cortex instances, each advertising a subset of
 node kinds (e.g. a GPU box that only runs `facedetect` and `whisper`), and Loom routes tasks
 accordingly.
 
-== Modes of Operation
-
-*Online mode* :: Cortex connects to a Loom server, registers its capabilities, and executes source /
-node / segment tasks dispatched by Loom's pipeline engine. Results are written back to Loom over the
-REST API. This is the primary deployment.
-
-*Offline mode* :: With no Loom host configured, Cortex runs standalone against local files. Loom-bound
-features (registration, task dispatch, result sync) gracefully degrade to no-ops. Useful for
-air-gapped pre-processing.
-
 == Components
 
-* *Pipeline Nodes* — The built-in processing nodes. See link:../nodes/[Nodes].
+* *Pipeline Nodes* — The built-in processing nodes and what they extract. See link:../nodes/[Nodes].
 * *Configuration* — Environment variables and settings. See link:configuration[Configuration].
 * *Monitoring API* — Health and readiness endpoints. See link:monitoring[Monitoring API].
+* *Metrics* — The Prometheus scrape endpoint and the `cortex_*` catalog. See link:metrics[Metrics].
 * *Artifacts* — Maven coordinates and the container image. See link:artifacts[Artifacts].
-* *Features* — Overview of all Cortex capabilities. See link:features[Features].
 * *Examples* — Custom node, custom daemon (Java) and custom worker (Python). See link:examples[Examples].

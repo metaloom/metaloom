@@ -35,8 +35,7 @@ writes (`Bearer <jwt>`) using a single token:
 | `LOOM_TOKEN` | A JWT used for both the WebSocket handshake and REST calls.
 |===
 
-Without a token a worker still **registers and answers tasks**; it simply skips result persistence
-(the same graceful degradation as an offline worker).
+Without a token a worker still **registers and answers tasks**; it simply skips result persistence.
 
 NOTE: The link:../examples/[Python worker example] additionally accepts `LOOM_USER` / `LOOM_PASSWORD`
 to log in for a token — that is a convenience of that example, not the JVM daemon, which uses
@@ -77,9 +76,5 @@ Kubernetes probes:
 | `GET /api/ready` | Readiness — `200` once connected *and* registered with Loom, else `503`.
 |===
 
-See link:../monitoring/[Monitoring API] for details.
-
-== Offline / Local Runs
-
-With no `LOOM_HOST` reachable, Cortex runs standalone against local files and stores results in the
-local meta-path / xattr cache. Loom-dependent components degrade to no-ops.
+See link:../monitoring/[Monitoring API] for health and readiness, and link:../metrics/[Metrics] for the
+Prometheus scrape endpoint and the `cortex_*` catalog.

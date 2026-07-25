@@ -277,7 +277,7 @@ blockquote .paragraph {
   font-weight: 600;
   font-size: 1.2rem;
   border-bottom: none;
-  padding-left: 5px;
+  padding-left: 9px;
   border-left: none;
 }
 
@@ -323,3 +323,74 @@ blockquote .paragraph {
   color: #6b7681; padding: 13px 14px 3px;
 }
 .docs-card-body > .docs-card-group:first-child { padding-top: 4px; }
+
+/* ---- Docs content screenshots (e.g. the Loom UI page): fit the content column and frame ---- */
+.docs-main-content {
+  .imageblock { margin: 1.25rem auto 1.75rem; text-align: center; }
+  .imageblock img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+    border: 1px solid #4e595f;
+    border-radius: 6px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+    cursor: zoom-in;
+    transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
+    will-change: transform;
+  }
+  // Soft zoom + teal glow on hover so it reads as clickable (opens the lightbox).
+  .imageblock img:hover {
+    transform: scale(1.015);
+    border-color: #00b5a6;
+    box-shadow: 0 10px 34px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0, 181, 166, 0.35), 0 0 22px rgba(0, 181, 166, 0.28);
+  }
+}
+
+// Respect users who prefer reduced motion: keep the glow, drop the zoom.
+@media (prefers-reduced-motion: reduce) {
+  .docs-main-content .imageblock img { transition: box-shadow 220ms ease, border-color 220ms ease; }
+  .docs-main-content .imageblock img:hover { transform: none; }
+}
+
+/* ---- Docs screenshot lightbox (modal enlargement, does not affect page layout) ---- */
+.ml-lightbox {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 3000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.85);
+  cursor: zoom-out;
+}
+.ml-lightbox.is-open { display: flex; }
+.ml-lightbox-img {
+  max-width: 96vw;
+  max-height: 94vh;
+  width: auto;
+  height: auto;
+  border: 1px solid #4e595f;
+  border-radius: 6px;
+  box-shadow: 0 12px 60px rgba(0, 0, 0, 0.6);
+}
+.ml-lightbox-close {
+  position: fixed;
+  top: 14px;
+  right: 22px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  font-size: 30px;
+  line-height: 1;
+  color: #cfd6dd;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid #4e595f;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.ml-lightbox-close:hover { color: #fff; border-color: #6b7681; }

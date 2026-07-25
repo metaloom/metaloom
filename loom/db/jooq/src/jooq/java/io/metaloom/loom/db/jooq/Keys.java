@@ -76,7 +76,6 @@ import io.metaloom.loom.db.jooq.tables.JooqUser;
 import io.metaloom.loom.db.jooq.tables.JooqUserGroup;
 import io.metaloom.loom.db.jooq.tables.JooqUserPermission;
 import io.metaloom.loom.db.jooq.tables.JooqVectorConfig;
-import io.metaloom.loom.db.jooq.tables.JooqWebhook;
 import io.metaloom.loom.db.jooq.tables.records.JooqAnnotationAssetRecord;
 import io.metaloom.loom.db.jooq.tables.records.JooqAnnotationRecord;
 import io.metaloom.loom.db.jooq.tables.records.JooqAnnotationTagRecord;
@@ -149,7 +148,6 @@ import io.metaloom.loom.db.jooq.tables.records.JooqUserGroupRecord;
 import io.metaloom.loom.db.jooq.tables.records.JooqUserPermissionRecord;
 import io.metaloom.loom.db.jooq.tables.records.JooqUserRecord;
 import io.metaloom.loom.db.jooq.tables.records.JooqVectorConfigRecord;
-import io.metaloom.loom.db.jooq.tables.records.JooqWebhookRecord;
 
 import org.jooq.ForeignKey;
 import org.jooq.TableField;
@@ -266,7 +264,6 @@ public class Keys {
     public static final UniqueKey<JooqUserGroupRecord> USER_GROUP_PKEY = Internal.createUniqueKey(JooqUserGroup.USER_GROUP, DSL.name("user_group_pkey"), new TableField[] { JooqUserGroup.USER_GROUP.USER_UUID, JooqUserGroup.USER_GROUP.GROUP_UUID }, true);
     public static final UniqueKey<JooqUserPermissionRecord> USER_PERMISSION_PKEY = Internal.createUniqueKey(JooqUserPermission.USER_PERMISSION, DSL.name("user_permission_pkey"), new TableField[] { JooqUserPermission.USER_PERMISSION.USER_UUID }, true);
     public static final UniqueKey<JooqVectorConfigRecord> VECTOR_CONFIG_NAME_KEY = Internal.createUniqueKey(JooqVectorConfig.VECTOR_CONFIG, DSL.name("vector_config_name_key"), new TableField[] { JooqVectorConfig.VECTOR_CONFIG.NAME }, true);
-    public static final UniqueKey<JooqWebhookRecord> WEBHOOK_PKEY = Internal.createUniqueKey(JooqWebhook.WEBHOOK, DSL.name("webhook_pkey"), new TableField[] { JooqWebhook.WEBHOOK.UUID }, true);
 
     // -------------------------------------------------------------------------
     // FOREIGN KEY definitions
@@ -478,6 +475,4 @@ public class Keys {
     public static final ForeignKey<JooqUserGroupRecord, JooqGroupRecord> USER_GROUP__USER_GROUP_GROUP_UUID_FKEY = Internal.createForeignKey(JooqUserGroup.USER_GROUP, DSL.name("user_group_group_uuid_fkey"), new TableField[] { JooqUserGroup.USER_GROUP.GROUP_UUID }, Keys.GROUP_PKEY, new TableField[] { JooqGroup.GROUP.UUID }, true);
     public static final ForeignKey<JooqUserGroupRecord, JooqUserRecord> USER_GROUP__USER_GROUP_USER_UUID_FKEY = Internal.createForeignKey(JooqUserGroup.USER_GROUP, DSL.name("user_group_user_uuid_fkey"), new TableField[] { JooqUserGroup.USER_GROUP.USER_UUID }, Keys.USER_PKEY, new TableField[] { JooqUser.USER.UUID }, true);
     public static final ForeignKey<JooqUserPermissionRecord, JooqUserRecord> USER_PERMISSION__USER_PERMISSION_USER_UUID_FKEY = Internal.createForeignKey(JooqUserPermission.USER_PERMISSION, DSL.name("user_permission_user_uuid_fkey"), new TableField[] { JooqUserPermission.USER_PERMISSION.USER_UUID }, Keys.USER_PKEY, new TableField[] { JooqUser.USER.UUID }, true);
-    public static final ForeignKey<JooqWebhookRecord, JooqUserRecord> WEBHOOK__WEBHOOK_CREATOR_UUID_FKEY = Internal.createForeignKey(JooqWebhook.WEBHOOK, DSL.name("webhook_creator_uuid_fkey"), new TableField[] { JooqWebhook.WEBHOOK.CREATOR_UUID }, Keys.USER_PKEY, new TableField[] { JooqUser.USER.UUID }, true);
-    public static final ForeignKey<JooqWebhookRecord, JooqUserRecord> WEBHOOK__WEBHOOK_EDITOR_UUID_FKEY = Internal.createForeignKey(JooqWebhook.WEBHOOK, DSL.name("webhook_editor_uuid_fkey"), new TableField[] { JooqWebhook.WEBHOOK.EDITOR_UUID }, Keys.USER_PKEY, new TableField[] { JooqUser.USER.UUID }, true);
 }

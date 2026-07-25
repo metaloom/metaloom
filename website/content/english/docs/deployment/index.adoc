@@ -38,21 +38,6 @@ Both `loom-server` and `loom-demo` are available in two variants:
 NOTE: Cortex connects **out** to Loom on port `8092`; Loom never dials in to Cortex. Older
 documentation referenced a Cortex↔Loom port of `7733` — the current default is `8092`.
 
-== Building the Images
-
-[source,bash]
-----
-# Loom (JVM + native, demo + server) — requires a prior `mvn package` and `npm run build` in loom-ui
-loom/containers/build-containers.sh                 # all variants
-loom/containers/build-containers.sh jvm server      # only the JVM server image
-
-# Cortex (requires a local OpenCV 5.1 build; see the script header)
-cortex/container/build-container.sh
-
-# Session Runner (coding sandbox)
-loom/agent/session-runner/build.sh
-----
-
 See link:../getting-started/[Getting Started] to run the demo image, and
 link:../loom/containers/[Loom Containers] / link:../cortex/containers/[Cortex Containers] for
 production deployment examples.

@@ -35,8 +35,7 @@ public interface LoomModelBuilder extends
 	NodeResultModelBuilder,
 	JsonCompModelBuilder,
 	FingerprintCompModelBuilder,
-	SegmentCompModelBuilder,
-	WebhookModelBuilder {
+	SegmentCompModelBuilder {
 
 	default GenericMessageResponse elementNotFound(String msg) {
 		return new GenericMessageResponse().setMessage(msg);

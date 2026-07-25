@@ -42,7 +42,6 @@ import io.metaloom.loom.db.model.tag.TagDao;
 import io.metaloom.loom.db.model.task.TaskDao;
 import io.metaloom.loom.db.model.token.TokenDao;
 import io.metaloom.loom.db.model.user.UserDao;
-import io.metaloom.loom.db.model.webhook.WebhookDao;
 
 @Singleton
 public class DaoCollectionImpl implements DaoCollection {
@@ -57,7 +56,6 @@ public class DaoCollectionImpl implements DaoCollection {
 	private final Lazy<AssetLocationDao> assetLocationDao;
 	private final Lazy<AssetBinaryDao> assetBinaryDao;
 	private final Lazy<AttachmentDao> attachmentDao;
-	private final Lazy<WebhookDao> webhookDao;
 	private final Lazy<CollectionDao> collectionDao;
 	private final Lazy<LibraryDao> libraryDao;
 	private final Lazy<SpaceDao> spaceDao;
@@ -91,7 +89,7 @@ public class DaoCollectionImpl implements DaoCollection {
 	public DaoCollectionImpl(Lazy<UserDao> userDao, Lazy<PermissionDao> permissionDao,
 		Lazy<RoleDao> roleDao, Lazy<GroupDao> groupDao, Lazy<AssetLocationDao> assetLocationDao, Lazy<AssetBinaryDao> assetBinaryDao, Lazy<AssetDao> assetDao,
 		Lazy<AssetComponentDao> assetComponentDao, Lazy<AssetNodeResultDao> assetNodeResultDao,
-		Lazy<WebhookDao> webhookDao, Lazy<CollectionDao> collectionDao, Lazy<LibraryDao> libraryDao,
+		Lazy<CollectionDao> collectionDao, Lazy<LibraryDao> libraryDao,
 		Lazy<AnnotationDao> annotationDao, Lazy<TaskDao> taskDao, Lazy<ReactionDao> reactionDao,
 		Lazy<BlacklistDao> blacklistDao, Lazy<CommentDao> commentDao, Lazy<SpaceDao> spaceDao,
 		Lazy<ClusterDao> clusterDao, Lazy<EmbeddingDao> embeddingDao, Lazy<TokenDao> tokenDao,
@@ -112,7 +110,6 @@ public class DaoCollectionImpl implements DaoCollection {
 		this.permissionDao = permissionDao;
 		this.assetLocationDao = assetLocationDao;
 		this.assetBinaryDao = assetBinaryDao;
-		this.webhookDao = webhookDao;
 		this.libraryDao = libraryDao;
 		this.collectionDao = collectionDao;
 		this.annotationDao = annotationDao;
@@ -172,11 +169,6 @@ public class DaoCollectionImpl implements DaoCollection {
 	@Override
 	public AssetNodeResultDao assetNodeResultDao() {
 		return assetNodeResultDao.get();
-	}
-
-	@Override
-	public WebhookDao webhookDao() {
-		return webhookDao.get();
 	}
 
 	@Override

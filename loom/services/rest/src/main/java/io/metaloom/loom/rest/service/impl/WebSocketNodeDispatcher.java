@@ -6,6 +6,7 @@ import javax.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.metaloom.loom.common.metrics.LoomMetrics;
 import io.metaloom.loom.pipeline.engine.NodeDispatcher;
 import io.metaloom.loom.pipeline.model.NodeTask;
 import io.metaloom.loom.pipeline.model.SegmentTask;
@@ -35,10 +36,17 @@ public class WebSocketNodeDispatcher implements NodeDispatcher {
 	private static final Logger log = LoggerFactory.getLogger(WebSocketNodeDispatcher.class);
 
 	private final ProcessorRegistry registry;
+	private final LoomMetrics metrics;
 
 	@Inject
-	public WebSocketNodeDispatcher(ProcessorRegistry registry) {
+	public WebSocketNodeDispatcher(ProcessorRegistry registry, LoomMetrics metrics) {
 		this.registry = registry;
+		this.metrics = metrics;
+	}
+
+	/** Test convenience: a dispatcher without a metrics backend. */
+	public WebSocketNodeDispatcher(ProcessorRegistry registry) {
+		this(registry, io.metaloom.loom.common.metrics.NoopLoomMetrics.INSTANCE);
 	}
 
 	@Override
@@ -48,6 +56,7 @@ public class WebSocketNodeDispatcher implements NodeDispatcher {
 		// restricted to particular kinds will only be offered those.
 		ConnectedProcessor processor = registry.selectProcessor(ProcessorCapability.CPU, task.getNodeKind());
 		if (processor == null) {
+			metrics.recordNodeTaskDispatchFailed("no_processor");
 			log.warn("No online processor accepts node kind '{}' for {}", task.getNodeKind(), task);
 			return null;
 		}
@@ -56,9 +65,11 @@ public class WebSocketNodeDispatcher implements NodeDispatcher {
 		if (!sent) {
 			// The socket closed between selection and write. Reporting false lets the
 			// engine settle the node rather than wait for a result that cannot arrive.
+			metrics.recordNodeTaskDispatchFailed("socket_gone");
 			log.warn("Processor '{}' went away before {} could be sent", processor.nodeId, task);
 			return null;
 		}
+		metrics.recordNodeTaskDispatched(task.getNodeKind());
 		if (log.isDebugEnabled()) {
 			log.debug("Dispatched {} to processor '{}'", task, processor.nodeId);
 		}
@@ -73,15 +84,18 @@ public class WebSocketNodeDispatcher implements NodeDispatcher {
 		// spanning them.
 		ConnectedProcessor processor = registry.selectProcessorForKinds(ProcessorCapability.CPU, task.getNodeKinds());
 		if (processor == null) {
+			metrics.recordNodeTaskDispatchFailed("no_processor");
 			log.debug("No online processor accepts all of {} for {}", task.getNodeKinds(), task);
 			return null;
 		}
 
 		boolean sent = registry.send(processor.nodeId, ProcessorMessageType.SEGMENT_TASK, task);
 		if (!sent) {
+			metrics.recordNodeTaskDispatchFailed("socket_gone");
 			log.warn("Processor '{}' went away before {} could be sent", processor.nodeId, task);
 			return null;
 		}
+		metrics.recordNodeTaskDispatched("segment");
 		return processor.nodeId;
 	}
 }

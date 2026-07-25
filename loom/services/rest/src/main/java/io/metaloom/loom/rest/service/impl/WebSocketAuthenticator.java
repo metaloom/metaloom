@@ -40,11 +40,14 @@ public class WebSocketAuthenticator {
 
 	private final LoomAuthenticationHandler authHandler;
 	private final boolean strict;
+	private final io.metaloom.loom.common.metrics.LoomMetrics metrics;
 
 	@Inject
-	public WebSocketAuthenticator(LoomAuthenticationHandler authHandler, LoomOptions options) {
+	public WebSocketAuthenticator(LoomAuthenticationHandler authHandler, LoomOptions options,
+		io.metaloom.loom.common.metrics.LoomMetrics metrics) {
 		this.authHandler = authHandler;
 		this.strict = resolveStrict(options);
+		this.metrics = metrics;
 	}
 
 	private static boolean resolveStrict(LoomOptions options) {
@@ -73,6 +76,7 @@ public class WebSocketAuthenticator {
 		String token = extractToken(ws);
 		if (token == null || token.isBlank()) {
 			if (strict) {
+				metrics.recordAuthFailure("ws");
 				close(ws, "missing token");
 				log.warn("Rejecting {} WebSocket from {}: no token supplied", endpoint, ws.remoteAddress());
 				return Future.failedFuture("Missing token");
@@ -87,6 +91,7 @@ public class WebSocketAuthenticator {
 				promise.complete(user);
 			})
 			.onFailure(err -> {
+				metrics.recordAuthFailure("ws");
 				close(ws, "invalid token");
 				log.warn("Rejecting {} WebSocket from {}: invalid token ({})", endpoint, ws.remoteAddress(), err.getMessage());
 				promise.fail(err);

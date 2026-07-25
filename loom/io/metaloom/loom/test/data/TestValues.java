@@ -77,8 +77,6 @@ public interface TestValues {
 
 	public static final UUID ROLE_UUID = UUID.fromString("d11cf021-d06c-4327-9f85-024f5fa3811d");
 
-	public static final UUID WEBHOOK_UUID = UUID.fromString("6635ac54-5a27-4d15-904e-8a74c7ac5bb0");
-
 	public static final UUID TOKEN_UUID = UUID.fromString("d56b09a5-70a8-442a-9a28-58595a8ef6cd");
 
 	public static final UUID LIBRARY_UUID = UUID.fromString("ef5702dd-0dcb-404b-86d7-9982ad28d6c1");

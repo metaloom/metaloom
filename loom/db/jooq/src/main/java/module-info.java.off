@@ -7,7 +7,6 @@ module loom.db.jooq {
 	exports io.metaloom.loom.db.jooq.dao.model;
 	exports io.metaloom.loom.db.jooq.dao.asset;
 	exports io.metaloom.loom.db.jooq.tables.daos;
-	exports io.metaloom.loom.db.jooq.dao.webhook;
 	exports io.metaloom.loom.db.jooq.dao.group;
 	exports io.metaloom.loom.db.jooq.tables.pojos;
 	exports io.metaloom.loom.db.jooq.dagger;

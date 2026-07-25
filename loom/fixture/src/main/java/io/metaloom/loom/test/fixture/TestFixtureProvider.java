@@ -29,7 +29,6 @@ import io.metaloom.loom.db.model.tag.Tag;
 import io.metaloom.loom.db.model.task.Task;
 import io.metaloom.loom.db.model.token.Token;
 import io.metaloom.loom.db.model.user.User;
-import io.metaloom.loom.db.model.webhook.Webhook;
 import io.metaloom.utils.StringUtils;
 import io.metaloom.utils.hash.SHA512;
 import io.vertx.core.json.JsonArray;
@@ -103,9 +102,6 @@ public class TestFixtureProvider extends AbstractFixtureProvider {
 		// Create blacklist with multiple entries
 		Blacklist blacklist = createBlacklist(user, asset, "blocked");
 
-		// Register webhook
-		Webhook webhook = createWebhook(user, "http://localhost:9090/trigger");
-
 		// Create chat
 		Chat chat = createChat(user);
 
@@ -116,13 +112,6 @@ public class TestFixtureProvider extends AbstractFixtureProvider {
 		comment.setTaskUuid(task.getUuid());
 		commentDao().store(comment);
 		return comment;
-	}
-
-	private Webhook createWebhook(User user, String url) {
-		Webhook webhook = webhookDao().createWebhook(user, url);
-		webhook.setUuid(WEBHOOK_UUID);
-		webhookDao().store(webhook);
-		return webhook;
 	}
 
 	private Blacklist createBlacklist(User user, Asset asset, String name) {

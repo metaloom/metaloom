@@ -41,7 +41,6 @@ import io.metaloom.loom.rest.endpoint.impl.TagEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.TaskEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.TokenEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.UserEndpoint;
-import io.metaloom.loom.rest.endpoint.impl.WebhookEndpoint;
 
 @Module
 public class EndpointModule {
@@ -68,7 +67,6 @@ public class EndpointModule {
 		HealthEndpoint healthEndpoint,
 		TaskEndpoint taskEndoint,
 		TagEndpoint tagEndpoint,
-		WebhookEndpoint webhookEndpoint,
 		LibraryEndpoint libraryEndpoint,
 		PersonEndpoint personEndpoint,
 		PipelineEndpoint pipelineEndpoint,
@@ -103,7 +101,6 @@ public class EndpointModule {
 			healthEndpoint,
 			taskEndoint,
 			tagEndpoint,
-			webhookEndpoint,
 			libraryEndpoint,
 			personEndpoint,
 			pipelineEndpoint,

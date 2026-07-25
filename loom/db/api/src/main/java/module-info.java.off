@@ -8,7 +8,6 @@ module loom.db.api {
 	exports io.metaloom.loom.db.model.content;
 	exports io.metaloom.loom.db.model.group;
 	exports io.metaloom.loom.utils;
-	exports io.metaloom.loom.db.model.webhook;
 	exports io.metaloom.loom.db.impl;
 	exports io.metaloom.loom.db.model.language;
 	exports io.metaloom.loom.db.model.namespace;

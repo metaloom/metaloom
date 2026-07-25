@@ -199,7 +199,6 @@ loom/
 │   ├── lucene/      # Lucene search integration
 │   ├── qdrant/      # Qdrant vector database integration
 │   ├── tika/        # Apache Tika metadata extraction
-│   ├── webhook/     # Webhook dispatch service
 │   ├── monitoring/  # Monitoring/metrics service
 │   ├── plugins/     # Plugin system
 │   ├── fs/          # Filesystem service

@@ -101,7 +101,7 @@ The service sub-modules ([loom/services/pom.xml](../loom/services/pom.xml)):
 
 ```
 api  auth  elasticsearch  graphql  monitoring  logger  plugins
-rest grpc image video fs tika lucene qdrant eventbus webhook mcp
+rest grpc image video fs tika lucene qdrant eventbus mcp
 ```
 
 ---
@@ -128,7 +128,7 @@ backend. See [features/pipeline/PIPELINE.md](features/pipeline/PIPELINE.md) §3.
 
 - Interfaces and DTOs: `io.metaloom.loom.db.model.<domain>`
   (asset, group, role, blacklist, chat, reaction, attachment, perm,
-  annotation, webhook, detection, person, …). See
+  annotation, detection, person, …). See
   [loom/db/api/src/main/java/io/metaloom/loom/db/model](../loom/db/api/src/main/java/io/metaloom/loom/db/model).
 - Every domain has a `*Dao` + `*Impl` pair.
 

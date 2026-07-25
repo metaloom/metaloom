@@ -8,6 +8,7 @@ import javax.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.metaloom.loom.common.metrics.LoomMetrics;
 import io.metaloom.loom.rest.model.pipeline.event.PipelineEventMessage;
 import io.metaloom.loom.rest.model.processor.event.ProcessorEventMessage;
 import io.vertx.core.http.ServerWebSocket;
@@ -42,8 +43,17 @@ public class PipelineEventBroadcaster {
 
 	private final ConcurrentHashMap<ServerWebSocket, Subscriber> subscribers = new ConcurrentHashMap<>();
 
+	private final LoomMetrics metrics;
+
 	@Inject
+	public PipelineEventBroadcaster(LoomMetrics metrics) {
+		this.metrics = metrics;
+		metrics.bindGauge("loom_pipeline_event_subscribers", subscribers::size);
+	}
+
+	/** Test convenience: a broadcaster without a metrics backend. */
 	public PipelineEventBroadcaster() {
+		this(io.metaloom.loom.common.metrics.NoopLoomMetrics.INSTANCE);
 	}
 
 	/**
@@ -102,7 +112,12 @@ public class PipelineEventBroadcaster {
 			if (json == null) {
 				json = Json.encode(event);
 			}
-			subscriber.send(json);
+			if (!subscriber.send(json)) {
+				metrics.recordPipelineEventDropped();
+			}
+		}
+		if (json != null) {
+			metrics.recordPipelineEventBroadcast();
 		}
 	}
 
@@ -173,17 +188,20 @@ public class PipelineEventBroadcaster {
 		 * Send a pre-serialized JSON event to this subscriber's WebSocket.
 		 * Uses a non-blocking write. If the write buffer is full (backpressure),
 		 * the event is dropped and the dropped counter is incremented.
+		 *
+		 * @return {@code true} if the event was written, {@code false} if it was dropped
 		 */
-		void send(String json) {
+		boolean send(String json) {
 			if (ws.writeQueueFull()) {
 				droppedCount++;
 				if (droppedCount % 100 == 1) {
 					log.warn("Pipeline event subscriber backpressure: dropped {} events (write queue full)",
 						droppedCount);
 				}
-				return;
+				return false;
 			}
 			ws.writeTextMessage(json);
+			return true;
 		}
 	}
 }

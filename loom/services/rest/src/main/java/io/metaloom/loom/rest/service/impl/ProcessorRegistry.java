@@ -16,6 +16,8 @@ import javax.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.metaloom.loom.common.metrics.LoomMetrics;
+import io.metaloom.loom.common.metrics.NoopLoomMetrics;
 import io.metaloom.loom.db.dagger.DaoCollection;
 import io.metaloom.loom.db.model.cortex.CortexInstance;
 import io.metaloom.loom.db.model.cortex.CortexInstanceDao;
@@ -57,10 +59,14 @@ public class ProcessorRegistry {
 	 */
 	private final PipelineEventBroadcaster broadcaster;
 
+	private final LoomMetrics metrics;
+
 	@Inject
-	public ProcessorRegistry(DaoCollection daos, PipelineEventBroadcaster broadcaster) {
+	public ProcessorRegistry(DaoCollection daos, PipelineEventBroadcaster broadcaster, LoomMetrics metrics) {
 		this.daos = daos;
 		this.broadcaster = broadcaster;
+		this.metrics = metrics;
+		metrics.bindGauge("loom_processors_connected", processors::size);
 	}
 
 	/**
@@ -69,7 +75,15 @@ public class ProcessorRegistry {
 	 * UI events.
 	 */
 	public ProcessorRegistry(DaoCollection daos) {
-		this(daos, null);
+		this(daos, null, NoopLoomMetrics.INSTANCE);
+	}
+
+	/**
+	 * Construct a registry with persistence and event broadcasting but no metrics backend. Used by
+	 * broadcast tests.
+	 */
+	public ProcessorRegistry(DaoCollection daos, PipelineEventBroadcaster broadcaster) {
+		this(daos, broadcaster, NoopLoomMetrics.INSTANCE);
 	}
 
 	/**
@@ -78,7 +92,7 @@ public class ProcessorRegistry {
 	 * as before and emits no events.
 	 */
 	public ProcessorRegistry() {
-		this(null, null);
+		this(null, null, NoopLoomMetrics.INSTANCE);
 	}
 
 	/**
@@ -107,6 +121,7 @@ public class ProcessorRegistry {
 		reconcilePersistedRestriction(nodeId, registration, processor);
 
 		processors.put(nodeId, processor);
+		metrics.recordProcessorRegistered();
 		log.info("Processor registered: {} ({})", registration.getName(), nodeId);
 
 		broadcast(new ProcessorEventMessage(ProcessorEventType.REGISTERED, nodeId)
@@ -159,6 +174,7 @@ public class ProcessorRegistry {
 	public void unregister(String nodeId) {
 		ConnectedProcessor removed = processors.remove(nodeId);
 		if (removed != null) {
+			metrics.recordProcessorDisconnected();
 			log.info("Processor unregistered: {} ({})", removed.name, nodeId);
 			broadcast(new ProcessorEventMessage(ProcessorEventType.DISCONNECTED, nodeId));
 		}
@@ -170,6 +186,7 @@ public class ProcessorRegistry {
 	public void heartbeat(String nodeId) {
 		ConnectedProcessor processor = processors.get(nodeId);
 		if (processor != null) {
+			metrics.recordProcessorHeartbeat();
 			processor.lastSeen = Instant.now();
 			broadcast(new ProcessorEventMessage(ProcessorEventType.HEARTBEAT, nodeId)
 				.setLastSeen(processor.lastSeen));

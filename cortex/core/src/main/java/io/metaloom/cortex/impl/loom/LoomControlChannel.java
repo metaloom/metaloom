@@ -18,6 +18,7 @@ import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.api.option.LoomClientOptions;
+import io.metaloom.cortex.common.metrics.CortexMetrics;
 import io.metaloom.cortex.pipeline.api.event.PipelineEventBus;
 import io.metaloom.cortex.pipeline.api.event.PipelineTrackingEvent;
 import io.metaloom.loom.rest.model.pipeline.event.PipelineEventMessage;
@@ -53,6 +54,7 @@ public class LoomControlChannel {
 	private final Vertx vertx;
 	private final CortexOptions options;
 	private final PipelineEventBus pipelineEventBus;
+	private final CortexMetrics metrics;
 
 	private final PipelineTaskHandler taskHandler;
 
@@ -84,11 +86,12 @@ public class LoomControlChannel {
 
 	@Inject
 	public LoomControlChannel(Vertx vertx, CortexOptions options, PipelineEventBus pipelineEventBus,
-			PipelineTaskHandler taskHandler,
+			PipelineTaskHandler taskHandler, CortexMetrics metrics,
 			dagger.Lazy<io.metaloom.cortex.pipeline.loader.NodeFactory> nodeFactory) {
 		this.nodeFactory = nodeFactory;
 		this.vertx = vertx;
 		this.options = options;
+		this.metrics = metrics;
 		// A configured id survives a restart; a generated one does not, and Loom keys
 		// leases and attribution on it.
 		this.nodeId = options.getNodeId() != null && !options.getNodeId().isBlank()
@@ -102,6 +105,8 @@ public class LoomControlChannel {
 		if (!started.compareAndSet(false, true)) {
 			return;
 		}
+
+		registerGauges();
 
 		resolveEndpoint();
 		if (!endpointConfigured) {
@@ -156,6 +161,34 @@ public class LoomControlChannel {
 				log.debug("Ignoring websocket client close error", e);
 			}
 			webSocketClient = null;
+		}
+	}
+
+	/**
+	 * Register the connection-state and resource gauges once. Gauges poll live state at scrape time,
+	 * so they reflect the current values even while the channel is offline. Micrometer treats a
+	 * re-registration of the same name as a no-op.
+	 */
+	private void registerGauges() {
+		metrics.bindGauge("cortex_loom_connected", () -> connected.get() ? 1 : 0);
+		metrics.bindGauge("cortex_loom_registered", () -> registered.get() ? 1 : 0);
+		metrics.bindGauge("cortex_loom_reconnect_attempts", reconnectAttempts::get);
+		metrics.bindGauge("cortex_memory_used_bytes", () -> Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory());
+		metrics.bindGauge("cortex_memory_max_bytes", () -> Runtime.getRuntime().maxMemory());
+		metrics.bindGauge("cortex_cpu_load", () -> {
+			double load = ManagementFactory.getOperatingSystemMXBean().getSystemLoadAverage();
+			return load < 0 ? 0d : load;
+		});
+		metrics.bindGauge("cortex_disk_used_bytes", () -> diskSpace(true));
+		metrics.bindGauge("cortex_disk_total_bytes", () -> diskSpace(false));
+	}
+
+	private long diskSpace(boolean used) {
+		try {
+			FileStore store = Files.getFileStore(Path.of("."));
+			return used ? store.getTotalSpace() - store.getUsableSpace() : store.getTotalSpace();
+		} catch (Exception e) {
+			return 0L;
 		}
 	}
 
@@ -272,6 +305,7 @@ public class LoomControlChannel {
 			return;
 		}
 		long attempt = reconnectAttempts.incrementAndGet();
+		metrics.recordReconnect();
 		long delay = Math.min(RECONNECT_BASE_DELAY_MS * Math.max(1, attempt), RECONNECT_MAX_DELAY_MS);
 		reconnectTimerId = vertx.setTimer(delay, id -> {
 			reconnectTimerId = -1;
@@ -381,6 +415,8 @@ public class LoomControlChannel {
 		if (message.getType() == null) {
 			return;
 		}
+
+		metrics.recordLoomMessage(message.getType().name().toLowerCase());
 
 		switch (message.getType()) {
 			case REGISTERED:

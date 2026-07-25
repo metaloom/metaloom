@@ -137,3 +137,62 @@ jQuery(function ($) {
 	});
 
 });
+/* ---- Docs screenshot lightbox: click a docs image to view it enlarged in a modal overlay ---- */
+(function () {
+	function initDocsLightbox() {
+		var imgs = document.querySelectorAll('.docs-main-content .imageblock img');
+		if (!imgs.length) { return; }
+
+		var overlay = document.createElement('div');
+		overlay.className = 'ml-lightbox';
+		overlay.setAttribute('role', 'dialog');
+		overlay.setAttribute('aria-modal', 'true');
+
+		var big = document.createElement('img');
+		big.className = 'ml-lightbox-img';
+
+		var closeBtn = document.createElement('button');
+		closeBtn.type = 'button';
+		closeBtn.className = 'ml-lightbox-close';
+		closeBtn.setAttribute('aria-label', 'Close');
+		closeBtn.innerHTML = '&times;';
+
+		overlay.appendChild(big);
+		overlay.appendChild(closeBtn);
+		document.body.appendChild(overlay);
+
+		function openLightbox(src, alt) {
+			big.setAttribute('src', src);
+			big.setAttribute('alt', alt || '');
+			overlay.classList.add('is-open');
+			document.body.style.overflow = 'hidden';
+		}
+		function closeLightbox() {
+			overlay.classList.remove('is-open');
+			document.body.style.overflow = '';
+			big.removeAttribute('src');
+		}
+
+		for (var i = 0; i < imgs.length; i++) {
+			(function (im) {
+				im.addEventListener('click', function () {
+					openLightbox(im.currentSrc || im.src, im.getAttribute('alt'));
+				});
+			})(imgs[i]);
+		}
+
+		overlay.addEventListener('click', closeLightbox);
+		closeBtn.addEventListener('click', function (e) { e.stopPropagation(); closeLightbox(); });
+		document.addEventListener('keydown', function (e) {
+			if ((e.key === 'Escape' || e.keyCode === 27) && overlay.classList.contains('is-open')) {
+				closeLightbox();
+			}
+		});
+	}
+
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', initDocsLightbox);
+	} else {
+		initDocsLightbox();
+	}
+})();

@@ -1,0 +1,155 @@
+---
+title: Loom UI
+---
+
+The *Loom UI* is the browser-based management interface for a Loom server. It is a single-page
+application (React, Vite and Material UI) that is *bundled into the Loom server itself* — no separate
+deployment is required. Everything you can do through the link:../loom/rest-api/[REST API] — browsing
+assets, chatting with the AI agent, authoring pipelines, managing users, roles and API keys — is
+available from the UI.
+
+The screenshots below are taken from the link:../getting-started/[demo container], which ships with a
+pre-seeded database so every screen has real content.
+
+[TIP]
+====
+Start the demo container and open *http://localhost:8092/ui/* in your browser. Sign in with the default
+demo credentials *admin* / *finger*. See link:../getting-started/[Getting Started] for the one-line
+`docker run` command.
+====
+
+== What the UI Offers
+
+The interface is split into a *user* area (day-to-day media work) and an *admin* area (governance and
+operations), reachable from the collapsible left navigation.
+
+*User area*
+
+* *Chat & AI Agent* — a conversational assistant with live references to your assets, tasks and pipelines
+* *Library* — browse assets grouped into libraries
+* *Assets* — grid/list browser with search, status and type filters, plus a rich per-asset detail view
+* *Collections* — organise assets into colour-coded collections
+* *Tasks* — a Kanban-style task board with priority, status and assignees
+* *Detection* — review face, object and LLM detections; manage face clusters and persons
+* *Tags* — manage tags grouped by collection
+* *Workflow* — fullscreen, keyboard-driven bulk review
+* *Skills* — reusable instruction packages the chat agent can apply per conversation
+* *Agent Memory* — browse and edit the scoped markdown notes the agent reads and writes
+
+*Admin area*
+
+* *Asset Pools* — storage pool management and replication
+* *Pipelines* — a visual pipeline editor with versioning and side-by-side version diffs
+* *Cortex* — live monitoring of connected Cortex worker daemons
+* *Monitoring* — rolling metrics dashboards
+* *Spaces, Users, Groups & Permissions* — full access-control administration (ACL)
+* *API Keys* — generate and revoke long-lived API tokens
+* *Blacklist & Memory Denylist* — security and agent-guardrail rules
+
+[#chat]
+== Chat & AI Agent
+
+The landing screen is the Loom Agent chat. Ask questions in natural language and the agent works across
+your assets, collections, tasks and pipelines. A context panel on the right surfaces recent assets,
+active tasks and collections, and past conversations are listed for quick recall.
+
+image::chat.png[Loom Agent chat interface,role=img-fluid]
+
+=== Skills
+
+Skills are versioned, publishable instruction packages that the agent can apply on a per-conversation
+basis. Your own skills live under *My skills*; shared skills are installed from the *Library*.
+
+image::skills.png[Skill management overview,role=img-fluid]
+
+=== Agent Memory
+
+The agent keeps a scoped, markdown-based memory bank that it can read and write across conversations.
+The memory view lets an administrator browse and edit those notes; the agent sees it as a read-only
+`/memory` folder.
+
+image::memory.png[Agent memory view,role=img-fluid]
+
+[#assets]
+== Assets
+
+The asset browser shows every asset with search, status and type filters and switchable grid/list and
+card-size views. Videos, images, audio and documents are all represented.
+
+image::assets.png[Asset browser,role=img-fluid]
+
+Opening an asset reveals the detail view: media preview, a timeline with markers, tags and metadata, and
+tabs for comments, annotations and reactions.
+
+image::asset-detail.png[Asset detail view,role=img-fluid]
+
+=== Library
+
+Assets can be organised into libraries. The library view provides a per-library selector and asset grid.
+
+image::library.png[Library management,role=img-fluid]
+
+=== Tags
+
+Tags are managed in a tree grouped by collection, with drag-to-move and inline creation.
+
+image::tags.png[Tag management,role=img-fluid]
+
+=== Face Detection
+
+The Detection view aggregates face, object and LLM detections. The *Faces* tab manages face clusters and
+lets you assign them to persons in the person database.
+
+image::face-detection.png[Face detection and cluster management,role=img-fluid]
+
+[#pipeline-editing]
+== Pipeline Editing
+
+Pipelines are authored on a React Flow canvas: drag nodes from the palette, wire typed handles, set
+PASS/REJECT/ANY edges, validate the graph and run it. An inspector on the right shows metadata and run
+history, and the JSON tab exposes the raw definition.
+
+image::pipeline-editor.png[Pipeline editor canvas,role=img-fluid]
+
+=== Pipeline Versioning
+
+Every save mints a new pipeline version. The version badge opens a history popover where you can review,
+restore (copy-forward) or diff any earlier version against the current one.
+
+image::pipeline-versions.png[Pipeline version history,role=img-fluid]
+
+== Cortex Instances
+
+The Cortex view monitors the worker daemons connected to Loom. Each registered worker shows its
+online status, host, priority, live CPU/IO/memory metrics, advertised capabilities and the node
+kinds it is allowed to run. From here you can pause, resume or forget a worker and edit its node
+restrictions. Workers appear automatically once a link:../cortex/[Cortex] daemon registers with the
+server.
+
+image::cortex.png[Connected Cortex worker,role=img-fluid]
+
+[#administration]
+== Administration
+
+The admin area centralises governance. *Users* manages accounts, status and role assignments.
+
+image::users.png[User management,role=img-fluid]
+
+*Permissions* is the access-control (ACL) surface: define roles and toggle fine-grained permissions
+across every resource type (assets, annotations, users, and more) in a permission matrix. Roles are
+assigned to users through groups.
+
+image::acl-roles.png[Role and permission (ACL) management,role=img-fluid]
+
+*API Keys* generates and revokes long-lived API tokens for programmatic access — see
+link:../loom/authentication/[Authentication].
+
+image::api-keys.png[API key management,role=img-fluid]
+
+== Related
+
+* link:../getting-started/[Getting Started] — run the demo container and open the UI
+* link:../loom/chat/[Chat & AI Agent] — the agent, sessions, skills, memory and coding sandbox
+* link:../loom/rest-api/[REST API] — the endpoints the UI is built on
+* link:../loom/authentication/[Authentication] — login, tokens and API keys
+* link:../pipeline/[Pipeline Mechanism] and link:../nodes/[Nodes] — what the pipeline editor builds

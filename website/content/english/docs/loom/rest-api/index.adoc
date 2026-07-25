@@ -25,9 +25,14 @@ Default port is `8092` (overridable via `LOOM_SERVER_REST_PORT`).
 
 == Interactive API (Swagger UI)
 
-A live Swagger UI is embedded in the link:/docs[Documentation] landing page and points to the OpenAPI
-spec at `/api/v1/openapi.json`. The bundled spec is generated from the server's endpoint registry; see
-the note on regenerating it in the website build documentation (`spec/website/WEBSITE.md`).
+The Swagger UI below renders the bundled OpenAPI document (`/docs/examples/openapi.json`), which is
+generated from the server's endpoint registry. A running Loom server serves the same document live at
+`/api/v1/openapi.json`; see the note on regenerating it in the website build documentation
+(`spec/website/WEBSITE.md`).
+
+++++
+<div id="swagger-ui"></div>
+++++
 
 == Endpoint Reference
 
@@ -207,7 +212,7 @@ See link:../chat/[Chat & AI Agent] for the streaming event protocol.
 
 === Further Endpoints
 
-Additional endpoints exist for: `attachments`, `webhooks`, `tasks`, `comments`, `reactions`,
+Additional endpoints exist for: `attachments`, `tasks`, `comments`, `reactions`,
 `embeddings`, `spaces`, `annotations`, `persons`, `clusters`, `blacklists`, `pools` (asset pools),
 `tokens` (API keys), `me`, `health`, and the pipeline node metadata under `pipeline/node-descriptors`
 and `pipeline/content-types`. Most follow the same CRUD pattern under `/api/v1/<resource>`.

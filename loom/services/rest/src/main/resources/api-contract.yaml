@@ -1279,99 +1279,6 @@ paths:
     #tags: ["Eventbus", "Enterprise"]
     description: "Eventbus bridge endpoint."
 
-  /webhooks:
-    get:
-      parameters: 
-        - $ref: "#/components/parameters/perPage"
-        - $ref: "#/components/parameters/page"
-      tags: ["Webhook"]
-      operationId: "loadWebhooks"
-      responses:
-        '200':
-          description: "Returns all listed webhooks"
-          content:
-            'application/json':
-                schema:
-                  $ref: "#/components/schemas/WebhookListResponse"
-                examples:
-                  WebhookListResponse:
-                    $ref: "#/components/schemas/WebhookListResponse/example"
-    head:
-      tags: ["Webhook"]
-      operationId: "checkWebhooks"
-      responses:
-        '204':
-          description: "Checked webhooks"
-    post:
-      tags: ["Webhook"]
-      operationId: "createWebhooks"
-      requestBody:
-        content:
-          'application/json':
-            schema:
-              $ref: "#/components/schemas/WebhookCreateRequest"
-            examples:
-              WebhookCreateRequest:
-                $ref: "#/components/schemas/WebhookCreateRequest/example"
-      responses:
-        '201':
-          description: "Webhook created"
-          content:
-            'application/json':
-              schema:
-                $ref: "#/components/schemas/WebhookResponse"
-              examples:
-                WebhookResponse:
-                  $ref: "#/components/schemas/WebhookResponse/example"
-
-  /webhooks/{webhookUuid}:
-    parameters:
-      - $ref: "#/components/parameters/webhookUuid"
-    head:
-      tags: ["Webhook"]
-      operationId: "checkWebhook"
-      responses:
-        '204':
-          description: "Checked webhook"
-        '404':
-          description: "Webhook not found."
-    get:
-      tags: ["Webhook"]
-      operationId: "loadWebhook"
-      responses:
-        '200':
-          description: "Loaded webhook with given uuid"
-          content:
-            'application/json':
-                schema:
-                  $ref: "#/components/schemas/WebhookResponse"
-                examples:
-                  WebhookListResponse:
-                    $ref: "#/components/schemas/WebhookResponse/example"
-    post:
-      tags: ["Webhook"]
-      operationId: "updateWebhook"
-      requestBody:
-        content:
-          'application/json':
-            schema:
-              $ref: '#/components/schemas/WebhookUpdateRequest'
-            examples:
-              WebhookCreateRequest:
-                $ref: '#/components/schemas/WebhookUpdateRequest/example'
-
-      responses:
-        '201':
-          description: "Webhook created"
-    delete:
-      tags: ["Webhook"]
-      operationId: "deleteWebhook"
-      responses:
-        '204':
-          description: "Webhook deleted"
-        '404':
-          description: "Webhook not found."
-
 
   /extensions:
     head:
@@ -2745,109 +2652,6 @@ components:
         duration: 251
         info: "DEBUG: Asset was processed in 100ms."
 
-    # Webhook
-    WebhookResponse:
-      required:
-        - uuid
-        - url
-      properties:
-        uuid:
-          type: string
-          description: "UUID of the webhook"
-        url:
-          type: string
-          description: "Registered webhook URL"
-        triggers:
-          type: string
-          description: "The event on which the webhook will be triggered"
-        active:
-          type: boolean
-          description: "The active flag for the webhook. This can be used to temporarily disable the webhook."
-        secretToken:
-          type: string
-          description: "The specified token which will be included in every webhook request to the endpoint. The endpoint can use this information to verify that the request is legitimate."
-        meta:
-          type: object
-          description: "Additional custom properties."
-      example:
-        uuid: "7b57bbf1-b4cf-4df6-936a-ae1de2756cb3"
-        url: "http://localhost:8080/trigger_me"
-        secretToken: "fiedei3Eehei0shiicij"
-        triggers:
-          - CREATE_CONTENT
-        active: true
-        meta:
-          myKey: "myValue"
-
-
-    WebhookListResponse:
-      type: array
-      items:
-        $ref: "#/components/schemas/WebhookResponse"
-      example:
-        - uuid: "7b57bbf1-b4cf-4df6-936a-ae1de2756cb3"
-          url: "http://localhost:8080/trigger_me"
-        - uuid: "c48797df-a2e9-4e2e-a672-03e54cfaf3ab"
-          url: "http://localhost:8080/trigger_me_2"
-
-    WebhookCreateRequest:
-      required:
-        - url
-        - trigger
-      properties:
-        # TODO add events
-        url:
-          type: string
-          description: "URL for the webhook"
-        trigger:
-          type: string
-          description: "Event on which the webhook should be triggered."
-        secretToken:
-          type: string
-          description: "The specified token which will be included in every webhook request to the endpoint. The endpoint can use this information to verify that the request is legitimate."
-        active:
-          type: boolean
-          description: "The active flag for the webhook. This can be used to temporarily disable the webhook."
-        meta:
-          type: object
-          description: "Additional custom properties."
-      example:
-        url: "http://localhost:8080/trigger_me"
-        trigger: "CONTENT_CREATED"
-        secretToken: "fiedei3Eehei0shiicij"
-        active: true
-        meta:
-          myKey: "myValue"
-
-    WebhookUpdateRequest:
-      required:
-        - url
-        - trigger
-      properties:
-        # TODO add events
-        url:
-          type: string
-          description: "URL for the webhook"
-        active:
-          type: boolean
-          description: "The active flag for the webhook. This can be used to temporarily disable the webhook."
-        trigger:
-          type: string
-          description: "Event on which the webhook should be triggered."
-        secretToken:
-          type: string
-          description: "The specified token which will be included in every webhook request to the endpoint. The endpoint can use this information to verify that the request is legitimate."
-        meta:
-          type: object
-          description: "Additional custom properties."
-      example:
-        url: "http://localhost:8080/trigger_me"
-        trigger: "CONTENT_CREATED"
-        active: true
-        secretToken: "fiedei3Eehei0shiicij"
-        meta:
-          myKey: "myValue"
-
     EditableElement:
       properties:
         creator:
@@ -3008,14 +2812,6 @@ components:
       schema:
         type: string
 
-    webhookUuid:
-      name: webhookUuid
-      in: "path"
-      description: "UUID of the webhook."
-      required: true
-      schema:
-        type: string
-
     path:
       name: path
       in: "path"
@@ -3048,7 +2844,6 @@ components:
 # - binary assets are now managed as a dedicated entity
 # - graphql endpoint is globally accessible and no longer scoped for namespaces (for now)
 # - S3 support
-# - webhook support
 # - plugins are gone and are replaced by external extensions
 # - languages can now be managed via REST
 # - search support has been limited to contents (for now)

@@ -75,7 +75,7 @@ public class HelloWorldNode extends AbstractMediaNode<HelloWorldNodeOptions> {
         ctx.output(OUTPUT_FILE_SIZE,  fileSize);
         ctx.output(OUTPUT_WORD_COUNT, wordCount);
 
-        // Persist agnostically into asset_json_comp (online mode only)
+        // Persist agnostically into asset_json_comp (needs a Loom client)
         if (!isOfflineMode() && asset != null) {
             JsonObject data = new JsonObject()
                 .put(OUTPUT_FILE_SIZE, fileSize)
@@ -91,8 +91,8 @@ public class HelloWorldNode extends AbstractMediaNode<HelloWorldNodeOptions> {
 }
 ----
 
-In **offline mode** (`null` client) `asset` is `null` and the node skips the remote write — which is
-exactly what the unit tests exercise (pass a `null` client and drive `process(...)` directly).
+With no Loom client (`isOfflineMode()`) `asset` is `null` and the node skips the remote write — which
+is exactly what the unit tests exercise (pass a `null` client and drive `process(...)` directly).
 
 The node is contributed via a Dagger module (`@Binds @IntoSet FilesystemNode<?,?>`).
 
