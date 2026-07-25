@@ -4,72 +4,100 @@ title: Monitoring API
 
 = Monitoring API
 
-Cortex exposes a lightweight monitoring/health endpoint that can be used by load balancers,
-Kubernetes liveness probes, and Prometheus scrapers.
+A Cortex worker runs a lightweight monitoring HTTP server exposing **liveness** and **readiness**
+endpoints, designed for Kubernetes probes and load balancers. Loom exposes its own health check on the
+REST API.
 
-== Default Endpoint
+== Cortex Health Server
 
-----
-http://localhost:8093
-----
+The Cortex daemon starts a small Vert.x HTTP server (separate from any Loom traffic) on port `8093` by
+default, configurable with the `CORTEX_MONITORING_PORT` environment variable.
 
-The port is configurable with `--monitoring-port` or the `CORTEX_MONITORING_PORT` environment variable (default: `8093`).
+[options="header",cols="1,1,3"]
+|===
+| Endpoint | Status | Meaning
+| `GET /api/health` | always `200` while the process is up | **Liveness.** JSON `{ "status": "up", "loom": { … } }` — the process is alive.
+| `GET /api/ready` | `200` when ready, else `503` | **Readiness.** Ready means the worker is *connected to Loom **and** registered*. JSON `{ "status": "ready" \| "not_ready", "loom": { … } }`.
+|===
 
-== Health Check
+NOTE: The legacy paths `GET /health` and `GET /ready` are also served for backward compatibility with
+existing probes.
 
-----
-GET /health
-----
-
-Returns HTTP `200 OK` with a JSON body when Cortex is running and healthy:
+The embedded `loom` object reports the worker's connection to Loom:
 
 [source,json]
 ----
 {
-  "status": "UP"
+  "status": "ready",
+  "loom": {
+    "configured": true,
+    "connected": true,
+    "registered": true,
+    "host": "loom.internal",
+    "port": 8092,
+    "reconnectAttempts": 0,
+    "lastConnectedAt": 1750000000000,
+    "lastHeartbeatAckAt": 1750000009000,
+    "error": null
+  }
 }
 ----
 
-Returns HTTP `503 Service Unavailable` when Cortex is starting up or shutting down.
+In offline mode (`configured: false`) the worker reports `up` for liveness but stays `not_ready`, since
+there is no Loom to register with.
 
-== Metrics
+=== Kubernetes Probe Configuration
 
-Cortex exposes JVM and application metrics in Prometheus text format:
-
-----
-GET /metrics
-----
-
-Exposed metrics include:
-
-* JVM memory usage (heap / non-heap)
-* Thread pool sizes and task queue depths
-* Per-node processing counters (processed, skipped, failed)
-* Pipeline execution times
-
-== Kubernetes Probe Configuration
+Map liveness onto `/api/health` and readiness onto `/api/ready`:
 
 [source,yaml]
 ----
 livenessProbe:
   httpGet:
-    path: /health
+    path: /api/health
     port: 8093
   initialDelaySeconds: 10
   periodSeconds: 15
 
 readinessProbe:
   httpGet:
-    path: /health
+    path: /api/ready
     port: 8093
   initialDelaySeconds: 5
   periodSeconds: 10
 ----
 
-== Changing the Port
+=== Changing the Port
 
-Set the monitoring port via environment variable:
-
+[source,bash]
 ----
 CORTEX_MONITORING_PORT=9090
 ----
+
+== Loom Health Check
+
+The Loom server exposes a health check on its REST API:
+
+----
+GET /api/v1/health
+----
+
+[source,json]
+----
+{
+  "status": "UP",
+  "version": "1.0.0-SNAPSHOT",
+  "database": "UP",
+  "timestamp": "2026-07-25T20:00:00Z"
+}
+----
+
+It verifies database connectivity; if the database is unreachable, `database` is `DOWN` and `status`
+becomes `DEGRADED`. See link:../../loom/rest-api/[REST API].
+
+== Metrics (planned)
+
+A dedicated **Prometheus metrics** endpoint and a separate Loom monitoring port
+(`LOOM_SERVER_MON_PORT`, default `8989`) are reserved for future use — the Loom `monitoring` module is
+currently a placeholder and neither Loom nor Cortex serves a `/metrics` endpoint yet. Until then, use
+the health/readiness endpoints above for probing and availability checks.

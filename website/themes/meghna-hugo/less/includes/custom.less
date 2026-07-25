@@ -277,7 +277,7 @@ blockquote .paragraph {
   font-weight: 600;
   font-size: 1.2rem;
   border-bottom: none;
-  padding-left: 0;
+  padding-left: 5px;
   border-left: none;
 }
 
@@ -294,3 +294,32 @@ blockquote .paragraph {
 .note p a:hover {
   color: #7efff4;
 }
+
+/* ---- Interaction diagrams (architecture + animated dispatch) ---- */
+.ml-figure { margin: 1.75rem 0; text-align: center; }
+.ml-arch-svg, .ml-anim-svg { width: 100%; max-width: 900px; height: auto; }
+.ml-arch-svg text, .ml-anim-svg text { font-family: "Quattrocento Sans", sans-serif; }
+.ml-box-container { fill: rgba(35,40,47,0.55); stroke: #4e595f; stroke-width: 1.5; stroke-dasharray: 5 4; }
+.ml-box-part { fill: #2f3843; stroke: #4e595f; stroke-width: 1; }
+.ml-box-title { fill: #e0e5ea; font-size: 14px; font-weight: 600; }
+.ml-box-tag { fill: #6b7681; font-size: 11px; font-style: italic; }
+.ml-part-title { fill: #afbac4; font-size: 13px; font-weight: 600; }
+.ml-part-sub { fill: #8a95a0; font-size: 11px; }
+.ml-edge { stroke: #57cbcc; stroke-width: 2; fill: none; }
+.ml-edge-soft { stroke: #4e595f; stroke-width: 2; }
+.ml-edge-dashed { stroke: #6b7681; stroke-width: 1.5; fill: none; stroke-dasharray: 4 4; }
+.ml-edge-label { fill: #8a95a0; font-size: 11px; }
+.ml-edge-label-muted { fill: #6b7681; font-size: 11px; font-style: italic; }
+.ml-node-loom { fill: #243b3c; stroke: #57cbcc; stroke-width: 2; }
+.ml-node-cortex { fill: #26352a; stroke: #6cb670; stroke-width: 2; }
+.ml-node-title { fill: #e0e5ea; font-size: 15px; font-weight: 600; }
+.ml-node-sub { fill: #8a95a0; font-size: 11px; }
+.ml-bubble-label { fill: #cfe9e9; font-size: 11px; font-weight: 600; }
+.ml-anim-caption { fill: #8a95a0; font-size: 13px; }
+
+/* ---- Docs card sub-group labels ---- */
+.docs-card-group {
+  font-size: .66rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase;
+  color: #6b7681; padding: 13px 14px 3px;
+}
+.docs-card-body > .docs-card-group:first-child { padding-top: 4px; }

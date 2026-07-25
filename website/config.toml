@@ -106,12 +106,6 @@ pre = "#"
 url = "feature"
 weight = 3
 
-[[Languages.en.menu.main]]
-name = "developer"
-pre = "#"
-url = "team"
-weight = 4
-
 #[[Languages.en.menu.main]]
 #name = "pricing"
 #pre = "#"

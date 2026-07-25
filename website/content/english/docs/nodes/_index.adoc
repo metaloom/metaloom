@@ -11,7 +11,10 @@ When online, a node writes its result back to Loom over the REST API — a typed
 `asset_node_result` ledger row; offline, results stay in the worker's local cache. Downstream nodes
 read a dependency's **output keys**.
 
-== Node Catalogue
+The built-in nodes fall into four categories.
+
+[#hashing]
+== Hashing & Deduplication
 
 [options="header",cols="2,2,3"]
 |===
@@ -19,20 +22,44 @@ read a dependency's **output keys**.
 | link:hash/[Hashing] (`md5`, `sha256`, `sha512`, `chunk-hash`) | Any file | Content hashes for identity and deduplication
 | link:fingerprint/[Fingerprint] (`fingerprint`) | Video | Perceptual video fingerprint for similarity search
 | link:consistency/[Consistency] (`consistency`) | Video, Audio | Detect incomplete / corrupt media
-| link:thumbnail/[Thumbnail] (`thumbnail`) | Video | Contact-sheet preview thumbnails
-| link:facedetect/[Face Detection] (`facedetect`) | Image, Video | Detect faces + embeddings
-| link:facedescription/[Face Description] (`facedescription`) | Image | Describe detected faces with a vision model
-| link:ocr/[OCR] (`ocr`) | Image | Extract text with Tesseract
+| link:dedup/[Deduplication] (`sha512-dedup`, fingerprint dedup) | Any / Video | Detect and move duplicates
+|===
+
+[#extraction]
+== Extraction & AI
+
+[options="header",cols="2,2,3"]
+|===
+| Node | Applies to | Purpose
 | link:tika/[Tika] (`tika`) | Any | Extract format metadata + text with Apache Tika
+| link:ocr/[OCR] (`ocr`) | Image | Extract text with Tesseract
 | link:whisper/[Speech-to-Text] (`whisper`) | Video, Audio | Transcribe audio with Whisper
 | link:llm/[LLM Enrichment] (`llm`) | Any | Enrich metadata with a language model
 | link:captioning/[Captioning] (`captioning`) | Image | Natural-language image captions
+| link:facedetect/[Face Detection] (`facedetect`) | Image, Video | Detect faces + embeddings
+| link:facedescription/[Face Description] (`facedescription`) | Image | Describe detected faces with a vision model
+|===
+
+[#media]
+== Media Analysis
+
+[options="header",cols="2,2,3"]
+|===
+| Node | Applies to | Purpose
+| link:thumbnail/[Thumbnail] (`thumbnail`) | Video | Contact-sheet preview thumbnails
 | link:quality/[Quality] (`quality`) | Image, Video | Resolution / blurriness / bitrate metrics
 | link:scene-detection/[Scene Detection] (`scene-detection`) | Video | Optical-flow scene boundaries
-| link:dedup/[Deduplication] (`sha512-dedup`, fingerprint dedup) | Any / Video | Detect and move duplicates
+|===
+
+[#pipeline]
+== Pipeline
+
+[options="header",cols="2,2,3"]
+|===
+| Node | Applies to | Purpose
 | link:filesystem-source/[Filesystem Source] (`filesystem-source`) | — (source) | Enumerate media from disk
-| link:loom/[Loom Sync] (`loom`) | Any | Batch hash results back to Loom
 | link:filters/[Filters] (`filter-*`) | — (routing) | Route items down PASS/REJECT branches
+| link:loom/[Loom Sync] (`loom`) | Any | Batch hash results back to Loom
 |===
 
 == Requirements at a Glance

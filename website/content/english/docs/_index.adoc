@@ -37,7 +37,6 @@ This page is the quickest way to orient yourself in the platform and jump to the
 				<a href="loom/authentication/" class="docs-card-link">Authentication</a>
 				<a href="loom/configuration/" class="docs-card-link">Configuration</a>
 				<a href="loom/chat/" class="docs-card-link">Chat &amp; AI Agent</a>
-				<a href="loom/chat/#coding-sandbox" class="docs-card-link">Coding Sandbox</a>
 				<a href="loom/features/" class="docs-card-link">Features</a>
 				<a href="loom/examples/" class="docs-card-link">Examples</a>
 			</div>
@@ -66,12 +65,11 @@ This page is the quickest way to orient yourself in the platform and jump to the
 				<p>The built-in Cortex processing nodes — the atomic steps a pipeline is built from. Each node page covers what it does, the media it applies to, its inputs and output keys, requirements and configuration.</p>
 			</div>
 			<div class="docs-card-body">
-				<a href="nodes/hash/" class="docs-card-link">Hashing</a>
-				<a href="nodes/facedetect/" class="docs-card-link">Face Detection</a>
-				<a href="nodes/whisper/" class="docs-card-link">Speech-to-Text</a>
-				<a href="nodes/captioning/" class="docs-card-link">Captioning</a>
-				<a href="nodes/thumbnail/" class="docs-card-link">Thumbnails</a>
-				<a href="nodes/filters/" class="docs-card-link">Filters</a>
+				<a href="nodes/" class="docs-card-link">All Nodes</a>
+				<a href="nodes/#hashing" class="docs-card-link">Hashing &amp; dedup</a>
+				<a href="nodes/#extraction" class="docs-card-link">Extraction &amp; AI</a>
+				<a href="nodes/#media" class="docs-card-link">Media analysis</a>
+				<a href="nodes/#pipeline" class="docs-card-link">Pipeline</a>
 			</div>
 		</div>
 	</div>
