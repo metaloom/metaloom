@@ -15,6 +15,7 @@ import io.metaloom.ai.genai.llm.omni.OmniProvider;
 import io.metaloom.ai.genai.llm.ollama.OllamaLLMProvider;
 import io.metaloom.ai.genai.llm.vllm.VLLMLLMProvider;
 import io.metaloom.ai.genai.llm.LLMProvider;
+import io.metaloom.loom.agent.memory.MemoryService;
 import io.metaloom.loom.agent.sandbox.SandboxOrchestrator;
 import io.metaloom.loom.agent.chat.event.AgentEventSink;
 import io.metaloom.loom.agent.chat.loop.AgentLoop;
@@ -42,6 +43,8 @@ public class AgentService {
 	private final MCPToolRegistry toolRegistry;
 	private final SandboxOrchestrator sandbox;
 
+	private final MemoryService memoryService;
+
 	private final Map<UUID, AgentLoop> activeRuns = new ConcurrentHashMap<>();
 
 	/**
@@ -50,12 +53,14 @@ public class AgentService {
 	private Supplier<TurnStreamer> turnStreamerFactory;
 
 	@Inject
-	public AgentService(Vertx vertx, LoomOptions options, DaoCollection daos, MCPToolRegistry toolRegistry, SandboxOrchestrator sandbox) {
+	public AgentService(Vertx vertx, LoomOptions options, DaoCollection daos, MCPToolRegistry toolRegistry, SandboxOrchestrator sandbox,
+		MemoryService memoryService) {
 		this.vertx = vertx;
 		this.options = options;
 		this.daos = daos;
 		this.toolRegistry = toolRegistry;
 		this.sandbox = sandbox;
+		this.memoryService = memoryService;
 		this.turnStreamerFactory = () -> {
 			LLMProvider provider = new OmniProvider(new OllamaLLMProvider(), new VLLMLLMProvider());
 			// True token/reasoning streaming is opt-in (LOOM_AI_STREAMING) — the blocking streamer
@@ -85,8 +90,8 @@ public class AgentService {
 	 * @return Future which completes when the run has finished (including the terminal agent_end event)
 	 */
 	public Future<Void> run(AgentRequest request, AgentEventSink sink) {
-		AgentLoop loop = new AgentLoop(options.getAi(), options.getSandbox(), daos.chatDao(), daos.chatSessionDao(), daos.skillDao(), toolRegistry,
-			turnStreamerFactory.get(), sink, request, sandbox);
+		AgentLoopDeps deps = new AgentLoopDeps(daos.chatDao(), daos.chatSessionDao(), daos.skillDao(), daos.groupDao(), toolRegistry, sandbox, memoryService);
+		AgentLoop loop = new AgentLoop(options.getAi(), options.getSandbox(), deps, turnStreamerFactory.get(), sink, request);
 		if (activeRuns.putIfAbsent(request.chatUuid(), loop) != null) {
 			return Future.failedFuture(new AgentBusyException(request.chatUuid()));
 		}

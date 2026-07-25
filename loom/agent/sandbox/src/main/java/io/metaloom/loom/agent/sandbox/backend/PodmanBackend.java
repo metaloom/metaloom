@@ -32,7 +32,9 @@ public class PodmanBackend implements SandboxBackend {
 	}
 
 	@Override
-	public SandboxInfo create(String session, String name, String token) {
+	public SandboxInfo create(SandboxSpec spec) {
+		String session = spec.session();
+		String name = spec.name();
 		List<String> cmd = new ArrayList<>(List.of(
 			"podman", "run", "-d",
 			"--name", name,
@@ -46,14 +48,31 @@ public class PodmanBackend implements SandboxBackend {
 			"--pids-limit", "256",
 			"--memory", options.getMemLimit(),
 			"--cpus", options.getCpuLimit(),
-			"-e", "RUNNER_TOKEN=" + token,
+			"-e", "RUNNER_TOKEN=" + spec.token(),
 			"-e", "RUNNER_WORKSPACE=/workspace",
-			"-e", "RUNNER_PORT=8080",
-			"-p", "127.0.0.1::8080",
-			options.getImage()));
+			"-e", "RUNNER_PORT=8080"));
+
+		if (spec.memoryStage()) {
+			// A named volume, not a tmpfs: the same volume has to be mounted twice (rw for runnerd, ro for
+			// the agent) and a tmpfs cannot be. Removed again in delete().
+			String volume = memoryVolume(name);
+			ExecResult created = exec(30, List.of("podman", "volume", "create", volume));
+			if (created.exitCode() != 0) {
+				throw new SandboxScheduleException("podman volume create failed: " + firstNonBlank(created.stderr(), created.stdout()));
+			}
+			cmd.addAll(List.of(
+				"-v", volume + ":" + SandboxSpec.MEMORY_STAGE_PATH + ":rw,Z",
+				"-v", volume + ":" + spec.memoryMountPath() + ":ro,Z",
+				"-e", "RUNNER_MEMORY_STAGE=" + SandboxSpec.MEMORY_STAGE_PATH));
+		}
+
+		cmd.addAll(List.of("-p", "127.0.0.1::8080", options.getImage()));
 
 		ExecResult run = exec(60, cmd);
 		if (run.exitCode() != 0) {
+			if (spec.memoryStage()) {
+				exec(30, List.of("podman", "volume", "rm", "-f", memoryVolume(name)));
+			}
 			throw new SandboxScheduleException("podman run failed: " + firstNonBlank(run.stderr(), run.stdout()));
 		}
 
@@ -75,6 +94,15 @@ public class PodmanBackend implements SandboxBackend {
 	@Override
 	public void delete(String session, String podName) {
 		exec(30, List.of("podman", "rm", "-f", podName));
+		// Best effort: the volume only exists when memory was mounted, and `rm` on a missing one is harmless.
+		exec(30, List.of("podman", "volume", "rm", "-f", memoryVolume(podName)));
+	}
+
+	/**
+	 * Name of the per-runner memory volume. Derived from the container name so it is cleaned up with it.
+	 */
+	private static String memoryVolume(String podName) {
+		return "loom-mem-" + podName;
 	}
 
 	@Override

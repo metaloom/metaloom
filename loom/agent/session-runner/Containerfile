@@ -20,8 +20,10 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     # non-root runtime user; the pod also enforces runAsNonRoot.
     && useradd --uid 10001 --create-home --shell /usr/sbin/nologin runner \
-    && mkdir -p /workspace \
-    && chown runner:runner /workspace
+    && mkdir -p /workspace /memory /var/lib/loom-memory \
+    && chown runner:runner /workspace /var/lib/loom-memory
+# RUNNER_MEMORY_STAGE is intentionally NOT set here — the backend sets it only when the memory
+# volume is actually mounted, so /memory_sync stays disabled (404) otherwise.
 
 COPY runnerd.py /opt/runnerd/runnerd.py
 

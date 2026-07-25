@@ -90,6 +90,9 @@ public enum Permission {
 	// Chat Session (publishable session record + shared session library)
 	CREATE_CHAT_SESSION, READ_CHAT_SESSION, DELETE_CHAT_SESSION, UPDATE_CHAT_SESSION,
 
+	// Agent Memory (scoped markdown notes the chat agent reads and writes)
+	CREATE_MEMORY, READ_MEMORY, DELETE_MEMORY, UPDATE_MEMORY,
+
 	// Cortex Instance (registered processor worker)
 	MANAGE_CORTEX_INSTANCE, READ_CORTEX_INSTANCE;
 

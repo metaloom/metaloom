@@ -3,9 +3,11 @@ package io.metaloom.loom.agent.chat.loop;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,12 +19,18 @@ import io.metaloom.ai.genai.llm.LargeLanguageModel;
 import io.metaloom.ai.genai.llm.ToolCall;
 import io.metaloom.ai.genai.llm.ToolDefinition;
 import io.metaloom.ai.genai.llm.prompt.impl.PromptImpl;
+import io.metaloom.loom.agent.chat.AgentLoopDeps;
 import io.metaloom.loom.agent.chat.AgentRequest;
 import io.metaloom.loom.agent.chat.event.AgentEvent;
 import io.metaloom.loom.agent.chat.event.AgentEventSink;
 import io.metaloom.loom.agent.chat.event.AgentEventType;
+import io.metaloom.loom.agent.chat.prompt.SystemPromptBuilder;
 import io.metaloom.loom.agent.chat.ref.ReferenceExtractor;
 import io.metaloom.loom.agent.chat.skill.SkillPromptBuilder;
+import io.metaloom.loom.agent.memory.MemoryScopeRef;
+import io.metaloom.loom.agent.memory.MemoryService;
+import io.metaloom.loom.agent.memory.tool.DeleteMemoryTool;
+import io.metaloom.loom.agent.memory.tool.PutMemoryTool;
 import io.metaloom.loom.agent.sandbox.SandboxOrchestrator;
 import io.metaloom.loom.agent.sandbox.tool.CodingTool;
 import io.metaloom.loom.agent.sandbox.tool.CodingTools;
@@ -33,8 +41,12 @@ import io.metaloom.loom.db.model.chat.ChatDao;
 import io.metaloom.loom.db.model.chatsession.ChatSession;
 import io.metaloom.loom.db.model.chatsession.ChatSessionDao;
 import io.metaloom.loom.db.model.chatsession.ChatSessionSkillPin;
+import io.metaloom.loom.db.model.group.Group;
+import io.metaloom.loom.db.model.group.GroupDao;
+import io.metaloom.loom.db.model.memory.MemoryEntry;
 import io.metaloom.loom.db.model.skill.Skill;
 import io.metaloom.loom.db.model.skill.SkillDao;
+import io.metaloom.loom.mcp.model.MCPCallerContext;
 import io.metaloom.loom.mcp.model.MCPToolDescriptor;
 import io.metaloom.loom.mcp.model.MCPToolDescriptor.MCPToolParam;
 import io.metaloom.loom.mcp.tool.MCPToolRegistry;
@@ -65,11 +77,13 @@ public class AgentLoop {
 	private final ChatDao chatDao;
 	private final ChatSessionDao chatSessionDao;
 	private final SkillDao skillDao;
+	private final GroupDao groupDao;
 	private final MCPToolRegistry toolRegistry;
 	private final TurnStreamer turnStreamer;
 	private final AgentEventSink sink;
 	private final AgentRequest request;
 	private final SandboxOrchestrator sandbox;
+	private final MemoryService memoryService;
 
 	private final AtomicBoolean cancelled = new AtomicBoolean(false);
 	private final ReferenceExtractor referenceExtractor = new ReferenceExtractor();
@@ -80,18 +94,33 @@ public class AgentLoop {
 
 	private List<Skill> activeSkills = List.of();
 
-	public AgentLoop(AiOptions options, SandboxOptions sandboxOptions, ChatDao chatDao, ChatSessionDao chatSessionDao, SkillDao skillDao,
-		MCPToolRegistry toolRegistry, TurnStreamer turnStreamer, AgentEventSink sink, AgentRequest request, SandboxOrchestrator sandbox) {
+	/** The caller's memory scopes and the header-only index, both resolved once per run. */
+	private List<MemoryScopeRef> memoryScopes = List.of();
+
+	private List<MemoryEntry> memoryIndex = List.of();
+
+	/** Writes/deletes performed against memory during this run, bounded so a stuck loop cannot rewrite the same note forever. */
+	private int memoryWrites = 0;
+
+	/**
+	 * The server-resolved caller identity handed to identity-scoped MCP tools. Built once per run in {@link #run()} — never derived from tool arguments.
+	 */
+	private MCPCallerContext callerContext = MCPCallerContext.ANONYMOUS;
+
+	public AgentLoop(AiOptions options, SandboxOptions sandboxOptions, AgentLoopDeps deps, TurnStreamer turnStreamer, AgentEventSink sink,
+		AgentRequest request) {
 		this.options = options;
 		this.sandboxOptions = sandboxOptions;
-		this.chatDao = chatDao;
-		this.chatSessionDao = chatSessionDao;
-		this.skillDao = skillDao;
-		this.toolRegistry = toolRegistry;
+		this.chatDao = deps.chatDao();
+		this.chatSessionDao = deps.chatSessionDao();
+		this.skillDao = deps.skillDao();
+		this.groupDao = deps.groupDao();
+		this.toolRegistry = deps.toolRegistry();
 		this.turnStreamer = turnStreamer;
 		this.sink = sink;
 		this.request = request;
-		this.sandbox = sandbox;
+		this.sandbox = deps.sandbox();
+		this.memoryService = deps.memoryService();
 	}
 
 	/**
@@ -112,6 +141,8 @@ public class AgentLoop {
 			return;
 		}
 
+		callerContext = buildCallerContext(chat);
+		loadMemory();
 		activeSkills = loadActiveSkills();
 		boolean firstExchange = chat.getMessages() == null || chat.getMessages().isEmpty();
 		List<ChatMessage> history = buildHistory(chat);
@@ -315,9 +346,13 @@ public class AgentLoop {
 				isError = true;
 				resultText = "ERROR: " + e.getMessage();
 			}
+		} else if (memoryWriteBudgetExhausted(name)) {
+			isError = true;
+			resultText = "ERROR: This run has reached its limit of " + memoryService.cfg().getMaxWritesPerRun()
+				+ " memory writes. Stop writing to memory and answer with what you have.";
 		} else {
 			try {
-				JsonObject toolResult = toolRegistry.dispatch(name, args, request.user())
+				JsonObject toolResult = toolRegistry.dispatch(name, args, request.user(), callerContext)
 					.toCompletionStage()
 					.toCompletableFuture()
 					.get(options.getToolTimeoutMs(), TimeUnit.MILLISECONDS);
@@ -399,6 +434,68 @@ public class AgentLoop {
 		return assistantMessage;
 	}
 
+	/**
+	 * Resolve the caller identity handed to identity-scoped MCP tools.
+	 *
+	 * <p>Everything here comes from the server: the loom user of the request, the groups that user belongs to, and the space of the chat. Tool arguments
+	 * never contribute — they may only filter over what this resolves to. Group lookup failures degrade to "no groups" rather than failing the run.</p>
+	 */
+	private MCPCallerContext buildCallerContext(Chat chat) {
+		Set<UUID> groupUuids = Set.of();
+		if (groupDao != null && request.userUuid() != null) {
+			try {
+				groupUuids = groupDao.loadGroupsForUser(request.userUuid()).stream()
+					.map(Group::getUuid)
+					.collect(Collectors.toSet());
+			} catch (Exception e) {
+				log.warn("Could not resolve groups for user {} — continuing without group scopes", request.userUuid(), e);
+			}
+		}
+		return new MCPCallerContext(request.userUuid(), userName(), groupUuids, chat.getSpaceUuid(), chat.getUuid());
+	}
+
+	/**
+	 * Username of the caller, used only for provenance stamps. Null when auth is disabled.
+	 */
+	private String userName() {
+		return request.user() != null ? request.user().principal().getString("username") : null;
+	}
+
+	/**
+	 * Resolve the caller's memory scopes and load the header-only index once per run.
+	 *
+	 * <p>Memory is an enhancement, never a precondition: any failure here degrades to "no memory" and the run continues.</p>
+	 */
+	private void loadMemory() {
+		if (memoryService == null || !memoryService.isEnabled()) {
+			return;
+		}
+		try {
+			memoryScopes = memoryService.scopes().resolve(callerContext);
+			memoryIndex = memoryService.index(memoryScopes, memoryService.cfg().getPromptMaxEntries());
+		} catch (Exception e) {
+			log.warn("Could not load the memory index for chat {} — continuing without memory context", request.chatUuid(), e);
+			memoryScopes = List.of();
+			memoryIndex = List.of();
+		}
+	}
+
+	/**
+	 * Whether this run may perform another memory write.
+	 *
+	 * <p>Exceeding the budget becomes an error tool result rather than aborting: a model looping on put_memory should be told to stop, not kill the run.</p>
+	 */
+	private boolean memoryWriteBudgetExhausted(String toolName) {
+		if (memoryService == null || !isMemoryWriteTool(toolName)) {
+			return false;
+		}
+		return ++memoryWrites > memoryService.cfg().getMaxWritesPerRun();
+	}
+
+	private static boolean isMemoryWriteTool(String toolName) {
+		return PutMemoryTool.NAME.equals(toolName) || DeleteMemoryTool.NAME.equals(toolName);
+	}
+
 	private List<Skill> loadActiveSkills() {
 		if (request.skillUuids().isEmpty()) {
 			return List.of();
@@ -412,7 +509,7 @@ public class AgentLoop {
 
 	private List<ChatMessage> buildHistory(Chat chat) {
 		List<ChatMessage> history = new ArrayList<>();
-		history.add(ChatMessage.system(SkillPromptBuilder.build(activeSkills)));
+		history.add(ChatMessage.system(SystemPromptBuilder.build(activeSkills, memoryService, memoryScopes, memoryIndex, sandboxOptions.isEnabled())));
 
 		// Replay the persisted transcript. Tool results are reconstructed from the truncated
 		// resultSummary — an accepted context fidelity trade-off (CHAT.md §4.3).

@@ -1,5 +1,7 @@
 package io.metaloom.loom.rest.model.chat;
 
+import java.util.UUID;
+
 import io.metaloom.loom.rest.model.common.AbstractCreatorEditorRestResponse;
 import io.vertx.core.json.JsonArray;
 
@@ -8,6 +10,8 @@ public class ChatResponse extends AbstractCreatorEditorRestResponse<ChatResponse
 	private String title;
 
 	private JsonArray messages;
+
+	private UUID spaceUuid;
 
 	@Override
 	public String getTitle() {
@@ -28,6 +32,17 @@ public class ChatResponse extends AbstractCreatorEditorRestResponse<ChatResponse
 	@Override
 	public ChatResponse setMessages(JsonArray messages) {
 		this.messages = messages;
+		return this;
+	}
+
+	@Override
+	public UUID getSpaceUuid() {
+		return spaceUuid;
+	}
+
+	@Override
+	public ChatResponse setSpaceUuid(UUID spaceUuid) {
+		this.spaceUuid = spaceUuid;
 		return this;
 	}
 

@@ -93,8 +93,9 @@ public class KubernetesBackend implements SandboxBackend {
 	}
 
 	@Override
-	public SandboxInfo create(String session, String name, String token) {
-		JsonObject manifest = podManifest(session, name, token);
+	public SandboxInfo create(SandboxSpec spec) {
+		String name = spec.name();
+		JsonObject manifest = podManifest(spec);
 		HttpResponse<String> res = send(HttpRequest.newBuilder()
 			.uri(URI.create(api + "/api/v1/namespaces/" + namespace + "/pods"))
 			.header("Content-Type", "application/json")
@@ -151,15 +152,14 @@ public class KubernetesBackend implements SandboxBackend {
 		return new SandboxStatus(phase, endpoint, parseCreated(pod));
 	}
 
-	private JsonObject podManifest(String session, String name, String token) {
+	private JsonObject podManifest(SandboxSpec spec) {
+		String session = spec.session();
+		String name = spec.name();
 		JsonObject container = new JsonObject()
 			.put("name", "runner")
 			.put("image", options.getImage())
 			.put("ports", new JsonArray().add(new JsonObject().put("containerPort", 8080)))
-			.put("env", new JsonArray()
-				.add(new JsonObject().put("name", "RUNNER_TOKEN").put("value", token))
-				.add(new JsonObject().put("name", "RUNNER_WORKSPACE").put("value", "/workspace"))
-				.add(new JsonObject().put("name", "RUNNER_PORT").put("value", "8080")))
+			.put("env", env(spec))
 			.put("securityContext", new JsonObject()
 				.put("allowPrivilegeEscalation", false)
 				.put("readOnlyRootFilesystem", true)
@@ -167,14 +167,12 @@ public class KubernetesBackend implements SandboxBackend {
 			.put("resources", new JsonObject()
 				.put("requests", new JsonObject().put("cpu", options.getCpuRequest()).put("memory", options.getMemRequest()))
 				.put("limits", new JsonObject().put("cpu", options.getCpuLimit()).put("memory", options.getMemLimit())))
-			.put("volumeMounts", new JsonArray()
-				.add(new JsonObject().put("name", "workspace").put("mountPath", "/workspace"))
-				.add(new JsonObject().put("name", "tmp").put("mountPath", "/tmp")))
+			.put("volumeMounts", volumeMounts(spec))
 			.put("readinessProbe", new JsonObject()
 				.put("httpGet", new JsonObject().put("path", "/healthz").put("port", 8080))
 				.put("initialDelaySeconds", 1).put("periodSeconds", 2));
 
-		JsonObject spec = new JsonObject()
+		JsonObject podSpec = new JsonObject()
 			.put("restartPolicy", "Never")
 			.put("automountServiceAccountToken", false)
 			.put("enableServiceLinks", false)
@@ -183,11 +181,9 @@ public class KubernetesBackend implements SandboxBackend {
 				.put("runAsUser", 10001)
 				.put("seccompProfile", new JsonObject().put("type", "RuntimeDefault")))
 			.put("containers", new JsonArray().add(container))
-			.put("volumes", new JsonArray()
-				.add(new JsonObject().put("name", "workspace").put("emptyDir", new JsonObject().put("sizeLimit", options.getWorkspaceSize())))
-				.add(new JsonObject().put("name", "tmp").put("emptyDir", new JsonObject().put("sizeLimit", "64Mi"))));
+			.put("volumes", volumes(spec));
 		if (options.getMaxSessionSeconds() > 0) {
-			spec.put("activeDeadlineSeconds", options.getMaxSessionSeconds());
+			podSpec.put("activeDeadlineSeconds", options.getMaxSessionSeconds());
 		}
 
 		return new JsonObject()
@@ -196,7 +192,7 @@ public class KubernetesBackend implements SandboxBackend {
 			.put("metadata", new JsonObject()
 				.put("name", name)
 				.put("labels", new JsonObject().put("app", "loom-session-runner").put("loom-session", session)))
-			.put("spec", spec);
+			.put("spec", podSpec);
 	}
 
 	private HttpResponse<String> send(HttpRequest.Builder builder) {
@@ -248,4 +244,42 @@ public class KubernetesBackend implements SandboxBackend {
 		}
 		return s.length() <= 200 ? s : s.substring(0, 200);
 	}
+
+	private JsonArray env(SandboxSpec spec) {
+		JsonArray env = new JsonArray()
+			.add(new JsonObject().put("name", "RUNNER_TOKEN").put("value", spec.token()))
+			.add(new JsonObject().put("name", "RUNNER_WORKSPACE").put("value", "/workspace"))
+			.add(new JsonObject().put("name", "RUNNER_PORT").put("value", "8080"));
+		if (spec.memoryStage()) {
+			env.add(new JsonObject().put("name", "RUNNER_MEMORY_STAGE").put("value", SandboxSpec.MEMORY_STAGE_PATH));
+		}
+		return env;
+	}
+
+	/**
+	 * The memory volume is mounted twice into the same container: read-write at the stage path, which only runnerd writes through, and read-only at the
+	 * agent-visible path. Both are the same emptyDir, so a note synced through the stage is instantly readable while {@code run_shell} gets EROFS — the
+	 * read-only guarantee is enforced by the kubelet, not by the unprivileged daemon.
+	 */
+	private JsonArray volumeMounts(SandboxSpec spec) {
+		JsonArray mounts = new JsonArray()
+			.add(new JsonObject().put("name", "workspace").put("mountPath", "/workspace"))
+			.add(new JsonObject().put("name", "tmp").put("mountPath", "/tmp"));
+		if (spec.memoryStage()) {
+			mounts.add(new JsonObject().put("name", "memory").put("mountPath", spec.memoryMountPath()).put("readOnly", true));
+			mounts.add(new JsonObject().put("name", "memory").put("mountPath", SandboxSpec.MEMORY_STAGE_PATH).put("readOnly", false));
+		}
+		return mounts;
+	}
+
+	private JsonArray volumes(SandboxSpec spec) {
+		JsonArray volumes = new JsonArray()
+			.add(new JsonObject().put("name", "workspace").put("emptyDir", new JsonObject().put("sizeLimit", options.getWorkspaceSize())))
+			.add(new JsonObject().put("name", "tmp").put("emptyDir", new JsonObject().put("sizeLimit", "64Mi")));
+		if (spec.memoryStage()) {
+			volumes.add(new JsonObject().put("name", "memory").put("emptyDir", new JsonObject().put("sizeLimit", options.getWorkspaceSize())));
+		}
+		return volumes;
+	}
+
 }

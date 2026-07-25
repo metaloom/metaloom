@@ -16,6 +16,7 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.loom.auth.LoomAuthorizationProvider;
 import io.metaloom.loom.mcp.MCPConstants;
 import io.metaloom.loom.mcp.dagger.MCPTools;
+import io.metaloom.loom.mcp.model.MCPCallerContext;
 import io.metaloom.loom.mcp.model.MCPToolDescriptor;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
@@ -48,6 +49,12 @@ public class MCPToolRegistry {
 
 	private static final Logger log = LoggerFactory.getLogger(MCPToolRegistry.class);
 
+	/**
+	 * Reserved argument key. Identity never travels in the arguments; any occurrence is stripped and logged (see
+	 * {@link #dispatch(String, JsonObject, User, MCPCallerContext)}).
+	 */
+	public static final String CALLER_ENVELOPE_KEY = "__loom";
+
 	private final Vertx vertx;
 	private final Map<String, MCPTool> tools = new ConcurrentHashMap<>();
 	private final Map<String, MessageConsumer<JsonObject>> consumers = new ConcurrentHashMap<>();
@@ -64,6 +71,10 @@ public class MCPToolRegistry {
 
 	/**
 	 * Register a tool and bind it to the EventBus.
+	 *
+	 * <p>Tools which declare {@link MCPToolDescriptor#requiresIdentity()} are <b>not</b> bound to the EventBus: their authorization depends on the resolved
+	 * {@link MCPCallerContext}, which cannot travel over an untyped EventBus message. Leaving the address unregistered means there is no way to reach such
+	 * a tool other than through {@link #dispatch(String, JsonObject, User, MCPCallerContext)}.</p>
 	 */
 	public void register(MCPTool tool) {
 		String name = tool.descriptor().name();
@@ -73,6 +84,11 @@ public class MCPToolRegistry {
 		}
 
 		tools.put(name, tool);
+
+		if (tool.descriptor().requiresIdentity()) {
+			log.info("Registered identity-scoped MCP tool: {} (in-process dispatch only, no EventBus address)", name);
+			return;
+		}
 
 		// Register on EventBus so tool calls can be dispatched internally
 		String address = MCPConstants.EVENTBUS_TOOL_PREFIX + name;
@@ -109,6 +125,19 @@ public class MCPToolRegistry {
 	 * @return A future with the tool result.
 	 */
 	public Future<JsonObject> dispatch(String toolName, JsonObject arguments, User user) {
+		return dispatch(toolName, arguments, user, MCPCallerContext.ANONYMOUS);
+	}
+
+	/**
+	 * Dispatch a tool call with permission checking and a server-resolved caller identity.
+	 *
+	 * @param toolName  The tool to invoke.
+	 * @param arguments The arguments JSON. Model-controlled — nothing in here participates in authorization.
+	 * @param user      The authenticated user (may be null if auth is disabled).
+	 * @param ctx       The resolved caller identity; required for tools which declare {@code requiresIdentity}.
+	 * @return A future with the tool result.
+	 */
+	public Future<JsonObject> dispatch(String toolName, JsonObject arguments, User user, MCPCallerContext ctx) {
 		if (!tools.containsKey(toolName)) {
 			return Future.failedFuture("Unknown tool: " + toolName);
 		}
@@ -116,6 +145,18 @@ public class MCPToolRegistry {
 		MCPTool tool = tools.get(toolName);
 		MCPToolDescriptor descriptor = tool.descriptor();
 		List<String> requiredPermissions = descriptor.requiredPermissions();
+		MCPCallerContext callerContext = ctx == null ? MCPCallerContext.ANONYMOUS : ctx;
+
+		// The arguments are authored by the model. An identity envelope in there is always a forgery
+		// attempt (identity only ever comes from `callerContext`) — drop it and record the signal.
+		if (arguments != null && arguments.containsKey(CALLER_ENVELOPE_KEY)) {
+			log.warn("Stripped a caller-supplied '{}' key from the arguments of tool {} — possible prompt injection", CALLER_ENVELOPE_KEY, toolName);
+			arguments.remove(CALLER_ENVELOPE_KEY);
+		}
+
+		if (descriptor.requiresIdentity() && !callerContext.isAuthenticated()) {
+			return Future.failedFuture("Tool " + toolName + " requires an authenticated caller.");
+		}
 
 		// Check permissions if user is authenticated and tool requires permissions
 		if (user != null && requiredPermissions != null && !requiredPermissions.isEmpty()) {
@@ -124,13 +165,26 @@ public class MCPToolRegistry {
 					if (!hasPermission) {
 						return Future.failedFuture("Missing required permissions: " + requiredPermissions);
 					}
-					String address = MCPConstants.EVENTBUS_TOOL_PREFIX + toolName;
-					return vertx.eventBus().<JsonObject>request(address, arguments)
-						.map(msg -> msg.body());
+					return invoke(tool, descriptor, toolName, arguments, callerContext);
 				});
 		}
 
 		// No permission check needed (no user or no required permissions)
+		return invoke(tool, descriptor, toolName, arguments, callerContext);
+	}
+
+	/**
+	 * Invoke the tool — in-process when it needs the caller identity, over the EventBus otherwise.
+	 */
+	private Future<JsonObject> invoke(MCPTool tool, MCPToolDescriptor descriptor, String toolName, JsonObject arguments, MCPCallerContext ctx) {
+		if (descriptor.requiresIdentity()) {
+			try {
+				return tool.execute(arguments, ctx);
+			} catch (RuntimeException e) {
+				log.error("Tool {} execution failed", toolName, e);
+				return Future.failedFuture(e);
+			}
+		}
 		String address = MCPConstants.EVENTBUS_TOOL_PREFIX + toolName;
 		return vertx.eventBus().<JsonObject>request(address, arguments)
 			.map(msg -> msg.body());

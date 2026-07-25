@@ -13,15 +13,11 @@ public interface SandboxBackend {
 	/**
 	 * Create and start a Session Runner.
 	 *
-	 * @param session
-	 *            the logical session id (the chat uuid) — used only for labelling
-	 * @param name
-	 *            the unique container/pod name to assign
-	 * @param token
-	 *            the per-session bearer token injected as {@code RUNNER_TOKEN}
+	 * @param spec
+	 *            what to create — identity, token and whether the memory volume is provisioned
 	 * @return info about the started runner
 	 */
-	SandboxInfo create(String session, String name, String token);
+	SandboxInfo create(SandboxSpec spec);
 
 	/**
 	 * Delete/stop a Session Runner. Must be idempotent — deleting a missing runner is a no-op.

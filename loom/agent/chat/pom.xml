@@ -40,6 +40,10 @@
       <artifactId>loom-agent-sandbox</artifactId>
     </dependency>
     <dependency>
+      <groupId>io.metaloom.loom.agent</groupId>
+      <artifactId>loom-agent-memory</artifactId>
+    </dependency>
+    <dependency>
       <groupId>io.metaloom.loom</groupId>
       <artifactId>loom-common</artifactId>
     </dependency>

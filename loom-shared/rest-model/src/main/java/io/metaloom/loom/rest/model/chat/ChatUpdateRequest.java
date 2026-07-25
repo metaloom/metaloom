@@ -1,5 +1,7 @@
 package io.metaloom.loom.rest.model.chat;
 
+import java.util.UUID;
+
 import io.metaloom.loom.rest.model.RestRequestModel;
 import io.metaloom.loom.rest.model.common.AbstractMetaModel;
 import io.vertx.core.json.JsonArray;
@@ -9,6 +11,8 @@ public class ChatUpdateRequest extends AbstractMetaModel<ChatUpdateRequest> impl
 	private String title;
 
 	private JsonArray messages;
+
+	private UUID spaceUuid;
 
 	@Override
 	public String getTitle() {
@@ -29,6 +33,17 @@ public class ChatUpdateRequest extends AbstractMetaModel<ChatUpdateRequest> impl
 	@Override
 	public ChatUpdateRequest setMessages(JsonArray messages) {
 		this.messages = messages;
+		return this;
+	}
+
+	@Override
+	public UUID getSpaceUuid() {
+		return spaceUuid;
+	}
+
+	@Override
+	public ChatUpdateRequest setSpaceUuid(UUID spaceUuid) {
+		this.spaceUuid = spaceUuid;
 		return this;
 	}
 

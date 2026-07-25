@@ -5,6 +5,7 @@ import {
   Avatar, Menu, MenuItem, Divider, Tooltip, IconButton, Badge,
 } from "@mui/material";
 import {
+  PsychologyOutlined,
   ChatBubbleOutline, PhotoLibraryOutlined, AccountTreeOutlined,
   TaskAltOutlined, CollectionsOutlined, BarChartOutlined,
   Circle, ChevronLeft, ChevronRight, LibraryBooksOutlined,
@@ -38,6 +39,7 @@ function userNavItems(t: (k: string) => string): NavItem[] {
     { label: t("sidebar.nav.tags"), path: "/tags", icon: <LocalOfferOutlined fontSize="small" /> },
     { label: t("sidebar.nav.workflow"), path: "/workflow", icon: <SpeedOutlined fontSize="small" /> },
     { label: t("sidebar.nav.skills"), path: "/skills", icon: <AutoFixHighOutlined fontSize="small" /> },
+    { label: t("sidebar.nav.memory"), path: "/memory", icon: <PsychologyOutlined fontSize="small" /> },
     { label: t("sidebar.nav.chatSessions"), path: "/chat/sessions", icon: <HistoryOutlined fontSize="small" /> },
   ];
 }

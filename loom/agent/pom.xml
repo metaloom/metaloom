@@ -26,6 +26,7 @@
 
     <modules>
         <module>sandbox</module>
+        <module>memory</module>
         <module>chat</module>
     </modules>
 

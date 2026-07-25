@@ -36,6 +36,7 @@
    "tags": "Tags",
    "workflow": "Workflow",
    "skills": "Skills",
+   "memory": "Gedächtnis",
    "chatSessions": "Chat-Sitzungen"
   },
   "admin": {
@@ -1451,5 +1452,26 @@
    "badge": "v{{version}}",
    "saveHint": "Änderungen an den Anweisungen erzeugen eine neue Version"
   }
+ },
+ "memory": {
+  "title": "Agenten-Gedächtnis",
+  "subtitle": "Markdown-Notizen, die der Chat-Agent über Unterhaltungen hinweg lesen und schreiben kann. Für den Agenten ist dies ein schreibgeschützter /memory-Ordner.",
+  "noScopes": "Es sind keine Gedächtnis-Bereiche verfügbar.",
+  "myNotes": "Meine Notizen",
+  "readOnlyScope": "Dieser geteilte Bereich ist für dich schreibgeschützt.",
+  "new": "Neue Notiz",
+  "id": "Id",
+  "idHelp": "Kleingeschriebener Pfad mit der Endung .md, z. B. projects/loom-db.md",
+  "noteTitle": "Titel",
+  "updated": "Aktualisiert",
+  "session": "Sitzung",
+  "size": "Größe",
+  "body": "Inhalt (Markdown)",
+  "headerNote": "Der Herkunfts-Header (Aktualisierung, Sitzung, Version) wird automatisch erzeugt.",
+  "empty": "In diesem Bereich sind noch keine Notizen gespeichert.",
+  "edit": "Notiz bearbeiten",
+  "create": "Neue Notiz",
+  "deleteTitle": "Notiz löschen",
+  "deleteBody": "Die Notiz wird endgültig entfernt — es gibt noch keine Versionshistorie."
  }
 }

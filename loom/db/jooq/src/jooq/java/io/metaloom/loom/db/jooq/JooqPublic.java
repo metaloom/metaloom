@@ -47,6 +47,7 @@ import io.metaloom.loom.db.jooq.tables.JooqLibrary;
 import io.metaloom.loom.db.jooq.tables.JooqLibraryAsset;
 import io.metaloom.loom.db.jooq.tables.JooqLibraryCollection;
 import io.metaloom.loom.db.jooq.tables.JooqLoom;
+import io.metaloom.loom.db.jooq.tables.JooqMemoryEntry;
 import io.metaloom.loom.db.jooq.tables.JooqPerson;
 import io.metaloom.loom.db.jooq.tables.JooqPersonImage;
 import io.metaloom.loom.db.jooq.tables.JooqPipeline;
@@ -379,6 +380,11 @@ public class JooqPublic extends SchemaImpl {
     public final JooqLoom LOOM = JooqLoom.LOOM;
 
     /**
+     * Agent memory bank: scoped markdown notes addressed by a path-like id
+     */
+    public final JooqMemoryEntry MEMORY_ENTRY = JooqMemoryEntry.MEMORY_ENTRY;
+
+    /**
      * The table <code>public.person</code>.
      */
     public final JooqPerson PERSON = JooqPerson.PERSON;
@@ -590,6 +596,7 @@ public class JooqPublic extends SchemaImpl {
             JooqLibraryAsset.LIBRARY_ASSET,
             JooqLibraryCollection.LIBRARY_COLLECTION,
             JooqLoom.LOOM,
+            JooqMemoryEntry.MEMORY_ENTRY,
             JooqPerson.PERSON,
             JooqPersonImage.PERSON_IMAGE,
             JooqPipeline.PIPELINE,

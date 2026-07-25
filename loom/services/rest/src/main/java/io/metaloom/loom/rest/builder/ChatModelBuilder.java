@@ -11,6 +11,7 @@ public interface ChatModelBuilder extends ModelBuilder, UserModelBuilder {
 		ChatResponse response = new ChatResponse();
 		response.setTitle(chat.getTitle());
 		response.setMessages(chat.getMessages());
+		response.setSpaceUuid(chat.getSpaceUuid());
 		response.setUuid(chat.getUuid());
 		response.setMeta(chat.getMeta());
 		setStatus(chat, response);

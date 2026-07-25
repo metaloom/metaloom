@@ -2,14 +2,21 @@ package io.metaloom.loom.mcp.handler;
 
 import static io.metaloom.loom.mcp.MCPConstants.*;
 
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.metaloom.loom.db.dagger.DaoCollection;
+import io.metaloom.loom.db.model.group.Group;
 import io.metaloom.loom.mcp.model.JsonRpcRequest;
 import io.metaloom.loom.mcp.model.JsonRpcResponse;
+import io.metaloom.loom.mcp.model.MCPCallerContext;
 import io.metaloom.loom.mcp.model.MCPToolDescriptor;
 import io.metaloom.loom.mcp.tool.MCPToolRegistry;
 import io.vertx.core.Future;
@@ -35,9 +42,12 @@ public class MCPJsonRpcHandler {
 
 	private final MCPToolRegistry toolRegistry;
 
+	private final DaoCollection daos;
+
 	@Inject
-	public MCPJsonRpcHandler(MCPToolRegistry toolRegistry) {
+	public MCPJsonRpcHandler(MCPToolRegistry toolRegistry, DaoCollection daos) {
 		this.toolRegistry = toolRegistry;
+		this.daos = daos;
 	}
 
 	/**
@@ -121,14 +131,35 @@ public class MCPJsonRpcHandler {
 		}
 		JsonObject arguments = params.getJsonObject("arguments", new JsonObject());
 
-		// Dispatch via EventBus with permission checking
-		return toolRegistry.dispatch(toolName, arguments, user)
+		// Dispatch with permission checking and the resolved caller identity
+		return toolRegistry.dispatch(toolName, arguments, user, callerContext(user))
 			.map(toolResult -> JsonRpcResponse.success(request.getId(), toolResult))
 			.recover(err -> {
 				log.error("Tool call failed: {}", toolName, err);
 				return Future.succeededFuture(
 					JsonRpcResponse.error(request.getId(), ERR_INTERNAL, err.getMessage()));
 			});
+	}
+
+	/**
+	 * Resolve the caller identity of an external MCP client from its authenticated principal.
+	 *
+	 * <p>External clients have no chat, hence no space — they reach user-scoped and group-scoped data only. Everything is derived server-side; nothing
+	 * comes from the request params.</p>
+	 */
+	private MCPCallerContext callerContext(User user) {
+		if (user == null) {
+			return MCPCallerContext.ANONYMOUS;
+		}
+		String uuid = user.principal().getString("uuid");
+		if (uuid == null) {
+			return MCPCallerContext.ANONYMOUS;
+		}
+		UUID userUuid = UUID.fromString(uuid);
+		Set<UUID> groupUuids = daos.groupDao().loadGroupsForUser(userUuid).stream()
+			.map(Group::getUuid)
+			.collect(Collectors.toSet());
+		return new MCPCallerContext(userUuid, user.principal().getString("username"), groupUuids, null, null);
 	}
 
 	// ---- Resources (stubbed for future implementation) ----

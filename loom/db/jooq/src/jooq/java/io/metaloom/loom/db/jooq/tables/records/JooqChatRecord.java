@@ -13,8 +13,8 @@ import java.util.UUID;
 
 import org.jooq.Field;
 import org.jooq.Record1;
-import org.jooq.Record8;
-import org.jooq.Row8;
+import org.jooq.Record9;
+import org.jooq.Row9;
 import org.jooq.impl.UpdatableRecordImpl;
 
 
@@ -22,7 +22,7 @@ import org.jooq.impl.UpdatableRecordImpl;
  * Stores LLM chat sessions with message history
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqChatRecord extends UpdatableRecordImpl<JooqChatRecord> implements Record8<UUID, String, JsonArray, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> {
+public class JooqChatRecord extends UpdatableRecordImpl<JooqChatRecord> implements Record9<UUID, String, JsonArray, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID, UUID> {
 
     private static final long serialVersionUID = 1L;
 
@@ -142,6 +142,22 @@ public class JooqChatRecord extends UpdatableRecordImpl<JooqChatRecord> implemen
         return (UUID) get(7);
     }
 
+    /**
+     * Setter for <code>public.chat.space_uuid</code>. Space (project) the chat
+     * originates from; scopes space-level agent memory
+     */
+    public void setSpaceUuid(UUID value) {
+        set(8, value);
+    }
+
+    /**
+     * Getter for <code>public.chat.space_uuid</code>. Space (project) the chat
+     * originates from; scopes space-level agent memory
+     */
+    public UUID getSpaceUuid() {
+        return (UUID) get(8);
+    }
+
     // -------------------------------------------------------------------------
     // Primary key information
     // -------------------------------------------------------------------------
@@ -152,17 +168,17 @@ public class JooqChatRecord extends UpdatableRecordImpl<JooqChatRecord> implemen
     }
 
     // -------------------------------------------------------------------------
-    // Record8 type implementation
+    // Record9 type implementation
     // -------------------------------------------------------------------------
 
     @Override
-    public Row8<UUID, String, JsonArray, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> fieldsRow() {
-        return (Row8) super.fieldsRow();
+    public Row9<UUID, String, JsonArray, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID, UUID> fieldsRow() {
+        return (Row9) super.fieldsRow();
     }
 
     @Override
-    public Row8<UUID, String, JsonArray, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> valuesRow() {
-        return (Row8) super.valuesRow();
+    public Row9<UUID, String, JsonArray, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID, UUID> valuesRow() {
+        return (Row9) super.valuesRow();
     }
 
     @Override
@@ -206,6 +222,11 @@ public class JooqChatRecord extends UpdatableRecordImpl<JooqChatRecord> implemen
     }
 
     @Override
+    public Field<UUID> field9() {
+        return JooqChat.CHAT.SPACE_UUID;
+    }
+
+    @Override
     public UUID component1() {
         return getUuid();
     }
@@ -246,6 +267,11 @@ public class JooqChatRecord extends UpdatableRecordImpl<JooqChatRecord> implemen
     }
 
     @Override
+    public UUID component9() {
+        return getSpaceUuid();
+    }
+
+    @Override
     public UUID value1() {
         return getUuid();
     }
@@ -283,6 +309,11 @@ public class JooqChatRecord extends UpdatableRecordImpl<JooqChatRecord> implemen
     @Override
     public UUID value8() {
         return getEditorUuid();
+    }
+
+    @Override
+    public UUID value9() {
+        return getSpaceUuid();
     }
 
     @Override
@@ -334,7 +365,13 @@ public class JooqChatRecord extends UpdatableRecordImpl<JooqChatRecord> implemen
     }
 
     @Override
-    public JooqChatRecord values(UUID value1, String value2, JsonArray value3, JsonObject value4, LocalDateTime value5, UUID value6, LocalDateTime value7, UUID value8) {
+    public JooqChatRecord value9(UUID value) {
+        setSpaceUuid(value);
+        return this;
+    }
+
+    @Override
+    public JooqChatRecord values(UUID value1, String value2, JsonArray value3, JsonObject value4, LocalDateTime value5, UUID value6, LocalDateTime value7, UUID value8, UUID value9) {
         value1(value1);
         value2(value2);
         value3(value3);
@@ -343,6 +380,7 @@ public class JooqChatRecord extends UpdatableRecordImpl<JooqChatRecord> implemen
         value6(value6);
         value7(value7);
         value8(value8);
+        value9(value9);
         return this;
     }
 
@@ -360,7 +398,7 @@ public class JooqChatRecord extends UpdatableRecordImpl<JooqChatRecord> implemen
     /**
      * Create a detached, initialised JooqChatRecord
      */
-    public JooqChatRecord(UUID uuid, String title, JsonArray messages, JsonObject meta, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid) {
+    public JooqChatRecord(UUID uuid, String title, JsonArray messages, JsonObject meta, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid, UUID spaceUuid) {
         super(JooqChat.CHAT);
 
         setUuid(uuid);
@@ -371,5 +409,6 @@ public class JooqChatRecord extends UpdatableRecordImpl<JooqChatRecord> implemen
         setCreatorUuid(creatorUuid);
         setEdited(edited);
         setEditorUuid(editorUuid);
+        setSpaceUuid(spaceUuid);
     }
 }

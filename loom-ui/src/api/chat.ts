@@ -46,6 +46,8 @@ export interface ChatResponse {
   uuid: string;
   title: string;
   messages: ChatMessage[];
+  /** The space (project) the chat belongs to; scopes space-level agent memory. */
+  spaceUuid?: string;
   meta?: Record<string, unknown>;
   status?: {
     creator?: { uuid: string; name?: string };
@@ -68,12 +70,15 @@ export interface ChatListResponse {
 export interface ChatCreateRequest {
   title: string;
   messages: ChatMessage[];
+  /** Associates the chat with a space so the agent can reach that space's shared memory. */
+  spaceUuid?: string;
   meta?: Record<string, unknown>;
 }
 
 export interface ChatUpdateRequest {
   title?: string;
   messages?: ChatMessage[];
+  spaceUuid?: string;
   meta?: Record<string, unknown>;
 }
 

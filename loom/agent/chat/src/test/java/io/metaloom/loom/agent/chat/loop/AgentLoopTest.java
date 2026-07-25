@@ -9,32 +9,45 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import io.metaloom.ai.genai.llm.LLMContext;
 import io.metaloom.ai.genai.llm.ToolCall;
+import io.metaloom.loom.agent.chat.AgentLoopDeps;
 import io.metaloom.loom.agent.chat.AgentRequest;
 import io.metaloom.loom.agent.chat.event.AgentEvent;
 import io.metaloom.loom.agent.chat.event.AgentEventType;
 import io.metaloom.loom.agent.chat.skill.SkillPromptBuilder;
+import io.metaloom.loom.agent.memory.MemoryScopeRef;
+import io.metaloom.loom.agent.memory.MemoryScopeResolver;
+import io.metaloom.loom.agent.memory.MemoryService;
 import io.metaloom.loom.agent.sandbox.SandboxOrchestrator;
+import io.metaloom.loom.api.memory.MemoryScope;
 import io.metaloom.loom.api.options.AiOptions;
+import io.metaloom.loom.api.options.MemoryOptions;
 import io.metaloom.loom.api.options.SandboxOptions;
 import io.metaloom.loom.db.model.chat.Chat;
 import io.metaloom.loom.db.model.chat.ChatDao;
 import io.metaloom.loom.db.model.chatsession.ChatSessionDao;
+import io.metaloom.loom.db.model.group.GroupDao;
+import io.metaloom.loom.db.model.memory.MemoryEntry;
 import io.metaloom.loom.db.model.skill.Skill;
 import io.metaloom.loom.db.model.skill.SkillDao;
+import io.metaloom.loom.mcp.model.MCPCallerContext;
 import io.metaloom.loom.mcp.model.MCPToolDescriptor;
 import io.metaloom.loom.mcp.tool.MCPToolRegistry;
 import io.vertx.core.Future;
@@ -48,6 +61,8 @@ public class AgentLoopTest {
 
 	private static final UUID CHAT_UUID = UUID.randomUUID();
 	private static final UUID USER_UUID = UUID.randomUUID();
+	private static final UUID SPACE_UUID = UUID.randomUUID();
+	private static final UUID GROUP_UUID = UUID.randomUUID();
 
 	private ChatDao chatDao;
 	private ChatSessionDao chatSessionDao;
@@ -57,6 +72,10 @@ public class AgentLoopTest {
 	private AtomicReference<JsonArray> persistedMessages;
 	private AtomicReference<JsonObject> persistedMeta;
 	private List<AgentEvent> events;
+	private MemoryService memoryService;
+	private MemoryScopeResolver scopeResolver;
+	private MemoryOptions memoryOptions;
+	private static final List<io.metaloom.loom.db.model.group.Group> GROUPS = new ArrayList<>();
 
 	@BeforeEach
 	public void setup() {
@@ -85,6 +104,21 @@ public class AgentLoopTest {
 		when(chatDao.load(CHAT_UUID)).thenReturn(chat);
 
 		events = new ArrayList<>();
+
+		memoryService = mock(MemoryService.class);
+		scopeResolver = mock(MemoryScopeResolver.class);
+		memoryOptions = mock(MemoryOptions.class);
+		when(memoryService.isEnabled()).thenReturn(false);
+		when(memoryService.cfg()).thenReturn(memoryOptions);
+		when(memoryOptions.getPromptMaxEntries()).thenReturn(50);
+		when(memoryOptions.getPromptMaxChars()).thenReturn(4096);
+		when(memoryOptions.getMaxWritesPerRun()).thenReturn(20);
+		when(memoryOptions.isMountEnabled()).thenReturn(false);
+
+		GROUPS.clear();
+		io.metaloom.loom.db.model.group.Group group = mock(io.metaloom.loom.db.model.group.Group.class);
+		when(group.getUuid()).thenReturn(GROUP_UUID);
+		GROUPS.add(group);
 	}
 
 	private static MCPToolDescriptor searchAssetsDescriptor() {
@@ -96,8 +130,7 @@ public class AgentLoopTest {
 	private AgentLoop loop(AiOptions options, TurnStreamer streamer, List<UUID> skillUuids) {
 		AgentRequest request = new AgentRequest(CHAT_UUID, USER_UUID, null, "Find beach videos", skillUuids);
 		// Sandbox disabled by default — coding tools are not advertised and the orchestrator is never called.
-		return new AgentLoop(options, new SandboxOptions(), chatDao, chatSessionDao, skillDao, toolRegistry, streamer, events::add, request,
-			mock(SandboxOrchestrator.class));
+		return new AgentLoop(options, new SandboxOptions(), deps(mock(SandboxOrchestrator.class)), streamer, events::add, request);
 	}
 
 	private List<AgentEventType> eventTypes() {
@@ -127,7 +160,7 @@ public class AgentLoopTest {
 
 	@Test
 	public void testToolLoopEventSequenceAndPersistence() {
-		when(toolRegistry.dispatch(eq("search_assets"), any(), any())).thenReturn(Future.succeededFuture(new JsonObject()
+		when(toolRegistry.dispatch(eq("search_assets"), any(), any(), any())).thenReturn(Future.succeededFuture(new JsonObject()
 			.put("content", new JsonArray().add(new JsonObject().put("type", "text").put("text", "Found 1 asset")))
 			.put("references", new JsonArray().add(new JsonObject().put("type", "asset").put("uuid", "a1").put("label", "beach.mp4")))));
 
@@ -184,7 +217,7 @@ public class AgentLoopTest {
 
 	@Test
 	public void testToolErrorBecomesErrorResultAndLoopContinues() {
-		when(toolRegistry.dispatch(eq("search_assets"), any(), any())).thenReturn(Future.failedFuture("boom"));
+		when(toolRegistry.dispatch(eq("search_assets"), any(), any(), any())).thenReturn(Future.failedFuture("boom"));
 
 		TurnStreamer streamer = scripted(List.of(
 			new TurnResult(null, null, List.of(new ToolCall("c1", "search_assets", new JsonObject()))),
@@ -206,7 +239,7 @@ public class AgentLoopTest {
 
 	@Test
 	public void testTurnLimit() {
-		when(toolRegistry.dispatch(any(), any(), any())).thenReturn(Future.succeededFuture(new JsonObject()
+		when(toolRegistry.dispatch(any(), any(), any(), any())).thenReturn(Future.succeededFuture(new JsonObject()
 			.put("content", new JsonArray().add(new JsonObject().put("type", "text").put("text", "result")))));
 
 		AiOptions options = new AiOptions();
@@ -392,7 +425,16 @@ public class AgentLoopTest {
 	private AgentLoop sandboxLoop(SandboxOrchestrator sandbox, TurnStreamer streamer) {
 		AgentRequest request = new AgentRequest(CHAT_UUID, USER_UUID, null, "Find beach videos", List.of());
 		SandboxOptions enabled = new SandboxOptions().setEnabled(true);
-		return new AgentLoop(new AiOptions(), enabled, chatDao, chatSessionDao, skillDao, toolRegistry, streamer, events::add, request, sandbox);
+		return new AgentLoop(new AiOptions(), enabled, deps(sandbox), streamer, events::add, request);
+	}
+
+	/**
+	 * The loop collaborators. {@code groupDao} returns no groups, so the resolved caller context carries the user but no shared scopes.
+	 */
+	private AgentLoopDeps deps(SandboxOrchestrator sandbox) {
+		GroupDao groupDao = mock(GroupDao.class);
+		when(groupDao.loadGroupsForUser(any())).thenReturn(GROUPS);
+		return new AgentLoopDeps(chatDao, chatSessionDao, skillDao, groupDao, toolRegistry, sandbox, memoryService);
 	}
 
 	@Test
@@ -442,6 +484,135 @@ public class AgentLoopTest {
 		// The loop still reached a final answer — the failure is a tool result, not a terminal error.
 		assertNull(firstEvent(AgentEventType.ERROR));
 		assertEquals("completed", firstEvent(AgentEventType.AGENT_END).data().getString("status"));
+	}
+
+	// -- agent memory -------------------------------------------------------
+
+	@Test
+	public void testMemoryIndexIsInjectedIntoTheSystemPrompt() {
+		enableMemory(List.of(memoryEntry("projects/loom-db.md", "Loom DB notes")));
+
+		AtomicReference<LLMContext> captured = new AtomicReference<>();
+		TurnStreamer streamer = capturing(captured, List.of(new TurnResult("ok", null, List.of())));
+		loop(new AiOptions(), streamer, List.of()).run();
+
+		String system = captured.get().chatHistory().get(0).getText();
+		assertTrue(system.contains("<memory>"), "The memory block should be present");
+		assertTrue(system.contains("user:projects/loom-db.md"));
+		// Progressive disclosure: the index is injected, never the bodies.
+		assertFalse(system.contains("BODY SHOULD NOT APPEAR"));
+	}
+
+	@Test
+	public void testNoMemoryBlockWhenTheIndexIsEmpty() {
+		enableMemory(List.of());
+
+		AtomicReference<LLMContext> captured = new AtomicReference<>();
+		TurnStreamer streamer = capturing(captured, List.of(new TurnResult("ok", null, List.of())));
+		loop(new AiOptions(), streamer, List.of()).run();
+
+		assertFalse(captured.get().chatHistory().get(0).getText().contains("<memory>"));
+	}
+
+	@Test
+	public void testNoMemoryBlockWhenMemoryIsDisabled() {
+		AtomicReference<LLMContext> captured = new AtomicReference<>();
+		TurnStreamer streamer = capturing(captured, List.of(new TurnResult("ok", null, List.of())));
+		loop(new AiOptions(), streamer, List.of()).run();
+
+		assertFalse(captured.get().chatHistory().get(0).getText().contains("<memory>"));
+	}
+
+	@Test
+	public void testCallerContextIsResolvedServerSide() {
+		when(chat.getSpaceUuid()).thenReturn(SPACE_UUID);
+		when(toolRegistry.dispatch(eq("search_assets"), any(), any(), any())).thenReturn(Future.succeededFuture(new JsonObject()));
+
+		TurnStreamer streamer = scripted(List.of(
+			new TurnResult(null, null, List.of(new ToolCall("c1", "search_assets", new JsonObject()))),
+			new TurnResult("done", null, List.of())));
+		loop(new AiOptions(), streamer, List.of()).run();
+
+		ArgumentCaptor<MCPCallerContext> ctx = ArgumentCaptor.forClass(MCPCallerContext.class);
+		verify(toolRegistry).dispatch(eq("search_assets"), any(), any(), ctx.capture());
+
+		// Nothing here comes from the tool arguments — the model cannot influence any of it.
+		assertEquals(USER_UUID, ctx.getValue().userUuid());
+		assertEquals(CHAT_UUID, ctx.getValue().chatUuid());
+		assertEquals(SPACE_UUID, ctx.getValue().spaceUuid());
+		assertEquals(Set.of(GROUP_UUID), ctx.getValue().groupUuids());
+	}
+
+	@Test
+	public void testMemoryWriteBudgetBecomesAnErrorResultWithoutAbortingTheRun() {
+		enableMemory(List.of());
+		when(memoryOptions.getMaxWritesPerRun()).thenReturn(2);
+		when(toolRegistry.dispatch(eq("put_memory"), any(), any(), any()))
+			.thenReturn(Future.succeededFuture(new JsonObject().put("content", new JsonArray()
+				.add(new JsonObject().put("type", "text").put("text", "Stored")))));
+
+		List<TurnResult> turns = new ArrayList<>();
+		for (int i = 0; i < 3; i++) {
+			turns.add(new TurnResult(null, null, List.of(new ToolCall("c" + i, "put_memory", new JsonObject()))));
+		}
+		turns.add(new TurnResult("done", null, List.of()));
+
+		loop(new AiOptions(), scripted(turns), List.of()).run();
+
+		List<AgentEvent> toolEnds = events.stream().filter(e -> e.type() == AgentEventType.TOOL_END).toList();
+		assertEquals(3, toolEnds.size());
+		assertFalse(toolEnds.get(0).data().getBoolean("isError"));
+		assertFalse(toolEnds.get(1).data().getBoolean("isError"));
+		assertTrue(toolEnds.get(2).data().getBoolean("isError"), "The third write exceeds the budget");
+		assertTrue(toolEnds.get(2).data().getString("summary").contains("memory writes"));
+
+		// Budget exhaustion tells the model to stop; it must not kill the run.
+		assertEquals("completed", firstEvent(AgentEventType.AGENT_END).data().getString("status"));
+		verify(toolRegistry, times(2)).dispatch(eq("put_memory"), any(), any(), any());
+	}
+
+	@Test
+	public void testMemoryFailureDegradesToNoMemoryContext() {
+		when(memoryService.isEnabled()).thenReturn(true);
+		when(memoryService.scopes()).thenThrow(new RuntimeException("db down"));
+
+		AtomicReference<LLMContext> captured = new AtomicReference<>();
+		TurnStreamer streamer = capturing(captured, List.of(new TurnResult("ok", null, List.of())));
+		loop(new AiOptions(), streamer, List.of()).run();
+
+		// Memory is an enhancement, not a precondition — the run completes without it.
+		assertEquals("completed", firstEvent(AgentEventType.AGENT_END).data().getString("status"));
+		assertFalse(captured.get().chatHistory().get(0).getText().contains("<memory>"));
+	}
+
+	private void enableMemory(List<MemoryEntry> index) {
+		MemoryScopeRef userScope = new MemoryScopeRef(MemoryScope.USER, USER_UUID, "user");
+		when(memoryService.isEnabled()).thenReturn(true);
+		when(memoryService.scopes()).thenReturn(scopeResolver);
+		when(scopeResolver.resolve(any())).thenReturn(List.of(userScope));
+		when(memoryService.index(anyList(), org.mockito.ArgumentMatchers.anyInt())).thenReturn(index);
+		when(memoryService.load(any(), any())).thenReturn(null);
+	}
+
+	private MemoryEntry memoryEntry(String id, String title) {
+		MemoryEntry entry = mock(MemoryEntry.class);
+		when(entry.getScope()).thenReturn(MemoryScope.USER);
+		when(entry.getMemoryId()).thenReturn(id);
+		when(entry.getTitle()).thenReturn(title);
+		when(entry.getBody()).thenReturn("BODY SHOULD NOT APPEAR");
+		when(entry.getEdited()).thenReturn(java.time.Instant.parse("2026-07-20T10:00:00Z"));
+		return entry;
+	}
+
+	/**
+	 * A scripted streamer which also captures the {@link LLMContext} of the first turn, so the assembled system prompt can be inspected.
+	 */
+	private TurnStreamer capturing(AtomicReference<LLMContext> captured, List<TurnResult> results) {
+		Deque<TurnResult> queue = new ArrayDeque<>(results);
+		return (ctx, listener) -> {
+			captured.compareAndSet(null, ctx);
+			return queue.pop();
+		};
 	}
 
 }

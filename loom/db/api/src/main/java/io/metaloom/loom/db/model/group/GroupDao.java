@@ -33,10 +33,15 @@ public interface GroupDao extends CRUDDao<Group> {
 
 	/**
 	 * Load the group by its name.
-	 * 
+	 *
 	 * @param name
 	 * @return
 	 */
 	Group loadByName(String name);
+
+	/**
+	 * Load all groups the given user is a member of. Returns an empty list for an unknown user.
+	 */
+	List<Group> loadGroupsForUser(UUID userUuid);
 
 }

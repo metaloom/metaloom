@@ -4,6 +4,7 @@
 package io.metaloom.loom.db.jooq.tables;
 
 
+import io.metaloom.loom.db.jooq.Indexes;
 import io.metaloom.loom.db.jooq.JooqPublic;
 import io.metaloom.loom.db.jooq.Keys;
 import io.metaloom.loom.db.jooq.converter.JsonArrayConverter;
@@ -19,11 +20,12 @@ import java.util.function.Function;
 
 import org.jooq.Field;
 import org.jooq.ForeignKey;
-import org.jooq.Function8;
+import org.jooq.Function9;
+import org.jooq.Index;
 import org.jooq.Name;
 import org.jooq.Record;
 import org.jooq.Records;
-import org.jooq.Row8;
+import org.jooq.Row9;
 import org.jooq.Schema;
 import org.jooq.SelectField;
 import org.jooq.Table;
@@ -98,6 +100,12 @@ public class JooqChat extends TableImpl<JooqChatRecord> {
      */
     public final TableField<JooqChatRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID.nullable(false), this, "");
 
+    /**
+     * The column <code>public.chat.space_uuid</code>. Space (project) the chat
+     * originates from; scopes space-level agent memory
+     */
+    public final TableField<JooqChatRecord, java.util.UUID> SPACE_UUID = createField(DSL.name("space_uuid"), SQLDataType.UUID, this, "Space (project) the chat originates from; scopes space-level agent memory");
+
     private JooqChat(Name alias, Table<JooqChatRecord> aliased) {
         this(alias, aliased, null);
     }
@@ -137,17 +145,23 @@ public class JooqChat extends TableImpl<JooqChatRecord> {
     }
 
     @Override
+    public List<Index> getIndexes() {
+        return Arrays.asList(Indexes.IDX_CHAT_SPACE);
+    }
+
+    @Override
     public UniqueKey<JooqChatRecord> getPrimaryKey() {
         return Keys.CHAT_PKEY;
     }
 
     @Override
     public List<ForeignKey<JooqChatRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.CHAT__CHAT_CREATOR_UUID_FKEY, Keys.CHAT__CHAT_EDITOR_UUID_FKEY);
+        return Arrays.asList(Keys.CHAT__CHAT_CREATOR_UUID_FKEY, Keys.CHAT__CHAT_EDITOR_UUID_FKEY, Keys.CHAT__CHAT_SPACE_UUID_FKEY);
     }
 
     private transient JooqUser _chatCreatorUuidFkey;
     private transient JooqUser _chatEditorUuidFkey;
+    private transient JooqProject _project;
 
     /**
      * Get the implicit join path to the <code>public.user</code> table, via the
@@ -169,6 +183,16 @@ public class JooqChat extends TableImpl<JooqChatRecord> {
             _chatEditorUuidFkey = new JooqUser(this, Keys.CHAT__CHAT_EDITOR_UUID_FKEY);
 
         return _chatEditorUuidFkey;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.project</code> table.
+     */
+    public JooqProject project() {
+        if (_project == null)
+            _project = new JooqProject(this, Keys.CHAT__CHAT_SPACE_UUID_FKEY);
+
+        return _project;
     }
 
     @Override
@@ -211,18 +235,18 @@ public class JooqChat extends TableImpl<JooqChatRecord> {
     }
 
     // -------------------------------------------------------------------------
-    // Row8 type methods
+    // Row9 type methods
     // -------------------------------------------------------------------------
 
     @Override
-    public Row8<java.util.UUID, String, JsonArray, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
-        return (Row8) super.fieldsRow();
+    public Row9<java.util.UUID, String, JsonArray, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID, java.util.UUID> fieldsRow() {
+        return (Row9) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function8<? super java.util.UUID, ? super String, ? super JsonArray, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function9<? super java.util.UUID, ? super String, ? super JsonArray, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -230,7 +254,7 @@ public class JooqChat extends TableImpl<JooqChatRecord> {
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function8<? super java.util.UUID, ? super String, ? super JsonArray, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function9<? super java.util.UUID, ? super String, ? super JsonArray, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }

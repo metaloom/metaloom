@@ -4,6 +4,7 @@ import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -17,12 +18,14 @@ import io.metaloom.loom.agent.sandbox.backend.KubernetesBackend;
 import io.metaloom.loom.agent.sandbox.backend.PodmanBackend;
 import io.metaloom.loom.agent.sandbox.backend.SandboxBackend;
 import io.metaloom.loom.agent.sandbox.backend.SandboxInfo;
+import io.metaloom.loom.agent.sandbox.backend.SandboxSpec;
 import io.metaloom.loom.agent.sandbox.backend.SandboxStatus;
 import io.metaloom.loom.agent.sandbox.error.SandboxException;
 import io.metaloom.loom.agent.sandbox.error.SandboxQuotaException;
 import io.metaloom.loom.agent.sandbox.error.SandboxUnhealthyException;
 import io.metaloom.loom.agent.sandbox.tool.CodingTools;
 import io.metaloom.loom.api.options.LoomOptions;
+import io.metaloom.loom.api.options.MemoryOptions;
 import io.metaloom.loom.api.options.SandboxOptions;
 import io.vertx.core.json.JsonObject;
 
@@ -44,6 +47,9 @@ public class SandboxOrchestrator {
 
 	private final LoomOptions options;
 
+	/** Notified after a runner becomes healthy. Empty unless a feature (e.g. the memory bank) contributes one. */
+	private final Set<SandboxProvisionListener> provisionListeners;
+
 	private final ConcurrentHashMap<String, SandboxHandle> handles = new ConcurrentHashMap<>();
 	private final ConcurrentHashMap<String, ReentrantLock> locks = new ConcurrentHashMap<>();
 
@@ -54,8 +60,9 @@ public class SandboxOrchestrator {
 	}
 
 	@Inject
-	public SandboxOrchestrator(LoomOptions options) {
+	public SandboxOrchestrator(LoomOptions options, Set<SandboxProvisionListener> provisionListeners) {
 		this.options = options;
+		this.provisionListeners = provisionListeners;
 	}
 
 	/** Whether the coding sandbox is enabled by configuration. */
@@ -65,6 +72,17 @@ public class SandboxOrchestrator {
 
 	private SandboxOptions cfg() {
 		return options.getSandbox();
+	}
+
+	private MemoryOptions memoryCfg() {
+		return options.getMemory();
+	}
+
+	/**
+	 * Whether the runner should be given the read-only memory volume.
+	 */
+	private boolean memoryStageEnabled() {
+		return memoryCfg().isEnabled() && memoryCfg().isMountEnabled();
 	}
 
 	private SandboxBackend backend() {
@@ -126,7 +144,8 @@ public class SandboxOrchestrator {
 	private SandboxClient provision(String session) {
 		String token = newToken();
 		String name = "loom-runner-" + shortId(session) + "-" + randomHex();
-		SandboxInfo info = backend().create(session, name, token);
+		SandboxSpec spec = new SandboxSpec(session, name, token, memoryStageEnabled(), memoryCfg().getMountPath());
+		SandboxInfo info = backend().create(spec);
 		String endpoint = info.endpoint();
 		long createdAt = info.createdAtEpochMs() > 0 ? info.createdAtEpochMs() : System.currentTimeMillis();
 
@@ -148,6 +167,7 @@ public class SandboxOrchestrator {
 					SandboxHandle handle = new SandboxHandle(session, name, endpoint, token, createdAt, client);
 					handles.put(session, handle);
 					log.info("sandbox ready session={} pod={}", session, name);
+					notifyProvisioned(session, client);
 					return client;
 				}
 			}
@@ -161,6 +181,35 @@ public class SandboxOrchestrator {
 			// best effort
 		}
 		throw new SandboxUnhealthyException("The coding sandbox did not become ready in time.");
+	}
+
+	/**
+	 * Push the post-provision content (currently: the memory folder) into a freshly started runner.
+	 *
+	 * <p>Best effort by design — a listener failure leaves the runner usable and the corresponding tools still work over the API, so it must not fail
+	 * provisioning.</p>
+	 */
+	private void notifyProvisioned(String session, SandboxClient client) {
+		for (SandboxProvisionListener listener : provisionListeners) {
+			try {
+				listener.onProvisioned(session, client);
+			} catch (RuntimeException e) {
+				log.warn("sandbox provision listener {} failed for session {}", listener.getClass().getSimpleName(), session, e);
+			}
+		}
+	}
+
+	/**
+	 * Re-push the post-provision content into an already running runner. No-op when the session has none.
+	 *
+	 * <p>Called after a memory write so a note stored during a run is immediately visible under the read-only folder.</p>
+	 */
+	public void refreshProvisionedContent(String session) {
+		SandboxClient client = existingClient(session);
+		if (client == null) {
+			return;
+		}
+		notifyProvisioned(session, client);
 	}
 
 	public SandboxHandle get(String session) {

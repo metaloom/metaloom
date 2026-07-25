@@ -1,5 +1,7 @@
 package io.metaloom.loom.db.jooq.dao.chat;
 
+import java.util.UUID;
+
 import io.metaloom.loom.db.jooq.AbstractEditableElement;
 import io.metaloom.loom.db.model.chat.Chat;
 import io.vertx.core.json.JsonArray;
@@ -10,6 +12,8 @@ public class ChatImpl extends AbstractEditableElement<Chat> implements Chat {
 	private String title;
 
 	private JsonArray messages = new JsonArray();
+
+	private UUID spaceUuid;
 
 	private JsonObject meta;
 
@@ -32,6 +36,17 @@ public class ChatImpl extends AbstractEditableElement<Chat> implements Chat {
 	@Override
 	public Chat setMessages(JsonArray messages) {
 		this.messages = messages;
+		return this;
+	}
+
+	@Override
+	public UUID getSpaceUuid() {
+		return spaceUuid;
+	}
+
+	@Override
+	public Chat setSpaceUuid(UUID spaceUuid) {
+		this.spaceUuid = spaceUuid;
 		return this;
 	}
 

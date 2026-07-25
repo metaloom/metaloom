@@ -13,6 +13,8 @@ import javax.inject.Singleton;
 import io.metaloom.loom.db.dagger.DaoCollection;
 import io.metaloom.loom.db.model.chat.Chat;
 import io.metaloom.loom.db.model.chat.ChatDao;
+import io.metaloom.loom.api.error.LoomRestErrorCode;
+import io.metaloom.loom.api.error.LoomRestException;
 import io.metaloom.loom.rest.LoomRoutingContext;
 import io.metaloom.loom.rest.builder.LoomModelBuilder;
 import io.metaloom.loom.rest.model.chat.ChatCreateRequest;
@@ -76,5 +78,19 @@ public class ChatEndpointService extends AbstractCRUDEndpointService<ChatDao, Ch
 		update(model::getTitle, chat::setTitle);
 		update(model::getMessages, chat::setMessages);
 		update(model::getMeta, chat::setMeta);
+		if (model.getSpaceUuid() != null) {
+			requireSpace(model.getSpaceUuid());
+			chat.setSpaceUuid(model.getSpaceUuid());
+		}
+	}
+
+	/**
+	 * A chat may only point at a space which exists. The space determines which shared memory scope the agent can reach, so an unchecked value here would
+	 * be a way to name a scope the caller was never granted.
+	 */
+	private void requireSpace(UUID spaceUuid) {
+		if (daos().spaceDao().load(spaceUuid) == null) {
+			throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "The referenced space could not be found.");
+		}
 	}
 }

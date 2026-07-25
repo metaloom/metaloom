@@ -30,6 +30,7 @@ import io.metaloom.loom.db.model.pool.AssetPoolDao;
 import io.metaloom.loom.db.model.space.SpaceDao;
 import io.metaloom.loom.db.model.reaction.ReactionDao;
 import io.metaloom.loom.db.model.role.RoleDao;
+import io.metaloom.loom.db.model.memory.MemoryEntryDao;
 import io.metaloom.loom.db.model.skill.SkillDao;
 import io.metaloom.loom.db.model.skill.SkillVersionDao;
 import io.metaloom.loom.db.model.tag.TagDao;
@@ -211,6 +212,12 @@ public interface DaoProvider extends DaoCollection {
 
 	default ChatSessionDao chatSessionDao() {
 		return daos().chatSessionDao();
+	}
+
+	// Agent Memory
+
+	default MemoryEntryDao memoryEntryDao() {
+		return daos().memoryEntryDao();
 	}
 
 	// Cortex Instance

@@ -36,6 +36,7 @@
    "tags": "Tags",
    "workflow": "Workflow",
    "skills": "Skills",
+   "memory": "Memory",
    "chatSessions": "Chat Sessions"
   },
   "admin": {
@@ -1463,5 +1464,26 @@
    "badge": "v{{version}}",
    "saveHint": "Saving changes to the instructions creates a new version"
   }
+ },
+ "memory": {
+  "title": "Agent memory",
+  "subtitle": "Markdown notes the chat agent can read and write across conversations. The agent sees this as a read-only /memory folder.",
+  "noScopes": "No memory scopes are available.",
+  "myNotes": "My notes",
+  "readOnlyScope": "This shared scope is read-only for you.",
+  "new": "New note",
+  "id": "Id",
+  "idHelp": "Lowercase path ending in .md, e.g. projects/loom-db.md",
+  "noteTitle": "Title",
+  "updated": "Updated",
+  "session": "Session",
+  "size": "Size",
+  "body": "Body (markdown)",
+  "headerNote": "The provenance header (updated, session, version) is generated automatically.",
+  "empty": "No notes stored in this scope yet.",
+  "edit": "Edit note",
+  "create": "New note",
+  "deleteTitle": "Delete note",
+  "deleteBody": "This permanently removes the note — there is no version history yet."
  }
 }

@@ -14,6 +14,7 @@ import java.time.Duration;
 import java.util.stream.Stream;
 
 import io.metaloom.loom.agent.sandbox.error.SandboxException;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 /**
@@ -121,6 +122,21 @@ public class SandboxClient {
 
 	public JsonObject listFiles(String path) {
 		return postJson("/list_files", new JsonObject().put("path", path == null || path.isBlank() ? "." : path));
+	}
+
+	/**
+	 * Replace the contents of the runner's memory stage with the given files.
+	 *
+	 * <p>Full-tree and idempotent: {@code prune} removes anything not in the posted set, so a deleted note disappears from the runner too. The daemon
+	 * writes through its read-write stage mount; the agent only ever sees the read-only view of the same data.</p>
+	 *
+	 * @param files
+	 *            objects of {@code {"path": "user/notes.md", "content": "…"}}
+	 * @param prune
+	 *            whether to delete stage files which are not in {@code files}
+	 */
+	public JsonObject memorySync(JsonArray files, boolean prune) {
+		return postJson("/memory_sync", new JsonObject().put("files", files).put("prune", prune));
 	}
 
 	/**
