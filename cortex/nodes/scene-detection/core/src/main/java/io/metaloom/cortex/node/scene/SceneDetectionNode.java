@@ -72,10 +72,11 @@ public class SceneDetectionNode extends AbstractMediaNode<SceneDetectionOptions>
 				return ctx.origin(LOCAL).next();
 			}
 			VideoFile video = VideoFile.open(media.path());
+			double fps = video.fps();
 			SceneDetectionResult result = detector.detect(video);
 			ctx.output(OUTPUT_SCENE_DETECTION, result.toString());
 			resultCache.put(path, result.toString());
-			persist(ctx, asset, result);
+			persist(ctx, asset, result, fps);
 			return ctx.origin(COMPUTED).next();
 		} else {
 			return ctx.skipped("no video media").next();
@@ -85,8 +86,13 @@ public class SceneDetectionNode extends AbstractMediaNode<SceneDetectionOptions>
 	/**
 	 * Persist the detected scenes as the whole {@code SCENE} segment set of {@code asset_segment_comp} and record a ledger entry. The batch replace
 	 * deletes any surplus scenes from a previous, longer run. Best-effort and a no-op when the asset is not yet known to Loom or we run offline.
+	 *
+	 * <p><b>Units:</b> {@code timeFrom} / {@code timeTo} carry <b>frame indices</b>, not the column's nominal milliseconds. Storing the raw detector
+	 * output keeps the scene boundaries exact and independent of frame-rate rounding; the wall-clock time is derived downstream as
+	 * {@code seconds = frame / fps}. So the conversion stays self-contained, the source {@code fps} travels with the set in {@code producerVersion}
+	 * (e.g. {@code "fps=25.0"}).
 	 */
-	private void persist(NodeContext<LoomMedia> ctx, AssetResponse asset, SceneDetectionResult result) {
+	private void persist(NodeContext<LoomMedia> ctx, AssetResponse asset, SceneDetectionResult result, double fps) {
 		if (asset == null || client() == null) {
 			return;
 		}
@@ -94,11 +100,14 @@ public class SceneDetectionNode extends AbstractMediaNode<SceneDetectionOptions>
 			List<SegmentEntry> entries = new ArrayList<>();
 			int seq = 0;
 			for (Scene scene : result.scenes()) {
+				// getFrom()/getTo() are frame indices - persisted as-is (see the units note above).
 				entries.add(new SegmentEntry().setSeq(seq++).setTimeFrom(scene.getFrom()).setTimeTo(scene.getTo()));
 			}
 			SegmentCompCreateRequest request = new SegmentCompCreateRequest();
 			request.setNodeKind(name());
 			request.setSegmentType("SCENE");
+			// Carry the frame rate so consumers can convert the frame-indexed bounds to time without re-opening the video.
+			request.setProducerVersion(fps > 0 ? "fps=" + fps : null);
 			request.setSegments(entries);
 			client().createAssetSegmentComps(asset.getUuid(), request).sync();
 			recordNodeResult(asset, ctx, ResultState.SUCCESS, null, null, resultRef("asset_segment_comp"));

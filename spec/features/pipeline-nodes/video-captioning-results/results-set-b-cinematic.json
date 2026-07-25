@@ -1,0 +1,121 @@
+[ {
+  "endpoint" : "llamacpp-qwen25vl-7b-q4km",
+  "model" : "qwen",
+  "variant" : "video-captioning-whole",
+  "video" : "epic_cinematic.mp4",
+  "ok" : true,
+  "wall_ms" : 2573,
+  "model_ms" : 1893,
+  "frames" : 8,
+  "scenes" : 0,
+  "caption" : "The video starts with a close-up shot of a rusted, graffiti-covered metal container. The camera then pans to the right, revealing a grassy field with a triangular warning sign in the foreground. The camera continues to pan upwards, showing a tree with autumn leaves rustling in the wind. Finally, the camera pans to the left, revealing a small wooden house with a bench in front of it."
+}, {
+  "endpoint" : "llamacpp-qwen25vl-7b-q4km",
+  "model" : "qwen",
+  "variant" : "video-captioning-scene",
+  "video" : "epic_cinematic.mp4",
+  "ok" : true,
+  "wall_ms" : 2583,
+  "model_ms" : 1664,
+  "frames" : 4,
+  "scenes" : 1,
+  "caption" : "Scene 1 [frames 0-930]: The video begins with a close-up shot of a yellow surface adorned with various symbols, including a black and white face, a circular pattern, and a triangular warning sign. The camera then transitions to a serene outdoor scene, showcasing a lush green field dotted with white daisies and yellow flowers. The camera pans slowly across the field, capturing the gentle sway of the grass and the delicate petals of the flowers, creating a peaceful and tranquil atmosphere."
+}, {
+  "endpoint" : "llamacpp-qwen25vl-7b-q4km",
+  "model" : "qwen",
+  "variant" : "video-captioning-native",
+  "video" : "epic_cinematic.mp4",
+  "ok" : false,
+  "wall_ms" : 4,
+  "error" : "VLM endpoint http://127.0.0.1:8081/v1/chat/completions returned HTTP 400: {\"error\":{\"code\":400,\"message\":\"unsupported content[].type\",\"type\":\"invalid_request_error\"}}"
+}, {
+  "endpoint" : "vllm-qwen25vl-7b-awq",
+  "model" : "qwen25vl-awq",
+  "variant" : "video-captioning-whole",
+  "video" : "epic_cinematic.mp4",
+  "ok" : true,
+  "wall_ms" : 1341,
+  "model_ms" : 892,
+  "frames" : 8,
+  "scenes" : 0,
+  "caption" : "A rusty metal door with graffiti is shown. The door is open and the camera pans to the right. A close up of a black and white graffiti is shown. The camera pans down to a yellow sign with a black triangle. The camera then pans to a field of tall grass. The camera then pans to a tree with red leaves. The camera then pans to a field of daisies. The camera then pans to a field of dandelions. The camera then pans to a bench in a park."
+}, {
+  "endpoint" : "vllm-qwen25vl-7b-awq",
+  "model" : "qwen25vl-awq",
+  "variant" : "video-captioning-scene",
+  "video" : "epic_cinematic.mp4",
+  "ok" : true,
+  "wall_ms" : 1038,
+  "model_ms" : 190,
+  "frames" : 4,
+  "scenes" : 1,
+  "caption" : "Scene 1 [frames 0-930]: A cartoon mouse is painted on the side of a yellow wall."
+}, {
+  "endpoint" : "vllm-qwen25vl-7b-awq",
+  "model" : "qwen25vl-awq",
+  "variant" : "video-captioning-native",
+  "video" : "epic_cinematic.mp4",
+  "ok" : false,
+  "wall_ms" : 1277,
+  "error" : "VLM endpoint http://127.0.0.1:8000/v1/chat/completions returned HTTP 400: {\"error\":{\"message\":\"Input length (37117) exceeds model's maximum context length (8192).\",\"type\":\"BadRequestError\",\"param\":null,\"code\":400}}"
+}, {
+  "endpoint" : "llamacpp-qwen25vl-7b-q4km",
+  "model" : "qwen",
+  "variant" : "video-captioning-whole",
+  "video" : "production ID_4100353.mp4",
+  "ok" : true,
+  "wall_ms" : 2888,
+  "model_ms" : 961,
+  "frames" : 8,
+  "scenes" : 0,
+  "caption" : "A man with a beard and glasses looks at the camera. He rubs his nose with his hand. He looks at the camera."
+}, {
+  "endpoint" : "llamacpp-qwen25vl-7b-q4km",
+  "model" : "qwen",
+  "variant" : "video-captioning-scene",
+  "video" : "production ID_4100353.mp4",
+  "ok" : true,
+  "wall_ms" : 3858,
+  "model_ms" : 632,
+  "frames" : 4,
+  "scenes" : 1,
+  "caption" : "Scene 1 [frames 0-400]: A man with a beard and glasses adjusts his glasses with his right hand. He then looks directly at the camera."
+}, {
+  "endpoint" : "llamacpp-qwen25vl-7b-q4km",
+  "model" : "qwen",
+  "variant" : "video-captioning-native",
+  "video" : "production ID_4100353.mp4",
+  "ok" : false,
+  "wall_ms" : 48,
+  "error" : "VLM endpoint http://127.0.0.1:8081/v1/chat/completions returned HTTP 400: {\"error\":{\"code\":400,\"message\":\"unsupported content[].type\",\"type\":\"invalid_request_error\"}}"
+}, {
+  "endpoint" : "vllm-qwen25vl-7b-awq",
+  "model" : "qwen25vl-awq",
+  "variant" : "video-captioning-whole",
+  "video" : "production ID_4100353.mp4",
+  "ok" : true,
+  "wall_ms" : 2280,
+  "model_ms" : 368,
+  "frames" : 8,
+  "scenes" : 0,
+  "caption" : "A man with glasses and a beard rubs his nose with his right hand. He then stops rubbing his nose and looks at the camera."
+}, {
+  "endpoint" : "vllm-qwen25vl-7b-awq",
+  "model" : "qwen25vl-awq",
+  "variant" : "video-captioning-scene",
+  "video" : "production ID_4100353.mp4",
+  "ok" : true,
+  "wall_ms" : 3120,
+  "model_ms" : 259,
+  "frames" : 4,
+  "scenes" : 1,
+  "caption" : "Scene 1 [frames 0-400]: A man with glasses and a beard is looking at the camera. He moves his hand from his face to his chin."
+}, {
+  "endpoint" : "vllm-qwen25vl-7b-awq",
+  "model" : "qwen25vl-awq",
+  "variant" : "video-captioning-native",
+  "video" : "production ID_4100353.mp4",
+  "ok" : false,
+  "wall_ms" : 3812,
+  "error" : "VLM endpoint http://127.0.0.1:8000/v1/chat/completions returned HTTP 400: {\"error\":{\"message\":\"Input length (89977) exceeds model's maximum context length (8192).\",\"type\":\"BadRequestError\",\"param\":null,\"code\":400}}"
+} ]

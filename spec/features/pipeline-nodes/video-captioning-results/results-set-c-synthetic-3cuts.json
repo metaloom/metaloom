@@ -1,0 +1,61 @@
+[ {
+  "endpoint" : "llamacpp-qwen25vl-7b-q4km",
+  "model" : "qwen",
+  "variant" : "video-captioning-whole",
+  "video" : "multiscene_3cuts.mp4",
+  "ok" : true,
+  "wall_ms" : 1694,
+  "model_ms" : 1396,
+  "frames" : 9,
+  "scenes" : 0,
+  "caption" : "A man and a woman are sitting at a table. The man is typing on a laptop. The woman is pointing at the laptop. The man is giving the woman a thumbs up."
+}, {
+  "endpoint" : "llamacpp-qwen25vl-7b-q4km",
+  "model" : "qwen",
+  "variant" : "video-captioning-scene",
+  "video" : "multiscene_3cuts.mp4",
+  "ok" : true,
+  "wall_ms" : 2143,
+  "model_ms" : 2009,
+  "frames" : 4,
+  "scenes" : 1,
+  "caption" : "Scene 1 [frames 0-225]: In the video, a man and a woman are seated at a table in a modern, well-lit room with large windows, engaged in a discussion. They are surrounded by papers and a laptop, indicating a professional or business setting. The man gestures with his hands as he speaks, emphasizing his points, while the woman listens attentively. The scene then transitions to a close-up of a man in a pink shirt, who appears to be in a different setting, possibly a home or casual environment, as he looks directly at the camera with a serious expression."
+}, {
+  "endpoint" : "llamacpp-qwen25vl-7b-q4km",
+  "model" : "qwen",
+  "variant" : "video-captioning-native",
+  "video" : "multiscene_3cuts.mp4",
+  "ok" : false,
+  "wall_ms" : 3,
+  "error" : "VLM endpoint http://127.0.0.1:8081/v1/chat/completions returned HTTP 400: {\"error\":{\"code\":400,\"message\":\"unsupported content[].type\",\"type\":\"invalid_request_error\"}}"
+}, {
+  "endpoint" : "vllm-qwen25vl-7b-awq",
+  "model" : "qwen25vl-awq",
+  "variant" : "video-captioning-whole",
+  "video" : "multiscene_3cuts.mp4",
+  "ok" : true,
+  "wall_ms" : 454,
+  "model_ms" : 390,
+  "frames" : 9,
+  "scenes" : 0,
+  "caption" : "A woman is holding a necklace with her right hand. She is looking to the left of the frame."
+}, {
+  "endpoint" : "vllm-qwen25vl-7b-awq",
+  "model" : "qwen25vl-awq",
+  "variant" : "video-captioning-scene",
+  "video" : "multiscene_3cuts.mp4",
+  "ok" : true,
+  "wall_ms" : 263,
+  "model_ms" : 171,
+  "frames" : 4,
+  "scenes" : 1,
+  "caption" : "Scene 1 [frames 0-225]: A man in a pink shirt is looking up."
+}, {
+  "endpoint" : "vllm-qwen25vl-7b-awq",
+  "model" : "qwen25vl-awq",
+  "variant" : "video-captioning-native",
+  "video" : "multiscene_3cuts.mp4",
+  "ok" : false,
+  "wall_ms" : 7,
+  "error" : "VLM endpoint http://127.0.0.1:8000/v1/chat/completions returned HTTP 400: {\"error\":{\"message\":\"The file path /tmp/claude-1000/-home-defaultuser-workspaces-metaloom-metaloom/ce4bd708-ec51-4644-be1b-4e1dfa504d7f/scratchpad/multiscene_3cuts.mp4 must be a subpath of `--allowed-local-media-path /home/defaultuser/workspaces/metaloom`.\",\"type\":\"BadRequestError\",\"param\":null,\"code\":400}}"
+} ]

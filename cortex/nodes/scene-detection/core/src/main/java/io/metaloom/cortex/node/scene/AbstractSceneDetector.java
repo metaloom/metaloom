@@ -41,18 +41,36 @@ public abstract class AbstractSceneDetector implements SceneDetector {
 		SceneDetectionResult result = new SceneDetectionResult();
 		long nTotalFrame = 0;
 		long start = System.currentTimeMillis();
-		for (int nFrame = 0; nFrame < video.length() - 100; nFrame += videoChopRate) {
+
+		long videoLength = video.length();
+		// Start frame of the scene currently being accumulated. A detected cut closes the scene [sceneStart, cutFrame) and opens a new one at cutFrame.
+		long sceneStart = 0;
+		// Debounce for the boundary detector: ignore a cut that would produce a scene shorter than this. It suppresses the (harmless) delta on the very
+		// first sampled frame, collapses the 2-3 consecutive sampled frames a single hard cut typically spans into one boundary, and stops a transient
+		// high-motion spike from shattering a scene. ~0.5s worth of frames, but never below two sampling steps.
+		double fps = video.fps();
+		long minSceneLength = Math.max(videoChopRate * 2L, fps > 0 ? Math.round(fps * 0.5d) : 0L);
+
+		for (int nFrame = 0; nFrame < videoLength; nFrame += videoChopRate) {
 			nTotalFrame++;
 			if (nTotalFrame % 1000 == 0) {
 				long dur = System.currentTimeMillis() - start;
 				double avg = (double) nTotalFrame / (double) dur;
-				log.debug("Frame rate: {} fps at frame {}/{}", String.format("%.2f", avg), nFrame, video.length());
+				log.debug("Frame rate: {} fps at frame {}/{}", String.format("%.2f", avg), nFrame, videoLength);
 			}
-			for (int i = 0; i < videoChopRate-1; i++) {
-				video.frame();
+			// Advance videoChopRate frames, keeping the last readable one as the sample. Stop cleanly at end-of-stream instead of relying on a fixed
+			// tail margin (the old "length - 100" guard truncated short clips, so their final cuts were never examined).
+			VideoFrame frame = null;
+			for (int i = 0; i < videoChopRate; i++) {
+				VideoFrame next = video.frame();
+				if (next == null || next.mat() == null) {
+					break;
+				}
+				frame = next;
 			}
-			// video.seekToFrame(nFrame);
-			VideoFrame frame = video.frame();
+			if (frame == null) {
+				break;
+			}
 
 			try {
 				Imgproc.resize(frame.mat(), frame.mat(), new Size(VIDEO_SCALE_SIZE, VIDEO_SCALE_SIZE), 0, 0, Imgproc.INTER_LINEAR);
@@ -62,6 +80,12 @@ public abstract class AbstractSceneDetector implements SceneDetector {
 				boolean isSplit = frameResult.delta() > frameResult.threshold();
 				if (isSplit) {
 					showCut = 1;
+					// Record the scene boundary. Guard against over-segmentation: only close the scene if it has reached the minimum length, which also
+					// filters the spurious first-frame delta.
+					if (nFrame - sceneStart >= minSceneLength) {
+						result.addScene(new Scene(sceneStart, nFrame));
+						sceneStart = nFrame;
+					}
 				}
 
 				if (viewer != null) {
@@ -94,9 +118,13 @@ public abstract class AbstractSceneDetector implements SceneDetector {
 			}
 
 		}
-		// No cut detection means one scene
-		if (result.scenes().isEmpty()) {
-			result.addScene(new Scene(0, video.length()));
+		// Close the trailing scene that runs from the last cut (or the start, if no cut was found) to the end of the video. This also yields the
+		// single whole-video scene when no cut was detected.
+		if (videoLength > sceneStart) {
+			result.addScene(new Scene(sceneStart, videoLength));
+		} else if (result.scenes().isEmpty()) {
+			// Degenerate case (empty/too-short video): still return one scene.
+			result.addScene(new Scene(0, videoLength));
 		}
 		return result;
 	}

@@ -1,0 +1,8 @@
+# Run environment (captured Fri Jul 24 11:00:27 PM UTC 2026)
+0, NVIDIA GeForce RTX 4090, 24564 MiB, 595.71.05
+1, NVIDIA GeForce RTX 3060, 12288 MiB, 595.71.05
+CUDA toolkit (build): Build cuda_13.1.r13.1/compiler.37061995_0
+vLLM: WARNING 07-24 23:00:28 [cuda.py:953] Detected different devices in the system: NVIDIA GeForce RTX 4090, NVIDIA GeForce RTX 3060. Please make sure to set `CUDA_DEVICE_ORDER=PCI_BUS_ID` to avoid unexpected behavior.
+0.25.1
+torch: 2.11.0+cu130
+llama.cpp: built from source (555881e)

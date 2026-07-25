@@ -26,6 +26,7 @@
         <module>whisper</module>
         <module>quality</module>
         <module>captioning</module>
+        <module>video-captioning</module>
         <module>loom</module>
     </modules>
 

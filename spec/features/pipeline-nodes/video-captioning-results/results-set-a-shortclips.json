@@ -1,0 +1,124 @@
+[ {
+  "endpoint" : "llamacpp-qwen25vl-7b-q4km",
+  "model" : "qwen",
+  "variant" : "video-captioning-whole",
+  "video" : "pexels-8090198-sd_640_338_25fps.mp4",
+  "ok" : true,
+  "wall_ms" : 1644,
+  "model_ms" : 1317,
+  "frames" : 8,
+  "scenes" : 0,
+  "caption" : "A woman turns her head to the right. She turns her head to the left. She turns her head to the right. She turns her head to the left."
+}, {
+  "endpoint" : "llamacpp-qwen25vl-7b-q4km",
+  "model" : "qwen",
+  "variant" : "video-captioning-scene",
+  "video" : "pexels-8090198-sd_640_338_25fps.mp4",
+  "ok" : true,
+  "wall_ms" : 1230,
+  "model_ms" : 847,
+  "frames" : 4,
+  "scenes" : 1,
+  "caption" : "Scene 1 [frames 0-1145]: A woman with her hair tied back and wearing a white shirt is standing in front of a white background. She is looking directly at the camera."
+}, {
+  "endpoint" : "llamacpp-qwen25vl-7b-q4km",
+  "model" : "qwen",
+  "variant" : "video-captioning-native",
+  "video" : "pexels-8090198-sd_640_338_25fps.mp4",
+  "ok" : false,
+  "wall_ms" : 4,
+  "error" : "VLM endpoint http://127.0.0.1:8081/v1/chat/completions returned HTTP 400: {\"error\":{\"code\":400,\"message\":\"unsupported content[].type\",\"type\":\"invalid_request_error\"}}"
+}, {
+  "endpoint" : "vllm-qwen25vl-7b-awq",
+  "model" : "qwen25vl-awq",
+  "variant" : "video-captioning-whole",
+  "video" : "pexels-8090198-sd_640_338_25fps.mp4",
+  "ok" : true,
+  "wall_ms" : 634,
+  "model_ms" : 546,
+  "frames" : 8,
+  "scenes" : 0,
+  "caption" : "A woman with long brown hair is standing in front of a white wall. She is wearing a white shirt and has a gold necklace around her neck. A red laser is scanning her face from left to right."
+}, {
+  "endpoint" : "vllm-qwen25vl-7b-awq",
+  "model" : "qwen25vl-awq",
+  "variant" : "video-captioning-scene",
+  "video" : "pexels-8090198-sd_640_338_25fps.mp4",
+  "ok" : true,
+  "wall_ms" : 610,
+  "model_ms" : 306,
+  "frames" : 4,
+  "scenes" : 1,
+  "caption" : "Scene 1 [frames 0-1145]: A woman with her eyes closed turns to the side. She then turns back to face the camera. A red laser is projected onto her face."
+}, {
+  "endpoint" : "vllm-qwen25vl-7b-awq",
+  "model" : "qwen25vl-awq",
+  "variant" : "video-captioning-native",
+  "video" : "pexels-8090198-sd_640_338_25fps.mp4",
+  "ok" : false,
+  "wall_ms" : 410,
+  "error" : "VLM endpoint http://127.0.0.1:8000/v1/chat/completions returned HTTP 400: {\"error\":{\"message\":\"Input length (12461) exceeds model's maximum context length (8192).\",\"type\":\"BadRequestError\",\"param\":null,\"code\":400}}"
+}, {
+  "endpoint" : "llamacpp-qwen25vl-7b-q4km",
+  "model" : "qwen",
+  "variant" : "video-captioning-whole",
+  "video" : "demo.mp4",
+  "ok" : true,
+  "wall_ms" : 1641,
+  "model_ms" : 1542,
+  "frames" : 8,
+  "scenes" : 0,
+  "caption" : "A woman turns her head from right to left. The camera focuses on her face. The woman turns her head from left to right. The camera focuses on her face. The woman turns her head from right to left. The camera focuses on her face."
+}, {
+  "endpoint" : "llamacpp-qwen25vl-7b-q4km",
+  "model" : "qwen",
+  "variant" : "video-captioning-scene",
+  "video" : "demo.mp4",
+  "ok" : true,
+  "wall_ms" : 1249,
+  "model_ms" : 1148,
+  "frames" : 4,
+  "scenes" : 1,
+  "caption" : "Scene 1 [frames 0-158]: A woman with long dark hair is facing the camera. Her face is surrounded by a red dotted line, indicating facial recognition technology is being used. The woman turns her head slightly to the left, and the red dotted line remains around her face."
+}, {
+  "endpoint" : "llamacpp-qwen25vl-7b-q4km",
+  "model" : "qwen",
+  "variant" : "video-captioning-native",
+  "video" : "demo.mp4",
+  "ok" : false,
+  "wall_ms" : 4,
+  "error" : "VLM endpoint http://127.0.0.1:8081/v1/chat/completions returned HTTP 400: {\"error\":{\"code\":400,\"message\":\"unsupported content[].type\",\"type\":\"invalid_request_error\"}}"
+}, {
+  "endpoint" : "vllm-qwen25vl-7b-awq",
+  "model" : "qwen25vl-awq",
+  "variant" : "video-captioning-whole",
+  "video" : "demo.mp4",
+  "ok" : true,
+  "wall_ms" : 455,
+  "model_ms" : 360,
+  "frames" : 8,
+  "scenes" : 0,
+  "caption" : "A woman turns her head to the right. The camera follows her as she turns around."
+}, {
+  "endpoint" : "vllm-qwen25vl-7b-awq",
+  "model" : "qwen25vl-awq",
+  "variant" : "video-captioning-scene",
+  "video" : "demo.mp4",
+  "ok" : true,
+  "wall_ms" : 584,
+  "model_ms" : 470,
+  "frames" : 4,
+  "scenes" : 1,
+  "caption" : "Scene 1 [frames 0-158]: A woman is shown from the front with a red box around her face. The box has dots inside it. The woman turns to the side and a red line appears down the side of her face. The woman turns back to the front and the red box reappears."
+}, {
+  "endpoint" : "vllm-qwen25vl-7b-awq",
+  "model" : "qwen25vl-awq",
+  "variant" : "video-captioning-native",
+  "video" : "demo.mp4",
+  "ok" : true,
+  "wall_ms" : 762,
+  "model_ms" : 759,
+  "frames" : 1,
+  "scenes" : 0,
+  "caption" : "The video shows a person standing against a plain white background. A digital interface overlays the image, displaying facial recognition data such as age, gender, and race. The person turns their head from front to side, revealing different angles of their face while the interface continues to display the same demographic information."
+} ]
