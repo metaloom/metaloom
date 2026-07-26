@@ -15,6 +15,20 @@ This section collects everything you need to answer two questions before you dep
 
 ++++
 <div class="row mt-4 mb-4">
+	<div class="col-lg-12 mb-4">
+		<div class="docs-card h-100">
+			<div class="docs-card-header">
+				<h2 data-toc-skip>MetaLoom is Apache License 2.0</h2>
+				<p>The entire platform — the Loom server, the Cortex engine, every built-in node, the UI, the clients, the CLI and this website — is released under the <strong>Apache License, Version 2.0</strong>. Commercial use, modification, distribution, patent grant and private use are all permitted. The full text ships as <code>LICENSE.txt</code> in the repository root.</p>
+			</div>
+			<div class="docs-card-body">
+				<a href="#the-platform-license" class="docs-card-link">What Apache-2.0 gives you</a>
+				<a href="#what-the-license-covers" class="docs-card-link">What it covers</a>
+				<a href="#model-weights" class="docs-card-link">Where it stops: model weights</a>
+				<a href="https://www.apache.org/licenses/LICENSE-2.0" class="docs-card-link">Full license text</a>
+			</div>
+		</div>
+	</div>
 	<div class="col-lg-6 mb-4">
 		<div class="docs-card h-100">
 			<div class="docs-card-header">
@@ -46,14 +60,55 @@ This section collects everything you need to answer two questions before you dep
 </div>
 ++++
 
-== The Platform License
+[#the-platform-license]
+== The Platform License — Apache 2.0
 
-The MetaLoom source — the Loom server, the Cortex engine, the nodes, the UI, the clients and this
-website — is licensed under the **Apache License, Version 2.0**. The full text ships as
-`LICENSE.txt` in the repository root.
+**MetaLoom is licensed under the Apache License, Version 2.0.** One license, one copy, no dual-licensed
+"community edition": the full text ships as `LICENSE.txt` in the repository root and is the same
+license that applies to every artifact and container image published from that source.
 
-Apache-2.0 permits commercial use, modification, distribution and private use, subject to the usual
-attribution and NOTICE obligations. Nothing on this page restricts that.
+Apache-2.0 is a permissive license. In practical terms:
+
+[options="header",cols="1,3"]
+|===
+| You may | Conditions
+
+| *Use it commercially* — run MetaLoom in production, sell a service built on it, embed it in a product
+| Keep the license and copyright notices in copies of the source you distribute
+
+| *Modify it* — patch, extend, fork, write your own nodes
+| State significant changes you made to modified files you distribute
+
+| *Distribute it* — ship the source or the binaries, alone or as part of something larger
+| Include a copy of the license, and the `NOTICE` file if one is present
+
+| *Use it privately* — deploy internally with no obligation to publish anything
+| None
+
+| *Rely on the patent grant* — contributors grant a licence to their patent claims in their contributions
+| The grant terminates for anyone who initiates patent litigation over the software
+|===
+
+You do **not** have to open-source your own code to use MetaLoom, publish your pipeline definitions,
+give attribution in a user interface, or pay a fee at any deployment size.
+
+[#what-the-license-covers]
+=== What the License Covers
+
+Everything produced from the MetaLoom repository:
+
+* the *Loom* server, its REST, GraphQL and WebSocket APIs, and the Loom UI;
+* the *Cortex* engine, the node runtime and every built-in node;
+* the Java client, the `metaloom` command line client and the published Maven artifacts;
+* the container images built from that source;
+* the examples — including the Python worker the link:../playbooks/python-node/[custom node playbook]
+  starts from — and this documentation website.
+
+Contributions are accepted under the same license: submitting a change means offering it under
+Apache-2.0, as section 5 of the license describes.
+
+[#model-weights]
+=== Where the License Stops
 
 [IMPORTANT]
 ====
@@ -61,6 +116,11 @@ attribution and NOTICE obligations. Nothing on this page restricts that.
 Nodes reference models by path, repository id or endpoint URL, and you supply them. The license that
 governs a model is the one on that model's card — not Apache-2.0.
 ====
+
+The same boundary applies to the third-party runtimes a node calls into — OpenCV, Tesseract,
+whisper.cpp, InspireFace and the model services you point nodes at. They carry their own terms, and a
+few of them are stricter than Apache-2.0. The link:model-licenses/[Model Licenses] page inventories
+each one.
 
 == Read This First If You Are Going Commercial
 

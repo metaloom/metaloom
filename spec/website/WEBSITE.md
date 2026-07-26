@@ -134,7 +134,9 @@ docs/
 │   ├── kubernetes/        # in-cluster stack, SA + sandbox RBAC/quota/NetworkPolicy, Helm packaging
 │   ├── transcription/     # whisper pipeline → transcripts the chat agent can search
 │   ├── scene-analysis/    # scene-detection + whisper/thumbnail; audio vs visual routes
-│   └── translation/       # extract (whisper/tika/ocr/vlm) → translate → optional tts dubbing
+│   ├── translation/       # extract (whisper/tika/ocr/vlm) → translate → optional tts dubbing
+│   └── python-node/       # custom node as a Python worker (wire protocol + node descriptor)
+│                          #   incl. § "Generating a Node With a Coding Agent" (paste-ready prompt)
 ├── operation/             # Loom & Cortex runtime model — architecture, worker lifecycle (Loom owns the DAG)
 ├── pipeline/              # pipeline mechanism — Loom runs the graph, delegates tasks to Cortex
 ├── nodes/                 # ── Nodes subsystem (top-level "box" like Loom/Cortex) ──
@@ -294,7 +296,16 @@ Non-node diagrams are inline SVG in a `++++` block using the shared `.ml-*` voca
 `custom.less` (`ml-box-container`, `ml-box-part`, `ml-edge`, `ml-chip`, `ml-step`, `ml-flow`,
 `ml-box-gpu`, `ml-box-dyn`, `ml-deny`): the architecture diagram and the container-level **deployment
 overview** on `docs/operation/`, and the **coding sandbox lifecycle** on `docs/loom/chat/`. Give each
-a `<title>` + `<desc>` — they are the accessible description of the figure.
+a `<title>` + `<desc>` referenced from `aria-labelledby` — they are the accessible description of the
+figure. All six **playbook** figures follow the same house style, wrapped in
+`<div class="ml-figure">` with `class="ml-arch-svg"` on the `<svg>`.
+
+> **Prefix marker ids per page.** `<marker>` ids are document-global, so two figures reusing
+> `ml-arrow` on one page collide and one figure loses its arrowheads. Each page uses its own prefix —
+> `ml-dk-*` (docker), `ml-k8s-*` (kubernetes), `ml-tr-*`, `ml-sc-*`, `ml-tl-*`, `ml-py-*`.
+
+> **Do not use ASCII art for architecture or flow diagrams.** It was used in an early draft of the
+> playbooks and replaced; fenced code blocks are for commands, config and JSON only.
 
 > **Animated figures must not change height.** The dispatch animation on `docs/operation/` swaps its
 > caption text every phase; when the caption box was allowed to grow from one line to two, the page
@@ -484,6 +495,7 @@ Only `title` is required; `weight` orders siblings (used by `getting-started` to
 * **Internal links use relative AsciiDoc `link:` targets that resolve to Hugo pretty URLs**,
   e.g. `link:../loom/authentication/[Authentication]` and `link:rest-api[REST API]`. Keep the
   trailing-slash pretty-URL style consistent with existing pages.
+* **Diagrams are inline SVG, not ASCII art** — see [Hand-drawn figures](#hand-drawn-figures).
 * Rich landing/section layout (card grids, note boxes) is done with **raw HTML passthrough
   blocks** `++++ ... ++++` embedding Bootstrap markup + theme CSS classes (`docs-card`, `note`,
   `row`, `col-*`). See `docs/_index.adoc` for the canonical pattern.
@@ -767,6 +779,25 @@ Current state of the website (as of the checkout below):
       runtime model licenses are unaffected
 - [x] Legal section wired into the docs landing card grid, the "Choose Your Path" table and a new
       footer link row (`partials/footer.html` + `i18n/en.yaml`)
+- [x] Custom-node playbook (`docs/playbooks/python-node/`) — Python worker over the wire protocol, the
+      two registrations a custom kind needs (Loom-side node descriptor + the kind the worker advertises),
+      persistence path and packaging. Playbooks contain no Java sources by design; the translation
+      playbook's translate step points here
+- [x] Playbook figures are inline SVG in the `docs/operation/` house style (no ASCII art)
+- [x] `docs/playbooks/python-node/` carries a paste-ready **coding-agent prompt** that generates the
+      whole worker (wire protocol, node contract, persistence, deliverables, definition of done) plus a
+      review checklist of the predictable failure modes. Keep the prompt in sync when the processor
+      protocol or the node-result endpoints change — it duplicates those facts on purpose so an agent
+      without repo access can still produce a correct worker
+- [x] Prompt hardened after a real generation run (`workspaces/metaloom/custom-node`, an ffprobe-based
+      `media-probe` worker). What the first version let through: the wire state `COMPLETED` posted to
+      `/node-results`, whose column CHECK only accepts `SUCCESS|FAILED|SKIPPED`; a missing
+      `producerVersion`; no JWT-expiry handling; no advertised-vs-implemented kind check. All four are
+      now explicit in the prompt, the § "Persist the Result" step and the review checklist
+- [x] Corrected the login endpoint across the docs: it is `POST /api/v1/login` (`LoginEndpoint`), not
+      `/api/v1/auth/login` as `docs/loom/authentication/` and the first playbook draft claimed
+- [x] Legal & Licensing landing page leads with a prominent **Apache 2.0** section — what the license
+      permits, what it covers, and where it stops (model weights, third-party runtimes)
 - [x] Blog section with initial posts
 - [x] GitHub Pages publish flow via sibling `metaloom-website` repo (`pull.sh`, CNAME)
 - [ ] Remove/consolidate legacy stub pages (`docs/rest/`, `docs/test/`, top-level
@@ -780,6 +811,10 @@ Current state of the website (as of the checkout below):
 - [ ] Only load the ~1 MB Swagger UI bundle on the REST API page instead of globally
 - [ ] Fill remaining thin pages (e.g. `helm-chart`) with full content
 - [ ] Automate build+publish (currently manual `build.sh` + `pull.sh` + push)
+- [ ] `examples/cortex-python/daemon.py` posts the wire state (`COMPLETED`) to `/assets/:uuid/node-results`,
+      which the `asset_node_result_state_check` constraint rejects — the ledger row is lost while the
+      json-comp still lands. It also never sends `producerVersion`. Fix the example (map to `SUCCESS`,
+      stamp a version); the playbook currently warns readers about it instead
 - [ ] Revisit the playbooks' "node availability" caveat once `PipelineNodeFactoryModule` registers the
       remaining kinds (`whisper`, `llm`, `ocr`, `tika`, `facedetect`, `captioning`, `scene-detection`,
       `quality`, `consistency`, dedup, `loom`, `filter-*`) — the stock worker currently advertises only

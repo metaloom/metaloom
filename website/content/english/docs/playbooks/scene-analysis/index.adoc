@@ -171,12 +171,69 @@ The same applies to link:../../nodes/loom/[`loom`], which reads `md5sum` → `md
 
 The two routes are the same graph with both branches attached — that is what a DAG is for:
 
-```
-                     ┌─▶ scene-detection ─▶ segments
-  source ─▶ mime ─PASS─▶ sha512 ─▶ consistency ─┼─▶ whisper ────────▶ transcript
-                     └─▶ thumbnail ──────▶ contact sheet
-                     └─▶ quality ────────▶ metrics
-```
+++++
+<div class="ml-figure">
+<svg viewBox="0 0 900 330" role="img" aria-labelledby="ml-sc-title ml-sc-desc" class="ml-arch-svg">
+  <title id="ml-sc-title">Both routes in one graph</title>
+  <desc id="ml-sc-desc">A filesystem source feeds a MIME filter that passes video only, then a sha512 identity node and a consistency check. From the consistency node the graph fans out to four independent nodes — scene detection, whisper, thumbnail and quality — which Loom dispatches in parallel, each producing its own stored component.</desc>
+  <defs>
+    <marker id="ml-sc-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#57cbcc"></path></marker>
+  </defs>
+
+  <!-- linear head -->
+  <rect x="16" y="140" width="120" height="44" rx="6" class="ml-box-part"></rect>
+  <text x="76" y="160" text-anchor="middle" class="ml-part-title">source</text>
+  <text x="76" y="176" text-anchor="middle" class="ml-part-sub">filesystem</text>
+
+  <rect x="164" y="140" width="120" height="44" rx="6" class="ml-box-part"></rect>
+  <text x="224" y="160" text-anchor="middle" class="ml-part-title">mime</text>
+  <text x="224" y="176" text-anchor="middle" class="ml-part-sub">video/*</text>
+
+  <rect x="312" y="140" width="120" height="44" rx="6" class="ml-box-part"></rect>
+  <text x="372" y="160" text-anchor="middle" class="ml-part-title">sha512</text>
+  <text x="372" y="176" text-anchor="middle" class="ml-part-sub">identity</text>
+
+  <rect x="460" y="140" width="130" height="44" rx="6" class="ml-box-part"></rect>
+  <text x="525" y="160" text-anchor="middle" class="ml-part-title">consistency</text>
+  <text x="525" y="176" text-anchor="middle" class="ml-part-sub">decodable?</text>
+
+  <polyline points="136,162 164,162" class="ml-edge" marker-end="url(#ml-sc-arrow)"></polyline>
+  <polyline points="284,162 312,162" class="ml-edge" marker-end="url(#ml-sc-arrow)"></polyline>
+  <text x="298" y="154" text-anchor="middle" class="ml-edge-label">PASS</text>
+  <polyline points="432,162 460,162" class="ml-edge" marker-end="url(#ml-sc-arrow)"></polyline>
+
+  <!-- fan-out -->
+  <rect x="666" y="16" width="180" height="44" rx="6" class="ml-box-part"></rect>
+  <text x="756" y="36" text-anchor="middle" class="ml-part-title">scene-detection</text>
+  <text x="756" y="52" text-anchor="middle" class="ml-part-sub">optical flow</text>
+
+  <rect x="666" y="96" width="180" height="44" rx="6" class="ml-part-gpu"></rect>
+  <text x="756" y="116" text-anchor="middle" class="ml-part-title">whisper</text>
+  <text x="756" y="132" text-anchor="middle" class="ml-part-sub">speech-to-text</text>
+
+  <rect x="666" y="176" width="180" height="44" rx="6" class="ml-box-part"></rect>
+  <text x="756" y="196" text-anchor="middle" class="ml-part-title">thumbnail</text>
+  <text x="756" y="212" text-anchor="middle" class="ml-part-sub">contact sheet</text>
+
+  <rect x="666" y="256" width="180" height="44" rx="6" class="ml-box-part"></rect>
+  <text x="756" y="276" text-anchor="middle" class="ml-part-title">quality</text>
+  <text x="756" y="292" text-anchor="middle" class="ml-part-sub">resolution · blur</text>
+
+  <polyline points="590,162 628,162 628,38 666,38" class="ml-edge" marker-end="url(#ml-sc-arrow)"></polyline>
+  <polyline points="590,162 628,162 628,118 666,118" class="ml-edge" marker-end="url(#ml-sc-arrow)"></polyline>
+  <polyline points="590,162 628,162 628,198 666,198" class="ml-edge" marker-end="url(#ml-sc-arrow)"></polyline>
+  <polyline points="590,162 628,162 628,278 666,278" class="ml-edge" marker-end="url(#ml-sc-arrow)"></polyline>
+
+  <text x="756" y="76" text-anchor="middle" class="ml-edge-label">→ asset_segment_comp</text>
+  <text x="756" y="156" text-anchor="middle" class="ml-edge-label">→ asset_transcript_comp</text>
+  <text x="756" y="236" text-anchor="middle" class="ml-edge-label">→ binary + local cache</text>
+  <text x="756" y="316" text-anchor="middle" class="ml-edge-label">→ quality component</text>
+
+  <text x="300" y="244" text-anchor="middle" class="ml-edge-label">no edges between the four — Loom dispatches them</text>
+  <text x="300" y="262" text-anchor="middle" class="ml-edge-label">independently, possibly to different workers</text>
+</svg>
+</div>
+++++
 
 Costs to keep in mind when you fan out like this:
 

@@ -70,6 +70,19 @@ than repeating it.
 	<div class="col-lg-4 mb-4">
 		<div class="docs-card h-100">
 			<div class="docs-card-header">
+				<h2><a href="python-node/">A Custom Node in Python</a></h2>
+				<p>Run your own processing logic inside a pipeline without touching the JVM build: a single-file worker that advertises its node kind and answers the tasks Loom dispatches.</p>
+			</div>
+			<div class="docs-card-body">
+				<a href="python-node/#node" class="docs-card-link">Write the node</a>
+				<a href="python-node/#descriptor" class="docs-card-link">Register the kind</a>
+				<a href="python-node/#agent-prompt" class="docs-card-link">Coding-agent prompt</a>
+			</div>
+		</div>
+	</div>
+	<div class="col-lg-4 mb-4">
+		<div class="docs-card h-100">
+			<div class="docs-card-header">
 				<h2><a href="translation/">Translating Content</a></h2>
 				<p>Get source text out of speech, documents and images, translate it, and — optionally — speak the translation back onto the asset as narration audio.</p>
 			</div>
@@ -118,10 +131,12 @@ kinds — exist, are covered by tests, and are wired into the worker's node coll
 registered with the pipeline node factory**, so Loom will not route work to them. The registered set is
 growing; `vlm` and `tts` were the most recent additions.
 
-Until a kind you need appears in that list, either register it in
-`cortex/cli/src/main/java/io/metaloom/cortex/cli/dagger/PipelineNodeFactoryModule.java` (one
-`factory.register(...)` line) and rebuild the worker image, or run it from a custom Cortex build as
-described in link:../cortex/examples/[Cortex Examples]. Check the live answer for your deployment with:
+Until a kind you need appears in that list you have two ways round it. The one that needs no JVM
+build at all is to run the work in **your own worker**, which advertises its kinds on the wire —
+link:python-node/[A Custom Node in Python] walks through it end to end. Otherwise register the kind
+with the JVM worker's pipeline node factory (a single line in
+`cortex/cli/.../dagger/PipelineNodeFactoryModule.java`) and rebuild the `cortex-server` image. Check
+the live answer for your deployment with:
 
 [source,bash]
 ----
@@ -137,7 +152,7 @@ the registered set fills in.
 |===
 | Convention | Meaning
 | `$LOOM` | Base URL of the Loom server, e.g. `http://localhost:8092`
-| `$TOKEN` | A JWT from `POST /api/v1/auth/login`, or an API key from `/api/v1/tokens`
+| `$TOKEN` | A JWT from `POST /api/v1/login`, or an API key from `/api/v1/tokens`
 | Pipeline JSON | Shown in the shape Loom's graph parser executes — `nodes[]`, `edges[]`, per-node `options`
 | Node kinds | Written as they appear in a definition's `type` field: `whisper`, `filter-mimetype`, …
 |===

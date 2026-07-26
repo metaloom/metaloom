@@ -12,19 +12,84 @@ constraints are the same; only the packaging changes.
 
 == What You Will Build
 
-```
-  namespace: loom                          namespace: loom-runners
-  ┌────────────────────────────────┐       ┌──────────────────────────────┐
-  │ Deployment loom-server         │       │ Pod loom-runner-<session>    │
-  │   sa: loom  ───────────────────┼──────▶│   app: loom-session-runner   │
-  │   :8092 REST/WS/UI             │create │   :8080 runnerd, /workspace  │
-  │   :8989 /metrics               │ pods  │   no service account token   │
-  ├────────────────────────────────┤       │   no egress                  │
-  │ Deployment cortex-cpu  (N)     │       └──────────────────────────────┘
-  │ Deployment cortex-gpu  (M)     │        ResourceQuota · LimitRange
-  │   :8093 health/ready           │        default-deny NetworkPolicy
-  └────────────────────────────────┘
-```
+++++
+<div class="ml-figure">
+<svg viewBox="0 0 900 384" role="img" aria-labelledby="ml-k8s-title ml-k8s-desc" class="ml-arch-svg">
+  <title id="ml-k8s-title">The two-namespace Kubernetes layout</title>
+  <desc id="ml-k8s-desc">In the loom namespace a loom-server Deployment runs under the loom service account with config and uploads volumes, next to a CPU and a GPU Cortex StatefulSet. Using its service-account token it creates Session Runner Pods in the separate loom-runners namespace and reaches them on port 8080. That namespace carries a ResourceQuota, a LimitRange and a default-deny NetworkPolicy.</desc>
+  <defs>
+    <marker id="ml-k8s-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#57cbcc"></path></marker>
+    <marker id="ml-k8s-arrow-muted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6b7681"></path></marker>
+  </defs>
+
+  <!-- namespace loom -->
+  <g>
+    <rect x="16" y="16" width="516" height="352" rx="12" class="ml-box-container"></rect>
+    <text x="32" y="40" class="ml-box-title">namespace: loom</text>
+
+    <rect x="32" y="54" width="484" height="120" rx="10" class="ml-box-part"></rect>
+    <text x="46" y="76" class="ml-box-title">Deployment loom-server</text>
+    <text x="46" y="92" class="ml-box-tag">serviceAccountName: loom · replicas: 1</text>
+    <rect x="46" y="102" width="216" height="30" rx="6" class="ml-box-part"></rect>
+    <text x="154" y="122" text-anchor="middle" class="ml-part-sub">:8092 REST · WS · UI</text>
+    <rect x="272" y="102" width="230" height="30" rx="6" class="ml-box-part"></rect>
+    <text x="387" y="122" text-anchor="middle" class="ml-part-sub">:8989 /metrics</text>
+    <rect x="46" y="138" width="216" height="26" rx="6" class="ml-box-part"></rect>
+    <text x="154" y="156" text-anchor="middle" class="ml-part-sub">PVC /config — keystore</text>
+    <rect x="272" y="138" width="230" height="26" rx="6" class="ml-box-part"></rect>
+    <text x="387" y="156" text-anchor="middle" class="ml-part-sub">PVC /uploads — binaries</text>
+
+    <rect x="32" y="188" width="234" height="86" rx="10" class="ml-box-part"></rect>
+    <text x="46" y="210" class="ml-box-title">StatefulSet cortex-cpu</text>
+    <text x="46" y="226" class="ml-box-tag">replicas: N · :8093</text>
+    <text x="149" y="252" text-anchor="middle" class="ml-part-sub">stable CORTEX_NODE_ID</text>
+    <text x="149" y="266" text-anchor="middle" class="ml-part-sub">per-replica /meta volume</text>
+
+    <rect x="282" y="188" width="234" height="86" rx="10" class="ml-box-gpu"></rect>
+    <text x="296" y="210" class="ml-box-title">StatefulSet cortex-gpu</text>
+    <text x="296" y="226" class="ml-box-tag">nvidia.com/gpu: 1</text>
+    <text x="399" y="252" text-anchor="middle" class="ml-part-sub">CORTEX_NODE_WHITELIST</text>
+    <text x="399" y="266" text-anchor="middle" class="ml-part-sub">whisper · facedetect · vlm</text>
+
+    <rect x="32" y="290" width="484" height="60" rx="10" class="ml-box-part"></rect>
+    <text x="46" y="312" class="ml-box-title">PVC media (ReadWriteMany)</text>
+    <text x="274" y="336" text-anchor="middle" class="ml-part-sub">same mountPath in every worker pool</text>
+  </g>
+
+  <!-- namespace loom-runners -->
+  <g>
+    <rect x="580" y="16" width="304" height="352" rx="12" class="ml-box-container"></rect>
+    <text x="596" y="40" class="ml-box-title">namespace: loom-runners</text>
+
+    <rect x="596" y="54" width="272" height="132" rx="10" class="ml-box-dyn"></rect>
+    <text x="610" y="76" class="ml-box-title">Pod loom-runner-&lt;session&gt;</text>
+    <text x="610" y="92" class="ml-box-tag">app: loom-session-runner · one per chat</text>
+    <rect x="610" y="102" width="244" height="30" rx="6" class="ml-box-part"></rect>
+    <text x="732" y="122" text-anchor="middle" class="ml-part-sub">runnerd :8080 · /workspace</text>
+    <text x="732" y="150" text-anchor="middle" class="ml-part-sub">runAsNonRoot · caps dropped · RO root</text>
+    <text x="732" y="166" text-anchor="middle" class="ml-part-sub">no SA token · no egress · deadline</text>
+
+    <rect x="596" y="202" width="272" height="148" rx="10" class="ml-box-part"></rect>
+    <text x="610" y="224" class="ml-box-title">Guardrails on the namespace</text>
+    <text x="610" y="252" class="ml-part-sub">Role + RoleBinding — pods: create/get/delete</text>
+    <text x="610" y="276" class="ml-part-sub">ResourceQuota — caps live runners</text>
+    <text x="610" y="300" class="ml-part-sub">LimitRange — per-runner defaults</text>
+    <text x="610" y="324" class="ml-part-sub">NetworkPolicy — ingress from Loom only</text>
+  </g>
+
+  <!-- edges -->
+  <polyline points="516,110 596,110" class="ml-edge" marker-end="url(#ml-k8s-arrow)"></polyline>
+  <text x="556" y="102" text-anchor="middle" class="ml-edge-label">create Pod</text>
+  <text x="556" y="132" text-anchor="middle" class="ml-edge-label">SA token</text>
+  <polyline points="596,126 516,126" class="ml-edge" marker-end="url(#ml-k8s-arrow)"></polyline>
+  <text x="556" y="146" text-anchor="middle" class="ml-edge-label">HTTP :8080</text>
+
+  <polyline points="149,274 149,290" class="ml-edge-dashed" marker-end="url(#ml-k8s-arrow-muted)"></polyline>
+  <polyline points="399,274 399,290" class="ml-edge-dashed" marker-end="url(#ml-k8s-arrow-muted)"></polyline>
+  <polyline points="274,174 274,188" class="ml-edge" marker-end="url(#ml-k8s-arrow)" marker-start="url(#ml-k8s-arrow)"></polyline>
+</svg>
+</div>
+++++
 
 Two namespaces is a deliberate choice: runner Pods are created by the agent at runtime from untrusted
 model output, so they get their own namespace with its own quota and network policy, and the RBAC that

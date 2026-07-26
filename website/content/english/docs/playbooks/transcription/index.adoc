@@ -12,17 +12,72 @@ transcripts, and the chat questions those transcripts then make answerable.
 
 == How the Pieces Line Up
 
-```
-  filesystem-source ─▶ filter-mimetype ─PASS─▶ sha512 ─▶ whisper
-        walks disk        video/* audio/*      identity   transcribe
-                                                             │
-                                                             ▼
-                                            asset_transcript_comp in Loom
-                                                             │
-                                              search_transcript tool
-                                                             │
-                                                   Chat & AI Agent ◀── "what did they say about …?"
-```
+++++
+<div class="ml-figure">
+<svg viewBox="0 0 900 300" role="img" aria-labelledby="ml-tr-title ml-tr-desc" class="ml-arch-svg">
+  <title id="ml-tr-title">From files on disk to an answer in the chat</title>
+  <desc id="ml-tr-desc">A filesystem-source node walks the library, a filter-mimetype node passes only audio and video, a sha512 node establishes asset identity, and a whisper node transcribes. The transcript is stored in Loom as an asset transcript component, which the chat agent reads through the search_transcript tool to answer a user question.</desc>
+  <defs>
+    <marker id="ml-tr-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#57cbcc"></path></marker>
+    <marker id="ml-tr-arrow-muted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6b7681"></path></marker>
+  </defs>
+
+  <!-- pipeline row -->
+  <g>
+    <rect x="16" y="52" width="868" height="94" rx="12" class="ml-box-container"></rect>
+    <text x="868" y="76" text-anchor="end" class="ml-box-title">Pipeline — Loom dispatches one node task at a time</text>
+
+    <rect x="32" y="86" width="180" height="46" rx="6" class="ml-box-part"></rect>
+    <text x="122" y="106" text-anchor="middle" class="ml-part-title">filesystem-source</text>
+    <text x="122" y="122" text-anchor="middle" class="ml-part-sub">walks the library</text>
+
+    <rect x="248" y="86" width="180" height="46" rx="6" class="ml-box-part"></rect>
+    <text x="338" y="106" text-anchor="middle" class="ml-part-title">filter-mimetype</text>
+    <text x="338" y="122" text-anchor="middle" class="ml-part-sub">video/* · audio/*</text>
+
+    <rect x="464" y="86" width="180" height="46" rx="6" class="ml-box-part"></rect>
+    <text x="554" y="106" text-anchor="middle" class="ml-part-title">sha512</text>
+    <text x="554" y="122" text-anchor="middle" class="ml-part-sub">asset identity</text>
+
+    <rect x="680" y="86" width="180" height="46" rx="6" class="ml-part-gpu"></rect>
+    <text x="770" y="106" text-anchor="middle" class="ml-part-title">whisper</text>
+    <text x="770" y="122" text-anchor="middle" class="ml-part-sub">transcribe</text>
+
+    <polyline points="212,109 248,109" class="ml-edge" marker-end="url(#ml-tr-arrow)"></polyline>
+    <polyline points="428,109 464,109" class="ml-edge" marker-end="url(#ml-tr-arrow)"></polyline>
+    <text x="446" y="101" text-anchor="middle" class="ml-edge-label">PASS</text>
+    <polyline points="644,109 680,109" class="ml-edge" marker-end="url(#ml-tr-arrow)"></polyline>
+  </g>
+
+  <!-- media source -->
+  <g>
+    <rect x="16" y="8" width="240" height="30" rx="8" class="ml-box-container"></rect>
+    <text x="136" y="28" text-anchor="middle" class="ml-part-sub">/media/library — files on disk</text>
+  </g>
+  <polyline points="136,38 136,86" class="ml-edge-dashed" marker-end="url(#ml-tr-arrow-muted)"></polyline>
+
+  <!-- storage -->
+  <g>
+    <rect x="560" y="182" width="324" height="60" rx="10" class="ml-box-part"></rect>
+    <text x="574" y="204" class="ml-box-title">asset_transcript_comp</text>
+    <text x="722" y="228" text-anchor="middle" class="ml-part-sub">+ asset_node_result ledger row</text>
+  </g>
+  <polyline points="770,132 770,182" class="ml-edge" marker-end="url(#ml-tr-arrow)"></polyline>
+  <text x="778" y="164" text-anchor="start" class="ml-edge-label">persist over REST</text>
+
+  <!-- chat -->
+  <g>
+    <rect x="16" y="182" width="380" height="100" rx="10" class="ml-box-container"></rect>
+    <text x="32" y="204" class="ml-box-title">Chat &amp; AI Agent</text>
+    <rect x="32" y="214" width="348" height="26" rx="6" class="ml-box-part"></rect>
+    <text x="206" y="232" text-anchor="middle" class="ml-part-sub">search_transcript · get_asset · search_assets</text>
+    <text x="206" y="264" text-anchor="middle" class="ml-part-sub">“which clips mention the launch date?”</text>
+  </g>
+  <polyline points="560,212 396,212" class="ml-edge" marker-end="url(#ml-tr-arrow)"></polyline>
+  <text x="478" y="204" text-anchor="middle" class="ml-edge-label">read</text>
+</svg>
+</div>
+++++
 
 Two links in that chain are easy to get wrong, and both are about *identity*:
 

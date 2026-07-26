@@ -30,7 +30,7 @@ This page is the quickest way to orient yourself in the platform and jump to the
 		<div class="docs-card h-100">
 			<div class="docs-card-header">
 				<h2><a href="playbooks/">Playbooks</a></h2>
-				<p>Task-oriented guides that string the whole platform together: deploying the stack with Docker or Kubernetes, and building pipelines that transcribe, analyse scenes and translate content.</p>
+				<p>Task-oriented guides that string the whole platform together: deploying the stack with Docker or Kubernetes, building pipelines that transcribe, analyse scenes and translate content, and writing a processing node of your own.</p>
 			</div>
 			<div class="docs-card-body">
 				<a href="playbooks/docker/" class="docs-card-link">Docker Deployment</a>
@@ -38,6 +38,7 @@ This page is the quickest way to orient yourself in the platform and jump to the
 				<a href="playbooks/transcription/" class="docs-card-link">Transcription for Chat</a>
 				<a href="playbooks/scene-analysis/" class="docs-card-link">Scene Analysis</a>
 				<a href="playbooks/translation/" class="docs-card-link">Translation</a>
+				<a href="playbooks/python-node/" class="docs-card-link">Custom Node (Python)</a>
 			</div>
 		</div>
 	</div>
@@ -214,7 +215,7 @@ Choose the documentation track that matches your task:
 
 | Build a working pipeline end to end
 | link:playbooks/[Playbooks]
-| link:playbooks/transcription/[Transcription], link:playbooks/scene-analysis/[Scene Analysis], link:playbooks/translation/[Translation]
+| link:playbooks/transcription/[Transcription], link:playbooks/scene-analysis/[Scene Analysis], link:playbooks/translation/[Translation], link:playbooks/python-node/[Custom Node]
 
 | Learn the data model and feature surface
 | link:loom/features/[Loom Features]

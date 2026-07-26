@@ -15,12 +15,70 @@ specific reason spelled out below.
 
 == The Shape of It
 
-```
-  speech   ─▶ whisper ─▶ whisper_result ─┐
-  documents ─▶ tika   ─▶ tika_content   ─┼─▶  translate  ─▶ translated text ─▶ tts ─▶ narration WAV
-  images    ─▶ ocr    ─▶ ocr_text       ─┤
-  scans     ─▶ vlm    ─▶ vlm_result_*   ─┘
-```
+++++
+<div class="ml-figure">
+<svg viewBox="0 0 900 300" role="img" aria-labelledby="ml-tl-title ml-tl-desc" class="ml-arch-svg">
+  <title id="ml-tl-title">Extract, translate, speak</title>
+  <desc id="ml-tl-desc">Four extractor nodes turn media into text: whisper for speech, tika for documents, ocr for images and vlm for scanned pages, each emitting a named output key. Those outputs feed a translate step, whose translated text can then be handed to the tts node to synthesize narration audio.</desc>
+  <defs>
+    <marker id="ml-tl-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#57cbcc"></path></marker>
+  </defs>
+
+  <!-- extractors -->
+  <g>
+    <rect x="16" y="30" width="330" height="252" rx="12" class="ml-box-container"></rect>
+    <text x="32" y="54" class="ml-box-title">1 · Extract — stock nodes</text>
+
+    <rect x="32" y="66" width="298" height="44" rx="6" class="ml-box-part"></rect>
+    <text x="48" y="86" class="ml-part-title">whisper</text>
+    <text x="314" y="86" text-anchor="end" class="ml-part-sub">whisper_result</text>
+    <text x="48" y="102" class="ml-part-sub">video · audio</text>
+
+    <rect x="32" y="120" width="298" height="44" rx="6" class="ml-box-part"></rect>
+    <text x="48" y="140" class="ml-part-title">tika</text>
+    <text x="314" y="140" text-anchor="end" class="ml-part-sub">tika_content</text>
+    <text x="48" y="156" class="ml-part-sub">documents</text>
+
+    <rect x="32" y="174" width="298" height="44" rx="6" class="ml-box-part"></rect>
+    <text x="48" y="194" class="ml-part-title">ocr</text>
+    <text x="314" y="194" text-anchor="end" class="ml-part-sub">ocr_text</text>
+    <text x="48" y="210" class="ml-part-sub">images with text</text>
+
+    <rect x="32" y="228" width="298" height="44" rx="6" class="ml-part-gpu"></rect>
+    <text x="48" y="248" class="ml-part-title">vlm</text>
+    <text x="314" y="248" text-anchor="end" class="ml-part-sub">vlm_result_*</text>
+    <text x="48" y="264" class="ml-part-sub">scans · layout kept</text>
+  </g>
+
+  <!-- translate -->
+  <g>
+    <rect x="440" y="96" width="200" height="120" rx="12" class="ml-box-dyn"></rect>
+    <text x="456" y="120" class="ml-box-title">2 · Translate</text>
+    <text x="540" y="146" text-anchor="middle" class="ml-part-sub">REST batch (no code)</text>
+    <text x="540" y="166" text-anchor="middle" class="ml-part-sub">chat agent + skill</text>
+    <text x="540" y="186" text-anchor="middle" class="ml-part-sub">custom node</text>
+    <text x="540" y="206" text-anchor="middle" class="ml-box-tag">not a stock node — pick one</text>
+  </g>
+
+  <!-- tts -->
+  <g>
+    <rect x="700" y="96" width="184" height="120" rx="12" class="ml-box-container"></rect>
+    <text x="716" y="120" class="ml-box-title">3 · Speak</text>
+    <rect x="716" y="132" width="152" height="44" rx="6" class="ml-box-part"></rect>
+    <text x="792" y="152" text-anchor="middle" class="ml-part-title">tts</text>
+    <text x="792" y="168" text-anchor="middle" class="ml-part-sub">Orpheus · Kokoro</text>
+    <text x="792" y="198" text-anchor="middle" class="ml-part-sub">tts_path — narration WAV</text>
+  </g>
+
+  <polyline points="346,88 400,88 400,156 440,156" class="ml-edge" marker-end="url(#ml-tl-arrow)"></polyline>
+  <polyline points="346,142 400,142 400,156 440,156" class="ml-edge" marker-end="url(#ml-tl-arrow)"></polyline>
+  <polyline points="346,196 400,196 400,156 440,156" class="ml-edge" marker-end="url(#ml-tl-arrow)"></polyline>
+  <polyline points="346,250 400,250 400,156 440,156" class="ml-edge" marker-end="url(#ml-tl-arrow)"></polyline>
+  <polyline points="640,156 700,156" class="ml-edge" marker-end="url(#ml-tl-arrow)"></polyline>
+  <text x="670" y="148" text-anchor="middle" class="ml-edge-label">plain text</text>
+</svg>
+</div>
+++++
 
 [IMPORTANT]
 ====
@@ -135,43 +193,40 @@ conversation, not persist it onto the asset. Pair it with Option A when the tran
 
 === Option C — A translate node (the durable answer)
 
-Once translation is a routine part of ingest, it belongs in the graph. A translate node is a small
-custom node: read the upstream text, call the provider, emit an output key.
+Once translation is a routine part of ingest, it belongs in the graph. A translate node is small: read
+the upstream text, call the provider, emit an output key. Loom ships the outputs of upstream nodes to
+the worker **together with the node task**, so a node can consume a transcript produced by a different
+node on a different machine.
 
-[source,java]
+The quickest way to build one is a Python worker — a single file that advertises the kind and runs it.
+The whole procedure, from an empty file to a pipeline that dispatches to it, is
+link:../python-node/[A Custom Node in Python]. The node body is the only part that differs from the
+example there:
+
+[source,python]
 ----
-public class TranslateNode extends AbstractMediaNode<TranslateNodeOptions> {
+def run_node(node_kind, media_path, options, upstream):
+    # Read the transcript the whisper node produced upstream. `upstream` is
+    # shaped {nodeId: {outputKey: value}} — the node id from the pipeline
+    # definition, not the node kind.
+    source = (upstream.get(options.get("sourceNodeId", "speech")) or {}) \
+        .get(options.get("sourceOutputKey", "whisper_result"))
+    if not source:
+        return NodeResult.skipped("no upstream text")
 
-  public static final NodeOutputKey<String> OUTPUT_TRANSLATION =
-      NodeOutputKey.of("translation_text", String.class);
+    translated = translate(source, options.get("targetLanguage", "en"))
 
-  @Override
-  public String name() { return "translate"; }
-
-  @Override
-  protected boolean isProcessable(NodeContext<LoomMedia> ctx) {
-    return ctx.upstreamOutput(options().getSourceNodeId(), options().getSourceOutputKey()) != null;
-  }
-
-  @Override
-  protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) {
-    Object source = ctx.upstreamOutput(options().getSourceNodeId(), options().getSourceOutputKey());
-    String translated = translate(source.toString(), options().getTargetLanguage());
-    ctx.output(OUTPUT_TRANSLATION, translated);
-    persistJsonComp(asset, translated);          // same pattern every stock node uses
-    return NodeResult.success(ctx.outputs());
-  }
-}
+    # The output key downstream nodes (e.g. tts) address this node by.
+    return NodeResult.completed({"translation_text": translated})
 ----
 
 The `sourceNodeId` / `sourceOutputKey` pair is the established convention for a node that consumes
-another node's output — link:../../nodes/tts/[`tts`] uses exactly that. Upstream outputs are shipped to
-the worker together with the node task, so this works across the distributed dispatch.
+another node's output — link:../../nodes/tts/[`tts`] uses exactly that, so following it means `tts` can
+be pointed at your node with configuration alone.
 
-Register the node in your Cortex build's node collection *and* with the pipeline node factory, then
-advertise it — a worker becomes dispatchable for a kind as soon as it registers it. Full working
-examples (custom node, custom daemon, Python worker) are in
-link:../../cortex/examples/[Cortex Examples].
+Two registrations are needed before Loom will route work to the kind: a **node descriptor** on the Loom
+side, so `translate` passes pipeline validation and appears in the UI palette, and the kind in your
+worker's advertised list. Both are covered in the link:../python-node/[Python node playbook].
 
 [#dub]
 == Step 3 — Speak the Translation

@@ -13,24 +13,91 @@ link:../../getting-started/[Getting Started]. Everything below assumes you want 
 
 == What You Will Build
 
-```
-             ┌──────────────┐
-             │  postgres    │  :5432   (loom database)
-             └──────▲───────┘
-                    │ JDBC
-             ┌──────┴───────┐
-  browser ──▶│ loom-server  │  :8092  REST + WebSocket + UI
-  clients    │              │  :8989  health / metrics
-             └──────▲───────┘
-                    │  Cortex dials OUT to 8092 (Loom never dials in)
-        ┌───────────┴────────────┐
-        │                        │
- ┌──────┴───────┐        ┌───────┴──────┐
- │ cortex-cpu   │        │ cortex-gpu   │   :8093  health / readiness
- │ hash, tika … │        │ whisper …    │
- └──────┬───────┘        └───────┬──────┘
-        └──────── /media ────────┘   the SAME path in every worker
-```
+++++
+<div class="ml-figure">
+<svg viewBox="0 0 900 356" role="img" aria-labelledby="ml-dk-title ml-dk-desc" class="ml-arch-svg">
+  <title id="ml-dk-title">The Docker stack this playbook builds</title>
+  <desc id="ml-dk-desc">A browser talks to the loom-server container on port 8092. Loom persists to a postgres container over JDBC. Two cortex-server containers, a CPU worker and a GPU worker, dial out to Loom on 8092 and expose health on 8093. Both workers mount the same shared media directory, which Loom references by path.</desc>
+  <defs>
+    <marker id="ml-dk-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#57cbcc"></path></marker>
+    <marker id="ml-dk-arrow-muted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6b7681"></path></marker>
+  </defs>
+
+  <!-- Browser -->
+  <g>
+    <rect x="24" y="24" width="190" height="60" rx="10" class="ml-box-container"></rect>
+    <text x="36" y="46" class="ml-box-title">Browser / client</text>
+    <text x="119" y="68" text-anchor="middle" class="ml-part-sub">UI · REST · CLI</text>
+  </g>
+
+  <!-- Postgres -->
+  <g>
+    <rect x="24" y="122" width="190" height="82" rx="10" class="ml-box-container"></rect>
+    <text x="36" y="144" class="ml-box-title">postgres</text>
+    <text x="36" y="160" class="ml-box-tag">postgres:16.3-bullseye</text>
+    <text x="119" y="184" text-anchor="middle" class="ml-part-sub">volume pgdata · :5432</text>
+  </g>
+
+  <!-- Loom server -->
+  <g>
+    <rect x="270" y="24" width="266" height="180" rx="10" class="ml-box-container"></rect>
+    <text x="284" y="46" class="ml-box-title">loom-server</text>
+    <text x="284" y="62" class="ml-box-tag">metaloom/loom-server</text>
+    <rect x="284" y="72" width="238" height="42" rx="6" class="ml-box-part"></rect>
+    <text x="403" y="90" text-anchor="middle" class="ml-part-title">REST · WebSocket · UI</text>
+    <text x="403" y="106" text-anchor="middle" class="ml-part-sub">:8092 · metrics :8989</text>
+    <rect x="284" y="122" width="114" height="66" rx="6" class="ml-box-part"></rect>
+    <text x="341" y="142" text-anchor="middle" class="ml-part-title">/config</text>
+    <text x="341" y="159" text-anchor="middle" class="ml-part-sub">loom.yml</text>
+    <text x="341" y="175" text-anchor="middle" class="ml-part-sub">keystore.jceks</text>
+    <rect x="408" y="122" width="114" height="66" rx="6" class="ml-box-part"></rect>
+    <text x="465" y="142" text-anchor="middle" class="ml-part-title">/uploads</text>
+    <text x="465" y="159" text-anchor="middle" class="ml-part-sub">asset binaries</text>
+    <text x="465" y="175" text-anchor="middle" class="ml-part-sub">thumbnails</text>
+  </g>
+
+  <!-- Cortex CPU -->
+  <g>
+    <rect x="600" y="24" width="276" height="84" rx="10" class="ml-box-container"></rect>
+    <text x="614" y="46" class="ml-box-title">cortex-cpu</text>
+    <text x="614" y="62" class="ml-box-tag">metaloom/cortex-server · :8093</text>
+    <rect x="614" y="72" width="248" height="26" rx="6" class="ml-box-part"></rect>
+    <text x="738" y="90" text-anchor="middle" class="ml-part-sub">hash · tika · thumbnail · filters</text>
+  </g>
+
+  <!-- Cortex GPU -->
+  <g>
+    <rect x="600" y="124" width="276" height="84" rx="10" class="ml-box-gpu"></rect>
+    <text x="614" y="146" class="ml-box-title">cortex-gpu</text>
+    <text x="614" y="162" class="ml-box-tag">same image · CORTEX_NODE_WHITELIST</text>
+    <rect x="614" y="172" width="248" height="26" rx="6" class="ml-part-gpu"></rect>
+    <text x="738" y="190" text-anchor="middle" class="ml-part-sub">whisper · facedetect · vlm</text>
+  </g>
+
+  <!-- Shared media -->
+  <g>
+    <rect x="24" y="266" width="868" height="62" rx="10" class="ml-box-container"></rect>
+    <text x="36" y="288" class="ml-box-title">/srv/media — shared media library</text>
+    <text x="458" y="312" text-anchor="middle" class="ml-part-sub">mounted at the SAME path in every worker — Loom sends the path, never the bytes</text>
+  </g>
+
+  <!-- edges -->
+  <polyline points="214,54 270,54" class="ml-edge" marker-end="url(#ml-dk-arrow)" marker-start="url(#ml-dk-arrow)"></polyline>
+  <text x="242" y="46" text-anchor="middle" class="ml-edge-label">:8092</text>
+
+  <polyline points="270,163 214,163" class="ml-edge" marker-end="url(#ml-dk-arrow)" marker-start="url(#ml-dk-arrow)"></polyline>
+  <text x="242" y="155" text-anchor="middle" class="ml-edge-label">JDBC</text>
+
+  <polyline points="600,60 536,60" class="ml-edge" marker-end="url(#ml-dk-arrow)" marker-start="url(#ml-dk-arrow)"></polyline>
+  <polyline points="600,160 568,160 568,96 536,96" class="ml-edge" marker-end="url(#ml-dk-arrow)" marker-start="url(#ml-dk-arrow)"></polyline>
+  <text x="876" y="16" text-anchor="end" class="ml-edge-label">workers dial OUT to :8092 — Loom never dials in</text>
+
+  <polyline points="403,204 403,266" class="ml-edge-dashed" marker-end="url(#ml-dk-arrow-muted)"></polyline>
+  <polyline points="738,208 738,266" class="ml-edge-dashed" marker-end="url(#ml-dk-arrow-muted)"></polyline>
+  <polyline points="876,66 890,66 890,266" class="ml-edge-dashed" marker-end="url(#ml-dk-arrow-muted)"></polyline>
+</svg>
+</div>
+++++
 
 The single rule that catches everyone: **Loom hands out file paths, not bytes.** When a pipeline
 processes `/media/library/clip.mp4`, that exact path must resolve inside every worker that might get
@@ -107,7 +174,7 @@ Loom** when it has one. In practice you always want one.
 ----
 LOOM=http://localhost:8092
 
-TOKEN=$(curl -s -X POST $LOOM/api/v1/auth/login \
+TOKEN=$(curl -s -X POST $LOOM/api/v1/login \
   -H 'Content-Type: application/json' \
   -d '{"username":"admin","password":"first-login-password"}' | jq -r .token)
 ----

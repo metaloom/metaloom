@@ -12,6 +12,7 @@
  - Don't mention spec files
  - Don't include internal coding references
  - Keep the website docs customer facing
+ - Don't use asciiart chart - Use SVG graphics
 
 ## Demo
 * New features must have meaningful default demo data (see DemoDatabaseInitializer)

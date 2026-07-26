@@ -1,0 +1,591 @@
+---
+title: A Custom Node in Python
+weight: 6
+---
+
+The built-in nodes cover hashing, transcription, OCR, faces and scenes — but not your domain. This
+playbook adds a **node of your own, written in Python**, and gets Loom dispatching real pipeline work
+to it.
+
+No JVM build, no Dagger, no rebuild of `cortex-server`. A worker is anything that speaks Loom's wire
+protocol and answers the tasks it is given.
+
+== How a Python Worker Fits In
+
+The Cortex node SPI is JVM-only, so a Python worker does not implement it — it talks to Loom directly
+over the two planes every worker uses:
+
+++++
+<div class="ml-figure">
+<svg viewBox="0 0 900 330" role="img" aria-labelledby="ml-py-title ml-py-desc" class="ml-arch-svg">
+  <title id="ml-py-title">How a Python worker connects to Loom</title>
+  <desc id="ml-py-desc">A Python daemon opens a WebSocket control plane to Loom, sends REGISTER with the node kinds it advertises, receives NODE_TASK messages and answers with NODE_TASK_RESULT. Separately it writes the computed payload over the REST data plane as a json-comp and a node-result ledger row. The worker reads media itself from the shared media mount.</desc>
+  <defs>
+    <marker id="ml-py-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#57cbcc"></path></marker>
+    <marker id="ml-py-arrow-muted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6b7681"></path></marker>
+  </defs>
+
+  <!-- worker -->
+  <g>
+    <rect x="16" y="40" width="280" height="180" rx="12" class="ml-box-dyn"></rect>
+    <text x="32" y="64" class="ml-box-title">your Python daemon</text>
+    <text x="32" y="80" class="ml-box-tag">daemon.py · websockets + stdlib</text>
+    <rect x="32" y="90" width="248" height="46" rx="6" class="ml-box-part"></rect>
+    <text x="156" y="110" text-anchor="middle" class="ml-part-title">run_node()</text>
+    <text x="156" y="126" text-anchor="middle" class="ml-part-sub">the only part you write</text>
+    <rect x="32" y="146" width="248" height="26" rx="6" class="ml-box-part"></rect>
+    <text x="156" y="164" text-anchor="middle" class="ml-part-sub">CORTEX_NODE_ID · stable identity</text>
+    <rect x="32" y="180" width="248" height="26" rx="6" class="ml-box-part"></rect>
+    <text x="156" y="198" text-anchor="middle" class="ml-part-sub">CORTEX_NODE_KINDS · what it advertises</text>
+  </g>
+
+  <!-- loom -->
+  <g>
+    <rect x="604" y="40" width="280" height="180" rx="12" class="ml-box-container"></rect>
+    <text x="620" y="64" class="ml-box-title">Loom</text>
+    <rect x="620" y="76" width="248" height="46" rx="6" class="ml-box-part"></rect>
+    <text x="744" y="96" text-anchor="middle" class="ml-part-title">pipeline run engine</text>
+    <text x="744" y="112" text-anchor="middle" class="ml-part-sub">routes a task by node kind</text>
+    <rect x="620" y="132" width="248" height="34" rx="6" class="ml-box-part"></rect>
+    <text x="744" y="154" text-anchor="middle" class="ml-part-sub">node descriptor registry</text>
+    <rect x="620" y="176" width="248" height="30" rx="6" class="ml-box-part"></rect>
+    <text x="744" y="196" text-anchor="middle" class="ml-part-sub">asset components + ledger</text>
+  </g>
+
+  <!-- planes -->
+  <polyline points="296,100 604,100" class="ml-edge" marker-end="url(#ml-py-arrow)" marker-start="url(#ml-py-arrow)"></polyline>
+  <text x="450" y="76" text-anchor="middle" class="ml-box-title">control plane — WebSocket</text>
+  <text x="450" y="92" text-anchor="middle" class="ml-edge-label">/api/v1/processors/ws</text>
+  <text x="450" y="122" text-anchor="middle" class="ml-edge-label">REGISTER · HEARTBEAT → NODE_TASK → NODE_TASK_RESULT</text>
+
+  <polyline points="296,180 604,180" class="ml-edge" marker-end="url(#ml-py-arrow)"></polyline>
+  <text x="450" y="158" text-anchor="middle" class="ml-box-title">data plane — REST</text>
+  <text x="450" y="200" text-anchor="middle" class="ml-edge-label">POST /assets/:uuid/json-comps · /node-results</text>
+
+  <!-- media -->
+  <g>
+    <rect x="16" y="256" width="868" height="58" rx="10" class="ml-box-container"></rect>
+    <text x="32" y="278" class="ml-box-title">shared media mount</text>
+    <text x="450" y="302" text-anchor="middle" class="ml-part-sub">the task carries a path — your worker opens the file itself</text>
+  </g>
+  <polyline points="156,220 156,256" class="ml-edge-dashed" marker-end="url(#ml-py-arrow-muted)"></polyline>
+  <polyline points="744,220 744,256" class="ml-edge-dashed" marker-end="url(#ml-py-arrow-muted)"></polyline>
+</svg>
+</div>
+++++
+
+The control plane makes the worker part of the fleet; the data plane is where the computed payload is
+durably stored. A `NODE_TASK_RESULT` tells the engine the node finished and carries its outputs for
+downstream nodes — it is *not* how the data gets saved.
+
+== Prerequisites
+
+* A running Loom — link:../docker/[Docker] or link:../kubernetes/[Kubernetes], or just
+  `./start-postgres.sh && ./start-demo.sh` from the repo root for a local one.
+* Python 3.11+ and `pip install websockets` (the REST calls use the standard library).
+* The media library readable by this process at the **same path Loom hands out**.
+* A token — a JWT from `POST /api/v1/login`, or a long-lived API key.
+
+== Step 1 — Start From the Reference Daemon
+
+`examples/cortex-python/daemon.py` in the source repository is a complete, single-file worker: connect,
+register, heartbeat, receive a task, run a node, persist, answer. Copy it and change one function.
+
+[source,bash]
+----
+cp -r examples/cortex-python my-node && cd my-node
+pip install -r requirements.txt
+
+# Verify the node logic with no Loom server involved
+python daemon.py --selftest ./some-file.txt
+----
+
+The self-test path is worth using while you iterate: it calls your node directly and prints the result,
+so you are not debugging protocol plumbing and node logic at the same time.
+
+TIP: Working with a coding agent? link:#agent-prompt[Generating a Node With a Coding Agent] below is a
+ready-to-paste prompt that produces the whole worker — it carries the same protocol facts this page
+documents, so the agent does not have to guess at them.
+
+[#node]
+== Step 2 — Write the Node
+
+Everything below `run_node` is protocol. `run_node` is your node:
+
+[source,python]
+----
+def run_node(node_kind, media_path, options, upstream):
+    """Run one node against one media file.
+
+    node_kind  which kind to run — a worker may advertise several
+    media_path absolute path on shared storage; you open the file yourself
+    options    per-node options from the pipeline definition
+    upstream   outputs of upstream nodes, shaped {nodeId: {outputKey: value}}
+    """
+    if node_kind != "shot-list":
+        return NodeResult.skipped(f"Unknown node kind '{node_kind}'")
+
+    if not os.path.isfile(media_path):
+        # Nearly always means the shared media mount is missing on this worker.
+        return NodeResult.failed(f"Media not found on this worker: {media_path}")
+
+    # Consume an upstream node's output. Address it by the node ID from the
+    # pipeline definition — NOT by the node kind.
+    scenes = (upstream.get("scenes") or {}).get("scene_detection")
+
+    shots = analyse(media_path, scenes, options.get("minSeconds", 2))
+
+    # These keys are this node's contribution to the pipeline: downstream nodes
+    # read them by name, and they are what gets persisted.
+    return NodeResult.completed({"shot_count": len(shots), "shots": shots})
+----
+
+Three rules the engine depends on:
+
+* **Every task gets exactly one answer.** A failure is a *value* (`NodeResult.failed`), never an
+  exception that escapes — Loom blocks on a result for each task it dispatched. The reference daemon
+  already converts a raised exception into a `FAILED` result; keep that.
+* **Three states only** — `COMPLETED`, `FAILED`, `SKIPPED`. `SKIPPED` is the honest answer for "this
+  node does not apply to this file", and it does not cascade to dependent nodes; `FAILED` does, for any
+  dependent node that is `blocking`.
+* **Outputs are flat key/value.** Downstream nodes and the `tts`-style `sourceNodeId` /
+  `sourceOutputKey` convention address them by name.
+
+== Step 3 — Advertise the Kind
+
+The worker tells Loom what it can run in its `REGISTER` message; Loom never dispatches a kind that is
+not in that list. In the reference daemon it comes from the environment:
+
+[source,bash]
+----
+export LOOM_HOST=localhost LOOM_PORT=8092
+export LOOM_TOKEN="$TOKEN"
+export CORTEX_NODE_ID=py-shot-list-1      # unique per worker, stable across restarts
+export CORTEX_NODE_KINDS=shot-list        # comma-separated; what this worker advertises
+python daemon.py
+----
+
+Confirm Loom sees it:
+
+[source,bash]
+----
+curl -s -H "Authorization: Bearer $TOKEN" $LOOM/api/v1/processors \
+  | jq '.[] | {nodeId, nodeWhitelist}'
+----
+
+NOTE: This is why the Python route sidesteps the registration gap described in
+link:../#node-availability[node availability] — a Python worker declares its kinds on the wire, so
+nothing has to be registered in the JVM worker build for *your* kind to be dispatchable.
+
+[#descriptor]
+== Step 4 — Teach Loom the Kind Exists
+
+There is a second registration, and it is the step people miss. Loom **validates a pipeline definition
+against its node descriptor registry** when you save it. A definition naming a kind Loom has no
+descriptor for is rejected:
+
+[source,text]
+----
+400  Unknown node type: "shot-list" — not found in descriptor registry
+----
+
+Descriptors are contributed on the Loom side and discovered at startup; the registry is what pipeline
+validation checks and what the UI's node palette is drawn from. Check what your server knows:
+
+[source,bash]
+----
+curl -s -H "Authorization: Bearer $TOKEN" $LOOM/api/v1/pipeline/node-descriptors | jq -r '.[].kind'
+curl -s -H "Authorization: Bearer $TOKEN" $LOOM/api/v1/pipeline/node-descriptors/shot-list | jq
+----
+
+A descriptor declares the kind, a display name and icon, its category, the content types it consumes
+and produces, and its parameters — which is exactly the metadata the editor needs to render the node
+and its settings form. Add yours next to the built-in ones in the `loom-shared/node-model` module
+(`io.metaloom.loom.nodes.spec`), where each built-in kind has a small provider you can copy, and list
+it in that module's `META-INF/services` file so it is discovered. This is the one part of a custom node
+that lives in the Loom build rather than in your worker.
+
+[options="header",cols="1,2,2"]
+|===
+| Registration | Where it lives | What breaks without it
+| Node descriptor | Loom (`loom-shared/node-model`) | The pipeline is rejected on save; the kind is invisible in the editor palette.
+| Advertised kind | Your worker's `REGISTER` | The pipeline saves, but the run is rejected with `503` — no worker accepts the kind.
+|===
+
+TIP: While prototyping, you can exercise the worker without either registration by driving it with a
+kind that already has a descriptor — but do not ship that: the descriptor is what makes the node usable
+by anyone other than you.
+
+== Step 5 — Persist the Result
+
+The task result carries outputs for downstream nodes; storing the payload is a REST call. The reference
+daemon does this in `_persist`, and the shape is the same one the built-in nodes use:
+
+[source,text]
+----
+GET  /api/v1/assets/sha512/{sha512}      → resolve the asset from the media hash
+POST /api/v1/assets/{uuid}/json-comps    → the payload
+                                           {nodeKind, schemaType, variant, producerVersion, data}
+POST /api/v1/assets/{uuid}/node-results  → the ledger row: what ran, and where its output lives
+                                           {nodeKind, nodeId, producerVersion, state, origin,
+                                            durationMs, reason, resultRef}
+----
+
+[WARNING]
+====
+**The wire state and the ledger state are different enums.** The `NODE_TASK_RESULT` you send back
+over the WebSocket uses `COMPLETED | FAILED | SKIPPED`. The `state` on `/node-results` uses
+**`SUCCESS`** `| FAILED | SKIPPED` — `asset_node_result` carries a CHECK constraint that rejects
+anything else.
+
+Map `COMPLETED` → `SUCCESS` before posting. Forgetting to is quiet in the worst way: the json-comp is
+written first and succeeds, so the payload is there while the ledger row that says the node ran is
+not.
+
+`origin` is constrained the same way — `COMPUTED`, `LOCAL` or `REMOTE`.
+
+The reference `examples/cortex-python/daemon.py` passes the wire state straight through, so a worker
+copied from it inherits the bug. Fix it in your copy.
+====
+
+Both writes **upsert**, so re-running a pipeline replaces rather than accumulates:
+`json-comps` on `(asset, nodeKind, schemaType, variant)`, `node-results` on
+`(asset, nodeKind, nodeId)`. Stamp a `producerVersion` such as `my-node/1.0.0` on both and bump it when
+the output shape changes — the ledger is indexed on `(node_kind, producer_version)`, which is how an
+operator finds everything an older version produced and re-runs it.
+
+Two facts that decide whether anything is stored at all:
+
+* **Assets are resolved by SHA-512.** The task carries `media.sha512` only after a hash node has run
+  upstream, so put `sha512` in the graph ahead of your node.
+* **The asset must already exist in Loom.** Nodes attach results to known assets; they do not create
+  them. Ingest first (upload, `POST /api/v1/assets`, or `/assets/bulk/create`).
+
+Persistence is deliberately **best-effort**: if the asset is unknown, the reference daemon logs and
+skips the write but still reports the task result. Losing a payload must not stall a run.
+
+== Step 6 — Use It in a Pipeline
+
+[source,json]
+----
+{
+  "nodes": [
+    { "id": "source", "type": "filesystem-source", "name": "Video library",
+      "options": { "path": "/media/video" } },
+    { "id": "hash",   "type": "sha512",            "name": "SHA-512 identity" },
+    { "id": "scenes", "type": "scene-detection",   "name": "Scene boundaries" },
+    { "id": "shots",  "type": "shot-list",         "name": "Shot list",
+      "options": { "minSeconds": 2 }, "timeoutMs": 300000 }
+  ],
+  "edges": [
+    { "id": "e1", "source": "source", "target": "hash" },
+    { "id": "e2", "source": "hash",   "target": "scenes" },
+    { "id": "e3", "source": "scenes", "target": "shots" }
+  ]
+}
+----
+
+Note `upstream["scenes"]` in the node body matches the node **id** `scenes` in this definition. Rename
+the node and the lookup returns nothing — the node is addressed by graph id, not by kind.
+
+Create and run it exactly as any other pipeline (see
+link:../transcription/#pipeline[the transcription playbook]), then watch your daemon's log: a
+`NODE_TASK` arrives, `run_node` runs, and a `NODE_TASK_RESULT` goes back.
+
+== Step 7 — Package It
+
+[source,dockerfile]
+----
+FROM python:3.12-slim
+WORKDIR /worker
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY daemon.py .
+CMD ["python", "daemon.py"]
+----
+
+[source,bash]
+----
+docker run -d --name py-shot-list --network metaloom \
+  -e LOOM_HOST=loom -e LOOM_PORT=8092 -e LOOM_TOKEN="$TOKEN" \
+  -e CORTEX_NODE_ID=py-shot-list-1 \
+  -e CORTEX_NODE_KINDS=shot-list \
+  -v /srv/media:/media:ro \
+  my-registry/py-shot-list:latest
+----
+
+It joins the fleet next to the stock workers, which keep serving the built-in kinds. Scale it by
+running more replicas — each with its own `CORTEX_NODE_ID`.
+
+[#agent-prompt]
+== Generating a Node With a Coding Agent
+
+The protocol is small and completely specified, which makes this a good task to hand to a coding agent.
+The prompt below carries everything an agent needs — the message shapes, the REST calls, the node
+contract and the failure rules — so it works whether or not the agent can see the MetaLoom source.
+
+Fill in the five bracketed lines at the top and paste the whole thing.
+
+[source,text]
+----
+You are writing a MetaLoom Cortex worker in Python. MetaLoom is a media asset
+platform: a Loom server owns pipeline graphs and dispatches one node task at a
+time to registered workers. I want a worker that serves a node of my own.
+
+## What the node does
+
+- NODE KIND (the `type` used in a pipeline definition): [e.g. shot-list]
+- WHAT IT COMPUTES: [one or two sentences]
+- APPLIES TO: [e.g. video files only; skip everything else]
+- OUTPUT KEYS it emits: [e.g. shot_count (int), shots (list of {start,end})]
+- OPTIONS it accepts: [e.g. minSeconds (number, default 2)]
+- UPSTREAM OUTPUTS it consumes, if any: [e.g. node id "scenes", key "scene_detection"]
+
+If the MetaLoom repository is available to you, start from
+`examples/cortex-python/daemon.py` and change only the node. If it is not, write
+the daemon from the contract below. Ask me before inventing any endpoint,
+message type or field that is not listed here.
+
+## Runtime contract
+
+Configuration comes from the environment, nothing else:
+
+  LOOM_HOST (default localhost), LOOM_PORT (default 8092)
+  LOOM_TOKEN            JWT for both the WebSocket and REST
+  LOOM_USER/LOOM_PASSWORD  optional: POST /api/v1/login {username,password}
+                        returns {"token": "..."} if LOOM_TOKEN is unset
+  CORTEX_NODE_ID        REQUIRED. Unique per worker and stable across restarts;
+                        Loom keys registration and attribution on it and rejects
+                        a duplicate.
+  CORTEX_NODE_KINDS     comma-separated kinds this worker advertises. Refuse to
+                        start if it names a kind run_node does not implement —
+                        Loom would dispatch work the worker can only SKIP.
+
+A JWT from /login EXPIRES (default 1h). The WebSocket is authenticated once at
+the handshake, so an expired token leaves a worker that looks healthy while every
+REST persist returns 401. Prefer a long-lived API key; and on a 401, re-login if
+credentials are present and retry the call once.
+
+## Control plane — WebSocket
+
+Connect to ws://HOST:PORT/api/v1/processors/ws?token=<urlencoded JWT>.
+Every frame is JSON: {"type": "<TYPE>", "body": { ... }}.
+
+Send on connect:
+  REGISTER  body {nodeId, name, priority, host, capabilities:["CPU","IO"],
+                  nodeWhitelist:[<the kinds>]}
+Then:
+  HEARTBEAT       every 10s
+  STATUS_UPDATE   every 20s once registered, body {cpuLoad, diskTotal, diskUsed}
+                  (all fields optional)
+
+Handle inbound:
+  REGISTERED      registration accepted
+  HEARTBEAT_ACK   keepalive confirmed
+  ERROR           body {message} — log it
+  NODE_TASK       body {taskUuid, runUuid, itemId, nodeId, nodeKind,
+                        media:{path, sha512}, options:{...},
+                        upstreamOutputs:{nodeId:{outputKey:value}}}
+  SOURCE_TASK / SEGMENT_TASK  out of scope — log and ignore
+
+Answer every NODE_TASK with exactly one:
+  NODE_TASK_RESULT body {runUuid, itemId,
+                         result:{taskUuid, nodeId, state, durationMs,
+                                 message, outputs}}
+  state is COMPLETED | FAILED | SKIPPED. This is the WIRE enum — it is NOT the
+  enum the REST ledger takes. See the data plane below.
+
+Reconnect with exponential backoff (2s * attempt, capped at 30s) and re-REGISTER.
+
+## The node itself
+
+Put all node logic in one function, so the protocol code stays untouched:
+
+  run_node(node_kind, media_path, options, upstream) -> NodeResult
+
+  media_path  absolute path on shared storage; the worker opens the file itself.
+              Loom sends a path, never bytes.
+  upstream    {nodeId: {outputKey: value}} — addressed by the node ID from the
+              pipeline definition, NOT by node kind.
+  returns     NodeResult.completed({...outputs}) | .failed(msg) | .skipped(reason)
+
+Rules that are not negotiable:
+- A node that raises must still produce a FAILED result. The engine blocks on an
+  answer for every task it dispatched; one bad file must not take the worker down.
+- SKIPPED is the honest answer for "does not apply to this file" — do not fail.
+- Run the node OFF the socket loop (thread or run_in_executor) so a long node
+  never stalls heartbeats or blocks the next inbound message.
+- Outputs are a flat dict of JSON-serialisable values.
+- If you dispatch each task with asyncio.create_task, keep a strong reference to
+  it (a set, discarded in a done-callback). A task nobody holds can be garbage
+  collected mid-flight, which loses the answer the engine is waiting for.
+
+## Data plane — REST (best effort)
+
+Persist the payload after the node ran. Base URL http://HOST:PORT/api/v1,
+Authorization: Bearer <token>:
+
+  GET  /assets/sha512/{sha512}      -> {"uuid": ...}   resolve the asset
+  POST /assets/{uuid}/json-comps    {nodeKind, schemaType, variant,
+                                     producerVersion, data}
+  POST /assets/{uuid}/node-results  {nodeKind, nodeId, producerVersion, state,
+                                     origin:"COMPUTED", durationMs, reason,
+                                     resultRef}
+
+THE TWO ENUMS ARE DIFFERENT — this is the single easiest thing to get wrong:
+
+  NODE_TASK_RESULT.state (WebSocket)  COMPLETED | FAILED | SKIPPED
+  node-results.state     (REST)       SUCCESS   | FAILED | SKIPPED
+
+Map COMPLETED -> SUCCESS before posting the ledger row. The column carries a
+CHECK constraint, so "COMPLETED" is rejected by the database and the ledger row
+is silently lost while the json-comp still lands. `origin` is likewise
+constrained to COMPUTED | LOCAL | REMOTE.
+
+Set producerVersion (e.g. "<kind>/1.0.0") on BOTH calls and bump it when the
+output shape changes: the ledger is indexed on (node_kind, producer_version) so
+an operator can find and re-run everything an older version produced.
+
+Write the ledger row for failures too, not only successes — "node X ran on asset
+A and failed" is exactly what the ledger is for.
+
+Both writes upsert, so a re-run replaces rather than accumulates:
+  json-comps   key (asset, nodeKind, schemaType, variant) — pick a stable variant
+  node-results key (asset, nodeKind, nodeId)
+
+media.sha512 is only present when a hash node ran upstream, and the asset must
+already exist in Loom. If either is missing, skip the write, log it, and still
+report the task result. Never fail a task because persistence failed.
+
+## Deliverables
+
+1. daemon.py — single file, stdlib only except `websockets`. Clear separation:
+   config / run_node / REST client / WebSocket channel / entry point.
+2. requirements.txt
+3. A `--selftest <file>` mode that calls run_node directly and prints the result
+   as JSON, so the node can be verified with no Loom server running. Exit 0 on
+   COMPLETED, 1 on FAILED, 3 on SKIPPED, 2 on usage error.
+4. A Containerfile: python:3.12-slim, install any external binary the node shells
+   out to, non-root user, PYTHONUNBUFFERED=1, CMD python daemon.py.
+5. A short README: env vars, how to run, how to self-test, the output keys and
+   options as tables, and the pipeline JSON snippet that uses this node kind.
+
+## Definition of done
+
+- `python daemon.py --selftest <sample>` prints a COMPLETED result and exits 0.
+- With no LOOM_TOKEN the worker still registers and answers tasks; it only skips
+  persistence, and says so in the log.
+- Killing the Loom server makes the worker reconnect instead of exiting.
+- Starting with no CORTEX_NODE_ID exits non-zero with a message, rather than
+  inventing an id.
+- If the node needs an external binary, startup warns when it is missing instead
+  of failing every task with an obscure error.
+- Comments explain WHY where behaviour is non-obvious (the off-loop execution,
+  the best-effort persistence, the stable node id) — not what each line does.
+----
+
+=== Reviewing What Comes Back
+
+The failure modes are predictable, so check these first. The top two are the ones a generated worker
+actually got wrong when this prompt was first used, which is why they are now spelled out in it:
+
+[options="header",cols="1,3"]
+|===
+| Check | Why it matters
+| `COMPLETED` is mapped to `SUCCESS` before the ledger POST | The two enums differ and the wire value looks plausible, so this passes review by eye. The `asset_node_result` CHECK constraint rejects it, the ledger row is lost, and the json-comp — written first — still lands. You get a payload with no record that the node ran.
+| `producerVersion` on **both** REST calls | The ledger is indexed on `(node_kind, producer_version)` so an operator can sweep everything an old version produced. Omit it and re-running after a node change cannot be targeted.
+| One result per task, always | An agent that lets an exception escape `run_node` produces a worker that silently stalls a run — the engine waits for an answer that never arrives.
+| The node runs off the socket loop | A synchronous node inside the message loop stops heartbeats, and Loom drops the worker mid-task.
+| `upstreamOutputs` addressed by node **id** | Looking it up by kind is the most common wrong guess, and it fails silently — the node just never sees its input.
+| Persistence is best-effort | A worker that fails the task because the asset was not found in Loom turns a missing hash node into a red run.
+| Advertised kinds == implemented kinds | `CORTEX_NODE_KINDS` naming a kind `run_node` does not handle makes Loom dispatch work the worker can only `SKIP`.
+| No invented endpoints | If the code calls something outside the list above, it was guessed. `/api/v1/openapi.json` on your server is the authority.
+| `CORTEX_NODE_ID` has no random default | A generated-per-boot id makes every restart look like a brand new worker.
+| Token expiry is handled | A JWT from `/login` dies after an hour. The worker keeps registering and answering, but every persist 401s — healthy-looking, silently dropping data. Use an API key.
+|===
+
+Then run it for real: start the worker, confirm it appears in `GET /api/v1/processors` with your kind
+in its whitelist, and dispatch a pipeline at it. Afterwards check both writes landed — a payload with
+no ledger row is the signature of the enum mistake:
+
+[source,bash]
+----
+curl -s -H "Authorization: Bearer $TOKEN" $LOOM/api/v1/assets/$ASSET/json-comps   | jq
+curl -s -H "Authorization: Bearer $TOKEN" $LOOM/api/v1/assets/$ASSET/node-results | jq
+----
+
+NOTE: The agent cannot finish the job alone — the link:#descriptor[node descriptor] lives in the Loom
+build, not in the worker. Until it exists, a pipeline naming your kind is rejected on save, and no
+amount of correct worker code changes that.
+
+== Protocol Reference
+
+What the reference daemon handles, and what it deliberately leaves out:
+
+[options="header",cols="1,1,3"]
+|===
+| Message | Direction | Meaning
+| `REGISTER` | worker → Loom | Identity, capabilities and the advertised node kinds.
+| `REGISTERED` | Loom → worker | Registration accepted; the worker is dispatchable.
+| `HEARTBEAT` / `HEARTBEAT_ACK` | both | Keepalive, every 10 s in the reference daemon.
+| `STATUS_UPDATE` | worker → Loom | CPU load and disk usage; all fields optional.
+| `NODE_TASK` | Loom → worker | Run one node against one media item.
+| `NODE_TASK_RESULT` | worker → Loom | Exactly one per dispatched task, including failures.
+| `ERROR` | Loom → worker | Something the server rejected — log it.
+| `SOURCE_TASK` / `SEGMENT_TASK` | Loom → worker | Media enumeration and affinity-grouped work. Not implemented in the example.
+|===
+
+A `NODE_TASK` body carries:
+
+[options="header",cols="1,3"]
+|===
+| Field | Use
+| `taskUuid`, `runUuid`, `itemId` | Echo them back in the result so the engine can match it.
+| `nodeId`, `nodeKind` | Which graph node this is, and which kind to run.
+| `media.path`, `media.sha512` | The file to open, and the key that resolves the asset.
+| `options` | The node's per-node options from the pipeline definition.
+| `upstreamOutputs` | `{nodeId: {outputKey: value}}` from the nodes this one depends on.
+|===
+
+== Gotchas
+
+[options="header",cols="2,3"]
+|===
+| Symptom | Cause
+
+| `400 Unknown node type` when saving the pipeline
+| No node descriptor on the Loom side — link:#descriptor[Step 4].
+
+| Pipeline saves, run rejected with `503`
+| No online worker advertises the kind. Check `CORTEX_NODE_KINDS` and `GET /api/v1/processors`.
+
+| The worker connects but never receives work
+| It registered with a different kind than the definition uses, or another worker holds the same
+`CORTEX_NODE_ID` — Loom rejects a duplicate id.
+
+| `Media not found on this worker`
+| The shared media mount is missing or mounted at a different path than the one Loom dispatched.
+
+| The node runs but nothing is stored
+| No `sha512` upstream, no token, or the file is not a known asset in Loom.
+
+| The payload is stored but there is no ledger row
+| The `node-results` POST sent the wire state `COMPLETED`; the column only accepts `SUCCESS`,
+`FAILED` or `SKIPPED`.
+
+| Persistence 401s after about an hour
+| A JWT from `/login` expired. Use a long-lived API key for a worker.
+
+| `upstreamOutputs` is empty
+| The node has no edge from the node you expected, or you looked it up by kind instead of node id.
+
+| Heartbeats stop during a long node
+| Run the node off the socket loop (the reference daemon uses a worker thread) so the control channel
+keeps answering.
+|===
+
+== Next Steps
+
+* Put your node to work — link:../translation/[Translating Content] uses this route for its translate step.
+* The Java equivalents, and the full example sources — link:../../cortex/examples/[Cortex Examples].
+* Node reference and output-key conventions — link:../../nodes/[Nodes].
