@@ -1,0 +1,261 @@
+---
+title: Model Licenses
+---
+
+MetaLoom ships **no model weights**. Every link:../../nodes/[node] that needs a model references it by
+file path, repository id or endpoint URL, and you provide the model. That means the license you have
+to satisfy is the one attached to the model you point the node at — not the Apache-2.0 license of
+MetaLoom itself.
+
+This page inventories the models, runtimes and native libraries the built-in nodes use *by default* or
+in their documented reference setup, and states whether each one is cleared for commercial use.
+
+[IMPORTANT]
+====
+This is an engineering inventory maintained alongside the code, **not legal advice**. Model licenses
+change between revisions, and a checkpoint's terms often differ from the terms of the base
+architecture it was fine-tuned from. Before shipping, verify the license on the model card of the
+exact revision you deploy.
+====
+
+[#restricted]
+== Models Restricted to Non-Commercial Use
+
+Two components in the catalogue may **not** be used in a commercial deployment. Both are usable for
+research, evaluation and personal projects.
+
+[WARNING]
+====
+**InspireFace model packs — academic use only.** The link:../../nodes/facedetect/[Face Detection]
+node runs the InspireFace native runtime with a model pack (default: `packs/Pikachu`; `Megatron` is
+the larger alternative). The InspireFace *code* is Apache-2.0, but its bundled models inherit the
+**InsightFace** model terms, which permit use *solely for academic purposes and explicitly prohibit
+commercial applications*.
+
+Everything downstream of the packs is affected — face bounding boxes, embeddings, person clustering,
+and therefore the link:../../nodes/facedescription/[Face Description] node that only runs on detected
+faces.
+
+*If you need face detection commercially:* license a commercial face model, or swap the pack for one
+whose terms permit it. The node takes the pack location from the `inspirefacePackPath` option, so no
+code change is required — but the pack must be API-compatible with the InspireFace runtime.
+====
+
+[WARNING]
+====
+**Ideogram 4.0 — non-commercial model agreement.** The planned `imagegen` node is designed around the
+open-weight **Ideogram 4.0** image generation model (`ideogram-ai/ideogram-4-nf4`). The inference
+*code* is Apache-2.0, but the **weights are released under the Ideogram 4 Non-Commercial Model
+Agreement**. Using them in a commercial MetaLoom deployment would violate the weight license.
+
+The node talks to a sidecar over a deliberately model-agnostic HTTP contract, so a permissively
+licensed image model can be dropped in behind the same endpoint without touching the node.
+====
+
+[#conditional]
+== Models With Conditions Attached
+
+These are usable commercially, but not under a plain permissive license. Read the terms before you
+deploy.
+
+[options="header",cols="2,2,3"]
+|===
+| Model | License | What the condition means
+
+| `gemma2:27b` (link:../../nodes/llm/[LLM node] default) +
+`gemma3:27b-it-q8_0` (link:../../nodes/facedescription/[Face Description] default)
+| Gemma Terms of Use
+| Not an OSI license. Commercial use is permitted, but you accept a Prohibited Use Policy and must
+  pass the same terms (and the use restrictions) on to anyone you distribute the model or a derivative to.
+
+| `SebastianBodza/Kartoffel_Orpheus-3B_german_natural-v0.1` (German link:../../nodes/tts/[TTS] voice)
+| Llama 3.2 Community License (Llama-3.2 backbone) — repository is **gated** on Hugging Face
+| The Orpheus project code is Apache-2.0, but this checkpoint is a Llama-3.2 derivative and carries
+  Llama's community license and acceptable-use policy, including its large-scale-user threshold. You
+  must accept the gate to download it. +
+  *Ungated alternative:* set `ORPHEUS_REPO_DE=Thorsten-Voice/tv-orpheus-v1` — Apache-2.0, CC0 speaker.
+|===
+
+[#per-node]
+== Per-Node Inventory
+
+What each built-in node loads, and the license that governs it. "Default" means the value the node
+ships with; every entry is configurable.
+
+=== Nodes that use no model at all
+
+These run plain algorithms or classical computer vision. Nothing beyond the MetaLoom license and the
+native libraries listed under link:#runtimes[Runtimes & Libraries] applies.
+
+[options="header",cols="2,3,2"]
+|===
+| Node | What it uses | Commercial use
+
+| link:../../nodes/hash/[Hashing] · link:../../nodes/dedup/[Deduplication] · link:../../nodes/consistency/[Consistency]
+| JDK digest algorithms and byte-level checks
+| ✅ Yes
+
+| link:../../nodes/filesystem-source/[Filesystem Source] · link:../../nodes/loom/[Loom] · link:../../nodes/filters/[Filters]
+| Pipeline plumbing — no media model
+| ✅ Yes
+
+| link:../../nodes/fingerprint/[Fingerprint] · link:../../nodes/thumbnail/[Thumbnail] · link:../../nodes/scene-detection/[Scene Detection] · link:../../nodes/quality/[Quality]
+| OpenCV via `video4j` — perceptual hashing, frame extraction, optical flow, Laplacian variance. No learned weights.
+| ✅ Yes
+|===
+
+=== Nodes that load a model
+
+[options="header",cols="2,3,2,2"]
+|===
+| Node | Model (default) | License | Commercial use
+
+| link:../../nodes/tika/[Tika]
+| Apache Tika parsers — format detection and text extraction, no ML model
+| Apache-2.0
+| ✅ Yes
+
+| link:../../nodes/ocr/[OCR]
+| Tesseract via Tess4J + `tessdata` language files (`tessDataPath`)
+| Apache-2.0 (engine and the official `tessdata` sets)
+| ✅ Yes
+
+| link:../../nodes/whisper/[Speech-to-Text]
+| whisper.cpp runtime + a GGML checkpoint; default `models/ggml-large-v3-turbo.bin` (`modelPath`)
+| MIT (whisper.cpp runtime and the OpenAI Whisper weights)
+| ✅ Yes
+
+| link:../../nodes/vlm/[VLM]
+| `allenai/olmOCR-2-7B-1025-FP8` served over an OpenAI-compatible endpoint (`model`, `endpointUrl`)
+| Apache-2.0 per the model card; fine-tuned from Qwen2.5-VL-7B-Instruct (Apache-2.0)
+| ✅ Yes
+
+| link:../../nodes/captioning/[Captioning]
+| SmolVLM behind the captioning sidecar (model host/port)
+| Apache-2.0
+| ✅ Yes
+
+| Video captioning
+| `qwen25vl-awq` — Qwen2.5-VL-7B-Instruct, quantized (`model`)
+| Apache-2.0 (7B instruct release)
+| ✅ Yes
+
+| link:../../nodes/tts/[Text-to-Speech] — English
+| Kokoro-82M ONNX (`KOKORO_MODEL` / `KOKORO_VOICES` in the sidecar)
+| Apache-2.0
+| ✅ Yes
+
+| link:../../nodes/tts/[Text-to-Speech] — German
+| `SebastianBodza/Kartoffel_Orpheus-3B_german_natural-v0.1` (`ORPHEUS_REPO_DE`)
+| Llama 3.2 Community License, gated — see link:#conditional[conditions]
+| ⚠️ Conditional
+
+| link:../../nodes/llm/[LLM Enrichment]
+| `gemma2:27b` via an Ollama / OpenAI-compatible provider
+| Gemma Terms of Use — see link:#conditional[conditions]
+| ⚠️ Conditional
+
+| link:../../nodes/facedescription/[Face Description]
+| `gemma3:27b-it-q8_0` via Ollama
+| Gemma Terms of Use — see link:#conditional[conditions]
+| ⚠️ Conditional
+
+| link:../../nodes/facedetect/[Face Detection]
+| InspireFace runtime + model pack, default `packs/Pikachu` (`inspirefacePackPath`)
+| Code Apache-2.0; **model packs follow InsightFace — academic use only**
+| ❌ **No** — see link:#restricted[restrictions]
+
+| `imagegen` (planned)
+| Ideogram 4.0 (`ideogram-ai/ideogram-4-nf4`) behind a Python sidecar
+| Code Apache-2.0; **weights under the Ideogram 4 Non-Commercial Model Agreement**
+| ❌ **No** — see link:#restricted[restrictions]
+|===
+
+=== The Loom chat agent
+
+The link:../../loom/chat/[Chat & AI Agent] is not a pipeline node, but it does run a model. Loom
+talks to an Ollama or OpenAI-compatible provider selected by
+link:../../loom/configuration/[`LOOM_AI_MODEL_ID`], which defaults to **`gpt-oss:20b`**
+(Apache-2.0). Point it at a hosted provider instead and the applicable terms become that provider's
+API terms of service, not a weight license — which also means your prompts and asset content leave
+your infrastructure.
+
+[#runtimes]
+== Runtimes, Native Libraries and Toolkits
+
+The Cortex worker links against native code that is redistributed inside the
+link:../../cortex/containers/[`cortex-server` container image].
+
+[options="header",cols="2,2,3"]
+|===
+| Component | License | Note
+
+| OpenCV 5.1 (staged into `/opt/opencv/lib`)
+| Apache-2.0
+| Frame decoding and all classical CV in `video4j`.
+
+| FFmpeg shared libraries (installed from the base image's distribution packages)
+| LGPL-2.1-or-later upstream — **distribution builds are frequently configured with `--enable-gpl`**, which makes the shipped libraries GPL-2.0-or-later
+| OpenCV's `videoio` backend links against them. If you redistribute the image, check what your base actually ships: `ffmpeg -version` prints the build configuration.
+
+| whisper.cpp (via the `asr4j` binding)
+| MIT
+| Local speech-to-text inference.
+
+| InspireFace native runtime (via `inspireface4j`)
+| Apache-2.0 (code only — **not** the model packs)
+| See link:#restricted[restrictions].
+
+| Apache Tika, Tess4J / Tesseract
+| Apache-2.0
+| Pure-JVM and JNI extraction.
+
+| MetaLoom itself — Loom, Cortex, nodes, UI, clients, this site
+| Apache-2.0
+| Full text in `LICENSE.txt` at the repository root.
+|===
+
+[#clean-stack]
+== A Clean Commercial Stack
+
+If you need a deployment with no non-commercial and no conditionally licensed component, this
+configuration stays inside permissive licenses:
+
+* **Keep** the hashing, dedup, consistency, fingerprint, thumbnail, scene-detection, quality, tika,
+  ocr, whisper, vlm and captioning nodes as they ship.
+* **Drop** link:../../nodes/facedetect/[Face Detection] and
+  link:../../nodes/facedescription/[Face Description], or replace the InspireFace pack with a
+  commercially licensed face model.
+* **Do not deploy** the `imagegen` node against Ideogram 4.0 weights.
+* **Set `ORPHEUS_REPO_DE=Thorsten-Voice/tv-orpheus-v1`** for German
+  link:../../nodes/tts/[Text-to-Speech] (Apache-2.0, ungated) instead of the Kartoffel checkpoint.
+* **Replace the Gemma defaults** in the link:../../nodes/llm/[LLM] node with an Apache-2.0 or
+  MIT-licensed instruct model, unless the Gemma Terms of Use are acceptable to you.
+* **Verify the FFmpeg build** in your container base if you redistribute images.
+
+[#verify]
+== Verifying What Your Deployment Actually Loads
+
+Nothing is implicit — every model reference is a configuration value you can read back:
+
+[options="header",cols="2,3"]
+|===
+| Node | Where the model is named
+
+| Speech-to-Text | `WhisperOptions.modelPath`
+| VLM | `VlmNodeOptions.model` + `endpointUrl`
+| OCR | `tessDataPath`
+| Face Detection | `FacedetectNodeOptions.inspirefacePackPath`
+| LLM / Face Description | provider URL + `providerType`, model id in the prompt definition
+| Text-to-Speech | `TtsNodeOptions.language` selects the engine; `ORPHEUS_REPO_DE`, `KOKORO_MODEL` and `KOKORO_VOICES` on the sidecar name the checkpoints
+| Captioning | model host / port of the captioning sidecar
+| Chat agent | `LOOM_AI_MODEL_ID` on the Loom server
+|===
+
+A pipeline that contains none of the model-backed nodes pulls in no model license at all.
+
+== See Also
+
+* link:../[Legal & Licensing] — section overview and the platform license
+* link:../ai-disclosure/[AI Code Generation Disclosure] — how the MetaLoom source was produced
+* link:../../nodes/[Nodes] — what each node does and how it is configured

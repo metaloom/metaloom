@@ -1,0 +1,82 @@
+---
+title: Legal & Licensing
+weight: 9
+---
+
+MetaLoom itself is open source under the **Apache License 2.0**. What you may do with a *running*
+MetaLoom deployment, however, is not decided by the platform license alone: the pipeline nodes call
+out to third-party **model weights**, and those weights carry their own licenses. A handful of them
+forbid commercial use outright.
+
+This section collects everything you need to answer two questions before you deploy:
+
+* *Which models does my pipeline actually pull in, and what am I allowed to do with them?*
+* *How was the MetaLoom source code produced, and where was AI code generation involved?*
+
+++++
+<div class="row mt-4 mb-4">
+	<div class="col-lg-6 mb-4">
+		<div class="docs-card h-100">
+			<div class="docs-card-header">
+				<h2><a href="model-licenses/">Model Licenses</a></h2>
+				<p>Every model, runtime and native library a MetaLoom node can pull in, mapped to its license and whether it is cleared for commercial use — including the ones that are <strong>not</strong>.</p>
+			</div>
+			<div class="docs-card-body">
+				<a href="model-licenses/#restricted" class="docs-card-link">Non-commercial models</a>
+				<a href="model-licenses/#per-node" class="docs-card-link">Per-node inventory</a>
+				<a href="model-licenses/#runtimes" class="docs-card-link">Runtimes &amp; libraries</a>
+				<a href="model-licenses/#clean-stack" class="docs-card-link">A clean commercial stack</a>
+			</div>
+		</div>
+	</div>
+	<div class="col-lg-6 mb-4">
+		<div class="docs-card h-100">
+			<div class="docs-card-header">
+				<h2><a href="ai-disclosure/">AI Code Generation Disclosure</a></h2>
+				<p>How MetaLoom was built. From 2023 through 2025 the code was written entirely by hand; in 2026 AI-assisted code generation was introduced. This page states exactly what changed and what did not.</p>
+			</div>
+			<div class="docs-card-body">
+				<a href="ai-disclosure/#timeline" class="docs-card-link">Timeline</a>
+				<a href="ai-disclosure/#scope" class="docs-card-link">What AI is used for</a>
+				<a href="ai-disclosure/#review" class="docs-card-link">Review &amp; ownership</a>
+				<a href="ai-disclosure/#licensing" class="docs-card-link">Licensing impact</a>
+			</div>
+		</div>
+	</div>
+</div>
+++++
+
+== The Platform License
+
+The MetaLoom source — the Loom server, the Cortex engine, the nodes, the UI, the clients and this
+website — is licensed under the **Apache License, Version 2.0**. The full text ships as
+`LICENSE.txt` in the repository root.
+
+Apache-2.0 permits commercial use, modification, distribution and private use, subject to the usual
+attribution and NOTICE obligations. Nothing on this page restricts that.
+
+[IMPORTANT]
+====
+**The platform license does not travel to the model weights.** MetaLoom ships *no* model weights.
+Nodes reference models by path, repository id or endpoint URL, and you supply them. The license that
+governs a model is the one on that model's card — not Apache-2.0.
+====
+
+== Read This First If You Are Going Commercial
+
+Two things in the catalogue are hard blockers for a commercial deployment:
+
+* the **InspireFace model packs** used by the link:../nodes/facedetect/[Face Detection] node, and
+* **Ideogram 4.0**, the backing model of the planned `imagegen` node.
+
+Both are covered in detail under
+link:model-licenses/#restricted[Models restricted to non-commercial use], together with the swaps and
+workarounds that exist. Everything else in the default catalogue is either permissively licensed or
+carries conditions you can meet.
+
+== Not Legal Advice
+
+These pages are an engineering inventory maintained alongside the code, not a legal opinion. Model
+licenses change between releases, and a checkpoint's terms can differ from the terms of the
+architecture it is based on. Before you ship, verify the license on the model card of the *exact*
+revision you deploy, and involve your own counsel where the answer matters.

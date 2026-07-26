@@ -155,6 +155,10 @@ docs/
 │   ├── artifacts/ · maven-artifacts/ · containers/ · helm-chart/  # deploy/coordinates
 │   │                          #   rest-api/ = spec download (yaml/json) + Swagger UI explorer + tables
 │   └── examples/          # snippets from the /examples module
+├── legal/                 # ── Legal & Licensing (weight: 9 → sorts last) ──
+│   ├── _index.adoc        # hub: platform license (Apache-2.0), commercial-use warning, card grid
+│   ├── model-licenses/    # per-node model/runtime license inventory; non-commercial call-outs
+│   └── ai-disclosure/     # how the source was produced (2023–2025 hand-written, 2026+ AI-assisted)
 ├── cortex/                # ── Cortex subsystem (now a daemon that serves nodes) ──
 │   ├── _index.adoc        # engine overview
 │   ├── configuration/ · monitoring/ · metrics/ · artifacts/   # node pages live under top-level nodes/ now;
@@ -490,6 +494,42 @@ Only `title` is required; `weight` orders siblings (used by `getting-started` to
   `title:` (e.g. `interaction/`); prefer the front-matter title and level-2 (`==`) sections for
   new pages to match the docs layout, which already emits the `<h1>` from `title`.
 
+### Legal pages (`docs/legal/`)
+
+The legal section answers two questions a customer asks before deploying: *what am I allowed to run*
+and *how was this built*.
+
+* `legal/model-licenses/` is an **inventory of what each node loads**, not a generic license page.
+  MetaLoom ships no weights — every model is a configuration value (`WhisperOptions.modelPath`,
+  `VlmNodeOptions.model`, `FacedetectNodeOptions.inspirefacePackPath`, `ORPHEUS_REPO_DE`,
+  `LOOM_AI_MODEL_ID`, …), so the page maps node → default model → license → commercial-use verdict,
+  and closes with how to read the deployed values back.
+* **Two components are non-commercial** and are called out in `[WARNING]` blocks under
+  `#restricted`: the **InspireFace model packs** used by `facedetect` (code is Apache-2.0, but the
+  packs inherit the InsightFace terms — *academic use only*, which also taints `facedescription`
+  downstream) and **Ideogram 4.0**, the backing model of the planned `imagegen` node (weights under
+  the *Ideogram 4 Non-Commercial Model Agreement*; see `spec/plans/imagegen-node.md`).
+* **Conditionally licensed** entries live under `#conditional`: the Gemma defaults (`gemma2:27b` in
+  `LLMNode`, `gemma3:27b-it-q8_0` in `FacedescriptionNode`) carry the Gemma Terms of Use, and the
+  German TTS checkpoint `SebastianBodza/Kartoffel_Orpheus-3B_german_natural-v0.1` is a gated
+  Llama-3.2 derivative (ungated Apache-2.0 swap: `Thorsten-Voice/tv-orpheus-v1`).
+* `#clean-stack` gives the configuration that stays inside permissive licenses; `#runtimes` covers
+  the native libraries redistributed in the container image, including the **FFmpeg** caveat (upstream
+  LGPL-2.1+, but distro builds are often `--enable-gpl`).
+* `legal/ai-disclosure/` states the timeline: **2023–2025 no AI code generation, 2026 onwards
+  AI-assisted**. AI assistance is *not* tracked per commit — the disclosure is at project level, and
+  the page says so rather than implying commit-level provenance exists.
+
+> **Keep the inventory honest.** When a node's default model changes, or a node gains/loses a model
+> dependency, update `docs/legal/model-licenses/` in the same change. Claims must reflect what the
+> code actually loads (the whisper node runs **whisper.cpp locally** — it does not call a remote ASR
+> endpoint, even though `asr4j` supports one). The page carries an explicit *not legal advice*
+> disclaimer; do not let it drift into legal advice.
+
+Both pages are linked from the docs landing card grid, the "Choose Your Path" table and a **footer
+link row** rendered by `themes/meghna-hugo/layouts/partials/footer.html` (labels come from
+`i18n/en.yaml`: `documentation`, `legal`, `modelLicenses`, `aiDisclosure`).
+
 ### Landing page (data-driven)
 
 The home page (`themes/meghna-hugo/layouts/index.html`) is assembled from **partials**
@@ -602,7 +642,10 @@ change the Hugo source and rebuild.
 | Add a new docs section | New folder under `docs/` with `_index.adoc` (section) + child `index.adoc` pages; link it from `docs/_index.adoc` |
 | Change landing-page text | `website/data/en/<section>.yml` |
 | Change top navigation | `[[Languages.en.menu.main]]` blocks in `config.toml` |
-| Change UI labels ("Read more", menu names) | `website/i18n/en.yaml` |
+| Change UI labels ("Read more", menu names, footer links) | `website/i18n/en.yaml` |
+| Record which model a node uses and its license | `website/content/english/docs/legal/model-licenses/index.adoc` |
+| State how the code was produced (AI disclosure) | `website/content/english/docs/legal/ai-disclosure/index.adoc` |
+| Change the footer link row | `website/themes/meghna-hugo/layouts/partials/footer.html` + `i18n/en.yaml` |
 | Change docs page layout / TOC | `website/themes/meghna-hugo/layouts/docs/single.html` (+ `list.html`) |
 | Add global CSS/JS plugin | `[[params.plugins.css]]` / `[[params.plugins.js]]` in `config.toml` |
 | Change site colors/styles | `website/themes/meghna-hugo/less/` (rebuild via `build.sh`) |
@@ -637,6 +680,11 @@ change the Hugo source and rebuild.
   on shortcodes for these.
 * **Docs section auto-detection.** Pages get the `docs/` layouts purely because they live under
   the top-level `docs/` section — moving a page out of `docs/` changes its template.
+* **MetaLoom ships no model weights.** Nodes name models by path, repo id or endpoint URL. Any
+  license statement on the site is about a model *you* supply, which is why
+  `docs/legal/model-licenses/` phrases every row as "default, configurable" and carries a *not legal
+  advice* disclaimer. Two entries are hard blockers for commercial use (InspireFace packs, Ideogram
+  4.0) — do not soften or drop those `[WARNING]` blocks.
 
 ## Test Setup
 
@@ -708,6 +756,17 @@ Current state of the website (as of the checkout below):
       `#memory`, `#skills`, `#example-skill-transcript-summarizer`; `nodes/`: `#requirements`) — the
       existing `#coding-sandbox`/`#memory` links were pointing at Asciidoctor's auto-generated
       `_coding_sandbox`/`_memory` ids and did not resolve
+- [x] Legal & Licensing section (`docs/legal/`) — a **Model Licenses** page inventorying every model,
+      runtime and native library the built-in nodes load, with a commercial-use verdict per entry and
+      `[WARNING]` call-outs for the two non-commercial components (**InspireFace model packs** for
+      `facedetect`, **Ideogram 4.0** for the planned `imagegen`), the conditionally licensed ones
+      (Gemma terms, gated Llama-3.2 Kartoffel TTS checkpoint), a clean-commercial-stack recipe and a
+      table of where each model id is configured
+- [x] **AI Code Generation Disclosure** page (`docs/legal/ai-disclosure/`) — 2023–2025 hand-written,
+      2026 onwards AI-assisted; scope, review/ownership, and the statement that Apache-2.0 and the
+      runtime model licenses are unaffected
+- [x] Legal section wired into the docs landing card grid, the "Choose Your Path" table and a new
+      footer link row (`partials/footer.html` + `i18n/en.yaml`)
 - [x] Blog section with initial posts
 - [x] GitHub Pages publish flow via sibling `metaloom-website` repo (`pull.sh`, CNAME)
 - [ ] Remove/consolidate legacy stub pages (`docs/rest/`, `docs/test/`, top-level
@@ -728,6 +787,11 @@ Current state of the website (as of the checkout below):
 - [ ] `docs/nodes/llm/` claims upstream outputs "can be referenced by prompts"; `LLMNode` only binds the
       asset filename into the prompt. Fix the page (or the node) — the translation playbook documents the
       code behaviour
+- [ ] Revisit the `imagegen` row in `docs/legal/model-licenses/` once the node actually lands (see
+      `spec/plans/imagegen-node.md`) — it currently documents a *planned* node and its non-commercial
+      Ideogram 4.0 weights
+- [ ] Keep `docs/legal/model-licenses/` in sync with node model defaults (ongoing — the page is only
+      useful if it matches what the code loads)
 - [ ] Keep customer docs in sync with product specs under `spec/` (ongoing)
 
 ---

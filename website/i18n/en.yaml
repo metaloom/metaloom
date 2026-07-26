@@ -26,3 +26,11 @@
   translation: Blog
 - id: contact
   translation: Contact
+- id: documentation
+  translation: Documentation
+- id: legal
+  translation: Legal & Licensing
+- id: modelLicenses
+  translation: Model Licenses
+- id: aiDisclosure
+  translation: AI Disclosure

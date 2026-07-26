@@ -13,6 +13,16 @@
 					</ul>
 				</div>
 
+				{{"<!-- Footer Legal Links -->" | safeHTML}}
+				<div class="footer-links text-center mb-3">
+					<ul class="list-inline mb-0">
+						<li class="list-inline-item px-2"><a href="{{ "docs/" | relURL }}">{{ i18n "documentation" }}</a></li>
+						<li class="list-inline-item px-2"><a href="{{ "docs/legal/" | relURL }}">{{ i18n "legal" }}</a></li>
+						<li class="list-inline-item px-2"><a href="{{ "docs/legal/model-licenses/" | relURL }}">{{ i18n "modelLicenses" }}</a></li>
+						<li class="list-inline-item px-2"><a href="{{ "docs/legal/ai-disclosure/" | relURL }}">{{ i18n "aiDisclosure" }}</a></li>
+					</ul>
+				</div>
+
 				{{"<!-- copyright -->" | safeHTML}}
 				<div class="copyright text-center">
 					<a href="{{ site.Home.Permalink }}">

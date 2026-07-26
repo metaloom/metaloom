@@ -1,0 +1,98 @@
+---
+title: AI Code Generation Disclosure
+---
+
+**AI-assisted code generation was used in building MetaLoom.** This page states when that started,
+what it covers, and what it does not change. It exists because you should not have to reverse-engineer
+the provenance of a codebase you are considering deploying.
+
+[#timeline]
+== Timeline
+
+[options="header",cols="1,2,3"]
+|===
+| Period | AI code generation | What that means
+
+| **2023 – 2025**
+| ❌ None
+| The platform was designed and written by hand. The architecture, the data model, the pipeline
+  mechanism, the REST and GraphQL surfaces and the original node implementations all originate from
+  this period.
+
+| **2026 – today**
+| ✅ In use
+| AI-assisted code generation was introduced as a regular part of development. It works on top of the
+  existing architecture rather than replacing it.
+|===
+
+The dividing line is a change in *tooling*, not in authorship or ownership. The project has had the
+same maintainer throughout, and every change — hand-written or AI-assisted — passes through the same
+review and the same test suite before it lands.
+
+[#scope]
+== What AI Is Used For
+
+Since 2026, AI assistance is applied to:
+
+* **Implementation work inside an existing design** — filling in nodes, endpoints, DAO methods,
+  client bindings and UI components against interfaces and specifications that already exist.
+* **Tests** — endpoint, permission, DAO and end-to-end tests, which the project's definition of done
+  requires for every change.
+* **Documentation** — the specification tree that drives development, and large parts of this
+  customer-facing documentation site.
+* **Refactoring and migration** — mechanical, repetitive changes across many modules.
+
+[#not-used]
+== What It Is Not Used For
+
+* **No unreviewed code lands.** AI output is treated exactly like a patch from a contributor: it is
+  read, corrected and accepted or rejected by the maintainer.
+* **No architectural decisions are delegated.** The system boundary between Loom and Cortex, the
+  pipeline model, the permission model and the data schema are human decisions. AI assistance
+  implements against them.
+* **No generated code is trusted on the strength of looking plausible.** Behaviour is verified by the
+  test suite, not by review alone.
+* **No customer data is involved.** Code generation happens during development, against the source
+  tree. It is unrelated to the models a *running* MetaLoom deployment uses — those are covered on the
+  link:../model-licenses/[Model Licenses] page.
+
+[#review]
+== Review and Ownership
+
+Every commit in the repository is authored and reviewed by the project maintainer. AI assistance is
+disclosed here at project level; it is not tracked per commit, so do not read the absence of a marker
+on an individual commit as evidence that it was written without assistance — or with it.
+
+The obligations that apply to a change are the same either way: the code must compile, the tests must
+pass, the matching specification must be updated in the same change, and customer-facing behaviour
+must be documented on this site.
+
+[#licensing]
+== Licensing Impact
+
+**None on the license you receive.** MetaLoom is licensed under the **Apache License 2.0**, unchanged
+before and after 2026. The use of AI assistance does not add any term, restriction or third-party
+claim to the source you get.
+
+Two clarifications that are worth stating explicitly:
+
+* **The models used to *build* MetaLoom are not the models MetaLoom *runs*.** Development-time
+  assistants leave no runtime dependency in the product. What a deployment loads at runtime — and the
+  licenses attached to it — is inventoried on link:../model-licenses/[Model Licenses], including the
+  models that are **not** cleared for commercial use.
+* **Apache-2.0 already governs contribution and distribution.** Nothing on this page narrows the
+  grant. If your organisation applies a policy to AI-assisted code, this disclosure is what you need
+  to evaluate it against.
+
+== Why Disclose This
+
+Procurement and compliance reviews increasingly ask how a codebase was produced. Answering it up
+front — with the date the practice changed and the boundaries it operates under — is cheaper for
+everyone than answering it per enquiry, and it lets you make your own call rather than guess.
+
+== See Also
+
+* link:../[Legal & Licensing] — section overview and the platform license
+* link:../model-licenses/[Model Licenses] — the models a running deployment pulls in
+* link:../../loom/chat/[Chat & AI Agent] — the AI features inside the *product*, which are a separate
+  topic from how the product was built
