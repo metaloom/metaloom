@@ -1,0 +1,11 @@
+{{- if .Values.config -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "loom.fullname" . }}-config
+  labels:
+    {{- include "loom.labels" . | nindent 4 }}
+data:
+  loom.yml: |
+    {{- toYaml .Values.config | nindent 4 }}
+{{- end }}

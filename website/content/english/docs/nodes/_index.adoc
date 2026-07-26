@@ -47,7 +47,7 @@ The built-in nodes fall into four categories.
 | link:whisper/[Speech-to-Text] (`whisper`) | Video, Audio | Transcribe audio with Whisper
 | link:tts/[Text-to-Speech] (`tts`) | Any (from upstream text) | Synthesize narration audio (Orpheus/Kartoffel DE, Kokoro EN)
 | link:llm/[LLM Enrichment] (`llm`) | Any | Enrich metadata with a language model
-| link:captioning/[Captioning] (`captioning`) | Image | Natural-language image captions
+| link:captioning/[Captioning] (`captioning`) | Image, Video | Natural-language captions for images and videos
 | link:facedetect/[Face Detection] (`facedetect`) | Image, Video | Detect faces + embeddings
 | link:facedescription/[Face Description] (`facedescription`) | Image | Describe detected faces with a vision model
 |===
@@ -132,8 +132,10 @@ the layout — tables, columns, formulas — that plain glyph recognition flatte
 link:whisper/[`whisper`] transcribes audio and video soundtracks with the Whisper model.
 
 AI captioning and enrichment::
-link:captioning/[`captioning`] generates natural-language descriptions with a vision-language model
-(SmolVLM), and link:llm/[`llm`] enriches metadata through an LLM provider such as Ollama.
+link:captioning/[`captioning`] generates natural-language descriptions of both images and videos with
+a vision-language model — images from a still frame (SmolVLM), videos from their temporal content
+(Qwen2.5-VL), optionally as a per-scene timeline — and link:llm/[`llm`] enriches metadata through an
+LLM provider such as Ollama.
 
 Text-to-speech::
 link:tts/[`tts`] turns upstream text — an link:llm/[`llm`] summary, a caption, or a translated

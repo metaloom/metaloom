@@ -10,6 +10,8 @@ import io.metaloom.cortex.Cortex;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.media.LoomMediaLoader;
 import io.metaloom.cortex.common.option.CortexOptionsLoader;
+import io.metaloom.cortex.pipeline.loader.NodeFactory;
+import io.metaloom.cortex.pipeline.loader.NodeRegistrar;
 import picocli.CommandLine;
 
 @Singleton
@@ -24,6 +26,12 @@ public interface CortexComponent {
 	CortexOptions options();
 
 	CortexOptionsLoader optionsLoader();
+
+	/** The shared, bootstrap-populated pipeline node registry. */
+	NodeFactory nodeFactory();
+
+	/** Populates {@link #nodeFactory()} with the executable node kinds. */
+	NodeRegistrar nodeRegistrar();
 
 	/**
 	 * Reference to the Pico CLI instance.

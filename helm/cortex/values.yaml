@@ -1,0 +1,159 @@
+# Default values for the MetaLoom Cortex chart.
+# This is a YAML-formatted file. Every key is documented; override what you need.
+
+# -- Number of worker replicas. Each replica registers with Loom as its own
+# worker (stable identity via the StatefulSet ordinal — see nodeId below).
+replicaCount: 1
+
+image:
+  # -- Worker image repository. THIS IS THE "custom node container" knob:
+  # point it at your own image (e.g. metaloom/cortex-custom or metaloom/cortex-python)
+  # to run a worker that advertises custom node kinds. Defaults to the stock worker.
+  repository: metaloom/cortex-server
+  # -- Image tag. Defaults to the chart's appVersion when empty.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets for private registries (e.g. [ { name: regcred } ]).
+imagePullSecrets: []
+
+# -- Override the container entrypoint. Leave empty to use the image's own CMD.
+# A custom image with a different entrypoint (e.g. the Python worker, which runs
+# `python daemon.py`) sets these; the stock server image does not need them.
+command: []
+args: []
+
+# Connection to the Loom backend. Cortex dials OUT to Loom; Loom never connects in.
+loom:
+  # -- Loom hostname (Service name when Loom runs in the same cluster).
+  host: loom
+  # -- Loom REST + WebSocket port.
+  port: 8092
+  # -- API token used to register and to write results back. Stored in a Secret.
+  # Leave empty to run token-less (worker still registers and answers tasks, but
+  # skips result persistence — the same graceful degradation as offline mode).
+  token: ""
+  # -- Use an existing Secret for the token instead of creating one.
+  # The Secret must expose the token under the `token` key.
+  existingSecret: ""
+
+# -- Stable per-worker id reported at registration. Loom keys worker leases on it,
+# so it MUST be stable across restarts — by default it is taken from the pod name
+# (the StatefulSet ordinal), never a random suffix. Set a fixed value only for a
+# single-replica deployment.
+nodeId: ""
+
+# -- Node kinds this worker advertises and runs. Empty means "all kinds the image
+# supports". Rendered into CORTEX_NODE_WHITELIST (and CORTEX_NODE_KINDS, which the
+# Python worker example reads). Example: [ "sha512", "thumbnail", "py-hello" ].
+nodeKinds: []
+
+# -- Node kinds to explicitly disable on this worker (CORTEX_NODE_BLACKLIST).
+nodeBlacklist: []
+
+# Local metadata / index directory (CORTEX_META_PATH).
+meta:
+  path: /meta
+  persistence:
+    # -- Persist the meta directory. A worker rebuilds it if lost, so this is optional.
+    enabled: false
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 2Gi
+
+# Shared media storage. Loom sends the worker a PATH to media, never the bytes,
+# so the worker must be able to READ that path itself. Mount the same storage the
+# Loom uploads volume uses (or wherever the source files live).
+media:
+  # -- Mount shared media into the worker.
+  enabled: false
+  # -- Mount path inside the container. Must match the paths Loom hands out.
+  mountPath: /media
+  # -- Volume source. Provide exactly one of: existingClaim, hostPath, or nfs.
+  existingClaim: ""
+  hostPath: ""
+  nfs:
+    server: ""
+    path: ""
+  # -- Mount read-only (workers only read source media).
+  readOnly: true
+
+# -- Extra environment variables (list of name/value or name/valueFrom maps).
+extraEnv: []
+
+# -- Extra YAML config mounted as cortex.yml (rarely needed; env wins on the
+# server path). When set, rendered into a ConfigMap and mounted at /config/cortex.yml.
+config: {}
+
+# Monitoring HTTP server (health / readiness / metrics).
+monitoring:
+  # -- CORTEX_MONITORING_PORT. Serves /api/health, /api/ready and /metrics.
+  port: 8093
+
+livenessProbe:
+  # -- Enable the liveness probe. Disable for a minimal custom image that does not
+  # serve a monitoring port.
+  enabled: true
+  # -- Probe type: httpGet | tcpSocket | exec.
+  type: httpGet
+  httpPath: /api/health
+  initialDelaySeconds: 15
+  periodSeconds: 20
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+readinessProbe:
+  # -- Enable the readiness probe. A worker is "ready" only once it has connected
+  # to AND registered with Loom. Disable for a custom image without a /api/ready.
+  enabled: true
+  type: httpGet
+  httpPath: /api/ready
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+service:
+  # -- A headless Service fronting the monitoring port (health/metrics scraping).
+  enabled: true
+  type: ClusterIP
+  port: 8093
+  annotations: {}
+
+resources:
+  # requests/limits — set generous limits for GPU/AI nodes. The stock image ships
+  # a CUDA runtime, so a GPU can be requested via limits (see below).
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits: {}
+  # -- Uncomment to request a GPU for face-detect / VLM / whisper workloads:
+  #   limits:
+  #     nvidia.com/gpu: 1
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+podAnnotations: {}
+podLabels: {}
+
+# The container images run as uid 1000, group root (gid 0).
+podSecurityContext:
+  runAsUser: 1000
+  runAsGroup: 0
+  fsGroup: 0
+
+securityContext: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# -- Optional PodDisruptionBudget.
+podDisruptionBudget:
+  enabled: false
+  minAvailable: ""
+  maxUnavailable: ""

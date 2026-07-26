@@ -10,6 +10,7 @@ import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.media.LoomMediaLoader;
 import io.metaloom.cortex.common.option.CortexOptionsLoader;
 import io.metaloom.cortex.pipeline.loader.NodeFactory;
+import io.metaloom.cortex.pipeline.loader.NodeRegistrar;
 
 import javax.inject.Singleton;
 
@@ -40,6 +41,14 @@ public interface CortexComponent {
 	 * @return the node factory
 	 */
 	NodeFactory nodeFactory();
+
+	/**
+	 * Populates {@link #nodeFactory()} with this instance's executable node kinds. In a running daemon the bootstrap
+	 * initializer invokes {@code registerAll()} before registering with Loom.
+	 *
+	 * @return the node registrar
+	 */
+	NodeRegistrar nodeRegistrar();
 
 	@Component.Builder
 	interface Builder {

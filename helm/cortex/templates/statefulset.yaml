@@ -1,0 +1,201 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "cortex.fullname" . }}
+  labels:
+    {{- include "cortex.labels" . | nindent 4 }}
+spec:
+  # A StatefulSet (not a Deployment) so each replica gets a stable pod name, which
+  # is used as CORTEX_NODE_ID. Loom keys worker leases on that id — a random suffix
+  # would orphan a lease on every restart.
+  serviceName: {{ include "cortex.fullname" . }}
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "cortex.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "cortex.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "cortex.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: cortex
+          image: {{ include "cortex.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            - name: LOOM_HOST
+              value: {{ .Values.loom.host | quote }}
+            - name: LOOM_PORT
+              value: {{ .Values.loom.port | quote }}
+            - name: CORTEX_MONITORING_PORT
+              value: {{ .Values.monitoring.port | quote }}
+            - name: CORTEX_META_PATH
+              value: {{ .Values.meta.path | quote }}
+            {{- if .Values.nodeId }}
+            - name: CORTEX_NODE_ID
+              value: {{ .Values.nodeId | quote }}
+            {{- else }}
+            # Stable identity: the StatefulSet pod name (e.g. cortex-0).
+            - name: CORTEX_NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            {{- end }}
+            {{- if .Values.nodeKinds }}
+            - name: CORTEX_NODE_WHITELIST
+              value: {{ join "," .Values.nodeKinds | quote }}
+            # Some workers (e.g. the Python example) read CORTEX_NODE_KINDS instead.
+            - name: CORTEX_NODE_KINDS
+              value: {{ join "," .Values.nodeKinds | quote }}
+            {{- end }}
+            {{- if .Values.nodeBlacklist }}
+            - name: CORTEX_NODE_BLACKLIST
+              value: {{ join "," .Values.nodeBlacklist | quote }}
+            {{- end }}
+            {{- if or .Values.loom.token .Values.loom.existingSecret }}
+            - name: LOOM_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cortex.tokenSecretName" . }}
+                  key: token
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: monitoring
+              containerPort: {{ .Values.monitoring.port }}
+              protocol: TCP
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            {{- if eq .Values.livenessProbe.type "httpGet" }}
+            httpGet:
+              path: {{ .Values.livenessProbe.httpPath }}
+              port: monitoring
+            {{- else if eq .Values.livenessProbe.type "tcpSocket" }}
+            tcpSocket:
+              port: monitoring
+            {{- else if eq .Values.livenessProbe.type "exec" }}
+            exec:
+              command:
+                {{- toYaml .Values.livenessProbe.command | nindent 16 }}
+            {{- end }}
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            {{- if eq .Values.readinessProbe.type "httpGet" }}
+            httpGet:
+              path: {{ .Values.readinessProbe.httpPath }}
+              port: monitoring
+            {{- else if eq .Values.readinessProbe.type "tcpSocket" }}
+            tcpSocket:
+              port: monitoring
+            {{- else if eq .Values.readinessProbe.type "exec" }}
+            exec:
+              command:
+                {{- toYaml .Values.readinessProbe.command | nindent 16 }}
+            {{- end }}
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            {{- if .Values.meta.persistence.enabled }}
+            - name: meta
+              mountPath: {{ .Values.meta.path }}
+            {{- end }}
+            {{- if .Values.media.enabled }}
+            - name: media
+              mountPath: {{ .Values.media.mountPath }}
+              readOnly: {{ .Values.media.readOnly }}
+            {{- end }}
+            {{- if .Values.config }}
+            - name: config
+              mountPath: /config/cortex.yml
+              subPath: cortex.yml
+            {{- end }}
+      volumes:
+        {{- if .Values.media.enabled }}
+        - name: media
+          {{- if .Values.media.existingClaim }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.media.existingClaim }}
+          {{- else if .Values.media.hostPath }}
+          hostPath:
+            path: {{ .Values.media.hostPath }}
+          {{- else if .Values.media.nfs.server }}
+          nfs:
+            server: {{ .Values.media.nfs.server }}
+            path: {{ .Values.media.nfs.path }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- end }}
+        {{- if .Values.config }}
+        - name: config
+          configMap:
+            name: {{ include "cortex.fullname" . }}-config
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  {{- if .Values.meta.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: meta
+      spec:
+        accessModes:
+          {{- toYaml .Values.meta.persistence.accessModes | nindent 10 }}
+        {{- if .Values.meta.persistence.storageClass }}
+        storageClassName: {{ .Values.meta.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.meta.persistence.size | quote }}
+  {{- end }}

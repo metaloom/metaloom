@@ -1,0 +1,208 @@
+# Default values for the MetaLoom Loom chart.
+# This is a YAML-formatted file. Every key is documented; override what you need.
+
+# -- Number of Loom replicas. Loom is a stateful, single-writer server (owns the
+# pipeline engine and run state); keep this at 1 unless you know the deployment
+# is fronted by external coordination.
+replicaCount: 1
+
+image:
+  repository: metaloom/loom-server
+  # -- Image tag. Defaults to the chart appVersion when empty. Append "-native"
+  # for the GraalVM native variant (e.g. "latest-native").
+  tag: ""
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets for private registries.
+imagePullSecrets: []
+
+# Bootstrap admin password (LOOM_INITIAL_PASSWORD), stored in a Secret.
+auth:
+  # -- Initial admin password. CHANGE THIS. Ignored if existingSecret is set.
+  initialPassword: "changeme"
+  # -- Use an existing Secret (key `initial-password`) instead of the value above.
+  existingSecret: ""
+  # Keystore holding the JWT signing key. It MUST survive restarts (persisted
+  # below) or every issued token stops verifying after a restart.
+  keystorePath: /keystore/keystore.jks
+
+service:
+  type: ClusterIP
+  # REST + WebSocket + UI — the single port clients, the UI and Cortex all use.
+  restPort: 8092
+  # gRPC surface (optional).
+  grpcPort: 8091
+  # Monitoring / Prometheus /metrics.
+  monitoringPort: 8989
+  annotations: {}
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  # -- Hostname for the REST/UI service (routed to the REST port).
+  host: loom.example.com
+  path: /
+  pathType: Prefix
+  tls: []
+
+# Persistent volumes. The container mounts /config, /keystore, /uploads, /plugins.
+persistence:
+  config:
+    # -- Holds loom.yml. Keep enabled so configuration survives restarts.
+    enabled: true
+    storageClass: ""
+    accessModes: [ReadWriteOnce]
+    size: 128Mi
+    existingClaim: ""
+  keystore:
+    # -- Holds the JWT signing keystore. MUST stay enabled and persistent, or
+    # tokens issued before a restart stop verifying.
+    enabled: true
+    storageClass: ""
+    accessModes: [ReadWriteOnce]
+    size: 128Mi
+    existingClaim: ""
+  uploads:
+    # -- Asset binary storage (LOOM_BINARY_DIR=/uploads).
+    enabled: true
+    storageClass: ""
+    accessModes: [ReadWriteOnce]
+    size: 20Gi
+    existingClaim: ""
+  plugins:
+    # -- Plugin drop directory (/plugins).
+    enabled: false
+    storageClass: ""
+    accessModes: [ReadWriteOnce]
+    size: 1Gi
+    existingClaim: ""
+
+# External database connection. Used when postgresql.enabled is false.
+database:
+  host: ""
+  port: 5432
+  name: loom
+  user: loom
+  # -- Password (LOOM_DB_PASSWORD). Ignored if existingSecret is set.
+  password: ""
+  # -- Use an existing Secret (key `db-password`) instead of the value above.
+  existingSecret: ""
+
+# Optional self-contained PostgreSQL. For QUICK STARTS / dev only — run a managed
+# database in production and set database.* instead. Uses the official postgres
+# image (a Docker Official Image), NOT a third-party subchart, so it works fully
+# offline. When enabled, the chart wires Loom to this instance and database.host
+# is ignored.
+postgresql:
+  enabled: false
+  image:
+    repository: postgres
+    tag: "17-alpine"
+    pullPolicy: IfNotPresent
+  auth:
+    database: loom
+    username: loom
+    # -- Password for the bundled Postgres (also what Loom connects with).
+    password: "loom"
+    existingSecret: ""
+  persistence:
+    enabled: true
+    storageClass: ""
+    accessModes: [ReadWriteOnce]
+    size: 10Gi
+  resources: {}
+
+# AI chat agent (LOOM_AI_*). Optional — leave enabled false to ship without the
+# assistant. Point url/model at your provider (Ollama, vLLM, llama.cpp, …).
+ai:
+  enabled: false
+  providerType: ""
+  url: ""
+  modelId: ""
+  # -- Extra LOOM_AI_* / LOOM_AGENT_* env vars as a plain map (name: value).
+  extraEnv: {}
+
+# Coding sandbox (LOOM_AGENT_SANDBOX_*). This is a UNIT: enabling the env var alone
+# is incomplete — the runner namespace needs the Role, RoleBinding, ResourceQuota,
+# LimitRange and NetworkPolicy this block renders together. Leave disabled unless
+# you use the chat agent's coding sandbox.
+sandbox:
+  enabled: false
+  # -- Namespace Loom creates runner pods in. Create it out of band, or set
+  # createNamespace true to have the chart manage it.
+  namespace: loom-runners
+  createNamespace: false
+  # -- Render the runner-namespace RBAC + guardrails (Role/RoleBinding/Quota/
+  # LimitRange/NetworkPolicy). Turn off only if you manage them yourself.
+  rbac: true
+  resourceQuota:
+    enabled: true
+    pods: "10"
+    requestsCpu: "4"
+    requestsMemory: 8Gi
+    limitsCpu: "8"
+    limitsMemory: 16Gi
+  limitRange:
+    enabled: true
+    defaultCpu: "1"
+    defaultMemory: 1Gi
+    defaultRequestCpu: 250m
+    defaultRequestMemory: 256Mi
+  networkPolicy:
+    enabled: true
+  # -- Extra LOOM_AGENT_SANDBOX_* env vars as a plain map (name: value).
+  extraEnv: {}
+
+# Agent memory bank (LOOM_AGENT_MEMORY_*).
+memory:
+  enabled: false
+  mountPath: ""
+
+# -- Extra environment variables (list of name/value or name/valueFrom maps).
+extraEnv: []
+
+# -- Extra YAML mounted as loom.yml (LOOM_CONF_FILENAME). Env vars still win.
+config: {}
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 768Mi
+  limits: {}
+
+# Health probes hit the REST port at /api/v1/health (includes a DB check).
+livenessProbe:
+  enabled: true
+  httpPath: /api/v1/health
+  initialDelaySeconds: 30
+  periodSeconds: 20
+  timeoutSeconds: 5
+  failureThreshold: 6
+readinessProbe:
+  enabled: true
+  httpPath: /api/v1/health
+  initialDelaySeconds: 15
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 6
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+podAnnotations: {}
+podLabels: {}
+
+# The container images run as uid 1000, group root (gid 0).
+podSecurityContext:
+  runAsUser: 1000
+  runAsGroup: 0
+  fsGroup: 0
+
+securityContext: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

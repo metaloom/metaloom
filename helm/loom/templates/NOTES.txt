@@ -1,0 +1,42 @@
+MetaLoom Loom "{{ .Release.Name }}" has been deployed.
+
+  Image:    {{ include "loom.image" . }}
+  Database: {{ if .Values.postgresql.enabled }}bundled PostgreSQL ({{ include "loom.postgres.fullname" . }}){{ else }}{{ .Values.database.host | default "<external — set database.host>" }}:{{ .Values.database.port }}{{ end }}
+
+1. Watch it start:
+
+   kubectl -n {{ .Release.Namespace }} rollout status deploy/{{ include "loom.fullname" . }}
+
+2. Reach the REST API / UI:
+{{- if .Values.ingress.enabled }}
+
+   https://{{ .Values.ingress.host }}/    (UI at /ui/)
+{{- else }}
+
+   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "loom.fullname" . }} {{ .Values.service.restPort }}:{{ .Values.service.restPort }}
+   # then open http://localhost:{{ .Values.service.restPort }}/ui/
+{{- end }}
+
+3. Log in as `admin` with the initial password{{ if .Values.auth.existingSecret }} from Secret "{{ .Values.auth.existingSecret }}"{{ else }} you set in `auth.initialPassword`{{ end }}.
+
+4. Point Cortex workers at this Service with the sibling cortex chart:
+
+   helm install cortex ./helm/cortex --set loom.host={{ include "loom.fullname" . }} --set loom.token=<token>
+
+{{- if and (not .Values.postgresql.enabled) (not .Values.database.host) }}
+
+WARNING: No database configured. Set an external DB via `database.host` (+ user/
+password), or enable the bundled Postgres with `--set postgresql.enabled=true`.
+{{- end }}
+{{- if eq .Values.auth.initialPassword "changeme" }}
+{{- if not .Values.auth.existingSecret }}
+
+WARNING: auth.initialPassword is still "changeme" — set a real password.
+{{- end }}
+{{- end }}
+{{- if .Values.sandbox.enabled }}
+
+NOTE: The coding sandbox is enabled. Runner pods land in namespace "{{ .Values.sandbox.namespace }}"
+with the Role/RoleBinding{{ if .Values.sandbox.resourceQuota.enabled }}, ResourceQuota{{ end }}{{ if .Values.sandbox.limitRange.enabled }}, LimitRange{{ end }}{{ if .Values.sandbox.networkPolicy.enabled }} and NetworkPolicy{{ end }} this chart rendered.
+{{- if not .Values.sandbox.createNamespace }} Ensure that namespace exists.{{ end }}
+{{- end }}

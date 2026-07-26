@@ -1,0 +1,20 @@
+{{- range $name, $cfg := .Values.persistence }}
+{{- if and $cfg.enabled (not $cfg.existingClaim) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "loom.fullname" $ }}-{{ $name }}
+  labels:
+    {{- include "loom.labels" $ | nindent 4 }}
+spec:
+  accessModes:
+    {{- toYaml $cfg.accessModes | nindent 4 }}
+  {{- if $cfg.storageClass }}
+  storageClassName: {{ $cfg.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $cfg.size | quote }}
+{{- end }}
+{{- end }}

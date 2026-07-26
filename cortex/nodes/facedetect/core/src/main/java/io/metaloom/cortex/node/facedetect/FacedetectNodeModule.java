@@ -11,8 +11,11 @@ import org.slf4j.LoggerFactory;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
+import dagger.multibindings.IntoMap;
 import dagger.multibindings.IntoSet;
+import dagger.multibindings.StringKey;
 import io.metaloom.cortex.api.node.CortexNode;
+import io.metaloom.cortex.api.node.FilesystemNode;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractNodeModule;
 import io.metaloom.cortex.common.dlib.DLibModelProvisioner;
@@ -32,6 +35,11 @@ public abstract class FacedetectNodeModule extends AbstractNodeModule {
 	@Binds
 	@IntoSet
 	abstract CortexNode<?, ?> bindNode(FacedetectNode action);
+
+	@Binds
+	@IntoMap
+	@StringKey("facedetect")
+	abstract FilesystemNode<?, ?> kindFacedetect(FacedetectNode node);
 
 	@IntoSet
 	@Provides

@@ -3,7 +3,9 @@ package io.metaloom.cortex.node.tika;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
+import dagger.multibindings.IntoMap;
 import dagger.multibindings.IntoSet;
+import dagger.multibindings.StringKey;
 import io.metaloom.cortex.api.node.FilesystemNode;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractNodeModule;
@@ -17,6 +19,11 @@ public abstract class TikaNodeModule extends AbstractNodeModule {
 	@Binds
 	@IntoSet
 	abstract FilesystemNode<?, ?> bindNode(TikaNode node);
+
+	@Binds
+	@IntoMap
+	@StringKey("tika")
+	abstract FilesystemNode<?, ?> kindTika(TikaNode node);
 
 	@IntoSet
 	@Provides

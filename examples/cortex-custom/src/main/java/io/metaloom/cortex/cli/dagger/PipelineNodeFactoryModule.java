@@ -1,64 +1,64 @@
 package io.metaloom.cortex.cli.dagger;
 
+import java.util.Map;
+
+import javax.inject.Provider;
 import javax.inject.Singleton;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
+import io.metaloom.cortex.api.node.FilesystemNode;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.api.option.node.CortexNodeOptions;
 import io.metaloom.cortex.api.option.node.ValidationResult;
 import io.metaloom.cortex.node.hello.HelloWorldNode;
-import io.metaloom.cortex.node.hash.ChunkHashNode;
-import io.metaloom.cortex.node.hash.MD5Node;
-import io.metaloom.cortex.node.hash.SHA256Node;
-import io.metaloom.cortex.node.hash.SHA512Node;
-import io.metaloom.cortex.node.thumbnail.ThumbnailNode;
 import io.metaloom.cortex.pipeline.api.NodeMode;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 import io.metaloom.cortex.pipeline.core.node.CortexNodeAdapter;
 import io.metaloom.cortex.pipeline.loader.NodeFactory;
+import io.metaloom.cortex.pipeline.loader.NodeRegistrar;
 import io.metaloom.cortex.pipeline.loader.RegistryNodeFactory;
 
 /**
- * Dagger module that populates the {@link RegistryNodeFactory} with the
- * concrete cortex nodes that this custom CLI ships with.
+ * Dagger module that wires the pipeline node registry for the custom Cortex CLI.
  *
- * <p>This mirrors the module of the same name in {@code cortex-cli} and adds
- * the example's own {@link HelloWorldNode} (from the {@code cortex-custom-node}
- * module) under the {@code hello-world} type, which is the extension point a
- * downstream instance is expected to use: copy this module, keep the built-in
- * registrations you want, and register your own nodes alongside them. Unknown
- * node types continue to fall back to stub nodes in the loader.</p>
+ * <p>This mirrors the module of the same name in {@code cortex-cli}: the empty
+ * {@link RegistryNodeFactory} is bound as the {@link NodeFactory}, and a
+ * {@link NodeRegistrar} fills it at bootstrap. The built-in node kinds come from
+ * the {@code Map<String, Provider<FilesystemNode>>} multibinding that every node
+ * module contributes to, so there is nothing to list here for them.</p>
+ *
+ * <p>The extension point a downstream instance uses is the last line of
+ * {@link #provideNodeRegistrar}: register your own node (here the example's
+ * {@link HelloWorldNode} from {@code cortex-custom-node}) under its own type,
+ * alongside the built-ins. The {@link Provider} keeps it uninstantiated until a
+ * {@code hello-world} task arrives.</p>
  */
 @Module(includes = NodeCollectionModule.class)
-public class PipelineNodeFactoryModule {
+public abstract class PipelineNodeFactoryModule {
 
-	private static final Logger log = LoggerFactory.getLogger(PipelineNodeFactoryModule.class);
+	@Binds
+	@Singleton
+	abstract NodeFactory bindNodeFactory(RegistryNodeFactory factory);
 
 	@Provides
 	@Singleton
-	public static NodeFactory provideNodeFactory(
-		SHA512Node sha512, SHA256Node sha256, MD5Node md5, ChunkHashNode chunkHash,
-		ThumbnailNode thumbnail,
-		HelloWorldNode helloWorld,
+	static NodeRegistrar provideNodeRegistrar(
+		RegistryNodeFactory factory,
+		Map<String, Provider<FilesystemNode<?, ?>>> nodeKinds,
+		Provider<HelloWorldNode> helloWorld,
 		CortexOptions cortexOptions) {
-
-		RegistryNodeFactory factory = new RegistryNodeFactory();
-		factory.register("sha512", def -> adapt(sha512, def, cortexOptions));
-		factory.register("sha256", def -> adapt(sha256, def, cortexOptions));
-		factory.register("md5", def -> adapt(md5, def, cortexOptions));
-		factory.register("chunk-hash", def -> adapt(chunkHash, def, cortexOptions));
-		factory.register("thumbnail", def -> adapt(thumbnail, def, cortexOptions));
-		factory.register("hello-world", def -> adapt(helloWorld, def, cortexOptions));
-
-		log.info("Registered {} node producers with the pipeline node factory", factory.registeredTypes().size());
-		return factory;
+		return () -> {
+			// Built-in kinds, contributed by each node module via @IntoMap @StringKey.
+			nodeKinds.forEach((kind, provider) ->
+				factory.register(kind, def -> adapt(provider.get(), def, cortexOptions)));
+			// The example's own custom node, registered under its own type.
+			factory.register("hello-world", def -> adapt(helloWorld.get(), def, cortexOptions));
+		};
 	}
 
-	private static PipelineNode adapt(io.metaloom.cortex.api.node.FilesystemNode<?, ?> wrapped, io.vertx.core.json.JsonObject nodeDef, CortexOptions cortexOptions) {
+	private static PipelineNode adapt(FilesystemNode<?, ?> wrapped, io.vertx.core.json.JsonObject nodeDef, CortexOptions cortexOptions) {
 		String id = nodeDef.getString("id", wrapped.name());
 		NodeMode mode = NodeMode.valueOf(nodeDef.getString("mode", "PARALLEL"));
 		boolean blocking = nodeDef.getBoolean("blocking", true);

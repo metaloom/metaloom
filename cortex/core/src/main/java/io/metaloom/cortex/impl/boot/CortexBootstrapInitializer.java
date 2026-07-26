@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.impl.loom.LoomControlChannel;
 import io.metaloom.cortex.impl.monitoring.MonitoringService;
+import io.metaloom.cortex.pipeline.loader.NodeRegistrar;
 
 @Singleton
 public class CortexBootstrapInitializer {
@@ -16,16 +17,14 @@ public class CortexBootstrapInitializer {
 
 	private final MonitoringService monitoringService;
 	private final LoomControlChannel loomControlChannel;
+	private final NodeRegistrar nodeRegistrar;
 
 	@Inject
-	public CortexBootstrapInitializer(MonitoringService monitoringService, LoomControlChannel loomControlChannel) {
+	public CortexBootstrapInitializer(MonitoringService monitoringService, LoomControlChannel loomControlChannel,
+			NodeRegistrar nodeRegistrar) {
 		this.monitoringService = monitoringService;
 		this.loomControlChannel = loomControlChannel;
-		// The NodeFactory used to be injected here purely to force eager
-		// instantiation, because RegistryNodeFactory's construction pushed itself
-		// onto LoomPipelineLoader as a side effect. Both the loader and that side
-		// effect are gone: the factory is now injected directly by the component
-		// that uses it (PipelineTaskHandler), so lazy creation is correct.
+		this.nodeRegistrar = nodeRegistrar;
 	}
 
 	public void init() {
@@ -33,6 +32,12 @@ public class CortexBootstrapInitializer {
 	}
 
 	public void init(int port) {
+		// Populate the node-kind registry before the control channel starts: the
+		// REGISTER message advertises registeredTypes() as this worker's whitelist,
+		// so the registry must be filled first or the worker under-reports (or fails
+		// to report) what it can run. Registration is lazy per kind (Providers), so
+		// this does not construct any node here.
+		nodeRegistrar.registerAll();
 		monitoringService.init(port);
 		loomControlChannel.start();
 	}

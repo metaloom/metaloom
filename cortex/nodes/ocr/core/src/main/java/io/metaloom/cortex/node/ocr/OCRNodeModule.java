@@ -3,7 +3,9 @@ package io.metaloom.cortex.node.ocr;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
+import dagger.multibindings.IntoMap;
 import dagger.multibindings.IntoSet;
+import dagger.multibindings.StringKey;
 import io.metaloom.cortex.api.node.FilesystemNode;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractNodeModule;
@@ -15,6 +17,11 @@ public abstract class OCRNodeModule extends AbstractNodeModule {
 	@Binds
 	@IntoSet
 	abstract FilesystemNode<?, ?> bindNode(OCRNode node);
+
+	@Binds
+	@IntoMap
+	@StringKey("ocr")
+	abstract FilesystemNode<?, ?> kindOcr(OCRNode node);
 
 	@IntoSet
 	@Provides

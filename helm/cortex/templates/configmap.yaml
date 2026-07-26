@@ -1,0 +1,11 @@
+{{- if .Values.config -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "cortex.fullname" . }}-config
+  labels:
+    {{- include "cortex.labels" . | nindent 4 }}
+data:
+  cortex.yml: |
+    {{- toYaml .Values.config | nindent 4 }}
+{{- end }}

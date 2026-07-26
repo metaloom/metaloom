@@ -32,9 +32,24 @@ GET    /api/v1/assets/:uuid/json-comps         # list them
 POST   /api/v1/assets/:uuid/node-results       # a ledger row recording what ran (asset, nodeKind, nodeId)
 ----
 
-The request body carries `nodeKind`, `schemaType`, an optional `variant` and an opaque `data` object.
-Re-posting the same `(nodeKind, schemaType, variant)` for an asset **upserts** the single row, so
-re-running a node rewrites its result rather than accumulating duplicates.
+The request body carries `nodeKind`, `schemaType`, an optional `variant`, an optional
+`producerVersion` and an opaque `data` object. Re-posting the same `(nodeKind, schemaType, variant)`
+for an asset **upserts** the single row, so re-running a node rewrites its result rather than
+accumulating duplicates. The ledger row upserts on `(asset, nodeKind, nodeId)`.
+
+[WARNING]
+====
+**The two states are different enums.** The `NODE_TASK_RESULT` a worker sends over the WebSocket uses
+`COMPLETED | FAILED | SKIPPED`; the `state` on `/node-results` uses **`SUCCESS`** `| FAILED |
+SKIPPED`, enforced by a CHECK constraint on `asset_node_result` (`origin` likewise accepts only
+`COMPUTED`, `LOCAL` or `REMOTE`). Map `COMPLETED` → `SUCCESS` before posting: because the payload is
+written first and succeeds, getting this wrong leaves a stored component with no ledger row saying the
+node ran.
+====
+
+Stamp a `producerVersion` on both writes and bump it when a node's output shape changes — the ledger
+is indexed on `(node_kind, producer_version)`, which is how an operator finds and re-runs everything an
+older version produced.
 
 **How the asset is found:** the worker resolves the asset UUID from the media hash the task carries
 (`GET /api/v1/assets/sha512/:sha512`). That hash is only present after a hash node has run upstream, so

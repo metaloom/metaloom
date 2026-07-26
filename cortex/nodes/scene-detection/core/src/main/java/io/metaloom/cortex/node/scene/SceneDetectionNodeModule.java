@@ -3,7 +3,9 @@ package io.metaloom.cortex.node.scene;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
+import dagger.multibindings.IntoMap;
 import dagger.multibindings.IntoSet;
+import dagger.multibindings.StringKey;
 import io.metaloom.cortex.api.node.FilesystemNode;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractNodeModule;
@@ -15,6 +17,11 @@ public abstract class SceneDetectionNodeModule extends AbstractNodeModule {
 	@Binds
 	@IntoSet
 	abstract FilesystemNode<?, ?> bindNode(SceneDetectionNode node);
+
+	@Binds
+	@IntoMap
+	@StringKey("scene-detection")
+	abstract FilesystemNode<?, ?> kindSceneDetection(SceneDetectionNode node);
 
 	@IntoSet
 	@Provides

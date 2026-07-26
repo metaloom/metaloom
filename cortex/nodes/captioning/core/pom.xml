@@ -18,6 +18,12 @@
             <groupId>io.metaloom.video</groupId>
             <artifactId>video4j</artifactId>
         </dependency>
+        <!-- Scene segmentation for the "scene" video-captioning strategy -->
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-scene-detection-node</artifactId>
+            <version>${project.version}</version>
+        </dependency>
     </dependencies>
 
 </project>

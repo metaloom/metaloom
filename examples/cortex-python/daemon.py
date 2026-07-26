@@ -67,6 +67,11 @@ except ImportError:
 
 log = logging.getLogger("cortex-python")
 
+# Stamped onto everything this worker persists. Bump it whenever the node's
+# output shape changes: Loom indexes the ledger on (node_kind, producer_version),
+# which is how an operator finds and re-runs everything an older version wrote.
+PRODUCER_VERSION = "cortex-python/1.0.0"
+
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -148,6 +153,22 @@ class NodeResult:
     @staticmethod
     def skipped(reason: str):
         return NodeResult("SKIPPED", message=reason)
+
+
+# The control plane and the ledger use DIFFERENT enums for the same outcome:
+#
+#   NODE_TASK_RESULT.state (WebSocket)  COMPLETED | FAILED | SKIPPED
+#   node-results.state     (REST)       SUCCESS   | FAILED | SKIPPED
+#
+# `asset_node_result` has a CHECK constraint on the column, so posting the wire
+# value is rejected by the database — and because the json-comp is written first
+# and succeeds, the failure mode is a stored payload with no ledger row saying
+# the node ran. Map it here, once.
+LEDGER_STATE = {"COMPLETED": "SUCCESS", "FAILED": "FAILED", "SKIPPED": "SKIPPED"}
+
+
+def ledger_state(wire_state: str) -> str:
+    return LEDGER_STATE.get(wire_state, wire_state)
 
 
 def run_node(node_kind: str, media_path: str, options: dict, upstream: dict) -> NodeResult:
@@ -249,22 +270,34 @@ class LoomRest:
                 log.warning("Asset lookup failed: %s", e)
             return None
 
-    def post_json_comp(self, asset_uuid: str, node_kind: str, schema_type: str, data: dict):
+    def post_json_comp(self, asset_uuid: str, node_kind: str, schema_type: str, data: dict,
+                       variant: str = "", producer_version: str = None):
         """Persist an opaque JSON payload into the generic `asset_json_comp` sink.
 
         The lightweight, customer-facing persistence path — no dedicated table
         required. Re-posting the same (nodeKind, schemaType, variant) upserts.
         """
-        body = {"nodeKind": node_kind, "schemaType": schema_type, "data": data}
+        body = {
+            "nodeKind": node_kind,
+            "schemaType": schema_type,
+            "variant": variant,
+            "data": data,
+        }
+        if producer_version:
+            body["producerVersion"] = producer_version
         return self._request("POST", f"/assets/{asset_uuid}/json-comps", body)
 
     def post_node_result(self, asset_uuid: str, node_kind: str, node_id: str, state: str,
-                         duration_ms: int, result_ref: dict = None, reason: str = None):
+                         duration_ms: int, result_ref: dict = None, reason: str = None,
+                         producer_version: str = None):
         """Record a node-result ledger entry.
 
         This is the "what ran, and where its output lives" audit row that Loom's
         WhisperNode writes after storing its transcript. `result_ref` points at
         the payload row(s) written by post_json_comp (or a typed endpoint).
+
+        `state` must already be a LEDGER state — see ledger_state(). Passing the
+        wire state through unmapped is rejected by the database.
         """
         body = {
             "nodeKind": node_kind,
@@ -273,6 +306,10 @@ class LoomRest:
             "origin": "COMPUTED",
             "durationMs": duration_ms,
         }
+        # Stamped so an operator can sweep everything an older version produced:
+        # asset_node_result is indexed on (node_kind, producer_version).
+        if producer_version:
+            body["producerVersion"] = producer_version
         if reason:
             body["reason"] = reason
         if result_ref:
@@ -465,10 +502,14 @@ class LoomChannel:
         if not asset_uuid:
             return
         try:
-            self.rest.post_json_comp(asset_uuid, node_kind, node_kind, result.outputs)
+            self.rest.post_json_comp(
+                asset_uuid, node_kind, node_kind, result.outputs,
+                producer_version=PRODUCER_VERSION,
+            )
             self.rest.post_node_result(
-                asset_uuid, node_kind, node_id or "", result.state, duration_ms,
+                asset_uuid, node_kind, node_id or "", ledger_state(result.state), duration_ms,
                 result_ref={"table": "asset_json_comp", "nodeKind": node_kind},
+                producer_version=PRODUCER_VERSION,
             )
             log.info("Persisted %s result for asset %s", node_kind, asset_uuid)
         except LoomHttpError as e:

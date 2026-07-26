@@ -758,6 +758,10 @@ public class DemoDatabaseInitializer {
 		// --- VLM (olmOCR) document transcription ---
 		createVlmOlmOcrComp(admin, scanAsset);
 
+		// --- Captioning (image + video) ---
+		createImageCaptioningComp(admin, imageAssets[0]);
+		createVideoCaptioningComp(admin, videoAssets[1]);
+
 		log.info(
 			"Demo data initialization complete — created {} assets ({} with previewable binaries), {} tags, {} collections, {} pipelines, {} users, "
 				+ "{} groups, {} roles, {} tasks, {} skills, {} chat sessions, {} memory entries, {} annotations, {} reactions.",
@@ -1301,6 +1305,49 @@ public class DemoDatabaseInitializer {
 			.put("truncated", false));
 		assetComponentDao.upsertJsonComp(comp);
 		log.info("Created demo vlm/olmocr component for asset: {}", asset.getFilename());
+	}
+
+	/**
+	 * Create the JSON component a {@code captioning} node writes for an image: a natural-language caption of the still frame. Shape mirrors a real run
+	 * ({@code schemaType=caption}, {@code data.caption}).
+	 */
+	private void createImageCaptioningComp(User admin, Asset asset) {
+		AssetJsonComp comp = assetComponentDao.createJsonComp(admin.getUuid(), asset.getUuid(), "captioning");
+		comp.setSchemaType("caption");
+		comp.setVariant("");
+		comp.setProducerVersion("SmolVLM");
+		comp.setData(new JsonObject()
+			.put("caption", "A warm sunset over rolling hills, the sky washed in orange and violet."));
+		assetComponentDao.upsertJsonComp(comp);
+		log.info("Created demo captioning/caption component for asset: {}", asset.getFilename());
+	}
+
+	/**
+	 * Create the JSON component a {@code captioning} node writes for a video: a natural-language description of the clip plus a per-scene timeline. Shape
+	 * mirrors a real scene-strategy run ({@code schemaType=video-caption}; {@code data} carries {@code variant}, {@code model}, {@code frameCount} and a
+	 * {@code scenes} array).
+	 */
+	private void createVideoCaptioningComp(User admin, Asset asset) {
+		JsonArray scenes = new JsonArray()
+			.add(new JsonObject().put("seq", 0).put("fromFrame", 0).put("toFrame", 120)
+				.put("caption", "An aerial shot sweeps along a rugged coastline as waves break on the rocks below."))
+			.add(new JsonObject().put("seq", 1).put("fromFrame", 121).put("toFrame", 260)
+				.put("caption", "The camera turns inland over green cliffs dotted with grazing sheep."));
+
+		AssetJsonComp comp = assetComponentDao.createJsonComp(admin.getUuid(), asset.getUuid(), "captioning");
+		comp.setSchemaType("video-caption");
+		comp.setVariant("");
+		comp.setProducerVersion("qwen25vl-awq");
+		comp.setData(new JsonObject()
+			.put("caption",
+				"Scene 1 [frames 0-120]: An aerial shot sweeps along a rugged coastline as waves break on the rocks below.\n"
+					+ "Scene 2 [frames 121-260]: The camera turns inland over green cliffs dotted with grazing sheep.")
+			.put("variant", "scene")
+			.put("model", "qwen25vl-awq")
+			.put("frameCount", 6)
+			.put("scenes", scenes));
+		assetComponentDao.upsertJsonComp(comp);
+		log.info("Created demo captioning/video-caption component for asset: {}", asset.getFilename());
 	}
 
 	// -- demo image binaries -------------------------------------------------

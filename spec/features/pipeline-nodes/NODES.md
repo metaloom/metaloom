@@ -240,7 +240,7 @@ Nodes persist results back to the Loom REST API. Two mechanisms coexist:
 | `VlmNode` | vlm | `vlm` | `vlm_result_{promptId}` (String) | Image only | Vision-language model over an OpenAI-compatible endpoint; ships an olmOCR document-transcription preset |
 | `QualityNode` | quality | `quality` | `blurriness`, `image_width/height`, `video_width/height/fps/frame_count`, `quality_flag` | Video, Image | Quality metrics (resolution, blurriness via Laplacian) |
 | `SceneDetectionNode` | scene-detection | `scene-detection` | `scene_detection` (String) | Video only | Optical-flow scene detection |
-| `CaptioningNode` | captioning | `captioning` | `caption_result` (String) | Image (video/audio stub) | Image captioning via SmolVLM vision model |
+| `CaptioningNode` | captioning | `captioning` | `caption_result` (String) | Image, Video | Image captions via SmolVLM; video captions via an OpenAI-compatible VLM (Qwen2.5-VL) with a whole/scene/native `videoStrategy` |
 | `HashDedupNode` | dedup | `sha512-dedup` | (side effects: moves files) | Any (requires SHA-512) | Deduplicates files by SHA-512 hash; moves dups to target folder |
 | `FingerprintDedupNode` | dedup | (fingerprint dedup) | (side effects) | Video only | Deduplicates by video fingerprint |
 | `LoomNode` | loom | `loom` | (side effects: bulk update) | Any | Syncs hash results to Loom backend in batches of 50 |
@@ -406,7 +406,7 @@ Every node has its own options class extending `AbstractNodeOptions<T>`:
 | OCR | `OCRNodeOptions` | `tessDataPath`, `language` |
 | LLM | `LLMNodeOptions` | `ollamaUrl`, `prompts` (Map of prompt configs) |
 | VLM | `VlmNodeOptions` | `endpointUrl`, `apiKey`, `prompts` (Map of `VlmNodePrompt`: `model`, `prompt`, `responseFormat`, `maxImageDim`, `maxTokens`, `temperature`, `retryOnRotation`) |
-| Captioning | `CaptioningNodeOptions` | `smolVLMHost`, `smolVLMPort` |
+| Captioning | `CaptioningNodeOptions` | Image: `smolVLMHost`, `smolVLMPort`. Video: `videoStrategy` (`WHOLE`/`SCENE`/`NATIVE`), `videoEndpointUrl`, `videoModel`, `videoApiKey`, `frameCount`, `targetFrameSize`, `maxScenes`, `maxTokens`, `temperature`, `videoPrompt` |
 | Dedup | `DedupNodeOptions` | `dupFolder` (Path) |
 | Filesystem Source | `FilesystemSourceNodeOptions` | `path` (String), `pathGlobs` (List&lt;String&gt;) — defaults used when the pipeline definition supplies no selection |
 | Scene | `SceneDetectionOptions` | (no custom fields) |
@@ -417,10 +417,18 @@ Every node has its own options class extending `AbstractNodeOptions<T>`:
 
 Each node module extends `AbstractNodeModule` and provides:
 1. `@Binds @IntoSet FilesystemNode<?, ?>` - registers the node in the
-   Dagger multibinding set.
-2. `@Provides CortexNodeOptionDeserializerInfo` - registers the options
+   Dagger multibinding set (used by the legacy CLI `FilesystemProcessorImpl`).
+2. `@Binds @IntoMap @StringKey("<kind>") FilesystemNode<?, ?>` - registers the
+   node as an **executable pipeline kind**. The `@StringKey` is the node's
+   `name()` (the pipeline `type`). This map (`Map<String, Provider<FilesystemNode>>`)
+   is the single source of truth for what the worker can run: `NodeRegistrar`
+   turns it into the `RegistryNodeFactory` registry at bootstrap, and the worker
+   announces `registeredTypes()` as its `nodeWhitelist` (§11). The `Provider`
+   keeps the node uninstantiated until a task of its kind arrives. Stub / unwired
+   nodes (`fingerprint-dedup`, `facedescription`) deliberately omit this binding.
+3. `@Provides CortexNodeOptionDeserializerInfo` - registers the options
    class and its config key for deserialization.
-3. `@Provides` method that extracts node-specific options from
+4. `@Provides` method that extracts node-specific options from
    `CortexOptions` using `nodeOptions(cortexOptions, KEY, default)`.
 
 The `CortexOptions.getNodes()` map is keyed by the node's `KEY` constant
@@ -558,6 +566,10 @@ public abstract class HashNodeModule extends AbstractNodeModule {
     @Binds @IntoSet
     abstract FilesystemNode<?, ?> bindSHA512Node(SHA512Node node);
 
+    // Advertises "sha512" as an executable pipeline kind (lazy via Provider).
+    @Binds @IntoMap @StringKey("sha512")
+    abstract FilesystemNode<?, ?> kindSHA512(SHA512Node node);
+
     @IntoSet @Provides
     public static CortexNodeOptionDeserializerInfo optionInfo() {
         return new CortexNodeOptionDeserializerInfo(HashNodeOptions.class, HashNodeOptions.KEY);
@@ -571,8 +583,19 @@ public abstract class HashNodeModule extends AbstractNodeModule {
 ```
 
 The `@Binds @IntoSet` pattern collects all nodes into a `Set<FilesystemNode>`
-multibinding. The `@Provides` methods extract per-node options from the
-shared `CortexOptions`.
+multibinding (legacy CLI path). The `@Binds @IntoMap @StringKey` pattern collects
+the executable pipeline kinds into `Map<String, Provider<FilesystemNode>>`, from
+which `NodeRegistrar` populates the `RegistryNodeFactory` registry at bootstrap and
+the worker derives its announced `nodeWhitelist`. The `@Provides` methods extract
+per-node options from the shared `CortexOptions`.
+
+**Assembly (`cortex/cli`)**: `PipelineNodeFactoryModule` binds the empty
+`RegistryNodeFactory` as the `NodeFactory` and provides the `NodeRegistrar`
+(`RegistryNodeRegistrar`), which registers the two source producers
+(`filesystem-source`, `asset-source`) and every kind from the map. Adding a node
+kind is therefore a one-line binding in the node's own module — no edit to the
+assembly. `CortexBootstrapInitializer.init()` calls `registerAll()` before the
+Loom control channel starts.
 
 ### NodeDescriptorRegistry
 
@@ -693,9 +716,21 @@ fixes, or further development.
       `MediaSourceNode` and is used programmatically and in tests, but pipeline
       JSON cannot select it.
 
-- [ ] **CaptioningNode video support**: The `CaptioningNode.compute()` returns
-      `ctx.skipped("not implemented")` for video and audio media. Video
-      captioning needs to be implemented.
+- [x] **CaptioningNode video support**: Done. `CaptioningNode` now captions
+      video as well as images. The image path still uses SmolVLM; the video path
+      drives an OpenAI-compatible VLM (Qwen2.5-VL on vLLM / llama.cpp) via
+      `VideoVLMClient`, with the `videoStrategy` option selecting one of three
+      interchangeable strategies (formerly the separate `video-captioning-*`
+      nodes, now merged in): `WHOLE` (sample N frames → one multi-image prompt →
+      single caption), `SCENE` (optical-flow scene segmentation → per-scene
+      caption timeline), `NATIVE` (hand the file to the server via `video_url`;
+      vLLM-only). Images persist `schemaType=caption`; video persists
+      `schemaType=video-caption` (carries `variant`, `model`, `frameCount` and an
+      optional `scenes` array). Audio is skipped. The former
+      `cortex/nodes/video-captioning` module was removed and its benchmark harness
+      moved to the captioning module (`VideoCaptioningComparisonIT`). See
+      [NODE_VIDEO_CAPTIONING_PLAN.md](NODE_VIDEO_CAPTIONING_PLAN.md) /
+      [NODE_VIDEO_CAPTIONING_REPORT.md](NODE_VIDEO_CAPTIONING_REPORT.md).
 
 - [ ] **FacedescriptionNode video support**: The `FacedescriptionNode` only
       processes images; video face description (per-frame extraction) is
@@ -935,8 +970,10 @@ Compact per-node status. Verified against the code and test tree.
 - **Unit test runs node** — a unit test that actually invokes the node's
   `process`/`compute` (not just an `*OptionsValidationTest`).
 - **Integration test** — exercised by an `integration-test` pipeline run
-  (only the registered kinds `filesystem-source`, `sha512`, `md5`, `chunk-hash`,
-  `thumbnail`, `vlm`, `loom` are driven end-to-end there).
+  (the `integration-test` pipeline drives `filesystem-source`, `sha512`, `md5`,
+  `chunk-hash`, `thumbnail`, `vlm`, `loom` end-to-end; **all** node kinds are now
+  registered as executable — see §8 — so this column reflects pipeline-run
+  coverage, not what the worker can run).
 - **Persists into Loom** — writes a typed payload and/or the
   `asset_node_result` ledger via the `LoomClient`.
 - **Caches (what)** — in-heap `LocalResultCache` (worker-lifetime, non-durable)
@@ -965,7 +1002,7 @@ Compact per-node status. Verified against the code and test tree.
 | `VlmNode` | Yes | Yes | Yes - `asset_json_comp` per prompt + ledger | Yes - per-prompt outputs | No |
 | `QualityNode` | No (options only) | No | Yes - `asset_json_comp` + ledger | Yes - metric snapshot | Partial - image/video block |
 | `SceneDetectionNode` | Yes | No | Yes - `asset_segment_comp` (replace) + ledger | Yes - scene output | Yes - scenes (`seq` set) |
-| `CaptioningNode` | Yes | No | Yes - `asset_json_comp` + ledger | Yes - caption | No (image only) |
+| `CaptioningNode` | Yes | Yes | Yes - `asset_json_comp` + ledger | Yes - caption | Partial - video scene timeline (scene strategy) |
 | `HashDedupNode` | No (empty stub) | No | Partial - ledger only (side effect) | No (moves files) | No |
 | `FingerprintDedupNode` | No (empty stub) | No | No (node is a stub) | No | No |
 | `LoomNode` | Yes | Yes | Yes - bulk `asset` hash update | No (in-heap batch buffer, not a result cache) | No |
@@ -973,7 +1010,7 @@ Compact per-node status. Verified against the code and test tree.
 **Notable gaps**
 - **No unit test that runs the node**: `QualityNode` (only options validation),
   `HashDedupNode` / `FingerprintDedupNode` (test classes are empty stubs).
-- **Integration coverage**: beyond the 7 registered pipeline kinds, per-node
+- **Integration coverage**: beyond the 7 pipeline kinds exercised end-to-end, per-node
   end-to-end integration tests now live in `integration-test`
   (`io.metaloom.loom.test.integration.node.*NodeIntegrationTest`). Each boots a
   real in-process Loom (REST + pooled DB), runs the production node against a real
@@ -991,7 +1028,10 @@ Compact per-node status. Verified against the code and test tree.
   `genai-utils` `MockLLMServer` (OpenAI-compatible) instead of a live Ollama /
   SmolVLM backend: `LLMNode` now takes an injectable `LLMProvider` + a
   `providerType` option (default Ollama; the IT injects `VLLMLLMProvider`),
-  `CaptioningNode` takes an injectable `SmolVLMClient`, and `FacedescriptionNode`'s
+  `CaptioningNode` takes an injectable `SmolVLMClient` (image path) plus an
+  injectable `VideoVLMClient` (video path) — the video IT points that
+  OpenAI-compatible client straight at the mock and asserts a `video-caption`
+  component — and `FacedescriptionNode`'s
   `processFace` seam is routed to the mock. `VlmNode` follows the same pattern with
   an injectable `VlmChatClient`, and because that client already speaks the
   OpenAI-compatible protocol the mock exercises the node's real request/response
@@ -1002,3 +1042,10 @@ Compact per-node status. Verified against the code and test tree.
   extraction is open.
 - `FingerprintDedupNode` is still a `not implemented` stub; `HashDedupNode`
   retains dead code (`System.in.read()`).
+
+---
+
+_Git HEAD revision: `990c14a8`_
+_Last updated: 2026-07-26 (executable node kinds are now derived from the node collection via
+`@Binds @IntoMap @StringKey` in each module + `NodeRegistrar` at bootstrap; §5/§8 updated; Loom rejects
+runs whose graph contains a kind no worker accepts with a full-graph 503 precheck)_

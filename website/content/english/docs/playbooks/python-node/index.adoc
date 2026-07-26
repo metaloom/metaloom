@@ -244,8 +244,8 @@ not.
 
 `origin` is constrained the same way — `COMPUTED`, `LOCAL` or `REMOTE`.
 
-The reference `examples/cortex-python/daemon.py` passes the wire state straight through, so a worker
-copied from it inherits the bug. Fix it in your copy.
+The reference `examples/cortex-python/daemon.py` does the mapping in one place — `ledger_state()` —
+so a worker copied from it inherits the fix rather than the bug.
 ====
 
 Both writes **upsert**, so re-running a pipeline replaces rather than accumulates:

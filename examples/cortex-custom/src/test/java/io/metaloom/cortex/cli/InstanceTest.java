@@ -24,6 +24,10 @@ public class InstanceTest {
 		Cortex cortex = component.cortex();
 		assertNotNull(cortex, "The Cortex instance should be assembled");
 
+		// The registry is populated at bootstrap; drive that step directly here (a
+		// running daemon does it in CortexBootstrapInitializer before registering).
+		component.nodeRegistrar().registerAll();
+
 		// The custom node must be registered with the pipeline node factory. This validates the extension wiring
 		// (NodeCollectionModule + PipelineNodeFactoryModule) without eagerly loading heavy nodes (e.g. facedetect models).
 		assertTrue(component.nodeFactory().registeredTypes().contains("hello-world"),

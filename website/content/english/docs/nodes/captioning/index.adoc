@@ -2,22 +2,39 @@
 title: Captioning
 ---
 
-The captioning node generates a **natural-language caption** for an image using a vision-language
-model — a short description of what the image shows.
+The captioning node generates a **natural-language caption** — a short description of what the media
+shows — for both **images** and **videos** using a vision-language model. Images are described from a
+single still frame; videos are described from their temporal content (what happens across the clip).
 
 ++++
-<div class="ml-nodeviz" data-nodeviz='{"kind":"captioning","applies":"Image","badge":"Vision model service","persist":"asset_json_comp + asset_node_result ledger","inputs":[{"t":"image","l":"image"}],"outputs":[{"t":"text","l":"caption_result","d":"one-sentence description"}]}'></div>
+<div class="ml-nodeviz" data-nodeviz='{"kind":"captioning","applies":"Image · Video","badge":"Vision model service","persist":"asset_json_comp + asset_node_result ledger","configs":[{"name":"image","note":"still-frame caption (SmolVLM)","inputs":[{"t":"image","l":"image"}],"outputs":[{"t":"text","l":"caption_result","d":"one-sentence description"}]},{"name":"video · whole","note":"videoStrategy: WHOLE","inputs":[{"t":"video","l":"video","d":"N frames sampled evenly"}],"outputs":[{"t":"text","l":"caption_result","d":"single description of the clip"}]},{"name":"video · scene","note":"videoStrategy: SCENE","inputs":[{"t":"video","l":"video","d":"segmented into scenes first"}],"outputs":[{"t":"text","l":"caption_result","d":"per-scene caption timeline"}]}]}'></div>
 ++++
 
 [cols="1,3"]
 |===
 | Kind | `captioning`
-| Applies to | Image (video / audio are stubbed / not yet implemented)
+| Applies to | Image, Video
 | Inputs | None
 | Output keys | `caption_result` (String)
-| Requirements | A vision-language model service reachable from the worker (configurable host/port). CPU on the worker; the model runs in the service.
-| Persists to | `asset_json_comp` + `asset_node_result` ledger
+| Requirements | A vision-language model service reachable from the worker. Images use a SmolVLM service (host/port); videos use an OpenAI-compatible VLM endpoint (e.g. Qwen2.5-VL on vLLM or llama.cpp). CPU on the worker; the models run in the service.
+| Persists to | `asset_json_comp` (`caption` for images, `video-caption` for videos) + `asset_node_result` ledger
 |===
+
+== How video captioning works
+
+A video is turned into a caption by one of three interchangeable strategies, selected with the
+`videoStrategy` option:
+
+[options="header",cols="1,3"]
+|===
+| Strategy | Behaviour
+| `WHOLE` (default) | Samples a fixed number of frames evenly across the whole clip and sends them as one prompt, producing a single description. Works on any length of clip and on any backend. The recommended default.
+| `SCENE` | Splits the clip into scenes first (optical-flow scene detection), then captions each scene independently, producing a per-scene caption **timeline**.
+| `NATIVE` | Hands the whole file to the model and lets it do its own temporal sampling. Highest quality for short clips, but requires a backend that decodes video natively (vLLM) and can fail on longer clips.
+|===
+
+Video captions are stored with the producing strategy, the model, the frame count and — for the scene
+strategy — the per-scene breakdown, so the timeline is available for search and review.
 
 == Configuration
 
@@ -26,12 +43,21 @@ model — a short description of what the image shows.
 [options="header",cols="1,2"]
 |===
 | Option | Meaning
-| model host | Hostname of the vision-language model service
-| model port | Port of the vision-language model service
+| `smolVLMHost` / `smolVLMPort` | Host and port of the image (SmolVLM) captioning service
+| `videoStrategy` | `WHOLE`, `SCENE` or `NATIVE` (see above)
+| `videoEndpointUrl` | Base URL of the OpenAI-compatible VLM endpoint used for video
+| `videoModel` | Model id served at that endpoint (e.g. a Qwen2.5-VL variant)
+| `videoApiKey` | Optional bearer token for the video endpoint
+| `frameCount` | Number of frames sampled per clip (whole) or per scene (scene)
+| `targetFrameSize` | Longest-edge pixel size each sampled frame is scaled to before sending
+| `maxScenes` | Upper bound on scenes captioned by the scene strategy
+| `maxTokens` / `temperature` | Generation limits for the video model
+| `videoPrompt` | The instruction sent to the video model
 |===
 
 == Use Cases
 
-* **Alt text / accessibility** — auto-generate descriptions for images.
-* **Searchable descriptions** — index a caption per image for natural-language retrieval.
-* **Cold-start metadata** — give newly ingested images a description before human review.
+* **Alt text / accessibility** — auto-generate descriptions for images and clips.
+* **Searchable descriptions** — index a caption per asset for natural-language retrieval.
+* **Scene timelines** — with the scene strategy, get a per-scene description of a video for navigation.
+* **Cold-start metadata** — give newly ingested media a description before human review.

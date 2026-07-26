@@ -1,0 +1,30 @@
+# Custom Cortex worker image — the Java daemon from this example.
+#
+# It builds ON TOP of the official metaloom/cortex-server image, so it inherits the
+# full native runtime (Java 25, the OpenCV 5.1 libraries, the InspireFace model pack)
+# without re-deriving any of it. All this layer does is replace the daemon jar with
+# the one that INCLUDES your custom node (HelloWorldNode).
+#
+# Build (build context = this directory):
+#   mvn -pl examples/cortex-custom -am package        # -> target/cortex-custom.jar
+#   docker build -f Containerfile -t metaloom/cortex-custom .
+# or just: ./build-image.sh
+#
+# Deploy with the cortex Helm chart:
+#   helm install cortex ./helm/cortex \
+#     --set image.repository=metaloom/cortex-custom \
+#     --set loom.token=<token> \
+#     --set 'nodeKinds={hello-world}'
+FROM metaloom/cortex-server:latest
+
+# Overlay the custom daemon jar (assembled by the maven-shade-plugin in pom.xml).
+ADD --chown=1000:0 target/cortex-custom.jar /cortex/cortex-cli.jar
+
+# CortexCustomMain runs the daemon directly — there is no picocli "server start"
+# subcommand as on the stock image, so the CMD is overridden accordingly.
+CMD [ "/opt/java25/bin/java", \
+      "-Djna.tmpdir=/tmp/.jna", \
+      "-Duser.dir=/cortex", \
+      "-Dlogback.configurationFile=/cortex/logback.xml", \
+      "--enable-native-access=ALL-UNNAMED", \
+      "-jar", "cortex-cli.jar" ]

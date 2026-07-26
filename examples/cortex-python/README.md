@@ -97,6 +97,29 @@ python daemon.py --selftest ./some-file.txt
 # prints: {"state": "COMPLETED", "outputs": {"file_size": ..., "word_count": ...}, ...}
 ```
 
+## Container image
+
+Package the worker as a tiny image (`python:3.12-slim` + `websockets` + `daemon.py`) via the
+[`Containerfile`](./Containerfile):
+
+```bash
+./build-image.sh          # -> metaloom/cortex-python:latest
+```
+
+### Deploy with the Cortex Helm chart
+
+The [`helm/cortex`](../../helm/cortex) chart runs any worker image. Because this minimal worker does
+**not** serve a monitoring HTTP port (`/api/health` / `/api/ready`), disable the HTTP probes:
+
+```bash
+helm install cortex-py ./helm/cortex \
+  --set image.repository=metaloom/cortex-python \
+  --set loom.host=loom --set loom.token=<token> \
+  --set readinessProbe.enabled=false \
+  --set livenessProbe.type=tcpSocket \
+  --set 'nodeKinds={py-hello}'
+```
+
 ## How work flows
 
 | Message            | Direction        | Meaning                                                          |
@@ -146,6 +169,20 @@ node has run upstream, so persistence is **best-effort**: if the asset is not
 known yet, the worker still reports the result to the engine and skips the
 write. `json-comps` is the lightweight, schema-agnostic sink — no dedicated
 database table is required.
+
+Both writes **upsert** — `json-comps` on `(asset, nodeKind, schemaType, variant)`
+and `node-results` on `(asset, nodeKind, nodeId)` — so re-running a pipeline
+replaces a node's rows instead of accumulating them. Each carries a
+`producerVersion` (`PRODUCER_VERSION` in `daemon.py`); bump it when the output
+shape changes, because the ledger is indexed on `(node_kind, producer_version)`
+and that is how an operator re-runs everything an older version produced.
+
+> **The two states are different enums.** The `NODE_TASK_RESULT` sent back over
+> the WebSocket uses `COMPLETED | FAILED | SKIPPED`; the `state` on
+> `/node-results` uses **`SUCCESS`** `| FAILED | SKIPPED`, enforced by a CHECK
+> constraint on `asset_node_result`. `ledger_state()` maps between them. Skipping
+> that mapping fails quietly in the worst way: the json-comp is written first and
+> succeeds, so the payload lands while the row saying the node ran does not.
 
 ## Out of scope
 

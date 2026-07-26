@@ -789,6 +789,12 @@ Current state of the website (as of the checkout below):
       review checklist of the predictable failure modes. Keep the prompt in sync when the processor
       protocol or the node-result endpoints change — it duplicates those facts on purpose so an agent
       without repo access can still produce a correct worker
+- [x] Fixed the same defect at its source in `examples/cortex-python/daemon.py` — it posted the wire
+      state (`COMPLETED`) to `/assets/:uuid/node-results`, which `asset_node_result_state_check`
+      rejects, losing the ledger row while the json-comp still landed. It now maps through
+      `ledger_state()` and stamps `PRODUCER_VERSION` on both writes; `post_json_comp` gained the
+      `variant`/`producerVersion` parameters. The enum is documented on `docs/cortex/examples/` and in
+      the example README
 - [x] Prompt hardened after a real generation run (`workspaces/metaloom/custom-node`, an ffprobe-based
       `media-probe` worker). What the first version let through: the wire state `COMPLETED` posted to
       `/node-results`, whose column CHECK only accepts `SUCCESS|FAILED|SKIPPED`; a missing
@@ -811,10 +817,6 @@ Current state of the website (as of the checkout below):
 - [ ] Only load the ~1 MB Swagger UI bundle on the REST API page instead of globally
 - [ ] Fill remaining thin pages (e.g. `helm-chart`) with full content
 - [ ] Automate build+publish (currently manual `build.sh` + `pull.sh` + push)
-- [ ] `examples/cortex-python/daemon.py` posts the wire state (`COMPLETED`) to `/assets/:uuid/node-results`,
-      which the `asset_node_result_state_check` constraint rejects — the ledger row is lost while the
-      json-comp still lands. It also never sends `producerVersion`. Fix the example (map to `SUCCESS`,
-      stamp a version); the playbook currently warns readers about it instead
 - [ ] Revisit the playbooks' "node availability" caveat once `PipelineNodeFactoryModule` registers the
       remaining kinds (`whisper`, `llm`, `ocr`, `tika`, `facedetect`, `captioning`, `scene-detection`,
       `quality`, `consistency`, dedup, `loom`, `filter-*`) — the stock worker currently advertises only

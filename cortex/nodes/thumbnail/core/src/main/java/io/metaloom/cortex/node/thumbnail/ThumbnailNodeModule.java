@@ -3,7 +3,9 @@ package io.metaloom.cortex.node.thumbnail;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
+import dagger.multibindings.IntoMap;
 import dagger.multibindings.IntoSet;
+import dagger.multibindings.StringKey;
 import io.metaloom.cortex.api.node.FilesystemNode;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractNodeModule;
@@ -15,6 +17,11 @@ public abstract class ThumbnailNodeModule extends AbstractNodeModule {
 	@Binds
 	@IntoSet
 	abstract FilesystemNode<?, ?> bindNode(ThumbnailNode node);
+
+	@Binds
+	@IntoMap
+	@StringKey("thumbnail")
+	abstract FilesystemNode<?, ?> kindThumbnail(ThumbnailNode node);
 
 	@IntoSet
 	@Provides

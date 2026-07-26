@@ -1,0 +1,115 @@
+{{- if .Values.sandbox.enabled -}}
+{{- $ns := .Values.sandbox.namespace -}}
+{{- if .Values.sandbox.createNamespace }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $ns }}
+  labels:
+    {{- include "loom.labels" . | nindent 4 }}
+---
+{{- end }}
+{{- if .Values.sandbox.rbac }}
+# Loom's ServiceAccount must be able to manage runner pods in the sandbox
+# namespace. Enabling LOOM_AGENT_SANDBOX_ENABLED without this Role/RoleBinding
+# produces a server that cannot create runners.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "loom.fullname" . }}-sandbox-runner
+  namespace: {{ $ns }}
+  labels:
+    {{- include "loom.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "pods/exec"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["configmaps", "secrets"]
+    verbs: ["get", "list", "create", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "loom.fullname" . }}-sandbox-runner
+  namespace: {{ $ns }}
+  labels:
+    {{- include "loom.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "loom.fullname" . }}-sandbox-runner
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "loom.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}
+{{- if .Values.sandbox.resourceQuota.enabled }}
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: {{ include "loom.fullname" . }}-sandbox
+  namespace: {{ $ns }}
+  labels:
+    {{- include "loom.labels" . | nindent 4 }}
+spec:
+  hard:
+    pods: {{ .Values.sandbox.resourceQuota.pods | quote }}
+    requests.cpu: {{ .Values.sandbox.resourceQuota.requestsCpu | quote }}
+    requests.memory: {{ .Values.sandbox.resourceQuota.requestsMemory | quote }}
+    limits.cpu: {{ .Values.sandbox.resourceQuota.limitsCpu | quote }}
+    limits.memory: {{ .Values.sandbox.resourceQuota.limitsMemory | quote }}
+{{- end }}
+{{- if .Values.sandbox.limitRange.enabled }}
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: {{ include "loom.fullname" . }}-sandbox
+  namespace: {{ $ns }}
+  labels:
+    {{- include "loom.labels" . | nindent 4 }}
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: {{ .Values.sandbox.limitRange.defaultCpu | quote }}
+        memory: {{ .Values.sandbox.limitRange.defaultMemory | quote }}
+      defaultRequest:
+        cpu: {{ .Values.sandbox.limitRange.defaultRequestCpu | quote }}
+        memory: {{ .Values.sandbox.limitRange.defaultRequestMemory | quote }}
+{{- end }}
+{{- if .Values.sandbox.networkPolicy.enabled }}
+---
+# Deny-by-default egress for runner pods: they should not reach the cluster
+# network or the internet unless explicitly allowed. Loom reaches IN to a runner
+# over its pod IP, which ingress here permits from the Loom namespace.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "loom.fullname" . }}-sandbox
+  namespace: {{ $ns }}
+  labels:
+    {{- include "loom.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace }}
+  egress:
+    # DNS only by default.
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- end }}
+{{- end }}

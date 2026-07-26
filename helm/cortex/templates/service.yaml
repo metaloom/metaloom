@@ -1,0 +1,24 @@
+{{- if .Values.service.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "cortex.fullname" . }}
+  labels:
+    {{- include "cortex.labels" . | nindent 4 }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  # Headless: workers have no inbound API — the Service only fronts the monitoring
+  # port for health checks and Prometheus scraping. Cortex dials OUT to Loom.
+  clusterIP: None
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "cortex.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: monitoring
+      port: {{ .Values.service.port }}
+      targetPort: monitoring
+      protocol: TCP
+{{- end }}

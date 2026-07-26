@@ -58,6 +58,23 @@ mvn -pl examples/cortex-custom-node,examples/cortex-custom test
 
 See each module's own README for details on authoring a node and running the daemon.
 
+## Container images & Kubernetes
+
+Both worker examples ship a `Containerfile` and a `build-image.sh`, so you can package your custom
+worker and run it in Kubernetes with the [`helm/cortex`](../helm/cortex) chart's `image.repository`
+override:
+
+| Example | Image | Base | Notes |
+|---|---|---|---|
+| [`cortex-custom`](./cortex-custom) | `metaloom/cortex-custom` | `metaloom/cortex-server` | Inherits the full native runtime; serves `/api/health` + `/api/ready`. |
+| [`cortex-python`](./cortex-python) | `metaloom/cortex-python` | `python:3.12-slim` | Minimal; no monitoring port — disable the chart's HTTP probes. |
+
+```bash
+helm install cortex ./helm/cortex --set image.repository=metaloom/cortex-custom --set loom.token=<token>
+```
+
+See the [Helm Charts guide](https://metaloom.io/docs/deployment/helm/) for the full deployment flow.
+
 ## License
 
 Apache License, Version 2.0.

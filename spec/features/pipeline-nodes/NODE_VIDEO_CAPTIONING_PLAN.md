@@ -5,8 +5,14 @@
 > just a description of a single still frame. Read alongside
 > [NODES.md](NODES.md) — the source of truth is the code under `cortex/`.
 >
-> Status: **design / not yet implemented.** This document presents multiple
-> options and a recommended path so the approach can be agreed before code.
+> Status: **implemented and merged.** The three variants explored here were
+> implemented and then **merged into the existing `captioning` node** as a
+> `videoStrategy` option (`WHOLE` / `SCENE` / `NATIVE`) rather than shipping as
+> separate `video-captioning-*` node kinds. The standalone
+> `cortex/nodes/video-captioning` module has been removed; the code now lives in
+> `cortex/nodes/captioning` (`CaptioningNode`, `VideoCaptioner`, `VideoVLMClient`,
+> `FrameSampler`). See [NODES.md](NODES.md) §"CaptioningNode video support" for
+> the current shape. This document is kept as the design rationale.
 
 ---
 

@@ -1,0 +1,232 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "loom.fullname" . }}
+  labels:
+    {{- include "loom.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  # Loom owns the pipeline run state and is a single-writer server — recreate on
+  # update rather than running two writers side by side.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "loom.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "loom.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "loom.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: loom
+          image: {{ include "loom.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            - name: LOOM_SERVER_REST_PORT
+              value: {{ .Values.service.restPort | quote }}
+            - name: LOOM_SERVER_GRPC_PORT
+              value: {{ .Values.service.grpcPort | quote }}
+            - name: LOOM_SERVER_MON_PORT
+              value: {{ .Values.service.monitoringPort | quote }}
+            - name: LOOM_DB_HOST
+              value: {{ include "loom.database.host" . | quote }}
+            {{- if .Values.postgresql.enabled }}
+            - name: LOOM_DB_PORT
+              value: "5432"
+            - name: LOOM_DB_NAME
+              value: {{ .Values.postgresql.auth.database | quote }}
+            - name: LOOM_DB_USER
+              value: {{ .Values.postgresql.auth.username | quote }}
+            {{- else }}
+            - name: LOOM_DB_PORT
+              value: {{ .Values.database.port | quote }}
+            - name: LOOM_DB_NAME
+              value: {{ .Values.database.name | quote }}
+            - name: LOOM_DB_USER
+              value: {{ .Values.database.user | quote }}
+            {{- end }}
+            - name: LOOM_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "loom.database.secretName" . }}
+                  key: {{ include "loom.database.secretKey" . }}
+            - name: LOOM_INITIAL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "loom.auth.secretName" . }}
+                  key: initial-password
+            - name: LOOM_AUTH_KEYSTORE_PATH
+              value: {{ .Values.auth.keystorePath | quote }}
+            - name: LOOM_BINARY_DIR
+              value: /uploads
+            {{- if .Values.config }}
+            - name: LOOM_CONF_FILENAME
+              value: /etc/loom/loom.yml
+            {{- end }}
+            {{- if .Values.ai.enabled }}
+            - name: LOOM_AI_ENABLED
+              value: "true"
+            {{- if .Values.ai.providerType }}
+            - name: LOOM_AI_PROVIDER_TYPE
+              value: {{ .Values.ai.providerType | quote }}
+            {{- end }}
+            {{- if .Values.ai.url }}
+            - name: LOOM_AI_URL
+              value: {{ .Values.ai.url | quote }}
+            {{- end }}
+            {{- if .Values.ai.modelId }}
+            - name: LOOM_AI_MODEL_ID
+              value: {{ .Values.ai.modelId | quote }}
+            {{- end }}
+            {{- range $k, $v := .Values.ai.extraEnv }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.memory.enabled }}
+            - name: LOOM_AGENT_MEMORY_ENABLED
+              value: "true"
+            {{- if .Values.memory.mountPath }}
+            - name: LOOM_AGENT_MEMORY_MOUNT_PATH
+              value: {{ .Values.memory.mountPath | quote }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.sandbox.enabled }}
+            - name: LOOM_AGENT_SANDBOX_ENABLED
+              value: "true"
+            - name: LOOM_AGENT_SANDBOX_NAMESPACE
+              value: {{ .Values.sandbox.namespace | quote }}
+            {{- range $k, $v := .Values.sandbox.extraEnv }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: rest
+              containerPort: {{ .Values.service.restPort }}
+            - name: grpc
+              containerPort: {{ .Values.service.grpcPort }}
+            - name: monitoring
+              containerPort: {{ .Values.service.monitoringPort }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.livenessProbe.httpPath }}
+              port: rest
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.readinessProbe.httpPath }}
+              port: rest
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: keystore
+              mountPath: /keystore
+            - name: uploads
+              mountPath: /uploads
+            {{- if .Values.persistence.plugins.enabled }}
+            - name: plugins
+              mountPath: /plugins
+            {{- end }}
+            {{- if .Values.config }}
+            - name: loom-conf
+              mountPath: /etc/loom
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: config
+          {{- if .Values.persistence.config.existingClaim }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.config.existingClaim }}
+          {{- else if .Values.persistence.config.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "loom.fullname" . }}-config
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: keystore
+          {{- if .Values.persistence.keystore.existingClaim }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.keystore.existingClaim }}
+          {{- else if .Values.persistence.keystore.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "loom.fullname" . }}-keystore
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: uploads
+          {{- if .Values.persistence.uploads.existingClaim }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.uploads.existingClaim }}
+          {{- else if .Values.persistence.uploads.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "loom.fullname" . }}-uploads
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- if .Values.persistence.plugins.enabled }}
+        - name: plugins
+          {{- if .Values.persistence.plugins.existingClaim }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.plugins.existingClaim }}
+          {{- else }}
+          persistentVolumeClaim:
+            claimName: {{ include "loom.fullname" . }}-plugins
+          {{- end }}
+        {{- end }}
+        {{- if .Values.config }}
+        - name: loom-conf
+          configMap:
+            name: {{ include "loom.fullname" . }}-config
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

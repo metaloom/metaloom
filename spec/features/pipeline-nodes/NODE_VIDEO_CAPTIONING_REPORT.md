@@ -1,5 +1,12 @@
 # Video Captioning — Implementation & Benchmark Report
 
+> **Update:** the three variants benchmarked below were subsequently **merged into
+> the `captioning` node** as a `videoStrategy` option (`WHOLE` / `SCENE` /
+> `NATIVE`); the standalone `video-captioning` module and its `video-captioning-*`
+> node kinds no longer exist. The benchmark numbers and findings still stand — the
+> code just moved into `cortex/nodes/captioning`. See
+> [NODES.md](NODES.md) for the current shape.
+>
 > Empirical companion to [NODE_VIDEO_CAPTIONING_PLAN.md](NODE_VIDEO_CAPTIONING_PLAN.md).
 > Three node variants were implemented and run end-to-end against two locally
 > self-hosted, **quantized** Qwen2.5-VL-7B backends (vLLM **AWQ** on the RTX 4090,

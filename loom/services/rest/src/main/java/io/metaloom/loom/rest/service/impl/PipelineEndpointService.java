@@ -10,8 +10,10 @@ import static io.metaloom.loom.db.model.perm.Permission.RESTORE_PIPELINE_VERSION
 import static io.metaloom.loom.db.model.perm.Permission.UPDATE_PIPELINE_RUN;
 
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -300,6 +302,30 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 	}
 
 	/**
+	 * The node kinds in {@code graph} that no online worker will run, preserving graph
+	 * order and de-duplicated. Empty means the whole graph is schedulable against the
+	 * current pool. A kind is unsupported when {@link ProcessorRegistry#selectProcessorForKinds}
+	 * finds no CPU-capable worker whose whitelist/blacklist accepts it.
+	 *
+	 * <p>Package-external and static so it can be unit-tested against a real
+	 * {@link ProcessorRegistry} without standing up the DAO/DB layer that the full
+	 * {@link #dispatchRun} path needs.</p>
+	 */
+	public static Set<String> unsupportedNodeKinds(PipelineGraph graph, ProcessorRegistry processorRegistry) {
+		Set<String> unsupported = new LinkedHashSet<>();
+		for (PipelineGraphNode node : graph.getNodes()) {
+			String kind = node.getKind();
+			if (kind == null || kind.isBlank()) {
+				continue;
+			}
+			if (processorRegistry.selectProcessorForKinds(ProcessorCapability.CPU, List.of(kind)) == null) {
+				unsupported.add(kind);
+			}
+		}
+		return unsupported;
+	}
+
+	/**
 	 * Shared run-dispatch core used by both the REST {@link #run} endpoint and the asset auto-trigger. Returns the response together with the HTTP
 	 * status the REST endpoint should send, rather than writing to a routing context, so it can be called without one.
 	 */
@@ -328,19 +354,26 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 			return new RunDispatch(response.setDispatched(false).setMessage(e.getMessage()), 400);
 		}
 
-		// The source has to go to a worker that will actually run it - a pool where
-		// the only online worker is restricted to hashing cannot start a scan. This
-		// is checked after parsing because the source's kind comes from the graph.
+		// Every node kind in the graph must have some online worker that will run it,
+		// not just the source. A run whose downstream kind (say 'whisper') no worker
+		// accepts would otherwise start green and stall the moment that node became
+		// ready and could not be dispatched. Reject up front, naming the kinds, so the
+		// caller sees an actionable 503 now rather than a run that quietly never
+		// finishes. This is checked after parsing because the kinds come from the graph.
+		Set<String> unsupportedKinds = unsupportedNodeKinds(graph, processorRegistry);
+		if (!unsupportedKinds.isEmpty()) {
+			metrics.recordRunRejected("no_processor");
+			log.warn("Rejected pipeline run for pipeline {}: no processor accepts node kind(s) {}",
+				pipeline.getUuid(), unsupportedKinds);
+			return new RunDispatch(response.setDispatched(false)
+				.setMessage("No processor available for node kind(s): " + String.join(", ", unsupportedKinds)), 503);
+		}
+
+		// The source is dispatched explicitly below (SOURCE_TASK), so resolve its
+		// worker now; the precheck above guarantees one exists.
 		String sourceKind = graph.getSourceNode().getKind();
 		ConnectedProcessor processor = processorRegistry.selectProcessorForKinds(ProcessorCapability.CPU,
 			List.of(sourceKind));
-		if (processor == null) {
-			metrics.recordRunRejected("no_processor");
-			log.warn("Rejected pipeline run for pipeline {}: no processor accepts source kind '{}'",
-				pipeline.getUuid(), sourceKind);
-			return new RunDispatch(response.setDispatched(false)
-				.setMessage("No processor available for source node kind '" + sourceKind + "'"), 503);
-		}
 
 		// Create a pipeline run record to track this execution
 		PipelineRun runRecord = pipelineRunDao.createPipelineRun(userUuid, pipeline.getUuid(), pipelineVersion);

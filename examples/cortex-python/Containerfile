@@ -1,0 +1,40 @@
+# Minimal custom Cortex worker image — the Python daemon from this example.
+#
+# Unlike the JVM worker this is a from-scratch worker that speaks Loom's wire
+# protocol directly (registers over the processor WebSocket, answers NODE_TASKs,
+# writes results over REST). It has ONE runtime dependency (websockets) and does
+# NOT serve a monitoring HTTP port, so the Helm chart's HTTP health probes are
+# disabled for this image (see below).
+#
+# Build (build context = this directory):
+#   docker build -f Containerfile -t metaloom/cortex-python .
+# or: ./build-image.sh
+#
+# Deploy with the cortex Helm chart (note the disabled/tcp probes — there is no
+# /api/health or /api/ready to hit):
+#   helm install cortex-py ./helm/cortex \
+#     --set image.repository=metaloom/cortex-python \
+#     --set loom.token=<token> \
+#     --set readinessProbe.enabled=false \
+#     --set livenessProbe.type=tcpSocket \
+#     --set 'nodeKinds={py-hello}'
+FROM python:3.12-slim
+
+WORKDIR /worker
+
+# Install the single runtime dependency first for better layer caching.
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY daemon.py .
+
+# Sensible defaults; override at deploy time (the Helm chart injects these).
+ENV LOOM_HOST=loom \
+    LOOM_PORT=8092 \
+    CORTEX_NODE_KINDS=py-hello
+
+# Run as a non-root user.
+RUN useradd -u 1000 -m worker && chown -R worker:worker /worker
+USER worker
+
+CMD ["python", "daemon.py"]

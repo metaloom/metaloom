@@ -1,0 +1,37 @@
+MetaLoom Cortex worker "{{ .Release.Name }}" has been deployed.
+
+  Image:       {{ include "cortex.image" . }}
+  Replicas:    {{ .Values.replicaCount }}
+  Loom target: {{ .Values.loom.host }}:{{ .Values.loom.port }}
+
+The worker dials OUT to Loom and registers over the processor WebSocket; Loom then
+dispatches node tasks to it. Loom never connects in to the worker.
+
+1. Watch the pod(s) come up and register:
+
+   kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }} -w
+
+2. Confirm the worker joined the fleet (from a client that can reach Loom):
+
+   curl -H "Authorization: Bearer <token>" http://{{ .Values.loom.host }}:{{ .Values.loom.port }}/api/v1/processors
+
+{{- if not (or .Values.loom.token .Values.loom.existingSecret) }}
+
+WARNING: No Loom token configured (loom.token / loom.existingSecret). The worker
+will register and answer tasks, but SKIP result persistence. Set a token to write
+results back to Loom.
+{{- end }}
+{{- if and (eq .Values.image.repository "metaloom/cortex-server") (not .Values.media.enabled) }}
+
+NOTE: media.enabled is false. Cortex is handed a PATH to media, not the bytes, so
+source/whisper/hash-style nodes need the same media mounted here as on Loom. Enable
+`media` (existingClaim / hostPath / nfs) if this worker processes source files.
+{{- end }}
+
+To run a CUSTOM node image, override the image and (if it does not serve :{{ .Values.monitoring.port }})
+the probes, e.g.:
+
+   helm upgrade --install {{ .Release.Name }} ./helm/cortex \
+     --set image.repository=metaloom/cortex-python \
+     --set readinessProbe.enabled=false \
+     --set 'nodeKinds={py-hello}'

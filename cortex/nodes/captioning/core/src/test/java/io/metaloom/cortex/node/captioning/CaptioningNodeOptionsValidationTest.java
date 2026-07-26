@@ -69,12 +69,69 @@ public class CaptioningNodeOptionsValidationTest {
 	public void testValidationResultDirect() {
 		CaptioningNodeOptions options = new CaptioningNodeOptions();
 		options.setSmolVLMHost("");
-		
+
 		ValidationResult result = options.validate();
 		assertThat(result).isInvalid().hasErrorCount(1).hasError("smolVLMHost must not be empty");
-		
+
 		CaptioningNodeOptions validOptions = new CaptioningNodeOptions();
 		ValidationResult validResult = validOptions.validate();
 		assertThat(validResult).isValid().hasNoErrors();
+	}
+
+	// -- Video captioning options -------------------------------------------
+
+	@Test
+	public void testDefaultVideoStrategyIsWhole() {
+		CaptioningNodeOptions options = new CaptioningNodeOptions();
+		assertThat(options).isValid().hasVideoStrategy(VideoCaptioningStrategy.WHOLE);
+	}
+
+	@Test
+	public void testCustomVideoStrategyValid() {
+		CaptioningNodeOptions options = new CaptioningNodeOptions();
+		options.setVideoStrategy(VideoCaptioningStrategy.SCENE);
+		assertThat(options).isValid().hasVideoStrategy(VideoCaptioningStrategy.SCENE);
+	}
+
+	@Test
+	public void testCustomVideoEndpointValid() {
+		CaptioningNodeOptions options = new CaptioningNodeOptions();
+		options.setVideoEndpointUrl("http://vllm:8000").setVideoModel("qwen25vl");
+		assertThat(options).isValid().hasVideoEndpointUrl("http://vllm:8000").hasVideoModel("qwen25vl");
+	}
+
+	@Test
+	public void testEmptyVideoEndpointInvalid() {
+		CaptioningNodeOptions options = new CaptioningNodeOptions();
+		options.setVideoEndpointUrl("");
+		assertThat(options).isInvalid().hasError("videoEndpointUrl must not be empty");
+	}
+
+	@Test
+	public void testEmptyVideoModelInvalid() {
+		CaptioningNodeOptions options = new CaptioningNodeOptions();
+		options.setVideoModel("");
+		assertThat(options).isInvalid().hasError("videoModel must not be empty");
+	}
+
+	@Test
+	public void testZeroFrameCountInvalid() {
+		CaptioningNodeOptions options = new CaptioningNodeOptions();
+		options.setFrameCount(0);
+		assertThat(options).isInvalid().hasError("frameCount must be positive");
+	}
+
+	@Test
+	public void testNegativeTargetFrameSizeInvalid() {
+		CaptioningNodeOptions options = new CaptioningNodeOptions();
+		options.setTargetFrameSize(-1);
+		assertThat(options).isInvalid().hasError("targetFrameSize must be positive");
+	}
+
+	@Test
+	public void testZeroMaxTokensInvalid() {
+		CaptioningNodeOptions options = new CaptioningNodeOptions();
+		options.setMaxTokens(0);
+		assertThat(options).isInvalid().hasError("maxTokens must be positive");
 	}
 }
