@@ -118,7 +118,9 @@ image::asset-detail.png[Asset detail view,role=img-fluid]
 
 === Library
 
-Assets can be organised into libraries. The library view provides a per-library selector and asset grid.
+Assets can be organised into libraries. The library view provides a per-library selector and an asset
+grid that previews the stored image binaries; formats a browser cannot decode — video, audio,
+documents — keep their type icon.
 
 image::library.png[Library management,role=img-fluid]
 
@@ -188,8 +190,9 @@ Everything that decides *who may do what* lives in the *ACL* sub-group of the Ma
 image::users.png[User management,role=img-fluid]
 
 *Permissions* is the access-control (ACL) surface: define roles and toggle fine-grained permissions
-across every resource type (assets, annotations, users, and more) in a permission matrix. Roles are
-assigned to users through groups.
+across every resource type (assets, annotations, users, and more) in a permission matrix. Each
+permission carries a one-line description of what it actually allows, so a role can be assembled
+without cross-referencing the API. Roles are assigned to users through groups.
 
 image::acl-roles.png[Role and permission (ACL) management,role=img-fluid]
 

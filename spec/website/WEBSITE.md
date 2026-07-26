@@ -412,6 +412,21 @@ Route/action → filename (keep stable so refreshes overwrite in place):
 > Per-library contents are unseeded in a bare demo. The script captures whatever the demo actually
 > contains — do not fabricate data.
 
+> **The library view auto-selects the first library, which holds nothing.** `library.png` therefore
+> clicks the first entry that is not labelled "0 assets" before shooting, so the grid (and its
+> thumbnails) is what ends up in the screenshot.
+
+> **Asset thumbnails only render when Loom serves the UI.** The grid points an `<img>` at
+> `/api/v1/assets/:uuid/binary/data`, which cannot carry an `Authorization` header and authenticates
+> with the `__Host-loom_token` cookie instead. Served from the container at
+> `http://localhost:8092/ui/` that works; behind a `vite` dev proxy the browser does not store the
+> cookie and every preview 401s back to the type placeholder. **Screenshots that must show
+> thumbnails have to come from the container** — rebuild it after a UI change:
+> `( cd loom-ui && npm run build ) && ( cd loom/containers && ./build-containers.sh jvm demo )`,
+> then `./start-demo.sh`. Recreating the demo container against an existing database yields 404s on
+> the binaries (the rows outlive the seeded files), so re-run `./start-postgres.sh` first for a
+> clean re-seed.
+
 > **Click-to-zoom.** Docs content images (`.docs-main-content .imageblock img`) get a `zoom-in`
 > cursor and open in a full-screen modal *lightbox* on click (dismiss via backdrop click, the ×
 > button, or `Escape`). It is a theme feature — CSS in `themes/meghna-hugo/less/includes/custom.less`

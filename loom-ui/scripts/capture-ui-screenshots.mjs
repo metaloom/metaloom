@@ -132,9 +132,18 @@ async function main() {
   });
 
   // ---- Library ----
+  // The view auto-selects the first library, which in the demo holds nothing — pick one with
+  // assets so the shot shows the grid and its thumbnails rather than the empty state.
   await capture("library.png", async () => {
     await clickNav("Library");
-    await shot("library.png");
+    await page
+      .locator(".MuiListItemButton-root")
+      .filter({ hasText: /assets/ })
+      .filter({ hasNotText: "0 assets" })
+      .first()
+      .click({ timeout: 6000 })
+      .catch(() => {});
+    await shot("library.png", { settle: 1400 });
   });
 
   // ---- Tags ----
