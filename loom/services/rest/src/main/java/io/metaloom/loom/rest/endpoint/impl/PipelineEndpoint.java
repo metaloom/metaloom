@@ -53,6 +53,8 @@ public class PipelineEndpoint extends AbstractEndpoint {
 		secure(basePath() + "/:uuid/runs/:runUuid");
 		secure(basePath() + "/:uuid/runs/:runUuid/items");
 		secure(basePath() + "/:uuid/runs/:runUuid/cancel");
+		secure(basePath() + "/:uuid/runs/:runUuid/pause");
+		secure(basePath() + "/:uuid/runs/:runUuid/resume");
 		secure(basePath() + "/:uuid/versions");
 		secure(basePath() + "/:uuid/versions/:version");
 		secure(basePath() + "/:uuid/versions/:version/restore");
@@ -151,6 +153,24 @@ public class PipelineEndpoint extends AbstractEndpoint {
 			examples.deleteResponseExample(),
 			lrc -> {
 				service.cancelRun(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("runUuid"));
+			});
+
+		// Suspend an in-flight pipeline run
+		addRoute(basePath() + "/:uuid/runs/:runUuid/pause", POST,
+			"Suspend an in-flight pipeline run",
+			null,
+			examples.deleteResponseExample(),
+			lrc -> {
+				service.pauseRun(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("runUuid"));
+			});
+
+		// Resume a suspended pipeline run
+		addRoute(basePath() + "/:uuid/runs/:runUuid/resume", POST,
+			"Resume a suspended pipeline run",
+			null,
+			examples.deleteResponseExample(),
+			lrc -> {
+				service.resumeRun(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("runUuid"));
 			});
 
 		// Pipeline Versions

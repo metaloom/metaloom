@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>io.metaloom</groupId>
+		<artifactId>metaloom-parent</artifactId>
+		<version>1.0.0-SNAPSHOT</version>
+	</parent>
+
+	<groupId>io.metaloom.cli</groupId>
+	<artifactId>metaloom-cli</artifactId>
+	<packaging>jar</packaging>
+
+	<name>MetaLoom // CLI</name>
+	<description>Command line client for the Loom server</description>
+
+	<properties>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<mainClass>io.metaloom.cli.MetaLoomCLIMain</mainClass>
+		<native.image.name>metaloom</native.image.name>
+		<native.maven.plugin.version>0.10.6</native.maven.plugin.version>
+	</properties>
+
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>io.metaloom</groupId>
+				<artifactId>bom</artifactId>
+				<type>pom</type>
+				<scope>import</scope>
+				<version>${project.version}</version>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
+	<dependencies>
+		<dependency>
+			<groupId>io.metaloom.loom.client</groupId>
+			<artifactId>loom-client-rest</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>info.picocli</groupId>
+			<artifactId>picocli</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.google.dagger</groupId>
+			<artifactId>dagger</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.fasterxml.jackson.dataformat</groupId>
+			<artifactId>jackson-dataformat-yaml</artifactId>
+		</dependency>
+
+		<!--Test-->
+		<dependency>
+			<groupId>org.assertj</groupId>
+			<artifactId>assertj-core</artifactId>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<finalName>metaloom-cli</finalName>
+		<resources>
+			<!-- cli-version.properties carries the version into the binary; a native image
+			     has no jar manifest to read it from. -->
+			<resource>
+				<directory>src/main/resources</directory>
+				<filtering>true</filtering>
+				<includes>
+					<include>cli-version.properties</include>
+				</includes>
+			</resource>
+			<resource>
+				<directory>src/main/resources</directory>
+				<filtering>false</filtering>
+				<excludes>
+					<exclude>cli-version.properties</exclude>
+				</excludes>
+			</resource>
+		</resources>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<configuration>
+					<annotationProcessorPaths>
+						<path>
+							<groupId>info.picocli</groupId>
+							<artifactId>picocli-codegen</artifactId>
+							<version>${pico-cli.version}</version>
+						</path>
+						<path>
+							<groupId>com.google.dagger</groupId>
+							<artifactId>dagger-compiler</artifactId>
+							<version>${dagger.version}</version>
+						</path>
+					</annotationProcessorPaths>
+					<compilerArgs>
+						<!-- Lands picocli's generated native-image metadata in a predictable
+						     directory under META-INF/native-image/. -->
+						<arg>-Aproject=${project.groupId}/${project.artifactId}</arg>
+					</compilerArgs>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-jar-plugin</artifactId>
+				<configuration>
+					<archive>
+						<manifest>
+							<addClasspath>true</addClasspath>
+							<mainClass>${mainClass}</mainClass>
+						</manifest>
+					</archive>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-shade-plugin</artifactId>
+				<executions>
+					<execution>
+						<phase>package</phase>
+						<goals>
+							<goal>shade</goal>
+						</goals>
+						<configuration>
+							<createDependencyReducedPom>false</createDependencyReducedPom>
+							<filters>
+								<filter>
+									<artifact>*:*</artifact>
+									<excludes>
+										<exclude>META-INF/*.SF</exclude>
+										<exclude>META-INF/*.DSA</exclude>
+										<exclude>META-INF/*.RSA</exclude>
+									</excludes>
+								</filter>
+							</filters>
+							<transformers>
+								<transformer
+									implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+									<mainClass>${mainClass}</mainClass>
+								</transformer>
+								<!-- Without this the shaded jar loses
+								     META-INF/services/org.slf4j.spi.SLF4JServiceProvider and
+								     SLF4J 2.x silently degrades to a no-op logger. -->
+								<transformer
+									implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
+							</transformers>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
+
+	<profiles>
+		<profile>
+			<id>native</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.graalvm.buildtools</groupId>
+						<artifactId>native-maven-plugin</artifactId>
+						<version>${native.maven.plugin.version}</version>
+						<extensions>true</extensions>
+						<executions>
+							<execution>
+								<id>build-native</id>
+								<phase>package</phase>
+								<goals>
+									<goal>compile-no-fork</goal>
+								</goals>
+							</execution>
+						</executions>
+						<configuration>
+							<imageName>${native.image.name}</imageName>
+							<mainClass>${mainClass}</mainClass>
+							<!-- Build from the shaded jar so the image sees exactly what the
+							     JVM jar does, including the merged service files. -->
+							<classpath>
+								<param>${project.build.directory}/metaloom-cli.jar</param>
+							</classpath>
+							<fallback>false</fallback>
+							<verbose>true</verbose>
+							<buildArgs>
+								<buildArg>--no-fallback</buildArg>
+								<buildArg>-H:+UnlockExperimentalVMOptions</buildArg>
+								<buildArg>-H:+ReportExceptionStackTraces</buildArg>
+								<buildArg>--enable-url-protocols=http,https</buildArg>
+								<buildArg>--initialize-at-build-time=org.slf4j,ch.qos.logback,com.fasterxml.jackson,org.yaml.snakeyaml,picocli</buildArg>
+								<buildArg>--initialize-at-run-time=io.netty</buildArg>
+								<!-- Required: without it Ctrl-C during a follow run skips the
+								     shutdown hook that closes the WebSocket. -->
+								<buildArg>--install-exit-handlers</buildArg>
+								<buildArg>-H:ConfigurationFileDirectories=${project.basedir}/src/main/resources/META-INF/native-image/io.metaloom.cli/metaloom-cli</buildArg>
+								<buildArg>-J-Xmx4g</buildArg>
+								<!-- A CLI wants a small binary and fast startup, not peak throughput. -->
+								<buildArg>-Os</buildArg>
+							</buildArgs>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
+
+</project>

@@ -115,6 +115,7 @@ public interface PipelineExamples extends ExampleValues {
 	default PipelineRunRequest pipelineRunRequest() {
 		PipelineRunRequest model = new PipelineRunRequest();
 		model.setMediaUuids(List.of(uuidA(), uuidB()));
+		model.setPath("/media/library");
 		model.setDryRun(false);
 		return model;
 	}

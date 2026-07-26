@@ -51,6 +51,8 @@ link = "https://fonts.googleapis.com/css?family=Anaheim|Quattrocento+Sans:400,70
 link = "plugins/toc/bootstrap-toc.min.css"
 [[params.plugins.css]]
 link = "plugins/swagger/swagger-ui.css"
+[[params.plugins.css]]
+link = "plugins/graphiql/graphiql.min.css"
 
 
 
@@ -79,6 +81,14 @@ link = "plugins/swagger/swagger-ui-bundle.js"
 link = "plugins/swagger/swagger-ui-standalone-preset.js"
 [[params.plugins.js]]
 link = "plugins/swagger/swagger.js"
+[[params.plugins.js]]
+link = "plugins/graphiql/react.production.min.js"
+[[params.plugins.js]]
+link = "plugins/graphiql/react-dom.production.min.js"
+[[params.plugins.js]]
+link = "plugins/graphiql/graphiql.min.js"
+[[params.plugins.js]]
+link = "plugins/graphiql/graphiql.js"
 
 ################### English Navigation ########################
 #[[Languages.en.menu.main]]
@@ -162,8 +172,8 @@ link = "#"
 home = "Home"
 
 [Languages.en]
-languageName = "En"
-languageCode = "en-us"
+label = "En"
+locale = "en-us"
 contentDir = "content/english"
 weight = 1
 

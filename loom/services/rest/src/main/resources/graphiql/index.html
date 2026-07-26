@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Loom GraphQL — GraphiQL</title>
+	<link rel="stylesheet" href="graphiql.min.css" />
+	<style>
+		html, body, #graphiql { height: 100%; margin: 0; width: 100%; }
+	</style>
+</head>
+<body>
+	<div id="graphiql">Loading GraphiQL…</div>
+
+	<script src="react.production.min.js"></script>
+	<script src="react-dom.production.min.js"></script>
+	<script src="graphiql.min.js"></script>
+	<script>
+		// Live GraphiQL served by the Loom server. Queries are POSTed to the secured
+		// GraphQL endpoint with the session cookie (set by logging in at /ui/), so
+		// introspection and execution succeed only for authenticated users.
+		var fetcher = function (graphQLParams) {
+			return fetch('/api/v1/graphql', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'include',
+				body: JSON.stringify(graphQLParams)
+			}).then(function (response) {
+				return response.json();
+			});
+		};
+
+		var root = ReactDOM.createRoot(document.getElementById('graphiql'));
+		root.render(React.createElement(GraphiQL, { fetcher: fetcher }));
+	</script>
+</body>
+</html>

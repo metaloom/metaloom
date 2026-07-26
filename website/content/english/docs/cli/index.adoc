@@ -1,0 +1,691 @@
+---
+title: Command Line
+---
+
+`metaloom` is a command line client for a Loom server. It talks to the same REST API the web
+interface uses, so anything you can do in the UI you can script.
+
+It ships in two forms:
+
+* a **native binary** with no Java requirement, which starts in a few milliseconds, and
+* a **runnable JAR** for environments that already have a JVM.
+
+Both are listed under link:../loom/artifacts/[Artifacts].
+
+== Installing
+
+=== Native binary
+
+[source,bash]
+----
+cli/build-native.sh
+cli/build-native.sh install     # copies to ~/.local/bin/metaloom
+----
+
+Building the native binary needs a GraalVM 25 installation. Point `GRAALVM_HOME` at it if it
+is not in the default location:
+
+[source,bash]
+----
+GRAALVM_HOME=/opt/jvm/graalvm-25 cli/build-native.sh
+----
+
+=== JAR
+
+[source,bash]
+----
+mvn -pl cli -am package
+java -jar cli/target/metaloom-cli.jar --help
+----
+
+== Getting started
+
+Point the client at a server and log in once. The token is stored and reused.
+
+[source,bash]
+----
+$ metaloom config set server http://localhost:6333
+Set server = http://localhost:6333 in profile 'default'.
+
+$ metaloom login --username admin
+Password:
+Logged in as admin (profile 'default').
+
+$ metaloom whoami
+UUID                                  USERNAME  EMAIL
+f91e1dbf-4077-4091-828e-7f0547f08cfc  admin
+----
+
+Check what you are talking to:
+
+[source,bash]
+----
+$ metaloom health
+STATUS
+UP
+
+$ metaloom version
+COMPONENT  VERSION
+client     1.0.0-SNAPSHOT
+server     1.0.0-SNAPSHOT
+----
+
+== Configuration
+
+=== Where settings come from
+
+Settings are resolved in this order, first match wins:
+
+. a command line flag
+. an environment variable
+. the configuration file, for the active profile
+. the built-in default
+
+=== Global flags
+
+These are accepted by every command.
+
+[cols="2,3"]
+|===
+| Flag | Meaning
+
+| `-s`, `--server=URL`
+| Loom server URL. A bare `host:port` is accepted, and a sub-path such as
+`https://example.com/loom` is honoured for reverse-proxied deployments.
+
+| `-P`, `--profile=NAME`
+| Configuration profile to use for this command.
+
+| `--token=TOKEN`
+| Bearer token. Overrides the stored credentials.
+
+| `--token-file=FILE`
+| Read the bearer token from a file.
+
+| `-o`, `--output=FORMAT`
+| `table`, `json` or `yaml`.
+
+| `-q`, `--quiet`
+| Print only identifiers, one per line. Suppresses progress messages.
+
+| `-v`
+| Increase verbosity. Repeat for more (`-v`, `-vv`). Also prints stack traces on failure.
+
+| `--color=WHEN`
+| `auto`, `always` or `never`.
+
+| `--no-color`
+| Shorthand for `--color=never`.
+
+| `--timeout=DURATION`
+| Request timeout. Accepts `30s`, `5m`, `2h`, `500ms` or an ISO-8601 value.
+
+| `--config=FILE`
+| Configuration file to use.
+
+| `-k`, `--insecure`
+| Do not verify the server's TLS certificate.
+
+| `-h`, `--help`
+| Show help for the command you are on.
+
+| `-V`, `--version`
+| Print the version and exit.
+|===
+
+=== Environment variables
+
+[cols="2,3,2"]
+|===
+| Variable | Sets | Default
+
+| `METALOOM_SERVER`
+| The server URL
+| `http://localhost:6333`
+
+| `LOOM_HOST` + `LOOM_PORT`
+| The server URL, if `METALOOM_SERVER` is unset. The same pair the server and Cortex use, so
+one export covers all three.
+| —
+
+| `METALOOM_PROFILE`
+| The active profile
+| `default`
+
+| `METALOOM_TOKEN`
+| The bearer token
+| the stored login
+
+| `METALOOM_OUTPUT`
+| The output format
+| `table`
+
+| `METALOOM_TIMEOUT`
+| The request timeout
+| `30s`
+
+| `METALOOM_CONFIG`
+| The configuration file
+| `$XDG_CONFIG_HOME/metaloom/cli.yml`, else `~/.config/metaloom/cli.yml`
+
+| `NO_COLOR`
+| Disables colour when set to any non-empty value. Honoured even with `--color=always`.
+| —
+
+| `XDG_CONFIG_HOME`
+| The base directory for the configuration and credentials files
+| `~/.config`
+|===
+
+=== The configuration file
+
+[source,yaml]
+----
+currentProfile: default
+profiles:
+  default:
+    server: http://localhost:6333
+    output: table
+    timeout: 30s
+  prod:
+    server: https://loom.example.com/loom
+----
+
+Manage it with the `config` command rather than editing it by hand — values are validated
+before they are written:
+
+[source,bash]
+----
+$ metaloom config path
+/home/you/.config/metaloom/cli.yml
+
+$ metaloom config list
+KEY              VALUE
+server           http://localhost:6333
+profile          default
+effectiveServer  http://localhost:6333
+
+$ metaloom config set timeout not-a-duration
+error: Not a valid duration: 'not-a-duration'. Try 30s, 5m, 1h or an ISO-8601 value like PT30S.
+----
+
+`effectiveServer` is the address the next command will actually use, after the environment
+and any flags have had their say.
+
+=== Profiles
+
+A profile is a named server configuration — useful when you work against more than one
+environment.
+
+[source,bash]
+----
+metaloom config use-profile prod
+metaloom config set server https://loom.example.com
+metaloom login --username admin
+
+metaloom --profile dev pipeline list      # one-off against another profile
+----
+
+=== Credentials
+
+Credentials live in `~/.config/metaloom/credentials.yml`, separately from the configuration
+file, and are readable only by you. The client refuses to use a credentials file that anyone
+else can read; if that happens, run `chmod 600` on it or simply log in again — logging in
+rewrites the file with the right permissions.
+
+For CI, prefer a long-lived API token over a password login, because a login token expires:
+
+[source,bash]
+----
+metaloom login --api-token "$METALOOM_API_TOKEN"
+----
+
+== Output formats
+
+Every command renders as an aligned table, as JSON, or as YAML.
+
+[source,bash]
+----
+$ metaloom pipeline list
+UUID                                  NAME             VERSION  ENABLED  PRIORITY
+69cb7a95-51e8-45c3-9f0d-97c0a5ec3a90  Ingest & Proxy   1        yes      0
+c26a0805-90cf-4fb0-aa3f-79f8eecad463  Full Processing  1        yes      0
+f1ae366b-a606-477a-83fd-29b5268b3ec1  Quick Hash       1        yes      0
+----
+
+[source,bash]
+----
+$ metaloom -o json pipeline list
+[ {
+  "uuid" : "69cb7a95-51e8-45c3-9f0d-97c0a5ec3a90",
+  "versionUuid" : "b85096b2-1975-4110-bd96-b3ed964b1f23",
+  "versionNumber" : 1,
+  "name" : "Ingest & Proxy",
+  "description" : "MIME filtering, hashing, fingerprinting and proxy generation.",
+  "definition" : {
+    "edges" : [ {
+      "source" : "src",
+      "target" : "hash"
+    } ],
+    "nodes" : [ {
+      "id" : "src",
+      "source" : true,
+      "type" : "filesystem-source"
+    }, {
+      "id" : "hash",
+      "type" : "sha512"
+    } ]
+  },
+  "enabled" : true,
+  "priority" : 0,
+  "dryRun" : false
+} ]
+----
+
+Results go to standard output and progress messages to standard error, so piping into `jq` is
+always safe:
+
+[source,bash]
+----
+metaloom -o json pipeline list | jq -r '.[].name'
+----
+
+`--quiet` reduces a listing to bare identifiers, one per line, which is what you want when
+feeding one command into another:
+
+[source,bash]
+----
+$ metaloom -q pipeline list
+69cb7a95-51e8-45c3-9f0d-97c0a5ec3a90
+c26a0805-90cf-4fb0-aa3f-79f8eecad463
+f1ae366b-a606-477a-83fd-29b5268b3ec1
+
+$ metaloom -q pipeline list | xargs -n1 metaloom pipeline get
+----
+
+Colour is used when writing to a terminal, and disabled by `--no-color`, `--color=never` or
+the `NO_COLOR` environment variable.
+
+== Running a pipeline
+
+Run a pipeline over a folder:
+
+[source,bash]
+----
+$ metaloom pipeline run "Ingest & Proxy" --dir /media/library
+Run 4c1f2b90-3d5e-4a71-9c8b-2f6a0d51e7c3 dispatched to cortex-01.
+----
+
+`--dir` lets the pipeline's source do a differential scan: media that has not changed since
+the last run over that folder is skipped. When you need a full re-scan, or want to select by
+pattern, use `--glob` instead:
+
+[source,bash]
+----
+metaloom pipeline run "Ingest & Proxy" --glob '/media/**/*.mp4'
+----
+
+You can also run against specific assets:
+
+[source,bash]
+----
+metaloom pipeline run "Ingest & Proxy" --asset 0d3f… --asset 7b21…
+----
+
+If no worker can serve the pipeline, the server refuses the run rather than queueing it
+silently:
+
+[source,bash]
+----
+$ metaloom pipeline run "Ingest & Proxy" --dir /media/library
+error: The server cannot serve this request right now. For a pipeline run this usually means
+no registered processor accepts the pipeline's source kind.
+# exit 20
+----
+
+=== Watching a run
+
+`--follow` streams events until the run finishes:
+
+[source,bash]
+----
+$ metaloom pipeline run "Quick Hash" --dir /media/library --follow
+Run 4c1f2b90-3d5e-4a71-9c8b-2f6a0d51e7c3 dispatched to cortex-01.
+PIPELINE_STARTED
+NODE_COMPLETED hash /media/library/clip-01.mp4 (412ms)
+NODE_COMPLETED hash /media/library/clip-02.mp4 (388ms)
+NODE_FAILED    hash /media/library/broken.mp4 - could not read the file
+PIPELINE_COMPLETED
+----
+
+With `-o json`, following emits one JSON object per line, so it streams through `jq`:
+
+[source,bash]
+----
+metaloom -o json run follow <run-uuid> | jq 'select(.type == "NODE_FAILED") | .mediaPath'
+----
+
+`--wait` blocks without printing every event, and exits non-zero if the run did not succeed —
+which is what you want in a script:
+
+[source,bash]
+----
+$ metaloom pipeline run "Quick Hash" --dir /media --wait
+Run 4c1f2b90-3d5e-4a71-9c8b-2f6a0d51e7c3 dispatched to cortex-01.
+Run 4c1f2b90-3d5e-4a71-9c8b-2f6a0d51e7c3 is RUNNING.
+Run finished: SUCCESS (media=128, success=128, failed=0, skipped=0).
+----
+
+=== Pausing, resuming and stopping
+
+[source,bash]
+----
+$ metaloom run pause 4c1f2b90-3d5e-4a71-9c8b-2f6a0d51e7c3
+Pipeline run paused
+
+$ metaloom run resume 4c1f2b90-3d5e-4a71-9c8b-2f6a0d51e7c3
+Pipeline run resumed
+
+$ metaloom run cancel 4c1f2b90-3d5e-4a71-9c8b-2f6a0d51e7c3
+Pipeline run cancelled
+----
+
+`start` and `stop` are accepted as aliases for `resume` and `cancel`.
+
+Pausing suspends a run without losing its progress: no further work is handed out, and the
+scan itself stops. Work already in progress finishes normally. Resuming picks up where it
+left off.
+
+Cancelling is final — a cancelled run cannot be resumed.
+
+A paused run holds on to its worker, so remember to resume or cancel it.
+
+Acting on a run in the wrong state is reported rather than silently ignored:
+
+[source,bash]
+----
+$ metaloom run pause 4c1f2b90-3d5e-4a71-9c8b-2f6a0d51e7c3
+error: Pipeline run is already paused.
+# exit 7
+----
+
+TIP: These commands take a run UUID. The client will find the pipeline it belongs to for you,
+but passing `--pipeline` makes it faster.
+
+== Inspecting runs
+
+[source,bash]
+----
+$ metaloom run list -p "Quick Hash"
+UUID                                  STATUS   STARTED               MEDIA  OK   FAILED  SKIPPED  DURATION
+be71a0d2-5c3f-4e18-9a20-7d4c1b8e6f35  SUCCESS  2026-07-25T22:14:07Z  128    128  0       0        42000ms
+1f9c4e77-08ab-4d62-b3e1-9c05a7f2d418  PARTIAL  2026-07-24T09:02:51Z  64     58   6       0        187000ms
+
+$ metaloom run list -p "Quick Hash" --status FAILED
+No results.
+----
+
+[source,bash]
+----
+$ metaloom run items 1f9c4e77-08ab-4d62-b3e1-9c05a7f2d418 --state FAILED
+SEQ  STATE   PATH                          ERROR
+17   FAILED  /media/library/broken.mp4     could not read the file
+41   FAILED  /media/library/truncated.mov  unexpected end of stream
+----
+
+[source,bash]
+----
+$ metaloom run stats
+DATE        RUNS  OK  FAILED  SKIPPED
+2026-07-24  3     2   1       0
+2026-07-25  5     5   0       0
+2026-07-26  1     1   0       0
+----
+
+== Browsing content and access
+
+[source,bash]
+----
+$ metaloom user list
+UUID                                  USERNAME  EMAIL
+6793ad7e-200c-432b-8e64-62b9f9544ece  joedoe    joe@example.com
+f91e1dbf-4077-4091-828e-7f0547f08cfc  admin     admin@example.com
+
+$ metaloom group list
+UUID                                  NAME
+7a50a663-492e-44f7-a62b-b6c87f36046f  editors
+a7aebcc9-ad94-4a44-90e0-8f15bdbfd83a  admins
+
+$ metaloom role list
+UUID                                  NAME
+9eedd285-55a5-4dc4-b169-8578a08b442b  admin-role
+d11cf021-d06c-4327-9f85-024f5fa3811d  viewer-role
+----
+
+The content hierarchy is spaces, then libraries, then asset pools:
+
+[source,bash]
+----
+$ metaloom space list
+UUID                                  NAME
+7d784065-7953-4702-813f-36e231b67283  Demo Space
+
+$ metaloom pool list
+UUID                                  NAME                PATH
+2b8c1d40-9e77-4c05-bb31-6a0f2e9d4c88  Production Storage  /mnt/media/production
+----
+
+== Shell completion
+
+[source,bash]
+----
+metaloom completion > ~/.local/share/bash-completion/completions/metaloom
+----
+
+Restart your shell, then `metaloom <TAB>` completes commands and options.
+
+== Exit codes
+
+Scripts can branch on the exit code rather than parsing messages.
+
+[cols="1,4"]
+|===
+| Code | Meaning
+
+| 0  | Success
+| 2  | Wrong arguments
+| 3  | A local file could not be read or written
+| 4  | Not found
+| 5  | Not authenticated — run `metaloom login`
+| 6  | Not permitted
+| 7  | Conflict, for example pausing a run that has already finished
+| 8  | The server rejected the request as invalid
+| 10 | Unspecified error
+| 15 | The server could not be reached
+| 20 | The server reported a failure
+| 21 | `--wait` finished, but the run did not succeed
+| 124| Timed out
+| 130| Interrupted
+|===
+
+Two examples:
+
+[source,bash]
+----
+$ metaloom pipeline get no-such-pipeline
+error: No pipeline named 'no-such-pipeline'.
+# exit 4
+
+$ metaloom -s http://127.0.0.1:1 pipeline list
+error: Could not reach the server: Connection refused
+# exit 15
+----
+
+== Command reference
+
+Run `metaloom --help`, or `--help` on any subcommand, for the authoritative list.
+
+=== `metaloom --help`
+
+[source,text]
+----
+Usage: metaloom [-hkqVv] [--no-color] [--color=WHEN] [--config=FILE]
+                [-o=FORMAT] [-P=NAME] [-s=URL] [--timeout=DURATION]
+                [--token=TOKEN] [--token-file=FILE] COMMAND
+Command line client for a MetaLoom (Loom) server.
+      --color=WHEN         Colourise output: auto, always or never. Honours
+                             NO_COLOR.
+      --config=FILE        Configuration file. Env: METALOOM_CONFIG. Default:
+                             ~/.config/metaloom/cli.yml
+  -h, --help               Show this help message and exit.
+  -k, --insecure           Do not verify the server's TLS certificate.
+      --no-color           Disable coloured output.
+  -o, --output=FORMAT      Output format: table, json or yaml. Env:
+                             METALOOM_OUTPUT.
+  -P, --profile=NAME       Configuration profile to use. Env: METALOOM_PROFILE.
+  -q, --quiet              Print only identifiers, one per line. Suppresses
+                             progress messages.
+  -s, --server=URL         Loom server URL. Env: METALOOM_SERVER, or LOOM_HOST
+                             + LOOM_PORT. Default: http://localhost:6333
+      --timeout=DURATION   Request timeout, e.g. 30s or 2m. Env:
+                             METALOOM_TIMEOUT.
+      --token=TOKEN        Bearer token. Env: METALOOM_TOKEN. Defaults to the
+                             stored credentials.
+      --token-file=FILE    Read the bearer token from this file.
+  -v                       Increase verbosity. Repeat for more (-v, -vv).
+  -V, --version            Print version information and exit.
+Commands:
+  login       Log in to a Loom server and store the token.
+  logout      Discard the stored token for the active profile.
+  whoami      Show the user the current token belongs to.
+  config      Manage the CLI configuration file.
+  pipeline    Inspect and run pipelines.
+  run         Inspect and control pipeline runs.
+  health      Check whether the server is healthy.
+  version     Show the CLI and server versions.
+  space       Spaces - the top of the content hierarchy.
+  library     Libraries within a space.
+  pool        Asset pools - where binaries live on disk.
+  user        Users.
+  group       Groups.
+  role        Roles.
+  completion  Generate bash/zsh completion script for metaloom.
+----
+
+=== `metaloom pipeline --help`
+
+[source,text]
+----
+Usage: metaloom pipeline [-hkqVv] [--no-color] [--color=WHEN] [--config=FILE]
+                         [-o=FORMAT] [-P=NAME] [-s=URL] [--timeout=DURATION]
+                         [--token=TOKEN] [--token-file=FILE] [COMMAND]
+Inspect and run pipelines.
+Commands:
+  list, ls    List pipelines.
+  get         Show one pipeline.
+  delete, rm  Delete a pipeline and all of its versions.
+  run         Trigger a pipeline run.
+----
+
+NOTE: The global flags are repeated in every subcommand's help. They are omitted here for
+brevity — see the table above.
+
+=== `metaloom pipeline run --help`
+
+[source,text]
+----
+Usage: metaloom pipeline run [-fhkqVv] [--dry-run] [--no-color] [--wait]
+                             [--color=WHEN] [--config=FILE] [-d=PATH]
+                             [-o=FORMAT] [-P=NAME] [-s=URL]
+                             [--timeout=DURATION] [--token=TOKEN]
+                             [--token-file=FILE] [--wait-timeout=DURATION]
+                             [-a=UUID]... [-g=GLOB]... PIPELINE
+Trigger a pipeline run.
+      PIPELINE             Pipeline name or UUID.
+  -a, --asset=UUID         Run against these assets. Repeatable. Takes
+                             precedence over --dir and --glob.
+  -d, --dir=PATH           Run against this directory or file. Uses the source
+                             node's differential index-backed scan, so
+                             unchanged media is skipped.
+      --dry-run            Override the pipeline's dry-run flag for this run.
+  -f, --follow             Stream run events until the run finishes.
+  -g, --glob=GLOB          Run against media matching this glob. Repeatable.
+                             Forces a full re-walk and takes precedence over
+                             --dir.
+      --wait               Block until the run finishes. Exits 21 if it did not
+                             succeed.
+      --wait-timeout=DURATION
+                           Give up waiting after this long. Exits 124.
+----
+
+=== `metaloom run --help`
+
+[source,text]
+----
+Usage: metaloom run [-hkqVv] [--no-color] [--color=WHEN] [--config=FILE]
+                    [-o=FORMAT] [-P=NAME] [-s=URL] [--timeout=DURATION]
+                    [--token=TOKEN] [--token-file=FILE] [COMMAND]
+Inspect and control pipeline runs.
+Commands:
+  list, ls       List runs of a pipeline.
+  get            Show one run.
+  items          List the media items a run processed.
+  follow         Stream events for a run until it finishes.
+  pause          Suspend an in-flight run.
+  resume, start  Resume a suspended run.
+  cancel, stop   Cancel an in-flight run.
+  stats          Show daily run statistics across all pipelines.
+----
+
+=== `metaloom config --help`
+
+[source,text]
+----
+Usage: metaloom config [-hkqVv] [--no-color] [--color=WHEN] [--config=FILE]
+                       [-o=FORMAT] [-P=NAME] [-s=URL] [--timeout=DURATION]
+                       [--token=TOKEN] [--token-file=FILE] [COMMAND]
+Manage the CLI configuration file.
+Commands:
+  list, ls     Show the active profile's settings.
+  get          Print one setting.
+  set          Set one setting on the active profile.
+  use-profile  Make a profile the default for future commands.
+  path         Print the path of the configuration file.
+----
+
+=== `metaloom login --help`
+
+[source,text]
+----
+Usage: metaloom login [-hkqVv] [--no-color] [--password-stdin] [-p
+                      [=<password>]] [--api-token=TOKEN] [--color=WHEN]
+                      [--config=FILE] [-o=FORMAT] [-P=NAME] [-s=URL]
+                      [--timeout=DURATION] [--token=TOKEN] [--token-file=FILE]
+                      [-u=<username>]
+Log in to a Loom server and store the token.
+      --api-token=TOKEN    Store this long-lived API token (from
+                             /api/v1/tokens) instead of logging in with a
+                             password. Preferred for CI, where a login JWT
+                             would expire.
+  -p, --password[=<password>]
+                           Password. Prompted for if omitted.
+      --password-stdin     Read the password from stdin. Use this in scripts.
+  -u, --username=<username>
+                           Username. Prompted for if omitted.
+----
+
+=== The listing commands
+
+`space`, `library`, `pool`, `user`, `group` and `role` each take a single `list` subcommand
+(aliased `ls`):
+
+[source,text]
+----
+$ metaloom user --help
+Usage: metaloom user [-hkqVv] [--no-color] [--color=WHEN] [--config=FILE]
+                     [-o=FORMAT] [-P=NAME] [-s=URL] [--timeout=DURATION]
+                     [--token=TOKEN] [--token-file=FILE] [COMMAND]
+Users.
+Commands:
+  list, ls  List users.
+----

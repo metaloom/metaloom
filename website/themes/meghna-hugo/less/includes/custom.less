@@ -394,3 +394,63 @@ blockquote .paragraph {
   cursor: pointer;
 }
 .ml-lightbox-close:hover { color: #fff; border-color: #6b7681; }
+
+/* ---- Embedded Swagger UI (API explorer on the REST API page) ----
+   Swagger UI ships light-theme CSS and assumes it renders on a white page. On this
+   dark site its headers, tag names and descriptions come out near-invisible, so the
+   explorer is given its own light surface instead of being restyled operation by
+   operation. */
+#swagger-ui {
+  margin-top: 10px;
+  padding: 10px 6px 6px;
+  background: #fff;
+  border: 1px solid #4e595f;
+  border-radius: 6px;
+  color: #3b4151;
+}
+#swagger-ui .swagger-ui .info .title,
+#swagger-ui .swagger-ui .info p,
+#swagger-ui .swagger-ui .info li,
+#swagger-ui .swagger-ui .opblock-tag,
+#swagger-ui .swagger-ui .opblock-tag small,
+#swagger-ui .swagger-ui table thead tr th,
+#swagger-ui .swagger-ui .model-title,
+#swagger-ui .swagger-ui .parameter__name,
+#swagger-ui .swagger-ui .response-col_status {
+  color: #3b4151;
+}
+#swagger-ui .swagger-ui .response-col_description,
+#swagger-ui .swagger-ui .response-col_description div,
+#swagger-ui .swagger-ui .opblock .opblock-summary-description,
+#swagger-ui .swagger-ui .opblock-description-wrapper p,
+#swagger-ui .swagger-ui .renderedMarkdown p,
+#swagger-ui .swagger-ui table.parameters td,
+#swagger-ui .swagger-ui .parameter__type,
+#swagger-ui .swagger-ui .tab li,
+#swagger-ui .swagger-ui label {
+  color: #3b4151;
+}
+#swagger-ui .swagger-ui .info a { color: #0a6c78; }
+// The spec is large; keep the tag list from running edge to edge on wide screens.
+#swagger-ui .swagger-ui .wrapper { max-width: 100%; }
+
+/* ---- Landing-page feature items: link to the covering doc page ----
+   Each item in data/en/feature.yml may carry a `link:` to a docs page. The title
+   becomes a link and a small "Read the docs" affordance is appended to the copy.
+   The icon rule has to out-specify `.about-2 .content-block .media i` (30px), which
+   would otherwise blow up the inline arrow. */
+.about-2 .content-block .media h4 a { color: inherit; }
+.about-2 .content-block .media h4 a:hover { color: #57cbcc; }
+.about-2 .content-block .media .feature-doc-link {
+  display: inline-block;
+  color: #57cbcc;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.about-2 .content-block .media .feature-doc-link:hover { color: #6cb670; }
+.about-2 .content-block .media .feature-doc-link i {
+  color: inherit;
+  font-size: 11px;
+  margin-left: 4px;
+  vertical-align: baseline;
+}

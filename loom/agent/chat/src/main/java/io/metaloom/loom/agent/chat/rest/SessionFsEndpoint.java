@@ -17,9 +17,9 @@ import io.metaloom.loom.rest.EndpointDependencies;
  * the coding agent produced in its {@code /workspace}.
  *
  * <ul>
- * <li>{@code GET /session/:uuid/files?path=} — list a workspace directory</li>
- * <li>{@code GET /session/:uuid/download?path=&inline=} — download a workspace file</li>
- * <li>{@code GET /session/:uuid/preview?path=} — sandboxed inline preview (CSP: sandbox)</li>
+ * <li>{@code GET /sessions/:uuid/files?path=} — list a workspace directory</li>
+ * <li>{@code GET /sessions/:uuid/download?path=&inline=} — download a workspace file</li>
+ * <li>{@code GET /sessions/:uuid/preview?path=} — sandboxed inline preview (CSP: sandbox)</li>
  * </ul>
  *
  * <p>Nested paths are passed via the {@code path} query parameter so arbitrary depth works without
@@ -45,7 +45,7 @@ public class SessionFsEndpoint extends AbstractEndpoint {
 
 	@Override
 	public String basePath() {
-		return API_V1_PATH + "/session";
+		return API_V1_PATH + "/sessions";
 	}
 
 	@Override

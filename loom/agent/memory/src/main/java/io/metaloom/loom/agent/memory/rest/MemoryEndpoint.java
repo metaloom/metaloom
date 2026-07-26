@@ -25,7 +25,7 @@ import io.metaloom.loom.rest.EndpointDependencies;
  * <li>{@code DELETE /memory/entry?scope=&ref=&id=} — delete a note</li>
  * </ul>
  *
- * <p>The note id is a nested path and is passed as the {@code id} query parameter rather than in the route, following the {@code /session/:uuid/files?path=}
+ * <p>The note id is a nested path and is passed as the {@code id} query parameter rather than in the route, following the {@code /sessions/:uuid/files?path=}
  * precedent — arbitrary depth without server-side wildcard routing.</p>
  */
 public class MemoryEndpoint extends AbstractEndpoint {

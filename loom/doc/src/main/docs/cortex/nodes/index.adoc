@@ -185,3 +185,13 @@ Assesses the perceptual quality of an image or video frame (blur detection, expo
 
 * Applicable to: image, video
 * Output key: quality score
+
+== Authoring Your Own Node
+
+There is no drop-in plugin mechanism for nodes.
+The node set of a Cortex process is wired at build time through Dagger modules, so the shipped `cortex-server` image serves exactly the built-in nodes listed above.
+Running a node of your own therefore means *building your own Cortex instance* that includes it: extend `AbstractMediaNode<YourOptions>`, implement `name()`, `isProcessable()` and `compute()`, expose the node from a Dagger module, include that module in your instance's node collection, and register the node kind with the pipeline node factory.
+A worker announces the node kinds its factory has registered when it registers with Loom, so your custom kind becomes dispatchable as soon as your instance connects — and it can run alongside the stock workers, which keep serving the built-in kinds.
+
+The `examples/` directory of the source repository contains the complete, working setup rather than a sketch: `cortex-custom-node` holds the node itself together with its options, payload and Dagger module; `cortex-custom` assembles a daemon that includes that module and connects to a Loom backend; and `cortex-python` implements a minimal worker in Python that speaks the wire protocol directly, for logic you do not want to write in Java.
+See link:../examples[Cortex Examples] for the code and the build/run commands.

@@ -13,6 +13,11 @@ public final class PipelineRunStatusResolver {
 
 	public static final String PENDING = "PENDING";
 	public static final String RUNNING = "RUNNING";
+	/**
+	 * Suspended by an operator. Deliberately <em>not</em> terminal: a paused run is still
+	 * live, still holds an engine, and can be resumed or cancelled.
+	 */
+	public static final String PAUSED = "PAUSED";
 	public static final String SUCCESS = "SUCCESS";
 	public static final String FAILED = "FAILED";
 	public static final String PARTIAL = "PARTIAL";

@@ -92,21 +92,21 @@ async function handleResponse<T>(res: Response): Promise<T> {
 
 /** List chat sessions. scope="mine" (default) lists own sessions; scope="published" lists the shared library. */
 export async function listChatSessions(token: string, scope: "mine" | "published" = "mine"): Promise<ChatSessionListResponse> {
-  const res = await fetch(`${API_BASE_URL}/chat/sessions?scope=${scope}`, {
+  const res = await fetch(`${API_BASE_URL}/chat-sessions?scope=${scope}`, {
     headers: authHeaders(token),
   });
   return handleResponse<ChatSessionListResponse>(res);
 }
 
 export async function loadChatSession(token: string, uuid: string): Promise<ChatSessionResponse> {
-  const res = await fetch(`${API_BASE_URL}/chat/sessions/${encodeURIComponent(uuid)}`, {
+  const res = await fetch(`${API_BASE_URL}/chat-sessions/${encodeURIComponent(uuid)}`, {
     headers: authHeaders(token),
   });
   return handleResponse<ChatSessionResponse>(res);
 }
 
 export async function createChatSession(token: string, request: ChatSessionCreateRequest): Promise<ChatSessionResponse> {
-  const res = await fetch(`${API_BASE_URL}/chat/sessions`, {
+  const res = await fetch(`${API_BASE_URL}/chat-sessions`, {
     method: "POST",
     headers: authHeaders(token),
     body: JSON.stringify(request),
@@ -116,7 +116,7 @@ export async function createChatSession(token: string, request: ChatSessionCreat
 
 /** Updates use POST (not PUT) — loom convention. */
 export async function updateChatSession(token: string, uuid: string, request: ChatSessionUpdateRequest): Promise<ChatSessionResponse> {
-  const res = await fetch(`${API_BASE_URL}/chat/sessions/${encodeURIComponent(uuid)}`, {
+  const res = await fetch(`${API_BASE_URL}/chat-sessions/${encodeURIComponent(uuid)}`, {
     method: "POST",
     headers: authHeaders(token),
     body: JSON.stringify(request),
@@ -125,7 +125,7 @@ export async function updateChatSession(token: string, uuid: string, request: Ch
 }
 
 export async function deleteChatSession(token: string, uuid: string): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/chat/sessions/${encodeURIComponent(uuid)}`, {
+  const res = await fetch(`${API_BASE_URL}/chat-sessions/${encodeURIComponent(uuid)}`, {
     method: "DELETE",
     headers: authHeaders(token),
   });
@@ -137,7 +137,7 @@ export async function deleteChatSession(token: string, uuid: string): Promise<vo
 
 export async function publishChatSession(token: string, uuid: string, published: boolean): Promise<ChatSessionResponse> {
   const action = published ? "publish" : "unpublish";
-  const res = await fetch(`${API_BASE_URL}/chat/sessions/${encodeURIComponent(uuid)}/${action}`, {
+  const res = await fetch(`${API_BASE_URL}/chat-sessions/${encodeURIComponent(uuid)}/${action}`, {
     method: "POST",
     headers: authHeaders(token),
   });
@@ -145,14 +145,14 @@ export async function publishChatSession(token: string, uuid: string, published:
 }
 
 export async function loadChatSessionContext(token: string, uuid: string): Promise<ChatSessionContextResponse> {
-  const res = await fetch(`${API_BASE_URL}/chat/sessions/${encodeURIComponent(uuid)}/context`, {
+  const res = await fetch(`${API_BASE_URL}/chat-sessions/${encodeURIComponent(uuid)}/context`, {
     headers: authHeaders(token),
   });
   return handleResponse<ChatSessionContextResponse>(res);
 }
 
 export async function replaceChatSessionContext(token: string, uuid: string, request: ChatSessionContextRequest): Promise<ChatSessionContextResponse> {
-  const res = await fetch(`${API_BASE_URL}/chat/sessions/${encodeURIComponent(uuid)}/context`, {
+  const res = await fetch(`${API_BASE_URL}/chat-sessions/${encodeURIComponent(uuid)}/context`, {
     method: "PUT",
     headers: authHeaders(token),
     body: JSON.stringify(request),
@@ -162,11 +162,11 @@ export async function replaceChatSessionContext(token: string, uuid: string, req
 
 /**
  * List files of a session's live coding workspace via the Phase-2 filesystem proxy
- * (GET /session/:chatUuid/files). Keyed by the chat uuid. Only a running coding session can be
+ * (GET /sessions/:chatUuid/files). Keyed by the chat uuid. Only a running coding session can be
  * browsed — the proxy answers 404 when no live runner exists.
  */
 export async function listSessionFiles(token: string, chatUuid: string, path = "."): Promise<SessionFilesResponse> {
-  const res = await fetch(`${API_BASE_URL}/session/${encodeURIComponent(chatUuid)}/files?path=${encodeURIComponent(path)}`, {
+  const res = await fetch(`${API_BASE_URL}/sessions/${encodeURIComponent(chatUuid)}/files?path=${encodeURIComponent(path)}`, {
     headers: authHeaders(token),
   });
   return handleResponse<SessionFilesResponse>(res);
@@ -174,5 +174,5 @@ export async function listSessionFiles(token: string, chatUuid: string, path = "
 
 /** Download/preview URL for a single workspace file (streamed by the proxy). */
 export function sessionFileDownloadUrl(chatUuid: string, path: string, inline = false): string {
-  return `${API_BASE_URL}/session/${encodeURIComponent(chatUuid)}/download?path=${encodeURIComponent(path)}&inline=${inline}`;
+  return `${API_BASE_URL}/sessions/${encodeURIComponent(chatUuid)}/download?path=${encodeURIComponent(path)}&inline=${inline}`;
 }

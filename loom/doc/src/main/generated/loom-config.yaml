@@ -8,12 +8,67 @@ database:
   minPoolSize: 5
   acquireIncrement: 5
   maxPoolSize: 20
-  jdbcUrl: "jdbc:postgresql://127.0.0.1:5432/loom"
 server:
   grpcPort: 8091
   bindAddress: "0.0.0.0"
   restPort: 8092
   monitoringPort: 8989
+  mcpPort: 4041
 auth:
-  keystorePath: "keystore.jceks"
   keystorePassword: null
+  initialPassword: null
+  tokenExpirationTime: 3600
+  oauth2:
+    enabled: false
+    clientId: null
+    clientSecret: null
+    authUrl: null
+    tokenUrl: null
+    userInfoUrl: null
+    callbackUrl: null
+    logoutUrl: null
+    scope: "openid profile email"
+  mcpAuthEnabled: false
+  mcpAuthStrictMode: false
+  mcpAuthAllowedOrigins: "*"
+storage:
+  uploadDirectory: "data/storage"
+ai:
+  enabled: true
+  providerType: "OLLAMA"
+  url: "http://127.0.0.1:11434"
+  modelId: "gpt-oss:20b"
+  contextWindow: 16384
+  maxTurns: 8
+  toolTimeoutMs: 30000
+  thinkEnabled: true
+  streaming: false
+  titleGeneration: true
+sandbox:
+  enabled: false
+  backend: "podman"
+  image: "metaloom/loom-session-runner:latest"
+  namespace: ""
+  idleTtlSeconds: 900
+  maxSessionSeconds: 3600
+  execTimeoutSeconds: 120
+  maxConcurrent: 10
+  readyTimeoutSeconds: 60
+  cpuRequest: "100m"
+  cpuLimit: "1"
+  memRequest: "128Mi"
+  memLimit: "512Mi"
+  workspaceSize: "512Mi"
+memory:
+  enabled: false
+  mountEnabled: true
+  mountPath: "/memory"
+  maxEntryBytes: 262144
+  maxEntriesPerScope: 500
+  maxScopeBytes: 16777216
+  maxDepth: 4
+  maxWritesPerRun: 20
+  promptMaxEntries: 50
+  promptMaxChars: 4096
+  sharedScopesEnabled: true
+  sharedWriteEnabled: true

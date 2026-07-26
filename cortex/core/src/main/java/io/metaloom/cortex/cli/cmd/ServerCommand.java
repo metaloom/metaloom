@@ -29,6 +29,9 @@ public class ServerCommand extends AbstractLoomWorkerCommand {
 	@Command(name = "start", description = "Start the cortex server")
 	public int run(
 		@Option(names = { "-a", "--actions" }, description = "Actions to be used when processing files.") String enabledNodes) {
+		// Fail fast with a clear message when no stable worker id was configured - the server
+		// registers with Loom, which requires a unique, restart-stable identity.
+		requireNodeId();
 		try {
 			try {
 				cortex.run();

@@ -61,6 +61,7 @@ public class LoomGraphQLProviderTest {
 		when(assetDao.load(any())).thenReturn(null);
 		doReturn(Stream.empty()).when(assetDao).findAll();
 		doReturn(Stream.empty()).when(locationDao).findAll();
+		when(locationDao.findForAsset(any())).thenReturn(Collections.emptyList());
 		when(componentDao.loadImageComps(any())).thenReturn(Collections.emptyList());
 		when(componentDao.loadVideoComps(any())).thenReturn(Collections.emptyList());
 		when(componentDao.loadAudioComps(any())).thenReturn(Collections.emptyList());
@@ -162,7 +163,7 @@ public class LoomGraphQLProviderTest {
 		when(location.getAssetUuid()).thenReturn(ASSET_UUID);
 		when(location.getLibraryUuid()).thenReturn(libraryUuid);
 		when(location.getMimeType()).thenReturn("application/pdf");
-		doReturn(Stream.of(location)).when(locationDao).findAll();
+		when(locationDao.findForAsset(ASSET_UUID)).thenReturn(List.of(location));
 
 		String query = "{ asset(uuid: \"" + ASSET_UUID + "\") { uuid locations { path mimeType } } }";
 		ExecutionResult result = execute(query);
@@ -218,7 +219,7 @@ public class LoomGraphQLProviderTest {
 		when(location.getUuid()).thenReturn(UUID.randomUUID());
 		when(location.getPath()).thenReturn("/data/files/doc.pdf");
 		when(location.getAssetUuid()).thenReturn(ASSET_UUID);
-		doReturn(Stream.of(location)).when(locationDao).findAll();
+		when(locationDao.findForAsset(ASSET_UUID)).thenReturn(List.of(location));
 
 		// User may read assets but not asset locations.
 		GraphQLPermissionChecker checker = perm -> perm == Permission.READ_ASSET;

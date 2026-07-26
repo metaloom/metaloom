@@ -3,6 +3,7 @@ title: Features
 ---
 
 Loom provides a comprehensive set of features for managing digital media assets and their associated metadata.
+Each section below links to the reference page that covers the feature in depth.
 
 == Assets
 
@@ -22,20 +23,28 @@ Key capabilities:
 * Linked locations (multiple storage locations per file)
 * Embedding storage (vector embeddings for similarity search)
 
+_Read more:_ link:../rest-api/#_assets[REST API — Assets] · link:../java-client/#_working_with_assets[Java Client — Assets] · link:../../ui/#assets[Loom UI — Assets]
+
 == Asset Pools
 
 *Asset pools* are logical groupings of assets, typically corresponding to a physical storage location (folder, bucket, NAS share).
 They are used to scope Cortex processing runs and asset import operations.
+
+_Read more:_ link:../../nodes/filesystem-source/[Filesystem Source Node] · link:../../pipeline/[Pipeline Mechanism] · link:../../cli/#_browsing_content_and_access[Command Line — `pool list`]
 
 == Libraries
 
 *Libraries* provide a higher-level organizational layer above asset pools.
 A library can span multiple pools and is the primary unit for user-visible browsing.
 
+_Read more:_ link:../rest-api/#_libraries[REST API — Libraries] · link:../../ui/#_library[Loom UI — Library]
+
 == Collections
 
 *Collections* are curated, user-defined sets of assets (similar to playlists or albums).
 An asset can appear in multiple collections.
+
+_Read more:_ link:../rest-api/#_collections[REST API — Collections]
 
 == Users
 
@@ -46,9 +55,13 @@ User management is built into Loom.
 * Set per-user passwords
 * Per-user token management
 
+_Read more:_ link:../rest-api/#_users[REST API — Users] · link:../authentication/[Authentication] · link:../../ui/#administration[Loom UI — Administration]
+
 == Groups
 
 Groups aggregate users and are the unit on which *roles* are assigned.
+
+_Read more:_ link:../rest-api/#_groups[REST API — Groups] · link:../java-client/#_working_with_users_groups_and_roles[Java Client — Users, Groups and Roles]
 
 == Roles
 
@@ -58,10 +71,14 @@ Loom uses role-based access control (RBAC).
 * Assign roles to groups
 * Roles carry permissions for each resource type
 
+_Read more:_ link:../rest-api/#_roles[REST API — Roles] · link:../../ui/#administration[Loom UI — Permissions (ACL matrix)]
+
 == Permissions
 
 Permissions control what actions a role can perform on each resource (create, read, update, delete).
 They can be set at the global level or scoped to specific libraries or collections.
+
+_Read more:_ link:../../ui/#administration[Loom UI — Administration] · link:../../cli/#_browsing_content_and_access[Command Line — access listings]
 
 == Tags
 
@@ -71,33 +88,45 @@ They can be set at the global level or scoped to specific libraries or collectio
 * Add or remove tags from individual assets
 * Filter assets by one or more tags via the API
 
+_Read more:_ link:../rest-api/#_tags[REST API — Tags] · link:../java-client/#_working_with_tags[Java Client — Tags] · link:../../ui/#_tags[Loom UI — Tags]
+
 == Pipelines
 
 *Pipelines* define the media processing workflows.
 
 * Define a pipeline with a name, description, priority, and enabled flag
 * Pipelines are authored in the UI and stored on Loom with immutable versioning
-* Runs are executed by Loom's engine, which delegates node tasks to registered Cortex workers (see link:../../pipeline[Pipeline Mechanism])
+* Runs are executed by Loom's engine, which delegates node tasks to registered Cortex workers (see link:../../pipeline/[Pipeline Mechanism])
 * Pipeline execution results are tracked and surfaced as real-time WebSocket events
+
+_Read more:_ link:../../pipeline/[Pipeline Mechanism] · link:../../nodes/[Nodes] · link:../rest-api/#_pipelines[REST API — Pipelines] · link:../../ui/#pipeline-editing[Loom UI — Pipeline Editing] · link:../../cli/#_running_a_pipeline[Command Line — Running a Pipeline]
 
 == Tasks
 
 *Tasks* represent asynchronous background operations (e.g. bulk ingestion).
 They can be monitored via the REST API.
 
+_Read more:_ link:../../operation/#_how_loom_dispatches_work[Operation — How Loom Dispatches Work] · link:../rest-api/#_further_endpoints[REST API — Further Endpoints]
+
 == API Keys (Tokens)
 
 Long-lived API keys can be created for service accounts or CI/CD integrations.
 They are functionally equivalent to JWT tokens.
 
+_Read more:_ link:../authentication/#_api_keys_tokens[Authentication — API Keys] · link:../../ui/#administration[Loom UI — API Keys]
+
 == Blacklists
 
 Assets or hashes can be blacklisted to prevent them from being re-ingested or surfaced in search results.
+
+_Read more:_ link:../../nodes/hash/[Hashing Node] · link:../../nodes/filters/[Filter Nodes] · link:../../ui/#administration[Loom UI — Blacklist]
 
 == Spaces
 
 *Spaces* are top-level organisational units that group libraries, collections and users.
 They allow multi-tenant deployments within a single Loom instance.
+
+_Read more:_ link:../../cli/#_browsing_content_and_access[Command Line — Content Hierarchy] · link:../rest-api/#_further_endpoints[REST API — Further Endpoints]
 
 == Search and Similarity
 
@@ -105,3 +134,5 @@ Loom integrates with search backends (Elasticsearch, Lucene, Qdrant) to provide:
 
 * Full-text search over extracted metadata
 * Vector similarity search using stored embeddings (e.g. face embeddings, video fingerprints)
+
+_Read more:_ link:../../nodes/fingerprint/[Fingerprint Node] · link:../../nodes/facedescription/[Face Description Node] · link:../../nodes/dedup/[Deduplication Node] · link:../graphql-api/[GraphQL API]

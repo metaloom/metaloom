@@ -34,6 +34,18 @@
       <groupId>io.metaloom.loom</groupId>
       <artifactId>loom-core</artifactId>
     </dependency>
+
+    <!-- The OpenAPI generator has to register the chat and memory endpoints, which live
+         outside of the rest module. -->
+    <dependency>
+      <groupId>io.metaloom.loom.agent</groupId>
+      <artifactId>loom-agent-chat</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>io.metaloom.loom.agent</groupId>
+      <artifactId>loom-agent-memory</artifactId>
+    </dependency>
   </dependencies>
 
 </project>

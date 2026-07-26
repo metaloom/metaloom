@@ -14,8 +14,9 @@
 - All REST endpoints are mounted under the `/api/v1` path prefix
   (`RESTConstants.API_V1_PATH`).
 - The current version is v1. There is no v2 yet.
-- The OpenAPI spec is served at `/api/v1/openapi` (YAML format) and the API
-  info endpoint at `/api/v1` (`RESTInfoEndpoint`).
+- The OpenAPI spec is served at `/api/v1/openapi` (YAML), `/api/v1/openapi.yaml`
+  and `/api/v1/openapi.json`; the API info endpoint is at `/api/v1`
+  (`RESTInfoEndpoint`).
 
 ### 1.2 HTTP Methods
 
@@ -98,12 +99,40 @@ List endpoints (`addListRoute`) support the following query parameters
 
 ### 1.7 OpenAPI Spec Generation
 
-- The `RESTInfoEndpoint` serves the OpenAPI spec at `GET /api/v1/openapi`.
-- The `LoomOpenAPI` class can generate the spec programmatically.
+- The `RESTInfoEndpoint` serves the OpenAPI spec at `GET /api/v1/openapi`
+  (YAML), `/api/v1/openapi.yaml` and `/api/v1/openapi.json`. The advertised
+  server URL is derived from the request (honouring `X-Forwarded-Proto/Host`)
+  so a spec viewer talks back to the server the document came from.
+- `LoomOpenAPI` generates the spec programmatically, without a database: it
+  builds a throw-away `ApiRouter`, registers **every** endpoint of the rest
+  module on it (constructed with null services — `register()` never dereferences
+  one) and runs the external `io.metaloom.vertx.openapi.OpenAPIGenerator` over
+  it. Endpoints living outside the rest module (chat, chat sessions, session
+  files, memory, memory deny rules — all in `loom/agent/*`, which depends on
+  rest) are passed in through an extra-endpoint factory; `loom/doc` does that.
+- The raw output of the external generator is only a route dump, so
+  `LoomOpenAPI#polish` post-processes it:
+  - Vert.x `:uuid` paths become OpenAPI `{uuid}` templates, with the path
+    parameters declared (UUID format, SHA-512 pattern, integer versions).
+  - Operations get a tag (derived from the first path segment below `/api/v1`,
+    described from a table), a summary and an `operationId`.
+  - `bearerAuth` (JWT) and `cookieAuth` (`__Host-loom_token`) security schemes
+    are declared and applied globally; `login`, the OAuth2 routes, `health` and
+    the spec routes opt out with an empty `security` list.
+  - The standard 400/401/403/404/500 error responses are filled in against a
+    `GenericMessageResponse` schema, unless the route already documents them.
+  - Route examples are inlined as real JSON instead of encoded strings.
+  - Paths are sorted so the generated document is stable across runs.
 - Routes are registered via `ApiRouter` which supports description, request/
-  response examples, and query parameter documentation.
-- Each route is registered with a description string, optional request example,
-  and optional response example for the OpenAPI spec.
+  response examples, and query parameter documentation. Each route is registered
+  with a description string, optional request example, and optional response
+  example. `AbstractEndpoint#addRoute` sets the description **on the route** —
+  setting it on the router instead leaves every operation undocumented.
+- `LoomOpenAPITest` guards generation, coverage and each polish step.
+- `loom/doc`'s `OpenAPIGenerator` writes `openapi.json` + `openapi.yaml` into
+  `loom/doc/src/main/generated/`; both are staged into the website (see
+  [../website/WEBSITE.md](../website/WEBSITE.md)), where they are offered for
+  download and rendered in an embedded API explorer.
 
 ### 1.8 CORS
 
@@ -218,6 +247,8 @@ Most resource endpoints follow a standard CRUD pattern:
 |-------------------------|----------------------------------------|--------------------------|--------------------------------------------|
 | Login                   | `/api/v1/login`                        | POST                     | Username/password login, sets JWT cookie   |
 | OAuth2                  | `/api/v1/auth/oauth2`                  | GET (login/callback/logout) | BFF pattern with PKCE                  |
+| Me                      | `/api/v1/me`                           | GET                      | The currently authenticated user           |
+| Health                  | `/api/v1/health`                       | GET                      | Status, version and DB connectivity (unsecured) |
 | User                    | `/api/v1/users`                        | GET, POST, PUT, PATCH, DELETE        | Standard CRUD                              |
 | Role                    | `/api/v1/roles`                        | GET, POST, DELETE        | Standard CRUD                              |
 | Group                   | `/api/v1/groups`                       | GET, POST, PUT, PATCH, DELETE        | Standard CRUD (list uses `addRoute` not `addListRoute`) |
@@ -239,6 +270,8 @@ Most resource endpoints follow a standard CRUD pattern:
 | Memory Deny Rule        | `/api/v1/memory-deny-rules`            | GET, POST, DELETE        | Admin CRUD for the memory denylist; own `*_MEMORY_DENY_RULE` permissions |
 | Chat                    | `/api/v1/chats`                        | GET, POST, DELETE        | Standard CRUD                              |
 | Chat Agent Stream (SSE) | `/api/v1/chats/:uuid/stream`           | POST, DELETE             | POST runs the chat agent for a new user message and streams the run as Server-Sent Events (event vocabulary in [ui/CHAT.md](ui/CHAT.md) §4.2); DELETE cancels the active run (204). Body: `{message, skillUuids[], think?}`. 409 when a run is already active. |
+| Chat Session            | `/api/v1/chat-sessions`                | GET, POST, PUT, DELETE   | Publishable snapshots of a chat's working state + `/:uuid/publish`, `/:uuid/unpublish`, `/:uuid/context` |
+| Session Files           | `/api/v1/sessions/:uuid/{files,download,preview}` | GET            | Read-only view of a chat's coding sandbox workspace |
 | Skill                   | `/api/v1/skills`                       | GET, POST, DELETE        | Owner-scoped CRUD (users only ever see their own skills) + `/library` (GET, published skills of all users) + `/:uuid/install` (POST, copy a published skill into the callers set with `originSkillUuid` provenance) |
 | Cluster                 | `/api/v1/clusters`                     | GET, POST, DELETE        | Standard CRUD                              |
 | Embedding               | `/api/v1/embeddings`                   | GET, POST, DELETE        | CRUD + attachment sub-resources            |
@@ -291,6 +324,28 @@ The asset endpoint is the most complex, supporting:
   `processorNodeId`.
 - Returns 202 (Accepted) on success, 400 if the definition cannot run as drawn,
   503 if no processor accepts the source node's kind.
+
+`PipelineRunRequest` narrows what the source enumerates. Precedence, most specific
+first: `mediaUuids` > `pathGlobs` > `path`. `path` is a single root that enables the
+source node's differential index-backed scan; `pathGlobs` forces a full re-walk. The
+merge lives in `SourceOptionsResolver` — see
+[../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) §12.
+
+#### Run control
+
+- `POST /api/v1/pipelines/:uuid/runs/:runUuid/cancel` — terminal; cannot be undone.
+- `POST /api/v1/pipelines/:uuid/runs/:runUuid/pause` — `RUNNING` → `PAUSED`.
+- `POST /api/v1/pipelines/:uuid/runs/:runUuid/resume` — `PAUSED` → `RUNNING`.
+
+All three require `UPDATE_PIPELINE_RUN` and return `GenericMessageResponse`.
+
+`PAUSED` is **non-terminal**: a paused run keeps its counters, holds its engine, and can
+be resumed or cancelled. Pausing stops node dispatch *and* withholds the source
+acknowledgement, so the scan itself halts.
+
+Conflicts (409): pausing a run that is terminal or already paused; resuming a run that is
+not paused; resuming a run with no live engine on the server (which would otherwise create
+a run that nothing advances).
 
 ### 3.5 Pipeline Versions and the Flattened Pipeline Model
 
@@ -357,7 +412,7 @@ formats, authentication, and lifecycle are documented in
 - `POST /api/v1/graphql` - Executes a GraphQL query.
 - Request body: JSON with `query`, optional `operationName`, optional `variables`.
 - Response: standard GraphQL JSON response.
-- Currently **not registered** in `EndpointModule` (imported but commented out).
+- Registered in `EndpointModule` and secured via `secure(basePath())`.
 
 ---
 
@@ -369,8 +424,12 @@ formats, authentication, and lifecycle are documented in
 
 ### 4.2 OpenAPI Spec
 
-- `GET /api/v1/openapi` - Returns the OpenAPI YAML spec.
-- Generated dynamically from registered routes via `OpenAPIGenerator`.
+- `GET /api/v1/openapi` and `/api/v1/openapi.yaml` - Returns the OpenAPI spec as
+  YAML (`text/vnd.yaml`).
+- `GET /api/v1/openapi.json` - The same document as JSON.
+- Generated dynamically from the registered routes of the running server via
+  `LoomOpenAPI#describe` (see §1.7), so it covers every endpoint the instance
+  actually serves — including the agent endpoints.
 
 ### 4.3 Processor Status
 
@@ -560,7 +619,7 @@ fixes, or are incomplete. AI agents can use this list to identify work items.
 - [x] OAuth2 BFF flow with PKCE
 - [x] JWT cookie-based authentication
 - [x] OpenAPI spec generation endpoint
-- [x] GraphQL endpoint implemented (but not registered in EndpointModule)
+- [x] GraphQL endpoint implemented and registered in `EndpointModule`
 - [x] REST info endpoint (stub - returns "not yet implemented")
 
 ### 7.2 Authentication and Security
@@ -588,7 +647,6 @@ fixes, or are incomplete. AI agents can use this list to identify work items.
   Group and Asset endpoints, backed by `ReplaceValidator`
 - [ ] PUT/PATCH not yet rolled out to the remaining CRUD endpoints (they still
   only support `POST /resource/:uuid` for updates)
-- [ ] GraphQL endpoint is implemented but commented out in `EndpointModule` - not registered
 - [ ] `GroupEndpoint` uses `addRoute` instead of `addListRoute` for the list
   endpoint (missing query parameter documentation for OpenAPI)
 - [ ] `EmbeddingEndpoint` has attachment sub-resource routes without OpenAPI
@@ -599,7 +657,7 @@ fixes, or are incomplete. AI agents can use this list to identify work items.
   is not secured via standard auth handler (see [WEBSOCKET.md](WEBSOCKET.md) for WebSocket auth details)
 - [ ] `PipelineEventEndpoint` WebSocket route is not secured via standard auth
   handler (uses post-upgrade authentication, see [WEBSOCKET.md](WEBSOCKET.md))
-- [ ] `GraphQL` endpoint is not secured (no `secure()` call)
+- [x] `GraphQL` endpoint is secured via `secure(basePath())`
 - [ ] `LoginEndpoint` and `OAuth2Endpoint` are correctly not secured (pre-auth)
 - [ ] `RESTInfoEndpoint` is not secured (acceptable for info/OpenAPI endpoints)
 - [ ] `ReactionEndpoint` uses a different pattern (`/reactions/assets/:assetUuid`)
@@ -618,7 +676,9 @@ fixes, or are incomplete. AI agents can use this list to identify work items.
 - [x] HTTP client supports both sync and async execution
 - [x] HTTP client supports configurable timeouts
 - [x] gRPC client skeleton exists (commented out in parent pom)
-- [ ] HTTP client does not have methods for pipeline run (`POST /pipelines/:uuid/run`)
+- [x] HTTP client has methods for pipeline run, run control (pause/resume/cancel) and
+      versions, plus `restInfo()`/`me()` and `Builder.setPathPrefix` (added 2026-07-26
+      with the `cli/` module)
 - [ ] HTTP client does not have methods for processor listing/loading
 - [ ] HTTP client does not have methods for node descriptors
 - [ ] HTTP client does not have methods for GraphQL queries
@@ -633,20 +693,33 @@ fixes, or are incomplete. AI agents can use this list to identify work items.
 
 ### 7.5 Documentation and OpenAPI
 
-- [x] OpenAPI spec generation via `OpenAPIGenerator`
-- [x] Route descriptions on all registered routes
-- [x] Request/response examples on most CRUD endpoints
+- [x] OpenAPI spec generation via `LoomOpenAPI` (§1.7)
+- [x] Route descriptions on all registered routes, and carried into the spec —
+  `addRoute` sets the description on the route, not on the router
+- [x] Request/response examples on most CRUD endpoints, inlined into the spec as
+  JSON rather than as encoded strings
 - [x] Query parameter documentation on list endpoints (via `addListRoute`)
+- [x] The offline spec covers **all** endpoints (~130 paths), including the chat
+  and memory endpoints of the agent modules
+- [x] OpenAPI path templating (`/{uuid}`) with declared path parameters
+- [x] OpenAPI tags per resource, operation summaries and `operationId`s
+- [x] OpenAPI security scheme definitions (`bearerAuth`, `cookieAuth`) with the
+  pre-auth routes opting out
+- [x] Standard error responses (400/401/403/404/500) documented per operation
+- [x] The served spec advertises the server URL it was fetched from instead of the
+  hardcoded `https://server.tld`, and carries a real description
+- [x] Spec published on the website: downloadable YAML/JSON plus an embedded API
+  explorer (see [../website/WEBSITE.md](../website/WEBSITE.md))
 - [ ] REST info endpoint (`GET /api/v1`) returns "not yet implemented" instead of actual API metadata
-- [ ] OpenAPI spec has a hardcoded base URL `https://server.tld` instead of the actual server URL
-- [ ] OpenAPI spec description says "The API for our example server" instead of a proper description
-- [ ] Several endpoints use the simplified `addRoute` (without examples) for sub-resource routes, missing OpenAPI documentation
+- [ ] Several endpoints use the simplified `addRoute` (without examples) for sub-resource routes, so their operations carry a description but no example
 - [ ] WebSocket endpoints are not documented in the OpenAPI spec (see [WEBSOCKET.md](WEBSOCKET.md) for WebSocket docs)
-- [ ] No OpenAPI schema definitions for request/response models (only examples)
-- [ ] No OpenAPI security scheme definitions
-- [ ] The external `OpenAPIGenerator` emits **every** HTTP verb for every path
-  regardless of which methods were actually registered, so the generated
-  `openapi.json` cannot be used to verify per-route method support
+- [ ] No OpenAPI schema definitions for request/response models (only examples),
+  so a generated client gets untyped bodies
+- [ ] Endpoint-specific query parameters (e.g. `?scope=`/`?ref=`/`?id=` on
+  `/memory/entry`, `?scope=` on `/chat-sessions`) are not declared as parameters —
+  only the generic list parameters of `addListRoute` are
+- [ ] The staged website copy of the spec is refreshed by a manual `cp`; nothing
+  fails the build when it goes stale
 
 ### 7.6 Error Handling
 
@@ -686,8 +759,7 @@ fixes, or are incomplete. AI agents can use this list to identify work items.
 ### 7.9 Missing or Incomplete Features
 
 - [ ] `RESTInfoEndpoint` (`GET /api/v1`) is a stub - returns "not yet implemented"
-- [ ] GraphQL endpoint is implemented but not registered in `EndpointModule`
-- [ ] No health check endpoint (e.g. `/api/v1/health` or `/health`)
+- [x] Health check endpoint (`GET /api/v1/health`) reporting status, version and DB connectivity
 - [ ] No readiness probe endpoint
 - [ ] No metrics endpoint (e.g. `/api/v1/metrics` or `/metrics`)
 - [ ] No versioned API deprecation headers
@@ -704,5 +776,5 @@ fixes, or are incomplete. AI agents can use this list to identify work items.
 
 ---
 
-_Git HEAD revision: `ff598947b9f0203f6254869961b8359f7fc2f790`_
-_Last updated: 2026-07-18 16:33 UTC_
+_Git HEAD revision: `183d36715c05e429474f7730d96869a906f3fecc`_
+_Last updated: 2026-07-26 (UTC)_

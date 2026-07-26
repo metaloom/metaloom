@@ -3,11 +3,12 @@ title: Loom
 ---
 
 MetaLoom // *Loom* is the media asset management server at the heart of the MetaLoom platform.
-It exposes a REST API over HTTP, a gRPC API (planned), and a GraphQL API (planned) for managing digital media assets and all related entities.
+It exposes a REST API over HTTP, a GraphQL API, and a gRPC API (planned) for managing digital media assets and all related entities.
 
 == Components
 
 * *REST API* — Full CRUD for all entities. See link:rest-api[REST API Reference].
+* *GraphQL API* — Flexible, nested queries over the asset model, with an interactive explorer. See link:graphql-api[GraphQL API].
 * *Java Client* — Typed HTTP client for JVM applications. See link:java-client[Java Client Usage].
 * *Authentication* — JWT bearer tokens and optional OAuth2. See link:authentication[Authentication].
 * *Configuration* — YAML config file and environment variables. See link:configuration[Configuration].

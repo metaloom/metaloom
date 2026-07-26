@@ -57,13 +57,18 @@ public class LoomClientRequestImpl<T extends RestResponseModel<T>> implements Lo
 	}
 
 	private okhttp3.HttpUrl.Builder createUrlBuilder(String path) {
-		return new HttpUrl.Builder()
+		HttpUrl.Builder builder = new HttpUrl.Builder()
 			.scheme(loomClient.getScheme())
 			.host(loomClient.getHostname())
 			.port(loomClient.getPort())
 			.addEncodedPathSegments(loomClient.getPathPrefix())
-			.addEncodedPathSegments(LoomHttpClient.API_V1_PATH)
-			.addPathSegments(path);
+			.addEncodedPathSegments(LoomHttpClient.API_V1_PATH);
+		// An empty path targets the API root itself (GET /api/v1). Adding it as a segment
+		// would append a trailing slash, which the router does not match.
+		if (path != null && !path.isEmpty()) {
+			builder.addPathSegments(path);
+		}
+		return builder;
 	}
 
 	private Request build() {

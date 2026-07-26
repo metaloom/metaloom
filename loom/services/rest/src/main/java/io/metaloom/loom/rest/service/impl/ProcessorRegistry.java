@@ -181,6 +181,39 @@ public class ProcessorRegistry {
 	}
 
 	/**
+	 * React to a processor socket closing, but only when that socket still owns the mapping.
+	 *
+	 * <p>A worker that reconnects (same node id) replaces the map entry with its new socket.
+	 * The old socket's close handler then fires <em>after</em> the replacement; reacting
+	 * unconditionally would mark the live reconnection OFFLINE and evict it. Scoping the
+	 * transition to the exact socket makes a late close of a superseded connection a no-op.</p>
+	 *
+	 * @param nodeId the worker identity
+	 * @param ws     the socket whose close is being handled
+	 */
+	public void disconnect(String nodeId, ServerWebSocket ws) {
+		ConnectedProcessor current = processors.get(nodeId);
+		if (current == null || current.ws != ws) {
+			// A newer connection already owns this id; the closing socket is stale.
+			log.debug("Ignoring close of superseded socket for '{}'", nodeId);
+			return;
+		}
+		updateState(nodeId, ProcessorState.OFFLINE);
+		unregister(nodeId);
+	}
+
+	/**
+	 * @param nodeId the worker identity
+	 * @return true when a worker with this id is connected on an open socket. Distinct from
+	 *         {@link #isConnected(String)}: a map entry can briefly outlive its socket between
+	 *         an abrupt disconnect and the close handler firing.
+	 */
+	public boolean isLive(String nodeId) {
+		ConnectedProcessor processor = processors.get(nodeId);
+		return processor != null && processor.ws != null && !processor.ws.isClosed();
+	}
+
+	/**
 	 * Update the last-seen timestamp for a processor (heartbeat).
 	 */
 	public void heartbeat(String nodeId) {

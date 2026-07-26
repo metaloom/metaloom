@@ -430,36 +430,28 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 	 * Resolve the options the source node should run with.
 	 *
 	 * <p>The definition supplies the defaults; a run request may override the
-	 * selection with either {@code pathGlobs} or a set of asset UUIDs. When asset
-	 * UUIDs are given they are resolved to their stored binary paths: a single
+	 * selection with {@code pathGlobs}, a single {@code path}, or a set of asset UUIDs.
+	 * When asset UUIDs are given they are resolved to their stored binary paths: a single
 	 * asset is passed as {@code path} (and {@code assetUuid}) — what the asset and
 	 * filesystem source nodes read directly — while multiple assets fall back to
 	 * {@code pathGlobs}. Note the paths are resolved on the <em>worker</em>, so a
 	 * path the chosen processor cannot see yields an empty run rather than an error.</p>
+	 *
+	 * <p>Precedence, most specific first: {@code mediaUuids} &gt; {@code pathGlobs} &gt;
+	 * {@code path}. {@code path} is only applied when no globs were supplied, so a glob
+	 * request is never silently downgraded to a single root — the two mean different
+	 * things to the source node ({@code pathGlobs} forces a full re-walk, a bare
+	 * {@code path} runs the differential scan against the persisted index).</p>
 	 */
 	private java.util.Map<String, Object> sourceOptions(PipelineGraphNode sourceNode, PipelineRunRequest request) {
-		java.util.Map<String, Object> options = new java.util.LinkedHashMap<>(sourceNode.getOptions());
-		if (request.getPathGlobs() != null && !request.getPathGlobs().isEmpty()) {
-			options.put("pathGlobs", request.getPathGlobs());
-		}
-		if (request.getMediaUuids() != null && !request.getMediaUuids().isEmpty()) {
-			java.util.List<String> paths = new java.util.ArrayList<>();
-			for (UUID assetUuid : request.getMediaUuids()) {
-				AssetBinary binary = daos().assetBinaryDao().loadByAssetUuid(assetUuid);
-				if (binary != null && binary.getPath() != null) {
-					paths.add(binary.getPath());
-				} else {
-					log.warn("No stored binary path for asset {}; it cannot be included in the run", assetUuid);
-				}
+		return SourceOptionsResolver.resolve(sourceNode.getOptions(), request, assetUuid -> {
+			AssetBinary binary = daos().assetBinaryDao().loadByAssetUuid(assetUuid);
+			if (binary == null || binary.getPath() == null) {
+				log.warn("No stored binary path for asset {}; it cannot be included in the run", assetUuid);
+				return null;
 			}
-			if (paths.size() == 1) {
-				options.put("path", paths.get(0));
-				options.put("assetUuid", request.getMediaUuids().get(0).toString());
-			} else if (paths.size() > 1) {
-				options.put("pathGlobs", paths);
-			}
-		}
-		return options;
+			return binary.getPath();
+		});
 	}
 
 
@@ -584,6 +576,91 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 
 			lrc.send(new io.metaloom.loom.rest.model.message.GenericMessageResponse().setMessage("Pipeline run cancelled"));
 		});
+	}
+
+	/**
+	 * Suspend an in-flight pipeline run.
+	 *
+	 * <p>Stops the engine dispatching further node tasks and withholds the source
+	 * acknowledgement, which halts the scan itself. In-flight worker tasks are not recalled -
+	 * the dispatcher has no reverse signal - so they settle normally and simply spawn nothing
+	 * downstream until the run is resumed.</p>
+	 *
+	 * <p>The row is moved to {@code PAUSED} <em>before</em> the engine is gated, mirroring
+	 * {@link #cancelRun}: a run completing naturally in the same instant must not be able to
+	 * win against a half-applied pause.</p>
+	 */
+	public void pauseRun(LoomRoutingContext lrc, UUID pipelineUuid, UUID runUuid) {
+		checkPerm(lrc, UPDATE_PIPELINE_RUN, () -> {
+			PipelineRun run = loadRunOr404(pipelineUuid, runUuid);
+			if (PipelineRunStatusResolver.isTerminal(run.getStatus())) {
+				throw new LoomRestException(409, LoomRestErrorCode.CONFLICT,
+					"Pipeline run is already " + run.getStatus() + ".");
+			}
+			if (PipelineRunStatusResolver.PAUSED.equals(run.getStatus())) {
+				throw new LoomRestException(409, LoomRestErrorCode.CONFLICT, "Pipeline run is already paused.");
+			}
+
+			if (!pipelineRunTracker.pause(runUuid)) {
+				// The run reached a terminal state between the check above and the update.
+				throw new LoomRestException(409, LoomRestErrorCode.CONFLICT,
+					"Pipeline run could not be paused; it is no longer running.");
+			}
+
+			PipelineRunEngine engine = pipelineRunRegistry.get(runUuid);
+			if (engine != null) {
+				engine.pause();
+			}
+
+			lrc.send(new io.metaloom.loom.rest.model.message.GenericMessageResponse().setMessage("Pipeline run paused"));
+		});
+	}
+
+	/**
+	 * Resume a suspended pipeline run.
+	 *
+	 * <p>Requires a live engine. A run whose engine was lost - to a Loom restart, or because
+	 * it was an offline run - is refused with 409 rather than silently flipped back to
+	 * {@code RUNNING}, which would produce a run that nothing will ever advance.</p>
+	 *
+	 * <p>The engine is ungated <em>before</em> the row moves back to {@code RUNNING}, so the
+	 * run is never advertised as running while dispatch is still suspended.</p>
+	 */
+	public void resumeRun(LoomRoutingContext lrc, UUID pipelineUuid, UUID runUuid) {
+		checkPerm(lrc, UPDATE_PIPELINE_RUN, () -> {
+			PipelineRun run = loadRunOr404(pipelineUuid, runUuid);
+			if (!PipelineRunStatusResolver.PAUSED.equals(run.getStatus())) {
+				throw new LoomRestException(409, LoomRestErrorCode.CONFLICT,
+					"Pipeline run is " + run.getStatus() + " and cannot be resumed.");
+			}
+
+			PipelineRunEngine engine = pipelineRunRegistry.get(runUuid);
+			if (engine == null) {
+				throw new LoomRestException(409, LoomRestErrorCode.CONFLICT,
+					"Pipeline run is not live and cannot be resumed. Trigger a new run instead.");
+			}
+
+			if (!pipelineRunTracker.resume(runUuid)) {
+				throw new LoomRestException(409, LoomRestErrorCode.CONFLICT,
+					"Pipeline run could not be resumed; it is no longer paused.");
+			}
+			// Ungate last: unpause() dispatches immediately, and those tasks must not run
+			// against a row that still claims to be paused.
+			engine.unpause();
+
+			lrc.send(new io.metaloom.loom.rest.model.message.GenericMessageResponse().setMessage("Pipeline run resumed"));
+		});
+	}
+
+	/**
+	 * Load a run, rejecting an unknown run or one belonging to a different pipeline.
+	 */
+	private PipelineRun loadRunOr404(UUID pipelineUuid, UUID runUuid) {
+		PipelineRun run = pipelineRunDao.load(runUuid);
+		if (run == null || !pipelineUuid.equals(run.getPipelineUuid())) {
+			throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Pipeline run not found.");
+		}
+		return run;
 	}
 
 	/**

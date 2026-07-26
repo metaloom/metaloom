@@ -16,18 +16,21 @@ Loom is an advanced media asset management system designed to ease the managemen
 
 ## Features at a Glance
 
-* Metadata extraction
-* Thumbnail generation
-* Video fingerprinting
-* Facedetection
-* Similarity search
-* Tagging
-* Permission System
-* REST API
+* [Metadata extraction](https://metaloom.io/docs/nodes/tika/)
+* [Thumbnail generation](https://metaloom.io/docs/nodes/thumbnail/)
+* [Video fingerprinting](https://metaloom.io/docs/nodes/fingerprint/)
+* [Facedetection](https://metaloom.io/docs/nodes/facedetect/)
+* [Similarity search](https://metaloom.io/docs/loom/features/#_search_and_similarity)
+* [Tagging](https://metaloom.io/docs/loom/features/#_tags)
+* [Permission System](https://metaloom.io/docs/loom/features/#_permissions)
+* [REST API](https://metaloom.io/docs/loom/rest-api/)
 * gRPC API (planned)
-* GraphQL API (planned)
-* Consistency Checks
-* Asset Hashing
+* [GraphQL API](https://metaloom.io/docs/loom/graphql-api/) (planned)
+* [Consistency Checks](https://metaloom.io/docs/nodes/consistency/)
+* [Asset Hashing](https://metaloom.io/docs/nodes/hash/)
+
+See the [full documentation](https://metaloom.io/docs/) for [Loom](https://metaloom.io/docs/loom/),
+[Cortex](https://metaloom.io/docs/cortex/) and all [processing nodes](https://metaloom.io/docs/nodes/).
 
 ## License
 

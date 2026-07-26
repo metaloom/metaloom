@@ -3,6 +3,7 @@ package io.metaloom.loom.core.endpoint.test;
 import static io.metaloom.loom.rest.model.assertj.Assertions.assertThat;
 
 import io.metaloom.loom.client.common.LoomClientException;
+import io.metaloom.loom.client.common.LoomClientRequest;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.endpoint.AbstractCRUDEndpointTest;
 import io.metaloom.loom.rest.model.pool.AssetPoolCreateRequest;
@@ -54,6 +55,29 @@ public class AssetPoolEndpointTest extends AbstractCRUDEndpointTest {
 		}
 		AssetPoolListResponse list = client.listPools().sync().body();
 		assertThat(list).isValid().hasSize(25).hasPerPage(25);
+	}
+
+	@Override
+	protected LoomClientRequest<?> createRequest(LoomHttpClient client) {
+		AssetPoolCreateRequest request = new AssetPoolCreateRequest();
+		request.setName("perm-check");
+		request.setFsPath("/tank/test/binaries");
+		return client.createPool(request);
+	}
+
+	@Override
+	protected LoomClientRequest<?> loadRequest(LoomHttpClient client) {
+		return client.loadPool(ASSET_POOL_UUID);
+	}
+
+	@Override
+	protected LoomClientRequest<?> listRequest(LoomHttpClient client) {
+		return client.listPools();
+	}
+
+	@Override
+	protected LoomClientRequest<?> deleteRequest(LoomHttpClient client) {
+		return client.deletePool(ASSET_POOL_UUID);
 	}
 
 }

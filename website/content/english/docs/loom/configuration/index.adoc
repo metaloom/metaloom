@@ -189,5 +189,8 @@ Settings for the agent link:../chat/#memory[memory bank] (`LOOM_AGENT_MEMORY_*`)
 
 == CLI
 
-The Loom server main entry point is `LoomCLI`. Configuration is driven via the YAML file and
-environment variables shown above.
+The Loom server main entry point is `LoomServerRunner`. Configuration is driven via the YAML
+file and environment variables shown above.
+
+The `metaloom` command-line client is a separate program that talks to a running Loom server
+over the REST API and has its own configuration file.

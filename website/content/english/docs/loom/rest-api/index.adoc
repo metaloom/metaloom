@@ -7,7 +7,8 @@ All endpoints are rooted at `/api/v1`.
 
 == Authentication
 
-All endpoints (except `POST /api/v1/auth/login`) require a JWT bearer token:
+All endpoints except `POST /api/v1/login`, the OAuth2 routes, `/api/v1/health` and the OpenAPI
+document itself require a JWT bearer token:
 
 ----
 Authorization: Bearer <token>
@@ -23,12 +24,74 @@ http://<host>:8092/api/v1
 
 Default port is `8092` (overridable via `LOOM_SERVER_REST_PORT`).
 
-== Interactive API (Swagger UI)
+== OpenAPI Specification
 
-The Swagger UI below renders the bundled OpenAPI document (`/docs/examples/openapi.json`), which is
-generated from the server's endpoint registry. A running Loom server serves the same document live at
-`/api/v1/openapi.json`; see the note on regenerating it in the website build documentation
-(`spec/website/WEBSITE.md`).
+The complete API surface — every route, its path and query parameters, its request and response
+examples and the authentication it requires — is described by an OpenAPI 3.0 document. It is
+*generated from the server's endpoint registry*, never written by hand, so it cannot drift away from
+the running code.
+
+++++
+<div class="row mt-4 mb-4">
+	<div class="col-lg-6 mb-4">
+		<div class="docs-card h-100">
+			<div class="docs-card-header">
+				<h2 data-toc-skip>Download the spec</h2>
+				<p>Feed it to a client generator, an API workbench (Postman, Insomnia, Bruno) or your editor's HTTP client.</p>
+			</div>
+			<div class="docs-card-body">
+				<a href="/docs/examples/openapi.yaml" class="docs-card-link" download>openapi.yaml</a>
+				<a href="/docs/examples/openapi.json" class="docs-card-link" download>openapi.json</a>
+			</div>
+		</div>
+	</div>
+	<div class="col-lg-6 mb-4">
+		<div class="docs-card h-100">
+			<div class="docs-card-header">
+				<h2 data-toc-skip>Explore it</h2>
+				<p>Browse the API by resource group in the explorer below — filter by keyword, expand an operation to see its parameters and examples, and link straight to it.</p>
+			</div>
+			<div class="docs-card-body">
+				<a href="#api-explorer" class="docs-card-link">API Explorer</a>
+			</div>
+		</div>
+	</div>
+</div>
+++++
+
+A running server serves the same document for its own endpoint set, with its own address filled in
+as the server URL:
+
+[source,bash]
+----
+curl http://localhost:8092/api/v1/openapi        # YAML (default)
+curl http://localhost:8092/api/v1/openapi.yaml   # YAML
+curl http://localhost:8092/api/v1/openapi.json   # JSON
+----
+
+Generating a typed client from the spec is a one-liner with any OpenAPI generator:
+
+[source,bash]
+----
+openapi-generator-cli generate \
+  -i https://metaloom.io/docs/examples/openapi.yaml \
+  -g python -o ./loom-client
+----
+
+TIP: Loom also ships a maintained, typed Java client — see link:../java-client/[Java Client]. Prefer
+it over a generated one when you work in Java.
+
+[[api-explorer]]
+== API Explorer
+
+The explorer below renders the bundled specification. Operations are grouped by resource; use the
+filter box to narrow the list, and expand an operation to see its parameters, request body and
+response examples.
+
+To call a live server from here, set the server URL to your instance, click *Authorize* and paste a
+JWT obtained from `POST /api/v1/login` or an API token from the
+link:../../ui/[Loom UI admin area]. Note that the API must allow your browser's origin
+(CORS) for in-page calls to succeed.
 
 ++++
 <div id="swagger-ui"></div>
@@ -36,13 +99,21 @@ generated from the server's endpoint registry. A running Loom server serves the 
 
 == Endpoint Reference
 
+The tables below are a reading guide to the most-used routes, grouped the way you are likely to need
+them. They are a summary — the link:#api-explorer[API Explorer] above is the complete and
+authoritative list.
+
 === Auth
 
 [options="header",cols="1,3,3"]
 |===
 | Method | Path | Description
-| POST | `/api/v1/auth/login` | Login with username + password, returns JWT token
-| POST | `/api/v1/auth/oauth2` | OAuth2 token exchange
+| POST | `/api/v1/login` | Login with username + password, returns a JWT and sets the session cookie
+| GET  | `/api/v1/auth/oauth2/login` | Start the OAuth2 (BFF) flow — redirects to the identity provider
+| GET  | `/api/v1/auth/oauth2/callback` | Handle the identity provider callback and set the Loom JWT
+| GET  | `/api/v1/auth/oauth2/logout` | Clear the session cookie
+| GET  | `/api/v1/me` | Load the currently authenticated user
+| CRUD | `/api/v1/tokens` | Manage long-lived API tokens
 |===
 
 === Assets
@@ -177,7 +248,7 @@ See link:../chat/[Chat & AI Agent] for the streaming event protocol.
 [options="header",cols="1,3,3"]
 |===
 | Method | Path | Description
-| CRUD   | `/api/v1/chat/sessions` | Publishable snapshots of a chat's working state
+| CRUD   | `/api/v1/chat-sessions` | Publishable snapshots of a chat's working state
 | CRUD   | `/api/v1/skills` | User-owned skill instruction packages
 | GET    | `/api/v1/skills/library` | Browse published skills
 | POST   | `/api/v1/skills/:uuid/install` | Install (copy) a published skill
@@ -219,12 +290,23 @@ and `pipeline/content-types`. Most follow the same CRUD pattern under `/api/v1/<
 
 == Error Responses
 
-All errors return a JSON body with `message` and optional `statusCode` fields.
+All errors return the HTTP status code plus a JSON body carrying a human readable `message`:
 
 [source,json]
 ----
 {
-  "message": "Cannot find asset with uuid 'abc'",
-  "statusCode": 404
+  "message": "Cannot find asset with uuid 'abc'"
 }
 ----
+
+[options="header",cols="1,4"]
+|===
+| Code | Meaning
+| 400 | Validation error, or a malformed path/query parameter
+| 401 | Missing, expired or invalid token
+| 403 | The user lacks the permission the operation requires
+| 404 | No such resource
+| 409 | Conflict — e.g. a chat run is already active, or a memory entry already exists
+| 500 | Internal server error
+| 503 | No processor available to accept a pipeline run
+|===

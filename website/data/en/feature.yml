@@ -7,37 +7,46 @@ feature:
   content : "A selection of the key features of the MetaLoom platform. Items marked (planned) are on the roadmap; everything else is implemented."
   feature_item :
       # Icon: https://themify.me/themify-icons
+      # link: optional path to the doc page covering the feature (rendered as a "Read the docs" link)
     - title : Developer Centric
       icon : ti-user
       content : The whole architecture of Loom has a developer centric design which makes it easy to adapt it to your needs.
+      link : /docs/loom/java-client/
 
     - title : REST API
       icon : ti-settings
       content : The Loom server provides a powerful REST API which can be used to manage all resources, including a Java client and a generated OpenAPI specification.
+      link : /docs/loom/rest-api/
 
     - title : Chat & AI Agent
       icon : ti-comments
       content : A built-in conversational assistant backed by a server-side agentic loop. It answers questions about your assets in natural language, with per-chat Skills, a persistent Memory bank, publishable Sessions and an optional isolated coding sandbox.
+      link : /docs/loom/chat/
 
     - title : GraphQL (planned)
       icon : ti-settings
       content : In addition to REST the server also provides a GraphQL API which allows you to fetch nested data in one step.
+      link : /docs/loom/graphql-api/
 
     - title : ACL
       icon : ti-credit-card
       content : Loom comes with a powerful permission system. Permissions can be granted on an object level via users, groups and roles.
+      link : /docs/loom/features/#_permissions
 
     - title : SSO
       icon : ti-key
       content : SSO IAM providers such as RedHat Keycloak, Auth0 and Okta are natively supported. No need for complicated plugins.
+      link : /docs/loom/authentication/#_oauth2
 
     - title : Asset Store
       icon : ti-files
       content : Existing assets can be referenced from disk. Alternatively files can be uploaded and stored locally (S3 backend planned).
+      link : /docs/loom/configuration/#_storage
 
     - title : Media fingerprinting
       icon : ti-image
       content : A perceptual media fingerprint can be generated for video content. These fingerprints can be used for asset blacklisting and similarity search using nearest neighbor search.
+      link : /docs/nodes/fingerprint/
 
     - title : Image manipulation (planned)
       icon : ti-image
@@ -46,18 +55,22 @@ feature:
     - title : Video thumbnail generation
       icon : ti-video-clapper
       content : Contact-sheet thumbnails are automatically generated from video content by the Cortex thumbnail node.
+      link : /docs/nodes/thumbnail/
 
     - title : Search
       icon : ti-search
       content : Stored metadata can be indexed for full-text and vector search (Elasticsearch, Lucene and Qdrant integrations).
+      link : /docs/loom/features/#_search_and_similarity
 
     - title : Tagging
       icon : ti-tag
       content : Loom comes with a system which allows you to tag assets, collections and content.
+      link : /docs/loom/features/#_tags
 
     - title : Metadata
       icon : ti-layers-alt
       content : Beyond the structured models, Loom lets you attach custom metadata to any element it stores, together with user-generated content such as comments, reactions, ratings and annotations kept alongside your assets.
+      link : /docs/loom/features/#_assets
 
     - title : Import / Export (planned)
       icon : ti-import
@@ -66,6 +79,7 @@ feature:
     - title : Metadata extraction
       icon : ti-menu
       content : Metadata from images, videos and documents is automatically extracted by Cortex nodes (hashes, transcripts, captions, OCR, faces, scenes …) and made accessible via the API.
+      link : /docs/nodes/
 
 
   title_ops : Devops Features
@@ -74,26 +88,32 @@ feature:
     - title : Multiple Storage Options
       icon : ti-server
       content : You can choose between different persistence backends — In-Memory, Filesystem, and PostgreSQL (jOOQ / Hibernate).
+      link : /docs/loom/configuration/#_database
 
     - title : Monitoring
       icon : ti-dashboard
       content : Monitoring data is exposed via a Prometheus scrape endpoint, so you can track instance status from a Grafana dashboard.
+      link : /docs/loom/metrics/
 
     - title : Cortex Processing Nodes
       icon : ti-infinite
       content : Media processing runs on a fleet of Cortex worker daemons that register with Loom and execute node tasks it dispatches. Scale out by adding workers, and pin heavy node kinds (face detection, speech-to-text) to dedicated or GPU hardware.
+      link : /docs/nodes/
 
     - title : CLI (planned)
       icon : ti-announcement
       content : The CLI can be used to run admin tasks and also trigger synchronization tasks for new assets.
+      link : /docs/cli/
 
     - title : Kubernetes support / Helm Chart
       icon : ti-announcement
       content : Loom supports Kubernetes and ships a Helm Chart that helps you deploy it in your K8S cluster; Cortex workers deploy as scalable Deployments.
+      link : /docs/loom/helm-chart/
 
     - title : Extensions
       icon : ti-server
       content : Extensions can be registered in order to extend the functionality of Loom, and custom Cortex processing nodes can be authored in Java or Python.
+      link : /docs/nodes/#_authoring_your_own_node
 
     - title : S3 (planned)
       icon : ti-cloud-up

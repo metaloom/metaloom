@@ -70,10 +70,26 @@ public class PipelineEventBroadcaster {
 	 * @param pipelineFilter pipeline name to filter on, or {@code null} to receive all events
 	 */
 	public void addSubscriber(ServerWebSocket ws, String pipelineFilter) {
-		Subscriber subscriber = new Subscriber(ws, pipelineFilter, DEFAULT_QUEUE_CAPACITY);
+		addSubscriber(ws, pipelineFilter, null);
+	}
+
+	/**
+	 * Register a UI client WebSocket with optional pipeline-name and run filters.
+	 *
+	 * <p>The run filter is what a CLI following one run needs: filtering by pipeline name
+	 * still delivers every concurrent run of that pipeline, which on a busy pipeline is most
+	 * of the traffic. Both filters are ANDed when both are given.</p>
+	 *
+	 * @param ws             the WebSocket to register
+	 * @param pipelineFilter pipeline name to filter on, or {@code null} for all
+	 * @param runFilter      pipeline run UUID to filter on, or {@code null} for all
+	 */
+	public void addSubscriber(ServerWebSocket ws, String pipelineFilter, String runFilter) {
+		Subscriber subscriber = new Subscriber(ws, pipelineFilter, runFilter, DEFAULT_QUEUE_CAPACITY);
 		subscribers.put(ws, subscriber);
-		log.info("Pipeline event subscriber connected. Total: {} (filter: {})",
-			subscribers.size(), pipelineFilter == null ? "none" : pipelineFilter);
+		log.info("Pipeline event subscriber connected. Total: {} (pipeline: {}, run: {})",
+			subscribers.size(), pipelineFilter == null ? "none" : pipelineFilter,
+			runFilter == null ? "none" : runFilter);
 	}
 
 	/**
@@ -165,23 +181,29 @@ public class PipelineEventBroadcaster {
 
 		private final ServerWebSocket ws;
 		private final String pipelineFilter;
+		private final String runFilter;
 		private volatile long droppedCount;
 
-		Subscriber(ServerWebSocket ws, String pipelineFilter, int queueCapacity) {
+		Subscriber(ServerWebSocket ws, String pipelineFilter, String runFilter, int queueCapacity) {
 			this.ws = ws;
 			this.pipelineFilter = pipelineFilter;
+			this.runFilter = runFilter;
 		}
 
 		/**
 		 * Return true if this subscriber should receive the given event.
-		 * When no filter is set, all events match.
+		 *
+		 * <p>Filters are ANDed; a subscriber with neither receives everything.</p>
 		 */
 		boolean matches(PipelineEventMessage event) {
-			if (pipelineFilter == null || pipelineFilter.isBlank()) {
-				return true;
+			if (pipelineFilter != null && !pipelineFilter.isBlank()
+				&& !pipelineFilter.equals(event.getPipelineName())) {
+				return false;
 			}
-			String eventPipeline = event.getPipelineName();
-			return pipelineFilter.equals(eventPipeline);
+			if (runFilter != null && !runFilter.isBlank() && !runFilter.equals(event.getPipelineRunUuid())) {
+				return false;
+			}
+			return true;
 		}
 
 		/**

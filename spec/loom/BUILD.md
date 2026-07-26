@@ -46,7 +46,6 @@ graph TB
         B --> H[loom-services]
         B --> I[loom-core]
         B --> J[loom-fixture]
-        B --> K[loom-cli]
         B --> L[loom-containers]
         B --> M[loom-doc]
     end

@@ -52,6 +52,13 @@
             <artifactId>loom-client-rest</artifactId>
             <version>${loom.client.version}</version>
         </dependency>
+        <!-- Drives the CLI in-process so the command surface is covered end to end. -->
+        <dependency>
+            <groupId>io.metaloom.cli</groupId>
+            <artifactId>metaloom-cli</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>io.metaloom.loom.shared</groupId>
             <artifactId>loom-rest-model</artifactId>

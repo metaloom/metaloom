@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import org.junit.jupiter.api.Test;
 
 import io.metaloom.loom.client.common.LoomClientException;
+import io.metaloom.loom.client.common.LoomClientRequest;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.endpoint.AbstractCRUDEndpointTest;
 import io.metaloom.loom.rest.model.tag.TagCreateRequest;
@@ -95,6 +96,29 @@ public class TagEndpointTest extends AbstractCRUDEndpointTest {
 		}
 		TagListResponse list = client.listTags().sync().body();
 		assertThat(list).isValid().hasSize(25).hasPerPage(25);
+	}
+
+	@Override
+	protected LoomClientRequest<?> createRequest(LoomHttpClient client) {
+		TagCreateRequest request = new TagCreateRequest();
+		request.setName("perm-check");
+		request.setCollection("test");
+		return client.createTag(request);
+	}
+
+	@Override
+	protected LoomClientRequest<?> loadRequest(LoomHttpClient client) {
+		return client.loadTag(TAG_UUID);
+	}
+
+	@Override
+	protected LoomClientRequest<?> listRequest(LoomHttpClient client) {
+		return client.listTags();
+	}
+
+	@Override
+	protected LoomClientRequest<?> deleteRequest(LoomHttpClient client) {
+		return client.deleteTag(TAG_UUID);
 	}
 
 }

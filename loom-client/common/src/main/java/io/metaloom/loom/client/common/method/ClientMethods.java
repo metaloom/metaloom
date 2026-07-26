@@ -34,6 +34,7 @@ public interface ClientMethods extends
 	FingerprintCompMethods,
 	SegmentCompMethods,
 	GraphQLMethods,
-	HealthMethods {
+	HealthMethods,
+	InfoMethods {
 
 }

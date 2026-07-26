@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import io.metaloom.loom.client.common.LoomClientException;
+import io.metaloom.loom.client.common.LoomClientRequest;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.endpoint.AbstractCRUDEndpointTest;
 import io.metaloom.loom.rest.model.chat.ChatCreateRequest;
@@ -78,6 +79,28 @@ public class ChatEndpointTest extends AbstractCRUDEndpointTest {
 		}
 		ChatListResponse list = client.listChats().sync().body();
 		assertNotNull(list);
+	}
+
+	@Override
+	protected LoomClientRequest<?> createRequest(LoomHttpClient client) {
+		ChatCreateRequest request = new ChatCreateRequest();
+		request.setTitle("perm-check");
+		return client.createChat(request);
+	}
+
+	@Override
+	protected LoomClientRequest<?> loadRequest(LoomHttpClient client) {
+		return client.loadChat(CHAT_UUID);
+	}
+
+	@Override
+	protected LoomClientRequest<?> listRequest(LoomHttpClient client) {
+		return client.listChats();
+	}
+
+	@Override
+	protected LoomClientRequest<?> deleteRequest(LoomHttpClient client) {
+		return client.deleteChat(CHAT_UUID);
 	}
 
 }

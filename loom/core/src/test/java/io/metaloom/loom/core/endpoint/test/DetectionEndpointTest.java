@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.UUID;
 
 import io.metaloom.loom.client.common.LoomClientException;
+import io.metaloom.loom.client.common.LoomClientRequest;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.endpoint.AbstractCRUDEndpointTest;
 import io.metaloom.loom.rest.model.asset.AssetCreateRequest;
@@ -131,6 +132,30 @@ public class DetectionEndpointTest extends AbstractCRUDEndpointTest {
 		DetectionListResponse list = client.listAssetDetections(asset.getUuid()).sync().body();
 		assertNotNull(list);
 		assertEquals(25, list.getMetainfo().getPerPage());
+	}
+
+	@Override
+	protected LoomClientRequest<?> createRequest(LoomHttpClient client) {
+		DetectionCreateRequest request = new DetectionCreateRequest();
+		request.setType("facedetection");
+		request.setFrameNumber(0);
+		request.setConfidence(0.95f);
+		return client.createAssetDetection(ASSET_UUID, request);
+	}
+
+	@Override
+	protected LoomClientRequest<?> loadRequest(LoomHttpClient client) {
+		return client.loadAssetDetection(ASSET_UUID, UUID.randomUUID());
+	}
+
+	@Override
+	protected LoomClientRequest<?> listRequest(LoomHttpClient client) {
+		return client.listAssetDetections(ASSET_UUID);
+	}
+
+	@Override
+	protected LoomClientRequest<?> deleteRequest(LoomHttpClient client) {
+		return client.deleteAssetDetection(ASSET_UUID, UUID.randomUUID());
 	}
 
 	@org.junit.jupiter.api.Test

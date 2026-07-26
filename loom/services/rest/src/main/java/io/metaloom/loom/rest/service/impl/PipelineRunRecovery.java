@@ -51,6 +51,7 @@ public class PipelineRunRecovery {
 	private static final Logger log = LoggerFactory.getLogger(PipelineRunRecovery.class);
 
 	private static final String STATUS_RUNNING = "RUNNING";
+	private static final String STATUS_PAUSED = "PAUSED";
 
 	private final PipelineRunDao runDao;
 	private final PipelineRunItemDao itemDao;
@@ -84,7 +85,11 @@ public class PipelineRunRecovery {
 	public int recoverAll() {
 		List<PipelineRun> running;
 		try {
-			running = runDao.loadByStatus(STATUS_RUNNING);
+			// PAUSED runs are recovered too. They are non-terminal and still owned by an
+			// operator, so leaving them behind would strand them: nothing would ever advance
+			// them and a later resume would find no engine.
+			running = new java.util.ArrayList<>(runDao.loadByStatus(STATUS_RUNNING));
+			running.addAll(runDao.loadByStatus(STATUS_PAUSED));
 		} catch (Exception e) {
 			log.error("Could not read in-flight runs; recovery skipped", e);
 			return 0;
@@ -139,6 +144,14 @@ public class PipelineRunRecovery {
 		int restored = restoreItems(runUuid, engine);
 		registry.register(runUuid, engine);
 
+		boolean wasPaused = STATUS_PAUSED.equals(run.getStatus());
+		if (wasPaused) {
+			// Re-apply the operator's suspension *before* resume(), which would otherwise
+			// dispatch every ready node the moment the engine is rebuilt - a restart must not
+			// silently un-pause a run by firing off a burst of work.
+			engine.pause();
+		}
+
 		boolean sourceComplete = wasSourceComplete(run);
 		if (!sourceComplete) {
 			log.warn("Run {} was still enumerating when it stopped; {} known item(s) will be finished but the "
@@ -146,7 +159,7 @@ public class PipelineRunRecovery {
 		}
 		engine.resume(sourceComplete);
 
-		log.info("Recovered run {} with {} item(s)", runUuid, restored);
+		log.info("Recovered run {} with {} item(s){}", runUuid, restored, wasPaused ? ", still suspended" : "");
 		return true;
 	}
 

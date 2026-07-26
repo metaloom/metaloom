@@ -1,0 +1,10 @@
+{
+  "resources": {
+    "includes": [
+      { "pattern": "logback.xml$" },
+      { "pattern": "cli-version.properties$" },
+      { "pattern": "okhttp3/internal/publicsuffix/publicsuffixes.gz$" }
+    ]
+  },
+  "bundles": []
+}

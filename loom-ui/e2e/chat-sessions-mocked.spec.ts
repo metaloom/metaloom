@@ -48,7 +48,7 @@ async function installMocks(page: Page) {
   await page.route(/\/api\/v1\/me$/, route => json(route, { uuid: ME_UUID, username: "admin", enabled: true }));
 
   // Collection endpoint: POST creates, GET lists (filtered by ?scope=mine|published).
-  await page.route(/\/api\/v1\/chat\/sessions(\?.*)?$/, route => {
+  await page.route(/\/api\/v1\/chat-sessions(\?.*)?$/, route => {
     const method = route.request().method();
     if (method === "POST") {
       const body = JSON.parse(route.request().postData() || "{}");
@@ -73,7 +73,7 @@ async function installMocks(page: Page) {
   });
 
   // Session files proxy (Phase-2). Register before the generic item route (LIFO -> later = higher prio).
-  await page.route(/\/api\/v1\/session\/[^/]+\/files(\?.*)?$/, route =>
+  await page.route(/\/api\/v1\/sessions\/[^/]+\/files(\?.*)?$/, route =>
     json(route, {
       entries: [
         { name: "report.py", type: "file", size: 2048 },
@@ -83,16 +83,16 @@ async function installMocks(page: Page) {
     }));
 
   // Item sub-routes: publish / unpublish / context (must be registered AFTER the generic item route).
-  await page.route(/\/api\/v1\/chat\/sessions\/[^/]+\/(publish|unpublish)$/, route => {
-    const parts = route.request().url().split("/chat/sessions/")[1].split("/");
+  await page.route(/\/api\/v1\/chat-sessions\/[^/]+\/(publish|unpublish)$/, route => {
+    const parts = route.request().url().split("/chat-sessions/")[1].split("/");
     const uuid = parts[0];
     const action = parts[1].split("?")[0];
     const found = sessions.find(s => s.uuid === uuid);
     if (found) found.published = action === "publish";
     return json(route, found ?? {}, found ? 200 : 404);
   });
-  await page.route(/\/api\/v1\/chat\/sessions\/[^/]+\/context$/, route => {
-    const uuid = route.request().url().split("/chat/sessions/")[1].split("/")[0];
+  await page.route(/\/api\/v1\/chat-sessions\/[^/]+\/context$/, route => {
+    const uuid = route.request().url().split("/chat-sessions/")[1].split("/")[0];
     const found = sessions.find(s => s.uuid === uuid);
     if (route.request().method() === "PUT") {
       const body = JSON.parse(route.request().postData() || "{}");
@@ -104,8 +104,8 @@ async function installMocks(page: Page) {
 
   // Item endpoint: GET / POST(update) / DELETE. Registered last so it does not shadow the sub-routes
   // — its regex excludes any further path segment.
-  await page.route(/\/api\/v1\/chat\/sessions\/[^/?]+(\?.*)?$/, route => {
-    const uuid = route.request().url().split("/chat/sessions/")[1].split(/[?/]/)[0];
+  await page.route(/\/api\/v1\/chat-sessions\/[^/?]+(\?.*)?$/, route => {
+    const uuid = route.request().url().split("/chat-sessions/")[1].split(/[?/]/)[0];
     const found = sessions.find(s => s.uuid === uuid);
     if (route.request().method() === "DELETE") {
       const idx = sessions.findIndex(s => s.uuid === uuid);
@@ -184,7 +184,7 @@ test.describe("Chat sessions – mocked e2e", () => {
     // The seeded session is owned + published, so it shows in the default (mine) tab.
     await page.getByTestId("chat-session-row-shared-pipeline").click();
 
-    // The Files panel loads the coding-session workspace via the /session/:chatUuid/files proxy.
+    // The Files panel loads the coding-session workspace via the /sessions/:chatUuid/files proxy.
     await expect(page.getByTestId("session-files-list")).toBeVisible({ timeout: 5_000 });
     await expect(page.getByTestId("session-file-report.py")).toBeVisible();
     await expect(page.getByTestId("session-file-data.csv")).toBeVisible();

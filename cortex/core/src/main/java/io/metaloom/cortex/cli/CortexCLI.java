@@ -35,7 +35,7 @@ public class CortexCLI implements Runnable {
 
 	private Path metaPath = Paths.get(System.getProperty("user.home"), ".cache", "metaloom", "cortex", "meta");
 
-	/** Null means "generate one per process". */
+	/** Mandatory for the online server; must be unique per worker and stable across restarts. */
 	private String nodeId;
 
 	/** Null means "announce everything this worker can run". */
@@ -105,7 +105,16 @@ public class CortexCLI implements Runnable {
 		return nodeId;
 	}
 
-	@Option(names = { "--node-id" }, description = "Identity this worker registers under. Generated per process when unset. Env: CORTEX_NODE_ID", scope = ScopeType.INHERIT)
+	/**
+	 * @return true when a non-blank node id has been configured.
+	 */
+	public boolean hasNodeId() {
+		return nodeId != null && !nodeId.isBlank();
+	}
+
+	@Option(names = { "--node-id" }, description = "Stable identity this worker registers under. "
+		+ "Required to run the server. Must be unique per worker and stable across restarts - Loom keys registration, "
+		+ "node-kind restrictions and run attribution on it and rejects a duplicate. Env: CORTEX_NODE_ID", scope = ScopeType.INHERIT)
 	public void setNodeId(String nodeId) {
 		this.nodeId = nodeId;
 	}

@@ -42,7 +42,7 @@ public abstract class AbstractEndpoint implements RESTEndpoint {
 		Handler<LoomRoutingContext> handler) {
 		ApiRoute route = addRoute(path, method, description, null, responseExample, handler);
 		for (QueryParameterKey param : QueryParameterKey.values()) {
-			route.queryParameter(param.key(), param.example(), param.description());
+			route.queryParameter(param.key(), param.description(), param.example());
 		}
 		return route;
 	}
@@ -53,10 +53,13 @@ public abstract class AbstractEndpoint implements RESTEndpoint {
 
 	public <REQ extends RestRequestModel> ApiRoute addRoute(String path, HttpMethod method, String description, Example requestExample,
 		Example responseExample, Handler<LoomRoutingContext> handler) {
+		// The description has to be set on the route - not on the router - otherwise the
+		// OpenAPI generator has nothing to put on the operation and every route in the
+		// spec ends up undocumented.
 		ApiRoute route = apiRouter()
-			.description(description)
 			.route(path)
-			.method(method);
+			.method(method)
+			.description(description);
 
 		if (requestExample != null) {
 			route.consumes(APPLICATION_JSON);

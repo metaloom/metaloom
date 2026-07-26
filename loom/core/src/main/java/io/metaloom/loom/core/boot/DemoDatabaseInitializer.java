@@ -49,6 +49,8 @@ import io.metaloom.loom.db.model.perm.Permission;
 import io.metaloom.loom.db.model.perm.PermissionDao;
 import io.metaloom.loom.db.model.pipeline.Pipeline;
 import io.metaloom.loom.db.model.pipeline.PipelineDao;
+import io.metaloom.loom.db.model.pipeline.PipelineRun;
+import io.metaloom.loom.db.model.pipeline.PipelineRunDao;
 import io.metaloom.loom.db.model.pipeline.PipelineVersion;
 import io.metaloom.loom.db.model.pipeline.PipelineVersionDao;
 import io.metaloom.loom.db.model.pool.AssetPool;
@@ -115,6 +117,7 @@ public class DemoDatabaseInitializer {
 	private final AssetComponentDao assetComponentDao;
 	private final ChatDao chatDao;
 	private final PipelineVersionDao pipelineVersionDao;
+	private final PipelineRunDao pipelineRunDao;
 
 	@Inject
 	public DemoDatabaseInitializer(UserDao userDao, AssetDao assetDao, SpaceDao spaceDao,
@@ -123,7 +126,8 @@ public class DemoDatabaseInitializer {
 		AnnotationDao annotationDao, ReactionDao reactionDao, TokenDao tokenDao,
 		CommentDao commentDao, BlacklistDao blacklistDao, MemoryDenyRuleDao memoryDenyRuleDao, ClusterDao clusterDao, PersonDao personDao,
 		DetectionDao detectionDao,
-		AssetComponentDao assetComponentDao, ChatDao chatDao, PipelineVersionDao pipelineVersionDao) {
+		AssetComponentDao assetComponentDao, ChatDao chatDao, PipelineVersionDao pipelineVersionDao,
+		PipelineRunDao pipelineRunDao) {
 		this.userDao = userDao;
 		this.assetDao = assetDao;
 		this.spaceDao = spaceDao;
@@ -148,6 +152,7 @@ public class DemoDatabaseInitializer {
 		this.assetComponentDao = assetComponentDao;
 		this.chatDao = chatDao;
 		this.pipelineVersionDao = pipelineVersionDao;
+		this.pipelineRunDao = pipelineRunDao;
 	}
 
 	/**
@@ -199,7 +204,7 @@ public class DemoDatabaseInitializer {
 
 		// --- Pipelines ---
 		// 1) Simple pipeline: Source → Hash → Output
-		createPipeline(admin, DEMO_PIPELINE_SIMPLE,
+		Pipeline simplePipeline = createPipeline(admin, DEMO_PIPELINE_SIMPLE,
 			"Simple pipeline that hashes incoming assets and stores the result.",
 			true, 1, false,
 			new JsonObject()
@@ -212,7 +217,7 @@ public class DemoDatabaseInitializer {
 					.add(edge("pe2", "pn2", "pn3"))));
 
 		// 2) Medium pipeline: Source → Filter → Hash + Fingerprint → Output
-		createPipeline(admin, DEMO_PIPELINE_MEDIUM,
+		Pipeline mediumPipeline = createPipeline(admin, DEMO_PIPELINE_MEDIUM,
 			"Ingest pipeline with MIME-type filtering, hashing, fingerprinting, and proxy generation.",
 			true, 5, false,
 			new JsonObject()
@@ -230,7 +235,7 @@ public class DemoDatabaseInitializer {
 					.add(edge("pe5", "pn4", "pn5"))));
 
 		// 3) Complex pipeline: Source → Filter → Hash + Fingerprint + Resize → Face Detection → Loom Output
-		createPipeline(admin, DEMO_PIPELINE_COMPLEX,
+		Pipeline complexPipeline = createPipeline(admin, DEMO_PIPELINE_COMPLEX,
 			"Full processing pipeline with filtering, analysis, face detection, and multi-output.",
 			true, 10, false,
 			new JsonObject()
@@ -252,6 +257,17 @@ public class DemoDatabaseInitializer {
 					.add(edge("pe6", "pn4", "pn6"))
 					.add(edge("pe7", "pn6", "pn7"))
 					.add(edge("pe8", "pn5", "pn8"))));
+
+		// --- Pipeline Runs ---
+		// History so the run views and the statistics chart have something to show on a
+		// fresh demo. One run per status: a clean success, a partial failure, a live run and
+		// a suspended one.
+		createPipelineRun(admin, simplePipeline, "SUCCESS", 1, 128, 128, 0, 0, 42_000L);
+		createPipelineRun(admin, simplePipeline, "SUCCESS", 4, 96, 94, 0, 2, 31_500L);
+		createPipelineRun(admin, mediumPipeline, "PARTIAL", 2, 64, 58, 6, 0, 187_000L);
+		createPipelineRun(admin, mediumPipeline, "FAILED", 6, 12, 0, 12, 0, 9_800L);
+		createPipelineRun(admin, complexPipeline, "PAUSED", 0, 512, 240, 3, 1, null);
+		createPipelineRun(admin, complexPipeline, "RUNNING", 0, 340, 180, 0, 4, null);
 
 		// --- Asset Pools ---
 		createAssetPool(admin, DEMO_POOL_PRODUCTION, "/mnt/media/production", null, null, null);
@@ -800,6 +816,44 @@ public class DemoDatabaseInitializer {
 
 		log.info("Created demo pipeline: {}", name);
 		return pipeline;
+	}
+
+	/**
+	 * Give a demo pipeline some run history.
+	 *
+	 * <p>Without this a fresh demo shows an empty run list and a flat statistics chart, which
+	 * makes the run views look broken rather than merely unused. The spread of statuses is
+	 * deliberate: one of each so the status colouring, the failure counters and the daily
+	 * chart all have something to render.</p>
+	 *
+	 * @param daysAgo how far back the run started; the statistics endpoint reports a
+	 *                two-week window by default, so these stay inside it
+	 */
+	private PipelineRun createPipelineRun(User admin, Pipeline pipeline, String status, int daysAgo,
+		int mediaCount, int successCount, int failureCount, int skippedCount, Long durationMs) {
+
+		PipelineRun run = pipelineRunDao.createPipelineRun(admin.getUuid(), pipeline.getUuid(), 1);
+		run.setUuid(UUIDUtils.randomUUID());
+		Instant started = Instant.now().minus(daysAgo, java.time.temporal.ChronoUnit.DAYS);
+		run.setStarted(started);
+		run.setStatus(status);
+		run.setMediaCount(mediaCount);
+		run.setSuccessCount(successCount);
+		run.setFailureCount(failureCount);
+		run.setSkippedCount(skippedCount);
+		run.setDryRun(false);
+		run.setMeta(new JsonObject());
+		// A run that is still live has no end: leaving finished/duration unset is what
+		// distinguishes RUNNING and PAUSED from a completed run.
+		if (durationMs != null) {
+			run.setDurationMs(durationMs);
+			run.setFinished(started.plusMillis(durationMs));
+		}
+		if ("FAILED".equals(status)) {
+			run.setErrorMessage("Node 'face-detect' failed: model file not found");
+		}
+		pipelineRunDao.store(run);
+		return run;
 	}
 
 	private static JsonObject node(String id, String type, String label, String description, int x, int y) {

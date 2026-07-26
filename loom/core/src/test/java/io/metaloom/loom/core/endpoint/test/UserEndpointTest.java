@@ -14,6 +14,7 @@ import io.metaloom.loom.api.filter.LoomFilterKey;
 import io.metaloom.loom.api.sort.LoomSortKey;
 import io.metaloom.loom.api.sort.SortDirection;
 import io.metaloom.loom.client.common.LoomClientException;
+import io.metaloom.loom.client.common.LoomClientRequest;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.endpoint.AbstractCRUDEndpointTest;
 import io.metaloom.loom.core.endpoint.ReplaceEndpointTestcases;
@@ -253,6 +254,28 @@ public class UserEndpointTest extends AbstractCRUDEndpointTest implements Replac
 			assertEquals(12, pageResponse.getMetainfo().getTotalCount(), "There should only be 10 users in the list");
 			assertEquals(12, pageResponse.getData().size(), "There should only be 10 responses");
 		}
+	}
+
+	@Override
+	protected LoomClientRequest<?> createRequest(LoomHttpClient client) {
+		UserCreateRequest request = new UserCreateRequest();
+		request.setUsername("perm-check");
+		return client.createUser(request);
+	}
+
+	@Override
+	protected LoomClientRequest<?> loadRequest(LoomHttpClient client) {
+		return client.loadUser(USER_UUID);
+	}
+
+	@Override
+	protected LoomClientRequest<?> listRequest(LoomHttpClient client) {
+		return client.listUsers();
+	}
+
+	@Override
+	protected LoomClientRequest<?> deleteRequest(LoomHttpClient client) {
+		return client.deleteUser(USER_UUID);
 	}
 
 }

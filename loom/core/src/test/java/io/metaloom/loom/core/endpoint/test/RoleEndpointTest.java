@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import io.metaloom.loom.api.sort.LoomSortKey;
 import io.metaloom.loom.api.sort.SortDirection;
 import io.metaloom.loom.client.common.LoomClientException;
+import io.metaloom.loom.client.common.LoomClientRequest;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.client.http.error.LoomHttpClientException;
 import io.metaloom.loom.core.endpoint.AbstractCRUDEndpointTest;
@@ -100,5 +101,27 @@ public class RoleEndpointTest extends AbstractCRUDEndpointTest {
 		}
 		RoleListResponse list = client.listRoles().sync().body();
 		assertThat(list).isValid().hasSize(25).hasPerPage(25);
+	}
+
+	@Override
+	protected LoomClientRequest<?> createRequest(LoomHttpClient client) {
+		RoleCreateRequest request = new RoleCreateRequest();
+		request.setName("perm-check");
+		return client.createRole(request);
+	}
+
+	@Override
+	protected LoomClientRequest<?> loadRequest(LoomHttpClient client) {
+		return client.loadRole(ROLE_UUID);
+	}
+
+	@Override
+	protected LoomClientRequest<?> listRequest(LoomHttpClient client) {
+		return client.listRoles();
+	}
+
+	@Override
+	protected LoomClientRequest<?> deleteRequest(LoomHttpClient client) {
+		return client.deleteRole(ROLE_UUID);
 	}
 }

@@ -81,8 +81,7 @@ public class PipelineEventEndpoint extends AbstractEndpoint {
 	private void handleWebSocket(ServerWebSocket ws) {
 		authenticator.authenticate(ws, "pipeline-events")
 			.onSuccess(v -> {
-				String pipelineFilter = extractPipelineFilter(ws);
-				broadcaster.addSubscriber(ws, pipelineFilter);
+				broadcaster.addSubscriber(ws, extractQueryParam(ws, "pipeline"), extractQueryParam(ws, "run"));
 
 				ws.closeHandler(v2 -> broadcaster.removeSubscriber(ws));
 
@@ -98,11 +97,18 @@ public class PipelineEventEndpoint extends AbstractEndpoint {
 	}
 
 	/**
-	 * Extract the optional {@code ?pipeline=} query parameter from the
-	 * WebSocket handshake URL. When present, the subscriber only receives
-	 * events for that pipeline.
+	 * Extract an optional query parameter from the WebSocket handshake URL.
+	 *
+	 * <p>Two are understood: {@code ?pipeline=<name>} narrows the stream to one pipeline, and
+	 * {@code ?run=<uuid>} narrows it to a single run. The second matters for a CLI following
+	 * one run - a pipeline-name filter still delivers every concurrent run of that pipeline,
+	 * which on a busy pipeline is most of the traffic.</p>
+	 *
+	 * @param ws  the socket
+	 * @param key the parameter name
+	 * @return the decoded value, or null when absent
 	 */
-	private static String extractPipelineFilter(ServerWebSocket ws) {
+	private static String extractQueryParam(ServerWebSocket ws, String key) {
 		String query = ws.query();
 		if (query == null || query.isEmpty()) {
 			return null;
@@ -112,8 +118,7 @@ public class PipelineEventEndpoint extends AbstractEndpoint {
 			if (eq <= 0) {
 				continue;
 			}
-			String key = part.substring(0, eq);
-			if ("pipeline".equals(key)) {
+			if (key.equals(part.substring(0, eq))) {
 				return java.net.URLDecoder.decode(part.substring(eq + 1),
 					java.nio.charset.StandardCharsets.UTF_8);
 			}

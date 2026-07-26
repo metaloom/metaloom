@@ -2,6 +2,7 @@ package io.metaloom.loom.core.endpoint.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -10,6 +11,7 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.BeforeAll;
 
 import io.metaloom.loom.client.common.LoomClientException;
+import io.metaloom.loom.client.common.LoomClientRequest;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.endpoint.AbstractCRUDEndpointTest;
 import io.metaloom.loom.rest.json.LoomJson;
@@ -65,6 +67,27 @@ public class AttachmentEndpointTest extends AbstractCRUDEndpointTest {
 		AttachmentListResponse list = client.listAttachments().sync().body();
 		System.out.println(LoomJson.encode(list));
 
+	}
+
+	@Override
+	protected LoomClientRequest<?> createRequest(LoomHttpClient client) {
+		InputStream stream = new ByteArrayInputStream(new byte[] { 1, 2, 3 });
+		return client.uploadAttachment(DUMMY_VIDEO_FILENAME, VIDEO_MIMETYPE, stream);
+	}
+
+	@Override
+	protected LoomClientRequest<?> loadRequest(LoomHttpClient client) {
+		return client.loadAttachment(ATTACHMENT_UUID);
+	}
+
+	@Override
+	protected LoomClientRequest<?> listRequest(LoomHttpClient client) {
+		return client.listAttachments();
+	}
+
+	@Override
+	protected LoomClientRequest<?> deleteRequest(LoomHttpClient client) {
+		return client.deleteAttachment(ATTACHMENT_UUID);
 	}
 
 }

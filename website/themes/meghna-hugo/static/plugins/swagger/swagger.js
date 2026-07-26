@@ -19,6 +19,22 @@ window.onload = function() {
     presets: [
       SwaggerUIBundle.presets.apis,
       SwaggerUIStandalonePreset
-    ]
+    ],
+    layout: 'BaseLayout',
+    // The spec covers ~130 paths, so the explorer opens as a browsable list of resource
+    // groups rather than a wall of expanded operations. Deep links let a docs page - or a
+    // colleague - link straight to a single operation.
+    docExpansion: 'none',
+    deepLinking: true,
+    filter: true,
+    tagsSorter: 'alpha',
+    operationsSorter: 'alpha',
+    defaultModelsExpandDepth: 0,
+    displayRequestDuration: true,
+    persistAuthorization: true,
+    tryItOutEnabled: true,
+    // Never call out to validator.swagger.io - the published site must not hand the spec
+    // to a third party.
+    validatorUrl: null
   })
 }

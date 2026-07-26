@@ -8,7 +8,12 @@ BASEDIR=$(dirname $SCRIPT)
 
 echo "Building css"
 cd $BASEDIR/themes/meghna-hugo
-yarn install && yarn build
+if command -v yarn >/dev/null 2>&1; then
+	yarn install && yarn build
+else
+	echo "yarn not found; falling back to npm"
+	npm install && npm run build
+fi
 
 
 cd $BASEDIR

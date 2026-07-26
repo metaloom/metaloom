@@ -18,13 +18,13 @@ import io.metaloom.loom.rest.EndpointDependencies;
  * CRUD + publish + context-composition endpoint for chat sessions.
  *
  * <ul>
- * <li>{@code GET  /chat/sessions?scope=mine|published} — list (own or the published library)</li>
- * <li>{@code POST /chat/sessions} — capture a chat as a session</li>
- * <li>{@code GET  /chat/sessions/:uuid} — detail (incl. skills + context refs)</li>
- * <li>{@code POST /chat/sessions/:uuid} — edit name/description/tags</li>
- * <li>{@code DELETE /chat/sessions/:uuid} — delete (cascades only its own refs/pins)</li>
- * <li>{@code POST /chat/sessions/:uuid/publish|unpublish} — toggle the publish flag</li>
- * <li>{@code GET|PUT /chat/sessions/:uuid/context} — read/replace the context references</li>
+ * <li>{@code GET  /chat-sessions?scope=mine|published} — list (own or the published library)</li>
+ * <li>{@code POST /chat-sessions} — capture a chat as a session</li>
+ * <li>{@code GET  /chat-sessions/:uuid} — detail (incl. skills + context refs)</li>
+ * <li>{@code POST /chat-sessions/:uuid} — edit name/description/tags</li>
+ * <li>{@code DELETE /chat-sessions/:uuid} — delete (cascades only its own refs/pins)</li>
+ * <li>{@code POST /chat-sessions/:uuid/publish|unpublish} — toggle the publish flag</li>
+ * <li>{@code GET|PUT /chat-sessions/:uuid/context} — read/replace the context references</li>
  * </ul>
  */
 public class ChatSessionEndpoint extends AbstractEndpoint {
@@ -46,7 +46,7 @@ public class ChatSessionEndpoint extends AbstractEndpoint {
 
 	@Override
 	public String basePath() {
-		return API_V1_PATH + "/chat/sessions";
+		return API_V1_PATH + "/chat-sessions";
 	}
 
 	@Override

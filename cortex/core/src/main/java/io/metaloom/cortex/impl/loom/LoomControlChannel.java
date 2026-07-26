@@ -6,7 +6,6 @@ import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.EnumSet;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -92,11 +91,12 @@ public class LoomControlChannel {
 		this.vertx = vertx;
 		this.options = options;
 		this.metrics = metrics;
-		// A configured id survives a restart; a generated one does not, and Loom keys
-		// leases and attribution on it.
-		this.nodeId = options.getNodeId() != null && !options.getNodeId().isBlank()
-			? options.getNodeId()
-			: "cortex-" + UUID.randomUUID();
+		// A configured id survives a restart and Loom keys registration, leases and attribution
+		// on it; a generated one would not survive and could collide with a live worker. The id
+		// is validated at start() (below), not here: this constructor runs while Dagger builds
+		// the command graph for every invocation - including --help and the offline `process`
+		// command - so throwing here would break those paths before the CLI can report anything.
+		this.nodeId = options.getNodeId();
 		this.pipelineEventBus = pipelineEventBus;
 		this.taskHandler = taskHandler;
 	}
@@ -112,6 +112,17 @@ public class LoomControlChannel {
 		if (!endpointConfigured) {
 			log.warn("No Loom websocket endpoint configured. Control channel disabled.");
 			return;
+		}
+
+		// Going online requires a stable identity. The CLI already refuses to start the server
+		// without one (ServerCommand#requireNodeId); this guards any other path that reaches an
+		// online start, refusing to register under a blank/generated id rather than churning a
+		// fresh cortex_instance on every restart or colliding with a live worker.
+		if (nodeId == null || nodeId.isBlank()) {
+			started.set(false);
+			throw new IllegalStateException("No Cortex node id configured. Set --node-id (env CORTEX_NODE_ID) to a "
+				+ "value that is unique per worker and stable across restarts; Loom keys registration, leases and "
+				+ "attribution on it and rejects a blank or duplicate id.");
 		}
 
 		webSocketClient = vertx.createWebSocketClient();

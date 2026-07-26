@@ -3,6 +3,7 @@ package io.metaloom.loom.core.endpoint.test;
 import static io.metaloom.loom.rest.model.assertj.Assertions.assertThat;
 
 import io.metaloom.loom.client.common.LoomClientException;
+import io.metaloom.loom.client.common.LoomClientRequest;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.endpoint.AbstractCRUDEndpointTest;
 import io.metaloom.loom.rest.model.library.LibraryCreateRequest;
@@ -52,6 +53,28 @@ public class LibraryEndpointTest extends AbstractCRUDEndpointTest {
 		}
 		LibraryListResponse list = client.listLibraries().sync().body();
 		assertThat(list).isValid().hasSize(25).hasPerPage(25);
+	}
+
+	@Override
+	protected LoomClientRequest<?> createRequest(LoomHttpClient client) {
+		LibraryCreateRequest request = new LibraryCreateRequest();
+		request.setName("perm-check");
+		return client.createLibrary(request);
+	}
+
+	@Override
+	protected LoomClientRequest<?> loadRequest(LoomHttpClient client) {
+		return client.loadLibrary(LIBRARY_UUID);
+	}
+
+	@Override
+	protected LoomClientRequest<?> listRequest(LoomHttpClient client) {
+		return client.listLibraries();
+	}
+
+	@Override
+	protected LoomClientRequest<?> deleteRequest(LoomHttpClient client) {
+		return client.deleteLibrary(LIBRARY_UUID);
 	}
 
 }

@@ -267,8 +267,9 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 		ws.closeHandler(v -> {
 			if (nodeIdHolder[0] != null) {
 				log.info("Processor disconnected: {}", nodeIdHolder[0]);
-				registry.updateState(nodeIdHolder[0], ProcessorState.OFFLINE);
-				registry.unregister(nodeIdHolder[0]);
+				// Scope the OFFLINE transition + removal to this socket so a late close of a
+				// connection already superseded by a reconnect does not evict the live worker.
+				registry.disconnect(nodeIdHolder[0], ws);
 			}
 		});
 
@@ -285,6 +286,18 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 		ProcessorRegistration reg = msg.getBody().mapTo(ProcessorRegistration.class);
 		if (reg.getNodeId() == null || reg.getNodeId().isBlank()) {
 			sendError(ws, "REGISTER message must include a nodeId");
+			return;
+		}
+		// A node id identifies exactly one live worker. If another worker is already connected
+		// under this id, reject rather than silently replacing it - two workers sharing an id
+		// would fight over one cortex_instance row and its admin-managed restrictions, and work
+		// dispatched to the id could land on either. A stale entry whose socket has already
+		// closed is not "live" and is allowed to be taken over (a normal reconnect).
+		if (registry.isLive(reg.getNodeId())) {
+			log.warn("Rejecting REGISTER for nodeId '{}': a worker with this id is already connected", reg.getNodeId());
+			sendError(ws, "A processor with nodeId '" + reg.getNodeId() + "' is already connected. "
+				+ "Each worker must register under a unique, stable node id.");
+			ws.close((short) 4409, "Duplicate nodeId");
 			return;
 		}
 		nodeIdHolder[0] = reg.getNodeId();

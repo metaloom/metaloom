@@ -111,6 +111,7 @@ public class PipelineRunEngine {
 	private boolean sourceComplete;
 	private boolean runComplete;
 	private boolean cancelled;
+	private boolean paused;
 	private long startedAt;
 	private long itemSequence;
 
@@ -211,6 +212,9 @@ public class PipelineRunEngine {
 			return;
 		}
 		cancelled = true;
+		// Cancelling a paused run is allowed and clears the suspension, so the release
+		// below is not blocked by the pause gate and the state stays coherent.
+		paused = false;
 		// No further items will be accepted or expected, and any source held for capacity
 		// must be released or it waits forever on a run that has stopped consuming.
 		sourceComplete = true;
@@ -218,6 +222,66 @@ public class PipelineRunEngine {
 		releaseCapacityWaiters();
 		store.flush();
 		log.info("Run {} cancelled: {}", runUuid, buildSummary());
+	}
+
+	/**
+	 * Suspend the run: dispatch no further work, but keep everything already known.
+	 *
+	 * <p>Unlike {@link #cancel()} this is reversible and non-terminal. Three things stop:
+	 * new node and segment dispatch (via the {@link #advance} gate), the release of
+	 * capacity waiters, and the immediate-run fast path in
+	 * {@link #whenCapacityAvailable(Runnable)}.</p>
+	 *
+	 * <p>That last pair is what makes a pause real rather than cosmetic. Gating dispatch
+	 * alone would stop the graph while leaving the <em>source</em> free to keep scanning
+	 * and piling up item state. Holding the capacity waiters withholds the acknowledgement
+	 * the source is waiting for, which stops the scan itself. Note this only bites once the
+	 * batch already in flight drains, so a pause takes effect within one source batch
+	 * rather than instantly.</p>
+	 *
+	 * <p>Work already handed to a worker is not recalled - there is no reverse signal - so
+	 * it settles normally through {@link #record}; it simply spawns nothing downstream
+	 * until the run is unpaused.</p>
+	 *
+	 * <p>Idempotent, and a no-op on a run that has already reached a terminal state.</p>
+	 *
+	 * @return true if the run was actually paused, false if it was already complete
+	 */
+	public synchronized boolean pause() {
+		if (runComplete) {
+			return false;
+		}
+		paused = true;
+		log.info("Run {} paused: {}", runUuid, buildSummary());
+		return true;
+	}
+
+	/**
+	 * Resume a paused run and dispatch whatever became ready while it was suspended.
+	 *
+	 * <p>Named {@code unpause} rather than {@code resume} to keep it distinct from
+	 * {@link #resume(boolean)}, which is the unrelated post-restart recovery entry point.</p>
+	 *
+	 * <p>Idempotent, and a no-op on a run that is not paused.</p>
+	 */
+	public synchronized void unpause() {
+		if (!paused) {
+			return;
+		}
+		paused = false;
+		if (runComplete) {
+			return;
+		}
+		// Dispatch anything that became ready while suspended and release any source that
+		// was held for capacity, then re-check completion: a run whose remaining work all
+		// settled during the pause is genuinely finished and must be allowed to close out.
+		pumpDeferred();
+		checkComplete();
+	}
+
+	/** @return true while the run is suspended by {@link #pause()} */
+	public synchronized boolean isPaused() {
+		return paused;
 	}
 
 	/**
@@ -534,9 +598,14 @@ public class PipelineRunEngine {
 	 * results for nodes that are skipped rather than executed.
 	 */
 	private void advance(ItemState state) {
-		if (cancelled) {
-			// The run was cancelled; dispatch nothing further. Late in-flight results still
-			// settle through record(), but must not spawn new downstream work.
+		if (cancelled || paused) {
+			// The run was cancelled or suspended; dispatch nothing further. Late in-flight
+			// results still settle through record(), but must not spawn new downstream work.
+			//
+			// This is the single choke point for all dispatch: dispatch() and
+			// dispatchSegment() are only reachable from here, so retries (retryNow ->
+			// advance) and circuit un-parking (unparkKind -> pumpDeferred -> advance) are
+			// covered by this one gate too.
 			return;
 		}
 		boolean progressed = true;
@@ -1210,7 +1279,10 @@ public class PipelineRunEngine {
 	 * @param action typically "acknowledge the batch"
 	 */
 	public synchronized void whenCapacityAvailable(Runnable action) {
-		if (!atCapacity() || runComplete) {
+		// A paused run parks the waiter even when there is room: withholding the source
+		// acknowledgement is what actually stops the scan. A completed run always releases,
+		// so a source is never stranded.
+		if ((!atCapacity() && !paused) || runComplete) {
 			action.run();
 			return;
 		}
@@ -1226,6 +1298,11 @@ public class PipelineRunEngine {
 	 */
 	private void releaseCapacityWaiters() {
 		if (capacityWaiters.isEmpty() || (atCapacity() && !runComplete)) {
+			return;
+		}
+		if (paused && !runComplete) {
+			// Suspended: keep the source held. A terminal run still releases below, so
+			// cancelling a paused run does not strand it.
 			return;
 		}
 		List<Runnable> waiting = new ArrayList<>(capacityWaiters);
@@ -1289,6 +1366,11 @@ public class PipelineRunEngine {
 			}
 		}
 		runComplete = true;
+		// A paused run that has nothing left outstanding is genuinely finished, and is
+		// allowed to close out rather than sitting in PAUSED with no work to resume.
+		// Clearing the flag first keeps the state coherent and lets the release below
+		// through the pause gate.
+		paused = false;
 		// Never leave a source blocked on a run that has stopped consuming.
 		releaseCapacityWaiters();
 		// A batching store must drain here, or the tail of the run - the part that

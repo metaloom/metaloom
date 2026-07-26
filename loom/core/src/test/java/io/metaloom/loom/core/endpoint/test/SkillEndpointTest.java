@@ -12,6 +12,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import io.metaloom.loom.client.common.LoomClientException;
+import io.metaloom.loom.client.common.LoomClientRequest;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.endpoint.AbstractCRUDEndpointTest;
 import io.metaloom.loom.db.dagger.DaoCollection;
@@ -301,6 +302,30 @@ public class SkillEndpointTest extends AbstractCRUDEndpointTest {
 			SkillResponse secondCopy = client.installSkill(published.getUuid()).sync().body();
 			assertEquals("shared-skill-2", secondCopy.getName());
 		}
+	}
+
+	@Override
+	protected LoomClientRequest<?> createRequest(LoomHttpClient client) {
+		SkillCreateRequest request = new SkillCreateRequest();
+		request.setName("perm-check");
+		request.setDescription("Permission check skill");
+		request.setContent("# perm-check");
+		return client.createSkill(request);
+	}
+
+	@Override
+	protected LoomClientRequest<?> loadRequest(LoomHttpClient client) {
+		return client.loadSkill(java.util.UUID.randomUUID());
+	}
+
+	@Override
+	protected LoomClientRequest<?> listRequest(LoomHttpClient client) {
+		return client.listSkills();
+	}
+
+	@Override
+	protected LoomClientRequest<?> deleteRequest(LoomHttpClient client) {
+		return client.deleteSkill(java.util.UUID.randomUUID());
 	}
 
 }

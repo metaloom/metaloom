@@ -31,7 +31,7 @@ import io.vertx.core.json.JsonObject;
  * and are keyed by the chat uuid — the same id used as the sandbox session key.
  *
  * <p>Only a <b>live</b> runner can be browsed; if none is running for the chat the routes answer 404.
- * The session-scoped preview ({@code /session/:uuid/...}) is served with a strict
+ * The session-scoped preview ({@code /sessions/:uuid/...}) is served with a strict
  * {@code Content-Security-Policy: sandbox} so agent-generated pages cannot act as a confused deputy.</p>
  */
 @Singleton
@@ -53,7 +53,7 @@ public class SessionFsEndpointService {
 		this.sandbox = sandbox;
 	}
 
-	/** {@code GET /session/:uuid/files?path=} — list a workspace directory. */
+	/** {@code GET /sessions/:uuid/files?path=} — list a workspace directory. */
 	public void listFiles(LoomRoutingContext lrc, UUID chatUuid) {
 		lrc.requirePerm(READ_CHAT).onSuccess(ignore -> {
 			SandboxClient client = requireLiveClient(lrc, chatUuid);
@@ -64,7 +64,7 @@ public class SessionFsEndpointService {
 		}).onFailure(e -> failPerm(lrc, e));
 	}
 
-	/** {@code GET /session/:uuid/download?path=&inline=} — stream a workspace file to the browser. */
+	/** {@code GET /sessions/:uuid/download?path=&inline=} — stream a workspace file to the browser. */
 	public void download(LoomRoutingContext lrc, UUID chatUuid) {
 		lrc.requirePerm(READ_CHAT).onSuccess(ignore -> {
 			SandboxClient client = requireLiveClient(lrc, chatUuid);
@@ -80,7 +80,7 @@ public class SessionFsEndpointService {
 	}
 
 	/**
-	 * {@code GET /session/:uuid/preview?path=} — read-only sandboxed preview of a workspace file.
+	 * {@code GET /sessions/:uuid/preview?path=} — read-only sandboxed preview of a workspace file.
 	 * The path (which may be nested, e.g. {@code report/index.html}) is passed as a query parameter so
 	 * arbitrary depth works without server-side wildcard routing.
 	 */

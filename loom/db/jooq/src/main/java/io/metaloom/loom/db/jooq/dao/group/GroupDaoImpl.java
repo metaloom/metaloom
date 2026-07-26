@@ -3,6 +3,7 @@ package io.metaloom.loom.db.jooq.dao.group;
 import static io.metaloom.loom.db.jooq.tables.JooqGroup.GROUP;
 import static io.metaloom.loom.db.jooq.tables.JooqRole.ROLE;
 import static io.metaloom.loom.db.jooq.tables.JooqRoleGroup.ROLE_GROUP;
+import static io.metaloom.loom.db.jooq.tables.JooqUser.USER;
 import static io.metaloom.loom.db.jooq.tables.JooqUserGroup.USER_GROUP;
 
 import java.util.List;
@@ -17,6 +18,7 @@ import org.jooq.TableRecord;
 
 import io.metaloom.loom.db.jooq.AbstractJooqDao;
 import io.metaloom.loom.db.jooq.dao.role.RoleImpl;
+import io.metaloom.loom.db.jooq.dao.user.UserImpl;
 import io.metaloom.loom.db.jooq.tables.JooqGroup;
 import io.metaloom.loom.db.model.group.Group;
 import io.metaloom.loom.db.model.group.GroupDao;
@@ -67,6 +69,22 @@ public class GroupDaoImpl extends AbstractJooqDao<Group> implements GroupDao {
 			.fetchInto(GroupImpl.class)
 			.stream()
 			.map(Group.class::cast)
+			.toList();
+	}
+
+	@Override
+	public List<User> loadUsersForGroup(UUID groupUuid) {
+		if (groupUuid == null) {
+			return List.of();
+		}
+		return ctx().select(USER.fields())
+			.from(USER)
+			.join(USER_GROUP)
+			.on(USER_GROUP.USER_UUID.eq(USER.UUID))
+			.where(USER_GROUP.GROUP_UUID.eq(groupUuid))
+			.fetchInto(UserImpl.class)
+			.stream()
+			.map(User.class::cast)
 			.toList();
 	}
 

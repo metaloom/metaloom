@@ -695,9 +695,14 @@ pipeline_run      (uuid, pipeline_uuid → pipeline ON DELETE CASCADE,
                    created, creator_uuid, edited, editor_uuid)
 ```
 
-`pipeline_run.status` vocabulary — `PENDING, RUNNING, SUCCESS, FAILED, PARTIAL,
-CANCELLED` — exists **only as a SQL comment**. There is no enum anywhere; the
+`pipeline_run.status` vocabulary — `PENDING, RUNNING, PAUSED, SUCCESS, FAILED,
+PARTIAL, CANCELLED` — exists **only as a SQL comment** (`V2.29__add_pipeline_run.sql`,
+amended by `V2.56__pipeline_run_paused_status.sql`). There is no enum anywhere; the
 column, the DAO model, and `PipelineRunRecord` all use free-form `String`.
+
+`PAUSED` is **non-terminal**: a paused run still holds a live engine and can be
+resumed or cancelled. It is deliberately absent from
+`PipelineRunStatusResolver.isTerminal`.
 
 ### 10.2 DAOs
 
@@ -746,6 +751,9 @@ flat `PipelineResponse`; creator/editor status comes from the **version**.
 | DELETE | `/api/v1/pipelines/:uuid` | – | `GenericMessageResponse` | `DELETE_PIPELINE` |
 | POST | `/api/v1/pipelines/:uuid/run` | `PipelineRunRequest` | `PipelineRunResponse` (202 / 503) | `READ_PIPELINE` |
 | GET | `/api/v1/pipelines/:uuid/runs` | – | `PipelineRunListResponse` | `READ_PIPELINE` |
+| POST | `/api/v1/pipelines/:uuid/runs/:runUuid/cancel` | – | `GenericMessageResponse` | `UPDATE_PIPELINE_RUN` |
+| POST | `/api/v1/pipelines/:uuid/runs/:runUuid/pause` | – | `GenericMessageResponse` | `UPDATE_PIPELINE_RUN` |
+| POST | `/api/v1/pipelines/:uuid/runs/:runUuid/resume` | – | `GenericMessageResponse` | `UPDATE_PIPELINE_RUN` |
 | GET | `/api/v1/pipelines/:uuid/versions` | – | `PipelineVersionListResponse` | `READ_PIPELINE_VERSION` |
 | GET | `/api/v1/pipelines/:uuid/versions/:version` | – | `PipelineResponse` | `READ_PIPELINE_VERSION` |
 | POST | `/api/v1/pipelines/:uuid/versions/:version/restore` | `PipelineVersionRestoreRequest` | `PipelineResponse` (201) | `RESTORE_PIPELINE_VERSION` |
@@ -765,7 +773,7 @@ Notes:
 `dryRun`, `priority`.
 
 `PipelineResponse`, `PipelineCreateRequest`, `PipelineUpdateRequest` (all
-optional), `PipelineRunRequest` (`mediaUuids`, `pathGlobs`, `dryRun`),
+optional), `PipelineRunRequest` (`mediaUuids`, `path`, `pathGlobs`, `dryRun`),
 `PipelineRunResponse` (`runUuid`, `processorNodeId`, `dispatched`,
 `message`), `PipelineRunRecord` (⚠️ `started`/`finished` are **ISO-8601
 Strings**, `status` is a String), `PipelineVersionRestoreRequest`, and the three
@@ -912,6 +920,36 @@ cannot overwrite the verdict the engine's `onCompletion` already wrote (or vice
 versa). Both paths funnel through the tracker for exactly this reason — do not
 write run status from anywhere else.
 
+**Pause / resume.** `PipelineRunTracker.pause`/`resume` move a run between
+`RUNNING` and `PAUSED` through a private `transition(...)` that changes **only**
+the status. They deliberately bypass `apply(...)`, which stamps `finished` and
+zeroes all four counters — right for a terminal verdict, destructive for a
+suspension.
+
+The engine side is `PipelineRunEngine.pause()`/`unpause()` (named to avoid a
+clash with `resume(boolean)`, which is post-restart recovery). Three gates:
+
+1. `advance(ItemState)` returns early — the single choke point for all dispatch,
+   so retries and circuit un-parking are covered too.
+2. `releaseCapacityWaiters()` holds waiters while paused.
+3. `whenCapacityAvailable(...)` parks a waiter **even when capacity is free**.
+
+Gates 2 and 3 are what make a pause real rather than cosmetic:
+`ProcessorEndpoint` withholds `SOURCE_ITEMS_ACK` through `whenCapacityAvailable`,
+so holding the waiter stops the **source scan itself**, not just node dispatch.
+It bites once the batch already in flight drains, so a pause takes effect within
+one source batch rather than instantly.
+
+A paused run whose last outstanding work settles **still completes** — pause
+suppresses dispatch, not completion, and stranding a finished run in `PAUSED`
+would be worse. `checkComplete()` clears the flag in that case.
+
+`resumeRun` requires a live engine in `PipelineRunRegistry` and returns 409
+otherwise: flipping a dead row back to `RUNNING` would create a run nothing
+advances. `PipelineRunRecovery` loads `PAUSED` alongside `RUNNING` and re-applies
+`engine.pause()` **before** `engine.resume(...)`, so a restart does not silently
+un-pause a run by dispatching everything that was ready.
+
 ⚠️ **Use `PipelineRunDao.update()`, not `store()`,** to modify an existing run.
 `AbstractJooqDao.store()` is INSERT-only and will violate the primary key.
 
@@ -919,8 +957,19 @@ write run status from anywhere else.
 `null` run id. That is normal — the message is ignored for persistence rather
 than treated as an error.
 
-`mediaUuids` and `pathGlobs` on the run request both feed
-`sourceOptions(...)`: `pathGlobs` is passed through as-is, while `mediaUuids` are
+`mediaUuids`, `path` and `pathGlobs` on the run request all feed
+`sourceOptions(...)` — see `SourceOptionsResolver`, which holds the merging logic
+free of DB and transport concerns so the precedence can be unit-tested.
+
+**Precedence, most specific first: `mediaUuids` > `pathGlobs` > `path`.**
+`path` is applied only when no globs were supplied, because the two mean
+different things to the source node: `pathGlobs` forces a full re-walk, whereas a
+bare `path` runs the differential scan against the persisted per-root index.
+A single resolved asset clears any inherited `pathGlobs` (and several clear
+`path`), so running a pipeline for one asset does not re-scan the library its
+definition points at.
+
+`pathGlobs` is passed through as-is, while `mediaUuids` are
 resolved to their stored binary paths (a single asset as `path`/`assetUuid`,
 several as `pathGlobs`). ⚠️ Paths are resolved on the **worker**, so a path the
 chosen processor cannot see yields an empty run rather than an error.

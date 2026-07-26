@@ -59,8 +59,17 @@ public class ProcessorEndpointTest {
 
 	// ── WebSocket helpers ─────────────────────────────────────────────────
 
+	/**
+	 * Retains the per-connection {@link WebSocketClient}s so they are not garbage collected
+	 * mid-test. A dropped client gets cleaned up and closes its socket, which would make a
+	 * still-in-use connection look disconnected server-side - fatal for tests that keep two
+	 * sockets open at once (e.g. duplicate-registration).
+	 */
+	private final java.util.List<WebSocketClient> wsClients = new java.util.ArrayList<>();
+
 	private WebSocket connectWs(Vertx vertx) throws Exception {
 		WebSocketClient wsClient = vertx.createWebSocketClient();
+		wsClients.add(wsClient);
 		CompletableFuture<WebSocket> future = new CompletableFuture<>();
 		WebSocketConnectOptions opts = new WebSocketConnectOptions()
 			.setHost("localhost")
@@ -116,6 +125,41 @@ public class ProcessorEndpointTest {
 			assertEquals("ONLINE", body.getString("state"));
 
 			ws.close();
+		} finally {
+			vertx.close();
+		}
+	}
+
+	@Test
+	public void testRegisterDuplicateNodeIdRejected() throws Exception {
+		Vertx vertx = Vertx.vertx();
+		try {
+			// First worker registers successfully under the shared id.
+			WebSocket ws1 = connectWs(vertx);
+			JsonObject firstResp = sendAndReceive(ws1,
+				registerMessage("dup-node", "cortex-dup-a", "10.0.3.10:9090", 1, "CPU"));
+			assertEquals("REGISTERED", firstResp.getString("type"));
+
+			// A second, still-live worker announcing the same id must be rejected rather than
+			// silently replacing the first.
+			WebSocket ws2 = connectWs(vertx);
+			JsonObject secondResp = sendAndReceive(ws2,
+				registerMessage("dup-node", "cortex-dup-b", "10.0.3.11:9090", 1, "CPU"));
+			assertEquals("ERROR", secondResp.getString("type"));
+			assertTrue(secondResp.getJsonObject("body").getString("message").contains("already connected"),
+				"Rejection message should explain the id is already connected");
+
+			// The first worker is still the one Loom knows for that id.
+			try (LoomHttpClient client = loom.httpClient()) {
+				loginAdmin(client);
+				JsonObject listResp = httpGet(vertx, "/api/v1/processors", client.getToken());
+				JsonObject processor = findByNodeId(listResp.getJsonArray("data"), "dup-node");
+				assertNotNull(processor, "The originally registered worker must remain");
+				assertEquals("cortex-dup-a", processor.getString("name"),
+					"The duplicate must not have replaced the live worker");
+			}
+
+			ws1.close();
 		} finally {
 			vertx.close();
 		}

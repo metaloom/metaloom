@@ -67,4 +67,18 @@ Use the BOM to align versions across Loom and Cortex modules:
 </dependency>
 ----
 
+== Command Line Client
+
+The `metaloom` CLI is normally used as a binary rather than as a dependency — see
+link:../../cli/[Command Line]. The module is published for embedding it in another tool:
+
+[source,xml]
+----
+<dependency>
+    <groupId>io.metaloom.cli</groupId>
+    <artifactId>metaloom-cli</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+</dependency>
+----
+
 For container deployment see link:../containers/[Containers] and link:../../deployment/[Container Images].

@@ -1,4 +1,4 @@
-{{ $data := index site.Data site.Language.Lang }}
+{{ $data := index hugo.Data site.Language.Lang }}
 
 {{ if $data.feature.feature.enable }}
 {{ with $data.feature.feature }}
@@ -16,6 +16,7 @@
 					<p>{{ .content | markdownify }}</p>
 					<div class="row">
 						{{ range .feature_item }}
+						{{ $link := "" }}{{ with .link }}{{ $link = . | absURL }}{{ end }}
 						<div class="col-lg-6">
 							<div class="media">
 								{{with .icon}}
@@ -24,8 +25,8 @@
 								</div>
 								{{ end }}
 								<div class="media-body">
-									<h4 class="media-heading">{{ .title | markdownify }}</h4>
-									<p>{{ .content | markdownify }}</p>
+									<h4 class="media-heading">{{ if $link }}<a href="{{ $link }}">{{ .title | markdownify }}</a>{{ else }}{{ .title | markdownify }}{{ end }}</h4>
+									<p>{{ .content | markdownify }}{{ if $link }} <a class="feature-doc-link" href="{{ $link }}">Read the docs <i class="ti-arrow-right"></i></a>{{ end }}</p>
 								</div>
 							</div>
 						</div>
@@ -35,6 +36,7 @@
 					<p>{{ .content_ops | markdownify }}</p>
 					<div class="row">
 						{{ range .feature_item_ops }}
+						{{ $link := "" }}{{ with .link }}{{ $link = . | absURL }}{{ end }}
 						<div class="col-lg-6">
 							<div class="media">
 								{{with .icon}}
@@ -43,8 +45,8 @@
 								</div>
 								{{ end }}
 								<div class="media-body">
-									<h4 class="media-heading">{{ .title | markdownify }}</h4>
-									<p>{{ .content | markdownify }}</p>
+									<h4 class="media-heading">{{ if $link }}<a href="{{ $link }}">{{ .title | markdownify }}</a>{{ else }}{{ .title | markdownify }}{{ end }}</h4>
+									<p>{{ .content | markdownify }}{{ if $link }} <a class="feature-doc-link" href="{{ $link }}">Read the docs <i class="ti-arrow-right"></i></a>{{ end }}</p>
 								</div>
 							</div>
 						</div>

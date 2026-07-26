@@ -73,7 +73,6 @@
         <module>agent</module>
         <module>core</module>
         <module>fixture</module>
-        <module>cli</module>
         <module>containers</module>
         <module>doc</module>
     </modules>

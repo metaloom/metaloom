@@ -1,5 +1,20 @@
 # Metaloom — Agent Notes
 
+## Start here: the spec tree
+
+[spec/CONTEXT.md](../spec/CONTEXT.md) is the **entry point** for coding tasks in this repository.
+It catalogues every specification file under `spec/`, routes you to the right one for your task,
+and carries the project-wide cheat sheets, conventions and gotchas. Read it before starting work.
+
+Two files in that tree are **rules, not background**:
+
+- [spec/guidelines/CODING.md](../spec/guidelines/CODING.md) — definition of done for a code change
+  (plural REST paths, endpoint + permission tests, DAO and delete-cascade tests, customer-facing
+  website docs, demo data, and the obligation to update the matching spec file).
+- [spec/SPEC_RULES.md](../spec/SPEC_RULES.md) — definition of done for a spec change.
+
+When a spec and the code disagree, the code wins — and fix the spec in the same change.
+
 ## Test database pool setup (IMPORTANT)
 
 Tests run against a pooled test database. Before running tests — and again **after any Flyway

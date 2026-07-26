@@ -90,6 +90,70 @@ public class PipelineRunTracker {
 		return apply(runUuid, PipelineRunStatusResolver.CANCELLED, null, 0, 0, 0, 0, null);
 	}
 
+	/**
+	 * Suspend a live run: {@code RUNNING} → {@code PAUSED}.
+	 *
+	 * @param runUuid the run to suspend
+	 * @return true if the run moved to {@code PAUSED}
+	 */
+	public boolean pause(UUID runUuid) {
+		return transition(runUuid, PipelineRunStatusResolver.RUNNING, PipelineRunStatusResolver.PAUSED);
+	}
+
+	/**
+	 * Resume a suspended run: {@code PAUSED} → {@code RUNNING}.
+	 *
+	 * @param runUuid the run to resume
+	 * @return true if the run moved back to {@code RUNNING}
+	 */
+	public boolean resume(UUID runUuid) {
+		return transition(runUuid, PipelineRunStatusResolver.PAUSED, PipelineRunStatusResolver.RUNNING);
+	}
+
+	/**
+	 * Move a run between two non-terminal statuses.
+	 *
+	 * <p>Deliberately does <em>not</em> go through {@link #apply}: that method stamps
+	 * {@code finished} and zeroes all four counters, which is right for a terminal verdict
+	 * and destructive for a suspension. A pause must leave the run's tallies exactly as it
+	 * found them.</p>
+	 *
+	 * @param runUuid      the run
+	 * @param expectedFrom the status the run must currently be in
+	 * @param to           the status to move it to
+	 * @return true if the transition was applied
+	 */
+	private boolean transition(UUID runUuid, String expectedFrom, String to) {
+		if (runUuid == null) {
+			return false;
+		}
+		try {
+			PipelineRun run = pipelineRunDao.load(runUuid);
+			if (run == null) {
+				log.warn("Cannot {} unknown pipeline run {}", to, runUuid);
+				return false;
+			}
+			if (PipelineRunStatusResolver.isTerminal(run.getStatus())) {
+				log.debug("Pipeline run {} is already terminal ({}) - refusing {}", runUuid, run.getStatus(), to);
+				return false;
+			}
+			if (!expectedFrom.equals(run.getStatus())) {
+				log.debug("Pipeline run {} is {}, not {} - refusing {}", runUuid, run.getStatus(), expectedFrom, to);
+				return false;
+			}
+
+			// Only the status changes. finished/counters stay untouched.
+			run.setStatus(to);
+			pipelineRunDao.update(run);
+
+			log.info("Pipeline run {} moved from {} to {}", runUuid, expectedFrom, to);
+			return true;
+		} catch (Exception e) {
+			log.error("Failed to persist {} for pipeline run {}", to, runUuid, e);
+			return false;
+		}
+	}
+
 	private boolean apply(UUID runUuid, String status, Long durationMs, int mediaCount,
 			int successCount, int failureCount, int skippedCount, String errorMessage) {
 		if (runUuid == null) {

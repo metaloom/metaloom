@@ -127,11 +127,23 @@ information — still matches the file on disk, flagging inconsistencies for rev
 
 == Authoring Your Own Node
 
-Cortex is designed to be extended. A custom node in Java is three steps:
+Cortex is designed to be extended, but there is no drop-in plugin mechanism: the node set of a Cortex
+process is wired at build time through Dagger modules, so the shipped `cortex-server` image serves
+exactly the built-in kinds listed above. Running a node of your own means *building your own Cortex
+instance* that includes it. A worker announces the node kinds its factory has registered when it
+registers with Loom, so a custom instance becomes dispatchable as soon as it connects, and it can run
+alongside the stock workers — which keep serving the built-in kinds.
+
+A custom node in Java is three steps:
 
 . Extend `AbstractMediaNode<YourOptions>`.
 . Implement `name()`, `isProcessable()` and `compute()`.
-. Register the node via a Dagger module.
+. Expose the node from a Dagger module, include that module in your instance's node collection, and
+  register the node kind with the pipeline node factory.
 
-Alternatively, write a worker in Python that speaks the wire protocol directly. Both routes have a
-complete working example in link:../cortex/examples/[Cortex Examples].
+The `examples/` directory of the source repository carries the complete, working setup rather than a
+sketch: `cortex-custom-node` holds the node with its options, payload and Dagger module;
+`cortex-custom` assembles the daemon that includes that module and connects to a Loom backend; and
+`cortex-python` implements a minimal worker in Python that speaks the wire protocol directly, for
+logic you would rather not write in Java. See link:../cortex/examples/[Cortex Examples] for the code
+and the build and run commands.

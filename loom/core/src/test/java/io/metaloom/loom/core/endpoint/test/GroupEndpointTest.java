@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import org.junit.jupiter.api.Test;
 
 import io.metaloom.loom.client.common.LoomClientException;
+import io.metaloom.loom.client.common.LoomClientRequest;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.endpoint.AbstractCRUDEndpointTest;
 import io.metaloom.loom.core.endpoint.ReplaceEndpointTestcases;
@@ -96,6 +97,28 @@ public class GroupEndpointTest extends AbstractCRUDEndpointTest implements Repla
 		}
 		GroupListResponse list = client.listGroups().sync().body();
 		assertThat(list).isValid().hasSize(25).hasPerPage(25);
+	}
+
+	@Override
+	protected LoomClientRequest<?> createRequest(LoomHttpClient client) {
+		GroupCreateRequest request = new GroupCreateRequest();
+		request.setName("perm-check");
+		return client.createGroup(request);
+	}
+
+	@Override
+	protected LoomClientRequest<?> loadRequest(LoomHttpClient client) {
+		return client.loadGroup(GROUP_UUID);
+	}
+
+	@Override
+	protected LoomClientRequest<?> listRequest(LoomHttpClient client) {
+		return client.listGroups();
+	}
+
+	@Override
+	protected LoomClientRequest<?> deleteRequest(LoomHttpClient client) {
+		return client.deleteGroup(GROUP_UUID);
 	}
 
 }

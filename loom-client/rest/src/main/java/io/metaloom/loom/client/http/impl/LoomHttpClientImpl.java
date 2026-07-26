@@ -106,8 +106,14 @@ import io.metaloom.loom.rest.model.pipeline.PipelineResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunItemListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunRecord;
+import io.metaloom.loom.rest.model.pipeline.PipelineRunRequest;
+import io.metaloom.loom.rest.model.pipeline.PipelineRunResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunStatsResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineUpdateRequest;
+import io.metaloom.loom.rest.model.pipeline.PipelineVersionListResponse;
+import io.metaloom.loom.rest.model.pipeline.PipelineVersionRestoreRequest;
+import io.metaloom.loom.rest.model.info.RESTInfoResponse;
+import io.metaloom.loom.rest.model.message.GenericMessageResponse;
 import io.metaloom.loom.rest.model.space.SpaceCreateRequest;
 import io.metaloom.loom.rest.model.space.SpaceListResponse;
 import io.metaloom.loom.rest.model.space.SpaceResponse;
@@ -251,6 +257,21 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 		 */
 		public Builder setHostname(String hostname) {
 			this.hostname = hostname;
+			return this;
+		}
+
+		/**
+		 * Set the path prefix the Loom API is mounted under.
+		 *
+		 * <p>Only needed when Loom sits behind a reverse proxy that serves it from a
+		 * sub-path - e.g. {@code https://example.com/loom/api/v1/...} needs
+		 * {@code setPathPrefix("loom")}. Defaults to the empty string.</p>
+		 *
+		 * @param pathPrefix prefix without surrounding slashes; null is treated as empty
+		 * @return Fluent API
+		 */
+		public Builder setPathPrefix(String pathPrefix) {
+			this.pathPrefix = pathPrefix == null ? "" : pathPrefix;
 			return this;
 		}
 
@@ -616,6 +637,55 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<PipelineResponse> createPipeline(PipelineCreateRequest request) {
 		return postRequest("pipelines", request, PipelineResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<PipelineRunResponse> runPipeline(UUID pipelineUuid, PipelineRunRequest request) {
+		return postRequest("pipelines/" + pipelineUuid + "/run", request, PipelineRunResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<GenericMessageResponse> pausePipelineRun(UUID pipelineUuid, UUID runUuid) {
+		return postRequest("pipelines/" + pipelineUuid + "/runs/" + runUuid + "/pause", GenericMessageResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<GenericMessageResponse> resumePipelineRun(UUID pipelineUuid, UUID runUuid) {
+		return postRequest("pipelines/" + pipelineUuid + "/runs/" + runUuid + "/resume", GenericMessageResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<GenericMessageResponse> cancelPipelineRun(UUID pipelineUuid, UUID runUuid) {
+		return postRequest("pipelines/" + pipelineUuid + "/runs/" + runUuid + "/cancel", GenericMessageResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<PipelineVersionListResponse> listPipelineVersions(UUID pipelineUuid) {
+		return getRequest("pipelines/" + pipelineUuid + "/versions", PipelineVersionListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<PipelineResponse> loadPipelineVersion(UUID pipelineUuid, int version) {
+		return getRequest("pipelines/" + pipelineUuid + "/versions/" + version, PipelineResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<PipelineResponse> restorePipelineVersion(UUID pipelineUuid, int version,
+		PipelineVersionRestoreRequest request) {
+		return postRequest("pipelines/" + pipelineUuid + "/versions/" + version + "/restore", request, PipelineResponse.class);
+	}
+
+	// INFO
+
+	@Override
+	public LoomClientHttpRequest<RESTInfoResponse> restInfo() {
+		// The empty path targets /api/v1 itself.
+		return getRequest("", RESTInfoResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<UserResponse> me() {
+		return getRequest("me", UserResponse.class);
 	}
 
 	// ANNOTATION

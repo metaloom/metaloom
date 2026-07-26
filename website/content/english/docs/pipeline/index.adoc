@@ -89,12 +89,74 @@ Trigger a run over REST (or from the UI's Run button):
 
 [source,text]
 ----
-POST /api/v1/pipelines/:uuid/run     # body: { mediaUuids, pathGlobs, dryRun }
+POST /api/v1/pipelines/:uuid/run     # body: { mediaUuids, path, pathGlobs, dryRun }
 GET  /api/v1/pipelines/:uuid/runs    # run history with status + counters
 ----
 
 The response reports whether the run was dispatched, the assigned worker, and the `runUuid`. If no
 suitable online worker exists the run is rejected (`503`) rather than silently queued.
+
+=== Choosing what to process
+
+The run request narrows what the pipeline's source enumerates. The most specific selector wins:
+`mediaUuids`, then `pathGlobs`, then `path`.
+
+[cols="1,3"]
+|===
+| Field | Behaviour
+
+| `path`
+| A single folder or file. The source compares it against its index and processes only media
+that is new, modified or moved — so re-running over a large library is cheap.
+
+| `pathGlobs`
+| One or more glob patterns. Always walks the filesystem in full, so use it when you want a
+complete re-scan or need pattern matching.
+
+| `mediaUuids`
+| Specific assets, resolved to their stored files.
+|===
+
+From the command line these are `--dir`, `--glob` and `--asset` respectively:
+
+[source,bash]
+----
+metaloom pipeline run my-pipeline --dir /media/library
+----
+
+=== Pausing and resuming a run
+
+A run in progress can be suspended and later resumed, or stopped for good:
+
+[source,text]
+----
+POST /api/v1/pipelines/:uuid/runs/:runUuid/pause
+POST /api/v1/pipelines/:uuid/runs/:runUuid/resume
+POST /api/v1/pipelines/:uuid/runs/:runUuid/cancel
+----
+
+A paused run keeps everything it has done. No further work is handed to workers, and the source
+scan stops as well, so a pause genuinely halts the pipeline rather than merely hiding it. Work
+already handed to a worker finishes normally. The run's status becomes `PAUSED`, and its counters
+are preserved.
+
+Cancelling is final: a cancelled run cannot be resumed.
+
+A paused run continues to occupy a worker, so it should be resumed or cancelled rather than left
+indefinitely.
+
+NOTE: Resuming requires the run to still be live on the server. A run whose server was restarted
+while it was paused is restored in the paused state and can be resumed as normal; one that was
+lost entirely must be started again.
+
+From the command line:
+
+[source,bash]
+----
+metaloom run pause  <run-uuid>
+metaloom run resume <run-uuid>
+metaloom run cancel <run-uuid>
+----
 
 == Dry-Run Mode
 
@@ -108,12 +170,24 @@ While a run executes, the engine emits structured tracking events which the UI c
 
 [source,text]
 ----
-ws://<loom-host>:8092/api/v1/pipelines/events/ws     # optional ?pipeline=<name> filter
+ws://<loom-host>:8092/api/v1/pipelines/events/ws     # optional ?pipeline=<name> and ?run=<uuid> filters
 ----
 
 Each event identifies the pipeline, node, media item, status (`STARTED`, `COMPLETED`, `SKIPPED`,
 `FAILED`) and duration. The Loom UI subscribes to this stream to display live processing progress and
 per-node statistics.
+
+Two optional filters narrow the stream: `?pipeline=<name>` restricts it to one pipeline, and
+`?run=<uuid>` to a single run. Both may be combined. The stream carries no history — it delivers
+only what happens after the connection opens.
+
+The command line consumes the same stream:
+
+[source,bash]
+----
+metaloom run follow <run-uuid>
+metaloom pipeline run my-pipeline --dir /media --follow
+----
 
 == Custom Nodes
 

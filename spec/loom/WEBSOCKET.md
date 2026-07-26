@@ -376,12 +376,25 @@ still receives fleet-wide processor updates.
 Same as the processor WebSocket: `?token=<jwt>` query parameter, validated
 by `WebSocketAuthenticator`. See [Section 2](#2-authentication).
 
-### 4.3 Per-Pipeline Filtering
+### 4.3 Filtering
 
-- Clients may pass `?pipeline=<name>` to receive only events for the
-  specified pipeline.
-- When omitted, all pipeline events are delivered.
-- The filter is extracted from the WebSocket handshake URL query string.
+Two optional query parameters narrow the stream. They are ANDed; a subscriber
+with neither receives everything.
+
+| Parameter | Matches against | Used by |
+|-----------|-----------------|---------|
+| `?pipeline=<name>` | `PipelineEventMessage.pipelineName` | the UI, which watches one pipeline |
+| `?run=<uuid>` | `PipelineEventMessage.pipelineRunUuid` | the CLI (`metaloom run follow`), which watches one run |
+
+- Both are extracted from the WebSocket handshake URL query string
+  (`PipelineEventEndpoint.extractQueryParam`) and applied in
+  `PipelineEventBroadcaster.Subscriber.matches`.
+- The `run` filter exists because a pipeline-name filter still delivers every
+  concurrent run of that pipeline. The CLI also filters client-side, so it works
+  against a server that predates this parameter.
+- ⚠️ The stream carries **no history** — it delivers only what happens after the
+  socket opens. A client that wants a run's opening events must connect *before*
+  it posts `/run`, which is what `metaloom pipeline run --follow` does.
 
 ### 4.4 Event Message
 

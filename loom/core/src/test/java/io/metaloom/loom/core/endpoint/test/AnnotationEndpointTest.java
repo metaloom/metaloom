@@ -3,6 +3,7 @@ package io.metaloom.loom.core.endpoint.test;
 import static io.metaloom.loom.rest.model.assertj.Assertions.assertThat;
 
 import io.metaloom.loom.client.common.LoomClientException;
+import io.metaloom.loom.client.common.LoomClientRequest;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.endpoint.AbstractCRUDEndpointTest;
 import io.metaloom.loom.api.annotation.AnnotationType;
@@ -57,6 +58,30 @@ public class AnnotationEndpointTest extends AbstractCRUDEndpointTest {
 		}
 		AnnotationListResponse list = client.listAnnotations().sync().body();
 		assertThat(list).isValid().hasSize(25).hasPerPage(25);
+	}
+
+	@Override
+	protected LoomClientRequest<?> createRequest(LoomHttpClient client) {
+		AnnotationCreateRequest request = new AnnotationCreateRequest();
+		request.setTitle("perm-check");
+		request.setType(AnnotationType.FEEDBACK);
+		request.setAssetUuid(ASSET_UUID);
+		return client.createAnnotation(request);
+	}
+
+	@Override
+	protected LoomClientRequest<?> loadRequest(LoomHttpClient client) {
+		return client.loadAnnotation(ANNOTATION_UUID);
+	}
+
+	@Override
+	protected LoomClientRequest<?> listRequest(LoomHttpClient client) {
+		return client.listAnnotations();
+	}
+
+	@Override
+	protected LoomClientRequest<?> deleteRequest(LoomHttpClient client) {
+		return client.deleteAnnotation(ANNOTATION_UUID);
 	}
 
 }

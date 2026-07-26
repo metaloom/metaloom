@@ -2,11 +2,32 @@
 title: Artifacts
 ---
 
-Loom publishes JVM artifacts and container deployment assets separately.
+Loom publishes JVM artifacts, a command line client and container deployment assets separately.
 
 == Maven Artifacts
 
 See link:../maven-artifacts/[Maven Artifacts] for the BOM and the primary client and shared model modules.
+
+== Command Line Client
+
+`metaloom` is the command line client for a Loom server. It ships in two forms from the same
+`io.metaloom.cli:metaloom-cli` module:
+
+[cols="1,2,2"]
+|===
+| Form | Artifact | Notes
+
+| Runnable JAR
+| `metaloom-cli.jar`
+| Self-contained; needs a JVM. Built by `mvn -pl cli -am package`.
+
+| Native binary
+| `metaloom`
+| No JVM required, ~30 MB, starts in single-digit milliseconds. Built by
+`cli/build-native.sh` with GraalVM 25.
+|===
+
+See link:../../cli/[Command Line] for usage.
 
 == Containers
 

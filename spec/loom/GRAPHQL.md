@@ -10,9 +10,15 @@
 ## 1. Overview
 
 The GraphQL service (`loom-service-graphql`) provides a GraphQL API layer for the
-Loom backend. It exposes the asset data model (assets, locations, components)
-via a GraphQL schema, enabling flexible queries for clients that need more
-granular data fetching than the REST API provides.
+Loom backend. It exposes a read-only view of the core data model — assets and
+their components, the access-control graph (users, groups, roles), pipelines and
+their versions/runs, skills and their versions, and the agent memory bank — via a
+GraphQL schema, enabling flexible queries for clients that need more granular data
+fetching than the REST API provides.
+
+**Read-only.** The schema currently declares no mutations; every write still goes
+through the REST API. Each GraphQL field is guarded by the *same* permission as its
+REST counterpart (see [§5.4](#54-authentication--authorization)).
 
 ### 1.1 Current Status
 
@@ -20,7 +26,7 @@ granular data fetching than the REST API provides.
 - **Artifact:** `io.metaloom.loom.service:loom-service-graphql`
 - **GraphQL Java Version:** 25.0
 - **Schema Loading:** SDL file at `src/main/resources/loom.graphqls`
-- **Integration:** Built but **not yet registered** in `EndpointModule` (see [LOOM.md](LOOM.md#2-module-layout))
+- **Integration:** Registered in `EndpointModule`; live at `POST /api/v1/graphql`, plus a GraphiQL IDE at `GET /graphiql` (see [§5.3](#53-graphiql--playground))
 - **Authentication:** JWT / OAuth2 required on the endpoint plus field-level permission checks (see [§5.4](#54-authentication--authorization))
 
 ### 1.2 Relationship to Other APIs
@@ -30,7 +36,7 @@ granular data fetching than the REST API provides.
 | [REST](RESTAPI.md) | Primary external API, full CRUD, OpenAPI | Production |
 | [WebSocket](WEBSOCKET.md) | Real-time pipeline events, processor communication | Production |
 | [MCP](MCP.md) | AI agent tool integration | Active development |
-| **GraphQL** | Flexible asset queries, nested data fetching | **Implemented, not wired** |
+| **GraphQL** | Flexible read queries across assets, ACL, pipelines, skills & memory; nested data fetching | **Live at `POST /api/v1/graphql` (+ GraphiQL at `/graphiql`)** |
 | [gRPC](GRPC.md) | High-performance internal communication | Planned |
 
 ---
@@ -73,8 +79,25 @@ graph TD
 
 | Class | Package | Purpose |
 |-------|---------|---------|
-| `LoomGraphQLProvider` | `io.metaloom.loom.graphql` | Builds and provides the GraphQL execution engine; loads SDL schema, wires DataFetchers to DAOs |
+| `LoomGraphQLProvider` | `io.metaloom.loom.graphql` | Builds and provides the GraphQL execution engine; loads the SDL schema, registers the custom scalars, and merges the per-domain wirings into one `RuntimeWiring` |
+| `AbstractDomainWiring` | `io.metaloom.loom.graphql` | Base for the per-domain wiring contributions; provides `requirePermission()`, `uuidArg()` (with `BAD_USER_INPUT` on malformed UUIDs) and `orEmpty()` helpers |
+| `AssetWiring` | `io.metaloom.loom.graphql` | Data fetchers for `Asset`, `AssetLocation` and the typed components |
+| `AclWiring` | `io.metaloom.loom.graphql` | Data fetchers for `User`, `Group`, `Role` and their relations |
+| `PipelineWiring` | `io.metaloom.loom.graphql` | Data fetchers for `Pipeline`, `PipelineVersion`, `PipelineRun` |
+| `SkillWiring` | `io.metaloom.loom.graphql` | Data fetchers for `Skill`, `SkillVersion` |
+| `MemoryWiring` | `io.metaloom.loom.graphql` | Data fetchers for `MemoryEntry`, `MemoryScopeStats`, `MemoryDenyRule` |
+| `LoomScalars` | `io.metaloom.loom.graphql` | The custom scalars: `Long`, `DateTime` (ISO-8601 `Instant`), `Json` (Vert.x `JsonObject`) |
 | `LoomGraphQLProviderTest` | `io.metaloom.loom.graphql` | Unit tests for GraphQL queries using mocked DAOs |
+
+### 2.4 Wiring Layout
+
+The schema is split by bounded domain: one `AbstractDomainWiring` subclass per area
+registers the data fetchers for its own `Query` fields plus the field resolvers of the
+types it owns. `LoomGraphQLProvider` instantiates them from a single `DaoCollection`
+and merges them into one `RuntimeWiring` — `RuntimeWiring.Builder` merges repeated
+`type("Query")` registrations, so every domain can extend the query root. Adding a
+field therefore means touching two places: the SDL and the wiring of the owning
+domain.
 
 ---
 
@@ -82,155 +105,152 @@ graph TD
 
 ### 3.1 SDL Schema (`loom.graphqls`)
 
-The schema is defined in Schema Definition Language (SDL) at:
-`src/main/resources/loom.graphqls`
+The schema is defined in Schema Definition Language (SDL) at
+`src/main/resources/loom.graphqls` (mirrored, for the offline docs explorer, at
+`website/static/docs/examples/schema.graphql`). The full SDL is the source of
+truth; the tables below summarize the query root and the exposed types.
 
-```graphql
-type Query {
-    """Load an asset by UUID"""
-    asset(uuid: ID!): Asset
+### 3.2 Query Root
 
-    """List all assets"""
-    assets: [Asset!]!
-}
-
-type Asset {
-    uuid: ID!
-    filename: String
-    mimeType: String
-    size: Long
-    sha512: String
-    sha256: String
-    md5: String
-    initialOrigin: String
-    imageComponents: [ImageComponent!]!
-    videoComponents: [VideoComponent!]!
-    audioComponents: [AudioComponent!]!
-    locations: [AssetLocation!]!
-}
-
-type AssetLocation {
-    uuid: ID!
-    path: String
-    assetUuid: ID
-    libraryUuid: ID
-    mimeType: String
-}
-
-type ImageComponent {
-    uuid: ID!
-    source: String
-    dominantColor: String
-    width: Int
-    height: Int
-}
-
-type VideoComponent {
-    uuid: ID!
-    source: String
-}
-
-type AudioComponent {
-    uuid: ID!
-    source: String
-}
-
-"""Long scalar for large numeric values (e.g. file sizes)"""
-scalar Long
-```
-
-### 3.2 Type Details
-
-#### Query Root
-| Field | Arguments | Returns | Description |
-|-------|-----------|---------|-------------|
-| `asset` | `uuid: ID!` | `Asset` | Load a single asset by UUID |
-| `assets` | (none) | `[Asset!]!` | List all assets |
+Every list field is non-null (`[T!]!`) and returns an empty list rather than
+`null`. Single-object lookups return `null` when the element does not exist.
 
 #### Asset
-| Field | Type | Description |
-|-------|------|-------------|
-| `uuid` | `ID!` | Unique identifier |
-| `filename` | `String` | Original filename |
-| `mimeType` | `String` | MIME type (e.g., `image/jpeg`) |
-| `size` | `Long` | File size in bytes (uses custom `Long` scalar) |
-| `sha512` | `String` | SHA-512 hash (hex) |
-| `sha256` | `String` | SHA-256 hash (hex) |
-| `md5` | `String` | MD5 hash (hex) |
-| `initialOrigin` | `String` | Origin/source of the asset |
-| `imageComponents` | `[ImageComponent!]!` | Image-specific metadata |
-| `videoComponents` | `[VideoComponent!]!` | Video-specific metadata |
-| `audioComponents` | `[AudioComponent!]!` | Audio-specific metadata |
-| `locations` | `[AssetLocation!]!` | Filesystem locations where asset exists |
+| Field | Arguments | Returns | Permission |
+|-------|-----------|---------|------------|
+| `asset` | `uuid: ID!` | `Asset` | `READ_ASSET` |
+| `assetBySha512` | `sha512: String!` | `Asset` | `READ_ASSET` |
+| `assets` | (none) | `[Asset!]!` | `READ_ASSET` |
+| `assetLocation` | `uuid: ID!` | `AssetLocation` | `READ_ASSET_LOCATION` |
+| `assetLocations` | `assetUuid: ID` | `[AssetLocation!]!` | `READ_ASSET_LOCATION` |
 
-#### AssetLocation
-| Field | Type | Description |
-|-------|------|-------------|
-| `uuid` | `ID!` | Unique identifier |
-| `path` | `String` | Filesystem path |
-| `assetUuid` | `ID` | Referenced asset UUID |
-| `libraryUuid` | `ID` | Library UUID |
-| `mimeType` | `String` | MIME type at this location |
+#### User / Group / Role
+| Field | Arguments | Returns | Permission |
+|-------|-----------|---------|------------|
+| `user` | `uuid: ID!` | `User` | `READ_USER` |
+| `userByUsername` | `username: String!` | `User` | `READ_USER` |
+| `users` | (none) | `[User!]!` | `READ_USER` |
+| `group` | `uuid: ID!` | `Group` | `READ_GROUP` |
+| `groupByName` | `name: String!` | `Group` | `READ_GROUP` |
+| `groups` | (none) | `[Group!]!` | `READ_GROUP` |
+| `role` | `uuid: ID!` | `Role` | `READ_ROLE` |
+| `roleByName` | `name: String!` | `Role` | `READ_ROLE` |
+| `roles` | (none) | `[Role!]!` | `READ_ROLE` |
 
-#### ImageComponent
-| Field | Type | Description |
-|-------|------|-------------|
-| `uuid` | `ID!` | Unique identifier |
-| `source` | `String` | Source identifier |
-| `dominantColor` | `String` | Dominant color (hex) |
-| `width` | `Int` | Image width in pixels |
-| `height` | `Int` | Image height in pixels |
+#### Pipeline
+| Field | Arguments | Returns | Permission |
+|-------|-----------|---------|------------|
+| `pipeline` | `uuid: ID!` | `Pipeline` | `READ_PIPELINE` |
+| `pipelines` | (none) | `[Pipeline!]!` | `READ_PIPELINE` |
+| `pipelineVersion` | `uuid: ID!` | `PipelineVersion` | `READ_PIPELINE_VERSION` |
+| `pipelineVersions` | `pipelineUuid: ID!` | `[PipelineVersion!]!` | `READ_PIPELINE_VERSION` |
+| `pipelineVersionByNumber` | `pipelineUuid: ID!, versionNumber: Int!` | `PipelineVersion` | `READ_PIPELINE_VERSION` |
+| `pipelineRun` | `uuid: ID!` | `PipelineRun` | `READ_PIPELINE_RUN` |
+| `pipelineRuns` | `pipelineUuid: ID, status: String` | `[PipelineRun!]!` | `READ_PIPELINE_RUN` |
+| `latestPipelineRun` | `pipelineUuid: ID!` | `PipelineRun` | `READ_PIPELINE_RUN` |
 
-#### VideoComponent
-| Field | Type | Description |
-|-------|------|-------------|
-| `uuid` | `ID!` | Unique identifier |
-| `source` | `String` | Source identifier |
+#### Skill
+| Field | Arguments | Returns | Permission |
+|-------|-----------|---------|------------|
+| `skill` | `uuid: ID!` | `Skill` | `READ_SKILL` |
+| `skills` | (none) | `[Skill!]!` | `READ_SKILL` |
+| `skillVersion` | `uuid: ID!` | `SkillVersion` | `READ_SKILL_VERSION` |
+| `skillVersions` | `skillUuid: ID!` | `[SkillVersion!]!` | `READ_SKILL_VERSION` |
+| `skillVersionByNumber` | `skillUuid: ID!, versionNumber: Int!` | `SkillVersion` | `READ_SKILL_VERSION` |
+| `latestSkillVersion` | `skillUuid: ID!` | `SkillVersion` | `READ_SKILL_VERSION` |
 
-#### AudioComponent
-| Field | Type | Description |
-|-------|------|-------------|
-| `uuid` | `ID!` | Unique identifier |
-| `source` | `String` | Source identifier |
+#### Memory
+| Field | Arguments | Returns | Permission |
+|-------|-----------|---------|------------|
+| `memoryEntry` | `uuid: ID!` | `MemoryEntry` | `READ_MEMORY` |
+| `memoryEntryByPath` | `scope: MemoryScope!, scopeUuid: ID!, memoryId: String!` | `MemoryEntry` | `READ_MEMORY` |
+| `memoryEntries` | `scope: MemoryScope!, scopeUuid: ID!, prefix: String, limit: Int = 50` | `[MemoryEntry!]!` | `READ_MEMORY` |
+| `memoryStats` | `scope: MemoryScope!, scopeUuid: ID!` | `MemoryScopeStats!` | `READ_MEMORY` |
+| `memoryDenyRule` | `uuid: ID!` | `MemoryDenyRule` | `READ_MEMORY_DENY_RULE` |
+| `memoryDenyRuleByName` | `name: String!` | `MemoryDenyRule` | `READ_MEMORY_DENY_RULE` |
+| `memoryDenyRules` | `enabledOnly: Boolean = false` | `[MemoryDenyRule!]!` | `READ_MEMORY_DENY_RULE` |
 
-### 3.3 Custom Scalars
+### 3.3 Object Types & Relations
+
+Beyond scalar fields, several types expose **relation fields** that resolve lazily
+through a second data fetcher (each carries its own permission check):
+
+| Type | Relation fields |
+|------|-----------------|
+| `Asset` | `imageComponents`, `videoComponents`, `audioComponents`, `locations` |
+| `AssetLocation` | `asset` (back reference) |
+| `User` | `groups` (needs `READ_GROUP`) |
+| `Group` | `users` (needs `READ_USER`), `roles` (needs `READ_ROLE`) |
+| `Pipeline` | `latestVersion`, `versions`, `runs` |
+| `PipelineVersion` | `pipeline` (back reference) |
+| `PipelineRun` | `pipeline` (back reference) |
+| `Skill` | `activeVersion`, `latestVersion`, `versions` |
+| `SkillVersion` | `skill` (back reference) |
+
+Notable field mappings and safeguards:
+
+- **`User.passwordHash` is deliberately absent** from the schema — there is no field
+  that could leak it, not even for an administrator. `User.sso` is backed by the
+  `isSSO()` getter (the property fetcher cannot derive it from the field name).
+- **Component `source`** keeps its name but is backed by the component's producing
+  `nodeKind` (the DB column was split into `node_kind` / `producer_version`).
+- **`Skill.activeVersionNumber`** is a transient projection populated when the skill
+  is loaded together with its active version.
+- **`MemoryEntry.body`** is `null` on entries returned by an index query, which does
+  not project the body.
+
+### 3.4 Custom Scalars
 
 | Scalar | Implementation | Use Case |
 |--------|----------------|----------|
-| `Long` | `LoomGraphQLProvider.LONG_SCALAR` | File sizes exceeding 32-bit integer range |
+| `Long` | `LoomScalars.LONG` | 64-bit integers (file sizes, byte counts) beyond the 32-bit `Int` range |
+| `DateTime` | `LoomScalars.DATE_TIME` | `Instant` timestamps, serialized as ISO-8601 in UTC (e.g. `2024-05-01T12:00:00Z`) |
+| `Json` | `LoomScalars.JSON` | Arbitrary JSON (`meta` on most elements, `definition` on a pipeline version); unwraps Vert.x `JsonObject`/`JsonArray` |
 
-The `Long` scalar handles serialization, parsing values, and parsing literals for 64-bit integers.
+The scalars are registered in `LoomGraphQLProvider.buildWiring()`; every scalar
+declared in the SDL must be registered or schema generation fails. `Json` literals
+are rejected — pass JSON through a query variable instead.
 
 ---
 
 ## 4. Data Fetchers & Resolvers
 
-### 4.1 Query-Level Fetchers
+Data fetchers live in the per-domain `AbstractDomainWiring` subclasses
+([§2.4](#24-wiring-layout)). Each `Query` fetcher calls `requirePermission(env, …)`
+first, parses its arguments (UUIDs via `uuidArg()`, which raises `BAD_USER_INPUT` on
+a malformed value), then delegates to a DAO method.
 
-| Fetcher | Source | DAO Method |
-|---------|--------|------------|
-| `asset` | `Query.asset` | `AssetDao.load(UUID)` |
-| `assets` | `Query.assets` | `AssetDao.findAll()` |
+### 4.1 Representative Query Fetchers
 
-### 4.2 Asset Field Resolvers
+| Fetcher | DAO Method |
+|---------|------------|
+| `asset` | `AssetDao.load(UUID)` |
+| `assetBySha512` | `AssetDao.loadBySHA512(SHA512)` |
+| `assetLocations(assetUuid)` | `AssetLocationDao.findForAsset(UUID)` (or `findAll()` when no arg) |
+| `users` / `groups` / `roles` | `UserDao/GroupDao/RoleDao.findAll()` |
+| `pipelineVersions` | `PipelineVersionDao.loadByPipeline(UUID)` |
+| `pipelineRuns(status)` | `PipelineRunDao.loadByStatus(String)` / `loadByPipeline(UUID)` |
+| `skillVersionByNumber` | `SkillVersionDao.loadBySkillAndVersion(UUID, int)` |
+| `memoryEntries` | `MemoryEntryDao.listByScope(scope, uuid, prefix, limit)` |
+| `memoryDenyRules(enabledOnly)` | `MemoryDenyRuleDao.loadEnabled()` / `findAll()` |
 
-| Field | Fetcher Logic | DAO Method |
-|-------|---------------|------------|
-| `locations` | Filter by `assetUuid` | `AssetLocationDao.findAll()` + stream filter |
-| `imageComponents` | Load by asset UUID | `AssetComponentDao.loadImageComps(UUID)` |
-| `videoComponents` | Load by asset UUID | `AssetComponentDao.loadVideoComps(UUID)` |
-| `audioComponents` | Load by asset UUID | `AssetComponentDao.loadAudioComps(UUID)` |
-| `sha512` | Convert to string | `Asset.getSHA512().toString()` |
-| `sha256` | Convert to string | `Asset.getSHA256().toString()` |
-| `md5` | Convert to string | `Asset.getMD5().toString()` |
+### 4.2 Relation Resolvers
 
-### 4.3 ImageComponent Field Resolvers
+Relation fields (e.g. `Asset.locations`, `Group.users`, `Pipeline.latestVersion`,
+`Skill.activeVersion`) each re-check their own permission and resolve through the
+owning DAO. Back references (`AssetLocation.asset`, `PipelineVersion.pipeline`,
+`SkillVersion.skill`) load the parent by its foreign-key UUID, returning `null` when
+unset. `Asset.locations` now uses the indexed `AssetLocationDao.findForAsset(UUID)`
+lookup rather than the previous `findAll()` + in-memory filter.
+
+### 4.3 Component Field Resolvers
 
 | Field | Fetcher Logic |
 |-------|---------------|
-| `dominantColor` | `AssetImageComp.getImageDominantColor()` |
-| `width` | `AssetImageComp.getMediaWidth()` |
-| `height` | `AssetImageComp.getMediaHeight()` |
+| `ImageComponent.source` / `VideoComponent.source` / `AudioComponent.source` | `AssetComponent.getNodeKind()` |
+| `ImageComponent.dominantColor` | `AssetImageComp.getImageDominantColor()` |
+| `ImageComponent.width` | `AssetImageComp.getMediaWidth()` |
+| `ImageComponent.height` | `AssetImageComp.getMediaHeight()` |
 
 ---
 
@@ -238,30 +258,22 @@ The `Long` scalar handles serialization, parsing values, and parsing literals fo
 
 ### 5.1 Dagger Integration
 
-The `LoomGraphQLProvider` is a `@Singleton` Dagger component that receives
-`DaoCollection` via `@Inject` constructor injection. It is defined in the
-service module but **not yet wired** into the HTTP endpoint routing.
+The `LoomGraphQLProvider` is a `@Singleton` that receives `DaoCollection` via
+`@Inject` constructor injection and eagerly builds the `GraphQL` engine (schema +
+merged wiring) at construction. It is consumed by `GraphQLEndpoint`, which registers
+the HTTP route.
 
-### 5.2 Missing: HTTP Endpoint Registration
+### 5.2 HTTP Endpoint Registration
 
-To expose the GraphQL API, the following needs to be implemented:
+`GraphQLEndpoint` (in `loom-service-rest`) exposes the API at **`POST /api/v1/graphql`**:
 
-1. **GraphQL Endpoint Handler** - Vert.x `Handler<RoutingContext>` that:
-   - Accepts `POST /graphql` with JSON body `{ "query": "...", "variables": {...} }`
-   - Calls `provider.graphQL().execute(ExecutionInput.newExecutionInput().query(query).variables(variables).build())`
-   - Returns JSON response with `data` and `errors` fields
+- Accepts a JSON body `{ "query": "...", "variables": {...}, "operationName": "..." }`.
+- Calls `secure(basePath())` in `register()` to attach the shared JWT/OAuth2 auth handler.
+- Resolves the caller's permissions once via `LoomRoutingContext.permissionChecker()`,
+  then passes a synchronous `GraphQLPermissionChecker` into the execution context.
+- Returns `ExecutionResult.toSpecification()` as JSON (`data` + `errors`).
 
-2. **Route Registration** - In `EndpointModule` or `RESTService`:
-   ```java
-   router.post("/graphql").handler(graphQLHandler);
-   ```
-
-3. **Authentication** - Apply `LoomAuthenticationHandler` (same as REST):
-   ```java
-   router.post("/graphql").handler(authHandler).handler(graphQLHandler);
-   ```
-
-4. **CORS** - Configure for GraphQL endpoint (same as REST)
+CORS for the GraphQL route is still outstanding (see [§12.2](#122-in-progress-)).
 
 ### 5.4 Authentication & Authorization
 
@@ -284,11 +296,13 @@ endpoint resolves the caller's authorizations once via
 `requirePermission(env, <Permission>)`, mirroring `requirePerm(...)` on the REST
 side:
 
-| Field | Required permission |
-|-------|---------------------|
-| `Query.asset`, `Query.assets` | `READ_ASSET` |
-| `Asset.imageComponents` / `videoComponents` / `audioComponents` | `READ_ASSET` |
-| `Asset.locations` | `READ_ASSET_LOCATION` |
+The permission required by each query field is listed in the [§3.2](#32-query-root)
+tables. Relation fields re-check their own permission, which may differ from the
+parent's — e.g. `User.groups` needs `READ_GROUP` even though `Query.user` only needs
+`READ_USER`, and `Asset.locations` needs `READ_ASSET_LOCATION`. The full permission
+domains covered are: `READ_ASSET`, `READ_ASSET_LOCATION`, `READ_USER`, `READ_GROUP`,
+`READ_ROLE`, `READ_PIPELINE`, `READ_PIPELINE_VERSION`, `READ_PIPELINE_RUN`,
+`READ_SKILL`, `READ_SKILL_VERSION`, `READ_MEMORY`, `READ_MEMORY_DENY_RULE`.
 
 **Error semantics.** A denied field throws a `GraphqlErrorException` surfaced in
 `ExecutionResult.getErrors()` with a `code` extension:
@@ -296,6 +310,8 @@ side:
 - Missing/absent permission checker → `{ "code": "UNAUTHENTICATED" }`
 - Authenticated but lacking the permission →
   `{ "code": "FORBIDDEN", "permission": "READ_ASSET" }`
+- A malformed UUID or unparseable scope argument →
+  `{ "code": "BAD_USER_INPUT", "argument": "uuid" }`
 
 Because list fields such as `locations` are declared non-null (`[AssetLocation!]!`),
 a denial null-propagates up to the nearest nullable parent (the `asset`), per the
@@ -305,11 +321,21 @@ The `loom-service-graphql` module stays free of any auth dependency: it only
 references the `Permission` enum from `loom-db-api` and the transport-supplied
 `GraphQLPermissionChecker` callback.
 
-### 5.3 Missing: GraphiQL / Playground
+### 5.3 GraphiQL / Playground
 
-For development, a GraphiQL endpoint should be added:
-- `GET /graphql` → serves GraphiQL HTML (when `Accept: text/html`)
-- Or separate `/graphiql` endpoint
+A GraphiQL explorer is now provided in two places:
+
+- **Loom server (live).** The server bundles a GraphiQL IDE and serves it as static resources at
+  **`GET /graphiql`** (redirects to `/graphiql/`), registered without authentication in
+  `UIService.start()` (classpath resources under `loom/services/rest/src/main/resources/graphiql/`).
+  The IDE shell is public; it POSTs queries to the secured `POST /api/v1/graphql` with
+  `credentials: 'include'`, so introspection and execution succeed only for a caller whose session
+  cookie (set by logging in at `/ui/`) carries a valid token.
+- **Website (static / offline).** The customer docs site embeds the same GraphiQL bundle on the
+  *GraphQL API* page (`docs/loom/graphql-api/`). It builds the schema in-browser from the staged SDL
+  (`website/static/docs/examples/schema.graphql`) so the docs explorer, autocomplete and validation
+  work with no backend; live query execution is disabled by default (a `data-graphql-url` attribute
+  can point it at a running endpoint). See `spec/website/WEBSITE.md`.
 
 ---
 
@@ -384,6 +410,78 @@ query GetAssetImages($uuid: ID!) {
 }
 ```
 
+### 6.4 User with Groups and Roles
+
+```graphql
+query GetUser($uuid: ID!) {
+  user(uuid: $uuid) {
+    uuid
+    username
+    email
+    enabled
+    groups {
+      uuid
+      name
+      roles { uuid name }
+    }
+  }
+}
+```
+
+### 6.5 Pipeline with Latest Version and Runs
+
+```graphql
+query GetPipeline($uuid: ID!) {
+  pipeline(uuid: $uuid) {
+    uuid
+    latestVersion {
+      versionNumber
+      name
+      enabled
+      definition
+    }
+    runs {
+      uuid
+      status
+      successCount
+      failureCount
+      started
+    }
+  }
+}
+```
+
+### 6.6 Skill with Active and All Versions
+
+```graphql
+query GetSkill($uuid: ID!) {
+  skill(uuid: $uuid) {
+    uuid
+    name
+    activeVersionNumber
+    activeVersion { versionNumber content }
+    versions { versionNumber description }
+  }
+}
+```
+
+### 6.7 Memory Entries in a Scope
+
+```graphql
+query ListMemory($scope: MemoryScope!, $scopeUuid: ID!) {
+  memoryEntries(scope: $scope, scopeUuid: $scopeUuid, prefix: "projects/") {
+    memoryId
+    title
+    size
+    version
+  }
+  memoryStats(scope: $scope, scopeUuid: $scopeUuid) {
+    count
+    bytes
+  }
+}
+```
+
 ---
 
 ## 7. Test Setup
@@ -404,26 +502,56 @@ cd loom/services/graphql
 mvn test
 ```
 
-### 7.2 Test Coverage
+### 7.2 Integration Tests (per domain element)
 
-| Test | Coverage |
-|------|----------|
-| `testQueryAssetByUuid` | Single asset query with basic fields |
-| `testQueryAssetNotFound` | Non-existent asset returns null |
-| *Missing* | Nested component queries |
-| *Missing* | List all assets query |
-| *Missing* | Error handling (malformed queries) |
-| *Missing* | Variable coercion (Long scalar) |
+End-to-end tests run against a live server plus a real (pooled) database in
+`loom-core`, under `io.metaloom.loom.core.endpoint.graphql`. There is **one test
+class per domain element**, all extending a shared base:
 
-### 7.3 Integration Test Setup (Future)
+| Class | Coverage |
+|-------|----------|
+| `AbstractGraphQLTest` | Base class: query execution helpers (`query`, `data`), response assertions (`assertNoErrors`, `assertHasErrors`, `assertErrorCode`, `assertForbidden`), `loginPermissionlessClient()` / `assertRetrievalForbidden(...)` for the security contract, data-tree navigation (`object`, `list`) and a `daos()` accessor for seeding fixtures. Implements `GraphQLSecurityTestcases` |
+| `GraphQLSecurityTestcases` | Interface contract enforcing that every domain test provides `testIndividualRetrievalRequiresPermission()` and `testListRetrievalRequiresPermission()` — see below |
+| `AssetGraphQLTest` | Asset by uuid / sha512, list, locations (+ back reference), `assetLocations(assetUuid)`, not-found → null, malformed uuid → `BAD_USER_INPUT` |
+| `UserGraphQLTest` | User by uuid / username, list, `groups` relation, not-found, `passwordHash` is not in the schema, `READ_GROUP` field guard |
+| `GroupGraphQLTest` | Group by uuid / name, list, `users` + `roles` relations |
+| `RoleGraphQLTest` | Role by uuid / name, list, not-found, `READ_ROLE` `FORBIDDEN`, unauthenticated → `401` |
+| `PipelineGraphQLTest` | Pipeline with `latestVersion`, list, versions (+ back reference), version by number, runs, runs by status, `latestPipelineRun` |
+| `SkillGraphQLTest` | Skill by uuid, `activeVersion` / `latestVersion`, versions, version by number, `latestSkillVersion`, list |
+| `MemoryGraphQLTest` | Memory entry by uuid / path, `memoryEntries` + prefix, `memoryStats`, deny rules (`enabledOnly`), invalid scope |
 
-When HTTP endpoint is implemented:
-1. Start test database (Testcontainers PostgreSQL)
-2. Run Flyway migrations
-3. Insert test assets via DAO
-4. Deploy Vert.x server with GraphQL endpoint
-5. Execute HTTP POST requests against `/graphql`
-6. Validate JSON responses
+The fixture already provisions assets and the ACL graph (admin + joedoe, the
+`test-group`/`test-role`); pipeline, skill and memory tests seed their own data
+through `daos()`. The `admin` user carries every permission; `joedoe` carries only
+`READ_USER` and is used to exercise the field-level authorization guards.
+
+**Enforced security contract.** `AbstractGraphQLTest implements
+GraphQLSecurityTestcases` but leaves its two `@Test` methods abstract, so the
+compiler forces **every** domain test class to provide
+`testIndividualRetrievalRequiresPermission()` and
+`testListRetrievalRequiresPermission()`. A new domain test class cannot be added
+without asserting that its individual *and* list retrieval queries are permission-
+guarded. Each such test logs in via `loginPermissionlessClient()` — a freshly
+provisioned user holding **no** permissions — and asserts every retrieval query of
+its domain is rejected with a `FORBIDDEN` error naming the exact read permission
+(`assertRetrievalForbidden(client, Permission.READ_*, query)`). Because
+`requirePermission(...)` runs before any DAO access, these tests need no seeded data
+— a random UUID argument suffices.
+
+The pre-existing `GraphQLEndpointTest` still covers the raw endpoint mechanics
+(variables, nested components, invalid-query errors).
+
+**Running the integration tests** (requires the test DB pool — run `./setup-pool.sh`
+first):
+```bash
+mvn -pl loom/core -Dtest='*GraphQLTest' test
+```
+
+### 7.3 Unit Test Coverage
+
+`LoomGraphQLProviderTest` (mocked DAOs) covers: single asset query, not-found →
+null, nested components, list query, malformed query, unauthenticated and
+without-permission denials, and field-level permission null-propagation.
 
 ---
 
@@ -454,8 +582,11 @@ database configuration from `DaoCollection` / `LoomOptions`.
 ### 9.1 Schema-First Approach
 
 - Schema is defined in SDL (`loom.graphqls`), not programmatically
-- Changes to schema require updating the SDL file AND corresponding DataFetchers
-- The `Long` scalar must be registered in `RuntimeWiring` (done in `buildWiring()`)
+- Changes to schema require updating the SDL file AND the DataFetchers in the owning
+  `AbstractDomainWiring` subclass
+- Every custom scalar (`Long`, `DateTime`, `Json`) must be registered in
+  `RuntimeWiring` (done in `LoomGraphQLProvider.buildWiring()`); a declared-but-
+  unregistered scalar fails schema generation at boot
 
 ### 9.2 DAO Access Pattern
 
@@ -465,27 +596,27 @@ database configuration from `DaoCollection` / `LoomOptions`.
 
 ### 9.3 N+1 Problem
 
-**Current implementation has N+1 issues:**
-- `asset` query → 1 DAO call
-- `asset.locations` → 1 DAO call (`findAll()` + filter in memory)
-- `asset.imageComponents` → 1 DAO call per asset
-- `asset.videoComponents` → 1 DAO call per asset
-- `asset.audioComponents` → 1 DAO call per asset
+**Current implementation has N+1 issues.** Each relation field on a list element
+fires its own DAO call — e.g. an `assets { locations imageComponents … }` query
+issues one call per asset per selected relation, a `pipelines { versions runs }`
+query one `loadByPipeline` per pipeline per relation, and so on. `Asset.locations`
+now uses the indexed `AssetLocationDao.findForAsset(UUID)` (no more `findAll()` +
+in-memory filter), but the per-element fan-out remains.
 
-**For `assets` list query:** Each asset triggers 4 additional DAO calls.
-**Fix:** Use DataLoader pattern or batch loading in future.
+**Fix:** Use the DataLoader pattern / batch loading in future.
 
 ### 9.4 Error Handling
 
 - GraphQL Java returns errors in `ExecutionResult.getErrors()`
 - DAO exceptions bubble up as GraphQL errors
-- Authorization failures carry a `code` extension (`UNAUTHENTICATED` / `FORBIDDEN`); other errors have no custom extensions yet (see [§5.4](#54-authentication--authorization))
+- Authorization failures carry a `code` extension (`UNAUTHENTICATED` / `FORBIDDEN`); bad arguments (malformed UUID / unknown scope) carry `BAD_USER_INPUT`; other errors have no custom extensions yet (see [§5.4](#54-authentication--authorization))
 
 ### 9.5 UUID Handling
 
 - GraphQL `ID` type maps to Java `UUID`
-- Arguments parsed as `String`, converted via `UUID.fromString()`
-- No validation for malformed UUIDs (throws `IllegalArgumentException`)
+- Arguments are parsed via `AbstractDomainWiring.uuidArg()`, which converts with
+  `UUID.fromString()` and raises a `BAD_USER_INPUT` GraphQL error on a malformed
+  value (rather than leaking a raw `IllegalArgumentException`)
 
 ---
 
@@ -494,10 +625,15 @@ database configuration from `DaoCollection` / `LoomOptions`.
 | Concept | File Path |
 |---------|-----------|
 | GraphQL Provider (main class) | `loom/services/graphql/src/main/java/io/metaloom/loom/graphql/LoomGraphQLProvider.java` |
+| Domain wirings | `loom/services/graphql/src/main/java/io/metaloom/loom/graphql/{Asset,Acl,Pipeline,Skill,Memory}Wiring.java` |
+| Wiring base + arg/permission helpers | `loom/services/graphql/src/main/java/io/metaloom/loom/graphql/AbstractDomainWiring.java` |
+| Custom scalars | `loom/services/graphql/src/main/java/io/metaloom/loom/graphql/LoomScalars.java` |
 | SDL Schema | `loom/services/graphql/src/main/resources/loom.graphqls` |
-| Unit Tests | `loom/services/graphql/src/test/java/io/metaloom/loom/graphql/LoomGraphQLProviderTest.java` |
+| HTTP endpoint | `loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/GraphQLEndpoint.java` |
+| Provider unit tests | `loom/services/graphql/src/test/java/io/metaloom/loom/graphql/LoomGraphQLProviderTest.java` |
+| Per-domain integration tests | `loom/core/src/test/java/io/metaloom/loom/core/endpoint/graphql/` |
+| Staged docs SDL (website) | `website/static/docs/examples/schema.graphql` |
 | Maven Config | `loom/services/graphql/pom.xml` |
-| Parent Services POM | `loom/services/pom.xml` |
 | Loom Module Layout | [LOOM.md](LOOM.md#2-module-layout) |
 | REST API (for comparison) | [RESTAPI.md](RESTAPI.md) |
 | Database/DAO Layer | [PERSISTENCE.md](PERSISTENCE.md) |
@@ -520,13 +656,22 @@ database configuration from `DaoCollection` / `LoomOptions`.
 ### 12.1 Completed ✅
 
 - [x] GraphQL schema defined in SDL (`loom.graphqls`)
-- [x] `LoomGraphQLProvider` builds executable schema
-- [x] Custom `Long` scalar for 64-bit integers
-- [x] Query root: `asset(uuid)`, `assets`
-- [x] Asset type with all fields (including hash fields)
+- [x] `LoomGraphQLProvider` builds executable schema from per-domain wirings
+- [x] Custom scalars: `Long`, `DateTime`, `Json`
+- [x] Query root covers **assets** (+ locations), **users / groups / roles**,
+      **pipelines** (+ versions / runs), **skills** (+ versions), **memory** (entries,
+      stats, deny rules) — retrieval only
+- [x] Relation / back-reference resolvers across all domains (e.g. `User.groups`,
+      `Pipeline.latestVersion`, `Skill.activeVersion`, `AssetLocation.asset`)
+- [x] Field-level permission checks per domain (each relation re-checks its own permission)
+- [x] `BAD_USER_INPUT` on malformed UUID / scope arguments
 - [x] Nested types: `AssetLocation`, `ImageComponent`, `VideoComponent`, `AudioComponent`
-- [x] DataFetchers wired to `DaoCollection` (AssetDao, AssetLocationDao, AssetComponentDao)
+- [x] DataFetchers wired to `DaoCollection` (all read DAOs)
 - [x] Unit tests with mocked DAOs
+- [x] Per-domain integration tests (`AbstractGraphQLTest` + one class per element)
+- [x] Compiler-enforced permission-check contract (`GraphQLSecurityTestcases`): every
+      domain test proves its individual + list retrieval queries return `FORBIDDEN`
+      without the read permission
 - [x] Maven module builds successfully
 
 ### 12.2 In Progress 🚧
@@ -544,16 +689,14 @@ database configuration from `DaoCollection` / `LoomOptions`.
   - Invalid query error handling
 - [x] Authentication integration (JWT/OAuth2 like REST) + field-level permission checks
 - [ ] CORS configuration for GraphQL endpoint
-- [ ] GraphiQL / Playground for development
+- [x] GraphiQL / Playground for development (live at `GET /graphiql` on the server; static explorer on the website — see [§5.3](#53-graphiql--playground))
 
 ### 12.3 Planned / TODO 📋
 
+- [ ] Mutations (writes still go through the REST API)
+- [ ] Pagination for the list queries (currently unbounded `findAll()`)
 - [ ] DataLoader / batch loading to fix N+1 problem
 - [ ] Query depth/complexity limiting (DoS protection)
-- [ ] Custom error extensions with error codes
-- [ ] Input validation for UUID arguments
-- [ ] Integration tests with Testcontainers
-- [ ] Schema introspection endpoint
 - [ ] Subscriptions (WebSocket) for real-time updates
 - [ ] Apollo Federation / schema stitching (if microservices)
 - [ ] Metrics / tracing (OpenTelemetry)
@@ -573,6 +716,14 @@ When migrating REST clients to GraphQL:
 | `GET /api/v1/assets` | `query { assets { ... } }` |
 | `GET /api/v1/assets/:uuid/locations` | `query { asset(uuid: "...") { locations { ... } } }` |
 | `GET /api/v1/assets/:uuid/components` | `query { asset(uuid: "...") { imageComponents { ... } videoComponents { ... } audioComponents { ... } } }` |
+| `GET /api/v1/users/:uuid` | `query { user(uuid: "...") { ... groups { roles { ... } } } }` |
+| `GET /api/v1/groups`, `GET /api/v1/roles` | `query { groups { ... } roles { ... } }` |
+| `GET /api/v1/pipelines/:uuid` (+ versions, runs) | `query { pipeline(uuid: "...") { latestVersion { ... } versions { ... } runs { ... } } }` |
+| `GET /api/v1/skills/:uuid` (+ versions) | `query { skill(uuid: "...") { activeVersion { ... } versions { ... } } }` |
+| `GET /api/v1/memory/...` | `query { memoryEntries(scope: USER, scopeUuid: "...") { ... } }` |
+
+> Writes have **no** GraphQL equivalent yet — the schema is read-only, so mutations
+> (create/update/delete) still use the REST endpoints.
 
 GraphQL advantages:
 - Single request for nested data (no waterfall requests)

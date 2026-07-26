@@ -44,4 +44,9 @@ public interface GroupDao extends CRUDDao<Group> {
 	 */
 	List<Group> loadGroupsForUser(UUID userUuid);
 
+	/**
+	 * Load all users which are members of the given group. Returns an empty list for an unknown group.
+	 */
+	List<User> loadUsersForGroup(UUID groupUuid);
+
 }

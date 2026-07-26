@@ -1,0 +1,18 @@
+<configuration>
+	<!-- Logs are diagnostics, not output: they go to stderr so they never contaminate a
+	     piped JSON stdout. The level is set programmatically from the verbosity flags. -->
+	<appender name="STDERR" class="ch.qos.logback.core.ConsoleAppender">
+		<target>System.err</target>
+		<encoder>
+			<pattern>%-5level %logger{20} - %msg%n</pattern>
+		</encoder>
+	</appender>
+
+	<!-- OkHttp and Netty are chatty at DEBUG and say nothing a CLI user wants. -->
+	<logger name="okhttp3" level="WARN" />
+	<logger name="io.netty" level="WARN" />
+
+	<root level="WARN">
+		<appender-ref ref="STDERR" />
+	</root>
+</configuration>

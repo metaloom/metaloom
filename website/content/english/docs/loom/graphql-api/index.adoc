@@ -1,0 +1,89 @@
+---
+title: GraphQL API
+---
+
+Loom exposes a GraphQL API for flexible, nested queries over the asset data model — fetch an asset
+together with its components and locations in a single request, selecting exactly the fields you
+need.
+
+== Endpoint
+
+----
+POST http://<host>:8092/api/v1/graphql
+----
+
+The endpoint accepts a JSON body with `query`, and optional `operationName` and `variables` fields,
+and returns the standard GraphQL `{ "data": ..., "errors": ... }` response shape.
+
+== Authentication & Authorization
+
+The GraphQL endpoint reuses the REST authentication stack — a valid JWT bearer token (HttpOnly
+cookie or `Authorization` header) is required; unauthenticated requests are rejected with `401`
+before the query is parsed. Obtain a token via the link:../authentication[Authentication] flow.
+
+Authorization is enforced per field. Each resolver checks the caller's permissions:
+
+[options="header",cols="2,1"]
+|===
+| Field | Required permission
+| `Query.asset`, `Query.assets` | `READ_ASSET`
+| `Asset.imageComponents` / `videoComponents` / `audioComponents` | `READ_ASSET`
+| `Asset.locations` | `READ_ASSET_LOCATION`
+|===
+
+A denied field surfaces a GraphQL error with a `code` extension (`UNAUTHENTICATED` when no
+permission context is present, `FORBIDDEN` with the missing `permission` otherwise).
+
+== Interactive Explorer (GraphiQL)
+
+The GraphiQL explorer below is loaded with the Loom schema so you can browse every type and field
+via the *Docs* panel (top-left) and compose queries with autocomplete and validation.
+
+NOTE: This embedded explorer is *schema-only* — it runs against the published static schema, so the
+*Execute* button does not return live data here. To run real queries, start a Loom server (for
+example the demo container) and open its built-in GraphiQL at `+http://<host>:8092/graphiql+`, which
+executes authenticated queries against `/api/v1/graphql`.
+
+++++
+<div id="graphiql" style="height: 70vh;"></div>
+++++
+
+== Example Queries
+
+Fetch a single asset with all of its components and locations:
+
+[source,graphql]
+----
+query GetAsset($uuid: ID!) {
+  asset(uuid: $uuid) {
+    uuid
+    filename
+    mimeType
+    size
+    imageComponents { uuid dominantColor width height }
+    videoComponents { uuid source }
+    audioComponents { uuid source }
+    locations { uuid path libraryUuid mimeType }
+  }
+}
+----
+
+List all assets with a minimal field selection:
+
+[source,graphql]
+----
+query ListAssets {
+  assets {
+    uuid
+    filename
+    mimeType
+    size
+  }
+}
+----
+
+== See Also
+
+* link:rest-api[REST API Reference] — the primary external API with full CRUD.
+* link:java-client[Java Client] — typed JVM HTTP client.
+* link:authentication[Authentication] — obtaining a bearer token.

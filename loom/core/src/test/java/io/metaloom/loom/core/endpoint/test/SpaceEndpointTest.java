@@ -3,6 +3,7 @@ package io.metaloom.loom.core.endpoint.test;
 import static io.metaloom.loom.rest.model.assertj.Assertions.assertThat;
 
 import io.metaloom.loom.client.common.LoomClientException;
+import io.metaloom.loom.client.common.LoomClientRequest;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.endpoint.AbstractCRUDEndpointTest;
 import io.metaloom.loom.rest.model.space.SpaceCreateRequest;
@@ -52,6 +53,28 @@ public class SpaceEndpointTest extends AbstractCRUDEndpointTest {
 		}
 		SpaceListResponse list = client.listSpaces().sync().body();
 		assertThat(list).isValid().hasSize(25).hasPerPage(25);
+	}
+
+	@Override
+	protected LoomClientRequest<?> createRequest(LoomHttpClient client) {
+		SpaceCreateRequest request = new SpaceCreateRequest();
+		request.setName("perm-check");
+		return client.createSpace(request);
+	}
+
+	@Override
+	protected LoomClientRequest<?> loadRequest(LoomHttpClient client) {
+		return client.loadSpace(PROJECT_UUID);
+	}
+
+	@Override
+	protected LoomClientRequest<?> listRequest(LoomHttpClient client) {
+		return client.listSpaces();
+	}
+
+	@Override
+	protected LoomClientRequest<?> deleteRequest(LoomHttpClient client) {
+		return client.deleteSpace(PROJECT_UUID);
 	}
 
 }

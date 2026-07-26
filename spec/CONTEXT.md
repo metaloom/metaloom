@@ -1,144 +1,233 @@
 # MetaLoom — Project Context for AI Coding Agents
 
-This document serves as the **entry point** for AI coding agents working on the MetaLoom project. It provides a comprehensive overview of the project structure, all specification files, and key information for each sub-component to help agents quickly find the right context when handling coding tasks.
+This document is the **entry point** for AI coding agents working on MetaLoom. It catalogues
+**every** file under `spec/`, tells you which one to open for a given task, and carries the
+project-wide conventions, cheat sheets and gotchas.
 
-> **Last Updated**: 2026-07-18
 > **Project Root**: `/home/defaultuser/workspaces/metaloom/metaloom`
+> **Spec root**: [spec/](.) — you are here.
+
+---
+
+## 0. Read This First
+
+### 0.1 Mandatory rules
+
+Two files are **rules, not background**. Read them before you write code or edit a spec.
+
+| File | What it binds you to |
+|------|----------------------|
+| [guidelines/CODING.md](guidelines/CODING.md) | **Definition of done for a code change.** REST path naming + endpoint & permission tests, DAO tests incl. delete-cascade, customer-facing website docs, demo data, and the spec-sync obligation. Summarised in §0.2 — the file is the authority. |
+| [SPEC_RULES.md](SPEC_RULES.md) | **Definition of done for a spec change.** Every spec file must carry progress checkboxes, a Key Classes Reference table, cross-references, diagrams, env-var tables, a Conventions & Gotchas section, a "Where do I find…?" cheat sheet, and a footer with the git HEAD revision and date. |
+
+### 0.2 `guidelines/CODING.md` in one table
+
+These apply to *every* change, in addition to whatever the feature spec says.
+
+| Area | Rule | Practical consequence |
+|------|------|-----------------------|
+| **REST** | Paths with methods are always **plural** (`/chat-sessions`, `/sessions`, `/node-results`) | Renaming a path is a breaking change — also update `loom-client/`, `loom-ui/src/api/`, and the OpenAPI docs |
+| **REST** | Every endpoint implementation is covered by a `*EndpointTest` (e.g. `UserEndpointTest`) | A new endpoint without an endpoint test is unfinished |
+| **REST** | Add **permission test cases** asserting fine-grained permission handling | See [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md); grant test permissions via group+role, not direct user grants |
+| **DAO** | Every DAO implementation is covered by tests | Contract tests live in `loom/db/api-test`, impl tests in `loom/db/jooq/src/test/` |
+| **DAO** | `delete` must have **delete-cascade tests** asserting only the targeted elements are removed | A cascade that over-deletes is the failure mode these tests exist to catch |
+| **Docs** | New **customer-facing** features go into `website/content/english/docs` — no spec-file mentions, no internal coding references, customer-facing tone | See [website/WEBSITE.md](website/WEBSITE.md) |
+| **Demo** | New features need meaningful default demo data | `DemoDatabaseInitializer` (`loom/core/.../boot/`) |
+| **Spec** | Changing a feature **must** update the corresponding spec file | Keeps these guides in sync; the code always wins on conflict |
+
+### 0.3 Reading order for a new task
+
+```
+CONTEXT.md (this file)
+   ├─ guidelines/CODING.md ......... rules that apply to the change itself
+   ├─ METALOOM.md .................. big-picture module layout
+   ├─ cortex/METALOOM_ARCHITECTURE.md ... plain-language Loom↔Cortex model
+   └─ the feature spec for your area (§2)
+          └─ the component spec it references (loom/… or cortex/…)
+                 └─ the *_TASKS.md file if you are picking up queued work
+```
+
+### 0.4 The one standing rule
+
+**The code is the source of truth.** Where a spec and the code disagree, the code wins — and you
+fix the spec in the same change (`guidelines/CODING.md` § Spec). Specs in this tree carry a
+verification date in their footer; treat anything older than the last relevant commit as a claim
+to re-check, not a fact.
 
 ---
 
 ## 1. Project Overview
 
-MetaLoom is a **Digital Asset Management (DAM) platform** consisting of two main runtime components that share common libraries:
+MetaLoom is a **Digital Asset Management (DAM) platform**: point it at media and it works out what
+is in it — hashes, faces, transcripts, thumbnails, text, quality metrics — then stores, indexes and
+exposes that.
 
 | Component | Role | Location |
 |-----------|------|----------|
-| **Loom** | Backend service (REST/gRPC/GraphQL API, DB, auth, storage, MCP) | `loom/` |
-| **Cortex** | Processing node (hashing, fingerprint, facedetect, LLM, ASR, etc.) | `cortex/` |
+| **Loom** | Backend service: REST/gRPC/GraphQL API, DB, auth, storage, MCP, pipeline engine, AI agent | `loom/` |
+| **Cortex** | Worker process: executes node tasks dispatched by Loom (hashing, fingerprint, facedetect, ASR, LLM, …) | `cortex/` |
+| **CLI** | PicoCLI + Dagger client for Loom, shipped as a GraalVM native image | `cli/` |
 | **loom-ui** | React/Vite/MUI web front end | `loom-ui/` |
 | **loom-app** | Electron desktop wrapper around the UI | `loom-app/` |
-| **website** | Hugo-based documentation website | `website/` |
+| **website** | Hugo-based marketing + customer documentation site | `website/` |
 
-### Top-Level Reactor Modules (from `pom.xml`)
+### 1.1 Top-level reactor modules (`pom.xml`)
 
 ```
-bom, loom-test-env, loom-shared, loom-client,
-cortex, loom, examples, integration-test, e2e-test, website
+bom, loom-test-env, loom-shared, loom-client, cortex, loom,
+cli, examples, integration-test, e2e-test, website
 ```
 
-### Key Technologies
+### 1.2 How the pieces talk
 
-- **Backend**: Vert.x 5, Dagger 2, jOOQ, Flyway, PostgreSQL
-- **Processing**: RxJava 3, OpenCV, InspireFace, whisper.cpp, Tesseract, Ollama
-- **Frontend**: React 18, Vite, TypeScript, MUI v5, React Flow
-- **Build**: Maven, Docker/Podman
-- **Testing**: JUnit 5, Testcontainers, Playwright (UI E2E)
+```mermaid
+graph TB
+    UI["loom-ui (React)"] -->|REST + WS| REST
+    CLI["cli/ (PicoCLI native)"] -->|REST| REST
+    subgraph LOOM["Loom (one central server)"]
+        REST["REST / WebSocket / gRPC / GraphQL / MCP"]
+        ENG["loom/pipeline: PipelineRunEngine<br/>owns the DAG, dispatches tasks"]
+        DB[("PostgreSQL<br/>jOOQ + Flyway")]
+        AG["loom/agent: chat, memory, sandbox"]
+        REST --- ENG
+        REST --- AG
+        ENG --- DB
+        REST --- DB
+    end
+    ENG -->|processor WebSocket<br/>SOURCE_TASK / NODE_TASK / SEGMENT_TASK| CX
+    subgraph CX["Cortex worker(s)"]
+        RT["cortex/node-runtime<br/>NodeTaskRunner"]
+        ND["cortex/nodes/*<br/>hash, facedetect, whisper, ocr, …"]
+        RT --- ND
+    end
+    CX -->|results: REST write-back + WS task results| REST
+```
+
+**Execution model (Variant C, built).** Loom owns the pipeline graph, persists run state, and
+dispatches individual source/node/segment tasks to registered Cortex workers over the processor
+WebSocket. Cortex holds no database and runs one task at a time per slot. See
+[cortex/METALOOM_ARCHITECTURE.md](cortex/METALOOM_ARCHITECTURE.md) and
+[cortex/METALOOM_ARCHITECTURE_V2_PLAN_C.md](cortex/METALOOM_ARCHITECTURE_V2_PLAN_C.md).
+
+### 1.3 Key technologies
+
+- **Backend**: Vert.x 5, Dagger 2, jOOQ, Flyway, PostgreSQL, RxJava 3
+- **CLI**: PicoCLI, Dagger 2, GraalVM native image
+- **Processing**: OpenCV, InspireFace, whisper.cpp, Tesseract, Apache Tika, Ollama, vLLM/llama.cpp
+- **Frontend**: React 18, Vite, TypeScript, MUI v5, React Flow, Recharts, i18next
+- **Build**: Maven, Docker/Podman, Hugo (website)
+- **Testing**: JUnit 5, Testcontainers, AssertJ (domain-specific asserts), Playwright (UI E2E)
 
 ---
 
-## 2. Specification Files Tree
+## 2. Specification Index — Every File Under `spec/`
 
 ```
 spec/
-├── AGENTS.md                    # (empty - agent customization placeholder)
-├── CONTEXT.md                   # THIS FILE - entry point for AI agents
-├── METALOOM.md                  # Top-level project context & architecture
-├── SPEC_RULES.md                # Rules for writing specifications
-├── TASKS.template.md            # Required format for *_TASKS.md files
-├── features/                    # Cross-cutting FEATURE specs (span Loom + Cortex + UI)
-│   ├── pipeline/                # The pipeline feature — canonical, 3 files only
-│   │   ├── PIPELINE.md          # Technical spec for AI agents (engine + persistence + protocol)
-│   │   ├── PIPELINE_REQUIREMENTS.md  # Non-technical requirements + verified gap status
-│   │   └── PIPELINE_TASKS.md    # Actionable work items (follows TASKS.template.md)
-│   └── pipeline-nodes/
-│       └── NODES.md             # Cortex node system: lifecycle, MetaStorage, per-node reference
-├── cortex/                      # Cortex processing node specifications
-│   ├── BUILD.md                 # Build, container, native dependencies
-│   ├── CONFIGURATION.md         # YAML config, CLI flags, env vars, per-node options
-│   ├── CORTEX.md                # General architecture, module map, startup lifecycle
-│   ├── METALOOM_ARCHITECTURE.md      # Plain-language Loom↔Cortex interaction (as built)
-│   ├── METALOOM_ARCHITECTURE_TASK.md # Work items for the interaction + scaling
-│   ├── METALOOM_ARCHITECTURE_V2_PLAN_C.md # Variant C: the record of the work
-│   └── METALOOM_ARCHITECTURE_V2_PLAN_C.md # Phased plan: move execution to Loom
-├── loom/                        # Loom backend service specifications
-│   ├── BUILD.md                 # Loom build pipeline
-│   ├── CONFIGURATION.md         # Configuration system
-│   ├── EVENTBUS.md              # Event bus systems (pipeline events, Vert.x EventBus, WS fan-out)
-│   ├── GRAPHQL.md               # (placeholder) GraphQL API
-│   ├── GRPC.md                  # gRPC API
-│   ├── LOOM.md                  # Overall architecture, module layout, startup lifecycle
-│   ├── MCP.md                   # Model Context Protocol server (AI tool integration)
-│   ├── PERSISTENCE.md           # Database layer, jOOQ DAOs, Flyway migrations
-│   ├── RESTAPI.md               # REST API endpoints, authentication, clients, OpenAPI
-│   ├── SERVER.md                # Server startup and lifecycle
-│   ├── WEBSOCKET.md             # Processor & pipeline-events WebSocket protocols
+├── AGENTS.md                          # One-liner: "read CONTEXT.md first"
+├── CONTEXT.md                         # ← THIS FILE — entry point for AI agents
+├── METALOOM.md                        # Big-picture module layout & framework map
+├── SPEC_RULES.md                      # RULES for writing spec files
+├── TASKS.md                           # Scratch task note (unstructured)
+├── TASKS.template.md                  # Required format for every *_TASKS.md file
+├── guidelines/
+│   └── CODING.md                      # RULES for writing code (REST/DAO/Docs/Demo/Spec)
+├── features/                          # Cross-cutting features (span Loom + Cortex + UI)
+│   ├── DB_SCHEMA_FEEDBACK.md          # Schema audit vs. node results; resolved items marked in place
+│   ├── chat/
+│   │   ├── CHAT_MEMORY_PLAN.md        # Agent memory bank (markdown notes) — implemented
+│   │   ├── CHAT_SESSIONS_CONCEPT.md   # Publishable chat sessions & context composition — concept
+│   │   └── CHAT_TASKS.md              # Backend chat tasks B1–B9 — all done, records outcomes
+│   ├── cli/
+│   │   └── CLI_PLAN.md                # The `cli/` module — implemented 2026-07-26 (see §14 there)
+│   ├── db/
+│   │   └── DATABASE_TASKS.md          # Schema work for node-result persistence (V2.38–V2.50)
+│   ├── ops/
+│   │   ├── METRICS.md                 # Prometheus /metrics on both components — implemented
+│   │   └── MONITORING.md              # Health & readiness endpoints
+│   ├── permissions/
+│   │   └── PERMISSIONS.md             # Authorization: RBAC model, taxonomy, enforcement points
+│   ├── pipeline/
+│   │   ├── PIPELINE.md                # Technical spec: engine, persistence, protocol, schemas
+│   │   ├── PIPELINE_REQUIREMENTS.md   # Non-technical requirements + gap status
+│   │   └── PIPELINE_TASKS.md          # Actionable pipeline work items
+│   ├── pipeline-nodes/
+│   │   ├── NODES.md                   # Cortex node system + per-node reference
+│   │   ├── NODE_VIDEO_CAPTIONING_PLAN.md    # Video captioning node design
+│   │   ├── NODE_VIDEO_CAPTIONING_REPORT.md  # Benchmark report (real runs, Qwen2.5-VL-7B)
+│   │   └── video-captioning-results/        # Raw benchmark data (JSON + RUN_ENV.txt)
+│   └── rbac/
+│       └── RBAC.md                    # RBAC reference incl. known enforcement gaps
+├── cortex/
+│   ├── BUILD.md                       # Maven modules, container image, native deps
+│   ├── CONFIGURATION.md               # YAML config, CLI flags, env vars, per-node options
+│   ├── CORTEX.md                      # Architecture, module map, startup lifecycle, CLI
+│   ├── METALOOM_ARCHITECTURE.md       # Plain-language Loom↔Cortex interaction (as built)
+│   ├── METALOOM_ARCHITECTURE_TASK.md  # Open architecture tasks (+ explicitly dropped ideas)
+│   └── METALOOM_ARCHITECTURE_V2_PLAN_C.md  # Variant C build record — COMPLETE
+├── loom/
+│   ├── BUILD.md                       # Loom build pipeline
+│   ├── CONFIGURATION.md               # LoomOptions, config file, env vars, validation
+│   ├── DOMAIN.md                      # Domain entities by group, derived from migrations
+│   ├── EVENTBUS.md                    # Pipeline events, Vert.x EventBus, WS fan-out
+│   ├── GRAPHQL.md                     # GraphQL API
+│   ├── GRPC.md                        # gRPC API (asset, health, reflection)
+│   ├── LOOM.md                        # Main entry point: architecture, modules, lifecycle, DI
+│   ├── MCP.md                         # Model Context Protocol server (AI tool integration)
+│   ├── PERSISTENCE.md                 # DAO layer, jOOQ, Flyway, test infrastructure
+│   ├── PERSISTENCE_TASKS.md           # Open persistence-layer gaps
+│   ├── RESTAPI.md                     # REST endpoints, auth, clients, OpenAPI
+│   ├── SERVER.md                      # Server startup & lifecycle
+│   ├── WEBSOCKET.md                   # Processor WS + pipeline-events WS protocols
 │   └── ui/
-│       ├── LOOM_UI.md           # Loom UI (React/Vite/MUI) specification
-│       └── PIPELINE_EDITOR.md   # Pipeline Editor: React Flow canvas, CRUD, validation
-└── tasks/
-    └── OLD_TASKS.md             # Historical task archive (superseded)
+│       ├── CHAT.md                    # Chat / Loom Agent: agentic loop, streaming, skills
+│       ├── LOOM_UI.md                 # Loom UI specification
+│       ├── PIPELINE_EDITOR.md         # Pipeline editor: React Flow canvas, CRUD, validation
+│       ├── TASK_UI_AI_ML.md           # UI gap tasks: embeddings, clusters, detections, persons
+│       ├── TASK_UI_ASSETS_MEDIA.md    # UI gap tasks: assets, locations, pools, attachments
+│       ├── TASK_UI_CHAT.md            # UI chat tasks U1–U8 — all done, records outcomes
+│       ├── TASK_UI_COLLABORATION.md   # UI gap tasks: tasks, comments, reactions
+│       ├── TASK_UI_IDENTITY_ACCESS.md # UI gap tasks: users, groups, roles, permissions, tokens
+│       ├── TASK_UI_ORGANIZATION.md    # UI gap tasks: collections, libraries, spaces, tags
+│       ├── TASK_UI_PIPELINE.md        # UI gap tasks: pipelines, runs, node tasks, editor
+│       └── TASK_UI_SYSTEM.md          # UI gap tasks: system info, monitoring, health
+├── tasks/
+│   └── TASKS.md                       # Queue of captured tasks (TASKS.template.md format)
+└── website/
+    └── WEBSITE.md                     # Hugo site: content, build, publish flow
 ```
 
-### Where feature specs live vs. component specs
+### 2.1 Which file do I open?
 
-- **`features/`** — a capability that spans more than one component. Read these
-  first when working on that capability end-to-end.
-- **`loom/` and `cortex/`** — component-scoped architecture, config, and build.
+| I am working on… | Start with |
+|------------------|------------|
+| Anything at all | [guidelines/CODING.md](guidelines/CODING.md), then this file |
+| Understanding the system end to end | [cortex/METALOOM_ARCHITECTURE.md](cortex/METALOOM_ARCHITECTURE.md) |
+| Pipelines (engine, runs, dispatch) | [features/pipeline/PIPELINE.md](features/pipeline/PIPELINE.md) |
+| A Cortex processing node | [features/pipeline-nodes/NODES.md](features/pipeline-nodes/NODES.md) |
+| A REST endpoint | [loom/RESTAPI.md](loom/RESTAPI.md) + [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md) |
+| A DAO / migration | [loom/PERSISTENCE.md](loom/PERSISTENCE.md) + [loom/DOMAIN.md](loom/DOMAIN.md) |
+| Permissions / authorization | [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md), [features/rbac/RBAC.md](features/rbac/RBAC.md) |
+| Chat / AI agent / skills / memory | [loom/ui/CHAT.md](loom/ui/CHAT.md), [features/chat/CHAT_MEMORY_PLAN.md](features/chat/CHAT_MEMORY_PLAN.md) |
+| The UI | [loom/ui/LOOM_UI.md](loom/ui/LOOM_UI.md) + the matching `TASK_UI_*.md` |
+| Metrics / health / readiness | [features/ops/METRICS.md](features/ops/METRICS.md), [features/ops/MONITORING.md](features/ops/MONITORING.md) |
+| The CLI | [features/cli/CLI_PLAN.md](features/cli/CLI_PLAN.md) |
+| Customer-facing docs | [website/WEBSITE.md](website/WEBSITE.md) |
+| Picking up queued work | any `*_TASKS.md`, format per [TASKS.template.md](TASKS.template.md) |
 
-⚠️ The pipeline feature was previously documented across five overlapping files
+### 2.2 Feature specs vs. component specs
+
+- **`features/`** — a capability spanning more than one component. Read these first when working
+  on that capability end to end.
+- **`loom/` and `cortex/`** — component-scoped architecture, configuration and build.
+- **`guidelines/`** — rules that apply regardless of component.
+- **`*_TASKS.md`** — actionable work items only; they follow [TASKS.template.md](TASKS.template.md)
+  and record outcomes once done, so a task file is also a change log.
+
+⚠️ The pipeline feature was previously spread over five overlapping files
 (`cortex/PIPELINE.md`, `loom/PIPELINE.md`, `common/LOOM_PIPELINE.md`,
-`features/pipeline/CORTEX_PIPELINE.md`, `features/pipeline/LOOM_PIPELINE.md`).
-These were **merged and deleted on 2026-07-18**. `features/pipeline/` is now the
-only source. Older documents contained multiple claims contradicted by the code
-— do not restore them.
-
----
-
-## 2.1 Feature Specifications (`spec/features/`)
-
-### Pipeline (`features/pipeline/`)
-
-The pipeline feature — authoring pipelines in the Loom UI, persisting them with
-versioning on Loom, and executing them as reactive DAGs on Cortex processors.
-It spans Loom REST/DB/WebSocket, Cortex's execution engine, and the UI editor,
-which is why it is documented as a feature rather than per component.
-
-| File | Read it when |
-|------|--------------|
-| [PIPELINE.md](features/pipeline/PIPELINE.md) | You are writing pipeline code. Architecture, Cortex engine internals, node model, JSON schemas, Loom persistence & REST, the Loom↔Cortex protocol, testing patterns, gotchas |
-| [PIPELINE_REQUIREMENTS.md](features/pipeline/PIPELINE_REQUIREMENTS.md) | You need to know what the system is *supposed* to do, and which requirements are currently met, partially met, or violated |
-| [PIPELINE_TASKS.md](features/pipeline/PIPELINE_TASKS.md) | You are picking up pipeline work. 11 tasks, severity-ordered, with implementation guidance and test requirements |
-
-🔴 **Before starting any pipeline work, read the "two things to know" section at
-the top of [PIPELINE.md](features/pipeline/PIPELINE.md).** As of 2026-07-18 the
-feature is broken end-to-end in **three independent places**, all of which fail
-*silently* — a run goes green having done nothing:
-
-1. Loom and Cortex use incompatible definition JSON schemas (`edges[]` vs
-   `dependencies[]`), so a UI-authored graph collapses to a single node.
-2. Only **6 of 29** node kinds are executable; the other 23 resolve to a stub
-   that reports success.
-3. Results barely return: the bulk writer forwards **only hash values**
-   (transcripts, faces, OCR, thumbnails are discarded), and the streaming run
-   path **never flushes its buffer**, so a run with under 100 results typically
-   sends nothing.
-
-Do not assume the happy path works. See
-[cortex/METALOOM_ARCHITECTURE.md](cortex/METALOOM_ARCHITECTURE.md) §12 for the
-consolidated working/broken assessment.
-
-✅ **Run completion tracking was fixed on 2026-07-18.** Older notes in this file
-and elsewhere claiming runs "never transition out of `RUNNING`" are **stale** —
-runs now close as `SUCCESS`/`PARTIAL`/`FAILED` with real durations and counters.
-The remaining gap is that a run killed by an upstream error or cancellation
-emits no completion event and depends on the dispatch watchdog.
-
-### Pipeline nodes (`features/pipeline-nodes/`)
-
-[NODES.md](features/pipeline-nodes/NODES.md) — the Cortex **node** system:
-two-level node hierarchy, `AbstractMediaNode` lifecycle, MetaStorage, and the
-per-node reference for every concrete node (hash, facedetect, whisper, OCR, …).
-Complementary to `PIPELINE.md`, which covers how nodes are *composed and run*.
+`features/pipeline/CORTEX_PIPELINE.md`, `features/pipeline/LOOM_PIPELINE.md`). They were merged and
+deleted on 2026-07-18; `features/pipeline/` is the only source. Do not restore them.
 
 ---
 
@@ -146,502 +235,490 @@ Complementary to `PIPELINE.md`, which covers how nodes are *composed and run*.
 
 ### 3.1 Loom Backend Service (`loom/`)
 
-**Purpose**: Central backend service managing assets, users, pipelines, and Cortex worker coordination.
+**Purpose**: central backend — assets, users, permissions, pipelines, chat agent, and Cortex worker
+coordination. Owns the only database.
 
-#### Key Specifications
+#### Key specifications
 
 | Spec File | Description |
 |-----------|-------------|
-| [LOOM.md](loom/LOOM.md) | **Main entry point** - overall architecture, module layout, server lifecycle, Dagger DI, Loom-Cortex relationship |
-| [RESTAPI.md](loom/RESTAPI.md) | REST API specification - endpoints, authentication (JWT/OAuth2), CRUD patterns, OpenAPI generation |
-| [WEBSOCKET.md](loom/WEBSOCKET.md) | WebSocket protocols - Processor WS (`/api/v1/processors/ws`) and Pipeline Events WS (`/api/v1/pipelines/events/ws`) |
-| [PERSISTENCE.md](loom/PERSISTENCE.md) | Database layer - jOOQ DAOs, Flyway migrations, DAO hierarchy, test infrastructure |
-| [EVENTBUS.md](loom/EVENTBUS.md) | Event systems - Cortex PipelineEventBus, Vert.x EventBus (MCP only), WebSocket fan-out |
-| [MCP.md](loom/MCP.md) | Model Context Protocol server - JSON-RPC 2.0 over HTTP+SSE/WebSocket, tool registry via Vert.x EventBus |
-| [GRPC.md](loom/GRPC.md) | gRPC API - asset, health, reflection services (no pipeline surface) |
-| [SERVER.md](loom/SERVER.md) | Server startup/lifecycle |
+| [LOOM.md](loom/LOOM.md) | **Main entry point** — architecture, module layout, server lifecycle, Dagger DI, Loom↔Cortex relationship |
+| [DOMAIN.md](loom/DOMAIN.md) | Domain entities grouped by area, derived from the Flyway migrations |
+| [RESTAPI.md](loom/RESTAPI.md) | REST endpoints, authentication (JWT/OAuth2), CRUD patterns, OpenAPI generation |
+| [WEBSOCKET.md](loom/WEBSOCKET.md) | Processor WS (`/api/v1/processors/ws`) and pipeline-events WS (`/api/v1/pipelines/events/ws`) |
+| [PERSISTENCE.md](loom/PERSISTENCE.md) | jOOQ DAOs, Flyway migrations, DAO hierarchy, test infrastructure |
+| [PERSISTENCE_TASKS.md](loom/PERSISTENCE_TASKS.md) | Open persistence gaps (asset-component coverage closed by V2.38–V2.50) |
+| [EVENTBUS.md](loom/EVENTBUS.md) | Cortex PipelineEventBus, Vert.x EventBus (MCP only), WebSocket fan-out |
+| [MCP.md](loom/MCP.md) | MCP server — JSON-RPC 2.0 over HTTP+SSE/WebSocket, tool registry via Vert.x EventBus |
+| [GRPC.md](loom/GRPC.md) | gRPC API — asset, health, reflection (no pipeline surface) |
+| [GRAPHQL.md](loom/GRAPHQL.md) | GraphQL API |
+| [SERVER.md](loom/SERVER.md) | Server startup / lifecycle |
 | [CONFIGURATION.md](loom/CONFIGURATION.md) | Configuration system, `LoomOptions` validation |
 | [BUILD.md](loom/BUILD.md) | Loom build pipeline |
-| [GRAPHQL.md](loom/GRAPHQL.md) | GraphQL API (placeholder) |
+| [ui/CHAT.md](loom/ui/CHAT.md) | Chat / Loom Agent — server-side agentic loop, SSE streaming, skills |
 | [ui/LOOM_UI.md](loom/ui/LOOM_UI.md) | Loom UI specification |
-| [ui/PIPELINE_EDITOR.md](loom/ui/PIPELINE_EDITOR.md) | Pipeline Editor - React Flow canvas, CRUD, validation |
+| [ui/PIPELINE_EDITOR.md](loom/ui/PIPELINE_EDITOR.md) | Pipeline editor — React Flow canvas, CRUD, validation |
 
-> Pipeline execution and persistence are specified in
-> [features/pipeline/PIPELINE.md](features/pipeline/PIPELINE.md), not here.
+> Pipeline **execution and persistence** are specified in
+> [features/pipeline/PIPELINE.md](features/pipeline/PIPELINE.md); **authorization** in
+> [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md) — not in the files above.
 
-#### Module Layout (`loom/`)
+#### Module layout (`loom/`)
 
 ```
 loom/
 ├── common/          # Shared utilities, Vert.x setup, Dagger modules, LoomOptionsLoader
+├── pipeline/        # ⭐ Loom-side pipeline engine (Variant C)
+│   ├── engine/      #   PipelineRunEngine, NodeDispatcher, RunStateStore, RetryScheduler,
+│   │                #   NodeKindCircuitBreaker, AssetSink, ItemState, RunSummary
+│   └── graph/       #   PipelineGraphParser, PipelineGraph(Node), PipelineSegmenter,
+│                    #   PipelineSegment, AffinityValidator, GraphValidationException
 ├── db/              # Database layer (parent)
-│   ├── api/         # DAO/model interfaces, Element/CRUDDao abstractions
-│   ├── api-test/    # Shared test infrastructure (CRUDDaoTestcases, DatabaseTest)
-│   ├── jooq/        # jOOQ-based DAO implementations
-│   ├── jooq-gen/    # jOOQ code generation strategy (prefixes with "Jooq")
-│   ├── flyway/      # SQL migration scripts (V1__, V2.*__)
-│   ├── fs/          # Filesystem-backed DAO implementation
-│   ├── hibernate/   # Hibernate-backed DAO implementation
-│   └── memory/      # In-memory DAO impl for fast tests (⚠️ no pipeline DAOs)
+│   ├── api/         #   DAO/model interfaces, Element/CRUDDao abstractions
+│   ├── api-test/    #   Shared contract test infrastructure (CRUDDaoTestcases, DatabaseTest)
+│   ├── jooq/        #   jOOQ-based DAO implementations (+ generate.sh)
+│   ├── jooq-gen/    #   jOOQ codegen strategy (prefixes generated types with "Jooq")
+│   ├── flyway/      #   SQL migrations (V1__, V2.*__)
+│   ├── fs/          #   Filesystem-backed DAO implementation
+│   ├── hibernate/   #   Hibernate-backed DAO implementation
+│   └── memory/      #   In-memory DAO impl for fast tests (⚠️ no pipeline DAOs)
 ├── services/        # Service layer (parent)
-│   ├── rest/        # REST API, WebSocket endpoints, pipeline event broadcaster
-│   ├── grpc/        # gRPC service (planned)
-│   ├── graphql/     # GraphQL service (implemented, not registered)
-│   ├── mcp/         # MCP server for AI agent integration
-│   ├── auth-jwt/    # JWT authentication provider
-│   ├── auth-keycloak/ # Keycloak auth provider
-│   ├── auth-common/ # Shared auth utilities
-│   ├── auth-auth0/  # Auth0 provider
-│   ├── auth-okta/   # Okta provider
-│   ├── image/       # Image processing service
-│   ├── video/       # Video processing service
-│   ├── elasticsearch/ # Elasticsearch integration
-│   ├── lucene/      # Lucene search integration
-│   ├── qdrant/      # Qdrant vector database integration
-│   ├── tika/        # Apache Tika metadata extraction
-│   ├── monitoring/  # Monitoring/metrics service
-│   ├── plugins/     # Plugin system
-│   ├── fs/          # Filesystem service
-│   └── eventbus/    # Placeholder (empty)
-├── core/            # Bootstrap, server lifecycle, LoomImpl, BootstrapInitializer
+│   ├── api/         #   Service-layer interfaces
+│   ├── rest/        #   REST API, WebSocket endpoints, dispatcher, pipeline event broadcaster
+│   ├── grpc/        #   gRPC service
+│   ├── graphql/     #   GraphQL service
+│   ├── mcp/         #   MCP server for AI agent integration
+│   ├── auth/        #   Auth providers (JWT, Keycloak, Auth0, Okta, common)
+│   ├── image/       #   Image processing
+│   ├── video/       #   Video processing
+│   ├── elasticsearch/, lucene/, qdrant/   # Search & vector integrations
+│   ├── tika/        #   Apache Tika metadata extraction
+│   ├── monitoring/  #   Health, readiness, Prometheus metrics
+│   ├── logger/      #   Logging service
+│   ├── plugins/     #   Plugin system
+│   ├── fs/          #   Filesystem service
+│   └── eventbus/    #   Placeholder
 ├── agent/           # AI agent subsystem (package io.metaloom.loom.agent.*)
-│   ├── chat/        # Agentic loop, ChatStreamEndpoint (SSE), AgentService, skills prompt builder
-│   ├── memory/      # Scoped markdown memory bank (MemoryService, MemoryEndpoint, memory tools)
-│   ├── sandbox/     # Coding sandbox orchestrator + podman/kubernetes backends, coding tools
-│   ├── session-runner/ # The per-chat Session Runner image (runnerd.py) — metaloom/loom-session-runner
-│   └── deploy/      # Sandbox deployment reference (k8s pod template, RBAC notes)
+│   ├── chat/        #   Agentic loop, ChatStreamEndpoint (SSE), AgentService, skills prompts,
+│   │                #   ChatSessionEndpoint, SessionFsEndpoint
+│   ├── memory/      #   Scoped markdown memory bank (MemoryService, MemoryEndpoint, memory tools)
+│   ├── sandbox/     #   Coding sandbox orchestrator + podman/kubernetes backends, coding tools
+│   ├── session-runner/ # Per-chat Session Runner image (runnerd.py) — metaloom/loom-session-runner
+│   └── deploy/      #   Sandbox deployment reference (k8s pod template, RBAC notes)
+├── core/            # Bootstrap, server lifecycle, LoomImpl, BootstrapInitializer,
+│                    #   DatabaseInitializer, DemoDatabaseInitializer
 ├── fixture/         # Test fixtures, PoolSetupRunner, TestDBPoolManager
-├── cli/             # LoomCLI command-line interface
 ├── containers/      # Dockerfiles + build-containers.sh (metaloom/loom-server, metaloom/loom-demo)
+├── helm/            # Helm chart
+├── design/          # Design artefacts incl. DB/dbdiagram.yaml
 └── doc/             # AsciiDoc documentation source + OpenAPI generator
 ```
 
-> **Chat / AI agent (added since 2026-07-18).** The chat, skills, memory and coding-sandbox
-> subsystems live under `loom/agent/`. Chat sessions (`ChatSession`, publishable snapshots with a
-> sandbox filesystem + pinned skill versions), skills (versioned, publishable) and the memory bank
-> are new. See [loom/ui/CHAT.md](loom/ui/CHAT.md). New migrations: `V2.28__add_chat`,
-> `V2.33__add_cortex_instance`, `V2.36__add_skill`, `V2.37__add_skill_version`,
-> `V2.45__add_asset_node_result`, `V2.52__add_chat_session`, `V2.53__add_agent_memory`.
+> `loom/cli` **no longer exists** — the CLI moved to the top-level [cli/](../cli/) module. See
+> [features/cli/CLI_PLAN.md](features/cli/CLI_PLAN.md).
 
-#### Shared Modules (outside `loom/`)
+#### Shared modules (outside `loom/`)
 
 | Module | Purpose |
 |--------|---------|
 | `loom-shared/api` | Core interfaces: `Loom`, `LoomOptions`, `ServerOptions`, `DatabaseOptions`, `AuthenticationOptions` |
+| `loom-shared/node-model` | Node/result model shared by Loom and Cortex |
+| `loom-shared/pipeline-model` | `NodeTask`, `NodeTaskResult` and the dispatch protocol model |
 | `loom-shared/rest-model` | REST DTOs, request/response models, validation models |
+| `loom-shared/rest-model-test` | Custom AssertJ assertions for the REST model |
 | `loom-shared/proto` | Protobuf/gRPC model definitions |
+| `loom-client/common` | Shared client interfaces (`ClientMethods`, `PipelineMethods`) |
 | `loom-client/rest` | Java HTTP client (`LoomHttpClient`) |
-| `loom-client/grpc` | Java gRPC client (planned) |
-| `loom-client/common` | Shared client interfaces (`ClientMethods`) |
+| `loom-client/report` | Client-side reporting helpers |
+| `loom-test-env` | Test environment: DB pool leasing, JUnit 5 extensions |
 
-#### Key Classes Reference (Loom)
+#### Key classes reference (Loom)
 
 | Class | Package | Purpose |
 |-------|---------|---------|
 | `LoomImpl` | `io.metaloom.loom.core` | Entry point; builds Dagger component, runs bootstrap |
 | `BootstrapInitializer` | `io.metaloom.loom.core.boot` | Orchestrates startup/shutdown sequence |
 | `DatabaseInitializer` | `io.metaloom.loom.core.boot` | Creates initial admin user, roles, permissions |
+| `DemoDatabaseInitializer` | `io.metaloom.loom.core.boot` | Demo data — **extend when adding a feature** (CODING.md) |
 | `LoomCoreComponent` | `io.metaloom.loom.core.dagger` | Dagger component wiring all services |
 | `RESTService` | `io.metaloom.loom.rest` | REST API service (router, endpoints, auth) |
-| `MCPService` | `io.metaloom.loom.mcp` | MCP server |
+| `PipelineRunEngine` | `io.metaloom.loom.pipeline.engine` | Owns run state; walks the graph, dispatches tasks |
+| `NodeDispatcher` | `io.metaloom.loom.pipeline.engine` | Sends node/segment tasks to a worker |
+| `RunStateStore` | `io.metaloom.loom.pipeline.engine` | Durable run/item state — survives restart |
+| `PipelineGraphParser` | `io.metaloom.loom.pipeline.graph` | Parses definition JSON into a `PipelineGraph` |
+| `PipelineSegmenter` | `io.metaloom.loom.pipeline.graph` | Groups nodes into affinity segments |
+| `PipelineValidationService` | `io.metaloom.loom.rest.validation` | Validates definitions (node types, edges) |
 | `PipelineEventBroadcaster` | `io.metaloom.loom.rest.service.impl` | Fans out pipeline events to UI WebSocket clients |
+| `MCPService` | `io.metaloom.loom.mcp` | MCP server |
+| `MemoryService` | `io.metaloom.loom.agent.memory` | Scoped markdown memory bank for the chat agent |
 
-#### Build & Run Commands
+#### Build & run commands
 
 ```bash
-# Full build (Maven + UI + containers)
-./build.sh
-
-# Fast compile check
-mvn -T 8 test-compile -q -DskipTests
-
-# Integration tests
-./it.sh
-
-# End-to-end tests
-./e2e.sh
-
-# Start local Postgres
-./start-postgres.sh
-
-# Start demo (Postgres + Loom + Cortex)
-./start-demo.sh
+./build.sh              # Full build (Maven + UI + containers)
+mvn -T 8 test-compile -q -DskipTests   # Fast compile check
+./setup-pool.sh         # (RE)INITIALIZE THE TEST DB POOL — required before tests
+./it.sh                 # Integration tests
+./e2e.sh                # End-to-end tests
+./start-postgres.sh     # Local Postgres
+./start-server.sh       # Loom server
+./start-cortex.sh       # Cortex worker
+./start-demo.sh         # Demo stack (Postgres + Loom + Cortex)
+./ui.sh                 # UI dev server
 ```
+
+🔴 **`./setup-pool.sh` is mandatory** before running tests, and again after **any** Flyway migration
+change — otherwise the pooled databases are stale and tests fail with confusing errors.
 
 ---
 
 ### 3.2 Cortex Processing Node (`cortex/`)
 
-**Purpose**: Standalone worker process that analyzes media files and optionally syncs results to Loom.
+**Purpose**: worker process that executes node tasks dispatched by Loom (and, offline, runs
+pipelines from the CLI). It holds no database.
 
-#### Key Specifications
+#### Key specifications
 
 | Spec File | Description |
 |-----------|-------------|
-| [CORTEX.md](cortex/CORTEX.md) | **Main entry point** - architecture, module map, startup lifecycle, CLI commands, online/offline modes |
-| [METALOOM_ARCHITECTURE.md](cortex/METALOOM_ARCHITECTURE.md) | **How Loom and Cortex actually interact** - registration, REST vs WebSocket, run dispatch, results, failure handling, monitoring, daemonization. Plain language, code-verified |
-| [METALOOM_ARCHITECTURE_V2_PLAN_C.md](cortex/METALOOM_ARCHITECTURE_V2_PLAN_C.md) | **Variant C** — the architecture that was built: Loom owns the graph and dispatches node tasks and affinity segments to Cortex workers. Phase-by-phase record, decisions, and the benchmark that corrected its own premise |
-| [METALOOM_ARCHITECTURE_V2_PLAN_C.md](cortex/METALOOM_ARCHITECTURE_V2_PLAN_C.md) | **Proposed** phased plan for moving pipeline execution from Cortex to Loom (Variant C). Phase 1 is shared with Variant D |
-| [CONFIGURATION.md](cortex/CONFIGURATION.md) | Configuration - YAML config file, CLI flags, environment variables, per-node options. ⚠️ The documented YAML precedence does not work — see METALOOM_ARCHITECTURE.md §8 |
-| [BUILD.md](cortex/BUILD.md) | Build system - Maven modules, container image, native dependencies, fast-compile recipes |
-| [../features/pipeline-nodes/NODES.md](features/pipeline-nodes/NODES.md) | Node system - lifecycle, MetaStorage, two-level hierarchy, per-node reference |
-| [../features/pipeline/PIPELINE.md](features/pipeline/PIPELINE.md) | Pipeline execution engine - DAG, RxJava 3, serde, caching, sync, Loom bridge |
+| [CORTEX.md](cortex/CORTEX.md) | **Main entry point** — architecture, module map, startup lifecycle, CLI commands, online/offline modes |
+| [METALOOM_ARCHITECTURE.md](cortex/METALOOM_ARCHITECTURE.md) | **How Loom and Cortex actually interact** — registration, REST vs WebSocket, dispatch, results, failure handling, monitoring, daemonization. Plain language, code-verified |
+| [METALOOM_ARCHITECTURE_TASK.md](cortex/METALOOM_ARCHITECTURE_TASK.md) | Open architecture work items — plus the ideas explicitly **dropped** with the rejected variants |
+| [METALOOM_ARCHITECTURE_V2_PLAN_C.md](cortex/METALOOM_ARCHITECTURE_V2_PLAN_C.md) | Variant C build record — **COMPLETE**. Decisions, phase order, and the refinements deliberately not built |
+| [CONFIGURATION.md](cortex/CONFIGURATION.md) | YAML config, CLI flags, env vars, per-node options. ⚠️ documented YAML precedence does not work — see METALOOM_ARCHITECTURE.md §8 |
+| [BUILD.md](cortex/BUILD.md) | Maven modules, container image, native dependencies, fast-compile recipes |
+| [features/pipeline-nodes/NODES.md](features/pipeline-nodes/NODES.md) | Node system — lifecycle, MetaStorage, two-level hierarchy, per-node reference |
+| [features/pipeline/PIPELINE.md](features/pipeline/PIPELINE.md) | Pipeline model, definition JSON, dispatch protocol, Loom bridge |
 
-#### Module Layout (`cortex/`)
+#### Module layout (`cortex/`)
 
 ```
 cortex/
-├── api/                 # Public interfaces: Cortex, CortexOptions, CortexNode, LoomMedia, NodeResult, MetaStorage
-├── common/              # Shared impls: MetaStorageImpl, CortexOptionsLoader, LoomMediaLoader, media types
+├── api/                 # Public interfaces: Cortex, CortexOptions, CortexNode, LoomMedia,
+│                        #   NodeResult, ResultState, MetaStorage
+├── common/              # Shared impls: MetaStorageImpl, CortexOptionsLoader, LoomMediaLoader
 ├── fs/                  # Filesystem scanner (Linux xattr support)
-├── core-media/          # Media decorator types (HashMedia, FacedetectMedia, etc.) + AssertJ test helpers
+├── core-media/          # Media decorator types (HashMedia, FacedetectMedia, …) + AssertJ helpers
 ├── nodes/               # Concrete processing nodes (parent POM)
-│   ├── common-api/      # Common node API
-│   ├── filter-api/      # Filter node API
-│   ├── source-api/      # Source node API (descriptors)
-│   ├── filesystem-source/ # Filesystem source node impl + FilesystemMediaScanner
-│   ├── hash/            # SHA-512, SHA-256, MD5, chunk-hash
-│   ├── fingerprint/     # Video fingerprinting
-│   ├── facedetect/      # Face detection + embeddings (InspireFace)
-│   ├── thumbnail/       # Contact-sheet thumbnail generation
-│   ├── consistency/     # Zero-chunk detection
-│   ├── dedup/           # SHA-512/fingerprint deduplication
-│   ├── quality/         # Resolution, blurriness, bitrate metrics
-│   ├── scene-detection/ # Optical-flow scene boundary detection
-│   ├── ocr/             # Text extraction (Tesseract)
-│   ├── tika/            # Apache Tika metadata extraction
-│   ├── whisper/         # Speech-to-text (whisper.cpp)
-│   ├── llm/             # Metadata extraction (Ollama LLM)
-│   ├── captioning/      # Image captioning (SmolVLM)
-│   └── loom/            # Loom sync node
+│   ├── common-api/, filter-api/, source-api/   # Node APIs & descriptors
+│   ├── filesystem-source/  # Filesystem source node + FilesystemMediaScanner
+│   ├── hash/            #   SHA-512, SHA-256, MD5, chunk-hash
+│   ├── fingerprint/     #   Video fingerprinting
+│   ├── facedetect/      #   Face detection + embeddings (InspireFace)
+│   ├── thumbnail/       #   Contact-sheet thumbnail generation
+│   ├── consistency/     #   Zero-chunk detection
+│   ├── dedup/           #   SHA-512 / fingerprint deduplication
+│   ├── quality/         #   Resolution, blurriness, bitrate metrics
+│   ├── scene-detection/ #   Optical-flow scene boundary detection (incl. frame boundaries)
+│   ├── ocr/             #   Text extraction (Tesseract)
+│   ├── tika/            #   Apache Tika metadata extraction
+│   ├── whisper/         #   Speech-to-text (whisper.cpp) — reference for Loom write-back
+│   ├── llm/             #   Metadata extraction (Ollama LLM)
+│   ├── captioning/      #   Image & video captioning (SmolVLM, Qwen2.5-VL)
+│   └── loom/            #   Loom sync node
 ├── processor/           # MediaProcessor + FilesystemProcessor (CLI-driven batch)
-├── core/                # Runtime wiring: CortexImpl, CLI commands, Dagger modules, LoomControlChannel
-├── cli/                 # CLI entry point (CortexCLIMain), Dagger component, shade plugin
-├── container/           # Containerfile + build-container.sh for OCI image
-├── pipeline-api/        # Pipeline, PipelineNode, PipelineExecutor, PipelineManager, events, cache SPIs
-├── pipeline-core/       # DefaultPipeline, ReactivePipelineExecutor, AbstractPipelineNode, filters, JSON serde
+├── core/                # Runtime wiring: CortexImpl, CLI commands, Dagger modules,
+│                        #   LoomControlChannel, PipelineTaskHandler, RegistryNodeFactory
+├── cli/                 # CLI entry point (CortexCLIMain), Dagger component, shade plugin,
+│                        #   PipelineNodeFactoryModule (node-type registry)
+├── container/           # Containerfile + build-container.sh for the OCI image
+├── pipeline-api/        # Pipeline, PipelineNode, PipelineExecutor, events, cache SPIs
+├── pipeline-core/       # DefaultPipeline, ReactivePipelineExecutor, AbstractPipelineNode, filters
 ├── pipeline-common/     # DefaultPipelineEventBus, cache impls, DefaultLoomBulkSyncCollector
 └── node-runtime/        # Task runners for Loom-dispatched work: NodeTaskRunner, SourceTaskRunner,
                          #   SegmentTaskRunner, ResultBatcher, NodeResultMapper
 ```
 
-> **Execution model.** Loom now owns the pipeline DAG and dispatches individual source/node/segment
-> tasks to registered Cortex workers over the processor WebSocket; `cortex/node-runtime` runs one
-> task at a time and replies. Cortex is deployed as a long-running daemon (`metaloom/cortex-server`),
-> registering with Loom on `LOOM_PORT` (default `8092`). The `cortex/cli` picocli wrapper still
-> exists for local runs, but the primary online role is the daemon. See
-> [features/pipeline/PIPELINE.md](features/pipeline/PIPELINE.md) §12.3.
-
-#### Key Classes Reference (Cortex)
+#### Key classes reference (Cortex)
 
 | Class | Package | Purpose |
 |-------|---------|---------|
-| `Cortex` / `CortexImpl` | `io.metaloom.cortex` / `io.metaloom.cortex.impl` | Top-level interface & implementation; manages lifecycle |
-| `CortexCLIMain` | `io.metaloom.cortex.cli` | `main()` entry point; builds Dagger component, runs CLI |
+| `Cortex` / `CortexImpl` | `io.metaloom.cortex` / `.impl` | Top-level interface & implementation; lifecycle |
+| `CortexCLIMain` | `io.metaloom.cortex.cli` | `main()`; builds Dagger component, runs CLI |
 | `CortexComponent` | `io.metaloom.cortex.cli.dagger` | Dagger component wiring all modules |
-| `CortexBindModule` | `io.metaloom.cortex.cli.dagger` | Dagger bindings: Cortex, MediaProcessor, PipelineExecutor, etc. |
+| `PipelineNodeFactoryModule` | `io.metaloom.cortex.cli.dagger` | **Registers executable pipeline node types** — see §6 gotcha |
+| `NodeCollectionModule` | `io.metaloom.cortex.cli.dagger` | Provides every concrete Cortex node to DI |
 | `CortexBootstrapInitializer` | `io.metaloom.cortex.impl.boot` | Starts monitoring HTTP + Loom control channel |
-| `LoomControlChannel` | `io.metaloom.cortex.impl.loom` | WebSocket client to Loom; registration, heartbeat, source/node tasks |
-| `PipelineTaskHandler` | `io.metaloom.cortex.impl.loom` | Runs `SOURCE_TASK` / `NODE_TASK` / `SEGMENT_TASK` from Loom |
-| `RegistryNodeFactory` | `io.metaloom.cortex.pipeline.loader` | Maps JSON node definitions to concrete PipelineNode impls |
+| `LoomControlChannel` | `io.metaloom.cortex.impl.loom` | WebSocket client to Loom: registration, heartbeat, tasks |
+| `PipelineTaskHandler` | `io.metaloom.cortex.impl.loom` | Runs `SOURCE_TASK` / `NODE_TASK` / `SEGMENT_TASK` |
+| `RegistryNodeFactory` | `io.metaloom.cortex.pipeline.loader` | Maps a JSON node `type` to a concrete node; unknown → stub |
+| `NodeTaskRunner` | `io.metaloom.cortex.runtime` | Executes one node task; exceptions become `FAILED` results |
+| `NodeResultMapper` | `io.metaloom.cortex.runtime` | Maps Cortex `ResultState` → wire `NodeTaskResult` state |
 
-#### Online vs Offline Mode
+#### Online vs offline mode
 
 | Mode | Condition | Behaviour |
 |------|-----------|-----------|
-| **Online** | Loom host + port configured | Connects to Loom via WebSocket, registers capabilities, receives source/node tasks, syncs results |
-| **Offline** | No Loom host configured | Runs standalone; driven by `cortex process run` CLI command |
+| **Online (primary)** | `LOOM_HOST` + `LOOM_PORT` configured | Registers over the processor WebSocket, receives source/node/segment tasks, writes results back |
+| **Offline** | No Loom host configured | Standalone; driven by the `cortex process run` CLI command |
 
-#### Build Commands
+#### Build commands
 
 ```bash
-# Build all cortex modules
-mvn -T 8 clean package -DskipTests -pl cortex -am
-
-# Build only CLI JAR
-mvn -T 8 clean package -DskipTests -pl cortex/cli -am
-
-# Run tests
-mvn -T 8 test -pl cortex
-
-# Build container
-cortex/container/build-container.sh
+mvn -T 8 clean package -DskipTests -pl cortex -am        # All cortex modules
+mvn -T 8 clean package -DskipTests -pl cortex/cli -am    # CLI/daemon shaded JAR
+mvn -T 8 test -pl cortex                                 # Tests
+cortex/container/build-container.sh                      # Container image
 ```
 
 ---
 
-### 3.3 Loom UI (`loom-ui/`)
+### 3.3 MetaLoom CLI (`cli/`)
 
-**Purpose**: React/Vite/TypeScript/MUI web front end for the MetaLoom DAM platform.
+**Purpose**: PicoCLI + Dagger 2 client for Loom, shipped as a GraalVM native image. Replaced the
+dead `loom/cli` stub.
 
-#### Technology Stack
+| Item | Value |
+|------|-------|
+| Spec | [features/cli/CLI_PLAN.md](features/cli/CLI_PLAN.md) — status: implemented 2026-07-26, §14 records what landed and what did not |
+| Layout | `cli/pom.xml`, `cli/src/`, `cli/build-native.sh`, `cli/README.md` |
+| Talks to | Loom REST (`loom-client/rest`) and the pipeline run lifecycle (`PipelineRunRequest`, `PipelineMethods`) |
 
-- **Framework**: React 18 + Vite + TypeScript
-- **UI Library**: MUI v5 (Material UI)
-- **Graph Visualization**: React Flow (pipeline graph editor)
-- **Charts**: Recharts (dashboards)
-- **Internationalization**: i18next
-- **Routing**: React Router DOM v6
+Read the plan before touching `PipelineRunRequest`, `PipelineMethods`, or the run pause/resume
+surface — the CLI commands depend on those server-side capabilities.
 
-#### Source Layout (`loom-ui/src/`)
+---
+
+### 3.4 Loom UI (`loom-ui/`)
+
+**Purpose**: React/Vite/TypeScript/MUI web front end.
+
+Specs: [loom/ui/LOOM_UI.md](loom/ui/LOOM_UI.md), [loom/ui/PIPELINE_EDITOR.md](loom/ui/PIPELINE_EDITOR.md),
+[loom/ui/CHAT.md](loom/ui/CHAT.md), plus the eight `TASK_UI_*.md` gap-analysis files listed in §2.
+
+#### Source layout (`loom-ui/src/`)
 
 ```
 src/
-├── Admin/           # Admin panel components
-├── Asset/           # Asset management views
-├── Content/         # Content views
-├── Dashboard/       # Dashboard components
-├── Login/           # Authentication views
-├── Pipeline/        # Pipeline graph editor
-├── User/            # User management
-├── Welcome/         # Landing page
+├── Admin/, Asset/, Content/, Dashboard/, Login/, Pipeline/, User/, Welcome/   # Views
 ├── components/      # Shared UI components
-├── features/        # Feature-specific components
+├── features/        # Feature-specific components (incl. features/pipeline/PipelineEditor.tsx)
 ├── context/         # React context providers
-├── api/             # API client layer
+├── api/             # API client layer (chatSessions.ts, …)
 ├── layout/          # Layout components
 ├── theme/           # MUI theme configuration
 ├── i18n/            # Internationalization
-├── mock/            # Mock data for development
-├── img/             # Static images
-├── types/           # TypeScript type definitions
+├── mock/            # Mock data for development and mocked e2e tests
+├── img/, types/     # Static images, TypeScript types
 └── main.tsx         # Application entry point
 ```
 
-#### Commands
+#### Commands & test tooling
 
 ```bash
-# Development server
-npm run dev
-
-# Production build
-npm run build
-
-# Run UI E2E tests (Playwright)
-npm run test:e2e
+npm run dev          # Dev server
+npm run build        # Production build
+npm run test:e2e     # Playwright E2E (also used for component tests, against mocked APIs)
 ```
 
-#### Key Configuration Files
+> **Testing convention**: component-level tests are Playwright *mocked* e2e specs (e.g.
+> `e2e/chat-sessions-mocked.spec.ts`) — there is no RTL/jsdom setup. Pure logic is tested with
+> node-environment vitest.
 
-| File | Purpose |
-|------|---------|
-| `package.json` | Dependencies and scripts |
-| `vite.config.ts` | Vite configuration |
-| `tsconfig.json` | TypeScript configuration |
-| `playwright.config.ts` | Playwright E2E test configuration |
+Config files: `package.json`, `vite.config.ts`, `tsconfig.json`, `playwright.config.ts`.
 
 ---
 
-### 3.4 Website (`website/`)
+### 3.5 Website (`website/`)
 
-**Purpose**: Hugo-based documentation website for MetaLoom.
-
-#### Technology Stack
-
-- **Static Site Generator**: Hugo
-- **Theme**: meghna-hugo
-- **CSS/JS Plugins**: FontAwesome, Bootstrap, Swagger UI, TOC, etc.
-
-#### Structure
+**Purpose**: Hugo static site — marketing landing page, blog, and **customer-facing product
+documentation**. Spec: [website/WEBSITE.md](website/WEBSITE.md).
 
 ```
 website/
-├── config.toml          # Hugo configuration
-├── content/             # Main content (markdown)
-├── content-off/         # Disabled/archived content
-├── data/                # Data files (JSON, YAML, TOML)
-├── i18n/                # Internationalization
-├── static/              # Static assets
-├── themes/              # Hugo themes
-├── resources/           # Hugo resource cache
-├── dist/                # Build output (publishDir)
-├── build.sh             # Build script
-├── watch.sh             # Watch mode script
-└── pom.xml              # Maven wrapper (for CI)
+├── config.toml      # Hugo config (baseURL https://metaloom.io, theme meghna-hugo, publishDir dist)
+├── content/         # Main content — customer docs live in content/english/docs
+├── content-off/     # Disabled/archived content
+├── data/, i18n/, static/, themes/, resources/
+├── dist/            # Build output
+├── build.sh, watch.sh
+└── pom.xml          # Maven wrapper (CI)
 ```
 
-#### Commands
-
-```bash
-# Build website
-./build.sh
-
-# Watch mode (live reload)
-./watch.sh
-```
-
-#### Key Configuration (`config.toml`)
-
-- **baseURL**: `https://metaloom.io`
-- **theme**: `meghna-hugo`
-- **publishDir**: `dist`
-- **Plugins**: Swagger UI, Bootstrap, FontAwesome, TOC, etc.
+🔴 Per [guidelines/CODING.md](guidelines/CODING.md): new customer-facing features **must** get a
+page under `website/content/english/docs`, written for customers — no spec-file references, no
+internal class names.
 
 ---
 
-### 3.5 Integration Testing (`integration-test/`)
+### 3.6 Integration Testing (`integration-test/`)
 
-**Purpose**: Cross-module integration tests that boot the Loom stack in-process and drive it via `LoomHttpClient`.
-
-#### Structure
+Cross-module tests that boot the Loom stack and drive it via `LoomHttpClient`, plus per-node
+end-to-end Cortex tests.
 
 ```
 integration-test/
 ├── pom.xml
 └── src/test/java/io/metaloom/loom/test/integration/
-    ├── AbstractIntegrationTest.java      # Base class with LoomHttpClient setup
-    ├── BasicIntegrationTest.java         # Basic integration test cases
-    ├── LoomExtensionHelper.java          # JUnit 5 extension helpers
-    └── PipelinePersistenceIntegrationTest.java  # Pipeline persistence tests
+    ├── AbstractIntegrationTest.java            # Base class with LoomHttpClient setup
+    ├── BasicIntegrationTest.java
+    ├── LoomExtensionHelper.java
+    └── PipelinePersistenceIntegrationTest.java
 ```
 
-#### Key Dependencies
-
-- `loom-container-server` - Loom server container for testing
-- `loom-client-rest` - REST client
-- `cortex-cli` - Cortex CLI for processor simulation
-- `cortex-pipeline-core` - Pipeline execution
-- `loom-test-env` - Test environment (DB pool, JUnit extensions)
-- `loom-fixture` - Test fixtures
-
-#### Running Integration Tests
+Key dependencies: `loom-container-server`, `loom-client-rest`, `cortex-cli`,
+`cortex-pipeline-core`, `loom-test-env`, `loom-fixture`.
 
 ```bash
-# Via convenience script (starts PoolSetupRunner then runs tests)
-./it.sh
-
-# Direct Maven
+./it.sh                        # Convenience script (pool setup + tests)
 mvn verify -pl integration-test
 ```
 
-#### Test Database Pool
-
-Tests lease pre-populated PostgreSQL databases from the external `testdatabase-provider` service. See `loom/DEVELOPMENT.md` for setup.
+> Cortex node E2E tests live here too. When they fail after a Cortex change, rebuild the shaded
+> `cortex/cli` JAR and the container image — the tests run against the packaged artifact, not the
+> reactor classes.
 
 ---
 
-### 3.6 End-to-End Testing (`e2e-test/`)
+### 3.7 End-to-End Testing (`e2e-test/`)
 
-**Purpose**: Full end-to-end tests that run against a packaged container deployment.
-
-#### Structure
+Full end-to-end tests against a packaged container deployment.
 
 ```
 e2e-test/
-├── pom.xml
-├── run-e2e.sh
-├── config/
-└── src/test/java/io/metaloom/loom/studio/test/
-    └── E2ETest.java
+├── pom.xml, run-e2e.sh, config/
+└── src/test/java/io/metaloom/loom/studio/test/E2ETest.java
 ```
 
-#### Running E2E Tests
-
 ```bash
-# Via convenience script (builds demo container, starts Postgres + demo, runs tests)
 ./e2e.sh
-
-# Direct Maven (against external container)
-mvn test -Dloom.external=true -pl e2e-test
+mvn test -Dloom.external=true -pl e2e-test   # Against an already-running container
 ```
 
 ---
 
-### 3.7 Examples (`examples/`)
-
-**Purpose**: Example projects demonstrating how to extend Cortex with custom nodes and CLI commands.
-
-#### Projects
+### 3.8 Examples (`examples/`)
 
 | Example | Description |
 |---------|-------------|
-| `cortex-custom/` | Demonstrates extending Cortex with custom code |
-| `cortex-custom-node/` | Demonstrates implementing a custom Cortex processing node |
-
-#### Structure (each example)
-
-```
-example/
-├── pom.xml
-├── src/
-│   ├── main/java/...     # Implementation
-│   └── test/...          # Tests
-└── target/               # Build output
-```
+| `cortex-custom/` | Extending Cortex with custom code (includes its own `PipelineNodeFactoryModule`) |
+| `cortex-custom-node/` | Implementing a custom Cortex processing node |
 
 ---
 
 ## 4. Cross-Cutting Concerns
 
-### 4.1 Authentication & Authorization
+### 4.1 Authentication & authorization
 
 | Component | Mechanism |
 |-----------|-----------|
 | REST API | JWT bearer tokens (HMAC-signed), `__Host-loom_token` cookie |
-| WebSocket | `?token=<jwt>` query parameter, strict/lenient mode |
+| WebSocket | `?token=<jwt>` query parameter (browsers cannot set headers on WS upgrade), strict/lenient mode |
 | OAuth2 | BFF pattern with PKCE (Keycloak, Auth0, Okta) |
-| API Tokens | CRUD at `/api/v1/tokens` with specific permissions |
-| Permissions | Vert.x `PermissionBasedAuthorization` (e.g., `CREATE_USER`, `READ_ASSET`) |
+| API tokens | CRUD at `/api/v1/tokens`, with scoped permissions |
+| Permissions | Vert.x `PermissionBasedAuthorization` (e.g. `CREATE_USER`, `READ_ASSET`, `CREATE_SKILL`) |
 
-### 4.2 Database & Persistence
+Details: [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md) (model +
+enforcement) and [features/rbac/RBAC.md](features/rbac/RBAC.md) (taxonomy + known gaps).
+
+### 4.2 Database & persistence
 
 | Layer | Technology |
 |-------|------------|
 | Primary DB | PostgreSQL |
-| ORM | jOOQ (code-generated) |
-| Migrations | Flyway (SQL files in `loom/db/flyway/src/main/resources/db/migration/`) |
-| DAO Pattern | Interface in `loom-db-api`, impl in `loom-db-jooq` and `loom-db-memory` |
-| Test DB | Leased from `testdatabase-provider` service |
+| ORM | jOOQ (code-generated into `loom/db/jooq/src/jooq/java`) |
+| Migrations | Flyway — `loom/db/flyway/src/main/resources/db/migration/` |
+| DAO pattern | Interface in `loom/db/api`, impls in `loom/db/jooq`, `loom/db/memory`, `loom/db/fs`, `loom/db/hibernate` |
+| Test DB | Leased from the external `testdatabase-provider` service via `loom-test-env` |
 
-### 4.3 Event Systems
+### 4.3 Event systems
 
 | System | Scope | Transport | Purpose |
 |--------|-------|-----------|---------|
-| Cortex PipelineEventBus | In-process (Cortex) | Java pub/sub | Internal pipeline coordination, sync, caching |
+| Cortex PipelineEventBus | In-process (Cortex) | Java pub/sub | Internal node coordination, caching |
 | Vert.x EventBus | Vert.x instance (Loom) | Vert.x EventBus | MCP tool dispatch only (`mcp.tool.<name>`) |
-| WebSocket Fan-out | Loom REST server | Raw `ServerWebSocket` | Forward pipeline events to UI clients |
+| Processor WebSocket | Loom ↔ Cortex | Raw `ServerWebSocket` | Registration, heartbeat, task dispatch & results |
+| Pipeline-events WebSocket | Loom → UI | Raw `ServerWebSocket` | Fan-out of run/node events to browsers |
 
-### 4.4 Configuration Priority (Cortex)
+### 4.4 Environment variables (most used)
 
-1. **CLI flags** (highest)
-2. **Environment variables**
-3. **YAML config file** (`~/.config/metaloom/cortex.yml`)
-4. **Code defaults** (lowest)
+Loom — see [loom/CONFIGURATION.md](loom/CONFIGURATION.md) for the full list:
 
-### 4.5 Dagger Dependency Injection
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `LOOM_CONF_FILENAME` | — | Path to the Loom YAML config file |
+| `LOOM_NAME` | — | Instance name |
+| `LOOM_SERVER_REST_PORT` | `8092` | REST/WebSocket port |
+| `LOOM_SERVER_GRPC_PORT` / `_BIND_ADDRESS` | `8091` | gRPC listener |
+| `LOOM_SERVER_MON_PORT` | `8989` | Monitoring/health/metrics port |
+| `LOOM_SERVER_MCP_PORT` | `4041` | MCP server port |
+| `LOOM_DB_HOST` / `_PORT` / `_NAME` / `_USERNAME` / `_PASSWORD` | `5432` for port | PostgreSQL connection |
+| `LOOM_DB_MIN_POOL_SIZE` / `_MAX_POOL_SIZE` | — | Connection pool sizing |
+| `LOOM_INITIAL_PASSWORD` | — | Bootstrap admin password |
+| `LOOM_TOKEN_EXPIRATION_TIME` | — | JWT lifetime |
+| `LOOM_STORAGE_UPLOAD_DIR` | — | Upload storage directory |
+| `LOOM_OAUTH*` | — | OAuth2 provider settings (Keycloak/Auth0/Okta) |
+| `LOOM_MCP_AUTH_ENABLED` / `_STRICT_MODE` / `_ALLOWED_ORIGINS` | — | MCP authentication |
+| `LOOM_AI_ENABLED` / `_PROVIDER_TYPE` / `_URL` / `_MODEL_ID` | — | Chat agent LLM provider |
+| `LOOM_AI_STREAMING` / `_THINK_ENABLED` / `_MAX_TURNS` / `_CONTEXT_WINDOW` / `_TOOL_TIMEOUT_MS` / `_TITLE_GENERATION` | — | Agentic loop tuning |
+| `LOOM_AGENT_MEMORY_MOUNT_PATH` / `_MAX_SCOPE_BYTES` | — | Agent memory bank |
+| `LOOM_AGENT_SANDBOX_*` | — | Coding sandbox (namespace, limits, timeouts, workspace size) |
 
-Both Loom and Cortex use **Dagger 2** extensively:
+Cortex — see [cortex/CONFIGURATION.md](cortex/CONFIGURATION.md):
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `LOOM_HOST` | — | Loom host; **its presence selects online mode** |
+| `LOOM_PORT` | `8092` | Loom REST/WebSocket port |
+| `LOOM_TOKEN` | — | API token used to register and write results |
+| `CORTEX_CONF_FILENAME` | — | Path to `cortex.yml` |
+| `CORTEX_NODE_ID` | — | Worker identity reported at registration |
+| `CORTEX_META_PATH` | — | Local metadata/index directory |
+| `CORTEX_MONITORING_PORT` | `8093` | Health/readiness/metrics port |
+| `CORTEX_NODE_WHITELIST` / `CORTEX_NODE_BLACKLIST` | — | Enable/disable node kinds on this worker |
+
+### 4.5 Configuration priority (Cortex)
+
+1. **CLI flags** (highest) → 2. **environment variables** → 3. **YAML config file**
+(`~/.config/metaloom/cortex.yml`) → 4. **code defaults**.
+⚠️ The YAML layer is not read on the server path — see [cortex/CONFIGURATION.md](cortex/CONFIGURATION.md).
+
+### 4.6 Dagger dependency injection
+
+Both Loom and Cortex use **Dagger 2**:
 - Generated components under `target/generated-sources/annotations`
-- Multibindings for extensibility (e.g., `Set<MCPTool>`, `Set<LoomMetaTypeHandler>`)
-- Subcomponents for request-scoped DI (e.g., `RestComponent` per REST request)
+- Multibindings for extensibility (`Set<MCPTool>`, `Set<LoomMetaTypeHandler>`, node collections)
+- Subcomponents for request-scoped DI (`RestComponent` per REST request)
 
 ---
 
-## 5. Where Do I Find...? (Cheat Sheet)
+## 5. Where Do I Find…? (Cheat Sheet)
 
 | Need | Look Here |
 |------|-----------|
+| Coding rules for any change | [guidelines/CODING.md](guidelines/CODING.md) |
+| Rules for writing a spec | [SPEC_RULES.md](SPEC_RULES.md), format for task files: [TASKS.template.md](TASKS.template.md) |
 | REST endpoint implementations | `loom/services/rest/.../endpoint/impl/` |
 | REST request/response DTOs | `loom-shared/rest-model/` |
 | Java REST client | `loom-client/rest/` (`LoomHttpClient`) |
 | Custom AssertJ assertions | `loom-shared/rest-model-test/.../assertj/` and `cortex/**/test/**/assertj/` |
 | JWT / login / OAuth2 | `loom/services/auth/` |
+| Permission enum & enforcement | `loom/db/api` (permission model), `loom/services/rest/.../endpoint/` |
 | DAO interfaces | `loom/db/api/` |
 | jOOQ DAO implementations | `loom/db/jooq/` |
-| Generated jOOQ tables | `loom/db/jooq/src/jooq/java/...` |
+| Generated jOOQ tables | `loom/db/jooq/src/jooq/java/…` (regenerate with `loom/db/jooq/generate.sh`) |
 | SQL migrations | `loom/db/flyway/src/main/resources/db/migration/` |
-| Test DB pool setup | `loom-test-env/`, `loom/fixture/`, `loom/DEVELOPMENT.md` |
-| Cortex processing nodes | `cortex/nodes/` |
-| Pipeline engine (API / impl / shared) | `cortex/pipeline-api/`, `cortex/pipeline-core/`, `cortex/pipeline-common/` |
-| Pipeline loading + node type registration | `cortex/core/.../pipeline/loader/`, `cortex/cli/.../dagger/PipelineNodeFactoryModule.java` |
-| Loom↔Cortex control channel & task handler | `cortex/core/.../impl/loom/` |
+| Test DB pool setup | `./setup-pool.sh`, `loom-test-env/`, `loom/fixture/`, `loom/DEVELOPMENT.md` |
+| Demo data | `loom/core/.../boot/DemoDatabaseInitializer.java` |
+| **Loom-side pipeline engine & graph** | `loom/pipeline/src/main/java/io/metaloom/loom/pipeline/{engine,graph}/` |
 | Pipeline REST endpoints & services | `loom/services/rest/.../endpoint/impl/Pipeline*.java`, `.../service/impl/` |
+| Pipeline dispatch protocol model | `loom-shared/pipeline-model/` (`NodeTask`, `NodeTaskResult`) |
+| Cortex task runners | `cortex/node-runtime/src/main/java/io/metaloom/cortex/runtime/` |
+| Loom↔Cortex control channel & task handler | `cortex/core/.../impl/loom/` |
+| Pipeline node type registration | `cortex/cli/.../dagger/PipelineNodeFactoryModule.java` |
+| Cortex processing nodes | `cortex/nodes/` |
+| Cortex pipeline engine (legacy in-Cortex DAG) | `cortex/pipeline-api/`, `cortex/pipeline-core/`, `cortex/pipeline-common/` |
 | Pipeline DB migrations | `loom/db/flyway/.../V2.19__add_pipeline.sql`, `V2.29__add_pipeline_run.sql`, `V2.30__add_pipeline_version.sql` |
+| Chat / agent DB migrations | `V2.28__add_chat`, `V2.36__add_skill`, `V2.37__add_skill_version`, `V2.52__add_chat_session`, `V2.53__add_agent_memory`, `V2.54` (memory deny rules) |
+| Node result persistence | `V2.45__add_asset_node_result`, `AssetEndpoint` `/api/v1/assets/:uuid/node-results` |
+| Chat / agent code | `loom/agent/{chat,memory,sandbox}/` |
 | Pipeline UI editor | `loom-ui/src/features/pipeline/PipelineEditor.tsx` |
+| UI API client layer | `loom-ui/src/api/` |
 | Documentation source (AsciiDoc) | `loom/doc/src/main/docs/` |
-| Container builds | `loom/containers/` + `cortex/container/` |
-| UI source | `loom-ui/src/` |
-| Website content | `website/content/` |
+| Customer-facing docs | `website/content/english/docs/` |
+| Container builds | `loom/containers/`, `cortex/container/` |
+| Helm chart | `loom/helm/` |
+| DB diagram | `loom/design/DB/dbdiagram.yaml` |
 | Integration tests | `integration-test/src/test/java/io/metaloom/loom/test/integration/` |
 | E2E tests | `e2e-test/src/test/java/io/metaloom/loom/studio/test/` |
 | Examples | `examples/cortex-custom/`, `examples/cortex-custom-node/` |
@@ -652,75 +729,73 @@ Both Loom and Cortex use **Dagger 2** extensively:
 
 | Area | Convention / Gotcha |
 |------|---------------------|
-| **Java packages** | Backend: `io.metaloom.loom.*`; Processing: `io.metaloom.cortex.*` — do not mix |
-| **Dagger** | After touching generic types on nodes/services, do a clean build — stale generated code causes confusing compile errors |
-| **jOOQ generated sources** | Live inside `src/jooq/java`; never edit by hand — rerun `loom/db/jooq/generate.sh` after schema changes |
-| **New DB fields** | Need: (a) Flyway `V*.sql`, (b) jOOQ regeneration, (c) DAO API changes in `loom/db/api`, (d) impl updates in `loom/db/jooq` and `loom/db/memory`, (e) contract tests in `loom/db/api-test` |
-| **REST updates** | `POST` is used for create AND update on all endpoints (kept for backward compatibility). User/Group/Asset additionally support `PATCH` (= the POST partial update) and `PUT` (full replace — 400 if any replaceable field is absent). See [RESTAPI.md](loom/RESTAPI.md) §1.2 |
-| **WebSocket auth** | Token via `?token=<jwt>` query param (browsers can't send custom headers on WS upgrade) |
-| **Test assertions** | Use domain-specific `AbstractAssert` subclasses — don't roll your own equality checks |
-| **Cortex nodes** | Two hierarchies: Cortex-level (CLI) and Pipeline-level (DAG) — bridged by `CortexNodeAdapter`. Never extend both bases |
-| **Pipeline nodes** | Must have exactly one source node; IDs must match `^[a-z0-9]([a-z0-9\-]{0,62}[a-z0-9])?$` |
-| **Pipeline definition JSON** | 🔴 Loom writes `nodes[]` + `edges[]`; the Cortex loader reads `nodes[].dependencies[]` and ignores `edges`. Authored pipelines do not execute as drawn — see [PIPELINE.md](features/pipeline/PIPELINE.md) §9.2 |
-| **Pipeline runs** | ✅ Now close correctly with real counters (fixed 2026-07-18). Older "always RUNNING" notes are stale. Gap: an errored/cancelled run emits no completion event |
-| **Pipeline node types** | 🔴 Only 6 of 29 advertised kinds are executable; the rest silently stub out as *successes* |
-| **Result sync** | 🔴 Only `sha512`/`sha256`/`md5`/`chunkHash` reach Loom — all other node outputs are dropped by the bulk writer. The streaming run path never flushes at completion |
-| **Cortex `cortex.yml`** | 🔴 Never read on the server path despite what [CONFIGURATION.md](cortex/CONFIGURATION.md) documents |
+| **Test DB pool** | 🔴 Run `./setup-pool.sh` before tests **and after every Flyway change** — otherwise pooled DBs are stale and failures are misleading (`Pool not found {loom-dev}`) |
+| **Java packages** | Backend `io.metaloom.loom.*`; processing `io.metaloom.cortex.*` — do not mix |
+| **Dagger** | After changing generic types on nodes/services, or an endpoint constructor, do a **clean rebuild** of `loom/core` — stale generated code surfaces as `NoSuchMethodError` during setup-pool/tests |
+| **jOOQ generated sources** | Live in `src/jooq/java`; never edit by hand — rerun `loom/db/jooq/generate.sh` after schema changes; converters are configured via `forcedTypes` in that pom |
+| **New DB fields** | Need (a) Flyway `V*.sql`, (b) jOOQ regeneration, (c) DAO API change in `loom/db/api`, (d) impl updates in `loom/db/jooq` **and** `loom/db/memory`, (e) contract tests in `loom/db/api-test` |
+| **Delete DAOs** | Must have delete-cascade tests proving only the intended rows disappear (CODING.md § DAO) |
+| **`user_permission` PK** | Only one direct grant per user — grant test permissions via group+role instead (`SkillEndpointTest` is the pattern) |
+| **REST paths** | Always plural for method-carrying paths (CODING.md § REST) |
+| **REST updates** | `POST` creates **and** updates on all endpoints (backwards compatibility). User/Group/Asset also support `PATCH` (partial) and `PUT` (full replace — 400 if a replaceable field is missing). See [RESTAPI.md](loom/RESTAPI.md) §1.2 |
+| **REST tests** | Endpoint test + fine-grained permission cases are part of "done", not follow-up work |
+| **WebSocket auth** | Token via `?token=<jwt>` query param |
+| **Test assertions** | Use the domain-specific `AbstractAssert` subclasses — do not hand-roll equality checks |
+| **Cortex node hierarchies** | Two of them: Cortex-level (CLI/processor) and Pipeline-level (DAG), bridged by `CortexNodeAdapter`. Never extend both bases |
+| **Pipeline graph rules** | Exactly one source node; node IDs must match `^[a-z0-9]([a-z0-9\-]{0,62}[a-z0-9])?$` |
+| **Definition JSON** | ✅ Loom's `PipelineGraphParser` resolves the top-level `edges[]` array, falling back to `nodes[].dependencies[]` when no edges are present; when both exist **`edges` wins**. Older notes claiming edges are ignored describe the deleted Cortex-side `LoomPipelineLoader` and are stale |
+| **Executable node kinds** | 🔴 `PipelineNodeFactoryModule` registers only `filesystem-source`, `asset-source`, `sha512`, `sha256`, `md5`, `chunk-hash`, `thumbnail`. Every other `type` in a pipeline definition falls back to a **stub node that reports success**. The node implementations exist (`NodeCollectionModule`) — they are simply not wired into the pipeline registry |
+| **Node result write-back** | Results reach Loom via `POST /api/v1/assets/:uuid/node-results` — upsert a typed component **and** record the `asset_node_result` ledger row. `WhisperNode` is the reference implementation; copy its shape for a new node |
+| **Cortex `cortex.yml`** | 🔴 Not read on the server path, despite [cortex/CONFIGURATION.md](cortex/CONFIGURATION.md) |
 | **Cortex shutdown** | 🔴 No shutdown hook — `SIGTERM` abandons in-flight work and loses buffered results |
-| **Pipeline validation** | Logic is triplicated (loom-shared, loom-rest, UI). Only the loom-rest copy checks node types and is tested |
-| **MCP tools** | Registered via Dagger multibinding (`Set<MCPTool>`), dispatched via Vert.x EventBus (`mcp.tool.<name>`) |
+| **Pipeline validation** | Triplicated (loom-shared, loom-rest, UI). Only the loom-rest copy checks node types and is tested |
+| **MCP tools** | Registered via Dagger multibinding (`Set<MCPTool>`), dispatched over the Vert.x EventBus (`mcp.tool.<name>`) |
+| **UI tests** | Component tests are Playwright *mocked* e2e specs; pure logic uses node-env vitest. No RTL/jsdom |
+| **Cortex node E2E tests** | Live in `integration-test/`; rebuild the shaded `cortex/cli` JAR and container before running them |
+| **Spec ↔ code drift** | Spec footers carry a verification date. If a claim predates the code you are reading, verify before believing — and fix the spec in your change |
 
 ---
 
 ## 7. Progress Assessment
 
-- [x] Project overview and architecture documented
-- [x] All specification files cataloged with descriptions
-- [x] Loom backend service specifications covered
-- [x] Cortex processing node specifications covered
-- [x] Loom UI specifications covered
-- [x] Website specifications covered
-- [x] Integration testing specifications covered
-- [x] E2E testing specifications covered
-- [x] Examples specifications covered
-- [x] Cross-cutting concerns documented
-- [x] Cheat sheet for quick navigation
-- [x] Conventions and gotchas highlighted
-- [x] Pipeline feature specs unified into `features/pipeline/` (2026-07-18) and
-      verified against the code
-- [x] Loom↔Cortex interaction documented end to end
-      ([cortex/METALOOM_ARCHITECTURE.md](cortex/METALOOM_ARCHITECTURE.md))
-- [x] Multi-instance topology proposal captured
-      ([cortex/METALOOM_ARCHITECTURE_V2_PLAN_C.md](cortex/METALOOM_ARCHITECTURE_V2_PLAN_C.md))
-- [x] Stale `/memories/repo/` references removed (2026-07-18)
-- [x] `loom/db` module list corrected (`fs`, `hibernate` were missing)
-- [ ] Remaining feature areas (assets, auth, search) not yet extracted into
-      `features/` — they are still documented per component
-- [ ] `spec/AGENTS.md` is an empty placeholder; there is no permission-model
-      spec at all (`loom/PERMISSION.md` was referenced by older revisions but
-      does not exist)
-- [ ] `cortex/CONFIGURATION.md` still documents a YAML precedence chain that does
-      not work; `cortex/CORTEX.md` still describes the reconnect backoff as
-      exponential (it is linear)
+- [x] Every file under `spec/` catalogued with a description (§2)
+- [x] `guidelines/CODING.md` surfaced as a mandatory pre-read with a summary table (§0)
+- [x] `SPEC_RULES.md` surfaced as the rule set for spec edits (§0)
+- [x] Reading order and "which file do I open?" routing added (§0.3, §2.1)
+- [x] Loom module layout updated for `loom/pipeline` (engine + graph) and the full `services/` list
+- [x] Top-level `cli/` module documented; dead `loom/cli` references removed
+- [x] `loom-shared` / `loom-client` module lists corrected (`node-model`, `pipeline-model`, `report`)
+- [x] Cortex module layout updated for `node-runtime`
+- [x] Architecture diagram reflects Variant C (Loom owns the DAG)
+- [x] Environment variable tables added for Loom and Cortex (§4.4)
+- [x] Stale "edges are ignored" claim corrected against `PipelineGraphParser`
+- [x] Duplicate `METALOOM_ARCHITECTURE_V2_PLAN_C.md` entry removed; `METALOOM_ARCHITECTURE_TASK.md` added
+- [x] Cheat sheet extended with pipeline engine, agent, node-result and Helm paths
+- [ ] `spec/AGENTS.md` is a one-line stub — decide whether it should carry agent-specific rules or be deleted
+- [ ] `spec/TASKS.md` (root) is an unstructured note; fold it into [tasks/TASKS.md](tasks/TASKS.md) in the template format
+- [ ] Only 7 of the ~29 node kinds are registered as executable pipeline types — see §6
+- [ ] `cortex/CONFIGURATION.md` still documents a YAML precedence chain that does not work;
+      `cortex/CORTEX.md` still describes the reconnect backoff as exponential (it is linear)
+- [ ] Assets, auth and search are still documented per component rather than extracted into `features/`
+- [ ] `loom/GRAPHQL.md` describes a service that is implemented but not registered — confirm and reconcile
 
 ---
 
 ## 8. Related Notes
 
-⚠️ Earlier revisions of this file listed living notes under `/memories/repo/`
-(`metaloom-cortex-architecture.md`, `cortex-pipeline-detailed.md`, and others).
-**That directory does not exist in this checkout.** Those cross-references are
-stale and were removed on 2026-07-18. Everything that mattered from them is
-either in the `spec/` tree or must be re-derived from the code.
+⚠️ Earlier revisions of this file listed living notes under `/memories/repo/`. **That directory does
+not exist in this checkout.** Those cross-references were removed on 2026-07-18; everything that
+mattered is either in the `spec/` tree or must be re-derived from the code.
 
-The authoritative specs are the ones catalogued in §2 of this file. When a spec
-and the code disagree, **the code wins** — and fix the spec in the same change.
+The authoritative specs are the ones catalogued in §2. When a spec and the code disagree,
+**the code wins** — and fix the spec in the same change.
 
 ---
 
-*This document is maintained as the primary entry point for AI coding agents. When in doubt, start here and follow the cross-references to the detailed specification files.*
+*This document is the primary entry point for AI coding agents. When in doubt, start here and
+follow the cross-references.*
 
 ---
 
-_Git HEAD revision: `6d454bc0e90fc6849f33b191fff84608367d66eb`_
-_Last updated: 2026-07-25 (added loom/agent AI subsystem, cortex/node-runtime, daemon execution model)_
+_Git HEAD revision: `183d36715c05e429474f7730d96869a906f3fecc`_
+_Last updated: 2026-07-26 (full spec-file re-catalogue; CODING.md rules promoted to §0; `loom/pipeline` and top-level `cli/` documented; env-var tables added; edges/dependencies claim corrected)_

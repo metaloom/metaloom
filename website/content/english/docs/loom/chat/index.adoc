@@ -63,7 +63,7 @@ captures:
 * **context references** to other published sessions, so one session can build on another.
 
 Sessions are owned per user, can be named, tagged, described and **published** for other users to
-reference. They are managed via `/api/v1/chat/sessions`. Publishing a session shares a reproducible
+reference. They are managed via `/api/v1/chat-sessions`. Publishing a session shares a reproducible
 working context, not just a chat log.
 
 == Skills

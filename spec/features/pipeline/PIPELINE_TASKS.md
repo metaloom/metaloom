@@ -382,6 +382,19 @@ above rather than a coverage percentage.
 
 ## Task 7: Complete the Java REST client for run and version operations
 
+> ✅ **The client methods landed on 2026-07-26** alongside the CLI (see
+> [../cli/CLI_PLAN.md](../cli/CLI_PLAN.md)). `PipelineMethods` now has
+> `runPipeline`, `pausePipelineRun`, `resumePipelineRun`, `cancelPipelineRun`,
+> `listPipelineVersions`, `loadPipelineVersion` and `restorePipelineVersion`,
+> plus a new `InfoMethods` (`restInfo`, `me`) and the previously missing
+> `LoomHttpClientImpl.Builder.setPathPrefix`.
+>
+> **Still open:** the endpoint tests this was meant to unblock. `CliIntegrationTest`
+> exercises `runPipeline` and the run-control routes end to end, and
+> `PipelineRunPauseEndpointTest` covers pause/resume, but the **versioning**
+> surface (create → update → update, restore, 404 on an unknown version) is still
+> untested, and so is the `SOURCE_TASK` payload shape on a successful dispatch.
+
 **Argumentation Summary:** `PipelineMethods` in `loom-client/common` exposes
 only load/create/update/list/listRuns/delete. It lacks `run`, `listVersions`,
 `loadVersion`, and `restoreVersion`. This is why **no Java test touches the

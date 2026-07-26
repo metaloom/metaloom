@@ -1,6 +1,6 @@
 # Chat Sessions — Publishing, Discovery & Context Composition (Concept)
 
-> Status: **concept** (Phase 3). Phases 1–2 (per-chat coding sandbox + `/api/v1/session/:uuid/*`
+> Status: **concept** (Phase 3). Phases 1–2 (per-chat coding sandbox + `/api/v1/sessions/:uuid/*`
 > filesystem proxy) are implemented in `loom/agent`. This document specifies how a **chat session** is
 > made a first-class, publishable, discoverable entity, and how one session can **compose its context**
 > from other published sessions with fine-grained control — chat history, skills and/or filesystem.
@@ -12,7 +12,7 @@ A **chat session** is the durable record behind one chat: its transcript, the sk
 Today a chat is just a row in `chat`; this phase elevates it to a named, describable, shareable unit.
 
 Naming: the entity is **chat session** everywhere — table `chat_session`, REST under
-`/api/v1/chat/sessions`, UI route `/chat/sessions`.
+`/api/v1/chat-sessions`, UI route `/chat/sessions`.
 
 ## 2. Auto-generated name & description (on first use)
 
@@ -108,19 +108,19 @@ sessions (their own or others') without ever "installing" or duplicating a whole
 
 ### Endpoints
 
-Under `API_V1_PATH + "/chat/sessions"` (new endpoint in `loom-agent-chat`, ownership-gated like
+Under `API_V1_PATH + "/chat-sessions"` (new endpoint in `loom-agent-chat`, ownership-gated like
 `SessionFsEndpoint`):
 
 | Route | Meaning |
 |---|---|
-| `GET /chat/sessions?scope=mine\|published&tag=&q=` | List with **REST filtering** — own sessions, the published library, tag/name search. One endpoint, filtered (no separate `/library`, no `/install`). |
-| `GET /chat/sessions/:uuid` | Full detail (name, description, tags, ages, source chat, pinned skill versions, filesystem summary, context refs) |
-| `POST /chat/sessions` | Capture the current chat as a session (snapshot `/session`, insert row; name/description default to the AI-generated ones) |
-| `PATCH /chat/sessions/:uuid` | Edit name / description / tags |
-| `POST /chat/sessions/:uuid/publish` \| `/unpublish` | Toggle `published` (owner only) |
-| `GET /chat/sessions/:uuid/context` | The current context refs (source sessions + per-part flags) |
-| `PUT /chat/sessions/:uuid/context` | Replace the context refs — add/remove source published sessions and set the chat-history / skills / filesystem toggles |
-| `GET /chat/sessions/:uuid/files?path=` etc. | (Phase-2 `/api/v1/session/:uuid/*` proxy is reused for browsing the filesystem) |
+| `GET /chat-sessions?scope=mine\|published&tag=&q=` | List with **REST filtering** — own sessions, the published library, tag/name search. One endpoint, filtered (no separate `/library`, no `/install`). |
+| `GET /chat-sessions/:uuid` | Full detail (name, description, tags, ages, source chat, pinned skill versions, filesystem summary, context refs) |
+| `POST /chat-sessions` | Capture the current chat as a session (snapshot `/session`, insert row; name/description default to the AI-generated ones) |
+| `PATCH /chat-sessions/:uuid` | Edit name / description / tags |
+| `POST /chat-sessions/:uuid/publish` \| `/unpublish` | Toggle `published` (owner only) |
+| `GET /chat-sessions/:uuid/context` | The current context refs (source sessions + per-part flags) |
+| `PUT /chat-sessions/:uuid/context` | Replace the context refs — add/remove source published sessions and set the chat-history / skills / filesystem toggles |
+| `GET /chat-sessions/:uuid/files?path=` etc. | (Phase-2 `/api/v1/sessions/:uuid/*` proxy is reused for browsing the filesystem) |
 
 ## 6. Filesystem persistence
 
@@ -145,7 +145,7 @@ New feature area `loom-ui/src/features/chatSessions/` and routes in
 - **`/chat/sessions/:uuid`** — **detail page** (`ChatSessionDetail.tsx`) showing **all** info: name +
   description (inline-editable), tags, created/edited relative ages, the source chat link, **pinned
   skill versions** ("Skill X @ v3"), a **filesystem view** (file tree via the Phase-2
-  `/api/v1/session/:uuid/files` + `download`/`preview` proxy), the current **context references**, and
+  `/api/v1/sessions/:uuid/files` + `download`/`preview` proxy), the current **context references**, and
   a **Publish / Unpublish** button.
 - **Context editor** — a panel (in the chat workspace and on the detail page, modelled on
   [SkillsPanel](../../../loom-ui/src/features/chat/SkillsPanel.tsx)) to **select / unselect published

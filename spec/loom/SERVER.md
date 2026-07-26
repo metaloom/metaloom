@@ -399,7 +399,7 @@ router.getDelegate().route().handler(BodyHandler.create().setBodyLimit(-1));  //
 | Concept | File Path |
 |---------|-----------|
 | Server entry point (container) | `loom/containers/server/src/main/java/io/metaloom/loom/container/server/LoomServerRunner.java` |
-| Server entry point (CLI) | `loom/cli/src/main/java/io/metaloom/loom/cli/LoomCLI.java` |
+| Server entry point (demo) | `loom/containers/demo/src/main/java/io/metaloom/loom/container/demo/LoomDemoRunner.java` |
 | Bootstrap/startup logic | `loom/core/src/main/java/io/metaloom/loom/core/boot/BootstrapInitializer.java` |
 | Main Loom implementation | `loom/core/src/main/java/io/metaloom/loom/core/LoomImpl.java` |
 | Configuration loading | `loom/common/src/main/java/io/metaloom/loom/common/options/LoomOptionsLoader.java` |

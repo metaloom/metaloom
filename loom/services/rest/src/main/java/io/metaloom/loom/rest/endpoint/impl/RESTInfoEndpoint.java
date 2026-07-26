@@ -20,10 +20,14 @@ import io.metaloom.loom.api.error.LoomRestException;
 import io.metaloom.loom.rest.AbstractEndpoint;
 import io.metaloom.loom.rest.EndpointDependencies;
 import io.metaloom.loom.rest.HTTPConstants;
+import io.metaloom.loom.rest.LoomRoutingContext;
 import io.metaloom.loom.rest.model.info.RESTInfoResponse;
-import io.metaloom.vertx.openapi.OpenAPIGenerator;
-import io.metaloom.vertx.openapi.OpenAPIGenerator.Builder;
+import io.metaloom.loom.rest.openapi.LoomOpenAPI;
+import io.swagger.v3.core.util.Json;
+import io.swagger.v3.core.util.Yaml;
+import io.swagger.v3.oas.models.OpenAPI;
 import io.vertx.core.Vertx;
+import io.vertx.core.http.HttpServerRequest;
 
 @Singleton
 public class RESTInfoEndpoint extends AbstractEndpoint {
@@ -68,22 +72,48 @@ public class RESTInfoEndpoint extends AbstractEndpoint {
 			});
 		});
 
-		addRoute(basePath() + "/openapi", GET, "Load REST API OpenAPI spec", lrc -> {
-			try {
-				Builder builder = OpenAPIGenerator.builder();
-				builder.title("MetaLoom // Loom REST API");
-				builder.baseUrl("https://server.tld");
-				builder.version(LoomVersion.VERSION);
-				builder.description("The API for our example server");
-				builder.apiRouter(apiRouter());
-				// TODO check accept header for types
-				String yaml = builder.generateYaml();
-				lrc.sendText(yaml, HTTPConstants.TEXT_YAML, 200);
-			} catch (Exception e) {
-				log.error("Error while invoking API spec generator", e);
-				throw new LoomRestException(500, LoomRestErrorCode.INTERNAL_ERROR, "Error while generating spec");
+		// YAML is the default representation of the spec, `/openapi.json` serves the same
+		// document as JSON - that is what the Swagger UI of the website consumes.
+		addRoute(basePath() + "/openapi", GET, "Load the OpenAPI spec of this server (YAML)", lrc -> sendSpec(lrc, false));
+		addRoute(basePath() + "/openapi.yaml", GET, "Load the OpenAPI spec of this server (YAML)", lrc -> sendSpec(lrc, false));
+		addRoute(basePath() + "/openapi.json", GET, "Load the OpenAPI spec of this server (JSON)", lrc -> sendSpec(lrc, true));
+	}
+
+	private void sendSpec(LoomRoutingContext lrc, boolean json) {
+		try {
+			OpenAPI api = LoomOpenAPI.describe(apiRouter(), baseUrl(lrc));
+			if (json) {
+				lrc.sendText(Json.pretty(api), HTTPConstants.APPLICATION_JSON, 200);
+			} else {
+				lrc.sendText(Yaml.pretty(api), HTTPConstants.TEXT_YAML, 200);
 			}
-		});
+		} catch (Exception e) {
+			log.error("Error while invoking API spec generator", e);
+			throw new LoomRestException(500, LoomRestErrorCode.INTERNAL_ERROR, "Error while generating spec");
+		}
+	}
+
+	/**
+	 * Advertise the address the spec was actually fetched from so that "Try it out" in a spec viewer talks back to this server instead of a
+	 * placeholder host.
+	 *
+	 * @param lrc
+	 * @return
+	 */
+	private static String baseUrl(LoomRoutingContext lrc) {
+		HttpServerRequest request = lrc.routingContext().request();
+		String host = request.getHeader("X-Forwarded-Host");
+		if (host == null) {
+			host = request.authority() == null ? null : request.authority().toString();
+		}
+		if (host == null) {
+			return LoomOpenAPI.DEFAULT_BASE_URL;
+		}
+		String scheme = request.getHeader("X-Forwarded-Proto");
+		if (scheme == null) {
+			scheme = request.isSSL() ? "https" : "http";
+		}
+		return scheme + "://" + host;
 	}
 
 	@Override

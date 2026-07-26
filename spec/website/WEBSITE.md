@@ -66,10 +66,11 @@ The Hugo source is `website/`. All commands below assume you `cd website` first.
 
 ### Prerequisites
 
-* **Hugo** (extended build recommended — theme CSS is compiled from LESS in the theme's own
-  yarn build, but Hugo's asset pipeline / SCSS security exec is enabled in `config.toml`).
-* **Node + Yarn** — used by the theme to compile CSS (`themes/meghna-hugo` has its own
-  `package.json`).
+* **Hugo** (extended, **≥ 0.158**) — the config uses the post-0.158 multilingual keys
+  (`[languages.en] locale`/`label`, not the old `languageCode`/`languageName`) and templates use
+  `hugo.Data` / `site.Language.Locale`. Older Hugo (≤0.131) will error on these.
+* **Node + npm** — used by the theme to compile CSS (`themes/meghna-hugo` has its own
+  `package.json`). `build.sh` prefers `yarn` if present and falls back to `npm` otherwise.
 * **asciidoctor** — required because docs/blog are AsciiDoc. `config.toml` explicitly allows the
   `asciidoctor` external binary under `[security.exec] allow`. Without it, `.adoc` pages render
   empty or Hugo errors.
@@ -78,12 +79,12 @@ The Hugo source is `website/`. All commands below assume you `cd website` first.
 
 | Command | What it does |
 | --- | --- |
-| `./build.sh` | Full build: `cd themes/meghna-hugo && yarn install && yarn build` (compiles theme CSS), then `hugo` at the project root → writes `dist/`. |
+| `./build.sh` | Full build: `cd themes/meghna-hugo && (yarn\|npm) install && … build` (compiles theme CSS), then `hugo` at the project root → writes `dist/`. |
 | `./watch.sh` | Runs `build.sh` then `hugo server -b http://localhost:1313/` for live local preview. |
 | `hugo` | Site build only (assumes theme CSS already built). Output → `dist/`. |
 
-`build.sh` uses `set -o errexit -o nounset` — a missing `asciidoctor`/`yarn`/`hugo` fails the
-whole script. `dist/` and `docs/` are git-ignored in this repo (see `website/.gitignore`), so a
+`build.sh` uses `set -o errexit -o nounset` — a missing `asciidoctor`/`hugo` (or both `yarn` **and**
+`npm`) fails the whole script. `dist/` and `docs/` are git-ignored in this repo (see `website/.gitignore`), so a
 build never dirties the working tree with output.
 
 ### Maven integration
@@ -110,7 +111,7 @@ website/
 ├── data/en/*.yml          # landing-page section data (banner, feature, team, funfacts, ...)
 ├── i18n/en.yaml           # UI string translations (menu labels, "Read more", etc.)
 ├── static/                # copied verbatim to dist/: images/, CNAME, .nojekyll, robots
-│   └── docs/examples/openapi.json   # staged OpenAPI doc rendered by the embedded Swagger UI
+│   └── docs/examples/openapi.{json,yaml}  # staged OpenAPI doc: downloadable + rendered by Swagger UI
 ├── resources/_gen/        # Hugo asset cache (git-ignored)
 ├── themes/meghna-hugo/    # vendored + customized theme (layouts, LESS, JS plugins)
 └── dist/                  # BUILD OUTPUT (git-ignored) → what gets published
@@ -145,6 +146,7 @@ docs/
 │   ├── features/          # assets, users, groups, roles, tags, pipelines
 │   ├── chat/              # Chat & AI Agent — agentic loop, Sessions, Skills (w/ examples), Memory, coding sandbox (+ deployment)
 │   ├── artifacts/ · maven-artifacts/ · containers/ · helm-chart/  # deploy/coordinates
+│   │                          #   rest-api/ = spec download (yaml/json) + Swagger UI explorer + tables
 │   └── examples/          # snippets from the /examples module
 ├── cortex/                # ── Cortex subsystem (now a daemon that serves nodes) ──
 │   ├── _index.adoc        # engine overview
@@ -170,31 +172,62 @@ docs/
 Every content page is a **page bundle**: a directory containing `index.adoc` (a leaf page) or
 `_index.adoc` (a section/branch page). Co-located assets (images) go in the same folder.
 
-### Updating the embedded OpenAPI spec (Swagger UI)
+### The OpenAPI spec: download + API explorer
 
-The REST API page (`docs/loom/rest-api/`) documents the endpoint surface by hand, but the site also
-embeds a **live Swagger UI** (the `plugins/swagger/*` assets, wired in `config.toml`). The OpenAPI
-document it renders is **generated from the Loom server's endpoint registry** — it is not written by
-hand and must be regenerated whenever endpoints change:
+The REST API page (`docs/loom/rest-api/`) offers the API in three forms:
 
-1. The generator lives in the `loom/doc` module:
-   `io.metaloom.loom.doc.impl.OpenAPIGenerator` calls
-   `io.metaloom.loom.rest.openapi.LoomOpenAPI#generateJson()` and writes
-   `loom/doc/src/main/generated/openapi.json`.
-2. `io.metaloom.loom.doc.ExampleGenerator#main` runs all doc generators (OpenAPI + Loom config +
+1. **Download** — `openapi.yaml` / `openapi.json` links in a card grid, served straight from
+   `website/static/docs/examples/`.
+2. **API Explorer** — an embedded **Swagger UI** (`plugins/swagger/*`, wired in `config.toml`)
+   that renders the same document. It covers ~130 paths, grouped into ~35 resource tags.
+3. **Endpoint Reference** — hand-written summary tables for the most-used routes. These are a
+   reading guide; the explorer is the authoritative list.
+
+The OpenAPI document is **generated from the Loom server's endpoint registry** — never written by
+hand — and must be regenerated whenever endpoints change.
+
+#### Regenerating
+
+1. The generation logic lives in `io.metaloom.loom.rest.openapi.LoomOpenAPI`
+   (module `loom/services/rest`). It builds a throw-away `ApiRouter`, registers **every** endpoint
+   of the rest module on it, runs the external `io.metaloom.vertx.openapi.OpenAPIGenerator` over
+   the result and then *polishes* the raw route dump into a usable document:
+   Vert.x `:uuid` paths become OpenAPI `{uuid}` templates with declared path parameters, operations
+   get tags/summaries/operationIds, JWT + cookie security schemes are declared (with the pre-auth
+   routes opting out), the standard 400/401/403/404/500 error responses are filled in and the route
+   examples are inlined as real JSON instead of escaped strings.
+2. `io.metaloom.loom.doc.impl.OpenAPIGenerator` (module `loom/doc`) drives it and writes both
+   `loom/doc/src/main/generated/openapi.json` and `openapi.yaml`. It runs from `loom/doc` because
+   the chat/memory endpoints live in `loom/agent/*`, which depends on the rest module and therefore
+   cannot be referenced from `LoomOpenAPI` itself — they are passed in through the extra-endpoint
+   factory.
+3. `io.metaloom.loom.doc.ExampleGenerator#main` runs all doc generators (OpenAPI + Loom config +
    REST model). Run it after adding/removing/renaming REST endpoints or changing DTOs:
 
    ```bash
-   mvn -q -pl loom/doc -am exec:java \
-     -Dexec.mainClass=io.metaloom.loom.doc.ExampleGenerator
+   mvn -q -pl loom/doc -am -DskipTests install
+   cd loom/doc && mvn -q exec:java -Dexec.mainClass=io.metaloom.loom.doc.ExampleGenerator
    ```
    (Working directory must be `loom/doc/` — the generator writes to the relative
-   `src/main/generated/openapi.json`.)
-3. Stage the generated file into the site as `website/static/docs/examples/openapi.json` (copy it —
-   nothing does this automatically). That is the path the embedded Swagger UI loads.
-4. A running server also serves the same document live at `/api/v1/openapi.json`.
+   `src/main/generated/`.)
+4. Stage **both** generated files into the site (copy them — nothing does this automatically):
 
-**Swagger UI wiring (`themes/meghna-hugo/static/plugins/swagger/swagger.js`)**
+   ```bash
+   cp loom/doc/src/main/generated/openapi.json website/static/docs/examples/
+   cp loom/doc/src/main/generated/openapi.yaml website/static/docs/examples/
+   ```
+5. A running server serves the same document for its own endpoint set at `/api/v1/openapi`
+   (YAML), `/api/v1/openapi.yaml` and `/api/v1/openapi.json`, with the address it was fetched from
+   filled in as the server URL.
+
+`LoomOpenAPITest` guards the generation and the polish step (path templating, path parameters,
+operation descriptions, security schemes, inlined examples, endpoint coverage). Run
+`mvn -pl loom/services/rest test` after endpoint changes.
+
+> ⚠️ The checked-in `loom/doc/src/main/generated/openapi.*` can go stale relative to the code.
+> Regenerate them in the same change as any REST endpoint edit, and re-stage them for the website.
+
+#### Swagger UI wiring (`themes/meghna-hugo/static/plugins/swagger/swagger.js`)
 
 * The plugin JS is loaded on **every** page (`[[params.plugins.js]]` in `config.toml`), so the
   script must bail out when `#swagger-ui` is absent — otherwise SwaggerUIBundle renders into `null`
@@ -205,10 +238,38 @@ hand and must be regenerated whenever endpoints change:
   ("metaloom.io wants to access other apps and services on this device").
 * The mount point is a raw-HTML block `<div id="swagger-ui"></div>` in
   `docs/loom/rest-api/index.adoc`; a per-page `data-openapi-url` attribute overrides the default URL.
-`LoomOpenAPITest` guards generation; run `mvn -pl loom/services/rest test` after endpoint changes.
+* Explorer options: `docExpansion: 'none'` (the spec is too big to open expanded), `filter: true`,
+  `deepLinking: true` (so `#/users/getUsersByUuid` links to a single operation), alphabetical tag
+  and operation sorting, `persistAuthorization` and `validatorUrl: null` — the published site must
+  never ship a reader's spec to `validator.swagger.io`.
+* **Contrast:** Swagger UI ships light-theme CSS and assumes a white page. On this dark site its
+  headings and descriptions would be near-invisible, so `#swagger-ui` is given its own light surface
+  in `less/includes/custom.less` (mirrored into the compiled `assets/css/main.css`) rather than
+  being restyled operation by operation.
+* Card headings inside raw-HTML blocks on a docs page carry `data-toc-skip` so bootstrap-toc keeps
+  them out of the sidebar TOC.
 
-> ⚠️ The checked-in `loom/doc/src/main/generated/openapi.json` can go stale relative to the code.
-> Regenerate it in the same change as any REST endpoint edit, and re-stage it for the website.
+### Updating the staged GraphQL schema (GraphiQL explorer)
+
+The **GraphQL API** page (`docs/loom/graphql-api/`) embeds a **GraphiQL** explorer (the
+`plugins/graphiql/*` assets, wired in `config.toml` exactly like Swagger UI). It builds the schema
+in-browser from a staged SDL file, so it works with no backend — only live query *execution* needs a
+running server.
+
+* The staged schema is `website/static/docs/examples/schema.graphql`, served at the site-relative
+  path `/docs/examples/schema.graphql` (the default `data-schema-url` in
+  `themes/meghna-hugo/static/plugins/graphiql/graphiql.js`).
+* It is a **copy** of the Loom SDL and can go stale — regenerate it in the same change as any schema
+  edit:
+
+  ```bash
+  cp loom/services/graphql/src/main/resources/loom.graphqls \
+     website/static/docs/examples/schema.graphql
+  ```
+* `graphiql.js` mirrors `swagger.js`: it is loaded globally but no-ops unless a `#graphiql` mount
+  div is present, and a per-page `data-graphql-url` attribute can point the explorer at a live
+  endpoint (the GraphiQL analogue of Swagger's `data-openapi-url`). A running Loom server also serves
+  a live GraphiQL at `/graphiql`.
 
 ## Capturing Loom UI screenshots
 
@@ -360,6 +421,13 @@ The home page (`themes/meghna-hugo/layouts/index.html`) is assembled from **part
 Several partials (pricing, portfolio, testimonial, contact, map) are wired in the layout but
 their menu entries are commented out in `config.toml`.
 
+Items in `data/en/feature.yml` (both `feature_item` and `feature_item_ops`) accept an optional
+`link:` — a site-relative path to the docs page covering that feature (anchors allowed, e.g.
+`/docs/loom/features/#_permissions`). When present, `partials/feature.html` turns the item title
+into a link and appends a small "Read the docs →" affordance; items without a doc page (the
+`(planned)` ones such as S3 or Import/Export) simply omit the key. Styling lives in
+`less/includes/custom.less` (`.feature-doc-link`, mirrored into the compiled `assets/css/main.css`).
+
 ## Theme & Layouts
 
 `themes/meghna-hugo/` is a vendored, customized copy of the Meghna Hugo theme.
@@ -440,6 +508,8 @@ change the Hugo source and rebuild.
 | `website/data/en/*.yml` | Landing-page section copy (edit these, not partials). |
 | `website/i18n/en.yaml` | UI string translations. |
 | `website/static/` | Verbatim assets: `images/`, `CNAME`, `.nojekyll`. |
+| `website/static/docs/examples/openapi.{json,yaml}` | Staged OpenAPI spec — downloadable and rendered by the API explorer. |
+| `website/themes/meghna-hugo/static/plugins/swagger/swagger.js` | Swagger UI bootstrap + explorer options. |
 | `website/themes/meghna-hugo/layouts/docs/*.html` | Docs page/section templates. |
 | `website/themes/meghna-hugo/layouts/index.html` | Home-page partial pipeline. |
 | `website/pom.xml` | Maven module registration (no build logic). |
@@ -461,6 +531,7 @@ change the Hugo source and rebuild.
 | Change the published domain | `website/static/CNAME` (and staging `docs/CNAME`) + `baseURL` |
 | Fix "asciidoc renders empty" | Ensure `asciidoctor` installed and allowed in `[security.exec]` |
 | Understand how the site is published | [Publishing Flow](#publishing-flow) / `metaloom-website/pull.sh` |
+| Refresh the OpenAPI spec / API explorer | [The OpenAPI spec](#the-openapi-spec-download--api-explorer) — regenerate in `loom/doc`, then re-stage into `website/static/docs/examples/` |
 
 ## Conventions and Gotchas
 
@@ -532,12 +603,29 @@ Current state of the website (as of the checkout below):
 - [x] Swagger UI plugin wired for the Loom REST API — mount point on `docs/loom/rest-api/`,
       site-relative spec URL, no-op on pages without `#swagger-ui`
 - [x] Staged `openapi.json` at `website/static/docs/examples/openapi.json`
+- [x] GraphQL API page (`docs/loom/graphql-api/`) with an embedded **GraphiQL** explorer — schema
+      built in-browser from the staged `schema.graphql` (offline, execution disabled by default),
+      `plugins/graphiql/*` wired like Swagger, plus a live GraphiQL served by the loom server at
+      `/graphiql`
+- [x] Complete, explorable OpenAPI spec on the REST API page — the generator now covers **all**
+      endpoints (~130 paths / 35 resource tags, incl. the chat and memory endpoints of the agent
+      modules) with `{uuid}` path templating, declared path/query parameters, tags, security
+      schemes, standard error responses and inlined JSON examples
+- [x] Spec offered for **download** (`openapi.yaml` / `openapi.json` cards) next to the embedded
+      **API Explorer** (filter, deep links, collapsed-by-default tag groups, readable on the dark
+      site theme)
+- [x] Server serves the same document at `/api/v1/openapi`, `/openapi.yaml` and `/openapi.json`
+      with its own address as the server URL
 - [x] Blog section with initial posts
 - [x] GitHub Pages publish flow via sibling `metaloom-website` repo (`pull.sh`, CNAME)
 - [ ] Remove/consolidate legacy stub pages (`docs/rest/`, `docs/test/`, top-level
       `docs/configuration/`) into the maintained Loom/Cortex pages
-- [ ] Re-run `ExampleGenerator` so the staged `openapi.json` matches current endpoints (the staged
-      copy is only as fresh as `loom/doc/src/main/generated/openapi.json`)
+- [ ] Automate the staging of `loom/doc/src/main/generated/openapi.*` into `website/static/` — it is
+      still a manual `cp` after every `ExampleGenerator` run
+- [ ] Document request/response **schemas** in the spec (it currently carries examples only, so
+      generated clients get untyped bodies) — see `spec/loom/RESTAPI.md` §7.5
+- [ ] Describe the two WebSocket endpoints in the spec (OpenAPI 3.0 cannot express them; they are
+      documented in `spec/loom/WEBSOCKET.md` only)
 - [ ] Only load the ~1 MB Swagger UI bundle on the REST API page instead of globally
 - [ ] Fill remaining thin pages (e.g. `helm-chart`) with full content
 - [ ] Automate build+publish (currently manual `build.sh` + `pull.sh` + push)
@@ -545,5 +633,5 @@ Current state of the website (as of the checkout below):
 
 ---
 
-_GIT HEAD: `6d454bc0e90fc6849f33b191fff84608367d66eb` (branch `master`)_
-_Generated: 2026-07-25 (UTC)_
+_GIT HEAD: `183d36715c05e429474f7730d96869a906f3fecc` (branch `master`)_
+_Generated: 2026-07-26 (UTC)_

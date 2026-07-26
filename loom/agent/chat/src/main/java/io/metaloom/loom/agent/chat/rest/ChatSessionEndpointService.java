@@ -107,12 +107,12 @@ public class ChatSessionEndpointService extends AbstractCRUDEndpointService<Chat
 		}, modelBuilder::toResponse);
 	}
 
-	/** {@code POST /chat/sessions/:uuid/publish} */
+	/** {@code POST /chat-sessions/:uuid/publish} */
 	public void publish(LoomRoutingContext lrc, UUID uuid) {
 		setPublished(lrc, uuid, true);
 	}
 
-	/** {@code POST /chat/sessions/:uuid/unpublish} */
+	/** {@code POST /chat-sessions/:uuid/unpublish} */
 	public void unpublish(LoomRoutingContext lrc, UUID uuid) {
 		setPublished(lrc, uuid, false);
 	}
@@ -127,7 +127,7 @@ public class ChatSessionEndpointService extends AbstractCRUDEndpointService<Chat
 		});
 	}
 
-	/** {@code GET /chat/sessions/:uuid/context} */
+	/** {@code GET /chat-sessions/:uuid/context} */
 	public void getContext(LoomRoutingContext lrc, UUID uuid) {
 		checkPerm(lrc, READ_CHAT_SESSION, () -> {
 			ChatSession session = loadViewable(lrc, uuid);
@@ -138,7 +138,7 @@ public class ChatSessionEndpointService extends AbstractCRUDEndpointService<Chat
 		});
 	}
 
-	/** {@code PUT /chat/sessions/:uuid/context} — replace the whole set of context references. */
+	/** {@code PUT /chat-sessions/:uuid/context} — replace the whole set of context references. */
 	public void putContext(LoomRoutingContext lrc, UUID uuid) {
 		checkPerm(lrc, UPDATE_CHAT_SESSION, () -> {
 			requireOwned(lrc, uuid);

@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import org.junit.jupiter.api.Test;
 
 import io.metaloom.loom.client.common.LoomClientException;
+import io.metaloom.loom.client.common.LoomClientRequest;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.endpoint.AbstractCRUDEndpointTest;
 import io.metaloom.loom.core.endpoint.ReplaceEndpointTestcases;
@@ -482,6 +483,29 @@ public class AssetEndpointTest extends AbstractCRUDEndpointTest implements Repla
 			assertEquals("this", updated.getMeta().getString("keep"));
 			assertEquals("renamed.png", updated.getFile().getFilename());
 		}
+	}
+
+	@Override
+	protected LoomClientRequest<?> createRequest(LoomHttpClient client) {
+		AssetCreateRequest request = new AssetCreateRequest();
+		request.setFile(new FileInfo().setMimeType(IMAGE_MIMETYPE).setFilename("perm-check.png").setSize(500L).setOrigin(INITIAL_ORIGIN));
+		request.setHashes(new HashInfo().setSHA512(CREATE_SHA512));
+		return client.createAsset(request);
+	}
+
+	@Override
+	protected LoomClientRequest<?> loadRequest(LoomHttpClient client) {
+		return client.loadAsset(ASSET_UUID);
+	}
+
+	@Override
+	protected LoomClientRequest<?> listRequest(LoomHttpClient client) {
+		return client.listAssets();
+	}
+
+	@Override
+	protected LoomClientRequest<?> deleteRequest(LoomHttpClient client) {
+		return client.deleteAsset(ASSET_UUID);
 	}
 
 }

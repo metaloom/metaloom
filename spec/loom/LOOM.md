@@ -123,7 +123,6 @@ The Loom project (`loom/`) is a multi-module Maven project:
 | `loom/services/eventbus` | Event bus service (placeholder module, no source files) |
 | `loom/core` | Bootstrap, server lifecycle, `LoomImpl`, `BootstrapInitializer` |
 | `loom/fixture` | Test fixtures and test environment providers |
-| `loom/cli` | Command-line interface entry point |
 | `loom/containers` | Container definitions (server, demo) |
 | `loom/doc` | Documentation module |
 
@@ -714,10 +713,9 @@ No spec file covers the `loom/services/fs` module:
 
 ### 10.10 CLI
 
-No spec file covers the `loom/cli` module:
-- Command-line interface for Loom
-- Available commands (start, stop, migrate, etc.)
-- How the CLI bootstraps the server
+`loom/cli` was deleted (it was a `System.out.println("TBD")` stub that nothing depended
+on). The command-line client now lives in the top-level `cli/` module — see
+[../features/cli/CLI_PLAN.md](../features/cli/CLI_PLAN.md).
 
 ### 10.11 Containers
 

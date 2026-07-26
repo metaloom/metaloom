@@ -81,5 +81,8 @@ Environment variables take precedence over values in `loom.yml`.
 
 == CLI
 
-The Loom server CLI is currently a stub (`TBD`).
-The main entry point is `LoomCLI`. Configuration is driven entirely via the YAML file and environment variables.
+The Loom server main entry point is `LoomServerRunner` (`loom/containers/server`).
+Configuration is driven entirely via the YAML file and environment variables.
+
+The `metaloom` command-line client (`cli/`) is a separate program that talks to a running
+Loom server over the REST API; see the CLI documentation for its own configuration file.
