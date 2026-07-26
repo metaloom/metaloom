@@ -5,6 +5,10 @@ title: Loom Sync
 The Loom sync node is a **sink**: it accumulates hash results from upstream nodes and writes them back
 to the Loom backend in batches, keeping the number of REST calls low on large runs.
 
+++++
+<div class="ml-nodeviz" data-nodeviz='{"kind":"loom","applies":"Any file","badge":"needs a Loom connection","persist":"asset hash columns via bulk update (batches of 50)","inputs":[{"t":"hash","l":"sha512","d":"from the hash node"},{"t":"hash","l":"md5 / sha256","d":"when enabled","opt":true}],"outputs":[{"t":"action","l":"batched write to Loom","d":"no output keys"}]}'></div>
+++++
+
 [cols="1,3"]
 |===
 | Kind | `loom`

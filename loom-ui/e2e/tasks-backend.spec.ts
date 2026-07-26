@@ -27,10 +27,16 @@ test.describe("Tasks – backend e2e", () => {
   test("tasks view loads and displays header", async ({ page }) => {
     await loginAndGoToTasks(page);
 
-    // The table should be visible with header columns
-    await expect(page.getByRole("columnheader", { name: "Task" })).toBeVisible();
-    await expect(page.getByRole("columnheader", { name: "Priority" })).toBeVisible();
-    await expect(page.getByRole("columnheader", { name: "Created" })).toBeVisible();
+    // With tasks present the table renders; without any the empty state replaces it.
+    const emptyState = page.getByTestId("tasks-empty-state");
+    await expect
+      .poll(async () => (await emptyState.isVisible()) || (await page.getByRole("columnheader", { name: "Task" }).isVisible()), { timeout: 10_000 })
+      .toBe(true);
+
+    if (!(await emptyState.isVisible())) {
+      await expect(page.getByRole("columnheader", { name: "Priority" })).toBeVisible();
+      await expect(page.getByRole("columnheader", { name: "Created" })).toBeVisible();
+    }
   });
 
   test("tasks are loaded from backend API", async ({ page }) => {
@@ -39,13 +45,13 @@ test.describe("Tasks – backend e2e", () => {
     // If there are tasks, at least one tbody row should be visible.
     // If there are no tasks, the empty state should be visible.
     const taskRows = page.locator("tbody tr");
-    const emptyMessage = page.getByText("No tasks found");
+    const emptyState = page.getByTestId("tasks-empty-state");
 
     await expect.poll(async () => await taskRows.count(), { timeout: 10_000 }).toBeGreaterThanOrEqual(0);
     if (await taskRows.count()) {
       await expect(taskRows.first()).toBeVisible();
     } else {
-      await expect(emptyMessage).toBeVisible({ timeout: 10_000 });
+      await expect(emptyState).toBeVisible({ timeout: 10_000 });
     }
   });
 

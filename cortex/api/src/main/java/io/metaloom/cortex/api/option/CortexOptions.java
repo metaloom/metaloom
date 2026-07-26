@@ -65,6 +65,7 @@ public class CortexOptions {
 		map.put("tika", 120000L);
 		map.put("whisper", 600000L);
 		map.put("llm", 600000L);
+		map.put("vlm", 600000L);
 		map.put("captioning", 300000L);
 		map.put("scene-detection", 300000L);
 		map.put("quality", 60000L);

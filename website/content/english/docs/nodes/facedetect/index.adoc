@@ -6,6 +6,10 @@ The face detection node finds faces in images and video frames and, optionally, 
 embeddings** (vectors) that can be used for recognition and clustering. Video is processed by scanning
 frames at a configurable rate.
 
+++++
+<div class="ml-nodeviz" data-nodeviz='{"kind":"facedetect","applies":"Image \u00b7 Video","badge":"InspireFace native","persist":"detection rows (bulk upsert) + asset_node_result ledger","configs":[{"name":"detection","note":"capabilities: detection","inputs":[{"t":"image","l":"image"},{"t":"video","l":"video frames","d":"sampled at videoChopRate"}],"outputs":[{"t":"number","l":"face_count"},{"t":"bbox","l":"face detections","d":"bounding box per face"},{"t":"flag","l":"facedetect_flag"}]},{"name":"detection + recognition","note":"capabilities: detection, recognition","inputs":[{"t":"image","l":"image"},{"t":"video","l":"video frames","d":"sampled at videoChopRate"}],"outputs":[{"t":"number","l":"face_count"},{"t":"bbox","l":"face detections","d":"bounding box per face"},{"t":"vector","l":"face embeddings","d":"clustered into persons"},{"t":"flag","l":"facedetect_flag"}]}]}'></div>
+++++
+
 [cols="1,3"]
 |===
 | Kind | `facedetect`

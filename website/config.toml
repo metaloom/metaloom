@@ -89,6 +89,8 @@ link = "plugins/graphiql/react-dom.production.min.js"
 link = "plugins/graphiql/graphiql.min.js"
 [[params.plugins.js]]
 link = "plugins/graphiql/graphiql.js"
+[[params.plugins.js]]
+link = "plugins/nodeviz/nodeviz.js"
 
 ################### English Navigation ########################
 #[[Languages.en.menu.main]]

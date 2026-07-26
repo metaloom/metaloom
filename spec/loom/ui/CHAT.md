@@ -48,6 +48,7 @@ The chat is the landing page of the Loom UI (route `/`). Goals:
 |------|--------|-------|
 | Chat session CRUD (backend) | ✅ | `chat` table (migration [V2.28__add_chat.sql](../../../loom/db/flyway/src/main/resources/db/migration/V2.28__add_chat.sql)): `uuid`, `title`, `messages jsonb`, `meta jsonb`, audit columns. [ChatDao](../../../loom/db/api/src/main/java/io/metaloom/loom/db/model/chat/ChatDao.java), [ChatDaoImpl](../../../loom/db/jooq/src/main/java/io/metaloom/loom/db/jooq/dao/chat/ChatDaoImpl.java), [ChatEndpoint](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/ChatEndpoint.java) (`/api/v1/chats` CRUD), [ChatMethods](../../../loom-client/common/src/main/java/io/metaloom/loom/client/common/method/ChatMethods.java), `ChatEndpointTest`. Permissions `CREATE/READ/UPDATE/DELETE_CHAT`. |
 | Chat UI shell | ✅ | [ChatWorkspace.tsx](../../../loom-ui/src/features/chat/ChatWorkspace.tsx) — sessions rail, resizable chat column, right workspace panel (overview / embedded asset browser / asset detail card). Session persistence is real (via [api/chat.ts](../../../loom-ui/src/api/chat.ts)). |
+| New-session greeting | ✅ | [ChatGreeting](../../../loom-ui/src/features/chat/ChatGreeting.tsx) — prominent "Hello \<username\>" + one-line capability hint, rendered while the transcript is empty (see §5.1). |
 | Entity chips | ✅ | `RefChip` in ChatWorkspace.tsx — chips for `asset · collection · task · pipeline · annotation` with navigation / inline asset preview. |
 | Agent action rows | ✅ | `ActionRow` in ChatWorkspace.tsx — pending/running/done/error status rows (currently fed by mock data only). |
 | Assistant replies | ✅ | The UI streams from the live agent: [ChatWorkspace](../../../loom-ui/src/features/chat/ChatWorkspace.tsx) consumes `POST /chats/:uuid/stream` via [api/agent.ts](../../../loom-ui/src/api/agent.ts) (fetch + ReadableStream, incremental SSE parser). `mockChatService` has been removed. State machine: sending → streaming(reasoning \| answering \| tool) → done/error/aborted; Stop button aborts (fetch abort + `DELETE …/stream`); 409 → busy toast + input restored. |
@@ -215,6 +216,22 @@ itself.
   restores skill toggles.
 
 ## 5. Streaming UX (UI)
+
+### 5.1 New-session greeting
+
+Before the first message exists, `ChatWorkspace` renders `ChatGreeting` instead of a
+blank transcript: the agent avatar, a large gradient **"Hello \<username\>"** and a
+one-line summary of what the agent can do. The name comes from
+`AuthContext.username`; without one, the greeting falls back to a neutral salutation
+(`chat.greeting.helloAnonymous`).
+
+The condition is `messages.length === 0 && !streaming && !sending`, so the greeting
+also returns when the user clicks **New chat** (`newChat()` clears `messages`) — it
+tracks the *empty transcript*, not the creation of a server-side session (which is
+still lazy, on the first `sendMessage`). Testids: `chat-greeting`,
+`chat-greeting-title`; covered by `e2e/empty-states-mocked.spec.ts`.
+
+### 5.2 Streaming
 
 - **Markdown**: assistant `content` renders through `react-markdown` + `remark-gfm`
   inside a `MarkdownContent` component (tables, lists, code blocks; links open in a new

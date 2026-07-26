@@ -136,7 +136,17 @@
         </dependency>
         <dependency>
             <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-vlm-node</artifactId>
+            <version>${loom.cortex.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
             <artifactId>cortex-whisper-node</artifactId>
+            <version>${loom.cortex.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-tts-node</artifactId>
             <version>${loom.cortex.version}</version>
         </dependency>
         <dependency>

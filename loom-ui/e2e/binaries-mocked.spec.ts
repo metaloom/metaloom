@@ -174,11 +174,14 @@ test.describe("Asset binary – mocked request mapping", () => {
     await login(page);
     await openAssetDetail(page);
 
+    // The image preview hits the same route (it *is* the stored binary), so count from the
+    // baseline rather than asserting an absolute total.
+    const before = captured.binaryDownloads;
     await Promise.all([
       page.waitForRequest(req => req.url().includes("/binary/data") && req.method() === "GET"),
       page.locator('[data-testid="DownloadOutlinedIcon"]').click(),
     ]);
 
-    expect(captured.binaryDownloads).toBe(1);
+    expect(captured.binaryDownloads).toBe(before + 1);
   });
 });

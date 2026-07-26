@@ -22,8 +22,10 @@
         <module>scene-detection</module>
         <module>ocr</module>
         <module>llm</module>
+        <module>vlm</module>
         <module>tika</module>
         <module>whisper</module>
+        <module>tts</module>
         <module>quality</module>
         <module>captioning</module>
         <module>video-captioning</module>

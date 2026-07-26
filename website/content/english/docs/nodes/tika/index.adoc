@@ -5,6 +5,10 @@ title: Tika
 The Tika node extracts **format metadata and embedded text** from virtually any file type using Apache
 Tika — images (EXIF), audio/video containers, PDFs and Office documents.
 
+++++
+<div class="ml-nodeviz" data-nodeviz='{"kind":"tika","applies":"Image \u00b7 Audio \u00b7 Video \u00b7 Document","badge":"CPU only","persist":"asset_json_comp + asset_node_result ledger","inputs":[{"t":"file","l":"any supported file","d":"format auto-detected"}],"outputs":[{"t":"flag","l":"tika_flags"},{"t":"text","l":"tika_content","d":"extracted text"}]}'></div>
+++++
+
 [cols="1,3"]
 |===
 | Kind | `tika`

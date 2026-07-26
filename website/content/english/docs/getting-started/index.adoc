@@ -10,8 +10,10 @@ No build tools or configuration files are required.
 
 The demo image (`metaloom/loom-demo`) bundles everything in one container:
 
-* *Loom* — the asset management server (REST API, WebSocket and embedded UI, all on port 8092)
-* *Loom App* — a desktop client built with Electron (optional, launched separately)
+* *Loom UI* — the browser interface you will spend your time in: chat, assets, pipelines and
+  administration, served at `/ui/` by the server itself. **This is the front door.**
+* *Loom* — the asset management server behind it (REST API, WebSocket and the UI, all on port 8092)
+* *Loom App* — an optional desktop client built with Electron, wrapping the same UI
 
 For the full set of images and their ports, see link:../deployment/[Container Images].
 
@@ -32,10 +34,54 @@ docker run -d \
   metaloom/loom-demo:latest
 ----
 
-Once the container is running, Loom is available at http://localhost:8092 and its embedded web UI at
-http://localhost:8092/ui/.
+== Open the Loom UI
 
-Default credentials:
+++++
+<div class="row mt-4 mb-4">
+	<div class="col-lg-12 mb-4">
+		<div class="docs-card h-100">
+			<div class="docs-card-header">
+				<h2 data-toc-skip><a href="http://localhost:8092/ui/">http://localhost:8092/ui/</a></h2>
+				<p>Log in with <strong>admin</strong> / <strong>finger</strong>. The demo database is pre-seeded, so every screen has real content from the first click.</p>
+			</div>
+			<div class="docs-card-body">
+				<a href="../ui/" class="docs-card-link">Screenshot tour</a>
+				<a href="../loom/chat/" class="docs-card-link">Chat &amp; AI Agent</a>
+				<a href="../ui/#assets" class="docs-card-link">Assets</a>
+				<a href="../ui/#pipeline-editing" class="docs-card-link">Pipeline editor</a>
+				<a href="../ui/#administration" class="docs-card-link">Administration</a>
+			</div>
+		</div>
+	</div>
+</div>
+++++
+
+The UI is the front door to everything the server can do — you do not need the REST API to get
+started. You land on the link:../loom/chat/[AI assistant]; the asset browser, pipeline editor,
+tags, face detection and the admin area are one click away in the navigation.
+
+image::loom-ui-chat.png[The Loom UI chat view after login,role=img-fluid]
+
+Browse, search and preview the seeded media in the asset area:
+
+image::loom-ui-assets.png[The Loom UI asset browser,role=img-fluid]
+
+Key areas of the UI:
+
+[options="header",cols="1,2"]
+|===
+| Section | Purpose
+| Chat & AI Agent | Ask questions about your assets in natural language (the landing page)
+| Assets | Browse, search, upload and preview media assets
+| Pipelines | Author pipelines in the editor and watch runs execute live
+| Users & Groups | Create and manage user accounts, group memberships and role assignments
+| API Keys | Generate and revoke long-lived API tokens (see link:../loom/authentication/[Authentication])
+| Settings | Server configuration and system status
+|===
+
+For a screenshot tour of every area, see link:../ui/[Loom UI].
+
+=== Credentials
 
 [options="header",cols="1,1"]
 |===
@@ -46,26 +92,8 @@ Default credentials:
 
 (The password is set by `LOOM_INITIAL_PASSWORD`, which the demo image defaults to `finger`.)
 
-== Loom UI
-
-Loom UI is a browser-based management interface for the Loom server.
-It lets you browse assets, manage users, groups, roles, tags and API keys, and monitor running pipelines — all without touching the REST API directly.
-
-Open http://localhost:8092/ui/ after starting the demo container. The first thing you land on is the
-link:../loom/chat/[AI assistant] chat; the asset browser, users, pipelines and settings are in the
-navigation. For a full screenshot tour of every area, see link:../ui/[Loom UI].
-
-Key areas of the UI:
-
-[options="header",cols="1,2"]
-|===
-| Section | Purpose
-| Assets | Browse, search, upload and preview media assets
-| Users & Groups | Create and manage user accounts, group memberships and role assignments
-| API Keys | Generate and revoke long-lived API tokens (see link:../loom/authentication/[Authentication])
-| Pipelines | View defined pipelines and monitor their execution state
-| Settings | Server configuration and system status
-|===
+The server itself — REST API, WebSocket and SSE — is on http://localhost:8092 for when you want to
+integrate rather than click.
 
 == Loom App
 

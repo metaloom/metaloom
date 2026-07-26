@@ -149,7 +149,7 @@ async function login(page: Page) {
 
 async function openSkillsView(page: Page) {
   await page.getByRole("button", { name: "Skills" }).first().click();
-  await expect(page.getByTestId("skills-table")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId("skills-view")).toBeVisible({ timeout: 10_000 });
 }
 
 async function seedVersionedSkill(page: Page) {

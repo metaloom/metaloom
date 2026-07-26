@@ -1,0 +1,224 @@
+---
+title: Scene-Level Video Analysis
+weight: 4
+---
+
+A two-hour recording is one asset, and that is the problem: "show me the part about pricing" has no
+answer when the only unit of retrieval is the whole file. This playbook cuts video into **scenes** and
+then describes those scenes — from the soundtrack, from the picture, or both.
+
+== What the Platform Gives You
+
+[options="header",cols="1,1,2"]
+|===
+| Node | Produces | Stored as
+| link:../../nodes/scene-detection/[`scene-detection`] | Scene boundaries from optical-flow analysis | `asset_segment_comp` (whole-set replace)
+| link:../../nodes/whisper/[`whisper`] | Transcript with per-utterance start/end times | `asset_transcript_comp`
+| link:../../nodes/thumbnail/[`thumbnail`] | Contact-sheet preview rendered from video frames | local `thumbnail_bin` cache + binary upload
+| link:../../nodes/quality/[`quality`] | Resolution / blurriness / bitrate metrics | quality component
+| link:../../nodes/consistency/[`consistency`] | `is_complete` — is the file whole and decodable | consistency component
+|===
+
+Scenes and transcript are both **timestamped against the same asset**, which is what makes them
+joinable: a scene is `[start, end)`, an utterance is `[start, end)`, and "what was said in scene 4" is
+an overlap query over the two stored components.
+
+[IMPORTANT]
+====
+`scene-detection`, `whisper`, `consistency` and `quality` are not yet registered with the stock
+worker's pipeline node factory, so a run containing them is rejected with `503` until you register the
+kinds and rebuild the worker image — see
+link:../#node-availability[Which node kinds a worker can actually run]. `thumbnail` is registered.
+====
+
+== Prerequisites
+
+* A running stack, and assets already in Loom for the video files (nodes resolve the asset by SHA-512 —
+  see link:../transcription/[Transcribing for the Chat Agent] for why that matters).
+* A worker with the **OpenCV / video4j native runtime**, which `scene-detection`, `thumbnail` and
+  `quality` all need. It is present in the `metaloom/cortex-server` image.
+* For the audio route, a Whisper runtime and model — same worker setup as the transcription playbook.
+
+[#audio]
+== Route A — Describe Scenes from the Soundtrack
+
+Cut the video, transcribe the speech, join on time. This is the cheaper route and it works on anything
+with dialogue: interviews, lectures, podcasts with video, meeting recordings.
+
+[source,json]
+----
+{
+  "nodes": [
+    { "id": "source",      "type": "filesystem-source", "name": "Video library",
+      "options": { "path": "/media/video" } },
+    { "id": "mime",        "type": "filter-mimetype",   "name": "Video only",
+      "options": { "allowedTypes": "video/*" } },
+    { "id": "hash",        "type": "sha512",            "name": "SHA-512 identity" },
+    { "id": "consistency", "type": "consistency",       "name": "Decodable?" },
+    { "id": "scenes",      "type": "scene-detection",   "name": "Scene boundaries",
+      "timeoutMs": 900000 },
+    { "id": "speech",      "type": "whisper",           "name": "Transcribe",
+      "timeoutMs": 3600000 }
+  ],
+  "edges": [
+    { "id": "e1", "source": "source",      "target": "mime" },
+    { "id": "e2", "source": "mime",        "target": "hash",   "branch": "PASS" },
+    { "id": "e3", "source": "hash",        "target": "consistency" },
+    { "id": "e4", "source": "consistency", "target": "scenes" },
+    { "id": "e5", "source": "consistency", "target": "speech" }
+  ]
+}
+----
+
+`scenes` and `speech` both depend on `consistency` and nothing on each other, so Loom dispatches them
+independently — potentially to different workers, in parallel. That is the whole reason to model this
+as a graph rather than a script: the GPU box transcribes while the CPU box runs optical flow.
+
+The `consistency` gate is worth the extra node. A truncated download produces a plausible-looking file
+that wastes a half-hour of transcription; checking first is cheap.
+
+=== Reading the result
+
+[source,bash]
+----
+ASSET=<asset-uuid>
+
+curl -s -H "Authorization: Bearer $TOKEN" $LOOM/api/v1/assets/$ASSET/segments    | jq
+curl -s -H "Authorization: Bearer $TOKEN" $LOOM/api/v1/assets/$ASSET/transcripts | jq
+----
+
+Joining them is a query-side operation — no node does it for you today:
+
+[source,bash]
+----
+# For each scene, the utterances that overlap it
+jq -n --slurpfile s scenes.json --slurpfile t transcript.json '
+  $s[0][] as $scene
+  | { scene: $scene,
+      said: [ $t[0].segments[]
+              | select(.start < $scene.end and .end > $scene.start)
+              | .text ] }'
+----
+
+Feed that per-scene text to an LLM, or simply ask the chat agent — it already reaches the transcript
+through `search_transcript` and can quote the passage and the asset it came from.
+
+NOTE: Scene segments are a **whole-set replace**. Re-running `scene-detection` on an asset deletes the
+previous segments, so anything you stored keyed to old segment identifiers must be regenerated too.
+
+[#visual]
+== Route B — Describe Scenes from the Picture
+
+For content with little or no dialogue — b-roll, surveillance, silent product footage — the soundtrack
+tells you nothing and you need the frames.
+
+What works today:
+
+[source,json]
+----
+{
+  "nodes": [
+    { "id": "source", "type": "filesystem-source", "name": "Video library",
+      "options": { "path": "/media/video" } },
+    { "id": "mime",   "type": "filter-mimetype", "name": "Video only",
+      "options": { "allowedTypes": "video/*" } },
+    { "id": "hash",   "type": "sha512",          "name": "SHA-512 identity" },
+    { "id": "scenes", "type": "scene-detection", "name": "Scene boundaries" },
+    { "id": "sheet",  "type": "thumbnail",       "name": "Contact sheet" },
+    { "id": "grade",  "type": "quality",         "name": "Quality metrics" }
+  ],
+  "edges": [
+    { "id": "e1", "source": "source", "target": "mime" },
+    { "id": "e2", "source": "mime",   "target": "hash", "branch": "PASS" },
+    { "id": "e3", "source": "hash",   "target": "scenes" },
+    { "id": "e4", "source": "hash",   "target": "sheet" },
+    { "id": "e5", "source": "hash",   "target": "grade" }
+  ]
+}
+----
+
+That gives you scene boundaries, a contact-sheet preview and quality metrics per video.
+
+[WARNING]
+====
+**Per-scene visual captioning of video is not implemented today.** The
+link:../../nodes/captioning/[`captioning`] node accepts a video asset but skips it (`not implemented`);
+it captions **images** only, and link:../../nodes/vlm/[`vlm`] is image-only as well. There is no node
+that samples a frame per scene and captions it.
+
+Two ways forward until such a node exists:
+
+* **Extract frames as image assets.** Register keyframes as their own assets in Loom and run an
+  image pipeline (`captioning` or `vlm`) over them, linking them back to the source video in your own
+  metadata. Every node in that path is a stock node.
+* **Write the node.** A frame-sampling caption node is a natural custom node: read the upstream
+  `scene_detection` output, grab one frame per segment, call the vision model. See
+  link:../../cortex/examples/[Cortex Examples] for the Java and Python paths.
+====
+
+== A Note on `consistency` and Node IDs
+
+Some nodes read an upstream result **by node id**, not by kind. `thumbnail` looks for
+`consistency` → `is_complete` and refuses to render a preview for a file reported incomplete (unless
+`processIncomplete` is set on the worker). If you name that node `check` instead of `consistency`, the
+lookup silently finds nothing and the gate quietly stops working.
+
+The same applies to link:../../nodes/loom/[`loom`], which reads `md5sum` → `md5` and `sha256sum` →
+`sha256`. When a playbook names a node a particular way, keep the name.
+
+[#combined]
+== Doing Both
+
+The two routes are the same graph with both branches attached — that is what a DAG is for:
+
+```
+                     ┌─▶ scene-detection ─▶ segments
+  source ─▶ mime ─PASS─▶ sha512 ─▶ consistency ─┼─▶ whisper ────────▶ transcript
+                     └─▶ thumbnail ──────▶ contact sheet
+                     └─▶ quality ────────▶ metrics
+```
+
+Costs to keep in mind when you fan out like this:
+
+* `scene-detection` decodes the whole video for optical flow — CPU-heavy, default task timeout 300 s.
+  Long files need it raised.
+* `whisper` defaults to concurrency 1 and a 600 s timeout.
+* Both read the file from the shared media mount, so a single-spindle NFS export becomes the ceiling
+  long before the CPUs do.
+
+Pin the expensive kinds to the machines that suit them with `CORTEX_NODE_WHITELIST` — see
+link:../docker/#scaling[Docker → dedicated workers] or link:../kubernetes/#cortex-workers[the GPU pool].
+
+== Gotchas
+
+[options="header",cols="2,3"]
+|===
+| Symptom | Cause
+
+| Run rejected with `503`
+| A kind in the graph is not registered on any online worker — see
+link:../#node-availability[node availability].
+
+| `scene-detection` fails with `UnsatisfiedLinkError`
+| The worker lacks the OpenCV / video4j native runtime, or a mismatched OpenCV version is on the
+library path.
+
+| Captions never appear for videos
+| Expected: `captioning` skips video. Caption extracted frames as image assets instead.
+
+| Segments disappeared after a re-run
+| Whole-set replace: a shorter re-run deletes the surplus segments.
+
+| Thumbnails skipped for some files
+| The `consistency` node reported them incomplete. That is the gate doing its job — check the file.
+
+| Scenes and transcript do not line up
+| They are separate components joined on time by the consumer. Nothing in the pipeline aligns them.
+|===
+
+== Next Steps
+
+* Turn scene text into another language — link:../translation/[Translating Content].
+* Node reference — link:../../nodes/scene-detection/[Scene Detection],
+  link:../../nodes/thumbnail/[Thumbnail], link:../../nodes/quality/[Quality].
+* Build the frame-sampling node — link:../../cortex/examples/[Cortex Examples].

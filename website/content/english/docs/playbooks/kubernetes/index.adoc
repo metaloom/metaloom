@@ -1,0 +1,548 @@
+---
+title: Deploying on Kubernetes
+weight: 2
+---
+
+This playbook runs MetaLoom in a cluster: the Loom server, a pool of Cortex workers, and — the part
+that needs real attention — the **service account and RBAC that let the chat agent spawn per-session
+sandbox Pods**. It ends with how to package the whole thing as a Helm chart.
+
+If you have not deployed MetaLoom before, read link:../docker/[Deploying with Docker] first. The
+constraints are the same; only the packaging changes.
+
+== What You Will Build
+
+```
+  namespace: loom                          namespace: loom-runners
+  ┌────────────────────────────────┐       ┌──────────────────────────────┐
+  │ Deployment loom-server         │       │ Pod loom-runner-<session>    │
+  │   sa: loom  ───────────────────┼──────▶│   app: loom-session-runner   │
+  │   :8092 REST/WS/UI             │create │   :8080 runnerd, /workspace  │
+  │   :8989 /metrics               │ pods  │   no service account token   │
+  ├────────────────────────────────┤       │   no egress                  │
+  │ Deployment cortex-cpu  (N)     │       └──────────────────────────────┘
+  │ Deployment cortex-gpu  (M)     │        ResourceQuota · LimitRange
+  │   :8093 health/ready           │        default-deny NetworkPolicy
+  └────────────────────────────────┘
+```
+
+Two namespaces is a deliberate choice: runner Pods are created by the agent at runtime from untrusted
+model output, so they get their own namespace with its own quota and network policy, and the RBAC that
+creates them is scoped to that namespace only.
+
+== Prerequisites
+
+* A cluster and `kubectl` context with permission to create namespaces, RBAC and workloads.
+* A PostgreSQL instance. The manifests below assume a managed database or an operator-provisioned one
+  reachable at `postgres.loom.svc`; running your own is out of scope here.
+* A `ReadWriteMany` volume for the media library if more than one worker replica must see it, plus a
+  volume for Loom's uploads.
+* The images from link:../../deployment/[Container Images], reachable from the cluster.
+
+== Step 1 — Namespaces and Secret
+
+[source,bash]
+----
+kubectl create namespace loom
+kubectl create namespace loom-runners
+
+kubectl -n loom create secret generic loom-secrets \
+  --from-literal=db-password='change-me' \
+  --from-literal=initial-password='first-login-password'
+----
+
+== Step 2 — Loom Server
+
+[source,yaml]
+----
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: loom
+  namespace: loom
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: loom-config
+  namespace: loom
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: loom-uploads
+  namespace: loom
+spec:
+  accessModes: [ReadWriteMany]
+  resources:
+    requests:
+      storage: 200Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loom-server
+  namespace: loom
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: loom-server }
+  template:
+    metadata:
+      labels: { app: loom-server }
+    spec:
+      serviceAccountName: loom          # the sandbox backend authenticates with this SA's token
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 0
+      containers:
+        - name: loom
+          image: metaloom/loom-server:latest
+          env:
+            - name: LOOM_DB_HOST
+              value: postgres.loom.svc
+            - name: LOOM_DB_NAME
+              value: loom
+            - name: LOOM_DB_USERNAME
+              value: loom
+            - name: LOOM_DB_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: loom-secrets, key: db-password }
+            - name: LOOM_INITIAL_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: loom-secrets, key: initial-password }
+          ports:
+            - { name: rest, containerPort: 8092 }
+            - { name: metrics, containerPort: 8989 }
+          livenessProbe:
+            httpGet: { path: /api/v1/health, port: rest }
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: { path: /api/v1/health, port: rest }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          volumeMounts:
+            - { name: config, mountPath: /config }
+            - { name: uploads, mountPath: /uploads }
+      volumes:
+        - name: config
+          persistentVolumeClaim: { claimName: loom-config }
+        - name: uploads
+          persistentVolumeClaim: { claimName: loom-uploads }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: loom
+  namespace: loom
+spec:
+  selector: { app: loom-server }
+  ports:
+    - { name: rest, port: 8092, targetPort: rest }
+    - { name: metrics, port: 8989, targetPort: metrics }
+----
+
+Notes that matter more than they look:
+
+* **`/config` must be persistent.** On first start Loom writes `loom.yml` there with a generated
+  keystore password and creates `keystore.jceks` beside it. That keystore signs every JWT — if the
+  volume is recreated, all issued tokens (including your Cortex workers') stop verifying.
+* **Probe on `8092`, not `8989`.** The monitoring port serves `/metrics` only; the health check that
+  also verifies database connectivity is `GET /api/v1/health` on the REST port.
+* **Keep `replicas: 1` unless you have verified otherwise.** The pipeline run engine keeps run state in
+  the process that started the run, and `/config` is `ReadWriteOnce`.
+
+[#cortex-workers]
+== Step 3 — Cortex Workers
+
+Workers are long-running daemons that dial *out* to Loom, so they are a plain `Deployment` and you scale
+capacity with the replica count.
+
+[source,yaml]
+----
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: cortex-cpu
+  namespace: loom
+spec:
+  serviceName: cortex-cpu
+  replicas: 3
+  selector:
+    matchLabels: { app: cortex-cpu }
+  template:
+    metadata:
+      labels: { app: cortex-cpu }
+    spec:
+      containers:
+        - name: cortex
+          image: metaloom/cortex-server:latest
+          env:
+            - name: LOOM_HOST
+              value: loom.loom.svc
+            - name: LOOM_PORT
+              value: "8092"
+            - name: LOOM_TOKEN
+              valueFrom:
+                secretKeyRef: { name: cortex-token, key: token }
+            - name: CORTEX_NODE_ID          # unique + stable: the ordinal from the StatefulSet
+              valueFrom:
+                fieldRef: { fieldPath: metadata.name }
+            - name: CORTEX_META_PATH
+              value: /meta
+            - name: CORTEX_NODE_BLACKLIST
+              value: whisper,llm,vlm,captioning,facedescription
+          ports:
+            - { name: mon, containerPort: 8093 }
+          livenessProbe:
+            httpGet: { path: /api/health, port: mon }
+          readinessProbe:
+            httpGet: { path: /api/ready, port: mon }
+            periodSeconds: 10
+          volumeMounts:
+            - { name: meta, mountPath: /meta }
+            - { name: media, mountPath: /media }
+      volumes:
+        - name: media
+          persistentVolumeClaim: { claimName: media }
+  volumeClaimTemplates:
+    - metadata: { name: meta }
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources: { requests: { storage: 5Gi } }
+----
+
+Why a `StatefulSet` rather than a `Deployment`: `CORTEX_NODE_ID` **must be unique per worker and stable
+across restarts** — Loom keys registration, node-kind restrictions and run attribution on it and rejects
+a second worker announcing an id already in use. The worker refuses to start without one. A StatefulSet
+gives you `cortex-cpu-0`, `cortex-cpu-1`, … for free, plus a per-replica `/meta` volume so the
+filesystem-source index survives a reschedule. With a Deployment you would have to inject an id another
+way.
+
+`LOOM_TOKEN` should be a long-lived API key (`POST /api/v1/tokens`, or Admin → API Keys in the UI),
+stored in a Secret. Without a token a worker still registers and runs tasks but cannot persist results.
+
+=== A GPU pool for the heavy kinds
+
+[source,yaml]
+----
+          env:
+            - name: CORTEX_NODE_WHITELIST
+              value: whisper,facedetect,captioning,vlm
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+      nodeSelector:
+        accelerator: nvidia
+----
+
+Loom routes each node task to a worker that accepts its kind, so a whitelisted GPU pool plus a
+blacklisted CPU pool splits the work without any change to the pipeline. See
+link:../../nodes/#requirements[Nodes → Requirements at a glance] for which kinds need what.
+
+IMPORTANT: Every worker that might receive a task for a given asset needs the media mounted **at the
+same path**. Loom dispatches a path reference, never the bytes. In-cluster that means one `ReadWriteMany`
+PVC mounted at an identical `mountPath` in every worker pool.
+
+[#service-account]
+== Step 4 — The Loom Service Account
+
+The Deployment above already sets `serviceAccountName: loom`. On its own that account needs no
+permissions — Loom does not talk to the Kubernetes API for normal operation.
+
+It becomes load-bearing the moment you enable the **coding sandbox**: the Kubernetes backend creates
+runner Pods using the token mounted into the Loom pod at
+`/var/run/secrets/kubernetes.io/serviceaccount/token`, and reaches the API server at
+`KUBERNETES_SERVICE_HOST:KUBERNETES_SERVICE_PORT`. So do **not** set `automountServiceAccountToken:
+false` on the Loom pod, and grant that account exactly the pod verbs it needs — nothing more.
+
+[#sandbox]
+== Step 5 — Session Sandboxes
+
+The link:../../loom/chat/#coding-sandbox[coding sandbox] gives the chat agent `run_shell`,
+`write_file`, `read_file` and `list_files` inside a per-chat **Session Runner** Pod. It is **off by
+default**; everything below is what turning it on requires.
+
+=== 5a. RBAC in the runner namespace
+
+[source,yaml]
+----
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: loom-session-runner-manager
+  namespace: loom-runners
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["create", "get", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: loom-session-runner-manager
+  namespace: loom-runners
+subjects:
+  - kind: ServiceAccount
+    name: loom
+    namespace: loom          # the SA the Loom pod runs as, in ITS namespace
+roleRef:
+  kind: Role
+  name: loom-session-runner-manager
+  apiGroup: rbac.authorization.k8s.io
+----
+
+A `Role` + `RoleBinding` (not a `ClusterRole`) is the point: the grant is confined to `loom-runners`.
+`create`, `get` and `delete` on pods is the complete set the backend uses — creating the runner, polling
+it to readiness, and reaping it.
+
+=== 5b. Turn it on
+
+[source,yaml]
+----
+            - name: LOOM_AGENT_SANDBOX_ENABLED
+              value: "true"
+            - name: LOOM_AGENT_SANDBOX_BACKEND
+              value: kubernetes
+            - name: LOOM_AGENT_SANDBOX_NAMESPACE
+              value: loom-runners
+            - name: LOOM_AGENT_SANDBOX_IMAGE
+              value: metaloom/loom-session-runner:latest
+            - name: LOOM_AGENT_SANDBOX_MAX_CONCURRENT
+              value: "10"
+            - name: LOOM_AGENT_SANDBOX_IDLE_TTL_S
+              value: "900"
+            - name: LOOM_AGENT_SANDBOX_MAX_SESSION_S
+              value: "3600"
+----
+
+[options="header",cols="2,1,3"]
+|===
+| Variable | Default | Effect in a cluster
+| `LOOM_AGENT_SANDBOX_ENABLED` | `false` | Master switch for the coding tools.
+| `LOOM_AGENT_SANDBOX_BACKEND` | `podman` | Set to `kubernetes` in-cluster (also for OpenShift).
+| `LOOM_AGENT_SANDBOX_NAMESPACE` | the SA's own namespace | Where runner Pods are created. Point it at the isolated namespace, or the grant above will not match.
+| `LOOM_AGENT_SANDBOX_IMAGE` | `metaloom/loom-session-runner:latest` | Must be pullable **by the runner namespace** — copy the imagePullSecret there if the registry is private.
+| `LOOM_AGENT_SANDBOX_MAX_CONCURRENT` | `10` | Per-deployment cap on live runners. Size it together with the ResourceQuota below.
+| `LOOM_AGENT_SANDBOX_IDLE_TTL_S` | `900` | Idle reap. Lower it on a busy cluster.
+| `LOOM_AGENT_SANDBOX_MAX_SESSION_S` | `3600` | Hard time-box, also written into the Pod's `activeDeadlineSeconds`.
+| `LOOM_AGENT_SANDBOX_CPU_REQUEST` / `_CPU_LIMIT` | `100m` / `1` | Per-runner CPU.
+| `LOOM_AGENT_SANDBOX_MEM_REQUEST` / `_MEM_LIMIT` | `128Mi` / `512Mi` | Per-runner memory.
+| `LOOM_AGENT_SANDBOX_WORKSPACE_SIZE` | `512Mi` | `emptyDir` size limit for `/workspace`.
+| `LOOM_AGENT_SANDBOX_READY_TIMEOUT_S` | `60` | How long Loom waits for the runner to answer `/healthz`.
+|===
+
+You do not apply a runner manifest yourself — Loom POSTs one per session. It is already hardened:
+`runAsNonRoot`, all capabilities dropped, read-only root filesystem,
+`automountServiceAccountToken: false`, seccomp `RuntimeDefault`, `emptyDir` workspace and tmp, and an
+`activeDeadlineSeconds` backstop. The annotated reference is
+`loom/agent/deploy/session-runner-pod-template.yaml` in the source repository. No credentials ever enter
+a runner: Loom drives it over HTTP with a per-session bearer token.
+
+[#guardrails]
+=== 5c. Guardrails on the runner namespace
+
+RBAC decides who may create runner Pods. These three objects decide what a runner can do once it
+exists. Treat them as part of enabling the feature, not as optional hardening.
+
+[source,yaml]
+----
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: loom-session-runners
+  namespace: loom-runners
+spec:
+  hard:
+    pods: "12"                    # >= LOOM_AGENT_SANDBOX_MAX_CONCURRENT, with headroom for reaping
+    requests.cpu: "2"
+    requests.memory: 2Gi
+    limits.cpu: "12"
+    limits.memory: 6Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: loom-session-runners
+  namespace: loom-runners
+spec:
+  limits:
+    - type: Container
+      default:        { cpu: "1",    memory: 512Mi }
+      defaultRequest: { cpu: 100m,   memory: 128Mi }
+      max:            { cpu: "2",    memory: 1Gi }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: loom-session-runner-isolation
+  namespace: loom-runners
+spec:
+  podSelector:
+    matchLabels: { app: loom-session-runner }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: loom }
+          podSelector:
+            matchLabels: { app: loom-server }
+      ports:
+        - { protocol: TCP, port: 8080 }
+  egress: []                      # deny all egress: a runner has no reason to reach anything
+----
+
+The NetworkPolicy is the one that needs care in both directions. Loom talks to the runner **directly on
+its pod IP**, so ingress from the Loom pod on `8080` must be allowed or every sandbox session dies at the
+readiness wait. Everything else — including all egress — stays denied, which is what keeps arbitrary
+model-generated code from reaching your cluster, your database or the internet.
+
+NOTE: If you run a CNI without NetworkPolicy enforcement, these rules are silently inert. Verify before
+you rely on them.
+
+=== 5d. OpenShift
+
+The `kubernetes` backend covers OpenShift as well. The runner Pod already complies with the
+`restricted-v2` SCC (non-root, no privilege escalation, all capabilities dropped, seccomp
+`RuntimeDefault`), so no custom SCC is needed. Grant the same namespaced Role, and make sure the runner
+image is pullable from the runner namespace's image pull secrets.
+
+== Step 6 — Verify
+
+[source,bash]
+----
+kubectl -n loom rollout status deploy/loom-server
+kubectl -n loom rollout status statefulset/cortex-cpu
+
+# Loom sees the workers
+kubectl -n loom exec deploy/loom-server -- \
+  curl -sf -H "Authorization: Bearer $TOKEN" localhost:8092/api/v1/processors | jq '.[].nodeId'
+----
+
+Then exercise the sandbox from the chat UI — ask the agent to run a shell command — and watch the Pod
+appear and disappear:
+
+[source,bash]
+----
+kubectl -n loom-runners get pods -l app=loom-session-runner -w
+----
+
+A runner is created lazily on the *first* coding tool call of a chat, and reaped on idle-TTL or when the
+session time-box elapses. Seeing one appear, become ready, and vanish some minutes later is the whole
+feature working.
+
+[#helm]
+== Packaging as a Helm Chart
+
+The manifests above are the deployable truth; a chart is a way to parameterize them per environment.
+
+WARNING: `loom/helm` in the source repository is currently a **placeholder** — it contains a README and
+no chart. Until a chart ships, deploy with the manifests above or wrap them in a chart of your own. The
+link:../../loom/helm-chart/[Helm Chart] page tracks that status.
+
+A values file for a chart wrapping this playbook looks like:
+
+[source,yaml]
+----
+image:
+  repository: metaloom/loom-server
+  tag: latest
+  pullPolicy: IfNotPresent
+
+database:
+  host: postgres.loom.svc
+  name: loom
+  username: loom
+  existingSecret: loom-secrets      # key: db-password
+
+persistence:
+  config:  { size: 1Gi,   accessMode: ReadWriteOnce }   # keystore + loom.yml — never drop this
+  uploads: { size: 200Gi, accessMode: ReadWriteMany }
+
+serviceAccount:
+  create: true
+  name: loom
+
+ai:                                  # chat agent; needs a reachable provider to answer
+  enabled: true
+  providerType: OLLAMA
+  url: http://ollama.loom.svc:11434
+  modelId: gpt-oss:20b
+
+sandbox:                             # renders the RBAC, quota, LimitRange and NetworkPolicy
+  enabled: false
+  namespace: loom-runners
+  image: metaloom/loom-session-runner:latest
+  maxConcurrent: 10
+  idleTtlSeconds: 900
+  maxSessionSeconds: 3600
+  rbac:
+    create: true
+  networkPolicy:
+    create: true
+
+cortex:
+  pools:
+    - name: cpu
+      replicas: 3
+      nodeBlacklist: [whisper, llm, vlm, captioning, facedescription]
+    - name: gpu
+      replicas: 1
+      nodeWhitelist: [whisper, facedetect, captioning, vlm]
+      gpu: 1
+  media:
+    existingClaim: media
+    mountPath: /media
+----
+
+Two rules for whoever writes the templates:
+
+. Everything under `sandbox` is a unit. Rendering `LOOM_AGENT_SANDBOX_ENABLED=true` without the Role,
+  the RoleBinding and the NetworkPolicy produces a deployment that either cannot create runners at all
+  or creates unconstrained ones.
+. `CORTEX_NODE_ID` must come from a stable per-replica identity (a StatefulSet ordinal), never from a
+  random suffix — see link:#cortex-workers[Step 3].
+
+== Troubleshooting
+
+[options="header",cols="2,3"]
+|===
+| Symptom | Cause and fix
+
+| Sandbox tool calls fail with a `403` from the API server
+| The RoleBinding subject does not match. The `ServiceAccount` subject needs `namespace: loom` (where
+the SA lives) while the Role and RoleBinding live in `loom-runners` (where the pods are created).
+
+| Runner Pods are created but never become ready
+| The NetworkPolicy is blocking Loom → runner on `8080`, or the runner image cannot be pulled in the
+runner namespace. Check `kubectl -n loom-runners describe pod`.
+
+| Runner creation fails with `exceeded quota`
+| `LOOM_AGENT_SANDBOX_MAX_CONCURRENT` is higher than the ResourceQuota allows. Raise the quota or lower
+the cap — keep the quota above the cap so reaping has headroom.
+
+| Cortex pod restarts with _"No worker id configured"_
+| `CORTEX_NODE_ID` is unset. Use a StatefulSet and the pod name.
+
+| Two workers, only one visible in `/api/v1/processors`
+| Duplicate `CORTEX_NODE_ID`. Loom rejects a second worker announcing an id already in use.
+
+| Everyone logged out after a Loom pod restart
+| The `/config` PVC was not persistent, so a new keystore and signing key were generated.
+
+| Node tasks fail with missing files
+| The media PVC is mounted at different paths in different pools, or not mounted in one of them.
+|===
+
+== Next Steps
+
+* Give the workers something to do — link:../transcription/[Transcribing for the Chat Agent].
+* Scrape the stack — link:../../loom/metrics/[Loom Metrics], link:../../cortex/metrics/[Cortex Metrics].
+* Full sandbox reference — link:../../loom/chat/#coding-sandbox[Chat & AI Agent → Coding Sandbox].

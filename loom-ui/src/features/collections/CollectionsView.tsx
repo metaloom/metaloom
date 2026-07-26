@@ -6,6 +6,7 @@ import {
 } from "@mui/material";
 import { AddOutlined, CollectionsOutlined, DeleteOutlined, EditOutlined, SearchOutlined } from "@mui/icons-material";
 import { tokens } from "../../theme";
+import EmptyState from "../../components/EmptyState";
 import { useToast } from "../../context/ToastContext";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -222,11 +223,22 @@ export default function CollectionsView() {
 
       {/* Grid */}
       <Box sx={{ flex: 1, overflow: "auto", p: 2.5 }}>
-        {filtered.length === 0 ? (
+        {collections.length === 0 ? (
+          // No collections in this space yet — offer to create the first one.
+          <EmptyState
+            icon={CollectionsOutlined}
+            title={t("collections.empty.title")}
+            description={t("collections.empty.description")}
+            actionLabel={t("collections.empty.action")}
+            actionIcon={<AddOutlined sx={{ fontSize: 18 }} />}
+            onAction={() => { resetForm(); setCreateOpen(true); }}
+            testId="collections-empty-state"
+          />
+        ) : filtered.length === 0 ? (
           <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 200, gap: 1 }}>
             <CollectionsOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
             <Typography variant="body2" color="text.secondary">
-              {collections.length === 0 ? t("collections.empty.noCollections") : t("collections.empty.noSearch")}
+              {t("collections.empty.noSearch")}
             </Typography>
           </Box>
         ) : (

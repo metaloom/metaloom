@@ -5,6 +5,10 @@ title: Thumbnail
 The thumbnail node generates a **contact-sheet preview** (a tiled grid of frames) for a video, giving
 the UI a fast visual summary of the content.
 
+++++
+<div class="ml-nodeviz" data-nodeviz='{"kind":"thumbnail","applies":"Video only","badge":"OpenCV / video4j native","persist":"asset_node_result ledger (image bytes stay in the local cache)","configs":[{"name":"default grid","note":"tileSize \u00b7 cols \u00b7 rows from the node options","inputs":[{"t":"video","l":"video file","d":"frames extracted per tile"},{"t":"boolean","l":"is_complete","d":"from consistency; skips broken media","opt":true}],"outputs":[{"t":"flag","l":"thumbnail_flag"},{"t":"path","l":"thumbnail_path","d":"local .thumb contact sheet"}]}]}'></div>
+++++
+
 [cols="1,3"]
 |===
 | Kind | `thumbnail`

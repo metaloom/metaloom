@@ -11,6 +11,7 @@ import {
   EditOutlined, DeleteOutlined, SendOutlined, ChatBubbleOutlineOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
+import EmptyState from "../../components/EmptyState";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { createTask, deleteTask, listTasks, TaskResponse, updateTask } from "../../api/tasks";
@@ -465,25 +466,32 @@ export default function TasksView() {
             <CircularProgress size={22} />
           </Box>
         )}
-        <TableContainer>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>{t("tasks.table.task")}</TableCell>
-                <TableCell>{t("tasks.table.priority")}</TableCell>
-                <TableCell>{t("tasks.table.created")}</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {tasks.map(t => <TaskRow key={t.uuid} task={t} onSelect={setSelectedTask} />)}
-            </TableBody>
-          </Table>
-        </TableContainer>
+        {tasks.length > 0 && (
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>{t("tasks.table.task")}</TableCell>
+                  <TableCell>{t("tasks.table.priority")}</TableCell>
+                  <TableCell>{t("tasks.table.created")}</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {tasks.map(t => <TaskRow key={t.uuid} task={t} onSelect={setSelectedTask} />)}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
         {!loading && tasks.length === 0 && (
-          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 6, gap: 1 }}>
-            <TaskAltOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
-            <Typography variant="body2" color="text.secondary">{t("tasks.empty")}</Typography>
-          </Box>
+          <EmptyState
+            icon={TaskAltOutlined}
+            title={t("tasks.emptyState.title")}
+            description={t("tasks.emptyState.description")}
+            actionLabel={t("tasks.emptyState.action")}
+            actionIcon={<AddOutlined sx={{ fontSize: 18 }} />}
+            onAction={openCreateDialog}
+            testId="tasks-empty-state"
+          />
         )}
       </Box>
 

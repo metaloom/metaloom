@@ -1,5 +1,5 @@
 import { Asset, AssetType, AssetStatus, Comment } from "../../types";
-import { AssetResponse } from "../../api/assets";
+import { AssetResponse, assetBinaryUrl } from "../../api/assets";
 import { CommentResponse } from "../../api/comments";
 
 /** Map a REST comment response onto the local Comment view model. */
@@ -41,8 +41,10 @@ export function apiToAsset(r: AssetResponse): Asset {
     height: video?.height ?? image?.height,
     fileSize: r.file?.size ?? 0,
     mimeType: mime,
-    thumbnailUrl: "",
-    url: "",
+    // Images are served from the stored binary; other formats have no browser-renderable
+    // preview, so the views fall back to a type placeholder.
+    thumbnailUrl: type === "image" ? assetBinaryUrl(r.uuid) : "",
+    url: type === "image" ? assetBinaryUrl(r.uuid) : "",
     ownerId: r.status?.creator?.uuid ?? "",
     collectionIds: (r.collections ?? []).map(c => c.uuid),
     createdAt: r.status?.created ?? "",

@@ -5,10 +5,12 @@ import {
   Tabs, TextField, Tooltip, Typography,
 } from "@mui/material";
 import {
-  Add, DeleteOutline, DownloadOutlined, EditOutlined, HistoryOutlined, RestoreOutlined, UpgradeOutlined,
+  Add, AutoAwesomeOutlined, DeleteOutline, DownloadOutlined, EditOutlined, HistoryOutlined,
+  RestoreOutlined, UpgradeOutlined,
 } from "@mui/icons-material";
 import { useTranslation } from "react-i18next";
 import Title from "../../components/Title";
+import EmptyState from "../../components/EmptyState";
 import { tokens } from "../../theme";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
@@ -157,7 +159,7 @@ export default function SkillManagementView() {
   const ownUuids = new Set(skills.map(s => s.uuid));
 
   return (
-    <Box sx={{ p: 3, display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
+    <Box data-testid="skills-view" sx={{ p: 3, display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <Box>
           <Title>{t("skills.title")}</Title>
@@ -179,7 +181,25 @@ export default function SkillManagementView() {
         <Tab label={t("skills.tabLibrary")} value="library" data-testid="skills-library-tab" />
       </Tabs>
 
-      {tab === "mine" ? (
+      {tab === "mine" && skills.length === 0 ? (
+        // No skills owned yet — offer to author the first one.
+        <EmptyState
+          icon={AutoAwesomeOutlined}
+          title={t("skills.emptyState.title")}
+          description={t("skills.emptyState.description")}
+          actionLabel={t("skills.emptyState.action")}
+          actionIcon={<Add sx={{ fontSize: 18 }} />}
+          onAction={() => setEditor({ name: "", description: "", content: "" })}
+          testId="skills-empty-state"
+        />
+      ) : tab === "library" && library.length === 0 ? (
+        <EmptyState
+          icon={AutoAwesomeOutlined}
+          title={t("skills.emptyState.library.title")}
+          description={t("skills.emptyState.library.description")}
+          testId="skills-library-empty-state"
+        />
+      ) : tab === "mine" ? (
         <Table size="small" data-testid="skills-table">
           <TableHead>
             <TableRow>
@@ -191,13 +211,6 @@ export default function SkillManagementView() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {skills.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={5}>
-                  <Typography variant="caption" sx={{ color: tokens.text.tertiary }}>{t("skills.empty")}</Typography>
-                </TableCell>
-              </TableRow>
-            )}
             {skills.map(skill => (
               <TableRow key={skill.uuid} hover data-testid={`skill-row-${skill.name}`}>
                 <TableCell>
@@ -247,13 +260,6 @@ export default function SkillManagementView() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {library.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={4}>
-                  <Typography variant="caption" sx={{ color: tokens.text.tertiary }}>{t("skills.libraryEmpty")}</Typography>
-                </TableCell>
-              </TableRow>
-            )}
             {library.map(skill => (
               <TableRow key={skill.uuid} hover>
                 <TableCell>

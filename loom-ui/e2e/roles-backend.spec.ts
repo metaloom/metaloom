@@ -19,6 +19,8 @@ async function loginAndGoToPermissions(page: Page) {
   await page.getByRole("button", { name: /sign in/i }).click();
   await expect(page.getByPlaceholder("Username")).toBeHidden({ timeout: 10_000 });
   // Navigate to Permissions via sidebar
+  // The ACL entries live in a collapsible sidebar sub-group that starts closed.
+  await page.getByTestId("sidebar-group-acl").click();
   await page.getByRole("button", { name: "Permissions" }).first().click();
   await expect(page.getByRole("heading", { name: "Access Control" })).toBeVisible({ timeout: 10_000 });
 }
@@ -46,7 +48,7 @@ test.describe("Roles – full backend e2e", () => {
     await page.getByRole("button", { name: /create/i }).click();
 
     // The new role should appear in the role list
-    await expect(page.getByText("pw-test-role")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("pw-test-role").first()).toBeVisible({ timeout: 10_000 });
   });
 
   test("select a role and view permissions", async ({ page }) => {
@@ -62,7 +64,7 @@ test.describe("Roles – full backend e2e", () => {
 
   test("delete a role", async ({ page }) => {
     await loginAndGoToPermissions(page);
-    await expect(page.getByText("pw-test-role")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("pw-test-role").first()).toBeVisible({ timeout: 10_000 });
 
     // Find the delete button next to pw-test-role
     const roleItem = page.getByText("pw-test-role").first();
@@ -76,10 +78,11 @@ test.describe("Roles – full backend e2e", () => {
     // Confirm deletion in dialog
     await page.getByRole("button", { name: /delete/i }).last().click();
 
-    // Wait for the confirmation dialog to close
-    await expect(page.getByLabel('Delete Role')).toBeHidden({ timeout: 10_000 });
+    // Wait for the confirmation dialog to close. "Delete Role" labels both the dialog and its
+    // confirm button, so assert on the dialog itself rather than the ambiguous label.
+    await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 10_000 });
 
     // Role should disappear from the list
-    await expect(page.getByText("pw-test-role")).toBeHidden({ timeout: 10_000 });
+    await expect(page.getByText("pw-test-role")).toHaveCount(0, { timeout: 10_000 });
   });
 });

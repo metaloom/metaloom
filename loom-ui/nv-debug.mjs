@@ -1,0 +1,25 @@
+import { chromium } from "playwright";
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const b = await chromium.launch();
+const ctx = await b.newContext({ viewport: { width: 1600, height: 1000 } });
+await ctx.addInitScript(() => { try { localStorage.setItem("loom-ui-theme", "dark"); } catch {} });
+const p = await ctx.newPage();
+const bin = [];
+p.on("response", r => { if (r.url().includes("/binary/data")) bin.push(`${r.status()} ${r.url().slice(-60)}`); });
+await p.goto("http://127.0.0.1:3100/", { waitUntil: "networkidle" });
+await p.getByPlaceholder("Username").fill("admin");
+await p.getByPlaceholder("Password").fill("finger");
+await p.getByRole("button", { name: "Sign in" }).click();
+await p.locator(".MuiListItemButton-root").filter({ hasText: /^Chat$/ }).first().waitFor({ timeout: 20000 });
+await sleep(1200);
+await p.locator(".MuiListItemButton-root").filter({ hasText: /^\d*Library\d*$/ }).first().click();
+await sleep(2000);
+// pick a library that actually holds assets
+await p.locator("main .MuiListItemButton-root").filter({ hasNotText: "0 assets" }).first().click();
+await sleep(2500);
+console.log("libraries in list:", await p.locator("main .MuiListItemButton-root").count());
+console.log("asset cards:", await p.locator("main .MuiPaper-root").count());
+console.log("imgs:", await p.locator("main img").count());
+console.log("binary responses:", bin.slice(0, 5));
+console.log("body text:", (await p.locator("main").innerText()).slice(0, 400).replace(/\n+/g, " | "));
+await b.close();

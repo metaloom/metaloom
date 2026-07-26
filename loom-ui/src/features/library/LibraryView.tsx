@@ -7,13 +7,31 @@ import {
 } from "@mui/material";
 import { LibraryBooksOutlined, PhotoLibraryOutlined, VideocamOutlined, FolderOutlined, AddOutlined, DeleteOutlined, SearchOutlined, HelpOutlineOutlined, EditOutlined } from "@mui/icons-material";
 import { tokens } from "../../theme";
-import { AssetResponse, listAssets } from "../../api/assets";
+import AssetThumbnail from "../../components/AssetThumbnail";
+import EmptyState from "../../components/EmptyState";
+import { AssetResponse, assetBinaryUrl, listAssets } from "../../api/assets";
 import { createLibrary, deleteLibrary, listLibraries, updateLibrary } from "../../api/libraries";
 import { assetInLibrary, assetsInLibrary } from "./libraryAssets";
 import { useSpace } from "../../context/SpaceContext";
 import { useToast } from "../../context/ToastContext";
 import { useAuth } from "../../context/AuthContext";
 import { useTranslation } from "react-i18next";
+import { AssetType } from "../../types";
+
+/** Media class of an asset, used to pick the placeholder icon when there is no preview. */
+function assetType(asset: AssetResponse): AssetType {
+  const mime = asset.file?.mimeType ?? "";
+  if (mime.startsWith("image/")) return "image";
+  if (mime.startsWith("video/")) return "video";
+  if (mime.startsWith("audio/")) return "audio";
+  if (mime.startsWith("application/") || mime.startsWith("text/")) return "document";
+  return "unknown";
+}
+
+/** Only images can be rendered by an `<img>`; everything else keeps the type placeholder. */
+function previewUrl(asset: AssetResponse): string {
+  return assetType(asset) === "image" ? assetBinaryUrl(asset.uuid) : "";
+}
 
 function formatBytes(bytes: number): string {
   if (bytes >= 1e12) return `${(bytes / 1e12).toFixed(1)} TB`;
@@ -253,10 +271,21 @@ export default function LibraryView() {
               />
             </Box>
             <Box sx={{ flex: 1, overflow: "auto", p: 2.5 }}>
-              {filteredAssets.length === 0 ? (
+              {libraryAssets.length === 0 ? (
+                // Library exists but holds nothing — send the user to the uploader.
+                <EmptyState
+                  icon={PhotoLibraryOutlined}
+                  title={t("library.emptyState.assets.title")}
+                  description={t("library.emptyState.assets.description")}
+                  actionLabel={t("library.emptyState.assets.action")}
+                  actionIcon={<AddOutlined sx={{ fontSize: 18 }} />}
+                  onAction={() => navigate("/assets")}
+                  testId="library-assets-empty-state"
+                />
+              ) : filteredAssets.length === 0 ? (
                 <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 6, gap: 1 }}>
                   <LibraryBooksOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
-                  <Typography variant="body2" color="text.secondary">{libraryAssets.length === 0 ? t("library.empty.noAssets") : t("library.empty.noSearch")}</Typography>
+                  <Typography variant="body2" color="text.secondary">{t("library.empty.noSearch")}</Typography>
                 </Box>
               ) : (
                 <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 2 }}>
@@ -276,9 +305,12 @@ export default function LibraryView() {
                       }}
                     >
                       <Box sx={{ position: "relative", paddingTop: "56.25%", bgcolor: tokens.bg.overlay }}>
-                        <Box sx={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: tokens.text.tertiary }}>
-                          <LibraryBooksOutlined sx={{ fontSize: 20 }} />
-                        </Box>
+                        <AssetThumbnail
+                          type={assetType(a)}
+                          src={previewUrl(a)}
+                          iconSize={28}
+                          alt={a.file?.filename ?? ""}
+                        />
                       </Box>
                       <Box sx={{ px: 1.25, py: 1 }}>
                         <Typography variant="caption" fontWeight={600} noWrap display="block" sx={{ fontSize: "0.75rem", color: tokens.text.primary }}>{a.file?.filename ?? "Untitled"}</Typography>
@@ -291,10 +323,23 @@ export default function LibraryView() {
             </Box>
           </>
         ) : (
-          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 1 }}>
-            <LibraryBooksOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
-            <Typography variant="body2" color="text.secondary">{t("library.empty.selectLibrary")}</Typography>
-          </Box>
+          libraries.length === 0 ? (
+            // No libraries in this space yet — offer to create the first one.
+            <EmptyState
+              icon={LibraryBooksOutlined}
+              title={t("library.emptyState.title")}
+              description={t("library.emptyState.description")}
+              actionLabel={t("library.emptyState.action")}
+              actionIcon={<AddOutlined sx={{ fontSize: 18 }} />}
+              onAction={() => setCreateOpen(true)}
+              testId="library-empty-state"
+            />
+          ) : (
+            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 1 }}>
+              <LibraryBooksOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
+              <Typography variant="body2" color="text.secondary">{t("library.empty.selectLibrary")}</Typography>
+            </Box>
+          )
         )}
       </Box>
 

@@ -1,0 +1,276 @@
+---
+title: Translating Content
+weight: 5
+---
+
+Translation in MetaLoom is three separate jobs, and it is worth naming them before writing any
+pipeline, because each has a different answer today:
+
+. **Extract** the source text — from speech, from documents, from images.
+. **Translate** that text.
+. Optionally **speak** the translation back onto the asset as narration audio.
+
+Extraction and speech synthesis are stock nodes. Translation is the step that needs a decision, for a
+specific reason spelled out below.
+
+== The Shape of It
+
+```
+  speech   ─▶ whisper ─▶ whisper_result ─┐
+  documents ─▶ tika   ─▶ tika_content   ─┼─▶  translate  ─▶ translated text ─▶ tts ─▶ narration WAV
+  images    ─▶ ocr    ─▶ ocr_text       ─┤
+  scans     ─▶ vlm    ─▶ vlm_result_*   ─┘
+```
+
+[IMPORTANT]
+====
+Of the kinds on this page, only `tts` and `vlm` are registered with the stock worker's pipeline node
+factory. `whisper`, `tika`, `ocr` and `llm` are not yet dispatchable — see
+link:../#node-availability[Which node kinds a worker can actually run].
+====
+
+[#extract]
+== Step 1 — Extract the Source Text
+
+Pick the extractor that matches the medium. All four write their text into Loom as a component *and*
+expose it as a node output that downstream nodes can read.
+
+[options="header",cols="1,1,1,2"]
+|===
+| Medium | Node | Output key | Notes
+| Video, audio | link:../../nodes/whisper/[`whisper`] | `whisper_result` | JSON transcript with per-utterance timings.
+| Documents, any format | link:../../nodes/tika/[`tika`] | `tika_content` | Full text plus format metadata, via Apache Tika.
+| Images with text | link:../../nodes/ocr/[`ocr`] | `ocr_text` | Tesseract glyph recognition.
+| Scanned pages, forms | link:../../nodes/vlm/[`vlm`] | `vlm_result_{promptId}` | A vision-language model (olmOCR) that keeps tables, columns and layout that plain OCR flattens.
+|===
+
+For scanned documents, prefer `vlm` over `ocr`: a translated invoice whose table structure was
+flattened into a column of numbers is not a usable translation.
+
+A speech extraction graph is exactly the one from
+link:../transcription/[Transcribing for the Chat Agent] — source, MIME filter, `sha512`, `whisper`.
+Build that first and confirm the transcripts are stored before adding anything downstream.
+
+[#translate]
+== Step 2 — Translate
+
+Here is the constraint that decides the whole design:
+
+[WARNING]
+====
+**The `llm` node does not see upstream text.** It builds its prompt from the asset's *filename* only
+(the prompt variable `name`), so it cannot be pointed at a transcript and asked to translate it. It is
+built for classification and tagging from metadata, and its output is a JSON document stored as a
+`asset_json_comp` per prompt.
+
+Anything that translates extracted text therefore has to come from one of the three options below.
+====
+
+=== Option A — Translate outside the graph (works today, no code)
+
+Run the extraction pipeline, then read the stored text over REST, translate it with whatever model you
+already run, and write the translation back as a JSON component on the same asset:
+
+[source,bash]
+----
+ASSET=<asset-uuid>
+
+# 1. Read the stored transcript
+curl -s -H "Authorization: Bearer $TOKEN" \
+  $LOOM/api/v1/assets/$ASSET/transcripts | jq -r '.[0].text' > source.txt
+
+# 2. Translate it with your provider (Ollama shown; any OpenAI-compatible endpoint works)
+TRANSLATION=$(curl -s http://ollama:11434/api/generate -d "{
+  \"model\": \"gpt-oss:20b\",
+  \"stream\": false,
+  \"prompt\": $(jq -Rs '"Translate the following text into English. Return only the translation.\n\n" + .' source.txt)
+}" | jq -r .response)
+
+# 3. Store it back on the asset, alongside the original
+curl -s -X POST $LOOM/api/v1/assets/$ASSET/json-comps \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d "$(jq -n --arg t "$TRANSLATION" '{
+        nodeKind: "translate",
+        schemaType: "translation",
+        variant: "en",
+        producerVersion: "gpt-oss:20b",
+        data: { language: "en", text: $t }
+      }')"
+----
+
+Using `variant` for the target language means one asset can carry `en`, `de` and `fr` translations side
+by side, each retrievable from `GET /api/v1/assets/{uuid}/json-comps`.
+
+This is a batch job you run after the pipeline, not a node — which is exactly what it should be while
+translation is a one-off backfill.
+
+=== Option B — Ask the chat agent (works today, interactive)
+
+For occasional, human-in-the-loop translation, the link:../../loom/chat/[chat agent] already reaches
+transcripts through `search_transcript`. A skill makes the behaviour consistent:
+
+[source,markdown]
+----
+---
+name: transcript-translator
+description: Translate an asset's transcript into a target language, preserving speaker turns and timings.
+---
+
+# Transcript Translator
+
+When the user asks for a translation of a clip:
+
+1. Resolve the asset with `get_asset` (or `search_assets` if only a name was given).
+2. Pull the transcript with `search_transcript`.
+3. Translate **only what is there**. Keep the utterance order and quote the original timings so the
+   user can locate each line in the video.
+4. Render as a table: `start | original | translation`.
+
+If no transcript exists, say so and suggest running the Whisper pipeline — never translate from the
+filename or invent dialogue.
+----
+
+Remember that the agent's domain tools are **read-only**: it will produce the translation in the
+conversation, not persist it onto the asset. Pair it with Option A when the translation must be stored.
+
+=== Option C — A translate node (the durable answer)
+
+Once translation is a routine part of ingest, it belongs in the graph. A translate node is a small
+custom node: read the upstream text, call the provider, emit an output key.
+
+[source,java]
+----
+public class TranslateNode extends AbstractMediaNode<TranslateNodeOptions> {
+
+  public static final NodeOutputKey<String> OUTPUT_TRANSLATION =
+      NodeOutputKey.of("translation_text", String.class);
+
+  @Override
+  public String name() { return "translate"; }
+
+  @Override
+  protected boolean isProcessable(NodeContext<LoomMedia> ctx) {
+    return ctx.upstreamOutput(options().getSourceNodeId(), options().getSourceOutputKey()) != null;
+  }
+
+  @Override
+  protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) {
+    Object source = ctx.upstreamOutput(options().getSourceNodeId(), options().getSourceOutputKey());
+    String translated = translate(source.toString(), options().getTargetLanguage());
+    ctx.output(OUTPUT_TRANSLATION, translated);
+    persistJsonComp(asset, translated);          // same pattern every stock node uses
+    return NodeResult.success(ctx.outputs());
+  }
+}
+----
+
+The `sourceNodeId` / `sourceOutputKey` pair is the established convention for a node that consumes
+another node's output — link:../../nodes/tts/[`tts`] uses exactly that. Upstream outputs are shipped to
+the worker together with the node task, so this works across the distributed dispatch.
+
+Register the node in your Cortex build's node collection *and* with the pipeline node factory, then
+advertise it — a worker becomes dispatchable for a kind as soon as it registers it. Full working
+examples (custom node, custom daemon, Python worker) are in
+link:../../cortex/examples/[Cortex Examples].
+
+[#dub]
+== Step 3 — Speak the Translation
+
+link:../../nodes/tts/[`tts`] turns upstream text into narration audio. Unlike the `llm` node it **does**
+read upstream outputs, addressed by node id and output key:
+
+[source,yaml]
+----
+# worker cortex.yml
+nodes:
+  tts:
+    ttsHost: tts
+    ttsPort: 9100
+    language: en             # en → Kokoro (CPU), de → Orpheus/Kartoffel (GPU recommended)
+    voice: af_heart          # German default: Jakob
+    sourceNodeId: translate  # the node id in the graph, not the kind
+    sourceOutputKey: translation_text
+----
+
+With a `translate` node in place, the full dubbing graph is:
+
+[source,json]
+----
+{
+  "nodes": [
+    { "id": "source",    "type": "filesystem-source", "name": "Video library",
+      "options": { "path": "/media/video" } },
+    { "id": "mime",      "type": "filter-mimetype",   "name": "Video only",
+      "options": { "allowedTypes": "video/*" } },
+    { "id": "hash",      "type": "sha512",            "name": "SHA-512 identity" },
+    { "id": "speech",    "type": "whisper",           "name": "Transcribe",
+      "timeoutMs": 3600000 },
+    { "id": "translate", "type": "translate",         "name": "Translate to English" },
+    { "id": "narrate",   "type": "tts",               "name": "Speak the translation" }
+  ],
+  "edges": [
+    { "id": "e1", "source": "source",    "target": "mime" },
+    { "id": "e2", "source": "mime",      "target": "hash", "branch": "PASS" },
+    { "id": "e3", "source": "hash",      "target": "speech" },
+    { "id": "e4", "source": "speech",    "target": "translate" },
+    { "id": "e5", "source": "translate", "target": "narrate" }
+  ]
+}
+----
+
+Three things to know about the TTS step:
+
+* `sourceNodeId` is the **node id from the definition** (`translate` above), not the node kind. Rename
+  the node in the graph and the lookup stops resolving.
+* The node emits `tts_flag` and `tts_path`, and records an `asset_node_result` ledger entry — the WAV
+  itself stays in the worker's local `tts_bin` cache, the same way thumbnails do. Upload it as an asset
+  binary if it needs to be served.
+* Do **not** point `sourceOutputKey` at a raw `llm_result_*`: the `llm` node emits a JSON document, so
+  the synthesizer would read the braces and field names aloud. Feed it plain text.
+
+The sidecar itself is a small FastAPI service shipped next to the node (`server/` in the source tree),
+with a production path where Orpheus runs on vLLM or llama.cpp.
+
+== Choosing a Route
+
+[options="header",cols="1,2,2"]
+|===
+| Situation | Route | Why
+| One-off backfill of an existing library | Option A (REST batch) | No code, no rebuild; run it once and store the result.
+| Occasional, reviewed translation | Option B (chat + skill) | A human sees the output before it counts.
+| Translation on every ingest | Option C (custom node) | Belongs in the graph; composes with `tts` for dubbing.
+| Dubbing / accessibility audio | Option C + `tts` | `tts` needs an upstream node output to speak.
+|===
+
+== Gotchas
+
+[options="header",cols="2,3"]
+|===
+| Symptom | Cause
+
+| The `llm` node "translates" nonsense
+| It only ever saw the filename. It cannot read a transcript — see the warning above.
+
+| `tts` skips every asset with "no upstream text"
+| `sourceNodeId` / `sourceOutputKey` do not match a node id and output key in the graph.
+
+| The narration reads out JSON syntax
+| `sourceOutputKey` points at an `llm_result_*` output, which is a JSON document, not prose.
+
+| The translation is stored but not visible
+| It is a JSON component — read it from `GET /api/v1/assets/{uuid}/json-comps`, filtered by `variant`.
+
+| OCR-based translation of scans is garbled
+| Use `vlm` instead of `ocr`; layout-preserving transcription survives translation, flattened text does
+not.
+
+| Run rejected with `503`
+| A kind in the graph is not registered on any online worker — see
+link:../#node-availability[node availability].
+|===
+
+== Next Steps
+
+* Get the source text first — link:../transcription/[Transcribing for the Chat Agent].
+* Translate per scene rather than per file — link:../scene-analysis/[Scene-Level Video Analysis].
+* Build the node — link:../../cortex/examples/[Cortex Examples].

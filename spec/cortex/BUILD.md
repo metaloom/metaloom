@@ -63,6 +63,7 @@ cortex/                          (parent POM, packaging=pom)
 │   ├── tika/                    (cortex-tika)
 │   ├── whisper/                 (cortex-whisper)
 │   ├── llm/                     (cortex-llm)
+│   ├── vlm/                     (cortex-vlm)
 │   ├── captioning/              (cortex-captioning)
 │   └── loom/                    (cortex-loom)
 ├── processor/                   (cortex-processor)     — MediaProcessor, FilesystemProcessor

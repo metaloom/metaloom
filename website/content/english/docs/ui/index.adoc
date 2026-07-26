@@ -20,31 +20,54 @@ demo credentials *admin* / *finger*. See link:../getting-started/[Getting Starte
 
 == What the UI Offers
 
-The interface is split into a *user* area (day-to-day media work) and an *admin* area (governance and
-operations), reachable from the collapsible left navigation.
+The collapsible left navigation groups every screen into three sections — *AI*, *Content* and
+*Management* — so it is always clear whether you are steering the agent, working on media, or
+operating the installation.
 
-*User area*
+*AI*
 
-* *Chat & AI Agent* — a conversational assistant with live references to your assets, tasks and pipelines
+* *Chat* — a conversational assistant with live references to your assets, tasks and pipelines
+* *Chat Sessions* — durable, publishable records of past conversations, with the context and skill
+  versions they ran with
+* *Skills* — versioned instruction packages the chat agent can apply per conversation
+* *Memory* — browse and edit the scoped markdown notes the agent reads and writes
+
+*Content*
+
 * *Library* — browse assets grouped into libraries
 * *Assets* — grid/list browser with search, status and type filters, plus a rich per-asset detail view
 * *Collections* — organise assets into colour-coded collections
-* *Tasks* — a Kanban-style task board with priority, status and assignees
+* *Tasks* — a Kanban-style task board with priority, status, due dates and per-asset tasks
 * *Detection* — review face, object and LLM detections; manage face clusters and persons
 * *Tags* — manage tags grouped by collection
 * *Workflow* — fullscreen, keyboard-driven bulk review
-* *Skills* — reusable instruction packages the chat agent can apply per conversation
-* *Agent Memory* — browse and edit the scoped markdown notes the agent reads and writes
 
-*Admin area*
+*Management*
 
 * *Asset Pools* — storage pool management and replication
 * *Pipelines* — a visual pipeline editor with versioning and side-by-side version diffs
 * *Cortex* — live monitoring of connected Cortex worker daemons
 * *Monitoring* — rolling metrics dashboards
-* *Spaces, Users, Groups & Permissions* — full access-control administration (ACL)
-* *API Keys* — generate and revoke long-lived API tokens
-* *Blacklist & Memory Denylist* — security and agent-guardrail rules
+* *Spaces* — tenant/project separation
+* *Memory Denylist* — regex guardrails for what the agent may never store
+* *ACL* — a sub-group holding *Users*, *Groups*, *Permissions*, *API Keys* and *Blacklist*, i.e. every
+  screen that decides who may do what
+
+== Your First Steps
+
+A brand-new Loom instance starts out empty, and the UI is built to guide you through that first hour
+rather than show you blank screens.
+
+* *A personal welcome* — starting a new conversation greets you by name and explains, in one line,
+  what the agent can do for you. The greeting disappears as soon as you send your first message.
+* *Guided empty pages* — every feature page (Assets, Library, Collections, Tags, Tasks, Skills,
+  Asset Pools) shows a large icon, a short explanation of what the feature is for, and a single button
+  that creates the first element — upload your first asset, create your first collection, write your
+  first skill, and so on.
+
+Once a page has content, the empty state is replaced by the regular browser; if a search or filter
+returns nothing, you get a distinct "no matches" hint instead, so an empty result is never confused
+with an empty feature.
 
 [#chat]
 == Chat & AI Agent
@@ -54,6 +77,16 @@ your assets, collections, tasks and pipelines. A context panel on the right surf
 active tasks and collections, and past conversations are listed for quick recall.
 
 image::chat.png[Loom Agent chat interface,role=img-fluid]
+
+=== Chat Sessions
+
+A conversation can be captured as a *chat session*: a named, describable record that survives the chat
+itself. Publishing a session makes it available as *context* for later conversations — a new session can
+pull in another session's chat history, its skills, or its coding-sandbox filesystem, each toggled
+separately. Sessions also pin the exact skill versions they ran with, so a shared session stays
+reproducible after the underlying skills move on.
+
+image::chat-sessions.png[Chat sessions overview,role=img-fluid]
 
 === Skills
 
@@ -95,6 +128,13 @@ Tags are managed in a tree grouped by collection, with drag-to-move and inline c
 
 image::tags.png[Tag management,role=img-fluid]
 
+=== Tasks
+
+Work is tracked as tasks with a priority, a status and a due date. A task can be attached to the asset
+it is about, in which case it also shows up in the *Tasks* tab of that asset's detail view.
+
+image::tasks.png[Task board,role=img-fluid]
+
 === Face Detection
 
 The Detection view aggregates face, object and LLM detections. The *Faces* tab manages face clusters and
@@ -128,10 +168,22 @@ server.
 
 image::cortex.png[Connected Cortex worker,role=img-fluid]
 
+[#monitoring]
+== Monitoring
+
+The monitoring area is the operational overview: a row of headline figures — assets ingested, pipeline
+runs, average processing latency, storage used, open tasks, agent queries and new annotations — over a
+14-day rolling window, followed by the trends behind them. Asset ingestion, pipeline run outcomes
+(success / failed / skipped), task backlog, processing latency, storage growth and agent usage each get
+their own chart.
+
+image::monitoring.png[Monitoring and statistics dashboard,role=img-fluid]
+
 [#administration]
 == Administration
 
-The admin area centralises governance. *Users* manages accounts, status and role assignments.
+Everything that decides *who may do what* lives in the *ACL* sub-group of the Management section.
+*Users* manages accounts, status and role assignments.
 
 image::users.png[User management,role=img-fluid]
 

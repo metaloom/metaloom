@@ -9,6 +9,7 @@ import {
   FolderOutlined, CloudOutlined, StorageOutlined, HelpOutlineOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
+import EmptyState from "../../components/EmptyState";
 import { AssetPool, AssetPoolType } from "../../types";
 import { useToast } from "../../context/ToastContext";
 import { useAuth } from "../../context/AuthContext";
@@ -391,7 +392,18 @@ export default function AssetPoolsView() {
 
       {/* Pool grid */}
       <Box sx={{ flex: 1, overflow: "auto", p: 2.5 }}>
-        {filtered.length === 0 ? (
+        {pools.length === 0 ? (
+          // No pools configured yet — offer to create the first one.
+          <EmptyState
+            icon={StorageOutlined}
+            title={t("assetPools.emptyState.title")}
+            description={t("assetPools.emptyState.description")}
+            actionLabel={t("assetPools.emptyState.action")}
+            actionIcon={<AddOutlined sx={{ fontSize: 18 }} />}
+            onAction={() => { resetForm(); setCreateOpen(true); }}
+            testId="asset-pools-empty-state"
+          />
+        ) : filtered.length === 0 ? (
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", opacity: 0.5 }}>
             <Typography variant="body2">{t("assetPools.empty")}</Typography>
           </Box>

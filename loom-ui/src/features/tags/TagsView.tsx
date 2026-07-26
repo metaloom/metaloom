@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   Box, Typography, IconButton, TextField, Tooltip, Chip, Divider, Menu, MenuItem,
   InputAdornment, Button, Paper, Rating,
@@ -10,6 +10,7 @@ import {
   SaveOutlined, CloseOutlined, DragIndicatorOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
+import EmptyState from "../../components/EmptyState";
 import { useAuth } from "../../context/AuthContext";
 import {
   listTags, createTag, updateTag, deleteTag as apiDeleteTag,
@@ -186,6 +187,7 @@ export default function TagsView() {
   const [tree, setTree] = useState<TagNode[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set<string>());
   const [loading, setLoading] = useState(true);
+  const newTagInputRef = useRef<HTMLInputElement>(null);
   const [newTagName, setNewTagName] = useState("");
   const [newTagCollection, setNewTagCollection] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -347,6 +349,7 @@ export default function TagsView() {
           </Box>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <TextField
+              inputRef={newTagInputRef}
               value={newTagName}
               onChange={e => setNewTagName(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter") handleCreateTag(); }}
@@ -408,10 +411,23 @@ export default function TagsView() {
               />
             ))}
             {!loading && displayTree.length === 0 && (
-              <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 6, gap: 1 }}>
-                <LocalOfferOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
-                <Typography variant="body2" color="text.secondary">{t("tags.empty")}</Typography>
-              </Box>
+              tree.length === 0 ? (
+                // No tags at all — the CTA focuses the inline "new tag" field in the header.
+                <EmptyState
+                  icon={LocalOfferOutlined}
+                  title={t("tags.emptyState.title")}
+                  description={t("tags.emptyState.description")}
+                  actionLabel={t("tags.emptyState.action")}
+                  actionIcon={<AddOutlined sx={{ fontSize: 18 }} />}
+                  onAction={() => newTagInputRef.current?.focus()}
+                  testId="tags-empty-state"
+                />
+              ) : (
+                <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 6, gap: 1 }}>
+                  <LocalOfferOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
+                  <Typography variant="body2" color="text.secondary">{t("tags.empty")}</Typography>
+                </Box>
+              )
             )}
           </Box>
         </Box>

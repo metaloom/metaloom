@@ -66,6 +66,7 @@ Sessions are owned per user, can be named, tagged, described and **published** f
 reference. They are managed via `/api/v1/chat-sessions`. Publishing a session shares a reproducible
 working context, not just a chat log.
 
+[#skills]
 == Skills
 
 A **skill** is a user-owned, `SKILL.md`-style markdown instruction package (name, description and a
@@ -116,6 +117,7 @@ If a stored fact becomes wrong, correct it by overwriting the note with `put_mem
 with `delete_memory`. Never let a note contradict what the user just told you.
 ----
 
+[#example-skill-transcript-summarizer]
 === Example Skill: transcript-summarizer
 
 A domain skill that turns a request like "summarize this clip" into a tight, sourced summary:
@@ -140,6 +142,7 @@ If no transcript exists yet, say so plainly and suggest running a Whisper pipeli
 do not invent content.
 ----
 
+[#memory]
 == Memory
 
 The agent has a persistent **memory bank** — scoped markdown notes it can read and write across
@@ -165,6 +168,7 @@ conversations, so useful facts survive between chats.
 When the coding sandbox is enabled, the memory bank can also be materialized read-only into the
 runner so coding tasks can consult it.
 
+[#coding-sandbox]
 == Coding Sandbox
 
 Beyond querying the domain, the agent can run **coding tasks** (`run_shell`, `write_file`,
@@ -179,14 +183,80 @@ chat into a lightweight coding agent operating on an isolated `/workspace`. It i
 * Loom holds the registry of live runners, applies a per-deployment concurrency cap, waits for
   readiness, and destroys runners on chat reset / idle / max-session.
 
-```
-   Loom backend (SandboxOrchestrator)
-        │  create runner (per chat)         drive over HTTP + per-session token
-        ▼                                   ┌───────────────────────────────┐
-   Session Runner pod/container  ◀──────────┤ run_shell / write_file / ...  │
-   (runnerd, /workspace, no creds)          └───────────────────────────────┘
-        ▲  reaped on idle-TTL / max-session
-```
+++++
+<div class="ml-figure">
+<svg viewBox="0 0 900 366" role="img" aria-labelledby="ml-sbx-title ml-sbx-desc" class="ml-arch-svg">
+  <title id="ml-sbx-title">Coding sandbox lifecycle</title>
+  <desc id="ml-sbx-desc">The Loom server holds the agent loop and the SandboxOrchestrator. On the first coding tool call of a chat the orchestrator creates a Session Runner container, then drives it over HTTP with a per-session bearer token; the runner holds only runnerd and an isolated workspace, runs hardened with no credentials and no network egress, and is destroyed on chat reset, idle timeout or the maximum session time-box.</desc>
+  <defs>
+    <marker id="ml-sbx-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#57cbcc"></path></marker>
+    <marker id="ml-sbx-arrow-muted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6b7681"></path></marker>
+  </defs>
+
+  <!-- Loom side -->
+  <g>
+    <rect x="24" y="46" width="272" height="212" rx="10" class="ml-box-container"></rect>
+    <text x="38" y="68" class="ml-box-title">Loom Server</text>
+    <text x="38" y="84" class="ml-box-tag">metaloom/loom-server</text>
+    <rect x="38" y="96" width="244" height="60" rx="6" class="ml-box-part"></rect>
+    <text x="160" y="118" text-anchor="middle" class="ml-part-title">AI Agent Loop</text>
+    <text x="160" y="136" text-anchor="middle" class="ml-part-sub">run_shell · write_file · read_file</text>
+    <rect x="38" y="166" width="244" height="72" rx="6" class="ml-box-part"></rect>
+    <text x="160" y="188" text-anchor="middle" class="ml-part-title">SandboxOrchestrator</text>
+    <text x="160" y="206" text-anchor="middle" class="ml-part-sub">runner registry · concurrency cap</text>
+    <text x="160" y="222" text-anchor="middle" class="ml-part-sub">readiness wait · reaper</text>
+  </g>
+
+  <!-- Session runner side -->
+  <g>
+    <rect x="560" y="30" width="316" height="244" rx="10" class="ml-box-container"></rect>
+    <text x="574" y="52" class="ml-box-title">Session Runner</text>
+    <text x="574" y="68" class="ml-box-tag">loom-session-runner · one per chat</text>
+    <rect x="574" y="80" width="288" height="52" rx="6" class="ml-box-part"></rect>
+    <text x="718" y="101" text-anchor="middle" class="ml-part-title">runnerd</text>
+    <text x="718" y="118" text-anchor="middle" class="ml-part-sub">standard-library HTTP daemon · no credentials</text>
+    <rect x="574" y="140" width="288" height="44" rx="6" class="ml-box-part"></rect>
+    <text x="718" y="161" text-anchor="middle" class="ml-part-title">/workspace</text>
+    <text x="718" y="176" text-anchor="middle" class="ml-part-sub">emptyDir · the only writable path</text>
+    <!-- hardening chips -->
+    <rect x="574" y="194" width="139" height="24" rx="12" class="ml-chip"></rect>
+    <text x="643.5" y="210" text-anchor="middle" class="ml-chip-label">runAsNonRoot</text>
+    <rect x="723" y="194" width="139" height="24" rx="12" class="ml-chip"></rect>
+    <text x="792.5" y="210" text-anchor="middle" class="ml-chip-label">all caps dropped</text>
+    <rect x="574" y="224" width="139" height="24" rx="12" class="ml-chip"></rect>
+    <text x="643.5" y="240" text-anchor="middle" class="ml-chip-label">read-only rootfs</text>
+    <rect x="723" y="224" width="139" height="24" rx="12" class="ml-chip"></rect>
+    <text x="792.5" y="240" text-anchor="middle" class="ml-chip-label">no service-account token</text>
+  </g>
+
+  <!-- 1. create -->
+  <polyline points="296,110 560,110" class="ml-edge" marker-end="url(#ml-sbx-arrow)"></polyline>
+  <circle cx="330" cy="110" r="11" class="ml-step"></circle>
+  <text x="330" y="114" text-anchor="middle" class="ml-step-label">1</text>
+  <text x="432" y="102" text-anchor="middle" class="ml-edge-label">create on the first coding tool call</text>
+
+  <!-- 2. drive -->
+  <polyline points="296,166 560,166" class="ml-edge" marker-end="url(#ml-sbx-arrow)" marker-start="url(#ml-sbx-arrow)"></polyline>
+  <polyline points="300,166 556,166" class="ml-flow"></polyline>
+  <circle cx="330" cy="166" r="11" class="ml-step"></circle>
+  <text x="330" y="170" text-anchor="middle" class="ml-step-label">2</text>
+  <text x="436" y="158" text-anchor="middle" class="ml-edge-label">HTTP + per-session bearer token</text>
+  <text x="436" y="186" text-anchor="middle" class="ml-edge-label-muted">tool call in · stdout / files out</text>
+
+  <!-- 3. destroy -->
+  <polyline points="560,232 296,232" class="ml-edge-dashed" marker-end="url(#ml-sbx-arrow-muted)"></polyline>
+  <circle cx="330" cy="232" r="11" class="ml-step"></circle>
+  <text x="330" y="236" text-anchor="middle" class="ml-step-label">3</text>
+  <text x="470" y="224" text-anchor="middle" class="ml-edge-label">destroy on reset · idle-TTL · max-session</text>
+
+  <!-- no egress -->
+  <polyline points="718,274 718,306" class="ml-deny"></polyline>
+  <circle cx="718" cy="322" r="13" class="ml-deny" fill="none"></circle>
+  <line x1="709" y1="331" x2="727" y2="313" class="ml-deny"></line>
+  <text x="694" y="326" text-anchor="end" class="ml-deny-label">no egress — default-deny NetworkPolicy</text>
+</svg>
+</div>
+++++
 
 === Backends
 

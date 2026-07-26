@@ -1,0 +1,358 @@
+---
+title: Deploying with Docker
+weight: 1
+---
+
+This playbook builds a **production-shaped MetaLoom stack on a single host** with Docker or Podman:
+PostgreSQL, the Loom server, and one or more Cortex workers that actually process media. It is the
+step up from the all-in-one demo image — separate containers, real volumes, and state that survives a
+restart.
+
+For a five-minute look at the product instead, use the demo image described in
+link:../../getting-started/[Getting Started]. Everything below assumes you want to keep the data.
+
+== What You Will Build
+
+```
+             ┌──────────────┐
+             │  postgres    │  :5432   (loom database)
+             └──────▲───────┘
+                    │ JDBC
+             ┌──────┴───────┐
+  browser ──▶│ loom-server  │  :8092  REST + WebSocket + UI
+  clients    │              │  :8989  health / metrics
+             └──────▲───────┘
+                    │  Cortex dials OUT to 8092 (Loom never dials in)
+        ┌───────────┴────────────┐
+        │                        │
+ ┌──────┴───────┐        ┌───────┴──────┐
+ │ cortex-cpu   │        │ cortex-gpu   │   :8093  health / readiness
+ │ hash, tika … │        │ whisper …    │
+ └──────┬───────┘        └───────┬──────┘
+        └──────── /media ────────┘   the SAME path in every worker
+```
+
+The single rule that catches everyone: **Loom hands out file paths, not bytes.** When a pipeline
+processes `/media/library/clip.mp4`, that exact path must resolve inside every worker that might get
+the task. Mount the library identically in all of them.
+
+== Prerequisites
+
+* Docker (or Podman with the `docker` alias) and a host with the media library on disk.
+* The images `metaloom/loom-server` and `metaloom/cortex-server`. See
+  link:../../deployment/[Container Images] for the full inventory and the JVM/native variants.
+
+== Step 1 — Network and Database
+
+[source,bash]
+----
+docker network create metaloom
+
+docker run -d --name postgres --network metaloom \
+  -e POSTGRES_DB=loom \
+  -e POSTGRES_USER=loom \
+  -e POSTGRES_PASSWORD='change-me' \
+  -v loom-pgdata:/var/lib/postgresql/data \
+  postgres:16.3-bullseye
+----
+
+== Step 2 — Start the Loom Server
+
+[source,bash]
+----
+docker run -d --name loom --network metaloom \
+  -p 8092:8092 \
+  -e LOOM_DB_HOST=postgres \
+  -e LOOM_DB_NAME=loom \
+  -e LOOM_DB_USERNAME=loom \
+  -e LOOM_DB_PASSWORD='change-me' \
+  -e LOOM_INITIAL_PASSWORD='first-login-password' \
+  -v loom-config:/config \
+  -v loom-uploads:/uploads \
+  metaloom/loom-server:latest
+----
+
+What those two volumes are for:
+
+`/config`:: On first start Loom writes `loom.yml` here **including a randomly generated keystore
+password**, and creates `keystore.jceks` next to it. The JWT signing key lives in that keystore — lose
+the volume and every issued token, including your workers', stops verifying. This is the volume you
+back up.
+
+`/uploads`:: Where uploaded asset binaries are stored (`LOOM_STORAGE_UPLOAD_DIR`, thumbnails and other
+binaries included).
+
+The image also declares `/plugins`. Mount it only if you ship plugins.
+
+TIP: Loom reads `loom.yml` from `/etc/metaloom/loom.yml`, then `~/.config/metaloom/loom.yml`, then
+`config/loom.yml` — the last of which is `/config/loom.yml` in this image. Environment variables are
+applied **on top** of whatever the file says, so you can mount a config file and still override single
+values with `-e`. The full key list is in link:../../loom/configuration/[Loom Configuration].
+
+Check it came up:
+
+[source,bash]
+----
+curl -sf http://localhost:8092/api/v1/health && echo OK
+----
+
+The UI is at http://localhost:8092/ui/ — log in as `admin` with `LOOM_INITIAL_PASSWORD`.
+
+== Step 3 — Mint a Worker Token
+
+A Cortex worker registers and answers tasks without a token, but it can only **persist results back to
+Loom** when it has one. In practice you always want one.
+
+[source,bash]
+----
+LOOM=http://localhost:8092
+
+TOKEN=$(curl -s -X POST $LOOM/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"first-login-password"}' | jq -r .token)
+----
+
+That JWT expires (`LOOM_TOKEN_EXPIRATION_TIME`, default one hour), which is fine for a first run but
+not for a long-lived worker. For anything permanent create a **long-lived API key** instead — via
+`POST /api/v1/tokens`, or in the UI under Admin → API Keys — and use that as the worker's token. See
+link:../../loom/authentication/[Authentication].
+
+== Step 4 — Start a Cortex Worker
+
+[source,bash]
+----
+docker run -d --name cortex-cpu --network metaloom \
+  -p 8093:8093 \
+  -e LOOM_HOST=loom \
+  -e LOOM_PORT=8092 \
+  -e LOOM_TOKEN="$TOKEN" \
+  -e CORTEX_NODE_ID=cortex-cpu-1 \
+  -e CORTEX_META_PATH=/meta \
+  -v cortex-cpu-meta:/meta \
+  -v /srv/media:/media:ro \
+  metaloom/cortex-server:latest
+----
+
+Three things are not optional:
+
+`CORTEX_NODE_ID`:: **Required.** The worker refuses to start without it. Loom keys registration,
+node-kind restrictions and run attribution on this id, and rejects a second worker announcing an id
+already in use — so it must be unique per worker and *stable across restarts*. Do not let it be
+derived from the container id.
+
+`CORTEX_META_PATH`:: The worker's sidecar metadata cache, including the persisted per-root index the
+`filesystem-source` node uses to skip unchanged files. Point it at the image's `/meta` volume;
+otherwise it lands in the container filesystem and a restart re-scans everything.
+
+The media mount:: `/srv/media:/media` here. Read-only is fine unless you run nodes that move files,
+such as link:../../nodes/dedup/[deduplication].
+
+NOTE: A `cortex.yml` for per-node settings is read from `~/.config/metaloom/cortex.yml`, which is
+`/cortex/.config/metaloom/cortex.yml` in this image — **not** the `/config` volume the image declares.
+Mount the file at that path (`-v ./cortex.yml:/cortex/.config/metaloom/cortex.yml:ro`) when a node
+needs options, as the link:../transcription/[transcription] and link:../translation/[translation]
+playbooks do.
+
+== Step 5 — Verify the Stack
+
+[source,bash]
+----
+# The worker is alive and has completed the registration handshake
+curl -sf http://localhost:8093/api/health   # 200 while the process is up
+curl -sf http://localhost:8093/api/ready    # 200 only once registered with Loom
+
+# Loom's own view: the worker, its node kinds and its metrics
+curl -s -H "Authorization: Bearer $TOKEN" $LOOM/api/v1/processors | jq
+----
+
+A registered worker shows up with a `nodeId` in that last response, and in the UI's Cortex view. If
+`/api/ready` stays `503`, jump to link:#troubleshooting[Troubleshooting].
+
+[#compose]
+== The Whole Thing as a Compose File
+
+[source,yaml]
+----
+services:
+  postgres:
+    image: postgres:16.3-bullseye
+    environment:
+      POSTGRES_DB: loom
+      POSTGRES_USER: loom
+      POSTGRES_PASSWORD: change-me
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  loom:
+    image: metaloom/loom-server:latest
+    depends_on: [postgres]
+    ports:
+      - "8092:8092"     # REST + WebSocket + UI
+      - "8989:8989"     # health / metrics
+    environment:
+      LOOM_DB_HOST: postgres
+      LOOM_DB_NAME: loom
+      LOOM_DB_USERNAME: loom
+      LOOM_DB_PASSWORD: change-me
+      LOOM_INITIAL_PASSWORD: first-login-password
+    volumes:
+      - config:/config
+      - uploads:/uploads
+
+  cortex-cpu:
+    image: metaloom/cortex-server:latest
+    depends_on: [loom]
+    environment:
+      LOOM_HOST: loom
+      LOOM_PORT: "8092"
+      LOOM_TOKEN: ${LOOM_TOKEN}
+      CORTEX_NODE_ID: cortex-cpu-1
+      CORTEX_META_PATH: /meta
+      CORTEX_NODE_BLACKLIST: whisper,llm,vlm,captioning,facedescription
+    volumes:
+      - cpu-meta:/meta
+      - /srv/media:/media:ro
+
+volumes:
+  pgdata:
+  config:
+  uploads:
+  cpu-meta:
+----
+
+`LOOM_TOKEN` comes from the environment (`.env` or your secret store) — the token is minted against a
+running server, so it cannot be baked into the file that starts that server.
+
+[#scaling]
+== Scaling: One Worker Kind per Machine Profile
+
+Adding capacity means adding workers. Loom routes each node task to a worker that accepts its kind, so
+you split work by advertising different kinds:
+
+[source,yaml]
+----
+  cortex-gpu:
+    image: metaloom/cortex-server:latest
+    environment:
+      LOOM_HOST: loom
+      LOOM_PORT: "8092"
+      LOOM_TOKEN: ${LOOM_TOKEN}
+      CORTEX_NODE_ID: cortex-gpu-1
+      CORTEX_META_PATH: /meta
+      CORTEX_NODE_WHITELIST: whisper,facedetect,captioning,vlm
+    volumes:
+      - gpu-meta:/meta
+      - /srv/media:/media:ro
+      - /srv/models:/models:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+----
+
+[options="header",cols="1,3"]
+|===
+| Variable | Effect
+| `CORTEX_NODE_WHITELIST` | Comma-separated kinds this worker *will* run. Unset means "anything".
+| `CORTEX_NODE_BLACKLIST` | Kinds it refuses, even if the whitelist would admit them. Takes precedence.
+|===
+
+The pattern above gives the GPU box the expensive kinds and keeps them off the CPU box, so a long
+Whisper job never blocks hashing. Every worker still needs the identical `/media` mount — a task can be
+handed to any worker that accepts its kind. Which kinds actually need a GPU or a native runtime is
+listed under link:../../nodes/#requirements[Nodes → Requirements at a glance].
+
+== Optional: An LLM Provider for the Chat and the `llm` Node
+
+The built-in link:../../loom/chat/[chat agent] is enabled by default but answers nothing without a
+reachable model provider. Ollama on the same network is the simplest option:
+
+[source,yaml]
+----
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama:/root/.ollama
+----
+
+Point the server at it:
+
+[source,yaml]
+----
+    environment:
+      LOOM_AI_PROVIDER_TYPE: OLLAMA
+      LOOM_AI_URL: http://ollama:11434
+      LOOM_AI_MODEL_ID: gpt-oss:20b
+----
+
+The link:../../nodes/llm/[`llm` node] is configured separately — it is the *worker* that calls the
+provider, using `nodes.llm.ollamaUrl` in the worker's `cortex.yml`. Two different settings, two
+different processes.
+
+[#persist]
+== What You Must Persist
+
+[options="header",cols="1,1,3"]
+|===
+| Container | Path | Why it matters
+| postgres | `/var/lib/postgresql/data` | All assets, users, pipelines and run history.
+| loom | `/config` | `loom.yml` with the generated keystore password, plus `keystore.jceks` — the JWT signing key. Losing it invalidates every issued token.
+| loom | `/uploads` | Uploaded asset binaries and generated binaries such as thumbnails.
+| cortex | `/meta` (`CORTEX_META_PATH`) | Sidecar metadata and the filesystem-source index. Losing it is not fatal — the next run re-scans.
+|===
+
+== Upgrading
+
+. Pull the new images and stop the workers first, so no task is in flight.
+. Restart Loom. Schema migrations run at startup; keep the `/config` volume so the keystore is reused.
+. Restart the workers with the **same** `CORTEX_NODE_ID` values, so they re-register as themselves.
+
+Keep the Loom server and the workers on the same release. A worker built against a different protocol
+revision fails the registration handshake rather than degrading quietly — the symptom is
+`Not registered. Send REGISTER first.` in its log.
+
+[#troubleshooting]
+== Troubleshooting
+
+[options="header",cols="2,3"]
+|===
+| Symptom | Cause and fix
+
+| Worker exits immediately: _"No worker id configured"_
+| `CORTEX_NODE_ID` is unset. It is mandatory and must be unique and stable.
+
+| `/api/ready` on `:8093` stays `503`
+| The worker is running but not registered. Check `LOOM_HOST`/`LOOM_PORT` (the port is Loom's REST port
+`8092`, not `7733` — that older default still lives in the CLI), that both containers share a network,
+and that the token is valid.
+
+| Worker log: _"Not registered. Send REGISTER first."_
+| Version skew between `cortex-server` and `loom-server`. Rebuild both from the same revision.
+
+| Run rejected with `503`, no worker assigned
+| No online worker accepts the pipeline's source kind or a node kind in the graph. Check
+`CORTEX_NODE_WHITELIST`/`BLACKLIST` and `GET /api/v1/processors`.
+
+| Nodes fail with "file not found" although the file exists
+| The media path is not identical in the worker. Loom sends a path reference; mount the library at the
+same location in every worker.
+
+| Everyone is logged out after a restart, tokens rejected
+| The `/config` volume (and with it `keystore.jceks`) was not persisted, so a new signing key was
+generated.
+
+| Every run re-processes the whole library
+| The worker's `CORTEX_META_PATH` is not on a volume, so the filesystem-source index is lost on restart.
+
+| `llm` / `whisper` nodes ignore your settings
+| Per-node options are read from the worker's `~/.config/metaloom/cortex.yml`
+(`/cortex/.config/metaloom/cortex.yml` in the image), not from the `/config` volume and not from the
+pipeline definition.
+|===
+
+== Next Steps
+
+* Author your first graph — link:../transcription/[Transcribing for the Chat Agent].
+* Move the same stack into a cluster — link:../kubernetes/[Deploying on Kubernetes].
+* Watch it run — link:../../loom/metrics/[Loom Metrics] and link:../../cortex/metrics/[Cortex Metrics].

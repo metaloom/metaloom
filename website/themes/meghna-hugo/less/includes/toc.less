@@ -13,44 +13,151 @@
     padding-right: 16px;
 }
 
-nav[data-toggle=toc] .nav .nav>li>a  {
+.docs-sidebar-title {
+    color: #6b7681;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 0 12px 8px;
+}
+
+/*
+ * Sidebar links (page TOC + topic list) share one hover treatment: the marker bar grows in and
+ * the label drifts a couple of pixels instead of snapping. Everything is opacity/transform so the
+ * hover cannot reflow the sticky column.
+ */
+.docs-sidebar-link() {
+    position: relative;
+    display: block;
+    border-left: none;
+    transition: color 0.16s ease, background-color 0.16s ease, transform 0.16s ease;
+
+    &::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 5px;
+        bottom: 5px;
+        width: 2px;
+        border-radius: 2px;
+        background-color: @link-hover-color;
+        opacity: 0;
+        transform: scaleY(0.35);
+        transform-origin: center;
+        transition: opacity 0.16s ease, transform 0.16s ease, background-color 0.16s ease;
+    }
+}
+
+.docs-sidebar-link-hover() {
+    color: @link-hover-color;
+    background-color: rgba(0, 181, 166, 0.06);
+    transform: translateX(2px);
+    text-decoration: none;
+
+    &::before {
+        opacity: 1;
+        transform: scaleY(1);
+    }
+}
+
+nav[data-toggle=toc] .nav>li>a {
+    .docs-sidebar-link();
+    font-size: 0.95rem;
+    padding: 6px 12px;
+    color: #b0bac4;
+    line-height: 1.7;
+}
+
+nav[data-toggle=toc] .nav .nav>li>a {
+    .docs-sidebar-link();
     font-size: 0.9rem;
     padding: 4px 12px 4px 24px;
     color: #8a95a0;
     line-height: 1.6;
-    transition: color 0.15s, border-color 0.15s;
-}
 
-nav[data-toggle=toc] .nav>li>a {
-    font-size: 0.95rem;
-    padding: 6px 12px;
-    color: #b0bac4;
-    border-left: 2px solid transparent;
-    line-height: 1.7;
-    transition: color 0.15s, border-color 0.15s, background-color 0.15s;
+    &::before {
+        left: 12px;
+    }
 }
 
 nav[data-toggle=toc] .nav>li>a:focus,
-nav[data-toggle=toc] .nav>li>a:hover {
-    color: @link-hover-color;
-    border-left: 2px solid @link-hover-color;
-    background-color: rgba(0, 181, 166, 0.05);
-    text-decoration: none;
-}
-
+nav[data-toggle=toc] .nav>li>a:hover,
 nav[data-toggle=toc] .nav .nav>li>a:focus,
 nav[data-toggle=toc] .nav .nav>li>a:hover {
-    color: @link-hover-color;
-    border-left: none;
-    background-color: rgba(0, 181, 166, 0.05);
-    text-decoration: none;
+    .docs-sidebar-link-hover();
 }
 
 nav[data-toggle=toc] .nav-link.active,
 nav[data-toggle=toc] .nav-link.active:focus,
 nav[data-toggle=toc] .nav-link.active:hover {
     color: @link-color;
-    border-left: 2px solid @link-color;
     background-color: rgba(0, 181, 166, 0.08);
     font-weight: 600;
+
+    &::before {
+        background-color: @link-color;
+        opacity: 1;
+        transform: scaleY(1);
+    }
+}
+
+/* Topic links — the docs sections, listed under the page TOC */
+.docs-topics {
+    margin-top: 26px;
+    padding-top: 18px;
+    border-top: 1px solid rgba(0, 181, 166, 0.15);
+
+    ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    li {
+        margin: 0;
+    }
+
+    a {
+        .docs-sidebar-link();
+        color: #b0bac4;
+        font-size: 0.9rem;
+        line-height: 1.6;
+        padding: 5px 12px;
+
+        &:focus,
+        &:hover {
+            .docs-sidebar-link-hover();
+        }
+    }
+
+    a.is-current {
+        color: @link-color;
+        background-color: rgba(0, 181, 166, 0.08);
+        font-weight: 600;
+
+        &::before {
+            background-color: @link-color;
+            opacity: 1;
+            transform: scaleY(1);
+        }
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    nav[data-toggle=toc] .nav>li>a,
+    nav[data-toggle=toc] .nav .nav>li>a,
+    .docs-topics a {
+        transition: none;
+
+        &::before {
+            transition: none;
+        }
+    }
+
+    nav[data-toggle=toc] .nav>li>a:hover,
+    nav[data-toggle=toc] .nav .nav>li>a:hover,
+    .docs-topics a:hover {
+        transform: none;
+    }
 }

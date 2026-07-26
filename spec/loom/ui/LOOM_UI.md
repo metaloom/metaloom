@@ -27,7 +27,7 @@
 loom-ui/
 ├── src/
 │   ├── api/                    # REST API client modules (one per endpoint)
-│   ├── components/             # Shared UI components (Title.tsx)
+│   ├── components/             # Shared UI components (Title.tsx, EmptyState.tsx, MediaPlaceholder.tsx, AssetThumbnail.tsx)
 │   ├── context/                # React Context providers (Auth, Space, NodeRegistry, Theme, Toast, Layout)
 │   ├── features/               # Feature modules (one per major UI area)
 │   │   ├── admin/              # Admin panel (spaces, users, groups, roles, API keys, blacklist)
@@ -124,18 +124,19 @@ export default defineConfig({
 | `pipeline-loading.spec.ts` | Integration | Yes | Pipeline loading & canvas rendering |
 | `pipeline-versions.spec.ts` | Integration | Yes | Version badge, history dropdown, restore round-trip |
 | `pipeline-versions-mocked.spec.ts` | UI Smoke | No (mocked) | Version badge/history/restore mechanics in isolation |
+| `empty-states-mocked.spec.ts` | UI Smoke | No (mocked) | New-chat greeting + feature-page empty states and their CTAs (§3.3) |
 | `assets-backend.spec.ts` | Integration | Yes | Asset browser with real data |
 | `collections-backend.spec.ts` | Integration | Yes | Collection CRUD |
 | `detections-backend.spec.ts` | Integration | Yes | Face/object detection views |
-| `groups-backend.spec.ts` | Integration | Yes | Group management |
+| `groups-backend.spec.ts` | Integration | Yes | Group management (via the ACL sub-group) |
 | `library-backend.spec.ts` | Integration | Yes | Library views |
 | `persons-backend.spec.ts` | Integration | Yes | Person database |
 | `pools-backend.spec.ts` | Integration | Yes | Asset pool management |
-| `roles-backend.spec.ts` | Integration | Yes | Role/permission management |
+| `roles-backend.spec.ts` | Integration | Yes | Role/permission management (via the ACL sub-group) |
 | `spaces-backend.spec.ts` | Integration | Yes | Space management |
 | `tags-backend.spec.ts` | Integration | Yes | Tag management |
 | `tasks-backend.spec.ts` | Integration | Yes | Task board |
-| `users-backend.spec.ts` | Integration | Yes | User management |
+| `users-backend.spec.ts` | Integration | Yes | User management (opens the `sidebar-group-acl` sub-group first — §3.2) |
 
 ### 2.4 Running Tests
 
@@ -199,30 +200,177 @@ VITE_API_BASE_URL=/api/v1 VITE_PROXY_TARGET=http://localhost:8092 npm run test:e
 
 ### 3.2 Navigation Structure
 
+**File:** `src/layout/Sidebar.tsx`
+
+The sidebar has three labelled sections, and one of them (Management) carries a nested,
+collapsible sub-group. Grouping is by *what you are steering* — the agent, the media, or the
+installation — not by permission level: the old flat "user vs admin" split put Skills and
+Memory (agent configuration) next to Tags, and buried the five access-control screens in a
+list of eleven.
+
 ```
 Sidebar (collapsible)
-├── User Navigation
-│   ├── Chat (/)                    → ChatView
-│   ├── Library (/library)          → LibraryView
-│   ├── Assets (/assets)            → AssetBrowser
-│   ├── Collections (/collections)  → CollectionsView
-│   ├── Tasks (/tasks)              → TasksView
-│   ├── Detection (/detection)      → DetectionView
-│   ├── Tags (/tags)                → TagsView
-│   └── Workflow (/workflow)        → WorkflowView
-└── Admin Navigation (divider)
-    ├── Asset Pools (/asset-pools)  → AssetPoolsView
-    ├── Pipelines (/pipelines)      → PipelineEditor
-    ├── Cortex (/cortex)            → CortexView
-    ├── Monitoring (/monitoring)    → MonitoringView
-    ├── Spaces (/admin/spaces)      → SpacesView
-    ├── Users (/admin/users)        → UsersView
-    ├── Groups (/admin/groups)      → GroupsView
-    ├── Permissions (/admin/permissions) → RolesView
-    ├── API Keys (/admin/api-keys)  → ApiKeysView
-    ├── Blacklist (/admin/blacklist) → BlacklistView
-    └── Memory Denylist (/admin/memory-denylist) → MemoryDenylistAdmin
+├── AI
+│   ├── Chat (/)                          → ChatWorkspace
+│   ├── Chat Sessions (/chat/sessions)    → ChatSessionsView
+│   ├── Skills (/skills)                  → SkillManagementView
+│   └── Memory (/memory)                  → MemoryView
+├── CONTENT
+│   ├── Library (/library)                → LibraryView
+│   ├── Assets (/assets)                  → AssetBrowser
+│   ├── Collections (/collections)        → CollectionsView
+│   ├── Tasks (/tasks)                    → TasksView
+│   ├── Detection (/detection)            → DetectionManagement
+│   ├── Tags (/tags)                      → TagsView
+│   └── Workflow (/workflow)              → WorkflowView
+└── MANAGEMENT
+    ├── Asset Pools (/asset-pools)        → AssetPoolsView
+    ├── Pipelines (/pipelines)            → PipelineEditor
+    ├── Cortex (/cortex)                  → CortexView
+    ├── Monitoring (/monitoring)          → MonitoringArea
+    ├── Spaces (/admin/spaces)            → SpacesView
+    ├── Memory Denylist (/admin/memory-denylist) → MemoryDenylistAdmin
+    └── ACL ▾  (collapsible sub-group)
+        ├── Users (/admin/users)          → UsersView
+        ├── Groups (/admin/groups)        → GroupsView
+        ├── Permissions (/admin/permissions) → RolesView
+        ├── API Keys (/admin/api-keys)    → ApiKeysView
+        └── Blacklist (/admin/blacklist)  → BlacklistView
 ```
+
+Sub-group behaviour:
+
+| Aspect | Rule |
+|--------|------|
+| Initial state | Closed, **unless** one of its routes is the active route — a deep link never lands on a page whose nav entry is hidden |
+| Toggling | Local `openGroups` state keyed by group id; once toggled, the user's choice wins over the auto-open |
+| Collapsed sidebar | The sub-group header is dropped and its items render flat, because an icon-only rail has no room for a second level |
+| Test ids | `sidebar-group-<key>` on the header (e.g. `sidebar-group-acl`), `sidebar-item-<path>` on every entry |
+
+> **Gotcha:** E2E tests that navigate to an ACL screen must click
+> `getByTestId("sidebar-group-acl")` first — `getByRole("button", { name: "Users" })` alone no
+> longer resolves. `users-backend`, `groups-backend`, `roles-backend` and `tokens-backend` do
+> this; so does `scripts/capture-ui-screenshots.mjs` (`openAclGroup()`).
+>
+> i18n keys: `sidebar.divider.{ai,content,management}` for the section labels and
+> `sidebar.group.acl` for the sub-group.
+
+### 3.3 First-Run Experience (greeting & empty states)
+
+Two surfaces cover the "nothing here yet" moment: a personal greeting in a fresh
+chat session, and a shared empty-state component on every feature page.
+
+#### Chat greeting
+
+`ChatGreeting` (`src/features/chat/ChatGreeting.tsx`) replaces the blank transcript
+area whenever `messages.length === 0 && !streaming && !sending` in `ChatWorkspace`.
+It renders the gradient agent avatar, a large gradient-text **"Hello \<username\>"**
+(`chat.greeting.hello`, `{{name}}` from `AuthContext.username`) and a one-line hint
+(`chat.greeting.subtitle`). Without a username it falls back to
+`chat.greeting.helloAnonymous`. Testids: `chat-greeting`, `chat-greeting-title`.
+
+Because `newChat()` clears `messages`, the greeting reappears every time the user
+starts a new conversation — it is not tied to session creation on the server (the
+backend session is still created lazily on the first `sendMessage`).
+
+#### Shared `EmptyState` component
+
+**File:** `src/components/EmptyState.tsx`
+
+```tsx
+<EmptyState
+  icon={PermMediaOutlined}          // large haloed icon (54px in a 112px tinted circle)
+  title={t("assets.empty.title")}   // headline, usually a question
+  description={t("assets.empty.description")}
+  actionLabel={t("assets.empty.action")}
+  actionIcon={<CloudUploadOutlined sx={{ fontSize: 18 }} />}
+  onAction={openUploadDialog}       // creates the *first* element
+  testId="assets-empty-state"       // button gets `${testId}-action`
+  compact={embedded}                // smaller variant for panels (e.g. chat-embedded browser)
+/>
+```
+
+| Prop | Meaning |
+|------|---------|
+| `icon` | Icon component; rendered at 54px (34px compact) inside a `tokens.primary.subtle` circle |
+| `title` / `description` | Headline + explanatory sentence (max width 440px, centered) |
+| `actionLabel` / `actionIcon` / `onAction` | Primary CTA; omit to render a text-only state |
+| `testId` | Applied to the wrapper; the CTA gets `<testId>-action` |
+| `compact` | Panel variant — smaller icon, no vertical centering/min-height |
+
+#### Where it is used
+
+| View | Condition | CTA |
+|------|-----------|-----|
+| `AssetBrowser` | `assets.length === 0` | Opens the upload dialog (`assets-empty-state`) |
+| `LibraryView` | `libraries.length === 0` | Opens the create-library dialog (`library-empty-state`) |
+| `LibraryView` | library selected, `libraryAssets.length === 0` | Navigates to `/assets` (`library-assets-empty-state`) |
+| `CollectionsView` | `collections.length === 0` | Opens the create dialog (`collections-empty-state`) |
+| `TagsView` | `tree.length === 0` | Focuses the inline "new tag" field (`tags-empty-state`) |
+| `TasksView` | `tasks.length === 0` | Opens the create dialog (`tasks-empty-state`); the table is not rendered at all |
+| `SkillManagementView` | `skills.length === 0` (My skills) | Opens the skill editor (`skills-empty-state`) |
+| `SkillManagementView` | `library.length === 0` (Library tab) | No CTA (`skills-library-empty-state`) |
+| `AssetPoolsView` | `pools.length === 0` | Opens the create dialog (`asset-pools-empty-state`) |
+
+**Rule:** the empty state is bound to *the collection being empty*, never to a
+filtered/searched result. When the feature has content but a query matches nothing,
+the pre-existing small "no matches" hint is kept (`assets.empty.noMatch`,
+`collections.empty.noSearch`, `library.empty.noSearch`, `tags.empty`, …). Conflating
+the two would offer a "create the first X" button on a page that already has data.
+
+> **Gotcha:** `SkillManagementView` and `TasksView` no longer render their `<Table>`
+> when the collection is empty. E2E tests must wait on `skills-view` (view root) or
+> `tasks-empty-state` rather than on the table/column headers.
+
+i18n keys live under `<feature>.empty.*` (assets, collections) or
+`<feature>.emptyState.*` (library, tags, tasks, skills, assetPools) — the second form
+is used where an `empty` key already existed with a different meaning.
+
+### 3.4 Asset previews (thumbnails)
+
+**Files:** `src/components/AssetThumbnail.tsx`, `src/components/MediaPlaceholder.tsx`,
+`src/api/assets.ts` → `assetBinaryUrl`
+
+There is no thumbnail service and no derived-image endpoint. A preview is simply the asset's
+**stored binary**, served by `GET /api/v1/assets/:uuid/binary/data`, which resolves only for
+assets that actually have an `asset_location` row pointing at bytes on disk.
+
+```
+AssetResponse ──toAsset/apiToAsset──▶ thumbnailUrl = type === "image"
+                                        ? assetBinaryUrl(uuid)
+                                        : ""                       // no <img>-decodable preview
+                                      url          = same (feeds ZoomableImage in AssetDetail)
+```
+
+| Concern | Rule |
+|---------|------|
+| Which assets | **Images only.** A browser cannot decode `video/*`, `audio/*` or `application/pdf` in an `<img>`, so those keep the type placeholder. Nothing renders a poster frame yet. |
+| Auth | An `<img src>` cannot carry `Authorization`, so the request authenticates with the **HttpOnly `__Host-loom_token` cookie** the login endpoint sets. This works because the UI is served from the same origin as the API; a cross-origin `VITE_API_BASE_URL` would silently produce 401s and fall back to placeholders. |
+| Failure | `AssetThumbnail` swaps in `MediaPlaceholder` on `onError`. A missing preview is the normal case, not an error worth surfacing. |
+| `Content-Disposition` | The download route sends `attachment`; browsers ignore that for `<img>`, so no special handling is needed. |
+
+The demo seeds real image bytes for its image assets (see §3.5), which is what makes the asset
+browser, the asset detail view and the region/detection overlays show actual pictures rather
+than icons.
+
+### 3.5 What the demo data has to cover
+
+`DemoDatabaseInitializer` (`loom/core/.../boot/`) is the only reason a fresh demo container has
+anything to show, so every UI area the screenshots document needs seed data. Beyond the
+long-standing assets/tags/collections/pipelines/users it now seeds:
+
+| Data | Why the UI needs it |
+|------|---------------------|
+| **Image binaries** — synthesised JPEG/PNG bytes written into the storage directory with a matching `asset_location` row, and the asset's real sha512/size | Without stored bytes every card is a placeholder icon (§3.4). Painted at runtime (`java.awt`, no text — the Alpine JRE has no fontconfig) so no blobs live in the repo |
+| **Skills with two versions each** | One version hides the whole version UI: the version chip, the history list and the revert action have nothing to point at |
+| **Chat sessions with context** — three sessions, two published, plus `chat_session_context_ref` rows and `chat_session_skill` pins | The session detail view is *about* context; unpublished sessions cannot be referenced at all |
+| **Agent memory entries** (USER scope) | The Memory screen is otherwise empty. The demo image also sets `LOOM_AGENT_MEMORY_ENABLED=true`, since the memory endpoints are not even registered when the feature is off |
+| **Tasks attached to assets**, with priority, status and due dates | Fills both the task board (colour-coded priority) and the Tasks tab of the asset detail view |
+
+> **Gotcha:** `detection` is unique on `(asset_uuid, node_kind, frame_number, detection_index)`.
+> Two detections in one frame must be numbered, or the insert aborts the whole seeding run —
+> and because `BootstrapInitializer` swallows the failure, everything *after* the detections
+> (transcripts, the VLM component) is then silently missing from the demo.
 
 ---
 
@@ -718,8 +866,12 @@ Close → setDiffTarget(null)
 | `NodeRegistryProvider` / `useNodeRegistry` | `src/context/NodeRegistryContext.tsx` | Node descriptors & content types |
 | `ThemeModeProvider` / `useThemeMode` | `src/context/ThemeContext.tsx` | Dark/light theme |
 | `ToastProvider` / `useToast` | `src/context/ToastContext.tsx` | Global notifications |
+| `EmptyState` | `src/components/EmptyState.tsx` | Shared feature-page empty state (big icon + headline + description + create CTA) — see §3.3 |
+| `AssetThumbnail` | `src/components/AssetThumbnail.tsx` | Asset preview `<img>` that degrades to `MediaPlaceholder` — see §3.4 |
+| `assetBinaryUrl` | `src/api/assets.ts` | URL of an asset's stored bytes; cookie-authenticated, used as an `<img src>` |
+| `ChatGreeting` | `src/features/chat/ChatGreeting.tsx` | Prominent "Hello \<username\>" shown in a fresh chat session — see §3.3 |
 | `AppShell` | `src/layout/AppShell.tsx` | Main layout (sidebar + outlet) |
-| `Sidebar` | `src/layout/Sidebar.tsx` | Collapsible navigation |
+| `Sidebar` | `src/layout/Sidebar.tsx` | Collapsible navigation — AI / Content / Management sections + the ACL sub-group (§3.2) |
 | `LoginPage` | `src/features/auth/LoginPage.tsx` | Login form |
 | `listPipelines` / `updatePipeline` / `runPipeline` | `src/api/pipelines.ts` | Pipeline API client |
 | `listPipelineVersions` / `loadPipelineVersion` / `restorePipelineVersion` | `src/api/pipelines.ts` | Pipeline version API client |
@@ -941,6 +1093,8 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
 |---------|-----------|
 | **App entry point** | `src/main.tsx` |
 | **Routing setup** | `src/main.tsx` (BrowserRouter + AuthGate) |
+| **Shared empty state** | `src/components/EmptyState.tsx` |
+| **New-chat greeting** | `src/features/chat/ChatGreeting.tsx` |
 | **Main layout** | `src/layout/AppShell.tsx` |
 | **Sidebar navigation** | `src/layout/Sidebar.tsx` |
 | **Login page** | `src/features/auth/LoginPage.tsx` |
@@ -988,6 +1142,7 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
 - [x] Internationalization (en/de, i18next, namespaced keys)
 - [x] Theming (dark/light, MUI tokens, CSS variables)
 - [x] Toast notifications (global, auto-dismiss)
+- [x] First-run experience (new-chat greeting, shared feature-page empty states with create CTA)
 - [x] Asset browser (grid/list, search, filters, card sizes)
 - [x] Asset detail (media player, timeline, annotations, comments, reactions, tasks, transcripts, faces)
 - [x] Library view (library selector, asset grid)

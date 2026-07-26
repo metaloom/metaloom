@@ -5,6 +5,10 @@ title: Captioning
 The captioning node generates a **natural-language caption** for an image using a vision-language
 model — a short description of what the image shows.
 
+++++
+<div class="ml-nodeviz" data-nodeviz='{"kind":"captioning","applies":"Image","badge":"Vision model service","persist":"asset_json_comp + asset_node_result ledger","inputs":[{"t":"image","l":"image"}],"outputs":[{"t":"text","l":"caption_result","d":"one-sentence description"}]}'></div>
+++++
+
 [cols="1,3"]
 |===
 | Kind | `captioning`

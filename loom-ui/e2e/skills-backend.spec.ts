@@ -22,7 +22,7 @@ async function loginAndOpenSkills(page: Page) {
   await page.getByRole("button", { name: /sign in/i }).click();
   await expect(page.getByPlaceholder("Username")).toBeHidden({ timeout: 10_000 });
   await page.getByRole("button", { name: "Skills" }).first().click();
-  await expect(page.getByTestId("skills-table")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId("skills-view")).toBeVisible({ timeout: 10_000 });
 }
 
 test.describe("Skills – backend e2e", () => {
@@ -80,7 +80,7 @@ test.describe("Skills – backend e2e", () => {
 
     // Cleanup
     await page.getByRole("button", { name: "Skills" }).first().click();
-    await expect(page.getByTestId("skills-table")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("skills-view")).toBeVisible({ timeout: 10_000 });
     await page.getByTestId(`skill-delete-${SKILL_NAME}-chat`).click();
     await page.getByTestId("skill-delete-confirm").click();
     await expect(page.getByTestId(`skill-row-${SKILL_NAME}-chat`)).toBeHidden({ timeout: 10_000 });

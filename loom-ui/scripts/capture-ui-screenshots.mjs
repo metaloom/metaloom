@@ -64,13 +64,24 @@ async function main() {
 
   // Click a sidebar nav entry by its exact label (avoids deep-link reloads,
   // which do not work because the SPA has no basename under /ui/).
+  // The digits allow for a badge counter rendered inside the entry (e.g. "Tasks" + "3").
   const clickNav = async (label) => {
     const item = page
       .locator(".MuiListItemButton-root")
-      .filter({ hasText: new RegExp(`^${label}$`) })
+      .filter({ hasText: new RegExp(`^\\d*${label}\\d*$`) })
       .first();
     await item.click({ timeout: 8000 });
     await sleep(1200);
+  };
+
+  // The ACL entries (Users, Groups, Permissions, API Keys, Blacklist) live in a collapsible
+  // sub-group that starts closed, so they must be revealed before they can be clicked.
+  const openAclGroup = async () => {
+    const users = page.locator('[data-testid="sidebar-item-/admin/users"]');
+    if (await users.isVisible().catch(() => false)) return;
+    await page.locator('[data-testid="sidebar-group-acl"]').click({ timeout: 8000 });
+    await users.waitFor({ timeout: 4000 });
+    await sleep(400);
   };
 
   const capture = async (name, fn) => {
@@ -106,9 +117,15 @@ async function main() {
     await shot("assets.png");
   });
 
-  // ---- Asset detail (click the first asset card) ----
+  // ---- Asset detail ----
+  // Target a named demo asset rather than "the first card": the list order is not stable, and
+  // this one is the richest — a stored image binary plus tags, an annotation, a reaction,
+  // detections and a task.
   await capture("asset-detail.png", async () => {
-    const card = page.locator("main .MuiPaper-root").first();
+    const card = page
+      .locator("main .MuiPaper-root")
+      .filter({ hasText: "sunset-beach.jpg" })
+      .first();
     await card.click({ timeout: 8000 });
     await page.waitForURL(/\/assets\/.+/, { timeout: 8000 }).catch(() => {});
     await shot("asset-detail.png", { settle: 1600 });
@@ -169,20 +186,42 @@ async function main() {
     await shot("cortex.png");
   });
 
+  // ---- Monitoring dashboard ----
+  await capture("monitoring.png", async () => {
+    await clickNav("Monitoring");
+    // Recharts animates its series in; wait it out so the charts are not caught mid-draw.
+    await shot("monitoring.png", { settle: 2200 });
+  });
+
+  // ---- Chat sessions (the published sessions and their context) ----
+  await capture("chat-sessions.png", async () => {
+    await clickNav("Chat Sessions");
+    await shot("chat-sessions.png", { settle: 1200 });
+  });
+
+  // ---- Tasks board ----
+  await capture("tasks.png", async () => {
+    await clickNav("Tasks");
+    await shot("tasks.png", { settle: 1200 });
+  });
+
   // ---- User management ----
   await capture("users.png", async () => {
+    await openAclGroup();
     await clickNav("Users");
     await shot("users.png");
   });
 
   // ---- ACL / roles & permissions ----
   await capture("acl-roles.png", async () => {
+    await openAclGroup();
     await clickNav("Permissions");
     await shot("acl-roles.png", { settle: 1200 });
   });
 
   // ---- API keys (try to open the create dialog) ----
   await capture("api-keys.png", async () => {
+    await openAclGroup();
     await clickNav("API Keys");
     await sleep(600);
     const createBtn = page

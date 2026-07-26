@@ -19,6 +19,8 @@ async function loginAndGoToGroups(page: Page) {
   await page.getByRole("button", { name: /sign in/i }).click();
   await expect(page.getByPlaceholder("Username")).toBeHidden({ timeout: 10_000 });
   // Navigate to Groups via sidebar
+  // The ACL entries live in a collapsible sidebar sub-group that starts closed.
+  await page.getByTestId("sidebar-group-acl").click();
   await page.getByRole("button", { name: "Groups" }).first().click();
   await expect(page.getByRole("heading", { name: "Groups" })).toBeVisible({ timeout: 10_000 });
 }

@@ -16,4 +16,5 @@ io.metaloom.loom.nodes.spec.SceneDetectionDescriptorProvider
 io.metaloom.loom.nodes.spec.SourceDescriptorProvider
 io.metaloom.loom.nodes.spec.ThumbnailDescriptorProvider
 io.metaloom.loom.nodes.spec.TikaDescriptorProvider
+io.metaloom.loom.nodes.spec.VlmDescriptorProvider
 io.metaloom.loom.nodes.spec.WhisperDescriptorProvider

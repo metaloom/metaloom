@@ -744,7 +744,7 @@ Both Loom and Cortex use **Dagger 2**:
 | **Cortex node hierarchies** | Two of them: Cortex-level (CLI/processor) and Pipeline-level (DAG), bridged by `CortexNodeAdapter`. Never extend both bases |
 | **Pipeline graph rules** | Exactly one source node; node IDs must match `^[a-z0-9]([a-z0-9\-]{0,62}[a-z0-9])?$` |
 | **Definition JSON** | ✅ Loom's `PipelineGraphParser` resolves the top-level `edges[]` array, falling back to `nodes[].dependencies[]` when no edges are present; when both exist **`edges` wins**. Older notes claiming edges are ignored describe the deleted Cortex-side `LoomPipelineLoader` and are stale |
-| **Executable node kinds** | 🔴 `PipelineNodeFactoryModule` registers only `filesystem-source`, `asset-source`, `sha512`, `sha256`, `md5`, `chunk-hash`, `thumbnail`. Every other `type` in a pipeline definition falls back to a **stub node that reports success**. The node implementations exist (`NodeCollectionModule`) — they are simply not wired into the pipeline registry |
+| **Executable node kinds** | 🔴 `PipelineNodeFactoryModule` registers only `filesystem-source`, `asset-source`, `sha512`, `sha256`, `md5`, `chunk-hash`, `thumbnail`, `vlm`. Every other `type` in a pipeline definition falls back to a **stub node that reports success**. The node implementations exist (`NodeCollectionModule`) — they are simply not wired into the pipeline registry |
 | **Node result write-back** | Results reach Loom via `POST /api/v1/assets/:uuid/node-results` — upsert a typed component **and** record the `asset_node_result` ledger row. `WhisperNode` is the reference implementation; copy its shape for a new node |
 | **Cortex `cortex.yml`** | 🔴 Not read on the server path, despite [cortex/CONFIGURATION.md](cortex/CONFIGURATION.md) |
 | **Cortex shutdown** | 🔴 No shutdown hook — `SIGTERM` abandons in-flight work and loses buffered results |
@@ -773,7 +773,7 @@ Both Loom and Cortex use **Dagger 2**:
 - [x] Cheat sheet extended with pipeline engine, agent, node-result and Helm paths
 - [ ] `spec/AGENTS.md` is a one-line stub — decide whether it should carry agent-specific rules or be deleted
 - [ ] `spec/TASKS.md` (root) is an unstructured note; fold it into [tasks/TASKS.md](tasks/TASKS.md) in the template format
-- [ ] Only 7 of the ~29 node kinds are registered as executable pipeline types — see §6
+- [ ] Only 8 of the ~30 node kinds are registered as executable pipeline types — see §6
 - [ ] `cortex/CONFIGURATION.md` still documents a YAML precedence chain that does not work;
       `cortex/CORTEX.md` still describes the reconnect backoff as exponential (it is linear)
 - [ ] Assets, auth and search are still documented per component rather than extracted into `features/`

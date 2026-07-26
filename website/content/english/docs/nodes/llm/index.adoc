@@ -6,6 +6,10 @@ The LLM node sends asset metadata to a **Large Language Model** and stores the m
 enrichment — for example a classification, a set of suggested tags, or a description. Multiple prompts
 can be configured, each producing its own output.
 
+++++
+<div class="ml-nodeviz" data-nodeviz='{"kind":"llm","applies":"Any asset","badge":"LLM provider service","persist":"asset_json_comp per prompt + asset_node_result ledger","configs":[{"name":"one prompt","note":"the prompt id names the output key","inputs":[{"t":"json","l":"asset metadata","d":"filename and stored fields"},{"t":"text","l":"upstream text","d":"transcript / tika_content","opt":true}],"outputs":[{"t":"text","l":"llm_result_classify"}]},{"name":"several prompts","note":"one output per configured prompt","inputs":[{"t":"json","l":"asset metadata","d":"filename and stored fields"},{"t":"text","l":"upstream text","d":"transcript / tika_content","opt":true}],"outputs":[{"t":"text","l":"llm_result_classify"},{"t":"text","l":"llm_result_tags"},{"t":"text","l":"llm_result_summary"}]}]}'></div>
+++++
+
 [cols="1,3"]
 |===
 | Kind | `llm`

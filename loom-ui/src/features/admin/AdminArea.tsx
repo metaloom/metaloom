@@ -666,6 +666,11 @@ function AccessControlAdmin() {
 
   const hasPermission = (perm: string) => selectedRole?.permissions?.includes(perm) ?? false;
 
+  // The i18n key is the permission name itself, so a permission added to the backend enum only
+  // needs a locale entry — nothing here changes. An unknown permission renders without a
+  // description rather than showing the raw key.
+  const permissionDescription = (perm: string) => t(`admin.roles.permission.${perm}`, { defaultValue: "" });
+
   const togglePermission = useCallback(async (perm: string) => {
     if (!selectedRole || !token) return;
     const current = selectedRole.permissions ?? [];
@@ -809,18 +814,26 @@ function AccessControlAdmin() {
                         {perms.map(p => (
                           <FormControlLabel
                             key={p}
+                            sx={{ alignItems: "flex-start", mr: 0, py: 0.25 }}
                             control={
                               <Checkbox
                                 size="small"
                                 checked={hasPermission(p)}
                                 onChange={() => togglePermission(p)}
-                                sx={{ py: 0.5, pl: 1, color: tokens.text.tertiary, "&.Mui-checked": { color: tokens.primary.main } }}
+                                sx={{ py: 0.25, pl: 1, color: tokens.text.tertiary, "&.Mui-checked": { color: tokens.primary.main } }}
                               />
                             }
                             label={
-                              <Typography variant="caption" sx={{ fontFamily: "monospace", fontWeight: 600, fontSize: "0.75rem", color: hasPermission(p) ? tokens.primary.light : tokens.text.primary }}>
-                                {p}
-                              </Typography>
+                              <Box sx={{ py: 0.25 }}>
+                                <Typography variant="caption" sx={{ display: "block", fontFamily: "monospace", fontWeight: 600, fontSize: "0.75rem", color: hasPermission(p) ? tokens.primary.light : tokens.text.primary }}>
+                                  {p}
+                                </Typography>
+                                {permissionDescription(p) && (
+                                  <Typography variant="caption" sx={{ display: "block", fontSize: "0.7rem", lineHeight: 1.45, color: tokens.text.tertiary }}>
+                                    {permissionDescription(p)}
+                                  </Typography>
+                                )}
+                              </Box>
                             }
                           />
                         ))}

@@ -4,6 +4,9 @@ ENV LOOM_AUTH_KEYSTORE_PATH=/keystore/keystore.jks
 ENV LOOM_BINARY_DIR=/uploads
 ENV LOOM_TEMP_DIR=/tmp
 ENV HOME=/loom
+# The agent memory bank is opt-in on a real server, but the demo seeds notes and shows the
+# Memory screen — without this the endpoints are not even registered and the screen is empty.
+ENV LOOM_AGENT_MEMORY_ENABLED=true
 ENV JAVA_TOOL_OPTIONS="-Xms512m -Xmx512m"
 
 EXPOSE 8092

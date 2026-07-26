@@ -37,6 +37,7 @@ and optionally syncs results back to the Loom backend.
 | **OCR** | Text extraction from images via Tesseract |
 | **Whisper (ASR)** | Speech-to-text via whisper.cpp |
 | **LLM** | Metadata extraction via Ollama LLM prompts |
+| **VLM** | Image reading via a vision-language model over an OpenAI-compatible endpoint; ships an olmOCR document-transcription preset |
 | **Captioning** | Image captioning via SmolVLM vision model |
 | **Quality** | Resolution, blurriness, bitrate metrics |
 | **Scene detection** | Optical-flow scene boundary detection |
@@ -69,7 +70,7 @@ cortex/
 ├── common/           # Shared impls: MetaStorageImpl, CortexOptionsLoader, LoomMediaLoader, media types
 ├── fs/               # Filesystem scanner (Linux xattr support)
 ├── core-media/       # Media decorator types (HashMedia, FacedetectMedia, etc.) + AssertJ test helpers
-├── nodes/            # Concrete processing nodes (hash, facedetect, fingerprint, ocr, thumbnail, llm, whisper, tika, dedup, quality, captioning, consistency, scene-detection, loom)
+├── nodes/            # Concrete processing nodes (hash, facedetect, fingerprint, ocr, vlm, thumbnail, llm, whisper, tika, dedup, quality, captioning, consistency, scene-detection, loom)
 ├── processor/        # MediaProcessor + FilesystemProcessor (CLI-driven batch processing)
 ├── core/             # Runtime wiring: CortexImpl, CLI commands, Dagger modules, LoomControlChannel, monitoring, pipeline loader
 ├── cli/              # CLI entry point (CortexCLIMain), Dagger component, node collection module

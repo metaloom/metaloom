@@ -1,8 +1,30 @@
 package io.metaloom.loom.core.boot;
 
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.GradientPaint;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.geom.Ellipse2D;
+import java.awt.geom.GeneralPath;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
 
+import javax.imageio.ImageIO;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -12,11 +34,18 @@ import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
+import io.metaloom.loom.agent.memory.MemoryHeader;
+import io.metaloom.loom.api.memory.MemoryScope;
+import io.metaloom.loom.api.options.LoomOptions;
+import io.metaloom.loom.api.task.TaskPriority;
+import io.metaloom.loom.api.task.TaskStatus;
 import io.metaloom.loom.db.model.annotation.Annotation;
 import io.metaloom.loom.db.model.annotation.AnnotationDao;
 import io.metaloom.loom.api.annotation.AnnotationType;
 import io.metaloom.loom.db.model.asset.Asset;
 import io.metaloom.loom.db.model.asset.AssetAudioComp;
+import io.metaloom.loom.db.model.asset.AssetBinary;
+import io.metaloom.loom.db.model.asset.AssetBinaryDao;
 import io.metaloom.loom.db.model.asset.AssetComponentDao;
 import io.metaloom.loom.db.model.asset.AssetDao;
 import io.metaloom.loom.db.model.asset.AssetDocComp;
@@ -29,6 +58,10 @@ import io.metaloom.loom.db.model.blacklist.Blacklist;
 import io.metaloom.loom.db.model.blacklist.BlacklistDao;
 import io.metaloom.loom.db.model.chat.Chat;
 import io.metaloom.loom.db.model.chat.ChatDao;
+import io.metaloom.loom.db.model.chatsession.ChatSession;
+import io.metaloom.loom.db.model.chatsession.ChatSessionContextRef;
+import io.metaloom.loom.db.model.chatsession.ChatSessionDao;
+import io.metaloom.loom.db.model.chatsession.ChatSessionSkillPin;
 import io.metaloom.loom.db.model.cluster.Cluster;
 import io.metaloom.loom.db.model.cluster.ClusterDao;
 import io.metaloom.loom.db.model.detection.Detection;
@@ -43,6 +76,8 @@ import io.metaloom.loom.db.model.group.Group;
 import io.metaloom.loom.db.model.group.GroupDao;
 import io.metaloom.loom.db.model.memory.MemoryDenyRule;
 import io.metaloom.loom.db.model.memory.MemoryDenyRuleDao;
+import io.metaloom.loom.db.model.memory.MemoryEntry;
+import io.metaloom.loom.db.model.memory.MemoryEntryDao;
 import io.metaloom.loom.db.model.library.Library;
 import io.metaloom.loom.db.model.library.LibraryDao;
 import io.metaloom.loom.db.model.perm.Permission;
@@ -59,6 +94,10 @@ import io.metaloom.loom.db.model.reaction.Reaction;
 import io.metaloom.loom.db.model.reaction.ReactionDao;
 import io.metaloom.loom.db.model.role.Role;
 import io.metaloom.loom.db.model.role.RoleDao;
+import io.metaloom.loom.db.model.skill.Skill;
+import io.metaloom.loom.db.model.skill.SkillDao;
+import io.metaloom.loom.db.model.skill.SkillVersion;
+import io.metaloom.loom.db.model.skill.SkillVersionDao;
 import io.metaloom.loom.db.model.space.Space;
 import io.metaloom.loom.db.model.space.SpaceDao;
 import io.metaloom.loom.db.model.tag.AssetTag;
@@ -118,6 +157,15 @@ public class DemoDatabaseInitializer {
 	private final ChatDao chatDao;
 	private final PipelineVersionDao pipelineVersionDao;
 	private final PipelineRunDao pipelineRunDao;
+	private final AssetBinaryDao assetBinaryDao;
+	private final SkillDao skillDao;
+	private final SkillVersionDao skillVersionDao;
+	private final ChatSessionDao chatSessionDao;
+	private final MemoryEntryDao memoryEntryDao;
+	private final LoomOptions options;
+
+	/** Running detection ordinal per {@code asset|nodeKind|frame}; see {@link #createDetection}. */
+	private final Map<String, Integer> detectionOrdinals = new HashMap<>();
 
 	@Inject
 	public DemoDatabaseInitializer(UserDao userDao, AssetDao assetDao, SpaceDao spaceDao,
@@ -127,7 +175,8 @@ public class DemoDatabaseInitializer {
 		CommentDao commentDao, BlacklistDao blacklistDao, MemoryDenyRuleDao memoryDenyRuleDao, ClusterDao clusterDao, PersonDao personDao,
 		DetectionDao detectionDao,
 		AssetComponentDao assetComponentDao, ChatDao chatDao, PipelineVersionDao pipelineVersionDao,
-		PipelineRunDao pipelineRunDao) {
+		PipelineRunDao pipelineRunDao, AssetBinaryDao assetBinaryDao, SkillDao skillDao, SkillVersionDao skillVersionDao,
+		ChatSessionDao chatSessionDao, MemoryEntryDao memoryEntryDao, LoomOptions options) {
 		this.userDao = userDao;
 		this.assetDao = assetDao;
 		this.spaceDao = spaceDao;
@@ -153,6 +202,12 @@ public class DemoDatabaseInitializer {
 		this.chatDao = chatDao;
 		this.pipelineVersionDao = pipelineVersionDao;
 		this.pipelineRunDao = pipelineRunDao;
+		this.assetBinaryDao = assetBinaryDao;
+		this.skillDao = skillDao;
+		this.skillVersionDao = skillVersionDao;
+		this.chatSessionDao = chatSessionDao;
+		this.memoryEntryDao = memoryEntryDao;
+		this.options = options;
 	}
 
 	/**
@@ -198,7 +253,7 @@ public class DemoDatabaseInitializer {
 		Collection videosCollection = createCollection(admin, DEMO_COLLECTION_VIDEOS);
 
 		// --- Libraries ---
-		createLibrary(admin, DEMO_LIBRARY_CAMPAIGNS);
+		Library campaignLibrary = createLibrary(admin, DEMO_LIBRARY_CAMPAIGNS);
 		createLibrary(admin, DEMO_LIBRARY_ARCHIVE);
 		createLibrary(admin, DEMO_LIBRARY_AUDIO);
 
@@ -334,14 +389,16 @@ public class DemoDatabaseInitializer {
 		createDemoToken(admin, "Mobile App Key", "demo-mobile-token-value");
 
 		// --- Assets ---
+		// Image assets are created with real bytes on disk (see createImageAsset), so the asset
+		// browser and the detail view render an actual preview instead of a type placeholder.
 		Asset[] imageAssets = {
-			createAsset(admin, "sunset-beach.jpg", "image/jpeg", 2_540_000, "/demo/photos/sunset-beach.jpg"),
-			createAsset(admin, "mountain-lake.jpg", "image/jpeg", 3_120_000, "/demo/photos/mountain-lake.jpg"),
-			createAsset(admin, "city-skyline.png", "image/png", 5_830_000, "/demo/photos/city-skyline.png"),
-			createAsset(admin, "portrait-studio.jpg", "image/jpeg", 1_980_000, "/demo/photos/portrait-studio.jpg"),
-			createAsset(admin, "forest-trail.jpg", "image/jpeg", 4_200_000, "/demo/photos/forest-trail.jpg"),
-			createAsset(admin, "autumn-leaves.jpg", "image/jpeg", 2_100_000, "/demo/photos/autumn-leaves.jpg"),
-			createAsset(admin, "snow-peaks.jpg", "image/jpeg", 3_800_000, "/demo/photos/snow-peaks.jpg"),
+			createImageAsset(admin, campaignLibrary, "sunset-beach.jpg", "image/jpeg", "/demo/photos/sunset-beach.jpg", Palette.SUNSET),
+			createImageAsset(admin, campaignLibrary, "mountain-lake.jpg", "image/jpeg", "/demo/photos/mountain-lake.jpg", Palette.LAKE),
+			createImageAsset(admin, campaignLibrary, "city-skyline.png", "image/png", "/demo/photos/city-skyline.png", Palette.CITY),
+			createImageAsset(admin, campaignLibrary, "portrait-studio.jpg", "image/jpeg", "/demo/photos/portrait-studio.jpg", Palette.STUDIO),
+			createImageAsset(admin, campaignLibrary, "forest-trail.jpg", "image/jpeg", "/demo/photos/forest-trail.jpg", Palette.FOREST),
+			createImageAsset(admin, campaignLibrary, "autumn-leaves.jpg", "image/jpeg", "/demo/photos/autumn-leaves.jpg", Palette.AUTUMN),
+			createImageAsset(admin, campaignLibrary, "snow-peaks.jpg", "image/jpeg", "/demo/photos/snow-peaks.jpg", Palette.SNOW),
 		};
 
 		Asset[] videoAssets = {
@@ -359,6 +416,12 @@ public class DemoDatabaseInitializer {
 			createAsset(admin, "space-brief.pdf", "application/pdf", 1_200_000, "/demo/docs/space-brief.pdf"),
 			createAsset(admin, "meeting-notes.pdf", "application/pdf", 340_000, "/demo/docs/meeting-notes.pdf"),
 		};
+
+		// A scanned page: an image by format, a document by content. It carries the demo `vlm` component below.
+		Asset scanAsset = createImageAsset(admin, campaignLibrary, "scanned-invoice.png", "image/png", "/demo/docs/scanned-invoice.png",
+			Palette.SCAN);
+		tagDao.tagAsset(tagImage, scanAsset);
+		tagDao.tagAsset(tagDocument, scanAsset);
 
 		// Tag images
 		for (Asset a : imageAssets) {
@@ -400,9 +463,28 @@ public class DemoDatabaseInitializer {
 		}
 
 		// --- Tasks ---
-		createTask(admin, "Review metadata quality", "Check imported assets for missing descriptions and keywords.");
-		createTask(admin, "Approve campaign cut", "Review the latest campaign cut and approve for publishing.");
-		createTask(admin, "Tag city timelapse", "Assign accurate tags to timelapse-city.mp4 for discoverability.");
+		// Every task is attached to the asset it is about, so the Tasks tab of the asset detail
+		// view has content and the task board shows a realistic mix of statuses and priorities.
+		createAssetTask(admin, imageAssets[0], "Colour-grade the hero shot",
+			"The white balance drifts warm in the top-left quadrant — regrade before the campaign export.",
+			TaskPriority.HIGH, TaskStatus.PENDING, 3);
+		createAssetTask(admin, imageAssets[2], "Clear building rights",
+			"Confirm the property release for the skyline before this goes into the paid campaign.",
+			TaskPriority.CRITICAL, TaskStatus.REVIEW, 1);
+		createAssetTask(admin, imageAssets[3], "Retouch studio portrait",
+			"Light skin retouching and a tighter crop for the 1:1 social variant.",
+			TaskPriority.MEDIUM, TaskStatus.ACCEPTED, 7);
+		createAssetTask(admin, videoAssets[1], "Tag city timelapse",
+			"Assign accurate location and time-of-day tags to timelapse-city.mp4 for discoverability.",
+			TaskPriority.LOW, TaskStatus.PENDING, 14);
+		createAssetTask(admin, videoAssets[2], "Approve interview cut",
+			"Review the latest interview cut and approve it for publishing.",
+			TaskPriority.HIGH, TaskStatus.REVIEW, 2);
+		createAssetTask(admin, audioAssets[1], "Check transcript accuracy",
+			"Spot-check the ASR transcript of the podcast episode against the audio.",
+			TaskPriority.MEDIUM, TaskStatus.PENDING, 5);
+		createTask(admin, "Review metadata quality", "Check imported assets for missing descriptions and keywords.",
+			TaskPriority.LOW, TaskStatus.PENDING, 21);
 
 		// --- Annotations ---
 		Annotation ann1 = annotationDao.createAnnotation(admin, imageAssets[0], "Color correction needed", AnnotationType.FEEDBACK);
@@ -446,8 +528,70 @@ public class DemoDatabaseInitializer {
 		createComment(admin, "Tagging feedback", "Please add location tags for the city timelapse assets.");
 		log.info("Created {} demo comments", 3);
 
-		// --- Chat sessions ---
-		createDemoChat(admin, "Asset review discussion", new JsonArray()
+		// --- Skills ---
+		// Two versions each, because a one-version skill hides the whole version UI: the version
+		// chip, the history list and the revert action all need something to point at.
+		Skill gradingSkill = createDemoSkill(admin, "campaign-grading",
+			"Grade a campaign still against the house look before export.",
+			"""
+				# Campaign grading
+
+				Check the still against the campaign look before it leaves Loom.
+
+				1. Pull the reference frame from the `Campaign Media` library.
+				2. Compare white balance and contrast; note any drift over 200K.
+				3. Record the verdict as a FEEDBACK annotation on the asset.
+				""",
+			"Grade a campaign still against the house look, and flag rights issues, before export.",
+			"""
+				# Campaign grading
+
+				Check the still against the campaign look before it leaves Loom.
+
+				1. Pull the reference frame from the `Campaign Media` library.
+				2. Compare white balance and contrast; note any drift over 200K.
+				3. Check for recognisable people or property that need a release.
+				4. Record the verdict as a FEEDBACK annotation on the asset, and open a task
+				   when a release is missing.
+				""",
+			true);
+
+		Skill taggingSkill = createDemoSkill(admin, "hierarchical-tagging",
+			"Apply the house tagging convention to a collection.",
+			"""
+				# Hierarchical tagging
+
+				Use `location/city/landmark` for place and one time-of-day tag.
+				""",
+			"Apply the house tagging convention to a collection, including time-of-day tags.",
+			"""
+				# Hierarchical tagging
+
+				Use `location/city/landmark` for place and exactly one time-of-day tag
+				(`golden-hour`, `blue-hour`, `daylight`, `night`).
+
+				Never invent a landmark: leave the third level off when it is not identifiable.
+				""",
+			true);
+
+		createDemoSkill(admin, "transcript-qa",
+			"Spot-check an ASR transcript against its audio.",
+			"""
+				# Transcript QA
+
+				Sample three sections and compare them to the audio.
+				""",
+			"Spot-check an ASR transcript against its audio and correct the section titles.",
+			"""
+				# Transcript QA
+
+				Sample three sections spread across the running time and compare them to the audio.
+				Correct section titles so they describe the content, not the timecode.
+				""",
+			false);
+
+		// --- Chats and chat sessions ---
+		Chat gradingChat = createDemoChat(admin, "Asset review discussion", new JsonArray()
 			.add(new JsonObject().put("role", "user").put("content", "Can you check the quality of the recently uploaded landscape photos?"))
 			.add(new JsonObject().put("role", "assistant").put("content", "I reviewed the 5 landscape photos. Three have excellent resolution, but two appear to have compression artifacts.")
 				.put("references", new JsonArray()
@@ -456,14 +600,77 @@ public class DemoDatabaseInitializer {
 			.add(new JsonObject().put("role", "user").put("content", "Should we re-upload the two with artifacts?"))
 			.add(new JsonObject().put("role", "assistant").put("content", "Yes, I recommend re-uploading from the original RAW files to preserve quality.")));
 
-		createDemoChat(admin, "Tagging strategy", new JsonArray()
+		Chat taggingChat = createDemoChat(admin, "Tagging strategy", new JsonArray()
 			.add(new JsonObject().put("role", "user").put("content", "What tagging convention should we use for the city timelapse collection?"))
 			.add(new JsonObject().put("role", "assistant").put("content", "I suggest using hierarchical tags: location/city/landmark, and adding time-of-day tags like golden-hour or blue-hour."))
 			.add(new JsonObject().put("role", "user").put("content", "Good idea. Can you apply those to the existing assets?"))
 			.add(new JsonObject().put("role", "assistant").put("content", "Done. I tagged 12 timelapse assets with the new convention.")
 				.put("references", new JsonArray()
 					.add(new JsonObject().put("type", "collection").put("label", "Demo Videos")))));
-		log.info("Created {} demo chat sessions", 2);
+
+		Chat exportChat = createDemoChat(admin, "Q3 campaign export", new JsonArray()
+			.add(new JsonObject().put("role", "user").put("content", "Prepare the Q3 campaign stills for export. Use the grading skill and the tagging convention we agreed on."))
+			.add(new JsonObject().put("role", "assistant").put("content", "I graded 7 stills against the campaign reference. Two drifted warm and are regraded; one still needs a property release before it can ship.")
+				.put("references", new JsonArray()
+					.add(new JsonObject().put("type", "asset").put("label", "sunset-beach.jpg"))
+					.add(new JsonObject().put("type", "asset").put("label", "city-skyline.png"))
+					.add(new JsonObject().put("type", "skill").put("label", "campaign-grading"))))
+			.add(new JsonObject().put("role", "user").put("content", "Open a task for the release and tag everything else."))
+			.add(new JsonObject().put("role", "assistant").put("content", "Done — a CRITICAL task is on city-skyline.png, and the remaining stills carry location and time-of-day tags.")
+				.put("references", new JsonArray()
+					.add(new JsonObject().put("type", "task").put("label", "Clear building rights"))
+					.add(new JsonObject().put("type", "skill").put("label", "hierarchical-tagging")))));
+		log.info("Created {} demo chats", 3);
+
+		// The two earlier conversations are published so the third can pull them in as context:
+		// this is what the Chat Sessions detail view is built to show, and an unpublished session
+		// cannot be referenced at all.
+		ChatSession gradingSession = createDemoChatSession(admin, gradingChat, "Campaign look review",
+			"How the Q3 campaign stills were reviewed against the house look, and what was rejected.",
+			new String[] { "campaign", "review" }, true);
+		ChatSession taggingSession = createDemoChatSession(admin, taggingChat, "Tagging convention",
+			"The agreed hierarchical tagging convention for city timelapse footage.",
+			new String[] { "tagging", "convention" }, true);
+		ChatSession exportSession = createDemoChatSession(admin, exportChat, "Q3 campaign export",
+			"Grading, rights check and tagging for the Q3 campaign export — builds on the two sessions above.",
+			new String[] { "campaign", "export" }, false);
+
+		// Context: the export session reads the review conversation and inherits the tagging
+		// session's skills without dragging in its chat history.
+		chatSessionDao.replaceContextRefs(exportSession.getUuid(), List.of(
+			new ChatSessionContextRef(exportSession.getUuid(), gradingSession.getUuid(), true, true, false, 0),
+			new ChatSessionContextRef(exportSession.getUuid(), taggingSession.getUuid(), false, true, false, 1)));
+
+		// Pin the skill versions that were active while the session ran, so it stays reproducible.
+		chatSessionDao.replaceSkillPins(exportSession.getUuid(), List.of(
+			new ChatSessionSkillPin(exportSession.getUuid(), gradingSkill.getUuid(), 2),
+			new ChatSessionSkillPin(exportSession.getUuid(), taggingSkill.getUuid(), 2)));
+		log.info("Created {} demo chat sessions ({} context refs, {} skill pins)", 3, 2, 2);
+
+		// --- Agent memory ---
+		createMemoryEntry(admin, "house-style.md", "House look for campaign stills",
+			"""
+				Campaign stills are graded to the house look: neutral white balance (5600K ±200K),
+				no crushed blacks, and highlight roll-off kept soft.
+
+				Deviations are recorded as a FEEDBACK annotation on the asset, never as a comment —
+				comments are not picked up by the review workflow.
+				""");
+		createMemoryEntry(admin, "conventions/tagging.md", "Tagging convention",
+			"""
+				Place tags are hierarchical: `location/city/landmark`. The third level is omitted
+				when the landmark is not identifiable — do not guess it.
+
+				Exactly one time-of-day tag per asset: `golden-hour`, `blue-hour`, `daylight` or `night`.
+				""");
+		createMemoryEntry(admin, "projects/q3-campaign.md", "Q3 campaign",
+			"""
+				The Q3 campaign ships from the `Campaign Media` library. Stills need a property
+				release whenever a recognisable building fills more than a third of the frame.
+
+				Rights questions go to Media Ops as a CRITICAL task, not as a chat message.
+				""");
+		log.info("Created {} demo memory entries", 3);
 
 		// --- Blacklist entries ---
 		createBlacklist(admin, imageAssets[0], "Duplicate low-res variant");
@@ -548,12 +755,20 @@ public class DemoDatabaseInitializer {
 
 		log.info("Created {} demo transcripts", 3);
 
-		log.info("Demo data initialization complete — created {} assets, {} tags, {} collections, {} pipelines, {} users, {} groups, {} roles, {} tasks, {} annotations, {} reactions.",
-			imageAssets.length + videoAssets.length + audioAssets.length + docAssets.length,
-			8, 2, 3, 2, 2, 2, 3, 3, 3);
+		// --- VLM (olmOCR) document transcription ---
+		createVlmOlmOcrComp(admin, scanAsset);
+
+		log.info(
+			"Demo data initialization complete — created {} assets ({} with previewable binaries), {} tags, {} collections, {} pipelines, {} users, "
+				+ "{} groups, {} roles, {} tasks, {} skills, {} chat sessions, {} memory entries, {} annotations, {} reactions.",
+			imageAssets.length + videoAssets.length + audioAssets.length + docAssets.length + 1,
+			imageAssets.length + 1, 8, 2, 3, 2, 2, 2, 7, 3, 3, 3, 3, 3);
 	}
 
-	private Task createTask(User admin, String title, String description) {
+	/**
+	 * @param dueInDays how far out the due date sits; the task board colours overdue and near-due tasks differently, so the spread matters
+	 */
+	private Task createTask(User admin, String title, String description, TaskPriority priority, TaskStatus status, int dueInDays) {
 		Task task = taskDao.createTask(admin.getUuid(), title);
 		task.setUuid(UUIDUtils.randomUUID());
 		task.setCreator(admin);
@@ -561,8 +776,22 @@ public class DemoDatabaseInitializer {
 		task.setCreated(Instant.now());
 		task.setEdited(Instant.now());
 		task.setDescription(description);
+		task.setPriority(priority);
+		task.setStatus(status);
+		task.setDueDate(Instant.now().plus(dueInDays, ChronoUnit.DAYS));
 		taskDao.store(task);
 		log.info("Created demo task: {}", title);
+		return task;
+	}
+
+	/**
+	 * A task about a specific asset. The link is what makes the asset detail view's Tasks tab non-empty.
+	 */
+	private Task createAssetTask(User admin, Asset asset, String title, String description, TaskPriority priority, TaskStatus status,
+		int dueInDays) {
+		Task task = createTask(admin, title, description, priority, status, dueInDays);
+		taskDao.assignToAsset(task.getUuid(), asset.getUuid());
+		log.info("Assigned demo task '{}' to asset {}", title, asset.getFilename());
 		return task;
 	}
 
@@ -654,9 +883,21 @@ public class DemoDatabaseInitializer {
 		return cluster;
 	}
 
+	/**
+	 * {@code detection} is unique on {@code (asset_uuid, node_kind, frame_number, detection_index)}, so two detections in the same frame of the same
+	 * asset must be numbered — without this the second insert aborts the whole seeding run and everything after it (transcripts, VLM component) is
+	 * silently missing from the demo.
+	 */
 	private Detection createDetection(User admin, Asset asset, String type, int frameNumber,
 		float bboxX, float bboxY, float bboxWidth, float bboxHeight, float confidence, JsonObject meta) {
 		Detection detection = detectionDao.createDetection(admin.getUuid(), type);
+		// Faces are what the facedetect node produces; the demo's object boxes have no node behind
+		// them yet, so they keep the DAO's "manual" attribution.
+		if ("facedetection".equals(type)) {
+			detection.setNodeKind("facedetect");
+		}
+		String frameKey = asset.getUuid() + "|" + detection.getNodeKind() + "|" + frameNumber;
+		detection.setDetectionIndex(detectionOrdinals.merge(frameKey, 1, Integer::sum) - 1);
 		detection.setUuid(UUIDUtils.randomUUID());
 		detection.setAssetUuid(asset.getUuid());
 		detection.setFrameNumber(frameNumber);
@@ -741,6 +982,85 @@ public class DemoDatabaseInitializer {
 		assetDao.store(asset);
 		log.info("Created demo asset: {}", filename);
 		return asset;
+	}
+
+	/**
+	 * A skill with a v1 and a v2, mirroring what {@code SkillEndpointService} writes: the versioned body lives in {@code skill_version} rows and the
+	 * skill row only points at the active one.
+	 *
+	 * <p>Two versions rather than one is deliberate — with a single version the version chip, the history list and the revert action in the skill UI
+	 * have nothing to show.</p>
+	 */
+	private Skill createDemoSkill(User admin, String name, String description, String content,
+		String v2Description, String v2Content, boolean published) {
+		Skill skill = skillDao.createSkill(admin.getUuid(), name, description, content);
+		skill.setUuid(UUIDUtils.randomUUID());
+		skill.setCreator(admin);
+		skill.setEditor(admin);
+		skill.setCreated(Instant.now());
+		skill.setEdited(Instant.now());
+		skill.setEnabled(true);
+		skill.setPublished(published);
+		skill.setMeta(new JsonObject());
+		skillDao.store(skill);
+
+		appendSkillVersion(admin, skill, 1, description, content);
+		appendSkillVersion(admin, skill, 2, v2Description, v2Content);
+		skillDao.update(skill);
+
+		log.info("Created demo skill: {} (2 versions, published={})", name, published);
+		return skill;
+	}
+
+	private void appendSkillVersion(User admin, Skill skill, int versionNumber, String description, String content) {
+		SkillVersion version = skillVersionDao.createVersion(admin.getUuid(), skill.getUuid(), versionNumber, description, content, skill.getMeta());
+		version.setUuid(UUIDUtils.randomUUID());
+		version.setCreator(admin);
+		version.setEditor(admin);
+		version.setCreated(Instant.now());
+		version.setEdited(Instant.now());
+		skillVersionDao.store(version);
+		skill.setActiveVersionUuid(version.getUuid());
+		skill.setActiveVersionNumber(versionNumber);
+		skill.setDescription(description);
+		skill.setContent(content);
+	}
+
+	private ChatSession createDemoChatSession(User admin, Chat chat, String name, String description, String[] tags, boolean published) {
+		ChatSession session = chatSessionDao.createChatSession(admin.getUuid(), name, description);
+		session.setUuid(UUIDUtils.randomUUID());
+		session.setChatUuid(chat.getUuid());
+		session.setTags(tags);
+		session.setPublished(published);
+		session.setCreator(admin);
+		session.setEditor(admin);
+		session.setCreated(Instant.now());
+		session.setEdited(Instant.now());
+		chatSessionDao.store(session);
+		log.info("Created demo chat session: {} (published={})", name, published);
+		return session;
+	}
+
+	/**
+	 * A note in the agent's memory bank. The frontmatter is never stored — it is rendered from the row — so this writes only body, title and the
+	 * derived size/digest, exactly as {@code MemoryService.put} does.
+	 */
+	private MemoryEntry createMemoryEntry(User admin, String memoryId, String title, String body) {
+		MemoryEntry entry = memoryEntryDao.createMemoryEntry(admin.getUuid(), MemoryScope.USER, admin.getUuid(), memoryId);
+		entry.setUuid(UUIDUtils.randomUUID());
+		entry.setTitle(title);
+		entry.setBody(body);
+		entry.setSize(body.getBytes(StandardCharsets.UTF_8).length);
+		entry.setVersion(1);
+		entry.setCreator(admin);
+		entry.setEditor(admin);
+		entry.setCreated(Instant.now());
+		entry.setEdited(Instant.now());
+		entry.setMeta(new JsonObject());
+		entry.setSha256(sha256Hex(MemoryHeader.renderFile(entry, admin.getUsername())));
+		memoryEntryDao.store(entry);
+		log.info("Created demo memory entry: {}", memoryId);
+		return entry;
 	}
 
 	private User createDemoUser(User admin, String username, String password, String email, String firstname, String lastname) {
@@ -945,5 +1265,322 @@ public class DemoDatabaseInitializer {
 		comp.setTranscriptJson(new JsonObject().put("sections", sections));
 		assetComponentDao.upsertTranscriptComp(comp);
 		log.info("Created demo transcript for asset: {} ({} sections)", asset.getFilename(), sectionTexts.length);
+	}
+
+	/**
+	 * Create the JSON component a {@code vlm} node writes for the olmOCR preset: the transcribed page plus what the model observed about it. Keys mirror
+	 * the olmOCR front matter names, so the demo row has the same shape a real run produces.
+	 */
+	private void createVlmOlmOcrComp(User admin, Asset asset) {
+		String page = """
+			# ACME Media Services
+
+			**Invoice** 2026-0142  ·  **Date** 2026-03-14
+
+			<table>
+			<tr><th>Description</th><th>Qty</th><th>Amount</th></tr>
+			<tr><td>Archive ingest &amp; transcoding</td><td>1</td><td>4,200.00</td></tr>
+			<tr><td>Automated metadata enrichment</td><td>1</td><td>1,850.00</td></tr>
+			<tr><td>Storage (12 months)</td><td>1</td><td>960.00</td></tr>
+			</table>
+
+			**Total due:** 7,010.00 EUR — payable within 30 days.
+			""";
+
+		AssetJsonComp comp = assetComponentDao.createJsonComp(admin.getUuid(), asset.getUuid(), "vlm");
+		comp.setSchemaType("vlm");
+		comp.setVariant("olmocr");
+		comp.setProducerVersion("allenai/olmOCR-2-7B-1025-FP8");
+		comp.setData(new JsonObject()
+			.put("primary_language", "en")
+			.put("is_rotation_valid", true)
+			.put("rotation_correction", 0)
+			.put("is_table", true)
+			.put("is_diagram", false)
+			.put("natural_text", page)
+			.put("truncated", false));
+		assetComponentDao.upsertJsonComp(comp);
+		log.info("Created demo vlm/olmocr component for asset: {}", asset.getFilename());
+	}
+
+	// -- demo image binaries -------------------------------------------------
+	//
+	// The asset browser renders a preview from GET /assets/:uuid/binary/data, which needs real
+	// bytes on disk and an asset_location row pointing at them. Without those every demo asset
+	// falls back to a type placeholder icon, which is what "no thumbnails are displayed" means.
+	// The images are synthesised rather than shipped so the repository carries no binary blobs
+	// and the demo never claims to show photography it does not have.
+
+	/**
+	 * How one demo image is painted. Deterministic: same palette in, same bytes out, so a re-run stores the same content-addressed file.
+	 */
+	private enum Palette {
+
+		SUNSET(1600, 1067, 0x2A1B4D, 0xF2704B, 0xFFC98B, 0x2A1B4D, Style.HILLS, 11),
+		LAKE(1600, 1067, 0x0B2E4A, 0x7FC6D9, 0xE8F4F8, 0x14324D, Style.PEAKS, 23),
+		CITY(1600, 1067, 0x1B1035, 0x6C4BA6, 0xFFD37A, 0x120A26, Style.SKYLINE, 37),
+		STUDIO(1067, 1067, 0x1C1C22, 0x3A3A46, 0xD9C3A5, 0x1C1C22, Style.PORTRAIT, 41),
+		FOREST(1600, 1067, 0x0E2A1B, 0x4E8C4A, 0xBFD98C, 0x0E2A1B, Style.FOLIAGE, 53),
+		AUTUMN(1600, 1067, 0x3B1F0B, 0xC9702A, 0xF2C46B, 0x3B1F0B, Style.FOLIAGE, 67),
+		// Snow-lit peaks: the ridges start near-white and darken layer by layer, so this reads as
+		// a different scene from LAKE rather than a recolour of the same one.
+		SNOW(1600, 1067, 0x22384F, 0x9FBBD1, 0xFFFFFF, 0xE4EDF4, Style.PEAKS, 71),
+		SCAN(1240, 1754, 0xF4F1EA, 0xFFFFFF, 0x8A8577, 0xF4F1EA, Style.DOCUMENT, 89);
+
+		private enum Style {
+			HILLS, PEAKS, SKYLINE, PORTRAIT, FOLIAGE, DOCUMENT
+		}
+
+		private final int width;
+		private final int height;
+		private final int top;
+		private final int bottom;
+		private final int accent;
+		/** Base colour of the silhouette layers, darkened per layer. */
+		private final int ridge;
+		private final Style style;
+		private final long seed;
+
+		Palette(int width, int height, int top, int bottom, int accent, int ridge, Style style, long seed) {
+			this.width = width;
+			this.height = height;
+			this.top = top;
+			this.bottom = bottom;
+			this.accent = accent;
+			this.ridge = ridge;
+			this.style = style;
+			this.seed = seed;
+		}
+	}
+
+	/**
+	 * Create an asset backed by real bytes: paint the image, store it content-addressed under the configured upload directory, and record the
+	 * {@code asset_location} row the download endpoint resolves.
+	 *
+	 * <p>The asset's sha512 and size are the ones of the stored file — a demo asset whose hash did not match its bytes would break the very dedupe
+	 * story the product is built on.</p>
+	 */
+	private Asset createImageAsset(User admin, Library library, String filename, String mimeType, String origin, Palette palette) {
+		byte[] bytes = renderDemoImage(palette, mimeType);
+		SHA512 sha512 = SHA512.fromString(hex(digest("SHA-512", bytes)));
+
+		Asset asset = assetDao.createAsset(admin, sha512, mimeType, filename, origin, bytes.length);
+		asset.setUuid(UUIDUtils.randomUUID());
+		asset.setCreator(admin);
+		asset.setEditor(admin);
+		asset.setCreated(Instant.now());
+		asset.setEdited(Instant.now());
+		asset.setFirstSeen(Instant.now());
+		assetDao.store(asset);
+
+		String path = storeBinary(bytes, sha512);
+		if (path != null) {
+			AssetBinary binary = assetBinaryDao.createAssetBinary(path, asset.getUuid(), admin.getUuid(), library.getUuid());
+			binary.setUuid(UUIDUtils.randomUUID());
+			binary.setMimeType(mimeType);
+			binary.setCreator(admin);
+			binary.setEditor(admin);
+			binary.setCreated(Instant.now());
+			binary.setEdited(Instant.now());
+			assetBinaryDao.store(binary);
+		}
+		log.info("Created demo asset with binary: {} ({} bytes)", filename, bytes.length);
+		return asset;
+	}
+
+	/**
+	 * Write the bytes into the upload directory using the same {@code ab/cd/ef/<sha512>} layout the upload endpoint uses.
+	 *
+	 * @return the stored path, or null when the directory is not writable — the asset is still created, it just has no preview
+	 */
+	private String storeBinary(byte[] bytes, SHA512 sha512) {
+		String hex = sha512.toString();
+		Path dir = Paths.get(options.getStorage().getUploadDirectory(), hex.substring(0, 2), hex.substring(2, 4), hex.substring(4, 6));
+		Path target = dir.resolve(hex);
+		try {
+			Files.createDirectories(dir);
+			if (!Files.exists(target)) {
+				Files.write(target, bytes);
+			}
+			return target.toString();
+		} catch (IOException e) {
+			log.warn("Could not store demo binary at {} — the asset will have no preview", target, e);
+			return null;
+		}
+	}
+
+	/**
+	 * Paint one demo image. No text is drawn: the JRE in the demo container has no fontconfig, and a missing font would fail the whole seeding run.
+	 */
+	private static byte[] renderDemoImage(Palette palette, String mimeType) {
+		int w = palette.width;
+		int h = palette.height;
+		BufferedImage image = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+		Graphics2D g = image.createGraphics();
+		g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+		g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+
+		Color top = new Color(palette.top);
+		Color bottom = new Color(palette.bottom);
+		Color accent = new Color(palette.accent);
+		Color ridge = new Color(palette.ridge);
+		Random rnd = new Random(palette.seed);
+
+		g.setPaint(new GradientPaint(0, 0, top, 0, h, bottom));
+		g.fillRect(0, 0, w, h);
+
+		switch (palette.style) {
+		case HILLS -> {
+			g.setColor(accent);
+			int r = (int) (h * 0.22);
+			g.fill(new Ellipse2D.Double(w * 0.66, h * 0.18, r, r));
+			paintRidges(g, w, h, 3, 0.55, 0.06, ridge, rnd);
+		}
+		case PEAKS -> {
+			g.setColor(accent);
+			int r = (int) (h * 0.14);
+			g.fill(new Ellipse2D.Double(w * 0.16, h * 0.12, r, r));
+			paintRidges(g, w, h, 4, 0.45, 0.22, ridge, rnd);
+		}
+		case SKYLINE -> {
+			g.setColor(accent);
+			int r = (int) (h * 0.12);
+			g.fill(new Ellipse2D.Double(w * 0.74, h * 0.14, r, r));
+			paintSkyline(g, w, h, ridge, rnd);
+		}
+		case PORTRAIT -> paintPortrait(g, w, h, accent, ridge);
+		case FOLIAGE -> paintFoliage(g, w, h, accent, ridge, rnd);
+		case DOCUMENT -> paintDocument(g, w, h, accent);
+		}
+
+		g.dispose();
+
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		try {
+			String format = "image/png".equals(mimeType) ? "png" : "jpg";
+			ImageIO.write(image, format, out);
+		} catch (IOException e) {
+			// An in-memory write cannot fail for a supported format; treat it as a bug rather than a seeding hiccup.
+			throw new IllegalStateException("Could not encode the demo image as " + mimeType, e);
+		}
+		return out.toByteArray();
+	}
+
+	/** Stacked silhouette ridges — gentle for hills, jagged for peaks. */
+	private static void paintRidges(Graphics2D g, int w, int h, int layers, double baseline, double jaggedness, Color shade, Random rnd) {
+		for (int layer = 0; layer < layers; layer++) {
+			double y = h * (baseline + layer * 0.13);
+			GeneralPath path = new GeneralPath();
+			path.moveTo(0, h);
+			path.lineTo(0, y);
+			int steps = 8 + layer * 2;
+			for (int i = 1; i <= steps; i++) {
+				double x = w * i / (double) steps;
+				double peak = y - h * jaggedness * rnd.nextDouble() - h * 0.02;
+				path.lineTo(x, peak);
+			}
+			path.lineTo(w, h);
+			path.closePath();
+			g.setColor(blend(shade, Color.BLACK, 0.12 + layer * 0.16));
+			g.fill(path);
+		}
+	}
+
+	private static void paintSkyline(Graphics2D g, int w, int h, Color shade, Random rnd) {
+		for (int layer = 0; layer < 3; layer++) {
+			g.setColor(blend(shade, Color.BLACK, 0.2 + layer * 0.22));
+			double base = h * (0.62 + layer * 0.11);
+			int x = -(int) (w * 0.02);
+			while (x < w) {
+				int bw = (int) (w * (0.03 + rnd.nextDouble() * 0.05));
+				int bh = (int) (h * (0.08 + rnd.nextDouble() * (0.3 - layer * 0.07)));
+				g.fillRect(x, (int) base - bh, bw, (int) (h - base + bh));
+				x += bw + (int) (w * 0.008);
+			}
+		}
+	}
+
+	/** A lit backdrop with a soft key light and a centred subject silhouette. */
+	private static void paintPortrait(Graphics2D g, int w, int h, Color accent, Color shade) {
+		g.setPaint(new GradientPaint(w * 0.3f, 0, blend(accent, shade, 0.55), w, h, shade));
+		g.fillRect(0, 0, w, h);
+		g.setColor(blend(shade, Color.BLACK, 0.45));
+		g.fill(new Ellipse2D.Double(w * 0.28, h * 0.52, w * 0.44, h * 0.66));
+		g.setColor(blend(shade, Color.BLACK, 0.35));
+		g.fill(new Ellipse2D.Double(w * 0.38, h * 0.26, w * 0.24, h * 0.3));
+	}
+
+	private static void paintFoliage(Graphics2D g, int w, int h, Color accent, Color shade, Random rnd) {
+		g.setColor(blend(shade, Color.BLACK, 0.35));
+		g.fillRect(0, (int) (h * 0.72), w, (int) (h * 0.28));
+		for (int i = 0; i < 90; i++) {
+			double size = h * (0.03 + rnd.nextDouble() * 0.09);
+			double x = rnd.nextDouble() * w;
+			double y = h * 0.1 + rnd.nextDouble() * h * 0.8;
+			g.setColor(blend(accent, shade, rnd.nextDouble()));
+			g.fill(new Ellipse2D.Double(x, y, size * 1.4, size));
+		}
+		g.setStroke(new BasicStroke((float) (w * 0.012)));
+		g.setColor(blend(shade, Color.BLACK, 0.5));
+		for (int i = 0; i < 4; i++) {
+			int x = (int) (w * (0.12 + i * 0.25));
+			g.drawLine(x, (int) (h * 0.2), x + (int) (w * 0.02), h);
+		}
+	}
+
+	/** A scanned page: a paper field with grey bars standing in for text and a boxed table. */
+	private static void paintDocument(Graphics2D g, int w, int h, Color ink) {
+		int margin = (int) (w * 0.1);
+		int y = (int) (h * 0.12);
+		g.setColor(blend(ink, Color.BLACK, 0.25));
+		g.fillRect(margin, y, (int) (w * 0.42), (int) (h * 0.018));
+		y += (int) (h * 0.06);
+		g.setColor(blend(ink, Color.WHITE, 0.35));
+		for (int i = 0; i < 4; i++) {
+			g.fillRect(margin, y, (int) (w * (0.5 + (i % 3) * 0.1)), (int) (h * 0.009));
+			y += (int) (h * 0.022);
+		}
+		y += (int) (h * 0.03);
+		int rows = 5;
+		int rowH = (int) (h * 0.035);
+		g.setStroke(new BasicStroke(Math.max(1f, w * 0.0015f)));
+		for (int r = 0; r < rows; r++) {
+			g.setColor(r == 0 ? blend(ink, Color.BLACK, 0.15) : blend(ink, Color.WHITE, 0.55));
+			g.fillRect(margin, y + r * rowH, w - 2 * margin, rowH);
+			g.setColor(blend(ink, Color.WHITE, 0.2));
+			g.drawRect(margin, y + r * rowH, w - 2 * margin, rowH);
+		}
+		y += rows * rowH + (int) (h * 0.05);
+		g.setColor(blend(ink, Color.BLACK, 0.25));
+		g.fillRect(margin, y, (int) (w * 0.34), (int) (h * 0.014));
+	}
+
+	private static Color blend(Color color, Color into, double amount) {
+		double a = Math.max(0, Math.min(1, amount));
+		return new Color(
+			(int) (color.getRed() * (1 - a) + into.getRed() * a),
+			(int) (color.getGreen() * (1 - a) + into.getGreen() * a),
+			(int) (color.getBlue() * (1 - a) + into.getBlue() * a));
+	}
+
+	private static String sha256Hex(String text) {
+		return hex(digest("SHA-256", text.getBytes(StandardCharsets.UTF_8)));
+	}
+
+	private static byte[] digest(String algorithm, byte[] data) {
+		try {
+			return MessageDigest.getInstance(algorithm).digest(data);
+		} catch (NoSuchAlgorithmException e) {
+			throw new IllegalStateException(algorithm + " is required by every JRE", e);
+		}
+	}
+
+	private static String hex(byte[] bytes) {
+		StringBuilder builder = new StringBuilder(bytes.length * 2);
+		for (byte b : bytes) {
+			builder.append(Character.forDigit((b >> 4) & 0xF, 16));
+			builder.append(Character.forDigit(b & 0xF, 16));
+		}
+		return builder.toString();
 	}
 }

@@ -6,6 +6,10 @@ The Whisper node transcribes the audio track of a media file into text using a *
 speech-to-text model. The transcript is stored as a first-class component so it can be searched and
 summarized.
 
+++++
+<div class="ml-nodeviz" data-nodeviz='{"kind":"whisper","applies":"Video \u00b7 Audio","badge":"Whisper runtime \u00b7 GPU optional","persist":"asset_transcript_comp + asset_node_result ledger","inputs":[{"t":"audio","l":"audio track","d":"demuxed from the asset"}],"outputs":[{"t":"json","l":"whisper_result","d":"transcript"},{"t":"timeframe","l":"segment timings","d":"start/end per utterance"}]}'></div>
+++++
+
 [cols="1,3"]
 |===
 | Kind | `whisper`

@@ -1,0 +1,283 @@
+---
+title: Transcribing for the Chat Agent
+weight: 3
+---
+
+The chat agent can only answer from what has been extracted. Ask it "which clip mentions the launch
+date?" and it calls `search_transcript` — which returns nothing at all until something has actually
+transcribed your media.
+
+This playbook closes that loop: a pipeline that turns a library of video and audio into stored
+transcripts, and the chat questions those transcripts then make answerable.
+
+== How the Pieces Line Up
+
+```
+  filesystem-source ─▶ filter-mimetype ─PASS─▶ sha512 ─▶ whisper
+        walks disk        video/* audio/*      identity   transcribe
+                                                             │
+                                                             ▼
+                                            asset_transcript_comp in Loom
+                                                             │
+                                              search_transcript tool
+                                                             │
+                                                   Chat & AI Agent ◀── "what did they say about …?"
+```
+
+Two links in that chain are easy to get wrong, and both are about *identity*:
+
+. **The asset must already exist in Loom.** Nodes resolve the asset by looking it up by **SHA-512**
+  (`loadAsset(sha512)`). A file on disk that is not a known asset still gets processed, but the result
+  has nothing to attach to. Ingest first — upload through the UI, `POST /api/v1/assets`, or
+  `POST /api/v1/assets/bulk/create` — then run the pipeline over the same files.
+. **A hash node must run upstream.** That SHA-512 lookup needs the hash, so `sha512` belongs in the
+  graph before any node whose output you want persisted.
+
+[IMPORTANT]
+====
+`whisper` is not yet registered with the stock worker's pipeline node factory, so a run containing it
+is rejected with `503` until you register the kind and rebuild the worker image — see
+link:../#node-availability[Which node kinds a worker can actually run]. Verify what your workers accept
+with `GET /api/v1/processors` before authoring against them.
+====
+
+== Prerequisites
+
+* A running stack — link:../docker/[Docker] or link:../kubernetes/[Kubernetes].
+* Assets in Loom for the media you want transcribed (see above).
+* A worker that can run link:../../nodes/whisper/[`whisper`]: a Whisper runtime and a model file. The
+  model is a *file on the worker*, not something Loom ships.
+
+[#worker]
+== Step 1 — Prepare the Whisper Worker
+
+Whisper settings live in the **worker's** `cortex.yml`, read from `~/.config/metaloom/cortex.yml`
+(`/cortex/.config/metaloom/cortex.yml` in the container image):
+
+[source,yaml]
+----
+metaPath: /meta
+nodes:
+  whisper:
+    modelPath: /models/ggml-large-v3-turbo.bin
+    language: de          # omit to auto-detect
+    useGpu: true
+    gpuDevice: 0
+    temperature: 0.0
+    temperatureInc: 0.2
+----
+
+Mount that file and the model directory into the worker:
+
+[source,bash]
+----
+docker run -d --name cortex-gpu --network metaloom \
+  -e LOOM_HOST=loom -e LOOM_PORT=8092 -e LOOM_TOKEN="$TOKEN" \
+  -e CORTEX_NODE_ID=cortex-gpu-1 \
+  -e CORTEX_META_PATH=/meta \
+  -e CORTEX_NODE_WHITELIST=filesystem-source,sha512,filter-mimetype,whisper \
+  -v cortex-gpu-meta:/meta \
+  -v /srv/models:/models:ro \
+  -v ./cortex.yml:/cortex/.config/metaloom/cortex.yml:ro \
+  -v /srv/media:/media:ro \
+  metaloom/cortex-server:latest
+----
+
+The whitelist is doing real work here: it keeps cheap hashing jobs from queueing behind a
+half-hour transcription on your only GPU box, while a second CPU worker (with `whisper` blacklisted)
+handles the rest of the library.
+
+Transcription is slow by design — Cortex gives `whisper` a default per-task timeout of **600 s** and a
+default concurrency of **1**. Long recordings need the timeout raised in the graph (see below).
+
+[#pipeline]
+== Step 2 — The Pipeline
+
+[source,json]
+----
+{
+  "nodes": [
+    { "id": "source",  "type": "filesystem-source", "name": "Media library",
+      "options": { "path": "/media/library" } },
+    { "id": "mime",    "type": "filter-mimetype",   "name": "Audio and video only",
+      "options": { "allowedTypes": "video/*,audio/*" } },
+    { "id": "hash",    "type": "sha512",            "name": "SHA-512 identity" },
+    { "id": "speech",  "type": "whisper",           "name": "Transcribe",
+      "timeoutMs": 3600000, "blocking": true }
+  ],
+  "edges": [
+    { "id": "e1", "source": "source", "target": "mime" },
+    { "id": "e2", "source": "mime",   "target": "hash",   "branch": "PASS" },
+    { "id": "e3", "source": "hash",   "target": "speech" }
+  ]
+}
+----
+
+What each part is for:
+
+`filesystem-source`:: The one source node. It walks the library and, when given a `path`, compares
+against its persisted index so a re-run only picks up new, modified or moved files.
+
+`filter-mimetype`:: Routes items down `PASS` / `REJECT` branches. The `branch: "PASS"` on edge `e2` is
+what makes images skip the rest of the graph instead of being handed to a speech model. A branch is
+only valid on an edge leaving a filter node.
+
+`sha512`:: The identity step described above.
+
+`whisper`:: Produces `whisper_result` and persists an `asset_transcript_comp` plus an
+`asset_node_result` ledger row against the asset. `timeoutMs` overrides the 600 s default;
+`blocking: true` (the default) means a failed hash skips the transcription rather than transcribing
+something Loom cannot attach the result to.
+
+[IMPORTANT]
+====
+**Where a setting goes.** Only some keys are read from the pipeline definition. The rest come from the
+worker's `cortex.yml`.
+
+[options="header",cols="1,2"]
+|===
+| Read from the definition | Read from the worker's `cortex.yml`
+| `id`, `type`, `name`, `blocking`, `concurrency`, `timeoutMs`, `mode`, `affinity`; and for the source node `path`, `pathGlobs`, `emitStates`
+| Everything node-specific: `whisper.modelPath`, `whisper.language`, `llm.prompts`, `tts.voice`, …
+|===
+
+Putting `"options": {"language": "en"}` on a `whisper` node has no effect — set `nodes.whisper.language`
+in the worker config instead. Node IDs must match `^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$`; the graph must
+be acyclic and every node reachable, or the definition is rejected on save.
+====
+
+== Step 3 — Create It
+
+[source,bash]
+----
+LOOM=http://localhost:8092
+
+curl -s -X POST $LOOM/api/v1/pipelines \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "Transcribe Library",
+    "description": "Transcribe audio and video so the agent can search speech",
+    "enabled": true,
+    "priority": 10,
+    "definition": { "nodes": [ ... ], "edges": [ ... ] }
+  }' | jq -r .uuid
+----
+
+Every save creates a new immutable version; older versions can be listed and restored. Authoring the
+same graph in the UI's pipeline editor works too — it is the same stored definition.
+
+== Step 4 — Run It
+
+[source,bash]
+----
+PIPELINE=<uuid-from-above>
+
+curl -s -X POST $LOOM/api/v1/pipelines/$PIPELINE/run \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"path": "/media/library/podcasts"}' | jq
+----
+
+The response carries the assigned worker and a `runUuid`. If no online worker accepts every kind in the
+graph, the run is **rejected with `503`** rather than queued — that is the failure mode to expect when
+the whisper worker is down.
+
+The selector narrows what the source enumerates; the most specific wins:
+
+[options="header",cols="1,3"]
+|===
+| Field | Behaviour
+| `path` | One folder or file, compared against the source's index — cheap to re-run over a large library.
+| `pathGlobs` | Patterns, always a full filesystem walk. Use for a complete re-scan.
+| `mediaUuids` | Specific assets, resolved to their stored files.
+|===
+
+From the CLI, with live progress:
+
+[source,bash]
+----
+metaloom pipeline run "Transcribe Library" --dir /media/library/podcasts --follow
+----
+
+A long run can be paused and resumed (`metaloom run pause|resume|cancel <run-uuid>`); a paused run keeps
+its progress but continues to occupy a worker.
+
+== Step 5 — Check the Transcripts Landed
+
+[source,bash]
+----
+# Run history with per-status counters
+curl -s -H "Authorization: Bearer $TOKEN" $LOOM/api/v1/pipelines/$PIPELINE/runs | jq
+
+# Items that did not make it
+metaloom run items <run-uuid> --state FAILED
+----
+
+Then open an asset in the UI — the transcript appears on the asset detail view. If a run reports
+success but no transcript is attached, the asset lookup failed: the file's SHA-512 does not match any
+asset in Loom. Re-check the ingest step.
+
+[#ask]
+== Step 6 — Ask the Agent
+
+With transcripts stored, the chat has something to search:
+
+____
+"Which clips mention the launch date?"
+
+"Summarize the interview with the product team."
+
+"Find the part where they discuss pricing and tell me which video it is in."
+____
+
+The agent resolves these by calling `search_transcript` (alongside `search_assets`, `get_asset`,
+`list_collections` and `asset_statistics`), all permission-checked as the calling user. Results come
+back with asset references the UI renders as clickable chips.
+
+To make summaries consistent, activate a **skill** — the
+link:../../loom/chat/#example-skill-transcript-summarizer[`transcript-summarizer`] skill on the Chat
+page is written for exactly this pipeline: resolve the asset, pull the transcript, produce 5–8 sourced
+bullets, and say so plainly when no transcript exists rather than inventing one.
+
+NOTE: The agent's domain tools are **read-only**. It answers, summarizes and cites from stored
+transcripts; it does not write results back onto the asset. Persisting derived text is the pipeline's
+job, not the chat's.
+
+== Keeping It Current
+
+Re-run the same pipeline on a schedule with `path` rather than `pathGlobs`. The filesystem source
+compares against its persisted index and only emits new, modified or moved media, so a nightly run over
+a large library is cheap — as long as `CORTEX_META_PATH` is on a volume that survives restarts.
+
+== Gotchas
+
+[options="header",cols="2,3"]
+|===
+| Symptom | Cause
+
+| Run rejected with `503`
+| No online worker accepts every node kind in the graph. Check `GET /api/v1/processors` and the
+worker's whitelist/blacklist.
+
+| Node succeeds, nothing stored
+| The file's SHA-512 matches no asset in Loom, or no `sha512` node ran upstream.
+
+| Transcriptions time out
+| The 600 s default is too low for long recordings. Raise `timeoutMs` on the node.
+
+| `language` / `modelPath` ignored
+| They were set in the pipeline definition. Node-specific options come from the worker's `cortex.yml`.
+
+| Images are being handed to Whisper
+| The filter edge is missing its `"branch": "PASS"`, so the filter's verdict is not routing anything.
+
+| Every run re-transcribes everything
+| The worker's meta path is not persistent, so the filesystem index is rebuilt empty each start.
+|===
+
+== Next Steps
+
+* Break long video into scenes first — link:../scene-analysis/[Scene-Level Video Analysis].
+* Take the transcript further — link:../translation/[Translating Content].
+* Node reference — link:../../nodes/whisper/[Whisper], link:../../nodes/filters/[Filters].

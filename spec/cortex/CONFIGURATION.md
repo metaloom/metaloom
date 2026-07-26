@@ -183,6 +183,7 @@ constant.
 | Thumbnail | `thumbnail` | `ThumbnailNodeOptions` | `tileSize`, `cols`, `rows` |
 | OCR | `ocr` | `OCRNodeOptions` | `tessDataPath`, `language` |
 | LLM | `llm` | `LLMNodeOptions` | `ollamaUrl`, `prompts` (Map of prompt configs) |
+| VLM | `vlm` | `VlmNodeOptions` | `endpointUrl`, `apiKey`, `prompts` (Map of `VlmNodePrompt`: `model`, `prompt`, `responseFormat`, `maxImageDim`, `maxTokens`, `temperature`, `retryOnRotation`) |
 | Captioning | `captioning` | `CaptioningNodeOptions` | `smolVLMHost`, `smolVLMPort` |
 | Dedup | `dedup` | `DedupNodeOptions` | `dupFolder` (Path) |
 | Scene | `scene-detection` | `SceneDetectionOptions` | (no custom fields) |

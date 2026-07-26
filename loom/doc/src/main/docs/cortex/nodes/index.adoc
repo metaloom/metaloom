@@ -177,6 +177,21 @@ Transcribes audio tracks using the Whisper speech-to-text model.
 * Applicable to: audio, video (audio track)
 * Requires: whisper.cpp or compatible Whisper HTTP service
 
+== Text-to-Speech
+
+=== `tts`
+
+Generates narration audio from text produced by an upstream node (e.g. `llm` / `captioning` / a
+translated `whisper` transcript). German is synthesized with Orpheus-3B / Kartoffel, English with
+Kokoro, behind a FastAPI `/v1/tts` sidecar. The generated WAV is written to the worker's local
+`tts_bin` cache and only the `asset_node_result` ledger row is recorded (bytes stay local, like
+`thumbnail`).
+
+* Applicable to: any asset (audio is generated from upstream text)
+* Inputs: upstream text output (configurable, default `llm` / `llm_result`)
+* Output keys: `tts_flag`, `tts_path`
+* Requires: a TTS sidecar (`server/`); German uses Orpheus/Kartoffel (GPU recommended), English uses Kokoro
+
 == Quality Assessment
 
 === `quality`

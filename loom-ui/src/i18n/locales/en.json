@@ -49,10 +49,17 @@
    "groups": "Groups",
    "permissions": "Permissions",
    "apiKeys": "API Keys",
-   "blacklist": "Blacklist"
+   "blacklist": "Blacklist",
+   "memoryDenylist": "Memory Denylist"
   },
   "divider": {
-   "admin": "Admin"
+   "admin": "Admin",
+   "ai": "AI",
+   "content": "Content",
+   "management": "Management"
+  },
+  "group": {
+   "acl": "ACL"
   },
   "menu": {
    "profile": "Profile",
@@ -109,7 +116,10 @@
    "clearFilters": "Clear filters"
   },
   "empty": {
-   "noMatch": "No assets match your filters"
+   "noMatch": "No assets match your filters",
+   "title": "Ready to build your media library?",
+   "description": "Upload materials, let the pipelines enrich them, and organize everything in one space.",
+   "action": "Upload your first asset"
   },
   "button": {
    "upload": "Upload",
@@ -193,6 +203,16 @@
   },
   "toast": {
    "deleted": "Library deleted"
+  },
+  "emptyState": {
+   "title": "Looking to start a project?",
+   "description": "Libraries are where your material lives. Create one to upload media, set custom instructions and keep everything organized in one space.",
+   "action": "Create your first library",
+   "assets": {
+    "title": "This library is still empty",
+    "description": "Upload media into this library and it will show up here, ready to be tagged, analyzed and reviewed.",
+    "action": "Upload assets"
+   }
   }
  },
  "collections": {
@@ -223,7 +243,10 @@
   "empty": {
    "noCollections": "No collections in this space",
    "noSearch": "No collections match your search",
-   "noAssets": "No assets in this collection"
+   "noAssets": "No assets in this collection",
+   "title": "Looking to group your work?",
+   "description": "Collections bundle related assets so a campaign, shoot or project stays together in one space.",
+   "action": "Create your first collection"
   },
   "dialog": {
    "newCollection": "New Collection",
@@ -313,6 +336,11 @@
    "addPlaceholder": "Write a comment…",
    "post": "Post comment",
    "empty": "No comments yet"
+  },
+  "emptyState": {
+   "title": "Nothing on your plate yet",
+   "description": "Tasks track review, approval and follow-up work on your media, with priority, assignee and due date.",
+   "action": "Create your first task"
   }
  },
  "monitoring": {
@@ -390,6 +418,11 @@
    "helper": "Change collection to move tag to a different group",
    "rating": "Your rating",
    "save": "Save"
+  },
+  "emptyState": {
+   "title": "Nothing tagged yet?",
+   "description": "Tags describe what is in your media so you — and the agent — can find it again in seconds.",
+   "action": "Create your first tag"
   }
  },
  "profile": {
@@ -484,6 +517,11 @@
    "active": "Active skills ({{count}})",
    "none": "No skills yet — create one under Skills",
    "manage": "Manage skills"
+  },
+  "greeting": {
+   "hello": "Hello {{name}}",
+   "helloAnonymous": "Hello there",
+   "subtitle": "Ask about your assets, tasks, collections or transcripts — the Loom Agent searches your space and answers with the entities it finds."
   }
  },
  "admin": {
@@ -585,6 +623,132 @@
    "permissionsCount": "permissions",
    "permissionsGranted": "permissions granted",
    "empty": "Select a role to manage its permissions",
+   "permission": {
+    "CREATE_ANNOTATION": "Create new annotations — region markers and notes drawn on an asset.",
+    "READ_ANNOTATION": "View annotations — region markers and notes drawn on an asset.",
+    "DELETE_ANNOTATION": "Delete annotations — region markers and notes drawn on an asset.",
+    "UPDATE_ANNOTATION": "Edit existing annotations — region markers and notes drawn on an asset.",
+    "CREATE_ASSET": "Create new assets — media records with their metadata.",
+    "READ_ASSET": "View assets — media records with their metadata.",
+    "DELETE_ASSET": "Delete assets — media records with their metadata.",
+    "UPDATE_ASSET": "Edit existing assets — media records with their metadata.",
+    "CREATE_ASSET_BINARY": "Create new asset binaries — the stored file bytes of an asset.",
+    "READ_ASSET_BINARY": "View asset binaries — the stored file bytes of an asset.",
+    "DELETE_ASSET_BINARY": "Delete asset binaries — the stored file bytes of an asset.",
+    "UPDATE_ASSET_BINARY": "Edit existing asset binaries — the stored file bytes of an asset.",
+    "CREATE_ASSET_LOCATION": "Create new asset locations — legacy storage locations of an asset.",
+    "READ_ASSET_LOCATION": "View asset locations — legacy storage locations of an asset.",
+    "DELETE_ASSET_LOCATION": "Delete asset locations — legacy storage locations of an asset.",
+    "UPDATE_ASSET_LOCATION": "Edit existing asset locations — legacy storage locations of an asset.",
+    "CREATE_ATTACHMENT": "Create new attachments — files attached alongside an asset.",
+    "READ_ATTACHMENT": "View attachments — files attached alongside an asset.",
+    "DELETE_ATTACHMENT": "Delete attachments — files attached alongside an asset.",
+    "UPDATE_ATTACHMENT": "Edit existing attachments — files attached alongside an asset.",
+    "CREATE_USER": "Create new users — user accounts.",
+    "READ_USER": "View users — user accounts.",
+    "DELETE_USER": "Delete users — user accounts.",
+    "UPDATE_USER": "Edit existing users — user accounts.",
+    "CREATE_ROLE": "Create new roles — roles and the permissions they carry.",
+    "READ_ROLE": "View roles — roles and the permissions they carry.",
+    "DELETE_ROLE": "Delete roles — roles and the permissions they carry.",
+    "UPDATE_ROLE": "Edit existing roles — roles and the permissions they carry.",
+    "CREATE_GROUP": "Create new groups — groups that bundle users and roles.",
+    "READ_GROUP": "View groups — groups that bundle users and roles.",
+    "DELETE_GROUP": "Delete groups — groups that bundle users and roles.",
+    "UPDATE_GROUP": "Edit existing groups — groups that bundle users and roles.",
+    "CREATE_SPACE": "Create new spaces — top-level tenants that hold libraries and collections.",
+    "READ_SPACE": "View spaces — top-level tenants that hold libraries and collections.",
+    "DELETE_SPACE": "Delete spaces — top-level tenants that hold libraries and collections.",
+    "UPDATE_SPACE": "Edit existing spaces — top-level tenants that hold libraries and collections.",
+    "CREATE_CLUSTER": "Create new clusters — clusters of similar face embeddings.",
+    "READ_CLUSTER": "View clusters — clusters of similar face embeddings.",
+    "DELETE_CLUSTER": "Delete clusters — clusters of similar face embeddings.",
+    "UPDATE_CLUSTER": "Edit existing clusters — clusters of similar face embeddings.",
+    "CREATE_COLLECTION": "Create new collections — curated sets of assets.",
+    "READ_COLLECTION": "View collections — curated sets of assets.",
+    "DELETE_COLLECTION": "Delete collections — curated sets of assets.",
+    "UPDATE_COLLECTION": "Edit existing collections — curated sets of assets.",
+    "CREATE_COMMENT": "Create new comments — user comments on assets.",
+    "READ_COMMENT": "View comments — user comments on assets.",
+    "DELETE_COMMENT": "Delete comments — user comments on assets.",
+    "UPDATE_COMMENT": "Edit existing comments — user comments on assets.",
+    "CREATE_EMBEDDING": "Create new embeddings — vectors used for similarity search.",
+    "READ_EMBEDDING": "View embeddings — vectors used for similarity search.",
+    "DELETE_EMBEDDING": "Delete embeddings — vectors used for similarity search.",
+    "UPDATE_EMBEDDING": "Edit existing embeddings — vectors used for similarity search.",
+    "CREATE_REACTION": "Create new reactions — likes and custom reactions.",
+    "READ_REACTION": "View reactions — likes and custom reactions.",
+    "DELETE_REACTION": "Delete reactions — likes and custom reactions.",
+    "UPDATE_REACTION": "Edit existing reactions — likes and custom reactions.",
+    "CREATE_TASK": "Create new tasks — background jobs such as bulk ingestion.",
+    "READ_TASK": "View tasks — background jobs such as bulk ingestion.",
+    "DELETE_TASK": "Delete tasks — background jobs such as bulk ingestion.",
+    "UPDATE_TASK": "Edit existing tasks — background jobs such as bulk ingestion.",
+    "CREATE_TAG": "Create new tags — the tag vocabulary.",
+    "READ_TAG": "View tags — the tag vocabulary.",
+    "DELETE_TAG": "Delete tags — the tag vocabulary.",
+    "UPDATE_TAG": "Edit existing tags — the tag vocabulary.",
+    "TAG_ASSET": "Attach a tag to an asset.",
+    "UNTAG_ASSET": "Remove a tag from an asset.",
+    "CREATE_TOKEN": "Create new API keys — long-lived tokens for service accounts.",
+    "READ_TOKEN": "View API keys — long-lived tokens for service accounts.",
+    "DELETE_TOKEN": "Delete API keys — long-lived tokens for service accounts.",
+    "UPDATE_TOKEN": "Edit existing API keys — long-lived tokens for service accounts.",
+    "CREATE_LIBRARY": "Create new libraries — libraries that group asset pools.",
+    "READ_LIBRARY": "View libraries — libraries that group asset pools.",
+    "DELETE_LIBRARY": "Delete libraries — libraries that group asset pools.",
+    "UPDATE_LIBRARY": "Edit existing libraries — libraries that group asset pools.",
+    "CREATE_PIPELINE": "Create new pipelines — processing pipeline definitions.",
+    "READ_PIPELINE": "View pipelines — processing pipeline definitions.",
+    "DELETE_PIPELINE": "Delete pipelines — processing pipeline definitions.",
+    "UPDATE_PIPELINE": "Edit existing pipelines — processing pipeline definitions.",
+    "READ_PIPELINE_VERSION": "View the version history of a pipeline.",
+    "RESTORE_PIPELINE_VERSION": "Roll a pipeline back to an earlier version.",
+    "CREATE_PIPELINE_RUN": "Create new pipeline runs — executions of a pipeline.",
+    "READ_PIPELINE_RUN": "View pipeline runs — executions of a pipeline.",
+    "UPDATE_PIPELINE_RUN": "Edit existing pipeline runs — executions of a pipeline.",
+    "DELETE_PIPELINE_RUN": "Delete pipeline runs — executions of a pipeline.",
+    "CREATE_ASSET_POOL": "Create new asset pools — storage locations that assets are scanned from.",
+    "READ_ASSET_POOL": "View asset pools — storage locations that assets are scanned from.",
+    "DELETE_ASSET_POOL": "Delete asset pools — storage locations that assets are scanned from.",
+    "UPDATE_ASSET_POOL": "Edit existing asset pools — storage locations that assets are scanned from.",
+    "CREATE_BLACKLIST": "Create new blacklist entries — hashes and fingerprints that must not be ingested.",
+    "READ_BLACKLIST": "View blacklist entries — hashes and fingerprints that must not be ingested.",
+    "DELETE_BLACKLIST": "Delete blacklist entries — hashes and fingerprints that must not be ingested.",
+    "UPDATE_BLACKLIST": "Edit existing blacklist entries — hashes and fingerprints that must not be ingested.",
+    "CREATE_PERSON": "Create new persons — people identified across face detections.",
+    "READ_PERSON": "View persons — people identified across face detections.",
+    "DELETE_PERSON": "Delete persons — people identified across face detections.",
+    "UPDATE_PERSON": "Edit existing persons — people identified across face detections.",
+    "CREATE_DETECTION": "Create new detections — faces and objects found in an asset.",
+    "READ_DETECTION": "View detections — faces and objects found in an asset.",
+    "DELETE_DETECTION": "Delete detections — faces and objects found in an asset.",
+    "UPDATE_DETECTION": "Edit existing detections — faces and objects found in an asset.",
+    "CREATE_CHAT": "Create new chats — conversations with the AI agent.",
+    "READ_CHAT": "View chats — conversations with the AI agent.",
+    "DELETE_CHAT": "Delete chats — conversations with the AI agent.",
+    "UPDATE_CHAT": "Edit existing chats — conversations with the AI agent.",
+    "CREATE_SKILL": "Create new skills — instruction packages that steer the agent.",
+    "READ_SKILL": "View skills — instruction packages that steer the agent.",
+    "DELETE_SKILL": "Delete skills — instruction packages that steer the agent.",
+    "UPDATE_SKILL": "Edit existing skills — instruction packages that steer the agent.",
+    "READ_SKILL_VERSION": "View the version history of a skill.",
+    "RESTORE_SKILL_VERSION": "Roll a skill back to an earlier version.",
+    "CREATE_CHAT_SESSION": "Create new chat sessions — publishable snapshots of a chat and its workspace.",
+    "READ_CHAT_SESSION": "View chat sessions — publishable snapshots of a chat and its workspace.",
+    "DELETE_CHAT_SESSION": "Delete chat sessions — publishable snapshots of a chat and its workspace.",
+    "UPDATE_CHAT_SESSION": "Edit existing chat sessions — publishable snapshots of a chat and its workspace.",
+    "CREATE_MEMORY": "Create new memory notes — durable notes the agent keeps across chats.",
+    "READ_MEMORY": "View memory notes — durable notes the agent keeps across chats.",
+    "DELETE_MEMORY": "Delete memory notes — durable notes the agent keeps across chats.",
+    "UPDATE_MEMORY": "Edit existing memory notes — durable notes the agent keeps across chats.",
+    "CREATE_MEMORY_DENY_RULE": "Create new memory deny rules — patterns the agent must never store.",
+    "READ_MEMORY_DENY_RULE": "View memory deny rules — patterns the agent must never store.",
+    "DELETE_MEMORY_DENY_RULE": "Delete memory deny rules — patterns the agent must never store.",
+    "UPDATE_MEMORY_DENY_RULE": "Edit existing memory deny rules — patterns the agent must never store.",
+    "MANAGE_CORTEX_INSTANCE": "Manage registered Cortex workers — approve, configure and remove processing instances.",
+    "READ_CORTEX_INSTANCE": "View registered Cortex workers and their state."
+   },
    "dialog": {
     "create": "Create Role",
     "edit": "Edit Role",
@@ -1248,6 +1412,11 @@
    "createError": "Failed to create pool",
    "updateError": "Failed to update pool",
    "deleteError": "Failed to delete pool"
+  },
+  "emptyState": {
+   "title": "No storage pools yet",
+   "description": "Asset pools define where binaries are stored and replicated. Create one to give your media a home.",
+   "action": "Create your first pool"
   }
  },
  "reactions": {
@@ -1486,6 +1655,15 @@
    "loading": "Loading versions…",
    "badge": "v{{version}}",
    "saveHint": "Saving changes to the instructions creates a new version"
+  },
+  "emptyState": {
+   "title": "Teach the agent something new",
+   "description": "Skills are markdown instruction packages the Loom Agent can load on demand. Write one, enable it per conversation, and publish it for your team.",
+   "action": "Create your first skill",
+   "library": {
+    "title": "The shared library is empty",
+    "description": "Once teammates publish their skills they show up here, ready to install into your own set."
+   }
   }
  },
  "memory": {

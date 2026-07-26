@@ -13,6 +13,14 @@ A node writes its result back to Loom over the REST API — a typed component pl
 Between them the built-in nodes cover any media file type — images, videos, audio and documents. What
 is actually analysed for a given asset depends entirely on which nodes the pipeline contains.
 
+Every node page opens with a diagram of that node in a pipeline: what flows in on the left, what comes
+out on the right, and a tab per alternative configuration. Ports are labelled with the data type they
+carry:
+
+++++
+<div class="ml-nodeviz-legend"></div>
+++++
+
 The built-in nodes fall into four categories.
 
 [#hashing]
@@ -35,7 +43,9 @@ The built-in nodes fall into four categories.
 | Node | Applies to | Purpose
 | link:tika/[Tika] (`tika`) | Any | Extract format metadata + text with Apache Tika
 | link:ocr/[OCR] (`ocr`) | Image | Extract text with Tesseract
+| link:vlm/[VLM] (`vlm`) | Image | Read images with a vision-language model; olmOCR document transcription
 | link:whisper/[Speech-to-Text] (`whisper`) | Video, Audio | Transcribe audio with Whisper
+| link:tts/[Text-to-Speech] (`tts`) | Any (from upstream text) | Synthesize narration audio (Orpheus/Kartoffel DE, Kokoro EN)
 | link:llm/[LLM Enrichment] (`llm`) | Any | Enrich metadata with a language model
 | link:captioning/[Captioning] (`captioning`) | Image | Natural-language image captions
 | link:facedetect/[Face Detection] (`facedetect`) | Image, Video | Detect faces + embeddings
@@ -64,6 +74,7 @@ The built-in nodes fall into four categories.
 | link:loom/[Loom Sync] (`loom`) | Any | Batch hash results back to Loom
 |===
 
+[#requirements]
 == Requirements at a Glance
 
 Most nodes are pure CPU. A few need a native library or an external model service:
@@ -76,7 +87,8 @@ Most nodes are pure CPU. A few need a native library or an external model servic
 | Whisper runtime (whisper.cpp; GPU optional) | `whisper`
 | Tesseract (Tess4J) | `ocr`
 | An LLM provider service | `llm`, `facedescription`
-| A vision-language model service | `captioning`
+| A vision-language model service | `captioning`, `vlm`
+| A TTS sidecar (Orpheus/Kartoffel + Kokoro) | `tts`
 | CPU only | `md5`/`sha256`/`sha512`/`chunk-hash`, `consistency`, `tika`, `filesystem-source`, `loom`, filters, dedup
 |===
 
@@ -115,11 +127,18 @@ producing cut timestamps that can drive per-scene thumbnails or clips.
 
 OCR and speech-to-text::
 link:ocr/[`ocr`] extracts text from images and document pages with Tesseract;
+link:vlm/[`vlm`] transcribes document pages with a vision-language model such as olmOCR, which keeps
+the layout — tables, columns, formulas — that plain glyph recognition flattens;
 link:whisper/[`whisper`] transcribes audio and video soundtracks with the Whisper model.
 
 AI captioning and enrichment::
 link:captioning/[`captioning`] generates natural-language descriptions with a vision-language model
 (SmolVLM), and link:llm/[`llm`] enriches metadata through an LLM provider such as Ollama.
+
+Text-to-speech::
+link:tts/[`tts`] turns upstream text — an link:llm/[`llm`] summary, a caption, or a translated
+transcript — into narration audio, using Orpheus/Kartoffel for German and Kokoro for English behind a
+small HTTP sidecar.
 
 Consistency checking::
 link:consistency/[`consistency`] validates that stored metadata — hashes, dimensions, codec

@@ -6,6 +6,10 @@ The face description node produces a **natural-language description** of the fac
 asset, using a vision-language model. It runs after link:../facedetect/[Face Detection] and skips work
 when no faces were found.
 
+++++
+<div class="ml-nodeviz" data-nodeviz='{"kind":"facedescription","applies":"Image","badge":"Vision model service","persist":"asset_json_comp + asset_node_result ledger","inputs":[{"t":"image","l":"image"},{"t":"number","l":"face_count","d":"from facedetect; zero skips the node"},{"t":"face","l":"detected faces","d":"cropped from the bounding boxes"}],"outputs":[{"t":"text","l":"face_description"}]}'></div>
+++++
+
 [cols="1,3"]
 |===
 | Kind | `facedescription`

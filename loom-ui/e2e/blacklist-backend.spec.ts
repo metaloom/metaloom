@@ -89,10 +89,19 @@ test.describe("Blacklist – full backend e2e", () => {
       const token = (await loginRes.json()).token as string;
       const headers = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
 
-      // Resolve a real demo asset to blacklist.
+      // Resolve a real demo asset to blacklist. An asset can only be blacklisted once, and
+      // the demo already blacklists two of them, so pick one that is still free rather than
+      // whichever asset the list happens to return first.
       const assetsRes = await fetch(`/api/v1/assets`, { headers });
-      const assetUuid = (await assetsRes.json())?.data?.[0]?.uuid as string | undefined;
-      if (!assetUuid) return { error: "no assets found" };
+      const assets = ((await assetsRes.json())?.data ?? []) as Array<{ uuid: string }>;
+      const existingRes = await fetch(`/api/v1/blacklists`, { headers });
+      const taken = new Set(
+        (((await existingRes.json())?.data ?? []) as Array<{ assetUuid?: string }>)
+          .map(b => b.assetUuid)
+          .filter(Boolean) as string[],
+      );
+      const assetUuid = assets.map(a => a.uuid).find(uuid => !taken.has(uuid));
+      if (!assetUuid) return { error: "no un-blacklisted assets found" };
 
       // Create an entry tied to the asset (the "blacklist from asset" flow).
       const createRes = await fetch(`/api/v1/blacklists`, {

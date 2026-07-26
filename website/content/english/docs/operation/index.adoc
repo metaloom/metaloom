@@ -143,7 +143,7 @@ active nodes.
 .lda{--font:"Segoe UI",system-ui,sans-serif;--fsMono:"JetBrains Mono","Consolas",monospace;--text:#cdd6df;--muted:#7f8b98;--panel:#1a1f26;--loom:#213040;--loomStroke:#4aa3ff;--inst:#1f2732;--instStroke:#323b46;--halo:#2fd4b6;--edge:#39434f;--edgeFlow:#2fd4b6;--fsBg:#182029;--fsBorder:#2b3542;--fsText:#aab6c2;--fsFolder:#4aa3ff;--fsRowHi:rgba(47,212,182,.16);--fsEdge:#37424e;--fsEdgeFlow:#57d0e0;font-family:var(--font);}
 .lda svg{width:100%;height:auto;display:block;}
 .lda .stage-label{font:600 .66rem/1 var(--font);letter-spacing:.13em;text-transform:uppercase;color:var(--muted);margin:8px 2px 2px;}
-.lda .caption{text-align:center;font-size:.92rem;color:var(--text);padding:8px 12px 6px;min-height:20px;}
+.lda .caption{text-align:center;font-size:.92rem;line-height:1.45;color:var(--text);padding:8px 12px 6px;height:3.2em;display:flex;align-items:center;justify-content:center;}
 .lda .chip-bg{transition:stroke .25s;}
 .lda .chip-label{font:600 12px var(--font);pointer-events:none;}
 .lda .p-fill{pointer-events:none;}
@@ -342,6 +342,138 @@ LOOM_HOST=loom.internal LOOM_PORT=8092 LOOM_TOKEN=<jwt> \
 ----
 
 See link:../cortex/configuration/[Cortex Configuration] and link:../cortex/containers/[Cortex Containers].
+
+== Deployment Overview
+
+The same architecture at **container level** — what actually runs as an image, what scales, and what
+is created on demand. Solid-bordered boxes are long-lived containers, the teal dashed box is
+provisioned per chat and reaped again, and the purple boxes want a GPU.
+
+++++
+<div class="ml-figure">
+<svg viewBox="0 0 900 580" role="img" aria-labelledby="ml-dep-title ml-dep-desc" class="ml-arch-svg">
+  <title id="ml-dep-title">MetaLoom container-level deployment</title>
+  <desc id="ml-dep-desc">A browser talks to the Loom server container on port 8092. Loom persists to a PostgreSQL container, creates one Session Runner container per chat, and calls GPU model services. Cortex worker containers run in a CPU pool and a GPU pool; both dial out to Loom and the GPU pool calls the model services. Loom and Cortex both mount the shared media storage.</desc>
+  <defs>
+    <marker id="ml-dep-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#57cbcc"></path></marker>
+    <marker id="ml-dep-arrow-muted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6b7681"></path></marker>
+  </defs>
+
+  <!-- Browser -->
+  <g>
+    <rect x="24" y="24" width="190" height="64" rx="10" class="ml-box-container"></rect>
+    <text x="36" y="46" class="ml-box-title">Browser</text>
+    <text x="119" y="70" text-anchor="middle" class="ml-part-sub">Loom UI · served by Loom</text>
+  </g>
+
+  <!-- PostgreSQL -->
+  <g>
+    <rect x="24" y="112" width="190" height="72" rx="10" class="ml-box-container"></rect>
+    <text x="36" y="134" class="ml-box-title">PostgreSQL</text>
+    <text x="36" y="150" class="ml-box-tag">postgres:16.3-bullseye</text>
+    <text x="119" y="172" text-anchor="middle" class="ml-part-sub">pgdata volume · :5432</text>
+  </g>
+
+  <!-- Session runners (dynamic) -->
+  <g>
+    <rect x="24" y="228" width="190" height="116" rx="10" class="ml-box-dyn"></rect>
+    <text x="36" y="250" class="ml-box-title">Session Runner ×N</text>
+    <text x="36" y="266" class="ml-box-tag">loom-session-runner</text>
+    <rect x="36" y="276" width="166" height="26" rx="5" class="ml-box-part"></rect>
+    <text x="119" y="293" text-anchor="middle" class="ml-part-sub">runnerd · /workspace</text>
+    <text x="119" y="318" text-anchor="middle" class="ml-part-sub">one per chat · created on</text>
+    <text x="119" y="333" text-anchor="middle" class="ml-part-sub">demand · reaped on idle</text>
+  </g>
+
+  <!-- Loom server -->
+  <g>
+    <rect x="252" y="24" width="250" height="140" rx="10" class="ml-box-container"></rect>
+    <text x="266" y="46" class="ml-box-title">Loom Server</text>
+    <text x="266" y="62" class="ml-box-tag">metaloom/loom-server</text>
+    <rect x="266" y="72" width="222" height="38" rx="6" class="ml-box-part"></rect>
+    <text x="377" y="90" text-anchor="middle" class="ml-part-title">REST · WebSocket · SSE</text>
+    <text x="377" y="105" text-anchor="middle" class="ml-part-sub">:8092 · UI at /ui/</text>
+    <rect x="266" y="116" width="222" height="36" rx="6" class="ml-box-part"></rect>
+    <text x="377" y="133" text-anchor="middle" class="ml-part-title">pipeline engine · agent loop</text>
+    <text x="377" y="147" text-anchor="middle" class="ml-part-sub">metrics :8989</text>
+  </g>
+
+  <!-- Cortex CPU pool -->
+  <g>
+    <rect x="548" y="24" width="328" height="110" rx="10" class="ml-box-container"></rect>
+    <text x="562" y="46" class="ml-box-title">Cortex workers — CPU pool</text>
+    <text x="562" y="62" class="ml-box-tag">metaloom/cortex-server · :8093</text>
+    <rect x="562" y="72" width="96" height="48" rx="6" class="ml-box-part"></rect>
+    <text x="610" y="101" text-anchor="middle" class="ml-part-sub">replica 1</text>
+    <rect x="668" y="72" width="96" height="48" rx="6" class="ml-box-part"></rect>
+    <text x="716" y="101" text-anchor="middle" class="ml-part-sub">replica 2</text>
+    <rect x="774" y="72" width="88" height="48" rx="6" class="ml-box-part"></rect>
+    <text x="818" y="101" text-anchor="middle" class="ml-part-sub">replica N</text>
+  </g>
+
+  <!-- Cortex GPU pool -->
+  <g>
+    <rect x="548" y="152" width="328" height="110" rx="10" class="ml-box-gpu"></rect>
+    <text x="562" y="174" class="ml-box-title">Cortex workers — GPU pool</text>
+    <text x="562" y="190" class="ml-box-tag">metaloom/cortex-server · GPU node</text>
+    <rect x="562" y="200" width="300" height="46" rx="6" class="ml-part-gpu"></rect>
+    <text x="712" y="219" text-anchor="middle" class="ml-part-title">facedetect · whisper · vlm</text>
+    <text x="712" y="236" text-anchor="middle" class="ml-part-sub">CORTEX_NODE_WHITELIST pins the heavy kinds</text>
+  </g>
+
+  <!-- GPU model services -->
+  <g>
+    <rect x="300" y="348" width="576" height="112" rx="10" class="ml-box-gpu"></rect>
+    <text x="314" y="370" class="ml-box-title">GPU model services</text>
+    <text x="314" y="386" class="ml-box-tag">external containers — one GPU host or node pool</text>
+    <rect x="314" y="396" width="178" height="50" rx="6" class="ml-part-gpu"></rect>
+    <text x="403" y="416" text-anchor="middle" class="ml-part-title">vLLM</text>
+    <text x="403" y="432" text-anchor="middle" class="ml-part-sub">LLM · VLM (olmOCR)</text>
+    <rect x="500" y="396" width="178" height="50" rx="6" class="ml-part-gpu"></rect>
+    <text x="589" y="416" text-anchor="middle" class="ml-part-title">Whisper runtime</text>
+    <text x="589" y="432" text-anchor="middle" class="ml-part-sub">speech-to-text</text>
+    <rect x="686" y="396" width="176" height="50" rx="6" class="ml-part-gpu"></rect>
+    <text x="774" y="416" text-anchor="middle" class="ml-part-title">TTS sidecar</text>
+    <text x="774" y="432" text-anchor="middle" class="ml-part-sub">Orpheus / Kokoro · :9100</text>
+  </g>
+
+  <!-- Shared media storage -->
+  <g>
+    <rect x="24" y="486" width="852" height="58" rx="10" class="ml-box-container"></rect>
+    <text x="36" y="508" class="ml-box-title">Shared media storage</text>
+    <text x="450" y="530" text-anchor="middle" class="ml-part-sub">one volume / mount — referenced by path, read by both Loom and Cortex</text>
+  </g>
+
+  <!-- edges -->
+  <polyline points="214,56 252,56" class="ml-edge" marker-end="url(#ml-dep-arrow)" marker-start="url(#ml-dep-arrow)"></polyline>
+  <text x="233" y="48" text-anchor="middle" class="ml-edge-label">:8092</text>
+
+  <polyline points="252,148 214,148" class="ml-edge" marker-end="url(#ml-dep-arrow)" marker-start="url(#ml-dep-arrow)"></polyline>
+  <text x="233" y="140" text-anchor="middle" class="ml-edge-label">SQL</text>
+
+  <polyline points="330,164 330,204 119,204 119,228" class="ml-edge" marker-end="url(#ml-dep-arrow)"></polyline>
+  <text x="200" y="198" text-anchor="middle" class="ml-edge-label">create · HTTP + token</text>
+
+  <polyline points="548,79 502,79" class="ml-edge" marker-end="url(#ml-dep-arrow)" marker-start="url(#ml-dep-arrow)"></polyline>
+  <polyline points="548,207 525,207 525,140 502,140" class="ml-edge" marker-end="url(#ml-dep-arrow)" marker-start="url(#ml-dep-arrow)"></polyline>
+  <text x="876" y="16" text-anchor="end" class="ml-edge-label">Cortex dials out · processor WS · tasks ⇄ results</text>
+
+  <polyline points="403,164 403,348" class="ml-edge" marker-end="url(#ml-dep-arrow)"></polyline>
+  <text x="411" y="320" text-anchor="start" class="ml-edge-label">agent LLM calls</text>
+
+  <polyline points="712,262 712,348" class="ml-edge" marker-end="url(#ml-dep-arrow)"></polyline>
+  <text x="720" y="320" text-anchor="start" class="ml-edge-label">model HTTP APIs</text>
+
+  <polyline points="270,164 270,486" class="ml-edge-dashed" marker-end="url(#ml-dep-arrow-muted)"></polyline>
+  <polyline points="876,240 886,240 886,486" class="ml-edge-dashed" marker-end="url(#ml-dep-arrow-muted)"></polyline>
+</svg>
+</div>
+++++
+
+Everything except the GPU model services ships as a MetaLoom image — see
+link:../deployment/[Container Images] for the image names and the full port table. The Cortex pools are
+the same image with a different node whitelist; splitting them is what keeps a `whisper` task from
+occupying a machine that should be hashing.
 
 == Deployment Patterns
 

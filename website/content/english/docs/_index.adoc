@@ -19,9 +19,25 @@ This page is the quickest way to orient yourself in the platform and jump to the
 			</div>
 			<div class="docs-card-body">
 				<a href="getting-started/" class="docs-card-link">Demo Container</a>
+				<a href="ui/" class="docs-card-link">Loom UI</a>
 				<a href="deployment/" class="docs-card-link">Container Images</a>
 				<a href="loom/chat/" class="docs-card-link">Chat &amp; AI Agent</a>
 				<a href="getting-started/#loom-app" class="docs-card-link">Loom App</a>
+			</div>
+		</div>
+	</div>
+	<div class="col-lg-12 mb-4">
+		<div class="docs-card h-100">
+			<div class="docs-card-header">
+				<h2><a href="playbooks/">Playbooks</a></h2>
+				<p>Task-oriented guides that string the whole platform together: deploying the stack with Docker or Kubernetes, and building pipelines that transcribe, analyse scenes and translate content.</p>
+			</div>
+			<div class="docs-card-body">
+				<a href="playbooks/docker/" class="docs-card-link">Docker Deployment</a>
+				<a href="playbooks/kubernetes/" class="docs-card-link">Kubernetes &amp; Helm</a>
+				<a href="playbooks/transcription/" class="docs-card-link">Transcription for Chat</a>
+				<a href="playbooks/scene-analysis/" class="docs-card-link">Scene Analysis</a>
+				<a href="playbooks/translation/" class="docs-card-link">Translation</a>
 			</div>
 		</div>
 	</div>
@@ -101,6 +117,7 @@ If you are new to the platform, this is the shortest reading order:
 2. Read link:operation/[Operation] to understand the system boundary.
 3. Read link:pipeline/[Pipeline Mechanism] to understand how processing is modeled.
 4. Continue into link:loom/[Loom] or link:cortex/[Cortex] depending on whether you are integrating with the API or building processing workflows.
+5. When you want to build something concrete — a deployment, a working pipeline — follow a link:playbooks/[Playbook].
 
 == Central Concepts
 
@@ -178,8 +195,12 @@ Choose the documentation track that matches your task:
 | link:pipeline/[Pipeline Mechanism], link:nodes/[Nodes]
 
 | Deploy or operate the system
-| link:loom/artifacts/[Loom Artifacts], link:cortex/artifacts/[Cortex Artifacts]
+| link:playbooks/docker/[Docker Playbook], link:playbooks/kubernetes/[Kubernetes Playbook]
 | link:cortex/monitoring/[Monitoring], link:loom/metrics/[Loom Metrics], link:cortex/metrics/[Cortex Metrics]
+
+| Build a working pipeline end to end
+| link:playbooks/[Playbooks]
+| link:playbooks/transcription/[Transcription], link:playbooks/scene-analysis/[Scene Analysis], link:playbooks/translation/[Translation]
 
 | Learn the data model and feature surface
 | link:loom/features/[Loom Features]

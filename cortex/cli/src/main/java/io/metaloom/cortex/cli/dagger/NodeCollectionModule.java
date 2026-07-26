@@ -15,6 +15,8 @@ import io.metaloom.cortex.node.scene.SceneDetectionNodeModule;
 import io.metaloom.cortex.node.source.fs.FilesystemSourceNodeModule;
 import io.metaloom.cortex.node.thumbnail.ThumbnailNodeModule;
 import io.metaloom.cortex.node.tika.TikaNodeModule;
+import io.metaloom.cortex.node.tts.TtsNodeModule;
+import io.metaloom.cortex.node.vlm.VlmNodeModule;
 import io.metaloom.cortex.node.whisper.WhisperNodeModule;
 
 @Module(includes = {
@@ -27,12 +29,14 @@ import io.metaloom.cortex.node.whisper.WhisperNodeModule;
 	DedupNodeModule.class,
 	TikaNodeModule.class,
 	LLMNodeModule.class,
+	VlmNodeModule.class,
 	SceneDetectionNodeModule.class,
 	LoomNodeModule.class,
 	QualityNodeModule.class,
 	CaptioningNodeModule.class,
 	ConsistencyNodeModule.class,
-	WhisperNodeModule.class })
+	WhisperNodeModule.class,
+	TtsNodeModule.class })
 public interface NodeCollectionModule {
 
 }

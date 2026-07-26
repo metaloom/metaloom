@@ -1,5 +1,7 @@
 # Metaloom — Agent Notes
 
+* Don't git stash / git reset changes. Never do that!
+
 ## Start here: the spec tree
 
 [spec/CONTEXT.md](../spec/CONTEXT.md) is the **entry point** for coding tasks in this repository.

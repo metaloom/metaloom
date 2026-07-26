@@ -13,13 +13,15 @@ import {
   FilterListOutlined, Circle, PhotoSizeSelectSmallOutlined,
   PhotoSizeSelectActualOutlined, PhotoSizeSelectLargeOutlined,
   CloudUploadOutlined, DeleteOutlined, LocalOfferOutlined, CloseOutlined,
+  PermMediaOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
-import MediaPlaceholder from "../../components/MediaPlaceholder";
+import AssetThumbnail from "../../components/AssetThumbnail";
+import EmptyState from "../../components/EmptyState";
 import { Asset, AssetType, AssetStatus } from "../../types";
 import { useAuth } from "../../context/AuthContext";
 import {
-  listAssets, AssetResponse, uploadAsset, deleteAsset, bulkUpdateAssets,
+  listAssets, AssetResponse, uploadAsset, deleteAsset, bulkUpdateAssets, assetBinaryUrl,
 } from "../../api/assets";
 import { listLibraries, LibraryResponse } from "../../api/libraries";
 import { useSpace } from "../../context/SpaceContext";
@@ -83,7 +85,8 @@ function toAsset(r: AssetResponse): Asset {
     fileSize: r.file?.size ?? 0,
     mimeType: mime,
     sha512: r.hashes?.sha512,
-    thumbnailUrl: "",
+    // Only images can be shown by an <img>; everything else falls back to the type placeholder.
+    thumbnailUrl: type === "image" ? assetBinaryUrl(r.uuid) : "",
     url: "",
     ownerId: r.status?.creator?.uuid ?? "",
     collectionIds: (r.collections ?? []).map(c => c.uuid),
@@ -161,7 +164,7 @@ function AssetCard({ asset, cardSize = "medium", selectionMode = false, selected
       )}
       {/* Thumbnail */}
       <Box sx={{ position: "relative", paddingTop: "56.25%", bgcolor: tokens.bg.overlay }}>
-        <MediaPlaceholder type={asset.type} iconSize={40} />
+        <AssetThumbnail type={asset.type} src={asset.thumbnailUrl} iconSize={40} alt={asset.name} />
         <Box sx={{ position: "absolute", top: 6, left: 6, display: "flex", alignItems: "center", gap: 0.5, bgcolor: "rgba(0,0,0,0.6)", px: 0.75, py: 0.25, borderRadius: tokens.radius.sm }}>
           <Box sx={{ color: "#fff", display: "flex" }}>{typeIcon[asset.type]}</Box>
           {asset.duration && <Typography variant="caption" sx={{ color: "#fff", fontSize: "0.7rem", fontWeight: 600 }}>{formatDuration(asset.duration)}</Typography>}
@@ -252,7 +255,7 @@ function AssetRow({ asset, selectionMode = false, selected = false, onToggleSele
         />
       )}
       <Box sx={{ position: "relative", width: 48, height: 32, borderRadius: tokens.radius.sm, overflow: "hidden", flexShrink: 0, bgcolor: tokens.bg.overlay }}>
-        <MediaPlaceholder type={asset.type} iconSize={18} />
+        <AssetThumbnail type={asset.type} src={asset.thumbnailUrl} iconSize={18} alt={asset.name} />
       </Box>
       <Box sx={{ flex: 1, overflow: "hidden" }}>
         <Typography variant="body2" fontWeight={500} noWrap sx={{ fontSize: "0.82rem", color: tokens.text.primary }}>
@@ -360,6 +363,13 @@ export default function AssetBrowser({ embedded = false }: Props) {
   }, []);
 
   const exitSelection = () => { setSelectionMode(false); setSelected(new Set()); };
+
+  const openUploadDialog = () => {
+    setUploadFile(null);
+    setUploadOrigin("upload");
+    setUploadLibrary(libraries[0]?.uuid ?? "");
+    setUploadOpen(true);
+  };
 
   const handleUpload = async () => {
     if (!token || !uploadFile || !uploadLibrary) return;
@@ -560,12 +570,7 @@ export default function AssetBrowser({ embedded = false }: Props) {
             size="small"
             variant="contained"
             startIcon={<CloudUploadOutlined sx={{ fontSize: 16 }} />}
-            onClick={() => {
-              setUploadFile(null);
-              setUploadOrigin("upload");
-              setUploadLibrary(libraries[0]?.uuid ?? "");
-              setUploadOpen(true);
-            }}
+            onClick={openUploadDialog}
             sx={{ fontSize: "0.78rem" }}
           >
             {t("assets.button.upload")}
@@ -614,6 +619,18 @@ export default function AssetBrowser({ embedded = false }: Props) {
               <Skeleton key={i} variant="rounded" height={160} sx={{ borderRadius: tokens.radius.lg, bgcolor: tokens.bg.elevated }} />
             ))}
           </Box>
+        ) : assets.length === 0 ? (
+          // Nothing at all yet — invite the user to upload their first asset.
+          <EmptyState
+            icon={PermMediaOutlined}
+            title={t("assets.empty.title")}
+            description={t("assets.empty.description")}
+            actionLabel={t("assets.empty.action")}
+            actionIcon={<CloudUploadOutlined sx={{ fontSize: 18 }} />}
+            onAction={openUploadDialog}
+            testId="assets-empty-state"
+            compact={embedded}
+          />
         ) : filtered.length === 0 ? (
           <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 200, gap: 1 }}>
             <SearchOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />

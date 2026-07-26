@@ -1,0 +1,143 @@
+---
+title: Playbooks
+weight: 3
+---
+
+Playbooks are **task-oriented guides**. Where the reference pages describe one component at a time —
+a node, an endpoint, a config key — a playbook walks a whole job end to end: what you are building,
+the commands and manifests in order, and how to check that it actually worked.
+
+Each playbook is self-contained. Start at the top, run the steps, and finish with the verification
+section. Where a step depends on behaviour documented elsewhere, it links to the reference page rather
+than repeating it.
+
+++++
+<div class="row mt-4 mb-4">
+	<div class="col-lg-6 mb-4">
+		<div class="docs-card h-100">
+			<div class="docs-card-header">
+				<h2><a href="docker/">Deploying with Docker</a></h2>
+				<p>A production-shaped stack on a single host: PostgreSQL, the Loom server and one or more Cortex workers, wired with the volumes and the worker token they need to survive a restart.</p>
+			</div>
+			<div class="docs-card-body">
+				<a href="docker/#compose" class="docs-card-link">Compose file</a>
+				<a href="docker/#persist" class="docs-card-link">What to persist</a>
+				<a href="docker/#scaling" class="docs-card-link">Dedicated workers</a>
+				<a href="docker/#troubleshooting" class="docs-card-link">Troubleshooting</a>
+			</div>
+		</div>
+	</div>
+	<div class="col-lg-6 mb-4">
+		<div class="docs-card h-100">
+			<div class="docs-card-header">
+				<h2><a href="kubernetes/">Deploying on Kubernetes</a></h2>
+				<p>The same stack in-cluster: service accounts, the RBAC the chat's coding sandbox needs to spawn runner Pods, the guardrails that keep those Pods contained, and how to package it all as a Helm chart.</p>
+			</div>
+			<div class="docs-card-body">
+				<a href="kubernetes/#service-account" class="docs-card-link">Service account</a>
+				<a href="kubernetes/#sandbox" class="docs-card-link">Session sandboxes</a>
+				<a href="kubernetes/#guardrails" class="docs-card-link">Quotas &amp; NetworkPolicy</a>
+				<a href="kubernetes/#helm" class="docs-card-link">Helm packaging</a>
+			</div>
+		</div>
+	</div>
+	<div class="col-lg-4 mb-4">
+		<div class="docs-card h-100">
+			<div class="docs-card-header">
+				<h2><a href="transcription/">Transcribing for the Chat Agent</a></h2>
+				<p>Turn a library of video and audio into transcripts the AI agent can search, so questions like "what did they say about the launch date?" have something to answer from.</p>
+			</div>
+			<div class="docs-card-body">
+				<a href="transcription/#pipeline" class="docs-card-link">The pipeline</a>
+				<a href="transcription/#worker" class="docs-card-link">Worker setup</a>
+				<a href="transcription/#ask" class="docs-card-link">Ask the agent</a>
+			</div>
+		</div>
+	</div>
+	<div class="col-lg-4 mb-4">
+		<div class="docs-card h-100">
+			<div class="docs-card-header">
+				<h2><a href="scene-analysis/">Scene-Level Video Analysis</a></h2>
+				<p>Cut a video into scenes, then describe each one — from the soundtrack with Whisper, from the picture with a vision model, or both.</p>
+			</div>
+			<div class="docs-card-body">
+				<a href="scene-analysis/#audio" class="docs-card-link">Audio route</a>
+				<a href="scene-analysis/#visual" class="docs-card-link">Visual route</a>
+				<a href="scene-analysis/#combined" class="docs-card-link">Both at once</a>
+			</div>
+		</div>
+	</div>
+	<div class="col-lg-4 mb-4">
+		<div class="docs-card h-100">
+			<div class="docs-card-header">
+				<h2><a href="translation/">Translating Content</a></h2>
+				<p>Get source text out of speech, documents and images, translate it, and — optionally — speak the translation back onto the asset as narration audio.</p>
+			</div>
+			<div class="docs-card-body">
+				<a href="translation/#extract" class="docs-card-link">Extract</a>
+				<a href="translation/#translate" class="docs-card-link">Translate</a>
+				<a href="translation/#dub" class="docs-card-link">Dub</a>
+			</div>
+		</div>
+	</div>
+</div>
+++++
+
+== Before You Start
+
+Every playbook assumes you can reach a Loom server and log in. If you have not run MetaLoom before,
+start with link:../getting-started/[Getting Started] — the demo image gets you a working system in one
+command — and come back here when you want to build the real thing.
+
+The deployment playbooks assume familiarity with the link:../deployment/[container images] and their
+ports. The pipeline playbooks assume you have read link:../pipeline/[Pipeline Mechanism]: Loom owns the
+graph and dispatches one node task at a time to a registered link:../cortex/[Cortex] worker, which is
+why "which worker can run this node kind" appears in every one of them.
+
+[#node-availability]
+== Which Node Kinds a Worker Can Actually Run
+
+The pipeline playbooks assume the node kinds they use are *dispatchable*, and that deserves a precise
+statement because it is the difference between a pipeline that runs and one that is rejected with
+`503`.
+
+A Cortex worker announces, at registration, the node kinds its **pipeline node factory** has producers
+for. Loom dispatches a task only to a worker that accepts its kind. Being present in the worker's
+Dagger node collection is not enough — the kind has to be registered with the factory as well.
+
+As of this revision the stock `metaloom/cortex-server` image registers:
+
+[source,text]
+----
+filesystem-source · asset-source · md5 · sha256 · sha512 · chunk-hash · thumbnail · vlm · tts
+----
+
+The other built-in nodes — `whisper`, `llm`, `ocr`, `tika`, `facedetect`, `facedescription`,
+`captioning`, `scene-detection`, `quality`, `consistency`, the dedup kinds, `loom` and the `filter-*`
+kinds — exist, are covered by tests, and are wired into the worker's node collection, but are **not yet
+registered with the pipeline node factory**, so Loom will not route work to them. The registered set is
+growing; `vlm` and `tts` were the most recent additions.
+
+Until a kind you need appears in that list, either register it in
+`cortex/cli/src/main/java/io/metaloom/cortex/cli/dagger/PipelineNodeFactoryModule.java` (one
+`factory.register(...)` line) and rebuild the worker image, or run it from a custom Cortex build as
+described in link:../cortex/examples/[Cortex Examples]. Check the live answer for your deployment with:
+
+[source,bash]
+----
+curl -s -H "Authorization: Bearer $TOKEN" $LOOM/api/v1/processors | jq '.[] | {nodeId, nodeWhitelist}'
+----
+
+The graphs in the playbooks are written against the node model as designed, so they stay correct as
+the registered set fills in.
+
+== Conventions Used Here
+
+[options="header",cols="1,3"]
+|===
+| Convention | Meaning
+| `$LOOM` | Base URL of the Loom server, e.g. `http://localhost:8092`
+| `$TOKEN` | A JWT from `POST /api/v1/auth/login`, or an API key from `/api/v1/tokens`
+| Pipeline JSON | Shown in the shape Loom's graph parser executes — `nodes[]`, `edges[]`, per-node `options`
+| Node kinds | Written as they appear in a definition's `type` field: `whisper`, `filter-mimetype`, …
+|===

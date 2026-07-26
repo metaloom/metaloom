@@ -5,6 +5,10 @@ title: OCR
 The OCR node extracts text from images and document scans using **Tesseract** (via Tess4J). The
 recognized text is stored so it can be indexed and searched.
 
+++++
+<div class="ml-nodeviz" data-nodeviz='{"kind":"ocr","applies":"Image","badge":"Tesseract / tessdata","persist":"asset_json_comp + asset_node_result ledger","inputs":[{"t":"image","l":"image or scan"}],"outputs":[{"t":"text","l":"ocr_text","d":"recognised glyphs"}]}'></div>
+++++
+
 [cols="1,3"]
 |===
 | Kind | `ocr`

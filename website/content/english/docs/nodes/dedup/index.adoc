@@ -5,6 +5,10 @@ title: Deduplication
 The deduplication nodes detect duplicate media and move the extra copies aside. Two variants exist:
 one by exact content hash, one by perceptual video fingerprint.
 
+++++
+<div class="ml-nodeviz" data-nodeviz='{"kind":"dedup","applies":"Any file \u00b7 Video","badge":"CPU only","persist":"asset_node_result ledger (the move is the side effect)","configs":[{"name":"sha512-dedup","note":"exact duplicates by content hash","inputs":[{"t":"hash","l":"sha512","d":"from the hash node"}],"outputs":[{"t":"action","l":"duplicate moved","d":"into dupFolder"}]},{"name":"fingerprint dedup (stub)","note":"detects, does not yet move files","inputs":[{"t":"hash","l":"fingerprint","d":"from the fingerprint node"}],"outputs":[{"t":"action","l":"near-duplicate flagged","d":"not yet implemented"}]}]}'></div>
+++++
+
 [cols="1,3"]
 |===
 | Kinds | `sha512-dedup` (hash dedup), fingerprint dedup

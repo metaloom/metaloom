@@ -25,6 +25,7 @@ import {
 import MarkdownContent from "./MarkdownContent";
 import ReasoningSection from "./ReasoningSection";
 import SkillsPanel from "./SkillsPanel";
+import ChatGreeting from "./ChatGreeting";
 import { useToast } from "../../context/ToastContext";
 import { useSpace } from "../../context/SpaceContext";
 import { useTranslation } from "react-i18next";
@@ -415,7 +416,7 @@ interface StreamingState {
 // ── Main Chat Workspace ───────────────────────────────────────────────────
 export default function ChatWorkspace() {
   const { activeSpace } = useSpace();
-  const { token } = useAuth();
+  const { token, username } = useAuth();
   const { t } = useTranslation();
   const { showToast } = useToast();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -802,6 +803,8 @@ export default function ChatWorkspace() {
 
         {/* Messages */}
         <Box ref={scrollRef} sx={{ flex: 1, overflow: "auto", px: 2, py: 1.5 }}>
+          {/* Fresh session: greet the user instead of showing an empty transcript */}
+          {messages.length === 0 && !streaming && !sending && <ChatGreeting username={username} />}
           {messages.map((msg) => (
             <MessageBubble key={msg.id} msg={msg} onFollowUp={sendMessage} onAssetClick={(id) => setSelectedAssetId(id)} />
           ))}

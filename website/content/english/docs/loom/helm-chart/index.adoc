@@ -2,22 +2,29 @@
 title: Helm Chart
 ---
 
-The Loom Helm chart is the Kubernetes deployment entry point for running the server in-cluster.
+Kubernetes is the supported production deployment path for Loom. The full walkthrough — service
+account, RBAC for the chat's coding sandbox, quotas, NetworkPolicy and the Cortex worker pools — is in
+the link:../../playbooks/kubernetes/[Kubernetes playbook].
 
-== Location
+== Status
 
-The chart is available in the `loom/helm` directory of the source repository.
+WARNING: `loom/helm` in the source repository is currently a **placeholder**: it contains a README and
+no chart. There is no `helm install` to run yet.
 
-== Typical Use
+Until a chart ships, deploy with the manifests in the
+link:../../playbooks/kubernetes/[Kubernetes playbook], or wrap them in a chart of your own. That page
+also carries a suggested `values.yaml` layout, so a chart written now stays close to the one that will
+be published.
 
-Use the chart when you want to deploy Loom together with database, ingress, persistent volumes and environment-specific values files in a Kubernetes environment.
+== What a Chart Must Cover
 
-== Example
+Two things are easy to miss when packaging Loom, and both are called out in the playbook:
 
-[source,bash]
-----
-helm upgrade --install loom ./loom/helm \
-  --namespace loom \
-  --create-namespace \
-  --values values.yaml
-----
+* The `/config` volume holds `loom.yml` and `keystore.jceks` — the JWT signing key. It must be
+  persistent, or every issued token stops verifying after a restart.
+* Enabling the coding sandbox (`LOOM_AGENT_SANDBOX_ENABLED`) is only complete together with the Role,
+  RoleBinding, ResourceQuota, LimitRange and NetworkPolicy for the runner namespace. Templating the
+  environment variable alone produces a deployment that cannot create runners, or creates unconstrained
+  ones.
+
+See link:../artifacts/[Artifacts] for the published Maven and container coordinates.

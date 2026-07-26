@@ -49,10 +49,17 @@
    "groups": "Gruppen",
    "permissions": "Berechtigungen",
    "apiKeys": "API-Schlüssel",
-   "blacklist": "Sperrliste"
+   "blacklist": "Sperrliste",
+   "memoryDenylist": "Gedächtnis-Sperrliste"
   },
   "divider": {
-   "admin": "Administration"
+   "admin": "Administration",
+   "ai": "KI",
+   "content": "Inhalte",
+   "management": "Verwaltung"
+  },
+  "group": {
+   "acl": "ACL"
   },
   "menu": {
    "profile": "Profil",
@@ -109,7 +116,10 @@
    "clearFilters": "Filter zurücksetzen"
   },
   "empty": {
-   "noMatch": "Keine Assets entsprechen Ihren Filtern"
+   "noMatch": "Keine Assets entsprechen Ihren Filtern",
+   "title": "Bereit, deine Mediathek aufzubauen?",
+   "description": "Lade Material hoch, lass es von den Pipelines anreichern und organisiere alles an einem Ort.",
+   "action": "Erstes Asset hochladen"
   },
   "button": {
    "upload": "Hochladen",
@@ -193,6 +203,16 @@
   },
   "toast": {
    "deleted": "Bibliothek gelöscht"
+  },
+  "emptyState": {
+   "title": "Willst du ein Projekt starten?",
+   "description": "In Bibliotheken liegt dein Material. Lege eine an, um Medien hochzuladen, eigene Vorgaben zu setzen und alles an einem Ort zu organisieren.",
+   "action": "Erste Bibliothek anlegen",
+   "assets": {
+    "title": "Diese Bibliothek ist noch leer",
+    "description": "Lade Medien in diese Bibliothek hoch — sie erscheinen hier und können getaggt, analysiert und geprüft werden.",
+    "action": "Assets hochladen"
+   }
   }
  },
  "collections": {
@@ -221,7 +241,10 @@
   "empty": {
    "noCollections": "Keine Sammlungen in diesem Space",
    "noSearch": "Keine Sammlungen entsprechen Ihrer Suche",
-   "noAssets": "Keine Assets in dieser Sammlung"
+   "noAssets": "Keine Assets in dieser Sammlung",
+   "title": "Möchtest du deine Arbeit bündeln?",
+   "description": "Kollektionen fassen zusammengehörige Assets zusammen, damit eine Kampagne, ein Dreh oder ein Projekt an einem Ort bleibt.",
+   "action": "Erste Kollektion anlegen"
   },
   "dialog": {
    "newCollection": "Neue Sammlung",
@@ -304,6 +327,11 @@
    "addPlaceholder": "Kommentar schreiben…",
    "post": "Kommentar senden",
    "empty": "Noch keine Kommentare"
+  },
+  "emptyState": {
+   "title": "Noch nichts zu tun",
+   "description": "Aufgaben steuern Review, Freigabe und Nacharbeit an deinen Medien — mit Priorität, Zuständigkeit und Fälligkeit.",
+   "action": "Erste Aufgabe anlegen"
   }
  },
  "monitoring": {
@@ -381,6 +409,11 @@
    "helper": "Sammlung ändern, um den Tag in eine andere Gruppe zu verschieben",
    "rating": "Deine Bewertung",
    "save": "Speichern"
+  },
+  "emptyState": {
+   "title": "Noch nichts getaggt?",
+   "description": "Tags beschreiben den Inhalt deiner Medien, damit du — und der Agent — sie in Sekunden wiederfindest.",
+   "action": "Ersten Tag anlegen"
   }
  },
  "profile": {
@@ -475,6 +508,11 @@
    "active": "Aktive Skills ({{count}})",
    "none": "Noch keine Skills — unter Skills anlegen",
    "manage": "Skills verwalten"
+  },
+  "greeting": {
+   "hello": "Hallo {{name}}",
+   "helloAnonymous": "Hallo",
+   "subtitle": "Frag nach deinen Assets, Aufgaben, Kollektionen oder Transkripten — der Loom Agent durchsucht deinen Space und antwortet mit den gefundenen Objekten."
   }
  },
  "admin": {
@@ -576,6 +614,132 @@
    "permissionsCount": "Berechtigungen",
    "permissionsGranted": "Berechtigungen erteilt",
    "empty": "Wählen Sie eine Rolle, um ihre Berechtigungen zu verwalten",
+   "permission": {
+    "CREATE_ANNOTATION": "Neue Annotationen anlegen — Bereichsmarkierungen und Notizen auf einem Asset.",
+    "READ_ANNOTATION": "Annotationen ansehen — Bereichsmarkierungen und Notizen auf einem Asset.",
+    "DELETE_ANNOTATION": "Annotationen löschen — Bereichsmarkierungen und Notizen auf einem Asset.",
+    "UPDATE_ANNOTATION": "Bestehende Annotationen bearbeiten — Bereichsmarkierungen und Notizen auf einem Asset.",
+    "CREATE_ASSET": "Neue Assets anlegen — Medien-Datensätze samt Metadaten.",
+    "READ_ASSET": "Assets ansehen — Medien-Datensätze samt Metadaten.",
+    "DELETE_ASSET": "Assets löschen — Medien-Datensätze samt Metadaten.",
+    "UPDATE_ASSET": "Bestehende Assets bearbeiten — Medien-Datensätze samt Metadaten.",
+    "CREATE_ASSET_BINARY": "Neue Asset-Binärdaten anlegen — die gespeicherten Dateibytes eines Assets.",
+    "READ_ASSET_BINARY": "Asset-Binärdaten ansehen — die gespeicherten Dateibytes eines Assets.",
+    "DELETE_ASSET_BINARY": "Asset-Binärdaten löschen — die gespeicherten Dateibytes eines Assets.",
+    "UPDATE_ASSET_BINARY": "Bestehende Asset-Binärdaten bearbeiten — die gespeicherten Dateibytes eines Assets.",
+    "CREATE_ASSET_LOCATION": "Neue Asset-Speicherorte anlegen — veraltete Speicherorte eines Assets.",
+    "READ_ASSET_LOCATION": "Asset-Speicherorte ansehen — veraltete Speicherorte eines Assets.",
+    "DELETE_ASSET_LOCATION": "Asset-Speicherorte löschen — veraltete Speicherorte eines Assets.",
+    "UPDATE_ASSET_LOCATION": "Bestehende Asset-Speicherorte bearbeiten — veraltete Speicherorte eines Assets.",
+    "CREATE_ATTACHMENT": "Neue Anhänge anlegen — Dateien, die einem Asset beiliegen.",
+    "READ_ATTACHMENT": "Anhänge ansehen — Dateien, die einem Asset beiliegen.",
+    "DELETE_ATTACHMENT": "Anhänge löschen — Dateien, die einem Asset beiliegen.",
+    "UPDATE_ATTACHMENT": "Bestehende Anhänge bearbeiten — Dateien, die einem Asset beiliegen.",
+    "CREATE_USER": "Neue Benutzer anlegen — Benutzerkonten.",
+    "READ_USER": "Benutzer ansehen — Benutzerkonten.",
+    "DELETE_USER": "Benutzer löschen — Benutzerkonten.",
+    "UPDATE_USER": "Bestehende Benutzer bearbeiten — Benutzerkonten.",
+    "CREATE_ROLE": "Neue Rollen anlegen — Rollen und die darin enthaltenen Berechtigungen.",
+    "READ_ROLE": "Rollen ansehen — Rollen und die darin enthaltenen Berechtigungen.",
+    "DELETE_ROLE": "Rollen löschen — Rollen und die darin enthaltenen Berechtigungen.",
+    "UPDATE_ROLE": "Bestehende Rollen bearbeiten — Rollen und die darin enthaltenen Berechtigungen.",
+    "CREATE_GROUP": "Neue Gruppen anlegen — Gruppen, die Benutzer und Rollen bündeln.",
+    "READ_GROUP": "Gruppen ansehen — Gruppen, die Benutzer und Rollen bündeln.",
+    "DELETE_GROUP": "Gruppen löschen — Gruppen, die Benutzer und Rollen bündeln.",
+    "UPDATE_GROUP": "Bestehende Gruppen bearbeiten — Gruppen, die Benutzer und Rollen bündeln.",
+    "CREATE_SPACE": "Neue Spaces anlegen — oberste Mandanten mit Libraries und Collections.",
+    "READ_SPACE": "Spaces ansehen — oberste Mandanten mit Libraries und Collections.",
+    "DELETE_SPACE": "Spaces löschen — oberste Mandanten mit Libraries und Collections.",
+    "UPDATE_SPACE": "Bestehende Spaces bearbeiten — oberste Mandanten mit Libraries und Collections.",
+    "CREATE_CLUSTER": "Neue Cluster anlegen — Cluster ähnlicher Gesichts-Embeddings.",
+    "READ_CLUSTER": "Cluster ansehen — Cluster ähnlicher Gesichts-Embeddings.",
+    "DELETE_CLUSTER": "Cluster löschen — Cluster ähnlicher Gesichts-Embeddings.",
+    "UPDATE_CLUSTER": "Bestehende Cluster bearbeiten — Cluster ähnlicher Gesichts-Embeddings.",
+    "CREATE_COLLECTION": "Neue Collections anlegen — kuratierte Asset-Sammlungen.",
+    "READ_COLLECTION": "Collections ansehen — kuratierte Asset-Sammlungen.",
+    "DELETE_COLLECTION": "Collections löschen — kuratierte Asset-Sammlungen.",
+    "UPDATE_COLLECTION": "Bestehende Collections bearbeiten — kuratierte Asset-Sammlungen.",
+    "CREATE_COMMENT": "Neue Kommentare anlegen — Benutzerkommentare zu Assets.",
+    "READ_COMMENT": "Kommentare ansehen — Benutzerkommentare zu Assets.",
+    "DELETE_COMMENT": "Kommentare löschen — Benutzerkommentare zu Assets.",
+    "UPDATE_COMMENT": "Bestehende Kommentare bearbeiten — Benutzerkommentare zu Assets.",
+    "CREATE_EMBEDDING": "Neue Embeddings anlegen — Vektoren für die Ähnlichkeitssuche.",
+    "READ_EMBEDDING": "Embeddings ansehen — Vektoren für die Ähnlichkeitssuche.",
+    "DELETE_EMBEDDING": "Embeddings löschen — Vektoren für die Ähnlichkeitssuche.",
+    "UPDATE_EMBEDDING": "Bestehende Embeddings bearbeiten — Vektoren für die Ähnlichkeitssuche.",
+    "CREATE_REACTION": "Neue Reaktionen anlegen — Likes und eigene Reaktionen.",
+    "READ_REACTION": "Reaktionen ansehen — Likes und eigene Reaktionen.",
+    "DELETE_REACTION": "Reaktionen löschen — Likes und eigene Reaktionen.",
+    "UPDATE_REACTION": "Bestehende Reaktionen bearbeiten — Likes und eigene Reaktionen.",
+    "CREATE_TASK": "Neue Tasks anlegen — Hintergrundjobs wie Massen-Import.",
+    "READ_TASK": "Tasks ansehen — Hintergrundjobs wie Massen-Import.",
+    "DELETE_TASK": "Tasks löschen — Hintergrundjobs wie Massen-Import.",
+    "UPDATE_TASK": "Bestehende Tasks bearbeiten — Hintergrundjobs wie Massen-Import.",
+    "CREATE_TAG": "Neue Tags anlegen — das Tag-Vokabular.",
+    "READ_TAG": "Tags ansehen — das Tag-Vokabular.",
+    "DELETE_TAG": "Tags löschen — das Tag-Vokabular.",
+    "UPDATE_TAG": "Bestehende Tags bearbeiten — das Tag-Vokabular.",
+    "TAG_ASSET": "Ein Tag an ein Asset anhängen.",
+    "UNTAG_ASSET": "Ein Tag von einem Asset entfernen.",
+    "CREATE_TOKEN": "Neue API-Keys anlegen — langlebige Tokens für Service-Accounts.",
+    "READ_TOKEN": "API-Keys ansehen — langlebige Tokens für Service-Accounts.",
+    "DELETE_TOKEN": "API-Keys löschen — langlebige Tokens für Service-Accounts.",
+    "UPDATE_TOKEN": "Bestehende API-Keys bearbeiten — langlebige Tokens für Service-Accounts.",
+    "CREATE_LIBRARY": "Neue Libraries anlegen — Libraries, die Asset-Pools gruppieren.",
+    "READ_LIBRARY": "Libraries ansehen — Libraries, die Asset-Pools gruppieren.",
+    "DELETE_LIBRARY": "Libraries löschen — Libraries, die Asset-Pools gruppieren.",
+    "UPDATE_LIBRARY": "Bestehende Libraries bearbeiten — Libraries, die Asset-Pools gruppieren.",
+    "CREATE_PIPELINE": "Neue Pipelines anlegen — Definitionen von Verarbeitungs-Pipelines.",
+    "READ_PIPELINE": "Pipelines ansehen — Definitionen von Verarbeitungs-Pipelines.",
+    "DELETE_PIPELINE": "Pipelines löschen — Definitionen von Verarbeitungs-Pipelines.",
+    "UPDATE_PIPELINE": "Bestehende Pipelines bearbeiten — Definitionen von Verarbeitungs-Pipelines.",
+    "READ_PIPELINE_VERSION": "Den Versionsverlauf einer Pipeline ansehen.",
+    "RESTORE_PIPELINE_VERSION": "Eine Pipeline auf eine frühere Version zurücksetzen.",
+    "CREATE_PIPELINE_RUN": "Neue Pipeline-Läufe anlegen — Ausführungen einer Pipeline.",
+    "READ_PIPELINE_RUN": "Pipeline-Läufe ansehen — Ausführungen einer Pipeline.",
+    "UPDATE_PIPELINE_RUN": "Bestehende Pipeline-Läufe bearbeiten — Ausführungen einer Pipeline.",
+    "DELETE_PIPELINE_RUN": "Pipeline-Läufe löschen — Ausführungen einer Pipeline.",
+    "CREATE_ASSET_POOL": "Neue Asset-Pools anlegen — Speicherorte, aus denen Assets eingelesen werden.",
+    "READ_ASSET_POOL": "Asset-Pools ansehen — Speicherorte, aus denen Assets eingelesen werden.",
+    "DELETE_ASSET_POOL": "Asset-Pools löschen — Speicherorte, aus denen Assets eingelesen werden.",
+    "UPDATE_ASSET_POOL": "Bestehende Asset-Pools bearbeiten — Speicherorte, aus denen Assets eingelesen werden.",
+    "CREATE_BLACKLIST": "Neue Blacklist-Einträge anlegen — Hashes und Fingerprints, die nicht importiert werden dürfen.",
+    "READ_BLACKLIST": "Blacklist-Einträge ansehen — Hashes und Fingerprints, die nicht importiert werden dürfen.",
+    "DELETE_BLACKLIST": "Blacklist-Einträge löschen — Hashes und Fingerprints, die nicht importiert werden dürfen.",
+    "UPDATE_BLACKLIST": "Bestehende Blacklist-Einträge bearbeiten — Hashes und Fingerprints, die nicht importiert werden dürfen.",
+    "CREATE_PERSON": "Neue Personen anlegen — Personen, die über Gesichtserkennungen identifiziert werden.",
+    "READ_PERSON": "Personen ansehen — Personen, die über Gesichtserkennungen identifiziert werden.",
+    "DELETE_PERSON": "Personen löschen — Personen, die über Gesichtserkennungen identifiziert werden.",
+    "UPDATE_PERSON": "Bestehende Personen bearbeiten — Personen, die über Gesichtserkennungen identifiziert werden.",
+    "CREATE_DETECTION": "Neue Detections anlegen — in einem Asset gefundene Gesichter und Objekte.",
+    "READ_DETECTION": "Detections ansehen — in einem Asset gefundene Gesichter und Objekte.",
+    "DELETE_DETECTION": "Detections löschen — in einem Asset gefundene Gesichter und Objekte.",
+    "UPDATE_DETECTION": "Bestehende Detections bearbeiten — in einem Asset gefundene Gesichter und Objekte.",
+    "CREATE_CHAT": "Neue Chats anlegen — Unterhaltungen mit dem KI-Agenten.",
+    "READ_CHAT": "Chats ansehen — Unterhaltungen mit dem KI-Agenten.",
+    "DELETE_CHAT": "Chats löschen — Unterhaltungen mit dem KI-Agenten.",
+    "UPDATE_CHAT": "Bestehende Chats bearbeiten — Unterhaltungen mit dem KI-Agenten.",
+    "CREATE_SKILL": "Neue Skills anlegen — Anweisungspakete, die den Agenten steuern.",
+    "READ_SKILL": "Skills ansehen — Anweisungspakete, die den Agenten steuern.",
+    "DELETE_SKILL": "Skills löschen — Anweisungspakete, die den Agenten steuern.",
+    "UPDATE_SKILL": "Bestehende Skills bearbeiten — Anweisungspakete, die den Agenten steuern.",
+    "READ_SKILL_VERSION": "Den Versionsverlauf eines Skills ansehen.",
+    "RESTORE_SKILL_VERSION": "Einen Skill auf eine frühere Version zurücksetzen.",
+    "CREATE_CHAT_SESSION": "Neue Chat-Sessions anlegen — veröffentlichbare Snapshots eines Chats samt Workspace.",
+    "READ_CHAT_SESSION": "Chat-Sessions ansehen — veröffentlichbare Snapshots eines Chats samt Workspace.",
+    "DELETE_CHAT_SESSION": "Chat-Sessions löschen — veröffentlichbare Snapshots eines Chats samt Workspace.",
+    "UPDATE_CHAT_SESSION": "Bestehende Chat-Sessions bearbeiten — veröffentlichbare Snapshots eines Chats samt Workspace.",
+    "CREATE_MEMORY": "Neue Memory-Notizen anlegen — dauerhafte Notizen, die der Agent über Chats hinweg behält.",
+    "READ_MEMORY": "Memory-Notizen ansehen — dauerhafte Notizen, die der Agent über Chats hinweg behält.",
+    "DELETE_MEMORY": "Memory-Notizen löschen — dauerhafte Notizen, die der Agent über Chats hinweg behält.",
+    "UPDATE_MEMORY": "Bestehende Memory-Notizen bearbeiten — dauerhafte Notizen, die der Agent über Chats hinweg behält.",
+    "CREATE_MEMORY_DENY_RULE": "Neue Memory-Sperrregeln anlegen — Muster, die der Agent niemals speichern darf.",
+    "READ_MEMORY_DENY_RULE": "Memory-Sperrregeln ansehen — Muster, die der Agent niemals speichern darf.",
+    "DELETE_MEMORY_DENY_RULE": "Memory-Sperrregeln löschen — Muster, die der Agent niemals speichern darf.",
+    "UPDATE_MEMORY_DENY_RULE": "Bestehende Memory-Sperrregeln bearbeiten — Muster, die der Agent niemals speichern darf.",
+    "MANAGE_CORTEX_INSTANCE": "Registrierte Cortex-Worker verwalten — Verarbeitungsinstanzen freigeben, konfigurieren und entfernen.",
+    "READ_CORTEX_INSTANCE": "Registrierte Cortex-Worker und deren Status ansehen."
+   },
    "dialog": {
     "create": "Rolle erstellen",
     "edit": "Rolle bearbeiten",
@@ -1236,6 +1400,11 @@
    "createError": "Pool konnte nicht erstellt werden",
    "updateError": "Pool konnte nicht aktualisiert werden",
    "deleteError": "Pool konnte nicht gelöscht werden"
+  },
+  "emptyState": {
+   "title": "Noch keine Storage-Pools",
+   "description": "Asset-Pools legen fest, wo Binärdaten gespeichert und repliziert werden. Lege einen an, um deinen Medien ein Zuhause zu geben.",
+   "action": "Ersten Pool anlegen"
   }
  },
  "reactions": {
@@ -1474,6 +1643,15 @@
    "loading": "Versionen werden geladen…",
    "badge": "v{{version}}",
    "saveHint": "Änderungen an den Anweisungen erzeugen eine neue Version"
+  },
+  "emptyState": {
+   "title": "Bring dem Agenten etwas bei",
+   "description": "Skills sind Markdown-Anleitungen, die der Loom Agent bei Bedarf lädt. Schreibe eine, aktiviere sie pro Unterhaltung und veröffentliche sie für dein Team.",
+   "action": "Ersten Skill anlegen",
+   "library": {
+    "title": "Die geteilte Bibliothek ist leer",
+    "description": "Sobald Kolleginnen und Kollegen Skills veröffentlichen, erscheinen sie hier und können installiert werden."
+   }
   }
  },
  "memory": {

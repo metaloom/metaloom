@@ -21,6 +21,8 @@ import io.metaloom.cortex.node.hash.MD5Node;
 import io.metaloom.cortex.node.hash.SHA256Node;
 import io.metaloom.cortex.node.hash.SHA512Node;
 import io.metaloom.cortex.node.thumbnail.ThumbnailNode;
+import io.metaloom.cortex.node.tts.TtsNode;
+import io.metaloom.cortex.node.vlm.VlmNode;
 import io.metaloom.cortex.pipeline.api.NodeMode;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 import io.metaloom.cortex.api.media.LoomMedia;
@@ -50,6 +52,8 @@ public class PipelineNodeFactoryModule {
 	public static NodeFactory provideNodeFactory(
 		SHA512Node sha512, SHA256Node sha256, MD5Node md5, ChunkHashNode chunkHash,
 		ThumbnailNode thumbnail,
+		VlmNode vlm,
+		TtsNode tts,
 		LoomMediaLoader mediaLoader,
 		FilesystemSourceNodeOptions fsSourceOptions,
 		CortexOptions cortexOptions) {
@@ -72,6 +76,8 @@ public class PipelineNodeFactoryModule {
 		factory.register("md5", def -> adapt(md5, def, cortexOptions));
 		factory.register("chunk-hash", def -> adapt(chunkHash, def, cortexOptions));
 		factory.register("thumbnail", def -> adapt(thumbnail, def, cortexOptions));
+		factory.register("vlm", def -> adapt(vlm, def, cortexOptions));
+		factory.register("tts", def -> adapt(tts, def, cortexOptions));
 
 		log.info("Registered {} node producers with the pipeline node factory", factory.registeredTypes().size());
 		return factory;

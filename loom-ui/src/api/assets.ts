@@ -218,6 +218,17 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/**
+ * URL of the raw bytes stored for an asset.
+ *
+ * Used as an `<img src>`, which cannot carry an `Authorization` header — the request
+ * authenticates with the HttpOnly JWT cookie the login endpoint sets, so this only
+ * resolves for a same-origin API base (which is how the UI is served).
+ */
+export function assetBinaryUrl(uuid: string): string {
+  return `${API_BASE_URL}/assets/${encodeURIComponent(uuid)}/binary/data`;
+}
+
 // ── CRUD API ──────────────────────────────────────────────────────────
 
 export async function listAssets(token: string): Promise<AssetListResponse> {

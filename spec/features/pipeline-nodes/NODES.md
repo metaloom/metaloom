@@ -139,8 +139,9 @@ no-op in offline mode):
 | Facedetect | `assets/:uuid/detections/bulk` → `detection` (upsert) | `bulkCreateAssetDetections` |
 | Whisper | `assets/:uuid/transcripts` → `asset_transcript_comp` | `createAssetTranscript` |
 | SceneDetection | `assets/:uuid/segments` → `asset_segment_comp` (whole-set replace) | `createAssetSegmentComps` |
-| OCR, Tika, Quality, LLM, Captioning, Facedescription | `assets/:uuid/json-comps` → `asset_json_comp` (distinct `schemaType`) | `createAssetJsonComp` |
+| OCR, Tika, Quality, LLM, VLM, Captioning, Facedescription | `assets/:uuid/json-comps` → `asset_json_comp` (distinct `schemaType`) | `createAssetJsonComp` |
 | Thumbnail | ledger only (bytes stay in the local thumbnail cache) | `createAssetNodeResult` |
+| TTS | ledger only (generated WAV stays in the local `tts_bin` cache) | `createAssetNodeResult` |
 | HashDedup | ledger only (side effect: moves duplicate files) | `createAssetNodeResult` |
 
 The fingerprint (`asset_fingerprint_comp`) and segment (`asset_segment_comp`)
@@ -193,7 +194,7 @@ access-order LRU keyed by the media's absolute path.
 What each node caches: hash string / `SHA512` (hash nodes), zero-chunk count
 (consistency), recognized text (OCR), Tika content, scene-detection output,
 face count+flag snapshot (facedetect), per-face JSON (facedescription), caption,
-transcript JSON (whisper), per-prompt outputs (LLM), metric snapshot (quality),
+transcript JSON (whisper), per-prompt outputs (LLM and VLM), metric snapshot (quality),
 thumbnail path (thumbnail, itself backed by the durable `.thumb` file).
 
 ### Loom Backend Sync
@@ -234,7 +235,9 @@ Nodes persist results back to the Loom REST API. Two mechanisms coexist:
 | `OCRNode` | ocr | `ocr` | `ocr_text` (String) | Image only | OCR via Tesseract; configurable language and tessdata path |
 | `TikaNode` | tika | `tika` | `tika_flags` (String), `tika_content` (String) | Image, Audio, Video, Document | Apache Tika metadata extraction |
 | `WhisperNode` | whisper | `whisper` | `whisper_result` (String JSON) | Video, Audio | Speech-to-text via whisper.cpp; persists transcript to Loom |
+| `TtsNode` | tts | `tts` | `tts_flag` (String), `tts_path` (String) | Any (needs upstream text) | **Generative**: text-to-speech from an upstream node's text. DE via Orpheus/Kartoffel, EN via Kokoro, behind a FastAPI `/v1/tts` sidecar (`cortex/nodes/tts/server`). Writes the WAV to the local `tts_bin` cache; ledger only |
 | `LLMNode` | llm | `llm` | `llm_result_{promptId}` (String) | Any (uses filename) | LLM-based metadata extraction via Ollama; configurable prompts |
+| `VlmNode` | vlm | `vlm` | `vlm_result_{promptId}` (String) | Image only | Vision-language model over an OpenAI-compatible endpoint; ships an olmOCR document-transcription preset |
 | `QualityNode` | quality | `quality` | `blurriness`, `image_width/height`, `video_width/height/fps/frame_count`, `quality_flag` | Video, Image | Quality metrics (resolution, blurriness via Laplacian) |
 | `SceneDetectionNode` | scene-detection | `scene-detection` | `scene_detection` (String) | Video only | Optical-flow scene detection |
 | `CaptioningNode` | captioning | `captioning` | `caption_result` (String) | Image (video/audio stub) | Image captioning via SmolVLM vision model |
@@ -402,6 +405,7 @@ Every node has its own options class extending `AbstractNodeOptions<T>`:
 | Thumbnail | `ThumbnailNodeOptions` | `tileSize`, `cols`, `rows` |
 | OCR | `OCRNodeOptions` | `tessDataPath`, `language` |
 | LLM | `LLMNodeOptions` | `ollamaUrl`, `prompts` (Map of prompt configs) |
+| VLM | `VlmNodeOptions` | `endpointUrl`, `apiKey`, `prompts` (Map of `VlmNodePrompt`: `model`, `prompt`, `responseFormat`, `maxImageDim`, `maxTokens`, `temperature`, `retryOnRotation`) |
 | Captioning | `CaptioningNodeOptions` | `smolVLMHost`, `smolVLMPort` |
 | Dedup | `DedupNodeOptions` | `dupFolder` (Path) |
 | Filesystem Source | `FilesystemSourceNodeOptions` | `path` (String), `pathGlobs` (List&lt;String&gt;) — defaults used when the pipeline definition supplies no selection |
@@ -932,7 +936,7 @@ Compact per-node status. Verified against the code and test tree.
   `process`/`compute` (not just an `*OptionsValidationTest`).
 - **Integration test** — exercised by an `integration-test` pipeline run
   (only the registered kinds `filesystem-source`, `sha512`, `md5`, `chunk-hash`,
-  `thumbnail`, `loom` are driven end-to-end there).
+  `thumbnail`, `vlm`, `loom` are driven end-to-end there).
 - **Persists into Loom** — writes a typed payload and/or the
   `asset_node_result` ledger via the `LoomClient`.
 - **Caches (what)** — in-heap `LocalResultCache` (worker-lifetime, non-durable)
@@ -956,7 +960,9 @@ Compact per-node status. Verified against the code and test tree.
 | `OCRNode` | Yes | No | Yes - `asset_json_comp` + ledger | Yes - recognized text | No |
 | `TikaNode` | Yes | No | Yes - `asset_json_comp` + ledger | Yes - Tika content | No |
 | `WhisperNode` | Yes (+ persistence test) | No | Yes - `asset_transcript_comp` + ledger | Yes - transcript JSON | Partial - 1 track (`streamIndex 0`) |
+| `TtsNode` | Yes (+ persistence test) | No | Partial - ledger only (WAV stays in local `tts_bin`) | Yes - audio path | No |
 | `LLMNode` | Yes | No | Yes - `asset_json_comp` per prompt + ledger | Yes - per-prompt outputs | No |
+| `VlmNode` | Yes | Yes | Yes - `asset_json_comp` per prompt + ledger | Yes - per-prompt outputs | No |
 | `QualityNode` | No (options only) | No | Yes - `asset_json_comp` + ledger | Yes - metric snapshot | Partial - image/video block |
 | `SceneDetectionNode` | Yes | No | Yes - `asset_segment_comp` (replace) + ledger | Yes - scene output | Yes - scenes (`seq` set) |
 | `CaptioningNode` | Yes | No | Yes - `asset_json_comp` + ledger | Yes - caption | No (image only) |
@@ -967,16 +973,17 @@ Compact per-node status. Verified against the code and test tree.
 **Notable gaps**
 - **No unit test that runs the node**: `QualityNode` (only options validation),
   `HashDedupNode` / `FingerprintDedupNode` (test classes are empty stubs).
-- **Integration coverage**: beyond the 6 registered pipeline kinds, per-node
+- **Integration coverage**: beyond the 7 registered pipeline kinds, per-node
   end-to-end integration tests now live in `integration-test`
   (`io.metaloom.loom.test.integration.node.*NodeIntegrationTest`). Each boots a
   real in-process Loom (REST + pooled DB), runs the production node against a real
   file with a real `LoomHttpClient`, and asserts the typed payload reached its
   component table and is readable back via REST. Covered: hash (md5/sha256/
   sha512/chunk-hash), consistency, tika, quality, scene, thumbnail, fingerprint,
-  facedetect, ocr, whisper, loom. The compute is stubbed for nodes needing a
+  facedetect, ocr, vlm, whisper, tts, loom. The compute is stubbed for nodes needing a
   native model / external runtime (ocr → `OCRProvider`, whisper →
-  `WhisperMediaProcessor`, facedetect → `InspireFacedetector`) while the file,
+  `WhisperMediaProcessor`, facedetect → `InspireFacedetector`, tts → `TtsClient`)
+  while the file,
   client, persistence and REST read-back remain real; the video4j nodes (quality,
   scene, thumbnail, fingerprint) run real OpenCV compute and self-skip
   (`assumeVideo4j()`) when the native runtime is absent. The LLM-family nodes
@@ -985,8 +992,10 @@ Compact per-node status. Verified against the code and test tree.
   SmolVLM backend: `LLMNode` now takes an injectable `LLMProvider` + a
   `providerType` option (default Ollama; the IT injects `VLLMLLMProvider`),
   `CaptioningNode` takes an injectable `SmolVLMClient`, and `FacedescriptionNode`'s
-  `processFace` seam is routed to the mock. Every node kind now has an end-to-end
-  integration test.
+  `processFace` seam is routed to the mock. `VlmNode` follows the same pattern with
+  an injectable `VlmChatClient`, and because that client already speaks the
+  OpenAI-compatible protocol the mock exercises the node's real request/response
+  path rather than a stub. Every node kind now has an end-to-end integration test.
 - **Media components**: only `SceneDetectionNode` emits a genuine multi-row
   component set today; `FacedetectNode` rows are frame-indexed. Whisper and
   Fingerprint are hard-wired to a single index; true multi-track / multi-stream

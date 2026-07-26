@@ -128,6 +128,13 @@ docs/
 ├── variables.adoc-include # shared AsciiDoc attributes (:icons: font, :toc:, highlighter)
 ├── getting-started/       # run the demo container locally (weight: 1 → sorts first)
 ├── deployment/            # Container Images (loom-server/-demo, cortex-server, session-runner) + ports
+├── playbooks/             # ── Task-oriented end-to-end guides (weight: 3) ──
+│   ├── _index.adoc        # card grid + § "Which node kinds a worker can actually run"
+│   ├── docker/            # single-host stack: postgres + loom-server + cortex, volumes, compose
+│   ├── kubernetes/        # in-cluster stack, SA + sandbox RBAC/quota/NetworkPolicy, Helm packaging
+│   ├── transcription/     # whisper pipeline → transcripts the chat agent can search
+│   ├── scene-analysis/    # scene-detection + whisper/thumbnail; audio vs visual routes
+│   └── translation/       # extract (whisper/tika/ocr/vlm) → translate → optional tts dubbing
 ├── operation/             # Loom & Cortex runtime model — architecture, worker lifecycle (Loom owns the DAG)
 ├── pipeline/              # pipeline mechanism — Loom runs the graph, delegates tasks to Cortex
 ├── nodes/                 # ── Nodes subsystem (top-level "box" like Loom/Cortex) ──
@@ -249,6 +256,48 @@ operation descriptions, security schemes, inlined examples, endpoint coverage). 
 * Card headings inside raw-HTML blocks on a docs page carry `data-toc-skip` so bootstrap-toc keeps
   them out of the sidebar TOC.
 
+### Node diagrams (`nodeviz`)
+
+Every page under `docs/nodes/<kind>/` opens with a generated diagram of that node in a pipeline —
+typed inputs on the left, the node in the middle, typed outputs on the right, an animated flow, and a
+tab per alternative configuration. The page carries only a JSON spec inside a passthrough block:
+
+```asciidoc
+++++
+<div class="ml-nodeviz" data-nodeviz='{"kind":"ocr","applies":"Image","badge":"Tesseract / tessdata",
+  "persist":"asset_json_comp + ledger",
+  "inputs":[{"t":"image","l":"image or scan"}],
+  "outputs":[{"t":"text","l":"ocr_text","d":"recognised glyphs"}]}'></div>
+++++
+```
+
+* The renderer is `themes/meghna-hugo/static/plugins/nodeviz/nodeviz.js` (wired in `config.toml` like
+  Swagger/GraphiQL, and a no-op on pages without `.ml-nodeviz`). Geometry, icons and the animation
+  live there — **change the drawing once, all 19 pages follow**.
+* Port fields: `t` = data type (drives icon + colour), `l` = label, `d` = optional sub-label, `opt`
+  = dashed "optional" styling. Use `configs: [{name, note, inputs, outputs}, …]` for alternative
+  configurations; a single `inputs`/`outputs` pair is the shorthand for one config.
+* Types: `image · video · audio · document · file · text · json · number · boolean · hash · vector ·
+  face · bbox · timeframe · segments · path · flag · branch · action`. Unknown types fall back to a
+  neutral dot, so add new ones to `TYPES` + `icon()` rather than inventing labels.
+* The type key is rendered once on `docs/nodes/_index.adoc` via `<div class="ml-nodeviz-legend"></div>`.
+* The spec lives in a **single-quoted HTML attribute** — never use an apostrophe inside the JSON.
+* Styling is `.nv-*` in `less/includes/custom.less`, mirrored into the compiled `assets/css/main.css`.
+
+### Hand-drawn figures
+
+Non-node diagrams are inline SVG in a `++++` block using the shared `.ml-*` vocabulary in
+`custom.less` (`ml-box-container`, `ml-box-part`, `ml-edge`, `ml-chip`, `ml-step`, `ml-flow`,
+`ml-box-gpu`, `ml-box-dyn`, `ml-deny`): the architecture diagram and the container-level **deployment
+overview** on `docs/operation/`, and the **coding sandbox lifecycle** on `docs/loom/chat/`. Give each
+a `<title>` + `<desc>` — they are the accessible description of the figure.
+
+> **Animated figures must not change height.** The dispatch animation on `docs/operation/` swaps its
+> caption text every phase; when the caption box was allowed to grow from one line to two, the page
+> height oscillated, which toggled the window scrollbar and jittered the layout. The caption now has
+> a fixed height, and `custom.less` sets `html { scrollbar-gutter: stable; }` so a scrollbar
+> appearing never reflows the page.
+
 ### Updating the staged GraphQL schema (GraphiQL explorer)
 
 The **GraphQL API** page (`docs/loom/graphql-api/`) embeds a **GraphiQL** explorer (the
@@ -309,7 +358,14 @@ container on the shared `dev` docker network):
   the site root).
 * Credentials: **admin** / **finger** (`LOOM_INITIAL_PASSWORD`).
 * The database is auto-seeded by `DemoDatabaseInitializer` (assets, pipelines, faces, users, roles, tags,
-  API keys, …), so every screen has real content.
+  API keys, skills with two versions each, published chat sessions with context references, agent memory
+  notes, per-asset tasks …), so every screen has real content.
+* **Image assets carry real bytes.** The initializer paints them at runtime and stores them
+  content-addressed, so the asset browser and detail view show pictures rather than placeholder icons.
+  Videos, audio and PDFs have no browser-renderable preview and stay as placeholders — that is expected,
+  not a broken capture.
+* The demo image sets `LOOM_AGENT_MEMORY_ENABLED=true`; without it the memory endpoints are not
+  registered and the Memory screen reads "No memory scopes are available".
 
 ### 3. Capture
 
@@ -330,24 +386,31 @@ Route/action → filename (keep stable so refreshes overwrite in place):
 [cols="1,2"]
 |===
 | File | Source
-| `chat.png` | `/` — Chat & AI Agent (landing)
-| `skills.png` | Skills nav
-| `memory.png` | Memory nav
-| `assets.png` | Assets nav
-| `asset-detail.png` | Assets → first asset card
-| `library.png` | Library nav
-| `tags.png` | Tags nav
-| `face-detection.png` | Detection nav (defaults to the Faces tab)
-| `pipeline-editor.png` | Pipelines nav
+| `chat.png` | `/` — Chat (landing)
+| `chat-sessions.png` | AI → Chat Sessions
+| `skills.png` | AI → Skills
+| `memory.png` | AI → Memory
+| `assets.png` | Content → Assets
+| `asset-detail.png` | Assets → the `sunset-beach.jpg` card (targeted by name: list order is not stable, and this asset is the richest — stored binary, tags, reaction, detections, task)
+| `library.png` | Content → Library
+| `tags.png` | Content → Tags
+| `tasks.png` | Content → Tasks
+| `face-detection.png` | Content → Detection (defaults to the Faces tab)
+| `pipeline-editor.png` | Management → Pipelines
 | `pipeline-versions.png` | Pipelines → version badge (history popover open)
-| `cortex.png` | Cortex nav
-| `users.png` | Admin → Users
-| `acl-roles.png` | Admin → Permissions (ACL matrix)
-| `api-keys.png` | Admin → API Keys
+| `cortex.png` | Management → Cortex
+| `monitoring.png` | Management → Monitoring (extra settle time — Recharts animates its series in)
+| `users.png` | Management → ACL → Users
+| `acl-roles.png` | Management → ACL → Permissions (ACL matrix)
+| `api-keys.png` | Management → ACL → API Keys
 |===
 
-> Some views are unseeded in a bare demo (Skills, Agent Memory and per-library contents). The script
-> captures whatever the demo actually contains — do not fabricate data.
+> **The ACL screens sit in a collapsible sub-group** that starts closed. `openAclGroup()` clicks
+> `[data-testid="sidebar-group-acl"]` before those three captures; a nav click alone will time out.
+> `clickNav` matches `^\d*<label>\d*$` so an entry with a badge counter (Tasks) still resolves.
+
+> Per-library contents are unseeded in a bare demo. The script captures whatever the demo actually
+> contains — do not fabricate data.
 
 > **Click-to-zoom.** Docs content images (`.docs-main-content .imageblock img`) get a `zoom-in`
 > cursor and open in a full-screen modal *lightbox* on click (dismiss via backdrop click, the ×
@@ -520,6 +583,7 @@ change the Hugo source and rebuild.
 | I want to … | Look at |
 | --- | --- |
 | Add/edit a customer doc page | `website/content/english/docs/<section>/index.adoc` |
+| Add/edit a task-oriented guide | `website/content/english/docs/playbooks/<name>/index.adoc` (link it from `playbooks/_index.adoc` **and** `docs/_index.adoc`) |
 | Add a new docs section | New folder under `docs/` with `_index.adoc` (section) + child `index.adoc` pages; link it from `docs/_index.adoc` |
 | Change landing-page text | `website/data/en/<section>.yml` |
 | Change top navigation | `[[Languages.en.menu.main]]` blocks in `config.toml` |
@@ -592,6 +656,8 @@ Current state of the website (as of the checkout below):
 - [x] Chat & AI Agent docs (`docs/loom/chat/`) — agentic loop, Sessions, Skills, Memory, coding sandbox
 - [x] Loom UI docs (`docs/ui/`) — dark-mode screenshot tour of every UI area, a new "Loom UI" card on the
       docs landing grid, and a reproducible capture procedure (`loom-ui/scripts/capture-ui-screenshots.mjs`)
+- [x] UI docs follow the AI / Content / Management navigation (ACL sub-group), and cover Chat Sessions,
+      Tasks and Monitoring; asset screenshots show real image previews from the seeded binaries
 - [x] Agentic Coding Sandbox deployment (`docs/loom/agent-sandbox/`) — podman/k8s backends, RBAC, config
 - [x] Cortex docs updated to the daemon-that-serves-nodes model (Loom owns the DAG); ports use `8092`
 - [x] Cortex examples cover a custom node (Java), a custom daemon (Java) and a custom worker (Python)
@@ -616,6 +682,17 @@ Current state of the website (as of the checkout below):
       site theme)
 - [x] Server serves the same document at `/api/v1/openapi`, `/openapi.yaml` and `/openapi.json`
       with its own address as the server URL
+- [x] Playbooks section (`docs/playbooks/`) — Docker deployment, Kubernetes deployment (service
+      account, sandbox RBAC/quota/NetworkPolicy, Helm packaging), and three pipeline playbooks
+      (transcription for the chat agent, scene-level video analysis, translation). Linked from the docs
+      landing card grid, reading order and path table
+- [x] Corrected `docs/loom/helm-chart/` — the page previously documented `helm upgrade --install ./loom/helm`
+      although `loom/helm` contains only a README; it now states that status and points at the Kubernetes
+      playbook
+- [x] Explicit anchors added where cross-page links needed them (`loom/chat/`: `#coding-sandbox`,
+      `#memory`, `#skills`, `#example-skill-transcript-summarizer`; `nodes/`: `#requirements`) — the
+      existing `#coding-sandbox`/`#memory` links were pointing at Asciidoctor's auto-generated
+      `_coding_sandbox`/`_memory` ids and did not resolve
 - [x] Blog section with initial posts
 - [x] GitHub Pages publish flow via sibling `metaloom-website` repo (`pull.sh`, CNAME)
 - [ ] Remove/consolidate legacy stub pages (`docs/rest/`, `docs/test/`, top-level
@@ -629,9 +706,16 @@ Current state of the website (as of the checkout below):
 - [ ] Only load the ~1 MB Swagger UI bundle on the REST API page instead of globally
 - [ ] Fill remaining thin pages (e.g. `helm-chart`) with full content
 - [ ] Automate build+publish (currently manual `build.sh` + `pull.sh` + push)
+- [ ] Revisit the playbooks' "node availability" caveat once `PipelineNodeFactoryModule` registers the
+      remaining kinds (`whisper`, `llm`, `ocr`, `tika`, `facedetect`, `captioning`, `scene-detection`,
+      `quality`, `consistency`, dedup, `loom`, `filter-*`) — the stock worker currently advertises only
+      `filesystem-source`, `asset-source`, the hash kinds, `thumbnail`, `vlm` and `tts`
+- [ ] `docs/nodes/llm/` claims upstream outputs "can be referenced by prompts"; `LLMNode` only binds the
+      asset filename into the prompt. Fix the page (or the node) — the translation playbook documents the
+      code behaviour
 - [ ] Keep customer docs in sync with product specs under `spec/` (ongoing)
 
 ---
 
-_GIT HEAD: `183d36715c05e429474f7730d96869a906f3fecc` (branch `master`)_
+_GIT HEAD: `5fbbeebc24506e5bca815fb759e2440d0ff6e56a` (branch `master`)_
 _Generated: 2026-07-26 (UTC)_
