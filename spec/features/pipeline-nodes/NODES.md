@@ -139,7 +139,7 @@ no-op in offline mode):
 | Facedetect | `assets/:uuid/detections/bulk` → `detection` (upsert) | `bulkCreateAssetDetections` |
 | Whisper | `assets/:uuid/transcripts` → `asset_transcript_comp` | `createAssetTranscript` |
 | SceneDetection | `assets/:uuid/segments` → `asset_segment_comp` (whole-set replace) | `createAssetSegmentComps` |
-| OCR, Tika, Quality, LLM, VLM, Captioning, Facedescription | `assets/:uuid/json-comps` → `asset_json_comp` (distinct `schemaType`) | `createAssetJsonComp` |
+| OCR, Tika, Quality, LLM, VLM, Captioning, Facedescription, Sentiment | `assets/:uuid/json-comps` → `asset_json_comp` (distinct `schemaType`) | `createAssetJsonComp` |
 | Thumbnail | ledger only (bytes stay in the local thumbnail cache) | `createAssetNodeResult` |
 | TTS | ledger only (generated WAV stays in the local `tts_bin` cache) | `createAssetNodeResult` |
 | HashDedup | ledger only (side effect: moves duplicate files) | `createAssetNodeResult` |
@@ -236,6 +236,7 @@ Nodes persist results back to the Loom REST API. Two mechanisms coexist:
 | `TikaNode` | tika | `tika` | `tika_flags` (String), `tika_content` (String) | Image, Audio, Video, Document | Apache Tika metadata extraction |
 | `WhisperNode` | whisper | `whisper` | `whisper_result` (String JSON) | Video, Audio | Speech-to-text via whisper.cpp; persists transcript to Loom |
 | `TtsNode` | tts | `tts` | `tts_flag` (String), `tts_path` (String) | Any (needs upstream text) | **Generative**: text-to-speech from an upstream node's text. DE via Orpheus/Kartoffel, EN via Kokoro, behind a FastAPI `/v1/tts` sidecar (`sidecars/tts`). Writes the WAV to the local `tts_bin` cache; ledger only |
+| `SentimentNode` | sentiment | `sentiment` | `sentiment_label` (String), `sentiment_score` (Double), `sentiment_result` (String JSON) | Any (needs upstream text) | Polarity of upstream text (POSITIVE/NEUTRAL/NEGATIVE + signed `polarity`). DE via german-sentiment-bert, EN via twitter-roberta, behind a FastAPI `/v1/sentiment` sidecar (`sidecars/sentiment`). Persists to `asset_json_comp` (`variant` = source output key) |
 | `LLMNode` | llm | `llm` | `llm_result_{promptId}` (String) | Any (uses filename) | LLM-based metadata extraction via Ollama; configurable prompts |
 | `VlmNode` | vlm | `vlm` | `vlm_result_{promptId}` (String) | Image only | Vision-language model over an OpenAI-compatible endpoint; ships an olmOCR document-transcription preset |
 | `QualityNode` | quality | `quality` | `blurriness`, `image_width/height`, `video_width/height/fps/frame_count`, `quality_flag` | Video, Image | Quality metrics (resolution, blurriness via Laplacian) |
@@ -407,6 +408,7 @@ Every node has its own options class extending `AbstractNodeOptions<T>`:
 | LLM | `LLMNodeOptions` | `ollamaUrl`, `prompts` (Map of prompt configs) |
 | VLM | `VlmNodeOptions` | `endpointUrl`, `apiKey`, `prompts` (Map of `VlmNodePrompt`: `model`, `prompt`, `responseFormat`, `maxImageDim`, `maxTokens`, `temperature`, `retryOnRotation`) |
 | Captioning | `CaptioningNodeOptions` | Image: `smolVLMHost`, `smolVLMPort`. Video: `videoStrategy` (`WHOLE`/`SCENE`/`NATIVE`), `videoEndpointUrl`, `videoModel`, `videoApiKey`, `frameCount`, `targetFrameSize`, `maxScenes`, `maxTokens`, `temperature`, `videoPrompt` |
+| Sentiment | `SentimentNodeOptions` | `sentimentHost`, `sentimentPort` (9110), `language` (`auto`/`de`/`en`), `modelDe`, `modelEn`, `textSources` (ordered `nodeId:outputKey` list), `maxChars` |
 | Dedup | `DedupNodeOptions` | `dupFolder` (Path) |
 | Filesystem Source | `FilesystemSourceNodeOptions` | `path` (String), `pathGlobs` (List&lt;String&gt;) — defaults used when the pipeline definition supplies no selection |
 | Scene | `SceneDetectionOptions` | (no custom fields) |
@@ -998,6 +1000,7 @@ Compact per-node status. Verified against the code and test tree.
 | `TikaNode` | Yes | No | Yes - `asset_json_comp` + ledger | Yes - Tika content | No |
 | `WhisperNode` | Yes (+ persistence test) | No | Yes - `asset_transcript_comp` + ledger | Yes - transcript JSON | Partial - 1 track (`streamIndex 0`) |
 | `TtsNode` | Yes (+ persistence test) | No | Partial - ledger only (WAV stays in local `tts_bin`) | Yes - audio path | No |
+| `SentimentNode` | Yes (+ persistence test) | Yes | Yes - `asset_json_comp` (`variant` = source output key) + ledger | Yes - scored result JSON | No |
 | `LLMNode` | Yes | No | Yes - `asset_json_comp` per prompt + ledger | Yes - per-prompt outputs | No |
 | `VlmNode` | Yes | Yes | Yes - `asset_json_comp` per prompt + ledger | Yes - per-prompt outputs | No |
 | `QualityNode` | No (options only) | No | Yes - `asset_json_comp` + ledger | Yes - metric snapshot | Partial - image/video block |
@@ -1017,9 +1020,10 @@ Compact per-node status. Verified against the code and test tree.
   file with a real `LoomHttpClient`, and asserts the typed payload reached its
   component table and is readable back via REST. Covered: hash (md5/sha256/
   sha512/chunk-hash), consistency, tika, quality, scene, thumbnail, fingerprint,
-  facedetect, ocr, vlm, whisper, tts, loom. The compute is stubbed for nodes needing a
+  facedetect, ocr, vlm, whisper, tts, sentiment, loom. The compute is stubbed for nodes needing a
   native model / external runtime (ocr → `OCRProvider`, whisper →
-  `WhisperMediaProcessor`, facedetect → `InspireFacedetector`, tts → `TtsClient`)
+  `WhisperMediaProcessor`, facedetect → `InspireFacedetector`, tts → `TtsClient`,
+  sentiment → `SentimentClient`)
   while the file,
   client, persistence and REST read-back remain real; the video4j nodes (quality,
   scene, thumbnail, fingerprint) run real OpenCV compute and self-skip
@@ -1045,7 +1049,10 @@ Compact per-node status. Verified against the code and test tree.
 
 ---
 
-_Git HEAD revision: `990c14a8`_
-_Last updated: 2026-07-26 (executable node kinds are now derived from the node collection via
-`@Binds @IntoMap @StringKey` in each module + `NodeRegistrar` at bootstrap; §5/§8 updated; Loom rejects
-runs whose graph contains a kind no worker accepts with a full-graph 503 precheck)_
+_Git HEAD revision: `ff0b64e2`_
+_Last updated: 2026-07-27 (added the `sentiment` node — EN/DE polarity of upstream text via the
+`sidecars/sentiment` FastAPI sidecar, persisted to `asset_json_comp` with `variant` = source output
+key; see [NODE_SENTIMENT_PLAN.md](NODE_SENTIMENT_PLAN.md). Previously: executable node kinds are
+derived from the node collection via `@Binds @IntoMap @StringKey` in each module + `NodeRegistrar` at
+bootstrap; §5/§8 updated; Loom rejects runs whose graph contains a kind no worker accepts with a
+full-graph 503 precheck)_

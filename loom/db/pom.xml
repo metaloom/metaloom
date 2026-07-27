@@ -39,10 +39,6 @@
         <module>api-test</module>
         <module>flyway</module>
         <module>memory</module>
-        <!--
-		<module>fs</module>
-		<module>hibernate</module>
-		-->
         <module>jooq-gen</module>
         <module>jooq</module>
     </modules>

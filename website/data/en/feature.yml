@@ -85,9 +85,9 @@ feature:
   title_ops : Operations &amp; deployment
   content_ops : "What it takes to run MetaLoom in your own environment."
   feature_item_ops :
-    - title : Multiple Storage Options
+    - title : PostgreSQL Storage
       icon : ti-server
-      content : You can choose between different persistence backends — In-Memory, Filesystem, and PostgreSQL (jOOQ / Hibernate).
+      content : Metadata is stored in PostgreSQL through a code-generated jOOQ layer, with Flyway-managed schema migrations.
       link : /docs/loom/configuration/#_database
 
     - title : Monitoring

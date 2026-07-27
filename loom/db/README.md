@@ -1,10 +1,11 @@
 # Loom - DB
 
 * api       - Generic API for DB access
-* fs        - Filesystem specific implementation
-* memory    - In-Memory specific implementation 
-* hibernate - Hibernate specific implementation 
-* model     - Database domain model
+* api-test  - Shared DAO contract test cases
+* flyway    - SQL schema migrations
+* jooq      - jOOQ based implementation (production)
+* jooq-gen  - jOOQ code generation strategy
+* memory    - In-Memory specific implementation
 
 ## Domain Model
 

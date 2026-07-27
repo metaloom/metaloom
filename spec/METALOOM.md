@@ -114,8 +114,6 @@ api        # DAO/model interfaces – io.metaloom.loom.db.model.*
 api-test   # shared abstract test cases per DAO
 flyway     # SQL migrations + FlywayHelper (schema management)
 memory     # in-memory DAO impl (mostly for tests / offline)
-fs         # filesystem-backed DAO impl
-hibernate  # Hibernate-backed DAO impl
 jooq-gen   # jOOQ code-generation project (produces sources into jooq/src/jooq/java)
 jooq       # jOOQ-based DAO implementation (production impl)
 ```
@@ -488,7 +486,8 @@ decorator interfaces (`HashMedia`, `FacedetectMedia`, …). See the
 - [x] Pipeline engine corrected: RxJava 3, not `CompletableFuture`
 - [x] Removed the non-existent `cortex/actions/` tree
 - [x] Removed stale `/memories/repo/` cross-references
-- [x] `loom/db` module list completed (`fs`, `hibernate`)
+- [x] `loom/db` module list corrected — only `api`, `api-test`, `flyway`, `memory`,
+      `jooq-gen` and `jooq` exist; the `fs` and `hibernate` impls are gone
 - [x] Loom↔Cortex interaction summarised with pointers to the detail specs
 - [ ] `spec/AGENTS.md` and `spec/loom/PERMISSION.md` are still empty placeholders
 - [ ] Feature areas other than pipeline (assets, auth, search) are not yet

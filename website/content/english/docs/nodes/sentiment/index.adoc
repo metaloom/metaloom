@@ -1,0 +1,88 @@
+---
+title: Sentiment Analysis
+---
+
+The sentiment node **scores the tone of text** your pipeline has already produced. It does not look
+at the media itself — it takes text from an *upstream* node (link:../tika/[Tika] document content,
+link:../ocr/[OCR] text, a link:../captioning/[caption], or a link:../vlm/[VLM] /
+link:../llm/[LLM] answer) and labels it **positive**, **neutral** or **negative**, with a confidence
+score and a signed polarity value you can sort and filter on.
+
+German and English are handled by dedicated models — German with `german-sentiment-bert`, English
+with a RoBERTa model trained on social text — rather than one generic multilingual model, because a
+language specialist is measurably better on its own language. Both run behind a small HTTP sidecar,
+so the node stays a pure client and needs no model runtime of its own.
+
+++++
+<div class="ml-nodeviz" data-nodeviz='{"kind":"sentiment","applies":"Any asset with upstream text","badge":"Sentiment sidecar","persist":"asset_json_comp (schemaType sentiment, variant = source output key)","configs":[{"name":"default (documents)","note":"first non-empty of tika · ocr · captioning · vlm · llm","inputs":[{"t":"text","l":"tika_content","d":"extracted document text"}],"outputs":[{"t":"label","l":"sentiment_label","d":"POSITIVE / NEUTRAL / NEGATIVE"},{"t":"number","l":"sentiment_score"},{"t":"json","l":"sentiment_result","d":"full distribution + polarity"}]},{"name":"from a caption","note":"textSources captioning:caption_result","inputs":[{"t":"text","l":"caption_result","d":"generated caption"}],"outputs":[{"t":"label","l":"sentiment_label"},{"t":"number","l":"sentiment_score"},{"t":"json","l":"sentiment_result"}]}]}'></div>
+++++
+
+[cols="1,3"]
+|===
+| Kind | `sentiment`
+| Applies to | Any asset (the text comes from an upstream node, not from the media)
+| Inputs | Text from an upstream node output — configurable, defaults to the first non-empty of `tika`, `ocr`, `captioning`, `vlm`, `llm`
+| Output keys | `sentiment_label` (String), `sentiment_score` (Number), `sentiment_result` (JSON String)
+| Languages | German and English, detected automatically; other languages fall back to a multilingual model
+| Requirements | A running **sentiment sidecar** (`/v1/sentiment`). CPU is sufficient; GPU optional
+| Persists to | `asset_json_comp` — one row per text source, discriminated by the source output key
+|===
+
+== What it produces
+
+[source,json]
+----
+{
+  "label": "NEGATIVE",
+  "score": 0.87,
+  "polarity": -0.81,
+  "scores": { "positive": 0.06, "neutral": 0.07, "negative": 0.87 },
+  "lang": "de",
+  "model": "oliverguhr/german-sentiment-bert",
+  "source": { "nodeId": "tika", "outputKey": "tika_content" },
+  "textChars": 4211,
+  "chunks": 12
+}
+----
+
+`polarity` is the positive share minus the negative share, so it runs from `-1` (wholly negative) to
+`+1` (wholly positive) with neutral text near zero. It is the value to sort or threshold on when you
+want "the most negative documents first".
+
+Long text is handled automatically: the sidecar splits it into sentence-aligned chunks, scores each,
+and combines them weighted by length — so a long complaint is not diluted by a short pleasantry.
+
+== Configuration
+
+`SentimentNodeOptions`:
+
+[options="header",cols="1,2"]
+|===
+| Option | Meaning
+| `sentimentHost` / `sentimentPort` | Address of the sentiment sidecar (default `localhost:9110`)
+| `language` | `de`, `en`, or `auto` to detect it per text (default `auto`)
+| `modelDe` / `modelEn` | Override the sidecar's German / English model — e.g. a finance-specific German model
+| `textSources` | Ordered `nodeId:outputKey` list; the first one with text wins (default `tika:tika_content`, `ocr:ocr_text`, `captioning:caption_result`, `vlm:vlm_result`, `llm:llm_result`)
+| `maxChars` | Upper bound on the text sent for analysis (default `200000`)
+|===
+
+Because `textSources` is an ordered list, one pipeline configuration covers mixed collections: a PDF
+is scored from its Tika text, a scanned page from its OCR text, and a photo from its caption —
+without separate node instances.
+
+== Use Cases
+
+* **Review and feedback triage** — surface the most negative documents in an ingest first.
+* **Brand and press monitoring** — track the tone of coverage across a German and English corpus.
+* **Content moderation support** — flag strongly negative material for human review.
+* **Media library insight** — combine with link:../captioning/[captioning] to score the tone of what
+  images and videos depict.
+
+The sidecar is a small FastAPI service; see the `sidecars/sentiment` directory for how to run it.
+
+== Model attribution
+
+The default English model is published under CC-BY-4.0, which permits commercial use but requires
+attribution. The model actually used is recorded with every result, so it can be surfaced wherever
+you display sentiment. If your deployment cannot carry that attribution, point `modelEn` at an
+Apache-2.0 alternative — the sidecar's fallback multilingual model is one.

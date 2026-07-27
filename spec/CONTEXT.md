@@ -156,6 +156,7 @@ spec/
 │   │   └── PIPELINE_TASKS.md          # Actionable pipeline work items
 │   ├── pipeline-nodes/
 │   │   ├── NODES.md                   # Cortex node system + per-node reference
+│   │   ├── NODE_SENTIMENT_PLAN.md           # Sentiment node design (EN/DE, commercial-license models)
 │   │   ├── NODE_VIDEO_CAPTIONING_PLAN.md    # Video captioning node design
 │   │   ├── NODE_VIDEO_CAPTIONING_REPORT.md  # Benchmark report (real runs, Qwen2.5-VL-7B)
 │   │   └── video-captioning-results/        # Raw benchmark data (JSON + RUN_ENV.txt)
@@ -288,8 +289,6 @@ loom/
 │   ├── jooq/        #   jOOQ-based DAO implementations (+ generate.sh)
 │   ├── jooq-gen/    #   jOOQ codegen strategy (prefixes generated types with "Jooq")
 │   ├── flyway/      #   SQL migrations (V1__, V2.*__)
-│   ├── fs/          #   Filesystem-backed DAO implementation
-│   ├── hibernate/   #   Hibernate-backed DAO implementation
 │   └── memory/      #   In-memory DAO impl for fast tests (⚠️ no pipeline DAOs)
 ├── services/        # Service layer (parent)
 │   ├── api/         #   Service-layer interfaces
@@ -627,7 +626,7 @@ enforcement) and [features/rbac/RBAC.md](features/rbac/RBAC.md) (taxonomy + know
 | Primary DB | PostgreSQL |
 | ORM | jOOQ (code-generated into `loom/db/jooq/src/jooq/java`) |
 | Migrations | Flyway — `loom/db/flyway/src/main/resources/db/migration/` |
-| DAO pattern | Interface in `loom/db/api`, impls in `loom/db/jooq`, `loom/db/memory`, `loom/db/fs`, `loom/db/hibernate` |
+| DAO pattern | Interface in `loom/db/api`, impls in `loom/db/jooq` (production) and `loom/db/memory` (tests) |
 | Test DB | Leased from the external `testdatabase-provider` service via `loom-test-env` |
 
 ### 4.3 Event systems

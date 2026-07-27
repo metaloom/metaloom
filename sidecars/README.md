@@ -18,6 +18,7 @@ production.
 | Folder | Node | Serves | Default port |
 |--------|------|--------|--------------|
 | [`tts/`](./tts) | `tts` (`io.metaloom.cortex.node.tts`) | Text-to-speech — Orpheus/Kartoffel (DE), Kokoro (EN), `POST /v1/tts` | `9100` |
+| [`sentiment/`](./sentiment) | `sentiment` (`io.metaloom.cortex.node.sentiment`) | Sentiment analysis — german-sentiment-bert (DE), twitter-roberta (EN), `POST /v1/sentiment` | `9110` |
 
 Each sidecar directory is self-contained (`setup.sh`, `run.sh`, `server.py`, `requirements.txt`,
 `README.md`) and location-independent — the scripts `cd` to their own directory, so moving them here
@@ -41,6 +42,7 @@ sidecar), add it here as `sidecars/<name>/` and list it in the table above. See
 ## Deployment
 
 In production a sidecar runs alongside the Cortex worker (same pod / host). The node points at it via
-its own host/port options (for `tts`: `ttsHost` / `ttsPort`, default `localhost:9100`), while the
-sidecar binds its listener via its own env vars (for `tts`: `TTS_HOST` / `TTS_PORT`). See the
+its own host/port options (for `tts`: `ttsHost` / `ttsPort`, default `localhost:9100`; for
+`sentiment`: `sentimentHost` / `sentimentPort`, default `localhost:9110`), while the sidecar binds
+its listener via its own env vars (`TTS_HOST` / `TTS_PORT`, `SENTIMENT_HOST` / `SENTIMENT_PORT`). See the
 [Cortex Helm chart](../helm/cortex) for deploying workers.

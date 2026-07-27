@@ -34,8 +34,8 @@ public class NodeDescriptorServiceLoaderTest {
 	void testAllProvidersAreDiscovered() {
 		List<NodeDescriptorProvider> providers = loadProviders();
 
-		assertEquals(17, providers.size(),
-			"Expected 17 descriptor providers via ServiceLoader but found " + providers.size()
+		assertEquals(18, providers.size(),
+			"Expected 18 descriptor providers via ServiceLoader but found " + providers.size()
 				+ ". If a provider was intentionally added or removed, update this count and "
 				+ "META-INF/services/io.metaloom.loom.nodes.spec.NodeDescriptorProvider together. "
 				+ "Discovered: " + providerNames(providers));
@@ -48,8 +48,8 @@ public class NodeDescriptorServiceLoaderTest {
 	void testRegistryIsFullyPopulated() {
 		NodeDescriptorRegistry registry = buildRegistry();
 
-		assertEquals(30, registry.size(),
-			"Expected 30 advertised node kinds but found " + registry.size()
+		assertEquals(31, registry.size(),
+			"Expected 31 advertised node kinds but found " + registry.size()
 				+ ". Discovered kinds: " + kinds(registry));
 	}
 
@@ -79,7 +79,8 @@ public class NodeDescriptorServiceLoaderTest {
 			"scene-detection",    // former cortex-scene-detection-api
 			"captioning",         // former cortex-captioning-api
 			"loom",               // former cortex-loom-api
-			"hash-dedup"          // former cortex-dedup-api
+			"hash-dedup",         // former cortex-dedup-api
+			"sentiment"           // sentiment analysis node
 		};
 
 		for (String kind : expected) {

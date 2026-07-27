@@ -26,6 +26,7 @@
         <module>tika</module>
         <module>whisper</module>
         <module>tts</module>
+        <module>sentiment</module>
         <module>quality</module>
         <module>captioning</module>
         <module>loom</module>

@@ -1,0 +1,12 @@
+# Cortex sentiment sidecar. Python 3.11+ recommended.
+fastapi>=0.115
+uvicorn>=0.30
+pydantic>=2.7
+
+# The three sentiment checkpoints are plain HF sequence-classification encoders
+# (<=135M params), so CPU is viable and no accelerate/quantisation stack is needed.
+transformers>=4.50
+torch>=2.6
+
+# Language routing for lang="auto" (Apache-2.0).
+lingua-language-detector>=2.0

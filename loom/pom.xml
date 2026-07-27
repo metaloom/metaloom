@@ -175,11 +175,6 @@
             </dependency>
             <dependency>
                 <groupId>io.metaloom.loom.db</groupId>
-                <artifactId>loom-db-hibernate</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.metaloom.loom.db</groupId>
                 <artifactId>loom-db-jooq</artifactId>
                 <version>${project.version}</version>
             </dependency>

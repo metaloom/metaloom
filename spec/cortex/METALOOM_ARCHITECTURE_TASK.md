@@ -194,8 +194,8 @@ costs a full lease interval per task.
 - [ ] **Version the pipeline definition format** — decision Q5 said to version from
       the start; it has since gained `syncToLoom`, filter branches, options and
       `affinity` with no version field
-- [ ] **`loom/db/README.md`** advertises `fs`, `memory` and `hibernate`
-      implementations; only `jooq` is live
+- [x] **`loom/db/README.md`** no longer advertises the removed `fs` and `hibernate`
+      implementations; `jooq` is the production impl, `memory` is test-only
 - [ ] **Task state retention policy** — 1 000 000 task rows per run is real. How
       long are they kept, and at what granularity afterwards?
 

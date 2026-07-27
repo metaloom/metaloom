@@ -13,6 +13,7 @@ io.metaloom.loom.nodes.spec.LoomNodeDescriptorProvider
 io.metaloom.loom.nodes.spec.OcrDescriptorProvider
 io.metaloom.loom.nodes.spec.QualityDescriptorProvider
 io.metaloom.loom.nodes.spec.SceneDetectionDescriptorProvider
+io.metaloom.loom.nodes.spec.SentimentDescriptorProvider
 io.metaloom.loom.nodes.spec.SourceDescriptorProvider
 io.metaloom.loom.nodes.spec.ThumbnailDescriptorProvider
 io.metaloom.loom.nodes.spec.TikaDescriptorProvider

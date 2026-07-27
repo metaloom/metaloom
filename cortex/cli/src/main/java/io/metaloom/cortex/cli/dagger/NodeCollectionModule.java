@@ -12,6 +12,7 @@ import io.metaloom.cortex.node.loom.LoomNodeModule;
 import io.metaloom.cortex.node.ocr.OCRNodeModule;
 import io.metaloom.cortex.node.quality.QualityNodeModule;
 import io.metaloom.cortex.node.scene.SceneDetectionNodeModule;
+import io.metaloom.cortex.node.sentiment.SentimentNodeModule;
 import io.metaloom.cortex.node.source.fs.FilesystemSourceNodeModule;
 import io.metaloom.cortex.node.thumbnail.ThumbnailNodeModule;
 import io.metaloom.cortex.node.tika.TikaNodeModule;
