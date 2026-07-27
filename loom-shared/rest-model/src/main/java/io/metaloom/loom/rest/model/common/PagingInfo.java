@@ -16,7 +16,7 @@ public class PagingInfo {
 	private Long perPage;
 
 	@JsonProperty(required = true)
-	@JsonPropertyDescription("Number of elements in the page.")
+	@JsonPropertyDescription("Total number of elements matching the query across all pages.")
 	private long totalCount;
 
 	public PagingInfo() {

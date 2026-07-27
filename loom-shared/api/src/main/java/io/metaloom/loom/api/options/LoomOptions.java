@@ -18,6 +18,8 @@ public class LoomOptions implements Option {
 
 	private MemoryOptions memory = new MemoryOptions();
 
+	private SearchOptions search = new SearchOptions();
+
 	@Override
 	public void overrideWithEnv() {
 		database.overrideWithEnv();
@@ -27,6 +29,7 @@ public class LoomOptions implements Option {
 		ai.overrideWithEnv();
 		sandbox.overrideWithEnv();
 		memory.overrideWithEnv();
+		search.overrideWithEnv();
 	}
 
 	public DatabaseOptions getDatabase() {
@@ -91,6 +94,15 @@ public class LoomOptions implements Option {
 		return this;
 	}
 
+	public SearchOptions getSearch() {
+		return search;
+	}
+
+	public LoomOptions setSearch(SearchOptions search) {
+		this.search = search;
+		return this;
+	}
+
 	@Override
 	public void validate(OptionErrors errors) {
 		errors.nested("database", database)
@@ -99,7 +111,8 @@ public class LoomOptions implements Option {
 			.nested("storage", storage)
 			.nested("ai", ai)
 			.nested("sandbox", sandbox)
-			.nested("memory", memory);
+			.nested("memory", memory)
+			.nested("search", search);
 	}
 
 	/**

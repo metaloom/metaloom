@@ -239,12 +239,15 @@
 									<name>
 										org.jooq.meta.postgres.PostgresDatabase</name>
 									<includes>.*</includes>
-									<!-- text_search columns are GENERATED ALWAYS AS ... STORED tsvector
-									     columns maintained by PostgreSQL. They must never appear in an
+									<!-- text_search / text_search_en / trgm_text are GENERATED ALWAYS AS ...
+									     STORED columns maintained by PostgreSQL. They must never appear in an
 									     INSERT/UPDATE, so they are kept out of the generated code entirely.
+									     jOOQ also has no tsvector binding, so they would generate as Object.
+									     The Postgres search provider addresses them by name via DSL.field(),
+									     the same technique AssetComponentDaoImpl uses.
 									     includeExcludeColumns is required: by default includes/excludes
 									     apply to tables and other objects, not to columns. -->
-									<excludes>.*\.text_search</excludes>
+									<excludes>.*\.text_search.*|.*\.trgm_text</excludes>
 									<includeExcludeColumns>true</includeExcludeColumns>
 									<inputSchema>public</inputSchema>
 									<outputSchema>public</outputSchema>

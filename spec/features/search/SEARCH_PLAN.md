@@ -18,7 +18,46 @@ deleted ([SEARCH.md](SEARCH.md) §2).
 
 ---
 
+## Phase dependency map
+
+```mermaid
+graph LR
+    subgraph P0["Phase 0 — prerequisites"]
+        A["P0-1 Page.totalCount"]
+        B["P0-3 permissions()"]
+        C["P0-5 delete dead UI tree"]
+    end
+    subgraph P1["Phase 1 — Postgres"]
+        D["P1-1 SPI"] --> G
+        E["P1-3/4/5 migrations"] --> F["P1-6 setup-pool + codegen"]
+        F --> G["P1-7 PostgresSearchProvider"]
+        G --> H["P1-11 SearchEndpoint"]
+        G --> I["P1-22 MCP · P1-23 GraphQL"]
+        H --> J["P1-17/18 UI"]
+    end
+    subgraph P2["Phase 2 — Elasticsearch"]
+        K["P2-1 SPIKE: ES client API"] --> L["P2-2 mapping"]
+        L --> M["P2-3/4 indexer + outbox drain"]
+        L --> N["P2-5 ESSearchProvider"]
+    end
+    subgraph P3["Phase 3 — semantic"]
+        O["P3-1/2 SPIKES"] --> P["P3-3 guarded migration"]
+        P --> Q["P3-7/8 VectorIndex + RRF"]
+    end
+    A --> H
+    B --> H
+    C --> J
+    E -.->|"search_document IS the outbox"| M
+    N --> Q
+```
+
+Note the dashed edge: Phase 1's `search_document` table is what Phase 2's indexer drains, which is why
+Phase 2 adds a provider rather than rebuilding the pipeline.
+
 ## 🔴 Build-order rules — read before touching anything
+
+This section **is** this document's Conventions & Gotchas; the design-level ones live in
+[SEARCH.md](SEARCH.md) §12.
 
 These are the things that fail confusingly rather than loudly.
 
@@ -150,6 +189,25 @@ Detailed in [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md). Summary of the order:
 | **P3-11** | UI: mode toggle, "more like this", cluster filter | P3-8 |
 
 ---
+
+## Test Setup
+
+Not duplicated here — see [SEARCH.md](SEARCH.md) §10 for the full setup (`./setup-pool.sh`, the jOOQ
+codegen exclusion, the `websearch_to_tsquery` requirement) and §10.2 for the per-task test list.
+[SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §10 covers Phase 3, including the guard test that keeps
+`generate.sh` working on a stock Postgres image.
+
+**Key Classes Reference** — not duplicated here either. Every class and package named in the task
+tables below is listed in [SEARCH.md](SEARCH.md) §11 (lexical) and
+[SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §11 (vector).
+
+The three commands that gate a green build, in order:
+
+```bash
+./setup-pool.sh                 # after every Flyway migration (rule 1)
+loom/db/jooq/generate.sh        # after the exclusion widening (rules 2 and 3)
+mvn -pl loom/db/jooq,loom/core test
+```
 
 ## Definition of done (per [../../guidelines/CODING.md](../../guidelines/CODING.md))
 

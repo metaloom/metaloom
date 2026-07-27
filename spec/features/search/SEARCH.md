@@ -23,7 +23,7 @@ the complete surface, and every row was verified.
 | Capability | Status | Evidence |
 |---|---|---|
 | REST search endpoint | **absent** | No `/search`, `/query` or `/find` route in `loom/services/rest/.../endpoint/impl/` |
-| Free-text `q=` parameter | **absent** | [`QueryParameterKey`](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/parameter/QueryParameterKey.java) has exactly `limit`, `from`, `filter`, `sort`, `dir` |
+| Free-text `q=` parameter | **absent** | [`QueryParameterKey`](../../../loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/parameter/QueryParameterKey.java) has exactly `limit`, `from`, `filter`, `sort`, `dir` |
 | `LIKE` / `ILIKE` / prefix match | **absent** | Zero occurrences across all of `loom/db/` |
 | LHS filtering | 5 keys, 4 entities, equality/range only | [`LoomFilterKey`](../../../loom-shared/api/src/main/java/io/metaloom/loom/api/filter/LoomFilterKey.java); 11 `applyFilter` overrides |
 | Postgres FTS (`tsvector` + GIN) | indexes exist, **queried by zero Java** | `V2.38` (`asset_doc_comp`), `V2.39` (`asset_transcript_comp`); excluded from codegen at `loom/db/jooq/pom.xml:247` |
@@ -484,10 +484,15 @@ for every non-UUID column.** Out of scope here, but it blocks "sort search resul
 `QueryParameterKey.values()` and documents every one on every list route — adding `q` there injects a
 `q` parameter into the OpenAPI spec of ~40 routes that ignore it.
 
-New instead: `SearchQueryParameterKey` (same package/module as `QueryParameterKey`, mirroring its
-shape), `SearchParameters extends AbstractQueryParameters`, `LoomRoutingContext.searchParams()`
-alongside the existing `pagingParams()`/`filterParams()`/`sortParams()`, and an `addSearchRoute(...)`
-helper next to `addListRoute`.
+New instead: `SearchQueryParameterKey` in `loom-shared/rest-model`, package
+`io.metaloom.loom.rest.parameter` — the same package and module as `QueryParameterKey`, mirroring its
+shape. ⚠️ Note the split: the *key enum* lives in `loom-shared/rest-model` while the
+`*Parameters` classes (`AbstractQueryParameters`, `PagingParameters`, `FilterParameters`,
+`SortParameters`) live in `loom/services/rest` under the **same package name**. So
+`SearchParameters extends AbstractQueryParameters` goes in `loom/services/rest`, not beside its enum.
+Then `LoomRoutingContext.searchParams()` alongside the existing
+`pagingParams()`/`filterParams()`/`sortParams()`, and an `addSearchRoute(...)` helper next to
+`addListRoute`.
 
 Params: `q, types, mode, limit, offset, cursor, sort, highlight, mime, library, space, collection,
 tag (repeatable), from, to, lang, profile, facets` — plus `filter`, reused from `FilterParameters` for
@@ -737,7 +742,8 @@ Nothing below exists yet; this is the target layout.
 | `ElasticsearchSearchProvider` | `io.metaloom.loom.search.es` (`loom/services/elasticsearch`) | Phase 2 |
 | `ElasticsearchIndexSyncService` | same | `SKIP LOCKED` outbox drain |
 | `SearchEndpoint` / `SearchEndpointService` | `io.metaloom.loom.rest.endpoint.impl` / `…rest.service` | REST routes |
-| `SearchQueryParameterKey` / `SearchParameters` | `io.metaloom.loom.rest.parameter` | `q` and friends — **separate from `QueryParameterKey`** |
+| `SearchQueryParameterKey` | `io.metaloom.loom.rest.parameter` (`loom-shared/rest-model`) | `q` and friends — **separate from `QueryParameterKey`** (§7.3) |
+| `SearchParameters` | `io.metaloom.loom.rest.parameter` (`loom/services/rest`) | ⚠️ same package name, different module — matches where `AbstractQueryParameters` lives |
 | `SearchResultResponse` etc. | `io.metaloom.loom.rest.model.search` (`loom-shared/rest-model`) | Response DTOs |
 | `SearchMethods` | `io.metaloom.loom.client.common.method` | Client — required by endpoint tests |
 | `SearchModule` | `io.metaloom.loom.core.dagger` | Provider binding |
@@ -771,7 +777,7 @@ Nothing below exists yet; this is the target layout.
 | Vector / embedding / hybrid search | [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) |
 | Why `?filter=` can't search | §1.1, and `io.metaloom.filter.Operation` in the lhs-filter jar |
 | Where indexable text lives | §1.2, §6 |
-| Existing list/filter/paging code | `loom/db/jooq/.../AbstractJooqDao.java`, `loom/services/rest/.../parameter/` |
+| Existing list/filter/paging code | `loom/db/jooq/.../AbstractJooqDao.java`; `loom-shared/rest-model/.../rest/parameter/QueryParameterKey.java` (the enum) and `loom/services/rest/.../rest/parameter/` (the `*Parameters` classes) |
 | Raw-SQL-by-name precedent | `loom/db/jooq/.../dao/asset/comp/AssetComponentDaoImpl.java` |
 | The permission model | [../permissions/PERMISSIONS.md](../permissions/PERMISSIONS.md), [../rbac/RBAC.md](../rbac/RBAC.md) |
 | Migrations | `loom/db/flyway/src/main/resources/db/migration/` (highest is `V2.56`) |

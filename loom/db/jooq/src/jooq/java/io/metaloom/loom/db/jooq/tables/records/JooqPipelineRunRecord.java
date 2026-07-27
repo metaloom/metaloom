@@ -105,7 +105,7 @@ public class JooqPipelineRunRecord extends UpdatableRecordImpl<JooqPipelineRunRe
 
     /**
      * Setter for <code>public.pipeline_run.status</code>. Current status:
-     * PENDING, RUNNING, SUCCESS, FAILED, PARTIAL, CANCELLED
+     * PENDING, RUNNING, PAUSED, SUCCESS, FAILED, PARTIAL, CANCELLED
      */
     public void setStatus(String value) {
         set(5, value);
@@ -113,7 +113,7 @@ public class JooqPipelineRunRecord extends UpdatableRecordImpl<JooqPipelineRunRe
 
     /**
      * Getter for <code>public.pipeline_run.status</code>. Current status:
-     * PENDING, RUNNING, SUCCESS, FAILED, PARTIAL, CANCELLED
+     * PENDING, RUNNING, PAUSED, SUCCESS, FAILED, PARTIAL, CANCELLED
      */
     public String getStatus() {
         return (String) get(5);

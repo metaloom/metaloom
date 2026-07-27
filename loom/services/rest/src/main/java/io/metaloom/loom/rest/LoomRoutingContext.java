@@ -127,6 +127,23 @@ public class LoomRoutingContext {
 			.map(v -> (GraphQLPermissionChecker) perm -> PermissionBasedAuthorization.create(perm.name()).match(user));
 	}
 
+	/**
+	 * Resolve the current user's authorizations once and return a synchronous, <b>non-throwing</b> predicate over permissions.
+	 *
+	 * <p>
+	 * {@link #requirePerm(Permission...)} is all-or-nothing and {@code checkPerm} throws. Endpoints which have to ask "may this caller see X?" for
+	 * several X and silently drop the ones they may not see - cross-entity search is the motivating case - need a boolean instead. Authorization loading
+	 * is asynchronous, so it happens once here and the returned predicate can then be evaluated as often as needed.
+	 * </p>
+	 *
+	 * @return future that succeeds with a permission predicate bound to the current user
+	 */
+	public Future<java.util.function.Predicate<Permission>> permissions() {
+		User user = user();
+		return authorizationProvider.getAuthorizations(user)
+			.map(v -> (java.util.function.Predicate<Permission>) perm -> PermissionBasedAuthorization.create(perm.name()).match(user));
+	}
+
 	public Future<LoomRoutingContext> requirePerm(Permission... perms) {
 		User user = user();
 		LoomRoutingContext context = this;

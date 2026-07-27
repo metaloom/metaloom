@@ -26,7 +26,11 @@ public interface ModelBuilder {
 		}
 		PagingInfo metainfo = new PagingInfo();
 		metainfo.setPerPage(page.perPage());
-		metainfo.setTotalCount(page.size());
+		// totalCount is the number of matches across all pages, not the size of this page. DAOs which
+		// cannot compute it report TOTAL_COUNT_UNKNOWN; fall back to the page size there so the field
+		// never goes negative on the wire.
+		long totalCount = page.totalCount();
+		metainfo.setTotalCount(totalCount == Page.TOTAL_COUNT_UNKNOWN ? page.size() : totalCount);
 		metainfo.setLastUuid(lastUuid);
 		response.setMetainfo(metainfo);
 		return response;

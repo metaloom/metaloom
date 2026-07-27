@@ -671,15 +671,19 @@ The `GRPC.md` file is empty. It should cover:
 - Service methods and streaming
 - Authentication via `ClientJWTInterceptor`
 
-### 10.5 Search and Indexing
+### 10.5 Search and Indexing — ✅ now specified
 
-No spec file covers the search/indexing services:
-- `loom/services/elasticsearch` - Elasticsearch integration
-- `loom/services/lucene` - Lucene search integration
-- `loom/services/qdrant` - Qdrant vector database for similarity search
-- How assets are indexed for full-text search
-- How embeddings are stored and queried for similarity search
-- Integration between the search services and the REST API
+Covered by [../features/search/SEARCH.md](../features/search/SEARCH.md) (lexical search: current
+state, the `SearchProvider` SPI, the `search_document` table, REST surface, permissions),
+[../features/search/SEARCH_PLAN.md](../features/search/SEARCH_PLAN.md) (phased build order) and
+[../features/search/SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md) (embeddings, pgvector,
+hybrid ranking).
+
+🔴 **Those are design documents, not descriptions of running code — no search exists.** There is no
+search endpoint, no free-text query parameter, and no `LIKE`/`ILIKE` in any DAO.
+`loom/services/{elasticsearch,lucene,qdrant}` are **empty placeholder modules**: `pom.xml` only, no
+`src/` directory. The design keeps Postgres full-text search first and Elasticsearch/OpenSearch second
+behind one SPI, and rejects Lucene (an embedded index is per-replica local state).
 
 ### 10.6 Image and Video Processing Services
 

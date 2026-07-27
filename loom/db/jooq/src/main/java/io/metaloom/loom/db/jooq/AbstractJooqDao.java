@@ -229,6 +229,12 @@ public abstract class AbstractJooqDao<T extends Element<T>> implements JooqDao, 
 			}
 		}
 
+		// Total count across all pages. Must be taken after the filters are applied but before
+		// ordering/seeking/limiting, so it counts every match rather than the page. fetchCount wraps
+		// the select rather than extending its projection, which keeps fetchStreamInto working for
+		// every DAO regardless of how it built its select.
+		long totalCount = ctx().fetchCount(query);
+
 		// Sorting
 		SelectSeekStep1<?, UUID> query2;
 		if (sortBy == null) {
@@ -257,7 +263,7 @@ public abstract class AbstractJooqDao<T extends Element<T>> implements JooqDao, 
 			.limit(pageSize)
 			.fetchStreamInto(getPojoClass())
 			.collect(Collectors.toList());
-		return new Page<>(pageSize, list);
+		return new Page<>(pageSize, totalCount, list);
 
 	}
 

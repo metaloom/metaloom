@@ -159,8 +159,12 @@ spec/
 │   │   ├── NODE_VIDEO_CAPTIONING_PLAN.md    # Video captioning node design
 │   │   ├── NODE_VIDEO_CAPTIONING_REPORT.md  # Benchmark report (real runs, Qwen2.5-VL-7B)
 │   │   └── video-captioning-results/        # Raw benchmark data (JSON + RUN_ENV.txt)
-│   └── rbac/
-│       └── RBAC.md                    # RBAC reference incl. known enforcement gaps
+│   ├── rbac/
+│   │   └── RBAC.md                    # RBAC reference incl. known enforcement gaps
+│   └── search/
+│       ├── SEARCH.md                  # Lexical search: current state (none), SPI, search_document, REST — NOT built
+│       ├── SEARCH_PLAN.md             # Phased build order: P0 prereqs → P1 Postgres → P2 Elasticsearch
+│       └── SEMANTIC_SEARCH.md         # Vector/hybrid search: pgvector decision, embeddings, RRF — NOT built
 ├── cortex/
 │   ├── BUILD.md                       # Maven modules, container image, native deps
 │   ├── CONFIGURATION.md               # YAML config, CLI flags, env vars, per-node options
@@ -215,6 +219,8 @@ spec/
 | The UI | [loom/ui/LOOM_UI.md](loom/ui/LOOM_UI.md) + the matching `TASK_UI_*.md` |
 | Metrics / health / readiness | [features/ops/METRICS.md](features/ops/METRICS.md), [features/ops/MONITORING.md](features/ops/MONITORING.md) |
 | The CLI | [features/cli/CLI_PLAN.md](features/cli/CLI_PLAN.md) |
+| Search / full-text / indexing | [features/search/SEARCH.md](features/search/SEARCH.md) — **nothing is implemented**; build order in [features/search/SEARCH_PLAN.md](features/search/SEARCH_PLAN.md) |
+| Embeddings / similarity / vector search | [features/search/SEMANTIC_SEARCH.md](features/search/SEMANTIC_SEARCH.md) — closes the `embedding.vector` "OPEN DECISION" in favour of pgvector |
 | Customer-facing docs | [website/WEBSITE.md](website/WEBSITE.md) |
 | Picking up queued work | any `*_TASKS.md`, format per [TASKS.template.md](TASKS.template.md) |
 
@@ -714,6 +720,8 @@ Both Loom and Cortex use **Dagger 2**:
 | Pipeline DB migrations | `loom/db/flyway/.../V2.19__add_pipeline.sql`, `V2.29__add_pipeline_run.sql`, `V2.30__add_pipeline_version.sql` |
 | Chat / agent DB migrations | `V2.28__add_chat`, `V2.36__add_skill`, `V2.37__add_skill_version`, `V2.52__add_chat_session`, `V2.53__add_agent_memory`, `V2.54` (memory deny rules) |
 | Node result persistence | `V2.45__add_asset_node_result`, `AssetEndpoint` `/api/v1/assets/:uuid/node-results` |
+| Search (spec only — **not implemented**) | [features/search/SEARCH.md](features/search/SEARCH.md), [features/search/SEARCH_PLAN.md](features/search/SEARCH_PLAN.md); empty stub modules `loom/services/{lucene,elasticsearch,qdrant}/` (pom-only, no `src/`) |
+| Embeddings / vector search (spec only) | [features/search/SEMANTIC_SEARCH.md](features/search/SEMANTIC_SEARCH.md); `V2.43__rework_detection_embedding.sql` (`embedding.vector real[]`, no ANN index, zero rows) |
 | Chat / agent code | `loom/agent/{chat,memory,sandbox}/` |
 | Pipeline UI editor | `loom-ui/src/features/pipeline/PipelineEditor.tsx` |
 | UI API client layer | `loom-ui/src/api/` |
@@ -782,7 +790,9 @@ Both Loom and Cortex use **Dagger 2**:
       list of 8; runs with an unschedulable kind are rejected with 503 up front — see §6
 - [ ] `cortex/CONFIGURATION.md` still documents a YAML precedence chain that does not work;
       `cortex/CORTEX.md` still describes the reconnect backoff as exponential (it is linear)
-- [ ] Assets, auth and search are still documented per component rather than extracted into `features/`
+- [x] Search extracted into [features/search/](features/search/) (SEARCH, SEARCH_PLAN, SEMANTIC_SEARCH) —
+      note these specify a feature that **does not exist yet**; no search of any kind is implemented
+- [ ] Assets and auth are still documented per component rather than extracted into `features/`
 - [ ] `loom/GRAPHQL.md` describes a service that is implemented but not registered — confirm and reconcile
 
 ---
@@ -803,5 +813,5 @@ follow the cross-references.*
 
 ---
 
-_Git HEAD revision: `990c14a8`_
-_Last updated: 2026-07-26 (executable node kinds now derived dynamically from the node collection via `@IntoMap @StringKey` + `NodeRegistrar` at bootstrap; Loom rejects unschedulable runs with a full-graph 503 precheck)_
+_Git HEAD revision: `65e6c464`_
+_Last updated: 2026-07-27 (added `features/search/` — SEARCH.md, SEARCH_PLAN.md, SEMANTIC_SEARCH.md; these specify a feature that is **not implemented**: there is no search endpoint, no `q` parameter, no `LIKE` in any DAO, and `loom/services/{lucene,elasticsearch,qdrant}` are pom-only stubs)_

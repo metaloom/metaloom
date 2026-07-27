@@ -63,6 +63,8 @@ import io.metaloom.loom.db.jooq.tables.JooqReaction;
 import io.metaloom.loom.db.jooq.tables.JooqRole;
 import io.metaloom.loom.db.jooq.tables.JooqRoleGroup;
 import io.metaloom.loom.db.jooq.tables.JooqRolePermission;
+import io.metaloom.loom.db.jooq.tables.JooqSearchDocument;
+import io.metaloom.loom.db.jooq.tables.JooqSearchDocumentDeleted;
 import io.metaloom.loom.db.jooq.tables.JooqSkill;
 import io.metaloom.loom.db.jooq.tables.JooqSkillVersion;
 import io.metaloom.loom.db.jooq.tables.JooqTag;
@@ -461,6 +463,19 @@ public class JooqPublic extends SchemaImpl {
     public final JooqRolePermission ROLE_PERMISSION = JooqRolePermission.ROLE_PERMISSION;
 
     /**
+     * Materialized search index. One row per searchable entity, maintained by
+     * triggers on the source tables. Also the pre-assembled document and outbox
+     * for an external index.
+     */
+    public final JooqSearchDocument SEARCH_DOCUMENT = JooqSearchDocument.SEARCH_DOCUMENT;
+
+    /**
+     * Delete tombstones for external index sync. Drained and pruned by the
+     * indexer; unused by the Postgres provider.
+     */
+    public final JooqSearchDocumentDeleted SEARCH_DOCUMENT_DELETED = JooqSearchDocumentDeleted.SEARCH_DOCUMENT_DELETED;
+
+    /**
      * Stores user-owned agent skills (SKILL.md-style instruction packages for
      * the chat agent)
      */
@@ -613,6 +628,8 @@ public class JooqPublic extends SchemaImpl {
             JooqRole.ROLE,
             JooqRoleGroup.ROLE_GROUP,
             JooqRolePermission.ROLE_PERMISSION,
+            JooqSearchDocument.SEARCH_DOCUMENT,
+            JooqSearchDocumentDeleted.SEARCH_DOCUMENT_DELETED,
             JooqSkill.SKILL,
             JooqSkillVersion.SKILL_VERSION,
             JooqTag.TAG,

@@ -30,6 +30,7 @@ import io.metaloom.loom.rest.model.processor.ProcessorExamples;
 import io.metaloom.loom.rest.model.space.SpaceExamples;
 import io.metaloom.loom.rest.model.reaction.ReactionExamples;
 import io.metaloom.loom.rest.model.role.RoleExamples;
+import io.metaloom.loom.rest.model.search.SearchExamples;
 import io.metaloom.loom.rest.model.tag.TagExamples;
 import io.metaloom.loom.rest.model.task.TaskExamples;
 import io.metaloom.loom.rest.model.token.TokenExamples;
@@ -71,6 +72,7 @@ public interface Examples extends
 	JsonCompExamples,
 	FingerprintCompExamples,
 	SegmentCompExamples,
+	SearchExamples,
 	TranscriptExamples {
 
 	default Example deleteResponseExample() {

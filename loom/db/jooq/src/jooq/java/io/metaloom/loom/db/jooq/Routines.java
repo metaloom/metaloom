@@ -4,6 +4,44 @@
 package io.metaloom.loom.db.jooq;
 
 
+import io.metaloom.loom.db.jooq.routines.JooqGinExtractQueryTrgm;
+import io.metaloom.loom.db.jooq.routines.JooqGinExtractValueTrgm;
+import io.metaloom.loom.db.jooq.routines.JooqGinTrgmConsistent;
+import io.metaloom.loom.db.jooq.routines.JooqGinTrgmTriconsistent;
+import io.metaloom.loom.db.jooq.routines.JooqGtrgmCompress;
+import io.metaloom.loom.db.jooq.routines.JooqGtrgmConsistent;
+import io.metaloom.loom.db.jooq.routines.JooqGtrgmDecompress;
+import io.metaloom.loom.db.jooq.routines.JooqGtrgmDistance;
+import io.metaloom.loom.db.jooq.routines.JooqGtrgmIn;
+import io.metaloom.loom.db.jooq.routines.JooqGtrgmOptions;
+import io.metaloom.loom.db.jooq.routines.JooqGtrgmOut;
+import io.metaloom.loom.db.jooq.routines.JooqGtrgmPenalty;
+import io.metaloom.loom.db.jooq.routines.JooqGtrgmPicksplit;
+import io.metaloom.loom.db.jooq.routines.JooqGtrgmSame;
+import io.metaloom.loom.db.jooq.routines.JooqGtrgmUnion;
+import io.metaloom.loom.db.jooq.routines.JooqSearchBodyCap;
+import io.metaloom.loom.db.jooq.routines.JooqSearchDocumentRebuild;
+import io.metaloom.loom.db.jooq.routines.JooqSearchDocumentRefreshAnnotation;
+import io.metaloom.loom.db.jooq.routines.JooqSearchDocumentRefreshAsset;
+import io.metaloom.loom.db.jooq.routines.JooqSearchDocumentRefreshCluster;
+import io.metaloom.loom.db.jooq.routines.JooqSearchDocumentRefreshCollection;
+import io.metaloom.loom.db.jooq.routines.JooqSearchDocumentRefreshLibrary;
+import io.metaloom.loom.db.jooq.routines.JooqSearchDocumentRefreshPerson;
+import io.metaloom.loom.db.jooq.routines.JooqSearchDocumentRefreshSimple;
+import io.metaloom.loom.db.jooq.routines.JooqSearchDocumentRefreshTag;
+import io.metaloom.loom.db.jooq.routines.JooqSearchExtractJsonText;
+import io.metaloom.loom.db.jooq.routines.JooqSearchJsonbAllText;
+import io.metaloom.loom.db.jooq.routines.JooqSetLimit;
+import io.metaloom.loom.db.jooq.routines.JooqShowLimit;
+import io.metaloom.loom.db.jooq.routines.JooqShowTrgm;
+import io.metaloom.loom.db.jooq.routines.JooqSimilarity;
+import io.metaloom.loom.db.jooq.routines.JooqSimilarityDist;
+import io.metaloom.loom.db.jooq.routines.JooqSimilarityOp;
+import io.metaloom.loom.db.jooq.routines.JooqStrictWordSimilarity;
+import io.metaloom.loom.db.jooq.routines.JooqStrictWordSimilarityCommutatorOp;
+import io.metaloom.loom.db.jooq.routines.JooqStrictWordSimilarityDistCommutatorOp;
+import io.metaloom.loom.db.jooq.routines.JooqStrictWordSimilarityDistOp;
+import io.metaloom.loom.db.jooq.routines.JooqStrictWordSimilarityOp;
 import io.metaloom.loom.db.jooq.routines.JooqUuidGenerateV1;
 import io.metaloom.loom.db.jooq.routines.JooqUuidGenerateV1mc;
 import io.metaloom.loom.db.jooq.routines.JooqUuidGenerateV3;
@@ -14,11 +52,18 @@ import io.metaloom.loom.db.jooq.routines.JooqUuidNsDns;
 import io.metaloom.loom.db.jooq.routines.JooqUuidNsOid;
 import io.metaloom.loom.db.jooq.routines.JooqUuidNsUrl;
 import io.metaloom.loom.db.jooq.routines.JooqUuidNsX500;
+import io.metaloom.loom.db.jooq.routines.JooqWordSimilarity;
+import io.metaloom.loom.db.jooq.routines.JooqWordSimilarityCommutatorOp;
+import io.metaloom.loom.db.jooq.routines.JooqWordSimilarityDistCommutatorOp;
+import io.metaloom.loom.db.jooq.routines.JooqWordSimilarityDistOp;
+import io.metaloom.loom.db.jooq.routines.JooqWordSimilarityOp;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 import org.jooq.Configuration;
 import org.jooq.Field;
+import org.jooq.JSONB;
 
 
 /**
@@ -26,6 +71,1702 @@ import org.jooq.Field;
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
 public class Routines {
+
+    /**
+     * @deprecated Unknown data type. If this is a qualified, user-defined type,
+     * it may have been excluded from code generation. If this is a built-in
+     * type, you can define an explicit {@link org.jooq.Binding} to specify how
+     * this type should be handled. Deprecation can be turned off using
+     * {@literal <deprecationOnUnknownTypes/>} in your code generator
+     * configuration.
+     */
+    @Deprecated
+    public static Object ginExtractQueryTrgm(
+          Configuration configuration
+        , String __1
+        , Object __2
+        , Short __3
+        , Object __4
+        , Object __5
+        , Object __6
+        , Object __7
+    ) {
+        JooqGinExtractQueryTrgm f = new JooqGinExtractQueryTrgm();
+        f.set__1(__1);
+        f.set__2(__2);
+        f.set__3(__3);
+        f.set__4(__4);
+        f.set__5(__5);
+        f.set__6(__6);
+        f.set__7(__7);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * @deprecated Unknown data type. If this is a qualified, user-defined type,
+     * it may have been excluded from code generation. If this is a built-in
+     * type, you can define an explicit {@link org.jooq.Binding} to specify how
+     * this type should be handled. Deprecation can be turned off using
+     * {@literal <deprecationOnUnknownTypes/>} in your code generator
+     * configuration.
+     */
+    @Deprecated
+    public static Field<Object> ginExtractQueryTrgm(
+          String __1
+        , Object __2
+        , Short __3
+        , Object __4
+        , Object __5
+        , Object __6
+        , Object __7
+    ) {
+        JooqGinExtractQueryTrgm f = new JooqGinExtractQueryTrgm();
+        f.set__1(__1);
+        f.set__2(__2);
+        f.set__3(__3);
+        f.set__4(__4);
+        f.set__5(__5);
+        f.set__6(__6);
+        f.set__7(__7);
+
+        return f.asField();
+    }
+
+    /**
+     * @deprecated Unknown data type. If this is a qualified, user-defined type,
+     * it may have been excluded from code generation. If this is a built-in
+     * type, you can define an explicit {@link org.jooq.Binding} to specify how
+     * this type should be handled. Deprecation can be turned off using
+     * {@literal <deprecationOnUnknownTypes/>} in your code generator
+     * configuration.
+     */
+    @Deprecated
+    public static Field<Object> ginExtractQueryTrgm(
+          Field<String> __1
+        , Field<Object> __2
+        , Field<Short> __3
+        , Field<Object> __4
+        , Field<Object> __5
+        , Field<Object> __6
+        , Field<Object> __7
+    ) {
+        JooqGinExtractQueryTrgm f = new JooqGinExtractQueryTrgm();
+        f.set__1(__1);
+        f.set__2(__2);
+        f.set__3(__3);
+        f.set__4(__4);
+        f.set__5(__5);
+        f.set__6(__6);
+        f.set__7(__7);
+
+        return f.asField();
+    }
+
+    /**
+     * @deprecated Unknown data type. If this is a qualified, user-defined type,
+     * it may have been excluded from code generation. If this is a built-in
+     * type, you can define an explicit {@link org.jooq.Binding} to specify how
+     * this type should be handled. Deprecation can be turned off using
+     * {@literal <deprecationOnUnknownTypes/>} in your code generator
+     * configuration.
+     */
+    @Deprecated
+    public static Object ginExtractValueTrgm(
+          Configuration configuration
+        , String __1
+        , Object __2
+    ) {
+        JooqGinExtractValueTrgm f = new JooqGinExtractValueTrgm();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * @deprecated Unknown data type. If this is a qualified, user-defined type,
+     * it may have been excluded from code generation. If this is a built-in
+     * type, you can define an explicit {@link org.jooq.Binding} to specify how
+     * this type should be handled. Deprecation can be turned off using
+     * {@literal <deprecationOnUnknownTypes/>} in your code generator
+     * configuration.
+     */
+    @Deprecated
+    public static Field<Object> ginExtractValueTrgm(
+          String __1
+        , Object __2
+    ) {
+        JooqGinExtractValueTrgm f = new JooqGinExtractValueTrgm();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        return f.asField();
+    }
+
+    /**
+     * @deprecated Unknown data type. If this is a qualified, user-defined type,
+     * it may have been excluded from code generation. If this is a built-in
+     * type, you can define an explicit {@link org.jooq.Binding} to specify how
+     * this type should be handled. Deprecation can be turned off using
+     * {@literal <deprecationOnUnknownTypes/>} in your code generator
+     * configuration.
+     */
+    @Deprecated
+    public static Field<Object> ginExtractValueTrgm(
+          Field<String> __1
+        , Field<Object> __2
+    ) {
+        JooqGinExtractValueTrgm f = new JooqGinExtractValueTrgm();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        return f.asField();
+    }
+
+    /**
+     * @deprecated Unknown data type. Parameter type or return type is unknown.
+     * If this is a qualified, user-defined type, it may have been excluded from
+     * code generation. If this is a built-in type, you can define an explicit
+     * {@link org.jooq.Binding} to specify how this type should be handled.
+     * Deprecation can be turned off using {@literal
+     * <deprecationOnUnknownTypes/>} in your code generator configuration.
+     */
+    @Deprecated
+    public static Boolean ginTrgmConsistent(
+          Configuration configuration
+        , Object __1
+        , Short __2
+        , String __3
+        , Integer __4
+        , Object __5
+        , Object __6
+        , Object __7
+        , Object __8
+    ) {
+        JooqGinTrgmConsistent f = new JooqGinTrgmConsistent();
+        f.set__1(__1);
+        f.set__2(__2);
+        f.set__3(__3);
+        f.set__4(__4);
+        f.set__5(__5);
+        f.set__6(__6);
+        f.set__7(__7);
+        f.set__8(__8);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * @deprecated Unknown data type. Parameter type or return type is unknown.
+     * If this is a qualified, user-defined type, it may have been excluded from
+     * code generation. If this is a built-in type, you can define an explicit
+     * {@link org.jooq.Binding} to specify how this type should be handled.
+     * Deprecation can be turned off using {@literal
+     * <deprecationOnUnknownTypes/>} in your code generator configuration.
+     */
+    @Deprecated
+    public static Field<Boolean> ginTrgmConsistent(
+          Object __1
+        , Short __2
+        , String __3
+        , Integer __4
+        , Object __5
+        , Object __6
+        , Object __7
+        , Object __8
+    ) {
+        JooqGinTrgmConsistent f = new JooqGinTrgmConsistent();
+        f.set__1(__1);
+        f.set__2(__2);
+        f.set__3(__3);
+        f.set__4(__4);
+        f.set__5(__5);
+        f.set__6(__6);
+        f.set__7(__7);
+        f.set__8(__8);
+
+        return f.asField();
+    }
+
+    /**
+     * @deprecated Unknown data type. Parameter type or return type is unknown.
+     * If this is a qualified, user-defined type, it may have been excluded from
+     * code generation. If this is a built-in type, you can define an explicit
+     * {@link org.jooq.Binding} to specify how this type should be handled.
+     * Deprecation can be turned off using {@literal
+     * <deprecationOnUnknownTypes/>} in your code generator configuration.
+     */
+    @Deprecated
+    public static Field<Boolean> ginTrgmConsistent(
+          Field<Object> __1
+        , Field<Short> __2
+        , Field<String> __3
+        , Field<Integer> __4
+        , Field<Object> __5
+        , Field<Object> __6
+        , Field<Object> __7
+        , Field<Object> __8
+    ) {
+        JooqGinTrgmConsistent f = new JooqGinTrgmConsistent();
+        f.set__1(__1);
+        f.set__2(__2);
+        f.set__3(__3);
+        f.set__4(__4);
+        f.set__5(__5);
+        f.set__6(__6);
+        f.set__7(__7);
+        f.set__8(__8);
+
+        return f.asField();
+    }
+
+    /**
+     * @deprecated Unknown data type. Parameter type or return type is unknown.
+     * If this is a qualified, user-defined type, it may have been excluded from
+     * code generation. If this is a built-in type, you can define an explicit
+     * {@link org.jooq.Binding} to specify how this type should be handled.
+     * Deprecation can be turned off using {@literal
+     * <deprecationOnUnknownTypes/>} in your code generator configuration.
+     */
+    @Deprecated
+    public static String ginTrgmTriconsistent(
+          Configuration configuration
+        , Object __1
+        , Short __2
+        , String __3
+        , Integer __4
+        , Object __5
+        , Object __6
+        , Object __7
+    ) {
+        JooqGinTrgmTriconsistent f = new JooqGinTrgmTriconsistent();
+        f.set__1(__1);
+        f.set__2(__2);
+        f.set__3(__3);
+        f.set__4(__4);
+        f.set__5(__5);
+        f.set__6(__6);
+        f.set__7(__7);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * @deprecated Unknown data type. Parameter type or return type is unknown.
+     * If this is a qualified, user-defined type, it may have been excluded from
+     * code generation. If this is a built-in type, you can define an explicit
+     * {@link org.jooq.Binding} to specify how this type should be handled.
+     * Deprecation can be turned off using {@literal
+     * <deprecationOnUnknownTypes/>} in your code generator configuration.
+     */
+    @Deprecated
+    public static Field<String> ginTrgmTriconsistent(
+          Object __1
+        , Short __2
+        , String __3
+        , Integer __4
+        , Object __5
+        , Object __6
+        , Object __7
+    ) {
+        JooqGinTrgmTriconsistent f = new JooqGinTrgmTriconsistent();
+        f.set__1(__1);
+        f.set__2(__2);
+        f.set__3(__3);
+        f.set__4(__4);
+        f.set__5(__5);
+        f.set__6(__6);
+        f.set__7(__7);
+
+        return f.asField();
+    }
+
+    /**
+     * @deprecated Unknown data type. Parameter type or return type is unknown.
+     * If this is a qualified, user-defined type, it may have been excluded from
+     * code generation. If this is a built-in type, you can define an explicit
+     * {@link org.jooq.Binding} to specify how this type should be handled.
+     * Deprecation can be turned off using {@literal
+     * <deprecationOnUnknownTypes/>} in your code generator configuration.
+     */
+    @Deprecated
+    public static Field<String> ginTrgmTriconsistent(
+          Field<Object> __1
+        , Field<Short> __2
+        , Field<String> __3
+        , Field<Integer> __4
+        , Field<Object> __5
+        , Field<Object> __6
+        , Field<Object> __7
+    ) {
+        JooqGinTrgmTriconsistent f = new JooqGinTrgmTriconsistent();
+        f.set__1(__1);
+        f.set__2(__2);
+        f.set__3(__3);
+        f.set__4(__4);
+        f.set__5(__5);
+        f.set__6(__6);
+        f.set__7(__7);
+
+        return f.asField();
+    }
+
+    /**
+     * @deprecated Unknown data type. If this is a qualified, user-defined type,
+     * it may have been excluded from code generation. If this is a built-in
+     * type, you can define an explicit {@link org.jooq.Binding} to specify how
+     * this type should be handled. Deprecation can be turned off using
+     * {@literal <deprecationOnUnknownTypes/>} in your code generator
+     * configuration.
+     */
+    @Deprecated
+    public static Object gtrgmCompress(
+          Configuration configuration
+        , Object __1
+    ) {
+        JooqGtrgmCompress f = new JooqGtrgmCompress();
+        f.set__1(__1);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * @deprecated Unknown data type. If this is a qualified, user-defined type,
+     * it may have been excluded from code generation. If this is a built-in
+     * type, you can define an explicit {@link org.jooq.Binding} to specify how
+     * this type should be handled. Deprecation can be turned off using
+     * {@literal <deprecationOnUnknownTypes/>} in your code generator
+     * configuration.
+     */
+    @Deprecated
+    public static Field<Object> gtrgmCompress(
+          Object __1
+    ) {
+        JooqGtrgmCompress f = new JooqGtrgmCompress();
+        f.set__1(__1);
+
+        return f.asField();
+    }
+
+    /**
+     * @deprecated Unknown data type. If this is a qualified, user-defined type,
+     * it may have been excluded from code generation. If this is a built-in
+     * type, you can define an explicit {@link org.jooq.Binding} to specify how
+     * this type should be handled. Deprecation can be turned off using
+     * {@literal <deprecationOnUnknownTypes/>} in your code generator
+     * configuration.
+     */
+    @Deprecated
+    public static Field<Object> gtrgmCompress(
+          Field<Object> __1
+    ) {
+        JooqGtrgmCompress f = new JooqGtrgmCompress();
+        f.set__1(__1);
+
+        return f.asField();
+    }
+
+    /**
+     * @deprecated Unknown data type. Parameter type or return type is unknown.
+     * If this is a qualified, user-defined type, it may have been excluded from
+     * code generation. If this is a built-in type, you can define an explicit
+     * {@link org.jooq.Binding} to specify how this type should be handled.
+     * Deprecation can be turned off using {@literal
+     * <deprecationOnUnknownTypes/>} in your code generator configuration.
+     */
+    @Deprecated
+    public static Boolean gtrgmConsistent(
+          Configuration configuration
+        , Object __1
+        , String __2
+        , Short __3
+        , Long __4
+        , Object __5
+    ) {
+        JooqGtrgmConsistent f = new JooqGtrgmConsistent();
+        f.set__1(__1);
+        f.set__2(__2);
+        f.set__3(__3);
+        f.set__4(__4);
+        f.set__5(__5);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * @deprecated Unknown data type. Parameter type or return type is unknown.
+     * If this is a qualified, user-defined type, it may have been excluded from
+     * code generation. If this is a built-in type, you can define an explicit
+     * {@link org.jooq.Binding} to specify how this type should be handled.
+     * Deprecation can be turned off using {@literal
+     * <deprecationOnUnknownTypes/>} in your code generator configuration.
+     */
+    @Deprecated
+    public static Field<Boolean> gtrgmConsistent(
+          Object __1
+        , String __2
+        , Short __3
+        , Long __4
+        , Object __5
+    ) {
+        JooqGtrgmConsistent f = new JooqGtrgmConsistent();
+        f.set__1(__1);
+        f.set__2(__2);
+        f.set__3(__3);
+        f.set__4(__4);
+        f.set__5(__5);
+
+        return f.asField();
+    }
+
+    /**
+     * @deprecated Unknown data type. Parameter type or return type is unknown.
+     * If this is a qualified, user-defined type, it may have been excluded from
+     * code generation. If this is a built-in type, you can define an explicit
+     * {@link org.jooq.Binding} to specify how this type should be handled.
+     * Deprecation can be turned off using {@literal
+     * <deprecationOnUnknownTypes/>} in your code generator configuration.
+     */
+    @Deprecated
+    public static Field<Boolean> gtrgmConsistent(
+          Field<Object> __1
+        , Field<String> __2
+        , Field<Short> __3
+        , Field<Long> __4
+        , Field<Object> __5
+    ) {
+        JooqGtrgmConsistent f = new JooqGtrgmConsistent();
+        f.set__1(__1);
+        f.set__2(__2);
+        f.set__3(__3);
+        f.set__4(__4);
+        f.set__5(__5);
+
+        return f.asField();
+    }
+
+    /**
+     * @deprecated Unknown data type. If this is a qualified, user-defined type,
+     * it may have been excluded from code generation. If this is a built-in
+     * type, you can define an explicit {@link org.jooq.Binding} to specify how
+     * this type should be handled. Deprecation can be turned off using
+     * {@literal <deprecationOnUnknownTypes/>} in your code generator
+     * configuration.
+     */
+    @Deprecated
+    public static Object gtrgmDecompress(
+          Configuration configuration
+        , Object __1
+    ) {
+        JooqGtrgmDecompress f = new JooqGtrgmDecompress();
+        f.set__1(__1);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * @deprecated Unknown data type. If this is a qualified, user-defined type,
+     * it may have been excluded from code generation. If this is a built-in
+     * type, you can define an explicit {@link org.jooq.Binding} to specify how
+     * this type should be handled. Deprecation can be turned off using
+     * {@literal <deprecationOnUnknownTypes/>} in your code generator
+     * configuration.
+     */
+    @Deprecated
+    public static Field<Object> gtrgmDecompress(
+          Object __1
+    ) {
+        JooqGtrgmDecompress f = new JooqGtrgmDecompress();
+        f.set__1(__1);
+
+        return f.asField();
+    }
+
+    /**
+     * @deprecated Unknown data type. If this is a qualified, user-defined type,
+     * it may have been excluded from code generation. If this is a built-in
+     * type, you can define an explicit {@link org.jooq.Binding} to specify how
+     * this type should be handled. Deprecation can be turned off using
+     * {@literal <deprecationOnUnknownTypes/>} in your code generator
+     * configuration.
+     */
+    @Deprecated
+    public static Field<Object> gtrgmDecompress(
+          Field<Object> __1
+    ) {
+        JooqGtrgmDecompress f = new JooqGtrgmDecompress();
+        f.set__1(__1);
+
+        return f.asField();
+    }
+
+    /**
+     * @deprecated Unknown data type. Parameter type or return type is unknown.
+     * If this is a qualified, user-defined type, it may have been excluded from
+     * code generation. If this is a built-in type, you can define an explicit
+     * {@link org.jooq.Binding} to specify how this type should be handled.
+     * Deprecation can be turned off using {@literal
+     * <deprecationOnUnknownTypes/>} in your code generator configuration.
+     */
+    @Deprecated
+    public static Double gtrgmDistance(
+          Configuration configuration
+        , Object __1
+        , String __2
+        , Short __3
+        , Long __4
+        , Object __5
+    ) {
+        JooqGtrgmDistance f = new JooqGtrgmDistance();
+        f.set__1(__1);
+        f.set__2(__2);
+        f.set__3(__3);
+        f.set__4(__4);
+        f.set__5(__5);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * @deprecated Unknown data type. Parameter type or return type is unknown.
+     * If this is a qualified, user-defined type, it may have been excluded from
+     * code generation. If this is a built-in type, you can define an explicit
+     * {@link org.jooq.Binding} to specify how this type should be handled.
+     * Deprecation can be turned off using {@literal
+     * <deprecationOnUnknownTypes/>} in your code generator configuration.
+     */
+    @Deprecated
+    public static Field<Double> gtrgmDistance(
+          Object __1
+        , String __2
+        , Short __3
+        , Long __4
+        , Object __5
+    ) {
+        JooqGtrgmDistance f = new JooqGtrgmDistance();
+        f.set__1(__1);
+        f.set__2(__2);
+        f.set__3(__3);
+        f.set__4(__4);
+        f.set__5(__5);
+
+        return f.asField();
+    }
+
+    /**
+     * @deprecated Unknown data type. Parameter type or return type is unknown.
+     * If this is a qualified, user-defined type, it may have been excluded from
+     * code generation. If this is a built-in type, you can define an explicit
+     * {@link org.jooq.Binding} to specify how this type should be handled.
+     * Deprecation can be turned off using {@literal
+     * <deprecationOnUnknownTypes/>} in your code generator configuration.
+     */
+    @Deprecated
+    public static Field<Double> gtrgmDistance(
+          Field<Object> __1
+        , Field<String> __2
+        , Field<Short> __3
+        , Field<Long> __4
+        , Field<Object> __5
+    ) {
+        JooqGtrgmDistance f = new JooqGtrgmDistance();
+        f.set__1(__1);
+        f.set__2(__2);
+        f.set__3(__3);
+        f.set__4(__4);
+        f.set__5(__5);
+
+        return f.asField();
+    }
+
+    /**
+     * @deprecated Unknown data type. If this is a qualified, user-defined type,
+     * it may have been excluded from code generation. If this is a built-in
+     * type, you can define an explicit {@link org.jooq.Binding} to specify how
+     * this type should be handled. Deprecation can be turned off using
+     * {@literal <deprecationOnUnknownTypes/>} in your code generator
+     * configuration.
+     */
+    @Deprecated
+    public static Object gtrgmIn(
+          Configuration configuration
+        , Object __1
+    ) {
+        JooqGtrgmIn f = new JooqGtrgmIn();
+        f.set__1(__1);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * @deprecated Unknown data type. If this is a qualified, user-defined type,
+     * it may have been excluded from code generation. If this is a built-in
+     * type, you can define an explicit {@link org.jooq.Binding} to specify how
+     * this type should be handled. Deprecation can be turned off using
+     * {@literal <deprecationOnUnknownTypes/>} in your code generator
+     * configuration.
+     */
+    @Deprecated
+    public static Field<Object> gtrgmIn(
+          Object __1
+    ) {
+        JooqGtrgmIn f = new JooqGtrgmIn();
+        f.set__1(__1);
+
+        return f.asField();
+    }
+
+    /**
+     * @deprecated Unknown data type. If this is a qualified, user-defined type,
+     * it may have been excluded from code generation. If this is a built-in
+     * type, you can define an explicit {@link org.jooq.Binding} to specify how
+     * this type should be handled. Deprecation can be turned off using
+     * {@literal <deprecationOnUnknownTypes/>} in your code generator
+     * configuration.
+     */
+    @Deprecated
+    public static Field<Object> gtrgmIn(
+          Field<Object> __1
+    ) {
+        JooqGtrgmIn f = new JooqGtrgmIn();
+        f.set__1(__1);
+
+        return f.asField();
+    }
+
+    /**
+     * @deprecated Unknown data type. Parameter type or return type is unknown.
+     * If this is a qualified, user-defined type, it may have been excluded from
+     * code generation. If this is a built-in type, you can define an explicit
+     * {@link org.jooq.Binding} to specify how this type should be handled.
+     * Deprecation can be turned off using {@literal
+     * <deprecationOnUnknownTypes/>} in your code generator configuration.
+     */
+    @Deprecated
+    public static void gtrgmOptions(
+          Configuration configuration
+        , Object __1
+    ) {
+        JooqGtrgmOptions p = new JooqGtrgmOptions();
+        p.set__1(__1);
+
+        p.execute(configuration);
+    }
+
+    /**
+     * @deprecated Unknown data type. If this is a qualified, user-defined type,
+     * it may have been excluded from code generation. If this is a built-in
+     * type, you can define an explicit {@link org.jooq.Binding} to specify how
+     * this type should be handled. Deprecation can be turned off using
+     * {@literal <deprecationOnUnknownTypes/>} in your code generator
+     * configuration.
+     */
+    @Deprecated
+    public static Object gtrgmOut(
+          Configuration configuration
+        , Object __1
+    ) {
+        JooqGtrgmOut f = new JooqGtrgmOut();
+        f.set__1(__1);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * @deprecated Unknown data type. If this is a qualified, user-defined type,
+     * it may have been excluded from code generation. If this is a built-in
+     * type, you can define an explicit {@link org.jooq.Binding} to specify how
+     * this type should be handled. Deprecation can be turned off using
+     * {@literal <deprecationOnUnknownTypes/>} in your code generator
+     * configuration.
+     */
+    @Deprecated
+    public static Field<Object> gtrgmOut(
+          Object __1
+    ) {
+        JooqGtrgmOut f = new JooqGtrgmOut();
+        f.set__1(__1);
+
+        return f.asField();
+    }
+
+    /**
+     * @deprecated Unknown data type. If this is a qualified, user-defined type,
+     * it may have been excluded from code generation. If this is a built-in
+     * type, you can define an explicit {@link org.jooq.Binding} to specify how
+     * this type should be handled. Deprecation can be turned off using
+     * {@literal <deprecationOnUnknownTypes/>} in your code generator
+     * configuration.
+     */
+    @Deprecated
+    public static Field<Object> gtrgmOut(
+          Field<Object> __1
+    ) {
+        JooqGtrgmOut f = new JooqGtrgmOut();
+        f.set__1(__1);
+
+        return f.asField();
+    }
+
+    /**
+     * @deprecated Unknown data type. If this is a qualified, user-defined type,
+     * it may have been excluded from code generation. If this is a built-in
+     * type, you can define an explicit {@link org.jooq.Binding} to specify how
+     * this type should be handled. Deprecation can be turned off using
+     * {@literal <deprecationOnUnknownTypes/>} in your code generator
+     * configuration.
+     */
+    @Deprecated
+    public static Object gtrgmPenalty(
+          Configuration configuration
+        , Object __1
+        , Object __2
+        , Object __3
+    ) {
+        JooqGtrgmPenalty f = new JooqGtrgmPenalty();
+        f.set__1(__1);
+        f.set__2(__2);
+        f.set__3(__3);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * @deprecated Unknown data type. If this is a qualified, user-defined type,
+     * it may have been excluded from code generation. If this is a built-in
+     * type, you can define an explicit {@link org.jooq.Binding} to specify how
+     * this type should be handled. Deprecation can be turned off using
+     * {@literal <deprecationOnUnknownTypes/>} in your code generator
+     * configuration.
+     */
+    @Deprecated
+    public static Field<Object> gtrgmPenalty(
+          Object __1
+        , Object __2
+        , Object __3
+    ) {
+        JooqGtrgmPenalty f = new JooqGtrgmPenalty();
+        f.set__1(__1);
+        f.set__2(__2);
+        f.set__3(__3);
+
+        return f.asField();
+    }
+
+    /**
+     * @deprecated Unknown data type. If this is a qualified, user-defined type,
+     * it may have been excluded from code generation. If this is a built-in
+     * type, you can define an explicit {@link org.jooq.Binding} to specify how
+     * this type should be handled. Deprecation can be turned off using
+     * {@literal <deprecationOnUnknownTypes/>} in your code generator
+     * configuration.
+     */
+    @Deprecated
+    public static Field<Object> gtrgmPenalty(
+          Field<Object> __1
+        , Field<Object> __2
+        , Field<Object> __3
+    ) {
+        JooqGtrgmPenalty f = new JooqGtrgmPenalty();
+        f.set__1(__1);
+        f.set__2(__2);
+        f.set__3(__3);
+
+        return f.asField();
+    }
+
+    /**
+     * @deprecated Unknown data type. If this is a qualified, user-defined type,
+     * it may have been excluded from code generation. If this is a built-in
+     * type, you can define an explicit {@link org.jooq.Binding} to specify how
+     * this type should be handled. Deprecation can be turned off using
+     * {@literal <deprecationOnUnknownTypes/>} in your code generator
+     * configuration.
+     */
+    @Deprecated
+    public static Object gtrgmPicksplit(
+          Configuration configuration
+        , Object __1
+        , Object __2
+    ) {
+        JooqGtrgmPicksplit f = new JooqGtrgmPicksplit();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * @deprecated Unknown data type. If this is a qualified, user-defined type,
+     * it may have been excluded from code generation. If this is a built-in
+     * type, you can define an explicit {@link org.jooq.Binding} to specify how
+     * this type should be handled. Deprecation can be turned off using
+     * {@literal <deprecationOnUnknownTypes/>} in your code generator
+     * configuration.
+     */
+    @Deprecated
+    public static Field<Object> gtrgmPicksplit(
+          Object __1
+        , Object __2
+    ) {
+        JooqGtrgmPicksplit f = new JooqGtrgmPicksplit();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        return f.asField();
+    }
+
+    /**
+     * @deprecated Unknown data type. If this is a qualified, user-defined type,
+     * it may have been excluded from code generation. If this is a built-in
+     * type, you can define an explicit {@link org.jooq.Binding} to specify how
+     * this type should be handled. Deprecation can be turned off using
+     * {@literal <deprecationOnUnknownTypes/>} in your code generator
+     * configuration.
+     */
+    @Deprecated
+    public static Field<Object> gtrgmPicksplit(
+          Field<Object> __1
+        , Field<Object> __2
+    ) {
+        JooqGtrgmPicksplit f = new JooqGtrgmPicksplit();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        return f.asField();
+    }
+
+    /**
+     * @deprecated Unknown data type. If this is a qualified, user-defined type,
+     * it may have been excluded from code generation. If this is a built-in
+     * type, you can define an explicit {@link org.jooq.Binding} to specify how
+     * this type should be handled. Deprecation can be turned off using
+     * {@literal <deprecationOnUnknownTypes/>} in your code generator
+     * configuration.
+     */
+    @Deprecated
+    public static Object gtrgmSame(
+          Configuration configuration
+        , Object __1
+        , Object __2
+        , Object __3
+    ) {
+        JooqGtrgmSame f = new JooqGtrgmSame();
+        f.set__1(__1);
+        f.set__2(__2);
+        f.set__3(__3);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * @deprecated Unknown data type. If this is a qualified, user-defined type,
+     * it may have been excluded from code generation. If this is a built-in
+     * type, you can define an explicit {@link org.jooq.Binding} to specify how
+     * this type should be handled. Deprecation can be turned off using
+     * {@literal <deprecationOnUnknownTypes/>} in your code generator
+     * configuration.
+     */
+    @Deprecated
+    public static Field<Object> gtrgmSame(
+          Object __1
+        , Object __2
+        , Object __3
+    ) {
+        JooqGtrgmSame f = new JooqGtrgmSame();
+        f.set__1(__1);
+        f.set__2(__2);
+        f.set__3(__3);
+
+        return f.asField();
+    }
+
+    /**
+     * @deprecated Unknown data type. If this is a qualified, user-defined type,
+     * it may have been excluded from code generation. If this is a built-in
+     * type, you can define an explicit {@link org.jooq.Binding} to specify how
+     * this type should be handled. Deprecation can be turned off using
+     * {@literal <deprecationOnUnknownTypes/>} in your code generator
+     * configuration.
+     */
+    @Deprecated
+    public static Field<Object> gtrgmSame(
+          Field<Object> __1
+        , Field<Object> __2
+        , Field<Object> __3
+    ) {
+        JooqGtrgmSame f = new JooqGtrgmSame();
+        f.set__1(__1);
+        f.set__2(__2);
+        f.set__3(__3);
+
+        return f.asField();
+    }
+
+    /**
+     * @deprecated Unknown data type. If this is a qualified, user-defined type,
+     * it may have been excluded from code generation. If this is a built-in
+     * type, you can define an explicit {@link org.jooq.Binding} to specify how
+     * this type should be handled. Deprecation can be turned off using
+     * {@literal <deprecationOnUnknownTypes/>} in your code generator
+     * configuration.
+     */
+    @Deprecated
+    public static Object gtrgmUnion(
+          Configuration configuration
+        , Object __1
+        , Object __2
+    ) {
+        JooqGtrgmUnion f = new JooqGtrgmUnion();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * @deprecated Unknown data type. If this is a qualified, user-defined type,
+     * it may have been excluded from code generation. If this is a built-in
+     * type, you can define an explicit {@link org.jooq.Binding} to specify how
+     * this type should be handled. Deprecation can be turned off using
+     * {@literal <deprecationOnUnknownTypes/>} in your code generator
+     * configuration.
+     */
+    @Deprecated
+    public static Field<Object> gtrgmUnion(
+          Object __1
+        , Object __2
+    ) {
+        JooqGtrgmUnion f = new JooqGtrgmUnion();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        return f.asField();
+    }
+
+    /**
+     * @deprecated Unknown data type. If this is a qualified, user-defined type,
+     * it may have been excluded from code generation. If this is a built-in
+     * type, you can define an explicit {@link org.jooq.Binding} to specify how
+     * this type should be handled. Deprecation can be turned off using
+     * {@literal <deprecationOnUnknownTypes/>} in your code generator
+     * configuration.
+     */
+    @Deprecated
+    public static Field<Object> gtrgmUnion(
+          Field<Object> __1
+        , Field<Object> __2
+    ) {
+        JooqGtrgmUnion f = new JooqGtrgmUnion();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        return f.asField();
+    }
+
+    /**
+     * Call <code>public.search_body_cap</code>
+     */
+    public static Integer searchBodyCap(
+          Configuration configuration
+    ) {
+        JooqSearchBodyCap f = new JooqSearchBodyCap();
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * Get <code>public.search_body_cap</code> as a field.
+     */
+    public static Field<Integer> searchBodyCap() {
+        JooqSearchBodyCap f = new JooqSearchBodyCap();
+
+        return f.asField();
+    }
+
+    /**
+     * Call <code>public.search_document_rebuild</code>
+     */
+    public static Long searchDocumentRebuild(
+          Configuration configuration
+    ) {
+        JooqSearchDocumentRebuild f = new JooqSearchDocumentRebuild();
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * Get <code>public.search_document_rebuild</code> as a field.
+     */
+    public static Field<Long> searchDocumentRebuild() {
+        JooqSearchDocumentRebuild f = new JooqSearchDocumentRebuild();
+
+        return f.asField();
+    }
+
+    /**
+     * Call <code>public.search_document_refresh_annotation</code>
+     */
+    public static void searchDocumentRefreshAnnotation(
+          Configuration configuration
+        , UUID pUuid
+    ) {
+        JooqSearchDocumentRefreshAnnotation p = new JooqSearchDocumentRefreshAnnotation();
+        p.setPUuid(pUuid);
+
+        p.execute(configuration);
+    }
+
+    /**
+     * Call <code>public.search_document_refresh_asset</code>
+     */
+    public static void searchDocumentRefreshAsset(
+          Configuration configuration
+        , UUID pAssetUuid
+    ) {
+        JooqSearchDocumentRefreshAsset p = new JooqSearchDocumentRefreshAsset();
+        p.setPAssetUuid(pAssetUuid);
+
+        p.execute(configuration);
+    }
+
+    /**
+     * Call <code>public.search_document_refresh_cluster</code>
+     */
+    public static void searchDocumentRefreshCluster(
+          Configuration configuration
+        , UUID pUuid
+    ) {
+        JooqSearchDocumentRefreshCluster p = new JooqSearchDocumentRefreshCluster();
+        p.setPUuid(pUuid);
+
+        p.execute(configuration);
+    }
+
+    /**
+     * Call <code>public.search_document_refresh_collection</code>
+     */
+    public static void searchDocumentRefreshCollection(
+          Configuration configuration
+        , UUID pUuid
+    ) {
+        JooqSearchDocumentRefreshCollection p = new JooqSearchDocumentRefreshCollection();
+        p.setPUuid(pUuid);
+
+        p.execute(configuration);
+    }
+
+    /**
+     * Call <code>public.search_document_refresh_library</code>
+     */
+    public static void searchDocumentRefreshLibrary(
+          Configuration configuration
+        , UUID pUuid
+    ) {
+        JooqSearchDocumentRefreshLibrary p = new JooqSearchDocumentRefreshLibrary();
+        p.setPUuid(pUuid);
+
+        p.execute(configuration);
+    }
+
+    /**
+     * Call <code>public.search_document_refresh_person</code>
+     */
+    public static void searchDocumentRefreshPerson(
+          Configuration configuration
+        , UUID pUuid
+    ) {
+        JooqSearchDocumentRefreshPerson p = new JooqSearchDocumentRefreshPerson();
+        p.setPUuid(pUuid);
+
+        p.execute(configuration);
+    }
+
+    /**
+     * Call <code>public.search_document_refresh_simple</code>
+     */
+    public static void searchDocumentRefreshSimple(
+          Configuration configuration
+        , String pEntityType
+        , UUID pEntityUuid
+        , String pTitle
+        , String pSubtitle
+        , String pKeywords
+        , LocalDateTime pSortDate
+    ) {
+        JooqSearchDocumentRefreshSimple p = new JooqSearchDocumentRefreshSimple();
+        p.setPEntityType(pEntityType);
+        p.setPEntityUuid(pEntityUuid);
+        p.setPTitle(pTitle);
+        p.setPSubtitle(pSubtitle);
+        p.setPKeywords(pKeywords);
+        p.setPSortDate(pSortDate);
+
+        p.execute(configuration);
+    }
+
+    /**
+     * Call <code>public.search_document_refresh_tag</code>
+     */
+    public static void searchDocumentRefreshTag(
+          Configuration configuration
+        , UUID pUuid
+    ) {
+        JooqSearchDocumentRefreshTag p = new JooqSearchDocumentRefreshTag();
+        p.setPUuid(pUuid);
+
+        p.execute(configuration);
+    }
+
+    /**
+     * Call <code>public.search_extract_json_text</code>
+     */
+    public static String searchExtractJsonText(
+          Configuration configuration
+        , String pSchemaType
+        , JSONB pData
+    ) {
+        JooqSearchExtractJsonText f = new JooqSearchExtractJsonText();
+        f.setPSchemaType(pSchemaType);
+        f.setPData(pData);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * Get <code>public.search_extract_json_text</code> as a field.
+     */
+    public static Field<String> searchExtractJsonText(
+          String pSchemaType
+        , JSONB pData
+    ) {
+        JooqSearchExtractJsonText f = new JooqSearchExtractJsonText();
+        f.setPSchemaType(pSchemaType);
+        f.setPData(pData);
+
+        return f.asField();
+    }
+
+    /**
+     * Get <code>public.search_extract_json_text</code> as a field.
+     */
+    public static Field<String> searchExtractJsonText(
+          Field<String> pSchemaType
+        , Field<JSONB> pData
+    ) {
+        JooqSearchExtractJsonText f = new JooqSearchExtractJsonText();
+        f.setPSchemaType(pSchemaType);
+        f.setPData(pData);
+
+        return f.asField();
+    }
+
+    /**
+     * Call <code>public.search_jsonb_all_text</code>
+     */
+    public static String searchJsonbAllText(
+          Configuration configuration
+        , JSONB pData
+    ) {
+        JooqSearchJsonbAllText f = new JooqSearchJsonbAllText();
+        f.setPData(pData);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * Get <code>public.search_jsonb_all_text</code> as a field.
+     */
+    public static Field<String> searchJsonbAllText(
+          JSONB pData
+    ) {
+        JooqSearchJsonbAllText f = new JooqSearchJsonbAllText();
+        f.setPData(pData);
+
+        return f.asField();
+    }
+
+    /**
+     * Get <code>public.search_jsonb_all_text</code> as a field.
+     */
+    public static Field<String> searchJsonbAllText(
+          Field<JSONB> pData
+    ) {
+        JooqSearchJsonbAllText f = new JooqSearchJsonbAllText();
+        f.setPData(pData);
+
+        return f.asField();
+    }
+
+    /**
+     * Call <code>public.set_limit</code>
+     */
+    public static Float setLimit(
+          Configuration configuration
+        , Float __1
+    ) {
+        JooqSetLimit f = new JooqSetLimit();
+        f.set__1(__1);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * Get <code>public.set_limit</code> as a field.
+     */
+    public static Field<Float> setLimit(
+          Float __1
+    ) {
+        JooqSetLimit f = new JooqSetLimit();
+        f.set__1(__1);
+
+        return f.asField();
+    }
+
+    /**
+     * Get <code>public.set_limit</code> as a field.
+     */
+    public static Field<Float> setLimit(
+          Field<Float> __1
+    ) {
+        JooqSetLimit f = new JooqSetLimit();
+        f.set__1(__1);
+
+        return f.asField();
+    }
+
+    /**
+     * Call <code>public.show_limit</code>
+     */
+    public static Float showLimit(
+          Configuration configuration
+    ) {
+        JooqShowLimit f = new JooqShowLimit();
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * Get <code>public.show_limit</code> as a field.
+     */
+    public static Field<Float> showLimit() {
+        JooqShowLimit f = new JooqShowLimit();
+
+        return f.asField();
+    }
+
+    /**
+     * Call <code>public.show_trgm</code>
+     */
+    public static String[] showTrgm(
+          Configuration configuration
+        , String __1
+    ) {
+        JooqShowTrgm f = new JooqShowTrgm();
+        f.set__1(__1);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * Get <code>public.show_trgm</code> as a field.
+     */
+    public static Field<String[]> showTrgm(
+          String __1
+    ) {
+        JooqShowTrgm f = new JooqShowTrgm();
+        f.set__1(__1);
+
+        return f.asField();
+    }
+
+    /**
+     * Get <code>public.show_trgm</code> as a field.
+     */
+    public static Field<String[]> showTrgm(
+          Field<String> __1
+    ) {
+        JooqShowTrgm f = new JooqShowTrgm();
+        f.set__1(__1);
+
+        return f.asField();
+    }
+
+    /**
+     * Call <code>public.similarity</code>
+     */
+    public static Float similarity(
+          Configuration configuration
+        , String __1
+        , String __2
+    ) {
+        JooqSimilarity f = new JooqSimilarity();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * Get <code>public.similarity</code> as a field.
+     */
+    public static Field<Float> similarity(
+          String __1
+        , String __2
+    ) {
+        JooqSimilarity f = new JooqSimilarity();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        return f.asField();
+    }
+
+    /**
+     * Get <code>public.similarity</code> as a field.
+     */
+    public static Field<Float> similarity(
+          Field<String> __1
+        , Field<String> __2
+    ) {
+        JooqSimilarity f = new JooqSimilarity();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        return f.asField();
+    }
+
+    /**
+     * Call <code>public.similarity_dist</code>
+     */
+    public static Float similarityDist(
+          Configuration configuration
+        , String __1
+        , String __2
+    ) {
+        JooqSimilarityDist f = new JooqSimilarityDist();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * Get <code>public.similarity_dist</code> as a field.
+     */
+    public static Field<Float> similarityDist(
+          String __1
+        , String __2
+    ) {
+        JooqSimilarityDist f = new JooqSimilarityDist();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        return f.asField();
+    }
+
+    /**
+     * Get <code>public.similarity_dist</code> as a field.
+     */
+    public static Field<Float> similarityDist(
+          Field<String> __1
+        , Field<String> __2
+    ) {
+        JooqSimilarityDist f = new JooqSimilarityDist();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        return f.asField();
+    }
+
+    /**
+     * Call <code>public.similarity_op</code>
+     */
+    public static Boolean similarityOp(
+          Configuration configuration
+        , String __1
+        , String __2
+    ) {
+        JooqSimilarityOp f = new JooqSimilarityOp();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * Get <code>public.similarity_op</code> as a field.
+     */
+    public static Field<Boolean> similarityOp(
+          String __1
+        , String __2
+    ) {
+        JooqSimilarityOp f = new JooqSimilarityOp();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        return f.asField();
+    }
+
+    /**
+     * Get <code>public.similarity_op</code> as a field.
+     */
+    public static Field<Boolean> similarityOp(
+          Field<String> __1
+        , Field<String> __2
+    ) {
+        JooqSimilarityOp f = new JooqSimilarityOp();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        return f.asField();
+    }
+
+    /**
+     * Call <code>public.strict_word_similarity</code>
+     */
+    public static Float strictWordSimilarity(
+          Configuration configuration
+        , String __1
+        , String __2
+    ) {
+        JooqStrictWordSimilarity f = new JooqStrictWordSimilarity();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * Get <code>public.strict_word_similarity</code> as a field.
+     */
+    public static Field<Float> strictWordSimilarity(
+          String __1
+        , String __2
+    ) {
+        JooqStrictWordSimilarity f = new JooqStrictWordSimilarity();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        return f.asField();
+    }
+
+    /**
+     * Get <code>public.strict_word_similarity</code> as a field.
+     */
+    public static Field<Float> strictWordSimilarity(
+          Field<String> __1
+        , Field<String> __2
+    ) {
+        JooqStrictWordSimilarity f = new JooqStrictWordSimilarity();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        return f.asField();
+    }
+
+    /**
+     * Call <code>public.strict_word_similarity_commutator_op</code>
+     */
+    public static Boolean strictWordSimilarityCommutatorOp(
+          Configuration configuration
+        , String __1
+        , String __2
+    ) {
+        JooqStrictWordSimilarityCommutatorOp f = new JooqStrictWordSimilarityCommutatorOp();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * Get <code>public.strict_word_similarity_commutator_op</code> as a field.
+     */
+    public static Field<Boolean> strictWordSimilarityCommutatorOp(
+          String __1
+        , String __2
+    ) {
+        JooqStrictWordSimilarityCommutatorOp f = new JooqStrictWordSimilarityCommutatorOp();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        return f.asField();
+    }
+
+    /**
+     * Get <code>public.strict_word_similarity_commutator_op</code> as a field.
+     */
+    public static Field<Boolean> strictWordSimilarityCommutatorOp(
+          Field<String> __1
+        , Field<String> __2
+    ) {
+        JooqStrictWordSimilarityCommutatorOp f = new JooqStrictWordSimilarityCommutatorOp();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        return f.asField();
+    }
+
+    /**
+     * Call <code>public.strict_word_similarity_dist_commutator_op</code>
+     */
+    public static Float strictWordSimilarityDistCommutatorOp(
+          Configuration configuration
+        , String __1
+        , String __2
+    ) {
+        JooqStrictWordSimilarityDistCommutatorOp f = new JooqStrictWordSimilarityDistCommutatorOp();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * Get <code>public.strict_word_similarity_dist_commutator_op</code> as a
+     * field.
+     */
+    public static Field<Float> strictWordSimilarityDistCommutatorOp(
+          String __1
+        , String __2
+    ) {
+        JooqStrictWordSimilarityDistCommutatorOp f = new JooqStrictWordSimilarityDistCommutatorOp();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        return f.asField();
+    }
+
+    /**
+     * Get <code>public.strict_word_similarity_dist_commutator_op</code> as a
+     * field.
+     */
+    public static Field<Float> strictWordSimilarityDistCommutatorOp(
+          Field<String> __1
+        , Field<String> __2
+    ) {
+        JooqStrictWordSimilarityDistCommutatorOp f = new JooqStrictWordSimilarityDistCommutatorOp();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        return f.asField();
+    }
+
+    /**
+     * Call <code>public.strict_word_similarity_dist_op</code>
+     */
+    public static Float strictWordSimilarityDistOp(
+          Configuration configuration
+        , String __1
+        , String __2
+    ) {
+        JooqStrictWordSimilarityDistOp f = new JooqStrictWordSimilarityDistOp();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * Get <code>public.strict_word_similarity_dist_op</code> as a field.
+     */
+    public static Field<Float> strictWordSimilarityDistOp(
+          String __1
+        , String __2
+    ) {
+        JooqStrictWordSimilarityDistOp f = new JooqStrictWordSimilarityDistOp();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        return f.asField();
+    }
+
+    /**
+     * Get <code>public.strict_word_similarity_dist_op</code> as a field.
+     */
+    public static Field<Float> strictWordSimilarityDistOp(
+          Field<String> __1
+        , Field<String> __2
+    ) {
+        JooqStrictWordSimilarityDistOp f = new JooqStrictWordSimilarityDistOp();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        return f.asField();
+    }
+
+    /**
+     * Call <code>public.strict_word_similarity_op</code>
+     */
+    public static Boolean strictWordSimilarityOp(
+          Configuration configuration
+        , String __1
+        , String __2
+    ) {
+        JooqStrictWordSimilarityOp f = new JooqStrictWordSimilarityOp();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * Get <code>public.strict_word_similarity_op</code> as a field.
+     */
+    public static Field<Boolean> strictWordSimilarityOp(
+          String __1
+        , String __2
+    ) {
+        JooqStrictWordSimilarityOp f = new JooqStrictWordSimilarityOp();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        return f.asField();
+    }
+
+    /**
+     * Get <code>public.strict_word_similarity_op</code> as a field.
+     */
+    public static Field<Boolean> strictWordSimilarityOp(
+          Field<String> __1
+        , Field<String> __2
+    ) {
+        JooqStrictWordSimilarityOp f = new JooqStrictWordSimilarityOp();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        return f.asField();
+    }
 
     /**
      * Call <code>public.uuid_generate_v1</code>
@@ -279,6 +2020,226 @@ public class Routines {
      */
     public static Field<UUID> uuidNsX500() {
         JooqUuidNsX500 f = new JooqUuidNsX500();
+
+        return f.asField();
+    }
+
+    /**
+     * Call <code>public.word_similarity</code>
+     */
+    public static Float wordSimilarity(
+          Configuration configuration
+        , String __1
+        , String __2
+    ) {
+        JooqWordSimilarity f = new JooqWordSimilarity();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * Get <code>public.word_similarity</code> as a field.
+     */
+    public static Field<Float> wordSimilarity(
+          String __1
+        , String __2
+    ) {
+        JooqWordSimilarity f = new JooqWordSimilarity();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        return f.asField();
+    }
+
+    /**
+     * Get <code>public.word_similarity</code> as a field.
+     */
+    public static Field<Float> wordSimilarity(
+          Field<String> __1
+        , Field<String> __2
+    ) {
+        JooqWordSimilarity f = new JooqWordSimilarity();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        return f.asField();
+    }
+
+    /**
+     * Call <code>public.word_similarity_commutator_op</code>
+     */
+    public static Boolean wordSimilarityCommutatorOp(
+          Configuration configuration
+        , String __1
+        , String __2
+    ) {
+        JooqWordSimilarityCommutatorOp f = new JooqWordSimilarityCommutatorOp();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * Get <code>public.word_similarity_commutator_op</code> as a field.
+     */
+    public static Field<Boolean> wordSimilarityCommutatorOp(
+          String __1
+        , String __2
+    ) {
+        JooqWordSimilarityCommutatorOp f = new JooqWordSimilarityCommutatorOp();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        return f.asField();
+    }
+
+    /**
+     * Get <code>public.word_similarity_commutator_op</code> as a field.
+     */
+    public static Field<Boolean> wordSimilarityCommutatorOp(
+          Field<String> __1
+        , Field<String> __2
+    ) {
+        JooqWordSimilarityCommutatorOp f = new JooqWordSimilarityCommutatorOp();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        return f.asField();
+    }
+
+    /**
+     * Call <code>public.word_similarity_dist_commutator_op</code>
+     */
+    public static Float wordSimilarityDistCommutatorOp(
+          Configuration configuration
+        , String __1
+        , String __2
+    ) {
+        JooqWordSimilarityDistCommutatorOp f = new JooqWordSimilarityDistCommutatorOp();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * Get <code>public.word_similarity_dist_commutator_op</code> as a field.
+     */
+    public static Field<Float> wordSimilarityDistCommutatorOp(
+          String __1
+        , String __2
+    ) {
+        JooqWordSimilarityDistCommutatorOp f = new JooqWordSimilarityDistCommutatorOp();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        return f.asField();
+    }
+
+    /**
+     * Get <code>public.word_similarity_dist_commutator_op</code> as a field.
+     */
+    public static Field<Float> wordSimilarityDistCommutatorOp(
+          Field<String> __1
+        , Field<String> __2
+    ) {
+        JooqWordSimilarityDistCommutatorOp f = new JooqWordSimilarityDistCommutatorOp();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        return f.asField();
+    }
+
+    /**
+     * Call <code>public.word_similarity_dist_op</code>
+     */
+    public static Float wordSimilarityDistOp(
+          Configuration configuration
+        , String __1
+        , String __2
+    ) {
+        JooqWordSimilarityDistOp f = new JooqWordSimilarityDistOp();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * Get <code>public.word_similarity_dist_op</code> as a field.
+     */
+    public static Field<Float> wordSimilarityDistOp(
+          String __1
+        , String __2
+    ) {
+        JooqWordSimilarityDistOp f = new JooqWordSimilarityDistOp();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        return f.asField();
+    }
+
+    /**
+     * Get <code>public.word_similarity_dist_op</code> as a field.
+     */
+    public static Field<Float> wordSimilarityDistOp(
+          Field<String> __1
+        , Field<String> __2
+    ) {
+        JooqWordSimilarityDistOp f = new JooqWordSimilarityDistOp();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        return f.asField();
+    }
+
+    /**
+     * Call <code>public.word_similarity_op</code>
+     */
+    public static Boolean wordSimilarityOp(
+          Configuration configuration
+        , String __1
+        , String __2
+    ) {
+        JooqWordSimilarityOp f = new JooqWordSimilarityOp();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * Get <code>public.word_similarity_op</code> as a field.
+     */
+    public static Field<Boolean> wordSimilarityOp(
+          String __1
+        , String __2
+    ) {
+        JooqWordSimilarityOp f = new JooqWordSimilarityOp();
+        f.set__1(__1);
+        f.set__2(__2);
+
+        return f.asField();
+    }
+
+    /**
+     * Get <code>public.word_similarity_op</code> as a field.
+     */
+    public static Field<Boolean> wordSimilarityOp(
+          Field<String> __1
+        , Field<String> __2
+    ) {
+        JooqWordSimilarityOp f = new JooqWordSimilarityOp();
+        f.set__1(__1);
+        f.set__2(__2);
 
         return f.asField();
     }

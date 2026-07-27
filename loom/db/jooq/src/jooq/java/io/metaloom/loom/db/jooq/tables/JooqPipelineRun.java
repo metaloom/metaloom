@@ -87,9 +87,9 @@ public class JooqPipelineRun extends TableImpl<JooqPipelineRunRecord> {
 
     /**
      * The column <code>public.pipeline_run.status</code>. Current status:
-     * PENDING, RUNNING, SUCCESS, FAILED, PARTIAL, CANCELLED
+     * PENDING, RUNNING, PAUSED, SUCCESS, FAILED, PARTIAL, CANCELLED
      */
-    public final TableField<JooqPipelineRunRecord, String> STATUS = createField(DSL.name("status"), SQLDataType.VARCHAR.nullable(false).defaultValue(DSL.field("'PENDING'::character varying", SQLDataType.VARCHAR)), this, "Current status: PENDING, RUNNING, SUCCESS, FAILED, PARTIAL, CANCELLED");
+    public final TableField<JooqPipelineRunRecord, String> STATUS = createField(DSL.name("status"), SQLDataType.VARCHAR.nullable(false).defaultValue(DSL.field("'PENDING'::character varying", SQLDataType.VARCHAR)), this, "Current status: PENDING, RUNNING, PAUSED, SUCCESS, FAILED, PARTIAL, CANCELLED");
 
     /**
      * The column <code>public.pipeline_run.media_count</code>. Total number of
