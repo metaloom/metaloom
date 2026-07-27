@@ -621,6 +621,28 @@ and *how was this built*.
 All three legal pages are linked from the docs landing card grid, the "Choose Your Path" table and
 the site footer — see [The site footer](#the-site-footer).
 
+### The site header
+
+`themes/meghna-hugo/layouts/partials/navigation.html`, styled in `less/includes/custom.less`
+(`.navigation`, `.navbar-*`) because it is the same header on every page.
+
+* **Sticky and translucent** — `rgba(17,21,26,.72)` plus `backdrop-filter: blur(16px)`, so the
+  hero shows through it. A `@supports not (backdrop-filter)` fallback swaps in an opaque bar
+  rather than leaving a washed-out one.
+* **`.is-scrolled`** is toggled past 12 px of scroll by a small block at the end of
+  `assets/js/script.js`; it darkens the bar, adds a shadow and shrinks the logo. Cosmetic only —
+  the header is legible in either state.
+* **The current section is marked.** The partial compares `.RelPermalink` against each menu
+  entry's URL and adds `.is-active` (plus `aria-current="page"`), which shows as a teal underline
+  on desktop and a left border on mobile. The underline is the same element that grows on hover.
+* **Menu labels are the `name` values in `config.toml`** and are written capitalised (`Studios`,
+  `Docs`) — no CSS text-transform.
+* The **Discord icon** comes from `params.discordLink`. That key used to sit at the root of
+  `config.toml` where templates could not read it; it now lives under `[params]`.
+* The mobile toggler is a three-bar hamburger that folds into an X (`[aria-expanded="true"]`),
+  and the open panel gets its own solid surface — translucency is fine for a 60 px bar over a
+  hero, not for a full menu with page content behind it.
+
 <a id="the-site-footer"></a>
 ### The site footer
 
@@ -764,6 +786,32 @@ Rules to keep when editing it:
   15–95 KB webp files. Add new photography to `themes/meghna-hugo/assets/images/studios/`, not to
   `static/`, or it will be published unprocessed.
 
+### The hero: travelling light and the bottom fade
+
+The hero photograph is a bundle of colour bands sweeping from the lower left to the upper right.
+Five layers sit inside `.st-hero-media`, and the order is the design:
+
+| Layer | What it does |
+| --- | --- |
+| `img` | the photograph, with a 26 s scale/translate drift |
+| `.st-hero-pulse` ×3 | gradient stripes laid **across** the band axis and slid **along** it, blended into the photo — the "energy passing through the bands" effect |
+| `.st-hero-breathe` | a slow radial swell of teal (`opacity` only) — the "pulsate" half |
+| `.st-hero-veil` | darkens the left side so the headline stays legible |
+| `.st-hero-fade` | the bottom 46 %, fading to `--st-bg` so the bands run out instead of being cut off |
+
+Rules for touching it:
+
+* **Angles follow the picture.** `35deg` is the direction the bands run, so a gradient at that
+  angle puts the stripe edges at right angles to them and the transform slides the stripe along
+  them. The third layer runs the other way (`-58deg`) at lower opacity so the motion does not read
+  as one flat wipe. If the photograph is ever replaced, re-measure the band angle.
+* **Only `transform` and `opacity` are animated**, and `.st-hero-media` carries
+  `isolation: isolate` so the `mix-blend-mode` layers blend into the photo and not into the page.
+  Do not animate `filter` or `background-position` here — that would repaint a full-bleed image
+  every frame.
+* The pulses live **under** the veil on purpose. Above it they would brighten the headline area.
+* `prefers-reduced-motion` freezes them at a fixed opacity rather than hiding them.
+
 <a id="scroll-reveal-shared"></a>
 ## Scroll reveal (shared by `/` and `/studios/`)
 
@@ -898,6 +946,7 @@ so only `HUGO_*` and `CI` env vars are readable from templates.
 | `Languages.en.contentDir` | `content/english` | Where English content is read from. |
 | `[[Languages.en.menu.main]]` | studios, features, announcements, blog, docs | Top navigation entries + weights. All point at real pages now — no `pre = "#"` anchors. |
 | `params.logo` | `images/logo_word_big.svg` | Header logo asset. |
+| `params.discordLink` | `https://discord.gg/NFdnFcSbfA` | Community link; rendered as the header's icon. Must live under `[params]` — as a root key it is invisible to templates. |
 | `params.canonical_base` | `https://metaloom.io` | Base for the absolute URLs in the social metadata. Duplicates `baseURL` on purpose — see the gotcha below. Keep the two in sync. |
 
 | Build/publish env | Where | Notes |
@@ -947,6 +996,7 @@ change the Hugo source and rebuild.
 | `website/content/english/announcements/**` | Release announcements (`_index.adoc` + one bundle per release). |
 | `website/themes/meghna-hugo/layouts/announcements/*.html` | Announcement list/detail layouts. |
 | `website/themes/meghna-hugo/layouts/partials/card.html` | OG/Twitter metadata for every page (title, description, image chains). |
+| `website/themes/meghna-hugo/layouts/partials/navigation.html` | Site header (sticky, translucent, active-section marking). |
 | `website/themes/meghna-hugo/layouts/partials/footer.html` | Site-wide footer (four link columns, contact pills, Impressum link). |
 | `website/content/english/docs/legal/impressum/index.adoc` | Austrian Impressum + Datenschutz (German; **has placeholders**). |
 | `website/static/images/og-default.jpg`, `og-metaloom-1-0-0.jpg` | 1200×630 social cards. |
@@ -986,6 +1036,7 @@ change the Hugo source and rebuild.
 | Change UI labels ("Read more", menu names, footer links) | `website/i18n/en.yaml` |
 | Record which model a node uses and its license | `website/content/english/docs/legal/model-licenses/index.adoc` |
 | State how the code was produced (AI disclosure) | `website/content/english/docs/legal/ai-disclosure/index.adoc` |
+| Change the header / top navigation | `[[Languages.en.menu.main]]` in `config.toml` for the entries; `partials/navigation.html` + `.navigation` rules in `custom.less` for the look |
 | Change the footer | `website/themes/meghna-hugo/layouts/partials/footer.html`, labels in `i18n/en.yaml`, contact pills in `[[params.social]]` |
 | Fill in the Impressum | `website/content/english/docs/legal/impressum/index.adoc` — the `[…]` placeholders and the comment block at the top |
 | Change docs page layout / TOC | `website/themes/meghna-hugo/layouts/docs/single.html` (+ `list.html`) |
@@ -1216,6 +1267,13 @@ Current state of the website (as of the checkout below):
       card with a monospace facts list (version in tree, published artifacts, demo container),
       three working links, and a badge in the footer. The placeholder "Notify me" field was
       removed rather than left to imply a mailing list exists
+- [x] **Site header reworked** — sticky translucent bar with a blur, an `.is-scrolled` solid
+      state, current-section marking (teal underline / left border on mobile, `aria-current`),
+      capitalised labels, a Discord icon, and a hamburger that folds into an X over a solid mobile
+      panel
+- [x] **`/studios/` hero given motion** — three blended gradient stripes travelling along the
+      photograph's band axis plus a slow teal swell, and an explicit bottom fade so the colour
+      bands dissolve into the page instead of ending on an edge. `transform`/`opacity` only
 - [x] **Site footer rebuilt** — four link columns (brand + status badge, Explore, Documentation,
       Project), copyright line and contact pills driven by `[[params.social]]`; the placeholder
       Twitter icon pointing at `#` is gone, and bootstrap-toc is scoped to `.docs-main-content` so

@@ -759,3 +759,146 @@ html { scrollbar-gutter: stable; }
   .site-footer-col { margin-bottom: 26px; }
   .site-footer-bottom { justify-content: flex-start; }
 }
+
+/* ==========================================================
+   Site header (partials/navigation.html)
+
+   Sticky and translucent so the page shows through it, with a solid state once the reader has
+   scrolled (`.is-scrolled`, set from assets/js/script.js). The rules below out-specify the
+   theme's originals in style.css rather than editing that vendored file.
+   ========================================================== */
+.navigation {
+  background-color: rgba(17, 21, 26, .72);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  backdrop-filter: blur(16px) saturate(150%);
+  border-bottom: 1px solid rgba(255, 255, 255, .06);
+  transition: background-color .25s ease-in 0s, border-color .25s ease-in 0s, box-shadow .25s ease-in 0s;
+}
+.navigation.is-scrolled {
+  background-color: rgba(11, 14, 19, .93);
+  border-bottom-color: rgba(255, 255, 255, .09);
+  box-shadow: 0 16px 40px -30px rgba(0, 0, 0, .9);
+}
+/* Browsers without backdrop-filter get an opaque bar instead of a washed-out one. */
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .navigation { background-color: #12161b; }
+}
+
+.navigation .navbar {
+  padding: .6rem 0;
+}
+
+.navigation .navbar-brand img {
+  height: 34px;
+  width: auto;
+  transition: height .25s ease-in 0s, opacity .2s ease-in 0s;
+}
+.navigation.is-scrolled .navbar-brand img { height: 30px; }
+.navigation .navbar-brand:hover img { opacity: .85; }
+
+.navbar-expand-lg .navbar-nav .nav-link {
+  color: #aab6c2;
+  font-family: "Quattrocento Sans", sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: .005em;
+  margin-left: 34px;
+  padding: 8px 1px;
+  position: relative;
+  transition: color .2s ease-in 0s;
+}
+.navbar-expand-lg .navbar-nav .nav-link:hover { color: #fff; }
+
+/* the underline grows from the left on hover and stays put on the current section */
+.navbar-expand-lg .navbar-nav .nav-link::after {
+  background: linear-gradient(90deg, #57cbcc, #7efff4);
+  border-radius: 2px;
+  bottom: 0;
+  content: "";
+  height: 2px;
+  left: 0;
+  position: absolute;
+  right: 0;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform .22s ease-in 0s;
+}
+.navbar-expand-lg .navbar-nav .nav-link:hover::after,
+.navbar-expand-lg .navbar-nav .is-active .nav-link::after { transform: scaleX(1); }
+.navbar-expand-lg .navbar-nav .is-active .nav-link { color: #7efff4; }
+
+/* Discord sits apart from the section links — icon only, no underline. */
+.navbar-expand-lg .navbar-nav .nav-link-icon {
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 50%;
+  font-size: 15px;
+  height: 34px;
+  line-height: 32px;
+  margin-left: 26px;
+  padding: 0;
+  text-align: center;
+  width: 34px;
+}
+.navbar-expand-lg .navbar-nav .nav-link-icon::after { display: none; }
+.navbar-expand-lg .navbar-nav .nav-link-icon:hover {
+  border-color: #57cbcc;
+  color: #7efff4;
+}
+
+/* --- mobile --- */
+.navigation .navbar-toggler {
+  border: 1px solid rgba(255, 255, 255, .16);
+  border-radius: 8px;
+  height: 40px;
+  padding: 0;
+  width: 44px;
+}
+.navigation .navbar-toggler:hover { border-color: #57cbcc; }
+.navbar-toggler-bars {
+  display: inline-block;
+  height: 12px;
+  position: relative;
+  vertical-align: middle;
+  width: 20px;
+}
+.navbar-toggler-bars span {
+  background: #cdd6df;
+  border-radius: 2px;
+  display: block;
+  height: 2px;
+  left: 0;
+  position: absolute;
+  transition: transform .25s ease-in 0s, opacity .2s ease-in 0s;
+  width: 100%;
+}
+.navbar-toggler-bars span:nth-child(1) { top: 0; }
+.navbar-toggler-bars span:nth-child(2) { top: 5px; }
+.navbar-toggler-bars span:nth-child(3) { top: 10px; }
+.navbar-toggler[aria-expanded="true"] .navbar-toggler-bars span:nth-child(1) { transform: translateY(5px) rotate(45deg); }
+.navbar-toggler[aria-expanded="true"] .navbar-toggler-bars span:nth-child(2) { opacity: 0; }
+.navbar-toggler[aria-expanded="true"] .navbar-toggler-bars span:nth-child(3) { transform: translateY(-5px) rotate(-45deg); }
+
+@media (max-width: 991px) {
+  /* The open panel needs its own solid surface — the header's translucency is fine as a 60px
+     bar over a hero, but not behind a full menu with page content showing through it. */
+  .navigation .navbar-collapse {
+    background: rgba(9, 12, 16, .98);
+    border: 1px solid rgba(255, 255, 255, .08);
+    border-radius: 12px;
+    margin-top: 12px;
+    padding: 10px 16px 14px;
+  }
+  .navbar-expand-lg .navbar-nav .nav-link {
+    margin-left: 0;
+    padding: 11px 2px;
+  }
+  .navbar-expand-lg .navbar-nav .nav-link::after { display: none; }
+  .navbar-expand-lg .navbar-nav .is-active .nav-link {
+    border-left: 2px solid #57cbcc;
+    padding-left: 12px;
+  }
+  .navbar-expand-lg .navbar-nav .nav-link-icon {
+    margin: 10px 0 0;
+    text-align: center;
+  }
+}

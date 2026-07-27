@@ -209,6 +209,8 @@ body { background-color: #0b0e13; }
 }
 .st-hero-media {
   inset: 0;
+  isolation: isolate; /* keeps the blended light layers from bleeding onto the page below */
+  overflow: hidden;
   position: absolute;
   z-index: 0;
 }
@@ -223,12 +225,96 @@ body { background-color: #0b0e13; }
   from { transform: scale(1.04) translate3d(0, 0, 0); }
   to   { transform: scale(1.12) translate3d(-1.5%, -1.5%, 0); }
 }
+
+/* ---- light travelling along the bands of the photograph ----
+   The hero picture is a bundle of colour bands sweeping from the lower left to the upper right.
+   These layers are gradient stripes laid *across* that axis and slid *along* it, blended into
+   the photo, so the bands read as carrying energy rather than as a still image. Nothing is
+   redrawn — each layer only moves (transform) and the blend does the rest, so this stays on the
+   compositor.
+
+   Angles follow the picture: 35deg is the direction the bands run, which puts the stripe edges
+   at right angles to them. The "cross" layer runs the other way at a lower opacity so the
+   movement does not read as one flat wipe. */
+.st-hero-pulse {
+  background: linear-gradient(35deg,
+    rgba(255, 255, 255, 0) 36%,
+    rgba(255, 255, 255, .14) 45%,
+    rgba(205, 255, 252, .46) 50%,
+    rgba(255, 255, 255, .14) 55%,
+    rgba(255, 255, 255, 0) 64%);
+  inset: -45%;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  position: absolute;
+  will-change: transform;
+  animation: st-hero-travel 7.5s linear infinite;
+}
+.st-hero-pulse-slow {
+  background: linear-gradient(35deg,
+    rgba(255, 255, 255, 0) 28%,
+    rgba(126, 255, 244, .24) 50%,
+    rgba(255, 255, 255, 0) 72%);
+  animation-duration: 15s;
+  animation-delay: -5s;
+  mix-blend-mode: soft-light;
+}
+.st-hero-pulse-cross {
+  background: linear-gradient(-58deg,
+    rgba(255, 255, 255, 0) 42%,
+    rgba(196, 168, 255, .22) 50%,
+    rgba(255, 255, 255, 0) 58%);
+  animation: st-hero-travel-cross 11s linear infinite;
+  animation-delay: -3s;
+  mix-blend-mode: soft-light;
+}
+/* Travel is along the band axis: up and to the right for the two 35deg layers. */
+@keyframes st-hero-travel {
+  from { transform: translate3d(-34%, 24%, 0); }
+  to   { transform: translate3d(34%, -24%, 0); }
+}
+@keyframes st-hero-travel-cross {
+  from { transform: translate3d(28%, 26%, 0); }
+  to   { transform: translate3d(-28%, -26%, 0); }
+}
+
+/* A slow swell of colour temperature over the whole picture — the "pulsate" half of the effect.
+   Opacity only, so it costs nothing. */
+.st-hero-breathe {
+  background: radial-gradient(58% 46% at 66% 44%, rgba(87, 203, 204, .30) 0%, rgba(87, 203, 204, 0) 70%);
+  inset: 0;
+  mix-blend-mode: screen;
+  pointer-events: none;
+  position: absolute;
+  animation: st-hero-breathe 9s ease-in-out infinite alternate;
+}
+@keyframes st-hero-breathe {
+  from { opacity: .25; }
+  to   { opacity: .8; }
+}
+
 .st-hero-veil {
   inset: 0;
   position: absolute;
   background:
     radial-gradient(120% 80% at 18% 40%, rgba(11, 14, 19, .94) 0%, rgba(11, 14, 19, .72) 42%, rgba(11, 14, 19, .35) 70%),
-    linear-gradient(180deg, rgba(11, 14, 19, .8) 0%, rgba(11, 14, 19, .1) 35%, rgba(11, 14, 19, .96) 100%);
+    linear-gradient(180deg, rgba(11, 14, 19, .8) 0%, rgba(11, 14, 19, .1) 35%, rgba(11, 14, 19, .55) 78%);
+}
+
+/* The picture must not end on a hard edge: the bottom third dissolves into the page background
+   so the colour bands run out instead of being cut off. */
+.st-hero-fade {
+  background: linear-gradient(180deg,
+    rgba(11, 14, 19, 0) 0%,
+    rgba(11, 14, 19, .35) 34%,
+    rgba(11, 14, 19, .82) 68%,
+    var(--st-bg) 100%);
+  bottom: 0;
+  height: 46%;
+  left: 0;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
 }
 .st-hero-inner {
   margin: 0 auto;
@@ -876,6 +962,7 @@ body { background-color: #0b0e13; }
     transition: none !important;
   }
   .reveal { opacity: 1 !important; transform: none !important; }
+  .st-hero-pulse, .st-hero-breathe { opacity: .5; }
   .st-pv-flow { opacity: .9; }
   .st-pv-worker rect, .st-pv-worker text,
   .st-pv-index-rows rect, .st-fc-box { opacity: 1; }

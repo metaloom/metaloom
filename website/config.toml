@@ -13,8 +13,6 @@ summaryLength = "15"
 disqusShortname = "" # get your shortname form here : https://disqus.com
 # disable language
 disableLanguages = []
-discordLink = "https://discord.gg/NFdnFcSbfA"
-
 enableRobotsTXT = true
 
 
@@ -113,7 +111,7 @@ link = "plugins/nodeviz/nodeviz.js"
 
 
 [[Languages.en.menu.main]]
-name = "features"
+name = "Features"
 pre = ""
 url = "features"
 weight = 3
@@ -125,25 +123,25 @@ weight = 3
 #weight = 5
 
 [[Languages.en.menu.main]]
-name = "studios"
+name = "Studios"
 pre = ""
 url = "studios"
 weight = 2
 
 [[Languages.en.menu.main]]
-name = "announcements"
+name = "Announcements"
 pre = ""
 url = "announcements"
 weight = 5
 
 [[Languages.en.menu.main]]
-name = "blog"
+name = "Blog"
 pre = ""
 url = "blog"
 weight = 6
 
 [[Languages.en.menu.main]]
-name = "docs"
+name = "Docs"
 pre = ""
 url = "docs"
 weight = 6
@@ -158,6 +156,8 @@ weight = 6
 ############################# Default Parameters ##########################
 [params]
 logo = "images/logo_word_big.svg"
+# Community link — used by the header icon and available to any page that needs it.
+discordLink = "https://discord.gg/NFdnFcSbfA"
 # Base for the absolute URLs in the social metadata (partials/card.html). It duplicates
 # `baseURL` on purpose: Hugo intermittently resolves site.BaseURL to its default
 # "http://localhost:1313/" for a handful of pages when the theme CSS is rebuilt in the same

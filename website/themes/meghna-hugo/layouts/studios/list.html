@@ -19,11 +19,19 @@
   {{ with $d.hero }}
   {{ $src := resources.Get "images/studios/hero-threads.jpg" }}
   <section class="st-hero" id="top">
+    {{/* Layer order matters: the photo, then the light that travels along its bands (blended
+         into the photo), then the veil that keeps the headline legible, then the fade that
+         dissolves the picture into the page. */}}
     <div class="st-hero-media">
       <img src="{{ ($src.Fill "1920x1200 webp q68 Center").RelPermalink }}"
            srcset="{{ ($src.Fill "900x1100 webp q62 Center").RelPermalink }} 900w, {{ ($src.Fill "1920x1200 webp q68 Center").RelPermalink }} 1920w"
            sizes="100vw" alt="" aria-hidden="true" fetchpriority="high">
+      <div class="st-hero-pulse" aria-hidden="true"></div>
+      <div class="st-hero-pulse st-hero-pulse-slow" aria-hidden="true"></div>
+      <div class="st-hero-pulse st-hero-pulse-cross" aria-hidden="true"></div>
+      <div class="st-hero-breathe" aria-hidden="true"></div>
       <div class="st-hero-veil"></div>
+      <div class="st-hero-fade" aria-hidden="true"></div>
     </div>
     <div class="st-hero-inner">
       <p class="st-eyebrow reveal">{{ .eyebrow }}</p>

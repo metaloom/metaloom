@@ -196,3 +196,17 @@ jQuery(function ($) {
 		initDocsLightbox();
 	}
 })();
+
+/* Site header: solidify the sticky navigation once the page is scrolled. Purely cosmetic —
+   the header is legible in either state. */
+(function () {
+	var nav = document.querySelector('.navigation');
+	if (!nav) return;
+
+	function sync() {
+		nav.classList.toggle('is-scrolled', (window.pageYOffset || document.documentElement.scrollTop) > 12);
+	}
+
+	sync();
+	window.addEventListener('scroll', sync, { passive: true });
+})();
