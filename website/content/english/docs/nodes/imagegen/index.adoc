@@ -1,0 +1,66 @@
+---
+title: Image Generation
+---
+
+The image-generation node **generates a new image with a diffusion model**. Unlike the analysis
+nodes, which describe a property of the media itself, `imagegen` produces a fresh image — either
+from a text prompt (`GENERATE`) or by remixing the asset's own image guided by a prompt (`REMIX`) —
+and attaches it to the asset.
+
+The diffusion model runs behind a small HTTP sidecar, so the node stays a pure client and needs no
+model runtime of its own. The sidecar is model-agnostic: it ships with **SDXL-Turbo** by default
+(ungated, fast) and can serve other diffusers-compatible models.
+
+++++
+<div class="ml-nodeviz" data-nodeviz='{"kind":"imagegen","applies":"Image","badge":"image sidecar","persist":"asset_node_result ledger (the PNG stays in the local imagegen_bin cache)","configs":[{"name":"generate (text-to-image)","note":"mode GENERATE · prompt from node config","inputs":[{"t":"text","l":"prompt","d":"configured prompt"}],"outputs":[{"t":"flag","l":"imagegen_flag"},{"t":"path","l":"imagegen_path","d":"local PNG path"}]},{"name":"remix (image-to-image)","note":"mode REMIX · source image + prompt","inputs":[{"t":"image","l":"source","d":"the asset image"},{"t":"text","l":"prompt","d":"configured prompt"}],"outputs":[{"t":"flag","l":"imagegen_flag"},{"t":"path","l":"imagegen_path","d":"local PNG path"}]}]}'></div>
+++++
+
+[cols="1,3"]
+|===
+| Kind | `imagegen`
+| Applies to | Image assets
+| Inputs | A generation `prompt` from the node configuration; in `REMIX` mode also the asset's own image
+| Output keys | `imagegen_flag` (String), `imagegen_path` (String, local path of the generated PNG)
+| Requirements | A running **image sidecar** (`/generate`, `/remix`). A GPU is recommended for interactive latency.
+| Persists to | `asset_node_result` ledger only — the generated PNG stays in the worker's local `imagegen_bin` cache (as with thumbnails)
+|===
+
+== Configuration
+
+`ImageGenNodeOptions`:
+
+[options="header",cols="1,2"]
+|===
+| Option | Meaning
+| `mode` | `GENERATE` (text-to-image) or `REMIX` (image-to-image) (default `GENERATE`)
+| `prompt` | The generation prompt (required)
+| `host` / `port` | Address of the image sidecar (default `localhost:9200`)
+| `width` / `height` | Output size for `GENERATE` (default `1024` × `1024`)
+| `strength` | Denoise strength for `REMIX`, in `(0, 1]` (default `0.6`)
+| `steps` | Number of inference steps (default `30`)
+| `seed` | Optional RNG seed for reproducible output
+|===
+
+== Running the sidecar
+
+The sidecar is a small FastAPI service. A minimal run with the default (ungated) model:
+
+[source,bash]
+----
+cd sidecars/ideogram-sidecar
+python -m venv venv && ./venv/bin/pip install -r requirements.txt
+./venv/bin/uvicorn server:app --host 0.0.0.0 --port 9200
+# smoke test
+curl -s -X POST localhost:9200/generate \
+  -H 'content-type: application/json' \
+  -d '{"prompt":"a red panda astronaut, studio lighting"}' -o out.png
+----
+
+== Use Cases
+
+* **Illustrations & hero images** — generate on-brand artwork from a prompt for a catalogue entry.
+* **Restyling** — remix an existing asset into a new style while preserving its composition.
+* **Placeholders & variations** — produce derived visuals for review workflows.
+
+The generated PNG is written to the worker's local `imagegen_bin` cache and a node-result ledger row
+records that the node ran for the asset.

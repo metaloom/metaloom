@@ -5,11 +5,15 @@
 > by upstream nodes. Read alongside [NODES.md](NODES.md) — the source of truth is
 > the code under `cortex/`.
 >
-> Status: **implemented.** Node kind: `sentiment`; code in
-> [cortex/nodes/sentiment](../../../cortex/nodes/sentiment), sidecar in
-> [sidecars/sentiment](../../../sidecars/sentiment). This document is kept as the
-> design rationale and the model survey — see [NODES.md](NODES.md) §3/§5/§12 for
-> the current shape.
+> Status: **implemented; not yet run against a real model.** Node kind: `sentiment`;
+> code in [cortex/nodes/sentiment](../../../cortex/nodes/sentiment), sidecar in
+> [sidecars/sentiment](../../../sidecars/sentiment). All 43 automated tests pass,
+> including an end-to-end integration test against a real Loom + Postgres — but the
+> sidecar's Python dependencies are not installed in this checkout, so **no sentiment
+> checkpoint has ever been loaded** and the manual E2E in §8 is outstanding. Each
+> section below carries its own status block; §9 lists what still blocks confidence.
+> This document is kept as the design rationale and the model survey — see
+> [NODES.md](NODES.md) §3/§5/§12 for the current shape.
 > Model selection is constrained to checkpoints that are **usable in a commercial
 > setup**; that constraint drives §3 and disqualifies the most popular multilingual
 > model on the Hub.
@@ -73,6 +77,13 @@ leaning on one mediocre multilingual checkpoint.
 
 ## 3. Model options — commercially usable EN/DE sentiment
 
+> **Status: shipped as recommended.** All three recommended checkpoints are the
+> sidecar's defaults (`SENTIMENT_MODEL_DE` / `_EN` / `_FALLBACK`, §6). **None of them
+> has been run against real weights in this repo** — every test to date substitutes
+> the client or the pipeline, so the accuracy figures below are the model cards'
+> claims, not measured results. Validating them on a real German/English corpus is
+> the first open follow-up (§9).
+
 Screened against the Hub's [`sentiment-analysis`](https://huggingface.co/models?other=sentiment-analysis)
 tag. Selection favours (a) a permissive license, (b) a **3-class** label space so German
 and English models normalise to one schema, and (c) small encoders that run on CPU.
@@ -122,6 +133,11 @@ configuration, not code.
 
 ## 4. Architecture
 
+> **Status: implemented, with one protocol addition.** The sidecar owns all three
+> responsibilities as designed. The endpoint contract below gained an optional
+> `models` field that the plan did not have — see *Endpoint contract* — and the
+> response gained a `truncated` flag. Persistence landed exactly as specified.
+
 ### Why a sidecar
 
 The node needs a HuggingFace encoder, and the JVM has no inference stack in this repo
@@ -147,9 +163,17 @@ Keeping all three in Python means swapping a checkpoint never touches Java.
 
 ### Endpoint contract
 
+The shipped contract (`sidecars/sentiment/server.py`):
+
 ```jsonc
 // POST /v1/sentiment
-{ "texts": ["Der Kundenservice war eine Katastrophe."], "lang": "auto" }
+{ "texts": ["Der Kundenservice war eine Katastrophe."],
+  "lang": "auto",
+  // ADDED DURING IMPLEMENTATION — optional per-language checkpoint overrides.
+  // The plan gave the node modelDe/modelEn options but left the sidecar no way to
+  // receive them without giving up lang="auto" routing. Overrides are applied
+  // *after* detection, so auto-routing still works.
+  "models": { "de": "scherrmann/GermanFinBert_SC_Sentiment" } }
 ```
 
 ```jsonc
@@ -160,11 +184,15 @@ Keeping all three in Python means swapping a checkpoint never touches Java.
    "scores": { "positive": 0.06, "neutral": 0.07, "negative": 0.87 },
    "lang": "de",
    "model": "oliverguhr/german-sentiment-bert",
-   "chunks": 1 }]
+   "chunks": 1,
+   "truncated": false }]                            // ADDED: true when MAX_CHUNKS clipped the text
 ```
 
 The request takes a **list** so a future per-segment phase (§9) batches without a protocol
 change; Phase A sends a single element.
+
+`GET /health` was added alongside it — it reports the device, the three configured model
+ids and which of them are already loaded.
 
 ### Persistence shape
 
@@ -190,6 +218,11 @@ with `producerVersion` = the model id actually used.
 ---
 
 ## 5. Node data flow
+
+> **Status: implemented as drawn.** Both diagrams match
+> [SentimentNode.compute()](../../../cortex/nodes/sentiment/core/src/main/java/io/metaloom/cortex/node/sentiment/SentimentNode.java).
+> The `tika → sentiment` placement below is the one exercised end-to-end by
+> `SentimentNodeIntegrationTest`.
 
 ```mermaid
 sequenceDiagram
@@ -225,6 +258,14 @@ flowchart LR
 
 ## 6. Sidecar — `sidecars/sentiment/`
 
+> **Status: implemented; never run with real weights.** All five files exist and the
+> pure-Python logic (chunking incl. oversized-sentence hard-split, label
+> normalisation across all three checkpoints' native vocabularies, language routing,
+> per-request overrides, length-weighted aggregation) was exercised directly with a
+> stub tokenizer and a stub pipeline. `transformers`/`torch`/`lingua` are **not
+> installed in this checkout**, so `./setup.sh` has not been run and no real model
+> has ever been loaded. First real `./run.sh` is unvalidated — see §9.
+
 Same file set as [`sidecars/tts/`](../../../sidecars/tts): `server.py`,
 `requirements.txt`, `setup.sh`, `run.sh`, `README.md`.
 
@@ -253,6 +294,12 @@ Kartoffel default, all three checkpoints here are ungated.
 
 ## 7. Implementation outline — `cortex/nodes/sentiment/core/`
 
+> **Status: all six items implemented as written**, with two mechanical additions:
+> `SentimentClient.analyze(...)` takes a third `modelOverride` argument (§4), and
+> `persist(...)` also sets `producerVersion` on the component request (matching
+> `LLMNode`), not just on the ledger. One documented deviation is in item 1's failure
+> path — see the ⚠️ note there.
+
 New module mirroring `cortex/nodes/tts`.
 
 1. **`SentimentNode extends AbstractMediaNode<SentimentNodeOptions>`**
@@ -275,6 +322,17 @@ New module mirroring `cortex/nodes/tts`.
      ```
    - On failure: emit no outputs, `recordNodeResult(..., FAILED, e.getMessage(), model, null)`,
      return `ctx.failure(...)`.
+
+   > ⚠️ **Implemented, but `ctx.failure(msg).next()` does not produce a FAILED result.**
+   > `NodeContextImpl.next()` only checks `skipReason` and returns SUCCESS otherwise —
+   > the recorded `failureCause` is ignored; **only `abort()` yields
+   > `ResultState.FAILED`**. Every node in the tree uses the `failure().next()` idiom
+   > (`ThumbnailNode`, `FacedetectNode`, `QualityNode`, `TikaNode`, `LoomNode`,
+   > `TtsNode`, …), so `SentimentNode` follows it for consistency rather than being the
+   > lone exception. The observable consequences on a sidecar error are therefore: no
+   > outputs emitted, nothing cached, and a FAILED **ledger** row — which is what
+   > `SentimentNodeTest` and `SentimentNodePersistenceTest` assert. Fixing `next()` is a
+   > repo-wide change affecting ~10 nodes and is out of scope here (§9).
 
 2. **`SentimentClient`** — shape-for-shape copy of
    [TtsClient](../../../cortex/nodes/tts/core/src/main/java/io/metaloom/cortex/node/tts/TtsClient.java):
@@ -329,61 +387,109 @@ loom-shared/node-model/src/main/java/io/metaloom/loom/nodes/spec/SentimentDescri
 
 ### Wiring that is easy to forget
 
-| Purpose | Path |
-|---|---|
-| Module in the reactor | [cortex/nodes/pom.xml](../../../cortex/nodes/pom.xml) |
-| Dagger include | [NodeCollectionModule.java](../../../cortex/cli/src/main/java/io/metaloom/cortex/cli/dagger/NodeCollectionModule.java) — **not** `PipelineNodeFactoryModule` |
-| Descriptor SPI registration | `loom-shared/node-model/src/main/resources/META-INF/services/io.metaloom.loom.nodes.spec.NodeDescriptorProvider` |
-| Node reference spec | [NODES.md](NODES.md) — §2 payload table, §3 node table, §5 options, §10 progress, §12 capability matrix |
-| Spec index | [spec/CONTEXT.md](../../CONTEXT.md) §2 tree |
-| Customer docs | `website/content/english/docs/nodes/sentiment/index.adoc` — mirror `nodes/tts/index.adoc` incl. the `ml-nodeviz` widget |
+All done. Two Maven dependency edits the plan had missed are marked ✚ — without them
+the module compiles but `NodeCollectionModule` cannot resolve the import and the
+integration test cannot see the node.
+
+| Purpose | Path | Status |
+|---|---|---|
+| Module in the reactor | [cortex/nodes/pom.xml](../../../cortex/nodes/pom.xml) | ✅ |
+| ✚ Dependency for the Dagger graph | [cortex/processor/pom.xml](../../../cortex/processor/pom.xml) — reaches `cortex-cli` via `cortex-core` | ✅ |
+| Dagger include | [NodeCollectionModule.java](../../../cortex/cli/src/main/java/io/metaloom/cortex/cli/dagger/NodeCollectionModule.java) — **not** `PipelineNodeFactoryModule` | ✅ — see ⚠️ below |
+| Descriptor SPI registration | `loom-shared/node-model/src/main/resources/META-INF/services/io.metaloom.loom.nodes.spec.NodeDescriptorProvider` | ✅ |
+| ✚ Dependency for the integration test | [integration-test/pom.xml](../../../integration-test/pom.xml) | ✅ |
+| ✚ ServiceLoader test counts | `NodeDescriptorServiceLoaderTest` — hard-asserts provider/kind totals; bumped 17→18 and 30→31, and `sentiment` added to the spot-check list | ✅ |
+| Node reference spec | [NODES.md](NODES.md) — §2 payload table, §3 node table, §5 options, §12 capability matrix, footer | ✅ |
+| Spec index | [spec/CONTEXT.md](../../CONTEXT.md) §2 tree | ✅ |
+| Sidecar index | [sidecars/README.md](../../../sidecars/README.md) — sidecar table + deployment note | ✅ |
+| Customer docs | `website/content/english/docs/nodes/sentiment/index.adoc` + three entries in `nodes/_index.adoc` | ✅ |
+
+> ⚠️ **This wiring was initially shipped broken and is worth a warning for the next
+> node.** The first pass added the `import io.metaloom.cortex.node.sentiment.SentimentNodeModule;`
+> line but **not** `SentimentNodeModule.class` inside `@Module(includes = { … })`. That
+> compiles cleanly (an unused import is not an error) and the whole test suite stayed
+> green, yet the node was absent from the Dagger graph and the kind was never
+> executable — precisely the silent failure this section warns about.
+>
+> Nothing caught it because `NodeRegistrarTest.testRegisterAllAdvertisesFullCollection`
+> asserts `contains(...)` over a **hand-maintained** kind list that the new kind had not
+> been added to. `sentiment` is now in that list, so the same mistake fails loudly next
+> time. **When adding a node, add its kind to that assertion in the same change** — it is
+> the only test that can detect a missing map binding.
 
 ---
 
 ## 8. Testing & verification
 
+> **Status: all automated tests written and green (43 tests). The manual E2E against a
+> real sidecar has NOT been run** — see the bottom of this section.
+
 Mirroring the whisper/tts test set under
 `cortex/nodes/sentiment/core/src/test/java/io/metaloom/cortex/node/sentiment/`:
 
-- **`SentimentNodeTest`** — stub `SentimentClient` returning a canned payload; assert
-  `sentiment_label` / `sentiment_score` / `sentiment_result`, the cache-hit path
-  (`ResultOrigin.LOCAL`), and the "no upstream text → skipped" path.
-- **`SentimentNodePersistenceTest`** — Mockito, the two-step contract. Verify
-  `createAssetJsonComp` with `nodeKind="sentiment"`, `schemaType="sentiment"`,
-  `variant="tika_content"`, **then** `createAssetNodeResult` with
-  `argThat(r -> "sentiment".equals(r.getNodeKind()) && "SUCCESS".equals(r.getState())
-  && "asset_json_comp".equals(r.getResultRef().getString("table")))`. Plus the
-  FAILED-ledger case. Copy `WhisperNodePersistenceTest`.
-- **`SentimentNodePipelineTest extends AbstractNodeChainTest`** — output-key propagation
-  into a `CapturingNode`, disabled, dry-run, and the skip when no upstream node supplied text.
-- **`SentimentOptionsValidationTest`** + `assertj/SentimentNodeAssertions` /
-  `assertj/SentimentOptionsAssert`.
-- **`SentimentNodeIntegrationTest extends AbstractNodeIntegrationTest`** in
-  `integration-test/` — pre-create the asset by real SHA-512, run the production node
-  against a stub HTTP server standing in for the sidecar, then read the component back via
-  `listAssetJsonComps` over real REST + pooled Postgres.
-- **Graph tests** — `CortexComponentTest` (Dagger graph compiles, node set complete) and
-  `NodeDescriptorServiceLoaderTest` (descriptor discoverable) must both still pass.
+| Test | Cases | Result |
+|---|---|---|
+| `SentimentNodeTest` | 11 | ✅ scoring, ordered source resolution, fall-through to a later source, `maxChars` truncation, model overrides, custom source, cache hit (one sidecar call for two runs), disabled, blank/absent text → skipped, failure emits nothing and leaves the cache cold |
+| `SentimentNodePersistenceTest` | 3 | ✅ component-then-ledger on success; FAILED ledger + **no** component when the sidecar throws; FAILED ledger when the component write itself throws |
+| `SentimentNodePipelineTest` | 6 | ✅ adapter integration, completion + tracking events, output chaining into `CapturingNode`, disabled, dry-run |
+| `SentimentOptionsValidationTest` | 11 | ✅ defaults, custom values, and every `validate()` branch incl. malformed `textSources` entries |
+| `SentimentNodeIntegrationTest` | 1 | ✅ real in-process Loom + pooled Postgres; asserts the component reads back with `variant=tika_content`, the right label/polarity/model, the `source` block, and a `sentiment` ledger row |
+| `NodeDescriptorServiceLoaderTest` | 5 | ✅ after bumping the hard-coded totals (17→18 providers, 30→31 kinds) |
+| `CortexComponentTest`, `NodeRegistrarTest`, `ProcessCommandTest` | 6 | ✅ Dagger graph still compiles with the new module included |
 
-**Manual E2E:**
+Note the integration test injects a **stub `SentimentClient` subclass**, not a stub HTTP
+server as the plan proposed — the client is already the designed seam, and stubbing it
+matches how `TtsNodeIntegrationTest` handles the identical situation. Everything else in
+that test (file, asset, `LoomHttpClient`, persistence, REST read-back) is real.
+
+**Sidecar logic** was verified separately by loading `server.py` with `fastapi`/`pydantic`
+stubbed and calling its internals directly: label normalisation for all three checkpoints'
+native vocabularies (including the `LABEL_0..2` form and unmapped-label tolerance),
+sentence packing, oversized-sentence hard-split (no token dropped), language routing,
+per-request overrides, and length-weighted aggregation. All passed.
+
+**Manual E2E — NOT YET RUN.** This is the outstanding verification gap:
 
 ```bash
-cd sidecars/sentiment && ./run.sh                 # :9110
+cd sidecars/sentiment && ./setup.sh && ./run.sh    # :9110
 curl -s localhost:9110/v1/sentiment -H 'Content-Type: application/json' \
   -d '{"texts":["Der Kundenservice war eine Katastrophe."],"lang":"auto"}'
-# -> [{"label":"NEGATIVE","lang":"de","model":"oliverguhr/german-sentiment-bert",...}]
+# expected: [{"label":"NEGATIVE","lang":"de","model":"oliverguhr/german-sentiment-bert",...}]
 ```
 
 then run a `filesystem-source → sha512 → tika → sentiment` pipeline over a German and an
 English document and confirm both `asset_json_comp` rows are readable through
-`GET /api/v1/assets/:uuid/json-comps`.
+`GET /api/v1/assets/:uuid/json-comps`. Until this is done, the following are unproven:
+real weights download and load, `lingua` actually picks `de`/`en` correctly, the real
+word-piece tokenizer's chunk sizes stay under 512, and the wire format matches what
+`SentimentClient` parses.
 
 **No database work is required** — `asset_json_comp` already exists, so there is no Flyway
-migration, no `./setup-pool.sh` re-init and no jOOQ regeneration for this node.
+migration, no `./setup-pool.sh` re-init and no jOOQ regeneration for this node. (The pool
+was re-initialised only to run the integration test, not because this change needed it.)
 
 ---
 
 ## 9. Open decisions & follow-ups
+
+> **Status: everything below is still open.** Ordered by what actually blocks
+> confidence in the shipped node.
+
+**Blocking — verification gaps in what already shipped**
+
+1. **Run the sidecar with real weights** (`./setup.sh && ./run.sh`) and do the manual E2E
+   in §8. No real model has ever been loaded in this checkout. Until then, weight
+   download, `lingua` routing accuracy, real word-piece chunk sizes and the on-the-wire
+   format are all unproven.
+2. **Validate accuracy on a real German/English corpus.** §3's figures are the model
+   cards' claims. A small labelled sample from the actual asset mix would confirm the
+   language-routed choice beats the single multilingual fallback — the premise the whole
+   §3 recommendation rests on.
+3. **`ctx.failure(msg).next()` returns SUCCESS** (§7 item 1). Repo-wide, ~10 nodes are
+   affected. Worth raising as its own fix; a node that fails is currently reported as
+   succeeding with no outputs, and only the ledger records the truth.
+
+**Product follow-ups**
 
 - **Whisper transcripts as a source.** Deliberately left out of the default `textSources`
   list. Adding them is **configuration only** (`whisper:whisper_result`) — but note that
@@ -429,6 +535,14 @@ migration, no `./setup-pool.sh` re-init and no jOOQ regeneration for this node.
 - **The `@IntoMap @StringKey` binding is mandatory.** Without it the node is instantiated
   but never schedulable — `RegistryNodeRegistrar` builds the executable-kind registry from
   that map alone.
+- **Adding the import is not adding the module.** `@Module(includes = { … })` needs the
+  `.class` entry; an import alone compiles fine and silently leaves the node out of the
+  graph. This bit this node during implementation (§7). Add the kind to
+  `NodeRegistrarTest`'s expected-kinds assertion in the same change so it cannot recur.
+- **Building `cortex/cli` needs every included node module installed.** A module listed in
+  `@Module(includes = …)` that is not in the local repo surfaces as a Dagger
+  `'<error>' could not be resolved` failure that names *other* modules, which sends you
+  looking in the wrong place.
 - **Force HTTP/1.1 in the client.** FastAPI rejects the JDK `HttpClient`'s default HTTP/2
   upgrade; `TtsClient` and `SmolVLMClient` both carry this workaround.
 - **Use `AbstractMediaNode.recordNodeResult(...)`**, not `WhisperNode`'s private copy.
@@ -465,6 +579,9 @@ migration, no `./setup-pool.sh` re-init and no jOOQ regeneration for this node.
 
 ## 13. Progress Assessment
 
+Everything in the plan is built and every automated test is green. The unticked boxes are
+real gaps, not paperwork: **no sentiment model has ever been loaded in this checkout.**
+
 **Research**
 
 - [x] Screen the Hub `sentiment-analysis` tag for commercially usable EN/DE models
@@ -478,6 +595,11 @@ migration, no `./setup-pool.sh` re-init and no jOOQ regeneration for this node.
 - [x] Language routing (`de` / `en` / fallback) + `auto` detection
 - [x] Sentence-boundary chunking + length-weighted aggregation
 - [x] Label normalisation to `POSITIVE|NEUTRAL|NEGATIVE` + `polarity`
+- [x] Optional per-request `models` overrides + `GET /health` (added during implementation)
+- [x] Logic verified directly with stub tokenizer / stub pipeline
+- [ ] **`./setup.sh` run and a real checkpoint loaded** — never done in this checkout
+- [ ] **Chunk sizes confirmed under 512 with the real word-piece tokenizer**
+- [ ] **`lingua` routing spot-checked on real German and English text**
 
 **Node**
 
@@ -486,20 +608,27 @@ migration, no `./setup-pool.sh` re-init and no jOOQ regeneration for this node.
 - [x] Ordered multi-source `resolveText(...)`
 - [x] `LocalResultCache` + `metrics.recordAiCall` / `recordAiCacheHit`
 - [x] `asset_json_comp` persistence (`variant` = source output key) + ledger
-- [x] Module included in `NodeCollectionModule`
+- [x] Module included in `NodeCollectionModule` — *shipped broken first (import without
+      the `.class` entry); fixed, and `NodeRegistrarTest` now guards it*
 - [x] `SentimentDescriptorProvider` + ServiceLoader registration
+- [x] `cortex/processor` + `integration-test` Maven dependencies
 
-**Tests**
+**Tests** — 43 cases, all green
 
-- [x] `SentimentNodeTest`, `SentimentNodePersistenceTest`, `SentimentNodePipelineTest`
-- [x] `SentimentOptionsValidationTest` + AssertJ helpers
-- [x] `SentimentNodeIntegrationTest`
+- [x] `SentimentNodeTest` (11), `SentimentNodePersistenceTest` (3), `SentimentNodePipelineTest` (6)
+- [x] `SentimentOptionsValidationTest` (11) + AssertJ helpers
+- [x] `SentimentNodeIntegrationTest` (1) against real Loom + pooled Postgres
+- [x] `NodeDescriptorServiceLoaderTest` totals bumped (17→18 providers, 30→31 kinds)
+- [x] `sentiment` added to `NodeRegistrarTest`'s executable-kind assertion
+- [ ] **Manual E2E against a running sidecar** (§8) — the one outstanding test
 
 **Docs**
 
-- [x] `NODES.md` §2 / §3 / §5 / §10 / §12 entries
-- [x] `website/content/english/docs/nodes/sentiment/index.adoc`
+- [x] `NODES.md` §2 / §3 / §5 / §12 entries + footer
+- [x] `website/content/english/docs/nodes/sentiment/index.adoc` + `nodes/_index.adoc` (3 places)
+- [x] `sidecars/README.md` sidecar table + deployment note
 - [x] `spec/CONTEXT.md` §2 index entry for this document
+- [x] This document updated with per-section implementation status
 
 ---
 
@@ -520,4 +649,6 @@ migration, no `./setup-pool.sh` re-init and no jOOQ regeneration for this node.
 ---
 
 _Git HEAD revision: `ff0b64e2`_
-_Last updated: 2026-07-27 (implemented: sidecar, node, wiring, tests and docs)_
+_Last updated: 2026-07-27 (implemented: sidecar, node, wiring, tests and docs; per-section
+implementation status added, incl. the `NodeCollectionModule` miss and the outstanding
+real-model E2E)_

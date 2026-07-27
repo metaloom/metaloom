@@ -243,14 +243,14 @@ Live smoke (GPU): `cd sidecars/ideogram-sidecar && CUDA_VISIBLE_DEVICES=1 ./venv
 
 ## 13. Progress Assessment
 
-- [ ] Module `cortex/nodes/image-generation/` (parent + core poms) created; registered in `cortex/nodes/pom.xml`
-- [ ] `ImageGenMode`, `ImageGenNodeOptions` (+ `validate()`), `ImageGenClient`, `ImageGenNode`, `ImageGenNodeModule`
-- [ ] `ImageGenNodeModule.class` added to `NodeCollectionModule.includes`
-- [ ] Unit tests: `ImageGenNodeTest`, `ImageGenNodePipelineTest`, `ImageGenNodePersistenceTest`, `ImageGenOptionsValidationTest`
-- [ ] Integration test: `ImageGenNodeIntegrationTest`
-- [ ] `NODES.md` updated (§3, §5, §12)
-- [ ] Website docs: `nodes/imagegen/index.adoc` + `nodes/_index.adoc` row
-- [ ] Live GPU smoke test against `sidecars/ideogram-sidecar`
+- [x] Module `cortex/nodes/image-generation/` (parent + core poms) created; registered in `cortex/nodes/pom.xml`, `cortex/processor/pom.xml`, `integration-test/pom.xml`
+- [x] `ImageGenMode`, `ImageGenNodeOptions` (+ `validate()`), `ImageGenClient`, `ImageGenNode`, `ImageGenNodeModule`
+- [x] `ImageGenNodeModule.class` added to `NodeCollectionModule.includes` (cortex/cli compiles → Dagger `imagegen` kind registered)
+- [x] Unit tests: `ImageGenNodeTest`, `ImageGenNodePipelineTest`, `ImageGenNodePersistenceTest`, `ImageGenOptionsValidationTest` (+ assertj) — 22 tests green
+- [x] Integration test: `ImageGenNodeIntegrationTest` — passes (SUCCESS + PNG under `imagegen_bin` + `imagegen` ledger row via REST)
+- [x] `NODES.md` updated (§2, §3, §5, §12, IT-coverage list)
+- [x] Website docs: `nodes/imagegen/index.adoc` + `nodes/_index.adoc` (table row, requirements, capability note)
+- [ ] Live GPU smoke test against `sidecars/ideogram-sidecar` (optional; needs a running sidecar + GPU)
 - [x] Model sidecar built and verified (`sidecars/ideogram-sidecar`, `/generate` + `/remix`)
 
 ## 14. References

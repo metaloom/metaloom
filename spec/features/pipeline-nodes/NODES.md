@@ -142,6 +142,7 @@ no-op in offline mode):
 | OCR, Tika, Quality, LLM, VLM, Captioning, Facedescription, Sentiment | `assets/:uuid/json-comps` → `asset_json_comp` (distinct `schemaType`) | `createAssetJsonComp` |
 | Thumbnail | ledger only (bytes stay in the local thumbnail cache) | `createAssetNodeResult` |
 | TTS | ledger only (generated WAV stays in the local `tts_bin` cache) | `createAssetNodeResult` |
+| ImageGen | ledger only (generated PNG stays in the local `imagegen_bin` cache) | `createAssetNodeResult` |
 | HashDedup | ledger only (side effect: moves duplicate files) | `createAssetNodeResult` |
 
 The fingerprint (`asset_fingerprint_comp`) and segment (`asset_segment_comp`)
@@ -242,6 +243,7 @@ Nodes persist results back to the Loom REST API. Two mechanisms coexist:
 | `QualityNode` | quality | `quality` | `blurriness`, `image_width/height`, `video_width/height/fps/frame_count`, `quality_flag` | Video, Image | Quality metrics (resolution, blurriness via Laplacian) |
 | `SceneDetectionNode` | scene-detection | `scene-detection` | `scene_detection` (String) | Video only | Optical-flow scene detection |
 | `CaptioningNode` | captioning | `captioning` | `caption_result` (String) | Image, Video | Image captions via SmolVLM; video captions via an OpenAI-compatible VLM (Qwen2.5-VL) with a whole/scene/native `videoStrategy` |
+| `ImageGenNode` | image-generation | `imagegen` | `imagegen_flag` (String), `imagegen_path` (String) | Image | **Generative**: text-to-image (`GENERATE`) or image-to-image (`REMIX`) via a diffusers sidecar (`sidecars/ideogram-sidecar`). Writes the PNG to the local `imagegen_bin` cache; ledger only |
 | `HashDedupNode` | dedup | `sha512-dedup` | (side effects: moves files) | Any (requires SHA-512) | Deduplicates files by SHA-512 hash; moves dups to target folder |
 | `FingerprintDedupNode` | dedup | (fingerprint dedup) | (side effects) | Video only | Deduplicates by video fingerprint |
 | `LoomNode` | loom | `loom` | (side effects: bulk update) | Any | Syncs hash results to Loom backend in batches of 50 |
@@ -408,6 +410,7 @@ Every node has its own options class extending `AbstractNodeOptions<T>`:
 | LLM | `LLMNodeOptions` | `ollamaUrl`, `prompts` (Map of prompt configs) |
 | VLM | `VlmNodeOptions` | `endpointUrl`, `apiKey`, `prompts` (Map of `VlmNodePrompt`: `model`, `prompt`, `responseFormat`, `maxImageDim`, `maxTokens`, `temperature`, `retryOnRotation`) |
 | Captioning | `CaptioningNodeOptions` | Image: `smolVLMHost`, `smolVLMPort`. Video: `videoStrategy` (`WHOLE`/`SCENE`/`NATIVE`), `videoEndpointUrl`, `videoModel`, `videoApiKey`, `frameCount`, `targetFrameSize`, `maxScenes`, `maxTokens`, `temperature`, `videoPrompt` |
+| Image Generation | `ImageGenNodeOptions` | `mode` (`GENERATE`/`REMIX`), `prompt`, `host`, `port`, `generateEndpoint`, `remixEndpoint`, `width`, `height`, `strength`, `seed`, `steps`, `timeoutMs` (`KEY = "imagegen"`) |
 | Sentiment | `SentimentNodeOptions` | `sentimentHost`, `sentimentPort` (9110), `language` (`auto`/`de`/`en`), `modelDe`, `modelEn`, `textSources` (ordered `nodeId:outputKey` list), `maxChars` |
 | Dedup | `DedupNodeOptions` | `dupFolder` (Path) |
 | Filesystem Source | `FilesystemSourceNodeOptions` | `path` (String), `pathGlobs` (List&lt;String&gt;) — defaults used when the pipeline definition supplies no selection |
@@ -1006,6 +1009,7 @@ Compact per-node status. Verified against the code and test tree.
 | `QualityNode` | No (options only) | No | Yes - `asset_json_comp` + ledger | Yes - metric snapshot | Partial - image/video block |
 | `SceneDetectionNode` | Yes | No | Yes - `asset_segment_comp` (replace) + ledger | Yes - scene output | Yes - scenes (`seq` set) |
 | `CaptioningNode` | Yes | Yes | Yes - `asset_json_comp` + ledger | Yes - caption | Partial - video scene timeline (scene strategy) |
+| `ImageGenNode` | Yes (+ persistence test) | No | Partial - ledger only (PNG stays in local `imagegen_bin`) | Yes - image path | No |
 | `HashDedupNode` | No (empty stub) | No | Partial - ledger only (side effect) | No (moves files) | No |
 | `FingerprintDedupNode` | No (empty stub) | No | No (node is a stub) | No | No |
 | `LoomNode` | Yes | Yes | Yes - bulk `asset` hash update | No (in-heap batch buffer, not a result cache) | No |
@@ -1020,7 +1024,7 @@ Compact per-node status. Verified against the code and test tree.
   file with a real `LoomHttpClient`, and asserts the typed payload reached its
   component table and is readable back via REST. Covered: hash (md5/sha256/
   sha512/chunk-hash), consistency, tika, quality, scene, thumbnail, fingerprint,
-  facedetect, ocr, vlm, whisper, tts, sentiment, loom. The compute is stubbed for nodes needing a
+  facedetect, ocr, vlm, whisper, tts, sentiment, imagegen, loom. The compute is stubbed for nodes needing a
   native model / external runtime (ocr → `OCRProvider`, whisper →
   `WhisperMediaProcessor`, facedetect → `InspireFacedetector`, tts → `TtsClient`,
   sentiment → `SentimentClient`)

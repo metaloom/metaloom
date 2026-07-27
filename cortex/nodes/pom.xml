@@ -29,6 +29,7 @@
         <module>sentiment</module>
         <module>quality</module>
         <module>captioning</module>
+        <module>image-generation</module>
         <module>loom</module>
     </modules>
 

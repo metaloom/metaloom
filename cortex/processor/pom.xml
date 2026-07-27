@@ -133,6 +133,11 @@
             <artifactId>cortex-sentiment-node</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-image-generation-node</artifactId>
+            <version>${project.version}</version>
+        </dependency>
 
         <!-- Pipeline -->
         <dependency>

@@ -49,6 +49,7 @@ The built-in nodes fall into four categories.
 | link:sentiment/[Sentiment Analysis] (`sentiment`) | Any (from upstream text) | Score the tone of extracted text (German and English)
 | link:llm/[LLM Enrichment] (`llm`) | Any | Enrich metadata with a language model
 | link:captioning/[Captioning] (`captioning`) | Image, Video | Natural-language captions for images and videos
+| link:imagegen/[Image Generation] (`imagegen`) | Image | Generate images from a prompt (or remix the asset) with a diffusion model
 | link:facedetect/[Face Detection] (`facedetect`) | Image, Video | Detect faces + embeddings
 | link:facedescription/[Face Description] (`facedescription`) | Image | Describe detected faces with a vision model
 |===
@@ -90,6 +91,7 @@ Most nodes are pure CPU. A few need a native library or an external model servic
 | An LLM provider service | `llm`, `facedescription`
 | A vision-language model service | `captioning`, `vlm`
 | A TTS sidecar (Orpheus/Kartoffel + Kokoro) | `tts`
+| An image-generation sidecar (SDXL-Turbo / diffusion model; GPU recommended) | `imagegen`
 | A sentiment sidecar (german-sentiment-bert + twitter-roberta; CPU is enough) | `sentiment`
 | CPU only | `md5`/`sha256`/`sha512`/`chunk-hash`, `consistency`, `tika`, `filesystem-source`, `loom`, filters, dedup
 |===
@@ -138,6 +140,11 @@ link:captioning/[`captioning`] generates natural-language descriptions of both i
 a vision-language model — images from a still frame (SmolVLM), videos from their temporal content
 (Qwen2.5-VL), optionally as a per-scene timeline — and link:llm/[`llm`] enriches metadata through an
 LLM provider such as Ollama.
+
+Image generation::
+link:imagegen/[`imagegen`] generates a new image with a diffusion model behind a small HTTP sidecar —
+either from a text prompt or by remixing the asset's own image — and writes the PNG to the worker's
+local cache.
 
 Text-to-speech::
 link:tts/[`tts`] turns upstream text — an link:llm/[`llm`] summary, a caption, or a translated
