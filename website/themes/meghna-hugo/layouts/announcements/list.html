@@ -6,10 +6,11 @@
   <div class="container">
     <div class="row justify-content-center">
       <div class="col-lg-9">
-        <div class="docs-page-header text-center">
+        <header class="page-head">
+          <p class="page-eyebrow">{{ i18n "project" }}</p>
           <h1>{{ .Title }}</h1>
-          {{ with .Params.subtitle }}<p class="ann-lead">{{ . }}</p>{{ end }}
-        </div>
+          {{ with .Params.subtitle }}<p class="page-lead">{{ . }}</p>{{ end }}
+        </header>
         {{ with .Content }}
         <div class="post-single-content docs-main-content">{{ . }}</div>
         {{ end }}
@@ -20,6 +21,7 @@
             <div class="ann-entry-meta">
               <span class="ann-badge ann-badge-{{ .Params.status | default `released` }}">{{ .Params.status_label | default `Released` }}</span>
               <time datetime="{{ .Date.Format `2006-01-02` }}">{{ .Date.Format "2 January 2006" }}</time>
+              {{ with .Params.version }}<span class="ann-entry-version">v{{ . }}</span>{{ end }}
             </div>
             <h2 class="ann-entry-title"><a href="{{ .RelPermalink }}">{{ .Title }}</a></h2>
             <p class="ann-entry-summary">{{ with .Params.description }}{{ . }}{{ else }}{{ .Summary }}{{ end }}</p>
@@ -27,6 +29,11 @@
           </article>
           {{ end }}
         </div>
+
+        <p class="page-foot-note">
+          Releases are also posted on <a href="{{ site.Params.discordLink }}" rel="noopener">Discord</a>
+          and written up in the <a href="{{ "blog/" | relURL }}">blog</a>.
+        </p>
       </div>
     </div>
   </div>

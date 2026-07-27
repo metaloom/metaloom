@@ -1,13 +1,14 @@
-<article class="col-lg-4 col-md-6 col-12 clearfix wow fadeInUp mb-4" data-wow-duration="500ms">
-  <div class="post-block">
-    <div class="media-wrapper">
-      <img class="img-fluid" src="{{ partial "func/page-image.html" . }}" alt="{{ .Title }}" loading="lazy">
-    </div>
-
-    <div class="content">
-      <h3><a href="{{ .Permalink }}">{{ .Title }}</a></h3>
-      <p>{{ .Params.description | safeHTML }}</p>
-      <a class="btn btn-transparent" href="{{ .Permalink }}">{{ i18n "readMore" }}</a>
-    </div>
-  </div>
+{{/* One card in the blog grid. Image, date, title, summary — the whole card is the link. */}}
+<article class="col-lg-4 col-md-6 col-12 mb-4">
+  <a class="blog-card" href="{{ .RelPermalink }}">
+    <span class="blog-card-media">
+      <img src="{{ partial "func/page-image.html" . }}" alt="" aria-hidden="true" loading="lazy">
+    </span>
+    <span class="blog-card-body">
+      <time class="blog-card-date" datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "2 January 2006" }}</time>
+      <span class="blog-card-title">{{ .Title }}</span>
+      <span class="blog-card-summary">{{ with .Params.description }}{{ . | plainify }}{{ else }}{{ .Summary | plainify | truncate 130 }}{{ end }}</span>
+      <span class="blog-card-more">{{ i18n "readMore" }} <span aria-hidden="true">&rarr;</span></span>
+    </span>
+  </a>
 </article>

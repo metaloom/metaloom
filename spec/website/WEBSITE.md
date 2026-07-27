@@ -643,6 +643,34 @@ the site footer — see [The site footer](#the-site-footer).
   and the open panel gets its own solid surface — translucency is fine for a 60 px bar over a
   hero, not for a full menu with page content behind it.
 
+### Reading pages — docs, announcements, blog
+
+The docs, `/announcements/` and `/blog/` share one surface (the theme's `#353b43`, deliberately
+lighter than the marketing pages) and, since this pass, one typographic system, defined in the
+*Reading pages* block of `less/includes/custom.less`:
+
+* **Headings** — Quattrocento Sans, 700, `-.01em` tracking (the marketing pages' treatment at a
+  size that suits a document). **Prose** — Anaheim, `1.03rem`/`1.78`, `#cdd6df`.
+  **Technical values** — monospace.
+* Before this, a single docs page mixed three fonts by accident: paragraphs rendered in
+  Quattrocento Sans (from the theme's `p` rule), list items and table cells in Anaheim at the
+  body's muted `#737f8a`. That mismatch — not the colour scheme — is what made the docs feel
+  unlike the rest of the site. Table cells now carry the prose colour, and table headers are
+  small uppercase teal labels on a tinted row.
+* Inline `code` is a chip (subtle background + border) rather than only an orange colour change.
+* **A shared page header** (`.page-head`): teal eyebrow, title, optional lead, hairline rule.
+  Announcements, the blog overview and blog posts all use it; the copy comes from front matter
+  (`eyebrow`, `subtitle`), never from the template — `_default/list.html` also renders `/author/`.
+* **`body` is a flex column with `min-height: 100vh`** and `#content` grows, so a short page (the
+  announcement list with one entry) no longer leaves the footer floating mid-viewport.
+* The docs sidebar (page TOC + topic list) was left structurally alone — only its fonts were
+  aligned. It is the one part of the docs that was already right.
+
+Blog specifics: `_default/list.html` is the overview (copy from `content/english/blog/_index.md`),
+`_default/article.html` is one card in the grid (image, date, title, summary — the whole card is
+the link), `_default/single.html` is a post: docs-shaped sticky TOC, byline, hero image with
+credit, and a *More posts* list. Styles are the `.blog-*` block in `custom.less`.
+
 <a id="the-site-footer"></a>
 ### The site footer
 
@@ -1274,6 +1302,13 @@ Current state of the website (as of the checkout below):
 - [x] **`/studios/` hero given motion** — three blended gradient stripes travelling along the
       photograph's band axis plus a slow teal swell, and an explicit bottom fade so the colour
       bands dissolve into the page instead of ending on an edge. `transform`/`opacity` only
+- [x] **Reading pages unified** — one typographic system across docs, announcements and blog
+      (Quattrocento Sans headings, Anaheim prose, monospace values, readable table cells, code
+      chips), a shared `.page-head`, and a sticky footer so short pages stop leaving the footer
+      mid-viewport. The docs sidebar was deliberately left as it was apart from its fonts
+- [x] **Blog reworked** — overview cards (image, date, title, summary, whole-card link) driven by
+      `content/english/blog/_index.md`, and a post layout with a sticky TOC, byline, hero image
+      with credit and a *More posts* list
 - [x] **Site footer rebuilt** — four link columns (brand + status badge, Explore, Documentation,
       Project), copyright line and contact pills driven by `[[params.social]]`; the placeholder
       Twitter icon pointing at `#` is gone, and bootstrap-toc is scoped to `.docs-main-content` so

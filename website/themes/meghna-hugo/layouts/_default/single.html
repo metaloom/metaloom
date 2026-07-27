@@ -2,32 +2,59 @@
 
 {{ partial "navigation.html" . }}
 
-<section class="section">
+{{/* Blog post. Same three-column shape as the docs (sticky TOC + content) so a reader moving
+     between the two does not change gear; the hero image and the byline are what make it a
+     post rather than a reference page. */}}
+<section class="section docs-section">
   <div class="container">
     <div class="row">
-      <div class="col-lg-3 d-none d-lg-block toc-sticky-top">
-        <nav id="toc"></nav>
-      </div>
-      <div class="col-lg-9 text-center">
-        <h1>{{ .Title }}</h1>
-        <ul class="list-inline mb-50">
-          <li class="list-inline-item"><a href="{{ `author/` | relLangURL }}{{ .Params.Author | urlize }}/">{{ .Params.Author }}</a></li>
-          <li class="list-inline-item">{{ dateFormat "Monday, Jan 2, 2006" .Date }}</li>
-        </ul>
-        {{ $image := partial "func/page-image.html" . }}
-        <img class="img-fluid lozad" src="{{ $image }}" data-src="{{ $image }}" alt="{{ .Title }}">
-        <div class="image-credit">
-          Credit: {{ .Params.Image_Credit }}
+      <div class="col-lg-3 d-none d-lg-block">
+        <div class="docs-sidebar toc-sticky-top">
+          <div class="docs-sidebar-title">On this page</div>
+          <nav id="toc"></nav>
+          <nav class="docs-topics" aria-label="More posts">
+            <div class="docs-sidebar-title">{{ i18n "morePosts" }}</div>
+            <ul>
+              {{ range first 6 (where site.RegularPages "Section" "blog").ByDate.Reverse }}
+              <li><a href="{{ .RelPermalink }}"{{ if eq $.RelPermalink .RelPermalink }} class="is-current"{{ end }}>{{ .Title }}</a></li>
+              {{ end }}
+            </ul>
+          </nav>
         </div>
       </div>
-      <div class="col-lg-9 offset-lg-3">
-        <div class="post-single-content">
+
+      <div class="col-lg-9">
+        <header class="page-head post-head">
+          <p class="page-eyebrow">{{ with .Parent }}{{ .Params.eyebrow | default .Title }}{{ else }}{{ i18n "blog" }}{{ end }}</p>
+          <h1>{{ .Title }}</h1>
+          <p class="post-meta">
+            {{ with .Params.Author }}<a href="{{ `author/` | relLangURL }}{{ . | urlize }}/">{{ . }}</a>{{ end }}
+            <time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "2 January 2006" }}</time>
+            {{ with .ReadingTime }}<span>{{ . }} min read</span>{{ end }}
+          </p>
+          {{ with .Params.description }}<p class="page-lead">{{ . }}</p>{{ end }}
+        </header>
+
+        {{ $image := partial "func/page-image.html" . }}
+        {{ if $image }}
+        <figure class="post-hero">
+          <img class="lozad" src="{{ $image }}" data-src="{{ $image }}" alt="{{ .Title }}">
+          {{ with .Params.Image_Credit }}<figcaption>{{ . }}</figcaption>{{ end }}
+        </figure>
+        {{ end }}
+
+        <div class="post-single-content docs-main-content">
           {{ .Content }}
         </div>
+
         {{ if site.Params.post_share }}
         {{ partial "post-share.html" . }}
         {{ end }}
-        <!-- comments -->
+
+        <div class="ann-back">
+          <a href="{{ "blog/" | relURL }}"><span aria-hidden="true">&larr;</span> {{ i18n "viewAllPost" }}</a>
+        </div>
+
         <div class="mt-5">
           {{ template "_internal/disqus.html" . }}
         </div>

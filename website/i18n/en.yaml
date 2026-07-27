@@ -61,3 +61,5 @@
   translation: Command line
 - id: impressum
   translation: Impressum
+- id: morePosts
+  translation: More posts

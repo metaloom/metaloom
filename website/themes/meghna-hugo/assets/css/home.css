@@ -503,7 +503,7 @@ body { background-color: #0b0e13; }
   text-transform: uppercase;
   white-space: nowrap;
 }
-.hm-features-foot { border-top: 1px solid var(--hm-line); margin-top: 64px; padding: 34px 0 0; text-align: center; }
+.hm-features-foot { border-top: 1px solid var(--hm-line); margin-top: 64px; padding: 34px 0 42px; text-align: center; }
 
 /* ------------------------------------------------------------ responsive */
 @media (max-width: 991px) {

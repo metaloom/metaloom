@@ -2,29 +2,30 @@
 
 {{ partial "navigation.html" . }}
 
-{{"<!-- Start Blog Section -->" | safeHTML}}
-<section id="blog" class="section">
+{{/* Blog overview (and the author archive, which uses the same list template). The card grid
+     is `_default/article.html`; styling is the .blog-* block in less/includes/custom.less. */}}
+<section class="section docs-section">
   <div class="container">
-    <div class="row">
-      <div class="col-12">
-        {{"<!-- section title -->" | safeHTML}}
-        <div class="title text-center wow fadeInDown">
-          <h2>{{ with i18n "blogTitle" }} {{ index (split . " ") 0 | safeHTML }} {{ end }}<span class="color">
-              {{ with i18n "blogTitle" }} {{ index (split . " ") 1 | safeHTML }} {{ end }}</span></h2>
-          <div class="border-meghna"></div>
-        </div>
-      </div>
-      {{"<!-- /section title -->" | safeHTML}}
-      {{ $paginator := .Paginate (where .Data.Pages ".Params.hidden" "!=" true ) }}
+    {{/* Copy comes from the section's own _index.md (blog) or the author page, never from the
+         template — this layout also renders /author/. */}}
+    <header class="page-head page-head-center">
+      {{ with .Params.eyebrow }}<p class="page-eyebrow">{{ . }}</p>{{ end }}
+      <h1>{{ .Title }}</h1>
+      {{ with .Params.subtitle }}<p class="page-lead">{{ . }}</p>{{ end }}
+    </header>
+
+    {{ $paginator := .Paginate (where .Data.Pages ".Params.hidden" "!=" true ) }}
+    <div class="row blog-grid">
       {{ range $paginator.Pages }}
       {{ .Render "article" }}
       {{ end }}
+    </div>
+
+    <div class="row">
       <div class="col-12">
         {{ template "_internal/pagination.html" . }}
       </div>
     </div>
   </div>
 </section>
-{{"<!-- /blog -->" | safeHTML}}
-
 {{ end }}

@@ -22,14 +22,15 @@
         </div>
       </div>
       <div class="col-lg-9">
-        <div class="docs-page-header ann-page-header">
+        <header class="page-head ann-page-header">
           <div class="ann-entry-meta">
             <span class="ann-badge ann-badge-{{ .Params.status | default `released` }}">{{ .Params.status_label | default `Released` }}</span>
             <time datetime="{{ .Date.Format `2006-01-02` }}">{{ .Date.Format "2 January 2006" }}</time>
+            {{ with .Params.version }}<span class="ann-entry-version">v{{ . }}</span>{{ end }}
           </div>
           <h1>{{ .Title }}</h1>
-          {{ with .Params.description }}<p class="ann-lead">{{ . }}</p>{{ end }}
-        </div>
+          {{ with .Params.description }}<p class="page-lead">{{ . }}</p>{{ end }}
+        </header>
         <div class="post-single-content docs-main-content">
           {{ .Content }}
         </div>

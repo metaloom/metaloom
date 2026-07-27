@@ -902,3 +902,380 @@ html { scrollbar-gutter: stable; }
     text-align: center;
   }
 }
+
+/* ==========================================================
+   Reading pages — docs, announcements, blog
+
+   These share one surface (the theme's #353b43, deliberately lighter than the marketing
+   pages) and now one typographic system, matching the design of / and /studios/:
+   headings in Quattrocento Sans with tight tracking, prose in Anaheim, monospace for
+   anything technical, teal for links and accents.
+
+   Before this block the same page mixed three fonts by accident — paragraphs rendered in
+   Quattrocento Sans (from the theme's `p` rule), list items and table cells in Anaheim at
+   the body's muted grey. That mismatch is what made the docs feel unlike the rest.
+   ========================================================== */
+
+/* ---- Sticky footer: short pages (an announcement list with one entry) used to leave the
+   footer floating in the middle of the viewport with body background below it. ---- */
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+#content { flex: 1 0 auto; }
+#footer { flex-shrink: 0; }
+
+/* ---- One prose voice ---- */
+.docs-main-content,
+.post-single-content {
+  font-family: "Anaheim", sans-serif;
+}
+
+.docs-main-content p,
+.docs-main-content li,
+.docs-main-content dd,
+.docs-main-content dt,
+.post-single-content p,
+.post-single-content li,
+.post-single-content dd,
+.post-single-content dt {
+  color: #cdd6df;
+  font-family: "Anaheim", sans-serif;
+  font-size: 1.03rem;
+  line-height: 1.78;
+}
+.docs-main-content p,
+.post-single-content p { margin-bottom: 1rem; }
+.docs-main-content li p,
+.post-single-content li p { margin-bottom: .25rem; }
+.docs-main-content ul,
+.docs-main-content ol,
+.post-single-content ul,
+.post-single-content ol { margin-bottom: 1rem; }
+.docs-main-content li,
+.post-single-content li { margin-bottom: .3rem; }
+
+/* Headings: same family, weights and tracking as the marketing pages. */
+.docs-main-content h1,
+.docs-main-content h2,
+.docs-main-content h3,
+.docs-main-content h4,
+.docs-main-content h5,
+.post-single-content h1,
+.post-single-content h2,
+.post-single-content h3,
+.post-single-content h4,
+.post-single-content h5 {
+  font-family: "Quattrocento Sans", sans-serif;
+  letter-spacing: -.01em;
+}
+.docs-page-header h1 { letter-spacing: -.022em; }
+
+.docs-main-content h2 { margin-top: 2.4rem; }
+.docs-main-content h3 { margin-top: 1.9rem; }
+.docs-main-content h4 { margin-top: 1.5rem; letter-spacing: 0; }
+
+/* Links read as links without shouting. */
+.docs-main-content a,
+.post-single-content a {
+  color: #57cbcc;
+  text-decoration-color: rgba(87, 203, 204, .35);
+  text-underline-offset: 3px;
+  transition: color .15s ease-in 0s;
+}
+.docs-main-content a:hover,
+.post-single-content a:hover { color: #7efff4; }
+
+/* Inline code: a chip, not a colour change. */
+.docs-main-content code,
+.post-single-content code,
+.ann-entry-summary code {
+  background: rgba(255, 255, 255, .05);
+  border: 1px solid rgba(255, 255, 255, .07);
+  border-radius: 4px;
+  color: #f0a860;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: .88em;
+  padding: 1px 5px;
+}
+.docs-main-content pre code,
+.post-single-content pre code {
+  background: none;
+  border: 0;
+  font-size: .93em;
+  padding: 0;
+}
+
+/* Tables: the cells used to inherit the body's muted grey, which made every reference table
+   look switched off. */
+.docs-main-content table,
+.post-single-content table {
+  border-collapse: collapse;
+  margin: 1.4rem 0;
+  width: 100%;
+}
+.docs-main-content table th,
+.post-single-content table th {
+  background: rgba(0, 181, 166, .09);
+  border-bottom: 1px solid rgba(0, 181, 166, .3);
+  color: #cfe9e9;
+  font-family: "Anaheim", sans-serif;
+  font-size: .74rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  padding: 11px 14px;
+  text-align: left;
+  text-transform: uppercase;
+}
+.docs-main-content table td,
+.post-single-content table td {
+  border-bottom: 1px solid rgba(255, 255, 255, .07);
+  color: #cdd6df;
+  font-family: "Anaheim", sans-serif;
+  font-size: .97rem;
+  line-height: 1.65;
+  padding: 11px 14px;
+  vertical-align: top;
+}
+.docs-main-content table tr:hover td,
+.post-single-content table tr:hover td { background: rgba(255, 255, 255, .022); }
+.docs-main-content table p,
+.post-single-content table p { font-size: inherit; margin-bottom: .35rem; }
+
+/* Sidebar: same label treatment as the marketing eyebrows. */
+.docs-sidebar-title {
+  font-family: "Anaheim", sans-serif;
+  font-size: .7rem;
+  letter-spacing: .16em;
+}
+nav[data-toggle=toc] .nav > li > a,
+nav[data-toggle=toc] .nav .nav > li > a,
+.docs-topics a {
+  font-family: "Anaheim", sans-serif;
+  letter-spacing: .005em;
+}
+
+/* ---- Shared page header for the reading pages ----
+   Announcements, the blog and the author archive all open the same way: a small teal eyebrow,
+   the title, an optional lead. It mirrors the marketing pages' section heads at a size that
+   suits a document. */
+.page-head {
+  border-bottom: 1px solid rgba(0, 181, 166, .22);
+  margin-bottom: 34px;
+  padding-bottom: 22px;
+}
+.page-head-center { margin-bottom: 44px; text-align: center; }
+.page-eyebrow {
+  color: #57cbcc;
+  font-family: "Anaheim", sans-serif;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .18em;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+.page-head h1 {
+  color: #e8ecf0;
+  font-family: "Quattrocento Sans", sans-serif;
+  font-size: clamp(1.9rem, 3.4vw, 2.5rem);
+  font-weight: 700;
+  letter-spacing: -.022em;
+  line-height: 1.12;
+  margin: 0;
+  padding: 0;
+}
+.page-lead {
+  color: #aab6c2;
+  font-family: "Anaheim", sans-serif;
+  font-size: 1.08rem;
+  line-height: 1.65;
+  margin: 14px 0 0;
+  max-width: 62ch;
+}
+.page-head-center .page-lead { margin-left: auto; margin-right: auto; }
+.page-foot-note {
+  border-top: 1px solid rgba(255, 255, 255, .07);
+  color: #8a95a0;
+  font-size: .92rem;
+  margin-top: 40px;
+  padding-top: 20px;
+}
+
+/* ---- Announcement entries ---- */
+.ann-timeline { margin-top: 8px; }
+
+.ann-entry {
+  background: linear-gradient(180deg, rgba(45, 52, 61, .6) 0%, rgba(35, 40, 47, .6) 100%);
+  border: 1px solid #4e595f;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  padding: 26px 30px;
+  transition: border-color .2s ease-in 0s, transform .2s ease-in 0s;
+}
+.ann-entry:hover {
+  border-color: rgba(0, 181, 166, .55);
+  transform: translateY(-2px);
+}
+.ann-entry-version {
+  color: #8a95a0;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 12px;
+}
+.ann-entry-title { font-family: "Quattrocento Sans", sans-serif; letter-spacing: -.015em; }
+.ann-entry-summary {
+  color: #aab6c2;
+  font-family: "Anaheim", sans-serif;
+  font-size: 1rem;
+  line-height: 1.68;
+}
+.ann-page-header .ann-entry-meta { margin-bottom: 14px; }
+
+/* ---- Blog ---- */
+.blog-grid { margin-top: 4px; }
+
+.blog-card {
+  background: #2b3138;
+  border: 1px solid #4e595f;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  transition: border-color .2s ease-in 0s, transform .2s ease-in 0s, box-shadow .2s ease-in 0s;
+}
+.blog-card:hover {
+  border-color: rgba(0, 181, 166, .55);
+  box-shadow: 0 24px 50px -40px rgba(0, 0, 0, .9);
+  text-decoration: none;
+  transform: translateY(-3px);
+}
+.blog-card-media {
+  display: block;
+  overflow: hidden;
+  position: relative;
+}
+.blog-card-media::after {
+  background: linear-gradient(180deg, rgba(43, 49, 56, 0) 55%, rgba(43, 49, 56, .85) 100%);
+  content: "";
+  inset: 0;
+  position: absolute;
+}
+.blog-card-media img {
+  aspect-ratio: 16 / 9;
+  display: block;
+  object-fit: cover;
+  transition: transform .35s ease-in 0s;
+  width: 100%;
+}
+.blog-card:hover .blog-card-media img { transform: scale(1.04); }
+
+.blog-card-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  padding: 20px 22px 22px;
+}
+.blog-card-date {
+  color: #8a95a0;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 11.5px;
+  letter-spacing: .04em;
+}
+.blog-card-title {
+  color: #e8ecf0;
+  display: block;
+  font-family: "Quattrocento Sans", sans-serif;
+  font-size: 1.22rem;
+  font-weight: 700;
+  letter-spacing: -.015em;
+  line-height: 1.3;
+  margin: 8px 0 10px;
+}
+.blog-card:hover .blog-card-title { color: #7efff4; }
+.blog-card-summary {
+  color: #9aa6b2;
+  display: block;
+  flex: 1 1 auto;
+  font-family: "Anaheim", sans-serif;
+  font-size: .95rem;
+  line-height: 1.62;
+  margin-bottom: 16px;
+}
+.blog-card-more {
+  color: #57cbcc;
+  font-size: .9rem;
+  font-weight: 700;
+}
+.blog-card-more span { display: inline-block; transition: transform .18s ease-in 0s; }
+.blog-card:hover .blog-card-more span { transform: translateX(4px); }
+
+/* ---- Blog post ---- */
+.post-head .page-lead { margin-top: 16px; }
+/* The theme's own .post-meta paints a grey bar and dims its spans to #666 — undo both. */
+.post-meta {
+  align-items: center;
+  background: none;
+  color: #8a95a0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  font-family: "Anaheim", sans-serif;
+  font-size: .88rem;
+  gap: 8px 18px;
+  margin: 14px 0 0;
+}
+.post-meta > span {
+  border-right: 0;
+  color: #8a95a0;
+  display: inline-block;
+  font-size: inherit;
+  margin: 0;
+  padding: 0;
+}
+.post-meta a { color: #aab6c2; }
+.post-meta a:hover { color: #57cbcc; }
+.post-meta time,
+.post-meta span { position: relative; }
+.post-meta > *:not(:first-child)::before {
+  color: #4e595f;
+  content: "·";
+  left: -11px;
+  position: absolute;
+}
+
+.post-hero {
+  margin: 0 0 34px;
+}
+.post-hero img {
+  border: 1px solid #4e595f;
+  border-radius: 10px;
+  display: block;
+  max-height: 440px;
+  object-fit: cover;
+  width: 100%;
+}
+.post-hero figcaption {
+  color: #6b7681;
+  font-size: .8rem;
+  font-style: italic;
+  margin-top: 10px;
+  text-align: right;
+}
+
+/* Pagination on the blog overview, matched to the cards. */
+.pagination { justify-content: center; margin-top: 18px; }
+.pagination .page-link {
+  background: transparent;
+  border: 1px solid #4e595f;
+  color: #aab6c2;
+  margin: 0 4px;
+  border-radius: 6px;
+  transition: all .18s ease-in 0s;
+}
+.pagination .page-link:hover { border-color: #57cbcc; color: #7efff4; }
+.pagination .active .page-link {
+  background: rgba(0, 181, 166, .14);
+  border-color: #57cbcc;
+  color: #7efff4;
+}
