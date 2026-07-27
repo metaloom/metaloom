@@ -1,0 +1,541 @@
+/* ==========================================================================
+   Home page (/) and /features/.
+
+   Loaded only by pages carrying `page_css: css/home.css` in front matter (see
+   partials/head.html). Everything is scoped under .hm-page and prefixed .hm-*.
+
+   Same palette as /studios/ (dark surfaces, teal #57cbcc accent, warm #e2a86e for
+   the pre-release notice) but its own layout vocabulary — the home page is a short
+   front door, not a scroller.
+   ========================================================================== */
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 90px;
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+
+/* The theme background (#353b43) would otherwise show through the reserved scrollbar
+   gutter as a light strip down the right edge of this much darker page. */
+body { background-color: #0b0e13; }
+
+.hm-page {
+  --hm-bg: #0b0e13;
+  --hm-bg-alt: #10151c;
+  --hm-line: rgba(255, 255, 255, .09);
+  --hm-fg: #eef2f6;
+  --hm-fg-dim: #aab6c2;
+  --hm-muted: #7d8894;
+  --hm-accent: #57cbcc;
+  --hm-accent-bright: #7efff4;
+  --hm-warm: #e2a86e;
+  --hm-warm-soft: #f0c799;
+
+  background: var(--hm-bg);
+  color: var(--hm-fg-dim);
+  font-family: "Anaheim", sans-serif;
+  overflow-x: hidden;
+}
+
+/* --------------------------------------------------------------- structure */
+.hm-wrap {
+  margin: 0 auto;
+  max-width: 1140px;
+  padding: 0 28px;
+  position: relative;
+  width: 100%;
+  z-index: 2;
+}
+
+.hm-section { padding: 96px 0; position: relative; }
+
+.hm-section-head {
+  margin: 0 auto 52px;
+  max-width: 680px;
+  text-align: center;
+}
+
+/* ------------------------------------------------------------- typography */
+.hm-eyebrow {
+  color: var(--hm-accent);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: .18em;
+  margin-bottom: 14px;
+  text-transform: uppercase;
+}
+.hm-eyebrow-warm { color: var(--hm-warm); }
+
+.hm-page .hm-title {
+  color: var(--hm-fg);
+  font-family: "Quattrocento Sans", sans-serif;
+  font-size: clamp(1.9rem, 3.6vw, 2.9rem);
+  font-weight: 700;
+  letter-spacing: -.02em;
+  line-height: 1.1;
+  margin: 0 0 18px;
+}
+.hm-page .hm-title-sm { font-size: clamp(1.5rem, 2.4vw, 2rem); }
+
+.hm-lead {
+  color: var(--hm-fg-dim);
+  font-size: clamp(1rem, 1.3vw, 1.15rem);
+  line-height: 1.65;
+  margin: 0 auto;
+  max-width: 600px;
+}
+
+/* ------------------------------------------------------ buttons and links */
+.hm-actions { display: flex; flex-wrap: wrap; gap: 13px; }
+.hm-actions-center { justify-content: center; }
+
+.hm-btn {
+  border: 1px solid transparent;
+  border-radius: 40px;
+  display: inline-block;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 13px 30px;
+  transition: transform .18s ease, background-color .18s ease, border-color .18s ease, color .18s ease;
+  white-space: nowrap;
+}
+.hm-btn:hover { text-decoration: none; transform: translateY(-2px); }
+.hm-btn-primary { background: var(--hm-accent); color: #06272a; }
+.hm-btn-primary:hover { background: var(--hm-accent-bright); color: #06272a; }
+.hm-btn-ghost { border-color: rgba(255, 255, 255, .26); color: var(--hm-fg); }
+.hm-btn-ghost:hover { border-color: var(--hm-accent); color: var(--hm-accent-bright); }
+
+.hm-page a.hm-link {
+  color: var(--hm-accent);
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.hm-page a.hm-link:hover { color: var(--hm-accent-bright); text-decoration: none; }
+.hm-page a.hm-link span { display: inline-block; transition: transform .18s ease; }
+.hm-page a.hm-link:hover span { transform: translateX(4px); }
+
+.hm-more { margin: 44px 0 0; text-align: center; }
+
+/* -------------------------------------------------------------- reveal fx
+   Shared with /studios/ — see assets/js/reveal.js. The hidden start state only
+   applies while .reveal-js is set, so the page is complete without JavaScript. */
+.reveal-js .reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity .7s cubic-bezier(.2, .7, .2, 1), transform .7s cubic-bezier(.2, .7, .2, 1);
+  will-change: opacity, transform;
+}
+.reveal-js .reveal.is-visible { opacity: 1; transform: none; }
+
+/* ------------------------------------------------------------------- hero */
+.hm-hero {
+  align-items: center;
+  display: flex;
+  min-height: min(76vh, 720px);
+  overflow: hidden;
+  padding: 92px 0 84px;
+  position: relative;
+  text-align: center;
+}
+.hm-hero-bg { inset: 0; position: absolute; z-index: 0; }
+.hm-hero-veil {
+  inset: 0;
+  position: absolute;
+  background:
+    radial-gradient(46% 42% at 50% 44%, rgba(87, 203, 204, .10) 0%, rgba(87, 203, 204, 0) 70%),
+    radial-gradient(72% 58% at 50% 45%, rgba(11, 14, 19, .8) 0%, rgba(11, 14, 19, .5) 55%, rgba(11, 14, 19, .9) 100%),
+    linear-gradient(180deg, rgba(11, 14, 19, .88) 0%, rgba(11, 14, 19, .08) 30%, var(--hm-bg) 100%);
+}
+.hm-hero-inner { text-align: center; }
+
+.hm-page .hm-hero-title {
+  color: #fff;
+  font-family: "Quattrocento Sans", sans-serif;
+  font-size: clamp(2.7rem, 7vw, 5rem);
+  font-weight: 700;
+  letter-spacing: -.03em;
+  line-height: 1.02;
+  margin: 0 auto 22px;
+  text-shadow: 0 2px 50px rgba(0, 0, 0, .6);
+}
+.hm-hero-lead {
+  color: #c5d1dc;
+  font-size: clamp(1.02rem, 1.5vw, 1.25rem);
+  line-height: 1.6;
+  margin: 0 auto 34px;
+  max-width: 58ch;
+}
+.hm-hero .hm-actions { justify-content: center; }
+
+/* status pill — the first thing on the page says the project is pre-release */
+.hm-page a.hm-status {
+  align-items: center;
+  background: rgba(226, 168, 110, .1);
+  border: 1px solid rgba(226, 168, 110, .45);
+  border-radius: 30px;
+  color: var(--hm-warm-soft);
+  display: inline-flex;
+  font-size: 12.5px;
+  gap: 9px;
+  letter-spacing: .06em;
+  margin-bottom: 26px;
+  padding: 7px 18px;
+  text-transform: uppercase;
+  transition: border-color .2s ease, background-color .2s ease;
+}
+.hm-page a.hm-status:hover {
+  background: rgba(226, 168, 110, .17);
+  border-color: var(--hm-warm);
+  text-decoration: none;
+}
+.hm-status-dot {
+  background: var(--hm-warm);
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 rgba(226, 168, 110, .6);
+  flex: none;
+  height: 7px;
+  width: 7px;
+  animation: hm-pulse 2.4s ease-out infinite;
+}
+@keyframes hm-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(226, 168, 110, .55); }
+  70%  { box-shadow: 0 0 0 9px rgba(226, 168, 110, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(226, 168, 110, 0); }
+}
+
+/* woven backdrop */
+.hm-weave { height: 100%; width: 100%; }
+.hm-weave path { fill: none; stroke-width: 1; }
+.hm-weave-warp path { stroke: url(#hm-warp-fade); }
+.hm-weave-weft path { stroke: url(#hm-weft-fade); }
+.hm-weave-lit path {
+  stroke: url(#hm-thread-lit);
+  stroke-width: 2.2;
+  filter: drop-shadow(0 0 6px rgba(87, 203, 204, .55));
+  stroke-dasharray: 90 620;
+  animation: hm-thread 9s linear infinite;
+  animation-delay: var(--hm-delay, 0s);
+}
+@keyframes hm-thread { from { stroke-dashoffset: 710; } to { stroke-dashoffset: -90; } }
+/* the weft threads run the other way and are longer, so they need their own dash cycle */
+.hm-weave-lit-weft path {
+  stroke: url(#hm-weft-lit);
+  stroke-dasharray: 130 1300;
+  animation: hm-thread-weft 13s linear infinite;
+}
+@keyframes hm-thread-weft { from { stroke-dashoffset: 1430; } to { stroke-dashoffset: -130; } }
+.hm-weave-knots circle {
+  fill: #7efff4;
+  filter: drop-shadow(0 0 5px rgba(126, 255, 244, .6));
+  opacity: .35;
+  animation: hm-knot 5s ease-in-out infinite;
+  animation-delay: var(--hm-delay, 0s);
+}
+@keyframes hm-knot {
+  0%, 100% { opacity: .18; }
+  50%      { opacity: .8; }
+}
+
+/* --------------------------------------------------- pre-release notice */
+.hm-notice-band {
+  background: var(--hm-bg);
+  padding: 0 0 96px;
+  position: relative;
+  z-index: 3;
+}
+.hm-notice {
+  align-items: center;
+  background:
+    linear-gradient(135deg, rgba(226, 168, 110, .13) 0%, rgba(226, 168, 110, .03) 45%, rgba(255, 255, 255, .02) 100%);
+  border: 1px solid rgba(226, 168, 110, .4);
+  border-radius: 18px;
+  box-shadow: 0 40px 90px -60px rgba(226, 168, 110, .55);
+  display: grid;
+  gap: 44px;
+  grid-template-columns: 1.35fr 1fr;
+  padding: 42px 46px;
+  position: relative;
+}
+
+.hm-page .hm-notice-title {
+  color: #fff;
+  font-family: "Quattrocento Sans", sans-serif;
+  font-size: clamp(1.7rem, 3vw, 2.3rem);
+  font-weight: 700;
+  letter-spacing: -.02em;
+  margin: 0 0 14px;
+}
+.hm-notice-body { color: var(--hm-fg-dim); font-size: 1.02rem; line-height: 1.62; margin: 0 0 22px; }
+.hm-notice-body strong { color: var(--hm-warm-soft); }
+
+.hm-notice-links { display: flex; flex-wrap: wrap; gap: 8px 22px; }
+.hm-page a.hm-notice-link {
+  color: var(--hm-fg-dim);
+  font-size: 14.5px;
+  font-weight: 700;
+}
+.hm-page a.hm-notice-link:hover { color: var(--hm-accent-bright); text-decoration: none; }
+.hm-page a.hm-notice-link.is-primary { color: var(--hm-warm-soft); }
+.hm-page a.hm-notice-link.is-primary:hover { color: var(--hm-warm); }
+.hm-page a.hm-notice-link span { display: inline-block; transition: transform .18s ease; }
+.hm-page a.hm-notice-link:hover span { transform: translateX(4px); }
+
+/* What actually exists right now, next to the notice. Values are monospace so they read as
+   readings off a dashboard rather than as marketing. */
+.hm-facts {
+  border-left: 1px solid rgba(226, 168, 110, .28);
+  margin: 0;
+  padding-left: 26px;
+}
+.hm-fact + .hm-fact { margin-top: 18px; }
+.hm-fact dt {
+  color: var(--hm-muted);
+  font-size: 11.5px;
+  font-weight: 400;
+  letter-spacing: .14em;
+  margin-bottom: 3px;
+  text-transform: uppercase;
+}
+.hm-fact dd {
+  color: var(--hm-warm-soft);
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 15px;
+  margin: 0;
+}
+
+/* ------------------------------------------------------------- two doors */
+.hm-doors { background: var(--hm-bg-alt); }
+.hm-door-grid { display: grid; gap: 24px; grid-template-columns: 1fr 1fr; }
+
+.hm-page a.hm-door {
+  background: linear-gradient(160deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, .015));
+  border: 1px solid var(--hm-line);
+  border-radius: 16px;
+  color: var(--hm-fg-dim);
+  display: block;
+  overflow: hidden;
+  padding: 38px 36px 34px;
+  position: relative;
+  transition: border-color .22s ease, transform .22s ease, background-color .22s ease;
+}
+.hm-page a.hm-door:hover {
+  border-color: rgba(87, 203, 204, .6);
+  text-decoration: none;
+  transform: translateY(-3px);
+}
+.hm-door-kicker {
+  color: var(--hm-accent);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+.hm-page .hm-door h3 {
+  color: var(--hm-fg);
+  font-size: clamp(1.25rem, 2vw, 1.6rem);
+  font-weight: 700;
+  letter-spacing: -.01em;
+  line-height: 1.25;
+  margin: 12px 0 12px;
+  max-width: 23ch;
+}
+.hm-door p { color: var(--hm-muted); font-size: 15px; line-height: 1.6; margin: 0 0 22px; max-width: 34ch; }
+.hm-door-cta { color: var(--hm-accent); font-size: 15px; font-weight: 700; }
+.hm-door-cta span { display: inline-block; transition: transform .18s ease; }
+.hm-page a.hm-door:hover .hm-door-cta span { transform: translateX(4px); }
+
+.hm-door-mark {
+  bottom: -14px;
+  height: 150px;
+  opacity: .13;
+  pointer-events: none;
+  position: absolute;
+  right: -10px;
+  transition: opacity .22s ease, transform .22s ease;
+  width: 150px;
+}
+.hm-door-mark rect, .hm-door-mark line, .hm-door-mark-stroke {
+  fill: none;
+  stroke: var(--hm-accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.hm-door-mark-fill, .hm-door-mark-dot { fill: var(--hm-accent); stroke: none; }
+.hm-page a.hm-door:hover .hm-door-mark { opacity: .26; transform: translateY(-4px); }
+
+/* ------------------------------------------------------------ what it is */
+.hm-glance { background: var(--hm-bg); }
+.hm-tiles { display: grid; gap: 20px; grid-template-columns: repeat(4, 1fr); }
+
+.hm-page a.hm-tile {
+  background: rgba(255, 255, 255, .028);
+  border: 1px solid var(--hm-line);
+  border-radius: 14px;
+  color: var(--hm-fg-dim);
+  display: block;
+  padding: 26px 24px 22px;
+  transition: border-color .2s ease, transform .2s ease;
+}
+.hm-page a.hm-tile:hover { border-color: rgba(87, 203, 204, .55); text-decoration: none; transform: translateY(-3px); }
+.hm-tile-index {
+  color: var(--hm-accent);
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 11.5px;
+  letter-spacing: .1em;
+}
+.hm-page .hm-tile h3 {
+  color: var(--hm-fg);
+  font-size: 1.18rem;
+  font-weight: 700;
+  margin: 8px 0 10px;
+}
+.hm-tile p { color: var(--hm-muted); font-size: 14.5px; line-height: 1.58; margin: 0 0 16px; }
+.hm-tile-chips { display: flex; flex-direction: column; gap: 5px; list-style: none; margin: 0; padding: 0; }
+.hm-tile-chips li {
+  color: #93a0ad;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 11.5px;
+}
+.hm-tile-chips li::before { color: var(--hm-accent); content: "· "; }
+
+/* ----------------------------------------------------------- stack strip */
+.hm-stack {
+  background: var(--hm-bg-alt);
+  border-top: 1px solid var(--hm-line);
+  border-bottom: 1px solid var(--hm-line);
+  padding: 26px 0;
+}
+.hm-stack-inner { align-items: center; display: flex; flex-wrap: wrap; gap: 10px 22px; justify-content: center; }
+.hm-stack-label {
+  color: var(--hm-muted);
+  font-size: 11.5px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+}
+.hm-stack-list { display: flex; flex-wrap: wrap; gap: 8px 20px; justify-content: center; list-style: none; margin: 0; padding: 0; }
+.hm-stack-list li {
+  color: #9aa6b2;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 12.5px;
+}
+
+/* ------------------------------------------------------------------ blog */
+.hm-blog { background: var(--hm-bg); padding-bottom: 84px; }
+.hm-blog-head {
+  align-items: flex-end;
+  display: flex;
+  gap: 24px;
+  justify-content: space-between;
+  margin-bottom: 26px;
+}
+.hm-blog-head .hm-title { margin-bottom: 0; }
+.hm-posts { list-style: none; margin: 0; padding: 0; }
+.hm-post { border-top: 1px solid var(--hm-line); }
+.hm-post:last-child { border-bottom: 1px solid var(--hm-line); }
+.hm-page .hm-post a {
+  align-items: baseline;
+  color: var(--hm-fg-dim);
+  display: grid;
+  gap: 6px 26px;
+  grid-template-columns: 110px minmax(0, 22ch) 1fr;
+  padding: 20px 8px;
+  transition: background-color .18s ease, padding-left .18s ease;
+}
+.hm-page .hm-post a:hover {
+  background: rgba(255, 255, 255, .03);
+  padding-left: 16px;
+  text-decoration: none;
+}
+.hm-post time { color: var(--hm-muted); font-family: "JetBrains Mono", Consolas, monospace; font-size: 12px; }
+.hm-post-title { color: var(--hm-fg); font-size: 1.05rem; font-weight: 700; }
+.hm-page .hm-post a:hover .hm-post-title { color: var(--hm-accent-bright); }
+.hm-post-summary { color: var(--hm-muted); font-size: 14px; line-height: 1.5; }
+
+/* ==========================================================================
+   /features/ — the full list, moved off the home page
+   ========================================================================== */
+.hm-features-head { padding: 96px 0 0; text-align: center; }
+.hm-features-head .hm-lead { margin-bottom: 0; }
+
+.hm-feature-group { padding: 56px 0 0; }
+.hm-feature-group-head {
+  align-items: baseline;
+  border-bottom: 1px solid var(--hm-line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin-bottom: 28px;
+  padding-bottom: 14px;
+}
+.hm-feature-group-head p { color: var(--hm-muted); font-size: 14px; margin: 0; }
+.hm-page .hm-feature-group-title {
+  color: var(--hm-fg);
+  font-family: "Quattrocento Sans", sans-serif;
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin: 0;
+}
+.hm-feature-grid { display: grid; gap: 18px; grid-template-columns: repeat(3, 1fr); }
+.hm-feature {
+  background: rgba(255, 255, 255, .028);
+  border: 1px solid var(--hm-line);
+  border-radius: 12px;
+  padding: 24px 22px;
+  transition: border-color .2s ease, transform .2s ease;
+}
+.hm-feature:hover { border-color: rgba(87, 203, 204, .5); transform: translateY(-2px); }
+.hm-feature-top { align-items: center; display: flex; gap: 12px; margin-bottom: 12px; }
+.hm-feature-top i { color: var(--hm-accent); font-size: 20px; }
+.hm-page .hm-feature h3 { color: var(--hm-fg); font-size: 1.08rem; font-weight: 700; margin: 0; }
+.hm-feature p { color: var(--hm-muted); font-size: 14.5px; line-height: 1.6; margin: 0 0 12px; }
+.hm-feature-planned {
+  border: 1px solid rgba(226, 168, 110, .5);
+  border-radius: 12px;
+  color: var(--hm-warm-soft);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  padding: 2px 9px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.hm-features-foot { border-top: 1px solid var(--hm-line); margin-top: 64px; padding: 34px 0 0; text-align: center; }
+
+/* ------------------------------------------------------------ responsive */
+@media (max-width: 991px) {
+  .hm-section { padding: 72px 0; }
+  .hm-notice { gap: 26px; grid-template-columns: 1fr; padding: 34px 30px; }
+  .hm-facts { border-left: 0; border-top: 1px solid rgba(226, 168, 110, .28); display: flex; flex-wrap: wrap; gap: 18px 34px; padding: 22px 0 0; }
+  .hm-fact + .hm-fact { margin-top: 0; }
+  .hm-notice-band { padding-bottom: 72px; }
+  .hm-door-grid { grid-template-columns: 1fr; }
+  .hm-tiles { grid-template-columns: repeat(2, 1fr); }
+  .hm-feature-grid { grid-template-columns: repeat(2, 1fr); }
+  .hm-page .hm-post a { grid-template-columns: 100px 1fr; }
+  .hm-post-summary { grid-column: 2; }
+}
+
+@media (max-width: 575px) {
+  .hm-wrap { padding: 0 20px; }
+  .hm-hero { min-height: 74vh; padding-top: 64px; }
+  .hm-tiles, .hm-feature-grid { grid-template-columns: 1fr; }
+  .hm-blog-head { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .hm-page .hm-post a { grid-template-columns: 1fr; }
+  .hm-post-summary { grid-column: 1; }
+}
+
+/* Motion here is decoration only. */
+@media (prefers-reduced-motion: reduce) {
+  .hm-page *,
+  .hm-page *::before,
+  .hm-page *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .reveal { opacity: 1 !important; transform: none !important; }
+  .hm-weave-lit path { stroke-dasharray: none; opacity: .5; }
+}

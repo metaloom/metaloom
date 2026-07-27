@@ -1,0 +1,154 @@
+---
+title: Impressum
+description: "Impressum und Offenlegung nach § 5 ECG und § 25 MedienG sowie Datenschutzhinweise für metaloom.io."
+---
+
+:icons: font
+
+////
+MAINTAINER NOTE — this block is a comment and is not rendered.
+
+The placeholders in square brackets below MUST be filled in before this site is published.
+An Austrian Impressum is only complete with a real geographic address and a second, direct
+means of contact (§ 5 Abs. 1 Z 2 and Z 3 ECG) — an email address alone is not enough.
+
+To fill in:
+  * [Straße und Hausnummer] / [PLZ] — the address of the operator
+  * [Telefonnummer] — or delete the line and add another direct channel that is not email
+  * Firmenbuch / UID / Gewerbe / Kammer — the rows below assume a private, non-commercial
+    project with none of these. If that changes (a company, a paid offering, a trade licence),
+    those rows have to be updated and § 5 ECG then applies in full rather than by analogy.
+
+This page is a good-faith template, not legal advice. Have it checked before launch.
+////
+
+[NOTE]
+====
+This page is in **German**: it is the legal disclosure required of a website operated from
+Austria (§ 5 E-Commerce-Gesetz, § 25 Mediengesetz). The rest of the site — including the
+link:../[licensing information] — is in English.
+====
+
+== Medieninhaber, Herausgeber und Diensteanbieter
+
+[cols="1,2",frame=none,grid=rows]
+|===
+| Verantwortlich
+| Johannes Schüth
+
+| Anschrift
+| [Straße und Hausnummer] +
+  [PLZ] Wien +
+  Österreich
+
+| E-Mail
+| mailto:hello@metaloom.io[hello@metaloom.io]
+
+| Telefon
+| [Telefonnummer]
+
+| Website
+| https://metaloom.io
+|===
+
+== Unternehmensgegenstand
+
+Entwicklung, Veröffentlichung und Dokumentation der freien Software **MetaLoom** — einer
+Plattform zur Verwaltung und automatisierten Analyse digitaler Medienbestände.
+
+MetaLoom ist ein **privates Projekt**. Es steht hinter dem Projekt kein Unternehmen; es werden
+über diese Website weder Waren noch Dienstleistungen entgeltlich angeboten und es besteht keine
+Möglichkeit zur Bestellung.
+
+== Angaben nach § 5 ECG und § 14 UGB
+
+[cols="1,2",frame=none,grid=rows]
+|===
+| Firmenbuchnummer und Firmenbuchgericht
+| Nicht im Firmenbuch eingetragen (Privatperson).
+
+| Umsatzsteuer-Identifikationsnummer
+| Keine (keine unternehmerische Tätigkeit im Sinne des UStG).
+
+| Gewerbeberechtigung, Aufsichtsbehörde
+| Entfällt — es wird über diese Website keine gewerbliche Tätigkeit ausgeübt.
+
+| Kammerzugehörigkeit, Berufsverband
+| Entfällt.
+
+| Anwendbare Rechtsvorschriften
+| E-Commerce-Gesetz (ECG), Mediengesetz (MedienG), Urheberrechtsgesetz (UrhG),
+  Datenschutz-Grundverordnung (DSGVO) und Datenschutzgesetz (DSG), jeweils abrufbar unter
+  https://www.ris.bka.gv.at[ris.bka.gv.at].
+|===
+
+== Blattlinie / grundlegende Richtung (§ 25 Abs. 4 MedienG)
+
+Diese Website informiert über das Open-Source-Projekt MetaLoom: über seinen Funktionsumfang,
+seinen Entwicklungsstand, seine technische Dokumentation sowie über die Erfahrungen aus seiner
+Entwicklung. Sie verfolgt keine parteipolitischen, weltanschaulichen oder kommerziellen Ziele.
+
+== Urheberrecht und Lizenzen
+
+Die Software MetaLoom steht unter der **Apache License 2.0**. Texte, Grafiken und sonstige
+Inhalte dieser Website sind — soweit nicht anders angegeben — urheberrechtlich geschützt.
+Verwendete Fotografien stammen von https://unsplash.com[Unsplash] und unterliegen der
+Unsplash-Lizenz.
+
+MetaLoom liefert **keine Modellgewichte** mit; für die Lizenzen der von Ihnen eingesetzten
+Modelle siehe link:../model-licenses/[Model Licenses]. Zur Entstehung des Quellcodes siehe die
+link:../ai-disclosure/[AI Code Generation Disclosure].
+
+== Haftung für Inhalte und Links
+
+Die Inhalte dieser Website werden mit Sorgfalt erstellt. Für Richtigkeit, Vollständigkeit und
+Aktualität wird jedoch keine Gewähr übernommen; insbesondere ersetzt die technische Dokumentation
+keine eigene Prüfung im konkreten Einsatzfall. Die Software wird — entsprechend Abschnitt 7 der
+Apache License 2.0 — **ohne Gewährleistung** bereitgestellt.
+
+Diese Website enthält Links zu externen Websites Dritter, auf deren Inhalte kein Einfluss besteht.
+Für diese Inhalte ist stets der jeweilige Anbieter verantwortlich. Zum Zeitpunkt der Verlinkung
+waren keine Rechtsverstöße erkennbar.
+
+== Online-Streitbeilegung
+
+Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung bereit:
+https://ec.europa.eu/consumers/odr/[ec.europa.eu/consumers/odr]. Es besteht weder eine
+Verpflichtung noch die Bereitschaft, an einem Streitbeilegungsverfahren vor einer
+Verbraucherschlichtungsstelle teilzunehmen.
+
+[#datenschutz]
+== Datenschutz
+
+Diese Website ist eine **statische Website**. Sie setzt keine Cookies, verwendet keine
+Analyse- oder Tracking-Dienste und betreibt keine Benutzerkonten, Formulare oder Newsletter.
+Es werden keine personenbezogenen Daten zum Zweck der Profilbildung verarbeitet.
+
+Verarbeitet werden dennoch die folgenden Daten:
+
+Hosting::
+Die Website wird über **GitHub Pages** (GitHub, Inc., 88 Colin P. Kelly Jr. Street, San
+Francisco, CA 94107, USA) ausgeliefert. Beim Abruf einer Seite werden serverseitig technische
+Zugriffsdaten verarbeitet, darunter die IP-Adresse. Das erfolgt auf Grundlage des berechtigten
+Interesses am sicheren und stabilen Betrieb der Website (Art. 6 Abs. 1 lit. f DSGVO). Die
+Datenschutzerklärung von GitHub ist unter
+https://docs.github.com/site-policy/privacy-policies/github-privacy-statement[docs.github.com]
+abrufbar; die Übermittlung in die USA stützt sich auf die Standardvertragsklauseln bzw. das
+EU-US Data Privacy Framework.
+
+Schriftarten::
+Die Seiten binden Schriftarten von **Google Fonts** (Google Ireland Limited) ein. Dabei wird die
+IP-Adresse an Google übertragen. Rechtsgrundlage ist ebenfalls Art. 6 Abs. 1 lit. f DSGVO.
+
+Externe Dienste::
+Verlinkungen zu Discord und GitHub führen zu Angeboten Dritter, die eigene Datenschutzerklärungen
+haben. Ein Aufruf erfolgt nur, wenn Sie den jeweiligen Link anklicken.
+
+E-Mail-Kontakt::
+Wenn Sie uns per E-Mail schreiben, werden Ihre Angaben zur Bearbeitung der Anfrage gespeichert
+und nicht ohne Ihre Einwilligung weitergegeben (Art. 6 Abs. 1 lit. b bzw. lit. f DSGVO).
+
+Ihnen stehen die Rechte auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung,
+Datenübertragbarkeit und Widerspruch zu. Wenden Sie sich dafür an
+mailto:hello@metaloom.io[hello@metaloom.io]. Sie haben zudem das Recht auf Beschwerde bei der
+österreichischen Datenschutzbehörde (https://www.dsb.gv.at[dsb.gv.at]).

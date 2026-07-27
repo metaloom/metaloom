@@ -1,0 +1,4 @@
+{{/* Loads the shared scroll-reveal script. Pair it with `partial "reveal-bootstrap.html"` at
+     the top of the page and a `data-reveal-scope` container. */}}
+{{ $reveal := resources.Get "js/reveal.js" | minify | fingerprint "sha384" }}
+<script src="{{ $reveal.RelPermalink }}" integrity="{{ $reveal.Data.Integrity }}" defer></script>

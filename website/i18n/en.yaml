@@ -34,3 +34,30 @@
   translation: Model Licenses
 - id: aiDisclosure
   translation: AI Disclosure
+# footer
+- id: footerTagline
+  translation: Open source media asset management. It transcribes, detects, describes and indexes your media — on hardware you control.
+- id: footerStatus
+  translation: 1.0.0 — not released yet
+- id: explore
+  translation: Explore
+- id: project
+  translation: Project
+- id: forStudios
+  translation: For studios
+- id: features
+  translation: Features
+- id: announcements
+  translation: Announcements
+- id: gettingStarted
+  translation: Getting started
+- id: processingNodes
+  translation: Processing nodes
+- id: restApi
+  translation: REST API
+- id: deployment
+  translation: Container images
+- id: commandLine
+  translation: Command line
+- id: impressum
+  translation: Impressum

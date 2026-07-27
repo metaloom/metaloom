@@ -1,0 +1,74 @@
+{{/*
+  Hero backdrop: a loom. Warp threads run down, weft threads run across, and light travels
+  along a few of them. Generated rather than hand-listed so the density is one number to
+  change. Purely decorative — aria-hidden, and every animation stops under
+  prefers-reduced-motion (see home.css).
+*/}}
+{{ $warp := 26 }}{{ $weft := 12 }}
+<svg class="hm-weave" viewBox="0 0 1300 700" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id="hm-warp-fade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="35%" stop-color="#ffffff" stop-opacity=".26"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="hm-weft-fade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="30%" stop-color="#ffffff" stop-opacity=".17"/>
+      <stop offset="70%" stop-color="#ffffff" stop-opacity=".17"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="hm-thread-lit" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#57cbcc" stop-opacity="0"/>
+      <stop offset="45%" stop-color="#7efff4" stop-opacity=".85"/>
+      <stop offset="100%" stop-color="#57cbcc" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="hm-weft-lit" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#57cbcc" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#7efff4" stop-opacity=".7"/>
+      <stop offset="100%" stop-color="#57cbcc" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  {{/* warp: vertical threads, every fifth one lit */}}
+  <g class="hm-weave-warp">
+    {{ range $i := seq 0 (sub $warp 1) }}
+    {{ $x := add 20 (mul $i 50) }}
+    <path d="M{{ $x }} -20 C {{ add $x 14 }} 180, {{ sub $x 14 }} 460, {{ $x }} 720" />
+    {{ end }}
+  </g>
+  <g class="hm-weave-lit">
+    {{ range $i := seq 0 4 }}
+    {{ $x := add 120 (mul $i 260) }}
+    <path style="--hm-delay:{{ mul $i 900 }}ms"
+          d="M{{ $x }} -20 C {{ add $x 14 }} 180, {{ sub $x 14 }} 460, {{ $x }} 720" />
+    {{ end }}
+  </g>
+
+  {{/* weft: horizontal threads */}}
+  <g class="hm-weave-weft">
+    {{ range $i := seq 0 (sub $weft 1) }}
+    {{ $y := add 30 (mul $i 58) }}
+    <path d="M-20 {{ $y }} C 340 {{ sub $y 10 }}, 960 {{ add $y 10 }}, 1320 {{ $y }}" />
+    {{ end }}
+  </g>
+
+  {{/* two weft threads carry light across, so the weave reads as woven rather than as a grid */}}
+  <g class="hm-weave-lit hm-weave-lit-weft">
+    {{ range $i := seq 0 1 }}
+    {{ $y := add 204 (mul $i 290) }}
+    <path style="--hm-delay:{{ add 1400 (mul $i 2600) }}ms"
+          d="M-20 {{ $y }} C 340 {{ sub $y 10 }}, 960 {{ add $y 10 }}, 1320 {{ $y }}" />
+    {{ end }}
+  </g>
+
+  {{/* knots at a few crossings */}}
+  <g class="hm-weave-knots">
+    {{ range $i := seq 0 8 }}
+    <circle r="2.6"
+            cx="{{ add 120 (mul (mod (mul $i 7) 25) 50) }}"
+            cy="{{ add 30 (mul (mod (mul $i 5) 12) 58) }}"
+            style="--hm-delay:{{ mul $i 420 }}ms" />
+    {{ end }}
+  </g>
+</svg>

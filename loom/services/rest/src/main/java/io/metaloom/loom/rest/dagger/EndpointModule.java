@@ -37,6 +37,7 @@ import io.metaloom.loom.rest.endpoint.impl.SkillEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.SpaceEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.RESTInfoEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.RoleEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.SearchEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.TagEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.TaskEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.TokenEndpoint;
@@ -76,6 +77,7 @@ public class EndpointModule {
 		LoginEndpoint loginEndpoint,
 		OAuth2Endpoint oauth2Endpoint,
 		RESTInfoEndpoint restInfoEndpoint,
+		SearchEndpoint searchEndpoint,
 		CommentEndpoint commentEndpoint,
 		AttachmentEndpoint attachmentEndpoint,
 		ReactionEndpoint reactionEndpoint,
@@ -110,6 +112,7 @@ public class EndpointModule {
 			loginEndpoint,
 			oauth2Endpoint,
 			restInfoEndpoint,
+			searchEndpoint,
 			attachmentEndpoint,
 			commentEndpoint,
 			reactionEndpoint,

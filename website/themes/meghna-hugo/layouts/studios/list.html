@@ -3,25 +3,16 @@
 
   Copy comes from data/en/studios.yml; the art is inline SVG in partials/studios/art-*.html,
   selected per panel by its `art:` key. Styling is assets/css/studios.css (loaded via the
-  page's `page_css` front matter), motion is assets/js/studios.js. Nothing here is shared with
-  the docs layouts on purpose — this page has its own visual language.
+  page's `page_css` front matter), motion is the shared assets/js/reveal.js. Nothing here is
+  shared with the docs layouts on purpose — this page has its own visual language.
 */}}
 {{ define "main" }}
 {{ $d := (index hugo.Data site.Language.Lang).studios }}
 
 {{ partial "navigation.html" . }}
 
-<main class="st-page">
-  {{/* Set the "JS is on" flag during parse, before anything paints — the reveal animation's
-       hidden start state hangs off it (studios.css). The timer is the safety net: if
-       studios.js never runs (blocked, failed integrity check), the class goes away again and
-       the page renders in its finished state rather than staying blank. */}}
-  <script>
-    document.documentElement.classList.add('st-js');
-    setTimeout(function () {
-      if (!window.__stReady) document.documentElement.classList.remove('st-js');
-    }, 2500);
-  </script>
+<main class="st-page" data-reveal-scope>
+  {{ partial "reveal-bootstrap.html" . }}
 
 
   {{/* ---------------------------------------------------------------- hero */}}
@@ -35,12 +26,12 @@
       <div class="st-hero-veil"></div>
     </div>
     <div class="st-hero-inner">
-      <p class="st-eyebrow st-reveal">{{ .eyebrow }}</p>
-      <h1 class="st-hero-title st-reveal" data-reveal-delay="1">{{ .title | safeHTML }}</h1>
-      <p class="st-hero-lead st-reveal" data-reveal-delay="2">{{ .content }}</p>
+      <p class="st-eyebrow reveal">{{ .eyebrow }}</p>
+      <h1 class="st-hero-title reveal" data-reveal-delay="1">{{ .title | safeHTML }}</h1>
+      <p class="st-hero-lead reveal" data-reveal-delay="2">{{ .content }}</p>
       {{/* An in-page target ("#understand") must stay a bare fragment — relURL would turn it
            into "/#understand", which points at the home page. */}}
-      <div class="st-hero-actions st-reveal" data-reveal-delay="3">
+      <div class="st-hero-actions reveal" data-reveal-delay="3">
         <a class="st-btn st-btn-primary" href="{{ if hasPrefix .primary.link "#" }}{{ .primary.link }}{{ else }}{{ .primary.link | relURL }}{{ end }}">{{ .primary.label }}</a>
         <a class="st-btn st-btn-ghost" href="{{ if hasPrefix .secondary.link "#" }}{{ .secondary.link }}{{ else }}{{ .secondary.link | relURL }}{{ end }}">{{ .secondary.label }}</a>
       </div>
@@ -60,11 +51,11 @@
   <section class="st-section st-problem" id="problem">
     <div class="st-wrap st-split">
       <div class="st-split-text">
-        <p class="st-eyebrow st-reveal">{{ .eyebrow }}</p>
-        <h2 class="st-title st-reveal">{{ .title | safeHTML }}</h2>
-        <p class="st-lead st-reveal">{{ .content }}</p>
+        <p class="st-eyebrow reveal">{{ .eyebrow }}</p>
+        <h2 class="st-title reveal">{{ .title | safeHTML }}</h2>
+        <p class="st-lead reveal">{{ .content }}</p>
       </div>
-      <div class="st-split-art st-reveal">
+      <div class="st-split-art reveal">
         {{ partial "studios/art-filewall.html" . }}
       </div>
     </div>
@@ -76,16 +67,16 @@
   <section class="st-section st-understand" id="understand">
     <div class="st-wrap">
       <div class="st-section-head">
-        <p class="st-eyebrow st-reveal">{{ .eyebrow }}</p>
-        <h2 class="st-title st-reveal">{{ .title | safeHTML }}</h2>
-        <p class="st-lead st-reveal">{{ .content }}</p>
+        <p class="st-eyebrow reveal">{{ .eyebrow }}</p>
+        <h2 class="st-title reveal">{{ .title | safeHTML }}</h2>
+        <p class="st-lead reveal">{{ .content }}</p>
       </div>
-      <div class="st-reveal st-pipeline-holder">
+      <div class="reveal st-pipeline-holder">
         {{ partial "studios/art-pipeline.html" . }}
       </div>
       <ol class="st-steps">
         {{ range $i, $s := .steps }}
-        <li class="st-step st-reveal" data-reveal-delay="{{ $i }}">
+        <li class="st-step reveal" data-reveal-delay="{{ $i }}">
           <span class="st-step-index">{{ printf "%02d" (add $i 1) }}</span>
           <h3>{{ $s.label }}</h3>
           <p>{{ $s.note }}</p>
@@ -102,17 +93,17 @@
     <article class="st-panel{{ if eq (mod $i 2) 1 }} st-panel-flip{{ end }}">
       <div class="st-wrap st-split">
         <div class="st-split-text">
-          <p class="st-eyebrow st-reveal">{{ $p.eyebrow }}</p>
-          <h2 class="st-title st-title-sm st-reveal">{{ $p.title | safeHTML }}</h2>
-          <p class="st-lead st-reveal">{{ $p.content }}</p>
-          <ul class="st-chips st-reveal">
+          <p class="st-eyebrow reveal">{{ $p.eyebrow }}</p>
+          <h2 class="st-title st-title-sm reveal">{{ $p.title | safeHTML }}</h2>
+          <p class="st-lead reveal">{{ $p.content }}</p>
+          <ul class="st-chips reveal">
             {{ range $p.chips }}<li>{{ . }}</li>{{ end }}
           </ul>
           {{ with $p.link }}
-          <a class="st-link st-reveal" href="{{ . | relURL }}">{{ $p.link_label }} <span aria-hidden="true">&rarr;</span></a>
+          <a class="st-link reveal" href="{{ . | relURL }}">{{ $p.link_label }} <span aria-hidden="true">&rarr;</span></a>
           {{ end }}
         </div>
-        <div class="st-split-art st-reveal">
+        <div class="st-split-art reveal">
           <div class="st-art-frame">
             {{ partial (printf "studios/art-%s.html" $p.art) $p }}
           </div>
@@ -128,8 +119,8 @@
     <div class="st-wrap">
       <dl class="st-numbers-grid">
         {{ range $i, $n := . }}
-        <div class="st-number st-reveal" data-reveal-delay="{{ $i }}">
-          <dt class="st-number-value">{{ $n.value }}</dt>
+        <div class="st-number reveal" data-reveal-delay="{{ $i }}">
+          <dt class="st-number-value" data-count-up>{{ $n.value }}</dt>
           <dd class="st-number-label">{{ $n.label }}</dd>
         </div>
         {{ end }}
@@ -148,13 +139,13 @@
     </div>
     <div class="st-wrap">
       <div class="st-section-head">
-        <p class="st-eyebrow st-reveal">{{ .eyebrow }}</p>
-        <h2 class="st-title st-reveal">{{ .title | safeHTML }}</h2>
-        <p class="st-lead st-reveal">{{ .content }}</p>
+        <p class="st-eyebrow reveal">{{ .eyebrow }}</p>
+        <h2 class="st-title reveal">{{ .title | safeHTML }}</h2>
+        <p class="st-lead reveal">{{ .content }}</p>
       </div>
       <div class="st-cards">
         {{ range $i, $p := .points }}
-        <div class="st-card st-reveal" data-reveal-delay="{{ $i }}">
+        <div class="st-card reveal" data-reveal-delay="{{ $i }}">
           <h3>{{ $p.title }}</h3>
           <p>{{ $p.note }}</p>
           {{ with $p.link }}<a class="st-link" href="{{ . | relURL }}">{{ $p.link_label }} <span aria-hidden="true">&rarr;</span></a>{{ end }}
@@ -170,12 +161,12 @@
   <section class="st-section st-audiences">
     <div class="st-wrap">
       <div class="st-section-head">
-        <p class="st-eyebrow st-reveal">{{ .eyebrow }}</p>
-        <h2 class="st-title st-reveal">{{ .title | safeHTML }}</h2>
+        <p class="st-eyebrow reveal">{{ .eyebrow }}</p>
+        <h2 class="st-title reveal">{{ .title | safeHTML }}</h2>
       </div>
       <div class="st-cards st-cards-3">
         {{ range $i, $a := .items }}
-        <div class="st-card st-card-icon st-reveal" data-reveal-delay="{{ $i }}">
+        <div class="st-card st-card-icon reveal" data-reveal-delay="{{ $i }}">
           <i class="{{ $a.icon }}" aria-hidden="true"></i>
           <h3>{{ $a.title }}</h3>
           <p>{{ $a.note }}</p>
@@ -195,14 +186,14 @@
       <div class="st-bg-veil"></div>
     </div>
     <div class="st-wrap st-cta-inner">
-      <p class="st-eyebrow st-reveal">{{ .eyebrow }}</p>
-      <h2 class="st-title st-reveal">{{ .title | safeHTML }}</h2>
-      <p class="st-lead st-reveal">{{ .content }}</p>
-      <div class="st-command st-reveal">
+      <p class="st-eyebrow reveal">{{ .eyebrow }}</p>
+      <h2 class="st-title reveal">{{ .title | safeHTML }}</h2>
+      <p class="st-lead reveal">{{ .content }}</p>
+      <div class="st-command reveal">
         <code>{{ .command }}</code>
       </div>
-      <p class="st-command-note st-reveal">{{ .command_note }}</p>
-      <div class="st-hero-actions st-reveal">
+      <p class="st-command-note reveal">{{ .command_note }}</p>
+      <div class="st-hero-actions reveal">
         <a class="st-btn st-btn-primary" href="{{ .primary.link | relURL }}">{{ .primary.label }}</a>
         <a class="st-btn st-btn-ghost" href="{{ .secondary.link | relURL }}">{{ .secondary.label }}</a>
         <a class="st-btn st-btn-plain" href="{{ .tertiary.link }}">{{ .tertiary.label }}</a>
@@ -213,6 +204,5 @@
 
 </main>
 
-{{ $studiosJS := resources.Get "js/studios.js" | minify | fingerprint "sha384" }}
-<script src="{{ $studiosJS.RelPermalink }}" integrity="{{ $studiosJS.Data.Integrity }}" defer></script>
+{{ partial "reveal-script.html" . }}
 {{ end }}

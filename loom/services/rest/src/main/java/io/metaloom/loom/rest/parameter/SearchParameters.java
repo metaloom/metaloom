@@ -121,16 +121,25 @@ public class SearchParameters {
 		return out;
 	}
 
+	/**
+	 * Return the raw, unconverted value of a parameter, or null when it was not supplied.
+	 *
+	 * <p>
+	 * Deliberately does <b>not</b> fall back to {@link SearchQueryParameterKey#defaultValue()}: those defaults are already typed (LIMIT and OFFSET default
+	 * to Integer), so returning one from a String-typed accessor would be a ClassCastException waiting for the first request that omits the parameter.
+	 * Defaults are applied by the typed accessors below.
+	 * </p>
+	 */
 	private String raw(SearchQueryParameterKey key) {
 		List<String> values = lrc.queryParam(key.key());
 		if (values.isEmpty()) {
-			return key.defaultValue();
+			return null;
 		}
 		if (values.size() > 1) {
 			throw new LoomRestException(400, LoomRestErrorCode.BAD_QUERY_PARAMS, "Parameter " + key.key() + " was found multiple times");
 		}
 		String value = values.get(0);
-		return value == null || value.isBlank() ? key.defaultValue() : value;
+		return value == null || value.isBlank() ? null : value;
 	}
 
 	private int intParam(SearchQueryParameterKey key) {

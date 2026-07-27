@@ -224,8 +224,11 @@ public class UserEndpointTest extends AbstractCRUDEndpointTest implements Replac
 		assertThat(pageResponse).isValid().hasSize(10).hasPerPage(10);
 
 		UserListResponse secondPage = client.listUsers().addLimit(2).addFrom(pageResponse.getMetainfo().getLastUuid()).sync().body();
-		assertEquals(2, secondPage.getMetainfo().getTotalCount(), "There should only be two users in the list");
 		assertEquals(2, secondPage.getData().size(), "There should only be two responses");
+		// totalCount is the number of users matching the query, not the number returned in this page,
+		// and it is unaffected by how far the keyset cursor has advanced: 100 created here plus the
+		// admin and joedoe fixtures.
+		assertEquals(102, secondPage.getMetainfo().getTotalCount(), "The total count must cover every user, not just this page");
 	}
 
 	@Test

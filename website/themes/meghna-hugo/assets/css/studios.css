@@ -183,17 +183,17 @@ body { background-color: #0b0e13; }
 }
 
 /* -------------------------------------------------------------- reveal fx
-   The hidden start state is applied only once studios.js has added .st-js, so a
-   reader without JavaScript (or with the script blocked) gets the finished page
-   instead of an empty one. Every "animate in" rule below follows the same rule:
-   .st-js hides, .is-visible reveals. */
-.st-js .st-reveal {
+   Shared vocabulary with the other design-led pages (assets/js/reveal.js): the hidden
+   start state applies only while `.reveal-js` is set, so a reader without JavaScript
+   gets the finished page instead of an empty one. Every "animate in" rule below has
+   the same shape — `.reveal-js` hides, `.is-visible` reveals. */
+.reveal-js .reveal {
   opacity: 0;
   transform: translateY(26px);
   transition: opacity .7s cubic-bezier(.2, .7, .2, 1), transform .7s cubic-bezier(.2, .7, .2, 1);
   will-change: opacity, transform;
 }
-.st-js .st-reveal.is-visible {
+.reveal-js .reveal.is-visible {
   opacity: 1;
   transform: none;
 }
@@ -359,7 +359,7 @@ body { background-color: #0b0e13; }
   stroke-dasharray: 3 11;
   opacity: .9;
 }
-.st-js .st-pv-flow { opacity: 0; }
+.reveal-js .st-pv-flow { opacity: 0; }
 .is-visible .st-pv-flow {
   animation: st-pv-dash 1.5s linear infinite;
   animation-delay: var(--st-delay, 0s);
@@ -377,8 +377,8 @@ body { background-color: #0b0e13; }
   stroke-width: 1.3;
 }
 .st-pv-worker text { fill: #d5e2e6; font-size: 14px; }
-.st-js .st-pv-worker rect,
-.st-js .st-pv-worker text { opacity: 0; }
+.reveal-js .st-pv-worker rect,
+.reveal-js .st-pv-worker text { opacity: 0; }
 .is-visible .st-pv-worker rect,
 .is-visible .st-pv-worker text {
   animation: st-fade-up .6s ease-out forwards;
@@ -392,7 +392,7 @@ body { background-color: #0b0e13; }
 .st-pv-index rect { fill: url(#st-pv-index); stroke: rgba(87, 203, 204, .5); stroke-width: 1.3; }
 .st-pv-index-title { fill: var(--st-accent-bright); font-size: 14px; font-weight: 700; }
 .st-pv-index-rows rect { fill: rgba(255, 255, 255, .22); stroke: none; }
-.st-js .st-pv-index-rows rect { opacity: 0; }
+.reveal-js .st-pv-index-rows rect { opacity: 0; }
 .is-visible .st-pv-index-rows rect {
   animation: st-row-in .5s ease-out forwards;
   animation-delay: var(--st-delay, 0s);
@@ -521,7 +521,7 @@ body { background-color: #0b0e13; }
 }
 .st-fc-box .st-fc-tag { fill: var(--st-accent); stroke: none; }
 .st-fc-box text { fill: #06272a; font-size: 10px; font-weight: 700; }
-.st-js .st-fc-box { opacity: 0; }
+.reveal-js .st-fc-box { opacity: 0; }
 .is-visible .st-fc-box {
   animation: st-box-in .45s cubic-bezier(.2, .8, .3, 1) forwards;
   animation-delay: var(--st-delay, 0s);
@@ -875,7 +875,7 @@ body { background-color: #0b0e13; }
     animation: none !important;
     transition: none !important;
   }
-  .st-reveal { opacity: 1 !important; transform: none !important; }
+  .reveal { opacity: 1 !important; transform: none !important; }
   .st-pv-flow { opacity: .9; }
   .st-pv-worker rect, .st-pv-worker text,
   .st-pv-index-rows rect, .st-fc-box { opacity: 1; }

@@ -21,9 +21,33 @@ public class ListResponseModelAssert extends AbstractAssert<ListResponseModelAss
 		return this;
 	}
 
+	/**
+	 * Assert the number of elements <b>in this page</b>.
+	 *
+	 * <p>
+	 * This deliberately no longer asserts {@code totalCount}. The two were checked together for as long as {@code totalCount} was (incorrectly) populated
+	 * with the page size; now that it reports the number of matches across all pages, conflating them would make it impossible to have a page smaller than
+	 * the result set. Use {@link #hasTotalCount(long)} for the total.
+	 * </p>
+	 *
+	 * @param size
+	 *            expected number of returned elements
+	 * @return Fluent API
+	 */
 	public ListResponseModelAssert hasSize(int size) {
-		assertEquals(size, actual.getMetainfo().getTotalCount(), "The expected size did not match up with the total count");
 		assertEquals(size, actual.getData().size(), "The expected size did not match up with the results.");
+		return this;
+	}
+
+	/**
+	 * Assert the total number of elements matching the query across all pages.
+	 *
+	 * @param totalCount
+	 *            expected total
+	 * @return Fluent API
+	 */
+	public ListResponseModelAssert hasTotalCount(long totalCount) {
+		assertEquals(totalCount, actual.getMetainfo().getTotalCount(), "The expected total count did not match up with the metainfo value");
 		return this;
 	}
 

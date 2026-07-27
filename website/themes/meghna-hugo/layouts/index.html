@@ -1,31 +1,173 @@
-{{ define "main" }}
+{{/*
+  Home page — deliberately short.
 
-{{ partial "banner.html" . }}
+  Copy comes from data/en/home.yml, styling from assets/css/home.css (loaded via the
+  `page_css` front matter of content/english/_index.md, and shared with /features/), motion
+  from the shared assets/js/reveal.js.
+
+  It has to work for two visitors at once: someone with an archive who does not care how it
+  works, and someone who wants the API. That is what the "Two ways in" section is for — the
+  visual tour lives on /studios/, the reference on /docs/, and neither is dumped on the home
+  page. The long feature list moved to /features/, the blog overview stays on /blog/, and the
+  "get started" links live in the hero and the footer rather than in a closing pitch.
+*/}}
+{{ define "main" }}
+{{ $d := (index hugo.Data site.Language.Lang).home }}
 
 {{ partial "navigation.html" . }}
 
-{{ partial "about.html" . }}
+<main class="hm-page" data-reveal-scope>
+  {{ partial "reveal-bootstrap.html" . }}
 
-{{ partial "feature.html" . }}
+  {{/* ---------------------------------------------------------------- hero */}}
+  {{ with $d.hero }}
+  <section class="hm-hero">
+    <div class="hm-hero-bg">
+      {{ partial "home/art-weave.html" . }}
+      <div class="hm-hero-veil"></div>
+    </div>
+    <div class="hm-wrap hm-hero-inner">
+      <a class="hm-status reveal" href="{{ .status_link | relURL }}">
+        <span class="hm-status-dot" aria-hidden="true"></span>{{ .status }}
+      </a>
+      <h1 class="hm-hero-title reveal" data-reveal-delay="1">{{ .title | safeHTML }}</h1>
+      <p class="hm-hero-lead reveal" data-reveal-delay="2">{{ .content }}</p>
+      <div class="hm-actions reveal" data-reveal-delay="3">
+        <a class="hm-btn hm-btn-primary" href="{{ .primary.link | relURL }}">{{ .primary.label }}</a>
+        <a class="hm-btn hm-btn-ghost" href="{{ .secondary.link | relURL }}">{{ .secondary.label }}</a>
+      </div>
+    </div>
+  </section>
+  {{ end }}
 
-{{ partial "cta.html" . }}
+  {{/* -------------------------------------------------- pre-release notice */}}
+  {{ with $d.notice }}
+  <section class="hm-notice-band">
+    <div class="hm-wrap">
+      <div class="hm-notice reveal">
+        <div class="hm-notice-text">
+          <p class="hm-eyebrow hm-eyebrow-warm">{{ .eyebrow }}</p>
+          <h2 class="hm-notice-title">{{ .title }}</h2>
+          <p class="hm-notice-body">{{ .content | markdownify }}</p>
+          <div class="hm-notice-links">
+            {{ range .links }}
+            <a class="hm-notice-link{{ if .primary }} is-primary{{ end }}" href="{{ if hasPrefix .link "http" }}{{ .link }}{{ else }}{{ .link | relURL }}{{ end }}">
+              {{ .label }} <span aria-hidden="true">&rarr;</span>
+            </a>
+            {{ end }}
+          </div>
+        </div>
 
-{{ partial "service.html" . }}
+        {{/* Facts, not a promise: what actually exists right now. Keep them true. */}}
+        {{ with .facts }}
+        <dl class="hm-facts">
+          {{ range . }}
+          <div class="hm-fact">
+            <dt>{{ .label }}</dt>
+            <dd>{{ .value }}</dd>
+          </div>
+          {{ end }}
+        </dl>
+        {{ end }}
+      </div>
+    </div>
+  </section>
+  {{ end }}
 
-{{ partial "skill.html" . }}
+  {{/* ----------------------------------------------------------- two doors */}}
+  {{ with $d.doors }}
+  <section class="hm-section hm-doors">
+    <div class="hm-wrap">
+      <div class="hm-section-head">
+        <p class="hm-eyebrow reveal">{{ .eyebrow }}</p>
+        <h2 class="hm-title reveal">{{ .title }}</h2>
+      </div>
+      <div class="hm-door-grid">
+        {{ range $i, $door := .items }}
+        <a class="hm-door hm-door-{{ $door.kind }} reveal" data-reveal-delay="{{ $i }}" href="{{ $door.link | relURL }}">
+          <span class="hm-door-kicker">{{ $door.kicker }}</span>
+          <h3>{{ $door.title }}</h3>
+          <p>{{ $door.content }}</p>
+          <span class="hm-door-cta">{{ $door.label }} <span aria-hidden="true">&rarr;</span></span>
+          {{ partial (printf "home/icon-%s.html" $door.kind) . }}
+        </a>
+        {{ end }}
+      </div>
+    </div>
+  </section>
+  {{ end }}
 
-{{ partial "portfolio.html" . }}
+  {{/* ---------------------------------------------------------- at a glance */}}
+  {{ with $d.glance }}
+  <section class="hm-section hm-glance">
+    <div class="hm-wrap">
+      <div class="hm-section-head">
+        <p class="hm-eyebrow reveal">{{ .eyebrow }}</p>
+        <h2 class="hm-title reveal">{{ .title }}</h2>
+      </div>
+      <div class="hm-tiles">
+        {{ range $i, $t := .items }}
+        <a class="hm-tile reveal" data-reveal-delay="{{ $i }}" href="{{ $t.link | relURL }}">
+          <span class="hm-tile-index">{{ printf "%02d" (add $i 1) }}</span>
+          <h3>{{ $t.title | safeHTML }}</h3>
+          <p>{{ $t.content }}</p>
+          <ul class="hm-tile-chips">
+            {{ range $t.chips }}<li>{{ . | safeHTML }}</li>{{ end }}
+          </ul>
+        </a>
+        {{ end }}
+      </div>
+      {{ with .more }}
+      <p class="hm-more reveal">
+        <a class="hm-link" href="{{ .link | relURL }}">{{ .label }} <span aria-hidden="true">&rarr;</span></a>
+      </p>
+      {{ end }}
+    </div>
+  </section>
+  {{ end }}
 
-{{ partial "funfacts.html" . }}
+  {{/* ---------------------------------------------------------- stack strip */}}
+  {{ with $d.stack }}
+  <section class="hm-stack">
+    <div class="hm-wrap hm-stack-inner reveal">
+      <span class="hm-stack-label">{{ .label }}</span>
+      <ul class="hm-stack-list">
+        {{ range .items }}<li>{{ . }}</li>{{ end }}
+      </ul>
+    </div>
+  </section>
+  {{ end }}
 
-{{ partial "pricing.html" . }}
+  {{/* ---------------------------------------------------- three latest posts */}}
+  {{ with $d.blog }}
+  {{ $posts := first 3 (where site.RegularPages "Section" "blog").ByDate.Reverse }}
+  {{ if $posts }}
+  <section class="hm-section hm-blog">
+    <div class="hm-wrap">
+      <div class="hm-blog-head">
+        <div>
+          <p class="hm-eyebrow reveal">{{ .eyebrow }}</p>
+          <h2 class="hm-title hm-title-sm reveal">{{ .title }}</h2>
+        </div>
+        <a class="hm-link reveal" href="{{ .more.link | relURL }}">{{ .more.label }} <span aria-hidden="true">&rarr;</span></a>
+      </div>
+      <ul class="hm-posts">
+        {{ range $i, $p := $posts }}
+        <li class="hm-post reveal" data-reveal-delay="{{ $i }}">
+          <a href="{{ $p.RelPermalink }}">
+            <time datetime="{{ $p.Date.Format "2006-01-02" }}">{{ $p.Date.Format "2 Jan 2006" }}</time>
+            <span class="hm-post-title">{{ $p.Title }}</span>
+            <span class="hm-post-summary">{{ with $p.Params.description }}{{ . }}{{ else }}{{ $p.Summary | plainify | truncate 110 }}{{ end }}</span>
+          </a>
+        </li>
+        {{ end }}
+      </ul>
+    </div>
+  </section>
+  {{ end }}
+  {{ end }}
 
-{{ partial "testimonial.html" . }}
+</main>
 
-{{ partial "blog.html" . }}
-
-{{ partial "contact.html" . }}
-
-{{ partial "map.html" . }}
-
+{{ partial "reveal-script.html" . }}
 {{ end }}

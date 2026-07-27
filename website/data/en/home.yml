@@ -1,0 +1,95 @@
+############################# Home page (/) ####################################
+# Copy only. Structure and art live in themes/meghna-hugo/layouts/index.html and
+# layouts/partials/home/*.html; styling in assets/css/home.css (shared with /features/).
+#
+# The page is deliberately short: hero → pre-release notice → two doors → what it is →
+# stack → three latest posts. Anything longer belongs on /studios/ (the visual tour),
+# /features/ (the full list) or /docs/ (the reference).
+
+hero:
+  status: "Early development · 1.0.0 not released yet"
+  status_link: "/announcements/metaloom-1-0-0/"
+  title: "Your media,<br>understood."
+  content: "MetaLoom is an open source media asset platform. Point it at a folder and it transcribes, detects, describes and indexes what is inside — on hardware you control."
+  primary:
+    label: "See what it does"
+    link: "/studios/"
+  secondary:
+    label: "Read the docs"
+    link: "/docs/"
+
+notice:
+  eyebrow: "Project status"
+  title: "Not released yet."
+  content: "MetaLoom is in active development. The scope of **1.0.0** is written down and the demo container runs today, but nothing is tagged as a release, and interfaces can still move."
+  # Plain facts instead of a promise. Keep these true — they are the first thing a visitor
+  # checks the project against.
+  facts:
+    - label: "Version in tree"
+      value: "1.0.0-SNAPSHOT"
+    - label: "Published artifacts"
+      value: "none yet"
+    - label: "Demo container"
+      value: "runs today"
+  links:
+    - label: "What 1.0.0 will contain"
+      link: "/announcements/metaloom-1-0-0/"
+      primary: true
+    - label: "Follow the build log"
+      link: "/blog/"
+    - label: "Join the Discord"
+      link: "https://discord.gg/NFdnFcSbfA"
+
+doors:
+  eyebrow: "Two ways in"
+  title: "Where would you like to start?"
+  items:
+    - kind: "visual"
+      kicker: "No jargon"
+      title: "I have an archive I cannot search."
+      content: "A short, visual tour of what MetaLoom finds in your footage and how you get it back out."
+      label: "Take the tour"
+      link: "/studios/"
+    - kind: "technical"
+      kicker: "APIs and pipelines"
+      title: "I want to run and integrate it."
+      content: "Architecture, node catalogue, REST and GraphQL reference, deployment playbooks, Helm charts."
+      label: "Open the docs"
+      link: "/docs/"
+
+glance:
+  eyebrow: "What it is"
+  title: "One platform, four jobs."
+  items:
+    - title: "Take in"
+      content: "Reference files where they already live, or upload them. Nothing is copied to a cloud you do not own."
+      chips: ["filesystem &amp; upload", "content-addressed", "libraries"]
+      link: "/docs/loom/features/"
+    - title: "Understand"
+      content: "Speech becomes text, faces become vectors, scenes become captions, documents become searchable content."
+      chips: ["19 node kinds", "GPU-friendly", "custom nodes"]
+      link: "/docs/nodes/"
+    - title: "Find &amp; ask"
+      content: "Full-text and vector search over everything that came out — or just ask the built-in agent."
+      chips: ["Elasticsearch · Qdrant", "chat agent", "skills &amp; memory"]
+      link: "/docs/loom/chat/"
+    - title: "Run anywhere"
+      content: "A single container on a workstation, or a scaled worker fleet on Kubernetes. Same platform."
+      chips: ["Docker · Helm", "REST · GraphQL", "web · desktop · CLI"]
+      link: "/docs/deployment/"
+  more:
+    label: "All features"
+    link: "/features/"
+
+stack:
+  label: "Built on"
+  items: ["Java 25", "Vert.x 5", "PostgreSQL", "jOOQ", "React", "GraalVM native", "Kubernetes", "whisper.cpp", "OpenCV", "Apache 2.0"]
+
+blog:
+  eyebrow: "From the build log"
+  title: "How it is being built."
+  content: "Design notes and experiments from the making of MetaLoom."
+  more:
+    label: "All posts"
+    link: "/blog/"
+

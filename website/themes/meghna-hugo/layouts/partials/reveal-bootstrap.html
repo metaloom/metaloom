@@ -1,0 +1,15 @@
+{{/*
+  Sets the "JS is on" flag during parse, before anything paints. The scroll-reveal animations
+  on the design-led pages hang their hidden start state off `.reveal-js`, so this has to run
+  synchronously — a deferred script would let the finished page paint first and then blank it.
+
+  The timer is the safety net: if assets/js/reveal.js never runs (blocked, failed integrity
+  check, old browser), the class goes away again and the page renders in its finished state
+  rather than staying empty.
+*/}}
+<script>
+  document.documentElement.classList.add('reveal-js');
+  setTimeout(function () {
+    if (!window.__revealReady) document.documentElement.classList.remove('reveal-js');
+  }, 2500);
+</script>

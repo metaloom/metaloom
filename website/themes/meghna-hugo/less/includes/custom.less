@@ -619,3 +619,143 @@ html { scrollbar-gutter: stable; }
 }
 .ann-back a { color: #57cbcc; font-weight: 600; }
 .ann-back a:hover { color: #7efff4; }
+
+/* ==========================================================
+   Site footer (partials/footer.html)
+
+   Same footer under the marketing pages and the docs, so it lives here rather than in a
+   page stylesheet. It replaces the theme's original centred logo + icon row: four columns
+   of links, then a rule and one line of copyright/contact.
+   ========================================================== */
+.site-footer {
+  background: #1b2027;
+  border-top: 1px solid rgba(255, 255, 255, .07);
+  padding: 66px 0 26px;
+}
+
+.site-footer-main {
+  padding-bottom: 34px;
+}
+
+.site-footer-brand {
+  padding-right: 40px;
+}
+.site-footer-logo {
+  display: inline-block;
+  margin-bottom: 16px;
+}
+.site-footer-logo img {
+  height: 38px;
+  width: auto;
+}
+.site-footer-tagline {
+  color: #8a95a0;
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0 0 18px;
+  max-width: 34ch;
+}
+
+/* the pre-release state follows the reader into the footer */
+.site-footer a.site-footer-status {
+  align-items: center;
+  border: 1px solid rgba(226, 168, 110, .4);
+  border-radius: 30px;
+  color: #f0c799;
+  display: inline-flex;
+  font-size: 12px;
+  gap: 8px;
+  letter-spacing: .04em;
+  padding: 5px 14px;
+  transition: border-color .2s ease-in 0s, background-color .2s ease-in 0s;
+}
+.site-footer a.site-footer-status:hover {
+  background: rgba(226, 168, 110, .12);
+  border-color: #e2a86e;
+}
+.site-footer-status-dot {
+  background: #e2a86e;
+  border-radius: 50%;
+  height: 6px;
+  width: 6px;
+}
+
+.site-footer-col h2 {
+  color: #cdd6df;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .16em;
+  margin: 6px 0 16px;
+  text-transform: uppercase;
+}
+.site-footer-col ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.site-footer-col li {
+  margin-bottom: 9px;
+}
+.site-footer-col a {
+  color: #8a95a0;
+  font-size: 14.5px;
+  transition: color .2s ease-in 0s;
+}
+.site-footer-col a:hover {
+  color: #57cbcc;
+  text-decoration: none;
+}
+
+.site-footer-bottom {
+  align-items: center;
+  border-top: 1px solid rgba(255, 255, 255, .07);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 24px;
+  justify-content: space-between;
+  padding-top: 22px;
+}
+.site-footer-copy {
+  color: #6b7681;
+  font-size: 13px;
+  margin: 0;
+}
+.site-footer-copy a { color: #8a95a0; }
+.site-footer-copy a:hover { color: #57cbcc; }
+
+/* Icon + label pairs; the label is what makes them scannable, the icon is decoration. */
+.site-footer-social {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  margin: 0;
+}
+.site-footer-social li { margin: 0; }
+.site-footer-social a {
+  align-items: center;
+  background: rgba(255, 255, 255, .04);
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 20px;
+  color: #8a95a0;
+  display: inline-flex;
+  font-size: 13px;
+  gap: 8px;
+  padding: 6px 14px;
+  transition: all .2s ease-in 0s;
+}
+.site-footer-social a:hover {
+  border-color: #57cbcc;
+  color: #57cbcc;
+  text-decoration: none;
+}
+.site-footer-social i { font-size: 15px; }
+
+@media (max-width: 991px) {
+  .site-footer { padding-top: 48px; }
+  .site-footer-brand { margin-bottom: 34px; padding-right: 0; }
+}
+
+@media (max-width: 575px) {
+  .site-footer-col { margin-bottom: 26px; }
+  .site-footer-bottom { justify-content: flex-start; }
+}

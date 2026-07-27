@@ -57,6 +57,18 @@ This section collects everything you need to answer two questions before you dep
 			</div>
 		</div>
 	</div>
+	<div class="col-lg-12 mb-4">
+		<div class="docs-card h-100">
+			<div class="docs-card-header">
+				<h2><a href="impressum/">Impressum &amp; Datenschutz</a></h2>
+				<p>The site disclosure required under Austrian law (§ 5 ECG, § 25 MedienG) — who operates metaloom.io, what it is for, and what happens to data when you read it. In German.</p>
+			</div>
+			<div class="docs-card-body">
+				<a href="impressum/" class="docs-card-link">Impressum</a>
+				<a href="impressum/#datenschutz" class="docs-card-link">Datenschutz</a>
+			</div>
+		</div>
+	</div>
 </div>
 ++++
 

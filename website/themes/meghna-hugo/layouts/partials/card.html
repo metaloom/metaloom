@@ -9,9 +9,14 @@
     description page description → auto summary → site description
     image       page image (partials/func/page-image.html) → site banner
 
-  `og:image` and `og:url` must be absolute — that is what a scraper fetches. Everything else on
-  the site uses relative URLs on purpose (see the site.BaseURL gotcha in spec/website/WEBSITE.md).
+  `og:image`, `og:url` and the canonical link must be absolute — that is what a scraper fetches.
+  They are built from `site.Params.canonical_base`, NOT from site.BaseURL/.Permalink/absURL:
+  Hugo intermittently resolves site.BaseURL to "http://localhost:1313/" for a few pages when the
+  theme CSS is rebuilt in the same run, and that would publish the build machine's address. See
+  the gotcha in spec/website/WEBSITE.md. Everything else on the site stays relative.
 */ -}}
+{{- $base := strings.TrimSuffix "/" (or site.Params.canonical_base (strings.TrimSuffix "/" site.BaseURL)) -}}
+{{- $url := printf "%s%s" $base .RelPermalink -}}
 {{- $description := "" -}}
 {{- with .Params.description }}{{ $description = . | plainify }}
 {{- else }}{{ with .Summary }}{{ $description = . | plainify }}
@@ -27,7 +32,7 @@
 {{- if or .Params.image_webp .Params.image -}}
   {{- $image = partial "func/page-image.html" . -}}
 {{- end -}}
-{{- $image = $image | absURL -}}
+{{- $image = printf "%s%s" $base (relURL $image) -}}
 {{- $type := cond (in (slice "blog" "announcements") .Section) "article" "website" -}}
 
 {{/* og:locale wants "en_US", the config's locale is "en-us". */}}
@@ -37,12 +42,12 @@
   {{- if eq (len $parts) 2 -}}{{ $locale = printf "%s_%s" (index $parts 0) (upper (index $parts 1)) }}{{- end -}}
 {{- end -}}
 
-    <link rel="canonical" href="{{ .Permalink }}">
+    <link rel="canonical" href="{{ $url }}">
 
     <meta property="og:site_name" content="{{ site.Title }}">
     <meta property="og:type" content="{{ $type }}">
     <meta property="og:title" content="{{ $title }}">
-    <meta property="og:url" content="{{ .Permalink }}">
+    <meta property="og:url" content="{{ $url }}">
     <meta property="og:description" content="{{ $description }}">
     <meta property="og:image" content="{{ $image }}">
     <meta property="og:image:alt" content="{{ .Title }}">

@@ -3,8 +3,8 @@ feature:
   enable : true
   image : images/extra/solen-feyissa-ATlYEZxGmZA-unsplash.jpg
   #image_webp : images/about/about-business-man.webp
-  title : Features
-  content : "A selection of the key features of the MetaLoom platform. Items marked (planned) are on the roadmap; everything else is implemented."
+  title : Platform
+  content : "What Loom and Cortex do out of the box. Items marked (planned) are on the roadmap; everything else is implemented."
   feature_item :
       # Icon: https://themify.me/themify-icons
       # link: optional path to the doc page covering the feature (rendered as a "Read the docs" link)
@@ -82,8 +82,8 @@ feature:
       link : /docs/nodes/
 
 
-  title_ops : Devops Features
-  content_ops : "These various features help you to integrate Loom into your environment."
+  title_ops : Operations &amp; deployment
+  content_ops : "What it takes to run MetaLoom in your own environment."
   feature_item_ops :
     - title : Multiple Storage Options
       icon : ti-server

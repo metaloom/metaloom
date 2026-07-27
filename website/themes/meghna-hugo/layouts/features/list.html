@@ -1,0 +1,61 @@
+{{/*
+  /features/ — the full feature list, which used to sit on the home page.
+
+  Copy still comes from data/en/feature.yml (both `feature_item` and `feature_item_ops`), so
+  there is exactly one place to edit a feature. A title ending in "(planned)" is rendered as a
+  badge rather than as part of the heading — keep writing them that way in the YAML.
+*/}}
+{{ define "main" }}
+{{ $f := (index hugo.Data site.Language.Lang).feature.feature }}
+
+{{ partial "navigation.html" . }}
+
+<main class="hm-page" data-reveal-scope>
+  {{ partial "reveal-bootstrap.html" . }}
+
+  <div class="hm-wrap hm-features-head">
+    <h1 class="hm-title reveal">{{ .Title }}</h1>
+    {{ with .Params.subtitle }}<p class="hm-lead reveal">{{ . | markdownify }}</p>{{ end }}
+  </div>
+
+  <div class="hm-wrap">
+    {{ range $group := slice
+        (dict "title" $f.title "note" $f.content "items" $f.feature_item)
+        (dict "title" $f.title_ops "note" $f.content_ops "items" $f.feature_item_ops) }}
+    <section class="hm-feature-group">
+      <div class="hm-feature-group-head reveal">
+        <h2 class="hm-feature-group-title">{{ $group.title | safeHTML }}</h2>
+        {{ with $group.note }}<p>{{ . }}</p>{{ end }}
+      </div>
+      <div class="hm-feature-grid">
+        {{ range $i, $item := $group.items }}
+        {{ $planned := hasSuffix $item.title "(planned)" }}
+        {{ $name := cond $planned (trim (strings.TrimSuffix "(planned)" $item.title) " ") $item.title }}
+        <article class="hm-feature reveal" data-reveal-delay="{{ mod $i 3 }}">
+          <div class="hm-feature-top">
+            <i class="{{ $item.icon }}" aria-hidden="true"></i>
+            <h3>{{ $name }}</h3>
+            {{ if $planned }}<span class="hm-feature-planned">planned</span>{{ end }}
+          </div>
+          <p>{{ $item.content | markdownify }}</p>
+          {{ with $item.link }}
+          <a class="hm-link" href="{{ . | relURL }}">Read the docs <span aria-hidden="true">&rarr;</span></a>
+          {{ end }}
+        </article>
+        {{ end }}
+      </div>
+    </section>
+    {{ end }}
+
+    <div class="hm-features-foot">
+      <p class="hm-lead reveal">Every feature above is described in more depth in the documentation.</p>
+      <p class="hm-more reveal">
+        <a class="hm-btn hm-btn-primary" href="{{ "docs/" | relURL }}">Open the docs</a>
+        <a class="hm-btn hm-btn-ghost" href="{{ "studios/" | relURL }}">See it in pictures</a>
+      </p>
+    </div>
+  </div>
+</main>
+
+{{ partial "reveal-script.html" . }}
+{{ end }}

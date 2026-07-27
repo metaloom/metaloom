@@ -210,6 +210,19 @@ LANGUAGE sql
 IMMUTABLE
 AS $$ SELECT 524288 $$;
 
+-- Split a path or filename into individually searchable words.
+--
+-- PostgreSQL's text search parser classifies '/archive/expedition7/clip.mp4' as a single "file"
+-- token, so none of the path segments are searchable on their own - and searching for a folder or a
+-- filename stem is exactly what a user of a media catalog does first. Replacing the separators with
+-- spaces gives the parser something it will tokenize. The original path is kept verbatim in
+-- subtitle, so an exact full-path search still works.
+CREATE OR REPLACE FUNCTION "search_tokenize_path"(p_path text)
+RETURNS text
+LANGUAGE sql
+IMMUTABLE
+AS $$ SELECT translate(coalesce(p_path, ''), '/\_-.', '     ') $$;
+
 CREATE OR REPLACE FUNCTION "search_document_refresh_asset"(p_asset_uuid uuid)
 RETURNS void
 LANGUAGE plpgsql
@@ -261,10 +274,15 @@ BEGIN
       FROM "tag_asset" ta JOIN "tag" t ON t."uuid" = ta."tag_uuid"
      WHERE ta."asset_uuid" = p_asset_uuid;
 
-    -- D: short, high-signal terms
+    -- D: short, high-signal terms. Paths and the filename appear here in tokenized form so that
+    -- individual segments and filename stems are searchable (see search_tokenize_path).
     v_keywords := concat_ws(' ',
         v_asset."mime_type",
         v_asset."initial_origin",
+        "search_tokenize_path"(v_asset."initial_origin"),
+        "search_tokenize_path"(v_asset."filename"),
+        (SELECT string_agg(DISTINCT "search_tokenize_path"(al."path"), ' ')
+           FROM "asset_location" al WHERE al."asset_uuid" = p_asset_uuid),
         (SELECT string_agg(DISTINCT d."label", ' ' ORDER BY d."label")
            FROM "detection" d WHERE d."asset_uuid" = p_asset_uuid AND d."label" IS NOT NULL),
         (SELECT string_agg(DISTINCT sc."title", ' ' ORDER BY sc."title")

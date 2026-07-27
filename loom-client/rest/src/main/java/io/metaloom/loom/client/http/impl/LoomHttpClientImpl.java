@@ -18,6 +18,9 @@ import io.metaloom.loom.client.common.LoomBinaryResponse;
 import io.metaloom.loom.client.http.AbstractLoomOkHttpClient;
 import io.metaloom.loom.client.http.LoomClientHttpRequest;
 import io.metaloom.loom.rest.model.NoResponse;
+import io.metaloom.loom.rest.model.search.SearchResultResponse;
+import io.metaloom.loom.rest.model.search.SearchStatusResponse;
+import io.metaloom.loom.rest.model.search.SearchSuggestionListResponse;
 import io.metaloom.loom.rest.model.annotation.AnnotationCreateRequest;
 import io.metaloom.loom.rest.model.annotation.AnnotationListResponse;
 import io.metaloom.loom.rest.model.annotation.AnnotationResponse;
@@ -1494,6 +1497,53 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<HealthCheckResponse> health() {
 		return getRequest("health", HealthCheckResponse.class);
+	}
+
+
+	// SEARCH
+
+	@Override
+	public LoomClientHttpRequest<SearchResultResponse> search(String query) {
+		return search(query, new String[0]);
+	}
+
+	@Override
+	public LoomClientHttpRequest<SearchResultResponse> search(String query, String... parameters) {
+		return withSearchParams(getRequest("search/results", SearchResultResponse.class), query, parameters);
+	}
+
+	@Override
+	public LoomClientHttpRequest<SearchResultResponse> searchAssets(String query, String... parameters) {
+		return withSearchParams(getRequest("search/assets", SearchResultResponse.class), query, parameters);
+	}
+
+	@Override
+	public LoomClientHttpRequest<SearchSuggestionListResponse> searchSuggestions(String prefix, String... parameters) {
+		return withSearchParams(getRequest("search/suggestions", SearchSuggestionListResponse.class), prefix, parameters);
+	}
+
+	@Override
+	public LoomClientHttpRequest<SearchStatusResponse> searchStatus() {
+		return getRequest("search/status", SearchStatusResponse.class);
+	}
+
+	/**
+	 * Attach the search term and any extra parameters as real query parameters.
+	 *
+	 * <p>
+	 * They must not be appended to the path: the request builder encodes the path, so a "?" baked into it would arrive at the server as %3F and the route
+	 * would not match. A null query is omitted rather than sent as the literal "null", so the missing-term case stays testable.
+	 * </p>
+	 */
+	private <T extends io.metaloom.loom.rest.model.RestResponseModel<T>> LoomClientHttpRequest<T> withSearchParams(
+		LoomClientHttpRequest<T> request, String query, String... parameters) {
+		if (query != null) {
+			request.addQueryParameter("q", query);
+		}
+		for (int i = 0; i + 1 < parameters.length; i += 2) {
+			request.addQueryParameter(parameters[i], parameters[i + 1]);
+		}
+		return request;
 	}
 
 }

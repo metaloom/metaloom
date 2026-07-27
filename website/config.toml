@@ -114,8 +114,8 @@ link = "plugins/nodeviz/nodeviz.js"
 
 [[Languages.en.menu.main]]
 name = "features"
-pre = "#"
-url = "feature"
+pre = ""
+url = "features"
 weight = 3
 
 #[[Languages.en.menu.main]]
@@ -138,7 +138,7 @@ weight = 5
 
 [[Languages.en.menu.main]]
 name = "blog"
-pre = "#"
+pre = ""
 url = "blog"
 weight = 6
 
@@ -158,6 +158,12 @@ weight = 6
 ############################# Default Parameters ##########################
 [params]
 logo = "images/logo_word_big.svg"
+# Base for the absolute URLs in the social metadata (partials/card.html). It duplicates
+# `baseURL` on purpose: Hugo intermittently resolves site.BaseURL to its default
+# "http://localhost:1313/" for a handful of pages when the theme CSS is rebuilt in the same
+# run, which would bake the build machine into canonical/og:url/og:image. A plain param
+# cannot be defaulted that way. Keep it in sync with `baseURL` above.
+canonical_base = "https://metaloom.io"
 # Meta data — the site-wide fallback for <meta name="description"> and the social cards
 # (partials/card.html). Pages should set their own `description:` in front matter.
 description = "MetaLoom is an open source media asset platform: it transcribes, detects, describes and indexes your media — on your own hardware."
@@ -177,9 +183,22 @@ preloader = "images/logo_word_big.svg"
 enable = false
 expire_days = 2
 
+# Rendered as the icon row in the footer. `label` is used as the accessible name.
+# Icons may come from the Themify pack (ti-*) or FontAwesome 5 (fab/fas), both loaded globally.
 [[params.social]]
-icon = "ti-twitter-alt" # themify icon pack : https://themify.me/themify-icons
-link = "#"
+icon = "fab fa-discord"
+label = "Discord"
+link = "https://discord.gg/NFdnFcSbfA"
+
+[[params.social]]
+icon = "fab fa-github"
+label = "GitHub"
+link = "https://github.com/metaloom"
+
+[[params.social]]
+icon = "ti-email"
+label = "hello@metaloom.io"
+link = "mailto:hello@metaloom.io"
 
 
 ################################ English Language ########################

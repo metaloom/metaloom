@@ -33,6 +33,7 @@ public interface ClientMethods extends
 	JsonCompMethods,
 	FingerprintCompMethods,
 	SegmentCompMethods,
+	SearchMethods,
 	GraphQLMethods,
 	HealthMethods,
 	InfoMethods {

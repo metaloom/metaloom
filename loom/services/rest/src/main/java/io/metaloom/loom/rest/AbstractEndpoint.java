@@ -14,6 +14,7 @@ import io.metaloom.loom.rest.model.RestModel;
 import io.metaloom.loom.rest.model.RestRequestModel;
 import io.metaloom.loom.rest.model.example.Example;
 import io.metaloom.loom.rest.parameter.QueryParameterKey;
+import io.metaloom.loom.rest.parameter.SearchQueryParameterKey;
 import io.metaloom.vertx.route.ApiRoute;
 import io.metaloom.vertx.router.ApiRouter;
 import io.vertx.core.Handler;
@@ -42,6 +43,24 @@ public abstract class AbstractEndpoint implements RESTEndpoint {
 		Handler<LoomRoutingContext> handler) {
 		ApiRoute route = addRoute(path, method, description, null, responseExample, handler);
 		for (QueryParameterKey param : QueryParameterKey.values()) {
+			route.queryParameter(param.key(), param.description(), param.example());
+		}
+		return route;
+	}
+
+	/**
+	 * Register a search route, documenting the search query parameters on it.
+	 *
+	 * <p>
+	 * Separate from {@link #addListRoute} because the two parameter sets are disjoint: list routes take {@code limit}/{@code from}/{@code sort} and page
+	 * by keyset seek, search routes take {@code q}/{@code offset}/{@code mode} and page by offset or cursor. Documenting both sets on both kinds of route
+	 * would put parameters into the OpenAPI spec that the handler ignores.
+	 * </p>
+	 */
+	public <REQ extends RestRequestModel> ApiRoute addSearchRoute(String path, HttpMethod method, String description, Example responseExample,
+		Handler<LoomRoutingContext> handler) {
+		ApiRoute route = addRoute(path, method, description, null, responseExample, handler);
+		for (SearchQueryParameterKey param : SearchQueryParameterKey.values()) {
 			route.queryParameter(param.key(), param.description(), param.example());
 		}
 		return route;

@@ -1,37 +1,73 @@
-{{"<!-- end Contact Area -->" | safeHTML}}
-<footer id="footer" class="section-bg">
+{{"<!-- Footer -->" | safeHTML}}
+{{/*
+  Site-wide footer. It is the same on the marketing pages and in the docs, so it is styled in
+  less/includes/custom.less (.site-footer*) rather than in a page stylesheet.
+
+  Three jobs: say what MetaLoom is to someone who landed deep in the docs, carry the links that
+  have to be reachable from every page (legal, model licenses, AI disclosure, Impressum — the
+  Austrian disclosure duty is per-site, not per-page), and point at the places where a release
+  will actually be announced. Labels come from i18n/en.yaml.
+*/}}
+<footer id="footer" class="site-footer">
 	<div class="container">
-		<div class="row wow fadeInUp" data-wow-duration="500ms">
-			<div class="col-xl-12">
 
-				{{"<!-- Footer Social Links -->" | safeHTML}}
-				<div class="social-icon">
-					<ul class="list-inline">
-						{{ range site.Params.social }}
-						<li class="list-inline-item"><a href="{{ .link | safeURL }}"><i class="{{ .icon }}"></i></a></li>
-						{{ end }}
-					</ul>
-				</div>
-
-				{{"<!-- Footer Legal Links -->" | safeHTML}}
-				<div class="footer-links text-center mb-3">
-					<ul class="list-inline mb-0">
-						<li class="list-inline-item px-2"><a href="{{ "docs/" | relURL }}">{{ i18n "documentation" }}</a></li>
-						<li class="list-inline-item px-2"><a href="{{ "docs/legal/" | relURL }}">{{ i18n "legal" }}</a></li>
-						<li class="list-inline-item px-2"><a href="{{ "docs/legal/model-licenses/" | relURL }}">{{ i18n "modelLicenses" }}</a></li>
-						<li class="list-inline-item px-2"><a href="{{ "docs/legal/ai-disclosure/" | relURL }}">{{ i18n "aiDisclosure" }}</a></li>
-					</ul>
-				</div>
-
-				{{"<!-- copyright -->" | safeHTML}}
-				<div class="copyright text-center">
-					<a href="{{ site.Home.RelPermalink }}">
-						<img src="{{ site.Params.logo | relURL }}" alt="{{ site.Title }}" height="42" />
-					</a>
-					<br>
-					<p>{{ site.Params.copyright | markdownify }}</p>
-				</div>
+		<div class="row site-footer-main">
+			<div class="col-lg-4 col-md-12 site-footer-brand">
+				<a href="{{ site.Home.RelPermalink }}" class="site-footer-logo">
+					<img src="{{ site.Params.logo | relURL }}" alt="{{ site.Title }}" height="38" />
+				</a>
+				<p class="site-footer-tagline">{{ i18n "footerTagline" }}</p>
+				<a class="site-footer-status" href="{{ "announcements/metaloom-1-0-0/" | relURL }}">
+					<span class="site-footer-status-dot" aria-hidden="true"></span>{{ i18n "footerStatus" }}
+				</a>
 			</div>
+
+			<nav class="col-lg-2 col-md-4 col-6 site-footer-col" aria-label="{{ i18n "explore" }}">
+				<h2 data-toc-skip>{{ i18n "explore" }}</h2>
+				<ul>
+					<li><a href="{{ "studios/" | relURL }}">{{ i18n "forStudios" }}</a></li>
+					<li><a href="{{ "features/" | relURL }}">{{ i18n "features" }}</a></li>
+					<li><a href="{{ "announcements/" | relURL }}">{{ i18n "announcements" }}</a></li>
+					<li><a href="{{ "blog/" | relURL }}">{{ i18n "blog" }}</a></li>
+				</ul>
+			</nav>
+
+			<nav class="col-lg-3 col-md-4 col-6 site-footer-col" aria-label="{{ i18n "documentation" }}">
+				<h2 data-toc-skip>{{ i18n "documentation" }}</h2>
+				<ul>
+					<li><a href="{{ "docs/getting-started/" | relURL }}">{{ i18n "gettingStarted" }}</a></li>
+					<li><a href="{{ "docs/nodes/" | relURL }}">{{ i18n "processingNodes" }}</a></li>
+					<li><a href="{{ "docs/loom/rest-api/" | relURL }}">{{ i18n "restApi" }}</a></li>
+					<li><a href="{{ "docs/deployment/" | relURL }}">{{ i18n "deployment" }}</a></li>
+					<li><a href="{{ "docs/cli/" | relURL }}">{{ i18n "commandLine" }}</a></li>
+				</ul>
+			</nav>
+
+			<nav class="col-lg-3 col-md-4 col-12 site-footer-col" aria-label="{{ i18n "project" }}">
+				<h2 data-toc-skip>{{ i18n "project" }}</h2>
+				<ul>
+					<li><a href="{{ "docs/legal/" | relURL }}">{{ i18n "legal" }}</a></li>
+					<li><a href="{{ "docs/legal/model-licenses/" | relURL }}">{{ i18n "modelLicenses" }}</a></li>
+					<li><a href="{{ "docs/legal/ai-disclosure/" | relURL }}">{{ i18n "aiDisclosure" }}</a></li>
+					<li><a href="{{ "docs/legal/impressum/" | relURL }}">{{ i18n "impressum" }}</a></li>
+				</ul>
+			</nav>
+		</div>
+
+		<div class="site-footer-bottom">
+			<p class="site-footer-copy">
+				{{ printf "© 2021–%d Johannes Schüth · Vienna, Austria" now.Year }} ·
+				<a href="{{ "docs/legal/" | relURL }}">Apache&nbsp;2.0</a>
+			</p>
+			<ul class="site-footer-social list-inline">
+				{{ range site.Params.social }}
+				<li class="list-inline-item">
+					<a href="{{ .link | safeURL }}"{{ if .label }} aria-label="{{ .label }}"{{ end }}{{ if hasPrefix .link "http" }} rel="noopener"{{ end }}>
+						<i class="{{ .icon }}" aria-hidden="true"></i>{{ with .label }}<span>{{ . }}</span>{{ end }}
+					</a>
+				</li>
+				{{ end }}
+			</ul>
 		</div>
 	</div>
 </footer>
@@ -52,8 +88,8 @@
 <script src="{{ $script.RelPermalink }}" integrity="{{ $script.Data.Integrity }}"></script>
 
 {{ "<!-- Highlight Script -->" | safeHTML }}
-<link rel="stylesheet" href="/plugins/highlight/styles/obsidian.css">
-<script src="/plugins/highlight/highlight.pack.js"></script>
+<link rel="stylesheet" href="{{ "plugins/highlight/styles/obsidian.css" | relURL }}">
+<script src="{{ "plugins/highlight/highlight.pack.js" | relURL }}"></script>
 <script>hljs.highlightAll();</script>
 
 <!-- cookie -->

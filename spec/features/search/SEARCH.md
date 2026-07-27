@@ -1,24 +1,30 @@
 # Search — Technical Specification
 
-> **Audience: AI coding agents.** Lexical (text) search across Loom entities: what exists today
-> (almost nothing), the backend decision, and the target architecture. Vector / semantic search lives
-> in [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md). The phased build order and task list live in
+> **Audience: AI coding agents.** Lexical (text) search across Loom entities: the backend decision,
+> the architecture, and what is built. Vector / semantic search lives in
+> [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md). The phased build order and task list live in
 > [SEARCH_PLAN.md](SEARCH_PLAN.md).
 >
-> **Status: nothing in this document is implemented.** It is the design contract, not a description of
-> running code. Every claim about *current* state in §1 was verified against the working tree at the
-> HEAD in the footer.
+> **Status: Phase 1 is implemented** (Postgres provider, `search_document`, REST routes, client, 49
+> tests). Phase 2 (Elasticsearch) and Phase 3 (semantic) are not. §1 describes the state *before* this
+> feature landed and is kept because it is the rationale for the design; §14 records what is actually
+> built.
 
 Loom stores a lot of searchable text — transcripts, OCR output, extracted documents, captions, model
-answers, tags, annotations — and offers no way to find any of it. This spec closes the two standing
-TODOs in [../../loom/LOOM.md](../../loom/LOOM.md) §10.5 and [../../CONTEXT.md](../../CONTEXT.md) §7.
+answers, tags, annotations — and until this feature had no way to find any of it. This spec closes the
+two standing TODOs in [../../loom/LOOM.md](../../loom/LOOM.md) §10.5 and
+[../../CONTEXT.md](../../CONTEXT.md) §7.
 
 ---
 
-## 1. Current state — the honest inventory
+## 1. The starting point
 
-🔴 **There is no search feature of any kind.** Not a partial one, not a slow one. The table below is
-the complete surface, and every row was verified.
+⚠️ **This section describes the state *before* Phase 1 landed.** It is retained because it is the
+argument for every decision that follows — in particular why the pre-existing `tsvector` columns could
+not simply be queried (§1.2). For what exists now, read §14.
+
+🔴 **There was no search feature of any kind.** Not a partial one, not a slow one. Every row below was
+verified against the tree at the time.
 
 | Capability | Status | Evidence |
 |---|---|---|
@@ -573,10 +579,11 @@ add `LoomRoutingContext.permissions(): ResourcePermissionSet`, cached per reques
 not a one-liner ([SEARCH_PLAN.md](SEARCH_PLAN.md) P0-3).
 
 🔴 **Flyway consequence.** `role_permission.permission` is typed `loom_permission`, a Postgres enum.
-Adding `READ_SEARCH` needs `ALTER TYPE "loom_permission" ADD VALUE IF NOT EXISTS 'READ_SEARCH';` — and
-because Flyway wraps each migration in one transaction, **that migration must contain nothing else**.
-A migration that adds the value *and* inserts a `role_permission` row using it fails. Precedent:
-`V2.52`, `V2.37`, `V2.27` all add enum values and do nothing else.
+Adding `READ_SEARCH` needs `ALTER TYPE "loom_permission" ADD VALUE IF NOT EXISTS 'READ_SEARCH';`.
+Because Flyway wraps each migration in one transaction, **the new value cannot be *used* in the same
+migration that adds it** — a migration that adds the value *and* inserts a `role_permission` row using
+it fails. Other DDL in the same migration is fine (`V2.37` and `V2.52` both add enum values and create
+tables). `V2.57` is kept standalone anyway, so any later seed grant has a committed value to reference.
 
 ### 8.3 Forward-compatibility with row-level ACL
 
@@ -753,6 +760,11 @@ Nothing below exists yet; this is the target layout.
 | Area | Gotcha |
 |---|---|
 | **Filter operators** | 🔴 The LHS library has no `LIKE`/`CONTAINS`. `?filter=` can never carry the query term — `q` is a separate parameter (§1.1). |
+| **Paths tokenize as one token** | 🔴 Postgres classifies `/archive/expedition7/clip.mp4` as a single `file` token, so **no path segment is searchable on its own**. `search_tokenize_path()` replaces `/\_-.` with spaces into `keywords`; the raw path stays in `subtitle` for exact match. Without it, searching a folder name — the first thing a user tries — returns nothing. |
+| **Duplicate `LoomRestErrorCode`** | 🔴 Two classes with this name exist in the same package `io.metaloom.loom.api.error`, one in `loom-shared/api` and one in `loom/common` (which has the extra `BAD_FILTER_KEY`/`CONFLICT`). `loom/db/jooq` resolves the `loom/common` copy. **Add any new code to both** or you get a compile error whose cause is invisible from the import. |
+| **jOOQ plain SQL and `%`** | 🔴 jOOQ does not treat `%` specially in plain SQL — writing `%%` (C-style escaping) reaches Postgres literally and fails with *operator does not exist: text %% ...*. Use a single `%`, and cast the bind (`? ::text`) so the trigram operator resolves. |
+| **`SET LOCAL` needs a transaction** | 🔴 `pg_trgm.similarity_threshold` is a session GUC read by the `%` operator. `SET LOCAL` outside a transaction is discarded, so the SET and the query must run inside one `transactionResult` — which also guarantees the same pooled connection. |
+| **Bind order is textual** | ⚠️ With `ctx.fetch(sql, binds)` the binds are positional in the order the `?` appear **in the SQL string**, so a placeholder in the SELECT list precedes every one in the WHERE clause. |
 | **Body size** | 🔴 `tsvector` caps at 1 MB / 16383 positions. Truncate to `LOOM_SEARCH_BODY_MAX_BYTES` or a Tika-extracted book breaks the insert (§6). |
 | **`ts_headline`** | 🔴 O(document size), unindexable. Only ever for the returned page (§7.5). |
 | **Query parsing** | 🔴 `websearch_to_tsquery` only. `to_tsquery` 500s on a stray `&` (§10.1). |
@@ -788,47 +800,66 @@ Nothing below exists yet; this is the target layout.
 
 ## 14. Progress Assessment
 
-Nothing is implemented. Every item below is open.
+**Phase 0 — prerequisites** ✅
+- [x] `Page.totalCount` + `AbstractJooqDao` count + `ModelBuilder` fix (§1.5). `Page` gained a
+      3-arg constructor and `TOTAL_COUNT_UNKNOWN`; the count uses `ctx.fetchCount(query)` (which wraps
+      the select) rather than extending the projection, so `fetchStreamInto` keeps working for every DAO
+- [x] Regression sweep of the ~20 list endpoints. 10 `testReadPage` tests asserted the *old, buggy*
+      meaning; `ListResponseModelAssert.hasSize()` now asserts the page size only and a new
+      `hasTotalCount()` asserts the total. `AnnotationEndpointTest` and `UserEndpointTest` assert the
+      real total so the fix cannot silently regress
+- [x] `LoomRoutingContext.permissions()` — request-scoped, non-throwing `Predicate<Permission>` (§8.2)
+- [x] `LoomRestErrorCode.SEARCH_UNAVAILABLE` / `SEARCH_UNSUPPORTED`, added to **both** copies of the
+      split-package enum (§12)
+- [ ] The orphaned `loom-ui/src/{Dashboard,User,Content}` trees are still present — not touched, since
+      no UI work landed
 
-**Phase 0 — prerequisites**
-- [ ] `Page.totalCount` + `count(*) OVER ()` + `ModelBuilder` fix (§1.5)
-- [ ] `LoomRoutingContext.permissions()` — non-throwing permission set (§8.2)
-- [ ] `LoomRestErrorCode.SEARCH_UNAVAILABLE`
-- [ ] Delete the orphaned `loom-ui/src/Dashboard/`, `src/User/` trees (§1.4)
+**Phase 1 — Postgres lexical search** ✅ backend complete
+- [x] `io.metaloom.loom.api.search` SPI + value types (§4)
+- [x] `SearchOptions` + `LoomOptions` wiring + validation (§9)
+- [x] `V2.57` `READ_SEARCH` · `V2.58` `pg_trgm` + `search_document` + extraction/refresh functions ·
+      `V2.59` triggers + tombstones + backfill (§5, §6)
+- [x] jOOQ `<excludes>` widened to `.*\.text_search.*|.*\.trgm_text`, codegen regenerated;
+      `JooqSearchDocument` verified to carry none of the three generated columns
+- [x] `PostgresSearchProvider`, `NoopSearchProvider`, `NoopSearchIndexer` (+ `rebuild()`)
+- [x] `SearchEndpoint` + `SearchEndpointService` + `SearchModule` (Dagger) + `addSearchRoute`
+- [x] `SearchQueryParameterKey`, `SearchParameters`, `io.metaloom.loom.rest.model.search.*`,
+      `SearchExamples`
+- [x] `SearchMethods` + `LoomHttpClientImpl` implementation + `ClientMethods` registration
+- [x] **49 tests, all green**: 33 provider/trigger tests across `SearchDocumentSourceTest`,
+      `SearchQueryBehaviourTest`, `SearchDocumentLifecycleTest`; 16 in `SearchEndpointTest` including
+      the type-narrowing permission case
+- [x] Delete-cascade test and rebuild-equals-incremental test (§10.2)
+- [ ] `/search/suggestions` is implemented and tested, but ranks by trigram similarity only — no
+      dedicated prefix index yet
+- [ ] Demo data (`DemoDatabaseInitializer`) not seeded with search fixtures
+- [ ] Customer-facing docs under `website/content/english/docs/` not written
+- [ ] MCP `SearchAssetsTool` / `SearchTranscriptTool` still stubs — not yet moved onto the SPI
+- [ ] GraphQL `search` field not added
+- [ ] No loom-ui work: `api/search.ts`, `GlobalSearchBar`, `SearchView`, `AssetBrowser` migration
+- [ ] `DETECTION` and `SEGMENT` documents are **not emitted**. Detection labels and segment titles are
+      folded into the owning asset's `keywords` instead, so they are searchable but do not surface as
+      hits of their own. The enum values and the permission mapping exist for when they do
+- [ ] `asset_doc_comp` remains deliberately unread (§6.1)
 
-**Phase 1 — Postgres lexical search**
-- [ ] `io.metaloom.loom.api.search` SPI + value types (§4)
-- [ ] `SearchOptions` + `LoomOptions` wiring (§9)
-- [ ] `V2.57` `READ_SEARCH` (alone) · `V2.58` `pg_trgm` + `search_document` + functions · `V2.59` triggers + backfill (§5, §8.2)
-- [ ] jOOQ `<excludes>` widened, regen, `SearchDocumentCodegenTest` (§10)
-- [ ] `PostgresSearchProvider` + `NoopSearchProvider` + `SearchModule` (§4, §10.1)
-- [ ] `SearchEndpoint` + parameters + response models + `SearchMethods` client (§7)
-- [ ] `PostgresSearchProviderTest`, `SearchEndpointTest` incl. type narrowing (§10.2)
-- [ ] `/search/suggestions` trigram typeahead
-- [ ] loom-ui: `api/search.ts`, `GlobalSearchBar`, `SearchView`, `/search` route; `AssetBrowser` and `LibraryView` to server-side paging
-- [ ] MCP `SearchAssetsTool` / `SearchTranscriptTool` un-stubbed
-- [ ] GraphQL `search` field
-- [ ] Demo data, website docs, spec sync (RBAC, PERMISSIONS, RESTAPI)
+**Phase 2 — Elasticsearch / OpenSearch** — not started
+- [x] `search_document` carries `dirty`/`synced_at`/`es_synced_at` and the `search_document_deleted`
+      tombstone table, so the outbox Phase 2 needs already exists and is maintained
+- [ ] Everything else — see [SEARCH_PLAN.md](SEARCH_PLAN.md) Phase 2, still gated on the P2-1 spike
+- [ ] `loom/services/lucene` not yet deleted from `loom/services/pom.xml`
 
-**Phase 2 — Elasticsearch / OpenSearch**
-- [ ] Spike: verify the internal `elasticsearch-client` API (bulk, `search_after`, aliases, templates)
-- [ ] Mapping incl. reserved ACL keyword fields and a declared-but-unpopulated `dense_vector`
-- [ ] Indexer + `SKIP LOCKED` outbox drain + tombstone table
-- [ ] `ElasticsearchSearchProvider`, health check, `/search/facets`, `/search/reindexes`
-- [ ] Testcontainers tests + provider-parity test
-- [ ] compose profile + Helm `search:` block
-- [ ] `?q=` substring narrowing on list routes; remaining UI views migrate
-
-**Phase 3 — semantic / hybrid**
-- [ ] See [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md)
+**Phase 3 — semantic / hybrid** — not started, see [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md)
 
 **Known gaps that are not search's to fix, but which search exposes**
 - [ ] `?sort=` is broken for non-UUID columns (§7.2)
 - [ ] `asset_doc_comp` has an FTS index and no producer (§6.1)
 - [ ] MCP bypasses REST authorization entirely (§12)
 - [ ] `user_permission` allows only one direct grant per user
+- [ ] Two `LoomRestErrorCode` classes share a package (§12) — a real trap for the next contributor
+- [ ] `tag_asset.asset_uuid` has no `ON DELETE CASCADE`, so an asset cannot be deleted while tagged.
+      Unrelated to search, but it shapes the delete-cascade test
 
 ---
 
 _Git HEAD: `65e6c4649c639303932384942d4c68d8e9e8360d` (branch `master`)_
-_Last updated: 2026-07-27_
+_Last updated: 2026-07-27 (Phase 1 backend implemented: provider, migrations, REST routes, client, 49 tests)_

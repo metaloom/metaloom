@@ -57,7 +57,10 @@ public class AnnotationEndpointTest extends AbstractCRUDEndpointTest {
 			client.createAnnotation(request).sync().body();
 		}
 		AnnotationListResponse list = client.listAnnotations().sync().body();
-		assertThat(list).isValid().hasSize(25).hasPerPage(25);
+		// 100 created here plus the one seeded by the fixture. totalCount reports every match across
+		// all pages, not the size of this page - the two are only equal when the result set fits in one
+		// page, which is exactly what made the old conflated assertion look correct.
+		assertThat(list).isValid().hasSize(25).hasPerPage(25).hasTotalCount(101);
 	}
 
 	@Override

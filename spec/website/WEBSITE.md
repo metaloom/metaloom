@@ -17,9 +17,10 @@ edit or restructure site content or fix the build/publish flow.
 * Customer-facing docs live in `website/content/english/docs/**` as **AsciiDoc** (`.adoc`).
 * Content language is AsciiDoc (needs `asciidoctor` on `PATH`); the landing page is data-driven
   from `website/data/en/*.yml` + theme partials.
-* Three top-level content areas besides the docs: **`/studios/`** (the design-led page for media
-  studios and creators — see [The /studios/ page](#the-studios-page)), **`/announcements/`**
-  (release announcements) and `/blog/`.
+* The **home page** is short by design and routes readers two ways — see
+  [The home page](#the-home-page). Four top-level areas besides the docs: **`/studios/`** (the
+  design-led tour), **`/features/`** (the full list), **`/announcements/`** (releases) and
+  `/blog/`.
 * Build with `website/build.sh` → output goes to `website/dist/` (`publishDir = "dist"`). The
   build fails on localhost links **and on broken internal links** (see
   [The build-output checks](#the-build-output-checks)).
@@ -159,21 +160,24 @@ website/
 ├── .gitignore             # ignores dist/, docs/, resources/, node_modules, target ...
 ├── content/
 │   └── english/           # contentDir for the "en" language (config.toml)
+│       ├── _index.md      # home-page front matter (title, description, page_css)
 │       ├── docs/          # ★ CUSTOMER-FACING DOCUMENTATION (AsciiDoc)
+│       ├── features/      # /features/ — full feature list, rendered from data/en/feature.yml
 │       ├── studios/       # ★ /studios/ — design-led page for studios/creators (_index.md only)
 │       ├── announcements/ # release announcements (_index.adoc + one bundle per release)
 │       ├── blog/          # blog posts (one folder per post, index.adoc)
 │       └── author/        # blog author pages
 ├── content-off/           # DISABLED content (not built; parked pages). e.g. an old POC post
-├── data/en/*.yml          # landing-page + /studios/ section data (banner, feature, studios, ...)
+├── data/en/*.yml          # page copy: home.yml (/), studios.yml (/studios/), feature.yml
+│                          #   (/features/). The other files are legacy Meghna sections, unused.
 ├── i18n/en.yaml           # UI string translations (menu labels, "Read more", etc.)
 ├── static/                # copied verbatim to dist/: images/, CNAME, .nojekyll, robots
 │   ├── images/og-*.jpg    # 1200x630 social cards (see Social cards & page metadata)
 │   └── docs/examples/openapi.{json,yaml}  # staged OpenAPI doc: downloadable + rendered by Swagger UI
 ├── resources/_gen/        # Hugo asset cache (git-ignored)
 ├── themes/meghna-hugo/    # vendored + customized theme (layouts, LESS, JS plugins)
-│   └── assets/            # Hugo-processed assets: css/main.css, css/studios.css,
-│                          #   js/script.js, js/studios.js, images/studios/*.jpg
+│   └── assets/            # Hugo-processed assets: css/{main,home,studios}.css,
+│                          #   js/{script,reveal}.js, images/studios/*.jpg
 └── dist/                  # BUILD OUTPUT (git-ignored) → what gets published
 ```
 
@@ -591,6 +595,22 @@ and *how was this built*.
 * `legal/ai-disclosure/` states the timeline: **2023–2025 no AI code generation, 2026 onwards
   AI-assisted**. AI assistance is *not* tracked per commit — the disclosure is at project level, and
   the page says so rather than implying commit-level provenance exists.
+* `legal/impressum/` is the **Austrian site disclosure** and the only page on the site written in
+  German, because that is the language the disclosure duty is discharged in. It covers § 5 ECG
+  (operator, address, direct contact, register/UID/trade data, applicable law), § 25 MedienG
+  (Medieninhaber, Unternehmensgegenstand, Blattlinie), copyright, liability for content and links,
+  the EU ODR platform, and a `#datenschutz` section describing what the static site actually
+  processes: GitHub Pages access logs, the Google Fonts CDN, external links, and email contact.
+
+> **The Impressum still has placeholders.** The address and phone number are `[…]` markers, and an
+> AsciiDoc comment at the top of the file lists exactly what has to be filled in. § 5 ECG wants a
+> real geographic address and a *second* direct channel besides email — the page is not complete
+> until those are real. The rows that assume "private project, no Firmenbuch, no UID, no trade
+> licence" have to be revisited the moment MetaLoom is offered commercially.
+>
+> Two follow-ups it names but does not fix: the site loads **Google Fonts** from Google's CDN
+> (which is what makes a privacy section necessary at all — self-hosting the two families would
+> remove it), and the page is a good-faith template that has not been reviewed by a lawyer.
 
 > **Keep the inventory honest.** When a node's default model changes, or a node gains/loses a model
 > dependency, update `docs/legal/model-licenses/` in the same change. Claims must reflect what the
@@ -598,9 +618,29 @@ and *how was this built*.
 > endpoint, even though `asr4j` supports one). The page carries an explicit *not legal advice*
 > disclaimer; do not let it drift into legal advice.
 
-Both pages are linked from the docs landing card grid, the "Choose Your Path" table and a **footer
-link row** rendered by `themes/meghna-hugo/layouts/partials/footer.html` (labels come from
-`i18n/en.yaml`: `documentation`, `legal`, `modelLicenses`, `aiDisclosure`).
+All three legal pages are linked from the docs landing card grid, the "Choose Your Path" table and
+the site footer — see [The site footer](#the-site-footer).
+
+<a id="the-site-footer"></a>
+### The site footer
+
+`themes/meghna-hugo/layouts/partials/footer.html` renders the same footer under the marketing
+pages and the docs, so it is styled site-wide in `less/includes/custom.less` (`.site-footer*`,
+mirrored into the compiled `assets/css/main.css`) rather than in a page stylesheet.
+
+Four columns — brand (logo, one-line description, the *1.0.0 — not released yet* badge linking to
+the announcement), *Explore*, *Documentation*, *Project* — then a rule, the copyright line and the
+contact pills.
+
+* **Labels come from `i18n/en.yaml`**, not from the template.
+* **The contact pills come from `[[params.social]]`** in `config.toml`: `icon` (Themify `ti-*` or
+  FontAwesome `fab/fas`, both loaded globally), `label` (rendered *and* used as the accessible
+  name) and `link`. They replaced a single placeholder Twitter icon that pointed at `#`.
+* The **Impressum** link belongs here: the Austrian disclosure duty is per site, and this is what
+  makes it reachable from every page.
+* **Footer headings carry `data-toc-skip`, and `plugins/toc/toc.js` scopes bootstrap-toc to
+  `.docs-main-content`.** With the default (body) scope the footer's column headings were
+  collected into the docs sidebar TOC. Any new site chrome with headings needs the same care.
 
 ### Blog post images
 
@@ -625,24 +665,66 @@ result through `absURL` where an absolute URL is required (`og:image`, `twitter:
 > Prefer `.RelPermalink` / `relURL` for anything a browser fetches; reserve absolute URLs for
 > canonical/OpenGraph metadata.
 
-### Landing page (data-driven)
+## The home page
 
-The home page (`themes/meghna-hugo/layouts/index.html`) is assembled from **partials**
-(`banner`, `about`, `feature`, `cta`, `service`, `skill`, `team`, `funfacts`, `pricing`,
-`testimonial`, `blog`, `contact`, `map`). Each partial reads its copy from a matching
-`data/en/<name>.yml` file — **edit the YAML, not the partial**, to change landing-page text.
-Several partials (pricing, portfolio, testimonial, contact, map) are wired in the layout but
-their menu entries are commented out in `config.toml`.
+The home page is a **short front door**, not a brochure: hero → pre-release notice → "two ways in"
+→ what it is → stack strip → three latest posts. Everything longer lives elsewhere — the visual
+tour on `/studios/`, the full feature list on `/features/`, the blog overview on `/blog/`, the
+reference in `/docs/`. There is no closing "get started" pitch: the hero and the footer carry
+those links already.
 
-Items in `data/en/feature.yml` (both `feature_item` and `feature_item_ops`) accept an optional
-`link:` — a site-relative path to the docs page covering that feature (anchors allowed, e.g.
-`/docs/loom/features/#_permissions`). When present, `partials/feature.html` turns the item title
-into a link and appends a small "Read the docs →" affordance; items without a doc page (the
-`(planned)` ones such as S3 or Import/Export) simply omit the key. Styling lives in
-`less/includes/custom.less` (`.feature-doc-link`, mirrored into the compiled `assets/css/main.css`).
+| Piece | Path |
+| --- | --- |
+| Front matter (title, description, `page_css`) | `content/english/_index.md` |
+| **All copy** | `data/en/home.yml` |
+| Layout | `themes/meghna-hugo/layouts/index.html` |
+| Hero backdrop + door marks | `themes/meghna-hugo/layouts/partials/home/{art-weave,icon-visual,icon-technical}.html` |
+| Styles | `themes/meghna-hugo/assets/css/home.css` (shared with `/features/`) |
+| Motion | `themes/meghna-hugo/assets/js/reveal.js` (shared with `/studios/`) |
 
-Items whose title still ends in `(planned)` are the ones **not** implemented (Image manipulation,
-Import/Export, S3). CLI and GraphQL lost that marker — both ship.
+Design intent, worth keeping:
+
+* **It has to serve two visitors at once** — someone with an archive who does not care how it
+  works, and someone who wants the API. That is what the *Two ways in* section does: one card to
+  `/studios/`, one to `/docs/`, so neither reader is made to wade through the other's material.
+  The "what it is" tiles reinforce it — a plain-language sentence plus a line of monospace chips
+  (`19 node kinds`, `REST · GraphQL`) so both audiences find their own hook in the same tile.
+* **The pre-release status is the second thing on the page** (and the first is the status pill in
+  the hero). See the next section.
+* The old Meghna landing sections (`about`, `service`, `skill`, `funfacts`, `pricing`,
+  `testimonial`, `contact`, `map`, `banner`, `cta`, `blog`) are **no longer wired in**. The
+  partials and their `data/en/*.yml` files are still in the theme but unused; only
+  `home.yml`, `studios.yml` and `feature.yml` are live copy. Do not "fix" the old YAML expecting
+  it to show up.
+
+### The pre-release notice
+
+MetaLoom is not released, and the site says so in four places: the warm status pill in the hero,
+the *Not released yet* card below it, the announcement both link to, and the badge in the footer.
+
+The card pairs the copy with a short **facts list** (`notice.facts` in `data/en/home.yml`) —
+version in tree, published artifacts, demo container — rendered in monospace so it reads as a
+status readout rather than a pitch. Keep those values true; they are the first thing a visitor
+checks the project against. Three links that actually work sit next to it (announcement, blog,
+Discord).
+
+> An earlier revision had a deliberately disabled "Notify me" field here as a placeholder for a
+> mailing list that does not exist. It was removed. If a real list ever appears, add the control
+> *and* say plainly what happens to the address — never a field that looks inert but collects,
+> or one that silently swallows what is typed into it.
+
+### `/features/` — the full list
+
+`/features/` renders `data/en/feature.yml` (both `feature_item` and `feature_item_ops`), so there
+is still exactly **one** place to edit a feature. It is reached from the top navigation and from
+the home page's "All features →".
+
+* Each item takes an optional `link:` — a site-relative path to the docs page covering it (anchors
+  allowed, e.g. `/docs/loom/features/#_permissions`) — rendered as a "Read the docs →" affordance.
+* A title ending in `(planned)` is rendered as a **badge** next to the (stripped) name, so keep
+  writing them that way in the YAML. The `(planned)` items are Image manipulation, Import/Export
+  and S3; CLI and GraphQL lost that marker because both ship.
+* `title`/`content` and `title_ops`/`content_ops` are the two group headings and their intro lines.
 
 ## The /studios/ page
 
@@ -657,7 +739,7 @@ navigation as *studios* (`config.toml`, weight 2).
 | Layout | `themes/meghna-hugo/layouts/studios/list.html` | Section order, image processing, the inline `st-js` bootstrap. |
 | Art | `themes/meghna-hugo/layouts/partials/studios/art-*.html` | One partial per illustration (inline SVG / small markup + CSS). |
 | Styles | `themes/meghna-hugo/assets/css/studios.css` | Plain CSS (custom properties), everything prefixed `.st-*`. **Not** compiled from LESS. |
-| Motion | `themes/meghna-hugo/assets/js/studios.js` | IntersectionObserver reveals + the number count-up. |
+| Motion | `themes/meghna-hugo/assets/js/reveal.js` | Shared with the home page — see [Scroll reveal](#scroll-reveal-shared). |
 | Photography | `themes/meghna-hugo/assets/images/studios/*.jpg` | Four abstract light-streak Unsplash shots, resized to webp by Hugo at build time. |
 
 Rules to keep when editing it:
@@ -671,10 +753,7 @@ Rules to keep when editing it:
   page can use it — but nothing else loads `studios.css` today.
 * **`studios.css` is hand-written CSS.** The theme's `yarn build` only compiles `less/main.less`;
   do not expect a LESS rebuild to touch it.
-* **Never hide content behind JavaScript.** The reveal animation's hidden start state is scoped to
-  the `.st-js` class that an inline snippet in the layout sets during parse, and a 2.5 s timer in
-  that same snippet removes it again if `studios.js` never runs. Any new "animate in" rule must
-  follow the same shape: `.st-js` hides, `.is-visible` reveals.
+* **Never hide content behind JavaScript** — see [Scroll reveal](#scroll-reveal-shared).
 * **All motion is decoration.** The `prefers-reduced-motion` block at the end of `studios.css`
   disables every animation and transition on the page, so nothing may encode information in
   movement alone.
@@ -684,6 +763,37 @@ Rules to keep when editing it:
 * Images go through `.Fill "<w>x<h> webp q<n> Center"`, which turns the 1–1.5 MB source JPEGs into
   15–95 KB webp files. Add new photography to `themes/meghna-hugo/assets/images/studios/`, not to
   `static/`, or it will be published unprocessed.
+
+<a id="scroll-reveal-shared"></a>
+## Scroll reveal (shared by `/` and `/studios/`)
+
+One script drives the motion on both design-led pages:
+`themes/meghna-hugo/assets/js/reveal.js`. Its contract is three hooks and nothing page-specific:
+
+| Hook | Meaning |
+| --- | --- |
+| `data-reveal-scope` on a container | scan this subtree |
+| `class="reveal"` | fade/slide in when scrolled into view (adds `.is-visible`) |
+| `data-reveal-delay="<n>"` | stagger this one by *n* × 90 ms |
+| `data-count-up` | count the number up from zero when it scrolls in |
+
+Two partials wire it up — put both in any new page that wants it:
+
+```go-html-template
+<main class="hm-page" data-reveal-scope>
+  {{ partial "reveal-bootstrap.html" . }}   {{/* inline, sets .reveal-js during parse */}}
+  …
+</main>
+{{ partial "reveal-script.html" . }}        {{/* loads reveal.js, deferred + SRI */}}
+```
+
+> **Never hide content behind JavaScript.** The hidden start state is scoped to the `.reveal-js`
+> class that `reveal-bootstrap.html` sets *synchronously during parse* (a deferred script would let
+> the finished page paint and then blank it). The same snippet removes the class again after 2.5 s
+> if `reveal.js` never runs, so a blocked script degrades to "no animation", never to "no content".
+> Every "animate in" rule in `home.css`/`studios.css` follows the same shape: `.reveal-js` hides,
+> `.is-visible` reveals. The illustrations hang off the same class — their keyframes are written as
+> `.is-visible .foo`, which is why revealing a container starts its art.
 
 ## Announcements
 
@@ -751,7 +861,8 @@ is no design source file to keep in sync, just re-render:
 | --- | --- | --- |
 | `layouts/docs/single.html` | leaf docs pages | 3-col: sticky TOC sidebar (`#toc`, bootstrap-toc) + `<h1>{{.Title}}</h1>` + `{{.Content}}`. |
 | `layouts/docs/list.html` | docs section pages (`_index.adoc`) | centered wide column, no sidebar. |
-| `layouts/index.html` | home page | partial pipeline described above. |
+| `layouts/index.html` | home page | Short front door; copy from `data/en/home.yml`. See [The home page](#the-home-page). |
+| `layouts/features/list.html` | `/features/` | Renders `data/en/feature.yml` as cards, `(planned)` titles become badges. |
 | `layouts/studios/list.html` | `/studios/` | Bespoke scroller; see [The /studios/ page](#the-studios-page). |
 | `layouts/announcements/list.html` | `/announcements/` | Newest-first list of announcement cards with status badges. |
 | `layouts/announcements/single.html` | one announcement | Docs-style TOC sidebar + a nav of the other announcements. |
@@ -785,8 +896,9 @@ so only `HUGO_*` and `CI` env vars are readable from templates.
 | `discordLink` | `https://discord.gg/NFdnFcSbfA` | Community link. |
 | `[security.exec] allow` | includes `asciidoctor` | External binaries Hugo may run — **must include `asciidoctor`**. |
 | `Languages.en.contentDir` | `content/english` | Where English content is read from. |
-| `[[Languages.en.menu.main]]` | features, developer, blog, docs | Top navigation entries + weights. |
+| `[[Languages.en.menu.main]]` | studios, features, announcements, blog, docs | Top navigation entries + weights. All point at real pages now — no `pre = "#"` anchors. |
 | `params.logo` | `images/logo_word_big.svg` | Header logo asset. |
+| `params.canonical_base` | `https://metaloom.io` | Base for the absolute URLs in the social metadata. Duplicates `baseURL` on purpose — see the gotcha below. Keep the two in sync. |
 
 | Build/publish env | Where | Notes |
 | --- | --- | --- |
@@ -819,15 +931,24 @@ change the Hugo source and rebuild.
 | `website/config.toml` | Site config: baseURL, theme, menu, plugins, security exec allow, params. |
 | `website/build.sh` | Theme CSS build (yarn) + `hugo` + localhost-link and broken-link checks. |
 | `website/check-links.mjs` | Broken-internal-link + missing-anchor checker over `dist/`. |
+| `website/content/english/_index.md` | Home-page front matter (`page_css`, description). |
+| `website/data/en/home.yml` | **All copy** for the home page. |
+| `website/themes/meghna-hugo/layouts/index.html` | Home-page layout. |
+| `website/themes/meghna-hugo/layouts/partials/home/*.html` | Hero weave backdrop + the two door marks. |
+| `website/themes/meghna-hugo/assets/css/home.css` | Styles for `/` and `/features/`. |
+| `website/themes/meghna-hugo/assets/js/reveal.js` | Shared scroll-reveal + count-up. |
+| `website/themes/meghna-hugo/layouts/partials/reveal-{bootstrap,script}.html` | The two lines that wire a page to `reveal.js`. |
+| `website/content/english/features/_index.md` | `/features/` front matter. |
 | `website/content/english/studios/_index.md` | The `/studios/` page stub (front matter only; copy lives in `data/en/studios.yml`). |
 | `website/data/en/studios.yml` | **All copy** for `/studios/`. |
 | `website/themes/meghna-hugo/layouts/studios/list.html` | `/studios/` layout + section order. |
 | `website/themes/meghna-hugo/layouts/partials/studios/art-*.html` | The illustrations on `/studios/` (one per panel). |
 | `website/themes/meghna-hugo/assets/css/studios.css` | `/studios/` stylesheet (page-scoped via `page_css`). |
-| `website/themes/meghna-hugo/assets/js/studios.js` | `/studios/` reveal animations + number count-up. |
 | `website/content/english/announcements/**` | Release announcements (`_index.adoc` + one bundle per release). |
 | `website/themes/meghna-hugo/layouts/announcements/*.html` | Announcement list/detail layouts. |
 | `website/themes/meghna-hugo/layouts/partials/card.html` | OG/Twitter metadata for every page (title, description, image chains). |
+| `website/themes/meghna-hugo/layouts/partials/footer.html` | Site-wide footer (four link columns, contact pills, Impressum link). |
+| `website/content/english/docs/legal/impressum/index.adoc` | Austrian Impressum + Datenschutz (German; **has placeholders**). |
 | `website/static/images/og-default.jpg`, `og-metaloom-1-0-0.jpg` | 1200×630 social cards. |
 | `website/watch.sh` | Local preview server. |
 | `website/content/english/docs/_index.adoc` | Docs landing (card grid, reading order, concepts). |
@@ -852,8 +973,10 @@ change the Hugo source and rebuild.
 | Add/edit a customer doc page | `website/content/english/docs/<section>/index.adoc` |
 | Add/edit a task-oriented guide | `website/content/english/docs/playbooks/<name>/index.adoc` (link it from `playbooks/_index.adoc` **and** `docs/_index.adoc`) |
 | Add a new docs section | New folder under `docs/` with `_index.adoc` (section) + child `index.adoc` pages; link it from `docs/_index.adoc` |
-| Change landing-page text | `website/data/en/<section>.yml` |
+| Change home-page text | `website/data/en/home.yml` (the legacy `about.yml`/`service.yml`/… are no longer rendered) |
+| Change the feature list | `website/data/en/feature.yml` — it drives `/features/` |
 | Change the text on `/studios/` | `website/data/en/studios.yml` (not the layout) |
+| Add scroll-reveal to a new page | `data-reveal-scope` + `.reveal` + the two `reveal-*` partials |
 | Add/redraw an illustration on `/studios/` | `website/themes/meghna-hugo/layouts/partials/studios/art-<name>.html` + styles in `assets/css/studios.css` |
 | Add a release announcement | New bundle under `website/content/english/announcements/<slug>/index.adoc` with `status`/`status_label` |
 | Change what a shared link looks like (social card) | `website/themes/meghna-hugo/layouts/partials/card.html`; the images are `website/static/images/og-*.jpg` |
@@ -863,7 +986,8 @@ change the Hugo source and rebuild.
 | Change UI labels ("Read more", menu names, footer links) | `website/i18n/en.yaml` |
 | Record which model a node uses and its license | `website/content/english/docs/legal/model-licenses/index.adoc` |
 | State how the code was produced (AI disclosure) | `website/content/english/docs/legal/ai-disclosure/index.adoc` |
-| Change the footer link row | `website/themes/meghna-hugo/layouts/partials/footer.html` + `i18n/en.yaml` |
+| Change the footer | `website/themes/meghna-hugo/layouts/partials/footer.html`, labels in `i18n/en.yaml`, contact pills in `[[params.social]]` |
+| Fill in the Impressum | `website/content/english/docs/legal/impressum/index.adoc` — the `[…]` placeholders and the comment block at the top |
 | Change docs page layout / TOC | `website/themes/meghna-hugo/layouts/docs/single.html` (+ `list.html`) |
 | Add global CSS/JS plugin | `[[params.plugins.css]]` / `[[params.plugins.js]]` in `config.toml` |
 | Change site colors/styles | `website/themes/meghna-hugo/less/` (rebuild via `build.sh`) |
@@ -911,6 +1035,21 @@ change the Hugo source and rebuild.
 * **Page-scoped CSS exists.** `page_css: css/<name>.css` in front matter makes `head.html` emit one
   extra stylesheet for that page only. Use it for bespoke pages instead of growing `custom.less`,
   which is loaded site-wide.
+* **A menu entry with `pre = "#"` is an anchor on the home page, not a page.** `features` pointed at
+  `#feature` and `blog` at `#blog`; when those sections left the home page every menu link on the
+  site turned into a dead anchor. The link checker catches it now (it validates fragments), but the
+  rule is simpler: menu entries should point at real pages.
+* **Absolute URLs come from `site.Params.canonical_base`, not `site.BaseURL`.** Hugo intermittently
+  resolves `site.BaseURL` to `http://localhost:1313/` for a handful of pages when the theme CSS is
+  rebuilt in the same run. That used to show up only in metadata; once `partials/card.html` emitted
+  a `<link rel="canonical">`, it started failing the localhost check outright. `card.html` therefore
+  builds canonical/`og:url`/`og:image` from the param, which cannot be defaulted. Do not "simplify"
+  it back to `.Permalink` or `absURL`.
+* **A running `hugo server` writes into `dist/`.** `watch.sh` (or any `hugo server`) publishes to the
+  same `dist/` and injects `<script src="/livereload.js…">` into the pages it renders. If a preview
+  server is running while you build, `build.sh` fails on that script tag — correctly, since
+  publishing it would 404 on the live site. Stop the preview server before a release build, or build
+  into a scratch directory (`hugo -d /tmp/distcheck && node check-links.mjs /tmp/distcheck`).
 * **Site-relative over absolute in templates.** Anything the browser fetches (`src`, `href`,
   stylesheet/plugin paths) must come from `.RelPermalink` / `relURL`, not `.Permalink` / `absURL`.
   Besides the double-slash trap above, Hugo occasionally resolves `site.BaseURL` to its default
@@ -1067,6 +1206,31 @@ Current state of the website (as of the checkout below):
       `loom/helm-chart/`, 1 from the Kubernetes playbook), the GraphQL API page's sibling links
       got their `../`, `getting-started` gained explicit `#loom-ui`/`#loom-app` anchors, and the
       author page's portrait path was absolutised
+- [x] **Home page rebuilt** as a short front door (`layouts/index.html` + `data/en/home.yml` +
+      `assets/css/home.css`): woven-thread hero with a pre-release status pill, the *Not released
+      yet* card, "Two ways in" routing visual vs technical readers, four what-it-is tiles that pair
+      a plain sentence with monospace facts, a stack strip, three latest posts and a one-command
+      CTA. Roughly 20 % shorter than the page it replaced, and the long feature list and blog grid
+      it used to carry now live on their own pages
+- [x] **Pre-release status is unmissable and honest** — hero status pill, the *Not released yet*
+      card with a monospace facts list (version in tree, published artifacts, demo container),
+      three working links, and a badge in the footer. The placeholder "Notify me" field was
+      removed rather than left to imply a mailing list exists
+- [x] **Site footer rebuilt** — four link columns (brand + status badge, Explore, Documentation,
+      Project), copyright line and contact pills driven by `[[params.social]]`; the placeholder
+      Twitter icon pointing at `#` is gone, and bootstrap-toc is scoped to `.docs-main-content` so
+      the footer headings stop appearing in the docs TOC
+- [x] **Impressum & Datenschutz page** (`docs/legal/impressum/`) — § 5 ECG / § 25 MedienG
+      disclosure in German, plus what the static site processes (GitHub Pages logs, Google Fonts,
+      email); linked from the footer of every page and from the legal card grid
+- [x] **`/features/`** — the full `feature.yml` list on its own page, `(planned)` titles rendered as
+      badges, linked from the navigation and from the home page
+- [x] **Scroll reveal extracted to `assets/js/reveal.js`** with a page-agnostic contract
+      (`data-reveal-scope` / `.reveal` / `data-reveal-delay` / `data-count-up`) and two wiring
+      partials, shared by `/` and `/studios/`
+- [x] **Absolute URLs no longer depend on `site.BaseURL`** — `card.html` builds canonical/`og:url`/
+      `og:image` from `site.Params.canonical_base`, which closes the long-standing
+      `http://localhost:1313` metadata flake
 - [x] **`/studios/`** — a design-led, image-led scroller for media studios, archives and creators:
       full-bleed hero, the "lost filename" problem, an animated pipeline figure, six capability
       panels each with its own illustration (speech, faces, scenes, translation, fingerprints,
@@ -1092,11 +1256,18 @@ Current state of the website (as of the checkout below):
       badge label, the `[IMPORTANT]` lead block and the social card all have to change together
 - [ ] The broken-link check does not fetch **external** links; a dead `https://` link on the site
       is still invisible. An opt-in network pass (or a scheduled job) would close that
-- [ ] Absolute-URL **metadata** can still come out as `http://localhost:1313` — see the
-      `site.BaseURL` gotcha above. Reproduce with `(cd themes/meghna-hugo && yarn build) && rm -rf
-      dist && hugo && grep -rl localhost:1313 dist/`. Either find the Hugo-side cause (or upgrade
-      past it) and then extend the `build.sh` check to `<meta>`/RSS URLs, or build the site's
-      absolute URLs from a value that cannot be defaulted
+- [ ] **Fill in the Impressum placeholders** (address, direct contact besides email) — the page is
+      not legally complete until then, and the register/UID/trade rows have to be revisited if the
+      project ever becomes commercial
+- [ ] Self-host the two web fonts instead of loading them from Google's CDN — that transfer is the
+      only reason the Impressum needs a Google Fonts paragraph
+- [ ] The **RSS** `<link>`/`<guid>` elements still come from `site.BaseURL` (Hugo's internal
+      template), so the `localhost:1313` flake can still reach them. The page metadata is fixed —
+      see `canonical_base` — but the feed would need a custom RSS template to be immune
+- [ ] The legacy Meghna landing partials and their data files (`about`, `service`, `skill`,
+      `funfacts`, `pricing`, `testimonial`, `portfolio`, `contact`, `map`, `banner`, `cta`, `blog`)
+      are no longer rendered by any layout. Delete them, or park them in `content-off/`-style
+      fashion, so nobody edits copy that cannot appear
 - [ ] Remove/consolidate legacy stub pages (`docs/rest/`, `docs/test/`, top-level
       `docs/configuration/`) into the maintained Loom/Cortex pages
 - [ ] Automate the staging of `loom/doc/src/main/generated/openapi.*` into `website/static/` — it is
@@ -1124,5 +1295,5 @@ Current state of the website (as of the checkout below):
 
 ---
 
-_GIT HEAD: `65e6c4649c639303932384942d4c68d8e9e8360d` (branch `master`)_
+_GIT HEAD: `246588789b16a55571735b2c72877d817149514d` (branch `master`)_
 _Generated: 2026-07-27 (UTC)_

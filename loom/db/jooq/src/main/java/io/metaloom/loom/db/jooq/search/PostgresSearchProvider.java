@@ -17,6 +17,7 @@ import javax.inject.Singleton;
 import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.jooq.Result;
+import org.jooq.impl.DSL;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -111,9 +112,12 @@ public class PostgresSearchProvider implements SearchProvider {
 		StringBuilder where = new StringBuilder();
 
 		// Matching: exact tokens, stemmed tokens, or a close-enough trigram match on title/subtitle.
+		// The trigram branch uses the % operator rather than similarity() >= x so that the GIN trigram
+		// index can be used; its threshold comes from pg_trgm.similarity_threshold, which is why the
+		// query below runs inside a transaction that sets it (see runSearch).
 		where.append("(text_search @@ websearch_to_tsquery('simple', ?)")
 			.append(" OR text_search_en @@ websearch_to_tsquery(?::regconfig, ?)")
-			.append(" OR (trgm_text %% ?))");
+			.append(" OR (trgm_text % ?::text))");
 		binds.add(term);
 		binds.add(options.getTsConfig());
 		binds.add(term);
@@ -141,14 +145,7 @@ public class PostgresSearchProvider implements SearchProvider {
 		selectBinds.add(effectiveLimit(request));
 		selectBinds.add(request.getOffset());
 
-		Result<Record> records;
-		try {
-			ctx.execute("SET LOCAL pg_trgm.similarity_threshold = " + threshold());
-			records = ctx.fetch(sql, selectBinds.toArray());
-		} catch (Exception e) {
-			log.error("Search query failed for term '{}'", term, e);
-			throw new LoomRestException(500, LoomRestErrorCode.INTERNAL_ERROR, "The search query could not be executed.");
-		}
+		Result<Record> records = runSearch(sql, selectBinds.toArray(), term);
 
 		SearchResult result = new SearchResult().setProviderName(NAME).setTotalExact(true);
 		for (Record record : records) {
@@ -175,22 +172,24 @@ public class PostgresSearchProvider implements SearchProvider {
 			return List.of();
 		}
 		String term = prefix.trim();
+		StringBuilder where = new StringBuilder("(trgm_text ILIKE ? OR trgm_text % ?::text)");
+
+		// Bind order follows the order the placeholders appear in the SQL text, and the similarity()
+		// call in the SELECT list precedes every predicate in the WHERE clause.
 		List<Object> binds = new ArrayList<>();
-		StringBuilder where = new StringBuilder("(trgm_text ILIKE ? OR trgm_text %% ?)");
+		binds.add(term);
 		binds.add(term + "%");
 		binds.add(term);
 		if (types != null && !types.isEmpty()) {
 			where.append(" AND entity_type = ANY(?)");
 			binds.add(idsOf(types));
 		}
-		binds.add(term);
 		binds.add(Math.max(1, Math.min(limit, options.getMaxLimit())));
 
 		try {
-			ctx.execute("SET LOCAL pg_trgm.similarity_threshold = " + threshold());
-			Result<Record> records = ctx.fetch("SELECT entity_type, entity_uuid, title,"
+			Result<Record> records = runSearch("SELECT entity_type, entity_uuid, title,"
 				+ " similarity(trgm_text, ?) AS score FROM search_document WHERE " + where
-				+ " ORDER BY score DESC, title ASC LIMIT ?", binds.toArray());
+				+ " ORDER BY score DESC, title ASC LIMIT ?", binds.toArray(), term);
 			List<SearchSuggestion> out = new ArrayList<>();
 			for (Record record : records) {
 				out.add(new SearchSuggestion(
@@ -225,6 +224,29 @@ public class PostgresSearchProvider implements SearchProvider {
 	}
 
 	// ---------------------------------------------------------------------------------------------
+
+	/**
+	 * Run a query with the configured trigram threshold applied.
+	 *
+	 * <p>
+	 * The threshold is a session GUC that the {@code %} operator reads. {@code SET LOCAL} only survives inside a transaction, and a pooled connection
+	 * must not be left mutated, so the SET and the query are wrapped in one transaction - that also guarantees they run on the same connection.
+	 * </p>
+	 */
+	private Result<Record> runSearch(String sql, Object[] binds, String term) {
+		try {
+			return ctx.transactionResult(cfg -> {
+				DSLContext tx = DSL.using(cfg);
+				tx.execute("SET LOCAL pg_trgm.similarity_threshold = " + threshold());
+				return tx.fetch(sql, binds);
+			});
+		} catch (LoomRestException e) {
+			throw e;
+		} catch (Exception e) {
+			log.error("Search query failed for term '{}'", term, e);
+			throw new LoomRestException(500, LoomRestErrorCode.INTERNAL_ERROR, "The search query could not be executed.");
+		}
+	}
 
 	private void validate(SearchRequest request) {
 		if (request.getQuery() == null || request.getQuery().isBlank()) {
