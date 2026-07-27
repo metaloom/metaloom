@@ -141,7 +141,7 @@ These are accepted by every command.
 
 | `METALOOM_SERVER`
 | The server URL
-| `http://localhost:6333`
+| `\http://localhost:6333`
 
 | `LOOM_HOST` + `LOOM_PORT`
 | The server URL, if `METALOOM_SERVER` is unset. The same pair the server and Cortex use, so

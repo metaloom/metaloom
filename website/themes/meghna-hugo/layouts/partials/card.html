@@ -1,11 +1,66 @@
-    <meta name="twitter:card" content="summary" />
-    <meta name="twitter:site" content="@metaloom" />
-    <meta name="twitter:creator" content="{{ .Params.Twitter_Author }}" />
-    <meta name="twitter:title" content="{{ .Title }}" />
-    <meta name="twitter:description" content="{{ if .Params.description }}{{ .Params.description | plainify }}{{ end }}" />
-    <meta name="twitter:image:src" content="{{ if .Params.image_webp }}{{ .Permalink }}{{ .Params.image_webp }}{{ else }}{{ "/images/banner_square.webp" | absURL }}{{ end }}" />
-    
-    <meta property="og:title" content="{{ .Title }}">
+{{- /*
+  Social sharing metadata (Open Graph + Twitter/X cards).
+
+  Everything is derived here rather than per layout, because a page can reach a chat window
+  from anywhere on the site. Three values matter and all three have a fallback chain, so a page
+  that sets nothing still shares as something better than a bare title:
+
+    title       page title  → site title
+    description page description → auto summary → site description
+    image       page image (partials/func/page-image.html) → site banner
+
+  `og:image` and `og:url` must be absolute — that is what a scraper fetches. Everything else on
+  the site uses relative URLs on purpose (see the site.BaseURL gotcha in spec/website/WEBSITE.md).
+*/ -}}
+{{- $description := "" -}}
+{{- with .Params.description }}{{ $description = . | plainify }}
+{{- else }}{{ with .Summary }}{{ $description = . | plainify }}
+{{- else }}{{ with site.Params.description }}{{ $description = . }}{{ end }}{{ end }}{{ end -}}
+{{- $description = trim $description " \n\t\r" | truncate 200 -}}
+
+{{- $title := cond .IsHome site.Title (printf "%s | %s" .Title site.Title) -}}
+
+{{/* A page with its own image (blog teasers) shares that; everything else shares the branded
+     1200x630 card in static/images/ rather than the square site banner, which social clients
+     letterbox into a thumbnail. Regenerate the cards as described in spec/website/WEBSITE.md. */}}
+{{- $image := "/images/og-default.jpg" -}}
+{{- if or .Params.image_webp .Params.image -}}
+  {{- $image = partial "func/page-image.html" . -}}
+{{- end -}}
+{{- $image = $image | absURL -}}
+{{- $type := cond (in (slice "blog" "announcements") .Section) "article" "website" -}}
+
+{{/* og:locale wants "en_US", the config's locale is "en-us". */}}
+{{- $locale := "en_US" -}}
+{{- with site.Language.Locale -}}
+  {{- $parts := split . "-" -}}
+  {{- if eq (len $parts) 2 -}}{{ $locale = printf "%s_%s" (index $parts 0) (upper (index $parts 1)) }}{{- end -}}
+{{- end -}}
+
+    <link rel="canonical" href="{{ .Permalink }}">
+
+    <meta property="og:site_name" content="{{ site.Title }}">
+    <meta property="og:type" content="{{ $type }}">
+    <meta property="og:title" content="{{ $title }}">
     <meta property="og:url" content="{{ .Permalink }}">
-    <meta property="og:description" content="{{ if .Params.description }}{{ .Params.description | plainify }}{{ end }}">
-    <meta property="og:image" content="{{ if .Params.image_webp }}{{ .Permalink }}{{ .Params.image_webp }}{{ else }}{{ "/images/banner_square.webp" | absURL }}{{ end }}">
+    <meta property="og:description" content="{{ $description }}">
+    <meta property="og:image" content="{{ $image }}">
+    <meta property="og:image:alt" content="{{ .Title }}">
+    <meta property="og:locale" content="{{ $locale }}">
+{{- if eq $type "article" }}
+    <meta property="article:published_time" content="{{ .Date.Format "2006-01-02T15:04:05Z07:00" }}">
+    {{- with .Params.author }}
+    <meta property="article:author" content="{{ . }}">
+    {{- end }}
+{{- end }}
+
+    {{/* summary_large_image: the old "summary" card cropped every teaser into a thumbnail. */}}
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@metaloom">
+    {{- with .Params.twitter_author }}
+    <meta name="twitter:creator" content="@{{ . }}">
+    {{- end }}
+    <meta name="twitter:title" content="{{ $title }}">
+    <meta name="twitter:description" content="{{ $description }}">
+    <meta name="twitter:image" content="{{ $image }}">
+    <meta name="twitter:image:alt" content="{{ .Title }}">

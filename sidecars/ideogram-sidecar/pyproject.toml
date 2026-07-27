@@ -1,0 +1,19 @@
+[project]
+name = "ideogram-sidecar"
+version = "0.1.0"
+description = "FastAPI sidecar serving a Diffusers image model for the Cortex imagegen node"
+requires-python = ">=3.10"
+dependencies = [
+    "torch",
+    "diffusers>=0.30",
+    "transformers",
+    "accelerate",
+    "safetensors",
+    "fastapi",
+    "uvicorn[standard]",
+    "pillow",
+]
+
+# The intended backing model is Ideogram 4.0 (gated, ~24 GB CUDA, non-commercial
+# weight licence). For an ungated PoC the server defaults to SDXL-Turbo; set
+# IMAGEGEN_MODEL to swap in any Diffusers-compatible pipeline. See README.md.

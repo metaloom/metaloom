@@ -125,6 +125,18 @@ weight = 3
 #weight = 5
 
 [[Languages.en.menu.main]]
+name = "studios"
+pre = ""
+url = "studios"
+weight = 2
+
+[[Languages.en.menu.main]]
+name = "announcements"
+pre = ""
+url = "announcements"
+weight = 5
+
+[[Languages.en.menu.main]]
 name = "blog"
 pre = "#"
 url = "blog"
@@ -146,8 +158,9 @@ weight = 6
 ############################# Default Parameters ##########################
 [params]
 logo = "images/logo_word_big.svg"
-# Meta data
-description = "MetaLoom 2021"
+# Meta data — the site-wide fallback for <meta name="description"> and the social cards
+# (partials/card.html). Pages should set their own `description:` in front matter.
+description = "MetaLoom is an open source media asset platform: it transcribes, detects, describes and indexes your media — on your own hardware."
 author = "Jotschi"
 # Google Analytics
 google_analytics_id = "" # Your ID

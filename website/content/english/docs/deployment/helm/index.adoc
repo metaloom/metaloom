@@ -1,0 +1,207 @@
+---
+title: Helm Charts
+weight: 3
+---
+
+MetaLoom ships two Helm charts for deploying on Kubernetes — one per component. They live in the
+`helm/` directory of the source repository.
+
+[options="header",cols="1,3"]
+|===
+| Chart | Deploys
+| `helm/loom` | The Loom backend server (REST/gRPC/GraphQL API, database access, auth, storage, the pipeline engine, the AI agent) and the bundled web UI. Optionally a self-contained PostgreSQL for quick starts.
+| `helm/cortex` | One or more Cortex workers. They register with Loom and run the node tasks it dispatches. The worker image is overridable, so the same chart runs the stock worker or a custom node image.
+|===
+
+++++
+<div class="ml-figure">
+<svg viewBox="0 0 840 290" role="img" aria-labelledby="ml-hl-title ml-hl-desc" class="ml-arch-svg">
+  <title id="ml-hl-title">MetaLoom Helm deployment overview</title>
+  <desc id="ml-hl-desc">The loom chart deploys the Loom server, a Service, persistent volumes and an
+  optional PostgreSQL. The cortex chart deploys one or more workers that register with the Loom
+  Service over a WebSocket and write results back over REST.</desc>
+  <defs>
+    <marker id="ml-hl-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#57cbcc"></path></marker>
+  </defs>
+
+  <rect x="30" y="30" width="360" height="230" rx="10" class="ml-box-container"></rect>
+  <text x="46" y="54" class="ml-box-title">helm/loom</text>
+  <text x="46" y="70" class="ml-box-tag">Deployment · Service · Secrets · PVCs</text>
+  <rect x="46" y="86" width="150" height="54" rx="6" class="ml-box-part"></rect>
+  <text x="121" y="108" text-anchor="middle" class="ml-box-tag">Loom server</text>
+  <text x="121" y="126" text-anchor="middle" class="ml-part-sub">Deployment + UI</text>
+  <rect x="212" y="86" width="162" height="54" rx="6" class="ml-box-part"></rect>
+  <text x="293" y="108" text-anchor="middle" class="ml-box-tag">Service</text>
+  <text x="293" y="126" text-anchor="middle" class="ml-part-sub">:8092 · :8091 · :8989</text>
+  <rect x="46" y="150" width="150" height="54" rx="6" class="ml-box-part"></rect>
+  <text x="121" y="172" text-anchor="middle" class="ml-box-tag">Volumes</text>
+  <text x="121" y="190" text-anchor="middle" class="ml-part-sub">config · keystore · uploads</text>
+  <rect x="212" y="150" width="162" height="54" rx="6" class="ml-box-dyn"></rect>
+  <text x="293" y="172" text-anchor="middle" class="ml-box-tag">PostgreSQL</text>
+  <text x="293" y="190" text-anchor="middle" class="ml-part-sub">bundled — optional</text>
+
+  <rect x="570" y="30" width="240" height="230" rx="10" class="ml-box-container"></rect>
+  <text x="586" y="54" class="ml-box-title">helm/cortex</text>
+  <text x="586" y="70" class="ml-box-tag">StatefulSet — 0..N workers</text>
+  <rect x="586" y="92" width="196" height="54" rx="6" class="ml-box-part"></rect>
+  <text x="684" y="114" text-anchor="middle" class="ml-box-tag">Worker 0</text>
+  <text x="684" y="132" text-anchor="middle" class="ml-part-sub">stock image · :8093</text>
+  <rect x="586" y="160" width="196" height="54" rx="6" class="ml-box-gpu"></rect>
+  <text x="684" y="182" text-anchor="middle" class="ml-box-tag">Worker N</text>
+  <text x="684" y="200" text-anchor="middle" class="ml-part-sub">custom image (override)</text>
+
+  <polyline points="570,150 480,150 480,113 390,113" class="ml-edge" marker-end="url(#ml-hl-arrow)"></polyline>
+  <text x="480" y="140" text-anchor="middle" class="ml-edge-label">register (WS)</text>
+  <polyline points="390,96 480,96 480,133 570,133" class="ml-edge" marker-end="url(#ml-hl-arrow)"></polyline>
+  <text x="480" y="88" text-anchor="middle" class="ml-edge-label">tasks · results (REST)</text>
+</svg>
+</div>
+++++
+
+== Prerequisites
+
+* Kubernetes 1.23+ and Helm 3
+* A `StorageClass` for Loom's persistent volumes
+* The MetaLoom container images reachable from your cluster (see link:../[Container Images])
+* A PostgreSQL database — an external managed one (recommended) or the loom chart's optional bundled
+  Postgres
+
+== Install Loom
+
+For evaluation, let the chart run a self-contained PostgreSQL alongside Loom:
+
+[source,bash]
+----
+helm install loom ./helm/loom \
+  --set postgresql.enabled=true \
+  --set auth.initialPassword=<admin-password>
+----
+
+For production, point Loom at an external managed database and expose it through an Ingress:
+
+[source,bash]
+----
+helm install loom ./helm/loom \
+  --set database.host=postgres.internal \
+  --set database.name=loom \
+  --set database.user=loom \
+  --set database.password=<db-password> \
+  --set auth.initialPassword=<admin-password> \
+  --set ingress.enabled=true \
+  --set ingress.host=loom.example.com
+----
+
+Log in to the UI (`/ui/`) as `admin` with the password you set.
+
+TIP: The bundled PostgreSQL uses the official `postgres` image and is meant for quick starts and
+evaluation. It is not a managed, backed-up database — run a managed one in production.
+
+=== Two things a Loom chart must get right
+
+[WARNING]
+====
+* **The keystore volume holds the JWT signing key.** It is persistent by default and must stay that
+  way. If it is lost on a restart, every token issued beforehand stops verifying and all clients are
+  logged out. The configuration volume (which holds `loom.yml`) is persisted for the same reason.
+* **The coding sandbox is a unit.** Setting `sandbox.enabled=true` renders the runner-namespace
+  role, quota, limits and network policy together with the feature flag. Enabling the flag without
+  that set produces a server that cannot create runner pods, or creates unconstrained ones. Leave it
+  off unless you use the chat agent's coding sandbox.
+====
+
+== Install Cortex
+
+Add one or more workers, pointed at the Loom Service:
+
+[source,bash]
+----
+helm install cortex ./helm/cortex \
+  --set loom.host=loom \
+  --set loom.token=<api-token>
+----
+
+Workers dial **out** to Loom; Loom never connects in to a worker. Scale with `replicaCount` — each
+replica registers as its own worker with a stable identity.
+
+NOTE: A worker is handed a *path* to media, not the bytes, so any source/hash/transcription node needs
+the same media mounted that Loom uses. Enable the `media` volume (`--set media.enabled=true` with an
+`existingClaim`, `hostPath` or `nfs` source) for those workers.
+
+=== Running a custom node image
+
+The cortex chart's `image.repository` value is how you run **your own** worker — a custom Java daemon
+or a from-scratch Python worker — instead of the stock one. Build an image from the
+link:../../cortex/examples/[Cortex examples] and point the chart at it:
+
+[source,bash]
+----
+# A JVM custom worker (built on the stock image; serves the health endpoints):
+helm install cortex ./helm/cortex \
+  --set image.repository=metaloom/cortex-custom \
+  --set loom.token=<token> \
+  --set 'nodeKinds={hello-world}'
+
+# A minimal Python worker that does NOT serve a monitoring port — disable the HTTP probes:
+helm install cortex-py ./helm/cortex \
+  --set image.repository=metaloom/cortex-python \
+  --set loom.token=<token> \
+  --set readinessProbe.enabled=false \
+  --set livenessProbe.type=tcpSocket \
+  --set 'nodeKinds={py-hello}'
+----
+
+`nodeKinds` advertises which node kinds the worker runs. Use `command`/`args` if your image needs a
+different entrypoint and `extraEnv` for image-specific settings.
+
+== Selected values
+
+.Loom chart
+[options="header",cols="2,2,3"]
+|===
+| Key | Default | Purpose
+| `image.repository` / `image.tag` | `metaloom/loom-server` / chart version | Server image (`-native` tag for the GraalVM variant).
+| `auth.initialPassword` | `changeme` | Bootstrap admin password. Change it.
+| `database.host` / `user` / `password` | — | External database connection.
+| `postgresql.enabled` | `false` | Run a bundled PostgreSQL (dev / evaluation).
+| `persistence.keystore` / `config` / `uploads` | enabled | Persistent volumes (keep keystore + config).
+| `ingress.enabled` / `host` | `false` / — | Expose the REST/UI port.
+| `ai.enabled` / `url` / `modelId` | `false` | Chat agent LLM provider.
+| `sandbox.enabled` | `false` | Coding sandbox + runner-namespace guardrails.
+|===
+
+.Cortex chart
+[options="header",cols="2,2,3"]
+|===
+| Key | Default | Purpose
+| `image.repository` / `image.tag` | `metaloom/cortex-server` / chart version | Worker image — override for a custom one.
+| `loom.host` / `port` | `loom` / `8092` | Loom Service to register with.
+| `loom.token` | — | API token for registration and result write-back.
+| `replicaCount` | `1` | Number of workers.
+| `nodeKinds` | all | Node kinds this worker advertises.
+| `media.enabled` / `mountPath` | `false` / `/media` | Shared source-media mount.
+| `livenessProbe` / `readinessProbe` | httpGet on `8093` | Health probes (disable/retype for minimal images).
+| `resources` | small | Add `limits.nvidia.com/gpu` for GPU nodes.
+|===
+
+The charts ship a fully commented `values.yaml`; the READMEs in `helm/loom` and `helm/cortex` list
+every key.
+
+== Verify
+
+[source,bash]
+----
+helm lint ./helm/loom ./helm/cortex
+helm template loom ./helm/loom --set postgresql.enabled=true
+kubectl rollout status deploy/loom
+# Confirm a worker joined the fleet:
+kubectl get pods -l app.kubernetes.io/name=cortex
+----
+
+== Next steps
+
+* link:../[Container Images] — the image and port inventory the charts deploy
+* link:../../playbooks/kubernetes/[Kubernetes playbook] — the underlying manifests, service account,
+  sandbox guardrails and worker pools explained step by step
+* link:../../cortex/examples/[Cortex examples] — build a custom Java or Python worker image
+* link:../../loom/metrics/[Loom Metrics] and link:../../cortex/metrics/[Cortex Metrics] — scrape the
+  deployed components

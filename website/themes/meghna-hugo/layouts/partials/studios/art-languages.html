@@ -1,0 +1,23 @@
+{{/* Panel art: one line of dialogue travelling through translation into subtitles and a voice. */}}
+<div class="st-art st-art-languages" aria-hidden="true">
+  <div class="st-lang-source">
+    <span class="st-lang-tag">source · en</span>
+    <p>“And that is the shot everyone remembers.”</p>
+  </div>
+  <div class="st-lang-arrow">
+    <svg viewBox="0 0 24 40" width="20" height="34"><path d="M12 2 V30" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M5 24 L12 32 L19 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </div>
+  <ul class="st-lang-list">
+    <li style="--st-delay:.1s"><span class="st-lang-tag">de</span><span>„Und das ist die Einstellung, die alle erinnern.“</span></li>
+    <li style="--st-delay:.25s"><span class="st-lang-tag">es</span><span>«Y ese es el plano que todos recuerdan.»</span></li>
+    {{/* Latin-script languages only: the site loads no CJK webfont, so a Japanese line would
+         render as tofu boxes on any machine without a system fallback font. */}}
+    <li style="--st-delay:.4s"><span class="st-lang-tag">fr</span><span>« Et c’est le plan dont tout le monde se souvient. »</span></li>
+  </ul>
+  <div class="st-lang-voice">
+    <span class="st-pill st-pill-accent">synthetic voice</span>
+    <span class="st-voicewave">
+      {{ range $i := seq 0 23 }}<span style="--h:{{ add 22 (mod (add (mul $i 53) (mul $i $i)) 64) }}%;--st-delay:{{ mul $i 70 }}ms"></span>{{ end }}
+    </span>
+  </div>
+</div>

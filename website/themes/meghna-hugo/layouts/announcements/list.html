@@ -1,0 +1,34 @@
+{{ define "main" }}
+
+{{ partial "navigation.html" . }}
+
+<section class="section docs-section">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-lg-9">
+        <div class="docs-page-header text-center">
+          <h1>{{ .Title }}</h1>
+          {{ with .Params.subtitle }}<p class="ann-lead">{{ . }}</p>{{ end }}
+        </div>
+        {{ with .Content }}
+        <div class="post-single-content docs-main-content">{{ . }}</div>
+        {{ end }}
+
+        <div class="ann-timeline">
+          {{ range .Pages.ByDate.Reverse }}
+          <article class="ann-entry">
+            <div class="ann-entry-meta">
+              <span class="ann-badge ann-badge-{{ .Params.status | default `released` }}">{{ .Params.status_label | default `Released` }}</span>
+              <time datetime="{{ .Date.Format `2006-01-02` }}">{{ .Date.Format "2 January 2006" }}</time>
+            </div>
+            <h2 class="ann-entry-title"><a href="{{ .RelPermalink }}">{{ .Title }}</a></h2>
+            <p class="ann-entry-summary">{{ with .Params.description }}{{ . }}{{ else }}{{ .Summary }}{{ end }}</p>
+            <a class="ann-entry-more" href="{{ .RelPermalink }}">Read the announcement <span aria-hidden="true">&rarr;</span></a>
+          </article>
+          {{ end }}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{{ end }}

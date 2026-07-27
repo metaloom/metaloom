@@ -32,7 +32,7 @@ in the same pipeline.
 [options="header",cols="1,2"]
 |===
 | Option | Meaning
-| `endpointUrl` | Base URL of the vision endpoint, e.g. `http://127.0.0.1:8000`
+| `endpointUrl` | Base URL of the vision endpoint, e.g. `\http://127.0.0.1:8000`
 | `apiKey` | Bearer token for the endpoint; usually unset for a local service
 | `prompts` | Named tasks to run against the image, keyed by prompt id
 |===

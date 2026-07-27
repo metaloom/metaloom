@@ -19,7 +19,7 @@ and returns the standard GraphQL `{ "data": ..., "errors": ... }` response shape
 
 The GraphQL endpoint reuses the REST authentication stack — a valid JWT bearer token (HttpOnly
 cookie or `Authorization` header) is required; unauthenticated requests are rejected with `401`
-before the query is parsed. Obtain a token via the link:../authentication[Authentication] flow.
+before the query is parsed. Obtain a token via the link:../authentication/[Authentication] flow.
 
 Authorization is enforced per field. Each resolver checks the caller's permissions:
 
@@ -84,6 +84,6 @@ query ListAssets {
 
 == See Also
 
-* link:rest-api[REST API Reference] — the primary external API with full CRUD.
-* link:java-client[Java Client] — typed JVM HTTP client.
-* link:authentication[Authentication] — obtaining a bearer token.
+* link:../rest-api/[REST API Reference] — the primary external API with full CRUD.
+* link:../java-client/[Java Client] — typed JVM HTTP client.
+* link:../authentication/[Authentication] — obtaining a bearer token.

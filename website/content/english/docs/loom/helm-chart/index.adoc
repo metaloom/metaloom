@@ -2,29 +2,35 @@
 title: Helm Chart
 ---
 
-Kubernetes is the supported production deployment path for Loom. The full walkthrough — service
-account, RBAC for the chat's coding sandbox, quotas, NetworkPolicy and the Cortex worker pools — is in
+Kubernetes is the supported production deployment path for Loom. There are two Helm charts in the
+source repository — `helm/loom` for the server and `helm/cortex` for the workers.
+
+== Install
+
+[source,bash]
+----
+# Loom with a bundled PostgreSQL (evaluation):
+helm install loom ./helm/loom --set postgresql.enabled=true --set auth.initialPassword=<password>
+# A Cortex worker pointed at it:
+helm install cortex ./helm/cortex --set loom.host=loom --set loom.token=<token>
+----
+
+The full guide — values reference, external vs bundled database, custom Cortex worker images and the
+verification steps — is on the link:../../deployment/helm/[Helm Charts] page. For the underlying
+manifests, the service account, the sandbox guardrails and the worker pools explained step by step, see
 the link:../../playbooks/kubernetes/[Kubernetes playbook].
 
-== Status
+== What the Chart Handles For You
 
-WARNING: `loom/helm` in the source repository is currently a **placeholder**: it contains a README and
-no chart. There is no `helm install` to run yet.
+Two things are easy to get wrong when packaging Loom. The chart handles both, but they are worth
+knowing before you change the defaults:
 
-Until a chart ships, deploy with the manifests in the
-link:../../playbooks/kubernetes/[Kubernetes playbook], or wrap them in a chart of your own. That page
-also carries a suggested `values.yaml` layout, so a chart written now stays close to the one that will
-be published.
-
-== What a Chart Must Cover
-
-Two things are easy to miss when packaging Loom, and both are called out in the playbook:
-
-* The `/config` volume holds `loom.yml` and `keystore.jceks` — the JWT signing key. It must be
-  persistent, or every issued token stops verifying after a restart.
-* Enabling the coding sandbox (`LOOM_AGENT_SANDBOX_ENABLED`) is only complete together with the Role,
-  RoleBinding, ResourceQuota, LimitRange and NetworkPolicy for the runner namespace. Templating the
-  environment variable alone produces a deployment that cannot create runners, or creates unconstrained
-  ones.
+* The keystore volume holds the JWT signing key. The chart persists it by default; keep it that way,
+  or every issued token stops verifying after a restart. The configuration volume (`loom.yml`) is
+  persisted for the same reason.
+* Enabling the coding sandbox (`sandbox.enabled=true`) renders the runner-namespace Role, RoleBinding,
+  ResourceQuota, LimitRange and NetworkPolicy together with the feature flag. Setting the flag without
+  that set would produce a deployment that cannot create runners, or creates unconstrained ones — the
+  chart keeps them together.
 
 See link:../artifacts/[Artifacts] for the published Maven and container coordinates.

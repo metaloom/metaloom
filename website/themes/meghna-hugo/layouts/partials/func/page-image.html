@@ -1,0 +1,26 @@
+{{- /*
+  Resolves the front-matter `image_webp` (falling back to `image`) of a page to a
+  site-relative URL and returns it.
+
+  Blog posts are page bundles, so the value is a bare file name co-located with
+  `index.adoc`. Callers must not concatenate it onto `.Permalink` themselves:
+  `.Permalink` already carries a trailing slash (pretty URLs), which produced a
+  double slash, and an absolute permalink bakes the build-time host into the
+  markup. Pages without an image fall back to the site banner.
+*/ -}}
+{{- $src := "/images/banner_square.webp" -}}
+{{- $name := or .Params.image_webp .Params.image -}}
+{{- with $name -}}
+  {{- if or (hasPrefix . "http://") (hasPrefix . "https://") (hasPrefix . "//") (hasPrefix . "/") -}}
+    {{- $src = . -}}
+  {{- else -}}
+    {{- $resource := $.Resources.GetMatch . -}}
+    {{- if $resource -}}
+      {{- $src = $resource.RelPermalink -}}
+    {{- else -}}
+      {{- $src = printf "%s%s" $.RelPermalink . -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- $src = relURL $src -}}
+{{- return $src -}}

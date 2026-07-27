@@ -1,0 +1,20 @@
+{{/* Panel art: audio becomes timecoded, searchable text. The bar heights are derived from the
+     index so the waveform looks irregular without shipping a data file. */}}
+<div class="st-art st-art-transcript" aria-hidden="true">
+  <div class="st-search-bar">
+    <svg viewBox="0 0 16 16" width="13" height="13"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M11 11 L15 15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    <span>second season</span>
+  </div>
+  <div class="st-wave">
+    {{ range $i := seq 0 47 }}
+    <span class="st-wave-bar{{ if and (ge $i 18) (le $i 27) }} is-hit{{ end }}"
+          style="--h:{{ add 14 (mod (add (mul $i 37) (mul $i $i)) 72) }}%;--st-delay:{{ mul $i 18 }}ms"></span>
+    {{ end }}
+  </div>
+  <ul class="st-lines">
+    <li><span class="st-tc">04:02</span><span>…we had three weeks and no second unit.</span></li>
+    <li class="is-hit"><span class="st-tc">04:18</span><span>So when we started the <mark>second season</mark>, everything moved north.</span></li>
+    <li><span class="st-tc">04:31</span><span>The whole crew, the trucks, the drone team.</span></li>
+    <li><span class="st-tc">04:47</span><span>And that is the shot everyone remembers.</span></li>
+  </ul>
+</div>

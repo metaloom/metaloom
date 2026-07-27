@@ -163,7 +163,7 @@ Check it came up:
 curl -sf http://localhost:8092/api/v1/health && echo OK
 ----
 
-The UI is at http://localhost:8092/ui/ — log in as `admin` with `LOOM_INITIAL_PASSWORD`.
+The UI is at `\http://localhost:8092/ui/` — log in as `admin` with `LOOM_INITIAL_PASSWORD`.
 
 == Step 3 — Mint a Worker Token
 

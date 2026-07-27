@@ -142,6 +142,9 @@ spec/
 │   │   └── CLI_PLAN.md                # The `cli/` module — implemented 2026-07-26 (see §14 there)
 │   ├── db/
 │   │   └── DATABASE_TASKS.md          # Schema work for node-result persistence (V2.38–V2.50)
+│   ├── helm/
+│   │   ├── HELM_LOOM.md               # Loom Helm chart (helm/loom) — structure, values, gotchas
+│   │   └── HELM_CORTEX.md             # Cortex Helm chart (helm/cortex) — custom-image override, StatefulSet id
 │   ├── ops/
 │   │   ├── METRICS.md                 # Prometheus /metrics on both components — implemented
 │   │   └── MONITORING.md              # Health & readiness endpoints
@@ -309,7 +312,7 @@ loom/
 │                    #   DatabaseInitializer, DemoDatabaseInitializer
 ├── fixture/         # Test fixtures, PoolSetupRunner, TestDBPoolManager
 ├── containers/      # Dockerfiles + build-containers.sh (metaloom/loom-server, metaloom/loom-demo)
-├── helm/            # Helm chart
+├── helm/            # ⚠️ placeholder README only — the real charts live in the top-level `helm/` (helm/loom, helm/cortex)
 ├── design/          # Design artefacts incl. DB/dbdiagram.yaml
 └── doc/             # AsciiDoc documentation source + OpenAPI generator
 ```
@@ -717,7 +720,7 @@ Both Loom and Cortex use **Dagger 2**:
 | Documentation source (AsciiDoc) | `loom/doc/src/main/docs/` |
 | Customer-facing docs | `website/content/english/docs/` |
 | Container builds | `loom/containers/`, `cortex/container/` |
-| Helm chart | `loom/helm/` |
+| Helm charts | `helm/loom/`, `helm/cortex/` (specs: [features/helm/HELM_LOOM.md](features/helm/HELM_LOOM.md), [features/helm/HELM_CORTEX.md](features/helm/HELM_CORTEX.md)); custom worker images: `examples/cortex-custom/`, `examples/cortex-python/` |
 | DB diagram | `loom/design/DB/dbdiagram.yaml` |
 | Integration tests | `integration-test/src/test/java/io/metaloom/loom/test/integration/` |
 | E2E tests | `e2e-test/src/test/java/io/metaloom/loom/studio/test/` |

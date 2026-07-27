@@ -508,11 +508,11 @@ feature working.
 
 The manifests above are the deployable truth; a chart is a way to parameterize them per environment.
 
-WARNING: `loom/helm` in the source repository is currently a **placeholder** — it contains a README and
-no chart. Until a chart ships, deploy with the manifests above or wrap them in a chart of your own. The
-link:../../loom/helm-chart/[Helm Chart] page tracks that status.
+MetaLoom ships two charts in the source repository — `helm/loom` and `helm/cortex`. See the
+link:../../deployment/helm/[Helm Charts] guide for the full install flow and values reference; this
+section explains how those values map onto the manifests above.
 
-A values file for a chart wrapping this playbook looks like:
+A values file for the loom chart looks like:
 
 [source,yaml]
 ----

@@ -1,0 +1,24 @@
+{{/* "The problem" art: a wall of camera-generated file names. One card resolves into something
+     a human can search; the rest stay anonymous. Pure markup + CSS (studios.css). */}}
+<div class="st-filewall" aria-hidden="true">
+  <div class="st-filewall-grid">
+    <span class="st-file">A001_C003_0714XY.mxf</span>
+    <span class="st-file">IMG_4821.MOV</span>
+    <span class="st-file">DJI_0342.MP4</span>
+    <span class="st-file">clip_final_v3.mov</span>
+    <span class="st-file">GH019283.MP4</span>
+    <span class="st-file">C0021.MP4</span>
+    <span class="st-file st-file-hit">
+      <span class="st-file-name">A001_C003_0714XY.mxf</span>
+      <span class="st-file-meta">
+        <b>2 faces</b><b>interview</b><b>"…the second season"</b><b>04:12–06:38</b>
+      </span>
+    </span>
+    <span class="st-file">MVI_9928.AVI</span>
+    <span class="st-file">rushes_day7_02.mxf</span>
+    <span class="st-file">untitled_export.mp4</span>
+    <span class="st-file">B_ROLL_0009.MOV</span>
+    <span class="st-file">A002_C011_0715AB.mxf</span>
+  </div>
+</div>
+<p class="st-art-caption">{{ with .stat_note }}{{ . }}{{ end }}</p>

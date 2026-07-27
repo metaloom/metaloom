@@ -17,7 +17,12 @@ edit or restructure site content or fix the build/publish flow.
 * Customer-facing docs live in `website/content/english/docs/**` as **AsciiDoc** (`.adoc`).
 * Content language is AsciiDoc (needs `asciidoctor` on `PATH`); the landing page is data-driven
   from `website/data/en/*.yml` + theme partials.
-* Build with `website/build.sh` → output goes to `website/dist/` (`publishDir = "dist"`).
+* Three top-level content areas besides the docs: **`/studios/`** (the design-led page for media
+  studios and creators — see [The /studios/ page](#the-studios-page)), **`/announcements/`**
+  (release announcements) and `/blog/`.
+* Build with `website/build.sh` → output goes to `website/dist/` (`publishDir = "dist"`). The
+  build fails on localhost links **and on broken internal links** (see
+  [The build-output checks](#the-build-output-checks)).
 * Publish: the separate **`metaloom-website`** repo (a sibling checkout, *not* part of this
   repo) runs `pull.sh` to copy `website/dist` → its `docs/` folder and serves it via **GitHub
   Pages** at `metaloom.io` (see [Publishing](#publishing-flow)).
@@ -79,13 +84,62 @@ The Hugo source is `website/`. All commands below assume you `cd website` first.
 
 | Command | What it does |
 | --- | --- |
-| `./build.sh` | Full build: `cd themes/meghna-hugo && (yarn\|npm) install && … build` (compiles theme CSS), then `hugo` at the project root → writes `dist/`. |
+| `./build.sh` | Full build: `cd themes/meghna-hugo && (yarn\|npm) install && … build` (compiles theme CSS), then `hugo` at the project root → writes `dist/`, then the two **build-output checks** (below). |
 | `./watch.sh` | Runs `build.sh` then `hugo server -b http://localhost:1313/` for live local preview. |
 | `hugo` | Site build only (assumes theme CSS already built). Output → `dist/`. |
+| `node check-links.mjs [dist]` | The broken-link check on its own — useful while editing links without a full rebuild. |
 
-`build.sh` uses `set -o errexit -o nounset` — a missing `asciidoctor`/`hugo` (or both `yarn` **and**
-`npm`) fails the whole script. `dist/` and `docs/` are git-ignored in this repo (see `website/.gitignore`), so a
-build never dirties the working tree with output.
+### The build-output checks
+
+`build.sh` ends with two checks over `dist/`. Both exit 1 and print every offending page, and both
+are cheap enough to run on every build.
+
+#### The localhost-link check
+
+`build.sh` fails (exit 1) when the generated `dist/` contains a **link or resource attribute**
+pointing at the build machine — `href`, `src`, `srcset`, `action`, `data-src` or the plugin
+`data-*-url` attributes with a `localhost` / `127.0.0.1` / `0.0.0.0` / `[::1]` host. Such a URL makes
+the published site send the reader's browser to their *own* machine (and triggers the browser's
+Local Network Access prompt).
+
+Mentioning a local address **in documentation text is fine** — the demo container is documented as
+`localhost:8092` all over the docs. Only the attributes are rejected. The catch is that Asciidoctor
+**auto-links a bare URL even inside backticks**, so `` `http://localhost:8092` `` still renders as an
+`<a href>`. Suppress it with a leading backslash:
+
+```asciidoc
+The UI is at `\http://localhost:8092/ui/` — log in as `admin`.
+```
+
+The backslash is consumed by Asciidoctor; the rendered page shows `http://localhost:8092/ui/` as
+plain monospace text. In a raw-HTML `++++` block, just write `<code>…</code>` instead of `<a href>`.
+
+#### The broken-link check (`check-links.mjs`)
+
+`website/check-links.mjs` (plain Node, no dependencies) walks every `*.html` in `dist/`, collects
+the `href`/`src`/`srcset`/`action`/`poster`/`data-*-url` attributes a browser would follow and
+verifies that each **internal** target is served by the build:
+
+* Pretty URLs resolve the way the published site serves them — `/docs/`, `/docs` and `/docs.html`
+  all map to a file if one exists.
+* `#fragment` targets are checked against the `id=`/`name=` attributes of the target document, so a
+  renamed heading is caught (that is what `#loom-ui` and `#loom-app` were).
+* Absolute URLs to `metaloom.io` / `www.metaloom.io` are treated as internal; every other host is
+  skipped — this is an offline consistency check, it never fetches the network.
+* `mailto:`/`tel:`/`javascript:`/`data:` and bare `#` are ignored.
+
+Run it directly with `node check-links.mjs` after editing links. Two failure shapes it catches
+regularly:
+
+1. **A relative `link:` without `../`.** `link:rest-api[REST API]` on `/docs/loom/graphql-api/`
+   resolves to `/docs/loom/graphql-api/rest-api`, not `/docs/loom/rest-api/`.
+2. **A child page that Hugo never built.** A directory holding `index.adoc` is a *leaf* bundle, so
+   any subdirectory in it is a resource, not a page — `docs/deployment/helm/` produced no output
+   until `docs/deployment/index.adoc` was renamed to `_index.adoc`. See the gotcha below.
+
+`build.sh` uses `set -o errexit -o nounset` — a missing `asciidoctor`/`hugo`/`node` (or both `yarn`
+**and** `npm`) fails the whole script. `dist/` and `docs/` are git-ignored in this repo (see
+`website/.gitignore`), so a build never dirties the working tree with output.
 
 ### Maven integration
 
@@ -98,22 +152,28 @@ Maven module graph/versioning. The real build is `build.sh`.
 ```
 website/
 ├── config.toml            # Hugo site config: baseURL, theme, menu, plugins, params
-├── build.sh               # theme CSS build + hugo
+├── build.sh               # theme CSS build + hugo + the two dist/ checks
+├── check-links.mjs        # broken-internal-link checker (run by build.sh, also standalone)
 ├── watch.sh               # build + hugo server (local preview)
 ├── pom.xml                # Maven pom module (no build logic)
 ├── .gitignore             # ignores dist/, docs/, resources/, node_modules, target ...
 ├── content/
 │   └── english/           # contentDir for the "en" language (config.toml)
 │       ├── docs/          # ★ CUSTOMER-FACING DOCUMENTATION (AsciiDoc)
+│       ├── studios/       # ★ /studios/ — design-led page for studios/creators (_index.md only)
+│       ├── announcements/ # release announcements (_index.adoc + one bundle per release)
 │       ├── blog/          # blog posts (one folder per post, index.adoc)
 │       └── author/        # blog author pages
 ├── content-off/           # DISABLED content (not built; parked pages). e.g. an old POC post
-├── data/en/*.yml          # landing-page section data (banner, feature, team, funfacts, ...)
+├── data/en/*.yml          # landing-page + /studios/ section data (banner, feature, studios, ...)
 ├── i18n/en.yaml           # UI string translations (menu labels, "Read more", etc.)
 ├── static/                # copied verbatim to dist/: images/, CNAME, .nojekyll, robots
+│   ├── images/og-*.jpg    # 1200x630 social cards (see Social cards & page metadata)
 │   └── docs/examples/openapi.{json,yaml}  # staged OpenAPI doc: downloadable + rendered by Swagger UI
 ├── resources/_gen/        # Hugo asset cache (git-ignored)
 ├── themes/meghna-hugo/    # vendored + customized theme (layouts, LESS, JS plugins)
+│   └── assets/            # Hugo-processed assets: css/main.css, css/studios.css,
+│                          #   js/script.js, js/studios.js, images/studios/*.jpg
 └── dist/                  # BUILD OUTPUT (git-ignored) → what gets published
 ```
 
@@ -542,6 +602,29 @@ Both pages are linked from the docs landing card grid, the "Choose Your Path" ta
 link row** rendered by `themes/meghna-hugo/layouts/partials/footer.html` (labels come from
 `i18n/en.yaml`: `documentation`, `legal`, `modelLicenses`, `aiDisclosure`).
 
+### Blog post images
+
+A blog post is a page bundle whose front matter names its teaser image by **bare file name**
+(`image:` = the jpg/svg original, `image_webp:` = the webp variant), co-located with `index.adoc`.
+Three places render it — the overview cards (`_default/article.html`, used by both `/blog/` and the
+landing-page blog section), the post hero (`_default/single.html`) and the social-card meta tags
+(`partials/card.html`) — and all three resolve it through one helper:
+
+```go-html-template
+{{ partial "func/page-image.html" . }}   {{/* → site-relative URL, e.g. /blog/day3-…/foo.webp */}}
+```
+
+The partial prefers `image_webp`, falls back to `image`, then to `/images/banner_square.webp`, and
+resolves a bare name against the page bundle (`.Resources.GetMatch`, then `.RelPermalink`). Pass its
+result through `absURL` where an absolute URL is required (`og:image`, `twitter:image:src`).
+
+> **Never concatenate an image name onto `.Permalink` in a template.** That was the original bug:
+> `{{ .Permalink }}/{{ .Params.Image_webp }}` produced a **double slash** (a pretty-URL permalink
+> already ends in `/`) *and* an absolute URL carrying whatever host the build resolved — which is how
+> `http://localhost:1313/blog/day3-vertx-dagger-poc//christian-…webp` ended up in the overview cards.
+> Prefer `.RelPermalink` / `relURL` for anything a browser fetches; reserve absolute URLs for
+> canonical/OpenGraph metadata.
+
 ### Landing page (data-driven)
 
 The home page (`themes/meghna-hugo/layouts/index.html`) is assembled from **partials**
@@ -558,6 +641,108 @@ into a link and appends a small "Read the docs →" affordance; items without a 
 `(planned)` ones such as S3 or Import/Export) simply omit the key. Styling lives in
 `less/includes/custom.less` (`.feature-doc-link`, mirrored into the compiled `assets/css/main.css`).
 
+Items whose title still ends in `(planned)` are the ones **not** implemented (Image manipulation,
+Import/Export, S3). CLI and GraphQL lost that marker — both ship.
+
+## The /studios/ page
+
+`/studios/` is the **non-technical entry point**: a long, dark, image-led scroller aimed at media
+studios, archives and creators, in contrast to the reference-style docs. It is linked from the top
+navigation as *studios* (`config.toml`, weight 2).
+
+| Piece | Path | Role |
+| --- | --- | --- |
+| Content stub | `content/english/studios/_index.md` | Front matter only — `title`, `description`, `page_css: css/studios.css`. No body. |
+| Copy | `data/en/studios.yml` | **All text.** Hero, problem, three steps, six capability panels, the numbers strip, the sovereignty and audience cards, the closing CTA. |
+| Layout | `themes/meghna-hugo/layouts/studios/list.html` | Section order, image processing, the inline `st-js` bootstrap. |
+| Art | `themes/meghna-hugo/layouts/partials/studios/art-*.html` | One partial per illustration (inline SVG / small markup + CSS). |
+| Styles | `themes/meghna-hugo/assets/css/studios.css` | Plain CSS (custom properties), everything prefixed `.st-*`. **Not** compiled from LESS. |
+| Motion | `themes/meghna-hugo/assets/js/studios.js` | IntersectionObserver reveals + the number count-up. |
+| Photography | `themes/meghna-hugo/assets/images/studios/*.jpg` | Four abstract light-streak Unsplash shots, resized to webp by Hugo at build time. |
+
+Rules to keep when editing it:
+
+* **Change copy in the YAML, not the layout.** Each panel's `art:` key selects its partial by name
+  (`art: faces` → `partials/studios/art-faces.html`) through
+  `{{ partial (printf "studios/art-%s.html" $p.art) $p }}`, so a new panel needs a partial with a
+  matching file name or the build fails.
+* **The stylesheet is page-scoped.** `partials/head.html` emits a `<link>` only for pages that
+  carry `page_css: <asset path>` in front matter. That mechanism is generic — any future bespoke
+  page can use it — but nothing else loads `studios.css` today.
+* **`studios.css` is hand-written CSS.** The theme's `yarn build` only compiles `less/main.less`;
+  do not expect a LESS rebuild to touch it.
+* **Never hide content behind JavaScript.** The reveal animation's hidden start state is scoped to
+  the `.st-js` class that an inline snippet in the layout sets during parse, and a 2.5 s timer in
+  that same snippet removes it again if `studios.js` never runs. Any new "animate in" rule must
+  follow the same shape: `.st-js` hides, `.is-visible` reveals.
+* **All motion is decoration.** The `prefers-reduced-motion` block at the end of `studios.css`
+  disables every animation and transition on the page, so nothing may encode information in
+  movement alone.
+* **No CJK text.** The site ships no CJK webfont; the translation panel deliberately uses
+  Latin-script languages only, because a Japanese line renders as tofu boxes on machines without a
+  system fallback font.
+* Images go through `.Fill "<w>x<h> webp q<n> Center"`, which turns the 1–1.5 MB source JPEGs into
+  15–95 KB webp files. Add new photography to `themes/meghna-hugo/assets/images/studios/`, not to
+  `static/`, or it will be published unprocessed.
+
+## Announcements
+
+`/announcements/` carries release announcements — currently the **MetaLoom 1.0.0** page, which
+describes an **unreleased** version on purpose.
+
+* `content/english/announcements/_index.adoc` — section page (title + `subtitle`).
+* `content/english/announcements/<slug>/index.adoc` — one page bundle per announcement.
+* Layouts: `themes/meghna-hugo/layouts/announcements/{list,single}.html`; styles are the `.ann-*`
+  block at the end of `less/includes/custom.less`.
+
+Front matter beyond `title`/`date`/`description`:
+
+| Key | Purpose |
+| --- | --- |
+| `status` | `upcoming` or `released` — selects the badge colour (`.ann-badge-upcoming` is warm/orange). |
+| `status_label` | The badge text, e.g. `Not released yet`. Defaults to `Released`. |
+| `version` | The version the announcement is about. |
+| `image` | Social card for that announcement (`/images/og-metaloom-1-0-0.jpg` for 1.0.0). |
+
+> **An unreleased version must read as unreleased.** The 1.0.0 page leads with an `[IMPORTANT]`
+> block stating that no artifacts are published and the tree is `1.0.0-SNAPSHOT`, the badge says
+> *Not released yet*, and its social card carries the same label. When the release is actually cut,
+> flip `status` to `released`, update the badge label, drop the `[IMPORTANT]` block and regenerate
+> the card — in one change.
+
+## Social cards & page metadata
+
+`partials/card.html` builds the Open Graph and Twitter/X metadata for **every** page; `head.html`
+uses the same fallback chain for `<title>` and `<meta name="description">`.
+
+* **Title** — `<page title> | MetaLoom`, except the home page, which is just `MetaLoom`.
+* **Description** — page `description:` → Hugo `.Summary` → `site.Params.description`
+  (config.toml), trimmed and truncated to 200 characters.
+* **Image** — a page with its own `image`/`image_webp` (blog posts) shares that; everything else
+  shares `/images/og-default.jpg`, a **1200×630** branded card. `twitter:card` is
+  `summary_large_image`, so a square image would be letterboxed — do not point the default at
+  `banner_square.webp` again.
+* Also emitted: `canonical`, `og:site_name`, `og:type` (`article` for `blog`/`announcements`,
+  `website` otherwise), `og:locale` (`en_US`, derived from the `en-us` locale), `og:image:alt`,
+  and `article:published_time`/`article:author` on articles.
+
+### Regenerating the social cards
+
+The cards in `static/images/og-*.jpg` are **rendered from an HTML template with Playwright** — there
+is no design source file to keep in sync, just re-render:
+
+1. Write a 1200×630 HTML page (dark background, one of the `static/images/extra/*.jpg` light-streak
+   photos, `images/logo_word_big.svg`, headline + one sentence + `metaloom.io`).
+2. Serve `dist/` (e.g. `python3 -m http.server 8099 --directory dist`) so the logo and photo
+   resolve, then screenshot it with the Playwright/Chromium already installed under `loom-ui/`:
+
+   ```js
+   const page = await browser.newPage({ viewport: { width: 1200, height: 630 } });
+   await page.goto('file:///path/to/card.html', { waitUntil: 'networkidle' });
+   await page.screenshot({ path: 'og-default.jpg', type: 'jpeg', quality: 88 });
+   ```
+3. Copy the result into `website/static/images/`. Keep them JPEG and around 50–60 KB.
+
 ## Theme & Layouts
 
 `themes/meghna-hugo/` is a vendored, customized copy of the Meghna Hugo theme.
@@ -567,6 +752,9 @@ into a link and appends a small "Read the docs →" affordance; items without a 
 | `layouts/docs/single.html` | leaf docs pages | 3-col: sticky TOC sidebar (`#toc`, bootstrap-toc) + `<h1>{{.Title}}</h1>` + `{{.Content}}`. |
 | `layouts/docs/list.html` | docs section pages (`_index.adoc`) | centered wide column, no sidebar. |
 | `layouts/index.html` | home page | partial pipeline described above. |
+| `layouts/studios/list.html` | `/studios/` | Bespoke scroller; see [The /studios/ page](#the-studios-page). |
+| `layouts/announcements/list.html` | `/announcements/` | Newest-first list of announcement cards with status badges. |
+| `layouts/announcements/single.html` | one announcement | Docs-style TOC sidebar + a nav of the other announcements. |
 | `layouts/_default/*` , `layouts/author/*` | blog / fallback | article/list/single/baseof. |
 
 The `docs` layout family is selected because pages live under the top-level `docs/` section.
@@ -629,7 +817,18 @@ change the Hugo source and rebuild.
 | File / dir | Purpose |
 | --- | --- |
 | `website/config.toml` | Site config: baseURL, theme, menu, plugins, security exec allow, params. |
-| `website/build.sh` | Theme CSS build (yarn) + `hugo`. |
+| `website/build.sh` | Theme CSS build (yarn) + `hugo` + localhost-link and broken-link checks. |
+| `website/check-links.mjs` | Broken-internal-link + missing-anchor checker over `dist/`. |
+| `website/content/english/studios/_index.md` | The `/studios/` page stub (front matter only; copy lives in `data/en/studios.yml`). |
+| `website/data/en/studios.yml` | **All copy** for `/studios/`. |
+| `website/themes/meghna-hugo/layouts/studios/list.html` | `/studios/` layout + section order. |
+| `website/themes/meghna-hugo/layouts/partials/studios/art-*.html` | The illustrations on `/studios/` (one per panel). |
+| `website/themes/meghna-hugo/assets/css/studios.css` | `/studios/` stylesheet (page-scoped via `page_css`). |
+| `website/themes/meghna-hugo/assets/js/studios.js` | `/studios/` reveal animations + number count-up. |
+| `website/content/english/announcements/**` | Release announcements (`_index.adoc` + one bundle per release). |
+| `website/themes/meghna-hugo/layouts/announcements/*.html` | Announcement list/detail layouts. |
+| `website/themes/meghna-hugo/layouts/partials/card.html` | OG/Twitter metadata for every page (title, description, image chains). |
+| `website/static/images/og-default.jpg`, `og-metaloom-1-0-0.jpg` | 1200×630 social cards. |
 | `website/watch.sh` | Local preview server. |
 | `website/content/english/docs/_index.adoc` | Docs landing (card grid, reading order, concepts). |
 | `website/content/english/docs/**/index.adoc` | Individual customer doc pages (AsciiDoc). |
@@ -639,6 +838,7 @@ change the Hugo source and rebuild.
 | `website/i18n/en.yaml` | UI string translations. |
 | `website/static/` | Verbatim assets: `images/`, `CNAME`, `.nojekyll`. |
 | `website/static/docs/examples/openapi.{json,yaml}` | Staged OpenAPI spec — downloadable and rendered by the API explorer. |
+| `website/themes/meghna-hugo/layouts/partials/func/page-image.html` | Resolves a page's `image_webp`/`image` to a site-relative URL (blog teaser, hero, og:image). |
 | `website/themes/meghna-hugo/static/plugins/swagger/swagger.js` | Swagger UI bootstrap + explorer options. |
 | `website/themes/meghna-hugo/layouts/docs/*.html` | Docs page/section templates. |
 | `website/themes/meghna-hugo/layouts/index.html` | Home-page partial pipeline. |
@@ -653,6 +853,12 @@ change the Hugo source and rebuild.
 | Add/edit a task-oriented guide | `website/content/english/docs/playbooks/<name>/index.adoc` (link it from `playbooks/_index.adoc` **and** `docs/_index.adoc`) |
 | Add a new docs section | New folder under `docs/` with `_index.adoc` (section) + child `index.adoc` pages; link it from `docs/_index.adoc` |
 | Change landing-page text | `website/data/en/<section>.yml` |
+| Change the text on `/studios/` | `website/data/en/studios.yml` (not the layout) |
+| Add/redraw an illustration on `/studios/` | `website/themes/meghna-hugo/layouts/partials/studios/art-<name>.html` + styles in `assets/css/studios.css` |
+| Add a release announcement | New bundle under `website/content/english/announcements/<slug>/index.adoc` with `status`/`status_label` |
+| Change what a shared link looks like (social card) | `website/themes/meghna-hugo/layouts/partials/card.html`; the images are `website/static/images/og-*.jpg` |
+| Give one page its own stylesheet | Front matter `page_css: css/<name>.css` + the asset under `themes/meghna-hugo/assets/css/` |
+| Find out why a link 404s | `cd website && node check-links.mjs` |
 | Change top navigation | `[[Languages.en.menu.main]]` blocks in `config.toml` |
 | Change UI labels ("Read more", menu names, footer links) | `website/i18n/en.yaml` |
 | Record which model a node uses and its license | `website/content/english/docs/legal/model-licenses/index.adoc` |
@@ -662,6 +868,8 @@ change the Hugo source and rebuild.
 | Add global CSS/JS plugin | `[[params.plugins.css]]` / `[[params.plugins.js]]` in `config.toml` |
 | Change site colors/styles | `website/themes/meghna-hugo/less/` (rebuild via `build.sh`) |
 | Add images to a page | Put them in the same page-bundle folder as the `.adoc` |
+| Change how a blog teaser/hero image is resolved | `website/themes/meghna-hugo/layouts/partials/func/page-image.html` |
+| Fix "build fails with localhost links" | Escape the URL in the `.adoc` (`\http://localhost:8092`) — see [the localhost-link check](#the-localhost-link-check) |
 | Change the published domain | `website/static/CNAME` (and staging `docs/CNAME`) + `baseURL` |
 | Fix "asciidoc renders empty" | Ensure `asciidoctor` installed and allowed in `[security.exec]` |
 | Understand how the site is published | [Publishing Flow](#publishing-flow) / `metaloom-website/pull.sh` |
@@ -692,6 +900,34 @@ change the Hugo source and rebuild.
   on shortcodes for these.
 * **Docs section auto-detection.** Pages get the `docs/` layouts purely because they live under
   the top-level `docs/` section — moving a page out of `docs/` changes its template.
+* **`index.adoc` in a folder makes it a *leaf* bundle — its subfolders stop being pages.** This
+  silently swallowed `docs/deployment/helm/`: the page existed in the source tree, three links
+  pointed at it, and Hugo published nothing because `docs/deployment/index.adoc` made the
+  directory a leaf bundle. A section that has (or may gain) child pages must use `_index.adoc`,
+  which also switches it from `docs/single.html` to `docs/list.html` (no TOC sidebar).
+* **A static path in front matter needs a leading slash.** `image: images/team/js.jpg` is resolved
+  against the *page bundle* first and then appended to the page's own URL, which produced
+  `/author/jotschi/images/team/js.jpg`. Write `/images/team/js.jpg`.
+* **Page-scoped CSS exists.** `page_css: css/<name>.css` in front matter makes `head.html` emit one
+  extra stylesheet for that page only. Use it for bespoke pages instead of growing `custom.less`,
+  which is loaded site-wide.
+* **Site-relative over absolute in templates.** Anything the browser fetches (`src`, `href`,
+  stylesheet/plugin paths) must come from `.RelPermalink` / `relURL`, not `.Permalink` / `absURL`.
+  Besides the double-slash trap above, Hugo occasionally resolves `site.BaseURL` to its default
+  `http://localhost:1313/` for a subset of pages in a build (see the open item below) — a relative
+  URL is immune to that.
+* **Hugo sometimes emits `http://localhost:1313` absolute URLs.** Reproducible on Hugo 0.158 *and*
+  0.164: when the theme CSS is recompiled in the same run (i.e. every `./build.sh`), 5–15 of the ~90
+  pages render with `site.BaseURL` = `http://localhost:1313/` even though `config.toml` sets
+  `baseURL = "https://metaloom.io"`; a second `hugo` run without a CSS change comes out clean. It is
+  not a `dist/` staleness issue (it reproduces after `rm -rf dist`) and not concurrency alone
+  (`GOMAXPROCS=1` still shows it). Since the fix above made every *link* relative, what is left
+  affected is absolute-URL **metadata** — `og:url`, `og:image`, `twitter:image:src` and the RSS
+  `<link>`/`<guid>` elements. The `build.sh` check deliberately covers link/resource attributes only,
+  so it does not fail the build on this; see the open item in [Progress](#progress-assessment).
+* **`build.sh` runs `yarn install`**, which rewrites `themes/meghna-hugo/yarn.lock` (and can pin
+  packages to whatever registry the build machine uses). Don't commit that churn along with a
+  content change.
 * **MetaLoom ships no model weights.** Nodes name models by path, repo id or endpoint URL. Any
   license statement on the site is about a model *you* supply, which is why
   `docs/legal/model-licenses/` phrases every row as "default, configurable" and carries a *not legal
@@ -710,8 +946,19 @@ There is no unit/integration test suite for the website; verification is build +
    * A representative doc page (e.g. `/docs/loom/rest-api/`) renders with sidebar TOC and, for
      the REST API page, the embedded Swagger UI loads.
 4. Confirm `dist/` is produced with no Hugo errors (missing `asciidoctor` is the usual failure).
-5. Sanity-check internal links (no 404s) after adding/moving pages.
-6. Dry-run publish: from the sibling `metaloom-website` repo, `./pull.sh` then inspect `docs/`
+5. Internal links are checked automatically — `build.sh` runs `check-links.mjs` and fails on a
+   broken target or a missing `#anchor`. Run `node check-links.mjs` on its own for a quick pass.
+6. For a visual check of `/studios/` (or any page) without a browser, serve `dist/` and drive the
+   Playwright/Chromium already installed under `loom-ui/`:
+
+   ```bash
+   python3 -m http.server 8099 --directory dist &
+   # navigate to http://localhost:8099/studios/, scroll the page so the IntersectionObserver
+   # reveals every section, then screenshot at 1440px and 420px wide
+   ```
+
+   Scroll before shooting: everything on that page starts hidden until it is revealed.
+7. Dry-run publish: from the sibling `metaloom-website` repo, `./pull.sh` then inspect `docs/`
    (do not push unless intending to release).
 
 ## Progress Assessment
@@ -806,6 +1053,50 @@ Current state of the website (as of the checkout below):
       permits, what it covers, and where it stops (model weights, third-party runtimes)
 - [x] Blog section with initial posts
 - [x] GitHub Pages publish flow via sibling `metaloom-website` repo (`pull.sh`, CNAME)
+- [x] Blog teaser/hero/social images resolve through `partials/func/page-image.html` — site-relative,
+      no double slash, banner fallback. Fixes the broken overview cards, whose `src` was
+      `{{ .Permalink }}/{{ .Params.Image_webp }}`
+- [x] `build.sh` fails the build when `dist/` contains a link or resource attribute pointing at
+      localhost; the docs that mentioned a local address in prose or a table now escape it
+      (`\http://localhost:8092`) so Asciidoctor stops auto-linking it
+- [x] **Broken-link check** (`website/check-links.mjs`, wired into `build.sh`) — resolves every
+      internal `href`/`src`/`srcset`/`action`/`poster`/`data-*-url` against the build output and
+      verifies `#anchor` fragments; fails the build with a per-page report
+- [x] The 12 live 404s it found are fixed: `docs/deployment/` became a branch bundle so its
+      **Helm Charts** child is actually built (3 links from the docs landing, 1 from
+      `loom/helm-chart/`, 1 from the Kubernetes playbook), the GraphQL API page's sibling links
+      got their `../`, `getting-started` gained explicit `#loom-ui`/`#loom-app` anchors, and the
+      author page's portrait path was absolutised
+- [x] **`/studios/`** — a design-led, image-led scroller for media studios, archives and creators:
+      full-bleed hero, the "lost filename" problem, an animated pipeline figure, six capability
+      panels each with its own illustration (speech, faces, scenes, translation, fingerprints,
+      chat agent), a numbers strip, the on-premise/open-source section, three audience cards and a
+      one-command CTA. Copy in `data/en/studios.yml`, art in `partials/studios/art-*.html`,
+      page-scoped `assets/css/studios.css` + `assets/js/studios.js`, photography processed to webp
+      by Hugo. Degrades to the finished page with JavaScript off and to a static page under
+      `prefers-reduced-motion`
+- [x] **`/announcements/`** — section, list/detail layouts, `.ann-*` styles, top-menu entry, and
+      the **MetaLoom 1.0.0** announcement: what is in the release (pipeline engine, nodes, agent,
+      APIs, front ends, storage/search/ACL, deployment) plus an *Important points* table (license,
+      no shipped weights, the two non-commercial components, database, hardware, per-worker node
+      availability, API stability) — clearly marked **not released yet** in the badge, the lead
+      block and the social card
+- [x] **Social/summary metadata rebuilt** (`partials/card.html`): `summary_large_image` cards,
+      canonical URL, `og:site_name`/`og:type`/`og:locale`/`og:image:alt`, article timestamps, a
+      real title (`<page> | MetaLoom`) and a description chain (page → summary → site), plus two
+      generated 1200×630 cards (`og-default.jpg`, `og-metaloom-1-0-0.jpg`). The site-wide
+      description fallback is no longer the stale "MetaLoom 2021"
+- [x] `CLI` and `GraphQL` lost their `(planned)` marker in `data/en/feature.yml` — both ship; the
+      CLI blurb now describes the native binary / JAR client
+- [ ] Flip the 1.0.0 announcement from `status: upcoming` to `released` when the release is cut —
+      badge label, the `[IMPORTANT]` lead block and the social card all have to change together
+- [ ] The broken-link check does not fetch **external** links; a dead `https://` link on the site
+      is still invisible. An opt-in network pass (or a scheduled job) would close that
+- [ ] Absolute-URL **metadata** can still come out as `http://localhost:1313` — see the
+      `site.BaseURL` gotcha above. Reproduce with `(cd themes/meghna-hugo && yarn build) && rm -rf
+      dist && hugo && grep -rl localhost:1313 dist/`. Either find the Hugo-side cause (or upgrade
+      past it) and then extend the `build.sh` check to `<meta>`/RSS URLs, or build the site's
+      absolute URLs from a value that cannot be defaulted
 - [ ] Remove/consolidate legacy stub pages (`docs/rest/`, `docs/test/`, top-level
       `docs/configuration/`) into the maintained Loom/Cortex pages
 - [ ] Automate the staging of `loom/doc/src/main/generated/openapi.*` into `website/static/` — it is
@@ -833,5 +1124,5 @@ Current state of the website (as of the checkout below):
 
 ---
 
-_GIT HEAD: `5fbbeebc24506e5bca815fb759e2440d0ff6e56a` (branch `master`)_
-_Generated: 2026-07-26 (UTC)_
+_GIT HEAD: `65e6c4649c639303932384942d4c68d8e9e8360d` (branch `master`)_
+_Generated: 2026-07-27 (UTC)_

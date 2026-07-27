@@ -1,7 +1,7 @@
 <article class="col-lg-4 col-md-6 col-12 clearfix wow fadeInUp mb-4" data-wow-duration="500ms">
   <div class="post-block">
     <div class="media-wrapper">
-      <img class="img-fluid" src="{{ .Permalink }}/{{ .Params.Image_webp }}">
+      <img class="img-fluid" src="{{ partial "func/page-image.html" . }}" alt="{{ .Title }}" loading="lazy">
     </div>
 
     <div class="content">

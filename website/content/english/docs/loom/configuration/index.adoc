@@ -151,7 +151,7 @@ Settings for the built-in link:../chat/[Chat & AI Agent]. The agent is **enabled
 | Variable | Default | Description
 | `LOOM_AI_ENABLED` | `true` | Master switch for the chat agent
 | `LOOM_AI_PROVIDER_TYPE` | `OLLAMA` | LLM provider (`OLLAMA` \| `VLLM`)
-| `LOOM_AI_URL` | `http://127.0.0.1:11434` | Provider base URL
+| `LOOM_AI_URL` | `\http://127.0.0.1:11434` | Provider base URL
 | `LOOM_AI_MODEL_ID` | `gpt-oss:20b` | Model id
 | `LOOM_AI_CONTEXT_WINDOW` | `16384` | Context window (tokens)
 | `LOOM_AI_MAX_TURNS` | `8` | Max tool-calling turns per message

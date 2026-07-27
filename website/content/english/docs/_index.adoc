@@ -35,6 +35,7 @@ This page is the quickest way to orient yourself in the platform and jump to the
 			<div class="docs-card-body">
 				<a href="playbooks/docker/" class="docs-card-link">Docker Deployment</a>
 				<a href="playbooks/kubernetes/" class="docs-card-link">Kubernetes &amp; Helm</a>
+				<a href="deployment/helm/" class="docs-card-link">Helm Charts</a>
 				<a href="playbooks/transcription/" class="docs-card-link">Transcription for Chat</a>
 				<a href="playbooks/scene-analysis/" class="docs-card-link">Scene Analysis</a>
 				<a href="playbooks/translation/" class="docs-card-link">Translation</a>
@@ -179,7 +180,7 @@ The MetaLoom platform revolves around a small set of concepts that appear throug
 		<div class="note p-4 h-100">
 			<h3>Deployment</h3>
 			<p>Both systems ship as JVM artifacts and container images (<code>loom-server</code>, <code>loom-demo</code>, <code>cortex-server</code>, <code>loom-session-runner</code>), with Kubernetes deployment paths.</p>
-			<p><a href="deployment/">Container images</a> · <a href="loom/artifacts/">Loom artifacts</a> · <a href="cortex/artifacts/">Cortex artifacts</a></p>
+			<p><a href="deployment/">Container images</a> · <a href="deployment/helm/">Helm charts</a> · <a href="loom/artifacts/">Loom artifacts</a> · <a href="cortex/artifacts/">Cortex artifacts</a></p>
 		</div>
 	</div>
 </div>
@@ -210,7 +211,7 @@ Choose the documentation track that matches your task:
 | link:pipeline/[Pipeline Mechanism], link:nodes/[Nodes]
 
 | Deploy or operate the system
-| link:playbooks/docker/[Docker Playbook], link:playbooks/kubernetes/[Kubernetes Playbook]
+| link:playbooks/docker/[Docker Playbook], link:playbooks/kubernetes/[Kubernetes Playbook], link:deployment/helm/[Helm Charts]
 | link:cortex/monitoring/[Monitoring], link:loom/metrics/[Loom Metrics], link:cortex/metrics/[Cortex Metrics]
 
 | Build a working pipeline end to end

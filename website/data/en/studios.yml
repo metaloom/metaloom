@@ -1,0 +1,140 @@
+############################# /studios/ — the design-led page for media studios and creators ####
+# Copy only. Structure, art and motion live in themes/meghna-hugo/layouts/studios/list.html and
+# the partials under layouts/partials/studios/. Every `art:` key maps to a partial of the same
+# name (art: filewall -> partials/studios/art-filewall.html), so a new panel needs a matching file.
+
+hero:
+  eyebrow: "For studios, archives and creators"
+  title: "Every frame you own,<br>finally findable."
+  content: "MetaLoom watches, listens to and reads your media — then hands it back as an archive you can actually search. On your hardware."
+  primary:
+    label: "See what it does"
+    link: "#understand"
+  secondary:
+    label: "Run the demo"
+    link: "/docs/getting-started/"
+  scroll_hint: "Scroll"
+
+problem:
+  eyebrow: "The problem"
+  title: "You didn't lose the shot.<br>You lost the filename."
+  content: "The interview is in there. So is the drone pass, the b-roll, the sponsor logo you now need cleared. Somewhere, on a drive, behind a name a camera made up."
+  stat: "A001_C003_0714XY.mxf"
+  stat_note: "Everything an ordinary archive knows about this file."
+
+understand:
+  eyebrow: "What MetaLoom does"
+  title: "Drop in a file.<br>Get back what is inside it."
+  content: "Every asset runs through a pipeline you compose. Each step adds something the next one can use — and everything lands in one searchable index."
+  steps:
+    - label: "Ingest"
+      note: "Point at a folder, a drive or an upload. Files stay where they are if you want them to."
+    - label: "Understand"
+      note: "Speech, faces, scenes, text, quality and fingerprints — extracted by workers you scale yourself."
+    - label: "Search"
+      note: "Full text, structured filters and vector similarity over everything that came out."
+
+panels:
+  - art: transcript
+    eyebrow: "Speech"
+    title: "Search what was said."
+    content: "Spoken audio becomes timecoded text. Jump straight to the sentence instead of scrubbing for it."
+    chips: ["Transcripts", "Timecoded segments", "Runs locally"]
+    link: "/docs/nodes/whisper/"
+    link_label: "Speech-to-text node"
+
+  - art: faces
+    eyebrow: "People"
+    title: "Know who is on screen."
+    content: "Faces are detected, described as vectors and matched across your whole library — so \"every clip with her in it\" becomes a query."
+    chips: ["Face detection", "Descriptions", "Similarity search"]
+    link: "/docs/nodes/facedetect/"
+    link_label: "Face detection node"
+
+  - art: scenes
+    eyebrow: "Picture"
+    title: "Every scene, described."
+    content: "Long takes are cut into scenes, and a vision model writes down what each one shows. Contact sheets come free."
+    chips: ["Scene detection", "Captions", "Thumbnails"]
+    link: "/docs/nodes/scene-detection/"
+    link_label: "Scene detection node"
+
+  - art: languages
+    eyebrow: "Reach"
+    title: "Ship it in another language."
+    content: "Extract, translate, and — when you want it — speak it back in a synthetic voice. One pipeline, end to end."
+    chips: ["Translation", "Subtitles", "Dubbing"]
+    link: "/docs/playbooks/translation/"
+    link_label: "Translation playbook"
+
+  - art: fingerprint
+    eyebrow: "Order"
+    title: "Never ingest the same shot twice."
+    content: "Content hashes catch the exact duplicates. Perceptual fingerprints catch the re-encodes, the crops and the rescales."
+    chips: ["Content hashes", "Perceptual fingerprints", "Dedup"]
+    link: "/docs/nodes/fingerprint/"
+    link_label: "Fingerprint node"
+
+  - art: chat
+    eyebrow: "Ask"
+    title: "Talk to your archive."
+    content: "A built-in agent answers questions about your material in plain language, with the assets it used attached to the answer."
+    chips: ["Chat agent", "Skills", "Memory"]
+    link: "/docs/loom/chat/"
+    link_label: "Chat & AI agent"
+
+numbers:
+  - value: "19"
+    label: "built-in processing nodes"
+  - value: "3"
+    label: "ways in: web, desktop, terminal"
+  - value: "1"
+    label: "command to start the demo"
+  - value: "0"
+    label: "frames sent to a cloud you don't own"
+
+sovereignty:
+  eyebrow: "Your material, your machines"
+  title: "Nothing has to leave the building."
+  content: "MetaLoom runs on your own hardware — a single box under a desk or a Kubernetes cluster in your rack. The platform is Apache 2.0. The models are the ones you choose to install."
+  points:
+    - title: "On-premise by default"
+      note: "No upload step, no per-minute processing bill, no third party holding your rushes."
+    - title: "Open source"
+      note: "Apache 2.0. Read it, fork it, run it after we stop answering emails."
+      link: "/docs/legal/"
+      link_label: "Legal & licensing"
+    - title: "Models you pick"
+      note: "Speech, vision and language models are configuration. Swap them for whatever your policy allows."
+      link: "/docs/legal/model-licenses/"
+      link_label: "Model licenses"
+
+audiences:
+  eyebrow: "Who it is for"
+  title: "Built for people with more footage than time."
+  items:
+    - icon: "ti-video-camera"
+      title: "Post production"
+      note: "Find the take, the frame and the face across every project on the shared storage — without an assistant logging it by hand."
+    - icon: "ti-archive"
+      title: "Broadcast & archive"
+      note: "Turn decades of tape transfers into something searchable, deduplicated and described."
+    - icon: "ti-palette"
+      title: "Creators & agencies"
+      note: "Reuse what you already shot. Cut faster because the archive answers questions instead of listing folders."
+
+cta:
+  eyebrow: "Try it"
+  title: "Point it at a folder tonight."
+  content: "The demo image runs the whole platform with seeded assets and pipelines. One command, no account, nothing to sign."
+  command: "docker run -p 8092:8092 metaloom/loom-demo:latest"
+  command_note: "Then open the UI on port 8092 and log in as admin."
+  primary:
+    label: "Getting started"
+    link: "/docs/getting-started/"
+  secondary:
+    label: "Read the docs"
+    link: "/docs/"
+  tertiary:
+    label: "Join the Discord"
+    link: "https://discord.gg/NFdnFcSbfA"

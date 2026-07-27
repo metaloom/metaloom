@@ -34,6 +34,7 @@ docker run -d \
   metaloom/loom-demo:latest
 ----
 
+[#loom-ui]
 == Open the Loom UI
 
 ++++
@@ -41,7 +42,7 @@ docker run -d \
 	<div class="col-lg-12 mb-4">
 		<div class="docs-card h-100">
 			<div class="docs-card-header">
-				<h2 data-toc-skip><a href="http://localhost:8092/ui/">http://localhost:8092/ui/</a></h2>
+				<h2 data-toc-skip><code>http://localhost:8092/ui/</code></h2>
 				<p>Log in with <strong>admin</strong> / <strong>finger</strong>. The demo database is pre-seeded, so every screen has real content from the first click.</p>
 			</div>
 			<div class="docs-card-body">
@@ -92,9 +93,10 @@ For a screenshot tour of every area, see link:../ui/[Loom UI].
 
 (The password is set by `LOOM_INITIAL_PASSWORD`, which the demo image defaults to `finger`.)
 
-The server itself — REST API, WebSocket and SSE — is on http://localhost:8092 for when you want to
+The server itself — REST API, WebSocket and SSE — is on `\http://localhost:8092` for when you want to
 integrate rather than click.
 
+[#loom-app]
 == Loom App
 
 Loom App is a desktop application built with link:https://www.electronjs.org/[Electron].
@@ -106,7 +108,7 @@ It embeds the Loom UI inside a native window and adds OS-level integrations:
 
 Download the latest release from the link:https://github.com/metaloom/loom-app/releases[Loom App releases page] or build from source.
 
-To connect Loom App to the demo instance, launch the app and point it at `http://localhost:8092`.
+To connect Loom App to the demo instance, launch the app and point it at `\http://localhost:8092`.
 
 == Next Steps
 

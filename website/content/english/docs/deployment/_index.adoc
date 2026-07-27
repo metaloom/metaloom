@@ -41,3 +41,9 @@ documentation referenced a Cortex↔Loom port of `7733` — the current default 
 See link:../getting-started/[Getting Started] to run the demo image, and
 link:../loom/containers/[Loom Containers] / link:../cortex/containers/[Cortex Containers] for
 production deployment examples.
+
+== Kubernetes
+
+To run these images on Kubernetes, MetaLoom ships two Helm charts (`helm/loom` and `helm/cortex`).
+See link:helm/[Helm Charts] for the install flow, values reference and how to deploy a custom Cortex
+worker image, or the link:../playbooks/kubernetes/[Kubernetes playbook] for the underlying manifests.

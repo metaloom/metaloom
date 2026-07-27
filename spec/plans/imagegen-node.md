@@ -71,7 +71,7 @@ magic-prompt expansion can be added later; plain-text prompts work.
 HW), `huggingface-cli login` + accepting the model gate.
 
 **References to mirror**: `tts4j/kokoro4j/` (Dockerized FastAPI model server +
-README skeleton) and the leftover `cortex/nodes/tts/server/server.py` scaffold
+README skeleton) and the `sidecars/tts/server.py` scaffold
 for the FastAPI shape.
 
 ---
@@ -159,7 +159,7 @@ Mirror the whisper/thumbnail test set under `.../imagegen/`:
 | Result types | `cortex/api/.../api/node/{NodeResult,ResultState,NodeOutputKey}.java` |
 | Module wiring | `cortex/cli/.../dagger/NodeCollectionModule.java`; `cortex/nodes/pom.xml` |
 | IT base | `integration-test/.../node/AbstractNodeIntegrationTest.java`, `WhisperNodeIntegrationTest.java` |
-| Sidecar template | `tts4j/kokoro4j/`; `cortex/nodes/tts/server/server.py` (FastAPI shape) |
+| Sidecar template | `tts4j/kokoro4j/`; `sidecars/tts/server.py` (FastAPI shape) |
 | Node spec conventions | `spec/features/pipeline-nodes/NODES.md`; `spec/SPEC_RULES.md`; `spec/guidelines/CODING.md` |
 
 ## Out of scope / follow-ups

@@ -13,7 +13,7 @@ pre-seeded database so every screen has real content.
 
 [TIP]
 ====
-Start the demo container and open *http://localhost:8092/ui/* in your browser. Sign in with the default
+Start the demo container and open `\http://localhost:8092/ui/` in your browser. Sign in with the default
 demo credentials *admin* / *finger*. See link:../getting-started/[Getting Started] for the one-line
 `docker run` command.
 ====

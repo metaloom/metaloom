@@ -1,0 +1,218 @@
+{{/*
+  /studios/ — the design-led page aimed at media studios, archives and creators.
+
+  Copy comes from data/en/studios.yml; the art is inline SVG in partials/studios/art-*.html,
+  selected per panel by its `art:` key. Styling is assets/css/studios.css (loaded via the
+  page's `page_css` front matter), motion is assets/js/studios.js. Nothing here is shared with
+  the docs layouts on purpose — this page has its own visual language.
+*/}}
+{{ define "main" }}
+{{ $d := (index hugo.Data site.Language.Lang).studios }}
+
+{{ partial "navigation.html" . }}
+
+<main class="st-page">
+  {{/* Set the "JS is on" flag during parse, before anything paints — the reveal animation's
+       hidden start state hangs off it (studios.css). The timer is the safety net: if
+       studios.js never runs (blocked, failed integrity check), the class goes away again and
+       the page renders in its finished state rather than staying blank. */}}
+  <script>
+    document.documentElement.classList.add('st-js');
+    setTimeout(function () {
+      if (!window.__stReady) document.documentElement.classList.remove('st-js');
+    }, 2500);
+  </script>
+
+
+  {{/* ---------------------------------------------------------------- hero */}}
+  {{ with $d.hero }}
+  {{ $src := resources.Get "images/studios/hero-threads.jpg" }}
+  <section class="st-hero" id="top">
+    <div class="st-hero-media">
+      <img src="{{ ($src.Fill "1920x1200 webp q68 Center").RelPermalink }}"
+           srcset="{{ ($src.Fill "900x1100 webp q62 Center").RelPermalink }} 900w, {{ ($src.Fill "1920x1200 webp q68 Center").RelPermalink }} 1920w"
+           sizes="100vw" alt="" aria-hidden="true" fetchpriority="high">
+      <div class="st-hero-veil"></div>
+    </div>
+    <div class="st-hero-inner">
+      <p class="st-eyebrow st-reveal">{{ .eyebrow }}</p>
+      <h1 class="st-hero-title st-reveal" data-reveal-delay="1">{{ .title | safeHTML }}</h1>
+      <p class="st-hero-lead st-reveal" data-reveal-delay="2">{{ .content }}</p>
+      {{/* An in-page target ("#understand") must stay a bare fragment — relURL would turn it
+           into "/#understand", which points at the home page. */}}
+      <div class="st-hero-actions st-reveal" data-reveal-delay="3">
+        <a class="st-btn st-btn-primary" href="{{ if hasPrefix .primary.link "#" }}{{ .primary.link }}{{ else }}{{ .primary.link | relURL }}{{ end }}">{{ .primary.label }}</a>
+        <a class="st-btn st-btn-ghost" href="{{ if hasPrefix .secondary.link "#" }}{{ .secondary.link }}{{ else }}{{ .secondary.link | relURL }}{{ end }}">{{ .secondary.label }}</a>
+      </div>
+    </div>
+    <a class="st-scroll-cue" href="#problem" aria-label="{{ .scroll_hint }}">
+      <span>{{ .scroll_hint }}</span>
+      <svg viewBox="0 0 24 34" width="18" height="26" aria-hidden="true">
+        <rect x="1" y="1" width="22" height="32" rx="11" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <circle class="st-scroll-dot" cx="12" cy="10" r="2.6" fill="currentColor"/>
+      </svg>
+    </a>
+  </section>
+  {{ end }}
+
+  {{/* ------------------------------------------------------------- problem */}}
+  {{ with $d.problem }}
+  <section class="st-section st-problem" id="problem">
+    <div class="st-wrap st-split">
+      <div class="st-split-text">
+        <p class="st-eyebrow st-reveal">{{ .eyebrow }}</p>
+        <h2 class="st-title st-reveal">{{ .title | safeHTML }}</h2>
+        <p class="st-lead st-reveal">{{ .content }}</p>
+      </div>
+      <div class="st-split-art st-reveal">
+        {{ partial "studios/art-filewall.html" . }}
+      </div>
+    </div>
+  </section>
+  {{ end }}
+
+  {{/* ---------------------------------------------------------- understand */}}
+  {{ with $d.understand }}
+  <section class="st-section st-understand" id="understand">
+    <div class="st-wrap">
+      <div class="st-section-head">
+        <p class="st-eyebrow st-reveal">{{ .eyebrow }}</p>
+        <h2 class="st-title st-reveal">{{ .title | safeHTML }}</h2>
+        <p class="st-lead st-reveal">{{ .content }}</p>
+      </div>
+      <div class="st-reveal st-pipeline-holder">
+        {{ partial "studios/art-pipeline.html" . }}
+      </div>
+      <ol class="st-steps">
+        {{ range $i, $s := .steps }}
+        <li class="st-step st-reveal" data-reveal-delay="{{ $i }}">
+          <span class="st-step-index">{{ printf "%02d" (add $i 1) }}</span>
+          <h3>{{ $s.label }}</h3>
+          <p>{{ $s.note }}</p>
+        </li>
+        {{ end }}
+      </ol>
+    </div>
+  </section>
+  {{ end }}
+
+  {{/* -------------------------------------------------------------- panels */}}
+  <section class="st-panels" id="capabilities">
+    {{ range $i, $p := $d.panels }}
+    <article class="st-panel{{ if eq (mod $i 2) 1 }} st-panel-flip{{ end }}">
+      <div class="st-wrap st-split">
+        <div class="st-split-text">
+          <p class="st-eyebrow st-reveal">{{ $p.eyebrow }}</p>
+          <h2 class="st-title st-title-sm st-reveal">{{ $p.title | safeHTML }}</h2>
+          <p class="st-lead st-reveal">{{ $p.content }}</p>
+          <ul class="st-chips st-reveal">
+            {{ range $p.chips }}<li>{{ . }}</li>{{ end }}
+          </ul>
+          {{ with $p.link }}
+          <a class="st-link st-reveal" href="{{ . | relURL }}">{{ $p.link_label }} <span aria-hidden="true">&rarr;</span></a>
+          {{ end }}
+        </div>
+        <div class="st-split-art st-reveal">
+          <div class="st-art-frame">
+            {{ partial (printf "studios/art-%s.html" $p.art) $p }}
+          </div>
+        </div>
+      </div>
+    </article>
+    {{ end }}
+  </section>
+
+  {{/* ------------------------------------------------------------- numbers */}}
+  {{ with $d.numbers }}
+  <section class="st-numbers">
+    <div class="st-wrap">
+      <dl class="st-numbers-grid">
+        {{ range $i, $n := . }}
+        <div class="st-number st-reveal" data-reveal-delay="{{ $i }}">
+          <dt class="st-number-value">{{ $n.value }}</dt>
+          <dd class="st-number-label">{{ $n.label }}</dd>
+        </div>
+        {{ end }}
+      </dl>
+    </div>
+  </section>
+  {{ end }}
+
+  {{/* --------------------------------------------------------- sovereignty */}}
+  {{ with $d.sovereignty }}
+  {{ $src := resources.Get "images/studios/grid-lights.jpg" }}
+  <section class="st-section st-sovereignty">
+    <div class="st-bg-media">
+      <img src="{{ ($src.Fill "1600x1000 webp q60 Center").RelPermalink }}" alt="" aria-hidden="true" loading="lazy">
+      <div class="st-bg-veil"></div>
+    </div>
+    <div class="st-wrap">
+      <div class="st-section-head">
+        <p class="st-eyebrow st-reveal">{{ .eyebrow }}</p>
+        <h2 class="st-title st-reveal">{{ .title | safeHTML }}</h2>
+        <p class="st-lead st-reveal">{{ .content }}</p>
+      </div>
+      <div class="st-cards">
+        {{ range $i, $p := .points }}
+        <div class="st-card st-reveal" data-reveal-delay="{{ $i }}">
+          <h3>{{ $p.title }}</h3>
+          <p>{{ $p.note }}</p>
+          {{ with $p.link }}<a class="st-link" href="{{ . | relURL }}">{{ $p.link_label }} <span aria-hidden="true">&rarr;</span></a>{{ end }}
+        </div>
+        {{ end }}
+      </div>
+    </div>
+  </section>
+  {{ end }}
+
+  {{/* ----------------------------------------------------------- audiences */}}
+  {{ with $d.audiences }}
+  <section class="st-section st-audiences">
+    <div class="st-wrap">
+      <div class="st-section-head">
+        <p class="st-eyebrow st-reveal">{{ .eyebrow }}</p>
+        <h2 class="st-title st-reveal">{{ .title | safeHTML }}</h2>
+      </div>
+      <div class="st-cards st-cards-3">
+        {{ range $i, $a := .items }}
+        <div class="st-card st-card-icon st-reveal" data-reveal-delay="{{ $i }}">
+          <i class="{{ $a.icon }}" aria-hidden="true"></i>
+          <h3>{{ $a.title }}</h3>
+          <p>{{ $a.note }}</p>
+        </div>
+        {{ end }}
+      </div>
+    </div>
+  </section>
+  {{ end }}
+
+  {{/* ----------------------------------------------------------------- cta */}}
+  {{ with $d.cta }}
+  {{ $src := resources.Get "images/studios/neon-lines.jpg" }}
+  <section class="st-section st-cta">
+    <div class="st-bg-media">
+      <img src="{{ ($src.Fill "1600x900 webp q60 Center").RelPermalink }}" alt="" aria-hidden="true" loading="lazy">
+      <div class="st-bg-veil"></div>
+    </div>
+    <div class="st-wrap st-cta-inner">
+      <p class="st-eyebrow st-reveal">{{ .eyebrow }}</p>
+      <h2 class="st-title st-reveal">{{ .title | safeHTML }}</h2>
+      <p class="st-lead st-reveal">{{ .content }}</p>
+      <div class="st-command st-reveal">
+        <code>{{ .command }}</code>
+      </div>
+      <p class="st-command-note st-reveal">{{ .command_note }}</p>
+      <div class="st-hero-actions st-reveal">
+        <a class="st-btn st-btn-primary" href="{{ .primary.link | relURL }}">{{ .primary.label }}</a>
+        <a class="st-btn st-btn-ghost" href="{{ .secondary.link | relURL }}">{{ .secondary.label }}</a>
+        <a class="st-btn st-btn-plain" href="{{ .tertiary.link }}">{{ .tertiary.label }}</a>
+      </div>
+    </div>
+  </section>
+  {{ end }}
+
+</main>
+
+{{ $studiosJS := resources.Get "js/studios.js" | minify | fingerprint "sha384" }}
+<script src="{{ $studiosJS.RelPermalink }}" integrity="{{ $studiosJS.Data.Integrity }}" defer></script>
+{{ end }}

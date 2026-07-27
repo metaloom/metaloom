@@ -1,0 +1,11 @@
+# Pinned-loose deps for the ideogram-sidecar PoC.
+# Install torch matching your CUDA first if the default wheel doesn't fit, e.g.
+#   pip install torch --index-url https://download.pytorch.org/whl/cu124
+torch
+diffusers>=0.30
+transformers
+accelerate
+safetensors
+fastapi
+uvicorn[standard]
+pillow

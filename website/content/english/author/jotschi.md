@@ -1,6 +1,7 @@
 ---
 title: "Johannes Schüth"
-image : images/team/js.jpg
+image : /images/team/js.jpg
+image_webp : /images/team/js.webp
 email: "jotschi@metaloom.io"
 social :
   - icon : ti-twitter-alt

@@ -1,0 +1,60 @@
+{{/* Panel art: detection boxes settling onto a frame. The "people" are abstract silhouettes —
+     the site ships no photographs of real faces. */}}
+<div class="st-art st-art-faces" aria-hidden="true">
+  <svg viewBox="0 0 420 260" class="st-faces-svg">
+    <defs>
+      <linearGradient id="st-fc-bg" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#16212b"/>
+        <stop offset="100%" stop-color="#0c1116"/>
+      </linearGradient>
+      <linearGradient id="st-fc-body" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#2b3d4a" stop-opacity=".95"/>
+        <stop offset="100%" stop-color="#1b2731" stop-opacity=".95"/>
+      </linearGradient>
+    </defs>
+
+    <rect x="0" y="0" width="420" height="260" rx="8" fill="url(#st-fc-bg)"/>
+    {{/* horizon + light pool, so the frame reads as a scene rather than an empty box */}}
+    <ellipse cx="210" cy="250" rx="200" ry="46" fill="rgba(87,203,204,.07)"/>
+    <line x1="0" y1="196" x2="420" y2="196" stroke="rgba(255,255,255,.06)" stroke-width="1"/>
+
+    {{/* three silhouettes */}}
+    <g class="st-fc-person">
+      <circle cx="112" cy="112" r="24"/>
+      <path d="M72 196 C 74 154, 150 154, 152 196 Z"/>
+    </g>
+    <g class="st-fc-person">
+      <circle cx="228" cy="98" r="20"/>
+      <path d="M196 196 C 198 148, 258 148, 260 196 Z"/>
+    </g>
+    <g class="st-fc-person st-fc-person-far">
+      <circle cx="330" cy="126" r="15"/>
+      <path d="M308 196 C 309 165, 351 165, 352 196 Z"/>
+    </g>
+
+    {{/* detection boxes */}}
+    <g class="st-fc-box" style="--st-delay:.15s">
+      <rect x="84" y="84" width="56" height="58" rx="3"/>
+      <rect class="st-fc-tag" x="84" y="66" width="66" height="15" rx="3"/>
+      <text x="90" y="77">face 0.99</text>
+    </g>
+    <g class="st-fc-box" style="--st-delay:.45s">
+      <rect x="204" y="74" width="48" height="50" rx="3"/>
+      <rect class="st-fc-tag" x="204" y="56" width="66" height="15" rx="3"/>
+      <text x="210" y="67">face 0.97</text>
+    </g>
+    <g class="st-fc-box" style="--st-delay:.75s">
+      <rect x="313" y="107" width="35" height="38" rx="3"/>
+      <rect class="st-fc-tag" x="313" y="89" width="66" height="15" rx="3"/>
+      <text x="319" y="100">face 0.91</text>
+    </g>
+
+    {{/* scan sweep */}}
+    <rect class="st-fc-scan" x="0" y="0" width="420" height="2"/>
+  </svg>
+  <div class="st-art-strip">
+    <span class="st-pill">3 faces</span>
+    <span class="st-pill">vector descriptors</span>
+    <span class="st-pill st-pill-accent">4 more clips matched</span>
+  </div>
+</div>

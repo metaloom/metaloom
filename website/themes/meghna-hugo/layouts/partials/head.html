@@ -1,10 +1,11 @@
 <head>
 	<meta charset="utf-8">
-	<title>{{ .Title }}</title>
+	<title>{{ if .IsHome }}{{ site.Title }}{{ else }}{{ .Title }} | {{ site.Title }}{{ end }}</title>
 
 	{{ "<!-- mobile responsive meta -->" | safeHTML }}
 	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-	<meta name="description" content="{{ with .Description }}{{ . }}{{ else }}{{ with site.Params.description }}{{ . }}{{ end }}{{ end }}">
+	{{/* Same fallback chain the social cards use: page description → summary → site description. */}}
+	<meta name="description" content="{{ with .Description }}{{ . | plainify }}{{ else }}{{ with .Summary }}{{ trim (. | plainify) " \n\t\r" | truncate 200 }}{{ else }}{{ site.Params.description }}{{ end }}{{ end }}">
 	{{ with site.Params.author }}
 	<meta name="author" content="{{ . }}">{{ end }}
 {{ partial "card.html" . }}
@@ -19,6 +20,15 @@
 	{{"<!-- Main Stylesheet -->"|safeHTML}}
 	{{ $styles := resources.Get "css/main.css" | minify }}
 	<link rel="stylesheet" href="{{ $styles.RelPermalink }}" media="screen">
+
+	{{/* Page-specific stylesheet, named by front matter `page_css: css/<name>.css` (an asset
+	     path). The /studios/ page uses it so its stylesheet never loads on the docs or the
+	     landing page. */}}
+	{{ with .Params.page_css }}
+	{{ with resources.Get . }}
+	<link rel="stylesheet" href="{{ (. | minify).RelPermalink }}" media="screen">
+	{{ end }}
+	{{ end }}
 
 	{{ "<!--Favicon-->" | safeHTML }}
 	<link rel="shortcut icon" href="{{ `images/favicon.png` | relURL }}" type="image/x-icon">

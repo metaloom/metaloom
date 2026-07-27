@@ -1,0 +1,43 @@
+{{ define "main" }}
+
+{{ partial "navigation.html" . }}
+
+<section class="section docs-section">
+  <div class="container">
+    <div class="row">
+      <div class="col-lg-3 d-none d-lg-block">
+        <div class="docs-sidebar toc-sticky-top">
+          <div class="docs-sidebar-title">On this page</div>
+          <nav id="toc"></nav>
+          <nav class="docs-topics" aria-label="More announcements">
+            <div class="docs-sidebar-title">Announcements</div>
+            <ul>
+              {{ range (where site.RegularPages "Section" "announcements").ByDate.Reverse }}
+              <li>
+                <a href="{{ .RelPermalink }}"{{ if eq $.RelPermalink .RelPermalink }} class="is-current"{{ end }}>{{ .Title }}</a>
+              </li>
+              {{ end }}
+            </ul>
+          </nav>
+        </div>
+      </div>
+      <div class="col-lg-9">
+        <div class="docs-page-header ann-page-header">
+          <div class="ann-entry-meta">
+            <span class="ann-badge ann-badge-{{ .Params.status | default `released` }}">{{ .Params.status_label | default `Released` }}</span>
+            <time datetime="{{ .Date.Format `2006-01-02` }}">{{ .Date.Format "2 January 2006" }}</time>
+          </div>
+          <h1>{{ .Title }}</h1>
+          {{ with .Params.description }}<p class="ann-lead">{{ . }}</p>{{ end }}
+        </div>
+        <div class="post-single-content docs-main-content">
+          {{ .Content }}
+        </div>
+        <div class="ann-back">
+          <a href="{{ (site.GetPage "/announcements").RelPermalink }}"><span aria-hidden="true">&larr;</span> All announcements</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{{ end }}

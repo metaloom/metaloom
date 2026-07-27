@@ -1,0 +1,25 @@
+Loading weights:   0%|          | 0/749 [00:00<?, ?it/s]Loading weights:   0%|          | 1/749 [00:00<05:37,  2.22it/s]Loading weights:   3%|▎         | 19/749 [00:00<00:16, 44.65it/s]Loading weights:   5%|▌         | 41/749 [00:00<00:07, 88.86it/s]Loading weights:   9%|▉         | 67/749 [00:00<00:05, 131.51it/s]Loading weights:  12%|█▏        | 91/749 [00:00<00:04, 157.34it/s]Loading weights:  15%|█▌        | 113/749 [00:00<00:03, 172.33it/s]Loading weights:  18%|█▊        | 134/749 [00:01<00:03, 173.74it/s]Loading weights:  21%|██        | 154/749 [00:01<00:03, 179.79it/s]Loading weights:  23%|██▎       | 174/749 [00:01<00:03, 174.39it/s]Loading weights:  26%|██▌       | 193/749 [00:01<00:03, 172.62it/s]Loading weights:  28%|██▊       | 212/749 [00:01<00:03, 174.53it/s]Loading weights:  31%|███       | 231/749 [00:01<00:02, 178.66it/s]Loading weights:  33%|███▎      | 250/749 [00:01<00:02, 181.57it/s]Loading weights:  37%|███▋      | 278/749 [00:01<00:02, 207.14it/s]Loading weights:  42%|████▏     | 316/749 [00:01<00:01, 255.15it/s]Loading weights:  46%|████▌     | 345/749 [00:02<00:01, 262.04it/s]Loading weights:  50%|█████     | 377/749 [00:02<00:01, 270.90it/s]Loading weights:  60%|██████    | 450/749 [00:02<00:00, 402.11it/s]Loading weights:  87%|████████▋ | 654/749 [00:02<00:00, 877.05it/s]Loading weights: 100%|██████████| 749/749 [00:02<00:00, 305.62it/s]
+/home/defaultuser/workspaces/metaloom/ideogram-sidecar/venv/lib/python3.13/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+[W726 20:53:03.825876726 CUDACachingAllocator.cpp:508] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 7798784, total: 12490440704).
+[W726 20:53:03.864399064 CUDACachingAllocator.cpp:508] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 7798784, total: 12490440704).
+Traceback (most recent call last):
+  File "<stdin>", line 9, in <module>
+  File "/home/defaultuser/workspaces/metaloom/ideogram-sidecar/venv/lib/python3.13/site-packages/huggingface_hub/utils/_validators.py", line 88, in _inner_fn
+    return fn(*args, **kwargs)
+  File "/home/defaultuser/workspaces/metaloom/ideogram-sidecar/venv/lib/python3.13/site-packages/diffusers/models/modeling_utils.py", line 1416, in from_pretrained
+    ) = cls._load_pretrained_model(
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        model,
+        ^^^^^^
+    ...<14 lines>...
+        disable_mmap=disable_mmap,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/defaultuser/workspaces/metaloom/ideogram-sidecar/venv/lib/python3.13/site-packages/diffusers/models/modeling_utils.py", line 1763, in _load_pretrained_model
+    _caching_allocator_warmup(model, expanded_device_map, dtype, hf_quantizer)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/defaultuser/workspaces/metaloom/ideogram-sidecar/venv/lib/python3.13/site-packages/diffusers/models/model_loading_utils.py", line 761, in _caching_allocator_warmup
+    _ = torch.empty(warmup_elems, dtype=dtype, device=device, requires_grad=False)
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 4.32 GiB. GPU 0 has a total capacity of 11.63 GiB of which 1.53 GiB is free. Process 1100060 has 10.08 GiB memory in use. Of the allocated memory 9.97 GiB is allocated by PyTorch, and 8.45 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://docs.pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf)

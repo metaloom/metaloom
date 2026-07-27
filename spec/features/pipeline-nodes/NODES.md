@@ -235,7 +235,7 @@ Nodes persist results back to the Loom REST API. Two mechanisms coexist:
 | `OCRNode` | ocr | `ocr` | `ocr_text` (String) | Image only | OCR via Tesseract; configurable language and tessdata path |
 | `TikaNode` | tika | `tika` | `tika_flags` (String), `tika_content` (String) | Image, Audio, Video, Document | Apache Tika metadata extraction |
 | `WhisperNode` | whisper | `whisper` | `whisper_result` (String JSON) | Video, Audio | Speech-to-text via whisper.cpp; persists transcript to Loom |
-| `TtsNode` | tts | `tts` | `tts_flag` (String), `tts_path` (String) | Any (needs upstream text) | **Generative**: text-to-speech from an upstream node's text. DE via Orpheus/Kartoffel, EN via Kokoro, behind a FastAPI `/v1/tts` sidecar (`cortex/nodes/tts/server`). Writes the WAV to the local `tts_bin` cache; ledger only |
+| `TtsNode` | tts | `tts` | `tts_flag` (String), `tts_path` (String) | Any (needs upstream text) | **Generative**: text-to-speech from an upstream node's text. DE via Orpheus/Kartoffel, EN via Kokoro, behind a FastAPI `/v1/tts` sidecar (`sidecars/tts`). Writes the WAV to the local `tts_bin` cache; ledger only |
 | `LLMNode` | llm | `llm` | `llm_result_{promptId}` (String) | Any (uses filename) | LLM-based metadata extraction via Ollama; configurable prompts |
 | `VlmNode` | vlm | `vlm` | `vlm_result_{promptId}` (String) | Image only | Vision-language model over an OpenAI-compatible endpoint; ships an olmOCR document-transcription preset |
 | `QualityNode` | quality | `quality` | `blurriness`, `image_width/height`, `video_width/height/fps/frame_count`, `quality_flag` | Video, Image | Quality metrics (resolution, blurriness via Laplacian) |

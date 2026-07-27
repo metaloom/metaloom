@@ -1,0 +1,156 @@
+---
+title: "MetaLoom 1.0.0"
+date: 2026-07-27T10:00:00+02:00
+version: "1.0.0"
+status: upcoming
+status_label: "Not released yet"
+description: "The scope of the first stable MetaLoom release — pipeline engine, processing nodes, AI agent, APIs, UI, CLI and Kubernetes deployment."
+image: /images/og-metaloom-1-0-0.jpg
+---
+
+:icons: font
+:source-highlighter: prettify
+
+[IMPORTANT]
+====
+**MetaLoom 1.0.0 has not been released yet.** This page describes the scope of the upcoming
+release so you can judge whether it fits your setup. No `1.0.0` container images or Maven
+artifacts are published — everything currently builds from source at `1.0.0-SNAPSHOT`. The
+release date is not fixed; follow the https://discord.gg/NFdnFcSbfA[Discord] or the
+link:../../blog/[blog] to hear about it first.
+====
+
+MetaLoom 1.0.0 is the first release intended for production use. It marks the point where the
+building blocks — the server, the processing fleet, the APIs and the front ends — line up into
+one platform: point it at media, and it works out what is in it, then stores, indexes and serves
+that back to you.
+
+== What Is In the Release
+
+=== Pipeline engine
+
+Loom owns the pipeline graph. It persists run state, resolves the DAG and dispatches individual
+source, node and segment tasks to registered Cortex workers over a WebSocket. Workers hold no
+database and run one task per slot, so scaling out is a matter of starting more of them — and
+heavy kinds (speech-to-text, face detection, vision models) can be pinned to GPU hardware.
+Pipelines are versioned, can be re-run, and every node result is written back with the producer
+version that created it.
+
+See link:../../docs/pipeline/[Pipeline] and link:../../docs/operation/[Operation].
+
+=== Processing nodes
+
+A catalogue of built-in node kinds covering hashing and perceptual fingerprinting, deduplication
+and consistency checks, thumbnails and contact sheets, face detection and face descriptions,
+OCR, document extraction (Tika), speech-to-text (whisper.cpp), scene detection, captioning,
+vision-language models, LLM prompting, text-to-speech, quality metrics, filesystem and asset
+sources, and routing filters. Custom kinds can be written in Java or as a Python worker speaking
+the same wire protocol.
+
+See link:../../docs/nodes/[Nodes] and the link:../../docs/playbooks/python-node/[custom node playbook].
+
+=== Chat and AI agent
+
+A server-side agentic loop that answers questions about your assets in natural language — with
+per-chat **Skills**, a persistent **Memory** bank, publishable **Sessions** and an optional
+isolated coding sandbox for agent-authored scripts.
+
+See link:../../docs/loom/chat/[Chat & AI Agent].
+
+=== APIs
+
+* **REST** — roughly 130 endpoints across 35 resource groups, with a generated OpenAPI document,
+  an in-browser API explorer and a typed Java client.
+* **GraphQL** — nested reads in a single round trip, with an embedded GraphiQL explorer.
+* **WebSocket** — live task and pipeline events, plus the processor protocol Cortex workers speak.
+
+See link:../../docs/loom/rest-api/[REST API], link:../../docs/loom/graphql-api/[GraphQL API] and
+link:../../docs/loom/java-client/[Java Client].
+
+=== Front ends
+
+The **Loom UI** (React) ships inside the server image and covers assets, libraries, tags, tasks,
+detections, pipelines, monitoring, ACL and the chat agent. **Loom App** wraps the same UI in an
+Electron desktop window. The **`metaloom` CLI** talks to the same REST API and ships as a GraalVM
+native binary as well as a runnable JAR.
+
+See link:../../docs/ui/[Loom UI] and link:../../docs/cli/[Command Line].
+
+=== Storage, search and access control
+
+Assets can be referenced in place on disk or uploaded and stored content-addressed. Metadata is
+indexed for full-text and vector search (Elasticsearch, Lucene, Qdrant). Permissions are granted
+on object level through users, groups and roles, and external identity providers (Keycloak,
+Auth0, Okta) are supported over OAuth2 alongside built-in JWT auth.
+
+See link:../../docs/loom/features/[Loom Features] and link:../../docs/loom/authentication/[Authentication].
+
+=== Deployment
+
+Container images for the server, the demo, the Cortex worker and the agent session runner — each
+of the server images in a JVM and a GraalVM native variant. Two Helm charts (`helm/loom`,
+`helm/cortex`) deploy the stack on Kubernetes. Prometheus metrics are exposed by both Loom and
+Cortex.
+
+See link:../../docs/deployment/[Container Images], link:../../docs/deployment/helm/[Helm Charts]
+and the link:../../docs/playbooks/kubernetes/[Kubernetes playbook].
+
+== Important Points
+
+[options="header",cols="1,3"]
+|===
+| Topic | What you should know
+
+| Release status
+| Not released. The version in the source tree is `1.0.0-SNAPSHOT`; published artifacts will
+  follow when the release is cut.
+
+| License
+| The platform is **Apache 2.0**. That covers the code — not the models you point it at.
+
+| Models are not shipped
+| MetaLoom ships no model weights. Every model is a configuration value (a path, a repo id or an
+  endpoint), so the license that applies is the one of the model *you* supply.
+
+| Two components are non-commercial
+| The **InspireFace model packs** used by face detection are academic-use only (which also
+  affects face descriptions downstream), and **Ideogram 4.0**, the model behind the planned
+  image generation node, is non-commercial. See
+  link:../../docs/legal/model-licenses/[Model Licenses] before deploying commercially.
+
+| Database
+| PostgreSQL is the production backend (jOOQ + Flyway). In-memory and filesystem backends exist
+  for development and tests.
+
+| Hardware
+| CPU-only works. Speech-to-text, vision-language and LLM nodes are much happier with a GPU —
+  pin those kinds to dedicated workers.
+
+| Node availability per worker
+| A worker executes the node kinds its build registers. Check the
+  link:../../docs/nodes/[node catalogue] and the worker's `/api/v1/processors` entry rather than
+  assuming every kind is present everywhere.
+
+| API stability
+| 1.0.0 is where the REST and GraphQL surfaces become something we keep stable. Until it is cut,
+  endpoints may still move.
+|===
+
+== After 1.0.0
+
+On the roadmap, not in this release: an S3 storage backend, selective import/export between
+instances, server-side image manipulation (resize, crop, focal point), a gRPC surface and the
+`imagegen` node.
+
+== Try It Before the Release
+
+The demo container runs the whole thing on a laptop with seeded assets, pipelines and users:
+
+[source,bash]
+----
+docker run -p 8092:8092 metaloom/loom-demo:latest
+----
+
+Then follow link:../../docs/getting-started/[Getting Started]. If something does not behave the
+way this page describes, that is worth telling us about on
+https://discord.gg/NFdnFcSbfA[Discord] — feedback before a 1.0 is worth more than after it.

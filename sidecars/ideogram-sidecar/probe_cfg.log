@@ -1,0 +1,40 @@
+Loading weights:   0%|          | 0/749 [00:00<?, ?it/s]Loading weights:  13%|█▎        | 98/749 [00:00<00:00, 979.86it/s]Loading weights:  28%|██▊       | 212/749 [00:00<00:00, 1057.18it/s]Loading weights:  44%|████▍     | 333/749 [00:00<00:00, 1116.88it/s]Loading weights: 100%|█████████▉| 748/749 [00:00<00:00, 2295.57it/s]Loading weights: 100%|██████████| 749/749 [00:00<00:00, 1847.23it/s]
+/home/defaultuser/workspaces/metaloom/ideogram-sidecar/venv/lib/python3.13/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+LOADED both-resident
+  0%|          | 0/48 [00:00<?, ?it/s][W726 20:59:31.462048175 CUDACachingAllocator.cpp:508] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 14090240, total: 12490440704).
+[W726 20:59:31.481877350 CUDACachingAllocator.cpp:508] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 16187392, total: 12490440704).
+[W726 20:59:31.488203695 CUDACachingAllocator.cpp:508] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 16187392, total: 12490440704).
+  0%|          | 0/48 [00:00<?, ?it/s]
+Traceback (most recent call last):
+  File "<stdin>", line 25, in <module>
+  File "/home/defaultuser/workspaces/metaloom/ideogram-sidecar/venv/lib/python3.13/site-packages/torch/utils/_contextlib.py", line 124, in decorate_context
+    return func(*args, **kwargs)
+  File "/home/defaultuser/workspaces/metaloom/ideogram-sidecar/venv/lib/python3.13/site-packages/diffusers/pipelines/ideogram4/pipeline_ideogram4.py", line 683, in __call__
+    pos_out = self.transformer(
+              ~~~~~~~~~~~~~~~~^
+        hidden_states=pos_z,
+        ^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+        return_dict=False,
+        ^^^^^^^^^^^^^^^^^^
+    )[0]
+    ^
+  File "/home/defaultuser/workspaces/metaloom/ideogram-sidecar/venv/lib/python3.13/site-packages/torch/nn/modules/module.py", line 1778, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/home/defaultuser/workspaces/metaloom/ideogram-sidecar/venv/lib/python3.13/site-packages/torch/nn/modules/module.py", line 1789, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/defaultuser/workspaces/metaloom/ideogram-sidecar/venv/lib/python3.13/site-packages/diffusers/utils/peft_utils.py", line 315, in wrapper
+    result = forward_fn(self, *args, **kwargs)
+  File "/home/defaultuser/workspaces/metaloom/ideogram-sidecar/venv/lib/python3.13/site-packages/diffusers/models/transformers/transformer_ideogram4.py", line 429, in forward
+    encoder_hidden_states = self.llm_cond_norm(encoder_hidden_states)
+  File "/home/defaultuser/workspaces/metaloom/ideogram-sidecar/venv/lib/python3.13/site-packages/torch/nn/modules/module.py", line 1778, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/home/defaultuser/workspaces/metaloom/ideogram-sidecar/venv/lib/python3.13/site-packages/torch/nn/modules/module.py", line 1789, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/defaultuser/workspaces/metaloom/ideogram-sidecar/venv/lib/python3.13/site-packages/diffusers/models/normalization.py", line 554, in forward
+    variance = hidden_states.to(torch.float32).pow(2).mean(-1, keepdim=True)
+               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 624.00 MiB. GPU 0 has a total capacity of 11.63 GiB of which 195.44 MiB is free. Process 1113585 has 11.42 GiB memory in use. Of the allocated memory 11.24 GiB is allocated by PyTorch, and 48.58 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://docs.pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf)

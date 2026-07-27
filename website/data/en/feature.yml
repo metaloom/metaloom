@@ -23,7 +23,7 @@ feature:
       content : A built-in conversational assistant backed by a server-side agentic loop. It answers questions about your assets in natural language, with per-chat Skills, a persistent Memory bank, publishable Sessions and an optional isolated coding sandbox.
       link : /docs/loom/chat/
 
-    - title : GraphQL (planned)
+    - title : GraphQL
       icon : ti-settings
       content : In addition to REST the server also provides a GraphQL API which allows you to fetch nested data in one step.
       link : /docs/loom/graphql-api/
@@ -100,9 +100,9 @@ feature:
       content : Media processing runs on a fleet of Cortex worker daemons that register with Loom and execute node tasks it dispatches. Scale out by adding workers, and pin heavy node kinds (face detection, speech-to-text) to dedicated or GPU hardware.
       link : /docs/nodes/
 
-    - title : CLI (planned)
+    - title : CLI
       icon : ti-announcement
-      content : The CLI can be used to run admin tasks and also trigger synchronization tasks for new assets.
+      content : The `metaloom` command line client talks to the same REST API as the web interface — script admin tasks, manage assets and run pipelines. Ships as a native binary (no JVM needed) or a runnable JAR.
       link : /docs/cli/
 
     - title : Kubernetes support / Helm Chart
