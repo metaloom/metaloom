@@ -33,13 +33,6 @@
 						<a class="nav-link" {{ if $active }}aria-current="page" {{ end }}href="{{ if $anchor }}{{ if not $.IsHome }}{{ site.Home.RelPermalink }}{{ end }}{{ $anchor }}{{ .URL }}{{ else }}{{ .URL | relLangURL }}{{ end }}">{{ .Name }}</a>
 					</li>
 					{{ end }}
-					{{ with site.Params.discordLink }}
-					<li class="nav-item nav-item-icon">
-						<a class="nav-link nav-link-icon" href="{{ . }}" rel="noopener" aria-label="MetaLoom on Discord" title="Discord">
-							<i class="fab fa-discord" aria-hidden="true"></i>
-						</a>
-					</li>
-					{{ end }}
 				</ul>
 
 				{{/* Language List */}}
