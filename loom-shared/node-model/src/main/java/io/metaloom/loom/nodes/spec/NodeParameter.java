@@ -43,7 +43,31 @@ public class NodeParameter {
 	@JsonPropertyDescription("Allowed values (for enum/enum-set types)")
 	private List<String> values;
 
+	@JsonPropertyDescription("Syntax-highlighting hint for CODE parameters (e.g. 'javascript', 'groovy')")
+	private String language;
+
+	@JsonPropertyDescription("Preferred editor height in rows (for code/json types)")
+	private Integer rows;
+
 	public NodeParameter() {
+	}
+
+	public String getLanguage() {
+		return language;
+	}
+
+	public NodeParameter setLanguage(String language) {
+		this.language = language;
+		return this;
+	}
+
+	public Integer getRows() {
+		return rows;
+	}
+
+	public NodeParameter setRows(Integer rows) {
+		this.rows = rows;
+		return this;
 	}
 
 	public String getKey() {

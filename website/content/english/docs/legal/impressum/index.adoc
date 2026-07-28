@@ -36,16 +36,8 @@ link:../[licensing information] — is in English.
 | Verantwortlich
 | Johannes Schüth
 
-| Anschrift
-| [Straße und Hausnummer] +
-  [PLZ] Wien +
-  Österreich
-
 | E-Mail
 | mailto:hello@metaloom.io[hello@metaloom.io]
-
-| Telefon
-| [Telefonnummer]
 
 | Website
 | https://metaloom.io

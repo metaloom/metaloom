@@ -3,7 +3,7 @@
 # layouts/partials/home/*.html; styling in assets/css/home.css (shared with /features/).
 #
 # The page is deliberately short: hero → pre-release notice → two doors → what it is →
-# stack → three latest posts. Anything longer belongs on /studios/ (the visual tour),
+# stack → three latest posts. Anything longer belongs on /tour/ (the visual tour),
 # /features/ (the full list) or /docs/ (the reference).
 
 hero:
@@ -13,7 +13,7 @@ hero:
   content: "MetaLoom is an open source media asset platform. Point it at a folder and it transcribes, detects, describes and indexes what is inside — on hardware you control."
   primary:
     label: "See what it does"
-    link: "/studios/"
+    link: "/tour/"
   secondary:
     label: "Read the docs"
     link: "/docs/"
@@ -49,7 +49,7 @@ doors:
       title: "I have an archive I cannot search."
       content: "A short, visual tour of what MetaLoom finds in your footage and how you get it back out."
       label: "Take the tour"
-      link: "/studios/"
+      link: "/tour/"
     - kind: "technical"
       kicker: "APIs and pipelines"
       title: "I want to run and integrate it."

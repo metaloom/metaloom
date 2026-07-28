@@ -38,6 +38,8 @@ public final class ContentTypes {
 	public static final String DATA_FINGERPRINT = "data/fingerprint";
 	public static final String DATA_THUMBNAIL = "data/thumbnail";
 	public static final String DATA_QUALITY = "data/quality";
+	public static final String DATA_DEPTHMAP = "data/depthmap";
+	public static final String DATA_SCENE_LAYOUT = "data/scene_layout";
 
 	// ── Control ─────────────────────────────────────────────────────────
 	public static final String CONTROL_FILTER_RESULT = "control/filter_passed";
@@ -75,6 +77,8 @@ public final class ContentTypes {
 			new ContentType(DATA_FINGERPRINT, "Media Fingerprint"),
 			new ContentType(DATA_THUMBNAIL, "Thumbnail Image"),
 			new ContentType(DATA_QUALITY, "Quality Metrics"),
+			new ContentType(DATA_DEPTHMAP, "Depth Map"),
+			new ContentType(DATA_SCENE_LAYOUT, "Scene Layout"),
 
 			// Control
 			new ContentType(CONTROL_FILTER_RESULT, "Filter Result (bool)")

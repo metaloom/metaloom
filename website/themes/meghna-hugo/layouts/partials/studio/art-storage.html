@@ -1,0 +1,37 @@
+{{/* Panel art: three storage tiers with objects falling through them as they age, while the
+     index above stays the same size and the same speed. Markup + CSS (studio.css). */}}
+<div class="sd-art sd-art-storage" aria-hidden="true">
+  <div class="sd-tier-index">
+    <span class="sd-tier-index-label">index &amp; metadata</span>
+    <span class="sd-tier-index-note">always hot &middot; unchanged</span>
+  </div>
+
+  <div class="sd-tiers">
+    <div class="sd-tier sd-tier-hot">
+      <div class="sd-tier-head"><b>NVMe</b><span>working set</span></div>
+      <div class="sd-tier-bar"><span style="width:22%"></span></div>
+      <span class="sd-tier-size">18 TB</span>
+    </div>
+    <div class="sd-tier sd-tier-warm">
+      <div class="sd-tier-head"><b>S3 standard</b><span>this season</span></div>
+      <div class="sd-tier-bar"><span style="width:58%"></span></div>
+      <span class="sd-tier-size">440 TB</span>
+    </div>
+    <div class="sd-tier sd-tier-cold">
+      <div class="sd-tier-head"><b>S3 glacier / tape</b><span>the archive</span></div>
+      <div class="sd-tier-bar"><span style="width:92%"></span></div>
+      <span class="sd-tier-size">3.1 PB</span>
+    </div>
+    {{/* Objects ageing downwards through the tiers. Three drops on different delays so the
+         movement never reads as one synchronised block. */}}
+    <span class="sd-drop" style="--sd-delay:0s;   left:22%"></span>
+    <span class="sd-drop" style="--sd-delay:1.6s; left:54%"></span>
+    <span class="sd-drop" style="--sd-delay:3.1s; left:76%"></span>
+  </div>
+
+  <p class="sd-tier-foot">
+    <span class="sd-pill sd-pill-accent">MinIO</span>
+    <span class="sd-pill">Ceph</span>
+    <span class="sd-pill">any S3 API</span>
+  </p>
+</div>

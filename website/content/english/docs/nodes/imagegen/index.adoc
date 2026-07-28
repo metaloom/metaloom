@@ -8,8 +8,10 @@ from a text prompt (`GENERATE`) or by remixing the asset's own image guided by a
 and attaches it to the asset.
 
 The diffusion model runs behind a small HTTP sidecar, so the node stays a pure client and needs no
-model runtime of its own. The sidecar is model-agnostic: it ships with **SDXL-Turbo** by default
-(ungated, fast) and can serve other diffusers-compatible models.
+model runtime of its own. The sidecar is model-agnostic, and two are shipped: one serving
+**SDXL-Turbo** by default (ungated, fast) and one serving **Mage-Flow**, whose weights are MIT
+licensed and may therefore be used commercially. Both speak the same contract — pick one with the
+`port` option.
 
 ++++
 <div class="ml-nodeviz" data-nodeviz='{"kind":"imagegen","applies":"Image","badge":"image sidecar","persist":"asset_node_result ledger (the PNG stays in the local imagegen_bin cache)","configs":[{"name":"generate (text-to-image)","note":"mode GENERATE · prompt from node config","inputs":[{"t":"text","l":"prompt","d":"configured prompt"}],"outputs":[{"t":"flag","l":"imagegen_flag"},{"t":"path","l":"imagegen_path","d":"local PNG path"}]},{"name":"remix (image-to-image)","note":"mode REMIX · source image + prompt","inputs":[{"t":"image","l":"source","d":"the asset image"},{"t":"text","l":"prompt","d":"configured prompt"}],"outputs":[{"t":"flag","l":"imagegen_flag"},{"t":"path","l":"imagegen_path","d":"local PNG path"}]}]}'></div>
@@ -55,6 +57,22 @@ curl -s -X POST localhost:9200/generate \
   -H 'content-type: application/json' \
   -d '{"prompt":"a red panda astronaut, studio lighting"}' -o out.png
 ----
+
+=== Choosing the model
+
+[options="header",cols="1,1,2"]
+|===
+| Sidecar | Default port | Weights
+| `sidecars/ideogram-sidecar` | `9200` | SDXL-Turbo — **non-commercial** community licence (Ideogram 4 optional, gated, also non-commercial)
+| `sidecars/mage-flow-sidecar` | `9210` | Mage-Flow 4B — **MIT**, commercial use permitted. Stronger prompt following and legible text, and it also handles `REMIX` as an instruction edit
+|===
+
+For Mage-Flow, set `steps` to match the checkpoint: `4` for the default Turbo variant, `20` for the
+RL-aligned one, `30` for Base. The node always sends `steps`, so leaving it at the `30` default would
+run a 4-step model seven times longer than necessary. Its `strength` option has no effect on
+Mage-Flow, which edits from an instruction rather than a denoise strength. Mage-Flow needs a GPU with
+at least 24 GB; it also applies a content filter that cannot be disabled, and a rejected prompt is
+reported as an error rather than producing an image.
 
 == Use Cases
 

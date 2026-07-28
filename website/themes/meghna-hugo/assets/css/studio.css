@@ -1,0 +1,1258 @@
+/* ==========================================================================
+   /studio/ — MetaLoom Studio, the commercial edition.
+
+   Loaded only on pages that carry `page_css: css/studio.css` in front matter
+   (see partials/head.html), so none of this reaches the docs or the landing
+   page. Everything is scoped under .sd-page and prefixed .sd-*.
+
+   Deliberately the warm twin of tour.css: same dark surfaces, same rhythm,
+   same reveal vocabulary — but the accent is amber (#e2a86e, the site's warm
+   colour) instead of teal. Teal survives here as --sd-teal and marks one
+   thing only: what is open source. A reader who lands on /studio/ from
+   /tour/ should be able to tell the pages apart before reading a word.
+
+   House rules kept from the rest of the site: motion is decoration only and
+   stops completely under prefers-reduced-motion.
+   ========================================================================== */
+
+/* In-page jumps (the hero's "What stays open", the scroll cue, "Talk to us about it") glide,
+   and stop clear of the sticky site header instead of underneath it. */
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 90px;
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+
+/* The theme's page background (#353b43) otherwise shows through the stable scrollbar gutter
+   custom.less reserves, as a light strip down the right edge of this very dark page. */
+body { background-color: #0b0e13; }
+
+.sd-page {
+  --sd-bg: #0b0e13;
+  --sd-bg-alt: #12131a;
+  --sd-surface: rgba(255, 255, 255, .035);
+  --sd-line: rgba(255, 255, 255, .09);
+  --sd-fg: #eef2f6;
+  --sd-fg-dim: #aab6c2;
+  --sd-muted: #7d8894;
+  --sd-accent: #e2a86e;
+  --sd-accent-bright: #ffcf9b;
+  --sd-accent-soft: rgba(226, 168, 110, .14);
+  --sd-teal: #57cbcc;          /* reserved for "this is the open source part" */
+  --sd-danger: #e2756e;
+
+  background: var(--sd-bg);
+  color: var(--sd-fg-dim);
+  overflow-x: hidden;
+  font-family: "Anaheim", sans-serif;
+}
+
+/* --------------------------------------------------------------- structure */
+.sd-wrap {
+  margin: 0 auto;
+  max-width: 1180px;
+  padding: 0 28px;
+  position: relative;
+  width: 100%;
+  z-index: 2;
+}
+
+.sd-section {
+  padding: 120px 0;
+  position: relative;
+}
+
+.sd-section-head {
+  margin: 0 auto 60px;
+  max-width: 760px;
+  text-align: center;
+}
+
+.sd-split {
+  align-items: center;
+  display: grid;
+  gap: 64px;
+  grid-template-columns: 1fr 1fr;
+}
+/* A grid track of `1fr` is minmax(min-content, 1fr), and several illustrations hold
+   white-space: nowrap runs (the audit line, the group→role rows, the image digest) whose
+   min-content is far wider than a phone. Without this the column refuses to shrink and the
+   whole panel is clipped by .sd-page's overflow-x. Anything that then does not fit is meant
+   to be handled inside the art — .sd-art-frame clips, the nowrap runs ellipsise. */
+.sd-split > * { min-width: 0; }
+
+/* ------------------------------------------------------------- typography */
+.sd-eyebrow {
+  color: var(--sd-accent);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .18em;
+  margin-bottom: 18px;
+  text-transform: uppercase;
+}
+
+.sd-page .sd-title {
+  color: var(--sd-fg);
+  font-family: "Quattrocento Sans", sans-serif;
+  font-size: clamp(2rem, 4.2vw, 3.4rem);
+  font-weight: 700;
+  letter-spacing: -.02em;
+  line-height: 1.08;
+  margin: 0 0 22px;
+}
+
+.sd-page .sd-title-sm {
+  font-size: clamp(1.7rem, 3vw, 2.5rem);
+}
+
+.sd-lead {
+  color: var(--sd-fg-dim);
+  font-size: clamp(1.02rem, 1.35vw, 1.22rem);
+  line-height: 1.65;
+  margin: 0 auto;
+  max-width: 640px;
+}
+
+.sd-split-text .sd-lead,
+.sd-split-text .sd-eyebrow { margin-left: 0; }
+
+/* ---------------------------------------------------- buttons, links, tags */
+.sd-btn {
+  border: 1px solid transparent;
+  border-radius: 40px;
+  display: inline-block;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: .01em;
+  padding: 14px 32px;
+  transition: transform .18s ease, background-color .18s ease, border-color .18s ease, color .18s ease;
+  white-space: nowrap;
+}
+.sd-btn:hover { text-decoration: none; transform: translateY(-2px); }
+
+.sd-btn-primary {
+  background: var(--sd-accent);
+  color: #2d1a08;
+}
+.sd-btn-primary:hover { background: var(--sd-accent-bright); color: #2d1a08; }
+
+.sd-btn-ghost {
+  border-color: rgba(255, 255, 255, .28);
+  color: var(--sd-fg);
+}
+.sd-btn-ghost:hover { border-color: var(--sd-accent); color: var(--sd-accent-bright); }
+
+.sd-btn-plain {
+  color: var(--sd-fg-dim);
+  padding-left: 12px;
+  padding-right: 12px;
+}
+.sd-btn-plain:hover { color: var(--sd-accent-bright); }
+
+.sd-page a.sd-link {
+  color: var(--sd-accent);
+  display: inline-block;
+  font-size: 15px;
+  font-weight: 700;
+  margin-top: 8px;
+}
+.sd-page a.sd-link:hover { color: var(--sd-accent-bright); text-decoration: none; }
+.sd-page a.sd-link span { transition: transform .18s ease; display: inline-block; }
+.sd-page a.sd-link:hover span { transform: translateX(4px); }
+
+.sd-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  list-style: none;
+  margin: 26px 0 6px;
+  padding: 0;
+}
+.sd-chips li {
+  background: var(--sd-surface);
+  border: 1px solid var(--sd-line);
+  border-radius: 20px;
+  color: var(--sd-fg-dim);
+  font-size: 13px;
+  padding: 6px 15px;
+}
+
+.sd-pill {
+  background: rgba(255, 255, 255, .05);
+  border: 1px solid var(--sd-line);
+  border-radius: 16px;
+  color: var(--sd-fg-dim);
+  font-size: 11.5px;
+  letter-spacing: .02em;
+  padding: 4px 12px;
+  white-space: nowrap;
+}
+.sd-pill-accent {
+  background: var(--sd-accent-soft);
+  border-color: rgba(226, 168, 110, .5);
+  color: var(--sd-accent-bright);
+}
+
+/* -------------------------------------------------------------- reveal fx
+   Shared vocabulary with the other design-led pages (assets/js/reveal.js): the hidden
+   start state applies only while `.reveal-js` is set, so a reader without JavaScript
+   gets the finished page instead of an empty one. Every "animate in" rule below has
+   the same shape — `.reveal-js` hides, `.is-visible` reveals. */
+.reveal-js .reveal {
+  opacity: 0;
+  transform: translateY(26px);
+  transition: opacity .7s cubic-bezier(.2, .7, .2, 1), transform .7s cubic-bezier(.2, .7, .2, 1);
+  will-change: opacity, transform;
+}
+.reveal-js .reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* Shared "arrive from below, fade in" keyframe used by most of the illustrations. Each
+   element sets its own --sd-delay so a group staggers without extra classes. */
+@keyframes sd-fade-up {
+  from { opacity: 0; transform: translateY(9px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes sd-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ------------------------------------------------------------------- hero */
+.sd-hero {
+  align-items: center;
+  display: flex;
+  min-height: min(94vh, 900px);
+  overflow: hidden;
+  padding: 90px 0 120px;
+  position: relative;
+}
+.sd-hero-media {
+  inset: 0;
+  isolation: isolate; /* keeps the blended light layers from bleeding onto the page below */
+  overflow: hidden;
+  position: absolute;
+  z-index: 0;
+}
+.sd-hero-media img {
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 45%;
+  width: 100%;
+  animation: sd-hero-drift 30s ease-in-out infinite alternate;
+}
+@keyframes sd-hero-drift {
+  from { transform: scale(1.05) translate3d(0, 0, 0); }
+  to   { transform: scale(1.13) translate3d(1.6%, -1.4%, 0); }
+}
+
+/* ---- light travelling across the picture ----
+   Same technique as the tour hero (gradient stripes slid across a photograph and blended into
+   it), tuned to this photo and to the warm accent. Only transform and opacity animate, so this
+   stays on the compositor and never repaints the full-bleed image. */
+.sd-hero-sweep {
+  background: linear-gradient(102deg,
+    rgba(255, 255, 255, 0) 34%,
+    rgba(255, 226, 190, .16) 46%,
+    rgba(255, 207, 155, .44) 50%,
+    rgba(255, 226, 190, .16) 54%,
+    rgba(255, 255, 255, 0) 66%);
+  inset: -45%;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  position: absolute;
+  will-change: transform;
+  animation: sd-hero-travel 9s linear infinite;
+}
+.sd-hero-sweep-slow {
+  background: linear-gradient(102deg,
+    rgba(255, 255, 255, 0) 26%,
+    rgba(226, 168, 110, .26) 50%,
+    rgba(255, 255, 255, 0) 74%);
+  animation-duration: 17s;
+  animation-delay: -6s;
+  mix-blend-mode: soft-light;
+}
+@keyframes sd-hero-travel {
+  from { transform: translate3d(-32%, -10%, 0); }
+  to   { transform: translate3d(32%, 10%, 0); }
+}
+
+/* A slow swell of warmth over the picture — opacity only, so it costs nothing. */
+.sd-hero-breathe {
+  background: radial-gradient(64% 54% at 64% 44%, rgba(226, 168, 110, .46) 0%, rgba(226, 168, 110, 0) 72%);
+  inset: 0;
+  mix-blend-mode: screen;
+  pointer-events: none;
+  position: absolute;
+  animation: sd-hero-breathe 11s ease-in-out infinite alternate;
+}
+@keyframes sd-hero-breathe {
+  from { opacity: .38; }
+  to   { opacity: 1; }
+}
+
+.sd-hero-veil {
+  inset: 0;
+  position: absolute;
+  background:
+    radial-gradient(70% 60% at 78% 40%, rgba(226, 168, 110, .18) 0%, rgba(226, 168, 110, 0) 70%),
+    radial-gradient(120% 80% at 16% 42%, rgba(11, 14, 19, .95) 0%, rgba(11, 14, 19, .74) 42%, rgba(11, 14, 19, .34) 72%),
+    linear-gradient(180deg, rgba(11, 14, 19, .82) 0%, rgba(11, 14, 19, .1) 34%, rgba(11, 14, 19, .55) 78%);
+}
+
+/* The picture must not end on a hard edge: the bottom dissolves into the page background. */
+.sd-hero-fade {
+  background: linear-gradient(180deg,
+    rgba(11, 14, 19, 0) 0%,
+    rgba(11, 14, 19, .35) 34%,
+    rgba(11, 14, 19, .82) 68%,
+    var(--sd-bg) 100%);
+  bottom: 0;
+  height: 46%;
+  left: 0;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+}
+.sd-hero-inner {
+  margin: 0 auto;
+  max-width: 1180px;
+  padding: 0 28px;
+  position: relative;
+  width: 100%;
+  z-index: 2;
+}
+.sd-page .sd-hero-title {
+  color: #fff;
+  font-family: "Quattrocento Sans", sans-serif;
+  font-size: clamp(2.6rem, 6.4vw, 5.2rem);
+  font-weight: 700;
+  letter-spacing: -.03em;
+  line-height: 1.02;
+  margin: 0 0 26px;
+  max-width: 15ch;
+  text-shadow: 0 2px 40px rgba(0, 0, 0, .6);
+}
+.sd-hero-lead {
+  color: #cbd6e0;
+  font-size: clamp(1.05rem, 1.6vw, 1.35rem);
+  line-height: 1.6;
+  margin: 0 0 38px;
+  max-width: 52ch;
+}
+.sd-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+/* The "not for sale yet" line. Same warm status device as the home page hero — the pre-release
+   state of this product is not a footnote, so it sits directly under the buttons. */
+.sd-status {
+  align-items: center;
+  color: #d9c3a8;
+  display: inline-flex;
+  font-size: 13.5px;
+  gap: 10px;
+  margin: 26px 0 0;
+}
+.sd-status-dot {
+  background: var(--sd-accent);
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px rgba(226, 168, 110, .16);
+  flex: none;
+  height: 8px;
+  width: 8px;
+  animation: sd-blink 2.6s ease-in-out infinite;
+}
+@keyframes sd-blink { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+
+.sd-scroll-cue {
+  align-items: center;
+  bottom: 38px;
+  color: rgba(255, 255, 255, .55);
+  display: flex;
+  flex-direction: column;
+  font-size: 11px;
+  gap: 8px;
+  left: 50%;
+  letter-spacing: .22em;
+  position: absolute;
+  text-transform: uppercase;
+  transform: translateX(-50%);
+  z-index: 3;
+}
+.sd-scroll-cue:hover { color: var(--sd-accent-bright); text-decoration: none; }
+.sd-scroll-dot { animation: sd-scroll 1.9s ease-in-out infinite; }
+@keyframes sd-scroll {
+  0%, 100% { transform: translateY(0); opacity: 1; }
+  50% { transform: translateY(9px); opacity: .35; }
+}
+
+/* -------------------------------------------------------------- open core */
+.sd-open { background: linear-gradient(180deg, var(--sd-bg) 0%, var(--sd-bg-alt) 100%); }
+
+/* ---- the ledger: what is open (teal) next to what Studio adds (amber) ---- */
+.sd-ledger {
+  background: linear-gradient(160deg, rgba(255, 255, 255, .05), rgba(255, 255, 255, .012));
+  border: 1px solid var(--sd-line);
+  border-radius: 16px;
+  box-shadow: 0 40px 80px -50px rgba(0, 0, 0, .95);
+  display: grid;
+  gap: 0;
+  grid-template-columns: 1fr 1fr;
+  overflow: hidden;
+  position: relative;
+}
+.sd-ledger-col { padding: 26px 24px; }
+.sd-ledger-head {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .16em;
+  margin-bottom: 18px;
+  text-transform: uppercase;
+}
+.sd-ledger-open .sd-ledger-head { color: var(--sd-teal); }
+.sd-ledger-studio .sd-ledger-head { color: var(--sd-accent); }
+.sd-ledger-studio { background: rgba(226, 168, 110, .05); }
+.sd-ledger ul { list-style: none; margin: 0; padding: 0; }
+.sd-ledger li {
+  align-items: baseline;
+  color: var(--sd-fg-dim);
+  display: flex;
+  font-size: 13.5px;
+  gap: 10px;
+  line-height: 1.45;
+  padding: 8px 0;
+}
+.is-visible .sd-ledger li {
+  animation: sd-fade-up .5s ease-out backwards;
+  animation-delay: var(--sd-delay, 0s);
+}
+.sd-tick { color: var(--sd-teal); flex: none; font-size: 12px; }
+.sd-plus { color: var(--sd-accent); flex: none; font-size: 15px; font-weight: 700; line-height: 1; }
+
+/* The seam between the columns draws itself in once, top to bottom, when the card is revealed. */
+.sd-ledger-seam {
+  background: linear-gradient(180deg, transparent, var(--sd-accent) 22%, var(--sd-teal) 78%, transparent);
+  bottom: 0;
+  left: 50%;
+  opacity: .5;
+  position: absolute;
+  top: 0;
+  width: 1px;
+}
+.is-visible .sd-ledger-seam { animation: sd-seam .9s ease-out backwards; }
+@keyframes sd-seam { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+
+/* ---- the three rules ---- */
+.sd-rules {
+  display: grid;
+  gap: 28px;
+  grid-template-columns: repeat(3, 1fr);
+  list-style: none;
+  margin: 76px 0 0;
+  padding: 0;
+}
+.sd-rule { border-top: 1px solid var(--sd-line); padding-top: 22px; }
+.sd-rule-index {
+  color: var(--sd-accent);
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 12px;
+  letter-spacing: .1em;
+}
+.sd-page .sd-rule h3 {
+  color: var(--sd-fg);
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 8px 0 10px;
+}
+.sd-rule p { color: var(--sd-muted); font-size: 15px; line-height: 1.6; margin: 0; }
+
+/* ---------------------------------------------------------------- panels */
+.sd-panels { background: var(--sd-bg); }
+.sd-panel { padding: 110px 0; position: relative; }
+.sd-panel + .sd-panel { border-top: 1px solid rgba(255, 255, 255, .05); }
+.sd-panel-flip .sd-split-text { order: 2; }
+.sd-panel-flip .sd-split-art { order: 1; }
+
+.sd-art-frame {
+  background: linear-gradient(160deg, rgba(255, 255, 255, .055), rgba(255, 255, 255, .012));
+  border: 1px solid var(--sd-line);
+  border-radius: 16px;
+  box-shadow: 0 40px 80px -50px rgba(0, 0, 0, .95);
+  overflow: hidden;
+  padding: 24px;
+  position: relative;
+}
+.sd-art-frame::after {
+  background: radial-gradient(60% 50% at 50% 0%, rgba(226, 168, 110, .15), transparent 70%);
+  content: "";
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+.sd-art { position: relative; z-index: 1; }
+
+/* ---- identity art ---- */
+.sd-idp-row {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr auto 1fr;
+}
+.sd-idp-box {
+  background: rgba(255, 255, 255, .035);
+  border: 1px solid var(--sd-line);
+  border-radius: 10px;
+  padding: 13px 15px;
+  text-align: center;
+}
+.sd-idp-box-target { border-color: rgba(226, 168, 110, .45); background: var(--sd-accent-soft); }
+.sd-idp-kicker {
+  color: var(--sd-muted);
+  display: block;
+  font-size: 10px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+.sd-idp-names { color: var(--sd-fg); display: block; font-size: 13px; margin-top: 6px; }
+.sd-idp-box-target .sd-idp-names { color: var(--sd-accent-bright); }
+.sd-idp-wire { position: relative; text-align: center; }
+.sd-idp-wire svg { display: block; }
+.sd-wire-track { fill: none; stroke: rgba(255, 255, 255, .16); stroke-width: 1.4; }
+.sd-wire-flow {
+  fill: none;
+  stroke: var(--sd-accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 3 10;
+  opacity: .9;
+}
+.reveal-js .sd-wire-flow { opacity: 0; }
+.is-visible .sd-wire-flow { animation: sd-dash 1.4s linear infinite; opacity: .9; }
+@keyframes sd-dash { to { stroke-dashoffset: -26; } }
+.sd-idp-token {
+  color: var(--sd-accent);
+  display: block;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: .12em;
+  margin-top: 2px;
+}
+
+.sd-map { list-style: none; margin: 22px 0 0; padding: 0; }
+.sd-map li {
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, .06);
+  display: flex;
+  gap: 10px;
+  padding: 9px 2px;
+}
+.is-visible .sd-map li {
+  animation: sd-fade-up .5s ease-out backwards;
+  animation-delay: var(--sd-delay, 0s);
+}
+.sd-map code {
+  background: none;
+  color: var(--sd-fg-dim);
+  flex: 1;
+  min-width: 0;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 12px;
+  overflow: hidden;
+  padding: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sd-map-arrow { color: rgba(255, 255, 255, .3); font-size: 13px; }
+.sd-map b { color: var(--sd-fg); font-size: 13px; min-width: 66px; text-align: right; }
+.sd-map-gone code { text-decoration: line-through; opacity: .55; }
+.sd-map-gone b { color: var(--sd-danger); }
+
+.sd-audit {
+  align-items: center;
+  min-width: 0;
+  color: var(--sd-muted);
+  display: flex;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 11px;
+  gap: 9px;
+  margin: 18px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sd-audit em { color: var(--sd-accent); font-style: normal; }
+.sd-audit-dot {
+  background: var(--sd-accent);
+  border-radius: 50%;
+  flex: none;
+  height: 6px;
+  width: 6px;
+}
+.is-visible .sd-audit-dot { animation: sd-blink 1.8s ease-in-out infinite 1.4s; }
+
+/* ---- storage art ---- */
+.sd-tier-index {
+  background: var(--sd-accent-soft);
+  border: 1px solid rgba(226, 168, 110, .4);
+  border-radius: 9px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  padding: 11px 14px;
+}
+.sd-tier-index-label { color: var(--sd-accent-bright); font-size: 13px; font-weight: 700; }
+.sd-tier-index-note { color: var(--sd-muted); font-size: 11.5px; }
+
+.sd-tiers { position: relative; }
+.sd-tier + .sd-tier { margin-top: 14px; }
+.sd-tier-head {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.sd-tier-head b { color: var(--sd-fg); font-size: 13px; font-weight: 700; }
+.sd-tier-head span { color: var(--sd-muted); font-size: 11.5px; }
+.sd-tier-bar {
+  background: rgba(255, 255, 255, .06);
+  border-radius: 4px;
+  height: 12px;
+  overflow: hidden;
+}
+.sd-tier-bar span {
+  border-radius: 4px;
+  display: block;
+  height: 100%;
+  transform-origin: left center;
+}
+.sd-tier-hot .sd-tier-bar span    { background: linear-gradient(90deg, #ffcf9b, #e2a86e); }
+.sd-tier-warm .sd-tier-bar span   { background: linear-gradient(90deg, #e2a86e, #a97a52); }
+.sd-tier-cold .sd-tier-bar span   { background: linear-gradient(90deg, #5b7c8d, #2f4552); }
+.is-visible .sd-tier-bar span { animation: sd-grow .8s cubic-bezier(.2, .7, .2, 1) backwards; }
+.sd-tier-warm .sd-tier-bar span { animation-delay: .15s; }
+.sd-tier-cold .sd-tier-bar span { animation-delay: .3s; }
+@keyframes sd-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.sd-tier-size {
+  color: var(--sd-muted);
+  display: block;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 10.5px;
+  margin-top: 5px;
+  text-align: right;
+}
+
+/* Objects ageing downwards through the tiers. */
+.sd-drop {
+  background: var(--sd-accent-bright);
+  border-radius: 2px;
+  box-shadow: 0 0 10px rgba(255, 207, 155, .8);
+  height: 6px;
+  opacity: 0;
+  position: absolute;
+  top: 22px;
+  width: 6px;
+}
+.is-visible .sd-drop {
+  animation: sd-drop 4.6s ease-in-out infinite;
+  animation-delay: var(--sd-delay, 0s);
+}
+@keyframes sd-drop {
+  0%   { opacity: 0; transform: translateY(0); }
+  12%  { opacity: 1; }
+  50%  { opacity: 1; transform: translateY(62px); }
+  88%  { opacity: .5; transform: translateY(124px); background: #5b7c8d; box-shadow: none; }
+  100% { opacity: 0; transform: translateY(124px); background: #5b7c8d; box-shadow: none; }
+}
+
+.sd-tier-foot { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 0; }
+
+/* ---- licensing art ---- */
+.sd-lic-list { list-style: none; margin: 0; padding: 0; }
+.sd-lic {
+  align-items: flex-start;
+  background: rgba(255, 255, 255, .025);
+  border: 1px solid var(--sd-line);
+  border-radius: 9px;
+  display: flex;
+  gap: 12px;
+  margin-bottom: 9px;
+  padding: 11px 14px;
+}
+.is-visible .sd-lic {
+  animation: sd-fade-up .5s ease-out backwards;
+  animation-delay: var(--sd-delay, 0s);
+}
+.sd-lic-mark {
+  border-radius: 50%;
+  flex: none;
+  font-size: 11px;
+  height: 20px;
+  line-height: 20px;
+  text-align: center;
+  width: 20px;
+}
+.sd-lic-blocked { border-color: rgba(226, 117, 110, .32); }
+.sd-lic-blocked .sd-lic-mark { background: rgba(226, 117, 110, .18); color: var(--sd-danger); }
+.sd-lic-cond .sd-lic-mark { background: rgba(226, 168, 110, .16); color: var(--sd-accent); font-weight: 700; }
+.sd-lic-body { display: block; }
+.sd-lic-body b { color: var(--sd-fg-dim); display: block; font-size: 13.5px; font-weight: 700; }
+.sd-lic-body em {
+  color: var(--sd-muted);
+  display: block;
+  font-size: 11.5px;
+  font-style: normal;
+  margin-top: 3px;
+}
+.sd-lic-blocked .sd-lic-body b { text-decoration: line-through; text-decoration-color: rgba(226, 117, 110, .6); }
+
+.sd-lic-swap {
+  color: rgba(255, 255, 255, .25);
+  font-size: 18px;
+  margin: 4px 0;
+  text-align: center;
+}
+
+.sd-lic-cleared {
+  background: linear-gradient(150deg, rgba(226, 168, 110, .18), rgba(226, 168, 110, .04));
+  border: 1px solid var(--sd-accent);
+  border-radius: 10px;
+  box-shadow: 0 14px 44px -20px rgba(226, 168, 110, .8);
+  padding: 16px 18px;
+  position: relative;
+}
+.is-visible .sd-lic-cleared {
+  animation: sd-fade-up .6s cubic-bezier(.2, .8, .3, 1) backwards;
+  animation-delay: var(--sd-delay, 0s);
+}
+.sd-lic-cleared b { color: #fff; display: block; font-size: 15px; font-weight: 700; }
+.sd-lic-cleared em {
+  color: #e6d3bd;
+  display: block;
+  font-size: 12px;
+  font-style: normal;
+  margin-top: 5px;
+}
+.sd-lic-stamp {
+  border: 1.5px solid var(--sd-accent);
+  border-radius: 5px;
+  color: var(--sd-accent-bright);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .18em;
+  padding: 3px 9px;
+  position: absolute;
+  right: 14px;
+  top: 14px;
+  text-transform: uppercase;
+  transform: rotate(-6deg);
+}
+.is-visible .sd-lic-stamp { animation: sd-stamp .45s cubic-bezier(.2, .9, .3, 1) 1.15s backwards; }
+@keyframes sd-stamp {
+  from { opacity: 0; transform: rotate(-6deg) scale(1.9); }
+  to   { opacity: 1; transform: rotate(-6deg) scale(1); }
+}
+
+/* ---- operations art ---- */
+.sd-lane + .sd-lane { margin-top: 26px; }
+.sd-lane-label {
+  color: var(--sd-muted);
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: .1em;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+}
+.sd-lane-lts .sd-lane-label { color: var(--sd-accent); }
+.sd-lane-track {
+  background: rgba(255, 255, 255, .09);
+  border-radius: 2px;
+  height: 2px;
+  margin-bottom: 26px;
+  position: relative;
+}
+.sd-lane-lts .sd-lane-track { background: rgba(226, 168, 110, .35); }
+.sd-tag {
+  background: rgba(255, 255, 255, .08);
+  border: 1px solid var(--sd-line);
+  border-radius: 12px;
+  color: var(--sd-fg-dim);
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 10.5px;
+  padding: 3px 9px;
+  position: absolute;
+  top: -11px;
+  transform: translateX(-50%);
+}
+.is-visible .sd-tag {
+  animation: sd-tag-in .45s cubic-bezier(.2, .8, .3, 1) backwards;
+  animation-delay: var(--sd-delay, 0s);
+}
+@keyframes sd-tag-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(-7px); }
+  to   { opacity: 1; transform: translateX(-50%); }
+}
+.sd-tag-next { color: var(--sd-muted); }
+.sd-tag-fix {
+  background: var(--sd-accent-soft);
+  border-color: rgba(226, 168, 110, .55);
+  color: var(--sd-accent-bright);
+}
+.sd-lane-note {
+  color: var(--sd-muted);
+  font-size: 11.5px;
+  position: absolute;
+  right: 0;
+  top: 14px;
+}
+
+.sd-sig {
+  align-items: center;
+  background: rgba(0, 0, 0, .4);
+  border: 1px solid rgba(226, 168, 110, .3);
+  border-radius: 9px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 30px;
+  padding: 12px 15px;
+}
+.sd-sig-badge {
+  align-items: center;
+  color: var(--sd-accent);
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 700;
+  gap: 6px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.is-visible .sd-sig-badge svg { animation: sd-fade-in .5s ease-out 1.4s backwards; }
+.sd-sig code {
+  background: none;
+  color: var(--sd-fg-dim);
+  flex: 1;
+  min-width: 0;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 11.5px;
+  overflow: hidden;
+  padding: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sd-sig-foot { color: var(--sd-muted); font-size: 11.5px; margin: 10px 0 0; }
+
+/* ---- support art ---- */
+.sd-sla-head {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.sd-sla-kicker {
+  color: var(--sd-muted);
+  font-size: 10.5px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+.sd-sla-clock { color: var(--sd-accent); }
+.sd-sla-hand { transform-origin: 16px 16px; }
+.is-visible .sd-sla-hand { animation: sd-sweep 6s linear infinite; }
+@keyframes sd-sweep { to { transform: rotate(360deg); } }
+
+.sd-sla { list-style: none; margin: 0; padding: 0; }
+.sd-sla li {
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, .06);
+  display: flex;
+  gap: 12px;
+  padding: 12px 2px;
+}
+.is-visible .sd-sla li {
+  animation: sd-fade-up .5s ease-out backwards;
+  animation-delay: var(--sd-delay, 0s);
+}
+.sd-sev {
+  border-radius: 5px;
+  flex: none;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 3px 8px;
+}
+.sd-sev-1 { background: rgba(226, 117, 110, .18); color: var(--sd-danger); }
+.sd-sev-2 { background: var(--sd-accent-soft); color: var(--sd-accent-bright); }
+.sd-sev-3 { background: rgba(255, 255, 255, .07); color: var(--sd-fg-dim); }
+.sd-sla-what { color: var(--sd-fg-dim); flex: 1; font-size: 13.5px; }
+.sd-sla b { color: var(--sd-fg); font-size: 14px; white-space: nowrap; }
+
+.sd-engineer {
+  align-items: center;
+  background: rgba(255, 255, 255, .035);
+  border: 1px solid var(--sd-line);
+  border-radius: 10px;
+  display: flex;
+  gap: 14px;
+  margin-top: 20px;
+  padding: 14px 16px;
+}
+.is-visible .sd-engineer {
+  animation: sd-fade-up .5s ease-out backwards;
+  animation-delay: var(--sd-delay, 0s);
+}
+.sd-engineer-avatar {
+  background: linear-gradient(150deg, var(--sd-accent), #8a5f38);
+  border-radius: 50%;
+  flex: none;
+  height: 38px;
+  width: 38px;
+}
+.sd-engineer-body b { color: var(--sd-fg); display: block; font-size: 14px; font-weight: 700; }
+.sd-engineer-body em {
+  color: var(--sd-muted);
+  display: block;
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.5;
+  margin-top: 3px;
+}
+
+/* ---- integrations art ---- */
+.sd-flow {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+.sd-flow-node {
+  background: rgba(255, 255, 255, .05);
+  border: 1px solid var(--sd-line);
+  border-radius: 18px;
+  color: var(--sd-fg-dim);
+  font-size: 12.5px;
+  padding: 8px 16px;
+  white-space: nowrap;
+}
+.sd-flow-wire {
+  background: repeating-linear-gradient(90deg, rgba(255, 255, 255, .3) 0 4px, transparent 4px 10px);
+  flex: 1;
+  height: 2px;
+  min-width: 22px;
+}
+.is-visible .sd-flow-wire { animation: sd-fade-in .4s ease-out backwards; }
+.is-visible .sd-flow-wire-late { animation-delay: .75s; }
+
+/* The gap in the pipeline, and the node that arrives to fill it. */
+.sd-flow-slot {
+  border: 1.5px dashed rgba(226, 168, 110, .55);
+  border-radius: 12px;
+  display: block;
+  padding: 5px;
+}
+.sd-flow-custom {
+  background: linear-gradient(150deg, rgba(226, 168, 110, .22), rgba(226, 168, 110, .06));
+  border: 1px solid var(--sd-accent);
+  border-radius: 9px;
+  display: block;
+  padding: 9px 15px;
+  text-align: center;
+}
+.is-visible .sd-flow-custom { animation: sd-slot-in .6s cubic-bezier(.2, .85, .3, 1) .45s backwards; }
+@keyframes sd-slot-in {
+  from { opacity: 0; transform: translateY(-22px) scale(.9); }
+  to   { opacity: 1; transform: none; }
+}
+.sd-flow-custom b { color: #fff; display: block; font-size: 13px; font-weight: 700; }
+.sd-flow-custom em {
+  color: #e6d3bd;
+  display: block;
+  font-size: 10.5px;
+  font-style: normal;
+  margin-top: 2px;
+}
+
+.sd-conn {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr 1fr;
+  list-style: none;
+  margin: 26px 0 0;
+  padding: 0;
+}
+.sd-conn li {
+  background: rgba(255, 255, 255, .03);
+  border: 1px solid var(--sd-line);
+  border-radius: 7px;
+  color: var(--sd-fg-dim);
+  font-size: 12.5px;
+  padding: 9px 12px;
+}
+.is-visible .sd-conn li {
+  animation: sd-fade-up .5s ease-out backwards;
+  animation-delay: var(--sd-delay, 0s);
+}
+.sd-conn-foot { color: var(--sd-muted); font-size: 11.5px; margin: 16px 0 0; text-align: center; }
+
+/* --------------------------------------------------------------- numbers */
+.sd-numbers {
+  background: linear-gradient(180deg, var(--sd-bg) 0%, var(--sd-bg-alt) 100%);
+  border-top: 1px solid var(--sd-line);
+  border-bottom: 1px solid var(--sd-line);
+  padding: 76px 0;
+}
+.sd-numbers-grid {
+  display: grid;
+  gap: 34px;
+  grid-template-columns: repeat(4, 1fr);
+  margin: 0;
+}
+.sd-number { text-align: center; }
+.sd-number-value {
+  background: linear-gradient(180deg, #fff, var(--sd-accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-family: "Quattrocento Sans", sans-serif;
+  font-size: clamp(2.4rem, 4.6vw, 3.6rem);
+  font-weight: 700;
+  line-height: 1;
+}
+.sd-number-label {
+  color: var(--sd-muted);
+  font-size: 13.5px;
+  line-height: 1.5;
+  margin: 12px auto 0;
+  max-width: 22ch;
+}
+
+/* -------------------------------------------------------------- editions */
+.sd-editions, .sd-cta { overflow: hidden; position: relative; }
+.sd-bg-media { inset: 0; position: absolute; z-index: 0; }
+.sd-bg-media img { height: 100%; object-fit: cover; width: 100%; }
+.sd-editions .sd-bg-media img { opacity: .4; }
+.sd-editions .sd-bg-veil {
+  inset: 0;
+  position: absolute;
+  background: linear-gradient(180deg, var(--sd-bg-alt) 0%, rgba(11, 14, 19, .82) 42%, rgba(11, 14, 19, .97) 100%);
+}
+
+.sd-table-scroll {
+  /* Wide content scrolls inside its own box; the page body never scrolls sideways. */
+  -webkit-overflow-scrolling: touch;
+  overflow-x: auto;
+}
+.sd-table {
+  backdrop-filter: blur(6px);
+  background: rgba(16, 18, 26, .74);
+  border: 1px solid var(--sd-line);
+  border-radius: 14px;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 640px;
+  width: 100%;
+}
+.sd-table thead th {
+  border-bottom: 1px solid var(--sd-line);
+  padding: 20px 18px;
+  text-align: center;
+  vertical-align: bottom;
+}
+.sd-table .sd-th-feature { width: 52%; }
+.sd-th-name {
+  color: var(--sd-fg);
+  display: block;
+  font-family: "Quattrocento Sans", sans-serif;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+.sd-th-note {
+  color: var(--sd-muted);
+  display: block;
+  font-size: 11.5px;
+  font-weight: 400;
+  margin-top: 5px;
+}
+.sd-th-studio { background: rgba(226, 168, 110, .09); border-top-right-radius: 13px; }
+.sd-th-studio .sd-th-name { color: var(--sd-accent-bright); }
+.sd-th-studio .sd-th-note { color: #c9ad8e; }
+
+.sd-table tbody th {
+  color: var(--sd-fg-dim);
+  font-size: 14px;
+  font-weight: 400;
+  padding: 14px 18px;
+  text-align: left;
+}
+.sd-table tbody td {
+  padding: 14px 18px;
+  text-align: center;
+  width: 24%;
+}
+.sd-table tbody tr + tr th,
+.sd-table tbody tr + tr td { border-top: 1px solid rgba(255, 255, 255, .055); }
+.sd-table tbody .sd-td-studio { background: rgba(226, 168, 110, .06); }
+.sd-table tbody tr:last-child .sd-td-studio { border-bottom-right-radius: 13px; }
+.sd-table tbody tr:hover th { color: var(--sd-fg); }
+
+.sd-yes { color: var(--sd-accent); font-size: 15px; }
+.sd-table td:not(.sd-td-studio) .sd-yes { color: var(--sd-teal); }
+.sd-no { color: rgba(255, 255, 255, .22); font-size: 15px; }
+
+.sd-table-note {
+  color: var(--sd-muted);
+  font-size: 13px;
+  margin: 20px auto 0;
+  max-width: 640px;
+  text-align: center;
+}
+
+/* ------------------------------------------------------------- audiences */
+.sd-audiences { background: var(--sd-bg); }
+
+.sd-cards {
+  display: grid;
+  gap: 22px;
+  grid-template-columns: repeat(3, 1fr);
+}
+.sd-card {
+  backdrop-filter: blur(6px);
+  background: rgba(18, 19, 26, .72);
+  border: 1px solid var(--sd-line);
+  border-radius: 14px;
+  padding: 30px 28px;
+  transition: border-color .2s ease, transform .2s ease;
+}
+.sd-card:hover { border-color: rgba(226, 168, 110, .55); transform: translateY(-3px); }
+.sd-page .sd-card h3 { color: var(--sd-fg); font-size: 1.18rem; font-weight: 700; margin: 0 0 12px; }
+.sd-card p { color: var(--sd-muted); font-size: 14.5px; line-height: 1.62; margin: 0; }
+.sd-card-icon i {
+  color: var(--sd-accent);
+  display: block;
+  font-size: 26px;
+  margin-bottom: 16px;
+}
+
+/* ----------------------------------------------------------- early access */
+.sd-cta {
+  background: var(--sd-bg);
+  padding: 130px 0 140px;
+  text-align: center;
+}
+.sd-cta .sd-bg-media img { opacity: .5; }
+.sd-cta .sd-bg-veil {
+  inset: 0;
+  position: absolute;
+  background:
+    radial-gradient(90% 70% at 50% 40%, rgba(11, 14, 19, .8) 0%, rgba(11, 14, 19, .94) 60%),
+    linear-gradient(180deg, var(--sd-bg) 0%, rgba(11, 14, 19, .5) 30%, #292F36 100%);
+}
+.sd-cta-inner { margin: 0 auto; max-width: 780px; }
+.sd-cta .sd-lead { margin-bottom: 34px; }
+
+/* The status readout — monospace so it reads as facts rather than as a pitch. */
+.sd-facts {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(3, 1fr);
+  margin: 0 auto 36px;
+  max-width: 620px;
+}
+.sd-fact {
+  background: rgba(0, 0, 0, .4);
+  border: 1px solid var(--sd-line);
+  border-radius: 9px;
+  padding: 14px 12px;
+}
+.sd-fact dt {
+  color: var(--sd-muted);
+  font-size: 10.5px;
+  font-weight: 400;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.sd-fact dd {
+  color: var(--sd-accent-bright);
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.4;
+  margin: 7px 0 0;
+}
+.sd-cta .sd-hero-actions { justify-content: center; }
+.sd-cta-note {
+  color: var(--sd-muted);
+  font-size: 12.5px;
+  line-height: 1.6;
+  margin: 26px auto 0;
+  max-width: 52ch;
+}
+
+/* ------------------------------------------------------------ responsive */
+
+/* The comparison table's `min-width` keeps it readable on a laptop, but on a phone it pushed both
+   answer columns past the right edge — the reader saw a list of capabilities and no ✓ at all, with
+   nothing indicating the box scrolled. Below this width the table gives up its minimum and the
+   feature text wraps instead, so every row still answers its own question. */
+@media (max-width: 767px) {
+  .sd-table { min-width: 0; }
+  .sd-table thead th { padding: 14px 8px; }
+  .sd-table .sd-th-feature { width: 54%; }
+  .sd-th-name { font-size: .98rem; }
+  .sd-th-note { font-size: 10px; }
+  .sd-table tbody th { font-size: 12.5px; line-height: 1.4; padding: 12px 10px; }
+  .sd-table tbody td { padding: 12px 4px; width: 23%; }
+}
+
+@media (max-width: 991px) {
+  .sd-split { gap: 44px; grid-template-columns: 1fr; }
+  .sd-panel-flip .sd-split-text,
+  .sd-panel-flip .sd-split-art { order: 0; }
+  .sd-rules { grid-template-columns: 1fr; gap: 22px; }
+  .sd-cards { grid-template-columns: 1fr; }
+  .sd-numbers-grid { grid-template-columns: repeat(2, 1fr); }
+  .sd-section { padding: 88px 0; }
+  .sd-panel { padding: 74px 0; }
+}
+
+@media (max-width: 575px) {
+  .sd-wrap, .sd-hero-inner { padding: 0 20px; }
+  .sd-hero { min-height: 88vh; padding-top: 60px; }
+  .sd-hero-lead { margin-bottom: 30px; }
+  /* Give the illustrations their margin back on a phone — the frame padding is the first
+     thing the nowrap rows inside them run out of. */
+  .sd-art-frame { padding: 16px; }
+  .sd-map b { min-width: 0; }
+  .sd-audit { font-size: 10px; }
+  .sd-ledger { grid-template-columns: 1fr; }
+  .sd-ledger-seam { display: none; }
+  .sd-idp-row { grid-template-columns: 1fr; }
+  .sd-idp-wire svg { margin: 0 auto; transform: rotate(90deg); }
+  .sd-numbers-grid { grid-template-columns: 1fr; gap: 28px; }
+  .sd-btn { padding: 12px 24px; }
+  .sd-conn { grid-template-columns: 1fr; }
+  .sd-facts { grid-template-columns: 1fr; }
+  .sd-flow-wire { min-width: 100%; }
+}
+
+/* Motion is decoration on this page — none of it carries information, so it all goes away. */
+@media (prefers-reduced-motion: reduce) {
+  .sd-page *,
+  .sd-page *::before,
+  .sd-page *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .reveal { opacity: 1 !important; transform: none !important; }
+  .sd-hero-sweep, .sd-hero-breathe { opacity: .5; }
+  .sd-wire-flow { opacity: .9; }
+  .sd-drop { opacity: 0; }
+}

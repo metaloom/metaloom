@@ -15,7 +15,7 @@ frames at a configurable rate.
 | Kind | `facedetect`
 | Applies to | Image, Video
 | Inputs | None
-| Output keys | `face_count` (Integer), `facedetect_flag` (String); face bounding boxes + embedding vectors are persisted as detections
+| Output keys | `face_count` (Integer), `facedetect_flag` (String), `detections` (JSON String — the bounding boxes, for downstream nodes such as link:../scene-layout/[Scene Layout]); boxes and embedding vectors are also persisted as detections
 | Requirements | **InspireFace native runtime** and its model pack. CPU works; a GPU-enabled pack accelerates video/large batches. Model files require local storage and memory.
 | Persists to | `detection` table (bulk upsert) + `asset_node_result` ledger
 |===

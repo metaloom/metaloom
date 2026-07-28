@@ -1045,7 +1045,8 @@
    "emptyHint": "Click a node in the canvas to view and edit its details",
    "parameters": "Parameters",
    "noParameters": "This node has no configurable parameters",
-   "parameterDescription": "Parameter description"
+   "parameterDescription": "Parameter description",
+   "invalidJson": "Invalid JSON"
   },
   "help": {
    "title": "Keyboard Shortcuts",

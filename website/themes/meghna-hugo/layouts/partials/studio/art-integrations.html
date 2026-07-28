@@ -1,0 +1,28 @@
+{{/* Panel art: a pipeline with a house-specific gap in the middle, and the custom node that
+     Studio builds and keeps working sliding into it. The dashed slot is drawn under the node,
+     so on reveal the node arrives and the flow closes. */}}
+<div class="sd-art sd-art-integrations" aria-hidden="true">
+  <div class="sd-flow">
+    <span class="sd-flow-node">ingest</span>
+    <span class="sd-flow-wire"></span>
+    <span class="sd-flow-node">whisper</span>
+    <span class="sd-flow-wire"></span>
+    <span class="sd-flow-slot">
+      <span class="sd-flow-custom">
+        <b>your node</b>
+        <em>legacy MAM export</em>
+      </span>
+    </span>
+    <span class="sd-flow-wire sd-flow-wire-late"></span>
+    <span class="sd-flow-node">deliver</span>
+  </div>
+
+  <ul class="sd-conn">
+    <li style="--sd-delay:.9s">Premiere &amp; Resolve handoff</li>
+    <li style="--sd-delay:1s">MAM / DAM connectors</li>
+    <li style="--sd-delay:1.1s">House delivery specs</li>
+    <li style="--sd-delay:1.2s">That one codec</li>
+  </ul>
+
+  <p class="sd-conn-foot">maintained against every upgrade &middot; not a fork you inherit</p>
+</div>

@@ -132,7 +132,7 @@ public class PipelineGraphParser {
 			boolean blocking = node.getBoolean("blocking", true);
 			boolean syncToLoom = node.getBoolean("syncToLoom", false);
 
-			JsonObject options = node.getJsonObject("options");
+			JsonObject options = readOptions(node);
 			nodes.put(id, new PipelineGraphNode(id, kind, node.getString("name"), source, blocking, syncToLoom,
 				node.getString("affinity"),
 				options == null ? Map.of() : options.getMap(),
@@ -147,6 +147,22 @@ public class PipelineGraphParser {
 		graph.setResultBatchSize(definition.getInteger("resultBatchSize", PipelineGraph.DEFAULT_RESULT_BATCH_SIZE));
 		graph.setReuseResults(definition.getBoolean("reuseResults", false));
 		return graph;
+	}
+
+	/**
+	 * Read a node's per-instance options.
+	 *
+	 * <p>
+	 * {@code options} is the documented shape. {@code config} is accepted as a legacy alias
+	 * because the pipeline editor used to serialise node parameters under that name, which meant
+	 * they were silently dropped here and never reached a worker. Definitions saved before that
+	 * fix still carry {@code config}, so they must keep loading. When both are present
+	 * {@code options} wins - it is the shape the editor writes now.
+	 * </p>
+	 */
+	private static JsonObject readOptions(JsonObject node) {
+		JsonObject options = node.getJsonObject("options");
+		return options != null ? options : node.getJsonObject("config");
 	}
 
 	private void applyEdges(String name, JsonArray edges, Set<String> nodeIds,

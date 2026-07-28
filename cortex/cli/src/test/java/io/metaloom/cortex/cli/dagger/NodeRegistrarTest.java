@@ -48,7 +48,8 @@ public class NodeRegistrarTest {
 			"sha512", "sha256", "md5", "chunk-hash",
 			"fingerprint", "consistency", "thumbnail", "facedetect",
 			"ocr", "tika", "whisper", "tts", "sentiment", "llm", "vlm",
-			"quality", "scene-detection", "captioning", "loom", "sha512-dedup");
+			"quality", "scene-detection", "captioning", "loom", "sha512-dedup",
+			"depthmap", "scene-layout");
 
 		// Stubs / unwired nodes must NOT be advertised, or Loom would dispatch work
 		// the worker cannot actually run.

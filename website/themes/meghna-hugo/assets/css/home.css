@@ -4,7 +4,7 @@
    Loaded only by pages carrying `page_css: css/home.css` in front matter (see
    partials/head.html). Everything is scoped under .hm-page and prefixed .hm-*.
 
-   Same palette as /studios/ (dark surfaces, teal #57cbcc accent, warm #e2a86e for
+   Same palette as /tour/ (dark surfaces, teal #57cbcc accent, warm #e2a86e for
    the pre-release notice) but its own layout vocabulary — the home page is a short
    front door, not a scroller.
    ========================================================================== */
@@ -120,7 +120,7 @@ body { background-color: #0b0e13; }
 .hm-more { margin: 44px 0 0; text-align: center; }
 
 /* -------------------------------------------------------------- reveal fx
-   Shared with /studios/ — see assets/js/reveal.js. The hidden start state only
+   Shared with /tour/ — see assets/js/reveal.js. The hidden start state only
    applies while .reveal-js is set, so the page is complete without JavaScript. */
 .reveal-js .reveal {
   opacity: 0;

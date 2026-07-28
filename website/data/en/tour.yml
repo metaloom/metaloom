@@ -1,7 +1,7 @@
-############################# /studios/ — the design-led page for media studios and creators ####
-# Copy only. Structure, art and motion live in themes/meghna-hugo/layouts/studios/list.html and
-# the partials under layouts/partials/studios/. Every `art:` key maps to a partial of the same
-# name (art: filewall -> partials/studios/art-filewall.html), so a new panel needs a matching file.
+############################# /tour/ — the design-led product tour for media studios and creators #
+# Copy only. Structure, art and motion live in themes/meghna-hugo/layouts/tour/list.html and
+# the partials under layouts/partials/tour/. Every `art:` key maps to a partial of the same
+# name (art: filewall -> partials/tour/art-filewall.html), so a new panel needs a matching file.
 
 hero:
   eyebrow: "For studios, archives and creators"

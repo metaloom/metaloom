@@ -1,13 +1,13 @@
 {{/*
-  /studios/ — the design-led page aimed at media studios, archives and creators.
+  /tour/ — the design-led product tour aimed at media studios, archives and creators.
 
-  Copy comes from data/en/studios.yml; the art is inline SVG in partials/studios/art-*.html,
-  selected per panel by its `art:` key. Styling is assets/css/studios.css (loaded via the
+  Copy comes from data/en/tour.yml; the art is inline SVG in partials/tour/art-*.html,
+  selected per panel by its `art:` key. Styling is assets/css/tour.css (loaded via the
   page's `page_css` front matter), motion is the shared assets/js/reveal.js. Nothing here is
   shared with the docs layouts on purpose — this page has its own visual language.
 */}}
 {{ define "main" }}
-{{ $d := (index hugo.Data site.Language.Lang).studios }}
+{{ $d := (index hugo.Data site.Language.Lang).tour }}
 
 {{ partial "navigation.html" . }}
 
@@ -17,7 +17,7 @@
 
   {{/* ---------------------------------------------------------------- hero */}}
   {{ with $d.hero }}
-  {{ $src := resources.Get "images/studios/hero-threads.jpg" }}
+  {{ $src := resources.Get "images/scenery/hero-threads.jpg" }}
   <section class="st-hero" id="top">
     {{/* Layer order matters: the photo, then the light that travels along its bands (blended
          into the photo), then the veil that keeps the headline legible, then the fade that
@@ -64,7 +64,7 @@
         <p class="st-lead reveal">{{ .content }}</p>
       </div>
       <div class="st-split-art reveal">
-        {{ partial "studios/art-filewall.html" . }}
+        {{ partial "tour/art-filewall.html" . }}
       </div>
     </div>
   </section>
@@ -80,7 +80,7 @@
         <p class="st-lead reveal">{{ .content }}</p>
       </div>
       <div class="reveal st-pipeline-holder">
-        {{ partial "studios/art-pipeline.html" . }}
+        {{ partial "tour/art-pipeline.html" . }}
       </div>
       <ol class="st-steps">
         {{ range $i, $s := .steps }}
@@ -113,7 +113,7 @@
         </div>
         <div class="st-split-art reveal">
           <div class="st-art-frame">
-            {{ partial (printf "studios/art-%s.html" $p.art) $p }}
+            {{ partial (printf "tour/art-%s.html" $p.art) $p }}
           </div>
         </div>
       </div>
@@ -139,7 +139,7 @@
 
   {{/* --------------------------------------------------------- sovereignty */}}
   {{ with $d.sovereignty }}
-  {{ $src := resources.Get "images/studios/grid-lights.jpg" }}
+  {{ $src := resources.Get "images/scenery/grid-lights.jpg" }}
   <section class="st-section st-sovereignty">
     <div class="st-bg-media">
       <img src="{{ ($src.Fill "1600x1000 webp q60 Center").RelPermalink }}" alt="" aria-hidden="true" loading="lazy">
@@ -187,7 +187,7 @@
 
   {{/* ----------------------------------------------------------------- cta */}}
   {{ with $d.cta }}
-  {{ $src := resources.Get "images/studios/neon-lines.jpg" }}
+  {{ $src := resources.Get "images/scenery/neon-lines.jpg" }}
   <section class="st-section st-cta">
     <div class="st-bg-media">
       <img src="{{ ($src.Fill "1600x900 webp q60 Center").RelPermalink }}" alt="" aria-hidden="true" loading="lazy">

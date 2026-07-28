@@ -1,5 +1,5 @@
 /*
- * Scroll reveal for the design-led pages (/, /studios/, /features/).
+ * Scroll reveal for the design-led pages (/, /tour/, /studio/, /features/).
  *
  * Contract — three hooks, nothing page-specific:
  *

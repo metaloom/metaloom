@@ -18,9 +18,11 @@ edit or restructure site content or fix the build/publish flow.
 * Content language is AsciiDoc (needs `asciidoctor` on `PATH`); the landing page is data-driven
   from `website/data/en/*.yml` + theme partials.
 * The **home page** is short by design and routes readers two ways — see
-  [The home page](#the-home-page). Four top-level areas besides the docs: **`/studios/`** (the
-  design-led tour), **`/features/`** (the full list), **`/announcements/`** (releases) and
-  `/blog/`.
+  [The home page](#the-home-page). Five top-level areas besides the docs: **`/tour/`** (the
+  design-led product tour), **`/studio/`** (the commercial edition — a second, warm-accented
+  scroller), **`/features/`** (the full list), **`/announcements/`** (releases) and `/blog/`.
+  ⚠️ `/tour/` **used to be `/studios/`**; it was renamed so it could not be confused with
+  `/studio/`, and a Hugo alias redirects the old URL.
 * Build with `website/build.sh` → output goes to `website/dist/` (`publishDir = "dist"`). The
   build fails on localhost links **and on broken internal links** (see
   [The build-output checks](#the-build-output-checks)).
@@ -163,21 +165,23 @@ website/
 │       ├── _index.md      # home-page front matter (title, description, page_css)
 │       ├── docs/          # ★ CUSTOMER-FACING DOCUMENTATION (AsciiDoc)
 │       ├── features/      # /features/ — full feature list, rendered from data/en/feature.yml
-│       ├── studios/       # ★ /studios/ — design-led page for studios/creators (_index.md only)
+│       ├── tour/         # ★ /tour/ — design-led product tour (_index.md only; alias /studios/)
+│       ├── studio/       # ★ /studio/ — MetaLoom Studio, the commercial edition (_index.md only)
 │       ├── announcements/ # release announcements (_index.adoc + one bundle per release)
 │       ├── blog/          # blog posts (one folder per post, index.adoc)
 │       └── author/        # blog author pages
 ├── content-off/           # DISABLED content (not built; parked pages). e.g. an old POC post
-├── data/en/*.yml          # page copy: home.yml (/), studios.yml (/studios/), feature.yml
-│                          #   (/features/). The other files are legacy Meghna sections, unused.
+├── data/en/*.yml          # page copy: home.yml (/), tour.yml (/tour/), studio.yml (/studio/),
+│                          #   feature.yml (/features/). The other files are legacy Meghna
+│                          #   sections, unused.
 ├── i18n/en.yaml           # UI string translations (menu labels, "Read more", etc.)
 ├── static/                # copied verbatim to dist/: images/, CNAME, .nojekyll, robots
 │   ├── images/og-*.jpg    # 1200x630 social cards (see Social cards & page metadata)
 │   └── docs/examples/openapi.{json,yaml}  # staged OpenAPI doc: downloadable + rendered by Swagger UI
 ├── resources/_gen/        # Hugo asset cache (git-ignored)
 ├── themes/meghna-hugo/    # vendored + customized theme (layouts, LESS, JS plugins)
-│   └── assets/            # Hugo-processed assets: css/{main,home,studios}.css,
-│                          #   js/{script,reveal}.js, images/studios/*.jpg
+│   └── assets/            # Hugo-processed assets: css/{main,home,tour,studio}.css,
+│                          #   js/{script,reveal}.js, images/scenery/*.jpg
 └── dist/                  # BUILD OUTPUT (git-ignored) → what gets published
 ```
 
@@ -719,7 +723,7 @@ result through `absURL` where an absolute URL is required (`og:image`, `twitter:
 
 The home page is a **short front door**, not a brochure: hero → pre-release notice → "two ways in"
 → what it is → stack strip → three latest posts. Everything longer lives elsewhere — the visual
-tour on `/studios/`, the full feature list on `/features/`, the blog overview on `/blog/`, the
+tour on `/tour/`, the full feature list on `/features/`, the blog overview on `/blog/`, the
 reference in `/docs/`. There is no closing "get started" pitch: the hero and the footer carry
 those links already.
 
@@ -730,13 +734,15 @@ those links already.
 | Layout | `themes/meghna-hugo/layouts/index.html` |
 | Hero backdrop + door marks | `themes/meghna-hugo/layouts/partials/home/{art-weave,icon-visual,icon-technical}.html` |
 | Styles | `themes/meghna-hugo/assets/css/home.css` (shared with `/features/`) |
-| Motion | `themes/meghna-hugo/assets/js/reveal.js` (shared with `/studios/`) |
+| Motion | `themes/meghna-hugo/assets/js/reveal.js` (shared with `/tour/` and `/studio/`) |
 
 Design intent, worth keeping:
 
 * **It has to serve two visitors at once** — someone with an archive who does not care how it
   works, and someone who wants the API. That is what the *Two ways in* section does: one card to
-  `/studios/`, one to `/docs/`, so neither reader is made to wade through the other's material.
+  `/tour/`, one to `/docs/`, so neither reader is made to wade through the other's material.
+  `/studio/` is deliberately **not** a third door — the home page routes visual vs. technical, and
+  the commercial page is reached from the header and the footer instead.
   The "what it is" tiles reinforce it — a plain-language sentence plus a line of monospace chips
   (`19 node kinds`, `REST · GraphQL`) so both audiences find their own hook in the same tile.
 * **The pre-release status is the second thing on the page** (and the first is the status pill in
@@ -744,7 +750,7 @@ Design intent, worth keeping:
 * The old Meghna landing sections (`about`, `service`, `skill`, `funfacts`, `pricing`,
   `testimonial`, `contact`, `map`, `banner`, `cta`, `blog`) are **no longer wired in**. The
   partials and their `data/en/*.yml` files are still in the theme but unused; only
-  `home.yml`, `studios.yml` and `feature.yml` are live copy. Do not "fix" the old YAML expecting
+  `home.yml`, `tour.yml`, `studio.yml` and `feature.yml` are live copy. Do not "fix" the old YAML expecting
   it to show up.
 
 ### The pre-release notice
@@ -776,42 +782,50 @@ the home page's "All features →".
   and S3; CLI and GraphQL lost that marker because both ship.
 * `title`/`content` and `title_ops`/`content_ops` are the two group headings and their intro lines.
 
-## The /studios/ page
+<a id="the-studios-page"></a>
+## The /tour/ page (formerly `/studios/`)
 
-`/studios/` is the **non-technical entry point**: a long, dark, image-led scroller aimed at media
+`/tour/` is the **non-technical entry point**: a long, dark, image-led scroller aimed at media
 studios, archives and creators, in contrast to the reference-style docs. It is linked from the top
-navigation as *studios* (`config.toml`, weight 2).
+navigation as *Tour* (`config.toml`, weight 2).
+
+> **It was `/studios/` until 2026-07-28.** The plural page and the new commercial `/studio/` page
+> would have been one character apart, so the tour moved to `/tour/` — content dir, data file,
+> layout dir, art partials and stylesheet all renamed with it, and the photography folder became
+> the neutral `assets/images/scenery/` because both pages draw from it. The old URL is kept alive
+> by `aliases: ["/studios/"]` in `content/english/tour/_index.md`. See
+> [The /studio/ page](#the-studio-page) and [Aliases](#aliases-redirects).
 
 | Piece | Path | Role |
 | --- | --- | --- |
-| Content stub | `content/english/studios/_index.md` | Front matter only — `title`, `description`, `page_css: css/studios.css`. No body. |
-| Copy | `data/en/studios.yml` | **All text.** Hero, problem, three steps, six capability panels, the numbers strip, the sovereignty and audience cards, the closing CTA. |
-| Layout | `themes/meghna-hugo/layouts/studios/list.html` | Section order, image processing, the inline `st-js` bootstrap. |
-| Art | `themes/meghna-hugo/layouts/partials/studios/art-*.html` | One partial per illustration (inline SVG / small markup + CSS). |
-| Styles | `themes/meghna-hugo/assets/css/studios.css` | Plain CSS (custom properties), everything prefixed `.st-*`. **Not** compiled from LESS. |
+| Content stub | `content/english/tour/_index.md` | Front matter only — `title`, `description`, `page_css: css/tour.css`, `aliases: [/studios/]`. No body. |
+| Copy | `data/en/tour.yml` | **All text.** Hero, problem, three steps, six capability panels, the numbers strip, the sovereignty and audience cards, the closing CTA. |
+| Layout | `themes/meghna-hugo/layouts/tour/list.html` | Section order, image processing, the inline `st-js` bootstrap. |
+| Art | `themes/meghna-hugo/layouts/partials/tour/art-*.html` | One partial per illustration (inline SVG / small markup + CSS). |
+| Styles | `themes/meghna-hugo/assets/css/tour.css` | Plain CSS (custom properties), everything prefixed `.st-*` (the prefix was **not** renamed — `.st-` is the tour's vocabulary, `.sd-` is Studio's). **Not** compiled from LESS. |
 | Motion | `themes/meghna-hugo/assets/js/reveal.js` | Shared with the home page — see [Scroll reveal](#scroll-reveal-shared). |
-| Photography | `themes/meghna-hugo/assets/images/studios/*.jpg` | Four abstract light-streak Unsplash shots, resized to webp by Hugo at build time. |
+| Photography | `themes/meghna-hugo/assets/images/scenery/*.jpg` | Four abstract light-streak Unsplash shots, resized to webp by Hugo at build time. Shared with `/studio/`, which uses the fourth (`spectrum.jpg`). |
 
 Rules to keep when editing it:
 
 * **Change copy in the YAML, not the layout.** Each panel's `art:` key selects its partial by name
-  (`art: faces` → `partials/studios/art-faces.html`) through
-  `{{ partial (printf "studios/art-%s.html" $p.art) $p }}`, so a new panel needs a partial with a
+  (`art: faces` → `partials/tour/art-faces.html`) through
+  `{{ partial (printf "tour/art-%s.html" $p.art) $p }}`, so a new panel needs a partial with a
   matching file name or the build fails.
 * **The stylesheet is page-scoped.** `partials/head.html` emits a `<link>` only for pages that
   carry `page_css: <asset path>` in front matter. That mechanism is generic — any future bespoke
-  page can use it — but nothing else loads `studios.css` today.
-* **`studios.css` is hand-written CSS.** The theme's `yarn build` only compiles `less/main.less`;
+  page can use it — `/studio/` uses the same mechanism for `studio.css`.
+* **`tour.css` is hand-written CSS.** The theme's `yarn build` only compiles `less/main.less`;
   do not expect a LESS rebuild to touch it.
 * **Never hide content behind JavaScript** — see [Scroll reveal](#scroll-reveal-shared).
-* **All motion is decoration.** The `prefers-reduced-motion` block at the end of `studios.css`
+* **All motion is decoration.** The `prefers-reduced-motion` block at the end of `tour.css`
   disables every animation and transition on the page, so nothing may encode information in
   movement alone.
 * **No CJK text.** The site ships no CJK webfont; the translation panel deliberately uses
   Latin-script languages only, because a Japanese line renders as tofu boxes on machines without a
   system fallback font.
 * Images go through `.Fill "<w>x<h> webp q<n> Center"`, which turns the 1–1.5 MB source JPEGs into
-  15–95 KB webp files. Add new photography to `themes/meghna-hugo/assets/images/studios/`, not to
+  15–95 KB webp files. Add new photography to `themes/meghna-hugo/assets/images/scenery/`, not to
   `static/`, or it will be published unprocessed.
 
 ### The hero: travelling light and the bottom fade
@@ -840,8 +854,85 @@ Rules for touching it:
 * The pulses live **under** the veil on purpose. Above it they would brighten the headline area.
 * `prefers-reduced-motion` freezes them at a fixed opacity rather than hiding them.
 
+<a id="the-studio-page"></a>
+## The /studio/ page — MetaLoom Studio (commercial)
+
+`/studio/` is the **commercial pitch**: the same kind of dark scroller as `/tour/`, aimed at the
+person who has to sign something. It is linked from the top navigation as *Studio*
+(`config.toml`, weight 4) and from the footer's *Explore* column.
+
+> **What it claims is a proposal, not a shipped product.** The monetisation options, the open
+> decisions behind them and the mapping from each claim on the page back to its decision live in
+> [../METALOOM_STUDIO_PLAN.md](../METALOOM_STUDIO_PLAN.md) § "What The Website Currently Claims".
+> Change the page and that section together, or the two drift.
+
+| Piece | Path | Role |
+| --- | --- | --- |
+| Content stub | `content/english/studio/_index.md` | Front matter only — `title`, `description`, `page_css: css/studio.css`. No body. |
+| Copy | `data/en/studio.yml` | **All text.** Hero, the open-core ledger and its three rules, six capability panels, the numbers strip, the editions table rows, audience cards, the early-access CTA. |
+| Layout | `themes/meghna-hugo/layouts/studio/list.html` | Section order, image processing, the editions `<table>`. |
+| Art | `themes/meghna-hugo/layouts/partials/studio/art-*.html` | One partial per illustration: `ledger`, `identity`, `storage`, `licensing`, `operations`, `support`, `integrations`. |
+| Styles | `themes/meghna-hugo/assets/css/studio.css` | Plain CSS, everything prefixed `.sd-*`. **Not** compiled from LESS. |
+| Motion | `themes/meghna-hugo/assets/js/reveal.js` | Shared — see [Scroll reveal](#scroll-reveal-shared). |
+| Photography | `themes/meghna-hugo/assets/images/scenery/*.jpg` | Shared with `/tour/`; the hero is `spectrum.jpg`, which `/tour/` does not use. |
+
+Rules to keep when editing it:
+
+* **It must not look like `/tour/`.** The two pages share structure, the reveal vocabulary and the
+  photography folder on purpose, but the accent is the deciding difference: `/tour/` is teal
+  (`#57cbcc`), `/studio/` is amber (`#e2a86e`, the site's warm colour). Inside `studio.css` teal
+  survives as `--sd-teal` and marks exactly one thing — **what is open source** (the left column of
+  the ledger, the Community ticks in the editions table). Do not spend it on anything else.
+* **Prefixes are the isolation mechanism.** `/tour/` owns `.st-*`, `/studio/` owns `.sd-*`, and
+  each stylesheet is page-scoped through `page_css`. Nothing is shared between the two files except
+  the `.reveal` contract, which both restate.
+* **Change copy in the YAML, not the layout** — same rule as `/tour/`, same `art:`-key-to-partial
+  mapping (`art: storage` → `partials/studio/art-storage.html`).
+* **The editions comparison is a real `<table>`.** It is comparison data, so it stays a table with
+  `<th scope=…>`, a `<caption class="sr-only">` and an `.sr-only` "included"/"not included" next to
+  every ✓/– glyph — the state must never be carried by colour or a glyph alone. It sits inside
+  `.sd-table-scroll` (`overflow-x: auto`) with a `min-width` on the table, so it scrolls in its own
+  box and the page body never scrolls sideways.
+* **The illustrations hold `white-space: nowrap` runs** (the audit line, the group→role rows, the
+  image digest). A grid track of `1fr` is `minmax(min-content, 1fr)`, so without
+  `.sd-split > * { min-width: 0 }` those runs refuse to shrink and the whole panel is clipped by
+  `.sd-page`'s `overflow-x: hidden` on a phone. That rule is load-bearing — if a new illustration
+  introduces another nowrap run, re-check 420 px (see [Test Setup](#test-setup)).
+* **Two promises on the page are load-bearing**: *nothing that ships open source moves into Studio*
+  and *Studio does not meter processing*. They are the reason the page is credible; do not soften
+  them here and do not contradict them on `/features/` or in the docs.
+* **No prices, and no form.** Pricing is "announced with 1.0.0" until it is decided, and the CTA is
+  a `mailto:` — there is no mailing list, and a field that looks inert but collects (or collects and
+  does nothing) is exactly what the home page's status card was cleaned up to avoid.
+* **Numbers in the art are illustrative.** The response times in `art-support.html` are examples and
+  the partial says so in a comment; real figures belong in a contract, never on a marketing page.
+  The license rows in `art-licensing.html` mirror `docs/legal/model-licenses/` — if a default model
+  or its license changes, change both in the same pass.
+* **All motion is decoration.** The `prefers-reduced-motion` block at the end of `studio.css`
+  disables every animation and transition on the page.
+
+<a id="aliases-redirects"></a>
+## Aliases (redirects)
+
+A page can keep an old URL alive with `aliases:` in its front matter. Hugo then emits a small
+redirect document at each old path — that is how `/studios/` still resolves after the tour moved to
+`/tour/`.
+
+`themes/meghna-hugo/layouts/alias.html` **overrides Hugo's built-in alias template**, and the reason
+is specific to this site: the built-in writes the target as an absolute URL built from
+`site.BaseURL`, which Hugo intermittently resolves to `http://localhost:1313/` when the theme CSS is
+recompiled in the same run (see the gotcha below). `build.sh` fails the build on a localhost `href`
+— correctly, since a published redirect pointing at the reader's own machine is worse than no
+redirect. The override uses `.RelPermalink` instead and adds a visible fallback link for the case
+where the meta-refresh does not fire.
+
+* Alias paths are counted in Hugo's build summary (`Aliases │ 5`) and the output is a plain
+  `dist/<old-path>/index.html`.
+* `check-links.mjs` treats an alias page like any other page, so links pointing at the old URL keep
+  passing — but prefer updating the link to the new target anyway.
+
 <a id="scroll-reveal-shared"></a>
-## Scroll reveal (shared by `/` and `/studios/`)
+## Scroll reveal (shared by `/`, `/tour/` and `/studio/`)
 
 One script drives the motion on both design-led pages:
 `themes/meghna-hugo/assets/js/reveal.js`. Its contract is three hooks and nothing page-specific:
@@ -867,7 +958,7 @@ Two partials wire it up — put both in any new page that wants it:
 > class that `reveal-bootstrap.html` sets *synchronously during parse* (a deferred script would let
 > the finished page paint and then blank it). The same snippet removes the class again after 2.5 s
 > if `reveal.js` never runs, so a blocked script degrades to "no animation", never to "no content".
-> Every "animate in" rule in `home.css`/`studios.css` follows the same shape: `.reveal-js` hides,
+> Every "animate in" rule in `home.css`/`tour.css`/`studio.css` follows the same shape: `.reveal-js` hides,
 > `.is-visible` reveals. The illustrations hang off the same class — their keyframes are written as
 > `.is-visible .foo`, which is why revealing a container starts its art.
 
@@ -939,7 +1030,9 @@ is no design source file to keep in sync, just re-render:
 | `layouts/docs/list.html` | docs section pages (`_index.adoc`) | centered wide column, no sidebar. |
 | `layouts/index.html` | home page | Short front door; copy from `data/en/home.yml`. See [The home page](#the-home-page). |
 | `layouts/features/list.html` | `/features/` | Renders `data/en/feature.yml` as cards, `(planned)` titles become badges. |
-| `layouts/studios/list.html` | `/studios/` | Bespoke scroller; see [The /studios/ page](#the-studios-page). |
+| `layouts/tour/list.html` | `/tour/` | Bespoke scroller; see [The /tour/ page](#the-studios-page). |
+| `layouts/studio/list.html` | `/studio/` | The commercial scroller; see [The /studio/ page](#the-studio-page). |
+| `layouts/alias.html` | every `aliases:` entry | Redirect stub — overrides Hugo's built-in so the target is a **relative** URL; see [Aliases](#aliases-redirects). |
 | `layouts/announcements/list.html` | `/announcements/` | Newest-first list of announcement cards with status badges. |
 | `layouts/announcements/single.html` | one announcement | Docs-style TOC sidebar + a nav of the other announcements. |
 | `layouts/_default/*` , `layouts/author/*` | blog / fallback | article/list/single/baseof. |
@@ -972,7 +1065,7 @@ so only `HUGO_*` and `CI` env vars are readable from templates.
 | `discordLink` | `https://discord.gg/NFdnFcSbfA` | Community link. |
 | `[security.exec] allow` | includes `asciidoctor` | External binaries Hugo may run — **must include `asciidoctor`**. |
 | `Languages.en.contentDir` | `content/english` | Where English content is read from. |
-| `[[Languages.en.menu.main]]` | studios, features, announcements, blog, docs | Top navigation entries + weights. All point at real pages now — no `pre = "#"` anchors. |
+| `[[Languages.en.menu.main]]` | Tour (2), Features (3), Studio (4), Announcements (5), Blog (6), Docs (6) | Top navigation entries + weights. All point at real pages — no `pre = "#"` anchors. |
 | `params.logo` | `images/logo_word_big.svg` | Header logo asset. |
 | `params.discordLink` | `https://discord.gg/NFdnFcSbfA` | Community link; rendered as the header's icon. Must live under `[params]` — as a root key it is invisible to templates. |
 | `params.canonical_base` | `https://metaloom.io` | Base for the absolute URLs in the social metadata. Duplicates `baseURL` on purpose — see the gotcha below. Keep the two in sync. |
@@ -1016,11 +1109,17 @@ change the Hugo source and rebuild.
 | `website/themes/meghna-hugo/assets/js/reveal.js` | Shared scroll-reveal + count-up. |
 | `website/themes/meghna-hugo/layouts/partials/reveal-{bootstrap,script}.html` | The two lines that wire a page to `reveal.js`. |
 | `website/content/english/features/_index.md` | `/features/` front matter. |
-| `website/content/english/studios/_index.md` | The `/studios/` page stub (front matter only; copy lives in `data/en/studios.yml`). |
-| `website/data/en/studios.yml` | **All copy** for `/studios/`. |
-| `website/themes/meghna-hugo/layouts/studios/list.html` | `/studios/` layout + section order. |
-| `website/themes/meghna-hugo/layouts/partials/studios/art-*.html` | The illustrations on `/studios/` (one per panel). |
-| `website/themes/meghna-hugo/assets/css/studios.css` | `/studios/` stylesheet (page-scoped via `page_css`). |
+| `website/content/english/tour/_index.md` | The `/tour/` page stub (front matter only; copy lives in `data/en/tour.yml`; carries `aliases: [/studios/]`). |
+| `website/data/en/tour.yml` | **All copy** for `/tour/`. |
+| `website/themes/meghna-hugo/layouts/tour/list.html` | `/tour/` layout + section order. |
+| `website/themes/meghna-hugo/layouts/partials/tour/art-*.html` | The illustrations on `/tour/` (one per panel). |
+| `website/themes/meghna-hugo/assets/css/tour.css` | `/tour/` stylesheet (page-scoped via `page_css`). |
+| `website/content/english/studio/_index.md` | The `/studio/` page stub. |
+| `website/data/en/studio.yml` | **All copy** for `/studio/`, including the editions table rows. |
+| `website/themes/meghna-hugo/layouts/studio/list.html` | `/studio/` layout + section order. |
+| `website/themes/meghna-hugo/layouts/partials/studio/art-*.html` | The six Studio illustrations. |
+| `website/themes/meghna-hugo/assets/css/studio.css` | `/studio/` stylesheet (amber, `.sd-*`). |
+| `website/themes/meghna-hugo/layouts/alias.html` | Redirect stub for `aliases:` front matter (relative URL, not absolute). |
 | `website/content/english/announcements/**` | Release announcements (`_index.adoc` + one bundle per release). |
 | `website/themes/meghna-hugo/layouts/announcements/*.html` | Announcement list/detail layouts. |
 | `website/themes/meghna-hugo/layouts/partials/card.html` | OG/Twitter metadata for every page (title, description, image chains). |
@@ -1053,9 +1152,12 @@ change the Hugo source and rebuild.
 | Add a new docs section | New folder under `docs/` with `_index.adoc` (section) + child `index.adoc` pages; link it from `docs/_index.adoc` |
 | Change home-page text | `website/data/en/home.yml` (the legacy `about.yml`/`service.yml`/… are no longer rendered) |
 | Change the feature list | `website/data/en/feature.yml` — it drives `/features/` |
-| Change the text on `/studios/` | `website/data/en/studios.yml` (not the layout) |
+| Change the text on `/tour/` | `website/data/en/tour.yml` (not the layout) |
+| Change the text on `/studio/` | `website/data/en/studio.yml` (not the layout); the commercial reasoning is in [../METALOOM_STUDIO_PLAN.md](../METALOOM_STUDIO_PLAN.md) |
+| Redirect an old URL to a new one | `aliases:` in the target page's front matter — the stub comes from `layouts/alias.html` |
 | Add scroll-reveal to a new page | `data-reveal-scope` + `.reveal` + the two `reveal-*` partials |
-| Add/redraw an illustration on `/studios/` | `website/themes/meghna-hugo/layouts/partials/studios/art-<name>.html` + styles in `assets/css/studios.css` |
+| Add/redraw an illustration on `/tour/` | `website/themes/meghna-hugo/layouts/partials/tour/art-<name>.html` + styles in `assets/css/tour.css` |
+| Add/redraw an illustration on `/studio/` | `website/themes/meghna-hugo/layouts/partials/studio/art-<name>.html` + styles in `assets/css/studio.css` |
 | Add a release announcement | New bundle under `website/content/english/announcements/<slug>/index.adoc` with `status`/`status_label` |
 | Change what a shared link looks like (social card) | `website/themes/meghna-hugo/layouts/partials/card.html`; the images are `website/static/images/og-*.jpg` |
 | Give one page its own stylesheet | Front matter `page_css: css/<name>.css` + the asset under `themes/meghna-hugo/assets/css/` |
@@ -1166,17 +1268,25 @@ There is no unit/integration test suite for the website; verification is build +
 4. Confirm `dist/` is produced with no Hugo errors (missing `asciidoctor` is the usual failure).
 5. Internal links are checked automatically — `build.sh` runs `check-links.mjs` and fails on a
    broken target or a missing `#anchor`. Run `node check-links.mjs` on its own for a quick pass.
-6. For a visual check of `/studios/` (or any page) without a browser, serve `dist/` and drive the
+6. For a visual check of `/tour/` or `/studio/` (or any page) without a browser, serve `dist/` and drive the
    Playwright/Chromium already installed under `loom-ui/`:
 
    ```bash
    python3 -m http.server 8099 --directory dist &
-   # navigate to http://localhost:8099/studios/, scroll the page so the IntersectionObserver
+   # navigate to http://localhost:8099/tour/, scroll the page so the IntersectionObserver
    # reveals every section, then screenshot at 1440px and 420px wide
    ```
 
    Scroll before shooting: everything on that page starts hidden until it is revealed.
-7. Dry-run publish: from the sibling `metaloom-website` repo, `./pull.sh` then inspect `docs/`
+7. For the two design-led scrollers, check **horizontal overflow at 420 px** as well —
+   `document.documentElement.scrollWidth` must equal the viewport width minus the scrollbar gutter,
+   and no `main` descendant may be clipped by `.st-page`/`.sd-page`'s `overflow-x: hidden`. That
+   clipping is silent: the page still scrolls correctly, the content is just cut off. It is what a
+   `white-space: nowrap` run inside a `1fr` grid track causes — see
+   [The /studio/ page](#the-studio-page).
+8. If a page was moved, confirm the alias still resolves: `dist/<old-path>/index.html` must exist
+   and carry a **relative** refresh target (`dist/studios/index.html` → `/tour/`).
+9. Dry-run publish: from the sibling `metaloom-website` repo, `./pull.sh` then inspect `docs/`
    (do not push unless intending to release).
 
 ## Progress Assessment
@@ -1204,6 +1314,14 @@ Current state of the website (as of the checkout below):
 - [x] REST API page extended with pipelines run/versions, processors, chats+stream, sessions, skills,
       memory, and the `json-comps`/`node-results` persistence endpoints
 - [x] OpenAPI regeneration documented (see "Updating the embedded OpenAPI spec")
+- [x] `/studios/` renamed to `/tour/` (content dir, `data/en/tour.yml`, `layouts/tour/`,
+      `partials/tour/art-*`, `assets/css/tour.css`, `assets/images/scenery/`), every in-site link
+      updated, and `aliases: [/studios/]` + a `layouts/alias.html` override keeping the old URL alive
+- [x] `/studio/` added — the commercial edition scroller (amber `.sd-*`, seven illustrations, an
+      accessible editions table, mailto CTA); reasoning and open decisions in
+      [../METALOOM_STUDIO_PLAN.md](../METALOOM_STUDIO_PLAN.md)
+- [ ] `/studio/` carries no pricing — the "announced with 1.0.0" lines in `data/en/studio.yml` have
+      to be replaced once decision D-5 in the Studio plan is made
 - [x] Fixed a generation artifact in `loom/maven-artifacts/index.adoc` (stray `*** Add File:` blob
       duplicating containers/helm content with the old `metaloom/loom:latest` image name)
 - [x] Swagger UI plugin wired for the Loom REST API — mount point on `docs/loom/rest-api/`,
@@ -1299,7 +1417,7 @@ Current state of the website (as of the checkout below):
       state, current-section marking (teal underline / left border on mobile, `aria-current`),
       capitalised labels, a Discord icon, and a hamburger that folds into an X over a solid mobile
       panel
-- [x] **`/studios/` hero given motion** — three blended gradient stripes travelling along the
+- [x] **The tour hero given motion** (the page was `/studios/` then) — three blended gradient stripes travelling along the
       photograph's band axis plus a slow teal swell, and an explicit bottom fade so the colour
       bands dissolve into the page instead of ending on an edge. `transform`/`opacity` only
 - [x] **Reading pages unified** — one typographic system across docs, announcements and blog
@@ -1320,16 +1438,17 @@ Current state of the website (as of the checkout below):
       badges, linked from the navigation and from the home page
 - [x] **Scroll reveal extracted to `assets/js/reveal.js`** with a page-agnostic contract
       (`data-reveal-scope` / `.reveal` / `data-reveal-delay` / `data-count-up`) and two wiring
-      partials, shared by `/` and `/studios/`
+      partials, shared by `/`, the tour and `/studio/`
 - [x] **Absolute URLs no longer depend on `site.BaseURL`** — `card.html` builds canonical/`og:url`/
       `og:image` from `site.Params.canonical_base`, which closes the long-standing
       `http://localhost:1313` metadata flake
-- [x] **`/studios/`** — a design-led, image-led scroller for media studios, archives and creators:
+- [x] **The product tour** (built as `/studios/`, now `/tour/` — paths below are the *old* ones)
+      — a design-led, image-led scroller for media studios, archives and creators:
       full-bleed hero, the "lost filename" problem, an animated pipeline figure, six capability
       panels each with its own illustration (speech, faces, scenes, translation, fingerprints,
       chat agent), a numbers strip, the on-premise/open-source section, three audience cards and a
-      one-command CTA. Copy in `data/en/studios.yml`, art in `partials/studios/art-*.html`,
-      page-scoped `assets/css/studios.css` + `assets/js/studios.js`, photography processed to webp
+      one-command CTA. Copy is now `data/en/tour.yml`, art `partials/tour/art-*.html`,
+      page-scoped `assets/css/tour.css` + the shared `assets/js/reveal.js`, photography processed to webp
       by Hugo. Degrades to the finished page with JavaScript off and to a static page under
       `prefers-reduced-motion`
 - [x] **`/announcements/`** — section, list/detail layouts, `.ann-*` styles, top-menu entry, and
@@ -1388,5 +1507,6 @@ Current state of the website (as of the checkout below):
 
 ---
 
-_GIT HEAD: `246588789b16a55571735b2c72877d817149514d` (branch `master`)_
-_Generated: 2026-07-27 (UTC)_
+_GIT HEAD: `29cadb66ae5b37c9c6a4c6f18ef5f39807a0cec7` (branch `master`)_
+_Generated: 2026-07-28 (UTC) — `/studios/` → `/tour/` rename, new `/studio/` commercial page,
+alias mechanism_

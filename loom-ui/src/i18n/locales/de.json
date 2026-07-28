@@ -1036,7 +1036,8 @@
    "emptyHint": "Klicken Sie auf einen Knoten im Canvas, um seine Details anzuzeigen und zu bearbeiten",
    "parameters": "Parameter",
    "noParameters": "Dieser Knoten hat keine konfigurierbaren Parameter",
-   "parameterDescription": "Parameterbeschreibung"
+   "parameterDescription": "Parameterbeschreibung",
+   "invalidJson": "Ungültiges JSON"
   },
   "help": {
    "title": "Tastenkombinationen",

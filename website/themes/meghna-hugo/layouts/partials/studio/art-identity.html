@@ -1,0 +1,30 @@
+{{/* Panel art: a login arriving from the customer's own identity provider, the directory groups
+     it carries being mapped onto MetaLoom roles, and the line that lands in the audit trail. */}}
+<div class="sd-art sd-art-identity" aria-hidden="true">
+  <div class="sd-idp-row">
+    <div class="sd-idp-box">
+      <span class="sd-idp-kicker">your directory</span>
+      <span class="sd-idp-names">Keycloak · Okta · Entra ID</span>
+    </div>
+    <div class="sd-idp-wire">
+      <svg viewBox="0 0 90 24" width="90" height="24">
+        <path class="sd-wire-track" d="M2 12 H88"/>
+        <path class="sd-wire-flow" d="M2 12 H88"/>
+      </svg>
+      <span class="sd-idp-token">OIDC</span>
+    </div>
+    <div class="sd-idp-box sd-idp-box-target">
+      <span class="sd-idp-kicker">metaloom</span>
+      <span class="sd-idp-names">one session</span>
+    </div>
+  </div>
+
+  <ul class="sd-map">
+    <li style="--sd-delay:.55s"><code>editors@acme.tv</code><span class="sd-map-arrow">&rarr;</span><b>Editor</b></li>
+    <li style="--sd-delay:.7s"><code>archive-ro@acme.tv</code><span class="sd-map-arrow">&rarr;</span><b>Reader</b></li>
+    <li style="--sd-delay:.85s"><code>ops@acme.tv</code><span class="sd-map-arrow">&rarr;</span><b>Admin</b></li>
+    <li class="sd-map-gone" style="--sd-delay:1s"><code>l.turner@acme.tv</code><span class="sd-map-arrow">&rarr;</span><b>revoked</b></li>
+  </ul>
+
+  <p class="sd-audit"><span class="sd-audit-dot"></span>14:02:11 &nbsp;j.schuett&nbsp; opened &nbsp;A001_C003&nbsp; &middot; granted via <em>editors@acme.tv</em></p>
+</div>

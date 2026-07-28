@@ -40,7 +40,9 @@ import io.metaloom.video.facedetect.face.FaceBox;
 import io.metaloom.video.facedetect.inspireface.InspireFacedetector;
 import io.metaloom.video4j.Video4j;
 import io.metaloom.video4j.VideoFile;
-import io.metaloom.video4j.Videos;;
+import io.metaloom.video4j.Videos;
+import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
 
 public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 
@@ -48,6 +50,41 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 
 	public static final NodeOutputKey<Integer> OUTPUT_FACE_COUNT = NodeOutputKey.of("face_count", Integer.class);
 	public static final NodeOutputKey<String> OUTPUT_FACEDETECT_FLAG = NodeOutputKey.of("facedetect_flag", String.class);
+
+	/**
+	 * The detected bounding boxes as a JSON document, so a downstream node can consume them without a round trip through Loom.
+	 *
+	 * <p>
+	 * A JSON <em>string</em> rather than a structured value on purpose: node outputs are serialized as {@code key=value.toString()} by
+	 * {@code XAttrNodeCache} and come back as plain strings on a cache hit, so anything structured has to be explicitly encoded and re-parsed.
+	 * </p>
+	 *
+	 * <p>
+	 * The payload carries an explicit {@code coordinates} marker and, when known, the dimensions the boxes were measured against:
+	 * </p>
+	 *
+	 * <pre>
+	 * {
+	 *   "imageWidth": 1920, "imageHeight": 1080,   // absent on the video path - see below
+	 *   "coordinates": "ABSOLUTE_PIXELS",
+	 *   "detections": [ { "index": 0, "type": "face", "label": "face", "frame": 0,
+	 *                     "bbox": {"x":100,"y":50,"w":80,"h":80}, "confidence": 1.0 } ]
+	 * }
+	 * </pre>
+	 *
+	 * <p>
+	 * The marker exists because the {@code detection} table's own geometry convention is ambiguous: {@code V2.43} documents {@code bbox_x} as
+	 * normalized 0-1, this node writes absolute pixels, and nothing validates either claim. Consumers reading boxes from here never have to guess;
+	 * consumers reading them back over REST do.
+	 * </p>
+	 *
+	 * <p>
+	 * The dimensions are omitted on the video path because {@code VideoFile} exposes no frame size and reading a frame purely to measure it is not
+	 * worth the cost. The boxes there are still native frame pixels - {@code VideoFaceScanner} either detects at full resolution or rescales its boxes
+	 * back before returning them.
+	 * </p>
+	 */
+	public static final NodeOutputKey<String> OUTPUT_DETECTIONS = NodeOutputKey.of("detections", String.class);
 
 	/** In-heap skip cache of the face-detection outputs (count + flag), keyed by media path, to avoid re-scanning within this worker's lifetime.
 	 * Non-durable - the durable detections live in Loom. */
@@ -128,6 +165,7 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 					0, 1.0f, "face"));
 			}
 		}
+		ctx.output(OUTPUT_DETECTIONS, detectionsPayload(detections, image.getWidth(), image.getHeight()).encode());
 		persist(ctx, asset, detections);
 		return ctx.origin(COMPUTED).next();
 	}
@@ -150,12 +188,49 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 					new BoundingBox(box.getStartX(), box.getStartY(), box.getWidth(), box.getHeight()),
 					frameIndex, 1.0f, "face"));
 			}
+			// Dimensions omitted: VideoFile exposes no frame size, and decoding a frame purely to measure it is not worth the cost.
+			ctx.output(OUTPUT_DETECTIONS, detectionsPayload(detections, null, null).encode());
 			persist(ctx, asset, detections);
 			return ctx.origin(COMPUTED).next();
 		} catch (InterruptedException | IOException | URISyntaxException e) {
 			log.error("Failed to process video", e);
 			return ctx.failure(e.getMessage()).next();
 		}
+	}
+
+	/**
+	 * Build the {@link #OUTPUT_DETECTIONS} payload: the boxes, plus the coordinate convention and the dimensions they were measured against.
+	 *
+	 * @param detections  the detected faces
+	 * @param imageWidth  width of the image the boxes were measured against, or null when unknown (the video path)
+	 * @param imageHeight height of that image, or null
+	 * @return the payload document
+	 */
+	private JsonObject detectionsPayload(List<Detection> detections, Integer imageWidth, Integer imageHeight) {
+		JsonArray items = new JsonArray();
+		int index = 0;
+		for (Detection detection : detections) {
+			BoundingBox box = detection.boundingBox();
+			items.add(new JsonObject()
+				.put("index", index++)
+				.put("type", "face")
+				.put("label", detection.label())
+				.put("frame", detection.frameIndex())
+				.put("bbox", new JsonObject()
+					.put("x", box.x())
+					.put("y", box.y())
+					.put("w", box.width())
+					.put("h", box.height()))
+				.put("confidence", detection.confidence()));
+		}
+
+		JsonObject payload = new JsonObject()
+			.put("coordinates", "ABSOLUTE_PIXELS")
+			.put("detections", items);
+		if (imageWidth != null && imageHeight != null) {
+			payload.put("imageWidth", imageWidth).put("imageHeight", imageHeight);
+		}
+		return payload;
 	}
 
 	/**

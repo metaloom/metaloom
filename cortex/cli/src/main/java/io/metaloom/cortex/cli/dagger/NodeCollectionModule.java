@@ -4,6 +4,7 @@ import dagger.Module;
 import io.metaloom.cortex.node.captioning.CaptioningNodeModule;
 import io.metaloom.cortex.node.consistency.ConsistencyNodeModule;
 import io.metaloom.cortex.node.dedup.DedupNodeModule;
+import io.metaloom.cortex.node.depthmap.DepthmapNodeModule;
 import io.metaloom.cortex.node.facedetect.FacedetectNodeModule;
 import io.metaloom.cortex.node.fp.FingerprintNodeModule;
 import io.metaloom.cortex.node.hash.HashNodeModule;
@@ -13,6 +14,8 @@ import io.metaloom.cortex.node.loom.LoomNodeModule;
 import io.metaloom.cortex.node.ocr.OCRNodeModule;
 import io.metaloom.cortex.node.quality.QualityNodeModule;
 import io.metaloom.cortex.node.scene.SceneDetectionNodeModule;
+import io.metaloom.cortex.node.scenelayout.SceneLayoutNodeModule;
+import io.metaloom.cortex.node.script.ScriptNodeModule;
 import io.metaloom.cortex.node.sentiment.SentimentNodeModule;
 import io.metaloom.cortex.node.source.fs.FilesystemSourceNodeModule;
 import io.metaloom.cortex.node.thumbnail.ThumbnailNodeModule;
@@ -40,7 +43,10 @@ import io.metaloom.cortex.node.whisper.WhisperNodeModule;
 	ConsistencyNodeModule.class,
 	WhisperNodeModule.class,
 	TtsNodeModule.class,
-	SentimentNodeModule.class })
+	SentimentNodeModule.class,
+	ScriptNodeModule.class,
+	DepthmapNodeModule.class,
+	SceneLayoutNodeModule.class })
 public interface NodeCollectionModule {
 
 }

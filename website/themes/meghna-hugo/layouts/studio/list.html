@@ -1,0 +1,236 @@
+{{/*
+  /studio/ — MetaLoom Studio, the commercial edition.
+
+  Sibling of layouts/tour/list.html in shape (dark scroller, one panel per capability, the
+  shared reveal.js motion) but deliberately not in colour: /tour/ is teal, Studio is warm
+  amber, so a reader can tell at a glance which of the two pages they are on. The two used to
+  collide as /studios/ and /studio/ — see spec/website/WEBSITE.md.
+
+  Copy comes from data/en/studio.yml; the art is markup + inline SVG in partials/studio/art-*.html,
+  selected per panel by its `art:` key. Styling is assets/css/studio.css (loaded via the page's
+  `page_css` front matter), everything prefixed .sd-*.
+*/}}
+{{ define "main" }}
+{{ $d := (index hugo.Data site.Language.Lang).studio }}
+
+{{ partial "navigation.html" . }}
+
+<main class="sd-page" data-reveal-scope>
+  {{ partial "reveal-bootstrap.html" . }}
+
+  {{/* ---------------------------------------------------------------- hero */}}
+  {{ with $d.hero }}
+  {{ $src := resources.Get "images/scenery/spectrum.jpg" }}
+  <section class="sd-hero" id="top">
+    {{/* Same layer order as the tour hero: photo, travelling light blended into it, veil for
+         legibility, fade so the picture dissolves into the page instead of being cut off. */}}
+    <div class="sd-hero-media">
+      <img src="{{ ($src.Fill "1920x1200 webp q68 Center").RelPermalink }}"
+           srcset="{{ ($src.Fill "900x1100 webp q62 Center").RelPermalink }} 900w, {{ ($src.Fill "1920x1200 webp q68 Center").RelPermalink }} 1920w"
+           sizes="100vw" alt="" aria-hidden="true" fetchpriority="high">
+      <div class="sd-hero-sweep" aria-hidden="true"></div>
+      <div class="sd-hero-sweep sd-hero-sweep-slow" aria-hidden="true"></div>
+      <div class="sd-hero-breathe" aria-hidden="true"></div>
+      <div class="sd-hero-veil"></div>
+      <div class="sd-hero-fade" aria-hidden="true"></div>
+    </div>
+    <div class="sd-hero-inner">
+      <p class="sd-eyebrow reveal">{{ .eyebrow }}</p>
+      <h1 class="sd-hero-title reveal" data-reveal-delay="1">{{ .title | safeHTML }}</h1>
+      <p class="sd-hero-lead reveal" data-reveal-delay="2">{{ .content }}</p>
+      {{/* An in-page target ("#early-access") must stay a bare fragment — relURL would turn it
+           into "/#early-access", which points at the home page. */}}
+      <div class="sd-hero-actions reveal" data-reveal-delay="3">
+        <a class="sd-btn sd-btn-primary" href="{{ if hasPrefix .primary.link "#" }}{{ .primary.link }}{{ else }}{{ .primary.link | relURL }}{{ end }}">{{ .primary.label }}</a>
+        <a class="sd-btn sd-btn-ghost" href="{{ if hasPrefix .secondary.link "#" }}{{ .secondary.link }}{{ else }}{{ .secondary.link | relURL }}{{ end }}">{{ .secondary.label }}</a>
+      </div>
+      {{ with .status }}
+      <p class="sd-status reveal" data-reveal-delay="4"><span class="sd-status-dot" aria-hidden="true"></span>{{ . }}</p>
+      {{ end }}
+    </div>
+    <a class="sd-scroll-cue" href="#open-core" aria-label="{{ .scroll_hint }}">
+      <span>{{ .scroll_hint }}</span>
+      <svg viewBox="0 0 24 34" width="18" height="26" aria-hidden="true">
+        <rect x="1" y="1" width="22" height="32" rx="11" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <circle class="sd-scroll-dot" cx="12" cy="10" r="2.6" fill="currentColor"/>
+      </svg>
+    </a>
+  </section>
+  {{ end }}
+
+  {{/* ----------------------------------------------------------- open core */}}
+  {{ with $d.open_core }}
+  <section class="sd-section sd-open" id="open-core">
+    <div class="sd-wrap sd-split">
+      <div class="sd-split-text">
+        <p class="sd-eyebrow reveal">{{ .eyebrow }}</p>
+        <h2 class="sd-title reveal">{{ .title | safeHTML }}</h2>
+        <p class="sd-lead reveal">{{ .content }}</p>
+      </div>
+      <div class="sd-split-art reveal">
+        {{ partial "studio/art-ledger.html" . }}
+      </div>
+    </div>
+    <div class="sd-wrap">
+      <ol class="sd-rules">
+        {{ range $i, $r := .rules }}
+        <li class="sd-rule reveal" data-reveal-delay="{{ $i }}">
+          <span class="sd-rule-index">{{ printf "%02d" (add $i 1) }}</span>
+          <h3>{{ $r.title }}</h3>
+          <p>{{ $r.note }}</p>
+        </li>
+        {{ end }}
+      </ol>
+    </div>
+  </section>
+  {{ end }}
+
+  {{/* -------------------------------------------------------------- panels */}}
+  <section class="sd-panels" id="what-you-get">
+    {{ range $i, $p := $d.panels }}
+    <article class="sd-panel{{ if eq (mod $i 2) 1 }} sd-panel-flip{{ end }}">
+      <div class="sd-wrap sd-split">
+        <div class="sd-split-text">
+          <p class="sd-eyebrow reveal">{{ $p.eyebrow }}</p>
+          <h2 class="sd-title sd-title-sm reveal">{{ $p.title | safeHTML }}</h2>
+          <p class="sd-lead reveal">{{ $p.content }}</p>
+          <ul class="sd-chips reveal">
+            {{ range $p.chips }}<li>{{ . }}</li>{{ end }}
+          </ul>
+          {{ with $p.link }}
+          <a class="sd-link reveal" href="{{ if hasPrefix . "#" }}{{ . }}{{ else }}{{ . | relURL }}{{ end }}">{{ $p.link_label }} <span aria-hidden="true">&rarr;</span></a>
+          {{ end }}
+        </div>
+        <div class="sd-split-art reveal">
+          <div class="sd-art-frame">
+            {{ partial (printf "studio/art-%s.html" $p.art) $p }}
+          </div>
+        </div>
+      </div>
+    </article>
+    {{ end }}
+  </section>
+
+  {{/* ------------------------------------------------------------- numbers */}}
+  {{ with $d.numbers }}
+  <section class="sd-numbers">
+    <div class="sd-wrap">
+      <dl class="sd-numbers-grid">
+        {{ range $i, $n := . }}
+        <div class="sd-number reveal" data-reveal-delay="{{ $i }}">
+          <dt class="sd-number-value" data-count-up>{{ $n.value }}</dt>
+          <dd class="sd-number-label">{{ $n.label }}</dd>
+        </div>
+        {{ end }}
+      </dl>
+    </div>
+  </section>
+  {{ end }}
+
+  {{/* ------------------------------------------------------------ editions */}}
+  {{ with $d.editions }}
+  {{ $src := resources.Get "images/scenery/grid-lights.jpg" }}
+  <section class="sd-section sd-editions" id="editions">
+    <div class="sd-bg-media">
+      <img src="{{ ($src.Fill "1600x1000 webp q60 Center").RelPermalink }}" alt="" aria-hidden="true" loading="lazy">
+      <div class="sd-bg-veil"></div>
+    </div>
+    <div class="sd-wrap">
+      <div class="sd-section-head">
+        <p class="sd-eyebrow reveal">{{ .eyebrow }}</p>
+        <h2 class="sd-title reveal">{{ .title | safeHTML }}</h2>
+        <p class="sd-lead reveal">{{ .content }}</p>
+      </div>
+
+      {{/* A real <table>: this is comparison data, so it reads correctly to a screen reader and
+           the ✓ / — glyphs carry a text alternative rather than being colour alone. */}}
+      <div class="sd-table-scroll reveal">
+        <table class="sd-table">
+          <caption class="sr-only">What the Community and Studio editions each include</caption>
+          <thead>
+            <tr>
+              <th scope="col" class="sd-th-feature"><span class="sr-only">Capability</span></th>
+              <th scope="col">
+                <span class="sd-th-name">{{ .community_label }}</span>
+                <span class="sd-th-note">{{ .community_note }}</span>
+              </th>
+              <th scope="col" class="sd-th-studio">
+                <span class="sd-th-name">{{ .studio_label }}</span>
+                <span class="sd-th-note">{{ .studio_note }}</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {{ range .rows }}
+            <tr>
+              <th scope="row">{{ .feature }}</th>
+              <td>{{ if .community }}<span class="sd-yes" aria-hidden="true">&#10003;</span><span class="sr-only">included</span>{{ else }}<span class="sd-no" aria-hidden="true">&ndash;</span><span class="sr-only">not included</span>{{ end }}</td>
+              <td class="sd-td-studio">{{ if .studio }}<span class="sd-yes" aria-hidden="true">&#10003;</span><span class="sr-only">included</span>{{ else }}<span class="sd-no" aria-hidden="true">&ndash;</span><span class="sr-only">not included</span>{{ end }}</td>
+            </tr>
+            {{ end }}
+          </tbody>
+        </table>
+      </div>
+      {{ with .footnote }}<p class="sd-table-note reveal">{{ . }}</p>{{ end }}
+    </div>
+  </section>
+  {{ end }}
+
+  {{/* ----------------------------------------------------------- audiences */}}
+  {{ with $d.audiences }}
+  <section class="sd-section sd-audiences">
+    <div class="sd-wrap">
+      <div class="sd-section-head">
+        <p class="sd-eyebrow reveal">{{ .eyebrow }}</p>
+        <h2 class="sd-title reveal">{{ .title | safeHTML }}</h2>
+      </div>
+      <div class="sd-cards sd-cards-3">
+        {{ range $i, $a := .items }}
+        <div class="sd-card sd-card-icon reveal" data-reveal-delay="{{ $i }}">
+          <i class="{{ $a.icon }}" aria-hidden="true"></i>
+          <h3>{{ $a.title }}</h3>
+          <p>{{ $a.note }}</p>
+        </div>
+        {{ end }}
+      </div>
+    </div>
+  </section>
+  {{ end }}
+
+  {{/* -------------------------------------------------------- early access */}}
+  {{ with $d.early_access }}
+  {{ $src := resources.Get "images/scenery/neon-lines.jpg" }}
+  <section class="sd-section sd-cta" id="early-access">
+    <div class="sd-bg-media">
+      <img src="{{ ($src.Fill "1600x900 webp q60 Center").RelPermalink }}" alt="" aria-hidden="true" loading="lazy">
+      <div class="sd-bg-veil"></div>
+    </div>
+    <div class="sd-wrap sd-cta-inner">
+      <p class="sd-eyebrow reveal">{{ .eyebrow }}</p>
+      <h2 class="sd-title reveal">{{ .title | safeHTML }}</h2>
+      <p class="sd-lead reveal">{{ .content }}</p>
+      {{/* Plain facts instead of a promise — the same device the home page's status card uses. */}}
+      <dl class="sd-facts reveal">
+        {{ range .facts }}
+        <div class="sd-fact">
+          <dt>{{ .label }}</dt>
+          <dd>{{ .value }}</dd>
+        </div>
+        {{ end }}
+      </dl>
+      {{/* A mailto, not a form. There is no list to subscribe anyone to, and a field that looks
+           inert but collects (or collects and does nothing) would be worse than no field. */}}
+      <div class="sd-hero-actions reveal">
+        <a class="sd-btn sd-btn-primary" href="{{ .primary.link | safeURL }}">{{ .primary.label }}</a>
+        <a class="sd-btn sd-btn-ghost" href="{{ .secondary.link | relURL }}">{{ .secondary.label }}</a>
+        <a class="sd-btn sd-btn-plain" href="{{ .tertiary.link }}" rel="noopener">{{ .tertiary.label }}</a>
+      </div>
+      {{ with .note }}<p class="sd-cta-note reveal">{{ . }}</p>{{ end }}
+    </div>
+  </section>
+  {{ end }}
+
+</main>
+
+{{ partial "reveal-script.html" . }}
+{{ end }}

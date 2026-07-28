@@ -15,6 +15,7 @@ import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.api.option.node.CortexNodeOptions;
 import io.metaloom.cortex.api.option.node.ValidationResult;
 import io.metaloom.cortex.common.media.LoomMediaLoader;
+import io.metaloom.cortex.common.node.PipelineConfigurable;
 import io.metaloom.cortex.node.source.fs.FilesystemSourceNode;
 import io.metaloom.cortex.node.source.fs.FilesystemSourceNodeOptions;
 import io.metaloom.cortex.pipeline.api.NodeMode;
@@ -178,6 +179,16 @@ public class RegistryNodeRegistrar implements NodeRegistrar {
 		// Validate timeout
 		if (timeoutMs < 0) {
 			throw new IllegalStateException("Node '" + id + "': timeoutMs must be non-negative, got " + timeoutMs);
+		}
+
+		// Per-instance configuration. Opt-in: only nodes that declare PipelineConfigurable see the
+		// definition, so a node configured from the worker's YAML keeps behaving exactly as before.
+		if (wrapped instanceof PipelineConfigurable configurable) {
+			try {
+				configurable.configure(nodeDef);
+			} catch (RuntimeException e) {
+				throw new IllegalStateException("Node '" + id + "' configuration failed: " + e.getMessage(), e);
+			}
 		}
 
 		CortexNodeAdapter adapter = new CortexNodeAdapter(id, wrapped, mode, blocking, concurrency, timeoutMs);

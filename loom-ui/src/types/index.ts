@@ -107,7 +107,26 @@ export interface PipelineNode {
    * the implicit "default" group. Persisted as a top-level field on each node.
    */
   affinity?: string;
-  data: Record<string, unknown>;
+  /**
+   * Per-instance node options. This is the key Loom's `PipelineGraphParser` reads and hands to
+   * the worker. Prefer `pipelineNodeOptions(node)` over reading this directly — older
+   * definitions carry the same bag under `config` or `data`.
+   */
+  options?: Record<string, unknown>;
+  /** @deprecated legacy alias for `options`, written by the editor before the options fix. */
+  config?: Record<string, unknown>;
+  /** @deprecated legacy in-editor bag; never persisted under this name by Loom. */
+  data?: Record<string, unknown>;
+}
+
+/**
+ * Resolve a pipeline node's per-instance options across the three shapes definitions have used.
+ *
+ * The editor once serialised parameters as `config` while the backend only ever read `options`,
+ * so stored definitions carry either. `data` is the in-editor bag used before both.
+ */
+export function pipelineNodeOptions(node: PipelineNode): Record<string, unknown> {
+  return node.options ?? node.config ?? node.data ?? {};
 }
 
 export type EdgeKind = "PASS" | "REJECT" | "ANY";

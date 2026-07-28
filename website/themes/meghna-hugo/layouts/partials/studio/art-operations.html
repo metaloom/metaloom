@@ -1,0 +1,35 @@
+{{/* Panel art: two release lanes. The feature line keeps moving; the LTS line below it only
+     receives fixes, which is the whole point of paying for one. */}}
+<div class="sd-art sd-art-operations" aria-hidden="true">
+  <div class="sd-lane">
+    <div class="sd-lane-label">latest</div>
+    <div class="sd-lane-track">
+      <span class="sd-tag" style="--sd-delay:.1s;left:4%">1.1</span>
+      <span class="sd-tag" style="--sd-delay:.3s;left:34%">1.2</span>
+      <span class="sd-tag" style="--sd-delay:.5s;left:64%">1.3</span>
+      <span class="sd-tag sd-tag-next" style="--sd-delay:.7s;left:92%">&hellip;</span>
+    </div>
+  </div>
+
+  <div class="sd-lane sd-lane-lts">
+    <div class="sd-lane-label">1.0 LTS</div>
+    <div class="sd-lane-track">
+      <span class="sd-tag sd-tag-fix" style="--sd-delay:.9s;left:16%">.1</span>
+      <span class="sd-tag sd-tag-fix" style="--sd-delay:1.05s;left:44%">.2</span>
+      <span class="sd-tag sd-tag-fix" style="--sd-delay:1.2s;left:72%">.3</span>
+      <span class="sd-lane-note">security &amp; correctness only</span>
+    </div>
+  </div>
+
+  <div class="sd-sig">
+    <span class="sd-sig-badge">
+      <svg viewBox="0 0 16 20" width="13" height="16" aria-hidden="true">
+        <path d="M8 1 L15 4 V10 C15 15 8 19 8 19 C8 19 1 15 1 10 V4 Z" fill="none" stroke="currentColor" stroke-width="1.4"/>
+        <path d="M5 10 L7 12.4 L11.4 7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+      signed
+    </span>
+    <code>loom-server:1.0.3 &nbsp;sha256:9f2c…a41d</code>
+  </div>
+  <p class="sd-sig-foot">SBOM attached &middot; signature verifiable in your own registry</p>
+</div>

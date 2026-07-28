@@ -1,0 +1,21 @@
+{{/*
+  Alias (redirect) page — emitted for every `aliases:` entry in front matter.
+
+  Hugo's built-in template writes the target as an *absolute* URL built from site.BaseURL,
+  which this site cannot rely on: Hugo intermittently resolves it to http://localhost:1313/
+  when the theme CSS is recompiled in the same run (see spec/website/WEBSITE.md), and
+  build.sh fails the build on a localhost href — correctly, since a published redirect to
+  the reader's own machine is worse than no redirect. So this override uses .RelPermalink.
+*/}}<!DOCTYPE html>
+<html lang="{{ site.Language.Lang }}">
+<head>
+	<meta charset="utf-8">
+	<title>{{ .Title }}</title>
+	<link rel="canonical" href="{{ .RelPermalink }}">
+	<meta name="robots" content="noindex">
+	<meta http-equiv="refresh" content="0; url={{ .RelPermalink }}">
+</head>
+<body>
+	<p>This page has moved to <a href="{{ .RelPermalink }}">{{ .RelPermalink }}</a>.</p>
+</body>
+</html>

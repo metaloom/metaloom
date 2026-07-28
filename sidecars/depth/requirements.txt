@@ -1,0 +1,17 @@
+# Cortex depth sidecar. Python 3.11+ recommended.
+fastapi>=0.115
+uvicorn>=0.30
+pydantic>=2.7
+
+# Depth-Anything-V2-Small is a 25M-param ViT-S, so CPU inference is viable and no
+# accelerate/quantisation stack is needed. ZoeDepth (metric mode) is heavier and
+# really wants a GPU.
+transformers>=4.50
+torch>=2.6
+
+pillow>=10.0
+numpy>=1.26
+
+# 16-bit PNG encoding. cv2.imencode round-trips uint16 reliably; PIL's "I;16" mode
+# is version-dependent and has silently written 8-bit files in the past.
+opencv-python-headless>=4.9

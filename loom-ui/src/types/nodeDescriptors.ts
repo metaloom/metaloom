@@ -2,7 +2,26 @@
 
 export type NodeCategory = "SOURCE" | "FILTER" | "ANALYSIS" | "TRANSFORM" | "OUTPUT";
 export type NodeMode = "SEQUENTIAL" | "PARALLEL";
-export type ParameterType = "STRING" | "INTEGER" | "BOOLEAN" | "FLOAT" | "ENUM" | "STRING_LIST";
+/**
+ * Mirrors the Java `ParameterType` enum in loom-shared/node-model.
+ *
+ * `FLOAT` and `STRING_LIST` are legacy aliases: the backend has always emitted `NUMBER` and
+ * `ENUM_SET`, so nothing ever sent them. They are kept so any hand-written descriptor or test
+ * fixture using them keeps rendering, and should be removed once none remain.
+ */
+export type ParameterType =
+  | "STRING"
+  | "INTEGER"
+  | "NUMBER"
+  | "BOOLEAN"
+  | "ENUM"
+  | "ENUM_SET"
+  | "CODE"
+  | "JSON"
+  /** @deprecated use NUMBER */
+  | "FLOAT"
+  /** @deprecated use ENUM_SET */
+  | "STRING_LIST";
 
 export interface NodeInput {
   name: string;
@@ -21,7 +40,14 @@ export interface NodeParameter {
   defaultValue?: unknown;
   label: string;
   description: string;
+  /** The field the backend actually emits for enum choices. */
+  values?: string[];
+  /** @deprecated legacy alias for `values` */
   allowedValues?: string[];
+  /** Syntax hint for CODE parameters, e.g. "javascript". */
+  language?: string;
+  /** Preferred editor height in rows, for CODE/JSON parameters. */
+  rows?: number;
 }
 
 export interface NodeDescriptor {

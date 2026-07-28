@@ -128,6 +128,19 @@ public class DemoDatabaseInitializer {
 	private static final String DEMO_PIPELINE_SIMPLE = "Quick Hash";
 	private static final String DEMO_PIPELINE_MEDIUM = "Ingest & Proxy";
 	private static final String DEMO_PIPELINE_COMPLEX = "Full Processing";
+	private static final String DEMO_PIPELINE_SCRIPT = "Reading Time (Script)";
+
+	/** The demo script node's body. Small on purpose - it is there to be read and edited, not admired. */
+	private static final String DEMO_SCRIPT = """
+		// Estimate reading time from the text Tika extracted upstream.
+		const text = upstream['pn2']['tika_content'] || '';
+		const words = text.split(/\\s+/).filter(w => w.length > 0).length;
+		const minutes = Math.max(1, Math.round(words / params.wordsPerMinute));
+
+		out.integer('reading_minutes', minutes);
+		out.string('length_band', minutes <= 2 ? 'short' : minutes <= 10 ? 'medium' : 'long');
+		log.info(words + ' words, about ' + minutes + ' minute(s)');
+		""";
 	private static final String DEMO_POOL_PRODUCTION = "Production Storage";
 	private static final String DEMO_POOL_INGEST = "Ingest Hot Storage";
 	private static final String DEMO_POOL_ARCHIVE = "Archive S3";
@@ -312,6 +325,28 @@ public class DemoDatabaseInitializer {
 					.add(edge("pe6", "pn4", "pn6"))
 					.add(edge("pe7", "pn6", "pn7"))
 					.add(edge("pe8", "pn5", "pn8"))));
+
+		// 4) Script pipeline: Source → Tika → Script. Demonstrates the one node whose behaviour is
+		// configuration rather than code, so the demo carries a real script and real declared outputs.
+		createPipeline(admin, DEMO_PIPELINE_SCRIPT,
+			"Extracts document text, then derives a reading-time estimate and a length band with a small script.",
+			true, 3, false,
+			new JsonObject()
+				.put("nodes", new JsonArray()
+					.add(node("pn1", "filesystem-source", "File Source", "Watch documents folder", 60, 160))
+					.add(node("pn2", "tika", "Tika", "Extract document text", 280, 160))
+					.add(node("pn3", "script", "Reading Time", "Derive reading time from the extracted text", 520, 160,
+						new JsonObject()
+							.put("engine", "js")
+							.put("script", DEMO_SCRIPT)
+							.put("requiredInputs", new JsonArray().add("pn2:tika_content"))
+							.put("params", new JsonObject().put("wordsPerMinute", 200))
+							.put("outputs", new JsonArray()
+								.add(new JsonObject().put("key", "reading_minutes").put("type", "INTEGER"))
+								.add(new JsonObject().put("key", "length_band").put("type", "STRING"))))))
+				.put("edges", new JsonArray()
+					.add(edge("pe1", "pn1", "pn2"))
+					.add(edge("pe2", "pn2", "pn3"))));
 
 		// --- Pipeline Runs ---
 		// History so the run views and the statistics chart have something to show on a
@@ -1188,6 +1223,14 @@ public class DemoDatabaseInitializer {
 			.put("description", description)
 			.put("position", new JsonObject().put("x", x).put("y", y))
 			.put("data", new JsonObject());
+	}
+
+	/**
+	 * A node carrying per-instance options. {@code options} is the key Loom's graph parser reads and
+	 * forwards to the worker - the {@code data} bag above is in-editor state only.
+	 */
+	private static JsonObject node(String id, String type, String label, String description, int x, int y, JsonObject options) {
+		return node(id, type, label, description, x, y).put("options", options);
 	}
 
 	private static JsonObject edge(String id, String source, String target) {

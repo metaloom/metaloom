@@ -29,7 +29,8 @@ public class FacedetectDescriptorProvider implements NodeDescriptorProvider {
 					new NodeInput("media", MEDIA_VIDEO, true)))
 				.setOutputs(List.of(
 					new NodeOutput("face_count", DATA_INTEGER),
-					new NodeOutput("facedetect_flag", DATA_STRING)))
+					new NodeOutput("facedetect_flag", DATA_STRING),
+					new NodeOutput("detections", DATA_FACEDETECTION)))
 				.setParameters(List.of(
 					commonEnabled(), commonProcessIncomplete(), commonRetryFailed(),
 					new NodeParameter().setKey("videoChopRate").setType(INTEGER).setDefaultValue(5)

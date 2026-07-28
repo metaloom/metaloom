@@ -139,10 +139,12 @@ no-op in offline mode):
 | Facedetect | `assets/:uuid/detections/bulk` → `detection` (upsert) | `bulkCreateAssetDetections` |
 | Whisper | `assets/:uuid/transcripts` → `asset_transcript_comp` | `createAssetTranscript` |
 | SceneDetection | `assets/:uuid/segments` → `asset_segment_comp` (whole-set replace) | `createAssetSegmentComps` |
-| OCR, Tika, Quality, LLM, VLM, Captioning, Facedescription, Sentiment | `assets/:uuid/json-comps` → `asset_json_comp` (distinct `schemaType`) | `createAssetJsonComp` |
+| OCR, Tika, Quality, LLM, VLM, Captioning, Facedescription, Sentiment, SceneLayout | `assets/:uuid/json-comps` → `asset_json_comp` (distinct `schemaType`) | `createAssetJsonComp` |
 | Thumbnail | ledger only (bytes stay in the local thumbnail cache) | `createAssetNodeResult` |
 | TTS | ledger only (generated WAV stays in the local `tts_bin` cache) | `createAssetNodeResult` |
 | ImageGen | ledger only (generated PNG stays in the local `imagegen_bin` cache) | `createAssetNodeResult` |
+| Depthmap | ledger only (16-bit PNG stays in the local `depthmap_bin` cache); unlike the others it records `producerVersion` = the depth model | `createAssetNodeResult` |
+| Script | `assets/:uuid/json-comps` → `asset_json_comp` (`variant` = node id) **+** `assets/:uuid/segments` → `asset_segment_comp` for `TIMEFRAMES` outputs; images stay in the local `script_bin` cache | `createAssetJsonComp`, `createAssetSegmentComps` |
 | HashDedup | ledger only (side effect: moves duplicate files) | `createAssetNodeResult` |
 
 The fingerprint (`asset_fingerprint_comp`) and segment (`asset_segment_comp`)
@@ -231,19 +233,22 @@ Nodes persist results back to the Loom REST API. Two mechanisms coexist:
 | `FingerprintNode` | fingerprint | `fingerprint` | `fingerprint` (String) | Video only | Multi-sector video fingerprint; checks in-heap cache, then Loom; persists sector-0 to `asset_fingerprint_comp` |
 | `ConsistencyNode` | consistency | `consistency` | `zero_chunk_count` (Long), `is_complete` (Boolean) | Video, Audio | Counts zero chunks to detect incomplete files |
 | `ThumbnailNode` | thumbnail | `thumbnail` | `thumbnail_flag` (String), `thumbnail_path` (String) | Video only | Generates contact-sheet thumbnails; checks upstream consistency |
-| `FacedetectNode` | facedetect | `facedetect` | `face_count` (Integer), `facedetect_flag` (String) | Video, Image | Face detection via InspireFace; video uses frame scanning |
+| `FacedetectNode` | facedetect | `facedetect` | `face_count` (Integer), `facedetect_flag` (String), `detections` (String JSON) | Video, Image | Face detection via InspireFace; video uses frame scanning. `detections` carries the boxes plus an explicit `coordinates` marker and (image path only) the dimensions they were measured against, so a downstream node needs no round trip through Loom |
 | `FacedescriptionNode` | facedetect | `facedescription` | `face_description` (String) | Video, Image | LLM-based face description; reads upstream `facedetect` output |
 | `OCRNode` | ocr | `ocr` | `ocr_text` (String) | Image only | OCR via Tesseract; configurable language and tessdata path |
 | `TikaNode` | tika | `tika` | `tika_flags` (String), `tika_content` (String) | Image, Audio, Video, Document | Apache Tika metadata extraction |
 | `WhisperNode` | whisper | `whisper` | `whisper_result` (String JSON) | Video, Audio | Speech-to-text via whisper.cpp; persists transcript to Loom |
 | `TtsNode` | tts | `tts` | `tts_flag` (String), `tts_path` (String) | Any (needs upstream text) | **Generative**: text-to-speech from an upstream node's text. DE via Orpheus/Kartoffel, EN via Kokoro, behind a FastAPI `/v1/tts` sidecar (`sidecars/tts`). Writes the WAV to the local `tts_bin` cache; ledger only |
 | `SentimentNode` | sentiment | `sentiment` | `sentiment_label` (String), `sentiment_score` (Double), `sentiment_result` (String JSON) | Any (needs upstream text) | Polarity of upstream text (POSITIVE/NEUTRAL/NEGATIVE + signed `polarity`). DE via german-sentiment-bert, EN via twitter-roberta, behind a FastAPI `/v1/sentiment` sidecar (`sidecars/sentiment`). Persists to `asset_json_comp` (`variant` = source output key) |
+| `DepthmapNode` | depthmap | `depthmap` | `depthmap_flag` (String), `depthmap_path` (String), `depthmap_meta` (String JSON) | Image only | Monocular depth estimation via a FastAPI `/v1/depth` sidecar (`sidecars/depth`); Depth-Anything-V2-Small (Apache-2.0) by default, ZoeDepth for metric mode. Writes a **16-bit PNG in NEARNESS units (65535 = nearest)** to the local `depthmap_bin` cache; ledger only |
+| `SceneLayoutNode` | scene-layout | `scene-layout` | `scene_layout_result` (String JSON), `scene_layout_object_count` (Integer), `scene_layout_relation_count` (Integer) | Image only (needs upstream depth + boxes) | **No model, no sidecar** — pure geometry. Joins detector boxes to a depth map and derives FOREGROUND/MIDGROUND/BACKGROUND bands plus pairwise relations (`IN_FRONT_OF`, `BEHIND`, `OCCLUDES`, `CONTAINS`, `LEFT_OF`, `NEXT_TO`, …) with readable `phrases`. Persists to `asset_json_comp` (`schemaType="scene-layout"`). 🔴 Must share an affinity group with its `depthmap` node |
 | `LLMNode` | llm | `llm` | `llm_result_{promptId}` (String) | Any (uses filename) | LLM-based metadata extraction via Ollama; configurable prompts |
 | `VlmNode` | vlm | `vlm` | `vlm_result_{promptId}` (String) | Image only | Vision-language model over an OpenAI-compatible endpoint; ships an olmOCR document-transcription preset |
 | `QualityNode` | quality | `quality` | `blurriness`, `image_width/height`, `video_width/height/fps/frame_count`, `quality_flag` | Video, Image | Quality metrics (resolution, blurriness via Laplacian) |
 | `SceneDetectionNode` | scene-detection | `scene-detection` | `scene_detection` (String) | Video only | Optical-flow scene detection |
 | `CaptioningNode` | captioning | `captioning` | `caption_result` (String) | Image, Video | Image captions via SmolVLM; video captions via an OpenAI-compatible VLM (Qwen2.5-VL) with a whole/scene/native `videoStrategy` |
 | `ImageGenNode` | image-generation | `imagegen` | `imagegen_flag` (String), `imagegen_path` (String) | Image | **Generative**: text-to-image (`GENERATE`) or image-to-image (`REMIX`) via a diffusers sidecar (`sidecars/ideogram-sidecar`). Writes the PNG to the local `imagegen_bin` cache; ledger only |
+| `ScriptNode` | script | `script` | declared per node instance | Any | **Runs a user-supplied script.** GraalJS (`engine=js`) behind a pluggable `ScriptEngine` SPI. Outputs are *declared* as `{key, type}` config and filled at runtime, so one item can emit several multi-valued results (timeframes, text lists, images). Configured per pipeline-node instance via `PipelineConfigurable`. Trusted by default with an opt-in sandbox; always bounded by a wall clock + statement limit |
 | `HashDedupNode` | dedup | `sha512-dedup` | (side effects: moves files) | Any (requires SHA-512) | Deduplicates files by SHA-512 hash; moves dups to target folder |
 | `FingerprintDedupNode` | dedup | (fingerprint dedup) | (side effects) | Video only | Deduplicates by video fingerprint |
 | `LoomNode` | loom | `loom` | (side effects: bulk update) | Any | Syncs hash results to Loom backend in batches of 50 |
@@ -412,11 +417,51 @@ Every node has its own options class extending `AbstractNodeOptions<T>`:
 | Captioning | `CaptioningNodeOptions` | Image: `smolVLMHost`, `smolVLMPort`. Video: `videoStrategy` (`WHOLE`/`SCENE`/`NATIVE`), `videoEndpointUrl`, `videoModel`, `videoApiKey`, `frameCount`, `targetFrameSize`, `maxScenes`, `maxTokens`, `temperature`, `videoPrompt` |
 | Image Generation | `ImageGenNodeOptions` | `mode` (`GENERATE`/`REMIX`), `prompt`, `host`, `port`, `generateEndpoint`, `remixEndpoint`, `width`, `height`, `strength`, `seed`, `steps`, `timeoutMs` (`KEY = "imagegen"`) |
 | Sentiment | `SentimentNodeOptions` | `sentimentHost`, `sentimentPort` (9110), `language` (`auto`/`de`/`en`), `modelDe`, `modelEn`, `textSources` (ordered `nodeId:outputKey` list), `maxChars` |
+| Depthmap | `DepthmapNodeOptions` | `depthHost`, `depthPort` (9120), `mode` (`RELATIVE`/`METRIC`), `model` (checkpoint override), `maxDim` (1024); `timeoutMs` is the inherited common option, defaulted to 120000 in the constructor (`KEY = "depthmap"`) |
+| Scene Layout | `SceneLayoutNodeOptions` | `depthNodeId` (`depthmap`), `detectionSources` (`["facedetect"]`), `allowLoomFallback`, `coreInset` (0.25), `minCorePixels` (16), `depthZThreshold` (1.0), `occlusionMinOverlap` (0.05), `containmentRatio` (0.85), `nextToMaxGap` (0.5), `foregroundQuantile` (0.66), `backgroundQuantile` (0.33), `maxObjects` (40), `maxRelations` (200), `emitPhrases` (`KEY = "scene-layout"`) |
+| Script | `ScriptNodeOptions` | `engine`, `script`, `outputs` (declared `{key,type[,segmentType]}`), `params`, `requiredInputs`, `trusted`, `allowNetwork`, `allowFilesystem`, `timeoutMs`, `statementLimit`, `maxOutputBytes`, `maxLogLines` (`KEY = "script"`). ⚠️ Set per **pipeline node instance**, not per worker — see §5.1 |
 | Dedup | `DedupNodeOptions` | `dupFolder` (Path) |
 | Filesystem Source | `FilesystemSourceNodeOptions` | `path` (String), `pathGlobs` (List&lt;String&gt;) — defaults used when the pipeline definition supplies no selection |
 | Scene | `SceneDetectionOptions` | (no custom fields) |
 | Consistency | `ConsistencyNodeOptions` | (no custom fields) |
 | Loom | `LoomNodeOptions` | (no custom fields) |
+
+### 5.1 Per-instance configuration (`PipelineConfigurable`)
+
+Every node above reads its options from `CortexOptions.getNodes().get(name())` — **per worker**.
+That is right for options describing the worker's environment (a model path, a sidecar address) and
+wrong for a node whose configuration *is* the work: two `script` nodes in one graph must run two
+different scripts.
+
+`io.metaloom.cortex.common.node.PipelineConfigurable` is the opt-in seam:
+
+```java
+public interface PipelineConfigurable {
+    void configure(JsonObject nodeDef);
+}
+```
+
+`RegistryNodeRegistrar.adapt(...)` calls it **only** for nodes that implement it, so no existing
+node changes behaviour. `ScriptNode` is the only implementor today.
+
+⚠️ **An implementor must never be `@Singleton`.** `configure` mutates the node;
+`NodeTaskRunner` builds one per task through the kind map's `Provider`, and marking the node a
+singleton would let two concurrent script nodes overwrite each other's configuration.
+`ScriptNodeTest.shouldGiveEachProviderCallItsOwnInstance` and
+`PipelineConfigurableTest` pin this.
+
+**Two defects had to be fixed before any of this could work** — both pre-existing, both affecting
+every node's per-instance options, not just `script`:
+
+1. `PipelineEditor.getGraphJson()` serialised node parameters under `config`, while
+   `PipelineGraphParser` reads `options`. `"config"` was read by no Java parser, so **no node
+   parameter set in the editor had ever reached a worker**. The editor now writes `options`; the
+   parser accepts `config` as a legacy alias (`options` wins). Guarded by
+   `PipelineNodeOptionsParsingTest`.
+2. Parameter edits in the editor's node sidebar were written only to `selected.definition`, while
+   the canvas serialisation (`getGraphJson`) reads React Flow node data — so a save discarded them.
+   Edits now mirror onto the canvas through a `nodeParameters` channel, alongside the existing
+   display-name and affinity channels.
 
 ### Dagger Wiring
 
@@ -826,9 +871,12 @@ fixes, or further development.
       virtual threads could improve throughput. Consider adding a
       `Thread.ofVirtual()`-based scheduler option.
 
-- [ ] **No per-node timeout**: The executor does not enforce timeouts on
-      individual node executions. A hung node (e.g. LLM call) blocks the
-      semaphore indefinitely.
+- [ ] **`PipelineNode.timeoutMs()` is parsed but never enforced**: `RegistryNodeRegistrar.adapt()`
+      reads `timeoutMs` off the node definition and stores it on `AbstractPipelineNode`, and
+      **nothing reads it back**. The in-Cortex DAG executor that used to apply it no longer exists;
+      only `NodeTaskRunner` remains, and it does not time out. A hung node (e.g. an LLM call) blocks
+      its slot indefinitely. `ScriptNode` therefore enforces its own wall clock rather than relying
+      on the field — any other node needing a timeout must do the same until the runner grows one.
 
 - [ ] **No retry mechanism**: The `retryFailed` option in
       `AbstractNodeOptions` is declared but never checked by the executor.
@@ -853,9 +901,10 @@ fixes, or further development.
 
 ### Documentation
 
-- [ ] **Node descriptor registry is not populated**: The
-      `NodeDescriptorRegistry` exists but no nodes register descriptors.
-      The UI cannot render a node palette without descriptors.
+- [x] **Node descriptor registry is populated** (this claim was stale): 19 providers are
+      registered in
+      `loom-shared/node-model/src/main/resources/META-INF/services/io.metaloom.loom.nodes.spec.NodeDescriptorProvider`,
+      and the pipeline editor renders its palette and edit forms from them.
 
 - [ ] **Missing node documentation**: Individual nodes lack Javadoc on
       their options, outputs, and persistence keys. The
@@ -884,7 +933,28 @@ fixes, or further development.
 
 - [ ] **No node versioning**: Nodes have no version field. When a node's
       algorithm changes (e.g. a new hash function), there is no way to
-      invalidate cached results from the previous version.
+      invalidate cached results from the previous version. `ScriptNode` is the one exception: it
+      records `producerVersion = "<engine>:<sha256(script)[0..12]>"` in the ledger and includes the
+      script hash in its cache key, so a changed script is visibly a different producer and never
+      serves the previous script's cached result. That shape is the model for doing this generally.
+
+- [ ] 🔴 **`ctx.failure(cause).next()` reports SUCCESS**: `NodeContextImpl.next()` only checks
+      `skipReason`; the recorded failure cause is ignored and the result is built as
+      `ResultState.SUCCESS`. Only `abort()` yields `FAILED`.
+
+      **Eleven nodes end their catch blocks this way** — `TtsNode`, `SentimentNode`,
+      `FacedetectNode`, `HashDedupNode`, `TikaNode`, `QualityNode` (twice), `ImageGenNode`,
+      `WhisperNode`, `LoomNode`, `ThumbnailNode`, `FingerprintNode` — so a failed run is reported to
+      the pipeline as a successful node with no outputs. The behaviour is known (there is a comment
+      spelling it out in `SentimentNodeTest.testFailure...`) but has never been reconciled: the
+      `asset_node_result` ledger records FAILED while the run's node result says SUCCESS, so
+      `nodeFailedCounts`, blocking-dependency skipping and the UI's node status all see a success.
+
+      `ScriptNode` uses `ctx.failure(msg).abort()` instead, which is why its failure tests assert
+      `FAILED` directly. Fixing the rest is either eleven one-word edits or a change to `next()` so
+      it honours a recorded failure cause — the latter is smaller but silently changes what `next()`
+      means for every existing caller, so it needs its own review rather than being folded into an
+      unrelated change.
 
 ---
 
@@ -997,19 +1067,22 @@ Compact per-node status. Verified against the code and test tree.
 | `FingerprintNode` | Yes | No | Yes - `asset_fingerprint_comp` + ledger | Yes - fingerprint (own LRU 100k) | Partial - sector 0 only |
 | `ConsistencyNode` | Yes | No | Yes - `asset` consistency block + ledger | Yes - zero-chunk count | No |
 | `ThumbnailNode` | Yes | Yes | Partial - ledger only (bytes stay local) | Yes - thumb path (+ durable `.thumb`) | No |
-| `FacedetectNode` | Yes | No | Yes - `detection` (bulk upsert) + ledger | Yes - count+flag snapshot | Partial - per-frame detections |
+| `FacedetectNode` | Yes | No | Yes - `detection` (bulk upsert) + ledger | Yes - count+flag+boxes snapshot | Partial - per-frame detections |
 | `FacedescriptionNode` | Yes | No | Yes - `asset_json_comp` + ledger | Yes - per-face JSON | No (image only) |
 | `OCRNode` | Yes | No | Yes - `asset_json_comp` + ledger | Yes - recognized text | No |
 | `TikaNode` | Yes | No | Yes - `asset_json_comp` + ledger | Yes - Tika content | No |
 | `WhisperNode` | Yes (+ persistence test) | No | Yes - `asset_transcript_comp` + ledger | Yes - transcript JSON | Partial - 1 track (`streamIndex 0`) |
 | `TtsNode` | Yes (+ persistence test) | No | Partial - ledger only (WAV stays in local `tts_bin`) | Yes - audio path | No |
 | `SentimentNode` | Yes (+ persistence test) | Yes | Yes - `asset_json_comp` (`variant` = source output key) + ledger | Yes - scored result JSON | No |
+| `DepthmapNode` | Yes (+ persistence test) | Yes | Partial - ledger only (16-bit PNG stays in local `depthmap_bin`); records `producerVersion` | Yes - meta JSON (embeds the artifact path) | No |
+| `SceneLayoutNode` | Yes (+ persistence + solver + sampler tests) | Yes | Yes - `asset_json_comp` (`schemaType="scene-layout"`) + ledger | Yes - layout result JSON | No |
 | `LLMNode` | Yes | No | Yes - `asset_json_comp` per prompt + ledger | Yes - per-prompt outputs | No |
 | `VlmNode` | Yes | Yes | Yes - `asset_json_comp` per prompt + ledger | Yes - per-prompt outputs | No |
 | `QualityNode` | No (options only) | No | Yes - `asset_json_comp` + ledger | Yes - metric snapshot | Partial - image/video block |
 | `SceneDetectionNode` | Yes | No | Yes - `asset_segment_comp` (replace) + ledger | Yes - scene output | Yes - scenes (`seq` set) |
 | `CaptioningNode` | Yes | Yes | Yes - `asset_json_comp` + ledger | Yes - caption | Partial - video scene timeline (scene strategy) |
 | `ImageGenNode` | Yes (+ persistence test) | No | Partial - ledger only (PNG stays in local `imagegen_bin`) | Yes - image path | No |
+| `ScriptNode` | Yes (+ persistence + pipeline tests) | Yes | Yes - `asset_json_comp` (`variant` = node id) + `asset_segment_comp` + ledger | Yes - output bag, keyed by path **+ script hash** | Yes - `TIMEFRAMES` outputs become segment rows |
 | `HashDedupNode` | No (empty stub) | No | Partial - ledger only (side effect) | No (moves files) | No |
 | `FingerprintDedupNode` | No (empty stub) | No | No (node is a stub) | No | No |
 | `LoomNode` | Yes | Yes | Yes - bulk `asset` hash update | No (in-heap batch buffer, not a result cache) | No |
@@ -1024,7 +1097,9 @@ Compact per-node status. Verified against the code and test tree.
   file with a real `LoomHttpClient`, and asserts the typed payload reached its
   component table and is readable back via REST. Covered: hash (md5/sha256/
   sha512/chunk-hash), consistency, tika, quality, scene, thumbnail, fingerprint,
-  facedetect, ocr, vlm, whisper, tts, sentiment, imagegen, loom. The compute is stubbed for nodes needing a
+  facedetect, ocr, vlm, whisper, tts, sentiment, imagegen, depthmap, scene-layout, loom.
+  `scene-layout` is the one node stubbed nowhere at all — it has no model, so its integration test
+  runs the real geometry against a real 16-bit depth PNG on disk. The compute is stubbed for nodes needing a
   native model / external runtime (ocr → `OCRProvider`, whisper →
   `WhisperMediaProcessor`, facedetect → `InspireFacedetector`, tts → `TtsClient`,
   sentiment → `SentimentClient`)
@@ -1053,10 +1128,20 @@ Compact per-node status. Verified against the code and test tree.
 
 ---
 
-_Git HEAD revision: `ff0b64e2`_
-_Last updated: 2026-07-27 (added the `sentiment` node — EN/DE polarity of upstream text via the
+_Git HEAD revision: `29cadb66`_
+_Last updated: 2026-07-28 (added the `depthmap` and `scene-layout` nodes. `depthmap` runs monocular depth
+estimation via the `sidecars/depth` FastAPI sidecar and writes a 16-bit **NEARNESS** PNG — 65535 = nearest
+— to the local `depthmap_bin` cache, ledger-only but stamped with the model. `scene-layout` has no model
+at all: it joins detector boxes to that map and derives depth bands plus pairwise spatial relations into
+`asset_json_comp`. `FacedetectNode` gained a `detections` output so the boxes no longer have to travel
+through Loom. 🔴 The two new nodes must share an affinity group — the map is worker-local. See
+[NODE_DEPTHMAP_PLAN.md](NODE_DEPTHMAP_PLAN.md) and [NODE_SCENE_LAYOUT_PLAN.md](NODE_SCENE_LAYOUT_PLAN.md).
+Previously: added the `script` node — runs a user-supplied script (GraalJS) as a pipeline
+step with *declared* multi-valued outputs, persisting to `asset_json_comp` (`variant` = node id) plus
+`asset_segment_comp` for timeframes; see [NODE_SCRIPT_PLAN.md](NODE_SCRIPT_PLAN.md). That work added §5.1
+**per-instance node configuration** (`PipelineConfigurable`) and fixed the two defects that meant node
+parameters set in the pipeline editor had never reached a worker. §10 gains two newly-recorded defects:
+`PipelineNode.timeoutMs()` is parsed but enforced by nothing, and `ctx.failure(...).next()` reports
+SUCCESS in eleven nodes. Previously: the `sentiment` node — EN/DE polarity of upstream text via the
 `sidecars/sentiment` FastAPI sidecar, persisted to `asset_json_comp` with `variant` = source output
-key; see [NODE_SENTIMENT_PLAN.md](NODE_SENTIMENT_PLAN.md). Previously: executable node kinds are
-derived from the node collection via `@Binds @IntoMap @StringKey` in each module + `NodeRegistrar` at
-bootstrap; §5/§8 updated; Loom rejects runs whose graph contains a kind no worker accepts with a
-full-graph 503 precheck)_
+key; see [NODE_SENTIMENT_PLAN.md](NODE_SENTIMENT_PLAN.md))_

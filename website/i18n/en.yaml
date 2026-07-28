@@ -43,8 +43,10 @@
   translation: Explore
 - id: project
   translation: Project
-- id: forStudios
-  translation: For studios
+- id: tour
+  translation: Product tour
+- id: studio
+  translation: MetaLoom Studio
 - id: features
   translation: Features
 - id: announcements

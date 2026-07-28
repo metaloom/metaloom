@@ -1,7 +1,7 @@
 /* ==========================================================================
-   /studios/ — design-led page for media studios, archives and creators.
+   /tour/ — the design-led product tour for media studios, archives and creators.
 
-   Loaded only on pages that carry `page_css: css/studios.css` in front matter
+   Loaded only on pages that carry `page_css: css/tour.css` in front matter
    (see partials/head.html), so none of this reaches the docs or the landing
    page. Everything is scoped under .st-page and prefixed .st-*.
 

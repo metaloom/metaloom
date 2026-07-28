@@ -1,0 +1,29 @@
+{{/* Panel art: the support agreement as a readout — severities with the response time next to
+     them, and the person who actually turns up. The illustrative numbers are examples, not a
+     published SLA; the real figures live in the contract, not on this page. */}}
+<div class="sd-art sd-art-support" aria-hidden="true">
+  <div class="sd-sla-head">
+    <span class="sd-sla-kicker">response times, written down</span>
+    <span class="sd-sla-clock">
+      <svg viewBox="0 0 32 32" width="26" height="26">
+        <circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".35"/>
+        <line class="sd-sla-hand" x1="16" y1="16" x2="16" y2="6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        <circle cx="16" cy="16" r="1.6" fill="currentColor"/>
+      </svg>
+    </span>
+  </div>
+
+  <ul class="sd-sla">
+    <li style="--sd-delay:.15s"><span class="sd-sev sd-sev-1">P1</span><span class="sd-sla-what">archive down</span><b>1 h</b></li>
+    <li style="--sd-delay:.3s"><span class="sd-sev sd-sev-2">P2</span><span class="sd-sla-what">pipeline stalled</span><b>4 h</b></li>
+    <li style="--sd-delay:.45s"><span class="sd-sev sd-sev-3">P3</span><span class="sd-sla-what">question, upgrade, review</span><b>next day</b></li>
+  </ul>
+
+  <div class="sd-engineer" style="--sd-delay:.7s">
+    <span class="sd-engineer-avatar" aria-hidden="true"></span>
+    <span class="sd-engineer-body">
+      <b>your engineer</b>
+      <em>has your topology, your node set and your last incident in front of them</em>
+    </span>
+  </div>
+</div>

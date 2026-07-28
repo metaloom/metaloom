@@ -30,13 +30,14 @@ import {
   TextFields, GridView, LinearScale, Straighten, ContentCopy,
   DateRange, Block, VerifiedOutlined, PlaylistRemoveOutlined,
   ImageSearchOutlined, FaceRetouchingNatural, Face, Description,
+  LayersOutlined, SchemaOutlined,
   TransformOutlined, CloseOutlined, SearchOutlined,
   SaveOutlined, HistoryOutlined, RestoreOutlined,
   CompareArrowsOutlined, DeleteOutline,
 } from "@mui/icons-material";
 import { Tabs, Tab } from "@mui/material";
 import { tokens } from "../../theme";
-import { Pipeline, PipelineNode, EdgeKind } from "../../types";
+import { Pipeline, PipelineNode, EdgeKind, pipelineNodeOptions } from "../../types";
 import {
   listPipelines, PipelineResponse,
   updatePipeline, runPipeline, cancelPipelineRun, listPipelineRuns, type PipelineUpdateRequest,
@@ -106,6 +107,8 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   face:                     <Face sx={{ fontSize: 14 }} />,
   face_retouching_natural:  <FaceRetouchingNatural sx={{ fontSize: 14 }} />,
   file_copy:                <ContentCopy sx={{ fontSize: 14 }} />,
+  layers:                   <LayersOutlined sx={{ fontSize: 14 }} />,
+  schema:                   <SchemaOutlined sx={{ fontSize: 14 }} />,
 };
 
 /** Resolve the icon for a descriptor, falling back to its category default. */
@@ -142,6 +145,38 @@ function descriptorConnectors(desc: NodeDescriptor): { inputs: ConnectorDef[]; o
     inputs: desc.inputs.map((i) => ({ name: i.name, dataType: toConnectorDataType(i.contentType) })),
     outputs: desc.outputs.map((o) => ({ name: o.name, dataType: toConnectorDataType(o.contentType) })),
   };
+}
+
+/**
+ * Content type each script output value type carries downstream. Mirrors `ScriptValueType`
+ * in the cortex script node — keep the two in step when adding a value type.
+ */
+const SCRIPT_VALUE_CONTENT_TYPE: Record<string, string> = {
+  STRING: "data/string", TEXT: "data/text", INTEGER: "data/integer", NUMBER: "data/number",
+  BOOLEAN: "data/boolean", JSON: "data/text", TEXT_LIST: "data/text", TIMEFRAMES: "data/scene",
+  IMAGE: "data/thumbnail", IMAGE_LIST: "data/thumbnail", PATH: "data/path",
+};
+
+/**
+ * Connectors for one node, preferring any the node declares for itself.
+ *
+ * Most kinds have a fixed output set that the descriptor states. A `script` node's outputs are
+ * per instance — they come from its `outputs` option — so the descriptor cannot know them and
+ * the handles have to be derived from the node's own configuration instead.
+ */
+function nodeConnectors(desc: NodeDescriptor | undefined, options: Record<string, unknown>): { inputs: ConnectorDef[]; outputs: ConnectorDef[] } {
+  const base = desc
+    ? descriptorConnectors(desc)
+    : { inputs: [{ name: "Input", dataType: "media" as ConnectorDataType }], outputs: [{ name: "Output", dataType: "media" as ConnectorDataType }] };
+
+  const declared = options.outputs;
+  if (!Array.isArray(declared) || declared.length === 0) return base;
+
+  const outputs = declared
+    .filter((o): o is { key: string; type?: string } => !!o && typeof o === "object" && typeof (o as { key?: unknown }).key === "string")
+    .map(o => ({ name: o.key, dataType: toConnectorDataType(SCRIPT_VALUE_CONTENT_TYPE[o.type ?? "STRING"] ?? "data/string") }));
+
+  return outputs.length > 0 ? { inputs: base.inputs, outputs } : base;
 }
 
 // Color map for connector data types
@@ -399,9 +434,7 @@ function toRFNodes(pnodes: PipelineNode[], selectedId: string | null, descriptor
 
   return pnodes.map(n => {
     const desc = descMap.get(n.type);
-    const connectors = desc
-      ? descriptorConnectors(desc)
-      : { inputs: [{ name: "Input", dataType: "media" as ConnectorDataType }], outputs: [{ name: "Output", dataType: "media" as ConnectorDataType }] };
+    const connectors = nodeConnectors(desc, pipelineNodeOptions(n));
     const category: NodeCategory = desc?.category ?? "ANALYSIS";
     return {
       id: n.id,
@@ -425,7 +458,7 @@ function toRFNodes(pnodes: PipelineNode[], selectedId: string | null, descriptor
         // Affinity is a top-level field on the definition node; surface it in the
         // React Flow node data so the renderer and getGraphJson can see it.
         affinity: n.affinity ?? DEFAULT_AFFINITY,
-        ...n.data,
+        ...pipelineNodeOptions(n),
       },
     };
   });
@@ -696,7 +729,7 @@ function NodeDetailPanel({ nodeId, pipeline }: { nodeId: string | null; pipeline
       </Box>
       <Typography variant="caption" sx={{ color: tokens.text.secondary, lineHeight: 1.5, display: "block", mb: 1 }}>{node.description}</Typography>
       <Box sx={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "2px 10px" }}>
-        {Object.entries(node.data).map(([k, v]) => (
+        {Object.entries(pipelineNodeOptions(node)).map(([k, v]) => (
           <React.Fragment key={k}>
             <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>{k}</Typography>
             <Typography variant="caption" sx={{ color: tokens.text.secondary, fontSize: "0.7rem", wordBreak: "break-word" }}>
@@ -994,6 +1027,8 @@ function NodeDetailSidebar({
   const [displayName, setDisplayName] = useState("");
   const [affinity, setAffinity] = useState(DEFAULT_AFFINITY);
   const [detailTab, setDetailTab] = useState(0);
+  // Per-parameter "the JSON you typed does not parse" flags, for JSON-typed parameters.
+  const [jsonParamError, setJsonParamError] = useState<Record<string, boolean>>({});
   const { t } = useTranslation();
 
   // Distinct affinity groups already used in the graph, for the autocomplete.
@@ -1124,17 +1159,23 @@ function NodeDetailSidebar({
                   {desc && desc.parameters.length > 0 ? (
                     <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
                       {desc.parameters.map(param => {
-                        const currentValue = (node.data as Record<string, unknown>)[param.key] ?? param.defaultValue ?? "";
+                        const currentValue = pipelineNodeOptions(node)[param.key] ?? param.defaultValue ?? "";
                         const label = param.label || param.key;
                         const descText = param.description || "";
-                        const isEnum = param.type === "ENUM" && param.allowedValues;
+                        // `values` is what the backend emits; `allowedValues` is the legacy alias.
+                        const enumValues = param.values ?? param.allowedValues;
+                        const isEnum = param.type === "ENUM" && enumValues;
                         const isBool = param.type === "BOOLEAN";
                         const isInt = param.type === "INTEGER";
-                        const isFloat = param.type === "FLOAT";
-                        const isStringList = param.type === "STRING_LIST";
+                        const isFloat = param.type === "NUMBER" || param.type === "FLOAT";
+                        const isStringList = param.type === "ENUM_SET" || param.type === "STRING_LIST";
+                        const isCode = param.type === "CODE";
+                        const isJson = param.type === "JSON";
                         const fieldValue = isStringList
                           ? Array.isArray(currentValue) ? (currentValue as unknown[]).join(", ") : String(currentValue)
-                          : currentValue;
+                          : isJson
+                            ? typeof currentValue === "string" ? currentValue : JSON.stringify(currentValue ?? null, null, 2)
+                            : currentValue;
 
                         return (
                           <Box key={param.key}>
@@ -1152,7 +1193,7 @@ function NodeDetailSidebar({
                                 onChange={e => onParameterChange?.(nodeId!, param.key, e.target.value)}
                                 sx={{ "& .MuiInputBase-root": { fontSize: "0.78rem" } }}
                               >
-                                {(param.allowedValues ?? []).map(opt => (
+                                {(enumValues ?? []).map(opt => (
                                   <MenuItem key={opt} value={opt} sx={{ fontSize: "0.78rem" }}>{opt}</MenuItem>
                                 ))}
                               </TextField>
@@ -1175,6 +1216,39 @@ function NodeDetailSidebar({
                                 }}
                                 sx={{ "& .MuiInputBase-root": { fontSize: "0.78rem", fontFamily: "monospace" } }}
                               />
+                            ) : isCode || isJson ? (
+                              // Script bodies and structured bags need room and a monospace face.
+                              // JSON is stored parsed, so it is only committed when it parses —
+                              // otherwise every keystroke mid-edit would write a broken value.
+                              <TextField
+                                size="small"
+                                fullWidth
+                                multiline
+                                minRows={param.rows ?? (isCode ? 12 : 4)}
+                                maxRows={isCode ? 30 : 12}
+                                spellCheck={false}
+                                value={String(fieldValue ?? "")}
+                                placeholder={isCode ? `// ${param.language ?? "javascript"}` : "{ }"}
+                                onChange={e => {
+                                  const raw = e.target.value;
+                                  if (!isJson) {
+                                    onParameterChange?.(nodeId!, param.key, raw);
+                                    return;
+                                  }
+                                  try {
+                                    onParameterChange?.(nodeId!, param.key, JSON.parse(raw));
+                                    setJsonParamError(prev => ({ ...prev, [param.key]: false }));
+                                  } catch {
+                                    // Keep the text the user is typing, flag it, and let save-time
+                                    // validation refuse rather than silently persisting a string.
+                                    onParameterChange?.(nodeId!, param.key, raw);
+                                    setJsonParamError(prev => ({ ...prev, [param.key]: true }));
+                                  }
+                                }}
+                                error={isJson && !!jsonParamError[param.key]}
+                                helperText={isJson && jsonParamError[param.key] ? t("pipeline.nodeDetail.invalidJson") : undefined}
+                                sx={{ "& .MuiInputBase-root": { fontSize: "0.72rem", fontFamily: "monospace", lineHeight: 1.45 } }}
+                              />
                             ) : (
                               <TextField
                                 size="small"
@@ -1196,7 +1270,7 @@ function NodeDetailSidebar({
                     </Box>
                   ) : (
                     <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                      {Object.entries(node.data).map(([k, v]) => (
+                      {Object.entries(pipelineNodeOptions(node)).map(([k, v]) => (
                         <TextField
                           key={k}
                           label={k}
@@ -1207,7 +1281,7 @@ function NodeDetailSidebar({
                           sx={{ "& .MuiInputBase-root": { fontSize: "0.78rem", fontFamily: "monospace" } }}
                         />
                       ))}
-                      {Object.keys(node.data).length === 0 && (
+                      {Object.keys(pipelineNodeOptions(node)).length === 0 && (
                         <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem", fontStyle: "italic" }}>
                           {t("pipeline.nodeDetail.noParameters")}
                         </Typography>
@@ -1266,7 +1340,7 @@ function NodeDetailSidebar({
                     fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontSize: "0.68rem", lineHeight: 1.6,
                     color: tokens.text.secondary, whiteSpace: "pre-wrap", wordBreak: "break-word", m: 0,
                   }}>
-                    {JSON.stringify({ id: node.id, type: node.type, label: node.label, description: node.description, config: node.data, status: "idle", lastRun: null, metrics: { processedCount: 3, avgLatencyMs: 1000, errorRate: 0 } }, null, 2)}
+                    {JSON.stringify({ id: node.id, type: node.type, label: node.label, description: node.description, config: pipelineNodeOptions(node), status: "idle", lastRun: null, metrics: { processedCount: 3, avgLatencyMs: 1000, errorRate: 0 } }, null, 2)}
                   </Typography>
                 </Box>
               </Box>
@@ -1285,7 +1359,7 @@ function NodeDetailSidebar({
 
 // ── Canvas ────────────────────────────────────────────────────────────────
 function PipelineCanvas({
-  pipeline, onNodeSelect, externalNodes, nodeDisplayNames, nodeAffinities, descriptors,
+  pipeline, onNodeSelect, externalNodes, nodeDisplayNames, nodeAffinities, nodeParameters, descriptors,
   onDeleteNode, activeNodeIds, nodeResults, onGraphChange, removalTrigger, autoArrangeTrigger,
   onEdgeTypeChange, reloadKey,
 }: {
@@ -1294,6 +1368,7 @@ function PipelineCanvas({
   externalNodes?: RFNode[];
   nodeDisplayNames?: Record<string, string>;
   nodeAffinities?: Record<string, string>;
+  nodeParameters?: Record<string, Record<string, unknown>>;
   descriptors: NodeDescriptor[];
   onDeleteNode?: (nodeId: string, label: string) => void;
   activeNodeIds?: Set<string>;
@@ -1450,6 +1525,25 @@ function PipelineCanvas({
     }));
   }, [nodeAffinities, setNodes]);
 
+  // Apply parameter edits made in the NodeDetailSidebar into the live canvas node data.
+  // Without this channel the edits live only on `selected.definition`, while getGraphJson
+  // serialises from the canvas — so saving would silently discard every parameter change.
+  // Output connectors are recomputed here too, so a `script` node's handles follow its
+  // declared outputs as they are edited.
+  useEffect(() => {
+    if (!nodeParameters) return;
+    setNodes(nds => nds.map(n => {
+      const params = nodeParameters[n.id];
+      if (!params) return n;
+      const changed = Object.entries(params).some(([k, v]) => n.data[k] !== v);
+      if (!changed) return n;
+      const data = { ...n.data, ...params };
+      const desc = descriptors.find(d => d.kind === (n.data.kind as string));
+      const connectors = nodeConnectors(desc, data as Record<string, unknown>);
+      return { ...n, data: { ...data, inputs: connectors.inputs, outputs: connectors.outputs } };
+    }));
+  }, [nodeParameters, descriptors, setNodes]);
+
   const onNodeClick = useCallback((_: React.MouseEvent, node: RFNode) => {
     setSelectedId(node.id);
     onNodeSelect(node.id);
@@ -1587,7 +1681,11 @@ function PipelineCanvas({
         position: n.position,
         // Only emit non-default affinity — keeps the JSON clean and backward compatible.
         ...(affinity && affinity !== DEFAULT_AFFINITY ? { affinity } : {}),
-        ...(configEntries.length > 0 ? { config: Object.fromEntries(configEntries) } : {}),
+        // `options` is the key Loom's PipelineGraphParser reads. This used to be emitted as
+        // `config`, which no parser ever read — so node parameters edited here were silently
+        // dropped at the Loom boundary and never reached a worker. The parser still accepts
+        // `config` as a legacy alias so definitions saved before this fix keep loading.
+        ...(configEntries.length > 0 ? { options: Object.fromEntries(configEntries) } : {}),
       };
     });
     const edgeData = edges.map(e => ({
@@ -1954,6 +2052,7 @@ export default function PipelineEditor() {
   const [addedNodes, setAddedNodes] = useState<RFNode[]>([]);
   const [nodeDisplayNames, setNodeDisplayNames] = useState<Record<string, string>>({});
   const [nodeAffinities, setNodeAffinities] = useState<Record<string, string>>({});
+  const [nodeParameters, setNodeParameters] = useState<Record<string, Record<string, unknown>>>({});
   const [addNodeOpen, setAddNodeOpen] = useState(false);
   const [addNodeIdx, setAddNodeIdx] = useState(0);
   const addNodeBarRef = useRef<HTMLDivElement>(null);
@@ -2161,8 +2260,14 @@ export default function PipelineEditor() {
     if (!selected) return;
     const node = selected.definition.nodes.find(n => n.id === nodeId);
     if (node) {
-      (node.data as Record<string, unknown>)[key] = value;
+      // Normalise onto `options` — the only shape Loom reads — carrying over any legacy
+      // `config`/`data` bag the stored definition still uses.
+      node.options = { ...pipelineNodeOptions(node), [key]: value };
+      delete node.config;
+      delete node.data;
       setSelected({ ...selected });
+      // Mirror onto the canvas: getGraphJson serialises from there, not from the definition.
+      setNodeParameters(prev => ({ ...prev, [nodeId]: { ...(prev[nodeId] ?? {}), [key]: value } }));
       setDirty(true);
     }
   }, [selected]);
@@ -2196,11 +2301,11 @@ export default function PipelineEditor() {
   const handleAddNode = useCallback((desc: NodeDescriptor) => {
     if (!selected) return;
     const id = `pn-${Date.now()}`;
-    const connectors = descriptorConnectors(desc);
     const paramDefaults: Record<string, unknown> = {};
     for (const p of desc.parameters) {
       if (p.defaultValue !== undefined && p.defaultValue !== null) paramDefaults[p.key] = p.defaultValue;
     }
+    const connectors = nodeConnectors(desc, paramDefaults);
     const newNode: RFNode = {
       id,
       type: "pipelineNode",
@@ -2219,7 +2324,7 @@ export default function PipelineEditor() {
     // Also add to pipeline definition so NodeDetailSidebar can find it
     selected.definition.nodes.push({
       id, type: desc.kind, label: desc.name, description: desc.description,
-      position: newNode.position, data: paramDefaults,
+      position: newNode.position, options: paramDefaults,
     });
     setAddedNodes(prev => [...prev, newNode]);
     setAddNodeOpen(false);
@@ -2661,6 +2766,7 @@ export default function PipelineEditor() {
                   externalNodes={addedNodes}
                   nodeDisplayNames={nodeDisplayNames}
                   nodeAffinities={nodeAffinities}
+                  nodeParameters={nodeParameters}
                   descriptors={descriptors}
                   onDeleteNode={handleDeleteNodeRequest}
                   activeNodeIds={activeNodeIds}

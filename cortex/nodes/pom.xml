@@ -27,6 +27,9 @@
         <module>whisper</module>
         <module>tts</module>
         <module>sentiment</module>
+        <module>script</module>
+        <module>depthmap</module>
+        <module>scene-layout</module>
         <module>quality</module>
         <module>captioning</module>
         <module>image-generation</module>

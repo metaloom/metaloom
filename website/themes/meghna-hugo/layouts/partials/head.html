@@ -22,8 +22,8 @@
 	<link rel="stylesheet" href="{{ $styles.RelPermalink }}" media="screen">
 
 	{{/* Page-specific stylesheet, named by front matter `page_css: css/<name>.css` (an asset
-	     path). The /studios/ page uses it so its stylesheet never loads on the docs or the
-	     landing page. */}}
+	     path). The /tour/ and /studio/ pages use it so their stylesheets never load on the
+	     docs or the landing page. */}}
 	{{ with .Params.page_css }}
 	{{ with resources.Get . }}
 	<link rel="stylesheet" href="{{ (. | minify).RelPermalink }}" media="screen">

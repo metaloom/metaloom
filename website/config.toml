@@ -123,10 +123,18 @@ weight = 3
 #weight = 5
 
 [[Languages.en.menu.main]]
-name = "Studios"
+name = "Tour"
 pre = ""
-url = "studios"
+url = "tour"
 weight = 2
+
+# The commercial edition. Deliberately singular ("Studio") and distinct from the /tour/
+# page above, which used to sit at /studios/ and confused the two.
+[[Languages.en.menu.main]]
+name = "Studio"
+pre = ""
+url = "studio"
+weight = 4
 
 [[Languages.en.menu.main]]
 name = "Announcements"

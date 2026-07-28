@@ -156,6 +156,21 @@
         </dependency>
         <dependency>
             <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-script-node</artifactId>
+            <version>${loom.cortex.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-depthmap-node</artifactId>
+            <version>${loom.cortex.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-scene-layout-node</artifactId>
+            <version>${loom.cortex.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
             <artifactId>cortex-image-generation-node</artifactId>
             <version>${loom.cortex.version}</version>
         </dependency>

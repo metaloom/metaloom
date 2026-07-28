@@ -1,0 +1,24 @@
+{{/* "Open core" art: the two columns side by side, so the split is a picture and not a promise.
+     Left is what is Apache 2.0 (teal, the platform colour), right is what Studio adds (amber).
+     Pure markup + CSS (studio.css) — the items come from data/en/studio.yml. */}}
+<div class="sd-ledger" aria-hidden="true">
+  <div class="sd-ledger-col sd-ledger-open">
+    <p class="sd-ledger-head">{{ .ledger.open_label }}</p>
+    <ul>
+      {{ range $i, $it := .ledger.open_items }}
+      <li style="--sd-delay:{{ mul $i 90 }}ms"><span class="sd-tick" aria-hidden="true">&#10003;</span>{{ $it }}</li>
+      {{ end }}
+    </ul>
+  </div>
+  <div class="sd-ledger-col sd-ledger-studio">
+    <p class="sd-ledger-head">{{ .ledger.studio_label }}</p>
+    <ul>
+      {{ range $i, $it := .ledger.studio_items }}
+      <li style="--sd-delay:{{ add 450 (mul $i 90) }}ms"><span class="sd-plus" aria-hidden="true">+</span>{{ $it }}</li>
+      {{ end }}
+    </ul>
+  </div>
+  {{/* The seam between the two columns — it lights up once, left to right, when the card is
+       revealed, then stays put. */}}
+  <span class="sd-ledger-seam"></span>
+</div>

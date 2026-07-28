@@ -127,6 +127,8 @@ spec/
 ├── AGENTS.md                          # One-liner: "read CONTEXT.md first"
 ├── CONTEXT.md                         # ← THIS FILE — entry point for AI agents
 ├── METALOOM.md                        # Big-picture module layout & framework map
+├── METALOOM_STUDIO_PLAN.md            # Commercial edition ("MetaLoom Studio") — monetisation
+│                                      #   options, open decisions, website↔decision mapping
 ├── SPEC_RULES.md                      # RULES for writing spec files
 ├── TASKS.md                           # Scratch task note (unstructured)
 ├── TASKS.template.md                  # Required format for every *_TASKS.md file
@@ -156,6 +158,10 @@ spec/
 │   │   └── PIPELINE_TASKS.md          # Actionable pipeline work items
 │   ├── pipeline-nodes/
 │   │   ├── NODES.md                   # Cortex node system + per-node reference
+│   │   ├── NODE_DEPTHMAP_PLAN.md            # Depth map node design (monocular depth, sidecar) — NOT built
+│   │   ├── NODE_IMAGEGEN_PLAN.md            # Image generation node design — implemented
+│   │   ├── NODE_SCENE_LAYOUT_PLAN.md        # Scene layout node design (depth + boxes → spatial relations) — NOT built
+│   │   ├── NODE_SCRIPT_PLAN.md              # Script node design (GraalJS, declared multi-valued outputs) — implemented
 │   │   ├── NODE_SENTIMENT_PLAN.md           # Sentiment node design (EN/DE, commercial-license models)
 │   │   ├── NODE_VIDEO_CAPTIONING_PLAN.md    # Video captioning node design
 │   │   ├── NODE_VIDEO_CAPTIONING_REPORT.md  # Benchmark report (real runs, Qwen2.5-VL-7B)
@@ -203,6 +209,7 @@ spec/
 │   └── TASKS.md                       # Queue of captured tasks (TASKS.template.md format)
 └── website/
     └── WEBSITE.md                     # Hugo site: content, build, publish flow
+                                       #   (incl. /tour/ and /studio/, the two design-led scrollers)
 ```
 
 ### 2.1 Which file do I open?
@@ -223,6 +230,7 @@ spec/
 | Search / full-text / indexing | [features/search/SEARCH.md](features/search/SEARCH.md) — **nothing is implemented**; build order in [features/search/SEARCH_PLAN.md](features/search/SEARCH_PLAN.md) |
 | Embeddings / similarity / vector search | [features/search/SEMANTIC_SEARCH.md](features/search/SEMANTIC_SEARCH.md) — closes the `embedding.vector` "OPEN DECISION" in favour of pgvector |
 | Customer-facing docs | [website/WEBSITE.md](website/WEBSITE.md) |
+| The commercial edition / what is paid vs. open | [METALOOM_STUDIO_PLAN.md](METALOOM_STUDIO_PLAN.md) — **nothing is decided**; read §5 before gating any feature |
 | Picking up queued work | any `*_TASKS.md`, format per [TASKS.template.md](TASKS.template.md) |
 
 ### 2.2 Feature specs vs. component specs
@@ -756,6 +764,8 @@ Both Loom and Cortex use **Dagger 2**:
 | **Definition JSON** | ✅ Loom's `PipelineGraphParser` resolves the top-level `edges[]` array, falling back to `nodes[].dependencies[]` when no edges are present; when both exist **`edges` wins**. Older notes claiming edges are ignored describe the deleted Cortex-side `LoomPipelineLoader` and are stale |
 | **Executable node kinds** | ✅ The executable-kind set is now **derived from the node collection**, not hand-maintained. Each node module declares its kind with a one-line `@Binds @IntoMap @StringKey("<kind>") FilesystemNode` binding; `NodeRegistrar` (impl `RegistryNodeRegistrar`) populates the `RegistryNodeFactory` registry at Cortex bootstrap (before the control channel registers), so the announced `nodeWhitelist` reflects every wired node (whisper, ocr, tika, quality, scene-detection, facedetect, llm, consistency, fingerprint, captioning, loom, sha512-dedup, …), plus the `filesystem-source`/`asset-source` producers. To add a kind, add the map binding in that node's module — **not** in `PipelineNodeFactoryModule`. Deliberate exclusions: `fingerprint-dedup` (stub) and `facedescription` (unwired). Registration is lazy (`Provider`), so advertising a kind never constructs the node |
 | **Unschedulable runs → 503** | `PipelineEndpointService.dispatchRun` prechecks **every** node kind in the graph (not just the source) against `ProcessorRegistry`; if any kind has no online worker that accepts it, the run is rejected with **503** naming the kinds (`PipelineEndpointService.unsupportedNodeKinds`). Previously only the source kind was checked and an unsupported downstream kind started a run that stalled mid-flight |
+| **Per-instance node options** | ✅ Node parameters from the pipeline definition reach a node only if it implements `PipelineConfigurable` (`cortex/common`); `RegistryNodeRegistrar.adapt()` otherwise reads only the structural fields and takes options from the worker's YAML. Two defects that meant editor-set parameters had **never** reached a worker are fixed: the editor emitted `config` where `PipelineGraphParser` reads `options` (the alias is still accepted), and sidebar edits were discarded on save because `getGraphJson()` serialises the canvas. See [NODES.md](features/pipeline-nodes/NODES.md) §5.1 |
+| **`ctx.failure(...).next()`** | 🔴 Returns **SUCCESS** — `NodeContextImpl.next()` ignores the failure cause; only `abort()` yields FAILED. Eleven nodes use `.next()` on their failure paths and therefore report success. Use `ctx.failure(msg).abort()` in new nodes |
 | **Node result write-back** | Results reach Loom via `POST /api/v1/assets/:uuid/node-results` — upsert a typed component **and** record the `asset_node_result` ledger row. `WhisperNode` is the reference implementation; copy its shape for a new node |
 | **Cortex `cortex.yml`** | 🔴 Not read on the server path, despite [cortex/CONFIGURATION.md](cortex/CONFIGURATION.md) |
 | **Cortex shutdown** | 🔴 No shutdown hook — `SIGTERM` abandons in-flight work and loses buffered results |

@@ -1,0 +1,197 @@
+############################# /studio/ — MetaLoom Studio, the commercial edition ################
+# Copy only. Structure, art and motion live in themes/meghna-hugo/layouts/studio/list.html and
+# the partials under layouts/partials/studio/. Every `art:` key maps to a partial of the same
+# name (art: identity -> partials/studio/art-identity.html), so a new panel needs a matching file.
+#
+# Do not confuse this with data/en/tour.yml — that is /tour/, the visual product tour that used
+# to live at /studios/ (plural). This file is the commercial pitch.
+#
+# ⚠️ What this page claims Studio contains is a PROPOSAL, not a shipped product. The options and
+# the open questions behind it are written down in spec/METALOOM_STUDIO_PLAN.md — if the
+# monetisation model changes (e.g. S3 stays in the open-source build), change the panels here and
+# the editions table below in the same pass, and record the decision in that plan.
+#
+# Two promises on this page are load-bearing. Do not soften them and do not contradict them
+# elsewhere on the site: nothing that ships open source moves into Studio, and Studio does not
+# meter processing.
+
+hero:
+  eyebrow: "MetaLoom Studio · commercial edition"
+  status: "In development alongside 1.0.0 — nothing is for sale yet"
+  title: "The same engine.<br>With a company behind it."
+  content: "MetaLoom stays open source and stays on your hardware. Studio is what you add when the archive stops being a side project — identity, storage, cleared model licenses, and someone whose job it is to answer."
+  primary:
+    label: "Request early access"
+    link: "#early-access"
+  secondary:
+    label: "What stays open"
+    link: "#open-core"
+  scroll_hint: "Scroll"
+
+open_core:
+  eyebrow: "Open core, in writing"
+  title: "Nothing you run today<br>moves behind a paywall."
+  content: "The platform — server, engine, every processing node, the API, the UI — is Apache 2.0 and stays that way. Studio adds the things that only exist because a company is on the other end of them: agreements, credentials, licenses, an answer."
+  # The two columns of the ledger illustration.
+  ledger:
+    open_label: "Always open source"
+    open_items:
+      - "Loom server · Cortex engine"
+      - "All 19 processing node kinds"
+      - "REST · GraphQL · CLI · desktop"
+      - "Pipeline editor & chat agent"
+      - "Helm chart & container images"
+    studio_label: "Studio adds"
+    studio_items:
+      - "SSO, SCIM and the audit trail"
+      - "S3 storage backend & tiering"
+      - "Commercially cleared models"
+      - "LTS line & signed builds"
+      - "A support agreement"
+  rules:
+    - title: "Nothing is taken away"
+      note: "A capability that has shipped open source stays open source. Studio is additive — this page is the record, and it is dated."
+    - title: "No metered processing"
+      note: "Studio does not count your minutes, frames or assets. You bought the hardware; run it until it melts."
+    - title: "It still runs air-gapped"
+      note: "A Studio install works with no route to us. Entitlement is a file you hold, not a service you depend on."
+
+panels:
+  - art: identity
+    eyebrow: "Access"
+    title: "Everyone signs in the way your company already signs in."
+    content: "Studio wires MetaLoom into the identity provider you run: OIDC and SAML single sign-on, directory groups mapped onto MetaLoom roles, accounts provisioned and — the part that matters at an audit — de-provisioned automatically."
+    chips: ["SSO · OIDC & SAML", "SCIM provisioning", "Group → role mapping", "Audit trail"]
+    link: "/docs/loom/authentication/"
+    link_label: "How authentication works today"
+
+  - art: storage
+    eyebrow: "Storage"
+    title: "Petabytes, on the tier they belong on."
+    content: "Point Studio at S3-compatible object storage — MinIO, Ceph, a rack of your own or a provider you already pay — and let cold material fall through to cheap tiers while the index stays instant. Multi-site installs replicate only what they need."
+    chips: ["S3-compatible backends", "Hot / warm / cold tiering", "Multi-site replication", "Bring your own bucket"]
+    link: "/features/"
+    link_label: "Storage on the roadmap"
+
+  - art: licensing
+    eyebrow: "Licensing"
+    title: "Models you are actually allowed to sell with."
+    content: "Two of MetaLoom's strongest defaults are non-commercial: the InspireFace packs behind face recognition and Ideogram 4.0 behind image generation. Studio ships a cleared bundle — checked, pinned, versioned and named in your agreement — so the legal question is answered before the pipeline runs, not after a client asks."
+    chips: ["Cleared model bundle", "Written provenance", "Pinned versions", "Indemnity"]
+    link: "/docs/legal/model-licenses/"
+    link_label: "The license inventory today"
+
+  - art: operations
+    eyebrow: "Operations"
+    title: "Upgrades that are somebody's job."
+    content: "Signed images with an SBOM, a supported Helm chart, an LTS line that gets security fixes without feature churn, backup and restore that has been rehearsed against a real archive, and dashboards that were not drawn during the incident."
+    chips: ["Signed images + SBOM", "LTS line", "Supported Helm chart", "Tested backup & restore"]
+    link: "/docs/deployment/"
+    link_label: "Container images"
+
+  - art: support
+    eyebrow: "Support"
+    title: "A name, not a queue."
+    content: "A support agreement with response times written into it, an engineer who has already seen your topology, and a hand on the migration from the demo container to the rack. Roadmap conversations go both ways — Studio customers are why features get ordered the way they do."
+    chips: ["Response times in writing", "Named engineer", "Migration support", "Roadmap input"]
+    link: "#early-access"
+    link_label: "Talk to us about it"
+
+  - art: integrations
+    eyebrow: "Fit"
+    title: "The node your workflow needs, built and maintained."
+    content: "Every real pipeline hits one step that is specific to the house: a legacy MAM, a delivery spec, a codec nobody else has, a naming convention from 2009. Studio covers custom nodes and connectors as part of the engagement — kept working across upgrades instead of rotting in a fork."
+    chips: ["Custom nodes", "Connectors & exports", "Maintained across upgrades", "OEM & white-label"]
+    link: "/docs/playbooks/python-node/"
+    link_label: "Writing your own node"
+
+numbers:
+  - value: "19"
+    label: "processing nodes — every one of them open source"
+  - value: "0"
+    label: "minutes, frames or assets metered"
+  - value: "100%"
+    label: "of Studio runs on hardware you own"
+  - value: "1"
+    label: "agreement, one invoice, one person to call"
+
+editions:
+  eyebrow: "Where the line is"
+  title: "Two editions. One codebase."
+  content: "Community is the whole platform and always will be. Studio is the same software with the organisational parts attached."
+  community_label: "Community"
+  community_note: "Apache 2.0 · free, forever"
+  studio_label: "Studio"
+  studio_note: "Commercial · pricing with 1.0.0"
+  rows:
+    - feature: "Loom server, Cortex engine, all 19 node kinds"
+      community: true
+      studio: true
+    - feature: "Self-hosted, unmetered, air-gap capable"
+      community: true
+      studio: true
+    - feature: "REST · GraphQL · CLI · web & desktop UI"
+      community: true
+      studio: true
+    - feature: "Pipeline editor, chat agent, skills & memory"
+      community: true
+      studio: true
+    - feature: "Community support — Discord and the issue tracker"
+      community: true
+      studio: true
+    - feature: "SSO (OIDC / SAML), SCIM provisioning, audit trail"
+      community: false
+      studio: true
+    - feature: "S3-compatible object storage, tiering, multi-site"
+      community: false
+      studio: true
+    - feature: "Commercially cleared model bundle + indemnity"
+      community: false
+      studio: true
+    - feature: "Signed builds, SBOM and a maintained LTS line"
+      community: false
+      studio: true
+    - feature: "Support agreement with written response times"
+      community: false
+      studio: true
+    - feature: "Custom nodes, connectors and OEM terms"
+      community: false
+      studio: true
+  footnote: "No feature has ever moved from the left column to the right one, and none will."
+
+audiences:
+  eyebrow: "Who Studio is for"
+  title: "Not everyone needs a vendor. Some people cannot deploy without one."
+  items:
+    - icon: "ti-video-camera"
+      title: "Post houses under contract"
+      note: "Client footage under NDA, deliverables with clearance requirements, and an auditor who wants to know which model touched the frame."
+    - icon: "ti-archive"
+      title: "Broadcast & public archives"
+      note: "Procurement needs a counterparty, retention needs an audit trail, and the material outlives everyone who set the system up."
+    - icon: "ti-package"
+      title: "Teams building on MetaLoom"
+      note: "You are embedding the engine in your own product. OEM terms, a roadmap you can plan against, and fixes that land upstream."
+
+early_access:
+  eyebrow: "Early access"
+  title: "Studio is being built alongside 1.0.0."
+  content: "Nothing is for sale yet and there is no price list to show you. What exists is a roadmap and a short list of people whose problems are shaping it. If the page above described your situation, say so — that is the whole application process."
+  # Keep these true. They are the first thing a serious reader checks the pitch against.
+  facts:
+    - label: "Platform"
+      value: "1.0.0-SNAPSHOT, not released"
+    - label: "Studio"
+      value: "in design — see the plan"
+    - label: "Pricing"
+      value: "announced with 1.0.0"
+  primary:
+    label: "Email us about Studio"
+    link: "mailto:hello@metaloom.io?subject=MetaLoom%20Studio%20early%20access"
+  secondary:
+    label: "Read the docs"
+    link: "/docs/"
+  tertiary:
+    label: "Join the Discord"
+    link: "https://discord.gg/NFdnFcSbfA"
+  note: "An email reaches a person, not a funnel. There is no mailing list to add you to yet, so nothing happens to your address except a reply."
