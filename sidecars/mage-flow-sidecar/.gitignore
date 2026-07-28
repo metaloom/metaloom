@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.log
+# Scratch output (curl smoke tests, out.png, ...) is ignored; the example-*.png files
+# written by generate_examples.py are checked in on purpose as reference output.
+*.png
+!example-*.png

@@ -1,0 +1,36 @@
+# Cortex Mage-Flow imagegen sidecar. Python 3.10+.
+#
+# The version set below is upstream's own tested one (Mage/mage_flow/requirements.txt),
+# copied rather than loosened: the text encoder is a *patched* Qwen3-VL, so a
+# transformers minor bump is a real risk, not a cosmetic one (see the pin note).
+#
+# The `mage-flow` package itself is NOT listed here - it is not on PyPI and must be
+# installed with --no-deps so it cannot re-resolve these pins (it declares gradio and
+# loose torch bounds). setup.sh does that as a second step.
+#
+# flash-attn is NOT listed here either, and is optional for this sidecar - see README
+# ("Attention backend"). It only builds with a matching nvcc and build isolation off.
+
+# --- HTTP layer ---
+fastapi>=0.115
+uvicorn[standard]>=0.30
+
+# --- core numerics / DL ---
+torch==2.13.0
+torchvision==0.28.0         # reference-image resize on the /remix (edit) path
+numpy==2.4.3
+
+# --- diffusion + HF model stack ---
+diffusers==0.38.0
+# Upstream's ceiling, kept verbatim: transformers 5.6.0 removed the `input_embeds`
+# kwarg of `create_causal_mask` that Mage-Flow's text encoder relies on.
+transformers==5.5.0
+accelerate==1.13.0
+safetensors==0.8.0          # diffusers 0.38.0 requires >=0.8.0
+huggingface_hub>=0.20       # snapshot_download of the checkpoint repo
+
+# --- tensor ops / config / io / logging ---
+einops==0.8.2
+pydantic==2.12.5
+pillow==12.3.0
+loguru==0.7.3
