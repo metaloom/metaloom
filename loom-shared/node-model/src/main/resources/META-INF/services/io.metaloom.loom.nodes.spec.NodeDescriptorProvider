@@ -5,6 +5,7 @@ io.metaloom.loom.nodes.spec.CaptioningDescriptorProvider
 io.metaloom.loom.nodes.spec.ConsistencyDescriptorProvider
 io.metaloom.loom.nodes.spec.DedupDescriptorProvider
 io.metaloom.loom.nodes.spec.DepthmapDescriptorProvider
+io.metaloom.loom.nodes.spec.DominantColorDescriptorProvider
 io.metaloom.loom.nodes.spec.FacedetectDescriptorProvider
 io.metaloom.loom.nodes.spec.FilterDescriptorProvider
 io.metaloom.loom.nodes.spec.FingerprintDescriptorProvider
@@ -13,6 +14,7 @@ io.metaloom.loom.nodes.spec.LlmDescriptorProvider
 io.metaloom.loom.nodes.spec.LoomNodeDescriptorProvider
 io.metaloom.loom.nodes.spec.OcrDescriptorProvider
 io.metaloom.loom.nodes.spec.QualityDescriptorProvider
+io.metaloom.loom.nodes.spec.S3SinkDescriptorProvider
 io.metaloom.loom.nodes.spec.SceneDetectionDescriptorProvider
 io.metaloom.loom.nodes.spec.SceneLayoutDescriptorProvider
 io.metaloom.loom.nodes.spec.ScriptDescriptorProvider

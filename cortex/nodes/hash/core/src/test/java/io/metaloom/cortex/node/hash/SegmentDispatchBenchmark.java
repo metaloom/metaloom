@@ -141,7 +141,7 @@ public class SegmentDispatchBenchmark {
 	/** Each node dispatched separately, resolving the media independently. */
 	private long runPerNode(List<File> files) {
 		NodeTaskRunner runner = new NodeTaskRunner(def -> instantiate(def.getString("id")),
-			path -> StubLoomMedia.ofFile(path.toFile()));
+			mediaRef -> StubLoomMedia.ofFile(new java.io.File(mediaRef.getPath())));
 
 		long start = System.nanoTime();
 		for (File file : files) {
@@ -158,7 +158,7 @@ public class SegmentDispatchBenchmark {
 	/** Both nodes in one segment, resolving the media once. */
 	private long runSegment(List<File> files) {
 		SegmentTaskRunner runner = new SegmentTaskRunner(def -> instantiate(def.getString("id")),
-			path -> StubLoomMedia.ofFile(path.toFile()));
+			mediaRef -> StubLoomMedia.ofFile(new java.io.File(mediaRef.getPath())));
 
 		long start = System.nanoTime();
 		for (File file : files) {

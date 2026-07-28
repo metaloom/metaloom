@@ -1,0 +1,119 @@
+---
+title: S3 Sink
+---
+
+The S3 sink is an **output node**. It takes the files other nodes produce — contact sheets, depth
+maps, generated images, speech audio — uploads them to an S3 bucket, and registers each one in
+Loom as an asset.
+
+Without it, those files exist only on the worker that made them. The interface cannot show a
+thumbnail it cannot reach, a re-run on a different machine recomputes work that was already done,
+and replacing a worker loses everything it produced. The sink is what makes produced media
+durable.
+
+++++
+<div class="ml-nodeviz" data-nodeviz='{"kind":"s3-sink","applies":"Output node","badge":"needs S3 credentials","persist":"bucket object + a new asset per file","configs":[{"name":"publish artifacts","note":"default: picks up what upstream produced","inputs":[{"t":"path","l":"thumbnail / depth map / audio","d":"produced by an upstream node"}],"outputs":[{"t":"path","l":"s3:// object","d":"one per file"},{"t":"flag","l":"asset","d":"registered in Loom"}]},{"name":"archive originals","note":"option: includeSource","inputs":[{"t":"media","l":"the media item","d":"as it entered the pipeline"}],"outputs":[{"t":"path","l":"s3:// object","d":"the original, archived"}]}]}'></div>
+++++
+
+[cols="1,3"]
+|===
+| Kind | `s3-sink`
+| Applies to | Any media (what matters is what upstream produced)
+| Inputs | The media item, plus any upstream file outputs
+| Output keys | `s3_sink_flag`, `s3_sink_count`, `s3_sink_result`
+| Requirements | CPU only, plus S3 credentials on the worker
+| Persists to | The bucket, a new asset per uploaded file, and an index of them on the source asset
+|===
+
+== What it uploads
+
+By default, **everything the upstream nodes produced** — the sink recognises file outputs
+automatically, so putting it after a thumbnail node just works with no configuration.
+
+To be explicit instead, list what you want in **Artifacts**, as `nodeId:outputKey` pairs:
+
+[source]
+----
+["thumbnail:thumbnail_path", "depthmap:depthmap_path"]
+----
+
+NOTE: Images produced by a *Script* node must always be listed explicitly. Their output names are
+chosen by whoever wrote the script, so they cannot be recognised automatically.
+
+Switch on **Include source media** to also archive the media item itself. That turns
+`Filesystem Source → S3 Sink` into a straightforward "copy this library into a bucket" pipeline.
+Media that already lives in a bucket is not copied back.
+
+== What lands in Loom
+
+Each uploaded file becomes **its own asset**, with its own content hash, its file name, its
+detected type, and an origin recording exactly where the bytes are (`s3://bucket/key`). A
+thumbnail is therefore something you can look up, tag, search and serve like any other asset.
+
+The *source* asset separately gets an index of everything this sink published for it — the object
+locations, sizes and types, and whether each upload succeeded. A partially failed run is visible
+in Loom rather than only in a log file.
+
+== Where files are stored
+
+The object key is built from a template. The default is:
+
+[source]
+----
+cortex/{sourceNode}/{sourceKey}/{sha512:4}/{sha512}{ext}
+----
+
+which produces keys like `cortex/thumbnail/thumbnail_path/e7c2/e7c22b99…c019629.thumb`.
+
+Because the key is derived from the file's own content hash, the same file always lands in the
+same place. That makes re-runs cheap: the sink checks whether the object is already there and
+skips it, so re-processing a library that has already been published transfers almost nothing.
+
+Available placeholders: `{sha512}`, `{sha512:N}` (first N characters), `{sourceSha512}`,
+`{nodeId}`, `{sourceNode}`, `{sourceKey}`, `{ext}`, `{filename}`, `{basename}`, `{assetUuid}`,
+`{index}`, `{indexSuffix}`.
+
+TIP: Using `{sha512}` requires a hashing node earlier in the pipeline.
+
+== Configuration
+
+Set on the node in the pipeline editor:
+
+[options="header",cols="1,2"]
+|===
+| Option | Meaning
+| `bucket` | Destination bucket
+| `keyTemplate` | Where objects are stored, as described above
+| `artifacts` | Explicit `nodeId:outputKey` list. Empty means "detect automatically"
+| `autoDiscover` | Whether to detect file outputs when no explicit list is given
+| `includeSource` | Also upload the media item itself
+| `createAssets` | Register each upload in Loom as an asset. On by default
+| `overwrite` | `IF_DIFFERENT` (default), `NEVER` or `ALWAYS`
+| `deleteAfterUpload` | Remove the local file once the object is confirmed. Off by default
+| `maxArtifacts` | Cap per media item
+| `maxArtifactBytes` | Per-file size cap; `0` is unlimited
+| `failOnPartial` | Report the node failed when some uploads did not succeed
+|===
+
+Connection settings live on the worker (`CORTEX_S3_*`), never on the node, so credentials are
+never stored in a pipeline. See link:../s3-source/[S3 Source] for the full list — the two nodes
+share them.
+
+== Two things to be aware of
+
+**Run the sink on the same worker as the node that produced the files.** It reads them from local
+disk, so a sink placed on a different machine has nothing to upload. Until pipelines can pin nodes
+together automatically, keep producer and sink on the same worker — for example by giving that
+worker a node whitelist covering both. The sink fails loudly rather than quietly doing nothing if
+it is ever placed wrongly.
+
+**Deleting local files is off by default, deliberately.** Some nodes read another node's output
+from the same worker's disk — Scene Layout reads the depth map that way. Turning on
+`deleteAfterUpload` in a pipeline like that removes the file before the next node gets to it, and
+the failure looks like a depth-map problem rather than a sink one.
+
+== Use Cases
+
+* **Publish thumbnails** so the interface can display them regardless of which worker made them.
+* **Keep generated media** — captions, speech, generated images — beyond the life of a worker.
+* **Archive a library** into object storage with `Filesystem Source → S3 Sink`.

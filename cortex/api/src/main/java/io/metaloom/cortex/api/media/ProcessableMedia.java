@@ -47,10 +47,31 @@ public interface ProcessableMedia {
 
 	/**
 	 * Return the absolute filesystem path for the media.
-	 * 
+	 *
 	 * @return
 	 */
 	String absolutePath();
+
+	/**
+	 * Return the stable, location-independent reference for this media.
+	 *
+	 * <p>This is what travels between workers in a {@code MediaRef} and what a
+	 * downstream worker resolves back into a handle. For filesystem media it is the
+	 * absolute path, which is why the default is exactly that and why nothing changes
+	 * for the existing implementations. For remote media it is a URI (e.g.
+	 * {@code s3://bucket/key}) that any worker can resolve on its own, without the
+	 * shared mount that a path would require.</p>
+	 *
+	 * <p>Note that a reference is deliberately <em>not</em> a {@code Path}:
+	 * {@code Paths.get("s3://bucket/key")} collapses the double slash to
+	 * {@code s3:/bucket/key}, so a URI cannot survive a round trip through the path
+	 * API.</p>
+	 *
+	 * @return the reference, never null
+	 */
+	default String reference() {
+		return absolutePath();
+	}
 
 	/**
 	 * Check if the media exists.

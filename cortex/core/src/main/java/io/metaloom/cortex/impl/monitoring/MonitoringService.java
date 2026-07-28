@@ -8,6 +8,7 @@ import javax.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.metaloom.cortex.s3.event.WebhookS3EventSource;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpServer;
 import io.vertx.ext.web.Router;
@@ -20,14 +21,17 @@ public class MonitoringService {
 	private final Vertx vertx;
 	private final HealthEndpoint healthEndpoint;
 	private final MetricsEndpoint metricsEndpoint;
+	private final WebhookS3EventSource s3EventSource;
 
 	private HttpServer httpServer;
 
 	@Inject
-	public MonitoringService(Vertx vertx, HealthEndpoint healthEndpoint, MetricsEndpoint metricsEndpoint) {
+	public MonitoringService(Vertx vertx, HealthEndpoint healthEndpoint, MetricsEndpoint metricsEndpoint,
+		WebhookS3EventSource s3EventSource) {
 		this.vertx = vertx;
 		this.healthEndpoint = healthEndpoint;
 		this.metricsEndpoint = metricsEndpoint;
+		this.s3EventSource = s3EventSource;
 	}
 
 	public void init() {
@@ -40,6 +44,9 @@ public class MonitoringService {
 			Router router = Router.router(vertx);
 			healthEndpoint.register(router);
 			metricsEndpoint.register(router);
+			// Registers nothing unless webhook bucket notifications are enabled and a shared
+			// secret is configured, so a default deployment exposes no new surface.
+			s3EventSource.register(router);
 
 			httpServer = vertx.createHttpServer().requestHandler(router);
 			httpServer.listen(port).toCompletionStage().toCompletableFuture().get();

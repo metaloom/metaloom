@@ -11,6 +11,20 @@ public class CortexOptions {
 
 	private Map<String, CortexNodeOptions> nodes = new HashMap<>();
 	private LoomClientOptions loom = new LoomClientOptions();
+
+	/**
+	 * S3 connection, cache and event settings.
+	 *
+	 * <p>Worker-level rather than per pipeline node, because they describe this machine's
+	 * environment rather than the work (see the node spec's per-instance-configuration section).
+	 * That also keeps credentials out of the pipeline definition, which is stored in Postgres and
+	 * rendered in the pipeline editor.</p>
+	 *
+	 * <p>Needed by <em>every</em> worker that touches S3 media, not only the one running the
+	 * {@code s3-source} node: media is materialized lazily by whichever worker runs a node task.</p>
+	 */
+	private S3ClientOptions s3 = new S3ClientOptions();
+
 	private boolean dryrun;
 
 	private Path metaPath;
@@ -93,6 +107,15 @@ public class CortexOptions {
 
 	public CortexOptions setLoom(LoomClientOptions loom) {
 		this.loom = loom;
+		return this;
+	}
+
+	public S3ClientOptions getS3() {
+		return s3;
+	}
+
+	public CortexOptions setS3(S3ClientOptions s3) {
+		this.s3 = s3 == null ? new S3ClientOptions() : s3;
 		return this;
 	}
 

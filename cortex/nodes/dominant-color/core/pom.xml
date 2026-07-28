@@ -1,0 +1,27 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <artifactId>cortex-dominant-color-node</artifactId>
+    <packaging>jar</packaging>
+    <parent>
+        <groupId>io.metaloom.cortex</groupId>
+        <artifactId>cortex-nodes</artifactId>
+        <relativePath>../../pom.xml</relativePath>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <name>MetaLoom // Cortex :: Nodes :: Dominant Color</name>
+
+    <!--
+      The dominant-color node has no model and no sidecar: all colour science is
+      arithmetic (sRGB -> CIELAB, CIEDE2000, k-means). Images are read with plain
+      ImageIO, so no OpenCV / video4j native runtime is needed. JsonObject comes
+      transitively from cortex-core-media.
+
+      It deliberately does NOT depend on cortex-facedetect-node - it consumes that
+      node's `detections` output by key through the pipeline, not by type, which is
+      what keeps it detector-agnostic.
+    -->
+
+</project>

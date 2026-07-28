@@ -30,6 +30,18 @@ public class PipelineConfigurableTest {
 		return DaggerCortexComponent.builder().options(options).build();
 	}
 
+	/** A worker that can reach object storage, so the s3-sink kind is buildable. */
+	private CortexComponent s3Component() {
+		CortexOptions options = new CortexOptions();
+		options.setMetaPath(Paths.get("target/test-meta"));
+		options.getS3().setEndpoint("http://minio:9000").setAccessKey("key").setSecretKey("secret");
+		return DaggerCortexComponent.builder().options(options).build();
+	}
+
+	private static JsonObject sinkDef(String id, String bucket) {
+		return new JsonObject().put("id", id).put("type", "s3-sink").put("bucket", bucket);
+	}
+
 	private static JsonObject scriptDef(String id, String script) {
 		return new JsonObject()
 			.put("id", id)
@@ -111,5 +123,51 @@ public class PipelineConfigurableTest {
 
 		PipelineNode node = component.nodeFactory().createNode(new JsonObject().put("id", "empty").put("type", "script"));
 		assertThat(node).as("a script node with no script must not be runnable").isNull();
+	}
+
+	@Test
+	public void testS3SinkKindIsExecutable() {
+		CortexComponent component = s3Component();
+		component.nodeRegistrar().registerAll();
+		assertThat(component.nodeFactory().registeredTypes()).contains("s3-sink");
+	}
+
+	@Test
+	public void testS3SinkDefinitionOptionsReachTheNode() {
+		CortexComponent component = s3Component();
+		component.nodeRegistrar().registerAll();
+
+		PipelineNode node = component.nodeFactory().createNode(sinkDef("archive", "media"));
+
+		assertThat(node).isNotNull();
+		assertThat(node.id()).isEqualTo("archive");
+	}
+
+	@Test
+	public void testTwoS3SinkNodesGetIndependentInstances() {
+		// The guard against someone marking S3SinkNode @Singleton. configure(...) mutates the
+		// node, so two sinks writing to different buckets sharing one instance would have the
+		// second silently overwrite the first's bucket and key template.
+		CortexComponent component = s3Component();
+		component.nodeRegistrar().registerAll();
+
+		PipelineNode first = component.nodeFactory().createNode(sinkDef("archive", "media"));
+		PipelineNode second = component.nodeFactory().createNode(sinkDef("backup", "backups"));
+
+		assertThat(first).isNotNull();
+		assertThat(second).isNotNull();
+		assertThat(first.id()).isEqualTo("archive");
+		assertThat(second.id()).isEqualTo("backup");
+	}
+
+	@Test
+	public void testS3SinkWithoutABucketIsRejected() {
+		CortexComponent component = s3Component();
+		component.nodeRegistrar().registerAll();
+
+		// The factory swallows a throwing producer and yields null, so null here is the evidence
+		// that configure(...) refused the definition.
+		assertThat(component.nodeFactory().createNode(
+			new JsonObject().put("id", "archive").put("type", "s3-sink"))).isNull();
 	}
 }

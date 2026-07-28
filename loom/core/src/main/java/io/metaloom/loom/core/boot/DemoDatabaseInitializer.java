@@ -129,6 +129,8 @@ public class DemoDatabaseInitializer {
 	private static final String DEMO_PIPELINE_MEDIUM = "Ingest & Proxy";
 	private static final String DEMO_PIPELINE_COMPLEX = "Full Processing";
 	private static final String DEMO_PIPELINE_SCRIPT = "Reading Time (Script)";
+	private static final String DEMO_PIPELINE_S3 = "Cloud Bucket Ingest";
+	private static final String DEMO_PIPELINE_S3_PUBLISH = "Thumbnail Publishing";
 
 	/** The demo script node's body. Small on purpose - it is there to be read and edited, not admired. */
 	private static final String DEMO_SCRIPT = """
@@ -326,7 +328,49 @@ public class DemoDatabaseInitializer {
 					.add(edge("pe7", "pn6", "pn7"))
 					.add(edge("pe8", "pn5", "pn8"))));
 
-		// 4) Script pipeline: Source → Tika → Script. Demonstrates the one node whose behaviour is
+		// 4) S3 pipeline: S3 Source → Hash → Loom. Shows the one source that needs no shared media
+		// mount: it emits s3:// references and each worker fetches the objects it is given, so this
+		// graph runs across machines that share nothing but access to the bucket. The source is
+		// differential, so a re-run only picks up objects that are new or changed.
+		createPipeline(admin, DEMO_PIPELINE_S3,
+			"Ingests new and changed objects from an S3 bucket, hashing each one. Re-runs skip everything unchanged.",
+			true, 5, false,
+			new JsonObject()
+				.put("nodes", new JsonArray()
+					.add(node("pn1", "s3-source", "S3 Source", "Pick up new objects from the media bucket", 60, 160,
+						new JsonObject()
+							.put("bucket", "media")
+							.put("prefix", "incoming/")
+							.put("suffixes", "mp4,mkv,mov,jpg,jpeg,png")
+							.put("emitStates", new JsonArray().add("NEW").add("MODIFIED"))))
+					.add(node("pn2", "sha512", "SHA-512 Hash", "Compute the content identity", 300, 160))
+					.add(node("pn3", "loom", "Loom Output", "Persist to Loom", 540, 160)))
+				.put("edges", new JsonArray()
+					.add(edge("pe1", "pn1", "pn2"))
+					.add(edge("pe2", "pn2", "pn3"))));
+
+		// 5) Publishing pipeline: Source → Hash → Thumbnail → S3 Sink. The counterpart to the
+		// ingest pipeline above: produced bytes normally stay on the worker that made them, and
+		// the sink is what turns each thumbnail into a retrievable Loom asset. Producer and sink
+		// must share a worker - the sink reads the contact sheet off local disk.
+		createPipeline(admin, DEMO_PIPELINE_S3_PUBLISH,
+			"Generates thumbnails and publishes them to an S3 bucket, registering each one as its own asset.",
+			true, 5, false,
+			new JsonObject()
+				.put("nodes", new JsonArray()
+					.add(node("pn1", "filesystem-source", "File Source", "Watch the media folder", 60, 160))
+					.add(node("pn2", "sha512", "SHA-512 Hash", "Content identity, required by the key template", 260, 160))
+					.add(node("pn3", "thumbnail", "Thumbnail", "Generate a contact sheet", 460, 160))
+					.add(node("pn4", "s3-sink", "S3 Publish", "Upload the contact sheet and register it", 680, 160,
+						new JsonObject()
+							.put("bucket", "media")
+							.put("artifacts", new JsonArray().add("pn3:thumbnail_path")))))
+				.put("edges", new JsonArray()
+					.add(edge("pe1", "pn1", "pn2"))
+					.add(edge("pe2", "pn2", "pn3"))
+					.add(edge("pe3", "pn3", "pn4"))));
+
+		// 6) Script pipeline: Source → Tika → Script. Demonstrates the one node whose behaviour is
 		// configuration rather than code, so the demo carries a real script and real declared outputs.
 		createPipeline(admin, DEMO_PIPELINE_SCRIPT,
 			"Extracts document text, then derives a reading-time estimate and a length band with a small script.",
@@ -796,6 +840,9 @@ public class DemoDatabaseInitializer {
 		// --- Captioning (image + video) ---
 		createImageCaptioningComp(admin, imageAssets[0]);
 		createVideoCaptioningComp(admin, videoAssets[1]);
+
+		// --- Dominant colour ---
+		createDominantColorComp(admin, imageAssets[0]);
 
 		log.info(
 			"Demo data initialization complete — created {} assets ({} with previewable binaries), {} tags, {} collections, {} pipelines, {} users, "
@@ -1348,6 +1395,81 @@ public class DemoDatabaseInitializer {
 			.put("truncated", false));
 		assetComponentDao.upsertJsonComp(comp);
 		log.info("Created demo vlm/olmocr component for asset: {}", asset.getFilename());
+	}
+
+	/**
+	 * Create the JSON component a {@code dominant-color} node writes: the palette of the whole frame plus one entry per detected face. Shape mirrors a real
+	 * run ({@code schemaType=dominant-color}, one row per asset with every region inside {@code data.regions}).
+	 *
+	 * <p>The colours match the caption seeded for the same asset - a sunset over hills - so the demo reads coherently: a vivid orange dominant with a violet
+	 * sky behind it.
+	 */
+	private void createDominantColorComp(User admin, Asset asset) {
+		AssetJsonComp comp = assetComponentDao.createJsonComp(admin.getUuid(), asset.getUuid(), "dominant-color");
+		comp.setSchemaType("dominant-color");
+		comp.setVariant("");
+		comp.setProducerVersion("dominant-color/1");
+		comp.setData(new JsonObject()
+			.put("image", new JsonObject().put("width", 1920).put("height", 1080))
+			.put("sampling", new JsonObject().put("maxSamples", 40000).put("clusterCount", 5).put("seed", 42).put("alphaThreshold", 128))
+			.put("regions", new JsonArray()
+				.add(new JsonObject()
+					.put("id", "whole")
+					.put("source", "image")
+					.put("kind", "IMAGE")
+					.put("bbox", new JsonObject().put("x", 0).put("y", 0).put("w", 1920).put("h", 1080))
+					.put("pixels", 39204)
+					.put("converged", true)
+					.put("dominant", demoColor(0.4712d, "#E2711D", 226, 113, 29, 30.5d, 77.3d, 50.0d,
+						60.13d, 38.21d, 62.35d, 73.13d, 58.5d, "orange", "MEDIUM", "STRONG", "orange", "Orange", 3.91d))
+					.put("palette", new JsonArray()
+						.add(demoColor(0.4712d, "#E2711D", 226, 113, 29, 30.5d, 77.3d, 50.0d,
+							60.13d, 38.21d, 62.35d, 73.13d, 58.5d, "orange", "MEDIUM", "STRONG", "orange", "Orange", 3.91d))
+						.add(demoColor(0.3105d, "#6B4E8C", 107, 78, 140, 268.7d, 28.4d, 42.7d,
+							37.94d, 25.11d, -28.63d, 38.08d, 311.3d, "purple", "DARK", "MUTED", "dark purple", "dunkles Violett", 5.02d))
+						.add(demoColor(0.2183d, "#F2C57C", 242, 197, 124, 37.1d, 81.6d, 71.8d,
+							82.05d, 6.94d, 41.22d, 41.80d, 80.4d, "yellow", "LIGHT", "MUTED", "light yellow", "helles Gelb", 9.44d))))
+				.add(new JsonObject()
+					.put("id", "face-0")
+					.put("source", "facedetect")
+					.put("kind", "DETECTION")
+					.put("label", "face")
+					.put("type", "face")
+					.put("frame", 0)
+					.put("confidence", 0.94d)
+					.put("bbox", new JsonObject().put("x", 612).put("y", 288).put("w", 216).put("h", 216))
+					.put("pixels", 6400)
+					.put("converged", true)
+					.put("dominant", demoColor(0.6418d, "#C68642", 198, 134, 66, 30.9d, 50.0d, 51.8d,
+						61.02d, 15.36d, 39.85d, 42.71d, 68.9d, "brown", "MEDIUM", "MUTED", "muted brown", "gedämpftes Braun", 7.68d))
+					.put("palette", new JsonArray()
+						.add(demoColor(0.6418d, "#C68642", 198, 134, 66, 30.9d, 50.0d, 51.8d,
+							61.02d, 15.36d, 39.85d, 42.71d, 68.9d, "brown", "MEDIUM", "MUTED", "muted brown", "gedämpftes Braun", 7.68d))
+						.add(demoColor(0.3582d, "#3A2A1E", 58, 42, 30, 25.7d, 31.8d, 17.3d,
+							19.71d, 6.12d, 9.84d, 11.59d, 58.1d, "brown", "VERY_DARK", "ACHROMATIC", "black", "Schwarz", 0d)))))
+			.put("truncated", new JsonObject().put("regions", 0).put("dropped", 0)));
+		assetComponentDao.upsertJsonComp(comp);
+		log.info("Created demo dominant-color component for asset: {}", asset.getFilename());
+	}
+
+	/** One palette entry in the shape the dominant-color node emits. */
+	private static JsonObject demoColor(double share, String hex, int r, int g, int b, double h, double s, double l,
+		double labL, double labA, double labB, double chroma, double hue,
+		String term, String lightness, String chromaBand, String en, String de, double distance) {
+		return new JsonObject()
+			.put("share", share)
+			.put("hex", hex)
+			.put("rgb", new JsonObject().put("r", r).put("g", g).put("b", b))
+			.put("hsl", new JsonObject().put("h", h).put("s", s).put("l", l))
+			.put("lab", new JsonObject().put("l", labL).put("a", labA).put("b", labB))
+			.put("lch", new JsonObject().put("c", chroma).put("h", hue))
+			.put("name", new JsonObject()
+				.put("term", term)
+				.put("lightness", lightness)
+				.put("chroma", chromaBand)
+				.put("en", en)
+				.put("de", de)
+				.put("distance", distance));
 	}
 
 	/**

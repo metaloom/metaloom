@@ -21,7 +21,10 @@
         <hazelcast.version>5.3.8</hazelcast.version>
         <tika.version>3.2.2</tika.version>
         <pico-cli.version>4.7.7</pico-cli.version>
-        <aws.sdk.version>2.29.70</aws.sdk.version>
+        <!-- 2.29.70 was declared here for a long time but never existed on central; nothing
+             consumed the S3 dependency, so the broken version went unnoticed until cortex-s3-common
+             became its first consumer. -->
+        <aws.sdk.version>2.49.4</aws.sdk.version>
         <jackson.version>2.18.2</jackson.version>
         <jackson-databind.version>2.18.2</jackson-databind.version>
         <okhttp.version>4.12.0</okhttp.version>
@@ -251,6 +254,48 @@
                 <groupId>software.amazon.awssdk</groupId>
                 <artifactId>s3</artifactId>
                 <version>${aws.sdk.version}</version>
+                <!-- The SDK picks its HTTP implementation via ServiceLoader. We pin
+                     url-connection-client below and exclude the alternatives so the
+                     shaded cortex jar contains exactly one SdkHttpService provider
+                     (and no Netty). See NODE_S3SOURCE_PLAN.md section 9. -->
+                <exclusions>
+                    <exclusion>
+                        <groupId>software.amazon.awssdk</groupId>
+                        <artifactId>netty-nio-client</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>software.amazon.awssdk</groupId>
+                        <artifactId>apache-client</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>software.amazon.awssdk</groupId>
+                        <artifactId>apache5-client</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>url-connection-client</artifactId>
+                <version>${aws.sdk.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>sqs</artifactId>
+                <version>${aws.sdk.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>software.amazon.awssdk</groupId>
+                        <artifactId>netty-nio-client</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>software.amazon.awssdk</groupId>
+                        <artifactId>apache-client</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>software.amazon.awssdk</groupId>
+                        <artifactId>apache5-client</artifactId>
+                    </exclusion>
+                </exclusions>
             </dependency>
 
             <!-- Vert.x -->

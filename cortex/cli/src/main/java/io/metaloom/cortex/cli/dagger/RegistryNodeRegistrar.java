@@ -12,12 +12,19 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.FilesystemNode;
 import io.metaloom.cortex.api.option.CortexOptions;
+import io.metaloom.cortex.api.option.S3ClientOptions;
 import io.metaloom.cortex.api.option.node.CortexNodeOptions;
 import io.metaloom.cortex.api.option.node.ValidationResult;
 import io.metaloom.cortex.common.media.LoomMediaLoader;
 import io.metaloom.cortex.common.node.PipelineConfigurable;
 import io.metaloom.cortex.node.source.fs.FilesystemSourceNode;
 import io.metaloom.cortex.node.source.fs.FilesystemSourceNodeOptions;
+import io.metaloom.cortex.node.source.s3.S3DifferentialScanner;
+import io.metaloom.cortex.node.source.s3.S3ObjectIndexStore;
+import io.metaloom.cortex.node.source.s3.S3SourceNode;
+import io.metaloom.cortex.node.source.s3.S3SourceNodeOptions;
+import io.metaloom.cortex.s3.S3Support;
+import io.metaloom.cortex.s3.event.S3EventBuffer;
 import io.metaloom.cortex.pipeline.api.NodeMode;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 import io.metaloom.cortex.pipeline.core.node.AssetSourceNode;
@@ -51,6 +58,9 @@ public class RegistryNodeRegistrar implements NodeRegistrar {
 	private final Map<String, Provider<FilesystemNode<?, ?>>> nodeKinds;
 	private final LoomMediaLoader mediaLoader;
 	private final FilesystemSourceNodeOptions fsSourceOptions;
+	private final S3SourceNodeOptions s3SourceOptions;
+	private final S3Support s3Support;
+	private final S3EventBuffer s3EventBuffer;
 	private final CortexOptions cortexOptions;
 
 	private boolean registered;
@@ -59,11 +69,17 @@ public class RegistryNodeRegistrar implements NodeRegistrar {
 		Map<String, Provider<FilesystemNode<?, ?>>> nodeKinds,
 		LoomMediaLoader mediaLoader,
 		FilesystemSourceNodeOptions fsSourceOptions,
+		S3SourceNodeOptions s3SourceOptions,
+		S3Support s3Support,
+		S3EventBuffer s3EventBuffer,
 		CortexOptions cortexOptions) {
 		this.factory = factory;
 		this.nodeKinds = nodeKinds;
 		this.mediaLoader = mediaLoader;
 		this.fsSourceOptions = fsSourceOptions;
+		this.s3SourceOptions = s3SourceOptions;
+		this.s3Support = s3Support;
+		this.s3EventBuffer = s3EventBuffer;
 		this.cortexOptions = cortexOptions;
 	}
 
@@ -76,6 +92,15 @@ public class RegistryNodeRegistrar implements NodeRegistrar {
 		// Source nodes are pipeline-level constructs rather than FilesystemNodes,
 		// so they are constructed directly instead of via the CortexNodeAdapter.
 		factory.register("filesystem-source", def -> filesystemSource(def, mediaLoader, fsSourceOptions, cortexOptions));
+
+		// S3 source: only advertised when this worker actually has S3 configuration. Registering it
+		// unconditionally would let Loom dispatch a source task the worker cannot serve, and the
+		// failure would surface as a dead run rather than a missing capability.
+		if (s3Support != null && s3Support.isActive()) {
+			factory.register("s3-source", def -> s3Source(def, s3Support, s3EventBuffer, s3SourceOptions, cortexOptions));
+		} else {
+			log.info("S3 is not configured on this worker; the 's3-source' kind is not advertised");
+		}
 
 		// Asset source: run a pipeline against a single asset. Loom injects the asset's
 		// stored path as the 'path' option when it dispatches an asset-scoped run.
@@ -126,6 +151,62 @@ public class RegistryNodeRegistrar implements NodeRegistrar {
 		}
 
 		return FilesystemSourceNode.create(id, mediaLoader, path, globs, emitStates, defaults, indexBaseDir);
+	}
+
+	/**
+	 * Build an {@code s3-source} node from its JSON definition.
+	 *
+	 * <p>Only the selection comes from the definition ({@code bucket}, {@code prefix},
+	 * {@code suffixes}, {@code emitStates}, {@code startAfter}, {@code useEvents}). Endpoint,
+	 * region and credentials are worker-level and arrive through {@link S3Support}, so a pipeline
+	 * definition - stored in the database and rendered in the editor - never carries a secret.</p>
+	 */
+	private static PipelineNode s3Source(JsonObject nodeDef, S3Support s3Support,
+		S3EventBuffer s3EventBuffer, S3SourceNodeOptions defaults, CortexOptions cortexOptions) {
+
+		String id = nodeDef.getString("id", S3SourceNode.DEFAULT_ID);
+
+		if (defaults != null) {
+			ValidationResult result = defaults.validate();
+			if (result.isInvalid()) {
+				throw new IllegalStateException("Node '" + id + "' options validation failed: "
+					+ String.join("; ", result.getErrors()));
+			}
+		}
+
+		java.nio.file.Path indexBaseDir = s3Support.indexBaseDir();
+		if (indexBaseDir == null) {
+			throw new IllegalStateException("Node '" + id + "' (s3-source) needs an index directory; "
+				+ "set --s3-index-path (CORTEX_S3_INDEX_PATH) or --meta-path (CORTEX_META_PATH)");
+		}
+
+		S3ClientOptions s3Options = cortexOptions == null ? null : cortexOptions.getS3();
+		// Endpoint identity scopes the index, so the same bucket name on two servers cannot share
+		// - and corrupt - one index file.
+		String endpointId = s3Options == null || s3Options.getEndpoint() == null
+			? "aws:" + (s3Options == null ? "" : s3Options.getRegion())
+			: s3Options.getEndpoint();
+		long reconcileMs = s3Options == null
+			? S3ClientOptions.DEFAULT_RECONCILE_INTERVAL_MS
+			: s3Options.getReconcileIntervalMs();
+
+		// The buffer is a worker-wide singleton: transports fill it continuously while each run
+		// drains what it needs, so every s3-source instance must share the one instance.
+		S3EventBuffer eventBuffer = s3Options != null && s3Options.getEvents().isEnabled()
+			? s3EventBuffer
+			: null;
+
+		S3DifferentialScanner scanner = new S3DifferentialScanner(s3Support.store(),
+			new S3ObjectIndexStore(), eventBuffer, indexBaseDir, endpointId, reconcileMs);
+
+		return S3SourceNode.create(id, scanner, s3Support.materializer(),
+			nodeDef.getString("bucket"),
+			nodeDef.getString("prefix"),
+			nodeDef.getString("suffixes"),
+			readStringArray(nodeDef, "emitStates"),
+			nodeDef.getBoolean("startAfter"),
+			nodeDef.getBoolean("useEvents"),
+			defaults);
 	}
 
 	/**

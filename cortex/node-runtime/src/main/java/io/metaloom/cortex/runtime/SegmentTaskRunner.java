@@ -1,6 +1,5 @@
 package io.metaloom.cortex.runtime;
 
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -71,7 +70,7 @@ public class SegmentTaskRunner {
 		try {
 			// Resolved once for the whole segment. This is the actual win for video:
 			// decode-once, analyse-many, instead of re-reading the file per node.
-			media = mediaResolver.resolve(Paths.get(task.getMedia().getPath()));
+			media = mediaResolver.resolve(task.getMedia());
 		} catch (Exception e) {
 			// Nothing can run, so report it at segment level rather than inventing an
 			// identical failure for every node.

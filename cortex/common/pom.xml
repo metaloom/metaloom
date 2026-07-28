@@ -45,6 +45,12 @@
             <groupId>io.metaloom.loom.client</groupId>
             <artifactId>loom-client-rest</artifactId>
         </dependency>
+        <!-- MediaRef: what a media reference looks like on the wire, resolved back into a
+             handle by MediaReferenceResolver. -->
+        <dependency>
+            <groupId>io.metaloom.loom.shared</groupId>
+            <artifactId>loom-pipeline-model</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>

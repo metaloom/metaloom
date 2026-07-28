@@ -19,6 +19,7 @@
     <modules>
         <module>api</module>
         <module>common</module>
+        <module>s3-common</module>
         <module>fs</module>
         <module>core-media</module>
         <module>nodes</module>
@@ -93,6 +94,17 @@
                 <groupId>io.metaloom.cortex</groupId>
                 <artifactId>cortex-api</artifactId>
                 <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.cortex</groupId>
+                <artifactId>cortex-s3-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.cortex</groupId>
+                <artifactId>cortex-s3-common</artifactId>
+                <version>${project.version}</version>
+                <type>test-jar</type>
             </dependency>
             <dependency>
                 <groupId>io.metaloom.cortex</groupId>

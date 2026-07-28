@@ -165,8 +165,16 @@ public class SourceTaskRunner {
 		return runUuid + "/" + seq;
 	}
 
+	/**
+	 * Build the wire reference for an enumerated item.
+	 *
+	 * <p>Uses {@link LoomMedia#reference()} rather than {@code absolutePath()}. For filesystem
+	 * media the two are identical, so nothing changes there. For remote media the reference is a
+	 * URI the receiving worker resolves itself - and crucially, asking for it does <em>not</em>
+	 * fetch the bytes, so enumerating a bucket stays a metadata-only operation.</p>
+	 */
 	private static MediaRef toRef(LoomMedia media) {
-		return new MediaRef(media.absolutePath(), null, sizeOf(media));
+		return new MediaRef(media.reference(), null, sizeOf(media));
 	}
 
 	private static long sizeOf(LoomMedia media) {

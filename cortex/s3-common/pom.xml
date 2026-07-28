@@ -1,0 +1,104 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <artifactId>cortex-s3-common</artifactId>
+    <packaging>jar</packaging>
+    <parent>
+        <groupId>io.metaloom.cortex</groupId>
+        <artifactId>cortex</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <name>MetaLoom // Cortex :: S3 Common</name>
+    <description>
+        Shared S3 access for cortex: the object-store seam, the worker-level client options and
+        the lazy materializer that turns an s3:// reference into a local file. Lives outside the
+        s3-source node because every worker needs the materializer to resolve s3:// media,
+        including workers that cannot run the source node itself.
+    </description>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>io.metaloom</groupId>
+                <artifactId>bom</artifactId>
+                <version>${project.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <!-- LoomMedia / ProcessableMedia -->
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-api</artifactId>
+        </dependency>
+        <!-- AbstractFilesystemMedia + LoomMediaLoader for the materialized handle -->
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.utils</groupId>
+            <artifactId>hash-utils</artifactId>
+        </dependency>
+
+        <!-- AWS SDK. url-connection-client is pinned explicitly rather than relying on the
+             ServiceLoader chain, so the shaded cortex jar carries exactly one provider. -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>url-connection-client</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>sqs</artifactId>
+        </dependency>
+
+        <!-- Webhook event source registers a route on the existing monitoring router -->
+        <dependency>
+            <groupId>io.vertx</groupId>
+            <artifactId>vertx-web</artifactId>
+        </dependency>
+
+        <!-- DI -->
+        <dependency>
+            <groupId>com.google.dagger</groupId>
+            <artifactId>dagger</artifactId>
+        </dependency>
+
+        <!-- Test -->
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>test-jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

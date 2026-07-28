@@ -1,7 +1,5 @@
 package io.metaloom.cortex.runtime;
 
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Map;
 
 import org.slf4j.Logger;
@@ -10,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
+import io.metaloom.loom.pipeline.model.MediaRef;
 import io.metaloom.loom.pipeline.model.NodeTask;
 import io.metaloom.loom.pipeline.model.NodeTaskResult;
 import io.vertx.core.json.JsonObject;
@@ -56,10 +55,18 @@ public class NodeTaskRunner {
 		PipelineNode create(JsonObject nodeDef);
 	}
 
-	/** Turns a path into the media handle the node expects. */
+	/**
+	 * Turns a media reference into the handle the node expects.
+	 *
+	 * <p>Takes the {@link MediaRef} rather than a {@link java.nio.file.Path} because a reference
+	 * is not necessarily a path: remote media travels as a URI, and
+	 * {@code Paths.get("s3://bucket/key")} collapses the double slash to {@code s3:/bucket/key},
+	 * so a URI cannot survive the path API. Passing the whole ref also hands the resolver the
+	 * size and sha512 the engine already knows.</p>
+	 */
 	@FunctionalInterface
 	public interface MediaResolver {
-		LoomMedia resolve(Path path);
+		LoomMedia resolve(MediaRef ref);
 	}
 
 	public NodeTaskRunner(NodeInstantiator instantiator, MediaResolver mediaResolver) {
@@ -77,7 +84,7 @@ public class NodeTaskRunner {
 		long start = System.currentTimeMillis();
 		try {
 			PipelineNode node = instantiator.create(toNodeDefinition(task));
-			LoomMedia media = mediaResolver.resolve(Paths.get(task.getMedia().getPath()));
+			LoomMedia media = mediaResolver.resolve(task.getMedia());
 			Map<String, NodeResult> upstream = NodeResultMapper.toUpstreamResults(task.getUpstreamOutputs());
 
 			NodeResult result = node.process(media, upstream);

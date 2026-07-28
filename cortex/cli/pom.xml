@@ -33,6 +33,12 @@
             <groupId>io.metaloom.cortex</groupId>
             <artifactId>cortex-core</artifactId>
         </dependency>
+        <!-- S3 media access. Wired for every worker, not only those running s3-source:
+             s3:// media is materialized lazily by whichever worker runs the node task. -->
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-s3-common</artifactId>
+        </dependency>
         <dependency>
             <groupId>info.picocli</groupId>
             <artifactId>picocli</artifactId>
@@ -113,6 +119,15 @@
                                     implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <mainClass>${mainClass}</mainClass>
                                 </transformer>
+                                <!-- Merge META-INF/services entries instead of letting them
+                                     overwrite each other last-wins. Required by every
+                                     ServiceLoader-based SPI on the classpath - notably the AWS
+                                     SDK's SdkHttpService, without which the shaded jar fails at
+                                     runtime with "Unable to load an HTTP implementation from any
+                                     provider in the chain". Unit and in-process integration tests
+                                     run on a normal classpath and would not catch this. -->
+                                <transformer
+                                    implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
                             </transformers>
                         </configuration>
                     </execution>

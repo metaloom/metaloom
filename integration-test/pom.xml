@@ -90,6 +90,21 @@
         </dependency>
         <dependency>
             <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-s3-source-node</artifactId>
+            <version>${loom.cortex.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-s3-sink-node</artifactId>
+            <version>${loom.cortex.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-s3-common</artifactId>
+            <version>${loom.cortex.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
             <artifactId>cortex-loom-node</artifactId>
             <version>${loom.cortex.version}</version>
         </dependency>
@@ -167,6 +182,11 @@
         <dependency>
             <groupId>io.metaloom.cortex</groupId>
             <artifactId>cortex-scene-layout-node</artifactId>
+            <version>${loom.cortex.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-dominant-color-node</artifactId>
             <version>${loom.cortex.version}</version>
         </dependency>
         <dependency>

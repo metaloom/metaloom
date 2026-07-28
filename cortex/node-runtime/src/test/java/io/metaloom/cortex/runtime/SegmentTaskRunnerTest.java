@@ -76,9 +76,9 @@ public class SegmentTaskRunnerTest {
 				}
 				return node;
 			},
-			path -> {
+			mediaRef -> {
 				mediaResolutions.incrementAndGet();
-				return new StubLoomMedia(path.toString());
+				return new StubLoomMedia(mediaRef.getPath());
 			});
 	}
 
@@ -220,7 +220,7 @@ public class SegmentTaskRunnerTest {
 	void testUnresolvableMediaFailsTheSegmentRatherThanEachNode() {
 		register("a", Map.of());
 		SegmentTaskRunner failing = new SegmentTaskRunner(def -> nodes.get(def.getString("id")),
-			path -> {
+			mediaRef -> {
 				throw new IllegalStateException("file vanished");
 			});
 

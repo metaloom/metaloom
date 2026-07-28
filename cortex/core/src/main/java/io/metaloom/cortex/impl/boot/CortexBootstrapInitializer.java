@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.cortex.impl.loom.LoomControlChannel;
 import io.metaloom.cortex.impl.monitoring.MonitoringService;
 import io.metaloom.cortex.pipeline.loader.NodeRegistrar;
+import io.metaloom.cortex.s3.event.SqsS3EventSource;
 
 @Singleton
 public class CortexBootstrapInitializer {
@@ -18,13 +19,15 @@ public class CortexBootstrapInitializer {
 	private final MonitoringService monitoringService;
 	private final LoomControlChannel loomControlChannel;
 	private final NodeRegistrar nodeRegistrar;
+	private final SqsS3EventSource sqsEventSource;
 
 	@Inject
 	public CortexBootstrapInitializer(MonitoringService monitoringService, LoomControlChannel loomControlChannel,
-			NodeRegistrar nodeRegistrar) {
+			NodeRegistrar nodeRegistrar, SqsS3EventSource sqsEventSource) {
 		this.monitoringService = monitoringService;
 		this.loomControlChannel = loomControlChannel;
 		this.nodeRegistrar = nodeRegistrar;
+		this.sqsEventSource = sqsEventSource;
 	}
 
 	public void init() {
@@ -38,7 +41,11 @@ public class CortexBootstrapInitializer {
 		// to report) what it can run. Registration is lazy per kind (Providers), so
 		// this does not construct any node here.
 		nodeRegistrar.registerAll();
+		// The monitoring server also hosts the S3 webhook route, so it must come up before
+		// notifications can be accepted.
 		monitoringService.init(port);
+		// No-op unless SQS bucket notifications are configured.
+		sqsEventSource.start();
 		loomControlChannel.start();
 	}
 
@@ -48,6 +55,7 @@ public class CortexBootstrapInitializer {
 
 	public void deinit() {
 		loomControlChannel.stop();
+		sqsEventSource.stop();
 		monitoringService.deinit();
 	}
 

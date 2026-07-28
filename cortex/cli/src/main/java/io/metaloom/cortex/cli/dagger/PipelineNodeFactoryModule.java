@@ -12,6 +12,9 @@ import io.metaloom.cortex.api.node.FilesystemNode;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.media.LoomMediaLoader;
 import io.metaloom.cortex.node.source.fs.FilesystemSourceNodeOptions;
+import io.metaloom.cortex.node.source.s3.S3SourceNodeOptions;
+import io.metaloom.cortex.s3.S3Support;
+import io.metaloom.cortex.s3.event.S3EventBuffer;
 import io.metaloom.cortex.pipeline.loader.NodeFactory;
 import io.metaloom.cortex.pipeline.loader.NodeRegistrar;
 import io.metaloom.cortex.pipeline.loader.RegistryNodeFactory;
@@ -48,7 +51,11 @@ public abstract class PipelineNodeFactoryModule {
 		Map<String, Provider<FilesystemNode<?, ?>>> nodeKinds,
 		LoomMediaLoader mediaLoader,
 		FilesystemSourceNodeOptions fsSourceOptions,
+		S3SourceNodeOptions s3SourceOptions,
+		S3Support s3Support,
+		S3EventBuffer s3EventBuffer,
 		CortexOptions cortexOptions) {
-		return new RegistryNodeRegistrar(factory, nodeKinds, mediaLoader, fsSourceOptions, cortexOptions);
+		return new RegistryNodeRegistrar(factory, nodeKinds, mediaLoader, fsSourceOptions,
+			s3SourceOptions, s3Support, s3EventBuffer, cortexOptions);
 	}
 }

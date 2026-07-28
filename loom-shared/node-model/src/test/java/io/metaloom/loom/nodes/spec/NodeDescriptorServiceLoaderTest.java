@@ -34,8 +34,8 @@ public class NodeDescriptorServiceLoaderTest {
 	void testAllProvidersAreDiscovered() {
 		List<NodeDescriptorProvider> providers = loadProviders();
 
-		assertEquals(21, providers.size(),
-			"Expected 21 descriptor providers via ServiceLoader but found " + providers.size()
+		assertEquals(23, providers.size(),
+			"Expected 23 descriptor providers via ServiceLoader but found " + providers.size()
 				+ ". If a provider was intentionally added or removed, update this count and "
 				+ "META-INF/services/io.metaloom.loom.nodes.spec.NodeDescriptorProvider together. "
 				+ "Discovered: " + providerNames(providers));
@@ -48,8 +48,8 @@ public class NodeDescriptorServiceLoaderTest {
 	void testRegistryIsFullyPopulated() {
 		NodeDescriptorRegistry registry = buildRegistry();
 
-		assertEquals(34, registry.size(),
-			"Expected 34 advertised node kinds but found " + registry.size()
+		assertEquals(37, registry.size(),
+			"Expected 37 advertised node kinds but found " + registry.size()
 				+ ". Discovered kinds: " + kinds(registry));
 	}
 
@@ -65,6 +65,8 @@ public class NodeDescriptorServiceLoaderTest {
 		String[] expected = {
 			"sha512",             // former cortex-hash-api
 			"filesystem-source",  // former cortex-source-api
+			"s3-source",
+			"s3-sink",
 			"filter-mimetype",    // former cortex-filter-api
 			"thumbnail",          // former cortex-thumbnail-api
 			"facedetect",         // former cortex-facedetect-api
@@ -82,7 +84,8 @@ public class NodeDescriptorServiceLoaderTest {
 			"hash-dedup",         // former cortex-dedup-api
 			"sentiment",          // sentiment analysis node
 			"depthmap",           // monocular depth estimation
-			"scene-layout"        // depth + boxes -> spatial relations
+			"scene-layout",       // depth + boxes -> spatial relations
+			"dominant-color"      // CIELAB colour clustering + bilingual naming
 		};
 
 		for (String kind : expected) {

@@ -10,8 +10,11 @@
 > [../pipeline/PIPELINE.md](../pipeline/PIPELINE.md) (the engine that dispatches it).
 > The source of truth is the code under `cortex/`; this is a plan, not a record.
 >
-> **Status: designed, not implemented.** No S3 code exists in the workspace yet.
-> §12 is the work checklist.
+> **Status: implemented.** Node kind `s3-source`; code in
+> [cortex/nodes/s3-source](../../../cortex/nodes/s3-source) and
+> [cortex/s3-common](../../../cortex/s3-common). 46 node tests, 61 s3-common tests and 9 integration
+> tests against a real MinIO container pass. §12 records what landed; §14 records what changed
+> against this design once it met the code.
 
 ---
 
@@ -52,7 +55,7 @@ runtime is absent. This node is the first real consumer.
 ### Non-goals
 
 - **A Loom binary-ingest endpoint.** `AssetBinaryEndpointService`'s S3 stubs stay stubs.
-  This node reads *into* the pipeline; writing produced bytes *out* is the `s3-sink` sketch (§11).
+  This node reads *into* the pipeline; writing produced bytes *out* is [NODE_S3SINK_PLAN.md](NODE_S3SINK_PLAN.md) (§11).
 - **Asset-pool linkage.** The node takes bucket/prefix from the pipeline definition, not from
   an `asset_pool` row. Wiring the two together is deliberate follow-up work (§13).
 - **Watch mode.** Events make a *run* cheap; they do not *start* a run. Loom's scheduler still
@@ -67,7 +70,7 @@ runtime is absent. This node is the first real consumer.
 
 | # | Decision | Choice | Why |
 |---|---|---|---|
-| 1 | Scope | `s3-source` in full; `s3-sink` sketched | The sink has an unresolved dependency on whether Loom grows a real ingest endpoint |
+| 1 | Scope | `s3-source` in full; `s3-sink` deferred | The sink depended on an unanswered question about Loom's binary ingest. Now designed in [NODE_S3SINK_PLAN.md](NODE_S3SINK_PLAN.md) |
 | 2 | Change detection | Differential LIST + persisted index **and** S3 event notifications | Index alone is correct but O(N) requests per run; events alone are lossy. Together: fast *and* correct |
 | 3 | Materialization | `s3://` URIs in `MediaRef` + a lazy per-worker `MediaResolver` | Removes the shared-storage prerequisite, which is the main architectural win |
 | 4 | Credentials | Worker-level `CortexOptions`, never in the pipeline definition | NODES.md §5.1; also avoids secrets in Postgres and in the editor, where `ParameterType` has no `SECRET` value |
@@ -593,52 +596,51 @@ missing transformer. Only `cortex/cli` matters here, but the latent defect is wo
 
 ---
 
-## 11. `s3-sink` sketch (follow-up, not part of this change)
+## 11. `s3-sink` — now planned separately
 
-[NODES.md](NODES.md) §2 records the gap: `ThumbnailNode`, `TtsNode`, `ImageGenNode` and
-`ScriptNode` produce bytes that stay in local `*_bin` caches with a ledger-only
-`asset_node_result` row, because *"there is no byte-ingest endpoint for produced media"*.
+The gap this sketch described — `ThumbnailNode`, `DepthmapNode`, `TtsNode`, `ImageGenNode` and
+`ScriptNode` produce bytes that stay in worker-local `*_bin` caches with a ledger-only
+`asset_node_result` row — is now designed in full in
+**[NODE_S3SINK_PLAN.md](NODE_S3SINK_PLAN.md)**.
 
-Shape: a `CortexNodeAdapter`-wrapped `AbstractMediaNode` (kind `s3-sink`, module
-`cortex/nodes/s3-sink`) reading upstream path outputs (`thumbnail_path`, `tts_path`,
-`imagegen_path`, script image outputs) via `ctx.upstreamOutput(nodeId, key)`, configured as an
-ordered `sources` list exactly like `SentimentNodeOptions.textSources`. It uploads each to
-`s3://<bucket>/<keyTemplate>` (template over `{sha512}`, `{nodeId}`, `{ext}`), reusing
-`S3ObjectStore` and `S3ClientOptions` from `cortex/s3-common`, emits `s3_uri` outputs, and
-persists an `asset_json_comp` (`schemaType = s3-artifact`, `variant` = source node id) plus the
-ledger.
+Two things changed against the sketch this section used to hold, once the Loom side was checked:
 
-Open before it can be planned properly: whether Loom should instead grow the real binary-ingest
-endpoint `AssetBinaryEndpointService` stubs out, and how the result relates to the existing
-`asset_pool.s3_*` columns and the `AssetS3Meta` REST model.
+- The sink **creates assets in Loom** for the uploaded artifacts, rather than only writing an
+  `asset_json_comp`. An artifact that is not an asset is not retrievable, which was the point.
+- It also accepts the **media item itself** as an input, so `filesystem-source → s3-sink` archives
+  originals to a bucket.
+
+The open question this section raised — whether Loom should grow the real binary-ingest endpoint
+that `AssetBinaryEndpointService` stubs out — is answered there as a phased yes: phase 1 needs no
+Loom change, phases 2 and 3 wire `asset_location.pool_uuid` and the `attachment` derivation edge.
 
 ---
 
 ## 12. Progress Assessment
 
-- [ ] **`cortex/s3-common` module** — `S3Uri`, `S3ObjectRef`, `S3ObjectStore`, `AwsS3ObjectStore`,
+- [x] **`cortex/s3-common` module** — `S3Uri`, `S3ObjectRef`, `S3ObjectStore`, `AwsS3ObjectStore`,
       `S3ClientOptions`, `S3MediaMaterializer`, `S3LoomMedia` + unit tests. Add
       `software.amazon.awssdk:sqs` and `:url-connection-client` to `bom/pom.xml`; register the
       module in `cortex/pom.xml`.
-- [ ] **Fix the shade config** — add `ServicesResourceTransformer` to `cortex/cli/pom.xml` and pin
+- [x] **Fix the shade config** — add `ServicesResourceTransformer` to `cortex/cli/pom.xml` and pin
       `url-connection-client`. Do this in the same step; see §9.
-- [ ] **Media-addressing seam** — `ProcessableMedia.reference()`,
+- [x] **Media-addressing seam** — `ProcessableMedia.reference()`,
       `MediaResolver.resolve(MediaRef)`, `NodeTaskRunner`, `SegmentTaskRunner`,
       `SourceTaskRunner.toRef`, `PipelineTaskHandler`, `MediaReferenceResolver` + tests.
       *No behaviour change when S3 is unconfigured.*
-- [ ] **`CortexOptions.s3`** + `CortexOptionsLoader` + `CortexCLI` flags and env vars (§6.1)
-- [ ] **`cortex/nodes/s3-source`** — Avro schema, `S3ObjectIndexStore`, `S3DifferentialScanner`
+- [x] **`CortexOptions.s3`** + `CortexOptionsLoader` + `CortexCLI` flags and env vars (§6.1)
+- [x] **`cortex/nodes/s3-source`** — Avro schema, `S3ObjectIndexStore`, `S3DifferentialScanner`
       (full-list + `startAfter` only at this stage), `S3SourceNode`, options, Dagger module, unit tests
-- [ ] **Kind registration** — `cortex/nodes/pom.xml`, `NodeCollectionModule`,
+- [x] **Kind registration** — `cortex/nodes/pom.xml`, `NodeCollectionModule`,
       `RegistryNodeRegistrar`, `PipelineNodeFactoryModule`, `NodeRegistrarTest`
-- [ ] **UI descriptor** — `SourceDescriptorProvider` (+ the stale `filesystem-source` fix),
+- [x] **UI descriptor** — `SourceDescriptorProvider` (+ the stale `filesystem-source` fix),
       i18n keys, `NodeDescriptorServiceLoaderTest`
-- [ ] **Event path** — `S3EventBuffer`, `S3EventSource`, `S3EventParser`, `WebhookS3EventSource`
+- [x] **Event path** — `S3EventBuffer`, `S3EventSource`, `S3EventParser`, `WebhookS3EventSource`
       on the `MonitoringService` router, `SqsS3EventSource`, and the fast-path + reconcile branch
       in `S3DifferentialScanner`
-- [ ] **MinIO** — `MinioContainer`, `start-minio.sh`, `S3SourceNodeIntegrationTest`,
+- [x] **MinIO** — `MinioContainer`, `start-minio.sh`, `S3SourceNodeIntegrationTest`,
       `S3PipelineContainerExecutionIntegrationTest`, `integration-test/pom.xml`
-- [ ] **Docs & demo** (per [../../guidelines/CODING.md](../../guidelines/CODING.md)) —
+- [x] **Docs & demo** (per [../../guidelines/CODING.md](../../guidelines/CODING.md)) —
       `website/content/english/docs/nodes/s3-source/` (customer-facing, SVG not ASCII art;
       the `filesystem-source` page is the template), a meaningful `s3-source` pipeline in
       `DemoDatabaseInitializer`, and [NODES.md](NODES.md) updated: §3 pipeline-only-nodes table,
@@ -665,7 +667,41 @@ endpoint `AssetBinaryEndpointService` stubs out, and how the result relates to t
 
 ---
 
-_Git HEAD revision: `29cadb66`_
-_Last updated: 2026-07-28 (initial design — `s3-source` node with differential listing + event-driven
+## 14. What changed against this design
+
+Recorded because the code is the source of truth and three things here were wrong or incomplete:
+
+1. **`aws.sdk.version` 2.29.70 does not exist.** The BOM had carried it since the S3 dependency was
+   added; nothing consumed the dependency, so the broken version was never resolved and never
+   noticed. Bumped to 2.49.4.
+
+2. **`S3ClientOptions` had to live in `cortex-api`, not `cortex-s3-common`.** It is referenced by
+   `CortexOptions`, and `s3-common` depends on `api` — putting it in `s3-common` would have inverted
+   the dependency. `S3EventOptions` moved with it.
+
+3. **"S3 not configured" is modelled explicitly rather than as null.** Dagger rejects a null from
+   `@Provides` without a `@Nullable` binding, so the plan's nullable-collaborator shape would not
+   have compiled. `S3Support` is a single always-present value that answers `isActive()`, which is
+   also honest about the one question callers actually have.
+
+4. **The `s3-source` kind is capability-gated.** Not in the plan: `RegistryNodeRegistrar` registers
+   it only when the worker has S3 configuration, for the same reason the stub nodes are not
+   advertised — announcing a kind the worker cannot serve turns a missing capability into a dead run.
+   `NodeRegistrarTest` pins both directions.
+
+5. **The webhook route hangs off `MonitoringService` directly.** The plan worried about keeping the
+   AWS SDK out of `cortex/core`; in fact `cortex/core` already depends on `s3-common` transitively
+   (`core → processor → s3-source-node → s3-common`), so no new coupling was introduced and no SPI
+   indirection was needed.
+
+Still open, as designed: `MOVED` is never emitted; `lastStates` remains per-JVM (inherited from
+`filesystem-source`); watch mode (events *starting* a run) is a Loom scheduling feature; and the
+`asset_pool.s3_*` columns remain unused by this node.
+
+---
+
+_Git HEAD revision: `5ac79b6d`_
+_Last updated: 2026-07-28 (implemented — `s3-source` node with differential listing + event-driven
 change detection, lazy per-worker materialization of `s3://` media references, and worker-level
-S3 credentials; `s3-sink` sketched in §11. Not yet implemented.)_
+S3 credentials; `s3-sink` sketched in §11 and still open. §14 records the four places the design
+changed on contact with the code.)_

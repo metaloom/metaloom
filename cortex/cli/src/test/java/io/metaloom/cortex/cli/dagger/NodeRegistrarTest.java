@@ -23,6 +23,14 @@ public class NodeRegistrarTest {
 		return DaggerCortexComponent.builder().options(options).build();
 	}
 
+	/** A worker configured to reach an S3-compatible endpoint. */
+	private CortexComponent s3Component() {
+		CortexOptions options = new CortexOptions();
+		options.setMetaPath(Paths.get("target/test-meta"));
+		options.getS3().setEndpoint("http://minio:9000").setAccessKey("key").setSecretKey("secret");
+		return DaggerCortexComponent.builder().options(options).build();
+	}
+
 	@Test
 	public void testRegistryEmptyUntilBootstrap() {
 		CortexComponent component = component();
@@ -49,11 +57,30 @@ public class NodeRegistrarTest {
 			"fingerprint", "consistency", "thumbnail", "facedetect",
 			"ocr", "tika", "whisper", "tts", "sentiment", "llm", "vlm",
 			"quality", "scene-detection", "captioning", "loom", "sha512-dedup",
-			"depthmap", "scene-layout");
+			"depthmap", "scene-layout", "dominant-color");
 
 		// Stubs / unwired nodes must NOT be advertised, or Loom would dispatch work
 		// the worker cannot actually run.
 		assertThat(kinds).doesNotContain("fingerprint-dedup", "facedescription");
+	}
+
+	@Test
+	public void testS3SourceIsNotAdvertisedWithoutS3Configuration() {
+		CortexComponent component = component();
+		component.nodeRegistrar().registerAll();
+
+		// Same reasoning as the stub nodes above: advertising a kind this worker cannot serve
+		// would let Loom dispatch a source task that can only fail, which surfaces as a dead run
+		// rather than as a missing capability.
+		assertThat(component.nodeFactory().registeredTypes()).doesNotContain("s3-source");
+	}
+
+	@Test
+	public void testS3SourceIsAdvertisedOnceS3IsConfigured() {
+		CortexComponent component = s3Component();
+		component.nodeRegistrar().registerAll();
+
+		assertThat(component.nodeFactory().registeredTypes()).contains("s3-source");
 	}
 
 	@Test

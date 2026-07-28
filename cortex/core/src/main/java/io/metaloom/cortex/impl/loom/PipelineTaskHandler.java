@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.common.media.LoomMediaLoader;
+import io.metaloom.cortex.common.media.MediaReferenceResolver;
 import io.metaloom.cortex.common.metrics.CortexMetrics;
 import io.metaloom.cortex.pipeline.api.node.MediaSourceNode;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
@@ -69,14 +70,18 @@ public class PipelineTaskHandler {
 	}
 
 	@Inject
-	public PipelineTaskHandler(NodeFactory nodeFactory, LoomMediaLoader mediaLoader, CortexMetrics metrics) {
+	public PipelineTaskHandler(NodeFactory nodeFactory, LoomMediaLoader mediaLoader,
+		MediaReferenceResolver mediaReferenceResolver, CortexMetrics metrics) {
 		this.nodeFactory = nodeFactory;
 		this.mediaLoader = mediaLoader;
 		this.metrics = metrics;
-		this.nodeTaskRunner = new NodeTaskRunner(nodeFactory::createNode, mediaLoader::load);
-		// Same factory and media loader: a segment is the same work with N > 1, so it
+		// Media arrives as a reference rather than a path, so that a worker can resolve remote
+		// media (s3://...) on its own instead of requiring a shared mount. The default resolver
+		// handles local paths exactly as before.
+		this.nodeTaskRunner = new NodeTaskRunner(nodeFactory::createNode, mediaReferenceResolver::resolve);
+		// Same factory and resolver: a segment is the same work with N > 1, so it
 		// must resolve nodes and media exactly as a single task does.
-		this.segmentTaskRunner = new SegmentTaskRunner(nodeFactory::createNode, mediaLoader::load);
+		this.segmentTaskRunner = new SegmentTaskRunner(nodeFactory::createNode, mediaReferenceResolver::resolve);
 		// The sink is supplied per call, because the connection to answer on is a
 		// property of the task, not of this handler.
 		this.resultBatcher = new io.metaloom.cortex.runtime.ResultBatcher();

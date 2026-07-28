@@ -517,7 +517,7 @@ new CortexNodeAdapter(String id, FilesystemNode<?,?> node, NodeMode mode, boolea
 |---|---|
 | id / name | Default: `wrappedNode.name()` for both. The `String id` overload overrides the pipeline id while keeping the wrapped node's `name()` as display name |
 | `isSource()` | `true` iff the wrapped node implements `SourceNode` |
-| Upstream conversion | `Map<String,NodeResult>` → `Map<String,Map<String,Object>>` for `NodeContext.upstreamOutputs()` |
+| Upstream conversion | `Map<String,NodeResult>` → `Map<String,Map<String,Object>>` for `NodeContext.upstreamOutputs()` — untyped, see [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §8 |
 | State mapping | Legacy `SUCCESS`→`COMPLETED`, `SKIPPED`→`SKIPPED`, `FAILED`→`FAILED` |
 | Output forwarding | Legacy `getOutputs()` → pipeline `NodeResult` output map |
 | `syncToLoom` | **Not** a constructor arg — hardcoded `false`. Call `setSyncToLoom(true)` after construction |
@@ -532,28 +532,40 @@ MD5 adapter must be built as
 
 ## 8. Node Descriptors (UI metadata)
 
-Package `io.metaloom.loom.nodes.spec` in `cortex/nodes/common-api`, with
-role-specific providers in `cortex/nodes/*/api/`.
+Package `io.metaloom.loom.nodes.spec` in **`loom-shared/node-model`** (the former
+`cortex/nodes/common-api` and per-node `cortex/nodes/*/api/` modules were merged
+there on 2026-07-18).
 
 - `NodeDescriptor` — `kind`, `name`, `description`, `icon`, `category`,
   `inputs`, `outputs`, `parameters`, `defaultConcurrency`, `defaultMode`,
   `defaultBlocking`, `events`
 - `NodeCategory`, `NodeMode`, `NodeInput`, `NodeOutput`, `NodeParameter`,
   `ParameterType`, `ContentType`, `ContentTypes`
-- `NodeDescriptorProvider` — SPI returning `List<NodeDescriptor>`
+- `NodeDescriptorProvider` — SPI returning `List<NodeDescriptor>`, registered in
+  `src/main/resources/META-INF/services/…NodeDescriptorProvider`
 - `NodeDescriptorRegistry` — LinkedHashMap-backed, populated at startup; feeds
   the UI palette/parameter editor **and** server-side node-type validation
 
 Marker sub-interfaces `FilterDescriptorProvider` / `SourceDescriptorProvider`
 let the UI categorise providers.
 
+> The `inputs`/`outputs` connector model — the `contentType` vocabulary, every kind's declared
+> connectors, and the fact that **nothing validates them against the runtime keys** — is specified in
+> [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §4 and §6.1.
+
 ⚠️ **Do not confuse** `io.metaloom.loom.nodes.spec.NodeMode` (UI descriptor)
 with `io.metaloom.cortex.pipeline.api.NodeMode` (runtime). Same name, distinct
 types.
 
-⚠️ All 14 descriptor providers advertise a `NODE_STATS` event and a
-`retryFailed` parameter. `NODE_STATS` is emitted generically by the executor,
-not per node, and **`retryFailed` is never read by anything**.
+⚠️ **21 providers declaring 35 kinds** (was 14 when this section was written).
+All advertise a `NODE_STATS` event and a `retryFailed` parameter. `NODE_STATS` is
+emitted generically by the executor, not per node, and **`retryFailed` is never
+read by anything**.
+
+⚠️ **A descriptor is not a registration.** The descriptor set and the executable-kind set differ in
+six places — `tts`/`imagegen` are runnable but have no descriptor; `hash-dedup`, `facedescription`,
+the eight `filter-*` kinds and `loom-fetch` have descriptors but no runtime producer. Enumerated in
+[NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §6.1.
 
 ---
 

@@ -14,10 +14,13 @@ import io.metaloom.cortex.node.loom.LoomNodeModule;
 import io.metaloom.cortex.node.ocr.OCRNodeModule;
 import io.metaloom.cortex.node.quality.QualityNodeModule;
 import io.metaloom.cortex.node.scene.SceneDetectionNodeModule;
+import io.metaloom.cortex.node.color.DominantColorNodeModule;
 import io.metaloom.cortex.node.scenelayout.SceneLayoutNodeModule;
 import io.metaloom.cortex.node.script.ScriptNodeModule;
 import io.metaloom.cortex.node.sentiment.SentimentNodeModule;
 import io.metaloom.cortex.node.source.fs.FilesystemSourceNodeModule;
+import io.metaloom.cortex.node.sink.s3.S3SinkNodeModule;
+import io.metaloom.cortex.node.source.s3.S3SourceNodeModule;
 import io.metaloom.cortex.node.thumbnail.ThumbnailNodeModule;
 import io.metaloom.cortex.node.tika.TikaNodeModule;
 import io.metaloom.cortex.node.tts.TtsNodeModule;
@@ -26,6 +29,8 @@ import io.metaloom.cortex.node.whisper.WhisperNodeModule;
 
 @Module(includes = {
 	FilesystemSourceNodeModule.class,
+	S3SourceNodeModule.class,
+	S3SinkNodeModule.class,
 	HashNodeModule.class,
 	ThumbnailNodeModule.class,
 	FingerprintNodeModule.class,
@@ -46,7 +51,8 @@ import io.metaloom.cortex.node.whisper.WhisperNodeModule;
 	SentimentNodeModule.class,
 	ScriptNodeModule.class,
 	DepthmapNodeModule.class,
-	SceneLayoutNodeModule.class })
+	SceneLayoutNodeModule.class,
+	DominantColorNodeModule.class })
 public interface NodeCollectionModule {
 
 }

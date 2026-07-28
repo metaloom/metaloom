@@ -10,6 +10,8 @@ import javax.inject.Singleton;
 import ch.qos.logback.classic.Level;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.api.option.LoomClientOptions;
+import io.metaloom.cortex.api.option.S3ClientOptions;
+import io.metaloom.cortex.api.option.S3EventOptions;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -43,6 +45,15 @@ public class CortexCLI implements Runnable {
 
 	/** Null/empty means "refuse nothing". */
 	private Set<String> nodeBlacklist;
+
+	/**
+	 * S3 connection, cache and event settings.
+	 *
+	 * <p>Collected as flags rather than pipeline-node parameters so that credentials never enter a
+	 * pipeline definition: those are stored in Postgres and rendered in the pipeline editor, and
+	 * the editor's parameter model has no secret type.</p>
+	 */
+	private final S3ClientOptions s3 = new S3ClientOptions();
 
 	@Spec
 	CommandSpec spec;
@@ -137,6 +148,106 @@ public class CortexCLI implements Runnable {
 		this.nodeBlacklist = nodeBlacklist;
 	}
 
+	public S3ClientOptions getS3() {
+		return s3;
+	}
+
+	@Option(names = { "--s3-endpoint" }, description = "S3 endpoint override, e.g. http://minio:9000. "
+		+ "Leave unset for real AWS. Env: CORTEX_S3_ENDPOINT", scope = ScopeType.INHERIT)
+	public void setS3Endpoint(String endpoint) {
+		s3.setEndpoint(endpoint);
+	}
+
+	@Option(names = { "--s3-region" }, description = "S3 region. Env: CORTEX_S3_REGION", scope = ScopeType.INHERIT)
+	public void setS3Region(String region) {
+		s3.setRegion(region);
+	}
+
+	@Option(names = { "--s3-access-key" }, description = "S3 access key. Falls back to the AWS default "
+		+ "credentials chain (env, profile, instance role, IRSA) when unset. Env: CORTEX_S3_ACCESS_KEY", scope = ScopeType.INHERIT)
+	public void setS3AccessKey(String accessKey) {
+		s3.setAccessKey(accessKey);
+	}
+
+	@Option(names = { "--s3-secret-key" }, description = "S3 secret key. Env: CORTEX_S3_SECRET_KEY", scope = ScopeType.INHERIT)
+	public void setS3SecretKey(String secretKey) {
+		s3.setSecretKey(secretKey);
+	}
+
+	@Option(names = { "--s3-path-style" }, description = "Use path-style bucket addressing. Defaults to true "
+		+ "whenever an endpoint is set, which is what MinIO and most gateways need. Env: CORTEX_S3_PATH_STYLE", scope = ScopeType.INHERIT)
+	public void setS3PathStyle(Boolean pathStyle) {
+		s3.setPathStyleAccess(pathStyle);
+	}
+
+	@Option(names = { "--s3-cache-path" }, description = "Directory for materialized S3 objects. "
+		+ "Defaults to <meta-path>/s3_bin. Env: CORTEX_S3_CACHE_PATH", scope = ScopeType.INHERIT)
+	public void setS3CachePath(String cachePath) {
+		s3.setCachePath(cachePath);
+	}
+
+	@Option(names = { "--s3-index-path" }, description = "Directory for persisted per-bucket object indexes. "
+		+ "Defaults to <meta-path>/s3-index. Env: CORTEX_S3_INDEX_PATH", scope = ScopeType.INHERIT)
+	public void setS3IndexPath(String indexPath) {
+		s3.setIndexPath(indexPath);
+	}
+
+	@Option(names = { "--s3-max-cache-bytes" }, description = "Size budget for the S3 media cache; oldest "
+		+ "entries are evicted past it. 0 disables eviction. Env: CORTEX_S3_MAX_CACHE_BYTES", scope = ScopeType.INHERIT)
+	public void setS3MaxCacheBytes(long maxCacheBytes) {
+		s3.setMaxCacheBytes(maxCacheBytes);
+	}
+
+	@Option(names = { "--s3-max-object-size" }, description = "Largest object to materialize, in bytes. "
+		+ "0 means unbounded. Env: CORTEX_S3_MAX_OBJECT_SIZE", scope = ScopeType.INHERIT)
+	public void setS3MaxObjectSize(long maxObjectSize) {
+		s3.setMaxObjectSize(maxObjectSize);
+	}
+
+	@Option(names = { "--s3-reconcile-interval-ms" }, description = "How long the event fast path may be "
+		+ "trusted before a full listing is forced. Bucket notifications can be lost, so this reconcile pass is "
+		+ "what keeps event-driven scanning correct. Env: CORTEX_S3_RECONCILE_INTERVAL_MS", scope = ScopeType.INHERIT)
+	public void setS3ReconcileIntervalMs(long reconcileIntervalMs) {
+		s3.setReconcileIntervalMs(reconcileIntervalMs);
+	}
+
+	@Option(names = { "--s3-events-enabled" }, description = "Accept S3 bucket notifications so a run can skip "
+		+ "listing the bucket. Env: CORTEX_S3_EVENTS_ENABLED", scope = ScopeType.INHERIT)
+	public void setS3EventsEnabled(boolean enabled) {
+		s3.getEvents().setEnabled(enabled);
+	}
+
+	@Option(names = { "--s3-events-mode" }, description = "How change hints arrive: WEBHOOK (MinIO notify_webhook, "
+		+ "posted to the monitoring port) or SQS. Env: CORTEX_S3_EVENTS_MODE", scope = ScopeType.INHERIT)
+	public void setS3EventsMode(S3EventOptions.Mode mode) {
+		s3.getEvents().setMode(mode);
+	}
+
+	@Option(names = { "--s3-events-webhook-path" }, description = "Route the webhook listener registers on the "
+		+ "monitoring server. Env: CORTEX_S3_EVENTS_WEBHOOK_PATH", scope = ScopeType.INHERIT)
+	public void setS3EventsWebhookPath(String webhookPath) {
+		s3.getEvents().setWebhookPath(webhookPath);
+	}
+
+	@Option(names = { "--s3-events-webhook-secret" }, description = "Shared secret required in the X-Cortex-S3-Token "
+		+ "header. Required when webhook events are enabled. Env: CORTEX_S3_EVENTS_WEBHOOK_SECRET", scope = ScopeType.INHERIT)
+	public void setS3EventsWebhookSecret(String webhookSecret) {
+		s3.getEvents().setWebhookSecret(webhookSecret);
+	}
+
+	@Option(names = { "--s3-events-queue-url" }, description = "SQS queue URL fed by S3 notifications. "
+		+ "Env: CORTEX_S3_EVENTS_QUEUE_URL", scope = ScopeType.INHERIT)
+	public void setS3EventsQueueUrl(String queueUrl) {
+		s3.getEvents().setQueueUrl(queueUrl);
+	}
+
+	@Option(names = { "--s3-events-max-buffered-keys" }, description = "Ceiling on buffered change hints; on "
+		+ "overflow the next run falls back to a full listing instead of dropping hints. "
+		+ "Env: CORTEX_S3_EVENTS_MAX_BUFFERED_KEYS", scope = ScopeType.INHERIT)
+	public void setS3EventsMaxBufferedKeys(int maxBufferedKeys) {
+		s3.getEvents().setMaxBufferedKeys(maxBufferedKeys);
+	}
+
 	/**
 	 * Build {@link CortexOptions} from the parsed CLI values.
 	 */
@@ -153,6 +264,7 @@ public class CortexCLI implements Runnable {
 		options.setNodeId(nodeId);
 		options.setNodeWhitelist(nodeWhitelist);
 		options.setNodeBlacklist(nodeBlacklist);
+		options.setS3(s3);
 		return options;
 	}
 

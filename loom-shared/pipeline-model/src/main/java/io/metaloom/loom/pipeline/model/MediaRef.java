@@ -8,9 +8,19 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 /**
  * Reference to a single media item.
  *
- * <p>A reference, never content. The worker that receives it must be able to see
- * the path itself - which is why shared storage is a prerequisite for
- * distributing work across more than one Cortex instance.</p>
+ * <p>A reference, never content. What the string means depends on the source:</p>
+ *
+ * <ul>
+ * <li>An <b>absolute path</b>, for filesystem media. The worker that receives it must be able to
+ * see that path itself, so shared storage is a prerequisite for distributing work across more than
+ * one Cortex instance.</li>
+ * <li>A <b>URI</b> such as {@code s3://bucket/key}, for remote media. Any worker can resolve it on
+ * its own by fetching the object into its local cache, so no shared storage is needed.</li>
+ * </ul>
+ *
+ * <p>Resolution happens through {@code MediaReferenceResolver} - which is also why this is a
+ * plain string rather than a {@link java.nio.file.Path}: a path cannot hold a URI, because
+ * {@code Paths.get("s3://bucket/key")} collapses the double slash to {@code s3:/bucket/key}.</p>
  *
  * <p>{@code sha512} is optional and normally absent until a hash node has run.
  * It is carried here because it is how a result finds its asset during sync.</p>

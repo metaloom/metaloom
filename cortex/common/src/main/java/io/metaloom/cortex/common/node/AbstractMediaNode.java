@@ -102,6 +102,25 @@ public abstract class AbstractMediaNode<T extends CortexNodeOptions> extends Abs
 	protected abstract NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception;
 
 	/**
+	 * The graph-local node id this instance runs under, or {@code ""} outside a pipeline DAG.
+	 *
+	 * <p>Overridden by nodes whose configuration is per pipeline instance
+	 * ({@link PipelineConfigurable}). {@code asset_node_result} is
+	 * {@code UNIQUE (asset_uuid, node_kind, node_id)}, so two instances of one kind in a single
+	 * graph - say an {@code s3-sink} writing thumbnails to one bucket and another writing archives
+	 * to a second - would otherwise collide on the empty id and overwrite each other's ledger row.</p>
+	 *
+	 * <p>The default is deliberately {@code ""}: every node that reads its options from the worker
+	 * configuration can only ever have one meaningful instance per kind, and changing their ledger
+	 * key would orphan the rows they have already written.</p>
+	 *
+	 * @return the node id, never null
+	 */
+	protected String nodeId() {
+		return "";
+	}
+
+	/**
 	 * Record an entry in the per-asset processing ledger ({@code asset_node_result}).
 	 *
 	 * <p>
@@ -125,8 +144,7 @@ public abstract class AbstractMediaNode<T extends CortexNodeOptions> extends Abs
 		try {
 			NodeResultCreateRequest ledger = new NodeResultCreateRequest();
 			ledger.setNodeKind(name());
-			// Empty outside a pipeline DAG - the legacy AbstractMediaNode path has no graph-local node id.
-			ledger.setNodeId("");
+			ledger.setNodeId(nodeId());
 			ledger.setProducerVersion(producerVersion);
 			ledger.setState(state.name());
 			ledger.setOrigin(ResultOrigin.COMPUTED.name());

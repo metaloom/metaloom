@@ -58,7 +58,7 @@ public class NodeTaskRunnerTest {
 	}
 
 	private static NodeTaskRunner runnerFor(StubNode node) {
-		return new NodeTaskRunner(def -> node, path -> new StubLoomMedia(path.toString()));
+		return new NodeTaskRunner(def -> node, mediaRef -> new StubLoomMedia(mediaRef.getPath()));
 	}
 
 	private static NodeTask task(String nodeId, String kind, Map<String, Object> options,
@@ -89,7 +89,7 @@ public class NodeTaskRunnerTest {
 		NodeTaskRunner runner = new NodeTaskRunner(def -> {
 			seen.set(def);
 			return node;
-		}, path -> new StubLoomMedia(path.toString()));
+		}, mediaRef -> new StubLoomMedia(mediaRef.getPath()));
 
 		runner.run(task("src", "filesystem-source", Map.of("path", "/media", "depth", 3), Map.of()));
 
@@ -139,7 +139,7 @@ public class NodeTaskRunnerTest {
 	void testUnknownNodeKindBecomesAFailedResult() {
 		NodeTaskRunner runner = new NodeTaskRunner(def -> {
 			throw new IllegalArgumentException("No producer registered for 'whisper'");
-		}, path -> new StubLoomMedia(path.toString()));
+		}, mediaRef -> new StubLoomMedia(mediaRef.getPath()));
 
 		NodeTaskResult result = runner.run(task("asr", "whisper", Map.of(), Map.of()));
 

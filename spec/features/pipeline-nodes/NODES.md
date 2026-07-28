@@ -101,6 +101,11 @@ Type-safe output key: `NodeOutputKey.of("sha512", String.class)`. Each node
 declares its output keys as `public static final` constants. The string key
 is also used for xattr/sidecar persistence.
 
+> ⚠️ The `<T>` is **advisory only** — `NodeContextImpl` discards `valueType()` and every read is an
+> unchecked cast. For the complete per-node input/output type reference, the connector
+> (`contentType`) model, and the hop-by-hop account of where typing is lost, see
+> [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md).
+
 ---
 
 ## 2. Node Data Persistence
@@ -141,6 +146,7 @@ no-op in offline mode):
 | SceneDetection | `assets/:uuid/segments` → `asset_segment_comp` (whole-set replace) | `createAssetSegmentComps` |
 | OCR, Tika, Quality, LLM, VLM, Captioning, Facedescription, Sentiment, SceneLayout | `assets/:uuid/json-comps` → `asset_json_comp` (distinct `schemaType`) | `createAssetJsonComp` |
 | Thumbnail | ledger only (bytes stay in the local thumbnail cache) | `createAssetNodeResult` |
+| S3Sink | uploads upstream artifacts to a bucket and **creates an asset per artifact** (`origin` = the `s3://` URI); `assets/:uuid/json-comps` → `asset_json_comp` (`schemaType=s3-artifact`, `variant` = node id) indexes them on the source asset | `createAsset`, `createAssetJsonComp` |
 | TTS | ledger only (generated WAV stays in the local `tts_bin` cache) | `createAssetNodeResult` |
 | ImageGen | ledger only (generated PNG stays in the local `imagegen_bin` cache) | `createAssetNodeResult` |
 | Depthmap | ledger only (16-bit PNG stays in the local `depthmap_bin` cache); unlike the others it records `producerVersion` = the depth model | `createAssetNodeResult` |
@@ -222,6 +228,10 @@ Nodes persist results back to the Loom REST API. Two mechanisms coexist:
 
 ## 3. List of Nodes
 
+> The **Output Keys** column below is a summary. For the authoritative per-key reference — Java type,
+> declared connector `contentType`, and the descriptor-vs-runtime gaps — see
+> [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) §5 and §6.
+
 ### Processing Nodes (AbstractMediaNode subclasses)
 
 | Node | Module | `name()` | Output Keys | Processable Media | Description |
@@ -242,6 +252,7 @@ Nodes persist results back to the Loom REST API. Two mechanisms coexist:
 | `SentimentNode` | sentiment | `sentiment` | `sentiment_label` (String), `sentiment_score` (Double), `sentiment_result` (String JSON) | Any (needs upstream text) | Polarity of upstream text (POSITIVE/NEUTRAL/NEGATIVE + signed `polarity`). DE via german-sentiment-bert, EN via twitter-roberta, behind a FastAPI `/v1/sentiment` sidecar (`sidecars/sentiment`). Persists to `asset_json_comp` (`variant` = source output key) |
 | `DepthmapNode` | depthmap | `depthmap` | `depthmap_flag` (String), `depthmap_path` (String), `depthmap_meta` (String JSON) | Image only | Monocular depth estimation via a FastAPI `/v1/depth` sidecar (`sidecars/depth`); Depth-Anything-V2-Small (Apache-2.0) by default, ZoeDepth for metric mode. Writes a **16-bit PNG in NEARNESS units (65535 = nearest)** to the local `depthmap_bin` cache; ledger only |
 | `SceneLayoutNode` | scene-layout | `scene-layout` | `scene_layout_result` (String JSON), `scene_layout_object_count` (Integer), `scene_layout_relation_count` (Integer) | Image only (needs upstream depth + boxes) | **No model, no sidecar** — pure geometry. Joins detector boxes to a depth map and derives FOREGROUND/MIDGROUND/BACKGROUND bands plus pairwise relations (`IN_FRONT_OF`, `BEHIND`, `OCCLUDES`, `CONTAINS`, `LEFT_OF`, `NEXT_TO`, …) with readable `phrases`. Persists to `asset_json_comp` (`schemaType="scene-layout"`). 🔴 Must share an affinity group with its `depthmap` node |
+| `DominantColorNode` | dominant-color | `dominant-color` | `dominant_color_result` (String JSON), `dominant_color_hex` (String), `dominant_color_term` (String), `dominant_color_name_en` (String), `dominant_color_name_de` (String), `dominant_color_region_count` (Integer) | Image only | **No model, no sidecar** — pure arithmetic. Deterministic k-means in **CIELAB** over stride-sampled pixels; reports each colour as HEX/RGB/HSL/CIELAB+LCh plus a bilingual name (nearest of the 11 Berlin & Kay basic terms by CIEDE2000 + an LCh-derived modifier → `dark greyish blue` / `dunkles graustichiges Blau`). Measures the whole frame, an optional configured region, and every upstream `detections` box. Persists to `asset_json_comp` (`schemaType="dominant-color"`) |
 | `LLMNode` | llm | `llm` | `llm_result_{promptId}` (String) | Any (uses filename) | LLM-based metadata extraction via Ollama; configurable prompts |
 | `VlmNode` | vlm | `vlm` | `vlm_result_{promptId}` (String) | Image only | Vision-language model over an OpenAI-compatible endpoint; ships an olmOCR document-transcription preset |
 | `QualityNode` | quality | `quality` | `blurriness`, `image_width/height`, `video_width/height/fps/frame_count`, `quality_flag` | Video, Image | Quality metrics (resolution, blurriness via Laplacian) |
@@ -252,12 +263,14 @@ Nodes persist results back to the Loom REST API. Two mechanisms coexist:
 | `HashDedupNode` | dedup | `sha512-dedup` | (side effects: moves files) | Any (requires SHA-512) | Deduplicates files by SHA-512 hash; moves dups to target folder |
 | `FingerprintDedupNode` | dedup | (fingerprint dedup) | (side effects) | Video only | Deduplicates by video fingerprint |
 | `LoomNode` | loom | `loom` | (side effects: bulk update) | Any | Syncs hash results to Loom backend in batches of 50 |
+| `S3SinkNode` | s3-sink | `s3-sink` | `s3_sink_flag`, `s3_sink_count`, `s3_sink_result` (String JSON) | Any (needs upstream file outputs) | **Sink**: uploads files produced upstream (`thumbnail_path`, `depthmap_path`, `imagegen_path`, `tts_path`, script images) to an S3 bucket and registers each as its own Loom asset. Per-instance config (`PipelineConfigurable`); 🔴 must share a worker with its producer |
 
 ### Pipeline-Only Nodes (AbstractPipelineNode subclasses)
 
 | Node | Module | `kind` | Description |
 |---|---|---|---|
 | `FilesystemSourceNode` | `nodes/filesystem-source` | `filesystem-source` | Source node that enumerates media files from a directory tree or a set of path globs |
+| `S3SourceNode` | `nodes/s3-source` | `s3-source` | Source node that enumerates objects from S3-compatible storage (differential listing + optional bucket notifications). Emits `s3://` references; bytes are materialized lazily per worker |
 | `AssetSourceNode` | `pipeline-core` | (not registered) | Source node that emits a single configured media asset |
 | `LoomFetchNode` | `pipeline-core` | `loom-fetch` (descriptor only) | Fetches user metadata (tags, annotations) from Loom backend |
 | `CortexNodeAdapter` | `pipeline-core` | — | Wraps a `FilesystemNode` as a `PipelineNode` for DAG execution |
@@ -360,6 +373,66 @@ added since the previous run.
 - `process()` records `path` and `source=filesystem` for the item currently
   flowing through the DAG; the enumeration itself happens in `stream()`.
 
+**`S3SourceNode`** (`nodes/s3-source`, kind `s3-source`):
+- Enumerates a `bucket` + `prefix` from S3-compatible storage (AWS S3, MinIO, Ceph).
+- **Differential**, like `filesystem-source`, but keyed on `(key, etag, size)` rather than
+  `(st_dev, st_ino, mtime, size)` — S3 has no inode. A per-selection Avro index lives at
+  `metaPath/s3-index/<sha256(endpoint/bucket/prefix)>.avro`. Including the endpoint in the key is
+  what stops the same bucket name on two servers from sharing (and corrupting) one index.
+- **`MOVED` is never produced.** A rename in S3 is a delete plus an add. It could be inferred by
+  matching a removed key against a new key with the same `(etag, size)`, but ETags collide across
+  genuinely identical objects — common in media archives with duplicate uploads — so the inference
+  would invent renames. The option value is accepted for symmetry and never emitted.
+- **Nothing is downloaded during enumeration.** The node emits `S3LoomMedia` handles carrying an
+  `s3://bucket/key` reference; `size()` and `isVideo()`/`isImage()` are answered from the listing
+  and the key's extension, so a filter node can reject an object before any transfer.
+- Three scan paths, chosen per run by `S3DifferentialScanner`: **full list** (paginated
+  `ListObjectsV2`, metadata-only, always correct), **resume** (`startAfter(lastSeenKey)`, opt-in,
+  cannot see edits to older keys) and **events** (drain buffered bucket notifications and `HeadObject`
+  only those keys — no listing at all). Both fast paths are gated on a full listing having happened
+  within `reconcileIntervalMs` (default 6h). That single gate is what makes lost notifications and
+  `startAfter`'s blind spot survivable.
+- The kind is **only registered when the worker has S3 configuration**, so Loom never dispatches a
+  source task the worker cannot serve.
+
+#### Media references and lazy materialization
+
+`MediaRef.path` used to be `media.absolutePath()`, and its Javadoc recorded the consequence:
+*"shared storage is a prerequisite for distributing work across more than one Cortex instance."*
+That is no longer true for object storage.
+
+- `ProcessableMedia.reference()` (default `absolutePath()`) is the stable, location-independent
+  identity. `SourceTaskRunner.toRef` uses it, so filesystem media is unchanged and S3 media travels
+  as a URI.
+- `NodeTaskRunner.MediaResolver` now takes the `MediaRef` rather than a `Path`. It had to: a
+  `java.nio.file.Path` **cannot** hold a URI — `Paths.get("s3://b/k")` collapses to `s3:/b/k`.
+- `MediaReferenceResolver` (cortex-common) resolves a reference back to a handle; the
+  `S3MediaReferenceResolver` subclass (cortex-s3-common) handles `s3://` and delegates everything
+  else. With no S3 configured the base class is provided and behaviour is byte-for-byte as before.
+- `S3MediaMaterializer` downloads into
+  `metaPath/s3_bin/<4-hex shard>/<sha256(bucket/key)>-<etag><ext>`, atomically (`.part` then
+  `ATOMIC_MOVE`), with an mtime-ordered LRU sweep against `maxCacheBytes`.
+  **The key's extension is preserved deliberately** — `LoomMediaImpl.isVideo()` delegates to
+  `FilterHelper.isVideo(path())`, so an object cached without its suffix would be invisible to every
+  media node. The etag in the file name means a changed object lands at a new path and a stale copy
+  is never served; it is used strictly as an opaque change token, never as MD5 (multipart ETags are
+  `<md5-of-md5s>-<partcount>`).
+- Because materialization happens wherever the node task lands, **every worker touching S3 media
+  needs the S3 settings** — not only the one running the source node.
+
+#### S3 bucket notifications
+
+`S3EventBuffer` (worker singleton) reconciles a continuous event stream with discrete runs:
+transports fill it, a run drains it. This keeps `stream()` a cold, finite `Flowable` and leaves the
+SOURCE_TASK contract untouched. Two transports feed it — `WebhookS3EventSource`, which registers a
+route on the **existing** monitoring router (port 8093, same `register(router)` pattern as
+`HealthEndpoint`) and is what MinIO's `notify_webhook` target speaks; and `SqsS3EventSource`, which
+long-polls an SQS queue for AWS. Past `maxBufferedKeys` the buffer marks the bucket **degraded**
+rather than dropping hints, which forces the next run onto a full listing.
+
+> Events make a *run* cheap; they do not *start* a run. Loom's scheduler still owns that. A
+> worker-initiated run trigger ("watch mode") is open work.
+
 **`AssetSourceNode`** (pipeline-level):
 - Emits exactly one configured `LoomMedia` per pipeline run.
 - Uses `AtomicBoolean` to ensure single emission.
@@ -419,9 +492,12 @@ Every node has its own options class extending `AbstractNodeOptions<T>`:
 | Sentiment | `SentimentNodeOptions` | `sentimentHost`, `sentimentPort` (9110), `language` (`auto`/`de`/`en`), `modelDe`, `modelEn`, `textSources` (ordered `nodeId:outputKey` list), `maxChars` |
 | Depthmap | `DepthmapNodeOptions` | `depthHost`, `depthPort` (9120), `mode` (`RELATIVE`/`METRIC`), `model` (checkpoint override), `maxDim` (1024); `timeoutMs` is the inherited common option, defaulted to 120000 in the constructor (`KEY = "depthmap"`) |
 | Scene Layout | `SceneLayoutNodeOptions` | `depthNodeId` (`depthmap`), `detectionSources` (`["facedetect"]`), `allowLoomFallback`, `coreInset` (0.25), `minCorePixels` (16), `depthZThreshold` (1.0), `occlusionMinOverlap` (0.05), `containmentRatio` (0.85), `nextToMaxGap` (0.5), `foregroundQuantile` (0.66), `backgroundQuantile` (0.33), `maxObjects` (40), `maxRelations` (200), `emitPhrases` (`KEY = "scene-layout"`) |
+| Dominant Colour | `DominantColorNodeOptions` | `clusterCount` (5), `maxSamples` (40000), `maxIterations` (30), `convergenceEpsilon` (0.5), `seed` (42), `alphaThreshold` (128), `minRegionPixels` (64), `maxRegions` (32), `includeWholeImage` (true), `useDetections` (true), `detectionSources` (`["facedetect"]`), `regionX/Y/W/H` (0), `regionCoordinates` (`NORMALIZED`), `achromaticChroma` (12.0), `blackLightness` (20.0), `whiteLightness` (85.0), `emitPalette` (true) (`KEY = "dominant-color"`) |
 | Script | `ScriptNodeOptions` | `engine`, `script`, `outputs` (declared `{key,type[,segmentType]}`), `params`, `requiredInputs`, `trusted`, `allowNetwork`, `allowFilesystem`, `timeoutMs`, `statementLimit`, `maxOutputBytes`, `maxLogLines` (`KEY = "script"`). ⚠️ Set per **pipeline node instance**, not per worker — see §5.1 |
 | Dedup | `DedupNodeOptions` | `dupFolder` (Path) |
 | Filesystem Source | `FilesystemSourceNodeOptions` | `path` (String), `pathGlobs` (List&lt;String&gt;) — defaults used when the pipeline definition supplies no selection |
+| S3 Source | `S3SourceNodeOptions` | `bucket`, `prefix`, `suffixes`, `emitStates`, `startAfter`, `useEvents` (`KEY = "s3-source"`). ⚠️ **Connection settings are not here** — endpoint/region/credentials/cache live on `CortexOptions.getS3()` (`S3ClientOptions`, env `CORTEX_S3_*`), because they describe the worker and because a pipeline definition is stored in Postgres and rendered in the editor |
+| S3 Sink | `S3SinkNodeOptions` | `bucket`, `keyTemplate`, `artifacts`, `autoDiscover`, `includeSource`, `createAssets`, `overwrite`, `deleteAfterUpload`, `maxArtifacts`, `maxArtifactBytes`, `failOnPartial` (`KEY = "s3-sink"`). ⚠️ Set per **pipeline node instance** — see §5.1. Connection settings stay on `CortexOptions.getS3()` |
 | Scene | `SceneDetectionOptions` | (no custom fields) |
 | Consistency | `ConsistencyNodeOptions` | (no custom fields) |
 | Loom | `LoomNodeOptions` | (no custom fields) |
@@ -442,7 +518,7 @@ public interface PipelineConfigurable {
 ```
 
 `RegistryNodeRegistrar.adapt(...)` calls it **only** for nodes that implement it, so no existing
-node changes behaviour. `ScriptNode` is the only implementor today.
+node changes behaviour. `ScriptNode` and `S3SinkNode` are the implementors today.
 
 ⚠️ **An implementor must never be `@Singleton`.** `configure` mutates the node;
 `NodeTaskRunner` builds one per task through the kind map's `Provider`, and marking the node a
@@ -678,6 +754,11 @@ Nodes can read outputs from upstream dependency nodes via:
 Example: `FacedescriptionNode` reads `ctx.upstreamOutput("facedetect", "face_count")`
 to skip face description when no faces were detected. `ThumbnailNode` reads
 `ctx.upstreamOutput("consistency", "is_complete")` to skip incomplete videos.
+
+> There is **no input type system** — no `NodeInputKey`, no declared binding. The lookup is keyed by
+> pipeline **node id** (not kind), `<T>` is erased, and a rename makes it silently return `null`.
+> Every `(nodeId, outputKey)` pair actually read at runtime, and which are hard-coded vs. configurable,
+> is tabulated in [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) §6.2.
 
 ### ResultOrigin
 
@@ -917,6 +998,27 @@ fixes, or further development.
 
 ### Missing Features
 
+- [x] **Produced bytes now have a durable home**: `s3-sink` (`cortex/nodes/s3-sink`) uploads the
+      files `ThumbnailNode`, `DepthmapNode`, `TtsNode`, `ImageGenNode` and `ScriptNode` write into
+      their worker-local `*_bin` caches, and **creates a Loom asset per uploaded file** with
+      `origin` = the `s3://` URI, so a thumbnail is retrievable rather than stranded on one
+      machine. The source asset gets an `asset_json_comp` (`schemaType=s3-artifact`,
+      `variant` = node id) indexing what was published. See
+      [NODE_S3SINK_PLAN.md](NODE_S3SINK_PLAN.md). Still open on the Loom side: the location is a
+      string in `initial_origin` rather than a structured record, because
+      `asset_location.pool_uuid` is a column nothing writes,
+      `AssetBinaryEndpointService`'s three S3 branches are stubs, and `attachment`'s provenance
+      columns (`V2.44`, added for exactly this) are invisible to REST — phases 2 and 3 of that plan.
+
+- [ ] 🔴 **A sink must share a worker with its producer, and nothing enforces it**: `s3-sink` reads
+      the files its upstream node wrote to local disk, exactly as `scene-layout` reads
+      `depthmap_path`. `NodeTaskRunner`'s javadoc says affinity groups "will later" let Loom
+      dispatch a whole subgraph; there is no affinity column in any migration and the editor's
+      affinity channel is consumed by nothing. Today the only working configurations are a
+      single-worker deployment or a `CORTEX_NODE_WHITELIST` that co-locates the pair. `s3-sink`
+      fails loudly when an upstream output names a file that is not on this worker, which is the
+      only mitigation available.
+
 - [ ] **No node-level dry-run**: The pipeline has a global `dryRun` flag,
       but individual nodes cannot be dry-run independently.
 
@@ -950,7 +1052,7 @@ fixes, or further development.
       `asset_node_result` ledger records FAILED while the run's node result says SUCCESS, so
       `nodeFailedCounts`, blocking-dependency skipping and the UI's node status all see a success.
 
-      `ScriptNode` uses `ctx.failure(msg).abort()` instead, which is why its failure tests assert
+      `ScriptNode` and `S3SinkNode` use `ctx.failure(msg).abort()` instead, which is why their failure tests assert
       `FAILED` directly. Fixing the rest is either eleven one-word edits or a change to `next()` so
       it honours a recorded failure cause — the latter is smaller but silently changes what `next()`
       means for every existing caller, so it needs its own review rather than being folded into an
@@ -1060,6 +1162,7 @@ Compact per-node status. Verified against the code and test tree.
 | Node | Unit test runs node | Integration test | Persists into Loom | Caches (what) | Media components |
 |---|---|---|---|---|---|
 | `FilesystemSourceNode` | Yes | Yes | n/a (source; emits path) | No | No |
+| `S3SourceNode` | Yes | Yes | n/a (source; emits `s3://` reference) | Persistent Avro object index (durable, per bucket+prefix) | No |
 | `SHA512Node` | Yes | Yes | Yes - `asset` row + ledger | Yes - `SHA512` (100k) | No |
 | `SHA256Node` | Yes | No | Yes - `asset` row + ledger | Yes - hash string (100k) | No |
 | `MD5Node` | Yes | Yes | Yes - `asset` row + ledger | Yes - hash string (100k) | No |
@@ -1076,6 +1179,7 @@ Compact per-node status. Verified against the code and test tree.
 | `SentimentNode` | Yes (+ persistence test) | Yes | Yes - `asset_json_comp` (`variant` = source output key) + ledger | Yes - scored result JSON | No |
 | `DepthmapNode` | Yes (+ persistence test) | Yes | Partial - ledger only (16-bit PNG stays in local `depthmap_bin`); records `producerVersion` | Yes - meta JSON (embeds the artifact path) | No |
 | `SceneLayoutNode` | Yes (+ persistence + solver + sampler tests) | Yes | Yes - `asset_json_comp` (`schemaType="scene-layout"`) + ledger | Yes - layout result JSON | No |
+| `DominantColorNode` | Yes (+ persistence + pipeline + colour-space / distance / namer / k-means / region tests) | Yes | Yes - `asset_json_comp` (`schemaType="dominant-color"`) + ledger | Yes - palette JSON, keyed by path **+ upstream payloads + options hash** | No |
 | `LLMNode` | Yes | No | Yes - `asset_json_comp` per prompt + ledger | Yes - per-prompt outputs | No |
 | `VlmNode` | Yes | Yes | Yes - `asset_json_comp` per prompt + ledger | Yes - per-prompt outputs | No |
 | `QualityNode` | No (options only) | No | Yes - `asset_json_comp` + ledger | Yes - metric snapshot | Partial - image/video block |
@@ -1086,6 +1190,7 @@ Compact per-node status. Verified against the code and test tree.
 | `HashDedupNode` | No (empty stub) | No | Partial - ledger only (side effect) | No (moves files) | No |
 | `FingerprintDedupNode` | No (empty stub) | No | No (node is a stub) | No | No |
 | `LoomNode` | Yes | Yes | Yes - bulk `asset` hash update | No (in-heap batch buffer, not a result cache) | No |
+| `S3SinkNode` | Yes (+ persistence tests) | Yes (real MinIO) | Yes - an `asset` per artifact + `asset_json_comp` index + ledger | No | Yes - one entry per uploaded artifact |
 
 **Notable gaps**
 - **No unit test that runs the node**: `QualityNode` (only options validation),
@@ -1097,9 +1202,14 @@ Compact per-node status. Verified against the code and test tree.
   file with a real `LoomHttpClient`, and asserts the typed payload reached its
   component table and is readable back via REST. Covered: hash (md5/sha256/
   sha512/chunk-hash), consistency, tika, quality, scene, thumbnail, fingerprint,
-  facedetect, ocr, vlm, whisper, tts, sentiment, imagegen, depthmap, scene-layout, loom.
-  `scene-layout` is the one node stubbed nowhere at all — it has no model, so its integration test
-  runs the real geometry against a real 16-bit depth PNG on disk. The compute is stubbed for nodes needing a
+  facedetect, ocr, vlm, whisper, tts, sentiment, imagegen, depthmap, scene-layout, dominant-color, loom,
+  s3-source. `s3-source` runs against a real MinIO container (`MinioContainer`) with no stubbing at
+  all — real listings, real ETags, real downloads — and ends by driving a real `SHA512Node` over a
+  materialized object to prove S3 media persists like any local file.
+  `scene-layout` and `dominant-color` are stubbed nowhere at all — neither has a model, so their
+  integration tests run the real computation against a real PNG on disk. `dominant-color`'s IT
+  additionally asserts the German colour name reads back byte-for-byte through JSONB and REST, which
+  is the only place UTF-8 survival across the whole persistence chain is pinned. The compute is stubbed for nodes needing a
   native model / external runtime (ocr → `OCRProvider`, whisper →
   `WhisperMediaProcessor`, facedetect → `InspireFacedetector`, tts → `TtsClient`,
   sentiment → `SentimentClient`)
@@ -1128,8 +1238,36 @@ Compact per-node status. Verified against the code and test tree.
 
 ---
 
-_Git HEAD revision: `29cadb66`_
-_Last updated: 2026-07-28 (added the `depthmap` and `scene-layout` nodes. `depthmap` runs monocular depth
+_Git HEAD revision: `5ac79b6d`_
+_Last updated: 2026-07-28 (added the `dominant-color` node — deterministic k-means in CIELAB over
+stride-sampled pixels, reporting HEX/RGB/HSL/CIELAB+LCh plus a bilingual EN/DE name built from the 11
+Berlin & Kay basic colour terms (nearest prototype by CIEDE2000) and an LCh-derived modifier. Measures
+the whole frame, an optional configured region and every upstream `detections` box in one pass;
+persists to `asset_json_comp` (`schemaType="dominant-color"`). No model, no sidecar, no OpenCV. Two
+things worth knowing: the term codebook uses **several Lab prototypes per term** rather than one anchor
+— a single anchor demonstrably names navy *purple* and pure green *yellow*, because lightness is then
+counted twice — and pixel reduction is **stride sampling, not bilinear downscaling**, because
+interpolation invents colours that are not in the image (a red/blue stripe pattern averages to purple)
+and bleeds transparent pixels into their neighbours. Its `LocalResultCache` key covers the upstream
+payloads and options, not just the media path, which is the bug `scene-layout` still has. Adds the
+`data/color` content type. See [NODE_DOMINANT_COLOR_PLAN.md](NODE_DOMINANT_COLOR_PLAN.md).
+Previously: added the `s3-source` node — differential ingest from S3-compatible object
+storage via a persisted per-bucket Avro index, an opt-in `startAfter` resume path, and optional bucket
+notifications (MinIO webhook on the monitoring port / AWS SQS) that let a run skip listing entirely,
+backstopped by a periodic reconcile listing. That work also changed **media addressing** (§4):
+`ProcessableMedia.reference()`, `NodeTaskRunner.MediaResolver.resolve(MediaRef)` and the new
+`MediaReferenceResolver` mean media travels as a reference rather than a path, and S3 objects are
+materialized lazily by whichever worker runs the node task — so `MediaRef`'s "shared storage is a
+prerequisite" no longer holds for object storage. New modules: `cortex/s3-common` and
+`cortex/nodes/s3-source`. Credentials are worker-level (`CortexOptions.getS3()`, `CORTEX_S3_*`) and
+never enter a pipeline definition. Also fixed two latent defects found on the way: `bom/pom.xml`
+declared `aws.sdk.version` 2.29.70, which has never existed on Maven Central (nothing consumed the
+dependency, so nobody noticed), and `cortex/cli`'s shade config had no `ServicesResourceTransformer`,
+which would have broken the AWS SDK's `ServiceLoader` lookup in the container image only. See
+[NODE_S3SOURCE_PLAN.md](NODE_S3SOURCE_PLAN.md). Previously: cross-linked the new
+[../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) from §1 `NodeOutputKey`, §3 and §9
+`Upstream Output Access` — it owns the per-node input/output type reference and the type-safety audit,
+so this file keeps behaviour, configuration and persistence. Previously: added the `depthmap` and `scene-layout` nodes. `depthmap` runs monocular depth
 estimation via the `sidecars/depth` FastAPI sidecar and writes a 16-bit **NEARNESS** PNG — 65535 = nearest
 — to the local `depthmap_bin` cache, ledger-only but stamped with the model. `scene-layout` has no model
 at all: it joins detector boxes to that map and derives depth bands plus pairwise spatial relations into

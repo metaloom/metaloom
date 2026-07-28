@@ -55,6 +55,13 @@
             <groupId>io.metaloom.cortex</groupId>
             <artifactId>cortex-api</artifactId>
         </dependency>
+        <!-- S3 bucket-notification webhook, registered on the monitoring router.
+             Already on the classpath transitively via processor -> s3-source-node;
+             declared explicitly because this module imports it directly. -->
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-s3-common</artifactId>
+        </dependency>
         <dependency>
             <groupId>info.picocli</groupId>
             <artifactId>picocli</artifactId>

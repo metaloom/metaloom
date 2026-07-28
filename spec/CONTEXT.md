@@ -154,11 +154,14 @@ spec/
 │   │   └── PERMISSIONS.md             # Authorization: RBAC model, taxonomy, enforcement points
 │   ├── pipeline/
 │   │   ├── PIPELINE.md                # Technical spec: engine, persistence, protocol, schemas
+│   │   ├── NODE_DATA_TYPES.md         # What flows between nodes: per-node input/output types, the
+│   │   │                              #   three type systems, and where typing is lost hop by hop
 │   │   ├── PIPELINE_REQUIREMENTS.md   # Non-technical requirements + gap status
 │   │   └── PIPELINE_TASKS.md          # Actionable pipeline work items
 │   ├── pipeline-nodes/
 │   │   ├── NODES.md                   # Cortex node system + per-node reference
 │   │   ├── NODE_DEPTHMAP_PLAN.md            # Depth map node design (monocular depth, sidecar) — NOT built
+│   │   ├── NODE_DOMINANT_COLOR_PLAN.md      # Dominant colour node design (CIELAB k-means, EN/DE naming) — implemented
 │   │   ├── NODE_IMAGEGEN_PLAN.md            # Image generation node design — implemented
 │   │   ├── NODE_SCENE_LAYOUT_PLAN.md        # Scene layout node design (depth + boxes → spatial relations) — NOT built
 │   │   ├── NODE_SCRIPT_PLAN.md              # Script node design (GraalJS, declared multi-valued outputs) — implemented
@@ -220,6 +223,7 @@ spec/
 | Understanding the system end to end | [cortex/METALOOM_ARCHITECTURE.md](cortex/METALOOM_ARCHITECTURE.md) |
 | Pipelines (engine, runs, dispatch) | [features/pipeline/PIPELINE.md](features/pipeline/PIPELINE.md) |
 | A Cortex processing node | [features/pipeline-nodes/NODES.md](features/pipeline-nodes/NODES.md) |
+| Node inputs/outputs — what data flows between nodes and its type | [features/pipeline/NODE_DATA_TYPES.md](features/pipeline/NODE_DATA_TYPES.md) |
 | A REST endpoint | [loom/RESTAPI.md](loom/RESTAPI.md) + [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md) |
 | A DAO / migration | [loom/PERSISTENCE.md](loom/PERSISTENCE.md) + [loom/DOMAIN.md](loom/DOMAIN.md) |
 | Permissions / authorization | [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md), [features/rbac/RBAC.md](features/rbac/RBAC.md) |
@@ -767,6 +771,8 @@ Both Loom and Cortex use **Dagger 2**:
 | **Per-instance node options** | ✅ Node parameters from the pipeline definition reach a node only if it implements `PipelineConfigurable` (`cortex/common`); `RegistryNodeRegistrar.adapt()` otherwise reads only the structural fields and takes options from the worker's YAML. Two defects that meant editor-set parameters had **never** reached a worker are fixed: the editor emitted `config` where `PipelineGraphParser` reads `options` (the alias is still accepted), and sidebar edits were discarded on save because `getGraphJson()` serialises the canvas. See [NODES.md](features/pipeline-nodes/NODES.md) §5.1 |
 | **`ctx.failure(...).next()`** | 🔴 Returns **SUCCESS** — `NodeContextImpl.next()` ignores the failure cause; only `abort()` yields FAILED. Eleven nodes use `.next()` on their failure paths and therefore report success. Use `ctx.failure(msg).abort()` in new nodes |
 | **Node result write-back** | Results reach Loom via `POST /api/v1/assets/:uuid/node-results` — upsert a typed component **and** record the `asset_node_result` ledger row. `WhisperNode` is the reference implementation; copy its shape for a new node |
+| **Node output types** | 🔴 `NodeOutputKey<T>`'s `T` is **advisory** — `NodeContextImpl` drops `valueType()` and every read is an unchecked cast. Emit structured data as a JSON **`String`**, never a POJO; coerce upstream values (`((Number) v).longValue()`) rather than casting — `Long` narrows to `Integer` over the wire. A descriptor's `contentType` is never checked against anything. See [features/pipeline/NODE_DATA_TYPES.md](features/pipeline/NODE_DATA_TYPES.md) |
+| **Descriptor ≠ registration** | A `NodeDescriptorProvider` makes a kind visible in the palette; running it needs `@Binds @IntoMap @StringKey("<kind>")` in the node's own module. The two sets currently differ in 6 places (`tts`/`imagegen` runnable but invisible; `hash-dedup`/`facedescription`/`filter-*`/`loom-fetch` visible but not runnable) |
 | **Cortex `cortex.yml`** | 🔴 Not read on the server path, despite [cortex/CONFIGURATION.md](cortex/CONFIGURATION.md) |
 | **Cortex shutdown** | 🔴 No shutdown hook — `SIGTERM` abandons in-flight work and loses buffered results |
 | **Pipeline validation** | Triplicated (loom-shared, loom-rest, UI). Only the loom-rest copy checks node types and is tested |
@@ -822,5 +828,11 @@ follow the cross-references.*
 
 ---
 
-_Git HEAD revision: `65e6c464`_
-_Last updated: 2026-07-27 (added `features/search/` — SEARCH.md, SEARCH_PLAN.md, SEMANTIC_SEARCH.md; these specify a feature that is **not implemented**: there is no search endpoint, no `q` parameter, no `LIKE` in any DAO, and `loom/services/{lucene,elasticsearch,qdrant}` are pom-only stubs)_
+_Git HEAD revision: `5ac79b6d`_
+_Last updated: 2026-07-28 (added [features/pipeline/NODE_DATA_TYPES.md](features/pipeline/NODE_DATA_TYPES.md) —
+the per-node input/output type reference: the three independent type systems (descriptor `contentType`,
+`NodeOutputKey<T>`, runtime `Map<String,Object>`), how a value is carried hop by hop and what each hop
+loses, and a full type-safety audit. Two §6 gotchas added for it. Previously: added `features/search/` —
+SEARCH.md, SEARCH_PLAN.md, SEMANTIC_SEARCH.md; these specify a feature that is **not implemented**: there is
+no search endpoint, no `q` parameter, no `LIKE` in any DAO, and `loom/services/{lucene,elasticsearch,qdrant}`
+are pom-only stubs)_

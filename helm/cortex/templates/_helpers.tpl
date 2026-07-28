@@ -72,6 +72,17 @@ Name of the Secret holding the Loom token.
 {{- end }}
 
 {{/*
+Name of the secret holding the S3 credentials and the webhook shared secret.
+*/}}
+{{- define "cortex.s3SecretName" -}}
+{{- if .Values.s3.existingSecret }}
+{{- .Values.s3.existingSecret }}
+{{- else }}
+{{- printf "%s-s3" (include "cortex.fullname" .) }}
+{{- end }}
+{{- end }}
+
+{{/*
 Image reference (repository:tag), tag defaulting to the chart appVersion.
 */}}
 {{- define "cortex.image" -}}

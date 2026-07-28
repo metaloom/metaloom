@@ -1,0 +1,80 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+    <artifactId>cortex-s3-source-node</artifactId>
+    <packaging>jar</packaging>
+    <parent>
+        <groupId>io.metaloom.cortex</groupId>
+        <artifactId>cortex-nodes</artifactId>
+        <relativePath>../pom.xml</relativePath>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <name>MetaLoom // Cortex :: Nodes :: S3 Source</name>
+
+    <dependencies>
+        <!-- This node is a pipeline-level source node rather than a
+             FilesystemNode, so it needs the pipeline API/impl at compile
+             scope (the parent only provides them for tests). -->
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-pipeline-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-pipeline-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-common</artifactId>
+        </dependency>
+        <!-- Object store seam, lazy materializer and the s3:// media handle. -->
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-s3-common</artifactId>
+        </dependency>
+        <!-- FileState is shared with filesystem-source so both source nodes speak the same
+             emitStates vocabulary; the scanner itself is filesystem-specific and unused here. -->
+        <dependency>
+            <groupId>io.metaloom.utils</groupId>
+            <artifactId>differential-filesystem-scanner</artifactId>
+        </dependency>
+        <!-- Persisted per-bucket object index. -->
+        <dependency>
+            <groupId>org.apache.avro</groupId>
+            <artifactId>avro</artifactId>
+        </dependency>
+
+        <!-- Test -->
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-s3-common</artifactId>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.avro</groupId>
+                <artifactId>avro-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>schema</goal>
+                        </goals>
+                        <configuration>
+                            <sourceDirectory>${project.basedir}/src/main/avro</sourceDirectory>
+                            <outputDirectory>${project.basedir}/target/generated-sources/avro</outputDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

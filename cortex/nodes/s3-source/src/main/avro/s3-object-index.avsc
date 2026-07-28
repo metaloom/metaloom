@@ -1,0 +1,14 @@
+{
+  "type": "record",
+  "name": "S3ObjectEntry",
+  "namespace": "io.metaloom.cortex.node.source.s3.avro",
+  "doc": "A single persisted object index entry for one bucket+prefix selection. State is transient (derived per scan by diffing against this record) and is therefore not stored. The etag is an opaque change token, NOT a content hash - a multipart upload reports an md5-of-md5s digest suffixed with the part count.",
+  "fields": [
+    {"name": "bucket", "type": "string"},
+    {"name": "key", "type": "string"},
+    {"name": "etag", "type": ["null", "string"], "default": null},
+    {"name": "size", "type": "long"},
+    {"name": "lastModifiedMillis", "type": "long"},
+    {"name": "versionId", "type": ["null", "string"], "default": null, "doc": "Reserved for versioned buckets; unused today."}
+  ]
+}

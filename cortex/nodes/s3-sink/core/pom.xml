@@ -1,0 +1,47 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <artifactId>cortex-s3-sink-node</artifactId>
+    <packaging>jar</packaging>
+    <parent>
+        <groupId>io.metaloom.cortex</groupId>
+        <artifactId>cortex-nodes</artifactId>
+        <relativePath>../../pom.xml</relativePath>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <name>MetaLoom // Cortex :: Nodes :: S3 Sink</name>
+
+    <!--
+      The sink talks to object storage only through the S3ObjectStore seam in cortex-s3-common,
+      never through the AWS SDK directly. That is what lets its unit tests run against the
+      in-memory FakeS3ObjectStore and confines MinIO to the integration test.
+    -->
+
+    <dependencies>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-s3-common</artifactId>
+        </dependency>
+
+        <!-- Test -->
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-s3-common</artifactId>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+        <!-- StubLoomMedia, shared by every node persistence test. -->
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-pipeline-core</artifactId>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+        <!-- loom-client-rest is deliberately NOT declared here: it arrives at compile scope via
+             cortex-s3-common -> cortex-common, and re-declaring it as test-scoped would narrow
+             that and break the main sources. -->
+    </dependencies>
+
+</project>

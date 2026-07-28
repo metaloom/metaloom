@@ -46,6 +46,16 @@
             <artifactId>cortex-filesystem-source-node</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-s3-source-node</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-s3-sink-node</artifactId>
+            <version>${project.version}</version>
+        </dependency>
 
         <!-- Actions -->
         <dependency>
@@ -146,6 +156,11 @@
         <dependency>
             <groupId>io.metaloom.cortex</groupId>
             <artifactId>cortex-scene-layout-node</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-dominant-color-node</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>

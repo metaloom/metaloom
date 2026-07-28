@@ -62,6 +62,42 @@ meta:
       - ReadWriteOnce
     size: 2Gi
 
+# S3-compatible object storage. Enables the s3-source node AND the ability to read
+# s3:// media generally. Objects are fetched lazily by whichever worker runs a node
+# task against them, so these settings belong on EVERY worker that processes S3
+# media - not only the one running the source node. In exchange, S3 pipelines need
+# no shared media volume at all.
+s3:
+  # -- Enable S3 access on this worker.
+  enabled: false
+  # -- Endpoint override, e.g. http://minio:9000. Leave empty for real AWS.
+  endpoint: ""
+  region: us-east-1
+  # -- Path-style bucket addressing. Required by MinIO and most S3 gateways.
+  pathStyleAccess: true
+  # -- Credentials. Leave empty to use the AWS default credential chain
+  # (environment, profile, instance role, IRSA), which is preferable on EKS.
+  accessKey: ""
+  secretKey: ""
+  # -- Use an existing secret with keys: accessKey, secretKey, webhookSecret.
+  existingSecret: ""
+  # -- Where fetched objects are cached. Defaults to <meta.path>/s3_bin when empty.
+  cachePath: ""
+  # -- Size budget for that cache in bytes; the oldest entries are evicted past it.
+  maxCacheBytes: 53687091200
+  # -- How long bucket notifications may be trusted before a full listing is forced.
+  # Notifications can be lost, so this reconcile pass is what keeps scanning correct.
+  reconcileIntervalMs: 21600000
+  events:
+    # -- Accept bucket notifications so runs can skip listing the bucket.
+    enabled: false
+    # -- WEBHOOK (bucket posts to the monitoring port) or SQS (worker polls a queue).
+    mode: WEBHOOK
+    # -- Shared secret the bucket must send in the X-Cortex-S3-Token header.
+    webhookSecret: ""
+    # -- SQS queue URL, when mode is SQS.
+    queueUrl: ""
+
 # Shared media storage. Loom sends the worker a PATH to media, never the bytes,
 # so the worker must be able to READ that path itself. Mount the same storage the
 # Loom uploads volume uses (or wherever the source files live).
