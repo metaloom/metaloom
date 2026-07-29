@@ -1,6 +1,7 @@
 package io.metaloom.loom.rest.service.impl;
 
 import java.util.LinkedHashMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -20,12 +21,15 @@ import io.metaloom.loom.db.model.pipeline.PipelineRunItemDao;
 import io.metaloom.loom.db.model.pipeline.PipelineVersion;
 import io.metaloom.loom.db.model.pipeline.PipelineVersionDao;
 import io.metaloom.loom.pipeline.engine.PipelineRunEngine;
+import io.metaloom.loom.pipeline.engine.PipelineRunEngine.RestoredTask;
 import io.metaloom.loom.pipeline.engine.RunStateStore;
 import io.metaloom.loom.pipeline.graph.PipelineGraph;
 import io.metaloom.loom.pipeline.graph.PipelineGraphParser;
 import io.metaloom.loom.pipeline.model.MediaRef;
 import io.metaloom.loom.pipeline.model.NodeState;
 import io.metaloom.loom.pipeline.model.NodeTaskResult;
+import io.metaloom.loom.pipeline.model.PortPayload;
+import io.metaloom.loom.pipeline.engine.PortPayloads;
 import io.vertx.core.json.JsonObject;
 
 /**
@@ -182,23 +186,24 @@ public class PipelineRunRecovery {
 		}
 
 		for (PipelineRunItem item : items) {
-			Map<String, NodeTaskResult> settled = new LinkedHashMap<>();
-			Map<String, Integer> attempts = new LinkedHashMap<>();
+			// A list, not a map keyed by node: a run that died mid fan-out has one row per element,
+			// and keying on the node id alone would keep only the last of them - the item would come
+			// back narrower than it is and the dropped executions would never run.
+			List<RestoredTask> restored = new ArrayList<>();
 
 			for (PipelineNodeTask task : tasksByItem.getOrDefault(item.getUuid(), List.of())) {
-				attempts.put(task.getNodeId(), task.getAttempt());
 				NodeState state = terminalStateOf(task.getState());
-				if (state == null) {
-					// RUNNING or PENDING: it never finished, so leave it unsettled and let
-					// the engine dispatch it again.
-					continue;
-				}
-				settled.put(task.getNodeId(), new NodeTaskResult(task.getUuid(), task.getNodeId(), state,
-					task.getDurationMs() == null ? 0 : task.getDurationMs(), task.getErrorMessage(),
-					outputsOf(task)));
+				// RUNNING or PENDING never finished, so it carries no result and the engine
+				// dispatches it again - but its attempt count still has to survive, or a restart
+				// silently refills the retry budget of a poison element.
+				NodeTaskResult result = state == null ? null
+					: new NodeTaskResult(task.getUuid(), task.getNodeId(), task.getElementSeq(), state,
+						task.getDurationMs() == null ? 0 : task.getDurationMs(), task.getErrorMessage(),
+						outputsOf(task));
+				restored.add(new RestoredTask(task.getNodeId(), task.getElementSeq(), result, task.getAttempt()));
 			}
 
-			engine.restoreItem(item.getUuid().toString(), toMediaRef(item), settled, attempts);
+			engine.restoreItem(item.getUuid().toString(), toMediaRef(item), restored);
 		}
 		return items.size();
 	}
@@ -224,9 +229,8 @@ public class PipelineRunRecovery {
 		}
 	}
 
-	private static Map<String, Object> outputsOf(PipelineNodeTask task) {
-		JsonObject outputs = task.getOutputs();
-		return outputs == null ? Map.of() : outputs.getMap();
+	private static Map<String, PortPayload> outputsOf(PipelineNodeTask task) {
+		return PortPayloads.decode(task.getOutputs());
 	}
 
 	private static MediaRef toMediaRef(PipelineRunItem item) {

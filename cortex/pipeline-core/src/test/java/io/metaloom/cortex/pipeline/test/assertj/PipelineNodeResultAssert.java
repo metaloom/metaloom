@@ -2,7 +2,10 @@ package io.metaloom.cortex.pipeline.test.assertj;
 
 import org.assertj.core.api.AbstractAssert;
 
+import java.util.List;
+
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 
 /**
@@ -42,34 +45,45 @@ public class PipelineNodeResultAssert extends AbstractAssert<PipelineNodeResultA
 		return this;
 	}
 
-	public PipelineNodeResultAssert hasOutput(String key) {
+	public PipelineNodeResultAssert hasOutput(OutputPort<?> port) {
 		isNotNull();
-		if (!actual.getOutput().containsKey(key)) {
-			failWithMessage("Expected output key <%s> but it was absent. Available: %s",
-					key, actual.getOutput().keySet());
+		if (!actual.has(port)) {
+			failWithMessage("Expected an emission on port <%s> but there was none. Ports emitted: %s",
+					port.id(), actual.getOutputs().keySet());
 		}
 		return this;
 	}
 
-	public PipelineNodeResultAssert hasOutput(String key, Object expectedValue) {
+	public <T> PipelineNodeResultAssert hasOutput(OutputPort<T> port, T expectedValue) {
 		isNotNull();
-		Object actualValue = actual.getOutput(key);
+		Object actualValue = actual.get(port);
 		if (actualValue == null) {
-			failWithMessage("Expected output <%s> to be <%s> but it was null. Available: %s",
-					key, expectedValue, actual.getOutput().keySet());
+			failWithMessage("Expected port <%s> to carry <%s> but it carried nothing. Ports emitted: %s",
+					port.id(), expectedValue, actual.getOutputs().keySet());
 		} else if (!expectedValue.equals(actualValue)) {
-			failWithMessage("Expected output <%s> to be <%s> but was <%s>",
-					key, expectedValue, actualValue);
+			failWithMessage("Expected port <%s> to carry <%s> but it carried <%s>",
+					port.id(), expectedValue, actualValue);
+		}
+		return this;
+	}
+
+	/** Assert the elements of a {@code MANY} port, in order. */
+	public <T> PipelineNodeResultAssert hasElements(OutputPort<T> port, List<T> expected) {
+		isNotNull();
+		List<T> actualElements = actual.elements(port);
+		if (!expected.equals(actualElements)) {
+			failWithMessage("Expected port <%s> to carry <%s> but it carried <%s>",
+					port.id(), expected, actualElements);
 		}
 		return this;
 	}
 
 	public PipelineNodeResultAssert hasOutputCount(int count) {
 		isNotNull();
-		int actualCount = actual.getOutput().size();
+		int actualCount = actual.getOutputs().size();
 		if (actualCount != count) {
-			failWithMessage("Expected <%d> outputs but found <%d>: %s",
-					count, actualCount, actual.getOutput().keySet());
+			failWithMessage("Expected <%d> output ports but found <%d>: %s",
+					count, actualCount, actual.getOutputs().keySet());
 		}
 		return this;
 	}

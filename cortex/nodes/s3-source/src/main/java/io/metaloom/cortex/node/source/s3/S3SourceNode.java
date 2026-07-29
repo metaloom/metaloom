@@ -9,7 +9,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
+import io.metaloom.cortex.api.node.PortOutput;
 import io.metaloom.cortex.pipeline.api.NodeMode;
 import io.metaloom.cortex.pipeline.api.node.MediaSourceNode;
 import io.metaloom.cortex.pipeline.core.node.AbstractPipelineNode;
@@ -17,6 +20,7 @@ import io.metaloom.cortex.s3.S3LoomMedia;
 import io.metaloom.cortex.s3.S3MediaMaterializer;
 import io.metaloom.cortex.s3.S3ObjectRef;
 import io.metaloom.fs.FileState;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.reactivex.rxjava3.core.Flowable;
 
 /**
@@ -43,18 +47,14 @@ public class S3SourceNode extends AbstractPipelineNode implements MediaSourceNod
 	/**
 	 * The reference of the current item.
 	 *
-	 * <p>Named {@code path} and emitted alongside {@code uri} on purpose: {@code filesystem-source}
-	 * and {@code asset-source} both emit {@code path}, so a downstream node that reads it keeps
-	 * working when the source is swapped for this one. The value is the {@code s3://} reference
-	 * rather than a local path - the object may not be materialized anywhere yet.</p>
+	 * <p>Named {@code media}, exactly as {@code filesystem-source} and {@code asset-source} name
+	 * theirs, so a downstream node stays wired when the source is swapped for one of them. The value
+	 * is the {@code s3://} reference rather than a local path - the object may not be materialized
+	 * anywhere yet.</p>
+	 *
+	 * <p>{@code media/*} because the concrete kind is only known once the object is fetched.</p>
 	 */
-	private static final String OUTPUT_PATH = "path";
-
-	private static final String OUTPUT_URI = "uri";
-	private static final String OUTPUT_BUCKET = "bucket";
-	private static final String OUTPUT_KEY = "key";
-	private static final String OUTPUT_SOURCE = "source";
-	private static final String OUTPUT_STATE = "state";
+	public static final OutputPort<String> OUT_MEDIA = OutputPort.one("media", ContentTypeRegistry.MEDIA_ANY, String.class);
 
 	private final S3DifferentialScanner scanner;
 	private final S3MediaMaterializer materializer;
@@ -119,22 +119,21 @@ public class S3SourceNode extends AbstractPipelineNode implements MediaSourceNod
 	 * nodes and the UI.
 	 */
 	@Override
-	public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {
+	public NodeResult process(LoomMedia media, NodeInputs inputs) {
 		String reference = media.reference();
+		return NodeResult.success(id(), 0,
+			Map.of(OUT_MEDIA.id(), new PortOutput(OUT_MEDIA, List.of(reference))));
+	}
+
+	/**
+	 * The diff state the last scan recorded for the given reference, or {@link FileState#UNKNOWN}.
+	 *
+	 * <p>Bucket, key and diff state are scan bookkeeping rather than pipeline data - the descriptor
+	 * declares one port - so they are read here instead of being emitted.</p>
+	 */
+	public FileState lastState(String reference) {
 		FileState state = lastStates.get(reference);
-		String bucket = selection.bucket();
-		String key = reference;
-		if (media instanceof S3LoomMedia s3Media) {
-			bucket = s3Media.ref().bucket();
-			key = s3Media.ref().key();
-		}
-		return NodeResult.success(id(), 0, Map.of(
-			OUTPUT_PATH, reference,
-			OUTPUT_URI, reference,
-			OUTPUT_BUCKET, bucket,
-			OUTPUT_KEY, key,
-			OUTPUT_SOURCE, "s3",
-			OUTPUT_STATE, state != null ? state.name() : FileState.UNKNOWN.name()));
+		return state != null ? state : FileState.UNKNOWN;
 	}
 
 	/**

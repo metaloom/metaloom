@@ -87,7 +87,7 @@ public class FilesystemProcessorImpl implements FilesystemProcessor {
 							return;
 						}
 
-						String originName = ctx.origin() != null ? ctx.origin().name() : "NA";
+						String originName = ctx.resultOrigin() != null ? ctx.resultOrigin().name() : "NA";
 						node.print(ctx, result.getState().name(), originName);
 						processed |= result.getState() == ResultState.SUCCESS;
 					} catch (Exception e) {

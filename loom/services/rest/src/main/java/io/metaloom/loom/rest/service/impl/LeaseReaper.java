@@ -161,8 +161,10 @@ public class LeaseReaper {
 
 		try {
 			// The item id the engine knows is the item's uuid, which is exactly what
-			// makes this lookup possible across a restart.
-			engine.onNodeTaskLost(task.getItemUuid().toString(), task.getNodeId(),
+			// makes this lookup possible across a restart. The element matters too: a node
+			// downstream of a fan-out has several executions in flight, and reclaiming the
+			// node rather than the element would strand the one that was actually lost.
+			engine.onNodeTaskLost(task.getItemUuid().toString(), task.getNodeId(), task.getElementSeq(),
 				"lease expired at " + task.getLeaseExpiresAt());
 			return true;
 		} catch (Exception e) {

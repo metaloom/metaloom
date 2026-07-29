@@ -4,6 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.HASH_SHA512;
+import static io.metaloom.loom.pipeline.engine.Payloads.outputs;
+
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -40,8 +43,8 @@ public class PipelineRunEnginePersistenceTest {
 				.add(new JsonObject().put("id", "hash").put("type", "sha512"))
 				.add(new JsonObject().put("id", "thumb").put("type", "thumbnail")))
 			.put("edges", new JsonArray()
-				.add(new JsonObject().put("source", "src").put("target", "hash"))
-				.add(new JsonObject().put("source", "hash").put("target", "thumb")));
+				.add(new JsonObject().put("source", "src").put("sourcePort", "media").put("target", "hash").put("targetPort", "media"))
+				.add(new JsonObject().put("source", "hash").put("sourcePort", "hash").put("target", "thumb").put("targetPort", "media")));
 		return parser.parse("linear", definition, true, dryRun, 0);
 	}
 
@@ -80,7 +83,7 @@ public class PipelineRunEnginePersistenceTest {
 		assertEquals(List.of("src"), store.settledNodes(itemUuid));
 
 		NodeTask hashTask = dispatcher.taskFor("hash");
-		engine.onNodeTaskResult(itemId, NodeTaskResult.completed(hashTask.getTaskUuid(), "hash", 5, Map.of("sha512", "x")));
+		engine.onNodeTaskResult(itemId, NodeTaskResult.completed(hashTask.getTaskUuid(), "hash", 5, outputs("hash", HASH_SHA512, "x")));
 		NodeTask thumbTask = dispatcher.taskFor("thumb");
 		engine.onNodeTaskResult(itemId, NodeTaskResult.completed(thumbTask.getTaskUuid(), "thumb", 5, Map.of()));
 

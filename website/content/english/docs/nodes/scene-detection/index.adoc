@@ -6,15 +6,15 @@ The scene detection node finds **scene boundaries** (cuts) in a video using opti
 emits the resulting segments. Each run replaces the whole segment set for the asset.
 
 ++++
-<div class="ml-nodeviz" data-nodeviz='{"kind":"scene-detection","applies":"Video only","badge":"OpenCV / video4j native","persist":"asset_segment_comp (whole-set replace) + asset_node_result ledger","inputs":[{"t":"video","l":"video file","d":"optical-flow analysis"}],"outputs":[{"t":"segments","l":"scene_detection","d":"one segment per scene"},{"t":"timeframe","l":"scene boundaries","d":"cut timestamps"}]}'></div>
+<div class="ml-nodeviz" data-nodeviz='{"kind":"scene-detection","applies":"Video only","badge":"OpenCV / video4j native","persist":"asset_segment_comp (whole-set replace) + asset_node_result ledger","inputs":[{"t":"video","l":"media","d":"the clip, decoded for optical-flow analysis"}],"outputs":[{"t":"segments","l":"scenes","d":"one timeline for the whole clip, holding a segment per detected scene with its cut timestamps"}]}'></div>
 ++++
 
 [cols="1,3"]
 |===
 | Kind | `scene-detection`
 | Applies to | Video only
-| Inputs | None
-| Output keys | `scene_detection` (String / JSON list of scene boundaries)
+| Input ports | `media`
+| Output ports | `scenes` — a **single** timeline covering the clip, not one element per scene. The segments live inside it
 | Requirements | OpenCV / video4j **native runtime** (optical-flow analysis). CPU-bound; decoding long videos is heavy.
 | Persists to | `asset_segment_comp` (whole-set replace) + `asset_node_result` ledger
 |===

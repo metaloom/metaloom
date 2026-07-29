@@ -1,1 +1,0 @@
-* Read the CONTEXT.md file to understand where to find information about the project

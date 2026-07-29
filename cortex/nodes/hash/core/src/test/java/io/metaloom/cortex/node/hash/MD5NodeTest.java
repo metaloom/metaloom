@@ -19,7 +19,7 @@ public class MD5NodeTest extends AbstractBasicNodeTest<MD5Node> {
 
 	@Override
 	protected void assertProcessed(TestMedia testMedia, LoomMedia media, NodeResult result, MD5Node nodeMock) {
-		assertThat(result).hasOutput(MD5Node.OUTPUT_MD5, testMedia.md5().toString());
+		assertThat(result).hasOutput(MD5Node.OUT_HASH, testMedia.md5().toString());
 	}
 
 	@Test

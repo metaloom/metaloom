@@ -10,8 +10,9 @@ import org.slf4j.LoggerFactory;
 
 import static io.metaloom.cortex.api.node.ResultOrigin.LOCAL;
 
-import io.metaloom.cortex.api.node.NodeOutputKey;
+import io.metaloom.cortex.api.node.InputPort;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.media.LoomMedia;
@@ -19,6 +20,7 @@ import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.utils.hash.HashUtils;
 import io.metaloom.utils.hash.SHA512;
@@ -27,7 +29,9 @@ public class SHA512Node extends AbstractMediaNode<HashNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(SHA512Node.class);
 
-	public static final NodeOutputKey<String> OUTPUT_SHA512 = NodeOutputKey.of("sha512", String.class);
+	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_ANY, LoomMedia.class);
+
+	public static final OutputPort<String> OUT_HASH = OutputPort.one("hash", ContentTypeRegistry.HASH_SHA512, String.class);
 
 	/** In-heap skip cache of computed SHA-512 hashes, keyed by media path, to avoid re-reading a file within this worker's lifetime. Non-durable - the
 	 * durable copy lives in Loom. */
@@ -60,12 +64,12 @@ public class SHA512Node extends AbstractMediaNode<HashNodeOptions> {
 		SHA512 cached = resultCache.get(path);
 		if (cached != null) {
 			media.setSHA512(cached);
-			ctx.output(OUTPUT_SHA512, cached.toString());
+			ctx.output(OUT_HASH, cached.toString());
 			return ctx.origin(LOCAL).next();
 		}
 		SHA512 hash = HashUtils.computeSHA512(media.file());
 		media.setSHA512(hash);
-		ctx.output(OUTPUT_SHA512, hash.toString());
+		ctx.output(OUT_HASH, hash.toString());
 		resultCache.put(path, hash);
 		// The SHA-512 is the asset's content identity, so when the asset already exists in Loom there is nothing to write back - only record the
 		// ledger marker that this node ran on the asset.

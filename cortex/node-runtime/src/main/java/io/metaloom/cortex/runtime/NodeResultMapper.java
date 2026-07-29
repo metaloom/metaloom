@@ -2,11 +2,18 @@ package io.metaloom.cortex.runtime;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.PortOutput;
 import io.metaloom.cortex.api.node.ResultState;
+import io.metaloom.loom.pipeline.model.NodeTask;
 import io.metaloom.loom.pipeline.model.NodeTaskResult;
+import io.metaloom.loom.pipeline.model.Origin;
+import io.metaloom.loom.pipeline.model.PortPayload;
+import io.metaloom.loom.pipeline.model.SegmentTask;
 
 /**
  * Translates between Cortex's internal {@link NodeResult} and the wire-level
@@ -16,6 +23,13 @@ import io.metaloom.loom.pipeline.model.NodeTaskResult;
  * implementation concerns; the wire one is a contract that both sides compile
  * against and must stay stable. This class is the single place they meet - mapping
  * in more than one place is how such pairs drift.</p>
+ *
+ * <p>It is also the <strong>emit-side type boundary</strong>. Every value a node
+ * produced is coerced against the content type its port declares before it is allowed
+ * onto the wire, and every element is stamped with an {@link Origin} naming the run
+ * item it descends from. A value that cannot satisfy its declared type fails
+ * <em>that one task</em>, with the port and the two types in the message, rather than
+ * surviving as far as a downstream cast or a persist batch.</p>
  *
  * <p>Cortex's terminal {@link ResultState} is mapped <strong>explicitly</strong> to the
  * wire {@code NodeState} in {@code toWireState} ({@code SUCCESS→COMPLETED},
@@ -28,56 +42,81 @@ public final class NodeResultMapper {
 	}
 
 	/**
-	 * @param taskUuid the task being answered
-	 * @param result   the internal result
+	 * Map a result produced for a single-node task.
+	 *
+	 * @param task   the task being answered - the source of the origin item id and element index
+	 * @param result the internal result
 	 * @return the wire result
+	 * @throws io.metaloom.loom.nodes.spec.ValueCoercionException when an emitted value does not
+	 *         satisfy its port's declared content type
 	 */
-	public static NodeTaskResult toWire(UUID taskUuid, NodeResult result) {
-		return new NodeTaskResult(taskUuid, result.getNodeId(), toWireState(result.getState()),
-			result.getDurationMs(), result.getMessage(), result.getOutput());
+	public static NodeTaskResult toWire(NodeTask task, NodeResult result) {
+		return toWire(task.getTaskUuid(), task.getItemId(), task.getElementSeq(), result);
 	}
 
 	/**
-	 * Rebuild upstream results from the outputs carried in a task.
-	 *
-	 * <p>Only the outputs travel over the wire, so upstream nodes are reconstructed as
-	 * {@code COMPLETED} carriers of those values. That is faithful for the purpose:
-	 * the engine on the Loom side has already decided this node should run, and a
-	 * node only ever reads its upstreams' output values.</p>
-	 *
-	 * @param upstreamOutputs node id to output map, as received
-	 * @return upstream results keyed by node id
+	 * Map a result produced for one node of a segment. A segment is dispatched per item rather
+	 * than per element, so every node in it answers for element 0.
 	 */
-	public static Map<String, NodeResult> toUpstreamResults(Map<String, Map<String, Object>> upstreamOutputs) {
-		Map<String, NodeResult> upstream = new LinkedHashMap<>();
-		if (upstreamOutputs == null) {
-			return upstream;
-		}
-		upstreamOutputs.forEach((nodeId, outputs) -> upstream.put(nodeId, NodeResult.success(nodeId, 0, outputs)));
-		return upstream;
+	public static NodeTaskResult toWire(SegmentTask task, NodeResult result) {
+		return toWire(task.getTaskUuid(), task.getItemId(), 0, result);
+	}
+
+	public static NodeTaskResult toWire(UUID taskUuid, String itemId, int elementSeq, NodeResult result) {
+		Map<String, PortPayload> outputs = toPayloads(itemId, elementSeq, result.getOutputs());
+		return new NodeTaskResult(taskUuid, result.getNodeId(), elementSeq, toWireState(result.getState()),
+			result.getDurationMs(), result.getMessage(), outputs);
 	}
 
 	/**
-	 * Convert a wire result back into the local shape.
+	 * Turn the context's per-port accumulators into wire payloads.
 	 *
-	 * <p>Needed only within a segment, where a node's result becomes the next node's
-	 * input without ever leaving the process. Unlike
-	 * {@link #toUpstreamResults(Map)} this preserves the real state, because a
-	 * downstream node in the same segment genuinely may need to see that its
-	 * dependency failed - the Loom engine is not there to decide for it.</p>
-	 *
-	 * @param result the wire result
-	 * @return the local result
+	 * <p>A {@code ONE} port yields a single element carrying this execution's origin - which for
+	 * a per-element node is its own {@code elementSeq}, so that a downstream zip can line the
+	 * branches up again. A {@code MANY} port numbers its elements {@code 0..n-1} with
+	 * {@code total = n}: that count is what the engine reads to decide how many per-element
+	 * tasks to spawn downstream.</p>
 	 */
-	public static NodeResult toLocal(NodeTaskResult result) {
-		switch (result.getState()) {
-			case FAILED:
-				return NodeResult.failed(result.getNodeId(), result.getDurationMs(), result.getMessage());
-			case SKIPPED:
-				return NodeResult.skipped(result.getNodeId(), result.getMessage());
-			default:
-				return NodeResult.success(result.getNodeId(), result.getDurationMs(), result.getOutputs());
+	public static Map<String, PortPayload> toPayloads(String itemId, int elementSeq, Map<String, PortOutput> outputs) {
+		if (outputs == null || outputs.isEmpty()) {
+			return Map.of();
 		}
+		Map<String, PortPayload> payloads = new LinkedHashMap<>(outputs.size());
+		outputs.forEach((portId, output) -> {
+			PortPayload payload = output.toPayload(itemId, elementSeq);
+			if (payload != null) {
+				payloads.put(portId, payload);
+			}
+		});
+		return payloads;
+	}
+
+	/**
+	 * Build the port-keyed view a node reads its inputs through.
+	 *
+	 * <p>Only the ports travel over the wire - the engine resolved which upstream node and port
+	 * fills each one before dispatching, so nothing here has to know the graph.</p>
+	 */
+	public static NodeInputs toInputs(NodeTask task) {
+		return new NodeInputs(task.getInputs(), task.getDemandedOutputs(),
+			new Origin(task.getItemId(), task.getElementSeq(), null));
+	}
+
+	/**
+	 * Build the view for one node inside a segment.
+	 *
+	 * <p>{@code available} starts as whatever came from outside the segment and grows as the
+	 * nodes in it run, so a dependency satisfied locally never crosses the network - which is
+	 * the entire saving a segment exists for.</p>
+	 *
+	 * <p>⚠️ {@code SegmentNode} carries no input bindings, so a segment-internal edge can only be
+	 * matched by port id: a node reading {@code text} picks up whatever earlier node in the
+	 * segment emitted a port called {@code text}. Engine-level dispatch has the real bindings and
+	 * does not rely on this; until the segment wire model carries them too, do not group nodes
+	 * whose port ids collide with a different meaning.</p>
+	 */
+	public static NodeInputs toInputs(SegmentTask task, Map<String, PortPayload> available) {
+		return new NodeInputs(available, Set.of(), Origin.single(task.getItemId()));
 	}
 
 	private static io.metaloom.loom.pipeline.model.NodeState toWireState(ResultState state) {

@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Set;
 
 import io.metaloom.cortex.pipeline.api.NodeMode;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.pipeline.api.cache.NodeCacheProvider;
 import io.metaloom.cortex.pipeline.api.filter.FilterBranch;
@@ -34,10 +35,15 @@ import io.metaloom.cortex.api.media.LoomMedia;
 public interface PipelineNode {
 
 	/**
-	 * Standard output key emitted by filter nodes. {@code true} means the media passed
-	 * the filter condition; {@code false} means it was rejected.
+	 * Standard output <em>port</em> emitted by filter nodes. {@code true} means the media
+	 * passed the filter condition; {@code false} means it was rejected.
+	 *
+	 * <p>The routing decision itself no longer looks this name up: {@code NodeTaskResult}
+	 * finds the verdict by its {@code control/filter} content type, so a filter is free to
+	 * name its port whatever it likes. The constant remains for the in-process pipeline,
+	 * which has no descriptors to consult.</p>
 	 */
-	String FILTER_PASSED = "filter_passed";
+	String FILTER_PASSED = "passed";
 
 	/**
 	 * Unique identifier for this node within the pipeline (e.g. "sha512", "thumbnail", "loom-sync").
@@ -135,10 +141,11 @@ public interface PipelineNode {
 	 * Process a single media item. Returns the result of the processing.
 	 *
 	 * @param media the media item to process
-	 * @param upstreamResults results from completed upstream (dependency) nodes, keyed by node id
+	 * @param inputs what this node's input ports carry, keyed by <em>this</em> node's port
+	 *               ids, plus the demanded outputs and the origin of this execution
 	 * @return the processing result
 	 */
-	NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults);
+	NodeResult process(LoomMedia media, NodeInputs inputs);
 
 
 
@@ -152,7 +159,7 @@ public interface PipelineNode {
 
 	/**
 	 * Optional cache provider for this node. When set, results are cached and looked up
-	 * before invoking {@link #process(LoomMedia, Map)}.
+	 * before invoking {@link #process(LoomMedia, NodeInputs)}.
 	 */
 	default NodeCacheProvider cacheProvider() {
 		return null;

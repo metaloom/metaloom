@@ -18,9 +18,12 @@ import io.metaloom.loom.pipeline.engine.PipelineRunEngine;
 import io.metaloom.loom.pipeline.engine.RunSummary;
 import io.metaloom.loom.pipeline.graph.PipelineGraph;
 import io.metaloom.loom.pipeline.graph.PipelineGraphParser;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.pipeline.model.MediaRef;
 import io.metaloom.loom.pipeline.model.NodeState;
 import io.metaloom.loom.pipeline.model.NodeTask;
+import io.metaloom.loom.pipeline.model.Origin;
+import io.metaloom.loom.pipeline.model.PortPayload;
 import io.metaloom.loom.pipeline.model.NodeTaskResult;
 import io.metaloom.loom.rest.model.processor.message.NodeTaskResultMessage;
 import io.metaloom.loom.rest.model.processor.message.ProcessorMessage;
@@ -55,9 +58,15 @@ public class PipelineRunEndToEndTest {
 					.put("options", new JsonObject().put("path", "/media")))
 				.add(new JsonObject().put("id", "pn2").put("type", "sha256").put("name", "SHA-256"))
 				.add(new JsonObject().put("id", "pn3").put("type", "thumbnail").put("name", "Thumbnail")))
+			// Every edge names both ports: connections are port-to-port, and the parser rejects an
+			// edge without them rather than falling back to a positional guess.
 			.put("edges", new JsonArray()
-				.add(new JsonObject().put("id", "pe1").put("source", "pn1").put("target", "pn2"))
-				.add(new JsonObject().put("id", "pe2").put("source", "pn2").put("target", "pn3")));
+				.add(new JsonObject().put("id", "pe1")
+					.put("source", "pn1").put("sourcePort", "media")
+					.put("target", "pn2").put("targetPort", "media"))
+				.add(new JsonObject().put("id", "pe2")
+					.put("source", "pn2").put("sourcePort", "hash")
+					.put("target", "pn3").put("targetPort", "media")));
 	}
 
 	/**
@@ -85,7 +94,7 @@ public class PipelineRunEndToEndTest {
 		}
 
 		/** Answer a task the way NODE_TASK_RESULT would arrive. */
-		NodeTaskResultMessage reply(NodeTask task, Map<String, Object> outputs) {
+		NodeTaskResultMessage reply(NodeTask task, Map<String, PortPayload> outputs) {
 			return new NodeTaskResultMessage()
 				.setRunUuid(task.getRunUuid())
 				.setItemId(task.getItemId())
@@ -155,16 +164,20 @@ public class PipelineRunEndToEndTest {
 			NodeTask hash = worker.inbox.stream()
 				.filter(t -> t.getNodeId().equals("pn2") && t.getItemId().equals(itemId))
 				.findFirst().orElseThrow(() -> new AssertionError("No sha256 task for " + itemId));
-			deliver(registry, worker.reply(hash, Map.of("sha256", "hash-of-" + itemId)));
+			deliver(registry, worker.reply(hash,
+				Map.of("hash", PortPayload.one(ContentTypeRegistry.HASH_SHA256, Origin.single(itemId), "hash-of-" + itemId))));
 		}
 
 		for (String itemId : items) {
 			NodeTask thumb = worker.inbox.stream()
 				.filter(t -> t.getNodeId().equals("pn3") && t.getItemId().equals(itemId))
 				.findFirst().orElseThrow(() -> new AssertionError("No thumbnail task for " + itemId));
-			// The graph is honoured: the downstream node sees its upstream's output.
-			assertEquals("hash-of-" + itemId, thumb.getUpstreamOutputs().get("pn2").get("sha256"));
-			deliver(registry, worker.reply(thumb, Map.of("thumbnail", "/thumbs/" + itemId + ".jpg")));
+			// The graph is honoured: the downstream node sees its upstream's output - and it is keyed
+			// by *its own* input port id ("media"), not by the producing node's id. The engine has
+			// already resolved which upstream (node, port) fills it.
+			assertEquals("hash-of-" + itemId, thumb.getInputs().get("media").single());
+			deliver(registry, worker.reply(thumb, Map.of("thumbnail",
+				PortPayload.one(ContentTypeRegistry.ARTIFACT_IMAGE, Origin.single(itemId), "/thumbs/" + itemId + ".jpg"))));
 		}
 
 		// --- the run closes itself

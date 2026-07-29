@@ -15,9 +15,7 @@ public class TtsOptionsValidationTest {
 			.hasHost("localhost")
 			.hasPort(9100)
 			.hasLanguage("de")
-			.hasVoice("Jakob")
-			.hasSourceNodeId("llm")
-			.hasSourceOutputKey("llm_result");
+			.hasVoice("Jakob");
 	}
 
 	@Test
@@ -26,16 +24,12 @@ public class TtsOptionsValidationTest {
 			.setTtsHost("tts.internal")
 			.setTtsPort(9200)
 			.setLanguage("en")
-			.setVoice("af_heart")
-			.setSourceNodeId("captioning")
-			.setSourceOutputKey("caption_result");
+			.setVoice("af_heart");
 		assertThat(options).isValid()
 			.hasHost("tts.internal")
 			.hasPort(9200)
 			.hasLanguage("en")
-			.hasVoice("af_heart")
-			.hasSourceNodeId("captioning")
-			.hasSourceOutputKey("caption_result");
+			.hasVoice("af_heart");
 	}
 
 	@Test
@@ -54,18 +48,6 @@ public class TtsOptionsValidationTest {
 	public void testEmptyLanguageInvalid() {
 		TtsNodeOptions options = new TtsNodeOptions().setLanguage("");
 		assertThat(options).isInvalid().hasError("language must not be empty");
-	}
-
-	@Test
-	public void testEmptySourceNodeIdInvalid() {
-		TtsNodeOptions options = new TtsNodeOptions().setSourceNodeId("");
-		assertThat(options).isInvalid().hasError("sourceNodeId must not be empty");
-	}
-
-	@Test
-	public void testEmptySourceOutputKeyInvalid() {
-		TtsNodeOptions options = new TtsNodeOptions().setSourceOutputKey("");
-		assertThat(options).isInvalid().hasError("sourceOutputKey must not be empty");
 	}
 
 	@Test

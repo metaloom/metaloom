@@ -38,13 +38,13 @@ public class OCRNodeTest extends AbstractMediaTest {
 
 		assertEquals(ResultState.SUCCESS, result.getState());
 
-		String text = result.get(OCRNode.OUTPUT_OCR_TEXT);
+		String text = result.get(OCRNode.OUT_TEXT);
 		assertNotNull(text);
 		assertTrue(text.contains("Albert Einstein"), "OCR text should contain 'Albert Einstein', got: " + text.substring(0, Math.min(200, text.length())));
 		assertTrue(text.contains("Physiker"), "OCR text should contain 'Physiker'");
 
-		// Verify the output map contains the OCR text
-		assertNotNull(result.getOutputs().get(OCRNode.OUTPUT_OCR_TEXT.key()));
+		// Verify the port itself was emitted, not just that the value read back non-null
+		assertTrue(result.has(OCRNode.OUT_TEXT), "Expected an emission on port " + OCRNode.OUT_TEXT.id());
 	}
 
 	@Test

@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
@@ -81,18 +82,29 @@ public class S3SinkNodeTest {
 		return media;
 	}
 
-	private NodeContext<LoomMedia> ctx(Map<String, Map<String, Object>> upstream) {
-		return NodeContext.create(media(), upstream);
+	/**
+	 * Fill the sink's {@code artifacts} port, one element per file - which is what an edge into that
+	 * port delivers. No upstream node id appears anywhere: the graph decided that, not the sink.
+	 */
+	private NodeContext<LoomMedia> ctx(String... artifacts) {
+		return ctx(media(), artifacts);
+	}
+
+	private NodeContext<LoomMedia> ctx(LoomMedia media, String... artifacts) {
+		NodeInputs inputs = artifacts.length == 0
+			? NodeInputs.empty()
+			: NodeInputs.builder().inputs(S3SinkNode.IN_ARTIFACTS, List.of(artifacts)).build();
+		return NodeContext.create(media, inputs);
 	}
 
 	private NodeContext<LoomMedia> thumbnailCtx() {
-		return ctx(Map.of("thumbnail", Map.of("thumbnail_path", thumb.toString())));
+		return ctx(thumb.toString());
 	}
 
 	// --- the happy path -------------------------------------------------------------------
 
 	@Test
-	public void testUploadsADiscoveredArtifact() {
+	public void testUploadsAnArtifactFromThePort() {
 		NodeResult result = node().process(thumbnailCtx());
 
 		assertThat(result.getState()).isEqualTo(ResultState.SUCCESS);
@@ -107,7 +119,10 @@ public class S3SinkNodeTest {
 		node().process(thumbnailCtx());
 
 		String key = store.keys(BUCKET).iterator().next();
-		assertThat(key).startsWith("cortex/thumbnail/thumbnail_path/").endsWith(".thumb");
+		// {sourceNode}/{sourceKey} is the port's own id twice over now: the selector cannot know
+		// which node filled the port, and recording the port is honest where guessing a node name
+		// was not. Keys stay content-addressed, so a re-run is still free.
+		assertThat(key).startsWith("cortex/artifacts/artifacts/").endsWith(".thumb");
 	}
 
 	@Test
@@ -122,9 +137,10 @@ public class S3SinkNodeTest {
 	public void testOutputsReportWhatHappened() {
 		NodeResult result = node().process(thumbnailCtx());
 
-		assertThat(result.getOutputs()).containsEntry("s3_sink_flag", "DONE")
-			.containsEntry("s3_sink_count", 1);
-		JsonObject payload = new JsonObject((String) result.getOutputs().get("s3_sink_result"));
+		assertThat(result.get(S3SinkNode.OUT_FLAG)).isEqualTo("DONE");
+		// scalar/integer is widened to Long at the port boundary.
+		assertThat(result.get(S3SinkNode.OUT_COUNT)).isEqualTo(1L);
+		JsonObject payload = new JsonObject(result.get(S3SinkNode.OUT_RESULT));
 		assertThat(payload.getString("bucket")).isEqualTo(BUCKET);
 		assertThat(payload.getJsonArray("artifacts").getJsonObject(0).getString("state")).isEqualTo("UPLOADED");
 	}
@@ -132,15 +148,12 @@ public class S3SinkNodeTest {
 	@Test
 	public void testUploadsSeveralArtifacts() throws IOException {
 		Path depth = write("depthmap_bin/cd/map.png", "depth-bytes");
-		NodeContext<LoomMedia> ctx = ctx(Map.of(
-			"thumbnail", Map.of("thumbnail_path", thumb.toString()),
-			"depthmap", Map.of("depthmap_path", depth.toString())));
 
-		NodeResult result = node().process(ctx);
+		NodeResult result = node().process(ctx(thumb.toString(), depth.toString()));
 
 		assertThat(result.getState()).isEqualTo(ResultState.SUCCESS);
 		assertThat(store.keys(BUCKET)).hasSize(2);
-		assertThat(result.getOutputs()).containsEntry("s3_sink_count", 2);
+		assertThat(result.get(S3SinkNode.OUT_COUNT)).isEqualTo(2L);
 	}
 
 	// --- idempotency ----------------------------------------------------------------------
@@ -189,25 +202,24 @@ public class S3SinkNodeTest {
 	@Test
 	public void testNoArtifactsIsASkipNotAFailure() {
 		// A sink downstream of a producer that skipped this media type must not redden the run.
-		NodeResult result = node().process(ctx(Map.of()));
+		NodeResult result = node().process(ctx());
 
 		assertThat(result.getState()).isEqualTo(ResultState.SKIPPED);
 		assertThat(store.uploadCalls).hasValue(0);
 	}
 
 	@Test
-	public void testExplicitArtifactsWin() throws IOException {
+	public void testOnlyWhatIsWiredIntoThePortIsUploaded() throws IOException {
+		// This replaces the old "explicit artifacts option wins over auto-discovery" case. Both the
+		// option and the discovery are gone: choosing what to publish is now done by drawing the
+		// edge, so the sink uploads exactly the elements its port carries and nothing more.
 		Path depth = write("depthmap_bin/cd/map.png", "depth-bytes");
-		NodeContext<LoomMedia> ctx = ctx(Map.of(
-			"thumbnail", Map.of("thumbnail_path", thumb.toString()),
-			"depthmap", Map.of("depthmap_path", depth.toString())));
 
-		S3SinkNode node = node(new JsonObject().put("id", "archive")
-			.put("artifacts", new io.vertx.core.json.JsonArray().add("depthmap:depthmap_path")));
-		node.process(ctx);
+		node().process(ctx(depth.toString()));
 
 		assertThat(store.keys(BUCKET)).hasSize(1);
-		assertThat(store.keys(BUCKET).iterator().next()).contains("/depthmap/");
+		assertThat(new String(store.bytes(BUCKET, store.keys(BUCKET).iterator().next()),
+			StandardCharsets.UTF_8)).isEqualTo("depth-bytes");
 	}
 
 	@Test
@@ -228,7 +240,7 @@ public class S3SinkNodeTest {
 		when(remote.reference()).thenReturn("s3://other/clip.mp4");
 		S3SinkNode node = node(new JsonObject().put("id", "archive").put("includeSource", true));
 
-		node.process(NodeContext.create(remote, Map.of("thumbnail", Map.of("thumbnail_path", thumb.toString()))));
+		node.process(ctx(remote, thumb.toString()));
 
 		// Only the thumbnail: re-uploading bytes s3-source just fetched would be pure waste.
 		assertThat(store.keys(BUCKET)).hasSize(1);
@@ -236,15 +248,13 @@ public class S3SinkNodeTest {
 
 	@Test
 	public void testTooManyArtifactsFailsRatherThanTruncating() throws IOException {
-		var upstream = new java.util.LinkedHashMap<String, Map<String, Object>>();
-		var outputs = new java.util.LinkedHashMap<String, Object>();
-		for (int i = 0; i < 5; i++) {
-			outputs.put("a" + i + "_path", write("script_bin/n/" + i + ".png", "x" + i).toString());
+		String[] elements = new String[5];
+		for (int i = 0; i < elements.length; i++) {
+			elements[i] = write("script_bin/n/" + i + ".png", "x" + i).toString();
 		}
-		upstream.put("script", outputs);
 		S3SinkNode node = node(new JsonObject().put("id", "archive").put("maxArtifacts", 2));
 
-		NodeResult result = node.process(ctx(upstream));
+		NodeResult result = node.process(ctx(elements));
 
 		assertThat(result.getState()).isEqualTo(ResultState.FAILED);
 		assertThat(result.getMessage()).contains("maxArtifacts");
@@ -264,10 +274,7 @@ public class S3SinkNodeTest {
 
 	@Test
 	public void testMissingArtifactFileFailsWithTheAffinityHint() {
-		NodeContext<LoomMedia> ctx = ctx(Map.of("thumbnail",
-			Map.of("thumbnail_path", metaPath.resolve("thumbnail_bin/gone.thumb").toString())));
-
-		NodeResult result = node().process(ctx);
+		NodeResult result = node().process(ctx(metaPath.resolve("thumbnail_bin/gone.thumb").toString()));
 
 		// The single most important failure to get right: a sink that silently uploads nothing
 		// looks like success.
@@ -289,11 +296,8 @@ public class S3SinkNodeTest {
 	public void testPartialFailureStillUploadsWhatItCan() throws IOException {
 		Path depth = write("depthmap_bin/cd/map.png", "depth-bytes");
 		store.failUploadWith(new IOException("transient"));
-		NodeContext<LoomMedia> ctx = ctx(Map.of(
-			"thumbnail", Map.of("thumbnail_path", thumb.toString()),
-			"depthmap", Map.of("depthmap_path", depth.toString())));
 
-		NodeResult result = node().process(ctx);
+		NodeResult result = node().process(ctx(thumb.toString(), depth.toString()));
 
 		// One failure must never abandon the rest - uploading what can be uploaded is strictly
 		// better, and the IF_DIFFERENT skip means a retry only redoes the failure.
@@ -310,12 +314,10 @@ public class S3SinkNodeTest {
 		store.failUploadWith(new IOException("transient"));
 		S3SinkNode node = node(new JsonObject().put("id", "archive").put("failOnPartial", false));
 
-		NodeResult result = node.process(ctx(Map.of(
-			"thumbnail", Map.of("thumbnail_path", thumb.toString()),
-			"depthmap", Map.of("depthmap_path", depth.toString()))));
+		NodeResult result = node.process(ctx(thumb.toString(), depth.toString()));
 
 		assertThat(result.getState()).isEqualTo(ResultState.SUCCESS);
-		assertThat(result.getOutputs()).containsEntry("s3_sink_flag", "PARTIAL");
+		assertThat(result.get(S3SinkNode.OUT_FLAG)).isEqualTo("PARTIAL");
 	}
 
 	@Test
@@ -365,7 +367,7 @@ public class S3SinkNodeTest {
 		Path outside = Files.writeString(elsewhere.resolve("stray.png"), "x");
 		S3SinkNode node = node(new JsonObject().put("id", "archive").put("deleteAfterUpload", true));
 
-		node.process(ctx(Map.of("x", Map.of("x_path", outside.toString()))));
+		node.process(ctx(outside.toString()));
 
 		assertThat(outside).exists();
 	}

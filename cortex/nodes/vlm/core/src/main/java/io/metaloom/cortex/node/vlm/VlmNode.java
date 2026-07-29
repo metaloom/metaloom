@@ -13,8 +13,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.node.NodeOutputKey;
+import io.metaloom.cortex.api.node.InputPort;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultOrigin;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
@@ -22,6 +23,7 @@ import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompCreateRequest;
 import io.vertx.core.json.JsonObject;
@@ -44,11 +46,13 @@ public class VlmNode extends AbstractMediaNode<VlmNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(VlmNode.class);
 
+	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_IMAGE, LoomMedia.class);
+
 	/** Provider label used for the AI call/cache-hit metrics. */
 	private static final String METRICS_PROVIDER = "vlm";
 
 	/** In-heap skip cache of the per-prompt outputs, keyed by media path. Non-durable - the durable copy lives in Loom. */
-	private final LocalResultCache<Map<String, Object>> resultCache = new LocalResultCache<>(50_000);
+	private final LocalResultCache<Map<String, String>> resultCache = new LocalResultCache<>(50_000);
 
 	private final VlmChatClient client;
 
@@ -73,10 +77,15 @@ public class VlmNode extends AbstractMediaNode<VlmNodeOptions> {
 	}
 
 	/**
-	 * Create the typed output key carrying a given prompt's result.
+	 * The output port carrying a given prompt's result.
+	 *
+	 * <p>
+	 * The id must stay {@code result_<promptId>} - {@code VlmPortResolver} derives the descriptor's
+	 * ports from the same {@code prompts} option and produces exactly these names.
+	 * </p>
 	 */
-	public static NodeOutputKey<String> resultKey(String promptId) {
-		return NodeOutputKey.of("vlm_result_" + promptId, String.class);
+	public static OutputPort<String> resultPort(String promptId) {
+		return OutputPort.one("result_" + promptId, ContentTypeRegistry.TEXT_PLAIN, String.class);
 	}
 
 	@Override
@@ -85,14 +94,15 @@ public class VlmNode extends AbstractMediaNode<VlmNodeOptions> {
 		String path = media.absolutePath();
 
 		// On a hit the durable copy already exists in Loom, so re-emit and skip both the model call and the re-persist.
-		Map<String, Object> cached = resultCache.get(path);
+		Map<String, String> cached = resultCache.get(path);
 		if (cached != null) {
 			metrics.recordAiCacheHit(METRICS_PROVIDER);
-			cached.forEach(ctx::output);
+			cached.forEach((promptId, answer) -> ctx.output(resultPort(promptId), answer));
 			return ctx.origin(ResultOrigin.LOCAL).next();
 		}
 
 		BufferedImage source = VlmImages.read(media.file());
+		Map<String, String> answers = new HashMap<>();
 
 		for (Entry<String, VlmNodePrompt> entry : options().getPrompts().entrySet()) {
 			String promptId = entry.getKey();
@@ -124,12 +134,13 @@ public class VlmNode extends AbstractMediaNode<VlmNodeOptions> {
 				outputText = reply.content();
 			}
 
-			ctx.output(resultKey(promptId), outputText);
+			ctx.output(resultPort(promptId), outputText);
+			answers.put(promptId, outputText);
 			ctx.info("VLM prompt '" + promptId + "' produced " + outputText.length() + " chars in " + reply.latencyMs() + "ms");
 			persist(ctx, asset, promptId, prompt.getModel(), payload);
 		}
 
-		resultCache.put(path, new HashMap<>(ctx.outputs()));
+		resultCache.put(path, answers);
 		return ctx.origin(ResultOrigin.COMPUTED).next();
 	}
 

@@ -56,7 +56,7 @@ public class ImageGenNodeIntegrationTest extends AbstractNodeIntegrationTest {
 			assertThat(result.getState()).isEqualTo(ResultState.SUCCESS);
 
 			// The PNG must have been written to the local imagegen_bin cache.
-			String outPath = result.get(ImageGenNode.OUTPUT_IMAGE_PATH);
+			String outPath = result.get(ImageGenNode.OUT_IMAGE);
 			assertThat(outPath).as("the node must emit the generated image path").isNotNull();
 			assertThat(Files.exists(Path.of(outPath))).as("the PNG must be written under metaPath/imagegen_bin").isTrue();
 			assertThat(Files.readAllBytes(Path.of(outPath))).isEqualTo(FAKE_PNG);

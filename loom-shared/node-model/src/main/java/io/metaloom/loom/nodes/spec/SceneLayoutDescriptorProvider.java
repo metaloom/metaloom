@@ -1,9 +1,6 @@
 package io.metaloom.loom.nodes.spec;
 
-import static io.metaloom.loom.nodes.spec.ContentTypes.DATA_DEPTHMAP;
-import static io.metaloom.loom.nodes.spec.ContentTypes.DATA_FACEDETECTION;
-import static io.metaloom.loom.nodes.spec.ContentTypes.DATA_INTEGER;
-import static io.metaloom.loom.nodes.spec.ContentTypes.DATA_SCENE_LAYOUT;
+import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.*;
 import static io.metaloom.loom.nodes.spec.NodeCategory.ANALYSIS;
 import static io.metaloom.loom.nodes.spec.NodeMode.PARALLEL;
 import static io.metaloom.loom.nodes.spec.ParameterType.BOOLEAN;
@@ -11,6 +8,8 @@ import static io.metaloom.loom.nodes.spec.ParameterType.ENUM_SET;
 import static io.metaloom.loom.nodes.spec.ParameterType.INTEGER;
 import static io.metaloom.loom.nodes.spec.ParameterType.NUMBER;
 import static io.metaloom.loom.nodes.spec.ParameterType.STRING;
+import static io.metaloom.loom.nodes.spec.PortSpec.many;
+import static io.metaloom.loom.nodes.spec.PortSpec.one;
 
 import java.util.List;
 
@@ -34,23 +33,20 @@ public class SceneLayoutDescriptorProvider implements NodeDescriptorProvider {
 						+ "in front of, behind, occludes and next to. Requires an upstream depthmap node on the same worker.")
 				.setIcon("schema")
 				.setCategory(ANALYSIS)
-				.setInputs(List.of(
-					new NodeInput("depth", DATA_DEPTHMAP, true),
-					new NodeInput("detections", DATA_FACEDETECTION, true)))
-				.setOutputs(List.of(
-					new NodeOutput("scene_layout_result", DATA_SCENE_LAYOUT),
-					new NodeOutput("scene_layout_object_count", DATA_INTEGER),
-					new NodeOutput("scene_layout_relation_count", DATA_INTEGER)))
+				.setInputPorts(List.of(
+					one("depth", STRUCT_DEPTHMAP)
+						.describedAs("Depth Metadata", "Depth metadata from an upstream depthmap node sharing this node's affinity group"),
+					many("detections", DETECTION_ANY)
+						.describedAs("Detections", "The boxes to place in the scene - faces, objects or plain regions")))
+				.setOutputPorts(List.of(
+					one("result", STRUCT_SCENE_LAYOUT)
+						.describedAs("Scene Layout", "Depth band per object plus pairwise relations such as in front of, occludes and next to"),
+					one("object_count", SCALAR_INTEGER)
+						.describedAs("Object Count", "How many boxes were placed in the scene"),
+					one("relation_count", SCALAR_INTEGER)
+						.describedAs("Relation Count", "How many pairwise relations were emitted")))
 				.setParameters(List.of(
 					commonEnabled(), commonProcessIncomplete(), commonRetryFailed(),
-					new NodeParameter().setKey("depthNodeId").setType(STRING).setDefaultValue("depthmap")
-						.setLabel("Depth Node Id")
-						.setDescription("Id of the upstream depthmap node. It must share this node's affinity group"),
-					new NodeParameter().setKey("detectionSources").setType(ENUM_SET)
-						.setValues(List.of("facedetect"))
-						.setDefaultValue(List.of("facedetect"))
-						.setLabel("Detection Sources")
-						.setDescription("Upstream detector node ids whose bounding boxes are consumed, in priority order"),
 					new NodeParameter().setKey("allowLoomFallback").setType(BOOLEAN).setDefaultValue(true)
 						.setLabel("Loom Fallback")
 						.setDescription("Read detections back from Loom when no upstream node supplied them"),

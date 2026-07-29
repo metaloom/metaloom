@@ -1,7 +1,5 @@
 package io.metaloom.cortex.runtime;
 
-import java.util.Map;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -85,21 +83,22 @@ public class NodeTaskRunner {
 		try {
 			PipelineNode node = instantiator.create(toNodeDefinition(task));
 			LoomMedia media = mediaResolver.resolve(task.getMedia());
-			Map<String, NodeResult> upstream = NodeResultMapper.toUpstreamResults(task.getUpstreamOutputs());
 
-			NodeResult result = node.process(media, upstream);
+			NodeResult result = node.process(media, NodeResultMapper.toInputs(task));
 			if (result == null) {
 				// A node returning null is a bug in that node, but the engine still
 				// needs a definite answer for this task.
-				return NodeTaskResult.failed(task.getTaskUuid(), task.getNodeId(),
+				return NodeTaskResult.failed(task.getTaskUuid(), task.getNodeId(), task.getElementSeq(),
 					System.currentTimeMillis() - start,
-					"Node '" + task.getNodeKind() + "' returned no result");
+					"Node '" + task.getNodeKind() + "' returned no result", null);
 			}
-			return NodeResultMapper.toWire(task.getTaskUuid(), result);
+			return NodeResultMapper.toWire(task, result);
 		} catch (Exception e) {
+			// A value that cannot satisfy its port's declared type lands here too, and
+			// deliberately fails only this task - the message already names the port.
 			log.error("Node task {} failed", task, e);
-			return NodeTaskResult.failed(task.getTaskUuid(), task.getNodeId(),
-				System.currentTimeMillis() - start, describe(e));
+			return NodeTaskResult.failed(task.getTaskUuid(), task.getNodeId(), task.getElementSeq(),
+				System.currentTimeMillis() - start, describe(e), null);
 		}
 	}
 

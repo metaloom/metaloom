@@ -36,9 +36,12 @@ public class FacedetectNodeTest extends AbstractFacedetectMediaTest {
 		LoomMedia media = mediaVideo2();
 		NodeResult result = node.process(ctx(media));
 		assertThat(result).isSuccess();
-		assertThat(result).hasOutput(FacedetectNode.OUTPUT_FACE_COUNT);
-		Integer faceCount = result.get(FacedetectNode.OUTPUT_FACE_COUNT);
+		assertThat(result).hasOutput(FacedetectNode.OUT_FACE_COUNT);
+		// scalar/integer is widened to Long at the port boundary.
+		Long faceCount = result.get(FacedetectNode.OUT_FACE_COUNT);
 		assertTrue(faceCount > 10, "There should be at least 10 detections. Found: " + faceCount);
+		// The count is derived from the element sequence, so the two can never disagree.
+		assertThat(result).hasElementCount(FacedetectNode.OUT_DETECTIONS, faceCount.intValue());
 	}
 
 	@Test
@@ -46,7 +49,7 @@ public class FacedetectNodeTest extends AbstractFacedetectMediaTest {
 		LoomMedia media = mediaImage1();
 		NodeResult result = node.process(ctx(media));
 		assertThat(result).isSuccess();
-		System.out.println("Faces: " + result.get(FacedetectNode.OUTPUT_FACE_COUNT));
+		System.out.println("Faces: " + result.get(FacedetectNode.OUT_FACE_COUNT));
 	}
 
 	public FacedetectNode mockNode() throws FileNotFoundException, LoomClientException {

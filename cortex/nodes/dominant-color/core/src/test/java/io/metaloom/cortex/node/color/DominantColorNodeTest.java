@@ -9,17 +9,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
 import java.nio.file.Files;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
-import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.pipeline.test.StubLoomMedia;
 import io.metaloom.utils.hash.SHA512;
@@ -62,14 +60,14 @@ class DominantColorNodeTest {
 	void testASolidImageYieldsExactlyItsOwnColour() throws Exception {
 		LoomMedia media = image(DominantColorFixtures.writeSolid(tempDir, "solid.png", STEEL, IMAGE_W, IMAGE_H));
 
-		NodeResult result = node().process(ctx(media, Map.of()));
+		NodeResult result = node().process(media, NodeInputs.empty());
 
 		assertThat(result).isSuccess();
-		assertEquals(STEEL, result.get(DominantColorNode.OUTPUT_DOMINANT_COLOR_HEX));
-		assertEquals("blue", result.get(DominantColorNode.OUTPUT_DOMINANT_COLOR_TERM));
-		assertEquals("muted blue", result.get(DominantColorNode.OUTPUT_DOMINANT_COLOR_NAME_EN));
-		assertEquals("gedämpftes Blau", result.get(DominantColorNode.OUTPUT_DOMINANT_COLOR_NAME_DE));
-		assertEquals(1, result.get(DominantColorNode.OUTPUT_DOMINANT_COLOR_REGIONS));
+		assertEquals(STEEL, result.get(DominantColorNode.OUT_HEX));
+		assertEquals("blue", result.get(DominantColorNode.OUT_TERM));
+		assertEquals("muted blue", result.get(DominantColorNode.OUT_NAME_EN));
+		assertEquals("gedämpftes Blau", result.get(DominantColorNode.OUT_NAME_DE));
+		assertEquals(1L, result.get(DominantColorNode.OUT_REGION_COUNT));
 
 		JsonObject region = regions(result).getJsonObject(0);
 		assertEquals("whole", region.getString("id"));
@@ -83,7 +81,7 @@ class DominantColorNodeTest {
 	void testAllReportedRepresentationsDescribeTheSameColour() throws Exception {
 		LoomMedia media = image(DominantColorFixtures.writeSolid(tempDir, "solid.png", STEEL, IMAGE_W, IMAGE_H));
 
-		NodeResult result = node().process(ctx(media, Map.of()));
+		NodeResult result = node().process(media, NodeInputs.empty());
 		JsonObject dominant = regions(result).getJsonObject(0).getJsonObject("dominant");
 
 		assertEquals(STEEL, dominant.getString("hex"));
@@ -108,7 +106,7 @@ class DominantColorNodeTest {
 	void testAGreyImageReportsNoHue() throws Exception {
 		LoomMedia media = image(DominantColorFixtures.writeSolid(tempDir, "grey.png", "#808080", IMAGE_W, IMAGE_H));
 
-		JsonObject dominant = regions(node().process(ctx(media, Map.of()))).getJsonObject(0).getJsonObject("dominant");
+		JsonObject dominant = regions(node().process(media, NodeInputs.empty())).getJsonObject(0).getJsonObject("dominant");
 
 		assertEquals("grey", dominant.getJsonObject("name").getString("term"));
 		assertEquals("Grau", dominant.getJsonObject("name").getString("de"));
@@ -121,7 +119,7 @@ class DominantColorNodeTest {
 	void testASplitImageRanksBothColoursByShare() throws Exception {
 		LoomMedia media = image(DominantColorFixtures.writeSplit(tempDir, "split.png", RED, BLUE, 0.6d, IMAGE_W, IMAGE_H));
 
-		NodeResult result = node().process(ctx(media, Map.of()));
+		NodeResult result = node().process(media, NodeInputs.empty());
 
 		assertThat(result).isSuccess();
 		JsonArray palette = regions(result).getJsonObject(0).getJsonArray("palette");
@@ -130,7 +128,7 @@ class DominantColorNodeTest {
 		assertEquals(0.6d, palette.getJsonObject(0).getDouble("share"), 0.01d);
 		assertEquals(BLUE, palette.getJsonObject(1).getString("hex"));
 		assertEquals(0.4d, palette.getJsonObject(1).getDouble("share"), 0.01d);
-		assertEquals(RED, result.get(DominantColorNode.OUTPUT_DOMINANT_COLOR_HEX));
+		assertEquals(RED, result.get(DominantColorNode.OUT_HEX));
 	}
 
 	@Test
@@ -138,7 +136,7 @@ class DominantColorNodeTest {
 		LoomMedia media = image(DominantColorFixtures.writeQuadrants(tempDir, "quad.png",
 			new String[] { RED, GREEN, BLUE, YELLOW }, IMAGE_W, IMAGE_H));
 
-		NodeResult result = node(options().setClusterCount(4)).process(ctx(media, Map.of()));
+		NodeResult result = node(options().setClusterCount(4)).process(media, NodeInputs.empty());
 
 		assertThat(result).isSuccess();
 		JsonArray palette = regions(result).getJsonObject(0).getJsonArray("palette");
@@ -157,7 +155,7 @@ class DominantColorNodeTest {
 	void testFullyTransparentPixelsAreSkippedRatherThanFlattened() throws Exception {
 		LoomMedia media = image(DominantColorFixtures.writeHalfTransparent(tempDir, "alpha.png", RED, BLUE, IMAGE_W, IMAGE_H));
 
-		NodeResult result = node().process(ctx(media, Map.of()));
+		NodeResult result = node().process(media, NodeInputs.empty());
 
 		assertThat(result).isSuccess();
 		JsonObject region = regions(result).getJsonObject(0);
@@ -170,25 +168,25 @@ class DominantColorNodeTest {
 	void testAFullyTransparentImageIsSkipped() throws Exception {
 		LoomMedia media = image(DominantColorFixtures.writeFullyTransparent(tempDir, "ghost.png", RED, IMAGE_W, IMAGE_H));
 
-		assertThat(node().process(ctx(media, Map.of()))).isSkipped();
+		assertThat(node().process(media, NodeInputs.empty())).isSkipped();
 	}
 
 	@Test
 	void testEachUpstreamDetectionGetsItsOwnColour() throws Exception {
 		LoomMedia media = image(DominantColorFixtures.writeSplit(tempDir, "split.png", RED, BLUE, 0.5d, IMAGE_W, IMAGE_H));
-		JsonObject detections = DominantColorFixtures.detections(IMAGE_W, IMAGE_H, DominantColorNodeOptions.ABSOLUTE_PIXELS,
-			DominantColorFixtures.detection(0, "face", 20, 20, 100, 100),
-			DominantColorFixtures.detection(1, "face", 260, 20, 100, 100));
+		List<String> detections = List.of(
+			DominantColorFixtures.detection(0, "face", 20, 20, 100, 100).encode(),
+			DominantColorFixtures.detection(1, "face", 260, 20, 100, 100).encode());
 
-		NodeResult result = node().process(ctx(media, upstream("facedetect", detections)));
+		NodeResult result = node().process(media, inputs(detections));
 
 		assertThat(result).isSuccess();
-		assertEquals(3, result.get(DominantColorNode.OUTPUT_DOMINANT_COLOR_REGIONS));
+		assertEquals(3L, result.get(DominantColorNode.OUT_REGION_COUNT));
 
 		JsonArray regions = regions(result);
 		assertEquals("whole", regions.getJsonObject(0).getString("id"));
 		assertEquals("face-0", regions.getJsonObject(1).getString("id"));
-		assertEquals("facedetect", regions.getJsonObject(1).getString("source"));
+		assertEquals("detections", regions.getJsonObject(1).getString("source"));
 		assertEquals("DETECTION", regions.getJsonObject(1).getString("kind"));
 		assertEquals(RED, regions.getJsonObject(1).getJsonObject("dominant").getString("hex"));
 		assertEquals("face-1", regions.getJsonObject(2).getString("id"));
@@ -203,7 +201,7 @@ class DominantColorNodeTest {
 			.setUseDetections(false)
 			.setRegionX(0.6d).setRegionY(0d).setRegionW(0.4d).setRegionH(1.0d);
 
-		NodeResult result = node(options).process(ctx(media, Map.of()));
+		NodeResult result = node(options).process(media, NodeInputs.empty());
 
 		assertThat(result).isSuccess();
 		JsonArray regions = regions(result);
@@ -211,14 +209,14 @@ class DominantColorNodeTest {
 		assertEquals("region", regions.getJsonObject(0).getString("id"));
 		assertEquals("CONFIG", regions.getJsonObject(0).getString("kind"));
 		assertEquals(BLUE, regions.getJsonObject(0).getJsonObject("dominant").getString("hex"));
-		assertEquals(BLUE, result.get(DominantColorNode.OUTPUT_DOMINANT_COLOR_HEX));
+		assertEquals(BLUE, result.get(DominantColorNode.OUT_HEX));
 	}
 
 	@Test
 	void testTheEmittedPayloadCarriesItsOwnSamplingParameters() throws Exception {
 		LoomMedia media = image(DominantColorFixtures.writeSolid(tempDir, "solid.png", STEEL, IMAGE_W, IMAGE_H));
 
-		JsonObject payload = payload(node().process(ctx(media, Map.of())));
+		JsonObject payload = payload(node().process(media, NodeInputs.empty()));
 
 		assertEquals(IMAGE_W, (int) payload.getJsonObject("image").getInteger("width"));
 		assertEquals(IMAGE_H, (int) payload.getJsonObject("image").getInteger("height"));
@@ -234,8 +232,8 @@ class DominantColorNodeTest {
 		LoomMedia media = image(DominantColorFixtures.writeQuadrants(tempDir, "quad.png",
 			new String[] { RED, GREEN, BLUE, YELLOW }, IMAGE_W, IMAGE_H));
 
-		String first = node().process(ctx(media, Map.of())).get(DominantColorNode.OUTPUT_DOMINANT_COLOR_RESULT);
-		String second = node().process(ctx(media, Map.of())).get(DominantColorNode.OUTPUT_DOMINANT_COLOR_RESULT);
+		String first = node().process(media, NodeInputs.empty()).get(DominantColorNode.OUT_RESULT);
+		String second = node().process(media, NodeInputs.empty()).get(DominantColorNode.OUT_RESULT);
 
 		assertEquals(first, second);
 	}
@@ -252,17 +250,16 @@ class DominantColorNodeTest {
 		LoomMedia media = image(DominantColorFixtures.writeSolid(tempDir, "solid.png", STEEL, IMAGE_W, IMAGE_H));
 		DominantColorNode node = node();
 
-		NodeResult first = node.process(ctx(media, Map.of()));
+		NodeResult first = node.process(media, NodeInputs.empty());
 		assertThat(first).isSuccess();
-		assertEquals(STEEL, first.get(DominantColorNode.OUTPUT_DOMINANT_COLOR_HEX));
+		assertEquals(STEEL, first.get(DominantColorNode.OUT_HEX));
 
 		DominantColorFixtures.writeSolid(tempDir, "solid.png", RED, IMAGE_W, IMAGE_H);
-		NodeResult second = node.process(ctx(media, Map.of()));
+		NodeResult second = node.process(media, NodeInputs.empty());
 
 		assertThat(second).isSuccess();
-		assertEquals(STEEL, second.get(DominantColorNode.OUTPUT_DOMINANT_COLOR_HEX));
-		assertEquals(first.get(DominantColorNode.OUTPUT_DOMINANT_COLOR_RESULT),
-			second.get(DominantColorNode.OUTPUT_DOMINANT_COLOR_RESULT));
+		assertEquals(STEEL, second.get(DominantColorNode.OUT_HEX));
+		assertEquals(first.get(DominantColorNode.OUT_RESULT), second.get(DominantColorNode.OUT_RESULT));
 	}
 
 	/**
@@ -274,17 +271,16 @@ class DominantColorNodeTest {
 		LoomMedia media = image(DominantColorFixtures.writeSplit(tempDir, "split.png", RED, BLUE, 0.5d, IMAGE_W, IMAGE_H));
 		DominantColorNode node = node();
 
-		JsonObject one = DominantColorFixtures.detections(IMAGE_W, IMAGE_H, DominantColorNodeOptions.ABSOLUTE_PIXELS,
-			DominantColorFixtures.detection(0, "face", 20, 20, 100, 100));
-		JsonObject two = DominantColorFixtures.detections(IMAGE_W, IMAGE_H, DominantColorNodeOptions.ABSOLUTE_PIXELS,
-			DominantColorFixtures.detection(0, "face", 20, 20, 100, 100),
-			DominantColorFixtures.detection(1, "face", 260, 20, 100, 100));
+		List<String> one = List.of(DominantColorFixtures.detection(0, "face", 20, 20, 100, 100).encode());
+		List<String> two = List.of(
+			DominantColorFixtures.detection(0, "face", 20, 20, 100, 100).encode(),
+			DominantColorFixtures.detection(1, "face", 260, 20, 100, 100).encode());
 
-		NodeResult first = node.process(ctx(media, upstream("facedetect", one)));
-		NodeResult second = node.process(ctx(media, upstream("facedetect", two)));
+		NodeResult first = node.process(media, inputs(one));
+		NodeResult second = node.process(media, inputs(two));
 
-		assertEquals(2, first.get(DominantColorNode.OUTPUT_DOMINANT_COLOR_REGIONS));
-		assertEquals(3, second.get(DominantColorNode.OUTPUT_DOMINANT_COLOR_REGIONS));
+		assertEquals(2L, first.get(DominantColorNode.OUT_REGION_COUNT));
+		assertEquals(3L, second.get(DominantColorNode.OUT_REGION_COUNT));
 	}
 
 	@Test
@@ -293,7 +289,7 @@ class DominantColorNodeTest {
 		StubLoomMedia video = new StubLoomMedia(media.file().getAbsolutePath(), true, false, false, false);
 		video.setSHA512(HASH);
 
-		assertThat(node().process(ctx(video, Map.of()))).isSkipped();
+		assertThat(node().process(video, NodeInputs.empty())).isSkipped();
 	}
 
 	@Test
@@ -302,7 +298,7 @@ class DominantColorNodeTest {
 		DominantColorNodeOptions options = options();
 		options.setEnabled(false);
 
-		assertThat(node(options).process(ctx(media, Map.of()))).isSkipped();
+		assertThat(node(options).process(media, NodeInputs.empty())).isSkipped();
 	}
 
 	/**
@@ -314,16 +310,16 @@ class DominantColorNodeTest {
 		File file = new File(tempDir, "broken.png");
 		Files.write(file.toPath(), "not a png at all".getBytes());
 
-		assertThat(node().process(ctx(image(file), Map.of()))).isFailed();
+		assertThat(node().process(image(file), NodeInputs.empty())).isFailed();
 	}
 
 	@Test
 	void testMalformedUpstreamPayloadDoesNotThrow() throws Exception {
 		LoomMedia media = image(DominantColorFixtures.writeSolid(tempDir, "solid.png", STEEL, IMAGE_W, IMAGE_H));
-		Map<String, Map<String, Object>> upstream = Map.of("facedetect", Map.of("detections", "not json at all"));
+		NodeInputs inputs = inputs(List.of("not json at all"));
 
-		assertThatNoException().isThrownBy(() -> node().process(ctx(media, upstream)));
-		assertThat(node().process(ctx(media, upstream))).isSuccess();
+		assertThatNoException().isThrownBy(() -> node().process(media, inputs));
+		assertThat(node().process(media, inputs)).isSuccess();
 	}
 
 	@Test
@@ -331,7 +327,7 @@ class DominantColorNodeTest {
 		LoomMedia media = image(DominantColorFixtures.writeQuadrants(tempDir, "quad.png",
 			new String[] { RED, GREEN, BLUE, YELLOW }, IMAGE_W, IMAGE_H));
 
-		NodeResult result = node(options().setClusterCount(4).setEmitPalette(false)).process(ctx(media, Map.of()));
+		NodeResult result = node(options().setClusterCount(4).setEmitPalette(false)).process(media, NodeInputs.empty());
 
 		JsonObject region = regions(result).getJsonObject(0);
 		assertEquals(1, region.getJsonArray("palette").size());
@@ -341,11 +337,11 @@ class DominantColorNodeTest {
 	@Test
 	void testDroppedDetectionsAreReportedRatherThanSilentlyOmitted() throws Exception {
 		LoomMedia media = image(DominantColorFixtures.writeSolid(tempDir, "solid.png", STEEL, IMAGE_W, IMAGE_H));
-		JsonObject detections = DominantColorFixtures.detections(IMAGE_W, IMAGE_H, DominantColorNodeOptions.ABSOLUTE_PIXELS,
-			DominantColorFixtures.detection(0, "face", 900, 900, 80, 80),
-			DominantColorFixtures.detection(1, "face", 20, 20, 100, 100));
+		List<String> detections = List.of(
+			DominantColorFixtures.detection(0, "face", 900, 900, 80, 80).encode(),
+			DominantColorFixtures.detection(1, "face", 20, 20, 100, 100).encode());
 
-		JsonObject payload = payload(node().process(ctx(media, upstream("facedetect", detections))));
+		JsonObject payload = payload(node().process(media, inputs(detections)));
 
 		assertEquals(2, payload.getJsonArray("regions").size());
 		assertEquals(1, (int) payload.getJsonObject("truncated").getInteger("dropped"));
@@ -356,7 +352,7 @@ class DominantColorNodeTest {
 		LoomMedia media = image(DominantColorFixtures.writeQuadrants(tempDir, "quad.png",
 			new String[] { RED, GREEN, BLUE, YELLOW }, IMAGE_W, IMAGE_H));
 
-		JsonArray palette = regions(node(options().setClusterCount(4)).process(ctx(media, Map.of())))
+		JsonArray palette = regions(node(options().setClusterCount(4)).process(media, NodeInputs.empty()))
 			.getJsonObject(0).getJsonArray("palette");
 
 		double sum = 0;
@@ -384,18 +380,14 @@ class DominantColorNodeTest {
 		return media;
 	}
 
-	private static NodeContext<LoomMedia> ctx(LoomMedia media, Map<String, Map<String, Object>> upstream) {
-		return NodeContext.create(media, upstream);
-	}
-
-	private static Map<String, Map<String, Object>> upstream(String nodeId, JsonObject detections) {
-		Map<String, Map<String, Object>> up = new HashMap<>();
-		up.put(nodeId, Map.of("detections", detections.encode()));
-		return up;
+	private static NodeInputs inputs(List<String> detections) {
+		return NodeInputs.builder()
+			.inputs(DominantColorNode.IN_DETECTIONS, detections)
+			.build();
 	}
 
 	private static JsonObject payload(NodeResult result) {
-		return new JsonObject(result.get(DominantColorNode.OUTPUT_DOMINANT_COLOR_RESULT));
+		return new JsonObject(result.get(DominantColorNode.OUT_RESULT));
 	}
 
 	private static JsonArray regions(NodeResult result) {

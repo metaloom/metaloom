@@ -16,14 +16,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.Element;
+import io.metaloom.cortex.api.node.InputPort;
+import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 
 /**
  * Filters media based on text outputs from upstream nodes checked against a blacklist.
  * The blacklist is a newline-delimited file of terms.
  *
- * <p>The filter reads specified output keys from upstream nodes (e.g. {@code "whisper:transcript"},
- * {@code "ocr:text"}) and checks each against the blacklist in the configured match mode.</p>
+ * <p>The texts arrive on the declared {@link #IN_TEXT} port and each is checked against the
+ * blacklist in the configured match mode. The port is {@code MANY} because checking a
+ * transcript <em>and</em> an OCR pass is the normal case - the pipeline author wires both
+ * producers into it, instead of listing {@code "whisper:transcript"} and {@code "ocr:text"} as
+ * node-id strings that broke the moment either node was renamed.</p>
  *
  * <p>If <em>any</em> blacklisted term matches, the media is <strong>rejected</strong>.</p>
  */
@@ -43,8 +49,10 @@ public class BlacklistFilterNode extends AbstractFilterNode {
 		REGEX
 	}
 
+	/** Every text to check. Several producers may feed it; their elements concatenate. */
+	public static final InputPort<String> IN_TEXT = InputPort.many("text", ContentTypeRegistry.TEXT_ANY, String.class);
+
 	private final Set<String> blacklistTerms;
-	private final List<UpstreamOutputKey> upstreamKeys;
 	private final MatchMode matchMode;
 	private final boolean caseSensitive;
 	private List<Pattern> compiledPatterns;
@@ -52,7 +60,6 @@ public class BlacklistFilterNode extends AbstractFilterNode {
 	private BlacklistFilterNode(Builder builder) {
 		super(builder.id, builder.name);
 		this.blacklistTerms = Collections.unmodifiableSet(builder.blacklistTerms);
-		this.upstreamKeys = Collections.unmodifiableList(builder.upstreamKeys);
 		this.matchMode = builder.matchMode;
 		this.caseSensitive = builder.caseSensitive;
 		if (matchMode == MatchMode.REGEX) {
@@ -66,21 +73,9 @@ public class BlacklistFilterNode extends AbstractFilterNode {
 	}
 
 	@Override
-	protected boolean evaluate(LoomMedia media, Map<String, NodeResult> upstreamResults) {
-		for (UpstreamOutputKey key : upstreamKeys) {
-			if (upstreamResults == null) {
-				continue;
-			}
-			NodeResult nr = upstreamResults.get(key.nodeId());
-			if (nr == null || nr.getOutput() == null) {
-				continue;
-			}
-			Object val = nr.getOutput().get(key.outputKey());
-			if (val == null) {
-				continue;
-			}
-			String text = val.toString();
-			if (isBlacklisted(text)) {
+	protected boolean evaluate(NodeContext<LoomMedia> ctx) {
+		for (Element<String> element : ctx.inputs(IN_TEXT)) {
+			if (element.value() != null && isBlacklisted(element.value())) {
 				return false; // rejected
 			}
 		}
@@ -133,25 +128,8 @@ public class BlacklistFilterNode extends AbstractFilterNode {
 	}
 
 	@Override
-	protected String rejectReason(LoomMedia media, Map<String, NodeResult> upstreamResults) {
+	protected String rejectReason(NodeContext<LoomMedia> ctx) {
 		return "blacklisted content detected";
-	}
-
-	/**
-	 * Reference to a specific output key from an upstream node.
-	 */
-	public record UpstreamOutputKey(String nodeId, String outputKey) {
-
-		/**
-		 * Parse a colon-delimited string like {@code "whisper:transcript"}.
-		 */
-		public static UpstreamOutputKey parse(String spec) {
-			int colon = spec.indexOf(':');
-			if (colon < 0) {
-				throw new IllegalArgumentException("Expected 'nodeId:outputKey' but got: " + spec);
-			}
-			return new UpstreamOutputKey(spec.substring(0, colon), spec.substring(colon + 1));
-		}
 	}
 
 	public static Builder builder(String id) {
@@ -161,9 +139,7 @@ public class BlacklistFilterNode extends AbstractFilterNode {
 	public static class Builder {
 		private final String id;
 		private String name;
-		private Set<String> dependencies = Set.of();
 		private Set<String> blacklistTerms = new HashSet<>();
-		private List<UpstreamOutputKey> upstreamKeys = new ArrayList<>();
 		private MatchMode matchMode = MatchMode.CONTAINS;
 		private boolean caseSensitive = false;
 
@@ -174,11 +150,6 @@ public class BlacklistFilterNode extends AbstractFilterNode {
 
 		public Builder name(String name) {
 			this.name = name;
-			return this;
-		}
-
-		public Builder dependencies(Set<String> dependencies) {
-			this.dependencies = dependencies;
 			return this;
 		}
 
@@ -211,20 +182,6 @@ public class BlacklistFilterNode extends AbstractFilterNode {
 			return this;
 		}
 
-		/**
-		 * Specify an upstream output to check. Format: {@code "nodeId:outputKey"}.
-		 */
-		public Builder checkOutput(String spec) {
-			this.upstreamKeys.add(UpstreamOutputKey.parse(spec));
-			return this;
-		}
-
-		/** Specify an upstream output to check. */
-		public Builder checkOutput(String nodeId, String outputKey) {
-			this.upstreamKeys.add(new UpstreamOutputKey(nodeId, outputKey));
-			return this;
-		}
-
 		public Builder matchMode(MatchMode matchMode) {
 			this.matchMode = matchMode;
 			return this;
@@ -236,9 +193,6 @@ public class BlacklistFilterNode extends AbstractFilterNode {
 		}
 
 		public BlacklistFilterNode build() {
-			if (upstreamKeys.isEmpty()) {
-				throw new IllegalStateException("At least one upstream output key must be configured");
-			}
 			return new BlacklistFilterNode(this);
 		}
 	}

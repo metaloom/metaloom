@@ -1,9 +1,11 @@
 package io.metaloom.loom.nodes.spec;
 
-import static io.metaloom.loom.nodes.spec.ContentTypes.*;
+import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.*;
 import static io.metaloom.loom.nodes.spec.NodeCategory.*;
 import static io.metaloom.loom.nodes.spec.NodeMode.*;
 import static io.metaloom.loom.nodes.spec.ParameterType.*;
+import static io.metaloom.loom.nodes.spec.PortGroup.xor;
+import static io.metaloom.loom.nodes.spec.PortSpec.one;
 
 import java.util.List;
 
@@ -24,8 +26,16 @@ public class CaptioningDescriptorProvider implements NodeDescriptorProvider {
 				.setDescription("Generate a textual caption for an image.")
 				.setIcon("image_search")
 				.setCategory(ANALYSIS)
-				.setInputs(List.of(new NodeInput("media", MEDIA_IMAGE, true)))
-				.setOutputs(List.of(new NodeOutput("caption_result", DATA_CAPTION)))
+				.setInputPorts(List.of(
+					one("image", MEDIA_IMAGE).inGroup("media_alt")
+						.describedAs("Image", "A still image to caption"),
+					one("video", MEDIA_VIDEO).inGroup("media_alt")
+						.describedAs("Video", "A video to caption from sampled frames")))
+				.setInputGroups(List.of(
+					xor("media_alt", "Media")))
+				.setOutputPorts(List.of(
+					one("caption", TEXT_CAPTION)
+						.describedAs("Caption", "One sentence describing what the model sees, suitable for search and alt text")))
 				.setParameters(List.of(commonEnabled(), commonProcessIncomplete(), commonRetryFailed()))
 				.setDefaultConcurrency(1)
 				.setDefaultMode(PARALLEL)

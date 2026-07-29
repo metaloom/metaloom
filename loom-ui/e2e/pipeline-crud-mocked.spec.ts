@@ -17,26 +17,35 @@ const DEFINITION = {
   nodes: [
     { id: "src", type: "filesystem-source", label: "Source", position: { x: 0, y: 0 }, data: {} },
     { id: "sha512", type: "sha512", label: "SHA-512", position: { x: 260, y: 0 }, data: {} },
-    { id: "thumb", type: "thumbnail", label: "Thumbnail", position: { x: 520, y: 0 }, data: {} },
+    { id: "thumb", type: "thumbnail", label: "Thumbnail", position: { x: 260, y: 160 }, data: {} },
   ],
   edges: [
-    { id: "e1", source: "src", target: "sha512" },
-    { id: "e2", source: "sha512", target: "thumb" },
+    { id: "e1", source: "src", sourcePort: "media", target: "sha512", targetPort: "media", branch: "ANY" },
+    { id: "e2", source: "src", sourcePort: "media", target: "thumb", targetPort: "media", branch: "ANY" },
   ],
 };
 
 /**
- * Descriptors for the node kinds above — required so the client-side
- * `validatePipeline` run before a clone does not flag them as unknown types.
+ * Descriptors for the node kinds above — required so the client-side `validatePipeline` run before
+ * a clone accepts both the kinds and the ports every edge names.
  */
-const DESCRIPTORS = ["filesystem-source", "sha512", "thumbnail"].map(kind => ({
+const DESCRIPTORS = [
+  { kind: "filesystem-source", out: { id: "media", contentType: "media/*" } },
+  { kind: "sha512", out: { id: "hash", contentType: "hash/sha512" } },
+  { kind: "thumbnail", out: { id: "thumbnail", contentType: "artifact/image" } },
+].map(({ kind, out }) => ({
   kind,
   name: kind,
   description: "",
   icon: "",
   category: "TRANSFORM",
-  inputs: [],
-  outputs: [],
+  inputPorts: kind === "filesystem-source"
+    ? []
+    : [{ id: "media", label: "Media", contentType: "media/*", cardinality: "ONE", required: true }],
+  outputPorts: [{ ...out, cardinality: "ONE", required: true }],
+  inputGroups: [],
+  outputGroups: [],
+  dynamicPorts: false,
   parameters: [],
   defaultConcurrency: 1,
   defaultMode: "SEQUENTIAL",

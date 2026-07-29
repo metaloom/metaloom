@@ -1,7 +1,5 @@
 package io.metaloom.cortex.node.sentiment.assertj;
 
-import java.util.List;
-
 import io.metaloom.cortex.api.option.assertj.AbstractCortexNodeOptionsAssert;
 import io.metaloom.cortex.node.sentiment.SentimentNodeOptions;
 
@@ -34,14 +32,6 @@ public class SentimentOptionsAssert extends AbstractCortexNodeOptionsAssert<Sent
 		isNotNull();
 		if (!expected.equals(actual.getLanguage())) {
 			failWithMessage("Expected language to be '%s' but was '%s'", expected, actual.getLanguage());
-		}
-		return this;
-	}
-
-	public SentimentOptionsAssert hasTextSources(List<String> expected) {
-		isNotNull();
-		if (!expected.equals(actual.getTextSources())) {
-			failWithMessage("Expected textSources to be %s but was %s", expected, actual.getTextSources());
 		}
 		return this;
 	}

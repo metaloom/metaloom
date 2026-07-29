@@ -1,5 +1,8 @@
 package io.metaloom.cortex.node.script;
 
+import io.metaloom.loom.nodes.spec.Cardinality;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+
 /**
  * The type of a value a script may emit.
  *
@@ -12,62 +15,94 @@ package io.metaloom.cortex.node.script;
  * </p>
  *
  * <p>
- * Each constant fixes three things: the Java type that ends up in the {@code NodeResult} output
- * map, the content type downstream connectors see, and where the value is persisted.
+ * Each constant fixes four things: the Java type that ends up in the node's output, the content
+ * type downstream connectors see, <strong>the cardinality of the port it becomes</strong>, and
+ * where the value is persisted.
+ * </p>
+ *
+ * <p>
+ * ⚠️ The content type and cardinality here must match {@code ScriptPortResolver.ScriptOutputType}
+ * in {@code loom-shared/node-model}, which derives a script node's descriptor ports from the same
+ * declarations. The two live in different trees on purpose - the node model cannot depend on a
+ * node - and {@code NodePortConformanceTest} is what keeps them in step.
  * </p>
  */
 public enum ScriptValueType {
 
 	/** A short string. */
-	STRING("data/string", false),
+	STRING(ContentTypeRegistry.SCALAR_STRING, Cardinality.ONE, false),
 
 	/** A longer body of text. Distinguished from {@link #STRING} only for connector typing. */
-	TEXT("data/text", false),
+	TEXT(ContentTypeRegistry.TEXT_PLAIN, Cardinality.ONE, false),
 
 	/** A whole number, emitted as {@code Long}. */
-	INTEGER("data/integer", false),
+	INTEGER(ContentTypeRegistry.SCALAR_INTEGER, Cardinality.ONE, false),
 
 	/** A floating-point number, emitted as {@code Double}. */
-	NUMBER("data/number", false),
+	NUMBER(ContentTypeRegistry.SCALAR_NUMBER, Cardinality.ONE, false),
 
 	/** A boolean. */
-	BOOLEAN("data/boolean", false),
+	BOOLEAN(ContentTypeRegistry.SCALAR_BOOLEAN, Cardinality.ONE, false),
 
 	/** An arbitrary JSON object, emitted as {@code JsonObject}. */
-	JSON("data/text", false),
+	JSON(ContentTypeRegistry.STRUCT_JSON, Cardinality.ONE, false),
 
-	/** A list of strings, emitted as {@code List<String>}. */
-	TEXT_LIST("data/text", false),
+	/**
+	 * Several texts, emitted as one element each.
+	 *
+	 * <p>
+	 * This is the canonical fan-out: a downstream node with a {@code ONE} text input runs once per
+	 * element. It used to declare the same content type as {@link #TEXT}, which made "I emit N of
+	 * these" invisible to both the editor and the engine.
+	 * </p>
+	 */
+	TEXT_LIST(ContentTypeRegistry.TEXT_PLAIN, Cardinality.MANY, false),
 
 	/**
 	 * A time-ranged segment list: {@code [{startMs, endMs, label, data}, ...]}. Persisted as real
 	 * rows in {@code asset_segment_comp} rather than as an opaque blob, so the timeline is
 	 * queryable and the UI can render it.
 	 */
-	TIMEFRAMES("data/scene", false),
+	TIMEFRAMES(ContentTypeRegistry.STRUCT_SEGMENTS, Cardinality.ONE, false),
 
 	/** A single generated image. The emitted value is the path the bytes were written to. */
-	IMAGE("data/thumbnail", true),
+	IMAGE(ContentTypeRegistry.ARTIFACT_IMAGE, Cardinality.ONE, true),
 
-	/** Several generated images. The emitted value is the list of paths. */
-	IMAGE_LIST("data/thumbnail", true),
+	/** Several generated images, emitted as one path element each. */
+	IMAGE_LIST(ContentTypeRegistry.ARTIFACT_IMAGE, Cardinality.MANY, true),
 
 	/** A filesystem path. */
-	PATH("data/path", false);
+	PATH(ContentTypeRegistry.ARTIFACT_FILE, Cardinality.ONE, false);
 
 	private final String contentType;
+	private final Cardinality cardinality;
 	private final boolean binary;
 
-	ScriptValueType(String contentType, boolean binary) {
+	ScriptValueType(String contentType, Cardinality cardinality, boolean binary) {
 		this.contentType = contentType;
+		this.cardinality = cardinality;
 		this.binary = binary;
 	}
 
 	/**
-	 * The {@code ContentTypes} id downstream connectors see for a value of this type.
+	 * The content type downstream connectors see for a value of this type.
 	 */
 	public String contentType() {
 		return contentType;
+	}
+
+	/**
+	 * Whether this type emits one element or a sequence.
+	 */
+	public Cardinality cardinality() {
+		return cardinality;
+	}
+
+	/**
+	 * Whether values of this type are a sequence rather than a single element.
+	 */
+	public boolean isList() {
+		return cardinality.isMany();
 	}
 
 	/**

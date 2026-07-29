@@ -13,10 +13,12 @@ import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.PortOutput;
 import io.metaloom.cortex.common.metrics.CortexMetrics;
 import io.metaloom.cortex.pipeline.common.sync.DefaultLoomBulkSyncCollector.BulkSyncWriter;
 import io.metaloom.cortex.pipeline.common.sync.DefaultLoomBulkSyncCollector.SyncEntry;
 import io.metaloom.loom.client.common.LoomClient;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.rest.model.asset.AssetBulkUpdateEntry;
 import io.metaloom.loom.rest.model.asset.AssetBulkUpdateRequest;
 import io.metaloom.loom.rest.model.asset.AssetUpdateRequest;
@@ -116,9 +118,16 @@ public class LoomBulkSyncWriterImpl implements BulkSyncWriter {
 	 * update. Currently maps the hash outputs; additional node outputs (like
 	 * fingerprint, thumbnail, transcript) can be plumbed here as their
 	 * corresponding update fields are exercised.
+	 *
+	 * <p>
+	 * Binding is by the port's <strong>content type</strong>, not by output name: every hash node
+	 * emits a port called {@code hash} and the algorithm is what distinguishes them
+	 * ({@code hash/md5} vs {@code hash/sha256} …). Keying off the name is what used to let
+	 * a renamed node quietly stop syncing.
+	 * </p>
 	 */
 	private static void mergeOutputs(AssetUpdateRequest update, NodeResult result) {
-		if (result == null || result.getOutput() == null) {
+		if (result == null || result.getOutputs().isEmpty()) {
 			return;
 		}
 		HashInfo hashes = update.getHashes();
@@ -127,21 +136,40 @@ public class LoomBulkSyncWriterImpl implements BulkSyncWriter {
 			update.setHashes(hashes);
 		}
 
-		Object sha512 = result.getOutput().get("sha512");
-		if (sha512 != null && hashes.getSHA512() == null) {
-			hashes.setSHA512(SHA512.fromString(sha512.toString()));
-		}
-		Object sha256 = result.getOutput().get("sha256");
-		if (sha256 != null && hashes.getSHA256() == null) {
-			hashes.setSHA256(SHA256.fromString(sha256.toString()));
-		}
-		Object md5 = result.getOutput().get("md5");
-		if (md5 != null && hashes.getMD5() == null) {
-			hashes.setMD5(MD5.fromString(md5.toString()));
-		}
-		Object chunk = result.getOutput().get("chunkHash");
-		if (chunk != null && hashes.getChunkHash() == null) {
-			hashes.setChunkHash(ChunkHash.fromString(chunk.toString()));
+		for (PortOutput output : result.getOutputs().values()) {
+			if (output == null || output.port() == null) {
+				continue;
+			}
+			Object value = output.single();
+			if (value == null) {
+				continue;
+			}
+			String raw = value.toString();
+			switch (output.port().contentType()) {
+				case ContentTypeRegistry.HASH_SHA512 -> {
+					if (hashes.getSHA512() == null) {
+						hashes.setSHA512(SHA512.fromString(raw));
+					}
+				}
+				case ContentTypeRegistry.HASH_SHA256 -> {
+					if (hashes.getSHA256() == null) {
+						hashes.setSHA256(SHA256.fromString(raw));
+					}
+				}
+				case ContentTypeRegistry.HASH_MD5 -> {
+					if (hashes.getMD5() == null) {
+						hashes.setMD5(MD5.fromString(raw));
+					}
+				}
+				case ContentTypeRegistry.HASH_CHUNK -> {
+					if (hashes.getChunkHash() == null) {
+						hashes.setChunkHash(ChunkHash.fromString(raw));
+					}
+				}
+				default -> {
+					// Not a hash port — nothing to merge into the asset update yet.
+				}
+			}
 		}
 	}
 }

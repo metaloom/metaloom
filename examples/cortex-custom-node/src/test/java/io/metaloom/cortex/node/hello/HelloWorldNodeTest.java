@@ -1,19 +1,17 @@
 package io.metaloom.cortex.node.hello;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Map;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
@@ -58,10 +56,9 @@ public class HelloWorldNodeTest {
 
 		assertEquals(ResultState.SUCCESS, result.getState());
 
-		// Verify both outputs are in the output map for downstream nodes
-		Map<String, Object> outputs = result.getOutputs();
-		long fileSize = (long) outputs.get(HelloWorldNode.OUTPUT_FILE_SIZE);
-		long wordCount = (long) outputs.get(HelloWorldNode.OUTPUT_WORD_COUNT);
+		// Verify both output ports carry a value for downstream nodes
+		long fileSize = result.get(HelloWorldNode.OUT_FILE_SIZE);
+		long wordCount = result.get(HelloWorldNode.OUT_WORD_COUNT);
 		assertTrue(fileSize > 0, "File size should be > 0");
 		assertEquals(9, wordCount, "Expected 9 words in the test file");
 	}
@@ -79,25 +76,28 @@ public class HelloWorldNodeTest {
 		NodeResult result = node.process(ctx);
 
 		assertEquals(ResultState.SUCCESS, result.getState());
-		long fileSize = (long) result.getOutputs().get(HelloWorldNode.OUTPUT_FILE_SIZE);
+		long fileSize = result.get(HelloWorldNode.OUT_FILE_SIZE);
 		assertEquals(6, fileSize);
 	}
 
 	@Test
-	public void testUpstreamOutputs() throws IOException {
+	public void testInputPort() throws IOException {
 		Path textFile = tempDir.resolve("upstream.txt");
 		Files.writeString(textFile, "test");
 
 		LoomMedia media = new LoomMediaImpl(textFile);
 
-		// Simulate that a "sha256" node ran before us and produced an output
-		Map<String, Map<String, Object>> upstream = Map.of(
-			"sha256", Map.of("sha256", "abc123def456"));
+		// Seed the "hash" input port the way a wired edge would. The upstream node id is not
+		// mentioned anywhere - the port is the seam.
+		NodeInputs inputs = NodeInputs.builder()
+			.input(HelloWorldNode.IN_HASH, "abc123def456")
+			.build();
 
-		NodeContext<LoomMedia> ctx = NodeContext.create(media, upstream);
+		NodeContext<LoomMedia> ctx = NodeContext.create(media, inputs);
 		NodeResult result = node.process(ctx);
 
 		assertEquals(ResultState.SUCCESS, result.getState());
+		assertEquals(1L, result.get(HelloWorldNode.OUT_WORD_COUNT));
 	}
 
 	@Test

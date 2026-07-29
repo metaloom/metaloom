@@ -10,10 +10,8 @@ import io.metaloom.cortex.api.option.node.ValidationResult;
  * Options for the {@link SentimentNode}.
  *
  * <p>
- * The node scores text produced by an upstream node. {@link #textSources} is an
- * <em>ordered</em> list of {@code nodeId:outputKey} pairs; the first one that
- * yields non-blank text wins, and its output key becomes the {@code variant} of
- * the persisted component so several text sources can coexist on one asset.
+ * The node scores whatever text is wired into its {@code text} input port; there is
+ * no option for choosing a source any more.
  * </p>
  *
  * <p>
@@ -29,14 +27,6 @@ public class SentimentNodeOptions extends AbstractNodeOptions<SentimentNodeOptio
 
 	public static final String KEY = "sentiment";
 
-	/** Default text sources, most specific first. Whisper is absent on purpose - {@code whisper_result} is transcript JSON, not plain text. */
-	public static final List<String> DEFAULT_TEXT_SOURCES = List.of(
-		"tika:tika_content",
-		"ocr:ocr_text",
-		"captioning:caption_result",
-		"vlm:vlm_result",
-		"llm:llm_result");
-
 	public static final String LANGUAGE_AUTO = "auto";
 
 	private String sentimentHost = "localhost";
@@ -48,8 +38,6 @@ public class SentimentNodeOptions extends AbstractNodeOptions<SentimentNodeOptio
 
 	private String modelDe;
 	private String modelEn;
-
-	private List<String> textSources = new ArrayList<>(DEFAULT_TEXT_SOURCES);
 
 	/** Upper bound on the text handed to the sidecar. Longer text is truncated before the request. */
 	private int maxChars = 200_000;
@@ -104,15 +92,6 @@ public class SentimentNodeOptions extends AbstractNodeOptions<SentimentNodeOptio
 		return this;
 	}
 
-	public List<String> getTextSources() {
-		return textSources;
-	}
-
-	public SentimentNodeOptions setTextSources(List<String> textSources) {
-		this.textSources = textSources;
-		return this;
-	}
-
 	public int getMaxChars() {
 		return maxChars;
 	}
@@ -135,15 +114,6 @@ public class SentimentNodeOptions extends AbstractNodeOptions<SentimentNodeOptio
 		}
 		if (language == null || language.isBlank()) {
 			errors.add("language must not be empty");
-		}
-		if (textSources == null || textSources.isEmpty()) {
-			errors.add("textSources must not be empty");
-		} else {
-			for (String source : textSources) {
-				if (source == null || !source.contains(":") || source.startsWith(":") || source.endsWith(":")) {
-					errors.add("textSources entry must have the form 'nodeId:outputKey', got '" + source + "'");
-				}
-			}
 		}
 		if (maxChars <= 0) {
 			errors.add("maxChars must be positive, got " + maxChars);

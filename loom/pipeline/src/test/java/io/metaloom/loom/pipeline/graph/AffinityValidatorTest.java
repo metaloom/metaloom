@@ -32,7 +32,8 @@ public class AffinityValidatorTest {
 	}
 
 	private JsonObject edge(String from, String to) {
-		return new JsonObject().put("source", from).put("target", to);
+		return new JsonObject().put("source", from).put("sourcePort", "media")
+			.put("target", to).put("targetPort", "media");
 	}
 
 	private PipelineGraph graph(JsonArray nodes, JsonArray edges) {

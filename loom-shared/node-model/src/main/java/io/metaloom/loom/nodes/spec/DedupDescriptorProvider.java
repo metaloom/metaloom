@@ -1,9 +1,10 @@
 package io.metaloom.loom.nodes.spec;
 
-import static io.metaloom.loom.nodes.spec.ContentTypes.*;
+import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.*;
 import static io.metaloom.loom.nodes.spec.NodeCategory.*;
 import static io.metaloom.loom.nodes.spec.NodeMode.*;
 import static io.metaloom.loom.nodes.spec.ParameterType.*;
+import static io.metaloom.loom.nodes.spec.PortSpec.one;
 
 import java.util.List;
 
@@ -24,8 +25,10 @@ public class DedupDescriptorProvider implements NodeDescriptorProvider {
 				.setDescription("Detect and move duplicate files based on hash equality.")
 				.setIcon("file_copy")
 				.setCategory(OUTPUT)
-				.setInputs(List.of(new NodeInput("hash", DATA_HASH, true)))
-				.setOutputs(List.of())
+				.setInputPorts(List.of(
+					one("hash", HASH_ANY)
+						.describedAs("Hash", "Any content hash. Two files whose hashes match are treated as the same file")))
+				.setOutputPorts(List.of())
 				.setParameters(List.of(
 					commonEnabled(),
 					new NodeParameter().setKey("dupFolder").setType(STRING).setDefaultValue("duplicates")
@@ -40,8 +43,10 @@ public class DedupDescriptorProvider implements NodeDescriptorProvider {
 				.setDescription("Detect and move near-duplicate files based on perceptual fingerprint similarity.")
 				.setIcon("content_copy")
 				.setCategory(OUTPUT)
-				.setInputs(List.of(new NodeInput("fingerprint", DATA_FINGERPRINT, true)))
-				.setOutputs(List.of())
+				.setInputPorts(List.of(
+					one("fingerprint", HASH_FINGERPRINT)
+						.describedAs("Fingerprint", "A perceptual fingerprint; files within the similarity threshold count as near-duplicates")))
+				.setOutputPorts(List.of())
 				.setParameters(List.of(
 					commonEnabled(),
 					new NodeParameter().setKey("dupFolder").setType(STRING).setDefaultValue("duplicates")

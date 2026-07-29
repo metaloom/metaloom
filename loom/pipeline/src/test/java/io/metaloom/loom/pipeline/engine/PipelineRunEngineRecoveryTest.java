@@ -4,12 +4,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.TEXT_PLAIN;
+
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
+import io.metaloom.loom.pipeline.TestDescriptors;
 import io.metaloom.loom.pipeline.graph.PipelineGraph;
 import io.metaloom.loom.pipeline.graph.PipelineGraphParser;
 import io.metaloom.loom.pipeline.model.MediaRef;
@@ -39,8 +42,8 @@ public class PipelineRunEngineRecoveryTest {
 				.add(new JsonObject().put("id", "hash").put("type", "sha512"))
 				.add(new JsonObject().put("id", "thumb").put("type", "thumbnail")))
 			.put("edges", new JsonArray()
-				.add(new JsonObject().put("source", "src").put("target", "hash"))
-				.add(new JsonObject().put("source", "hash").put("target", "thumb")));
+				.add(new JsonObject().put("source", "src").put("sourcePort", "media").put("target", "hash").put("targetPort", "media"))
+				.add(new JsonObject().put("source", "hash").put("sourcePort", "hash").put("target", "thumb").put("targetPort", "media")));
 		return parser.parse("linear", definition, true, false, 0);
 	}
 
@@ -102,7 +105,7 @@ public class PipelineRunEngineRecoveryTest {
 				.add(new JsonObject().put("id", "src").put("type", "filesystem-source").put("source", true))
 				.add(new JsonObject().put("id", "hash").put("type", "sha512")
 					.put("options", new JsonObject().put("retryFailed", true).put("maxAttempts", 2))))
-			.put("edges", new JsonArray().add(new JsonObject().put("source", "src").put("target", "hash")));
+			.put("edges", new JsonArray().add(new JsonObject().put("source", "src").put("sourcePort", "media").put("target", "hash").put("targetPort", "media")));
 		PipelineRunEngine engine = new PipelineRunEngine(
 			parser.parse("retry", definition, true, false, 0), dispatcher, UUID.randomUUID());
 		engine.start();
@@ -158,6 +161,63 @@ public class PipelineRunEngineRecoveryTest {
 
 		engine.resume(true);
 		assertEquals(List.of("hash"), dispatcher.dispatchedNodeIds());
+	}
+
+	@Test
+	void testAHalfFannedItemResumesTheRestOfItsElements() {
+		// The process died with the driver settled and one element of the fanned-out node done.
+		// Both halves have to survive: the finished element must not run twice, and the two that
+		// never ran must not be lost - a fan-out that comes back one element wide leaves the item
+		// waiting forever for siblings nobody will dispatch.
+		FakeNodeDispatcher dispatcher = new FakeNodeDispatcher();
+		PipelineGraphParser portParser = new PipelineGraphParser(TestDescriptors.registry());
+		JsonObject definition = new JsonObject()
+			.put("nodes", new JsonArray()
+				.add(new JsonObject().put("id", "src").put("type", "test-source").put("source", true))
+				.add(new JsonObject().put("id", "A").put("type", "splitter"))
+				.add(new JsonObject().put("id", "B").put("type", "worker"))
+				.add(new JsonObject().put("id", "D").put("type", "collector")))
+			.put("edges", new JsonArray()
+				.add(new JsonObject().put("source", "src").put("sourcePort", "media")
+					.put("target", "A").put("targetPort", "media"))
+				.add(new JsonObject().put("source", "A").put("sourcePort", "texts")
+					.put("target", "B").put("targetPort", "text"))
+				.add(new JsonObject().put("source", "B").put("sourcePort", "result")
+					.put("target", "D").put("targetPort", "items")));
+		PipelineRunEngine engine = new PipelineRunEngine(
+			portParser.parse("fanout", definition, true, false, 0), dispatcher, UUID.randomUUID());
+		engine.start();
+
+		String itemId = UUID.randomUUID().toString();
+		engine.restoreItem(itemId, MediaRef.of("/media/a.mp4"), Map.of(
+			"src", done("src"),
+			"A", NodeTaskResult.completed(UUID.randomUUID(), "A", 0, 5,
+				Payloads.outputs("texts", Payloads.sequence(itemId, TEXT_PLAIN, "p0", "p1", "p2"))),
+			"B", NodeTaskResult.completed(UUID.randomUUID(), "B", 0, 5,
+				Payloads.outputs("result", Payloads.element(itemId, 0, 3, TEXT_PLAIN, "b0")))),
+			Map.of("A", 1, "B", 1));
+		engine.resume(true);
+
+		assertEquals(List.of(1, 2), dispatcher.dispatched().stream()
+			.filter(t -> t.getNodeId().equals("B")).map(NodeTask::getElementSeq).toList(),
+			"Only the elements that never ran are dispatched again");
+		assertFalse(dispatcher.wasDispatched("D"), "The gather still waits for the whole branch");
+
+		for (NodeTask task : List.copyOf(dispatcher.dispatched())) {
+			if (!task.getNodeId().equals("B")) {
+				continue;
+			}
+			engine.onNodeTaskResult(itemId, NodeTaskResult.completed(task.getTaskUuid(), "B",
+				task.getElementSeq(), 5, Payloads.outputs("result",
+					Payloads.element(itemId, task.getElementSeq(), 3, TEXT_PLAIN, "b" + task.getElementSeq()))));
+		}
+
+		NodeTask gather = dispatcher.taskFor("D");
+		assertEquals(List.of("b0", "b1", "b2"), gather.getInputs().get("items").values(),
+			"The element recovered from the database gathers alongside the two that were re-run");
+
+		engine.onNodeTaskResult(itemId, NodeTaskResult.completed(gather.getTaskUuid(), "D", 0, 5, Map.of()));
+		assertTrue(engine.isComplete(), "A run restarted mid-fan-out must still be able to finish");
 	}
 
 	@Test

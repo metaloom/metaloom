@@ -51,7 +51,9 @@ public class WebSocketNodeDispatcherTest {
 					.put("type", "filesystem-source").put("source", true))
 				.add(new io.vertx.core.json.JsonObject().put("id", "hash").put("type", "sha512")))
 			.put("edges", new io.vertx.core.json.JsonArray()
-				.add(new io.vertx.core.json.JsonObject().put("source", "src").put("target", "hash")));
+				.add(new io.vertx.core.json.JsonObject()
+					.put("source", "src").put("sourcePort", "media")
+					.put("target", "hash").put("targetPort", "media")));
 
 		io.metaloom.loom.pipeline.graph.PipelineGraph graph =
 			new io.metaloom.loom.pipeline.graph.PipelineGraphParser()

@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.ResultState;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.api.option.S3ClientOptions;
@@ -124,7 +125,9 @@ public class S3SinkNodeIntegrationTest extends AbstractNodeIntegrationTest {
 	}
 
 	private NodeContext<LoomMedia> ctx(LoomMedia media) {
-		return NodeContext.create(media, Map.of("thumbnail", Map.of("thumbnail_path", thumb.toString())));
+		return NodeContext.create(media, NodeInputs.builder()
+			.inputs(S3SinkNode.IN_ARTIFACTS, List.of(thumb.toString()))
+			.build());
 	}
 
 	private String onlyKeyIn(JsonObject payload) {

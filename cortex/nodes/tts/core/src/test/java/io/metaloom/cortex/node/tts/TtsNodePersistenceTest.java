@@ -18,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
@@ -78,7 +79,8 @@ class TtsNodePersistenceTest {
 	}
 
 	private NodeContext<io.metaloom.cortex.api.media.LoomMedia> ctxWithText(String text) {
-		return NodeContext.create(media, Map.of("llm", Map.of("llm_result", text)));
+		NodeInputs inputs = NodeInputs.builder().input(TtsNode.IN_TEXT, text).build();
+		return NodeContext.create(media, inputs);
 	}
 
 	@Test

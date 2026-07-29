@@ -12,15 +12,15 @@ tables, forms and handwriting, at the cost of needing a GPU-backed model service
 in the same pipeline.
 
 ++++
-<div class="ml-nodeviz" data-nodeviz='{"kind":"vlm","applies":"Image","badge":"GPU vision endpoint","persist":"asset_json_comp + asset_node_result ledger","configs":[{"name":"olmOCR preset","note":"the default when no prompts are configured","inputs":[{"t":"image","l":"document page","d":"scaled to maxImageDim"}],"outputs":[{"t":"text","l":"vlm_result_olmocr","d":"markdown transcription"},{"t":"json","l":"page observations","d":"language, rotation, is_table"}]},{"name":"custom prompts","note":"one output per configured prompt id","inputs":[{"t":"image","l":"image","d":"scaled to maxImageDim"}],"outputs":[{"t":"text","l":"vlm_result_caption","d":"responseFormat TEXT"},{"t":"json","l":"vlm_result_fields","d":"responseFormat JSON"}]}]}'></div>
+<div class="ml-nodeviz" data-nodeviz='{"kind":"vlm","applies":"Image","badge":"GPU vision endpoint","persist":"asset_json_comp + asset_node_result ledger","configs":[{"name":"olmOCR preset","note":"the default when no prompts are configured","inputs":[{"t":"image","l":"media","d":"the document page, scaled to maxImageDim"}],"outputs":[{"t":"text","l":"result","d":"the page as markdown, with tables as HTML and equations as LaTeX. With no prompt to name it, the single port is just result"}]},{"name":"custom prompts","note":"one output port per configured prompt id","inputs":[{"t":"image","l":"media","d":"the picture, scaled to maxImageDim"}],"outputs":[{"t":"text","l":"result_caption","d":"the answer to the prompt with id caption (responseFormat TEXT)"},{"t":"json","l":"result_fields","d":"the answer to the prompt with id fields (responseFormat JSON) — one port per configured prompt"}]}]}'></div>
 ++++
 
 [cols="1,3"]
 |===
 | Kind | `vlm`
 | Applies to | Image
-| Inputs | None
-| Output keys | `vlm_result_{promptId}` (String) — for the shipped preset, `vlm_result_olmocr`
+| Input ports | `media`
+| Output ports | `result_{promptId}` — **one port per configured prompt**. Configured with no prompts the node falls back to the olmOCR preset and exposes a single `result` port
 | Requirements | An OpenAI-compatible vision endpoint (for example vLLM serving olmOCR). GPU-bound; no native library on the worker.
 | Persists to | `asset_json_comp` + `asset_node_result` ledger
 |===
@@ -34,7 +34,7 @@ in the same pipeline.
 | Option | Meaning
 | `endpointUrl` | Base URL of the vision endpoint, e.g. `\http://127.0.0.1:8000`
 | `apiKey` | Bearer token for the endpoint; usually unset for a local service
-| `prompts` | Named tasks to run against the image, keyed by prompt id
+| `prompts` | Named tasks to run against the image, keyed by prompt id. Each one adds a `result_{promptId}` output port, which appears on the node in the editor as soon as the prompt is defined
 |===
 
 Each entry under `prompts` configures one task:

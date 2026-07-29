@@ -1,9 +1,11 @@
 package io.metaloom.loom.nodes.spec;
 
-import static io.metaloom.loom.nodes.spec.ContentTypes.*;
+import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.*;
 import static io.metaloom.loom.nodes.spec.NodeCategory.*;
 import static io.metaloom.loom.nodes.spec.NodeMode.*;
 import static io.metaloom.loom.nodes.spec.ParameterType.*;
+import static io.metaloom.loom.nodes.spec.PortSpec.many;
+import static io.metaloom.loom.nodes.spec.PortSpec.one;
 
 import java.util.List;
 
@@ -30,11 +32,16 @@ public class S3SinkDescriptorProvider implements NodeDescriptorProvider {
 					+ "so it becomes retrievable rather than living on a single worker's disk.")
 				.setIcon("cloud_upload")
 				.setCategory(OUTPUT)
-				.setInputs(List.of(
-					new NodeInput("media", MEDIA_ANY, false),
-					new NodeInput("data", DATA_PATH, false)))
-				// A sink: nothing downstream should structurally depend on it.
-				.setOutputs(List.of())
+				.setInputPorts(List.of(
+					many("artifacts", ARTIFACT_ANY)
+						.describedAs("Artifacts", "Every produced file to upload - thumbnails, depth maps, generated images, speech audio")))
+				.setOutputPorts(List.of(
+					one("result", STRUCT_JSON)
+						.describedAs("Upload Report", "Per artifact: the object key, its size and whether it was uploaded or skipped as unchanged"),
+					one("count", SCALAR_INTEGER)
+						.describedAs("Uploaded Count", "How many objects ended up in the bucket"),
+					one("flag", SCALAR_STRING)
+						.describedAs("Flag", "Processing marker recording how this node finished for the item")))
 				.setParameters(List.of(
 					commonEnabled(),
 					new NodeParameter().setKey("bucket").setType(STRING).setLabel("Bucket")
@@ -46,15 +53,6 @@ public class S3SinkDescriptorProvider implements NodeDescriptorProvider {
 							+ "{nodeId}, {sourceNode}, {sourceKey}, {ext}, {filename}, {basename}, "
 							+ "{assetUuid}, {index}, {indexSuffix}. Using {sha512} requires an upstream "
 							+ "hash node"),
-					new NodeParameter().setKey("artifacts").setType(JSON).setDefaultValue("[]").setRows(3)
-						.setLabel("Artifacts")
-						.setDescription("['nodeId:outputKey', ...] to upload, in order. Leave empty to "
-							+ "auto-discover. Script node images must be listed here - their output keys "
-							+ "are author-chosen and do not end in _path"),
-					new NodeParameter().setKey("autoDiscover").setType(BOOLEAN).setDefaultValue(true)
-						.setLabel("Auto-discover")
-						.setDescription("When Artifacts is empty, upload every upstream output whose key ends "
-							+ "in _path. Ignored when Artifacts is set"),
 					new NodeParameter().setKey("includeSource").setType(BOOLEAN).setDefaultValue(false)
 						.setLabel("Include source media")
 						.setDescription("Also upload the media item itself, which turns this node into an "

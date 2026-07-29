@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.pipeline.test.StubLoomMedia;
@@ -123,8 +124,10 @@ class S3SinkNodePersistenceTest {
 		return node;
 	}
 
+	/** One element on the sink's {@code artifacts} port - what an edge into that port delivers. */
 	private NodeContext<io.metaloom.cortex.api.media.LoomMedia> ctx() {
-		return NodeContext.create(media, Map.of("thumbnail", Map.of("thumbnail_path", thumb.toString())));
+		return NodeContext.create(media,
+			NodeInputs.builder().inputs(S3SinkNode.IN_ARTIFACTS, java.util.List.of(thumb.toString())).build());
 	}
 
 	// --- asset creation -------------------------------------------------------------------
@@ -150,7 +153,9 @@ class S3SinkNodePersistenceTest {
 		JsonObject meta = created.get(0).getMeta();
 		assertThat(meta.getString("producedBy")).isEqualTo("s3-sink");
 		assertThat(meta.getString("sinkNodeId")).isEqualTo("archive");
-		assertThat(meta.getString("sourceNode")).isEqualTo("thumbnail");
+		// The provenance recorded is the sink's own input port, not a guessed upstream node id: the
+		// selector no longer knows - and no longer needs to know - which node the edge came from.
+		assertThat(meta.getString("sourceNode")).isEqualTo(SinkArtifact.ARTIFACTS_PORT);
 		assertThat(meta.getString("sourceAssetUuid")).isEqualTo(sourceAssetUuid.toString());
 	}
 
@@ -198,7 +203,7 @@ class S3SinkNodePersistenceTest {
 		JsonObject artifact = data.getJsonArray("artifacts").getJsonObject(0);
 		assertThat(artifact.getString("state")).isEqualTo("UPLOADED");
 		assertThat(artifact.getString("uri")).startsWith("s3://" + BUCKET + "/");
-		assertThat(artifact.getString("sourceNode")).isEqualTo("thumbnail");
+		assertThat(artifact.getString("sourceNode")).isEqualTo(SinkArtifact.ARTIFACTS_PORT);
 		assertThat(artifact.getString("contentType")).isEqualTo("image/jpeg");
 		assertThat(artifact.getString("assetUuid")).isNotBlank();
 	}
@@ -272,7 +277,7 @@ class S3SinkNodePersistenceTest {
 
 	@Test
 	void testNothingIsPersistedWhenThereAreNoArtifacts() {
-		node("archive").process(NodeContext.create(media, Map.of()));
+		node("archive").process(NodeContext.create(media, NodeInputs.empty()));
 
 		verify(client, never()).createAssetJsonComp(any(), any());
 		verify(client, never()).createAssetNodeResult(any(), any());

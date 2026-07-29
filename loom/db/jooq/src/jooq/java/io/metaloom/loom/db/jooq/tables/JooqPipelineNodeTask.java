@@ -18,12 +18,12 @@ import java.util.function.Function;
 
 import org.jooq.Field;
 import org.jooq.ForeignKey;
-import org.jooq.Function20;
+import org.jooq.Function21;
 import org.jooq.Index;
 import org.jooq.Name;
 import org.jooq.Record;
 import org.jooq.Records;
-import org.jooq.Row20;
+import org.jooq.Row21;
 import org.jooq.Schema;
 import org.jooq.SelectField;
 import org.jooq.Table;
@@ -138,10 +138,11 @@ public class JooqPipelineNodeTask extends TableImpl<JooqPipelineNodeTaskRecord> 
     public final TableField<JooqPipelineNodeTaskRecord, String> ERROR_MESSAGE = createField(DSL.name("error_message"), SQLDataType.VARCHAR, this, "Failure detail or skip reason");
 
     /**
-     * The column <code>public.pipeline_node_task.outputs</code>. Node outputs,
-     * consumed as inputs by downstream nodes
+     * The column <code>public.pipeline_node_task.outputs</code>. Node outputs
+     * keyed by output port id; each value is a PortPayload carrying the
+     * declared content type, cardinality and origin-tagged elements
      */
-    public final TableField<JooqPipelineNodeTaskRecord, JsonObject> OUTPUTS = createField(DSL.name("outputs"), SQLDataType.JSONB, this, "Node outputs, consumed as inputs by downstream nodes", new JsonObjectConverter());
+    public final TableField<JooqPipelineNodeTaskRecord, JsonObject> OUTPUTS = createField(DSL.name("outputs"), SQLDataType.JSONB, this, "Node outputs keyed by output port id; each value is a PortPayload carrying the declared content type, cardinality and origin-tagged elements", new JsonObjectConverter());
 
     /**
      * The column <code>public.pipeline_node_task.meta</code>.
@@ -167,6 +168,13 @@ public class JooqPipelineNodeTask extends TableImpl<JooqPipelineNodeTaskRecord> 
      * The column <code>public.pipeline_node_task.editor_uuid</code>.
      */
     public final TableField<JooqPipelineNodeTaskRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID.nullable(false), this, "");
+
+    /**
+     * The column <code>public.pipeline_node_task.element_seq</code>. Which
+     * element of a fanned-out sequence this execution covers; 0 when the node
+     * runs once per item
+     */
+    public final TableField<JooqPipelineNodeTaskRecord, Integer> ELEMENT_SEQ = createField(DSL.name("element_seq"), SQLDataType.INTEGER.nullable(false).defaultValue(DSL.field("0", SQLDataType.INTEGER)), this, "Which element of a fanned-out sequence this execution covers; 0 when the node runs once per item");
 
     private JooqPipelineNodeTask(Name alias, Table<JooqPipelineNodeTaskRecord> aliased) {
         this(alias, aliased, null);
@@ -314,18 +322,18 @@ public class JooqPipelineNodeTask extends TableImpl<JooqPipelineNodeTaskRecord> 
     }
 
     // -------------------------------------------------------------------------
-    // Row20 type methods
+    // Row21 type methods
     // -------------------------------------------------------------------------
 
     @Override
-    public Row20<java.util.UUID, java.util.UUID, java.util.UUID, String, String, String, Integer, Integer, String, LocalDateTime, LocalDateTime, LocalDateTime, Long, String, JsonObject, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
-        return (Row20) super.fieldsRow();
+    public Row21<java.util.UUID, java.util.UUID, java.util.UUID, String, String, String, Integer, Integer, String, LocalDateTime, LocalDateTime, LocalDateTime, Long, String, JsonObject, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID, Integer> fieldsRow() {
+        return (Row21) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function20<? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super Integer, ? super Integer, ? super String, ? super LocalDateTime, ? super LocalDateTime, ? super LocalDateTime, ? super Long, ? super String, ? super JsonObject, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function21<? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super Integer, ? super Integer, ? super String, ? super LocalDateTime, ? super LocalDateTime, ? super LocalDateTime, ? super Long, ? super String, ? super JsonObject, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super Integer, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -333,7 +341,7 @@ public class JooqPipelineNodeTask extends TableImpl<JooqPipelineNodeTaskRecord> 
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function20<? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super Integer, ? super Integer, ? super String, ? super LocalDateTime, ? super LocalDateTime, ? super LocalDateTime, ? super Long, ? super String, ? super JsonObject, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function21<? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super Integer, ? super Integer, ? super String, ? super LocalDateTime, ? super LocalDateTime, ? super LocalDateTime, ? super Long, ? super String, ? super JsonObject, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super Integer, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }

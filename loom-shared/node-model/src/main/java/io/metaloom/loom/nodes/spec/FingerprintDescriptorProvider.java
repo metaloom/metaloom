@@ -1,9 +1,11 @@
 package io.metaloom.loom.nodes.spec;
 
-import static io.metaloom.loom.nodes.spec.ContentTypes.*;
+import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.*;
 import static io.metaloom.loom.nodes.spec.NodeCategory.*;
 import static io.metaloom.loom.nodes.spec.NodeMode.*;
 import static io.metaloom.loom.nodes.spec.ParameterType.*;
+import static io.metaloom.loom.nodes.spec.PortSpec.one;
+import static io.metaloom.loom.nodes.spec.PortSpec.optionalOne;
 
 import java.util.List;
 
@@ -24,8 +26,16 @@ public class FingerprintDescriptorProvider implements NodeDescriptorProvider {
 				.setDescription("Compute a perceptual fingerprint of the media for deduplication or similarity search.")
 				.setIcon("grain")
 				.setCategory(ANALYSIS)
-				.setInputs(List.of(new NodeInput("media", MEDIA_ANY, true)))
-				.setOutputs(List.of(new NodeOutput("fingerprint", DATA_FINGERPRINT)))
+				.setInputPorts(List.of(
+					one("media", MEDIA_VIDEO)
+						.describedAs("Video", "The video whose frames are sampled into a perceptual hash"),
+					// Declared so the node can stop hard-coding an upstream node id for it. Leave it
+					// unwired and a half-written file is fingerprinted anyway, which is the old behaviour.
+					optionalOne("is_complete", SCALAR_BOOLEAN)
+						.describedAs("Is Complete", "Whether the file is whole; an incomplete one is skipped unless processIncomplete is set")))
+				.setOutputPorts(List.of(
+					one("fingerprint", HASH_FINGERPRINT)
+						.describedAs("Fingerprint", "Perceptual fingerprint that survives re-encoding, so near-duplicates still compare equal")))
 				.setParameters(List.of(commonEnabled(), commonProcessIncomplete(), commonRetryFailed()))
 				.setDefaultConcurrency(2)
 				.setDefaultMode(PARALLEL)

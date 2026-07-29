@@ -43,20 +43,4 @@ public class TtsOptionsAssert extends AbstractCortexNodeOptionsAssert<TtsOptions
 		}
 		return this;
 	}
-
-	public TtsOptionsAssert hasSourceNodeId(String expected) {
-		isNotNull();
-		if (!expected.equals(actual.getSourceNodeId())) {
-			failWithMessage("Expected sourceNodeId to be '%s' but was '%s'", expected, actual.getSourceNodeId());
-		}
-		return this;
-	}
-
-	public TtsOptionsAssert hasSourceOutputKey(String expected) {
-		isNotNull();
-		if (!expected.equals(actual.getSourceOutputKey())) {
-			failWithMessage("Expected sourceOutputKey to be '%s' but was '%s'", expected, actual.getSourceOutputKey());
-		}
-		return this;
-	}
 }

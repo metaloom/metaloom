@@ -31,6 +31,7 @@ import io.metaloom.loom.db.jooq.routines.JooqSearchDocumentRefreshSimple;
 import io.metaloom.loom.db.jooq.routines.JooqSearchDocumentRefreshTag;
 import io.metaloom.loom.db.jooq.routines.JooqSearchExtractJsonText;
 import io.metaloom.loom.db.jooq.routines.JooqSearchJsonbAllText;
+import io.metaloom.loom.db.jooq.routines.JooqSearchTokenizePath;
 import io.metaloom.loom.db.jooq.routines.JooqSetLimit;
 import io.metaloom.loom.db.jooq.routines.JooqShowLimit;
 import io.metaloom.loom.db.jooq.routines.JooqShowTrgm;
@@ -1313,6 +1314,44 @@ public class Routines {
     ) {
         JooqSearchJsonbAllText f = new JooqSearchJsonbAllText();
         f.setPData(pData);
+
+        return f.asField();
+    }
+
+    /**
+     * Call <code>public.search_tokenize_path</code>
+     */
+    public static String searchTokenizePath(
+          Configuration configuration
+        , String pPath
+    ) {
+        JooqSearchTokenizePath f = new JooqSearchTokenizePath();
+        f.setPPath(pPath);
+
+        f.execute(configuration);
+        return f.getReturnValue();
+    }
+
+    /**
+     * Get <code>public.search_tokenize_path</code> as a field.
+     */
+    public static Field<String> searchTokenizePath(
+          String pPath
+    ) {
+        JooqSearchTokenizePath f = new JooqSearchTokenizePath();
+        f.setPPath(pPath);
+
+        return f.asField();
+    }
+
+    /**
+     * Get <code>public.search_tokenize_path</code> as a field.
+     */
+    public static Field<String> searchTokenizePath(
+          Field<String> pPath
+    ) {
+        JooqSearchTokenizePath f = new JooqSearchTokenizePath();
+        f.setPPath(pPath);
 
         return f.asField();
     }

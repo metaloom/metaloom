@@ -14,11 +14,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.api.node.InputPort;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompCreateRequest;
 import io.vertx.core.json.JsonObject;
@@ -30,10 +33,12 @@ import io.vertx.core.json.JsonObject;
  * <ul>
  *   <li>Extending {@link AbstractMediaNode} so the pipeline handles lifecycle, error handling,
  *       and the "enabled / exists / processable" checks automatically.</li>
- *   <li>Publishing <b>two named outputs</b> ({@code file_size} and {@code word_count}) via
- *       {@link NodeContext#output(String, Object)} so downstream nodes can consume them.</li>
- *   <li>Consuming <b>upstream outputs</b> from a dependency node (e.g. an SHA-256 hash produced
- *       by an earlier node in the pipeline) via {@link NodeContext#upstreamOutput(String, String)}.</li>
+ *   <li>Declaring <b>typed ports</b> as public static constants and publishing two outputs
+ *       ({@code file_size} and {@code word_count}) via {@link NodeContext#output(OutputPort, Object)}
+ *       so downstream nodes can be wired to them.</li>
+ *   <li>Consuming an <b>input port</b> (e.g. an SHA-256 hash produced by an earlier node) via
+ *       {@link NodeContext#input(InputPort)}. Note that the node names its own port and the
+ *       <em>edge</em> decides which upstream node fills it - a node id is never named here.</li>
  *   <li>Persisting the result <b>agnostically</b> into the {@code asset_json_comp} table via a thin
  *       Loom REST call ({@code createAssetJsonComp}) — no dedicated component table or DB dependency
  *       required. This is the lightweight, customer-facing persistence path.</li>
@@ -43,11 +48,22 @@ public class HelloWorldNode extends AbstractMediaNode<HelloWorldNodeOptions> {
 
 	private static final Logger log = LoggerFactory.getLogger(HelloWorldNode.class);
 
-	/** Output key for the file size in bytes. */
-	public static final String OUTPUT_FILE_SIZE = "file_size";
+	/**
+	 * An optional hash handed to us by whatever the pipeline author wired into this port.
+	 *
+	 * <p>
+	 * The port is named {@code hash} because that is what <em>this</em> node calls it. Which node
+	 * produces it is the edge's business - that is the whole point of a port, and why renaming a
+	 * neighbour in the editor can no longer silently starve this node.
+	 * </p>
+	 */
+	public static final InputPort<String> IN_HASH = InputPort.one("hash", ContentTypeRegistry.HASH_SHA256, String.class);
 
-	/** Output key for the estimated word count. */
-	public static final String OUTPUT_WORD_COUNT = "word_count";
+	/** The file size in bytes. {@code scalar/integer} always arrives as a {@code Long}. */
+	public static final OutputPort<Long> OUT_FILE_SIZE = OutputPort.one("file_size", ContentTypeRegistry.SCALAR_INTEGER, Long.class);
+
+	/** The estimated word count. */
+	public static final OutputPort<Long> OUT_WORD_COUNT = OutputPort.one("word_count", ContentTypeRegistry.SCALAR_INTEGER, Long.class);
 
 	/** Schema-type label under which the result payload is stored in {@code asset_json_comp}. */
 	public static final String SCHEMA_TYPE = "hello-world";
@@ -75,21 +91,21 @@ public class HelloWorldNode extends AbstractMediaNode<HelloWorldNodeOptions> {
 	protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws Exception {
 		LoomMedia media = ctx.media();
 
-		// --- Reading upstream outputs ---
-		// If this node is wired after a "sha256" node in the pipeline graph,
-		// you can read its output like this:
-		String upstreamHash = ctx.upstreamOutput("sha256", "sha256");
+		// --- Reading an input port ---
+		// If the pipeline author wired a hash producer into our "hash" port, its value is here.
+		// ctx.isWired(IN_HASH) distinguishes "nothing wired" from "wired but empty".
+		String upstreamHash = ctx.input(IN_HASH);
 		if (upstreamHash != null) {
-			log.info("Upstream SHA-256 hash available: {}", upstreamHash);
+			log.info("SHA-256 hash on the '{}' input port: {}", IN_HASH.id(), upstreamHash);
 		}
 
 		// --- Output 1: file size ---
 		long fileSize = media.size();
-		ctx.output(OUTPUT_FILE_SIZE, fileSize);
+		ctx.output(OUT_FILE_SIZE, fileSize);
 
 		// --- Output 2: word count ---
 		long wordCount = countWords(media.file());
-		ctx.output(OUTPUT_WORD_COUNT, wordCount);
+		ctx.output(OUT_WORD_COUNT, wordCount);
 
 		// Log what we did
 		ctx.info("Computed file_size=" + fileSize + ", word_count=" + wordCount);
@@ -100,8 +116,8 @@ public class HelloWorldNode extends AbstractMediaNode<HelloWorldNodeOptions> {
 		// dedicated table is required — which keeps this example lightweight and customer-facing.
 		if (!isOfflineMode() && asset != null) {
 			JsonObject data = new JsonObject()
-				.put(OUTPUT_FILE_SIZE, fileSize)
-				.put(OUTPUT_WORD_COUNT, wordCount);
+				.put(OUT_FILE_SIZE.id(), fileSize)
+				.put(OUT_WORD_COUNT.id(), wordCount);
 			JsonCompCreateRequest request = new JsonCompCreateRequest()
 				.setNodeKind(name())        // "hello-world" — part of the component identity
 				.setSchemaType(SCHEMA_TYPE) // shape label for the payload

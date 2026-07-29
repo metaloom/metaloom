@@ -28,7 +28,7 @@ public class SHA256NodeTest extends AbstractBasicNodeTest<SHA256Node> {
 		LoomMedia media = mediaVideo1();
 		NodeResult result = node().process(ctx(media));
 		assertThat(result).isSuccess()
-			.hasOutput(SHA256Node.OUTPUT_SHA256, sampleVideoSHA256().toString());
+			.hasOutput(SHA256Node.OUT_HASH, sampleVideoSHA256().toString());
 	}
 
 	@Test
@@ -55,7 +55,7 @@ public class SHA256NodeTest extends AbstractBasicNodeTest<SHA256Node> {
 		NodeResult result = mockNode(clientMock, cortexOptions).process(ctx(media));
 
 		assertThat(result).isSuccess()
-			.hasOutput(SHA256Node.OUTPUT_SHA256, sampleVideoSHA256().toString());
+			.hasOutput(SHA256Node.OUT_HASH, sampleVideoSHA256().toString());
 
 		// Verify that the db object was accessed
 		AssetId id = any();
@@ -72,7 +72,7 @@ public class SHA256NodeTest extends AbstractBasicNodeTest<SHA256Node> {
 
 	@Override
 	protected void assertProcessed(TestMedia testMedia, LoomMedia media, NodeResult result, SHA256Node nodeMock) {
-		assertThat(result).hasOutput(SHA256Node.OUTPUT_SHA256, testMedia.sha256().toString());
+		assertThat(result).hasOutput(SHA256Node.OUT_HASH, testMedia.sha256().toString());
 	}
 
 	@Override

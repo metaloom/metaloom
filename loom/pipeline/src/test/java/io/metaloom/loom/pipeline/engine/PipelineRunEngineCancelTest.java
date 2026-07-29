@@ -6,6 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.HASH_SHA512;
+import static io.metaloom.loom.pipeline.engine.Payloads.outputs;
+
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -20,6 +23,7 @@ import io.metaloom.loom.pipeline.model.MediaRef;
 import io.metaloom.loom.pipeline.model.NodeState;
 import io.metaloom.loom.pipeline.model.NodeTask;
 import io.metaloom.loom.pipeline.model.NodeTaskResult;
+import io.metaloom.loom.pipeline.model.PortPayload;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
@@ -42,8 +46,8 @@ public class PipelineRunEngineCancelTest {
 				.add(new JsonObject().put("id", "hash").put("type", "sha512"))
 				.add(new JsonObject().put("id", "thumb").put("type", "thumbnail")))
 			.put("edges", new JsonArray()
-				.add(new JsonObject().put("source", "src").put("target", "hash"))
-				.add(new JsonObject().put("source", "hash").put("target", "thumb")));
+				.add(new JsonObject().put("source", "src").put("sourcePort", "media").put("target", "hash").put("targetPort", "media"))
+				.add(new JsonObject().put("source", "hash").put("sourcePort", "hash").put("target", "thumb").put("targetPort", "media")));
 		return parser.parse("linear", definition, true, false, 0);
 	}
 
@@ -51,7 +55,7 @@ public class PipelineRunEngineCancelTest {
 		return MediaRef.of(path);
 	}
 
-	private static NodeTaskResult ok(NodeTask task, Map<String, Object> outputs) {
+	private static NodeTaskResult ok(NodeTask task, Map<String, PortPayload> outputs) {
 		return NodeTaskResult.completed(task.getTaskUuid(), task.getNodeId(), 5, outputs);
 	}
 
@@ -72,7 +76,7 @@ public class PipelineRunEngineCancelTest {
 
 		// A late result for the in-flight 'hash' still settles bookkeeping, but must not
 		// dispatch 'thumb' downstream.
-		engine.onNodeTaskResult(item, ok(dispatcher.taskFor("hash"), Map.of("sha512", "abc")));
+		engine.onNodeTaskResult(item, ok(dispatcher.taskFor("hash"), outputs("hash", HASH_SHA512, "abc")));
 		assertFalse(dispatcher.wasDispatched("thumb"),
 			"Cancel must stop new dispatch: a late in-flight result cannot unblock downstream work");
 		assertEquals(List.of("hash"), dispatcher.dispatchedNodeIds());
@@ -91,7 +95,7 @@ public class PipelineRunEngineCancelTest {
 		String item = engine.onItemDiscovered(media("/media/a.mp4"));
 		engine.cancel();
 		// Late result after cancel must not trigger a completion either.
-		engine.onNodeTaskResult(item, ok(dispatcher.taskFor("hash"), Map.of("sha512", "abc")));
+		engine.onNodeTaskResult(item, ok(dispatcher.taskFor("hash"), outputs("hash", HASH_SHA512, "abc")));
 
 		assertNull(summary.get(), "Cancel must not fire completion listeners");
 	}
@@ -119,7 +123,7 @@ public class PipelineRunEngineCancelTest {
 		engine.start();
 		String item = engine.onItemDiscovered(media("/media/a.mp4"));
 		engine.onSourceComplete(1);
-		engine.onNodeTaskResult(item, ok(dispatcher.taskFor("hash"), Map.of("sha512", "abc")));
+		engine.onNodeTaskResult(item, ok(dispatcher.taskFor("hash"), outputs("hash", HASH_SHA512, "abc")));
 		engine.onNodeTaskResult(item, ok(dispatcher.taskFor("thumb"), Map.of()));
 		assertTrue(engine.isComplete());
 		assertEquals(1, completions.get());
@@ -177,7 +181,7 @@ public class PipelineRunEngineCancelTest {
 		engine.start();
 		String item = engine.onItemDiscovered(media("/media/a.mp4"));
 		engine.cancel();
-		engine.onNodeTaskResult(item, ok(dispatcher.taskFor("hash"), Map.of("sha512", "abc")));
+		engine.onNodeTaskResult(item, ok(dispatcher.taskFor("hash"), outputs("hash", HASH_SHA512, "abc")));
 
 		assertEquals(NodeState.COMPLETED, engine.getItem(item).getResults().get("hash").getState(),
 			"A late in-flight result still settles its own node's bookkeeping");

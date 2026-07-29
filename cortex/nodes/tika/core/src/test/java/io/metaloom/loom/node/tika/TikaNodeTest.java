@@ -24,7 +24,7 @@ public class TikaNodeTest extends AbstractMediaTest {
 		LoomMedia media = mediaVideo1();
 		NodeResult result = node.process(media);
 		assertThat(result).isSuccess();
-		assertThat(result).hasOutput(TikaNode.OUTPUT_TIKA_FLAGS);
+		assertThat(result).hasOutput(TikaNode.OUT_FLAGS);
 	}
 
 	public TikaNode mockNode() throws LoomClientException {

@@ -21,7 +21,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * nothing survives between tasks. As one segment it opens the file once and keeps
  * intermediate results in the worker's memory.</p>
  *
- * <p>{@code upstreamOutputs} carries only what comes from <em>outside</em> the
+ * <p>{@code inputs} carries only what comes from <em>outside</em> the
  * segment. Dependencies between nodes inside it are satisfied locally and never
  * cross the network — which is the saving.</p>
  */
@@ -34,14 +34,14 @@ public class SegmentTask {
 	private final String affinity;
 	private final MediaRef media;
 	private final List<SegmentNode> nodes;
-	private final Map<String, Map<String, Object>> upstreamOutputs;
+	private final Map<String, PortPayload> inputs;
 
 	@JsonCreator
 	public SegmentTask(@JsonProperty("taskUuid") UUID taskUuid, @JsonProperty("runUuid") UUID runUuid,
 		@JsonProperty("itemId") String itemId, @JsonProperty("segmentId") String segmentId,
 		@JsonProperty("affinity") String affinity, @JsonProperty("media") MediaRef media,
 		@JsonProperty("nodes") List<SegmentNode> nodes,
-		@JsonProperty("upstreamOutputs") Map<String, Map<String, Object>> upstreamOutputs) {
+		@JsonProperty("inputs") Map<String, PortPayload> inputs) {
 		this.taskUuid = Objects.requireNonNull(taskUuid, "A task uuid must be set");
 		this.runUuid = runUuid;
 		this.itemId = Objects.requireNonNull(itemId, "An item id must be set");
@@ -49,9 +49,9 @@ public class SegmentTask {
 		this.affinity = affinity;
 		this.media = Objects.requireNonNull(media, "A media reference must be set");
 		this.nodes = nodes == null ? List.of() : List.copyOf(nodes);
-		this.upstreamOutputs = upstreamOutputs == null
+		this.inputs = inputs == null
 			? Map.of()
-			: Collections.unmodifiableMap(new LinkedHashMap<>(upstreamOutputs));
+			: Collections.unmodifiableMap(new LinkedHashMap<>(inputs));
 	}
 
 	public UUID getTaskUuid() {
@@ -84,8 +84,8 @@ public class SegmentTask {
 	}
 
 	/** @return outputs of dependencies outside this segment */
-	public Map<String, Map<String, Object>> getUpstreamOutputs() {
-		return upstreamOutputs;
+	public Map<String, PortPayload> getInputs() {
+		return inputs;
 	}
 
 	/**

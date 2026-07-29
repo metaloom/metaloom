@@ -10,9 +10,14 @@ import org.junit.jupiter.api.BeforeEach;
 
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.FilesystemNode;
-import io.metaloom.cortex.pipeline.api.NodeMode;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
+import io.metaloom.cortex.api.node.PortOutput;
 import io.metaloom.cortex.api.node.ResultState;
+import io.metaloom.cortex.pipeline.api.NodeMode;
+import io.metaloom.loom.pipeline.model.Origin;
+import io.metaloom.loom.pipeline.model.PortPayload;
 import io.metaloom.cortex.pipeline.api.PipelineResult;
 import io.metaloom.cortex.pipeline.api.event.NodeCompletionEvent;
 import io.metaloom.cortex.pipeline.api.event.PipelineTrackingEvent;
@@ -33,6 +38,12 @@ import io.metaloom.cortex.pipeline.core.node.CortexNodeAdapter;
  * offers a node, without pulling in scheduling, concurrency or branch routing.
  * Ordering, skip semantics, filter branches and dry-run <em>dispatch</em> behaviour
  * are covered by {@code PipelineRunEngineTest} on the Loom side.</p>
+ *
+ * <p>⚠️ There are no edges in this harness, so a node's input port is filled from
+ * whatever earlier node emitted an <em>output port of the same id</em>. The real
+ * engine resolves inputs from the wired graph and does not work this way; a test
+ * whose producer and consumer port ids differ has to build its
+ * {@link NodeInputs} explicitly instead of relying on the chain.</p>
  *
  * <p>The assertion surface is unchanged from the old harness - {@code execute(...)},
  * {@code adapt(...)}, {@code assertCompletionEvent(...)} and
@@ -135,15 +146,17 @@ public abstract class AbstractNodeChainTest {
 		Map<String, NodeResult> results = new LinkedHashMap<>(chainResult.getNodeResults());
 
 		NodeResult filterResult = results.get(filterId);
-		boolean passed = filterResult != null
-			&& Boolean.TRUE.equals(filterResult.getOutput(PipelineNode.FILTER_PASSED));
+		boolean passed = filterResult != null && Boolean.TRUE.equals(filterResult.get(FILTER_VERDICT));
 
 		PipelineNode taken = passed ? passNode : rejectNode;
 		PipelineNode notTaken = passed ? rejectNode : passNode;
 
+		Map<String, PortPayload> available = new LinkedHashMap<>();
+		results.values().forEach(result -> collectPorts(result, available));
+
 		NodeResult takenResult;
 		try {
-			takenResult = taken.process(media, Map.copyOf(results));
+			takenResult = taken.process(media, inputs(available));
 		} catch (Exception e) {
 			takenResult = NodeResult.failed(taken.id(), 0, String.valueOf(e));
 		}
@@ -161,6 +174,7 @@ public abstract class AbstractNodeChainTest {
 	private PipelineResult run(String pipelineName, LoomMedia media, boolean dryRun, PipelineNode... nodes) {
 		long start = System.currentTimeMillis();
 		Map<String, NodeResult> results = new LinkedHashMap<>();
+		Map<String, PortPayload> available = new LinkedHashMap<>();
 
 		// The source node's result is synthesised by the engine rather than executed,
 		// so a node test sees the same starting state a real run would produce. It
@@ -168,8 +182,10 @@ public abstract class AbstractNodeChainTest {
 		// completed just like any other node.
 		NodeResult sourceResult = dryRun
 			? NodeResult.skipped(SOURCE_NODE_ID, "dry-run")
-			: NodeResult.success(SOURCE_NODE_ID, 0, Map.of("path", media.absolutePath(), "source", "asset"));
+			: NodeResult.success(SOURCE_NODE_ID, 0,
+				Map.of(SOURCE_MEDIA.id(), PortOutput.one(SOURCE_MEDIA, media.absolutePath())));
 		results.put(SOURCE_NODE_ID, sourceResult);
+		collectPorts(sourceResult, available);
 		eventBus.publish(new NodeCompletionEvent(SOURCE_NODE_ID, media, sourceResult));
 		emitTracking(trackingTypeFor(sourceResult.getState()), pipelineName, SOURCE_NODE_ID, media);
 
@@ -181,7 +197,7 @@ public abstract class AbstractNodeChainTest {
 				emitTracking(PipelineTrackingEvent.Type.NODE_STARTED, pipelineName, node.id(), media);
 				long nodeStart = System.currentTimeMillis();
 				try {
-					result = node.process(media, Map.copyOf(results));
+					result = node.process(media, inputs(available));
 					if (result == null) {
 						result = NodeResult.failed(node.id(), System.currentTimeMillis() - nodeStart,
 							"Node returned no result");
@@ -192,6 +208,7 @@ public abstract class AbstractNodeChainTest {
 			}
 
 			results.put(node.id(), result);
+			collectPorts(result, available);
 			eventBus.publish(new NodeCompletionEvent(node.id(), media, result));
 			emitTracking(trackingTypeFor(result.getState()), pipelineName, node.id(), media);
 		}
@@ -201,6 +218,31 @@ public abstract class AbstractNodeChainTest {
 
 	/** Node id the synthesised source result is recorded under. */
 	protected static final String SOURCE_NODE_ID = "asset-source";
+
+	/** The item id every element in this harness descends from. */
+	protected static final String ITEM_ID = "test-item";
+
+	/** What the synthesised source emits, matching every source descriptor. */
+	protected static final OutputPort<String> SOURCE_MEDIA =
+		OutputPort.one("media", io.metaloom.loom.nodes.spec.ContentTypeRegistry.MEDIA_ANY, String.class);
+
+	/** The verdict port every filter emits; used here only to reproduce branch routing. */
+	protected static final OutputPort<Boolean> FILTER_VERDICT =
+		OutputPort.one(PipelineNode.FILTER_PASSED, io.metaloom.loom.nodes.spec.ContentTypeRegistry.CONTROL_FILTER, Boolean.class);
+
+	/** Fold a node's outputs into what the next node can read, keyed by port id. */
+	private static void collectPorts(NodeResult result, Map<String, PortPayload> available) {
+		result.getOutputs().forEach((portId, output) -> {
+			PortPayload payload = output.toPayload(ITEM_ID, 0);
+			if (payload != null) {
+				available.put(portId, payload);
+			}
+		});
+	}
+
+	private static NodeInputs inputs(Map<String, PortPayload> available) {
+		return new NodeInputs(Map.copyOf(available), java.util.Set.of(), Origin.single(ITEM_ID));
+	}
 
 	private void emitTracking(PipelineTrackingEvent.Type type, String pipelineName, String nodeId, LoomMedia media) {
 		eventBus.publishTracking(new PipelineTrackingEvent(type, pipelineName, nodeId, media.absolutePath()));

@@ -22,6 +22,7 @@ import io.metaloom.loom.pipeline.model.MediaRef;
 import io.metaloom.loom.pipeline.model.NodeState;
 import io.metaloom.loom.pipeline.model.NodeTask;
 import io.metaloom.loom.pipeline.model.NodeTaskResult;
+import io.metaloom.loom.pipeline.engine.PortPayloads;
 import io.vertx.core.json.JsonObject;
 
 /**
@@ -127,6 +128,7 @@ public class DaoRunStateStore implements RunStateStore {
 		row.setState(workerId == null ? "PENDING" : "RUNNING");
 		row.setLeasedBy(workerId);
 		row.setAttempt(1);
+		row.setElementSeq(task.getElementSeq());
 		Instant now = Instant.now();
 		row.setStarted(now);
 		if (workerId != null) {
@@ -135,7 +137,7 @@ public class DaoRunStateStore implements RunStateStore {
 			row.setLeaseExpiresAt(now.plusMillis(DEFAULT_LEASE_MS));
 		}
 
-		pendingTasks.put(key(itemUuid, task.getNodeId()), row);
+		pendingTasks.put(key(itemUuid, task.getNodeId(), task.getElementSeq()), row);
 		flushIfFull();
 	}
 
@@ -144,7 +146,7 @@ public class DaoRunStateStore implements RunStateStore {
 		if (itemUuid == null) {
 			return;
 		}
-		String key = key(itemUuid, result.getNodeId());
+		String key = key(itemUuid, result.getNodeId(), result.getElementSeq());
 		PipelineNodeTask row = pendingTasks.get(key);
 
 		if (row == null) {
@@ -165,6 +167,7 @@ public class DaoRunStateStore implements RunStateStore {
 			row = taskDao.createNodeTask(userUuid, itemUuid, runUuid, result.getNodeId(), "skipped");
 			row.setUuid(result.getTaskUuid() != null ? result.getTaskUuid() : UUID.randomUUID());
 			row.setAttempt(0);
+			row.setElementSeq(result.getElementSeq());
 			pendingTasks.put(key, row);
 		}
 
@@ -176,7 +179,7 @@ public class DaoRunStateStore implements RunStateStore {
 		row.setErrorMessage(result.getMessage());
 		row.setFinished(Instant.now());
 		if (!result.getOutputs().isEmpty()) {
-			row.setOutputs(new JsonObject(result.getOutputs()));
+			row.setOutputs(PortPayloads.encode(result.getOutputs()));
 		}
 		flushIfFull();
 	}
@@ -215,7 +218,7 @@ public class DaoRunStateStore implements RunStateStore {
 				return java.util.Optional.empty();
 			}
 
-			PipelineNodeTask task = taskDao.loadByItemAndNode(previous.getUuid(), nodeId);
+			PipelineNodeTask task = taskDao.loadByItemAndNode(previous.getUuid(), nodeId, 0);
 			if (task == null || !"COMPLETED".equals(task.getState())) {
 				// Only a success is worth adopting. Reusing a failure would make an
 				// outage permanent, and reusing a skip would carry no outputs anyway.
@@ -226,7 +229,7 @@ public class DaoRunStateStore implements RunStateStore {
 				return java.util.Optional.empty();
 			}
 			return java.util.Optional.of(NodeTaskResult.completed(null, nodeId,
-				task.getDurationMs() == null ? 0 : task.getDurationMs(), outputs.getMap()));
+				task.getDurationMs() == null ? 0 : task.getDurationMs(), PortPayloads.decode(outputs)));
 		} catch (Exception e) {
 			// Reuse is an optimisation; never let it break a run.
 			log.error("Failed to look up a previous result for '{}' on {}", nodeId, media.getPath(), e);
@@ -287,7 +290,7 @@ public class DaoRunStateStore implements RunStateStore {
 	 */
 	private boolean updateSettledTask(UUID itemUuid, NodeTaskResult result) {
 		try {
-			PipelineNodeTask stored = taskDao.loadByItemAndNode(itemUuid, result.getNodeId());
+			PipelineNodeTask stored = taskDao.loadByItemAndNode(itemUuid, result.getNodeId(), result.getElementSeq());
 			if (stored == null) {
 				return false;
 			}
@@ -297,7 +300,7 @@ public class DaoRunStateStore implements RunStateStore {
 			stored.setErrorMessage(result.getMessage());
 			stored.setFinished(Instant.now());
 			if (!result.getOutputs().isEmpty()) {
-				stored.setOutputs(new JsonObject(result.getOutputs()));
+				stored.setOutputs(PortPayloads.encode(result.getOutputs()));
 			}
 			taskDao.update(stored);
 			return true;
@@ -313,8 +316,8 @@ public class DaoRunStateStore implements RunStateStore {
 		}
 	}
 
-	private static String key(UUID itemUuid, String nodeId) {
-		return itemUuid + "/" + nodeId;
+	private static String key(UUID itemUuid, String nodeId, int elementSeq) {
+		return itemUuid + "/" + nodeId + "#" + elementSeq;
 	}
 
 	/**

@@ -36,8 +36,8 @@ public class PipelineGraphParserTest {
 				.add(new JsonObject().put("id", "pn2").put("type", "filter-mimetype"))
 				.add(new JsonObject().put("id", "pn3").put("type", "sha256")))
 			.put("edges", new JsonArray()
-				.add(new JsonObject().put("id", "pe1").put("source", "pn1").put("target", "pn2"))
-				.add(new JsonObject().put("id", "pe2").put("source", "pn2").put("target", "pn3")));
+				.add(new JsonObject().put("id", "pe1").put("source", "pn1").put("sourcePort", "media").put("target", "pn2").put("targetPort", "media"))
+				.add(new JsonObject().put("id", "pe2").put("source", "pn2").put("sourcePort", "passed").put("target", "pn3").put("targetPort", "media")));
 	}
 
 	@Test
@@ -62,9 +62,9 @@ public class PipelineGraphParserTest {
 				.add(new JsonObject().put("id", "keep").put("type", "sha256"))
 				.add(new JsonObject().put("id", "drop").put("type", "md5")))
 			.put("edges", new JsonArray()
-				.add(new JsonObject().put("source", "src").put("target", "flt"))
-				.add(new JsonObject().put("source", "flt").put("target", "keep").put("branch", "PASS"))
-				.add(new JsonObject().put("source", "flt").put("target", "drop").put("branch", "REJECT")));
+				.add(new JsonObject().put("source", "src").put("sourcePort", "media").put("target", "flt").put("targetPort", "media"))
+				.add(new JsonObject().put("source", "flt").put("sourcePort", "passed").put("target", "keep").put("targetPort", "media").put("branch", "PASS"))
+				.add(new JsonObject().put("source", "flt").put("sourcePort", "passed").put("target", "drop").put("targetPort", "media").put("branch", "REJECT")));
 
 		PipelineGraph graph = parser.parse("branching", definition, true, false, 0);
 
@@ -75,22 +75,27 @@ public class PipelineGraphParserTest {
 	}
 
 	@Test
-	void testInlineDependenciesStillParseAsFallback() {
-		// The older Cortex serde shape must keep loading.
+	void testTheLegacyInlineDependencyShapeIsRejected() {
+		// nodes[].dependencies[] cannot say which ports an edge joins, so a definition in that shape
+		// can never be type-checked. Accepting it would mean a graph that saves unvalidated and
+		// fails at run time; the error has to name the real problem instead.
 		JsonObject definition = new JsonObject()
 			.put("nodes", new JsonArray()
 				.add(new JsonObject().put("id", "src").put("type", "filesystem-source").put("source", true))
 				.add(new JsonObject().put("id", "hash").put("type", "sha512")
 					.put("dependencies", new JsonArray().add("src"))));
 
-		PipelineGraph graph = parser.parse("legacy", definition, true, false, 0);
-
-		assertEquals(2, graph.size());
-		assertEquals(List.of("src"), graph.getNode("hash").getDependencies());
+		GraphValidationException e = assertThrows(GraphValidationException.class,
+			() -> parser.parse("legacy", definition, true, false, 0));
+		assertTrue(e.getMessage().contains("port-to-port"),
+			"The error should explain that edges now carry ports, not merely that something is missing: " + e.getMessage());
 	}
 
 	@Test
-	void testEdgesWinOverInlineDependencies() {
+	void testAStaleInlineDependencyIsRejectedEvenAlongsideEdges() {
+		// Silently preferring edges[] and ignoring the leftover key is exactly the failure mode this
+		// parser exists to prevent: two shapes describing the graph, one of them quietly unread.
+		// A definition carrying both was written against the old model, so say so.
 		JsonObject definition = new JsonObject()
 			.put("nodes", new JsonArray()
 				.add(new JsonObject().put("id", "src").put("type", "filesystem-source").put("source", true))
@@ -98,13 +103,13 @@ public class PipelineGraphParserTest {
 				.add(new JsonObject().put("id", "b").put("type", "md5")
 					.put("dependencies", new JsonArray().add("src"))))
 			.put("edges", new JsonArray()
-				.add(new JsonObject().put("source", "src").put("target", "a"))
-				.add(new JsonObject().put("source", "a").put("target", "b")));
+				.add(new JsonObject().put("source", "src").put("sourcePort", "media").put("target", "a").put("targetPort", "media"))
+				.add(new JsonObject().put("source", "a").put("sourcePort", "hash").put("target", "b").put("targetPort", "media")));
 
-		PipelineGraph graph = parser.parse("mixed", definition, true, false, 0);
-
-		assertEquals(List.of("a"), graph.getNode("b").getDependencies(),
-			"When edges[] is present it is authoritative; the stale inline dependency must not apply");
+		GraphValidationException e = assertThrows(GraphValidationException.class,
+			() -> parser.parse("mixed", definition, true, false, 0));
+		assertTrue(e.getMessage().contains("no longer read"),
+			"The error should name the stale dependencies[] key: " + e.getMessage());
 	}
 
 	@Test
@@ -139,12 +144,52 @@ public class PipelineGraphParserTest {
 				.add(new JsonObject().put("id", "a").put("type", "sha256").put("source", true))
 				.add(new JsonObject().put("id", "b").put("type", "md5")))
 			.put("edges", new JsonArray()
-				.add(new JsonObject().put("source", "a").put("target", "b"))
-				.add(new JsonObject().put("source", "b").put("target", "a")));
+				.add(new JsonObject().put("source", "a").put("sourcePort", "hash").put("target", "b").put("targetPort", "media"))
+				.add(new JsonObject().put("source", "b").put("sourcePort", "hash").put("target", "a").put("targetPort", "media")));
 
 		GraphValidationException e = assertThrows(GraphValidationException.class,
 			() -> parser.parse("cyclic", definition, true, false, 0));
 		assertTrue(e.getMessage().contains("cycle"), "Message should name the problem: " + e.getMessage());
+	}
+
+	@Test
+	void testAnEdgeWithoutPortsIsRejected() {
+		// There is no positional fallback: an edge that does not name its ports cannot be
+		// resolved to an input, and guessing is how a graph silently feeds a node nothing.
+		JsonObject definition = new JsonObject()
+			.put("nodes", new JsonArray()
+				.add(new JsonObject().put("id", "src").put("type", "filesystem-source").put("source", true))
+				.add(new JsonObject().put("id", "hash").put("type", "sha256")))
+			.put("edges", new JsonArray()
+				.add(new JsonObject().put("source", "src").put("target", "hash")));
+
+		GraphValidationException e = assertThrows(GraphValidationException.class,
+			() -> parser.parse("portless", definition, true, false, 0));
+		assertTrue(e.getMessage().contains("sourcePort"), e.getMessage());
+	}
+
+	@Test
+	void testTwoEdgesBetweenTheSameNodesOnDifferentPortsBothSurvive() {
+		// The dedupe key used to be the node pair alone, which made these two
+		// indistinguishable and silently dropped one of them.
+		JsonObject definition = new JsonObject()
+			.put("nodes", new JsonArray()
+				.add(new JsonObject().put("id", "src").put("type", "filesystem-source").put("source", true))
+				.add(new JsonObject().put("id", "face").put("type", "facedetect"))
+				.add(new JsonObject().put("id", "layout").put("type", "scene-layout")))
+			.put("edges", new JsonArray()
+				.add(new JsonObject().put("source", "src").put("sourcePort", "media")
+					.put("target", "face").put("targetPort", "image"))
+				.add(new JsonObject().put("source", "face").put("sourcePort", "detections")
+					.put("target", "layout").put("targetPort", "detections"))
+				.add(new JsonObject().put("source", "face").put("sourcePort", "face_count")
+					.put("target", "layout").put("targetPort", "depth")));
+
+		PipelineGraph graph = parser.parse("ports", definition, true, false, 0);
+
+		assertEquals(2, graph.getNode("layout").getInputBindings().size());
+		assertEquals(List.of("face"), graph.getNode("layout").getDependencies(),
+			"Two ports fed by one node are still a single scheduling dependency");
 	}
 
 	@Test
@@ -178,7 +223,7 @@ public class PipelineGraphParserTest {
 			.put("nodes", new JsonArray()
 				.add(new JsonObject().put("id", "src").put("type", "filesystem-source").put("source", true)))
 			.put("edges", new JsonArray()
-				.add(new JsonObject().put("source", "src").put("target", "ghost")));
+				.add(new JsonObject().put("source", "src").put("sourcePort", "media").put("target", "ghost").put("targetPort", "media")));
 
 		GraphValidationException e = assertThrows(GraphValidationException.class,
 			() -> parser.parse("dangling", definition, true, false, 0));
@@ -207,14 +252,14 @@ public class PipelineGraphParserTest {
 		JsonObject definition = new JsonObject()
 			.put("nodes", new JsonArray()
 				.add(new JsonObject().put("id", "src").put("type", "filesystem-source").put("source", true))
-				.add(new JsonObject().put("id", "left").put("type", "sha256"))
-				.add(new JsonObject().put("id", "right").put("type", "md5"))
-				.add(new JsonObject().put("id", "join").put("type", "thumbnail")))
+				.add(new JsonObject().put("id", "left").put("type", "depthmap"))
+				.add(new JsonObject().put("id", "right").put("type", "facedetect"))
+				.add(new JsonObject().put("id", "join").put("type", "scene-layout")))
 			.put("edges", new JsonArray()
-				.add(new JsonObject().put("source", "src").put("target", "left"))
-				.add(new JsonObject().put("source", "src").put("target", "right"))
-				.add(new JsonObject().put("source", "left").put("target", "join"))
-				.add(new JsonObject().put("source", "right").put("target", "join")));
+				.add(new JsonObject().put("source", "src").put("sourcePort", "media").put("target", "left").put("targetPort", "media"))
+				.add(new JsonObject().put("source", "src").put("sourcePort", "media").put("target", "right").put("targetPort", "image"))
+				.add(new JsonObject().put("source", "left").put("sourcePort", "meta").put("target", "join").put("targetPort", "depth"))
+				.add(new JsonObject().put("source", "right").put("sourcePort", "detections").put("target", "join").put("targetPort", "detections")));
 
 		List<String> order = parser.parse("diamond", definition, true, false, 0).getTopologicalOrder();
 

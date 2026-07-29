@@ -1,9 +1,10 @@
 package io.metaloom.loom.nodes.spec;
 
-import static io.metaloom.loom.nodes.spec.ContentTypes.*;
+import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.*;
 import static io.metaloom.loom.nodes.spec.NodeCategory.*;
 import static io.metaloom.loom.nodes.spec.NodeMode.*;
 import static io.metaloom.loom.nodes.spec.ParameterType.*;
+import static io.metaloom.loom.nodes.spec.PortSpec.one;
 
 import java.util.List;
 
@@ -24,8 +25,12 @@ public class OcrDescriptorProvider implements NodeDescriptorProvider {
 				.setDescription("Extract text from images using optical character recognition.")
 				.setIcon("text_fields")
 				.setCategory(ANALYSIS)
-				.setInputs(List.of(new NodeInput("media", MEDIA_IMAGE, true)))
-				.setOutputs(List.of(new NodeOutput("ocr_text", DATA_TEXT)))
+				.setInputPorts(List.of(
+					one("media", MEDIA_IMAGE)
+						.describedAs("Image", "The page or frame to read characters from")))
+				.setOutputPorts(List.of(
+					one("text", TEXT_PLAIN)
+						.describedAs("Text", "Everything the OCR engine recognised, in reading order")))
 				.setParameters(List.of(commonEnabled(), commonProcessIncomplete(), commonRetryFailed()))
 				.setDefaultConcurrency(2)
 				.setDefaultMode(PARALLEL)

@@ -19,16 +19,16 @@ import io.metaloom.cortex.api.media.LoomMedia;
 public class ScriptBindings {
 
 	private final Map<String, Object> media;
-	private final Map<String, Map<String, Object>> upstream;
+	private final Map<String, Object> data;
 	private final Map<String, Object> params;
 	private final ScriptOutputCollector out;
 	private final ScriptLogger log;
 	private final ScriptLimits limits;
 
-	public ScriptBindings(LoomMedia media, Map<String, Map<String, Object>> upstream, Map<String, Object> params,
+	public ScriptBindings(LoomMedia media, Map<String, Object> data, Map<String, Object> params,
 		ScriptOutputCollector out, ScriptLogger log, ScriptLimits limits) {
 		this.media = snapshot(media);
-		this.upstream = upstream == null ? Map.of() : upstream;
+		this.data = data == null ? Map.of() : data;
 		this.params = params == null ? Map.of() : params;
 		this.out = out;
 		this.log = log;
@@ -73,9 +73,18 @@ public class ScriptBindings {
 		return Collections.unmodifiableMap(media);
 	}
 
-	/** Outputs of upstream nodes, keyed by node id then output key. */
-	public Map<String, Map<String, Object>> upstream() {
-		return upstream;
+	/**
+	 * The structured payload wired into the node's {@code data} input port.
+	 *
+	 * <p>
+	 * This replaces the former {@code upstream} binding, a map keyed by upstream node id: a script
+	 * reading {@code upstream['whisper']['whisper_result']} broke the moment the pipeline author
+	 * renamed that node, and there was no way for it to find out. Now the <em>edge</em> decides
+	 * what lands here.
+	 * </p>
+	 */
+	public Map<String, Object> data() {
+		return data;
 	}
 
 	/** The node's free-form parameter bag. */

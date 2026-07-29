@@ -61,8 +61,8 @@ class ThumbnailNodePipelineTest extends AbstractNodeChainTest {
 		// Stub the compute method to avoid native Video4j calls
 		doAnswer(invocation -> {
 			NodeContext<LoomMedia> ctx = invocation.getArgument(0);
-			ctx.output(ThumbnailNode.OUTPUT_THUMBNAIL_FLAG, "DONE");
-			ctx.output(ThumbnailNode.OUTPUT_THUMBNAIL_PATH, FAKE_THUMBNAIL_PATH);
+			ctx.output(ThumbnailNode.OUT_FLAG, "DONE");
+			ctx.output(ThumbnailNode.OUT_THUMBNAIL, FAKE_THUMBNAIL_PATH);
 			return ctx.origin(ResultOrigin.COMPUTED).next();
 		}).when(node).compute(any(), any());
 
@@ -82,8 +82,8 @@ class ThumbnailNodePipelineTest extends AbstractNodeChainTest {
 		assertThat(result)
 				.isSuccess()
 				.hasCompletedNode("thumbnail")
-				.hasNodeOutput("thumbnail", "thumbnail_flag", "DONE")
-				.hasNodeOutput("thumbnail", "thumbnail_path", FAKE_THUMBNAIL_PATH);
+				.hasNodeOutput("thumbnail", ThumbnailNode.OUT_FLAG, "DONE")
+				.hasNodeOutput("thumbnail", ThumbnailNode.OUT_THUMBNAIL, FAKE_THUMBNAIL_PATH);
 	}
 
 	@Test
@@ -94,8 +94,8 @@ class ThumbnailNodePipelineTest extends AbstractNodeChainTest {
 
 		assertThat(result).node("thumbnail")
 				.isCompleted()
-				.hasOutput("thumbnail_flag", "DONE")
-				.hasOutput("thumbnail_path", FAKE_THUMBNAIL_PATH)
+				.hasOutput(ThumbnailNode.OUT_FLAG, "DONE")
+				.hasOutput(ThumbnailNode.OUT_THUMBNAIL, FAKE_THUMBNAIL_PATH)
 				.hasOutputCount(2);
 	}
 
@@ -130,7 +130,7 @@ class ThumbnailNodePipelineTest extends AbstractNodeChainTest {
 	@Test
 	void testOutputChaining() throws Exception {
 		CortexNodeAdapter thumbAdapter = createAdapter();
-		CapturingNode consumer = new CapturingNode("consumer", "thumbnail", "thumbnail_path");
+		CapturingNode consumer = new CapturingNode("consumer", ThumbnailNode.OUT_THUMBNAIL);
 
 		PipelineResult result = execute(videoMedia, thumbAdapter, consumer);
 

@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+import io.metaloom.cortex.api.node.OutputPort;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
@@ -21,8 +22,23 @@ import io.vertx.core.json.JsonObject;
 public record ScriptOutputSpec(String key, ScriptValueType type, String segmentType) {
 
 	/**
-	 * Output keys share the shape of every other node's output keys, so that a downstream node
-	 * reading {@code ctx.upstreamOutput(nodeId, key)} sees nothing unusual.
+	 * The output port this declaration becomes.
+	 *
+	 * <p>
+	 * The value type is {@code Object} because a script's values are only known by their declared
+	 * {@code ScriptValueType}; the content type is what actually constrains them, and the boundary
+	 * coercer enforces it.
+	 * </p>
+	 */
+	public OutputPort<Object> port() {
+		return type.isList()
+			? OutputPort.many(key, type.contentType(), Object.class)
+			: OutputPort.one(key, type.contentType(), Object.class);
+	}
+
+	/**
+	 * Output keys are port ids, so they share the shape every other port id has - the editor draws
+	 * a handle for each and an edge references it by name.
 	 */
 	public static final Pattern KEY_PATTERN = Pattern.compile("^[a-z0-9][a-z0-9_]{0,62}$");
 

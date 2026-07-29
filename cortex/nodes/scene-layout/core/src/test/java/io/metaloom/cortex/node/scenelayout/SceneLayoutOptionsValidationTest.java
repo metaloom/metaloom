@@ -2,8 +2,6 @@ package io.metaloom.cortex.node.scenelayout;
 
 import static io.metaloom.cortex.node.scenelayout.assertj.SceneLayoutNodeAssertions.assertThat;
 
-import java.util.List;
-
 import org.junit.jupiter.api.Test;
 
 /**
@@ -15,20 +13,8 @@ class SceneLayoutOptionsValidationTest {
 	void testDefaultsAreValid() {
 		assertThat(new SceneLayoutNodeOptions())
 			.isValid()
-			.hasDepthNodeId("depthmap")
-			.hasDetectionSources("facedetect")
 			.hasCoreInset(0.25)
 			.hasDepthZThreshold(1.0);
-	}
-
-	@Test
-	void testBlankDepthNodeIdIsRejected() {
-		assertThat(new SceneLayoutNodeOptions().setDepthNodeId(" ")).isInvalidBecauseOf("depthNodeId");
-	}
-
-	@Test
-	void testEmptyDetectionSourcesAreRejected() {
-		assertThat(new SceneLayoutNodeOptions().setDetectionSources(List.of())).isInvalidBecauseOf("detectionSources");
 	}
 
 	@Test

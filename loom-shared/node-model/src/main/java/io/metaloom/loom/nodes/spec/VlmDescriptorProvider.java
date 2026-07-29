@@ -1,14 +1,21 @@
 package io.metaloom.loom.nodes.spec;
 
-import static io.metaloom.loom.nodes.spec.ContentTypes.*;
+import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.*;
 import static io.metaloom.loom.nodes.spec.NodeCategory.*;
 import static io.metaloom.loom.nodes.spec.NodeMode.*;
 import static io.metaloom.loom.nodes.spec.ParameterType.*;
+import static io.metaloom.loom.nodes.spec.PortSpec.one;
 
 import java.util.List;
 
 /**
  * Provides the node descriptor for the VLM (vision-language model) node.
+ *
+ * <p>
+ * The output side is <strong>dynamic</strong>: the node emits one result per configured prompt, so
+ * {@link VlmPortResolver} derives the ports from the {@code prompts} option
+ * rather than the descriptor declaring a single fixed result key the node never actually writes.
+ * </p>
  */
 public class VlmDescriptorProvider implements NodeDescriptorProvider {
 
@@ -25,8 +32,11 @@ public class VlmDescriptorProvider implements NodeDescriptorProvider {
 					+ "Ships an olmOCR preset for transcribing document pages.")
 				.setIcon("image_search")
 				.setCategory(ANALYSIS)
-				.setInputs(List.of(new NodeInput("media", MEDIA_IMAGE, true)))
-				.setOutputs(List.of(new NodeOutput("vlm_result", DATA_TEXT)))
+				.setInputPorts(List.of(
+					one("media", MEDIA_IMAGE)
+						.describedAs("Image", "The page or frame the configured prompts are asked about")))
+				.setOutputPorts(List.of())
+				.setDynamicPorts(true)
 				.setParameters(List.of(
 					commonEnabled(), commonProcessIncomplete(), commonRetryFailed(),
 					new NodeParameter().setKey("endpointUrl").setType(STRING)

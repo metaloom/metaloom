@@ -2,9 +2,6 @@ package io.metaloom.cortex.node.color;
 
 import static io.metaloom.cortex.node.color.assertj.DominantColorNodeAssertions.assertThat;
 
-import java.util.Arrays;
-import java.util.List;
-
 import org.junit.jupiter.api.Test;
 
 public class DominantColorOptionsValidationTest {
@@ -19,8 +16,7 @@ public class DominantColorOptionsValidationTest {
 			.hasMaxSamples(40_000)
 			.hasSeed(42L)
 			.hasAlphaThreshold(128)
-			.hasAchromaticChroma(12.0d)
-			.hasDetectionSources("facedetect");
+			.hasAchromaticChroma(12.0d);
 
 		assertThat(options.isEnabled()).isTrue();
 		assertThat(options.getMaxIterations()).isEqualTo(30);
@@ -55,16 +51,6 @@ public class DominantColorOptionsValidationTest {
 		assertInvalid(new DominantColorNodeOptions().setAlphaThreshold(256), "alphaThreshold");
 		assertThat(new DominantColorNodeOptions().setAlphaThreshold(0).validate().isValid()).isTrue();
 		assertThat(new DominantColorNodeOptions().setAlphaThreshold(255).validate().isValid()).isTrue();
-	}
-
-	@Test
-	public void testDetectionSourcesMustBeUsableWhenDetectionsAreEnabled() {
-		assertInvalid(new DominantColorNodeOptions().setDetectionSources(List.of()), "detectionSources");
-		assertInvalid(new DominantColorNodeOptions().setDetectionSources(Arrays.asList("facedetect", " ")), "detectionSources");
-
-		// With detections switched off the list is irrelevant.
-		assertThat(new DominantColorNodeOptions().setUseDetections(false).setDetectionSources(List.of()).validate().isValid())
-			.isTrue();
 	}
 
 	@Test

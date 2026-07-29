@@ -27,24 +27,78 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  */
 public class MediaRef {
 
+	/**
+	 * What kind of media this is, as far as the source could tell.
+	 *
+	 * <p>
+	 * Best-effort by design: a source infers it from a file extension or an object listing, so
+	 * {@link #UNKNOWN} is a normal answer, not an error. It exists so a {@code media/image} input can
+	 * be checked at all — nothing on the wire used to say what the item was, which made the
+	 * image-versus-video distinction in a node's declared inputs unverifiable. Save-time validation
+	 * accepts an unspecific source through the wildcard rule; the real check happens on the worker,
+	 * where the file itself can be inspected.
+	 * </p>
+	 */
+	public static final String IMAGE = "image";
+	public static final String VIDEO = "video";
+	public static final String AUDIO = "audio";
+	public static final String DOCUMENT = "document";
+	public static final String UNKNOWN = "unknown";
+
 	private final String path;
 	private final String sha512;
 	private final long size;
+	private final String mediaType;
 
 	@JsonCreator
 	public MediaRef(@JsonProperty("path") String path, @JsonProperty("sha512") String sha512,
-		@JsonProperty("size") long size) {
+		@JsonProperty("size") long size, @JsonProperty("mediaType") String mediaType) {
 		this.path = Objects.requireNonNull(path, "A media path must be set");
 		this.sha512 = sha512;
 		this.size = size;
+		this.mediaType = mediaType == null ? UNKNOWN : mediaType;
+	}
+
+	public MediaRef(String path, String sha512, long size) {
+		this(path, sha512, size, UNKNOWN);
 	}
 
 	public static MediaRef of(String path) {
-		return new MediaRef(path, null, -1);
+		return new MediaRef(path, null, -1, UNKNOWN);
+	}
+
+	public static MediaRef of(String path, String mediaType) {
+		return new MediaRef(path, null, -1, mediaType);
 	}
 
 	public String getPath() {
 		return path;
+	}
+
+	/**
+	 * @return {@code image}, {@code video}, {@code audio}, {@code document} or {@code unknown};
+	 *         never null
+	 */
+	public String getMediaType() {
+		return mediaType;
+	}
+
+	/**
+	 * The content type this item satisfies, e.g. {@code media/image}.
+	 *
+	 * @return {@code media/*} when the kind is unknown, which the lattice treats as compatible with
+	 *         any media input
+	 */
+	public String contentType() {
+		return UNKNOWN.equals(mediaType) ? "media/*" : "media/" + mediaType;
+	}
+
+	/**
+	 * @param mediaType the kind to attach
+	 * @return a copy carrying the given media type
+	 */
+	public MediaRef withMediaType(String mediaType) {
+		return new MediaRef(path, sha512, size, mediaType);
 	}
 
 	/**
@@ -66,7 +120,7 @@ public class MediaRef {
 	 * @return a copy carrying the given hash
 	 */
 	public MediaRef withSha512(String sha512) {
-		return new MediaRef(path, sha512, size);
+		return new MediaRef(path, sha512, size, mediaType);
 	}
 
 	@Override
@@ -78,12 +132,13 @@ public class MediaRef {
 			return false;
 		}
 		MediaRef other = (MediaRef) o;
-		return size == other.size && path.equals(other.path) && Objects.equals(sha512, other.sha512);
+		return size == other.size && path.equals(other.path) && Objects.equals(sha512, other.sha512)
+			&& Objects.equals(mediaType, other.mediaType);
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(path, sha512, size);
+		return Objects.hash(path, sha512, size, mediaType);
 	}
 
 	@Override

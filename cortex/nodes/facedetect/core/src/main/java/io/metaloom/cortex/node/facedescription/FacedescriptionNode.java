@@ -26,8 +26,10 @@ import dev.langchain4j.model.ollama.OllamaChatModel.OllamaChatModelBuilder;
 import io.metaloom.ai.genai.llm.LargeLanguageModel;
 import io.metaloom.ai.genai.utils.TextUtils;
 import io.metaloom.cortex.node.facedetect.FacedetectNodeOptions;
-import io.metaloom.cortex.api.node.NodeOutputKey;
+import io.metaloom.cortex.api.node.Element;
+import io.metaloom.cortex.api.node.InputPort;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.media.LoomMedia;
@@ -35,6 +37,7 @@ import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompCreateRequest;
 import io.vertx.core.json.JsonArray;
@@ -50,11 +53,29 @@ public class FacedescriptionNode extends AbstractMediaNode<FacedetectNodeOptions
 
 	private static final LargeLanguageModel MODEL = FaceDescriptionModel.OLLAMA_GEMMA3_27B_Q8;
 
-	public static final NodeOutputKey<String> OUTPUT_FACE_DESCRIPTION = NodeOutputKey.of("face_description", String.class);
+	/**
+	 * The faces to describe, as emitted by {@code facedetect} - one element per face.
+	 *
+	 * <p>
+	 * Declared {@code MANY} so this node gathers a whole asset's faces into one execution rather
+	 * than running per face: describing N crops shares one decode of the source image, and the
+	 * emitted descriptions stay seq-aligned with the boxes that produced them.
+	 * </p>
+	 *
+	 * <p>
+	 * When nothing is wired the node falls back to detecting the faces itself, so it still works
+	 * standalone - but it no longer reads {@code ctx.upstreamOutput("facedetect", "face_count")},
+	 * which produced nothing whenever the pipeline author named the detector something else.
+	 * </p>
+	 */
+	public static final InputPort<String> IN_DETECTIONS = InputPort.many("detections", ContentTypeRegistry.DETECTION_FACE, String.class);
 
-	/** In-heap skip cache of the per-face description JSON, keyed by media path, to avoid re-running the vision LLM within this worker's lifetime.
+	/** One description per input detection, in the same sequence order. */
+	public static final OutputPort<String> OUT_DESCRIPTIONS = OutputPort.many("descriptions", ContentTypeRegistry.TEXT_PLAIN, String.class);
+
+	/** In-heap skip cache of the per-face descriptions, keyed by media path, to avoid re-running the vision LLM within this worker's lifetime.
 	 * Non-durable - the durable copy lives in Loom. */
-	private final LocalResultCache<String> resultCache = new LocalResultCache<>(50_000);
+	private final LocalResultCache<List<String>> resultCache = new LocalResultCache<>(50_000);
 
 	public static final String PROMPT = """
 		Describe the face. Output only valid JSON without wrapper.
@@ -110,25 +131,24 @@ public class FacedescriptionNode extends AbstractMediaNode<FacedetectNodeOptions
 	}
 
 	/**
-	 * Describe every face detected on the media asset. Faces are re-detected
-	 * from the source image (image media only for now) using the same
-	 * {@link InspireFacedetector} that {@code FacedetectNode} uses, cropped
-	 * from the bounding box, and each thumbnail is fed into the vision LLM.
-	 * The collected descriptions are emitted as a JSON array under the
-	 * {@code face_description} output key.
+	 * Describe every face of the media asset. The boxes come from the wired
+	 * {@link #IN_DETECTIONS} port; each is cropped out of the source image and fed
+	 * to the vision LLM, and one description is emitted per box on
+	 * {@link #OUT_DESCRIPTIONS}, in the same order.
+	 *
+	 * <p>
+	 * A box that cannot be described - degenerate crop, or a model call that failed
+	 * three times - still emits an element, an empty JSON document. Skipping it would
+	 * shift every later description onto the wrong face, because the alignment
+	 * downstream is by sequence index.
+	 * </p>
 	 */
 	private NodeResult processFaces(NodeContext<LoomMedia> ctx, AssetResponse asset) throws IOException {
 		String path = ctx.media().absolutePath();
-		String cached = resultCache.get(path);
+		List<String> cached = resultCache.get(path);
 		if (cached != null) {
-			ctx.output(OUTPUT_FACE_DESCRIPTION, cached);
+			cached.forEach(description -> ctx.outputElement(OUT_DESCRIPTIONS, description));
 			return ctx.origin(io.metaloom.cortex.api.node.ResultOrigin.LOCAL).next();
-		}
-
-		Object countObj = ctx.upstreamOutput("facedetect", "face_count");
-		int upstreamCount = countObj != null ? Integer.parseInt(countObj.toString()) : -1;
-		if (upstreamCount == 0) {
-			return ctx.next();
 		}
 
 		LoomMedia media = ctx.media();
@@ -139,59 +159,91 @@ public class FacedescriptionNode extends AbstractMediaNode<FacedetectNodeOptions
 			return ctx.skipped("Video face description not yet supported").next();
 		}
 
-		if (inspireface == null) {
-			return ctx.skipped("InspireFacedetector not configured").next();
-		}
-
 		BufferedImage image = ImageIO.read(media.file());
 		if (image == null) {
 			return ctx.skipped("Unable to read image").next();
 		}
 
-		List<? extends Face> faces = inspireface.detectFaces(image);
-		int count = faces == null ? 0 : faces.size();
-		if (count == 0) {
+		List<FaceBox> boxes = resolveBoxes(ctx, image);
+		if (boxes == null) {
+			return ctx.skipped("InspireFacedetector not configured").next();
+		}
+		if (boxes.isEmpty()) {
 			return ctx.next();
 		}
 
-		List<FaceDescription> descriptions = new ArrayList<>(count);
-		for (int i = 0; i < count; i++) {
-			Face face = faces.get(i);
-			BufferedImage crop = cropFace(image, face.box());
-			if (crop == null) {
-				continue;
-			}
-			try {
-				FaceDescription desc = processFace(crop);
-				if (desc != null) {
-					descriptions.add(desc);
-				}
-			} catch (Exception e) {
-				logger.warn("Failed to describe face {}/{} for {}", i + 1, count, media.absolutePath(), e);
-			}
+		List<String> descriptions = new ArrayList<>(boxes.size());
+		for (int i = 0; i < boxes.size(); i++) {
+			descriptions.add(describe(image, boxes.get(i), i, boxes.size(), media));
 		}
 
-		String json = mapper.writeValueAsString(descriptions);
-		ctx.output(OUTPUT_FACE_DESCRIPTION, json);
-		resultCache.put(path, json);
-		persist(ctx, asset, json);
+		descriptions.forEach(description -> ctx.outputElement(OUT_DESCRIPTIONS, description));
+		resultCache.put(path, descriptions);
+		persist(ctx, asset, descriptions);
 		return ctx.next();
+	}
+
+	/**
+	 * The boxes to describe: the wired detections when the port is connected, otherwise the
+	 * node's own detection pass so it still works standalone.
+	 *
+	 * @return the boxes, or null when neither source is available
+	 */
+	private List<FaceBox> resolveBoxes(NodeContext<LoomMedia> ctx, BufferedImage image) {
+		List<Element<String>> elements = ctx.inputs(IN_DETECTIONS);
+		if (!elements.isEmpty()) {
+			List<FaceBox> boxes = new ArrayList<>(elements.size());
+			for (Element<String> element : elements) {
+				JsonObject bbox = new JsonObject(element.value()).getJsonObject("bbox");
+				boxes.add(FaceBox.create(bbox.getInteger("x"), bbox.getInteger("y"), bbox.getInteger("w"), bbox.getInteger("h")));
+			}
+			return boxes;
+		}
+		if (inspireface == null) {
+			return null;
+		}
+		List<? extends Face> faces = inspireface.detectFaces(image);
+		if (faces == null) {
+			return List.of();
+		}
+		return faces.stream().map(Face::box).toList();
+	}
+
+	/**
+	 * Describe one face. Never returns null - see the sequence-alignment note on
+	 * {@link #processFaces}.
+	 */
+	private String describe(BufferedImage image, FaceBox box, int index, int total, LoomMedia media) {
+		BufferedImage crop = cropFace(image, box);
+		if (crop != null) {
+			try {
+				FaceDescription description = processFace(crop);
+				if (description != null) {
+					return mapper.writeValueAsString(description);
+				}
+			} catch (Exception e) {
+				logger.warn("Failed to describe face {}/{} for {}", index + 1, total, media.absolutePath(), e);
+			}
+		}
+		return "{}";
 	}
 
 	/**
 	 * Persist the per-face descriptions as a {@code face-description} JSON component and record a ledger entry. Best-effort and a no-op when the asset
 	 * is not yet known to Loom or we run offline.
 	 */
-	private void persist(NodeContext<LoomMedia> ctx, AssetResponse asset, String facesJson) {
+	private void persist(NodeContext<LoomMedia> ctx, AssetResponse asset, List<String> descriptions) {
 		if (asset == null || client() == null) {
 			return;
 		}
 		try {
+			JsonArray faces = new JsonArray();
+			descriptions.forEach(description -> faces.add(new JsonObject(description)));
 			JsonCompCreateRequest request = new JsonCompCreateRequest();
 			request.setNodeKind(name());
 			request.setSchemaType("face-description");
 			request.setVariant("");
-			request.setData(new JsonObject().put("faces", new JsonArray(facesJson)));
+			request.setData(new JsonObject().put("faces", faces));
 			java.util.UUID compUuid = client().createAssetJsonComp(asset.getUuid(), request).sync().body().getUuid();
 			recordNodeResult(asset, ctx, ResultState.SUCCESS, null, MODEL.id(), resultRef("asset_json_comp", compUuid));
 		} catch (Exception e) {

@@ -1,9 +1,11 @@
 package io.metaloom.loom.nodes.spec;
 
-import static io.metaloom.loom.nodes.spec.ContentTypes.*;
+import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.*;
 import static io.metaloom.loom.nodes.spec.NodeCategory.*;
 import static io.metaloom.loom.nodes.spec.NodeMode.*;
 import static io.metaloom.loom.nodes.spec.ParameterType.*;
+import static io.metaloom.loom.nodes.spec.PortSpec.one;
+import static io.metaloom.loom.nodes.spec.PortSpec.optionalOne;
 
 import java.util.List;
 
@@ -24,10 +26,18 @@ public class ThumbnailDescriptorProvider implements NodeDescriptorProvider {
 				.setDescription("Generate a thumbnail grid from video or image content.")
 				.setIcon("grid_view")
 				.setCategory(TRANSFORM)
-				.setInputs(List.of(new NodeInput("media", MEDIA_ANY, true)))
-				.setOutputs(List.of(
-					new NodeOutput("thumbnail_flag", DATA_STRING),
-					new NodeOutput("thumbnail_path", DATA_PATH)))
+				.setInputPorts(List.of(
+					one("media", MEDIA_ANY)
+						.describedAs("Media", "The image or video to render a preview from"),
+					// Declared so the node can stop hard-coding an upstream node id for it. Leave it
+					// unwired and a half-written file is rendered anyway, which is the old behaviour.
+					optionalOne("is_complete", SCALAR_BOOLEAN)
+						.describedAs("Is Complete", "Whether the file is whole; an incomplete one is skipped unless processIncomplete is set")))
+				.setOutputPorts(List.of(
+					one("thumbnail", ARTIFACT_IMAGE)
+						.describedAs("Thumbnail", "The rendered preview grid in the worker's local cache; wire it into a sink to keep it"),
+					one("flag", SCALAR_STRING)
+						.describedAs("Flag", "Processing marker recording how this node finished for the item")))
 				.setParameters(List.of(
 					commonEnabled(), commonProcessIncomplete(), commonRetryFailed(),
 					new NodeParameter().setKey("cols").setType(INTEGER).setDefaultValue(6)

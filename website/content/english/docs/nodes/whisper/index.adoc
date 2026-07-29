@@ -7,15 +7,15 @@ speech-to-text model. The transcript is stored as a first-class component so it 
 summarized.
 
 ++++
-<div class="ml-nodeviz" data-nodeviz='{"kind":"whisper","applies":"Video \u00b7 Audio","badge":"Whisper runtime \u00b7 GPU optional","persist":"asset_transcript_comp + asset_node_result ledger","inputs":[{"t":"audio","l":"audio track","d":"demuxed from the asset"}],"outputs":[{"t":"json","l":"whisper_result","d":"transcript"},{"t":"timeframe","l":"segment timings","d":"start/end per utterance"}]}'></div>
+<div class="ml-nodeviz" data-nodeviz='{"kind":"whisper","applies":"Video \u00b7 Audio","badge":"Whisper runtime \u00b7 GPU optional","persist":"asset_transcript_comp + asset_node_result ledger","inputs":[{"t":"audio","l":"audio","d":"an audio asset — wire either audio or video, never both"},{"t":"video","l":"video","d":"a video whose soundtrack is demuxed — wire either audio or video, never both"}],"outputs":[{"t":"transcript","l":"transcript","d":"the spoken words, with a start and end time per utterance"}]}'></div>
 ++++
 
 [cols="1,3"]
 |===
 | Kind | `whisper`
 | Applies to | Video, Audio
-| Inputs | None
-| Output keys | `whisper_result` (String, JSON transcript)
+| Input ports | `audio` or `video` — exactly one of the two is wired
+| Output ports | `transcript` — the utterances with their timings, ready to connect to link:../llm/[LLM Enrichment], link:../sentiment/[Sentiment Analysis] or link:../tts/[Text-to-Speech]
 | Requirements | A Whisper runtime (whisper.cpp or compatible) and a model file. CPU works; a **GPU** accelerates transcription and is enabled via options. Storage for the model file.
 | Persists to | `asset_transcript_comp` + `asset_node_result` ledger
 |===
@@ -38,4 +38,5 @@ summarized.
 * **Subtitles & captions** — generate transcripts for video and audio assets.
 * **Transcript search** — power the chat's `search_transcript` tool and the
   link:../../loom/chat/[transcript-summarizer skill].
-* **Downstream enrichment** — feed transcripts to link:../llm/[LLM] classification or summarization.
+* **Downstream enrichment** — connect `transcript` to link:../llm/[LLM] classification or
+  summarization.

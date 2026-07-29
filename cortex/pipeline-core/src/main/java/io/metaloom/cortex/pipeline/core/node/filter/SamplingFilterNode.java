@@ -5,7 +5,7 @@ import java.util.Random;
 import java.util.Set;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.context.NodeContext;
 
 /**
  * Randomly passes a configured percentage of items. Items that do not pass
@@ -24,12 +24,13 @@ public class SamplingFilterNode extends AbstractFilterNode {
 	}
 
 	@Override
-	protected boolean evaluate(LoomMedia media, Map<String, NodeResult> upstreamResults) {
+	protected boolean evaluate(NodeContext<LoomMedia> ctx) {
+		LoomMedia media = ctx.media();
 		return random.nextDouble() < passRate;
 	}
 
 	@Override
-	protected String rejectReason(LoomMedia media, Map<String, NodeResult> upstreamResults) {
+	protected String rejectReason(NodeContext<LoomMedia> ctx) {
 		return "rejected by sampling (rate=" + passRate + ")";
 	}
 

@@ -162,14 +162,18 @@ python daemon.py
 ----
 
 Implement your logic by replacing `run_node()`, which receives the media path, the per-task `options`
-and the `upstreamOutputs`, and returns a `NodeResult`:
+and the task's `inputs` — keyed by this node's own input **port** ids — and returns a `NodeResult`
+keyed by its output port ids:
 
 [source,python]
 ----
-def run_node(node_kind, media_path, options, upstream):
+def run_node(node_kind, media_path, options, inputs):
     # ... compute whatever you like from media_path ...
-    return NodeResult.completed({"my_output": value})
+    return NodeResult.completed({"my_output_port": value})
 ----
+
+The payload envelope each port value travels in, and the descriptor that declares those ports, are
+covered in link:../../playbooks/python-node/[A Custom Node in Python].
 
 Then advertise the kind via `CORTEX_NODE_KINDS` so Loom dispatches it to you. Online, a `COMPLETED`
 result is persisted with the same two-step `json-comps` + `node-results` pattern as the Java nodes.

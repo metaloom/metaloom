@@ -82,7 +82,7 @@ This page is the quickest way to orient yourself in the platform and jump to the
 		<div class="docs-card h-100">
 			<div class="docs-card-header">
 				<h2><a href="nodes/">Nodes</a></h2>
-				<p>The built-in Cortex processing nodes — the atomic steps a pipeline is built from. Each node page covers what it does, the media it applies to, its inputs and output keys, requirements and configuration.</p>
+				<p>The built-in Cortex processing nodes — the atomic steps a pipeline is built from. Each node page covers what it does, the media it applies to, its input and output ports, requirements and configuration.</p>
 			</div>
 			<div class="docs-card-body">
 				<a href="nodes/" class="docs-card-link">All Nodes</a>

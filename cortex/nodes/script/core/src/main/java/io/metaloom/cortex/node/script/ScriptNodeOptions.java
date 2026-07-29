@@ -38,9 +38,6 @@ public class ScriptNodeOptions extends AbstractNodeOptions<ScriptNodeOptions> {
 	/** Free-form constants handed to the script as {@code params}. */
 	private JsonObject params = new JsonObject();
 
-	/** Ordered {@code nodeId:outputKey} entries that must all be present, or the node skips. */
-	private List<String> requiredInputs = new ArrayList<>();
-
 	/**
 	 * Default true. Scripts are authored by whoever may edit a pipeline, which is already
 	 * permission to run code on a worker; pretending otherwise by defaulting to a sandbox would
@@ -103,15 +100,6 @@ public class ScriptNodeOptions extends AbstractNodeOptions<ScriptNodeOptions> {
 
 	public ScriptNodeOptions setParams(JsonObject params) {
 		this.params = params;
-		return this;
-	}
-
-	public List<String> getRequiredInputs() {
-		return requiredInputs;
-	}
-
-	public ScriptNodeOptions setRequiredInputs(List<String> requiredInputs) {
-		this.requiredInputs = requiredInputs;
 		return this;
 	}
 
@@ -187,13 +175,6 @@ public class ScriptNodeOptions extends AbstractNodeOptions<ScriptNodeOptions> {
 				ScriptOutputSpec.parse(outputs);
 			} catch (IllegalArgumentException e) {
 				errors.add("outputs: " + e.getMessage());
-			}
-		}
-		if (requiredInputs != null) {
-			for (String input : requiredInputs) {
-				if (input == null || !input.contains(":") || input.startsWith(":") || input.endsWith(":")) {
-					errors.add("requiredInputs entry must have the form 'nodeId:outputKey', got '" + input + "'");
-				}
 			}
 		}
 		// Stricter than the inherited non-negative rule: 0 means "no timeout" elsewhere, and this

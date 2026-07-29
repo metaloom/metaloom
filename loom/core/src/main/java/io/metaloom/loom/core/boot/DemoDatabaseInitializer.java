@@ -132,10 +132,20 @@ public class DemoDatabaseInitializer {
 	private static final String DEMO_PIPELINE_S3 = "Cloud Bucket Ingest";
 	private static final String DEMO_PIPELINE_S3_PUBLISH = "Thumbnail Publishing";
 
-	/** The demo script node's body. Small on purpose - it is there to be read and edited, not admired. */
+	/**
+	 * The demo script node's body. Small on purpose - it is there to be read and edited, not admired.
+	 *
+	 * <p>
+	 * Reads {@code data.text}, which is where the script node surfaces whatever is wired into its
+	 * {@code text} input port - here Tika's {@code content}. It used to read
+	 * {@code upstream['pn2']['tika_content']}: a node id the pipeline author picked plus an output
+	 * name, which broke the moment either was renamed and returned nothing rather than failing. That
+	 * binding no longer exists, so this seeded pipeline threw a {@code ReferenceError} on every run.
+	 * </p>
+	 */
 	private static final String DEMO_SCRIPT = """
-		// Estimate reading time from the text Tika extracted upstream.
-		const text = upstream['pn2']['tika_content'] || '';
+		// Estimate reading time from the text wired into the 'text' input port (Tika's content).
+		const text = data.text || '';
 		const words = text.split(/\\s+/).filter(w => w.length > 0).length;
 		const minutes = Math.max(1, Math.round(words / params.wordsPerMinute));
 
@@ -277,56 +287,25 @@ public class DemoDatabaseInitializer {
 		Pipeline simplePipeline = createPipeline(admin, DEMO_PIPELINE_SIMPLE,
 			"Simple pipeline that hashes incoming assets and stores the result.",
 			true, 1, false,
-			new JsonObject()
-				.put("nodes", new JsonArray()
-					.add(node("pn1", "filesystem-source", "File Source", "Watch local folder", 60, 120))
-					.add(node("pn2", "sha256", "SHA-256 Hash", "Compute SHA-256 digest", 300, 120))
-					.add(node("pn3", "loom", "Loom Output", "Persist to Loom", 540, 120)))
-				.put("edges", new JsonArray()
-					.add(edge("pe1", "pn1", "pn2"))
-					.add(edge("pe2", "pn2", "pn3"))));
+			simpleDefinition());
 
 		// 2) Medium pipeline: Source → Filter → Hash + Fingerprint → Output
 		Pipeline mediumPipeline = createPipeline(admin, DEMO_PIPELINE_MEDIUM,
 			"Ingest pipeline with MIME-type filtering, hashing, fingerprinting, and proxy generation.",
 			true, 5, false,
-			new JsonObject()
-				.put("nodes", new JsonArray()
-					.add(node("pn1", "filesystem-source", "File Source", "Watch ingest folder", 60, 160))
-					.add(node("pn2", "filter-mimetype", "MIME Filter", "Accept video and image types", 260, 160))
-					.add(node("pn3", "sha256", "SHA-256 Hash", "Compute hash", 460, 60))
-					.add(node("pn4", "fingerprint", "Fingerprint", "Audio/video fingerprint", 460, 260))
-					.add(node("pn5", "loom", "Loom Output", "Store results", 680, 160)))
-				.put("edges", new JsonArray()
-					.add(edge("pe1", "pn1", "pn2"))
-					.add(edge("pe2", "pn2", "pn3"))
-					.add(edge("pe3", "pn2", "pn4"))
-					.add(edge("pe4", "pn3", "pn5"))
-					.add(edge("pe5", "pn4", "pn5"))));
+			mediumDefinition());
 
-		// 3) Complex pipeline: Source → Filter → Hash + Fingerprint + Resize → Face Detection → Loom Output
+		// 3) Complex pipeline: Source → Filter → Hash + Fingerprint + Facedetect → Facedescription → Loom.
+		// This is also the sequence demo: facedetect emits one element per detected face, and
+		// facedescription declares a sequence input, so it gathers the whole set for an image and
+		// runs once with all of them - emitting one description per face in the same order. Nothing
+		// in the definition says so; it follows from the two ports' cardinalities, and the engine
+		// works it out when the graph is parsed. (A node declaring a *single* detection input would
+		// instead run once per face; no shipped kind does that today.)
 		Pipeline complexPipeline = createPipeline(admin, DEMO_PIPELINE_COMPLEX,
-			"Full processing pipeline with filtering, analysis, face detection, and multi-output.",
+			"Full processing pipeline with filtering, analysis, per-face description, and multi-output.",
 			true, 10, false,
-			new JsonObject()
-				.put("nodes", new JsonArray()
-					.add(node("pn1", "filesystem-source", "File Source", "Watch production folder", 60, 200))
-					.add(node("pn2", "filter-mimetype", "MIME Filter", "Accept media types", 240, 200))
-					.add(node("pn3", "sha256", "SHA-256 Hash", "Compute SHA-256", 440, 60))
-					.add(node("pn4", "fingerprint", "Fingerprint", "Chromaprint fingerprint", 440, 200))
-					.add(node("pn5", "resize", "Resize Proxy", "Generate 720p proxy", 440, 340))
-					.add(node("pn6", "face-detect", "Face Detection", "Detect faces with InspireFace", 660, 130))
-					.add(node("pn7", "loom", "Loom Output", "Persist metadata", 880, 130))
-					.add(node("pn8", "s3-output", "S3 Delivery", "Upload proxies to S3", 880, 340)))
-				.put("edges", new JsonArray()
-					.add(edge("pe1", "pn1", "pn2"))
-					.add(edge("pe2", "pn2", "pn3"))
-					.add(edge("pe3", "pn2", "pn4"))
-					.add(edge("pe4", "pn2", "pn5"))
-					.add(edge("pe5", "pn3", "pn6"))
-					.add(edge("pe6", "pn4", "pn6"))
-					.add(edge("pe7", "pn6", "pn7"))
-					.add(edge("pe8", "pn5", "pn8"))));
+			complexDefinition());
 
 		// 4) S3 pipeline: S3 Source → Hash → Loom. Shows the one source that needs no shared media
 		// mount: it emits s3:// references and each worker fetches the objects it is given, so this
@@ -335,19 +314,7 @@ public class DemoDatabaseInitializer {
 		createPipeline(admin, DEMO_PIPELINE_S3,
 			"Ingests new and changed objects from an S3 bucket, hashing each one. Re-runs skip everything unchanged.",
 			true, 5, false,
-			new JsonObject()
-				.put("nodes", new JsonArray()
-					.add(node("pn1", "s3-source", "S3 Source", "Pick up new objects from the media bucket", 60, 160,
-						new JsonObject()
-							.put("bucket", "media")
-							.put("prefix", "incoming/")
-							.put("suffixes", "mp4,mkv,mov,jpg,jpeg,png")
-							.put("emitStates", new JsonArray().add("NEW").add("MODIFIED"))))
-					.add(node("pn2", "sha512", "SHA-512 Hash", "Compute the content identity", 300, 160))
-					.add(node("pn3", "loom", "Loom Output", "Persist to Loom", 540, 160)))
-				.put("edges", new JsonArray()
-					.add(edge("pe1", "pn1", "pn2"))
-					.add(edge("pe2", "pn2", "pn3"))));
+			s3IngestDefinition());
 
 		// 5) Publishing pipeline: Source → Hash → Thumbnail → S3 Sink. The counterpart to the
 		// ingest pipeline above: produced bytes normally stay on the worker that made them, and
@@ -356,41 +323,14 @@ public class DemoDatabaseInitializer {
 		createPipeline(admin, DEMO_PIPELINE_S3_PUBLISH,
 			"Generates thumbnails and publishes them to an S3 bucket, registering each one as its own asset.",
 			true, 5, false,
-			new JsonObject()
-				.put("nodes", new JsonArray()
-					.add(node("pn1", "filesystem-source", "File Source", "Watch the media folder", 60, 160))
-					.add(node("pn2", "sha512", "SHA-512 Hash", "Content identity, required by the key template", 260, 160))
-					.add(node("pn3", "thumbnail", "Thumbnail", "Generate a contact sheet", 460, 160))
-					.add(node("pn4", "s3-sink", "S3 Publish", "Upload the contact sheet and register it", 680, 160,
-						new JsonObject()
-							.put("bucket", "media")
-							.put("artifacts", new JsonArray().add("pn3:thumbnail_path")))))
-				.put("edges", new JsonArray()
-					.add(edge("pe1", "pn1", "pn2"))
-					.add(edge("pe2", "pn2", "pn3"))
-					.add(edge("pe3", "pn3", "pn4"))));
+			s3PublishDefinition());
 
 		// 6) Script pipeline: Source → Tika → Script. Demonstrates the one node whose behaviour is
 		// configuration rather than code, so the demo carries a real script and real declared outputs.
 		createPipeline(admin, DEMO_PIPELINE_SCRIPT,
 			"Extracts document text, then derives a reading-time estimate and a length band with a small script.",
 			true, 3, false,
-			new JsonObject()
-				.put("nodes", new JsonArray()
-					.add(node("pn1", "filesystem-source", "File Source", "Watch documents folder", 60, 160))
-					.add(node("pn2", "tika", "Tika", "Extract document text", 280, 160))
-					.add(node("pn3", "script", "Reading Time", "Derive reading time from the extracted text", 520, 160,
-						new JsonObject()
-							.put("engine", "js")
-							.put("script", DEMO_SCRIPT)
-							.put("requiredInputs", new JsonArray().add("pn2:tika_content"))
-							.put("params", new JsonObject().put("wordsPerMinute", 200))
-							.put("outputs", new JsonArray()
-								.add(new JsonObject().put("key", "reading_minutes").put("type", "INTEGER"))
-								.add(new JsonObject().put("key", "length_band").put("type", "STRING"))))))
-				.put("edges", new JsonArray()
-					.add(edge("pe1", "pn1", "pn2"))
-					.add(edge("pe2", "pn2", "pn3"))));
+			scriptDefinition());
 
 		// --- Pipeline Runs ---
 		// History so the run views and the statistics chart have something to show on a
@@ -1256,7 +1196,7 @@ public class DemoDatabaseInitializer {
 			run.setFinished(started.plusMillis(durationMs));
 		}
 		if ("FAILED".equals(status)) {
-			run.setErrorMessage("Node 'face-detect' failed: model file not found");
+			run.setErrorMessage("Node 'facedetect' failed: model file not found");
 		}
 		pipelineRunDao.store(run);
 		return run;
@@ -1280,11 +1220,134 @@ public class DemoDatabaseInitializer {
 		return node(id, type, label, description, x, y).put("options", options);
 	}
 
-	private static JsonObject edge(String id, String source, String target) {
+
+	/**
+	 * The demo pipeline definitions, as static methods so they can be validated without a database.
+	 *
+	 * <p>
+	 * {@code DemoPipelineDefinitionTest} parses each one through the real {@link
+	 * io.metaloom.loom.pipeline.graph.PipelineGraphParser} against the real descriptor registry. That
+	 * guard matters: before node kinds and ports were checked, one of these graphs referenced three
+	 * kinds that had never existed and nobody noticed, because a definition nothing validates looks
+	 * exactly like one that works.
+	 * </p>
+	 */
+	static JsonObject simpleDefinition() {
+		return new JsonObject()
+				.put("nodes", new JsonArray()
+					.add(node("pn1", "filesystem-source", "File Source", "Watch local folder", 60, 120))
+					.add(node("pn2", "sha256", "SHA-256 Hash", "Compute SHA-256 digest", 300, 120))
+					.add(node("pn3", "loom", "Loom Output", "Persist to Loom", 540, 120)))
+				.put("edges", new JsonArray()
+					.add(edge("pe1", "pn1", "media", "pn2", "media"))
+					.add(edge("pe2", "pn2", "hash", "pn3", "sha256")));
+	}
+
+	static JsonObject mediumDefinition() {
+		return new JsonObject()
+				.put("nodes", new JsonArray()
+					.add(node("pn1", "filesystem-source", "File Source", "Watch ingest folder", 60, 160))
+					.add(node("pn2", "filter-mimetype", "MIME Filter", "Accept video and image types", 260, 160))
+					.add(node("pn3", "sha256", "SHA-256 Hash", "Compute hash", 460, 60))
+					.add(node("pn4", "fingerprint", "Fingerprint", "Audio/video fingerprint", 460, 260))
+					.add(node("pn5", "loom", "Loom Output", "Store results", 680, 160)))
+				.put("edges", new JsonArray()
+					.add(edge("pe1", "pn1", "media", "pn2", "media"))
+					.add(edge("pe2", "pn2", "media", "pn3", "media"))
+					.add(edge("pe3", "pn2", "media", "pn4", "media"))
+					.add(edge("pe4", "pn3", "hash", "pn5", "sha256")));
+	}
+
+	static JsonObject complexDefinition() {
+		return new JsonObject()
+				.put("nodes", new JsonArray()
+					.add(node("pn1", "filesystem-source", "File Source", "Watch production folder", 60, 200))
+					.add(node("pn2", "filter-mimetype", "MIME Filter", "Accept media types", 240, 200))
+					.add(node("pn3", "sha256", "SHA-256 Hash", "Compute SHA-256", 440, 40))
+					.add(node("pn4", "fingerprint", "Fingerprint", "Video fingerprint", 440, 150))
+					.add(node("pn5", "facedetect", "Face Detection", "Detect faces with InspireFace", 440, 270))
+					.add(node("pn6", "facedescription", "Face Description", "Describe each detected face", 680, 270))
+					.add(node("pn7", "loom", "Loom Output", "Persist metadata", 900, 40))
+					.add(node("pn8", "thumbnail", "Thumbnail", "Generate a contact sheet", 440, 390))
+					.add(node("pn9", "s3-sink", "S3 Delivery", "Upload the contact sheet", 680, 390,
+						new JsonObject().put("bucket", "media"))))
+				.put("edges", new JsonArray()
+					.add(edge("pe1", "pn1", "media", "pn2", "media"))
+					.add(edge("pe2", "pn2", "media", "pn3", "media"))
+					.add(edge("pe3", "pn2", "media", "pn4", "media"))
+					.add(edge("pe4", "pn2", "media", "pn5", "image"))
+					.add(edge("pe5", "pn5", "detections", "pn6", "detections"))
+					.add(edge("pe6", "pn3", "hash", "pn7", "sha256"))
+					.add(edge("pe7", "pn2", "media", "pn8", "media"))
+					.add(edge("pe8", "pn8", "thumbnail", "pn9", "artifacts")));
+	}
+
+	static JsonObject s3IngestDefinition() {
+		return new JsonObject()
+				.put("nodes", new JsonArray()
+					.add(node("pn1", "s3-source", "S3 Source", "Pick up new objects from the media bucket", 60, 160,
+						new JsonObject()
+							.put("bucket", "media")
+							.put("prefix", "incoming/")
+							.put("suffixes", "mp4,mkv,mov,jpg,jpeg,png")
+							.put("emitStates", new JsonArray().add("NEW").add("MODIFIED"))))
+					.add(node("pn2", "sha512", "SHA-512 Hash", "Compute the content identity", 300, 160))
+					.add(node("pn3", "loom", "Loom Output", "Persist to Loom", 540, 160)))
+				.put("edges", new JsonArray()
+					.add(edge("pe1", "pn1", "media", "pn2", "media"))
+					.add(edge("pe2", "pn2", "hash", "pn3", "sha512")));
+	}
+
+	static JsonObject s3PublishDefinition() {
+		return new JsonObject()
+				.put("nodes", new JsonArray()
+					.add(node("pn1", "filesystem-source", "File Source", "Watch the media folder", 60, 160))
+					.add(node("pn2", "sha512", "SHA-512 Hash", "Content identity, required by the key template", 260, 160))
+					.add(node("pn3", "thumbnail", "Thumbnail", "Generate a contact sheet", 460, 160))
+					.add(node("pn4", "s3-sink", "S3 Publish", "Upload the contact sheet and register it", 680, 160,
+						new JsonObject()
+							.put("bucket", "media")
+							.put("createAssets", true))))
+				.put("edges", new JsonArray()
+					.add(edge("pe1", "pn1", "media", "pn2", "media"))
+					.add(edge("pe2", "pn1", "media", "pn3", "media"))
+					.add(edge("pe3", "pn3", "thumbnail", "pn4", "artifacts")));
+	}
+
+	static JsonObject scriptDefinition() {
+		return new JsonObject()
+				.put("nodes", new JsonArray()
+					.add(node("pn1", "filesystem-source", "File Source", "Watch documents folder", 60, 160))
+					.add(node("pn2", "tika", "Tika", "Extract document text", 280, 160))
+					.add(node("pn3", "script", "Reading Time", "Derive reading time from the extracted text", 520, 160,
+						new JsonObject()
+							.put("engine", "js")
+							.put("script", DEMO_SCRIPT)
+							.put("params", new JsonObject().put("wordsPerMinute", 200))
+							.put("outputs", new JsonArray()
+								.add(new JsonObject().put("key", "reading_minutes").put("type", "INTEGER"))
+								.add(new JsonObject().put("key", "length_band").put("type", "STRING"))))))
+				.put("edges", new JsonArray()
+					.add(edge("pe1", "pn1", "media", "pn2", "media"))
+					.add(edge("pe2", "pn2", "content", "pn3", "text")));
+	}
+
+	/**
+	 * An edge from one node's output port to another node's input port.
+	 *
+	 * <p>
+	 * Ports are mandatory: a graph says which <em>value</em> flows where, not merely which nodes are
+	 * adjacent. Two nodes may be joined by several edges carrying different data, so the node pair
+	 * alone no longer identifies an edge.
+	 * </p>
+	 */
+	private static JsonObject edge(String id, String source, String sourcePort, String target, String targetPort) {
 		return new JsonObject()
 			.put("id", id)
 			.put("source", source)
-			.put("target", target);
+			.put("sourcePort", sourcePort)
+			.put("target", target)
+			.put("targetPort", targetPort);
 	}
 
 	private Token createDemoToken(User admin, String name, String tokenValue) {

@@ -14,8 +14,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.node.NodeOutputKey;
+import io.metaloom.cortex.api.node.InputPort;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
@@ -25,6 +26,7 @@ import io.metaloom.cortex.media.scene.Scene;
 import io.metaloom.cortex.media.scene.SceneDetectionResult;
 import io.metaloom.cortex.node.scene.impl.OpticalFlowSceneDetector;
 import io.metaloom.loom.client.common.LoomClient;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.segmentcomp.SegmentCompCreateRequest;
 import io.metaloom.loom.rest.model.segmentcomp.SegmentEntry;
@@ -34,7 +36,9 @@ public class SceneDetectionNode extends AbstractMediaNode<SceneDetectionOptions>
 
 	public static final Logger log = LoggerFactory.getLogger(SceneDetectionNode.class);
 
-	public static final NodeOutputKey<String> OUTPUT_SCENE_DETECTION = NodeOutputKey.of("scene_detection", String.class);
+	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_VIDEO, LoomMedia.class);
+
+	public static final OutputPort<String> OUT_SCENES = OutputPort.one("scenes", ContentTypeRegistry.STRUCT_SEGMENTS, String.class);
 
 	/** In-heap skip cache of the scene-detection output, keyed by media path, to avoid re-running optical-flow detection within this worker's lifetime.
 	 * Non-durable - the durable copy lives in Loom. */
@@ -68,13 +72,13 @@ public class SceneDetectionNode extends AbstractMediaNode<SceneDetectionOptions>
 			String path = media.absolutePath();
 			String cached = resultCache.get(path);
 			if (cached != null) {
-				ctx.output(OUTPUT_SCENE_DETECTION, cached);
+				ctx.output(OUT_SCENES, cached);
 				return ctx.origin(LOCAL).next();
 			}
 			VideoFile video = VideoFile.open(media.path());
 			double fps = video.fps();
 			SceneDetectionResult result = detector.detect(video);
-			ctx.output(OUTPUT_SCENE_DETECTION, result.toString());
+			ctx.output(OUT_SCENES, result.toString());
 			resultCache.put(path, result.toString());
 			persist(ctx, asset, result, fps);
 			return ctx.origin(COMPUTED).next();

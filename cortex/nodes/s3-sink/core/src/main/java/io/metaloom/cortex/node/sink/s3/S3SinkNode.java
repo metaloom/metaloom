@@ -13,8 +13,10 @@ import javax.annotation.Nullable;
 import javax.inject.Inject;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.node.NodeOutputKey;
+import io.metaloom.cortex.api.node.Element;
+import io.metaloom.cortex.api.node.InputPort;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
@@ -27,6 +29,7 @@ import io.metaloom.cortex.s3.S3ObjectStore;
 import io.metaloom.cortex.s3.S3Support;
 import io.metaloom.cortex.s3.S3Uri;
 import io.metaloom.loom.client.common.LoomClient;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.rest.model.asset.AssetCreateRequest;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.asset.info.FileInfo;
@@ -73,9 +76,22 @@ public class S3SinkNode extends AbstractMediaNode<S3SinkNodeOptions> implements 
 	/** Component discriminator on the source asset. */
 	public static final String SCHEMA_TYPE = "s3-artifact";
 
-	public static final NodeOutputKey<String> OUTPUT_FLAG = NodeOutputKey.of("s3_sink_flag", String.class);
-	public static final NodeOutputKey<Integer> OUTPUT_COUNT = NodeOutputKey.of("s3_sink_count", Integer.class);
-	public static final NodeOutputKey<String> OUTPUT_RESULT = NodeOutputKey.of("s3_sink_result", String.class);
+	/**
+	 * The files to publish, one element per file.
+	 *
+	 * <p>
+	 * This replaces the {@code artifacts} option ({@code nodeId:outputKey} strings) and the
+	 * {@code autoDiscover} flag (anything whose key ends in {@code _path}). Both were workarounds
+	 * for having no way to say "this file, from that node" in the graph: the option broke when a
+	 * node was renamed, and discovery-by-suffix silently missed every {@code script} image, because
+	 * those output keys are author-named. An edge into a typed {@code artifact/*} port says both.
+	 * </p>
+	 */
+	public static final InputPort<String> IN_ARTIFACTS = InputPort.many("artifacts", ContentTypeRegistry.ARTIFACT_ANY, String.class);
+
+	public static final OutputPort<String> OUT_RESULT = OutputPort.one("result", ContentTypeRegistry.STRUCT_JSON, String.class);
+	public static final OutputPort<Long> OUT_COUNT = OutputPort.one("count", ContentTypeRegistry.SCALAR_INTEGER, Long.class);
+	public static final OutputPort<String> OUT_FLAG = OutputPort.one("flag", ContentTypeRegistry.SCALAR_STRING, String.class);
 
 	private final S3Support s3;
 
@@ -115,12 +131,6 @@ public class S3SinkNode extends AbstractMediaNode<S3SinkNodeOptions> implements 
 		if (nodeDef.containsKey("keyTemplate")) {
 			options.setKeyTemplate(nodeDef.getString("keyTemplate"));
 		}
-		if (nodeDef.containsKey("artifacts")) {
-			options.setArtifacts(readStrings(nodeDef.getJsonArray("artifacts")));
-		}
-		if (nodeDef.containsKey("autoDiscover")) {
-			options.setAutoDiscover(nodeDef.getBoolean("autoDiscover"));
-		}
 		if (nodeDef.containsKey("includeSource")) {
 			options.setIncludeSource(nodeDef.getBoolean("includeSource"));
 		}
@@ -156,19 +166,6 @@ public class S3SinkNode extends AbstractMediaNode<S3SinkNodeOptions> implements 
 		this.template = S3KeyTemplate.parse(options.getKeyTemplate());
 	}
 
-	private static List<String> readStrings(JsonArray array) {
-		List<String> values = new ArrayList<>();
-		if (array != null) {
-			for (int i = 0; i < array.size(); i++) {
-				String value = array.getString(i);
-				if (value != null && !value.isBlank()) {
-					values.add(value);
-				}
-			}
-		}
-		return values;
-	}
-
 	@Override
 	protected boolean isProcessable(NodeContext<LoomMedia> ctx) {
 		// Any media type: what matters is what upstream produced, not what the input is.
@@ -191,8 +188,8 @@ public class S3SinkNode extends AbstractMediaNode<S3SinkNodeOptions> implements 
 		}
 
 		List<SinkArtifact> artifacts = new ArtifactSelector(cortexOption().getMetaPath())
-			.select(ctx.upstreamOutputs(), ctx.media(), options.getArtifacts(),
-				options.isAutoDiscover(), options.isIncludeSource());
+			.select(ctx.inputs(IN_ARTIFACTS).stream().map(Element::value).toList(), ctx.media(),
+				options.isIncludeSource());
 
 		artifacts = dropAlreadyRemoteMedia(artifacts, ctx.media());
 
@@ -421,9 +418,9 @@ public class S3SinkNode extends AbstractMediaNode<S3SinkNodeOptions> implements 
 			.put("artifacts", entries);
 
 		String flag = failed.isEmpty() ? "DONE" : (stored == 0 ? "FAILED" : "PARTIAL");
-		ctx.output(OUTPUT_FLAG, flag);
-		ctx.output(OUTPUT_COUNT, stored);
-		ctx.output(OUTPUT_RESULT, payload.encode());
+		ctx.output(OUT_FLAG, flag);
+		ctx.output(OUT_COUNT, (long) stored);
+		ctx.output(OUT_RESULT, payload.encode());
 
 		String reason = failed.isEmpty() ? null
 			: "uploaded " + stored + " of " + results.size() + " artifacts; first failure: "

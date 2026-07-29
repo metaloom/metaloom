@@ -1,28 +1,29 @@
 package io.metaloom.cortex.pipeline.core.node.filter;
 
-import java.util.Map;
-
 import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.api.node.InputPort;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.pipeline.api.PipelineResult;
 import io.metaloom.cortex.pipeline.api.filter.FilterBranch;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 import io.metaloom.cortex.pipeline.test.AbstractNodeChainTest;
+import io.metaloom.cortex.pipeline.test.CapturingNode;
 
 /**
- * Shared fixture for the concrete filter node tests. Extends the standard
- * {@link AbstractPipelineNodeTest} with the one thing it does not offer: a
- * Y-branched pipeline, which is the only way to observe that a filter actually
- * routes items rather than merely emitting {@code filter_passed}.
+ * Shared fixture for the concrete filter node tests. Extends the standard chain
+ * harness with the one thing it does not offer: a Y-branched pipeline, which is the
+ * only way to observe that a filter actually routes items rather than merely emitting
+ * a verdict.
  *
  * <p>Filter tests come in two layers:</p>
  * <ul>
- *   <li>{@link #evaluate(AbstractFilterNode, LoomMedia, Map)} — a direct
- *       {@code process()} call for the decision-table cases. Cheap, and it can
- *       inject upstream results that no real node would produce.</li>
- *   <li>{@link #route(LoomMedia, AbstractFilterNode, PipelineNode...)} — a real
- *       run through {@link #PASS_NODE} / {@link #REJECT_NODE}, which is
- *       what proves the {@code filter_passed} output is wired to the branch.</li>
+ *   <li>{@link #evaluate(AbstractFilterNode, LoomMedia, NodeInputs)} — a direct
+ *       {@code process()} call for the decision-table cases. Cheap, and it can fill a
+ *       port with a value no real node would produce.</li>
+ *   <li>{@link #route(LoomMedia, AbstractFilterNode, PipelineNode...)} — a real run
+ *       through {@link #PASS_NODE} / {@link #REJECT_NODE}, which is what proves the
+ *       verdict is wired to the branch.</li>
  * </ul>
  */
 abstract class AbstractFilterNodeTest extends AbstractNodeChainTest {
@@ -34,29 +35,37 @@ abstract class AbstractFilterNodeTest extends AbstractNodeChainTest {
 	protected static final String REJECT_NODE = "reject-branch";
 
 	/**
-	 * Invoke the filter directly, bypassing the executor.
+	 * Invoke the filter directly, bypassing the harness.
 	 *
-	 * @param filter   the filter under test
-	 * @param media    the media item to evaluate
-	 * @param upstream upstream results keyed by node id, as the executor would pass them
+	 * @param filter the filter under test
+	 * @param media  the media item to evaluate
+	 * @param inputs what the filter's input ports carry
 	 */
-	protected NodeResult evaluate(AbstractFilterNode filter, LoomMedia media, Map<String, NodeResult> upstream) {
-		return filter.process(media, upstream);
+	protected NodeResult evaluate(AbstractFilterNode filter, LoomMedia media, NodeInputs inputs) {
+		return filter.process(media, inputs);
 	}
 
 	/**
-	 * Invoke the filter directly with no upstream results at all.
+	 * Invoke the filter directly with nothing wired into any of its ports.
 	 */
 	protected NodeResult evaluate(AbstractFilterNode filter, LoomMedia media) {
-		return filter.process(media, Map.of());
+		return filter.process(media, NodeInputs.empty());
 	}
 
 	/**
-	 * Build an upstream result map holding a single node's outputs — the common
-	 * shape for filters that read one quality/hash node.
+	 * Fill a single {@code ONE} input port — the common shape for a filter that reads
+	 * one upstream value.
 	 */
-	protected Map<String, NodeResult> upstream(String nodeId, Map<String, Object> outputs) {
-		return Map.of(nodeId, NodeResult.success(nodeId, 0, outputs));
+	protected <T> NodeInputs input(InputPort<T> port, T value) {
+		return NodeInputs.builder().input(port, value).build();
+	}
+
+	/**
+	 * Whether the filter passed. Reads the verdict by port rather than by map key, so
+	 * a renamed verdict port would be a compile error rather than a silent false.
+	 */
+	protected boolean passed(NodeResult result) {
+		return Boolean.TRUE.equals(result.get(FILTER_VERDICT));
 	}
 
 	/**
@@ -67,9 +76,8 @@ abstract class AbstractFilterNodeTest extends AbstractNodeChainTest {
 	 *                                          --(REJECT)--&gt; reject-branch
 	 * </pre>
 	 *
-	 * Both branch nodes are {@code CapturingNode}s bound to the filter's
-	 * {@code filter_reason} output, so a test can assert on the routing decision
-	 * and on the reason string in one run.
+	 * Both branch nodes capture the filter's verdict, so a test can assert on the
+	 * routing decision in one run.
 	 *
 	 * @param media    the media item to process
 	 * @param filter   the filter under test
@@ -84,14 +92,7 @@ abstract class AbstractFilterNodeTest extends AbstractNodeChainTest {
 		// decision the Loom engine would make: only the node wired to the matching
 		// branch runs; the other is skipped.
 		return executeWithBranches(media, filter.id(), chain,
-			passNode(filter), rejectNode(filter));
-	}
-
-	private PipelineNode passNode(AbstractFilterNode filter) {
-		return new io.metaloom.cortex.pipeline.test.CapturingNode(PASS_NODE, filter.id(), "filter_reason");
-	}
-
-	private PipelineNode rejectNode(AbstractFilterNode filter) {
-		return new io.metaloom.cortex.pipeline.test.CapturingNode(REJECT_NODE, filter.id(), "filter_reason");
+			new CapturingNode(PASS_NODE, FILTER_VERDICT),
+			new CapturingNode(REJECT_NODE, FILTER_VERDICT));
 	}
 }

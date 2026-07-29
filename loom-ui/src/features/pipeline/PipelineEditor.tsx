@@ -50,7 +50,9 @@ import { subscribePipelineEvents, type PipelineEventMessage } from "../../api/pi
 import { useAuth } from "../../context/AuthContext";
 import { useSpace } from "../../context/SpaceContext";
 import { useNodeRegistry } from "../../context/NodeRegistryContext";
-import type { NodeDescriptor, NodeCategory } from "../../types/nodeDescriptors";
+import type { ContentType, NodeDescriptor, NodeCategory, PortGroup, PortSpec } from "../../types/nodeDescriptors";
+import { contentTypeColor, findContentType, isAssignable, isWildcard } from "./contentTypes";
+import { resolveInputPorts, resolveOutputPorts } from "./portResolvers";
 import { PipelineVersionDiff } from "./PipelineVersionDiff";
 
 // Default affinity group name. Mirrors PipelineGraphNode.DEFAULT_AFFINITY on the
@@ -123,82 +125,100 @@ function nodeVisualConfig(desc: NodeDescriptor) {
   return { ...cat, icon: resolveNodeIcon(desc) };
 }
 
-// Connector data types – derived from content-type strings
-type ConnectorDataType = "media" | "data" | "control" | "text" | "hash";
-
-interface ConnectorDef {
-  name: string;
-  dataType: ConnectorDataType;
+/**
+ * The port set of one node instance, as the canvas needs it.
+ *
+ * The keys are deliberately **not** `inputs`/`outputs`: React Flow node data is one flat bag that
+ * also carries the node's options, and a `script` node's options contain a key called `outputs` —
+ * its declared output list. The two used to collide, so a script's resolved handles were
+ * overwritten by its raw option and `getGraphJson` then stripped that option back out on save.
+ */
+interface NodePorts {
+  portsIn: PortSpec[];
+  portsOut: PortSpec[];
+  portGroupsIn: PortGroup[];
+  portGroupsOut: PortGroup[];
 }
 
-/** Map an API content-type string to a UI connector data type. */
-function toConnectorDataType(contentType: string): ConnectorDataType {
-  if (contentType.startsWith("media/")) return "media";
-  if (contentType === "data/hash" || contentType === "data/fingerprint") return "hash";
-  if (contentType === "data/text" || contentType === "data/transcript" || contentType === "data/caption") return "text";
-  if (contentType.startsWith("control/")) return "control";
-  return "data";
-}
+const NO_PORTS: NodePorts = { portsIn: [], portsOut: [], portGroupsIn: [], portGroupsOut: [] };
 
-/** Convert a NodeDescriptor to ConnectorDef arrays. */
-function descriptorConnectors(desc: NodeDescriptor): { inputs: ConnectorDef[]; outputs: ConnectorDef[] } {
+/**
+ * The ports of one node instance.
+ *
+ * Most kinds have a fixed port set the descriptor states. `script`, `llm` and `vlm` mark themselves
+ * `dynamicPorts` — their ports follow their configuration — and are resolved through the mirrors of
+ * the Java `NodePortResolver`s in `./portResolvers`.
+ *
+ * A kind with no descriptor gets **no** ports rather than an invented pair: handle ids are port
+ * ids now, so inventing one would author an edge no server-side port can ever match.
+ */
+function nodeConnectors(desc: NodeDescriptor | undefined, options: Record<string, unknown>): NodePorts {
+  if (!desc) return NO_PORTS;
   return {
-    inputs: desc.inputs.map((i) => ({ name: i.name, dataType: toConnectorDataType(i.contentType) })),
-    outputs: desc.outputs.map((o) => ({ name: o.name, dataType: toConnectorDataType(o.contentType) })),
+    portsIn: resolveInputPorts(desc, options),
+    portsOut: resolveOutputPorts(desc, options),
+    portGroupsIn: desc.inputGroups ?? [],
+    portGroupsOut: desc.outputGroups ?? [],
   };
 }
 
-/**
- * Content type each script output value type carries downstream. Mirrors `ScriptValueType`
- * in the cortex script node — keep the two in step when adding a value type.
- */
-const SCRIPT_VALUE_CONTENT_TYPE: Record<string, string> = {
-  STRING: "data/string", TEXT: "data/text", INTEGER: "data/integer", NUMBER: "data/number",
-  BOOLEAN: "data/boolean", JSON: "data/text", TEXT_LIST: "data/text", TIMEFRAMES: "data/scene",
-  IMAGE: "data/thumbnail", IMAGE_LIST: "data/thumbnail", PATH: "data/path",
-};
-
-/**
- * Connectors for one node, preferring any the node declares for itself.
- *
- * Most kinds have a fixed output set that the descriptor states. A `script` node's outputs are
- * per instance — they come from its `outputs` option — so the descriptor cannot know them and
- * the handles have to be derived from the node's own configuration instead.
- */
-function nodeConnectors(desc: NodeDescriptor | undefined, options: Record<string, unknown>): { inputs: ConnectorDef[]; outputs: ConnectorDef[] } {
-  const base = desc
-    ? descriptorConnectors(desc)
-    : { inputs: [{ name: "Input", dataType: "media" as ConnectorDataType }], outputs: [{ name: "Output", dataType: "media" as ConnectorDataType }] };
-
-  const declared = options.outputs;
-  if (!Array.isArray(declared) || declared.length === 0) return base;
-
-  const outputs = declared
-    .filter((o): o is { key: string; type?: string } => !!o && typeof o === "object" && typeof (o as { key?: unknown }).key === "string")
-    .map(o => ({ name: o.key, dataType: toConnectorDataType(SCRIPT_VALUE_CONTENT_TYPE[o.type ?? "STRING"] ?? "data/string") }));
-
-  return outputs.length > 0 ? { inputs: base.inputs, outputs } : base;
+/** A port's display name — its served label, or its id when the descriptor gives none. */
+function portName(port: PortSpec): string {
+  return port.label ?? port.id;
 }
 
-// Color map for connector data types
-const DATA_TYPE_COLOR: Record<ConnectorDataType, string> = {
-  text: "#42a5f5",
-  media: "#66bb6a",
-  data: "#ffa726",
-  hash: "#ab47bc",
-  control: "#78909c",
-};
+/**
+ * The handle tooltip: label, exact type id (with the served label and description) and cardinality.
+ * The vocabulary comes from the served `contentTypes`, never from a table in this file.
+ */
+function portTooltip(port: PortSpec, contentTypes: ContentType[]): string {
+  const served = findContentType(port.contentType, contentTypes);
+  const lines = [
+    `${portName(port)} · ${port.contentType}${served ? ` (${served.label})` : ""}`,
+    port.cardinality === "MANY" ? "MANY — a sequence of elements" : "ONE — a single element",
+  ];
+  if (port.description) lines.push(port.description);
+  if (served?.description) lines.push(served.description);
+  return lines.join("\n");
+}
+
+/**
+ * Why a port is closed to further connections, or null when it is open.
+ *
+ * Wiring one member of a group closes its siblings: an `XOR` input group is exactly one of several
+ * alternatives (whisper takes audio *or* video, never both), and an `EXCLUSIVE` output group is at
+ * most one selected output. Both reduce to "a sibling is already wired".
+ */
+function portBlockedReason(port: PortSpec, ports: PortSpec[], groups: PortGroup[], wired: Set<string>): string | null {
+  if (!port.group || wired.has(port.id)) return null;
+  const group = groups.find(g => g.id === port.group);
+  if (!group) return null;
+  const sibling = ports.find(p => p.group === port.group && p.id !== port.id && wired.has(p.id));
+  if (!sibling) return null;
+  const groupName = group.label ?? group.id;
+  return group.mode === "XOR"
+    ? `${groupName} is already wired through "${portName(sibling)}" — it accepts exactly one alternative`
+    : `${groupName} is already wired through "${portName(sibling)}" — only one of these outputs may be used`;
+}
 
 // ── Custom Pipeline Node Component ────────────────────────────────────────
 function PipelineNodeComponent({ data, selected, id }: NodeProps) {
   const category = (data.category as NodeCategory) ?? "ANALYSIS";
   const cfg = categoryConfig[category] ?? categoryConfig.ANALYSIS;
   const nodeIcon = data.nodeIcon as React.ReactNode | undefined;
-  const isSource = category === "SOURCE";
   const isActive = data.isActive as boolean | undefined;
   const lastResult = data.lastResult as "completed" | "failed" | undefined;
-  const inputs = isSource ? [] : ((data.inputs as ConnectorDef[] | undefined) ?? [{ name: "Input", dataType: "media" as ConnectorDataType }]);
-  const outputs = (data.outputs as ConnectorDef[] | undefined) ?? [{ name: "Output", dataType: "media" as ConnectorDataType }];
+  // Handle ids are port ids. There is deliberately no invented fallback port: a handle the server
+  // has no port for would author an edge it must then reject.
+  const inputs = (data.portsIn as PortSpec[] | undefined) ?? [];
+  const outputs = (data.portsOut as PortSpec[] | undefined) ?? [];
+  const inputGroups = (data.portGroupsIn as PortGroup[] | undefined) ?? [];
+  const outputGroups = (data.portGroupsOut as PortGroup[] | undefined) ?? [];
+  // Port ids that already carry an edge, pushed in by the canvas so a wired XOR member can grey
+  // out its siblings.
+  const wiredInputs = new Set((data.wiredInputs as string[] | undefined) ?? []);
+  const wiredOutputs = new Set((data.wiredOutputs as string[] | undefined) ?? []);
+  const contentTypes = (data.contentTypes as ContentType[] | undefined) ?? [];
   const [hovered, setHovered] = useState(false);
   const onDelete = data.onDelete as ((nodeId: string) => void) | undefined;
 
@@ -342,17 +362,38 @@ function PipelineNodeComponent({ data, selected, id }: NodeProps) {
         </Box>
       </Box>
 
-      {/* Input handles */}
-      {inputs.map((inp, idx) => {
+      {/* Input handles — one per declared input port, keyed by port id */}
+      {inputs.map((port, idx) => {
         const topPct = inputs.length === 1 ? 50 : 30 + (idx * 40) / Math.max(1, inputs.length - 1);
-        const dtColor = DATA_TYPE_COLOR[inp.dataType] ?? tokens.text.tertiary;
+        const dtColor = contentTypeColor(port.contentType, tokens.text.tertiary);
+        const blocked = portBlockedReason(port, inputs, inputGroups, wiredInputs);
+        const many = port.cardinality === "MANY";
         return (
-          <React.Fragment key={`in_${idx}`}>
+          <React.Fragment key={port.id}>
             <Handle
               type="target"
               position={Position.Left}
-              id={`in_${idx}`}
-              style={{ background: dtColor, border: `2px solid ${tokens.bg.elevated}`, width: 10, height: 10, top: `${topPct}%` }}
+              id={port.id}
+              isConnectable={!blocked}
+              data-testid={`port-in-${id}-${port.id}`}
+              data-content-type={port.contentType}
+              data-cardinality={port.cardinality}
+              data-port-blocked={blocked ? "true" : "false"}
+              title={blocked ? `${portTooltip(port, contentTypes)}\n\n${blocked}` : portTooltip(port, contentTypes)}
+              style={{
+                // A wildcard port renders hollow: it accepts (or emits) the whole family, and for a
+                // producer the real verdict only comes at runtime.
+                background: isWildcard(port.contentType) ? tokens.bg.elevated : dtColor,
+                border: `2px solid ${isWildcard(port.contentType) ? dtColor : tokens.bg.elevated}`,
+                // A MANY handle is squared off and doubled, so "I take a sequence" is visible
+                // without hovering.
+                borderRadius: many ? 2 : "50%",
+                boxShadow: many ? `4px 0 0 -2px ${dtColor}` : undefined,
+                width: 10,
+                height: 10,
+                top: `${topPct}%`,
+                opacity: blocked ? 0.3 : 1,
+              }}
             />
             {hovered && (
               <Box
@@ -369,11 +410,13 @@ function PipelineNodeComponent({ data, selected, id }: NodeProps) {
                   border: `1px solid ${dtColor}44`,
                   display: "flex",
                   alignItems: "center",
+                  gap: 0.4,
                   whiteSpace: "nowrap",
+                  opacity: blocked ? 0.45 : 1,
                 }}
               >
                 <Typography sx={{ fontSize: "0.52rem", color: dtColor, fontWeight: 600, lineHeight: 1 }}>
-                  {inp.dataType}
+                  {portName(port)} · {port.contentType}{many ? " ×N" : ""}
                 </Typography>
               </Box>
             )}
@@ -381,17 +424,34 @@ function PipelineNodeComponent({ data, selected, id }: NodeProps) {
         );
       })}
 
-      {/* Output handles */}
-      {outputs.map((out, idx) => {
+      {/* Output handles — one per declared output port, keyed by port id */}
+      {outputs.map((port, idx) => {
         const topPct = outputs.length === 1 ? 50 : 30 + (idx * 40) / Math.max(1, outputs.length - 1);
-        const dtColor = DATA_TYPE_COLOR[out.dataType] ?? tokens.text.tertiary;
+        const dtColor = contentTypeColor(port.contentType, tokens.text.tertiary);
+        const blocked = portBlockedReason(port, outputs, outputGroups, wiredOutputs);
+        const many = port.cardinality === "MANY";
         return (
-          <React.Fragment key={`out_${idx}`}>
+          <React.Fragment key={port.id}>
             <Handle
               type="source"
               position={Position.Right}
-              id={`out_${idx}`}
-              style={{ background: dtColor, border: `2px solid ${tokens.bg.elevated}`, width: 10, height: 10, top: `${topPct}%` }}
+              id={port.id}
+              isConnectable={!blocked}
+              data-testid={`port-out-${id}-${port.id}`}
+              data-content-type={port.contentType}
+              data-cardinality={port.cardinality}
+              data-port-blocked={blocked ? "true" : "false"}
+              title={blocked ? `${portTooltip(port, contentTypes)}\n\n${blocked}` : portTooltip(port, contentTypes)}
+              style={{
+                background: isWildcard(port.contentType) ? tokens.bg.elevated : dtColor,
+                border: `2px solid ${isWildcard(port.contentType) ? dtColor : tokens.bg.elevated}`,
+                borderRadius: many ? 2 : "50%",
+                boxShadow: many ? `-4px 0 0 -2px ${dtColor}` : undefined,
+                width: 10,
+                height: 10,
+                top: `${topPct}%`,
+                opacity: blocked ? 0.3 : 1,
+              }}
             />
             {hovered && (
               <Box
@@ -408,11 +468,13 @@ function PipelineNodeComponent({ data, selected, id }: NodeProps) {
                   border: `1px solid ${dtColor}44`,
                   display: "flex",
                   alignItems: "center",
+                  gap: 0.4,
                   whiteSpace: "nowrap",
+                  opacity: blocked ? 0.45 : 1,
                 }}
               >
                 <Typography sx={{ fontSize: "0.52rem", color: dtColor, fontWeight: 600, lineHeight: 1 }}>
-                  {out.dataType}
+                  {portName(port)} · {port.contentType}{many ? " ×N" : ""}
                 </Typography>
               </Box>
             )}
@@ -429,7 +491,7 @@ const nodeTypes = { pipelineNode: PipelineNodeComponent };
 
 // ── Convert pipeline nodes to React Flow format ───────────────────────────
 
-function toRFNodes(pnodes: PipelineNode[], selectedId: string | null, descriptors: NodeDescriptor[], onDelete?: (nodeId: string) => void, activeNodeIds?: Set<string>, nodeResults?: Record<string, "completed" | "failed">): RFNode[] {
+function toRFNodes(pnodes: PipelineNode[], selectedId: string | null, descriptors: NodeDescriptor[], contentTypes: ContentType[], onDelete?: (nodeId: string) => void, activeNodeIds?: Set<string>, nodeResults?: Record<string, "completed" | "failed">): RFNode[] {
   // Build a lookup map once
   const descMap = new Map(descriptors.map(d => [d.kind, d]));
 
@@ -443,6 +505,8 @@ function toRFNodes(pnodes: PipelineNode[], selectedId: string | null, descriptor
       position: n.position,
       selected: n.id === selectedId,
       data: {
+        // Options first: everything below is editor state and must win over a same-named option.
+        ...pipelineNodeOptions(n),
         label: n.label,
         description: n.description,
         category,
@@ -451,15 +515,16 @@ function toRFNodes(pnodes: PipelineNode[], selectedId: string | null, descriptor
         // category. Without this the canvas serialization corrupts node types.
         kind: n.type,
         nodeIcon: desc ? resolveNodeIcon(desc) : undefined,
-        inputs: connectors.inputs,
-        outputs: connectors.outputs,
+        ...connectors,
+        // The served vocabulary, for handle tooltips. Labels and descriptions are never
+        // hardcoded in the editor.
+        contentTypes,
         onDelete,
         isActive: activeNodeIds?.has(n.id) ?? false,
         lastResult: nodeResults?.[n.id],
         // Affinity is a top-level field on the definition node; surface it in the
         // React Flow node data so the renderer and getGraphJson can see it.
         affinity: n.affinity ?? DEFAULT_AFFINITY,
-        ...pipelineNodeOptions(n),
       },
     };
   });
@@ -474,12 +539,16 @@ const EDGE_TYPE_STYLE: Record<string, { stroke: string; strokeDasharray?: string
 
 function toRFEdges(edges: Pipeline["definition"]["edges"]): RFEdge[] {
   return edges.map(e => {
-    const et = e.edgeType ?? "ANY";
-    const style = EDGE_TYPE_STYLE[et] ?? EDGE_TYPE_STYLE.ANY;
+    const branch = e.branch ?? "ANY";
+    const style = EDGE_TYPE_STYLE[branch] ?? EDGE_TYPE_STYLE.ANY;
     return {
       id: e.id,
       source: e.source,
       target: e.target,
+      // Restore the named handles. These used to be dropped here, so every edge fell back to the
+      // default handle after a save/reload round trip and the authored ports were lost.
+      sourceHandle: e.sourcePort,
+      targetHandle: e.targetPort,
       label: e.label ?? style.label,
       labelStyle: { fill: style.labelColor, fontWeight: 600, fontSize: 9 },
       labelBgStyle: { fill: style.labelBg, stroke: style.stroke, strokeDasharray: undefined },
@@ -487,7 +556,7 @@ function toRFEdges(edges: Pipeline["definition"]["edges"]): RFEdge[] {
       labelBgBorderRadius: 4,
       animated: e.animated ?? false,
       style: { stroke: style.stroke, strokeWidth: 1.5, strokeDasharray: style.strokeDasharray },
-      data: { edgeType: et },
+      data: { branch },
     };
   });
 }
@@ -1360,7 +1429,7 @@ function NodeDetailSidebar({
 
 // ── Canvas ────────────────────────────────────────────────────────────────
 function PipelineCanvas({
-  pipeline, onNodeSelect, externalNodes, nodeDisplayNames, nodeAffinities, nodeParameters, descriptors,
+  pipeline, onNodeSelect, externalNodes, nodeDisplayNames, nodeAffinities, nodeParameters, descriptors, contentTypes,
   onDeleteNode, activeNodeIds, nodeResults, onGraphChange, removalTrigger, autoArrangeTrigger,
   onEdgeTypeChange, reloadKey,
 }: {
@@ -1371,6 +1440,8 @@ function PipelineCanvas({
   nodeAffinities?: Record<string, string>;
   nodeParameters?: Record<string, Record<string, unknown>>;
   descriptors: NodeDescriptor[];
+  /** The served content-type vocabulary — the only source of port labels and descriptions. */
+  contentTypes: ContentType[];
   onDeleteNode?: (nodeId: string, label: string) => void;
   activeNodeIds?: Set<string>;
   nodeResults?: Record<string, "completed" | "failed">;
@@ -1386,7 +1457,8 @@ function PipelineCanvas({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const reconnectingEdgeRef = useRef<RFEdge | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
-  const connectionRejectedRef = useRef(false);
+  /** Why the last attempted connection was refused, surfaced as a toast on connect-end. */
+  const connectionRejectedRef = useRef<string | null>(null);
   const connectingRef = useRef(false);
   const [edgeMenu, setEdgeMenu] = useState<{ edgeId: string; x: number; y: number } | null>(null);
   const { t } = useTranslation();
@@ -1402,7 +1474,7 @@ function PipelineCanvas({
   // explicitly asks for a reload (version restore).
   useEffect(() => {
     if (!pipeline) { setNodes([]); setEdges([]); return; }
-    setNodes(toRFNodes(pipeline.definition.nodes, null, descriptors, handleNodeDelete, activeNodeIds, nodeResults));
+    setNodes(toRFNodes(pipeline.definition.nodes, null, descriptors, contentTypes, handleNodeDelete, activeNodeIds, nodeResults));
     setEdges(toRFEdges(pipeline.definition.edges));
     setSelectedId(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1478,9 +1550,30 @@ function PipelineCanvas({
   useEffect(() => {
     setNodes(nds => nds.map(n => ({
       ...n,
-      data: { ...n.data, onDelete: handleNodeDelete, isActive: activeNodeIds?.has(n.id) ?? false, lastResult: nodeResults?.[n.id] },
+      data: { ...n.data, onDelete: handleNodeDelete, isActive: activeNodeIds?.has(n.id) ?? false, lastResult: nodeResults?.[n.id], contentTypes },
     })));
-  }, [handleNodeDelete, activeNodeIds, nodeResults, setNodes]);
+  }, [handleNodeDelete, activeNodeIds, nodeResults, contentTypes, setNodes]);
+
+  // Push the set of already-wired port ids into each node, so a wired XOR member can grey out its
+  // siblings (and an EXCLUSIVE output member its own). Recomputed from the live edges rather than
+  // read inside the node component, which has no view of the graph.
+  useEffect(() => {
+    const wiredIn = new Map<string, string[]>();
+    const wiredOut = new Map<string, string[]>();
+    for (const e of edges) {
+      if (e.targetHandle) wiredIn.set(e.target, [...(wiredIn.get(e.target) ?? []), e.targetHandle]);
+      if (e.sourceHandle) wiredOut.set(e.source, [...(wiredOut.get(e.source) ?? []), e.sourceHandle]);
+    }
+    setNodes(nds => nds.map(n => {
+      const ins = wiredIn.get(n.id) ?? [];
+      const outs = wiredOut.get(n.id) ?? [];
+      // Only touch node data when the wiring actually changed — this effect runs on every edge
+      // change and a fresh object each time would restart the whole canvas render loop.
+      const sameIn = ((n.data.wiredInputs as string[] | undefined) ?? []).join(" ") === ins.join(" ");
+      const sameOut = ((n.data.wiredOutputs as string[] | undefined) ?? []).join(" ") === outs.join(" ");
+      return sameIn && sameOut ? n : { ...n, data: { ...n.data, wiredInputs: ins, wiredOutputs: outs } };
+    }));
+  }, [edges, setNodes]);
 
   // Append externally-added nodes
   useEffect(() => {
@@ -1541,7 +1634,7 @@ function PipelineCanvas({
       const data = { ...n.data, ...params };
       const desc = descriptors.find(d => d.kind === (n.data.kind as string));
       const connectors = nodeConnectors(desc, data as Record<string, unknown>);
-      return { ...n, data: { ...data, inputs: connectors.inputs, outputs: connectors.outputs } };
+      return { ...n, data: { ...data, ...connectors } };
     }));
   }, [nodeParameters, descriptors, setNodes]);
 
@@ -1567,59 +1660,114 @@ function PipelineCanvas({
     return () => window.removeEventListener("keydown", handler);
   }, [selectedId, nodes, onDeleteNode]);
 
-  // Connection type validation: only allow same data-type connections
+  /**
+   * Port-level connection validation, mirroring the rules `PipelineValidationService` enforces at
+   * save time (§5.3 of the port refactor plan).
+   *
+   * This deliberately **fails closed**. It used to return `true` whenever handle information was
+   * missing, which is now always a bug rather than a legacy graph: every port is named, so a
+   * connection with no handle has nothing to bind to.
+   */
   const isValidConnection = useCallback((conn: Connection) => {
-    if (!conn.source || !conn.target || !conn.sourceHandle || !conn.targetHandle) return true;
+    const reject = (reason: string) => { connectionRejectedRef.current = reason; return false; };
+
+    // Still mid-drag with nothing under the cursor: not a rejection, so no toast.
+    if (!conn.source || !conn.target) return false;
+    if (conn.source === conn.target) return reject("A node cannot be connected to itself");
+    if (!conn.sourceHandle || !conn.targetHandle) {
+      return reject("Connections must start and end on a named port");
+    }
+
     const sourceNode = nodes.find(n => n.id === conn.source);
     const targetNode = nodes.find(n => n.id === conn.target);
-    if (!sourceNode || !targetNode) return true;
+    if (!sourceNode || !targetNode) return reject("Unknown node");
 
-    const sourceOutputs = sourceNode.data.outputs as ConnectorDef[] | undefined;
-    const targetInputs = targetNode.data.inputs as ConnectorDef[] | undefined;
-    if (!sourceOutputs || !targetInputs) return true;
+    const sourcePorts = (sourceNode.data.portsOut as PortSpec[] | undefined) ?? [];
+    const targetPorts = (targetNode.data.portsIn as PortSpec[] | undefined) ?? [];
+    const sourcePort = sourcePorts.find(p => p.id === conn.sourceHandle);
+    const targetPort = targetPorts.find(p => p.id === conn.targetHandle);
+    const sourceLabel = (sourceNode.data.label as string) ?? sourceNode.id;
+    const targetLabel = (targetNode.data.label as string) ?? targetNode.id;
+    if (!sourcePort) return reject(`${sourceLabel} has no output port "${conn.sourceHandle}"`);
+    if (!targetPort) return reject(`${targetLabel} has no input port "${conn.targetHandle}"`);
 
-    const outIdx = parseInt(conn.sourceHandle.replace("out_", ""), 10);
-    const inIdx = parseInt(conn.targetHandle.replace("in_", ""), 10);
-    const sourceType = sourceOutputs[outIdx]?.dataType;
-    const targetType = targetInputs[inIdx]?.dataType;
-    if (!sourceType || !targetType) return true;
+    // Type: the same lattice rule the server applies.
+    if (!isAssignable(sourcePort.contentType, targetPort.contentType)) {
+      return reject(`${portName(sourcePort)} emits ${sourcePort.contentType}, which ${targetLabel} · ${portName(targetPort)} cannot accept (${targetPort.contentType})`);
+    }
 
-    const valid = sourceType === targetType;
-    if (!valid) connectionRejectedRef.current = true;
-    return valid;
-  }, [nodes]);
+    const incoming = edges.filter(e => e.target === conn.target && e.targetHandle === targetPort.id);
+    if (incoming.some(e => e.source === conn.source && e.sourceHandle === sourcePort.id)) {
+      return reject("These ports are already connected");
+    }
+
+    // Cardinality: a ONE input takes a single edge; a MANY input concatenates them.
+    if (targetPort.cardinality !== "MANY" && incoming.length > 0) {
+      return reject(`${targetLabel} · ${portName(targetPort)} takes a single connection — it is not a MANY input`);
+    }
+
+    // XOR inputs: exactly one alternative.
+    const targetGroups = (targetNode.data.portGroupsIn as PortGroup[] | undefined) ?? [];
+    const inGroup = targetGroups.find(g => g.id === targetPort.group);
+    if (inGroup?.mode === "XOR") {
+      const wired = targetPorts.filter(p =>
+        p.group === targetPort.group && p.id !== targetPort.id &&
+        edges.some(e => e.target === conn.target && e.targetHandle === p.id));
+      if (wired.length > 0) {
+        const alternatives = targetPorts.filter(p => p.group === targetPort.group).map(portName);
+        return reject(`${targetLabel} accepts ${alternatives.join(" or ")}, not both`);
+      }
+    }
+
+    // EXCLUSIVE outputs: selecting one renders its siblings inoperable.
+    const sourceGroups = (sourceNode.data.portGroupsOut as PortGroup[] | undefined) ?? [];
+    const outGroup = sourceGroups.find(g => g.id === sourcePort.group);
+    if (outGroup?.mode === "EXCLUSIVE") {
+      const wired = sourcePorts.filter(p =>
+        p.group === sourcePort.group && p.id !== sourcePort.id &&
+        edges.some(e => e.source === conn.source && e.sourceHandle === p.id));
+      if (wired.length > 0) {
+        return reject(`${sourceLabel} emits ${wired.map(portName).join(" or ")} or ${portName(sourcePort)}, not both`);
+      }
+    }
+
+    connectionRejectedRef.current = null;
+    return true;
+  }, [nodes, edges]);
 
   // New connection: snap source→target (only if valid)
   const onConnect = useCallback((conn: Connection) => {
     if (!conn.source || !conn.target) return;
     if (!isValidConnection(conn)) return;
-    connectionRejectedRef.current = false;
+    connectionRejectedRef.current = null;
     const newEdge: RFEdge = {
       id: `e_${conn.source}_${conn.target}_${Date.now()}`,
       source: conn.source,
       target: conn.target,
+      // Handle ids are port ids — this is what `getGraphJson` persists as sourcePort/targetPort.
       sourceHandle: conn.sourceHandle ?? undefined,
       targetHandle: conn.targetHandle ?? undefined,
       style: { stroke: tokens.border.strong, strokeWidth: 1.5 },
+      data: { branch: "ANY" as EdgeKind },
     };
     setEdges(eds => addEdge(newEdge, eds));
   }, [setEdges, isValidConnection]);
 
   // Connection start/end for error feedback
   const onConnectStartHandler = useCallback(() => {
-    connectionRejectedRef.current = false;
+    connectionRejectedRef.current = null;
     connectingRef.current = true;
   }, []);
 
   const onConnectEndHandler = useCallback((event: MouseEvent | TouchEvent) => {
-    // Check if we were connecting and it was rejected
+    // Check if we were connecting and it was rejected — the toast says *why*.
     if (connectingRef.current && connectionRejectedRef.current) {
-      setConnectionError(t("pipeline.editor.connectionTypeError"));
-      setTimeout(() => setConnectionError(null), 3000);
+      setConnectionError(connectionRejectedRef.current);
+      setTimeout(() => setConnectionError(null), 5000);
     }
-    connectionRejectedRef.current = false;
+    connectionRejectedRef.current = null;
     connectingRef.current = false;
-  }, [t]);
+  }, []);
 
   // Reconnect (drag existing edge to a new target)
   const onReconnectStart = useCallback((_: React.MouseEvent, edge: RFEdge) => {
@@ -1645,7 +1793,7 @@ function PipelineCanvas({
     setEdgeMenu({ edgeId: edge.id, x: event.clientX, y: event.clientY });
   }, []);
 
-  // Apply edge type change locally and notify parent
+  // Apply edge branch change locally and notify parent
   const handleEdgeTypeChange = useCallback((edgeId: string, edgeType: EdgeKind) => {
     const style = EDGE_TYPE_STYLE[edgeType] ?? EDGE_TYPE_STYLE.ANY;
     setEdges(eds => eds.map(e => {
@@ -1656,7 +1804,7 @@ function PipelineCanvas({
         labelStyle: { fill: style.labelColor, fontWeight: 600, fontSize: 9 },
         labelBgStyle: { fill: style.labelBg, stroke: style.stroke },
         style: { ...e.style, stroke: style.stroke, strokeDasharray: style.strokeDasharray },
-        data: { ...e.data, edgeType },
+        data: { ...e.data, branch: edgeType },
       };
     }));
     onEdgeTypeChange?.(edgeId, edgeType);
@@ -1668,7 +1816,14 @@ function PipelineCanvas({
     // Keys handled explicitly above / not part of the persisted config. `affinity`
     // is lifted to the node top level (the shape Loom's PipelineGraphParser reads),
     // so it must be excluded from the nested `config` bag too.
-    const RESERVED = ["label", "description", "category", "kind", "nodeIcon", "inputs", "outputs", "onDelete", "isActive", "lastResult", "displayName", "affinity"];
+    // Port rendering state is listed under its own `port*` keys, so a node option that happens to
+    // be called `outputs` — which is exactly what a `script` node declares its outputs in — is
+    // persisted rather than mistaken for editor state and stripped.
+    const RESERVED = [
+      "label", "description", "category", "kind", "nodeIcon", "onDelete", "isActive", "lastResult",
+      "displayName", "affinity",
+      "portsIn", "portsOut", "portGroupsIn", "portGroupsOut", "wiredInputs", "wiredOutputs", "contentTypes",
+    ];
     const nodeData = nodes.map(n => {
       const affinity = (n.data as any).affinity as string | undefined;
       const configEntries = Object.entries(n.data).filter(([k]) => !RESERVED.includes(k));
@@ -1689,13 +1844,17 @@ function PipelineCanvas({
         ...(configEntries.length > 0 ? { options: Object.fromEntries(configEntries) } : {}),
       };
     });
+    // Edges are port-to-port. `sourcePort`/`targetPort` are required by Loom and are the handle
+    // ids verbatim — the editor used to write them as `sourceHandle`/`targetHandle`, which no
+    // parser read. `branch` (not `edgeType`) is the field the graph parser and the validator read;
+    // writing `edgeType` is why UI-authored PASS/REJECT routing reached the engine as ANY.
     const edgeData = edges.map(e => ({
       id: e.id,
       source: e.source,
+      ...(e.sourceHandle ? { sourcePort: e.sourceHandle } : {}),
       target: e.target,
-      ...(e.sourceHandle ? { sourceHandle: e.sourceHandle } : {}),
-      ...(e.targetHandle ? { targetHandle: e.targetHandle } : {}),
-      ...(e.data?.edgeType && e.data.edgeType !== "ANY" ? { edgeType: e.data.edgeType } : {}),
+      ...(e.targetHandle ? { targetPort: e.targetHandle } : {}),
+      branch: (e.data?.branch as EdgeKind | undefined) ?? "ANY",
     }));
     return { nodes: nodeData, edges: edgeData };
   }, [nodes, edges]);
@@ -1809,9 +1968,10 @@ function PipelineCanvas({
           </Paper>
         </ClickAwayListener>
       )}
-      {/* Connection error toast */}
+      {/* Connection error toast — says which rule refused the connection */}
       {connectionError && (
         <Box
+          data-testid="pipeline-connection-error"
           sx={{
             position: "absolute",
             top: 12,
@@ -1976,11 +2136,122 @@ function CommandPaletteContent({
 const NODE_ID_REGEX = /^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$/;
 
 interface ValidationError {
-  type: "duplicateId" | "cycle" | "invalidId" | "noSource" | "multipleSource" | "unknownType";
+  type: "duplicateId" | "cycle" | "invalidId" | "noSource" | "multipleSource" | "unknownType"
+      | "unknownPort" | "typeMismatch" | "cardinality" | "xor" | "exclusive" | "requiredInput";
   message: string;
 }
 
-function validatePipeline(nodes: { id: string; type: string; label: string }[], edges: { source: string; target: string }[], descriptors: NodeDescriptor[]): ValidationError[] {
+/** A node as the validator sees it — enough to resolve its ports. */
+interface ValidatedNode {
+  id: string;
+  type: string;
+  label: string;
+  options?: Record<string, unknown>;
+}
+
+/** An edge as the validator sees it. Ports are required by Loom; a missing one is an error here. */
+interface ValidatedEdge {
+  source: string;
+  target: string;
+  sourcePort?: string;
+  targetPort?: string;
+}
+
+/**
+ * Port-level rules, mirroring §5.3 of the port refactor plan so an author is told before saving
+ * rather than by an HTTP 400. `PipelineValidationService` remains the authority — this is the thin
+ * editor-side mirror the plan calls for, not a fourth independent validator.
+ */
+function validatePorts(nodes: ValidatedNode[], edges: ValidatedEdge[], descriptors: NodeDescriptor[]): ValidationError[] {
+  const errors: ValidationError[] = [];
+  const descMap = new Map(descriptors.map(d => [d.kind, d]));
+  const ports = new Map<string, NodePorts>();
+  const names = new Map<string, string>();
+  for (const n of nodes) {
+    ports.set(n.id, nodeConnectors(descMap.get(n.type), n.options ?? {}));
+    names.set(n.id, n.label || n.id);
+  }
+  const nameOf = (id: string) => names.get(id) ?? id;
+
+  /** Edges that resolved to a real port pair, so the satisfaction rules see only wired truth. */
+  const resolved: { edge: ValidatedEdge; source: PortSpec; target: PortSpec }[] = [];
+
+  for (const e of edges) {
+    const sourcePorts = ports.get(e.source);
+    const targetPorts = ports.get(e.target);
+    // Unknown node ids are already reported by the graph-level checks.
+    if (!sourcePorts || !targetPorts) continue;
+
+    if (!e.sourcePort || !e.targetPort) {
+      errors.push({ type: "unknownPort", message: `Edge ${nameOf(e.source)} → ${nameOf(e.target)} is not connected to named ports — redraw it handle to handle` });
+      continue;
+    }
+    const source = sourcePorts.portsOut.find(p => p.id === e.sourcePort);
+    const target = targetPorts.portsIn.find(p => p.id === e.targetPort);
+    if (!source) {
+      errors.push({ type: "unknownPort", message: `${nameOf(e.source)} has no output port "${e.sourcePort}"` });
+      continue;
+    }
+    if (!target) {
+      errors.push({ type: "unknownPort", message: `${nameOf(e.target)} has no input port "${e.targetPort}"` });
+      continue;
+    }
+    if (!isAssignable(source.contentType, target.contentType)) {
+      errors.push({ type: "typeMismatch", message: `${nameOf(e.source)} · ${portName(source)} emits ${source.contentType}, which ${nameOf(e.target)} · ${portName(target)} cannot accept (${target.contentType})` });
+      continue;
+    }
+    resolved.push({ edge: e, source, target });
+  }
+
+  // Multi-edge: only a MANY input may take more than one incoming edge.
+  const incoming = new Map<string, number>();
+  for (const { edge, target } of resolved) {
+    if (target.cardinality === "MANY") continue;
+    const key = `${edge.target} ${target.id}`;
+    const count = (incoming.get(key) ?? 0) + 1;
+    incoming.set(key, count);
+    if (count === 2) {
+      errors.push({ type: "cardinality", message: `${nameOf(edge.target)} · ${portName(target)} has more than one incoming edge but carries a single element` });
+    }
+  }
+
+  for (const n of nodes) {
+    const nodePorts = ports.get(n.id);
+    if (!nodePorts) continue;
+    const wiredIn = new Set(resolved.filter(r => r.edge.target === n.id).map(r => r.target.id));
+    const wiredOut = new Set(resolved.filter(r => r.edge.source === n.id).map(r => r.source.id));
+
+    // Ungrouped required inputs must be wired — the group owns `required` for grouped ports.
+    for (const port of nodePorts.portsIn) {
+      if (port.group || !port.required || wiredIn.has(port.id)) continue;
+      errors.push({ type: "requiredInput", message: `${nameOf(n.id)} · ${portName(port)} is a required input but nothing is connected to it` });
+    }
+
+    for (const group of nodePorts.portGroupsIn) {
+      if (group.mode !== "XOR") continue;
+      const members = nodePorts.portsIn.filter(p => p.group === group.id);
+      const wired = members.filter(p => wiredIn.has(p.id));
+      const alternatives = members.map(portName).join(" or ");
+      if (wired.length > 1) {
+        errors.push({ type: "xor", message: `${nameOf(n.id)} accepts ${alternatives}, not both` });
+      } else if (wired.length === 0 && group.required && members.length > 0) {
+        errors.push({ type: "xor", message: `${nameOf(n.id)} needs one of ${alternatives} connected` });
+      }
+    }
+
+    for (const group of nodePorts.portGroupsOut) {
+      if (group.mode !== "EXCLUSIVE") continue;
+      const wired = nodePorts.portsOut.filter(p => p.group === group.id && wiredOut.has(p.id));
+      if (wired.length > 1) {
+        errors.push({ type: "exclusive", message: `${nameOf(n.id)} emits ${wired.map(portName).join(" or ")}, not both` });
+      }
+    }
+  }
+
+  return errors;
+}
+
+function validatePipeline(nodes: ValidatedNode[], edges: ValidatedEdge[], descriptors: NodeDescriptor[]): ValidationError[] {
   const errors: ValidationError[] = [];
   const descKinds = new Set(descriptors.map(d => d.kind));
 
@@ -2034,7 +2305,7 @@ function validatePipeline(nodes: { id: string; type: string; label: string }[], 
     errors.push({ type: "cycle", message: "Cycle detected in pipeline graph — nodes form a circular dependency" });
   }
 
-  return errors;
+  return [...errors, ...validatePorts(nodes, edges, descriptors)];
 }
 
 // ── Main Pipeline Editor ──────────────────────────────────────────────────
@@ -2042,7 +2313,7 @@ export default function PipelineEditor() {
   const { activeSpace } = useSpace();
   const { t } = useTranslation();
   const { token } = useAuth();
-  const { descriptors, loading: registryLoading, error: registryError } = useNodeRegistry();
+  const { descriptors, contentTypes, loading: registryLoading, error: registryError } = useNodeRegistry();
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selected, setSelected] = useState<Pipeline | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -2287,12 +2558,12 @@ export default function PipelineEditor() {
     }
   }, [selected]);
 
-  // Persist edge type changes (PASS / REJECT / ANY) into the pipeline definition
+  // Persist edge branch changes (PASS / REJECT / ANY) into the pipeline definition
   const handleEdgeTypeChange = useCallback((edgeId: string, edgeType: EdgeKind) => {
     if (!selected) return;
     const edge = selected.definition.edges.find(e => e.id === edgeId);
     if (edge) {
-      edge.edgeType = edgeType;
+      edge.branch = edgeType;
       edge.label = edgeType;
       setSelected({ ...selected });
       setDirty(true);
@@ -2312,14 +2583,15 @@ export default function PipelineEditor() {
       type: "pipelineNode",
       position: { x: 300 + Math.random() * 100, y: 100 + Math.random() * 100 },
       data: {
+        // Options first — the editor state below must win over a same-named option.
+        ...paramDefaults,
         label: desc.name,
         description: desc.description,
         category: desc.category,
         kind: desc.kind,
         nodeIcon: resolveNodeIcon(desc),
-        inputs: connectors.inputs,
-        outputs: connectors.outputs,
-        ...paramDefaults,
+        ...connectors,
+        contentTypes,
       },
     };
     // Also add to pipeline definition so NodeDetailSidebar can find it
@@ -2330,7 +2602,7 @@ export default function PipelineEditor() {
     setAddedNodes(prev => [...prev, newNode]);
     setAddNodeOpen(false);
     setNodeFilter("");
-  }, [selected]);
+  }, [selected, contentTypes]);
 
   // Delete node handlers
   const handleDeleteNodeRequest = useCallback((nodeId: string, label: string) => {
@@ -2370,8 +2642,8 @@ export default function PipelineEditor() {
       nodes: selected.definition.nodes,
       edges: selected.definition.edges,
     };
-    const nodesForValidation = (definition.nodes ?? []).map((n: any) => ({ id: n.id, type: n.type ?? n.category, label: n.label }));
-    const edgesForValidation = (definition.edges ?? []).map((e: any) => ({ source: e.source, target: e.target }));
+    const nodesForValidation = (definition.nodes ?? []).map((n: any) => ({ id: n.id, type: n.type ?? n.category, label: n.label, options: pipelineNodeOptions(n) }));
+    const edgesForValidation = (definition.edges ?? []).map((e: any) => ({ source: e.source, target: e.target, sourcePort: e.sourcePort, targetPort: e.targetPort }));
     const errors = validatePipeline(nodesForValidation, edgesForValidation, descriptors);
     setValidationErrors(errors);
     if (errors.length > 0) {
@@ -2449,8 +2721,8 @@ export default function PipelineEditor() {
         nodes: selected.definition.nodes ?? [],
         edges: selected.definition.edges ?? [],
       }));
-      const nodesForValidation = (definition.nodes as any[]).map(n => ({ id: n.id, type: n.type ?? n.category, label: n.label }));
-      const edgesForValidation = (definition.edges as any[]).map(e => ({ source: e.source, target: e.target }));
+      const nodesForValidation = (definition.nodes as any[]).map(n => ({ id: n.id, type: n.type ?? n.category, label: n.label, options: pipelineNodeOptions(n) }));
+      const edgesForValidation = (definition.edges as any[]).map(e => ({ source: e.source, target: e.target, sourcePort: e.sourcePort, targetPort: e.targetPort }));
       const errors = validatePipeline(nodesForValidation, edgesForValidation, descriptors);
       if (errors.length > 0) {
         notify("error", errors[0].message);
@@ -2769,6 +3041,7 @@ export default function PipelineEditor() {
                   nodeAffinities={nodeAffinities}
                   nodeParameters={nodeParameters}
                   descriptors={descriptors}
+                  contentTypes={contentTypes}
                   onDeleteNode={handleDeleteNodeRequest}
                   activeNodeIds={activeNodeIds}
                   nodeResults={nodeResults}

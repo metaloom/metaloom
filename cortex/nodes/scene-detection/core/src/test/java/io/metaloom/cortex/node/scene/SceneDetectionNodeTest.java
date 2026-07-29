@@ -23,8 +23,8 @@ public class SceneDetectionNodeTest extends AbstractBasicNodeTest<SceneDetection
 	@Override
 	protected void assertProcessed(TestMedia testMedia, LoomMedia media, NodeResult result, SceneDetectionNode nodeMock) {
 		assertThat(media).hasSHA512();
-		assertThat(result).hasOutput(SceneDetectionNode.OUTPUT_SCENE_DETECTION);
-		System.out.println("Scenes: " + result.get(SceneDetectionNode.OUTPUT_SCENE_DETECTION));
+		assertThat(result).hasOutput(SceneDetectionNode.OUT_SCENES);
+		System.out.println("Scenes: " + result.get(SceneDetectionNode.OUT_SCENES));
 	}
 
 	@Override

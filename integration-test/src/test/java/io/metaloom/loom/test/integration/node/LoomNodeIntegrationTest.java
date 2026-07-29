@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.ResultState;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.node.loom.LoomNode;
 import io.metaloom.cortex.node.loom.LoomNodeOptions;
@@ -28,9 +29,12 @@ public class LoomNodeIntegrationTest extends AbstractNodeIntegrationTest {
 			String md5 = HashUtils.computeMD5(ua.file()).toString();
 
 			LoomNode node = new LoomNode(client, cortexOptions(), new LoomNodeOptions());
-			// Seed the upstream md5 output the way the pipeline would (LoomNode reads upstreamOutput("md5sum", "md5")).
+			// Fed through the declared md5 input port. This used to read upstreamOutput("md5sum", "md5") -
+			// a node id no kind was ever called, so an editor-authored graph fed this node nothing.
 			NodeContext<io.metaloom.cortex.api.media.LoomMedia> ctx = NodeContext.create(ua.media(),
-				Map.of("md5sum", Map.of("md5", md5)));
+				NodeInputs.builder()
+					.input(LoomNode.IN_MD5, md5)
+					.build());
 			NodeResult result = node.process(ctx);
 			assertThat(result.getState()).isEqualTo(ResultState.SUCCESS);
 			node.flush();

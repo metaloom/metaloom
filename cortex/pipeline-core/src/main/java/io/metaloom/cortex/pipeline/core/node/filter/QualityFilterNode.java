@@ -1,10 +1,12 @@
 package io.metaloom.cortex.pipeline.core.node.filter;
 
 import java.util.Map;
-import java.util.Set;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.InputPort;
+import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.vertx.core.json.JsonObject;
 
 /**
  * Filters media based on quality metrics produced by an upstream quality node.
@@ -14,7 +16,9 @@ import io.metaloom.cortex.api.node.NodeResult;
  */
 public class QualityFilterNode extends AbstractFilterNode {
 
-	private final String qualityNodeId;
+	/** The metric set produced by a quality node, as one structured payload. */
+	public static final InputPort<String> IN_QUALITY = InputPort.one("quality", ContentTypeRegistry.STRUCT_QUALITY, String.class);
+
 	private final Double maxBlurriness;
 	private final Integer minWidth;
 	private final Integer minHeight;
@@ -22,7 +26,6 @@ public class QualityFilterNode extends AbstractFilterNode {
 
 	private QualityFilterNode(Builder builder) {
 		super(builder.id, builder.name);
-		this.qualityNodeId = builder.qualityNodeId;
 		this.maxBlurriness = builder.maxBlurriness;
 		this.minWidth = builder.minWidth;
 		this.minHeight = builder.minHeight;
@@ -30,8 +33,8 @@ public class QualityFilterNode extends AbstractFilterNode {
 	}
 
 	@Override
-	protected boolean evaluate(LoomMedia media, Map<String, NodeResult> upstreamResults) {
-		Map<String, Object> outputs = getQualityOutputs(upstreamResults);
+	protected boolean evaluate(NodeContext<LoomMedia> ctx) {
+		Map<String, Object> outputs = metrics(ctx);
 		if (outputs.isEmpty()) {
 			// No quality data available — pass by default
 			return true;
@@ -45,15 +48,9 @@ public class QualityFilterNode extends AbstractFilterNode {
 			}
 		}
 
-		// Resolution check (image or video)
-		Integer width = getInteger(outputs, "image_width");
-		if (width == null) {
-			width = getInteger(outputs, "video_width");
-		}
-		Integer height = getInteger(outputs, "image_height");
-		if (height == null) {
-			height = getInteger(outputs, "video_height");
-		}
+		// Resolution check - one pair for both image and video, matching the quality node's ports
+		Integer width = getInteger(outputs, "width");
+		Integer height = getInteger(outputs, "height");
 		if (minWidth != null && width != null && width < minWidth) {
 			return false;
 		}
@@ -63,7 +60,7 @@ public class QualityFilterNode extends AbstractFilterNode {
 
 		// Quality flag check
 		if (requireQualityFlag) {
-			Object flag = outputs.get("quality_flag");
+			Object flag = outputs.get("flag");
 			if (!"SUCCESS".equals(flag)) {
 				return false;
 			}
@@ -73,18 +70,13 @@ public class QualityFilterNode extends AbstractFilterNode {
 	}
 
 	@Override
-	protected String rejectReason(LoomMedia media, Map<String, NodeResult> upstreamResults) {
+	protected String rejectReason(NodeContext<LoomMedia> ctx) {
 		return "quality below threshold";
 	}
 
-	private Map<String, Object> getQualityOutputs(Map<String, NodeResult> upstreamResults) {
-		if (qualityNodeId != null && upstreamResults != null) {
-			NodeResult qr = upstreamResults.get(qualityNodeId);
-			if (qr != null && qr.getOutput() != null) {
-				return qr.getOutput();
-			}
-		}
-		return Map.of();
+	private Map<String, Object> metrics(NodeContext<LoomMedia> ctx) {
+		String encoded = ctx.input(IN_QUALITY);
+		return encoded == null ? Map.of() : new JsonObject(encoded).getMap();
 	}
 
 	private Integer getInteger(Map<String, Object> map, String key) {
@@ -104,8 +96,6 @@ public class QualityFilterNode extends AbstractFilterNode {
 	public static class Builder {
 		private final String id;
 		private String name;
-		private Set<String> dependencies = Set.of();
-		private String qualityNodeId;
 		private Double maxBlurriness;
 		private Integer minWidth;
 		private Integer minHeight;
@@ -118,17 +108,6 @@ public class QualityFilterNode extends AbstractFilterNode {
 
 		public Builder name(String name) {
 			this.name = name;
-			return this;
-		}
-
-		public Builder dependencies(Set<String> dependencies) {
-			this.dependencies = dependencies;
-			return this;
-		}
-
-		/** ID of the upstream quality node to read outputs from. */
-		public Builder qualityNodeId(String qualityNodeId) {
-			this.qualityNodeId = qualityNodeId;
 			return this;
 		}
 

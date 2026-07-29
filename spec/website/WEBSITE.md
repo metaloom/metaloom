@@ -338,25 +338,73 @@ tab per alternative configuration. The page carries only a JSON spec inside a pa
 
 ```asciidoc
 ++++
-<div class="ml-nodeviz" data-nodeviz='{"kind":"ocr","applies":"Image","badge":"Tesseract / tessdata",
-  "persist":"asset_json_comp + ledger",
-  "inputs":[{"t":"image","l":"image or scan"}],
-  "outputs":[{"t":"text","l":"ocr_text","d":"recognised glyphs"}]}'></div>
+<div class="ml-nodeviz" data-nodeviz='{"kind":"facedetect","applies":"Image, Video",
+  "badge":"InspireFace","persist":"asset_detection + ledger",
+  "inputs":[{"t":"image","l":"image","d":"a still to search for faces"}],
+  "outputs":[{"t":"face","l":"detections","c":"many","d":"one element per detected face"},
+             {"t":"flag","l":"face_count","ct":"scalar/integer","d":"how many survived clustering"}]}'></div>
 ++++
 ```
 
 * The renderer is `themes/meghna-hugo/static/plugins/nodeviz/nodeviz.js` (wired in `config.toml` like
-  Swagger/GraphiQL, and a no-op on pages without `.ml-nodeviz`). Geometry, icons and the animation
-  live there — **change the drawing once, all 19 pages follow**.
-* Port fields: `t` = data type (drives icon + colour), `l` = label, `d` = optional sub-label, `opt`
-  = dashed "optional" styling. Use `configs: [{name, note, inputs, outputs}, …]` for alternative
-  configurations; a single `inputs`/`outputs` pair is the shorthand for one config.
-* Types: `image · video · audio · document · file · text · json · number · boolean · hash · vector ·
-  face · bbox · timeframe · segments · path · flag · branch · action`. Unknown types fall back to a
-  neutral dot, so add new ones to `TYPES` + `icon()` rather than inventing labels.
-* The type key is rendered once on `docs/nodes/_index.adoc` via `<div class="ml-nodeviz-legend"></div>`.
+  Swagger/GraphiQL, and a no-op on pages without `.ml-nodeviz`). Geometry, icons, the hover card and
+  both animations live there — **change the drawing once, all 27 node pages follow**.
+* Root fields: `kind`, `applies`, `badge` (pill above the box), `persist` (rendered as
+  *"persisted to …"*), and either an `inputs`/`outputs` pair or
+  `configs: [{name, note, inputs, outputs}, …]` for alternative configurations. More than one config
+  renders a tab row.
+* **Port fields — six:**
+
+| Field | Meaning |
+|---|---|
+| `t` | Type key into `TYPES`; drives the icon, the colour and the default content type |
+| `l` | Port label |
+| `d` | Sub-label / description. Falls back to the type name, and in the hover card to a generated *"A single X for this item"* / *"A sequence of X elements from this item"* |
+| `opt` | Dashed edge and dashed port outline; appends `· optional` |
+| **`c`** | **Cardinality.** The only recognised value is the literal string `"many"` (`var many = p.c === "many";`); **absence means one** — there is no `"one"` token |
+| **`ct`** | **Content-type id override**, for when a port is more specific than its icon. Resolved as `p.ct \|\| ty.ct`, so a page normally writes only `"t":"face"` and gets `detection/face` for free |
+
+* **Types** (`TYPES`, one entry per key): `image · video · audio · document · media · file · text ·
+  transcript · caption · json · number · string · boolean · hash · fingerprint · vector · face ·
+  bbox · timeframe · segments · depth · quality · color · layout · path · artifact · flag · action ·
+  branch`. Each carries `{c: colour, n: display name, ct: content-type id}` and the `ct` values are
+  the **real `family/subtype` ids** from `ContentTypeRegistry` (`media/image`, `detection/face`,
+  `struct/embedding`, `hash/*`, `control/filter`, …). `action` is the one entry with no `ct` — a side
+  effect carries no value. Unknown types fall back to a neutral dot, so add new ones to `TYPES` +
+  `icon()` rather than inventing labels.
+* **Cardinality is encoded three ways**, deliberately, because a word is skimmed past:
+  1. **In the diagram** — a `MANY` port gets a dashed stacked mark under its icon (`.nv-many-mark`)
+     and a ` · many` suffix on its sub-label, so it is legible without interacting.
+  2. **In the card** — a `one` / `many` badge (`.nv-tip-card`, amber when `is-many`).
+  3. **In motion** — the card's flow track holds three `.nv-tip-pip` spans. A `ONE` port runs a
+     single pip at `2.6s`; a `MANY` port runs all three at `1.5s`, staggered `0.5s` / `1s`. The icon
+     pulse follows the same tempo. Under `prefers-reduced-motion` both freeze into a static
+     one-pip-vs-three-pip arrangement rather than disappearing.
+* **The hover / focus / tap card** (`buildTip` + `fillTip`) shows: a live 26×26 re-render of the type
+  icon, the type display name, the content-type id in a `<code>` (hidden when the type has none), the
+  one/many badge, the flow track, the port label, the description, and a meta line
+  *"input · required"* / *"output · optional"*. Ports are focusable (`tabindex="0"`, `role="button"`,
+  and an `aria-label` naming side, label, content type and cardinality); the card opens on
+  `mouseenter`/`focus`, closes on `mouseleave`/`blur` or `Escape`, and **toggles on click** so it
+  works on touch. `placeTip` clamps it inside `.nv-stage` and flips it below the port when there is
+  no room above.
+* **The edge flow** is a separate animation: one `requestAnimationFrame` loop for the whole page,
+  `CYCLE = 4200ms` split into input flow → node fill sweep → output flow. Off-screen diagrams are
+  skipped and reduced motion short-circuits the loop after pinning everything on.
+* **The type key** is rendered once on `docs/nodes/_index.adoc` via
+  `<div class="ml-nodeviz-legend"></div>`. It shows a hand-ordered subset of `LEGEND` (18 keys, not
+  the whole table) as icon + name + the content-type id, **and teaches cardinality** in a trailing
+  note with inline `one` / `many` chips reusing the card's badge styling. Cardinality is a second
+  axis, not a type, so it is explained once next to the icon key rather than repeated per diagram.
 * The spec lives in a **single-quoted HTML attribute** — never use an apostrophe inside the JSON.
+  Nothing enforces this at build or run time: an apostrophe silently truncates the attribute,
+  `JSON.parse` throws, and the renderer's `try/catch` leaves a blank diagram. All 27 pages currently
+  comply (exactly two `'` characters per `data-nodeviz` line).
 * Styling is `.nv-*` in `less/includes/custom.less`, mirrored into the compiled `assets/css/main.css`.
+
+> **Keep the vocabulary in step.** `TYPES[*].ct` values must be ids that exist in
+> `ContentTypeRegistry.all()`. Adding a content type to the product means adding it there **and**
+> here — see [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) §2.
 
 ### Hand-drawn figures
 
@@ -1507,6 +1555,11 @@ Current state of the website (as of the checkout below):
 
 ---
 
-_GIT HEAD: `29cadb66ae5b37c9c6a4c6f18ef5f39807a0cec7` (branch `master`)_
-_Generated: 2026-07-28 (UTC) — `/studios/` → `/tour/` rename, new `/studio/` commercial page,
-alias mechanism_
+_GIT HEAD: `3ba0a6ff` (branch `master`)_
+_Generated: 2026-07-29 (UTC) — nodeviz gained the typed-port vocabulary: per-port `c` (cardinality)
+and `ct` (content-type id override) spec fields, a `TYPES` table whose ids are the real
+`family/subtype` vocabulary, a hover/focus/tap card showing the type icon, content type, ONE/MANY
+badge and description, an animated flow track whose motion encodes cardinality, a static stacked mark
+for `MANY` ports in the diagram itself, and a legend that now teaches cardinality alongside the icon
+key. 27 node pages carry specs. Previously: `/studios/` → `/tour/` rename, new `/studio/` commercial
+page, alias mechanism_

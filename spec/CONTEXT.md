@@ -154,12 +154,16 @@ spec/
 │   │   └── PERMISSIONS.md             # Authorization: RBAC model, taxonomy, enforcement points
 │   ├── pipeline/
 │   │   ├── PIPELINE.md                # Technical spec: engine, persistence, protocol, schemas
-│   │   ├── NODE_DATA_TYPES.md         # What flows between nodes: per-node input/output types, the
-│   │   │                              #   three type systems, and where typing is lost hop by hop
+│   │   ├── NODE_DATA_TYPES.md         # The typed-port model: family/subtype vocabulary + lattice,
+│   │   │                              #   ports with ONE/MANY cardinality and XOR groups, port-to-port
+│   │   │                              #   edges, origin-tagged elements, fan-out and the implicit gather
+│   │   ├── NODE_DATA_TYPES_PLAN.md    # The design behind it + recorded design-vs-implementation
+│   │   │                              #   divergences and the phase assessment
 │   │   ├── PIPELINE_REQUIREMENTS.md   # Non-technical requirements + gap status
 │   │   └── PIPELINE_TASKS.md          # Actionable pipeline work items
 │   ├── pipeline-nodes/
 │   │   ├── NODES.md                   # Cortex node system + per-node reference
+│   │   ├── NODE_DEDUP_PLAN.md               # Fingerprint dedup nodes (discovery + apply, human review) — NOT built
 │   │   ├── NODE_DEPTHMAP_PLAN.md            # Depth map node design (monocular depth, sidecar) — NOT built
 │   │   ├── NODE_DOMINANT_COLOR_PLAN.md      # Dominant colour node design (CIELAB k-means, EN/DE naming) — implemented
 │   │   ├── NODE_IMAGEGEN_PLAN.md            # Image generation node design — implemented
@@ -174,7 +178,8 @@ spec/
 │   └── search/
 │       ├── SEARCH.md                  # Lexical search: current state (none), SPI, search_document, REST — NOT built
 │       ├── SEARCH_PLAN.md             # Phased build order: P0 prereqs → P1 Postgres → P2 Elasticsearch
-│       └── SEMANTIC_SEARCH.md         # Vector/hybrid search: pgvector decision, embeddings, RRF — NOT built
+│       ├── SEMANTIC_SEARCH.md         # Vector/hybrid search: pgvector decision, embeddings, RRF — NOT built
+│       └── LUCENE_PLAN.md             # Fingerprint similarity index (Lucene HNSW via video4j), SimilarityIndex SPI — NOT built
 ├── cortex/
 │   ├── BUILD.md                       # Maven modules, container image, native deps
 │   ├── CONFIGURATION.md               # YAML config, CLI flags, env vars, per-node options
@@ -223,7 +228,7 @@ spec/
 | Understanding the system end to end | [cortex/METALOOM_ARCHITECTURE.md](cortex/METALOOM_ARCHITECTURE.md) |
 | Pipelines (engine, runs, dispatch) | [features/pipeline/PIPELINE.md](features/pipeline/PIPELINE.md) |
 | A Cortex processing node | [features/pipeline-nodes/NODES.md](features/pipeline-nodes/NODES.md) |
-| Node inputs/outputs — what data flows between nodes and its type | [features/pipeline/NODE_DATA_TYPES.md](features/pipeline/NODE_DATA_TYPES.md) |
+| Node inputs/outputs — ports, content types, cardinality, fan-out | [features/pipeline/NODE_DATA_TYPES.md](features/pipeline/NODE_DATA_TYPES.md) — the reference for the built model. [features/pipeline/NODE_DATA_TYPES_PLAN.md](features/pipeline/NODE_DATA_TYPES_PLAN.md) keeps the design rationale and the design-vs-implementation divergences |
 | A REST endpoint | [loom/RESTAPI.md](loom/RESTAPI.md) + [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md) |
 | A DAO / migration | [loom/PERSISTENCE.md](loom/PERSISTENCE.md) + [loom/DOMAIN.md](loom/DOMAIN.md) |
 | Permissions / authorization | [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md), [features/rbac/RBAC.md](features/rbac/RBAC.md) |
@@ -233,6 +238,8 @@ spec/
 | The CLI | [features/cli/CLI_PLAN.md](features/cli/CLI_PLAN.md) |
 | Search / full-text / indexing | [features/search/SEARCH.md](features/search/SEARCH.md) — **nothing is implemented**; build order in [features/search/SEARCH_PLAN.md](features/search/SEARCH_PLAN.md) |
 | Embeddings / similarity / vector search | [features/search/SEMANTIC_SEARCH.md](features/search/SEMANTIC_SEARCH.md) — closes the `embedding.vector` "OPEN DECISION" in favour of pgvector |
+| Perceptual **fingerprint** similarity (near-duplicate video) | [features/search/LUCENE_PLAN.md](features/search/LUCENE_PLAN.md) — Lucene HNSW index (reuses video4j) behind a `SimilarityIndex` SPI; distinct from lexical/embedding search |
+| Deduplication nodes (find + review + apply duplicates) | [features/pipeline-nodes/NODE_DEDUP_PLAN.md](features/pipeline-nodes/NODE_DEDUP_PLAN.md) — discovery + apply nodes with human-in-the-loop review |
 | Customer-facing docs | [website/WEBSITE.md](website/WEBSITE.md) |
 | The commercial edition / what is paid vs. open | [METALOOM_STUDIO_PLAN.md](METALOOM_STUDIO_PLAN.md) — **nothing is decided**; read §5 before gating any feature |
 | Picking up queued work | any `*_TASKS.md`, format per [TASKS.template.md](TASKS.template.md) |
@@ -771,11 +778,13 @@ Both Loom and Cortex use **Dagger 2**:
 | **Per-instance node options** | ✅ Node parameters from the pipeline definition reach a node only if it implements `PipelineConfigurable` (`cortex/common`); `RegistryNodeRegistrar.adapt()` otherwise reads only the structural fields and takes options from the worker's YAML. Two defects that meant editor-set parameters had **never** reached a worker are fixed: the editor emitted `config` where `PipelineGraphParser` reads `options` (the alias is still accepted), and sidebar edits were discarded on save because `getGraphJson()` serialises the canvas. See [NODES.md](features/pipeline-nodes/NODES.md) §5.1 |
 | **`ctx.failure(...).next()`** | 🔴 Returns **SUCCESS** — `NodeContextImpl.next()` ignores the failure cause; only `abort()` yields FAILED. Eleven nodes use `.next()` on their failure paths and therefore report success. Use `ctx.failure(msg).abort()` in new nodes |
 | **Node result write-back** | Results reach Loom via `POST /api/v1/assets/:uuid/node-results` — upsert a typed component **and** record the `asset_node_result` ledger row. `WhisperNode` is the reference implementation; copy its shape for a new node |
-| **Node output types** | 🔴 `NodeOutputKey<T>`'s `T` is **advisory** — `NodeContextImpl` drops `valueType()` and every read is an unchecked cast. Emit structured data as a JSON **`String`**, never a POJO; coerce upstream values (`((Number) v).longValue()`) rather than casting — `Long` narrows to `Integer` over the wire. A descriptor's `contentType` is never checked against anything. See [features/pipeline/NODE_DATA_TYPES.md](features/pipeline/NODE_DATA_TYPES.md) |
-| **Descriptor ≠ registration** | A `NodeDescriptorProvider` makes a kind visible in the palette; running it needs `@Binds @IntoMap @StringKey("<kind>")` in the node's own module. The two sets currently differ in 6 places (`tts`/`imagegen` runnable but invisible; `hash-dedup`/`facedescription`/`filter-*`/`loom-fetch` visible but not runnable) |
+| **Node data is addressed by port** | A node declares typed `InputPort`/`OutputPort` constants and reads `ctx.input(PORT)` / `ctx.inputs(PORT)`; the **edge** says where the data comes from. `NodeOutputKey` and `ctx.upstreamOutput(nodeId, key)` are deleted — **never reintroduce a node-id-keyed lookup or a `"nodeId:outputKey"` option**. Content types are `family/subtype` ids from `ContentTypeRegistry`, checked by `ContentTypeLattice.isAssignable` at save time and at run start; `ValueCoercer` runs at both wire boundaries, so `scalar/integer` is always `Long` and the old narrowing is gone. See [features/pipeline/NODE_DATA_TYPES.md](features/pipeline/NODE_DATA_TYPES.md) |
+| **Cardinality drives fan-out** | A `MANY` output port makes every downstream node with a `ONE` input run **once per element**; a `MANY` input **gathers** the whole branch and runs once. Nothing in the definition JSON declares this — it falls out of the declared ports. The gather barrier is `NodeExecState.isSettled()`, not a merge node |
+| **Every edge carries ports** | `sourcePort` + `targetPort` are required; the branch key is `branch` (not `edgeType`). A definition with no `edges` array falls back to inline `dependencies[]` and then skips port validation entirely — a known hole |
+| **Descriptor ≠ registration** | A `NodeDescriptorProvider` makes a kind visible in the palette; running it needs `@Binds @IntoMap @StringKey("<kind>")` in the node's own module. 25 providers declare 39 kinds. `tts` and `imagegen` gained descriptors in the port refactor; still visible-but-not-runnable: `hash-dedup` (bound as `sha512-dedup`), `facedescription`, the eight `filter-*` kinds and `loom-fetch`. **The descriptor's ports are now an enforced contract**, and they must equal the node's `InputPort`/`OutputPort` constants — nothing checks that yet |
 | **Cortex `cortex.yml`** | 🔴 Not read on the server path, despite [cortex/CONFIGURATION.md](cortex/CONFIGURATION.md) |
 | **Cortex shutdown** | 🔴 No shutdown hook — `SIGTERM` abandons in-flight work and loses buffered results |
-| **Pipeline validation** | Triplicated (loom-shared, loom-rest, UI). Only the loom-rest copy checks node types and is tested |
+| **Pipeline validation** | *Structural* rules (node ids, uniqueness, cycles, reachability) are still duplicated in `PipelineModelValidator` (loom-shared) and `PipelineValidationService` (loom-rest). *Port* rules exist once: the service delegates to `PipelineGraphParser` → `PortGraphAnalyzer`. Do not add a copy |
 | **MCP tools** | Registered via Dagger multibinding (`Set<MCPTool>`), dispatched over the Vert.x EventBus (`mcp.tool.<name>`) |
 | **UI tests** | Component tests are Playwright *mocked* e2e specs; pure logic uses node-env vitest. No RTL/jsdom |
 | **Cortex node E2E tests** | Live in `integration-test/`; rebuild the shaded `cortex/cli` JAR and container before running them |
@@ -828,8 +837,16 @@ follow the cross-references.*
 
 ---
 
-_Git HEAD revision: `5ac79b6d`_
-_Last updated: 2026-07-28 (added [features/pipeline/NODE_DATA_TYPES.md](features/pipeline/NODE_DATA_TYPES.md) —
+_Git HEAD revision: `3ba0a6ff`_
+_Last updated: 2026-07-29 (pipeline **typed-port refactor**: node data is now addressed by port, not by
+node id. Updated the spec-tree entries and routing for
+[features/pipeline/NODE_DATA_TYPES.md](features/pipeline/NODE_DATA_TYPES.md) — no longer "the three type
+systems" but the reference for the built model — and for
+[features/pipeline/NODE_DATA_TYPES_PLAN.md](features/pipeline/NODE_DATA_TYPES_PLAN.md), which is no longer
+"NOT built". Replaced the "Node output types" cheat-sheet row (`NodeOutputKey<T>` advisory, `Long` narrows,
+`contentType` unchecked — all now false) with three rows: ports and the content-type lattice, cardinality
+driving fan-out, and edges carrying ports. Corrected the descriptor-≠-registration and pipeline-validation
+rows. Previously: added [features/pipeline/NODE_DATA_TYPES.md](features/pipeline/NODE_DATA_TYPES.md) —
 the per-node input/output type reference: the three independent type systems (descriptor `contentType`,
 `NodeOutputKey<T>`, runtime `Map<String,Object>`), how a value is carried hop by hop and what each hop
 loses, and a full type-safety audit. Two §6 gotchas added for it. Previously: added `features/search/` —

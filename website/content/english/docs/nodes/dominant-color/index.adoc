@@ -13,15 +13,15 @@ It runs no model. All of it is arithmetic, so it costs no GPU time, needs nothin
 alongside it, and finishes in milliseconds.
 
 ++++
-<div class="ml-nodeviz" data-nodeviz='{"kind":"dominant-color","applies":"Images","badge":"No model required","persist":"asset_json_comp (schemaType dominant-color)","configs":[{"name":"whole picture","note":"nothing upstream needed","inputs":[{"t":"image","l":"media","d":"the picture"}],"outputs":[{"t":"json","l":"dominant_color_result","d":"every region, with its full palette"},{"t":"text","l":"dominant_color_hex","d":"#E2711D"},{"t":"text","l":"dominant_color_term","d":"orange"},{"t":"text","l":"dominant_color_name_en","d":"vivid orange"},{"t":"text","l":"dominant_color_name_de","d":"kräftiges Orange"},{"t":"number","l":"dominant_color_region_count"}]},{"name":"per detected face","note":"facedetect upstream","inputs":[{"t":"image","l":"media","d":"the picture"},{"t":"bbox","l":"detections","d":"boxes from face detection"}],"outputs":[{"t":"json","l":"dominant_color_result","d":"one palette per box, plus the whole frame"},{"t":"number","l":"dominant_color_region_count"}]}]}'></div>
+<div class="ml-nodeviz" data-nodeviz='{"kind":"dominant-color","applies":"Images","badge":"No model required","persist":"asset_json_comp (schemaType dominant-color)","configs":[{"name":"whole picture","note":"nothing wired in but the picture","inputs":[{"t":"image","l":"media","d":"the picture to measure"}],"outputs":[{"t":"color","l":"result","d":"every measured area with its ranked palette and each colour share"},{"t":"string","l":"hex","d":"the dominant colour as a hex triplet, e.g. #E2711D"},{"t":"string","l":"term","d":"one of eleven stable basic colour words, for facets and grouping"},{"t":"string","l":"name_en","d":"the fuller English name, e.g. vivid orange"},{"t":"string","l":"name_de","d":"the same colour named in German, e.g. kräftiges Orange"},{"t":"number","l":"region_count","ct":"scalar/integer","d":"how many areas were measured"}]},{"name":"per detected face","note":"a detections port wired in","inputs":[{"t":"image","l":"media","d":"the picture to measure"},{"t":"bbox","l":"detections","c":"many","opt":true,"d":"one element per detected box; each box is measured on its own"}],"outputs":[{"t":"color","l":"result","d":"one palette per box, plus one for the whole frame"},{"t":"number","l":"region_count","ct":"scalar/integer","d":"how many areas were measured"}]}]}'></div>
 ++++
 
 [cols="1,3"]
 |===
 | Kind | `dominant-color`
 | Applies to | Images
-| Inputs | The picture. Optionally bounding boxes from link:../facedetect/[Face Detection] or any other detector
-| Output keys | `dominant_color_result` (JSON String), `dominant_color_hex`, `dominant_color_term`, `dominant_color_name_en`, `dominant_color_name_de` (Text), `dominant_color_region_count` (Number)
+| Input ports | `media` (the picture), plus an optional `detections` (**many**) — connect the `detections` port of link:../facedetect/[Face Detection] or any other detector
+| Output ports | `result` (the full palette structure), `hex`, `term`, `name_en`, `name_de` (String), `region_count` (Integer)
 | Requirements | None — no model, no sidecar, no GPU
 | Persists to | `asset_json_comp` — one row per asset, holding every region
 |===
@@ -93,8 +93,10 @@ Two consequences worth knowing:
 
 === Colouring in parts of a picture
 
-Point a detector at the image first and the node measures every box it finds, alongside the whole
-frame. That turns "this photo is mostly blue" into "this *person* is wearing blue".
+Connect a detector to the `detections` port and the node measures every box that arrives, alongside
+the whole frame. That turns "this photo is mostly blue" into "this *person* is wearing blue". The
+port carries a sequence, so it does not matter whether the detector found one box or thirty — and it
+does not matter which detector produced them.
 
 You can also pin it to a fixed area — a logo corner, a lower third, a product region — without any
 detector at all, using the `region` options below.
@@ -109,8 +111,7 @@ detector at all, using the `region` options below.
 | `clusterCount` | How many colours to pull out of each area. Default 5
 | `maxSamples` | How many pixels to look at per area. Default 40,000 — enough for a stable answer on any size of picture
 | `includeWholeImage` | Measure the whole frame. On by default
-| `useDetections` | Measure every detected box as well. On by default
-| `detectionSources` | Which upstream detector nodes supply the boxes. Defaults to `facedetect`
+| `useDetections` | Measure every detected box as well. On by default. The boxes come from whatever is connected to the `detections` port — there is no node to name
 | `regionX` / `regionY` / `regionW` / `regionH` | A fixed area to measure. Given as fractions of the picture by default; set `regionCoordinates` to `ABSOLUTE_PIXELS` to use pixels instead. Leave the width and height at 0 to switch it off
 | `alphaThreshold` | How opaque a pixel must be to count. Transparent areas are ignored rather than treated as white, so a logo on a transparent background reports its own colours. Default 128
 | `minRegionPixels` | Areas smaller than this are skipped — there is nothing meaningful to measure. Default 64

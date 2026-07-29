@@ -6,15 +6,15 @@ The thumbnail node generates a **contact-sheet preview** (a tiled grid of frames
 the UI a fast visual summary of the content.
 
 ++++
-<div class="ml-nodeviz" data-nodeviz='{"kind":"thumbnail","applies":"Video only","badge":"OpenCV / video4j native","persist":"asset_node_result ledger (image bytes stay in the local cache)","configs":[{"name":"default grid","note":"tileSize \u00b7 cols \u00b7 rows from the node options","inputs":[{"t":"video","l":"video file","d":"frames extracted per tile"},{"t":"boolean","l":"is_complete","d":"from consistency; skips broken media","opt":true}],"outputs":[{"t":"flag","l":"thumbnail_flag"},{"t":"path","l":"thumbnail_path","d":"local .thumb contact sheet"}]}]}'></div>
+<div class="ml-nodeviz" data-nodeviz='{"kind":"thumbnail","applies":"Video only","badge":"OpenCV / video4j native","persist":"asset_node_result ledger (image bytes stay in the local cache)","configs":[{"name":"default grid","note":"tileSize \u00b7 cols \u00b7 rows from the node options","inputs":[{"t":"video","l":"media","d":"one frame is extracted per tile of the grid"},{"t":"boolean","l":"is_complete","d":"wire the consistency verdict here to skip truncated files","opt":true}],"outputs":[{"t":"artifact","l":"thumbnail","ct":"artifact/image","d":"a tiled .thumb contact sheet in the worker local cache"},{"t":"flag","l":"flag","d":"DONE or FAILED"}]}]}'></div>
 ++++
 
 [cols="1,3"]
 |===
 | Kind | `thumbnail`
 | Applies to | Video only
-| Inputs | Reads upstream link:../consistency/[`consistency`] `is_complete` to skip incomplete videos
-| Output keys | `thumbnail_flag` (String), `thumbnail_path` (String)
+| Input ports | `media`, plus an optional `is_complete` — connect link:../consistency/[Consistency]'s `is_complete` port to skip incomplete videos
+| Output ports | `thumbnail` (the contact sheet, the file link:../s3-sink/[S3 Sink] uploads), `flag` (String)
 | Requirements | OpenCV / video4j **native runtime** (frame extraction). CPU-bound. **Storage**: the generated image is written to the worker's local thumbnail cache (a durable `.thumb` file); only a ledger entry goes to Loom.
 | Persists to | `asset_node_result` ledger (image bytes stay in the local cache)
 |===

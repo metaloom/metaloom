@@ -6,15 +6,15 @@ The quality node measures **perceptual quality metrics** of an image or video �
 blurriness (via a Laplacian measure) and bitrate — so low-quality assets can be flagged or filtered.
 
 ++++
-<div class="ml-nodeviz" data-nodeviz='{"kind":"quality","applies":"Image \u00b7 Video","badge":"OpenCV / video4j native","persist":"asset_json_comp + asset_node_result ledger","configs":[{"name":"image asset","note":"checkBlurriness + checkResolution","inputs":[{"t":"image","l":"image"}],"outputs":[{"t":"number","l":"blurriness","d":"Laplacian variance"},{"t":"number","l":"image_width / image_height"},{"t":"flag","l":"quality_flag"}]},{"name":"video asset","note":"adds the bitrate checks","inputs":[{"t":"video","l":"video file"}],"outputs":[{"t":"number","l":"blurriness"},{"t":"number","l":"video_width / video_height"},{"t":"number","l":"video_fps / video_frame_count"},{"t":"flag","l":"quality_flag"}]}]}'></div>
+<div class="ml-nodeviz" data-nodeviz='{"kind":"quality","applies":"Image \u00b7 Video","badge":"OpenCV / video4j native","persist":"asset_json_comp + asset_node_result ledger","configs":[{"name":"image asset","note":"checkBlurriness + checkResolution","inputs":[{"t":"image","l":"media","d":"the picture to measure"}],"outputs":[{"t":"quality","l":"metrics","d":"every enabled measurement in one structure, for the quality filter"},{"t":"number","l":"blurriness","d":"Laplacian variance \u2014 lower means softer"},{"t":"number","l":"width","ct":"scalar/integer","d":"frame width in pixels"},{"t":"number","l":"height","ct":"scalar/integer","d":"frame height in pixels"},{"t":"flag","l":"flag","d":"DONE or FAILED"}]},{"name":"video asset","note":"adds the frame-rate and bitrate checks","inputs":[{"t":"video","l":"media","d":"the clip to measure"}],"outputs":[{"t":"quality","l":"metrics","d":"every enabled measurement in one structure, for the quality filter"},{"t":"number","l":"blurriness","d":"Laplacian variance \u2014 lower means softer"},{"t":"number","l":"width","ct":"scalar/integer","d":"frame width in pixels"},{"t":"number","l":"height","ct":"scalar/integer","d":"frame height in pixels"},{"t":"number","l":"fps","d":"frames per second as the container reports it"},{"t":"number","l":"frame_count","ct":"scalar/integer","d":"how many frames the clip holds"},{"t":"flag","l":"flag","d":"DONE or FAILED"}]}]}'></div>
 ++++
 
 [cols="1,3"]
 |===
 | Kind | `quality`
 | Applies to | Image, Video
-| Inputs | None
-| Output keys | `blurriness`, `image_width` / `image_height`, `video_width` / `video_height` / `video_fps` / `video_frame_count`, `quality_flag`
+| Input ports | `media`
+| Output ports | `metrics` (all of them together — this is what the link:../filters/[quality filter] connects to), `blurriness`, `width`, `height`, `fps`, `frame_count`, `flag`. The frame-rate and frame-count ports carry a value only for video
 | Requirements | OpenCV / video4j **native runtime**. CPU-bound. No GPU required.
 | Persists to | `asset_json_comp` + `asset_node_result` ledger
 |===

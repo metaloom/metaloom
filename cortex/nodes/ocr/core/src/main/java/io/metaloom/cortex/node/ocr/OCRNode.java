@@ -7,8 +7,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.node.NodeOutputKey;
+import io.metaloom.cortex.api.node.InputPort;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultOrigin;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
@@ -16,6 +17,7 @@ import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompCreateRequest;
 import io.vertx.core.json.JsonObject;
@@ -26,7 +28,9 @@ public class OCRNode extends AbstractMediaNode<OCRNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(OCRNode.class);
 
-	public static final NodeOutputKey<String> OUTPUT_OCR_TEXT = NodeOutputKey.of("ocr_text", String.class);
+	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_IMAGE, LoomMedia.class);
+
+	public static final OutputPort<String> OUT_TEXT = OutputPort.one("text", ContentTypeRegistry.TEXT_PLAIN, String.class);
 
 	/** In-heap skip cache of recognized text, keyed by media path, to avoid re-running OCR within this worker's lifetime. Non-durable - the durable copy
 	 * lives in Loom. */
@@ -57,7 +61,7 @@ public class OCRNode extends AbstractMediaNode<OCRNodeOptions> {
 		String cached = resultCache.get(path);
 		if (cached != null) {
 			metrics.recordAiCacheHit("tesseract");
-			ctx.output(OUTPUT_OCR_TEXT, cached);
+			ctx.output(OUT_TEXT, cached);
 			return ctx.origin(ResultOrigin.LOCAL).next();
 		}
 		long aiStart = System.currentTimeMillis();
@@ -69,7 +73,7 @@ public class OCRNode extends AbstractMediaNode<OCRNodeOptions> {
 			throw e;
 		}
 		metrics.recordAiCall("tesseract", true, System.currentTimeMillis() - aiStart);
-		ctx.output(OUTPUT_OCR_TEXT, text);
+		ctx.output(OUT_TEXT, text);
 		ctx.info("OCR extracted " + text.length() + " chars via " + provider.name());
 		resultCache.put(path, text);
 		persist(ctx, asset, text);

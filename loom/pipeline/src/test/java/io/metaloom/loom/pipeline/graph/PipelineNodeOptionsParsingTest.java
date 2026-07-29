@@ -32,7 +32,7 @@ public class PipelineNodeOptionsParsingTest {
 				.add(new JsonObject().put("id", "pn1").put("type", "filesystem-source").put("source", true))
 				.add(scriptNode))
 			.put("edges", new JsonArray()
-				.add(new JsonObject().put("id", "pe1").put("source", "pn1").put("target", "pn2")));
+				.add(new JsonObject().put("id", "pe1").put("source", "pn1").put("sourcePort", "media").put("target", "pn2").put("targetPort", "media")));
 	}
 
 	private static JsonObject optionsBag() {

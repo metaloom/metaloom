@@ -21,7 +21,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
@@ -89,12 +91,23 @@ class ScriptNodeTest {
 		return array;
 	}
 
+	/** The output port a declared {@code {key, type}} pair becomes, so a test can read it with {@code result.get}/{@code result.elements}. */
+	private static OutputPort<Object> port(String key, String type) {
+		return new ScriptOutputSpec(key, ScriptValueType.parse(type)).port();
+	}
+
 	private NodeResult run(ScriptNode node) {
 		return run(node, Map.of());
 	}
 
-	private NodeResult run(ScriptNode node, Map<String, Map<String, Object>> upstream) {
-		NodeContext<LoomMedia> ctx = NodeContext.create(media, upstream);
+	/**
+	 * Run the node with {@code data} wired as the flat JSON payload on {@link ScriptNode#IN_DATA} - the
+	 * port that replaced the old {@code upstream[nodeId][outputKey]} map.
+	 */
+	private NodeResult run(ScriptNode node, Map<String, Object> data) {
+		NodeInputs inputs = data.isEmpty() ? NodeInputs.empty()
+			: NodeInputs.builder().input(ScriptNode.IN_DATA, new JsonObject(data).encode()).build();
+		NodeContext<LoomMedia> ctx = NodeContext.create(media, inputs);
 		return node.process(ctx);
 	}
 
@@ -111,11 +124,13 @@ class ScriptNodeTest {
 		NodeResult result = run(node);
 
 		assertEquals(ResultState.SUCCESS, result.getState(), result.getMessage());
-		assertEquals("a red car", result.getOutputs().get("caption"));
-		assertEquals(3L, result.getOutputs().get("count"));
-		assertEquals(0.5d, result.getOutputs().get("score"));
-		assertEquals(Boolean.TRUE, result.getOutputs().get("ok"));
-		assertEquals(new JsonObject().put("a", 1L).put("b", "two"), result.getOutputs().get("meta"));
+		assertEquals("a red car", result.get(port("caption", "TEXT")));
+		assertEquals(3L, result.get(port("count", "INTEGER")));
+		assertEquals(0.5d, result.get(port("score", "NUMBER")));
+		assertEquals(Boolean.TRUE, result.get(port("ok", "BOOLEAN")));
+		// A JSON output travels as an encoded string across the port boundary, the same as every other
+		// struct/* value - it is decoded here rather than compared directly against a JsonObject.
+		assertEquals(new JsonObject().put("a", 1L).put("b", "two"), new JsonObject((String) result.get(port("meta", "JSON"))));
 	}
 
 	/**
@@ -123,10 +138,9 @@ class ScriptNodeTest {
 	 * stream of timeframes or multiple texts" means without the pipeline engine multiplying items.
 	 */
 	@Test
-	@SuppressWarnings("unchecked")
 	void shouldEmitMultiValuedOutputsFromASingleUpstreamText() {
 		ScriptNode node = configured(def("""
-			const transcript = JSON.parse(upstream['whisper']['whisper_result']);
+			const transcript = JSON.parse(data.whisper_result);
 			const frames = transcript.segments
 			  .filter(s => /chapter/i.test(s.text))
 			  .map(s => ({ startMs: Math.round(s.start * 1000), endMs: Math.round(s.end * 1000), label: s.text }));
@@ -141,20 +155,24 @@ class ScriptNodeTest {
 			.add(new JsonObject().put("start", 9.0).put("text", "Chapter two").put("end", 10.25)))
 			.encode();
 
-		NodeResult result = run(node, Map.of("whisper", Map.of("whisper_result", transcript)));
+		// The former upstream[nodeId][outputKey] map is gone; the wired edge decides what lands on
+		// IN_DATA, so the test wires the flat payload directly rather than nesting it under a node id.
+		NodeResult result = run(node, Map.of("whisper_result", transcript));
 
 		assertEquals(ResultState.SUCCESS, result.getState(), result.getMessage());
-		assertEquals(2L, result.getOutputs().get("chapter_count"));
+		assertEquals(2L, result.get(port("chapter_count", "INTEGER")));
 
-		List<String> titles = (List<String>) result.getOutputs().get("chapter_titles");
+		List<Object> titles = result.elements(port("chapter_titles", "TEXT_LIST"));
 		assertEquals(List.of("Chapter one", "Chapter two"), titles);
 
-		List<JsonObject> frames = (List<JsonObject>) result.getOutputs().get("chapter_frames");
+		// TIMEFRAMES has ONE cardinality: the whole list travels as one encoded JSON array, not as
+		// several elements.
+		JsonArray frames = new JsonArray((String) result.get(port("chapter_frames", "TIMEFRAMES")));
 		assertEquals(2, frames.size());
-		assertEquals(2000L, frames.get(0).getLong("startMs"));
-		assertEquals(3500L, frames.get(0).getLong("endMs"));
-		assertEquals("Chapter one", frames.get(0).getString("label"));
-		assertEquals(10250L, frames.get(1).getLong("endMs"));
+		assertEquals(2000L, frames.getJsonObject(0).getLong("startMs"));
+		assertEquals(3500L, frames.getJsonObject(0).getLong("endMs"));
+		assertEquals("Chapter one", frames.getJsonObject(0).getString("label"));
+		assertEquals(10250L, frames.getJsonObject(1).getLong("endMs"));
 	}
 
 	@Test
@@ -166,7 +184,7 @@ class ScriptNodeTest {
 
 		NodeResult result = run(node);
 
-		assertEquals("true|demo|128", result.getOutputs().get("summary"));
+		assertEquals("true|demo|128", result.get(port("summary", "TEXT")));
 	}
 
 	@Test
@@ -273,13 +291,20 @@ class ScriptNodeTest {
 		NodeResult result = run(node);
 
 		assertEquals(ResultState.SUCCESS, result.getState(), result.getMessage());
-		assertEquals(42L, result.getOutputs().get("answer"));
+		assertEquals(42L, result.get(port("answer", "INTEGER")));
 	}
 
+	/**
+	 * {@code requiredInputs} is gone: {@link ScriptNode#IN_DATA} is an optional port, so "skip when
+	 * the input is missing" is now the script's own job via {@code ctx.skip()} rather than a
+	 * declarative option the node enforced on its behalf.
+	 */
 	@Test
 	void shouldSkipWhenARequiredInputIsMissing() {
-		ScriptNode node = configured(def("out.text('caption', upstream['ocr']['ocr_text']);", outputs("caption", "TEXT"))
-			.put("requiredInputs", new JsonArray().add("ocr:ocr_text")));
+		ScriptNode node = configured(def("""
+			if (!data.ocr_text) { ctx.skip('ocr_text not wired'); }
+			out.text('caption', data.ocr_text);
+			""", outputs("caption", "TEXT")));
 
 		NodeResult result = run(node);
 
@@ -288,13 +313,15 @@ class ScriptNodeTest {
 
 	@Test
 	void shouldRunWhenARequiredInputIsPresent() {
-		ScriptNode node = configured(def("out.text('caption', upstream['ocr']['ocr_text']);", outputs("caption", "TEXT"))
-			.put("requiredInputs", new JsonArray().add("ocr:ocr_text")));
+		ScriptNode node = configured(def("""
+			if (!data.ocr_text) { ctx.skip('ocr_text not wired'); }
+			out.text('caption', data.ocr_text);
+			""", outputs("caption", "TEXT")));
 
-		NodeResult result = run(node, Map.of("ocr", Map.of("ocr_text", "STOP")));
+		NodeResult result = run(node, Map.of("ocr_text", "STOP"));
 
 		assertEquals(ResultState.SUCCESS, result.getState(), result.getMessage());
-		assertEquals("STOP", result.getOutputs().get("caption"));
+		assertEquals("STOP", result.get(port("caption", "TEXT")));
 	}
 
 	@Test
@@ -319,8 +346,8 @@ class ScriptNodeTest {
 	void shouldServeARepeatFromTheLocalCache() {
 		ScriptNode node = configured(def(NONDETERMINISTIC, outputs("caption", "TEXT")));
 
-		Object first = run(node).getOutputs().get("caption");
-		Object second = run(node).getOutputs().get("caption");
+		Object first = run(node).get(port("caption", "TEXT"));
+		Object second = run(node).get(port("caption", "TEXT"));
 
 		assertNotNull(first);
 		assertEquals(first, second, "the second run should have been served from the local cache");
@@ -334,11 +361,11 @@ class ScriptNodeTest {
 	void shouldNotServeACachedResultAfterTheScriptChanges() {
 		ScriptNode node = node();
 		node.configure(def("out.text('caption', 'first');", outputs("caption", "TEXT")));
-		assertEquals("first", run(node).getOutputs().get("caption"));
+		assertEquals("first", run(node).get(port("caption", "TEXT")));
 
 		node.configure(def("out.text('caption', 'second');", outputs("caption", "TEXT")));
 
-		assertEquals("second", run(node).getOutputs().get("caption"),
+		assertEquals("second", run(node).get(port("caption", "TEXT")),
 			"a changed script must not be served the previous script's cached result");
 	}
 
@@ -352,11 +379,10 @@ class ScriptNodeTest {
 		NodeResult result = run(node);
 
 		assertEquals(ResultState.SUCCESS, result.getState(), result.getMessage());
-		@SuppressWarnings("unchecked")
-		List<String> paths = (List<String>) result.getOutputs().get("frames");
+		List<Object> paths = result.elements(port("frames", "IMAGE_LIST"));
 		assertEquals(2, paths.size());
-		for (String path : paths) {
-			Path file = Path.of(path);
+		for (Object path : paths) {
+			Path file = Path.of((String) path);
 			assertTrue(Files.exists(file), "expected the image at " + path);
 			assertTrue(file.startsWith(tempDir.toPath().resolve(ScriptNode.BIN_DIR)),
 				"images belong under metaPath/" + ScriptNode.BIN_DIR + ", got " + path);
@@ -376,12 +402,22 @@ class ScriptNodeTest {
 	 * The script seeded by {@code DemoDatabaseInitializer} ("Reading Time"). Demo data that does not
 	 * actually run is worse than none - the first thing a new user opens would be broken - so the
 	 * seeded script is exercised here. Keep the two in step.
+	 *
+	 * <p>
+	 * ⚠️ As of this port, {@code DemoDatabaseInitializer.DEMO_SCRIPT} still reads
+	 * {@code upstream['pn2']['tika_content']}, a binding {@code ScriptBindings} no longer exposes -
+	 * that seeded pipeline node will fail at runtime. This test exercises the <em>ported</em> form
+	 * ({@code data.tika_content}, no {@code requiredInputs}); the demo initializer (outside this
+	 * module) needs the matching update, see the sweep report.
+	 * </p>
 	 */
 	@Test
 	void shouldRunTheDemoReadingTimeScript() {
+		// Byte-for-byte the body DemoDatabaseInitializer.DEMO_SCRIPT seeds - that is the point of
+		// this test, so keep the two in step.
 		String demoScript = """
-			// Estimate reading time from the text Tika extracted upstream.
-			const text = upstream['pn2']['tika_content'] || '';
+			// Estimate reading time from the text wired into the 'text' input port (Tika's content).
+			const text = data.text || '';
 			const words = text.split(/\\s+/).filter(w => w.length > 0).length;
 			const minutes = Math.max(1, Math.round(words / params.wordsPerMinute));
 
@@ -391,15 +427,17 @@ class ScriptNodeTest {
 			""";
 
 		ScriptNode node = configured(def(demoScript, outputs("reading_minutes", "INTEGER", "length_band", "STRING"))
-			.put("params", new JsonObject().put("wordsPerMinute", 200))
-			.put("requiredInputs", new JsonArray().add("pn2:tika_content")));
+			.put("params", new JsonObject().put("wordsPerMinute", 200)));
 
+		// Fed through IN_TEXT, exactly as the demo pipeline wires tika.content -> script.text. The
+		// node surfaces it to the script as data.text.
 		String text = "word ".repeat(1000);
-		NodeResult result = run(node, Map.of("pn2", Map.of("tika_content", text)));
+		NodeResult result = node.process(NodeContext.create(media,
+			NodeInputs.builder().input(ScriptNode.IN_TEXT, text).build()));
 
 		assertEquals(ResultState.SUCCESS, result.getState(), result.getMessage());
-		assertEquals(5L, result.getOutputs().get("reading_minutes"), "1000 words at 200 wpm");
-		assertEquals("medium", result.getOutputs().get("length_band"));
+		assertEquals(5L, result.get(port("reading_minutes", "INTEGER")), "1000 words at 200 wpm");
+		assertEquals("medium", result.get(port("length_band", "STRING")));
 	}
 
 	@Test
@@ -431,8 +469,8 @@ class ScriptNodeTest {
 		first.configure(def("out.text('caption', 'first');", outputs("caption", "TEXT")));
 		second.configure(def("out.text('caption', 'second');", outputs("caption", "TEXT")));
 
-		assertEquals("first", run(first).getOutputs().get("caption"));
-		assertEquals("second", run(second).getOutputs().get("caption"));
+		assertEquals("first", run(first).get(port("caption", "TEXT")));
+		assertEquals("second", run(second).get(port("caption", "TEXT")));
 		assertNull(ScriptNode.class.getAnnotation(javax.inject.Singleton.class),
 			"ScriptNode must not be @Singleton - configure() mutates it per task");
 	}

@@ -14,6 +14,7 @@ public class PipelineNodeTaskImpl extends AbstractEditableElement<PipelineNodeTa
 	private String nodeId;
 	private String nodeKind;
 	private String state = "PENDING";
+	private int elementSeq = 0;
 	private int attempt = 0;
 	private int maxAttempts = 1;
 	private String leasedBy;
@@ -83,6 +84,17 @@ public class PipelineNodeTaskImpl extends AbstractEditableElement<PipelineNodeTa
 	@Override
 	public int getAttempt() {
 		return attempt;
+	}
+
+	@Override
+	public int getElementSeq() {
+		return elementSeq;
+	}
+
+	@Override
+	public PipelineNodeTask setElementSeq(int elementSeq) {
+		this.elementSeq = elementSeq;
+		return this;
 	}
 
 	@Override

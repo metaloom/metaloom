@@ -2,7 +2,11 @@ package io.metaloom.loom.pipeline.engine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.MEDIA_VIDEO;
+import static io.metaloom.loom.pipeline.engine.Payloads.outputs;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -65,7 +69,12 @@ public class PipelineRunEngineSegmentTest {
 	}
 
 	private JsonObject edge(String from, String to) {
-		return new JsonObject().put("source", from).put("target", to);
+		return edge(from, "media", to, "media");
+	}
+
+	private JsonObject edge(String from, String sourcePort, String to, String targetPort) {
+		return new JsonObject().put("source", from).put("sourcePort", sourcePort)
+			.put("target", to).put("targetPort", targetPort);
 	}
 
 	/** src -> a -> b, with a and b sharing the given group. */
@@ -74,7 +83,7 @@ public class PipelineRunEngineSegmentTest {
 			.add(new JsonObject().put("id", "src").put("type", "filesystem-source").put("source", true))
 			.add(node("a", "video-decode", affinity))
 			.add(node("b", "keyframe", affinity));
-		JsonArray edges = new JsonArray().add(edge("src", "a")).add(edge("a", "b"));
+		JsonArray edges = new JsonArray().add(edge("src", "a")).add(edge("a", "video", "b", "frames"));
 		return parser.parse("seg", new JsonObject().put("nodes", nodes).put("edges", edges), true, false, 0);
 	}
 
@@ -102,10 +111,10 @@ public class PipelineRunEngineSegmentTest {
 		engine.onItemDiscovered(MediaRef.of("/media/a.mp4"));
 
 		SegmentTask task = dispatcher.segmentTasks.get(0);
-		// The source result is external to the segment, so it travels; 'a' feeding 'b'
-		// is internal and must not.
-		assertNotNull(task.getUpstreamOutputs().get("src"));
-		assertTrue(!task.getUpstreamOutputs().containsKey("a"),
+		// The source result is external to the segment, so it travels on 'a's media port;
+		// 'a' feeding 'b's frames port is internal and must not.
+		assertNotNull(task.getInputs().get("media"));
+		assertFalse(task.getInputs().containsKey("frames"),
 			"An intermediate result must stay on the worker, not travel");
 	}
 
@@ -120,7 +129,7 @@ public class PipelineRunEngineSegmentTest {
 
 		SegmentTask task = dispatcher.segmentTasks.get(0);
 		engine.onSegmentTaskResult(itemId, task.getSegmentId(), List.of(
-			NodeTaskResult.completed(task.getTaskUuid(), "a", 10, Map.of("frames", 5)),
+			NodeTaskResult.completed(task.getTaskUuid(), "a", 10, outputs("video", MEDIA_VIDEO, "/tmp/decoded.mkv")),
 			NodeTaskResult.completed(task.getTaskUuid(), "b", 10, Map.of())), null);
 
 		assertEquals(NodeState.COMPLETED, engine.getItem(itemId).getResults().get("a").getState());

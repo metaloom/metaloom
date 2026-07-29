@@ -29,6 +29,19 @@
             <groupId>io.metaloom.loom.shared</groupId>
             <artifactId>loom-api</artifactId>
         </dependency>
+        <!--
+            The typed port API is defined against the shared model, not against a copy of it:
+            Cardinality and ValueCoercer come from the node model, Origin from the wire model.
+            Redeclaring either here is how the descriptor and the runtime drifted apart before.
+        -->
+        <dependency>
+            <groupId>io.metaloom.loom.shared</groupId>
+            <artifactId>loom-node-model</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.loom.shared</groupId>
+            <artifactId>loom-pipeline-model</artifactId>
+        </dependency>
         <!-- DI -->
         <dependency>
             <groupId>com.google.dagger</groupId>

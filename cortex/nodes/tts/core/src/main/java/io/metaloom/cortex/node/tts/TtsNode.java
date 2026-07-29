@@ -14,14 +14,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.node.NodeOutputKey;
+import io.metaloom.cortex.api.node.InputPort;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.utils.hash.HashUtils;
 import io.metaloom.utils.hash.SHA512;
@@ -49,8 +51,20 @@ public class TtsNode extends AbstractMediaNode<TtsNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(TtsNode.class);
 
-	public static final NodeOutputKey<String> OUTPUT_TTS_FLAG = NodeOutputKey.of("tts_flag", String.class);
-	public static final NodeOutputKey<String> OUTPUT_TTS_PATH = NodeOutputKey.of("tts_path", String.class);
+	/**
+	 * The text to speak.
+	 *
+	 * <p>
+	 * This replaces the {@code sourceNodeId}/{@code sourceOutputKey} option pair, which defaulted
+	 * to {@code llm}/{@code llm_result} - an output the LLM node never wrote, since it emits one
+	 * result per prompt. The node therefore synthesised nothing unless both options were
+	 * hand-corrected. A declared port makes the source an edge the author draws.
+	 * </p>
+	 */
+	public static final InputPort<String> IN_TEXT = InputPort.one("text", ContentTypeRegistry.TEXT_ANY, String.class);
+
+	public static final OutputPort<String> OUT_AUDIO = OutputPort.one("audio", ContentTypeRegistry.ARTIFACT_AUDIO, String.class);
+	public static final OutputPort<String> OUT_FLAG = OutputPort.one("flag", ContentTypeRegistry.SCALAR_STRING, String.class);
 
 	/** In-heap skip cache of the generated audio path, keyed by media path, to avoid re-synthesizing within this worker's lifetime. The rendered WAV
 	 * itself is a durable local artifact under {@code metaPath/tts_bin}. */
@@ -78,7 +92,7 @@ public class TtsNode extends AbstractMediaNode<TtsNodeOptions> {
 		if (!options().isEnabled()) {
 			return false;
 		}
-		// Only processable when an upstream node supplied text to speak.
+		// Only processable when the text port was wired and carries something.
 		return resolveText(ctx) != null;
 	}
 
@@ -97,8 +111,8 @@ public class TtsNode extends AbstractMediaNode<TtsNodeOptions> {
 		String cached = resultCache.get(path);
 		if (cached != null) {
 			metrics.recordAiCacheHit("tts");
-			ctx.output(OUTPUT_TTS_FLAG, "DONE");
-			ctx.output(OUTPUT_TTS_PATH, cached);
+			ctx.output(OUT_FLAG, "DONE");
+			ctx.output(OUT_AUDIO, cached);
 			return ctx.origin(LOCAL).next();
 		}
 
@@ -118,8 +132,8 @@ public class TtsNode extends AbstractMediaNode<TtsNodeOptions> {
 			Files.write(audioPath, wav);
 
 			ctx.print("DONE", wav.length + " bytes");
-			ctx.output(OUTPUT_TTS_FLAG, "DONE");
-			ctx.output(OUTPUT_TTS_PATH, audioPath.toString());
+			ctx.output(OUT_FLAG, "DONE");
+			ctx.output(OUT_AUDIO, audioPath.toString());
 			resultCache.put(path, audioPath.toString());
 
 			// The audio bytes live in the local tts_bin cache; record the ledger marker that this node produced them for the asset. Uploading the bytes
@@ -128,22 +142,18 @@ public class TtsNode extends AbstractMediaNode<TtsNodeOptions> {
 			return ctx.origin(COMPUTED).next();
 		} catch (Exception e) {
 			log.error("Failed to synthesize audio for media {}", path, e);
-			ctx.output(OUTPUT_TTS_FLAG, "FAILED");
+			ctx.output(OUT_FLAG, "FAILED");
 			recordNodeResult(asset, ctx, ResultState.FAILED, e.getMessage(), producerVersion, null);
 			return ctx.failure(e.getMessage()).next();
 		}
 	}
 
 	/**
-	 * Resolve the upstream text to synthesize from the configured source node output, or null when it is absent or blank.
+	 * The wired text to synthesize, or null when the port carries nothing usable.
 	 */
 	private String resolveText(NodeContext<LoomMedia> ctx) {
-		Object value = ctx.upstreamOutput(options().getSourceNodeId(), options().getSourceOutputKey());
-		if (value == null) {
-			return null;
-		}
-		String text = value.toString();
-		return text.isBlank() ? null : text;
+		String text = ctx.input(IN_TEXT);
+		return text == null || text.isBlank() ? null : text;
 	}
 
 	/**

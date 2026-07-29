@@ -1,7 +1,9 @@
 package io.metaloom.cortex.runtime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
@@ -14,13 +16,19 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
+import io.metaloom.cortex.api.node.PortOutput;
 import io.metaloom.cortex.pipeline.api.NodeMode;
 import io.metaloom.cortex.pipeline.core.node.AbstractPipelineNode;
 import io.metaloom.cortex.pipeline.test.StubLoomMedia;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.pipeline.model.MediaRef;
 import io.metaloom.loom.pipeline.model.NodeState;
 import io.metaloom.loom.pipeline.model.NodeTaskResult;
+import io.metaloom.loom.pipeline.model.Origin;
+import io.metaloom.loom.pipeline.model.PortPayload;
 import io.metaloom.loom.pipeline.model.SegmentNode;
 import io.metaloom.loom.pipeline.model.SegmentTask;
 import io.metaloom.loom.pipeline.model.SegmentTaskResult;
@@ -32,29 +40,41 @@ import io.metaloom.loom.pipeline.model.SegmentTaskResult;
  * <em>where</em> it runs, never <em>what the pipeline does</em>. So the local skip
  * rules are checked against the same cases {@code PipelineRunEngineTest} pins on
  * the Loom side.</p>
+ *
+ * <p>A segment hands each node a port-keyed {@link NodeInputs} view rather than the
+ * upstream {@code NodeResult}s. That is deliberate and it removes one thing a node
+ * used to be able to do: inspect a dependency's <em>state</em>. A non-blocking node
+ * downstream of a failure now simply finds nothing on the port that failure would
+ * have filled, which is what the wire model can actually express.</p>
  */
 public class SegmentTaskRunnerTest {
 
+	/** Stand-in for whatever a node emits; the port ids are what the next node matches on. */
+	private static final OutputPort<String> OUT_HASH =
+		OutputPort.one("hash", ContentTypeRegistry.HASH_SHA512, String.class);
+	private static final OutputPort<Long> OUT_COUNT =
+		OutputPort.one("count", ContentTypeRegistry.SCALAR_INTEGER, Long.class);
+
 	/**
-	 * A node that records that it ran and returns a fixed output.
+	 * A node that records that it ran and returns a fixed set of port outputs.
 	 *
 	 * <p>Extends {@code AbstractPipelineNode} rather than implementing the interface
 	 * directly, so graph-wiring methods a segment never uses stay out of the test.</p>
 	 */
 	private static class RecordingNode extends AbstractPipelineNode {
 
-		private final Map<String, Object> output;
+		private final Map<String, PortOutput> output;
 		private final RuntimeException failure;
-		final List<Map<String, NodeResult>> seenInputs = new ArrayList<>();
+		final List<NodeInputs> seenInputs = new ArrayList<>();
 
-		RecordingNode(String id, Map<String, Object> output, RuntimeException failure) {
+		RecordingNode(String id, Map<String, PortOutput> output, RuntimeException failure) {
 			super(id, id, NodeMode.PARALLEL, true, 1);
 			this.output = output;
 			this.failure = failure;
 		}
 
 		@Override
-		public NodeResult process(LoomMedia media, Map<String, NodeResult> inputs) {
+		public NodeResult process(LoomMedia media, NodeInputs inputs) {
 			seenInputs.add(inputs);
 			if (failure != null) {
 				throw failure;
@@ -82,7 +102,7 @@ public class SegmentTaskRunnerTest {
 			});
 	}
 
-	private RecordingNode register(String id, Map<String, Object> output) {
+	private RecordingNode register(String id, Map<String, PortOutput> output) {
 		RecordingNode node = new RecordingNode(id, output, null);
 		nodes.put(id, node);
 		return node;
@@ -94,19 +114,23 @@ public class SegmentTaskRunnerTest {
 		return node;
 	}
 
+	private static <T> Map<String, PortOutput> emits(OutputPort<T> port, T value) {
+		return Map.of(port.id(), PortOutput.one(port, value));
+	}
+
 	private static SegmentNode segNode(String id, boolean blocking, String... deps) {
 		return new SegmentNode(id, "kind-" + id, blocking, Map.of(), List.of(deps));
 	}
 
-	private SegmentTask task(List<SegmentNode> segNodes, Map<String, Map<String, Object>> upstream) {
+	private SegmentTask task(List<SegmentNode> segNodes, Map<String, PortPayload> inputs) {
 		return new SegmentTask(UUID.randomUUID(), UUID.randomUUID(), "item-1", "seg-1", "video",
-			MediaRef.of("/media/a.mp4"), segNodes, upstream);
+			MediaRef.of("/media/a.mp4"), segNodes, inputs);
 	}
 
 	@Test
 	void testEveryNodeRunsAndIsReported() {
-		register("a", Map.of("x", 1));
-		register("b", Map.of("y", 2));
+		register("a", emits(OUT_COUNT, 1L));
+		register("b", emits(OUT_HASH, "beef"));
 
 		SegmentTaskResult result = runner().run(task(List.of(segNode("a", true), segNode("b", true, "a")), Map.of()));
 
@@ -131,24 +155,28 @@ public class SegmentTaskRunnerTest {
 
 	@Test
 	void testAnIntermediateResultReachesTheNextNodeWithoutLeavingTheProcess() {
-		register("a", Map.of("sha512", "deadbeef"));
+		register("a", emits(OUT_HASH, "deadbeef"));
 		RecordingNode b = register("b", Map.of());
 
 		runner().run(task(List.of(segNode("a", true), segNode("b", true, "a")), Map.of()));
 
-		Map<String, NodeResult> inputs = b.seenInputs.get(0);
-		assertNotNull(inputs.get("a"), "The second node must see the first node's result");
-		assertEquals("deadbeef", inputs.get("a").getOutput().get("sha512"));
+		// Matched by port id, not by the producing node's id: 'b' reads the port called
+		// "hash" and never names 'a'.
+		NodeInputs inputs = b.seenInputs.get(0);
+		PortPayload hash = inputs.get(OUT_HASH.id());
+		assertNotNull(hash, "The second node must see the first node's port output");
+		assertEquals("deadbeef", hash.single());
+		assertEquals(ContentTypeRegistry.HASH_SHA512, hash.getContentType());
 	}
 
 	@Test
-	void testUpstreamOutputsFromOutsideTheSegmentAreVisible() {
+	void testInputsFromOutsideTheSegmentAreVisible() {
 		RecordingNode a = register("a", Map.of());
 
 		runner().run(task(List.of(segNode("a", true, "external")),
-			Map.of("external", Map.of("path", "/media/a.mp4"))));
+			Map.of("media", PortPayload.one(ContentTypeRegistry.MEDIA_ANY, Origin.single("item-1"), "/media/a.mp4"))));
 
-		assertEquals("/media/a.mp4", a.seenInputs.get(0).get("external").getOutput().get("path"));
+		assertEquals("/media/a.mp4", a.seenInputs.get(0).get("media").single());
 	}
 
 	@Test
@@ -166,7 +194,7 @@ public class SegmentTaskRunnerTest {
 	}
 
 	@Test
-	void testANonBlockingNodeRunsAnywayAndSeesTheFailure() {
+	void testANonBlockingNodeRunsAnywayAndSeesNothingOnTheFailedPort() {
 		registerFailing("a");
 		RecordingNode b = register("b", Map.of());
 
@@ -174,8 +202,12 @@ public class SegmentTaskRunnerTest {
 
 		assertEquals(NodeState.COMPLETED, result.getResults().get(1).getState());
 		assertEquals(1, b.seenInputs.size(), "A non-blocking node runs despite the failure");
-		assertEquals(io.metaloom.cortex.api.node.ResultState.FAILED,
-			b.seenInputs.get(0).get("a").getState(), "and must be able to see it in its inputs");
+		// Inputs carry port payloads, not upstream states, so the observable consequence
+		// of the failure is an unfilled port - which is exactly what isWired() reports.
+		assertNull(b.seenInputs.get(0).get(OUT_HASH.id()),
+			"A failed dependency leaves its port unfilled");
+		assertTrue(b.seenInputs.get(0).ports().isEmpty(),
+			"Nothing upstream succeeded, so nothing is on any port");
 	}
 
 	@Test
@@ -234,7 +266,7 @@ public class SegmentTaskRunnerTest {
 
 	@Test
 	void testASingleNodeSegmentBehavesLikeAPlainNodeTask() {
-		register("a", Map.of("x", 1));
+		register("a", emits(OUT_COUNT, 1L));
 
 		SegmentTaskResult result = runner().run(task(List.of(segNode("a", true)), Map.of()));
 
@@ -242,7 +274,11 @@ public class SegmentTaskRunnerTest {
 		// keep working.
 		assertEquals(1, result.getResults().size());
 		assertEquals(NodeState.COMPLETED, result.getResults().get(0).getState());
-		assertEquals(1, result.getResults().get(0).getOutputs().get("x"));
+		PortPayload count = result.getResults().get(0).getOutputs().get(OUT_COUNT.id());
+		assertNotNull(count);
+		// scalar/integer is always widened to Long at the boundary.
+		assertEquals(1L, count.single());
+		assertFalse(count.isMany());
 	}
 
 	@Test

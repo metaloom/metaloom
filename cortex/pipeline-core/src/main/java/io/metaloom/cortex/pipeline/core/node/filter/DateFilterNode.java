@@ -12,7 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.context.NodeContext;
 
 /**
  * Filters media based on file modification or creation time.
@@ -43,7 +43,8 @@ public class DateFilterNode extends AbstractFilterNode {
 	}
 
 	@Override
-	protected boolean evaluate(LoomMedia media, Map<String, NodeResult> upstreamResults) {
+	protected boolean evaluate(NodeContext<LoomMedia> ctx) {
+		LoomMedia media = ctx.media();
 		try {
 			Instant timestamp = resolveTimestamp(media);
 			if (timestamp == null) {
@@ -78,7 +79,7 @@ public class DateFilterNode extends AbstractFilterNode {
 	}
 
 	@Override
-	protected String rejectReason(LoomMedia media, Map<String, NodeResult> upstreamResults) {
+	protected String rejectReason(NodeContext<LoomMedia> ctx) {
 		return "file date out of range (" + dateField + ")";
 	}
 

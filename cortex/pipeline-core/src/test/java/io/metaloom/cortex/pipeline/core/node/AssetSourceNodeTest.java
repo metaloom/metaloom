@@ -9,11 +9,11 @@ import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
 import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.utils.hash.SHA512;
@@ -26,12 +26,11 @@ class AssetSourceNodeTest {
 		AssetSourceNode node = new AssetSourceNode(asset);
 
 		node.initialize();
-		NodeResult first = node.process(null, Map.of());
-		NodeResult second = node.process(null, Map.of());
+		NodeResult first = node.process(null, NodeInputs.empty());
+		NodeResult second = node.process(null, NodeInputs.empty());
 
 		assertEquals(ResultState.SUCCESS, first.getState());
-		assertEquals("/tmp/my-asset.mp4", first.getOutput("path"));
-		assertEquals("asset", first.getOutput("source"));
+		assertEquals("/tmp/my-asset.mp4", first.get(AssetSourceNode.OUT_MEDIA));
 
 		assertEquals(ResultState.SKIPPED, second.getState());
 		assertTrue(node.isSource());

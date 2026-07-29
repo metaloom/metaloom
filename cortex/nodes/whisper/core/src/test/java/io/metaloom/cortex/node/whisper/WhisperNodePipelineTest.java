@@ -69,7 +69,7 @@ class WhisperNodePipelineTest extends AbstractNodeChainTest {
 		// Stub the compute method to avoid native WhisperCpp calls
 		doAnswer(invocation -> {
 			NodeContext<LoomMedia> ctx = invocation.getArgument(0);
-			ctx.output(WhisperNode.OUTPUT_WHISPER_RESULT, FAKE_WHISPER_JSON);
+			ctx.output(WhisperNode.OUT_TRANSCRIPT, FAKE_WHISPER_JSON);
 			return ctx.origin(ResultOrigin.COMPUTED).next();
 		}).when(node).compute(any(), any());
 
@@ -89,7 +89,7 @@ class WhisperNodePipelineTest extends AbstractNodeChainTest {
 		assertThat(result)
 				.isSuccess()
 				.hasCompletedNode("whisper")
-				.hasNodeOutput("whisper", "whisper_result", FAKE_WHISPER_JSON);
+				.hasNodeOutput("whisper", WhisperNode.OUT_TRANSCRIPT, FAKE_WHISPER_JSON);
 	}
 
 	@Test
@@ -104,7 +104,7 @@ class WhisperNodePipelineTest extends AbstractNodeChainTest {
 
 		assertThat(result).node("whisper")
 				.isCompleted()
-				.hasOutput("whisper_result", FAKE_WHISPER_JSON)
+				.hasOutput(WhisperNode.OUT_TRANSCRIPT, FAKE_WHISPER_JSON)
 				.hasOutputCount(1);
 	}
 
@@ -139,7 +139,7 @@ class WhisperNodePipelineTest extends AbstractNodeChainTest {
 	@Test
 	void testOutputChaining() throws Exception {
 		CortexNodeAdapter whisperAdapter = createAdapter();
-		CapturingNode consumer = new CapturingNode("consumer", "whisper", "whisper_result");
+		CapturingNode consumer = new CapturingNode("consumer", WhisperNode.OUT_TRANSCRIPT);
 
 		PipelineResult result = execute(videoMedia, whisperAdapter, consumer);
 

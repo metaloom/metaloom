@@ -15,15 +15,15 @@ The model runs behind a small HTTP sidecar, so the node stays a pure client and 
 machine-learning runtime of its own.
 
 ++++
-<div class="ml-nodeviz" data-nodeviz='{"kind":"depthmap","applies":"Images","badge":"Depth sidecar","persist":"Local depthmap_bin cache + node-result ledger","configs":[{"name":"relative (default)","note":"orders objects front-to-back","inputs":[{"t":"media","l":"image","d":"any still image"}],"outputs":[{"t":"path","l":"depthmap_path","d":"16-bit PNG on the worker"},{"t":"json","l":"depthmap_meta","d":"model, dimensions, statistics"},{"t":"label","l":"depthmap_flag","d":"DONE / FAILED"}]},{"name":"metric","note":"mode = METRIC, adds a range in metres","inputs":[{"t":"media","l":"image"}],"outputs":[{"t":"path","l":"depthmap_path"},{"t":"json","l":"depthmap_meta","d":"includes min/max metres"},{"t":"label","l":"depthmap_flag"}]}]}'></div>
+<div class="ml-nodeviz" data-nodeviz='{"kind":"depthmap","applies":"Images","badge":"Depth sidecar","persist":"Local depthmap_bin cache + node-result ledger","configs":[{"name":"relative (default)","note":"orders objects front-to-back","inputs":[{"t":"image","l":"media","d":"any still image"}],"outputs":[{"t":"depth","l":"meta","d":"model, map and image dimensions, and the depth percentiles"},{"t":"artifact","l":"map","ct":"artifact/image","d":"16-bit greyscale PNG written to the worker — bright is close"},{"t":"flag","l":"flag","d":"DONE or FAILED"}]},{"name":"metric","note":"mode = METRIC, adds a range in metres","inputs":[{"t":"image","l":"media","d":"any still image"}],"outputs":[{"t":"depth","l":"meta","d":"as above, plus the nearest and farthest distance in metres"},{"t":"artifact","l":"map","ct":"artifact/image","d":"16-bit greyscale PNG written to the worker"},{"t":"flag","l":"flag","d":"DONE or FAILED"}]}]}'></div>
 ++++
 
 [cols="1,3"]
 |===
 | Kind | `depthmap`
 | Applies to | Images. Video is not supported yet
-| Inputs | The image asset itself — no upstream node required
-| Output keys | `depthmap_flag` (String), `depthmap_path` (String), `depthmap_meta` (JSON String)
+| Input ports | `media` — the image asset itself, no upstream node required
+| Output ports | `meta` (the description below, and what link:../scene-layout/[Scene Layout] connects to), `map` (the PNG on the worker), `flag` (String)
 | Requirements | A running **depth sidecar** (`/v1/depth`). CPU works for the default model; a GPU is much faster and is recommended for metric mode
 | Persists to | The generated map stays on the worker under `depthmap_bin`; a processing record is stored against the asset
 |===
@@ -99,6 +99,7 @@ MiDaS model instead. See link:../../legal/model-licenses/[Model licences].
 
 == Deployment note
 
-The generated map is stored on the worker that produced it. If you chain this node with
-link:../scene-layout/[Scene Layout], put both in the **same affinity group** in your pipeline so
-they run on the same machine — otherwise the second node cannot find the map.
+The generated map is stored on the worker that produced it. If you connect `meta` to
+link:../scene-layout/[Scene Layout], put both nodes in the **same affinity group** in your pipeline
+so they run on the same machine — otherwise the second node cannot find the map the description
+points at.

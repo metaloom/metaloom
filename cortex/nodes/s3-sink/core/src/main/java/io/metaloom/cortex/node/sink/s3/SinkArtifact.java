@@ -18,6 +18,9 @@ public record SinkArtifact(String sourceNode, String sourceKey, int index, boole
 	/** Marker used for both node and key when the artifact is the media item itself. */
 	public static final String SOURCE_MEDIA = "media";
 
+	/** Provenance recorded for anything that arrived on the sink's {@code artifacts} input port. */
+	public static final String ARTIFACTS_PORT = "artifacts";
+
 	/**
 	 * @return the file's extension including the dot, or an empty string
 	 */

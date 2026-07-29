@@ -1,9 +1,12 @@
 package io.metaloom.loom.nodes.spec;
 
-import static io.metaloom.loom.nodes.spec.ContentTypes.*;
+import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.*;
 import static io.metaloom.loom.nodes.spec.NodeCategory.*;
 import static io.metaloom.loom.nodes.spec.NodeMode.*;
 import static io.metaloom.loom.nodes.spec.ParameterType.*;
+import static io.metaloom.loom.nodes.spec.PortSpec.many;
+import static io.metaloom.loom.nodes.spec.PortSpec.one;
+import static io.metaloom.loom.nodes.spec.PortSpec.optionalOne;
 
 import java.util.List;
 
@@ -24,8 +27,14 @@ public class FilterDescriptorProvider implements NodeDescriptorProvider {
 				.setDescription("Filter media by MIME type (e.g. only process images or videos).")
 				.setIcon("filter_alt")
 				.setCategory(FILTER)
-				.setInputs(List.of(new NodeInput("media", MEDIA_ANY, true)))
-				.setOutputs(List.of(new NodeOutput("filter_passed", CONTROL_FILTER_RESULT)))
+				.setInputPorts(List.of(
+					one("media", MEDIA_ANY)
+						.describedAs("Media", "The media item whose MIME type is tested")))
+				.setOutputPorts(List.of(
+					one("media", MEDIA_ANY)
+						.describedAs("Media", "The item, passed through. Wire downstream work here and set the edge branch to PASS or REJECT"),
+					one("passed", CONTROL_FILTER)
+						.describedAs("Passed", "The verdict itself, for a node that consumes the decision rather than the item")))
 				.setParameters(List.of(
 					commonEnabled(),
 					new NodeParameter().setKey("allowedTypes").setType(STRING)
@@ -41,8 +50,14 @@ public class FilterDescriptorProvider implements NodeDescriptorProvider {
 				.setDescription("Filter media by file creation or modification date.")
 				.setIcon("date_range")
 				.setCategory(FILTER)
-				.setInputs(List.of(new NodeInput("media", MEDIA_ANY, true)))
-				.setOutputs(List.of(new NodeOutput("filter_passed", CONTROL_FILTER_RESULT)))
+				.setInputPorts(List.of(
+					one("media", MEDIA_ANY)
+						.describedAs("Media", "The media item whose timestamps are tested")))
+				.setOutputPorts(List.of(
+					one("media", MEDIA_ANY)
+						.describedAs("Media", "The item, passed through. Wire downstream work here and set the edge branch to PASS or REJECT"),
+					one("passed", CONTROL_FILTER)
+						.describedAs("Passed", "The verdict itself, for a node that consumes the decision rather than the item")))
 				.setParameters(List.of(
 					commonEnabled(),
 					new NodeParameter().setKey("after").setType(STRING)
@@ -59,8 +74,14 @@ public class FilterDescriptorProvider implements NodeDescriptorProvider {
 				.setDescription("Filter media by file size.")
 				.setIcon("straighten")
 				.setCategory(FILTER)
-				.setInputs(List.of(new NodeInput("media", MEDIA_ANY, true)))
-				.setOutputs(List.of(new NodeOutput("filter_passed", CONTROL_FILTER_RESULT)))
+				.setInputPorts(List.of(
+					one("media", MEDIA_ANY)
+						.describedAs("Media", "The media item whose size on disk is tested")))
+				.setOutputPorts(List.of(
+					one("media", MEDIA_ANY)
+						.describedAs("Media", "The item, passed through. Wire downstream work here and set the edge branch to PASS or REJECT"),
+					one("passed", CONTROL_FILTER)
+						.describedAs("Passed", "The verdict itself, for a node that consumes the decision rather than the item")))
 				.setParameters(List.of(
 					commonEnabled(),
 					new NodeParameter().setKey("minSize").setType(INTEGER)
@@ -77,8 +98,16 @@ public class FilterDescriptorProvider implements NodeDescriptorProvider {
 				.setDescription("Filter out media that has already been processed.")
 				.setIcon("block")
 				.setCategory(FILTER)
-				.setInputs(List.of(new NodeInput("media", MEDIA_ANY, true)))
-				.setOutputs(List.of(new NodeOutput("filter_passed", CONTROL_FILTER_RESULT)))
+				// The identity is a hash, not the media: the node compares what an upstream hash
+				// node produced, which is what its implementation always did.
+				.setInputPorts(List.of(
+					one("hash", HASH_ANY)
+						.describedAs("Hash", "The identity checked against what this pipeline has already seen")))
+				.setOutputPorts(List.of(
+					one("media", MEDIA_ANY)
+						.describedAs("Media", "The item, passed through. Wire downstream work here and set the edge branch to PASS or REJECT"),
+					one("passed", CONTROL_FILTER)
+						.describedAs("Passed", "The verdict itself, for a node that consumes the decision rather than the item")))
 				.setParameters(List.of(commonEnabled()))
 				.setDefaultConcurrency(4)
 				.setDefaultMode(PARALLEL)
@@ -90,8 +119,18 @@ public class FilterDescriptorProvider implements NodeDescriptorProvider {
 				.setDescription("Filter out media whose upstream text output matches a blacklisted term.")
 				.setIcon("playlist_remove")
 				.setCategory(FILTER)
-				.setInputs(List.of(new NodeInput("text", DATA_TEXT, true)))
-				.setOutputs(List.of(new NodeOutput("filter_passed", CONTROL_FILTER_RESULT)))
+				.setInputPorts(List.of(
+					one("media", MEDIA_ANY)
+						.describedAs("Media", "The item being gated. Passed through to the media output"),
+					// MANY because checking a transcript and an OCR pass together is the normal
+					// case; each wired producer contributes its elements.
+					many("text", TEXT_ANY)
+						.describedAs("Text", "Every upstream text matched against the blacklisted terms")))
+				.setOutputPorts(List.of(
+					one("media", MEDIA_ANY)
+						.describedAs("Media", "The item, passed through. Wire downstream work here and set the edge branch to PASS or REJECT"),
+					one("passed", CONTROL_FILTER)
+						.describedAs("Passed", "The verdict itself, for a node that consumes the decision rather than the item")))
 				.setParameters(List.of(
 					commonEnabled(),
 					new NodeParameter().setKey("terms").setType(STRING)
@@ -107,8 +146,16 @@ public class FilterDescriptorProvider implements NodeDescriptorProvider {
 				.setDescription("Filter media based on quality metrics (resolution, blurriness, bitrate).")
 				.setIcon("tune")
 				.setCategory(FILTER)
-				.setInputs(List.of(new NodeInput("quality", DATA_QUALITY, true)))
-				.setOutputs(List.of(new NodeOutput("filter_passed", CONTROL_FILTER_RESULT)))
+				.setInputPorts(List.of(
+					one("media", MEDIA_ANY)
+						.describedAs("Media", "The item being gated. Passed through to the media output"),
+					one("quality", STRUCT_QUALITY)
+						.describedAs("Quality Metrics", "The metric bag from an upstream quality node")))
+				.setOutputPorts(List.of(
+					one("media", MEDIA_ANY)
+						.describedAs("Media", "The item, passed through. Wire downstream work here and set the edge branch to PASS or REJECT"),
+					one("passed", CONTROL_FILTER)
+						.describedAs("Passed", "The verdict itself, for a node that consumes the decision rather than the item")))
 				.setParameters(List.of(
 					commonEnabled(),
 					new NodeParameter().setKey("minWidth").setType(INTEGER)
@@ -127,8 +174,16 @@ public class FilterDescriptorProvider implements NodeDescriptorProvider {
 				.setDescription("Filter media based on a numeric upstream output exceeding a threshold.")
 				.setIcon("linear_scale")
 				.setCategory(FILTER)
-				.setInputs(List.of(new NodeInput("value", DATA_NUMBER, true)))
-				.setOutputs(List.of(new NodeOutput("filter_passed", CONTROL_FILTER_RESULT)))
+				.setInputPorts(List.of(
+					one("media", MEDIA_ANY)
+						.describedAs("Media", "The item being gated. Passed through to the media output"),
+					one("value", SCALAR_NUMBER)
+						.describedAs("Value", "The number compared against the configured threshold")))
+				.setOutputPorts(List.of(
+					one("media", MEDIA_ANY)
+						.describedAs("Media", "The item, passed through. Wire downstream work here and set the edge branch to PASS or REJECT"),
+					one("passed", CONTROL_FILTER)
+						.describedAs("Passed", "The verdict itself, for a node that consumes the decision rather than the item")))
 				.setParameters(List.of(
 					commonEnabled(),
 					new NodeParameter().setKey("threshold").setType(NUMBER)
@@ -143,8 +198,18 @@ public class FilterDescriptorProvider implements NodeDescriptorProvider {
 				.setDescription("Filter media based on asset attributes stored in Loom.")
 				.setIcon("label")
 				.setCategory(FILTER)
-				.setInputs(List.of(new NodeInput("media", MEDIA_ANY, true)))
-				.setOutputs(List.of(new NodeOutput("filter_passed", CONTROL_FILTER_RESULT)))
+				.setInputPorts(List.of(
+					one("media", MEDIA_ANY)
+						.describedAs("Media", "The media item whose Loom asset attributes are tested"),
+					// Declared because the node has always read resolution, fps and bitrate from a
+					// quality node; without this port it could only reach them by node id.
+					optionalOne("quality", STRUCT_QUALITY)
+						.describedAs("Quality", "Metrics from a quality node; without it only the file-size checks apply")))
+				.setOutputPorts(List.of(
+					one("media", MEDIA_ANY)
+						.describedAs("Media", "The item, passed through. Wire downstream work here and set the edge branch to PASS or REJECT"),
+					one("passed", CONTROL_FILTER)
+						.describedAs("Passed", "The verdict itself, for a node that consumes the decision rather than the item")))
 				.setParameters(List.of(
 					commonEnabled(),
 					new NodeParameter().setKey("attributeKey").setType(STRING)

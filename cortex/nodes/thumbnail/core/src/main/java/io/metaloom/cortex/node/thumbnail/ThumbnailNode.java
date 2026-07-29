@@ -15,8 +15,9 @@ import javax.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.metaloom.cortex.api.node.NodeOutputKey;
+import io.metaloom.cortex.api.node.InputPort;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.context.NodeContext;
@@ -24,6 +25,7 @@ import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.utils.hash.HashUtils;
 import io.metaloom.utils.hash.SHA512;
@@ -36,8 +38,17 @@ public class ThumbnailNode extends AbstractMediaNode<ThumbnailNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(ThumbnailNode.class);
 
-	public static final NodeOutputKey<String> OUTPUT_THUMBNAIL_FLAG = NodeOutputKey.of("thumbnail_flag", String.class);
-	public static final NodeOutputKey<String> OUTPUT_THUMBNAIL_PATH = NodeOutputKey.of("thumbnail_path", String.class);
+	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_ANY, LoomMedia.class);
+
+	/**
+	 * Whether the file is whole. Optional and declared rather than looked up: this used to be
+	 * {@code ctx.upstreamOutput("consistency", "is_complete")}, which silently produced nothing
+	 * the moment a pipeline author named the node anything other than {@code consistency}.
+	 */
+	public static final InputPort<Boolean> IN_IS_COMPLETE = InputPort.one("is_complete", ContentTypeRegistry.SCALAR_BOOLEAN, Boolean.class);
+
+	public static final OutputPort<String> OUT_THUMBNAIL = OutputPort.one("thumbnail", ContentTypeRegistry.ARTIFACT_IMAGE, String.class);
+	public static final OutputPort<String> OUT_FLAG = OutputPort.one("flag", ContentTypeRegistry.SCALAR_STRING, String.class);
 
 	/** In-heap skip cache of the generated thumbnail path, keyed by media path, to avoid re-rendering the contact sheet within this worker's lifetime.
 	 * The rendered file itself is a durable local artifact under {@code metaPath/thumbnail_bin}. */
@@ -72,7 +83,7 @@ public class ThumbnailNode extends AbstractMediaNode<ThumbnailNodeOptions> {
 			return false;
 		}
 		if (!options().isProcessIncomplete()) {
-			Boolean isComplete = ctx.upstreamOutput("consistency", "is_complete");
+			Boolean isComplete = ctx.input(IN_IS_COMPLETE);
 			if (isComplete != null && !isComplete) {
 				return false;
 			}
@@ -87,8 +98,8 @@ public class ThumbnailNode extends AbstractMediaNode<ThumbnailNodeOptions> {
 			String path = media.absolutePath();
 			String cached = resultCache.get(path);
 			if (cached != null) {
-				ctx.output(OUTPUT_THUMBNAIL_FLAG, "DONE");
-				ctx.output(OUTPUT_THUMBNAIL_PATH, cached);
+				ctx.output(OUT_FLAG, "DONE");
+				ctx.output(OUT_THUMBNAIL, cached);
 				return ctx.origin(LOCAL).next();
 			}
 			try (VideoFile video = Videos.open(path)) {
@@ -97,8 +108,8 @@ public class ThumbnailNode extends AbstractMediaNode<ThumbnailNodeOptions> {
 				try (OutputStream os = new FileOutputStream(thumbnailPath.toFile())) {
 					gen.save(video, os);
 					ctx.print("DONE", "");
-					ctx.output(OUTPUT_THUMBNAIL_FLAG, "DONE");
-					ctx.output(OUTPUT_THUMBNAIL_PATH, thumbnailPath.toString());
+					ctx.output(OUT_FLAG, "DONE");
+					ctx.output(OUT_THUMBNAIL, thumbnailPath.toString());
 					resultCache.put(path, thumbnailPath.toString());
 				}
 			}
@@ -108,7 +119,7 @@ public class ThumbnailNode extends AbstractMediaNode<ThumbnailNodeOptions> {
 			return ctx.origin(COMPUTED).next();
 		} catch (Exception e) {
 			log.error("Failed to compute thumbnail", e);
-			ctx.output(OUTPUT_THUMBNAIL_FLAG, "FAILED");
+			ctx.output(OUT_FLAG, "FAILED");
 			error(media, "NULL");
 			return ctx.failure(e.getMessage()).next();
 		}

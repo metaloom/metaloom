@@ -135,9 +135,21 @@ export interface PipelineEdge {
   id: string;
   source: string;
   target: string;
+  /**
+   * Id of the output port on the source node. Required by Loom — an edge without it is rejected,
+   * and the editor uses it verbatim as the React Flow source handle id.
+   */
+  sourcePort?: string;
+  /** Id of the input port on the target node. Required by Loom; the React Flow target handle id. */
+  targetPort?: string;
+  /**
+   * Filter routing for this edge. The editor used to write this as `edgeType`, which neither
+   * `PipelineGraphParser` nor `PipelineValidationService` ever read — so every UI-authored
+   * PASS/REJECT edge reached the engine as `ANY`. `branch` is the field they read.
+   */
+  branch?: EdgeKind;
   label?: string;
   animated?: boolean;
-  edgeType?: EdgeKind;
 }
 
 export interface PipelineRun {

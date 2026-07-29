@@ -4,6 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.HASH_SHA512;
+import static io.metaloom.loom.pipeline.engine.Payloads.outputs;
+
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -19,6 +22,7 @@ import io.metaloom.loom.pipeline.model.MediaRef;
 import io.metaloom.loom.pipeline.model.NodeState;
 import io.metaloom.loom.pipeline.model.NodeTask;
 import io.metaloom.loom.pipeline.model.NodeTaskResult;
+import io.metaloom.loom.pipeline.model.PortPayload;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
@@ -43,8 +47,8 @@ public class PipelineRunEnginePauseTest {
 				.add(new JsonObject().put("id", "hash").put("type", "sha512"))
 				.add(new JsonObject().put("id", "thumb").put("type", "thumbnail")))
 			.put("edges", new JsonArray()
-				.add(new JsonObject().put("source", "src").put("target", "hash"))
-				.add(new JsonObject().put("source", "hash").put("target", "thumb")));
+				.add(new JsonObject().put("source", "src").put("sourcePort", "media").put("target", "hash").put("targetPort", "media"))
+				.add(new JsonObject().put("source", "hash").put("sourcePort", "hash").put("target", "thumb").put("targetPort", "media")));
 		return parser.parse("linear", definition, true, false, 0);
 	}
 
@@ -52,7 +56,7 @@ public class PipelineRunEnginePauseTest {
 		return MediaRef.of(path);
 	}
 
-	private static NodeTaskResult ok(NodeTask task, Map<String, Object> outputs) {
+	private static NodeTaskResult ok(NodeTask task, Map<String, PortPayload> outputs) {
 		return NodeTaskResult.completed(task.getTaskUuid(), task.getNodeId(), 5, outputs);
 	}
 
@@ -70,7 +74,7 @@ public class PipelineRunEnginePauseTest {
 		assertTrue(engine.isPaused());
 
 		// 'hash' comes back while suspended. Its own bookkeeping must settle...
-		engine.onNodeTaskResult(item, ok(dispatcher.taskFor("hash"), Map.of("sha512", "abc")));
+		engine.onNodeTaskResult(item, ok(dispatcher.taskFor("hash"), outputs("hash", HASH_SHA512, "abc")));
 		assertEquals(NodeState.COMPLETED, engine.getItem(item).getResults().get("hash").getState(),
 			"A result arriving during a pause still settles its own node");
 		// ...but 'thumb' must not be dispatched.
@@ -88,7 +92,7 @@ public class PipelineRunEnginePauseTest {
 		engine.start();
 		String item = engine.onItemDiscovered(media("/media/a.mp4"));
 		engine.pause();
-		engine.onNodeTaskResult(item, ok(dispatcher.taskFor("hash"), Map.of("sha512", "abc")));
+		engine.onNodeTaskResult(item, ok(dispatcher.taskFor("hash"), outputs("hash", HASH_SHA512, "abc")));
 		assertFalse(dispatcher.wasDispatched("thumb"));
 
 		engine.unpause();
@@ -109,7 +113,7 @@ public class PipelineRunEnginePauseTest {
 		String item = engine.onItemDiscovered(media("/media/a.mp4"));
 		engine.pause();
 		engine.onSourceComplete(1);
-		engine.onNodeTaskResult(item, ok(dispatcher.taskFor("hash"), Map.of("sha512", "abc")));
+		engine.onNodeTaskResult(item, ok(dispatcher.taskFor("hash"), outputs("hash", HASH_SHA512, "abc")));
 
 		// 'thumb' is ready but undispatched, so the item is not complete and neither is the run.
 		assertFalse(engine.isComplete(), "A paused run with outstanding work must not complete");
@@ -158,7 +162,7 @@ public class PipelineRunEnginePauseTest {
 		engine.pause();
 		// The in-flight task returns, freeing the slot. Without the pause gate in
 		// releaseCapacityWaiters() this would let the source carry on scanning.
-		engine.onNodeTaskResult(item, ok(dispatcher.taskFor("hash"), Map.of("sha512", "abc")));
+		engine.onNodeTaskResult(item, ok(dispatcher.taskFor("hash"), outputs("hash", HASH_SHA512, "abc")));
 		assertEquals(0, released.get(), "Freeing capacity during a pause must not release the source");
 
 		engine.unpause();
@@ -197,7 +201,7 @@ public class PipelineRunEnginePauseTest {
 		engine.start();
 		String item = engine.onItemDiscovered(media("/media/a.mp4"));
 		engine.onSourceComplete(1);
-		engine.onNodeTaskResult(item, ok(dispatcher.taskFor("hash"), Map.of("sha512", "abc")));
+		engine.onNodeTaskResult(item, ok(dispatcher.taskFor("hash"), outputs("hash", HASH_SHA512, "abc")));
 		engine.onNodeTaskResult(item, ok(dispatcher.taskFor("thumb"), Map.of()));
 		assertTrue(engine.isComplete());
 
@@ -245,7 +249,7 @@ public class PipelineRunEnginePauseTest {
 		engine.start();
 		String item = engine.onItemDiscovered(media("/media/a.mp4"));
 		engine.onSourceComplete(1);
-		engine.onNodeTaskResult(item, ok(dispatcher.taskFor("hash"), Map.of("sha512", "abc")));
+		engine.onNodeTaskResult(item, ok(dispatcher.taskFor("hash"), outputs("hash", HASH_SHA512, "abc")));
 		// 'thumb' is now in flight.
 		engine.pause();
 		engine.onNodeTaskResult(item, ok(dispatcher.taskFor("thumb"), Map.of()));

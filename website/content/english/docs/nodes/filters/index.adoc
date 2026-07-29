@@ -7,21 +7,21 @@ splits the pipeline into a **PASS** and a **REJECT** branch, so downstream nodes
 that match. They are a pipeline-only construct (they have no standalone Cortex node).
 
 ++++
-<div class="ml-nodeviz" data-nodeviz='{"kind":"filter-*","applies":"Routing node","badge":"CPU only","persist":"nothing \u2014 the branch decision is the result","configs":[{"name":"filter-mimetype","note":"downstream nodes depend on PASS or REJECT","inputs":[{"t":"file","l":"the item","d":"MIME type matched"}],"outputs":[{"t":"branch","l":"PASS branch","d":"e.g. video-only nodes"},{"t":"branch","l":"REJECT branch","d":"skipped or routed elsewhere"},{"t":"boolean","l":"filter_passed"}]},{"name":"filter-quality","note":"evaluates upstream metrics against thresholds","inputs":[{"t":"number","l":"quality metrics","d":"blurriness, resolution"}],"outputs":[{"t":"branch","l":"PASS branch"},{"t":"branch","l":"REJECT branch"},{"t":"text","l":"filter_reason"}]}]}'></div>
+<div class="ml-nodeviz" data-nodeviz='{"kind":"filter-*","applies":"Routing node","badge":"CPU only","persist":"nothing \u2014 the branch decision is the result","configs":[{"name":"filter-mimetype","note":"matches the MIME type of the item","inputs":[{"t":"media","l":"media","d":"the item whose MIME type is matched"}],"outputs":[{"t":"branch","l":"passed","d":"the verdict, with its reason — downstream nodes subscribe to its PASS or REJECT branch"}]},{"name":"filter-quality","note":"evaluates metrics against thresholds","inputs":[{"t":"quality","l":"quality","d":"the metrics port of the quality node, wired in"}],"outputs":[{"t":"branch","l":"passed","d":"the verdict, with its reason — downstream nodes subscribe to its PASS or REJECT branch"}]}]}'></div>
 ++++
 
 [cols="1,3"]
 |===
 | Kinds | `filter-mimetype`, `filter-date`, `filter-size`, `filter-duplicate`, `filter-blacklist`, `filter-quality`, `filter-threshold`, `filter-asset-attribute`
 | Applies to | — (routing; sits between other nodes)
-| Inputs | The item, plus upstream outputs the filter evaluates (e.g. a quality filter reads the link:../quality/[quality] metrics)
-| Output keys | `filter_passed` (Boolean), `filter_reason` (String)
+| Input ports | One per kind — `media` for the type, date, size and blacklist filters; `quality` for the quality filter (connect link:../quality/[Quality]'s `metrics`); `text` or `value` for the text and threshold filters
+| Output ports | `passed` — the verdict, carrying both the outcome and the reason for it
 | Requirements | CPU only.
 | Persists to | n/a (routing decision only)
 |===
 
-Downstream nodes declare a *conditional dependency* on the filter's `PASS` or `REJECT` branch; a node
-whose required branch does not match is skipped.
+Downstream nodes connect to the `passed` port and declare which branch they want — `PASS` or
+`REJECT`. A node whose branch does not match is skipped for that item.
 
 == Available Filters
 

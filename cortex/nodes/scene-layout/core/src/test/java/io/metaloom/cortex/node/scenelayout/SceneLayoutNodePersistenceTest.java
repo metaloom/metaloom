@@ -11,7 +11,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -19,8 +19,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.pipeline.test.StubLoomMedia;
 import io.metaloom.loom.client.common.LoomClientRequest;
@@ -105,20 +104,27 @@ class SceneLayoutNodePersistenceTest {
 		return new SceneLayoutNode(client, cortexOptions, options);
 	}
 
-	private Map<String, Map<String, Object>> depthOnly() {
-		Map<String, Map<String, Object>> up = new HashMap<>();
-		up.put("depthmap", Map.of(
-			"depthmap_path", mapFile.getAbsolutePath(),
-			"depthmap_meta", SceneLayoutFixtures.depthMeta(mapFile, MAP_W, MAP_H, IMAGE_W, IMAGE_H).encode()));
-		return up;
+	private String depthMetaJson() {
+		return SceneLayoutFixtures.depthMeta(mapFile, MAP_W, MAP_H, IMAGE_W, IMAGE_H).encode();
 	}
 
-	private NodeContext<LoomMedia> ctxWithUpstreamBoxes() {
-		Map<String, Map<String, Object>> up = depthOnly();
-		up.put("facedetect", Map.of("detections", SceneLayoutFixtures.detections(IMAGE_W, IMAGE_H,
-			SceneLayoutFixtures.detection(0, "face", 40, 40, 80, 80),
-			SceneLayoutFixtures.detection(1, "face", 280, 40, 80, 80)).encode()));
-		return NodeContext.create(media, up);
+	private List<String> twoFaces() {
+		return List.of(
+			SceneLayoutFixtures.detection(0, "face", 40, 40, 80, 80).encode(),
+			SceneLayoutFixtures.detection(1, "face", 280, 40, 80, 80).encode());
+	}
+
+	private NodeInputs depthOnly() {
+		return NodeInputs.builder()
+			.input(SceneLayoutNode.IN_DEPTH, depthMetaJson())
+			.build();
+	}
+
+	private NodeInputs withUpstreamBoxes() {
+		return NodeInputs.builder()
+			.input(SceneLayoutNode.IN_DEPTH, depthMetaJson())
+			.inputs(SceneLayoutNode.IN_DETECTIONS, twoFaces())
+			.build();
 	}
 
 	@SuppressWarnings("unchecked")
@@ -140,8 +146,8 @@ class SceneLayoutNodePersistenceTest {
 	}
 
 	@Test
-	void testWritesJsonCompAndLedgerOnSuccess() {
-		assertThat(node().process(ctxWithUpstreamBoxes())).isSuccess();
+	void testWritesJsonCompAndLedgerOnSuccess() throws Exception {
+		assertThat(node().process(media, withUpstreamBoxes())).isSuccess();
 
 		verify(client).createAssetJsonComp(eq(assetUuid), argThat((JsonCompCreateRequest r) -> "scene-layout".equals(r.getNodeKind())
 			&& "scene-layout".equals(r.getSchemaType())
@@ -161,11 +167,11 @@ class SceneLayoutNodePersistenceTest {
 	}
 
 	@Test
-	void testRecordsFailedLedgerWhenComponentWriteFails() {
+	void testRecordsFailedLedgerWhenComponentWriteFails() throws Exception {
 		when(client.createAssetJsonComp(any(), any())).thenThrow(new RuntimeException("loom unreachable"));
 
 		// The component write is best-effort: the node still completes, but the ledger records it.
-		node().process(ctxWithUpstreamBoxes());
+		node().process(media, withUpstreamBoxes());
 
 		verify(client).createAssetNodeResult(eq(assetUuid),
 			argThat((NodeResultCreateRequest r) -> "FAILED".equals(r.getState()) && "loom unreachable".equals(r.getReason())));
@@ -176,7 +182,7 @@ class SceneLayoutNodePersistenceTest {
 		// No detections anywhere: a skip, and nothing may be persisted for it.
 		stubLoomDetections();
 
-		assertThat(node().process(NodeContext.create(media, depthOnly()))).isSkipped();
+		assertThat(node().process(media, depthOnly())).isSkipped();
 
 		verify(client, never()).createAssetJsonComp(any(), any());
 		verify(client, never()).createAssetNodeResult(any(), any());
@@ -188,7 +194,7 @@ class SceneLayoutNodePersistenceTest {
 			pixelRow(40, 40, 80, 80),
 			pixelRow(280, 40, 80, 80));
 
-		assertThat(node().process(NodeContext.create(media, depthOnly()))).isSuccess();
+		assertThat(node().process(media, depthOnly())).isSuccess();
 
 		verify(client).listAssetDetections(assetUuid);
 		verify(client).createAssetJsonComp(eq(assetUuid), argThat((JsonCompCreateRequest r) -> {
@@ -202,7 +208,7 @@ class SceneLayoutNodePersistenceTest {
 	void testUpstreamBoxesWinOverLoom() throws Exception {
 		stubLoomDetections(pixelRow(0, 0, 10, 10));
 
-		assertThat(node().process(ctxWithUpstreamBoxes())).isSuccess();
+		assertThat(node().process(media, withUpstreamBoxes())).isSuccess();
 
 		// The upstream payload states its coordinate convention, so it is always preferred.
 		verify(client, never()).listAssetDetections(any(UUID.class));
@@ -213,7 +219,7 @@ class SceneLayoutNodePersistenceTest {
 		stubLoomDetections(pixelRow(40, 40, 80, 80), pixelRow(280, 40, 80, 80));
 
 		assertThat(node(new SceneLayoutNodeOptions().setAllowLoomFallback(false))
-			.process(NodeContext.create(media, depthOnly()))).isSkipped();
+			.process(media, depthOnly())).isSkipped();
 
 		verify(client, never()).listAssetDetections(any(UUID.class));
 	}
@@ -228,7 +234,7 @@ class SceneLayoutNodePersistenceTest {
 			(DetectionResponse) new DetectionResponse().setType("face")
 				.setBboxX(0.7f).setBboxY(0.1f).setBboxWidth(0.2f).setBboxHeight(0.2f).setConfidence(1.0f));
 
-		assertThat(node().process(NodeContext.create(media, depthOnly()))).isSkipped();
+		assertThat(node().process(media, depthOnly())).isSkipped();
 
 		verify(client, never()).createAssetJsonComp(any(), any());
 	}

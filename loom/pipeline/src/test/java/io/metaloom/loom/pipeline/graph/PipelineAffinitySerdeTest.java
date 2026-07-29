@@ -47,7 +47,8 @@ public class PipelineAffinitySerdeTest {
 	}
 
 	private JsonObject uiEdge(String id, String from, String to) {
-		return new JsonObject().put("id", id).put("source", from).put("target", to);
+		return new JsonObject().put("id", id).put("source", from).put("sourcePort", "media")
+			.put("target", to).put("targetPort", "media");
 	}
 
 	private PipelineGraph parse(JsonArray nodes, JsonArray edges) {

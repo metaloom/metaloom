@@ -17,7 +17,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.node.NodeOutputKey;
+import io.metaloom.cortex.api.node.Element;
+import io.metaloom.cortex.api.node.InputPort;
+import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
@@ -28,6 +30,7 @@ import io.metaloom.cortex.node.color.ColorResult.ColorEntry;
 import io.metaloom.cortex.node.color.LabKMeans.Cluster;
 import io.metaloom.cortex.node.color.RegionResolver.Resolution;
 import io.metaloom.loom.client.common.LoomClient;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompCreateRequest;
 import io.vertx.core.json.JsonArray;
@@ -72,13 +75,26 @@ public class DominantColorNode extends AbstractMediaNode<DominantColorNodeOption
 
 	public static final Logger log = LoggerFactory.getLogger(DominantColorNode.class);
 
-	public static final NodeOutputKey<String> OUTPUT_DOMINANT_COLOR_RESULT = NodeOutputKey.of("dominant_color_result", String.class);
-	public static final NodeOutputKey<String> OUTPUT_DOMINANT_COLOR_HEX = NodeOutputKey.of("dominant_color_hex", String.class);
-	public static final NodeOutputKey<String> OUTPUT_DOMINANT_COLOR_TERM = NodeOutputKey.of("dominant_color_term", String.class);
-	public static final NodeOutputKey<String> OUTPUT_DOMINANT_COLOR_NAME_EN = NodeOutputKey.of("dominant_color_name_en", String.class);
-	public static final NodeOutputKey<String> OUTPUT_DOMINANT_COLOR_NAME_DE = NodeOutputKey.of("dominant_color_name_de", String.class);
-	public static final NodeOutputKey<Integer> OUTPUT_DOMINANT_COLOR_REGIONS = NodeOutputKey.of("dominant_color_region_count",
-		Integer.class);
+	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_IMAGE, LoomMedia.class);
+
+	/**
+	 * The boxes to measure a colour for, from any detector.
+	 *
+	 * <p>
+	 * This replaces the {@code detectionSources} option - a list of upstream node ids defaulting to
+	 * {@code ["facedetect"]}, which produced no regions at all the moment the detector was named
+	 * anything else. Declared {@code MANY} because one image has many boxes, and optional because
+	 * measuring the whole frame is a perfectly good configuration on its own.
+	 * </p>
+	 */
+	public static final InputPort<String> IN_DETECTIONS = InputPort.many("detections", ContentTypeRegistry.DETECTION_ANY, String.class);
+
+	public static final OutputPort<String> OUT_RESULT = OutputPort.one("result", ContentTypeRegistry.STRUCT_COLOR, String.class);
+	public static final OutputPort<String> OUT_HEX = OutputPort.one("hex", ContentTypeRegistry.SCALAR_STRING, String.class);
+	public static final OutputPort<String> OUT_TERM = OutputPort.one("term", ContentTypeRegistry.SCALAR_STRING, String.class);
+	public static final OutputPort<String> OUT_NAME_EN = OutputPort.one("name_en", ContentTypeRegistry.SCALAR_STRING, String.class);
+	public static final OutputPort<String> OUT_NAME_DE = OutputPort.one("name_de", ContentTypeRegistry.SCALAR_STRING, String.class);
+	public static final OutputPort<Long> OUT_REGION_COUNT = OutputPort.one("region_count", ContentTypeRegistry.SCALAR_INTEGER, Long.class);
 
 	/** The JSON component schema type this node writes. */
 	public static final String SCHEMA_TYPE = "dominant-color";
@@ -95,9 +111,6 @@ public class DominantColorNode extends AbstractMediaNode<DominantColorNodeOption
 	 * </p>
 	 */
 	public static final String ALGORITHM_VERSION = "dominant-color/1";
-
-	/** The output key every box-producing node uses. Read by name to stay detector-agnostic. */
-	static final String DETECTIONS_KEY = "detections";
 
 	private static final int RESULT_CACHE_SIZE = 10_000;
 
@@ -148,7 +161,7 @@ public class DominantColorNode extends AbstractMediaNode<DominantColorNodeOption
 		try {
 			int width = image.getWidth();
 			int height = image.getHeight();
-			Resolution resolution = new RegionResolver(options()).resolve(ctx.upstreamOutputs(), width, height);
+			Resolution resolution = new RegionResolver(options()).resolve(detections(ctx), width, height);
 			if (resolution.regions().isEmpty()) {
 				return ctx.skipped("no usable regions").next();
 			}
@@ -234,18 +247,18 @@ public class DominantColorNode extends AbstractMediaNode<DominantColorNodeOption
 
 	private void emit(NodeContext<LoomMedia> ctx, JsonObject payload) {
 		JsonArray regions = payload.getJsonArray("regions");
-		ctx.output(OUTPUT_DOMINANT_COLOR_RESULT, payload.encode());
-		ctx.output(OUTPUT_DOMINANT_COLOR_REGIONS, regions.size());
+		ctx.output(OUT_RESULT, payload.encode());
+		ctx.output(OUT_REGION_COUNT, (long) regions.size());
 
 		// The scalars describe the first region, which is the whole frame whenever it is enabled.
 		// They exist so a filter node or a search indexer can ask "is this photo mostly blue"
 		// without parsing a JSON string.
 		JsonObject dominant = regions.getJsonObject(0).getJsonObject("dominant");
 		JsonObject name = dominant.getJsonObject("name");
-		ctx.output(OUTPUT_DOMINANT_COLOR_HEX, dominant.getString("hex"));
-		ctx.output(OUTPUT_DOMINANT_COLOR_TERM, name.getString("term"));
-		ctx.output(OUTPUT_DOMINANT_COLOR_NAME_EN, name.getString("en"));
-		ctx.output(OUTPUT_DOMINANT_COLOR_NAME_DE, name.getString("de"));
+		ctx.output(OUT_HEX, dominant.getString("hex"));
+		ctx.output(OUT_TERM, name.getString("term"));
+		ctx.output(OUT_NAME_EN, name.getString("en"));
+		ctx.output(OUT_NAME_DE, name.getString("de"));
 	}
 
 	private JsonObject payload(int width, int height, List<ColorResult> results, int dropped, int truncated) {
@@ -362,25 +375,24 @@ public class DominantColorNode extends AbstractMediaNode<DominantColorNodeOption
 	}
 
 	/**
-	 * The cache key covers the media path, every upstream detections payload and every option that
+	 * The encoded detection elements wired into this node, in sequence order.
+	 */
+	private List<String> detections(NodeContext<LoomMedia> ctx) {
+		return ctx.inputs(IN_DETECTIONS).stream().map(Element::value).toList();
+	}
+
+	/**
+	 * The cache key covers the media path, every wired detection element and every option that
 	 * changes the answer.
 	 *
 	 * <p>
-	 * Deliberately not just the path. A node whose result depends on upstream outputs and caches on
-	 * the path alone returns the first detector's answer when the same file is re-run behind a
+	 * Deliberately not just the path. A node whose result depends on its inputs and caches on the
+	 * path alone returns the first detector's answer when the same file is re-run behind a
 	 * different one - a stale-result bug that never surfaces as an error.
 	 * </p>
 	 */
 	private String cacheKey(NodeContext<LoomMedia> ctx) {
-		List<String> payloads = new ArrayList<>();
-		Map<String, Map<String, Object>> upstream = ctx.upstreamOutputs();
-		if (options().isUseDetections() && upstream != null) {
-			for (String nodeId : options().getDetectionSources()) {
-				Map<String, Object> outputs = upstream.get(nodeId);
-				Object payload = outputs == null ? null : outputs.get(DETECTIONS_KEY);
-				payloads.add(payload == null ? "" : payload.toString());
-			}
-		}
+		List<String> payloads = options().isUseDetections() ? detections(ctx) : List.of();
 		int optionsHash = Objects.hash(payloads,
 			options().getClusterCount(), options().getMaxSamples(), options().getMaxIterations(),
 			options().getConvergenceEpsilon(), options().getSeed(), options().getAlphaThreshold(),

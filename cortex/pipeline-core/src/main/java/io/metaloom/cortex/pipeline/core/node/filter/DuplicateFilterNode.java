@@ -1,6 +1,5 @@
 package io.metaloom.cortex.pipeline.core.node.filter;
 
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -8,7 +7,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.InputPort;
+import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 
 /**
  * Filters out duplicate media that has been seen before, based on an upstream hash
@@ -21,19 +22,22 @@ public class DuplicateFilterNode extends AbstractFilterNode {
 
 	private static final Logger log = LoggerFactory.getLogger(DuplicateFilterNode.class);
 
-	private final String upstreamNodeId;
-	private final String outputKey;
+	/**
+	 * The identity to deduplicate on - any hash family member, so the same filter works behind
+	 * {@code sha512}, {@code md5} or {@code fingerprint} without being told which.
+	 */
+	public static final InputPort<String> IN_HASH = InputPort.one("hash", ContentTypeRegistry.HASH_ANY, String.class);
+
 	private final Set<String> seen = ConcurrentHashMap.newKeySet();
 
 	private DuplicateFilterNode(Builder builder) {
 		super(builder.id, builder.name);
-		this.upstreamNodeId = builder.upstreamNodeId;
-		this.outputKey = builder.outputKey;
 	}
 
 	@Override
-	protected boolean evaluate(LoomMedia media, Map<String, NodeResult> upstreamResults) {
-		String identity = resolveIdentity(upstreamResults);
+	protected boolean evaluate(NodeContext<LoomMedia> ctx) {
+		LoomMedia media = ctx.media();
+		String identity = ctx.input(IN_HASH);
 		if (identity == null) {
 			// No identity available — pass (cannot dedup)
 			return true;
@@ -45,20 +49,8 @@ public class DuplicateFilterNode extends AbstractFilterNode {
 		return isNew;
 	}
 
-	private String resolveIdentity(Map<String, NodeResult> upstreamResults) {
-		if (upstreamResults == null) {
-			return null;
-		}
-		NodeResult nr = upstreamResults.get(upstreamNodeId);
-		if (nr == null || nr.getOutput() == null) {
-			return null;
-		}
-		Object val = nr.getOutput().get(outputKey);
-		return val != null ? val.toString() : null;
-	}
-
 	@Override
-	protected String rejectReason(LoomMedia media, Map<String, NodeResult> upstreamResults) {
+	protected String rejectReason(NodeContext<LoomMedia> ctx) {
 		return "duplicate detected";
 	}
 
@@ -69,9 +61,6 @@ public class DuplicateFilterNode extends AbstractFilterNode {
 	public static class Builder {
 		private final String id;
 		private String name;
-		private Set<String> dependencies = Set.of();
-		private String upstreamNodeId;
-		private String outputKey;
 
 		private Builder(String id) {
 			this.id = id;
@@ -83,27 +72,7 @@ public class DuplicateFilterNode extends AbstractFilterNode {
 			return this;
 		}
 
-		public Builder dependencies(Set<String> dependencies) {
-			this.dependencies = dependencies;
-			return this;
-		}
-
-		/** The upstream node that produces the identity value (e.g. "sha512", "fingerprint"). */
-		public Builder upstreamNodeId(String upstreamNodeId) {
-			this.upstreamNodeId = upstreamNodeId;
-			return this;
-		}
-
-		/** The output key containing the identity value (e.g. "sha512", "fingerprint"). */
-		public Builder outputKey(String outputKey) {
-			this.outputKey = outputKey;
-			return this;
-		}
-
 		public DuplicateFilterNode build() {
-			if (upstreamNodeId == null || outputKey == null) {
-				throw new IllegalStateException("upstreamNodeId and outputKey are required");
-			}
 			return new DuplicateFilterNode(this);
 		}
 	}

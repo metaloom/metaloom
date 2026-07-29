@@ -16,6 +16,7 @@ import io.metaloom.cortex.node.hash.SHA512Node;
 import io.metaloom.cortex.node.loom.LoomNode;
 import io.metaloom.cortex.node.loom.LoomNodeOptions;
 import io.metaloom.cortex.pipeline.api.NodeMode;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
@@ -84,26 +85,29 @@ public class PipelinePersistenceIntegrationTest extends AbstractIntegrationTest 
 
 			PipelineNode source = new AssetSourceNode(media);
 			CortexNodeAdapter sha512Adapter = new CortexNodeAdapter(sha512Node, NodeMode.PARALLEL, true, 1);
-			// Override id to "md5sum" so LoomNode's upstreamOutput("md5sum", "md5") lookup resolves
-			CortexNodeAdapter md5Adapter = new CortexNodeAdapter("md5sum", md5Node, NodeMode.PARALLEL, true, 1);
+			// No id override any more. This used to have to be built as "md5sum" so that LoomNode's
+			// upstreamOutput("md5sum", "md5") lookup resolved - a contract nothing enforced, which
+			// silently fed the sink nothing in any graph drawn in the editor. LoomNode binds ports now.
+			CortexNodeAdapter md5Adapter = new CortexNodeAdapter(md5Node, NodeMode.PARALLEL, true, 1);
 			CortexNodeAdapter loomAdapter = new CortexNodeAdapter(loomNode, NodeMode.SEQUENTIAL, true, 1);
 
 			// 4. Run the chain and flush.
 			//
 			// The graph is evaluated on Loom now, so this test no longer builds a
-			// Pipeline or drives an in-Cortex executor. It runs the nodes in the
-			// order Loom would dispatch them, handing each the outputs of the ones
-			// before it - which is exactly the contract a node is given. What is
-			// under test here is unchanged: that node outputs reach Loom through
-			// LoomNode and are persisted.
-			java.util.Map<String, NodeResult> results = new java.util.LinkedHashMap<>();
-			for (PipelineNode node : java.util.List.of(sha512Adapter, md5Adapter, loomAdapter)) {
-				NodeResult nodeResult = node.process(media, java.util.Map.copyOf(results));
-				assertThat(nodeResult.getState())
-					.as("Node '%s' should not fail", node.id())
-					.isNotEqualTo(ResultState.FAILED);
-				results.put(node.id(), nodeResult);
-			}
+			// Pipeline or drives an in-Cortex executor. It runs the nodes in the order Loom would
+			// dispatch them and wires each one's inputs the way the engine would - by port, from a
+			// named upstream port, rather than by hoping a node id matches.
+			NodeResult sha512Result = sha512Adapter.process(media, NodeInputs.empty());
+			assertThat(sha512Result.getState()).as("sha512 should not fail").isNotEqualTo(ResultState.FAILED);
+
+			NodeResult md5Result = md5Adapter.process(media, NodeInputs.empty());
+			assertThat(md5Result.getState()).as("md5 should not fail").isNotEqualTo(ResultState.FAILED);
+
+			NodeResult loomResult = loomAdapter.process(media, NodeInputs.builder()
+				.input(LoomNode.IN_SHA512, sha512Result.get(SHA512Node.OUT_HASH))
+				.input(LoomNode.IN_MD5, md5Result.get(MD5Node.OUT_HASH))
+				.build());
+			assertThat(loomResult.getState()).as("loom should not fail").isNotEqualTo(ResultState.FAILED);
 			loomNode.flush();
 
 			// 5. Reload the asset from Loom and assert MD5 was persisted

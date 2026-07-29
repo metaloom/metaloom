@@ -41,7 +41,7 @@ public class PipelineRunEngineFlowControlTest {
 			.put("nodes", new JsonArray()
 				.add(new JsonObject().put("id", "src").put("type", "filesystem-source").put("source", true))
 				.add(hash))
-			.put("edges", new JsonArray().add(new JsonObject().put("source", "src").put("target", "hash")));
+			.put("edges", new JsonArray().add(new JsonObject().put("source", "src").put("sourcePort", "media").put("target", "hash").put("targetPort", "media")));
 		return parser.parse("flow", definition, true, false, 0);
 	}
 

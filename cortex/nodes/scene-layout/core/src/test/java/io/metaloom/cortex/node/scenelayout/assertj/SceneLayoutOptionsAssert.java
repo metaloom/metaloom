@@ -12,22 +12,6 @@ public class SceneLayoutOptionsAssert extends AbstractCortexNodeOptionsAssert<Sc
 		super(actual, SceneLayoutOptionsAssert.class);
 	}
 
-	public SceneLayoutOptionsAssert hasDepthNodeId(String expected) {
-		isNotNull();
-		if (!expected.equals(actual.getDepthNodeId())) {
-			failWithMessage("Expected depthNodeId to be '%s' but was '%s'", expected, actual.getDepthNodeId());
-		}
-		return this;
-	}
-
-	public SceneLayoutOptionsAssert hasDetectionSources(String... expected) {
-		isNotNull();
-		if (!java.util.List.of(expected).equals(actual.getDetectionSources())) {
-			failWithMessage("Expected detectionSources to be '%s' but was '%s'", java.util.List.of(expected), actual.getDetectionSources());
-		}
-		return this;
-	}
-
 	public SceneLayoutOptionsAssert hasCoreInset(double expected) {
 		isNotNull();
 		if (actual.getCoreInset() != expected) {

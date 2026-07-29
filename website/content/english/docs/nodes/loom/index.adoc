@@ -2,19 +2,21 @@
 title: Loom Sync
 ---
 
-The Loom sync node is a **sink**: it accumulates hash results from upstream nodes and writes them back
-to the Loom backend in batches, keeping the number of REST calls low on large runs.
+The Loom sync node is a **sink**: it accumulates hash results and writes them back to the Loom
+backend in batches, keeping the number of REST calls low on large runs. It has one input port per
+algorithm, and each port accepts only that algorithm's hash type — so which column a hash lands in
+follows from the connection you drew, never from what an upstream node happens to be called.
 
 ++++
-<div class="ml-nodeviz" data-nodeviz='{"kind":"loom","applies":"Any file","badge":"needs a Loom connection","persist":"asset hash columns via bulk update (batches of 50)","inputs":[{"t":"hash","l":"sha512","d":"from the hash node"},{"t":"hash","l":"md5 / sha256","d":"when enabled","opt":true}],"outputs":[{"t":"action","l":"batched write to Loom","d":"no output keys"}]}'></div>
+<div class="ml-nodeviz" data-nodeviz='{"kind":"loom","applies":"Any file","badge":"needs a Loom connection","persist":"asset hash columns via bulk update (batches of 50)","inputs":[{"t":"hash","l":"md5","ct":"hash/md5","opt":true,"d":"connect the hash port of an md5 node to sync that column"},{"t":"hash","l":"sha256","ct":"hash/sha256","opt":true,"d":"connect the hash port of a sha256 node"},{"t":"hash","l":"sha512","ct":"hash/sha512","opt":true,"d":"connect the hash port of a sha512 node — the content identity"}],"outputs":[{"t":"action","l":"batched write","d":"asset hash columns updated fifty rows at a time; no value leaves the node"}]}'></div>
 ++++
 
 [cols="1,3"]
 |===
 | Kind | `loom`
 | Applies to | Any file
-| Inputs | Upstream link:../hash/[hash] outputs — SHA-512 plus any MD5 / SHA-256
-| Output keys | None — the node has the side effect of bulk-updating the `asset` rows
+| Input ports | `md5`, `sha256`, `sha512` — each optional, each accepting only its own hash type. Connect the `hash` port of the matching link:../hash/[hash] node
+| Output ports | None — the node has the side effect of bulk-updating the `asset` rows
 | Requirements | A Loom connection (`LOOM_HOST` / `LOOM_PORT` / `LOOM_TOKEN`). CPU only.
 | Persists to | `asset` hash columns via a bulk update (batches of 50)
 |===

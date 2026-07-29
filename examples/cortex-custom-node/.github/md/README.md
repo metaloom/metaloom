@@ -4,8 +4,8 @@ This example shows how to write a **custom Cortex node** and persist its result 
 into Loom's generic `asset_json_comp` table — without pulling in any heavy database libraries.
 
 The node ([`HelloWorldNode`](./src/main/java/io/metaloom/cortex/node/hello/HelloWorldNode.java))
-reads a media file, computes its size and a naive word count, feeds those as named outputs to
-downstream nodes, and — when running online — posts the result to Loom over REST.
+reads a media file, computes its size and a naive word count, emits those on two declared **output
+ports**, and — when running online — posts the result to Loom over REST.
 
 ## The node contract
 
@@ -36,6 +36,31 @@ public class HelloWorldNode extends AbstractMediaNode<HelloWorldNodeOptions> {
 `compute(...)` runs. In **offline mode** (no `LoomClient` configured) `asset` is `null` and the node
 simply skips the remote persistence — which is exactly what the unit tests exercise.
 
+## Declaring ports
+
+A node's data contract is a set of **typed ports** declared as public static constants. The port id
+belongs to the node; the *edge* decides which upstream node fills an input:
+
+```java
+public static final InputPort<String> IN_HASH =
+    InputPort.one("hash", ContentTypeRegistry.HASH_SHA256, String.class);
+
+public static final OutputPort<Long> OUT_FILE_SIZE =
+    OutputPort.one("file_size", ContentTypeRegistry.SCALAR_INTEGER, Long.class);
+public static final OutputPort<Long> OUT_WORD_COUNT =
+    OutputPort.one("word_count", ContentTypeRegistry.SCALAR_INTEGER, Long.class);
+```
+
+Read and write them through the context — never by string key:
+
+```java
+String hash = ctx.input(IN_HASH);        // null when nothing is wired
+ctx.output(OUT_FILE_SIZE, media.size());
+```
+
+Use `OutputPort.many(...)` / `ctx.outputElement(...)` when a node fans out (one element per
+detection, per paragraph, …), and read the matching side with `ctx.inputs(PORT)`.
+
 ## Persisting the result into `asset_json_comp`
 
 Instead of a dedicated component table, the node writes an **opaque JSON payload** to the generic
@@ -44,8 +69,8 @@ sink via a single thin REST call:
 ```java
 if (!isOfflineMode() && asset != null) {
     JsonObject data = new JsonObject()
-        .put(OUTPUT_FILE_SIZE, fileSize)
-        .put(OUTPUT_WORD_COUNT, wordCount);
+        .put(OUT_FILE_SIZE.id(), fileSize)
+        .put(OUT_WORD_COUNT.id(), wordCount);
     JsonCompCreateRequest request = new JsonCompCreateRequest()
         .setNodeKind(name())         // "hello-world"
         .setSchemaType(SCHEMA_TYPE)  // shape label for the payload
@@ -95,7 +120,8 @@ node set — see that module's README.
 ## Testing a node
 
 Nodes are easy to unit-test in **offline mode** — pass a `null` client and drive `process(...)`
-directly, asserting on `result.getState()` and `result.getOutputs()`. See
+directly, asserting on `result.getState()` and `result.get(PORT)`. Seed input ports with
+`NodeInputs.builder().input(PORT, value).build()`. See
 [`HelloWorldNodeTest`](./src/test/java/io/metaloom/cortex/node/hello/HelloWorldNodeTest.java).
 
 ```bash

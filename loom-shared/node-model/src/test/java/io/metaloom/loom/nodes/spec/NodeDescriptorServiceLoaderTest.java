@@ -34,8 +34,8 @@ public class NodeDescriptorServiceLoaderTest {
 	void testAllProvidersAreDiscovered() {
 		List<NodeDescriptorProvider> providers = loadProviders();
 
-		assertEquals(23, providers.size(),
-			"Expected 23 descriptor providers via ServiceLoader but found " + providers.size()
+		assertEquals(25, providers.size(),
+			"Expected 25 descriptor providers via ServiceLoader but found " + providers.size()
 				+ ". If a provider was intentionally added or removed, update this count and "
 				+ "META-INF/services/io.metaloom.loom.nodes.spec.NodeDescriptorProvider together. "
 				+ "Discovered: " + providerNames(providers));
@@ -48,8 +48,8 @@ public class NodeDescriptorServiceLoaderTest {
 	void testRegistryIsFullyPopulated() {
 		NodeDescriptorRegistry registry = buildRegistry();
 
-		assertEquals(37, registry.size(),
-			"Expected 37 advertised node kinds but found " + registry.size()
+		assertEquals(39, registry.size(),
+			"Expected 39 advertised node kinds but found " + registry.size()
 				+ ". Discovered kinds: " + kinds(registry));
 	}
 
@@ -85,7 +85,9 @@ public class NodeDescriptorServiceLoaderTest {
 			"sentiment",          // sentiment analysis node
 			"depthmap",           // monocular depth estimation
 			"scene-layout",       // depth + boxes -> spatial relations
-			"dominant-color"      // CIELAB colour clustering + bilingual naming
+			"dominant-color",     // CIELAB colour clustering + bilingual naming
+			"tts",                // text to speech via the /v1/tts sidecar
+			"imagegen"            // text-to-image / image-to-image sidecar
 		};
 
 		for (String kind : expected) {

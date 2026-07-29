@@ -10,7 +10,10 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.pipeline.model.MediaRef;
+import io.metaloom.loom.pipeline.model.Origin;
+import io.metaloom.loom.pipeline.model.PortPayload;
 import io.metaloom.loom.pipeline.model.NodeState;
 import io.metaloom.loom.pipeline.model.NodeTaskResult;
 import io.metaloom.loom.pipeline.model.SegmentNode;
@@ -33,7 +36,8 @@ public class SegmentProtocolSerdeTest {
 			List.of(
 				new SegmentNode("decode", "video-decode", true, Map.of("fps", 25), List.of("src")),
 				new SegmentNode("face", "facedetect", false, Map.of("model", "retina"), List.of("decode"))),
-			Map.of("src", Map.of("path", "/media/a.mp4")));
+			// What came from outside the segment, keyed by the receiving port id.
+			Map.of("media", PortPayload.one(ContentTypeRegistry.MEDIA_ANY, Origin.single("item-1"), "/media/a.mp4")));
 	}
 
 	@Test
@@ -84,10 +88,13 @@ public class SegmentProtocolSerdeTest {
 	}
 
 	@Test
-	void testUpstreamOutputsSurvive() {
+	void testInputPortsSurvive() {
 		SegmentTask parsed = JsonObject.mapFrom(sampleTask()).mapTo(SegmentTask.class);
 
-		assertEquals("/media/a.mp4", parsed.getUpstreamOutputs().get("src").get("path"));
+		PortPayload media = parsed.getInputs().get("media");
+		assertEquals("/media/a.mp4", media.single());
+		// The content type travels with the value: the segment runner coerces reads against it.
+		assertEquals(ContentTypeRegistry.MEDIA_ANY, media.getContentType());
 	}
 
 	@Test
@@ -106,7 +113,8 @@ public class SegmentProtocolSerdeTest {
 		UUID runUuid = UUID.randomUUID();
 		SegmentTaskResult original = new SegmentTaskResult(taskUuid, runUuid, "item-1", "seg-1",
 			List.of(
-				NodeTaskResult.completed(taskUuid, "decode", 120, Map.of("frames", 300)),
+				NodeTaskResult.completed(taskUuid, "decode", 120,
+					Map.of("frame_count", PortPayload.one(ContentTypeRegistry.SCALAR_INTEGER, Origin.single("item-1"), 300L))),
 				NodeTaskResult.skipped("face", "Dependency decode failed")),
 			null);
 
@@ -117,7 +125,8 @@ public class SegmentProtocolSerdeTest {
 		// Per-node outcomes, never one verdict for the segment: a single status would
 		// turn one bad node into a wholly failed item.
 		assertEquals(NodeState.COMPLETED, parsed.getResults().get(0).getState());
-		assertEquals(300, parsed.getResults().get(0).getOutputs().get("frames"));
+		// scalar/integer is always 64-bit, so the JSON round trip must not narrow it back.
+		assertEquals(300L, ((Number) parsed.getResults().get(0).getOutputs().get("frame_count").single()).longValue());
 		assertEquals(NodeState.SKIPPED, parsed.getResults().get(1).getState());
 		assertEquals("Dependency decode failed", parsed.getResults().get(1).getMessage());
 	}

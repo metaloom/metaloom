@@ -6,7 +6,6 @@ import java.io.IOException;
 
 import javax.imageio.ImageIO;
 
-import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 /**
@@ -150,27 +149,9 @@ public final class DominantColorFixtures {
 	}
 
 	/**
-	 * Build a detections payload in the shape {@code FacedetectNode} emits.
+	 * One detection entry - a self-contained element of the {@link DominantColorNode#IN_DETECTIONS}
+	 * port. There is no batch wrapper any more: the port is {@code MANY}, one element per detection.
 	 *
-	 * @param imageWidth  payload width, or null to omit the dimensions as the video path does
-	 * @param imageHeight payload height, or null
-	 * @param coordinates {@code ABSOLUTE_PIXELS} or {@code NORMALIZED}
-	 * @param boxes       the detections
-	 * @return the payload
-	 */
-	public static JsonObject detections(Integer imageWidth, Integer imageHeight, String coordinates, JsonObject... boxes) {
-		JsonArray items = new JsonArray();
-		for (JsonObject box : boxes) {
-			items.add(box);
-		}
-		JsonObject payload = new JsonObject().put("coordinates", coordinates).put("detections", items);
-		if (imageWidth != null && imageHeight != null) {
-			payload.put("imageWidth", imageWidth).put("imageHeight", imageHeight);
-		}
-		return payload;
-	}
-
-	/**
 	 * @param index detection index
 	 * @param label detection label
 	 * @param x     box left edge

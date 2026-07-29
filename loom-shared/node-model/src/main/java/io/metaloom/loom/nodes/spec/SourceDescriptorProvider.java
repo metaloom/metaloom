@@ -1,9 +1,10 @@
 package io.metaloom.loom.nodes.spec;
 
-import static io.metaloom.loom.nodes.spec.ContentTypes.*;
+import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.*;
 import static io.metaloom.loom.nodes.spec.NodeCategory.*;
 import static io.metaloom.loom.nodes.spec.NodeMode.*;
 import static io.metaloom.loom.nodes.spec.ParameterType.*;
+import static io.metaloom.loom.nodes.spec.PortSpec.one;
 
 import java.util.List;
 
@@ -34,8 +35,11 @@ public class SourceDescriptorProvider implements NodeDescriptorProvider {
 				.setDescription("Reads media files from the filesystem as pipeline input.")
 				.setIcon("folder_open")
 				.setCategory(SOURCE)
-				.setInputs(List.of())
-				.setOutputs(List.of(new NodeOutput("media", MEDIA_ANY)))
+				.setInputPorts(List.of())
+				.setOutputPorts(List.of(
+					one("media", MEDIA_ANY)
+						.describedAs("Media", "Every file the differential scan emitted. The concrete kind is unknown until the file is opened, "
+							+ "so this is the family wildcard")))
 				.setParameters(List.of(
 					commonEnabled(),
 					new NodeParameter().setKey("path").setType(STRING).setLabel("Path")
@@ -63,8 +67,10 @@ public class SourceDescriptorProvider implements NodeDescriptorProvider {
 					+ "as pipeline input. Only new and changed objects are picked up on a re-run.")
 				.setIcon("cloud")
 				.setCategory(SOURCE)
-				.setInputs(List.of())
-				.setOutputs(List.of(new NodeOutput("media", MEDIA_ANY)))
+				.setInputPorts(List.of())
+				.setOutputPorts(List.of(
+					one("media", MEDIA_ANY)
+						.describedAs("Media", "Every object the bucket listing emitted. The concrete kind is only known once the object is fetched")))
 				.setParameters(List.of(
 					commonEnabled(),
 					new NodeParameter().setKey("bucket").setType(STRING).setLabel("Bucket")
@@ -96,8 +102,10 @@ public class SourceDescriptorProvider implements NodeDescriptorProvider {
 				.setDescription("Fetches media references from the Loom backend.")
 				.setIcon("cloud_download")
 				.setCategory(SOURCE)
-				.setInputs(List.of())
-				.setOutputs(List.of(new NodeOutput("media", MEDIA_ANY)))
+				.setInputPorts(List.of())
+				.setOutputPorts(List.of(
+					one("media", MEDIA_ANY)
+						.describedAs("Media", "Every media reference the Loom backend handed out for processing")))
 				.setParameters(List.of(commonEnabled()))
 				.setDefaultConcurrency(1)
 				.setDefaultMode(SEQUENTIAL)

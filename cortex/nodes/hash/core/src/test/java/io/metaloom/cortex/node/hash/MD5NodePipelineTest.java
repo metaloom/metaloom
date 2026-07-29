@@ -79,7 +79,7 @@ public class MD5NodePipelineTest extends AbstractNodeChainTest {
 				.isSuccess()
 				.hasCompletedNode("asset-source")
 				.hasCompletedNode("md5")
-				.hasNodeOutput("md5", "md5", expectedMd5);
+				.hasNodeOutput("md5", MD5Node.OUT_HASH, expectedMd5);
 	}
 
 	@Test
@@ -90,7 +90,7 @@ public class MD5NodePipelineTest extends AbstractNodeChainTest {
 
 		assertThat(result).node("md5")
 				.isCompleted()
-				.hasOutput("md5", expectedMd5)
+				.hasOutput(MD5Node.OUT_HASH, expectedMd5)
 				.hasOutputCount(1);
 	}
 
@@ -129,7 +129,7 @@ public class MD5NodePipelineTest extends AbstractNodeChainTest {
 	@Test
 	void testOutputChaining() {
 		CortexNodeAdapter md5Adapter = adapt(createNode());
-		CapturingNode consumer = new CapturingNode("consumer", "md5", "md5");
+		CapturingNode consumer = new CapturingNode("consumer", MD5Node.OUT_HASH);
 
 		PipelineResult result = execute(media, md5Adapter, consumer);
 

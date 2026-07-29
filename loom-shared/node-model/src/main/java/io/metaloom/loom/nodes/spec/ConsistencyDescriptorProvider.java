@@ -1,9 +1,10 @@
 package io.metaloom.loom.nodes.spec;
 
-import static io.metaloom.loom.nodes.spec.ContentTypes.*;
+import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.*;
 import static io.metaloom.loom.nodes.spec.NodeCategory.*;
 import static io.metaloom.loom.nodes.spec.NodeMode.*;
 import static io.metaloom.loom.nodes.spec.ParameterType.*;
+import static io.metaloom.loom.nodes.spec.PortSpec.one;
 
 import java.util.List;
 
@@ -24,10 +25,14 @@ public class ConsistencyDescriptorProvider implements NodeDescriptorProvider {
 				.setDescription("Check media file integrity (zero chunk detection, completeness).")
 				.setIcon("verified")
 				.setCategory(ANALYSIS)
-				.setInputs(List.of(new NodeInput("media", MEDIA_ANY, true)))
-				.setOutputs(List.of(
-					new NodeOutput("zero_chunk_count", DATA_LONG),
-					new NodeOutput("is_complete", DATA_BOOLEAN)))
+				.setInputPorts(List.of(
+					one("media", MEDIA_ANY)
+						.describedAs("Media", "The file to inspect for truncation and holes")))
+				.setOutputPorts(List.of(
+					one("zero_chunk_count", SCALAR_INTEGER)
+						.describedAs("Zero Chunks", "How many all-zero chunks were found - a strong sign of a truncated or sparse copy"),
+					one("is_complete", SCALAR_BOOLEAN)
+						.describedAs("Complete", "False while the file still looks like it is being written")))
 				.setParameters(List.of(commonEnabled(), commonProcessIncomplete(), commonRetryFailed()))
 				.setDefaultConcurrency(4)
 				.setDefaultMode(PARALLEL)

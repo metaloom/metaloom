@@ -10,6 +10,7 @@ io.metaloom.loom.nodes.spec.FacedetectDescriptorProvider
 io.metaloom.loom.nodes.spec.FilterDescriptorProvider
 io.metaloom.loom.nodes.spec.FingerprintDescriptorProvider
 io.metaloom.loom.nodes.spec.HashDescriptorProvider
+io.metaloom.loom.nodes.spec.ImageGenDescriptorProvider
 io.metaloom.loom.nodes.spec.LlmDescriptorProvider
 io.metaloom.loom.nodes.spec.LoomNodeDescriptorProvider
 io.metaloom.loom.nodes.spec.OcrDescriptorProvider
@@ -22,5 +23,6 @@ io.metaloom.loom.nodes.spec.SentimentDescriptorProvider
 io.metaloom.loom.nodes.spec.SourceDescriptorProvider
 io.metaloom.loom.nodes.spec.ThumbnailDescriptorProvider
 io.metaloom.loom.nodes.spec.TikaDescriptorProvider
+io.metaloom.loom.nodes.spec.TtsDescriptorProvider
 io.metaloom.loom.nodes.spec.VlmDescriptorProvider
 io.metaloom.loom.nodes.spec.WhisperDescriptorProvider

@@ -170,7 +170,7 @@ public class GraalJsCompiledScript implements CompiledScript {
 	private void install(Context context, ScriptBindings bindings) {
 		Value scope = context.getBindings(GraalJsScriptEngine.ID);
 		scope.putMember("media", toGuest(bindings.media()));
-		scope.putMember("upstream", toGuest(bindings.upstream()));
+		scope.putMember("data", toGuest(bindings.data()));
 		scope.putMember("params", toGuest(bindings.params()));
 		scope.putMember("out", outBinding(bindings));
 		scope.putMember("log", logBinding(bindings));

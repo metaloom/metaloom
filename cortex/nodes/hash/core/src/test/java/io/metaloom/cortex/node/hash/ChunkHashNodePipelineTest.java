@@ -64,7 +64,7 @@ class ChunkHashNodePipelineTest extends AbstractNodeChainTest {
 		assertThat(result)
 				.isSuccess()
 				.hasCompletedNode("chunk-hash")
-				.hasNodeOutput("chunk-hash", "chunk_hash", expectedChunkHash);
+				.hasNodeOutput("chunk-hash", ChunkHashNode.OUT_HASH, expectedChunkHash);
 	}
 
 	@Test
@@ -75,7 +75,7 @@ class ChunkHashNodePipelineTest extends AbstractNodeChainTest {
 
 		assertThat(result).node("chunk-hash")
 				.isCompleted()
-				.hasOutput("chunk_hash", expectedChunkHash)
+				.hasOutput(ChunkHashNode.OUT_HASH, expectedChunkHash)
 				.hasOutputCount(1);
 	}
 
@@ -111,7 +111,7 @@ class ChunkHashNodePipelineTest extends AbstractNodeChainTest {
 	@Test
 	void testOutputChaining() {
 		CortexNodeAdapter chunkAdapter = adapt(createNode());
-		CapturingNode consumer = new CapturingNode("consumer", "chunk-hash", "chunk_hash");
+		CapturingNode consumer = new CapturingNode("consumer", ChunkHashNode.OUT_HASH);
 
 		PipelineResult result = execute(media, chunkAdapter, consumer);
 

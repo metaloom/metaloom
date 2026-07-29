@@ -14,8 +14,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.node.NodeOutputKey;
+import io.metaloom.cortex.api.node.InputPort;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultOrigin;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
@@ -25,6 +26,7 @@ import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.cortex.media.whisper.TranscriptionSegment;
 import io.metaloom.cortex.media.whisper.WhisperResult;
 import io.metaloom.loom.client.common.LoomClient;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.noderesult.NodeResultCreateRequest;
 import io.metaloom.loom.rest.model.transcript.TranscriptCreateRequest;
@@ -35,7 +37,11 @@ public class WhisperNode extends AbstractMediaNode<WhisperOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(WhisperNode.class);
 
-	public static final NodeOutputKey<String> OUTPUT_WHISPER_RESULT = NodeOutputKey.of("whisper_result", String.class);
+	/** The two alternatives of the descriptor's {@code media_alt} XOR group - one input, two shapes. */
+	public static final InputPort<LoomMedia> IN_AUDIO = InputPort.one("audio", ContentTypeRegistry.MEDIA_AUDIO, LoomMedia.class);
+	public static final InputPort<LoomMedia> IN_VIDEO = InputPort.one("video", ContentTypeRegistry.MEDIA_VIDEO, LoomMedia.class);
+
+	public static final OutputPort<String> OUT_TRANSCRIPT = OutputPort.one("transcript", ContentTypeRegistry.TEXT_TRANSCRIPT, String.class);
 
 	/** Upper bound for the in-heap skip cache. Transcription is expensive, so we remember the transcript JSON produced for each media during this
 	 * worker's lifetime and re-emit it instead of recomputing. Non-durable - the durable copy lives in Loom. */
@@ -76,7 +82,7 @@ public class WhisperNode extends AbstractMediaNode<WhisperOptions> {
 		String cached = resultCache.get(path);
 		if (cached != null) {
 			metrics.recordAiCacheHit("whisper");
-			ctx.output(OUTPUT_WHISPER_RESULT, cached);
+			ctx.output(OUT_TRANSCRIPT, cached);
 			return ctx.origin(LOCAL).next();
 		}
 
@@ -91,7 +97,7 @@ public class WhisperNode extends AbstractMediaNode<WhisperOptions> {
 			}
 			metrics.recordAiCall("whisper", true, System.currentTimeMillis() - aiStart);
 			String json = result.toJson();
-			ctx.output(OUTPUT_WHISPER_RESULT, json);
+			ctx.output(OUT_TRANSCRIPT, json);
 			resultCache.put(path, json);
 
 			// Persist the transcript payload and the processing ledger entry via the Loom REST API.

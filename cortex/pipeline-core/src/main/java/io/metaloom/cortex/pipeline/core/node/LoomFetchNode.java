@@ -1,13 +1,12 @@
 package io.metaloom.cortex.pipeline.core.node;
 
-import java.util.Map;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.pipeline.api.NodeMode;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.pipeline.api.NodeMode;
 
 /**
  * Pipeline node that fetches user metadata (tags, annotations, descriptions) from the Loom backend server.
@@ -34,7 +33,7 @@ public class LoomFetchNode extends AbstractPipelineNode {
 	}
 
 	@Override
-	public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {
+	public NodeResult process(LoomMedia media, NodeInputs inputs) {
 		long start = System.currentTimeMillis();
 		try {
 			if (fetcher == null) {

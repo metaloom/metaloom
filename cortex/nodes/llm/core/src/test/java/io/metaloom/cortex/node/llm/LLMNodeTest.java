@@ -26,12 +26,12 @@ public class LLMNodeTest extends AbstractBasicNodeTest<LLMNode> {
 			""";
 
 		JsonObject json = new JsonObject(jsonStr);
-		assertThat(result).hasOutput(LLMNode.resultKey("default"), json.encode());
+		assertThat(result).hasOutput(LLMNode.resultPort("default"), json.encode());
 	}
 
 	@Override
 	protected void assertProcessed(TestMedia testMedia, LoomMedia media, NodeResult result, LLMNode nodeMock) {
-		assertThat(result).hasOutput(LLMNode.resultKey("default"));
+		assertThat(result).hasOutput(LLMNode.resultPort("default"));
 	}
 
 	@Override

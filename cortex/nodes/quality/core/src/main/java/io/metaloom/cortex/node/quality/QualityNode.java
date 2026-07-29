@@ -13,19 +13,21 @@ import javax.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.node.NodeOutputKey;
+import io.metaloom.cortex.api.node.InputPort;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompCreateRequest;
 import io.vertx.core.json.JsonObject;
@@ -40,14 +42,26 @@ public class QualityNode extends AbstractMediaNode<QualityNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(QualityNode.class);
 
-	public static final NodeOutputKey<Double> OUTPUT_BLURRINESS = NodeOutputKey.of("blurriness", Double.class);
-	public static final NodeOutputKey<Integer> OUTPUT_IMAGE_WIDTH = NodeOutputKey.of("image_width", Integer.class);
-	public static final NodeOutputKey<Integer> OUTPUT_IMAGE_HEIGHT = NodeOutputKey.of("image_height", Integer.class);
-	public static final NodeOutputKey<Integer> OUTPUT_VIDEO_WIDTH = NodeOutputKey.of("video_width", Integer.class);
-	public static final NodeOutputKey<Integer> OUTPUT_VIDEO_HEIGHT = NodeOutputKey.of("video_height", Integer.class);
-	public static final NodeOutputKey<Double> OUTPUT_VIDEO_FPS = NodeOutputKey.of("video_fps", Double.class);
-	public static final NodeOutputKey<Long> OUTPUT_VIDEO_FRAME_COUNT = NodeOutputKey.of("video_frame_count", Long.class);
-	public static final NodeOutputKey<String> OUTPUT_QUALITY_FLAG = NodeOutputKey.of("quality_flag", String.class);
+	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_ANY, LoomMedia.class);
+
+	/**
+	 * The whole metric set as one structured payload, so a consumer can take "the quality of this
+	 * item" without wiring six edges. The individual ports below carry the same numbers for
+	 * consumers that only want one.
+	 */
+	public static final OutputPort<String> OUT_METRICS = OutputPort.one("metrics", ContentTypeRegistry.STRUCT_QUALITY, String.class);
+
+	public static final OutputPort<Double> OUT_BLURRINESS = OutputPort.one("blurriness", ContentTypeRegistry.SCALAR_NUMBER, Double.class);
+	/**
+	 * Resolution, for images and videos alike. The former split into {@code image_width} and
+	 * {@code video_width} forced every consumer to try both keys and pick whichever was present -
+	 * which is what {@code QualityFilterNode} and {@code AssetAttributeFilterNode} both did.
+	 */
+	public static final OutputPort<Long> OUT_WIDTH = OutputPort.one("width", ContentTypeRegistry.SCALAR_INTEGER, Long.class);
+	public static final OutputPort<Long> OUT_HEIGHT = OutputPort.one("height", ContentTypeRegistry.SCALAR_INTEGER, Long.class);
+	public static final OutputPort<Double> OUT_FPS = OutputPort.one("fps", ContentTypeRegistry.SCALAR_NUMBER, Double.class);
+	public static final OutputPort<Long> OUT_FRAME_COUNT = OutputPort.one("frame_count", ContentTypeRegistry.SCALAR_INTEGER, Long.class);
+	public static final OutputPort<String> OUT_FLAG = OutputPort.one("flag", ContentTypeRegistry.SCALAR_STRING, String.class);
 
 	/** Upper bound for the in-heap skip cache. Blurriness/resolution analysis decodes frames, so we remember the metric set produced for each media
 	 * during this worker's lifetime and re-emit it instead of recomputing. Non-durable - the durable copy lives in Loom. */
@@ -85,27 +99,49 @@ public class QualityNode extends AbstractMediaNode<QualityNodeOptions> {
 		// re-persisting.
 		Map<String, Object> cached = resultCache.get(path);
 		if (cached != null) {
-			cached.forEach(ctx::output);
+			emit(ctx, cached);
 			return ctx.origin(LOCAL).next();
 		}
 
+		Map<String, Object> metrics = new LinkedHashMap<>();
 		NodeResult result;
 		if (media.isImage()) {
-			result = processImage(ctx, asset);
+			result = processImage(ctx, asset, metrics);
 		} else if (media.isVideo()) {
-			result = processVideo(ctx, asset);
+			result = processVideo(ctx, asset, metrics);
 		} else {
 			return ctx.skipped("No visual media").next();
 		}
 
-		// Snapshot the outputs for the worker-lifetime skip cache, but only for a successful run.
-		if ("SUCCESS".equals(ctx.outputs().get(OUTPUT_QUALITY_FLAG.key()))) {
-			resultCache.put(path, new HashMap<>(ctx.outputs()));
+		// Snapshot the metrics for the worker-lifetime skip cache, but only for a successful run.
+		if ("SUCCESS".equals(metrics.get(OUT_FLAG.id()))) {
+			resultCache.put(path, new LinkedHashMap<>(metrics));
 		}
 		return result;
 	}
 
-	private NodeResult processImage(NodeContext<LoomMedia> ctx, AssetResponse asset) throws IOException {
+	/**
+	 * Write the metric set to its ports. Every individual port is derived from the same map that
+	 * becomes {@link #OUT_METRICS}, so the aggregate and the scalars can never disagree.
+	 */
+	private void emit(NodeContext<LoomMedia> ctx, Map<String, Object> metrics) {
+		writeIfPresent(ctx, metrics, OUT_BLURRINESS, Double.class);
+		writeIfPresent(ctx, metrics, OUT_WIDTH, Long.class);
+		writeIfPresent(ctx, metrics, OUT_HEIGHT, Long.class);
+		writeIfPresent(ctx, metrics, OUT_FPS, Double.class);
+		writeIfPresent(ctx, metrics, OUT_FRAME_COUNT, Long.class);
+		writeIfPresent(ctx, metrics, OUT_FLAG, String.class);
+		ctx.output(OUT_METRICS, new JsonObject(metrics).encode());
+	}
+
+	private <T> void writeIfPresent(NodeContext<LoomMedia> ctx, Map<String, Object> metrics, OutputPort<T> port, Class<T> type) {
+		Object value = metrics.get(port.id());
+		if (value != null) {
+			ctx.output(port, type.cast(value));
+		}
+	}
+
+	private NodeResult processImage(NodeContext<LoomMedia> ctx, AssetResponse asset, Map<String, Object> metrics) throws IOException {
 		LoomMedia media = ctx.media();
 		BufferedImage image = ImageIO.read(media.file());
 		if (image == null) {
@@ -116,32 +152,32 @@ public class QualityNode extends AbstractMediaNode<QualityNodeOptions> {
 
 		// Resolution
 		if (opts.isCheckResolution()) {
-			ctx.output(OUTPUT_IMAGE_WIDTH, image.getWidth());
-			ctx.output(OUTPUT_IMAGE_HEIGHT, image.getHeight());
+			metrics.put(OUT_WIDTH.id(), (long) image.getWidth());
+			metrics.put(OUT_HEIGHT.id(), (long) image.getHeight());
 		}
 
 		// Blurriness via Laplacian operator
 		if (opts.isCheckBlurriness()) {
-			double blurriness = computeBlurriness(image);
-			ctx.output(OUTPUT_BLURRINESS, blurriness);
+			metrics.put(OUT_BLURRINESS.id(), computeBlurriness(image));
 		}
 
-		ctx.output(OUTPUT_QUALITY_FLAG, "SUCCESS");
-		persist(ctx, asset);
+		metrics.put(OUT_FLAG.id(), "SUCCESS");
+		emit(ctx, metrics);
+		persist(ctx, asset, metrics);
 		return ctx.origin(COMPUTED).next();
 	}
 
-	private NodeResult processVideo(NodeContext<LoomMedia> ctx, AssetResponse asset) {
+	private NodeResult processVideo(NodeContext<LoomMedia> ctx, AssetResponse asset, Map<String, Object> metrics) {
 		LoomMedia media = ctx.media();
 		QualityNodeOptions opts = options();
 
 		try (VideoFile video = Videos.open(media.absolutePath())) {
 			// Video resolution and metadata
 			if (opts.isCheckResolution()) {
-				ctx.output(OUTPUT_VIDEO_WIDTH, video.width());
-				ctx.output(OUTPUT_VIDEO_HEIGHT, video.height());
-				ctx.output(OUTPUT_VIDEO_FPS, video.fps());
-				ctx.output(OUTPUT_VIDEO_FRAME_COUNT, video.length());
+				metrics.put(OUT_WIDTH.id(), (long) video.width());
+				metrics.put(OUT_HEIGHT.id(), (long) video.height());
+				metrics.put(OUT_FPS.id(), video.fps());
+				metrics.put(OUT_FRAME_COUNT.id(), video.length());
 			}
 
 			// Blurriness check on a sample frame from the middle of the video
@@ -149,14 +185,14 @@ public class QualityNode extends AbstractMediaNode<QualityNodeOptions> {
 				video.seekToFrameRatio(0.5);
 				Mat frame = video.frameToMat();
 				if (frame != null) {
-					double blurriness = CVUtils.blurriness(frame);
-					ctx.output(OUTPUT_BLURRINESS, blurriness);
+					metrics.put(OUT_BLURRINESS.id(), CVUtils.blurriness(frame));
 					CVUtils.free(frame);
 				}
 			}
 
-			ctx.output(OUTPUT_QUALITY_FLAG, "SUCCESS");
-			persist(ctx, asset);
+			metrics.put(OUT_FLAG.id(), "SUCCESS");
+			emit(ctx, metrics);
+			persist(ctx, asset, metrics);
 			return ctx.origin(COMPUTED).next();
 		} catch (Exception e) {
 			log.error("Failed to process video quality", e);
@@ -169,13 +205,12 @@ public class QualityNode extends AbstractMediaNode<QualityNodeOptions> {
 	 * carry blurriness/fps/frame-count, so the full metric set is stored as an opaque payload. Best-effort and a no-op when the asset is not yet known to
 	 * Loom or we run offline.
 	 */
-	private void persist(NodeContext<LoomMedia> ctx, AssetResponse asset) {
+	private void persist(NodeContext<LoomMedia> ctx, AssetResponse asset, Map<String, Object> metrics) {
 		if (asset == null || client() == null) {
 			return;
 		}
 		try {
-			JsonObject data = new JsonObject();
-			ctx.outputs().forEach(data::put);
+			JsonObject data = new JsonObject(metrics);
 			JsonCompCreateRequest request = new JsonCompCreateRequest();
 			request.setNodeKind(name());
 			request.setSchemaType("quality");

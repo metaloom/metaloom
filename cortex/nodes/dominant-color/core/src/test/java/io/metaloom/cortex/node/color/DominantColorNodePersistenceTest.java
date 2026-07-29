@@ -13,7 +13,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -22,8 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.InOrder;
 
-import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.pipeline.test.StubLoomMedia;
 import io.metaloom.loom.client.common.LoomClientRequest;
@@ -91,8 +90,8 @@ class DominantColorNodePersistenceTest {
 	}
 
 	@Test
-	void testWritesJsonCompAndLedgerOnSuccess() {
-		assertThat(node().process(ctxWithBoxes())).isSuccess();
+	void testWritesJsonCompAndLedgerOnSuccess() throws Exception {
+		assertThat(node().process(media, withBoxes())).isSuccess();
 
 		verify(client).createAssetJsonComp(eq(assetUuid), argThat((JsonCompCreateRequest r) -> "dominant-color".equals(r.getNodeKind())
 			&& "dominant-color".equals(r.getSchemaType())
@@ -115,8 +114,8 @@ class DominantColorNodePersistenceTest {
 	 * uuid that already exists.
 	 */
 	@Test
-	void testTheLedgerFollowsTheComponent() {
-		assertThat(node().process(ctxWithBoxes())).isSuccess();
+	void testTheLedgerFollowsTheComponent() throws Exception {
+		assertThat(node().process(media, withBoxes())).isSuccess();
 
 		InOrder order = inOrder(client);
 		order.verify(client).createAssetJsonComp(any(), any());
@@ -129,8 +128,8 @@ class DominantColorNodePersistenceTest {
 	 * what forces {@link DominantColorNode#ALGORITHM_VERSION} to be bumped when they change.
 	 */
 	@Test
-	void testTheAlgorithmVersionIsRecordedAsTheProducerVersion() {
-		assertThat(node().process(ctxWithBoxes())).isSuccess();
+	void testTheAlgorithmVersionIsRecordedAsTheProducerVersion() throws Exception {
+		assertThat(node().process(media, withBoxes())).isSuccess();
 
 		verify(client).createAssetJsonComp(any(),
 			argThat((JsonCompCreateRequest r) -> "dominant-color/1".equals(r.getProducerVersion())));
@@ -139,8 +138,8 @@ class DominantColorNodePersistenceTest {
 	}
 
 	@Test
-	void testThePersistedPayloadCarriesTheNamesAndTheGeometry() {
-		assertThat(node().process(ctxWithBoxes())).isSuccess();
+	void testThePersistedPayloadCarriesTheNamesAndTheGeometry() throws Exception {
+		assertThat(node().process(media, withBoxes())).isSuccess();
 
 		verify(client).createAssetJsonComp(any(), argThat((JsonCompCreateRequest r) -> {
 			JsonObject whole = r.getData().getJsonArray("regions").getJsonObject(0);
@@ -156,11 +155,11 @@ class DominantColorNodePersistenceTest {
 	}
 
 	@Test
-	void testRecordsFailedLedgerWhenComponentWriteFails() {
+	void testRecordsFailedLedgerWhenComponentWriteFails() throws Exception {
 		when(client.createAssetJsonComp(any(), any())).thenThrow(new RuntimeException("loom unreachable"));
 
 		// The component write is best-effort: the node still completes, but the ledger records it.
-		assertThat(node().process(ctxWithBoxes())).isSuccess();
+		assertThat(node().process(media, withBoxes())).isSuccess();
 
 		verify(client).createAssetNodeResult(eq(assetUuid),
 			argThat((NodeResultCreateRequest r) -> "FAILED".equals(r.getState())
@@ -174,7 +173,7 @@ class DominantColorNodePersistenceTest {
 		StubLoomMedia transparent = new StubLoomMedia(ghost.getAbsolutePath(), false, true, false, false);
 		transparent.setSHA512(HASH);
 
-		assertThat(node().process(NodeContext.create(transparent, Map.of()))).isSkipped();
+		assertThat(node().process(transparent, NodeInputs.empty())).isSkipped();
 
 		verify(client, never()).createAssetJsonComp(any(), any());
 		verify(client, never()).createAssetNodeResult(any(), any());
@@ -187,7 +186,7 @@ class DominantColorNodePersistenceTest {
 		StubLoomMedia corrupt = new StubLoomMedia(broken.getAbsolutePath(), false, true, false, false);
 		corrupt.setSHA512(HASH);
 
-		assertThat(node().process(NodeContext.create(corrupt, Map.of()))).isFailed();
+		assertThat(node().process(corrupt, NodeInputs.empty())).isFailed();
 
 		verify(client, never()).createAssetJsonComp(any(), any());
 		verify(client).createAssetNodeResult(eq(assetUuid), argThat((NodeResultCreateRequest r) -> "FAILED".equals(r.getState())));
@@ -198,11 +197,11 @@ class DominantColorNodePersistenceTest {
 	 * in Loom.
 	 */
 	@Test
-	void testACachedRunDoesNotWriteAgain() {
+	void testACachedRunDoesNotWriteAgain() throws Exception {
 		DominantColorNode node = node();
 
-		assertThat(node.process(ctxWithBoxes())).isSuccess();
-		assertThat(node.process(ctxWithBoxes())).isSuccess();
+		assertThat(node.process(media, withBoxes())).isSuccess();
+		assertThat(node.process(media, withBoxes())).isSuccess();
 
 		verify(client, times(1)).createAssetJsonComp(any(), any());
 		verify(client, times(1)).createAssetNodeResult(any(), any());
@@ -212,12 +211,11 @@ class DominantColorNodePersistenceTest {
 		return new DominantColorNode(client, cortexOptions, new DominantColorNodeOptions());
 	}
 
-	private NodeContext<LoomMedia> ctxWithBoxes() {
-		Map<String, Map<String, Object>> up = new HashMap<>();
-		up.put("facedetect", Map.of("detections", DominantColorFixtures.detections(IMAGE_W, IMAGE_H,
-			DominantColorNodeOptions.ABSOLUTE_PIXELS,
-			DominantColorFixtures.detection(0, "face", 20, 20, 100, 100),
-			DominantColorFixtures.detection(1, "face", 260, 20, 100, 100)).encode()));
-		return NodeContext.create(media, up);
+	private NodeInputs withBoxes() {
+		return NodeInputs.builder()
+			.inputs(DominantColorNode.IN_DETECTIONS, List.of(
+				DominantColorFixtures.detection(0, "face", 20, 20, 100, 100).encode(),
+				DominantColorFixtures.detection(1, "face", 260, 20, 100, 100).encode()))
+			.build();
 	}
 }

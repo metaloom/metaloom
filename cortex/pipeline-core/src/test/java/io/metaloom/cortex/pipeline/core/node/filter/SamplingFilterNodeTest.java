@@ -8,9 +8,7 @@ import java.util.Random;
 
 import org.junit.jupiter.api.Test;
 
-import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.pipeline.api.PipelineResult;
-import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 import io.metaloom.cortex.pipeline.test.StubLoomMedia;
 
 class SamplingFilterNodeTest extends AbstractFilterNodeTest {
@@ -18,7 +16,7 @@ class SamplingFilterNodeTest extends AbstractFilterNodeTest {
 	private static final StubLoomMedia MEDIA = new StubLoomMedia("/media/photo.jpg", false, true, false, false);
 
 	private boolean passed(SamplingFilterNode filter) {
-		return evaluate(filter, MEDIA).<Boolean> getOutput(PipelineNode.FILTER_PASSED);
+		return passed(evaluate(filter, MEDIA));
 	}
 
 	@Test
@@ -102,15 +100,6 @@ class SamplingFilterNodeTest extends AbstractFilterNodeTest {
 	}
 
 	@Test
-	void testRejectReasonCarriesTheRate() {
-		SamplingFilterNode filter = SamplingFilterNode.builder("sample").passRate(0.0).build();
-		NodeResult result = evaluate(filter, MEDIA);
-
-		assertThat(result.<String> getOutput("filter_reason"))
-				.isEqualTo("rejected by sampling (rate=0.0)");
-	}
-
-	@Test
 	void testPassRoutesToPassBranch() {
 		SamplingFilterNode filter = SamplingFilterNode.builder("sample").passRate(1.0).build();
 
@@ -118,7 +107,7 @@ class SamplingFilterNodeTest extends AbstractFilterNodeTest {
 
 		assertThat(result)
 				.isSuccess()
-				.hasNodeOutput("sample", PipelineNode.FILTER_PASSED, true);
+				.hasNodeOutput("sample", AbstractFilterNode.OUT_PASSED, true);
 		assertThat(result).node(PASS_NODE).isCompleted();
 		assertThat(result).node(REJECT_NODE).isSkipped();
 	}
@@ -131,7 +120,7 @@ class SamplingFilterNodeTest extends AbstractFilterNodeTest {
 
 		assertThat(result)
 				.isSuccess()
-				.hasNodeOutput("sample", PipelineNode.FILTER_PASSED, false);
+				.hasNodeOutput("sample", AbstractFilterNode.OUT_PASSED, false);
 		assertThat(result).node(REJECT_NODE).isCompleted();
 		assertThat(result).node(PASS_NODE).isSkipped();
 	}

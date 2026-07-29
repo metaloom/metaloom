@@ -1,7 +1,6 @@
 package io.metaloom.cortex.api.node;
 
 import java.io.IOException;
-import java.util.Map;
 
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.media.LoomMedia;
@@ -32,16 +31,19 @@ public interface FilesystemNode<I, T extends CortexNodeOptions> extends SourceNo
 	}
 
 	/**
-	 * Process with upstream results available. Used by the pipeline adapter to
-	 * pass dependency outputs to the node.
+	 * Process with the pipeline's port-keyed view of this node's inputs.
 	 *
-	 * @param media            the media item
-	 * @param upstreamOutputs  outputs from upstream nodes, keyed by node id
+	 * <p>The view is keyed by <em>this</em> node's input port ids - the engine has
+	 * already resolved which upstream node and port fills each one - so the node
+	 * never learns what the pipeline author named its neighbours.</p>
+	 *
+	 * @param media  the media item
+	 * @param inputs what this node's input ports carry, plus the demanded outputs and origin
 	 * @return the result
 	 */
-	default NodeResult process(LoomMedia media, Map<String, Map<String, Object>> upstreamOutputs) throws IOException {
+	default NodeResult process(LoomMedia media, NodeInputs inputs) throws IOException {
 		@SuppressWarnings("unchecked")
-		NodeContext<I> ctx = (NodeContext<I>) NodeContext.create(media, upstreamOutputs);
+		NodeContext<I> ctx = (NodeContext<I>) NodeContext.create(media, inputs);
 		return process(ctx);
 	}
 

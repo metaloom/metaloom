@@ -34,9 +34,11 @@ public class ConsistencyNodeTest extends AbstractMediaTest {
 		LoomMedia media = mediaVideo1();
 		NodeResult result = node.process(media);
 		assertThat(result).isSuccess();
-		assertEquals(0L, ((Number) result.getOutputs().get(ConsistencyNode.OUTPUT_ZERO_CHUNK_COUNT)).longValue(),
+		// scalar/integer is widened to Long at the port boundary, so the value is a Long
+		// rather than whatever width the node happened to compute in.
+		assertEquals(0L, result.get(ConsistencyNode.OUT_ZERO_CHUNK_COUNT),
 			"Zero chunk count should be 0 for a consistent file");
-		assertEquals(true, result.getOutputs().get(ConsistencyNode.OUTPUT_IS_COMPLETE),
+		assertEquals(Boolean.TRUE, result.get(ConsistencyNode.OUT_IS_COMPLETE),
 			"File should be complete");
 		assertNotNull(media.getSHA512(), "SHA512 should have been computed");
 	}

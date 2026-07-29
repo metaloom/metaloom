@@ -1,7 +1,8 @@
 package io.metaloom.cortex.api.node;
 
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -12,11 +13,13 @@ import java.util.Map;
  * {@code CortexNode}) and the pipeline-level API ({@code PipelineNode.process}).
  * It carries the terminal {@link ResultState}, an optional pipeline {@code nodeId}
  * (null when produced outside a DAG, stamped later via {@link #withNode}), timing,
- * an optional message (skip reason / failure cause), and a typed output map.</p>
+ * an optional message (skip reason / failure cause), and the port outputs.</p>
  *
- * <p>Output values are stored under {@link NodeOutputKey} keys which provide
- * type-safe access without casts. Downstream dependent nodes read them from their
- * {@code upstreamResults} / {@code upstreamOutputs}.</p>
+ * <p>Outputs are keyed by <strong>output port id</strong> and each keeps the
+ * {@link OutputPort} that declared it. The boundary needs the declared content type
+ * to coerce against and the cardinality to decide how to stamp origins, and carrying
+ * the port with the values is what stops it from having to look either up in a
+ * descriptor the Cortex tree cannot see.</p>
  */
 public class NodeResult {
 
@@ -24,7 +27,7 @@ public class NodeResult {
 	private final ResultState state;
 	private final long durationMs;
 	private final String message;
-	private final Map<String, Object> outputs;
+	private final Map<String, PortOutput> outputs;
 
 	/**
 	 * Canonical constructor.
@@ -33,21 +36,21 @@ public class NodeResult {
 	 * @param state      the terminal result state
 	 * @param durationMs elapsed processing time in milliseconds
 	 * @param message    skip reason or failure cause, or {@code null}
-	 * @param outputs    the output map (may be {@code null}, treated as empty)
+	 * @param outputs    the port outputs (may be {@code null}, treated as empty)
 	 */
-	public NodeResult(String nodeId, ResultState state, long durationMs, String message, Map<String, Object> outputs) {
+	public NodeResult(String nodeId, ResultState state, long durationMs, String message, Map<String, PortOutput> outputs) {
 		this.nodeId = nodeId;
 		this.state = state;
 		this.durationMs = durationMs;
 		this.message = message;
-		this.outputs = outputs != null ? Collections.unmodifiableMap(new HashMap<>(outputs)) : Collections.emptyMap();
+		this.outputs = outputs != null ? Collections.unmodifiableMap(new LinkedHashMap<>(outputs)) : Collections.emptyMap();
 	}
 
 	public NodeResult(ResultState state) {
 		this(null, state, 0, null, Collections.emptyMap());
 	}
 
-	public NodeResult(ResultState state, Map<String, Object> outputs) {
+	public NodeResult(ResultState state, Map<String, PortOutput> outputs) {
 		this(null, state, 0, null, outputs);
 	}
 
@@ -74,41 +77,38 @@ public class NodeResult {
 	}
 
 	/**
-	 * Return the output map containing all key-value pairs produced by the node.
-	 * This data is forwarded to downstream dependent nodes.
+	 * The port outputs produced by the node, keyed by output port id.
 	 */
-	public Map<String, Object> getOutputs() {
+	public Map<String, PortOutput> getOutputs() {
 		return outputs;
 	}
 
 	/**
-	 * Alias for {@link #getOutputs()} (pipeline-level naming).
+	 * Type-safe accessor for the value of a {@code ONE} output port.
+	 *
+	 * @return the value, or {@code null} when the node emitted nothing on that port
 	 */
-	public Map<String, Object> getOutput() {
-		return outputs;
+	public <T> T get(OutputPort<T> port) {
+		PortOutput output = outputs.get(port.id());
+		return output == null ? null : port.valueType().cast(output.single());
 	}
 
 	/**
-	 * Type-safe accessor for a single output value via a {@link NodeOutputKey}.
+	 * Type-safe accessor for the elements of a {@code MANY} output port, in emission order.
 	 */
-	@SuppressWarnings("unchecked")
-	public <T> T get(NodeOutputKey<T> key) {
-		return (T) outputs.get(key.key());
+	public <T> List<T> elements(OutputPort<T> port) {
+		PortOutput output = outputs.get(port.id());
+		if (output == null) {
+			return List.of();
+		}
+		return output.values().stream().map(port.valueType()::cast).toList();
 	}
 
 	/**
-	 * Check whether the output map contains a value for the given key.
+	 * Whether the node emitted anything on the given port.
 	 */
-	public boolean has(NodeOutputKey<?> key) {
-		return outputs.containsKey(key.key());
-	}
-
-	/**
-	 * Convenience accessor for a single output value by raw string key.
-	 */
-	@SuppressWarnings("unchecked")
-	public <T> T getOutput(String key) {
-		return (T) outputs.get(key);
+	public boolean has(OutputPort<?> port) {
+		return outputs.containsKey(port.id());
 	}
 
 	/**
@@ -125,7 +125,7 @@ public class NodeResult {
 		return new NodeResult(null, ResultState.SUCCESS, 0, null, Collections.emptyMap());
 	}
 
-	public static NodeResult success(Map<String, Object> outputs) {
+	public static NodeResult success(Map<String, PortOutput> outputs) {
 		return new NodeResult(null, ResultState.SUCCESS, 0, null, outputs);
 	}
 
@@ -143,7 +143,7 @@ public class NodeResult {
 		return new NodeResult(nodeId, ResultState.SUCCESS, durationMs, null, Collections.emptyMap());
 	}
 
-	public static NodeResult success(String nodeId, long durationMs, Map<String, Object> outputs) {
+	public static NodeResult success(String nodeId, long durationMs, Map<String, PortOutput> outputs) {
 		return new NodeResult(nodeId, ResultState.SUCCESS, durationMs, null, outputs);
 	}
 
@@ -151,8 +151,22 @@ public class NodeResult {
 		return new NodeResult(nodeId, ResultState.FAILED, durationMs, message, Collections.emptyMap());
 	}
 
+	/**
+	 * A failure that still carries whatever the node managed to emit before it broke.
+	 */
+	public static NodeResult failed(String nodeId, long durationMs, String message, Map<String, PortOutput> outputs) {
+		return new NodeResult(nodeId, ResultState.FAILED, durationMs, message, outputs);
+	}
+
 	public static NodeResult skipped(String nodeId, String reason) {
 		return new NodeResult(nodeId, ResultState.SKIPPED, 0, reason, Collections.emptyMap());
+	}
+
+	/**
+	 * A skip that still carries whatever the node emitted before deciding to stop.
+	 */
+	public static NodeResult skipped(String nodeId, String reason, Map<String, PortOutput> outputs) {
+		return new NodeResult(nodeId, ResultState.SKIPPED, 0, reason, outputs);
 	}
 
 	@Override

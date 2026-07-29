@@ -8,6 +8,7 @@ import java.util.function.Function;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.FilesystemNode;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.PortOutput;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.api.option.node.CortexNodeOptions;
@@ -31,8 +32,8 @@ class StubFilesystemNode implements FilesystemNode<LoomMedia, CortexNodeOptions>
 		this.behaviour = behaviour;
 	}
 
-	/** A node that always succeeds with the given outputs. */
-	static StubFilesystemNode succeeding(String name, Map<String, Object> outputs) {
+	/** A node that always succeeds with the given port outputs. */
+	static StubFilesystemNode succeeding(String name, Map<String, PortOutput> outputs) {
 		return new StubFilesystemNode(name, ctx -> NodeResult.success(outputs));
 	}
 
@@ -42,7 +43,7 @@ class StubFilesystemNode implements FilesystemNode<LoomMedia, CortexNodeOptions>
 		return behaviour.apply(ctx);
 	}
 
-	/** The context handed to the last {@code process} call, for upstream-output assertions. */
+	/** The context handed to the last {@code process} call, for input-port assertions. */
 	NodeContext<LoomMedia> lastContext() {
 		return lastContext;
 	}

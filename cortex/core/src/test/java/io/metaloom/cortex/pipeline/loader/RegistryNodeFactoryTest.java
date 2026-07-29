@@ -3,7 +3,6 @@ package io.metaloom.cortex.pipeline.loader;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -11,6 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.pipeline.api.NodeMode;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 import io.metaloom.cortex.pipeline.core.node.AbstractPipelineNode;
@@ -28,7 +28,7 @@ class RegistryNodeFactoryTest {
 	private static PipelineNode node(String id) {
 		return new AbstractPipelineNode(id, id, NodeMode.PARALLEL, true, 1) {
 			@Override
-			public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {
+			public NodeResult process(LoomMedia media, NodeInputs inputs) {
 				return NodeResult.success(id(), 0);
 			}
 		};

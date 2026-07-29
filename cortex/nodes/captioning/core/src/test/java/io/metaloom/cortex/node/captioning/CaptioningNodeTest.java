@@ -75,7 +75,7 @@ public class CaptioningNodeTest extends AbstractMediaTest {
 		NodeResult result = node.process(mediaImage1());
 
 		assertEquals(ResultState.SUCCESS, result.getState());
-		assertEquals(IMAGE_CAPTION, result.get(CaptioningNode.OUTPUT_CAPTION));
+		assertEquals(IMAGE_CAPTION, result.get(CaptioningNode.OUT_CAPTION));
 	}
 
 	@Test
@@ -89,7 +89,7 @@ public class CaptioningNodeTest extends AbstractMediaTest {
 
 		assertEquals(ResultState.SUCCESS, first.getState());
 		assertEquals(ResultState.SUCCESS, second.getState());
-		assertEquals(IMAGE_CAPTION, second.get(CaptioningNode.OUTPUT_CAPTION));
+		assertEquals(IMAGE_CAPTION, second.get(CaptioningNode.OUT_CAPTION));
 		assertEquals(1, calls.get(), "The second run must be served from the local cache, not re-run the model");
 	}
 
@@ -99,7 +99,7 @@ public class CaptioningNodeTest extends AbstractMediaTest {
 		NodeResult result = node(options).process(mediaVideo1());
 
 		assertEquals(ResultState.SUCCESS, result.getState());
-		assertEquals(VIDEO_CAPTION, result.get(CaptioningNode.OUTPUT_CAPTION));
+		assertEquals(VIDEO_CAPTION, result.get(CaptioningNode.OUT_CAPTION));
 	}
 
 	@Test
@@ -108,7 +108,7 @@ public class CaptioningNodeTest extends AbstractMediaTest {
 		NodeResult result = node(options).process(mediaVideo1());
 
 		assertEquals(ResultState.SUCCESS, result.getState());
-		assertEquals(VIDEO_CAPTION, result.get(CaptioningNode.OUTPUT_CAPTION));
+		assertEquals(VIDEO_CAPTION, result.get(CaptioningNode.OUT_CAPTION));
 	}
 
 	@Test

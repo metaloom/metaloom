@@ -25,6 +25,7 @@ import io.metaloom.cortex.pipeline.test.StubLoomMedia;
 import io.metaloom.cortex.runtime.NodeTaskRunner;
 import io.metaloom.cortex.runtime.SegmentTaskRunner;
 import io.metaloom.loom.pipeline.model.MediaRef;
+import io.metaloom.loom.pipeline.model.PortPayload;
 import io.metaloom.loom.pipeline.model.NodeTask;
 import io.metaloom.loom.pipeline.model.SegmentNode;
 import io.metaloom.loom.pipeline.model.SegmentTask;
@@ -147,10 +148,11 @@ public class SegmentDispatchBenchmark {
 		for (File file : files) {
 			UUID runUuid = UUID.randomUUID();
 			MediaRef ref = MediaRef.of(file.getAbsolutePath());
-			Map<String, Object> sha = runner.run(new NodeTask(UUID.randomUUID(), runUuid, "item", "sha512", "sha512",
+			// The second task is fed the first's outputs, keyed by port id - the same shape the
+			// engine would hand it, so the two dispatch strategies stay comparable.
+			Map<String, PortPayload> sha = runner.run(new NodeTask(UUID.randomUUID(), runUuid, "item", "sha512", "sha512",
 				ref, Map.of(), Map.of())).getOutputs();
-			runner.run(new NodeTask(UUID.randomUUID(), runUuid, "item", "md5", "md5", ref, Map.of(),
-				Map.of("sha512", sha)));
+			runner.run(new NodeTask(UUID.randomUUID(), runUuid, "item", "md5", "md5", ref, Map.of(), sha));
 		}
 		return (System.nanoTime() - start) / 1_000_000;
 	}

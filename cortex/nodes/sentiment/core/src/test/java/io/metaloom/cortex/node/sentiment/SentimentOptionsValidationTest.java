@@ -2,8 +2,6 @@ package io.metaloom.cortex.node.sentiment;
 
 import static io.metaloom.cortex.node.sentiment.assertj.SentimentNodeAssertions.assertThat;
 
-import java.util.List;
-
 import org.junit.jupiter.api.Test;
 
 import io.metaloom.cortex.api.option.node.ValidationResult;
@@ -17,8 +15,7 @@ public class SentimentOptionsValidationTest {
 			.hasHost("localhost")
 			.hasPort(9110)
 			.hasLanguage("auto")
-			.hasMaxChars(200_000)
-			.hasTextSources(SentimentNodeOptions.DEFAULT_TEXT_SOURCES);
+			.hasMaxChars(200_000);
 	}
 
 	@Test
@@ -27,14 +24,12 @@ public class SentimentOptionsValidationTest {
 			.setSentimentHost("sentiment.internal")
 			.setSentimentPort(9300)
 			.setLanguage("de")
-			.setMaxChars(5_000)
-			.setTextSources(List.of("whisper:whisper_text"));
+			.setMaxChars(5_000);
 		assertThat(options).isValid()
 			.hasHost("sentiment.internal")
 			.hasPort(9300)
 			.hasLanguage("de")
-			.hasMaxChars(5_000)
-			.hasTextSources(List.of("whisper:whisper_text"));
+			.hasMaxChars(5_000);
 	}
 
 	@Test
@@ -53,24 +48,6 @@ public class SentimentOptionsValidationTest {
 	public void testEmptyLanguageInvalid() {
 		SentimentNodeOptions options = new SentimentNodeOptions().setLanguage("");
 		assertThat(options).isInvalid().hasError("language must not be empty");
-	}
-
-	@Test
-	public void testEmptyTextSourcesInvalid() {
-		SentimentNodeOptions options = new SentimentNodeOptions().setTextSources(List.of());
-		assertThat(options).isInvalid().hasError("textSources must not be empty");
-	}
-
-	@Test
-	public void testMalformedTextSourceInvalid() {
-		SentimentNodeOptions options = new SentimentNodeOptions().setTextSources(List.of("tika"));
-		assertThat(options).isInvalid().hasError("textSources entry must have the form 'nodeId:outputKey', got 'tika'");
-	}
-
-	@Test
-	public void testTextSourceWithEmptyOutputKeyInvalid() {
-		SentimentNodeOptions options = new SentimentNodeOptions().setTextSources(List.of("tika:"));
-		assertThat(options).isInvalid().hasError("textSources entry must have the form 'nodeId:outputKey', got 'tika:'");
 	}
 
 	@Test

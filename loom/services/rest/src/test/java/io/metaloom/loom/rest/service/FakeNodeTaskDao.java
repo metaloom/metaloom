@@ -57,7 +57,7 @@ public class FakeNodeTaskDao implements PipelineNodeTaskDao {
 	}
 
 	@Override
-	public PipelineNodeTask loadByItemAndNode(UUID itemUuid, String nodeId) {
+	public PipelineNodeTask loadByItemAndNode(UUID itemUuid, String nodeId, int elementSeq) {
 		throw new UnsupportedOperationException("Not used by the reaper");
 	}
 

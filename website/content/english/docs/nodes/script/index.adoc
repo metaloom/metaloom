@@ -12,15 +12,15 @@ tag, reshaping a language model's answer into structured fields — each is a fe
 each would otherwise be a development project.
 
 ++++
-<div class="ml-nodeviz" data-nodeviz='{"kind":"script","applies":"Any asset","badge":"No external service","persist":"asset_json_comp (schemaType script, variant = node id) · asset_segment_comp for timeframes","configs":[{"name":"transcript → chapter marks","note":"one text in, a timeline and two scalars out","inputs":[{"t":"text","l":"whisper_result","d":"transcript JSON"}],"outputs":[{"t":"json","l":"chapter_frames","d":"timeframes"},{"t":"text","l":"chapter_titles","d":"list of titles"},{"t":"number","l":"chapter_count"}]},{"name":"metric → tag","note":"threshold an upstream number","inputs":[{"t":"number","l":"blurriness","d":"quality metric"}],"outputs":[{"t":"label","l":"sharpness_tag","d":"sharp / soft / blurry"}]}]}'></div>
+<div class="ml-nodeviz" data-nodeviz='{"kind":"script","applies":"Any asset","badge":"No external service","persist":"asset_json_comp (schemaType script, variant = node id) · asset_segment_comp for timeframes","configs":[{"name":"transcript → chapter marks","note":"one text in, a timeline and two scalars out","inputs":[{"t":"json","l":"data","d":"whatever you connect — here a transcript to slice into chapters"}],"outputs":[{"t":"segments","l":"chapter_frames","d":"declared TIMEFRAMES — one timeline stored against the asset"},{"t":"text","l":"chapter_titles","c":"many","d":"declared TEXT_LIST — one element per chapter title"},{"t":"number","l":"chapter_count","ct":"scalar/integer","d":"declared INTEGER — how many chapter marks were found"}]},{"name":"metric → tag","note":"threshold a value you wire in","inputs":[{"t":"json","l":"data","d":"whatever you connect — here a blurriness score"}],"outputs":[{"t":"string","l":"sharpness_tag","d":"declared STRING — sharp, soft or blurry"}]}]}'></div>
 ++++
 
 [cols="1,3"]
 |===
 | Kind | `script`
 | Applies to | Any asset
-| Inputs | The media item, plus the outputs of any upstream nodes you connect
-| Output keys | Whatever you declare — see <<outputs>>
+| Input ports | `media`, plus `data` for whatever you connect from upstream
+| Output ports | Whatever you declare — see <<outputs>>. A list type becomes a **many** port
 | Languages | JavaScript
 | Requirements | None. The script runs inside the Cortex worker; no external service is involved
 | Persists to | `asset_json_comp` (one row per script node), and `asset_segment_comp` for timeframe outputs
@@ -35,7 +35,7 @@ The script runs once per media item. Six values are available to it:
 |===
 | Name | What it gives you
 | `media` | The current item: `path`, `absolutePath`, `size`, `sha512`, `isVideo`, `isImage`, `isAudio`, `isDocument`
-| `upstream` | Outputs of upstream nodes: `upstream['whisper']['whisper_result']`
+| `upstream` | What arrived on the connected inputs, keyed by node and port: `upstream['whisper']['transcript']`
 | `params` | The constants you set in the node's *Parameters* field, so one script can be reused with different settings
 | `out` | How you produce results — `out.text`, `out.number`, `out.integer`, `out.bool`, `out.json`, `out.list`, `out.timeframes`, `out.image`, `out.path`
 | `log` | `log.info`, `log.warn`, `log.error` — written to the worker log, prefixed with the node's name
@@ -47,7 +47,7 @@ A complete example — turning a transcript into chapter marks:
 [source,javascript]
 ----
 const re = new RegExp(params.pattern, 'i');
-const transcript = JSON.parse(upstream['whisper']['whisper_result']);
+const transcript = JSON.parse(upstream['whisper']['transcript']);
 
 const frames = transcript.segments
   .filter(s => re.test(s.text))
@@ -68,8 +68,8 @@ out.integer('chapter_count', frames.length);
 == Declaring outputs
 
 Outputs are declared in the node's *Outputs* field, not discovered from the script. This is what lets
-the pipeline editor draw the node's output connectors so you can wire the next node to them before
-the script has ever run.
+the pipeline editor draw the node's output ports — with their types and their cardinality — so you
+can wire the next node to them before the script has ever run.
 
 [source,json]
 ----
@@ -87,11 +87,17 @@ the script has ever run.
 | `INTEGER`, `NUMBER` | a number | a field in the node's JSON result
 | `BOOLEAN` | `true` / `false` | a field in the node's JSON result
 | `JSON` | an object | a field in the node's JSON result
-| `TEXT_LIST` | an array of strings | a field in the node's JSON result
-| `TIMEFRAMES` | an array of `{ startMs, endMs, label }` | a real timeline on the asset
-| `IMAGE`, `IMAGE_LIST` | image bytes, base64, or a path | an image file in the worker's cache
+| `TEXT_LIST` | an array of strings | a field in the node's JSON result. The port is **many** — one element per string
+| `TIMEFRAMES` | an array of `{ startMs, endMs, label }` | a real timeline on the asset. The port is **one**: the timeline is a single value, however many segments it holds
+| `IMAGE` | image bytes, base64, or a path | an image file in the worker's cache
+| `IMAGE_LIST` | an array of those | one image file each. The port is **many** — one element per image
 | `PATH` | a file path | a field in the node's JSON result
 |===
+
+The list types are the pipeline's fan-out: a **many** port hands the next node one element at a time,
+so a script that emits ten titles runs whatever you connect ten times, without you writing a loop.
+Every other type is a single value, `TIMEFRAMES` included — a timeline is one thing, not a sequence
+of segments.
 
 A single item can produce several multi-valued outputs at once — that is how one transcript becomes a
 whole timeline of chapter marks plus a list of titles plus a count, in one pass.
@@ -105,9 +111,9 @@ rather than sitting in an opaque blob. Each timeframe output is filed under a **
 `CHAPTER` (the default), `SCENE`, `SILENCE` or `SHOT`. Set it with `"segmentType": "SCENE"` alongside
 the key and type. If one node declares two timeframe outputs, give them different segment types.
 
-*Images* are written to the worker that ran the script, and the output carries their file paths.
-Because those paths are local to that worker, keep the nodes that consume them in the same affinity
-group.
+*Images* are written to the worker that ran the script, and the port carries them as artifacts, which
+is what lets you connect them straight to link:../s3-sink/[S3 Sink]. Because the files are local to
+that worker, keep the nodes that consume them in the same affinity group.
 
 == Configuration
 
@@ -118,7 +124,7 @@ group.
 | `Script` | The script body, run once per media item
 | `Outputs` | The declared outputs — see <<outputs>>
 | `Parameters` | Constants handed to the script as `params`
-| `Required Inputs` | `['nodeId:outputKey', ...]` that must all be present, or the item is skipped rather than failed
+| `Required Inputs` | Connected inputs that must all carry a value, or the item is skipped rather than failed
 | `Trusted` | Whether the script runs with the worker's full privileges (default) — see <<safety>>
 | `Allow Network` / `Allow Filesystem` | Extra capabilities, off by default
 | `Timeout (ms)` | How long one item may take before the script is stopped (default 10 s)

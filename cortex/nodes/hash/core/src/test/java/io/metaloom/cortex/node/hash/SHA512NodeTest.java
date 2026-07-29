@@ -19,7 +19,7 @@ public class SHA512NodeTest extends AbstractBasicNodeTest<SHA512Node> {
 
 	@Override
 	protected void assertProcessed(TestMedia testMedia, LoomMedia media, NodeResult result, SHA512Node nodeMock) {
-		assertThat(result).hasOutput(SHA512Node.OUTPUT_SHA512, testMedia.sha512().toString());
+		assertThat(result).hasOutput(SHA512Node.OUT_HASH, testMedia.sha512().toString());
 	}
 
 	@Test
@@ -56,7 +56,7 @@ public class SHA512NodeTest extends AbstractBasicNodeTest<SHA512Node> {
 		LoomMedia media = mediaVideo1();
 		NodeResult result = node().process(media);
 		assertThat(result).isSuccess();
-		assertThat(result).hasOutput(SHA512Node.OUTPUT_SHA512, sampleVideoSHA512().toString());
+		assertThat(result).hasOutput(SHA512Node.OUT_HASH, sampleVideoSHA512().toString());
 	}
 
 	@Test

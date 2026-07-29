@@ -15,6 +15,8 @@ public class FakePipelineNodeTask implements PipelineNodeTask {
 	private UUID runUuid;
 	private String nodeId;
 	private String nodeKind;
+	/** Which element of a fanned-out sequence this task covers; 0 when the node runs once per item. */
+	private int elementSeq;
 	private String state = "PENDING";
 	private int attempt;
 	private int maxAttempts = 1;
@@ -62,6 +64,17 @@ public class FakePipelineNodeTask implements PipelineNodeTask {
 	@Override
 	public PipelineNodeTask setNodeId(String nodeId) {
 		this.nodeId = nodeId;
+		return this;
+	}
+
+	@Override
+	public int getElementSeq() {
+		return elementSeq;
+	}
+
+	@Override
+	public PipelineNodeTask setElementSeq(int elementSeq) {
+		this.elementSeq = elementSeq;
 		return this;
 	}
 

@@ -10,9 +10,12 @@ import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.metaloom.loom.pipeline.graph.ExecutionMode;
+import io.metaloom.loom.pipeline.graph.InputBinding;
 import io.metaloom.loom.pipeline.graph.PipelineGraph;
 import io.metaloom.loom.pipeline.graph.PipelineGraphNode;
 import io.metaloom.loom.pipeline.graph.PipelineSegment;
+import io.metaloom.loom.pipeline.model.DataElement;
 import io.metaloom.loom.pipeline.model.SegmentNode;
 import io.metaloom.loom.pipeline.model.SegmentTask;
 import io.metaloom.loom.pipeline.model.FilterBranch;
@@ -20,6 +23,8 @@ import io.metaloom.loom.pipeline.model.MediaRef;
 import io.metaloom.loom.pipeline.model.NodeState;
 import io.metaloom.loom.pipeline.model.NodeTask;
 import io.metaloom.loom.pipeline.model.NodeTaskResult;
+import io.metaloom.loom.pipeline.model.Origin;
+import io.metaloom.loom.pipeline.model.PortPayload;
 
 /**
  * Evaluates a {@link PipelineGraph} over a stream of media items, dispatching one
@@ -82,8 +87,12 @@ public class PipelineRunEngine {
 	/** Ceiling on the backoff, so a high attempt count cannot park a node for hours. */
 	public static final long MAX_RETRY_DELAY_MS = 60_000;
 
-	private static final String OUTPUT_PATH = "path";
-	private static final String OUTPUT_SOURCE = "source";
+	/**
+	 * The output port every source kind declares. The engine synthesises the source node's result
+	 * rather than dispatching it, so it has to know the port name that downstream media inputs
+	 * bind to.
+	 */
+	public static final String SOURCE_MEDIA_PORT = "media";
 
 	private final PipelineGraph graph;
 	private final NodeDispatcher dispatcher;
@@ -315,9 +324,13 @@ public class PipelineRunEngine {
 		items.put(itemId, state);
 
 		PipelineGraphNode source = graph.getSourceNode();
-		Map<String, Object> outputs = new LinkedHashMap<>();
-		outputs.put(OUTPUT_PATH, media.getPath());
-		outputs.put(OUTPUT_SOURCE, source.getKind());
+		// The source node's result is synthesised rather than dispatched - the item exists
+		// precisely because the source already found it. Its media port is what every downstream
+		// media input binds to, and it carries the item's own id as the origin: this is where every
+		// element's lineage begins.
+		Origin origin = Origin.single(itemId);
+		Map<String, PortPayload> outputs = new LinkedHashMap<>();
+		outputs.put(SOURCE_MEDIA_PORT, PortPayload.one(media.contentType(), origin, media.getPath()));
 
 		NodeTaskResult sourceResult = graph.isDryRun()
 			? NodeTaskResult.skipped(source.getId(), "dry-run")
@@ -350,6 +363,16 @@ public class PipelineRunEngine {
 		Map<String, Integer> attempts) {
 		requireStarted();
 		ItemState state = new ItemState(itemId, media);
+		// Seed every node's execution state from the graph before adopting any result. A restored
+		// result creates the state on first touch otherwise, and it would be created as a node that
+		// runs once - so a half-finished fan-out would come back as a single-execution node that
+		// looks settled after its first element, and the rest of the sequence would never run.
+		for (String nodeId : graph.getTopologicalOrder()) {
+			PipelineGraphNode node = graph.getNode(nodeId);
+			if (node != null) {
+				state.exec(nodeId, node.getExecutionMode());
+			}
+		}
 		if (settled != null) {
 			for (NodeTaskResult result : settled.values()) {
 				state.record(result);
@@ -363,6 +386,51 @@ public class PipelineRunEngine {
 					state.recordAttempt(nodeId);
 				}
 			});
+		}
+		items.put(itemId, state);
+	}
+
+	/**
+	 * One persisted execution, as recovery reads it back.
+	 *
+	 * @param nodeId     the node
+	 * @param elementSeq which element of a fanned-out sequence; 0 for a node that runs once per item
+	 * @param result     the terminal result, or null when the execution never finished and should be
+	 *                   dispatched again
+	 * @param attempts   how many times it had already been handed to a worker
+	 */
+	public record RestoredTask(String nodeId, int elementSeq, NodeTaskResult result, int attempts) {
+	}
+
+	/**
+	 * Rebuild an item from its persisted executions.
+	 *
+	 * <p>
+	 * Takes a <strong>list</strong>, deliberately. A node downstream of a fan-out has one row per
+	 * element, so a map keyed by node id would keep only whichever element happened to be read last —
+	 * and the item would come back looking narrower than it is, stranding the executions it dropped.
+	 * The attempt count is per element for the same reason: a poison element must not have its retry
+	 * budget reset by a sibling that succeeded.
+	 * </p>
+	 */
+	public synchronized void restoreItem(String itemId, MediaRef media, List<RestoredTask> tasks) {
+		requireStarted();
+		ItemState state = new ItemState(itemId, media);
+		for (String nodeId : graph.getTopologicalOrder()) {
+			PipelineGraphNode node = graph.getNode(nodeId);
+			if (node != null) {
+				state.exec(nodeId, node.getExecutionMode());
+			}
+		}
+		if (tasks != null) {
+			for (RestoredTask task : tasks) {
+				if (task.result() != null) {
+					state.record(task.nodeId(), task.elementSeq(), task.result());
+				}
+				for (int i = 0; i < task.attempts(); i++) {
+					state.recordAttempt(task.nodeId(), task.elementSeq());
+				}
+			}
 		}
 		items.put(itemId, state);
 	}
@@ -429,8 +497,8 @@ public class PipelineRunEngine {
 		// A failure is not automatically final. If the node asked to be retried and has
 		// attempts left, hand it back rather than settling it - otherwise `retryFailed`
 		// would remain the decoration it has always been.
-		if (result.getState() == NodeState.FAILED && shouldRetry(state, result.getNodeId())) {
-			scheduleRetry(state, result.getNodeId(), describe(result));
+		if (result.getState() == NodeState.FAILED && shouldRetry(state, result.getNodeId(), result.getElementSeq())) {
+			scheduleRetry(state, result.getNodeId(), result.getElementSeq(), describe(result));
 			// The failed attempt released its slot; someone else may be waiting for it.
 			pumpDeferred();
 			return;
@@ -456,30 +524,50 @@ public class PipelineRunEngine {
 	 * @param reason why it was reclaimed, for the dead-letter record
 	 */
 	public synchronized void onNodeTaskLost(String itemId, String nodeId, String reason) {
+		onNodeTaskLost(itemId, nodeId, 0, reason);
+	}
+
+	/**
+	 * Reclaim a lost task for one element.
+	 *
+	 * <p>
+	 * The element matters. A node downstream of a fan-out has several executions in flight at once,
+	 * and reclaiming "the node" would release a slot never acquired, retry an element that may
+	 * already have settled, and leave the element that was actually lost in flight forever — an item
+	 * that never completes rather than one that fails. The reaper reads {@code element_seq} off the
+	 * task row, so it can say which one it means.
+	 * </p>
+	 *
+	 * @param elementSeq which element of a fanned-out sequence was lost; 0 for a node that runs once
+	 *                   per item
+	 */
+	public synchronized void onNodeTaskLost(String itemId, String nodeId, int elementSeq, String reason) {
 		requireStarted();
 		ItemState state = items.get(itemId);
 		if (state == null) {
 			log.warn("Lost task for unknown item '{}' in run {} - ignoring", itemId, runUuid);
 			return;
 		}
-		if (state.isSettled(nodeId)) {
+		if (state.isSettled(nodeId, elementSeq)) {
 			// The result won the race against the reaper. Nothing to reclaim.
-			log.debug("Node '{}' on item '{}' already settled - ignoring reclaim", nodeId, itemId);
+			log.debug("Node '{}' element {} on item '{}' already settled - ignoring reclaim",
+				nodeId, elementSeq, itemId);
 			return;
 		}
-		if (!state.isInFlight(nodeId)) {
-			log.debug("Node '{}' on item '{}' is not in flight - ignoring reclaim", nodeId, itemId);
-			return;
-		}
-
-		releaseInFlight(state, nodeId);
-		if (shouldRetry(state, nodeId)) {
-			scheduleRetry(state, nodeId, reason);
+		if (!state.isInFlight(nodeId, elementSeq)) {
+			log.debug("Node '{}' element {} on item '{}' is not in flight - ignoring reclaim",
+				nodeId, elementSeq, itemId);
 			return;
 		}
 
-		record(state, NodeTaskResult.failed(null, nodeId, 0,
-			"Dead-lettered after " + state.attemptsFor(nodeId) + " attempt(s): " + reason));
+		releaseInFlight(state, nodeId, elementSeq);
+		if (shouldRetry(state, nodeId, elementSeq)) {
+			scheduleRetry(state, nodeId, elementSeq, reason);
+			return;
+		}
+
+		record(state, NodeTaskResult.failed(null, nodeId, elementSeq, 0,
+			"Dead-lettered after " + state.attemptsFor(nodeId, elementSeq) + " attempt(s): " + reason, null));
 		advance(state);
 		// The dead-lettered task released its slot; hand it to whoever is waiting.
 		pumpDeferred();
@@ -487,14 +575,19 @@ public class PipelineRunEngine {
 	}
 
 	/**
-	 * @return true when the node may be attempted again
+	 * @return true when this execution may be attempted again
 	 */
-	private boolean shouldRetry(ItemState state, String nodeId) {
+	private boolean shouldRetry(ItemState state, String nodeId, int seq) {
 		PipelineGraphNode node = graph.getNode(nodeId);
 		if (node == null) {
 			return false;
 		}
-		return state.attemptsFor(nodeId) < node.getMaxAttempts();
+		// Per element, not per node: a node downstream of a fan-out runs several times and each
+		// run has its own budget. Reading the budget of element 0 would let a failure of element
+		// 3 be "retried" against an attempt count that belongs to a different execution - and
+		// when element 0 never ran, the retry would be scheduled for a slot that is already
+		// settled and the failed element would never be settled at all.
+		return state.attemptsFor(nodeId, seq) < node.getMaxAttempts();
 	}
 
 	/**
@@ -505,16 +598,16 @@ public class PipelineRunEngine {
 	 * the time a delayed retry fires the run may have completed or the node may have
 	 * settled some other way.</p>
 	 */
-	private void scheduleRetry(ItemState state, String nodeId, String reason) {
-		releaseInFlight(state, nodeId);
-		state.markAwaitingRetry(nodeId);
-		int attempt = state.attemptsFor(nodeId);
+	private void scheduleRetry(ItemState state, String nodeId, int seq, String reason) {
+		releaseInFlight(state, nodeId, seq);
+		state.markAwaitingRetry(nodeId, seq);
+		int attempt = state.attemptsFor(nodeId, seq);
 		long delay = backoffFor(attempt);
-		log.info("Retrying node '{}' on item '{}' (attempt {} of {}) in {}ms after: {}",
-			nodeId, state.getItemId(), attempt + 1, graph.getNode(nodeId).getMaxAttempts(), delay, reason);
+		log.info("Retrying node '{}' element {} on item '{}' (attempt {} of {}) in {}ms after: {}",
+			nodeId, seq, state.getItemId(), attempt + 1, graph.getNode(nodeId).getMaxAttempts(), delay, reason);
 
 		String itemId = state.getItemId();
-		retryScheduler.schedule(delay, () -> retryNow(itemId, nodeId));
+		retryScheduler.schedule(delay, () -> retryNow(itemId, nodeId, seq));
 	}
 
 	/**
@@ -522,14 +615,15 @@ public class PipelineRunEngine {
 	 *
 	 * @param itemId the item
 	 * @param nodeId the node to attempt again
+	 * @param seq    which element of it
 	 */
-	private synchronized void retryNow(String itemId, String nodeId) {
+	private synchronized void retryNow(String itemId, String nodeId, int seq) {
 		ItemState state = items.get(itemId);
 		if (state == null) {
 			return;
 		}
-		state.clearAwaitingRetry(nodeId);
-		if (state.isSettled(nodeId) || state.isInFlight(nodeId)) {
+		state.clearAwaitingRetry(nodeId, seq);
+		if (state.isSettled(nodeId, seq) || state.isInFlight(nodeId, seq)) {
 			return;
 		}
 		advance(state);
@@ -614,69 +708,124 @@ public class PipelineRunEngine {
 		while (progressed) {
 			progressed = false;
 			for (String nodeId : graph.getTopologicalOrder()) {
-				if (state.isSettled(nodeId) || state.isInFlight(nodeId) || state.isAwaitingRetry(nodeId)) {
+				PipelineGraphNode node = graph.getNode(nodeId);
+				if (node == null) {
 					continue;
 				}
-				PipelineGraphNode node = graph.getNode(nodeId);
+				NodeExecState exec = state.exec(nodeId, node.getExecutionMode());
+
+				// The gather barrier. For a dependency that ran per element this asks "have ALL of
+				// its elements settled?", so a node consuming a fanned-out branch automatically
+				// waits for the whole branch before it is considered ready. That is the entire
+				// recombination mechanism - there is no join node and nothing to configure.
 				if (!dependenciesSettled(state, node)) {
 					continue;
 				}
 
-				NodeTaskResult skip = evaluateSkip(state, node);
-				if (skip != null) {
-					record(state, skip);
-					progressed = true;
-					continue;
-				}
-
-				if (atCapacity()) {
-					// Leave the node unsettled and undispatched. It stays ready, and
-					// pumpDeferred() picks it up as soon as something finishes.
-					continue;
-				}
-
-				// Adopting an earlier run's result is checked before every gate below:
-				// there is no point queueing for capacity, or waiting out a circuit
-				// breaker, to recompute something already known.
-				if (adoptPreviousResult(state, node)) {
-					progressed = true;
-					continue;
-				}
-
-				if (atKindCapacity(node.getKind())) {
-					// This kind is at its ceiling. Leave the node ready; pumpDeferred()
-					// picks it up when one of its siblings finishes.
-					continue;
-				}
-
-				if (!allowedByCircuit(node.getKind())) {
-					// This kind is failing everywhere. Park rather than fail: the problem
-					// is usually environmental and usually gets fixed, and failing a
-					// hundred thousand items over a missing model file helps nobody.
-					continue;
-				}
-
-				// A multi-node segment is dispatched as a unit so its intermediate
-				// results never leave the worker. Falls through to per-node dispatch
-				// when the segment is a single node, or when no worker will take it
-				// whole.
-				PipelineSegment segment = graph.getSegmentFor(nodeId);
-				if (segment != null && !segment.isSingleNode() && segmentReady(state, segment)) {
-					Boolean settled = dispatchSegment(state, segment);
-					if (settled != null) {
-						progressed |= settled;
+				if (node.getExecutionMode() == ExecutionMode.PER_ELEMENT && exec.getElementCount() == null) {
+					// The driving fan-out has settled (dependenciesSettled passed) but we have not
+					// yet read how many elements it produced.
+					if (graph.getNode(node.getFanOutDriver()) == null) {
 						continue;
 					}
-					// null means no worker took the segment whole; fall back to nodes.
+					exec.setElementCount(fanOutSize(state, node));
 				}
 
-				// A rejected dispatch settles the node immediately, which can unblock
-				// children in this same pass.
-				progressed |= dispatch(state, node);
+				Integer count = exec.getElementCount();
+				if (count == null) {
+					continue;
+				}
+				if (count == 0) {
+					// The sequence was empty, so this node has nothing to run for. It is already
+					// settled by the count alone - but leaving it at that means no terminal result,
+					// no persisted task row and nothing in the run detail to say why it did not
+					// run, which is indistinguishable from a node the engine forgot. Record one
+					// bookkeeping skip, while leaving the count at zero so a second-level
+					// per-element node reads the width as empty too and skips in turn.
+					if (!exec.isSettled(0)) {
+						record(state, NodeTaskResult.skipped(nodeId, 0, "Upstream sequence was empty"));
+						progressed = true;
+					}
+					continue;
+				}
+
+				for (int seq = 0; seq < count; seq++) {
+					if (state.isSettled(nodeId, seq) || state.isInFlight(nodeId, seq)
+						|| state.isAwaitingRetry(nodeId, seq)) {
+						continue;
+					}
+
+					NodeTaskResult skip = evaluateSkip(state, node, seq);
+					if (skip != null) {
+						record(state, skip);
+						progressed = true;
+						continue;
+					}
+
+					if (atCapacity()) {
+						// Leave the execution unsettled and undispatched. It stays ready, and
+						// pumpDeferred() picks it up as soon as something finishes.
+						continue;
+					}
+
+					// Adopting an earlier run's result is checked before every gate below:
+					// there is no point queueing for capacity, or waiting out a circuit
+					// breaker, to recompute something already known.
+					if (seq == 0 && count == 1 && adoptPreviousResult(state, node)) {
+						progressed = true;
+						continue;
+					}
+
+					if (atKindCapacity(node.getKind())) {
+						// This kind is at its ceiling. Leave it ready; pumpDeferred()
+						// picks it up when one of its siblings finishes.
+						continue;
+					}
+
+					if (!allowedByCircuit(node.getKind())) {
+						// This kind is failing everywhere. Park rather than fail: the problem
+						// is usually environmental and usually gets fixed, and failing a
+						// hundred thousand items over a missing model file helps nobody.
+						continue;
+					}
+
+					// A multi-node segment is dispatched as a unit so its intermediate
+					// results never leave the worker. Falls through to per-node dispatch
+					// when the segment is a single node, or when no worker will take it
+					// whole. Segments stay single-mode for now, so only the seq-0 execution
+					// of a non-fanned node is eligible.
+					if (seq == 0 && node.getExecutionMode() == ExecutionMode.SINGLE) {
+						PipelineSegment segment = graph.getSegmentFor(nodeId);
+						if (segment != null && !segment.isSingleNode() && segmentReady(state, segment)) {
+							Boolean settled = dispatchSegment(state, segment);
+							if (settled != null) {
+								progressed |= settled;
+								continue;
+							}
+							// null means no worker took the segment whole; fall back to nodes.
+						}
+					}
+
+					// A rejected dispatch settles the execution immediately, which can unblock
+					// children in this same pass.
+					progressed |= dispatch(state, node, seq);
+				}
 			}
 		}
 	}
 
+	/**
+	 * Whether every dependency of this node has fully settled.
+	 *
+	 * <p>
+	 * <strong>This is where the implicit gather happens.</strong> {@link ItemState#isSettled(String)}
+	 * answers over a node's whole execution set, so for a dependency that fanned out it means every
+	 * sibling element has finished. A node with a sequence input therefore blocks here until the
+	 * entire branch is done and then runs exactly once, receiving all of it — which is precisely the
+	 * "recombine per source asset" behaviour, obtained by redefining an existing check rather than
+	 * by adding machinery.
+	 * </p>
+	 */
 	private boolean dependenciesSettled(ItemState state, PipelineGraphNode node) {
 		for (String dep : node.getDependencies()) {
 			if (!state.isSettled(dep)) {
@@ -691,27 +840,62 @@ public class PipelineRunEngine {
 	 *
 	 * @return the skip result, or null when the node should run
 	 */
-	private NodeTaskResult evaluateSkip(ItemState state, PipelineGraphNode node) {
+	private NodeTaskResult evaluateSkip(ItemState state, PipelineGraphNode node, int seq) {
 		if (graph.isDryRun()) {
-			return NodeTaskResult.skipped(node.getId(), "dry-run");
+			return NodeTaskResult.skipped(node.getId(), seq, "dry-run");
 		}
 
 		for (String dep : node.getDependencies()) {
-			NodeTaskResult depResult = state.getResults().get(dep);
+			NodeExecState depState = state.exec(dep);
+			if (depState == null) {
+				continue;
+			}
+
+			// For a dependency that fanned out, a per-element consumer is only stopped by *its own*
+			// element failing - a sibling element's failure must not take out the whole row. A node
+			// that gathers the sequence, on the other hand, sees the branch as one unit and is
+			// stopped by any failure in it, which is the whole-node rule it replaces.
+			NodeState depOutcome = elementScopedState(node, depState, seq);
 
 			// Blocking is a property of the dependent node, not of the dependency.
 			// A non-blocking node runs anyway and sees the failure in its inputs.
-			if (depResult.getState() == NodeState.FAILED && node.isBlocking()) {
-				return NodeTaskResult.skipped(node.getId(), "Dependency " + dep + " failed");
+			if (depOutcome == NodeState.FAILED && node.isBlocking()) {
+				return NodeTaskResult.skipped(node.getId(), seq,
+					node.getExecutionMode() == ExecutionMode.PER_ELEMENT
+						? "Dependency " + dep + " failed for element " + seq
+						: "Dependency " + dep + " failed");
 			}
 
 			FilterBranch branch = node.branchFor(dep);
-			if (branch != FilterBranch.ANY && !branch.admits(depResult.getFilterPassed())) {
-				return NodeTaskResult.skipped(node.getId(),
-					"Filter branch " + branch + " not taken on dependency " + dep);
+			if (branch != FilterBranch.ANY) {
+				NodeTaskResult depResult = node.getExecutionMode() == ExecutionMode.PER_ELEMENT
+					&& depState.getElementResults().containsKey(seq)
+						? depState.getElementResults().get(seq)
+						: depState.representative();
+				Boolean passed = depResult == null ? null : depResult.getFilterPassed();
+				if (!branch.admits(passed)) {
+					return NodeTaskResult.skipped(node.getId(), seq,
+						"Filter branch " + branch + " not taken on dependency " + dep);
+				}
 			}
 		}
 		return null;
+	}
+
+	/**
+	 * How a dependency looks from one execution's point of view.
+	 *
+	 * @return the matching element's state for a per-element consumer, otherwise the dependency's
+	 *         rolled-up state
+	 */
+	private NodeState elementScopedState(PipelineGraphNode node, NodeExecState depState, int seq) {
+		if (node.getExecutionMode() == ExecutionMode.PER_ELEMENT) {
+			NodeTaskResult own = depState.getElementResults().get(seq);
+			if (own != null) {
+				return own.getState();
+			}
+		}
+		return depState.rollup();
 	}
 
 	/**
@@ -832,15 +1016,38 @@ public class PipelineRunEngine {
 	/**
 	 * Outputs a segment needs from outside itself.
 	 */
-	private Map<String, Map<String, Object>> collectSegmentInputs(ItemState state, PipelineSegment segment) {
-		Map<String, Map<String, Object>> upstream = new LinkedHashMap<>();
-		for (String dep : segment.getDependencies()) {
-			NodeTaskResult depResult = state.getResults().get(dep);
-			if (depResult != null && !depResult.getOutputs().isEmpty()) {
-				upstream.put(dep, depResult.getOutputs());
+	private Map<String, PortPayload> collectSegmentInputs(ItemState state, PipelineSegment segment) {
+		// Collected once for the whole segment, keyed by the receiving port ids of every node in it.
+		// Ports are unique per node and a segment's members do not share input port names by
+		// construction, so one flat map serves the whole unit.
+		Map<String, PortPayload> inputs = new LinkedHashMap<>();
+		for (String nodeId : segment.getNodeIds()) {
+			PipelineGraphNode node = graph.getNode(nodeId);
+			if (node == null) {
+				continue;
+			}
+			for (Map.Entry<String, PortPayload> entry : buildInputs(state, node, 0).entrySet()) {
+				// Only what genuinely arrives from outside: an in-segment dependency is satisfied
+				// on the worker and never crosses the network, which is the saving.
+				if (segment.getNodeIds().contains(sourceNodeOf(node, entry.getKey()))) {
+					continue;
+				}
+				inputs.putIfAbsent(entry.getKey(), entry.getValue());
 			}
 		}
-		return upstream;
+		return inputs;
+	}
+
+	/**
+	 * @return which node feeds the given input port of a node, or null when it is unwired
+	 */
+	private String sourceNodeOf(PipelineGraphNode node, String portId) {
+		for (InputBinding binding : node.getInputBindings()) {
+			if (binding.targetPortId().equals(portId)) {
+				return binding.sourceNodeId();
+			}
+		}
+		return null;
 	}
 
 	/**
@@ -853,7 +1060,7 @@ public class PipelineRunEngine {
 	private NodeTask toNodeTask(SegmentTask task, PipelineSegment segment) {
 		String first = segment.getNodeIds().get(0);
 		return new NodeTask(task.getTaskUuid(), runUuid, task.getItemId(), first,
-			graph.getNode(first).getKind(), task.getMedia(), Map.of(), task.getUpstreamOutputs());
+			graph.getNode(first).getKind(), task.getMedia(), Map.of(), task.getInputs());
 	}
 
 	/**
@@ -883,7 +1090,7 @@ public class PipelineRunEngine {
 			if (segment != null) {
 				for (String nodeId : segment.getNodeIds()) {
 					if (!state.isSettled(nodeId)) {
-						releaseInFlight(state, nodeId);
+						releaseInFlight(state, nodeId, 0);
 						state.record(NodeTaskResult.failed(null, nodeId, 0, "Segment failed: " + error));
 						store.taskSettled(itemUuid(state), state.getResults().get(nodeId));
 					}
@@ -921,13 +1128,23 @@ public class PipelineRunEngine {
 	 *         false when a result is expected to arrive later
 	 */
 	private boolean dispatch(ItemState state, PipelineGraphNode node) {
+		return dispatch(state, node, 0);
+	}
+
+	/**
+	 * @param seq which element of a fanned-out sequence this dispatch covers; 0 for a node that
+	 *            runs once per item
+	 * @return true when the execution was settled synchronously (dispatch was refused),
+	 *         false when a result is expected to arrive later
+	 */
+	private boolean dispatch(ItemState state, PipelineGraphNode node, int seq) {
 		UUID taskUuid = UUID.randomUUID();
 		NodeTask task = new NodeTask(taskUuid, runUuid, state.getItemId(), node.getId(), node.getKind(),
-			state.getMedia(), node.getOptions(), collectUpstreamOutputs(state, node),
-			graph.getResultBatchSize());
+			seq, state.getMedia(), node.getOptions(), buildInputs(state, node, seq),
+			node.getDemandedOutputs(), graph.getResultBatchSize());
 
-		state.markInFlight(node.getId(), taskUuid);
-		state.recordAttempt(node.getId());
+		state.markInFlight(node.getId(), seq, taskUuid);
+		state.recordAttempt(node.getId(), seq);
 		acquireKind(node.getKind());
 		inFlightCount++;
 
@@ -944,29 +1161,134 @@ public class PipelineRunEngine {
 		if (worker == null) {
 			// No worker could take it. Fail the node rather than leaving the run
 			// stalled forever waiting for a result that will never arrive.
-			record(state, NodeTaskResult.failed(taskUuid, node.getId(), 0,
-				"No worker available for node kind '" + node.getKind() + "'"));
+			record(state, NodeTaskResult.failed(taskUuid, node.getId(), seq, 0,
+				"No worker available for node kind '" + node.getKind() + "'", null));
 			return true;
 		}
 		return false;
 	}
 
 	/**
-	 * Collect the outputs of this node's dependencies.
+	 * Fill this node's input ports from the wired edges.
 	 *
-	 * <p>Phase 1 sends every dependency's outputs. That is fine for hashes and is
-	 * known not to survive large values - narrowing this to the inputs a node
-	 * actually declares is tracked as Phase 2 work.</p>
+	 * <p>
+	 * The engine resolves which upstream {@code (node, port)} feeds each input port, so the task
+	 * carries data keyed by <em>the receiving node's own</em> port ids. A node therefore never has
+	 * to know what the pipeline author called its neighbours — the failure mode where renaming a
+	 * node in the editor silently starved a downstream lookup is gone by construction.
+	 * </p>
+	 *
+	 * <p>
+	 * This is also where the gather materialises. A {@code MANY} input concatenates every element
+	 * of every edge feeding it, in sequence order; because the node only runs once its dependencies
+	 * have fully settled, those elements are exactly the branch's whole output for this origin item.
+	 * A {@code ONE} input either takes the single upstream value, or — when the producer itself ran
+	 * per element — the element whose sequence index matches this execution, which is the zip.
+	 * </p>
 	 */
-	private Map<String, Map<String, Object>> collectUpstreamOutputs(ItemState state, PipelineGraphNode node) {
-		Map<String, Map<String, Object>> upstream = new LinkedHashMap<>();
-		for (String dep : node.getDependencies()) {
-			NodeTaskResult depResult = state.getResults().get(dep);
-			if (depResult != null && !depResult.getOutputs().isEmpty()) {
-				upstream.put(dep, depResult.getOutputs());
+	private Map<String, PortPayload> buildInputs(ItemState state, PipelineGraphNode node, int seq) {
+		Map<String, List<DataElement>> gathered = new LinkedHashMap<>();
+		Map<String, String> contentTypes = new LinkedHashMap<>();
+		Map<String, Boolean> many = new LinkedHashMap<>();
+
+		for (InputBinding binding : node.getInputBindings()) {
+			NodeExecState producer = state.exec(binding.sourceNodeId());
+			if (producer == null) {
+				continue;
+			}
+			List<DataElement> elements = new ArrayList<>();
+			String contentType = null;
+			// Walk the producer's elements in sequence order so a gathered payload is stable and a
+			// zip can address it by index.
+			for (Integer producerSeq : producer.getElementResults().keySet().stream().sorted().toList()) {
+				NodeTaskResult result = producer.getElementResults().get(producerSeq);
+				PortPayload payload = result.output(binding.sourcePortId());
+				if (payload == null) {
+					continue;
+				}
+				contentType = payload.getContentType();
+				elements.addAll(payload.getElements());
+			}
+			if (contentType == null) {
+				continue;
+			}
+
+			String targetPort = binding.targetPortId();
+			contentTypes.putIfAbsent(targetPort, contentType);
+			boolean targetIsMany = binding.targetIsMany();
+			many.put(targetPort, targetIsMany);
+
+			if (targetIsMany) {
+				gathered.computeIfAbsent(targetPort, k -> new ArrayList<>()).addAll(elements);
+			} else if (elements.size() <= 1) {
+				gathered.computeIfAbsent(targetPort, k -> new ArrayList<>()).addAll(elements);
+			} else {
+				// The producer fanned out and this input takes one element: pick the element that
+				// belongs to this execution.
+				DataElement match = null;
+				for (DataElement element : elements) {
+					if (element.getOrigin().getSeq() == seq) {
+						match = element;
+						break;
+					}
+				}
+				if (match != null) {
+					gathered.computeIfAbsent(targetPort, k -> new ArrayList<>()).add(match);
+				}
 			}
 		}
-		return upstream;
+
+		Map<String, PortPayload> inputs = new LinkedHashMap<>();
+		for (Map.Entry<String, List<DataElement>> entry : gathered.entrySet()) {
+			String portId = entry.getKey();
+			boolean isMany = Boolean.TRUE.equals(many.get(portId));
+			inputs.put(portId, new PortPayload(contentTypes.get(portId), isMany ? "MANY" : "ONE", entry.getValue()));
+		}
+		return inputs;
+	}
+
+	/**
+	 * How many elements the driving sequence produced for this item.
+	 *
+	 * <p>
+	 * Read off the bindings that actually make this node per-element — its single-element inputs —
+	 * rather than off the fan-out driver directly. A node two hops below the driver is not wired to
+	 * it at all; it consumes the intermediate node, which already knows how wide the sequence is.
+	 * Taking the width from the intermediate node also keeps it right when some elements failed:
+	 * counting surviving payloads would shrink the sequence and silently re-index everything below.
+	 * </p>
+	 */
+	private int fanOutSize(ItemState state, PipelineGraphNode node) {
+		int max = 0;
+		for (InputBinding binding : node.getInputBindings()) {
+			if (binding.targetIsMany()) {
+				// A sequence input gathers rather than iterates, so it says nothing about how
+				// many times this node runs.
+				continue;
+			}
+			PipelineGraphNode producer = graph.getNode(binding.sourceNodeId());
+			NodeExecState producerState = state.exec(binding.sourceNodeId());
+			if (producer == null || producerState == null) {
+				continue;
+			}
+			if (producer.getExecutionMode() == ExecutionMode.PER_ELEMENT) {
+				// The producer runs once per element of the same fan-out, so its width is ours.
+				Integer count = producerState.getElementCount();
+				if (count != null) {
+					max = Math.max(max, count);
+				}
+				continue;
+			}
+			int count = 0;
+			for (NodeTaskResult result : producerState.getElementResults().values()) {
+				PortPayload payload = result.output(binding.sourcePortId());
+				if (payload != null) {
+					count += payload.size();
+				}
+			}
+			max = Math.max(max, count);
+		}
+		return max;
 	}
 
 	/**
@@ -980,7 +1302,11 @@ public class PipelineRunEngine {
 		recordCircuitOutcome(result);
 		syncToLoom(state, result);
 		notifySettled(state, result);
-		if (state.isInFlight(result.getNodeId())) {
+		// Per element: a node downstream of a fan-out can have siblings outstanding while this
+		// execution settles. Asking "is this node in flight?" would see a sibling's task and
+		// release a slot that was never acquired for the execution being settled - a skip
+		// recorded next to two running elements would silently give a slot away.
+		if (state.isInFlight(result.getNodeId(), result.getElementSeq())) {
 			inFlightCount = Math.max(0, inFlightCount - 1);
 			releaseKind(result.getNodeId());
 		}
@@ -1164,11 +1490,11 @@ public class PipelineRunEngine {
 	 * decrementing leaks a slot, and enough leaked slots wedge the run permanently at
 	 * capacity with nothing outstanding.</p>
 	 */
-	private void releaseInFlight(ItemState state, String nodeId) {
-		if (state.isInFlight(nodeId)) {
+	private void releaseInFlight(ItemState state, String nodeId, int seq) {
+		if (state.isInFlight(nodeId, seq)) {
 			inFlightCount = Math.max(0, inFlightCount - 1);
 			releaseKind(nodeId);
-			state.clearInFlight(nodeId);
+			state.clearInFlight(nodeId, seq);
 		}
 	}
 

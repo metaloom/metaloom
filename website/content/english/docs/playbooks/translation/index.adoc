@@ -19,7 +19,7 @@ specific reason spelled out below.
 <div class="ml-figure">
 <svg viewBox="0 0 900 300" role="img" aria-labelledby="ml-tl-title ml-tl-desc" class="ml-arch-svg">
   <title id="ml-tl-title">Extract, translate, speak</title>
-  <desc id="ml-tl-desc">Four extractor nodes turn media into text: whisper for speech, tika for documents, ocr for images and vlm for scanned pages, each emitting a named output key. Those outputs feed a translate step, whose translated text can then be handed to the tts node to synthesize narration audio.</desc>
+  <desc id="ml-tl-desc">Four extractor nodes turn media into text: whisper for speech, tika for documents, ocr for images and vlm for scanned pages, each carrying its result on a named output port. Those ports feed a translate step, whose translated text can then be wired into the text input port of the tts node to synthesize narration audio.</desc>
   <defs>
     <marker id="ml-tl-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#57cbcc"></path></marker>
   </defs>
@@ -31,22 +31,22 @@ specific reason spelled out below.
 
     <rect x="32" y="66" width="298" height="44" rx="6" class="ml-box-part"></rect>
     <text x="48" y="86" class="ml-part-title">whisper</text>
-    <text x="314" y="86" text-anchor="end" class="ml-part-sub">whisper_result</text>
+    <text x="314" y="86" text-anchor="end" class="ml-part-sub">transcript</text>
     <text x="48" y="102" class="ml-part-sub">video · audio</text>
 
     <rect x="32" y="120" width="298" height="44" rx="6" class="ml-box-part"></rect>
     <text x="48" y="140" class="ml-part-title">tika</text>
-    <text x="314" y="140" text-anchor="end" class="ml-part-sub">tika_content</text>
+    <text x="314" y="140" text-anchor="end" class="ml-part-sub">content</text>
     <text x="48" y="156" class="ml-part-sub">documents</text>
 
     <rect x="32" y="174" width="298" height="44" rx="6" class="ml-box-part"></rect>
     <text x="48" y="194" class="ml-part-title">ocr</text>
-    <text x="314" y="194" text-anchor="end" class="ml-part-sub">ocr_text</text>
+    <text x="314" y="194" text-anchor="end" class="ml-part-sub">text</text>
     <text x="48" y="210" class="ml-part-sub">images with text</text>
 
     <rect x="32" y="228" width="298" height="44" rx="6" class="ml-part-gpu"></rect>
     <text x="48" y="248" class="ml-part-title">vlm</text>
-    <text x="314" y="248" text-anchor="end" class="ml-part-sub">vlm_result_*</text>
+    <text x="314" y="248" text-anchor="end" class="ml-part-sub">result_{promptId}</text>
     <text x="48" y="264" class="ml-part-sub">scans · layout kept</text>
   </g>
 
@@ -67,7 +67,7 @@ specific reason spelled out below.
     <rect x="716" y="132" width="152" height="44" rx="6" class="ml-box-part"></rect>
     <text x="792" y="152" text-anchor="middle" class="ml-part-title">tts</text>
     <text x="792" y="168" text-anchor="middle" class="ml-part-sub">Orpheus · Kokoro</text>
-    <text x="792" y="198" text-anchor="middle" class="ml-part-sub">tts_path — narration WAV</text>
+    <text x="792" y="198" text-anchor="middle" class="ml-part-sub">audio — narration WAV</text>
   </g>
 
   <polyline points="346,88 400,88 400,156 440,156" class="ml-edge" marker-end="url(#ml-tl-arrow)"></polyline>
@@ -91,16 +91,22 @@ link:../#node-availability[Which node kinds a worker can actually run].
 == Step 1 — Extract the Source Text
 
 Pick the extractor that matches the medium. All four write their text into Loom as a component *and*
-expose it as a node output that downstream nodes can read.
+carry it on a typed **output port** a downstream node can be wired to.
 
 [options="header",cols="1,1,1,2"]
 |===
-| Medium | Node | Output key | Notes
-| Video, audio | link:../../nodes/whisper/[`whisper`] | `whisper_result` | JSON transcript with per-utterance timings.
-| Documents, any format | link:../../nodes/tika/[`tika`] | `tika_content` | Full text plus format metadata, via Apache Tika.
-| Images with text | link:../../nodes/ocr/[`ocr`] | `ocr_text` | Tesseract glyph recognition.
-| Scanned pages, forms | link:../../nodes/vlm/[`vlm`] | `vlm_result_{promptId}` | A vision-language model (olmOCR) that keeps tables, columns and layout that plain OCR flattens.
+| Medium | Node | Output port | Notes
+| Video, audio | link:../../nodes/whisper/[`whisper`] | `transcript` | The utterances with per-utterance timings.
+| Documents, any format | link:../../nodes/tika/[`tika`] | `content` | The document body with the markup stripped, via Apache Tika. (`flags` records which parsers ran.)
+| Images with text | link:../../nodes/ocr/[`ocr`] | `text` | Tesseract glyph recognition, in reading order.
+| Scanned pages, forms | link:../../nodes/vlm/[`vlm`] | `result_{promptId}` | A vision-language model (olmOCR) that keeps tables, columns and layout that plain OCR flattens. One port per configured prompt; with no prompts configured the node exposes a single `result` port.
 |===
+
+All four ports carry a type in the `text` family — `text/transcript` for whisper, `text/plain` for the
+rest — which is what lets any of them be wired into a consumer that declares `text/*`, such as
+link:../../nodes/tts/[`tts`] or link:../../nodes/sentiment/[`sentiment`]. Nothing addresses a node by
+its graph id any more: the **edge** says which port feeds which, and an edge whose two ends do not
+agree on the content type is rejected when the pipeline is saved.
 
 For scanned documents, prefer `vlm` over `ocr`: a translated invoice whose table structure was
 flattened into a column of numbers is not a usable translation.
@@ -116,10 +122,10 @@ Here is the constraint that decides the whole design:
 
 [WARNING]
 ====
-**The `llm` node does not see upstream text.** It builds its prompt from the asset's *filename* only
-(the prompt variable `name`), so it cannot be pointed at a transcript and asked to translate it. It is
-built for classification and tagging from metadata, and its output is a JSON document stored as a
-`asset_json_comp` per prompt.
+**The `llm` node does not see upstream text.** Its only input port is `media`; it builds its prompt
+from the asset's *filename* (the prompt variable `name`), so there is no port to wire a transcript
+into and ask for a translation. It is built for classification and tagging from metadata, and its
+output is a JSON document stored as an `asset_json_comp` per prompt.
 
 Anything that translates extracted text therefore has to come from one of the three options below.
 ====
@@ -193,9 +199,10 @@ conversation, not persist it onto the asset. Pair it with Option A when the tran
 
 === Option C — A translate node (the durable answer)
 
-Once translation is a routine part of ingest, it belongs in the graph. A translate node is small: read
-the upstream text, call the provider, emit an output key. Loom ships the outputs of upstream nodes to
-the worker **together with the node task**, so a node can consume a transcript produced by a different
+Once translation is a routine part of ingest, it belongs in the graph. A translate node is small:
+declare a `text` input port and a `translation` output port, read the input, call the provider, emit
+the result. Loom resolves each input port from the **wired edges** and ships the resulting values to
+the worker together with the node task, so a node can consume a transcript produced by a different
 node on a different machine.
 
 The quickest way to build one is a Python worker — a single file that advertises the kind and runs it.
@@ -205,34 +212,40 @@ example there:
 
 [source,python]
 ----
-def run_node(node_kind, media_path, options, upstream):
-    # Read the transcript the whisper node produced upstream. `upstream` is
-    # shaped {nodeId: {outputKey: value}} — the node id from the pipeline
-    # definition, not the node kind.
-    source = (upstream.get(options.get("sourceNodeId", "speech")) or {}) \
-        .get(options.get("sourceOutputKey", "whisper_result"))
+def run_node(node_kind, media_path, options, inputs):
+    # `inputs` is keyed by THIS node's own input port ids. Whichever upstream
+    # port was wired into "text" — a whisper transcript, tika document text,
+    # OCR output — arrives here under the same name.
+    source = one_value(inputs, "text")
     if not source:
-        return NodeResult.skipped("no upstream text")
+        return NodeResult.skipped("nothing wired into 'text'")
 
     translated = translate(source, options.get("targetLanguage", "en"))
 
-    # The output key downstream nodes (e.g. tts) address this node by.
-    return NodeResult.completed({"translation_text": translated})
+    # Keyed by this node's OUTPUT port id — what an edge can be drawn from.
+    return NodeResult.completed({"translation": translated})
 ----
 
-The `sourceNodeId` / `sourceOutputKey` pair is the established convention for a node that consumes
-another node's output — link:../../nodes/tts/[`tts`] uses exactly that, so following it means `tts` can
-be pointed at your node with configuration alone.
+`one_value` is the small reader from the link:../python-node/#node[Python node playbook] that unwraps
+the payload envelope every port value travels in; the same page shows the `OUTPUT_PORTS` table that
+tells the protocol layer to wrap `translation` back up as `text/plain`.
+
+Because the node's own ports name its inputs, nothing in the node's configuration says where the text
+comes from — you draw an edge from `speech.transcript` (or `pages.content`, or `scan.result_body`)
+into `translate.text` and the engine resolves the rest. Declare the input as `text/*` and any of the
+extractors above can feed it.
 
 Two registrations are needed before Loom will route work to the kind: a **node descriptor** on the Loom
-side, so `translate` passes pipeline validation and appears in the UI palette, and the kind in your
-worker's advertised list. Both are covered in the link:../python-node/[Python node playbook].
+side — including its `inputPorts` and `outputPorts`, so `translate` passes pipeline validation and can
+be connected in the UI palette — and the kind in your worker's advertised list. Both are covered in the
+link:../python-node/[Python node playbook].
 
 [#dub]
 == Step 3 — Speak the Translation
 
 link:../../nodes/tts/[`tts`] turns upstream text into narration audio. Unlike the `llm` node it **does**
-read upstream outputs, addressed by node id and output key:
+consume upstream text — through a single `text` input port typed `text/*`. Its worker configuration
+says how to speak, never what to speak:
 
 [source,yaml]
 ----
@@ -241,13 +254,11 @@ nodes:
   tts:
     ttsHost: tts
     ttsPort: 9100
-    language: en             # en → Kokoro (CPU), de → Orpheus/Kartoffel (GPU recommended)
-    voice: af_heart          # German default: Jakob
-    sourceNodeId: translate  # the node id in the graph, not the kind
-    sourceOutputKey: translation_text
+    language: en    # en → Kokoro (CPU), de → Orpheus/Kartoffel (GPU recommended)
+    voice: af_heart # German default: Jakob
 ----
 
-With a `translate` node in place, the full dubbing graph is:
+The words come from the graph. With a `translate` node in place, the full dubbing pipeline is:
 
 [source,json]
 ----
@@ -264,24 +275,35 @@ With a `translate` node in place, the full dubbing graph is:
     { "id": "narrate",   "type": "tts",               "name": "Speak the translation" }
   ],
   "edges": [
-    { "id": "e1", "source": "source",    "target": "mime" },
-    { "id": "e2", "source": "mime",      "target": "hash", "branch": "PASS" },
-    { "id": "e3", "source": "hash",      "target": "speech" },
-    { "id": "e4", "source": "speech",    "target": "translate" },
-    { "id": "e5", "source": "translate", "target": "narrate" }
+    { "id": "e1", "source": "source",    "sourcePort": "media",
+      "target": "mime",      "targetPort": "media" },
+    { "id": "e2", "source": "mime",      "sourcePort": "passed",
+      "target": "hash",      "targetPort": "media",  "branch": "PASS" },
+    { "id": "e3", "source": "mime",      "sourcePort": "passed",
+      "target": "speech",    "targetPort": "video",  "branch": "PASS" },
+    { "id": "e4", "source": "speech",    "sourcePort": "transcript",
+      "target": "translate", "targetPort": "text" },
+    { "id": "e5", "source": "translate", "sourcePort": "translation",
+      "target": "narrate",   "targetPort": "text" }
   ]
 }
 ----
 
+Every edge names both ends: `sourcePort` on the producing node, `targetPort` on the consuming one.
+There is no positional fallback — an edge without them is rejected. The filter's routing key is
+`branch` (`ANY`, `PASS` or `REJECT`) and is only valid on an edge leaving a filter node.
+
 Three things to know about the TTS step:
 
-* `sourceNodeId` is the **node id from the definition** (`translate` above), not the node kind. Rename
-  the node in the graph and the lookup stops resolving.
-* The node emits `tts_flag` and `tts_path`, and records an `asset_node_result` ledger entry — the WAV
-  itself stays in the worker's local `tts_bin` cache, the same way thumbnails do. Upload it as an asset
-  binary if it needs to be served.
-* Do **not** point `sourceOutputKey` at a raw `llm_result_*`: the `llm` node emits a JSON document, so
-  the synthesizer would read the braces and field names aloud. Feed it plain text.
+* **`whisper` takes `video` here, not `audio`.** Its two media inputs are *alternatives*: exactly one
+  of them must be wired. Wire `audio` instead for an audio-only library — see
+  link:../../nodes/whisper/[Whisper].
+* The node emits `audio` and `flag`, and records an `asset_node_result` ledger entry — the WAV itself
+  stays in the worker's local `tts_bin` cache, the same way thumbnails do. Wire `audio` into
+  link:../../nodes/s3-sink/[S3 Sink] if it needs to be served.
+* Do **not** wire a raw link:../../nodes/llm/[`llm`] `result_{promptId}` port into `text` when that
+  prompt returns a JSON document: the synthesizer would read the braces and field names aloud. The
+  types cannot catch this for you — both ports are `text/plain` — so feed it prose.
 
 The sidecar itself is a small FastAPI service shipped next to the node (`server/` in the source tree),
 with a production path where Orpheus runs on vLLM or llama.cpp.
@@ -294,7 +316,7 @@ with a production path where Orpheus runs on vLLM or llama.cpp.
 | One-off backfill of an existing library | Option A (REST batch) | No code, no rebuild; run it once and store the result.
 | Occasional, reviewed translation | Option B (chat + skill) | A human sees the output before it counts.
 | Translation on every ingest | Option C (custom node) | Belongs in the graph; composes with `tts` for dubbing.
-| Dubbing / accessibility audio | Option C + `tts` | `tts` needs an upstream node output to speak.
+| Dubbing / accessibility audio | Option C + `tts` | `tts` speaks whatever is wired into its `text` port.
 |===
 
 == Gotchas
@@ -306,11 +328,20 @@ with a production path where Orpheus runs on vLLM or llama.cpp.
 | The `llm` node "translates" nonsense
 | It only ever saw the filename. It cannot read a transcript — see the warning above.
 
-| `tts` skips every asset with "no upstream text"
-| `sourceNodeId` / `sourceOutputKey` do not match a node id and output key in the graph.
+| Saving the pipeline fails with `requires input 'text' ... but nothing is connected`
+| Nothing is wired into the `tts` node's `text` port. A required input port with no edge is rejected
+when the definition is saved, not at run time — the run never starts.
+
+| Saving fails with `incompatible content types`
+| The two ends of an edge disagree. A `struct/json` port cannot feed a `text/*` input, and
+assignability never crosses families — so a `hash/sha512` port cannot feed a string input either.
+
+| Saving fails with `does not say which ports it connects`
+| An edge is missing `sourcePort` or `targetPort`. Both are mandatory on every edge.
 
 | The narration reads out JSON syntax
-| `sourceOutputKey` points at an `llm_result_*` output, which is a JSON document, not prose.
+| A JSON-returning `llm` prompt port is wired into `text`. Both ports are `text/plain`, so validation
+cannot catch it — wire a prose port instead.
 
 | The translation is stored but not visible
 | It is a JSON component — read it from `GET /api/v1/assets/{uuid}/json-comps`, filtered by `variant`.

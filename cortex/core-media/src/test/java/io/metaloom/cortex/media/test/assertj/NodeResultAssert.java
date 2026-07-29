@@ -4,10 +4,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.List;
+
 import org.assertj.core.api.AbstractAssert;
 
-import io.metaloom.cortex.api.node.NodeOutputKey;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 
 public class NodeResultAssert extends AbstractAssert<NodeResultAssert, NodeResult> {
@@ -32,30 +34,65 @@ public class NodeResultAssert extends AbstractAssert<NodeResultAssert, NodeResul
 	}
 
 	/**
-	 * Assert that the result contains an output for the given key.
+	 * Assert that the node emitted something on the given output port.
 	 */
-	public NodeResultAssert hasOutput(NodeOutputKey<?> key) {
-		assertTrue(actual.has(key), "Expected output key '" + key.key() + "' but it was not present. Found: " + actual.getOutputs().keySet());
+	public NodeResultAssert hasOutput(OutputPort<?> port) {
+		assertTrue(actual.has(port),
+			"Expected an emission on port '" + port.id() + "' but there was none. Ports emitted: " + actual.getOutputs().keySet());
 		return this;
 	}
 
 	/**
-	 * Assert that the result contains a specific value for the given typed key.
+	 * Assert that a {@code ONE} output port carries a specific value.
 	 */
-	public <T> NodeResultAssert hasOutput(NodeOutputKey<T> key, T expectedValue) {
-		assertTrue(actual.has(key), "Expected output key '" + key.key() + "' but it was not present. Found: " + actual.getOutputs().keySet());
-		T actualValue = actual.get(key);
-		assertNotNull(actualValue, "Output value for '" + key.key() + "' was null.");
-		assertEquals(expectedValue, actualValue, "Output value for '" + key.key() + "' did not match.");
+	public <T> NodeResultAssert hasOutput(OutputPort<T> port, T expectedValue) {
+		assertTrue(actual.has(port),
+			"Expected an emission on port '" + port.id() + "' but there was none. Ports emitted: " + actual.getOutputs().keySet());
+		T actualValue = actual.get(port);
+		assertNotNull(actualValue, "The value on port '" + port.id() + "' was null.");
+		assertEquals(expectedValue, actualValue, "The value on port '" + port.id() + "' did not match.");
 		return this;
 	}
 
 	/**
-	 * Assert that the result has exactly the given number of outputs.
+	 * Assert that the node emitted nothing on the given output port.
+	 */
+	public NodeResultAssert hasNoOutput(OutputPort<?> port) {
+		assertTrue(!actual.has(port),
+			"Expected nothing on port '" + port.id() + "' but it carried: " + actual.getOutputs().get(port.id()));
+		return this;
+	}
+
+	/**
+	 * Assert the elements of a {@code MANY} output port, in emission order.
+	 *
+	 * <p>
+	 * Order is part of the contract rather than incidental: a consumer zips two fanned-out branches
+	 * by element index, so a producer that emits the same values in a different order is a different
+	 * result.
+	 * </p>
+	 */
+	public <T> NodeResultAssert hasElements(OutputPort<T> port, List<T> expected) {
+		assertEquals(expected, actual.elements(port), "The elements on port '" + port.id() + "' did not match.");
+		return this;
+	}
+
+	/**
+	 * Assert how many elements a {@code MANY} output port carries.
+	 */
+	public NodeResultAssert hasElementCount(OutputPort<?> port, int count) {
+		int actualCount = actual.has(port) ? actual.getOutputs().get(port.id()).size() : 0;
+		assertEquals(count, actualCount,
+			"Expected " + count + " element(s) on port '" + port.id() + "' but found " + actualCount + ".");
+		return this;
+	}
+
+	/**
+	 * Assert that the result has exactly the given number of output ports.
 	 */
 	public NodeResultAssert hasOutputCount(int count) {
 		int actualCount = actual.getOutputs().size();
-		assertEquals(count, actualCount, "Expected " + count + " outputs but found " + actualCount + ": " + actual.getOutputs().keySet());
+		assertEquals(count, actualCount, "Expected " + count + " output ports but found " + actualCount + ": " + actual.getOutputs().keySet());
 		return this;
 	}
 }

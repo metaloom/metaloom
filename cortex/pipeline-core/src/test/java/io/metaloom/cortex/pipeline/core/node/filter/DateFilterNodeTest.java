@@ -14,17 +14,25 @@ import java.time.temporal.ChronoUnit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.InputPort;
 import io.metaloom.cortex.pipeline.api.PipelineResult;
-import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 import io.metaloom.cortex.pipeline.core.node.filter.DateFilterNode.DateField;
 import io.metaloom.cortex.pipeline.test.StubLoomMedia;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 
 class DateFilterNodeTest extends AbstractFilterNodeTest {
 
 	private static final Instant EPOCH_2020 = Instant.parse("2020-01-01T00:00:00Z");
 	private static final Instant EPOCH_2021 = Instant.parse("2021-01-01T00:00:00Z");
 	private static final Instant EPOCH_2022 = Instant.parse("2022-01-01T00:00:00Z");
+
+	/**
+	 * A port this filter does not declare. Used to prove that wiring metadata into the
+	 * node changes nothing — the filter has no input ports at all and reads the
+	 * filesystem itself.
+	 */
+	private static final InputPort<String> IN_EXIF_DATE =
+		InputPort.one("creation_date", ContentTypeRegistry.SCALAR_STRING, String.class);
 
 	@TempDir
 	File tempDir;
@@ -42,7 +50,7 @@ class DateFilterNodeTest extends AbstractFilterNodeTest {
 	}
 
 	private boolean passed(DateFilterNode filter, StubLoomMedia media) {
-		return evaluate(filter, media).<Boolean> getOutput(PipelineNode.FILTER_PASSED);
+		return passed(evaluate(filter, media));
 	}
 
 	@Test
@@ -104,38 +112,38 @@ class DateFilterNodeTest extends AbstractFilterNodeTest {
 		assertThat(passed(filter, absent)).isTrue();
 	}
 
+	/**
+	 * The filter declares no input ports, so nothing an upstream node emits can move
+	 * its verdict — not even a payload that looks exactly like the date it checks.
+	 */
 	@Test
-	void testUpstreamResultsAreIgnored() throws IOException {
+	void testWiredMetadataIsIgnored() throws IOException {
 		DateFilterNode filter = DateFilterNode.builder("date").minDate(EPOCH_2021).build();
 		StubLoomMedia media = mediaModifiedAt("old.bin", EPOCH_2020);
 
-		NodeResult result = evaluate(filter, media,
-				upstream("exif", java.util.Map.of("creation_date", EPOCH_2022.toString())));
-
-		assertThat(result.<Boolean> getOutput(PipelineNode.FILTER_PASSED))
-				.as("the filter reads the filesystem, not upstream metadata")
+		assertThat(passed(evaluate(filter, media, input(IN_EXIF_DATE, EPOCH_2022.toString()))))
+				.as("the filter reads the filesystem, not wired metadata")
 				.isFalse();
 	}
 
+	/**
+	 * {@code MODIFIED} is the default field, so an unconfigured filter must decide
+	 * exactly as an explicitly configured one does. Asserted through the verdict
+	 * because the field name only ever reached the reject-reason log line.
+	 */
 	@Test
-	void testRejectReasonNamesTheDateField() throws IOException {
-		DateFilterNode filter = DateFilterNode.builder("date")
+	void testDefaultDateFieldIsModified() throws IOException {
+		DateFilterNode explicitField = DateFilterNode.builder("date")
 				.minDate(EPOCH_2021)
 				.dateField(DateField.MODIFIED)
 				.build();
-		NodeResult result = evaluate(filter, mediaModifiedAt("old.bin", EPOCH_2020));
+		DateFilterNode defaultField = DateFilterNode.builder("date").minDate(EPOCH_2021).build();
 
-		assertThat(result.<String> getOutput("filter_reason"))
-				.isEqualTo("file date out of range (MODIFIED)");
-	}
+		StubLoomMedia old = mediaModifiedAt("old.bin", EPOCH_2020);
+		StubLoomMedia recent = mediaModifiedAt("recent.bin", EPOCH_2022);
 
-	@Test
-	void testDefaultDateFieldIsModified() throws IOException {
-		DateFilterNode filter = DateFilterNode.builder("date").minDate(EPOCH_2021).build();
-		NodeResult result = evaluate(filter, mediaModifiedAt("old.bin", EPOCH_2020));
-
-		assertThat(result.<String> getOutput("filter_reason"))
-				.isEqualTo("file date out of range (MODIFIED)");
+		assertThat(passed(defaultField, old)).isEqualTo(passed(explicitField, old)).isFalse();
+		assertThat(passed(defaultField, recent)).isEqualTo(passed(explicitField, recent)).isTrue();
 	}
 
 	@Test
@@ -147,7 +155,7 @@ class DateFilterNodeTest extends AbstractFilterNodeTest {
 
 		assertThat(result)
 				.isSuccess()
-				.hasNodeOutput("date", PipelineNode.FILTER_PASSED, true);
+				.hasNodeOutput("date", AbstractFilterNode.OUT_PASSED, true);
 		assertThat(result).node(PASS_NODE).isCompleted();
 		assertThat(result).node(REJECT_NODE).isSkipped();
 	}
@@ -161,7 +169,7 @@ class DateFilterNodeTest extends AbstractFilterNodeTest {
 
 		assertThat(result)
 				.isSuccess()
-				.hasNodeOutput("date", PipelineNode.FILTER_PASSED, false);
+				.hasNodeOutput("date", AbstractFilterNode.OUT_PASSED, false);
 		assertThat(result).node(REJECT_NODE).isCompleted();
 		assertThat(result).node(PASS_NODE).isSkipped();
 	}

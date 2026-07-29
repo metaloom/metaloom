@@ -38,6 +38,21 @@ public interface PipelineNodeTask extends CUDElement<PipelineNodeTask> {
 
 	PipelineNodeTask setState(String state);
 
+	/**
+	 * Which element of a fanned-out sequence this execution covers.
+	 *
+	 * <p>
+	 * A node whose upstream port emits a sequence runs once per element, so {@code (item, node)} no
+	 * longer identifies an execution - {@code (item, node, elementSeq)} does. A node that runs once
+	 * per item keeps 0.
+	 * </p>
+	 *
+	 * @return the element index, 0 when the node runs once per item
+	 */
+	int getElementSeq();
+
+	PipelineNodeTask setElementSeq(int elementSeq);
+
 	/** @return how many times this task has been dispatched */
 	int getAttempt();
 

@@ -68,7 +68,7 @@ public class WhisperNodeTest extends AbstractBasicNodeTest<WhisperNode> {
 	protected void assertProcessed(TestMedia testMedia, LoomMedia media, NodeResult result, WhisperNode nodeMock) {
 		assertThat(media).hasSHA512();
 
-		String json = result.get(WhisperNode.OUTPUT_WHISPER_RESULT);
+		String json = result.get(WhisperNode.OUT_TRANSCRIPT);
 		WhisperResult whisperResult = WhisperResult.fromJson(json);
 		System.out.println("Segments: " + whisperResult.segments().size());
 		for (var segment : whisperResult.segments()) {

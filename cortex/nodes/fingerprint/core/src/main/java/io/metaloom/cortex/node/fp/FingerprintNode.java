@@ -16,13 +16,15 @@ import org.slf4j.LoggerFactory;
 import java.util.UUID;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.node.NodeOutputKey;
+import io.metaloom.cortex.api.node.InputPort;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.fingerprintcomp.FingerprintCompCreateRequest;
 import io.metaloom.video4j.Video4j;
@@ -36,7 +38,16 @@ public class FingerprintNode extends AbstractMediaNode<FingerprintNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(FingerprintNode.class);
 
-	public static final NodeOutputKey<String> OUTPUT_FINGERPRINT = NodeOutputKey.of("fingerprint", String.class);
+	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_VIDEO, LoomMedia.class);
+
+	/**
+	 * Whether the file is whole. Optional and declared rather than looked up: this used to be
+	 * {@code ctx.upstreamOutput("consistency", "is_complete")}, which silently produced nothing
+	 * the moment a pipeline author named the node anything other than {@code consistency}.
+	 */
+	public static final InputPort<Boolean> IN_IS_COMPLETE = InputPort.one("is_complete", ContentTypeRegistry.SCALAR_BOOLEAN, Boolean.class);
+
+	public static final OutputPort<String> OUT_FINGERPRINT = OutputPort.one("fingerprint", ContentTypeRegistry.HASH_FINGERPRINT, String.class);
 
 	/** Identifier of the fingerprint algorithm this node produces; part of the persisted component's natural key. */
 	private static final String ALGORITHM = "metaloom-multisector-v1";
@@ -98,8 +109,8 @@ public class FingerprintNode extends AbstractMediaNode<FingerprintNodeOptions> {
 			return false;
 		}
 
-		// Check consistency from upstream results
-		Boolean isComplete = ctx.upstreamOutput("consistency", "is_complete");
+		// Check consistency from the declared input port
+		Boolean isComplete = ctx.input(IN_IS_COMPLETE);
 		if (isComplete != null && !isComplete && !options().isProcessIncomplete()) {
 			return false;
 		}
@@ -111,13 +122,13 @@ public class FingerprintNode extends AbstractMediaNode<FingerprintNodeOptions> {
 		LoomMedia media = ctx.media();
 		if (asset != null && asset.getFingerprint() != null) {
 			String fp = asset.getFingerprint().getFingerprintV1();
-			ctx.output(OUTPUT_FINGERPRINT, fp);
+			ctx.output(OUT_FINGERPRINT, fp);
 			return ctx.origin(REMOTE).next();
 		} else {
 			try {
 				String hash = computeFingerprint(media);
 				String value = hash != null ? hash : "NULL";
-				ctx.output(OUTPUT_FINGERPRINT, value);
+				ctx.output(OUT_FINGERPRINT, value);
 				fingerprintCache.put(media.absolutePath(), value);
 				if (hash != null) {
 					persist(ctx, asset, hash);
@@ -129,7 +140,7 @@ public class FingerprintNode extends AbstractMediaNode<FingerprintNodeOptions> {
 				if (log.isErrorEnabled()) {
 					log.error("Error while processing media " + media.path(), e);
 				}
-				ctx.output(OUTPUT_FINGERPRINT, "NULL");
+				ctx.output(OUT_FINGERPRINT, "NULL");
 				return ctx.failure(e.getMessage()).next();
 			}
 		}

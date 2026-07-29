@@ -1,27 +1,24 @@
 package io.metaloom.cortex.pipeline.core.node;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.metaloom.cortex.api.node.FilesystemNode;
-import io.metaloom.cortex.api.node.SourceNode;
-import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.api.node.FilesystemNode;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.SourceNode;
 import io.metaloom.cortex.pipeline.api.NodeMode;
 
 /**
  * Adapter that wraps an existing {@link FilesystemNode} as a {@link io.metaloom.cortex.pipeline.api.node.PipelineNode}.
  * This allows the pipeline system to reuse all existing Cortex nodes.
  *
- * <p>The adapter converts upstream {@link NodeResult} outputs into a
- * {@code Map<String, Map<String, Object>>} that the wrapped node can access
- * via {@link NodeContext#upstreamOutputs()}. Since node and pipeline results are
- * now the same {@link NodeResult} type, it simply stamps the wrapped node's result
- * with this adapter's pipeline id and elapsed time via {@link NodeResult#withNode}.</p>
+ * <p>The adapter drives the legacy {@code process(LoomMedia, …)} lifecycle unchanged;
+ * only the upstream view it hands over changed shape, from a map keyed by upstream node
+ * id to the node's own {@link NodeInputs} ports. Since node and pipeline results are the
+ * same {@link NodeResult} type, it simply stamps the wrapped node's result with this
+ * adapter's pipeline id and elapsed time via {@link NodeResult#withNode}.</p>
  */
 public class CortexNodeAdapter extends AbstractPipelineNode {
 
@@ -56,13 +53,10 @@ public class CortexNodeAdapter extends AbstractPipelineNode {
 	}
 
 	@Override
-	public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {
+	public NodeResult process(LoomMedia media, NodeInputs inputs) {
 		long start = System.currentTimeMillis();
 		try {
-			// Convert pipeline NodeResult map → upstream outputs map for the cortex node
-			Map<String, Map<String, Object>> upstreamOutputs = toUpstreamOutputs(upstreamResults);
-
-			NodeResult result = wrappedNode.process(media, upstreamOutputs);
+			NodeResult result = wrappedNode.process(media, inputs == null ? NodeInputs.empty() : inputs);
 			long elapsed = System.currentTimeMillis() - start;
 			if (result == null) {
 				return NodeResult.failed(id(), elapsed, "Node returned null result");
@@ -76,24 +70,6 @@ public class CortexNodeAdapter extends AbstractPipelineNode {
 			log.error("Error executing cortex node {}: {}", id(), e.getMessage(), e);
 			return NodeResult.failed(id(), elapsed, e.getMessage());
 		}
-	}
-
-	/**
-	 * Convert pipeline-level upstream results into a simple map of maps
-	 * that the cortex node can access via NodeContext.upstreamOutputs().
-	 */
-	private Map<String, Map<String, Object>> toUpstreamOutputs(Map<String, NodeResult> upstreamResults) {
-		if (upstreamResults == null || upstreamResults.isEmpty()) {
-			return Map.of();
-		}
-		Map<String, Map<String, Object>> outputs = new HashMap<>();
-		for (Map.Entry<String, NodeResult> entry : upstreamResults.entrySet()) {
-			NodeResult result = entry.getValue();
-			if (result != null && result.getOutput() != null) {
-				outputs.put(entry.getKey(), result.getOutput());
-			}
-		}
-		return outputs;
 	}
 
 	@Override

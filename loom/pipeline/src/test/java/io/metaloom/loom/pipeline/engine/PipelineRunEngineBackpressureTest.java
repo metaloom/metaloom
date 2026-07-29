@@ -37,7 +37,7 @@ public class PipelineRunEngineBackpressureTest {
 			.put("nodes", new JsonArray()
 				.add(new JsonObject().put("id", "src").put("type", "filesystem-source").put("source", true))
 				.add(new JsonObject().put("id", "hash").put("type", "sha512")))
-			.put("edges", new JsonArray().add(new JsonObject().put("source", "src").put("target", "hash")));
+			.put("edges", new JsonArray().add(new JsonObject().put("source", "src").put("sourcePort", "media").put("target", "hash").put("targetPort", "media")));
 		return parser.parse("backpressure", definition, true, false, 0);
 	}
 

@@ -7,15 +7,15 @@ media item, it *enumerates* media from disk (a directory tree walked recursively
 globs) and feeds each file into the graph.
 
 ++++
-<div class="ml-nodeviz" data-nodeviz='{"kind":"filesystem-source","applies":"Source node","badge":"needs the media mount","persist":"nothing \u2014 it feeds the graph","configs":[{"name":"directory walk","note":"option: path","inputs":[{"t":"path","l":"root directory","d":"walked recursively"}],"outputs":[{"t":"path","l":"path","d":"one item per discovered file"},{"t":"flag","l":"source","d":"filesystem"}]},{"name":"path globs","note":"option: pathGlobs takes precedence over path","inputs":[{"t":"path","l":"glob set","d":"e.g. /media/**/*.mp4"}],"outputs":[{"t":"path","l":"path","d":"one item per matched file"},{"t":"flag","l":"source","d":"filesystem"}]}]}'></div>
+<div class="ml-nodeviz" data-nodeviz='{"kind":"filesystem-source","applies":"Source node","badge":"needs the media mount","persist":"nothing \u2014 it feeds the graph","configs":[{"name":"directory walk","note":"option: path","inputs":[{"t":"path","l":"root directory","d":"walked recursively; a setting, not a connection"}],"outputs":[{"t":"media","l":"media","d":"one media item per discovered file, carrying its path — the concrete type is unknown until a worker opens it"}]},{"name":"path globs","note":"option: pathGlobs takes precedence over path","inputs":[{"t":"path","l":"glob set","d":"e.g. /media/**/*.mp4; a setting, not a connection"}],"outputs":[{"t":"media","l":"media","d":"one media item per matched file"}]}]}'></div>
 ++++
 
 [cols="1,3"]
 |===
 | Kind | `filesystem-source`
 | Applies to | — (source node; produces the media stream)
-| Inputs | None — it is the root of the DAG
-| Output keys | `path`, `source` (= `filesystem`) for the item currently flowing through the graph
+| Input ports | None — it is the root of the DAG
+| Output ports | `media` — one media item per discovered file, carrying its path and origin. It is typed as *any media*, because the concrete type is only known once a worker opens the file
 | Requirements | CPU only, but the worker **must be able to read the media path** — the shared media mount has to be visible to the process.
 | Persists to | n/a (source)
 |===

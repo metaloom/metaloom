@@ -45,7 +45,7 @@ CortexNode<I, T>                          (interface: name(), options(), initial
 - `CortexNode<I, T extends CortexNodeOptions>` - top-level interface. `I` is
   the input type, `T` is the options type.
 - `FilesystemNode<I, T>` extends `SourceNode<I, T>` - adds `process(NodeContext<I>)`
-  and `process(LoomMedia, upstreamOutputs)`.
+  and `process(LoomMedia, NodeInputs)`.
 - `SourceNode<I, T>` - marker interface for nodes that yield media items
   (source nodes in the pipeline).
 - `PipelineNode` - pipeline-level interface with DAG connectivity, concurrency,
@@ -66,45 +66,72 @@ fixed lifecycle:
    the Loom backend by SHA-512. This allows nodes to short-circuit if the
    result already exists remotely.
 5. **compute**: Call `compute(ctx, asset)` (abstract). The node does its
-   work and stores outputs via `ctx.output(key, value)`.
+   work and writes outputs via `ctx.output(PORT, value)` / `ctx.outputElement(PORT, value)`.
 6. **result**: The `NodeResult` carries state (SUCCESS/SKIPPED/FAILED),
-   outputs map, and origin (COMPUTED/LOCAL/REMOTE).
+   port-keyed outputs, and origin (COMPUTED/LOCAL/REMOTE).
 
 ### NodeContext
 
-`NodeContext<I>` is the per-invocation context:
+`NodeContext<I>` is the per-invocation context. **Data is addressed by port, never by node id:**
 
-- `input()` - the typed input
-- `media()` - the `LoomMedia` file handle
+- `input()` - the typed input; `media()` - the `LoomMedia` file handle
 - `duration()` - elapsed time since context creation
-- `output(key, value)` / `output(NodeOutputKey, value)` - accumulate outputs
-- `outputs()` - get all accumulated outputs as a map
-- `upstreamOutputs()` - outputs from upstream dependency nodes (keyed by
-  node id), available when running in a pipeline
-- `upstreamOutput(nodeId, key)` - convenience accessor for a specific
-  upstream output
-- `skipped(reason)` / `failure(cause)` / `origin(ResultOrigin)` - state setters
-- `next()` / `abort()` - produce `NodeResult` (continue or abort)
+- `<T> T input(InputPort<T> port)` - the single value on a `ONE` input; null only when the port is
+  optional and unwired
+- `<T> Optional<T> optionalInput(InputPort<T> port)`
+- `<T> List<Element<T>> inputs(InputPort<T> port)` - the elements of a `MANY` input, seq-ordered.
+  `Element<T>` = `(Origin origin, T value)` with `origin.seq`
+- `Origin origin()` - **this execution's** origin `{itemId, seq, total}`
+- `boolean isWired(InputPort<?> port)` - which XOR alternative the author actually connected
+- `boolean isDemanded(OutputPort<?> port)` - whether anything downstream asked for this output, so
+  an expensive branch can be skipped
+- `<T> NodeContext<I> output(OutputPort<T> port, T value)` - a `ONE` output
+- `<T> NodeContext<I> outputElement(OutputPort<T> port, T value)` - append to a `MANY` output; the
+  engine stamps `origin{itemId, seq, total}`
+- `Map<String, PortOutput> outputs()` - the accumulated outputs, keyed by port id
+- `skipped(reason)` / `failure(cause)` / `origin(ResultOrigin)` - state setters.
+  ⚠️ `origin(ResultOrigin)` is the **setter**; the provenance getter is `resultOrigin()`, because
+  `origin()` now returns the wire `Origin`
+- `next()` / `abort()` - produce `NodeResult`. **Both preserve the outputs** — a skip no longer
+  discards them
 - `print(result, msg)` / `info(msg)` - progress logging
+
+`upstreamOutputs()` and `upstreamOutput(nodeId, key)` are **deleted**. They were keyed by a name the
+pipeline author chose, so renaming a node in the editor silently returned `null`.
 
 ### NodeResult (Cortex-level)
 
 - `ResultState`: `SUCCESS`, `SKIPPED`, `FAILED`
 - `ResultOrigin`: `COMPUTED` (locally computed), `LOCAL` (from xattr/sidecar
   cache), `REMOTE` (fetched from Loom backend)
-- `getOutputs()` - map of output key -> value
-- `get(NodeOutputKey)` / `getOutput(String)` - typed accessors
+- `getOutputs()` - `Map<String, PortOutput>` keyed by output port id
+- `<T> T get(OutputPort<T>)`, `<T> List<T> elements(OutputPort<T>)`, `has(OutputPort<?>)` - typed
+  accessors
+- `withNode(nodeId, durationMs)` - re-stamp for the pipeline adapter
 
-### NodeOutputKey
+### `InputPort` / `OutputPort`
 
-Type-safe output key: `NodeOutputKey.of("sha512", String.class)`. Each node
-declares its output keys as `public static final` constants. The string key
-is also used for xattr/sidecar persistence.
+`NodeOutputKey` is **deleted**. A node declares typed ports as `public static final` constants:
 
-> ⚠️ The `<T>` is **advisory only** — `NodeContextImpl` discards `valueType()` and every read is an
-> unchecked cast. For the complete per-node input/output type reference, the connector
-> (`contentType`) model, and the hop-by-hop account of where typing is lost, see
+```java
+public static final InputPort<LoomMedia> IN_MEDIA =
+    InputPort.one("media", ContentTypeRegistry.MEDIA_ANY, LoomMedia.class);
+public static final OutputPort<String> OUT_HASH =
+    OutputPort.one("hash", ContentTypeRegistry.HASH_MD5, String.class);
+```
+
+Both are records `(String id, String contentType, Cardinality cardinality, Class<T> valueType)` with
+`one(...)` / `many(...)` factories. The port id must equal the id in the node's `NodeDescriptor`, the
+content type must be a registered `family/subtype` id, and the `valueType` **is enforced**:
+`NodeContextImpl.read` runs `ValueCoercer.coerce(...)` and then `port.valueType().cast(...)`.
+
+> The content-type vocabulary, the assignability lattice, cardinality, port groups, dynamic ports and
+> the complete per-kind port table are in
 > [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md).
+>
+> ⚠️ **The per-node sweep is unfinished.** Most classes under `cortex/nodes/` still declare
+> `NodeOutputKey` constants and call `ctx.upstreamOutput(...)`, neither of which exists any more.
+> Status table: [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) §11.
 
 ---
 
@@ -228,9 +255,14 @@ Nodes persist results back to the Loom REST API. Two mechanisms coexist:
 
 ## 3. List of Nodes
 
-> The **Output Keys** column below is a summary. For the authoritative per-key reference — Java type,
-> declared connector `contentType`, and the descriptor-vs-runtime gaps — see
-> [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) §5 and §6.
+> ⚠️ The **Output Keys** column below records the **legacy `NodeOutputKey` string keys** the node
+> bodies still emit. It is *not* the port contract. The authoritative per-kind reference — input and
+> output **port ids**, content types, cardinality and groups — is
+> [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) §4, regenerated from the
+> descriptor providers. The two disagree until the Cortex sweep lands (e.g. all four hash kinds now
+> declare an output port `hash`, typed `hash/md5` … `hash/chunk`, while the node bodies still write
+> `md5`/`sha256`/`sha512`/`chunk_hash`). Where they disagree, the descriptor is the target and the
+> node body is the debt.
 
 ### Processing Nodes (AbstractMediaNode subclasses)
 
@@ -502,6 +534,29 @@ Every node has its own options class extending `AbstractNodeOptions<T>`:
 | Consistency | `ConsistencyNodeOptions` | (no custom fields) |
 | Loom | `LoomNodeOptions` | (no custom fields) |
 
+#### 🔴 Node-id string options are being deleted
+
+Six option families existed only to name an upstream node and one of its output keys. **Every one is
+replaced by a declared input port and an edge.** Never add another.
+
+| Option | Node(s) | Replacement port | State |
+|---|---|---|---|
+| `textSources` (ordered `nodeId:outputKey` list) | `sentiment` | `text : text/* ONE` | **deleted** |
+| `sourceNodeId` + `sourceOutputKey` (default `llm` / `llm_result`) | `tts` | `text : text/* ONE` | **deleted** |
+| `detectionSources` (default `["facedetect"]`) | `scene-layout`, `dominant-color` | `detections : detection/* MANY` (optional on `dominant-color`) | **deleted** |
+| `depthNodeId` (default `"depthmap"`) | `scene-layout` | `depth : struct/depthmap ONE` | **deleted** |
+| `requiredInputs` (`nodeId:outputKey` presence gate) | `script` | `media : media/* ONE` *(opt)*, `data : struct/json ONE` *(opt)* — an unwired optional port is the gate | ⚠️ still live |
+| `artifacts` (`nodeId:outputKey` list) | `s3-sink` | `artifacts : artifact/* MANY` | ⚠️ still live |
+
+No descriptor advertises any of them as a `NodeParameter` any more. The two survivors are in the two
+nodes whose bodies are not yet ported; delete the option field, its accessors, its validation, its
+`nodeDef` parsing and its tests together with the port sweep.
+
+The defaults were part of the problem, not just the indirection: `sentiment`'s `llm:llm_result` and
+`vlm:vlm_result` could never match, because those nodes emit `llm_result_<promptId>`. Deriving the
+ports from the same `prompts` option the node reads (`LlmPortResolver` / `VlmPortResolver`) closes
+that class of mismatch for good.
+
 ### 5.1 Per-instance configuration (`PipelineConfigurable`)
 
 Every node above reads its options from `CortexOptions.getNodes().get(name())` — **per worker**.
@@ -583,11 +638,14 @@ Pipeline nodes carry configuration via:
 The `CortexNodeAdapter` bridges Cortex-level nodes into the pipeline DAG:
 
 - Wraps a `FilesystemNode<?, ?>` as a `PipelineNode`.
-- Converts pipeline `NodeResult` maps to/from Cortex-level
-  `NodeContext.upstreamOutputs()`.
-- The adapter's `process(LoomMedia, Map<String, NodeResult>)` delegates to
-  the wrapped node's `process(LoomMedia, upstreamOutputs)`.
+- `process(LoomMedia, NodeInputs)` delegates straight to the wrapped node with the **same**
+  `NodeInputs` — the node's own ports, not a node-id-keyed map. No conversion happens any more.
+- Node and pipeline results are the same `NodeResult` type; the adapter only re-stamps its pipeline
+  id and measured elapsed via `NodeResult.withNode(id, elapsed)`.
 - `isSource()` returns true if the wrapped node is a `SourceNode`.
+- ⚠️ The `String id` override constructors still exist, but the contract they served — *"a downstream
+  node expects a specific upstream node id"* — is obsolete under the port model. See
+  [../pipeline/PIPELINE.md](../pipeline/PIPELINE.md) §7.3.
 
 ### DAG Execution
 
@@ -726,14 +784,26 @@ Loom control channel starts.
 ### NodeDescriptorRegistry
 
 `NodeDescriptorProvider` (SPI via `ServiceLoader`) provides
-`NodeDescriptor` objects for the UI. Each descriptor includes:
+`NodeDescriptor` objects. **25 providers declare 39 kinds.** Each descriptor includes:
 - `kind` - unique machine-readable id
 - `name` - display name
 - `category` - palette grouping
-- `inputs` / `outputs` - connectors
+- `inputPorts` / `outputPorts` - typed `PortSpec`s (`id`, `contentType`, `cardinality`,
+  `required`, `group`, `description`)
+- `inputGroups` / `outputGroups` - `PortGroup`s (`XOR` alternatives, `EXCLUSIVE` outputs)
+- `dynamicPorts` - the ports come from a `NodePortResolver` applied to the node's options
 - `parameters` - configurable form fields
 - `defaultConcurrency`, `defaultMode`, `defaultBlocking`
 - `events` - UI visualization events
+
+🔴 **The descriptor is now the contract, not decoration.** `PortGraphAnalyzer` validates every edge
+against it at save time and at run start, so a wrong port id or content type in a descriptor breaks
+real pipelines. A second SPI, `NodePortResolver`, supplies the ports for `script`, `llm` and `vlm`;
+`NodeDescriptorRegistry.resolvePorts(kind, options)` is what validation always works against.
+
+⚠️ **A descriptor's port ids must equal the node's `InputPort`/`OutputPort` constants.** Nothing
+checks this yet — a cross-tree conformance test is the single highest-value missing test. See
+[../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) §3 and §16.
 
 ---
 
@@ -745,20 +815,43 @@ When `LoomClient` is null (no Loom backend configured), nodes run in
 "offline mode". `AbstractMediaNode.fetchAsset()` returns null, and nodes
 compute everything locally without checking for remote results.
 
-### Upstream Output Access
+### Upstream Data Access — Port Binding
 
-Nodes can read outputs from upstream dependency nodes via:
-- `ctx.upstreamOutput(nodeId, key)` - convenience accessor
-- `ctx.upstreamOutputs()` - full map of upstream node id -> output map
+A node reads upstream data through **its own declared input ports**. It never names another node.
 
-Example: `FacedescriptionNode` reads `ctx.upstreamOutput("facedetect", "face_count")`
-to skip face description when no faces were detected. `ThumbnailNode` reads
-`ctx.upstreamOutput("consistency", "is_complete")` to skip incomplete videos.
+```java
+public static final InputPort<String> IN_DETECTIONS =
+    InputPort.many("detections", ContentTypeRegistry.DETECTION_FACE, String.class);
 
-> There is **no input type system** — no `NodeInputKey`, no declared binding. The lookup is keyed by
-> pipeline **node id** (not kind), `<T>` is erased, and a rename makes it silently return `null`.
-> Every `(nodeId, outputKey)` pair actually read at runtime, and which are hard-coded vs. configurable,
-> is tabulated in [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) §6.2.
+for (Element<String> face : ctx.inputs(IN_DETECTIONS)) {
+    // face.origin().seq() tells you which element of the fan-out this is
+}
+```
+
+The pipeline author draws an **edge** from some upstream node's output port to this input port, and
+the engine resolves the binding (`InputBinding{targetPortId, sourceNodeId, sourcePortId, branch,
+targetIsMany}`) and fills `NodeTask.inputs` keyed by **the receiving node's own port ids**.
+
+Consequences for node authors:
+
+- **Never hard-code an upstream node id, and never add a `"nodeId:outputKey"` option.** Node ids are
+  author-chosen; that was the root cause of the whole defect class this refactor removes.
+- **Declare cardinality honestly.** A `ONE` input fed by a `MANY` output makes your node run **once
+  per element** — that is how per-face or per-paragraph work is expressed. A `MANY` input **gathers**
+  the whole branch and runs once. Neither needs configuration.
+- **`ctx.isWired(PORT)`** tells you which alternative of an XOR group the author connected (e.g.
+  `whisper`'s `audio` vs `video`).
+- **`ctx.isDemanded(PORT)`** tells you whether anything downstream asked for an output, so an
+  expensive branch can be skipped. Emitting an undemanded port is still legal.
+
+> The binding model, the fan-out/gather semantics and the element envelope are specified in
+> [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) §6-§8.
+>
+> ⚠️ **Not yet swept** (verified 2026-07-29): `FacedescriptionNode`, `FingerprintNode`,
+> `ThumbnailNode`, `ScriptNode` and `S3SinkNode` still call `ctx.upstreamOutput(...)` — a method that
+> no longer exists. Their descriptors already declare the replacement ports; the option-to-port
+> mapping is in §5, *"Node-id string options are being deleted"*. Re-derive with
+> `grep -rln "upstreamOutput" --include=*.java cortex/ | grep -v target`.
 
 ### ResultOrigin
 
@@ -813,8 +906,34 @@ fixes, or further development.
       deleted. The unified type carries the superset: `state`, an optional
       `nodeId` (null outside a DAG, stamped by the adapter via
       `NodeResult.withNode(id, durationMs)`), `durationMs`, an optional `message`
-      (skip reason / failure cause), the output map, and the typed
-      `NodeOutputKey` accessors.
+      (skip reason / failure cause), the port-keyed output map
+      (`Map<String, PortOutput>`) and the typed `OutputPort` accessors.
+
+- [x] **Typed ports replace `NodeOutputKey` and `upstreamOutput`**: `InputPort<T>` /
+      `OutputPort<T>` / `Element<T>` / `NodeInputs` exist in `cortex/api`; `NodeContext` gained
+      `input`/`inputs`/`origin`/`isWired`/`isDemanded`/`output`/`outputElement`; `NodeOutputKey` and
+      `upstreamOutput(nodeId, key)` are deleted. `NodeContextImpl` coerces on both boundaries and
+      enforces `port.valueType()`, and outputs now survive a SKIPPED or FAILED result.
+
+- [x] **Most nodes are ported**, including `LoomNode`, which now reads `ctx.input(IN_MD5)` against a
+      `hash/md5` port — the `("md5sum","md5")` trap is gone — and `sentiment`, `tts`, `scene-layout`
+      and `dominant-color`, whose node-id options are deleted outright.
+
+- [ ] 🔴 **`cortex/pipeline-common` blocks the build**: `XAttrNodeCache` and `SidecarFileNodeCache`
+      still hand a `Map<String,Object>` to `NodeResult` and call a `getOutput()` that no longer
+      exists. The Cortex tree does not compile until they are converted.
+
+- [ ] **Five nodes left in the sweep**: `FacedescriptionNode`, `FingerprintNode`, `ThumbnailNode`,
+      `ScriptNode`, `S3SinkNode` — and with them the last two node-id options,
+      `ScriptNodeOptions.requiredInputs` and `S3SinkNodeOptions.artifacts` (see §5).
+
+- [ ] **Test helpers and examples still speak the old API**: the two assertj helpers,
+      `CortexNodeAdapterTest`, `LLMNodePipelineTest`, `examples/cortex-custom-node`, and two
+      `integration-test` classes.
+
+- [ ] **No cross-tree port conformance test**: nothing asserts a descriptor's port ids, content types
+      and cardinalities match the node's runtime port constants. This is the cheapest fix for the
+      whole `llm_result` / `md5sum` defect class.
 
 - [x] **Node/pipeline state enums unified**: the pipeline
       `io.metaloom.cortex.pipeline.api.NodeState` (whose `PENDING`/`RUNNING` were
@@ -968,6 +1087,26 @@ fixes, or further development.
       no way to signal backpressure to the executor.
 
 ### Testing
+
+- [ ] 🔴 **`AbstractBasicNodeTest.assertProcessed` contradicts the cache-hit path.** It runs a node
+      twice on the same instance and asserts the second run `isSkipped()`, but every node backed by a
+      `LocalResultCache` re-emits its cached value and returns `ctx.origin(LOCAL).next()` — i.e.
+      **SUCCESS**. That is **33 failing tests** across `hash` (×4), `fingerprint`, `scene-detection`
+      and `whisper`, all reporting `expected: <SKIPPED> but was: <SUCCESS>`.
+
+      **This predates the typed-port refactor** and is verifiable without reverting anything: at
+      `HEAD` the base class already asserted `isSkipped()` (strictly, via `NodeResultAssert`) while
+      `SHA512Node`'s cache branch already returned `next()`. `git diff HEAD` shows the port work
+      touched neither. The likely origin is the removal of the `MetaStorage` skip path, which is what
+      used to make a re-run genuinely SKIPPED.
+
+      Two ways out, and it is a **behavioural decision, not a test fix**: either a cache hit is a
+      skip (change the nodes' cache branch to `ctx.skipped("cached").next()`, which changes what
+      every downstream consumer sees, since a SKIPPED node's outputs are the ones the engine treats
+      as absent) — or a cache hit is a success and the base class should assert
+      `ResultOrigin.LOCAL` on the second run instead of a skip. The second reading matches what
+      `ResultOrigin` exists for. Do not simply relax the assertion.
+
 
 - [ ] **No integration tests for the reactive executor**: The
       `ReactivePipelineExecutor` has unit tests but no integration tests
@@ -1238,8 +1377,18 @@ Compact per-node status. Verified against the code and test tree.
 
 ---
 
-_Git HEAD revision: `5ac79b6d`_
-_Last updated: 2026-07-28 (added the `dominant-color` node — deterministic k-means in CIELAB over
+_Git HEAD revision: `3ba0a6ff`_
+_Last updated: 2026-07-29 (typed-port refactor. §1: `NodeOutputKey` replaced by `InputPort`/
+`OutputPort`/`Element`/`NodeInputs`, the new `NodeContext` surface (`input`/`inputs`/`origin`/
+`isWired`/`isDemanded`/`output`/`outputElement`), `upstreamOutput` deleted, outputs preserved on
+skip/abort, `NodeResult` port-keyed. §3: the Output-Keys column is flagged as the legacy string keys,
+with the port contract owned by [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) §4.
+§5: a new table mapping each node-id string option (`textSources`, `sourceNodeId`/`sourceOutputKey`,
+`detectionSources`, `depthNodeId`, `requiredInputs`, `artifacts`) to the port that replaces it, and
+recording that they are all still live. §6/§8: the adapter hands over `NodeInputs`, and the descriptor
+is now an enforced contract carrying ports, groups and `dynamicPorts` across 25 providers / 39 kinds.
+§9 "Upstream Output Access" became "Upstream Data Access — Port Binding". §10 records what is done and
+what the sweep still owes. Previously: added the `dominant-color` node — deterministic k-means in CIELAB over
 stride-sampled pixels, reporting HEX/RGB/HSL/CIELAB+LCh plus a bilingual EN/DE name built from the 11
 Berlin & Kay basic colour terms (nearest prototype by CIEDE2000) and an LCh-derived modifier. Measures
 the whole frame, an optional configured region and every upstream `detections` box in one pass;

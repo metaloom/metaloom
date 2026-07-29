@@ -50,8 +50,15 @@ public class PipelineRunCapabilityTest {
 		return node;
 	}
 
+	/**
+	 * Edges are port-to-port: the parser rejects one that does not name both ports rather than
+	 * guessing positionally. The kinds here differ per test, so the port ids are only as specific
+	 * as they need to be - what this test is about is which node <em>kinds</em> a worker can run.
+	 */
 	private static JsonObject edge(String id, String from, String to) {
-		return new JsonObject().put("id", id).put("source", from).put("target", to);
+		return new JsonObject().put("id", id)
+			.put("source", from).put("sourcePort", "media")
+			.put("target", to).put("targetPort", "media");
 	}
 
 	/** filesystem-source -> (one downstream node of the given kind). */

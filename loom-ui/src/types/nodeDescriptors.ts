@@ -23,15 +23,39 @@ export type ParameterType =
   /** @deprecated use ENUM_SET */
   | "STRING_LIST";
 
-export interface NodeInput {
-  name: string;
+/** Whether a port carries exactly one element or a sequence of them. Mirrors Java `Cardinality`. */
+export type Cardinality = "ONE" | "MANY";
+
+/** How the members of a {@link PortGroup} relate. Mirrors Java `PortGroupMode`. */
+export type PortGroupMode = "XOR" | "EXCLUSIVE";
+
+/**
+ * A typed connector on a node — one input or one output. Mirrors Java `PortSpec`.
+ *
+ * The `id` is the stable identity: edges reference it as `sourcePort`/`targetPort` and the editor
+ * uses it verbatim as the React Flow handle id, so reordering a node's ports never re-points an
+ * existing edge.
+ */
+export interface PortSpec {
+  id: string;
+  label?: string;
   contentType: string;
-  required?: boolean;
+  cardinality: Cardinality;
+  required: boolean;
+  /** Id of the {@link PortGroup} this port belongs to, if any. The group then owns `required`. */
+  group?: string;
+  description?: string;
 }
 
-export interface NodeOutput {
-  name: string;
-  contentType: string;
+/**
+ * A set of ports that are alternatives (`XOR`, inputs) or mutually exclusive (`EXCLUSIVE`,
+ * outputs). Mirrors Java `PortGroup`.
+ */
+export interface PortGroup {
+  id: string;
+  mode: PortGroupMode;
+  required: boolean;
+  label?: string;
 }
 
 export interface NodeParameter {
@@ -56,8 +80,16 @@ export interface NodeDescriptor {
   description: string;
   icon: string;
   category: NodeCategory;
-  inputs: NodeInput[];
-  outputs: NodeOutput[];
+  inputPorts: PortSpec[];
+  outputPorts: PortSpec[];
+  inputGroups: PortGroup[];
+  outputGroups: PortGroup[];
+  /**
+   * Whether this kind's ports depend on its configuration. `script`, `llm` and `vlm` set it; the
+   * editor then derives the handles through the resolver mirrors in
+   * `features/pipeline/portResolvers.ts` instead of using `outputPorts`.
+   */
+  dynamicPorts: boolean;
   parameters: NodeParameter[];
   defaultConcurrency: number;
   defaultMode: NodeMode;
@@ -65,10 +97,21 @@ export interface NodeDescriptor {
   events: string[];
 }
 
+/**
+ * One entry of the served content-type vocabulary. Ids are always `family/subtype`.
+ *
+ * This is the UI's **only** source of labels and descriptions — the vocabulary is never hardcoded
+ * in TypeScript. Only the assignability rule and the per-family colours live locally, in
+ * `features/pipeline/contentTypes.ts`.
+ */
 export interface ContentType {
   id: string;
   label: string;
-  superType: string | null;
+  /** The family part of the id — the editor's colour key (e.g. `media`, `detection`). */
+  family: string;
+  description?: string;
+  /** Whether this is the family wildcard, e.g. `media/*`. */
+  wildcard: boolean;
 }
 
 export interface NodeDescriptorsResponse {

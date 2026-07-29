@@ -65,12 +65,12 @@ class DominantColorNodePipelineTest extends AbstractNodeChainTest {
 			doReturn(true).when(node).isProcessable(any());
 			doAnswer(invocation -> {
 				NodeContext<LoomMedia> ctx = invocation.getArgument(0);
-				ctx.output(DominantColorNode.OUTPUT_DOMINANT_COLOR_RESULT, FAKE_RESULT);
-				ctx.output(DominantColorNode.OUTPUT_DOMINANT_COLOR_HEX, FAKE_HEX);
-				ctx.output(DominantColorNode.OUTPUT_DOMINANT_COLOR_TERM, "blue");
-				ctx.output(DominantColorNode.OUTPUT_DOMINANT_COLOR_NAME_EN, "muted blue");
-				ctx.output(DominantColorNode.OUTPUT_DOMINANT_COLOR_NAME_DE, "gedämpftes Blau");
-				ctx.output(DominantColorNode.OUTPUT_DOMINANT_COLOR_REGIONS, 1);
+				ctx.output(DominantColorNode.OUT_RESULT, FAKE_RESULT);
+				ctx.output(DominantColorNode.OUT_HEX, FAKE_HEX);
+				ctx.output(DominantColorNode.OUT_TERM, "blue");
+				ctx.output(DominantColorNode.OUT_NAME_EN, "muted blue");
+				ctx.output(DominantColorNode.OUT_NAME_DE, "gedämpftes Blau");
+				ctx.output(DominantColorNode.OUT_REGION_COUNT, 1L);
 				return ctx.origin(ResultOrigin.COMPUTED).next();
 			}).when(node).compute(any(), any());
 		}
@@ -85,10 +85,10 @@ class DominantColorNodePipelineTest extends AbstractNodeChainTest {
 		assertThat(result)
 			.isSuccess()
 			.hasCompletedNode("dominant-color")
-			.hasNodeOutput("dominant-color", "dominant_color_result", FAKE_RESULT)
-			.hasNodeOutput("dominant-color", "dominant_color_hex", FAKE_HEX)
-			.hasNodeOutput("dominant-color", "dominant_color_term", "blue")
-			.hasNodeOutput("dominant-color", "dominant_color_region_count", 1);
+			.hasNodeOutput("dominant-color", DominantColorNode.OUT_RESULT, FAKE_RESULT)
+			.hasNodeOutput("dominant-color", DominantColorNode.OUT_HEX, FAKE_HEX)
+			.hasNodeOutput("dominant-color", DominantColorNode.OUT_TERM, "blue")
+			.hasNodeOutput("dominant-color", DominantColorNode.OUT_REGION_COUNT, 1L);
 	}
 
 	/**
@@ -99,7 +99,7 @@ class DominantColorNodePipelineTest extends AbstractNodeChainTest {
 	void testTheGermanNameSurvivesThePipeline() throws Exception {
 		PipelineResult result = execute(media, createAdapter());
 
-		assertThat(result).hasNodeOutput("dominant-color", "dominant_color_name_de", "gedämpftes Blau");
+		assertThat(result).hasNodeOutput("dominant-color", DominantColorNode.OUT_NAME_DE, "gedämpftes Blau");
 	}
 
 	@Test
@@ -122,7 +122,7 @@ class DominantColorNodePipelineTest extends AbstractNodeChainTest {
 	void testResultReachesADownstreamConsumer() throws Exception {
 		// The hex is meant to feed a filter node or a search indexer, so it has to survive the
 		// pipeline's output map as a plain string.
-		CapturingNode consumer = new CapturingNode("consumer", "dominant-color", "dominant_color_hex");
+		CapturingNode consumer = new CapturingNode("consumer", DominantColorNode.OUT_HEX);
 
 		PipelineResult result = execute(media, createAdapter(), consumer);
 

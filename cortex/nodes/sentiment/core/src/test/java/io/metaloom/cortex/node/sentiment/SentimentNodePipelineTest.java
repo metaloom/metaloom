@@ -65,9 +65,9 @@ class SentimentNodePipelineTest extends AbstractNodeChainTest {
 			doReturn(true).when(node).isProcessable(any());
 			doAnswer(invocation -> {
 				NodeContext<LoomMedia> ctx = invocation.getArgument(0);
-				ctx.output(SentimentNode.OUTPUT_SENTIMENT_LABEL, FAKE_LABEL);
-				ctx.output(SentimentNode.OUTPUT_SENTIMENT_SCORE, 0.87d);
-				ctx.output(SentimentNode.OUTPUT_SENTIMENT_RESULT, "{\"label\":\"" + FAKE_LABEL + "\"}");
+				ctx.output(SentimentNode.OUT_LABEL, FAKE_LABEL);
+				ctx.output(SentimentNode.OUT_SCORE, 0.87d);
+				ctx.output(SentimentNode.OUT_RESULT, "{\"label\":\"" + FAKE_LABEL + "\"}");
 				return ctx.origin(ResultOrigin.COMPUTED).next();
 			}).when(node).compute(any(), any());
 		}
@@ -84,7 +84,7 @@ class SentimentNodePipelineTest extends AbstractNodeChainTest {
 		assertThat(result)
 			.isSuccess()
 			.hasCompletedNode("sentiment")
-			.hasNodeOutput("sentiment", "sentiment_label", FAKE_LABEL);
+			.hasNodeOutput("sentiment", SentimentNode.OUT_LABEL, FAKE_LABEL);
 	}
 
 	@Test
@@ -110,7 +110,7 @@ class SentimentNodePipelineTest extends AbstractNodeChainTest {
 	@Test
 	void testOutputChaining() throws Exception {
 		CortexNodeAdapter sentimentAdapter = createAdapter();
-		CapturingNode consumer = new CapturingNode("consumer", "sentiment", "sentiment_label");
+		CapturingNode consumer = new CapturingNode("consumer", SentimentNode.OUT_LABEL);
 
 		PipelineResult result = execute(media, sentimentAdapter, consumer);
 

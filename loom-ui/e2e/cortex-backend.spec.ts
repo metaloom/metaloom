@@ -41,7 +41,8 @@ function descriptorsBody() {
   return {
     nodeDescriptors: NODE_KINDS.map(kind => ({
       kind, name: kind, description: "", icon: "", category: "ANALYSIS",
-      inputs: [], outputs: [], parameters: [], defaultConcurrency: 1,
+      inputPorts: [], outputPorts: [], inputGroups: [], outputGroups: [], dynamicPorts: false,
+      parameters: [], defaultConcurrency: 1,
       defaultMode: "PARALLEL", defaultBlocking: false, events: [],
     })),
     contentTypes: [],

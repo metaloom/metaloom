@@ -2,9 +2,11 @@ package io.metaloom.loom.pipeline.graph;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import io.metaloom.loom.pipeline.model.FilterBranch;
 
@@ -32,10 +34,22 @@ public class PipelineGraphNode {
 	private final Map<String, Object> options;
 	private final List<String> dependencies;
 	private final Map<String, FilterBranch> conditionalDependencies;
+	private List<InputBinding> inputBindings;
+	private final Set<String> demandedOutputs;
+	private ExecutionMode executionMode = ExecutionMode.SINGLE;
+	private String fanOutDriver;
 
 	PipelineGraphNode(String id, String kind, String name, boolean source, boolean blocking, boolean syncToLoom,
 		String affinity, Map<String, Object> options, List<String> dependencies,
 		Map<String, FilterBranch> conditionalDependencies) {
+		this(id, kind, name, source, blocking, syncToLoom, affinity, options, dependencies, conditionalDependencies,
+			List.of(), Set.of());
+	}
+
+	PipelineGraphNode(String id, String kind, String name, boolean source, boolean blocking, boolean syncToLoom,
+		String affinity, Map<String, Object> options, List<String> dependencies,
+		Map<String, FilterBranch> conditionalDependencies, List<InputBinding> inputBindings,
+		Set<String> demandedOutputs) {
 		this.id = Objects.requireNonNull(id, "A node id must be set");
 		this.kind = Objects.requireNonNull(kind, "A node kind must be set");
 		this.name = name == null ? id : name;
@@ -48,6 +62,10 @@ public class PipelineGraphNode {
 		this.conditionalDependencies = conditionalDependencies == null
 			? Map.of()
 			: Collections.unmodifiableMap(new LinkedHashMap<>(conditionalDependencies));
+		this.inputBindings = inputBindings == null ? List.of() : List.copyOf(inputBindings);
+		this.demandedOutputs = demandedOutputs == null
+			? Set.of()
+			: Collections.unmodifiableSet(new LinkedHashSet<>(demandedOutputs));
 	}
 
 	public String getId() {
@@ -178,6 +196,75 @@ public class PipelineGraphNode {
 	 */
 	public FilterBranch branchFor(String dependencyId) {
 		return conditionalDependencies.getOrDefault(dependencyId, FilterBranch.ANY);
+	}
+
+	/**
+	 * Which upstream port feeds each of this node's input ports.
+	 *
+	 * <p>
+	 * {@link #getDependencies()} is derived from these — it is the distinct set of source node ids —
+	 * so the engine's scheduling, blocking-skip and branch logic keeps working unchanged while
+	 * the data itself is resolved per port.
+	 * </p>
+	 *
+	 * @return the wired bindings, never null
+	 */
+	public List<InputBinding> getInputBindings() {
+		return inputBindings;
+	}
+
+	/**
+	 * The output ports something downstream is actually wired to.
+	 *
+	 * <p>
+	 * Handed to the worker so a node can skip work nobody asked for.
+	 * </p>
+	 *
+	 * @return demanded output port ids, never null
+	 */
+	public Set<String> getDemandedOutputs() {
+		return demandedOutputs;
+	}
+
+	/**
+	 * @return whether this node runs once per item or once per element of a fanned-out sequence
+	 */
+	public ExecutionMode getExecutionMode() {
+		return executionMode;
+	}
+
+	/**
+	 * The node whose {@code MANY} output makes this node per-element.
+	 *
+	 * <p>
+	 * The engine reads the element count off this node's result to learn how many times to dispatch.
+	 * </p>
+	 *
+	 * @return the driving node id, or null when this node is {@link ExecutionMode#SINGLE}
+	 */
+	public String getFanOutDriver() {
+		return fanOutDriver;
+	}
+
+	/**
+	 * Set by the parser once the whole graph is known — effective multiplicity can only be computed
+	 * after every node's bindings are resolved.
+	 */
+	void setExecution(ExecutionMode executionMode, String fanOutDriver) {
+		this.executionMode = executionMode == null ? ExecutionMode.SINGLE : executionMode;
+		this.fanOutDriver = fanOutDriver;
+	}
+
+	/**
+	 * Replace the bindings with copies that know their target port's cardinality.
+	 *
+	 * <p>
+	 * Called by {@link PortGraphAnalyzer} once the descriptors have been resolved, so the engine can
+	 * build inputs from the bindings alone.
+	 * </p>
+	 */
+	void setInputBindings(List<InputBinding> inputBindings) {
+		this.inputBindings = inputBindings == null ? List.of() : List.copyOf(inputBindings);
 	}
 
 	@Override

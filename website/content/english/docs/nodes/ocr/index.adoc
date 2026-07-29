@@ -6,15 +6,15 @@ The OCR node extracts text from images and document scans using **Tesseract** (v
 recognized text is stored so it can be indexed and searched.
 
 ++++
-<div class="ml-nodeviz" data-nodeviz='{"kind":"ocr","applies":"Image","badge":"Tesseract / tessdata","persist":"asset_json_comp + asset_node_result ledger","inputs":[{"t":"image","l":"image or scan"}],"outputs":[{"t":"text","l":"ocr_text","d":"recognised glyphs"}]}'></div>
+<div class="ml-nodeviz" data-nodeviz='{"kind":"ocr","applies":"Image","badge":"Tesseract / tessdata","persist":"asset_json_comp + asset_node_result ledger","inputs":[{"t":"image","l":"media","d":"a photo, screenshot or scanned page"}],"outputs":[{"t":"text","l":"text","d":"the glyphs Tesseract recognised, in reading order"}]}'></div>
 ++++
 
 [cols="1,3"]
 |===
 | Kind | `ocr`
 | Applies to | Image
-| Inputs | None
-| Output keys | `ocr_text` (String)
+| Input ports | `media`
+| Output ports | `text` (String)
 | Requirements | Tesseract / Tess4J plus its `tessdata` language files on the worker. CPU-bound; storage for the tessdata models.
 | Persists to | `asset_json_comp` + `asset_node_result` ledger
 |===

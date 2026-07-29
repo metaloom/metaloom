@@ -39,7 +39,7 @@ public class ThumbnailNodeTest extends AbstractMediaTest {
 		LoomMedia media = mediaVideo3();
 		NodeResult result = node.process(ctx(media));
 		assertThat(result).isSuccess();
-		assertThat(result).hasOutput(ThumbnailNode.OUTPUT_THUMBNAIL_FLAG);
+		assertThat(result).hasOutput(ThumbnailNode.OUT_FLAG);
 		assertThat(new File(thumbnailDir, media.getSHA512() + ".jpg")).exists();
 	}
 

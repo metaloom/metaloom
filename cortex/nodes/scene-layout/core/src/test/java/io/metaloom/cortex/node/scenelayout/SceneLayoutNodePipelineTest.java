@@ -63,9 +63,9 @@ class SceneLayoutNodePipelineTest extends AbstractNodeChainTest {
 			doReturn(true).when(node).isProcessable(any());
 			doAnswer(invocation -> {
 				NodeContext<LoomMedia> ctx = invocation.getArgument(0);
-				ctx.output(SceneLayoutNode.OUTPUT_SCENE_LAYOUT_RESULT, FAKE_RESULT);
-				ctx.output(SceneLayoutNode.OUTPUT_SCENE_LAYOUT_OBJECTS, 2);
-				ctx.output(SceneLayoutNode.OUTPUT_SCENE_LAYOUT_RELATIONS, 3);
+				ctx.output(SceneLayoutNode.OUT_RESULT, FAKE_RESULT);
+				ctx.output(SceneLayoutNode.OUT_OBJECT_COUNT, 2L);
+				ctx.output(SceneLayoutNode.OUT_RELATION_COUNT, 3L);
 				return ctx.origin(ResultOrigin.COMPUTED).next();
 			}).when(node).compute(any(), any());
 		}
@@ -80,8 +80,8 @@ class SceneLayoutNodePipelineTest extends AbstractNodeChainTest {
 		assertThat(result)
 			.isSuccess()
 			.hasCompletedNode("scene-layout")
-			.hasNodeOutput("scene-layout", "scene_layout_result", FAKE_RESULT)
-			.hasNodeOutput("scene-layout", "scene_layout_object_count", 2);
+			.hasNodeOutput("scene-layout", SceneLayoutNode.OUT_RESULT, FAKE_RESULT)
+			.hasNodeOutput("scene-layout", SceneLayoutNode.OUT_OBJECT_COUNT, 2L);
 	}
 
 	@Test
@@ -104,7 +104,7 @@ class SceneLayoutNodePipelineTest extends AbstractNodeChainTest {
 	void testResultReachesADownstreamConsumer() throws Exception {
 		// The layout is meant to feed captioning / LLM prompts, so it has to survive the pipeline's
 		// output-map serialization as a plain string.
-		CapturingNode consumer = new CapturingNode("consumer", "scene-layout", "scene_layout_result");
+		CapturingNode consumer = new CapturingNode("consumer", SceneLayoutNode.OUT_RESULT);
 
 		PipelineResult result = execute(media, createAdapter(), consumer);
 

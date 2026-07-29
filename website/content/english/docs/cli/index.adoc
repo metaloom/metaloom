@@ -265,7 +265,9 @@ $ metaloom -o json pipeline list
   "definition" : {
     "edges" : [ {
       "source" : "src",
-      "target" : "hash"
+      "sourcePort" : "media",
+      "target" : "hash",
+      "targetPort" : "media"
     } ],
     "nodes" : [ {
       "id" : "src",

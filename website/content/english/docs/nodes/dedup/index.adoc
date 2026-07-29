@@ -6,15 +6,15 @@ The deduplication nodes detect duplicate media and move the extra copies aside. 
 one by exact content hash, one by perceptual video fingerprint.
 
 ++++
-<div class="ml-nodeviz" data-nodeviz='{"kind":"dedup","applies":"Any file \u00b7 Video","badge":"CPU only","persist":"asset_node_result ledger (the move is the side effect)","configs":[{"name":"sha512-dedup","note":"exact duplicates by content hash","inputs":[{"t":"hash","l":"sha512","d":"from the hash node"}],"outputs":[{"t":"action","l":"duplicate moved","d":"into dupFolder"}]},{"name":"fingerprint dedup (stub)","note":"detects, does not yet move files","inputs":[{"t":"hash","l":"fingerprint","d":"from the fingerprint node"}],"outputs":[{"t":"action","l":"near-duplicate flagged","d":"not yet implemented"}]}]}'></div>
+<div class="ml-nodeviz" data-nodeviz='{"kind":"dedup","applies":"Any file \u00b7 Video","badge":"CPU only","persist":"asset_node_result ledger (the move is the side effect)","configs":[{"name":"sha512-dedup","note":"exact duplicates by content hash","inputs":[{"t":"hash","l":"hash","d":"any content hash — typically the hash port of a sha512 node"}],"outputs":[{"t":"action","l":"duplicate moved","d":"the extra copy is moved into dupFolder"}]},{"name":"fingerprint dedup (stub)","note":"detects, does not yet move files","inputs":[{"t":"fingerprint","l":"fingerprint","d":"the perceptual code, from the fingerprint port of a fingerprint node"}],"outputs":[{"t":"action","l":"near-duplicate flagged","d":"reported only — moving the file is not implemented yet"}]}]}'></div>
 ++++
 
 [cols="1,3"]
 |===
 | Kinds | `sha512-dedup` (hash dedup), fingerprint dedup
 | Applies to | Any file (hash) / Video (fingerprint)
-| Inputs | `sha512-dedup` requires an upstream link:../hash/[`sha512`]; fingerprint dedup requires an upstream link:../fingerprint/[`fingerprint`]
-| Output keys | None — the node has side effects (moves duplicate files)
+| Input ports | Hash dedup takes `hash`, which accepts *any* hash type — connect the `hash` port of a link:../hash/[hash] node; fingerprint dedup takes `fingerprint` — connect the `fingerprint` port of link:../fingerprint/[Fingerprint]
+| Output ports | None — the node has side effects (moves duplicate files)
 | Requirements | CPU only. **Storage**: duplicates are moved to a configured folder, so the worker needs write access there.
 | Persists to | `asset_node_result` ledger (the move itself is the side effect)
 |===

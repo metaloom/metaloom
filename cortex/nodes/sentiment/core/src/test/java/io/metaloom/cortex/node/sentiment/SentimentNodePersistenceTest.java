@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
@@ -98,24 +99,24 @@ class SentimentNodePersistenceTest {
 		return new SentimentNode(client, cortexOptions, new SentimentNodeOptions(), sentimentClient);
 	}
 
-	private NodeContext<LoomMedia> ctxWithTika(String text) {
-		return NodeContext.create(media, Map.of("tika", Map.of("tika_content", text)));
+	private NodeContext<LoomMedia> ctxWithText(String text) {
+		NodeInputs inputs = NodeInputs.builder().input(SentimentNode.IN_TEXT, text).build();
+		return NodeContext.create(media, inputs);
 	}
 
 	@Test
 	void testWritesJsonCompAndLedgerOnSuccess() {
 		when(sentimentClient.analyze(anyString(), anyString(), any())).thenReturn(SIDECAR_RESULT.copy());
 
-		NodeResult result = node().process(ctxWithTika("Absolutely delightful stay."));
+		NodeResult result = node().process(ctxWithText("Absolutely delightful stay."));
 		assertThat(result).isSuccess();
 
 		verify(client).createAssetJsonComp(eq(assetUuid), argThat((JsonCompCreateRequest r) -> "sentiment".equals(r.getNodeKind())
 			&& "sentiment".equals(r.getSchemaType())
-			// The source output key discriminates several text sources on one asset.
-			&& "tika_content".equals(r.getVariant())
+			// There is now one sentiment row per asset per node kind - the edge, not the variant, decides which text produced it.
+			&& "".equals(r.getVariant())
 			&& "cardiffnlp/twitter-roberta-base-sentiment-latest".equals(r.getProducerVersion())
-			&& "POSITIVE".equals(r.getData().getString("label"))
-			&& r.getData().getJsonObject("source") != null));
+			&& "POSITIVE".equals(r.getData().getString("label"))));
 
 		verify(client).createAssetNodeResult(eq(assetUuid), argThat((NodeResultCreateRequest r) -> "sentiment".equals(r.getNodeKind())
 			&& "SUCCESS".equals(r.getState())
@@ -129,7 +130,7 @@ class SentimentNodePersistenceTest {
 	void testRecordsFailedLedgerWhenSidecarThrows() {
 		when(sentimentClient.analyze(anyString(), anyString(), any())).thenThrow(new RuntimeException("sidecar down"));
 
-		node().process(ctxWithTika("Absolutely delightful stay."));
+		node().process(ctxWithText("Absolutely delightful stay."));
 
 		verify(client, never()).createAssetJsonComp(any(), any());
 		verify(client).createAssetNodeResult(eq(assetUuid),
@@ -142,7 +143,7 @@ class SentimentNodePersistenceTest {
 		when(client.createAssetJsonComp(any(), any())).thenThrow(new RuntimeException("loom unreachable"));
 
 		// The component write is best-effort: the node still succeeds, but the ledger records the failure.
-		node().process(ctxWithTika("Absolutely delightful stay."));
+		node().process(ctxWithText("Absolutely delightful stay."));
 
 		verify(client).createAssetNodeResult(eq(assetUuid),
 			argThat((NodeResultCreateRequest r) -> "FAILED".equals(r.getState()) && "loom unreachable".equals(r.getReason())));

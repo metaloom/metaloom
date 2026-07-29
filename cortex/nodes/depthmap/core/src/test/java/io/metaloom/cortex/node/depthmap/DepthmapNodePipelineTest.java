@@ -67,9 +67,9 @@ class DepthmapNodePipelineTest extends AbstractNodeChainTest {
 			doReturn(true).when(node).isProcessable(any());
 			doAnswer(invocation -> {
 				NodeContext<LoomMedia> ctx = invocation.getArgument(0);
-				ctx.output(DepthmapNode.OUTPUT_DEPTHMAP_FLAG, "DONE");
-				ctx.output(DepthmapNode.OUTPUT_DEPTHMAP_PATH, FAKE_PATH);
-				ctx.output(DepthmapNode.OUTPUT_DEPTHMAP_META, FAKE_META);
+				ctx.output(DepthmapNode.OUT_FLAG, "DONE");
+				ctx.output(DepthmapNode.OUT_MAP, FAKE_PATH);
+				ctx.output(DepthmapNode.OUT_META, FAKE_META);
 				return ctx.origin(ResultOrigin.COMPUTED).next();
 			}).when(node).compute(any(), any());
 		}
@@ -84,8 +84,8 @@ class DepthmapNodePipelineTest extends AbstractNodeChainTest {
 		assertThat(result)
 			.isSuccess()
 			.hasCompletedNode("depthmap")
-			.hasNodeOutput("depthmap", "depthmap_path", FAKE_PATH)
-			.hasNodeOutput("depthmap", "depthmap_meta", FAKE_META);
+			.hasNodeOutput("depthmap", DepthmapNode.OUT_MAP, FAKE_PATH)
+			.hasNodeOutput("depthmap", DepthmapNode.OUT_META, FAKE_META);
 	}
 
 	@Test
@@ -108,7 +108,7 @@ class DepthmapNodePipelineTest extends AbstractNodeChainTest {
 	void testMetaReachesADownstreamConsumer() throws Exception {
 		// This is the contract scene-layout is built on: the metadata travels as a plain string
 		// output, which is what survives the pipeline's output-map serialization.
-		CapturingNode consumer = new CapturingNode("consumer", "depthmap", "depthmap_meta");
+		CapturingNode consumer = new CapturingNode("consumer", DepthmapNode.OUT_META);
 
 		PipelineResult result = execute(media, createAdapter(), consumer);
 

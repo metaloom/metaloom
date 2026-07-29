@@ -1,15 +1,13 @@
 package io.metaloom.loom.nodes.spec;
 
-import static io.metaloom.loom.nodes.spec.ContentTypes.DATA_DEPTHMAP;
-import static io.metaloom.loom.nodes.spec.ContentTypes.DATA_PATH;
-import static io.metaloom.loom.nodes.spec.ContentTypes.DATA_STRING;
-import static io.metaloom.loom.nodes.spec.ContentTypes.MEDIA_IMAGE;
+import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.*;
 import static io.metaloom.loom.nodes.spec.NodeCategory.ANALYSIS;
 import static io.metaloom.loom.nodes.spec.NodeMode.PARALLEL;
 import static io.metaloom.loom.nodes.spec.ParameterType.BOOLEAN;
 import static io.metaloom.loom.nodes.spec.ParameterType.ENUM;
 import static io.metaloom.loom.nodes.spec.ParameterType.INTEGER;
 import static io.metaloom.loom.nodes.spec.ParameterType.STRING;
+import static io.metaloom.loom.nodes.spec.PortSpec.one;
 
 import java.util.List;
 
@@ -32,11 +30,16 @@ public class DepthmapDescriptorProvider implements NodeDescriptorProvider {
 						+ "pixels are nearest the camera.")
 				.setIcon("layers")
 				.setCategory(ANALYSIS)
-				.setInputs(List.of(new NodeInput("media", MEDIA_IMAGE, true)))
-				.setOutputs(List.of(
-					new NodeOutput("depthmap_flag", DATA_STRING),
-					new NodeOutput("depthmap_path", DATA_PATH),
-					new NodeOutput("depthmap_meta", DATA_DEPTHMAP)))
+				.setInputPorts(List.of(
+					one("media", MEDIA_IMAGE)
+						.describedAs("Image", "The image to estimate per-pixel depth for")))
+				.setOutputPorts(List.of(
+					one("meta", STRUCT_DEPTHMAP)
+						.describedAs("Depth Metadata", "Mode, model, map dimensions and the value range needed to interpret the map"),
+					one("map", ARTIFACT_IMAGE)
+						.describedAs("Depth Map", "The 16-bit PNG in the worker's local cache; the brightest pixels are nearest the camera"),
+					one("flag", SCALAR_STRING)
+						.describedAs("Flag", "Processing marker recording how this node finished for the item")))
 				.setParameters(List.of(
 					commonEnabled(), commonProcessIncomplete(), commonRetryFailed(),
 					new NodeParameter().setKey("depthHost").setType(STRING).setDefaultValue("localhost")

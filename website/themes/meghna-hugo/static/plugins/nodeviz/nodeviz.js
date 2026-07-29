@@ -23,26 +23,40 @@
 
 	// Data-type palette. The type also picks the icon, so a reader learns "amber braces = JSON"
 	// once and then recognises it on every node page.
+	//
+	// `ct` is the product's real content-type id, shown in the hover card. Keeping it here means a
+	// page only writes the short key (`"t":"face"`) and still gets `detection/face` in the tooltip —
+	// a page may override it with its own `"ct"` when the port is more specific than the icon.
 	var TYPES = {
-		image: { c: "#5ec98f", n: "image" },
-		video: { c: "#4aa3ff", n: "video" },
-		audio: { c: "#a48be0", n: "audio" },
-		document: { c: "#8fa3b8", n: "document" },
-		file: { c: "#8fa3b8", n: "file" },
-		text: { c: "#4fd0e0", n: "text" },
-		json: { c: "#e2a24e", n: "json" },
-		number: { c: "#7fb4ff", n: "number" },
-		boolean: { c: "#5ec98f", n: "boolean" },
-		hash: { c: "#2fd4b6", n: "hash" },
-		vector: { c: "#a48be0", n: "vector" },
-		face: { c: "#e2a24e", n: "face" },
-		bbox: { c: "#e2a24e", n: "bounding box" },
-		timeframe: { c: "#4fd0e0", n: "timeframe" },
-		segments: { c: "#4fd0e0", n: "segments" },
-		path: { c: "#8fa3b8", n: "path" },
-		flag: { c: "#8fa3b8", n: "flag" },
+		image: { c: "#5ec98f", n: "image", ct: "media/image" },
+		video: { c: "#4aa3ff", n: "video", ct: "media/video" },
+		audio: { c: "#a48be0", n: "audio", ct: "media/audio" },
+		document: { c: "#8fa3b8", n: "document", ct: "media/document" },
+		media: { c: "#5ec98f", n: "any media", ct: "media/*" },
+		file: { c: "#8fa3b8", n: "file", ct: "artifact/file" },
+		text: { c: "#4fd0e0", n: "text", ct: "text/plain" },
+		transcript: { c: "#4fd0e0", n: "transcript", ct: "text/transcript" },
+		caption: { c: "#4fd0e0", n: "caption", ct: "text/caption" },
+		json: { c: "#e2a24e", n: "json", ct: "struct/json" },
+		number: { c: "#7fb4ff", n: "number", ct: "scalar/number" },
+		string: { c: "#7fb4ff", n: "string", ct: "scalar/string" },
+		boolean: { c: "#5ec98f", n: "boolean", ct: "scalar/boolean" },
+		hash: { c: "#2fd4b6", n: "hash", ct: "hash/*" },
+		fingerprint: { c: "#2fd4b6", n: "fingerprint", ct: "hash/fingerprint" },
+		vector: { c: "#a48be0", n: "vector", ct: "struct/embedding" },
+		face: { c: "#e2a24e", n: "face detection", ct: "detection/face" },
+		bbox: { c: "#e2a24e", n: "detection", ct: "detection/*" },
+		timeframe: { c: "#4fd0e0", n: "timeframe", ct: "struct/segments" },
+		segments: { c: "#4fd0e0", n: "segments", ct: "struct/segments" },
+		depth: { c: "#a48be0", n: "depth map", ct: "struct/depthmap" },
+		quality: { c: "#7fb4ff", n: "quality metrics", ct: "struct/quality" },
+		color: { c: "#e2a24e", n: "dominant colour", ct: "struct/color" },
+		layout: { c: "#a48be0", n: "scene layout", ct: "struct/scene-layout" },
+		path: { c: "#8fa3b8", n: "path", ct: "artifact/file" },
+		artifact: { c: "#8fa3b8", n: "artifact", ct: "artifact/*" },
+		flag: { c: "#8fa3b8", n: "flag", ct: "scalar/string" },
 		action: { c: "#e2726e", n: "side effect" },
-		branch: { c: "#5ec98f", n: "branch" }
+		branch: { c: "#5ec98f", n: "branch", ct: "control/filter" }
 	};
 
 	function E(tag, attrs, kids) {
@@ -223,19 +237,38 @@
 		});
 
 		// ---- port rows ----
+		// Each row is a hover/focus target: the connector is the thing a reader has a question about
+		// ("what exactly does this carry, and how much of it?"), so the answer is attached to it
+		// rather than parked in a table further down the page.
+		var ports = [];
 		function portRow(p, i, n, right) {
 			var ty = TYPES[p.t] || { c: MUTED, n: p.t || "" };
 			var cy = rowY(i, n);
-			var g = E("g", { "class": "nv-port" + (p.opt ? " is-opt" : "") });
+			var many = p.c === "many";
+			var g = E("g", {
+				"class": "nv-port" + (p.opt ? " is-opt" : "") + (many ? " is-many" : ""),
+				tabindex: "0",
+				role: "button",
+				"aria-label": (right ? "Output" : "Input") + " " + p.l + ", type " +
+					(p.ct || ty.ct || ty.n) + ", " + (many ? "a sequence of elements" : "one element")
+			});
 			var x = right ? W - COL : 0;
 			g.appendChild(E("rect", { x: x + (right ? 0 : 4), y: cy - 20, width: COL - 4, height: 40, rx: 8, "class": "nv-port-bg" }));
 			var ig = icon(p.t, ty.c);
 			ig.setAttribute("transform", "translate(" + (x + (right ? 12 : 16)) + "," + (cy - 12) + ")");
 			g.appendChild(ig);
+			// A MANY port is stacked in the diagram itself, so cardinality is legible without hovering.
+			if (many) {
+				var stack = E("g", { "class": "nv-many-mark", stroke: ty.c, fill: "none", "stroke-width": 1.4, opacity: 0.75 });
+				var sx = x + (right ? 12 : 16);
+				stack.appendChild(E("path", { d: "M" + (sx + 4) + "," + (cy + 15) + "h16", "stroke-dasharray": "3 3" }));
+				g.appendChild(stack);
+			}
 			var tx = x + (right ? 46 : 50);
 			g.appendChild(T(tx, cy - 1, p.l, "nv-port-label"));
-			g.appendChild(T(tx, cy + 14, (p.d || ty.n) + (p.opt ? " · optional" : ""), "nv-port-type"));
+			g.appendChild(T(tx, cy + 14, (p.d || ty.n) + (many ? " · many" : "") + (p.opt ? " · optional" : ""), "nv-port-type"));
 			svg.appendChild(g);
+			ports.push({ el: g, port: p, type: ty, side: right ? "out" : "in", many: many });
 		}
 		ins.forEach(function (p, i) { portRow(p, i, ins.length, false); });
 		outs.forEach(function (p, i) { portRow(p, i, outs.length, true); });
@@ -266,7 +299,88 @@
 		ins.forEach(function (p, i) { svg.appendChild(E("circle", { cx: NODE_X, cy: portY(i, ins.length), r: 4, "class": "nv-dot" })); });
 		outs.forEach(function (p, i) { svg.appendChild(E("circle", { cx: NODE_X + NODE_W, cy: portY(i, outs.length), r: 4, "class": "nv-dot" })); });
 
-		return { svg: svg, edges: edges, fill: fill, nodeW: NODE_W };
+		return { svg: svg, edges: edges, fill: fill, nodeW: NODE_W, ports: ports };
+	}
+
+	/*
+	 * The hover card.
+	 *
+	 * Its header carries a live miniature of the type icon over a "flow track" that animates what the
+	 * port actually carries: a ONE port sends a single pip across the track and rests; a MANY port
+	 * sends a continuous staggered stream. That is the whole point of the animation — cardinality is
+	 * otherwise a word ("many") that readers skim past, and the two motions are distinguishable at a
+	 * glance without reading anything.
+	 */
+	function buildTip() {
+		var tip = document.createElement("div");
+		tip.className = "nv-tip";
+		tip.setAttribute("role", "tooltip");
+		tip.hidden = true;
+		tip.innerHTML =
+			'<div class="nv-tip-head">' +
+				'<div class="nv-tip-ico"></div>' +
+				'<div class="nv-tip-headings">' +
+					'<span class="nv-tip-type"></span>' +
+					'<code class="nv-tip-ct"></code>' +
+				'</div>' +
+				'<span class="nv-tip-card"></span>' +
+			'</div>' +
+			'<div class="nv-tip-track"><span class="nv-tip-pip"></span><span class="nv-tip-pip"></span><span class="nv-tip-pip"></span></div>' +
+			'<div class="nv-tip-body">' +
+				'<div class="nv-tip-name"></div>' +
+				'<p class="nv-tip-desc"></p>' +
+				'<div class="nv-tip-meta"></div>' +
+			'</div>';
+		return tip;
+	}
+
+	function fillTip(tip, info) {
+		var p = info.port, ty = info.type;
+		var ico = tip.querySelector(".nv-tip-ico");
+		ico.innerHTML = "";
+		var mini = E("svg", { viewBox: "0 0 24 24", width: 26, height: 26, "aria-hidden": "true" });
+		mini.appendChild(icon(p.t, ty.c));
+		ico.appendChild(mini);
+
+		tip.querySelector(".nv-tip-type").textContent = ty.n || p.t || "value";
+		var ct = p.ct || ty.ct;
+		var ctEl = tip.querySelector(".nv-tip-ct");
+		ctEl.textContent = ct || "";
+		ctEl.hidden = !ct;
+
+		var card = tip.querySelector(".nv-tip-card");
+		card.textContent = info.many ? "many" : "one";
+		card.className = "nv-tip-card" + (info.many ? " is-many" : "");
+
+		tip.querySelector(".nv-tip-name").textContent = p.l || "";
+		var desc = tip.querySelector(".nv-tip-desc");
+		// Fall back to a plain-language reading of the cardinality when the page gave no prose, so the
+		// card is never mostly empty.
+		desc.textContent = p.d || (info.many
+			? "A sequence of " + (ty.n || "values") + " elements from this item."
+			: "A single " + (ty.n || "value") + " for this item.");
+
+		tip.querySelector(".nv-tip-meta").textContent =
+			(info.side === "in" ? "input" : "output") + " · " + (p.opt ? "optional" : "required");
+
+		tip.classList.toggle("is-many", !!info.many);
+		tip.style.setProperty("--nv-tip-color", ty.c);
+	}
+
+	// Position the card beside its port, clamped to the stage so it never hangs off the page.
+	function placeTip(tip, stage, portEl) {
+		var sr = stage.getBoundingClientRect();
+		var pr = portEl.getBoundingClientRect();
+		tip.hidden = false;
+		var tw = tip.offsetWidth, th = tip.offsetHeight;
+		var left = pr.left - sr.left + pr.width / 2 - tw / 2;
+		left = Math.max(6, Math.min(left, sr.width - tw - 6));
+		var top = pr.top - sr.top - th - 12;
+		var below = top < 4;
+		if (below) { top = pr.bottom - sr.top + 12; }
+		tip.classList.toggle("is-below", below);
+		tip.style.left = left + "px";
+		tip.style.top = top + "px";
 	}
 
 	function hash(s) {
@@ -289,6 +403,18 @@
 		var stage = document.createElement("div");
 		stage.className = "nv-stage";
 		var tabs = null;
+		var tip = buildTip();
+
+		function hideTip() {
+			tip.hidden = true;
+			tip.classList.remove("is-shown");
+		}
+
+		function showTip(info) {
+			fillTip(tip, info);
+			placeTip(tip, stage, info.el);
+			tip.classList.add("is-shown");
+		}
 
 		function draw(idx) {
 			var built = build(spec, configs[idx]);
@@ -300,6 +426,26 @@
 				foot.textContent = "persisted to " + spec.persist;
 				stage.appendChild(foot);
 			}
+			hideTip();
+			stage.appendChild(tip);
+			built.ports.forEach(function (info) {
+				info.el.addEventListener("mouseenter", function () { showTip(info); });
+				info.el.addEventListener("focus", function () { showTip(info); });
+				info.el.addEventListener("mouseleave", hideTip);
+				info.el.addEventListener("blur", hideTip);
+				// Touch has no hover: a tap opens the card, a second tap (or a tap elsewhere) closes it.
+				info.el.addEventListener("click", function (ev) {
+					ev.stopPropagation();
+					if (tip.classList.contains("is-shown") && tip._for === info.el) {
+						hideTip();
+						tip._for = null;
+					} else {
+						showTip(info);
+						tip._for = info.el;
+					}
+				});
+			});
+			stage.addEventListener("click", function () { hideTip(); tip._for = null; });
 			var inst = { built: built, t0: null };
 			live = live.filter(function (l) { return l.root !== root; });
 			live.push({ root: root, inst: inst });
@@ -332,6 +478,17 @@
 
 	Array.prototype.forEach.call(roots, mount);
 
+	// Escape closes any open hover card — the cards are focusable, so a keyboard reader needs a way
+	// out that is not "tab through the rest of the diagram".
+	document.addEventListener("keydown", function (ev) {
+		if (ev.key !== "Escape") { return; }
+		Array.prototype.forEach.call(document.querySelectorAll(".nv-tip.is-shown"), function (t) {
+			t.hidden = true;
+			t.classList.remove("is-shown");
+			t._for = null;
+		});
+	});
+
 	// The legend teaches the icon vocabulary once, on the nodes index, instead of repeating a key
 	// on all 19 node pages.
 	var LEGEND = ["image", "video", "audio", "document", "text", "json", "number", "boolean", "hash",
@@ -347,8 +504,23 @@
 			var label = document.createElement("span");
 			label.textContent = ty.n;
 			cell.appendChild(label);
+			if (ty.ct) {
+				var ct = document.createElement("code");
+				ct.className = "nv-legend-ct";
+				ct.textContent = ty.ct;
+				cell.appendChild(ct);
+			}
 			root.appendChild(cell);
 		});
+		// Cardinality is a second axis, not a type — teach it once, next to the icon key.
+		var note = document.createElement("p");
+		note.className = "nv-legend-note";
+		note.innerHTML = "Every connector also carries a <strong>cardinality</strong>: " +
+			"<span class=\"nv-card-chip\">one</span> element per item, or " +
+			"<span class=\"nv-card-chip is-many\">many</span> — a sequence the pipeline fans out over " +
+			"and gathers back per source asset. Hover any connector in a diagram to see its type, " +
+			"cardinality and what it carries.";
+		root.appendChild(note);
 	});
 
 	if (reduce) {

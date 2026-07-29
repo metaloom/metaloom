@@ -86,12 +86,6 @@ class ScriptOptionsValidationTest {
 	}
 
 	@Test
-	void shouldRejectAMalformedRequiredInput() {
-		List<String> errors = errorsOf(valid().setRequiredInputs(List.of("whisper")));
-		assertTrue(errors.stream().anyMatch(e -> e.contains("nodeId:outputKey")), errors::toString);
-	}
-
-	@Test
 	void shouldRejectNonPositiveLimits() {
 		// setTimeoutMs is inherited from CortexNodeOptions and returns void, so it cannot chain.
 		ScriptNodeOptions noTimeout = valid();
@@ -153,7 +147,7 @@ class ScriptOptionsValidationTest {
 		for (ScriptValueType type : ScriptValueType.values()) {
 			ScriptOutputSpec spec = ScriptOutputSpec.parse(outputs("k", type.name().toLowerCase())).get(0);
 			assertEquals(type, spec.type());
-			assertTrue(spec.type().contentType().startsWith("data/"), type + " has no content type");
+			assertTrue(spec.type().contentType().contains("/"), type + " has no content type");
 		}
 	}
 }

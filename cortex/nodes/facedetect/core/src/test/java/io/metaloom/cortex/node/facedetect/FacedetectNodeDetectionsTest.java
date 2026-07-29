@@ -28,17 +28,23 @@ import io.metaloom.utils.hash.SHA512;
 import io.metaloom.video.facedetect.face.Face;
 import io.metaloom.video.facedetect.face.FaceBox;
 import io.metaloom.video.facedetect.inspireface.InspireFacedetector;
-import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 /**
- * Covers the {@code detections} output key on the image path.
+ * Covers the {@code detections} output port on the image path.
  *
  * <p>
  * The boxes used to reach only the {@code detection} table, which meant a downstream node had to go
  * through Loom to see them - impossible offline, and impossible before the write had landed. This
- * test pins the payload shape that {@code scene-layout} consumes, including the explicit coordinate
+ * test pins the element shape that {@code scene-layout} consumes, including the explicit coordinate
  * marker that keeps it clear of the table's ambiguous geometry convention.
+ * </p>
+ *
+ * <p>
+ * {@code detections} is a {@code MANY} port carrying <strong>one element per face</strong>, not one
+ * document listing them all. That is what lets the engine fan out per face, so the shape asserted
+ * here is a per-element one: every element repeats the coordinate convention and the dimensions,
+ * because an element travels downstream on its own.
  * </p>
  *
  * <p>
@@ -80,31 +86,29 @@ class FacedetectNodeDetectionsTest {
 			inspireface, mock(VideoFaceScanner.class));
 	}
 
-	private JsonObject detections(NodeResult result) {
-		String json = result.get(FacedetectNode.OUTPUT_DETECTIONS);
-		assertNotNull(json, "the node must emit the detections payload");
-		return new JsonObject(json);
+	/** The elements of the {@code MANY} detections port, decoded, in emission order. */
+	private List<JsonObject> detections(NodeResult result) {
+		List<String> elements = result.elements(FacedetectNode.OUT_DETECTIONS);
+		assertNotNull(elements, "the node must emit the detections port");
+		return elements.stream().map(JsonObject::new).toList();
 	}
 
 	@Test
-	void testEmitsBoxesWithCoordinateMarkerAndDimensions() {
+	void testEmitsOneElementPerFaceWithCoordinateMarkerAndDimensions() {
 		doReturn(List.of(face(10, 20, 30, 40), face(100, 50, 60, 60))).when(inspireface).detectFaces(any(BufferedImage.class));
 
 		NodeResult result = node().process(NodeContext.create(media));
 		assertThat(result).isSuccess();
-		assertEquals(2, result.get(FacedetectNode.OUTPUT_FACE_COUNT));
+		// scalar/integer is widened to Long at the port boundary.
+		assertEquals(2L, result.get(FacedetectNode.OUT_FACE_COUNT));
 
-		JsonObject payload = detections(result);
-		// The marker plus the dimensions are what make this payload unambiguous - the detection
-		// table documents normalized 0-1 while this node writes pixels, and nothing validates either.
-		assertEquals("ABSOLUTE_PIXELS", payload.getString("coordinates"));
-		assertEquals(320, payload.getInteger("imageWidth"));
-		assertEquals(240, payload.getInteger("imageHeight"));
-
-		JsonArray items = payload.getJsonArray("detections");
+		List<JsonObject> items = detections(result);
+		// One element per face is the whole point: the element count is what the engine reads to
+		// decide how many per-face tasks to spawn downstream.
 		assertEquals(2, items.size());
+		assertThat(result).hasElementCount(FacedetectNode.OUT_DETECTIONS, 2);
 
-		JsonObject first = items.getJsonObject(0);
+		JsonObject first = items.get(0);
 		assertEquals(0, first.getInteger("index"));
 		assertEquals("face", first.getString("type"));
 		assertEquals("face", first.getString("label"));
@@ -114,37 +118,65 @@ class FacedetectNodeDetectionsTest {
 		assertEquals(30, first.getJsonObject("bbox").getInteger("w"));
 		assertEquals(40, first.getJsonObject("bbox").getInteger("h"));
 
+		// The marker plus the dimensions travel on *every* element rather than in a wrapper - a
+		// per-face consumer receives exactly one element and nothing else, and the detection table
+		// documents normalized 0-1 while this node writes pixels with nothing validating either.
+		for (JsonObject item : items) {
+			assertEquals("ABSOLUTE_PIXELS", item.getString("coordinates"));
+			assertEquals(320, item.getInteger("imageWidth"));
+			assertEquals(240, item.getInteger("imageHeight"));
+		}
+
 		// Indices are dense and ordered, so a consumer can build stable ids from them.
-		assertEquals(1, items.getJsonObject(1).getInteger("index"));
+		assertEquals(1, items.get(1).getInteger("index"));
 	}
 
 	@Test
-	void testEmitsEmptyPayloadWhenNoFaces() {
+	void testEmitsNoElementsWhenNoFaces() {
 		doReturn(List.of()).when(inspireface).detectFaces(any(BufferedImage.class));
 
 		NodeResult result = node().process(NodeContext.create(media));
 		assertThat(result).isSuccess();
 
-		// An explicit empty list beats an absent key: the consumer can tell "ran, found nothing"
-		// apart from "never ran".
-		JsonObject payload = detections(result);
-		assertEquals(0, payload.getJsonArray("detections").size());
-		assertEquals("NONE", result.get(FacedetectNode.OUTPUT_FACEDETECT_FLAG));
+		// A MANY port with nothing to emit is simply absent - there is no "empty list" element to
+		// carry. What tells "ran, found nothing" apart from "never ran" is the count and the flag,
+		// which are emitted either way.
+		assertEquals(List.of(), detections(result));
+		assertThat(result).hasNoOutput(FacedetectNode.OUT_DETECTIONS);
+		assertEquals(0L, result.get(FacedetectNode.OUT_FACE_COUNT));
+		assertEquals("NONE", result.get(FacedetectNode.OUT_FLAG));
 	}
 
 	@Test
-	void testDetectionsSurviveACacheHit() {
-		doReturn(List.of(face(10, 20, 30, 40))).when(inspireface).detectFaces(any(BufferedImage.class));
+	void testDetectionElementsSurviveACacheHit() {
+		doReturn(List.of(face(10, 20, 30, 40), face(100, 50, 60, 60))).when(inspireface).detectFaces(any(BufferedImage.class));
 
 		FacedetectNode node = node();
 		NodeResult first = node.process(NodeContext.create(media));
 		assertThat(first).isSuccess();
 
-		// The node snapshots ctx.outputs() wholesale, so the new key rides along with the existing
-		// cache entry rather than needing its own handling.
+		// The cache holds the elements as a list, so a hit re-emits the *same sequence* a fresh run
+		// would. A cache that collapsed them into one value would silently change how many
+		// downstream per-element tasks the engine spawns.
 		NodeResult second = node.process(NodeContext.create(media));
 		assertThat(second).isSuccess();
-		assertEquals(first.get(FacedetectNode.OUTPUT_DETECTIONS), second.get(FacedetectNode.OUTPUT_DETECTIONS));
+		assertEquals(first.elements(FacedetectNode.OUT_DETECTIONS), second.elements(FacedetectNode.OUT_DETECTIONS));
+		assertThat(second).hasElementCount(FacedetectNode.OUT_DETECTIONS, 2);
+	}
+
+	@Test
+	void testAFaceLessImageStillCaches() {
+		doReturn(List.of()).when(inspireface).detectFaces(any(BufferedImage.class));
+
+		FacedetectNode node = node();
+		assertThat(node.process(NodeContext.create(media))).isSuccess();
+
+		// Snapshotting the cache used to read the detections port unconditionally, which threw for
+		// an image with no faces because a MANY port that emitted nothing is absent entirely.
+		NodeResult second = node.process(NodeContext.create(media));
+		assertThat(second).isSuccess();
+		assertEquals("NONE", second.get(FacedetectNode.OUT_FLAG));
+		assertEquals(0L, second.get(FacedetectNode.OUT_FACE_COUNT));
 	}
 
 	@Test

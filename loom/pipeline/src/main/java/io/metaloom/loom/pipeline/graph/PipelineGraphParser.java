@@ -39,9 +39,9 @@ import io.vertx.core.json.JsonObject;
  * makes PASS/REJECT filter routing expressible from the UI at all - the old Loom
  * format had no way to say it.</p>
  *
- * <p>{@code nodes[].dependencies[]} is still honoured as a fallback so that
- * definitions written in the older Cortex serde shape continue to load. When both
- * are present, {@code edges} wins.</p>
+ * <p>{@code nodes[].dependencies[]} is <strong>no longer read</strong>. It cannot say which ports an
+ * edge joins, and a graph whose connections carry no ports cannot be type-checked - so accepting it
+ * would mean a definition that saves without validation and fails at run time instead.</p>
  */
 public class PipelineGraphParser {
 
@@ -94,20 +94,42 @@ public class PipelineGraphParser {
 			}
 		}
 
-		// Pass 2: resolve edges into per-node dependencies.
+		// Pass 2: resolve edges into per-node dependencies and port bindings.
 		Map<String, List<String>> dependencies = new LinkedHashMap<>();
 		Map<String, Map<String, FilterBranch>> conditional = new LinkedHashMap<>();
+		Map<String, List<InputBinding>> bindings = new LinkedHashMap<>();
 		for (String id : raw.keySet()) {
 			dependencies.put(id, new ArrayList<>());
 			conditional.put(id, new LinkedHashMap<>());
+			bindings.put(id, new ArrayList<>());
 		}
 
 		JsonArray edges = definition.getJsonArray("edges");
-		boolean usedEdges = edges != null && !edges.isEmpty();
-		if (usedEdges) {
-			applyEdges(name, edges, raw.keySet(), dependencies, conditional);
-		} else {
-			applyInlineDependencies(name, raw, dependencies, conditional);
+		// The older Cortex serde shape carried connections as nodes[].dependencies[]. It cannot say
+		// which ports an edge joins, so such a definition would parse into a graph with no bindings
+		// at all and then fail the required-input check with a message about the wrong thing.
+		// Rejecting it where it is recognised says what is actually wrong. A definition with no
+		// edges is *not* itself an error - a single-node pipeline is legitimate.
+		for (Map.Entry<String, JsonObject> entry : raw.entrySet()) {
+			if (entry.getValue().containsKey("dependencies")) {
+				throw new GraphValidationException("Pipeline '" + name + "' node '" + entry.getKey()
+					+ "' declares nodes[].dependencies[], which is no longer read."
+					+ " Connections are port-to-port now: use edges[] with source/sourcePort and"
+					+ " target/targetPort");
+			}
+		}
+		if (edges != null && !edges.isEmpty()) {
+			applyEdges(name, edges, raw.keySet(), dependencies, conditional, bindings);
+		}
+
+		// Which output ports have an outgoing edge — handed to the worker so a node can skip
+		// producing what nobody asked for.
+		Map<String, Set<String>> demanded = new LinkedHashMap<>();
+		for (List<InputBinding> nodeBindings : bindings.values()) {
+			for (InputBinding binding : nodeBindings) {
+				demanded.computeIfAbsent(binding.sourceNodeId(), k -> new LinkedHashSet<>())
+					.add(binding.sourcePortId());
+			}
 		}
 
 		// Pass 3: build the nodes.
@@ -136,11 +158,15 @@ public class PipelineGraphParser {
 			nodes.put(id, new PipelineGraphNode(id, kind, node.getString("name"), source, blocking, syncToLoom,
 				node.getString("affinity"),
 				options == null ? Map.of() : options.getMap(),
-				dependencies.get(id), conditional.get(id)));
+				dependencies.get(id), conditional.get(id),
+				bindings.get(id), demanded.getOrDefault(id, Set.of())));
 		}
 
 		String sourceId = resolveSourceNode(name, nodes, dependencies);
 		PipelineGraph graph = new PipelineGraph(name, enabled, dryRun, priority, nodes, sourceId);
+		// Port checking and fan-out classification need the whole graph, and the topological order
+		// the graph just computed - effective multiplicity only propagates in dependency order.
+		new PortGraphAnalyzer(registry).analyze(name, nodes, graph.getTopologicalOrder());
 		// Pipeline-wide rather than per-node: a worker accumulates whatever it has
 		// finished for a run, and which node produced it does not change the cost of
 		// the message.
@@ -166,9 +192,11 @@ public class PipelineGraphParser {
 	}
 
 	private void applyEdges(String name, JsonArray edges, Set<String> nodeIds,
-		Map<String, List<String>> dependencies, Map<String, Map<String, FilterBranch>> conditional) {
+		Map<String, List<String>> dependencies, Map<String, Map<String, FilterBranch>> conditional,
+		Map<String, List<InputBinding>> bindings) {
 
-		Set<String> seen = new LinkedHashSet<>();
+		Set<String> seenEdges = new LinkedHashSet<>();
+		Set<String> seenDeps = new LinkedHashSet<>();
 		for (int i = 0; i < edges.size(); i++) {
 			JsonObject edge = edges.getJsonObject(i);
 			if (edge == null) {
@@ -188,67 +216,41 @@ public class PipelineGraphParser {
 				throw new GraphValidationException("Pipeline '" + name + "' edge at index " + i
 					+ " references unknown target node '" + to + "'");
 			}
-			if (!seen.add(from + "->" + to)) {
-				// A duplicate edge would make the node wait for the same dependency twice.
-				continue;
-			}
-			dependencies.get(to).add(from);
 
+			String sourcePort = edge.getString("sourcePort");
+			String targetPort = edge.getString("targetPort");
+			if (sourcePort == null || sourcePort.isBlank() || targetPort == null || targetPort.isBlank()) {
+				throw new GraphValidationException("Pipeline '" + name + "' edge " + from + "->" + to
+					+ " at index " + i + " does not say which ports it connects."
+					+ " Every edge must carry sourcePort and targetPort");
+			}
+
+			FilterBranch parsed = FilterBranch.ANY;
 			String branch = edge.getString("branch");
 			if (branch != null && !branch.isBlank()) {
-				FilterBranch parsed;
 				try {
 					parsed = FilterBranch.valueOf(branch.toUpperCase());
 				} catch (IllegalArgumentException e) {
 					throw new GraphValidationException("Pipeline '" + name + "' edge " + from + "->" + to
 						+ " has unknown branch '" + branch + "'; expected ANY, PASS or REJECT");
 				}
-				if (parsed != FilterBranch.ANY) {
-					conditional.get(to).put(from, parsed);
-				}
 			}
-		}
-	}
 
-	/**
-	 * Fallback for definitions written in the older Cortex serde shape, where each node
-	 * carries its own {@code dependencies[]} and {@code conditionalDependencies{}}.
-	 */
-	private void applyInlineDependencies(String name, Map<String, JsonObject> raw,
-		Map<String, List<String>> dependencies, Map<String, Map<String, FilterBranch>> conditional) {
-
-		for (Map.Entry<String, JsonObject> entry : raw.entrySet()) {
-			String id = entry.getKey();
-			JsonArray deps = entry.getValue().getJsonArray("dependencies");
-			if (deps != null) {
-				for (int i = 0; i < deps.size(); i++) {
-					String dep = deps.getString(i);
-					if (dep == null || dep.isBlank()) {
-						continue;
-					}
-					if (!raw.containsKey(dep)) {
-						throw new GraphValidationException("Pipeline '" + name + "' node '" + id
-							+ "' depends on unknown node '" + dep + "'");
-					}
-					dependencies.get(id).add(dep);
-				}
+			// The dedupe key is the whole port tuple. Keying it on the node pair alone made two
+			// edges between the same nodes on different ports indistinguishable, so one of them was
+			// silently dropped.
+			if (!seenEdges.add(from + "." + sourcePort + "->" + to + "." + targetPort)) {
+				continue;
 			}
-			JsonObject conditionalDeps = entry.getValue().getJsonObject("conditionalDependencies");
-			if (conditionalDeps != null) {
-				for (String dep : conditionalDeps.fieldNames()) {
-					if (!raw.containsKey(dep)) {
-						throw new GraphValidationException("Pipeline '" + name + "' node '" + id
-							+ "' has a conditional dependency on unknown node '" + dep + "'");
-					}
-					String branch = conditionalDeps.getString(dep);
-					FilterBranch parsed = FilterBranch.valueOf(branch.toUpperCase());
-					if (!dependencies.get(id).contains(dep)) {
-						dependencies.get(id).add(dep);
-					}
-					if (parsed != FilterBranch.ANY) {
-						conditional.get(id).put(dep, parsed);
-					}
-				}
+			bindings.get(to).add(new InputBinding(targetPort, from, sourcePort, parsed));
+
+			// Several ports of one node may be fed by the same upstream node; it is still a single
+			// scheduling dependency.
+			if (seenDeps.add(from + "->" + to)) {
+				dependencies.get(to).add(from);
+			}
+			if (parsed != FilterBranch.ANY) {
+				conditional.get(to).put(from, parsed);
 			}
 		}
 	}

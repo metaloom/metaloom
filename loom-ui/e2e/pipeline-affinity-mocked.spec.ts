@@ -15,32 +15,40 @@ import { test, expect, Page } from "@playwright/test";
 
 const PIPELINE_UUID = "11111111-1111-1111-1111-111111111111";
 
-/** Seed: source → sha512 → thumbnail (two connected downstream nodes to group). */
+/** Seed: source fans out to sha512 and thumbnail (two downstream nodes to group). */
 const DEFINITION = {
   nodes: [
     { id: "src", type: "filesystem-source", label: "Source", position: { x: 0, y: 0 }, data: {} },
     { id: "sha512", type: "sha512", label: "SHA-512", position: { x: 260, y: 0 }, data: {} },
-    { id: "thumb", type: "thumbnail", label: "Thumbnail", position: { x: 520, y: 0 }, data: {} },
+    { id: "thumb", type: "thumbnail", label: "Thumbnail", position: { x: 260, y: 160 }, data: {} },
   ],
   edges: [
-    { id: "e1", source: "src", target: "sha512" },
-    { id: "e2", source: "sha512", target: "thumb" },
+    { id: "e1", source: "src", sourcePort: "media", target: "sha512", targetPort: "media", branch: "ANY" },
+    { id: "e2", source: "src", sourcePort: "media", target: "thumb", targetPort: "media", branch: "ANY" },
   ],
 };
 
-/** Descriptors so the client-side validatePipeline accepts these node kinds. */
+/**
+ * Descriptors so the client-side validatePipeline accepts these node kinds — typed ports, since
+ * every edge now names one on each side.
+ */
 const DESCRIPTORS = [
-  { kind: "filesystem-source", category: "SOURCE" },
-  { kind: "sha512", category: "ANALYSIS" },
-  { kind: "thumbnail", category: "ANALYSIS" },
-].map(({ kind, category }) => ({
+  { kind: "filesystem-source", category: "SOURCE", out: { id: "media", contentType: "media/*" } },
+  { kind: "sha512", category: "ANALYSIS", out: { id: "hash", contentType: "hash/sha512" } },
+  { kind: "thumbnail", category: "ANALYSIS", out: { id: "thumbnail", contentType: "artifact/image" } },
+].map(({ kind, category, out }) => ({
   kind,
   name: kind,
   description: "",
   icon: "",
   category,
-  inputs: kind === "filesystem-source" ? [] : [{ name: "in", contentType: "media" }],
-  outputs: [{ name: "out", contentType: "media" }],
+  inputPorts: kind === "filesystem-source"
+    ? []
+    : [{ id: "media", label: "Media", contentType: "media/*", cardinality: "ONE", required: true }],
+  outputPorts: [{ ...out, cardinality: "ONE", required: true }],
+  inputGroups: [],
+  outputGroups: [],
+  dynamicPorts: false,
   parameters: [],
   defaultConcurrency: 1,
   defaultMode: "SEQUENTIAL",
@@ -163,7 +171,7 @@ test.describe("Pipeline affinity groups – mocked", () => {
     const canvas = page.getByTestId("pipeline-canvas");
     await expect(canvas.locator(".react-flow__node")).toHaveCount(3, { timeout: 10_000 });
 
-    // Two connected downstream nodes → same group.
+    // Two downstream nodes → same group.
     await assignAffinity(page, "sha512", "groupA");
     await assignAffinity(page, "thumb", "groupA");
 

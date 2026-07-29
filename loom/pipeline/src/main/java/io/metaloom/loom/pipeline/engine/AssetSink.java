@@ -3,6 +3,7 @@ package io.metaloom.loom.pipeline.engine;
 import java.util.Map;
 
 import io.metaloom.loom.pipeline.model.MediaRef;
+import io.metaloom.loom.pipeline.model.PortPayload;
 
 /**
  * Where node output goes when a node is marked {@code syncToLoom}.
@@ -28,9 +29,9 @@ public interface AssetSink {
 	 *
 	 * @param media   the item, carrying at least its path and size
 	 * @param nodeId  the node that produced the outputs, for diagnostics
-	 * @param outputs the node's outputs
+	 * @param outputs the node's outputs, keyed by output port id
 	 */
-	void persist(MediaRef media, String nodeId, Map<String, Object> outputs);
+	void persist(MediaRef media, String nodeId, Map<String, PortPayload> outputs);
 
 	/**
 	 * Discards everything.

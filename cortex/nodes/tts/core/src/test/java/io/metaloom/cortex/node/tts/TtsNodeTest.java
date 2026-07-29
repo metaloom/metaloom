@@ -14,12 +14,12 @@ import static org.mockito.Mockito.when;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
@@ -30,6 +30,12 @@ import io.metaloom.utils.hash.SHA512;
  * Deterministic unit test for {@link TtsNode}. The FastAPI sidecar is replaced by a mocked {@link TtsClient}, so no server is required. Verifies the
  * text-in / audio-out flow: the WAV is written under {@code metaPath/tts_bin}, the output keys are emitted, and the node self-skips when no upstream
  * text is present.
+ *
+ * <p>
+ * The text is now wired directly into the declared {@link TtsNode#IN_TEXT} port instead of being resolved by the node from a
+ * {@code sourceNodeId}/{@code sourceOutputKey} option pair (since deleted) - the edge decides where the text comes from, the node just reads its
+ * port.
+ * </p>
  */
 class TtsNodeTest {
 
@@ -62,7 +68,8 @@ class TtsNodeTest {
 	}
 
 	private NodeContext<io.metaloom.cortex.api.media.LoomMedia> ctxWithText(String text) {
-		return NodeContext.create(media, Map.of("llm", Map.of("llm_result", text)));
+		NodeInputs inputs = NodeInputs.builder().input(TtsNode.IN_TEXT, text).build();
+		return NodeContext.create(media, inputs);
 	}
 
 	@Test
@@ -70,9 +77,9 @@ class TtsNodeTest {
 		NodeResult result = node().process(ctxWithText("Hallo Welt"));
 		assertThat(result).isSuccess();
 
-		String outPath = result.get(TtsNode.OUTPUT_TTS_PATH);
+		String outPath = result.get(TtsNode.OUT_AUDIO);
 		assertNotNull(outPath, "The node should emit the generated audio path");
-		assertEquals("DONE", result.get(TtsNode.OUTPUT_TTS_FLAG));
+		assertEquals("DONE", result.get(TtsNode.OUT_FLAG));
 
 		Path wav = Path.of(outPath);
 		assertTrue(Files.exists(wav), "The WAV file should be written to the tts_bin cache");
@@ -102,7 +109,7 @@ class TtsNodeTest {
 
 		NodeResult second = node.process(ctxWithText("Hallo Welt"));
 		assertThat(second).isSuccess();
-		assertEquals(first.get(TtsNode.OUTPUT_TTS_PATH), second.get(TtsNode.OUTPUT_TTS_PATH));
+		assertEquals(first.get(TtsNode.OUT_AUDIO), second.get(TtsNode.OUT_AUDIO));
 
 		// The sidecar must be hit exactly once - the second run is served from the in-heap cache.
 		verify(ttsClient, times(1)).synthesize(anyString(), anyString(), anyString());

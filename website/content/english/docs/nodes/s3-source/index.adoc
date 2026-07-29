@@ -11,15 +11,15 @@ run, so a re-run picks up only what is new or changed. Pointing a pipeline at a 
 objects and running it every hour therefore costs almost nothing after the first pass.
 
 ++++
-<div class="ml-nodeviz" data-nodeviz='{"kind":"s3-source","applies":"Source node","badge":"needs S3 credentials","persist":"nothing — it feeds the graph","configs":[{"name":"bucket scan","note":"options: bucket, prefix","inputs":[{"t":"path","l":"bucket + prefix","d":"listed, metadata only"}],"outputs":[{"t":"path","l":"uri","d":"s3://bucket/key per changed object"},{"t":"flag","l":"state","d":"NEW / MODIFIED / DELETED"},{"t":"flag","l":"source","d":"s3"}]},{"name":"bucket notifications","note":"option: useEvents","inputs":[{"t":"flag","l":"change events","d":"pushed by the bucket"}],"outputs":[{"t":"path","l":"uri","d":"only the reported objects"},{"t":"flag","l":"state","d":"NEW / MODIFIED / DELETED"},{"t":"flag","l":"source","d":"s3"}]}]}'></div>
+<div class="ml-nodeviz" data-nodeviz='{"kind":"s3-source","applies":"Source node","badge":"needs S3 credentials","persist":"nothing — it feeds the graph","configs":[{"name":"bucket scan","note":"options: bucket, prefix","inputs":[{"t":"path","l":"bucket + prefix","d":"listed for metadata only; a setting, not a connection"}],"outputs":[{"t":"media","l":"media","d":"one media item per changed object, carrying its s3://bucket/key origin and its NEW, MODIFIED or DELETED state"}]},{"name":"bucket notifications","note":"option: useEvents","inputs":[{"t":"path","l":"change events","d":"pushed by the bucket instead of being listed"}],"outputs":[{"t":"media","l":"media","d":"one media item per reported object, carrying its origin and change state"}]}]}'></div>
 ++++
 
 [cols="1,3"]
 |===
 | Kind | `s3-source`
 | Applies to | — (source node; produces the media stream)
-| Inputs | None — it is the root of the DAG
-| Output keys | `uri`, `bucket`, `key`, `source` (= `s3`), `state` for the item currently flowing through the graph
+| Input ports | None — it is the root of the DAG
+| Output ports | `media` — one media item per changed object, carrying its `s3://bucket/key` origin and change state. It is typed as *any media*, because the concrete type is only known once a worker downloads the object
 | Requirements | CPU only, plus S3 credentials on the worker. No shared media mount is needed.
 | Persists to | n/a (source)
 |===

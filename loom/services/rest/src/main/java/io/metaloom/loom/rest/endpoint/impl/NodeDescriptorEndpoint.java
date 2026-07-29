@@ -9,7 +9,7 @@ import javax.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.metaloom.loom.nodes.spec.ContentTypes;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.nodes.spec.NodeDescriptorRegistry;
 import io.metaloom.loom.rest.AbstractEndpoint;
 import io.metaloom.loom.rest.EndpointDependencies;
@@ -50,7 +50,7 @@ public class NodeDescriptorEndpoint extends AbstractEndpoint {
 		// List all node descriptors + content types (combined response for the UI)
 		addRoute(basePath(), GET, "Load all pipeline node descriptors", lrc -> {
 			String json = "{\"nodeDescriptors\":" + Json.encode(registry.getAll())
-				+ ",\"contentTypes\":" + Json.encode(ContentTypes.all()) + "}";
+				+ ",\"contentTypes\":" + Json.encode(ContentTypeRegistry.all()) + "}";
 			lrc.sendText(json, "application/json", 200);
 		});
 
@@ -67,7 +67,7 @@ public class NodeDescriptorEndpoint extends AbstractEndpoint {
 
 		// List all content types
 		addRoute(API_V1_PATH + "/pipeline/content-types", GET, "Load all pipeline content types", lrc -> {
-			lrc.sendText(Json.encode(ContentTypes.all()), "application/json", 200);
+			lrc.sendText(Json.encode(ContentTypeRegistry.all()), "application/json", 200);
 		});
 	}
 }

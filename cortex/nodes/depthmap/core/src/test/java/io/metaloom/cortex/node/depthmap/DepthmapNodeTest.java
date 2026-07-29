@@ -88,9 +88,9 @@ class DepthmapNodeTest {
 		NodeResult result = node().process(ctx());
 		assertThat(result).isSuccess();
 
-		assertEquals("DONE", result.get(DepthmapNode.OUTPUT_DEPTHMAP_FLAG));
+		assertEquals("DONE", result.get(DepthmapNode.OUT_FLAG));
 
-		String path = result.get(DepthmapNode.OUTPUT_DEPTHMAP_PATH);
+		String path = result.get(DepthmapNode.OUT_MAP);
 		assertNotNull(path, "The node should emit the artifact path");
 		assertTrue(Files.exists(Path.of(path)), "The PNG must be written under metaPath/depthmap_bin");
 		org.assertj.core.api.Assertions.assertThat(Files.readAllBytes(Path.of(path))).isEqualTo(png);
@@ -106,7 +106,7 @@ class DepthmapNodeTest {
 		NodeResult result = node().process(ctx());
 		assertThat(result).isSuccess();
 
-		JsonObject meta = new JsonObject(result.get(DepthmapNode.OUTPUT_DEPTHMAP_META));
+		JsonObject meta = new JsonObject(result.get(DepthmapNode.OUT_META));
 		assertEquals(DepthmapTestFixtures.MODEL, meta.getString("model"));
 		assertEquals("NEARNESS", meta.getString("convention"));
 		assertEquals("RELATIVE", meta.getString("source"));
@@ -119,7 +119,7 @@ class DepthmapNodeTest {
 		assertEquals(150, meta.getInteger("imageHeight"));
 
 		assertNotNull(meta.getJsonObject("stats"));
-		assertEquals(result.get(DepthmapNode.OUTPUT_DEPTHMAP_PATH), meta.getString("path"));
+		assertEquals(result.get(DepthmapNode.OUT_MAP), meta.getString("path"));
 	}
 
 	@Test
@@ -128,7 +128,7 @@ class DepthmapNodeTest {
 		assertThat(result).isSuccess();
 
 		// The consumer contract: decode as USHORT_GRAY and read 0..65535, brighter = nearer.
-		BufferedImage map = ImageIO.read(new File(result.get(DepthmapNode.OUTPUT_DEPTHMAP_PATH)));
+		BufferedImage map = ImageIO.read(new File(result.get(DepthmapNode.OUT_MAP)));
 		assertEquals(BufferedImage.TYPE_USHORT_GRAY, map.getType());
 		int left = map.getRaster().getSample(4, 4, 0);
 		int right = map.getRaster().getSample(MAP_W - 4, 4, 0);
@@ -173,8 +173,8 @@ class DepthmapNodeTest {
 
 		NodeResult result = node().process(ctx());
 
-		assertEquals("FAILED", result.get(DepthmapNode.OUTPUT_DEPTHMAP_FLAG));
-		assertNull(result.get(DepthmapNode.OUTPUT_DEPTHMAP_PATH), "A rejected result must not emit an artifact path");
+		assertEquals("FAILED", result.get(DepthmapNode.OUT_FLAG));
+		assertNull(result.get(DepthmapNode.OUT_MAP), "A rejected result must not emit an artifact path");
 	}
 
 	@Test
@@ -185,8 +185,8 @@ class DepthmapNodeTest {
 
 		NodeResult second = node.process(ctx());
 		assertThat(second).isSuccess();
-		assertEquals(first.get(DepthmapNode.OUTPUT_DEPTHMAP_PATH), second.get(DepthmapNode.OUTPUT_DEPTHMAP_PATH));
-		assertEquals(first.get(DepthmapNode.OUTPUT_DEPTHMAP_META), second.get(DepthmapNode.OUTPUT_DEPTHMAP_META));
+		assertEquals(first.get(DepthmapNode.OUT_MAP), second.get(DepthmapNode.OUT_MAP));
+		assertEquals(first.get(DepthmapNode.OUT_META), second.get(DepthmapNode.OUT_META));
 
 		verify(depthmapClient, times(1)).depth(any(), any(), any(), anyInt());
 	}
@@ -199,7 +199,7 @@ class DepthmapNodeTest {
 
 		// Someone cleared metaPath underneath us. The cached metadata is now a promise the
 		// filesystem cannot keep, so the node must recompute rather than hand out a dead path.
-		Files.delete(Path.of(first.get(DepthmapNode.OUTPUT_DEPTHMAP_PATH)));
+		Files.delete(Path.of(first.get(DepthmapNode.OUT_MAP)));
 
 		assertThat(node.process(ctx())).isSuccess();
 		verify(depthmapClient, times(2)).depth(any(), any(), any(), anyInt());
@@ -213,12 +213,12 @@ class DepthmapNodeTest {
 
 		DepthmapNode node = node();
 		NodeResult failed = node.process(ctx());
-		assertEquals("FAILED", failed.get(DepthmapNode.OUTPUT_DEPTHMAP_FLAG));
-		assertNull(failed.get(DepthmapNode.OUTPUT_DEPTHMAP_PATH));
+		assertEquals("FAILED", failed.get(DepthmapNode.OUT_FLAG));
+		assertNull(failed.get(DepthmapNode.OUT_MAP));
 
 		NodeResult retry = node.process(ctx());
 		assertThat(retry).isSuccess();
-		assertNotNull(retry.get(DepthmapNode.OUTPUT_DEPTHMAP_PATH));
+		assertNotNull(retry.get(DepthmapNode.OUT_MAP));
 	}
 
 	@Test

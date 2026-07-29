@@ -1,14 +1,21 @@
 package io.metaloom.loom.nodes.spec;
 
-import static io.metaloom.loom.nodes.spec.ContentTypes.*;
+import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.*;
 import static io.metaloom.loom.nodes.spec.NodeCategory.*;
 import static io.metaloom.loom.nodes.spec.NodeMode.*;
 import static io.metaloom.loom.nodes.spec.ParameterType.*;
+import static io.metaloom.loom.nodes.spec.PortSpec.one;
 
 import java.util.List;
 
 /**
  * Provides the node descriptor for the LLM node.
+ *
+ * <p>
+ * The output side is <strong>dynamic</strong>: the node emits one result per configured prompt, so
+ * {@link LlmPortResolver} derives the ports from the {@code prompts} option
+ * rather than the descriptor declaring a single fixed result key the node never actually writes.
+ * </p>
  */
 public class LlmDescriptorProvider implements NodeDescriptorProvider {
 
@@ -24,8 +31,11 @@ public class LlmDescriptorProvider implements NodeDescriptorProvider {
 				.setDescription("Process media through an LLM (e.g. Ollama) with configurable prompts.")
 				.setIcon("psychology")
 				.setCategory(ANALYSIS)
-				.setInputs(List.of(new NodeInput("media", MEDIA_ANY, true)))
-				.setOutputs(List.of(new NodeOutput("llm_result", DATA_TEXT)))
+				.setInputPorts(List.of(
+					one("media", MEDIA_ANY)
+						.describedAs("Media", "The media item the configured prompts are asked about")))
+				.setOutputPorts(List.of())
+				.setDynamicPorts(true)
 				.setParameters(List.of(
 					commonEnabled(), commonProcessIncomplete(), commonRetryFailed(),
 					new NodeParameter().setKey("ollamaUrl").setType(STRING)

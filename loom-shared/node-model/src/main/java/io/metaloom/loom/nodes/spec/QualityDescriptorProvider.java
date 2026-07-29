@@ -1,9 +1,10 @@
 package io.metaloom.loom.nodes.spec;
 
-import static io.metaloom.loom.nodes.spec.ContentTypes.*;
+import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.*;
 import static io.metaloom.loom.nodes.spec.NodeCategory.*;
 import static io.metaloom.loom.nodes.spec.NodeMode.*;
 import static io.metaloom.loom.nodes.spec.ParameterType.*;
+import static io.metaloom.loom.nodes.spec.PortSpec.one;
 
 import java.util.List;
 
@@ -24,16 +25,24 @@ public class QualityDescriptorProvider implements NodeDescriptorProvider {
 				.setDescription("Analyze media quality: blurriness, resolution, bitrate.")
 				.setIcon("high_quality")
 				.setCategory(ANALYSIS)
-				.setInputs(List.of(new NodeInput("media", MEDIA_ANY, true)))
-				.setOutputs(List.of(
-					new NodeOutput("blurriness", DATA_NUMBER),
-					new NodeOutput("image_width", DATA_INTEGER),
-					new NodeOutput("image_height", DATA_INTEGER),
-					new NodeOutput("video_width", DATA_INTEGER),
-					new NodeOutput("video_height", DATA_INTEGER),
-					new NodeOutput("video_fps", DATA_NUMBER),
-					new NodeOutput("video_frame_count", DATA_LONG),
-					new NodeOutput("quality_flag", DATA_STRING)))
+				.setInputPorts(List.of(
+					one("media", MEDIA_ANY)
+						.describedAs("Media", "The image or video to measure")))
+				.setOutputPorts(List.of(
+					one("metrics", STRUCT_QUALITY)
+						.describedAs("Quality Metrics", "The whole measurement bag - resolution, blurriness and bitrates - for a filter to threshold on"),
+					one("blurriness", SCALAR_NUMBER)
+						.describedAs("Blurriness", "Variance of the Laplacian; the lower the value the blurrier the frame"),
+					one("width", SCALAR_INTEGER)
+						.describedAs("Width", "Frame width in pixels"),
+					one("height", SCALAR_INTEGER)
+						.describedAs("Height", "Frame height in pixels"),
+					one("fps", SCALAR_NUMBER)
+						.describedAs("Frame Rate", "Frames per second; zero for a still image"),
+					one("frame_count", SCALAR_INTEGER)
+						.describedAs("Frame Count", "Total number of frames; one for a still image"),
+					one("flag", SCALAR_STRING)
+						.describedAs("Flag", "Processing marker recording how this node finished for the item")))
 				.setParameters(List.of(
 					commonEnabled(), commonProcessIncomplete(), commonRetryFailed(),
 					new NodeParameter().setKey("checkBlurriness").setType(BOOLEAN).setDefaultValue(true)

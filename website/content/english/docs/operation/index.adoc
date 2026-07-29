@@ -322,9 +322,12 @@ A Cortex worker connects to Loom and serves the tasks Loom dispatches:
 . *Registers* — opens the processor WebSocket, authenticates (`?token=<jwt>`), and announces the node
   kinds it is willing to run. Loom persists it as a durable `cortex_instance`.
 . *Waits for work* — Loom's pipeline engine dispatches a **source task** to enumerate media, then a
-  **node task** per graph node per item (affinity work goes out as **segment tasks**).
-. *Runs one task at a time* — the worker executes the requested node and replies with the outcome
-  (`COMPLETED` / `FAILED` / `SKIPPED`) plus outputs for downstream nodes.
+  **node task** per graph node per item — or per *element*, where an upstream node emitted a sequence
+  (affinity work goes out as **segment tasks**).
+. *Runs one task at a time* — the task carries the node's inputs keyed by its own
+  link:../pipeline/#ports[input ports], resolved by Loom from the graph's edges; the worker executes
+  the node and replies with the outcome (`COMPLETED` / `FAILED` / `SKIPPED`) plus its outputs, keyed
+  by output port.
 . *Persists results* — the worker writes the durable payload to Loom over REST (see
   link:../cortex/examples/[persistence path]).
 . *Streams progress* — tracking events flow back over the WebSocket; Loom re-broadcasts them to UI

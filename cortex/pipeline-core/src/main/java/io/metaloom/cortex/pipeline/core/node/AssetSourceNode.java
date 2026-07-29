@@ -4,9 +4,15 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.pipeline.api.NodeMode;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
+import io.metaloom.cortex.api.node.PortOutput;
+import io.metaloom.cortex.pipeline.api.NodeMode;
 import io.metaloom.cortex.pipeline.api.node.MediaSourceNode;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+
+import java.util.List;
 import io.reactivex.rxjava3.core.Flowable;
 
 /**
@@ -23,8 +29,8 @@ import io.reactivex.rxjava3.core.Flowable;
  */
 public class AssetSourceNode extends AbstractPipelineNode implements MediaSourceNode {
 
-	private static final String OUTPUT_PATH = "path";
-	private static final String OUTPUT_SOURCE = "source";
+	/** What every source emits: a reference the downstream nodes resolve to a media handle. */
+	public static final OutputPort<String> OUT_MEDIA = OutputPort.one("media", ContentTypeRegistry.MEDIA_ANY, String.class);
 
 	private final LoomMedia asset;
 	private final AtomicBoolean emitted = new AtomicBoolean(false);
@@ -48,13 +54,12 @@ public class AssetSourceNode extends AbstractPipelineNode implements MediaSource
 	}
 
 	@Override
-	public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {
+	public NodeResult process(LoomMedia media, NodeInputs inputs) {
 		if (!emitted.compareAndSet(false, true)) {
 			return NodeResult.skipped(id(), "Asset was already emitted");
 		}
-		return NodeResult.success(id(), 0, Map.of(
-			OUTPUT_PATH, asset.absolutePath(),
-			OUTPUT_SOURCE, "asset"));
+		return NodeResult.success(id(), 0,
+			Map.of(OUT_MEDIA.id(), new PortOutput(OUT_MEDIA, List.of(asset.absolutePath()))));
 	}
 
 	@Override

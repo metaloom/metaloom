@@ -16,14 +16,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.node.NodeOutputKey;
+import io.metaloom.cortex.api.node.InputPort;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.utils.hash.HashUtils;
 import io.metaloom.utils.hash.SHA512;
@@ -61,9 +63,12 @@ public class DepthmapNode extends AbstractMediaNode<DepthmapNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(DepthmapNode.class);
 
-	public static final NodeOutputKey<String> OUTPUT_DEPTHMAP_FLAG = NodeOutputKey.of("depthmap_flag", String.class);
-	public static final NodeOutputKey<String> OUTPUT_DEPTHMAP_PATH = NodeOutputKey.of("depthmap_path", String.class);
-	public static final NodeOutputKey<String> OUTPUT_DEPTHMAP_META = NodeOutputKey.of("depthmap_meta", String.class);
+	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_IMAGE, LoomMedia.class);
+
+	/** The metadata a consumer needs to interpret the map; {@code map} is the worker-local PNG the metadata points at. */
+	public static final OutputPort<String> OUT_META = OutputPort.one("meta", ContentTypeRegistry.STRUCT_DEPTHMAP, String.class);
+	public static final OutputPort<String> OUT_MAP = OutputPort.one("map", ContentTypeRegistry.ARTIFACT_IMAGE, String.class);
+	public static final OutputPort<String> OUT_FLAG = OutputPort.one("flag", ContentTypeRegistry.SCALAR_STRING, String.class);
 
 	/** The only convention this node accepts from the sidecar. A mismatch is a hard failure rather than a guess. */
 	public static final String CONVENTION_NEARNESS = "NEARNESS";
@@ -155,7 +160,7 @@ public class DepthmapNode extends AbstractMediaNode<DepthmapNodeOptions> {
 			return ctx.origin(COMPUTED).next();
 		} catch (Exception e) {
 			log.error("Failed to estimate depth for media {}", path, e);
-			ctx.output(OUTPUT_DEPTHMAP_FLAG, "FAILED");
+			ctx.output(OUT_FLAG, "FAILED");
 			recordNodeResult(asset, ctx, ResultState.FAILED, e.getMessage(), model, null);
 			return ctx.failure(e.getMessage()).next();
 		}
@@ -165,9 +170,9 @@ public class DepthmapNode extends AbstractMediaNode<DepthmapNodeOptions> {
 	 * Emit the three node outputs from the metadata.
 	 */
 	private void emit(NodeContext<LoomMedia> ctx, JsonObject meta) {
-		ctx.output(OUTPUT_DEPTHMAP_FLAG, "DONE");
-		ctx.output(OUTPUT_DEPTHMAP_PATH, meta.getString("path"));
-		ctx.output(OUTPUT_DEPTHMAP_META, meta.encode());
+		ctx.output(OUT_FLAG, "DONE");
+		ctx.output(OUT_MAP, meta.getString("path"));
+		ctx.output(OUT_META, meta.encode());
 	}
 
 	/**

@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 
 import java.util.List;
-import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
@@ -19,7 +18,7 @@ public class RegionResolverTest {
 
 	@Test
 	public void testTheWholeImageIsMeasuredByDefault() {
-		Resolution resolution = resolve(new DominantColorNodeOptions(), Map.of());
+		Resolution resolution = resolve(new DominantColorNodeOptions(), List.of());
 
 		assertThat(resolution.regions()).hasSize(1);
 		RegionSource whole = resolution.regions().get(0);
@@ -35,7 +34,7 @@ public class RegionResolverTest {
 			.setUseDetections(false)
 			.setRegionX(0.25d).setRegionY(0.25d).setRegionW(0.5d).setRegionH(0.5d);
 
-		Resolution resolution = resolve(options, Map.of());
+		Resolution resolution = resolve(options, List.of());
 
 		assertThat(resolution.regions()).hasSize(1);
 		assertThat(resolution.regions().get(0).kind()).isEqualTo(RegionKind.CONFIG);
@@ -50,20 +49,22 @@ public class RegionResolverTest {
 			.setRegionCoordinates(DominantColorNodeOptions.ABSOLUTE_PIXELS)
 			.setRegionX(10).setRegionY(20).setRegionW(30).setRegionH(40);
 
-		assertThat(resolve(options, Map.of()).regions().get(0).box()).isEqualTo(new Box(10, 20, 30, 40));
+		assertThat(resolve(options, List.of()).regions().get(0).box()).isEqualTo(new Box(10, 20, 30, 40));
 	}
 
 	@Test
 	public void testAbsoluteDetectionsMeasuredAgainstTheSameImagePassThrough() {
-		JsonObject payload = detections(IMAGE_W, IMAGE_H, DominantColorNodeOptions.ABSOLUTE_PIXELS,
-			detection(0, "face", 40, 40, 80, 80));
+		String element = detection(IMAGE_W, IMAGE_H, DominantColorNodeOptions.ABSOLUTE_PIXELS,
+			0, "face", 40, 40, 80, 80).encode();
 
-		Resolution resolution = resolve(detectionsOnly(), upstream("facedetect", payload));
+		Resolution resolution = resolve(detectionsOnly(), List.of(element));
 
 		assertThat(resolution.regions()).hasSize(1);
 		RegionSource region = resolution.regions().get(0);
 		assertThat(region.id()).isEqualTo("face-0");
-		assertThat(region.source()).isEqualTo("facedetect");
+		// There is no more per-source addressing - every detection-derived region shares one origin
+		// tag now that the port carries them, not a named "detectionSources" list.
+		assertThat(region.source()).isEqualTo("detections");
 		assertThat(region.kind()).isEqualTo(RegionKind.DETECTION);
 		assertThat(region.box()).isEqualTo(new Box(40, 40, 80, 80));
 	}
@@ -74,10 +75,10 @@ public class RegionResolverTest {
 	 */
 	@Test
 	public void testAbsoluteDetectionsMeasuredAgainstADifferentSizeAreRescaled() {
-		JsonObject payload = detections(IMAGE_W / 2, IMAGE_H / 2, DominantColorNodeOptions.ABSOLUTE_PIXELS,
-			detection(0, "face", 20, 20, 40, 40));
+		String element = detection(IMAGE_W / 2, IMAGE_H / 2, DominantColorNodeOptions.ABSOLUTE_PIXELS,
+			0, "face", 20, 20, 40, 40).encode();
 
-		Resolution resolution = resolve(detectionsOnly(), upstream("facedetect", payload));
+		Resolution resolution = resolve(detectionsOnly(), List.of(element));
 
 		assertThat(resolution.regions().get(0).box()).isEqualTo(new Box(40, 40, 80, 80));
 	}
@@ -87,10 +88,10 @@ public class RegionResolverTest {
 	 */
 	@Test
 	public void testAbsoluteDetectionsWithoutPayloadDimensionsAreUsedAsIs() {
-		JsonObject payload = detections(null, null, DominantColorNodeOptions.ABSOLUTE_PIXELS,
-			detection(0, "face", 40, 40, 80, 80));
+		String element = detection(null, null, DominantColorNodeOptions.ABSOLUTE_PIXELS,
+			0, "face", 40, 40, 80, 80).encode();
 
-		assertThat(resolve(detectionsOnly(), upstream("facedetect", payload)).regions().get(0).box())
+		assertThat(resolve(detectionsOnly(), List.of(element)).regions().get(0).box())
 			.isEqualTo(new Box(40, 40, 80, 80));
 	}
 
@@ -100,28 +101,28 @@ public class RegionResolverTest {
 	 */
 	@Test
 	public void testNormalizedDetectionsScaleByTheDecodedImageEvenWithoutPayloadDimensions() {
-		JsonObject payload = detections(null, null, DominantColorNodeOptions.NORMALIZED,
-			detection(0, "face", 0.1d, 0.2d, 0.2d, 0.4d));
+		String element = detection(null, null, DominantColorNodeOptions.NORMALIZED,
+			0, "face", 0.1d, 0.2d, 0.2d, 0.4d).encode();
 
-		assertThat(resolve(detectionsOnly(), upstream("facedetect", payload)).regions().get(0).box())
+		assertThat(resolve(detectionsOnly(), List.of(element)).regions().get(0).box())
 			.isEqualTo(new Box(40, 40, 80, 80));
 	}
 
 	@Test
 	public void testNormalizedDetectionsIgnoreThePayloadDimensions() {
-		JsonObject payload = detections(9999, 9999, DominantColorNodeOptions.NORMALIZED,
-			detection(0, "face", 0.1d, 0.2d, 0.2d, 0.4d));
+		String element = detection(9999, 9999, DominantColorNodeOptions.NORMALIZED,
+			0, "face", 0.1d, 0.2d, 0.2d, 0.4d).encode();
 
-		assertThat(resolve(detectionsOnly(), upstream("facedetect", payload)).regions().get(0).box())
+		assertThat(resolve(detectionsOnly(), List.of(element)).regions().get(0).box())
 			.isEqualTo(new Box(40, 40, 80, 80));
 	}
 
 	@Test
 	public void testABoxStraddlingTheEdgeIsClampedRatherThanDropped() {
-		JsonObject payload = detections(IMAGE_W, IMAGE_H, DominantColorNodeOptions.ABSOLUTE_PIXELS,
-			detection(0, "face", 350, 150, 200, 200));
+		String element = detection(IMAGE_W, IMAGE_H, DominantColorNodeOptions.ABSOLUTE_PIXELS,
+			0, "face", 350, 150, 200, 200).encode();
 
-		Resolution resolution = resolve(detectionsOnly(), upstream("facedetect", payload));
+		Resolution resolution = resolve(detectionsOnly(), List.of(element));
 
 		assertThat(resolution.regions()).hasSize(1);
 		assertThat(resolution.regions().get(0).box()).isEqualTo(new Box(350, 150, 50, 50));
@@ -130,10 +131,10 @@ public class RegionResolverTest {
 
 	@Test
 	public void testABoxEntirelyOutsideTheImageIsDropped() {
-		JsonObject payload = detections(IMAGE_W, IMAGE_H, DominantColorNodeOptions.ABSOLUTE_PIXELS,
-			detection(0, "face", 900, 900, 80, 80));
+		String element = detection(IMAGE_W, IMAGE_H, DominantColorNodeOptions.ABSOLUTE_PIXELS,
+			0, "face", 900, 900, 80, 80).encode();
 
-		Resolution resolution = resolve(detectionsOnly(), upstream("facedetect", payload));
+		Resolution resolution = resolve(detectionsOnly(), List.of(element));
 
 		assertThat(resolution.regions()).isEmpty();
 		assertThat(resolution.dropped()).isEqualTo(1);
@@ -141,11 +142,11 @@ public class RegionResolverTest {
 
 	@Test
 	public void testABoxBelowTheMinimumPixelCountIsDropped() {
-		JsonObject payload = detections(IMAGE_W, IMAGE_H, DominantColorNodeOptions.ABSOLUTE_PIXELS,
-			detection(0, "face", 10, 10, 4, 4),
-			detection(1, "face", 40, 40, 80, 80));
+		List<String> elements = List.of(
+			detection(IMAGE_W, IMAGE_H, DominantColorNodeOptions.ABSOLUTE_PIXELS, 0, "face", 10, 10, 4, 4).encode(),
+			detection(IMAGE_W, IMAGE_H, DominantColorNodeOptions.ABSOLUTE_PIXELS, 1, "face", 40, 40, 80, 80).encode());
 
-		Resolution resolution = resolve(detectionsOnly().setMinRegionPixels(64), upstream("facedetect", payload));
+		Resolution resolution = resolve(detectionsOnly().setMinRegionPixels(64), elements);
 
 		assertThat(resolution.regions()).hasSize(1);
 		assertThat(resolution.regions().get(0).id()).isEqualTo("face-1");
@@ -157,10 +158,10 @@ public class RegionResolverTest {
 	 */
 	@Test
 	public void testADetectionFromANonZeroVideoFrameIsDropped() {
-		JsonObject payload = detections(IMAGE_W, IMAGE_H, DominantColorNodeOptions.ABSOLUTE_PIXELS,
-			detection(0, "face", 40, 40, 80, 80).put("frame", 3));
+		String element = detection(IMAGE_W, IMAGE_H, DominantColorNodeOptions.ABSOLUTE_PIXELS,
+			0, "face", 40, 40, 80, 80).put("frame", 3).encode();
 
-		Resolution resolution = resolve(detectionsOnly(), upstream("facedetect", payload));
+		Resolution resolution = resolve(detectionsOnly(), List.of(element));
 
 		assertThat(resolution.regions()).isEmpty();
 		assertThat(resolution.dropped()).isEqualTo(1);
@@ -168,14 +169,14 @@ public class RegionResolverTest {
 
 	@Test
 	public void testTheCapKeepsTheLargestBoxesAndReportsTheRemainder() {
-		JsonObject payload = detections(IMAGE_W, IMAGE_H, DominantColorNodeOptions.ABSOLUTE_PIXELS,
-			detection(0, "face", 0, 0, 20, 20),
-			detection(1, "face", 30, 0, 100, 100),
-			detection(2, "face", 140, 0, 30, 30),
-			detection(3, "face", 180, 0, 90, 90),
-			detection(4, "face", 280, 0, 40, 40));
+		List<String> elements = List.of(
+			detection(IMAGE_W, IMAGE_H, DominantColorNodeOptions.ABSOLUTE_PIXELS, 0, "face", 0, 0, 20, 20).encode(),
+			detection(IMAGE_W, IMAGE_H, DominantColorNodeOptions.ABSOLUTE_PIXELS, 1, "face", 30, 0, 100, 100).encode(),
+			detection(IMAGE_W, IMAGE_H, DominantColorNodeOptions.ABSOLUTE_PIXELS, 2, "face", 140, 0, 30, 30).encode(),
+			detection(IMAGE_W, IMAGE_H, DominantColorNodeOptions.ABSOLUTE_PIXELS, 3, "face", 180, 0, 90, 90).encode(),
+			detection(IMAGE_W, IMAGE_H, DominantColorNodeOptions.ABSOLUTE_PIXELS, 4, "face", 280, 0, 40, 40).encode());
 
-		Resolution resolution = resolve(detectionsOnly().setMaxRegions(2), upstream("facedetect", payload));
+		Resolution resolution = resolve(detectionsOnly().setMaxRegions(2), elements);
 
 		assertThat(resolution.regions()).extracting(RegionSource::id).containsExactly("face-1", "face-3");
 		assertThat(resolution.truncated()).isEqualTo(3);
@@ -186,53 +187,37 @@ public class RegionResolverTest {
 		DominantColorNodeOptions options = new DominantColorNodeOptions()
 			.setMaxRegions(1)
 			.setRegionX(0).setRegionY(0).setRegionW(0.5d).setRegionH(0.5d);
-		JsonObject payload = detections(IMAGE_W, IMAGE_H, DominantColorNodeOptions.ABSOLUTE_PIXELS,
-			detection(0, "face", 0, 0, 100, 100),
-			detection(1, "face", 200, 0, 50, 50));
+		List<String> elements = List.of(
+			detection(IMAGE_W, IMAGE_H, DominantColorNodeOptions.ABSOLUTE_PIXELS, 0, "face", 0, 0, 100, 100).encode(),
+			detection(IMAGE_W, IMAGE_H, DominantColorNodeOptions.ABSOLUTE_PIXELS, 1, "face", 200, 0, 50, 50).encode());
 
-		Resolution resolution = resolve(options, upstream("facedetect", payload));
+		Resolution resolution = resolve(options, elements);
 
 		assertThat(resolution.regions()).extracting(RegionSource::id).containsExactly("whole", "region", "face-0");
 		assertThat(resolution.truncated()).isEqualTo(1);
 	}
 
 	@Test
-	public void testTwoDetectionSourcesProduceNonCollidingIds() {
-		DominantColorNodeOptions options = detectionsOnly().setDetectionSources(List.of("facedetect", "objectdetect"));
-		JsonObject faces = detections(IMAGE_W, IMAGE_H, DominantColorNodeOptions.ABSOLUTE_PIXELS,
-			detection(0, "face", 0, 0, 80, 80));
-		JsonObject objects = detections(IMAGE_W, IMAGE_H, DominantColorNodeOptions.ABSOLUTE_PIXELS,
-			detection(0, "face", 100, 0, 80, 80));
-
-		Resolution resolution = resolve(options, Map.of(
-			"facedetect", Map.of("detections", faces.encode()),
-			"objectdetect", Map.of("detections", objects.encode())));
-
-		assertThat(resolution.regions()).extracting(RegionSource::id)
-			.containsExactly("facedetect:face-0", "objectdetect:face-0");
-	}
-
-	@Test
 	public void testMalformedUpstreamPayloadIsIgnoredRatherThanThrowing() {
-		Map<String, Map<String, Object>> upstream = Map.of("facedetect", Map.of("detections", "not json at all"));
+		List<String> elements = List.of("not json at all");
 
-		assertThatNoException().isThrownBy(() -> resolve(detectionsOnly(), upstream));
-		assertThat(resolve(new DominantColorNodeOptions(), upstream).regions())
+		assertThatNoException().isThrownBy(() -> resolve(detectionsOnly(), elements));
+		assertThat(resolve(new DominantColorNodeOptions(), elements).regions())
 			.extracting(RegionSource::id).containsExactly("whole");
 	}
 
 	@Test
 	public void testAnAbsentUpstreamOutputSimplyYieldsNoDetectionRegions() {
-		assertThat(resolve(detectionsOnly(), Map.of()).regions()).isEmpty();
+		assertThat(resolve(detectionsOnly(), List.of()).regions()).isEmpty();
 		assertThat(resolve(detectionsOnly(), null).regions()).isEmpty();
 	}
 
 	@Test
 	public void testDetectionProvenanceIsCarriedThrough() {
-		JsonObject payload = detections(IMAGE_W, IMAGE_H, DominantColorNodeOptions.ABSOLUTE_PIXELS,
-			detection(7, "cat", 40, 40, 80, 80).put("type", "animal").put("confidence", 0.83d));
+		String element = detection(IMAGE_W, IMAGE_H, DominantColorNodeOptions.ABSOLUTE_PIXELS,
+			7, "cat", 40, 40, 80, 80).put("type", "animal").put("confidence", 0.83d).encode();
 
-		RegionSource region = resolve(detectionsOnly(), upstream("facedetect", payload)).regions().get(0);
+		RegionSource region = resolve(detectionsOnly(), List.of(element)).regions().get(0);
 
 		assertThat(region.id()).isEqualTo("cat-7");
 		assertThat(region.label()).isEqualTo("cat");
@@ -241,37 +226,31 @@ public class RegionResolverTest {
 		assertThat(region.frame()).isZero();
 	}
 
-	private static Resolution resolve(DominantColorNodeOptions options, Map<String, Map<String, Object>> upstream) {
-		return new RegionResolver(options).resolve(upstream, IMAGE_W, IMAGE_H);
+	private static Resolution resolve(DominantColorNodeOptions options, List<String> detections) {
+		return new RegionResolver(options).resolve(detections, IMAGE_W, IMAGE_H);
 	}
 
 	private static DominantColorNodeOptions detectionsOnly() {
 		return new DominantColorNodeOptions().setIncludeWholeImage(false);
 	}
 
-	private static Map<String, Map<String, Object>> upstream(String nodeId, JsonObject payload) {
-		return Map.of(nodeId, Map.of("detections", payload.encode()));
-	}
-
-	static JsonObject detections(Integer imageWidth, Integer imageHeight, String coordinates, JsonObject... boxes) {
-		io.vertx.core.json.JsonArray items = new io.vertx.core.json.JsonArray();
-		for (JsonObject box : boxes) {
-			items.add(box);
-		}
-		JsonObject payload = new JsonObject().put("coordinates", coordinates).put("detections", items);
-		if (imageWidth != null && imageHeight != null) {
-			payload.put("imageWidth", imageWidth).put("imageHeight", imageHeight);
-		}
-		return payload;
-	}
-
-	static JsonObject detection(int index, String label, double x, double y, double w, double h) {
-		return new JsonObject()
+	/**
+	 * One self-contained {@code IN_DETECTIONS} element: the port is {@code MANY}, so every detection
+	 * is its own element rather than an entry in a batch payload.
+	 */
+	private static JsonObject detection(Integer imageWidth, Integer imageHeight, String coordinates,
+		int index, String label, double x, double y, double w, double h) {
+		JsonObject json = new JsonObject()
 			.put("index", index)
 			.put("type", label)
 			.put("label", label)
 			.put("frame", 0)
+			.put("coordinates", coordinates)
 			.put("bbox", new JsonObject().put("x", x).put("y", y).put("w", w).put("h", h))
 			.put("confidence", 1.0d);
+		if (imageWidth != null && imageHeight != null) {
+			json.put("imageWidth", imageWidth).put("imageHeight", imageHeight);
+		}
+		return json;
 	}
 }

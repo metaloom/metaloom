@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.PortOutput;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.pipeline.api.cache.NodeCacheProvider;
 import io.metaloom.utils.hash.HashUtils;
@@ -52,7 +53,7 @@ public class SidecarFileNodeCache implements NodeCacheProvider {
 			if (raw == null || raw.isEmpty()) {
 				return Optional.empty();
 			}
-			Map<String, Object> output = XAttrNodeCache.deserializeOutputMap(raw);
+			Map<String, PortOutput> output = XAttrNodeCache.deserializeOutputMap(raw);
 			return Optional.of(NodeResult.success(nodeId, 0, output));
 		} catch (Exception e) {
 			log.debug("Failed to read sidecar cache for node {} on {}: {}", nodeId, media.absolutePath(), e.getMessage());
@@ -68,7 +69,7 @@ public class SidecarFileNodeCache implements NodeCacheProvider {
 		try {
 			Path file = resolveCachePath(nodeId, media);
 			Files.createDirectories(file.getParent());
-			String serialized = XAttrNodeCache.serializeOutputMap(result.getOutput());
+			String serialized = XAttrNodeCache.serializeOutputMap(result.getOutputs());
 			Files.writeString(file, serialized, StandardCharsets.UTF_8);
 		} catch (IOException e) {
 			log.warn("Failed to write sidecar cache for node {} on {}: {}", nodeId, media.absolutePath(), e.getMessage());

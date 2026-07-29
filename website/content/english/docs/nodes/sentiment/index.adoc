@@ -3,10 +3,11 @@ title: Sentiment Analysis
 ---
 
 The sentiment node **scores the tone of text** your pipeline has already produced. It does not look
-at the media itself — it takes text from an *upstream* node (link:../tika/[Tika] document content,
-link:../ocr/[OCR] text, a link:../captioning/[caption], or a link:../vlm/[VLM] /
-link:../llm/[LLM] answer) and labels it **positive**, **neutral** or **negative**, with a confidence
-score and a signed polarity value you can sort and filter on.
+at the media itself — it has a single `text` input port that accepts any text type, so you can
+connect link:../tika/[Tika] document content, link:../ocr/[OCR] text, a link:../captioning/[caption],
+or a link:../vlm/[VLM] / link:../llm/[LLM] answer to it. The node labels whatever arrives
+**positive**, **neutral** or **negative**, with a confidence score and a signed polarity value you
+can sort and filter on.
 
 German and English are handled by dedicated models — German with `german-sentiment-bert`, English
 with a RoBERTa model trained on social text — rather than one generic multilingual model, because a
@@ -14,18 +15,18 @@ language specialist is measurably better on its own language. Both run behind a 
 so the node stays a pure client and needs no model runtime of its own.
 
 ++++
-<div class="ml-nodeviz" data-nodeviz='{"kind":"sentiment","applies":"Any asset with upstream text","badge":"Sentiment sidecar","persist":"asset_json_comp (schemaType sentiment, variant = source output key)","configs":[{"name":"default (documents)","note":"first non-empty of tika · ocr · captioning · vlm · llm","inputs":[{"t":"text","l":"tika_content","d":"extracted document text"}],"outputs":[{"t":"label","l":"sentiment_label","d":"POSITIVE / NEUTRAL / NEGATIVE"},{"t":"number","l":"sentiment_score"},{"t":"json","l":"sentiment_result","d":"full distribution + polarity"}]},{"name":"from a caption","note":"textSources captioning:caption_result","inputs":[{"t":"text","l":"caption_result","d":"generated caption"}],"outputs":[{"t":"label","l":"sentiment_label"},{"t":"number","l":"sentiment_score"},{"t":"json","l":"sentiment_result"}]}]}'></div>
+<div class="ml-nodeviz" data-nodeviz='{"kind":"sentiment","applies":"Any asset with upstream text","badge":"Sentiment sidecar","persist":"asset_json_comp (schemaType sentiment, one row per wired text source)","configs":[{"name":"document text","note":"the tika content port wired in","inputs":[{"t":"text","l":"text","ct":"text/*","d":"whatever text you connect — here a document body extracted by Tika"}],"outputs":[{"t":"string","l":"label","d":"POSITIVE, NEUTRAL or NEGATIVE"},{"t":"number","l":"score","d":"how confident the model is in that label, 0 to 1"},{"t":"json","l":"result","d":"the full distribution, the signed polarity, the language and the model used"}]},{"name":"a caption","note":"the captioning caption port wired in","inputs":[{"t":"text","l":"text","ct":"text/*","d":"whatever text you connect — here a generated caption"}],"outputs":[{"t":"string","l":"label","d":"POSITIVE, NEUTRAL or NEGATIVE"},{"t":"number","l":"score","d":"how confident the model is in that label, 0 to 1"},{"t":"json","l":"result","d":"the full distribution, the signed polarity, the language and the model used"}]}]}'></div>
 ++++
 
 [cols="1,3"]
 |===
 | Kind | `sentiment`
 | Applies to | Any asset (the text comes from an upstream node, not from the media)
-| Inputs | Text from an upstream node output — configurable, defaults to the first non-empty of `tika`, `ocr`, `captioning`, `vlm`, `llm`
-| Output keys | `sentiment_label` (String), `sentiment_score` (Number), `sentiment_result` (JSON String)
+| Input ports | `text` — accepts any text type, so a document body, an OCR result, a caption or a transcript can all be wired into it
+| Output ports | `label` (String), `score` (Number), `result` (the structure below)
 | Languages | German and English, detected automatically; other languages fall back to a multilingual model
 | Requirements | A running **sentiment sidecar** (`/v1/sentiment`). CPU is sufficient; GPU optional
-| Persists to | `asset_json_comp` — one row per text source, discriminated by the source output key
+| Persists to | `asset_json_comp` — one row per text source, discriminated by the port the text was connected from
 |===
 
 == What it produces
@@ -39,7 +40,7 @@ so the node stays a pure client and needs no model runtime of its own.
   "scores": { "positive": 0.06, "neutral": 0.07, "negative": 0.87 },
   "lang": "de",
   "model": "oliverguhr/german-sentiment-bert",
-  "source": { "nodeId": "tika", "outputKey": "tika_content" },
+  "source": { "node": "tika", "port": "content" },
   "textChars": 4211,
   "chunks": 12
 }
@@ -62,13 +63,14 @@ and combines them weighted by length — so a long complaint is not diluted by a
 | `sentimentHost` / `sentimentPort` | Address of the sentiment sidecar (default `localhost:9110`)
 | `language` | `de`, `en`, or `auto` to detect it per text (default `auto`)
 | `modelDe` / `modelEn` | Override the sidecar's German / English model — e.g. a finance-specific German model
-| `textSources` | Ordered `nodeId:outputKey` list; the first one with text wins (default `tika:tika_content`, `ocr:ocr_text`, `captioning:caption_result`, `vlm:vlm_result`, `llm:llm_result`)
 | `maxChars` | Upper bound on the text sent for analysis (default `200000`)
 |===
 
-Because `textSources` is an ordered list, one pipeline configuration covers mixed collections: a PDF
-is scored from its Tika text, a scanned page from its OCR text, and a photo from its caption —
-without separate node instances.
+There is no option naming where the text comes from: the `text` port accepts any text type, so you
+draw a connection instead. A PDF pipeline wires link:../tika/[Tika]'s `content` into it, a scan
+pipeline wires link:../ocr/[OCR]'s `text`, and a photo pipeline wires
+link:../captioning/[captioning]'s `caption`. Wanting all three in one pipeline means one sentiment
+node per source, each with its own row.
 
 == Use Cases
 

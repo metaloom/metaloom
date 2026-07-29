@@ -41,8 +41,8 @@ public class PipelineRunEngineCircuitTest {
 				.add(new JsonObject().put("id", "hash").put("type", "sha512"))
 				.add(new JsonObject().put("id", "speech").put("type", "whisper")))
 			.put("edges", new JsonArray()
-				.add(new JsonObject().put("source", "src").put("target", "hash"))
-				.add(new JsonObject().put("source", "src").put("target", "speech")));
+				.add(new JsonObject().put("source", "src").put("sourcePort", "media").put("target", "hash").put("targetPort", "media"))
+				.add(new JsonObject().put("source", "src").put("sourcePort", "media").put("target", "speech").put("targetPort", "video")));
 		return parser.parse("circuit", definition, true, false, 0);
 	}
 
@@ -135,7 +135,7 @@ public class PipelineRunEngineCircuitTest {
 			.put("nodes", new JsonArray()
 				.add(new JsonObject().put("id", "src").put("type", "filesystem-source").put("source", true))
 				.add(new JsonObject().put("id", "speech").put("type", "whisper")))
-			.put("edges", new JsonArray().add(new JsonObject().put("source", "src").put("target", "speech")));
+			.put("edges", new JsonArray().add(new JsonObject().put("source", "src").put("sourcePort", "media").put("target", "speech").put("targetPort", "video")));
 		PipelineRunEngine engine = new PipelineRunEngine(parser.parse("only", definition, true, false, 0),
 			dispatcher, UUID.randomUUID());
 		engine.setCircuitBreaker(breaker);

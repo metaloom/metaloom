@@ -8,50 +8,60 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
+import io.metaloom.cortex.api.node.PortOutput;
+import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.pipeline.api.PipelineResult;
-import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 import io.metaloom.cortex.pipeline.core.node.filter.ThresholdFilterNode.Operator;
 import io.metaloom.cortex.pipeline.test.StubLoomMedia;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.metaloom.loom.pipeline.model.Origin;
+import io.metaloom.loom.pipeline.model.PortPayload;
 
 class ThresholdFilterNodeTest extends AbstractFilterNodeTest {
 
 	private static final StubLoomMedia MEDIA = new StubLoomMedia("/media/photo.jpg", false, true, false, false);
 
+	/** Stand-in scorer, emitting on the very port id the filter consumes. */
+	private static final OutputPort<Double> OUT_CONFIDENCE =
+		OutputPort.one(ThresholdFilterNode.IN_VALUE.id(), ContentTypeRegistry.SCALAR_NUMBER, Double.class);
+
 	private static ThresholdFilterNode filter(Operator operator, double threshold) {
 		return ThresholdFilterNode.builder("threshold")
-				.upstreamNodeId("scorer")
-				.outputKey("confidence")
 				.operator(operator)
 				.threshold(threshold)
 				.build();
 	}
 
-	private boolean passed(ThresholdFilterNode filter, Object value) {
-		Map<String, NodeResult> upstream = value == null
-				? upstream("scorer", Map.of())
-				: upstream("scorer", Map.of("confidence", value));
-		return evaluate(filter, MEDIA, upstream).<Boolean> getOutput(PipelineNode.FILTER_PASSED);
+	private boolean passed(ThresholdFilterNode filter, double value) {
+		return passed(evaluate(filter, MEDIA, input(ThresholdFilterNode.IN_VALUE, value)));
+	}
+
+	/**
+	 * Fill the value port with something the typed builder would not accept, to
+	 * exercise what the read-side boundary does with it.
+	 */
+	private static NodeInputs rawValue(Object value) {
+		return NodeInputs.of(Map.of(ThresholdFilterNode.IN_VALUE.id(),
+				PortPayload.one(ContentTypeRegistry.SCALAR_NUMBER, Origin.single("test-item"), value)));
+	}
+
+	private static FixedOutputNode scorer(double confidence) {
+		return new FixedOutputNode("scorer", Map.of(OUT_CONFIDENCE.id(), PortOutput.one(OUT_CONFIDENCE, confidence)));
 	}
 
 	@Test
-	void testBuildRequiresUpstreamNodeIdOutputKeyAndOperator() {
-		assertThatThrownBy(() -> ThresholdFilterNode.builder("t").outputKey("k").operator(Operator.GT).build())
+	void testBuildRequiresAnOperator() {
+		assertThatThrownBy(() -> ThresholdFilterNode.builder("t").threshold(0.5).build())
 				.isInstanceOf(IllegalStateException.class)
-				.hasMessage("upstreamNodeId, outputKey, and operator are required");
-
-		assertThatThrownBy(() -> ThresholdFilterNode.builder("t").upstreamNodeId("n").operator(Operator.GT).build())
-				.isInstanceOf(IllegalStateException.class);
-
-		assertThatThrownBy(() -> ThresholdFilterNode.builder("t").upstreamNodeId("n").outputKey("k").build())
-				.isInstanceOf(IllegalStateException.class);
+				.hasMessage("An operator is required");
 	}
 
 	@Test
 	void testThresholdDefaultsToZero() {
 		ThresholdFilterNode filter = ThresholdFilterNode.builder("threshold")
-				.upstreamNodeId("scorer")
-				.outputKey("confidence")
 				.operator(Operator.GT)
 				.build();
 
@@ -100,62 +110,63 @@ class ThresholdFilterNodeTest extends AbstractFilterNodeTest {
 		assertThat(passed(filter, 0.80001)).isFalse();
 	}
 
+	/**
+	 * {@code scalar/number} is always read as a {@code Double}, whatever the producer
+	 * put on the wire — a whole number that a JSON round trip narrowed to
+	 * {@code Integer}, or a value some cache stringified. That widening is what stops
+	 * this filter from having to defend against {@code Number} subtypes itself.
+	 */
 	@Test
-	void testAnyNumberSubtypeIsCompared() {
+	void testWholeNumbersAndStringifiedNumbersAreWidenedOnRead() {
 		ThresholdFilterNode filter = filter(Operator.GTE, 5.0);
 
-		assertThat(passed(filter, 5)).isTrue();
-		assertThat(passed(filter, 5L)).isTrue();
-		assertThat(passed(filter, 5.0f)).isTrue();
-		assertThat(passed(filter, 4)).isFalse();
+		assertThat(passed(evaluate(filter, MEDIA, rawValue(5)))).as("Integer").isTrue();
+		assertThat(passed(evaluate(filter, MEDIA, rawValue(5L)))).as("Long").isTrue();
+		assertThat(passed(evaluate(filter, MEDIA, rawValue(5.0f)))).as("Float").isTrue();
+		assertThat(passed(evaluate(filter, MEDIA, rawValue("5.0")))).as("stringified").isTrue();
+		assertThat(passed(evaluate(filter, MEDIA, rawValue(4)))).as("below the threshold").isFalse();
 	}
 
 	/**
-	 * Every degenerate input path fails open. This is deliberate — a filter that
-	 * cannot see its input must not silently drop media — so it is pinned here
-	 * rather than left to be rediscovered.
+	 * An unwired value port fails open. This is deliberate — a filter that cannot see
+	 * its input must not silently drop media — so it is pinned here rather than left
+	 * to be rediscovered.
 	 */
 	@Test
-	void testFailsOpenWhenTheValueCannotBeRead() {
+	void testFailsOpenWhenNothingIsWired() {
 		ThresholdFilterNode filter = filter(Operator.GT, 0.8);
 
-		assertThat(evaluate(filter, MEDIA).<Boolean> getOutput(PipelineNode.FILTER_PASSED))
-				.as("no upstream results at all")
-				.isTrue();
-		assertThat(evaluate(filter, MEDIA, upstream("other-node", Map.of("confidence", 0.1)))
-				.<Boolean> getOutput(PipelineNode.FILTER_PASSED))
-				.as("upstream node id does not match")
-				.isTrue();
-		assertThat(passed(filter, null))
-				.as("output key absent")
-				.isTrue();
-		assertThat(passed(filter, "0.1"))
-				.as("value is a String, not a Number")
-				.isTrue();
-		assertThat(passed(filter, Boolean.FALSE))
-				.as("value is not a Number")
+		assertThat(passed(evaluate(filter, MEDIA)))
+				.as("nothing wired into the value port")
 				.isTrue();
 	}
 
+	/**
+	 * A value that is not a number at all no longer slips through as "unreadable, so
+	 * pass": the port coerces on read and the filter fails, which surfaces the
+	 * mis-wiring instead of hiding it behind a green pass.
+	 */
 	@Test
-	void testRejectReasonNamesTheSourceAndComparison() {
+	void testANonNumericValueFailsTheNode() {
 		ThresholdFilterNode filter = filter(Operator.GT, 0.8);
-		NodeResult result = evaluate(filter, MEDIA, upstream("scorer", Map.of("confidence", 0.1)));
 
-		assertThat(result.<String> getOutput("filter_reason"))
-				.isEqualTo("scorer:confidence failed GT 0.8");
+		NodeResult result = evaluate(filter, MEDIA, rawValue(Boolean.FALSE));
+
+		assertThat(result.getState()).isEqualTo(ResultState.FAILED);
+		assertThat(result.has(AbstractFilterNode.OUT_PASSED))
+				.as("no verdict was emitted, so neither branch can claim the item")
+				.isFalse();
 	}
 
 	@Test
 	void testPassRoutesToPassBranch() {
 		ThresholdFilterNode filter = filter(Operator.GT, 0.5);
-		FixedOutputNode scorer = new FixedOutputNode("scorer", Map.of("confidence", 0.9));
 
-		PipelineResult result = route(MEDIA, filter, scorer);
+		PipelineResult result = route(MEDIA, filter, scorer(0.9));
 
 		assertThat(result)
 				.isSuccess()
-				.hasNodeOutput("threshold", PipelineNode.FILTER_PASSED, true);
+				.hasNodeOutput("threshold", AbstractFilterNode.OUT_PASSED, true);
 		assertThat(result).node(PASS_NODE).isCompleted();
 		assertThat(result).node(REJECT_NODE).isSkipped();
 	}
@@ -163,13 +174,12 @@ class ThresholdFilterNodeTest extends AbstractFilterNodeTest {
 	@Test
 	void testRejectRoutesToRejectBranch() {
 		ThresholdFilterNode filter = filter(Operator.GT, 0.5);
-		FixedOutputNode scorer = new FixedOutputNode("scorer", Map.of("confidence", 0.1));
 
-		PipelineResult result = route(MEDIA, filter, scorer);
+		PipelineResult result = route(MEDIA, filter, scorer(0.1));
 
 		assertThat(result)
 				.isSuccess()
-				.hasNodeOutput("threshold", PipelineNode.FILTER_PASSED, false);
+				.hasNodeOutput("threshold", AbstractFilterNode.OUT_PASSED, false);
 		assertThat(result).node(REJECT_NODE).isCompleted();
 		assertThat(result).node(PASS_NODE).isSkipped();
 	}

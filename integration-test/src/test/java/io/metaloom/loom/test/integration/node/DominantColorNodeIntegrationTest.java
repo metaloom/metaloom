@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
+import java.util.List;
 import java.util.Map;
 
 import javax.imageio.ImageIO;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.ResultState;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.node.color.DominantColorNode;
 import io.metaloom.cortex.node.color.DominantColorNodeOptions;
@@ -84,13 +86,15 @@ public class DominantColorNodeIntegrationTest extends AbstractNodeIntegrationTes
 					.add(detection(1, 280, 20, 100, 100)));
 
 			NodeContext<LoomMedia> ctx = NodeContext.create(unique.media(),
-				Map.of("facedetect", Map.of("detections", detections.encode())));
+				NodeInputs.builder()
+					.inputs(DominantColorNode.IN_DETECTIONS, List.of(detections.encode()))
+					.build());
 
 			NodeResult result = node.process(ctx);
 			assertThat(result.getState()).isEqualTo(ResultState.SUCCESS);
-			assertThat(result.get(DominantColorNode.OUTPUT_DOMINANT_COLOR_HEX)).isEqualTo(RED);
-			assertThat(result.get(DominantColorNode.OUTPUT_DOMINANT_COLOR_TERM)).isEqualTo("red");
-			assertThat(result.get(DominantColorNode.OUTPUT_DOMINANT_COLOR_REGIONS)).isEqualTo(3);
+			assertThat(result.get(DominantColorNode.OUT_HEX)).isEqualTo(RED);
+			assertThat(result.get(DominantColorNode.OUT_TERM)).isEqualTo("red");
+			assertThat(result.get(DominantColorNode.OUT_REGION_COUNT)).isEqualTo(3);
 
 			// The component must be readable back through REST, with the palette intact.
 			JsonCompResponse comp = client.listAssetJsonComps(unique.asset().getUuid()).sync().body().getData().stream()

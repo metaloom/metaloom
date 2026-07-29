@@ -2,13 +2,15 @@ package io.metaloom.cortex.pipeline.core.node.filter;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.InputPort;
+import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.vertx.core.json.JsonObject;
 
 /**
  * Filters media based on intrinsic file and media attributes such as file size,
@@ -25,7 +27,9 @@ public class AssetAttributeFilterNode extends AbstractFilterNode {
 
 	private static final Logger log = LoggerFactory.getLogger(AssetAttributeFilterNode.class);
 
-	private final String qualityNodeId;
+	/** Optional metric set from a quality node; without it only the file-size checks apply. */
+	public static final InputPort<String> IN_QUALITY = InputPort.one("quality", ContentTypeRegistry.STRUCT_QUALITY, String.class);
+
 	private final Long minFileSize;
 	private final Long maxFileSize;
 	private final Integer minWidth;
@@ -43,7 +47,6 @@ public class AssetAttributeFilterNode extends AbstractFilterNode {
 
 	private AssetAttributeFilterNode(Builder builder) {
 		super(builder.id, builder.name, builder.concurrency);
-		this.qualityNodeId = builder.qualityNodeId;
 		this.minFileSize = builder.minFileSize;
 		this.maxFileSize = builder.maxFileSize;
 		this.minWidth = builder.minWidth;
@@ -61,7 +64,8 @@ public class AssetAttributeFilterNode extends AbstractFilterNode {
 	}
 
 	@Override
-	protected boolean evaluate(LoomMedia media, Map<String, NodeResult> upstreamResults) {
+	protected boolean evaluate(NodeContext<LoomMedia> ctx) {
+		LoomMedia media = ctx.media();
 		// File size check (always available)
 		if (minFileSize != null || maxFileSize != null) {
 			try {
@@ -79,7 +83,7 @@ public class AssetAttributeFilterNode extends AbstractFilterNode {
 		}
 
 		// Upstream quality outputs
-		Map<String, Object> qualityOutputs = getQualityOutputs(upstreamResults);
+		Map<String, Object> qualityOutputs = metrics(ctx);
 
 		// Resolution checks (image or video)
 		Integer width = resolveWidth(qualityOutputs, media);
@@ -95,7 +99,7 @@ public class AssetAttributeFilterNode extends AbstractFilterNode {
 
 		// FPS check
 		if (minFps != null || maxFps != null) {
-			Double fps = getDouble(qualityOutputs, "video_fps");
+			Double fps = getDouble(qualityOutputs, "fps");
 			if (fps != null) {
 				if (minFps != null && fps < minFps) return false;
 				if (maxFps != null && fps > maxFps) return false;
@@ -122,8 +126,8 @@ public class AssetAttributeFilterNode extends AbstractFilterNode {
 
 		// Duration
 		if (minDurationSeconds != null || maxDurationSeconds != null) {
-			Double fps = getDouble(qualityOutputs, "video_fps");
-			Integer frameCount = getInteger(qualityOutputs, "video_frame_count");
+			Double fps = getDouble(qualityOutputs, "fps");
+			Integer frameCount = getInteger(qualityOutputs, "frame_count");
 			if (fps != null && frameCount != null && fps > 0) {
 				double durationSec = frameCount / fps;
 				if (minDurationSeconds != null && durationSec < minDurationSeconds) return false;
@@ -135,34 +139,21 @@ public class AssetAttributeFilterNode extends AbstractFilterNode {
 	}
 
 	@Override
-	protected String rejectReason(LoomMedia media, Map<String, NodeResult> upstreamResults) {
+	protected String rejectReason(NodeContext<LoomMedia> ctx) {
 		return "asset attributes out of range";
 	}
 
-	private Map<String, Object> getQualityOutputs(Map<String, NodeResult> upstreamResults) {
-		if (qualityNodeId != null && upstreamResults != null) {
-			NodeResult qr = upstreamResults.get(qualityNodeId);
-			if (qr != null && qr.getOutput() != null) {
-				return qr.getOutput();
-			}
-		}
-		return Map.of();
+	private Map<String, Object> metrics(NodeContext<LoomMedia> ctx) {
+		String encoded = ctx.input(IN_QUALITY);
+		return encoded == null ? Map.of() : new JsonObject(encoded).getMap();
 	}
 
 	private Integer resolveWidth(Map<String, Object> qualityOutputs, LoomMedia media) {
-		Integer w = getInteger(qualityOutputs, "image_width");
-		if (w == null) {
-			w = getInteger(qualityOutputs, "video_width");
-		}
-		return w;
+		return getInteger(qualityOutputs, "width");
 	}
 
 	private Integer resolveHeight(Map<String, Object> qualityOutputs, LoomMedia media) {
-		Integer h = getInteger(qualityOutputs, "image_height");
-		if (h == null) {
-			h = getInteger(qualityOutputs, "video_height");
-		}
-		return h;
+		return getInteger(qualityOutputs, "height");
 	}
 
 	private Integer getInteger(Map<String, Object> map, String key) {
@@ -196,9 +187,7 @@ public class AssetAttributeFilterNode extends AbstractFilterNode {
 	public static class Builder {
 		private final String id;
 		private String name;
-		private Set<String> dependencies = Set.of();
 		private int concurrency = 1;
-		private String qualityNodeId;
 		private Long minFileSize;
 		private Long maxFileSize;
 		private Integer minWidth;
@@ -224,19 +213,8 @@ public class AssetAttributeFilterNode extends AbstractFilterNode {
 			return this;
 		}
 
-		public Builder dependencies(Set<String> dependencies) {
-			this.dependencies = dependencies;
-			return this;
-		}
-
 		public Builder concurrency(int concurrency) {
 			this.concurrency = concurrency;
-			return this;
-		}
-
-		/** ID of the upstream quality node whose outputs provide resolution/fps/etc. */
-		public Builder qualityNodeId(String qualityNodeId) {
-			this.qualityNodeId = qualityNodeId;
 			return this;
 		}
 

@@ -8,7 +8,6 @@ import java.util.function.BiFunction;
 
 import javax.imageio.ImageIO;
 
-import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 /**
@@ -91,22 +90,8 @@ final class SceneLayoutFixtures {
 	}
 
 	/**
-	 * A detections payload in the shape {@code FacedetectNode} emits.
-	 */
-	static JsonObject detections(int imageWidth, int imageHeight, JsonObject... boxes) {
-		JsonArray items = new JsonArray();
-		for (JsonObject box : boxes) {
-			items.add(box);
-		}
-		return new JsonObject()
-			.put("imageWidth", imageWidth)
-			.put("imageHeight", imageHeight)
-			.put("coordinates", "ABSOLUTE_PIXELS")
-			.put("detections", items);
-	}
-
-	/**
-	 * One detection entry.
+	 * One detection entry - a self-contained element of the {@link SceneLayoutNode#IN_DETECTIONS}
+	 * port. There is no batch wrapper any more: the port is {@code MANY}, one element per detection.
 	 */
 	static JsonObject detection(int index, String label, double x, double y, double w, double h) {
 		return new JsonObject()

@@ -7,21 +7,21 @@ The consistency node checks that a media file is complete and not corrupt by cou
 pipeline skip expensive processing on broken media.
 
 ++++
-<div class="ml-nodeviz" data-nodeviz='{"kind":"consistency","applies":"Video \u00b7 Audio","badge":"CPU only","persist":"asset consistency block + asset_node_result ledger","inputs":[{"t":"file","l":"media file","d":"scanned for zero chunks"}],"outputs":[{"t":"number","l":"zero_chunk_count"},{"t":"boolean","l":"is_complete","d":"read by downstream nodes"}]}'></div>
+<div class="ml-nodeviz" data-nodeviz='{"kind":"consistency","applies":"Video \u00b7 Audio","badge":"CPU only","persist":"asset consistency block + asset_node_result ledger","inputs":[{"t":"media","l":"media","d":"the file bytes, scanned for runs of empty bytes"}],"outputs":[{"t":"number","l":"zero_chunk_count","ct":"scalar/integer","d":"how many empty byte runs the scan found"},{"t":"boolean","l":"is_complete","d":"false when the file looks truncated or partly downloaded"}]}'></div>
 ++++
 
 [cols="1,3"]
 |===
 | Kind | `consistency`
 | Applies to | Video, Audio
-| Inputs | None
-| Output keys | `zero_chunk_count` (Long), `is_complete` (Boolean)
+| Input ports | `media`
+| Output ports | `zero_chunk_count` (Integer), `is_complete` (Boolean)
 | Requirements | CPU only. Reads the file bytes from storage.
 | Persists to | `asset` consistency block + `asset_node_result` ledger
 |===
 
-Downstream nodes read `is_complete` to decide whether to proceed — for example
-link:../thumbnail/[Thumbnail] skips incomplete videos.
+Connect `is_complete` to a downstream node that should not waste time on a broken file — for example
+link:../thumbnail/[Thumbnail], whose optional `is_complete` port makes it skip incomplete videos.
 
 == Configuration
 

@@ -16,7 +16,7 @@ public class FingerprintNodeTest extends AbstractBasicNodeTest<FingerprintNode> 
 	@Override
 	protected void assertProcessed(TestMedia testMedia, LoomMedia media, NodeResult result, FingerprintNode nodeMock) {
 		assertThat(result).isSuccess();
-		assertThat(result).hasOutput(FingerprintNode.OUTPUT_FINGERPRINT, data.sampleVideoFingerprint());
+		assertThat(result).hasOutput(FingerprintNode.OUT_FINGERPRINT, data.sampleVideoFingerprint());
 	}
 
 	@Override

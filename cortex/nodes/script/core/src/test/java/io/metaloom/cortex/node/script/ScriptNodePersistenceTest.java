@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
@@ -115,7 +116,7 @@ class ScriptNodePersistenceTest {
 	}
 
 	private NodeContext<LoomMedia> ctx() {
-		return NodeContext.create(media, Map.of());
+		return NodeContext.create(media, NodeInputs.empty());
 	}
 
 	@Test

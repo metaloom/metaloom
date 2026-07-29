@@ -9,14 +9,16 @@ import javax.annotation.Nullable;
 import javax.inject.Inject;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.node.NodeOutputKey;
+import io.metaloom.cortex.api.node.InputPort;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompCreateRequest;
 import io.metaloom.video4j.Video4j;
@@ -38,7 +40,11 @@ public class CaptioningNode extends AbstractMediaNode<CaptioningNodeOptions> {
 	private final SmolVLMClient smolvlmClient;
 	private final VideoCaptioner videoCaptioner;
 
-	public static final NodeOutputKey<String> OUTPUT_CAPTION = NodeOutputKey.of("caption_result", String.class);
+	/** The two media alternatives of the descriptor's {@code media_alt} XOR group - one input, two shapes. */
+	public static final InputPort<LoomMedia> IN_IMAGE = InputPort.one("image", ContentTypeRegistry.MEDIA_IMAGE, LoomMedia.class);
+	public static final InputPort<LoomMedia> IN_VIDEO = InputPort.one("video", ContentTypeRegistry.MEDIA_VIDEO, LoomMedia.class);
+
+	public static final OutputPort<String> OUT_CAPTION = OutputPort.one("caption", ContentTypeRegistry.TEXT_CAPTION, String.class);
 
 	/** Upper bound for the in-heap skip cache. Captioning via the vision model is expensive, so we remember the caption produced for each media during
 	 * this worker's lifetime and re-emit it instead of recomputing. Non-durable - the durable copy lives in Loom. */
@@ -96,7 +102,7 @@ public class CaptioningNode extends AbstractMediaNode<CaptioningNodeOptions> {
 		String cached = resultCache.get(path);
 		if (cached != null) {
 			metrics.recordAiCacheHit("smolvlm");
-			ctx.output(OUTPUT_CAPTION, cached);
+			ctx.output(OUT_CAPTION, cached);
 			return ctx.origin(LOCAL).next();
 		}
 		BufferedImage image = ImageUtils.load(media.file());
@@ -109,7 +115,7 @@ public class CaptioningNode extends AbstractMediaNode<CaptioningNodeOptions> {
 			throw e;
 		}
 		metrics.recordAiCall("smolvlm", true, System.currentTimeMillis() - aiStart);
-		ctx.output(OUTPUT_CAPTION, result);
+		ctx.output(OUT_CAPTION, result);
 		resultCache.put(path, result);
 		persistImage(ctx, asset, result);
 		return ctx.next();
@@ -120,7 +126,7 @@ public class CaptioningNode extends AbstractMediaNode<CaptioningNodeOptions> {
 		String cached = resultCache.get(path);
 		if (cached != null) {
 			metrics.recordAiCacheHit("video-vlm");
-			ctx.output(OUTPUT_CAPTION, cached);
+			ctx.output(OUT_CAPTION, cached);
 			return ctx.origin(LOCAL).next();
 		}
 		long aiStart = System.currentTimeMillis();
@@ -132,7 +138,7 @@ public class CaptioningNode extends AbstractMediaNode<CaptioningNodeOptions> {
 			throw e;
 		}
 		metrics.recordAiCall("video-vlm", true, System.currentTimeMillis() - aiStart);
-		ctx.output(OUTPUT_CAPTION, out.caption());
+		ctx.output(OUT_CAPTION, out.caption());
 		resultCache.put(path, out.caption());
 		persistVideo(ctx, asset, out);
 		return ctx.next();

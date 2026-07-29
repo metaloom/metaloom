@@ -2,7 +2,10 @@ package io.metaloom.cortex.pipeline.test.assertj;
 
 import org.assertj.core.api.AbstractAssert;
 
+import java.util.List;
+
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.pipeline.api.PipelineResult;
 
@@ -96,43 +99,71 @@ public class PipelineResultAssert extends AbstractAssert<PipelineResultAssert, P
 	}
 
 	/**
-	 * Assert that a node produced a specific output value.
+	 * Assert that a node emitted a specific value on a {@code ONE} output port.
+	 *
+	 * <p>
+	 * Takes the {@link OutputPort} rather than a key string on purpose: an assertion
+	 * that names a port the node no longer declares is now a compile error instead of
+	 * a test that quietly checks nothing.
+	 * </p>
 	 */
-	public PipelineResultAssert hasNodeOutput(String nodeId, String outputKey, Object expectedValue) {
+	public <T> PipelineResultAssert hasNodeOutput(String nodeId, OutputPort<T> port, T expectedValue) {
 		isNotNull();
-		NodeResult nodeResult = actual.getNodeResults().get(nodeId);
+		NodeResult nodeResult = nodeResult(nodeId);
 		if (nodeResult == null) {
-			failWithMessage("Expected node <%s> to be present but it was not. Available: %s",
-					nodeId, actual.getNodeResults().keySet());
 			return this;
 		}
-		Object actualValue = nodeResult.getOutput(outputKey);
+		Object actualValue = nodeResult.get(port);
 		if (actualValue == null) {
-			failWithMessage("Expected node <%s> to have output <%s> but it was null. Available outputs: %s",
-					nodeId, outputKey, nodeResult.getOutput().keySet());
+			failWithMessage("Expected node <%s> to emit on port <%s> but it did not. Ports emitted: %s",
+					nodeId, port.id(), nodeResult.getOutputs().keySet());
 		} else if (!expectedValue.equals(actualValue)) {
-			failWithMessage("Expected node <%s> output <%s> to be <%s> but was <%s>",
-					nodeId, outputKey, expectedValue, actualValue);
+			failWithMessage("Expected node <%s> port <%s> to carry <%s> but it carried <%s>",
+					nodeId, port.id(), expectedValue, actualValue);
 		}
 		return this;
 	}
 
 	/**
-	 * Assert that a node produced an output with the given key (any value).
+	 * Assert that a node emitted on the given port (any value).
 	 */
-	public PipelineResultAssert hasNodeOutputKey(String nodeId, String outputKey) {
+	public PipelineResultAssert hasNodeOutputPort(String nodeId, OutputPort<?> port) {
 		isNotNull();
+		NodeResult nodeResult = nodeResult(nodeId);
+		if (nodeResult == null) {
+			return this;
+		}
+		if (!nodeResult.has(port)) {
+			failWithMessage("Expected node <%s> to emit on port <%s> but it did not. Ports emitted: %s",
+					nodeId, port.id(), nodeResult.getOutputs().keySet());
+		}
+		return this;
+	}
+
+	/**
+	 * Assert the elements a node emitted on a {@code MANY} output port, in order.
+	 */
+	public <T> PipelineResultAssert hasNodeElements(String nodeId, OutputPort<T> port, List<T> expected) {
+		isNotNull();
+		NodeResult nodeResult = nodeResult(nodeId);
+		if (nodeResult == null) {
+			return this;
+		}
+		List<T> actualElements = nodeResult.elements(port);
+		if (!expected.equals(actualElements)) {
+			failWithMessage("Expected node <%s> port <%s> to carry <%s> but it carried <%s>",
+					nodeId, port.id(), expected, actualElements);
+		}
+		return this;
+	}
+
+	private NodeResult nodeResult(String nodeId) {
 		NodeResult nodeResult = actual.getNodeResults().get(nodeId);
 		if (nodeResult == null) {
 			failWithMessage("Expected node <%s> to be present but it was not. Available: %s",
 					nodeId, actual.getNodeResults().keySet());
-			return this;
 		}
-		if (!nodeResult.getOutput().containsKey(outputKey)) {
-			failWithMessage("Expected node <%s> to have output key <%s> but it was absent. Available: %s",
-					nodeId, outputKey, nodeResult.getOutput().keySet());
-		}
-		return this;
+		return nodeResult;
 	}
 
 	/**

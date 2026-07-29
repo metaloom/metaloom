@@ -3,6 +3,9 @@ package io.metaloom.loom.pipeline.engine;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.HASH_SHA512;
+import static io.metaloom.loom.pipeline.engine.Payloads.outputs;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +19,7 @@ import io.metaloom.loom.pipeline.graph.PipelineGraphParser;
 import io.metaloom.loom.pipeline.model.MediaRef;
 import io.metaloom.loom.pipeline.model.NodeState;
 import io.metaloom.loom.pipeline.model.NodeTaskResult;
+import io.metaloom.loom.pipeline.model.PortPayload;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
@@ -37,7 +41,7 @@ public class PipelineRunEngineReuseTest {
 		final List<String> lookups = new ArrayList<>();
 		/** Only this node has a previous result; everything else is genuinely new. */
 		String cannedFor = "hash";
-		Map<String, Object> canned;
+		Map<String, PortPayload> canned;
 
 		@Override
 		public UUID itemDiscovered(UUID runUuid, long itemSeq, MediaRef media) {
@@ -82,8 +86,8 @@ public class PipelineRunEngineReuseTest {
 				.add(new JsonObject().put("id", "hash").put("type", "sha512"))
 				.add(new JsonObject().put("id", "thumb").put("type", "thumbnail")))
 			.put("edges", new JsonArray()
-				.add(new JsonObject().put("source", "src").put("target", "hash"))
-				.add(new JsonObject().put("source", "hash").put("target", "thumb")));
+				.add(new JsonObject().put("source", "src").put("sourcePort", "media").put("target", "hash").put("targetPort", "media"))
+				.add(new JsonObject().put("source", "hash").put("sourcePort", "hash").put("target", "thumb").put("targetPort", "media")));
 		return parser.parse("reuse", definition, true, false, 0);
 	}
 
@@ -91,7 +95,7 @@ public class PipelineRunEngineReuseTest {
 	void testAKnownResultIsAdoptedInsteadOfDispatched() {
 		FakeNodeDispatcher dispatcher = new FakeNodeDispatcher();
 		StubStore store = new StubStore();
-		store.canned = Map.of("sha512", "deadbeef");
+		store.canned = outputs("hash", HASH_SHA512, "deadbeef");
 		PipelineRunEngine engine = new PipelineRunEngine(graph(true), dispatcher, UUID.randomUUID(), store);
 
 		engine.start();
@@ -107,7 +111,7 @@ public class PipelineRunEngineReuseTest {
 	void testTheAdoptedResultCarriesItsOutputsForward() {
 		FakeNodeDispatcher dispatcher = new FakeNodeDispatcher();
 		StubStore store = new StubStore();
-		store.canned = Map.of("sha512", "deadbeef");
+		store.canned = outputs("hash", HASH_SHA512, "deadbeef");
 		PipelineRunEngine engine = new PipelineRunEngine(graph(true), dispatcher, UUID.randomUUID(), store);
 
 		engine.start();
@@ -115,16 +119,15 @@ public class PipelineRunEngineReuseTest {
 
 		// The load-bearing property. Recording a skip instead would leave 'thumb' with
 		// no hash in its inputs, and the second run would quietly do less than the first.
-		assertEquals("deadbeef", engine.getItem(itemId).getResults().get("hash").getOutputs().get("sha512"));
-		assertEquals("deadbeef",
-			dispatcher.taskFor("thumb").getUpstreamOutputs().get("hash").get("sha512"));
+		assertEquals("deadbeef", engine.getItem(itemId).getResults().get("hash").output("hash").single());
+		assertEquals("deadbeef", dispatcher.taskFor("thumb").getInputs().get("media").single());
 	}
 
 	@Test
 	void testNothingIsAdoptedWhenTheFlagIsOff() {
 		FakeNodeDispatcher dispatcher = new FakeNodeDispatcher();
 		StubStore store = new StubStore();
-		store.canned = Map.of("sha512", "deadbeef");
+		store.canned = outputs("hash", HASH_SHA512, "deadbeef");
 		PipelineRunEngine engine = new PipelineRunEngine(graph(false), dispatcher, UUID.randomUUID(), store);
 
 		engine.start();
@@ -154,13 +157,13 @@ public class PipelineRunEngineReuseTest {
 	void testADryRunAdoptsNothing() {
 		FakeNodeDispatcher dispatcher = new FakeNodeDispatcher();
 		StubStore store = new StubStore();
-		store.canned = Map.of("sha512", "deadbeef");
+		store.canned = outputs("hash", HASH_SHA512, "deadbeef");
 		JsonObject definition = new JsonObject()
 			.put("reuseResults", true)
 			.put("nodes", new JsonArray()
 				.add(new JsonObject().put("id", "src").put("type", "filesystem-source").put("source", true))
 				.add(new JsonObject().put("id", "hash").put("type", "sha512")))
-			.put("edges", new JsonArray().add(new JsonObject().put("source", "src").put("target", "hash")));
+			.put("edges", new JsonArray().add(new JsonObject().put("source", "src").put("sourcePort", "media").put("target", "hash").put("targetPort", "media")));
 		PipelineRunEngine engine = new PipelineRunEngine(parser.parse("dry", definition, true, true, 0),
 			dispatcher, UUID.randomUUID(), store);
 
@@ -196,7 +199,7 @@ public class PipelineRunEngineReuseTest {
 	void testTheRunStillCompletesWhenEveryNodeIsAdopted() {
 		FakeNodeDispatcher dispatcher = new FakeNodeDispatcher();
 		StubStore store = new StubStore();
-		store.canned = Map.of("sha512", "deadbeef");
+		store.canned = outputs("hash", HASH_SHA512, "deadbeef");
 		PipelineRunEngine engine = new PipelineRunEngine(graph(true), dispatcher, UUID.randomUUID(), store);
 
 		engine.start();
@@ -215,7 +218,7 @@ public class PipelineRunEngineReuseTest {
 	void testAnAdoptedNodeDoesNotConsumeAnInFlightSlot() {
 		FakeNodeDispatcher dispatcher = new FakeNodeDispatcher();
 		StubStore store = new StubStore();
-		store.canned = Map.of("sha512", "deadbeef");
+		store.canned = outputs("hash", HASH_SHA512, "deadbeef");
 		PipelineRunEngine engine = new PipelineRunEngine(graph(true), dispatcher, UUID.randomUUID(), store);
 		engine.setMaxInFlight(1);
 

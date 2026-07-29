@@ -14,15 +14,15 @@ licensed and may therefore be used commercially. Both speak the same contract �
 `port` option.
 
 ++++
-<div class="ml-nodeviz" data-nodeviz='{"kind":"imagegen","applies":"Image","badge":"image sidecar","persist":"asset_node_result ledger (the PNG stays in the local imagegen_bin cache)","configs":[{"name":"generate (text-to-image)","note":"mode GENERATE · prompt from node config","inputs":[{"t":"text","l":"prompt","d":"configured prompt"}],"outputs":[{"t":"flag","l":"imagegen_flag"},{"t":"path","l":"imagegen_path","d":"local PNG path"}]},{"name":"remix (image-to-image)","note":"mode REMIX · source image + prompt","inputs":[{"t":"image","l":"source","d":"the asset image"},{"t":"text","l":"prompt","d":"configured prompt"}],"outputs":[{"t":"flag","l":"imagegen_flag"},{"t":"path","l":"imagegen_path","d":"local PNG path"}]}]}'></div>
+<div class="ml-nodeviz" data-nodeviz='{"kind":"imagegen","applies":"Image","badge":"image sidecar","persist":"asset_node_result ledger (the PNG stays in the local imagegen_bin cache)","configs":[{"name":"generate (text-to-image)","note":"mode GENERATE · prompt from node config","inputs":[{"t":"text","l":"prompt","d":"the prompt set on the node — nothing upstream is needed"}],"outputs":[{"t":"artifact","l":"image","ct":"artifact/image","d":"the generated PNG, in the worker local imagegen_bin cache"},{"t":"flag","l":"flag","d":"DONE or FAILED"}]},{"name":"remix (image-to-image)","note":"mode REMIX · source image + prompt","inputs":[{"t":"image","l":"media","d":"the source picture, repainted rather than replaced"},{"t":"text","l":"prompt","d":"the prompt set on the node, steering the repaint"}],"outputs":[{"t":"artifact","l":"image","ct":"artifact/image","d":"the generated PNG, in the worker local imagegen_bin cache"},{"t":"flag","l":"flag","d":"DONE or FAILED"}]}]}'></div>
 ++++
 
 [cols="1,3"]
 |===
 | Kind | `imagegen`
 | Applies to | Image assets
-| Inputs | A generation `prompt` from the node configuration; in `REMIX` mode also the asset's own image
-| Output keys | `imagegen_flag` (String), `imagegen_path` (String, local path of the generated PNG)
+| Input ports | A generation `prompt` from the node configuration; in `REMIX` mode also `media`, the asset's own image
+| Output ports | `image` (the generated PNG, ready for link:../s3-sink/[S3 Sink]), `flag` (String)
 | Requirements | A running **image sidecar** (`/generate`, `/remix`). A GPU is recommended for interactive latency.
 | Persists to | `asset_node_result` ledger only — the generated PNG stays in the worker's local `imagegen_bin` cache (as with thumbnails)
 |===

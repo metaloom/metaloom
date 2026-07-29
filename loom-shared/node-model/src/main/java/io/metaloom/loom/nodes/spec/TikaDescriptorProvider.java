@@ -1,9 +1,10 @@
 package io.metaloom.loom.nodes.spec;
 
-import static io.metaloom.loom.nodes.spec.ContentTypes.*;
+import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.*;
 import static io.metaloom.loom.nodes.spec.NodeCategory.*;
 import static io.metaloom.loom.nodes.spec.NodeMode.*;
 import static io.metaloom.loom.nodes.spec.ParameterType.*;
+import static io.metaloom.loom.nodes.spec.PortSpec.one;
 
 import java.util.List;
 
@@ -24,10 +25,14 @@ public class TikaDescriptorProvider implements NodeDescriptorProvider {
 				.setDescription("Extract metadata and text content using Apache Tika.")
 				.setIcon("description")
 				.setCategory(ANALYSIS)
-				.setInputs(List.of(new NodeInput("media", MEDIA_ANY, true)))
-				.setOutputs(List.of(
-					new NodeOutput("tika_flags", DATA_STRING),
-					new NodeOutput("tika_content", DATA_TEXT)))
+				.setInputPorts(List.of(
+					one("media", MEDIA_ANY)
+						.describedAs("Media", "The document or container file to parse")))
+				.setOutputPorts(List.of(
+					one("content", TEXT_PLAIN)
+						.describedAs("Content", "The document body Tika extracted, with the markup stripped out"),
+					one("flags", SCALAR_STRING)
+						.describedAs("Flags", "Processing markers recording which parsers Tika ended up using")))
 				.setParameters(List.of(commonEnabled(), commonProcessIncomplete(), commonRetryFailed()))
 				.setDefaultConcurrency(4)
 				.setDefaultMode(PARALLEL)

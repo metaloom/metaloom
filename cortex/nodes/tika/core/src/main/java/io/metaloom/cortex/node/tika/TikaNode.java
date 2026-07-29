@@ -11,8 +11,9 @@ import org.slf4j.LoggerFactory;
 
 import java.util.UUID;
 
-import io.metaloom.cortex.api.node.NodeOutputKey;
+import io.metaloom.cortex.api.node.InputPort;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.media.LoomMedia;
@@ -20,6 +21,7 @@ import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompCreateRequest;
 import io.vertx.core.json.JsonObject;
@@ -28,8 +30,10 @@ public class TikaNode extends AbstractMediaNode<TikaNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(TikaNode.class);
 
-	public static final NodeOutputKey<String> OUTPUT_TIKA_FLAGS = NodeOutputKey.of("tika_flags", String.class);
-	public static final NodeOutputKey<String> OUTPUT_TIKA_CONTENT = NodeOutputKey.of("tika_content", String.class);
+	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_ANY, LoomMedia.class);
+
+	public static final OutputPort<String> OUT_CONTENT = OutputPort.one("content", ContentTypeRegistry.TEXT_PLAIN, String.class);
+	public static final OutputPort<String> OUT_FLAGS = OutputPort.one("flags", ContentTypeRegistry.SCALAR_STRING, String.class);
 
 	/** In-heap skip cache of extracted Tika content, keyed by media path, to avoid re-parsing within this worker's lifetime. Non-durable - the durable
 	 * copy lives in Loom. */
@@ -57,24 +61,24 @@ public class TikaNode extends AbstractMediaNode<TikaNodeOptions> {
 		String path = media.absolutePath();
 		if (resultCache.has(path)) {
 			String cached = resultCache.get(path);
-			ctx.output(OUTPUT_TIKA_FLAGS, "DONE");
+			ctx.output(OUT_FLAGS, "DONE");
 			if (cached != null) {
-				ctx.output(OUTPUT_TIKA_CONTENT, cached);
+				ctx.output(OUT_CONTENT, cached);
 			}
 			return ctx.origin(LOCAL).next();
 		}
 		try {
 			String result = MediaTikaParser.parse(media);
-			ctx.output(OUTPUT_TIKA_FLAGS, "DONE");
+			ctx.output(OUT_FLAGS, "DONE");
 			if (result != null) {
-				ctx.output(OUTPUT_TIKA_CONTENT, result);
+				ctx.output(OUT_CONTENT, result);
 			}
 			resultCache.put(path, result);
 			persist(ctx, asset, result);
 			return ctx.origin(COMPUTED).next();
 		} catch (Exception e) {
 			log.error("Error while processing media " + media.path(), e);
-			ctx.output(OUTPUT_TIKA_FLAGS, "FAILED");
+			ctx.output(OUT_FLAGS, "FAILED");
 			return ctx.failure("failed processing").next();
 		}
 	}

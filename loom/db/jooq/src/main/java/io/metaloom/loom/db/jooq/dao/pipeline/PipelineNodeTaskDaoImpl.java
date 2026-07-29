@@ -80,10 +80,11 @@ public class PipelineNodeTaskDaoImpl extends AbstractJooqDao<PipelineNodeTask> i
 	}
 
 	@Override
-	public PipelineNodeTask loadByItemAndNode(UUID itemUuid, String nodeId) {
+	public PipelineNodeTask loadByItemAndNode(UUID itemUuid, String nodeId, int elementSeq) {
 		return ctx().selectFrom(PIPELINE_NODE_TASK)
 			.where(PIPELINE_NODE_TASK.ITEM_UUID.eq(itemUuid))
 			.and(PIPELINE_NODE_TASK.NODE_ID.eq(nodeId))
+			.and(PIPELINE_NODE_TASK.ELEMENT_SEQ.eq(elementSeq))
 			.fetchOptionalInto(getPojoClass())
 			.orElse(null);
 	}

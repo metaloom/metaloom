@@ -113,11 +113,11 @@ public class PipelineNodeTaskDaoTest extends AbstractJooqTest implements CRUDDao
 		PipelineRunItem item = storeItem(user, 0);
 		storeTask(user, item, "sha512", "hash-sha512", "COMPLETED");
 
-		PipelineNodeTask found = pipelineNodeTaskDao().loadByItemAndNode(item.getUuid(), "sha512");
+		PipelineNodeTask found = pipelineNodeTaskDao().loadByItemAndNode(item.getUuid(), "sha512", 0);
 		assertNotNull(found);
 		assertEquals("COMPLETED", found.getState());
 
-		assertNull(pipelineNodeTaskDao().loadByItemAndNode(item.getUuid(), "not-a-node"),
+		assertNull(pipelineNodeTaskDao().loadByItemAndNode(item.getUuid(), "not-a-node", 0),
 			"An unknown node id must read as absent, not blow up");
 	}
 
@@ -227,11 +227,37 @@ public class PipelineNodeTaskDaoTest extends AbstractJooqTest implements CRUDDao
 	}
 
 	private PipelineNodeTask storeTask(User user, PipelineRunItem item, String nodeId, String nodeKind, String state) {
+		return storeTask(user, item, nodeId, nodeKind, state, 0);
+	}
+
+	private PipelineNodeTask storeTask(User user, PipelineRunItem item, String nodeId, String nodeKind, String state,
+		int elementSeq) {
 		PipelineNodeTask task = pipelineNodeTaskDao().createNodeTask(user.getUuid(), item.getUuid(), item.getRunUuid(),
 			nodeId, nodeKind);
 		task.setState(state);
+		// Set before the insert: element_seq is part of the unique key, so a row cannot be written
+		// as element 0 and moved afterwards.
+		task.setElementSeq(elementSeq);
 		pipelineNodeTaskDao().store(task);
 		return task;
+	}
+
+
+	@Test
+	public void testEachElementOfAFannedOutNodeGetsItsOwnRow() {
+		User user = dummyUser();
+		PipelineRunItem item = storeItem(user, 0);
+
+		storeTask(user, item, "describe", "facedescription", "COMPLETED", 0);
+		storeTask(user, item, "describe", "facedescription", "FAILED", 1);
+
+		PipelineNodeTask element0 = pipelineNodeTaskDao().loadByItemAndNode(item.getUuid(), "describe", 0);
+		PipelineNodeTask element1 = pipelineNodeTaskDao().loadByItemAndNode(item.getUuid(), "describe", 1);
+		assertNotNull(element0, "Element 0 must keep its own row");
+		assertNotNull(element1, "Element 1 must keep its own row");
+		assertEquals("COMPLETED", element0.getState());
+		assertEquals("FAILED", element1.getState(),
+			"One element failing must not be readable as the whole node failing, or succeeding");
 	}
 
 }

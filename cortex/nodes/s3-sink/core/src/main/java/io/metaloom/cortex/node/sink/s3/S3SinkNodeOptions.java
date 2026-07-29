@@ -24,7 +24,6 @@ import io.metaloom.cortex.api.option.node.ValidationResult;
  *     enabled: true
  *     bucket: media
  *     keyTemplate: "cortex/{sourceNode}/{sourceKey}/{sha512:4}/{sha512}{ext}"
- *     autoDiscover: true
  *     overwrite: IF_DIFFERENT
  * </pre>
  */
@@ -48,10 +47,6 @@ public class S3SinkNodeOptions extends AbstractNodeOptions<S3SinkNodeOptions> {
 	private String bucket;
 
 	private String keyTemplate = DEFAULT_KEY_TEMPLATE;
-
-	private List<String> artifacts = new ArrayList<>();
-
-	private boolean autoDiscover = true;
 
 	private boolean includeSource;
 
@@ -91,32 +86,6 @@ public class S3SinkNodeOptions extends AbstractNodeOptions<S3SinkNodeOptions> {
 
 	public S3SinkNodeOptions setKeyTemplate(String keyTemplate) {
 		this.keyTemplate = keyTemplate == null || keyTemplate.isBlank() ? DEFAULT_KEY_TEMPLATE : keyTemplate;
-		return this;
-	}
-
-	/**
-	 * Explicit {@code nodeId:outputKey} selections, uploaded in order. Empty falls back to
-	 * {@link #isAutoDiscover()}.
-	 */
-	public List<String> getArtifacts() {
-		return artifacts;
-	}
-
-	public S3SinkNodeOptions setArtifacts(List<String> artifacts) {
-		this.artifacts = artifacts == null ? new ArrayList<>() : artifacts;
-		return this;
-	}
-
-	/**
-	 * Upload every upstream output whose key ends in {@code _path}, when no explicit selection is
-	 * configured. Ignored when {@link #getArtifacts()} is non-empty.
-	 */
-	public boolean isAutoDiscover() {
-		return autoDiscover;
-	}
-
-	public S3SinkNodeOptions setAutoDiscover(boolean autoDiscover) {
-		this.autoDiscover = autoDiscover;
 		return this;
 	}
 
@@ -239,22 +208,6 @@ public class S3SinkNodeOptions extends AbstractNodeOptions<S3SinkNodeOptions> {
 			} catch (IllegalArgumentException e) {
 				errors.add("keyTemplate: " + e.getMessage());
 			}
-		}
-
-		if (artifacts != null) {
-			for (String entry : artifacts) {
-				if (entry == null || entry.isBlank() || entry.indexOf(':') <= 0
-					|| entry.endsWith(":")) {
-					errors.add("artifacts entry must have the form 'nodeId:outputKey', got '" + entry + "'");
-					break;
-				}
-			}
-		}
-
-		boolean noExplicit = artifacts == null || artifacts.isEmpty();
-		if (noExplicit && !autoDiscover && !includeSource) {
-			errors.add("no artifacts configured, autoDiscover is off and includeSource is off; "
-				+ "this node would never upload anything");
 		}
 
 		if (maxArtifacts <= 0) {

@@ -68,7 +68,7 @@ class LLMNodePipelineTest extends AbstractNodeChainTest {
 		doAnswer(invocation -> {
 			NodeContext<LoomMedia> ctx = invocation.getArgument(0);
 			for (String id : options.getPrompts().keySet()) {
-				ctx.output(LLMNode.resultKey(id), FAKE_LLM_RESULT);
+				ctx.output(LLMNode.resultPort(id), FAKE_LLM_RESULT);
 			}
 			return NodeResult.success(ctx.outputs());
 		}).when(node).compute(any(), any());
@@ -89,7 +89,7 @@ class LLMNodePipelineTest extends AbstractNodeChainTest {
 		assertThat(result)
 				.isSuccess()
 				.hasCompletedNode("llm")
-				.hasNodeOutputKey("llm", "llm_result_default");
+				.hasNodeOutputPort("llm", LLMNode.resultPort("default"));
 	}
 
 	@Test
@@ -100,7 +100,7 @@ class LLMNodePipelineTest extends AbstractNodeChainTest {
 
 		assertThat(result).node("llm")
 				.isCompleted()
-				.hasOutput("llm_result_default", FAKE_LLM_RESULT)
+				.hasOutput(LLMNode.resultPort("default"), FAKE_LLM_RESULT)
 				.hasOutputCount(1);
 	}
 
@@ -124,8 +124,8 @@ class LLMNodePipelineTest extends AbstractNodeChainTest {
 
 		doAnswer(invocation -> {
 			NodeContext<LoomMedia> ctx = invocation.getArgument(0);
-			ctx.output(LLMNode.resultKey("describe"), "{\"description\":\"A documentary\"}");
-			ctx.output(LLMNode.resultKey("categorize"), "{\"category\":\"documentary\"}");
+			ctx.output(LLMNode.resultPort("describe"), "{\"description\":\"A documentary\"}");
+			ctx.output(LLMNode.resultPort("categorize"), "{\"category\":\"documentary\"}");
 			return NodeResult.success(ctx.outputs());
 		}).when(node).compute(any(), any());
 
@@ -135,8 +135,8 @@ class LLMNodePipelineTest extends AbstractNodeChainTest {
 		assertThat(result).isSuccess();
 		assertThat(result).node("llm")
 				.isCompleted()
-				.hasOutput("llm_result_describe")
-				.hasOutput("llm_result_categorize")
+				.hasOutput(LLMNode.resultPort("describe"))
+				.hasOutput(LLMNode.resultPort("categorize"))
 				.hasOutputCount(2);
 	}
 
@@ -171,7 +171,7 @@ class LLMNodePipelineTest extends AbstractNodeChainTest {
 	@Test
 	void testOutputChaining() throws Exception {
 		CortexNodeAdapter llmAdapter = createAdapter();
-		CapturingNode consumer = new CapturingNode("consumer", "llm", "llm_result_default");
+		CapturingNode consumer = new CapturingNode("consumer", LLMNode.resultPort("default"));
 
 		PipelineResult result = execute(media, llmAdapter, consumer);
 

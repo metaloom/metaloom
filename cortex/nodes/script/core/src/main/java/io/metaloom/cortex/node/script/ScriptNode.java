@@ -23,7 +23,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.api.node.InputPort;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
@@ -40,6 +42,7 @@ import io.metaloom.cortex.node.script.engine.ScriptOutputCollector;
 import io.metaloom.cortex.node.script.engine.ScriptOutputException;
 import io.metaloom.cortex.node.script.engine.ScriptSignal;
 import io.metaloom.loom.client.common.LoomClient;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompCreateRequest;
 import io.metaloom.loom.rest.model.segmentcomp.SegmentCompCreateRequest;
@@ -90,6 +93,32 @@ public class ScriptNode extends AbstractMediaNode<ScriptNodeOptions> implements 
 
 	public static final String KIND = "script";
 
+	/** The media item, ambient rather than transported - declared so the graph is fully wired. */
+	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_ANY, LoomMedia.class);
+
+	/**
+	 * The structured payload the script reads as its {@code data} binding.
+	 *
+	 * <p>
+	 * This is what replaced the {@code requiredInputs} option - a list of {@code nodeId:outputKey}
+	 * strings that all had to be present or the node skipped. Since the port is optional and the
+	 * script decides what to do with an empty {@code data}, "skip when the input is missing" is
+	 * now expressed by the graph and by the script's own {@code ctx.skip()}.
+	 * </p>
+	 */
+	public static final InputPort<String> IN_DATA = InputPort.one("data", ContentTypeRegistry.STRUCT_JSON, String.class);
+
+	/**
+	 * Text from an upstream node - a transcript, extracted document content, a caption.
+	 *
+	 * <p>
+	 * Separate from {@link #IN_DATA} because text is not a struct: deriving a reading time, a tag or
+	 * a chapter list from upstream prose is the most common thing a script is asked to do, and
+	 * routing it through the JSON port would mean every such script started by unwrapping a document
+	 * it never wanted.
+	 * </p>
+	 */
+	public static final InputPort<String> IN_TEXT = InputPort.one("text", ContentTypeRegistry.TEXT_ANY, String.class);
 	/** Schema type of the JSON component this node writes. */
 	public static final String SCHEMA_TYPE = "script";
 
@@ -160,9 +189,6 @@ public class ScriptNode extends AbstractMediaNode<ScriptNodeOptions> implements 
 		if (nodeDef.containsKey("params")) {
 			options.setParams(nodeDef.getJsonObject("params", new JsonObject()));
 		}
-		if (nodeDef.containsKey("requiredInputs")) {
-			options.setRequiredInputs(readStrings(nodeDef.getJsonArray("requiredInputs")));
-		}
 		if (nodeDef.containsKey("trusted")) {
 			options.setTrusted(nodeDef.getBoolean("trusted"));
 		}
@@ -229,28 +255,6 @@ public class ScriptNode extends AbstractMediaNode<ScriptNodeOptions> implements 
 			// be a no-op for every item; skipping says so instead of silently succeeding.
 			return false;
 		}
-		return hasRequiredInputs(ctx);
-	}
-
-	/**
-	 * All declared {@code nodeId:outputKey} inputs must be present.
-	 *
-	 * <p>
-	 * A missing input skips rather than fails: a script hanging off an optional branch (an OCR
-	 * node that only runs for images, say) must not redden a run for every video.
-	 * </p>
-	 */
-	private boolean hasRequiredInputs(NodeContext<LoomMedia> ctx) {
-		for (String entry : options().getRequiredInputs()) {
-			int idx = entry == null ? -1 : entry.indexOf(':');
-			if (idx <= 0 || idx == entry.length() - 1) {
-				continue;
-			}
-			Object value = ctx.upstreamOutput(entry.substring(0, idx), entry.substring(idx + 1));
-			if (value == null || String.valueOf(value).isBlank()) {
-				return false;
-			}
-		}
 		return true;
 	}
 
@@ -267,7 +271,7 @@ public class ScriptNode extends AbstractMediaNode<ScriptNodeOptions> implements 
 
 		ScriptOutputCollector collector = new ScriptOutputCollector(outputSpecs, binarySink(media));
 		ScriptLogger logger = new ScriptLogger(log, nodeId, options().getMaxLogLines());
-		ScriptBindings bindings = new ScriptBindings(media, ctx.upstreamOutputs(), options().getParams().getMap(),
+		ScriptBindings bindings = new ScriptBindings(media, data(ctx), options().getParams().getMap(),
 			collector, logger, limits());
 
 		try {
@@ -327,15 +331,87 @@ public class ScriptNode extends AbstractMediaNode<ScriptNodeOptions> implements 
 		};
 	}
 
+	/**
+	 * What the script sees as its {@code data} binding: the wired {@code struct/json} payload,
+	 * decoded, or an empty map when nothing is connected.
+	 */
+	private Map<String, Object> data(NodeContext<LoomMedia> ctx) {
+		Map<String, Object> data = new LinkedHashMap<>();
+		String encoded = ctx.input(IN_DATA);
+		if (encoded != null) {
+			data.putAll(new JsonObject(encoded).getMap());
+		}
+		// Wired text appears as data.text so a script reads one binding regardless of which port it
+		// arrived on. It is added after the struct payload rather than before, so a script that
+		// genuinely wants a "text" field of its own JSON input is not overwritten by an unwired port.
+		String text = ctx.input(IN_TEXT);
+		if (text != null) {
+			data.putIfAbsent("text", text);
+		}
+		return data;
+	}
+
 	/** Re-emit a cached bag. Values were stored encoded, so lists and objects come back as Json types. */
 	private void emit(NodeContext<LoomMedia> ctx, JsonObject cached) {
+		Map<String, Object> values = new LinkedHashMap<>();
 		for (String key : cached.fieldNames()) {
-			ctx.output(key, cached.getValue(key));
+			values.put(key, cached.getValue(key));
+		}
+		emitValues(ctx, values);
+	}
+
+	/**
+	 * Write the collected values to their declared ports.
+	 *
+	 * <p>
+	 * A {@code MANY} declaration becomes one element per list entry rather than a single list
+	 * value. That is the whole point of the cardinality: a downstream node with a {@code ONE}
+	 * input then runs once per element instead of receiving an opaque list it has to unpack.
+	 * </p>
+	 */
+	private void emitValues(NodeContext<LoomMedia> ctx, Map<String, Object> values) {
+		for (ScriptOutputSpec spec : outputSpecs) {
+			Object value = values.get(spec.key());
+			if (value == null) {
+				continue;
+			}
+			OutputPort<Object> port = spec.port();
+			if (spec.type().isList()) {
+				for (Object element : asList(value)) {
+					ctx.outputElement(port, encodable(element));
+				}
+			} else {
+				ctx.output(port, encodable(value));
+			}
 		}
 	}
 
-	private void emitValues(NodeContext<LoomMedia> ctx, Map<String, Object> values) {
-		values.forEach(ctx::output);
+	private static List<?> asList(Object value) {
+		if (value instanceof List<?> list) {
+			return list;
+		}
+		if (value instanceof JsonArray array) {
+			// A cache hit re-reads the bag through JsonObject, so a list comes back as a JsonArray.
+			return array.getList();
+		}
+		return List.of(value);
+	}
+
+	/**
+	 * Vert.x JSON types are not what the boundary coercer accepts, so they are encoded here rather
+	 * than being rejected as "expected a JSON object, got JsonObject".
+	 */
+	private static Object encodable(Object value) {
+		if (value instanceof JsonObject json) {
+			return json.encode();
+		}
+		if (value instanceof JsonArray array) {
+			return array.encode();
+		}
+		if (value instanceof List<?> list) {
+			return new JsonArray(new ArrayList<>(list)).encode();
+		}
+		return value;
 	}
 
 	/**
@@ -482,19 +558,6 @@ public class ScriptNode extends AbstractMediaNode<ScriptNodeOptions> implements 
 			// SHA-256 is mandated by the platform; if it is missing the JVM is broken.
 			throw new IllegalStateException("SHA-256 unavailable", e);
 		}
-	}
-
-	private static List<String> readStrings(JsonArray array) {
-		List<String> values = new ArrayList<>();
-		if (array != null) {
-			for (int i = 0; i < array.size(); i++) {
-				String value = array.getString(i);
-				if (value != null && !value.isBlank()) {
-					values.add(value);
-				}
-			}
-		}
-		return values;
 	}
 
 	private void closeCompiled() {

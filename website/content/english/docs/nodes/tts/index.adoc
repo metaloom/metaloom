@@ -3,23 +3,23 @@ title: Text-to-Speech (TTS)
 ---
 
 The TTS node **generates narration audio from text**. Unlike the analysis nodes, which describe a
-property of the media itself, TTS takes text produced by an *upstream* node — an
-link:../llm/[LLM] summary, a link:../captioning/[caption], or a translated
-link:../whisper/[transcript] — and synthesizes speech, attaching the audio to the asset.
+property of the media itself, TTS has a single `text` input port that accepts any text type — connect
+an link:../llm/[LLM] summary, a link:../captioning/[caption], or a translated
+link:../whisper/[transcript] to it — and synthesizes speech, attaching the audio to the asset.
 
 German is synthesized with **Orpheus-3B / Kartoffel** and English with **Kokoro**. Both run behind a
 small HTTP sidecar, so the node stays a pure client and needs no model runtime of its own.
 
 ++++
-<div class="ml-nodeviz" data-nodeviz='{"kind":"tts","applies":"Any asset","badge":"TTS sidecar","persist":"asset_node_result ledger (the WAV stays in the local tts_bin cache)","configs":[{"name":"default source (llm)","note":"sourceNodeId llm \u00b7 sourceOutputKey llm_result","inputs":[{"t":"text","l":"llm_result","d":"upstream LLM summary"}],"outputs":[{"t":"flag","l":"tts_flag"},{"t":"path","l":"tts_path","d":"local WAV path"}]},{"name":"from a transcript","note":"sourceNodeId whisper \u00b7 voice per language","inputs":[{"t":"text","l":"whisper_result","d":"translated transcript"}],"outputs":[{"t":"flag","l":"tts_flag"},{"t":"path","l":"tts_path","d":"local WAV path"}]}]}'></div>
+<div class="ml-nodeviz" data-nodeviz='{"kind":"tts","applies":"Any asset","badge":"TTS sidecar","persist":"asset_node_result ledger (the WAV stays in the local tts_bin cache)","configs":[{"name":"narrate an LLM summary","note":"an llm result port wired into text","inputs":[{"t":"text","l":"text","ct":"text/*","d":"the words to speak \u2014 here a summary written by the LLM node"}],"outputs":[{"t":"artifact","l":"audio","ct":"artifact/audio","d":"a WAV in the worker local tts_bin cache"},{"t":"flag","l":"flag","d":"DONE or FAILED"}]},{"name":"narrate a transcript","note":"a whisper transcript port wired into text \u00b7 voice per language","inputs":[{"t":"text","l":"text","ct":"text/*","d":"the words to speak \u2014 here a translated transcript"}],"outputs":[{"t":"artifact","l":"audio","ct":"artifact/audio","d":"a WAV in the worker local tts_bin cache"},{"t":"flag","l":"flag","d":"DONE or FAILED"}]}]}'></div>
 ++++
 
 [cols="1,3"]
 |===
 | Kind | `tts`
 | Applies to | Any asset (the audio is generated from upstream text, not from the media)
-| Inputs | Text from an upstream node output — configurable, defaults to the `llm` node's `llm_result`
-| Output keys | `tts_flag` (String), `tts_path` (String, local path of the generated WAV)
+| Input ports | `text` — accepts any text type, so an LLM answer, a caption or a transcript can be wired straight into it
+| Output ports | `audio` (the generated WAV, ready for link:../s3-sink/[S3 Sink]), `flag` (String)
 | Requirements | A running **TTS sidecar** (`/v1/tts`). German uses Orpheus/Kartoffel (GPU recommended); English uses Kokoro (CPU).
 | Persists to | `asset_node_result` ledger only — the generated WAV stays in the worker's local `tts_bin` cache (as with thumbnails)
 |===
@@ -34,8 +34,10 @@ small HTTP sidecar, so the node stays a pure client and needs no model runtime o
 | `ttsHost` / `ttsPort` | Address of the TTS sidecar (default `localhost:9100`)
 | `language` | `de` → Orpheus/Kartoffel, `en` → Kokoro (default `de`)
 | `voice` | Voice id for the selected engine (default `Jakob`; English e.g. `af_heart`)
-| `sourceNodeId` / `sourceOutputKey` | Which upstream node output supplies the text (default `llm` / `llm_result`)
 |===
+
+Nothing configures where the words come from — connect a port to `text` and the node speaks whatever
+arrives on it.
 
 == Use Cases
 

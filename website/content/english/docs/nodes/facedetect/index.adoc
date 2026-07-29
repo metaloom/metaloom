@@ -7,15 +7,15 @@ embeddings** (vectors) that can be used for recognition and clustering. Video is
 frames at a configurable rate.
 
 ++++
-<div class="ml-nodeviz" data-nodeviz='{"kind":"facedetect","applies":"Image \u00b7 Video","badge":"InspireFace native","persist":"detection rows (bulk upsert) + asset_node_result ledger","configs":[{"name":"detection","note":"capabilities: detection","inputs":[{"t":"image","l":"image"},{"t":"video","l":"video frames","d":"sampled at videoChopRate"}],"outputs":[{"t":"number","l":"face_count"},{"t":"bbox","l":"face detections","d":"bounding box per face"},{"t":"flag","l":"facedetect_flag"}]},{"name":"detection + recognition","note":"capabilities: detection, recognition","inputs":[{"t":"image","l":"image"},{"t":"video","l":"video frames","d":"sampled at videoChopRate"}],"outputs":[{"t":"number","l":"face_count"},{"t":"bbox","l":"face detections","d":"bounding box per face"},{"t":"vector","l":"face embeddings","d":"clustered into persons"},{"t":"flag","l":"facedetect_flag"}]}]}'></div>
+<div class="ml-nodeviz" data-nodeviz='{"kind":"facedetect","applies":"Image \u00b7 Video","badge":"InspireFace native","persist":"detection rows (bulk upsert) + asset_node_result ledger","configs":[{"name":"detection","note":"capabilities: detection","inputs":[{"t":"image","l":"image","d":"a still picture \u2014 wire either image or video, never both"},{"t":"video","l":"video","d":"frames sampled at videoChopRate \u2014 wire either image or video, never both"}],"outputs":[{"t":"number","l":"face_count","ct":"scalar/integer","d":"how many faces the detector found"},{"t":"face","l":"detections","c":"many","d":"one element per detected face: bounding box, landmarks and focal point"},{"t":"flag","l":"flag","d":"DONE or FAILED for the detector run"}]},{"name":"detection + recognition","note":"capabilities: detection, recognition","inputs":[{"t":"image","l":"image","d":"a still picture \u2014 wire either image or video, never both"},{"t":"video","l":"video","d":"frames sampled at videoChopRate \u2014 wire either image or video, never both"}],"outputs":[{"t":"number","l":"face_count","ct":"scalar/integer","d":"how many faces the detector found"},{"t":"face","l":"detections","c":"many","d":"one element per detected face: bounding box, landmarks and focal point"},{"t":"flag","l":"flag","d":"DONE or FAILED for the detector run"}]}]}'></div>
 ++++
 
 [cols="1,3"]
 |===
 | Kind | `facedetect`
 | Applies to | Image, Video
-| Inputs | None
-| Output keys | `face_count` (Integer), `facedetect_flag` (String), `detections` (JSON String — the bounding boxes, for downstream nodes such as link:../scene-layout/[Scene Layout]); boxes and embedding vectors are also persisted as detections
+| Input ports | `image` or `video` — exactly one of the two is wired
+| Output ports | `detections` (**many** — one element per detected face, the boxes that feed link:../scene-layout/[Scene Layout], link:../dominant-color/[Dominant Colour] and link:../facedescription/[Face Description]), `face_count` (Integer), `flag` (String). Embedding vectors are **not** a connectable port: with the recognition capability they are written straight to the detection and embedding tables, so face search reads them from Loom rather than through the graph
 | Requirements | **InspireFace native runtime** and its model pack. CPU works; a GPU-enabled pack accelerates video/large batches. Model files require local storage and memory.
 | Persists to | `detection` table (bulk upsert) + `asset_node_result` ledger
 |===
@@ -40,4 +40,5 @@ frames at a configurable rate.
 * **Face search & recognition** — match a query face against embeddings across the library.
 * **Person clustering** — group appearances of the same person via the embedding clusters.
 * **Content moderation / review** — flag assets that contain people.
-* Feed link:../facedescription/[Face Description] with detected faces.
+* Feed link:../facedescription/[Face Description] by connecting the `detections` port — it runs once
+  per element of the sequence.

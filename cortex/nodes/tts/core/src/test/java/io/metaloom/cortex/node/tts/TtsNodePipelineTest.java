@@ -64,8 +64,8 @@ class TtsNodePipelineTest extends AbstractNodeChainTest {
 			doReturn(true).when(node).isProcessable(any());
 			doAnswer(invocation -> {
 				NodeContext<LoomMedia> ctx = invocation.getArgument(0);
-				ctx.output(TtsNode.OUTPUT_TTS_FLAG, "DONE");
-				ctx.output(TtsNode.OUTPUT_TTS_PATH, FAKE_PATH);
+				ctx.output(TtsNode.OUT_FLAG, "DONE");
+				ctx.output(TtsNode.OUT_AUDIO, FAKE_PATH);
 				return ctx.origin(ResultOrigin.COMPUTED).next();
 			}).when(node).compute(any(), any());
 		}
@@ -82,7 +82,7 @@ class TtsNodePipelineTest extends AbstractNodeChainTest {
 		assertThat(result)
 			.isSuccess()
 			.hasCompletedNode("tts")
-			.hasNodeOutput("tts", "tts_path", FAKE_PATH);
+			.hasNodeOutput("tts", TtsNode.OUT_AUDIO, FAKE_PATH);
 	}
 
 	@Test
@@ -108,7 +108,7 @@ class TtsNodePipelineTest extends AbstractNodeChainTest {
 	@Test
 	void testOutputChaining() throws Exception {
 		CortexNodeAdapter ttsAdapter = createAdapter();
-		CapturingNode consumer = new CapturingNode("consumer", "tts", "tts_path");
+		CapturingNode consumer = new CapturingNode("consumer", TtsNode.OUT_AUDIO);
 
 		PipelineResult result = execute(media, ttsAdapter, consumer);
 

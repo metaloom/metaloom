@@ -3,12 +3,10 @@ package io.metaloom.cortex.node.color;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 /**
@@ -40,6 +38,9 @@ public class RegionResolver {
 	public record Resolution(List<RegionSource> regions, int dropped, int truncated) {
 	}
 
+	/** What a detection-derived region records as its origin now that no node id is involved. */
+	static final String DETECTIONS_SOURCE = "detections";
+
 	private final DominantColorNodeOptions options;
 
 	public RegionResolver(DominantColorNodeOptions options) {
@@ -47,12 +48,12 @@ public class RegionResolver {
 	}
 
 	/**
-	 * @param upstreamOutputs the pipeline's upstream output map, keyed by node id
-	 * @param imageWidth      the decoded image width
-	 * @param imageHeight     the decoded image height
+	 * @param detections  the encoded detection elements wired into the node, seq-ordered
+	 * @param imageWidth  the decoded image width
+	 * @param imageHeight the decoded image height
 	 * @return the resolved regions
 	 */
-	public Resolution resolve(Map<String, Map<String, Object>> upstreamOutputs, int imageWidth, int imageHeight) {
+	public Resolution resolve(List<String> detections, int imageWidth, int imageHeight) {
 		List<RegionSource> regions = new ArrayList<>();
 		int dropped = 0;
 
@@ -69,43 +70,38 @@ public class RegionResolver {
 			}
 		}
 
-		if (options.isUseDetections() && upstreamOutputs != null) {
-			List<RegionSource> detections = new ArrayList<>();
-			boolean prefixIds = options.getDetectionSources().size() > 1;
-			for (String nodeId : options.getDetectionSources()) {
-				Map<String, Object> outputs = upstreamOutputs.get(nodeId);
-				Object payload = outputs == null ? null : outputs.get("detections");
-				if (payload == null) {
-					continue;
-				}
-				dropped += readDetections(nodeId, payload, imageWidth, imageHeight, prefixIds, detections);
+		if (options.isUseDetections() && detections != null && !detections.isEmpty()) {
+			List<RegionSource> boxes = new ArrayList<>();
+			for (int seq = 0; seq < detections.size(); seq++) {
+				dropped += readDetection(detections.get(seq), seq, imageWidth, imageHeight, boxes);
 			}
 
-			if (detections.size() > options.getMaxRegions()) {
+			if (boxes.size() > options.getMaxRegions()) {
 				// Keep the biggest boxes. A cap that dropped the subject of the photo would be
 				// worse than no cap at all.
-				detections.sort(Comparator.comparingLong((RegionSource r) -> r.box().area()).reversed());
-				int truncated = detections.size() - options.getMaxRegions();
-				regions.addAll(detections.subList(0, options.getMaxRegions()));
+				boxes.sort(Comparator.comparingLong((RegionSource r) -> r.box().area()).reversed());
+				int truncated = boxes.size() - options.getMaxRegions();
+				regions.addAll(boxes.subList(0, options.getMaxRegions()));
 				return new Resolution(List.copyOf(regions), dropped, truncated);
 			}
-			regions.addAll(detections);
+			regions.addAll(boxes);
 		}
 
 		return new Resolution(List.copyOf(regions), dropped, 0);
 	}
 
 	/**
-	 * @return how many detections in this payload were dropped
+	 * Read one detection element.
+	 *
+	 * @return 1 when the element was dropped as unusable, 0 otherwise
 	 */
-	private int readDetections(String nodeId, Object payload, int imageWidth, int imageHeight,
-		boolean prefixIds, List<RegionSource> target) {
+	private int readDetection(String encoded, int seq, int imageWidth, int imageHeight, List<RegionSource> target) {
 		JsonObject json;
 		try {
-			json = new JsonObject(payload.toString());
+			json = new JsonObject(encoded);
 		} catch (Exception e) {
-			log.warn("Upstream node '{}' emitted a 'detections' output that is not JSON; ignoring it", nodeId);
-			return 0;
+			log.warn("A 'detections' element was not JSON; ignoring it");
+			return 1;
 		}
 
 		String coordinates = json.getString("coordinates");
@@ -113,7 +109,7 @@ public class RegionResolver {
 		if (!normalized && !DominantColorNodeOptions.ABSOLUTE_PIXELS.equals(coordinates)) {
 			// Every producer on the wire today means absolute pixels; say so rather than guessing
 			// silently.
-			log.warn("Upstream node '{}' declared coordinates '{}'; assuming {}", nodeId, coordinates,
+			log.warn("A 'detections' element declared coordinates '{}'; assuming {}", coordinates,
 				DominantColorNodeOptions.ABSOLUTE_PIXELS);
 		}
 
@@ -130,66 +126,48 @@ public class RegionResolver {
 			&& (payloadWidth != imageWidth || payloadHeight != imageHeight)) {
 			scaleX = imageWidth / (double) payloadWidth;
 			scaleY = imageHeight / (double) payloadHeight;
-			log.info("Upstream node '{}' measured against {}x{} but the decoded image is {}x{}; rescaling its boxes",
-				nodeId, payloadWidth, payloadHeight, imageWidth, imageHeight);
+			log.info("A 'detections' element was measured against {}x{} but the decoded image is {}x{}; rescaling its box",
+				payloadWidth, payloadHeight, imageWidth, imageHeight);
 		}
 
-		JsonArray items = json.getJsonArray("detections", new JsonArray());
-		int dropped = 0;
-		for (int i = 0; i < items.size(); i++) {
-			JsonObject item = items.getJsonObject(i);
-			if (item == null) {
-				dropped++;
-				continue;
-			}
-			JsonObject bbox = item.getJsonObject("bbox");
-			if (bbox == null) {
-				dropped++;
-				continue;
-			}
-
-			Integer frame = item.getInteger("frame");
-			if (frame != null && frame != 0) {
-				// This node only ever runs on stills, so a non-zero frame index can only mean a
-				// video detector was wired into an image pipeline.
-				dropped++;
-				continue;
-			}
-
-			double x = bbox.getDouble("x", 0d);
-			double y = bbox.getDouble("y", 0d);
-			double w = bbox.getDouble("w", 0d);
-			double h = bbox.getDouble("h", 0d);
-			if (normalized) {
-				x *= imageWidth;
-				y *= imageHeight;
-				w *= imageWidth;
-				h *= imageHeight;
-			} else {
-				x *= scaleX;
-				y *= scaleY;
-				w *= scaleX;
-				h *= scaleY;
-			}
-
-			Box box = Box.ofBounds(x, y, w, h).clampTo(imageWidth, imageHeight);
-			if (!usable(box)) {
-				dropped++;
-				continue;
-			}
-
-			int index = item.getInteger("index", i);
-			String type = item.getString("type", "object");
-			String label = item.getString("label", type);
-			String id = label + "-" + index;
-			if (prefixIds) {
-				// Two detectors can both call their first box "face-0".
-				id = nodeId + ":" + id;
-			}
-			target.add(new RegionSource(id, nodeId, RegionKind.DETECTION, label, type, frame,
-				item.getDouble("confidence"), box));
+		JsonObject bbox = json.getJsonObject("bbox");
+		if (bbox == null) {
+			return 1;
 		}
-		return dropped;
+
+		Integer frame = json.getInteger("frame");
+		if (frame != null && frame != 0) {
+			// This node only ever runs on stills, so a non-zero frame index can only mean a
+			// video detector was wired into an image pipeline.
+			return 1;
+		}
+
+		double x = bbox.getDouble("x", 0d);
+		double y = bbox.getDouble("y", 0d);
+		double w = bbox.getDouble("w", 0d);
+		double h = bbox.getDouble("h", 0d);
+		if (normalized) {
+			x *= imageWidth;
+			y *= imageHeight;
+			w *= imageWidth;
+			h *= imageHeight;
+		} else {
+			x *= scaleX;
+			y *= scaleY;
+			w *= scaleX;
+			h *= scaleY;
+		}
+
+		Box box = Box.ofBounds(x, y, w, h).clampTo(imageWidth, imageHeight);
+		if (!usable(box)) {
+			return 1;
+		}
+
+		String type = json.getString("type", "object");
+		String label = json.getString("label", type);
+		target.add(new RegionSource(label + "-" + json.getInteger("index", seq), DETECTIONS_SOURCE,
+			RegionKind.DETECTION, label, type, frame, json.getDouble("confidence"), box));
+		return 0;
 	}
 
 	private Box staticRegion(int imageWidth, int imageHeight) {

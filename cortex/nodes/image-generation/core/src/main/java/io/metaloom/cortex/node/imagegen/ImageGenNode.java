@@ -16,14 +16,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.node.NodeOutputKey;
+import io.metaloom.cortex.api.node.InputPort;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.utils.hash.HashUtils;
 import io.metaloom.utils.hash.SHA512;
@@ -51,8 +53,11 @@ public class ImageGenNode extends AbstractMediaNode<ImageGenNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(ImageGenNode.class);
 
-	public static final NodeOutputKey<String> OUTPUT_IMAGE_FLAG = NodeOutputKey.of("imagegen_flag", String.class);
-	public static final NodeOutputKey<String> OUTPUT_IMAGE_PATH = NodeOutputKey.of("imagegen_path", String.class);
+	public static final InputPort<String> IN_PROMPT = InputPort.one("prompt", ContentTypeRegistry.TEXT_ANY, String.class);
+	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_IMAGE, LoomMedia.class);
+
+	public static final OutputPort<String> OUT_IMAGE = OutputPort.one("image", ContentTypeRegistry.ARTIFACT_IMAGE, String.class);
+	public static final OutputPort<String> OUT_FLAG = OutputPort.one("flag", ContentTypeRegistry.SCALAR_STRING, String.class);
 
 	/** In-heap skip cache of the generated image path, keyed by media path, to avoid re-generating within this worker's lifetime. The rendered PNG itself
 	 * is a durable local artifact under {@code metaPath/imagegen_bin}. */
@@ -89,8 +94,8 @@ public class ImageGenNode extends AbstractMediaNode<ImageGenNodeOptions> {
 		String cached = resultCache.get(path);
 		if (cached != null) {
 			metrics.recordAiCacheHit("imagegen");
-			ctx.output(OUTPUT_IMAGE_FLAG, "DONE");
-			ctx.output(OUTPUT_IMAGE_PATH, cached);
+			ctx.output(OUT_FLAG, "DONE");
+			ctx.output(OUT_IMAGE, cached);
 			return ctx.origin(LOCAL).next();
 		}
 
@@ -98,7 +103,7 @@ public class ImageGenNode extends AbstractMediaNode<ImageGenNodeOptions> {
 			long aiStart = System.currentTimeMillis();
 			byte[] png;
 			try {
-				png = generate(media);
+				png = generate(ctx, media);
 			} catch (RuntimeException e) {
 				metrics.recordAiCall("imagegen", false, System.currentTimeMillis() - aiStart);
 				throw e;
@@ -110,8 +115,8 @@ public class ImageGenNode extends AbstractMediaNode<ImageGenNodeOptions> {
 			Files.write(imagePath, png);
 
 			ctx.print("DONE", png.length + " bytes");
-			ctx.output(OUTPUT_IMAGE_FLAG, "DONE");
-			ctx.output(OUTPUT_IMAGE_PATH, imagePath.toString());
+			ctx.output(OUT_FLAG, "DONE");
+			ctx.output(OUT_IMAGE, imagePath.toString());
 			resultCache.put(path, imagePath.toString());
 
 			// The image bytes live in the local imagegen_bin cache; record the ledger marker that this node produced them for the asset. Uploading the bytes
@@ -120,7 +125,7 @@ public class ImageGenNode extends AbstractMediaNode<ImageGenNodeOptions> {
 			return ctx.origin(COMPUTED).next();
 		} catch (Exception e) {
 			log.error("Failed to generate image for media {}", path, e);
-			ctx.output(OUTPUT_IMAGE_FLAG, "FAILED");
+			ctx.output(OUT_FLAG, "FAILED");
 			recordNodeResult(asset, ctx, ResultState.FAILED, e.getMessage(), null, null);
 			return ctx.failure(e.getMessage()).next();
 		}
@@ -129,16 +134,19 @@ public class ImageGenNode extends AbstractMediaNode<ImageGenNodeOptions> {
 	/**
 	 * Call the sidecar for the configured mode: REMIX loads the source image and hits {@code /remix}; GENERATE (default) hits {@code /generate}.
 	 */
-	private byte[] generate(LoomMedia media) throws IOException {
+	private byte[] generate(NodeContext<LoomMedia> ctx, LoomMedia media) throws IOException {
 		ImageGenNodeOptions o = options();
+		// A wired prompt port wins over the configured one: the option is the default for a
+		// standalone node, the edge is what a pipeline author explicitly connected.
+		String prompt = ctx.optionalInput(IN_PROMPT).orElseGet(o::getPrompt);
 		if (o.getMode() == ImageGenMode.REMIX) {
 			BufferedImage source = ImageIO.read(media.file());
 			if (source == null) {
 				throw new IOException("Could not read source image: " + media.absolutePath());
 			}
-			return imageGenClient.remix(source, o.getPrompt(), o.getStrength(), o.getSeed(), o.getSteps());
+			return imageGenClient.remix(source, prompt, o.getStrength(), o.getSeed(), o.getSteps());
 		}
-		return imageGenClient.generate(o.getPrompt(), o.getWidth(), o.getHeight(), o.getSeed(), o.getSteps());
+		return imageGenClient.generate(prompt, o.getWidth(), o.getHeight(), o.getSeed(), o.getSteps());
 	}
 
 	/**

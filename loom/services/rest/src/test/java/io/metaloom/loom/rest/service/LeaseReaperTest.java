@@ -53,7 +53,10 @@ public class LeaseReaperTest {
 				.add(new JsonObject().put("id", "hash").put("type", "sha512")
 					.put("options", new JsonObject().put("retryFailed", true))))
 			.put("edges", new JsonArray()
-				.add(new JsonObject().put("source", "src").put("target", "hash")));
+				// Port-to-port: filesystem-source emits 'media', sha512 reads 'media'.
+				.add(new JsonObject()
+					.put("source", "src").put("sourcePort", "media")
+					.put("target", "hash").put("targetPort", "media")));
 		return parser.parse("reaper", definition, true, false, 0);
 	}
 

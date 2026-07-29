@@ -64,7 +64,7 @@ class SHA512NodePipelineTest extends AbstractNodeChainTest {
 		assertThat(result)
 				.isSuccess()
 				.hasCompletedNode("sha512")
-				.hasNodeOutput("sha512", "sha512", expectedSha512);
+				.hasNodeOutput("sha512", SHA512Node.OUT_HASH, expectedSha512);
 	}
 
 	@Test
@@ -75,7 +75,7 @@ class SHA512NodePipelineTest extends AbstractNodeChainTest {
 
 		assertThat(result).node("sha512")
 				.isCompleted()
-				.hasOutput("sha512", expectedSha512)
+				.hasOutput(SHA512Node.OUT_HASH, expectedSha512)
 				.hasOutputCount(1);
 	}
 
@@ -122,7 +122,7 @@ class SHA512NodePipelineTest extends AbstractNodeChainTest {
 	@Test
 	void testOutputChaining() {
 		CortexNodeAdapter sha512Adapter = adapt(createNode());
-		CapturingNode consumer = new CapturingNode("consumer", "sha512", "sha512");
+		CapturingNode consumer = new CapturingNode("consumer", SHA512Node.OUT_HASH);
 
 		PipelineResult result = execute(media, sha512Adapter, consumer);
 

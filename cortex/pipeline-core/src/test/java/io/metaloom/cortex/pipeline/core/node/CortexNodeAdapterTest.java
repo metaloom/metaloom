@@ -6,20 +6,34 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
+import io.metaloom.cortex.api.node.InputPort;
+import io.metaloom.cortex.api.node.NodeInputs;
+import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
+import io.metaloom.cortex.api.node.PortOutput;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.pipeline.api.NodeMode;
-import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.pipeline.test.StubLoomMedia;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 
 /**
  * Direct unit test of {@link CortexNodeAdapter}. The adapter is exercised
  * indirectly by every {@code *NodePipelineTest}, but the state mapping and the
- * upstream-output conversion are the seam where a wrong translation shows up as
+ * hand-over of the port view are the seam where a wrong translation shows up as
  * a green pipeline that did nothing — so they are pinned here in isolation.
  */
 class CortexNodeAdapterTest {
 
 	private static final StubLoomMedia MEDIA = new StubLoomMedia("/media/photo.jpg", false, true, false, false);
+
+	private static final OutputPort<String> OUT_SHA512 =
+		OutputPort.one("hash", ContentTypeRegistry.HASH_SHA512, String.class);
+	private static final OutputPort<Long> OUT_BYTES =
+		OutputPort.one("bytes", ContentTypeRegistry.SCALAR_INTEGER, Long.class);
+	private static final InputPort<String> IN_MD5 =
+		InputPort.one("md5", ContentTypeRegistry.HASH_MD5, String.class);
+	private static final InputPort<String> IN_FLAGS =
+		InputPort.one("flags", ContentTypeRegistry.SCALAR_STRING, String.class);
 
 	private static CortexNodeAdapter adapt(StubFilesystemNode node) {
 		return new CortexNodeAdapter(node, NodeMode.PARALLEL, true, 1);
@@ -27,12 +41,16 @@ class CortexNodeAdapterTest {
 
 	@Test
 	void testSuccessMapsToCompletedAndForwardsOutputs() {
-		StubFilesystemNode node = StubFilesystemNode.succeeding("hasher", Map.of("sha512", "abc", "bytes", 42));
-		NodeResult result = adapt(node).process(MEDIA, Map.of());
+		StubFilesystemNode node = StubFilesystemNode.succeeding("hasher", Map.of(
+				OUT_SHA512.id(), PortOutput.one(OUT_SHA512, "abc"),
+				OUT_BYTES.id(), PortOutput.one(OUT_BYTES, 42L)));
+		NodeResult result = adapt(node).process(MEDIA, NodeInputs.empty());
 
 		assertThat(result.getState()).isEqualTo(ResultState.SUCCESS);
 		assertThat(result.getNodeId()).isEqualTo("hasher");
-		assertThat(result.getOutput()).containsExactlyInAnyOrderEntriesOf(Map.of("sha512", "abc", "bytes", 42));
+		assertThat(result.getOutputs()).containsOnlyKeys(OUT_SHA512.id(), OUT_BYTES.id());
+		assertThat(result.get(OUT_SHA512)).isEqualTo("abc");
+		assertThat(result.get(OUT_BYTES)).isEqualTo(42L);
 	}
 
 	@Test
@@ -40,7 +58,7 @@ class CortexNodeAdapterTest {
 		// Node and pipeline results are the same type now: the adapter stamps identity + timing and preserves the node's own state and message (skip reason).
 		StubFilesystemNode node = new StubFilesystemNode("hasher",
 				ctx -> new io.metaloom.cortex.api.node.NodeResult(null, ResultState.SKIPPED, 0, "unprocessable", java.util.Map.of()));
-		NodeResult result = adapt(node).process(MEDIA, Map.of());
+		NodeResult result = adapt(node).process(MEDIA, NodeInputs.empty());
 
 		assertThat(result.getState()).isEqualTo(ResultState.SKIPPED);
 		assertThat(result.getNodeId()).isEqualTo("hasher");
@@ -51,7 +69,7 @@ class CortexNodeAdapterTest {
 	void testFailedMapsToFailed() {
 		StubFilesystemNode node = new StubFilesystemNode("hasher",
 				ctx -> new io.metaloom.cortex.api.node.NodeResult(null, ResultState.FAILED, 0, "boom", java.util.Map.of()));
-		NodeResult result = adapt(node).process(MEDIA, Map.of());
+		NodeResult result = adapt(node).process(MEDIA, NodeInputs.empty());
 
 		assertThat(result.getState()).isEqualTo(ResultState.FAILED);
 		assertThat(result.getNodeId()).isEqualTo("hasher");
@@ -61,7 +79,7 @@ class CortexNodeAdapterTest {
 	@Test
 	void testNullResultBecomesAFailureRatherThanAnNpe() {
 		StubFilesystemNode node = new StubFilesystemNode("hasher", ctx -> null);
-		NodeResult result = adapt(node).process(MEDIA, Map.of());
+		NodeResult result = adapt(node).process(MEDIA, NodeInputs.empty());
 
 		assertThat(result.getState()).isEqualTo(ResultState.FAILED);
 		assertThat(result.getMessage()).isEqualTo("Node returned null result");
@@ -72,54 +90,42 @@ class CortexNodeAdapterTest {
 		StubFilesystemNode node = new StubFilesystemNode("hasher", ctx -> {
 			throw new IllegalStateException("native handle closed");
 		});
-		NodeResult result = adapt(node).process(MEDIA, Map.of());
+		NodeResult result = adapt(node).process(MEDIA, NodeInputs.empty());
 
 		assertThat(result.getState()).isEqualTo(ResultState.FAILED);
 		assertThat(result.getMessage()).isEqualTo("native handle closed");
 	}
 
 	@Test
-	void testUpstreamResultsAreConvertedToUpstreamOutputs() {
+	void testPortViewReachesTheWrappedNodeUnchanged() {
 		StubFilesystemNode node = StubFilesystemNode.succeeding("consumer", Map.of());
-		Map<String, NodeResult> upstream = Map.of(
-				"md5sum", NodeResult.success("md5sum", 0, Map.of("md5", "deadbeef")),
-				"tika", NodeResult.success("tika", 0, Map.of("tika_flags", "DONE")));
+		NodeInputs inputs = NodeInputs.builder()
+				.input(IN_MD5, "deadbeef")
+				.input(IN_FLAGS, "DONE")
+				.build();
 
-		adapt(node).process(MEDIA, upstream);
+		adapt(node).process(MEDIA, inputs);
 
-		assertThat(node.lastContext().upstreamOutputs())
-				.containsExactlyInAnyOrderEntriesOf(Map.of(
-						"md5sum", Map.of("md5", "deadbeef"),
-						"tika", Map.of("tika_flags", "DONE")));
-		assertThat(node.lastContext().<String> upstreamOutput("md5sum", "md5")).isEqualTo("deadbeef");
+		assertThat(node.lastContext().input(IN_MD5)).isEqualTo("deadbeef");
+		assertThat(node.lastContext().input(IN_FLAGS)).isEqualTo("DONE");
+		assertThat(node.lastContext().isWired(IN_MD5)).isTrue();
 	}
 
+	/**
+	 * A node invoked with nothing wired must still run: an unwired optional port reads
+	 * as null rather than as a missing map the node has to defend against.
+	 */
 	@Test
-	void testNullAndEmptyUpstreamResultsConvertToAnEmptyMap() {
+	void testNullInputsBecomeAnEmptyPortView() {
 		StubFilesystemNode node = StubFilesystemNode.succeeding("consumer", Map.of());
 		CortexNodeAdapter adapter = adapt(node);
 
 		adapter.process(MEDIA, null);
-		assertThat(node.lastContext().upstreamOutputs()).isEmpty();
+		assertThat(node.lastContext().input(IN_MD5)).isNull();
+		assertThat(node.lastContext().isWired(IN_MD5)).isFalse();
 
-		adapter.process(MEDIA, Map.of());
-		assertThat(node.lastContext().upstreamOutputs()).isEmpty();
-	}
-
-	/**
-	 * A skipped upstream node contributes an entry with an empty output map
-	 * rather than being dropped — downstream nodes see the node id but no values.
-	 */
-	@Test
-	void testSkippedUpstreamResultContributesAnEmptyOutputMap() {
-		StubFilesystemNode node = StubFilesystemNode.succeeding("consumer", Map.of());
-		Map<String, NodeResult> upstream = new java.util.HashMap<>();
-		upstream.put("filter", NodeResult.skipped("filter", "branch not taken"));
-
-		adapt(node).process(MEDIA, upstream);
-
-		assertThat(node.lastContext().upstreamOutputs()).containsOnlyKeys("filter");
-		assertThat(node.lastContext().upstreamOutputs().get("filter")).isEmpty();
+		adapter.process(MEDIA, NodeInputs.empty());
+		assertThat(node.lastContext().input(IN_MD5)).isNull();
 	}
 
 	@Test
@@ -132,20 +138,20 @@ class CortexNodeAdapterTest {
 	}
 
 	/**
-	 * The id override exists because some nodes read upstream outputs under a
-	 * node id that does not match the producing node's own {@code name()} — for
-	 * example {@code LoomNode} reads {@code upstreamOutput("md5sum", "md5")}
-	 * while {@code MD5Node.name()} is {@code "md5"}. The override must change the
-	 * id the result is emitted under while leaving {@code name()} alone.
+	 * The id override used to exist because some nodes read upstream outputs under a
+	 * node id that did not match the producing node's own {@code name()}. Nothing
+	 * addresses data by node id any more, but a graph may still place two instances of
+	 * one kind, so the override must change the id a result is emitted under while
+	 * leaving {@code name()} alone.
 	 */
 	@Test
 	void testIdCanBeOverriddenIndependentlyOfTheWrappedNodeName() {
-		StubFilesystemNode node = StubFilesystemNode.succeeding("md5", Map.of("md5", "deadbeef"));
+		StubFilesystemNode node = StubFilesystemNode.succeeding("md5", Map.of());
 		CortexNodeAdapter adapter = new CortexNodeAdapter("md5sum", node, NodeMode.PARALLEL, true, 1);
 
 		assertThat(adapter.id()).isEqualTo("md5sum");
 		assertThat(adapter.name()).as("name still reflects the wrapped node").isEqualTo("md5");
-		assertThat(adapter.process(MEDIA, Map.of()).getNodeId())
+		assertThat(adapter.process(MEDIA, NodeInputs.empty()).getNodeId())
 				.as("results are emitted under the overridden id")
 				.isEqualTo("md5sum");
 	}

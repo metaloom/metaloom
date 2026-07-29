@@ -64,8 +64,8 @@ class ImageGenNodePipelineTest extends AbstractNodeChainTest {
 			doReturn(true).when(node).isProcessable(any());
 			doAnswer(invocation -> {
 				NodeContext<LoomMedia> ctx = invocation.getArgument(0);
-				ctx.output(ImageGenNode.OUTPUT_IMAGE_FLAG, "DONE");
-				ctx.output(ImageGenNode.OUTPUT_IMAGE_PATH, FAKE_PATH);
+				ctx.output(ImageGenNode.OUT_FLAG, "DONE");
+				ctx.output(ImageGenNode.OUT_IMAGE, FAKE_PATH);
 				return ctx.origin(ResultOrigin.COMPUTED).next();
 			}).when(node).compute(any(), any());
 		}
@@ -82,7 +82,7 @@ class ImageGenNodePipelineTest extends AbstractNodeChainTest {
 		assertThat(result)
 			.isSuccess()
 			.hasCompletedNode("imagegen")
-			.hasNodeOutput("imagegen", "imagegen_path", FAKE_PATH);
+			.hasNodeOutput("imagegen", ImageGenNode.OUT_IMAGE, FAKE_PATH);
 	}
 
 	@Test
@@ -108,7 +108,7 @@ class ImageGenNodePipelineTest extends AbstractNodeChainTest {
 	@Test
 	void testOutputChaining() throws Exception {
 		CortexNodeAdapter imageGenAdapter = createAdapter();
-		CapturingNode consumer = new CapturingNode("consumer", "imagegen", "imagegen_path");
+		CapturingNode consumer = new CapturingNode("consumer", ImageGenNode.OUT_IMAGE);
 
 		PipelineResult result = execute(media, imageGenAdapter, consumer);
 

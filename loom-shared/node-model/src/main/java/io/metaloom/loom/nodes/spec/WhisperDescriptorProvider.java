@@ -1,9 +1,11 @@
 package io.metaloom.loom.nodes.spec;
 
-import static io.metaloom.loom.nodes.spec.ContentTypes.*;
+import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.*;
 import static io.metaloom.loom.nodes.spec.NodeCategory.*;
 import static io.metaloom.loom.nodes.spec.NodeMode.*;
 import static io.metaloom.loom.nodes.spec.ParameterType.*;
+import static io.metaloom.loom.nodes.spec.PortGroup.xor;
+import static io.metaloom.loom.nodes.spec.PortSpec.one;
 
 import java.util.List;
 
@@ -24,10 +26,16 @@ public class WhisperDescriptorProvider implements NodeDescriptorProvider {
 				.setDescription("Transcribe audio/video speech to text using Whisper.")
 				.setIcon("mic")
 				.setCategory(ANALYSIS)
-				.setInputs(List.of(
-					new NodeInput("media", MEDIA_AUDIO, true),
-					new NodeInput("media", MEDIA_VIDEO, true)))
-				.setOutputs(List.of(new NodeOutput("whisper_result", DATA_TRANSCRIPT)))
+				.setInputPorts(List.of(
+					one("audio", MEDIA_AUDIO).inGroup("media_alt")
+						.describedAs("Audio", "An audio file to transcribe"),
+					one("video", MEDIA_VIDEO).inGroup("media_alt")
+						.describedAs("Video", "A video whose audio track is demuxed and transcribed")))
+				.setInputGroups(List.of(
+					xor("media_alt", "Media")))
+				.setOutputPorts(List.of(
+					one("transcript", TEXT_TRANSCRIPT)
+						.describedAs("Transcript", "The recognised speech with per-segment start and end times")))
 				.setParameters(List.of(
 					commonEnabled(), commonProcessIncomplete(), commonRetryFailed(),
 					new NodeParameter().setKey("modelPath").setType(STRING)

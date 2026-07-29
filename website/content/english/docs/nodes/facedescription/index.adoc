@@ -3,27 +3,29 @@ title: Face Description
 ---
 
 The face description node produces a **natural-language description** of the faces detected in an
-asset, using a vision-language model. It runs after link:../facedetect/[Face Detection] and skips work
-when no faces were found.
+asset, using a vision-language model. Its `detections` port carries a *sequence* — one element per
+detected face — and the node describes each element in turn, so a picture with three faces comes back
+with three descriptions in the same order. A sequence with no elements means there is nothing to
+describe and no model call is made.
 
 ++++
-<div class="ml-nodeviz" data-nodeviz='{"kind":"facedescription","applies":"Image","badge":"Vision model service","persist":"asset_json_comp + asset_node_result ledger","inputs":[{"t":"image","l":"image"},{"t":"number","l":"face_count","d":"from facedetect; zero skips the node"},{"t":"face","l":"detected faces","d":"cropped from the bounding boxes"}],"outputs":[{"t":"text","l":"face_description"}]}'></div>
+<div class="ml-nodeviz" data-nodeviz='{"kind":"facedescription","applies":"Image","badge":"Vision model service","persist":"asset_json_comp + asset_node_result ledger","inputs":[{"t":"face","l":"detections","c":"many","d":"one element per detected face, cropped from its bounding box"}],"outputs":[{"t":"text","l":"descriptions","c":"many","d":"one short description per incoming face, in the same order"}]}'></div>
 ++++
 
 [cols="1,3"]
 |===
 | Kind | `facedescription`
 | Applies to | Image (video is stubbed / not yet implemented)
-| Inputs | Upstream link:../facedetect/[`facedetect`] output (reads `face_count` to skip when zero)
-| Output keys | `face_description` (String)
+| Input ports | `detections` (**many**) — connect the `detections` port of link:../facedetect/[Face Detection]; the crops travel with the elements, so the picture itself is not wired in
+| Output ports | `descriptions` (**many** — one per incoming face, aligned with the input sequence)
 | Requirements | A vision-language / LLM model service reachable from the worker. CPU on the worker; the model runs in the service.
 | Persists to | `asset_json_comp` + `asset_node_result` ledger
 |===
 
 == Configuration
 
-Uses the model-service connection shared with the LLM/captioning family. The node only acts on assets
-where the upstream face detector reported at least one face.
+Uses the model-service connection shared with the LLM/captioning family. There is nothing to
+configure about where the faces come from — connect the `detections` port and the node follows it.
 
 == Use Cases
 

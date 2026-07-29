@@ -8,14 +8,18 @@ has a unique *kind* (name) used to reference it in a pipeline definition and to 
 worker that can run it.
 
 A node writes its result back to Loom over the REST API — a typed component plus an
-`asset_node_result` ledger row. Downstream nodes read a dependency's **output keys**.
+`asset_node_result` ledger row. Downstream nodes do not name the node they depend on: they connect to
+one of its **ports**. A port has a name that is local to its node, a content type that says what it
+carries, and a cardinality that says whether it carries one element or a sequence of them.
 
 Between them the built-in nodes cover any media file type — images, videos, audio and documents. What
 is actually analysed for a given asset depends entirely on which nodes the pipeline contains.
 
 Every node page opens with a diagram of that node in a pipeline: what flows in on the left, what comes
-out on the right, and a tab per alternative configuration. Ports are labelled with the data type they
-carry:
+out on the right, and a tab per alternative configuration. **Hover any port** — or tap it, or reach it
+with the keyboard — for a card giving its content type, its cardinality, and what the value actually
+is. A stacked marker on a port means it carries a sequence rather than a single element. The key below
+covers both the type icons and the cardinality:
 
 ++++
 <div class="ml-nodeviz-legend"></div>
@@ -45,15 +49,15 @@ The built-in nodes fall into four categories.
 | link:ocr/[OCR] (`ocr`) | Image | Extract text with Tesseract
 | link:vlm/[VLM] (`vlm`) | Image | Read images with a vision-language model; olmOCR document transcription
 | link:whisper/[Speech-to-Text] (`whisper`) | Video, Audio | Transcribe audio with Whisper
-| link:tts/[Text-to-Speech] (`tts`) | Any (from upstream text) | Synthesize narration audio (Orpheus/Kartoffel DE, Kokoro EN)
-| link:sentiment/[Sentiment Analysis] (`sentiment`) | Any (from upstream text) | Score the tone of extracted text (German and English)
-| link:llm/[LLM Enrichment] (`llm`) | Any | Enrich metadata with a language model
+| link:tts/[Text-to-Speech] (`tts`) | Any (text connected to its `text` port) | Synthesize narration audio (Orpheus/Kartoffel DE, Kokoro EN)
+| link:sentiment/[Sentiment Analysis] (`sentiment`) | Any (text connected to its `text` port) | Score the tone of extracted text (German and English)
+| link:llm/[LLM Enrichment] (`llm`) | Any | Enrich metadata with a language model — one output port per prompt
 | link:captioning/[Captioning] (`captioning`) | Image, Video | Natural-language captions for images and videos
 | link:imagegen/[Image Generation] (`imagegen`) | Image | Generate images from a prompt (or remix the asset) with a diffusion model
-| link:facedetect/[Face Detection] (`facedetect`) | Image, Video | Detect faces + embeddings
-| link:facedescription/[Face Description] (`facedescription`) | Image | Describe detected faces with a vision model
+| link:facedetect/[Face Detection] (`facedetect`) | Image, Video | Detect faces + embeddings — its `detections` port carries **one element per face**
+| link:facedescription/[Face Description] (`facedescription`) | Image | Describe detected faces with a vision model, one description per face
 | link:depthmap/[Depth Map] (`depthmap`) | Image | Estimate how far each part of a photo is from the camera
-| link:scene-layout/[Scene Layout] (`scene-layout`) | Image (from depth + detections) | Work out what is in front of, behind or next to what
+| link:scene-layout/[Scene Layout] (`scene-layout`) | Image (a depth map and detections connected) | Work out what is in front of, behind or next to what
 |===
 
 [#media]
@@ -65,7 +69,7 @@ The built-in nodes fall into four categories.
 | link:thumbnail/[Thumbnail] (`thumbnail`) | Video | Contact-sheet preview thumbnails
 | link:quality/[Quality] (`quality`) | Image, Video | Resolution / blurriness / bitrate metrics
 | link:scene-detection/[Scene Detection] (`scene-detection`) | Video | Optical-flow scene boundaries
-| link:dominant-color/[Dominant Colour] (`dominant-color`) | Image | Work out which colours a picture is made of, as HEX and in words (English and German)
+| link:dominant-color/[Dominant Colour] (`dominant-color`) | Image (optionally with detections connected) | Work out which colours a picture is made of, as HEX and in words (English and German)
 |===
 
 [#pipeline]
@@ -76,10 +80,10 @@ The built-in nodes fall into four categories.
 | Node | Applies to | Purpose
 | link:filesystem-source/[Filesystem Source] (`filesystem-source`) | — (source) | Enumerate media from disk
 | link:s3-source/[S3 Source] (`s3-source`) | — (source) | Enumerate media from S3-compatible object storage, picking up only what changed
-| link:filters/[Filters] (`filter-*`) | — (routing) | Route items down PASS/REJECT branches
-| link:script/[Script] (`script`) | Any | Run your own code as a pipeline step and emit declared outputs
-| link:loom/[Loom Sync] (`loom`) | Any | Batch hash results back to Loom
-| link:s3-sink/[S3 Sink] (`s3-sink`) | Any | Upload produced files to an S3 bucket and register them as assets
+| link:filters/[Filters] (`filter-*`) | — (routing) | Route items down the PASS or REJECT branch of a `passed` port
+| link:script/[Script] (`script`) | Any | Run your own code as a pipeline step and emit declared ports — list outputs fan out
+| link:loom/[Loom Sync] (`loom`) | Any | Batch hash results back to Loom, one input port per algorithm
+| link:s3-sink/[S3 Sink] (`s3-sink`) | Any | Upload produced files to an S3 bucket and register them as assets — its `artifacts` port takes **many**
 |===
 
 [#requirements]
@@ -122,8 +126,10 @@ makes near-duplicate detection possible at scale via vector similarity search.
 
 Face detection::
 link:facedetect/[`facedetect`] finds faces in images and video with the InspireFace library, returning
-bounding boxes, facial embeddings and the optimal focal point for cropped thumbnails.
-link:facedescription/[`facedescription`] then describes those faces with a vision model.
+bounding boxes, facial embeddings and the optimal focal point for cropped thumbnails. Its
+`detections` port carries one element per face, so link:facedescription/[`facedescription`],
+link:scene-layout/[`scene-layout`] and link:dominant-color/[`dominant-color`] all work per face
+simply by connecting to it.
 
 Thumbnail generation::
 link:thumbnail/[`thumbnail`] renders contact-sheet previews from video frames and source images and
@@ -155,14 +161,14 @@ either from a text prompt or by remixing the asset's own image — and writes th
 local cache.
 
 Text-to-speech::
-link:tts/[`tts`] turns upstream text — an link:llm/[`llm`] summary, a caption, or a translated
-transcript — into narration audio, using Orpheus/Kartoffel for German and Kokoro for English behind a
-small HTTP sidecar.
+link:tts/[`tts`] turns text connected to its `text` port — an link:llm/[`llm`] summary, a caption, or
+a translated transcript — into narration audio, using Orpheus/Kartoffel for German and Kokoro for
+English behind a small HTTP sidecar.
 
 Sentiment analysis::
-link:sentiment/[`sentiment`] scores the tone of text the pipeline already produced — document text,
-OCR output, captions or LLM answers — as positive, neutral or negative with a signed polarity value,
-using dedicated German and English models behind a small HTTP sidecar.
+link:sentiment/[`sentiment`] scores the tone of text the pipeline already produced — connect document
+text, OCR output, a caption or an LLM answer to its `text` port — as positive, neutral or negative
+with a signed polarity value, using dedicated German and English models behind a small HTTP sidecar.
 
 Depth and spatial layout::
 link:depthmap/[`depthmap`] works out how far each part of a photo is from the camera, from the photo
@@ -172,7 +178,7 @@ boxes into a scene you can caption accurately and search spatially.
 
 Colour analysis::
 link:dominant-color/[`dominant-color`] works out which colours a picture is actually made of — the
-whole frame, a fixed region, or every detected face — and reports each one as HEX, RGB, HSL and
+whole frame, a fixed region, or every box arriving on its `detections` port — and reports each one as HEX, RGB, HSL and
 CIELAB alongside a name a person would use, in English and German. It needs no model and no GPU, so
 it can run over an entire archive cheaply.
 

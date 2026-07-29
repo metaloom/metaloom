@@ -11,7 +11,7 @@ import io.metaloom.cortex.api.option.node.ValidationResult;
  *
  * <p>
  * They fall into four groups: which regions to measure ({@link #includeWholeImage},
- * {@link #useDetections}, {@link #detectionSources} and the static {@code region*} fields), how
+ * {@link #useDetections} and the static {@code region*} fields), how
  * hard to look ({@link #clusterCount}, {@link #maxSamples}, {@link #maxIterations}), how to name
  * what was found ({@link #achromaticChroma}, {@link #blackLightness}, {@link #whiteLightness}), and
  * what to keep ({@link #maxRegions}, {@link #minRegionPixels}, {@link #emitPalette}).
@@ -20,8 +20,6 @@ import io.metaloom.cortex.api.option.node.ValidationResult;
 public class DominantColorNodeOptions extends AbstractNodeOptions<DominantColorNodeOptions> {
 
 	public static final String KEY = "dominant-color";
-
-	public static final List<String> DEFAULT_DETECTION_SOURCES = List.of("facedetect");
 
 	/** Coordinate mode for the statically configured region. */
 	public static final String NORMALIZED = "NORMALIZED";
@@ -56,11 +54,8 @@ public class DominantColorNodeOptions extends AbstractNodeOptions<DominantColorN
 	/** Measure the whole frame. */
 	private boolean includeWholeImage = true;
 
-	/** Measure every bounding box supplied by the configured upstream detectors. */
+	/** Measure every bounding box wired into the node's {@code detections} port. */
 	private boolean useDetections = true;
-
-	/** Upstream node ids whose {@code detections} output is consumed, in emission order. */
-	private List<String> detectionSources = new ArrayList<>(DEFAULT_DETECTION_SOURCES);
 
 	/** Static region left edge. */
 	private double regionX = 0d;
@@ -184,15 +179,6 @@ public class DominantColorNodeOptions extends AbstractNodeOptions<DominantColorN
 		return this;
 	}
 
-	public List<String> getDetectionSources() {
-		return detectionSources;
-	}
-
-	public DominantColorNodeOptions setDetectionSources(List<String> detectionSources) {
-		this.detectionSources = detectionSources;
-		return this;
-	}
-
 	public double getRegionX() {
 		return regionX;
 	}
@@ -306,18 +292,6 @@ public class DominantColorNodeOptions extends AbstractNodeOptions<DominantColorN
 		}
 		if (maxRegions < 1) {
 			errors.add("maxRegions must be positive, got " + maxRegions);
-		}
-
-		if (useDetections) {
-			if (detectionSources == null || detectionSources.isEmpty()) {
-				errors.add("detectionSources must not be empty when useDetections is set");
-			} else {
-				for (String source : detectionSources) {
-					if (source == null || source.isBlank()) {
-						errors.add("detectionSources must not contain blank entries");
-					}
-				}
-			}
 		}
 
 		if (!NORMALIZED.equals(regionCoordinates) && !ABSOLUTE_PIXELS.equals(regionCoordinates)) {

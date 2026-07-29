@@ -2,43 +2,39 @@ package io.metaloom.cortex.pipeline.core.node.filter;
 
 import static io.metaloom.cortex.pipeline.test.assertj.PipelineAssertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
-import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
+import io.metaloom.cortex.api.node.PortOutput;
 import io.metaloom.cortex.pipeline.api.PipelineResult;
-import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 import io.metaloom.cortex.pipeline.test.StubLoomMedia;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 
 class DuplicateFilterNodeTest extends AbstractFilterNodeTest {
 
 	private static final StubLoomMedia MEDIA = new StubLoomMedia("/media/photo.jpg", false, true, false, false);
 
+	/**
+	 * Stand-in for whichever hashing node feeds the filter. Its id is what matters:
+	 * the filter binds by port id ({@code hash}), not by the producer's node id, so a
+	 * sha512 node and a fingerprint node are interchangeable here.
+	 */
+	private static final OutputPort<String> OUT_SHA512 =
+		OutputPort.one(DuplicateFilterNode.IN_HASH.id(), ContentTypeRegistry.HASH_SHA512, String.class);
+
 	private static DuplicateFilterNode filter() {
-		return DuplicateFilterNode.builder("dedup")
-				.upstreamNodeId("sha512")
-				.outputKey("sha512")
-				.build();
+		return DuplicateFilterNode.builder("dedup").build();
 	}
 
-	private boolean passed(DuplicateFilterNode filter, Object identity) {
-		Map<String, NodeResult> upstream = identity == null
-				? upstream("sha512", Map.of())
-				: upstream("sha512", Map.of("sha512", identity));
-		return evaluate(filter, MEDIA, upstream).<Boolean> getOutput(PipelineNode.FILTER_PASSED);
+	private boolean passed(DuplicateFilterNode filter, String identity) {
+		return passed(evaluate(filter, MEDIA, input(DuplicateFilterNode.IN_HASH, identity)));
 	}
 
-	@Test
-	void testBuildRequiresUpstreamNodeIdAndOutputKey() {
-		assertThatThrownBy(() -> DuplicateFilterNode.builder("d").outputKey("k").build())
-				.isInstanceOf(IllegalStateException.class)
-				.hasMessage("upstreamNodeId and outputKey are required");
-
-		assertThatThrownBy(() -> DuplicateFilterNode.builder("d").upstreamNodeId("n").build())
-				.isInstanceOf(IllegalStateException.class);
+	private static FixedOutputNode hasher(String identity) {
+		return new FixedOutputNode("sha512", Map.of(OUT_SHA512.id(), PortOutput.one(OUT_SHA512, identity)));
 	}
 
 	@Test
@@ -71,30 +67,19 @@ class DuplicateFilterNodeTest extends AbstractFilterNodeTest {
 	}
 
 	/**
-	 * Identity is derived via {@code toString()}, so values that are not equal
-	 * but stringify identically collide.
+	 * An unwired hash port means the filter cannot dedup at all. It fails open and,
+	 * crucially, records nothing — otherwise the first real identity to arrive would
+	 * be treated as a repeat of "no identity".
 	 */
-	@Test
-	void testIdentityIsTheStringFormOfTheValue() {
-		DuplicateFilterNode filter = filter();
-
-		assertThat(passed(filter, 5)).isTrue();
-		assertThat(passed(filter, "5")).as("Integer 5 and String \"5\" share an identity").isFalse();
-	}
-
 	@Test
 	void testMissingIdentityPassesAndIsNotRecorded() {
 		DuplicateFilterNode filter = filter();
 
-		assertThat(evaluate(filter, MEDIA).<Boolean> getOutput(PipelineNode.FILTER_PASSED))
-				.as("no upstream results at all")
+		assertThat(passed(evaluate(filter, MEDIA)))
+				.as("nothing wired into the hash port")
 				.isTrue();
-		assertThat(evaluate(filter, MEDIA, upstream("other-node", Map.of("sha512", "hash-a")))
-				.<Boolean> getOutput(PipelineNode.FILTER_PASSED))
-				.as("upstream node id does not match")
-				.isTrue();
-		assertThat(passed(filter, null))
-				.as("output key absent")
+		assertThat(passed(evaluate(filter, MEDIA)))
+				.as("still nothing to dedup on")
 				.isTrue();
 
 		assertThat(passed(filter, "hash-a"))
@@ -103,24 +88,14 @@ class DuplicateFilterNodeTest extends AbstractFilterNodeTest {
 	}
 
 	@Test
-	void testRejectReason() {
-		DuplicateFilterNode filter = filter();
-		passed(filter, "hash-a");
-		NodeResult result = evaluate(filter, MEDIA, upstream("sha512", Map.of("sha512", "hash-a")));
-
-		assertThat(result.<String> getOutput("filter_reason")).isEqualTo("duplicate detected");
-	}
-
-	@Test
 	void testFirstSightingRoutesToPassBranch() {
 		DuplicateFilterNode filter = filter();
-		FixedOutputNode hasher = new FixedOutputNode("sha512", Map.of("sha512", "hash-a"));
 
-		PipelineResult result = route(MEDIA, filter, hasher);
+		PipelineResult result = route(MEDIA, filter, hasher("hash-a"));
 
 		assertThat(result)
 				.isSuccess()
-				.hasNodeOutput("dedup", PipelineNode.FILTER_PASSED, true);
+				.hasNodeOutput("dedup", AbstractFilterNode.OUT_PASSED, true);
 		assertThat(result).node(PASS_NODE).isCompleted();
 		assertThat(result).node(REJECT_NODE).isSkipped();
 	}
@@ -128,15 +103,14 @@ class DuplicateFilterNodeTest extends AbstractFilterNodeTest {
 	@Test
 	void testRepeatSightingRoutesToRejectBranch() {
 		DuplicateFilterNode filter = filter();
-		// Prime the node so the executor run is the second sighting.
+		// Prime the node so the pipeline run is the second sighting.
 		passed(filter, "hash-a");
-		FixedOutputNode hasher = new FixedOutputNode("sha512", Map.of("sha512", "hash-a"));
 
-		PipelineResult result = route(MEDIA, filter, hasher);
+		PipelineResult result = route(MEDIA, filter, hasher("hash-a"));
 
 		assertThat(result)
 				.isSuccess()
-				.hasNodeOutput("dedup", PipelineNode.FILTER_PASSED, false);
+				.hasNodeOutput("dedup", AbstractFilterNode.OUT_PASSED, false);
 		assertThat(result).node(REJECT_NODE).isCompleted();
 		assertThat(result).node(PASS_NODE).isSkipped();
 	}

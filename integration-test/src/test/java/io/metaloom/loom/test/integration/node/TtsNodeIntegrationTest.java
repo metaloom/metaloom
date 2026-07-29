@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.ResultState;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.node.tts.TtsClient;
@@ -48,12 +49,14 @@ public class TtsNodeIntegrationTest extends AbstractNodeIntegrationTest {
 			TtsNode node = new TtsNode(client, options, new TtsNodeOptions(), stubClient());
 
 			NodeContext<io.metaloom.cortex.api.media.LoomMedia> ctx = NodeContext.create(media(video1()),
-				Map.of("llm", Map.of("llm_result", "Guten Tag, dies ist ein Test.")));
+				NodeInputs.builder()
+					.input(TtsNode.IN_TEXT, "Guten Tag, dies ist ein Test.")
+					.build());
 			NodeResult result = node.process(ctx);
 			assertThat(result.getState()).isEqualTo(ResultState.SUCCESS);
 
 			// The WAV must have been written to the local tts_bin cache.
-			String outPath = result.get(TtsNode.OUTPUT_TTS_PATH);
+			String outPath = result.get(TtsNode.OUT_AUDIO);
 			assertThat(outPath).as("the node must emit the generated audio path").isNotNull();
 			assertThat(Files.exists(Path.of(outPath))).as("the WAV must be written under metaPath/tts_bin").isTrue();
 			assertThat(Files.readAllBytes(Path.of(outPath))).isEqualTo(FAKE_WAV);

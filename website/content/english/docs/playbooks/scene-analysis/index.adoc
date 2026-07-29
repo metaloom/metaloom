@@ -9,14 +9,14 @@ then describes those scenes — from the soundtrack, from the picture, or both.
 
 == What the Platform Gives You
 
-[options="header",cols="1,1,2"]
+[options="header",cols="1,1,1,2"]
 |===
-| Node | Produces | Stored as
-| link:../../nodes/scene-detection/[`scene-detection`] | Scene boundaries from optical-flow analysis | `asset_segment_comp` (whole-set replace)
-| link:../../nodes/whisper/[`whisper`] | Transcript with per-utterance start/end times | `asset_transcript_comp`
-| link:../../nodes/thumbnail/[`thumbnail`] | Contact-sheet preview rendered from video frames | local `thumbnail_bin` cache + binary upload
-| link:../../nodes/quality/[`quality`] | Resolution / blurriness / bitrate metrics | quality component
-| link:../../nodes/consistency/[`consistency`] | `is_complete` — is the file whole and decodable | consistency component
+| Node | Output port | Produces | Stored as
+| link:../../nodes/scene-detection/[`scene-detection`] | `scenes` | Scene boundaries from optical-flow analysis | `asset_segment_comp` (whole-set replace)
+| link:../../nodes/whisper/[`whisper`] | `transcript` | Transcript with per-utterance start/end times | `asset_transcript_comp`
+| link:../../nodes/thumbnail/[`thumbnail`] | `thumbnail` | Contact-sheet preview rendered from video frames | local `thumbnail_bin` cache + binary upload
+| link:../../nodes/quality/[`quality`] | `metrics` (plus `blurriness`, `width`, `height`, `fps`, `frame_count`) | Resolution / blurriness / frame metrics | quality component
+| link:../../nodes/consistency/[`consistency`] | `is_complete`, `zero_chunk_count` | Is the file whole and decodable | consistency component
 |===
 
 Scenes and transcript are both **timestamped against the same asset**, which is what makes them
@@ -61,21 +61,33 @@ with dialogue: interviews, lectures, podcasts with video, meeting recordings.
       "timeoutMs": 3600000 }
   ],
   "edges": [
-    { "id": "e1", "source": "source",      "target": "mime" },
-    { "id": "e2", "source": "mime",        "target": "hash",   "branch": "PASS" },
-    { "id": "e3", "source": "hash",        "target": "consistency" },
-    { "id": "e4", "source": "consistency", "target": "scenes" },
-    { "id": "e5", "source": "consistency", "target": "speech" }
+    { "id": "e1", "source": "source", "sourcePort": "media",
+      "target": "mime",        "targetPort": "media" },
+    { "id": "e2", "source": "mime",   "sourcePort": "passed",
+      "target": "hash",        "targetPort": "media",  "branch": "PASS" },
+    { "id": "e3", "source": "mime",   "sourcePort": "passed",
+      "target": "consistency", "targetPort": "media",  "branch": "PASS" },
+    { "id": "e4", "source": "mime",   "sourcePort": "passed",
+      "target": "scenes",      "targetPort": "media",  "branch": "PASS" },
+    { "id": "e5", "source": "mime",   "sourcePort": "passed",
+      "target": "speech",      "targetPort": "video",  "branch": "PASS" }
   ]
 }
 ----
 
-`scenes` and `speech` both depend on `consistency` and nothing on each other, so Loom dispatches them
-independently — potentially to different workers, in parallel. That is the whole reason to model this
-as a graph rather than a script: the GPU box transcribes while the CPU box runs optical flow.
+Every edge names the port at each end; both are mandatory. `whisper` is wired on its `video` port
+because this graph is filtered to video — `audio` and `video` are alternatives and exactly one of them
+may be connected.
 
-The `consistency` gate is worth the extra node. A truncated download produces a plausible-looking file
-that wastes a half-hour of transcription; checking first is cheap.
+`scenes` and `speech` depend on the same filter branch and nothing on each other, so Loom dispatches
+them independently — potentially to different workers, in parallel. That is the whole reason to model
+this as a graph rather than a script: the GPU box transcribes while the CPU box runs optical flow.
+
+`consistency` is worth the extra node for what it records: a truncated download produces a
+plausible-looking file, and `is_complete` on the asset is how you find the ones that wasted a
+half-hour of transcription. It is not a gate you wire in front of the expensive nodes, though — its
+verdict is a scalar, and routing is what link:../../nodes/filters/[filter nodes] and their `branch`
+edges do.
 
 === Reading the result
 
@@ -128,16 +140,24 @@ What works today:
     { "id": "grade",  "type": "quality",         "name": "Quality metrics" }
   ],
   "edges": [
-    { "id": "e1", "source": "source", "target": "mime" },
-    { "id": "e2", "source": "mime",   "target": "hash", "branch": "PASS" },
-    { "id": "e3", "source": "hash",   "target": "scenes" },
-    { "id": "e4", "source": "hash",   "target": "sheet" },
-    { "id": "e5", "source": "hash",   "target": "grade" }
+    { "id": "e1", "source": "source", "sourcePort": "media",
+      "target": "mime",   "targetPort": "media" },
+    { "id": "e2", "source": "mime",   "sourcePort": "passed",
+      "target": "hash",   "targetPort": "media", "branch": "PASS" },
+    { "id": "e3", "source": "mime",   "sourcePort": "passed",
+      "target": "scenes", "targetPort": "media", "branch": "PASS" },
+    { "id": "e4", "source": "mime",   "sourcePort": "passed",
+      "target": "sheet",  "targetPort": "media", "branch": "PASS" },
+    { "id": "e5", "source": "mime",   "sourcePort": "passed",
+      "target": "grade",  "targetPort": "media", "branch": "PASS" }
   ]
 }
 ----
 
 That gives you scene boundaries, a contact-sheet preview and quality metrics per video.
+
+To keep the contact sheet, wire `sheet`'s `thumbnail` port into an link:../../nodes/s3-sink/[S3 Sink]:
+the file it renders lives in the worker's local cache until something uploads it.
 
 [WARNING]
 ====
@@ -151,20 +171,31 @@ Two ways forward until such a node exists:
 * **Extract frames as image assets.** Register keyframes as their own assets in Loom and run an
   image pipeline (`captioning` or `vlm`) over them, linking them back to the source video in your own
   metadata. Every node in that path is a stock node.
-* **Write the node.** A frame-sampling caption node is a natural custom node: read the upstream
-  `scene_detection` output, grab one frame per segment, call the vision model. See
-  link:../../cortex/examples/[Cortex Examples] for the Java and Python paths.
+* **Write the node.** A frame-sampling caption node is a natural custom node: declare a
+  `struct/segments` input port, wire `scene-detection`'s `scenes` port into it, grab one frame per
+  segment, call the vision model. See link:../python-node/[A Custom Node in Python] for the wire
+  protocol, or link:../../cortex/examples/[Cortex Examples] for the Java path.
 ====
 
-== A Note on `consistency` and Node IDs
+[#fanout]
+== Fan-out, and Why Scene Detection Does Not Do It
 
-Some nodes read an upstream result **by node id**, not by kind. `thumbnail` looks for
-`consistency` → `is_complete` and refuses to render a preview for a file reported incomplete (unless
-`processIncomplete` is set on the worker). If you name that node `check` instead of `consistency`, the
-lookup silently finds nothing and the gate quietly stops working.
+A port carries either a single element or a **sequence**, and a sequence is what makes a node run more
+than once per asset. When a `MANY` output is wired into an input that takes one element, the engine
+dispatches one task per element — and when that branch is later wired into a `MANY` input, it gathers
+the elements belonging to the same asset back into a single task. Neither needs a merge node or any
+configuration; it follows from the two ports' cardinalities.
 
-The same applies to link:../../nodes/loom/[`loom`], which reads `md5sum` → `md5` and `sha256sum` →
-`sha256`. When a playbook names a node a particular way, keep the name.
+link:../../nodes/scene-detection/[`scene-detection`] deliberately does **not** work that way. Its
+`scenes` port carries *one* element: a single timeline with the cuts inside it, not one element per
+scene. So nothing downstream runs per scene by connecting to it — which is exactly why per-scene
+captioning needs the custom node described above rather than a wiring trick.
+
+The built-in node that does fan out is link:../../nodes/facedetect/[`facedetect`]: its `detections`
+port emits one element **per detected face**, so link:../../nodes/facedescription/[`facedescription`]
+— whose input takes one detection — is dispatched once per face. On the gathering side,
+link:../../nodes/s3-sink/[`s3-sink`] declares its `artifacts` input as a sequence, so every produced
+file wired into it arrives in one upload task per asset.
 
 [#combined]
 == Doing Both
@@ -175,32 +206,21 @@ The two routes are the same graph with both branches attached — that is what a
 <div class="ml-figure">
 <svg viewBox="0 0 900 330" role="img" aria-labelledby="ml-sc-title ml-sc-desc" class="ml-arch-svg">
   <title id="ml-sc-title">Both routes in one graph</title>
-  <desc id="ml-sc-desc">A filesystem source feeds a MIME filter that passes video only, then a sha512 identity node and a consistency check. From the consistency node the graph fans out to four independent nodes — scene detection, whisper, thumbnail and quality — which Loom dispatches in parallel, each producing its own stored component.</desc>
+  <desc id="ml-sc-desc">A filesystem source emits media into a MIME filter that passes video only. The filter's PASS branch feeds five independent nodes — sha512 and consistency, and then scene detection, whisper, thumbnail and quality — each wired into its own media input port, which Loom dispatches in parallel, each producing its own stored component.</desc>
   <defs>
     <marker id="ml-sc-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#57cbcc"></path></marker>
   </defs>
 
-  <!-- linear head -->
+  <!-- head -->
   <rect x="16" y="140" width="120" height="44" rx="6" class="ml-box-part"></rect>
   <text x="76" y="160" text-anchor="middle" class="ml-part-title">source</text>
-  <text x="76" y="176" text-anchor="middle" class="ml-part-sub">filesystem</text>
+  <text x="76" y="176" text-anchor="middle" class="ml-part-sub">media</text>
 
-  <rect x="164" y="140" width="120" height="44" rx="6" class="ml-box-part"></rect>
-  <text x="224" y="160" text-anchor="middle" class="ml-part-title">mime</text>
-  <text x="224" y="176" text-anchor="middle" class="ml-part-sub">video/*</text>
+  <rect x="176" y="140" width="130" height="44" rx="6" class="ml-box-part"></rect>
+  <text x="241" y="160" text-anchor="middle" class="ml-part-title">mime</text>
+  <text x="241" y="176" text-anchor="middle" class="ml-part-sub">video/* → passed</text>
 
-  <rect x="312" y="140" width="120" height="44" rx="6" class="ml-box-part"></rect>
-  <text x="372" y="160" text-anchor="middle" class="ml-part-title">sha512</text>
-  <text x="372" y="176" text-anchor="middle" class="ml-part-sub">identity</text>
-
-  <rect x="460" y="140" width="130" height="44" rx="6" class="ml-box-part"></rect>
-  <text x="525" y="160" text-anchor="middle" class="ml-part-title">consistency</text>
-  <text x="525" y="176" text-anchor="middle" class="ml-part-sub">decodable?</text>
-
-  <polyline points="136,162 164,162" class="ml-edge" marker-end="url(#ml-sc-arrow)"></polyline>
-  <polyline points="284,162 312,162" class="ml-edge" marker-end="url(#ml-sc-arrow)"></polyline>
-  <text x="298" y="154" text-anchor="middle" class="ml-edge-label">PASS</text>
-  <polyline points="432,162 460,162" class="ml-edge" marker-end="url(#ml-sc-arrow)"></polyline>
+  <polyline points="136,162 176,162" class="ml-edge" marker-end="url(#ml-sc-arrow)"></polyline>
 
   <!-- fan-out -->
   <rect x="666" y="16" width="180" height="44" rx="6" class="ml-box-part"></rect>
@@ -219,18 +239,25 @@ The two routes are the same graph with both branches attached — that is what a
   <text x="756" y="276" text-anchor="middle" class="ml-part-title">quality</text>
   <text x="756" y="292" text-anchor="middle" class="ml-part-sub">resolution · blur</text>
 
-  <polyline points="590,162 628,162 628,38 666,38" class="ml-edge" marker-end="url(#ml-sc-arrow)"></polyline>
-  <polyline points="590,162 628,162 628,118 666,118" class="ml-edge" marker-end="url(#ml-sc-arrow)"></polyline>
-  <polyline points="590,162 628,162 628,198 666,198" class="ml-edge" marker-end="url(#ml-sc-arrow)"></polyline>
-  <polyline points="590,162 628,162 628,278 666,278" class="ml-edge" marker-end="url(#ml-sc-arrow)"></polyline>
+  <rect x="386" y="230" width="200" height="44" rx="6" class="ml-box-part"></rect>
+  <text x="486" y="250" text-anchor="middle" class="ml-part-title">sha512 · consistency</text>
+  <text x="486" y="266" text-anchor="middle" class="ml-part-sub">identity · decodable?</text>
+
+  <polyline points="306,162 628,162 628,38 666,38" class="ml-edge" marker-end="url(#ml-sc-arrow)"></polyline>
+  <polyline points="306,162 628,162 628,118 666,118" class="ml-edge" marker-end="url(#ml-sc-arrow)"></polyline>
+  <polyline points="306,162 628,162 628,198 666,198" class="ml-edge" marker-end="url(#ml-sc-arrow)"></polyline>
+  <polyline points="306,162 628,162 628,278 666,278" class="ml-edge" marker-end="url(#ml-sc-arrow)"></polyline>
+  <polyline points="340,162 340,252 386,252" class="ml-edge" marker-end="url(#ml-sc-arrow)"></polyline>
+
+  <text x="340" y="154" text-anchor="middle" class="ml-edge-label">PASS</text>
 
   <text x="756" y="76" text-anchor="middle" class="ml-edge-label">→ asset_segment_comp</text>
   <text x="756" y="156" text-anchor="middle" class="ml-edge-label">→ asset_transcript_comp</text>
   <text x="756" y="236" text-anchor="middle" class="ml-edge-label">→ binary + local cache</text>
   <text x="756" y="316" text-anchor="middle" class="ml-edge-label">→ quality component</text>
 
-  <text x="300" y="244" text-anchor="middle" class="ml-edge-label">no edges between the four — Loom dispatches them</text>
-  <text x="300" y="262" text-anchor="middle" class="ml-edge-label">independently, possibly to different workers</text>
+  <text x="180" y="290" text-anchor="middle" class="ml-edge-label">every edge leaves the filter's passed port</text>
+  <text x="180" y="308" text-anchor="middle" class="ml-edge-label">and enters that node's own media input</text>
 </svg>
 </div>
 ++++
@@ -266,11 +293,17 @@ library path.
 | Segments disappeared after a re-run
 | Whole-set replace: a shorter re-run deletes the surplus segments.
 
-| Thumbnails skipped for some files
-| The `consistency` node reported them incomplete. That is the gate doing its job — check the file.
-
 | Scenes and transcript do not line up
 | They are separate components joined on time by the consumer. Nothing in the pipeline aligns them.
+
+| Nothing runs per scene
+| `scene-detection` emits one element — a timeline — not one per scene, so no downstream node fans out
+from it. See link:#fanout[Fan-out, and why scene detection does not do it].
+
+| The pipeline will not save: `incompatible content types`
+| An edge connects two ports whose types do not agree. `consistency`'s `is_complete` is a boolean and
+`sha512`'s `hash` is a hash — neither can feed a node that wants media. Wire those nodes off the
+filter's `passed` port, beside the others.
 |===
 
 == Next Steps

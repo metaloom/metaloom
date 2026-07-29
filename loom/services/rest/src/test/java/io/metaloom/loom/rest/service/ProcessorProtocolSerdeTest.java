@@ -11,7 +11,10 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.pipeline.model.MediaRef;
+import io.metaloom.loom.pipeline.model.Origin;
+import io.metaloom.loom.pipeline.model.PortPayload;
 import io.metaloom.loom.pipeline.model.NodeState;
 import io.metaloom.loom.pipeline.model.NodeTask;
 import io.metaloom.loom.pipeline.model.NodeTaskResult;
@@ -79,7 +82,8 @@ public class ProcessorProtocolSerdeTest {
 		NodeTask task = new NodeTask(taskUuid, runUuid, "item-1", "hash", "sha512",
 			new MediaRef("/media/holiday.mp4", "abc123", 4096),
 			Map.of("algorithm", "sha512", "chunkSize", 1024),
-			Map.of("src", Map.of("path", "/media/holiday.mp4", "source", "filesystem-source")));
+			// Inputs are keyed by the *receiving* node's port ids; no upstream node id travels.
+			Map.of("media", PortPayload.one(ContentTypeRegistry.MEDIA_ANY, Origin.single("item-1"), "/media/holiday.mp4")));
 
 		NodeTask decoded = decode(encode(ProcessorMessageType.NODE_TASK, task))
 			.getBody().mapTo(NodeTask.class);
@@ -94,7 +98,11 @@ public class ProcessorProtocolSerdeTest {
 		assertEquals(4096, decoded.getMedia().getSize());
 		assertEquals("sha512", decoded.getOptions().get("algorithm"));
 		assertEquals(1024, decoded.getOptions().get("chunkSize"));
-		assertEquals("/media/holiday.mp4", decoded.getUpstreamOutputs().get("src").get("path"));
+		PortPayload media = decoded.getInputs().get("media");
+		assertEquals("/media/holiday.mp4", media.single());
+		assertEquals(ContentTypeRegistry.MEDIA_ANY, media.getContentType(),
+			"The declared content type has to survive the wire - the read-side coercion is checked against it");
+		assertEquals("item-1", media.getElements().get(0).getOrigin().getItemId());
 	}
 
 	@Test
@@ -119,7 +127,8 @@ public class ProcessorProtocolSerdeTest {
 		NodeTaskResultMessage message = new NodeTaskResultMessage()
 			.setRunUuid(UUID.randomUUID())
 			.setItemId("item-42")
-			.setResult(NodeTaskResult.completed(taskUuid, "hash", 123, Map.of("sha512", "deadbeef")));
+			.setResult(NodeTaskResult.completed(taskUuid, "hash", 123,
+				Map.of("hash", PortPayload.one(ContentTypeRegistry.HASH_SHA512, Origin.single("item-42"), "deadbeef"))));
 
 		NodeTaskResultMessage decoded = decode(encode(ProcessorMessageType.NODE_TASK_RESULT, message))
 			.getBody().mapTo(NodeTaskResultMessage.class);
@@ -128,7 +137,7 @@ public class ProcessorProtocolSerdeTest {
 		assertEquals(NodeState.COMPLETED, decoded.getResult().getState());
 		assertEquals(taskUuid, decoded.getResult().getTaskUuid());
 		assertEquals(123, decoded.getResult().getDurationMs());
-		assertEquals("deadbeef", decoded.getResult().getOutputs().get("sha512"));
+		assertEquals("deadbeef", decoded.getResult().getOutputs().get("hash").single());
 	}
 
 	@Test
@@ -150,7 +159,9 @@ public class ProcessorProtocolSerdeTest {
 		NodeTaskResultMessage message = new NodeTaskResultMessage()
 			.setItemId("item-1")
 			.setResult(NodeTaskResult.completed(UUID.randomUUID(), "flt", 1,
-				Map.of("filter_passed", true, "filter_reason", "image/*")));
+				// The verdict is found by content-type family (control/*), not by port name, so the
+				// port can be called whatever the filter kind calls it.
+				Map.of("passed", PortPayload.one(ContentTypeRegistry.CONTROL_FILTER, Origin.single("item-1"), true))));
 
 		NodeTaskResultMessage decoded = decode(encode(ProcessorMessageType.NODE_TASK_RESULT, message))
 			.getBody().mapTo(NodeTaskResultMessage.class);

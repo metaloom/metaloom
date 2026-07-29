@@ -63,25 +63,62 @@ The definition is a graph of `nodes[]` connected by `edges[]`:
     { "id": "pn3", "type": "sha256",            "name": "SHA-256 Hash" }
   ],
   "edges": [
-    { "id": "pe1", "source": "pn1", "target": "pn2" },
-    { "id": "pe2", "source": "pn2", "target": "pn3" }
+    { "id": "pe1", "source": "pn1", "sourcePort": "media",
+      "target": "pn2", "targetPort": "media" },
+    { "id": "pe2", "source": "pn2", "sourcePort": "passed",
+      "target": "pn3", "targetPort": "media", "branch": "PASS" }
   ]
 }
 ----
 
 * Each node carries a graph `id` and a `type` — the **node kind** that Loom uses to route the task to
   a worker that can run it.
+* Each edge names a **port at both ends**: `sourcePort` on the producing node, `targetPort` on the
+  consuming one. Both are mandatory — an edge that only names two nodes does not say which value
+  flows, and is rejected.
 * A pipeline has exactly one **source** node (e.g. `filesystem-source`) that enumerates media.
 * **Filter** nodes (e.g. `filter-mimetype`) route items down `PASS` / `REJECT` branches so, for
-  example, a video-only branch never receives images.
+  example, a video-only branch never receives images. The key is `branch`, and it defaults to `ANY`.
 * Node kinds map to the built-in link:../nodes/[Nodes] (or your own custom nodes).
 
-== Node Outputs
+[#ports]
+== Ports
 
-A node returns a result carrying typed key-value **outputs** (e.g. `sha256`, `transcript`,
-`embedding`). Downstream nodes read a dependency's outputs, so a hash node upstream lets later nodes
-resolve the asset and content-address their work. Node results with sync enabled are written back to
-Loom as asset metadata; see link:../cortex/examples/[Cortex Examples] for the persistence path.
+A node declares named, typed **input and output ports**, and the edges say which output port feeds
+which input port. Nothing addresses another node by its graph id, so renaming a node in the editor
+cannot quietly starve its consumer.
+
+A port carries three things:
+
+[cols="1,3"]
+|===
+| Property | Meaning
+
+| Id
+| A name local to its node — `media`, `transcript`, `detections`. The same id on two different nodes
+means nothing; only the edge connects them.
+
+| Content type
+| Always `family/subtype`. The eight families are `media`, `text`, `detection`, `hash`, `scalar`,
+`artifact`, `struct` and `control`, and `family/*` accepts (or produces) the whole family.
+Assignability never crosses families.
+
+| Cardinality
+| `ONE` element or `MANY`. A `MANY` output **fans out** — a downstream node whose input takes one
+element runs once per element — and a `MANY` input **gathers** that branch back into a single task
+per asset. Both are automatic; there is no merge node.
+|===
+
+The full port list of every built-in kind is on its page under link:../nodes/[Nodes], and
+`GET /api/v1/pipeline/node-descriptors` returns the same thing for the kinds your server knows.
+
+**Wiring is checked when the pipeline is saved, not when it runs.** An edge naming a port that does
+not exist, two ports whose content types do not agree, a required input with nothing connected, or two
+edges into an input that takes a single element — each is rejected with a message naming the offending
+nodes and ports, and no run is created.
+
+Node results with sync enabled are written back to Loom as asset metadata; see
+link:../cortex/examples/[Cortex Examples] for the persistence path.
 
 == Running a Pipeline
 

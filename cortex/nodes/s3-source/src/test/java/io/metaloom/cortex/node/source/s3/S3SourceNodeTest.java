@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.s3.FakeS3ObjectStore;
@@ -196,34 +197,40 @@ public class S3SourceNodeTest {
 	}
 
 	@Test
-	public void testProcessReportsProvenanceAndState() {
+	public void testProcessEmitsTheObjectReference() {
 		S3SourceNode node = node();
 		LoomMedia media = node.stream().blockingFirst();
 
-		NodeResult result = node.process(media, Map.of());
+		NodeResult result = node.process(media, NodeInputs.empty());
 
 		assertThat(result.getState()).isEqualTo(ResultState.SUCCESS);
-		assertThat(result.getOutputs()).containsEntry("source", "s3")
-			.containsEntry("bucket", BUCKET)
-			.containsEntry("state", FileState.NEW.name());
-		assertThat(result.getOutputs().get("uri").toString()).startsWith("s3://media/2026/");
-		// 'path' is emitted alongside 'uri' so a downstream node written against
-		// filesystem-source keeps working when the source is swapped for this one.
-		assertThat(result.getOutputs().get("path")).isEqualTo(result.getOutputs().get("uri"));
-		assertThat(result.getOutputs().get("key").toString()).startsWith("2026/");
+		// One declared output port, matching the descriptor: 'media : media/* ONE'. It is named
+		// 'media' exactly as filesystem-source and asset-source name theirs, so a downstream node
+		// stays wired when the source is swapped. The value is the s3:// reference, not a local
+		// path - the object may not be materialized anywhere yet.
+		assertThat(result.get(S3SourceNode.OUT_MEDIA)).startsWith("s3://media/2026/");
+		// Bucket, key, provenance and diff state were scan bookkeeping, never declared ports, so a
+		// graph could not wire them; they are read off the node instead.
+		assertThat(result.getOutputs()).containsOnlyKeys(S3SourceNode.OUT_MEDIA.id());
 	}
 
 	@Test
-	public void testProcessReportsUnknownForMediaThatThisRunDidNotEnumerate() {
+	public void testDiffStateIsReadableWithoutBeingAnOutput() {
+		S3SourceNode node = node();
+		LoomMedia media = node.stream().blockingFirst();
+
+		assertThat(node.lastState(media.reference())).isEqualTo(FileState.NEW);
+	}
+
+	@Test
+	public void testDiffStateIsUnknownForMediaThatThisRunDidNotEnumerate() {
 		// The lastStates map is per-JVM; a node task landing on a different worker than the
 		// source task cannot know the diff state. Same limitation as filesystem-source.
 		S3SourceNode node = node();
 		LoomMedia media = node.stream().blockingFirst();
 		S3SourceNode otherWorker = node();
 
-		NodeResult result = otherWorker.process(media, Map.of());
-
-		assertThat(result.getOutputs()).containsEntry("state", FileState.UNKNOWN.name());
+		assertThat(otherWorker.lastState(media.reference())).isEqualTo(FileState.UNKNOWN);
 	}
 
 	@Test

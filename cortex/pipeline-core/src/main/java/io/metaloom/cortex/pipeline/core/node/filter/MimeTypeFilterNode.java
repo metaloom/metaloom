@@ -4,7 +4,7 @@ import java.util.Map;
 import java.util.Set;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.context.NodeContext;
 
 /**
  * In-pipeline MIME type / media type filter. More granular than the pipeline-level
@@ -32,7 +32,8 @@ public class MimeTypeFilterNode extends AbstractFilterNode {
 	}
 
 	@Override
-	protected boolean evaluate(LoomMedia media, Map<String, NodeResult> upstreamResults) {
+	protected boolean evaluate(NodeContext<LoomMedia> ctx) {
+		LoomMedia media = ctx.media();
 		// Check media type category
 		boolean categoryMatch = false;
 		if (allowVideo && media.isVideo()) categoryMatch = true;
@@ -64,7 +65,7 @@ public class MimeTypeFilterNode extends AbstractFilterNode {
 	}
 
 	@Override
-	protected String rejectReason(LoomMedia media, Map<String, NodeResult> upstreamResults) {
+	protected String rejectReason(NodeContext<LoomMedia> ctx) {
 		return "media type not allowed";
 	}
 

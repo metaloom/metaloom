@@ -10,9 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.pipeline.api.PipelineResult;
-import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 import io.metaloom.cortex.pipeline.test.StubLoomMedia;
 
 class MimeTypeFilterNodeTest extends AbstractFilterNodeTest {
@@ -28,21 +26,25 @@ class MimeTypeFilterNodeTest extends AbstractFilterNodeTest {
 		return new StubLoomMedia(path, false, true, false, false);
 	}
 
+	private boolean passed(MimeTypeFilterNode filter, LoomMedia media) {
+		return passed(evaluate(filter, media));
+	}
+
 	@Test
 	void testNoCategoryFlagsAllowsEverything() {
 		MimeTypeFilterNode filter = MimeTypeFilterNode.builder("mime").build();
 
-		assertThat(evaluate(filter, video("/media/clip.mp4")).<Boolean> getOutput(PipelineNode.FILTER_PASSED)).isTrue();
-		assertThat(evaluate(filter, image("/media/photo.jpg")).<Boolean> getOutput(PipelineNode.FILTER_PASSED)).isTrue();
-		assertThat(evaluate(filter, new StubLoomMedia("/media/unknown.bin")).<Boolean> getOutput(PipelineNode.FILTER_PASSED)).isTrue();
+		assertThat(passed(filter, video("/media/clip.mp4"))).isTrue();
+		assertThat(passed(filter, image("/media/photo.jpg"))).isTrue();
+		assertThat(passed(filter, new StubLoomMedia("/media/unknown.bin"))).isTrue();
 	}
 
 	@Test
 	void testCategoryFlagSelectsMatchingMediaOnly() {
 		MimeTypeFilterNode filter = MimeTypeFilterNode.builder("mime").allowVideo(true).build();
 
-		assertThat(evaluate(filter, video("/media/clip.mp4")).<Boolean> getOutput(PipelineNode.FILTER_PASSED)).isTrue();
-		assertThat(evaluate(filter, image("/media/photo.jpg")).<Boolean> getOutput(PipelineNode.FILTER_PASSED)).isFalse();
+		assertThat(passed(filter, video("/media/clip.mp4"))).isTrue();
+		assertThat(passed(filter, image("/media/photo.jpg"))).isFalse();
 	}
 
 	@Test
@@ -53,9 +55,9 @@ class MimeTypeFilterNodeTest extends AbstractFilterNodeTest {
 				.build();
 
 		StubLoomMedia audio = new StubLoomMedia("/media/track.mp3", false, false, true, false);
-		assertThat(evaluate(filter, audio).<Boolean> getOutput(PipelineNode.FILTER_PASSED)).isTrue();
-		assertThat(evaluate(filter, video("/media/clip.mp4")).<Boolean> getOutput(PipelineNode.FILTER_PASSED)).isTrue();
-		assertThat(evaluate(filter, image("/media/photo.jpg")).<Boolean> getOutput(PipelineNode.FILTER_PASSED)).isFalse();
+		assertThat(passed(filter, audio)).isTrue();
+		assertThat(passed(filter, video("/media/clip.mp4"))).isTrue();
+		assertThat(passed(filter, image("/media/photo.jpg"))).isFalse();
 	}
 
 	@Test
@@ -64,8 +66,8 @@ class MimeTypeFilterNodeTest extends AbstractFilterNodeTest {
 				.allowedExtensions(Set.of("mp4", "mkv"))
 				.build();
 
-		assertThat(evaluate(filter, video("/media/CLIP.MP4")).<Boolean> getOutput(PipelineNode.FILTER_PASSED)).isTrue();
-		assertThat(evaluate(filter, video("/media/clip.avi")).<Boolean> getOutput(PipelineNode.FILTER_PASSED)).isFalse();
+		assertThat(passed(filter, video("/media/CLIP.MP4"))).isTrue();
+		assertThat(passed(filter, video("/media/clip.avi"))).isFalse();
 	}
 
 	@Test
@@ -74,7 +76,7 @@ class MimeTypeFilterNodeTest extends AbstractFilterNodeTest {
 				.allowedExtensions(Set.of("mp4"))
 				.build();
 
-		assertThat(evaluate(filter, video("/media/clip")).<Boolean> getOutput(PipelineNode.FILTER_PASSED)).isFalse();
+		assertThat(passed(filter, video("/media/clip"))).isFalse();
 	}
 
 	@Test
@@ -83,7 +85,7 @@ class MimeTypeFilterNodeTest extends AbstractFilterNodeTest {
 				.allowedExtensions(Set.of())
 				.build();
 
-		assertThat(evaluate(filter, video("/media/clip.avi")).<Boolean> getOutput(PipelineNode.FILTER_PASSED)).isTrue();
+		assertThat(passed(filter, video("/media/clip.avi"))).isTrue();
 	}
 
 	@Test
@@ -94,15 +96,7 @@ class MimeTypeFilterNodeTest extends AbstractFilterNodeTest {
 				.allowedExtensions(Set.of("mp4"))
 				.build();
 
-		assertThat(evaluate(filter, image("/media/photo.mp4")).<Boolean> getOutput(PipelineNode.FILTER_PASSED)).isFalse();
-	}
-
-	@Test
-	void testRejectReason() {
-		MimeTypeFilterNode filter = MimeTypeFilterNode.builder("mime").allowVideo(true).build();
-		NodeResult result = evaluate(filter, image("/media/photo.jpg"));
-
-		assertThat(result.<String> getOutput("filter_reason")).isEqualTo("media type not allowed");
+		assertThat(passed(filter, image("/media/photo.mp4"))).isFalse();
 	}
 
 	@Test
@@ -117,7 +111,7 @@ class MimeTypeFilterNodeTest extends AbstractFilterNodeTest {
 		assertThat(result)
 				.isSuccess()
 				.hasCompletedNode("mime")
-				.hasNodeOutput("mime", PipelineNode.FILTER_PASSED, true);
+				.hasNodeOutput("mime", AbstractFilterNode.OUT_PASSED, true);
 		assertThat(result).node(PASS_NODE).isCompleted();
 		assertThat(result).node(REJECT_NODE).isSkipped();
 	}
@@ -134,7 +128,7 @@ class MimeTypeFilterNodeTest extends AbstractFilterNodeTest {
 		assertThat(result)
 				.isSuccess()
 				.hasCompletedNode("mime")
-				.hasNodeOutput("mime", PipelineNode.FILTER_PASSED, false);
+				.hasNodeOutput("mime", AbstractFilterNode.OUT_PASSED, false);
 		assertThat(result).node(REJECT_NODE).isCompleted();
 		assertThat(result).node(PASS_NODE).isSkipped();
 	}

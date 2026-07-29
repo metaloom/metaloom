@@ -1,10 +1,6 @@
 package io.metaloom.loom.nodes.spec;
 
-import static io.metaloom.loom.nodes.spec.ContentTypes.DATA_COLOR;
-import static io.metaloom.loom.nodes.spec.ContentTypes.DATA_FACEDETECTION;
-import static io.metaloom.loom.nodes.spec.ContentTypes.DATA_INTEGER;
-import static io.metaloom.loom.nodes.spec.ContentTypes.DATA_STRING;
-import static io.metaloom.loom.nodes.spec.ContentTypes.MEDIA_IMAGE;
+import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.*;
 import static io.metaloom.loom.nodes.spec.NodeCategory.ANALYSIS;
 import static io.metaloom.loom.nodes.spec.NodeMode.PARALLEL;
 import static io.metaloom.loom.nodes.spec.ParameterType.BOOLEAN;
@@ -12,6 +8,8 @@ import static io.metaloom.loom.nodes.spec.ParameterType.ENUM;
 import static io.metaloom.loom.nodes.spec.ParameterType.ENUM_SET;
 import static io.metaloom.loom.nodes.spec.ParameterType.INTEGER;
 import static io.metaloom.loom.nodes.spec.ParameterType.NUMBER;
+import static io.metaloom.loom.nodes.spec.PortSpec.one;
+import static io.metaloom.loom.nodes.spec.PortSpec.optionalMany;
 
 import java.util.List;
 
@@ -40,16 +38,24 @@ public class DominantColorDescriptorProvider implements NodeDescriptorProvider {
 					+ "and CIELAB plus a readable name in English and German. No model and no GPU required.")
 				.setIcon("palette")
 				.setCategory(ANALYSIS)
-				.setInputs(List.of(
-					new NodeInput("media", MEDIA_IMAGE, true),
-					new NodeInput("detections", DATA_FACEDETECTION, false)))
-				.setOutputs(List.of(
-					new NodeOutput("dominant_color_result", DATA_COLOR),
-					new NodeOutput("dominant_color_hex", DATA_STRING),
-					new NodeOutput("dominant_color_term", DATA_STRING),
-					new NodeOutput("dominant_color_name_en", DATA_STRING),
-					new NodeOutput("dominant_color_name_de", DATA_STRING),
-					new NodeOutput("dominant_color_region_count", DATA_INTEGER)))
+				.setInputPorts(List.of(
+					one("media", MEDIA_IMAGE)
+						.describedAs("Image", "The image whose pixels are clustered in CIELAB"),
+					optionalMany("detections", DETECTION_ANY)
+						.describedAs("Detections", "Boxes to measure individually. Leave unwired to measure only the whole frame and any fixed region")))
+				.setOutputPorts(List.of(
+					one("result", STRUCT_COLOR)
+						.describedAs("Colour Result", "Per measured region: the ranked palette with HEX, RGB, HSL and CIELAB values"),
+					one("hex", SCALAR_STRING)
+						.describedAs("Hex", "Dominant colour of the whole frame as #RRGGBB"),
+					one("term", SCALAR_STRING)
+						.describedAs("Colour Term", "Language-neutral name of the dominant colour, e.g. dark_blue - the stable key to match on"),
+					one("name_en", SCALAR_STRING)
+						.describedAs("Name (English)", "Readable English name of the dominant colour"),
+					one("name_de", SCALAR_STRING)
+						.describedAs("Name (German)", "Readable German name of the dominant colour"),
+					one("region_count", SCALAR_INTEGER)
+						.describedAs("Region Count", "How many regions were measured, counting the whole frame and the fixed region")))
 				.setParameters(List.of(
 					commonEnabled(), commonProcessIncomplete(), commonRetryFailed(),
 
@@ -84,12 +90,6 @@ public class DominantColorDescriptorProvider implements NodeDescriptorProvider {
 					new NodeParameter().setKey("useDetections").setType(BOOLEAN).setDefaultValue(true)
 						.setLabel("Measure Detections")
 						.setDescription("Report a colour for every bounding box an upstream detector produced"),
-					new NodeParameter().setKey("detectionSources").setType(ENUM_SET)
-						.setValues(List.of("facedetect"))
-						.setDefaultValue(List.of("facedetect"))
-						.setLabel("Detection Sources")
-						.setDescription("Upstream node ids whose 'detections' output supplies the boxes"),
-
 					new NodeParameter().setKey("regionX").setType(NUMBER).setDefaultValue(0.0)
 						.setLabel("Region X").setDescription("Left edge of a fixed region to measure").setMin(0.0).setStep(0.05),
 					new NodeParameter().setKey("regionY").setType(NUMBER).setDefaultValue(0.0)

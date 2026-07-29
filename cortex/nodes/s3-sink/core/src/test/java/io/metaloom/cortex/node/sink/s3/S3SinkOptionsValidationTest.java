@@ -35,8 +35,7 @@ public class S3SinkOptionsValidationTest {
 	}
 
 	@Test
-	public void testAutoDiscoverAndCreateAssetsAreOnByDefault() {
-		assertThat(new S3SinkNodeOptions().isAutoDiscover()).isTrue();
+	public void testCreateAssetsAndFailOnPartialAreOnByDefault() {
 		assertThat(new S3SinkNodeOptions().isCreateAssets()).isTrue();
 		assertThat(new S3SinkNodeOptions().isFailOnPartial()).isTrue();
 		assertThat(new S3SinkNodeOptions().isIncludeSource()).isFalse();
@@ -63,34 +62,23 @@ public class S3SinkOptionsValidationTest {
 			.isEqualTo(S3SinkNodeOptions.DEFAULT_KEY_TEMPLATE);
 	}
 
-	@Test
-	public void testMalformedArtifactEntryIsRejected() {
-		S3SinkNodeOptions options = new S3SinkNodeOptions().setArtifacts(List.of("thumbnail"));
-
-		assertThat(options.validate().isInvalid()).isTrue();
-		assertThat(options.validate().getErrors().get(0)).contains("nodeId:outputKey");
-	}
-
-	@Test
-	public void testWellFormedArtifactEntriesPass() {
-		assertThat(new S3SinkNodeOptions()
-			.setArtifacts(List.of("thumbnail:thumbnail_path", "script:frames"))
-			.validate().isInvalid()).isFalse();
-	}
-
-	@Test
-	public void testANodeThatCouldNeverUploadAnythingIsRejected() {
-		S3SinkNodeOptions options = new S3SinkNodeOptions().setAutoDiscover(false);
-
-		assertThat(options.validate().isInvalid()).isTrue();
-		assertThat(options.validate().getErrors().get(0)).contains("never upload anything");
-	}
+	// The 'artifacts' (nodeId:outputKey) and 'autoDiscover' options are gone, and with them the
+	// cases that validated their syntax and the "this node could never upload anything" check.
+	// What the sink uploads is now an edge into its typed 'artifacts' port, so an unwired sink is
+	// rejected by graph validation rather than by option validation - the node's own options can no
+	// longer express the mistake.
 
 	@Test
 	public void testIncludeSourceAloneIsAValidConfiguration() {
-		// An archiver: no upstream artifacts, just the media item.
-		assertThat(new S3SinkNodeOptions().setAutoDiscover(false).setIncludeSource(true)
-			.validate().isInvalid()).isFalse();
+		// An archiver: nothing wired into the artifacts port, just the media item.
+		assertThat(new S3SinkNodeOptions().setIncludeSource(true).validate().isInvalid()).isFalse();
+	}
+
+	@Test
+	public void testAnUnwiredSinkIsStillValidOptionsWise() {
+		// Options alone cannot tell whether an edge reaches the artifacts port, so a bare default
+		// must validate. The empty-artifacts case is handled at run time as a skip.
+		assertThat(new S3SinkNodeOptions().validate().isInvalid()).isFalse();
 	}
 
 	@Test
@@ -111,8 +99,7 @@ public class S3SinkOptionsValidationTest {
 	}
 
 	@Test
-	public void testNullCollectionsNormalise() {
-		assertThat(new S3SinkNodeOptions().setArtifacts(null).getArtifacts()).isEmpty();
+	public void testNullOverwritePolicyNormalises() {
 		assertThat(new S3SinkNodeOptions().setOverwrite(null).getOverwrite()).isEqualTo(OverwritePolicy.IF_DIFFERENT);
 	}
 }

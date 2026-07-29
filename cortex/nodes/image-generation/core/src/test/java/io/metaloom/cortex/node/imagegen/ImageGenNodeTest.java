@@ -79,9 +79,9 @@ class ImageGenNodeTest {
 		NodeResult result = node(options()).process(NodeContext.create(media));
 		assertThat(result).isSuccess();
 
-		String outPath = result.get(ImageGenNode.OUTPUT_IMAGE_PATH);
+		String outPath = result.get(ImageGenNode.OUT_IMAGE);
 		assertNotNull(outPath, "The node should emit the generated image path");
-		assertEquals("DONE", result.get(ImageGenNode.OUTPUT_IMAGE_FLAG));
+		assertEquals("DONE", result.get(ImageGenNode.OUT_FLAG));
 
 		Path png = Path.of(outPath);
 		assertTrue(Files.exists(png), "The PNG file should be written to the imagegen_bin cache");
@@ -95,7 +95,7 @@ class ImageGenNodeTest {
 	void testRemixModeCallsRemixEndpoint() throws Exception {
 		NodeResult result = node(options().setMode(ImageGenMode.REMIX)).process(NodeContext.create(media));
 		assertThat(result).isSuccess();
-		assertEquals("DONE", result.get(ImageGenNode.OUTPUT_IMAGE_FLAG));
+		assertEquals("DONE", result.get(ImageGenNode.OUT_FLAG));
 		verify(client).remix(any(BufferedImage.class), eq("a red apple"), anyDouble(), nullable(Integer.class), anyInt());
 	}
 
@@ -115,7 +115,7 @@ class ImageGenNodeTest {
 
 		NodeResult second = node.process(NodeContext.create(media));
 		assertThat(second).isSuccess();
-		assertEquals(first.get(ImageGenNode.OUTPUT_IMAGE_PATH), second.get(ImageGenNode.OUTPUT_IMAGE_PATH));
+		assertEquals(first.get(ImageGenNode.OUT_IMAGE), second.get(ImageGenNode.OUT_IMAGE));
 
 		// The sidecar must be hit exactly once - the second run is served from the in-heap cache.
 		verify(client, times(1)).generate(anyString(), anyInt(), anyInt(), nullable(Integer.class), anyInt());

@@ -1,10 +1,9 @@
 package io.metaloom.cortex.pipeline.core.node.filter;
 
-import java.util.Map;
-import java.util.Set;
-
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.InputPort;
+import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 
 /**
  * Generic filter that checks a single numeric output from an upstream node against
@@ -12,6 +11,10 @@ import io.metaloom.cortex.api.node.NodeResult;
  *
  * <p>Useful for building ad-hoc branch conditions without writing a custom filter,
  * e.g. face detection confidence &gt; 0.8, LLM classification score &gt; 0.5, etc.</p>
+ *
+ * <p>The value arrives on a declared port. It used to be addressed as
+ * {@code upstreamNodeId + outputKey} - two builder options naming a node the pipeline author
+ * was free to rename, at which point the filter silently passed everything.</p>
  */
 public class ThresholdFilterNode extends AbstractFilterNode {
 
@@ -22,33 +25,24 @@ public class ThresholdFilterNode extends AbstractFilterNode {
 		GT, GTE, LT, LTE, EQ
 	}
 
-	private final String upstreamNodeId;
-	private final String outputKey;
+	/** The number to test. Unwired means "nothing to compare", which passes. */
+	public static final InputPort<Double> IN_VALUE = InputPort.one("value", ContentTypeRegistry.SCALAR_NUMBER, Double.class);
+
 	private final Operator operator;
 	private final double threshold;
 
 	private ThresholdFilterNode(Builder builder) {
 		super(builder.id, builder.name);
-		this.upstreamNodeId = builder.upstreamNodeId;
-		this.outputKey = builder.outputKey;
 		this.operator = builder.operator;
 		this.threshold = builder.threshold;
 	}
 
 	@Override
-	protected boolean evaluate(LoomMedia media, Map<String, NodeResult> upstreamResults) {
-		if (upstreamResults == null) {
+	protected boolean evaluate(NodeContext<LoomMedia> ctx) {
+		Double value = ctx.input(IN_VALUE);
+		if (value == null) {
 			return true; // no data to compare — pass
 		}
-		NodeResult nr = upstreamResults.get(upstreamNodeId);
-		if (nr == null || nr.getOutput() == null) {
-			return true; // upstream not available — pass
-		}
-		Object val = nr.getOutput().get(outputKey);
-		if (!(val instanceof Number)) {
-			return true; // not a number — pass
-		}
-		double value = ((Number) val).doubleValue();
 		return compare(value);
 	}
 
@@ -70,8 +64,8 @@ public class ThresholdFilterNode extends AbstractFilterNode {
 	}
 
 	@Override
-	protected String rejectReason(LoomMedia media, Map<String, NodeResult> upstreamResults) {
-		return upstreamNodeId + ":" + outputKey + " failed " + operator + " " + threshold;
+	protected String rejectReason(NodeContext<LoomMedia> ctx) {
+		return IN_VALUE.id() + " failed " + operator + " " + threshold;
 	}
 
 	public static Builder builder(String id) {
@@ -81,9 +75,6 @@ public class ThresholdFilterNode extends AbstractFilterNode {
 	public static class Builder {
 		private final String id;
 		private String name;
-		private Set<String> dependencies = Set.of();
-		private String upstreamNodeId;
-		private String outputKey;
 		private Operator operator;
 		private double threshold;
 
@@ -94,23 +85,6 @@ public class ThresholdFilterNode extends AbstractFilterNode {
 
 		public Builder name(String name) {
 			this.name = name;
-			return this;
-		}
-
-		public Builder dependencies(Set<String> dependencies) {
-			this.dependencies = dependencies;
-			return this;
-		}
-
-		/** The upstream node id to read the numeric value from. */
-		public Builder upstreamNodeId(String upstreamNodeId) {
-			this.upstreamNodeId = upstreamNodeId;
-			return this;
-		}
-
-		/** The key in the upstream node's output map containing the numeric value. */
-		public Builder outputKey(String outputKey) {
-			this.outputKey = outputKey;
 			return this;
 		}
 
@@ -127,8 +101,8 @@ public class ThresholdFilterNode extends AbstractFilterNode {
 		}
 
 		public ThresholdFilterNode build() {
-			if (upstreamNodeId == null || outputKey == null || operator == null) {
-				throw new IllegalStateException("upstreamNodeId, outputKey, and operator are required");
+			if (operator == null) {
+				throw new IllegalStateException("An operator is required");
 			}
 			return new ThresholdFilterNode(this);
 		}

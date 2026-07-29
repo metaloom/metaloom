@@ -53,7 +53,7 @@ public class VlmNodeIntegrationTest extends AbstractNodeIntegrationTest {
 
 				NodeResult result = node(client, server).process(NodeContext.create(media(image1())));
 				assertThat(result.getState()).isEqualTo(ResultState.SUCCESS);
-				assertThat(result.get(VlmNode.resultKey(VlmPromptPresets.OLMOCR_ID)))
+				assertThat(result.get(VlmNode.resultPort(VlmPromptPresets.OLMOCR_ID)))
 					.as("the node must emit the transcribed page text")
 					.contains("Integration test page body.");
 

@@ -12,6 +12,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.node.script.engine.ScriptEngine;
@@ -71,6 +72,11 @@ class ScriptNodePipelineTest extends AbstractNodeChainTest {
 		return new JsonArray().add(new JsonObject().put("key", key).put("type", type));
 	}
 
+	/** The output port a declared {@code {key, type}} pair becomes. */
+	private static OutputPort<Object> port(String key, String type) {
+		return new ScriptOutputSpec(key, ScriptValueType.parse(type)).port();
+	}
+
 	@Test
 	void testScriptRunsInAPipeline() throws Exception {
 		CortexNodeAdapter adapter = createAdapter("out.text('caption', 'a red car');", outputs("caption", "TEXT"));
@@ -80,7 +86,7 @@ class ScriptNodePipelineTest extends AbstractNodeChainTest {
 		assertThat(result)
 			.isSuccess()
 			.hasCompletedNode(ScriptNode.KIND)
-			.hasNodeOutput(ScriptNode.KIND, "caption", "a red car");
+			.hasNodeOutput(ScriptNode.KIND, port("caption", "TEXT"), "a red car");
 	}
 
 	@Test
@@ -106,7 +112,7 @@ class ScriptNodePipelineTest extends AbstractNodeChainTest {
 	@Test
 	void testOutputChaining() throws Exception {
 		CortexNodeAdapter adapter = createAdapter("out.text('caption', 'chained');", outputs("caption", "TEXT"));
-		CapturingNode consumer = new CapturingNode("consumer", ScriptNode.KIND, "caption");
+		CapturingNode consumer = new CapturingNode("consumer", port("caption", "TEXT"));
 
 		PipelineResult result = execute(media, adapter, consumer);
 
@@ -120,7 +126,7 @@ class ScriptNodePipelineTest extends AbstractNodeChainTest {
 
 		PipelineResult result = execute(media, adapter);
 
-		assertThat(result).isSuccess().hasNodeOutput(ScriptNode.KIND, "kind", "video");
+		assertThat(result).isSuccess().hasNodeOutput(ScriptNode.KIND, port("kind", "TEXT"), "video");
 	}
 
 	@Test

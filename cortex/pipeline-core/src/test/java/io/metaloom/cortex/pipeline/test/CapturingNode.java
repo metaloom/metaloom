@@ -5,55 +5,63 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.pipeline.api.NodeMode;
+import io.metaloom.cortex.api.node.InputPort;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
+import io.metaloom.cortex.api.node.PortOutput;
+import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.pipeline.api.NodeMode;
 import io.metaloom.cortex.pipeline.core.node.AbstractPipelineNode;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 
 /**
- * Test-only downstream node that captures a single output value produced by
- * an upstream node. Replaces the anonymous {@code AbstractPipelineNode}
- * boilerplate previously duplicated in every {@code *NodePipelineTest#testOutputChaining()}.
+ * Test-only downstream node that captures whatever arrives on one declared input port.
  *
- * <h3>Usage</h3>
+ * <p>It used to name an upstream node id and an output key. That is precisely the
+ * addressing the port model removed: what it captures is now decided by the port it
+ * declares, and the harness fills that port from whatever upstream emitted it.</p>
+ *
+ * <h2>Usage</h2>
  * <pre>
- * CapturingNode capture = new CapturingNode("consumer", "sha512", "sha512");
+ * CapturingNode capture = new CapturingNode("consumer", SHA512Node.OUT_HASH);
  * PipelineResult result = execute(media, upstreamAdapter, capture);
  * assertThat(capture.capturedValues()).containsExactly(expectedSha512);
  * </pre>
  */
 public class CapturingNode extends AbstractPipelineNode {
 
-	private final String upstreamNodeId;
-	private final String outputKey;
+	/** What this node re-emits, so a further downstream assertion can read it. */
+	public static final OutputPort<String> OUT_CAPTURED =
+		OutputPort.one("captured", ContentTypeRegistry.SCALAR_STRING, String.class);
+
+	private final InputPort<?> port;
 	private final List<Object> captured = new CopyOnWriteArrayList<>();
 
-	public CapturingNode(String id, String upstreamNodeId, String outputKey) {
+	public CapturingNode(String id, InputPort<?> port) {
 		super(id, id, NodeMode.SEQUENTIAL, true, 1);
-		this.upstreamNodeId = upstreamNodeId;
-		this.outputKey = outputKey;
+		this.port = port;
+	}
+
+	/** Capture whatever an upstream output port carries, by mirroring its id and type. */
+	public CapturingNode(String id, OutputPort<?> upstream) {
+		this(id, new InputPort<>(upstream.id(), upstream.contentType(), upstream.cardinality(), upstream.valueType()));
 	}
 
 	@Override
-	public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {
-		NodeResult upstream = upstreamResults.get(upstreamNodeId);
-		Object value = upstream != null ? upstream.getOutput(outputKey) : null;
+	public NodeResult process(LoomMedia media, NodeInputs inputs) {
+		NodeContext<LoomMedia> ctx = NodeContext.create(media, inputs == null ? NodeInputs.empty() : inputs);
+		Object value = ctx.input(port);
 		captured.add(value);
-		return NodeResult.success(id(), 0, Map.of("captured", value != null ? value : ""));
+		return NodeResult.success(id(), 0,
+			Map.of(OUT_CAPTURED.id(), PortOutput.one(OUT_CAPTURED, value != null ? String.valueOf(value) : "")));
 	}
 
 	/**
-	 * Values captured (in order) from the upstream node's {@code outputKey} output.
-	 * A {@code null} entry means the upstream result had no value for that key.
+	 * Values captured (in order) from the declared input port. A {@code null} entry
+	 * means nothing was wired into it for that run.
 	 */
 	public List<Object> capturedValues() {
 		return captured;
-	}
-
-	/**
-	 * Typed convenience getter for the first captured value.
-	 */
-	@SuppressWarnings("unchecked")
-	public <T> T firstCaptured() {
-		return captured.isEmpty() ? null : (T) captured.get(0);
 	}
 }

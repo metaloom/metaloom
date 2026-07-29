@@ -1,7 +1,6 @@
 package io.metaloom.loom.nodes.spec;
 
-import static io.metaloom.loom.nodes.spec.ContentTypes.DATA_STRING;
-import static io.metaloom.loom.nodes.spec.ContentTypes.MEDIA_ANY;
+import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.*;
 import static io.metaloom.loom.nodes.spec.NodeCategory.TRANSFORM;
 import static io.metaloom.loom.nodes.spec.NodeMode.PARALLEL;
 import static io.metaloom.loom.nodes.spec.ParameterType.BOOLEAN;
@@ -9,6 +8,7 @@ import static io.metaloom.loom.nodes.spec.ParameterType.CODE;
 import static io.metaloom.loom.nodes.spec.ParameterType.INTEGER;
 import static io.metaloom.loom.nodes.spec.ParameterType.JSON;
 import static io.metaloom.loom.nodes.spec.ParameterType.STRING;
+import static io.metaloom.loom.nodes.spec.PortSpec.optionalOne;
 
 import java.util.List;
 
@@ -16,10 +16,12 @@ import java.util.List;
  * Provides the node descriptor for the script node.
  *
  * <p>
- * ⚠️ The {@code outputs} list is deliberately <strong>empty</strong>. A script node's outputs are
- * declared per instance in its {@code outputs} parameter, so the descriptor cannot know them; the
- * pipeline editor derives this node's output handles from that parameter instead. Adding
- * placeholder outputs here would draw handles that no edge could meaningfully attach to.
+ * ⚠️ The static output port list is deliberately <strong>empty</strong> and the descriptor sets
+ * {@link NodeDescriptor#setDynamicPorts(boolean) dynamicPorts}. A script node's outputs are declared
+ * per instance in its {@code outputs} parameter, so the descriptor cannot know them;
+ * {@link ScriptPortResolver} derives them from that parameter and the editor draws the handles from
+ * the resolved set. Adding placeholder ports here would draw handles that no edge could meaningfully
+ * attach to.
  * </p>
  */
 public class ScriptDescriptorProvider implements NodeDescriptorProvider {
@@ -50,11 +52,17 @@ public class ScriptDescriptorProvider implements NodeDescriptorProvider {
 					+ "number of declared outputs - texts, numbers, JSON, timeframes or images.")
 				.setIcon("code")
 				.setCategory(TRANSFORM)
-				.setInputs(List.of(
-					new NodeInput("media", MEDIA_ANY, false),
-					new NodeInput("data", DATA_STRING, false)))
-				// Intentionally empty - see the class javadoc.
-				.setOutputs(List.of())
+				.setInputPorts(List.of(
+					optionalOne("media", MEDIA_ANY)
+						.describedAs("Media", "The media item the script runs over. Leave unwired for a script that only reshapes upstream data"),
+					optionalOne("data", STRUCT_JSON)
+						.describedAs("Data", "A structured payload from an upstream node, handed to the script as its input data"),
+					// Deriving something from upstream text - a reading time, a tag, a chapter list -
+					// is the most common thing a script is asked to do, and text is not a struct.
+					optionalOne("text", TEXT_ANY)
+						.describedAs("Text", "Text from an upstream node, such as a transcript or extracted document content")))
+				.setOutputPorts(List.of())
+				.setDynamicPorts(true)
 				.setParameters(List.of(
 					commonEnabled(), commonProcessIncomplete(), commonRetryFailed(),
 					new NodeParameter().setKey("engine").setType(STRING).setDefaultValue("js")
@@ -70,9 +78,6 @@ public class ScriptDescriptorProvider implements NodeDescriptorProvider {
 							+ "CHAPTER (default CHAPTER) - the database accepts no others"),
 					new NodeParameter().setKey("params").setType(JSON).setDefaultValue("{}").setRows(4)
 						.setLabel("Parameters").setDescription("Constants handed to the script as 'params'"),
-					new NodeParameter().setKey("requiredInputs").setType(JSON).setDefaultValue("[]").setRows(3)
-						.setLabel("Required Inputs")
-						.setDescription("['nodeId:outputKey', ...] that must all be present, or the node skips"),
 					new NodeParameter().setKey("trusted").setType(BOOLEAN).setDefaultValue(true)
 						.setLabel("Trusted").setDescription("Run with full worker privileges. Turn off to deny host "
 							+ "access, class lookup, threads and IO"),

@@ -14,9 +14,9 @@ transcripts, and the chat questions those transcripts then make answerable.
 
 ++++
 <div class="ml-figure">
-<svg viewBox="0 0 900 300" role="img" aria-labelledby="ml-tr-title ml-tr-desc" class="ml-arch-svg">
+<svg viewBox="0 0 900 340" role="img" aria-labelledby="ml-tr-title ml-tr-desc" class="ml-arch-svg">
   <title id="ml-tr-title">From files on disk to an answer in the chat</title>
-  <desc id="ml-tr-desc">A filesystem-source node walks the library, a filter-mimetype node passes only audio and video, a sha512 node establishes asset identity, and a whisper node transcribes. The transcript is stored in Loom as an asset transcript component, which the chat agent reads through the search_transcript tool to answer a user question.</desc>
+  <desc id="ml-tr-desc">A filesystem-source node walks the library and its media output port feeds two branches. One goes to a filter-mimetype node that passes video and audio on to a whisper node wired to the matching media input port; the other goes to a sha512 node that establishes asset identity alongside it. The transcript is stored in Loom as an asset transcript component, which the chat agent reads through the search_transcript tool to answer a user question.</desc>
   <defs>
     <marker id="ml-tr-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#57cbcc"></path></marker>
     <marker id="ml-tr-arrow-muted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6b7681"></path></marker>
@@ -24,29 +24,29 @@ transcripts, and the chat questions those transcripts then make answerable.
 
   <!-- pipeline row -->
   <g>
-    <rect x="16" y="52" width="868" height="94" rx="12" class="ml-box-container"></rect>
+    <rect x="16" y="52" width="868" height="140" rx="12" class="ml-box-container"></rect>
     <text x="868" y="76" text-anchor="end" class="ml-box-title">Pipeline — Loom dispatches one node task at a time</text>
 
-    <rect x="32" y="86" width="180" height="46" rx="6" class="ml-box-part"></rect>
-    <text x="122" y="106" text-anchor="middle" class="ml-part-title">filesystem-source</text>
-    <text x="122" y="122" text-anchor="middle" class="ml-part-sub">walks the library</text>
+    <rect x="32" y="100" width="170" height="46" rx="6" class="ml-box-part"></rect>
+    <text x="117" y="120" text-anchor="middle" class="ml-part-title">filesystem-source</text>
+    <text x="117" y="136" text-anchor="middle" class="ml-part-sub">media</text>
 
-    <rect x="248" y="86" width="180" height="46" rx="6" class="ml-box-part"></rect>
-    <text x="338" y="106" text-anchor="middle" class="ml-part-title">filter-mimetype</text>
-    <text x="338" y="122" text-anchor="middle" class="ml-part-sub">video/* · audio/*</text>
+    <rect x="250" y="86" width="170" height="42" rx="6" class="ml-box-part"></rect>
+    <text x="335" y="104" text-anchor="middle" class="ml-part-title">filter-mimetype</text>
+    <text x="335" y="120" text-anchor="middle" class="ml-part-sub">passed</text>
 
-    <rect x="464" y="86" width="180" height="46" rx="6" class="ml-box-part"></rect>
-    <text x="554" y="106" text-anchor="middle" class="ml-part-title">sha512</text>
-    <text x="554" y="122" text-anchor="middle" class="ml-part-sub">asset identity</text>
+    <rect x="250" y="146" width="170" height="42" rx="6" class="ml-box-part"></rect>
+    <text x="335" y="164" text-anchor="middle" class="ml-part-title">sha512</text>
+    <text x="335" y="180" text-anchor="middle" class="ml-part-sub">hash — asset identity</text>
 
-    <rect x="680" y="86" width="180" height="46" rx="6" class="ml-part-gpu"></rect>
-    <text x="770" y="106" text-anchor="middle" class="ml-part-title">whisper</text>
-    <text x="770" y="122" text-anchor="middle" class="ml-part-sub">transcribe</text>
+    <rect x="470" y="86" width="180" height="42" rx="6" class="ml-part-gpu"></rect>
+    <text x="560" y="104" text-anchor="middle" class="ml-part-title">whisper</text>
+    <text x="560" y="120" text-anchor="middle" class="ml-part-sub">audio | video → transcript</text>
 
-    <polyline points="212,109 248,109" class="ml-edge" marker-end="url(#ml-tr-arrow)"></polyline>
-    <polyline points="428,109 464,109" class="ml-edge" marker-end="url(#ml-tr-arrow)"></polyline>
-    <text x="446" y="101" text-anchor="middle" class="ml-edge-label">PASS</text>
-    <polyline points="644,109 680,109" class="ml-edge" marker-end="url(#ml-tr-arrow)"></polyline>
+    <polyline points="202,123 226,123 226,107 250,107" class="ml-edge" marker-end="url(#ml-tr-arrow)"></polyline>
+    <polyline points="202,123 226,123 226,167 250,167" class="ml-edge" marker-end="url(#ml-tr-arrow)"></polyline>
+    <polyline points="420,107 470,107" class="ml-edge" marker-end="url(#ml-tr-arrow)"></polyline>
+    <text x="445" y="99" text-anchor="middle" class="ml-edge-label">PASS</text>
   </g>
 
   <!-- media source -->
@@ -54,27 +54,27 @@ transcripts, and the chat questions those transcripts then make answerable.
     <rect x="16" y="8" width="240" height="30" rx="8" class="ml-box-container"></rect>
     <text x="136" y="28" text-anchor="middle" class="ml-part-sub">/media/library — files on disk</text>
   </g>
-  <polyline points="136,38 136,86" class="ml-edge-dashed" marker-end="url(#ml-tr-arrow-muted)"></polyline>
+  <polyline points="117,38 117,100" class="ml-edge-dashed" marker-end="url(#ml-tr-arrow-muted)"></polyline>
 
   <!-- storage -->
   <g>
-    <rect x="560" y="182" width="324" height="60" rx="10" class="ml-box-part"></rect>
-    <text x="574" y="204" class="ml-box-title">asset_transcript_comp</text>
-    <text x="722" y="228" text-anchor="middle" class="ml-part-sub">+ asset_node_result ledger row</text>
+    <rect x="540" y="222" width="344" height="60" rx="10" class="ml-box-part"></rect>
+    <text x="554" y="244" class="ml-box-title">asset_transcript_comp</text>
+    <text x="712" y="268" text-anchor="middle" class="ml-part-sub">+ asset_node_result ledger row</text>
   </g>
-  <polyline points="770,132 770,182" class="ml-edge" marker-end="url(#ml-tr-arrow)"></polyline>
-  <text x="778" y="164" text-anchor="start" class="ml-edge-label">persist over REST</text>
+  <polyline points="560,128 560,222" class="ml-edge" marker-end="url(#ml-tr-arrow)"></polyline>
+  <text x="570" y="210" text-anchor="start" class="ml-edge-label">persist over REST</text>
 
   <!-- chat -->
   <g>
-    <rect x="16" y="182" width="380" height="100" rx="10" class="ml-box-container"></rect>
-    <text x="32" y="204" class="ml-box-title">Chat &amp; AI Agent</text>
-    <rect x="32" y="214" width="348" height="26" rx="6" class="ml-box-part"></rect>
-    <text x="206" y="232" text-anchor="middle" class="ml-part-sub">search_transcript · get_asset · search_assets</text>
-    <text x="206" y="264" text-anchor="middle" class="ml-part-sub">“which clips mention the launch date?”</text>
+    <rect x="16" y="222" width="380" height="100" rx="10" class="ml-box-container"></rect>
+    <text x="32" y="244" class="ml-box-title">Chat &amp; AI Agent</text>
+    <rect x="32" y="254" width="348" height="26" rx="6" class="ml-box-part"></rect>
+    <text x="206" y="272" text-anchor="middle" class="ml-part-sub">search_transcript · get_asset · search_assets</text>
+    <text x="206" y="304" text-anchor="middle" class="ml-part-sub">“which clips mention the launch date?”</text>
   </g>
-  <polyline points="560,212 396,212" class="ml-edge" marker-end="url(#ml-tr-arrow)"></polyline>
-  <text x="478" y="204" text-anchor="middle" class="ml-edge-label">read</text>
+  <polyline points="540,252 396,252" class="ml-edge" marker-end="url(#ml-tr-arrow)"></polyline>
+  <text x="468" y="244" text-anchor="middle" class="ml-edge-label">read</text>
 </svg>
 </div>
 ++++
@@ -85,8 +85,10 @@ Two links in that chain are easy to get wrong, and both are about *identity*:
   (`loadAsset(sha512)`). A file on disk that is not a known asset still gets processed, but the result
   has nothing to attach to. Ingest first — upload through the UI, `POST /api/v1/assets`, or
   `POST /api/v1/assets/bulk/create` — then run the pipeline over the same files.
-. **A hash node must run upstream.** That SHA-512 lookup needs the hash, so `sha512` belongs in the
-  graph before any node whose output you want persisted.
+. **The graph needs a hash node.** That SHA-512 lookup needs the hash, so a `sha512` node belongs in
+  any graph whose node output you want persisted. It reads the same `media` port the rest of the graph
+  reads — a hash port carries `hash/sha512` and can only be connected to something that declares a
+  hash input, so it is never a step *between* two media nodes.
 
 [IMPORTANT]
 ====
@@ -152,37 +154,64 @@ default concurrency of **1**. Long recordings need the timeout raised in the gra
 ----
 {
   "nodes": [
-    { "id": "source",  "type": "filesystem-source", "name": "Media library",
+    { "id": "source",   "type": "filesystem-source", "name": "Media library",
       "options": { "path": "/media/library" } },
-    { "id": "mime",    "type": "filter-mimetype",   "name": "Audio and video only",
-      "options": { "allowedTypes": "video/*,audio/*" } },
-    { "id": "hash",    "type": "sha512",            "name": "SHA-512 identity" },
-    { "id": "speech",  "type": "whisper",           "name": "Transcribe",
-      "timeoutMs": 3600000, "blocking": true }
+    { "id": "video",    "type": "filter-mimetype",   "name": "Video only",
+      "options": { "allowedTypes": "video/*" } },
+    { "id": "audio",    "type": "filter-mimetype",   "name": "Audio only",
+      "options": { "allowedTypes": "audio/*" } },
+    { "id": "hash",     "type": "sha512",            "name": "SHA-512 identity" },
+    { "id": "speech-v", "type": "whisper",           "name": "Transcribe video",
+      "timeoutMs": 3600000 },
+    { "id": "speech-a", "type": "whisper",           "name": "Transcribe audio",
+      "timeoutMs": 3600000 }
   ],
   "edges": [
-    { "id": "e1", "source": "source", "target": "mime" },
-    { "id": "e2", "source": "mime",   "target": "hash",   "branch": "PASS" },
-    { "id": "e3", "source": "hash",   "target": "speech" }
+    { "id": "e1", "source": "source", "sourcePort": "media",
+      "target": "video",    "targetPort": "media" },
+    { "id": "e2", "source": "source", "sourcePort": "media",
+      "target": "audio",    "targetPort": "media" },
+    { "id": "e3", "source": "source", "sourcePort": "media",
+      "target": "hash",     "targetPort": "media" },
+    { "id": "e4", "source": "video",  "sourcePort": "passed",
+      "target": "speech-v", "targetPort": "video", "branch": "PASS" },
+    { "id": "e5", "source": "audio",  "sourcePort": "passed",
+      "target": "speech-a", "targetPort": "audio", "branch": "PASS" }
   ]
 }
 ----
 
+Every edge names both ends — `sourcePort` on the producing node, `targetPort` on the consuming one —
+and both are mandatory; there is no positional fallback. What a node reads is decided by the edge
+drawn into its input port, never by the graph id of whoever produced the value.
+
 What each part is for:
 
 `filesystem-source`:: The one source node. It walks the library and, when given a `path`, compares
-against its persisted index so a re-run only picks up new, modified or moved files.
+against its persisted index so a re-run only picks up new, modified or moved files. Its single output
+port `media` is what everything downstream connects to.
 
-`filter-mimetype`:: Routes items down `PASS` / `REJECT` branches. The `branch: "PASS"` on edge `e2` is
-what makes images skip the rest of the graph instead of being handed to a speech model. A branch is
-only valid on an edge leaving a filter node.
+`filter-mimetype`:: Emits a verdict on its `passed` port, and the `branch` on an outgoing edge picks
+which side of it to follow (`PASS`, `REJECT`, or `ANY` for both). That is what stops images being
+handed to a speech model. A branch is only valid on an edge leaving a filter node.
 
-`sha512`:: The identity step described above.
+`sha512`:: The identity step described above. Its `hash` port carries `hash/sha512`, so it can only be
+connected to something that declares a matching hash input — link:../../nodes/loom/[`loom`] or a
+link:../../nodes/dedup/[dedup] node. It hangs off the source rather than sitting in the middle of the
+media path.
 
-`whisper`:: Produces `whisper_result` and persists an `asset_transcript_comp` plus an
-`asset_node_result` ledger row against the asset. `timeoutMs` overrides the 600 s default;
-`blocking: true` (the default) means a failed hash skips the transcription rather than transcribing
-something Loom cannot attach the result to.
+`whisper`:: Persists an `asset_transcript_comp` plus an `asset_node_result` ledger row against the
+asset, and carries the same text on its `transcript` output port for anything downstream — a
+link:../../nodes/sentiment/[sentiment] score, a translation, a link:../../nodes/tts/[`tts`] dub.
+`timeoutMs` overrides the 600 s default.
+
+[NOTE]
+====
+**Why two whisper nodes.** `whisper` declares `audio` and `video` as *alternatives*: exactly one of
+the two may be wired, because they are one input with two shapes rather than two independent inputs.
+A library holding both therefore routes each kind down its own branch. Connect the second one in the
+editor and it disables the first — see link:../../nodes/whisper/[Whisper].
+====
 
 [IMPORTANT]
 ====
@@ -316,7 +345,11 @@ a large library is cheap — as long as `CORTEX_META_PATH` is on a volume that s
 worker's whitelist/blacklist.
 
 | Node succeeds, nothing stored
-| The file's SHA-512 matches no asset in Loom, or no `sha512` node ran upstream.
+| The file's SHA-512 matches no asset in Loom, or the graph has no `sha512` node.
+
+| The pipeline will not save: `requires one of [audio, video] to be connected`
+| `whisper`'s two media inputs are alternatives — exactly one must be wired, and wiring both is
+rejected the same way.
 
 | Transcriptions time out
 | The 600 s default is too low for long recordings. Raise `timeoutMs` on the node.
@@ -326,6 +359,7 @@ worker's whitelist/blacklist.
 
 | Images are being handed to Whisper
 | The filter edge is missing its `"branch": "PASS"`, so the filter's verdict is not routing anything.
+Note that the key is `branch` — an edge carrying anything else is simply an unconditional edge.
 
 | Every run re-transcribes everything
 | The worker's meta path is not persistent, so the filesystem index is rebuilt empty each start.

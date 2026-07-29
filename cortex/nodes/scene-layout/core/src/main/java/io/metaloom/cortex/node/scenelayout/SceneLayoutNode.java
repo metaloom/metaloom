@@ -16,14 +16,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.node.NodeOutputKey;
+import io.metaloom.cortex.api.node.Element;
+import io.metaloom.cortex.api.node.InputPort;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.detection.DetectionResponse;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompCreateRequest;
@@ -44,12 +47,18 @@ import io.vertx.core.json.JsonObject;
  * <h2>Inputs</h2>
  *
  * <p>
- * Depth comes from the upstream {@code depthmap} node's {@code depthmap_path} and
- * {@code depthmap_meta} outputs. Boxes come from an upstream detector's {@code detections} output
- * when present, and otherwise from {@code listAssetDetections} over REST. The upstream path is
+ * Depth arrives on the {@link #IN_DEPTH} port and boxes on {@link #IN_DETECTIONS}; when no
+ * detector is wired the node falls back to {@code listAssetDetections} over REST. The wired path is
  * preferred because its payload carries an explicit coordinate marker; the REST path has to apply
  * a heuristic (see {@link #readFromLoom}) because the {@code detection} table's own geometry
  * convention is ambiguous.
+ * </p>
+ *
+ * <p>
+ * Both used to be addressed by node id - a {@code depthNodeId} option defaulting to
+ * {@code "depthmap"} and a {@code detectionSources} list defaulting to {@code ["facedetect"]}.
+ * Renaming either node in the editor turned this node into a permanent "no depth map" skip, which
+ * reads like a depth-node problem and is not.
  * </p>
  *
  * <p>
@@ -69,9 +78,15 @@ public class SceneLayoutNode extends AbstractMediaNode<SceneLayoutNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(SceneLayoutNode.class);
 
-	public static final NodeOutputKey<String> OUTPUT_SCENE_LAYOUT_RESULT = NodeOutputKey.of("scene_layout_result", String.class);
-	public static final NodeOutputKey<Integer> OUTPUT_SCENE_LAYOUT_OBJECTS = NodeOutputKey.of("scene_layout_object_count", Integer.class);
-	public static final NodeOutputKey<Integer> OUTPUT_SCENE_LAYOUT_RELATIONS = NodeOutputKey.of("scene_layout_relation_count", Integer.class);
+	/** The depth metadata, which also carries the worker-local path of the map itself. */
+	public static final InputPort<String> IN_DEPTH = InputPort.one("depth", ContentTypeRegistry.STRUCT_DEPTHMAP, String.class);
+
+	/** Every detected box to place, from any detector - the node only needs a box and a label. */
+	public static final InputPort<String> IN_DETECTIONS = InputPort.many("detections", ContentTypeRegistry.DETECTION_ANY, String.class);
+
+	public static final OutputPort<String> OUT_RESULT = OutputPort.one("result", ContentTypeRegistry.STRUCT_SCENE_LAYOUT, String.class);
+	public static final OutputPort<Long> OUT_OBJECT_COUNT = OutputPort.one("object_count", ContentTypeRegistry.SCALAR_INTEGER, Long.class);
+	public static final OutputPort<Long> OUT_RELATION_COUNT = OutputPort.one("relation_count", ContentTypeRegistry.SCALAR_INTEGER, Long.class);
 
 	/** The depth convention this node understands. Larger = nearer to the camera. */
 	public static final String CONVENTION_NEARNESS = "NEARNESS";
@@ -190,42 +205,34 @@ public class SceneLayoutNode extends AbstractMediaNode<SceneLayoutNodeOptions> {
 	}
 
 	private void emit(NodeContext<LoomMedia> ctx, JsonObject payload) {
-		ctx.output(OUTPUT_SCENE_LAYOUT_RESULT, payload.encode());
-		ctx.output(OUTPUT_SCENE_LAYOUT_OBJECTS, payload.getJsonArray("objects").size());
-		ctx.output(OUTPUT_SCENE_LAYOUT_RELATIONS, payload.getJsonArray("relations").size());
+		ctx.output(OUT_RESULT, payload.encode());
+		ctx.output(OUT_OBJECT_COUNT, (long) payload.getJsonArray("objects").size());
+		ctx.output(OUT_RELATION_COUNT, (long) payload.getJsonArray("relations").size());
 	}
 
 	/**
-	 * Read the depth metadata emitted by the upstream depthmap node.
+	 * Read the depth metadata from the wired depth port.
 	 */
 	private JsonObject readDepthMeta(NodeContext<LoomMedia> ctx) {
-		Object meta = ctx.upstreamOutput(options().getDepthNodeId(), DepthOutputs.META);
+		String meta = ctx.input(IN_DEPTH);
 		if (meta == null) {
 			return null;
 		}
-		JsonObject parsed = new JsonObject(meta.toString());
-		if (parsed.getString("path") == null) {
-			// Older payloads carried the path only in the sibling output key.
-			Object path = ctx.upstreamOutput(options().getDepthNodeId(), DepthOutputs.PATH);
-			if (path == null) {
-				return null;
-			}
-			parsed.put("path", path.toString());
-		}
-		return parsed;
+		JsonObject parsed = new JsonObject(meta);
+		// The path travels inside the metadata; a payload without one cannot be opened.
+		return parsed.getString("path") == null ? null : parsed;
 	}
 
 	/**
-	 * Gather boxes, preferring the upstream detector payload over the REST read-back.
+	 * Gather boxes, preferring the wired detections over the REST read-back.
 	 */
 	private List<RawDetection> readDetections(NodeContext<LoomMedia> ctx, AssetResponse asset) {
 		List<RawDetection> out = new ArrayList<>();
-		for (String nodeId : options().getDetectionSources()) {
-			Object value = ctx.upstreamOutput(nodeId, "detections");
-			if (value == null) {
-				continue;
+		for (Element<String> element : ctx.inputs(IN_DETECTIONS)) {
+			RawDetection detection = readElement(new JsonObject(element.value()), element.seq());
+			if (detection != null) {
+				out.add(detection);
 			}
-			out.addAll(readFromUpstream(nodeId, new JsonObject(value.toString())));
 		}
 		if (!out.isEmpty()) {
 			return out;
@@ -237,38 +244,32 @@ public class SceneLayoutNode extends AbstractMediaNode<SceneLayoutNodeOptions> {
 	}
 
 	/**
-	 * Parse a detector's {@code detections} output. This path is unambiguous: the payload states its
-	 * coordinate convention and the dimensions the boxes were measured against.
+	 * Parse one detection element. This path is unambiguous: the element states its coordinate
+	 * convention and the dimensions the box was measured against.
+	 *
+	 * @return the box, or null when the element carries none
 	 */
-	private List<RawDetection> readFromUpstream(String nodeId, JsonObject payload) {
-		List<RawDetection> out = new ArrayList<>();
-		JsonArray items = payload.getJsonArray("detections", new JsonArray());
-		int imageWidth = payload.getInteger("imageWidth", 0);
-		int imageHeight = payload.getInteger("imageHeight", 0);
-		boolean normalized = "NORMALIZED".equals(payload.getString("coordinates"));
-
-		for (int i = 0; i < items.size(); i++) {
-			JsonObject item = items.getJsonObject(i);
-			JsonObject bbox = item.getJsonObject("bbox");
-			if (bbox == null) {
-				continue;
-			}
-			BoxF box = new BoxF(
-				bbox.getDouble("x", 0d),
-				bbox.getDouble("y", 0d),
-				bbox.getDouble("w", 0d),
-				bbox.getDouble("h", 0d));
-			if (normalized && imageWidth > 0 && imageHeight > 0) {
-				box = box.scale(imageWidth, imageHeight);
-			}
-			String type = item.getString("type", "object");
-			String label = item.getString("label", type);
-			out.add(new RawDetection(
-				label + "-" + item.getInteger("index", i),
-				label, type, nodeId, box,
-				item.getDouble("confidence", 1d)));
+	private RawDetection readElement(JsonObject item, int seq) {
+		JsonObject bbox = item.getJsonObject("bbox");
+		if (bbox == null) {
+			return null;
 		}
-		return out;
+		BoxF box = new BoxF(
+			bbox.getDouble("x", 0d),
+			bbox.getDouble("y", 0d),
+			bbox.getDouble("w", 0d),
+			bbox.getDouble("h", 0d));
+		int imageWidth = item.getInteger("imageWidth", 0);
+		int imageHeight = item.getInteger("imageHeight", 0);
+		if ("NORMALIZED".equals(item.getString("coordinates")) && imageWidth > 0 && imageHeight > 0) {
+			box = box.scale(imageWidth, imageHeight);
+		}
+		String type = item.getString("type", "object");
+		String label = item.getString("label", type);
+		return new RawDetection(
+			label + "-" + item.getInteger("index", seq),
+			label, type, IN_DETECTIONS.id(), box,
+			item.getDouble("confidence", 1d));
 	}
 
 	/**
@@ -424,22 +425,4 @@ public class SceneLayoutNode extends AbstractMediaNode<SceneLayoutNodeOptions> {
 	private record RawDetection(String id, String label, String type, String source, BoxF box, double confidence) {
 	}
 
-	/**
-	 * The depthmap node's output keys, referenced by name rather than by class.
-	 *
-	 * <p>
-	 * Duplicating the two strings keeps this module from depending on {@code cortex-depthmap-node}.
-	 * The coupling is already a pipeline-level one - the nodes are wired by id and key in the
-	 * pipeline definition - and a compile-time dependency would not make it any more checked, only
-	 * harder to swap in a different depth producer later.
-	 * </p>
-	 */
-	static final class DepthOutputs {
-
-		static final String PATH = "depthmap_path";
-		static final String META = "depthmap_meta";
-
-		private DepthOutputs() {
-		}
-	}
 }

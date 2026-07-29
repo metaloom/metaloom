@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.ResultState;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.node.scenelayout.SceneLayoutNode;
@@ -98,15 +99,15 @@ public class SceneLayoutNodeIntegrationTest extends AbstractNodeIntegrationTest 
 					.add(detection(0, 40, 40, 80, 80))
 					.add(detection(1, 280, 40, 80, 80)));
 
-			NodeContext<io.metaloom.cortex.api.media.LoomMedia> ctx = NodeContext.create(media(image1()), Map.of(
-				"depthmap", Map.of(
-					"depthmap_path", mapFile.getAbsolutePath(),
-					"depthmap_meta", depthMeta.encode()),
-				"facedetect", Map.of("detections", detections.encode())));
+			NodeContext<io.metaloom.cortex.api.media.LoomMedia> ctx = NodeContext.create(media(image1()),
+				NodeInputs.builder()
+					.input(SceneLayoutNode.IN_DEPTH, depthMeta.encode())
+					.inputs(SceneLayoutNode.IN_DETECTIONS, List.of(detections.encode()))
+					.build());
 
 			NodeResult result = node.process(ctx);
 			assertThat(result.getState()).isEqualTo(ResultState.SUCCESS);
-			assertThat(result.get(SceneLayoutNode.OUTPUT_SCENE_LAYOUT_OBJECTS)).isEqualTo(2);
+			assertThat(result.get(SceneLayoutNode.OUT_OBJECT_COUNT)).isEqualTo(2);
 
 			// The component must be readable back through REST, with the layout intact.
 			JsonCompResponse comp = client.listAssetJsonComps(asset.getUuid()).sync().body().getData().stream()

@@ -6,16 +6,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import java.io.File;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
-import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.pipeline.test.StubLoomMedia;
 import io.metaloom.utils.hash.SHA512;
@@ -66,38 +64,40 @@ class SceneLayoutNodeTest {
 		return new SceneLayoutNode(null, cortexOptions, options);
 	}
 
+	private String depthMetaJson() {
+		return SceneLayoutFixtures.depthMeta(mapFile, MAP_W, MAP_H, IMAGE_W, IMAGE_H).encode();
+	}
+
 	/** Two faces: one in the near (left) half of the image, one in the far (right) half. */
-	private Map<String, Map<String, Object>> upstream() {
-		return upstream(SceneLayoutFixtures.detections(IMAGE_W, IMAGE_H,
-			SceneLayoutFixtures.detection(0, "face", 40, 40, 80, 80),
-			SceneLayoutFixtures.detection(1, "face", 280, 40, 80, 80)));
+	private List<String> twoFaces() {
+		return List.of(
+			SceneLayoutFixtures.detection(0, "face", 40, 40, 80, 80).encode(),
+			SceneLayoutFixtures.detection(1, "face", 280, 40, 80, 80).encode());
 	}
 
-	private Map<String, Map<String, Object>> upstream(JsonObject detections) {
-		Map<String, Map<String, Object>> up = new HashMap<>();
-		up.put("depthmap", Map.of(
-			"depthmap_path", mapFile.getAbsolutePath(),
-			"depthmap_meta", SceneLayoutFixtures.depthMeta(mapFile, MAP_W, MAP_H, IMAGE_W, IMAGE_H).encode()));
-		up.put("facedetect", Map.of("detections", detections.encode()));
-		return up;
+	private NodeInputs inputs() {
+		return inputs(depthMetaJson(), twoFaces());
 	}
 
-	private NodeContext<LoomMedia> ctx() {
-		return NodeContext.create(media, upstream());
+	private NodeInputs inputs(String depthMeta, List<String> detections) {
+		return NodeInputs.builder()
+			.input(SceneLayoutNode.IN_DEPTH, depthMeta)
+			.inputs(SceneLayoutNode.IN_DETECTIONS, detections)
+			.build();
 	}
 
 	private JsonObject payloadOf(NodeResult result) {
-		String json = result.get(SceneLayoutNode.OUTPUT_SCENE_LAYOUT_RESULT);
+		String json = result.get(SceneLayoutNode.OUT_RESULT);
 		assertNotNull(json, "the node must emit the layout payload");
 		return new JsonObject(json);
 	}
 
 	@Test
-	void testRelatesTwoFacesAcrossTheDepthSplit() {
-		NodeResult result = node().process(ctx());
+	void testRelatesTwoFacesAcrossTheDepthSplit() throws Exception {
+		NodeResult result = node().process(media, inputs());
 		assertThat(result).isSuccess();
 
-		assertEquals(2, result.get(SceneLayoutNode.OUTPUT_SCENE_LAYOUT_OBJECTS));
+		assertEquals(2L, result.get(SceneLayoutNode.OUT_OBJECT_COUNT));
 
 		JsonObject payload = payloadOf(result);
 		JsonArray objects = payload.getJsonArray("objects");
@@ -118,23 +118,23 @@ class SceneLayoutNodeTest {
 	}
 
 	@Test
-	void testEmitsReadablePhrases() {
-		JsonObject payload = payloadOf(node().process(ctx()));
+	void testEmitsReadablePhrases() throws Exception {
+		JsonObject payload = payloadOf(node().process(media, inputs()));
 
 		org.assertj.core.api.Assertions.assertThat(payload.getJsonArray("phrases").getList())
 			.contains("face-0 is in front of face-1", "face-0 is in the foreground", "face-1 is in the background");
 	}
 
 	@Test
-	void testPhrasesCanBeDisabled() {
-		JsonObject payload = payloadOf(node(new SceneLayoutNodeOptions().setEmitPhrases(false)).process(ctx()));
+	void testPhrasesCanBeDisabled() throws Exception {
+		JsonObject payload = payloadOf(node(new SceneLayoutNodeOptions().setEmitPhrases(false)).process(media, inputs()));
 
 		org.assertj.core.api.Assertions.assertThat(payload.getJsonArray("phrases")).isEmpty();
 	}
 
 	@Test
-	void testPayloadCarriesDepthProvenance() {
-		JsonObject depth = payloadOf(node().process(ctx())).getJsonObject("depth");
+	void testPayloadCarriesDepthProvenance() throws Exception {
+		JsonObject depth = payloadOf(node().process(media, inputs())).getJsonObject("depth");
 
 		assertEquals(SceneLayoutFixtures.MODEL, depth.getString("model"));
 		assertEquals("NEARNESS", depth.getString("convention"));
@@ -144,8 +144,8 @@ class SceneLayoutNodeTest {
 	}
 
 	@Test
-	void testBoxesAreReportedInImageSpaceNotMapSpace() {
-		JsonObject bbox = payloadOf(node().process(ctx()))
+	void testBoxesAreReportedInImageSpaceNotMapSpace() throws Exception {
+		JsonObject bbox = payloadOf(node().process(media, inputs()))
 			.getJsonArray("objects").getJsonObject(0).getJsonObject("bbox");
 
 		// The consumer thinks in image coordinates; map space is an internal detail.
@@ -154,60 +154,53 @@ class SceneLayoutNodeTest {
 	}
 
 	@Test
-	void testSkippedWhenNoDepthMap() {
-		Map<String, Map<String, Object>> up = new HashMap<>(upstream());
-		up.remove("depthmap");
+	void testSkippedWhenNoDepthMap() throws Exception {
+		NodeInputs inputs = NodeInputs.builder()
+			.inputs(SceneLayoutNode.IN_DETECTIONS, twoFaces())
+			.build();
 
-		assertThat(node().process(NodeContext.create(media, up))).isSkipped();
+		assertThat(node().process(media, inputs)).isSkipped();
 	}
 
 	@Test
-	void testSkippedWhenDepthArtifactIsMissing() {
+	void testSkippedWhenDepthArtifactIsMissing() throws Exception {
 		// The affinity mistake: this node ran on a worker that never produced the map.
-		Map<String, Map<String, Object>> up = new HashMap<>(upstream());
 		File absent = new File(tempDir, "nope.png");
-		up.put("depthmap", Map.of(
-			"depthmap_path", absent.getAbsolutePath(),
-			"depthmap_meta", SceneLayoutFixtures.depthMeta(absent, MAP_W, MAP_H, IMAGE_W, IMAGE_H).encode()));
+		String depthMeta = SceneLayoutFixtures.depthMeta(absent, MAP_W, MAP_H, IMAGE_W, IMAGE_H).encode();
 
-		assertThat(node().process(NodeContext.create(media, up))).isSkipped();
+		assertThat(node().process(media, inputs(depthMeta, twoFaces()))).isSkipped();
 	}
 
 	@Test
-	void testSkippedOnUnknownDepthConvention() {
-		Map<String, Map<String, Object>> up = new HashMap<>(upstream());
-		up.put("depthmap", Map.of(
-			"depthmap_path", mapFile.getAbsolutePath(),
-			"depthmap_meta", SceneLayoutFixtures.depthMeta(mapFile, MAP_W, MAP_H, IMAGE_W, IMAGE_H)
-				.put("convention", "METRIC_METERS").encode()));
+	void testSkippedOnUnknownDepthConvention() throws Exception {
+		String depthMeta = SceneLayoutFixtures.depthMeta(mapFile, MAP_W, MAP_H, IMAGE_W, IMAGE_H)
+			.put("convention", "METRIC_METERS").encode();
 
 		// Refusing beats guessing: the wrong reading inverts every relation while still "succeeding".
-		assertThat(node().process(NodeContext.create(media, up))).isSkipped();
+		assertThat(node().process(media, inputs(depthMeta, twoFaces()))).isSkipped();
 	}
 
 	@Test
-	void testSkippedWhenNoDetections() {
-		assertThat(node().process(NodeContext.create(media, upstream(
-			SceneLayoutFixtures.detections(IMAGE_W, IMAGE_H))))).isSkipped();
+	void testSkippedWhenNoDetections() throws Exception {
+		assertThat(node().process(media, inputs(depthMetaJson(), List.of()))).isSkipped();
 	}
 
 	@Test
-	void testSkippedWithASingleDetection() {
+	void testSkippedWithASingleDetection() throws Exception {
 		// One object has nothing to relate to; a component row for it would carry no information.
-		assertThat(node().process(NodeContext.create(media, upstream(
-			SceneLayoutFixtures.detections(IMAGE_W, IMAGE_H,
-				SceneLayoutFixtures.detection(0, "face", 40, 40, 80, 80)))))).isSkipped();
+		List<String> single = List.of(SceneLayoutFixtures.detection(0, "face", 40, 40, 80, 80).encode());
+		assertThat(node().process(media, inputs(depthMetaJson(), single))).isSkipped();
 	}
 
 	@Test
-	void testObjectsAreCappedLargestFirst() {
-		JsonObject detections = SceneLayoutFixtures.detections(IMAGE_W, IMAGE_H,
-			SceneLayoutFixtures.detection(0, "face", 10, 10, 20, 20),
-			SceneLayoutFixtures.detection(1, "face", 60, 10, 100, 100),
-			SceneLayoutFixtures.detection(2, "face", 250, 10, 90, 90));
+	void testObjectsAreCappedLargestFirst() throws Exception {
+		List<String> detections = List.of(
+			SceneLayoutFixtures.detection(0, "face", 10, 10, 20, 20).encode(),
+			SceneLayoutFixtures.detection(1, "face", 60, 10, 100, 100).encode(),
+			SceneLayoutFixtures.detection(2, "face", 250, 10, 90, 90).encode());
 
 		NodeResult result = node(new SceneLayoutNodeOptions().setMaxObjects(2))
-			.process(NodeContext.create(media, upstream(detections)));
+			.process(media, inputs(depthMetaJson(), detections));
 		assertThat(result).isSuccess();
 
 		JsonObject payload = payloadOf(result);
@@ -219,41 +212,39 @@ class SceneLayoutNodeTest {
 	}
 
 	@Test
-	void testSecondRunServedFromCache() {
+	void testSecondRunServedFromCache() throws Exception {
 		SceneLayoutNode node = node();
-		NodeResult first = node.process(ctx());
+		NodeResult first = node.process(media, inputs());
 		assertThat(first).isSuccess();
 
-		NodeResult second = node.process(ctx());
+		NodeResult second = node.process(media, inputs());
 		assertThat(second).isSuccess();
-		assertEquals(first.get(SceneLayoutNode.OUTPUT_SCENE_LAYOUT_RESULT), second.get(SceneLayoutNode.OUTPUT_SCENE_LAYOUT_RESULT));
-		assertEquals(first.get(SceneLayoutNode.OUTPUT_SCENE_LAYOUT_OBJECTS), second.get(SceneLayoutNode.OUTPUT_SCENE_LAYOUT_OBJECTS));
+		assertEquals(first.get(SceneLayoutNode.OUT_RESULT), second.get(SceneLayoutNode.OUT_RESULT));
+		assertEquals(first.get(SceneLayoutNode.OUT_OBJECT_COUNT), second.get(SceneLayoutNode.OUT_OBJECT_COUNT));
 	}
 
 	@Test
-	void testNonImageIsSkipped() {
+	void testNonImageIsSkipped() throws Exception {
 		StubLoomMedia video = new StubLoomMedia(media.absolutePath(), true, false, false, false);
 		video.setSHA512(HASH);
 
-		assertThat(node().process(NodeContext.create(video, upstream()))).isSkipped();
+		assertThat(node().process(video, inputs())).isSkipped();
 	}
 
 	@Test
-	void testDisabledNodeIsSkipped() {
+	void testDisabledNodeIsSkipped() throws Exception {
 		SceneLayoutNodeOptions options = new SceneLayoutNodeOptions();
 		options.setEnabled(false);
 
-		assertThat(node(options).process(ctx())).isSkipped();
+		assertThat(node(options).process(media, inputs())).isSkipped();
 	}
 
 	@Test
 	void testMalformedUpstreamPayloadDoesNotThrow() {
-		Map<String, Map<String, Object>> up = new HashMap<>(upstream());
-		up.put("facedetect", Map.of("detections", "not json at all"));
-
-		// A garbled upstream output must surface as a node result, never as an escaped exception
+		// A garbled upstream element must surface as a node result, never as an escaped exception
 		// that takes the pipeline item down with it.
-		assertThatNoException().isThrownBy(() -> node().process(NodeContext.create(media, up)));
+		assertThatNoException().isThrownBy(
+			() -> node().process(media, inputs(depthMetaJson(), List.of("not json at all"))));
 	}
 
 	private java.util.List<String> predicates(JsonObject payload) {

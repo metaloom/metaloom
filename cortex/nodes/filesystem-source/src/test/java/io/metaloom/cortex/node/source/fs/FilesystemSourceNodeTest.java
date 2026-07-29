@@ -19,6 +19,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.common.media.LoomMediaLoader;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.fs.FileState;
@@ -164,23 +165,32 @@ public class FilesystemSourceNodeTest {
 	// --- process() ---------------------------------------------------------
 
 	@Test
-	public void testProcessReportsThePathOfTheCurrentMedia() {
+	public void testProcessEmitsTheReferenceOfTheCurrentMedia() {
 		LoomMedia media = mediaLoader.load(videoA);
 
-		NodeResult result = rootNode().process(media, Map.of());
+		NodeResult result = rootNode().process(media, NodeInputs.empty());
 
 		assertThat(result.getState()).isEqualTo(ResultState.SUCCESS);
-		assertThat((Object) result.getOutput("path")).isEqualTo(videoA.toString());
-		assertThat((Object) result.getOutput("source")).isEqualTo("filesystem");
+		// One declared output port, matching the descriptor: 'media : media/* ONE'. The former
+		// 'source' and 'state' outputs were scan bookkeeping rather than pipeline data and were
+		// never declared anywhere a graph could wire them.
+		assertThat(result.get(FilesystemSourceNode.OUT_MEDIA)).isEqualTo(videoA.toString());
+		assertThat(result.getOutputs()).containsOnlyKeys(FilesystemSourceNode.OUT_MEDIA.id());
 	}
 
 	@Test
-	public void testProcessReportsDiffState() {
+	public void testDiffStateIsReadableWithoutBeingAnOutput() {
 		FilesystemSourceNode node = rootNode();
 		node.stream().count().blockingGet();
 
-		NodeResult result = node.process(mediaLoader.load(videoA), Map.of());
-		assertThat((Object) result.getOutput("state")).isEqualTo("NEW");
+		assertThat(node.lastState(videoA.toString())).isEqualTo(FileState.NEW);
+	}
+
+	@Test
+	public void testDiffStateIsUnknownForMediaThisRunDidNotEnumerate() {
+		// The lastStates map is per-JVM; a node task landing on a different worker than the source
+		// task cannot know the diff state.
+		assertThat(rootNode().lastState(videoA.toString())).isEqualTo(FileState.UNKNOWN);
 	}
 
 	// --- Validation & factory ---------------------------------------------

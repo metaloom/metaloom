@@ -31,11 +31,20 @@ public class NodeDescriptor {
 	@JsonPropertyDescription("Category for palette grouping")
 	private NodeCategory category;
 
-	@JsonPropertyDescription("Input connectors this node accepts")
-	private List<NodeInput> inputs = new ArrayList<>();
+	@JsonPropertyDescription("Typed input ports this node accepts")
+	private List<PortSpec> inputPorts = new ArrayList<>();
 
-	@JsonPropertyDescription("Output connectors this node produces")
-	private List<NodeOutput> outputs = new ArrayList<>();
+	@JsonPropertyDescription("Typed output ports this node produces")
+	private List<PortSpec> outputPorts = new ArrayList<>();
+
+	@JsonPropertyDescription("Groups over the input ports (XOR alternatives)")
+	private List<PortGroup> inputGroups = new ArrayList<>();
+
+	@JsonPropertyDescription("Groups over the output ports (EXCLUSIVE selections)")
+	private List<PortGroup> outputGroups = new ArrayList<>();
+
+	@JsonPropertyDescription("Whether this kind derives extra ports from its options via a NodePortResolver")
+	private boolean dynamicPorts = false;
 
 	@JsonPropertyDescription("Configurable parameters (drives the edit form)")
 	private List<NodeParameter> parameters = new ArrayList<>();
@@ -100,22 +109,94 @@ public class NodeDescriptor {
 		return this;
 	}
 
-	public List<NodeInput> getInputs() {
-		return inputs;
+	public List<PortSpec> getInputPorts() {
+		return inputPorts;
 	}
 
-	public NodeDescriptor setInputs(List<NodeInput> inputs) {
-		this.inputs = inputs;
+	public NodeDescriptor setInputPorts(List<PortSpec> inputPorts) {
+		this.inputPorts = inputPorts;
 		return this;
 	}
 
-	public List<NodeOutput> getOutputs() {
-		return outputs;
+	public List<PortSpec> getOutputPorts() {
+		return outputPorts;
 	}
 
-	public NodeDescriptor setOutputs(List<NodeOutput> outputs) {
-		this.outputs = outputs;
+	public NodeDescriptor setOutputPorts(List<PortSpec> outputPorts) {
+		this.outputPorts = outputPorts;
 		return this;
+	}
+
+	public List<PortGroup> getInputGroups() {
+		return inputGroups;
+	}
+
+	public NodeDescriptor setInputGroups(List<PortGroup> inputGroups) {
+		this.inputGroups = inputGroups;
+		return this;
+	}
+
+	public List<PortGroup> getOutputGroups() {
+		return outputGroups;
+	}
+
+	public NodeDescriptor setOutputGroups(List<PortGroup> outputGroups) {
+		this.outputGroups = outputGroups;
+		return this;
+	}
+
+	public boolean isDynamicPorts() {
+		return dynamicPorts;
+	}
+
+	public NodeDescriptor setDynamicPorts(boolean dynamicPorts) {
+		this.dynamicPorts = dynamicPorts;
+		return this;
+	}
+
+	/**
+	 * Look up an input port by id.
+	 *
+	 * @return the port, or {@code null} when this kind declares no such input
+	 */
+	public PortSpec inputPort(String portId) {
+		return find(inputPorts, portId);
+	}
+
+	/**
+	 * Look up an output port by id.
+	 *
+	 * @return the port, or {@code null} when this kind declares no such output
+	 */
+	public PortSpec outputPort(String portId) {
+		return find(outputPorts, portId);
+	}
+
+	/**
+	 * Look up an input group by id.
+	 */
+	public PortGroup inputGroup(String groupId) {
+		if (groupId == null || inputGroups == null) {
+			return null;
+		}
+		return inputGroups.stream().filter(g -> groupId.equals(g.getId())).findFirst().orElse(null);
+	}
+
+	/**
+	 * Look up an output group by id.
+	 */
+	public PortGroup outputGroup(String groupId) {
+		if (groupId == null || outputGroups == null) {
+			return null;
+		}
+		return outputGroups.stream().filter(g -> groupId.equals(g.getId())).findFirst().orElse(null);
+	}
+
+	private static PortSpec find(List<PortSpec> ports, String portId) {
+		if (portId == null || ports == null) {
+			return null;
+		}
+		return ports.stream().filter(p -> portId.equals(p.getId())).findFirst().orElse(null);
 	}
 
 	public List<NodeParameter> getParameters() {

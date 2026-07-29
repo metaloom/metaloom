@@ -1,9 +1,10 @@
 package io.metaloom.loom.nodes.spec;
 
-import static io.metaloom.loom.nodes.spec.ContentTypes.*;
+import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.*;
 import static io.metaloom.loom.nodes.spec.NodeCategory.*;
 import static io.metaloom.loom.nodes.spec.NodeMode.*;
 import static io.metaloom.loom.nodes.spec.ParameterType.*;
+import static io.metaloom.loom.nodes.spec.PortSpec.one;
 
 import java.util.List;
 
@@ -24,11 +25,16 @@ public class SentimentDescriptorProvider implements NodeDescriptorProvider {
 				.setDescription("Score the polarity (positive/neutral/negative) of text produced by an upstream node. German and English.")
 				.setIcon("mood")
 				.setCategory(ANALYSIS)
-				.setInputs(List.of(new NodeInput("text", DATA_TEXT, true)))
-				.setOutputs(List.of(
-					new NodeOutput("sentiment_label", DATA_STRING),
-					new NodeOutput("sentiment_score", DATA_NUMBER),
-					new NodeOutput("sentiment_result", DATA_TEXT)))
+				.setInputPorts(List.of(
+					one("text", TEXT_ANY)
+						.describedAs("Text", "The prose to score - a transcript, caption, OCR result or any other upstream text")))
+				.setOutputPorts(List.of(
+					one("label", SCALAR_STRING)
+						.describedAs("Label", "The polarity class: positive, neutral or negative"),
+					one("score", SCALAR_NUMBER)
+						.describedAs("Score", "Polarity in [-1, 1]; its sign agrees with the label"),
+					one("result", STRUCT_JSON)
+						.describedAs("Result", "The sidecar's full answer, including the detected language and per-class confidences")))
 				.setParameters(List.of(
 					commonEnabled(), commonProcessIncomplete(), commonRetryFailed(),
 					new NodeParameter().setKey("sentimentHost").setType(STRING).setDefaultValue("localhost")

@@ -91,7 +91,7 @@ public class DepthmapNodeIntegrationTest extends AbstractNodeIntegrationTest {
 			assertThat(result.getState()).isEqualTo(ResultState.SUCCESS);
 
 			// The map must have been written to the local depthmap_bin cache, byte for byte.
-			String outPath = result.get(DepthmapNode.OUTPUT_DEPTHMAP_PATH);
+			String outPath = result.get(DepthmapNode.OUT_MAP);
 			assertThat(outPath).as("the node must emit the depth map path").isNotNull();
 			assertThat(outPath).contains("depthmap_bin");
 			assertThat(Files.exists(Path.of(outPath))).as("the PNG must be written under metaPath/depthmap_bin").isTrue();
@@ -105,7 +105,7 @@ public class DepthmapNodeIntegrationTest extends AbstractNodeIntegrationTest {
 				.isGreaterThan(written.getRaster().getSample(MAP_W - 2, 2, 0));
 
 			// The metadata carries what a downstream node needs to interpret the artifact.
-			JsonObject meta = new JsonObject(result.get(DepthmapNode.OUTPUT_DEPTHMAP_META));
+			JsonObject meta = new JsonObject(result.get(DepthmapNode.OUT_META));
 			assertThat(meta.getString("model")).isEqualTo(MODEL);
 			assertThat(meta.getString("convention")).isEqualTo("NEARNESS");
 			assertThat(meta.getInteger("width")).isEqualTo(MAP_W);

@@ -10,10 +10,10 @@ import io.metaloom.cortex.api.option.node.ValidationResult;
  * Options for the {@link SceneLayoutNode}.
  *
  * <p>
- * The node joins detector bounding boxes to a depth map. {@link #depthNodeId} names the upstream
- * {@code depthmap} node; {@link #detectionSources} names the upstream detector nodes whose
- * {@code detections} output is consumed, in priority order. When no upstream output is present and
- * {@link #allowLoomFallback} is set, the boxes are read back from Loom instead.
+ * The node joins detector bounding boxes to a depth map. Both arrive on declared input ports -
+ * {@code depth} and {@code detections} - so which upstream nodes supply them is a property of the
+ * wired graph, not of these options. When no detector is wired and {@link #allowLoomFallback} is
+ * set, the boxes are read back from Loom instead.
  * </p>
  *
  * <p>
@@ -26,13 +26,7 @@ public class SceneLayoutNodeOptions extends AbstractNodeOptions<SceneLayoutNodeO
 
 	public static final String KEY = "scene-layout";
 
-	public static final List<String> DEFAULT_DETECTION_SOURCES = List.of("facedetect");
-
-	private String depthNodeId = "depthmap";
-
-	private List<String> detectionSources = new ArrayList<>(DEFAULT_DETECTION_SOURCES);
-
-	/** Read detections back from Loom when no upstream node supplied them. */
+	/** Read detections back from Loom when nothing is wired into the detections port. */
 	private boolean allowLoomFallback = true;
 
 	/** Fraction inset on each side before sampling depth. 0.25 keeps the central 50%. */
@@ -68,24 +62,6 @@ public class SceneLayoutNodeOptions extends AbstractNodeOptions<SceneLayoutNodeO
 
 	@Override
 	protected SceneLayoutNodeOptions self() {
-		return this;
-	}
-
-	public String getDepthNodeId() {
-		return depthNodeId;
-	}
-
-	public SceneLayoutNodeOptions setDepthNodeId(String depthNodeId) {
-		this.depthNodeId = depthNodeId;
-		return this;
-	}
-
-	public List<String> getDetectionSources() {
-		return detectionSources;
-	}
-
-	public SceneLayoutNodeOptions setDetectionSources(List<String> detectionSources) {
-		this.detectionSources = detectionSources;
 		return this;
 	}
 
@@ -202,18 +178,6 @@ public class SceneLayoutNodeOptions extends AbstractNodeOptions<SceneLayoutNodeO
 		List<String> errors = new ArrayList<>();
 		errors.addAll(validateCommon());
 
-		if (depthNodeId == null || depthNodeId.isBlank()) {
-			errors.add("depthNodeId must not be empty");
-		}
-		if (detectionSources == null || detectionSources.isEmpty()) {
-			errors.add("detectionSources must not be empty");
-		} else {
-			for (String source : detectionSources) {
-				if (source == null || source.isBlank()) {
-					errors.add("detectionSources must not contain blank entries");
-				}
-			}
-		}
 		if (coreInset < 0 || coreInset >= 0.5) {
 			errors.add("coreInset must be in [0, 0.5), got " + coreInset);
 		}

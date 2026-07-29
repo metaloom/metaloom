@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.ResultState;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.node.sentiment.SentimentClient;
@@ -60,12 +61,15 @@ public class SentimentNodeIntegrationTest extends AbstractNodeIntegrationTest {
 			CortexOptions options = new CortexOptions().setMetaPath(metaPath);
 			SentimentNode node = new SentimentNode(client, options, new SentimentNodeOptions(), stubClient());
 
-			// The node is fed by an upstream node's text output; tika is first in the default source list.
+			// Fed through the declared text input port. Which upstream node fills it is the graph's
+			// business, not the node's - the old textSources option named node ids and is gone.
 			NodeContext<LoomMedia> ctx = NodeContext.create(media(image1()),
-				Map.of("tika", Map.of("tika_content", "Der Kundenservice war eine Katastrophe.")));
+				NodeInputs.builder()
+					.input(SentimentNode.IN_TEXT, "Der Kundenservice war eine Katastrophe.")
+					.build());
 			NodeResult result = node.process(ctx);
 			assertThat(result.getState()).isEqualTo(ResultState.SUCCESS);
-			assertThat(result.get(SentimentNode.OUTPUT_SENTIMENT_LABEL)).isEqualTo("NEGATIVE");
+			assertThat(result.get(SentimentNode.OUT_LABEL)).isEqualTo("NEGATIVE");
 
 			// The sentiment JSON component must be readable via REST, keyed by the source output key.
 			JsonCompResponse comp = client.listAssetJsonComps(asset.getUuid()).sync().body().getData().stream()

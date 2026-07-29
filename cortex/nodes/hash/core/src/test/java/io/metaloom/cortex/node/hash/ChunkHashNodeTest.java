@@ -22,11 +22,11 @@ public class ChunkHashNodeTest extends AbstractBasicNodeTest<ChunkHashNode> {
 		LoomMedia media = mediaVideo1();
 		NodeResult result = node().process(ctx(media));
 		assertThat(result).isSuccess();
-		assertThat(result).hasOutput(ChunkHashNode.OUTPUT_CHUNK_HASH, sampleVideoChunkHash().toString());
+		assertThat(result).hasOutput(ChunkHashNode.OUT_HASH, sampleVideoChunkHash().toString());
 
 		NodeResult result2 = node().process(ctx(media));
 		assertThat(result2).isSuccess();
-		assertThat(result2).hasOutput(ChunkHashNode.OUTPUT_CHUNK_HASH, sampleVideoChunkHash().toString());
+		assertThat(result2).hasOutput(ChunkHashNode.OUT_HASH, sampleVideoChunkHash().toString());
 	}
 
 	@Override
@@ -38,7 +38,7 @@ public class ChunkHashNodeTest extends AbstractBasicNodeTest<ChunkHashNode> {
 
 	@Override
 	protected void assertProcessed(TestMedia testMedia, LoomMedia media, NodeResult result, ChunkHashNode nodeMock) {
-		assertThat(result).hasOutput(ChunkHashNode.OUTPUT_CHUNK_HASH, testMedia.chunkHash().toString());
+		assertThat(result).hasOutput(ChunkHashNode.OUT_HASH, testMedia.chunkHash().toString());
 	}
 
 	@Override

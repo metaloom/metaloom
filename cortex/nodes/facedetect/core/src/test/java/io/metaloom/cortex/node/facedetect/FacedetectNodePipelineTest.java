@@ -66,8 +66,13 @@ class FacedetectNodePipelineTest extends AbstractNodeChainTest {
 		// Stub the compute method to avoid native calls
 		doAnswer(invocation -> {
 			NodeContext<LoomMedia> ctx = invocation.getArgument(0);
-			ctx.output(FacedetectNode.OUTPUT_FACE_COUNT, faceCount);
-			ctx.output(FacedetectNode.OUTPUT_FACEDETECT_FLAG, faceCount > 0 ? "SUCCESS" : "NONE");
+			ctx.output(FacedetectNode.OUT_FACE_COUNT, (long) faceCount);
+			ctx.output(FacedetectNode.OUT_FLAG, faceCount > 0 ? "SUCCESS" : "NONE");
+			// One element per face, matching what the real compute() emits: the element count is
+			// what the engine reads to size the downstream per-face fan-out.
+			for (int i = 0; i < faceCount; i++) {
+				ctx.outputElement(FacedetectNode.OUT_DETECTIONS, "{\"index\":" + i + ",\"type\":\"face\"}");
+			}
 			return ctx.origin(ResultOrigin.COMPUTED).next();
 		}).when(node).compute(any(), any());
 
@@ -87,8 +92,8 @@ class FacedetectNodePipelineTest extends AbstractNodeChainTest {
 		assertThat(result)
 				.isSuccess()
 				.hasCompletedNode("facedetect")
-				.hasNodeOutput("facedetect", "face_count", 3)
-				.hasNodeOutput("facedetect", "facedetect_flag", "SUCCESS");
+				.hasNodeOutput("facedetect", FacedetectNode.OUT_FACE_COUNT, 3L)
+				.hasNodeOutput("facedetect", FacedetectNode.OUT_FLAG, "SUCCESS");
 	}
 
 	@Test
@@ -100,7 +105,7 @@ class FacedetectNodePipelineTest extends AbstractNodeChainTest {
 		assertThat(result)
 				.isSuccess()
 				.hasCompletedNode("facedetect")
-				.hasNodeOutput("facedetect", "face_count", 1);
+				.hasNodeOutput("facedetect", FacedetectNode.OUT_FACE_COUNT, 1L);
 	}
 
 	@Test
@@ -111,8 +116,8 @@ class FacedetectNodePipelineTest extends AbstractNodeChainTest {
 
 		assertThat(result).node("facedetect")
 				.isCompleted()
-				.hasOutput("face_count", 0)
-				.hasOutput("facedetect_flag", "NONE");
+				.hasOutput(FacedetectNode.OUT_FACE_COUNT, 0L)
+				.hasOutput(FacedetectNode.OUT_FLAG, "NONE");
 	}
 
 	// ========================================================================
@@ -146,12 +151,13 @@ class FacedetectNodePipelineTest extends AbstractNodeChainTest {
 	@Test
 	void testOutputChaining() throws Exception {
 		CortexNodeAdapter faceAdapter = createAdapter(5);
-		CapturingNode consumer = new CapturingNode("consumer", "facedetect", "face_count");
+		CapturingNode consumer = new CapturingNode("consumer", FacedetectNode.OUT_FACE_COUNT);
 
 		PipelineResult result = execute(videoMedia, faceAdapter, consumer);
 
 		assertThat(result).isSuccess().hasNodeCount(3);
-		assertThat(consumer.capturedValues()).containsExactly(5);
+		// scalar/integer arrives as Long on both sides of the wire.
+		assertThat(consumer.capturedValues()).containsExactly(5L);
 	}
 
 	// ========================================================================

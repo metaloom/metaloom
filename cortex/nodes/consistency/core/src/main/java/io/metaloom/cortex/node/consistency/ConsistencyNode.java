@@ -10,8 +10,9 @@ import java.security.NoSuchAlgorithmException;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 
-import io.metaloom.cortex.api.node.NodeOutputKey;
+import io.metaloom.cortex.api.node.InputPort;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.media.LoomMedia;
@@ -19,6 +20,7 @@ import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.asset.AssetUpdateRequest;
 import io.metaloom.loom.rest.model.asset.info.ConsistencyInfo;
@@ -26,8 +28,10 @@ import io.metaloom.utils.hash.partial.PartialFile;
 
 public class ConsistencyNode extends AbstractMediaNode<ConsistencyNodeOptions> {
 
-	public static final NodeOutputKey<Long> OUTPUT_ZERO_CHUNK_COUNT = NodeOutputKey.of("zero_chunk_count", Long.class);
-	public static final NodeOutputKey<Boolean> OUTPUT_IS_COMPLETE = NodeOutputKey.of("is_complete", Boolean.class);
+	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_ANY, LoomMedia.class);
+
+	public static final OutputPort<Long> OUT_ZERO_CHUNK_COUNT = OutputPort.one("zero_chunk_count", ContentTypeRegistry.SCALAR_INTEGER, Long.class);
+	public static final OutputPort<Boolean> OUT_IS_COMPLETE = OutputPort.one("is_complete", ContentTypeRegistry.SCALAR_BOOLEAN, Boolean.class);
 
 	/** In-heap skip cache of the computed zero-chunk count, keyed by media path, to avoid re-scanning a file within this worker's lifetime. Non-durable
 	 * - the durable copy lives in Loom. */
@@ -56,27 +60,27 @@ public class ConsistencyNode extends AbstractMediaNode<ConsistencyNodeOptions> {
 
 		Long cached = resultCache.get(path);
 		if (cached != null) {
-			ctx.output(OUTPUT_ZERO_CHUNK_COUNT, cached);
-			ctx.output(OUTPUT_IS_COMPLETE, cached == 0);
+			ctx.output(OUT_ZERO_CHUNK_COUNT, cached);
+			ctx.output(OUT_IS_COMPLETE, cached == 0);
 			return ctx.origin(LOCAL).next();
 		}
 
 		if (asset == null) {
 			long count = computeZeroChunks(media);
-			ctx.output(OUTPUT_ZERO_CHUNK_COUNT, count);
-			ctx.output(OUTPUT_IS_COMPLETE, count == 0);
+			ctx.output(OUT_ZERO_CHUNK_COUNT, count);
+			ctx.output(OUT_IS_COMPLETE, count == 0);
 			resultCache.put(path, count);
 			return ctx.origin(COMPUTED).next();
 		} else {
 			Long dbCount = asset.getConsistency() != null ? asset.getConsistency().getZeroChunkCount() : null;
 			if (dbCount != null) {
-				ctx.output(OUTPUT_ZERO_CHUNK_COUNT, dbCount);
-				ctx.output(OUTPUT_IS_COMPLETE, dbCount == 0);
+				ctx.output(OUT_ZERO_CHUNK_COUNT, dbCount);
+				ctx.output(OUT_IS_COMPLETE, dbCount == 0);
 				return ctx.origin(REMOTE).next();
 			} else {
 				long count = computeZeroChunks(media);
-				ctx.output(OUTPUT_ZERO_CHUNK_COUNT, count);
-				ctx.output(OUTPUT_IS_COMPLETE, count == 0);
+				ctx.output(OUT_ZERO_CHUNK_COUNT, count);
+				ctx.output(OUT_IS_COMPLETE, count == 0);
 				resultCache.put(path, count);
 				persist(ctx, asset, count);
 				return ctx.origin(COMPUTED).next();

@@ -1,19 +1,31 @@
 package io.metaloom.cortex.api.node.context;
 
-import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
-import io.metaloom.cortex.api.node.NodeOutputKey;
+import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.api.node.Element;
+import io.metaloom.cortex.api.node.InputPort;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
+import io.metaloom.cortex.api.node.PortOutput;
 import io.metaloom.cortex.api.node.ResultOrigin;
 import io.metaloom.cortex.api.node.context.impl.NodeContextImpl;
-import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.loom.pipeline.model.Origin;
 
 /**
- * Context for a single node invocation. Wraps the typed input {@code I} and accumulates
- * metadata about the processing (origin, skip reason, timing, output data).
+ * Context for a single node invocation. Wraps the typed input {@code I} and accumulates metadata about the processing (origin, skip reason, timing,
+ * port outputs).
  *
- * @param <I> the input type
+ * <p>
+ * Data is addressed by <strong>port</strong>, never by node id. {@code upstreamOutput(nodeId, key)} is gone: it was keyed by a name the pipeline
+ * author picked in the editor, erased its generic, and returned {@code null} for a typo — which every caller then read as "upstream produced nothing".
+ * </p>
+ *
+ * @param <I>
+ *            the input type
  */
 public interface NodeContext<I> {
 
@@ -21,8 +33,8 @@ public interface NodeContext<I> {
 		return new NodeContextImpl<>(media);
 	}
 
-	static NodeContext<LoomMedia> create(LoomMedia media, Map<String, Map<String, Object>> upstreamOutputs) {
-		return new NodeContextImpl<>(media, upstreamOutputs);
+	static NodeContext<LoomMedia> create(LoomMedia media, NodeInputs inputs) {
+		return new NodeContextImpl<>(media, inputs);
 	}
 
 	/**
@@ -44,54 +56,89 @@ public interface NodeContext<I> {
 
 	NodeContext<I> origin(ResultOrigin origin);
 
-	ResultOrigin origin();
+	/**
+	 * Where the value came from — computed, read from a local cache, or fetched from Loom.
+	 *
+	 * <p>
+	 * Named apart from {@link #origin()} because the two answer different questions: this one is a provenance flag for reporting, that one is the
+	 * element identity the engine routes by.
+	 * </p>
+	 */
+	ResultOrigin resultOrigin();
 
 	NodeContext<I> failure(String cause);
 
+	// ── inputs ───────────────────────────────────────────────────────────
+
 	/**
-	 * Accumulate an output key-value pair using a typed {@link NodeOutputKey}.
+	 * Read a {@code ONE} input port.
 	 *
-	 * @param key   the typed output key
-	 * @param value the output value
+	 * @return the coerced value, or {@code null} when the port is optional and nothing was wired to it
+	 * @throws io.metaloom.loom.nodes.spec.ValueCoercionException
+	 *             when what arrived cannot satisfy the port's declared type
+	 */
+	<T> T input(InputPort<T> port);
+
+	/**
+	 * Read a {@code ONE} input port that may legitimately be absent.
+	 */
+	<T> Optional<T> optionalInput(InputPort<T> port);
+
+	/**
+	 * Read a {@code MANY} input port. The elements are seq-ordered and carry their origin, so two branches of the same fan-out can be zipped by
+	 * {@link Element#seq()}.
+	 *
+	 * @return the elements, never null; empty when nothing was wired
+	 */
+	<T> List<Element<T>> inputs(InputPort<T> port);
+
+	/**
+	 * The origin of this execution — the run item and, for a per-element node, which element of the sequence it is processing.
+	 *
+	 * @return the origin, or null when the node is running outside a pipeline run
+	 */
+	Origin origin();
+
+	/**
+	 * Whether the pipeline wired anything into this input port.
+	 *
+	 * <p>
+	 * This is how a node tells which alternative of an XOR group fed it — {@code whisper} asking whether it was handed audio or video.
+	 * </p>
+	 */
+	boolean isWired(InputPort<?> port);
+
+	/**
+	 * Whether anything downstream asked for this output port.
+	 *
+	 * <p>
+	 * A hint, not a restriction: emitting an undemanded port stays legal and is still persisted, because that is what keeps a run's diagnostics useful.
+	 * It exists so a node can skip genuinely expensive work nobody wants — not running the depth model when no edge leaves {@code map}.
+	 * </p>
+	 */
+	boolean isDemanded(OutputPort<?> port);
+
+	// ── outputs ──────────────────────────────────────────────────────────
+
+	/**
+	 * Emit the value of a {@code ONE} output port.
+	 *
 	 * @return this context for chaining
 	 */
-	<T> NodeContext<I> output(NodeOutputKey<T> key, T value);
+	<T> NodeContext<I> output(OutputPort<T> port, T value);
 
 	/**
-	 * Accumulate an output key-value pair. These outputs will be carried in the
-	 * {@link NodeResult} and made available to downstream dependent nodes.
+	 * Append one element to a {@code MANY} output port. The engine stamps {@code origin{itemId, seq, total}} at the boundary — a node only has to emit
+	 * in order.
 	 *
-	 * @param key   the output key (e.g. "fingerprint", "sha256")
-	 * @param value the output value
 	 * @return this context for chaining
 	 */
-	NodeContext<I> output(String key, Object value);
+	<T> NodeContext<I> outputElement(OutputPort<T> port, T value);
 
 	/**
-	 * Returns the accumulated output map.
+	 * The accumulated outputs, keyed by output port id.
 	 */
-	Map<String, Object> outputs();
-
-	/**
-	 * Returns the outputs from upstream (dependency) nodes, keyed by node id.
-	 * Each value is the output map of that upstream node.
-	 */
-	default Map<String, Map<String, Object>> upstreamOutputs() {
-		return Collections.emptyMap();
-	}
-
-	/**
-	 * Convenience: get a specific output from an upstream node.
-	 *
-	 * @param nodeId the upstream node id
-	 * @param key    the output key
-	 * @return the value, or null if not present
-	 */
-	@SuppressWarnings("unchecked")
-	default <T> T upstreamOutput(String nodeId, String key) {
-		Map<String, Object> nodeOutputs = upstreamOutputs().get(nodeId);
-		return nodeOutputs != null ? (T) nodeOutputs.get(key) : null;
-	}
+	Map<String, PortOutput> outputs();
 
 	NodeResult next();
 

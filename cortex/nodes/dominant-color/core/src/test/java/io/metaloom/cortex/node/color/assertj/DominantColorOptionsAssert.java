@@ -1,7 +1,5 @@
 package io.metaloom.cortex.node.color.assertj;
 
-import java.util.List;
-
 import io.metaloom.cortex.api.option.assertj.AbstractCortexNodeOptionsAssert;
 import io.metaloom.cortex.node.color.DominantColorNodeOptions;
 
@@ -42,14 +40,6 @@ public class DominantColorOptionsAssert extends AbstractCortexNodeOptionsAssert<
 		isNotNull();
 		if (actual.getAlphaThreshold() != expected) {
 			failWithMessage("Expected alphaThreshold to be '%s' but was '%s'", expected, actual.getAlphaThreshold());
-		}
-		return this;
-	}
-
-	public DominantColorOptionsAssert hasDetectionSources(String... expected) {
-		isNotNull();
-		if (!List.of(expected).equals(actual.getDetectionSources())) {
-			failWithMessage("Expected detectionSources to be '%s' but was '%s'", List.of(expected), actual.getDetectionSources());
 		}
 		return this;
 	}

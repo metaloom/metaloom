@@ -43,8 +43,8 @@ public class PipelineRunEngineBulkheadTest {
 				.add(new JsonObject().put("id", "speech").put("type", "whisper"))
 				.add(new JsonObject().put("id", "hash").put("type", "sha512")))
 			.put("edges", new JsonArray()
-				.add(new JsonObject().put("source", "src").put("target", "speech"))
-				.add(new JsonObject().put("source", "src").put("target", "hash")));
+				.add(new JsonObject().put("source", "src").put("sourcePort", "media").put("target", "speech").put("targetPort", "video"))
+				.add(new JsonObject().put("source", "src").put("sourcePort", "media").put("target", "hash").put("targetPort", "media")));
 		return parser.parse("bulkhead", definition, true, false, 0);
 	}
 
@@ -146,7 +146,7 @@ public class PipelineRunEngineBulkheadTest {
 				.add(new JsonObject().put("id", "src").put("type", "filesystem-source").put("source", true))
 				.add(new JsonObject().put("id", "speech").put("type", "whisper")
 					.put("options", new JsonObject().put("retryFailed", true))))
-			.put("edges", new JsonArray().add(new JsonObject().put("source", "src").put("target", "speech")));
+			.put("edges", new JsonArray().add(new JsonObject().put("source", "src").put("sourcePort", "media").put("target", "speech").put("targetPort", "video")));
 		PipelineRunEngine engine = new PipelineRunEngine(parser.parse("retry", definition, true, false, 0),
 			dispatcher, UUID.randomUUID());
 		engine.start();

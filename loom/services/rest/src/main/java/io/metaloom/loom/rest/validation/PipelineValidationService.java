@@ -13,6 +13,8 @@ import java.util.Set;
 import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.metaloom.loom.nodes.spec.NodeDescriptor;
 import io.metaloom.loom.nodes.spec.NodeDescriptorRegistry;
+import io.metaloom.loom.pipeline.graph.GraphValidationException;
+import io.metaloom.loom.pipeline.graph.PipelineGraphParser;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
@@ -143,6 +145,37 @@ public class PipelineValidationService {
             // it is how a broken graph used to look like it ran green while doing nothing;
             // reject it instead.
             validateReachableFromSource(allNodeIds, edges, declaredSources);
+
+            // Port wiring: the ports exist, their content types are compatible, required inputs
+            // and XOR groups are satisfied, only sequence inputs take several edges, and the
+            // fan-out shape is one the engine can execute.
+            validatePorts(definition);
+        }
+    }
+
+    /**
+     * Check the port wiring by parsing the definition exactly as a run would.
+     *
+     * <p>
+     * This deliberately <strong>delegates</strong> rather than reimplementing the rules.
+     * Validation logic in this feature has historically existed in three independent copies that
+     * drifted apart; the port rules live in {@code PortGraphAnalyzer} alone, and running the real
+     * parser here means a definition that saves is a definition that starts. The translation to
+     * {@link ValidationException} is all this method adds.
+     * </p>
+     */
+    private void validatePorts(JsonObject definition) {
+        try {
+            new PipelineGraphParser(nodeDescriptorRegistry)
+                .parse("definition", definition, true, false, 0);
+        } catch (GraphValidationException e) {
+            // The parser names the pipeline "definition" for want of anything better; strip that
+            // so the message reads as advice about the graph the author is looking at.
+            String message = e.getMessage();
+            if (message != null) {
+                message = message.replace("Pipeline 'definition' ", "");
+            }
+            throw new ValidationException(message == null ? "Invalid pipeline definition" : message);
         }
     }
 

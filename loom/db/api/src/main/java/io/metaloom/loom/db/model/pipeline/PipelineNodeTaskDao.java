@@ -12,7 +12,15 @@ import io.metaloom.loom.db.page.Page;
 
 public interface PipelineNodeTaskDao extends CRUDDao<PipelineNodeTask> {
 
-	/** Load every task recorded against one item, in creation order. */
+	/**
+	 * Load every task recorded against one item, in creation order.
+	 *
+	 * <p>
+	 * This is one row per <em>execution</em>, not per node: a node downstream of a fan-out has one
+	 * per element. Recovery must keep them apart, or a half-finished fan-out comes back one element
+	 * wide and the rest are stranded.
+	 * </p>
+	 */
 	List<PipelineNodeTask> loadByItem(UUID itemUuid);
 
 	List<PipelineNodeTask> loadByRun(UUID runUuid);
@@ -23,9 +31,17 @@ public interface PipelineNodeTaskDao extends CRUDDao<PipelineNodeTask> {
 	/**
 	 * Load a task by its idempotency key.
 	 *
-	 * @return the existing task, or null when this node has not run against the item
+	 * <p>
+	 * The element is part of that key. A node downstream of a fan-out has one row per element, so
+	 * {@code (item, node)} alone identifies an arbitrary one of them.
+	 * </p>
+	 *
+	 * @param elementSeq which element of a fanned-out sequence; 0 when the node runs once per item
+	 * @return the existing task, or null when this execution has not run against the item
 	 */
-	PipelineNodeTask loadByItemAndNode(UUID itemUuid, String nodeId);
+	PipelineNodeTask loadByItemAndNode(UUID itemUuid, String nodeId, int elementSeq);
+
+
 
 	/**
 	 * Find tasks whose lease has lapsed.

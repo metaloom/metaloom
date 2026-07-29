@@ -460,6 +460,7 @@ blockquote .paragraph {
    colours follow the .ml-* figure vocabulary above so the node pages, the architecture diagram and
    the deployment diagram read as one system. */
 .ml-nodeviz { margin: 1.75rem 0 2rem; }
+.ml-nodeviz .nv-stage { position: relative; }
 .ml-nodeviz .nv-stage svg { width: 100%; max-width: 900px; height: auto; display: block; margin: 0 auto; }
 .ml-nodeviz text { font-family: "Quattrocento Sans", sans-serif; }
 
@@ -477,11 +478,131 @@ blockquote .paragraph {
 .nv-tab:hover { color: #cfe9e9; border-color: #57cbcc; }
 .nv-tab.is-active { background: rgba(87, 203, 204, .14); border-color: #57cbcc; color: #cfe9e9; }
 
-.nv-port-bg { fill: rgba(35, 40, 47, .55); stroke: #3c454e; stroke-width: 1; }
+.nv-port-bg { fill: rgba(35, 40, 47, .55); stroke: #3c454e; stroke-width: 1; transition: fill .18s, stroke .18s; }
 .nv-port.is-opt .nv-port-bg { stroke-dasharray: 4 4; }
 .nv-port-label { fill: #cdd6df; font-size: 13px; font-weight: 600; }
 .nv-port-type { fill: #8a95a0; font-size: 11px; }
 .nv-ico-glyph { font-family: "JetBrains Mono", "Consolas", monospace; font-weight: 700; }
+
+/* A connector is an affordance: it answers "what does this carry" on hover, so it has to look
+   touchable and take keyboard focus like any other control. */
+.nv-port { cursor: help; outline: none; }
+.nv-port:hover .nv-port-bg,
+.nv-port:focus-visible .nv-port-bg { fill: rgba(46, 56, 66, .85); stroke: #57cbcc; }
+.nv-port:focus-visible .nv-port-bg { stroke-width: 2; }
+
+/* ---- the connector hover card ----
+   Positioned by nodeviz.js inside .nv-stage. The header pairs the type icon with a flow track whose
+   motion *is* the cardinality: one pip crossing once for a ONE port, a staggered stream for MANY. */
+.nv-tip {
+  background: #20262e;
+  border: 1px solid #4e595f;
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .45);
+  color: #cdd6df;
+  left: 0;
+  opacity: 0;
+  padding: 0;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  transform: translateY(4px);
+  transition: opacity .16s ease-out, transform .16s ease-out;
+  width: 268px;
+  z-index: 5;
+}
+.nv-tip.is-shown { opacity: 1; transform: translateY(0); }
+.nv-tip::after {
+  border: 7px solid transparent;
+  border-top-color: #4e595f;
+  content: "";
+  left: 50%;
+  margin-left: -7px;
+  position: absolute;
+  top: 100%;
+}
+.nv-tip.is-below::after { border-top-color: transparent; border-bottom-color: #4e595f; top: auto; bottom: 100%; }
+
+.nv-tip-head {
+  align-items: center;
+  border-bottom: 1px solid #333c45;
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px 8px;
+}
+.nv-tip-ico { flex: 0 0 auto; line-height: 0; }
+.nv-tip-headings { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.nv-tip-type { color: #e0e5ea; font-size: 13px; font-weight: 700; }
+.nv-tip-ct { color: var(--nv-tip-color, #8a95a0); font-family: "JetBrains Mono", "Consolas", monospace; font-size: 10.5px; background: none; border: 0; padding: 0; }
+.nv-tip-card {
+  background: rgba(127, 180, 255, .14);
+  border: 1px solid rgba(127, 180, 255, .45);
+  border-radius: 10px;
+  color: #9fc4ff;
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  margin-left: auto;
+  padding: 2px 8px;
+  text-transform: uppercase;
+}
+.nv-tip-card.is-many { background: rgba(226, 162, 78, .16); border-color: rgba(226, 162, 78, .5); color: #efbc78; }
+
+/* The flow track. A ONE port fires one pip per cycle and then rests, so the eye reads "a single
+   thing arrives". A MANY port keeps three pips in flight on a stagger, which reads as a stream. */
+.nv-tip-track {
+  height: 10px;
+  margin: 0;
+  overflow: hidden;
+  position: relative;
+}
+.nv-tip-pip {
+  background: var(--nv-tip-color, #57cbcc);
+  border-radius: 50%;
+  height: 5px;
+  left: 0;
+  opacity: 0;
+  position: absolute;
+  top: 3px;
+  width: 5px;
+}
+.nv-tip.is-shown .nv-tip-pip { animation: nv-pip 2.6s linear infinite; }
+.nv-tip.is-shown .nv-tip-pip:nth-child(2),
+.nv-tip.is-shown .nv-tip-pip:nth-child(3) { animation: none; }
+.nv-tip.is-shown.is-many .nv-tip-pip { animation: nv-pip 1.5s linear infinite; }
+.nv-tip.is-shown.is-many .nv-tip-pip:nth-child(2) { animation-delay: .5s; }
+.nv-tip.is-shown.is-many .nv-tip-pip:nth-child(3) { animation-delay: 1s; }
+@keyframes nv-pip {
+  0%   { left: 10px; opacity: 0; }
+  12%  { opacity: 1; }
+  80%  { opacity: 1; }
+  100% { left: calc(100% - 14px); opacity: 0; }
+}
+/* The icon breathes in time with the pips — one pulse for ONE, a quicker beat for MANY. */
+.nv-tip.is-shown .nv-tip-ico { animation: nv-ico-pulse 2.6s ease-in-out infinite; }
+.nv-tip.is-shown.is-many .nv-tip-ico { animation-duration: 1.5s; }
+@keyframes nv-ico-pulse {
+  0%, 70%, 100% { transform: scale(1); }
+  12%           { transform: scale(1.14); }
+}
+
+.nv-tip-body { padding: 8px 12px 11px; }
+.nv-tip-name { color: #e0e5ea; font-family: "JetBrains Mono", "Consolas", monospace; font-size: 12px; font-weight: 700; }
+.nv-tip-desc { color: #afbac4; font-size: 12px; line-height: 1.5; margin: 4px 0 6px; }
+.nv-tip-meta { color: #7f8b98; font-size: 10.5px; letter-spacing: .03em; text-transform: uppercase; }
+
+/* A MANY connector is marked in the diagram itself, so cardinality survives a printout. */
+.nv-many-mark { pointer-events: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .nv-tip .nv-tip-pip { animation: none !important; opacity: 1; left: 50%; }
+  .nv-tip .nv-tip-ico { animation: none !important; }
+  .nv-tip.is-many .nv-tip-pip:nth-child(2) { left: calc(50% - 12px); }
+  .nv-tip.is-many .nv-tip-pip:nth-child(3) { left: calc(50% + 12px); }
+  .nv-tip:not(.is-many) .nv-tip-pip:nth-child(2),
+  .nv-tip:not(.is-many) .nv-tip-pip:nth-child(3) { display: none; }
+}
 
 .nv-node-box { fill: #243b3c; stroke: #57cbcc; stroke-width: 2; }
 /* fill comes from the per-diagram gradient defined in nodeviz.js */
@@ -506,6 +627,20 @@ blockquote .paragraph {
 .ml-nodeviz-legend { display: flex; flex-wrap: wrap; gap: 10px 18px; margin: 1.25rem 0 1.75rem; }
 .nv-legend-item { align-items: center; background: rgba(35, 40, 47, .55); border: 1px solid #3c454e; border-radius: 8px; display: flex; gap: 8px; padding: 6px 12px 6px 8px; }
 .nv-legend-item span { color: #afbac4; font-size: 12.5px; }
+.nv-legend-ct { background: none; border: 0; color: #6b7681; font-family: "JetBrains Mono", "Consolas", monospace; font-size: 10.5px; padding: 0; }
+.nv-legend-note { color: #8a95a0; flex-basis: 100%; font-size: 12.5px; line-height: 1.6; margin: .35rem 0 0; }
+.nv-card-chip {
+  background: rgba(127, 180, 255, .14);
+  border: 1px solid rgba(127, 180, 255, .45);
+  border-radius: 10px;
+  color: #9fc4ff;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  padding: 1px 7px;
+  text-transform: uppercase;
+}
+.nv-card-chip.is-many { background: rgba(226, 162, 78, .16); border-color: rgba(226, 162, 78, .5); color: #efbc78; }
 
 /* Shared bits for the hand-drawn figures (sandbox lifecycle, deployment overview). */
 .ml-chip { fill: #2f3843; stroke: #4e595f; stroke-width: 1; }

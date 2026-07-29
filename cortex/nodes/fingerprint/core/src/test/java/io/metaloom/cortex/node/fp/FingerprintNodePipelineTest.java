@@ -66,7 +66,7 @@ class FingerprintNodePipelineTest extends AbstractNodeChainTest {
 		// Stub the compute method to avoid native Video4j calls
 		doAnswer(invocation -> {
 			NodeContext<LoomMedia> ctx = invocation.getArgument(0);
-			ctx.output(FingerprintNode.OUTPUT_FINGERPRINT, FAKE_FINGERPRINT);
+			ctx.output(FingerprintNode.OUT_FINGERPRINT, FAKE_FINGERPRINT);
 			return ctx.origin(ResultOrigin.COMPUTED).next();
 		}).when(node).compute(any(), any());
 
@@ -86,7 +86,7 @@ class FingerprintNodePipelineTest extends AbstractNodeChainTest {
 		assertThat(result)
 				.isSuccess()
 				.hasCompletedNode("fingerprint")
-				.hasNodeOutput("fingerprint", "fingerprint", FAKE_FINGERPRINT);
+				.hasNodeOutput("fingerprint", FingerprintNode.OUT_FINGERPRINT, FAKE_FINGERPRINT);
 	}
 
 	@Test
@@ -97,7 +97,7 @@ class FingerprintNodePipelineTest extends AbstractNodeChainTest {
 
 		assertThat(result).node("fingerprint")
 				.isCompleted()
-				.hasOutput("fingerprint", FAKE_FINGERPRINT)
+				.hasOutput(FingerprintNode.OUT_FINGERPRINT, FAKE_FINGERPRINT)
 				.hasOutputCount(1);
 	}
 
@@ -132,7 +132,7 @@ class FingerprintNodePipelineTest extends AbstractNodeChainTest {
 	@Test
 	void testOutputChaining() throws Exception {
 		CortexNodeAdapter fpAdapter = createAdapter();
-		CapturingNode consumer = new CapturingNode("consumer", "fingerprint", "fingerprint");
+		CapturingNode consumer = new CapturingNode("consumer", FingerprintNode.OUT_FINGERPRINT);
 
 		PipelineResult result = execute(media, fpAdapter, consumer);
 
@@ -179,7 +179,7 @@ class FingerprintNodePipelineTest extends AbstractNodeChainTest {
 
 		doAnswer(invocation -> {
 			NodeContext<LoomMedia> ctx = invocation.getArgument(0);
-			ctx.output(FingerprintNode.OUTPUT_FINGERPRINT, FAKE_FINGERPRINT);
+			ctx.output(FingerprintNode.OUT_FINGERPRINT, FAKE_FINGERPRINT);
 			return ctx.origin(ResultOrigin.COMPUTED).next();
 		}).when(node).compute(any(), any());
 

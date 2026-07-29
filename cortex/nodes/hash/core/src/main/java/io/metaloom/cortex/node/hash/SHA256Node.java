@@ -10,8 +10,9 @@ import javax.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.metaloom.cortex.api.node.NodeOutputKey;
+import io.metaloom.cortex.api.node.InputPort;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
@@ -19,6 +20,7 @@ import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.asset.AssetUpdateRequest;
 import io.metaloom.loom.rest.model.asset.info.HashInfo;
@@ -29,7 +31,9 @@ public class SHA256Node extends AbstractMediaNode<HashNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(SHA256Node.class);
 
-	public static final NodeOutputKey<String> OUTPUT_SHA256 = NodeOutputKey.of("sha256", String.class);
+	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_ANY, LoomMedia.class);
+
+	public static final OutputPort<String> OUT_HASH = OutputPort.one("hash", ContentTypeRegistry.HASH_SHA256, String.class);
 
 	/** In-heap skip cache of computed hashes, keyed by media path, to avoid re-reading a file within this worker's lifetime. Non-durable - the durable
 	 * copy lives in Loom. */
@@ -54,17 +58,17 @@ public class SHA256Node extends AbstractMediaNode<HashNodeOptions> {
 	protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) {
 		if (asset != null && asset.getHashes().getSHA256() != null) {
 			String sha256 = asset.getHashes().getSHA256().toString();
-			ctx.output(OUTPUT_SHA256, sha256);
+			ctx.output(OUT_HASH, sha256);
 			return ctx.origin(REMOTE).next();
 		}
 		String path = ctx.media().absolutePath();
 		String cached = resultCache.get(path);
 		if (cached != null) {
-			ctx.output(OUTPUT_SHA256, cached);
+			ctx.output(OUT_HASH, cached);
 			return ctx.origin(LOCAL).next();
 		}
 		SHA256 hash = HashUtils.computeSHA256(ctx.media().file());
-		ctx.output(OUTPUT_SHA256, hash.toString());
+		ctx.output(OUT_HASH, hash.toString());
 		resultCache.put(path, hash.toString());
 		persist(ctx, asset, hash);
 		return ctx.origin(COMPUTED).next();

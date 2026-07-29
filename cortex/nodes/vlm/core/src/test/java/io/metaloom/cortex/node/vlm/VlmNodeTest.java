@@ -78,7 +78,7 @@ public class VlmNodeTest extends AbstractMediaTest {
 		NodeResult result = node.process(ocrImage());
 
 		assertEquals(ResultState.SUCCESS, result.getState());
-		String text = result.get(VlmNode.resultKey(VlmPromptPresets.OLMOCR_ID));
+		String text = result.get(VlmNode.resultPort(VlmPromptPresets.OLMOCR_ID));
 		assertNotNull(text);
 		assertTrue(text.contains("Albert Einstein"), "Expected the transcription, got: " + text);
 		// The front matter must be stripped from the emitted text - it is metadata, not page content.
@@ -110,7 +110,7 @@ public class VlmNodeTest extends AbstractMediaTest {
 		NodeResult result = node.process(ocrImage());
 
 		assertEquals(ResultState.SUCCESS, result.getState());
-		assertEquals("Just some plain text with no header at all.", result.get(VlmNode.resultKey(VlmPromptPresets.OLMOCR_ID)));
+		assertEquals("Just some plain text with no header at all.", result.get(VlmNode.resultPort(VlmPromptPresets.OLMOCR_ID)));
 	}
 
 	/**
@@ -134,7 +134,7 @@ public class VlmNodeTest extends AbstractMediaTest {
 
 		assertEquals(ResultState.SUCCESS, result.getState());
 		assertEquals(0, server.remainingResponses(), "Expected the node to retry once after the rotation hint");
-		assertTrue(result.get(VlmNode.resultKey(VlmPromptPresets.OLMOCR_ID)).contains("Albert Einstein"),
+		assertTrue(result.get(VlmNode.resultPort(VlmPromptPresets.OLMOCR_ID)).contains("Albert Einstein"),
 			"Expected the retry's transcription to win");
 	}
 
@@ -178,7 +178,7 @@ public class VlmNodeTest extends AbstractMediaTest {
 		NodeResult result = node.process(ocrImage());
 
 		assertEquals(ResultState.SUCCESS, result.getState());
-		assertTrue(result.get(VlmNode.resultKey(VlmPromptPresets.OLMOCR_ID)).startsWith("The beginning of a very long page"));
+		assertTrue(result.get(VlmNode.resultPort(VlmPromptPresets.OLMOCR_ID)).startsWith("The beginning of a very long page"));
 	}
 
 	/**
@@ -196,8 +196,8 @@ public class VlmNodeTest extends AbstractMediaTest {
 
 		assertEquals(ResultState.SUCCESS, first.getState());
 		assertEquals(ResultState.SUCCESS, second.getState());
-		assertEquals(first.get(VlmNode.resultKey(VlmPromptPresets.OLMOCR_ID)),
-			second.get(VlmNode.resultKey(VlmPromptPresets.OLMOCR_ID)));
+		assertEquals(first.get(VlmNode.resultPort(VlmPromptPresets.OLMOCR_ID)),
+			second.get(VlmNode.resultPort(VlmPromptPresets.OLMOCR_ID)));
 		assertEquals(0, server.remainingResponses(), "The cached run must not call the endpoint again");
 	}
 
@@ -231,7 +231,7 @@ public class VlmNodeTest extends AbstractMediaTest {
 		NodeResult result = node.process(ocrImage());
 
 		assertEquals(ResultState.SUCCESS, result.getState());
-		assertEquals("A man in a suit looking at the camera.", result.get(VlmNode.resultKey("caption")));
+		assertEquals("A man in a suit looking at the camera.", result.get(VlmNode.resultPort("caption")));
 	}
 
 	@Test

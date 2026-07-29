@@ -13,10 +13,10 @@ import org.junit.jupiter.api.Test;
 import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.metaloom.loom.nodes.spec.NodeDescriptor;
 import io.metaloom.loom.nodes.spec.NodeDescriptorRegistry;
-import io.metaloom.loom.nodes.spec.NodeInput;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.nodes.spec.NodeMode;
-import io.metaloom.loom.nodes.spec.NodeOutput;
 import io.metaloom.loom.nodes.spec.NodeParameter;
+import io.metaloom.loom.nodes.spec.PortSpec;
 import io.metaloom.loom.nodes.spec.ParameterType;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -52,8 +52,19 @@ public class PipelineValidationServiceTest {
             .setDescription("Test node: " + name)
             .setIcon("test")
             .setCategory(category)
-            .setInputs(List.of(new NodeInput("media", "media/any", true)))
-            .setOutputs(List.of(new NodeOutput("output", "data/any")))
+            // A source has nothing to receive; everything else takes media and passes media on, so
+            // any two of these fixtures can be wired together. The input is declared *optional*
+            // deliberately: these cases are about ids, cycles, reachability and filter branches, and
+            // a required input would make every one of them fail on port satisfaction instead -
+            // which is a rule with its own coverage.
+            .setInputPorts(category == NodeCategory.SOURCE
+                ? List.of()
+                : List.of(PortSpec.optionalOne("media", ContentTypeRegistry.MEDIA_ANY),
+                    // A sequence port so a fixture can model a converging (diamond) graph: a ONE
+                    // port with two incoming edges is an error now, and the fan-in cases below are
+                    // about cycles and reachability rather than about cardinality.
+                    PortSpec.optionalMany("media_seq", ContentTypeRegistry.MEDIA_ANY)))
+            .setOutputPorts(List.of(PortSpec.one("media", ContentTypeRegistry.MEDIA_ANY)))
             .setParameters(List.of())
             .setDefaultConcurrency(1)
             .setDefaultMode(NodeMode.PARALLEL)
@@ -88,8 +99,9 @@ public class PipelineValidationServiceTest {
             List.of(
                 createEdge("source", "hash1"),
                 createEdge("source", "hash2"),
-                createEdge("hash1", "thumb"),
-                createEdge("hash2", "thumb")
+                // Both branches converge on 'thumb', so they must land on its sequence port.
+                createEdge("hash1", "thumb", "media_seq"),
+                createEdge("hash2", "thumb", "media_seq")
             )
         );
         
@@ -349,8 +361,8 @@ public class PipelineValidationServiceTest {
             List.of(
                 createEdge("a", "b"),
                 createEdge("a", "c"),
-                createEdge("b", "d"),
-                createEdge("c", "d")
+                createEdge("b", "d", "media_seq"),
+                createEdge("c", "d", "media_seq")
             )
         );
         
@@ -522,10 +534,21 @@ public class PipelineValidationServiceTest {
         return createNode(id, type).put("source", true);
     }
 
+    /**
+     * Edges name both ports - an edge that names neither is rejected outright now. Every fixture
+     * descriptor speaks {@code media/*} on both sides, so any pair of them is a legal connection.
+     */
     private JsonObject createEdge(String source, String target) {
+        return createEdge(source, target, "media");
+    }
+
+    /** An edge into a named target port - used where several edges converge on one node. */
+    private JsonObject createEdge(String source, String target, String targetPort) {
         return new JsonObject()
             .put("source", source)
-            .put("target", target);
+            .put("sourcePort", "media")
+            .put("target", target)
+            .put("targetPort", targetPort);
     }
 
     private JsonObject createBranchEdge(String source, String target, String branch) {

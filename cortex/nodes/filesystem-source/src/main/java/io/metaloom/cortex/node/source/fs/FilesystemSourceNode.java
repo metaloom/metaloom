@@ -20,8 +20,12 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.common.media.LoomMediaLoader;
 import io.metaloom.cortex.pipeline.api.NodeMode;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
+import io.metaloom.cortex.api.node.PortOutput;
 import io.metaloom.cortex.pipeline.api.node.MediaSourceNode;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.cortex.pipeline.core.node.AbstractPipelineNode;
 import io.metaloom.fs.FileIndexStore;
 import io.metaloom.fs.FileInfo;
@@ -56,9 +60,16 @@ public class FilesystemSourceNode extends AbstractPipelineNode implements MediaS
 
 	public static final String DEFAULT_ID = "filesystem-source";
 
-	private static final String OUTPUT_PATH = "path";
-	private static final String OUTPUT_SOURCE = "source";
-	private static final String OUTPUT_STATE = "state";
+	/**
+	 * The one output this source declares: a reference to the file that is flowing through the DAG.
+	 *
+	 * <p>
+	 * {@code media/*} rather than a concrete subtype because the mime is not known until the file is
+	 * opened — the wildcard-into-subtype arm of the assignability lattice is what lets this wire into
+	 * an image- or video-specific consumer, with the real check deferred to the runtime boundary.
+	 * </p>
+	 */
+	public static final OutputPort<String> OUT_MEDIA = OutputPort.one("media", ContentTypeRegistry.MEDIA_ANY, String.class);
 
 	private final LoomMediaLoader mediaLoader;
 	private final Path root;
@@ -184,16 +195,26 @@ public class FilesystemSourceNode extends AbstractPipelineNode implements MediaS
 	}
 
 	/**
-	 * Emits the resolved path and diff state for the media item currently flowing through the DAG. The actual enumeration happens in {@link #stream()}; this only
-	 * records the source/state in the per-media result map for downstream nodes and the UI.
+	 * Emits a reference to the media item currently flowing through the DAG. The actual enumeration happens in {@link #stream()}; this only puts the
+	 * reference on the declared output port so downstream nodes can be wired to it.
+	 *
+	 * <p>
+	 * The diff state is deliberately not an output: it is scan bookkeeping, not pipeline data, and the descriptor declares exactly one port. It stays
+	 * available through {@link #lastState(String)} for reporting.
+	 * </p>
 	 */
 	@Override
-	public NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults) {
-		FileState state = lastStates.get(media.absolutePath());
-		return NodeResult.success(id(), 0, Map.of(
-			OUTPUT_PATH, media.absolutePath(),
-			OUTPUT_SOURCE, "filesystem",
-			OUTPUT_STATE, state != null ? state.name() : FileState.UNKNOWN.name()));
+	public NodeResult process(LoomMedia media, NodeInputs inputs) {
+		return NodeResult.success(id(), 0,
+			Map.of(OUT_MEDIA.id(), new PortOutput(OUT_MEDIA, List.of(media.absolutePath()))));
+	}
+
+	/**
+	 * The diff state the last scan recorded for the given path, or {@link FileState#UNKNOWN}.
+	 */
+	public FileState lastState(String absolutePath) {
+		FileState state = lastStates.get(absolutePath);
+		return state != null ? state : FileState.UNKNOWN;
 	}
 
 	/**

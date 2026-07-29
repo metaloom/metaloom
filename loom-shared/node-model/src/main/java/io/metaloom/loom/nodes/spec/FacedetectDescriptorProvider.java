@@ -1,9 +1,12 @@
 package io.metaloom.loom.nodes.spec;
 
-import static io.metaloom.loom.nodes.spec.ContentTypes.*;
+import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.*;
 import static io.metaloom.loom.nodes.spec.NodeCategory.*;
 import static io.metaloom.loom.nodes.spec.NodeMode.*;
 import static io.metaloom.loom.nodes.spec.ParameterType.*;
+import static io.metaloom.loom.nodes.spec.PortGroup.xor;
+import static io.metaloom.loom.nodes.spec.PortSpec.many;
+import static io.metaloom.loom.nodes.spec.PortSpec.one;
 
 import java.util.List;
 
@@ -24,13 +27,20 @@ public class FacedetectDescriptorProvider implements NodeDescriptorProvider {
 				.setDescription("Detect and cluster faces in images and video frames.")
 				.setIcon("face")
 				.setCategory(ANALYSIS)
-				.setInputs(List.of(
-					new NodeInput("media", MEDIA_IMAGE, true),
-					new NodeInput("media", MEDIA_VIDEO, true)))
-				.setOutputs(List.of(
-					new NodeOutput("face_count", DATA_INTEGER),
-					new NodeOutput("facedetect_flag", DATA_STRING),
-					new NodeOutput("detections", DATA_FACEDETECTION)))
+				.setInputPorts(List.of(
+					one("image", MEDIA_IMAGE).inGroup("media_alt")
+						.describedAs("Image", "A still image to search for faces"),
+					one("video", MEDIA_VIDEO).inGroup("media_alt")
+						.describedAs("Video", "A video whose frames are sampled and searched")))
+				.setInputGroups(List.of(
+					xor("media_alt", "Media")))
+				.setOutputPorts(List.of(
+					many("detections", DETECTION_FACE)
+						.describedAs("Face Detections", "One element per detected face, so a downstream node can run once per face rather than once per file"),
+					one("face_count", SCALAR_INTEGER)
+						.describedAs("Face Count", "How many distinct faces survived clustering"),
+					one("flag", SCALAR_STRING)
+						.describedAs("Flag", "Processing marker recording how this node finished for the item")))
 				.setParameters(List.of(
 					commonEnabled(), commonProcessIncomplete(), commonRetryFailed(),
 					new NodeParameter().setKey("videoChopRate").setType(INTEGER).setDefaultValue(5)
@@ -60,8 +70,12 @@ public class FacedetectDescriptorProvider implements NodeDescriptorProvider {
 				.setDescription("Generate textual descriptions of detected faces.")
 				.setIcon("face_retouching_natural")
 				.setCategory(ANALYSIS)
-				.setInputs(List.of(new NodeInput("facedetection", DATA_FACEDETECTION, true)))
-				.setOutputs(List.of(new NodeOutput("face_description", DATA_TEXT)))
+				.setInputPorts(List.of(
+					many("detections", DETECTION_FACE)
+						.describedAs("Face Detections", "The faces to describe, one element each - typically straight from a facedetect node")))
+				.setOutputPorts(List.of(
+					many("descriptions", TEXT_PLAIN)
+						.describedAs("Descriptions", "One description per incoming face, in the same order as the detections")))
 				.setParameters(List.of(commonEnabled(), commonProcessIncomplete(), commonRetryFailed()))
 				.setDefaultConcurrency(2)
 				.setDefaultMode(PARALLEL)

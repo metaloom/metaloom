@@ -10,9 +10,10 @@ import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.NodeResult;
-import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
+import io.metaloom.loom.pipeline.model.NodeState;
 import io.metaloom.loom.pipeline.model.NodeTaskResult;
+import io.metaloom.loom.pipeline.model.PortPayload;
 import io.metaloom.loom.pipeline.model.SegmentNode;
 import io.metaloom.loom.pipeline.model.SegmentTask;
 import io.metaloom.loom.pipeline.model.SegmentTaskResult;
@@ -81,22 +82,24 @@ public class SegmentTaskRunner {
 
 		// Seeded with what came from outside the segment; nodes inside it add to this
 		// as they go, and those additions never cross the network.
-		Map<String, NodeResult> results = new LinkedHashMap<>(
-			NodeResultMapper.toUpstreamResults(task.getUpstreamOutputs()));
+		Map<String, PortPayload> available = new LinkedHashMap<>(task.getInputs());
+		Map<String, NodeState> states = new LinkedHashMap<>();
 		List<NodeTaskResult> wireResults = new ArrayList<>();
 
 		for (SegmentNode node : task.getNodes()) {
-			String skipReason = blockedBy(node, results);
+			String skipReason = blockedBy(node, states);
 			if (skipReason != null) {
 				NodeTaskResult skipped = NodeTaskResult.skipped(node.getNodeId(), skipReason);
 				wireResults.add(skipped);
-				results.put(node.getNodeId(), NodeResult.skipped(node.getNodeId(), skipReason));
+				states.put(node.getNodeId(), NodeState.SKIPPED);
 				continue;
 			}
 
-			NodeTaskResult result = runOne(task, node, media, results);
+			NodeTaskResult result = runOne(task, node, media, available);
 			wireResults.add(result);
-			results.put(node.getNodeId(), NodeResultMapper.toLocal(result));
+			states.put(node.getNodeId(), result.getState());
+			// A node's outputs become the next node's inputs, matched by port id.
+			available.putAll(result.getOutputs());
 		}
 
 		return new SegmentTaskResult(task.getTaskUuid(), task.getRunUuid(), task.getItemId(), task.getSegmentId(),
@@ -106,14 +109,13 @@ public class SegmentTaskRunner {
 	/**
 	 * @return why this node must be skipped, or null when it should run
 	 */
-	private String blockedBy(SegmentNode node, Map<String, NodeResult> results) {
+	private String blockedBy(SegmentNode node, Map<String, NodeState> states) {
 		if (!node.isBlocking()) {
 			// Runs anyway and sees the failure in its inputs, matching the engine.
 			return null;
 		}
 		for (String dep : node.getDependencies()) {
-			NodeResult depResult = results.get(dep);
-			if (depResult != null && depResult.getState() == ResultState.FAILED) {
+			if (states.get(dep) == NodeState.FAILED) {
 				return "Dependency " + dep + " failed";
 			}
 		}
@@ -121,17 +123,17 @@ public class SegmentTaskRunner {
 	}
 
 	private NodeTaskResult runOne(SegmentTask task, SegmentNode node, LoomMedia media,
-		Map<String, NodeResult> results) {
+		Map<String, PortPayload> available) {
 		long start = System.currentTimeMillis();
 		try {
 			PipelineNode instance = instantiator.create(toNodeDefinition(node));
-			NodeResult result = instance.process(media, Map.copyOf(results));
+			NodeResult result = instance.process(media, NodeResultMapper.toInputs(task, available));
 			if (result == null) {
 				return NodeTaskResult.failed(task.getTaskUuid(), node.getNodeId(),
 					System.currentTimeMillis() - start,
 					"Node '" + node.getNodeKind() + "' returned no result");
 			}
-			return NodeResultMapper.toWire(task.getTaskUuid(), result);
+			return NodeResultMapper.toWire(task, result);
 		} catch (Exception e) {
 			// One bad node must not abandon the rest of the segment: the nodes after it
 			// may not depend on it, and the engine needs an answer for every one.

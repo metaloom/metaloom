@@ -1,9 +1,10 @@
 package io.metaloom.loom.nodes.spec;
 
-import static io.metaloom.loom.nodes.spec.ContentTypes.*;
+import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.*;
 import static io.metaloom.loom.nodes.spec.NodeCategory.*;
 import static io.metaloom.loom.nodes.spec.NodeMode.*;
 import static io.metaloom.loom.nodes.spec.ParameterType.*;
+import static io.metaloom.loom.nodes.spec.PortSpec.one;
 
 import java.util.List;
 
@@ -24,8 +25,12 @@ public class SceneDetectionDescriptorProvider implements NodeDescriptorProvider 
 				.setDescription("Detect scene boundaries in video files.")
 				.setIcon("movie_filter")
 				.setCategory(ANALYSIS)
-				.setInputs(List.of(new NodeInput("media", MEDIA_VIDEO, true)))
-				.setOutputs(List.of(new NodeOutput("scene_detection", DATA_SCENE)))
+				.setInputPorts(List.of(
+					one("media", MEDIA_VIDEO)
+						.describedAs("Video", "The video to cut at its shot boundaries")))
+				.setOutputPorts(List.of(
+					one("scenes", STRUCT_SEGMENTS)
+						.describedAs("Scenes", "The detected scene boundaries as time-coded segments")))
 				.setParameters(List.of(commonEnabled(), commonProcessIncomplete(), commonRetryFailed()))
 				.setDefaultConcurrency(2)
 				.setDefaultMode(PARALLEL)

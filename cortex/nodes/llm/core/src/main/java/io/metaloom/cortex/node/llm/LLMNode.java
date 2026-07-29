@@ -13,8 +13,9 @@ import io.metaloom.ai.genai.llm.LargeLanguageModel;
 import io.metaloom.ai.genai.llm.impl.LargeLanguageModelImpl;
 import io.metaloom.ai.genai.llm.prompt.Prompt;
 import io.metaloom.ai.genai.llm.prompt.impl.PromptImpl;
-import io.metaloom.cortex.api.node.NodeOutputKey;
+import io.metaloom.cortex.api.node.InputPort;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.context.NodeContext;
@@ -22,15 +23,18 @@ import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompCreateRequest;
 import io.vertx.core.json.JsonObject;
 
 public class LLMNode extends AbstractMediaNode<LLMNodeOptions> {
 
+	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_ANY, LoomMedia.class);
+
 	/** In-heap skip cache of the per-prompt LLM outputs, keyed by media path, to avoid re-running the model within this worker's lifetime. Non-durable -
 	 * the durable copy lives in Loom. */
-	private final LocalResultCache<Map<String, Object>> resultCache = new LocalResultCache<>(50_000);
+	private final LocalResultCache<Map<String, String>> resultCache = new LocalResultCache<>(50_000);
 
 	/** The LLM provider (injected). Defaults to Ollama in production; tests inject an OpenAI-compatible provider (e.g. against a mock server). */
 	private final LLMProvider provider;
@@ -75,10 +79,17 @@ public class LLMNode extends AbstractMediaNode<LLMNodeOptions> {
 	}
 
 	/**
-	 * Create a typed output key for a given prompt id.
+	 * The output port carrying a given prompt's answer.
+	 *
+	 * <p>
+	 * The id must stay {@code result_<promptId>}: {@code LlmPortResolver} derives the descriptor's
+	 * ports from the same {@code prompts} option and produces exactly these names. The descriptor
+	 * used to declare a single {@code llm_result} while the node wrote {@code llm_result_<promptId>},
+	 * so nothing downstream could ever bind to what it actually emitted.
+	 * </p>
 	 */
-	public static NodeOutputKey<String> resultKey(String promptId) {
-		return NodeOutputKey.of("llm_result_" + promptId, String.class);
+	public static OutputPort<String> resultPort(String promptId) {
+		return OutputPort.one("result_" + promptId, ContentTypeRegistry.TEXT_PLAIN, String.class);
 	}
 
 	@Override
@@ -87,12 +98,13 @@ public class LLMNode extends AbstractMediaNode<LLMNodeOptions> {
 		String path = ctx.media().absolutePath();
 		// Re-emit the locally cached prompt results instead of re-running the LLM. On a hit the durable copy already exists in Loom, so we also skip
 		// re-persisting.
-		Map<String, Object> cached = resultCache.get(path);
+		Map<String, String> cached = resultCache.get(path);
 		if (cached != null) {
 			metrics.recordAiCacheHit("ollama");
-			cached.forEach(ctx::output);
+			cached.forEach((promptId, answer) -> ctx.output(resultPort(promptId), answer));
 			return NodeResult.success(ctx.outputs());
 		}
+		Map<String, String> answers = new HashMap<>();
 
 		for (Entry<String, LLMNodePrompt> entry : options().getPrompts().entrySet()) {
 			String promptId = entry.getKey();
@@ -114,11 +126,12 @@ public class LLMNode extends AbstractMediaNode<LLMNodeOptions> {
 			}
 			metrics.recordAiCall("ollama", true, System.currentTimeMillis() - aiStart);
 
-			ctx.output(resultKey(promptId), json.encode());
+			ctx.output(resultPort(promptId), json.encode());
+			answers.put(promptId, json.encode());
 			persist(ctx, asset, promptId, modelName, json);
 		}
 
-		resultCache.put(path, new HashMap<>(ctx.outputs()));
+		resultCache.put(path, answers);
 		return NodeResult.success(ctx.outputs());
 	}
 

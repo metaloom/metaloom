@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.ResultState;
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.node.script.ScriptNode;
@@ -87,7 +88,9 @@ public class ScriptNodeIntegrationTest extends AbstractNodeIntegrationTest {
 			ScriptNode node = node(client, options, nodeDef("chapter-marks"));
 
 			NodeContext<LoomMedia> ctx = NodeContext.create(media(video1()),
-				Map.of("whisper", Map.of("whisper_result", TRANSCRIPT)));
+				NodeInputs.builder()
+					.input(ScriptNode.IN_TEXT, TRANSCRIPT)
+					.build());
 			NodeResult result = node.process(ctx);
 
 			assertThat(result.getState()).as(result.getMessage()).isEqualTo(ResultState.SUCCESS);
@@ -145,8 +148,8 @@ public class ScriptNodeIntegrationTest extends AbstractNodeIntegrationTest {
 			ScriptNode second = node(client, options, new JsonObject().put("id", "script-b").put("type", ScriptNode.KIND)
 				.put("script", "out.text('note', 'from b');").mergeIn(outputs));
 
-			assertThat(first.process(NodeContext.create(media(video1()), Map.of())).getState()).isEqualTo(ResultState.SUCCESS);
-			assertThat(second.process(NodeContext.create(media(video1()), Map.of())).getState()).isEqualTo(ResultState.SUCCESS);
+			assertThat(first.process(NodeContext.create(media(video1()), NodeInputs.empty())).getState()).isEqualTo(ResultState.SUCCESS);
+			assertThat(second.process(NodeContext.create(media(video1()), NodeInputs.empty())).getState()).isEqualTo(ResultState.SUCCESS);
 
 			Map<String, String> byVariant = client.listAssetJsonComps(asset.getUuid()).sync().body().getData().stream()
 				.filter(c -> ScriptNode.SCHEMA_TYPE.equals(c.getSchemaType()))
