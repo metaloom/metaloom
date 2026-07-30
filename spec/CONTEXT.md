@@ -129,6 +129,8 @@ spec/
 ├── METALOOM.md                        # Big-picture module layout & framework map
 ├── METALOOM_STUDIO_PLAN.md            # Commercial edition ("MetaLoom Studio") — monetisation
 │                                      #   options, open decisions, website↔decision mapping
+├── CLUSTERING.md                      # Multi-instance/replica constraints — Loom is single-writer
+│                                      #   (replicaCount 1); per-process state & clustering blockers
 ├── SPEC_RULES.md                      # RULES for writing spec files
 ├── TASKS.md                           # Scratch task note (unstructured)
 ├── TASKS.template.md                  # Required format for every *_TASKS.md file
@@ -216,8 +218,10 @@ spec/
 ├── tasks/
 │   └── TASKS.md                       # Queue of captured tasks (TASKS.template.md format)
 └── website/
-    └── WEBSITE.md                     # Hugo site: content, build, publish flow
-                                       #   (incl. /tour/ and /studio/, the two design-led scrollers)
+    ├── WEBSITE.md                     # Hugo site: content, build, publish flow
+    │                                  #   (incl. /tour/ and /studio/, the two design-led scrollers)
+    └── WEBSITE_PIPELINE_EDITOR.md     # /pipeline-editor/ — the backend-free in-browser editor
+                                       #   + simulator and its generated node-descriptor snapshot
 ```
 
 ### 2.1 Which file do I open?
@@ -240,7 +244,9 @@ spec/
 | Embeddings / similarity / vector search | [features/search/SEMANTIC_SEARCH.md](features/search/SEMANTIC_SEARCH.md) — closes the `embedding.vector` "OPEN DECISION" in favour of pgvector |
 | Perceptual **fingerprint** similarity (near-duplicate video) | [features/search/LUCENE_PLAN.md](features/search/LUCENE_PLAN.md) — Lucene HNSW index (reuses video4j) behind a `SimilarityIndex` SPI; distinct from lexical/embedding search |
 | Deduplication nodes (find + review + apply duplicates) | [features/pipeline-nodes/NODE_DEDUP_PLAN.md](features/pipeline-nodes/NODE_DEDUP_PLAN.md) — discovery + apply nodes with human-in-the-loop review |
+| Running more than one Loom instance / anything holding per-process state | [CLUSTERING.md](CLUSTERING.md) — 🔴 Loom is **single-writer** (`replicaCount: 1`); read before adding a `@Singleton` that caches, locks or caps |
 | Customer-facing docs | [website/WEBSITE.md](website/WEBSITE.md) |
+| The website's in-browser pipeline editor + simulator (`/pipeline-editor/`) | [website/WEBSITE_PIPELINE_EDITOR.md](website/WEBSITE_PIPELINE_EDITOR.md) — distinct from the product editor in [loom/ui/PIPELINE_EDITOR.md](loom/ui/PIPELINE_EDITOR.md) |
 | The commercial edition / what is paid vs. open | [METALOOM_STUDIO_PLAN.md](METALOOM_STUDIO_PLAN.md) — **nothing is decided**; read §5 before gating any feature |
 | Picking up queued work | any `*_TASKS.md`, format per [TASKS.template.md](TASKS.template.md) |
 

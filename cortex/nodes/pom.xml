@@ -36,6 +36,7 @@
         <module>quality</module>
         <module>captioning</module>
         <module>image-generation</module>
+        <module>video-generation</module>
         <module>watermark</module>
         <module>loom</module>
     </modules>

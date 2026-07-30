@@ -18,6 +18,7 @@ import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.node.watermark.WatermarkNode;
 import io.metaloom.cortex.node.watermark.WatermarkNodeOptions;
 import io.metaloom.loom.rest.model.noderesult.NodeResultResponse;
@@ -70,7 +71,9 @@ public class WatermarkNodeIntegrationTest extends AbstractNodeIntegrationTest {
 				.setRelX(0.0)
 				.setRelY(0.0)
 				.setScale(0.25);
-			WatermarkNode node = new WatermarkNode(client, cortexOptions(), options);
+			// The shared cortexOptions() carries no metaPath, and this node writes an artifact under it.
+			CortexOptions cortexOptions = new CortexOptions().setMetaPath(Files.createTempDirectory("node-it-watermark"));
+			WatermarkNode node = new WatermarkNode(client, cortexOptions, options);
 
 			NodeContext<LoomMedia> ctx = NodeContext.create(unique.media());
 			NodeResult result = node.process(ctx);
@@ -83,6 +86,9 @@ public class WatermarkNodeIntegrationTest extends AbstractNodeIntegrationTest {
 			assertThat(artifactPath).as("the node must emit the marked image path").isNotNull();
 			Path artifact = Path.of(artifactPath);
 			assertThat(Files.exists(artifact)).as("the marked PNG should exist in the local watermark_bin cache").isTrue();
+			assertThat(artifact.startsWith(cortexOptions.getMetaPath().resolve("watermark_bin")))
+				.as("the artifact must live under metaPath/watermark_bin but was " + artifact)
+				.isTrue();
 
 			BufferedImage marked = ImageIO.read(artifact.toFile());
 			assertThat(marked.getWidth()).isEqualTo(IMAGE_W);
@@ -122,7 +128,8 @@ public class WatermarkNodeIntegrationTest extends AbstractNodeIntegrationTest {
 
 			// A misconfigured watermark. The run must be visibly FAILED both to the pipeline and in the ledger - NodeContextImpl.next() would have reported
 			// it as SUCCESS with no artifact, which is why the node aborts instead.
-			WatermarkNode node = new WatermarkNode(client, cortexOptions(),
+			CortexOptions cortexOptions = new CortexOptions().setMetaPath(Files.createTempDirectory("node-it-watermark"));
+			WatermarkNode node = new WatermarkNode(client, cortexOptions,
 				new WatermarkNodeOptions().setWatermarkBase64("!!! not base64 !!!"));
 
 			NodeResult result = node.process(NodeContext.create(unique.media()));

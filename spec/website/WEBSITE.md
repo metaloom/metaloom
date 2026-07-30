@@ -457,6 +457,10 @@ running server.
 <a id="the-pipeline-editor-page"></a>
 ### The Pipeline Editor page (`/pipeline-editor/`)
 
+> **Full spec: [WEBSITE_PIPELINE_EDITOR.md](WEBSITE_PIPELINE_EDITOR.md)** — the editor's model,
+> validation codes, simulator semantics, tunables, test pass and open gaps live there. This section is
+> the site-catalogue entry; keep the detail out of it.
+
 A **self-contained, backend-free pipeline editor + simulator** that lets a visitor design a pipeline
 on an SVG canvas — dragging nodes from a palette, wiring typed ports (invalid connections are
 rejected live), loading demo pipelines — and press **Play** to watch synthetic assets flow from the

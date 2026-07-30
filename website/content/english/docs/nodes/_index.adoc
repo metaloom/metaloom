@@ -54,6 +54,7 @@ The built-in nodes fall into four categories.
 | link:llm/[LLM Enrichment] (`llm`) | Any | Enrich metadata with a language model — one output port per prompt
 | link:captioning/[Captioning] (`captioning`) | Image, Video | Natural-language captions for images and videos
 | link:imagegen/[Image Generation] (`imagegen`) | Image | Generate images from a prompt (or remix the asset) with a diffusion model
+| link:videogen/[Video Generation] (`videogen`) | Image | Generate a short video clip from a prompt (or animate the asset's image) with a diffusion model
 | link:facedetect/[Face Detection] (`facedetect`) | Image, Video | Detect faces + embeddings — its `detections` port carries **one element per face**
 | link:facedescription/[Face Description] (`facedescription`) | Image | Describe detected faces with a vision model, one description per face
 | link:depthmap/[Depth Map] (`depthmap`) | Image | Estimate how far each part of a photo is from the camera
@@ -103,6 +104,7 @@ Most nodes are pure CPU. A few need a native library or an external model servic
 | A vision-language model service | `captioning`, `vlm`
 | A TTS sidecar (Orpheus/Kartoffel + Kokoro) | `tts`
 | An image-generation sidecar (SDXL-Turbo / diffusion model; GPU recommended) | `imagegen`
+| A video-generation sidecar (LTX-2; a 24 GB GPU is required) | `videogen`
 | A sentiment sidecar (german-sentiment-bert + twitter-roberta; CPU is enough) | `sentiment`
 | A depth sidecar (Depth Anything V2 Small; CPU is enough, GPU is much faster) | `depthmap`
 | The `ffmpeg` / `ffprobe` binaries on `PATH` | `watermark` (video only — the image path needs nothing)
@@ -161,6 +163,11 @@ Image generation::
 link:imagegen/[`imagegen`] generates a new image with a diffusion model behind a small HTTP sidecar —
 either from a text prompt or by remixing the asset's own image — and writes the PNG to the worker's
 local cache.
+
+Video generation::
+link:videogen/[`videogen`] generates a short video clip with a diffusion model behind a small HTTP
+sidecar — either from a text prompt or by animating the asset's own image as the opening frame — and
+writes the MP4, with a synchronised audio track, to the worker's local cache.
 
 Watermarking::
 link:watermark/[`watermark`] stamps a logo or mark you supply onto an asset at a relative position, so

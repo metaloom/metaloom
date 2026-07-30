@@ -178,6 +178,7 @@ no-op in offline mode):
 | S3Sink | uploads upstream artifacts to a bucket and **creates an asset per artifact** (`origin` = the `s3://` URI); `assets/:uuid/json-comps` → `asset_json_comp` (`schemaType=s3-artifact`, `variant` = node id) indexes them on the source asset | `createAsset`, `createAssetJsonComp` |
 | TTS | ledger only (generated WAV stays in the local `tts_bin` cache) | `createAssetNodeResult` |
 | ImageGen | ledger only (generated PNG stays in the local `imagegen_bin` cache) | `createAssetNodeResult` |
+| VideoGen | ledger only (generated MP4 stays in the local `videogen_bin` cache) | `createAssetNodeResult` |
 | Depthmap | ledger only (16-bit PNG stays in the local `depthmap_bin` cache); unlike the others it records `producerVersion` = the depth model | `createAssetNodeResult` |
 | Script | `assets/:uuid/json-comps` → `asset_json_comp` (`variant` = node id) **+** `assets/:uuid/segments` → `asset_segment_comp` for `TIMEFRAMES` outputs; images stay in the local `script_bin` cache | `createAssetJsonComp`, `createAssetSegmentComps` |
 | HashDedup | ledger only (side effect: moves duplicate files) | `createAssetNodeResult` |
@@ -293,6 +294,7 @@ Nodes persist results back to the Loom REST API. Two mechanisms coexist:
 | `SceneDetectionNode` | scene-detection | `scene-detection` | `scene_detection` (String) | Video only | Optical-flow scene detection |
 | `CaptioningNode` | captioning | `captioning` | `caption_result` (String) | Image, Video | Image captions via SmolVLM; video captions via an OpenAI-compatible VLM (Qwen2.5-VL) with a whole/scene/native `videoStrategy` |
 | `ImageGenNode` | image-generation | `imagegen` | `imagegen_flag` (String), `imagegen_path` (String) | Image | **Generative**: text-to-image (`GENERATE`) or image-to-image (`REMIX`) via a diffusers sidecar (`sidecars/ideogram-sidecar`). Writes the PNG to the local `imagegen_bin` cache; ledger only |
+| `VideoGenNode` | video-generation | `videogen` | `flag` (String), `video` (String path) | Image | **Generative**: text-to-video (`GENERATE`) or image-to-video (`ANIMATE`) via the LTX-2 diffusers sidecar (`sidecars/ltx2-sidecar`, port 9220). Produces an MP4 with synced audio; writes it to the local `videogen_bin` cache; ledger only. Ports declared: `prompt`/`media` in, `video`/`flag` out |
 | `WatermarkNode` | watermark | `watermark` | `image` (String path), `video` (String path), `flag` (String) | Image, Video | **Transform**: composites a configured base64 overlay onto the asset at a relative X/Y. Images via Graphics2D; video via the **`ffmpeg` overlay filter** (video re-encoded, audio `-c:a copy`) — the only node needing an external binary. Never modifies the source; writes to the local `watermark_bin` cache; ledger only. See [NODE_WATERMARK_PLAN.md](NODE_WATERMARK_PLAN.md) |
 | `ScriptNode` | script | `script` | declared per node instance | Any | **Runs a user-supplied script.** GraalJS (`engine=js`) behind a pluggable `ScriptEngine` SPI. Outputs are *declared* as `{key, type}` config and filled at runtime, so one item can emit several multi-valued results (timeframes, text lists, images). Configured per pipeline-node instance via `PipelineConfigurable`. Trusted by default with an opt-in sandbox; always bounded by a wall clock + statement limit |
 | `HashDedupNode` | dedup | `sha512-dedup` | (side effects: moves files) | Any (requires SHA-512) | Deduplicates files by SHA-512 hash; moves dups to target folder |
@@ -790,7 +792,7 @@ Loom control channel starts.
 ### NodeDescriptorRegistry
 
 `NodeDescriptorProvider` (SPI via `ServiceLoader`) provides
-`NodeDescriptor` objects. **26 providers declare 41 kinds.** Each descriptor includes:
+`NodeDescriptor` objects. **27 providers declare 42 kinds.** Each descriptor includes:
 - `kind` - unique machine-readable id
 - `name` - display name
 - `category` - palette grouping

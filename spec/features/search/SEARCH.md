@@ -139,7 +139,9 @@ this is a prerequisite, not a nice-to-have ([SEARCH_PLAN.md](SEARCH_PLAN.md) P0-
   horizontal scale — behind the same `SearchProvider` SPI, so it is a binding change rather than a
   rewrite.
 - 🔴 **Lucene rejected — for lexical search.** An embedded index is **per-replica local state**: two Loom
-  pods would answer the same query differently, and a restart on ephemeral storage loses the index. It
+  pods would answer the same query differently, and a restart on ephemeral storage loses the index.
+  (Loom in fact runs single-instance today for unrelated reasons — see [../../CLUSTERING.md](../../CLUSTERING.md);
+  this argument is about what the index would have to survive if that ever changed.) It
   buys ES-class relevance while giving up Postgres's zero-ops advantage — the worst of both.
   ⚠️ **Scope of this rejection.** It applies to the lexical search index specified in this document, which
   is a queryable system of record spanning many entities. It does **not** apply to the **perceptual

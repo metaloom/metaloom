@@ -10,8 +10,8 @@ It follows the heavy-GPU sidecar template: the HTTP skeleton mirrors
 provenance twin). Unlike the image sidecars it emits `video/mp4` (with an audio track),
 not `image/png`.
 
-There is **no Cortex node for it yet** — a future `videogen` node + `VideoGenClient`
-would be a thin HTTP client of the contract below (see *Follow-ups*).
+The Cortex **`videogen` node** (`cortex/nodes/video-generation`) is a thin HTTP client of the
+contract below — `VideoGenClient` calls `/generate` and `/animate` exactly as documented here.
 
 ## Quick start
 

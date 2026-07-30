@@ -280,7 +280,7 @@ LoomClientRequest<NoResponse> rebuildSimilarityIndex();
 | **Derived index** | 🔴 The Lucene index is a rebuildable cache of `asset_fingerprint_comp`, never a system-of-record. Any drift is fixed by a rebuild. |
 | **Lucene version** | ⚠️ Ignore the stub's Lucene 9.0.0 pin; take Lucene transitively from video4j's `fingerprint-indexer` (Lucene103Codec / HNSW). |
 | **Single writer** | ⚠️ Lucene `IndexWriter` is single-writer; all mutations are serialized through a lock in `LuceneSimilarityIndex`, and reads go through a `SearcherManager`. |
-| **One process per index directory** | 🔴 An `IndexWriter` holds an exclusive `write.lock` on its directory, so **two Loom instances must never share `LOOM_SIMILARITY_INDEX_PATH`** — the second gets `NoopSimilarityIndex` and its similarity routes answer 503. Give every replica its own path (the index is derived, so this costs only a rebuild each). This surfaced concretely in `SimilarAssetsEndpointTest`, where a per-test index directory is required because each test boots its own server. |
+| **One process per index directory** | 🔴 An `IndexWriter` holds an exclusive `write.lock` on its directory, so **two Loom instances must never share `LOOM_SIMILARITY_INDEX_PATH`** — the second gets `NoopSimilarityIndex` and its similarity routes answer 503. Give every replica its own path (the index is derived, so this costs only a rebuild each). This surfaced concretely in `SimilarAssetsEndpointTest`, where a per-test index directory is required because each test boots its own server. The full multi-instance picture — and why the failure is silent — is in [../../CLUSTERING.md](../../CLUSTERING.md) §3.6. |
 | **Hex, not `float[]`, at the boundary** | ⚠️ `asset_fingerprint_comp` stores the fingerprint as **hex**, and decoding it needs the video4j codec. The SPI therefore carries hex overloads (`index`/`query`/`rebuildFromHex`) which the REST layer uses, keeping video4j out of `loom/services/rest`. Malformed hex is logged and skipped, never fatal — a bad fingerprint must not fail the component write. |
 | **No silent degradation** | 🔴 A disabled index must make the endpoint *reject* the request, not return an empty list that looks like "no duplicates". |
 | **Score semantics** | ⚠️ The score is Lucene's k-NN vector similarity, not a probability. The `0.10` default comes from video4j/xdb-clean; tune per corpus, expose per request. |
@@ -332,7 +332,7 @@ Nothing is implemented.
 - [x] `algorithm` is a Lucene filter field (`TermQuery` pre-filter on the k-NN query), so several algorithms can coexist in one index
 - [ ] Multi-sector fingerprints (this index uses sector 0 / whole-asset only, matching `FingerprintNode` today)
 - [x] Concurrency wrapper for the single Lucene writer: `ReentrantLock` around mutations + `SearcherManager` for reads (§3)
-- [ ] Multi-instance deployments need one index directory per replica (§9) — no shared-index story yet
+- [ ] Multi-instance deployments need one index directory per replica (§9) — no shared-index story yet; recorded in [../../CLUSTERING.md](../../CLUSTERING.md) §3.6/§7 together with the fact that the Helm chart does not template `LOOM_SIMILARITY_*` at all
 - [ ] The index is not closed on server shutdown; the JVM exit releases `write.lock`, but an explicit lifecycle hook would be cleaner
 
 ---

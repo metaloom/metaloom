@@ -90,7 +90,7 @@ Additional passthrough: `ai.extraEnv`, `sandbox.extraEnv` (name→value maps) an
 | **Postgres = not Bitnami** | The bundled Postgres is a self-contained StatefulSet on the official `postgres` image, deliberately **not** the `bitnami/postgresql` subchart (Broadcom moved the free Bitnami images to a paid tier / unmaintained `bitnamilegacy` in 2025). Keeps the chart offline-capable. Production path is an external DB. |
 | **DB secret key** | Bundled PG secret uses key `password`; external DB secret uses key `db-password`. Resolved by `loom.database.secretKey` — keep the two paths consistent when editing. |
 | **Sandbox is a unit** | `sandbox.enabled` renders the env flag **and** Role/RoleBinding/Quota/LimitRange/NetworkPolicy together. Never template `LOOM_AGENT_SANDBOX_ENABLED` alone. |
-| **Recreate strategy** | Loom owns pipeline run state (single writer); the Deployment uses `strategy: Recreate`, not RollingUpdate, to avoid two writers. `replicaCount` should stay 1. |
+| **Recreate strategy** | Loom owns pipeline run state (single writer); the Deployment uses `strategy: Recreate`, not RollingUpdate, to avoid two writers. `replicaCount` should stay 1 — [CLUSTERING.md](../../CLUSTERING.md) enumerates exactly what breaks at N>1 (the lease reaper dead-letters the other instance's live tasks within 60s). |
 | **Image user** | The image runs as uid 1000 / gid 0; `podSecurityContext` defaults match (`fsGroup: 0`). |
 | **Validation** | `helm lint helm/loom`; render the matrix with `helm template` (external DB / bundled PG / sandbox / ingress). No cluster needed for template validation. |
 

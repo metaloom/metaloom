@@ -9,6 +9,7 @@ import io.metaloom.cortex.node.facedetect.FacedetectNodeModule;
 import io.metaloom.cortex.node.fp.FingerprintNodeModule;
 import io.metaloom.cortex.node.hash.HashNodeModule;
 import io.metaloom.cortex.node.imagegen.ImageGenNodeModule;
+import io.metaloom.cortex.node.videogen.VideoGenNodeModule;
 import io.metaloom.cortex.node.llm.LLMNodeModule;
 import io.metaloom.cortex.node.loom.LoomNodeModule;
 import io.metaloom.cortex.node.ocr.OCRNodeModule;
@@ -46,6 +47,7 @@ import io.metaloom.cortex.node.whisper.WhisperNodeModule;
 	QualityNodeModule.class,
 	CaptioningNodeModule.class,
 	ImageGenNodeModule.class,
+	VideoGenNodeModule.class,
 	ConsistencyNodeModule.class,
 	WhisperNodeModule.class,
 	TtsNodeModule.class,

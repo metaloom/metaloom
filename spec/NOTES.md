@@ -16,28 +16,7 @@
 * binary handling  - frontend delivery / CDN like encoding?
 * binary result handling - How to store thumbnails? Where how? Via network? Explore this
 
-# Pipeline Demo UI
-Create a new page on the website which features a pipeline editor. This editor should be a lightweight variant of the full-fleged editor that is integrated in the loom-ui.
-The editor should allow creation and simulation of pipelines.
-It would be thus also useful to have a play / pause button that allows users to simulate how emitted nodes from the source nodes travels along the designed pipeline till they reach the loom-sync.
-The source node in this pipeline demo ui should feature an option to emit a single asset or multiple assets.
 
-A area below the pipeline area / view should feature a action log (timestamp, node name, description, input and output) that composes a log of the input and outputs that the pipeline nodes produced. 
-
-The core idea is that this UI helps users in the pipeline design process and also aids in understanding pipeline mechanism.
-
-There should be a dropdown with 3 demo pipelines. (basic, complex, usecase xyz)
-
-There should also be an option to save pipelines, download pipelines and open pipeline JSON. Saving pipelines just persists those to the localstorage of the browser.
-
-There should also be a box that logs pipeline design errors. This should aid the user when he creates pipelines. When the user tries to connect nodes in an invalid way this should directly be shown in the log.
-
-# Page Design Sync
-
-Update the style/design of the doc, announcements and blog pages.
-Currently this design deviates from the /features page.
-I like you to adapt the design. (e.g. same style and darker background) and give it a similar high quality design look and feel as the /features page.
-Try to reuse the CSS to keep updates easier.
 
 
 
