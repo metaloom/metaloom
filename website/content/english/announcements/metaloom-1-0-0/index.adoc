@@ -16,7 +16,7 @@ image: /images/og-metaloom-1-0-0.jpg
 **MetaLoom 1.0.0 has not been released yet.** This page describes the scope of the upcoming
 release so you can judge whether it fits your setup. No `1.0.0` container images or Maven
 artifacts are published — everything currently builds from source at `1.0.0-SNAPSHOT`. The
-release date is not fixed; follow the https://discord.gg/NFdnFcSbfA[Discord] or the
+release date is not fixed; follow the https://discord.gg/3Dy2SxKUtw[Discord] or the
 link:../../blog/[blog] to hear about it first.
 ====
 
@@ -153,4 +153,4 @@ docker run -p 8092:8092 metaloom/loom-demo:latest
 
 Then follow link:../../docs/getting-started/[Getting Started]. If something does not behave the
 way this page describes, that is worth telling us about on
-https://discord.gg/NFdnFcSbfA[Discord] — feedback before a 1.0 is worth more than after it.
+https://discord.gg/3Dy2SxKUtw[Discord] — feedback before a 1.0 is worth more than after it.
