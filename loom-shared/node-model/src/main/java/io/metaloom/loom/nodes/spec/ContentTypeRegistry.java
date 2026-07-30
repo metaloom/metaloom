@@ -58,6 +58,7 @@ public final class ContentTypeRegistry {
 	// ── artifact ── a file produced by a node, local to the worker ───────
 	public static final String ARTIFACT_ANY = "artifact/*";
 	public static final String ARTIFACT_IMAGE = "artifact/image";
+	public static final String ARTIFACT_VIDEO = "artifact/video";
 	public static final String ARTIFACT_AUDIO = "artifact/audio";
 	public static final String ARTIFACT_FILE = "artifact/file";
 
@@ -115,6 +116,7 @@ public final class ContentTypeRegistry {
 
 			new ContentType(ARTIFACT_ANY, "Any Artifact", "Any file produced by a node"),
 			new ContentType(ARTIFACT_IMAGE, "Image Artifact", "A generated image file"),
+			new ContentType(ARTIFACT_VIDEO, "Video Artifact", "A generated video file"),
 			new ContentType(ARTIFACT_AUDIO, "Audio Artifact", "A generated audio file"),
 			new ContentType(ARTIFACT_FILE, "File Artifact", "A generated file of any kind"),
 

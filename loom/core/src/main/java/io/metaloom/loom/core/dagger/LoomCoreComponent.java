@@ -50,7 +50,8 @@ import io.metaloom.loom.rest.dagger.RESTModule;
 	SandboxModule.class,
 	ChatEndpointModule.class,
 	RoutingContextModule.class,
-	SearchModule.class })
+	SearchModule.class,
+	SimilarityModule.class })
 public interface LoomCoreComponent {
 
 	DaoCollection daos();

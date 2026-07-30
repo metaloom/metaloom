@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
 
+import io.metaloom.loom.api.search.HexFingerprint;
 import io.metaloom.loom.api.search.IndexedFingerprint;
 import io.metaloom.loom.api.search.SimilarityHit;
 import io.metaloom.loom.api.search.SimilarityIndex;
@@ -26,6 +27,11 @@ public class NoopSimilarityIndex implements SimilarityIndex {
 	}
 
 	@Override
+	public void index(UUID assetUuid, String sha512, String algorithm, String fingerprintHex) {
+		// no-op
+	}
+
+	@Override
 	public void remove(UUID assetUuid) {
 		// no-op
 	}
@@ -36,8 +42,20 @@ public class NoopSimilarityIndex implements SimilarityIndex {
 	}
 
 	@Override
+	public List<SimilarityHit> query(String algorithm, String fingerprintHex, int limit, float scoreThreshold) {
+		return List.of();
+	}
+
+	@Override
 	public void rebuild(Stream<IndexedFingerprint> all) {
 		// Drain the stream so callers that build it lazily do not leak resources.
+		if (all != null) {
+			all.close();
+		}
+	}
+
+	@Override
+	public void rebuildFromHex(Stream<HexFingerprint> all) {
 		if (all != null) {
 			all.close();
 		}

@@ -41,6 +41,17 @@ public interface SimilarityIndex {
 	 */
 	void index(UUID assetUuid, String sha512, String algorithm, float[] vector);
 
+	/**
+	 * Upsert one asset's fingerprint from its <b>stored hex form</b>.
+	 *
+	 * <p>
+	 * This is the overload Loom itself uses: {@code asset_fingerprint_comp} stores the fingerprint as hex, and decoding it to a vector requires knowing
+	 * the fingerprint format. That knowledge lives with the implementation, so callers (the REST layer, the comp write hook) never need the codec.
+	 * Malformed hex is logged and ignored - a bad fingerprint must not fail the comp write.
+	 * </p>
+	 */
+	void index(UUID assetUuid, String sha512, String algorithm, String fingerprintHex);
+
 	/** Remove all vectors for an asset (called on asset/comp delete). No-op if the asset is not indexed. */
 	void remove(UUID assetUuid);
 
@@ -59,8 +70,19 @@ public interface SimilarityIndex {
 	 */
 	List<SimilarityHit> query(String algorithm, float[] vector, int limit, float scoreThreshold);
 
+	/**
+	 * k-nearest-neighbour query from a <b>stored hex</b> fingerprint - the overload Loom uses. Returns an empty list when the hex cannot be decoded.
+	 */
+	List<SimilarityHit> query(String algorithm, String fingerprintHex, int limit, float scoreThreshold);
+
 	/** Rebuild the whole index from the supplied vectors (boot / admin). Replaces any existing index content. */
 	void rebuild(Stream<IndexedFingerprint> all);
+
+	/**
+	 * Rebuild the whole index from stored hex fingerprints - the overload the admin rebuild route uses, streaming {@code asset_fingerprint_comp} rows.
+	 * Entries whose hex cannot be decoded are logged and skipped.
+	 */
+	void rebuildFromHex(Stream<HexFingerprint> all);
 
 	/** Flush pending writes to disk. */
 	void commit();

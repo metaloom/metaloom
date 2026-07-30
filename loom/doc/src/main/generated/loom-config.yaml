@@ -72,3 +72,20 @@ memory:
   promptMaxChars: 4096
   sharedScopesEnabled: true
   sharedWriteEnabled: true
+search:
+  enabled: true
+  provider: "postgres"
+  defaultLimit: 25
+  maxLimit: 100
+  maxOffset: 1000
+  highlightEnabled: true
+  trigramThreshold: 0.3
+  trigramWeight: 0.35
+  bodyMaxBytes: 524288
+  tsConfig: "english"
+similarity:
+  enabled: false
+  indexPath: "similarity-index"
+  algorithm: "metaloom-multisector-v1"
+  scoreThreshold: 0.1
+  topK: 10

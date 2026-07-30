@@ -30,7 +30,7 @@ import {
   TextFields, GridView, LinearScale, Straighten, ContentCopy,
   DateRange, Block, VerifiedOutlined, PlaylistRemoveOutlined,
   ImageSearchOutlined, FaceRetouchingNatural, Face, Description,
-  LayersOutlined, SchemaOutlined, PaletteOutlined,
+  LayersOutlined, SchemaOutlined, PaletteOutlined, BrandingWatermarkOutlined,
   TransformOutlined, CloseOutlined, SearchOutlined,
   SaveOutlined, HistoryOutlined, RestoreOutlined,
   CompareArrowsOutlined, DeleteOutline,
@@ -112,6 +112,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   layers:                   <LayersOutlined sx={{ fontSize: 14 }} />,
   schema:                   <SchemaOutlined sx={{ fontSize: 14 }} />,
   palette:                  <PaletteOutlined sx={{ fontSize: 14 }} />,
+  branding_watermark:       <BrandingWatermarkOutlined sx={{ fontSize: 14 }} />,
 };
 
 /** Resolve the icon for a descriptor, falling back to its category default. */

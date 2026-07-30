@@ -57,6 +57,12 @@
       <artifactId>loom-service-monitoring</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- Fingerprint similarity index (Lucene k-NN). Bound by SimilarityModule; the REST layer only sees the SimilarityIndex SPI. -->
+    <dependency>
+      <groupId>io.metaloom.loom.service</groupId>
+      <artifactId>loom-service-lucene</artifactId>
+      <version>${project.version}</version>
+    </dependency>
     <dependency>
       <groupId>io.metaloom.loom.agent</groupId>
       <artifactId>loom-agent-chat</artifactId>

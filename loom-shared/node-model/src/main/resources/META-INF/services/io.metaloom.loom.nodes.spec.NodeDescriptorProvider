@@ -25,4 +25,5 @@ io.metaloom.loom.nodes.spec.ThumbnailDescriptorProvider
 io.metaloom.loom.nodes.spec.TikaDescriptorProvider
 io.metaloom.loom.nodes.spec.TtsDescriptorProvider
 io.metaloom.loom.nodes.spec.VlmDescriptorProvider
+io.metaloom.loom.nodes.spec.WatermarkDescriptorProvider
 io.metaloom.loom.nodes.spec.WhisperDescriptorProvider

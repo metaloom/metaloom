@@ -78,6 +78,7 @@ public class NodePortConformanceTest {
 		NODE_KINDS.put("io.metaloom.cortex.node.captioning.CaptioningNode", "captioning");
 		NODE_KINDS.put("io.metaloom.cortex.node.tts.TtsNode", "tts");
 		NODE_KINDS.put("io.metaloom.cortex.node.imagegen.ImageGenNode", "imagegen");
+		NODE_KINDS.put("io.metaloom.cortex.node.watermark.WatermarkNode", "watermark");
 		NODE_KINDS.put("io.metaloom.cortex.node.loom.LoomNode", "loom");
 		NODE_KINDS.put("io.metaloom.cortex.node.sink.s3.S3SinkNode", "s3-sink");
 	}

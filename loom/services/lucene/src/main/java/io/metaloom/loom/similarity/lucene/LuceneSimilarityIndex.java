@@ -35,6 +35,7 @@ import org.apache.lucene.store.MMapDirectory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.metaloom.loom.api.search.HexFingerprint;
 import io.metaloom.loom.api.search.IndexedFingerprint;
 import io.metaloom.loom.api.search.SimilarityHit;
 import io.metaloom.loom.api.search.SimilarityIndex;
@@ -132,6 +133,15 @@ public class LuceneSimilarityIndex implements SimilarityIndex, AutoCloseable {
 	}
 
 	@Override
+	public void index(UUID assetUuid, String sha512, String algorithm, String fingerprintHex) {
+		float[] vector = toVector(fingerprintHex);
+		if (vector == null) {
+			return;
+		}
+		index(assetUuid, sha512, algorithm, vector);
+	}
+
+	@Override
 	public void remove(UUID assetUuid) {
 		if (!available) {
 			return;
@@ -183,6 +193,46 @@ public class LuceneSimilarityIndex implements SimilarityIndex, AutoCloseable {
 			}
 		}
 		return hits;
+	}
+
+	@Override
+	public List<SimilarityHit> query(String algorithm, String fingerprintHex, int limit, float scoreThreshold) {
+		float[] vector = toVector(fingerprintHex);
+		return vector == null ? List.of() : query(algorithm, vector, limit, scoreThreshold);
+	}
+
+	@Override
+	public void rebuildFromHex(Stream<HexFingerprint> all) {
+		if (all == null) {
+			rebuild(null);
+			return;
+		}
+		// Decode lazily so a large corpus never materialises as vectors in memory all at once.
+		rebuild(all.map(fp -> {
+			float[] vector = toVector(fp.fingerprint());
+			return vector == null ? null : new IndexedFingerprint(fp.assetUuid(), fp.sha512(), fp.algorithm(), vector);
+		}).filter(fp -> fp != null));
+	}
+
+	/**
+	 * Decode the stored hex fingerprint into its k-NN vector. Returns {@code null} (with a warning) when the hex is malformed or has the wrong
+	 * dimension - a bad fingerprint must never fail the caller's write.
+	 */
+	private float[] toVector(String fingerprintHex) {
+		if (fingerprintHex == null || fingerprintHex.isBlank() || "NULL".equalsIgnoreCase(fingerprintHex)) {
+			return null;
+		}
+		try {
+			float[] vector = MultiSectorFingerprint.of(fingerprintHex).vector();
+			if (vector == null || vector.length != MultiSectorFingerprint.FINGERPRINT_VECTOR_SIZE) {
+				log.warn("Ignoring fingerprint with unexpected vector length {}", vector == null ? "null" : vector.length);
+				return null;
+			}
+			return vector;
+		} catch (Exception e) {
+			log.warn("Ignoring malformed fingerprint: {}", e.getMessage());
+			return null;
+		}
 	}
 
 	@Override

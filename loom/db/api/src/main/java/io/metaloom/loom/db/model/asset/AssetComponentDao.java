@@ -187,6 +187,16 @@ public interface AssetComponentDao extends Dao {
 	 */
 	List<AssetFingerprintComp> findByFingerprint(String algorithm, String fingerprint);
 
+	/**
+	 * Every fingerprint component recorded for one algorithm.
+	 *
+	 * <p>
+	 * Feeds the full rebuild of the derived similarity index (spec/features/search/LUCENE_PLAN.md §4): the Lucene k-NN index is a cache of this table
+	 * and is reconstructed from exactly this query.
+	 * </p>
+	 */
+	List<AssetFingerprintComp> findByAlgorithm(String algorithm);
+
 	// Segment
 	AssetSegmentComp createSegmentComp(UUID userUuid, UUID assetUuid, String nodeKind);
 

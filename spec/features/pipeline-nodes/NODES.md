@@ -173,6 +173,8 @@ no-op in offline mode):
 | SceneDetection | `assets/:uuid/segments` → `asset_segment_comp` (whole-set replace) | `createAssetSegmentComps` |
 | OCR, Tika, Quality, LLM, VLM, Captioning, Facedescription, Sentiment, SceneLayout | `assets/:uuid/json-comps` → `asset_json_comp` (distinct `schemaType`) | `createAssetJsonComp` |
 | Thumbnail | ledger only (bytes stay in the local thumbnail cache) | `createAssetNodeResult` |
+| Fingerprint dedup (discovery) | `dedup-groups` → `dedup_group` + `dedup_group_member` (upsert on the pending group) | `createDedupGroup` |
+| Fingerprint dedup (apply) | ledger only (the effect is a file move) | `createAssetNodeResult` |
 | S3Sink | uploads upstream artifacts to a bucket and **creates an asset per artifact** (`origin` = the `s3://` URI); `assets/:uuid/json-comps` → `asset_json_comp` (`schemaType=s3-artifact`, `variant` = node id) indexes them on the source asset | `createAsset`, `createAssetJsonComp` |
 | TTS | ledger only (generated WAV stays in the local `tts_bin` cache) | `createAssetNodeResult` |
 | ImageGen | ledger only (generated PNG stays in the local `imagegen_bin` cache) | `createAssetNodeResult` |
@@ -291,9 +293,11 @@ Nodes persist results back to the Loom REST API. Two mechanisms coexist:
 | `SceneDetectionNode` | scene-detection | `scene-detection` | `scene_detection` (String) | Video only | Optical-flow scene detection |
 | `CaptioningNode` | captioning | `captioning` | `caption_result` (String) | Image, Video | Image captions via SmolVLM; video captions via an OpenAI-compatible VLM (Qwen2.5-VL) with a whole/scene/native `videoStrategy` |
 | `ImageGenNode` | image-generation | `imagegen` | `imagegen_flag` (String), `imagegen_path` (String) | Image | **Generative**: text-to-image (`GENERATE`) or image-to-image (`REMIX`) via a diffusers sidecar (`sidecars/ideogram-sidecar`). Writes the PNG to the local `imagegen_bin` cache; ledger only |
+| `WatermarkNode` | watermark | `watermark` | `image` (String path), `video` (String path), `flag` (String) | Image, Video | **Transform**: composites a configured base64 overlay onto the asset at a relative X/Y. Images via Graphics2D; video via the **`ffmpeg` overlay filter** (video re-encoded, audio `-c:a copy`) — the only node needing an external binary. Never modifies the source; writes to the local `watermark_bin` cache; ledger only. See [NODE_WATERMARK_PLAN.md](NODE_WATERMARK_PLAN.md) |
 | `ScriptNode` | script | `script` | declared per node instance | Any | **Runs a user-supplied script.** GraalJS (`engine=js`) behind a pluggable `ScriptEngine` SPI. Outputs are *declared* as `{key, type}` config and filled at runtime, so one item can emit several multi-valued results (timeframes, text lists, images). Configured per pipeline-node instance via `PipelineConfigurable`. Trusted by default with an opt-in sandbox; always bounded by a wall clock + statement limit |
 | `HashDedupNode` | dedup | `sha512-dedup` | (side effects: moves files) | Any (requires SHA-512) | Deduplicates files by SHA-512 hash; moves dups to target folder |
-| `FingerprintDedupNode` | dedup | (fingerprint dedup) | (side effects) | Video only | Deduplicates by video fingerprint |
+| `FingerprintDedupNode` | dedup | `fingerprint-dedup` | (no file changes; writes `dedup_group` + ledger) | Video only | **Discovery**: finds near-duplicates via the fingerprint similarity index and reports candidate groups to Loom for human review ([NODE_DEDUP_PLAN.md](NODE_DEDUP_PLAN.md)) |
+| `FingerprintDedupApplyNode` | dedup | `fingerprint-dedup-apply` | (side effects: moves files) | Any (requires SHA-512) | **Apply**: acts only on human-CONFIRMED `dedup_group` rows, re-verifying the keep against the live file before moving a duplicate |
 | `LoomNode` | loom | `loom` | (side effects: bulk update) | Any | Syncs hash results to Loom backend in batches of 50 |
 | `S3SinkNode` | s3-sink | `s3-sink` | `s3_sink_flag`, `s3_sink_count`, `s3_sink_result` (String JSON) | Any (needs upstream file outputs) | **Sink**: uploads files produced upstream (`thumbnail_path`, `depthmap_path`, `imagegen_path`, `tts_path`, script images) to an S3 bucket and registers each as its own Loom asset. Per-instance config (`PipelineConfigurable`); 🔴 must share a worker with its producer |
 
@@ -606,7 +610,9 @@ Each node module extends `AbstractNodeModule` and provides:
    turns it into the `RegistryNodeFactory` registry at bootstrap, and the worker
    announces `registeredTypes()` as its `nodeWhitelist` (§11). The `Provider`
    keeps the node uninstantiated until a task of its kind arrives. Stub / unwired
-   nodes (`fingerprint-dedup`, `facedescription`) deliberately omit this binding.
+   nodes (`facedescription`) deliberately omit this binding. `fingerprint-dedup` and
+   `fingerprint-dedup-apply` **are** bound; `hash-dedup` is bound as an alias of
+   `sha512-dedup` so the descriptor kind and the executable kind no longer disagree.
 3. `@Provides CortexNodeOptionDeserializerInfo` - registers the options
    class and its config key for deserialization.
 4. `@Provides` method that extracts node-specific options from
@@ -784,7 +790,7 @@ Loom control channel starts.
 ### NodeDescriptorRegistry
 
 `NodeDescriptorProvider` (SPI via `ServiceLoader`) provides
-`NodeDescriptor` objects. **25 providers declare 39 kinds.** Each descriptor includes:
+`NodeDescriptor` objects. **26 providers declare 41 kinds.** Each descriptor includes:
 - `kind` - unique machine-readable id
 - `name` - display name
 - `category` - palette grouping
@@ -1325,15 +1331,18 @@ Compact per-node status. Verified against the code and test tree.
 | `SceneDetectionNode` | Yes | No | Yes - `asset_segment_comp` (replace) + ledger | Yes - scene output | Yes - scenes (`seq` set) |
 | `CaptioningNode` | Yes | Yes | Yes - `asset_json_comp` + ledger | Yes - caption | Partial - video scene timeline (scene strategy) |
 | `ImageGenNode` | Yes (+ persistence test) | No | Partial - ledger only (PNG stays in local `imagegen_bin`) | Yes - image path | No |
+| `WatermarkNode` | Yes (+ geometry / images / video / pipeline tests) | Yes | Partial - ledger only (marked file stays in local `watermark_bin`); records `producerVersion` = the watermark digest | Yes - artifact path, keyed by path **+ options hash (watermark by content)**, re-checked against the filesystem | No |
 | `ScriptNode` | Yes (+ persistence + pipeline tests) | Yes | Yes - `asset_json_comp` (`variant` = node id) + `asset_segment_comp` + ledger | Yes - output bag, keyed by path **+ script hash** | Yes - `TIMEFRAMES` outputs become segment rows |
 | `HashDedupNode` | No (empty stub) | No | Partial - ledger only (side effect) | No (moves files) | No |
-| `FingerprintDedupNode` | No (empty stub) | No | No (node is a stub) | No | No |
+| `FingerprintDedupNode` | Yes - KEEP/DUP split + larger-dup abort | No | Yes - `dedup_group` (+members) via REST + ledger `resultRef` | No | No |
+| `FingerprintDedupApplyNode` | No | No | Partial - ledger only (side effect) | No (moves files) | No |
 | `LoomNode` | Yes | Yes | Yes - bulk `asset` hash update | No (in-heap batch buffer, not a result cache) | No |
 | `S3SinkNode` | Yes (+ persistence tests) | Yes (real MinIO) | Yes - an `asset` per artifact + `asset_json_comp` index + ledger | No | Yes - one entry per uploaded artifact |
 
 **Notable gaps**
 - **No unit test that runs the node**: `QualityNode` (only options validation),
-  `HashDedupNode` / `FingerprintDedupNode` (test classes are empty stubs).
+  `HashDedupNode` (test class is an empty stub), `FingerprintDedupApplyNode` (the move
+  safeguards are covered only by reading, not by a test).
 - **Integration coverage**: beyond the 7 pipeline kinds exercised end-to-end, per-node
   end-to-end integration tests now live in `integration-test`
   (`io.metaloom.loom.test.integration.node.*NodeIntegrationTest`). Each boots a
@@ -1372,13 +1381,21 @@ Compact per-node status. Verified against the code and test tree.
   component set today; `FacedetectNode` rows are frame-indexed. Whisper and
   Fingerprint are hard-wired to a single index; true multi-track / multi-stream
   extraction is open.
-- `FingerprintDedupNode` is still a `not implemented` stub; `HashDedupNode`
-  retains dead code (`System.in.read()`).
+- `FingerprintDedupNode` is **implemented** (discovery; see
+  [NODE_DEDUP_PLAN.md](NODE_DEDUP_PLAN.md)) and joined by `FingerprintDedupApplyNode`.
+  Neither has a per-node integration test yet, and the apply node has no unit test.
+  `HashDedupNode` still retains dead code (`System.in.read()`), which would block a
+  worker on an inconsistent file.
 
 ---
 
-_Git HEAD revision: `3ba0a6ff`_
-_Last updated: 2026-07-29 (typed-port refactor. §1: `NodeOutputKey` replaced by `InputPort`/
+_Git HEAD revision: `7d38cfc0`_
+_Last updated: 2026-07-30 (added the `watermark` node — composites a configured base64 overlay
+onto the asset at a relative X/Y, images via Graphics2D and video via the `ffmpeg` overlay filter with
+audio stream-copied. It is the first node in the tree to require an external binary, and it introduces
+the `artifact/video` content type. Non-destructive and ledger-only, like `thumbnail`/`imagegen`; see
+[NODE_WATERMARK_PLAN.md](NODE_WATERMARK_PLAN.md). §8's provider/kind count was also stale by one kind
+independently of this change and is now 26/41. Previously: typed-port refactor. §1: `NodeOutputKey` replaced by `InputPort`/
 `OutputPort`/`Element`/`NodeInputs`, the new `NodeContext` surface (`input`/`inputs`/`origin`/
 `isWired`/`isDemanded`/`output`/`outputElement`), `upstreamOutput` deleted, outputs preserved on
 skip/abort, `NodeResult` port-keyed. §3: the Output-Keys column is flagged as the legacy string keys,

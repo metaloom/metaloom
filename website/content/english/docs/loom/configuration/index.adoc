@@ -111,6 +111,28 @@ Environment variables take precedence over values in `loom.yml`.
 | `LOOM_STORAGE_UPLOAD_DIR` | `data/storage` | Directory where uploaded asset binaries are stored
 |===
 
+=== Near-duplicate video lookup
+
+Powers "which other videos look like this one?", and with it the near-duplicate review workflow of the
+link:../../nodes/dedup/[deduplication] nodes. It is switched off by default because it is only useful
+once videos have been fingerprinted.
+
+The lookup keeps its own index on disk. That index is built entirely from fingerprints already stored
+with your assets, so it can be discarded and rebuilt at any time without data loss.
+
+[options="header",cols="2,1,2"]
+|===
+| Variable | Default | Description
+| `LOOM_SIMILARITY_ENABLED` | `false` | Enable near-duplicate lookup. While off, requests to the similar-videos routes are refused with a clear reason rather than answering "nothing found"
+| `LOOM_SIMILARITY_INDEX_PATH` | `similarity-index` | Directory holding the lookup index. Give each server its own directory — two servers cannot share one
+| `LOOM_SIMILARITY_ALGORITHM` | `metaloom-multisector-v1` | Which fingerprint version takes part in the lookup
+| `LOOM_SIMILARITY_SCORE_THRESHOLD` | `0.10` | How close a match must be to count as a near-duplicate. Higher is stricter
+| `LOOM_SIMILARITY_TOPK` | `10` | How many similar videos a query returns by default
+|===
+
+NOTE: If the index directory cannot be written, the server still starts normally — only the
+near-duplicate routes report themselves as unavailable.
+
 === Authentication
 
 [options="header",cols="2,1,2"]

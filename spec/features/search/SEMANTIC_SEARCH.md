@@ -105,6 +105,15 @@ whole-image node first and face second, even though the face vectors already exi
 
 ## 3. Decision: pgvector, not Qdrant
 
+> ⚠️ **A second, separate vector workload already exists.** Perceptual **fingerprint** similarity
+> (near-duplicate video detection) is served by a Lucene HNSW index, specified in
+> [LUCENE_PLAN.md](LUCENE_PLAN.md) and **built**. That is a different corpus (one 256-dim fingerprint
+> vector per asset, derived from `asset_fingerprint_comp`) and a different question ("which files are
+> the same recording?" rather than "which files are about this?"). It deliberately avoids pgvector
+> because it must not depend on a Postgres extension — see §3.2, the "nobody can build" constraint.
+> Its `SimilarityIndex` SPI mirrors the `VectorIndex` SPI proposed in §11, so the two can be unified
+> later behind one interface if that ever pays off.
+
 ### 3.1 Rationale
 
 1. **There are zero embeddings in the system today** (§1.2). Standing up and operating a separate

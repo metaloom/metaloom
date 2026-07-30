@@ -20,6 +20,8 @@ public class LoomOptions implements Option {
 
 	private SearchOptions search = new SearchOptions();
 
+	private SimilarityOptions similarity = new SimilarityOptions();
+
 	@Override
 	public void overrideWithEnv() {
 		database.overrideWithEnv();
@@ -30,6 +32,7 @@ public class LoomOptions implements Option {
 		sandbox.overrideWithEnv();
 		memory.overrideWithEnv();
 		search.overrideWithEnv();
+		similarity.overrideWithEnv();
 	}
 
 	public DatabaseOptions getDatabase() {
@@ -103,6 +106,15 @@ public class LoomOptions implements Option {
 		return this;
 	}
 
+	public SimilarityOptions getSimilarity() {
+		return similarity;
+	}
+
+	public LoomOptions setSimilarity(SimilarityOptions similarity) {
+		this.similarity = similarity;
+		return this;
+	}
+
 	@Override
 	public void validate(OptionErrors errors) {
 		errors.nested("database", database)
@@ -112,7 +124,8 @@ public class LoomOptions implements Option {
 			.nested("ai", ai)
 			.nested("sandbox", sandbox)
 			.nested("memory", memory)
-			.nested("search", search);
+			.nested("search", search)
+			.nested("similarity", similarity);
 	}
 
 	/**

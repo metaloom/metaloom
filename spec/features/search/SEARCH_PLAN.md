@@ -149,7 +149,7 @@ Each is an independent change that fixes something already broken.
 | **P1-22** | ⬜ | Un-stub the MCP tools on top of the SPI. `SearchAssetsTool`: inject `SearchProvider`, replace `loadPage(null, limit, null, null, null)` with a real `SearchRequest`, add `library`/`tag`/`offset` params. `SearchTranscriptTool`: `types=[TRANSCRIPT]`, `highlight=true`, return snippet + `assetUuid` + `timeFromMs`; ⚠️ its description still cites `asset_doc_comp.doc_plain_text`, a dead table — rewrite it. Neither needs new registration.<br>⚠️ `MCPTool.execute(JsonObject)` carries no user context, so per-type narrowing cannot apply there. Acceptable (it matches today's global-gate model) but record it as a gap in [../rbac/RBAC.md](../rbac/RBAC.md). | P1-7 |
 | **P1-23** | ⬜ | GraphQL: **one** new top-level `search(q, types, mode, limit, offset)` field plus `SearchResult`/`SearchHit` types and the two enums. Do **not** add filter args to the ~20 existing list fields. Guard with `READ_SEARCH` via `GraphQLPermissionChecker`; test through `AbstractGraphQLEndpointTest`. | P1-7 |
 | **P1-24** | ⬜ | Customer-facing docs page under `website/content/english/docs/` (🔴 per CODING.md: no spec-file references, no internal class names, SVG not ASCII art). Spec sync: [../rbac/RBAC.md](../rbac/RBAC.md), [../permissions/PERMISSIONS.md](../permissions/PERMISSIONS.md), [../../loom/RESTAPI.md](../../loom/RESTAPI.md), [../../loom/MCP.md](../../loom/MCP.md), [../db/DATABASE_TASKS.md](../db/DATABASE_TASKS.md). | P1-14 |
-| **P1-25** | ⬜ | Delete `loom/services/lucene` from `loom/services/pom.xml` and remove the directory ([SEARCH.md](SEARCH.md) §2). | — |
+| **P1-25** | ✅ | ~~Delete `loom/services/lucene`~~ **Superseded: the module is repurposed, not deleted.** It now holds the perceptual-fingerprint k-NN index (`LuceneSimilarityIndex`, [LUCENE_PLAN.md](LUCENE_PLAN.md)) — a derived, rebuildable index that is *not* used for lexical search. The stale Lucene 9.0.0 pin is gone (the version comes from video4j's `fingerprint-indexer`), which was the concrete complaint behind this task. See [SEARCH.md](SEARCH.md) §2. | — |
 | **P1-26** | ⬜ | *(new)* Emit `DETECTION` and `SEGMENT` documents. Their text currently folds into the owning asset's `keywords`, so it is searchable but does not surface as a hit of its own. The enum values and the permission mapping already exist; this is one more refresh function plus its triggers. | P1-5 |
 
 **Phase 1 backend exit criteria — met.** `GET /api/v1/search/results?q=…` finds an asset by filename,
@@ -272,7 +272,8 @@ passes in isolation. The cause is test-DB pool provisioning (rule 10), not a reg
       `LoomOptionsValidationTest` extension and `SearchDocumentCodegenTest`); **P1-9 partial**
       (no `LoomRoutingContext.searchParams()` accessor)
 - [ ] **Phase 1 consumers** — P1-16…P1-21 (loom-ui, demo data), P1-22 (MCP), P1-23 (GraphQL),
-      P1-24 (website docs + spec sync), P1-25 (delete the Lucene stub), P1-26 (detection/segment docs)
+      P1-24 (website docs + spec sync), P1-26 (detection/segment docs). P1-25 is closed as superseded:
+      `loom/services/lucene` is repurposed for fingerprint similarity ([LUCENE_PLAN.md](LUCENE_PLAN.md))
 - [ ] **Phase 2** — not started; gated on the P2-1 spike. The outbox it drains already exists
 - [ ] **Phase 3** — not started; see [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md)
 - [x] Open item 4 resolved; items 1, 2, 3, 5 still open and all belong to Phase 2/3

@@ -2,29 +2,63 @@
 title: Deduplication
 ---
 
-The deduplication nodes detect duplicate media and move the extra copies aside. Two variants exist:
-one by exact content hash, one by perceptual video fingerprint.
+The deduplication nodes find duplicate media and move the extra copies aside. There are two ways to
+decide that two files are "the same":
+
+* **By content hash** — the files are byte-for-byte identical.
+* **By perceptual fingerprint** — the files *look* like the same footage, even when they are different
+  encodes, resolutions or crops. Because that is a judgement call, near-duplicates are never deleted
+  automatically: they are collected for a person to confirm first.
 
 ++++
-<div class="ml-nodeviz" data-nodeviz='{"kind":"dedup","applies":"Any file \u00b7 Video","badge":"CPU only","persist":"asset_node_result ledger (the move is the side effect)","configs":[{"name":"sha512-dedup","note":"exact duplicates by content hash","inputs":[{"t":"hash","l":"hash","d":"any content hash — typically the hash port of a sha512 node"}],"outputs":[{"t":"action","l":"duplicate moved","d":"the extra copy is moved into dupFolder"}]},{"name":"fingerprint dedup (stub)","note":"detects, does not yet move files","inputs":[{"t":"fingerprint","l":"fingerprint","d":"the perceptual code, from the fingerprint port of a fingerprint node"}],"outputs":[{"t":"action","l":"near-duplicate flagged","d":"reported only — moving the file is not implemented yet"}]}]}'></div>
+<div class="ml-nodeviz" data-nodeviz='{"kind":"dedup","applies":"Any file · Video","badge":"CPU only","persist":"duplicate groups for review + processing ledger","configs":[{"name":"sha512-dedup","note":"exact duplicates by content hash","inputs":[{"t":"hash","l":"hash","d":"any content hash — typically the hash port of a sha512 node"}],"outputs":[{"t":"action","l":"duplicate moved","d":"the extra copy is moved into dupFolder"}]},{"name":"fingerprint-dedup","note":"finds near-duplicates and submits them for review","inputs":[{"t":"fingerprint","l":"fingerprint","d":"the perceptual code, from the fingerprint port of a fingerprint node"}],"outputs":[{"t":"action","l":"review group created","d":"a duplicate group awaiting a human decision — no file is touched"}]},{"name":"fingerprint-dedup-apply","note":"carries out confirmed decisions","inputs":[{"t":"hash","l":"hash","d":"any content hash, identifying the file to check against confirmed decisions"}],"outputs":[{"t":"action","l":"confirmed duplicate moved","d":"only for groups a reviewer confirmed"}]}]}'></div>
 ++++
 
 [cols="1,3"]
 |===
-| Kinds | `sha512-dedup` (hash dedup), fingerprint dedup
+| Kinds | `sha512-dedup` (exact), `fingerprint-dedup` (find near-duplicates), `fingerprint-dedup-apply` (act on confirmed ones)
 | Applies to | Any file (hash) / Video (fingerprint)
 | Input ports | Hash dedup takes `hash`, which accepts *any* hash type — connect the `hash` port of a link:../hash/[hash] node; fingerprint dedup takes `fingerprint` — connect the `fingerprint` port of link:../fingerprint/[Fingerprint]
-| Output ports | None — the node has side effects (moves duplicate files)
+| Output ports | None — these nodes work by side effect (creating review entries, or moving files)
 | Requirements | CPU only. **Storage**: duplicates are moved to a configured folder, so the worker needs write access there.
-| Persists to | `asset_node_result` ledger (the move itself is the side effect)
+| Persists to | Duplicate groups awaiting review, plus a processing ledger entry per file
 |===
 
-NOTE: `sha512-dedup` is the working variant. Fingerprint-based dedup is currently a stub and does not
-yet move files.
+== Finding near-duplicate videos
+
+Near-duplicate detection is a three-step workflow, and the split is deliberate: nothing is moved
+until a person has agreed to it.
+
+. **Find.** `fingerprint-dedup` compares each video's perceptual fingerprint against every other
+  fingerprinted video and groups the ones that match closely enough. Each group records one file to
+  *keep* and one or more *duplicates*. **No file is changed at this stage.**
+. **Review.** The groups wait for a decision. Confirming a group approves the proposed clean-up;
+  rejecting it means those files are never touched again.
+. **Apply.** `fingerprint-dedup-apply` acts only on confirmed groups, and re-checks the file it is
+  about to keep before moving anything.
+
+TIP: Fingerprint dedup needs the link:../fingerprint/[Fingerprint] node to have run first, and
+near-duplicate lookup must be switched on in the server configuration. Without it, the workflow has
+nothing to compare.
+
+=== Which copy is kept
+
+The node picks the copy that is **largest among the complete files**, and it refuses to propose a
+group at all when that choice looks unsafe — for example when one of the candidate duplicates is
+*larger* than the file that would be kept, or when no candidate is known to be complete. The intent
+is that a clean-up can only ever discard the lesser copy.
+
+Before it moves anything, the apply step checks all over again against the files as they are on disk
+right now: the file being kept must still exist, still be complete, still be at least as large as the
+duplicate, and must not itself already be sitting in the duplicates folder. If any of that no longer
+holds, the move is skipped rather than guessed at.
+
+Both steps are safe to re-run. Re-running the search updates the same pending group instead of piling
+up new ones, and re-running the apply step skips files that have already been moved.
 
 == Configuration
 
-`DedupNodeOptions`:
+Exact-hash dedup and the apply step (`DedupNodeOptions`):
 
 [options="header",cols="1,2"]
 |===
@@ -32,8 +66,22 @@ yet move files.
 | `dupFolder` | Target directory that detected duplicates are moved into
 |===
 
+Near-duplicate search (`fingerprint-dedup`):
+
+[options="header",cols="1,2"]
+|===
+| Option | Meaning
+| `algorithm` | Which fingerprint version to compare (defaults to the one the Fingerprint node produces)
+| `topK` | How many similar videos to consider per file
+| `scoreThreshold` | How close a match has to be before it counts as a near-duplicate. Higher is stricter.
+| `abortOnLargerDup` | Refuse to propose a group when a candidate duplicate is larger than the file that would be kept. On by default.
+| `allowPartial` | Allow a group even when no candidate is known to be a complete file. Off by default.
+|===
+
 == Use Cases
 
 * **Ingest cleanup** — collapse byte-identical files as they are scanned from a folder or NAS.
-* **Near-duplicate video pruning** (once fingerprint dedup is implemented) — remove re-encodes of the
-  same footage.
+* **Near-duplicate video pruning** — find re-encodes and re-uploads of the same footage, review them,
+  and clear out the redundant copies once approved.
+* **Reclaiming storage safely** — the review step means a large clean-up can be checked before any
+  file moves.

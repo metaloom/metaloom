@@ -1,0 +1,34 @@
+# Cortex LTX-2 video sidecar. Python 3.12+ (per the LTX-2 model card), CUDA >12.7.
+#
+# torch is intentionally UNPINNED here: install the wheel that matches your CUDA FIRST,
+# e.g.  pip install torch --index-url https://download.pytorch.org/whl/cu128
+# then run this file. Verified working on this repo with torch 2.11.0+cu128.
+#
+# The versions below are the set this sidecar was brought up and verified against
+# (diffusers 0.39.0 is the first release that ships LTX2Pipeline / the LTX-2 classes).
+# Bump deliberately: LTX-2 support is new and moving.
+
+# --- HTTP layer ---
+fastapi>=0.115
+uvicorn[standard]>=0.30
+
+# --- core numerics / DL ---
+torch                          # install matching your CUDA FIRST — see comment above
+
+# --- diffusion + HF model stack ---
+diffusers>=0.39                # 0.39.0 is the first release with LTX2Pipeline
+transformers>=5.14
+accelerate>=1.14               # enable_model_cpu_offload / device placement
+safetensors>=0.8
+huggingface_hub>=1.25          # from_single_file over an hf blob URL + snapshot_download
+
+# --- quantization (fits LTX-2 on a 24 GB card) ---
+# LTX-2 is a ~46B system (19B transformer + 27B Gemma3 text encoder). Both are quantized
+# to nf4 4-bit at load; without this it needs a >=48 GB / multi-GPU host. The pre-baked
+# fp8 single-file checkpoints do NOT help — diffusers 0.39 upcasts them to bf16.
+bitsandbytes>=0.50
+
+# --- video / image io ---
+imageio-ffmpeg                 # encode_video muxing backend
+av                             # PyAV — encode_video needs it to write video + audio
+pillow

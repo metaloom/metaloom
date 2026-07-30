@@ -1,0 +1,27 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <artifactId>cortex-watermark-node</artifactId>
+    <packaging>jar</packaging>
+    <parent>
+        <groupId>io.metaloom.cortex</groupId>
+        <artifactId>cortex-nodes</artifactId>
+        <relativePath>../../pom.xml</relativePath>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <name>MetaLoom // Cortex :: Nodes :: Watermark</name>
+
+    <!--
+      The watermark node has no model and no sidecar. The image path is plain
+      ImageIO / Graphics2D compositing; the video path shells out to the ffmpeg
+      binary (overlay filter) and reads frame dimensions with ffprobe.
+
+      It deliberately does NOT depend on video4j: ffprobe already answers the only
+      question the video path asks of the container (width/height), so pulling in
+      the OpenCV native runtime for two integers would be a bad trade. See
+      WatermarkImages / FfmpegRunner.
+    -->
+
+</project>

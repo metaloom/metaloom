@@ -25,7 +25,9 @@ import io.metaloom.loom.rest.service.impl.DetectionEndpointService;
 import io.metaloom.loom.rest.service.impl.FingerprintCompEndpointService;
 import io.metaloom.loom.rest.service.impl.JsonCompEndpointService;
 import io.metaloom.loom.rest.service.impl.NodeResultEndpointService;
+import io.metaloom.loom.rest.service.impl.DedupGroupEndpointService;
 import io.metaloom.loom.rest.service.impl.SegmentCompEndpointService;
+import io.metaloom.loom.rest.service.impl.SimilarityEndpointService;
 import io.metaloom.loom.rest.service.impl.ReactionEndpointService;
 import io.metaloom.loom.rest.service.impl.TagEndpointService;
 import io.metaloom.loom.rest.service.impl.TaskEndpointService;
@@ -49,6 +51,8 @@ public class AssetEndpoint extends AbstractEndpoint {
 	private final FingerprintCompEndpointService fingerprintService;
 	private final SegmentCompEndpointService segmentService;
 	private final TaskEndpointService taskService;
+	private final SimilarityEndpointService similarityService;
+	private final DedupGroupEndpointService dedupGroupService;
 	private final ModelExamples examples;
 
 	@Inject
@@ -63,6 +67,8 @@ public class AssetEndpoint extends AbstractEndpoint {
 		FingerprintCompEndpointService fingerprintService,
 		SegmentCompEndpointService segmentService,
 		TaskEndpointService taskService,
+		SimilarityEndpointService similarityService,
+		DedupGroupEndpointService dedupGroupService,
 		EndpointDependencies deps, ModelExamples examples) {
 		super(deps);
 		this.service = service;
@@ -78,6 +84,8 @@ public class AssetEndpoint extends AbstractEndpoint {
 		this.fingerprintService = fingerprintService;
 		this.segmentService = segmentService;
 		this.taskService = taskService;
+		this.similarityService = similarityService;
+		this.dedupGroupService = dedupGroupService;
 		this.examples = examples;
 	}
 
@@ -493,6 +501,22 @@ public class AssetEndpoint extends AbstractEndpoint {
 			examples.deleteResponseExample(),
 			lrc -> {
 				fingerprintService.deleteFingerprintComp(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("compUuid"));
+			});
+
+		// --- FINGERPRINT SIMILARITY (near-duplicate query over the Lucene k-NN index) ---
+
+		addRoute(basePath() + "/:uuid/similar-assets", GET,
+			"Find near-duplicate assets by perceptual fingerprint similarity. Excludes the asset itself.",
+			lrc -> {
+				similarityService.listSimilarAssets(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		// --- DEDUP REVIEW GROUPS involving this asset (the apply node's entry point) ---
+
+		addRoute(basePath() + "/:uuid/dedup-groups", GET,
+			"List the duplicate review groups this asset takes part in, as keep or as duplicate",
+			lrc -> {
+				dedupGroupService.listAssetDedupGroups(lrc, lrc.pathParamUUID("uuid"));
 			});
 
 		// --- SEGMENT COMPONENT (asset_segment_comp: scenes, silence, shots, chapters) ---

@@ -9,14 +9,15 @@
 > 2. **Apply** (`fingerprint-dedup-apply`) — reads the **confirmed** groups and moves/marks the
 >    duplicate files.
 >
-> **Status: PARTIALLY built.** Done and tested: the Flyway migration (`dedup_group` /
-> `dedup_group_member` / `dedup_status`, V2.61) + permissions (V2.62), the `DedupGroupDao`
-> (api + jOOQ, cascade tests green), the dedup REST DTOs + `DedupGroupMethods` client, and **both
-> Cortex nodes** — `FingerprintDedupNode` (discovery, fills the old stub) and
-> `FingerprintDedupApplyNode` — with options, descriptors, Dagger kind bindings and unit tests.
-> **Not yet wired:** the Loom `dedup-groups` REST endpoints + endpoint/permission tests, demo data,
-> website docs, and the per-node integration E2E. Both depend on the fingerprint similarity index in
-> [../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md) (also partially built). See §13.
+> **Status: BUILT** (except demo data, website docs and the per-node E2E). Done and tested:
+> the Flyway migration (`dedup_group` / `dedup_group_member` / `dedup_status`, V2.61) + permissions
+> (V2.62), the `DedupGroupDao` (api + jOOQ, cascade tests green), the REST endpoints
+> (`/api/v1/dedup-groups` ×5 and `GET /api/v1/assets/:uuid/dedup-groups`) with
+> endpoint + permission tests, the DTOs + `DedupGroupMethods` client, and **both Cortex nodes** —
+> `FingerprintDedupNode` (discovery, fills the old stub) and `FingerprintDedupApplyNode` — with
+> options, descriptors, Dagger kind bindings and unit tests.
+> The prerequisite similarity index ([../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md)) is built too.
+> Test counts: `DedupGroupDaoTest` 6, `DedupGroupEndpointTest` 11, cortex dedup module 11. See §13.
 >
 > **Reference behaviour**: `xdb-clean/FPDEDUP_PROCESS.md` documents the original algorithm and its
 > safeguards; this spec maps those onto Loom/Cortex. General node conventions: [NODES.md](NODES.md).
@@ -66,8 +67,8 @@ human-confirmed data.
 cannot express keep-vs-dup roles or per-member similarity scores. A purpose-built, queryable model is
 added instead.
 
-New Flyway migration (**next free version after `V2.59`** — verify the highest migration at
-implementation time; likely `V2.60`), `loom/db/flyway/src/main/resources/db/migration/`:
+Flyway migration **`V2.61__add_dedup_group.sql`** (as built; the permissions follow in
+**`V2.62__add_dedup_permission.sql`**), `loom/db/flyway/src/main/resources/db/migration/`:
 
 ```sql
 CREATE TYPE "dedup_status" AS ENUM ('PENDING', 'CONFIRMED', 'REJECTED');
@@ -114,9 +115,11 @@ CREATE INDEX "idx_dedup_group_member_group"  ON "dedup_group_member" ("group_uui
   live file before moving anything.
 
 **DAO** — `DedupGroupDao` in `loom/db/api` (`io.metaloom.loom.db.model.dedup`), jOOQ impl in
-`loom/db/jooq`, in-memory impl in `loom/db/memory`:
-`createGroup`, `upsertGroup`, `addMember`, `loadGroup`, `listByStatus(status, paging)`,
-`listByAsset(assetUuid)`, `updateStatus(uuid, status)`, `delete(uuid)`.
+`loom/db/jooq`. As built: `createGroup`, `storeGroup`, `addMember`, `loadGroup`, `loadMembers`,
+`listByStatus`, `listByAsset`, `findPendingByKeep` (the idempotency lookup), `updateStatus`,
+`deleteGroup`.
+⚠️ **No in-memory impl.** `loom/db/memory` does not mirror every DAO (`AssetNodeResultDao` has none
+either); the jOOQ impl is exercised against the real pooled database instead.
 🔴 **Delete-cascade tests** (per [../../guidelines/CODING.md](../../guidelines/CODING.md)): deleting a
 group removes exactly its members; deleting an asset removes its memberships and nulls `keep_asset_uuid`,
 and removes nothing else.
@@ -365,12 +368,12 @@ Nothing is implemented.
 - [x] Delta sync deferred; apply does idempotent per-asset fetch (§7)
 
 **Prerequisite**
-- [~] Fingerprint similarity index ([../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md)) — SPI + Lucene impl + client built; REST endpoint + Dagger wiring pending
+- [x] Fingerprint similarity index ([../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md)) — built end to end (SPI, Lucene impl, Dagger binding, comp hooks, REST + client, 15 tests)
 
 **Loom backend**
 - [x] Migration: `dedup_status`, `dedup_group`, `dedup_group_member` (V2.61) (§2)
 - [x] `DedupGroupDao` (api + jooq) + delete-cascade tests (6 tests green). Memory impl skipped — follows the `AssetNodeResultDao` precedent (no memory impl) (§2, §10)
-- [ ] `/api/v1/dedup-groups` + `/api/v1/assets/:uuid/dedup-groups` endpoints + permission tests (§2.1)
+- [x] `/api/v1/dedup-groups` (POST/GET/GET-one/PATCH/DELETE) + `/api/v1/assets/:uuid/dedup-groups` endpoints; `DedupGroupEndpointTest` covers the happy path, validation, RBAC (incl. READ_DEDUP not granting UPDATE) and the asset-delete cascade through the API (§2.1)
 - [x] `READ/CREATE/UPDATE/DELETE_DEDUP` permissions (V2.62 + `Permission` enum) (§2.1)
 - [x] `DedupGroupMethods` client + DTOs (`DedupGroup{Create,Update}Request`, `DedupGroupResponse`, `DedupGroupListResponse`, `DedupGroupMemberModel`) (§2.1)
 - [x] `./setup-pool.sh` + jOOQ regen; build unaffected, `JooqDedupGroup*`/`JooqDedupStatus`/`JooqLoomPermission` generated
@@ -395,4 +398,4 @@ Nothing is implemented.
 ---
 
 _Git HEAD: `3ba0a6ffb92e31cf68fb6ed20744e0066b30a209` (branch `master`)_
-_Last updated: 2026-07-29_
+_Last updated: 2026-07-30_

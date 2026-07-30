@@ -32,5 +32,6 @@ video4j / OpenCV native libraries available.
 
 * **Near-duplicate video detection** — find re-encodes and trims of the same source (see
   link:../dedup/[Deduplication]).
-* **Similarity search** — nearest-neighbour lookup over fingerprints to find related clips.
+* **Similarity search** — nearest-neighbour lookup over fingerprints to find related clips. Once
+  near-duplicate lookup is enabled on the server, each video can list the others that look like it.
 * **Blacklisting** — match video content against a fingerprint blacklist even after re-encoding.

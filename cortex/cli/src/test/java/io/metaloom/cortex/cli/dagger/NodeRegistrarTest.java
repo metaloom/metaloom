@@ -57,11 +57,15 @@ public class NodeRegistrarTest {
 			"fingerprint", "consistency", "thumbnail", "facedetect",
 			"ocr", "tika", "whisper", "tts", "sentiment", "llm", "vlm",
 			"quality", "scene-detection", "captioning", "loom", "sha512-dedup",
-			"depthmap", "scene-layout", "dominant-color");
+			"depthmap", "scene-layout", "dominant-color", "watermark",
+			// The two fingerprint-dedup kinds gained real runtimes and map bindings; NODES.md §8
+			// records them as intentionally bound, so they belong here rather than in the
+			// not-advertised list below (where this assertion had gone stale).
+			"fingerprint-dedup", "fingerprint-dedup-apply");
 
 		// Stubs / unwired nodes must NOT be advertised, or Loom would dispatch work
 		// the worker cannot actually run.
-		assertThat(kinds).doesNotContain("fingerprint-dedup", "facedescription");
+		assertThat(kinds).doesNotContain("facedescription");
 	}
 
 	@Test

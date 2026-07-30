@@ -78,7 +78,7 @@ which upstream `(node, port)` fills it from the wired edges
 ## 2. The Content-Type Vocabulary
 
 `ContentTypeRegistry` replaces the deleted `ContentTypes` holder. A content type id is **always**
-`family/subtype`; `family/*` is the family root. There are **8 families and 38 registered ids**,
+`family/subtype`; `family/*` is the family root. There are **8 families and 39 registered ids**,
 every family carrying its own wildcard
 ([ContentTypeRegistry.java:79-132](../../../loom-shared/node-model/src/main/java/io/metaloom/loom/nodes/spec/ContentTypeRegistry.java#L79-L132)).
 
@@ -94,7 +94,7 @@ supertype of `detection/face` is structurally `detection/*`.
 | **detection** | `detection/*` · `detection/face` · `detection/object` · `detection/region` | `detection/*` is what `scene-layout` and `dominant-color` accept, so faces *or* objects can drive them |
 | **hash** | `hash/*` · `hash/md5` · `hash/sha256` · `hash/sha512` · `hash/chunk` · `hash/fingerprint` | Split per algorithm. This is what lets `loom` bind by **port type** instead of by node id |
 | **scalar** | `scalar/*` · `scalar/string` · `scalar/integer` · `scalar/number` · `scalar/boolean` | `scalar/integer` is **always 64-bit** — it merges the former `data/integer` and `data/long` |
-| **artifact** | `artifact/*` · `artifact/image` · `artifact/audio` · `artifact/file` | A **worker-local produced file**, distinct from a resolvable media reference. Prevents wiring a thumbnail path into a node that expects to open a media item |
+| **artifact** | `artifact/*` · `artifact/image` · `artifact/video` · `artifact/audio` · `artifact/file` | A **worker-local produced file**, distinct from a resolvable media reference. Prevents wiring a thumbnail path into a node that expects to open a media item. `artifact/video` is what `watermark` emits for a video item |
 | **struct** | `struct/*` · `struct/embedding` · `struct/segments` · `struct/scene-layout` · `struct/quality` · `struct/depthmap` · `struct/color` · `struct/json` | Structured JSON payloads |
 | **control** | `control/*` · `control/filter` | Engine routing signals. `getFilterPassed()` finds a filter verdict by **family**, not by a magic key |
 
@@ -174,7 +174,7 @@ Fluent factories: `one`, `many`, `optionalOne`, `optionalMany`
 [NodeDescriptor.java:35-47](../../../loom-shared/node-model/src/main/java/io/metaloom/loom/nodes/spec/NodeDescriptor.java#L35-L47) — the `inputs`/`outputs` fields are **deleted**; the descriptor now
 carries `inputPorts`, `outputPorts`, `inputGroups`, `outputGroups` and `dynamicPorts`.
 
-**25 providers declaring 39 kinds**, registered in
+**26 providers declaring 41 kinds**, registered in
 `loom-shared/node-model/src/main/resources/META-INF/services/io.metaloom.loom.nodes.spec.NodeDescriptorProvider`.
 `tts` and `imagegen` gained descriptors in this change — they were runnable but invisible in the
 palette before.
@@ -287,6 +287,7 @@ what a consumer binds to.
 | `tts` | `text : text/*` | `audio : artifact/audio`, `flag : scalar/string` |
 | `imagegen` | `prompt : text/*` *(opt)*, `media : media/image` *(opt)* | `image : artifact/image`, `flag : scalar/string` |
 | `script` | `media : media/*` *(opt)*, `data : struct/json` *(opt)* | **dynamic** — from the `outputs` option (§3.4) |
+| `watermark` | `media : media/*` | `image : artifact/image`, `video : artifact/video`, `flag : scalar/string` |
 
 ### 4.5 Filters
 

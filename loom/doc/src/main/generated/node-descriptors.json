@@ -195,6 +195,42 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "kind" : "fingerprint-dedup-apply",
+    "name" : "Fingerprint Deduplication (Apply)",
+    "description" : "Move confirmed near-duplicate files. Acts only on dedup groups a reviewer has confirmed in Loom.",
+    "icon" : "content_copy",
+    "category" : "OUTPUT",
+    "inputPorts" : [ {
+      "id" : "hash",
+      "label" : "Hash",
+      "contentType" : "hash/*",
+      "cardinality" : "ONE",
+      "required" : true,
+      "description" : "Any content hash; identifies the asset whose confirmed dedup groups are applied",
+      "many" : false
+    } ],
+    "outputPorts" : [ ],
+    "inputGroups" : [ ],
+    "outputGroups" : [ ],
+    "dynamicPorts" : false,
+    "parameters" : [ {
+      "key" : "enabled",
+      "type" : "BOOLEAN",
+      "defaultValue" : true,
+      "label" : "Enabled",
+      "description" : "Whether this node is active in the pipeline"
+    }, {
+      "key" : "dupFolder",
+      "type" : "STRING",
+      "defaultValue" : "duplicates",
+      "label" : "Duplicates Folder",
+      "description" : "Target folder for confirmed duplicate files"
+    } ],
+    "defaultConcurrency" : 1,
+    "defaultMode" : "SEQUENTIAL",
+    "defaultBlocking" : true,
+    "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+  }, {
     "kind" : "depthmap",
     "name" : "Depth Map",
     "description" : "Estimate a per-pixel depth map from a single image. The map is written to a local cache as a 16-bit PNG where the brightest pixels are nearest the camera.",
@@ -2856,6 +2892,154 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "kind" : "watermark",
+    "name" : "Watermark",
+    "description" : "Composite a configured watermark image onto the asset - a still is redrawn with Graphics2D, a video is re-encoded through the ffmpeg overlay filter with its audio copied untouched. The source file is never modified; the marked copy is written to the worker's local cache, so wire it into a sink to keep it.",
+    "icon" : "branding_watermark",
+    "category" : "TRANSFORM",
+    "inputPorts" : [ {
+      "id" : "media",
+      "label" : "Media",
+      "contentType" : "media/*",
+      "cardinality" : "ONE",
+      "required" : true,
+      "description" : "The image or video to mark. Audio and documents are skipped",
+      "many" : false
+    } ],
+    "outputPorts" : [ {
+      "id" : "image",
+      "label" : "Marked Image",
+      "contentType" : "artifact/image",
+      "cardinality" : "ONE",
+      "required" : true,
+      "description" : "The watermarked PNG, written for image items only",
+      "many" : false
+    }, {
+      "id" : "video",
+      "label" : "Marked Video",
+      "contentType" : "artifact/video",
+      "cardinality" : "ONE",
+      "required" : true,
+      "description" : "The watermarked clip in the source container, written for video items only",
+      "many" : false
+    }, {
+      "id" : "flag",
+      "label" : "Flag",
+      "contentType" : "scalar/string",
+      "cardinality" : "ONE",
+      "required" : true,
+      "description" : "Processing marker recording how this node finished for the item",
+      "many" : false
+    } ],
+    "inputGroups" : [ ],
+    "outputGroups" : [ ],
+    "dynamicPorts" : false,
+    "parameters" : [ {
+      "key" : "enabled",
+      "type" : "BOOLEAN",
+      "defaultValue" : true,
+      "label" : "Enabled",
+      "description" : "Whether this node is active in the pipeline"
+    }, {
+      "key" : "processIncomplete",
+      "type" : "BOOLEAN",
+      "defaultValue" : false,
+      "label" : "Process Incomplete",
+      "description" : "Process media files that are still being written"
+    }, {
+      "key" : "retryFailed",
+      "type" : "BOOLEAN",
+      "defaultValue" : false,
+      "label" : "Retry Failed",
+      "description" : "Retry processing media that previously failed"
+    }, {
+      "key" : "watermarkBase64",
+      "type" : "CODE",
+      "defaultValue" : "",
+      "label" : "Watermark Image (base64)",
+      "description" : "The overlay image, base64-encoded. A full data:image/png;base64,... URI is accepted too. Carrying the image here rather than as a path keeps the pipeline runnable on any worker",
+      "rows" : 6
+    }, {
+      "key" : "relX",
+      "type" : "NUMBER",
+      "defaultValue" : 0.95,
+      "label" : "Horizontal Position",
+      "description" : "0.0 is flush left, 1.0 flush right, 0.5 centred. Measured against the space the overlay can slide in, so it never leaves the frame",
+      "min" : 0.0,
+      "max" : 1.0,
+      "step" : 0.01
+    }, {
+      "key" : "relY",
+      "type" : "NUMBER",
+      "defaultValue" : 0.95,
+      "label" : "Vertical Position",
+      "description" : "0.0 is flush top, 1.0 flush bottom, 0.5 centred",
+      "min" : 0.0,
+      "max" : 1.0,
+      "step" : 0.01
+    }, {
+      "key" : "scale",
+      "type" : "NUMBER",
+      "defaultValue" : 0.2,
+      "label" : "Relative Size",
+      "description" : "Overlay width as a fraction of the media width, aspect preserved. 0 keeps the overlay's own pixel size, which makes it look different on every resolution",
+      "min" : 0.0,
+      "max" : 1.0,
+      "step" : 0.01
+    }, {
+      "key" : "opacity",
+      "type" : "NUMBER",
+      "defaultValue" : 1.0,
+      "label" : "Opacity",
+      "description" : "Scales the overlay's own transparency. 1.0 leaves it as authored",
+      "min" : 0.01,
+      "max" : 1.0,
+      "step" : 0.05
+    }, {
+      "key" : "videoCodec",
+      "type" : "STRING",
+      "defaultValue" : "libx264",
+      "label" : "Video Codec",
+      "description" : "Encoder for the video path. An overlay changes pixels, so the video stream must be re-encoded; audio is copied"
+    }, {
+      "key" : "videoCrf",
+      "type" : "INTEGER",
+      "defaultValue" : 23,
+      "label" : "Video Quality (CRF)",
+      "description" : "Constant rate factor. Lower is better quality and a larger file; 0 is lossless",
+      "min" : 0,
+      "max" : 51
+    }, {
+      "key" : "videoPreset",
+      "type" : "STRING",
+      "defaultValue" : "medium",
+      "label" : "Encoder Preset",
+      "description" : "Encoder speed/size trade-off, e.g. ultrafast, medium, slow"
+    }, {
+      "key" : "ffmpegPath",
+      "type" : "STRING",
+      "defaultValue" : "ffmpeg",
+      "label" : "ffmpeg Path",
+      "description" : "The ffmpeg executable, resolved on PATH when left as a bare name. Only the video path needs it"
+    }, {
+      "key" : "ffprobePath",
+      "type" : "STRING",
+      "defaultValue" : "ffprobe",
+      "label" : "ffprobe Path",
+      "description" : "The ffprobe executable, used to read the video's frame size"
+    }, {
+      "key" : "timeoutMs",
+      "type" : "INTEGER",
+      "defaultValue" : 600000,
+      "label" : "Timeout (ms)",
+      "description" : "Wall-clock budget per item. A CPU video re-encode is far slower than an image composite",
+      "min" : 1
+    } ],
+    "defaultConcurrency" : 1,
+    "defaultMode" : "PARALLEL",
+    "defaultBlocking" : true,
+    "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+  }, {
     "kind" : "whisper",
     "name" : "Whisper (Speech-to-Text)",
     "description" : "Transcribe audio/video speech to text using Whisper.",
@@ -3114,6 +3298,12 @@
     "label" : "Image Artifact",
     "family" : "artifact",
     "description" : "A generated image file",
+    "wildcard" : false
+  }, {
+    "id" : "artifact/video",
+    "label" : "Video Artifact",
+    "family" : "artifact",
+    "description" : "A generated video file",
     "wildcard" : false
   }, {
     "id" : "artifact/audio",

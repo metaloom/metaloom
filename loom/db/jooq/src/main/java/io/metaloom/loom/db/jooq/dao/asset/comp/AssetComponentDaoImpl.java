@@ -800,6 +800,14 @@ public class AssetComponentDaoImpl implements AssetComponentDao {
 			.fetch(this::mapFingerprintComp);
 	}
 
+	@Override
+	public List<AssetFingerprintComp> findByAlgorithm(String algorithm) {
+		return ctx.select(DSL.asterisk())
+			.from(FINGERPRINT_TABLE)
+			.where(F_ALGORITHM.eq(algorithm))
+			.fetch(this::mapFingerprintComp);
+	}
+
 	private AssetFingerprintComp mapFingerprintComp(Record r) {
 		AssetFingerprintCompImpl comp = new AssetFingerprintCompImpl();
 		readBase(r, comp);

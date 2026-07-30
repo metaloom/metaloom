@@ -4069,6 +4069,77 @@
         }
       } ]
     },
+    "/api/v1/assets/{uuid}/dedup-groups" : {
+      "description" : "List the duplicate review groups this asset takes part in, as keep or as duplicate",
+      "get" : {
+        "tags" : [ "assets" ],
+        "summary" : "List the duplicate review groups this asset takes part in, as keep or as duplicate",
+        "description" : "List the duplicate review groups this asset takes part in, as keep or as duplicate",
+        "operationId" : "getAssetsByUuidDedupgroups",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
     "/api/v1/assets/{uuid}/detections" : {
       "description" : "Create a new detection on an asset",
       "get" : {
@@ -6476,6 +6547,77 @@
         "name" : "compUuid",
         "in" : "path",
         "description" : "UUID of the referenced comp",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/assets/{uuid}/similar-assets" : {
+      "description" : "Find near-duplicate assets by perceptual fingerprint similarity. Excludes the asset itself.",
+      "get" : {
+        "tags" : [ "assets" ],
+        "summary" : "Find near-duplicate assets by perceptual fingerprint similarity. Excludes the asset itself.",
+        "description" : "Find near-duplicate assets by perceptual fingerprint similarity. Excludes the asset itself.",
+        "operationId" : "getAssetsByUuidSimilarassets",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
         "required" : true,
         "schema" : {
           "type" : "string",
@@ -16789,7 +16931,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "c7bc287d-b17c-46b7-87f1-e3cd79f1915f",
+                    "versionUuid" : "e2cdf677-2edb-4d48-907b-a2fd3437a763",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -16816,7 +16958,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "23b05fcb-ed01-472d-89de-f4377ee302e0",
+                    "versionUuid" : "28109552-7d0e-4bb7-9f1f-e979da1a29e0",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -16923,7 +17065,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "8e516881-0147-4c8a-a528-21b11d8dea42",
+                  "versionUuid" : "298aad3d-bb98-4b70-80e2-12b5cb32324b",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -17009,7 +17151,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "3e3253b3-11a1-4392-ad93-51d8c317c7cb",
+                  "versionUuid" : "0a85427c-30c6-4f2f-bd61-dd6c8219533b",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -17116,7 +17258,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "d0b1b78c-dc9b-4baf-acb1-8ab72a58548c",
+                  "versionUuid" : "69a50770-17b0-450a-b0ae-0d941e95506b",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -17278,7 +17420,7 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "runUuid" : "2e144529-3896-4bbf-ac65-a3cf859c8dfe",
+                  "runUuid" : "d0e16c3a-9a54-4b83-bbf0-44f9f8e50cfe",
                   "processorNodeId" : "cortex-01",
                   "dispatched" : true,
                   "message" : "Pipeline run dispatched"
@@ -17404,11 +17546,11 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "d13ff874-df30-4479-89e3-0e4ec343fb63",
-                    "pipelineUuid" : "e5eca1fb-d53e-4042-90e5-adcdcf5c8c09",
+                    "uuid" : "a175e639-c6e7-4989-b912-2ae1bfc44e1d",
+                    "pipelineUuid" : "7834b3bf-1e5b-4f9c-8f95-623c59421618",
                     "pipelineVersion" : 1,
-                    "started" : "2026-07-26T11:48:32.746629618Z",
-                    "finished" : "2026-07-26T11:48:32.746729338Z",
+                    "started" : "2026-07-30T08:30:52.444521492Z",
+                    "finished" : "2026-07-30T08:30:52.444814302Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -17417,11 +17559,11 @@
                     "dryRun" : false,
                     "durationMs" : 45000
                   }, {
-                    "uuid" : "2aa6191b-37e3-41a7-b1bb-69ac1d65a344",
-                    "pipelineUuid" : "07c743fc-ca51-4a04-b1a2-31be98feda21",
+                    "uuid" : "2e7af105-b19d-4d8d-82a1-05c01d8af468",
+                    "pipelineUuid" : "f636b71e-1e08-4936-add9-08fa15e30554",
                     "pipelineVersion" : 1,
-                    "started" : "2026-07-26T11:48:32.746767728Z",
-                    "finished" : "2026-07-26T11:48:32.746771828Z",
+                    "started" : "2026-07-30T08:30:52.444848972Z",
+                    "finished" : "2026-07-30T08:30:52.444852172Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -17514,11 +17656,11 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "uuid" : "d0e848d0-37f7-4e19-a8b3-ba81818cc251",
-                  "pipelineUuid" : "53cae7c5-7129-4506-86da-c999c4dbd7bb",
+                  "uuid" : "b27a2281-a5b3-4b3a-826e-cc2a155b1692",
+                  "pipelineUuid" : "762a02f0-4267-4033-8815-8321d9d9186e",
                   "pipelineVersion" : 1,
-                  "started" : "2026-07-26T11:48:32.747530978Z",
-                  "finished" : "2026-07-26T11:48:32.747537028Z",
+                  "started" : "2026-07-30T08:30:52.446112312Z",
+                  "finished" : "2026-07-30T08:30:52.446128272Z",
                   "status" : "SUCCESS",
                   "mediaCount" : 100,
                   "successCount" : 95,
@@ -17740,16 +17882,16 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "b2337703-89fb-4039-bcd2-5775ef7bd031",
-                    "runUuid" : "6e0264e1-32e1-4054-bfb1-bf54c7a33e8b",
+                    "uuid" : "4a4630be-7244-4673-aa84-2fdf421eb505",
+                    "runUuid" : "0aecb976-42cc-42c0-9a62-8347e071667c",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
                     "sizeBytes" : 1048576,
                     "state" : "SUCCESS"
                   }, {
-                    "uuid" : "ef3121cd-130c-4535-97ed-00fe1239c2e2",
-                    "runUuid" : "69edcaf8-37ba-4dae-a9e4-b93560b300cf",
+                    "uuid" : "a9655274-9226-409d-a8b4-0a004dadba4c",
+                    "runUuid" : "4198911e-a8d8-4060-a413-226a9790102e",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
@@ -18073,7 +18215,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "1e040fee-2bfa-424d-b981-2eb3057f5222",
+                    "versionUuid" : "08c00a83-5331-47d1-b4a4-5ea3deb1adf9",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -18100,7 +18242,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "c5737d53-feac-4211-bbd3-6c5c65a7ed89",
+                    "versionUuid" : "a64825bd-6fc6-4cef-bc46-1b81693a0d8b",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -18211,7 +18353,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "4f213cfc-c276-420e-adfb-96ff00d77fd9",
+                  "versionUuid" : "76de67ee-f10b-4d00-a8ea-d00f50276747",
                   "versionNumber" : 2,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -18336,7 +18478,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "9ab94d49-2c64-4510-bfda-205b6a66bafb",
+                  "versionUuid" : "2288a420-7dfd-4ec2-883b-3ff04ab7e8e5",
                   "versionNumber" : 2,
                   "name" : "restored-pipeline",
                   "description" : "Restored from version 1",

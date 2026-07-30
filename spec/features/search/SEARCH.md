@@ -37,7 +37,8 @@ verified against the tree at the time.
 | jsonb GIN on `asset_json_comp.data` | index exists, unused, **cannot do text search** | `V2.40`; `jsonb_path_ops` supports containment only |
 | Fingerprint lookup | works — exact equality, not similarity | `AssetComponentDaoImpl.findByFingerprint(algorithm, fingerprint)` |
 | Vector / ANN / kNN search | **absent** | See [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) |
-| Lucene | **empty module** — `pom.xml` only, no `src/`, pins Lucene 9.0.0 (Nov 2021) | `loom/services/lucene/` |
+| Lucene | **in use for fingerprint k-NN only** — the module now holds `LuceneSimilarityIndex` ([LUCENE_PLAN.md](LUCENE_PLAN.md)); it is **not** used for lexical search | `loom/services/lucene/` |
+| Fingerprint **similarity** (near-duplicate) | works — Lucene HNSW k-NN over the fingerprint vector | [LUCENE_PLAN.md](LUCENE_PLAN.md); `GET /api/v1/assets/:uuid/similar-assets` |
 | Elasticsearch | **empty module** — `pom.xml` + 2-line README, no `src/` | `loom/services/elasticsearch/` |
 | Qdrant | **empty module** — pom with zero dependencies | `loom/services/qdrant/` |
 | OpenSearch / Solr | absent entirely | repo-wide grep |
@@ -137,11 +138,17 @@ this is a prerequisite, not a nice-to-have ([SEARCH_PLAN.md](SEARCH_PLAN.md) P0-
 - **Elasticsearch/OpenSearch second** for deep paging, native faceting, fast highlighting and
   horizontal scale — behind the same `SearchProvider` SPI, so it is a binding change rather than a
   rewrite.
-- 🔴 **Lucene rejected.** An embedded index is **per-replica local state**: two Loom pods would answer
-  the same query differently, and a restart on ephemeral storage loses the index. It buys ES-class
-  relevance while giving up Postgres's zero-ops advantage — the worst of both. `loom/services/lucene`
-  pins Lucene 9.0.0 (Nov 2021); leaving a stub that resolves a five-year-old dependency is worse than
-  nothing. **Delete the module** from `loom/services/pom.xml`.
+- 🔴 **Lucene rejected — for lexical search.** An embedded index is **per-replica local state**: two Loom
+  pods would answer the same query differently, and a restart on ephemeral storage loses the index. It
+  buys ES-class relevance while giving up Postgres's zero-ops advantage — the worst of both.
+  ⚠️ **Scope of this rejection.** It applies to the lexical search index specified in this document, which
+  is a queryable system of record spanning many entities. It does **not** apply to the **perceptual
+  fingerprint k-NN index** in [LUCENE_PLAN.md](LUCENE_PLAN.md), which *is* built on Lucene: that index
+  holds one float vector per asset, is derived entirely from `asset_fingerprint_comp`, and is rebuilt
+  with one REST call — so "per-replica local state" costs a rebuild, never data or divergent answers.
+  See [LUCENE_PLAN.md](LUCENE_PLAN.md) §1.2 for the full reconciliation.
+  `loom/services/lucene` is therefore **repurposed for fingerprint similarity, not deleted**; the stale
+  Lucene 9.0.0 pin has been dropped (the version now comes from video4j's `fingerprint-indexer`).
 - **OpenSearch** is served by the same implementation: target the ES 7.10-compatible REST subset and
   gate ES-8-only features (`rrf` retriever, `knn` DSL) behind `SearchCapability` flags.
 

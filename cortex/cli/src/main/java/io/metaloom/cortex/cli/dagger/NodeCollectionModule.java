@@ -25,6 +25,7 @@ import io.metaloom.cortex.node.thumbnail.ThumbnailNodeModule;
 import io.metaloom.cortex.node.tika.TikaNodeModule;
 import io.metaloom.cortex.node.tts.TtsNodeModule;
 import io.metaloom.cortex.node.vlm.VlmNodeModule;
+import io.metaloom.cortex.node.watermark.WatermarkNodeModule;
 import io.metaloom.cortex.node.whisper.WhisperNodeModule;
 
 @Module(includes = {
@@ -52,7 +53,8 @@ import io.metaloom.cortex.node.whisper.WhisperNodeModule;
 	ScriptNodeModule.class,
 	DepthmapNodeModule.class,
 	SceneLayoutNodeModule.class,
-	DominantColorNodeModule.class })
+	DominantColorNodeModule.class,
+	WatermarkNodeModule.class })
 public interface NodeCollectionModule {
 
 }
