@@ -38,6 +38,8 @@ import io.metaloom.loom.db.jooq.tables.JooqCollectionCluster;
 import io.metaloom.loom.db.jooq.tables.JooqComment;
 import io.metaloom.loom.db.jooq.tables.JooqCortexInstance;
 import io.metaloom.loom.db.jooq.tables.JooqCortexInstanceNodeKind;
+import io.metaloom.loom.db.jooq.tables.JooqDedupGroup;
+import io.metaloom.loom.db.jooq.tables.JooqDedupGroupMember;
 import io.metaloom.loom.db.jooq.tables.JooqDetection;
 import io.metaloom.loom.db.jooq.tables.JooqEmbedding;
 import io.metaloom.loom.db.jooq.tables.JooqEmbeddingCluster;
@@ -333,6 +335,17 @@ public class JooqPublic extends SchemaImpl {
     public final JooqCortexInstanceNodeKind CORTEX_INSTANCE_NODE_KIND = JooqCortexInstanceNodeKind.CORTEX_INSTANCE_NODE_KIND;
 
     /**
+     * A candidate duplicate set (one KEEP + N DUP members) discovered via
+     * fingerprint similarity, awaiting/holding a human confirm/deny decision.
+     */
+    public final JooqDedupGroup DEDUP_GROUP = JooqDedupGroup.DEDUP_GROUP;
+
+    /**
+     * The table <code>public.dedup_group_member</code>.
+     */
+    public final JooqDedupGroupMember DEDUP_GROUP_MEMBER = JooqDedupGroupMember.DEDUP_GROUP_MEMBER;
+
+    /**
      * Object and face detections within assets. One row per detected instance,
      * keyed by (asset, producer, frame, ordinal) so a re-run replaces rather
      * than duplicates.
@@ -603,6 +616,8 @@ public class JooqPublic extends SchemaImpl {
             JooqComment.COMMENT,
             JooqCortexInstance.CORTEX_INSTANCE,
             JooqCortexInstanceNodeKind.CORTEX_INSTANCE_NODE_KIND,
+            JooqDedupGroup.DEDUP_GROUP,
+            JooqDedupGroupMember.DEDUP_GROUP_MEMBER,
             JooqDetection.DETECTION,
             JooqEmbedding.EMBEDDING,
             JooqEmbeddingCluster.EMBEDDING_CLUSTER,

@@ -86,7 +86,11 @@ public interface DaoProvider extends DaoCollection {
 	default AssetNodeResultDao assetNodeResultDao() {
 		return daos().assetNodeResultDao();
 	}
-	
+
+	default io.metaloom.loom.db.model.dedup.DedupGroupDao dedupGroupDao() {
+		return daos().dedupGroupDao();
+	}
+
 	// Attachment
 	
 	default AttachmentDao attachmentDao() {

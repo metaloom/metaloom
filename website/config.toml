@@ -137,22 +137,28 @@ url = "studio"
 weight = 4
 
 [[Languages.en.menu.main]]
+name = "Pipeline Editor"
+pre = ""
+url = "pipeline-editor"
+weight = 5
+
+[[Languages.en.menu.main]]
 name = "Announcements"
 pre = ""
 url = "announcements"
-weight = 5
+weight = 6
 
 [[Languages.en.menu.main]]
 name = "Blog"
 pre = ""
 url = "blog"
-weight = 6
+weight = 7
 
 [[Languages.en.menu.main]]
 name = "Docs"
 pre = ""
 url = "docs"
-weight = 6
+weight = 8
 
 
 #[[Languages.en.menu.main]]

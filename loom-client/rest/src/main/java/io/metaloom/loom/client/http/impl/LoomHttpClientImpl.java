@@ -1527,6 +1527,69 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 		return getRequest("search/status", SearchStatusResponse.class);
 	}
 
+	// FINGERPRINT SIMILARITY
+
+	@Override
+	public LoomClientHttpRequest<io.metaloom.loom.rest.model.similarity.SimilarAssetListResponse> listSimilarAssets(UUID assetUuid, String algorithm,
+		Integer limit, Float threshold) {
+		LoomClientHttpRequest<io.metaloom.loom.rest.model.similarity.SimilarAssetListResponse> request = getRequest(
+			"assets/" + assetUuid + "/similar-assets", io.metaloom.loom.rest.model.similarity.SimilarAssetListResponse.class);
+		if (algorithm != null) {
+			request.addQueryParameter("algorithm", algorithm);
+		}
+		if (limit != null) {
+			request.addQueryParameter("limit", String.valueOf(limit));
+		}
+		if (threshold != null) {
+			request.addQueryParameter("threshold", String.valueOf(threshold));
+		}
+		return request;
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> rebuildSimilarityIndex() {
+		return postRequest("similarity-index/rebuild", NoResponse.class);
+	}
+
+	// DEDUP REVIEW GROUPS
+
+	@Override
+	public LoomClientHttpRequest<io.metaloom.loom.rest.model.dedup.DedupGroupResponse> createDedupGroup(
+		io.metaloom.loom.rest.model.dedup.DedupGroupCreateRequest request) {
+		return postRequest("dedup-groups", request, io.metaloom.loom.rest.model.dedup.DedupGroupResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<io.metaloom.loom.rest.model.dedup.DedupGroupListResponse> listDedupGroups(String status) {
+		LoomClientHttpRequest<io.metaloom.loom.rest.model.dedup.DedupGroupListResponse> request = getRequest("dedup-groups",
+			io.metaloom.loom.rest.model.dedup.DedupGroupListResponse.class);
+		if (status != null) {
+			request.addQueryParameter("status", status);
+		}
+		return request;
+	}
+
+	@Override
+	public LoomClientHttpRequest<io.metaloom.loom.rest.model.dedup.DedupGroupResponse> loadDedupGroup(UUID uuid) {
+		return getRequest("dedup-groups/" + uuid, io.metaloom.loom.rest.model.dedup.DedupGroupResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<io.metaloom.loom.rest.model.dedup.DedupGroupResponse> updateDedupGroup(UUID uuid,
+		io.metaloom.loom.rest.model.dedup.DedupGroupUpdateRequest request) {
+		return patchRequest("dedup-groups/" + uuid, request, io.metaloom.loom.rest.model.dedup.DedupGroupResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> deleteDedupGroup(UUID uuid) {
+		return deleteRequest("dedup-groups/" + uuid);
+	}
+
+	@Override
+	public LoomClientHttpRequest<io.metaloom.loom.rest.model.dedup.DedupGroupListResponse> listAssetDedupGroups(UUID assetUuid) {
+		return getRequest("assets/" + assetUuid + "/dedup-groups", io.metaloom.loom.rest.model.dedup.DedupGroupListResponse.class);
+	}
+
 	/**
 	 * Attach the search term and any extra parameters as real query parameters.
 	 *

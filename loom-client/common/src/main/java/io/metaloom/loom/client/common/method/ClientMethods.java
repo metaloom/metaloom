@@ -34,6 +34,8 @@ public interface ClientMethods extends
 	FingerprintCompMethods,
 	SegmentCompMethods,
 	SearchMethods,
+	SimilarityMethods,
+	DedupGroupMethods,
 	GraphQLMethods,
 	HealthMethods,
 	InfoMethods {

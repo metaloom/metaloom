@@ -15,14 +15,38 @@
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<lucene.version>9.0.0</lucene.version>
 	</properties>
 
 	<dependencies>
 		<dependency>
-			<groupId>org.apache.lucene</groupId>
-			<artifactId>lucene-core</artifactId>
-			<version>${lucene.version}</version>
+			<groupId>io.metaloom.loom.shared</groupId>
+			<artifactId>loom-api</artifactId>
+		</dependency>
+
+		<!--
+			The fingerprint similarity index reuses the proven video4j Lucene HNSW indexer
+			(codec / HighDimensionKnnVectorsFormat / MultiSectorFingerprint). Lucene itself
+			is pulled transitively (Lucene 10.x) - do NOT pin the old 9.0.0 here.
+		-->
+		<dependency>
+			<groupId>io.metaloom.video</groupId>
+			<artifactId>video4j-fingerprint-indexer</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.slf4j</groupId>
+			<artifactId>slf4j-api</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.assertj</groupId>
+			<artifactId>assertj-core</artifactId>
+			<scope>test</scope>
 		</dependency>
 	</dependencies>
 

@@ -609,6 +609,11 @@
             </dependency>
             <dependency>
                 <groupId>io.metaloom.video</groupId>
+                <artifactId>video4j-fingerprint-indexer</artifactId>
+                <version>${video4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.video</groupId>
                 <artifactId>video4j-facedetect-insightface-http</artifactId>
                 <version>${video4j.version}</version>
             </dependency>

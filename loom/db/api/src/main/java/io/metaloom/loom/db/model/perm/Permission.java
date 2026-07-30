@@ -216,6 +216,14 @@ public enum Permission {
 	// Search. Wholesale gate on /api/v1/search/*. The endpoint additionally narrows the requested
 	// entity types against the READ_* permissions above and drops the ones the caller may not see,
 	// because search is cross-entity by construction.
-	READ_SEARCH;              // doc:yes  ui:no  test:SearchEndpointTest
+	READ_SEARCH,              // doc:yes  ui:no  test:SearchEndpointTest
+
+	// Deduplication review. Gate on /api/v1/dedup-groups and /api/v1/assets/:uuid/dedup-groups.
+	// The discovery node creates PENDING groups (CREATE_DEDUP); a reviewer confirms/denies
+	// (UPDATE_DEDUP); the apply node reads CONFIRMED groups (READ_DEDUP).
+	CREATE_DEDUP,             // doc:yes  ui:no  test:DedupGroupEndpointTest (403 cases)
+	READ_DEDUP,               // doc:yes  ui:no  test:DedupGroupEndpointTest (403 cases)
+	UPDATE_DEDUP,             // doc:yes  ui:no  test:DedupGroupEndpointTest
+	DELETE_DEDUP;             // doc:yes  ui:no  test:DedupGroupEndpointTest (403 cases)
 
 }

@@ -9,9 +9,14 @@
 > 2. **Apply** (`fingerprint-dedup-apply`) — reads the **confirmed** groups and moves/marks the
 >    duplicate files.
 >
-> **Status: NOT built.** The discovery node fills the existing `FingerprintDedupNode` **stub**; the
-> apply node is new. Both depend on the fingerprint similarity index specified in
-> [../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md) — read that first.
+> **Status: PARTIALLY built.** Done and tested: the Flyway migration (`dedup_group` /
+> `dedup_group_member` / `dedup_status`, V2.61) + permissions (V2.62), the `DedupGroupDao`
+> (api + jOOQ, cascade tests green), the dedup REST DTOs + `DedupGroupMethods` client, and **both
+> Cortex nodes** — `FingerprintDedupNode` (discovery, fills the old stub) and
+> `FingerprintDedupApplyNode` — with options, descriptors, Dagger kind bindings and unit tests.
+> **Not yet wired:** the Loom `dedup-groups` REST endpoints + endpoint/permission tests, demo data,
+> website docs, and the per-node integration E2E. Both depend on the fingerprint similarity index in
+> [../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md) (also partially built). See §13.
 >
 > **Reference behaviour**: `xdb-clean/FPDEDUP_PROCESS.md` documents the original algorithm and its
 > safeguards; this spec maps those onto Loom/Cortex. General node conventions: [NODES.md](NODES.md).
@@ -360,26 +365,26 @@ Nothing is implemented.
 - [x] Delta sync deferred; apply does idempotent per-asset fetch (§7)
 
 **Prerequisite**
-- [ ] Fingerprint similarity index built ([../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md))
+- [~] Fingerprint similarity index ([../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md)) — SPI + Lucene impl + client built; REST endpoint + Dagger wiring pending
 
 **Loom backend**
-- [ ] Migration: `dedup_status`, `dedup_group`, `dedup_group_member` (§2)
-- [ ] `DedupGroupDao` (api + jooq + memory) + delete-cascade tests (§2, §10)
+- [x] Migration: `dedup_status`, `dedup_group`, `dedup_group_member` (V2.61) (§2)
+- [x] `DedupGroupDao` (api + jooq) + delete-cascade tests (6 tests green). Memory impl skipped — follows the `AssetNodeResultDao` precedent (no memory impl) (§2, §10)
 - [ ] `/api/v1/dedup-groups` + `/api/v1/assets/:uuid/dedup-groups` endpoints + permission tests (§2.1)
-- [ ] `READ/CREATE/UPDATE/DELETE_DEDUP` permissions (§2.1)
-- [ ] `DedupGroupMethods` client + DTOs (§2.1)
-- [ ] `./setup-pool.sh` + jOOQ regen; confirm build unaffected
+- [x] `READ/CREATE/UPDATE/DELETE_DEDUP` permissions (V2.62 + `Permission` enum) (§2.1)
+- [x] `DedupGroupMethods` client + DTOs (`DedupGroup{Create,Update}Request`, `DedupGroupResponse`, `DedupGroupListResponse`, `DedupGroupMemberModel`) (§2.1)
+- [x] `./setup-pool.sh` + jOOQ regen; build unaffected, `JooqDedupGroup*`/`JooqDedupStatus`/`JooqLoomPermission` generated
 
 **Cortex nodes**
-- [ ] Discovery: fill `FingerprintDedupNode`, add `FingerprintDedupDiscoverOptions`, ports, kind binding (§3)
-- [ ] Apply: `FingerprintDedupApplyNode`, descriptor, kind binding, reuse `moveMedia` (§4)
-- [ ] Node unit + persistence + options tests (§10)
+- [x] Discovery: filled `FingerprintDedupNode`, added `FingerprintDedupDiscoverOptions`, kind binding (§3)
+- [x] Apply: `FingerprintDedupApplyNode`, descriptor, kind binding, replicated `moveMedia` + live re-verify safeguards (§4)
+- [x] Node unit + options tests (discovery KEEP/DUP split + larger-dup abort; both options validators) — 11 tests green (§10)
 - [ ] Per-node E2E in `integration-test` (§10)
 
 **Cross-cutting**
 - [ ] Update [NODES.md](NODES.md): FingerprintDedupNode no longer a stub; add `fingerprint-dedup-apply`; add dedup persistence targets to §2 table
-- [ ] Update [../../CONTEXT.md](../../CONTEXT.md) §2 index + "which file" table with this file and [../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md)
-- [ ] Fix or file the `hash-dedup`/`sha512-dedup` id mismatch (§8)
+- [x] Update [../../CONTEXT.md](../../CONTEXT.md) §2 index + "which file" table with this file and [../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md)
+- [x] Fix the `hash-dedup`/`sha512-dedup` id mismatch (§8) — bound both kind ids to `HashDedupNode` (alias), so a `hash-dedup` node is runnable without breaking existing `sha512-dedup` references
 - [ ] Demo data + customer-facing docs (§10)
 
 **Known gaps / open items**

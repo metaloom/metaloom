@@ -6,9 +6,11 @@
 > "similar assets" query. It is the prerequisite for the fingerprint deduplication nodes in
 > [../pipeline-nodes/NODE_DEDUP_PLAN.md](../pipeline-nodes/NODE_DEDUP_PLAN.md).
 >
-> **Status: NOT built.** Nothing in this document exists yet. The design reuses the *already
-> working* Lucene fingerprint indexer from the `video4j` `fingerprint-indexer` module (the same
-> engine `xdb-clean` uses).
+> **Status: PARTIALLY built.** The core is implemented and tested: the `SimilarityIndex` SPI, the
+> `LuceneSimilarityIndex` (+ `NoopSimilarityIndex`) reusing the `video4j` `fingerprint-indexer`
+> engine, and the `SimilarAssets`/rebuild REST DTOs + client methods. **Not yet wired:** the REST
+> endpoints, the `SimilarityModule`/`SimilarityOptions` Dagger binding in `loom/core`, the boot
+> rebuild, the fingerprint-comp write/delete hooks, and the endpoint/permission tests. See §11.
 >
 > **Scope boundary — read this first.** This is **not** lexical search and **not** embedding
 > search. Three similarity/search subsystems are deliberately kept separate:
@@ -299,14 +301,15 @@ Nothing is implemented.
 - [x] Query surface is `GET assets/:uuid/similar-assets` (§5)
 
 **Implementation**
-- [ ] `SimilarityIndex` SPI + records in `loom-shared/api` (§3)
-- [ ] `LuceneSimilarityIndex` in `loom/services/lucene` (revive the module; depend on video4j `fingerprint-indexer`) (§3)
-- [ ] `NoopSimilarityIndex` + `SimilarityModule` Dagger binding driven by `SimilarityOptions` (§3, §6)
+- [x] `SimilarityIndex` SPI + records (`SimilarityHit`, `IndexedFingerprint`) in `loom-shared/api` (§3)
+- [x] `LuceneSimilarityIndex` in `loom/services/lucene` (module revived; depends on video4j `fingerprint-indexer` added to the BOM). Own writer/reader (adds `asset_uuid` + `algorithm` filter + `remove()` — video4j's indexer lacks these) reusing video4j's codec/`HighDimensionKnnVectorsFormat`/`MultiSectorFingerprint`. `LuceneSimilarityIndexTest`: 5 tests green (index/query/remove/upsert/algorithm-filter/rebuild) (§3)
+- [x] `NoopSimilarityIndex` (bound when disabled) (§3)
+- [ ] `SimilarityModule` Dagger binding driven by `SimilarityOptions` (§3, §6)
 - [ ] Boot rebuild + comp-write/comp-delete hooks (§4)
 - [ ] `GET assets/:uuid/similar-assets` + `POST similarity-index/rebuild` endpoints (§5)
-- [ ] `SimilarityMethods` client + impl + REST DTOs (§5)
+- [x] `SimilarityMethods` client interface + `LoomHttpClientImpl` impl + REST DTOs (`SimilarAssetResponse`, `SimilarAssetListResponse`) (§5)
 - [ ] `SimilarityOptions` on `LoomOptions` + env wiring + boot guard (§6)
-- [ ] Tests per §8 (index unit, endpoint, permission, consistency, client, demo data)
+- [ ] Tests per §8 (endpoint, permission, consistency, demo data) — index unit + client-signature done
 - [ ] Companion spec edits: [SEARCH.md](SEARCH.md) §2, [SEARCH_PLAN.md](SEARCH_PLAN.md) P1-25, [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) cross-ref (§1.2)
 - [ ] Customer-facing docs under `website/content/english/docs` (only if surfaced to users directly; otherwise covered by the dedup workflow doc)
 

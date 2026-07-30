@@ -107,6 +107,9 @@ public abstract class JooqLoomDaoBindModule {
 	abstract AssetNodeResultDao assetNodeResultDao(AssetNodeResultDaoImpl dao);
 
 	@Binds
+	abstract io.metaloom.loom.db.model.dedup.DedupGroupDao dedupGroupDao(io.metaloom.loom.db.jooq.dao.dedup.DedupGroupDaoImpl dao);
+
+	@Binds
 	abstract AssetLocationDao assetLocationDao(AssetLocationDaoImpl dao);
 
 	@Binds

@@ -22,12 +22,32 @@ public abstract class DedupNodeModule extends AbstractNodeModule {
 	@IntoSet
 	abstract FilesystemNode<?, ?> bindFingerprintDedupNode(FingerprintDedupNode node);
 
-	// Only HashDedup is advertised as an executable kind; FingerprintDedupNode is a
-	// "not implemented" stub and is deliberately kept out of the pipeline registry.
+	@Binds
+	@IntoSet
+	abstract FilesystemNode<?, ?> bindFingerprintDedupApplyNode(FingerprintDedupApplyNode node);
+
+	// Executable kind map. NOTE: the descriptor kind ("hash-dedup") historically differed from the
+	// node's own name ("sha512-dedup"); both ids are bound to the same node so either resolves and a
+	// "hash-dedup" node placed in the editor is runnable (spec NODE_DEDUP_PLAN.md §8).
 	@Binds
 	@IntoMap
 	@StringKey("sha512-dedup")
 	abstract FilesystemNode<?, ?> kindHashDedup(HashDedupNode node);
+
+	@Binds
+	@IntoMap
+	@StringKey("hash-dedup")
+	abstract FilesystemNode<?, ?> kindHashDedupAlias(HashDedupNode node);
+
+	@Binds
+	@IntoMap
+	@StringKey("fingerprint-dedup")
+	abstract FilesystemNode<?, ?> kindFingerprintDedup(FingerprintDedupNode node);
+
+	@Binds
+	@IntoMap
+	@StringKey("fingerprint-dedup-apply")
+	abstract FilesystemNode<?, ?> kindFingerprintDedupApply(FingerprintDedupApplyNode node);
 
 	@IntoSet
 	@Provides
@@ -35,9 +55,26 @@ public abstract class DedupNodeModule extends AbstractNodeModule {
 		return new CortexNodeOptionDeserializerInfo(DedupNodeOptions.class, "dedup");
 	}
 
+	@IntoSet
+	@Provides
+	public static CortexNodeOptionDeserializerInfo fingerprintDedupOptionInfo() {
+		return new CortexNodeOptionDeserializerInfo(FingerprintDedupDiscoverOptions.class, "fingerprint-dedup");
+	}
+
+	@IntoSet
+	@Provides
+	public static CortexNodeOptionDeserializerInfo fingerprintDedupApplyOptionInfo() {
+		return new CortexNodeOptionDeserializerInfo(DedupNodeOptions.class, "fingerprint-dedup-apply");
+	}
+
 	@Provides
 	public static DedupNodeOptions options(CortexOptions options) {
 		return nodeOptions(options, "dedup", new DedupNodeOptions());
+	}
+
+	@Provides
+	public static FingerprintDedupDiscoverOptions fingerprintDedupOptions(CortexOptions options) {
+		return nodeOptions(options, "fingerprint-dedup", new FingerprintDedupDiscoverOptions());
 	}
 
 }

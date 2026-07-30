@@ -53,6 +53,24 @@ public class DedupDescriptorProvider implements NodeDescriptorProvider {
 						.setLabel("Duplicates Folder").setDescription("Target folder for duplicate files")))
 				.setDefaultConcurrency(1)
 				.setDefaultMode(SEQUENTIAL)
+				.setEvents(STANDARD_EVENTS),
+
+			new NodeDescriptor()
+				.setKind("fingerprint-dedup-apply")
+				.setName("Fingerprint Deduplication (Apply)")
+				.setDescription("Move confirmed near-duplicate files. Acts only on dedup groups a reviewer has confirmed in Loom.")
+				.setIcon("content_copy")
+				.setCategory(OUTPUT)
+				.setInputPorts(List.of(
+					one("hash", HASH_ANY)
+						.describedAs("Hash", "Any content hash; identifies the asset whose confirmed dedup groups are applied")))
+				.setOutputPorts(List.of())
+				.setParameters(List.of(
+					commonEnabled(),
+					new NodeParameter().setKey("dupFolder").setType(STRING).setDefaultValue("duplicates")
+						.setLabel("Duplicates Folder").setDescription("Target folder for confirmed duplicate files")))
+				.setDefaultConcurrency(1)
+				.setDefaultMode(SEQUENTIAL)
 				.setEvents(STANDARD_EVENTS)
 		);
 	}

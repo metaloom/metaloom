@@ -27,6 +27,8 @@ import io.metaloom.loom.db.jooq.tables.JooqCluster;
 import io.metaloom.loom.db.jooq.tables.JooqCollectionAsset;
 import io.metaloom.loom.db.jooq.tables.JooqCollectionCluster;
 import io.metaloom.loom.db.jooq.tables.JooqCortexInstanceNodeKind;
+import io.metaloom.loom.db.jooq.tables.JooqDedupGroup;
+import io.metaloom.loom.db.jooq.tables.JooqDedupGroupMember;
 import io.metaloom.loom.db.jooq.tables.JooqDetection;
 import io.metaloom.loom.db.jooq.tables.JooqEmbedding;
 import io.metaloom.loom.db.jooq.tables.JooqFlywaySchemaHistory;
@@ -105,6 +107,9 @@ public class Indexes {
     public static final Index IDX_CHAT_SESSION_PUBLISHED = Internal.createIndex(DSL.name("idx_chat_session_published"), JooqChatSession.CHAT_SESSION, new OrderField[] { JooqChatSession.CHAT_SESSION.PUBLISHED }, false);
     public static final Index IDX_CHAT_SPACE = Internal.createIndex(DSL.name("idx_chat_space"), JooqChat.CHAT, new OrderField[] { JooqChat.CHAT.SPACE_UUID }, false);
     public static final Index IDX_CORTEX_INSTANCE_NODE_KIND_KIND = Internal.createIndex(DSL.name("idx_cortex_instance_node_kind_kind"), JooqCortexInstanceNodeKind.CORTEX_INSTANCE_NODE_KIND, new OrderField[] { JooqCortexInstanceNodeKind.CORTEX_INSTANCE_NODE_KIND.NODE_KIND }, false);
+    public static final Index IDX_DEDUP_GROUP_MEMBER_ASSET = Internal.createIndex(DSL.name("idx_dedup_group_member_asset"), JooqDedupGroupMember.DEDUP_GROUP_MEMBER, new OrderField[] { JooqDedupGroupMember.DEDUP_GROUP_MEMBER.ASSET_UUID }, false);
+    public static final Index IDX_DEDUP_GROUP_MEMBER_GROUP = Internal.createIndex(DSL.name("idx_dedup_group_member_group"), JooqDedupGroupMember.DEDUP_GROUP_MEMBER, new OrderField[] { JooqDedupGroupMember.DEDUP_GROUP_MEMBER.GROUP_UUID }, false);
+    public static final Index IDX_DEDUP_GROUP_STATUS = Internal.createIndex(DSL.name("idx_dedup_group_status"), JooqDedupGroup.DEDUP_GROUP, new OrderField[] { JooqDedupGroup.DEDUP_GROUP.STATUS }, false);
     public static final Index IDX_DETECTION_ASSET_UUID = Internal.createIndex(DSL.name("idx_detection_asset_uuid"), JooqDetection.DETECTION, new OrderField[] { JooqDetection.DETECTION.ASSET_UUID }, false);
     public static final Index IDX_DETECTION_LABEL = Internal.createIndex(DSL.name("idx_detection_label"), JooqDetection.DETECTION, new OrderField[] { JooqDetection.DETECTION.LABEL }, false);
     public static final Index IDX_DETECTION_TYPE = Internal.createIndex(DSL.name("idx_detection_type"), JooqDetection.DETECTION, new OrderField[] { JooqDetection.DETECTION.TYPE }, false);

@@ -18,9 +18,11 @@ edit or restructure site content or fix the build/publish flow.
 * Content language is AsciiDoc (needs `asciidoctor` on `PATH`); the landing page is data-driven
   from `website/data/en/*.yml` + theme partials.
 * The **home page** is short by design and routes readers two ways — see
-  [The home page](#the-home-page). Five top-level areas besides the docs: **`/tour/`** (the
+  [The home page](#the-home-page). Six top-level areas besides the docs: **`/tour/`** (the
   design-led product tour), **`/studio/`** (the commercial edition — a second, warm-accented
-  scroller), **`/features/`** (the full list), **`/announcements/`** (releases) and `/blog/`.
+  scroller), **`/features/`** (the full list), **`/pipeline-editor/`** (a self-contained,
+  backend-free pipeline editor + simulator — see [The Pipeline Editor page](#the-pipeline-editor-page)),
+  **`/announcements/`** (releases) and `/blog/`.
   ⚠️ `/tour/` **used to be `/studios/`**; it was renamed so it could not be confused with
   `/studio/`, and a Hugo alias redirects the old URL.
 * Build with `website/build.sh` → output goes to `website/dist/` (`publishDir = "dist"`). The
@@ -167,6 +169,7 @@ website/
 │       ├── features/      # /features/ — full feature list, rendered from data/en/feature.yml
 │       ├── tour/         # ★ /tour/ — design-led product tour (_index.md only; alias /studios/)
 │       ├── studio/       # ★ /studio/ — MetaLoom Studio, the commercial edition (_index.md only)
+│       ├── pipeline-editor/ # ★ /pipeline-editor/ — in-browser pipeline editor + simulator (_index.md only)
 │       ├── announcements/ # release announcements (_index.adoc + one bundle per release)
 │       ├── blog/          # blog posts (one folder per post, index.adoc)
 │       └── author/        # blog author pages
@@ -180,8 +183,8 @@ website/
 │   └── docs/examples/openapi.{json,yaml}  # staged OpenAPI doc: downloadable + rendered by Swagger UI
 ├── resources/_gen/        # Hugo asset cache (git-ignored)
 ├── themes/meghna-hugo/    # vendored + customized theme (layouts, LESS, JS plugins)
-│   └── assets/            # Hugo-processed assets: css/{main,home,tour,studio}.css,
-│                          #   js/{script,reveal}.js, images/scenery/*.jpg
+│   └── assets/            # Hugo-processed assets: css/{main,home,tour,studio,pipeline-editor}.css,
+│                          #   js/{script,reveal,pipeline-editor}.js, images/scenery/*.jpg
 └── dist/                  # BUILD OUTPUT (git-ignored) → what gets published
 ```
 
@@ -450,6 +453,57 @@ running server.
   div is present, and a per-page `data-graphql-url` attribute can point the explorer at a live
   endpoint (the GraphiQL analogue of Swagger's `data-openapi-url`). A running Loom server also serves
   a live GraphiQL at `/graphiql`.
+
+<a id="the-pipeline-editor-page"></a>
+### The Pipeline Editor page (`/pipeline-editor/`)
+
+A **self-contained, backend-free pipeline editor + simulator** that lets a visitor design a pipeline
+on an SVG canvas — dragging nodes from a palette, wiring typed ports (invalid connections are
+rejected live), loading demo pipelines — and press **Play** to watch synthetic assets flow from the
+source node through the graph to the loom sink, with an action log. It teaches the pipeline model
+(typed ports, `ONE`/`MANY` cardinality, `MANY` fan-out, the implicit gather on a `MANY` input, and
+filter `PASS`/`REJECT` branch routing) without a running Loom server. It is the same domain covered
+by the full editor in `loom-ui` — see
+[../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md).
+
+* **Page** — a full-screen custom layout, not a docs page: `content/english/pipeline-editor/_index.md`
+  (front matter `page_css: css/pipeline-editor.css`) + `themes/meghna-hugo/layouts/pipeline-editor/list.html`
+  (`{{ define "main" }}` → `navigation.html` → the `#ml-pipeline-editor` mount div → a fingerprinted
+  `<script>` for the editor asset). A `[[Languages.en.menu.main]]` entry in `config.toml` adds the nav item.
+* **Editor** — `themes/meghna-hugo/assets/js/pipeline-editor.js`, one vanilla IIFE with no dependencies,
+  following the `nodeviz.js` idioms (`E()` SVG helper, `bez()`, a single `requestAnimationFrame` loop,
+  `prefers-reduced-motion`, and a self-guard on the mount element). Styling is
+  `assets/css/pipeline-editor.css`, loaded per-page via `page_css`. The content-type **assignability
+  rule and the eight family colours are a verbatim mirror** of
+  `loom-ui/src/features/pipeline/contentTypes.ts` — only the rule is mirrored, never the vocabulary.
+* **The URL is loaded via a `data-descriptors` attribute**, deliberately NOT one of the names the
+  localhost check greps (`href`/`src`/`srcset`/`action`/`data-src`/`data-openapi-url`/`data-graphql-url`/`data-schema-url`),
+  and its value is a `relURL` so the published site never points a reader at a build-machine host.
+
+#### Regenerating the node-descriptor snapshot
+
+The editor has no backend, so it fetches its node catalogue from a **static snapshot** at
+`website/static/pipeline-editor/node-descriptors.json` — the same shape as
+`GET /api/v1/pipeline/node-descriptors` (`{nodeDescriptors, contentTypes}`). It is **generated**, not
+hand-written, by `io.metaloom.loom.doc.impl.NodeDescriptorGenerator` (driven by `ExampleGenerator`,
+exactly like the OpenAPI document), and staged into the site with a manual copy. Regenerate it in the
+same change as any node descriptor / content-type edit:
+
+```bash
+mvn -q -pl loom/doc -am -DskipTests -Dmaven.javadoc.skip=true install
+cd loom/doc && mvn -q exec:java -Dexec.mainClass=io.metaloom.loom.doc.ExampleGenerator
+cp loom/doc/src/main/generated/node-descriptors.json \
+   website/static/pipeline-editor/node-descriptors.json
+```
+
+`NodeDescriptorGeneratorTest` (in `loom/doc`) guards that the snapshot covers every kind the SPI
+provides and uses the port-model schema, so a new node kind that isn't captured fails the build.
+The editor also degrades gracefully on an unknown kind or content type, so a temporarily stale
+snapshot never breaks the page — but keep it in step.
+
+> ⚠️ `mvn install` of `loom/doc` currently needs `-Dmaven.javadoc.skip=true`: the half-landed pipeline
+> refactor has a pre-existing javadoc error in `loom/pipeline` that fails `javadoc:jar`. It is
+> unrelated to the website and to this generator.
 
 ## Capturing Loom UI screenshots
 

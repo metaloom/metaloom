@@ -53,6 +53,7 @@ public class DaoCollectionImpl implements DaoCollection {
 	private final Lazy<AssetDao> assetDao;
 	private final Lazy<AssetComponentDao> assetComponentDao;
 	private final Lazy<AssetNodeResultDao> assetNodeResultDao;
+	private final Lazy<io.metaloom.loom.db.model.dedup.DedupGroupDao> dedupGroupDao;
 	private final Lazy<AssetLocationDao> assetLocationDao;
 	private final Lazy<AssetBinaryDao> assetBinaryDao;
 	private final Lazy<AttachmentDao> attachmentDao;
@@ -100,13 +101,14 @@ public class DaoCollectionImpl implements DaoCollection {
 		Lazy<DetectionDao> detectionDao, Lazy<ChatDao> chatDao,
 		Lazy<SkillDao> skillDao, Lazy<SkillVersionDao> skillVersionDao,
 		Lazy<ChatSessionDao> chatSessionDao, Lazy<MemoryEntryDao> memoryEntryDao, Lazy<MemoryDenyRuleDao> memoryDenyRuleDao,
-		Lazy<CortexInstanceDao> cortexInstanceDao, Lazy<LoomDao> loomDao) {
+		Lazy<CortexInstanceDao> cortexInstanceDao, Lazy<io.metaloom.loom.db.model.dedup.DedupGroupDao> dedupGroupDao, Lazy<LoomDao> loomDao) {
 		this.userDao = userDao;
 		this.groupDao = groupDao;
 		this.roleDao = roleDao;
 		this.assetDao = assetDao;
 		this.assetComponentDao = assetComponentDao;
 		this.assetNodeResultDao = assetNodeResultDao;
+		this.dedupGroupDao = dedupGroupDao;
 		this.permissionDao = permissionDao;
 		this.assetLocationDao = assetLocationDao;
 		this.assetBinaryDao = assetBinaryDao;
@@ -169,6 +171,11 @@ public class DaoCollectionImpl implements DaoCollection {
 	@Override
 	public AssetNodeResultDao assetNodeResultDao() {
 		return assetNodeResultDao.get();
+	}
+
+	@Override
+	public io.metaloom.loom.db.model.dedup.DedupGroupDao dedupGroupDao() {
+		return dedupGroupDao.get();
 	}
 
 	@Override

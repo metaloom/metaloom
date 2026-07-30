@@ -267,7 +267,15 @@ public enum JooqLoomPermission implements EnumType {
 
     DELETE_MEMORY_DENY_RULE("DELETE_MEMORY_DENY_RULE"),
 
-    READ_SEARCH("READ_SEARCH");
+    READ_SEARCH("READ_SEARCH"),
+
+    READ_DEDUP("READ_DEDUP"),
+
+    CREATE_DEDUP("CREATE_DEDUP"),
+
+    UPDATE_DEDUP("UPDATE_DEDUP"),
+
+    DELETE_DEDUP("DELETE_DEDUP");
 
     private final String literal;
 

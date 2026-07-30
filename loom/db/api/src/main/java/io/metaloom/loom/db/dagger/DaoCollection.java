@@ -67,6 +67,10 @@ public interface DaoCollection {
 
 	AssetNodeResultDao assetNodeResultDao();
 
+	// Deduplication review
+
+	io.metaloom.loom.db.model.dedup.DedupGroupDao dedupGroupDao();
+
 	// Attachment
 
 	AttachmentDao attachmentDao();
