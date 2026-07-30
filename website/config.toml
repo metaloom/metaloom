@@ -171,7 +171,7 @@ weight = 8
 [params]
 logo = "images/logo_word_big.svg"
 # Community link — used by the header icon and available to any page that needs it.
-discordLink = "https://discord.gg/NFdnFcSbfA"
+discordLink = "https://discord.gg/3Dy2SxKUtw"
 # Base for the absolute URLs in the social metadata (partials/card.html). It duplicates
 # `baseURL` on purpose: Hugo intermittently resolves site.BaseURL to its default
 # "http://localhost:1313/" for a handful of pages when the theme CSS is rebuilt in the same
@@ -202,7 +202,7 @@ expire_days = 2
 [[params.social]]
 icon = "fab fa-discord"
 label = "Discord"
-link = "https://discord.gg/NFdnFcSbfA"
+link = "https://discord.gg/3Dy2SxKUtw"
 
 [[params.social]]
 icon = "fab fa-github"

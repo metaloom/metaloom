@@ -1,4 +1,4 @@
-[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.github.metaloom.loom/loom/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.github.metaloom.loom/loom)
+[![Maven Central](https://maven-badges.sml.io/sonatype-central/io.metaloom/loom/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.github.metaloom.loom/loom)
 [![License](https://img.shields.io/:license-apache-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.html)
 [![Stack Overflow](https://img.shields.io/:stack%20overflow-metaloom-brightgreen.svg)](http://stackoverflow.com/questions/tagged/metaloom)
 
