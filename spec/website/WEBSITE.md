@@ -753,22 +753,88 @@ the site footer — see [The site footer](#the-site-footer).
   and the open panel gets its own solid surface — translucency is fine for a 60 px bar over a
   hero, not for a full menu with page content behind it.
 
+<a id="the-shared-design-tokens"></a>
+### The shared design tokens (`:root { --ml-* }`)
+
+There is **one palette for the whole site**, declared as CSS custom properties at the top of
+`less/includes/custom.less` and therefore present in the global `main.css` on every page:
+
+| Token group | Names |
+| --- | --- |
+| Surfaces | `--ml-bg` (`#0b0e13`), `--ml-bg-alt` (`#10151c`), `--ml-surface`, `--ml-surface-hi`, `--ml-card` |
+| Lines | `--ml-line`, `--ml-line-hi` |
+| Text | `--ml-fg`, `--ml-fg-dim`, `--ml-muted` |
+| Accents | `--ml-accent` (`#57cbcc`), `--ml-accent-bright`, `--ml-accent-line`, `--ml-accent-wash`, `--ml-warm`, `--ml-warm-soft` |
+| Type | `--ml-sans` (Anaheim), `--ml-display` (Quattrocento Sans), `--ml-mono` (JetBrains Mono) |
+| Shape / motion | `--ml-radius`, `--ml-radius-sm`, `--ml-lift` |
+
+* `assets/css/home.css` (the home page and `/features/`) does **not** define colours any more —
+  its `.hm-page { --hm-bg: var(--ml-bg); … }` block is a set of aliases onto these tokens. Change
+  a colour here and `/`, `/features/`, `/docs/`, `/blog/` and `/announcements/` all follow.
+* `/tour/` (`.st-*`) and `/studio/` (`.sd-*`) keep their own page-scoped stylesheets on purpose —
+  those are the one place the accent is allowed to differ (teal vs. amber). Do not fold them in.
+* `--ml-card` is a shallow gradient, not a flat fill: on a near-black page a grid of cards needs
+  depth without shadows. The card object — gradient surface, `--ml-line` hairline, teal border and
+  a `--ml-lift` translate on hover — is deliberately the same on `.hm-feature` (`/features/`),
+  `.docs-card`, `.note`, `.ann-entry` and `.blog-card`.
+* The **scroll-reveal contract** (`.reveal-js .reveal`, see [Scroll reveal](#scroll-reveal-shared))
+  also lives in `custom.less` rather than `home.css`, because the blog and announcement lists use
+  it too.
+
+> **`html, body { background-color: var(--ml-bg) }` is load-bearing.** The reading pages used to
+> sit on the theme's lighter `#353b43` while the marketing pages were near-black, so walking from
+> `/features/` into `/docs/` read as leaving the site. `style.css` still sets `#353b43` on
+> `html`/`body`; `custom.less` is imported after it and wins. Do not reintroduce a per-page body
+> background override — `home.css` no longer needs one.
+
 ### Reading pages — docs, announcements, blog
 
-The docs, `/announcements/` and `/blog/` share one surface (the theme's `#353b43`, deliberately
-lighter than the marketing pages) and, since this pass, one typographic system, defined in the
-*Reading pages* block of `less/includes/custom.less`:
+The docs, `/announcements/` and `/blog/` share the marketing pages' **surface, component
+vocabulary and typographic system**, defined in the *Reading pages* block of
+`less/includes/custom.less`:
 
 * **Headings** — Quattrocento Sans, 700, `-.01em` tracking (the marketing pages' treatment at a
   size that suits a document). **Prose** — Anaheim, `1.03rem`/`1.78`, `#cdd6df`.
   **Technical values** — monospace.
-* Before this, a single docs page mixed three fonts by accident: paragraphs rendered in
-  Quattrocento Sans (from the theme's `p` rule), list items and table cells in Anaheim at the
-  body's muted `#737f8a`. That mismatch — not the colour scheme — is what made the docs feel
-  unlike the rest of the site. Table cells now carry the prose colour, and table headers are
-  small uppercase teal labels on a tinted row.
+* Two mismatches this block exists to prevent. The first was the split surface (above). The
+  second: a single docs page mixed three fonts by accident — paragraphs rendered in Quattrocento
+  Sans (from the theme's `p` rule), list items and table cells in Anaheim at the body's muted
+  `#737f8a`. Table cells now carry the prose colour, and table headers are small uppercase teal
+  labels on a tinted row.
 * Inline `code` is a chip (subtle background + border) rather than only an orange colour change.
-* **A shared page header** (`.page-head`): teal eyebrow, title, optional lead, hairline rule.
+* **A shared page header** (`.page-head`): teal eyebrow, title, optional lead, hairline rule with
+  a short teal tick under it. **All four reading layouts use it** — docs list, docs single,
+  announcements and the blog/author list — so the eyebrow-then-title rhythm is the same one
+  `/features/` opens with. On the docs layouts the eyebrow names the **parent section**
+  (`Loom`, `Nodes`, `Playbooks`, …) and falls back to *Documentation*; it is suppressed when it
+  would merely repeat the title, as on `/docs/` itself.
+* **Code blocks** are a recessed surface (`--ml-bg-alt`, hairline border, `overflow-x: auto`), not
+  another card — a command sample reads as a readout on the page.
+* **Admonitions are callouts.** Asciidoctor renders `NOTE`/`TIP`/`WARNING` as a two-cell table;
+  the theme's original treatment was a dashed grey box with the label set at `2em`. They are now
+  a card with a coloured left edge and the label as the same small uppercase eyebrow used by
+  `.page-head` — teal for note/tip, the site's warm colour for warning/caution/important. Both
+  label forms are handled (`<div class="title">` and, with `:icons: font`, `<i class="fa icon-*">`).
+* **AsciiDoc tables** (`table.tableblock`, styled in `adoc.less`) are the same object as the
+  `.docs-main-content table` rules: tinted teal header row, hairline row separators, a barely
+  there zebra. `adoc.less` needs its own copy because `table.tableblock` out-specifies them.
+  Do **not** give `.tableblock` `display: block` to make it scroll — the class sits on the
+  `<table>` itself and that collapses every row into a single column.
+* **`.docs-foot`** closes every leaf docs page with the same pair of buttons `/features/` ends on
+  (`.ml-btn` / `.ml-btn-primary` / `.ml-btn-ghost`, the shared button object).
+* **Heading anchors use `scroll-margin-top`, not padding.** The offset that keeps a TOC target
+  clear of the sticky header used to be bought with `margin-top: -2em; padding-top: 3em` on every
+  heading, which turned a long reference page into mostly gaps. `scroll-margin-top: 96px` does the
+  same job at the scroll layer and costs no layout.
+* The blog overview, the announcements list and the author page opt into the shared scroll reveal
+  (`data-reveal-scope` + `reveal-bootstrap.html` + `reveal-script.html`). The blog grid's stagger
+  is an `nth-child` `transition-delay` rule rather than `data-reveal-delay`, because
+  `.Render "article"` cannot pass the loop index into the card. A `prefers-reduced-motion` block
+  at the end of the file switches off every hover lift and transition — nothing here encodes
+  information in movement.
+* The **author page** (`/author/<name>/`) is a reading page too: it uses `.page-head`, an
+  `.author-card` and the `.blog-grid`, not the theme's original centred "About Author" band on
+  its own lighter `.section-bg`.
   Announcements, the blog overview and blog posts all use it; the copy comes from front matter
   (`eyebrow`, `subtitle`), never from the template — `_default/list.html` also renders `/author/`.
 * **`body` is a flex column with `min-height: 100vh`** and `#content` grows, so a short page (the
@@ -839,7 +905,7 @@ those links already.
 | **All copy** | `data/en/home.yml` |
 | Layout | `themes/meghna-hugo/layouts/index.html` |
 | Hero backdrop + door marks | `themes/meghna-hugo/layouts/partials/home/{art-weave,icon-visual,icon-technical}.html` |
-| Styles | `themes/meghna-hugo/assets/css/home.css` (shared with `/features/`) |
+| Styles | `themes/meghna-hugo/assets/css/home.css` (shared with `/features/`; colours come from the shared `--ml-*` tokens — see [The shared design tokens](#the-shared-design-tokens)) |
 | Motion | `themes/meghna-hugo/assets/js/reveal.js` (shared with `/tour/` and `/studio/`) |
 
 Design intent, worth keeping:
@@ -1038,9 +1104,9 @@ where the meta-refresh does not fire.
   passing — but prefer updating the link to the new target anyway.
 
 <a id="scroll-reveal-shared"></a>
-## Scroll reveal (shared by `/`, `/tour/` and `/studio/`)
+## Scroll reveal (shared by `/`, `/features/`, `/tour/`, `/studio/`, `/blog/`, `/announcements/` and `/author/`)
 
-One script drives the motion on both design-led pages:
+One script drives the motion on every page that has any:
 `themes/meghna-hugo/assets/js/reveal.js`. Its contract is three hooks and nothing page-specific:
 
 | Hook | Meaning |
@@ -1064,9 +1130,14 @@ Two partials wire it up — put both in any new page that wants it:
 > class that `reveal-bootstrap.html` sets *synchronously during parse* (a deferred script would let
 > the finished page paint and then blank it). The same snippet removes the class again after 2.5 s
 > if `reveal.js` never runs, so a blocked script degrades to "no animation", never to "no content".
-> Every "animate in" rule in `home.css`/`tour.css`/`studio.css` follows the same shape: `.reveal-js` hides,
-> `.is-visible` reveals. The illustrations hang off the same class — their keyframes are written as
-> `.is-visible .foo`, which is why revealing a container starts its art.
+> Every "animate in" rule follows the same shape: `.reveal-js` hides, `.is-visible` reveals. The
+> illustrations hang off the same class — their keyframes are written as `.is-visible .foo`, which
+> is why revealing a container starts its art.
+>
+> The `.reveal-js .reveal` rule itself lives in the **global** stylesheet
+> (`less/includes/custom.less`), so any layout can opt in with the two partials alone —
+> that is what the blog, announcements and author lists do. `tour.css` and `studio.css` still
+> restate it because they are page-scoped by design.
 
 ## Announcements
 
@@ -1132,16 +1203,16 @@ is no design source file to keep in sync, just re-render:
 
 | Layout | Applies to | Notes |
 | --- | --- | --- |
-| `layouts/docs/single.html` | leaf docs pages | 3-col: sticky TOC sidebar (`#toc`, bootstrap-toc) + `<h1>{{.Title}}</h1>` + `{{.Content}}`. |
-| `layouts/docs/list.html` | docs section pages (`_index.adoc`) | centered wide column, no sidebar. |
+| `layouts/docs/single.html` | leaf docs pages | 3-col: sticky TOC sidebar (`#toc`, bootstrap-toc) + a `.page-head` (section eyebrow + title + optional lead) + `{{.Content}}` + `.docs-foot`. |
+| `layouts/docs/list.html` | docs section pages (`_index.adoc`) | centered wide column, no sidebar; same `.page-head`, centred. |
 | `layouts/index.html` | home page | Short front door; copy from `data/en/home.yml`. See [The home page](#the-home-page). |
 | `layouts/features/list.html` | `/features/` | Renders `data/en/feature.yml` as cards, `(planned)` titles become badges. |
 | `layouts/tour/list.html` | `/tour/` | Bespoke scroller; see [The /tour/ page](#the-studios-page). |
 | `layouts/studio/list.html` | `/studio/` | The commercial scroller; see [The /studio/ page](#the-studio-page). |
 | `layouts/alias.html` | every `aliases:` entry | Redirect stub — overrides Hugo's built-in so the target is a **relative** URL; see [Aliases](#aliases-redirects). |
-| `layouts/announcements/list.html` | `/announcements/` | Newest-first list of announcement cards with status badges. |
+| `layouts/announcements/list.html` | `/announcements/` | Newest-first list of announcement cards with status badges; opts into the shared scroll reveal. |
 | `layouts/announcements/single.html` | one announcement | Docs-style TOC sidebar + a nav of the other announcements. |
-| `layouts/_default/*` , `layouts/author/*` | blog / fallback | article/list/single/baseof. |
+| `layouts/_default/*` , `layouts/author/*` | blog / fallback | article/list/single/baseof. The blog and author lists share `.page-head` + `.blog-grid` + the scroll reveal. |
 
 The `docs` layout family is selected because pages live under the top-level `docs/` section.
 Theme CSS is compiled from `themes/meghna-hugo/less/main.less` via the theme's `yarn build`.
@@ -1211,7 +1282,9 @@ change the Hugo source and rebuild.
 | `website/data/en/home.yml` | **All copy** for the home page. |
 | `website/themes/meghna-hugo/layouts/index.html` | Home-page layout. |
 | `website/themes/meghna-hugo/layouts/partials/home/*.html` | Hero weave backdrop + the two door marks. |
-| `website/themes/meghna-hugo/assets/css/home.css` | Styles for `/` and `/features/`. |
+| `website/themes/meghna-hugo/assets/css/home.css` | Layout for `/` and `/features/`. Colours are aliases onto the shared `--ml-*` tokens — see [The shared design tokens](#the-shared-design-tokens). |
+| `website/themes/meghna-hugo/less/includes/custom.less` | The global stylesheet: shared `--ml-*` tokens, header, footer, and the *Reading pages* block (docs, announcements, blog, author). Compiled into `assets/css/main.css`. |
+| `website/themes/meghna-hugo/less/includes/adoc.less` | Asciidoctor output: reference tables + admonition icons, on the same tokens. |
 | `website/themes/meghna-hugo/assets/js/reveal.js` | Shared scroll-reveal + count-up. |
 | `website/themes/meghna-hugo/layouts/partials/reveal-{bootstrap,script}.html` | The two lines that wire a page to `reveal.js`. |
 | `website/content/english/features/_index.md` | `/features/` front matter. |
@@ -1390,10 +1463,17 @@ There is no unit/integration test suite for the website; verification is build +
    clipping is silent: the page still scrolls correctly, the content is just cut off. It is what a
    `white-space: nowrap` run inside a `1fr` grid track causes — see
    [The /studio/ page](#the-studio-page).
-8. If a page was moved, confirm the alias still resolves: `dist/<old-path>/index.html` must exist
+8. After touching `custom.less` / `adoc.less` / the reading-page layouts, screenshot **both sides
+   of the seam** — `/features/` and `/docs/`, `/blog/`, `/announcements/` — at 1440 px and 420 px.
+   They must read as one surface; a page that comes out on the theme's old `#353b43` means a
+   `background-color` is winning over the token block. Cover the awkward docs pages too: a page
+   with an admonition and a code block (`/docs/playbooks/docker/`), a reference table
+   (`/docs/nodes/`), a generated diagram (`/docs/nodes/facedetect/`, `/docs/operation/`) and the
+   Swagger explorer (`/docs/loom/rest-api/`), which keeps its own light surface on purpose.
+9. If a page was moved, confirm the alias still resolves: `dist/<old-path>/index.html` must exist
    and carry a **relative** refresh target (`dist/studios/index.html` → `/tour/`).
-9. Dry-run publish: from the sibling `metaloom-website` repo, `./pull.sh` then inspect `docs/`
-   (do not push unless intending to release).
+10. Dry-run publish: from the sibling `metaloom-website` repo, `./pull.sh` then inspect `docs/`
+    (do not push unless intending to release).
 
 ## Progress Assessment
 

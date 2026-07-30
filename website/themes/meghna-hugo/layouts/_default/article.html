@@ -1,5 +1,8 @@
-{{/* One card in the blog grid. Image, date, title, summary — the whole card is the link. */}}
-<article class="col-lg-4 col-md-6 col-12 mb-4">
+{{/* One card in the blog grid. Image, date, title, summary — the whole card is the link.
+     `reveal` fades it in on scroll; the per-column stagger is a nth-child rule in
+     less/includes/custom.less rather than a data-reveal-delay, because `.Render` cannot pass
+     the loop index down here. */}}
+<article class="col-lg-4 col-md-6 col-12 mb-4 reveal">
   <a class="blog-card" href="{{ .RelPermalink }}">
     <span class="blog-card-media">
       <img src="{{ partial "func/page-image.html" . }}" alt="" aria-hidden="true" loading="lazy">

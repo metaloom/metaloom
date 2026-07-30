@@ -3,8 +3,11 @@
 {{ partial "navigation.html" . }}
 
 {{/* Blog overview (and the author archive, which uses the same list template). The card grid
-     is `_default/article.html`; styling is the .blog-* block in less/includes/custom.less. */}}
-<section class="section docs-section">
+     is `_default/article.html`; styling is the .blog-* block in less/includes/custom.less.
+     The cards fade in on scroll with the same shared reveal contract /features/ uses — see
+     assets/js/reveal.js. Nothing is hidden without JavaScript. */}}
+<section class="section docs-section" data-reveal-scope>
+  {{ partial "reveal-bootstrap.html" . }}
   <div class="container">
     {{/* Copy comes from the section's own _index.md (blog) or the author page, never from the
          template — this layout also renders /author/. */}}
@@ -28,4 +31,6 @@
     </div>
   </div>
 </section>
+
+{{ partial "reveal-script.html" . }}
 {{ end }}

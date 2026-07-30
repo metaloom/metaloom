@@ -6,20 +6,23 @@
     top: 100px;
 }
 
-/* Sidebar container */
+/* Sidebar container.
+   A hairline rail, not the old teal divider: on the near-black reading surface the column has
+   to read as a margin next to the text, not as a second panel competing with it. */
 .docs-sidebar {
-    padding: 20px 0;
-    border-right: 1px solid rgba(0, 181, 166, 0.15);
-    padding-right: 16px;
+    padding: 4px 0 20px;
+    border-right: 1px solid var(--ml-line);
+    padding-right: 18px;
 }
 
 .docs-sidebar-title {
-    color: #6b7681;
-    font-size: 0.68rem;
+    color: var(--ml-muted);
+    font-family: var(--ml-sans);
+    font-size: 0.7rem;
     font-weight: 700;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
-    padding: 0 12px 8px;
+    padding: 0 12px 10px;
 }
 
 /*
@@ -106,7 +109,7 @@ nav[data-toggle=toc] .nav-link.active:hover {
 .docs-topics {
     margin-top: 26px;
     padding-top: 18px;
-    border-top: 1px solid rgba(0, 181, 166, 0.15);
+    border-top: 1px solid var(--ml-line);
 
     ul {
         list-style: none;

@@ -28,11 +28,27 @@
         </div>
       </div>
       <div class="col-lg-9">
-        <div class="docs-page-header">
+        {{/* Same header object as /blog/, /announcements/ and /features/ — see the "Reading
+             pages" block in less/includes/custom.less. The eyebrow names the section the page
+             sits in, which is the one thing a deep-linked reference page cannot show otherwise. */}}
+        {{ $eyebrow := i18n "documentation" }}
+        {{ with .Parent }}{{ if not (or .IsHome (eq .RelPermalink (relURL "docs/"))) }}{{ $eyebrow = .Title }}{{ end }}{{ end }}
+        <header class="page-head">
+          {{ if ne $eyebrow .Title }}<p class="page-eyebrow">{{ $eyebrow }}</p>{{ end }}
           <h1>{{ .Title }}</h1>
-        </div>
+          {{ with .Params.description }}<p class="page-lead">{{ . }}</p>{{ end }}
+        </header>
         <div class="post-single-content docs-main-content">
           {{ .Content }}
+        </div>
+
+        {{/* Every reference page ends with a way onward instead of the last paragraph. */}}
+        <div class="docs-foot">
+          <p>Looking for something else?</p>
+          <div class="docs-foot-actions">
+            <a class="ml-btn ml-btn-primary" href="{{ "docs/" | relURL }}">All documentation</a>
+            <a class="ml-btn ml-btn-ghost" href="{{ "features/" | relURL }}">Feature overview</a>
+          </div>
         </div>
       </div>
     </div>

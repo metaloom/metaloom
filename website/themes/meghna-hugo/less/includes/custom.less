@@ -39,37 +39,91 @@
 }
 
 /* ==========================================================
+   Shared design tokens
+
+   ONE palette for the whole site. The marketing pages consume these through
+   assets/css/home.css (/ and /features/), which maps its own --hm-* names onto them, and the
+   reading pages — docs, announcements, blog — use them directly further down this file.
+   Change a colour here and every surface follows.
+
+   /tour/ (.st-*) and /studio/ (.sd-*) keep their own stylesheets on purpose: those two pages
+   are the one place where the accent is allowed to differ (teal vs. amber).
+   ========================================================== */
+:root {
+  --ml-bg: #0b0e13;          // page surface — the same near-black as /features/
+  --ml-bg-alt: #10151c;      // recessed band (sidebar rail, code, table zebra)
+  --ml-surface: rgba(255, 255, 255, .028);
+  --ml-surface-hi: rgba(255, 255, 255, .05);
+  // Cards are a very shallow gradient rather than a flat fill, so a grid of them has depth
+  // without needing shadows on a near-black page.
+  --ml-card: linear-gradient(160deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, .015));
+  --ml-line: rgba(255, 255, 255, .09);
+  --ml-line-hi: rgba(255, 255, 255, .16);
+  --ml-fg: #eef2f6;
+  --ml-fg-dim: #aab6c2;
+  --ml-muted: #7d8894;
+  --ml-accent: #57cbcc;
+  --ml-accent-bright: #7efff4;
+  --ml-accent-line: rgba(87, 203, 204, .55);
+  --ml-accent-wash: rgba(87, 203, 204, .10);
+  --ml-warm: #e2a86e;
+  --ml-warm-soft: #f0c799;
+  --ml-sans: "Anaheim", sans-serif;
+  --ml-display: "Quattrocento Sans", sans-serif;
+  --ml-mono: "JetBrains Mono", Consolas, monospace;
+  --ml-radius: 14px;
+  --ml-radius-sm: 10px;
+  --ml-lift: translateY(-3px);
+}
+
+/* The reading pages used to sit on the theme's lighter #353b43 while the marketing pages were
+   near-black. That split — not the typography — is what made /docs/ read as a different site.
+   One surface now; home.css no longer has to override the body colour for its own page. */
+html,
+body {
+  background-color: var(--ml-bg);
+}
+
+/* ---- Scroll reveal, shared ----
+   The contract is assets/js/reveal.js: `.reveal` + optional `data-reveal-delay`, inside a
+   `data-reveal-scope` container. The hidden start state only applies while `.reveal-js` is
+   set (partials/reveal-bootstrap.html), so every page is complete without JavaScript.
+   It lives here rather than in home.css because the blog and announcement lists use it too. */
+.reveal-js .reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity .7s cubic-bezier(.2, .7, .2, 1), transform .7s cubic-bezier(.2, .7, .2, 1);
+  will-change: opacity, transform;
+}
+.reveal-js .reveal.is-visible { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1 !important; transform: none !important; }
+}
+
+/* ==========================================================
    Documentation - Modern Visual Style
    ========================================================== */
 
 /* ---- Page structure ---- */
 .docs-section {
-  padding-top: 40px;
-  padding-bottom: 80px;
+  padding-top: 64px;
+  padding-bottom: 104px;
 }
 
-.docs-page-header {
-  margin-bottom: 32px;
-  padding-bottom: 20px;
-  border-bottom: 2px solid rgba(0, 181, 166, 0.25);
-}
-
-.docs-page-header h1 {
-  color: #e8ecf0;
-  font-size: 2.2rem;
-  font-weight: 700;
-  margin: 0;
-  padding: 0;
-  letter-spacing: -0.02em;
+@media (max-width: 767px) {
+  .docs-section {
+    padding-top: 44px;
+    padding-bottom: 72px;
+  }
 }
 
 /* ---- Content typography ---- */
 .post-single-content a {
-  color: #00b5a6;
+  color: var(--ml-accent);
 }
 
 .post-single-content a:hover {
-  color: #7efff4;
+  color: var(--ml-accent-bright);
 }
 
 .listingblock {
@@ -104,30 +158,33 @@ code {
   line-height: 1.7;
 }
 
-/* ---- Heading hierarchy with section borders ---- */
+/* ---- Heading hierarchy with section borders ----
+   A heading linked to from the TOC must not end up underneath the sticky header. That used to
+   be done with `margin-top: -2em; padding-top: 3em`, which bought the offset with a 3em hole
+   above every heading — on a long reference page the result was a document made mostly of gaps.
+   `scroll-margin-top` does the same job at the scroll layer and costs no layout. */
 .post-single-content h1,
 .post-single-content h2,
 .post-single-content h3,
 .post-single-content h4,
 .post-single-content h5,
 .post-single-content h6 {
-  margin-top: -2em;
-  padding-top: 3em;
+  scroll-margin-top: 96px;
 }
 
 .docs-main-content h2 {
   font-size: 1.65rem;
   font-weight: 700;
-  color: #e0e5ea;
+  color: var(--ml-fg);
   padding-bottom: 12px;
-  border-bottom: 1px solid rgba(0, 181, 166, 0.18);
+  border-bottom: 1px solid var(--ml-line);
   margin-bottom: 16px;
 }
 
 .docs-main-content h3 {
   font-size: 1.3rem;
-  font-weight: 600;
-  color: #d0d8e0;
+  font-weight: 700;
+  color: #dbe3ea;
   position: relative;
   padding-left: 16px;
   margin-bottom: 12px;
@@ -140,14 +197,14 @@ code {
   bottom: 0;
   width: 3px;
   height: 1.2em;
-  background: #00b5a6;
+  background: var(--ml-accent);
   border-radius: 2px;
 }
 
 .docs-main-content h4 {
   font-size: 1.1rem;
-  font-weight: 600;
-  color: #c0c8d0;
+  font-weight: 700;
+  color: #c6cfd8;
   margin-bottom: 8px;
 }
 
@@ -168,16 +225,41 @@ blockquote .paragraph {
   padding-top: 0px;
 }
 
-/* ---- Code blocks ---- */
-.docs-main-content .listingblock {
-  margin: 16px 0;
-  border-radius: 6px;
+/* ---- Code blocks ----
+   A command sample is a surface of its own: recessed rather than raised, so it reads as a
+   readout on the page instead of another card. */
+.docs-main-content .listingblock,
+.post-single-content .listingblock {
+  margin: 18px 0;
+  border-radius: var(--ml-radius-sm);
   overflow: hidden;
 }
 
-.docs-main-content .listingblock pre {
-  border-radius: 6px;
-  border: 1px solid #3a424a;
+.docs-main-content .listingblock pre,
+.docs-main-content pre.highlight,
+.post-single-content .listingblock pre,
+.post-single-content pre.highlight {
+  background: var(--ml-bg-alt);
+  border: 1px solid var(--ml-line);
+  border-radius: var(--ml-radius-sm);
+  color: #c3ccd6;
+  font-size: .9rem;
+  line-height: 1.62;
+  margin: 0;
+  overflow-x: auto;
+  padding: 16px 18px;
+}
+
+/* The optional caption above a block ([source,bash] with a `.Title`). */
+.docs-main-content .listingblock > .title,
+.post-single-content .listingblock > .title {
+  color: var(--ml-muted);
+  font-family: var(--ml-sans);
+  font-size: .78rem;
+  font-style: normal;
+  letter-spacing: .1em;
+  margin-bottom: 7px;
+  text-transform: uppercase;
 }
 
 /* ---- Navigation bar enhancement ---- */
@@ -185,114 +267,125 @@ blockquote .paragraph {
   border-bottom: 1px solid rgba(0, 181, 166, 0.15);
 }
 
-/* ---- Docs overview cards ---- */
+/* ---- Docs overview cards ----
+   Same object as an .hm-feature card on /features/: gradient surface, hairline border, a teal
+   border and a small lift on hover. The difference is that this one is a container of links. */
 .docs-card {
-  background-color: #292F36;
-  border: 1px solid #4e595f;
-  border-radius: 6px;
+  background: var(--ml-card);
+  border: 1px solid var(--ml-line);
+  border-radius: var(--ml-radius);
   overflow: hidden;
-  transition: border-color 0.2s;
+  transition: border-color .2s ease-in 0s, transform .2s ease-in 0s;
 }
 
 .docs-card:hover {
-  border-color: rgba(0, 181, 166, 0.4);
+  border-color: var(--ml-accent-line);
+  transform: var(--ml-lift);
 }
 
 .docs-card-header {
-  padding: 24px 28px 20px;
-  border-bottom: 1px solid #4e595f;
+  padding: 26px 28px 22px;
+  border-bottom: 1px solid var(--ml-line);
 }
 
 .docs-card-header h2 {
   margin: 0 0 10px;
   padding: 0;
-  font-size: 1.5rem;
+  font-family: var(--ml-display);
+  font-size: 1.4rem;
   font-weight: 700;
+  letter-spacing: -.015em;
   border-bottom: none;
 }
 
 .docs-card-header h2 a {
-  color: #00b5a6;
+  color: var(--ml-fg);
   text-decoration: none;
 }
 
 .docs-card-header h2 a:hover {
-  color: #7efff4;
+  color: var(--ml-accent-bright);
 }
 
 .docs-card-header p {
   margin: 0;
-  color: #8a95a0;
+  color: var(--ml-muted);
   font-size: 0.95em;
   line-height: 1.6;
 }
 
 .docs-card-body {
-  padding: 12px 16px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
 }
 
 .docs-card-body a.docs-card-link {
   display: block;
-  padding: 10px 14px;
-  font-size: 1.0em;
+  padding: 9px 14px;
+  font-size: .97em;
   font-weight: 500;
-  color: #b0bac4;
+  color: var(--ml-fg-dim);
   text-decoration: none;
-  border-radius: 4px;
-  transition: background-color 0.15s, color 0.15s;
+  border-radius: 6px;
+  transition: background-color .15s, color .15s;
 }
 
 .docs-card-body a.docs-card-link:hover {
-  background-color: rgba(0, 181, 166, 0.10);
-  color: #00b5a6;
+  background-color: var(--ml-accent-wash);
+  color: var(--ml-accent-bright);
 }
 
 .docs-card-body a.docs-card-link::before {
   content: "\203A";
   margin-right: 10px;
-  color: #4e595f;
+  color: var(--ml-muted);
   font-weight: 700;
   font-size: 1.2em;
   transition: color 0.15s;
 }
 
 .docs-card-body a.docs-card-link:hover::before {
-  color: #00b5a6;
+  color: var(--ml-accent);
 }
 
 /* ---- Concept cards (overview page) ---- */
 .note {
-  border-radius: 6px;
-  transition: border-color 0.2s;
+  background: var(--ml-card);
+  border: 1px solid var(--ml-line);
+  border-radius: var(--ml-radius);
+  transition: border-color .2s ease-in 0s, transform .2s ease-in 0s;
 }
 
 .note:hover {
-  border-color: rgba(0, 181, 166, 0.35);
+  border-color: var(--ml-accent-line);
+  transform: var(--ml-lift);
 }
 
 .note h3 {
-  color: #e0e5ea;
-  font-weight: 600;
-  font-size: 1.2rem;
+  color: var(--ml-fg);
+  font-family: var(--ml-display);
+  font-weight: 700;
+  font-size: 1.15rem;
   border-bottom: none;
   padding-left: 9px;
   border-left: none;
 }
 
+.note h3::before { display: none; }
+
 .note p {
-  color: #8a95a0;
+  color: var(--ml-muted);
   font-size: 0.95em;
   line-height: 1.6;
 }
 
 .note p a {
-  color: #00b5a6;
+  color: var(--ml-accent);
 }
 
 .note p a:hover {
-  color: #7efff4;
+  color: var(--ml-accent-bright);
 }
 
 /* ---- Interaction diagrams (architecture + animated dispatch) ---- */
@@ -332,9 +425,9 @@ blockquote .paragraph {
     height: auto;
     display: block;
     margin: 0 auto;
-    border: 1px solid #4e595f;
-    border-radius: 6px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+    border: 1px solid var(--ml-line-hi);
+    border-radius: var(--ml-radius-sm);
+    box-shadow: 0 18px 44px -30px rgba(0, 0, 0, 0.9);
     cursor: zoom-in;
     transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
     will-change: transform;
@@ -374,8 +467,8 @@ blockquote .paragraph {
   max-height: 94vh;
   width: auto;
   height: auto;
-  border: 1px solid #4e595f;
-  border-radius: 6px;
+  border: 1px solid var(--ml-line-hi);
+  border-radius: var(--ml-radius-sm);
   box-shadow: 0 12px 60px rgba(0, 0, 0, 0.6);
 }
 .ml-lightbox-close {
@@ -387,13 +480,13 @@ blockquote .paragraph {
   padding: 0;
   font-size: 30px;
   line-height: 1;
-  color: #cfd6dd;
+  color: var(--ml-fg-dim);
   background: rgba(0, 0, 0, 0.35);
-  border: 1px solid #4e595f;
-  border-radius: 6px;
+  border: 1px solid var(--ml-line-hi);
+  border-radius: 8px;
   cursor: pointer;
 }
-.ml-lightbox-close:hover { color: #fff; border-color: #6b7681; }
+.ml-lightbox-close:hover { color: #fff; border-color: var(--ml-accent); }
 
 /* ---- Embedded Swagger UI (API explorer on the REST API page) ----
    Swagger UI ships light-theme CSS and assumes it renders on a white page. On this
@@ -661,99 +754,6 @@ blockquote .paragraph {
    near the viewport height flips the scrollbar on and off, which reflows the layout and reads as
    jitter. */
 html { scrollbar-gutter: stable; }
-
-/* ==========================================================
-   Announcements — release notes and project news
-   (layouts/announcements/{list,single}.html)
-   ========================================================== */
-.ann-lead {
-  color: #afbac4;
-  font-size: 1.1rem;
-  margin: 12px auto 0;
-  max-width: 640px;
-}
-
-.ann-timeline {
-  margin-top: 36px;
-}
-
-.ann-entry {
-  background: linear-gradient(180deg, rgba(45, 52, 61, .55) 0%, rgba(35, 40, 47, .55) 100%);
-  border: 1px solid #3c454e;
-  border-left: 3px solid #57cbcc;
-  border-radius: 8px;
-  margin-bottom: 22px;
-  padding: 24px 28px;
-  transition: border-color .2s ease-in 0s, transform .2s ease-in 0s;
-}
-.ann-entry:hover {
-  border-color: #57cbcc;
-  transform: translateY(-2px);
-}
-
-.ann-entry-meta {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-.ann-entry-meta time {
-  color: #8a95a0;
-  font-size: 13px;
-}
-
-/* Status badge. `upcoming` is deliberately loud — an unreleased version must not read as
-   shipped, on the list page or on the announcement itself. */
-.ann-badge {
-  border: 1px solid #4e595f;
-  border-radius: 12px;
-  color: #afbac4;
-  font-size: 11.5px;
-  font-weight: 700;
-  letter-spacing: .04em;
-  padding: 3px 12px;
-  text-transform: uppercase;
-}
-.ann-badge-upcoming {
-  background: rgba(226, 168, 110, .12);
-  border-color: #e2a86e;
-  color: #f0c799;
-}
-.ann-badge-released {
-  background: rgba(87, 203, 204, .12);
-  border-color: #57cbcc;
-  color: #9fe3e3;
-}
-
-.ann-entry-title {
-  font-size: 1.6rem;
-  margin: 0 0 8px;
-}
-.ann-entry-title a { color: #e8ecf0; }
-.ann-entry-title a:hover { color: #57cbcc; }
-
-.ann-entry-summary {
-  color: #afbac4;
-  margin-bottom: 12px;
-}
-
-.ann-entry-more {
-  color: #57cbcc;
-  font-size: 14px;
-  font-weight: 600;
-}
-.ann-entry-more:hover { color: #7efff4; }
-
-.ann-page-header .ann-entry-meta { justify-content: flex-start; }
-
-.ann-back {
-  border-top: 1px solid #3c454e;
-  margin-top: 40px;
-  padding-top: 20px;
-}
-.ann-back a { color: #57cbcc; font-weight: 600; }
-.ann-back a:hover { color: #7efff4; }
 
 /* ==========================================================
    Site footer (partials/footer.html)
@@ -1041,14 +1041,19 @@ html { scrollbar-gutter: stable; }
 /* ==========================================================
    Reading pages — docs, announcements, blog
 
-   These share one surface (the theme's #353b43, deliberately lighter than the marketing
-   pages) and now one typographic system, matching the design of / and /tour/:
-   headings in Quattrocento Sans with tight tracking, prose in Anaheim, monospace for
-   anything technical, teal for links and accents.
+   These share ONE surface and one component vocabulary with /features/ and the home page:
+   the near-black --ml-bg, cards on a shallow gradient with a hairline border that turns teal
+   and lifts on hover, headings in Quattrocento Sans with tight tracking, prose in Anaheim,
+   monospace for anything technical, teal for links and accents.
 
-   Before this block the same page mixed three fonts by accident — paragraphs rendered in
-   Quattrocento Sans (from the theme's `p` rule), list items and table cells in Anaheim at
-   the body's muted grey. That mismatch is what made the docs feel unlike the rest.
+   Two earlier mismatches this block exists to prevent:
+
+   * The reading pages used to sit on the theme's lighter #353b43 while / and /features/ were
+     near-black, so moving from the marketing pages into the docs felt like leaving the site.
+     The surface is now shared (see the token block at the top of this file).
+   * Before that, one page mixed three fonts by accident — paragraphs rendered in Quattrocento
+     Sans (from the theme's `p` rule), list items and table cells in Anaheim at the body's
+     muted grey.
    ========================================================== */
 
 /* ---- Sticky footer: short pages (an announcement list with one entry) used to leave the
@@ -1076,7 +1081,7 @@ body {
 .post-single-content dd,
 .post-single-content dt {
   color: #cdd6df;
-  font-family: "Anaheim", sans-serif;
+  font-family: var(--ml-sans);
   font-size: 1.03rem;
   line-height: 1.78;
 }
@@ -1102,10 +1107,9 @@ body {
 .post-single-content h3,
 .post-single-content h4,
 .post-single-content h5 {
-  font-family: "Quattrocento Sans", sans-serif;
+  font-family: var(--ml-display);
   letter-spacing: -.01em;
 }
-.docs-page-header h1 { letter-spacing: -.022em; }
 
 .docs-main-content h2 { margin-top: 2.4rem; }
 .docs-main-content h3 { margin-top: 1.9rem; }
@@ -1114,23 +1118,23 @@ body {
 /* Links read as links without shouting. */
 .docs-main-content a,
 .post-single-content a {
-  color: #57cbcc;
+  color: var(--ml-accent);
   text-decoration-color: rgba(87, 203, 204, .35);
   text-underline-offset: 3px;
   transition: color .15s ease-in 0s;
 }
 .docs-main-content a:hover,
-.post-single-content a:hover { color: #7efff4; }
+.post-single-content a:hover { color: var(--ml-accent-bright); }
 
 /* Inline code: a chip, not a colour change. */
 .docs-main-content code,
 .post-single-content code,
 .ann-entry-summary code {
-  background: rgba(255, 255, 255, .05);
-  border: 1px solid rgba(255, 255, 255, .07);
+  background: var(--ml-surface-hi);
+  border: 1px solid var(--ml-line);
   border-radius: 4px;
   color: #f0a860;
-  font-family: "JetBrains Mono", Consolas, monospace;
+  font-family: var(--ml-mono);
   font-size: .88em;
   padding: 1px 5px;
 }
@@ -1152,10 +1156,10 @@ body {
 }
 .docs-main-content table th,
 .post-single-content table th {
-  background: rgba(0, 181, 166, .09);
-  border-bottom: 1px solid rgba(0, 181, 166, .3);
+  background: var(--ml-accent-wash);
+  border-bottom: 1px solid rgba(87, 203, 204, .3);
   color: #cfe9e9;
-  font-family: "Anaheim", sans-serif;
+  font-family: var(--ml-sans);
   font-size: .74rem;
   font-weight: 700;
   letter-spacing: .1em;
@@ -1165,9 +1169,9 @@ body {
 }
 .docs-main-content table td,
 .post-single-content table td {
-  border-bottom: 1px solid rgba(255, 255, 255, .07);
+  border-bottom: 1px solid var(--ml-line);
   color: #cdd6df;
-  font-family: "Anaheim", sans-serif;
+  font-family: var(--ml-sans);
   font-size: .97rem;
   line-height: 1.65;
   padding: 11px 14px;
@@ -1178,32 +1182,35 @@ body {
 .docs-main-content table p,
 .post-single-content table p { font-size: inherit; margin-bottom: .35rem; }
 
-/* Sidebar: same label treatment as the marketing eyebrows. */
-.docs-sidebar-title {
-  font-family: "Anaheim", sans-serif;
-  font-size: .7rem;
-  letter-spacing: .16em;
-}
-nav[data-toggle=toc] .nav > li > a,
-nav[data-toggle=toc] .nav .nav > li > a,
-.docs-topics a {
-  font-family: "Anaheim", sans-serif;
-  letter-spacing: .005em;
-}
+/* The sidebar rail lives in toc.less — it is imported after this file, so its rules win. */
 
 /* ---- Shared page header for the reading pages ----
-   Announcements, the blog and the author archive all open the same way: a small teal eyebrow,
-   the title, an optional lead. It mirrors the marketing pages' section heads at a size that
-   suits a document. */
+   Docs, announcements, the blog and the author archive all open the same way: a small teal
+   eyebrow, the title, an optional lead, a hairline rule. It is the marketing pages'
+   `.hm-features-head` at a size that suits a document — same eyebrow-then-title rhythm, same
+   display face, same tracking — so /features/ → /docs/ is not a change of gear. */
 .page-head {
-  border-bottom: 1px solid rgba(0, 181, 166, .22);
-  margin-bottom: 34px;
-  padding-bottom: 22px;
+  border-bottom: 1px solid var(--ml-line);
+  margin-bottom: 38px;
+  padding-bottom: 24px;
+  position: relative;
 }
-.page-head-center { margin-bottom: 44px; text-align: center; }
+/* A short teal tick under the rule, aligned with the title, in place of the old full-width
+   teal border: an accent, not a stripe. */
+.page-head::after {
+  background: linear-gradient(90deg, var(--ml-accent), rgba(87, 203, 204, 0));
+  bottom: -1px;
+  content: "";
+  height: 2px;
+  left: 0;
+  position: absolute;
+  width: 74px;
+}
+.page-head-center { margin-bottom: 48px; text-align: center; }
+.page-head-center::after { left: 50%; transform: translateX(-50%); background: linear-gradient(90deg, rgba(87, 203, 204, 0), var(--ml-accent), rgba(87, 203, 204, 0)); width: 120px; }
 .page-eyebrow {
-  color: #57cbcc;
-  font-family: "Anaheim", sans-serif;
+  color: var(--ml-accent);
+  font-family: var(--ml-sans);
   font-size: .72rem;
   font-weight: 700;
   letter-spacing: .18em;
@@ -1211,8 +1218,8 @@ nav[data-toggle=toc] .nav .nav > li > a,
   text-transform: uppercase;
 }
 .page-head h1 {
-  color: #e8ecf0;
-  font-family: "Quattrocento Sans", sans-serif;
+  color: var(--ml-fg);
+  font-family: var(--ml-display);
   font-size: clamp(1.9rem, 3.4vw, 2.5rem);
   font-weight: 700;
   letter-spacing: -.022em;
@@ -1221,8 +1228,8 @@ nav[data-toggle=toc] .nav .nav > li > a,
   padding: 0;
 }
 .page-lead {
-  color: #aab6c2;
-  font-family: "Anaheim", sans-serif;
+  color: var(--ml-fg-dim);
+  font-family: var(--ml-sans);
   font-size: 1.08rem;
   line-height: 1.65;
   margin: 14px 0 0;
@@ -1230,49 +1237,157 @@ nav[data-toggle=toc] .nav .nav > li > a,
 }
 .page-head-center .page-lead { margin-left: auto; margin-right: auto; }
 .page-foot-note {
-  border-top: 1px solid rgba(255, 255, 255, .07);
-  color: #8a95a0;
+  border-top: 1px solid var(--ml-line);
+  color: var(--ml-muted);
   font-size: .92rem;
-  margin-top: 40px;
+  margin-top: 44px;
   padding-top: 20px;
 }
 
-/* ---- Announcement entries ---- */
+/* ---- Docs foot: the same closing pair of buttons /features/ ends on ----
+   `.docs-foot` is emitted by the docs layouts, so every reference page has a way onward
+   instead of stopping at the last paragraph. */
+.docs-foot {
+  border-top: 1px solid var(--ml-line);
+  margin-top: 56px;
+  padding-top: 30px;
+}
+.docs-foot p {
+  color: var(--ml-muted);
+  font-family: var(--ml-sans);
+  font-size: .97rem;
+  margin: 0 0 18px;
+}
+.docs-foot-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+a.ml-btn {
+  border: 1px solid transparent;
+  border-radius: 40px;
+  display: inline-block;
+  font-family: var(--ml-sans);
+  font-size: 14.5px;
+  font-weight: 700;
+  padding: 11px 26px;
+  transition: transform .18s ease, background-color .18s ease, border-color .18s ease, color .18s ease;
+  white-space: nowrap;
+}
+a.ml-btn:hover { text-decoration: none; transform: translateY(-2px); }
+a.ml-btn-primary { background: var(--ml-accent); color: #06272a; }
+a.ml-btn-primary:hover { background: var(--ml-accent-bright); color: #06272a; }
+a.ml-btn-ghost { border-color: var(--ml-line-hi); color: var(--ml-fg); }
+a.ml-btn-ghost:hover { border-color: var(--ml-accent); color: var(--ml-accent-bright); }
+
+/* ==========================================================
+   Announcements — release notes and project news
+   (layouts/announcements/{list,single}.html)
+
+   One entry is the same card object as an .hm-feature on /features/ and a .docs-card on the
+   docs landing: gradient surface, hairline border, teal border + lift on hover.
+   ========================================================== */
 .ann-timeline { margin-top: 8px; }
 
 .ann-entry {
-  background: linear-gradient(180deg, rgba(45, 52, 61, .6) 0%, rgba(35, 40, 47, .6) 100%);
-  border: 1px solid #4e595f;
-  border-radius: 10px;
+  background: var(--ml-card);
+  border: 1px solid var(--ml-line);
+  border-radius: var(--ml-radius);
   margin-bottom: 20px;
-  padding: 26px 30px;
+  padding: 28px 32px;
   transition: border-color .2s ease-in 0s, transform .2s ease-in 0s;
 }
 .ann-entry:hover {
-  border-color: rgba(0, 181, 166, .55);
-  transform: translateY(-2px);
+  border-color: var(--ml-accent-line);
+  transform: var(--ml-lift);
+}
+
+.ann-entry-meta {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.ann-entry-meta time {
+  color: var(--ml-muted);
+  font-family: var(--ml-mono);
+  font-size: 12px;
+  letter-spacing: .04em;
 }
 .ann-entry-version {
-  color: #8a95a0;
-  font-family: "JetBrains Mono", Consolas, monospace;
+  color: var(--ml-muted);
+  font-family: var(--ml-mono);
   font-size: 12px;
 }
-.ann-entry-title { font-family: "Quattrocento Sans", sans-serif; letter-spacing: -.015em; }
+
+/* Status badge. `upcoming` is deliberately loud — an unreleased version must not read as
+   shipped, on the list page or on the announcement itself. */
+.ann-badge {
+  border: 1px solid var(--ml-line-hi);
+  border-radius: 12px;
+  color: var(--ml-fg-dim);
+  font-family: var(--ml-sans);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  padding: 3px 12px;
+  text-transform: uppercase;
+}
+.ann-badge-upcoming {
+  background: rgba(226, 168, 110, .12);
+  border-color: rgba(226, 168, 110, .5);
+  color: var(--ml-warm-soft);
+}
+.ann-badge-released {
+  background: var(--ml-accent-wash);
+  border-color: var(--ml-accent-line);
+  color: #9fe3e3;
+}
+
+.ann-entry-title {
+  font-family: var(--ml-display);
+  font-size: 1.5rem;
+  letter-spacing: -.015em;
+  margin: 0 0 10px;
+}
+.ann-entry-title a { color: var(--ml-fg); }
+.ann-entry-title a:hover { color: var(--ml-accent-bright); }
 .ann-entry-summary {
-  color: #aab6c2;
-  font-family: "Anaheim", sans-serif;
+  color: var(--ml-fg-dim);
+  font-family: var(--ml-sans);
   font-size: 1rem;
   line-height: 1.68;
+  margin-bottom: 14px;
 }
-.ann-page-header .ann-entry-meta { margin-bottom: 14px; }
+.ann-entry-more {
+  color: var(--ml-accent);
+  font-size: 14px;
+  font-weight: 700;
+}
+.ann-entry-more:hover { color: var(--ml-accent-bright); }
+.ann-entry-more span { display: inline-block; transition: transform .18s ease-in 0s; }
+.ann-entry:hover .ann-entry-more span { transform: translateX(4px); }
+
+.ann-page-header .ann-entry-meta { justify-content: flex-start; margin-bottom: 14px; }
+
+.ann-back {
+  border-top: 1px solid var(--ml-line);
+  margin-top: 48px;
+  padding-top: 22px;
+}
+.ann-back a { color: var(--ml-accent); font-weight: 700; }
+.ann-back a:hover { color: var(--ml-accent-bright); }
 
 /* ---- Blog ---- */
 .blog-grid { margin-top: 4px; }
 
+/* Stagger the reveal across a row of three the way `data-reveal-delay` does on /features/.
+   It is done here because `.Render "article"` cannot pass the loop index into the card. */
+.reveal-js .blog-grid > .reveal:nth-child(3n + 2) { transition-delay: .09s; }
+.reveal-js .blog-grid > .reveal:nth-child(3n) { transition-delay: .18s; }
+
 .blog-card {
-  background: #2b3138;
-  border: 1px solid #4e595f;
-  border-radius: 10px;
+  background: var(--ml-card);
+  background-color: var(--ml-bg-alt);
+  border: 1px solid var(--ml-line);
+  border-radius: var(--ml-radius);
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -1280,18 +1395,20 @@ nav[data-toggle=toc] .nav .nav > li > a,
   transition: border-color .2s ease-in 0s, transform .2s ease-in 0s, box-shadow .2s ease-in 0s;
 }
 .blog-card:hover {
-  border-color: rgba(0, 181, 166, .55);
+  border-color: var(--ml-accent-line);
   box-shadow: 0 24px 50px -40px rgba(0, 0, 0, .9);
   text-decoration: none;
-  transform: translateY(-3px);
+  transform: var(--ml-lift);
 }
 .blog-card-media {
   display: block;
   overflow: hidden;
   position: relative;
 }
+/* The photograph is dropped into the card rather than pasted on top of it: the image fades
+   into the card surface at the bottom edge, the way the hero art does on /tour/. */
 .blog-card-media::after {
-  background: linear-gradient(180deg, rgba(43, 49, 56, 0) 55%, rgba(43, 49, 56, .85) 100%);
+  background: linear-gradient(180deg, rgba(16, 21, 28, 0) 50%, rgba(16, 21, 28, .9) 100%);
   content: "";
   inset: 0;
   position: absolute;
@@ -1312,38 +1429,93 @@ nav[data-toggle=toc] .nav .nav > li > a,
   padding: 20px 22px 22px;
 }
 .blog-card-date {
-  color: #8a95a0;
-  font-family: "JetBrains Mono", Consolas, monospace;
+  color: var(--ml-muted);
+  font-family: var(--ml-mono);
   font-size: 11.5px;
   letter-spacing: .04em;
 }
 .blog-card-title {
-  color: #e8ecf0;
+  color: var(--ml-fg);
   display: block;
-  font-family: "Quattrocento Sans", sans-serif;
+  font-family: var(--ml-display);
   font-size: 1.22rem;
   font-weight: 700;
   letter-spacing: -.015em;
   line-height: 1.3;
   margin: 8px 0 10px;
 }
-.blog-card:hover .blog-card-title { color: #7efff4; }
+.blog-card:hover .blog-card-title { color: var(--ml-accent-bright); }
 .blog-card-summary {
-  color: #9aa6b2;
+  color: var(--ml-muted);
   display: block;
   flex: 1 1 auto;
-  font-family: "Anaheim", sans-serif;
+  font-family: var(--ml-sans);
   font-size: .95rem;
   line-height: 1.62;
   margin-bottom: 16px;
 }
 .blog-card-more {
-  color: #57cbcc;
+  color: var(--ml-accent);
   font-size: .9rem;
   font-weight: 700;
 }
 .blog-card-more span { display: inline-block; transition: transform .18s ease-in 0s; }
 .blog-card:hover .blog-card-more span { transform: translateX(4px); }
+
+/* ---- Author page (layouts/author/single.html) ---- */
+.author-card {
+  align-items: center;
+  background: var(--ml-card);
+  border: 1px solid var(--ml-line);
+  border-radius: var(--ml-radius);
+  display: flex;
+  gap: 30px;
+  margin-bottom: 56px;
+  padding: 30px 34px;
+}
+.author-avatar {
+  border: 1px solid var(--ml-line-hi);
+  border-radius: 50%;
+  flex: none;
+  height: 128px;
+  object-fit: cover;
+  width: 128px;
+}
+.author-bio p { margin-bottom: .8rem; }
+.author-bio p:last-of-type { margin-bottom: 0; }
+.author-social {
+  display: flex;
+  gap: 10px;
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+}
+.author-social a {
+  align-items: center;
+  border: 1px solid var(--ml-line);
+  border-radius: 50%;
+  color: var(--ml-fg-dim);
+  display: inline-flex;
+  height: 36px;
+  justify-content: center;
+  transition: border-color .2s ease-in 0s, color .2s ease-in 0s;
+  width: 36px;
+}
+.author-social a:hover { border-color: var(--ml-accent); color: var(--ml-accent-bright); }
+
+.author-posts-title {
+  color: var(--ml-fg);
+  font-family: var(--ml-display);
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -.015em;
+  margin: 0 0 22px;
+}
+
+@media (max-width: 575px) {
+  .author-card { flex-direction: column; text-align: center; }
+  .author-social { justify-content: center; }
+}
 
 /* ---- Blog post ---- */
 .post-head .page-lead { margin-top: 16px; }
@@ -1351,29 +1523,29 @@ nav[data-toggle=toc] .nav .nav > li > a,
 .post-meta {
   align-items: center;
   background: none;
-  color: #8a95a0;
+  color: var(--ml-muted);
   padding: 0;
   display: flex;
   flex-wrap: wrap;
-  font-family: "Anaheim", sans-serif;
+  font-family: var(--ml-sans);
   font-size: .88rem;
   gap: 8px 18px;
   margin: 14px 0 0;
 }
 .post-meta > span {
   border-right: 0;
-  color: #8a95a0;
+  color: var(--ml-muted);
   display: inline-block;
   font-size: inherit;
   margin: 0;
   padding: 0;
 }
-.post-meta a { color: #aab6c2; }
-.post-meta a:hover { color: #57cbcc; }
+.post-meta a { color: var(--ml-fg-dim); }
+.post-meta a:hover { color: var(--ml-accent); }
 .post-meta time,
 .post-meta span { position: relative; }
 .post-meta > *:not(:first-child)::before {
-  color: #4e595f;
+  color: var(--ml-line-hi);
   content: "·";
   left: -11px;
   position: absolute;
@@ -1383,15 +1555,15 @@ nav[data-toggle=toc] .nav .nav > li > a,
   margin: 0 0 34px;
 }
 .post-hero img {
-  border: 1px solid #4e595f;
-  border-radius: 10px;
+  border: 1px solid var(--ml-line);
+  border-radius: var(--ml-radius);
   display: block;
   max-height: 440px;
   object-fit: cover;
   width: 100%;
 }
 .post-hero figcaption {
-  color: #6b7681;
+  color: var(--ml-muted);
   font-size: .8rem;
   font-style: italic;
   margin-top: 10px;
@@ -1402,15 +1574,156 @@ nav[data-toggle=toc] .nav .nav > li > a,
 .pagination { justify-content: center; margin-top: 18px; }
 .pagination .page-link {
   background: transparent;
-  border: 1px solid #4e595f;
-  color: #aab6c2;
+  border: 1px solid var(--ml-line-hi);
+  color: var(--ml-fg-dim);
   margin: 0 4px;
-  border-radius: 6px;
+  border-radius: 8px;
   transition: all .18s ease-in 0s;
 }
-.pagination .page-link:hover { border-color: #57cbcc; color: #7efff4; }
+.pagination .page-link:hover { border-color: var(--ml-accent); color: var(--ml-accent-bright); }
 .pagination .active .page-link {
-  background: rgba(0, 181, 166, .14);
-  border-color: #57cbcc;
-  color: #7efff4;
+  background: var(--ml-accent-wash);
+  border-color: var(--ml-accent);
+  color: var(--ml-accent-bright);
+}
+
+/* ==========================================================
+   Admonitions (NOTE / TIP / WARNING / CAUTION / IMPORTANT)
+
+   Asciidoctor renders these as a two-cell table: an `.icon` cell and a `.content` cell. The
+   theme's original treatment was a dashed grey box with the word "Tip" set at 2em in the icon
+   cell, which read as a rendering accident next to the cards on /features/. It is now a proper
+   callout: a card in the shared vocabulary with a coloured left edge and the label as a small
+   uppercase eyebrow — the same eyebrow used by .page-head and the marketing sections.
+   ========================================================== */
+.docs-main-content .admonitionblock,
+.post-single-content .admonitionblock {
+  background: var(--ml-card);
+  background-color: rgba(87, 203, 204, .045);
+  border: 1px solid var(--ml-line);
+  border-left: 3px solid var(--ml-accent);
+  border-radius: var(--ml-radius-sm);
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  margin: 1.6rem 0;
+  padding: 4px 6px;
+}
+.docs-main-content .admonitionblock > table,
+.post-single-content .admonitionblock > table {
+  border: 0;
+  margin: 0;
+  width: 100%;
+}
+.docs-main-content .admonitionblock td,
+.post-single-content .admonitionblock td {
+  border: 0;
+  padding: 14px 18px;
+}
+.docs-main-content .admonitionblock tr:hover td,
+.post-single-content .admonitionblock tr:hover td { background: none; }
+
+/* The label cell. Asciidoctor emits either `<div class="title">Tip</div>` or, with
+   `:icons: font`, an `<i class="fa icon-tip">` — both are handled. */
+.docs-main-content .admonitionblock td.icon,
+.post-single-content .admonitionblock td.icon {
+  padding-right: 0;
+  vertical-align: top;
+  white-space: nowrap;
+  width: 1%;
+}
+.docs-main-content .admonitionblock td.icon .title,
+.post-single-content .admonitionblock td.icon .title {
+  color: var(--ml-accent);
+  font-family: var(--ml-sans);
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+}
+.docs-main-content .admonitionblock td.icon .icon,
+.post-single-content .admonitionblock td.icon .icon {
+  font-size: 1.15em;
+  padding-right: 0;
+}
+/* The content cell may carry its own `.title` — that one is a heading, not the label. */
+.docs-main-content .admonitionblock td.content .title,
+.post-single-content .admonitionblock td.content .title {
+  color: var(--ml-fg);
+  font-family: var(--ml-display);
+  font-size: 1.02rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.docs-main-content .admonitionblock td.content,
+.post-single-content .admonitionblock td.content {
+  color: #cdd6df;
+  font-family: var(--ml-sans);
+  font-size: 1rem;
+  line-height: 1.72;
+}
+.docs-main-content .admonitionblock p:last-child,
+.post-single-content .admonitionblock p:last-child { margin-bottom: 0; }
+
+/* Warning and caution carry the site's warm colour — the same one the pre-release notice and
+   the `planned` badge use — so "be careful" never depends on the reader noticing a word. */
+.docs-main-content .admonitionblock.warning,
+.docs-main-content .admonitionblock.caution,
+.docs-main-content .admonitionblock.important,
+.post-single-content .admonitionblock.warning,
+.post-single-content .admonitionblock.caution,
+.post-single-content .admonitionblock.important {
+  background-color: rgba(226, 168, 110, .06);
+  border-left-color: var(--ml-warm);
+}
+.docs-main-content .admonitionblock.warning td.icon .title,
+.docs-main-content .admonitionblock.caution td.icon .title,
+.docs-main-content .admonitionblock.important td.icon .title,
+.post-single-content .admonitionblock.warning td.icon .title,
+.post-single-content .admonitionblock.caution td.icon .title,
+.post-single-content .admonitionblock.important td.icon .title { color: var(--ml-warm-soft); }
+
+@media (max-width: 575px) {
+  /* Stack the label above the text rather than squeezing the prose into a narrow cell. */
+  .docs-main-content .admonitionblock table,
+  .docs-main-content .admonitionblock tbody,
+  .docs-main-content .admonitionblock tr,
+  .docs-main-content .admonitionblock td,
+  .post-single-content .admonitionblock table,
+  .post-single-content .admonitionblock tbody,
+  .post-single-content .admonitionblock tr,
+  .post-single-content .admonitionblock td { display: block; width: auto; }
+  .docs-main-content .admonitionblock td.icon,
+  .post-single-content .admonitionblock td.icon { padding-bottom: 0; }
+}
+
+/* Blockquotes on the blog get the same left-edge treatment as a callout. */
+.docs-main-content blockquote,
+.post-single-content blockquote {
+  border-left: 3px solid var(--ml-accent);
+  color: var(--ml-fg-dim);
+  margin: 1.6rem 0;
+  padding: 4px 0 4px 22px;
+}
+
+/* All motion on the reading pages is decoration — the hover lift, the card transitions, the
+   reveal. Nothing here encodes information in movement, so it can all be switched off. */
+@media (prefers-reduced-motion: reduce) {
+  .docs-card,
+  .docs-card:hover,
+  .note,
+  .note:hover,
+  .ann-entry,
+  .ann-entry:hover,
+  .blog-card,
+  .blog-card:hover,
+  a.ml-btn,
+  a.ml-btn:hover {
+    transform: none;
+    transition: none;
+  }
+  .blog-card .blog-card-media img,
+  .blog-card:hover .blog-card-media img,
+  .ann-entry-more span,
+  .blog-card-more span { transform: none; transition: none; }
 }

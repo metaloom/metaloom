@@ -1,12 +1,18 @@
 
 /** TABLES **/
 
+/* AsciiDoc reference tables. Same object as the `.docs-main-content table` rules in
+   custom.less — a tinted teal header row of small uppercase labels over hairline-separated
+   rows — but written against `table.tableblock`, which Asciidoctor emits and which would
+   otherwise out-specify them. Colours come from the shared tokens at the top of custom.less. */
+
 table.tableblock {
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   width: 100%;
-  margin-bottom: 20px;
-  border: 2px solid #4e595f;
-  border-radius: 6px;
+  margin: 1.4rem 0;
+  border: 1px solid var(--ml-line);
+  border-radius: var(--ml-radius-sm);
   overflow: hidden;
 }
 
@@ -16,85 +22,83 @@ table.tableblock > tfoot > tr > td,
 table.tableblock > tfoot > tr > th,
 table.tableblock > thead > tr > td,
 table.tableblock > thead > tr > th {
-  border: 1px solid #3a424a;
-  padding: 10px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--ml-line);
+  padding: 12px 16px;
   vertical-align: top;
 }
 
+table.tableblock > tbody > tr:last-child > td,
+table.tableblock > tbody > tr:last-child > th {
+  border-bottom: 0;
+}
+
 table.tableblock thead tr {
-  background-color: #1e2428;
+  background-color: var(--ml-accent-wash);
 }
 
 table.tableblock thead tr th,
 table.tableblock thead tr td {
-  font-size: 0.85rem;
+  font-family: var(--ml-sans);
+  font-size: 0.74rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #00b5a6;
-  border-bottom: 2px solid #4e595f;
+  letter-spacing: 0.1em;
+  color: #cfe9e9;
+  border-bottom: 1px solid rgba(87, 203, 204, 0.3);
 }
 
 table.tableblock tbody tr {
-  background-color: #242a30;
+  background-color: transparent;
 }
 
+/* Zebra striping is a recess in the page surface, not a second grey. */
 table.tableblock tbody tr:nth-child(even) {
-  background-color: #292f36;
+  background-color: rgba(255, 255, 255, 0.022);
 }
 
 table.tableblock tbody tr:hover {
-  background-color: rgba(0, 181, 166, 0.05);
+  background-color: var(--ml-accent-wash);
 }
 
 table.tableblock p {
   margin: 0;
   padding: 0;
-  color: #c8cdd2;
-  font-size: 0.95rem;
+  color: #cdd6df;
+  font-family: var(--ml-sans);
+  font-size: 0.97rem;
+  line-height: 1.65;
 }
   
-  /** ICONS **/
-  
-  .post-single-content .icon {
-    font-size: 2em;
-    padding-right: 0.6em;
-  }
-  
-  .icon-note:before {
-    content: "\f05a";
-    color: #00b5a6;
-  }
-  
-  .icon-tip:before {
-    content: "\f0eb";
-    color: #00b5a6;
-  }
-  
-  .icon-warning:before {
-    content: "\f071";
-    color: #00b5a6;
-  }
-  
-  .icon-caution:before {
-    content: "\f06d";
-    color: #00b5a6;
-  }
-  
-  .icon-important:before {
-    content: "\f06a";
-    color: #00b5a6;
-  }
-  
-  
-  /** TIP **/
-  
-  .admonitionblock {
-    border: 1px dashed rgba(221, 221, 221, 0.452);
-    color: white;
-    font-size: 1.2em;
-    font-weight: 550;
-    padding: 5px;
-  }
+/** ADMONITION ICONS **/
+
+/* With `:icons: font` Asciidoctor puts an <i class="fa icon-tip"> in the label cell; without
+   it, a plain <div class="title">Tip</div>. Both forms are styled as the callout's eyebrow —
+   see the Admonitions block in custom.less, which owns the box itself. */
+
+.icon-note:before {
+  content: "\f05a";
+  color: var(--ml-accent);
+}
+
+.icon-tip:before {
+  content: "\f0eb";
+  color: var(--ml-accent);
+}
+
+.icon-warning:before {
+  content: "\f071";
+  color: var(--ml-warm);
+}
+
+.icon-caution:before {
+  content: "\f06d";
+  color: var(--ml-warm);
+}
+
+.icon-important:before {
+  content: "\f06a";
+  color: var(--ml-warm);
+}
   
   

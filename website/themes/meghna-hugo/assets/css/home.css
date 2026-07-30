@@ -4,8 +4,11 @@
    Loaded only by pages carrying `page_css: css/home.css` in front matter (see
    partials/head.html). Everything is scoped under .hm-page and prefixed .hm-*.
 
-   Same palette as /tour/ (dark surfaces, teal #57cbcc accent, warm #e2a86e for
-   the pre-release notice) but its own layout vocabulary — the home page is a short
+   The palette is NOT defined here — the --hm-* names below are aliases for the
+   shared --ml-* tokens declared in less/includes/custom.less (compiled into the
+   global main.css). That is what keeps this page, /docs/, /blog/ and
+   /announcements/ on one surface: change a colour there and all of them follow.
+   What is local to this file is the layout vocabulary — the home page is a short
    front door, not a scroller.
    ========================================================================== */
 
@@ -17,21 +20,17 @@ html {
   html { scroll-behavior: auto; }
 }
 
-/* The theme background (#353b43) would otherwise show through the reserved scrollbar
-   gutter as a light strip down the right edge of this much darker page. */
-body { background-color: #0b0e13; }
-
 .hm-page {
-  --hm-bg: #0b0e13;
-  --hm-bg-alt: #10151c;
-  --hm-line: rgba(255, 255, 255, .09);
-  --hm-fg: #eef2f6;
-  --hm-fg-dim: #aab6c2;
-  --hm-muted: #7d8894;
-  --hm-accent: #57cbcc;
-  --hm-accent-bright: #7efff4;
-  --hm-warm: #e2a86e;
-  --hm-warm-soft: #f0c799;
+  --hm-bg: var(--ml-bg);
+  --hm-bg-alt: var(--ml-bg-alt);
+  --hm-line: var(--ml-line);
+  --hm-fg: var(--ml-fg);
+  --hm-fg-dim: var(--ml-fg-dim);
+  --hm-muted: var(--ml-muted);
+  --hm-accent: var(--ml-accent);
+  --hm-accent-bright: var(--ml-accent-bright);
+  --hm-warm: var(--ml-warm);
+  --hm-warm-soft: var(--ml-warm-soft);
 
   background: var(--hm-bg);
   color: var(--hm-fg-dim);
@@ -120,15 +119,9 @@ body { background-color: #0b0e13; }
 .hm-more { margin: 44px 0 0; text-align: center; }
 
 /* -------------------------------------------------------------- reveal fx
-   Shared with /tour/ — see assets/js/reveal.js. The hidden start state only
-   applies while .reveal-js is set, so the page is complete without JavaScript. */
-.reveal-js .reveal {
-  opacity: 0;
-  transform: translateY(24px);
-  transition: opacity .7s cubic-bezier(.2, .7, .2, 1), transform .7s cubic-bezier(.2, .7, .2, 1);
-  will-change: opacity, transform;
-}
-.reveal-js .reveal.is-visible { opacity: 1; transform: none; }
+   The `.reveal-js .reveal` contract now lives in the global stylesheet
+   (less/includes/custom.less) because the blog and announcement lists use it too.
+   /tour/ and /studio/ still restate it in their own page-scoped files. */
 
 /* ------------------------------------------------------------------- hero */
 .hm-hero {

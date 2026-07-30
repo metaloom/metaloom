@@ -2,7 +2,10 @@
 
 {{ partial "navigation.html" . }}
 
-<section class="section docs-section">
+{{/* The entries fade in on scroll with the shared reveal contract (assets/js/reveal.js), the
+     same one /features/ and the blog overview use. Nothing is hidden without JavaScript. */}}
+<section class="section docs-section" data-reveal-scope>
+  {{ partial "reveal-bootstrap.html" . }}
   <div class="container">
     <div class="row justify-content-center">
       <div class="col-lg-9">
@@ -16,8 +19,9 @@
         {{ end }}
 
         <div class="ann-timeline">
-          {{ range .Pages.ByDate.Reverse }}
-          <article class="ann-entry">
+          {{ range $i, $p := .Pages.ByDate.Reverse }}
+          {{ with $p }}
+          <article class="ann-entry reveal" data-reveal-delay="{{ mod $i 3 }}">
             <div class="ann-entry-meta">
               <span class="ann-badge ann-badge-{{ .Params.status | default `released` }}">{{ .Params.status_label | default `Released` }}</span>
               <time datetime="{{ .Date.Format `2006-01-02` }}">{{ .Date.Format "2 January 2006" }}</time>
@@ -27,6 +31,7 @@
             <p class="ann-entry-summary">{{ with .Params.description }}{{ . }}{{ else }}{{ .Summary }}{{ end }}</p>
             <a class="ann-entry-more" href="{{ .RelPermalink }}">Read the announcement <span aria-hidden="true">&rarr;</span></a>
           </article>
+          {{ end }}
           {{ end }}
         </div>
 
@@ -38,4 +43,6 @@
     </div>
   </div>
 </section>
+
+{{ partial "reveal-script.html" . }}
 {{ end }}
