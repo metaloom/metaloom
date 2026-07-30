@@ -12,6 +12,11 @@ import { ThemeModeProvider, useThemeMode } from "./context/ThemeContext";
 import AppShell from "./layout/AppShell";
 import LoginPage from "./features/auth/LoginPage";
 
+// The app is mounted under a path prefix (/ui/ in dev and in the served build), so the
+// router has to strip that prefix before matching. Deriving it from Vite's BASE_URL keeps
+// the value in one place; React Router wants it without the trailing slash.
+const ROUTER_BASENAME = import.meta.env.BASE_URL.replace(/\/+$/, "");
+
 function AuthGate() {
   const { isAuthenticated } = useAuth();
   if (!isAuthenticated) return <LoginPage />;
@@ -34,7 +39,7 @@ function ThemedApp() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <BrowserRouter>
+      <BrowserRouter basename={ROUTER_BASENAME}>
         <AuthProvider>
           <ToastProvider>
             <AuthGate />

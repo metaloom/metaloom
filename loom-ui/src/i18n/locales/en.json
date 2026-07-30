@@ -486,7 +486,9 @@
    "activeTasks": "Active Tasks",
    "collections": "Collections",
    "open": "Open",
-   "collectionAssets": "{{count}} assets"
+   "collectionAssets": "{{count}} assets",
+   "hide": "Hide the workspace panel",
+   "show": "Show the workspace panel"
   },
   "tab": {
    "overview": "Overview",

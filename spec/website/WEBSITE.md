@@ -543,8 +543,9 @@ container on the shared `dev` docker network):
 ./start-demo.sh
 ```
 
-* UI URL: **http://localhost:8092/ui/** (the UI is served by a Vert.x `StaticHandler` at `/ui/*`, *not* at
-  the site root).
+* UI URL: **http://localhost:8092/ui/** (the UI is mounted at `/ui/`, *not* at the site root — the site
+  root just 302s there). Capture scripts should still target `/ui/` directly rather than relying on the
+  redirect.
 * Credentials: **admin** / **finger** (`LOOM_INITIAL_PASSWORD`).
 * The database is auto-seeded by `DemoDatabaseInitializer` (assets, pipelines, faces, users, roles, tags,
   API keys, skills with two versions each, published chat sessions with context references, agent memory

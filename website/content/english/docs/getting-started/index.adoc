@@ -93,6 +93,9 @@ For a screenshot tour of every area, see link:../ui/[Loom UI].
 
 (The password is set by `LOOM_INITIAL_PASSWORD`, which the demo image defaults to `finger`.)
 
+Plain `\http://localhost:8092` redirects to `/ui/`, and every screen has its own address — bookmark
+`\http://localhost:8092/ui/assets` or `\http://localhost:8092/ui/pipelines` and it will open there.
+
 The server itself — REST API, WebSocket and SSE — is on `\http://localhost:8092` for when you want to
 integrate rather than click.
 

@@ -10,6 +10,7 @@ import {
   AccountTreeOutlined, CollectionsOutlined, AccessTimeOutlined,
   ArrowForwardIos, DragIndicator, StopCircleOutlined,
   Add, ChatBubbleOutline, DeleteOutline, ViewSidebarOutlined,
+  SpaceDashboardOutlined, KeyboardDoubleArrowRight,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { AgentAction, ChatMessage, ChatReference } from "../../types";
@@ -405,6 +406,29 @@ function CollectionRow({ collection }: { collection: CollectionResponse }) {
   );
 }
 
+// ── Chat / workspace split ────────────────────────────────────────────────
+// The split is stored as a percentage of the area right of the sessions rail, not as a
+// pixel width: a fixed width capped the chat column at a few hundred pixels, so the
+// divider barely moved on a wide screen. The bounds only keep both sides usable.
+const SPLIT_STORAGE_KEY = "loom.chat.splitPct";
+const PANEL_STORAGE_KEY = "loom.chat.panelOpen";
+const SPLIT_DEFAULT_PCT = 80;
+const SPLIT_MIN_PCT = 20;
+const SPLIT_MAX_PCT = 95;
+
+function clampSplit(pct: number): number {
+  return Math.max(SPLIT_MIN_PCT, Math.min(SPLIT_MAX_PCT, pct));
+}
+
+function readStoredSplit(): number {
+  const raw = Number(localStorage.getItem(SPLIT_STORAGE_KEY));
+  return Number.isFinite(raw) && raw > 0 ? clampSplit(raw) : SPLIT_DEFAULT_PCT;
+}
+
+function readStoredPanelOpen(): boolean {
+  return localStorage.getItem(PANEL_STORAGE_KEY) !== "false";
+}
+
 // ── Streaming state of the in-flight assistant message ────────────────────
 type StreamPhase = "idle" | "reasoning" | "answering" | "tool";
 
@@ -425,12 +449,14 @@ export default function ChatWorkspace() {
   const [streaming, setStreaming] = useState<StreamingState | null>(null);
   const [activeSkillUuids, setActiveSkillUuids] = useState<string[]>([]);
   const [workspaceMode, setWorkspaceMode] = useState<"overview" | "assets">("overview");
-  const [chatWidth, setChatWidth] = useState(440);
+  const [chatPct, setChatPct] = useState(readStoredSplit);
+  const [panelOpen, setPanelOpen] = useState(readStoredPanelOpen);
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<ChatResponse[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [railOpen, setRailOpen] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const splitRef = useRef<HTMLDivElement>(null);
   const isDragging = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const activeChatRef = useRef<string | null>(null);
@@ -438,24 +464,36 @@ export default function ChatWorkspace() {
   // Abort a running stream on unmount
   useEffect(() => () => abortRef.current?.abort(), []);
 
+  useEffect(() => {
+    localStorage.setItem(SPLIT_STORAGE_KEY, String(chatPct));
+  }, [chatPct]);
+
+  useEffect(() => {
+    localStorage.setItem(PANEL_STORAGE_KEY, String(panelOpen));
+  }, [panelOpen]);
+
+  // Dragging tracks the pointer against the split container rather than accumulating a
+  // delta, so the divider stays glued to the cursor even after the clamp kicks in.
   const handleDividerMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     isDragging.current = true;
-    const startX = e.clientX;
-    const startW = chatWidth;
+    const rect = splitRef.current?.getBoundingClientRect();
     const onMove = (ev: MouseEvent) => {
-      if (!isDragging.current) return;
-      const delta = ev.clientX - startX;
-      setChatWidth(Math.max(200, Math.min(1200, startW + delta)));
+      if (!isDragging.current || !rect || rect.width === 0) return;
+      setChatPct(clampSplit(((ev.clientX - rect.left) / rect.width) * 100));
     };
     const onUp = () => {
       isDragging.current = false;
+      document.body.style.cursor = "";
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
+    // Held on the body for the whole drag — without it the cursor flickers back to the
+    // default whenever the pointer outruns the 6px divider.
+    document.body.style.cursor = "col-resize";
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
-  }, [chatWidth]);
+  }, []);
 
   // Load the list of persisted conversations for the session rail.
   useEffect(() => {
@@ -757,12 +795,14 @@ export default function ChatWorkspace() {
           </Box>
         </Box>
       )}
+      {/* ── Split area: chat column | divider | workspace panel ── */}
+      <Box ref={splitRef} sx={{ flex: 1, display: "flex", minWidth: 0, overflow: "hidden" }}>
       {/* ── Left: Chat column ── */}
       <Box
+        data-testid="chat-column"
         sx={{
-          width: { xs: "100%", md: chatWidth },
-          minWidth: { md: 280 },
-          maxWidth: { md: 700 },
+          width: { xs: "100%", md: panelOpen ? `${chatPct}%` : "100%" },
+          minWidth: { md: 320 },
           display: "flex",
           flexDirection: "column",
           bgcolor: tokens.bg.surface,
@@ -799,6 +839,16 @@ export default function ChatWorkspace() {
             </Typography>
           </Box>
           <SkillsPanel activeSkillUuids={activeSkillUuids} onChange={handleSkillsChange} />
+          <Tooltip title={panelOpen ? t("chat.panel.hide") : t("chat.panel.show")}>
+            <IconButton
+              size="small"
+              data-testid="chat-panel-toggle"
+              onClick={() => setPanelOpen(o => !o)}
+              sx={{ display: { xs: "none", md: "inline-flex" }, color: panelOpen ? tokens.text.secondary : tokens.primary.light }}
+            >
+              <SpaceDashboardOutlined sx={{ fontSize: 18 }} />
+            </IconButton>
+          </Tooltip>
         </Box>
 
         {/* Messages */}
@@ -897,8 +947,11 @@ export default function ChatWorkspace() {
       </Box>
 
       {/* ── Drag divider ── */}
+      {panelOpen && (
       <Box
+        data-testid="chat-split-divider"
         onMouseDown={handleDividerMouseDown}
+        onDoubleClick={() => setChatPct(SPLIT_DEFAULT_PCT)}
         sx={{
           display: { xs: "none", md: "flex" },
           width: 6,
@@ -925,9 +978,11 @@ export default function ChatWorkspace() {
           }}
         />
       </Box>
+      )}
 
       {/* ── Right: Workspace panel ── */}
-      <Box sx={{ flex: 1, overflow: "auto", display: { xs: "none", md: "flex" }, flexDirection: "column", bgcolor: tokens.bg.base }}>
+      {panelOpen && (
+      <Box data-testid="chat-workspace-panel" sx={{ flex: 1, minWidth: 0, overflow: "auto", display: { xs: "none", md: "flex" }, flexDirection: "column", bgcolor: tokens.bg.base }}>
         {/* Workspace tab bar */}
         <Box sx={{ px: 2.5, py: 1.25, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", gap: 1 }}>
           {(["overview", "assets"] as const).map((mode) => (
@@ -945,10 +1000,23 @@ export default function ChatWorkspace() {
               }}
             />
           ))}
+          <Box sx={{ flex: 1 }} />
+          <Tooltip title={t("chat.panel.hide")}>
+            <IconButton
+              size="small"
+              data-testid="chat-panel-collapse"
+              onClick={() => setPanelOpen(false)}
+              sx={{ color: tokens.text.tertiary, "&:hover": { color: tokens.text.primary } }}
+            >
+              <KeyboardDoubleArrowRight sx={{ fontSize: 18 }} />
+            </IconButton>
+          </Tooltip>
         </Box>
         <Box sx={{ flex: 1, overflow: "auto" }}>
           <WorkspacePanel mode={workspaceMode} selectedAssetId={selectedAssetId} onClearAsset={() => setSelectedAssetId(null)} />
         </Box>
+      </Box>
+      )}
       </Box>
     </Box>
   );

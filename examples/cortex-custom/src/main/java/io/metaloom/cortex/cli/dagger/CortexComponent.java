@@ -21,10 +21,15 @@ import javax.inject.Singleton;
  * This example deliberately omits the picocli command layer of the real Cortex CLI: it wires just enough to build a {@link Cortex} instance and hand it
  * back to {@link io.metaloom.cortex.cli.CortexCustomMain}, which runs it as a long-lived worker connected to a Loom backend.
  * </p>
+ *
+ * <p>
+ * {@link S3Module} is required even for a worker that never touches object storage: the monitoring service and the bootstrap initializer take the S3
+ * event sources as constructor arguments, and with no S3 configuration those sources simply stay inactive.
+ * </p>
  */
 @Singleton
 @Component(modules = { CortexBindModule.class, CortexMediaModule.class, NodeCollectionModule.class,
-	PipelineNodeFactoryModule.class, CortexClientModule.class })
+	PipelineNodeFactoryModule.class, CortexClientModule.class, S3Module.class })
 public interface CortexComponent {
 
 	Cortex cortex();

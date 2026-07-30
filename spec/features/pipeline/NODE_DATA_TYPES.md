@@ -729,15 +729,17 @@ ids, and `getGraphJson` persists them as `sourcePort` / `targetPort` alongside `
 The refactor is in the **working tree**, not committed. Everything above is the contract; this
 section is only *how far the tree has caught up*, verified **2026-07-29 ~22:40 UTC**.
 
-The sweep is now complete on both sides: `mvn clean test-compile` over the whole reactor (minus
-`examples/cortex-custom`, see below) reports **zero errors**, main and test.
+The sweep is now complete on both sides: `mvn clean test-compile` over the whole reactor reports
+**zero errors**, main and test. `examples/cortex-custom` is no longer excluded — its Dagger
+component was missing `S3Module`, which now lives in `cortex-core` and is wired by both the CLI
+and the example.
 
 **Re-derive it rather than trusting this list:**
 
 ```bash
 # Everything compiles, main and test
-mvn -o -q -Dmaven.test.skip=true -Dskip.unit.tests=true -pl '!examples/cortex-custom' install
-mvn -o --fail-never -Dskip.unit.tests=true -pl '!examples/cortex-custom' clean test-compile
+mvn -o -q -Dmaven.test.skip=true -Dskip.unit.tests=true install
+mvn -o --fail-never -Dskip.unit.tests=true clean test-compile
 
 # What still speaks the old language
 grep -rln "NodeOutputKey" --include=*.java cortex/ | grep -v target
@@ -775,7 +777,6 @@ grep -rn "textSources\|sourceNodeId\|sourceOutputKey\|detectionSources\|depthNod
 |---|---|
 | Node options | All the node-id-string options are **deleted**: `textSources`, `sourceNodeId`/`sourceOutputKey`, `detectionSources`, `depthNodeId`, `ScriptNodeOptions.requiredInputs`, and `S3SinkNodeOptions.artifacts`/`autoDiscover`. They survive only in javadoc explaining what replaced them, and no descriptor advertises them |
 | `PipelineValidationService` | Now delegates to the parser and enforces the §6.3 rules — port existence, assignability, satisfaction and multi-edge cardinality. `PipelineValidationServiceTest` was rewritten against them |
-| `examples/cortex-custom` | Does not compile, **for an unrelated reason**: its Dagger component omits `S3Module`, so `SqsS3EventSource`/`WebhookS3EventSource` cannot be provided for `MonitoringService`. Pre-dates this refactor (introduced with the S3 source/sink work) and is excluded from the build commands above |
 | Missing tests | `PortPayload` round trip; `ValueCoercer`; Playwright coverage of XOR sibling behaviour and `MANY` handle rendering |
 
 ### ⚠️ Pre-existing test failures, not caused by this refactor

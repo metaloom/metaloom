@@ -125,6 +125,8 @@ export default defineConfig({
 | `pipeline-versions.spec.ts` | Integration | Yes | Version badge, history dropdown, restore round-trip |
 | `pipeline-versions-mocked.spec.ts` | UI Smoke | No (mocked) | Version badge/history/restore mechanics in isolation |
 | `empty-states-mocked.spec.ts` | UI Smoke | No (mocked) | New-chat greeting + feature-page empty states and their CTAs (§3.3) |
+| `routing-mocked.spec.ts` | UI Smoke | No (mocked) | `/ui` base path: bare `/` redirect, login staying put, reload/deep-link survival (§3.6) |
+| `chat-split-mocked.spec.ts` | UI Smoke | No (mocked) | Chat/workspace split: 80/20 default, divider range, reset, collapse persistence (§3.7) |
 | `assets-backend.spec.ts` | Integration | Yes | Asset browser with real data |
 | `collections-backend.spec.ts` | Integration | Yes | Collection CRUD |
 | `detections-backend.spec.ts` | Integration | Yes | Face/object detection views |
@@ -371,6 +373,83 @@ long-standing assets/tags/collections/pipelines/users it now seeds:
 > Two detections in one frame must be numbered, or the insert aborts the whole seeding run —
 > and because `BootstrapInitializer` swallows the failure, everything *after* the detections
 > (transcripts, the VLM component) is then silently missing from the demo.
+
+### 3.6 Serving the SPA under `/ui/` (base path & routing)
+
+The UI is not served from the origin root — the Vert.x `UIService` mounts it at `/ui/`, next
+to `/api/v1` and `/graphiql`. Three pieces have to agree on that prefix, and when they did
+not, deep links and reloads broke in ways that looked like unrelated bugs.
+
+| Piece | File | Setting |
+|-------|------|---------|
+| Bundle URLs | `loom-ui/vite.config.ts` | `base: "/ui/"` |
+| Router matching | `loom-ui/src/main.tsx` | `<BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/+$/, "")}>` |
+| Server routes | `loom/services/rest/.../UIService.java` | `registerUiRoutes(router, "/loom/ui")` |
+
+Deriving the basename from `import.meta.env.BASE_URL` keeps the prefix in exactly one place
+(`vite.config.ts`); React Router wants it **without** the trailing slash.
+
+#### Server routes (in registration order)
+
+| Route | Behaviour |
+|-------|-----------|
+| `/` | 302 → `/ui/` — the bare host is the front door, not a 404 |
+| `/ui` (regex) | 302 → `/ui/` |
+| `/ui/*` (fallback) | If the last path segment has **no** extension it is a client-side route → send `index.html` with `Cache-Control: no-cache`; otherwise `next()` |
+| `/ui/*` (static) | `StaticHandler` over `/loom/ui` |
+
+> **Gotcha:** the `/ui` redirect is registered with `routeWithRegex`, not `route`. A plain
+> Vert.x path route also matches the trailing-slash form, so `route("/ui")` makes `/ui/`
+> redirect to itself forever. `UIServiceRoutingTest` pins this.
+
+> **Gotcha:** the extension test is what keeps the fallback honest. A missing hashed bundle
+> must still 404 — returning `index.html` for `/ui/assets/index-gone.js` hands the browser
+> an HTML page to parse as JavaScript, which fails much further from the cause.
+
+#### Why each piece is needed
+
+- Without `base: "/ui/"`, Vite emits **relative** bundle URLs that resolve against the current
+  route, so `/ui/chat/sessions/<id>` asks for `/ui/chat/sessions/assets/index-*.js`.
+- Without the `basename`, the router sees `/ui` as an unknown path and `<Route path="*">`
+  redirects it to `/` — this is why logging in at `/ui` used to bounce to the root.
+- Without the server fallback, only the client-side push worked: reloading `/ui/memory` or
+  opening it from a bookmark hit `StaticHandler`, which has no file by that name.
+
+The Vite dev server reproduces all of this: with `base` set it redirects `/` → `/ui/` and
+serves the history fallback itself, so `npm run dev` and the packaged build behave the same.
+E2E specs may therefore keep using `page.goto("/")`; a spec that deep-links has to spell out
+the prefix (`page.goto("/ui/maintenance")`).
+
+Reloading still lands on the login form — the token is in-memory only (§4.4) — but on the
+**same** URL, so signing in resolves to the requested route.
+
+### 3.7 Chat workspace split
+
+`ChatWorkspace` is three columns: the sessions rail (fixed 220px, toggled by
+`chat.sessions.toggle`), the chat column, and the workspace panel (Overview / Assets). The
+last two are separated by a drag divider and live inside their own flex container
+(`splitRef`), so the split percentage is measured against that container and the rail's
+width never skews it.
+
+| Aspect | Rule |
+|--------|------|
+| Unit | **Percent**, not pixels — `chatPct` state, default `SPLIT_DEFAULT_PCT = 80` |
+| Range | `SPLIT_MIN_PCT = 20` … `SPLIT_MAX_PCT = 95` |
+| Drag | Tracks the pointer against `splitRef.getBoundingClientRect()` rather than accumulating a delta, so the divider stays under the cursor once clamped; `document.body.style.cursor` is pinned to `col-resize` for the whole drag |
+| Reset | Double-clicking the divider restores 80% |
+| Collapse | `panelOpen` hides the divider **and** the panel; the chat column then spans 100% |
+| Toggles | `chat-panel-toggle` in the chat header (always visible, `SpaceDashboardOutlined`) and `chat-panel-collapse` in the panel's tab bar (`KeyboardDoubleArrowRight`) |
+| Persistence | `localStorage` — `loom.chat.splitPct` and `loom.chat.panelOpen` |
+| i18n | `chat.panel.hide` / `chat.panel.show` |
+| Test ids | `chat-column`, `chat-split-divider`, `chat-workspace-panel`, `chat-panel-toggle`, `chat-panel-collapse` |
+
+> **Gotcha:** the chat column previously used a pixel `chatWidth` with `maxWidth: 700`. The
+> drag clamp allowed 1200px, but the `maxWidth` won — which is why the divider appeared to
+> move "only a little" on a wide screen. If a fixed cap comes back, the percentage is
+> silently overridden again.
+
+The mobile layout is unchanged: below the `md` breakpoint the rail, divider and panel are
+all `display: none` and the chat column is `100%`.
 
 ---
 
@@ -1015,26 +1094,28 @@ graph LR
 | `VITE_WS_URL` | WebSocket base URL | `ws://localhost:8092` | `ws://localhost:8092` |
 | `VITE_MCP_URL` | MCP server URL | `http://localhost:4041` | `http://localhost:4041` |
 
-### 9.2 Vite Proxy Configuration (`vite.config.ts`)
+### 9.2 Vite Base Path and Proxy (`vite.config.ts`)
 
 ```typescript
 export default defineConfig({
+  plugins: [react(), svgr()],
+  // The backend serves the SPA under /ui/ — see §3.6. Also drives the router basename.
+  base: "/ui/",
   server: {
-    proxy: {
-      '/api': {
-        target: process.env.VITE_PROXY_TARGET || 'http://localhost:8092',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
-      },
-      '/mcp': {
-        target: process.env.VITE_MCP_URL || 'http://localhost:4041',
-        changeOrigin: true,
-        ws: true,
-      },
-    },
+    port: 3000,
+    open: true,
+    // Only registered when VITE_PROXY_TARGET is set; the path is *not* rewritten,
+    // because the backend already listens on /api/v1.
+    proxy: process.env.VITE_PROXY_TARGET
+      ? { "/api": { target: process.env.VITE_PROXY_TARGET, changeOrigin: true } }
+      : undefined,
   },
+  build: { outDir: "build" },
 });
 ```
+
+`build/` is what `loom/containers/*/Containerfile` copies to `/loom/ui` in the image, so the
+`base` value has to match the path `UIService` serves from.
 
 ### 9.3 Runtime Configuration
 
@@ -1073,6 +1154,7 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
 | **WebSocket auth** | WS endpoints need `?token=` query param | See [WEBSOCKET.md](../WEBSOCKET.md) |
 | **Mock vs Real API** | Some features use mock data (`src/mock/`) | Check `useEffect` — real API calls use `token` guard |
 | **Sidebar collapse persistence** | localStorage key mismatch | Use `LayoutContext` consistently |
+| **Deep link 404s on reload** | The SPA is mounted at `/ui/`; a client route has no file behind it | Keep `base`, `basename` and the `UIService` fallback in sync — §3.6 |
 | **i18n missing keys** | Fallback to key name | Add keys to `en.json` and `de.json` |
 | **Pipeline dirty flag** | Navigating away loses unsaved changes | Warn via `Prompt` or persist to localStorage (not implemented) |
 
@@ -1092,7 +1174,9 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
 | Concept | File Path |
 |---------|-----------|
 | **App entry point** | `src/main.tsx` |
-| **Routing setup** | `src/main.tsx` (BrowserRouter + AuthGate) |
+| **Routing setup** | `src/main.tsx` (BrowserRouter + basename + AuthGate) — see §3.6 |
+| **`/ui` base path (server side)** | `loom/services/rest/.../UIService.java` (`registerUiRoutes`) |
+| **Chat/workspace split** | `src/features/chat/ChatWorkspace.tsx` (search `SPLIT_DEFAULT_PCT`) — see §3.7 |
 | **Shared empty state** | `src/components/EmptyState.tsx` |
 | **New-chat greeting** | `src/features/chat/ChatGreeting.tsx` |
 | **Main layout** | `src/layout/AppShell.tsx` |

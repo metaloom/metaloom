@@ -477,7 +477,9 @@
    "activeTasks": "Aktive Aufgaben",
    "collections": "Sammlungen",
    "open": "Öffnen",
-   "collectionAssets": "{{count}} Assets"
+   "collectionAssets": "{{count}} Assets",
+   "hide": "Arbeitsbereich ausblenden",
+   "show": "Arbeitsbereich einblenden"
   },
   "tab": {
    "overview": "Übersicht",

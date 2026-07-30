@@ -122,6 +122,18 @@
                                 <buildArg>--enable-url-protocols=http,https</buildArg>
                                 <buildArg>--initialize-at-build-time=org.slf4j,ch.qos.logback,org.jooq,com.fasterxml.jackson,org.yaml.snakeyaml,org.apache.commons.logging</buildArg>
                                 <!--
+                                    The OpenAI SDK (used by the chat agent) is written in Kotlin
+                                    and pulls in jackson-module-kotlin. jOOQ holds a static
+                                    ObjectMapper (Convert.ConvertAll) that picks that module up, so
+                                    Kotlin objects - KotlinInstantiators, and the SynchronizedLazyImpl
+                                    behind a `lazy` field in the module's converters - land in the
+                                    build-time initialized image heap. The Kotlin runtime therefore
+                                    has to be build-time initialized too, otherwise the build fails
+                                    with "object ... found in the image heap [but] marked for
+                                    initialization at image run time".
+                                -->
+                                <buildArg>--initialize-at-build-time=kotlin</buildArg>
+                                <!--
                                     Netty (used by Vert.x) instantiates direct ByteBuffers /
                                     native MemorySegments during class init. Defer netty
                                     initialization to runtime so these objects do not leak

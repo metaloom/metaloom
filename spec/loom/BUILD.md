@@ -426,6 +426,7 @@ npm run test:e2e:ui    # Playwright with UI
 <buildArg>-H:+ReportExceptionStackTraces</buildArg>
 <buildArg>--enable-url-protocols=http,https</buildArg>
 <buildArg>--initialize-at-build-time=org.slf4j,ch.qos.logback,org.jooq,com.fasterxml.jackson,org.yaml.snakeyaml,org.apache.commons.logging</buildArg>
+<buildArg>--initialize-at-build-time=kotlin</buildArg>
 <buildArg>--initialize-at-run-time=io.netty</buildArg>
 <buildArg>-H:ConfigurationFileDirectories=${project.basedir}/src/main/resources/META-INF/native-image/io.metaloom.loom/loom-demo</buildArg>
 <buildArg>-J-Xmx6g</buildArg>
@@ -443,6 +444,7 @@ npm run test:e2e:ui    # Playwright with UI
 | `--no-fallback` | Fail fast if native compilation fails |
 | `--initialize-at-run-time=io.netty` | Netty creates direct ByteBuffers during class init; defer to runtime |
 | `--initialize-at-build-time=...` | Pre-initialize logging, JSON, YAML, jooq at build time for faster startup |
+| `--initialize-at-build-time=kotlin` | The OpenAI SDK (chat agent) is Kotlin and drags in `jackson-module-kotlin`. jOOQ's static `Convert.ConvertAll` `ObjectMapper` registers that module, so Kotlin objects (`KotlinInstantiators`, a `SynchronizedLazyImpl` from a `lazy` converter field) end up in the build-time-initialized image heap. Without this the build fails with *"object … found in the image heap [but] marked for initialization at image run time"* |
 | `-J-Xmx6g` | Give native-image compiler 6GB heap for large project |
 | `ConfigurationFileDirectories` | Load reflect-config, jni-config, proxy-config from resources |
 

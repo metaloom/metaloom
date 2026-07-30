@@ -162,7 +162,7 @@ sequenceDiagram
         Boot->>GRPC: start() (commented out)
     and UI Service
         Boot->>UI: start()
-        UI->>Router: StaticHandler(/ui/*)
+        UI->>Router: redirects (/ , /ui) + SPA fallback + StaticHandler(/ui/*)
     and HTTP Server
         Boot->>Server: listen()
     and MCP Service
@@ -189,7 +189,9 @@ public HttpServer httpServer(Vertx vertx, LoomOptions options) {
 **Key Points:**
 - Single `HttpServer` instance shared by REST and UI services
 - REST routes registered via `ApiRouter` (Vert.x Web Router)
-- UI static files served from `/loom/ui` classpath resource
+- UI static files served from the `/loom/ui` directory on disk (the container copies `loom-ui/build` there)
+- `/` and `/ui` 302 to `/ui/`, and any extension-less path under `/ui/` falls back to `index.html` so
+  React Router deep links survive a reload — see [LOOM_UI.md §3.6](ui/LOOM_UI.md)
 - Server starts listening in `BootstrapInitializer.init()` via `httpServer.listen()`
 
 ### gRPC Server (GrpcService)
@@ -314,7 +316,7 @@ This is used by the Cortex control plane, not the Loom server directly.
 | `VertxModule` | `io.metaloom.loom.common.dagger` | Provides Vert.x, HttpServer, EventBus, FileSystem |
 | `LoomModule` | `io.metaloom.loom.common.dagger` | Provides LoomOptions, DatabaseOptions |
 | `RESTService` | `io.metaloom.loom.rest` | REST API server (CORS, body handling, endpoint registration) |
-| `UIService` | `io.metaloom.loom.rest` | Static file server for `/ui/*` from classpath |
+| `UIService` | `io.metaloom.loom.rest` | Serves the SPA at `/ui/*` from `/loom/ui`, with the `/`→`/ui/` redirect and the history fallback |
 | `MCPService` | `io.metaloom.loom.mcp` | Model Context Protocol server (SSE + WebSocket) |
 | `GrpcService` | `io.metaloom.loom.server.grpc` | gRPC server with JWT authentication |
 | `ApiRouter` | `io.metaloom.vertx.router` | Vert.x Web Router wrapper for REST endpoints |

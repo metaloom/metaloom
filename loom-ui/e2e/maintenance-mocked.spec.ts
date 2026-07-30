@@ -46,7 +46,8 @@ async function mockApi(page: Page, health: HealthPayload, info?: InfoPayload) {
 }
 
 async function loginAndOpenMaintenance(page: Page) {
-  await page.goto("/maintenance");
+  // The app is mounted under the /ui/ base path, so a deep link has to carry it.
+  await page.goto("/ui/maintenance");
   await page.getByPlaceholder("Username").fill("admin");
   await page.getByPlaceholder("Password").fill("finger");
   await page.getByRole("button", { name: /sign in/i }).click();
