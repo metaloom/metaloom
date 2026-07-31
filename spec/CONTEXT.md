@@ -122,13 +122,15 @@ WebSocket. Cortex holds no database and runs one task at a time per slot. See
 
 ## 2. Specification Index — Every File Under `spec/`
 
+> ⚠️ **Two specs moved out of this repo.** Commercial and hosted-service planning now lives in the
+> sibling **`metaloom-saas`** project — see §2.2. Nothing under `spec/` covers monetisation, pricing
+> or running MetaLoom as a service any more.
+
 ```
 spec/
 ├── AGENTS.md                          # One-liner: "read CONTEXT.md first"
 ├── CONTEXT.md                         # ← THIS FILE — entry point for AI agents
 ├── METALOOM.md                        # Big-picture module layout & framework map
-├── METALOOM_STUDIO_PLAN.md            # Commercial edition ("MetaLoom Studio") — monetisation
-│                                      #   options, open decisions, website↔decision mapping
 ├── CLUSTERING.md                      # Multi-instance/replica constraints — Loom is single-writer
 │                                      #   (replicaCount 1); per-process state & clustering blockers
 ├── SPEC_RULES.md                      # RULES for writing spec files
@@ -161,6 +163,9 @@ spec/
 │   │   │                              #   edges, origin-tagged elements, fan-out and the implicit gather
 │   │   ├── NODE_DATA_TYPES_PLAN.md    # The design behind it + recorded design-vs-implementation
 │   │   │                              #   divergences and the phase assessment
+│   │   ├── NODE_SCHEMA_CONCEPT.md     # EXPLORATION, nothing built: four concepts for a per-node
+│   │   │                              #   schema file (validator payload + agent guidance) and the
+│   │   │                              #   construction procedure for all node kinds
 │   │   ├── PIPELINE_REQUIREMENTS.md   # Non-technical requirements + gap status
 │   │   └── PIPELINE_TASKS.md          # Actionable pipeline work items
 │   ├── pipeline-nodes/
@@ -233,6 +238,7 @@ spec/
 | Pipelines (engine, runs, dispatch) | [features/pipeline/PIPELINE.md](features/pipeline/PIPELINE.md) |
 | A Cortex processing node | [features/pipeline-nodes/NODES.md](features/pipeline-nodes/NODES.md) |
 | Node inputs/outputs — ports, content types, cardinality, fan-out | [features/pipeline/NODE_DATA_TYPES.md](features/pipeline/NODE_DATA_TYPES.md) — the reference for the built model. [features/pipeline/NODE_DATA_TYPES_PLAN.md](features/pipeline/NODE_DATA_TYPES_PLAN.md) keeps the design rationale and the design-vs-implementation divergences |
+| Per-node schema files (validating a pipeline outside the JVM, briefing an agent on a node) | [features/pipeline/NODE_SCHEMA_CONCEPT.md](features/pipeline/NODE_SCHEMA_CONCEPT.md) — **exploration only, nothing built**; four competing concepts plus the construction procedure |
 | A REST endpoint | [loom/RESTAPI.md](loom/RESTAPI.md) + [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md) |
 | A DAO / migration | [loom/PERSISTENCE.md](loom/PERSISTENCE.md) + [loom/DOMAIN.md](loom/DOMAIN.md) |
 | Permissions / authorization | [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md), [features/rbac/RBAC.md](features/rbac/RBAC.md) |
@@ -247,10 +253,45 @@ spec/
 | Running more than one Loom instance / anything holding per-process state | [CLUSTERING.md](CLUSTERING.md) — 🔴 Loom is **single-writer** (`replicaCount: 1`); read before adding a `@Singleton` that caches, locks or caps |
 | Customer-facing docs | [website/WEBSITE.md](website/WEBSITE.md) |
 | The website's in-browser pipeline editor + simulator (`/pipeline-editor/`) | [website/WEBSITE_PIPELINE_EDITOR.md](website/WEBSITE_PIPELINE_EDITOR.md) — distinct from the product editor in [loom/ui/PIPELINE_EDITOR.md](loom/ui/PIPELINE_EDITOR.md) |
-| The commercial edition / what is paid vs. open | [METALOOM_STUDIO_PLAN.md](METALOOM_STUDIO_PLAN.md) — **nothing is decided**; read §5 before gating any feature |
+| The commercial edition / what is paid vs. open | ➜ **sibling project** — [metaloom-saas/spec/METALOOM_STUDIO_PLAN.md](../../metaloom-saas/spec/METALOOM_STUDIO_PLAN.md). See §2.2 |
+| Running MetaLoom as a hosted/multi-customer service | ➜ **sibling project** — [metaloom-saas/spec/README.md](../../metaloom-saas/spec/README.md). See §2.2 |
+| Making Loom safe to expose to paying strangers (`LOOM_HOSTED`, object storage, WS auth) | ➜ **sibling project** — [metaloom-saas/spec/LOOM_HOSTED_MODE.md](../../metaloom-saas/spec/LOOM_HOSTED_MODE.md). This is the one SaaS spec that changes **this** repo's source: requirements `B1`–`B11`, `N1`–`N7`. See §2.2 |
 | Picking up queued work | any `*_TASKS.md`, format per [TASKS.template.md](TASKS.template.md) |
 
-### 2.2 Feature specs vs. component specs
+### 2.2 The `metaloom-saas` sibling project
+
+Commercial and hosted-service planning was moved out of this repo into a dedicated project. It is
+**not** a subdirectory here — it is a sibling checkout:
+
+```
+workspaces/metaloom/
+├── metaloom/          ← this repo (the product)
+└── metaloom-saas/     ← the SaaS/commercial project
+    └── spec/          ← 15 spec files, ~14 400 lines
+```
+
+| Moved from | Now at |
+|---|---|
+| `spec/METALOOM_STUDIO_PLAN.md` | [`../../metaloom-saas/spec/METALOOM_STUDIO_PLAN.md`](../../metaloom-saas/spec/METALOOM_STUDIO_PLAN.md) |
+| `spec/saas/*.md` (13 files) | [`../../metaloom-saas/spec/`](../../metaloom-saas/spec/) — start at [README.md](../../metaloom-saas/spec/README.md) |
+
+⚠️ **The relative links above only resolve when both repos are checked out side by side** under a
+common parent. That is the assumed layout; if you clone `metaloom` alone, these links dangle and
+that is expected.
+
+**Which repo does a task belong to?**
+
+- Changing Loom, Cortex, the UI, the charts under `helm/`, or the website → **this repo**.
+- Pricing, tenants, provisioning, billing, the control plane, the customer portal, the admin
+  console, Terraform, cluster operations → **`metaloom-saas`**.
+- The one genuine overlap is
+  [LOOM_HOSTED_MODE.md](../../metaloom-saas/spec/LOOM_HOSTED_MODE.md): it specifies changes to
+  **this** repo's source (`B1`–`B11`, `N1`–`N7`) that hosting requires. Several are plain bugs that
+  affect self-hosted users today — the `LOOM_BINARY_DIR` / `LOOM_DB_USER` chart mismatches and the
+  silent result loss in node `persist(...)`. Those get fixed here regardless of whether the SaaS is
+  ever built.
+
+### 2.3 Feature specs vs. component specs
 
 - **`features/`** — a capability spanning more than one component. Read these first when working
   on that capability end to end.

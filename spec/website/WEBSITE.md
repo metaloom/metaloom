@@ -1036,7 +1036,7 @@ person who has to sign something. It is linked from the top navigation as *Studi
 
 > **What it claims is a proposal, not a shipped product.** The monetisation options, the open
 > decisions behind them and the mapping from each claim on the page back to its decision live in
-> [../METALOOM_STUDIO_PLAN.md](../METALOOM_STUDIO_PLAN.md) § "What The Website Currently Claims".
+> [metaloom-saas/spec/METALOOM_STUDIO_PLAN.md](../../../metaloom-saas/spec/METALOOM_STUDIO_PLAN.md) § "What The Website Currently Claims".
 > Change the page and that section together, or the two drift.
 
 | Piece | Path | Role |
@@ -1333,7 +1333,7 @@ change the Hugo source and rebuild.
 | Change home-page text | `website/data/en/home.yml` (the legacy `about.yml`/`service.yml`/… are no longer rendered) |
 | Change the feature list | `website/data/en/feature.yml` — it drives `/features/` |
 | Change the text on `/tour/` | `website/data/en/tour.yml` (not the layout) |
-| Change the text on `/studio/` | `website/data/en/studio.yml` (not the layout); the commercial reasoning is in [../METALOOM_STUDIO_PLAN.md](../METALOOM_STUDIO_PLAN.md) |
+| Change the text on `/studio/` | `website/data/en/studio.yml` (not the layout); the commercial reasoning is in [metaloom-saas/spec/METALOOM_STUDIO_PLAN.md](../../../metaloom-saas/spec/METALOOM_STUDIO_PLAN.md) |
 | Redirect an old URL to a new one | `aliases:` in the target page's front matter — the stub comes from `layouts/alias.html` |
 | Add scroll-reveal to a new page | `data-reveal-scope` + `.reveal` + the two `reveal-*` partials |
 | Add/redraw an illustration on `/tour/` | `website/themes/meghna-hugo/layouts/partials/tour/art-<name>.html` + styles in `assets/css/tour.css` |
@@ -1506,7 +1506,7 @@ Current state of the website (as of the checkout below):
       updated, and `aliases: [/studios/]` + a `layouts/alias.html` override keeping the old URL alive
 - [x] `/studio/` added — the commercial edition scroller (amber `.sd-*`, seven illustrations, an
       accessible editions table, mailto CTA); reasoning and open decisions in
-      [../METALOOM_STUDIO_PLAN.md](../METALOOM_STUDIO_PLAN.md)
+      [metaloom-saas/spec/METALOOM_STUDIO_PLAN.md](../../../metaloom-saas/spec/METALOOM_STUDIO_PLAN.md)
 - [ ] `/studio/` carries no pricing — the "announced with 1.0.0" lines in `data/en/studio.yml` have
       to be replaced once decision D-5 in the Studio plan is made
 - [x] Fixed a generation artifact in `loom/maven-artifacts/index.adoc` (stray `*** Add File:` blob
