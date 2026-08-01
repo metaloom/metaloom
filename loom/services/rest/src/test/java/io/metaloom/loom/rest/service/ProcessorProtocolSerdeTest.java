@@ -30,6 +30,7 @@ import io.metaloom.loom.rest.model.processor.message.ProcessorMessageType;
 import io.metaloom.loom.rest.model.processor.message.SourceCompleteMessage;
 import io.metaloom.loom.rest.model.processor.message.SourceItemsMessage;
 import io.metaloom.loom.rest.model.processor.message.SourceTaskMessage;
+import io.metaloom.loom.rest.model.processor.message.TaskReturnedMessage;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 
@@ -218,6 +219,32 @@ public class ProcessorProtocolSerdeTest {
 
 		assertEquals(17, decoded.getTotalCount());
 		assertTrue(decoded.getError().contains("permission denied"));
+	}
+
+	@Test
+	void testTaskReturnedCarriesEverythingNeededToPlaceTheWorkAgain() {
+		// The whole point is that Loom can act on this without consulting anything else:
+		// run, item, element and node ids are what identify the execution to re-place.
+		UUID runUuid = UUID.randomUUID();
+		UUID taskUuid = UUID.randomUUID();
+		TaskReturnedMessage message = new TaskReturnedMessage()
+			.setRunUuid(runUuid)
+			.setItemId("item-42")
+			.setTaskUuid(taskUuid)
+			.setNodeIds(List.of("hash", "thumbnail"))
+			.setElementSeq(3)
+			.setReason("worker 'cortex-01' is shutting down");
+
+		TaskReturnedMessage decoded = decode(encode(ProcessorMessageType.TASK_RETURNED, message))
+			.getBody().mapTo(TaskReturnedMessage.class);
+
+		assertEquals(runUuid, decoded.getRunUuid());
+		assertEquals("item-42", decoded.getItemId());
+		assertEquals(taskUuid, decoded.getTaskUuid());
+		// A segment is dispatched as one unit, so one return names every node it carried.
+		assertEquals(List.of("hash", "thumbnail"), decoded.getNodeIds());
+		assertEquals(3, decoded.getElementSeq());
+		assertTrue(decoded.getReason().contains("shutting down"));
 	}
 
 	@Test

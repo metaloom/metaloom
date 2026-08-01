@@ -3474,12 +3474,129 @@
         }
       } ]
     },
+    "/api/v1/assets/{uuid}/binaries" : {
+      "description" : "List every binary of the asset - one per library the asset was imported into.",
+      "get" : {
+        "tags" : [ "assets" ],
+        "summary" : "List every binary of the asset - one per library the asset was imported into.",
+        "description" : "List every binary of the asset - one per library the asset was imported into.",
+        "operationId" : "getAssetsByUuidBinaries",
+        "responses" : {
+          "200" : {
+            "description" : "The location list response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "status" : { },
+                    "filesystem" : {
+                      "path" : "/the-current-path/bigbuckbunny-4k.mp4",
+                      "filekey" : {
+                        "inode" : 42,
+                        "stDev" : 12,
+                        "edate" : 12,
+                        "edateNano" : 3
+                      },
+                      "lastSeen" : "2018-11-20T20:12:01Z"
+                    },
+                    "s3" : {
+                      "bucket" : "big_bucket",
+                      "objectPath" : "themovie"
+                    }
+                  }, {
+                    "status" : { },
+                    "filesystem" : {
+                      "path" : "/the-current-path/bigbuckbunny-4k.mp4",
+                      "filekey" : {
+                        "inode" : 42,
+                        "stDev" : 12,
+                        "edate" : 12,
+                        "edateNano" : 3
+                      },
+                      "lastSeen" : "2018-11-20T20:12:01Z"
+                    },
+                    "s3" : {
+                      "bucket" : "big_bucket",
+                      "objectPath" : "themovie"
+                    }
+                  } ],
+                  "_metainfo" : {
+                    "perPage" : 2,
+                    "totalCount" : 28
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
     "/api/v1/assets/{uuid}/binary" : {
       "description" : "Create a binary for the asset",
       "get" : {
         "tags" : [ "assets" ],
-        "summary" : "Load the binary for the asset",
-        "description" : "Load the binary for the asset",
+        "summary" : "Load the primary binary for the asset. An asset holds one binary per library it was imported into; this returns the oldest. Use /binaries for all of them.",
+        "description" : "Load the primary binary for the asset. An asset holds one binary per library it was imported into; this returns the oldest. Use /binaries for all of them.",
         "operationId" : "getAssetsByUuidBinary",
         "responses" : {
           "200" : {
@@ -3720,11 +3837,11 @@
       } ]
     },
     "/api/v1/assets/{uuid}/binary/data" : {
-      "description" : "Upload raw file bytes into the binary for an existing asset. Expects a multipart request with one file part; a 'libraryUuid' form field is required only when the asset has no binary yet.",
+      "description" : "Upload raw file bytes into the binary for an existing asset. Expects a multipart request with one file part named 'file'. The 'libraryUuid' form field is required when the asset has no binary yet, and when it has more than one - otherwise the server cannot tell which library's binary to replace and answers 400.",
       "get" : {
         "tags" : [ "assets" ],
-        "summary" : "Download the raw binary bytes for the asset.",
-        "description" : "Download the raw binary bytes for the asset.",
+        "summary" : "Download the raw bytes of the asset's primary binary, from whichever backend holds them. Supports single-range 'Range: bytes=' requests, answering 206 with Content-Range, so media can be seeked without refetching.",
+        "description" : "Download the raw bytes of the asset's primary binary, from whichever backend holds them. Supports single-range 'Range: bytes=' requests, answering 206 with Content-Range, so media can be seeked without refetching.",
         "operationId" : "getAssetsByUuidBinaryData",
         "responses" : {
           "400" : {
@@ -3781,10 +3898,34 @@
       },
       "post" : {
         "tags" : [ "assets" ],
-        "summary" : "Upload raw file bytes into the binary for an existing asset. Expects a multipart request with one file part; a 'libraryUuid' form field is required only when the asset has no binary yet.",
-        "description" : "Upload raw file bytes into the binary for an existing asset. Expects a multipart request with one file part; a 'libraryUuid' form field is required only when the asset has no binary yet.",
+        "summary" : "Upload raw file bytes into the binary for an existing asset. Expects a multipart request with one file part named 'file'. The 'libraryUuid' form field is required when the asset has no binary yet, and when it has more than one - otherwise the server cannot tell which library's binary to replace and answers 400.",
+        "description" : "Upload raw file bytes into the binary for an existing asset. Expects a multipart request with one file part named 'file'. The 'libraryUuid' form field is required when the asset has no binary yet, and when it has more than one - otherwise the server cannot tell which library's binary to replace and answers 400.",
         "operationId" : "postAssetsByUuidBinaryData",
         "responses" : {
+          "200" : {
+            "description" : "The location response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "status" : { },
+                  "filesystem" : {
+                    "path" : "/the-current-path/bigbuckbunny-4k.mp4",
+                    "filekey" : {
+                      "inode" : 42,
+                      "stDev" : 12,
+                      "edate" : 12,
+                      "edateNano" : 3
+                    },
+                    "lastSeen" : "2018-11-20T20:12:01Z"
+                  },
+                  "s3" : {
+                    "bucket" : "big_bucket",
+                    "objectPath" : "themovie"
+                  }
+                }
+              }
+            }
+          },
           "400" : {
             "description" : "Bad request - validation error or malformed path/query parameter",
             "content" : {
@@ -9050,13 +9191,152 @@
       } ]
     },
     "/api/v1/assets/upload" : {
-      "description" : "Upload a file to create an asset. Expects a multipart request with one file part and a 'libraryUuid' form field.",
+      "description" : "Upload a file to create an asset. Expects a multipart request with one file part named 'file', a required 'libraryUuid' form field and an optional 'origin'. The target library's storage pool decides whether the bytes land on a filesystem or in S3. Answers 201 for new content and 200 when an asset with the same SHA-512 already exists.",
       "post" : {
         "tags" : [ "assets" ],
-        "summary" : "Upload a file to create an asset. Expects a multipart request with one file part and a 'libraryUuid' form field.",
-        "description" : "Upload a file to create an asset. Expects a multipart request with one file part and a 'libraryUuid' form field.",
+        "summary" : "Upload a file to create an asset. Expects a multipart request with one file part named 'file', a required 'libraryUuid' form field and an optional 'origin'. The target library's storage pool decides whether the bytes land on a filesystem or in S3. Answers 201 for new content and 200 when an asset with the same SHA-512 already exists.",
+        "description" : "Upload a file to create an asset. Expects a multipart request with one file part named 'file', a required 'libraryUuid' form field and an optional 'origin'. The target library's storage pool decides whether the bytes land on a filesystem or in S3. Answers 201 for new content and 200 when an asset with the same SHA-512 already exists.",
         "operationId" : "postAssetsUpload",
         "responses" : {
+          "200" : {
+            "description" : "The asset response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "meta" : {
+                    "abc" : "cdef"
+                  },
+                  "geo" : {
+                    "lon" : 32.56,
+                    "lat" : 52.156
+                  },
+                  "tags" : [ {
+                    "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "name" : "red"
+                  } ],
+                  "annotations" : [ {
+                    "status" : { },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "title" : "Intro Feedback",
+                    "area" : {
+                      "from" : 0,
+                      "to" : 10
+                    },
+                    "description" : "The very nice intro",
+                    "tasks" : [ {
+                      "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                      "status" : { },
+                      "title" : "Fix text offset here",
+                      "description" : "The text is not aligned with the title",
+                      "comments" : [ {
+                        "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                        "status" : { },
+                        "title" : "Great work!",
+                        "text" : "What a great choice of colors!",
+                        "social" : {
+                          "rating" : {
+                            "stars" : 10,
+                            "upVotes" : 42,
+                            "downVotes" : 0
+                          },
+                          "reactions" : {
+                            "SATISFIED" : 10
+                          }
+                        }
+                      } ]
+                    } ],
+                    "comments" : [ {
+                      "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                      "status" : { },
+                      "title" : "Great work!",
+                      "text" : "What a great choice of colors!",
+                      "social" : {
+                        "rating" : {
+                          "stars" : 10,
+                          "upVotes" : 42,
+                          "downVotes" : 0
+                        },
+                        "reactions" : {
+                          "SATISFIED" : 10
+                        }
+                      }
+                    } ],
+                    "thumbnail" : "???",
+                    "tags" : [ {
+                      "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                      "name" : "blue"
+                    } ]
+                  } ],
+                  "collections" : [ ],
+                  "embeddings" : [ ],
+                  "file" : {
+                    "mimeType" : "video/mp4",
+                    "filename" : "bigbuckbunny-4k.mp4",
+                    "size" : 42000000,
+                    "origin" : "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+                    "firstSeen" : "2018-10-12T14:15:06Z"
+                  },
+                  "hashes" : {
+                    "sha512" : "0e3e75234abc68f4378a86b3f4b32a198ba301845b0cd6e50106e874345700cc6663a86c1ea125dc5e92be17c98f9a0f85ca9d5f595db2012f7cc3571945c123",
+                    "sha256" : "f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2",
+                    "md5" : "d8e8fca2dc0f896fd7cb4cb0031ba249"
+                  },
+                  "geoComponents" : [ ],
+                  "imageComponents" : [ {
+                    "dominantColor" : "#FFFF00"
+                  } ],
+                  "videoComponents" : [ {
+                    "width" : 4000,
+                    "height" : 2250,
+                    "duration" : 20000
+                  } ],
+                  "audioComponents" : [ {
+                    "channels" : 2,
+                    "encoding" : "mp3",
+                    "samplingRate" : 48000,
+                    "bpm" : 120
+                  } ],
+                  "documentComponents" : [ ],
+                  "locations" : [ {
+                    "status" : { },
+                    "poolUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                    "mimeType" : "video/mp4",
+                    "state" : "PRESENT",
+                    "license" : "CC-BY-4.0",
+                    "filesystem" : {
+                      "path" : "/the-current-path/bigbuckbunny-4k.mp4",
+                      "filekey" : {
+                        "inode" : 42,
+                        "stDev" : 12,
+                        "edate" : 12,
+                        "edateNano" : 3
+                      },
+                      "lastSeen" : "2018-11-20T20:12:01Z"
+                    },
+                    "s3" : {
+                      "bucket" : "big_bucket",
+                      "objectPath" : "themovie"
+                    }
+                  } ]
+                }
+              }
+            }
+          },
           "400" : {
             "description" : "Bad request - validation error or malformed path/query parameter",
             "content" : {
@@ -9101,7 +9381,7 @@
       }
     },
     "/api/v1/attachments" : {
-      "description" : "Create new attachment",
+      "description" : "Create a new attachment from an uploaded file. Expects a multipart request with one file part named 'file'. Optional form fields: 'assetUuid' (the asset this attachment describes - its storage pool then also receives these bytes), 'embeddingUuid', 'type' (CONTACT_SHEET, POSTER_FRAME, WAVEFORM, PROXY, EXTRACTED_AUDIO, ...) and 'poolUuid'.",
       "get" : {
         "tags" : [ "attachments" ],
         "summary" : "Load a paged list of attachments",
@@ -9245,8 +9525,8 @@
       },
       "post" : {
         "tags" : [ "attachments" ],
-        "summary" : "Create new attachment",
-        "description" : "Create new attachment",
+        "summary" : "Create a new attachment from an uploaded file. Expects a multipart request with one file part named 'file'. Optional form fields: 'assetUuid' (the asset this attachment describes - its storage pool then also receives these bytes), 'embeddingUuid', 'type' (CONTACT_SHEET, POSTER_FRAME, WAVEFORM, PROXY, EXTRACTED_AUDIO, ...) and 'poolUuid'.",
+        "description" : "Create a new attachment from an uploaded file. Expects a multipart request with one file part named 'file'. Optional form fields: 'assetUuid' (the asset this attachment describes - its storage pool then also receives these bytes), 'embeddingUuid', 'type' (CONTACT_SHEET, POSTER_FRAME, WAVEFORM, PROXY, EXTRACTED_AUDIO, ...) and 'poolUuid'.",
         "operationId" : "postAttachments",
         "responses" : {
           "200" : {
@@ -9512,6 +9792,77 @@
           "204" : {
             "description" : "The delete response"
           },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/attachments/{uuid}/data" : {
+      "description" : "Download the raw bytes of an attachment.",
+      "get" : {
+        "tags" : [ "attachments" ],
+        "summary" : "Download the raw bytes of an attachment.",
+        "description" : "Download the raw bytes of an attachment.",
+        "operationId" : "getAttachmentsByUuidData",
+        "responses" : {
           "400" : {
             "description" : "Bad request - validation error or malformed path/query parameter",
             "content" : {
@@ -16931,7 +17282,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "e2cdf677-2edb-4d48-907b-a2fd3437a763",
+                    "versionUuid" : "cf081261-de49-447a-8dfb-cfc6fb777215",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -16958,7 +17309,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "28109552-7d0e-4bb7-9f1f-e979da1a29e0",
+                    "versionUuid" : "b1d44f8f-e003-4b96-b93b-cd40bef04d89",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -17065,7 +17416,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "298aad3d-bb98-4b70-80e2-12b5cb32324b",
+                  "versionUuid" : "d14bf3d9-a095-4552-8c8e-a015a4e4a2bf",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -17151,7 +17502,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "0a85427c-30c6-4f2f-bd61-dd6c8219533b",
+                  "versionUuid" : "88965c6a-ae99-4459-8e81-4d9429824ed4",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -17258,7 +17609,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "69a50770-17b0-450a-b0ae-0d941e95506b",
+                  "versionUuid" : "bef920ad-5de0-45b4-a4b7-4ffcc374074d",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -17420,7 +17771,7 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "runUuid" : "d0e16c3a-9a54-4b83-bbf0-44f9f8e50cfe",
+                  "runUuid" : "238f3611-9038-423c-a5eb-8b2efe15cac4",
                   "processorNodeId" : "cortex-01",
                   "dispatched" : true,
                   "message" : "Pipeline run dispatched"
@@ -17546,11 +17897,11 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "a175e639-c6e7-4989-b912-2ae1bfc44e1d",
-                    "pipelineUuid" : "7834b3bf-1e5b-4f9c-8f95-623c59421618",
+                    "uuid" : "6209a0d8-5810-4c76-9a02-645ba53fc85d",
+                    "pipelineUuid" : "537f3c7e-3e8f-4bfc-9217-8f80d5df5288",
                     "pipelineVersion" : 1,
-                    "started" : "2026-07-30T08:30:52.444521492Z",
-                    "finished" : "2026-07-30T08:30:52.444814302Z",
+                    "started" : "2026-08-01T16:59:56.047121382Z",
+                    "finished" : "2026-08-01T16:59:56.047223512Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -17559,11 +17910,11 @@
                     "dryRun" : false,
                     "durationMs" : 45000
                   }, {
-                    "uuid" : "2e7af105-b19d-4d8d-82a1-05c01d8af468",
-                    "pipelineUuid" : "f636b71e-1e08-4936-add9-08fa15e30554",
+                    "uuid" : "6636534a-a563-4a6e-a3b1-aeada9d4c98a",
+                    "pipelineUuid" : "ec969e87-d9fa-4aaa-844b-fae45a755ffb",
                     "pipelineVersion" : 1,
-                    "started" : "2026-07-30T08:30:52.444848972Z",
-                    "finished" : "2026-07-30T08:30:52.444852172Z",
+                    "started" : "2026-08-01T16:59:56.047251212Z",
+                    "finished" : "2026-08-01T16:59:56.047254543Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -17656,11 +18007,11 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "uuid" : "b27a2281-a5b3-4b3a-826e-cc2a155b1692",
-                  "pipelineUuid" : "762a02f0-4267-4033-8815-8321d9d9186e",
+                  "uuid" : "10ab748f-24d2-463c-b3ef-09eaad62d4d3",
+                  "pipelineUuid" : "3abaab1d-9878-4f02-943e-ace7d63e8de8",
                   "pipelineVersion" : 1,
-                  "started" : "2026-07-30T08:30:52.446112312Z",
-                  "finished" : "2026-07-30T08:30:52.446128272Z",
+                  "started" : "2026-08-01T16:59:56.047919564Z",
+                  "finished" : "2026-08-01T16:59:56.047927344Z",
                   "status" : "SUCCESS",
                   "mediaCount" : 100,
                   "successCount" : 95,
@@ -17882,16 +18233,16 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "4a4630be-7244-4673-aa84-2fdf421eb505",
-                    "runUuid" : "0aecb976-42cc-42c0-9a62-8347e071667c",
+                    "uuid" : "2fff35d3-f6de-4779-8ff7-7e875c3e496c",
+                    "runUuid" : "80d9612e-4ce3-4907-b700-8013319c08dd",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
                     "sizeBytes" : 1048576,
                     "state" : "SUCCESS"
                   }, {
-                    "uuid" : "a9655274-9226-409d-a8b4-0a004dadba4c",
-                    "runUuid" : "4198911e-a8d8-4060-a413-226a9790102e",
+                    "uuid" : "d0414bd3-9db3-475d-b1cf-6d6f1b1a27e9",
+                    "runUuid" : "e09c7808-55f7-4479-a602-5e9da55bad11",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
@@ -18215,7 +18566,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "08c00a83-5331-47d1-b4a4-5ea3deb1adf9",
+                    "versionUuid" : "98973bd4-c5c9-4169-ba96-c4d3f9ffe5d6",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -18242,7 +18593,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "a64825bd-6fc6-4cef-bc46-1b81693a0d8b",
+                    "versionUuid" : "3a075282-de82-4dcd-9111-4206ca0abe20",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -18353,7 +18704,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "76de67ee-f10b-4d00-a8ea-d00f50276747",
+                  "versionUuid" : "79b4cc7a-c6c7-40a8-82bc-d017720071af",
                   "versionNumber" : 2,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -18478,7 +18829,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "2288a420-7dfd-4ec2-883b-3ff04ab7e8e5",
+                  "versionUuid" : "b6b7aa5a-d079-47be-8b78-2978f8330fda",
                   "versionNumber" : 2,
                   "name" : "restored-pipeline",
                   "description" : "Restored from version 1",

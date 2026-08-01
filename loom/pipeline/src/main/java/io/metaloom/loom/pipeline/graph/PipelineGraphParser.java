@@ -42,8 +42,33 @@ import io.vertx.core.json.JsonObject;
  * <p>{@code nodes[].dependencies[]} is <strong>no longer read</strong>. It cannot say which ports an
  * edge joins, and a graph whose connections carry no ports cannot be type-checked - so accepting it
  * would mean a definition that saves without validation and fails at run time instead.</p>
+ *
+ * <h2>Format version</h2>
+ *
+ * <p>A definition carries a top-level {@code "version"} integer naming the format it was written
+ * in. This parser accepts up to {@link #CURRENT_DEFINITION_VERSION} and refuses anything higher,
+ * by name, rather than half-reading a shape it does not know: a definition written by a newer Loom
+ * may use fields whose absence here would look like a valid but different graph.</p>
+ *
+ * <p>An <em>absent</em> version means version 1. Every definition stored before the field existed
+ * is a version 1 definition, and rejecting them would strand pipelines that run correctly.
+ * {@link #stampVersion(JsonObject)} adds the field on write so the untagged set only shrinks.</p>
  */
 public class PipelineGraphParser {
+
+	/**
+	 * The definition format this Loom writes and is the highest it can read.
+	 *
+	 * <p>Bump when a change to the format cannot be understood by an older reader — a renamed or
+	 * removed field, or a changed meaning for an existing one. Purely additive optional fields
+	 * ({@code syncToLoom}, {@code affinity}, {@code options} and the filter {@code branch} were all
+	 * added this way) do not need a bump: an older reader ignoring them still executes the graph as
+	 * drawn.</p>
+	 */
+	public static final int CURRENT_DEFINITION_VERSION = 1;
+
+	/** Top-level key naming the format version. */
+	public static final String VERSION_KEY = "version";
 
 	private final NodeDescriptorRegistry registry;
 
@@ -60,6 +85,54 @@ public class PipelineGraphParser {
 	}
 
 	/**
+	 * Read and check the format version of a definition.
+	 *
+	 * @param name       pipeline name, used in error messages
+	 * @param definition the stored definition JSON
+	 * @return the declared version, or {@link #CURRENT_DEFINITION_VERSION} when the field is absent
+	 * @throws GraphValidationException if the version is malformed, or newer than this Loom reads
+	 */
+	public static int readVersion(String name, JsonObject definition) {
+		Object raw = definition.getValue(VERSION_KEY);
+		if (raw == null) {
+			// Written before the field existed, which by definition makes it version 1.
+			return 1;
+		}
+		if (!(raw instanceof Number number) || number.doubleValue() != number.intValue()) {
+			throw new GraphValidationException("Pipeline '" + name + "' declares a non-integer definition "
+				+ VERSION_KEY + ": " + raw);
+		}
+		int version = number.intValue();
+		if (version < 1) {
+			throw new GraphValidationException("Pipeline '" + name + "' declares definition " + VERSION_KEY
+				+ " " + version + "; versions start at 1");
+		}
+		if (version > CURRENT_DEFINITION_VERSION) {
+			throw new GraphValidationException("Pipeline '" + name + "' is in definition format version "
+				+ version + ", but this Loom reads up to version " + CURRENT_DEFINITION_VERSION
+				+ ". Upgrade Loom, or edit the pipeline with the version that wrote it");
+		}
+		return version;
+	}
+
+	/**
+	 * Return the definition with its format version set, so a stored definition always names the
+	 * format it is in.
+	 *
+	 * <p>Applied on every write. An existing {@code version} is left alone — re-stamping would
+	 * silently relabel a definition as current after an older Loom round-tripped it.</p>
+	 *
+	 * @param definition the definition to stamp; {@code null} is returned unchanged
+	 * @return the same instance, for chaining
+	 */
+	public static JsonObject stampVersion(JsonObject definition) {
+		if (definition != null && definition.getValue(VERSION_KEY) == null) {
+			definition.put(VERSION_KEY, CURRENT_DEFINITION_VERSION);
+		}
+		return definition;
+	}
+
+	/**
 	 * @param name       pipeline name, used in error messages
 	 * @param definition the stored definition JSON
 	 * @param enabled    whether the pipeline is enabled
@@ -72,6 +145,10 @@ public class PipelineGraphParser {
 		if (definition == null) {
 			throw new GraphValidationException("Pipeline '" + name + "' has no definition");
 		}
+
+		// Checked before anything else is read: if the format is one this Loom does not know,
+		// every message that follows would be about the wrong thing.
+		readVersion(name, definition);
 
 		JsonArray nodeArray = definition.getJsonArray("nodes");
 		if (nodeArray == null || nodeArray.isEmpty()) {

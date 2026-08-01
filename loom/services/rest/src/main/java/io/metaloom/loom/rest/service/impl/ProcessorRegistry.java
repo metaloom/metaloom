@@ -1,14 +1,17 @@
 package io.metaloom.loom.rest.service.impl;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Predicate;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -43,6 +46,20 @@ import io.vertx.core.json.JsonObject;
 public class ProcessorRegistry {
 
 	private static final Logger log = LoggerFactory.getLogger(ProcessorRegistry.class);
+
+	/**
+	 * How long a reported load is trusted. Workers send a status every 20 seconds, so
+	 * this tolerates two lost updates; past that the figure is treated as unknown rather
+	 * than as the last thing the worker happened to say before it got busy.
+	 */
+	private static final Duration STATUS_MAX_AGE = Duration.ofSeconds(60);
+
+	/**
+	 * Stand-in load for a worker that has not reported one. Deliberately mid-scale: a
+	 * silent worker must not out-rank a peer that has demonstrated it is idle, nor be
+	 * preferred over one that has demonstrated it is busy.
+	 */
+	private static final double UNKNOWN_LOAD = 50.0d;
 
 	private final Map<String, ConnectedProcessor> processors = new ConcurrentHashMap<>();
 
@@ -233,6 +250,7 @@ public class ProcessorRegistry {
 		ConnectedProcessor processor = processors.get(nodeId);
 		if (processor != null) {
 			processor.systemStatus = status;
+			processor.systemStatusAt = Instant.now();
 			processor.lastSeen = Instant.now();
 			broadcast(new ProcessorEventMessage(ProcessorEventType.STATUS_UPDATED, nodeId)
 				.setProcessor(toResponse(processor)));
@@ -293,22 +311,12 @@ public class ProcessorRegistry {
 	 * a pool of workers that are each restricted to part of the graph - GPU boxes for
 	 * embeddings, the host holding the media mount for filesystem sources.</p>
 	 *
-	 * <p>Selection is still by declared priority. Load-based selection is deliberately
-	 * not attempted: {@code cpuLoad} is known to be broken, and scheduling on a wrong
-	 * metric is worse than scheduling on none.</p>
-	 *
 	 * @param requiredCapability capability the worker must have, or null for any
 	 * @param nodeKind           kind of node to run, or null to ignore whitelists
 	 * @return the best matching processor, or null when none will take it
 	 */
 	public ConnectedProcessor selectProcessor(ProcessorCapability requiredCapability, String nodeKind) {
-		return processors.values().stream()
-			.filter(p -> p.state == ProcessorState.ONLINE)
-			.filter(p -> requiredCapability == null || (p.capabilities != null && p.capabilities.contains(requiredCapability)))
-			.filter(p -> nodeKind == null || p.accepts(nodeKind))
-			.sorted((a, b) -> Integer.compare(b.priority, a.priority))
-			.findFirst()
-			.orElse(null);
+		return select(requiredCapability, p -> nodeKind == null || p.accepts(nodeKind));
 	}
 
 	/**
@@ -324,13 +332,72 @@ public class ProcessorRegistry {
 	 */
 	public ConnectedProcessor selectProcessorForKinds(ProcessorCapability requiredCapability,
 		java.util.List<String> nodeKinds) {
+		return select(requiredCapability, p -> nodeKinds == null || nodeKinds.stream().allMatch(p::accepts));
+	}
+
+	/**
+	 * The one placement decision, shared by both entry points.
+	 *
+	 * <p>Declared priority stays the primary key: it is an operator's explicit statement
+	 * about which machines should carry the work, and live load must not silently
+	 * overrule it. Among workers of equal priority the least loaded one wins, which is
+	 * what spreads a run across an otherwise interchangeable pool instead of piling it
+	 * onto whichever entry the map happened to iterate first.</p>
+	 *
+	 * @param requiredCapability capability the worker must have, or null for any
+	 * @param accepts            the caller's node-kind restriction
+	 * @return the best matching processor, or null when none qualifies
+	 */
+	private ConnectedProcessor select(ProcessorCapability requiredCapability, Predicate<ConnectedProcessor> accepts) {
+		Instant now = Instant.now();
 		return processors.values().stream()
-			.filter(p -> p.state == ProcessorState.ONLINE)
+			.filter(ProcessorRegistry::isPlaceable)
 			.filter(p -> requiredCapability == null || (p.capabilities != null && p.capabilities.contains(requiredCapability)))
-			.filter(p -> nodeKinds == null || nodeKinds.stream().allMatch(p::accepts))
-			.sorted((a, b) -> Integer.compare(b.priority, a.priority))
-			.findFirst()
+			.filter(accepts)
+			.min(Comparator.comparingInt((ConnectedProcessor p) -> p.priority).reversed()
+				.thenComparingDouble(p -> loadScore(p, now))
+				// Equal priority and equal load: pick deterministically rather than by map
+				// order, so repeated dispatches of the same work land the same way.
+				.thenComparing(p -> p.nodeId))
 			.orElse(null);
+	}
+
+	/**
+	 * @param processor a connected worker
+	 * @return true when new work may be placed on it
+	 */
+	private static boolean isPlaceable(ConnectedProcessor processor) {
+		// ONLINE and nothing else. A worker that announced TERMINATING is draining and
+		// must receive no further work - handing it a task it is about to abandon costs
+		// the run a lease timeout. PAUSED and STARTING are excluded for the same reason.
+		return processor.state == ProcessorState.ONLINE;
+	}
+
+	/**
+	 * How busy a worker is, on the 0-100 scale the status message reports.
+	 *
+	 * <p>The busiest of CPU and I/O rather than an average of them: a worker pinned on
+	 * either one is equally unable to take more work, and averaging a saturated disk
+	 * against an idle CPU makes a stalled machine look half free.</p>
+	 *
+	 * @param processor a connected worker
+	 * @param now       the moment selection is being made
+	 * @return the worker's load, or {@link #UNKNOWN_LOAD} when it has not said recently
+	 */
+	private static double loadScore(ConnectedProcessor processor, Instant now) {
+		SystemStatusInfo status = processor.systemStatus;
+		if (status == null || processor.systemStatusAt == null
+			|| processor.systemStatusAt.isBefore(now.minus(STATUS_MAX_AGE))) {
+			return UNKNOWN_LOAD;
+		}
+		double load = -1;
+		if (status.getCpuLoad() != null) {
+			load = Math.max(load, status.getCpuLoad());
+		}
+		if (status.getIoLoad() != null) {
+			load = Math.max(load, status.getIoLoad());
+		}
+		return load < 0 ? UNKNOWN_LOAD : load;
 	}
 
 	/**
@@ -541,6 +608,8 @@ public class ProcessorRegistry {
 		public ProcessorState state;
 		public Instant lastSeen;
 		public SystemStatusInfo systemStatus;
+		/** When {@link #systemStatus} arrived; placement stops trusting a stale figure. */
+		public Instant systemStatusAt;
 		public ServerWebSocket ws;
 	}
 }

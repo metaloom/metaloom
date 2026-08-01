@@ -6,6 +6,7 @@ import javax.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.impl.loom.LoomControlChannel;
 import io.metaloom.cortex.impl.monitoring.MonitoringService;
 import io.metaloom.cortex.pipeline.loader.NodeRegistrar;
@@ -20,14 +21,16 @@ public class CortexBootstrapInitializer {
 	private final LoomControlChannel loomControlChannel;
 	private final NodeRegistrar nodeRegistrar;
 	private final SqsS3EventSource sqsEventSource;
+	private final CortexOptions options;
 
 	@Inject
 	public CortexBootstrapInitializer(MonitoringService monitoringService, LoomControlChannel loomControlChannel,
-			NodeRegistrar nodeRegistrar, SqsS3EventSource sqsEventSource) {
+			NodeRegistrar nodeRegistrar, SqsS3EventSource sqsEventSource, CortexOptions options) {
 		this.monitoringService = monitoringService;
 		this.loomControlChannel = loomControlChannel;
 		this.nodeRegistrar = nodeRegistrar;
 		this.sqsEventSource = sqsEventSource;
+		this.options = options;
 	}
 
 	public void init() {
@@ -54,6 +57,10 @@ public class CortexBootstrapInitializer {
 	}
 
 	public void deinit() {
+		// Drain before stopping: announcing TERMINATING and handing back unfinished work
+		// both need the control channel still open, and every task not returned here costs
+		// its run a full lease interval before Loom places it again.
+		loomControlChannel.drain(options.getDrainTimeoutMs());
 		loomControlChannel.stop();
 		sqsEventSource.stop();
 		monitoringService.deinit();

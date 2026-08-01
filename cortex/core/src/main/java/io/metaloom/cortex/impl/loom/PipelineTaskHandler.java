@@ -32,6 +32,7 @@ import io.metaloom.loom.rest.model.processor.message.ProcessorMessageType;
 import io.metaloom.loom.rest.model.processor.message.SourceCompleteMessage;
 import io.metaloom.loom.rest.model.processor.message.SourceItemsMessage;
 import io.metaloom.loom.rest.model.processor.message.SourceTaskMessage;
+import io.metaloom.loom.rest.model.processor.message.TaskReturnedMessage;
 import io.reactivex.rxjava3.core.Flowable;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import io.vertx.core.json.JsonObject;
@@ -63,10 +64,47 @@ public class PipelineTaskHandler {
 	private static final long BATCH_FLUSH_INTERVAL_MS = 250;
 	private final SourceTaskRunner sourceTaskRunner;
 
+	/** How often {@link #awaitDrain(long)} re-checks whether the worker has gone quiet. */
+	private static final long DRAIN_POLL_INTERVAL_MS = 100;
+
+	/**
+	 * Node and segment tasks currently executing, by task uuid.
+	 *
+	 * <p>Tracked solely so a shutting-down worker can say what it will not finish.
+	 * Without this the only way Loom learns is the lease lapsing, which costs the run a
+	 * full lease interval per task.</p>
+	 */
+	private final java.util.Map<UUID, InFlightTask> inFlight = new java.util.concurrent.ConcurrentHashMap<>();
+
+	/** Runs whose source enumeration is executing here. Waited for, but never returned. */
+	private final java.util.Set<UUID> activeSources = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+	/**
+	 * Set once this worker has announced {@code TERMINATING}. Loom stops placing work on
+	 * a worker in that state, but a task already on the wire when the announcement went
+	 * out still arrives - this is what makes those an immediate hand-back rather than
+	 * work started seconds before the process exits.
+	 */
+	private volatile boolean draining;
+
 	/** Sends a message back to Loom. */
 	@FunctionalInterface
 	public interface MessageSender {
 		void send(ProcessorMessage message);
+	}
+
+	/**
+	 * A dispatched task this worker is holding, and the connection to answer on.
+	 *
+	 * @param taskUuid   the dispatch
+	 * @param runUuid    the run it belongs to
+	 * @param itemId     the media item
+	 * @param nodeIds    graph-local node ids - one for a node task, all members for a segment
+	 * @param elementSeq which element of a fanned-out sequence; 0 for a node that runs once
+	 * @param sender     the connection the task arrived on
+	 */
+	private record InFlightTask(UUID taskUuid, UUID runUuid, String itemId, List<String> nodeIds,
+		int elementSeq, MessageSender sender) {
 	}
 
 	@Inject
@@ -105,6 +143,15 @@ public class PipelineTaskHandler {
 	 */
 	public void handleNodeTask(NodeTask task, MessageSender sender) {
 		metrics.recordTaskReceived("node");
+		InFlightTask entry = new InFlightTask(task.getTaskUuid(), task.getRunUuid(), task.getItemId(),
+			List.of(task.getNodeId()), task.getElementSeq(), sender);
+		if (draining) {
+			// Started now, this would be abandoned within seconds. Handing it straight
+			// back is what lets Loom place it on a live worker immediately.
+			returnTask(entry, "refused", "worker is shutting down");
+			return;
+		}
+		inFlight.put(task.getTaskUuid(), entry);
 		Schedulers.io().scheduleDirect(() -> {
 			NodeTaskResult result;
 			try {
@@ -115,12 +162,113 @@ public class PipelineTaskHandler {
 				log.error("Unexpected failure running {}", task, t);
 				result = NodeTaskResult.failed(task.getTaskUuid(), task.getNodeId(), 0, String.valueOf(t));
 			}
+			// Released before the answer goes out, so a drain running concurrently cannot
+			// hand back work that has in fact been done.
+			inFlight.remove(task.getTaskUuid());
 			recordNodeOutcome("node", task.getNodeKind(), result);
 			// Batched when the pipeline asks for it; sent immediately when it does not.
 			resultBatcher.add(task.getRunUuid(), task.getItemId(), result, task.getResultBatchSize(),
 				batch -> sender.send(new ProcessorMessage(ProcessorMessageType.NODE_TASK_RESULT_BATCH,
 					JsonObject.mapFrom(batch))));
 		});
+	}
+
+	/**
+	 * Stop accepting work, so that everything still outstanding is a finite set.
+	 *
+	 * <p>Call after announcing {@code TERMINATING}, not before: between the two this
+	 * worker is refusing work Loom still believes it will do, and every such task pays a
+	 * round trip.</p>
+	 *
+	 * @return how many tasks were executing when the drain began
+	 */
+	public int beginDrain() {
+		draining = true;
+		return inFlight.size();
+	}
+
+	/** @return true once this worker has stopped accepting new tasks */
+	public boolean isDraining() {
+		return draining;
+	}
+
+	/** @return how many node and segment tasks are executing right now */
+	public int inFlightCount() {
+		return inFlight.size();
+	}
+
+	/**
+	 * Wait for the tasks already running to finish.
+	 *
+	 * <p>Blocking, and deliberately so - it is called from the shutdown path rather than
+	 * from the connection's event loop. Source enumeration counts as outstanding here
+	 * too: a scan that is nearly done should be allowed to finish, since unlike a node
+	 * task there is nothing Loom can do to recover a half-enumerated source.</p>
+	 *
+	 * @param timeoutMs how long to wait before giving up on the rest
+	 * @return how many tasks were still running when the wait ended
+	 */
+	public int awaitDrain(long timeoutMs) {
+		long deadline = System.currentTimeMillis() + Math.max(0, timeoutMs);
+		while (!inFlight.isEmpty() || !activeSources.isEmpty()) {
+			if (System.currentTimeMillis() >= deadline) {
+				break;
+			}
+			try {
+				Thread.sleep(DRAIN_POLL_INTERVAL_MS);
+			} catch (InterruptedException e) {
+				// A shutdown that is itself being hurried along. Stop waiting, but let the
+				// caller still hand back what is outstanding.
+				Thread.currentThread().interrupt();
+				break;
+			}
+		}
+		return inFlight.size();
+	}
+
+	/**
+	 * Hand every task still outstanding back to Loom.
+	 *
+	 * <p>The tasks keep running - a node cannot be interrupted mid-way - but Loom is
+	 * free to place them elsewhere at once rather than waiting out their leases. If one
+	 * of them does finish after all, its result settles the node and the re-dispatched
+	 * copy is recognised as a duplicate, which is the trade the lease model already
+	 * makes.</p>
+	 *
+	 * @param reason recorded on the re-dispatch
+	 * @return how many tasks were handed back
+	 */
+	public int returnOutstanding(String reason) {
+		int returned = 0;
+		for (UUID taskUuid : List.copyOf(inFlight.keySet())) {
+			InFlightTask entry = inFlight.remove(taskUuid);
+			if (entry != null) {
+				returnTask(entry, "unfinished", reason);
+				returned++;
+			}
+		}
+		if (!activeSources.isEmpty()) {
+			// Nothing to hand back: a source task has no reclaim path, and fabricating a
+			// SOURCE_COMPLETE would mark a truncated scan as a whole one. The run waits for
+			// an enumeration that will not resume, which is a gap worth naming rather than
+			// papering over.
+			log.warn("Abandoning source enumeration for run(s) {} - those runs will not complete until "
+				+ "their source is dispatched again", activeSources);
+		}
+		return returned;
+	}
+
+	/** Tell Loom a task will not be executed here, so it can be placed elsewhere now. */
+	private void returnTask(InFlightTask entry, String reason, String detail) {
+		metrics.recordTaskReturned(reason);
+		entry.sender().send(new ProcessorMessage(ProcessorMessageType.TASK_RETURNED,
+			JsonObject.mapFrom(new TaskReturnedMessage()
+				.setRunUuid(entry.runUuid())
+				.setItemId(entry.itemId())
+				.setTaskUuid(entry.taskUuid())
+				.setNodeIds(entry.nodeIds())
+				.setElementSeq(entry.elementSeq())
+				.setReason(detail))));
 	}
 
 	/**
@@ -149,6 +297,16 @@ public class PipelineTaskHandler {
 	 */
 	public void handleSegmentTask(SegmentTask task, MessageSender sender) {
 		metrics.recordTaskReceived("segment");
+		// Every node of the segment is handed back together: the whole unit was placed
+		// here, and a segment exists precisely so its members are not split up.
+		InFlightTask entry = new InFlightTask(task.getTaskUuid(), task.getRunUuid(), task.getItemId(),
+			task.getNodes().stream().map(io.metaloom.loom.pipeline.model.SegmentNode::getNodeId).toList(),
+			0, sender);
+		if (draining) {
+			returnTask(entry, "refused", "worker is shutting down");
+			return;
+		}
+		inFlight.put(task.getTaskUuid(), entry);
 		Schedulers.io().scheduleDirect(() -> {
 			SegmentTaskResult result;
 			try {
@@ -161,6 +319,8 @@ public class PipelineTaskHandler {
 				result = new SegmentTaskResult(task.getTaskUuid(), task.getRunUuid(), task.getItemId(),
 					task.getSegmentId(), java.util.List.of(), String.valueOf(t));
 			}
+			// Released before the answer goes out, for the same reason as a node task.
+			inFlight.remove(task.getTaskUuid());
 			metrics.recordTaskCompleted("segment", result.getError() == null ? "success" : "failed");
 			// Each node in the segment settles independently; record one node operation per result.
 			for (NodeTaskResult nodeResult : result.getResults()) {
@@ -203,6 +363,16 @@ public class PipelineTaskHandler {
 	 */
 	public void handleSourceTask(SourceTaskMessage task, MessageSender sender) {
 		metrics.recordTaskReceived("source");
+		if (draining) {
+			// A source cannot be handed back the way a node task can, so refusing it is
+			// the only honest answer: say the enumeration produced nothing and why, and
+			// let the run be started again against a live worker.
+			log.warn("Refusing source task for run {}: this worker is shutting down", task.getRunUuid());
+			metrics.recordTaskReturned("refused");
+			sender.send(completeMessage(task.getRunUuid(), 0, "worker is shutting down"));
+			return;
+		}
+		activeSources.add(task.getRunUuid());
 		Schedulers.io().scheduleDirect(() -> {
 			UUID runUuid = task.getRunUuid();
 			Flowable<LoomMedia> stream;
@@ -210,6 +380,7 @@ public class PipelineTaskHandler {
 				stream = resolveSourceStream(task);
 			} catch (Exception e) {
 				log.error("Cannot start source task for run {}", runUuid, e);
+				activeSources.remove(runUuid);
 				sender.send(completeMessage(runUuid, 0, String.valueOf(e.getMessage())));
 				return;
 			}
@@ -225,6 +396,7 @@ public class PipelineTaskHandler {
 
 				@Override
 				public void sendComplete(long totalCount, String error) {
+					activeSources.remove(runUuid);
 					metrics.recordSourceItemsEnumerated(totalCount);
 					metrics.recordTaskCompleted("source", error == null ? "success" : "failed");
 					sender.send(completeMessage(runUuid, totalCount, error));
@@ -249,6 +421,7 @@ public class PipelineTaskHandler {
 	 * @param runUuid the run
 	 */
 	public void cancelSource(UUID runUuid) {
+		activeSources.remove(runUuid);
 		sourceTaskRunner.cancel(runUuid);
 	}
 

@@ -19,7 +19,16 @@ public enum ProcessorMessageType {
 	/** State change notification from processor */
 	STATE_CHANGE,
 
-	/** Pipeline tracking event from processor (forwarded to UI clients) */
+	/**
+	 * Pipeline tracking event from a processor. <b>Accepted and dropped.</b>
+	 *
+	 * <p>Under Variant C, Loom owns the pipeline graph, so run events are emitted by
+	 * {@code RunStatsAggregator} — counted per node and pushed as {@code NODE_STATS} on a
+	 * timer, with failures released immediately. Relaying a worker frame to the UI socket
+	 * would be the per-item flood that aggregation exists to prevent, so
+	 * {@code ProcessorEndpoint} discards it. Retained so an older worker's frames are
+	 * recognised and dropped rather than answered with an error once per item.</p>
+	 */
 	PIPELINE_EVENT,
 
 	/** Pipeline run completed notification from processor */
@@ -33,6 +42,12 @@ public enum ProcessorMessageType {
 
 	/** Outcome of a single node task (Variant C) */
 	NODE_TASK_RESULT,
+
+	/**
+	 * Hands a dispatched task back unexecuted, so Loom can place it elsewhere without
+	 * waiting out its lease. Sent by a draining worker for work it will not finish.
+	 */
+	TASK_RETURNED,
 
 	// --- Messages FROM loom TO processor ---
 

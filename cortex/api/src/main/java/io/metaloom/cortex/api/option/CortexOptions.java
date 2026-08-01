@@ -60,6 +60,19 @@ public class CortexOptions {
 	 */
 	private String nodeId;
 
+	/**
+	 * How long a shutting-down worker lets its running tasks finish before handing them
+	 * back to Loom.
+	 *
+	 * <p>The default matches Kubernetes' 30 second termination grace period: waiting
+	 * longer than the orchestrator will wait achieves nothing, because the process is
+	 * killed mid-drain and the tasks fall back to lease expiry anyway. A deployment that
+	 * runs minutes-long nodes (transcription, OCR) should raise this <em>and</em> the
+	 * matching grace period together, or accept that those tasks are re-placed rather
+	 * than finished.</p>
+	 */
+	private long drainTimeoutMs = 30_000;
+
 	// Maximum number of media items to process concurrently (media-level concurrency)
 	private int maxConcurrentMedia = 4;
 
@@ -179,6 +192,19 @@ public class CortexOptions {
 
 	public CortexOptions setNodeId(String nodeId) {
 		this.nodeId = nodeId;
+		return this;
+	}
+
+	public long getDrainTimeoutMs() {
+		return drainTimeoutMs;
+	}
+
+	/**
+	 * @param drainTimeoutMs how long a shutdown waits for running tasks; 0 hands every
+	 *                       in-flight task straight back
+	 */
+	public CortexOptions setDrainTimeoutMs(long drainTimeoutMs) {
+		this.drainTimeoutMs = Math.max(0, drainTimeoutMs);
 		return this;
 	}
 

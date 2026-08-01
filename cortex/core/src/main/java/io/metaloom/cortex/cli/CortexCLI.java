@@ -40,6 +40,9 @@ public class CortexCLI implements Runnable {
 	/** Mandatory for the online server; must be unique per worker and stable across restarts. */
 	private String nodeId;
 
+	/** How long a shutdown lets running tasks finish before handing them back to Loom. */
+	private long drainTimeoutMs = 30_000;
+
 	/** Null means "announce everything this worker can run". */
 	private Set<String> nodeWhitelist;
 
@@ -128,6 +131,18 @@ public class CortexCLI implements Runnable {
 		+ "node-kind restrictions and run attribution on it and rejects a duplicate. Env: CORTEX_NODE_ID", scope = ScopeType.INHERIT)
 	public void setNodeId(String nodeId) {
 		this.nodeId = nodeId;
+	}
+
+	public long getDrainTimeoutMs() {
+		return drainTimeoutMs;
+	}
+
+	@Option(names = { "--drain-timeout-ms" }, description = "How long a shutdown lets running tasks finish before "
+		+ "handing them back to Loom for re-placement. Raise it alongside the orchestrator's termination grace period "
+		+ "when running minutes-long nodes; killing the process mid-drain falls back to lease expiry. "
+		+ "Env: CORTEX_DRAIN_TIMEOUT_MS", defaultValue = "30000", scope = ScopeType.INHERIT)
+	public void setDrainTimeoutMs(long drainTimeoutMs) {
+		this.drainTimeoutMs = drainTimeoutMs;
 	}
 
 	public Set<String> getNodeWhitelist() {
@@ -262,6 +277,7 @@ public class CortexCLI implements Runnable {
 		// Left null when unset - CortexOptions treats null as "no restriction", and
 		// passing an empty set instead would read as "run nothing".
 		options.setNodeId(nodeId);
+		options.setDrainTimeoutMs(drainTimeoutMs);
 		options.setNodeWhitelist(nodeWhitelist);
 		options.setNodeBlacklist(nodeBlacklist);
 		options.setS3(s3);

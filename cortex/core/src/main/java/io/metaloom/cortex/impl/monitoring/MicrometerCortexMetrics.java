@@ -47,6 +47,11 @@ public class MicrometerCortexMetrics implements CortexMetrics {
 	}
 
 	@Override
+	public void recordTaskReturned(String reason) {
+		registry.counter("cortex_tasks_returned", "reason", reason).increment();
+	}
+
+	@Override
 	public void recordTaskCompleted(String type, String state) {
 		registry.counter("cortex_tasks_completed", "type", type, "state", state).increment();
 	}

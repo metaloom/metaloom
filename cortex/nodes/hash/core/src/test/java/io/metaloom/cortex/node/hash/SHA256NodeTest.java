@@ -1,7 +1,7 @@
 package io.metaloom.cortex.node.hash;
 
 import static io.metaloom.cortex.media.test.assertj.NodeAssertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -12,13 +12,15 @@ import java.io.IOException;
 import org.junit.jupiter.api.Test;
 
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.ResultOrigin;
+import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.media.test.AbstractBasicNodeTest;
-import io.metaloom.loom.api.asset.AssetId;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.client.common.LoomClientException;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
+import io.metaloom.loom.rest.model.asset.info.HashInfo;
 import io.metaloom.loom.test.data.TestMedia;
 
 public class SHA256NodeTest extends AbstractBasicNodeTest<SHA256Node> {
@@ -43,29 +45,63 @@ public class SHA256NodeTest extends AbstractBasicNodeTest<SHA256Node> {
 		super.testProcessDoc();
 	}
 
+	/**
+	 * An asset that already carries a SHA-256 in Loom must be reused rather than rehashed
+	 * — re-reading the file is the expensive half of this node.
+	 *
+	 * <p>The origin assertion is what makes this a test of the remote path: computing the
+	 * hash locally yields the same value, so asserting on the output alone would pass
+	 * either way. It did, for as long as the asset mock returned a null {@code HashInfo}
+	 * and the node quietly computed instead.</p>
+	 */
 	@Test
 	public void testPullFromLoom() throws LoomClientException {
-		// Mock the client
+		// An asset Loom already knows the SHA-256 of.
 		AssetResponse response = mock(AssetResponse.class);
+		when(response.getHashes()).thenReturn(new HashInfo().setSHA256(sampleVideoSHA256()));
 		LoomClient clientMock = mockClient(response);
 		CortexOptions cortexOptions = null;
 
-		// Invoke the action
 		LoomMedia media = mediaVideo1();
-		NodeResult result = mockNode(clientMock, cortexOptions).process(ctx(media));
+		NodeContext ctx = ctx(media);
+		NodeResult result = mockNode(clientMock, cortexOptions).process(ctx);
 
 		assertThat(result).isSuccess()
 			.hasOutput(SHA256Node.OUT_HASH, sampleVideoSHA256().toString());
+		assertEquals(ResultOrigin.REMOTE, ctx.resultOrigin(),
+			"The hash was on the asset, so it must have come from Loom rather than being recomputed");
 
-		// Verify that the db object was accessed
-		AssetId id = any();
-		verify(clientMock, times(1)).loadAsset(id);
-		verify(response, times(1)).getHashes().getSHA256();
+		// Verify that the asset was looked up - by SHA-512, which is how a node addresses
+		// an asset it has only a file for. Verified against the concrete hash rather than
+		// a matcher: which value it looked up by is the part worth pinning.
+		verify(clientMock, times(1)).loadAsset(media.getSHA512());
+	}
+
+	/**
+	 * An asset Loom knows but has never had a hash written to reports a null
+	 * {@code HashInfo}. That is every asset before its first hash node run, and it must
+	 * compute rather than fail.
+	 */
+	@Test
+	public void testMissingHashInfoOnAssetComputesInstead() throws LoomClientException {
+		AssetResponse response = mock(AssetResponse.class);
+		when(response.getHashes()).thenReturn(null);
+		LoomClient clientMock = mockClient(response);
+
+		LoomMedia media = mediaVideo1();
+		NodeContext ctx = ctx(media);
+		NodeResult result = mockNode(clientMock, null).process(ctx);
+
+		assertThat(result).isSuccess()
+			.hasOutput(SHA256Node.OUT_HASH, sampleVideoSHA256().toString());
+		assertEquals(ResultOrigin.COMPUTED, ctx.resultOrigin());
 	}
 
 	@Override
 	public SHA256Node mockNode(LoomClient client, CortexOptions cortexOptions) {
 		HashNodeOptions options = mock(HashNodeOptions.class);
+		// Unstubbed, isEnabled() answers false and process() short-circuits to SKIPPED.
+		when(options.isEnabled()).thenReturn(true);
 		when(options.isSHA256()).thenReturn(true);
 		return new SHA256Node(client, cortexOptions, options);
 	}

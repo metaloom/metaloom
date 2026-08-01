@@ -2461,13 +2461,100 @@ paths:
       schema:
         type: string
         format: uuid
+  /api/v1/assets/{uuid}/binaries:
+    description: List every binary of the asset - one per library the asset was imported
+      into.
+    get:
+      tags:
+      - assets
+      summary: List every binary of the asset - one per library the asset was imported
+        into.
+      description: List every binary of the asset - one per library the asset was
+        imported into.
+      operationId: getAssetsByUuidBinaries
+      responses:
+        "200":
+          description: The location list response
+          content:
+            application/json:
+              example:
+                data:
+                - status: {}
+                  filesystem:
+                    path: /the-current-path/bigbuckbunny-4k.mp4
+                    filekey:
+                      inode: 42
+                      stDev: 12
+                      edate: 12
+                      edateNano: 3
+                    lastSeen: 2018-11-20T20:12:01Z
+                  s3:
+                    bucket: big_bucket
+                    objectPath: themovie
+                - status: {}
+                  filesystem:
+                    path: /the-current-path/bigbuckbunny-4k.mp4
+                    filekey:
+                      inode: 42
+                      stDev: 12
+                      edate: 12
+                      edateNano: 3
+                    lastSeen: 2018-11-20T20:12:01Z
+                  s3:
+                    bucket: big_bucket
+                    objectPath: themovie
+                _metainfo:
+                  perPage: 2
+                  totalCount: 28
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
   /api/v1/assets/{uuid}/binary:
     description: Create a binary for the asset
     get:
       tags:
       - assets
-      summary: Load the binary for the asset
-      description: Load the binary for the asset
+      summary: Load the primary binary for the asset. An asset holds one binary per
+        library it was imported into; this returns the oldest. Use /binaries for all
+        of them.
+      description: Load the primary binary for the asset. An asset holds one binary
+        per library it was imported into; this returns the oldest. Use /binaries for
+        all of them.
       operationId: getAssetsByUuidBinary
       responses:
         "200":
@@ -2623,14 +2710,20 @@ paths:
         type: string
         format: uuid
   /api/v1/assets/{uuid}/binary/data:
-    description: Upload raw file bytes into the binary for an existing asset. Expects
-      a multipart request with one file part; a 'libraryUuid' form field is required
-      only when the asset has no binary yet.
+    description: "Upload raw file bytes into the binary for an existing asset. Expects\
+      \ a multipart request with one file part named 'file'. The 'libraryUuid' form\
+      \ field is required when the asset has no binary yet, and when it has more than\
+      \ one - otherwise the server cannot tell which library's binary to replace and\
+      \ answers 400."
     get:
       tags:
       - assets
-      summary: Download the raw binary bytes for the asset.
-      description: Download the raw binary bytes for the asset.
+      summary: "Download the raw bytes of the asset's primary binary, from whichever\
+        \ backend holds them. Supports single-range 'Range: bytes=' requests, answering\
+        \ 206 with Content-Range, so media can be seeked without refetching."
+      description: "Download the raw bytes of the asset's primary binary, from whichever\
+        \ backend holds them. Supports single-range 'Range: bytes=' requests, answering\
+        \ 206 with Content-Range, so media can be seeked without refetching."
       operationId: getAssetsByUuidBinaryData
       responses:
         "400":
@@ -2666,14 +2759,35 @@ paths:
     post:
       tags:
       - assets
-      summary: Upload raw file bytes into the binary for an existing asset. Expects
-        a multipart request with one file part; a 'libraryUuid' form field is required
-        only when the asset has no binary yet.
-      description: Upload raw file bytes into the binary for an existing asset. Expects
-        a multipart request with one file part; a 'libraryUuid' form field is required
-        only when the asset has no binary yet.
+      summary: "Upload raw file bytes into the binary for an existing asset. Expects\
+        \ a multipart request with one file part named 'file'. The 'libraryUuid' form\
+        \ field is required when the asset has no binary yet, and when it has more\
+        \ than one - otherwise the server cannot tell which library's binary to replace\
+        \ and answers 400."
+      description: "Upload raw file bytes into the binary for an existing asset. Expects\
+        \ a multipart request with one file part named 'file'. The 'libraryUuid' form\
+        \ field is required when the asset has no binary yet, and when it has more\
+        \ than one - otherwise the server cannot tell which library's binary to replace\
+        \ and answers 400."
       operationId: postAssetsByUuidBinaryData
       responses:
+        "200":
+          description: The location response
+          content:
+            application/json:
+              example:
+                status: {}
+                filesystem:
+                  path: /the-current-path/bigbuckbunny-4k.mp4
+                  filekey:
+                    inode: 42
+                    stDev: 12
+                    edate: 12
+                    edateNano: 3
+                  lastSeen: 2018-11-20T20:12:01Z
+                s3:
+                  bucket: big_bucket
+                  objectPath: themovie
         "400":
           description: Bad request - validation error or malformed path/query parameter
           content:
@@ -6324,17 +6438,133 @@ paths:
         pattern: "^[a-fA-F0-9]{128}$"
         type: string
   /api/v1/assets/upload:
-    description: Upload a file to create an asset. Expects a multipart request with
-      one file part and a 'libraryUuid' form field.
+    description: "Upload a file to create an asset. Expects a multipart request with\
+      \ one file part named 'file', a required 'libraryUuid' form field and an optional\
+      \ 'origin'. The target library's storage pool decides whether the bytes land\
+      \ on a filesystem or in S3. Answers 201 for new content and 200 when an asset\
+      \ with the same SHA-512 already exists."
     post:
       tags:
       - assets
-      summary: Upload a file to create an asset. Expects a multipart request with
-        one file part and a 'libraryUuid' form field.
-      description: Upload a file to create an asset. Expects a multipart request with
-        one file part and a 'libraryUuid' form field.
+      summary: "Upload a file to create an asset. Expects a multipart request with\
+        \ one file part named 'file', a required 'libraryUuid' form field and an optional\
+        \ 'origin'. The target library's storage pool decides whether the bytes land\
+        \ on a filesystem or in S3. Answers 201 for new content and 200 when an asset\
+        \ with the same SHA-512 already exists."
+      description: "Upload a file to create an asset. Expects a multipart request\
+        \ with one file part named 'file', a required 'libraryUuid' form field and\
+        \ an optional 'origin'. The target library's storage pool decides whether\
+        \ the bytes land on a filesystem or in S3. Answers 201 for new content and\
+        \ 200 when an asset with the same SHA-512 already exists."
       operationId: postAssetsUpload
       responses:
+        "200":
+          description: The asset response
+          content:
+            application/json:
+              example:
+                uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                status:
+                  creator:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  created: 2018-10-12T14:15:06Z
+                  editor:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  edited: 2018-11-20T20:12:01Z
+                meta:
+                  abc: cdef
+                geo:
+                  lon: 32.56
+                  lat: 52.156
+                tags:
+                - uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  name: red
+                annotations:
+                - status: {}
+                  meta:
+                    abc: cdef
+                  title: Intro Feedback
+                  area:
+                    from: 0
+                    to: 10
+                  description: The very nice intro
+                  tasks:
+                  - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                    status: {}
+                    title: Fix text offset here
+                    description: The text is not aligned with the title
+                    comments:
+                    - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                      status: {}
+                      title: Great work!
+                      text: What a great choice of colors!
+                      social:
+                        rating:
+                          stars: 10
+                          upVotes: 42
+                          downVotes: 0
+                        reactions:
+                          SATISFIED: 10
+                  comments:
+                  - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                    status: {}
+                    title: Great work!
+                    text: What a great choice of colors!
+                    social:
+                      rating:
+                        stars: 10
+                        upVotes: 42
+                        downVotes: 0
+                      reactions:
+                        SATISFIED: 10
+                  thumbnail: ???
+                  tags:
+                  - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                    name: blue
+                collections: []
+                embeddings: []
+                file:
+                  mimeType: video/mp4
+                  filename: bigbuckbunny-4k.mp4
+                  size: 42000000
+                  origin: https://www.youtube.com/watch?v=aqz-KE-bpKQ
+                  firstSeen: 2018-10-12T14:15:06Z
+                hashes:
+                  sha512: 0e3e75234abc68f4378a86b3f4b32a198ba301845b0cd6e50106e874345700cc6663a86c1ea125dc5e92be17c98f9a0f85ca9d5f595db2012f7cc3571945c123
+                  sha256: f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2
+                  md5: d8e8fca2dc0f896fd7cb4cb0031ba249
+                geoComponents: []
+                imageComponents:
+                - dominantColor: "#FFFF00"
+                videoComponents:
+                - width: 4000
+                  height: 2250
+                  duration: 20000
+                audioComponents:
+                - channels: 2
+                  encoding: mp3
+                  samplingRate: 48000
+                  bpm: 120
+                documentComponents: []
+                locations:
+                - status: {}
+                  poolUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                  mimeType: video/mp4
+                  state: PRESENT
+                  license: CC-BY-4.0
+                  filesystem:
+                    path: /the-current-path/bigbuckbunny-4k.mp4
+                    filekey:
+                      inode: 42
+                      stDev: 12
+                      edate: 12
+                      edateNano: 3
+                    lastSeen: 2018-11-20T20:12:01Z
+                  s3:
+                    bucket: big_bucket
+                    objectPath: themovie
         "400":
           description: Bad request - validation error or malformed path/query parameter
           content:
@@ -6360,7 +6590,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/GenericMessageResponse"
   /api/v1/attachments:
-    description: Create new attachment
+    description: "Create a new attachment from an uploaded file. Expects a multipart\
+      \ request with one file part named 'file'. Optional form fields: 'assetUuid'\
+      \ (the asset this attachment describes - its storage pool then also receives\
+      \ these bytes), 'embeddingUuid', 'type' (CONTACT_SHEET, POSTER_FRAME, WAVEFORM,\
+      \ PROXY, EXTRACTED_AUDIO, ...) and 'poolUuid'."
     get:
       tags:
       - attachments
@@ -6463,8 +6697,16 @@ paths:
     post:
       tags:
       - attachments
-      summary: Create new attachment
-      description: Create new attachment
+      summary: "Create a new attachment from an uploaded file. Expects a multipart\
+        \ request with one file part named 'file'. Optional form fields: 'assetUuid'\
+        \ (the asset this attachment describes - its storage pool then also receives\
+        \ these bytes), 'embeddingUuid', 'type' (CONTACT_SHEET, POSTER_FRAME, WAVEFORM,\
+        \ PROXY, EXTRACTED_AUDIO, ...) and 'poolUuid'."
+      description: "Create a new attachment from an uploaded file. Expects a multipart\
+        \ request with one file part named 'file'. Optional form fields: 'assetUuid'\
+        \ (the asset this attachment describes - its storage pool then also receives\
+        \ these bytes), 'embeddingUuid', 'type' (CONTACT_SHEET, POSTER_FRAME, WAVEFORM,\
+        \ PROXY, EXTRACTED_AUDIO, ...) and 'poolUuid'."
       operationId: postAttachments
       responses:
         "200":
@@ -6640,6 +6882,53 @@ paths:
       responses:
         "204":
           description: The delete response
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/attachments/{uuid}/data:
+    description: Download the raw bytes of an attachment.
+    get:
+      tags:
+      - attachments
+      summary: Download the raw bytes of an attachment.
+      description: Download the raw bytes of an attachment.
+      operationId: getAttachmentsByUuidData
+      responses:
         "400":
           description: Bad request - validation error or malformed path/query parameter
           content:
@@ -11585,7 +11874,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: d6b7f3ac-1e39-42e9-9604-6cd0599396bb
+                  versionUuid: 190d40a3-a444-46bb-a2e1-0ee748386f9f
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -11606,7 +11895,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: f68aac00-a379-4ed7-be49-cd58b3579ee0
+                  versionUuid: 5d0ee635-1e14-4f1d-a885-f0935d702ab0
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -11679,7 +11968,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 6b4d6e9b-455d-4271-a167-aaae4cf22a36
+                versionUuid: c93d305b-8b7a-4a15-a1cb-eaaca5ac2b6c
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -11738,7 +12027,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 1e3daa55-b438-4079-8edd-0cbc53966dcf
+                versionUuid: 03df7165-36cc-4597-ba70-76dc31d3fad3
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -11810,7 +12099,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 3dc8af43-1ccc-4bd9-add0-3ec299bfce07
+                versionUuid: a38a72df-f917-4ac1-9a1d-f7f22bcbe2ea
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -11919,7 +12208,7 @@ paths:
           content:
             application/json:
               example:
-                runUuid: 874bc851-2e2c-4173-a1ab-f4cec9f077c3
+                runUuid: cc946a97-e100-4ce9-8ffc-0beb53739097
                 processorNodeId: cortex-01
                 dispatched: true
                 message: Pipeline run dispatched
@@ -12007,11 +12296,11 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: 2b42b125-a50b-4317-ac28-3bfa1c9d507d
-                  pipelineUuid: 523eedf0-232d-4e78-8a58-c20ced51e13d
+                - uuid: 455734bb-1fa6-47bb-a378-de2b4ec34ab9
+                  pipelineUuid: 73e43559-195a-4bf7-a860-e879cb6cdcbe
                   pipelineVersion: 1
-                  started: 2026-07-30T08:30:52.580979459Z
-                  finished: 2026-07-30T08:30:52.580991779Z
+                  started: 2026-08-01T16:59:56.156235437Z
+                  finished: 2026-08-01T16:59:56.156246887Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -12019,11 +12308,11 @@ paths:
                   skippedCount: 2
                   dryRun: false
                   durationMs: 45000
-                - uuid: 8986d98f-cf2a-4505-82e4-fc08d180c945
-                  pipelineUuid: f39e91fe-9d05-49a8-a6e8-93d26316160a
+                - uuid: 9fd798ee-32c7-443a-a361-7c611c21a22c
+                  pipelineUuid: c926aae3-e0c1-4cbb-99dc-5763cfb5a687
                   pipelineVersion: 1
-                  started: 2026-07-30T08:30:52.581008629Z
-                  finished: 2026-07-30T08:30:52.581011259Z
+                  started: 2026-08-01T16:59:56.156263717Z
+                  finished: 2026-08-01T16:59:56.156267107Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -12086,11 +12375,11 @@ paths:
           content:
             application/json:
               example:
-                uuid: dcf853ed-5b01-4545-8351-831d38810923
-                pipelineUuid: 0dbdbfec-ef3d-49be-9cdf-1add8a08ab5c
+                uuid: ee504973-6033-40f3-af92-86fac7736b47
+                pipelineUuid: 318960fc-6688-4a7a-98db-95fb0519d1ef
                 pipelineVersion: 1
-                started: 2026-07-30T08:30:52.581059198Z
-                finished: 2026-07-30T08:30:52.581062348Z
+                started: 2026-08-01T16:59:56.156315187Z
+                finished: 2026-08-01T16:59:56.156317587Z
                 status: SUCCESS
                 mediaCount: 100
                 successCount: 95
@@ -12245,15 +12534,15 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: 9b49272b-b5c5-4427-a423-e97ad37a2fe9
-                  runUuid: d0dc5361-d731-441e-8ef4-4f37f2dfdcb3
+                - uuid: edff01d9-075f-4643-b928-4c03d5bbdee4
+                  runUuid: 1b0af8e1-313c-4ca9-8651-a1ed3df76ac0
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
                   sizeBytes: 1048576
                   state: SUCCESS
-                - uuid: 59ca17b0-3f10-4aad-98b4-8f7303c07cba
-                  runUuid: 2a5d9bba-2d16-4b8f-b35f-33ab33867c53
+                - uuid: 2e9102e6-d57f-46ce-b8a6-ef749f4d9ebc
+                  runUuid: 6ebbe3ac-d94b-4604-96fa-3e88a94e0227
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
@@ -12477,7 +12766,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 6c6a8893-efd9-4f8c-ac45-c3830f4bbbb7
+                  versionUuid: ce9f8b5d-a3bd-40a0-a07c-7516a97d5ff2
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -12498,7 +12787,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: df29dec0-1190-452e-bba3-a5ec88776df1
+                  versionUuid: b7cadf2d-261d-4aa8-947f-cd0f69273b43
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -12574,7 +12863,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 88cc6301-046b-4911-bca7-728241196f7a
+                versionUuid: 99d2fdac-1105-4aad-9876-3cc979809e2d
                 versionNumber: 2
                 name: my-pipeline
                 description: A sample pipeline
@@ -12660,7 +12949,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 4abbe18c-5800-4b32-bfeb-be6a1ee2120b
+                versionUuid: 4711b6f9-93a7-47bf-9663-39e70686ca7e
                 versionNumber: 2
                 name: restored-pipeline
                 description: Restored from version 1

@@ -39,11 +39,11 @@ public class CortexImpl implements Cortex {
 	private CountDownLatch latch = new CountDownLatch(1);
 
 	/**
-	 * JVM shutdown hook that flushes the bulk-sync buffer so a {@code SIGTERM} does not silently discard already-computed
-	 * results that have not yet reached Loom. Registered in {@link #run(boolean)} and removed again during a graceful
-	 * {@link #shutdown()} (which flushes explicitly).
+	 * JVM shutdown hook that runs the graceful shutdown, so a {@code SIGTERM} flushes computed results and drains
+	 * in-flight tasks instead of abandoning both. Registered in {@link #run(boolean)} and removed again by a
+	 * {@link #shutdown()} that was called directly.
 	 */
-	private Thread syncFlushHook;
+	private Thread shutdownHook;
 
 	@Inject
 	public CortexImpl(CortexOptions options, Lazy<Set<CortexNode<?, ?>>> nodes, CortexBootstrapInitializer boot,
@@ -71,7 +71,7 @@ public class CortexImpl implements Cortex {
 		try {
 			log.info("Starting Cortex...");
 			shutdown = false;
-			registerSyncFlushHook();
+			registerShutdownHook();
 			boot.init(options.getMonitoringPort());
 		} catch (Exception e) {
 			log.error("Error while starting Cortex", e);
@@ -85,16 +85,16 @@ public class CortexImpl implements Cortex {
 	}
 
 	@Override
-	public void shutdown() {
+	public synchronized void shutdown() {
 		if (shutdown) {
 			log.info("Instance is already shut down...");
 			return;
 		}
 		log.info("Cortex shutting down...");
 		// Flush pending sync results while the Loom client is still available, then drop the JVM hook (it is only a
-		// safety net for abrupt exits such as SIGTERM).
+		// safety net for an exit that does not come through here).
 		flushSyncBuffer();
-		unregisterSyncFlushHook();
+		unregisterShutdownHook();
 		try {
 			boot.deinit();
 		} catch (Exception e) {
@@ -125,29 +125,36 @@ public class CortexImpl implements Cortex {
 	}
 
 	/**
-	 * Register a JVM shutdown hook that flushes the bulk-sync buffer. This closes the window in which an abrupt exit
-	 * (e.g. {@code SIGTERM}) would discard results that were computed but not yet pushed to Loom. A graceful
-	 * {@link #shutdown()} flushes explicitly and removes the hook again, so it only fires on abrupt termination.
+	 * Register a JVM shutdown hook that runs the ordinary graceful shutdown.
+	 *
+	 * <p>{@code SIGTERM} is how a worker is normally stopped - {@code docker stop}, a Kubernetes
+	 * eviction, a systemd restart - and it does not come through {@link #shutdown()} on its own. Without
+	 * this hook such a stop would discard results computed but not yet pushed to Loom, and would abandon
+	 * every task the worker held until its lease lapsed. Both are what {@link #shutdown()} exists to
+	 * avoid, so the hook simply calls it.</p>
+	 *
+	 * <p>A graceful shutdown removes the hook again, so it fires at most once.</p>
 	 */
-	private synchronized void registerSyncFlushHook() {
-		if (syncFlushHook != null) {
+	private synchronized void registerShutdownHook() {
+		if (shutdownHook != null) {
 			return;
 		}
-		syncFlushHook = new Thread(this::flushSyncBuffer, "cortex-sync-flush");
-		Runtime.getRuntime().addShutdownHook(syncFlushHook);
+		shutdownHook = new Thread(this::shutdown, "cortex-shutdown");
+		Runtime.getRuntime().addShutdownHook(shutdownHook);
 	}
 
-	private synchronized void unregisterSyncFlushHook() {
-		if (syncFlushHook == null) {
+	private synchronized void unregisterShutdownHook() {
+		if (shutdownHook == null) {
 			return;
 		}
 		try {
-			Runtime.getRuntime().removeShutdownHook(syncFlushHook);
+			Runtime.getRuntime().removeShutdownHook(shutdownHook);
 		} catch (IllegalStateException e) {
-			// The JVM is already shutting down and running hooks - nothing to remove.
-			log.debug("Could not remove sync-flush shutdown hook, JVM is already shutting down.", e);
+			// The JVM is already shutting down and running hooks - which is the case when
+			// this very hook is what called shutdown(). Nothing to remove.
+			log.debug("Could not remove the shutdown hook, JVM is already shutting down.", e);
 		}
-		syncFlushHook = null;
+		shutdownHook = null;
 	}
 
 	/**

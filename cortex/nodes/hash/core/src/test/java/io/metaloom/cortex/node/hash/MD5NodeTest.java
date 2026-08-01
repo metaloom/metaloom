@@ -31,6 +31,10 @@ public class MD5NodeTest extends AbstractBasicNodeTest<MD5Node> {
 	@Override
 	public MD5Node mockNode(LoomClient client, CortexOptions cortexOptions) {
 		HashNodeOptions options = mock(HashNodeOptions.class);
+		// A Mockito mock answers false by default, so an unstubbed isEnabled() makes
+		// AbstractMediaNode#process return SKIPPED("Disabled") before it looks at anything
+		// else - including the missing-file check that testProcessMissing asserts on.
+		when(options.isEnabled()).thenReturn(true);
 		when(options.isMD5()).thenReturn(true);
 		return new MD5Node(client, cortexOptions, options);
 	}

@@ -90,7 +90,19 @@ These are the top-level flags on the `cortex` command (defined in
 | `--port` | `-p` | `LOOM_PORT` | `7733` | Loom server HTTP port |
 | `--monitoring-port` | — | `CORTEX_MONITORING_PORT` | `8093` | Monitoring HTTP port (health/ready) |
 | `--meta-path` | — | `CORTEX_META_PATH` | `~/.cache/metaloom/cortex/meta` | Base path for metadata storage |
+| `--node-id` | — | `CORTEX_NODE_ID` | — | Stable identity this worker registers under. Required by `server start`; must be unique per worker and survive restarts |
+| `--node-whitelist` | — | `CORTEX_NODE_WHITELIST` | — | Node kinds this worker will execute. Announces everything it can run when unset |
+| `--node-blacklist` | — | `CORTEX_NODE_BLACKLIST` | — | Node kinds this worker refuses. Wins over the whitelist |
+| `--drain-timeout-ms` | — | `CORTEX_DRAIN_TIMEOUT_MS` | `30000` | How long a shutdown lets running tasks finish before handing them back to Loom |
 | `-v` | — | — | — | Verbosity: `-v` = DEBUG, `-vv` = TRACE |
+
+**On `--drain-timeout-ms`.** The default matches Kubernetes' 30 second termination
+grace period: waiting longer than the orchestrator will is pointless, since the
+process is killed mid-drain and the tasks fall back to lease expiry anyway. A
+deployment running minutes-long nodes (whisper, OCR) should raise this **and** the
+orchestrator's grace period together, or accept that those tasks are re-placed on
+another worker rather than finished here. `0` hands every running task straight
+back. See [CORTEX.md §7.4](CORTEX.md).
 
 ### 2.1 Additional Environment Variables
 
@@ -142,6 +154,9 @@ cortex server start [-a <actions>]
 | `dryrun` | `boolean` | `false` | Global dry-run mode (nodes log but don't mutate) |
 | `metaPath` | `Path` | `null` (CLI default: `~/.cache/metaloom/cortex/meta`) | Base path for metadata storage files |
 | `monitoringPort` | `int` | `8093` | Monitoring HTTP port |
+| `nodeId` | `String` | `null` | Stable identity this worker registers under |
+| `nodeWhitelist` / `nodeBlacklist` | `Set<String>` | `null` | Node-kind restrictions; null/empty whitelist means "anything" |
+| `drainTimeoutMs` | `long` | `30000` | Grace period a shutdown gives running tasks before returning them |
 
 ### 3.1 LoomClientOptions
 
@@ -189,7 +204,6 @@ constant.
 | Scene | `scene-detection` | `SceneDetectionOptions` | (no custom fields) |
 | Consistency | `consistency` | `ConsistencyNodeOptions` | (no custom fields) |
 | Tika | `tika` | `TikaNodeOptions` | (tika-specific fields) |
-| Loom | `loom` | `LoomNodeOptions` | (no custom fields) |
 
 > **See [NODES.md](../features/pipeline-nodes/NODES.md) Section 5** for the full node options reference
 > with all fields and their types.

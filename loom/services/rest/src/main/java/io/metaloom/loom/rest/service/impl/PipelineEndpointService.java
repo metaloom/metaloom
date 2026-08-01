@@ -171,6 +171,10 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 			PipelineCreateRequest request = lrc.requestBody(PipelineCreateRequest.class);
 			validator.validate(request);
 			pipelineValidationService.validateDefinition(request.getDefinition());
+			// Stamp the format version so what is stored names the format it is in. Done on the
+			// way in rather than on the way out: a definition read back has to be interpretable
+			// by itself, without knowing which Loom happened to serve it.
+			PipelineGraphParser.stampVersion(request.getDefinition());
 
 			UUID userUuid = lrc.userUuid();
 			Pipeline pipeline = dao().createPipeline(userUuid, request.getName());
@@ -209,6 +213,7 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 			validator.validate(request);
 			if (request.getDefinition() != null) {
 				pipelineValidationService.validateDefinition(request.getDefinition());
+				PipelineGraphParser.stampVersion(request.getDefinition());
 			}
 
 			UUID userUuid = lrc.userUuid();

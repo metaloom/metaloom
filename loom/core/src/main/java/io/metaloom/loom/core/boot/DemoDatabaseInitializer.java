@@ -1175,7 +1175,9 @@ public class DemoDatabaseInitializer {
 			1,
 			name,
 			description,
-			definition,
+			// Stamped exactly as the REST create path does, so demo data is not the one
+			// corner of the system that stores definitions without naming their format.
+			io.metaloom.loom.pipeline.graph.PipelineGraphParser.stampVersion(definition),
 			enabled,
 			priority,
 			dryRun,
@@ -1263,11 +1265,9 @@ public class DemoDatabaseInitializer {
 		return new JsonObject()
 				.put("nodes", new JsonArray()
 					.add(node("pn1", "filesystem-source", "File Source", "Watch local folder", 60, 120))
-					.add(node("pn2", "sha256", "SHA-256 Hash", "Compute SHA-256 digest", 300, 120))
-					.add(node("pn3", "loom", "Loom Output", "Persist to Loom", 540, 120)))
+					.add(node("pn2", "sha256", "SHA-256 Hash", "Compute SHA-256 digest", 300, 120)))
 				.put("edges", new JsonArray()
-					.add(edge("pe1", "pn1", "media", "pn2", "media"))
-					.add(edge("pe2", "pn2", "hash", "pn3", "sha256")));
+					.add(edge("pe1", "pn1", "media", "pn2", "media")));
 	}
 
 	static JsonObject mediumDefinition() {
@@ -1276,13 +1276,11 @@ public class DemoDatabaseInitializer {
 					.add(node("pn1", "filesystem-source", "File Source", "Watch ingest folder", 60, 160))
 					.add(node("pn2", "filter-mimetype", "MIME Filter", "Accept video and image types", 260, 160))
 					.add(node("pn3", "sha256", "SHA-256 Hash", "Compute hash", 460, 60))
-					.add(node("pn4", "fingerprint", "Fingerprint", "Audio/video fingerprint", 460, 260))
-					.add(node("pn5", "loom", "Loom Output", "Store results", 680, 160)))
+					.add(node("pn4", "fingerprint", "Fingerprint", "Audio/video fingerprint", 460, 260)))
 				.put("edges", new JsonArray()
 					.add(edge("pe1", "pn1", "media", "pn2", "media"))
 					.add(edge("pe2", "pn2", "media", "pn3", "media"))
-					.add(edge("pe3", "pn2", "media", "pn4", "media"))
-					.add(edge("pe4", "pn3", "hash", "pn5", "sha256")));
+					.add(edge("pe3", "pn2", "media", "pn4", "media")));
 	}
 
 	static JsonObject complexDefinition() {
@@ -1294,7 +1292,6 @@ public class DemoDatabaseInitializer {
 					.add(node("pn4", "fingerprint", "Fingerprint", "Video fingerprint", 440, 150))
 					.add(node("pn5", "facedetect", "Face Detection", "Detect faces with InspireFace", 440, 270))
 					.add(node("pn6", "facedescription", "Face Description", "Describe each detected face", 680, 270))
-					.add(node("pn7", "loom", "Loom Output", "Persist metadata", 900, 40))
 					.add(node("pn8", "thumbnail", "Thumbnail", "Generate a contact sheet", 440, 390))
 					.add(node("pn9", "s3-sink", "S3 Delivery", "Upload the contact sheet", 680, 390,
 						new JsonObject().put("bucket", "media"))))
@@ -1304,9 +1301,8 @@ public class DemoDatabaseInitializer {
 					.add(edge("pe3", "pn2", "media", "pn4", "media"))
 					.add(edge("pe4", "pn2", "media", "pn5", "image"))
 					.add(edge("pe5", "pn5", "detections", "pn6", "detections"))
-					.add(edge("pe6", "pn3", "hash", "pn7", "sha256"))
-					.add(edge("pe7", "pn2", "media", "pn8", "media"))
-					.add(edge("pe8", "pn8", "thumbnail", "pn9", "artifacts")));
+					.add(edge("pe6", "pn2", "media", "pn8", "media"))
+					.add(edge("pe7", "pn8", "thumbnail", "pn9", "artifacts")));
 	}
 
 	static JsonObject s3IngestDefinition() {
@@ -1318,11 +1314,9 @@ public class DemoDatabaseInitializer {
 							.put("prefix", "incoming/")
 							.put("suffixes", "mp4,mkv,mov,jpg,jpeg,png")
 							.put("emitStates", new JsonArray().add("NEW").add("MODIFIED"))))
-					.add(node("pn2", "sha512", "SHA-512 Hash", "Compute the content identity", 300, 160))
-					.add(node("pn3", "loom", "Loom Output", "Persist to Loom", 540, 160)))
+					.add(node("pn2", "sha512", "SHA-512 Hash", "Compute the content identity", 300, 160)))
 				.put("edges", new JsonArray()
-					.add(edge("pe1", "pn1", "media", "pn2", "media"))
-					.add(edge("pe2", "pn2", "hash", "pn3", "sha512")));
+					.add(edge("pe1", "pn1", "media", "pn2", "media")));
 	}
 
 	static JsonObject s3PublishDefinition() {

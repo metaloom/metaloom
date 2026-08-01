@@ -100,11 +100,6 @@
         </dependency>
         <dependency>
             <groupId>io.metaloom.cortex</groupId>
-            <artifactId>cortex-loom-node</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.metaloom.cortex</groupId>
             <artifactId>cortex-captioning-node</artifactId>
             <version>${project.version}</version>
         </dependency>

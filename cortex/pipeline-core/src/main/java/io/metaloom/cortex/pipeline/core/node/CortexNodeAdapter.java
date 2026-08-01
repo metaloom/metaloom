@@ -36,7 +36,15 @@ public class CortexNodeAdapter extends AbstractPipelineNode {
 
 	/**
 	 * Alternate constructor which allows overriding the pipeline node id (defaults to {@code wrappedNode.name()}).
-	 * Useful when a downstream node expects a specific upstream node id that does not match the wrapped node's own name.
+	 *
+	 * <p>
+	 * The id names <em>this</em> node within the graph — it is what a pipeline definition uses when several
+	 * instances of one kind appear in the same graph. It does <strong>not</strong> affect what data the node
+	 * receives: inputs are delivered by typed port, and the edge says where each one comes from. The override
+	 * used to carry that second meaning (the {@code loom} sink read an upstream node id {@code "md5sum"} that
+	 * no kind was ever called, so the MD5 adapter had to be built under that name); both the lookup and the
+	 * sink are gone.
+	 * </p>
 	 */
 	public CortexNodeAdapter(String id, FilesystemNode<?, ?> wrappedNode, NodeMode mode, boolean blocking, int concurrency) {
 		this(id, wrappedNode, mode, blocking, concurrency, 0);

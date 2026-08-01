@@ -103,11 +103,6 @@
             <artifactId>cortex-s3-common</artifactId>
             <version>${loom.cortex.version}</version>
         </dependency>
-        <dependency>
-            <groupId>io.metaloom.cortex</groupId>
-            <artifactId>cortex-loom-node</artifactId>
-            <version>${loom.cortex.version}</version>
-        </dependency>
         <!-- Processing nodes exercised end-to-end by the *NodeIntegrationTest suite. -->
         <dependency>
             <groupId>io.metaloom.cortex</groupId>

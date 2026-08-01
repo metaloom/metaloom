@@ -15,6 +15,10 @@ public interface DocData extends TestData {
 			.md5("e63db7208fcc07efe837a0e0343bbe06")
 			.sha256("d23bb8986bcbbed15c80d71164af1deb2c9b5d22e21767bfc4fb2ece50cefe76")
 			.sha512("5580cbaea0066a1fa4a5f5b2aa42c797b10e3936ddf77f6148554c28f99dacfeb5b15148726c106868a0eb4670cabf2790c939d38059e1fd8326f6c0f9f403bd")
+			// Below the chunking threshold, so the chunk hash degenerates to a plain
+			// SHA-256 over the whole file and matches sha256 above. Only video1 is large
+			// enough to actually be chunked.
+			.chunkHash("d23bb8986bcbbed15c80d71164af1deb2c9b5d22e21767bfc4fb2ece50cefe76")
 			.build();
 	}
 

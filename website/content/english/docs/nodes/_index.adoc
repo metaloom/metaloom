@@ -84,7 +84,6 @@ The built-in nodes fall into four categories.
 | link:s3-source/[S3 Source] (`s3-source`) | — (source) | Enumerate media from S3-compatible object storage, picking up only what changed
 | link:filters/[Filters] (`filter-*`) | — (routing) | Route items down the PASS or REJECT branch of a `passed` port
 | link:script/[Script] (`script`) | Any | Run your own code as a pipeline step and emit declared ports — list outputs fan out
-| link:loom/[Loom Sync] (`loom`) | Any | Batch hash results back to Loom, one input port per algorithm
 | link:s3-sink/[S3 Sink] (`s3-sink`) | Any | Upload produced files to an S3 bucket and register them as assets — its `artifacts` port takes **many**
 |===
 
@@ -109,7 +108,7 @@ Most nodes are pure CPU. A few need a native library or an external model servic
 | A depth sidecar (Depth Anything V2 Small; CPU is enough, GPU is much faster) | `depthmap`
 | The `ffmpeg` / `ffprobe` binaries on `PATH` | `watermark` (video only — the image path needs nothing)
 | S3-compatible object storage (AWS S3, MinIO, Ceph) | `s3-source`, `s3-sink`
-| CPU only | `md5`/`sha256`/`sha512`/`chunk-hash`, `consistency`, `tika`, `filesystem-source`, `loom`, `script`, `scene-layout`, `dominant-color`, `watermark` (images), filters, dedup
+| CPU only | `md5`/`sha256`/`sha512`/`chunk-hash`, `consistency`, `tika`, `filesystem-source`, `script`, `scene-layout`, `dominant-color`, `watermark` (images), filters, dedup
 |===
 
 Pin the heavy kinds to dedicated or GPU workers via `CORTEX_NODE_WHITELIST` — see

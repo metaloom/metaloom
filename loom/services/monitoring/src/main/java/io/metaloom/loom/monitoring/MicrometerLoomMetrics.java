@@ -86,6 +86,11 @@ public class MicrometerLoomMetrics implements LoomMetrics {
 	}
 
 	@Override
+	public void recordTaskReturned(String nodeId) {
+		registry.counter("loom_tasks_returned", "node", nodeId == null ? "unknown" : nodeId).increment();
+	}
+
+	@Override
 	public void recordPipelineEventBroadcast() {
 		registry.counter("loom_pipeline_events_broadcast").increment();
 	}

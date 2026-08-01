@@ -92,7 +92,7 @@ supertype of `detection/face` is structurally `detection/*`.
 | **media** | `media/*` · `media/image` · `media/video` · `media/audio` · `media/document` | What a source emits and what a processing node consumes. `media/document` is now declared by `tika`-class consumers rather than being dead |
 | **text** | `text/*` · `text/plain` · `text/transcript` · `text/caption` | `text/*` is what `sentiment`, `tts`, `filter-blacklist` and `imagegen`'s prompt port accept |
 | **detection** | `detection/*` · `detection/face` · `detection/object` · `detection/region` | `detection/*` is what `scene-layout` and `dominant-color` accept, so faces *or* objects can drive them |
-| **hash** | `hash/*` · `hash/md5` · `hash/sha256` · `hash/sha512` · `hash/chunk` · `hash/fingerprint` | Split per algorithm. This is what lets `loom` bind by **port type** instead of by node id |
+| **hash** | `hash/*` · `hash/md5` · `hash/sha256` · `hash/sha512` · `hash/chunk` · `hash/fingerprint` | Split per algorithm, so a consumer binds by **port type** instead of by node id |
 | **scalar** | `scalar/*` · `scalar/string` · `scalar/integer` · `scalar/number` · `scalar/boolean` | `scalar/integer` is **always 64-bit** — it merges the former `data/integer` and `data/long` |
 | **artifact** | `artifact/*` · `artifact/image` · `artifact/video` · `artifact/audio` · `artifact/file` | A **worker-local produced file**, distinct from a resolvable media reference. Prevents wiring a thumbnail path into a node that expects to open a media item. `artifact/video` is what `watermark` emits for a video item |
 | **struct** | `struct/*` · `struct/embedding` · `struct/segments` · `struct/scene-layout` · `struct/quality` · `struct/depthmap` · `struct/color` · `struct/json` | Structured JSON payloads |
@@ -306,12 +306,12 @@ Every filter emits a single `passed : control/filter`. They differ only in what 
 |---|---|---|
 | `hash-dedup` | `hash : hash/*` | — |
 | `fingerprint-dedup` | `fingerprint : hash/fingerprint` | — |
-| `loom` | `md5 : hash/md5` *(opt)*, `sha256 : hash/sha256` *(opt)*, `sha512 : hash/sha512` *(opt)* | — |
 | `s3-sink` | `artifacts : artifact/*` **MANY** | `result : struct/json`, `count : scalar/integer`, `flag : scalar/string` |
 
-`loom`'s three optional hash ports are what kills the `md5sum` id-override trap: the sink binds by
-**port type**, so renaming the upstream node cannot silently detach it
-([LoomNodeDescriptorProvider.java:28-35](../../../loom-shared/node-model/src/main/java/io/metaloom/loom/nodes/spec/LoomNodeDescriptorProvider.java#L28-L35)).
+A fourth sink, `loom`, used to sit here with three optional hash input ports. Porting it to bind by
+**port type** killed the `md5sum` id-override trap; it was then deleted altogether, because every hash
+node already persists its own hash inside `compute()` and `bulkUpdateAssets` cannot create an asset it
+does not find. See [NODES.md](../pipeline-nodes/NODES.md) §2.
 
 ---
 
@@ -666,11 +666,11 @@ graph LR
 | # | Was | How it is fixed |
 |---|---|---|
 | 1 | `SentimentNode`'s default `textSources` (`llm:llm_result`) could never match the emitted `llm_result_<promptId>` | `sentiment` declares `text : text/* ONE` and the *edge* says where the text comes from; `LlmPortResolver` derives the ports from the same `prompts` option the node reads. The `textSources` option is deleted |
-| 2 | `LoomNode` read `("md5sum","md5")` while the kinds are `md5`/`sha256`, needing an unenforced adapter id override | `loom` declares `md5 : hash/md5`, `sha256 : hash/sha256`, `sha512 : hash/sha512` and `LoomNode` reads `ctx.input(IN_MD5)` — a node id can no longer affect data delivery |
+| 2 | `LoomNode` read `("md5sum","md5")` while the kinds are `md5`/`sha256`, needing an unenforced adapter id override | The `loom` sink was given typed hash input ports, so a node id could no longer affect data delivery; the node has since been deleted as redundant with per-node persistence |
 | 3 | `Long` narrowed to `Integer` across the wire, so the typed accessor threw | `scalar/integer` is always 64-bit and `ValueCoercer.coerceInteger` widens on both boundaries ([ValueCoercer.java:78-96](../../../loom-shared/node-model/src/main/java/io/metaloom/loom/nodes/spec/ValueCoercer.java#L78-L96)) |
 | 4 | Outputs were silently discarded on any non-SUCCESS result | `NodeContextImpl.next()` passes `outputs()` on the SKIPPED branch and `abort()` passes it too ([:192-204](../../../cortex/api/src/main/java/io/metaloom/cortex/api/node/context/impl/NodeContextImpl.java#L192-L204)) |
 | 5 | A non-JSON-encodable output wrapped without validation and cleared the whole persist batch | `ValueCoercer.coerceStruct` rejects it at the node boundary, failing one task with a typed message |
-| 6 | Four nodes hard-coded an upstream node id and treated a rename as "absent" | `InputBinding` inverts the direction; a node names only its own ports. `LoomNode` is ported; `FacedescriptionNode`, `FingerprintNode` and `ThumbnailNode` are still in the sweep queue (§11) |
+| 6 | Four nodes hard-coded an upstream node id and treated a rename as "absent" | `InputBinding` inverts the direction; a node names only its own ports. `LoomNode` was ported and then deleted; `FacedescriptionNode`, `FingerprintNode` and `ThumbnailNode` are still in the sweep queue (§11) |
 | 7 | `ContentType.superType` was read by no Java code | The field is deleted; the supertype is structural (`detection/face` → `detection/*`) and `ContentTypeLattice` derives it |
 | 8 | `llm`/`vlm` descriptors declared `llm_result` while the nodes emitted `llm_result_<promptId>` | `PromptPortResolver` derives one `result_<promptId>` port per configured prompt from the same option |
 | 9 | `facedetect` and `whisper` each declared **two inputs named `media`** | They are one `XOR` group with two distinct member ports (`image`/`video`, `audio`/`video`) |
@@ -687,7 +687,7 @@ graph LR
 | 1 | 🔴 **`DaoRunStateStore` ignores `elementSeq`** | Its buffer key is `itemUuid + "/" + nodeId` ([:317-319](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/DaoRunStateStore.java#L317-L319)) and the DAO lookup is `loadByItemAndNode(itemUuid, nodeId)`, which takes no element. Two executions of one node collapse onto one buffered row and then collide on the new `UNIQUE (item_uuid, node_id, element_seq)` from `V2.60`. **The DAO signature has to grow the column too** |
 | 2 | 🔴 **`PipelineRunRecovery` collapses a fanned-out item** | It reads `task.getElementSeq()` correctly, but keys the `settled` map by `task.getNodeId()` **alone** ([:200](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/PipelineRunRecovery.java#L200)), so N element rows overwrite each other and only the last reaches `engine.restoreItem`. The in-code comment two lines above claims the opposite. The receiving side is already correct — `ItemState.record` keys by `(nodeId, elementSeq)` |
 | 3 | 🔴 **`ResultOrigin` never reaches the wire** | `NodeTaskResult` still has no origin field, so `asset_node_result.origin` is always `COMPUTED`. Untouched by this refactor |
-| 4 | 🔴 **`DaoAssetSink` maps only three port ids** | `sha512`/`sha256`/`md5`; everything else on the `syncToLoom` path is logged as unmapped and dropped. Note the hash **descriptors** name their output port `hash` and distinguish the algorithms by *content type* (§4.2), so the sink is matching on ids only `loom`'s input side uses — it should be selecting by `hash/*` subtype instead |
+| 4 | 🔴 **`DaoAssetSink` maps only three port ids** | `sha512`/`sha256`/`md5`; everything else on the `syncToLoom` path is logged as unmapped and dropped. Note the hash **descriptors** name their output port `hash` and distinguish the algorithms by *content type* (§4.2), so the sink is matching on ids no hash node emits — it should be selecting by `hash/*` subtype instead |
 | 5 | **The inline `dependencies[]` fallback bypasses port validation entirely** | §6.1 |
 | 6 | **Recovery re-parses with a null registry** | So a resumed run gets no port checking and no fan-out classification (§6.3) |
 | 7 | **`FILTER_PASSED` still exists as two constants with different values** | `PipelineNode.FILTER_PASSED = "passed"` (cortex/pipeline-api) and `FilterBranch.FILTER_PASSED = "filter_passed"` (loom-shared). The *routing* no longer reads either — `getFilterPassed()` matches on the `control/` family — but the constants have not been reconciled |
@@ -995,7 +995,7 @@ Per-node end-to-end coverage lives in `integration-test/` — see
       on emit and stamps origins
 - [x] Outputs preserved on SKIPPED / FAILED
 - [x] `CortexNodeAdapter.process(LoomMedia, NodeInputs)` delivers ports
-- [x] `LoomNode` binds `md5` / `sha256` / `sha512` by port — the `md5sum` id-override trap is gone
+- [x] The `md5sum` id-override trap is gone — `LoomNode` was ported to typed hash ports and has since been deleted entirely
 - [x] `textSources`, `sourceNodeId`/`sourceOutputKey`, `detectionSources` and `depthNodeId` deleted,
       including their `NodeParameter` declarations
 - [ ] 🔴 `cortex/pipeline-common`'s `XAttrNodeCache` / `SidecarFileNodeCache` still use the old

@@ -57,6 +57,47 @@ dispatches a task to a worker whose restriction accepts that kind, which is how 
 An administrator can further restrict a worker from the Loom UI; the effective restriction is
 reconciled on registration and persisted as a durable `cortex_instance` record.
 
+== How Loom Picks a Worker
+
+Among the workers that accept a node kind, Loom dispatches to the one with the highest **priority**.
+Priority is your placement decision and is never overridden — a busy high-priority worker is still
+preferred over an idle low-priority one.
+
+Where several workers share the same priority, the **least loaded** one is chosen. Load is taken from
+the status update every worker sends every 20 seconds, and is the higher of its CPU and disk
+utilisation, because a worker saturated on either cannot take on more. A worker that has not reported
+a load in the last minute counts as neither idle nor busy, so a quiet worker is not favoured over one
+that has proven it has capacity.
+
+Only workers that are online receive work. A paused, starting or shutting-down worker is skipped.
+
+== Shutting a Worker Down
+
+Stopping a worker with `SIGTERM` (`docker stop`, a Kubernetes eviction, a systemd restart) does not
+throw away the work it was holding. The worker first tells Loom it is terminating, which stops any
+further tasks being sent to it, then gives the tasks already running a grace period to finish. Anything
+still running when that period expires is handed back, and Loom places it on another worker
+immediately.
+
+Without this hand-back, work held by a stopped worker is only recovered when its lease expires — ten
+minutes by default — so every scale-down or rolling deploy would stall the affected runs for that long.
+
+[options="header",cols="2,1,3"]
+|===
+| Variable | Default | Description
+| `CORTEX_DRAIN_TIMEOUT_MS` | `30000` | How long a shutdown lets running tasks finish before handing them back.
+|===
+
+The default matches Kubernetes' 30 second termination grace period. Waiting longer than your
+orchestrator will wait achieves nothing — the process is killed mid-drain and the work falls back to
+lease expiry — so if you run minutes-long nodes such as `whisper` or `ocr`, raise this **and**
+`terminationGracePeriodSeconds` together. Otherwise those tasks are simply re-run elsewhere, which
+costs time but loses nothing.
+
+CAUTION: A worker that is in the middle of *scanning a source* when it is stopped is the one case that
+is not recovered automatically: there is no way to hand a half-finished scan back. The run waits, and
+has to be started again.
+
 == Optional YAML File & Per-Node Options
 
 Global connection settings come from environment variables (or CLI flags). Fine-grained **per-node

@@ -126,7 +126,7 @@ filesystem-source · asset-source · md5 · sha256 · sha512 · chunk-hash · th
 ----
 
 The other built-in nodes — `whisper`, `llm`, `ocr`, `tika`, `facedetect`, `facedescription`,
-`captioning`, `scene-detection`, `quality`, `consistency`, the dedup kinds, `loom` and the `filter-*`
+`captioning`, `scene-detection`, `quality`, `consistency`, the dedup kinds and the `filter-*`
 kinds — exist, are covered by tests, and are wired into the worker's node collection, but are **not yet
 registered with the pipeline node factory**, so Loom will not route work to them. The registered set is
 growing; `vlm` and `tts` were the most recent additions.

@@ -19,7 +19,6 @@ import io.metaloom.loom.rest.AbstractEndpoint;
 import io.metaloom.loom.rest.EndpointDependencies;
 import io.metaloom.loom.rest.model.ModelExamples;
 import io.metaloom.loom.rest.model.processor.ProcessorRestrictionUpdateRequest;
-import io.metaloom.loom.rest.model.pipeline.event.PipelineEventMessage;
 import io.metaloom.loom.rest.model.processor.ProcessorListResponse;
 import io.metaloom.loom.rest.model.processor.ProcessorResponse;
 import io.metaloom.loom.rest.model.processor.ProcessorState;
@@ -31,9 +30,9 @@ import io.metaloom.loom.rest.model.processor.message.ProcessorMessage;
 import io.metaloom.loom.rest.model.processor.message.SourceCompleteMessage;
 import io.metaloom.loom.rest.model.processor.message.SourceItemsAckMessage;
 import io.metaloom.loom.rest.model.processor.message.SourceItemsMessage;
+import io.metaloom.loom.rest.model.processor.message.TaskReturnedMessage;
 import io.metaloom.loom.rest.model.processor.message.ProcessorMessageType;
 import io.metaloom.loom.rest.model.processor.message.ProcessorRegistration;
-import io.metaloom.loom.rest.service.impl.PipelineEventBroadcaster;
 import io.metaloom.loom.rest.service.impl.PipelineRunRegistry;
 import io.metaloom.loom.rest.service.impl.PipelineRunTracker;
 import io.metaloom.loom.rest.service.impl.ProcessorRegistry;
@@ -65,7 +64,6 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 	private static final Logger log = LoggerFactory.getLogger(ProcessorEndpoint.class);
 
 	private final ProcessorRegistry registry;
-	private final PipelineEventBroadcaster pipelineEventBroadcaster;
 	private final WebSocketAuthenticator authenticator;
 	private final PipelineRunTracker pipelineRunTracker;
 
@@ -74,15 +72,19 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 
 	private final io.metaloom.loom.common.metrics.LoomMetrics metrics;
 
+	/**
+	 * Processors already warned about sending {@code PIPELINE_EVENT}, so a worker that
+	 * emits one per item is logged once rather than once per item.
+	 */
+	private final java.util.Set<String> warnedPipelineEventSenders = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
 	@Inject
-	public ProcessorEndpoint(ProcessorRegistry registry, PipelineEventBroadcaster pipelineEventBroadcaster,
-			WebSocketAuthenticator authenticator,
+	public ProcessorEndpoint(ProcessorRegistry registry, WebSocketAuthenticator authenticator,
 			PipelineRunTracker pipelineRunTracker, PipelineRunRegistry pipelineRunRegistry,
 			EndpointDependencies deps, ModelExamples examples, io.metaloom.loom.common.metrics.LoomMetrics metrics) {
 		super(deps);
 		this.registry = registry;
 		this.pipelineRunRegistry = pipelineRunRegistry;
-		this.pipelineEventBroadcaster = pipelineEventBroadcaster;
 		this.authenticator = authenticator;
 		this.pipelineRunTracker = pipelineRunTracker;
 		this.examples = examples;
@@ -258,6 +260,9 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 				case NODE_TASK_RESULT:
 					handleNodeTaskResult(ws, msg, nodeIdHolder[0]);
 					break;
+				case TASK_RETURNED:
+					handleTaskReturned(ws, msg, nodeIdHolder[0]);
+					break;
 				default:
 					sendError(ws, "Unexpected message type: " + msg.getType());
 					break;
@@ -345,6 +350,21 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 		registry.updateState(nodeId, state);
 	}
 
+	/**
+	 * Drop a worker-sent pipeline event.
+	 *
+	 * <p>Under Variant C, Loom owns the pipeline graph, so every event describing a run
+	 * is Loom's to emit: {@code RunStatsAggregator} counts settles and pushes
+	 * {@code NODE_STATS} on a timer, releasing only failures immediately. A worker frame
+	 * reaching {@code broadcast} went straight past that, which is the flood the
+	 * aggregator exists to prevent — one frame per item per node rather than one snapshot
+	 * per node per tick.</p>
+	 *
+	 * <p>Nothing in Cortex sends these any more (the tracking-bus subscription was
+	 * removed with this change), so this is a guard against an older worker, not a live
+	 * path. The frame is dropped rather than answered with an {@code ERROR}: a worker
+	 * still emitting them would otherwise be answered once per item.</p>
+	 */
 	private void handlePipelineEvent(ServerWebSocket ws, ProcessorMessage msg, String nodeId) {
 		if (nodeId == null) {
 			sendError(ws, "Not registered. Send REGISTER first.");
@@ -354,8 +374,11 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 			sendError(ws, "PIPELINE_EVENT message must include a body");
 			return;
 		}
-		PipelineEventMessage event = msg.getBody().mapTo(PipelineEventMessage.class);
-		pipelineEventBroadcaster.broadcast(event);
+		if (warnedPipelineEventSenders.add(nodeId)) {
+			log.warn("Processor '{}' sent a PIPELINE_EVENT ({}). Under Variant C pipeline events are emitted by"
+				+ " Loom's run aggregator, so the frame is dropped. Further frames from this processor are"
+				+ " dropped silently.", nodeId, msg.getBody().getString("type"));
+		}
 	}
 
 	/**
@@ -518,6 +541,53 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 		}
 		engine.onNodeTaskResult(body.getItemId(), body.getResult());
 		recordNodeResultReceived(body.getResult());
+	}
+
+	/**
+	 * Take a task back from a worker that will not finish it.
+	 *
+	 * <p>The point of this path is that it is immediate. Without it a shutting-down
+	 * worker's tasks stay {@code RUNNING} until their lease lapses, so scaling down a
+	 * fleet costs a lease interval per outstanding task before any of that work is
+	 * placed again - and the lease is deliberately generous, because its other job is
+	 * to avoid duplicating the work of a merely slow worker.</p>
+	 *
+	 * <p>A segment carries several nodes on one dispatch, so one message can hand back
+	 * more than one node id.</p>
+	 */
+	private void handleTaskReturned(ServerWebSocket ws, ProcessorMessage msg, String nodeId) {
+		if (nodeId == null) {
+			sendError(ws, "Not registered. Send REGISTER first.");
+			return;
+		}
+		if (msg.getBody() == null) {
+			sendError(ws, "TASK_RETURNED message must include a body");
+			return;
+		}
+		TaskReturnedMessage body = msg.getBody().mapTo(TaskReturnedMessage.class);
+		PipelineRunEngine engine = resolveEngine(ws, body.getRunUuid(), "TASK_RETURNED");
+		if (engine == null) {
+			return;
+		}
+		if (body.getItemId() == null || body.getNodeIds() == null || body.getNodeIds().isEmpty()) {
+			sendError(ws, "TASK_RETURNED requires an itemId and at least one nodeId");
+			return;
+		}
+		String reason = body.getReason() == null
+			? "returned by worker '" + nodeId + "'"
+			: "returned by worker '" + nodeId + "': " + body.getReason();
+		for (String returnedNodeId : body.getNodeIds()) {
+			try {
+				engine.onNodeTaskReturned(body.getItemId(), returnedNodeId, body.getElementSeq(), reason);
+				metrics.recordTaskReturned(returnedNodeId);
+			} catch (Exception e) {
+				// One node of a segment failing to re-place must not strand its siblings.
+				log.error("Failed to re-place returned node '{}' of item '{}' in run {}", returnedNodeId,
+					body.getItemId(), body.getRunUuid(), e);
+			}
+		}
+		log.info("Worker '{}' returned {} node task(s) of item '{}' in run {}", nodeId,
+			body.getNodeIds().size(), body.getItemId(), body.getRunUuid());
 	}
 
 	/**

@@ -59,14 +59,16 @@ Or via environment variables:
 LOOM_HOST=loom.internal LOOM_PORT=7733 cortex server start
 ----
 
-=== LoomNode
+=== Result write-back
 
-The `loom` node is the bridge between Cortex and Loom.
-It reads the outputs published by upstream nodes in the pipeline (hashes, thumbnail paths, embeddings, …) and writes them to the corresponding Loom REST endpoints:
+There is no bridge node. Every result-producing node writes its own result to Loom from inside `compute()`, as soon as it has one, using the REST endpoints that match what it produced:
 
-* `POST /api/v1/assets` — create or update the asset record
+* `PUT /api/v1/assets/:uuid` — hash columns and other asset fields
 * `POST /api/v1/assets/:uuid/binary` — upload thumbnail
 * `POST /api/v1/embeddings` — store face or video fingerprint embeddings
+* `POST /api/v1/assets/:uuid/node-results` — the `asset_node_result` ledger entry recording that the node ran
+
+A dedicated `loom` sink node used to collect hashes from upstream nodes and flush them in batches. It was removed once per-node persistence covered every kind: it could only write the hash columns its producers had already written, and it could not create an asset that did not exist yet.
 
 == Offline Mode
 

@@ -1,12 +1,15 @@
 package io.metaloom.cortex.media.test;
 
 import static io.metaloom.cortex.media.test.assertj.NodeAssertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.IOException;
 
 import org.junit.jupiter.api.Test;
 
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.ResultOrigin;
+import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.node.FilesystemNode;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.loom.test.data.TestMedia;
@@ -122,14 +125,24 @@ public abstract class AbstractBasicNodeTest<T extends FilesystemNode<?, ?>> exte
 	}
 
 	private void assertProcessed(T nodeMock, LoomMedia media, TestMedia testMedia) throws IOException {
-		NodeResult result = nodeMock.process(ctx(media));
+		NodeContext firstCtx = ctx(media);
+		NodeResult result = nodeMock.process(firstCtx);
 		assertThat(result).isSuccess();
+		assertEquals(ResultOrigin.COMPUTED, firstCtx.resultOrigin(),
+			"The first run had nothing cached, so it must have computed the value");
 		assertThat(media).hasSHA512();
 		assertProcessed(testMedia, media, result, nodeMock);
 
-		// Run the process again on the media to ensure that it will be skipped
-		NodeResult result2 = nodeMock.process(ctx(media));
-		assertThat(result2).isSkipped();
+		// Run again: the value is now in the node's local result cache, so it must be
+		// served rather than recomputed. This is asserted as SUCCESS-from-cache, not as
+		// SKIPPED: a cache hit still emits on the output port, and downstream nodes bind
+		// to that port. Reporting SKIPPED would say "produced nothing" and starve them.
+		NodeContext secondCtx = ctx(media);
+		NodeResult result2 = nodeMock.process(secondCtx);
+		assertThat(result2).isSuccess();
+		assertEquals(ResultOrigin.LOCAL, secondCtx.resultOrigin(),
+			"The second run must be served from the local result cache, not recomputed");
+		assertProcessed(testMedia, media, result2, nodeMock);
 	}
 
 	protected abstract void disableNode(T nodeMock);

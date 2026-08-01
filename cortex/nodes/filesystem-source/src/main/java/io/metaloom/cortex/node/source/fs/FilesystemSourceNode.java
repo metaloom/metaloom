@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -122,16 +123,28 @@ public class FilesystemSourceNode extends AbstractPipelineNode implements MediaS
 	 *
 	 * <p>The returned flowable is cold — the filesystem is scanned on subscription,
 	 * so a node instance registered once in a pipeline re-scans on every run.</p>
+	 *
+	 * <p>The glob path is walked lazily, so the first media item is dispatched before the
+	 * walk has finished and a cancelled or backpressured run stops the walk instead of
+	 * paying for the rest of it. {@code Flowable.fromStream} closes the walk on both
+	 * completion and cancellation. The count is therefore only known at the end, and is
+	 * logged there rather than up front.</p>
+	 *
+	 * <p>The differential (root) path stays eager: a differential scan compares the whole
+	 * tree against the persisted index and writes the updated index back, so the set of
+	 * changed files does not exist until the scan has finished.</p>
 	 */
 	@Override
 	public Flowable<LoomMedia> stream() {
 		return Flowable.defer(() -> {
 			lastStates.clear();
 			if (!pathGlobs.isEmpty()) {
-				List<Path> paths = FilesystemMediaScanner.expand(pathGlobs);
-				log.info("Node '{}' resolved {} media file(s) from globs {} (differential scanning is root-only)",
-					id(), paths.size(), pathGlobs);
-				return Flowable.fromIterable(paths);
+				log.info("Node '{}' scanning globs {} (differential scanning is root-only)", id(), pathGlobs);
+				AtomicLong emitted = new AtomicLong();
+				return Flowable.fromStream(FilesystemMediaScanner.stream(pathGlobs))
+					.doOnNext(p -> emitted.incrementAndGet())
+					.doOnComplete(() -> log.info("Node '{}' resolved {} media file(s) from globs {}",
+						id(), emitted.get(), pathGlobs));
 			}
 			List<Path> paths = differentialScan();
 			log.info("Node '{}' resolved {} changed media file(s) from root {} (emitStates={})",

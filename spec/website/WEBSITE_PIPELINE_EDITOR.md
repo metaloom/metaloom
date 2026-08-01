@@ -202,7 +202,7 @@ Current content (regenerate the numbers when they change):
 |---|---|
 | Node kinds | **41** — `SOURCE` 3, `FILTER` 8, `ANALYSIS` 20, `TRANSFORM` 5, `OUTPUT` 5 |
 | Sources | `filesystem-source`, `s3-source`, `loom-fetch` |
-| Sinks (`OUTPUT`) | `loom`, `s3-sink`, `hash-dedup`, `fingerprint-dedup`, `fingerprint-dedup-apply` |
+| Sinks (`OUTPUT`) | `s3-sink`, `hash-dedup`, `fingerprint-dedup`, `fingerprint-dedup-apply` |
 | Content types | **39** across 8 families: `media · text · detection · hash · scalar · struct · artifact · control`, each with a `<family>/*` wildcard |
 | Port groups declared | three `XOR` `media_alt` groups (`whisper`, `facedetect`, `captioning`); **no** `EXCLUSIVE` output group exists yet |
 | `dynamicPorts: true` | `llm`, `script`, `vlm` |

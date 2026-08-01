@@ -196,9 +196,9 @@ which side of it to follow (`PASS`, `REJECT`, or `ANY` for both). That is what s
 handed to a speech model. A branch is only valid on an edge leaving a filter node.
 
 `sha512`:: The identity step described above. Its `hash` port carries `hash/sha512`, so it can only be
-connected to something that declares a matching hash input — link:../../nodes/loom/[`loom`] or a
-link:../../nodes/dedup/[dedup] node. It hangs off the source rather than sitting in the middle of the
-media path.
+connected to something that declares a matching hash input, such as a link:../../nodes/dedup/[dedup]
+node. It persists the hash itself, so nothing has to be connected to it at all. It hangs off the
+source rather than sitting in the middle of the media path.
 
 `whisper`:: Persists an `asset_transcript_comp` plus an `asset_node_result` ledger row against the
 asset, and carries the same text on its `transcript` output port for anything downstream — a

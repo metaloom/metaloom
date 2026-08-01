@@ -83,6 +83,7 @@ rather than from Loom.
 | Metric | Type | Labels | Meaning
 | `loom_leases_reclaimed_total` | counter | — | Task leases reclaimed by the reaper after a worker went away.
 | `loom_orphans_deadlettered_total` | counter | — | Orphaned tasks moved to the dead-letter path.
+| `loom_tasks_returned_total` | counter | `node` | Tasks handed back by a worker that was shutting down, and placed again immediately.
 | `loom_pipeline_event_subscribers` | gauge | — | UI clients subscribed to the pipeline event stream.
 | `loom_pipeline_events_broadcast_total` | counter | — | Tracking events fanned out to subscribers.
 | `loom_pipeline_events_dropped_total` | counter | — | Events dropped because a subscriber could not keep up.

@@ -61,7 +61,10 @@ public class MD5Node extends AbstractMediaNode<HashNodeOptions> {
 
 	@Override
 	protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) {
-		if (asset != null && asset.getHashes().getMD5() != null) {
+		// getHashes() is null on an asset Loom knows but has never had a hash written to,
+		// which is every asset between creation and the first hash node run. Dereferencing it
+		// unguarded turned that ordinary state into a failed task.
+		if (asset != null && asset.getHashes() != null && asset.getHashes().getMD5() != null) {
 			String md5 = asset.getHashes().getMD5().toString();
 			ctx.output(OUT_HASH, md5);
 			return ctx.origin(REMOTE).next();

@@ -54,7 +54,12 @@ live but has `cortex_loom_registered == 0` will never receive work.
 | `cortex_tasks_received_total` | counter | `type` = `node` \| `segment` \| `source` | Tasks accepted from Loom.
 | `cortex_tasks_completed_total` | counter | `type`, `state` = `success` \| `failed` \| `skipped` | Task outcomes reported back.
 | `cortex_task_duration_seconds` | timer | `type` | End-to-end task execution time.
+| `cortex_tasks_returned_total` | counter | `reason` = `refused` \| `unfinished` | Work handed back to Loom during shutdown, so it can be re-placed at once. `refused` arrived after the worker announced it was terminating; `unfinished` was still running when the drain grace period expired.
 |===
+
+TIP: A steady stream of `unfinished` returns means `CORTEX_DRAIN_TIMEOUT_MS` is shorter than your
+slowest node, so restarts routinely re-run work elsewhere. See
+link:../configuration/[Configuration].
 
 == Node Operations
 
@@ -107,7 +112,8 @@ network time to the model service.
 | Metric | Type | Labels | Meaning
 | `cortex_memory_used_bytes` | gauge | — | Heap in use, as also reported to Loom in the status heartbeat.
 | `cortex_memory_max_bytes` | gauge | — | Maximum heap the JVM may grow to.
-| `cortex_cpu_load` | gauge | — | Process CPU load.
+| `cortex_cpu_load` | gauge | — | Percentage of the machine's CPU capacity in use (0–100), as also reported to Loom.
+| `cortex_io_load` | gauge | — | Percentage of time the busiest disk spent serving requests (0–100). Linux only; `0` where it cannot be measured.
 | `cortex_disk_used_bytes` / `cortex_disk_total_bytes` | gauge | — | Disk usage of the worker's working file store.
 |===
 

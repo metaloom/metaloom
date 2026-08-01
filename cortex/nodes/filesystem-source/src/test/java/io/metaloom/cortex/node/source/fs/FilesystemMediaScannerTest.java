@@ -6,6 +6,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -104,5 +106,58 @@ public class FilesystemMediaScannerTest {
 	public void testWalkMissingRootYieldsNothing() throws IOException {
 		assertThat(FilesystemMediaScanner.walk(root.resolve("nope"))).isEmpty();
 		assertThat(FilesystemMediaScanner.walk(null)).isEmpty();
+	}
+
+	// ── Laziness ──────────────────────────────────────────────────────────
+	//
+	// The point of the stream methods is that a consumer which stops early stops the
+	// walk. Asserting only on the contents would pass just as well for a materialised
+	// list, so these assert on how much was walked, not on what came back.
+
+	@Test
+	public void testStreamStopsWalkingWhenTheConsumerStops() throws IOException {
+		Path deep = Files.createDirectories(root.resolve("many"));
+		for (int i = 0; i < 200; i++) {
+			Files.writeString(deep.resolve("f" + i + ".mp4"), "x");
+		}
+
+		AtomicInteger visited = new AtomicInteger();
+		List<Path> firstThree;
+		try (Stream<Path> stream = FilesystemMediaScanner.stream(List.of(deep + "/*.mp4"))) {
+			firstThree = stream.peek(p -> visited.incrementAndGet()).limit(3).toList();
+		}
+
+		assertThat(firstThree).hasSize(3);
+		assertThat(visited.get())
+			.as("a short-circuiting consumer must not pull the whole selection")
+			.isLessThan(200);
+	}
+
+	@Test
+	public void testStreamDeduplicatesOverlappingGlobsInEncounterOrder() throws IOException {
+		try (Stream<Path> stream = FilesystemMediaScanner.stream(List.of(root + "/*.mp4", root + "/a.*"))) {
+			assertThat(stream.toList()).containsExactlyInAnyOrder(videoA, videoB);
+		}
+	}
+
+	@Test
+	public void testStreamSkipsNullAndBlankGlobs() throws IOException {
+		try (Stream<Path> stream = FilesystemMediaScanner.stream(java.util.Arrays.asList(root + "/*.mp4", null, "  ", ""))) {
+			assertThat(stream.toList()).containsExactlyInAnyOrder(videoA, videoB);
+		}
+	}
+
+	@Test
+	public void testStreamNullListYieldsNothing() {
+		try (Stream<Path> stream = FilesystemMediaScanner.stream((List<String>) null)) {
+			assertThat(stream.toList()).isEmpty();
+		}
+	}
+
+	@Test
+	public void testStreamOfRootWalksRecursively() throws IOException {
+		try (Stream<Path> stream = FilesystemMediaScanner.stream(root)) {
+			assertThat(stream.toList()).containsExactlyInAnyOrder(videoA, videoB, textFile, nestedVideo);
+		}
 	}
 }

@@ -15,7 +15,7 @@ against blacklists. Four kinds live in the same module and can be toggled indepe
 | Kinds | `md5`, `sha256`, `sha512`, `chunk-hash`
 | Applies to | Any file
 | Input ports | `media` (typically the first processing step after the source)
-| Output ports | `hash` — one port per kind, typed `hash/md5`, `hash/sha256`, `hash/sha512` or `hash/chunk`. The type is what downstream nodes match on, so a link:../loom/[Loom Sync] or link:../dedup/[dedup] node never has to name the node that produced it
+| Output ports | `hash` — one port per kind, typed `hash/md5`, `hash/sha256`, `hash/sha512` or `hash/chunk`. The type is what downstream nodes match on, so a link:../dedup/[dedup] node never has to name the node that produced it
 | Requirements | CPU only. Streams the file, so memory use is low regardless of file size. Reads the full file bytes from storage.
 | Persists to | `asset` row hash columns + `asset_node_result` ledger
 |===

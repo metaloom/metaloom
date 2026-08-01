@@ -22,6 +22,7 @@ public class EnvDefaultProvider implements IDefaultValueProvider {
 		OPTION_ENV_MAP.put("--node-id", "CORTEX_NODE_ID");
 		OPTION_ENV_MAP.put("--node-whitelist", "CORTEX_NODE_WHITELIST");
 		OPTION_ENV_MAP.put("--node-blacklist", "CORTEX_NODE_BLACKLIST");
+		OPTION_ENV_MAP.put("--drain-timeout-ms", "CORTEX_DRAIN_TIMEOUT_MS");
 
 		// S3. Needed by every worker that touches s3:// media, not only the one running the
 		// s3-source node, because media is materialized lazily by whoever runs the node task.

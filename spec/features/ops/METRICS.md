@@ -94,6 +94,7 @@ label cardinality (status / kind / message-type — **never** asset UUIDs, paths
 | `loom_processor_memory_used_bytes` | gauge | `node_id` | `ProcessorRegistry` `SystemStatusInfo` |
 | `loom_leases_reclaimed_total` | counter | — | `LeaseReaper.sweep()` |
 | `loom_orphans_deadlettered_total` | counter | — | `LeaseReaper.releaseOrphan()` |
+| `loom_tasks_returned_total` | counter | `node` | `ProcessorEndpoint.handleTaskReturned()` — work a draining worker gave back. Read against `loom_leases_reclaimed_total`: the same recovery, but paid for at announcement rather than after a lease interval. A fleet that scales down often and shows reclaims instead of returns has workers dying rather than draining. |
 | `loom_pipeline_event_subscribers` | gauge | — | `PipelineEventBroadcaster.subscriberCount()` |
 | `loom_pipeline_events_broadcast_total` | counter | — | `PipelineEventBroadcaster.broadcast()` |
 | `loom_pipeline_events_dropped_total` | counter | — | `PipelineEventBroadcaster.Subscriber` (backpressure drops) |
@@ -120,6 +121,7 @@ label cardinality (status / kind / message-type — **never** asset UUIDs, paths
 | `cortex_tasks_received_total` | counter | `type`=node\|segment\|source | `PipelineTaskHandler.handle*` |
 | `cortex_tasks_completed_total` | counter | `type`, `state`=success\|failed\|skipped | `PipelineTaskHandler` / task runners |
 | `cortex_task_duration_seconds` | timer | `type` | `NodeTaskRunner.run()` (already times each task) |
+| `cortex_tasks_returned_total` | counter | `reason`=refused\|unfinished | `PipelineTaskHandler` drain. `refused` = arrived after this worker announced `TERMINATING`; `unfinished` = still running at the drain deadline. Many of the latter means the drain timeout is shorter than the slowest node. |
 | `cortex_node_operations_total` | counter | `node_kind`, `state`=success\|skipped\|failed | `AbstractMediaNode.process()` / `recordNodeResult()` |
 | `cortex_node_operation_duration_seconds` | timer | `node_kind` | `AbstractMediaNode` (`ctx.duration()`) |
 | `cortex_files_missing_total` | counter | — | `AbstractMediaNode.process()` (`!media.exists()`) + `FilesystemMediaScanner` |
@@ -133,7 +135,8 @@ label cardinality (status / kind / message-type — **never** asset UUIDs, paths
 | `cortex_ai_call_duration_seconds` | timer | `provider` | same call sites |
 | `cortex_ai_cache_hits_total` | counter | `provider` | `LLMNode` / `CaptioningNode` in-heap skip caches |
 | `cortex_memory_used_bytes` | gauge | — | reuse `LoomControlChannel.collectSystemStatus()` |
-| `cortex_cpu_load` | gauge | — | `collectSystemStatus()` (`OperatingSystemMXBean`) |
+| `cortex_cpu_load` | gauge | — | `SystemLoadProbe.cpuLoad()` — percent of CPU capacity, 0 when unknown |
+| `cortex_io_load` | gauge | — | `SystemLoadProbe.ioLoad()` — busiest disk's `%util`, 0 when unknown |
 | `cortex_disk_used_bytes` / `cortex_disk_total_bytes` | gauge | — | `collectSystemStatus()` (`Files.getFileStore`) |
 | `jvm_*`, `process_cpu_usage`, `vertx_*` | (auto) | — | Micrometer binders + Vert.x built-ins |
 

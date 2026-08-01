@@ -88,7 +88,7 @@ deletion into a new P1.7 so the replacement could be proven first.
 | **P2.2** | `RunStateStore` port; engine writes through it; batched | Item identity moved from an in-memory counter to the store |
 | **P2.3** | Leases, retries with backoff, dead-letter, `LeaseReaper` | `retryFailed` finally does something |
 | **P2.4** | Restart recovery | A run whose *source* had not finished cannot be resumed faithfully, and says so |
-| **P2.5** | Node-kind whitelist in worker selection | Load-aware placement deliberately **not** built — `cpuLoad` is broken |
+| **P2.5** | Node-kind whitelist in worker selection | Load-aware placement deliberately **not** built at the time — `cpuLoad` was broken. Both were fixed later: `SystemLoadProbe` produces real `cpuLoad`/`ioLoad`, and load breaks ties between workers of equal priority |
 | **P2.6** | Per-run in-flight ceiling + source-ack backpressure | Two liveness bugs found and fixed — see below |
 | **P2.7** | Worker attribution (`leased_by`) | Run inspection API **not** built; still open |
 
@@ -139,7 +139,7 @@ to work correctly today:
 | Priority with aging | No evidence yet of low-priority runs being starved |
 | Node-kind-aware pacing | The per-kind ceiling covers the pressing case |
 | Straggler handling (speculative re-dispatch) | Expensive; the plan always said measure before adopting |
-| Drain-aware placement | Belongs with graceful shutdown |
+| ~~Drain-aware placement~~ | **Built.** A `TERMINATING` worker is not placeable, refuses late dispatches and returns what it cannot finish — see [METALOOM_ARCHITECTURE_TASK.md §9](METALOOM_ARCHITECTURE_TASK.md) |
 
 ### Batching refinements
 

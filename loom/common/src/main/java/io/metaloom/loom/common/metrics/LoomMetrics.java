@@ -60,6 +60,15 @@ public interface LoomMetrics {
 	/** {@code count} orphaned tasks of dead runs were dead-lettered. */
 	void recordOrphansDeadlettered(int count);
 
+	/**
+	 * A draining worker handed a task back unexecuted and it was re-placed.
+	 *
+	 * <p>Read against {@code loom_leases_reclaimed}: the same recovery, but paid for at
+	 * announcement rather than after a lease interval. A fleet that scales down often
+	 * and shows reclaims instead of returns has workers dying rather than draining.</p>
+	 */
+	void recordTaskReturned(String nodeId);
+
 	// ---- WebSocket fan-out ------------------------------------------------------------------
 
 	/** A pipeline event was broadcast to UI subscribers. */

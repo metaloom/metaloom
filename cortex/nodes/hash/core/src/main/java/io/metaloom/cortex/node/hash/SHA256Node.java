@@ -56,7 +56,10 @@ public class SHA256Node extends AbstractMediaNode<HashNodeOptions> {
 
 	@Override
 	protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) {
-		if (asset != null && asset.getHashes().getSHA256() != null) {
+		// getHashes() is null on an asset Loom knows but has never had a hash written to,
+		// which is every asset between creation and the first hash node run. Dereferencing it
+		// unguarded turned that ordinary state into a failed task.
+		if (asset != null && asset.getHashes() != null && asset.getHashes().getSHA256() != null) {
 			String sha256 = asset.getHashes().getSHA256().toString();
 			ctx.output(OUT_HASH, sha256);
 			return ctx.origin(REMOTE).next();

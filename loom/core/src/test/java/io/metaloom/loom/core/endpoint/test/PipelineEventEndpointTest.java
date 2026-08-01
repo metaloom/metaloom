@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -23,20 +24,27 @@ import io.vertx.core.json.JsonObject;
 
 /**
  * Tests for the pipeline events WebSocket endpoint ({@code /api/v1/pipelines/events/ws})
- * and for the PIPELINE_EVENT forwarding path through the processor WebSocket.
+ * and for the handling of PIPELINE_EVENT frames arriving on the processor WebSocket.
  *
- * <p>Verifies that:
- * <ul>
- *   <li>A UI client can connect to the pipeline events WebSocket</li>
- *   <li>When a processor sends a PIPELINE_EVENT message, it is broadcast to all
- *       connected UI subscribers</li>
- *   <li>Multiple subscribers receive the same event</li>
- *   <li>The event payload is preserved end-to-end</li>
- * </ul>
+ * <p>Under Variant C, Loom owns the pipeline graph, so every event describing a run is
+ * Loom's to emit — {@code RunStatsAggregator} counts node settles and pushes
+ * {@code NODE_STATS} on a timer, releasing only failures immediately. A worker frame
+ * that reached the broadcaster went straight past that aggregation, which is the flood
+ * the aggregator exists to prevent. These tests therefore assert the opposite of what
+ * they once did: a PIPELINE_EVENT from a processor is <em>dropped</em>, not forwarded.</p>
+ *
+ * <p>Fan-out to several subscribers, which used to be covered incidentally through this
+ * passthrough, is covered directly in {@code PipelineEventBroadcasterTest}.</p>
  */
 public class PipelineEventEndpointTest {
 
 	private static final Logger log = LoggerFactory.getLogger(PipelineEventEndpointTest.class);
+
+	/**
+	 * How long to wait before concluding that no frame is coming. Generous enough that a
+	 * slow broadcast would still be caught rather than passing as a drop.
+	 */
+	private static final long QUIET_WINDOW_MS = 2000;
 
 	@RegisterExtension
 	LoomCoreTestExtension loom = new LoomCoreTestExtension();
@@ -112,6 +120,31 @@ public class PipelineEventEndpointTest {
 				.put("timestamp", System.currentTimeMillis()));
 	}
 
+	/**
+	 * Assert that nothing pipeline-shaped arrives on {@code uiWs} within the quiet
+	 * window. Collects rather than short-circuits so a failure can name what leaked.
+	 */
+	private void assertNoPipelineFrame(WebSocket uiWs) throws Exception {
+		CopyOnWriteArrayList<JsonObject> leaked = new CopyOnWriteArrayList<>();
+		CompletableFuture<JsonObject> first = new CompletableFuture<>();
+		uiWs.textMessageHandler(text -> {
+			JsonObject frame = new JsonObject(text);
+			if (!isPipelineFrame(frame)) {
+				return;
+			}
+			leaked.add(frame);
+			first.complete(frame);
+		});
+		try {
+			JsonObject frame = first.get(QUIET_WINDOW_MS, TimeUnit.MILLISECONDS);
+			throw new AssertionError("A processor-sent PIPELINE_EVENT reached a UI subscriber, bypassing the run"
+				+ " aggregator: " + frame.encode());
+		} catch (TimeoutException expected) {
+			assertTrue(leaked.isEmpty(), "Expected no pipeline frames but got " + leaked);
+			log.info("No pipeline frame reached the subscriber within {}ms, as expected", QUIET_WINDOW_MS);
+		}
+	}
+
 	// ── Tests ─────────────────────────────────────────────────────────────
 
 	@Test
@@ -126,32 +159,21 @@ public class PipelineEventEndpointTest {
 		}
 	}
 
+	/**
+	 * A per-item node event from a worker is the exact frame the aggregator replaces
+	 * with a counter, so it must not reach a subscriber.
+	 */
 	@Test
-	public void testPipelineEventForwarding() throws Exception {
+	public void testProcessorPipelineEventIsDropped() throws Exception {
 		Vertx vertx = Vertx.vertx();
 		try {
-			// 1. Connect a UI subscriber to the pipeline events WebSocket
 			WebSocket uiWs = connectPipelineEventsWs(vertx);
-			CompletableFuture<JsonObject> receivedEvent = new CompletableFuture<>();
-			uiWs.textMessageHandler(text -> {
-				JsonObject frame = new JsonObject(text);
-				if (isPipelineFrame(frame)) receivedEvent.complete(frame);
-			});
-
-			// 2. Connect a processor and register it
 			WebSocket processorWs = connectProcessorWs(vertx);
 			sendAndReceive(processorWs, registerMessage("proc-ev-1"));
 
-			// 3. Send a PIPELINE_EVENT from the processor
 			processorWs.writeTextMessage(pipelineEventMessage("my-pipeline", "sha512", "NODE_STARTED").encode());
 
-			// 4. Verify the UI subscriber receives the event
-			JsonObject event = receivedEvent.get(10, TimeUnit.SECONDS);
-			assertNotNull(event);
-			assertEquals("NODE_STARTED", event.getString("type"));
-			assertEquals("my-pipeline", event.getString("pipelineName"));
-			assertEquals("sha512", event.getString("nodeId"));
-			assertEquals("/data/media/test.mp4", event.getString("mediaPath"));
+			assertNoPipelineFrame(uiWs);
 
 			uiWs.close();
 			processorWs.close();
@@ -160,62 +182,77 @@ public class PipelineEventEndpointTest {
 		}
 	}
 
+	/**
+	 * A whole run lifecycle from a worker is dropped, not only the noisiest member of
+	 * it — the run's lifecycle is Loom's to report because Loom holds the graph.
+	 */
 	@Test
-	public void testMultipleSubscribersReceiveEvent() throws Exception {
+	public void testProcessorLifecycleSequenceIsDropped() throws Exception {
 		Vertx vertx = Vertx.vertx();
 		try {
-			// Connect two UI subscribers
-			WebSocket uiWs1 = connectPipelineEventsWs(vertx);
-			WebSocket uiWs2 = connectPipelineEventsWs(vertx);
-			CopyOnWriteArrayList<JsonObject> received1 = new CopyOnWriteArrayList<>();
-			CopyOnWriteArrayList<JsonObject> received2 = new CopyOnWriteArrayList<>();
-			CompletableFuture<Void> got1 = new CompletableFuture<>();
-			CompletableFuture<Void> got2 = new CompletableFuture<>();
-			uiWs1.textMessageHandler(text -> {
-				JsonObject frame = new JsonObject(text);
-				if (!isPipelineFrame(frame)) return;
-				received1.add(frame);
-				got1.complete(null);
-			});
-			uiWs2.textMessageHandler(text -> {
-				JsonObject frame = new JsonObject(text);
-				if (!isPipelineFrame(frame)) return;
-				received2.add(frame);
-				got2.complete(null);
-			});
-
-			// Connect and register a processor
+			WebSocket uiWs = connectPipelineEventsWs(vertx);
 			WebSocket processorWs = connectProcessorWs(vertx);
-			sendAndReceive(processorWs, registerMessage("proc-ev-multi"));
+			sendAndReceive(processorWs, registerMessage("proc-ev-lifecycle"));
 
-			// Send event
-			processorWs.writeTextMessage(
-				pipelineEventMessage("my-pipeline", "tika", "NODE_COMPLETED").encode());
+			String pipeline = "video-pipeline";
+			processorWs.writeTextMessage(pipelineEventMessage(pipeline, null, "PIPELINE_STARTED").encode());
+			processorWs.writeTextMessage(pipelineEventMessage(pipeline, "sha512", "NODE_STARTED").encode());
+			processorWs.writeTextMessage(pipelineEventMessage(pipeline, "sha512", "NODE_COMPLETED").encode());
+			processorWs.writeTextMessage(pipelineEventMessage(pipeline, null, "PIPELINE_COMPLETED").encode());
 
-			// Wait for both to receive
-			got1.get(10, TimeUnit.SECONDS);
-			got2.get(10, TimeUnit.SECONDS);
+			assertNoPipelineFrame(uiWs);
 
-			assertEquals(1, received1.size());
-			assertEquals(1, received2.size());
-			assertEquals("NODE_COMPLETED", received1.get(0).getString("type"));
-			assertEquals("NODE_COMPLETED", received2.get(0).getString("type"));
-
-			uiWs1.close();
-			uiWs2.close();
+			uiWs.close();
 			processorWs.close();
 		} finally {
 			vertx.close();
 		}
 	}
 
+	/**
+	 * NODE_STATS is the aggregator's own output type. A worker sending one would forge
+	 * a snapshot Loom never computed, so it is dropped like the rest.
+	 */
+	@Test
+	public void testProcessorNodeStatsIsDropped() throws Exception {
+		Vertx vertx = Vertx.vertx();
+		try {
+			WebSocket uiWs = connectPipelineEventsWs(vertx);
+			WebSocket processorWs = connectProcessorWs(vertx);
+			sendAndReceive(processorWs, registerMessage("proc-ev-stats"));
+
+			JsonObject statsEvent = new JsonObject()
+				.put("type", "PIPELINE_EVENT")
+				.put("body", new JsonObject()
+					.put("type", "NODE_STATS")
+					.put("pipelineName", "my-pipeline")
+					.put("nodeId", "sha512")
+					.put("activeCount", 3)
+					.put("pendingCount", 12)
+					.put("processedCount", 1042)
+					.put("failedCount", 2)
+					.put("timestamp", System.currentTimeMillis()));
+			processorWs.writeTextMessage(statsEvent.encode());
+
+			assertNoPipelineFrame(uiWs);
+
+			uiWs.close();
+			processorWs.close();
+		} finally {
+			vertx.close();
+		}
+	}
+
+	/**
+	 * Dropping the payload does not weaken the envelope checks: an unregistered sender
+	 * is still refused, so the drop cannot be mistaken for an accepted frame.
+	 */
 	@Test
 	public void testPipelineEventWithoutRegister() throws Exception {
 		Vertx vertx = Vertx.vertx();
 		try {
 			WebSocket processorWs = connectProcessorWs(vertx);
 
-			// Try sending PIPELINE_EVENT without registering first
 			JsonObject resp = sendAndReceive(processorWs,
 				pipelineEventMessage("my-pipeline", "sha512", "NODE_STARTED"));
 			assertEquals("ERROR", resp.getString("type"));
@@ -233,102 +270,10 @@ public class PipelineEventEndpointTest {
 			WebSocket processorWs = connectProcessorWs(vertx);
 			sendAndReceive(processorWs, registerMessage("proc-ev-nobody"));
 
-			// Send PIPELINE_EVENT without body
 			JsonObject resp = sendAndReceive(processorWs,
 				new JsonObject().put("type", "PIPELINE_EVENT"));
 			assertEquals("ERROR", resp.getString("type"));
 
-			processorWs.close();
-		} finally {
-			vertx.close();
-		}
-	}
-
-	@Test
-	public void testNodeLifecycleEventSequence() throws Exception {
-		Vertx vertx = Vertx.vertx();
-		try {
-			// Connect UI subscriber
-			WebSocket uiWs = connectPipelineEventsWs(vertx);
-			CopyOnWriteArrayList<JsonObject> received = new CopyOnWriteArrayList<>();
-			CompletableFuture<Void> gotAll = new CompletableFuture<>();
-			uiWs.textMessageHandler(text -> {
-				JsonObject frame = new JsonObject(text);
-				if (!isPipelineFrame(frame)) return;
-				received.add(frame);
-				if (received.size() >= 4) {
-					gotAll.complete(null);
-				}
-			});
-
-			// Connect and register processor
-			WebSocket processorWs = connectProcessorWs(vertx);
-			sendAndReceive(processorWs, registerMessage("proc-ev-lifecycle"));
-
-			// Send a full lifecycle sequence
-			String pipeline = "video-pipeline";
-			processorWs.writeTextMessage(pipelineEventMessage(pipeline, null, "PIPELINE_STARTED").encode());
-			processorWs.writeTextMessage(pipelineEventMessage(pipeline, "sha512", "NODE_STARTED").encode());
-			processorWs.writeTextMessage(pipelineEventMessage(pipeline, "sha512", "NODE_COMPLETED").encode());
-			processorWs.writeTextMessage(pipelineEventMessage(pipeline, null, "PIPELINE_COMPLETED").encode());
-
-			gotAll.get(10, TimeUnit.SECONDS);
-
-			assertEquals(4, received.size());
-			assertEquals("PIPELINE_STARTED", received.get(0).getString("type"));
-			assertEquals("NODE_STARTED", received.get(1).getString("type"));
-			assertEquals("NODE_COMPLETED", received.get(2).getString("type"));
-			assertEquals("PIPELINE_COMPLETED", received.get(3).getString("type"));
-
-			// All events reference the same pipeline
-			for (JsonObject ev : received) {
-				assertEquals(pipeline, ev.getString("pipelineName"));
-			}
-
-			uiWs.close();
-			processorWs.close();
-		} finally {
-			vertx.close();
-		}
-	}
-
-	@Test
-	public void testNodeStatsEvent() throws Exception {
-		Vertx vertx = Vertx.vertx();
-		try {
-			WebSocket uiWs = connectPipelineEventsWs(vertx);
-			CompletableFuture<JsonObject> receivedEvent = new CompletableFuture<>();
-			uiWs.textMessageHandler(text -> {
-				JsonObject frame = new JsonObject(text);
-				if (isPipelineFrame(frame)) receivedEvent.complete(frame);
-			});
-
-			WebSocket processorWs = connectProcessorWs(vertx);
-			sendAndReceive(processorWs, registerMessage("proc-ev-stats"));
-
-			// Send NODE_STATS event with volume data
-			JsonObject statsEvent = new JsonObject()
-				.put("type", "PIPELINE_EVENT")
-				.put("body", new JsonObject()
-					.put("type", "NODE_STATS")
-					.put("pipelineName", "my-pipeline")
-					.put("nodeId", "sha512")
-					.put("activeCount", 3)
-					.put("pendingCount", 12)
-					.put("processedCount", 1042)
-					.put("failedCount", 2)
-					.put("timestamp", System.currentTimeMillis()));
-			processorWs.writeTextMessage(statsEvent.encode());
-
-			JsonObject event = receivedEvent.get(10, TimeUnit.SECONDS);
-			assertEquals("NODE_STATS", event.getString("type"));
-			assertEquals("sha512", event.getString("nodeId"));
-			assertEquals(3, event.getInteger("activeCount"));
-			assertEquals(12, event.getInteger("pendingCount"));
-			assertEquals(1042L, event.getLong("processedCount"));
-			assertEquals(2L, event.getLong("failedCount"));
-
-			uiWs.close();
 			processorWs.close();
 		} finally {
 			vertx.close();

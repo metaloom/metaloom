@@ -63,7 +63,7 @@ public class CortexImplShutdownFlushTest {
 	 * standing up the monitoring service or the Loom control channel.
 	 */
 	private static CortexBootstrapInitializer noopBoot() {
-		return new CortexBootstrapInitializer(null, null, null, null) {
+		return new CortexBootstrapInitializer(null, null, null, null, new CortexOptions()) {
 			@Override
 			public void init(int port) {
 				// no-op

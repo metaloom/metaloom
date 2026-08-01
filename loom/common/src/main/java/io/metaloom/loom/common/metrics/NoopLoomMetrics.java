@@ -55,6 +55,10 @@ public class NoopLoomMetrics implements LoomMetrics {
 	}
 
 	@Override
+	public void recordTaskReturned(String nodeId) {
+	}
+
+	@Override
 	public void recordPipelineEventBroadcast() {
 	}
 

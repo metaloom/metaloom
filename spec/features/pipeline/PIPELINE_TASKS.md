@@ -185,14 +185,14 @@ explicit error instead of a fake success.
    registration block (currently 5 factory.register(...) lines) to cover every
    node module listed in NodeCollectionModule: fingerprint, facedetect, ocr,
    tika, whisper, llm, captioning, quality, consistency, dedup,
-   scene-detection, loom.
+   scene-detection.
    - Each needs its Dagger-provided node injected and wrapped via the existing
      adapt(...) helper.
-   - Watch the adapter id-override rule: LoomNode reads
+   - OBSOLETE (kept for the record): the adapter id-override rule. LoomNode read
      ctx.upstreamOutput("md5sum", "md5") while MD5Node.name() is "md5", so the
-     MD5 adapter must be built with the explicit id "md5sum". Check each node's
-     upstreamOutput calls for the same pattern before assuming the default id
-     is correct.
+     MD5 adapter had to be built with the explicit id "md5sum". Both
+     upstreamOutput and the loom node are gone; nodes bind by typed port and a
+     node id cannot affect data delivery. See NODE_DATA_TYPES.md.
    - adapt(...) must call setSyncToLoom(...) where appropriate —
      CortexNodeAdapter hardcodes syncToLoom=false in its super() call.
 

@@ -259,13 +259,22 @@ seconds. It carries CPU load, memory, and disk. What is actually in it:
 
 | Field | Reality |
 |---|---|
-| `cpuLoad` | derived from the system load average and multiplied by 100 — **this is wrong.** Load average counts runnable processes; it is not a percentage. On any machine, a load of 1.0 reports as "100%" regardless of core count |
+| `cpuLoad` | percentage of total CPU capacity in use, from `OperatingSystemMXBean.getCpuLoad()`. Falls back to load average ÷ core count where that is unavailable. `null` when neither can be read — never a substituted zero |
+| `ioLoad` | percentage of wall-clock time the **busiest** physical disk spent with a request in flight, measured between consecutive status updates from `/proc/diskstats` (the `%util` iostat prints). Linux-only; `null` elsewhere |
 | `memoryUsed` / `memoryTotal` | **JVM heap only**, not system memory, despite the field naming |
 | `diskUsed` / `diskTotal` | the filesystem of the process working directory — not necessarily where the media lives |
-| `gpuLoad`, `ioLoad` | **always null** — never populated |
+| `gpuLoad` | **always null** — never populated |
 
-So the load figures exist, but nothing consumes them, and they would be
-misleading if it did. **Loom's worker selection ignores them entirely.**
+Both load figures are produced by `SystemLoadProbe` (`cortex/core`, package
+`io.metaloom.cortex.impl.loom`), which also backs the `cortex_cpu_load` and
+`cortex_io_load` gauges, so a dashboard shows the same numbers Loom placed work on.
+The probe is stateful — I/O utilisation is a rate — so the first status update after
+a worker connects carries no `ioLoad`.
+
+**Loom's worker selection uses them**, as the tie-break among workers of equal
+declared priority: see [§6](#6-how-loom-tells-cortex-what-to-run). A worker whose
+load is unknown or older than 60 seconds is scored mid-scale, so silence neither
+attracts work nor repels it.
 
 **3. How is the actual work going?** — `PIPELINE_EVENT` messages, streamed as
 they happen. These are the ones the UI draws:

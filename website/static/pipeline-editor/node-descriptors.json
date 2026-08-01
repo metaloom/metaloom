@@ -1669,52 +1669,6 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
-    "kind" : "loom",
-    "name" : "Loom Sync",
-    "description" : "Synchronize processing results back to the Loom backend.",
-    "icon" : "cloud_upload",
-    "category" : "OUTPUT",
-    "inputPorts" : [ {
-      "id" : "md5",
-      "label" : "MD5",
-      "contentType" : "hash/md5",
-      "cardinality" : "ONE",
-      "required" : false,
-      "description" : "MD5 to store on the asset. Bound by port type, so renaming the upstream node cannot silently detach it",
-      "many" : false
-    }, {
-      "id" : "sha256",
-      "label" : "SHA-256",
-      "contentType" : "hash/sha256",
-      "cardinality" : "ONE",
-      "required" : false,
-      "description" : "SHA-256 to store on the asset",
-      "many" : false
-    }, {
-      "id" : "sha512",
-      "label" : "SHA-512",
-      "contentType" : "hash/sha512",
-      "cardinality" : "ONE",
-      "required" : false,
-      "description" : "SHA-512 to store on the asset",
-      "many" : false
-    } ],
-    "outputPorts" : [ ],
-    "inputGroups" : [ ],
-    "outputGroups" : [ ],
-    "dynamicPorts" : false,
-    "parameters" : [ {
-      "key" : "enabled",
-      "type" : "BOOLEAN",
-      "defaultValue" : true,
-      "label" : "Enabled",
-      "description" : "Whether this node is active in the pipeline"
-    } ],
-    "defaultConcurrency" : 1,
-    "defaultMode" : "PARALLEL",
-    "defaultBlocking" : false,
-    "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
-  }, {
     "kind" : "ocr",
     "name" : "OCR",
     "description" : "Extract text from images using optical character recognition.",
@@ -2814,6 +2768,171 @@
       "label" : "Timeout (ms)",
       "description" : "Wall-clock budget per item; 0 leaves it to the worker default",
       "min" : 0
+    } ],
+    "defaultConcurrency" : 1,
+    "defaultMode" : "PARALLEL",
+    "defaultBlocking" : true,
+    "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+  }, {
+    "kind" : "videogen",
+    "name" : "Video Generation",
+    "description" : "Generate a short video clip through the LTX-2 video sidecar - text-to-video from a prompt, or image-to-video from the source asset. The MP4 (with synchronised audio) is written to the worker's local cache; wire it into a sink to keep it.",
+    "icon" : "movie",
+    "category" : "TRANSFORM",
+    "inputPorts" : [ {
+      "id" : "prompt",
+      "label" : "Prompt",
+      "contentType" : "text/*",
+      "cardinality" : "ONE",
+      "required" : false,
+      "description" : "Upstream text used instead of the configured prompt - an LLM answer or a caption",
+      "many" : false
+    }, {
+      "id" : "media",
+      "label" : "Source Image",
+      "contentType" : "media/image",
+      "cardinality" : "ONE",
+      "required" : false,
+      "description" : "The still image to animate. Required in ANIMATE mode and ignored in GENERATE mode",
+      "many" : false
+    } ],
+    "outputPorts" : [ {
+      "id" : "video",
+      "label" : "Video",
+      "contentType" : "artifact/video",
+      "cardinality" : "ONE",
+      "required" : true,
+      "description" : "The generated MP4 in the worker's local cache; wire it into a sink to keep it",
+      "many" : false
+    }, {
+      "id" : "flag",
+      "label" : "Flag",
+      "contentType" : "scalar/string",
+      "cardinality" : "ONE",
+      "required" : true,
+      "description" : "Processing marker recording how this node finished for the item",
+      "many" : false
+    } ],
+    "inputGroups" : [ ],
+    "outputGroups" : [ ],
+    "dynamicPorts" : false,
+    "parameters" : [ {
+      "key" : "enabled",
+      "type" : "BOOLEAN",
+      "defaultValue" : true,
+      "label" : "Enabled",
+      "description" : "Whether this node is active in the pipeline"
+    }, {
+      "key" : "processIncomplete",
+      "type" : "BOOLEAN",
+      "defaultValue" : false,
+      "label" : "Process Incomplete",
+      "description" : "Process media files that are still being written"
+    }, {
+      "key" : "retryFailed",
+      "type" : "BOOLEAN",
+      "defaultValue" : false,
+      "label" : "Retry Failed",
+      "description" : "Retry processing media that previously failed"
+    }, {
+      "key" : "mode",
+      "type" : "ENUM",
+      "defaultValue" : "GENERATE",
+      "label" : "Mode",
+      "description" : "GENERATE ignores the source pixels and works from the prompt; ANIMATE feeds the source image in as the opening frame",
+      "values" : [ "GENERATE", "ANIMATE" ]
+    }, {
+      "key" : "prompt",
+      "type" : "STRING",
+      "defaultValue" : "",
+      "label" : "Prompt",
+      "description" : "What to animate. Used unless the Prompt input port is wired"
+    }, {
+      "key" : "negativePrompt",
+      "type" : "STRING",
+      "defaultValue" : "",
+      "label" : "Negative Prompt",
+      "description" : "What to steer away from. Left empty the sidecar applies its own default"
+    }, {
+      "key" : "host",
+      "type" : "STRING",
+      "defaultValue" : "localhost",
+      "label" : "Sidecar Host",
+      "description" : "Host of the video-generation sidecar"
+    }, {
+      "key" : "port",
+      "type" : "INTEGER",
+      "defaultValue" : 9220,
+      "label" : "Sidecar Port",
+      "description" : "Port of the video-generation sidecar",
+      "min" : 1
+    }, {
+      "key" : "generateEndpoint",
+      "type" : "STRING",
+      "defaultValue" : "/generate",
+      "label" : "Generate Endpoint",
+      "description" : "Sidecar path called in GENERATE mode"
+    }, {
+      "key" : "animateEndpoint",
+      "type" : "STRING",
+      "defaultValue" : "/animate",
+      "label" : "Animate Endpoint",
+      "description" : "Sidecar path called in ANIMATE mode"
+    }, {
+      "key" : "width",
+      "type" : "INTEGER",
+      "defaultValue" : 768,
+      "label" : "Width (px)",
+      "description" : "Width of the generated clip; snapped to a multiple of 32 by the sidecar",
+      "min" : 1
+    }, {
+      "key" : "height",
+      "type" : "INTEGER",
+      "defaultValue" : 512,
+      "label" : "Height (px)",
+      "description" : "Height of the generated clip; snapped to a multiple of 32 by the sidecar",
+      "min" : 1
+    }, {
+      "key" : "numFrames",
+      "type" : "INTEGER",
+      "defaultValue" : 49,
+      "label" : "Frames",
+      "description" : "Number of frames; snapped to k*8+1 by the sidecar",
+      "min" : 1
+    }, {
+      "key" : "fps",
+      "type" : "INTEGER",
+      "defaultValue" : 24,
+      "label" : "FPS",
+      "description" : "Frame rate of the produced clip",
+      "min" : 1
+    }, {
+      "key" : "steps",
+      "type" : "INTEGER",
+      "defaultValue" : 40,
+      "label" : "Steps",
+      "description" : "Diffusion steps. More steps cost proportionally more time",
+      "min" : 1
+    }, {
+      "key" : "guidance",
+      "type" : "NUMBER",
+      "defaultValue" : 4.0,
+      "label" : "Guidance",
+      "description" : "Prompt guidance scale",
+      "min" : 0.0,
+      "step" : 0.5
+    }, {
+      "key" : "seed",
+      "type" : "INTEGER",
+      "label" : "Seed",
+      "description" : "Fix the seed to make a run reproducible. Left empty the sidecar picks one per item"
+    }, {
+      "key" : "timeoutMs",
+      "type" : "INTEGER",
+      "defaultValue" : 1800000,
+      "label" : "Timeout (ms)",
+      "description" : "Wall-clock budget per item",
+      "min" : 1
     } ],
     "defaultConcurrency" : 1,
     "defaultMode" : "PARALLEL",

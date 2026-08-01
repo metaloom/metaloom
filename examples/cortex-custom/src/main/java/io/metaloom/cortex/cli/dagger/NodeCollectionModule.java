@@ -8,7 +8,6 @@ import io.metaloom.cortex.node.facedetect.FacedetectNodeModule;
 import io.metaloom.cortex.node.fp.FingerprintNodeModule;
 import io.metaloom.cortex.node.hash.HashNodeModule;
 import io.metaloom.cortex.node.llm.LLMNodeModule;
-import io.metaloom.cortex.node.loom.LoomNodeModule;
 import io.metaloom.cortex.node.ocr.OCRNodeModule;
 import io.metaloom.cortex.node.quality.QualityNodeModule;
 import io.metaloom.cortex.node.scene.SceneDetectionNodeModule;
@@ -34,7 +33,6 @@ import io.metaloom.cortex.node.hello.HelloWorldNodeModule;
 	TikaNodeModule.class,
 	LLMNodeModule.class,
 	SceneDetectionNodeModule.class,
-	LoomNodeModule.class,
 	QualityNodeModule.class,
 	HelloWorldNodeModule.class,
 	CaptioningNodeModule.class,

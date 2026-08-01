@@ -223,7 +223,7 @@ obvious home in the schema but never reach it:
 | `SceneDetectionNode` | `scene_detection` | `asset_json_comp` | xattr |
 | `FingerprintNode` | `fingerprint` | `embedding` / `asset` column | xattr |
 | `ConsistencyNode` | `zero_chunk_count` | `asset.zero_chunk_count` (exists!) | xattr |
-| `LoomNode` / bulk sync | hashes only | `asset` hash columns | DB ✔ |
+| ~~`LoomNode`~~ / bulk sync | hashes only | `asset` hash columns | deleted — the hash nodes write those columns themselves |
 
 `AssetBulkUpdateEntry` carries only `HashInfo` + `AssetUpdateRequest`, so the one generic
 sync path is hash-shaped and cannot express component results at all.

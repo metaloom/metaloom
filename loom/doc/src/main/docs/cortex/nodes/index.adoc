@@ -159,15 +159,6 @@ Detects corruption, truncation, and format mismatches.
 
 * Applicable to: all media types
 
-== Loom Sync
-
-=== `loom`
-
-Forwards all results from upstream nodes to the Loom server via the REST API.
-This node is what makes "online mode" work — without it, Cortex only writes to local xattr/meta-path storage.
-
-* Requires: Loom connection (`--hostname`, `--port`)
-
 == Speech-to-Text
 
 === `whisper`

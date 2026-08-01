@@ -34,8 +34,7 @@ import io.metaloom.loom.nodes.spec.PortSpec;
  * is precisely why the two drifted for so long without anyone noticing. Before this test, the
  * {@code llm} descriptor advertised an output named {@code llm_result} while the node emitted
  * {@code llm_result_<promptId>}, which silently made two of {@code sentiment}'s default text sources
- * unmatchable; and {@code LoomNode} read upstream ids {@code md5sum}/{@code sha256sum} that no kind
- * was ever called.
+ * unmatchable.
  * </p>
  *
  * <p>
@@ -79,7 +78,6 @@ public class NodePortConformanceTest {
 		NODE_KINDS.put("io.metaloom.cortex.node.tts.TtsNode", "tts");
 		NODE_KINDS.put("io.metaloom.cortex.node.imagegen.ImageGenNode", "imagegen");
 		NODE_KINDS.put("io.metaloom.cortex.node.watermark.WatermarkNode", "watermark");
-		NODE_KINDS.put("io.metaloom.cortex.node.loom.LoomNode", "loom");
 		NODE_KINDS.put("io.metaloom.cortex.node.sink.s3.S3SinkNode", "s3-sink");
 	}
 

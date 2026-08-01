@@ -20,6 +20,7 @@ import io.metaloom.loom.client.common.LoomClientRequest;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.client.http.impl.LoomClientResponseImpl;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
+import io.metaloom.utils.hash.SHA512;
 
 public abstract class AbstractNodeTest<T extends FilesystemNode<?, ?>> extends AbstractMediaTest {
 
@@ -44,6 +45,13 @@ public abstract class AbstractNodeTest<T extends FilesystemNode<?, ?>> extends A
 
 		AssetId id = any();
 		when(client.loadAsset(id)).thenReturn(request);
+		// loadAsset(SHA512) is a default method that would delegate to loadAsset(AssetId),
+		// but a mock stubs defaults too and answers null. Nodes look an asset up by its
+		// SHA-512, so without this the lookup returned null, the node fell through to
+		// computing, and any test meaning to exercise the "already known to Loom" path
+		// silently exercised the local one instead.
+		SHA512 hash = any();
+		when(client.loadAsset(hash)).thenReturn(request);
 		return client;
 	}
 

@@ -459,7 +459,7 @@ Runtime outputs: `s3_sink_flag` (`DONE`/`PARTIAL`/`FAILED`), `s3_sink_count` (In
 ## 12. Descriptor, registration, testing
 
 **Descriptor:** new `S3SinkDescriptorProvider`, kind `s3-sink`, `NodeCategory.OUTPUT` (it exists;
-`LoomNodeDescriptorProvider` is the precedent), icon `cloud_upload`, inputs `media : media/*` +
+`LoomNodeDescriptorProvider` was the precedent — it has since been deleted with its node), icon `cloud_upload`, inputs `media : media/*` +
 `data : data/path`, `setOutputs(List.of())`, `setDefaultBlocking(false)`.
 
 **Registration:** `cortex/nodes/pom.xml`, `cortex/processor/pom.xml`,

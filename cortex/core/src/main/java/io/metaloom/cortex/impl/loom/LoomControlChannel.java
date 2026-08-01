@@ -1,6 +1,5 @@
 package io.metaloom.cortex.impl.loom;
 
-import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.nio.file.FileStore;
 import java.nio.file.Files;
@@ -18,10 +17,6 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.api.option.LoomClientOptions;
 import io.metaloom.cortex.common.metrics.CortexMetrics;
-import io.metaloom.cortex.pipeline.api.event.PipelineEventBus;
-import io.metaloom.cortex.pipeline.api.event.PipelineTrackingEvent;
-import io.metaloom.loom.rest.model.pipeline.event.PipelineEventMessage;
-import io.metaloom.loom.rest.model.pipeline.event.PipelineEventType;
 import io.metaloom.loom.rest.model.processor.ProcessorCapability;
 import io.metaloom.loom.rest.model.processor.SystemStatusInfo;
 import io.metaloom.loom.pipeline.model.NodeTask;
@@ -49,13 +44,20 @@ public class LoomControlChannel {
 	private static final long HEALTH_LOG_INTERVAL_MS = 30_000;
 	private static final long RECONNECT_BASE_DELAY_MS = 2_000;
 	private static final long RECONNECT_MAX_DELAY_MS = 30_000;
+	/** How long a shutdown waits for its last frames to reach the socket. */
+	private static final long FLUSH_TIMEOUT_MS = 5_000;
 
 	private final Vertx vertx;
 	private final CortexOptions options;
-	private final PipelineEventBus pipelineEventBus;
 	private final CortexMetrics metrics;
 
 	private final PipelineTaskHandler taskHandler;
+
+	/**
+	 * Kept for the life of the channel: I/O utilisation is a rate between consecutive
+	 * status updates, so the probe has to remember the previous sample.
+	 */
+	private final SystemLoadProbe loadProbe = new SystemLoadProbe();
 
 	private final AtomicBoolean started = new AtomicBoolean(false);
 	private final AtomicBoolean connected = new AtomicBoolean(false);
@@ -72,7 +74,6 @@ public class LoomControlChannel {
 	private long statusTimerId = -1;
 	private long healthLogTimerId = -1;
 	private long reconnectTimerId = -1;
-	private String trackingSubscriptionId;
 
 	private volatile long lastConnectedAt;
 	private volatile long lastMessageAt;
@@ -84,7 +85,7 @@ public class LoomControlChannel {
 	private volatile boolean endpointConfigured;
 
 	@Inject
-	public LoomControlChannel(Vertx vertx, CortexOptions options, PipelineEventBus pipelineEventBus,
+	public LoomControlChannel(Vertx vertx, CortexOptions options,
 			PipelineTaskHandler taskHandler, CortexMetrics metrics,
 			dagger.Lazy<io.metaloom.cortex.pipeline.loader.NodeFactory> nodeFactory) {
 		this.nodeFactory = nodeFactory;
@@ -97,7 +98,6 @@ public class LoomControlChannel {
 		// the command graph for every invocation - including --help and the offline `process`
 		// command - so throwing here would break those paths before the CLI can report anything.
 		this.nodeId = options.getNodeId();
-		this.pipelineEventBus = pipelineEventBus;
 		this.taskHandler = taskHandler;
 	}
 
@@ -126,13 +126,64 @@ public class LoomControlChannel {
 		}
 
 		webSocketClient = vertx.createWebSocketClient();
-		trackingSubscriptionId = pipelineEventBus.subscribeTracking(this::forwardPipelineTrackingEvent);
 
 		healthLogTimerId = vertx.setPeriodic(HEALTH_LOG_INTERVAL_MS, id -> logPeriodicHealth());
 		heartbeatTimerId = vertx.setPeriodic(HEARTBEAT_INTERVAL_MS, id -> sendHeartbeat());
 		statusTimerId = vertx.setPeriodic(STATUS_INTERVAL_MS, id -> sendStatusUpdate());
 
 		connectNow();
+	}
+
+	/**
+	 * Shut down without abandoning work.
+	 *
+	 * <p>A worker that simply exits leaves every task it held {@code RUNNING} until the
+	 * lease lapses, and the lease is deliberately generous - so scaling a fleet down
+	 * costs the affected runs a lease interval per outstanding task before any of it is
+	 * placed again. This closes that gap in three steps:</p>
+	 *
+	 * <ol>
+	 * <li>announce {@code TERMINATING}, which is what stops Loom placing anything more
+	 * here (see {@code ProcessorRegistry#isPlaceable});</li>
+	 * <li>stop accepting tasks locally, because a dispatch already on the wire arrives
+	 * after that announcement and would otherwise be started seconds before exit;</li>
+	 * <li>wait out the grace period, then hand back whatever is still running so Loom
+	 * can re-place it at once.</li>
+	 * </ol>
+	 *
+	 * <p>Blocking, and called from the shutdown path rather than from the event loop.
+	 * The connection is left open throughout - the hand-back needs it - and is closed by
+	 * {@link #stop()} afterwards.</p>
+	 *
+	 * @param graceMs how long to let running tasks finish before they are handed back
+	 */
+	public void drain(long graceMs) {
+		if (!started.get() || !connected.get() || websocket == null) {
+			// Never connected, or already down. There is nobody to tell and nothing that
+			// could have been dispatched here.
+			return;
+		}
+
+		sendMessage(new ProcessorMessage(ProcessorMessageType.STATE_CHANGE,
+			new JsonObject().put("state", "TERMINATING")));
+
+		int running = taskHandler.beginDrain();
+		log.info("Draining: announced TERMINATING with {} task(s) in flight, waiting up to {} ms", running, graceMs);
+
+		int remaining = taskHandler.awaitDrain(graceMs);
+		if (remaining == 0) {
+			log.info("Drain complete: every in-flight task finished");
+		} else {
+			log.warn("Drain deadline reached with {} task(s) still running; handing them back to Loom", remaining);
+		}
+		// Called unconditionally: a task that finished between the wait ending and this
+		// call has already left the set, and returning nothing is a no-op.
+		int returned = taskHandler.returnOutstanding("worker '" + nodeId + "' is shutting down");
+		if (returned > 0) {
+			log.info("Returned {} unfinished task(s) for immediate re-placement", returned);
+		}
+		// stop() closes the socket next, and a queued frame is lost when it does.
+		awaitFlush(FLUSH_TIMEOUT_MS);
 	}
 
 	public void stop() {
@@ -148,11 +199,6 @@ public class LoomControlChannel {
 		statusTimerId = -1;
 		healthLogTimerId = -1;
 		reconnectTimerId = -1;
-
-		if (trackingSubscriptionId != null) {
-			pipelineEventBus.unsubscribe(trackingSubscriptionId);
-			trackingSubscriptionId = null;
-		}
 
 		registered.set(false);
 		connected.set(false);
@@ -186,9 +232,16 @@ public class LoomControlChannel {
 		metrics.bindGauge("cortex_loom_reconnect_attempts", reconnectAttempts::get);
 		metrics.bindGauge("cortex_memory_used_bytes", () -> Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory());
 		metrics.bindGauge("cortex_memory_max_bytes", () -> Runtime.getRuntime().maxMemory());
+		// Both are the same percentages reported in STATUS_UPDATE, so what an operator
+		// sees on a dashboard is what Loom placed work on. Unknown scrapes as 0 because a
+		// gauge has no way to say "unknown"; the status message keeps the distinction.
 		metrics.bindGauge("cortex_cpu_load", () -> {
-			double load = ManagementFactory.getOperatingSystemMXBean().getSystemLoadAverage();
-			return load < 0 ? 0d : load;
+			Double load = loadProbe.cpuLoad();
+			return load == null ? 0d : load;
+		});
+		metrics.bindGauge("cortex_io_load", () -> {
+			Double load = loadProbe.ioLoad();
+			return load == null ? 0d : load;
 		});
 		metrics.bindGauge("cortex_disk_used_bytes", () -> diskSpace(true));
 		metrics.bindGauge("cortex_disk_total_bytes", () -> diskSpace(false));
@@ -392,9 +445,6 @@ public class LoomControlChannel {
 		long usedMemory = runtime.totalMemory() - runtime.freeMemory();
 		long totalMemory = runtime.maxMemory();
 
-		double loadAverage = ManagementFactory.getOperatingSystemMXBean().getSystemLoadAverage();
-		Double cpuLoad = loadAverage < 0 ? null : Math.min(100.0d, Math.max(0.0d, loadAverage * 100.0d));
-
 		Long diskTotal = null;
 		Long diskUsed = null;
 		try {
@@ -406,7 +456,8 @@ public class LoomControlChannel {
 		}
 
 		return new SystemStatusInfo()
-			.setCpuLoad(cpuLoad)
+			.setCpuLoad(loadProbe.cpuLoad())
+			.setIoLoad(loadProbe.ioLoad())
 			.setMemoryUsed(usedMemory)
 			.setMemoryTotal(totalMemory)
 			.setDiskTotal(diskTotal)
@@ -533,52 +584,52 @@ public class LoomControlChannel {
 		taskHandler.handleSourceItemsAck(ack.getRunUuid(), ack.getSeq());
 	}
 
-	private void forwardPipelineTrackingEvent(PipelineTrackingEvent event) {
-		if (!connected.get() || websocket == null || !registered.get()) {
-			return;
-		}
-		PipelineEventMessage outgoing = new PipelineEventMessage()
-			.setType(PipelineEventType.valueOf(event.getType().name()))
-			.setPipelineName(event.getPipelineName())
-			.setPipelineRunUuid(event.getPipelineRunUuid())
-			.setNodeId(event.getNodeId())
-			.setMediaPath(event.getMediaPath())
-			.setTimestamp(event.getTimestamp())
-			.setDurationMs(event.getDurationMs())
-			.setMessage(event.getMessage());
-		sendMessage(new ProcessorMessage(ProcessorMessageType.PIPELINE_EVENT, JsonObject.mapFrom(outgoing)));
-
-		// If this is a pipeline completion event, also send a PIPELINE_RUN_COMPLETED
-		// message carrying the run correlation id and the per-media aggregate
-		// counters, so Loom can close out the pipeline_run record.
-		if (event.getType() == PipelineTrackingEvent.Type.PIPELINE_COMPLETED) {
-			JsonObject completionPayload = new JsonObject()
-				.put("pipelineName", event.getPipelineName())
-				.put("pipelineRunUuid", event.getPipelineRunUuid())
-				.put("timestamp", event.getTimestamp())
-				.put("durationMs", event.getDurationMs())
-				.put("message", event.getMessage());
-			PipelineTrackingEvent.RunCounters counters = event.getCounters();
-			if (counters != null) {
-				completionPayload
-					.put("mediaCount", counters.getMediaCount())
-					.put("successCount", counters.getSuccessCount())
-					.put("failureCount", counters.getFailureCount())
-					.put("skippedCount", counters.getSkippedCount());
-			}
-			sendMessage(new ProcessorMessage(ProcessorMessageType.PIPELINE_RUN_COMPLETED, completionPayload));
-		}
+	/**
+	 * Under Variant C a worker holds no pipeline graph, so it has nothing to report at
+	 * pipeline-event granularity: Loom's {@code RunStatsAggregator} counts node settles
+	 * and pushes {@code NODE_STATS} on a timer, releasing only failures immediately.
+	 * Forwarding this worker's tracking bus straight to Loom went past that aggregation
+	 * and is gone. Nothing publishes to the tracking bus outside the node-chain tests.
+	 */
+	private void sendMessage(ProcessorMessage message) {
+		write(message);
 	}
 
-	private void sendMessage(ProcessorMessage message) {
+	/**
+	 * @return when the frame has been written, or a failed future when there is no
+	 *         connection to write it to
+	 */
+	private io.vertx.core.Future<Void> write(ProcessorMessage message) {
 		if (websocket == null) {
-			return;
+			return io.vertx.core.Future.failedFuture("no websocket");
 		}
-		websocket.writeTextMessage(Json.encode(message))
+		return websocket.writeTextMessage(Json.encode(message))
 			.onFailure(err -> {
 				connectionError = err.getMessage();
 				log.warn("Failed to send websocket message type {}", message.getType(), err);
 			});
+	}
+
+	/**
+	 * Block until everything already handed to the socket has been written.
+	 *
+	 * <p>Writes are queued on the event loop, so a shutdown that closes the connection
+	 * straight after sending would discard the very hand-backs the drain exists to
+	 * deliver. Frames on one WebSocket are written in order, so waiting on one more
+	 * write waits for all of them.</p>
+	 *
+	 * @param timeoutMs how long to wait before giving up on the flush
+	 */
+	private void awaitFlush(long timeoutMs) {
+		try {
+			write(new ProcessorMessage(ProcessorMessageType.HEARTBEAT))
+				.toCompletionStage().toCompletableFuture()
+				.get(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+		} catch (Exception e) {
+			log.warn("Could not confirm that pending messages were flushed before disconnecting", e);
+		}
 	}
 
 	private void logPeriodicHealth() {

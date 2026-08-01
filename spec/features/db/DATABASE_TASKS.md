@@ -168,7 +168,7 @@ that produces persistable output is left without a target.
 | `ThumbnailNode` | contact sheet | `attachment` (`CONTACT_SHEET`) | 7 |
 | *every node* | did it run, at what version, with what outcome | `asset_node_result` | 8 |
 | `HashDedupNode`, `FingerprintDedupNode` | moved files | `asset_location` — **out of scope**, blocked on its `UNIQUE (asset_uuid)` defect ([../DB_SCHEMA_FEEDBACK.md](../DB_SCHEMA_FEEDBACK.md) §2.3) | — |
-| `LoomNode` | bulk hash sync | already writes `asset`; generalising it is follow-up work | — |
+| ~~`LoomNode`~~ | bulk hash sync | deleted — the hash nodes write `asset` themselves inside `compute()` | — |
 | Filter nodes, `FilesystemSourceNode` | pass/reject, discovery | `pipeline_run_item` / `pipeline_node_task` — execution state, not catalog | — |
 
 ---
@@ -1270,7 +1270,11 @@ tests now skip when no Ollama is reachable instead of erroring; `RxDaoTest` need
 - [ ] `tag_asset` primary key vs. its own placement columns (§5.1)
 - [ ] `timestamptz` sweep (§8.1) and `filekey_*` widening (§2.4)
 - [ ] pgvector vs. external vector index decision (§4.2)
-- [ ] Execution-ledger retention / partitioning (§3.6)
+- [ ] Execution-ledger retention — **policy decided**, sweep not built. Windows and the
+      reasoning are in [../pipeline/PIPELINE.md](../pipeline/PIPELINE.md) §10.1a: 7 days of
+      per-item/per-task detail after a run finishes, 30 days for failures, the `pipeline_run`
+      row and its counters forever. (The former pointer to a §3.6 of this document was
+      dangling — no such section was ever written.)
 
 ### Follow-up work unlocked by this list (not part of it)
 

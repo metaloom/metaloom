@@ -56,7 +56,7 @@ public class NodeRegistrarTest {
 			"sha512", "sha256", "md5", "chunk-hash",
 			"fingerprint", "consistency", "thumbnail", "facedetect",
 			"ocr", "tika", "whisper", "tts", "sentiment", "llm", "vlm",
-			"quality", "scene-detection", "captioning", "loom", "sha512-dedup",
+			"quality", "scene-detection", "captioning", "sha512-dedup",
 			"depthmap", "scene-layout", "dominant-color", "watermark",
 			// The two fingerprint-dedup kinds gained real runtimes and map bindings; NODES.md §8
 			// records them as intentionally bound, so they belong here rather than in the

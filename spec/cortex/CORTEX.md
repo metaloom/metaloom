@@ -284,6 +284,7 @@ Cortex to the Loom server. It uses Vert.x 5's `WebSocketClient`.
 | 8 | `NODE_TASK_RESULT` / `SOURCE_ITEMS` | Cortex → Loom | Node outcome, or a batch of discovered items |
 | 9 | `PIPELINE_EVENT` | Cortex → Loom | Forwarded pipeline tracking event (NODE_STARTED, NODE_COMPLETED, etc.) |
 | 10 | `ERROR` | Loom → Cortex | Error message |
+| 11 | `STATE_CHANGE` (`TERMINATING`) + `TASK_RETURNED` | Cortex → Loom | Shutdown: see [7.4](#74-graceful-shutdown-drain) |
 
 ### 7.2 Reconnection
 
@@ -294,6 +295,37 @@ Cortex to the Loom server. It uses Vert.x 5's `WebSocketClient`.
 
 Cortex registers with `EnumSet.of(CPU, IO)` capabilities. Future
 extensions may add `GPU`.
+
+### 7.4 Graceful Shutdown (Drain)
+
+`SIGTERM` is how a worker is normally stopped — `docker stop`, a Kubernetes
+eviction, a systemd restart — and it does not reach `CortexImpl#shutdown` on its own.
+A JVM shutdown hook registered in `run()` calls it, so a stop flushes the bulk-sync
+buffer *and* drains in-flight work instead of abandoning both. A direct
+`shutdown()` removes the hook, so it fires at most once.
+
+`CortexBootstrapInitializer#deinit` then runs `LoomControlChannel#drain` before
+`stop()`, because both the announcement and the hand-back need the connection open:
+
+1. `STATE_CHANGE` → `TERMINATING`. Loom places nothing more here.
+2. `PipelineTaskHandler#beginDrain` — a dispatch already on the wire is answered
+   with `TASK_RETURNED` rather than started.
+3. `awaitDrain(--drain-timeout-ms)` — running node, segment *and* source tasks are
+   given the grace period to finish.
+4. `returnOutstanding` — whatever is still running is handed back. The task keeps
+   running; Loom is simply free to place it elsewhere at once.
+5. The channel writes one more frame and waits for it, since frames queued on the
+   event loop are lost when the socket closes.
+
+Without this, every task the worker held stays `RUNNING` until its lease lapses
+(10 minutes by default), so a scale-down costs each affected run a lease interval
+per task. See [../loom/WEBSOCKET.md §3.8.1](../loom/WEBSOCKET.md) for the protocol
+and for what a return does to the attempt budget.
+
+**Gap:** a source task already enumerating cannot be handed back — there is no
+reclaim path for one, and fabricating a `SOURCE_COMPLETE` would mark a truncated
+scan as a whole one. It is logged and abandoned, and the run must be dispatched
+again.
 
 ---
 

@@ -36,7 +36,7 @@ function proc(nodeId: string, name: string, o: ProcOpts = {}) {
 }
 
 /** A minimal node-descriptor payload; only `kind` feeds the restriction Autocomplete. */
-const NODE_KINDS = ["sha256", "fingerprint", "loom", "whisper", "embedding"];
+const NODE_KINDS = ["sha256", "fingerprint", "thumbnail", "whisper", "embedding"];
 function descriptorsBody() {
   return {
     nodeDescriptors: NODE_KINDS.map(kind => ({
@@ -66,7 +66,7 @@ async function mockRest(page: Page) {
       contentType: "application/json",
       body: JSON.stringify({
         data: [
-          proc("node-1", "cortex-gpu-01", { caps: ["GPU", "CPU"], whitelist: ["sha256"], blacklist: ["loom"] }),
+          proc("node-1", "cortex-gpu-01", { caps: ["GPU", "CPU"], whitelist: ["sha256"], blacklist: ["thumbnail"] }),
           proc("node-2", "cortex-ghost-02", { state: "OFFLINE", persisted: true, whitelist: ["whisper"] }),
         ],
       }),
@@ -97,7 +97,7 @@ test.describe("Cortex node restrictions – backend round-trip", () => {
     await loginAndOpenCortex(page);
 
     await expect(page.getByTestId("worker-whitelist-node-1")).toContainText("sha256");
-    await expect(page.getByTestId("worker-blacklist-node-1")).toContainText("loom");
+    await expect(page.getByTestId("worker-blacklist-node-1")).toContainText("thumbnail");
 
     // The offline-but-persisted worker is marked distinctly and stays listed.
     await expect(page.getByTestId("worker-card-node-2")).toBeVisible();
@@ -117,7 +117,7 @@ test.describe("Cortex node restrictions – backend round-trip", () => {
         status: 200,
         contentType: "application/json",
         body: JSON.stringify(proc("node-1", "cortex-gpu-01", {
-          caps: ["GPU", "CPU"], whitelist: ["sha256", "fingerprint"], blacklist: ["loom"],
+          caps: ["GPU", "CPU"], whitelist: ["sha256", "fingerprint"], blacklist: ["thumbnail"],
         })),
       });
     });
@@ -141,7 +141,7 @@ test.describe("Cortex node restrictions – backend round-trip", () => {
     await expect.poll(() => putBody).not.toBeNull();
     expect((putBody as { nodeWhitelist: string[] }).nodeWhitelist).toContain("sha256");
     expect((putBody as { nodeWhitelist: string[] }).nodeWhitelist).toContain("fingerprint");
-    expect((putBody as { nodeBlacklist: string[] }).nodeBlacklist).toContain("loom");
+    expect((putBody as { nodeBlacklist: string[] }).nodeBlacklist).toContain("thumbnail");
 
     // …and the card reflects the change plus a success toast.
     await expect(page.getByTestId("worker-whitelist-node-1")).toContainText("fingerprint");

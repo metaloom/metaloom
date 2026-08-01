@@ -40,6 +40,16 @@ public interface CortexMetrics {
 	/** Wall-clock duration of a task of the given type. */
 	void recordTaskDuration(String type, long durationMs);
 
+	/**
+	 * A task was handed back to Loom unexecuted while draining.
+	 *
+	 * <p>{@code refused} counts work that arrived after this worker announced its
+	 * shutdown; {@code unfinished} counts work still running when the drain deadline
+	 * passed. A deployment that shows many of the latter has a drain timeout shorter
+	 * than its slowest node.</p>
+	 */
+	void recordTaskReturned(String reason);
+
 	// ---- Node operations --------------------------------------------------------------------
 
 	/** A single node applied to a single media item settled with the given state. */

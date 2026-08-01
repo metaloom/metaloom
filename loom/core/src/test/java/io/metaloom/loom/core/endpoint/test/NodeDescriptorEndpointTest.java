@@ -144,14 +144,16 @@ public class NodeDescriptorEndpointTest {
 			assertNotNull(desc.getString("name"));
 			assertNotNull(desc.getString("description"));
 
-			// Verify inputs and outputs are present
-			JsonArray inputs = desc.getJsonArray("inputs");
-			assertNotNull(inputs);
-			assertFalse(inputs.isEmpty(), "facedetect should have inputs");
+			// Verify ports are present. The keys are inputPorts/outputPorts, not inputs/outputs:
+			// nodes bind port-to-port, and a port carries a content type and cardinality that the
+			// old flat "inputs" list had no room for.
+			JsonArray inputs = desc.getJsonArray("inputPorts");
+			assertNotNull(inputs, "facedetect must declare inputPorts");
+			assertFalse(inputs.isEmpty(), "facedetect should have input ports");
 
-			JsonArray outputs = desc.getJsonArray("outputs");
-			assertNotNull(outputs);
-			assertFalse(outputs.isEmpty(), "facedetect should have outputs");
+			JsonArray outputs = desc.getJsonArray("outputPorts");
+			assertNotNull(outputs, "facedetect must declare outputPorts");
+			assertFalse(outputs.isEmpty(), "facedetect should have output ports");
 
 			// Verify parameters are present
 			JsonArray params = desc.getJsonArray("parameters");
@@ -207,8 +209,10 @@ public class NodeDescriptorEndpointTest {
 				JsonObject desc = httpGetObject(vertx, "/api/v1/pipeline/node-descriptors/" + kind, client.getToken());
 				assertNotNull(desc, "Missing descriptor for " + kind);
 				assertEquals("SOURCE", desc.getString("category"));
-				JsonArray inputs = desc.getJsonArray("inputs");
-				assertTrue(inputs == null || inputs.isEmpty(), kind + " should have no inputs");
+				// Read the real key. Asking for "inputs" made this vacuous - the absent key
+				// answered null, and the null-tolerant assertion below passed for every node.
+				JsonArray inputs = desc.getJsonArray("inputPorts");
+				assertTrue(inputs == null || inputs.isEmpty(), kind + " should have no input ports");
 			}
 		} finally {
 			vertx.close();

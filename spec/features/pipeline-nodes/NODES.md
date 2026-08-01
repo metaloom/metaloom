@@ -228,7 +228,7 @@ access-order LRU keyed by the media's absolute path.
   the Loom component/ledger written on the first pass.
 - `FingerprintNode` keeps its own equivalent LRU (its hit path skips in
   `isProcessable()` rather than re-emitting). Side-effect nodes (`HashDedup`,
-  `FingerprintDedup`, `LoomNode`) hold no cacheable result.
+  `FingerprintDedup`) hold no cacheable result.
 
 What each node caches: hash string / `SHA512` (hash nodes), zero-chunk count
 (consistency), recognized text (OCR), Tika content, scene-detection output,
@@ -245,11 +245,14 @@ Nodes persist results back to the Loom REST API. Two mechanisms coexist:
    described under *Persistence model* above. This is how transcripts, faces,
    fingerprints, scenes, OCR/Tika/LLM/caption/quality JSON, hashes and
    consistency reach Loom.
-2. **Bulk hash sync** via **`LoomNode`**: a dedicated sink node that accumulates
-   `AssetBulkUpdateEntry` objects (SHA-512 plus upstream MD5/SHA-256) and flushes
-   them to `bulkUpdateAssets` in batches of 50. This predates per-node hash
-   persistence and now overlaps with it — both write hash columns on the `asset`
-   row.
+2. ~~**Bulk hash sync** via `LoomNode`~~ — **removed.** A dedicated sink node used
+   to accumulate `AssetBulkUpdateEntry` objects (SHA-512 plus upstream MD5/SHA-256)
+   and flush them to `bulkUpdateAssets` in batches of 50. It predated per-node hash
+   persistence and was deleted once that covered every kind: it could only rewrite
+   hash columns its producers had already written, and `bulkUpdateAssets` resolves
+   an asset by SHA-512 and fails on a miss, so it could not create an asset either.
+   Batching is still worth having — but as a client-layer concern that benefits every
+   node, not as a graph node someone has to remember to wire up.
 
 > The pipeline-level `LoomBulkSyncCollector` / `syncToLoom()` mechanism still
 > exists in `pipeline-common` but is not on the per-node persistence path above.
@@ -300,7 +303,6 @@ Nodes persist results back to the Loom REST API. Two mechanisms coexist:
 | `HashDedupNode` | dedup | `sha512-dedup` | (side effects: moves files) | Any (requires SHA-512) | Deduplicates files by SHA-512 hash; moves dups to target folder |
 | `FingerprintDedupNode` | dedup | `fingerprint-dedup` | (no file changes; writes `dedup_group` + ledger) | Video only | **Discovery**: finds near-duplicates via the fingerprint similarity index and reports candidate groups to Loom for human review ([NODE_DEDUP_PLAN.md](NODE_DEDUP_PLAN.md)) |
 | `FingerprintDedupApplyNode` | dedup | `fingerprint-dedup-apply` | (side effects: moves files) | Any (requires SHA-512) | **Apply**: acts only on human-CONFIRMED `dedup_group` rows, re-verifying the keep against the live file before moving a duplicate |
-| `LoomNode` | loom | `loom` | (side effects: bulk update) | Any | Syncs hash results to Loom backend in batches of 50 |
 | `S3SinkNode` | s3-sink | `s3-sink` | `s3_sink_flag`, `s3_sink_count`, `s3_sink_result` (String JSON) | Any (needs upstream file outputs) | **Sink**: uploads files produced upstream (`thumbnail_path`, `depthmap_path`, `imagegen_path`, `tts_path`, script images) to an S3 bucket and registers each as its own Loom asset. Per-instance config (`PipelineConfigurable`); 🔴 must share a worker with its producer |
 
 ### Pipeline-Only Nodes (AbstractPipelineNode subclasses)
@@ -538,7 +540,6 @@ Every node has its own options class extending `AbstractNodeOptions<T>`:
 | S3 Sink | `S3SinkNodeOptions` | `bucket`, `keyTemplate`, `artifacts`, `autoDiscover`, `includeSource`, `createAssets`, `overwrite`, `deleteAfterUpload`, `maxArtifacts`, `maxArtifactBytes`, `failOnPartial` (`KEY = "s3-sink"`). ⚠️ Set per **pipeline node instance** — see §5.1. Connection settings stay on `CortexOptions.getS3()` |
 | Scene | `SceneDetectionOptions` | (no custom fields) |
 | Consistency | `ConsistencyNodeOptions` | (no custom fields) |
-| Loom | `LoomNodeOptions` | (no custom fields) |
 
 #### 🔴 Node-id string options are being deleted
 
@@ -923,9 +924,10 @@ fixes, or further development.
       `upstreamOutput(nodeId, key)` are deleted. `NodeContextImpl` coerces on both boundaries and
       enforces `port.valueType()`, and outputs now survive a SKIPPED or FAILED result.
 
-- [x] **Most nodes are ported**, including `LoomNode`, which now reads `ctx.input(IN_MD5)` against a
-      `hash/md5` port — the `("md5sum","md5")` trap is gone — and `sentiment`, `tts`, `scene-layout`
-      and `dominant-color`, whose node-id options are deleted outright.
+- [x] **Most nodes are ported**, including `sentiment`, `tts`, `scene-layout` and
+      `dominant-color`, whose node-id options are deleted outright. `LoomNode` was ported to a
+      `hash/md5` input port too — killing the `("md5sum","md5")` trap — and has since been deleted
+      outright as redundant with per-node persistence.
 
 - [ ] 🔴 **`cortex/pipeline-common` blocks the build**: `XAttrNodeCache` and `SidecarFileNodeCache`
       still hand a `Map<String,Object>` to `NodeResult` and call a `getOutput()` that no longer
@@ -1010,13 +1012,13 @@ fixes, or further development.
       writes its typed payload + `asset_node_result` ledger inside `compute()`
       (see §2). `WhisperNode`'s `createAssetTranscript()` is the reference, not a
       special case; the `syncToLoom()` / bulk-collector path was **not** adopted
-      for this. `LoomNode` still bulk-updates hash columns and now overlaps the
-      per-node hash writes.
+      for this. `LoomNode` bulk-updated the same hash columns and has been deleted;
+      per-node persistence is the only path now.
 
-- [ ] **LoomNode does not extend AbstractMediaNode**: `LoomNode` extends
-      `AbstractFilesystemNode` directly, skipping the `isProcessable()` /
-      `compute()` lifecycle. It also does not use `NodeOutputKey` for outputs.
-      This is inconsistent with the rest of the node system.
+- [x] **LoomNode does not extend AbstractMediaNode**: it extended
+      `AbstractFilesystemNode` directly, skipping the `isProcessable()` / `compute()`
+      lifecycle, and did not use `NodeOutputKey` for outputs. Resolved by deleting the
+      node rather than by porting it — see §2.
 
 - [x] **ThumbnailNode duplicate variable**: the dead second
       `resolveThumbnailPath(media)` call after the try block was removed; the
@@ -1024,9 +1026,10 @@ fixes, or further development.
 
 ### Configuration
 
-- [ ] **ConsistencyNodeOptions and LoomNodeOptions have no custom fields**:
-      These options classes extend `AbstractNodeOptions` but add nothing.
-      They should either have meaningful fields or be simplified.
+- [ ] **ConsistencyNodeOptions has no custom fields**:
+      It extends `AbstractNodeOptions` but adds nothing. It should either gain
+      meaningful fields or be simplified. (`LoomNodeOptions` had the same problem and
+      went away with the node.)
 
 - [ ] **Node options are not validated**: There is no validation framework
       for node options. Invalid configurations (e.g. negative concurrency,
@@ -1193,7 +1196,7 @@ fixes, or further development.
 
       **Eleven nodes end their catch blocks this way** — `TtsNode`, `SentimentNode`,
       `FacedetectNode`, `HashDedupNode`, `TikaNode`, `QualityNode` (twice), `ImageGenNode`,
-      `WhisperNode`, `LoomNode`, `ThumbnailNode`, `FingerprintNode` — so a failed run is reported to
+      `WhisperNode`, `ThumbnailNode`, `FingerprintNode` — so a failed run is reported to
       the pipeline as a successful node with no outputs. The behaviour is known (there is a comment
       spelling it out in `SentimentNodeTest.testFailure...`) but has never been reconciled: the
       `asset_node_result` ledger records FAILED while the run's node result says SUCCESS, so
@@ -1295,7 +1298,7 @@ Compact per-node status. Verified against the code and test tree.
   `process`/`compute` (not just an `*OptionsValidationTest`).
 - **Integration test** — exercised by an `integration-test` pipeline run
   (the `integration-test` pipeline drives `filesystem-source`, `sha512`, `md5`,
-  `chunk-hash`, `thumbnail`, `vlm`, `loom` end-to-end; **all** node kinds are now
+  `chunk-hash`, `thumbnail`, `vlm` end-to-end; **all** node kinds are now
   registered as executable — see §8 — so this column reflects pipeline-run
   coverage, not what the worker can run).
 - **Persists into Loom** — writes a typed payload and/or the
@@ -1338,7 +1341,6 @@ Compact per-node status. Verified against the code and test tree.
 | `HashDedupNode` | No (empty stub) | No | Partial - ledger only (side effect) | No (moves files) | No |
 | `FingerprintDedupNode` | Yes - KEEP/DUP split + larger-dup abort | No | Yes - `dedup_group` (+members) via REST + ledger `resultRef` | No | No |
 | `FingerprintDedupApplyNode` | No | No | Partial - ledger only (side effect) | No (moves files) | No |
-| `LoomNode` | Yes | Yes | Yes - bulk `asset` hash update | No (in-heap batch buffer, not a result cache) | No |
 | `S3SinkNode` | Yes (+ persistence tests) | Yes (real MinIO) | Yes - an `asset` per artifact + `asset_json_comp` index + ledger | No | Yes - one entry per uploaded artifact |
 
 **Notable gaps**

@@ -57,6 +57,7 @@ The definition is a graph of `nodes[]` connected by `edges[]`:
 [source,json]
 ----
 {
+  "version": 1,
   "nodes": [
     { "id": "pn1", "type": "filesystem-source", "name": "File Source" },
     { "id": "pn2", "type": "filter-mimetype",   "name": "MIME Filter" },
@@ -71,6 +72,10 @@ The definition is a graph of `nodes[]` connected by `edges[]`:
 }
 ----
 
+* `version` names the **definition format** the graph is written in. Loom sets it for you when you
+  save, so you never have to write it by hand. A definition without one is read as version 1, and a
+  definition from a newer Loom than the one you are running is refused with a message naming both
+  versions rather than being partially understood.
 * Each node carries a graph `id` and a `type` — the **node kind** that Loom uses to route the task to
   a worker that can run it.
 * Each edge names a **port at both ends**: `sourcePort` on the producing node, `targetPort` on the

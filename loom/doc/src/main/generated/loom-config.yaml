@@ -33,6 +33,14 @@ auth:
   mcpAuthAllowedOrigins: "*"
 storage:
   uploadDirectory: "data/storage"
+  maxUploadSize: -1
+  minFreeSpace: 1073741824
+s3:
+  endpoint: null
+  region: "us-east-1"
+  accessKey: null
+  secretKey: null
+  pathStyleAccess: null
 ai:
   enabled: true
   providerType: "OLLAMA"

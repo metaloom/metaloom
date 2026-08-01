@@ -776,7 +776,7 @@ The mechanical sweep in phase 5. Highlights (the full table is written as the sw
 | `scene-layout` | `depth : struct/depthmap ONE`, `detections : detection/* MANY` — **replaces `depthNodeId` + `detectionSources`** | `result : struct/scene-layout ONE`, two `scalar/integer` counts |
 | `dominant-color` | `media : media/image ONE`, `detections : detection/* MANY` (optional) — **replaces `detectionSources`** | `result : struct/color ONE`, four `scalar/string`, one `scalar/integer` |
 | `thumbnail` | `media : media/* ONE` | `thumbnail : artifact/image ONE`, `flag : scalar/string ONE` |
-| `loom` (sink) | `md5 : hash/md5` (optional), `sha256 : hash/sha256` (optional) — **kills the `md5sum` id-override trap** | — |
+| ~~`loom` (sink)~~ | `md5 : hash/md5` (optional), `sha256 : hash/sha256` (optional) — **killed the `md5sum` id-override trap**. The node was deleted after this refactor landed; per-node persistence made it redundant | — |
 | `s3-sink` | `artifacts : artifact/* MANY` | `result : struct/json ONE`, `count : scalar/integer ONE` |
 | `filter-*` | per kind: `media : media/*`, `text : text/*`, `quality : struct/quality`, `value : scalar/number` | `passed : control/filter ONE` |
 
@@ -1049,7 +1049,7 @@ commands to re-derive it.
 - [x] New `NodeContext` surface; `upstreamOutput(nodeId, key)` deleted; the provenance getter renamed `resultOrigin()` (§0 divergence 15)
 - [x] Outputs preserved on SKIPPED / FAILED
 - [x] `NodeResultMapper` / `NodeTaskRunner` / `SegmentTaskRunner` / `CortexNodeAdapter` deliver port-keyed inputs
-- [x] `loom` binds by hash port; `sentiment`, `tts`, `scene-layout` and `dominant-color` have dropped their node-id options entirely
+- [x] `loom` binds by hash port (the node has since been deleted); `sentiment`, `tts`, `scene-layout` and `dominant-color` have dropped their node-id options entirely
 - [x] Every node ported, including `FacedescriptionNode`, `FingerprintNode`, `ThumbnailNode`,
       `ScriptNode` and `S3SinkNode`; `ScriptNodeOptions.requiredInputs` and
       `S3SinkNodeOptions.artifacts`/`autoDiscover` are gone. The only remaining mentions of

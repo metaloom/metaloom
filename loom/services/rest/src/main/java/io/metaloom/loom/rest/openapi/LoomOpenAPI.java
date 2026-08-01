@@ -239,7 +239,7 @@ public class LoomOpenAPI {
 		endpoints.add(new PersonEndpoint(null, deps, examples));
 		endpoints.add(new PipelineEndpoint(null, deps, examples));
 		endpoints.add(new PipelineEventEndpoint(null, null, deps));
-		endpoints.add(new ProcessorEndpoint(null, null, null, null, null, deps, examples, null));
+		endpoints.add(new ProcessorEndpoint(null, null, null, null, deps, examples, null));
 		endpoints.add(new ReactionEndpoint(null, deps, examples));
 		endpoints.add(new RESTInfoEndpoint(deps, null));
 		endpoints.add(new RoleEndpoint(null, deps, examples));

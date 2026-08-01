@@ -148,8 +148,9 @@ All messages use the `ProcessorMessage` JSON envelope:
 | `NODE_TASK_RESULT` | `NodeTaskResult`          | Outcome of a single `NODE_TASK`                   |
 | `NODE_TASK_RESULT_BATCH` | `NodeTaskResultBatch` | Outcomes of several node tasks in one frame       |
 | `SEGMENT_TASK_RESULT` | `SegmentTaskResult`    | Per-node outcomes of a `SEGMENT_TASK`            |
+| `TASK_RETURNED`  | `TaskReturnedMessage`       | Hands a dispatched task back unexecuted, so it is placed elsewhere at once instead of after the lease lapses |
 | `PIPELINE_RUN_COMPLETED` | `{ runUuid, counters }` | Run finished; closes the run via `PipelineRunTracker` |
-| `PIPELINE_EVENT` | `PipelineEventMessage`      | Pipeline tracking event (forwarded to UI clients)|
+| `PIPELINE_EVENT` | `PipelineEventMessage`      | **Accepted but dropped.** Loom owns the graph, so run events are emitted by `RunStatsAggregator`, not relayed from a worker (see §4.6b) |
 
 #### Messages FROM loom TO processor
 
@@ -198,11 +199,14 @@ Processor                           Loom
    | -- NODE_TASK_RESULT -->          |
    |   { runUuid, nodeId, state, ... }|
    |                                  |
-   | -- PIPELINE_EVENT -->            |
-   |   { type, pipelineName, ... }    |
-   |                                  |
    | -- STATE_CHANGE -->              |
    |   { state: "PAUSED" }            |
+   |                                  |
+   |   ... shutdown (see 3.8.1) ...   |
+   | -- STATE_CHANGE -->              |
+   |   { state: "TERMINATING" }       | -- placement stops offering work
+   | -- TASK_RETURNED -->             |
+   |   { runUuid, itemId, nodeIds[] } | -- engine re-places each node now
    |                                  |
    | <-- (close) --                   |
    |                                  | -- registry.updateState(OFFLINE)
@@ -246,17 +250,71 @@ public enum ProcessorState {
 }
 ```
 
+#### 3.8.1 Graceful shutdown (drain)
+
+A worker that simply exits leaves every task it held `RUNNING` until the lease
+lapses. The lease is deliberately generous — its other job is to avoid duplicating
+the work of a merely *slow* worker — so a scale-down or a rolling deploy costs the
+affected runs a full lease interval per outstanding task before any of that work is
+placed again. A drain closes that gap:
+
+1. **Announce.** The worker sends `STATE_CHANGE` with `state: "TERMINATING"`.
+   `ProcessorRegistry#isPlaceable` admits `ONLINE` and nothing else, so from this
+   point Loom offers it no further work.
+2. **Refuse.** A dispatch already on the wire when the announcement went out still
+   arrives. The worker answers it with `TASK_RETURNED` instead of starting it —
+   without this the announcement would still leave work abandoned seconds later.
+3. **Finish.** Tasks already running are given `--drain-timeout-ms` to complete
+   normally (default 30 000, matching Kubernetes' termination grace period).
+4. **Return.** Whatever is still running at the deadline is named in a
+   `TASK_RETURNED`. The task keeps running — a node cannot be interrupted — but Loom
+   is free to place it elsewhere immediately.
+
+The connection stays open throughout; it is closed only after the last frame has
+been written, since a queued frame is lost when the socket closes.
+
+`TASK_RETURNED` body (`TaskReturnedMessage`):
+
+| Field        | Type          | Required | Description                                              |
+|--------------|---------------|----------|----------------------------------------------------------|
+| `runUuid`    | UUID          | Yes      | The run the task belongs to                              |
+| `itemId`     | String        | Yes      | The media item it was dispatched for                     |
+| `taskUuid`   | UUID          | No       | The dispatch, for correlation with the task row          |
+| `nodeIds`    | List\<String\> | Yes     | One id for a node task; every member for a segment task  |
+| `elementSeq` | Integer       | No       | Element of a fanned-out sequence; 0 for a once-per-item node |
+| `reason`     | String        | No       | Recorded on the re-dispatch                              |
+
+**A return is not a failure.** Nothing ran, so `PipelineRunEngine#onNodeTaskReturned`
+releases the in-flight slot and refunds the attempt the dispatch consumed. This
+matters because nodes are *not* retryable by default: charging a return would make a
+routine deployment dead-letter every item that happened to be in flight. The refund
+is capped at three per execution — returning costs the worker nothing, so an
+unbounded refund would let a misbehaving worker circulate an item around the fleet
+forever without ever accumulating an attempt. Past the cap a return is accounted
+exactly like a lapsed lease.
+
+A late result for a returned task is still assimilated: the node settles and the
+re-dispatched copy is recognised as a duplicate, which is the trade the lease model
+already makes.
+
+**Gap.** A `SOURCE_TASK` has no reclaim path. A draining worker refuses a source task
+that arrives after the announcement, but one already enumerating is abandoned when
+the deadline passes — the run then waits for a `SOURCE_COMPLETE` that never comes.
+Fabricating one would mark a truncated scan as a whole one, which is worse; the run
+has to be dispatched again. See task 9 in
+[../cortex/METALOOM_ARCHITECTURE_TASK.md](../cortex/METALOOM_ARCHITECTURE_TASK.md).
+
 ### 3.9 System Status Info
 
 The `STATUS_UPDATE` message body contains `SystemStatusInfo`:
 
 | Field          | Type    | Description                          |
 |----------------|---------|--------------------------------------|
-| `cpuLoad`      | Double  | CPU load percentage (0-100)          |
-| `memoryUsed`   | Long    | Used memory in bytes                 |
-| `memoryTotal`  | Long    | Total memory in bytes                |
-| `gpuLoad`      | Double  | GPU load percentage (0-100)          |
-| `ioLoad`       | Double  | I/O load percentage (0-100)          |
+| `cpuLoad`      | Double  | CPU load percentage (0-100), null when unknown |
+| `memoryUsed`   | Long    | Used memory in bytes (JVM heap)      |
+| `memoryTotal`  | Long    | Total memory in bytes (JVM heap)     |
+| `gpuLoad`      | Double  | GPU load percentage (0-100) — never populated |
+| `ioLoad`       | Double  | Busiest disk's utilisation percentage (0-100); null on the first update after connecting, and on non-Linux workers |
 | `diskUsed`     | Long    | Used disk space in bytes             |
 | `diskTotal`    | Long    | Total disk space in bytes            |
 
@@ -324,7 +382,19 @@ the node and replies with `NODE_TASK_RESULT` (`NodeTaskResult`), batched as
   highest-priority `ONLINE` processor whose node-kind restriction accepts the
   pipeline's source-node kind.
 - Selection filters by `ProcessorState.ONLINE`, the required capability
-  (currently hardcoded to `CPU`), and the source kind.
+  (currently hardcoded to `CPU`), and the source kind. Only `ONLINE` qualifies —
+  a worker that has announced `TERMINATING` is draining and is never given more
+  work, likewise `PAUSED` and `STARTING`. That announcement is the first step of a
+  drain — see [3.8.1](#381-graceful-shutdown-drain).
+- Ordering is **priority first, then live load**: declared priority is an
+  operator's explicit placement decision and is never overruled, but among
+  workers of equal priority the least loaded one wins. Load is
+  `max(cpuLoad, ioLoad)` from the last `STATUS_UPDATE` — the busiest resource,
+  since a worker pinned on either cannot take more. A status older than 60
+  seconds, or one carrying neither figure, scores a neutral 50 so that silence
+  neither attracts nor repels work. Equal priority and equal load tie-break on
+  `nodeId`, so repeated dispatches of the same work are deterministic rather
+  than dependent on map iteration order.
 - If no processor is available, the pipeline run endpoint returns 503 and no
   `pipeline_run` row is created. There is no ack watchdog.
 
@@ -472,6 +542,36 @@ dropping it.
   accumulating unbounded memory.
 - A log message is emitted every 100 dropped events.
 
+### 4.6b Who may emit a pipeline event
+
+Loom is the only producer. Under Variant C a worker holds no pipeline graph — it
+answers `NODE_TASK`, `SEGMENT_TASK` and `SOURCE_TASK` — so it has nothing to say at
+pipeline-event granularity, and `RunStatsAggregator` is the single source of a run's
+events:
+
+- **Successes and skips** are counted per node and pushed as `NODE_STATS` on a timer.
+  A 100 000 item run over a 10 node graph settles a million nodes; one frame per settle
+  would be millions of renders to move a bar by a percent.
+- **Failures** go out immediately as `NODE_FAILED`. They are rare, individually
+  actionable, and summing them into a number would leave the UI able to say
+  "300 failed" without naming a single file.
+
+`ProcessorEndpoint` therefore **drops** a `PIPELINE_EVENT` arriving from a processor
+rather than broadcasting it — relaying one would put exactly the per-item flood the
+aggregator exists to prevent onto the UI socket. The envelope checks still apply (an
+unregistered sender or a bodyless frame is answered with `ERROR`), and the first drop
+per processor is logged so an outdated worker is visible.
+
+Cortex no longer sends them: the tracking-bus subscription in `LoomControlChannel` was
+removed, and nothing outside the node-chain tests publishes to that bus. The message
+type is retained so an older worker's frames are recognised and discarded rather than
+answered with "Unexpected message type" once per item.
+
+`PIPELINE_RUN_COMPLETED` was derived from the same tracking bus and went with it, so
+Cortex no longer sends that either. Nothing is lost: a run is closed out by the engine's
+`onCompletion` callback (`PipelineEndpointService`), which is the path that has actually
+been running. Loom still handles the message so an older worker can close a run.
+
 ### 4.7 Route Ordering
 
 The WebSocket upgrade route uses `order(-1000)` to ensure it is matched
@@ -530,13 +630,23 @@ WebSocket connection:
 
 ### 5.2 Pipeline Event Flow
 
+Events originate inside Loom, not on the worker — the worker reports task outcomes and
+the engine turns those into run events (see §4.6b).
+
 ```
 Processor Node                         Loom Server                           UI Client
    |                                       |                                      |
-   | -- PIPELINE_EVENT (WS) -->            |                                      |
-   |   { type, pipelineName, ... }         |                                      |
+   | -- NODE_TASK_RESULT (WS) -->          |                                      |
+   |   { runUuid, nodeId, state, ... }     |                                      |
+   |                                       | -- engine.onNodeSettled(...)         |
+   |                                       |    -> RunStatsAggregator             |
+   |                                       |       counts it; NODE_FAILED now,    |
+   |                                       |       NODE_STATS on the next tick    |
    |                                       | -- broadcaster.broadcast(event) -->  |
    |                                       |                                      | -- (receives event via WS)
+   |                                       |                                      |
+   | -- PIPELINE_EVENT (WS) -->            |                                      |
+   |   (legacy worker only)                | -- dropped; see §4.6b                |
 ```
 
 ---
@@ -562,6 +672,8 @@ identify work items.
 - [x] Backpressure handling with bounded per-subscriber queue
 - [x] REST routes for listing and loading registered processors
 - [x] Processor selection by capability and priority
+- [x] Graceful shutdown: `TERMINATING` announcement, `TASK_RETURNED` hand-back, immediate re-placement
+- [ ] A source task in progress is abandoned by a drain; the run waits for a `SOURCE_COMPLETE` that never arrives
 
 ### 6.2 Authentication
 

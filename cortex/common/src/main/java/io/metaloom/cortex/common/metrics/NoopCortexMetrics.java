@@ -25,6 +25,10 @@ public class NoopCortexMetrics implements CortexMetrics {
 	}
 
 	@Override
+	public void recordTaskReturned(String reason) {
+	}
+
+	@Override
 	public void recordTaskCompleted(String type, String state) {
 	}
 

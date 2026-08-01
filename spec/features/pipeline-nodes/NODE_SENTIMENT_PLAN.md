@@ -327,7 +327,7 @@ New module mirroring `cortex/nodes/tts`.
    > `NodeContextImpl.next()` only checks `skipReason` and returns SUCCESS otherwise —
    > the recorded `failureCause` is ignored; **only `abort()` yields
    > `ResultState.FAILED`**. Every node in the tree uses the `failure().next()` idiom
-   > (`ThumbnailNode`, `FacedetectNode`, `QualityNode`, `TikaNode`, `LoomNode`,
+   > (`ThumbnailNode`, `FacedetectNode`, `QualityNode`, `TikaNode`,
    > `TtsNode`, …), so `SentimentNode` follows it for consistency rather than being the
    > lone exception. The observable consequences on a sidecar error are therefore: no
    > outputs emitted, nothing cached, and a FAILED **ledger** row — which is what

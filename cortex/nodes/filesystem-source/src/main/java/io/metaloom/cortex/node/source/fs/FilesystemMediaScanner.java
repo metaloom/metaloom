@@ -7,7 +7,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -31,6 +30,21 @@ import org.slf4j.LoggerFactory;
  * to that root. A glob with no wildcard is treated as a literal path. Roots that
  * do not exist yield no results rather than an error, so a selection spanning
  * several mount points degrades gracefully.</p>
+ *
+ * <h2>Laziness</h2>
+ * <p>The {@code stream} methods walk on demand: the first path is available before
+ * the walk has finished, and a consumer that stops early stops the walk. This is what
+ * lets source backpressure reach the filesystem — a selection of a million files under
+ * a slow mount otherwise has to be enumerated in full, into a list held whole in
+ * memory, before the first item can be dispatched.</p>
+ *
+ * <p><strong>Each returned stream holds an open directory walk and must be closed</strong>
+ * — use it in a try-with-resources, or hand it to an operator that closes it
+ * ({@code Flowable.fromStream} does, on both completion and cancellation).</p>
+ *
+ * <p>The {@code expand} and {@code walk} methods return materialised lists and remain
+ * for callers that genuinely want the whole selection at once (tests, and ad-hoc
+ * selections small enough to count).</p>
  */
 public final class FilesystemMediaScanner {
 
@@ -50,31 +64,53 @@ public final class FilesystemMediaScanner {
 	 * @throws IOException if walking a root fails
 	 */
 	public static List<Path> expand(List<String> globs) throws IOException {
-		Set<Path> matches = new LinkedHashSet<>();
-		if (globs == null) {
-			return List.of();
+		try (Stream<Path> stream = stream(globs)) {
+			return stream.toList();
+		} catch (UncheckedIOException e) {
+			throw e.getCause();
 		}
-		for (String glob : globs) {
-			if (glob == null || glob.isBlank()) {
-				continue;
-			}
-			matches.addAll(expand(glob));
-		}
-		return new ArrayList<>(matches);
 	}
 
 	/**
-	 * Expand a single glob into the regular files it matches.
+	 * Lazily expand several globs into the union of their matches.
+	 *
+	 * <p>Globs are walked one after another, only as far as the consumer pulls, and
+	 * results are de-duplicated while preserving encounter order so overlapping globs do
+	 * not process a file twice. De-duplication necessarily remembers what it has already
+	 * emitted; that set of paths is the only part of the selection held in memory.</p>
+	 *
+	 * <p>Walk failures surface as {@link UncheckedIOException} during consumption rather
+	 * than at call time, because nothing has been walked yet when this returns.</p>
+	 *
+	 * @param globs the globs to expand; {@code null} and blank entries are ignored
+	 * @return a lazy, distinct stream of matching regular file paths, <b>which the caller
+	 *         must close</b>
+	 */
+	public static Stream<Path> stream(List<String> globs) {
+		if (globs == null) {
+			return Stream.empty();
+		}
+		Set<Path> seen = new LinkedHashSet<>();
+		return globs.stream()
+			.filter(glob -> glob != null && !glob.isBlank())
+			// flatMap closes each inner walk once it has been consumed.
+			.flatMap(FilesystemMediaScanner::streamUnchecked)
+			.filter(seen::add);
+	}
+
+	/**
+	 * Lazily expand a single glob into the regular files it matches.
 	 *
 	 * @param glob the glob or literal path to expand
-	 * @return matching regular file paths, empty if the root does not exist
-	 * @throws IOException if walking the root fails
+	 * @return a lazy stream of matching regular file paths, empty if the root does not
+	 *         exist, <b>which the caller must close</b>
+	 * @throws IOException if opening the walk fails
 	 */
-	public static List<Path> expand(String glob) throws IOException {
+	public static Stream<Path> stream(String glob) throws IOException {
 		int wildIdx = firstWildcardIndex(glob);
 		if (wildIdx < 0) {
 			Path literal = Paths.get(glob).toAbsolutePath().normalize();
-			return Files.isRegularFile(literal) ? List.of(literal) : List.of();
+			return Files.isRegularFile(literal) ? Stream.of(literal) : Stream.empty();
 		}
 
 		Path root = Paths.get(".").toAbsolutePath().normalize();
@@ -88,16 +124,53 @@ public final class FilesystemMediaScanner {
 		}
 		if (!Files.exists(root)) {
 			log.debug("Glob '{}' resolves to root {} which does not exist — no matches", glob, root);
-			return List.of();
+			return Stream.empty();
 		}
 
 		final Path effectiveRoot = root;
 		PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:" + pattern);
-		try (Stream<Path> stream = Files.walk(effectiveRoot)) {
-			return stream
-				.filter(Files::isRegularFile)
-				.filter(p -> matcher.matches(effectiveRoot.relativize(p)))
-				.toList();
+		return Files.walk(effectiveRoot)
+			.filter(Files::isRegularFile)
+			.filter(p -> matcher.matches(effectiveRoot.relativize(p)));
+	}
+
+	/**
+	 * Lazily walk a directory root, yielding every regular file beneath it.
+	 *
+	 * @param root the directory to walk
+	 * @return a lazy stream of all regular files under {@code root}, empty if it does not
+	 *         exist, <b>which the caller must close</b>
+	 * @throws IOException if opening the walk fails
+	 */
+	public static Stream<Path> stream(Path root) throws IOException {
+		if (root == null || !Files.exists(root)) {
+			log.debug("Scan root {} does not exist — no matches", root);
+			return Stream.empty();
+		}
+		if (Files.isRegularFile(root)) {
+			return Stream.of(root.toAbsolutePath().normalize());
+		}
+		return Files.walk(root).filter(Files::isRegularFile);
+	}
+
+	private static Stream<Path> streamUnchecked(String glob) {
+		try {
+			return stream(glob);
+		} catch (IOException e) {
+			throw new UncheckedIOException("Failed to expand path glob " + glob, e);
+		}
+	}
+
+	/**
+	 * Expand a single glob into the regular files it matches.
+	 *
+	 * @param glob the glob or literal path to expand
+	 * @return matching regular file paths, empty if the root does not exist
+	 * @throws IOException if walking the root fails
+	 */
+	public static List<Path> expand(String glob) throws IOException {
+		try (Stream<Path> paths = stream(glob)) {
+			return paths.toList();
 		}
 	}
 
@@ -109,15 +182,8 @@ public final class FilesystemMediaScanner {
 	 * @throws IOException if walking fails
 	 */
 	public static List<Path> walk(Path root) throws IOException {
-		if (root == null || !Files.exists(root)) {
-			log.debug("Scan root {} does not exist — no matches", root);
-			return List.of();
-		}
-		if (Files.isRegularFile(root)) {
-			return List.of(root.toAbsolutePath().normalize());
-		}
-		try (Stream<Path> stream = Files.walk(root)) {
-			return stream.filter(Files::isRegularFile).toList();
+		try (Stream<Path> paths = stream(root)) {
+			return paths.toList();
 		}
 	}
 

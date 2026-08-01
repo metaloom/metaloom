@@ -575,6 +575,66 @@ public class PipelineRunEngine {
 	}
 
 	/**
+	 * Called when a worker hands a dispatched task back without running it - it is
+	 * shutting down and will not finish the work.
+	 *
+	 * <p>Distinct from {@link #onNodeTaskLost} in two ways that both matter. It happens
+	 * <em>immediately</em> rather than after a lease interval, which is the entire point
+	 * of a worker announcing its shutdown instead of just vanishing. And it does not
+	 * consume the execution's attempt budget: nothing was attempted, so charging for it
+	 * would let a rolling restart dead-letter items whose nodes are not retryable - the
+	 * default - purely because a deployment happened while they were queued.</p>
+	 *
+	 * <p>The refund is capped ({@link NodeExecState#MAX_REFUNDED_RETURNS}); past that a
+	 * return is accounted as a loss, so an execution that no worker will keep still
+	 * settles rather than circulating forever.</p>
+	 *
+	 * @param itemId     the item
+	 * @param nodeId     the node whose task was handed back
+	 * @param elementSeq which element of a fanned-out sequence; 0 for a node that runs once
+	 * @param reason     why the worker gave it back
+	 */
+	public synchronized void onNodeTaskReturned(String itemId, String nodeId, int elementSeq, String reason) {
+		requireStarted();
+		ItemState state = items.get(itemId);
+		if (state == null) {
+			log.warn("Returned task for unknown item '{}' in run {} - ignoring", itemId, runUuid);
+			return;
+		}
+		if (state.isSettled(nodeId, elementSeq)) {
+			// The worker finished it after all and the result won the race. Nothing to place.
+			log.debug("Node '{}' element {} on item '{}' already settled - ignoring return",
+				nodeId, elementSeq, itemId);
+			return;
+		}
+		if (!state.isInFlight(nodeId, elementSeq)) {
+			log.debug("Node '{}' element {} on item '{}' is not in flight - ignoring return",
+				nodeId, elementSeq, itemId);
+			return;
+		}
+
+		// Refunded before the release, so the fall-through below still finds the
+		// execution in flight and can run the ordinary loss path unchanged.
+		if (!state.refundAttempt(nodeId, elementSeq)) {
+			// Returned too many times to keep treating as free. Account it as a loss,
+			// which retries or dead-letters against the attempt budget.
+			log.warn("Node '{}' element {} on item '{}' has been returned repeatedly; charging the attempt",
+				nodeId, elementSeq, itemId);
+			onNodeTaskLost(itemId, nodeId, elementSeq, reason);
+			return;
+		}
+		releaseInFlight(state, nodeId, elementSeq);
+
+		log.info("Node '{}' element {} on item '{}' handed back for re-placement: {}",
+			nodeId, elementSeq, itemId, reason);
+		// Straight back into dispatch. The returning worker has already announced
+		// TERMINATING, so placement will not offer it the same task again.
+		advance(state);
+		pumpDeferred();
+		checkComplete();
+	}
+
+	/**
 	 * @return true when this execution may be attempted again
 	 */
 	private boolean shouldRetry(ItemState state, String nodeId, int seq) {

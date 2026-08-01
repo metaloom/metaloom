@@ -545,15 +545,15 @@ new CortexNodeAdapter(String id, FilesystemNode<?,?> node, NodeMode mode, boolea
 
 **The id-override contract is obsolete.** It existed because `LoomNode` read
 `ctx.upstreamOutput("md5sum", "md5")` while `MD5Node.name()` is `"md5"`, so the MD5 adapter had to be
-built as `new CortexNodeAdapter("md5sum", md5Node, PARALLEL, true, 1, 0)`. Under the port model the
-`loom` sink declares `md5 : hash/md5` / `sha256 : hash/sha256` / `sha512 : hash/sha512` and the
-**edge** says where each comes from — a node id can no longer affect data delivery at all.
+built as `new CortexNodeAdapter("md5sum", md5Node, PARALLEL, true, 1, 0)`. Under the port model an
+**edge** says where each input comes from — a node id can no longer affect data delivery at all. The
+`loom` sink that motivated the override has since been deleted outright (see
+[NODES.md](../pipeline-nodes/NODES.md) §2).
 
-⚠️ The `String id` constructors and their *"useful when a downstream node expects a specific upstream
-node id"* javadoc are still present at
-[CortexNodeAdapter.java:38-47](../../../cortex/pipeline-core/src/main/java/io/metaloom/cortex/pipeline/core/node/CortexNodeAdapter.java#L38-L47), and `RegistryNodeRegistrar` still calls the override form.
-`LoomNode`'s body has not been ported yet. Do not treat the override as a supported mechanism for new
-work — the only legitimate remaining use is giving an adapter a stable pipeline id.
+The `String id` constructors remain at
+[CortexNodeAdapter.java:38-47](../../../cortex/pipeline-core/src/main/java/io/metaloom/cortex/pipeline/core/node/CortexNodeAdapter.java#L38-L47) and `RegistryNodeRegistrar` still calls the override form —
+that is the one legitimate use, giving an adapter a stable pipeline id when several instances of the
+same kind appear in one graph. It can no longer affect what data a node receives.
 
 ---
 
@@ -679,6 +679,7 @@ This is what the UI writes, what `PipelineValidationService` validates, and what
 
 ```json
 {
+  "version": 1,
   "nodes": [
     { "id": "pn1", "type": "filesystem-source", "name": "File Source", "x": 60,  "y": 160 },
     { "id": "pn2", "type": "filter-mimetype",   "name": "MIME Filter",  "x": 260, "y": 160 },
@@ -698,6 +699,28 @@ This is what the UI writes, what `PipelineValidationService` validates, and what
 
 Note the shape: node **`id`** is a synthetic graph id (`pn1`), and **`type`**
 carries the node kind that `RegistryNodeFactory` keys on.
+
+#### Format version
+
+`version` is a top-level integer naming the format the definition is written in.
+`PipelineGraphParser.CURRENT_DEFINITION_VERSION` is the version this Loom writes and the
+highest it reads.
+
+- **Absent means 1.** Every definition stored before the field existed is a version 1
+  definition; rejecting them would strand pipelines that run correctly.
+- **Newer is refused by name**, not half-read — a definition from a newer Loom may use
+  fields whose absence here would parse into a valid but *different* graph. The error names
+  both the version found and the version supported.
+- **Malformed is refused**: non-integer, fractional, or below 1.
+- **Stamped on write.** `PipelineGraphParser.stampVersion` runs on the REST create and update
+  paths and in `DemoDatabaseInitializer`, so the untagged set only shrinks. An existing
+  `version` is left alone: re-stamping would silently relabel a definition that an older Loom
+  round-tripped.
+
+Bump the version when a change cannot be understood by an older reader — a renamed or removed
+field, or a changed meaning for an existing one. Purely additive optional fields do not need a
+bump; `syncToLoom`, `affinity`, `options` and the filter `branch` were all added that way, and
+an older reader that ignores them still executes the graph as drawn.
 
 🔴 **Edges are port-to-port. `sourcePort` and `targetPort` are required on every edge** and
 `PipelineGraphParser` throws `GraphValidationException` without them
@@ -794,6 +817,38 @@ column, the DAO model, and `PipelineRunRecord` all use free-form `String`.
 `PAUSED` is **non-terminal**: a paused run still holds a live engine and can be
 resumed or cancelled. It is deliberately absent from
 `PipelineRunStatusResolver.isTerminal`.
+
+### 10.1a Retention of run state — decided, not yet enforced
+
+A run over 100 000 items across a 10 node graph writes 100 000 `pipeline_run_item` rows and
+around a million `pipeline_node_task` rows. That is not a worst case, it is a normal large
+run, and nothing deletes any of it today. The policy below is the decision; **the sweep that
+enforces it is not built yet** — see the open item in
+[../../cortex/METALOOM_ARCHITECTURE_TASK.md](../../cortex/METALOOM_ARCHITECTURE_TASK.md) §10.
+
+| State | Kept | Why |
+|---|---|---|
+| Run not terminal (`PENDING`, `RUNNING`, `PAUSED`) | Everything, indefinitely | Placement, leases, reclaim and resume all read these rows. A run in flight is not a retention subject at any age |
+| Terminal run, non-failed detail | **7 days** after `finished` | Long enough to answer "what did last night's run actually do?" on Monday; short enough that a week of large runs does not become the biggest thing in the database |
+| Terminal run, `FAILED` / `DEAD_LETTER` items and tasks | **30 days** after `finished` | These are the rows anyone actually opens. They are also a small fraction of a healthy run, so the longer window costs little |
+| `pipeline_run` row | **Forever** | It already carries `media_count`, `success_count`, `failure_count`, `skipped_count` and `duration_ms` |
+
+**The granularity afterwards is the run row.** Once detail is swept, a finished run still
+reports how many items it processed, how many failed, and how long it took — it just can no
+longer name which file. That is the deliberate trade: per-run history is permanent and cheap,
+per-item history is expensive and expires.
+
+Constraints the eventual sweep must respect:
+
+- **Batch it.** Delete with a `LIMIT` per statement and loop, so a run of a million tasks
+  never becomes one long-held lock.
+- **`pipeline_run_item` cascades to `pipeline_node_task`** via the run FK
+  (`V2.31__add_pipeline_execution_state.sql`), so deleting items is enough — but the failure
+  window means tasks outlive their item, and an item whose tasks are still retained must not
+  be deleted with it.
+- **Do not touch `asset_node_result`.** It looks similar and is the opposite kind of thing:
+  per *asset*, catalog state, outliving every run
+  ([../db/DATABASE_TASKS.md](../db/DATABASE_TASKS.md) §2).
 
 ### 10.2 DAOs
 
@@ -1210,7 +1265,7 @@ Canonical examples: `MD5NodePipelineTest`, `SHA512NodePipelineTest`,
 | `ProcessorEndpointTest` | 10 cases — register, heartbeat, status/state, invalid messages |
 | `CombinedEndpointTest` | pipeline CRUD via `LoomHttpClient`; asserts `versionNumber == 1` on create |
 | `PipelineDaoTest` / `PipelineVersionDaoTest` / `PipelineRunDaoTest` | generic CRUD harness only |
-| `PipelinePersistenceIntegrationTest` | one test: full pipeline → `LoomNode` → REST → DB |
+| `PipelinePersistenceIntegrationTest` | one test: full pipeline → per-node `compute()` write-back → REST → DB |
 
 **Prerequisite for integration tests**: the shared `testdatabase-provider`
 container must expose a pool named `loom-dev`. Run `./setup-pool.sh` from the

@@ -8,6 +8,10 @@ public interface AudioData extends TestData {
 			.sha256("a91c00048667d2ece7e66e4d79e83dd0f75606c3a7d46487fb97e2808bdf81a0")
 			.sha512(
 				"f6dc08a130333e62146b5f154f34195849041ef135d1de58323a6e5c0a13c9ec0773ff7cb75cc8b2cdd436c540f3b76eafb47eb57366035dcb047e8808ba664e")
+			// Below the chunking threshold, so the chunk hash degenerates to a plain
+			// SHA-256 over the whole file and matches sha256 above. Only video1 is large
+			// enough to actually be chunked.
+			.chunkHash("a91c00048667d2ece7e66e4d79e83dd0f75606c3a7d46487fb97e2808bdf81a0")
 			.build();
 	}
 

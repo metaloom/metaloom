@@ -388,9 +388,9 @@ Loom DB (pipeline table)  --GET /api/v1/pipelines-->  Cortex
                                                     (batches results for
                                                      upload to Loom)
                                                          |
-                                                    LoomNode / REST API
-                                                    (persists results back
-                                                     to Loom DB)
+                                                    REST API
+                                                    (each node persists its
+                                                     own result to Loom DB)
 ```
 
 ### 6.3 Data Persistence Flow
@@ -401,8 +401,10 @@ face detections, transcripts, etc.). These results flow back to Loom via:
 1. **Bulk sync** - The `LoomBulkSyncCollector` batches results and uploads
    them via the REST API (see [PIPELINE_CONTEXT.md](PIPELINE_CONTEXT.md)
    section 3.11).
-2. **Direct REST calls** - Some nodes (e.g. `LoomNode`) call the REST API
-   directly to persist results.
+2. **Direct REST calls** - the primary path: every result-producing node calls
+   the REST API from inside its own `compute()`, writing its typed payload plus
+   an `asset_node_result` ledger row. There is no sink node; a dedicated `loom`
+   node used to re-send hashes in batches and was removed as redundant.
 3. **Pipeline events** - Tracking events (not data) are sent via the
    processor WebSocket and fanned out to UI clients via the pipeline events
    WebSocket (see [EVENTBUS.md](EVENTBUS.md)).
@@ -426,7 +428,6 @@ Cortex provides these processing node types (each in `cortex/nodes/`):
 | `quality` | Quality assessment | quality metrics |
 | `captioning` | Image captioning | `description` |
 | `consistency` | Consistency checks | consistency results |
-| `loom` | Sync results back to Loom | (writes to Loom DB) |
 
 Each node is wrapped via `CortexNodeAdapter` to participate in the pipeline
 DAG. See [PIPELINE_CONTEXT.md](PIPELINE_CONTEXT.md) section 7 for details.

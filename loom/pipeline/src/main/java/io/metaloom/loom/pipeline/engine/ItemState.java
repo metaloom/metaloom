@@ -131,6 +131,18 @@ public class ItemState {
 	}
 
 	/**
+	 * Refund the attempt a dispatch consumed, because the worker handed the task back
+	 * without running it.
+	 *
+	 * @return true when the attempt was refunded, false once the execution has been
+	 *         returned too often to keep trusting it
+	 */
+	boolean refundAttempt(String nodeId, int seq) {
+		NodeExecState state = execs.get(nodeId);
+		return state != null && state.refundAttempt(seq);
+	}
+
+	/**
 	 * Mark an execution as waiting out its retry backoff.
 	 *
 	 * <p>Such an execution is neither settled nor in flight, so without this marker anything

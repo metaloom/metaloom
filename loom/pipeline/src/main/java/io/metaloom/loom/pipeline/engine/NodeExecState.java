@@ -30,6 +30,12 @@ import io.metaloom.loom.pipeline.model.NodeTaskResult;
  */
 public class NodeExecState {
 
+	/**
+	 * How many times one execution may be handed back unexecuted before returns start
+	 * costing an attempt. See {@link #refundAttempt(int)}.
+	 */
+	static final int MAX_REFUNDED_RETURNS = 3;
+
 	private final ExecutionMode mode;
 
 	/**
@@ -41,6 +47,8 @@ public class NodeExecState {
 	private final Map<Integer, NodeTaskResult> elementResults = new LinkedHashMap<>();
 	private final Map<Integer, UUID> inFlight = new LinkedHashMap<>();
 	private final Map<Integer, Integer> attempts = new LinkedHashMap<>();
+	/** How often each execution was handed back unexecuted, capping the attempt refund. */
+	private final Map<Integer, Integer> returns = new LinkedHashMap<>();
 	private final Set<Integer> awaitingRetry = new LinkedHashSet<>();
 
 	NodeExecState(ExecutionMode mode) {
@@ -181,6 +189,30 @@ public class NodeExecState {
 
 	int recordAttempt(int seq) {
 		return attempts.merge(seq, 1, Integer::sum);
+	}
+
+	/**
+	 * Give an attempt back, for a dispatch that was handed back unexecuted.
+	 *
+	 * <p>Bounded on purpose. Returning work costs nothing to the caller, so an
+	 * unbounded refund lets a misbehaving worker bounce the same execution around the
+	 * fleet forever - it would never accumulate attempts and so never dead-letter. Past
+	 * the cap a return is accounted exactly like a lost task and the budget applies.</p>
+	 *
+	 * @return true when the attempt was refunded
+	 */
+	boolean refundAttempt(int seq) {
+		if (returns.getOrDefault(seq, 0) >= MAX_REFUNDED_RETURNS) {
+			return false;
+		}
+		returns.merge(seq, 1, Integer::sum);
+		attempts.computeIfPresent(seq, (key, count) -> count <= 1 ? null : count - 1);
+		return true;
+	}
+
+	/** @return how many times this execution has been handed back unexecuted */
+	int returnsFor(int seq) {
+		return returns.getOrDefault(seq, 0);
 	}
 
 	void markAwaitingRetry(int seq) {

@@ -50,7 +50,7 @@ test.describe("Pipeline Editor – backend e2e", () => {
     expect(kinds).toContain("sha256");
     expect(kinds).toContain("fingerprint");
     expect(kinds).toContain("filter-mimetype");
-    expect(kinds).toContain("loom");
+    expect(kinds).toContain("thumbnail");
   });
 
   test("add-node menu shows descriptors grouped by category", async ({ page }) => {

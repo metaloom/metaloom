@@ -2,6 +2,7 @@ package io.metaloom.loom.pipeline.graph;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -38,6 +39,64 @@ public class PipelineGraphParserTest {
 			.put("edges", new JsonArray()
 				.add(new JsonObject().put("id", "pe1").put("source", "pn1").put("sourcePort", "media").put("target", "pn2").put("targetPort", "media"))
 				.add(new JsonObject().put("id", "pe2").put("source", "pn2").put("sourcePort", "passed").put("target", "pn3").put("targetPort", "media")));
+	}
+
+	// ── Definition format version ─────────────────────────────────────────
+
+	@Test
+	void testUnversionedDefinitionIsReadAsVersionOne() {
+		JsonObject definition = loomFormatDefinition();
+		assertEquals(1, PipelineGraphParser.readVersion("demo", definition),
+			"Every definition stored before the version field existed is a version 1 definition;"
+				+ " rejecting them would strand pipelines that run correctly");
+		assertEquals(3, parser.parse("demo", definition, true, false, 100).size());
+	}
+
+	@Test
+	void testCurrentVersionParses() {
+		JsonObject definition = loomFormatDefinition()
+			.put("version", PipelineGraphParser.CURRENT_DEFINITION_VERSION);
+		assertEquals(PipelineGraphParser.CURRENT_DEFINITION_VERSION,
+			PipelineGraphParser.readVersion("demo", definition));
+		assertEquals(3, parser.parse("demo", definition, true, false, 100).size());
+	}
+
+	/**
+	 * A definition from a newer Loom is refused by name rather than half-read: it may use
+	 * fields whose absence here would parse into a valid but different graph.
+	 */
+	@Test
+	void testNewerVersionIsRejectedByName() {
+		JsonObject definition = loomFormatDefinition()
+			.put("version", PipelineGraphParser.CURRENT_DEFINITION_VERSION + 1);
+		GraphValidationException e = assertThrows(GraphValidationException.class,
+			() -> parser.parse("demo", definition, true, false, 100));
+		assertTrue(e.getMessage().contains(String.valueOf(PipelineGraphParser.CURRENT_DEFINITION_VERSION + 1)),
+			"The message must name the version found: " + e.getMessage());
+		assertTrue(e.getMessage().contains(String.valueOf(PipelineGraphParser.CURRENT_DEFINITION_VERSION)),
+			"...and the version this Loom reads: " + e.getMessage());
+	}
+
+	@Test
+	void testMalformedVersionIsRejected() {
+		assertThrows(GraphValidationException.class,
+			() -> parser.parse("demo", loomFormatDefinition().put("version", "one"), true, false, 100));
+		assertThrows(GraphValidationException.class,
+			() -> parser.parse("demo", loomFormatDefinition().put("version", 1.5), true, false, 100));
+		assertThrows(GraphValidationException.class,
+			() -> parser.parse("demo", loomFormatDefinition().put("version", 0), true, false, 100));
+	}
+
+	@Test
+	void testStampVersionSetsCurrentButDoesNotRelabel() {
+		JsonObject fresh = PipelineGraphParser.stampVersion(loomFormatDefinition());
+		assertEquals(PipelineGraphParser.CURRENT_DEFINITION_VERSION, fresh.getInteger("version"));
+
+		// Re-stamping would silently relabel a definition an older Loom round-tripped.
+		JsonObject alreadyTagged = loomFormatDefinition().put("version", 1);
+		assertEquals(1, PipelineGraphParser.stampVersion(alreadyTagged).getInteger("version"));
+
+		assertNull(PipelineGraphParser.stampVersion(null));
 	}
 
 	@Test

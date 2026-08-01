@@ -260,16 +260,29 @@ public class CombinedEndpointTest extends AbstractEndpointTest {
 			PipelineCreateRequest pipelineRequest = new PipelineCreateRequest();
 			pipelineRequest.setName("test-pipeline");
 			pipelineRequest.setDescription("A test pipeline for combined endpoint test");
-			// The definition format is nodes[] + edges[], each node carrying an id and a type.
+			// The definition format is nodes[] + edges[], each node carrying an id and a type,
+			// and each edge naming a port at both ends. A lone sha512 node does not validate:
+			// its "media" input is required and only a source can feed it.
 			pipelineRequest.setDefinition(new JsonObject()
 				.put("nodes", new JsonArray()
+					.add(new JsonObject()
+						.put("id", "source")
+						.put("type", "filesystem-source")
+						.put("name", "File Source")
+						.put("source", true))
 					.add(new JsonObject()
 						.put("id", "sha512")
 						.put("type", "sha512")
 						.put("name", "SHA-512 Hash")
 						.put("mode", "PARALLEL")
 						.put("concurrency", 4)))
-				.put("edges", new JsonArray()));
+				.put("edges", new JsonArray()
+					.add(new JsonObject()
+						.put("id", "e1")
+						.put("source", "source")
+						.put("sourcePort", "media")
+						.put("target", "sha512")
+						.put("targetPort", "media"))));
 			pipelineRequest.setMeta(new JsonObject().put("owner", "combined-test"));
 			pipelineRequest.setEnabled(true);
 			pipelineRequest.setPriority(10);

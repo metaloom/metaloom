@@ -32,7 +32,11 @@ public class ChunkHashNodeTest extends AbstractBasicNodeTest<ChunkHashNode> {
 	@Override
 	public ChunkHashNode mockNode(LoomClient client, CortexOptions cortexOptions) {
 		HashNodeOptions options = mock(HashNodeOptions.class);
-		when(options.isMD5()).thenReturn(true);
+		// Unstubbed, isEnabled() answers false and process() short-circuits to SKIPPED.
+		when(options.isEnabled()).thenReturn(true);
+		// ChunkHashNode#isProcessable reads isChunkHash, not isMD5 - stubbing the latter
+		// left the node permanently unprocessable while looking configured.
+		when(options.isChunkHash()).thenReturn(true);
 		return new ChunkHashNode(client, cortexOptions, options);
 	}
 

@@ -110,12 +110,11 @@ It:
 LoomSourceNode source    = new LoomSourceNode(loomClient);
 SHA256Node    sha256    = new SHA256Node(loomClient, options, hashOptions);
 ThumbnailNode thumbnail = new ThumbnailNode(loomClient, options, thumbOptions);
-LoomNode      loom      = new LoomNode(loomClient, options, loomNodeOptions);
 
-// Wire the graph
+// Wire the graph. No sink node terminates the chain: each node persists its
+// own result to Loom from inside compute().
 source.connectTo(sha256);
 sha256.connectTo(thumbnail);
-thumbnail.connectTo(loom);
 
 // Build the pipeline
 Pipeline pipeline = DefaultPipeline.builder("ingest")
