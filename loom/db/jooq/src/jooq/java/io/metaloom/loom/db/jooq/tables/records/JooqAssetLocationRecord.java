@@ -78,16 +78,24 @@ public class JooqAssetLocationRecord extends UpdatableRecordImpl<JooqAssetLocati
     }
 
     /**
-     * Setter for <code>public.asset_location.path</code>. Currently known path
-     * to the asset_location in the filesystem
+     * Setter for <code>public.asset_location.path</code>. Where the bytes live
+     * *within the pool*: a filesystem path for filesystem pools (absolute for
+     * the
+     * legacy NULL-pool case), an object key for S3 pools. Not a URL - the pool
+     * supplies bucket, region and
+     * endpoint.
      */
     public void setPath(String value) {
         set(3, value);
     }
 
     /**
-     * Getter for <code>public.asset_location.path</code>. Currently known path
-     * to the asset_location in the filesystem
+     * Getter for <code>public.asset_location.path</code>. Where the bytes live
+     * *within the pool*: a filesystem path for filesystem pools (absolute for
+     * the
+     * legacy NULL-pool case), an object key for S3 pools. Not a URL - the pool
+     * supplies bucket, region and
+     * endpoint.
      */
     public String getPath() {
         return (String) get(3);

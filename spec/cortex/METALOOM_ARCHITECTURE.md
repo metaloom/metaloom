@@ -567,6 +567,24 @@ used to happen.
 | **One slow node type cannot consume a run** | Each node type can be given its own ceiling, so transcription cannot occupy every slot while hashing waits behind it |
 | **Failures are reported individually; progress is summarised** | You are told which file failed and why, promptly. Volume is reported as counts, not as one message per file — including how much is running and how much is still waiting |
 
+### 🔴 Media never crosses the wire — only a locator does
+
+Loom sends the worker a **string**, taken from `asset_location.path`, and the worker resolves it
+itself. That has a deployment consequence which is easy to miss until nothing processes:
+
+| What Loom stores | What the worker does | What the deployment must provide |
+|---|---|---|
+| a filesystem path (`/var/lib/loom/storage/ab/cd/…`) | opens it on **its own** filesystem | 🔴 the worker must see that path, identically — a shared volume, or the same host. Loom and Cortex running on different machines with unshared disks will fail on every asset |
+| `s3://bucket/key` | `S3MediaMaterializer` downloads it into its cache | `CORTEX_S3_*` on the worker. **No shared filesystem needed** |
+
+So a library backed by an S3 `asset_pool` removes the co-location constraint, and a filesystem-backed
+one does not. This is the single most common cause of "the pipeline runs but every item fails to
+open". See
+[../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) §7.1.
+
+Note that the worker's S3 credentials (`CORTEX_S3_*`) are configured independently of Loom's
+(`LOOM_S3_*`). They may address the same bucket; setting one says nothing about the other.
+
 ### Two limits worth knowing
 
 **A scan interrupted by a restart cannot be resumed.** If Loom restarts while a

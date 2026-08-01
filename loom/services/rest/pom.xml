@@ -50,6 +50,17 @@
       <groupId>io.metaloom.loom.service</groupId>
       <artifactId>loom-service-graphql</artifactId>
     </dependency>
+    <!-- Binary storage backends. Both are needed here rather than behind a ServiceLoader because
+         BinaryStorageResolver picks between them per asset_pool row at request time. -->
+    <dependency>
+      <groupId>io.metaloom.loom.service</groupId>
+      <artifactId>loom-service-fs</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.metaloom.loom.service</groupId>
+      <artifactId>loom-service-s3</artifactId>
+    </dependency>
     <dependency>
       <groupId>io.metaloom.loom.shared</groupId>
       <artifactId>loom-rest-model</artifactId>

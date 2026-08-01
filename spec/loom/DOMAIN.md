@@ -39,8 +39,8 @@ These common columns are omitted from the table below.
 | Entity | Table(s) | Description | Key relations |
 |--------|----------|-------------|---------------|
 | **Asset** | `asset` | Content-addressed media (PK `sha512sum`): mime, size, filename, hashes, origin. The central media entity. | ← Location, Component, Embedding, Detection, Annotation |
-| **Asset Location** | `asset_location` | Physical placement of an asset's binary (path, filekey, pool, lock, state, license). One binary per asset. | → Asset, Library, Asset Pool |
-| **Asset Pool** | `asset_pool` | Storage backend for binaries — filesystem dir *or* S3 bucket (free/used space tracked). | ← Asset Location |
+| **Asset Location** | `asset_location` | Physical placement of an asset's binary (locator, filekey, pool, lock, state, license). **0..n per asset**, one per library. Exposed over REST as "binary". | → Asset, Library, Asset Pool |
+| **Asset Pool** | `asset_pool` | Storage backend for binaries — filesystem dir *or* S3 bucket (free/used space tracked). A library points at one. | ← Asset Location, ← Library |
 | **Asset Component** | `asset_geo_comp`, `asset_doc_comp`, `asset_image_comp`, `asset_video_comp`, `asset_audio_comp`, `asset_transcript_comp`, `asset_json_comp` | Per-modality extracted metadata, multiple per asset, tagged by `source`. Transcript + generic JSON produced by Cortex nodes. | → Asset |
 | **Asset Remix** | `asset_remix` | Derivation/relation link between two assets. | Asset ↔ Asset |
 | **Asset User Meta** | `asset_user_meta` | Per-user metadata overlay on an asset (PK `asset_uuid`+`user_uuid`). | Asset ↔ User |
@@ -131,9 +131,10 @@ erDiagram
     asset ||--o{ collection_asset : "in"
     collection ||--o{ collection : "parent_collection_uuid"
 
-    asset ||--|| asset_location : "UNIQUE(asset_uuid)"
+    asset ||--o{ asset_location : "0..n, UNIQUE(library_uuid, path)"
     library ||--o{ asset_location : "scanner root"
-    asset_pool ||--o{ asset_location : "pool_uuid (nullable)"
+    asset_pool ||--o{ asset_location : "pool_uuid (nullable) — where the bytes went"
+    asset_pool ||--o{ library : "pool_uuid (nullable) — where new uploads go"
 
     project {
         uuid uuid PK "exposed as Space"
@@ -142,6 +143,7 @@ erDiagram
     library {
         uuid uuid PK
         varchar name
+        uuid pool_uuid FK "storage backend, nullable"
     }
     collection {
         uuid uuid PK
@@ -155,10 +157,10 @@ erDiagram
     }
     asset_location {
         uuid uuid PK
-        uuid asset_uuid FK "UNIQUE"
-        uuid library_uuid FK
+        uuid asset_uuid FK
+        uuid library_uuid FK "UNIQUE with path"
         uuid pool_uuid FK
-        varchar path
+        varchar path "fs path OR s3://bucket/key"
         int filekey_inode
     }
     asset_pool {
@@ -180,12 +182,20 @@ erDiagram
 | Library ↔ Asset | M:N | `library_asset` |
 | Collection ↔ Asset | M:N | `collection_asset` |
 | Collection → Collection | 1:N tree | `parent_collection_uuid` self-FK |
-| Asset → Asset Location | **1:1** | `UNIQUE(asset_uuid)` on `asset_location` |
+| Asset → Asset Location | **1:N** | `UNIQUE(library_uuid, path)` on `asset_location` |
 | Library → Asset Location | 1:N | `library_uuid NOT NULL`, ON DELETE CASCADE |
-| Asset Pool → Asset Location | 1:N | `pool_uuid` (nullable — legacy rows have none) |
+| Asset Pool → Asset Location | 1:N | `pool_uuid` (nullable — NULL = the local upload directory) |
+| Asset Pool → Library | 1:N | `library.pool_uuid` (V2.63, nullable, ON DELETE RESTRICT) |
+
+⚠️ `V2.20` briefly made Asset → Asset Location **1:1** (`UNIQUE(asset_uuid)`); `V2.48` dropped that
+deliberately — the same content legitimately lives at several paths and in several libraries, which
+is why the table is separate from `asset` at all. Code that needs "the" binary of an asset wants
+`AssetBinaryDao.loadPrimaryByAssetUuid` (oldest, uuid tie-broken), not a `fetchOne`.
 
 An `asset_pool` is either a filesystem pool (`fs_path`) **or** an S3 pool
-(`s3_bucket`/`s3_region`/`s3_endpoint`) — a CHECK constraint enforces exactly one.
+(`s3_bucket`/`s3_region`/`s3_endpoint`) — a CHECK constraint enforces exactly one. Since `V2.63` a
+**library points at a pool**, which is how an upload knows whether its bytes go to disk or to a
+bucket; see [../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) §5.
 `asset.s3_bucket_name` / `asset.s3_object_path` are the legacy inline pointer that
 `asset_location` + `asset_pool` replaced.
 

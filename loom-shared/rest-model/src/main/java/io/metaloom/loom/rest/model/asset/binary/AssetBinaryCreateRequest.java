@@ -14,6 +14,9 @@ public class AssetBinaryCreateRequest extends AbstractMetaModel<AssetBinaryCreat
 
 	private UUID libraryUuid;
 
+	@JsonPropertyDescription("Storage pool holding the bytes. Optional: defaults to the target library's pool, and to the server's local upload directory when the library has none.")
+	private UUID poolUuid;
+
 	@JsonPropertyDescription("Information about the location of the asset in the filesystem.")
 	private AssetBinaryFilesystemInfo filesystem;
 
@@ -35,6 +38,15 @@ public class AssetBinaryCreateRequest extends AbstractMetaModel<AssetBinaryCreat
 
 	public AssetBinaryCreateRequest setLibraryUuid(UUID libraryUuid) {
 		this.libraryUuid = libraryUuid;
+		return this;
+	}
+
+	public UUID getPoolUuid() {
+		return poolUuid;
+	}
+
+	public AssetBinaryCreateRequest setPoolUuid(UUID poolUuid) {
+		this.poolUuid = poolUuid;
 		return this;
 	}
 

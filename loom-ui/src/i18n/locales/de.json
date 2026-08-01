@@ -500,6 +500,12 @@
   "streaming": {
    "stop": "Generierung stoppen"
   },
+  "pipeline": {
+   "open": "Öffnen",
+   "version": "v{{version}}",
+   "disabled": "deaktiviert",
+   "truncated": "Das Diagramm zeigt nur einen Teil dieser Pipeline — den vollständigen Graphen zeigt der Editor."
+  },
   "error": {
    "busy": "Der Agent arbeitet noch an diesem Chat — bitte gleich erneut versuchen",
    "llm": "Die Agent-Anfrage ist fehlgeschlagen",

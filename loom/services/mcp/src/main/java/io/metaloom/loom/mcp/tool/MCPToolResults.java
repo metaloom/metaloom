@@ -6,9 +6,15 @@ import io.vertx.core.json.JsonObject;
 /**
  * Helpers for building MCP tool results.
  *
- * <p>Besides the standard MCP {@code content} items a result may carry an additional {@code references} array which lists the loom domain entities the result
- * is about ({@code {"type":"asset","uuid":"…","label":"…"}}). External MCP clients simply ignore the extra field; the loom chat agent extracts it to render
- * entity chips for tool results.</p>
+ * <p>Besides the standard MCP {@code content} items a result may carry two additional arrays:</p>
+ * <ul>
+ * <li>{@code references} — the loom domain entities the result is about ({@code {"type":"asset","uuid":"…","label":"…"}}), rendered as entity chips.</li>
+ * <li>{@code visuals} — renderable payloads the chat UI draws inline instead of (only) printing text, e.g. a pipeline graph
+ * ({@code {"type":"pipeline-graph","uuid":"…","label":"…","payload":{…}}}).</li>
+ * </ul>
+ *
+ * <p>Both are extras on top of the MCP content format: external MCP clients simply ignore them and read the text, while the loom chat agent extracts them
+ * (see {@code ReferenceExtractor} / {@code VisualExtractor}) and relays them to the UI.</p>
  */
 public final class MCPToolResults {
 
@@ -40,6 +46,44 @@ public final class MCPToolResults {
 			result.put("references", references);
 		}
 		return result;
+	}
+
+	/**
+	 * Wrap a text string in MCP content format and attach domain entity references plus renderable visuals.
+	 *
+	 * @param text
+	 *            Result text. Always carries the full information — a client that cannot render the visual must still be able to answer from the text.
+	 * @param references
+	 *            References built via {@link #reference(String, String, String)}. Empty or null arrays are omitted.
+	 * @param visuals
+	 *            Visuals built via {@link #visual(String, String, String, JsonObject)}. Empty or null arrays are omitted.
+	 */
+	public static JsonObject mcpResult(String text, JsonArray references, JsonArray visuals) {
+		JsonObject result = mcpResultWithReferences(text, references);
+		if (visuals != null && !visuals.isEmpty()) {
+			result.put("visuals", visuals);
+		}
+		return result;
+	}
+
+	/**
+	 * Build a single renderable visual.
+	 *
+	 * @param type
+	 *            Visual kind understood by the UI (currently only {@code pipeline-graph})
+	 * @param uuid
+	 *            Uuid of the entity the visual depicts, so the UI can link into the matching view
+	 * @param label
+	 *            Human readable label (e.g. the pipeline name)
+	 * @param payload
+	 *            The type-specific render payload
+	 */
+	public static JsonObject visual(String type, String uuid, String label, JsonObject payload) {
+		return new JsonObject()
+			.put("type", type)
+			.put("uuid", uuid)
+			.put("label", label)
+			.put("payload", payload);
 	}
 
 	/**

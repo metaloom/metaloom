@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "./config";
-import { ChatMessage, ChatReference, ChatToolCall } from "../types";
+import { ChatMessage, ChatReference, ChatToolCall, ChatVisual, PipelineGraphPayload } from "../types";
 
 /**
  * Reference shape used by the backend (persisted messages and tool_end events):
@@ -10,6 +10,25 @@ export interface BackendChatReference {
   uuid?: string;
   id?: string;
   label: string;
+}
+
+/** Visual shape used by the backend (persisted messages and tool_end events, CHAT.md §6.1). */
+export interface BackendChatVisual {
+  type: string;
+  uuid?: string;
+  id?: string;
+  label?: string;
+  payload?: Record<string, unknown>;
+}
+
+/** Map a backend visual ({type, uuid, label, payload}) onto the UI ChatVisual ({type, id, …}). */
+export function toChatVisual(raw: BackendChatVisual): ChatVisual {
+  return {
+    type: raw.type,
+    id: raw.uuid ?? raw.id ?? "",
+    label: raw.label ?? "",
+    payload: (raw.payload ?? {}) as PipelineGraphPayload | Record<string, unknown>,
+  };
 }
 
 /** Map a backend reference ({type, uuid, label}) onto the UI ChatReference ({type, id, label}). */
@@ -29,6 +48,9 @@ export function toChatMessage(raw: Record<string, unknown>): ChatMessage {
   const references = Array.isArray(raw.references)
     ? (raw.references as BackendChatReference[]).map(toChatReference).filter(r => r.id !== "")
     : undefined;
+  const visuals = Array.isArray(raw.visuals)
+    ? (raw.visuals as BackendChatVisual[]).map(toChatVisual).filter(v => !!v.type)
+    : undefined;
   return {
     id: (raw.id as string) ?? `msg_${Math.random().toString(36).slice(2)}`,
     role: (raw.role as ChatMessage["role"]) ?? "assistant",
@@ -37,6 +59,7 @@ export function toChatMessage(raw: Record<string, unknown>): ChatMessage {
     reasoning: (raw.reasoning as string) || undefined,
     toolCalls: Array.isArray(raw.toolCalls) ? (raw.toolCalls as ChatToolCall[]) : undefined,
     references: references && references.length > 0 ? references : undefined,
+    visuals: visuals && visuals.length > 0 ? visuals : undefined,
     actions: Array.isArray(raw.actions) ? (raw.actions as ChatMessage["actions"]) : undefined,
     suggestedFollowUps: Array.isArray(raw.suggestedFollowUps) ? (raw.suggestedFollowUps as string[]) : undefined,
   };

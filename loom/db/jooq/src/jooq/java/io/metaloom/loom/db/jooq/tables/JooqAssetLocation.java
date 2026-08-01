@@ -81,10 +81,14 @@ public class JooqAssetLocation extends TableImpl<JooqAssetLocationRecord> {
     public final TableField<JooqAssetLocationRecord, java.util.UUID> LIBRARY_UUID = createField(DSL.name("library_uuid"), SQLDataType.UUID.nullable(false), this, "");
 
     /**
-     * The column <code>public.asset_location.path</code>. Currently known path
-     * to the asset_location in the filesystem
+     * The column <code>public.asset_location.path</code>. Where the bytes live
+     * *within the pool*: a filesystem path for filesystem pools (absolute for
+     * the
+     * legacy NULL-pool case), an object key for S3 pools. Not a URL - the pool
+     * supplies bucket, region and
+     * endpoint.
      */
-    public final TableField<JooqAssetLocationRecord, String> PATH = createField(DSL.name("path"), SQLDataType.VARCHAR.nullable(false), this, "Currently known path to the asset_location in the filesystem");
+    public final TableField<JooqAssetLocationRecord, String> PATH = createField(DSL.name("path"), SQLDataType.VARCHAR.nullable(false), this, "Where the bytes live *within the pool*: a filesystem path for filesystem pools (absolute for the\nlegacy NULL-pool case), an object key for S3 pools. Not a URL - the pool supplies bucket, region and\nendpoint.");
 
     /**
      * The column <code>public.asset_location.filekey_inode</code>.
@@ -198,7 +202,7 @@ public class JooqAssetLocation extends TableImpl<JooqAssetLocationRecord> {
 
     @Override
     public List<Index> getIndexes() {
-        return Arrays.asList(Indexes.ASSET_LOCATION_PATH_IDX);
+        return Arrays.asList(Indexes.ASSET_LOCATION_PATH_IDX, Indexes.ASSET_LOCATION_POOL_PATH_IDX);
     }
 
     @Override

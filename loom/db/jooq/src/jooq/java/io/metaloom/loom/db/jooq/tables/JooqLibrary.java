@@ -17,11 +17,11 @@ import java.util.function.Function;
 
 import org.jooq.Field;
 import org.jooq.ForeignKey;
-import org.jooq.Function8;
+import org.jooq.Function9;
 import org.jooq.Name;
 import org.jooq.Record;
 import org.jooq.Records;
-import org.jooq.Row8;
+import org.jooq.Row9;
 import org.jooq.Schema;
 import org.jooq.SelectField;
 import org.jooq.Table;
@@ -95,6 +95,14 @@ public class JooqLibrary extends TableImpl<JooqLibraryRecord> {
      */
     public final TableField<JooqLibraryRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID.nullable(false), this, "");
 
+    /**
+     * The column <code>public.library.pool_uuid</code>. Storage backend for
+     * binaries uploaded into this library. NULL = the process-wide local upload
+     * directory (LOOM_STORAGE_UPLOAD_DIR). The pool row decides filesystem vs
+     * S3; see asset_pool.
+     */
+    public final TableField<JooqLibraryRecord, java.util.UUID> POOL_UUID = createField(DSL.name("pool_uuid"), SQLDataType.UUID, this, "Storage backend for binaries uploaded into this library. NULL = the process-wide local upload\ndirectory (LOOM_STORAGE_UPLOAD_DIR). The pool row decides filesystem vs S3; see asset_pool.");
+
     private JooqLibrary(Name alias, Table<JooqLibraryRecord> aliased) {
         this(alias, aliased, null);
     }
@@ -140,11 +148,12 @@ public class JooqLibrary extends TableImpl<JooqLibraryRecord> {
 
     @Override
     public List<ForeignKey<JooqLibraryRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.LIBRARY__LIBRARY_CREATOR_UUID_FKEY, Keys.LIBRARY__LIBRARY_EDITOR_UUID_FKEY);
+        return Arrays.asList(Keys.LIBRARY__LIBRARY_CREATOR_UUID_FKEY, Keys.LIBRARY__LIBRARY_EDITOR_UUID_FKEY, Keys.LIBRARY__LIBRARY_POOL_UUID_FKEY);
     }
 
     private transient JooqUser _libraryCreatorUuidFkey;
     private transient JooqUser _libraryEditorUuidFkey;
+    private transient JooqAssetPool _assetPool;
 
     /**
      * Get the implicit join path to the <code>public.user</code> table, via the
@@ -166,6 +175,16 @@ public class JooqLibrary extends TableImpl<JooqLibraryRecord> {
             _libraryEditorUuidFkey = new JooqUser(this, Keys.LIBRARY__LIBRARY_EDITOR_UUID_FKEY);
 
         return _libraryEditorUuidFkey;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.asset_pool</code> table.
+     */
+    public JooqAssetPool assetPool() {
+        if (_assetPool == null)
+            _assetPool = new JooqAssetPool(this, Keys.LIBRARY__LIBRARY_POOL_UUID_FKEY);
+
+        return _assetPool;
     }
 
     @Override
@@ -208,18 +227,18 @@ public class JooqLibrary extends TableImpl<JooqLibraryRecord> {
     }
 
     // -------------------------------------------------------------------------
-    // Row8 type methods
+    // Row9 type methods
     // -------------------------------------------------------------------------
 
     @Override
-    public Row8<java.util.UUID, String, JsonObject, String, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
-        return (Row8) super.fieldsRow();
+    public Row9<java.util.UUID, String, JsonObject, String, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID, java.util.UUID> fieldsRow() {
+        return (Row9) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function8<? super java.util.UUID, ? super String, ? super JsonObject, ? super String, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function9<? super java.util.UUID, ? super String, ? super JsonObject, ? super String, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -227,7 +246,7 @@ public class JooqLibrary extends TableImpl<JooqLibraryRecord> {
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function8<? super java.util.UUID, ? super String, ? super JsonObject, ? super String, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function9<? super java.util.UUID, ? super String, ? super JsonObject, ? super String, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }

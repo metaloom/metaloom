@@ -13,10 +13,10 @@ import {
   SpaceDashboardOutlined, KeyboardDoubleArrowRight,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
-import { AgentAction, ChatMessage, ChatReference } from "../../types";
+import { AgentAction, ChatMessage, ChatReference, ChatVisual } from "../../types";
 import {
   listChats, loadChat, createChat, updateChat, deleteChat, ChatResponse,
-  toChatMessage, toChatReference, BackendChatReference,
+  toChatMessage, toChatReference, toChatVisual, BackendChatReference, BackendChatVisual,
 } from "../../api/chat";
 import {
   streamChatMessage, cancelChatStream, AgentBusyError,
@@ -24,6 +24,7 @@ import {
   AgentMessageEndEvent, AgentTitleEvent, AgentErrorEvent, AgentEndEvent,
 } from "../../api/agent";
 import MarkdownContent from "./MarkdownContent";
+import PipelineGraphCard from "./PipelineGraphCard";
 import ReasoningSection from "./ReasoningSection";
 import SkillsPanel from "./SkillsPanel";
 import ChatGreeting from "./ChatGreeting";
@@ -199,6 +200,15 @@ function MessageBubble({ msg, onFollowUp, onAssetClick, reasoningStreaming = fal
         {msg.actions && msg.actions.length > 0 && (
           <Box sx={{ px: 1, display: "flex", flexDirection: "column", gap: 0.25 }}>
             {msg.actions.map((a) => <ActionRow key={a.id} action={a} />)}
+          </Box>
+        )}
+
+        {/* Inline visualizations (pipeline graphs) — rendered as soon as the tool returns them */}
+        {msg.visuals && msg.visuals.length > 0 && (
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75, width: "100%", maxWidth: "100%" }}>
+            {msg.visuals
+              .filter(v => v.type === "pipeline-graph")
+              .map((v, i) => <PipelineGraphCard key={`${v.type}-${v.id}-${i}`} visual={v} />)}
           </Box>
         )}
 
@@ -593,6 +603,7 @@ export default function ChatWorkspace() {
         reasoning: "",
         actions: [] as AgentAction[],
         references: [] as ChatReference[],
+        visuals: [] as ChatVisual[],
       };
       const render = () => setStreaming({
         phase: acc.phase,
@@ -604,6 +615,7 @@ export default function ChatWorkspace() {
           createdAt: new Date().toISOString(),
           actions: acc.actions.length ? [...acc.actions] : undefined,
           references: acc.references.length ? [...acc.references] : undefined,
+          visuals: acc.visuals.length ? [...acc.visuals] : undefined,
         },
       });
 
@@ -643,6 +655,13 @@ export default function ChatWorkspace() {
                 acc.references.push(ref);
               }
             }
+            // …and visuals (e.g. a pipeline graph) render as cards, likewise before the answer exists
+            for (const raw of (d.visuals ?? []) as BackendChatVisual[]) {
+              const vis = toChatVisual(raw);
+              if (vis.type && !acc.visuals.some(v => v.id === vis.id && v.type === vis.type)) {
+                acc.visuals.push(vis);
+              }
+            }
             break;
           }
           case "message_end": {
@@ -677,6 +696,7 @@ export default function ChatWorkspace() {
           ...settled,
           actions: acc.actions.length ? acc.actions : undefined,
           references: settled.references ?? (acc.references.length ? acc.references : undefined),
+          visuals: settled.visuals ?? (acc.visuals.length ? acc.visuals : undefined),
         }]);
       } else if (acc.content || acc.actions.length) {
         // Aborted or errored mid-run — keep the partial output visible
@@ -688,6 +708,7 @@ export default function ChatWorkspace() {
           createdAt: new Date().toISOString(),
           actions: acc.actions,
           references: acc.references.length ? acc.references : undefined,
+          visuals: acc.visuals.length ? acc.visuals : undefined,
         }]);
       }
     } catch (e) {

@@ -44,6 +44,28 @@ public abstract class AbstractLoomOkHttpClient extends AbstractLoomClient {
 		return LoomClientHttpRequest.createBinaryRequest(POST, path, this, okClient, responseClass, binaryData, mimeType);
 	}
 
+	/**
+	 * Issue a {@code multipart/form-data} POST carrying one file part named {@code file}.
+	 *
+	 * @param <T>
+	 *            response model type
+	 * @param path
+	 *            request path
+	 * @param responseClass
+	 *            expected response model
+	 * @param file
+	 *            the file to upload; its name is sent as the part filename
+	 * @param mimeType
+	 *            content type of the part, or null for {@code application/octet-stream}
+	 * @param formFields
+	 *            alternating name/value form fields; a null value skips the field
+	 * @return the request
+	 */
+	protected <T extends RestResponseModel<T>> LoomClientHttpRequest<T> multipartRequest(String path, Class<T> responseClass, java.io.File file,
+		String mimeType, String... formFields) {
+		return LoomClientHttpRequest.createMultipartRequest(path, this, okClient, responseClass, file, file.getName(), mimeType, formFields);
+	}
+
 	protected LoomClientHttpRequest<LoomBinaryResponse> getDownloadRequest(String path) {
 		return LoomClientHttpRequest.createDownloadRequest(GET, path, this, okClient, LoomBinaryResponse.class);
 	}

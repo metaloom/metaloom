@@ -26,6 +26,7 @@ import io.metaloom.loom.agent.chat.event.AgentEventSink;
 import io.metaloom.loom.agent.chat.event.AgentEventType;
 import io.metaloom.loom.agent.chat.prompt.SystemPromptBuilder;
 import io.metaloom.loom.agent.chat.ref.ReferenceExtractor;
+import io.metaloom.loom.agent.chat.ref.VisualExtractor;
 import io.metaloom.loom.agent.chat.skill.SkillPromptBuilder;
 import io.metaloom.loom.agent.memory.MemoryScopeRef;
 import io.metaloom.loom.agent.memory.MemoryService;
@@ -87,6 +88,7 @@ public class AgentLoop {
 
 	private final AtomicBoolean cancelled = new AtomicBoolean(false);
 	private final ReferenceExtractor referenceExtractor = new ReferenceExtractor();
+	private final VisualExtractor visualExtractor = new VisualExtractor();
 
 	private final StringBuilder contentBuffer = new StringBuilder();
 	private final StringBuilder reasoningBuffer = new StringBuilder();
@@ -322,6 +324,7 @@ public class AgentLoop {
 		boolean isError = false;
 		String resultText;
 		JsonArray refs = new JsonArray();
+		JsonArray visuals = new JsonArray();
 
 		if (SkillPromptBuilder.LOAD_SKILL_TOOL.equals(name)) {
 			String skillName = args.getString("name");
@@ -358,6 +361,7 @@ public class AgentLoop {
 					.get(options.getToolTimeoutMs(), TimeUnit.MILLISECONDS);
 				resultText = extractTextContent(toolResult);
 				refs = referenceExtractor.extract(toolResult);
+				visuals = visualExtractor.extract(toolResult);
 			} catch (Exception e) {
 				// pi rule: tool failures become error tool RESULTS — the loop continues so the model can react
 				log.warn("Tool call {} failed", name, e);
@@ -374,7 +378,8 @@ public class AgentLoop {
 			.put("name", name)
 			.put("isError", isError)
 			.put("summary", summary)
-			.put("references", refs));
+			.put("references", refs)
+			.put("visuals", visuals));
 
 		recordedToolCalls.add(new JsonObject()
 			.put("id", callId)
@@ -408,6 +413,11 @@ public class AgentLoop {
 		}
 		if (!referenceExtractor.references().isEmpty()) {
 			assistantMessage.put("references", referenceExtractor.references());
+		}
+		// Visuals are persisted with the message so a reloaded transcript still shows the diagrams; they are
+		// never replayed into the LLM history (buildHistory reads content and toolCalls only).
+		if (!visualExtractor.visuals().isEmpty()) {
+			assistantMessage.put("visuals", visualExtractor.visuals());
 		}
 
 		JsonArray messages = chat.getMessages() != null ? chat.getMessages() : new JsonArray();

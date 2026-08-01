@@ -27,6 +27,19 @@ public class AttachmentImpl extends AbstractEditableElement<Attachment> implemen
 
 	private AttachmentType type;
 
+	private UUID poolUuid;
+
+	@Override
+	public UUID getPoolUuid() {
+		return poolUuid;
+	}
+
+	@Override
+	public Attachment setPoolUuid(UUID poolUuid) {
+		this.poolUuid = poolUuid;
+		return this;
+	}
+
 	@Override
 	public String getFilename() {
 		return filename;

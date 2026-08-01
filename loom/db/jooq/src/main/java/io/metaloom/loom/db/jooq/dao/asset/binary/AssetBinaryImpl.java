@@ -13,6 +13,8 @@ public class AssetBinaryImpl extends AbstractEditableElement<AssetBinary> implem
 
 	private UUID libraryUuid;
 
+	private UUID poolUuid;
+
 	private String mimeType;
 
 	private Long filekeyInode;
@@ -42,6 +44,17 @@ public class AssetBinaryImpl extends AbstractEditableElement<AssetBinary> implem
 	@Override
 	public AssetBinary setLibraryUuid(UUID libraryUuid) {
 		this.libraryUuid = libraryUuid;
+		return this;
+	}
+
+	@Override
+	public UUID getPoolUuid() {
+		return poolUuid;
+	}
+
+	@Override
+	public AssetBinary setPoolUuid(UUID poolUuid) {
+		this.poolUuid = poolUuid;
 		return this;
 	}
 

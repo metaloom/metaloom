@@ -182,6 +182,15 @@ spec/
 │   │   └── video-captioning-results/        # Raw benchmark data (JSON + RUN_ENV.txt)
 │   ├── rbac/
 │   │   └── RBAC.md                    # RBAC reference incl. known enforcement gaps
+│   ├── rest/
+│   │   ├── REST_BINARY_HANDLING.md    # Binary bytes over REST: the byte-carrying routes, the
+│   │   │                              #   content-addressed layout, filesystem/S3 backends selected
+│   │   │                              #   per library via asset_pool, Range downloads, reference-
+│   │   │                              #   counted reclaim — implemented
+│   │   └── REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md
+│   │                                  # PLAN, not built: how Cortex nodes push produced artefacts
+│   │                                  #   (thumbnails, depth maps, TTS) and their metadata into
+│   │                                  #   Loom. Loom-side counterpart of NODE_S3SINK_PLAN phases 2+3
 │   └── search/
 │       ├── SEARCH.md                  # Lexical search: current state (none), SPI, search_document, REST — NOT built
 │       ├── SEARCH_PLAN.md             # Phased build order: P0 prereqs → P1 Postgres → P2 Elasticsearch
@@ -240,6 +249,8 @@ spec/
 | Node inputs/outputs — ports, content types, cardinality, fan-out | [features/pipeline/NODE_DATA_TYPES.md](features/pipeline/NODE_DATA_TYPES.md) — the reference for the built model. [features/pipeline/NODE_DATA_TYPES_PLAN.md](features/pipeline/NODE_DATA_TYPES_PLAN.md) keeps the design rationale and the design-vs-implementation divergences |
 | Per-node schema files (validating a pipeline outside the JVM, briefing an agent on a node) | [features/pipeline/NODE_SCHEMA_CONCEPT.md](features/pipeline/NODE_SCHEMA_CONCEPT.md) — **exploration only, nothing built**; four competing concepts plus the construction procedure |
 | A REST endpoint | [loom/RESTAPI.md](loom/RESTAPI.md) + [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md) |
+| Uploading / downloading binary data, asset binaries, storage layout, S3 vs. filesystem | [features/rest/REST_BINARY_HANDLING.md](features/rest/REST_BINARY_HANDLING.md) — byte routes vs. JSON metadata routes, how a library picks its backend, and the remaining gaps |
+| Getting Cortex-produced artefacts (thumbnails, depth maps, TTS audio) into Loom | [features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) — **plan, not built**; the endpoints it needs exist |
 | A DAO / migration | [loom/PERSISTENCE.md](loom/PERSISTENCE.md) + [loom/DOMAIN.md](loom/DOMAIN.md) |
 | Permissions / authorization | [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md), [features/rbac/RBAC.md](features/rbac/RBAC.md) |
 | Chat / AI agent / skills / memory | [loom/ui/CHAT.md](loom/ui/CHAT.md), [features/chat/CHAT_MEMORY_PLAN.md](features/chat/CHAT_MEMORY_PLAN.md) |

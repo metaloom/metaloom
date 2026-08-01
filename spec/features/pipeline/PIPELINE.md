@@ -1317,6 +1317,8 @@ issue, not a code issue.
 | REST + event DTOs | `loom-shared/rest-model/…/model/pipeline/` |
 | Java client methods | `loom-client/common/…/method/PipelineMethods.java` |
 | UI editor | `loom-ui/src/features/pipeline/PipelineEditor.tsx` |
+| MCP tools (chat: list / show a pipeline) | `loom/services/mcp/…/tool/impl/{ListPipelinesTool,GetPipelineTool}.java` — see [MCP.md §5.6–5.7](../../loom/MCP.md) |
+| Compact graph rendering in the chat | `loom-ui/src/features/chat/{PipelineGraphCard.tsx,pipelineGraphLayout.ts}` — see [ui/CHAT.md §6.1](../../loom/ui/CHAT.md) |
 | UI live monitor | `loom-ui/src/Pipeline/PipelineArea.tsx` |
 | UI API clients | `loom-ui/src/api/pipelines.ts`, `pipelineEvents.ts` |
 | Executor tests | `cortex/pipeline-core/src/test/…/PipelineExecutorTest.java` |

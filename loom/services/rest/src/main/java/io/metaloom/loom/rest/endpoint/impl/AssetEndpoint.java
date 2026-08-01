@@ -138,8 +138,11 @@ public class AssetEndpoint extends AbstractEndpoint {
 
 		// --- Upload route (multipart, literal prefix — registered before :uuid wildcard) ---
 
-		addRoute(basePath() + "/upload", POST,
-			"Upload a file to create an asset. Expects a multipart request with one file part and a 'libraryUuid' form field.",
+		addUploadRoute(basePath() + "/upload",
+			"Upload a file to create an asset. Expects a multipart request with one file part named 'file', a required 'libraryUuid' form field "
+				+ "and an optional 'origin'. The target library's storage pool decides whether the bytes land on a filesystem or in S3. "
+				+ "Answers 201 for new content and 200 when an asset with the same SHA-512 already exists.",
+			examples.assetResponseExample(),
 			lrc -> {
 				uploadService.upload(lrc);
 			});
@@ -562,11 +565,19 @@ public class AssetEndpoint extends AbstractEndpoint {
 			});
 
 		addRoute(basePath() + "/:uuid/binary", GET,
-			"Load the binary for the asset",
+			"Load the primary binary for the asset. An asset holds one binary per library it was imported into; this returns the oldest. Use /binaries for all of them.",
 			null,
 			examples.binaryResponseExample(),
 			lrc -> {
 				binaryService.loadByAssetUuid(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/binaries", GET,
+			"List every binary of the asset - one per library the asset was imported into.",
+			null,
+			examples.binaryListResponseExample(),
+			lrc -> {
+				binaryService.listByAssetUuid(lrc, lrc.pathParamUUID("uuid"));
 			});
 
 		addRoute(basePath() + "/:uuid/binary", DELETE,
@@ -579,14 +590,18 @@ public class AssetEndpoint extends AbstractEndpoint {
 
 		// --- BINARY DATA (raw bytes) ---
 
-		addRoute(basePath() + "/:uuid/binary/data", POST,
-			"Upload raw file bytes into the binary for an existing asset. Expects a multipart request with one file part; a 'libraryUuid' form field is required only when the asset has no binary yet.",
+		addUploadRoute(basePath() + "/:uuid/binary/data",
+			"Upload raw file bytes into the binary for an existing asset. Expects a multipart request with one file part named 'file'. "
+				+ "The 'libraryUuid' form field is required when the asset has no binary yet, and when it has more than one - otherwise the "
+				+ "server cannot tell which library's binary to replace and answers 400.",
+			examples.binaryResponseExample(),
 			lrc -> {
 				uploadService.uploadForAsset(lrc, lrc.pathParamUUID("uuid"));
 			});
 
-		addRoute(basePath() + "/:uuid/binary/data", GET,
-			"Download the raw binary bytes for the asset.",
+		addDownloadRoute(basePath() + "/:uuid/binary/data",
+			"Download the raw bytes of the asset's primary binary, from whichever backend holds them. Supports single-range "
+				+ "'Range: bytes=' requests, answering 206 with Content-Range, so media can be seeked without refetching.",
 			lrc -> {
 				binaryService.downloadByAssetUuid(lrc, lrc.pathParamUUID("uuid"));
 			});

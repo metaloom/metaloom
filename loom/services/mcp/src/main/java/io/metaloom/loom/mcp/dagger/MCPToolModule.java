@@ -10,7 +10,9 @@ import dagger.multibindings.ElementsIntoSet;
 import io.metaloom.loom.mcp.tool.MCPTool;
 import io.metaloom.loom.mcp.tool.impl.AssetStatisticsTool;
 import io.metaloom.loom.mcp.tool.impl.GetAssetTool;
+import io.metaloom.loom.mcp.tool.impl.GetPipelineTool;
 import io.metaloom.loom.mcp.tool.impl.ListCollectionsTool;
+import io.metaloom.loom.mcp.tool.impl.ListPipelinesTool;
 import io.metaloom.loom.mcp.tool.impl.SearchAssetsTool;
 import io.metaloom.loom.mcp.tool.impl.SearchTranscriptTool;
 
@@ -28,13 +30,17 @@ public class MCPToolModule {
 		GetAssetTool getAssetTool,
 		SearchTranscriptTool searchTranscriptTool,
 		ListCollectionsTool listCollectionsTool,
-		AssetStatisticsTool assetStatisticsTool) {
+		AssetStatisticsTool assetStatisticsTool,
+		ListPipelinesTool listPipelinesTool,
+		GetPipelineTool getPipelineTool) {
 		return new HashSet<>(Arrays.asList(
 			searchAssetsTool,
 			getAssetTool,
 			searchTranscriptTool,
 			listCollectionsTool,
-			assetStatisticsTool));
+			assetStatisticsTool,
+			listPipelinesTool,
+			getPipelineTool));
 	}
 
 }

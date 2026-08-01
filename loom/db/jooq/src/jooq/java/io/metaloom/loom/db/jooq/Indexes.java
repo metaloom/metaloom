@@ -68,6 +68,7 @@ public class Indexes {
     // -------------------------------------------------------------------------
 
     public static final Index ASSET_LOCATION_PATH_IDX = Internal.createIndex(DSL.name("asset_location_path_idx"), JooqAssetLocation.ASSET_LOCATION, new OrderField[] { JooqAssetLocation.ASSET_LOCATION.PATH }, false);
+    public static final Index ASSET_LOCATION_POOL_PATH_IDX = Internal.createIndex(DSL.name("asset_location_pool_path_idx"), JooqAssetLocation.ASSET_LOCATION, new OrderField[] { JooqAssetLocation.ASSET_LOCATION.POOL_UUID, JooqAssetLocation.ASSET_LOCATION.PATH }, false);
     public static final Index ASSET_POOL_NAME_IDX = Internal.createIndex(DSL.name("asset_pool_name_idx"), JooqAssetPool.ASSET_POOL, new OrderField[] { JooqAssetPool.ASSET_POOL.NAME }, true);
     public static final Index ASSET_REMIX_ASSET_A_UUID_IDX = Internal.createIndex(DSL.name("asset_remix_asset_a_uuid_idx"), JooqAssetRemix.ASSET_REMIX, new OrderField[] { JooqAssetRemix.ASSET_REMIX.ASSET_A_UUID }, false);
     public static final Index ASSET_REMIX_ASSET_B_UUID_IDX = Internal.createIndex(DSL.name("asset_remix_asset_b_uuid_idx"), JooqAssetRemix.ASSET_REMIX, new OrderField[] { JooqAssetRemix.ASSET_REMIX.ASSET_B_UUID }, false);

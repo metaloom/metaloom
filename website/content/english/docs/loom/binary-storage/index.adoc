@@ -1,0 +1,169 @@
+---
+title: Binary Storage
+---
+
+Every asset in Loom has two halves: the *record* — filename, hashes, tags, everything a pipeline
+worked out about it — and the *bytes* themselves. This page is about the bytes: where they go, how
+you put them there, and how you get them back.
+
+== Uploading
+
+The quickest way to get media into Loom is a single request:
+
+[source,bash]
+----
+curl -X POST https://loom.example.com/api/v1/assets/upload \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@holiday.mp4" \
+  -F "libraryUuid=$LIBRARY_UUID"
+----
+
+That stores the bytes, creates the asset, and starts any pipeline configured to run on that media
+type. The response is the new asset, including its UUID.
+
+TIP: Do not set a `Content-Type` header yourself. Your HTTP client sets it, together with the
+multipart boundary; overriding it makes the upload unreadable.
+
+=== Uploading the same file twice
+
+Loom identifies an asset by the SHA-512 of its content, so uploading a file it already has does not
+create a duplicate — you get the existing asset back, with status `200` instead of `201`. Importing
+the same file into a second library adds a second *location* for that one asset rather than a
+second asset.
+
+=== Replacing the bytes of an existing asset
+
+[source,bash]
+----
+curl -X POST https://loom.example.com/api/v1/assets/$ASSET_UUID/binary/data \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@holiday-regraded.mp4"
+----
+
+If the asset lives in more than one library, add `-F "libraryUuid=..."` to say which copy you mean.
+Loom will not guess, because guessing would overwrite the wrong library's file.
+
+== Downloading
+
+[source,bash]
+----
+curl -O -J https://loom.example.com/api/v1/assets/$ASSET_UUID/binary/data \
+  -H "Authorization: Bearer $TOKEN"
+----
+
+Downloads support byte ranges, so a browser can seek inside a video without refetching it:
+
+[source,bash]
+----
+curl -r 0-1048575 https://loom.example.com/api/v1/assets/$ASSET_UUID/binary/data \
+  -H "Authorization: Bearer $TOKEN"
+----
+
+== Choosing where the bytes are stored
+
+A *storage pool* is either a directory on disk or an S3 bucket. A *library* points at a pool, and
+everything uploaded into that library goes there. Libraries with no pool use the server's local
+storage directory, which is the default and needs no configuration at all.
+
+Create a pool:
+
+[source,bash]
+----
+# A filesystem pool
+curl -X POST https://loom.example.com/api/v1/pools \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"name": "fast-ssd", "fsPath": "/mnt/fast-ssd/media"}'
+
+# An S3 pool
+curl -X POST https://loom.example.com/api/v1/pools \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"name": "archive", "s3Bucket": "media-archive", "s3Region": "eu-central-1"}'
+----
+
+A pool is one or the other, never both.
+
+Then point a library at it:
+
+[source,bash]
+----
+curl -X POST https://loom.example.com/api/v1/libraries/$LIBRARY_UUID \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"poolUuid": "'$POOL_UUID'"}'
+----
+
+Every library reports which backend it uses as `storageType`, either `filesystem` or `s3`.
+
+IMPORTANT: Changing a library's pool affects *future* uploads only. Files already stored stay where
+they are and keep working — each one remembers the pool it was written to.
+
+=== S3 credentials
+
+Bucket, region and endpoint are part of the pool. The access key and secret are not: they are set on
+the server, so they never end up in the database or in an API response.
+
+[source,bash]
+----
+LOOM_S3_ACCESS_KEY=...
+LOOM_S3_SECRET_KEY=...
+LOOM_S3_ENDPOINT=https://minio.example.com   # only for S3-compatible storage
+LOOM_S3_REGION=eu-central-1
+----
+
+Leave the keys unset on AWS to use the machine's own credentials — an IAM role, IRSA on Kubernetes,
+or a local AWS profile. For MinIO, Ceph and similar gateways, set `LOOM_S3_ENDPOINT`; path-style
+addressing switches itself on automatically.
+
+== Storage settings
+
+[cols="1,1,3"]
+|===
+| Setting | Default | Purpose
+
+| `LOOM_STORAGE_UPLOAD_DIR`
+| `data/storage`
+| Where binaries go for libraries with no pool.
+
+| `LOOM_STORAGE_MAX_UPLOAD_SIZE`
+| unlimited
+| Largest accepted upload, in bytes. Larger uploads are rejected before anything is written.
+
+| `LOOM_STORAGE_MIN_FREE_SPACE`
+| 1 GiB
+| Loom refuses an upload that would take the disk below this. Set `0` to disable.
+|===
+
+== Deleting
+
+Deleting a binary removes the file only when nothing else needs it. Because storage is
+content-addressed, identical files share one copy on disk — so removing one asset's binary never
+takes the preview away from another asset that happens to hold the same content.
+
+== Attachments
+
+Alongside its main binary, an asset can carry *attachments*: contact sheets, poster frames,
+waveforms, proxies, extracted audio. They upload and download the same way:
+
+[source,bash]
+----
+curl -X POST https://loom.example.com/api/v1/attachments \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@poster.jpg" -F "assetUuid=$ASSET_UUID" -F "type=POSTER_FRAME"
+
+curl -O -J https://loom.example.com/api/v1/attachments/$ATTACHMENT_UUID/data \
+  -H "Authorization: Bearer $TOKEN"
+----
+
+An attachment is stored in the same pool as the asset it belongs to.
+
+== Processing uploaded media
+
+Cortex workers do not receive media over the network — Loom tells them *where* the file is and they
+read it themselves. What that requires depends on the pool:
+
+* *S3 pools* — nothing extra. The worker fetches the object directly, so Loom and Cortex can run
+  anywhere. The worker needs its own S3 settings (`CORTEX_S3_*`).
+* *Filesystem pools* — the worker must be able to see the same directory at the same path, via a
+  shared volume or by running on the same host. If it cannot, processing fails to open the file.
+
+If you are running Loom and Cortex on separate machines, an S3-backed library is the simpler
+arrangement.

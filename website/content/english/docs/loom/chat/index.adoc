@@ -29,9 +29,11 @@ The backend runs a tool-calling loop against a Large Language Model. On each use
 Tool failures become *error tool results* rather than aborting the run, so the model can react and
 retry — a run is resilient to a single failing tool.
 
-Built-in domain tools include `search_assets`, `get_asset`, `search_transcript`, `list_collections`
-and `asset_statistics`. Results carry structured **references** (asset · collection · task · comment
-· pipeline · annotation), which the UI renders as clickable chips inside the conversation.
+Built-in domain tools include `search_assets`, `get_asset`, `search_transcript`, `list_collections`,
+`asset_statistics`, `list_pipelines` and `get_pipeline`. Results carry structured **references**
+(asset · collection · task · comment · pipeline · annotation), which the UI renders as clickable
+chips inside the conversation — and, for some results, a **diagram** the chat draws inline (see
+link:#pipeline-diagrams[Pipeline diagrams]).
 
 The LLM provider is pluggable and configured separately from the chat — see the provider settings in
 link:../configuration/[Loom Configuration].
@@ -46,6 +48,71 @@ link:../configuration/[Loom Configuration].
 |===
 
 A chat may have only one active run at a time; a concurrent request returns `409 AGENT_BUSY`.
+
+[#pipeline-diagrams]
+== Pipeline Diagrams in Chat
+
+Ask the agent about a processing pipeline — *"show me the current pipeline for media
+transcription"* — and it answers with a **diagram**, not just a paragraph. The agent looks the
+pipeline up by name or ID, and the chat draws its node graph as a compact card right inside the
+conversation:
+
+++++
+<div class="ml-figure">
+<svg viewBox="0 0 900 236" role="img" aria-labelledby="ml-pgc-title ml-pgc-desc" class="ml-arch-svg">
+  <title id="ml-pgc-title">A pipeline diagram rendered inside the chat</title>
+  <desc id="ml-pgc-desc">A card in the chat transcript titled Media Transcription, showing the pipeline version and an Open action, with four connected nodes: Media Source (a source node), Audio/Video Filter (a filter node, whose outgoing connection is labelled PASS), Transcribe (a Whisper analysis node) and Transcript Sentiment (an analysis node). An Open action links to the full pipeline editor.</desc>
+  <defs>
+    <marker id="ml-pgc-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#57cbcc"></path></marker>
+  </defs>
+
+  <rect x="24" y="20" width="852" height="196" rx="10" class="ml-box-container"></rect>
+
+  <!-- card header -->
+  <text x="44" y="50" class="ml-box-title">Media Transcription</text>
+  <rect x="222" y="34" width="34" height="22" rx="11" class="ml-chip"></rect>
+  <text x="239" y="49" text-anchor="middle" class="ml-chip-label">v3</text>
+  <rect x="778" y="34" width="76" height="22" rx="11" class="ml-chip"></rect>
+  <text x="816" y="49" text-anchor="middle" class="ml-chip-label">Open</text>
+  <line x1="24" y1="70" x2="876" y2="70" class="ml-edge-dashed"></line>
+
+  <!-- nodes -->
+  <rect x="48" y="112" width="172" height="56" rx="6" class="ml-box-part"></rect>
+  <text x="134" y="136" text-anchor="middle" class="ml-part-title">Media Source</text>
+  <text x="134" y="154" text-anchor="middle" class="ml-part-sub">filesystem-source</text>
+
+  <rect x="268" y="112" width="172" height="56" rx="6" class="ml-box-part"></rect>
+  <text x="354" y="136" text-anchor="middle" class="ml-part-title">Audio/Video Filter</text>
+  <text x="354" y="154" text-anchor="middle" class="ml-part-sub">filter-mimetype</text>
+
+  <rect x="488" y="112" width="172" height="56" rx="6" class="ml-box-part"></rect>
+  <text x="574" y="136" text-anchor="middle" class="ml-part-title">Transcribe</text>
+  <text x="574" y="154" text-anchor="middle" class="ml-part-sub">whisper</text>
+
+  <rect x="708" y="112" width="148" height="56" rx="6" class="ml-box-part"></rect>
+  <text x="782" y="136" text-anchor="middle" class="ml-part-title">Sentiment</text>
+  <text x="782" y="154" text-anchor="middle" class="ml-part-sub">sentiment</text>
+
+  <!-- connectors -->
+  <polyline points="220,140 268,140" class="ml-edge" marker-end="url(#ml-pgc-arrow)"></polyline>
+  <polyline points="440,140 488,140" class="ml-edge" marker-end="url(#ml-pgc-arrow)"></polyline>
+  <text x="464" y="128" text-anchor="middle" class="ml-edge-label">PASS</text>
+  <polyline points="660,140 708,140" class="ml-edge" marker-end="url(#ml-pgc-arrow)"></polyline>
+
+  <text x="48" y="196" class="ml-part-sub">Nodes are coloured by category — source, filter, analysis, transform, output — as in the pipeline editor.</text>
+</svg>
+</div>
+++++
+
+The card shows the pipeline as it would run **today**: the graph of its latest version, with the
+version number, a marker when the pipeline is disabled, and an **Open** action that jumps into the
+full pipeline editor. Filter branches are labelled (`PASS` / `REJECT`), and very large graphs are
+clipped with a note pointing to the editor.
+
+The diagram appears as soon as the agent has looked the pipeline up — before the written answer
+finishes streaming — and it is stored with the conversation, so reopening the chat later shows it
+again. The written answer always describes the pipeline in full as well, so nothing is lost when a
+transcript is copied elsewhere.
 
 == Chats
 

@@ -290,6 +290,50 @@ export interface ChatToolCall {
   durationMs?: number;
 }
 
+/** One node of a pipeline graph visual, as projected by the `get_pipeline` MCP tool (MCP.md §5.7). */
+export interface PipelineGraphNode {
+  id: string;
+  kind?: string;
+  label: string;
+  /** Node category, used for colouring. Mirrors the `NodeCategory` of the node descriptors. */
+  category?: string;
+}
+
+/** One port-to-port connection of a pipeline graph visual. */
+export interface PipelineGraphEdge {
+  source: string;
+  sourcePort?: string;
+  target: string;
+  targetPort?: string;
+  /** Only set on edges leaving a filter node: `ANY | PASS | REJECT`. */
+  branch?: string;
+}
+
+/** Render payload of a `pipeline-graph` visual. */
+export interface PipelineGraphPayload {
+  pipelineUuid?: string;
+  name?: string;
+  description?: string;
+  enabled?: boolean;
+  versionNumber?: number;
+  nodes: PipelineGraphNode[];
+  edges: PipelineGraphEdge[];
+  /** True when the tool clipped the graph because it exceeded the payload caps. */
+  truncated?: boolean;
+}
+
+/**
+ * A renderable payload attached to a tool result, drawn inline in the transcript instead of only
+ * being described in text (CHAT.md §6.1). `type` discriminates the payload shape.
+ */
+export interface ChatVisual {
+  type: "pipeline-graph" | string;
+  /** Uuid of the entity depicted, so the card can link into the matching view. */
+  id: string;
+  label: string;
+  payload: PipelineGraphPayload | Record<string, unknown>;
+}
+
 export interface ChatMessage {
   id: string;
   role: ChatMessageRole;
@@ -299,6 +343,8 @@ export interface ChatMessage {
   reasoning?: string;
   toolCalls?: ChatToolCall[];
   references?: ChatReference[];
+  /** Inline visualizations produced by tool calls (e.g. a pipeline graph). */
+  visuals?: ChatVisual[];
   actions?: AgentAction[];
   suggestedFollowUps?: string[];
 }

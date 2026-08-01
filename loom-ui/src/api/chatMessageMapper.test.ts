@@ -36,11 +36,24 @@ describe("toChatMessage", () => {
     expect(msg.references).toEqual([{ type: "asset", id: "a1", label: "beach.mp4" }]);
   });
 
+  it("maps persisted pipeline-graph visuals", () => {
+    const payload = { pipelineUuid: "p1", name: "Media Transcription", nodes: [{ id: "pn1", label: "Transcribe" }], edges: [] };
+    const msg = toChatMessage({
+      id: "m3",
+      role: "assistant",
+      content: "Here is the pipeline.",
+      visuals: [{ type: "pipeline-graph", uuid: "p1", label: "Media Transcription", payload }],
+      createdAt: "2026-07-22T10:15:03Z",
+    });
+    expect(msg.visuals).toEqual([{ type: "pipeline-graph", id: "p1", label: "Media Transcription", payload }]);
+  });
+
   it("omits empty optional fields", () => {
     const msg = toChatMessage({ id: "m2", role: "user", content: "Hi", createdAt: "2026-07-22T10:15:03Z" });
     expect(msg.reasoning).toBeUndefined();
     expect(msg.toolCalls).toBeUndefined();
     expect(msg.references).toBeUndefined();
+    expect(msg.visuals).toBeUndefined();
   });
 
   it("fills defaults for missing id/createdAt", () => {

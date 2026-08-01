@@ -12,6 +12,8 @@ public class LoomOptions implements Option {
 
 	private StorageOptions storage = new StorageOptions();
 
+	private S3Options s3 = new S3Options();
+
 	private AiOptions ai = new AiOptions();
 
 	private SandboxOptions sandbox = new SandboxOptions();
@@ -28,6 +30,7 @@ public class LoomOptions implements Option {
 		server.overrideWithEnv();
 		auth.overrideWithEnv();
 		storage.overrideWithEnv();
+		s3.overrideWithEnv();
 		ai.overrideWithEnv();
 		sandbox.overrideWithEnv();
 		memory.overrideWithEnv();
@@ -67,6 +70,15 @@ public class LoomOptions implements Option {
 
 	public LoomOptions setStorage(StorageOptions storage) {
 		this.storage = storage;
+		return this;
+	}
+
+	public S3Options getS3() {
+		return s3;
+	}
+
+	public LoomOptions setS3(S3Options s3) {
+		this.s3 = s3;
 		return this;
 	}
 
@@ -121,6 +133,7 @@ public class LoomOptions implements Option {
 			.nested("server", server)
 			.nested("auth", auth)
 			.nested("storage", storage)
+			.nested("s3", s3)
 			.nested("ai", ai)
 			.nested("sandbox", sandbox)
 			.nested("memory", memory)

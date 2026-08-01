@@ -26,18 +26,23 @@ import io.metaloom.loom.rest.model.asset.info.FileInfo;
 import io.metaloom.loom.rest.model.asset.info.HashInfo;
 import io.metaloom.loom.rest.service.AbstractEndpointService;
 import io.metaloom.loom.rest.validation.LoomModelValidator;
+import io.metaloom.loom.storage.BinaryStorage;
 import io.metaloom.utils.hash.HashUtils;
 import io.metaloom.utils.hash.SHA512;
-import io.vertx.core.file.FileSystem;
 import io.vertx.ext.web.FileUpload;
 
 /**
  * Handles multipart uploads that create an asset from real file bytes.
  *
  * <p>
- * The uploaded bytes are persisted into the configured storage directory using a sha512-segmented layout ({@code ab/cd/ef/<sha512>}), an asset is
- * created with the derived file metadata, a binary location row is recorded pointing at the stored file, and an {@code asset.created} event is
- * published so a matching pipeline can be triggered.
+ * The uploaded bytes are hashed, handed to the {@link BinaryStorage} the target library resolves to — the local upload directory, a filesystem pool
+ * or an S3 bucket — and an {@code asset_location} row is recorded pointing at whatever locator that storage returned. For {@code POST /assets/upload}
+ * an {@code asset.created} event is then published so a matching pipeline can be triggered.
+ * </p>
+ *
+ * <p>
+ * See {@code spec/features/rest/REST_BINARY_HANDLING.md} for the endpoint contract and
+ * {@code spec/features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md} for the artefact write-back that builds on it.
  * </p>
  */
 @Singleton
@@ -50,18 +55,18 @@ public class AssetUploadEndpointService extends AbstractEndpointService {
 	private final AssetEndpointService assetService;
 	private final DaoCollection daos;
 	private final LoomOptions options;
-	private final FileSystem fileSystem;
 	private final AssetEventPublisher eventPublisher;
+	private final BinaryStorageResolver storageResolver;
 
 	@Inject
 	public AssetUploadEndpointService(AssetEndpointService assetService, DaoCollection daos, LoomModelBuilder modelBuilder,
-		LoomModelValidator validator, LoomOptions options, FileSystem fileSystem, AssetEventPublisher eventPublisher) {
+		LoomModelValidator validator, LoomOptions options, AssetEventPublisher eventPublisher, BinaryStorageResolver storageResolver) {
 		super(modelBuilder, validator);
 		this.assetService = assetService;
 		this.daos = daos;
 		this.options = options;
-		this.fileSystem = fileSystem;
 		this.eventPublisher = eventPublisher;
+		this.storageResolver = storageResolver;
 	}
 
 	/**
@@ -78,67 +83,167 @@ public class AssetUploadEndpointService extends AbstractEndpointService {
 			String filename = upload.fileName();
 			long size = upload.size();
 			String mimeType = upload.contentType();
+
+			UUID poolUuid = storageResolver.poolUuidOfLibrary(libraryUuid);
+			BinaryStorage storage = storageResolver.forPool(poolUuid);
+			checkCapacity(storage, size);
+
 			SHA512 sha512 = HashUtils.computeSHA512(Paths.get(upload.uploadedFileName()));
 
-			// Persist the bytes into the storage directory before recording anything in the DB, so a
-			// failure to store never leaves a dangling asset that points at a missing file.
-			String storedPath = persist(upload.uploadedFileName(), sha512);
+			// Persist the bytes before recording anything in the DB, so a failure to store never leaves a
+			// dangling asset that points at a missing file.
+			String locator = storage.store(Paths.get(upload.uploadedFileName()), sha512, mimeType);
 
-			AssetCreateRequest request = new AssetCreateRequest();
-			request.setFile(new FileInfo()
-				.setFilename(filename)
-				.setMimeType(mimeType)
-				.setOrigin(origin)
-				.setSize(size)
-				.setFirstSeen(Instant.now()));
-			request.setHashes(new HashInfo().setSHA512(sha512));
+			// An asset IS its content: asset.sha512sum is UNIQUE, so uploading bytes Loom already knows
+			// must resolve to the existing asset. Creating unconditionally made every re-upload - the
+			// same file sent twice, or imported into a second library - fail with a unique violation
+			// surfacing as a 500.
+			Asset existing = daos.assetDao().loadBySHA512(sha512);
+			boolean created = existing == null;
+			Asset asset;
+			if (created) {
+				AssetCreateRequest request = new AssetCreateRequest();
+				request.setFile(new FileInfo()
+					.setFilename(filename)
+					.setMimeType(mimeType)
+					.setOrigin(origin)
+					.setSize(size)
+					.setFirstSeen(Instant.now()));
+				request.setHashes(new HashInfo().setSHA512(sha512));
+				asset = assetService.createAsset(userUuid, request);
+			} else {
+				asset = existing;
+			}
 
-			Asset asset = assetService.createAsset(userUuid, request);
+			// Record where the bytes live so the asset-scoped pipeline run can locate the file on the
+			// worker. One row per library: re-uploading into the same library updates rather than
+			// duplicating, which the (library_uuid, path) unique index would reject anyway.
+			AssetBinary binary = daos.assetBinaryDao().loadByAssetAndLibrary(asset.getUuid(), libraryUuid);
+			if (binary == null) {
+				binary = daos.assetBinaryDao().createAssetBinary(locator, asset.getUuid(), userUuid, libraryUuid);
+				binary.setMimeType(mimeType);
+				binary.setPoolUuid(poolUuid);
+				daos.assetBinaryDao().store(binary);
+			} else if (!locator.equals(binary.getPath())) {
+				String previousLocator = binary.getPath();
+				UUID previousPool = binary.getPoolUuid();
+				binary.setPath(locator);
+				binary.setMimeType(mimeType);
+				binary.setPoolUuid(poolUuid);
+				setEditor(binary, userUuid);
+				daos.assetBinaryDao().update(binary);
+				BinaryReclaimer.reclaim(daos, storageResolver, previousPool, previousLocator);
+			}
 
-			// Record where the bytes live so the asset-scoped pipeline run can locate the file on the worker.
-			AssetBinary binary = daos.assetBinaryDao().createAssetBinary(storedPath, asset.getUuid(), userUuid, libraryUuid);
-			binary.setMimeType(mimeType);
-			daos.assetBinaryDao().store(binary);
+			if (created) {
+				// Let a matching pipeline pick this up. Published after the binary row exists so the
+				// consumer can resolve the locator. Not published for content Loom already holds: the
+				// asset was processed when it first arrived, and re-running on every duplicate upload
+				// would be pure cost.
+				eventPublisher.publishCreated(asset.getUuid(), mimeType);
+			}
 
-			// Let a matching pipeline pick this up. Published after the binary row exists so the
-			// consumer can resolve the on-disk path.
-			eventPublisher.publishCreated(asset.getUuid(), mimeType);
-
-			log.info("Uploaded asset {} ({} bytes, {}) stored at {}", asset.getUuid(), size, mimeType, storedPath);
-			lrc.send(modelBuilder.toResponse(asset), 201);
+			log.info("{} asset {} ({} bytes, {}) stored at {} [{}]", created ? "Uploaded" : "Reused existing", asset.getUuid(), size, mimeType,
+				locator, storage.describe());
+			lrc.send(modelBuilder.toResponse(asset), created ? 201 : 200);
 		});
 	}
 
 	/**
-	 * Upload raw file bytes for an already existing asset. Expects exactly one file part. The bytes are persisted content-addressed and the asset's
-	 * binary row is either updated (when one already exists) or created. When no binary exists yet a {@code libraryUuid} form field is required so the
-	 * new row can be associated with a library; when replacing an existing binary the library association is preserved.
+	 * Upload raw file bytes for an already existing asset. Expects exactly one file part.
+	 *
+	 * <p>
+	 * An asset may hold a location per library, so which row this replaces is decided by the {@code libraryUuid} form field. It may be omitted only
+	 * when the answer is unambiguous: the asset has exactly one location (replace it) or none at all is not allowed, since a new row needs a library.
+	 * Omitting it while several locations exist is a 400 rather than a guess — picking one would silently overwrite a different library's binary.
+	 * </p>
 	 */
 	public void uploadForAsset(LoomRoutingContext lrc, UUID assetUuid) {
 		checkPerm(lrc, CREATE_ASSET_BINARY, () -> {
 			FileUpload upload = singleUpload(lrc);
 			UUID userUuid = lrc.userUuid();
 			String mimeType = upload.contentType();
-			SHA512 sha512 = HashUtils.computeSHA512(Paths.get(upload.uploadedFileName()));
-			String storedPath = persist(upload.uploadedFileName(), sha512);
 
-			AssetBinary existing = daos.assetBinaryDao().loadByAssetUuid(assetUuid);
+			AssetBinary existing = resolveTarget(lrc, assetUuid);
+			UUID libraryUuid = existing != null ? existing.getLibraryUuid() : requiredLibraryUuid(lrc);
+			UUID poolUuid = storageResolver.poolUuidOfLibrary(libraryUuid);
+			BinaryStorage storage = storageResolver.forPool(poolUuid);
+			checkCapacity(storage, upload.size());
+
+			SHA512 sha512 = HashUtils.computeSHA512(Paths.get(upload.uploadedFileName()));
+			String locator = storage.store(Paths.get(upload.uploadedFileName()), sha512, mimeType);
+
 			AssetBinary binary;
 			if (existing != null) {
-				existing.setPath(storedPath);
+				String previousLocator = existing.getPath();
+				UUID previousPool = existing.getPoolUuid();
+				existing.setPath(locator);
 				existing.setMimeType(mimeType);
+				existing.setPoolUuid(poolUuid);
 				setEditor(existing, userUuid);
 				binary = daos.assetBinaryDao().update(existing);
+				// The row no longer points at the old bytes. Reclaim them if nothing else does.
+				BinaryReclaimer.reclaim(daos, storageResolver, previousPool, previousLocator);
 			} else {
-				UUID libraryUuid = requiredLibraryUuid(lrc);
-				binary = daos.assetBinaryDao().createAssetBinary(storedPath, assetUuid, userUuid, libraryUuid);
+				binary = daos.assetBinaryDao().createAssetBinary(locator, assetUuid, userUuid, libraryUuid);
 				binary.setMimeType(mimeType);
+				binary.setPoolUuid(poolUuid);
 				daos.assetBinaryDao().store(binary);
 			}
 
-			log.info("Stored binary for asset {} ({}) at {}", assetUuid, mimeType, storedPath);
+			log.info("Stored binary for asset {} ({}) at {} [{}]", assetUuid, mimeType, locator, storage.describe());
 			lrc.send(modelBuilder.toResponse(binary), 201);
 		});
+	}
+
+	/**
+	 * Which existing location this upload replaces, or null when a new one should be created.
+	 */
+	private AssetBinary resolveTarget(LoomRoutingContext lrc, UUID assetUuid) {
+		String libraryValue = lrc.routingContext().request().getFormAttribute("libraryUuid");
+		if (libraryValue != null && !libraryValue.isBlank()) {
+			return daos.assetBinaryDao().loadByAssetAndLibrary(assetUuid, parseUuid(libraryValue));
+		}
+		var existing = daos.assetBinaryDao().loadAllByAssetUuid(assetUuid);
+		if (existing.isEmpty()) {
+			return null;
+		}
+		if (existing.size() > 1) {
+			throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST,
+				"This asset has " + existing.size() + " binaries. Name the target library with the 'libraryUuid' form field.");
+		}
+		return existing.get(0);
+	}
+
+	/**
+	 * Reject an upload that is too large, or that the target volume cannot hold.
+	 *
+	 * <p>
+	 * The body limit is deliberately unlimited at the router ({@code BodyHandler.setBodyLimit(-1)}) because media is large; that makes this the only
+	 * place standing between an authenticated caller and a full disk.
+	 * </p>
+	 */
+	private void checkCapacity(BinaryStorage storage, long size) {
+		long maxUploadSize = options.getStorage().getMaxUploadSize();
+		if (maxUploadSize > 0 && size > maxUploadSize) {
+			throw new LoomRestException(413, LoomRestErrorCode.BAD_REQUEST,
+				"The upload is " + size + " bytes which exceeds the configured limit of " + maxUploadSize
+					+ " bytes (LOOM_STORAGE_MAX_UPLOAD_SIZE).");
+		}
+		long minFreeSpace = options.getStorage().getMinFreeSpace();
+		if (minFreeSpace <= 0) {
+			return;
+		}
+		Long free = storage.freeSpace();
+		if (free == null) {
+			// Object stores have no capacity to report; there is nothing to check.
+			return;
+		}
+		if (free - size < minFreeSpace) {
+			throw new LoomRestException(507, LoomRestErrorCode.INTERNAL_ERROR,
+				"Not enough space in " + storage.describe() + ": " + free + " bytes free, the upload needs " + size
+					+ " and " + minFreeSpace + " must remain (LOOM_STORAGE_MIN_FREE_SPACE).");
+		}
 	}
 
 	/**
@@ -155,33 +260,15 @@ public class AssetUploadEndpointService extends AbstractEndpointService {
 		return lrc.fileUploads().get(0);
 	}
 
-	/**
-	 * Persist the uploaded temp file into the configured storage directory using an {@code ab/cd/ef/<sha512>} layout. Existing content for the same
-	 * sha512 is treated as already stored (content-addressed dedupe).
-	 *
-	 * @return the absolute-ish stored path (relative to the process working dir when the upload dir is relative)
-	 */
-	private String persist(String tempFilePath, SHA512 sha512) {
-		String hex = sha512.toString();
-		String baseDir = options.getStorage().getUploadDirectory();
-		String targetDir = Paths.get(baseDir, hex.substring(0, 2), hex.substring(2, 4), hex.substring(4, 6)).toString();
-		String targetPath = Paths.get(targetDir, hex).toString();
-
-		fileSystem.mkdirsBlocking(targetDir);
-		if (fileSystem.existsBlocking(targetPath)) {
-			log.debug("Binary for {} already present, reusing existing file", hex);
-			return targetPath;
-		}
-		// copy (rather than move) so a cross-device temp dir does not fail; Vert.x cleans the temp file after the request.
-		fileSystem.copyBlocking(tempFilePath, targetPath);
-		return targetPath;
-	}
-
 	private UUID requiredLibraryUuid(LoomRoutingContext lrc) {
 		String value = lrc.routingContext().request().getFormAttribute("libraryUuid");
 		if (value == null || value.isBlank()) {
 			throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST, "The 'libraryUuid' form field is required for uploads.");
 		}
+		return parseUuid(value);
+	}
+
+	private UUID parseUuid(String value) {
 		try {
 			return UUID.fromString(value.trim());
 		} catch (IllegalArgumentException e) {

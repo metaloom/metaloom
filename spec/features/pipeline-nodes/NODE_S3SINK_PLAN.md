@@ -113,7 +113,15 @@ Three things happen per artifact, in this order, and the order matters:
 
 ## 4. What Loom actually supports today — verified
 
-This section exists because the obvious design does not work, and the reasons are not guessable.
+> 🔴 **Superseded for the Loom-side rows.** Phase 2 (§8.2) was implemented on 2026-08-01 together
+> with the binary-handling work: `poolUuid` now reaches `AssetBinary` and the REST models, the three
+> `"S3 support has not yet been implemented"` branches are implemented, `asset_location.pool_uuid` is
+> written on every upload, and the cardinality question this plan called blocking is answered. The
+> table below is kept as the record of *why* phase 1 looks the way it does. For the current state
+> read [../rest/REST_BINARY_HANDLING.md](../rest/REST_BINARY_HANDLING.md) and the follow-on
+> [../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md).
+
+This section exists because the obvious design did not work, and the reasons are not guessable.
 
 | Assumption | Reality |
 |---|---|
@@ -495,10 +503,15 @@ someone marking the node `@Singleton`.
       `DemoDatabaseInitializer`, NODES.md (§2 payload table, §3 node table, §5 options, §5.1
       "ScriptNode is no longer the only `PipelineConfigurable`", §10, §12 matrix), `start-minio.sh`
       recipe
-- [ ] **Phase 2 (Loom)** — `poolUuid` through `AssetBinary`/REST + the S3 branch of
-      `AssetBinaryEndpointService`; answer the location-cardinality question first
+- [x] **Phase 2 (Loom)** — done 2026-08-01: `poolUuid` through `AssetBinary`/REST, the S3 branches of
+      `AssetBinaryEndpointService`, and the location-cardinality answer (an asset has 0..n locations
+      keyed `(library_uuid, path)`; the primary is the oldest). See
+      [../rest/REST_BINARY_HANDLING.md](../rest/REST_BINARY_HANDLING.md).
+      ⚠️ The sink does **not** yet take a `poolUuid` option — it still uploads to its own bucket and
+      records the location in `origin`. Wiring it to a pool is open
 - [ ] **Phase 3 (Loom)** — expose `attachment` provenance through REST; sink writes the
-      derivation edge
+      derivation edge. Now specified as Phase A of
+      [../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md)
 - [ ] **Follow-up** — migrate `ScriptNode` onto `nodeId()` and decide what to do with its existing
       `node_id = ''` rows
 
@@ -570,7 +583,7 @@ mc stat metaloom-dev/media/cortex/thumbnail/thumbnail_path/<shard>/<sha512>.thum
 |---|---|
 | 🔴 **Same-worker affinity, with no affinity mechanism** | §10. Mitigated by failing loudly on a missing artifact file, but the real fix is affinity groups, which do not exist |
 | **Loom cannot serve these bytes yet** | The UI cannot render an S3-hosted thumbnail without presigned URLs or a Loom proxy route. Phase 2/3 territory |
-| **Asset-location cardinality is unanswered** | `AssetBinaryDao.loadByAssetUuid` returns one row; an asset with a thumbnail *and* a depth map *and* a wav does not fit. Must be settled before phase 2 |
+| ~~**Asset-location cardinality is unanswered**~~ | **Answered 2026-08-01.** An asset has 0..n locations keyed `(library_uuid, path)`; `loadPrimaryByAssetUuid` returns the oldest and `/assets/:uuid/binaries` returns all. A thumbnail + depth map + wav are *not* locations of the asset — they are attachments or separate assets. See [../rest/REST_BINARY_HANDLING.md](../rest/REST_BINARY_HANDLING.md) §3 |
 | **`asset_pool.s3_*` duplicates the sink's `bucket`** | Loom already models "a pool that lives in S3" and nothing populates it. Should the sink take a `poolUuid` instead? Recommend not yet — it would couple a node to a table nothing writes, and the pool's endpoint would fight the worker-level `S3ClientOptions.endpoint` |
 | **Creating an asset per artifact multiplies asset count** | A 10k-video library with thumbnails + depth maps triples it. Acceptable — they *are* distinct binaries — but list/search UX should probably learn to filter derived assets, which is another argument for the phase 3 `attachment` edge |
 | **ETag is not a content hash** | The `IF_DIFFERENT` check is key + size. The clean upgrade is writing the SHA-512 as object metadata on PUT and comparing on HEAD; deferred because `S3ObjectRef` has no metadata field |

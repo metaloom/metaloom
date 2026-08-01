@@ -7,7 +7,6 @@
 * Nodes report COMPLETED but there is also SUCESS and FAILED: Analyze the response flow for nodes. This seem to be a mess right now. We need to find a clear structure and document it
 
 * Explore the idea to have the agentic loop also be able to create a loom pipeline. It can design, verify a pipeline via MCP.
-* Chat needs a way to visualize the pipeline (TODO: How to run the pipline in an isolate environment for the agent?)
 
 * Add sidecar examples for llamacpp, vlm via vllm + Document sidecars in website. Add sidecar support to helm chart?
 
@@ -17,6 +16,7 @@
 * binary result handling - How to store thumbnails? Where how? Via network? Explore this
 
 
+* Also transmit a unique id, cortex name+version back to loom so we can later identify what node write the specific metadata and track back e.g. faulty data.
 
 
 

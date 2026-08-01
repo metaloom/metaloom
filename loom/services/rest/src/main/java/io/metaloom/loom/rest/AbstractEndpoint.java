@@ -1,6 +1,8 @@
 package io.metaloom.loom.rest;
 
 import static io.metaloom.loom.rest.HTTPConstants.APPLICATION_JSON;
+import static io.metaloom.loom.rest.HTTPConstants.APPLICATION_OCTET_STREAM;
+import static io.metaloom.loom.rest.HTTPConstants.MULTIPART_FORM_DATA;
 import static io.metaloom.vertx.route.request.impl.RequestImpl.request;
 import static io.metaloom.vertx.route.response.impl.ResponseImpl.response;
 
@@ -68,6 +70,48 @@ public abstract class AbstractEndpoint implements RESTEndpoint {
 
 	public <REQ extends RestRequestModel> ApiRoute addRoute(String path, HttpMethod method, String description, Handler<LoomRoutingContext> handler) {
 		return addRoute(path, method, description, null, null, handler);
+	}
+
+	/**
+	 * Register a {@code multipart/form-data} upload route.
+	 *
+	 * <p>
+	 * The byte-carrying routes used the bare {@link #addRoute} overload, which sets neither {@code consumes} nor {@code produces}. They therefore
+	 * appeared in {@code openapi.json} as paths with no request body at all — a generated client could see the endpoint and had no way to call it, and
+	 * the API explorer on the website rendered an upload form with nothing to upload.
+	 * </p>
+	 *
+	 * @param path
+	 *            route path
+	 * @param description
+	 *            operation description, which must state the expected form fields since the schema cannot
+	 * @param responseExample
+	 *            example of the JSON response, may be null
+	 * @param handler
+	 *            request handler
+	 * @return the route
+	 */
+	public ApiRoute addUploadRoute(String path, String description, Example responseExample, Handler<LoomRoutingContext> handler) {
+		ApiRoute route = addRoute(path, HttpMethod.POST, description, null, responseExample, handler);
+		route.consumes(MULTIPART_FORM_DATA);
+		return route;
+	}
+
+	/**
+	 * Register a route that answers with raw bytes rather than JSON.
+	 *
+	 * @param path
+	 *            route path
+	 * @param description
+	 *            operation description
+	 * @param handler
+	 *            request handler
+	 * @return the route
+	 */
+	public ApiRoute addDownloadRoute(String path, String description, Handler<LoomRoutingContext> handler) {
+		ApiRoute route = addRoute(path, HttpMethod.GET, description, null, null, handler);
+		route.produces(APPLICATION_OCTET_STREAM);
+		return route;
 	}
 
 	public <REQ extends RestRequestModel> ApiRoute addRoute(String path, HttpMethod method, String description, Example requestExample,

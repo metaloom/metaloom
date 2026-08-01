@@ -31,6 +31,21 @@ public interface AssetBinary extends CUDElement<AssetBinary>, Taggable, MetaElem
 
 	AssetBinary setLibraryUuid(UUID libraryUuid);
 
+	/**
+	 * The storage pool holding these bytes.
+	 *
+	 * <p>
+	 * The {@code asset_location.pool_uuid} column has existed since {@code V2.20} and, until pools were wired into the upload path, nothing ever
+	 * wrote it. NULL still means "the process-wide local upload directory", which is what every pre-pool row holds and what a library without a pool
+	 * keeps producing.
+	 * </p>
+	 *
+	 * @return the pool uuid, or null for the default local storage
+	 */
+	UUID getPoolUuid();
+
+	AssetBinary setPoolUuid(UUID poolUuid);
+
 	String getMimeType();
 
 	AssetBinary setMimeType(String mimeType);

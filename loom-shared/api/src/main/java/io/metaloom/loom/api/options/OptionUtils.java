@@ -9,6 +9,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
+import java.util.function.LongConsumer;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -157,6 +158,17 @@ public class OptionUtils {
 		if (value != null) {
 			log.info("Setting env {" + envName + "=" + value + "}");
 			setter.accept(Integer.parseInt(value));
+		}
+	}
+
+	/**
+	 * Apply a long environment variable using a direct setter.
+	 */
+	public static void applyEnvLong(String envName, LongConsumer setter) {
+		String value = envLookup.apply(envName);
+		if (value != null) {
+			log.info("Setting env {" + envName + "=" + value + "}");
+			setter.accept(Long.parseLong(value));
 		}
 	}
 

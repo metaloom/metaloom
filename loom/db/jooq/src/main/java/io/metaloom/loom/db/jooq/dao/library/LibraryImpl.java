@@ -1,11 +1,15 @@
 package io.metaloom.loom.db.jooq.dao.library;
 
+import java.util.UUID;
+
 import io.metaloom.loom.db.jooq.AbstractEditableElement;
 import io.metaloom.loom.db.model.library.Library;
 
 public class LibraryImpl extends AbstractEditableElement<Library> implements Library {
 
 	private String name;
+
+	private UUID poolUuid;
 
 	@Override
 	public String getName() {
@@ -15,6 +19,17 @@ public class LibraryImpl extends AbstractEditableElement<Library> implements Lib
 	@Override
 	public Library setName(String name) {
 		this.name = name;
+		return this;
+	}
+
+	@Override
+	public UUID getPoolUuid() {
+		return poolUuid;
+	}
+
+	@Override
+	public Library setPoolUuid(UUID poolUuid) {
+		this.poolUuid = poolUuid;
 		return this;
 	}
 

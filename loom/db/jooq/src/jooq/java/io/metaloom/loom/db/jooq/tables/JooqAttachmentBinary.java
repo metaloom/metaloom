@@ -11,16 +11,17 @@ import io.metaloom.loom.db.jooq.tables.records.JooqAttachmentBinaryRecord;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 import java.util.function.Function;
 
 import org.jooq.Field;
 import org.jooq.ForeignKey;
-import org.jooq.Function2;
+import org.jooq.Function3;
 import org.jooq.Index;
 import org.jooq.Name;
 import org.jooq.Record;
 import org.jooq.Records;
-import org.jooq.Row2;
+import org.jooq.Row3;
 import org.jooq.Schema;
 import org.jooq.SelectField;
 import org.jooq.Table;
@@ -62,6 +63,13 @@ public class JooqAttachmentBinary extends TableImpl<JooqAttachmentBinaryRecord> 
      * The column <code>public.attachment_binary.size</code>.
      */
     public final TableField<JooqAttachmentBinaryRecord, Long> SIZE = createField(DSL.name("size"), SQLDataType.BIGINT.nullable(false), this, "");
+
+    /**
+     * The column <code>public.attachment_binary.pool_uuid</code>. Storage
+     * backend holding the bytes for this sha512sum. NULL = the local upload
+     * directory.
+     */
+    public final TableField<JooqAttachmentBinaryRecord, UUID> POOL_UUID = createField(DSL.name("pool_uuid"), SQLDataType.UUID, this, "Storage backend holding the bytes for this sha512sum. NULL = the local upload directory.");
 
     private JooqAttachmentBinary(Name alias, Table<JooqAttachmentBinaryRecord> aliased) {
         this(alias, aliased, null);
@@ -112,6 +120,23 @@ public class JooqAttachmentBinary extends TableImpl<JooqAttachmentBinaryRecord> 
     }
 
     @Override
+    public List<ForeignKey<JooqAttachmentBinaryRecord, ?>> getReferences() {
+        return Arrays.asList(Keys.ATTACHMENT_BINARY__ATTACHMENT_BINARY_POOL_UUID_FKEY);
+    }
+
+    private transient JooqAssetPool _assetPool;
+
+    /**
+     * Get the implicit join path to the <code>public.asset_pool</code> table.
+     */
+    public JooqAssetPool assetPool() {
+        if (_assetPool == null)
+            _assetPool = new JooqAssetPool(this, Keys.ATTACHMENT_BINARY__ATTACHMENT_BINARY_POOL_UUID_FKEY);
+
+        return _assetPool;
+    }
+
+    @Override
     public JooqAttachmentBinary as(String alias) {
         return new JooqAttachmentBinary(DSL.name(alias), this);
     }
@@ -151,18 +176,18 @@ public class JooqAttachmentBinary extends TableImpl<JooqAttachmentBinaryRecord> 
     }
 
     // -------------------------------------------------------------------------
-    // Row2 type methods
+    // Row3 type methods
     // -------------------------------------------------------------------------
 
     @Override
-    public Row2<String, Long> fieldsRow() {
-        return (Row2) super.fieldsRow();
+    public Row3<String, Long, UUID> fieldsRow() {
+        return (Row3) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function2<? super String, ? super Long, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function3<? super String, ? super Long, ? super UUID, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -170,7 +195,7 @@ public class JooqAttachmentBinary extends TableImpl<JooqAttachmentBinaryRecord> 
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function2<? super String, ? super Long, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function3<? super String, ? super Long, ? super UUID, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }

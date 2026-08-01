@@ -509,6 +509,12 @@
   "streaming": {
    "stop": "Stop generating"
   },
+  "pipeline": {
+   "open": "Open",
+   "version": "v{{version}}",
+   "disabled": "disabled",
+   "truncated": "The diagram shows only part of this pipeline — open the editor for the full graph."
+  },
   "error": {
    "busy": "The agent is still working on this chat — try again in a moment",
    "llm": "The agent request failed",

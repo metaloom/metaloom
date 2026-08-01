@@ -64,7 +64,8 @@ persistence:
     size: 128Mi
     existingClaim: ""
   uploads:
-    # -- Asset binary storage (LOOM_BINARY_DIR=/uploads).
+    # -- Asset binary storage (LOOM_STORAGE_UPLOAD_DIR=/uploads). Holds binaries for libraries
+    # that have no asset_pool; libraries pointing at an S3 pool do not use this volume.
     enabled: true
     storageClass: ""
     accessModes: [ReadWriteOnce]

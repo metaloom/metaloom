@@ -78,6 +78,13 @@ spec:
                   key: initial-password
             - name: LOOM_AUTH_KEYSTORE_PATH
               value: {{ .Values.auth.keystorePath | quote }}
+            # The process reads LOOM_STORAGE_UPLOAD_DIR. This chart set only LOOM_BINARY_DIR for its
+            # entire history, which nothing read, so uploads went to the container-local default
+            # (data/storage) and the /uploads PVC below stayed empty and was lost on every restart.
+            # Both are emitted: the canonical name fixes the bug, and the old one is kept because
+            # StorageOptions still honours it for anyone whose values.yaml or extraEnv sets it.
+            - name: LOOM_STORAGE_UPLOAD_DIR
+              value: /uploads
             - name: LOOM_BINARY_DIR
               value: /uploads
             {{- if .Values.config }}

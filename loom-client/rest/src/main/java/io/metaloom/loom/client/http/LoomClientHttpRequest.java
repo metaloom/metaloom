@@ -20,6 +20,7 @@ import io.metaloom.loom.rest.model.RestRequestModel;
 import io.metaloom.loom.rest.model.RestResponseModel;
 import io.reactivex.rxjava3.core.Single;
 import okhttp3.MediaType;
+import okhttp3.MultipartBody;
 import okhttp3.OkHttpClient;
 import okhttp3.RequestBody;
 import okio.BufferedSink;
@@ -93,8 +94,49 @@ public interface LoomClientHttpRequest<T extends RestResponseModel<T>> extends L
 	}
 
 	/**
+	 * Create a {@code multipart/form-data} request with one file part plus form fields.
+	 *
+	 * <p>
+	 * This is what the {@code /assets/upload}, {@code /assets/:uuid/binary/data} and {@code /attachments} routes expect. Those routes existed with no
+	 * client method at all, which is why {@code AssetBinaryEndpointTest} could not cover them and why Cortex has no way to hand Loom bytes.
+	 * </p>
+	 *
+	 * @param <T>
+	 *            response model type
+	 * @param path
+	 *            request path
+	 * @param loomClient
+	 *            the client issuing the request
+	 * @param okClient
+	 *            the underlying HTTP client
+	 * @param responseClass
+	 *            expected response model
+	 * @param file
+	 *            the file to upload
+	 * @param fileName
+	 *            name to send for the part
+	 * @param contentType
+	 *            content type of the part, or null for {@code application/octet-stream}
+	 * @param formFields
+	 *            alternating name/value form fields; a null value skips the field
+	 * @return the request
+	 */
+	public static <T extends RestResponseModel<T>> LoomClientHttpRequest<T> createMultipartRequest(String path, LoomHttpClient loomClient,
+		OkHttpClient okClient, Class<T> responseClass, java.io.File file, String fileName, String contentType, String... formFields) {
+		MediaType mediaType = MediaType.parse(contentType == null || contentType.isBlank() ? "application/octet-stream" : contentType);
+		MultipartBody.Builder builder = new MultipartBody.Builder().setType(MultipartBody.FORM);
+		for (int i = 0; i + 1 < formFields.length; i += 2) {
+			if (formFields[i] != null && formFields[i + 1] != null) {
+				builder.addFormDataPart(formFields[i], formFields[i + 1]);
+			}
+		}
+		builder.addFormDataPart("file", fileName, RequestBody.create(file, mediaType));
+		return new LoomClientRequestImpl<>(POST, path, loomClient, okClient, responseClass, builder.build());
+	}
+
+	/**
 	 * Create request with payload.
-	 * 
+	 *
 	 * @param <T>
 	 * @param method
 	 * @param path

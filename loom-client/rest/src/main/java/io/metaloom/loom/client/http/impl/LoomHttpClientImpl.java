@@ -1341,7 +1341,16 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 
 	@Override
 	public LoomClientHttpRequest<LoomBinaryResponse> downloadAttachment(UUID uuid) {
-		return getDownloadRequest("/attachments/" + uuid);
+		// Was "/attachments/<uuid>", which is the JSON route: the caller got a serialized
+		// AttachmentResponse typed as a binary stream. The bytes live behind /data.
+		return getDownloadRequest("attachments/" + uuid + "/data");
+	}
+
+	@Override
+	public LoomClientHttpRequest<AttachmentResponse> uploadAttachment(java.io.File file, String mimeType, UUID assetUuid, String type) {
+		return multipartRequest("attachments", AttachmentResponse.class, file, mimeType,
+			"assetUuid", assetUuid == null ? null : assetUuid.toString(),
+			"type", type);
 	}
 
 	@Override
@@ -1485,6 +1494,28 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<NoResponse> deleteAssetBinary(UUID assetUuid) {
 		return deleteRequest("assets/" + assetUuid + "/binary");
+	}
+
+	@Override
+	public LoomClientHttpRequest<AssetBinaryListResponse> listAssetBinaries(UUID assetUuid) {
+		return getRequest("assets/" + assetUuid + "/binaries", AssetBinaryListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<AssetResponse> uploadAsset(java.io.File file, UUID libraryUuid, String mimeType) {
+		return multipartRequest("assets/upload", AssetResponse.class, file, mimeType,
+			"libraryUuid", libraryUuid == null ? null : libraryUuid.toString());
+	}
+
+	@Override
+	public LoomClientHttpRequest<AssetBinaryResponse> uploadAssetBinary(UUID assetUuid, java.io.File file, UUID libraryUuid, String mimeType) {
+		return multipartRequest("assets/" + assetUuid + "/binary/data", AssetBinaryResponse.class, file, mimeType,
+			"libraryUuid", libraryUuid == null ? null : libraryUuid.toString());
+	}
+
+	@Override
+	public LoomClientHttpRequest<LoomBinaryResponse> downloadAssetBinary(UUID assetUuid) {
+		return getDownloadRequest("assets/" + assetUuid + "/binary/data");
 	}
 
 	// GRAPHQL

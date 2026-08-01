@@ -79,12 +79,18 @@ public class AttachmentDaoImpl extends AbstractJooqDao<Attachment> implements At
 		JooqAttachmentBinaryRecord binary = ATTACHMENT_BINARY.newRecord();
 		binary.setSha512sum(attachment.getSha512sum().toString());
 		binary.setSize(attachment.getSize());
+		binary.setPoolUuid(attachment.getPoolUuid());
 		ctx().insertInto(ATTACHMENT_BINARY)
 			.set(binary)
+			// Content-addressed, so a conflict means these exact bytes are already registered. The
+			// existing pool wins: the bytes are physically there, and overwriting the column would
+			// point every attachment sharing this hash at a backend that does not hold them.
 			.onConflictDoNothing()
 			.execute();
 
 		TableRecord<?> reco = ctx().newRecord(getTable(), attachment);
+		// pool_uuid lives on attachment_binary, not attachment; newRecord() ignores unknown fields,
+		// but being explicit here documents why the attachment row carries no pool of its own.
 		if (attachment.getUuid() == null) {
 			reco.reset("uuid");
 		}

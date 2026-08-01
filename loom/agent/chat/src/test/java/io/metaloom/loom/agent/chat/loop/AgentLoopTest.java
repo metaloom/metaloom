@@ -215,6 +215,58 @@ public class AgentLoopTest {
 		assertEquals(assistantMsg.getString("content"), messageEnd.data().getJsonObject("message").getString("content"));
 	}
 
+	/**
+	 * A tool result carrying a {@code visuals} envelope (today: {@code get_pipeline}) must reach the UI twice — live on {@code tool_end} so the diagram
+	 * appears before the answer does, and on the persisted message so a reloaded transcript still shows it.
+	 */
+	@Test
+	public void testToolVisualsAreEmittedAndPersisted() {
+		JsonObject graph = new JsonObject()
+			.put("pipelineUuid", "p1")
+			.put("name", "Media Transcription")
+			.put("nodes", new JsonArray().add(new JsonObject().put("id", "pn1").put("kind", "whisper").put("label", "Transcribe")))
+			.put("edges", new JsonArray());
+		when(toolRegistry.dispatch(eq("get_pipeline"), any(), any(), any())).thenReturn(Future.succeededFuture(new JsonObject()
+			.put("content", new JsonArray().add(new JsonObject().put("type", "text").put("text", "Pipeline: Media Transcription")))
+			.put("references", new JsonArray().add(new JsonObject().put("type", "pipeline").put("uuid", "p1").put("label", "Media Transcription")))
+			.put("visuals", new JsonArray().add(new JsonObject()
+				.put("type", "pipeline-graph").put("uuid", "p1").put("label", "Media Transcription").put("payload", graph)))));
+
+		TurnStreamer streamer = scripted(List.of(
+			new TurnResult(null, null, List.of(new ToolCall("c1", "get_pipeline", new JsonObject().put("pipelineId", "Media Transcription")))),
+			new TurnResult("Here is the pipeline.", null, List.of())));
+
+		loop(new AiOptions(), streamer, List.of()).run();
+
+		JsonArray emitted = firstEvent(AgentEventType.TOOL_END).data().getJsonArray("visuals");
+		assertEquals(1, emitted.size(), "The visual should be emitted live with tool_end");
+		assertEquals("pipeline-graph", emitted.getJsonObject(0).getString("type"));
+		assertEquals("Media Transcription", emitted.getJsonObject(0).getJsonObject("payload").getString("name"));
+
+		JsonObject assistantMsg = persistedMessages.get().getJsonObject(1);
+		assertEquals(1, assistantMsg.getJsonArray("visuals").size(), "The visual should be persisted onto the assistant message");
+		// The model itself only ever sees the text content — the graph must not leak into the tool result summary
+		assertEquals("Pipeline: Media Transcription", assistantMsg.getJsonArray("toolCalls").getJsonObject(0).getString("resultSummary"));
+	}
+
+	/**
+	 * Every other tool produces no visuals; the message must then not carry an empty array around.
+	 */
+	@Test
+	public void testToolWithoutVisualsPersistsNone() {
+		when(toolRegistry.dispatch(eq("search_assets"), any(), any(), any())).thenReturn(Future.succeededFuture(new JsonObject()
+			.put("content", new JsonArray().add(new JsonObject().put("type", "text").put("text", "Found 1 asset")))));
+
+		TurnStreamer streamer = scripted(List.of(
+			new TurnResult(null, null, List.of(new ToolCall("c1", "search_assets", new JsonObject()))),
+			new TurnResult("Found one.", null, List.of())));
+
+		loop(new AiOptions(), streamer, List.of()).run();
+
+		assertTrue(firstEvent(AgentEventType.TOOL_END).data().getJsonArray("visuals").isEmpty());
+		assertNull(persistedMessages.get().getJsonObject(1).getJsonArray("visuals"));
+	}
+
 	@Test
 	public void testToolErrorBecomesErrorResultAndLoopContinues() {
 		when(toolRegistry.dispatch(eq("search_assets"), any(), any(), any())).thenReturn(Future.failedFuture("boom"));

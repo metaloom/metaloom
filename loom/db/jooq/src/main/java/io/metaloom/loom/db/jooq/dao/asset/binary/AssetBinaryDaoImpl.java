@@ -1,11 +1,14 @@
 package io.metaloom.loom.db.jooq.dao.asset.binary;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
+import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Table;
 import org.jooq.TableRecord;
@@ -52,12 +55,57 @@ public class AssetBinaryDaoImpl extends AbstractJooqDao<AssetBinary> implements 
 	}
 
 	@Override
-	public AssetBinary loadByAssetUuid(UUID assetUuid) {
+	public AssetBinary loadPrimaryByAssetUuid(UUID assetUuid) {
+		// Ordered + limited rather than fetchOne. An asset legitimately has several locations since
+		// V2.48 relaxed the unique constraint to (library_uuid, path), and fetchOne answered that with
+		// a TooManyRowsException, i.e. an HTTP 500, on every read path: GET /assets/:uuid/binary,
+		// GET .../binary/data, the upload replace check and asset-scoped run dispatch. Oldest-first
+		// with a uuid tie-break so the "primary" is stable rather than whatever the planner returned.
 		return ctx()
 			.select(getTable())
 			.from(getTable())
 			.where(JooqAssetLocation.ASSET_LOCATION.ASSET_UUID.eq(assetUuid))
+			.orderBy(JooqAssetLocation.ASSET_LOCATION.CREATED.asc(), JooqAssetLocation.ASSET_LOCATION.UUID.asc())
+			.limit(1)
 			.fetchOneInto(getPojoClass());
+	}
+
+	@Override
+	public List<AssetBinary> loadAllByAssetUuid(UUID assetUuid) {
+		return ctx()
+			.select(getTable())
+			.from(getTable())
+			.where(JooqAssetLocation.ASSET_LOCATION.ASSET_UUID.eq(assetUuid))
+			.orderBy(JooqAssetLocation.ASSET_LOCATION.CREATED.asc(), JooqAssetLocation.ASSET_LOCATION.UUID.asc())
+			.fetchInto(getPojoClass())
+			.stream()
+			.map(AssetBinary.class::cast)
+			.collect(Collectors.toList());
+	}
+
+	@Override
+	public AssetBinary loadByAssetAndLibrary(UUID assetUuid, UUID libraryUuid) {
+		return ctx()
+			.select(getTable())
+			.from(getTable())
+			.where(JooqAssetLocation.ASSET_LOCATION.ASSET_UUID.eq(assetUuid))
+			.and(JooqAssetLocation.ASSET_LOCATION.LIBRARY_UUID.eq(libraryUuid))
+			.orderBy(JooqAssetLocation.ASSET_LOCATION.CREATED.asc(), JooqAssetLocation.ASSET_LOCATION.UUID.asc())
+			.limit(1)
+			.fetchOneInto(getPojoClass());
+	}
+
+	@Override
+	public long countByPoolAndPath(UUID poolUuid, String path) {
+		Condition poolCondition = poolUuid == null
+			? JooqAssetLocation.ASSET_LOCATION.POOL_UUID.isNull()
+			: JooqAssetLocation.ASSET_LOCATION.POOL_UUID.eq(poolUuid);
+		return ctx()
+			.selectCount()
+			.from(getTable())
+			.where(JooqAssetLocation.ASSET_LOCATION.PATH.eq(path))
+			.and(poolCondition)
+			.fetchOne(0, long.class);
 	}
 
 	@Override

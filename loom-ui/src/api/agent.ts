@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "./config";
-import { BackendChatReference } from "./chat";
+import { BackendChatReference, BackendChatVisual } from "./chat";
 
 /**
  * Client for the chat agent stream route (POST /chats/:uuid/stream, SSE).
@@ -47,6 +47,8 @@ export interface AgentToolEndEvent {
   isError: boolean;
   summary: string;
   references: BackendChatReference[];
+  /** Renderable payloads of this tool result (e.g. a pipeline graph); absent for tools that produce none. */
+  visuals?: BackendChatVisual[];
 }
 
 export interface AgentMessageEndEvent {

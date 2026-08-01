@@ -478,7 +478,7 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 	 */
 	private java.util.Map<String, Object> sourceOptions(PipelineGraphNode sourceNode, PipelineRunRequest request) {
 		return SourceOptionsResolver.resolve(sourceNode.getOptions(), request, assetUuid -> {
-			AssetBinary binary = daos().assetBinaryDao().loadByAssetUuid(assetUuid);
+			AssetBinary binary = daos().assetBinaryDao().loadPrimaryByAssetUuid(assetUuid);
 			if (binary == null || binary.getPath() == null) {
 				log.warn("No stored binary path for asset {}; it cannot be included in the run", assetUuid);
 				return null;

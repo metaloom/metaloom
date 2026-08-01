@@ -46,9 +46,10 @@ public class AttachmentEndpoint extends AbstractEndpoint {
 		secure(basePath() + "*");
 
 		// Create
-		addRoute(basePath(), POST,
-			"Create new attachment",
-			null,
+		addUploadRoute(basePath(),
+			"Create a new attachment from an uploaded file. Expects a multipart request with one file part named 'file'. Optional form fields: "
+				+ "'assetUuid' (the asset this attachment describes - its storage pool then also receives these bytes), 'embeddingUuid', "
+				+ "'type' (CONTACT_SHEET, POSTER_FRAME, WAVEFORM, PROXY, EXTRACTED_AUDIO, ...) and 'poolUuid'.",
 			examples.attachmentResponseExample(),
 			lrc -> {
 				service.create(lrc);
@@ -87,6 +88,13 @@ public class AttachmentEndpoint extends AbstractEndpoint {
 			examples.attachmentResponseExample(),
 			lrc -> {
 				service.load(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		// Download the raw bytes
+		addDownloadRoute(basePath() + "/:uuid/data",
+			"Download the raw bytes of an attachment.",
+			lrc -> {
+				service.download(lrc, lrc.pathParamUUID("uuid"));
 			});
 
 	}

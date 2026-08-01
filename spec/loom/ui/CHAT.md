@@ -50,6 +50,7 @@ The chat is the landing page of the Loom UI (route `/`). Goals:
 | Chat UI shell | ✅ | [ChatWorkspace.tsx](../../../loom-ui/src/features/chat/ChatWorkspace.tsx) — sessions rail, resizable chat column, right workspace panel (overview / embedded asset browser / asset detail card). The chat/workspace split is a persisted percentage (80/20 by default) and the workspace panel is collapsible — see [LOOM_UI.md §3.7](LOOM_UI.md). Session persistence is real (via [api/chat.ts](../../../loom-ui/src/api/chat.ts)). |
 | New-session greeting | ✅ | [ChatGreeting](../../../loom-ui/src/features/chat/ChatGreeting.tsx) — prominent "Hello \<username\>" + one-line capability hint, rendered while the transcript is empty (see §5.1). |
 | Entity chips | ✅ | `RefChip` in ChatWorkspace.tsx — chips for `asset · collection · task · pipeline · annotation` with navigation / inline asset preview. |
+| Inline visuals | ✅ | `visuals` envelope on tool results (§6.1): [VisualExtractor](../../../loom/agent/chat/src/main/java/io/metaloom/loom/agent/chat/ref/VisualExtractor.java) → `tool_end` / persisted message → [PipelineGraphCard](../../../loom-ui/src/features/chat/PipelineGraphCard.tsx) + [pipelineGraphLayout](../../../loom-ui/src/features/chat/pipelineGraphLayout.ts). Fed by the `get_pipeline` MCP tool. |
 | Agent action rows | ✅ | `ActionRow` in ChatWorkspace.tsx — pending/running/done/error status rows (currently fed by mock data only). |
 | Assistant replies | ✅ | The UI streams from the live agent: [ChatWorkspace](../../../loom-ui/src/features/chat/ChatWorkspace.tsx) consumes `POST /chats/:uuid/stream` via [api/agent.ts](../../../loom-ui/src/api/agent.ts) (fetch + ReadableStream, incremental SSE parser). `mockChatService` has been removed. State machine: sending → streaming(reasoning \| answering \| tool) → done/error/aborted; Stop button aborts (fetch abort + `DELETE …/stream`); 409 → busy toast + input restored. |
 | Markdown rendering | ✅ | [MarkdownContent](../../../loom-ui/src/features/chat/MarkdownContent.tsx) (react-markdown + remark-gfm, raw HTML stays escaped — no rehype-raw); replaces the old `dangerouslySetInnerHTML` regex. |
@@ -57,10 +58,10 @@ The chat is the landing page of the Loom UI (route `/`). Goals:
 | Streaming endpoint (backend) | ✅ | `POST/DELETE /api/v1/chats/:uuid/stream` ([ChatStreamEndpoint](../../../loom/agent/chat/src/main/java/io/metaloom/loom/agent/chat/rest/ChatStreamEndpoint.java), SSE via [SseAgentEventSink](../../../loom/agent/chat/src/main/java/io/metaloom/loom/agent/chat/rest/SseAgentEventSink.java)); busy-guard (409), abort on disconnect, `ChatStreamEndpointTest`. |
 | Agentic loop | ✅ | [loom/agent/chat](../../../loom/agent/chat): [AgentLoop](../../../loom/agent/chat/src/main/java/io/metaloom/loom/agent/chat/loop/AgentLoop.java) + [AgentService](../../../loom/agent/chat/src/main/java/io/metaloom/loom/agent/chat/AgentService.java) — transcript replay, in-process MCP tool dispatch, error-as-tool-result, turn limit, abort, persistence, auto-title. Config via `AiOptions` (`LOOM_AI_*`). |
 | LLM access | ✅ | `genai-utils` compile-scope in `loom/agent/chat`. `generateStreamWithTools` (streamed text/reasoning/tool calls) implemented for Ollama; vLLM falls back to the blocking path. True token streaming is opt-in via `LOOM_AI_STREAMING=true` ([StreamingTurnStreamer](../../../loom/agent/chat/src/main/java/io/metaloom/loom/agent/chat/loop/StreamingTurnStreamer.java)); default is turn-granular ([BlockingTurnStreamer](../../../loom/agent/chat/src/main/java/io/metaloom/loom/agent/chat/loop/BlockingTurnStreamer.java)). |
-| MCP tools | ✅ | [MCPToolRegistry](../../../loom/services/mcp/src/main/java/io/metaloom/loom/mcp/tool/MCPToolRegistry.java): `search_assets`, `get_asset`, `search_transcript`, `list_collections`, `asset_statistics` — permission-checked, dispatchable in-process via the Vert.x EventBus. Reference envelopes (§6) attached via [MCPToolResults](../../../loom/services/mcp/src/main/java/io/metaloom/loom/mcp/tool/MCPToolResults.java). |
+| MCP tools | ✅ | [MCPToolRegistry](../../../loom/services/mcp/src/main/java/io/metaloom/loom/mcp/tool/MCPToolRegistry.java): `search_assets`, `get_asset`, `search_transcript`, `list_collections`, `asset_statistics`, `list_pipelines`, `get_pipeline` — permission-checked, dispatchable in-process via the Vert.x EventBus. Reference envelopes (§6) attached via [MCPToolResults](../../../loom/services/mcp/src/main/java/io/metaloom/loom/mcp/tool/MCPToolResults.java). |
 | Skills (backend) | ✅ | Migration `V2.36__add_skill.sql`, [SkillDao](../../../loom/db/api/src/main/java/io/metaloom/loom/db/model/skill/SkillDao.java), owner-scoped [SkillEndpoint](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/SkillEndpoint.java) (`/api/v1/skills` + `/library` + `/:uuid/install`), `SkillMethods` client, progressive disclosure + `load_skill` tool in the loop ([SkillPromptBuilder](../../../loom/agent/chat/src/main/java/io/metaloom/loom/agent/chat/skill/SkillPromptBuilder.java)). |
 | Skills (UI) | ✅ | [api/skills.ts](../../../loom-ui/src/api/skills.ts); [SkillsPanel](../../../loom-ui/src/features/chat/SkillsPanel.tsx) in the chat header (per-session toggles, persisted to `chat.meta.activeSkillUuids`, sent with every stream request); [SkillManagementView](../../../loom-ui/src/features/skills/SkillManagementView.tsx) at `/skills` (CRUD, markdown editor, enabled/publish switches, Library tab + install with origin badge / update hint). |
-| Chat E2E tests | ✅ | Mocked: `chat-mocked.spec.ts` (scripted SSE fixture — markdown, hidden reasoning, tool rows, chips, persistence round-trip, 409 toast, stop button) and `skills-mocked.spec.ts` (CRUD/publish/library/install, chat toggles → stream body). Backend variants (CRUD only, no live-LLM assertions): `chat-backend.spec.ts`, `skills-backend.spec.ts`. Backend JUnit: `SkillDaoTest`, `SkillEndpointTest`, `MCPToolReferencesTest`, `AgentLoopTest`, `ChatStreamEndpointTest`. |
+| Chat E2E tests | ✅ | Mocked: `chat-mocked.spec.ts` (scripted SSE fixture — markdown, hidden reasoning, tool rows, chips, persistence round-trip, 409 toast, stop button) `chat-pipeline-graph-mocked.spec.ts` (inline pipeline diagram: nodes, connectors, branch label, left-to-right order, persistence, editor link) and `skills-mocked.spec.ts` (CRUD/publish/library/install, chat toggles → stream body). Backend variants (CRUD only, no live-LLM assertions): `chat-backend.spec.ts`, `skills-backend.spec.ts`. Backend JUnit: `SkillDaoTest`, `SkillEndpointTest`, `MCPToolReferencesTest`, `PipelineToolTest`, `VisualExtractorTest`, `AgentLoopTest`, `ChatStreamEndpointTest`. UI unit: `pipelineGraphLayout.test.ts`. |
 
 ## 3. Architecture (planned)
 
@@ -178,7 +179,7 @@ itself.
 | `reasoning_delta` | `{"turn":1,"text":"…"}` | **distinct type → UI hides it by default** |
 | `text_delta` | `{"turn":1,"text":"…"}` | answer markdown, incremental |
 | `tool_start` | `{"turn":1,"toolCallId":"c1","name":"search_assets","args":{…}}` | renders as ActionRow (running) |
-| `tool_end` | `{"turn":1,"toolCallId":"c1","name":"…","isError":false,"summary":"…","references":[{"type":"asset","uuid":"…","label":"beach.mp4"}]}` | chips appear live |
+| `tool_end` | `{"turn":1,"toolCallId":"c1","name":"…","isError":false,"summary":"…","references":[{"type":"asset","uuid":"…","label":"beach.mp4"}],"visuals":[…]}` | chips and inline visuals (§6.1) appear live |
 | `turn_end` | `{"turn":1}` | |
 | `message_end` | `{"message": <persisted assistant message, §4.3>}` | UI swaps accumulated deltas for this |
 | `title` | `{"title":"…"}` | optional auto-title after first exchange |
@@ -200,13 +201,15 @@ itself.
      "resultSummary":"3 assets found","isError":false,"durationMs":412}
   ],
   "references": [ {"type":"asset","uuid":"…","label":"beach.mp4"} ],
+  "visuals": [ {"type":"pipeline-graph","uuid":"…","label":"…","payload":{ … }} ],
   "skillUuids": ["…"],
   "createdAt": "2026-07-22T10:15:03Z"
 }
 ```
 
-- `reasoning`, `toolCalls`, `references` — assistant messages only; `skillUuids` records
-  the active skill set on user messages.
+- `reasoning`, `toolCalls`, `references`, `visuals` — assistant messages only; `skillUuids`
+  records the active skill set on user messages. `visuals` (§6.1) is capped in count and size and
+  is **not** replayed into the LLM history.
 - Full raw tool results are **not** persisted (only a ≤2 KB `resultSummary`) to bound
   row growth. On the next run the transcript replay reconstructs
   `assistantWithToolCalls`/`toolResult` messages from `toolCalls[]`, using
@@ -250,7 +253,7 @@ still lazy, on the first `sendMessage`). Testids: `chat-greeting`,
 - **Persistence**: the server persists the transcript; the client keeps `updateChat`
   only for title renames and `meta.activeSkillUuids`.
 
-## 6. Domain-Entity Chips (references)
+## 6. Domain-Entity Chips (references) and Inline Visuals
 
 Convention: MCP tool results carry an optional structured `references` array next to the
 standard MCP `content` (external MCP clients simply ignore the extra field):
@@ -269,6 +272,58 @@ standard MCP `content` (external MCP clients simply ignore the extra field):
   at 20 per message.
 - The UI maps `uuid` → the existing `ChatReference.id` consumed by `RefChip`, which
   already navigates per type (asset → detail/inline preview, task → board, …).
+
+### 6.1 Inline visualizations (visuals) ✅
+
+A chip says *which* entity the answer is about; some answers also need to show *what it looks
+like*. Tool results may therefore carry a second envelope, `visuals`, which the chat renders as a
+card inside the message ([MCP.md §5.0.1](../MCP.md)):
+
+```json
+{ "content":[{"type":"text","text":"Pipeline: Media Transcription…"}],
+  "visuals":[{"type":"pipeline-graph","uuid":"…","label":"Media Transcription",
+              "payload":{"nodes":[…],"edges":[…]}}] }
+```
+
+Today one type exists: **`pipeline-graph`**, produced by the `get_pipeline` MCP tool. The user
+asks *"show me the current pipeline for media transcription"*, the agent calls `get_pipeline`, and
+the chat draws the graph next to the answer instead of describing it in prose.
+
+Flow — the same one references take, so a visual costs no extra round trip:
+
+```
+get_pipeline result.visuals
+  → VisualExtractor (loom/agent/chat/ref)      // dedupe by (type, uuid), cap count + size
+  → tool_end { …, "visuals":[…] }              // live: the card appears before the answer text
+  → assistant message.visuals (persisted)      // a reloaded session still shows the diagram
+  → PipelineGraphCard (loom-ui/src/features/chat)
+```
+
+Rules:
+
+- **The model never sees a visual.** It reads the tool result's text content only; `get_pipeline`
+  therefore renders the full graph as text as well. A dropped visual costs a diagram, never an
+  answer — which is what lets the extractor discard silently.
+- **Bounded payload.** `VisualExtractor` caps at `MAX_VISUALS` (4) per message and
+  `MAX_VISUAL_BYTES` (32 KB) per visual, on top of the producing tool's own node/edge caps. The
+  payload is persisted onto `chat.messages`, so an unbounded one would grow the row per exchange.
+- **Not replayed.** `buildHistory` reconstructs the LLM history from `content` and `toolCalls`
+  only; persisted visuals never re-enter the context window.
+- **Layout is the client's job.** The payload carries no coordinates — the stored `x`/`y` are laid
+  out for the full-screen editor canvas. `pipelineGraphLayout.ts` re-derives a left-to-right layered
+  layout from the edges (column = 1 + deepest predecessor; parallel branches stack and are centred),
+  and stays drawable for a cyclic definition, which the parser rejects on save but which can still
+  sit in an older row.
+- **Rendering** (`PipelineGraphCard.tsx`): header with pipeline name, version chip, `disabled` chip
+  and an *Open* action into `/pipelines`; nodes coloured by `category` with the pipeline editor's
+  palette; edges as bezier connectors with `PASS`/`REJECT` branch labels; the graph scrolls
+  horizontally rather than shrinking labels; `truncated` payloads say so. An empty graph renders
+  nothing — the text answer already stands on its own.
+- Testids: `chat-pipeline-graph`, `chat-pipeline-graph-node`, `chat-pipeline-graph-edges`,
+  `chat-pipeline-graph-open`.
+
+Adding a second visual type means: produce the envelope in a tool, add the payload type in
+`types/index.ts`, and render it in `MessageBubble`'s visuals block — no protocol change.
 
 ## 7. Skills
 

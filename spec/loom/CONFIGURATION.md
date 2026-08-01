@@ -140,6 +140,13 @@ LoomOptions (root)
 | `database` | `DatabaseOptions` | Database connection and pool configuration |
 | `server` | `ServerOptions` | Server ports and bind address |
 | `auth` | `AuthenticationOptions` | Authentication and security settings |
+| `storage` | `StorageOptions` | Where binaries land when a library has no pool, plus the upload size and free-space guards |
+| `s3` | `S3Options` | Credentials and endpoint/region defaults for every S3-backed `asset_pool` |
+
+> `storage` and `s3` are documented in full — including how a library selects its backend — in
+> [../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) §5 and §11.
+> Note that `StorageOptions` accepts **both** `LOOM_STORAGE_UPLOAD_DIR` (canonical) and
+> `LOOM_BINARY_DIR` (alias kept for the Helm chart's historic name); the canonical one wins.
 
 ### DatabaseOptions
 

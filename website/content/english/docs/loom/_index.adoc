@@ -11,6 +11,7 @@ It exposes a REST API over HTTP, a GraphQL API, and a gRPC API (planned) for man
 * *GraphQL API* — Flexible, nested queries over the asset model, with an interactive explorer. See link:graphql-api[GraphQL API].
 * *Java Client* — Typed HTTP client for JVM applications. See link:java-client[Java Client Usage].
 * *Authentication* — JWT bearer tokens and optional OAuth2. See link:authentication[Authentication].
+* *Binary Storage* — Uploading and downloading media, and choosing between disk and S3 per library. See link:binary-storage[Binary Storage].
 * *Configuration* — YAML config file and environment variables. See link:configuration[Configuration].
 * *Metrics* — The Prometheus scrape endpoint and the `loom_*` catalog. See link:metrics[Metrics].
 * *Artifacts* — Maven coordinates, containers and the Helm chart. See link:artifacts[Artifacts].

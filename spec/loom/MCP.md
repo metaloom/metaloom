@@ -44,7 +44,7 @@ use to answer user questions about the content stored in Loom.
                              |
                    ┌─────────┴─────────┐
                    │                   │
-             SearchAssetsTool    GetAssetTool  ... (5 tools)
+             SearchAssetsTool    GetAssetTool  ... (7 tools)
              (DAO-backed)        (DAO-backed)
 ```
 
@@ -295,8 +295,35 @@ Besides the standard MCP `content` items, tool results may carry an additional
 the filename / title / name. External MCP clients simply ignore the extra field;
 the loom chat agent ([ui/CHAT.md](ui/CHAT.md) §6) extracts it to render entity
 chips for tool results. Built via `MCPToolResults.mcpResultWithReferences(...)`.
-Currently populated by `search_assets`, `get_asset`, `search_transcript` and
-`list_collections`; `asset_statistics` carries no references.
+Currently populated by `search_assets`, `get_asset`, `search_transcript`,
+`list_collections`, `list_pipelines` and `get_pipeline`; `asset_statistics`
+carries no references.
+
+### 5.0.1 Visual envelopes
+
+A result may additionally carry a `visuals` array — renderable payloads the chat
+draws **inline** instead of only describing in text:
+
+```json
+{ "content": [{ "type": "text", "text": "Pipeline: Media Transcription…" }],
+  "references": [{ "type": "pipeline", "uuid": "…", "label": "Media Transcription" }],
+  "visuals": [{ "type": "pipeline-graph", "uuid": "…", "label": "Media Transcription",
+                "payload": { "nodes": [ … ], "edges": [ … ] } }] }
+```
+
+`type` discriminates the payload shape; today only `pipeline-graph` exists
+(produced by `get_pipeline`, §5.7). Built via
+`MCPToolResults.mcpResult(text, references, visuals)` + `MCPToolResults.visual(...)`.
+
+Two rules make this safe to attach to any tool:
+
+- **The text stays complete.** The model never sees `visuals` — the agent loop feeds
+  it the `content` text only. A visual may therefore be dropped (payload too large,
+  unknown type, non-loom client) without costing an answer.
+- **The payload is bounded.** It is relayed on `tool_end` and persisted onto the chat
+  transcript, so the producing tool caps it (`GetPipelineTool.MAX_NODES` /
+  `MAX_EDGES`) and the consuming `VisualExtractor` caps count and encoded size again
+  ([ui/CHAT.md](ui/CHAT.md) §6.1).
 
 ### 5.1 search_assets
 
@@ -400,6 +427,74 @@ totalStorageBytes, totalStorageMB, images, videos, audio, documents, other.
 used for scoping. Statistics are computed by loading a page of up to 10,000
 assets and aggregating in memory. This should use SQL aggregate queries.
 
+### 5.6 list_pipelines
+
+| Field        | Value |
+|--------------|-------|
+| Name         | `list_pipelines` |
+| Description  | List the media processing pipelines with name, description, uuid and enabled state. |
+| Class        | `ListPipelinesTool` |
+| Required Permissions | `READ_PIPELINE` |
+
+**Parameters:**
+
+| Parameter  | Type    | Required | Description                                            |
+|------------|---------|----------|--------------------------------------------------------|
+| `query`    | string  | No       | Case-insensitive filter on pipeline name or description |
+| `limit`    | integer | No       | Maximum number of pipelines (default: 25)              |
+
+**Result:** Text content with a JSON array (uuid, name, description, enabled,
+versionNumber, nodeCount) plus a `pipeline` reference per row. Metadata comes from
+each pipeline's **latest version**, resolved in one `loadByUuids` query rather than
+per row. The node graph is deliberately **not** included — one graph per row would
+swamp the context window; `get_pipeline` loads the one the user asked about.
+
+**Current limitation:** `query` filters in memory over the loaded page rather than
+at DAO level, so it can only match within the first `limit` pipelines.
+
+### 5.7 get_pipeline
+
+| Field        | Value |
+|--------------|-------|
+| Name         | `get_pipeline` |
+| Description  | Load one pipeline including its node graph (nodes and port-to-port connections). |
+| Class        | `GetPipelineTool` |
+| Required Permissions | `READ_PIPELINE` |
+
+**Parameters:**
+
+| Parameter    | Type   | Required | Description                                    |
+|--------------|--------|----------|------------------------------------------------|
+| `pipelineId` | string | Yes      | Pipeline UUID **or** pipeline name (case-insensitive, falls back to a substring match) |
+
+Name resolution is not a convenience: a user asks for "the transcription pipeline",
+and the model passes that phrasing straight through.
+
+**Result:** three renderings of the same graph —
+
+1. **Text** — header (name, uuid, description, version, enabled/dry-run/priority), a
+   node list `pn1 Media Source [filesystem-source, SOURCE]`, and a connection list
+   `pn1.media -> pn2.video (branch PASS)`. This is all the model ever sees.
+2. **Reference** — one `pipeline` entity chip.
+3. **Visual** — a `pipeline-graph` payload (§5.0.1) which the chat renders as a
+   compact diagram ([ui/CHAT.md](ui/CHAT.md) §6.1):
+
+```json
+{ "pipelineUuid": "…", "name": "…", "description": "…", "enabled": true, "versionNumber": 3,
+  "nodes": [{ "id": "pn1", "kind": "filesystem-source", "label": "Media Source", "category": "SOURCE" }],
+  "edges": [{ "source": "pn1", "sourcePort": "media", "target": "pn2", "targetPort": "video", "branch": "PASS" }],
+  "truncated": false }
+```
+
+- The graph is that of the **latest version** — the one that would run today, which is
+  what "the current pipeline" means to whoever is asking.
+- `category` is resolved through the `NodeDescriptorRegistry` (unknown kinds fall back
+  to `ANALYSIS`), so a node keeps the colour the pipeline editor gives it.
+- Editor-only fields (`x`/`y`) and node options are stripped; the chat lays the graph
+  out itself from the edges (a canvas layout does not fit a chat bubble).
+- Clipped at `MAX_NODES` (40) / `MAX_EDGES` (80); clipping sets `truncated`, which is
+  stated in the text and shown on the card.
+
 ---
 
 ## 6. Tool Result Format
@@ -417,8 +512,9 @@ All tools return results in the MCP content format:
 }
 ```
 
-The `SearchAssetsTool.mcpTextResult(String)` helper wraps a text string in
-this format. Other tools reuse the same helper.
+The `MCPToolResults.mcpTextResult(String)` helper wraps a text string in this
+format; `mcpResultWithReferences(...)` and `mcpResult(...)` add the `references` and
+`visuals` envelopes of §5.0 / §5.0.1 on top of it.
 
 ---
 
@@ -606,6 +702,9 @@ result messages.
 | `SearchTranscriptTool` | `io.metaloom.loom.mcp.tool.impl`           | Search transcripts tool                  |
 | `ListCollectionsTool`  | `io.metaloom.loom.mcp.tool.impl`           | List collections tool                    |
 | `AssetStatisticsTool`  | `io.metaloom.loom.mcp.tool.impl`           | Asset statistics tool                    |
+| `ListPipelinesTool`    | `io.metaloom.loom.mcp.tool.impl`           | List pipelines tool                      |
+| `GetPipelineTool`      | `io.metaloom.loom.mcp.tool.impl`           | Single pipeline + graph visual tool      |
+| `MCPToolResults`       | `io.metaloom.loom.mcp.tool`                | Result envelopes (content / references / visuals) |
 | `MCPAuthenticationHandler` | `io.metaloom.loom.auth`                | MCP HTTP authentication (JWT + API key)  |
 | `WebSocketAuthenticator` | `io.metaloom.loom.rest.service.impl`     | WebSocket authentication (token query)   |
 | `LoomAuthenticationHandler` | `io.metaloom.loom.auth`                | JWT authentication (shared with REST)    |
@@ -654,6 +753,9 @@ improvement. AI agents can use this list to identify work items.
 - [x] `search_transcript` tool — stub (returns placeholder, no full-text search)
 - [x] `list_collections` tool — lists collections with UUID and name
 - [x] `asset_statistics` tool — aggregates counts by MIME type and total storage
+- [x] `list_pipelines` tool — lists pipelines with the metadata of their latest version
+- [x] `get_pipeline` tool — loads one pipeline's node graph as text + `pipeline-graph` visual
+- [x] Visual envelopes (`visuals`) for results the chat renders inline
 - [x] Tool descriptor with JSON Schema for parameters
 - [x] Dagger multibinding for tool registration
 - [x] EventBus-based dispatch (decoupled from transport)
@@ -662,7 +764,9 @@ improvement. AI agents can use this list to identify work items.
 - [ ] `asset_statistics` does not use the `collection` parameter for scoping
 - [ ] `asset_statistics` loads up to 10,000 assets in memory instead of using SQL aggregates
 - [ ] No tool for creating/updating/deleting assets (read-only tools only)
-- [ ] No tool for pipeline operations (run, status, events)
+- [ ] `list_pipelines` filters `query` in memory over the loaded page, not at DAO level
+- [ ] No tool for pipeline *operations* (run, cancel, run status, events) — the pipeline tools are read-only
+- [ ] No visual payload for anything but pipelines (asset previews, run timelines, statistics charts)
 - [ ] No tool for tag operations (create, list, assign to assets)
 - [ ] No tool for user/role/group management
 - [ ] No tool for embedding operations
@@ -749,7 +853,7 @@ but are otherwise independent services. Key connection points:
 | Body limit          | Unlimited (`-1`)                  | 1 MB                                |
 | CORS                | All origins, all methods          | Configurable via `LOOM_MCP_AUTH_ALLOWED_ORIGINS` |
 | Tool operations     | Full CRUD on all resources        | Read-only (search, get, list, stats) with permission checks |
-| Pipeline operations | `POST /pipelines/:uuid/run`       | Not exposed                         |
+| Pipeline operations | `POST /pipelines/:uuid/run`       | Read-only: `list_pipelines`, `get_pipeline` (no run/cancel) |
 | WebSocket           | Processor + pipeline events       | MCP JSON-RPC over WS                |
 
 The MCP tools access DAOs directly but now go through permission checks in

@@ -290,11 +290,15 @@ Most resource endpoints follow a standard CRUD pattern:
 | Asset Reactions         | `/api/v1/assets/:uuid/reactions`       | GET, POST, DELETE        | Reactions on assets                        |
 | Asset Detections        | `/api/v1/assets/:uuid/detections`      | GET, POST, DELETE        | Detections on assets + bulk create         |
 | Asset Transcripts       | `/api/v1/assets/:uuid/transcripts`     | GET, POST, DELETE        | Transcripts on assets                      |
-| Asset Binary            | `/api/v1/assets/:uuid/binary`          | GET, POST, DELETE        | One-to-one binary for an asset             |
+| Asset Binary            | `/api/v1/assets/:uuid/binary`          | GET, POST, DELETE        | The asset's **primary** binary (metadata)  |
+| Asset Binaries          | `/api/v1/assets/:uuid/binaries`        | GET                      | Every binary — one per library             |
+| Asset Binary Data       | `/api/v1/assets/:uuid/binary/data`     | GET, POST                | **Raw bytes**; GET supports `Range`        |
+| Asset Upload            | `/api/v1/assets/upload`                | POST                     | **Raw bytes**, multipart; creates an asset |
 | Asset Components        | `/api/v1/assets/:assetUuid/components` | GET, POST, DELETE        | Components for an asset                    |
 | Asset Pool              | `/api/v1/pools`                        | GET, POST, DELETE        | Standard CRUD                              |
 | Binary                  | `/api/v1/binaries`                     | GET, POST, DELETE        | Standalone binary CRUD                     |
-| Attachment              | `/api/v1/attachments`                  | GET, POST, DELETE        | File upload (multipart) + download         |
+| Attachment              | `/api/v1/attachments`                  | GET, POST, DELETE        | Derived binaries; POST is multipart        |
+| Attachment Data         | `/api/v1/attachments/:uuid/data`       | GET                      | **Raw bytes** of an attachment             |
 | GraphQL                 | `/api/v1/graphql`                      | POST                     | GraphQL query endpoint                     |
 | REST Info               | `/api/v1`                              | GET                      | API info + OpenAPI spec                    |
 | REST OpenAPI            | `/api/v1/openapi`                      | GET                      | OpenAPI YAML spec                          |
@@ -312,7 +316,11 @@ The asset endpoint is the most complex, supporting:
   - Reactions: `/assets/:uuid/reactions`, `/assets/:uuid/reactions/:reactionUuid`
   - Detections: `/assets/:uuid/detections`, `/assets/:uuid/detections/:detectionUuid`, `/assets/:uuid/detections/bulk`
   - Transcripts: `/assets/:uuid/transcripts`, `/assets/:uuid/transcripts/:transcriptUuid`
-  - Binary: `/assets/:uuid/binary` (one-to-one)
+  - Binary: `/assets/:uuid/binary` (primary), `/assets/:uuid/binaries` (all), `/assets/:uuid/binary/data` (bytes)
+
+> Everything about binary handling — the byte routes, filesystem vs. S3 backends, the storage layout
+> and `Range` support — lives in
+> [../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md), not here.
 
 ### 3.4 Pipeline Run Endpoint
 

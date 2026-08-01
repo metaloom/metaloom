@@ -36,4 +36,18 @@ public interface Attachment extends CUDElement<Attachment> {
 
 	Attachment setType(AttachmentType type);
 
+	/**
+	 * The storage pool holding this attachment's bytes, from {@code attachment_binary.pool_uuid}.
+	 *
+	 * <p>
+	 * There is no locator column: {@code attachment_binary} is keyed by {@code sha512sum}, so the object key is derived from the hash via
+	 * {@code BinaryStorage.locatorFor}. Only the backend has to be recorded. NULL means the local upload directory.
+	 * </p>
+	 *
+	 * @return the pool uuid, or null for the default local storage
+	 */
+	UUID getPoolUuid();
+
+	Attachment setPoolUuid(UUID poolUuid);
+
 }

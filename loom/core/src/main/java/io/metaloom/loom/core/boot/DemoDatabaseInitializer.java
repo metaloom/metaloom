@@ -131,6 +131,7 @@ public class DemoDatabaseInitializer {
 	private static final String DEMO_PIPELINE_SCRIPT = "Reading Time (Script)";
 	private static final String DEMO_PIPELINE_S3 = "Cloud Bucket Ingest";
 	private static final String DEMO_PIPELINE_S3_PUBLISH = "Thumbnail Publishing";
+	private static final String DEMO_PIPELINE_TRANSCRIPTION = "Media Transcription";
 
 	/**
 	 * The demo script node's body. Small on purpose - it is there to be read and edited, not admired.
@@ -277,10 +278,23 @@ public class DemoDatabaseInitializer {
 		Collection imagesCollection = createCollection(admin, DEMO_COLLECTION_IMAGES);
 		Collection videosCollection = createCollection(admin, DEMO_COLLECTION_VIDEOS);
 
+		// --- Asset Pools ---
+		// Created before the libraries because a library points at the pool its binaries go to. Two
+		// filesystem pools and one S3 pool, so the demo shows both storage types rather than implying
+		// Loom only writes to disk.
+		createAssetPool(admin, DEMO_POOL_PRODUCTION, "/mnt/media/production", null, null, null);
+		createAssetPool(admin, DEMO_POOL_INGEST, "/mnt/fast-ssd/ingest", null, null, null);
+		AssetPool archivePool = createAssetPool(admin, DEMO_POOL_ARCHIVE, null, "metaloom-archive-prod", "eu-central-1",
+			"https://s3.eu-central-1.amazonaws.com");
+
 		// --- Libraries ---
-		Library campaignLibrary = createLibrary(admin, DEMO_LIBRARY_CAMPAIGNS);
-		createLibrary(admin, DEMO_LIBRARY_ARCHIVE);
-		createLibrary(admin, DEMO_LIBRARY_AUDIO);
+		// Campaigns and audio stay on the default local upload directory: that is where the seeded demo
+		// image bytes actually are, and pointing them at a pool would describe a location nothing wrote
+		// to. The archive library carries no seeded binaries, so it is the honest place to show an
+		// S3-backed library.
+		Library campaignLibrary = createLibrary(admin, DEMO_LIBRARY_CAMPAIGNS, null);
+		createLibrary(admin, DEMO_LIBRARY_ARCHIVE, archivePool);
+		createLibrary(admin, DEMO_LIBRARY_AUDIO, null);
 
 		// --- Pipelines ---
 		// 1) Simple pipeline: Source → Hash → Output
@@ -332,6 +346,14 @@ public class DemoDatabaseInitializer {
 			true, 3, false,
 			scriptDefinition());
 
+		// 7) Transcription pipeline: Source → Filter → Whisper → Sentiment. The demo answer to
+		// "show me the pipeline that transcribes our media": a short, linear graph that reads well
+		// as the compact diagram the chat agent draws for get_pipeline.
+		createPipeline(admin, DEMO_PIPELINE_TRANSCRIPTION,
+			"Transcribes speech in audio and video with Whisper and scores the sentiment of the transcript.",
+			true, 4, false,
+			transcriptionDefinition());
+
 		// --- Pipeline Runs ---
 		// History so the run views and the statistics chart have something to show on a
 		// fresh demo. One run per status: a clean success, a partial failure, a live run and
@@ -342,11 +364,6 @@ public class DemoDatabaseInitializer {
 		createPipelineRun(admin, mediumPipeline, "FAILED", 6, 12, 0, 12, 0, 9_800L);
 		createPipelineRun(admin, complexPipeline, "PAUSED", 0, 512, 240, 3, 1, null);
 		createPipelineRun(admin, complexPipeline, "RUNNING", 0, 340, 180, 0, 4, null);
-
-		// --- Asset Pools ---
-		createAssetPool(admin, DEMO_POOL_PRODUCTION, "/mnt/media/production", null, null, null);
-		createAssetPool(admin, DEMO_POOL_INGEST, "/mnt/fast-ssd/ingest", null, null, null);
-		createAssetPool(admin, DEMO_POOL_ARCHIVE, null, "metaloom-archive-prod", "eu-central-1", "https://s3.eu-central-1.amazonaws.com");
 
 		// --- Users ---
 		User editor = createDemoUser(admin, "editor", "editor1234", "editor@example.com", "Emily", "Editor");
@@ -832,15 +849,25 @@ public class DemoDatabaseInitializer {
 		return chat;
 	}
 
-	private Library createLibrary(User admin, String name) {
+	/**
+	 * @param admin
+	 *            creator
+	 * @param name
+	 *            library name
+	 * @param pool
+	 *            storage pool binaries uploaded into this library go to, or null for the local upload directory
+	 * @return the stored library
+	 */
+	private Library createLibrary(User admin, String name, AssetPool pool) {
 		Library library = libraryDao.createLibrary(admin.getUuid(), name);
 		library.setUuid(UUIDUtils.randomUUID());
+		library.setPoolUuid(pool == null ? null : pool.getUuid());
 		library.setCreator(admin);
 		library.setEditor(admin);
 		library.setCreated(Instant.now());
 		library.setEdited(Instant.now());
 		libraryDao.store(library);
-		log.info("Created demo library: {}", name);
+		log.info("Created demo library: {} ({})", name, pool == null ? "local storage" : "pool " + pool.getName());
 		return library;
 	}
 
@@ -1312,6 +1339,29 @@ public class DemoDatabaseInitializer {
 					.add(edge("pe1", "pn1", "media", "pn2", "media"))
 					.add(edge("pe2", "pn1", "media", "pn3", "media"))
 					.add(edge("pe3", "pn3", "thumbnail", "pn4", "artifacts")));
+	}
+
+	/**
+	 * Speech to text: only audio and video reach Whisper, whose transcript is then scored for sentiment.
+	 *
+	 * <p>
+	 * The MIME filter is what makes this safe to point at a mixed folder — {@code whisper} declares an
+	 * XOR over its audio and video inputs, so a still image arriving on the media port would have
+	 * nothing to bind to.
+	 * </p>
+	 */
+	static JsonObject transcriptionDefinition() {
+		return new JsonObject()
+				.put("nodes", new JsonArray()
+					.add(node("pn1", "filesystem-source", "Media Source", "Watch the recordings folder", 60, 160))
+					.add(node("pn2", "filter-mimetype", "Audio/Video Filter", "Accept audio and video only", 260, 160,
+						new JsonObject().put("mimeTypes", "audio/*,video/*")))
+					.add(node("pn3", "whisper", "Transcribe", "Speech to text with Whisper", 480, 160))
+					.add(node("pn4", "sentiment", "Transcript Sentiment", "Score the tone of the transcript", 700, 160)))
+				.put("edges", new JsonArray()
+					.add(edge("pe1", "pn1", "media", "pn2", "media"))
+					.add(edge("pe2", "pn2", "media", "pn3", "video"))
+					.add(edge("pe3", "pn3", "transcript", "pn4", "text")));
 	}
 
 	static JsonObject scriptDefinition() {

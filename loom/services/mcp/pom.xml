@@ -49,6 +49,11 @@
       <groupId>io.metaloom.loom.shared</groupId>
       <artifactId>loom-rest-model</artifactId>
     </dependency>
+    <!-- Node descriptors: the pipeline tools resolve node kind -> category/label for the graph payload -->
+    <dependency>
+      <groupId>io.metaloom.loom.shared</groupId>
+      <artifactId>loom-node-model</artifactId>
+    </dependency>
 
     <!-- Test -->
     <dependency>

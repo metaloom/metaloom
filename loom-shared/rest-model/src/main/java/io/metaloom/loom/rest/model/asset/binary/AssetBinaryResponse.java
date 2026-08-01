@@ -13,13 +13,37 @@ public class AssetBinaryResponse extends AbstractCreatorEditorRestResponse<Asset
 
 	private UUID assetUuid;
 
-	@JsonPropertyDescription("Information about the location of the asset in the filesystem.")
+	@JsonPropertyDescription("The storage pool holding these bytes. Absent when the binary lives in the server's local upload directory.")
+	private UUID poolUuid;
+
+	@JsonPropertyDescription("Which backend holds the bytes: 'filesystem' or 's3'. Derived from the pool; never null.")
+	private String storageType;
+
+	@JsonPropertyDescription("Information about the location of the asset in the filesystem. Only set for filesystem-backed binaries.")
 	private AssetBinaryFilesystemInfo filesystem;
 
-	@JsonPropertyDescription("S3 meta information on the asset. (only set when S3 is being utilized).")
+	@JsonPropertyDescription("S3 meta information on the asset. Only set for S3-backed binaries.")
 	private AssetS3Meta s3;
 
 	public AssetBinaryResponse() {
+	}
+
+	public UUID getPoolUuid() {
+		return poolUuid;
+	}
+
+	public AssetBinaryResponse setPoolUuid(UUID poolUuid) {
+		this.poolUuid = poolUuid;
+		return this;
+	}
+
+	public String getStorageType() {
+		return storageType;
+	}
+
+	public AssetBinaryResponse setStorageType(String storageType) {
+		this.storageType = storageType;
+		return this;
 	}
 
 	public UUID getLibraryUuid() {

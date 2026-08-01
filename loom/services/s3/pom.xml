@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>io.metaloom.loom.service</groupId>
+		<artifactId>loom-services</artifactId>
+		<version>1.0.0-SNAPSHOT</version>
+	</parent>
+
+	<artifactId>loom-service-s3</artifactId>
+	<name>MetaLoom // Loom :: Service :: S3</name>
+	<description>
+		BinaryStorage over an S3 bucket. The coordinate was already declared in loom/pom.xml's
+		dependencyManagement long before the module existed; this is that module.
+
+		Deliberately separate from cortex/s3-common: that one materializes s3:// media onto a
+		worker's disk, this one is the server-side store behind an asset_pool row. They share
+		the s3://bucket/key grammar and nothing else - a dependency either way would tie the
+		server's build to the worker's.
+	</description>
+
+	<properties>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+	</properties>
+
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>io.metaloom</groupId>
+				<artifactId>bom</artifactId>
+				<type>pom</type>
+				<scope>import</scope>
+				<version>${project.version}</version>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
+	<dependencies>
+		<!-- The BinaryStorage interface and the shared key layout -->
+		<dependency>
+			<groupId>io.metaloom.loom.service</groupId>
+			<artifactId>loom-service-fs</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>io.metaloom.utils</groupId>
+			<artifactId>hash-utils</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.slf4j</groupId>
+			<artifactId>slf4j-api</artifactId>
+		</dependency>
+
+		<!-- AWS SDK. url-connection-client is pinned explicitly rather than resolved through the
+		     SDK's ServiceLoader chain, matching cortex/s3-common: the workload is a handful of
+		     large sequential transfers, so Netty buys nothing and costs startup time. -->
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>s3</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>url-connection-client</artifactId>
+		</dependency>
+
+		<!-- Test -->
+		<dependency>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.assertj</groupId>
+			<artifactId>assertj-core</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.mockito</groupId>
+			<artifactId>mockito-core</artifactId>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+
+</project>
