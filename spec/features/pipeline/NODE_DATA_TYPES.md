@@ -779,14 +779,15 @@ grep -rn "textSources\|sourceNodeId\|sourceOutputKey\|detectionSources\|depthNod
 | `PipelineValidationService` | Now delegates to the parser and enforces the §6.3 rules — port existence, assignability, satisfaction and multi-edge cardinality. `PipelineValidationServiceTest` was rewritten against them |
 | Missing tests | `PortPayload` round trip; `ValueCoercer`; Playwright coverage of XOR sibling behaviour and `MANY` handle rendering |
 
-### ⚠️ Pre-existing test failures, not caused by this refactor
+### ✅ Formerly pre-existing test failures — resolved 2026-08-01
 
-These fail identically at `HEAD` and are unrelated to ports. Do not read them as sweep fallout.
+Both rows below were carried as "fails identically at `HEAD`, not sweep fallout". They have since
+been fixed; the record is kept because the *first* one turned out to be a real port-model bug.
 
-| Where | Why |
+| Where | Outcome |
 |---|---|
-| `AbstractBasicNodeTest.assertProcessed` second-run assertion | It expects `SKIPPED` on a re-run, but every node with a `LocalResultCache` re-emits its cached value and returns `next()`, i.e. `SUCCESS`. Hits `SHA512NodeTest`, `SHA256NodeTest`, `MD5NodeTest`, `ChunkHashNodeTest`, `FingerprintNodeTest` and `SceneDetectionNodeTest`. Either the base class or the cache-hit result state is wrong — a decision worth making deliberately rather than in a test sweep |
-| Environment-dependent node tests | Hard-coded developer paths (`/extra/vid/*.mkv`, `/extra/vid/5.mp4`), OpenCV natives not loaded (`ThumbnailNodeTest`), a local Ollama endpoint (`LLMNodeTest`), a local SmolVLM endpoint (`SmolVLMClientTest`), and a whisper model on disk |
+| `AbstractBasicNodeTest.assertProcessed` second-run assertion | **The base class was right.** A cache hit still emits on the output port, so it is `SUCCESS` with a `LOCAL` origin — reporting `SKIPPED` claims the node produced nothing and starves every node bound to that port. `FingerprintNode` was doing exactly that: it bailed out in `isProcessable()` on a cache hit and emitted no fingerprint at all. Its cache check moved into `compute()`, which re-emits and returns `ctx.origin(LOCAL).next()`. `LLMNode` never set an origin on either path and now does. `WhisperNodeTest` and `FingerprintNodePipelineTest` asserted the old `SKIPPED` contract and were corrected |
+| Environment-dependent node tests | Hard-coded `/extra/vid/*` paths removed — the scene detectors already resolved shared test media and then overwrote it on the next line, and the facedetect tests now use it too. "OpenCV natives not loaded" was an FFmpeg 7 → 8 ABI break plus missing `-dev` packages, not a test defect; see [../../NOTES.md](../../NOTES.md). `LLMNodeTest` runs against [loom-test-env/llamacpp](../../../loom-test-env/llamacpp) and skips when it is absent. Still environmental: `SmolVLMClientTest`, and `xattr` on some filesystems |
 
 ---
 

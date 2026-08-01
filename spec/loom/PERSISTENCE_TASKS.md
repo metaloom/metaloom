@@ -1,243 +1,287 @@
 # Persistence Layer Tasks
 
-Task list for closing gaps in the persistence layer, derived from a comparison of
-[DOMAIN.md](DOMAIN.md), [PERSISTENCE.md](PERSISTENCE.md), the `DaoCollection` /
-`DaoCollectionImpl` DAO registry, the Flyway migrations (`V1` – `V2.50`) and the
-existing test classes in `loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/dao/`.
+Open work items for the Loom persistence layer, verified against the actual code:
+migrations in `loom/db/flyway/src/main/resources/db/migration/` (`V1` – `V2.63`), the
+`DaoCollection` registry, and the DAO tests in
+`loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/dao/`.
 
-> **Status note (2026-07-24):** the asset-component test gap has been closed by the
-> V2.38–V2.50 rework — `AssetComponentKeyTest`, `AssetTranscriptCompDaoTest`,
-> `AssetFingerprintSegmentCompDaoTest`, `AssetNodeResultDaoTest` and the extended
-> `AssetJsonCompDaoTest` now cover every modality with provenance, idempotency and
-> multi-source coexistence. See [../features/db/DATABASE_TASKS.md](../features/db/DATABASE_TASKS.md).
-> Remaining gaps below are still open.
+Format follows [../TASKS.template.md](../TASKS.template.md). Companion documents:
+[PERSISTENCE.md](PERSISTENCE.md) (how the layer works), [DOMAIN.md](DOMAIN.md) (entities),
+[../features/db/DATABASE_TASKS.md](../features/db/DATABASE_TASKS.md) (the component /
+node-result schema rework — **completed**, kept as the historical record of `V2.38`–`V2.50`).
 
-**Gap summary:**
+## Closed gaps (outcome record)
 
-| Area | Gap |
+| Gap | Closed by |
 |---|---|
-| Missing CRUD tests | `AssetPoolDaoTest`, `DetectionDaoTest`, `ChatDaoTest`, `AssetBinaryDaoTest`, empty `RoleDaoTest`, thin `PermissionDaoTest` |
-| ~~AssetComponent tests~~ | ✅ **Done** — see the status note above |
-| Missing domain DAOs | `VectorConfigDao` (V2.6), ~~`LoomDao` (V2.5 singleton)~~ ✅ **Done** — `LoomDao`/`LoomDaoImpl` + `LoomDaoTest`, Asset Remix operations (V2.8 `asset_remix`) |
-| Missing cascade tests | Asset→children, ACL join tables, Pipeline→Version/Run, Annotation joins, Person→images, Cluster/Collection joins, CortexInstance→node kinds |
+| Asset-component test coverage per modality | `V2.38`–`V2.45` rework; `AssetComponentKeyTest`, `AssetTranscriptCompDaoTest`, `AssetFingerprintSegmentCompDaoTest`, `AssetJsonCompDaoTest`, `AssetNodeResultDaoTest` |
+| `LoomDao` missing (`V2.5` singleton) | `LoomDao` / `LoomDaoImpl` + `LoomDaoTest` |
+| `PermissionDaoTest` too thin | `loom/db/jooq/src/test/java/io/metaloom/loom/db/perm/PermissionDaoTest.java` — 5 tests: direct grant, group→role inheritance, non-membership isolation, per-user isolation, admin perms |
+| Cascade: Asset → children | `AssetCascadeTest` (cascade + the three delete-blocking join tables) |
+| Cascade: ACL join tables | `AclCascadeTest` (role, group, soft vs. hard user delete) |
+| Cascade: Pipeline → Version / Run / RunItem / NodeTask | `PipelineDaoTest` (4 cascade tests) |
+| Cascade: Annotation joins, reaction/comment | `AnnotationDaoTest`; `V2.48` added the missing `ON DELETE CASCADE` |
+| Cascade: Person → gallery images | `PersonDaoTest` (plus primary-image pointer null-out) |
+| Cascade: Cluster / Collection joins | `ClusterDaoTest`, `CollectionDaoTest`; `V2.51` for `embedding_cluster` |
+| Cascade: CortexInstance → node kinds | `CortexInstanceDaoTest.testDeletingInstanceCascadesNodeKinds` |
+| `asset_location UNIQUE (asset_uuid)` wrong natural key | `V2.48` — replaced with `(library_uuid, path)` |
+
+> ⚠️ [../features/db/DATABASE_TASKS.md](../features/db/DATABASE_TASKS.md) §10.2 lists
+> `DetectionDaoTest` among the suites it verified. That class does not exist — the run was
+> almost certainly `DetectionEndpointTest`. Treat the task below as open.
 
 ---
 
-## Task: Add AssetPoolDaoTest CRUD test
+## Task: Add `AssetPoolDaoTest` CRUD test
 
-**Argumentation Summary:** `AssetPoolDaoImpl` exists and is registered in `DaoCollection`, but has no test coverage. PERSISTENCE.md explicitly lists it under "In-Progress / TODO" as a missing test. Storage pools (filesystem/S3, free/used space tracking) are the backbone of binary placement and regressions would break asset ingestion.
-**Improvement Summary:** A `AssetPoolDaoTest` class following the standard `CRUDDaoTestcases` pattern, covering create/load/update/delete/paging of asset pools.
+**Argumentation Summary:** `AssetPoolDaoImpl` is registered in `DaoCollection` but has zero test coverage — no test anywhere references `assetPoolDao()`. `V2.63` made pools load-bearing: `library.pool_uuid` and `attachment_binary.pool_uuid` now point at `asset_pool` with `ON DELETE RESTRICT`, so a pool regression breaks binary placement and library storage.
+**Improvement Summary:** A standard `CRUDDaoTestcases` test covering all pool fields plus the `ON DELETE RESTRICT` behaviour introduced in `V2.63`.
 
 ```
 Create `AssetPoolDaoTest` in `loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/dao/`.
-Extend `AbstractJooqTest` and implement `CRUDDaoTestcases<AssetPoolDao, AssetPool>`
-(see `PipelineDaoTest` as the reference implementation).
+Extend `AbstractJooqTest`, implement `CRUDDaoTestcases<AssetPoolDao, AssetPool>`
+(`PipelineDaoTest` is the reference implementation).
 
-- `createElement(User user, int i)`: use `assetPoolDao().createAssetPool(...)` (check the
-  DAO interface in `loom/db/api/.../model/pool/AssetPoolDao.java` for the factory signature)
-  and populate all pool fields: name, type (FILESYSTEM and S3 variants), base path / bucket
-  settings, free_space, used_space (added in V2.24).
-- `assertCreate`, `updateElement`, `assertUpdate`: assert/mutate name, type-specific fields
-  and the free/used space columns.
-- `getDao()`: return `assetPoolDao()`.
+- Factory is `assetPoolDao().createAssetPool(UUID creatorUuid, String name)`.
+- `AssetPool` carries: name, fsPath (filesystem pool), s3Bucket / s3Region / s3Endpoint
+  (S3 pool), freeSpace and usedSpace (Long, bytes, V2.24). Cover both pool shapes.
+- The CRUD harness builds 1024 elements — vary `name` by `i`, it is the unique field.
+- Add an explicit test: a library referencing the pool must block `delete` on the pool
+  (V2.63 `ON DELETE RESTRICT` on `library.pool_uuid`).
 ```
 
-**References:** [PERSISTENCE.md](PERSISTENCE.md) §Test Infrastructure, §In-Progress/TODO; migrations `V2.20__add_asset_pool.sql`, `V2.24__add_asset_pool_free_space.sql`
-**Test Requirements:** All five inherited CRUD tests (`testCreate`, `testDelete`, `testUpdate`, `testLoad`, `testLoadPage`) pass via `mvn test -pl loom/db/jooq -Dtest=AssetPoolDaoTest`.
+**References:** [PERSISTENCE.md](PERSISTENCE.md) §Test Infrastructure; migrations `V2.20`, `V2.24`, `V2.63`
+**Test Requirements:** Five inherited CRUD tests plus the RESTRICT test green via `mvn test -pl loom/db/jooq -Dtest=AssetPoolDaoTest`.
 
 ---
 
-## Task: Add DetectionDaoTest CRUD test
+## Task: Add `DetectionDaoTest` CRUD test
 
-**Argumentation Summary:** `DetectionDaoImpl` (object/face detections with bbox, confidence, frame number) has no test. Listed as a TODO in PERSISTENCE.md. Detections are written by Cortex processing nodes; an untested DAO risks silent data loss in the AI/ML pipeline.
-**Improvement Summary:** A `DetectionDaoTest` covering CRUD and paging for detections bound to an asset.
+**Argumentation Summary:** `DetectionDaoImpl` still has no test class; the only test-side reference to `detectionDao()` is inside `AssetCascadeTest`. `V2.43` gave `detection` `NOT NULL` provenance columns and a `UNIQUE (asset_uuid, node_kind, frame_number, detection_index)` idempotency key — none of which is pinned by a test, so a re-run/retry regression would go unnoticed.
+**Improvement Summary:** A CRUD test plus explicit coverage of the `V2.43` unique key and provenance columns.
 
 ```
 Create `DetectionDaoTest` in `loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/dao/`.
 Extend `AbstractJooqTest`, implement `CRUDDaoTestcases<DetectionDao, Detection>`.
 
-- Detections reference an asset — use the fixture `asset()` from `FixtureElementProvider`
-  or `createAsset(...)` from `DatabaseTest` to satisfy the FK.
-- `createElement(User user, int i)`: create a detection with type (e.g. FACE/OBJECT),
-  bounding box coordinates, confidence and frame_number varying by `i`.
-- Assert/update the bbox, confidence and type fields in the respective hooks.
+- Factory: `detectionDao().createDetection(UUID userUuid, String type)`; the row needs an
+  asset FK — use the fixture asset from `AbstractJooqTest`.
+- Populate the full V2.43 shape: nodeKind, producerVersion, detectionIndex, label,
+  type, frameNumber, timeFrom, bboxX/Y/Width/Height, confidence.
+- Vary `detectionIndex` (or `frameNumber`) by `i` — the unique key is
+  (asset_uuid, node_kind, frame_number, detection_index) and the harness creates 1024 rows.
+- Explicit tests: (a) storing a second detection with the same key must behave as the DAO
+  contract defines (upsert-replace or constraint violation) — pin it; (b) `run_uuid` /
+  `task_uuid` are `ON DELETE SET NULL`, deleting a run must not delete the detection.
 ```
 
-**References:** [PERSISTENCE.md](PERSISTENCE.md) §CRUDDaoTestcases; migration `V2.27__add_detection.sql`; [DOMAIN.md](DOMAIN.md) §4 AI/ML
-**Test Requirements:** All inherited CRUD tests green; detection rows correctly reference the fixture asset.
+**References:** migration `V2.43__rework_detection_embedding.sql`; [DOMAIN.md](DOMAIN.md) §4 AI/ML; `EmbeddingDaoTest` for the sibling pattern
+**Test Requirements:** Inherited CRUD tests green; unique-key behaviour and provenance round-trip pinned.
 
 ---
 
-## Task: Add ChatDaoTest CRUD test
+## Task: Add `ChatDaoTest` CRUD test
 
-**Argumentation Summary:** `ChatDaoImpl` (LLM chat sessions with JSONB message history) has no test. Listed as a TODO in PERSISTENCE.md. The `messages` JSONB array uses `JsonObjectConverter` — a conversion regression would corrupt chat history without failing loudly.
-**Improvement Summary:** A `ChatDaoTest` covering CRUD, with explicit round-trip assertions on the JSONB `messages` payload.
+**Argumentation Summary:** `ChatDaoImpl` has no test of its own. `chat` is still live — `V2.52` gave `chat_session.chat_uuid` an FK to it (`ON DELETE SET NULL`) — and `ChatSessionDaoTest` only creates a chat as a fixture, asserting nothing about it. The `messages` JSONB array goes through `JsonObjectConverter`; a conversion regression corrupts chat history silently.
+**Improvement Summary:** A `ChatDaoTest` with deep-equality round-trip assertions on the JSONB payload.
 
 ```
 Create `ChatDaoTest` in `loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/dao/`.
 Extend `AbstractJooqTest`, implement `CRUDDaoTestcases<ChatDao, Chat>`.
 
-- `createElement(User user, int i)`: create a chat with title `"chat_" + i` and a
-  non-trivial messages payload (JSON array with role/content entries).
-- `assertCreate`: verify the messages payload round-trips through the
-  `JsonObjectConverter` unchanged (deep equality, not just non-null).
-- `updateElement`/`assertUpdate`: append a message and change the title, verify both persist.
+- Factory: `chatDao().createChat(UUID userUuid, String title)`; title `"chat_" + i`.
+- `assertCreate`: a non-trivial `messages` array (role/content entries) must round-trip
+  through `JsonObjectConverter` with deep equality, not just non-null.
+- `updateElement`/`assertUpdate`: append a message and change the title; verify both persist.
+- Explicit test: deleting a chat leaves an attached `chat_session` alive with a null
+  `chat_uuid` (V2.52 ON DELETE SET NULL).
 ```
 
-**References:** [PERSISTENCE.md](PERSISTENCE.md) §JsonObjectConverter, §In-Progress/TODO; migration `V2.28__add_chat.sql`
-**Test Requirements:** Inherited CRUD tests plus deep-equality round-trip assertion on the JSONB messages field.
+**References:** migrations `V2.28__add_chat.sql`, `V2.52__add_chat_session.sql`; [PERSISTENCE.md](PERSISTENCE.md) §JsonObjectConverter
+**Test Requirements:** Inherited CRUD tests plus the JSONB deep-equality and SET NULL assertions.
 
 ---
 
-## Task: Add AssetBinaryDaoTest CRUD test
+## Task: Test `AssetBinaryDao` — and decide whether it should exist alongside `AssetLocationDao`
 
-**Argumentation Summary:** `AssetBinaryDaoImpl` (binary storage in `attachment_binary`, addressed by SHA-512) has no test at all. Binary storage is content-addressed rather than plain UUID-CRUD, so the generic testcases may not apply 1:1 — which is exactly why explicit coverage is needed.
-**Improvement Summary:** A test class covering store/load/delete of binaries by hash, plus duplicate-hash handling.
+**Argumentation Summary:** `AssetBinaryDao` and `AssetLocationDao` are **two DAOs over the same table**: both `AssetBinaryDaoImpl.getTable()` and `AssetLocationDaoImpl.getTable()` return `JooqAssetLocation.ASSET_LOCATION`. Only `AssetLocationDao` has a test (`AssetLocationDaoTest`), yet `AssetBinaryDao` is the one the REST layer actually uses (`AssetUploadEndpointService`, `AssetBinaryEndpointService`, `BinaryReclaimer`, `AttachmentEndpointService`, `PipelineEndpointService`). Its non-trivial methods — `loadPrimaryByAssetUuid` (the fix for the `TooManyRowsException` → HTTP 500 bug), `loadByAssetAndLibrary`, `countByPoolAndPath` (the dedup guard a delete must consult before unlinking shared bytes) — are untested at the DAO level.
+
+> The earlier version of this task described `AssetBinaryDao` as content-addressed storage in `attachment_binary` keyed by SHA-512. That is wrong: it is `asset_location`, keyed `(library_uuid, path)` since `V2.48`.
+
+**Improvement Summary:** An `AssetBinaryDaoTest` covering the multi-location semantics, plus a decision on collapsing the duplicate DAO pair.
 
 ```
-Create `AssetBinaryDaoTest` in `loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/dao/`.
-Extend `AbstractJooqTest`. First inspect
-`loom/db/api/.../model/asset/AssetBinaryDao.java` — if the interface is a regular
-`CRUDDao<AssetBinary>`, implement `CRUDDaoTestcases` like the other tests; otherwise
-write explicit @Test methods:
-
-- store a binary with a known SHA-512 sum, load it back by hash and by UUID, verify
-  size/hash fields.
-- storing a second binary with the same SHA-512 must behave as the DAO contract defines
-  (upsert or constraint violation) — pin the current behavior in a test.
-- delete and verify load returns null.
+1. Create `AssetBinaryDaoTest` in
+   `loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/dao/`, extending `AbstractJooqTest`
+   and implementing `CRUDDaoTestcases<AssetBinaryDao, AssetBinary>`.
+   Factory: `createAssetBinary(String path, UUID assetUuid, UUID creatorUuid, UUID libraryUuid)`.
+   Vary `path` by `i` — `(library_uuid, path)` is the natural key and the harness builds 1024 rows.
+2. Explicit tests for the methods the REST layer depends on:
+   - several locations on one asset → `loadPrimaryByAssetUuid` returns the oldest, stably
+     (tie-broken by uuid); `loadAllByAssetUuid` returns all of them oldest-first;
+   - `loadByAssetAndLibrary` isolates per library, returns null when absent;
+   - `countByPoolAndPath` counts every row sharing the same (pool, locator), including
+     the null-pool default-local case;
+   - `deleteByAssetUuid` removes all locations of one asset and nothing else.
+3. Then decide the duplication: either delete `AssetLocationDao`/`AssetLocationDaoTest` and
+   route its two callers through `AssetBinaryDao`, or document in
+   [PERSISTENCE.md](PERSISTENCE.md) why one table deliberately carries two DAOs.
+   Do not leave it undocumented.
 ```
 
-**References:** [PERSISTENCE.md](PERSISTENCE.md) §Current Entity Model (AssetBinary); migration `V2.13__add_attachment.sql`
-**Test Requirements:** Store/load/delete by hash covered; duplicate-hash behavior pinned by a test.
+**References:** `loom/db/api/src/main/java/io/metaloom/loom/db/model/asset/AssetBinaryDao.java` (its javadoc explains the cardinality); migrations `V2.10`, `V2.20`, `V2.48`, `V2.63`
+**Test Requirements:** Inherited CRUD tests plus one test per non-CRUD method; duplication resolved or documented.
 
 ---
 
-## Task: Add AssetComponentDaoTest covering all component modalities — ✅ DONE (2026-07-24)
+## Task: Implement `RoleDaoTest` (still an empty class)
 
-> **Implemented** by the V2.38–V2.50 component rework rather than as a single
-> `AssetComponentDaoTest`. The component tables were rebuilt on a shared contract
-> (provenance columns + per-table idempotency key), so coverage is spread across:
-> - `AssetComponentKeyTest` — geo/doc/image/video/audio identity keys, multi-producer
->   coexistence, upsert-replace, machine-written (null-audit) rows;
-> - `AssetTranscriptCompDaoTest` — per-track transcripts, model-upgrade upsert, FTS;
-> - `AssetFingerprintSegmentCompDaoTest` — fingerprint + segment components;
-> - `AssetJsonCompDaoTest` (extended) — variant discriminator, GIN containment;
-> - `AssetNodeResultDaoTest` — the per-asset processing ledger.
->
-> "Multiple components of the same modality coexist on one asset" is verified through the
-> typed discriminators (`stream_index`, `page_number`, `lang`, `node_kind`) rather than the
-> old free-text `source`. See [../features/db/DATABASE_TASKS.md](../features/db/DATABASE_TASKS.md).
-
-**References:** migrations `V2.38`–`V2.45`; [../features/db/DATABASE_TASKS.md](../features/db/DATABASE_TASKS.md)
-**Test Requirements:** Met — every modality covered with round-trip, idempotency and coexistence assertions.
-
----
-
-## Task: Implement RoleDaoTest (currently an empty class)
-
-**Argumentation Summary:** `RoleDaoTest` exists but is a completely empty class (no superclass, no tests) — it silently passes while providing zero coverage. Roles are a core RBAC entity; PERSISTENCE.md flags this explicitly.
-**Improvement Summary:** Turn the empty shell into a real CRUD test following the standard pattern, plus role-specific queries.
+**Argumentation Summary:** `RoleDaoTest.java` is literally `public class RoleDaoTest { }` — no superclass, no tests. It passes silently while providing zero coverage of a core RBAC entity. `AclCascadeTest` covers role *deletion* cascades, so only role CRUD and `loadByName` are missing.
+**Improvement Summary:** Turn the empty shell into a real CRUD test plus a `loadByName` test.
 
 ```
 Rewrite `loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/dao/RoleDaoTest.java`:
 extend `AbstractJooqTest`, implement `CRUDDaoTestcases<RoleDao, Role>`.
 
-- `createElement(User user, int i)`: `roleDao().createRole(...)` with name `"role_" + i`.
-- Standard assert/update hooks on the name and meta fields.
-- Add explicit tests for any entity-specific methods on `RoleDao`
-  (e.g. load-by-name, role↔group assignment helpers if present on the interface).
+- Factory: `roleDao().createRole(UUID creatorUuid, String name)`, name `"role_" + i`
+  (unique field — the harness builds 1024 rows).
+- Standard assert/update hooks on name and meta.
+- `RoleDao` has exactly one method beyond `CRUDDao`: `loadByName(String name)`.
+  Test the hit and the miss (null) case.
+- Do not duplicate `AclCascadeTest.testDeletingARoleCascadesGrantsAndGroupLinks`.
 ```
 
-**References:** [PERSISTENCE.md](PERSISTENCE.md) §In-Progress/TODO (Role); migration `V2.1__add_acl.sql`; spec/loom/PERMISSION.md if present
-**Test Requirements:** Inherited CRUD tests green; every public method of `RoleDao` beyond `CRUDDao` has at least one test.
+**References:** [PERSISTENCE.md](PERSISTENCE.md) §In-Progress/TODO; migration `V2.1__add_acl.sql`
+**Test Requirements:** Inherited CRUD tests green; both `loadByName` branches covered.
 
 ---
 
+## Task: Implement `VectorConfigDao` (table exists, no domain DAO)
 
----
-
-## Task: Implement VectorConfigDao (missing domain DAO)
-
-**Argumentation Summary:** The Vector Config entity ([DOMAIN.md](DOMAIN.md) §4, migration `V2.6__add_vector_config.sql`) has a table but no model interface, no DAO, no POJO and no registration in `DaoCollection` — it is unreachable from application code. Custom vector indices cannot be persisted.
-**Improvement Summary:** Full DAO stack (model interface, DAO interface, jOOQ impl, POJO, DI wiring, test) for `vector_config`.
+**Argumentation Summary:** `vector_config` (`V2.6`) has a generated `JooqVectorConfig` table but no model interface, DAO, POJO or `DaoCollection` registration — a repo-wide grep finds it only under `jooq/src/jooq/`. Custom vector index definitions cannot be persisted from application code.
+**Improvement Summary:** Full DAO stack for `vector_config`.
 
 ```
-Follow PERSISTENCE.md §"Adding a New Entity" steps 2–9 (the migration already exists):
+Follow PERSISTENCE.md §"Adding a New Entity" steps 2–9 (the migration already exists).
+V2.6 columns: uuid, name (varchar UNIQUE NOT NULL), weights (jsonb), created/creator_uuid,
+edited/editor_uuid.
 
-1. `VectorConfig.java` model interface in `loom-db-api/.../model/vectorconfig/`
-   extending `CUDElement<VectorConfig>` with fields matching V2.6 (name, weight
-   definition, etc. — read the migration for exact columns).
-2. `VectorConfigDao.java` extending `CRUDDao<VectorConfig>` with a
-   `createVectorConfig(UUID userUuid, String name)` factory.
-3. `VectorConfigImpl` + `VectorConfigDaoImpl` in `loom-db-jooq` (extend
-   `AbstractEditableElement` / `AbstractJooqDao`, table `JooqVectorConfig` — the jOOQ
-   class should already be generated; if not, run `mvn -Dgenerate generate-sources -pl loom/db/jooq`).
+1. `VectorConfig` model interface in `loom/db/api/.../model/vectorconfig/`, extending
+   `CUDElement<VectorConfig>`, with `name` and a `weights` JSONB accessor
+   (use the same `JsonObjectConverter`-backed type as `AssetJsonComp`).
+2. `VectorConfigDao extends CRUDDao<VectorConfig>` with
+   `createVectorConfig(UUID creatorUuid, String name)` and `loadByName(String)`.
+3. `VectorConfigImpl` + `VectorConfigDaoImpl` in `loom/db/jooq` (extend
+   `AbstractEditableElement` / `AbstractJooqDao`, table `JooqVectorConfig`).
 4. Register in `DaoCollection`, `DaoCollectionImpl` (Lazy field + ctor param + accessor),
-   `DaoProvider` default method, and the Dagger bind module
-   (`JooqLoomDaoBindModule`).
-5. `VectorConfigDaoTest` implementing `CRUDDaoTestcases`.
+   `DaoProvider` default method and `JooqLoomDaoBindModule`.
+5. `VectorConfigDaoTest` implementing `CRUDDaoTestcases` (vary `name` by `i`).
 
-After DI changes: clean-rebuild loom/core and re-run ./setup-pool.sh before running
-dependent tests (see agent notes).
+After the DI change: clean-rebuild `loom/core` and re-run `./setup-pool.sh` before running
+dependent tests, otherwise you get `NoSuchMethodError` on the generated Dagger factory.
 ```
 
 **References:** [DOMAIN.md](DOMAIN.md) §4 Vector Config; [PERSISTENCE.md](PERSISTENCE.md) §Adding a New Entity, §DaoCollection and Dagger DI; migration `V2.6__add_vector_config.sql`
 **Test Requirements:** `VectorConfigDaoTest` with full `CRUDDaoTestcases` coverage; `mvn test-compile -q -DskipTests` clean across `loom/db`.
 
-
 ---
 
 ## Task: Implement Asset Remix DAO operations
 
-**Argumentation Summary:** The `asset_remix` table ([DOMAIN.md](DOMAIN.md) §2, migration `V2.8__add_asset.sql`) models derivation links between assets, but a repo-wide search finds no remix-related code in `loom-db-api` or `loom-db-jooq` — the table is completely unreachable.
-**Improvement Summary:** Remix link operations (add/remove/list) exposed on `AssetDao` (join-table pattern) or as a dedicated `AssetRemixDao`.
+**Argumentation Summary:** `asset_remix` (`V2.8`) models derivation links between assets, but the only non-generated references to it are `JooqAssetRemix` and a comment in `AssetCascadeTest:65` — "`asset_remix` also cascades (V2.8) but has no DAO yet, so it is intentionally left out until those operations exist." The table is unreachable from application code, and its cascade is therefore untested.
+**Improvement Summary:** Remix link operations on `AssetDao` (join-table pattern), plus the cascade test that is currently deferred.
 
 ```
 `asset_remix` is an asset↔asset join table. Follow the existing cross-table pattern
-(PERSISTENCE.md §4 Cross-Table Operations, e.g. tag_asset handling in TagDaoImpl/AssetDaoImpl):
+(PERSISTENCE.md §Cross-Table Operations — see the tag_asset handling in
+TagDaoImpl/AssetDaoImpl).
 
-1. Read V2.8 for the exact columns of `asset_remix` (two asset FKs + any
-   relation-type column).
-2. Add methods to `AssetDao` / `AssetDaoImpl`:
-   - `addRemix(SHA512Sum origin, SHA512Sum derived, ...)`
-   - `removeRemix(...)` (use `deleteCrossTableEntry()` helper)
-   - `Result/List loadRemixes(SHA512Sum asset)` (both directions if the relation
-     is directed).
-   Use a dedicated `AssetRemixDao` instead only if the table carries enough own
-   state to justify it.
-3. Extend `AssetDaoTest` with remix tests: link two assets, list from both sides,
-   unlink, and verify deleting an asset cascades the remix rows (V2.8 defines
-   ON DELETE CASCADE on both FKs).
+1. Read `V2.8__add_asset.sql` for the exact columns (two asset FKs + any relation-type
+   column) and the direction of the relation.
+2. Add to `AssetDao` / `AssetDaoImpl`:
+   - `addRemix(...)`, `removeRemix(...)` (use the `deleteCrossTableEntry()` helper),
+   - `loadRemixes(...)` — both directions if the relation is directed.
+   Introduce a dedicated `AssetRemixDao` only if the table carries enough own state.
+3. Extend `AssetDaoTest`: link two assets, list from both sides, unlink.
+4. Extend `AssetCascadeTest.testDeletingAssetCascadesAllDependents` to include remix rows
+   and delete the deferral comment at line 65.
 ```
 
 **References:** [DOMAIN.md](DOMAIN.md) §2 Asset Remix; migration `V2.8__add_asset.sql`; [PERSISTENCE.md](PERSISTENCE.md) §Cross-Table Operations
-**Test Requirements:** Link/list/unlink tests in `AssetDaoTest` (or new `AssetRemixDaoTest`) plus cascade verification on asset deletion.
-
-
----
-
-## Task: Update PERSISTENCE.md progress tracker after task completion — ✅ DONE (2026-07-24)
-
-**Argumentation Summary:** PERSISTENCE.md carries a Progress Tracker (§Completed Entities, §In-Progress/TODO) that agents rely on for gap analysis. It had drifted well past the point this task originally described — missing everything from V2.29 onward.
-**Improvement Summary:** Bring the tracker, migration history and test-class table in PERSISTENCE.md in sync with the actual codebase.
-
-> **Steps 1 and 2 are done** (2026-07-24), and further than the original scope:
-> - Migration History and Migration File Index now run **V2.29–V2.50** (not just V2.29–V2.35).
-> - Entity model, Completed-Entities and jOOQ-tables tables gained `PipelineRun/Version/RunItem/NodeTask`,
->   `CortexInstance`, `Skill`, `SkillVersion`, `AssetNodeResult`, `AssetFingerprint/SegmentComp`;
->   `VectorConfig` and `Loom` were added to In-Progress/TODO (jOOQ table but no domain DAO).
-> - The "Existing DAO Tests" table now lists all 35 test classes.
->
-> **Step 3 does not apply yet.** The original wording assumed the CRUD-test tasks above
-> would be finished first, and told the editor to move `AssetPool`, `Detection`, `Chat`,
-> `AssetBinary`, `Role` and `Permission` out of In-Progress/TODO. Those tests still do not
-> exist (`RoleDaoTest` is still an empty class), so those entries stay put — moving them
-> would misreport coverage. Revisit when the tasks above land.
-
-**References:** [PERSISTENCE.md](PERSISTENCE.md) §Progress Tracker, §Migration History; [../features/db/DATABASE_TASKS.md](../features/db/DATABASE_TASKS.md)
-**Test Requirements:** None (documentation); tracker/history/test tables verified against the `migration/`, `tables/` and `dao/` directories.
+**Test Requirements:** Link/list/unlink covered; remix rows asserted in the asset cascade test.
 
 ---
 
-*Derived against migrations `V1`–`V2.50`. GIT HEAD: `b3b619287fd4d557c3adb232f6354a37702c3690` · Updated: 2026-07-24*
+## Task: Re-sync the PERSISTENCE.md progress tracker to `V2.63`
+
+**Argumentation Summary:** [PERSISTENCE.md](PERSISTENCE.md) states "Schema current through `V2.50`", but the migration directory now runs to `V2.63`. Missing from the tracker: `chat_session` (`V2.52`), agent memory (`V2.53`) and `memory_deny_rule` (`V2.54`), the webhook removal (`V2.55`), `search_document` + triggers (`V2.58`/`V2.59`), `dedup_group` (`V2.61`) and the `library`/`attachment_binary` pool pointers (`V2.63`). Agents use this tracker for gap analysis, so drift produces wrong conclusions — as it already did for `DetectionDaoTest`.
+**Improvement Summary:** Bring migration history, entity model, test-class table and the In-Progress/TODO list in sync with the tree.
+
+```
+In `spec/loom/PERSISTENCE.md`:
+
+1. Extend Migration History / Migration File Index to V2.63.
+2. Add the entities introduced since V2.50 to the entity-model and Completed-Entities
+   tables: ChatSession (+ chat_session_skill, chat_session_context_ref), MemoryEntry,
+   MemoryDenyRule, DedupGroup, SearchDocument. Remove Webhook (dropped in V2.55).
+3. Rebuild the "Existing DAO Tests" table from
+   `find loom/db/jooq/src/test -name '*Test.java'` — it currently claims 35 classes;
+   there are 40 `*DaoTest` classes plus the cascade, component-key and search tests.
+   Note that `search_document` has no DAO: it is covered by `SearchDocumentLifecycleTest`,
+   `SearchDocumentSourceTest` and `SearchQueryBehaviourTest` under `.../jooq/search/`.
+4. Move `Permission` and `Loom` out of In-Progress/TODO (both are now covered);
+   keep AssetPool, Detection, Chat, AssetBinary, Role and VectorConfig there until the
+   tasks above land.
+```
+
+**References:** [PERSISTENCE.md](PERSISTENCE.md) §Progress Tracker, §Migration History; migrations `V2.51`–`V2.63`
+**Test Requirements:** None (documentation). Verify every table claim against `migration/`, `tables/` and `dao/` before writing it.
+
+---
+
+## Progress Assessment
+
+- [x] Asset-component coverage per modality (`V2.38`–`V2.45`)
+- [x] `LoomDao` + `LoomDaoTest`
+- [x] `PermissionDaoTest` fleshed out
+- [x] Cascade tests: Asset, ACL, Pipeline, Annotation, Person, Cluster/Collection, CortexInstance
+- [ ] `AssetPoolDaoTest`
+- [ ] `DetectionDaoTest`
+- [ ] `ChatDaoTest`
+- [ ] `AssetBinaryDaoTest` + resolve the `AssetBinaryDao`/`AssetLocationDao` duplication
+- [ ] `RoleDaoTest` (still an empty class)
+- [ ] `VectorConfigDao` stack
+- [ ] Asset remix operations + cascade test
+- [ ] Re-sync `PERSISTENCE.md` tracker to `V2.63`
+
+## Test Setup
+
+```bash
+# once, and again after EVERY Flyway change (install loom/db/flyway first, or the
+# pool silently keeps the old schema)
+./setup-pool.sh
+
+# run one DAO test
+mvn test -pl loom/db/jooq -Dtest=RoleDaoTest
+```
+
+`CRUDDaoTestcases` builds **1024** elements for its paging test — every entity's unique
+column must vary with `i`, or the create loop fails on a constraint violation.
+The provider pool is finite: a test class with 20+ methods can exhaust it and the last few
+methods error in `ProviderExtension.beforeEach` — that is pool capacity, not a regression.
+
+## Where do I find …?
+
+| Concept | Path |
+|---|---|
+| Migrations | `loom/db/flyway/src/main/resources/db/migration/` |
+| Model + DAO interfaces | `loom/db/api/src/main/java/io/metaloom/loom/db/model/<entity>/` |
+| jOOQ DAO implementations | `loom/db/jooq/src/main/java/io/metaloom/loom/db/jooq/dao/<entity>/` |
+| Generated jOOQ tables | `loom/db/jooq/src/jooq/java/io/metaloom/loom/db/jooq/tables/` |
+| DAO tests | `loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/dao/` |
+| Permission tests | `loom/db/jooq/src/test/java/io/metaloom/loom/db/perm/` |
+| Search index tests | `loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/search/` |
+| DI registration | `DaoCollection`, `DaoCollectionImpl`, `JooqLoomDaoBindModule` |
+
+_Git HEAD revision: `2e5981cb`_
+_Last updated: 2026-08-01 (verified every gap against `V1`–`V2.63`; collapsed the closed component and cascade gaps to one-line records and left eight open tasks)_

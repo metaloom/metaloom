@@ -1,370 +1,317 @@
 # MetaLoom // Loom REST API Specification
 
-> This document is a living specification for the Loom REST API. It is intended
-> to be consumed by AI agents and developers who need to understand, extend, or
-> integrate with the API. The progress checklist at the end tracks areas that
-> still need improvement.
+> **Audience: AI coding agents.** The HTTP surface of the Loom server: conventions, authentication,
+> the complete endpoint inventory, the client, and OpenAPI generation.
+>
+> **Not here — cross-referenced instead:**
+> | Topic | Spec |
+> |-------|------|
+> | Permission taxonomy, RBAC model, enforcement gaps | [../features/permissions/PERMISSIONS.md](../features/permissions/PERMISSIONS.md) |
+> | Binary byte routes, storage backends, `Range` support | [../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) |
+> | WebSocket protocols, message vocabulary, WS auth | [WEBSOCKET.md](WEBSOCKET.md) |
+> | GraphQL schema | [GRAPHQL.md](GRAPHQL.md) |
+> | MCP server (separate port 4041) | [MCP.md](MCP.md) |
+> | Pipeline execution semantics | [../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) |
+> | Search backends and query syntax | [../features/search/SEARCH.md](../features/search/SEARCH.md) |
+> | Chat SSE event vocabulary | [ui/CHAT.md](ui/CHAT.md) §4.2 |
+> | Published spec on the website | [../website/WEBSITE.md](../website/WEBSITE.md) |
 
 ---
 
-## 1. General Principles
+## 1. Request Flow
 
-### 1.1 API Versioning
+```mermaid
+flowchart LR
+    C[Client] --> V[Vert.x Router]
+    V --> CORS[CorsHandler]
+    CORS --> BH["BodyHandler<br/>bodyLimit = -1"]
+    BH --> AUTH["LoomAuthenticationHandler<br/>(only on secure() paths)"]
+    AUTH --> R["ApiRoute handler<br/>(LoomRoutingContext)"]
+    R --> S["*EndpointService<br/>requirePerm + DAO"]
+    S --> MB[LoomModelBuilder]
+    MB --> RESP[JSON response]
+    R -.failure.-> FH[ServerFailureHandler]
+    V -.no match.-> FH
+```
 
-- All REST endpoints are mounted under the `/api/v1` path prefix
-  (`RESTConstants.API_V1_PATH`).
-- The current version is v1. There is no v2 yet.
-- The OpenAPI spec is served at `/api/v1/openapi` (YAML), `/api/v1/openapi.yaml`
-  and `/api/v1/openapi.json`; the API info endpoint is at `/api/v1`
-  (`RESTInfoEndpoint`).
-
-### 1.2 HTTP Methods
-
-| Method   | Usage                                                        |
-|----------|--------------------------------------------------------------|
-| `GET`    | List (collection) or load (single) resources                |
-| `POST`   | Create a resource **or** update a resource (`POST /resource/:uuid` is the update mechanism on all endpoints) |
-| `DELETE` | Delete a resource                                           |
-| `OPTIONS`| CORS preflight (handled by CorsHandler)                     |
-| `PATCH`  | Partial update — `PATCH /resource/:uuid` (User, Group, Asset only)     |
-| `PUT`    | Full replace — `PUT /resource/:uuid` (User, Group, Asset only)         |
-
-> **Note:** `POST /resource/:uuid` remains the update mechanism on **all**
-> endpoints and is retained for backward compatibility. `PUT` and `PATCH` are a
-> pilot on the User, Group and Asset endpoints; the remaining endpoints are
-> follow-up work.
-
-**PATCH** is semantically identical to `POST /resource/:uuid` — only the fields
-present in the request body are modified. It shares the same service call.
-
-**PUT** uses the same service call but is preceded by a completeness check: the
-request body must carry **every** replaceable field of the request model.
-Violations are rejected with **400** and a `GenericMessageResponse` naming the
-missing fields. Note that PUT does *not* null out absent fields — the check
-rejects an incomplete body rather than performing a destructive replace.
-
-- A field which is **present but `null`** counts as present (an explicit null
-  clears the field). Only **absent** fields are rejected.
-- Which fields are required is derived from the Jackson introspection of the
-  request model; properties annotated `@ReplaceOptional` opt out. See §6.5.
-- **Java client caveat:** `LoomJson.mapper` is configured with
-  `Include.NON_NULL`, so the Java client omits null fields on the wire. A client
-  PUT therefore only passes validation if every required field is set to a
-  non-null value, and the Java client cannot send an explicit `null` to clear a
-  field via PUT. Raw HTTP clients can.
-
-### 1.3 Content Types
-
-- Request and response bodies use `application/json` (defined in
-  `HTTPConstants.APPLICATION_JSON`).
-- The OpenAPI spec endpoint returns `text/vnd.yaml`.
-- Binary uploads (attachments) use `multipart/form-data`.
-- WebSocket endpoints use the standard WS upgrade protocol.
-
-### 1.4 Response Codes
-
-| Code | Meaning                                                        |
-|------|---------------------------------------------------------------|
-| 200  | OK - successful load, update, or list                        |
-| 201  | Created - successful create                                   |
-| 204  | No Content - successful delete                                |
-| 400  | Bad Request - validation error or bad path/query params      |
-| 403  | Forbidden - missing permissions (`MISSING_PERM`)             |
-| 404  | Not Found - resource does not exist                          |
-| 500  | Internal Server Error                                        |
-| 503  | Service Unavailable - e.g. no processor available for pipeline run |
-| 4401 | WebSocket close code - unauthorized (custom close code)      |
-
-Error responses use `GenericMessageResponse` with a `message` field.
-
-### 1.5 ID Format
-
-- Most resources use UUID identifiers (`:uuid` path parameter).
-- Assets additionally support SHA-512 hash-based identifiers via
-  `/assets/sha512/:sha512`.
-- The `AssetId` type in the client encapsulates both forms.
-
-### 1.6 Query Parameters (List Endpoints)
-
-List endpoints (`addListRoute`) support the following query parameters
-(defined in `QueryParameterKey`):
-
-| Parameter | Key     | Type    | Default | Description                              |
-|-----------|---------|---------|---------|------------------------------------------|
-| Limit     | `limit` | Integer | 25      | Maximum number of items per page         |
-| From      | `from`  | UUID    | null    | Seek to the element with the given UUID  |
-| Filter    | `filter`| String  | null    | LHS filter expression (e.g. `name[eq]=joedoe`) |
-| Sort      | `sort`  | String  | null    | Sort field name                          |
-| Direction | `dir`   | Enum    | ASC     | Sort direction (`ASCENDING` or `DESCENDING`) |
-
-### 1.7 OpenAPI Spec Generation
-
-- The `RESTInfoEndpoint` serves the OpenAPI spec at `GET /api/v1/openapi`
-  (YAML), `/api/v1/openapi.yaml` and `/api/v1/openapi.json`. The advertised
-  server URL is derived from the request (honouring `X-Forwarded-Proto/Host`)
-  so a spec viewer talks back to the server the document came from.
-- `LoomOpenAPI` generates the spec programmatically, without a database: it
-  builds a throw-away `ApiRouter`, registers **every** endpoint of the rest
-  module on it (constructed with null services — `register()` never dereferences
-  one) and runs the external `io.metaloom.vertx.openapi.OpenAPIGenerator` over
-  it. Endpoints living outside the rest module (chat, chat sessions, session
-  files, memory, memory deny rules — all in `loom/agent/*`, which depends on
-  rest) are passed in through an extra-endpoint factory; `loom/doc` does that.
-- The raw output of the external generator is only a route dump, so
-  `LoomOpenAPI#polish` post-processes it:
-  - Vert.x `:uuid` paths become OpenAPI `{uuid}` templates, with the path
-    parameters declared (UUID format, SHA-512 pattern, integer versions).
-  - Operations get a tag (derived from the first path segment below `/api/v1`,
-    described from a table), a summary and an `operationId`.
-  - `bearerAuth` (JWT) and `cookieAuth` (`__Host-loom_token`) security schemes
-    are declared and applied globally; `login`, the OAuth2 routes, `health` and
-    the spec routes opt out with an empty `security` list.
-  - The standard 400/401/403/404/500 error responses are filled in against a
-    `GenericMessageResponse` schema, unless the route already documents them.
-  - Route examples are inlined as real JSON instead of encoded strings.
-  - Paths are sorted so the generated document is stable across runs.
-- Routes are registered via `ApiRouter` which supports description, request/
-  response examples, and query parameter documentation. Each route is registered
-  with a description string, optional request example, and optional response
-  example. `AbstractEndpoint#addRoute` sets the description **on the route** —
-  setting it on the router instead leaves every operation undocumented.
-- `LoomOpenAPITest` guards generation, coverage and each polish step.
-- `loom/doc`'s `OpenAPIGenerator` writes `openapi.json` + `openapi.yaml` into
-  `loom/doc/src/main/generated/`; both are staged into the website (see
-  [../website/WEBSITE.md](../website/WEBSITE.md)), where they are offered for
-  download and rendered in an embedded API explorer.
-
-### 1.8 CORS
-
-- CORS is configured in `RESTService.setupRouter()` with `CorsHandler.create()`
-  allowing all origins (`.*` regex), methods GET/POST/PUT/DELETE/PATCH/OPTIONS,
-  and headers `Content-Type`, `Authorization`, `Accept`.
-- `allowCredentials(true)` is set.
-
-### 1.9 Body Handling
-
-- `BodyHandler.create().setBodyLimit(-1)` is configured globally, meaning
-  there is **no body size limit**. This is intentional for large binary uploads
-  but should be noted for security considerations.
-
-### 1.10 Failure Handling
-
-- `ServerFailureHandler` handles all routing failures.
-- `ValidationException` results in HTTP 400.
-- `LoomRestException` results in the HTTP code specified in the exception.
-- All other exceptions result in HTTP 500 with "Internal Server Error".
-- 404 handler returns a JSON error message with the normalized path.
+Per request a fresh Dagger `RestComponent` scope is built
+(`restComponentProvider.get().context(rc).build()`).
 
 ---
 
-## 2. Authentication
+## 2. Conventions
 
-### 2.1 JWT-Based Authentication
+### 2.1 Versioning and paths
 
-- The REST API uses JWT (JSON Web Tokens) for authentication.
-- The `LoomAuthenticationHandler` (a Vert.x `Handler<RoutingContext>`) is
-  applied to secured paths via `secure(path)` in `AbstractEndpoint`.
-- Secured paths use a wildcard pattern, e.g. `secure(basePath() + "*")`.
-- The JWT token is set as an `HttpOnly`, `Secure`, `SameSite=STRICT` cookie
-  named per `AuthenticationOptions.TOKEN_COOKIE_KEY`.
-- Token expiration is configurable via `AuthenticationOptions.getTokenExpirationTime()`.
+- Everything is mounted under `/api/v1` (`RESTConstants.API_V1_PATH`). There is no v2.
+- **Method-carrying paths are plural** (`/users`, `/chat-sessions`, `/dedup-groups`), per
+  [../guidelines/CODING.md](../guidelines/CODING.md). Two structural exceptions that are *not*
+  collections: `/api/v1/pipeline/node-descriptors` + `/api/v1/pipeline/content-types` (a `pipeline`
+  namespace segment), and `/assets/:uuid/binary` (a one-to-one sub-resource; `/binaries` is the
+  collection of all of them).
 
-### 2.2 Login Endpoint
+### 2.2 HTTP methods
 
-- **Path:** `POST /api/v1/login`
-- **Request:** `AuthLoginRequest` with `username` and `password` fields.
-- **Response:** `AuthLoginResponse` with `token` field.
-- On failure, returns 401 with `GenericMessageResponse` ("Login failed").
-- On success, sets the JWT cookie and returns the token in the response body.
+| Method | Usage |
+|--------|-------|
+| `GET` | List (collection) or load (single) |
+| `POST` | Create **and** update — `POST /resource/:uuid` is the update mechanism on **every** endpoint |
+| `PATCH` | Partial update — `/users/:uuid`, `/groups/:uuid`, `/assets/:uuid`, `/assets/sha512/:sha512`, `/dedup-groups/:uuid` |
+| `PUT` | Full replace — `/users/:uuid`, `/groups/:uuid`, `/assets/:uuid`, `/assets/sha512/:sha512`. Also used non-CRUD on `/processors/:uuid/restrictions`, `/chat-sessions/:uuid/context`, `/memory/entry` (upsert) |
+| `DELETE` | Delete |
+| `OPTIONS` | CORS preflight (`CorsHandler`) |
 
-### 2.3 OAuth2 (BFF Pattern)
+`POST /resource/:uuid` is retained for backward compatibility and is the only update verb on the
+remaining endpoints; rolling PUT/PATCH out further is open work (§7.3).
 
-- **Base path:** `/api/v1/auth/oauth2`
-- Implements the BFF (Backend-For-Frontend) pattern per
-  draft-ietf-oauth-browser-based-apps-21.
-- **Endpoints:**
-  - `GET /api/v1/auth/oauth2/login` - Initiates the OAuth2 flow with PKCE.
-    Redirects browser to IdP authorization endpoint.
-  - `GET /api/v1/auth/oauth2/callback` - Handles the callback from the IdP,
-    exchanges the authorization code for tokens, resolves/creates the user,
-    and sets the Loom JWT cookie.
-  - `GET /api/v1/auth/oauth2/logout` - Clears the session cookie.
-- **PKCE:** Uses S256 code challenge. PKCE verifier and state are stored in
-  `__Host-` prefixed HttpOnly cookies with 10-minute expiry.
-- **State validation:** CSRF protection via state parameter matching.
-- **Auto-provisioning:** If the OAuth2 user does not exist in the database,
-  a new SSO user is automatically created.
+**PATCH** is semantically identical to `POST /resource/:uuid` — only present fields change, same
+service call.
 
-### 2.4 API Tokens
+**PUT** uses the same service call behind a completeness check (`ReplaceValidator`, wired via
+`AbstractEndpoint.replaceHandler(Class, Handler)` → `LoomRoutingContext.requireFullBody(Class)`):
 
-- **Path:** `/api/v1/tokens`
-- CRUD endpoints for managing API tokens (create, list, load, update, delete).
-- Tokens are generated with `StringUtils.randomHumanString(8)`.
-- Token operations require specific permissions:
-  `CREATE_TOKEN`, `READ_TOKEN`, `UPDATE_TOKEN`, `DELETE_TOKEN`.
+- The body must carry **every** replaceable JSON property of the request model; missing ones are
+  rejected **400** with a `GenericMessageResponse` naming them. PUT does *not* null out absent
+  fields — it refuses the request instead.
+- A field **present but `null`** counts as present (explicit clear). Only **absent** fields fail.
+- Required properties are derived from Jackson introspection (so `@JsonProperty` renames and
+  accessor-less fields such as `AssetUpdateRequest.dominantColor` are handled). `@ReplaceOptional`
+  opts a property out — `AssetUpdateRequest` uses it for the kind-specific blocks (`image`, `video`,
+  `audio`, `document`, `geo`, `timeline`, `s3`, `consistency`, `fingerprint`).
+- The check runs against the **raw** `JsonObject`, not the parsed model.
+- **Java client caveat:** `LoomJson.mapper` uses `Include.NON_NULL`, so the Java client drops null
+  fields on the wire — it can never send an explicit `null` via PUT. Raw HTTP clients can.
 
-### 2.5 WebSocket Authentication
+### 2.3 Content types, IDs, responses
 
-- WebSocket endpoints use a `?token=<jwt>` query parameter for authentication,
-  validated by `WebSocketAuthenticator` after the WS upgrade completes.
-- Invalid tokens result in close code `4401`.
-- Strict mode (`LOOM_WS_STRICT_AUTH=true`) requires a token on every connection.
-- See [WEBSOCKET.md](WEBSOCKET.md) for full details on WebSocket authentication,
-  message protocols, and connection lifecycle.
+| Aspect | Value |
+|--------|-------|
+| Bodies | `application/json` (`HTTPConstants.APPLICATION_JSON`) |
+| OpenAPI YAML | `text/vnd.yaml` (`HTTPConstants.TEXT_YAML`); `/openapi.json` is JSON |
+| Uploads | `multipart/form-data`, file part named `file` |
+| IDs | `:uuid` path param; assets additionally `/assets/sha512/:sha512` (client type `AssetId`) |
+| Pipeline versions | `:version` is an **integer**, not a UUID |
 
-### 2.6 Permissions
+| Code | Meaning |
+|------|---------|
+| 200 | OK — load, update, list |
+| 201 | Created |
+| 202 | Accepted — pipeline run dispatched |
+| 204 | No Content — delete |
+| 206 | Partial Content — `Range` byte download |
+| 400 | Validation error, bad path/query params, incomplete PUT body |
+| 401 | Login failed / unauthenticated |
+| 403 | `MISSING_PERM` |
+| 404 | Not found |
+| 409 | Conflict — run already active, pause/resume state clash, memory entry exists, forgetting an online worker |
+| 500 | Internal error |
+| 503 | No processor accepts the source node kind |
+| 4401 | WebSocket close code — unauthorized |
 
-- Permission checks are performed via `lrc.requirePerm(Permission...)` which
-  uses Vert.x's `PermissionBasedAuthorization`.
-- Each CRUD operation maps to a specific permission (e.g. `CREATE_USER`,
-  `READ_USER`, `UPDATE_USER`, `DELETE_USER`).
-- Missing permissions result in HTTP 403 with `MISSING_PERM` error code.
-- Permissions are global per type; the stored `resource` value is not enforced.
-- See [PERMISSION.md](PERMISSION.md) for the RBAC model, the permission
-  taxonomy, and known gaps in enforcement.
+Errors use `GenericMessageResponse` (`message` only — the `LoomRestErrorCode` is **not** in the body).
+
+### 2.4 List query parameters
+
+Registered by `addListRoute` (keys in `QueryParameterKey`):
+
+| Parameter | Key | Type | Default | Description |
+|-----------|-----|------|---------|-------------|
+| Limit | `limit` | Integer | 25 | Page size |
+| From | `from` | UUID | null | Seek to the element with this UUID |
+| Filter | `filter` | String | null | LHS filter, e.g. `name[eq]=joedoe` |
+| Sort | `sort` | String | null | Sort field |
+| Direction | `dir` | Enum | ASC | `ASCENDING` / `DESCENDING` |
+
+`addSearchRoute` registers a **disjoint** parameter set for `/search/*` (query + paging) — it is not
+the list parameter set.
+
+### 2.5 Router configuration (`RESTService.setupRouter()`)
+
+- `CorsHandler.create()` — all origins (`.*`), methods GET/POST/PUT/DELETE/PATCH/OPTIONS, headers
+  `Content-Type`/`Authorization`/`Accept`, `allowCredentials(true)`.
+- `BodyHandler.create().setBodyLimit(-1)` — **no body size limit** (intentional for large uploads).
+- `ServerFailureHandler` — `ValidationException` → 400, `LoomRestException` → its own code,
+  everything else → 500. The 404 handler returns JSON with the normalized path.
 
 ---
 
-## 3. Endpoint Reference
+## 3. Authentication
 
-### 3.1 CRUD Endpoints (Standard Pattern)
+| Mechanism | Detail |
+|-----------|--------|
+| JWT bearer | `Authorization: Bearer <token>` |
+| JWT cookie | `__Host-loom_token` (`AuthenticationOptions.TOKEN_COOKIE_KEY`), `HttpOnly`, `Secure`, `SameSite=STRICT`; expiry from `AuthenticationOptions.getTokenExpirationTime()` |
+| Handler | `LoomAuthenticationHandler`, applied per path by `AbstractEndpoint.secure(path)` — usually `secure(basePath() + "*")` |
+| WebSocket | `?token=<jwt>` validated **after** upgrade by `WebSocketAuthenticator`; close code `4401`. `LOOM_WS_STRICT_AUTH=true` requires a token on every connection |
+| Permissions | `lrc.requirePerm(Permission...)` → Vert.x `PermissionBasedAuthorization`; 403 `MISSING_PERM`. Permissions are global per type — the stored `resource` value is not enforced. See [../features/permissions/PERMISSIONS.md](../features/permissions/PERMISSIONS.md) |
 
-Most resource endpoints follow a standard CRUD pattern:
+**Login** — `POST /api/v1/login`, body `AuthLoginRequest{username,password}` → `AuthLoginResponse{token}`;
+also sets the cookie. Failure: 401 `GenericMessageResponse`.
 
-| Operation          | Method | Path                       | Availability          |
-|--------------------|--------|----------------------------|-----------------------|
-| Create             | POST   | `/api/v1/{resource}`       | all endpoints         |
-| List               | GET    | `/api/v1/{resource}`       | all endpoints         |
-| Load               | GET    | `/api/v1/{resource}/:uuid` | all endpoints         |
-| Update             | POST   | `/api/v1/{resource}/:uuid` | all endpoints         |
-| Update (partial)   | PATCH  | `/api/v1/{resource}/:uuid` | users, groups, assets |
-| Replace (full)     | PUT    | `/api/v1/{resource}/:uuid` | users, groups, assets |
-| Delete             | DELETE | `/api/v1/{resource}/:uuid` | all endpoints         |
+**API tokens** — `/api/v1/tokens` CRUD (`CREATE_TOKEN`, `READ_TOKEN`, `UPDATE_TOKEN`, `DELETE_TOKEN`).
+Token values are generated with `StringUtils.randomHumanString(8)`.
 
-### 3.2 Endpoint Inventory
+**OAuth2 BFF + PKCE** (`OAuth2Endpoint`, base `/api/v1/auth/oauth2`, per
+draft-ietf-oauth-browser-based-apps-21):
 
-| Endpoint                | Base Path                              | Methods                  | Notes                                      |
-|-------------------------|----------------------------------------|--------------------------|--------------------------------------------|
-| Login                   | `/api/v1/login`                        | POST                     | Username/password login, sets JWT cookie   |
-| OAuth2                  | `/api/v1/auth/oauth2`                  | GET (login/callback/logout) | BFF pattern with PKCE                  |
-| Me                      | `/api/v1/me`                           | GET                      | The currently authenticated user           |
-| Health                  | `/api/v1/health`                       | GET                      | Status, version and DB connectivity (unsecured) |
-| User                    | `/api/v1/users`                        | GET, POST, PUT, PATCH, DELETE        | Standard CRUD                              |
-| Role                    | `/api/v1/roles`                        | GET, POST, DELETE        | Standard CRUD                              |
-| Group                   | `/api/v1/groups`                       | GET, POST, PUT, PATCH, DELETE        | Standard CRUD (list uses `addRoute` not `addListRoute`) |
-| Token                   | `/api/v1/tokens`                       | GET, POST, DELETE        | API token management                       |
-| Person                  | `/api/v1/persons`                      | GET, POST, DELETE        | Standard CRUD                              |
-| Space                   | `/api/v1/spaces`                       | GET, POST, DELETE        | Standard CRUD                              |
-| Library                 | `/api/v1/libraries`                    | GET, POST, DELETE        | Standard CRUD                              |
-| Collection              | `/api/v1/collections`                  | GET, POST, DELETE        | Standard CRUD                              |
-| Tag                     | `/api/v1/tags`                         | GET, POST, DELETE        | Standard CRUD                              |
-| Task                    | `/api/v1/tasks`                        | GET, POST, DELETE        | CRUD + reaction sub-resources              |
-| Comment                 | `/api/v1/comments`                     | GET, POST, DELETE        | CRUD + reaction sub-resources              |
-| Annotation              | `/api/v1/annotations`                  | GET, POST, DELETE        | CRUD + reaction + task sub-resources       |
-| Annotation Tasks        | `/api/v1/annotations/:annotationUuid/tasks` | GET, POST, DELETE   | Assign/unassign existing tasks             |
-| Reaction                | `/api/v1/reactions`                    | GET, DELETE              | List, load, delete + asset-scoped reactions |
-| Blacklist               | `/api/v1/blacklists`                   | GET, POST, DELETE        | Standard CRUD                              |
-| Agent Memory            | `/api/v1/memory`                       | GET                      | Scoped notes; nested ids travel as `?id=` (see `/memory/entry`) |
-| Agent Memory Scopes     | `/api/v1/memory/scopes`                | GET                      | The caller's scopes with usage and quota   |
-| Agent Memory Entry      | `/api/v1/memory/entry`                 | GET, POST, PUT, DELETE   | `?scope=&ref=&id=`; POST is create (409 on conflict), PUT upserts |
-| Memory Deny Rule        | `/api/v1/memory-deny-rules`            | GET, POST, DELETE        | Admin CRUD for the memory denylist; own `*_MEMORY_DENY_RULE` permissions |
-| Chat                    | `/api/v1/chats`                        | GET, POST, DELETE        | Standard CRUD                              |
-| Chat Agent Stream (SSE) | `/api/v1/chats/:uuid/stream`           | POST, DELETE             | POST runs the chat agent for a new user message and streams the run as Server-Sent Events (event vocabulary in [ui/CHAT.md](ui/CHAT.md) §4.2); DELETE cancels the active run (204). Body: `{message, skillUuids[], think?}`. 409 when a run is already active. |
-| Chat Session            | `/api/v1/chat-sessions`                | GET, POST, PUT, DELETE   | Publishable snapshots of a chat's working state + `/:uuid/publish`, `/:uuid/unpublish`, `/:uuid/context` |
-| Session Files           | `/api/v1/sessions/:uuid/{files,download,preview}` | GET            | Read-only view of a chat's coding sandbox workspace |
-| Skill                   | `/api/v1/skills`                       | GET, POST, DELETE        | Owner-scoped CRUD (users only ever see their own skills) + `/library` (GET, published skills of all users) + `/:uuid/install` (POST, copy a published skill into the callers set with `originSkillUuid` provenance) |
-| Cluster                 | `/api/v1/clusters`                     | GET, POST, DELETE        | Standard CRUD                              |
-| Embedding               | `/api/v1/embeddings`                   | GET, POST, DELETE        | CRUD + attachment sub-resources            |
-| Pipeline                | `/api/v1/pipelines`                    | GET, POST, DELETE        | CRUD + `/:uuid/run` (POST) for execution   |
-| Pipeline Versions       | `/api/v1/pipelines/:uuid/versions`     | GET, POST                | Version history + `/:version/restore` (POST) |
-| Pipeline Events (WS)    | `/api/v1/pipelines/events/ws`          | WebSocket                | Live pipeline event stream                 |
-| Processor               | `/api/v1/processors`                   | GET, WebSocket           | List/load processors + WS for processor nodes |
-| Node Descriptors        | `/api/v1/pipeline/node-descriptors`    | GET                      | Pipeline node descriptor registry          |
-| Content Types           | `/api/v1/pipeline/content-types`       | GET                      | Content type catalog                       |
-| Asset                   | `/api/v1/assets`                       | GET, POST, PUT, PATCH, DELETE        | CRUD + SHA-512 lookup + bulk + sub-resources |
-| Asset (SHA-512)         | `/api/v1/assets/sha512/:sha512`        | GET, POST, PUT, PATCH, DELETE        | Hash-based asset operations                |
-| Asset Bulk              | `/api/v1/assets/bulk/create`           | POST                     | Bulk create assets                         |
-| Asset Bulk              | `/api/v1/assets/bulk/update`           | POST                     | Bulk update assets                         |
-| Asset Tags              | `/api/v1/assets/:uuid/tags`            | POST, DELETE             | Tag/untag an asset                         |
-| Asset Tasks             | `/api/v1/assets/:uuid/tasks`           | GET, POST, DELETE        | Assign/unassign existing tasks             |
-| Asset Reactions         | `/api/v1/assets/:uuid/reactions`       | GET, POST, DELETE        | Reactions on assets                        |
-| Asset Detections        | `/api/v1/assets/:uuid/detections`      | GET, POST, DELETE        | Detections on assets + bulk create         |
-| Asset Transcripts       | `/api/v1/assets/:uuid/transcripts`     | GET, POST, DELETE        | Transcripts on assets                      |
-| Asset Binary            | `/api/v1/assets/:uuid/binary`          | GET, POST, DELETE        | The asset's **primary** binary (metadata)  |
-| Asset Binaries          | `/api/v1/assets/:uuid/binaries`        | GET                      | Every binary — one per library             |
-| Asset Binary Data       | `/api/v1/assets/:uuid/binary/data`     | GET, POST                | **Raw bytes**; GET supports `Range`        |
-| Asset Upload            | `/api/v1/assets/upload`                | POST                     | **Raw bytes**, multipart; creates an asset |
-| Asset Components        | `/api/v1/assets/:assetUuid/components` | GET, POST, DELETE        | Components for an asset                    |
-| Asset Pool              | `/api/v1/pools`                        | GET, POST, DELETE        | Standard CRUD                              |
-| Binary                  | `/api/v1/binaries`                     | GET, POST, DELETE        | Standalone binary CRUD                     |
-| Attachment              | `/api/v1/attachments`                  | GET, POST, DELETE        | Derived binaries; POST is multipart        |
-| Attachment Data         | `/api/v1/attachments/:uuid/data`       | GET                      | **Raw bytes** of an attachment             |
-| GraphQL                 | `/api/v1/graphql`                      | POST                     | GraphQL query endpoint                     |
-| REST Info               | `/api/v1`                              | GET                      | API info + OpenAPI spec                    |
-| REST OpenAPI            | `/api/v1/openapi`                      | GET                      | OpenAPI YAML spec                          |
+| Route | Behaviour |
+|-------|-----------|
+| `GET /login` | Starts the flow, redirects to the IdP authorization endpoint |
+| `GET /callback` | Validates `state`, exchanges the code, resolves/auto-provisions the SSO user, sets the Loom JWT cookie |
+| `GET /logout` | Clears the session cookie (does **not** revoke IdP tokens) |
 
-### 3.3 Asset Endpoint Detail
+PKCE uses an S256 challenge; verifier and state live in `__Host-`-prefixed `HttpOnly` cookies with a
+10-minute expiry. State matching provides CSRF protection.
 
-The asset endpoint is the most complex, supporting:
+---
 
-- Standard CRUD by UUID
-- CRUD by SHA-512 hash (`/assets/sha512/:sha512`)
-- Bulk create (`/assets/bulk/create`) and bulk update (`/assets/bulk/update`)
-- Sub-resources:
-  - Tags: `/assets/:uuid/tags`, `/assets/:uuid/tags/:tagUuid`
-  - Tasks: `/assets/:uuid/tasks` (GET paged list), `/assets/:uuid/tasks/:taskUuid` (POST assign, DELETE unassign)
-  - Reactions: `/assets/:uuid/reactions`, `/assets/:uuid/reactions/:reactionUuid`
-  - Detections: `/assets/:uuid/detections`, `/assets/:uuid/detections/:detectionUuid`, `/assets/:uuid/detections/bulk`
-  - Transcripts: `/assets/:uuid/transcripts`, `/assets/:uuid/transcripts/:transcriptUuid`
-  - Binary: `/assets/:uuid/binary` (primary), `/assets/:uuid/binaries` (all), `/assets/:uuid/binary/data` (bytes)
+## 4. Endpoint Inventory
 
-> Everything about binary handling — the byte routes, filesystem vs. S3 backends, the storage layout
-> and `Range` support — lives in
-> [../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md), not here.
+All paths are relative to `/api/v1`. "Class" is under
+`loom/services/rest/.../rest/endpoint/impl/` unless marked `agent/`.
 
-### 3.4 Pipeline Run Endpoint
+### 4.1 Unsecured (no `secure()` call)
 
-- `POST /api/v1/pipelines/:uuid/run` - Triggers execution of a pipeline.
-- Selects a processor, creates a `pipeline_run` row, builds a `PipelineRunEngine`,
-  and dispatches a `SOURCE_TASK` to the worker; the engine then drives the run via
-  `NODE_TASK`s.
-- Returns `PipelineRunResponse` with `runUuid`, `dispatched` flag, and
-  `processorNodeId`.
-- Returns 202 (Accepted) on success, 400 if the definition cannot run as drawn,
-  503 if no processor accepts the source node's kind.
+| Path | Methods | Class | Notes |
+|------|---------|-------|-------|
+| `/login` | POST | `LoginEndpoint` | Pre-auth by design |
+| `/auth/oauth2/{login,callback,logout}` | GET | `OAuth2Endpoint` | Pre-auth by design |
+| `/health` | GET | `HealthEndpoint` | `HealthCheckResponse{status,version,timestamp,database}`; `DEGRADED` when the DB probe fails |
+| `/` (`/api/v1`) | GET | `RESTInfoEndpoint` | `RESTInfoResponse` — server version, applied DB revision, last-used timestamp (read off the event loop) |
+| `/openapi`, `/openapi.yaml` | GET | `RESTInfoEndpoint` | OpenAPI YAML |
+| `/openapi.json` | GET | `RESTInfoEndpoint` | Same document as JSON |
+| `/pipeline/node-descriptors` | GET | `NodeDescriptorEndpoint` | All node descriptors + content types (combined UI response) |
+| `/pipeline/node-descriptors/:kind` | GET | `NodeDescriptorEndpoint` | One descriptor |
+| `/pipeline/content-types` | GET | `NodeDescriptorEndpoint` | Content type catalog |
+| `/processors/ws` | WS | `ProcessorEndpoint` | Post-upgrade token auth |
+| `/pipelines/events/ws` | WS | `PipelineEventEndpoint` | Post-upgrade token auth, `order(-1000)` |
 
-`PipelineRunRequest` narrows what the source enumerates. Precedence, most specific
-first: `mediaUuids` > `pathGlobs` > `path`. `path` is a single root that enables the
-source node's differential index-backed scan; `pathGlobs` forces a full re-walk. The
-merge lives in `SourceOptionsResolver` — see
-[../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) §12.
+### 4.2 Standard CRUD endpoints
 
-#### Run control
+Pattern: `POST /x` create · `GET /x` list · `GET /x/:uuid` load · `POST /x/:uuid` update ·
+`DELETE /x/:uuid` delete.
 
-- `POST /api/v1/pipelines/:uuid/runs/:runUuid/cancel` — terminal; cannot be undone.
-- `POST /api/v1/pipelines/:uuid/runs/:runUuid/pause` — `RUNNING` → `PAUSED`.
-- `POST /api/v1/pipelines/:uuid/runs/:runUuid/resume` — `PAUSED` → `RUNNING`.
+| Path | Class | Deviations / extras |
+|------|-------|---------------------|
+| `/users` | `UserEndpoint` | + `PATCH`, `PUT` on `/:uuid` |
+| `/roles` | `RoleEndpoint` | — |
+| `/groups` | `GroupEndpoint` | + `PATCH`, `PUT` on `/:uuid`; list uses `addRoute`, **not** `addListRoute` (no query-param docs) |
+| `/persons` | `PersonEndpoint` | — |
+| `/spaces` | `SpaceEndpoint` | — |
+| `/libraries` | `LibraryEndpoint` | — |
+| `/collections` | `CollectionEndpoint` | — |
+| `/blacklists` | `BlacklistEndpoint` | — |
+| `/clusters` | `ClusterEndpoint` | — |
+| `/chats` | `ChatEndpoint` | — |
+| `/pools` | `AssetPoolEndpoint` | Storage pools |
+| `/binaries` | `AssetBinaryEndpoint` | Standalone binary metadata CRUD |
+| `/tokens` | `TokenEndpoint` | API tokens (§3) |
+| `/tags` | `TagEndpoint` | + `/:uuid/rating` — POST, GET, DELETE (per-user tag rating) |
+| `/tasks` | `TaskEndpoint` | + `/:taskUuid/reactions` (POST, GET) and `/:taskUuid/reactions/:reactionUuid` (GET, POST, DELETE); + `/:taskUuid/comments` (POST, GET) |
+| `/comments` | `CommentEndpoint` | + `/:commentUuid/reactions` (POST, GET) and `/:commentUuid/reactions/:reactionUuid` (GET, POST, DELETE) |
+| `/annotations` | `AnnotationEndpoint` | + reactions like above under `/:annotationUuid/reactions`; + `/:annotationUuid/tasks` (GET) and `/:annotationUuid/tasks/:taskUuid` (POST assign, DELETE unassign) |
+| `/embeddings` | `EmbeddingEndpoint` | + `/:embeddingUuid/attachments` (POST, GET) — simplified `addRoute`, no examples |
+| `/memory-deny-rules` | `agent/` `MemoryDenyRuleEndpoint` | Admin CRUD for the memory denylist; own `*_MEMORY_DENY_RULE` permissions |
 
-All three require `UPDATE_PIPELINE_RUN` and return `GenericMessageResponse`.
+### 4.3 Non-CRUD and partial endpoints
 
-`PAUSED` is **non-terminal**: a paused run keeps its counters, holds its engine, and can
-be resumed or cancelled. Pausing stops node dispatch *and* withholds the source
-acknowledgement, so the scan itself halts.
+| Path | Methods | Class | Notes |
+|------|---------|-------|-------|
+| `/me` | GET | `MeEndpoint` | The authenticated user, as `UserResponse` |
+| `/graphql` | POST | `GraphQLEndpoint` | `{query, operationName?, variables?}`; secured via `secure(basePath())` |
+| `/reactions` | GET (list), GET/DELETE `/:uuid` | `ReactionEndpoint` | Plus asset-scoped `/reactions/assets/:assetUuid` (POST, GET) — a different shape from the `/assets/:uuid/reactions` sub-resource |
+| `/attachments` | POST (multipart), GET list, GET/POST/DELETE `/:uuid` | `AttachmentEndpoint` | Form fields: `assetUuid`, `embeddingUuid`, `type`, `poolUuid` |
+| `/attachments/:uuid/data` | GET | `AttachmentEndpoint` | Raw bytes (`addDownloadRoute`) |
+| `/skills` | POST, GET list, GET/POST/DELETE `/:uuid` | `SkillEndpoint` | Owner-scoped — a user only ever sees their own. Extras: `/library` (GET, published skills of all users), `/:uuid/install` (POST, copy a published skill with `originSkillUuid` provenance), `/:uuid/versions` (GET), `/:uuid/versions/:version` (GET), `/:uuid/versions/:version/restore` (POST) |
+| `/dedup-groups` | POST, GET, GET/PATCH/DELETE `/:uuid` | `DedupGroupEndpoint` | POST **upserts** the pending group for the same keep-asset + algorithm. `PATCH` confirms/rejects; only a CONFIRMED group is acted on by the apply node. No PUT |
+| `/similarity-index/rebuild` | POST | `SimilarityIndexEndpoint` | Rebuilds the fingerprint similarity index from stored components |
+| `/search/results` | GET | `SearchEndpoint` | Across assets, transcripts, tags, annotations, persons, collections, libraries, clusters |
+| `/search/assets` | GET | `SearchEndpoint` | Assets only |
+| `/search/suggestions` | GET | `SearchEndpoint` | Typeahead |
+| `/search/status` | GET | `SearchEndpoint` | Singleton status resource — answers 200 even when search is unavailable |
+| `/processors` | GET | `ProcessorEndpoint` | Live registrations merged with persisted-but-offline instances |
+| `/processors/:uuid` | GET, DELETE | `ProcessorEndpoint` | DELETE forgets a persisted instance; 409 while the worker is online. Requires `MANAGE_CORTEX_INSTANCE` |
+| `/processors/:uuid/restrictions` | PUT | `ProcessorEndpoint` | Node-kind whitelist/blacklist; `MANAGE_CORTEX_INSTANCE` |
+| `/memory` | GET | `agent/` `MemoryEndpoint` | Notes of a scope; nested ids travel as `?id=` |
+| `/memory/scopes` | GET | `agent/` `MemoryEndpoint` | The caller's scopes with usage and quota |
+| `/memory/entry` | GET, POST, PUT, DELETE | `agent/` `MemoryEndpoint` | `?scope=&ref=&id=`; POST creates (409 on conflict), PUT upserts |
+| `/chats/:uuid/stream` | POST, DELETE | `agent/` `ChatStreamEndpoint` | POST runs the chat agent for a new user message and streams it as SSE (body `{message, skillUuids[], think?}`; 409 when a run is already active). DELETE cancels the active run (204). Event vocabulary: [ui/CHAT.md](ui/CHAT.md) §4.2 |
+| `/chat-sessions` | POST, GET, GET/POST/DELETE `/:uuid` | `agent/` `ChatSessionEndpoint` | Publishable snapshots of a chat's working state. `?scope=mine\|published` on list. Extras: `/:uuid/publish` (POST), `/:uuid/unpublish` (POST), `/:uuid/context` (GET, PUT) |
+| `/sessions/:uuid/{files,download,preview}` | GET | `agent/` `SessionFsEndpoint` | Read-only view of a chat's coding sandbox workspace |
 
-Conflicts (409): pausing a run that is terminal or already paused; resuming a run that is
-not paused; resuming a run with no live engine on the server (which would otherwise create
-a run that nothing advances).
+### 4.4 Assets
 
-### 3.5 Pipeline Versions and the Flattened Pipeline Model
+`AssetEndpoint` is the largest surface. Root list uses `addRoute` (not `addListRoute`).
 
-Persistence keeps a pipeline and its versions as **two separate elements** — the
-`pipeline` and `pipeline_version` tables, with `pipeline.latest_version_uuid`
-pointing at the current revision. Every mutation (create, update, restore)
-appends a new `pipeline_version` row rather than editing one in place.
+| Path | Methods | Notes |
+|------|---------|-------|
+| `/assets` | POST, GET | Create, list |
+| `/assets/:uuid` | GET, POST, PATCH, PUT, DELETE | PUT is `ReplaceValidator`-backed |
+| `/assets/sha512/:sha512` | GET, POST, PATCH, PUT, DELETE | Same operations keyed by hash |
+| `/assets/bulk/create` | POST | Literal prefix — registered before the `:uuid` wildcard |
+| `/assets/bulk/update` | POST | ″ |
+| `/assets/upload` | POST | Multipart, creates an asset from raw bytes |
+| `/assets/:uuid/tags` · `/tags/:tagUuid` | POST · DELETE | Tag / untag |
+| `/assets/:uuid/tasks` · `/tasks/:taskUuid` | GET · POST, DELETE | Assign / unassign existing tasks |
+| `/assets/:uuid/reactions` · `/reactions/:reactionUuid` | POST, GET · GET, POST, DELETE | |
+| `/assets/:uuid/comments` | POST, GET | |
+| `/assets/:uuid/detections` · `/detections/bulk` · `/detections/:detectionUuid` | POST, GET · POST · GET, POST, DELETE | |
+| `/assets/:uuid/transcripts` · `/transcripts/:transcriptUuid` | POST, GET · GET, POST, DELETE | |
+| `/assets/:uuid/node-results` · `/node-results/:nodeResultUuid` | POST, GET · GET, DELETE | Cortex node result ledger |
+| `/assets/:uuid/json-comps` · `/json-comps/:compUuid` | POST, GET · GET, DELETE | |
+| `/assets/:uuid/fingerprints` · `/fingerprints/:compUuid` | POST, GET · GET, DELETE | |
+| `/assets/:uuid/segments` · `/segments/:compUuid` | POST, GET · GET, DELETE | |
+| `/assets/:uuid/similar-assets` | GET | Fingerprint similarity lookup |
+| `/assets/:uuid/dedup-groups` | GET | Duplicate groups containing this asset |
+| `/assets/:assetUuid/components` · `/components/:compUuid` | GET, POST · GET, POST, DELETE | `AssetComponentEndpoint` (separate class) |
+| `/assets/:uuid/binary` | POST, GET, DELETE | The **primary** binary's metadata — an asset holds one binary per library it was imported into; GET returns the oldest |
+| `/assets/:uuid/binaries` | GET | Every binary, one per library |
+| `/assets/:uuid/binary/data` | POST, GET | **Raw bytes.** Upload is multipart (`libraryUuid` form field required when the asset has zero or >1 binaries, else 400). GET supports single-range `Range: bytes=` → 206 + `Content-Range` |
 
-The REST API deliberately **does not** mirror that split. There is a single
-`PipelineResponse` model that merges both halves, so a client never has to issue
-a second request just to learn a pipeline's name or definition:
+Byte routes, storage backends and the on-disk/S3 layout:
+[../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md).
+
+### 4.5 Pipelines
+
+`PipelineEndpoint` secures each path explicitly (no `*` wildcard) because of the literal-prefix
+routes.
+
+| Path | Methods | Notes |
+|------|---------|-------|
+| `/pipelines` | POST, GET | Create, paged list |
+| `/pipelines/:uuid` | GET, POST, DELETE | Delete removes all versions |
+| `/pipelines/runs/stats` | GET | Aggregated daily run stats across **all** pipelines. Literal prefix — registered before `:uuid` |
+| `/pipelines/:uuid/run` | POST | Trigger execution |
+| `/pipelines/:uuid/runs` | GET | Paged run history |
+| `/pipelines/:uuid/runs/:runUuid` | GET | One run |
+| `/pipelines/:uuid/runs/:runUuid/items` | GET | Paged items of a run |
+| `/pipelines/:uuid/runs/:runUuid/cancel` | POST | Terminal, cannot be undone |
+| `/pipelines/:uuid/runs/:runUuid/pause` | POST | `RUNNING` → `PAUSED` |
+| `/pipelines/:uuid/runs/:runUuid/resume` | POST | `PAUSED` → `RUNNING` |
+| `/pipelines/:uuid/versions` | GET | Paged history |
+| `/pipelines/:uuid/versions/:version` | GET | One historic version (`:version` is an int) |
+| `/pipelines/:uuid/versions/:version/restore` | POST | Copies into a **new** latest version, returns 201 |
+
+**Run.** `POST /:uuid/run` selects a processor, creates a `pipeline_run` row, builds a
+`PipelineRunEngine`, and dispatches a `SOURCE_TASK`; the engine then drives `NODE_TASK`s. Returns
+`PipelineRunResponse{runUuid, dispatched, processorNodeId}` — 202 on success, 400 if the definition
+cannot run as drawn, 503 if no processor accepts the source node's kind.
+
+`PipelineRunRequest` narrows what the source enumerates. Precedence, most specific first:
+`mediaUuids` > `pathGlobs` > `path`. `path` is a single root enabling the source node's
+differential index-backed scan; `pathGlobs` forces a full re-walk. Merge logic lives in
+`SourceOptionsResolver` — see [../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) §12.
+
+**Run control.** All three require `UPDATE_PIPELINE_RUN` and answer `GenericMessageResponse`.
+`PAUSED` is **non-terminal**: a paused run keeps its counters, holds its engine, and can be resumed
+or cancelled. Pausing stops node dispatch *and* withholds the source acknowledgement, so the scan
+itself halts. 409 on: pausing a terminal or already-paused run; resuming a run that is not paused;
+resuming a run with no live engine on the server (which would create a run nothing advances).
+
+**Flattened version model.** Persistence keeps `pipeline` and `pipeline_version` as two tables with
+`pipeline.latest_version_uuid` pointing at the current revision; every mutation appends a row rather
+than editing in place. The REST API deliberately does **not** mirror that split — one
+`PipelineResponse` merges both halves so a client never needs a second request:
 
 | Field | Meaning |
 |-------|---------|
@@ -373,416 +320,364 @@ a second request just to learn a pipeline's name or definition:
 | `versionNumber` | Sequential version number (1, 2, 3, …) |
 | `name`, `description`, `definition`, `enabled`, `priority`, `dryRun` | Version-scoped fields, served inline |
 | `meta` | Custom metadata |
-| `status` | Creator/editor info |
+| `status` | Creator/editor info (for version entries: the version's author) |
 
-The same flattened model is returned by every pipeline-shaped endpoint:
+List and load render from the latest version; the list resolves all versions in one batched query,
+so entries carry their definition without an N+1 lookup.
 
-- `GET /api/v1/pipelines` and `GET /api/v1/pipelines/:uuid` — rendered from the
-  latest version. The list resolves all versions in a single batched query, so
-  entries carry their definition without an N+1 lookup.
-- `POST /api/v1/pipelines` and `POST /api/v1/pipelines/:uuid` — rendered from the
-  version the call just created.
-- `GET /api/v1/pipelines/:uuid/versions` — paged history. Each entry keeps `uuid`
-  as the pipeline UUID and pins the revision via `versionUuid`/`versionNumber`;
-  the creator/editor status is that of the version's author.
-- `GET /api/v1/pipelines/:uuid/versions/:version` — one historic version.
-- `POST /api/v1/pipelines/:uuid/versions/:version/restore` — copies the named
-  version into a **new** latest version and returns the pipeline rendered from
-  it (201).
+### 4.6 WebSockets
 
-Deleting a pipeline removes all of its versions.
+| Path | Direction | Purpose |
+|------|-----------|---------|
+| `/processors/ws` | Bidirectional | Cortex processor nodes. Processor→loom: `REGISTER`, `HEARTBEAT`, `STATUS_UPDATE`, `STATE_CHANGE`, `SOURCE_ITEMS`, `SOURCE_COMPLETE`, `NODE_TASK_RESULT`, `PIPELINE_RUN_COMPLETED`, `PIPELINE_EVENT`. Loom→processor: `REGISTERED`, `HEARTBEAT_ACK`, `SOURCE_TASK`, `SOURCE_ITEMS_ACK`, `NODE_TASK`, `SEGMENT_TASK`, `ERROR` |
+| `/pipelines/events/ws` | Read-only | Live `PipelineEventMessage` stream for UI clients; optional `?pipeline=<name>` filter |
 
-### 3.6 WebSocket Endpoints
+Both authenticate via `?token=<jwt>` **after** the upgrade. Full protocol: [WEBSOCKET.md](WEBSOCKET.md).
 
-The REST API exposes two WebSocket endpoints. Full protocol details, message
-formats, authentication, and lifecycle are documented in
-[WEBSOCKET.md](WEBSOCKET.md).
+### 4.7 Outside `/api/v1`
 
-#### Processor WebSocket (`/api/v1/processors/ws`)
-
-- Bidirectional WebSocket for cortex processor nodes.
-- Messages: `REGISTER`, `HEARTBEAT`, `STATUS_UPDATE`, `STATE_CHANGE`,
-  `SOURCE_ITEMS`, `SOURCE_COMPLETE`, `NODE_TASK_RESULT`, `PIPELINE_RUN_COMPLETED`,
-  `PIPELINE_EVENT` (processor -> loom);
-  `REGISTERED`, `HEARTBEAT_ACK`, `SOURCE_TASK`, `SOURCE_ITEMS_ACK`, `NODE_TASK`,
-  `SEGMENT_TASK`, `ERROR` (loom -> processor).
-- Authentication via `?token=<jwt>` query parameter.
-
-#### Pipeline Events WebSocket (`/api/v1/pipelines/events/ws`)
-
-- Read-only WebSocket for UI clients to receive live pipeline tracking events.
-- Optional `?pipeline=<name>` filter to receive events for a specific pipeline.
-- Events are JSON-encoded `PipelineEventMessage` objects.
-- Authentication via `?token=<jwt>` query parameter.
-
-### 3.7 GraphQL Endpoint
-
-- `POST /api/v1/graphql` - Executes a GraphQL query.
-- Request body: JSON with `query`, optional `operationName`, optional `variables`.
-- Response: standard GraphQL JSON response.
-- Registered in `EndpointModule` and secured via `secure(basePath())`.
+The MCP server runs on its **own** HTTP server (port `4041`, REST is `6333`) with paths `/mcp/sse`,
+`/mcp/message`, `/mcp/ws`. It shares the DAOs but **not** the REST auth/permission layer.
+See [MCP.md](MCP.md).
 
 ---
 
-## 4. Monitoring Endpoints
+## 5. OpenAPI Generation
 
-### 4.1 REST Info
-
-- `GET /api/v1` - Returns API info (currently returns "not yet implemented").
-
-### 4.2 OpenAPI Spec
-
-- `GET /api/v1/openapi` and `/api/v1/openapi.yaml` - Returns the OpenAPI spec as
-  YAML (`text/vnd.yaml`).
-- `GET /api/v1/openapi.json` - The same document as JSON.
-- Generated dynamically from the registered routes of the running server via
-  `LoomOpenAPI#describe` (see §1.7), so it covers every endpoint the instance
-  actually serves — including the agent endpoints.
-
-### 4.3 Processor Status
-
-- `GET /api/v1/processors` - Lists all registered processor nodes with their
-  status, capabilities, and system info.
-- `GET /api/v1/processors/:uuid` - Loads a single processor by UUID.
-
-### 4.4 Node Descriptors
-
-- `GET /api/v1/pipeline/node-descriptors` - Lists all pipeline node descriptors
-  and content types (combined response for UI).
-- `GET /api/v1/pipeline/node-descriptors/:kind` - Loads a single descriptor by kind.
-- `GET /api/v1/pipeline/content-types` - Lists all content types.
-
-### 4.5 MCP Server (Separate Port)
-
-The MCP (Model Context Protocol) server runs on a **separate HTTP server**
-(port `4041`) from the REST API (port `6333`). It exposes Loom's asset
-library to AI assistants via JSON-RPC 2.0 over HTTP+SSE and WebSocket.
-
-The MCP server is **not** mounted under `/api/v1` — it has its own paths:
-`/mcp/sse` (SSE stream), `/mcp/message` (JSON-RPC POST), and `/mcp/ws`
-(WebSocket). It does not share the REST API's authentication handler.
-
-MCP tools access the same DAOs as the REST API but bypass the REST
-authentication and permission layers. See [MCP.md](MCP.md) for the full
-MCP specification, transport details, tool catalog, and progress checklist.
+- Served by `RESTInfoEndpoint` at `/api/v1/openapi{,.yaml,.json}`. The advertised server URL is
+  derived from the request (honouring `X-Forwarded-Proto`/`X-Forwarded-Host`) so a spec viewer talks
+  back to the server the document came from; fallback is `LoomOpenAPI.DEFAULT_BASE_URL`
+  (`http://localhost:8092`), which is also added as a "Local demo container" server entry.
+- `LoomOpenAPI` generates the document **without a database**: it builds a throw-away `ApiRouter`,
+  registers every rest-module endpoint on it (constructed with null services — `register()` never
+  dereferences one) and runs the external `io.metaloom.vertx.openapi.OpenAPIGenerator` over it.
+  Endpoints living outside the rest module (chat stream, chat sessions, session files, memory,
+  memory deny rules — all under `loom/agent/*`, which depends on rest) arrive through an
+  extra-endpoint factory; `loom/doc` supplies it.
+- The raw generator output is only a route dump, so `LoomOpenAPI#polish` post-processes it:
+  Vert.x `:uuid` → `{uuid}` templates with declared path parameters (UUID format, SHA-512 pattern,
+  integer versions); tags derived from the first segment below `/api/v1` (described from
+  `TAG_DESCRIPTIONS`), summaries and `operationId`s; `bearerAuth` (JWT) and `cookieAuth`
+  (`__Host-loom_token`) schemes declared and applied globally with `login`, the OAuth2 routes,
+  `health` and the spec routes opting out via an empty `security` list; standard 400/401/403/404/500
+  responses filled against a `GenericMessageResponse` schema unless already documented; route
+  examples inlined as real JSON instead of encoded strings; paths sorted for stable output.
+- `AbstractEndpoint#addRoute` sets the description **on the route** — setting it on the router
+  instead leaves every operation undocumented.
+- `LoomOpenAPITest` guards generation, coverage and each polish step.
+- `loom/doc`'s `OpenAPIGenerator` writes `openapi.json` + `openapi.yaml` into
+  `loom/doc/src/main/generated/`; both are staged into the website
+  ([../website/WEBSITE.md](../website/WEBSITE.md)) for download and an embedded API explorer.
 
 ---
 
-## 5. REST Clients
+## 6. REST Clients
 
-### 5.1 Java HTTP Client (`loom-client-rest`)
+### 6.1 Java HTTP client (`loom-client/rest`)
 
-- Module: `loom-client/rest`
-- Implementation: `LoomHttpClientImpl` (extends `AbstractLoomOkHttpClient`)
-- Uses OkHttp as the underlying HTTP client.
-- Builder pattern: `LoomHttpClient.builder().setHostname(...).setPort(...).build()`
-- Default port: 6333
-- Default scheme: `http`
-- Configurable timeouts: connect, read, write (default 10s each)
-- Authentication: Bearer token set via `client.setToken(token)`, sent as
-  `Authorization: Bearer <token>` header.
-- Supports both synchronous (`.sync()`) and asynchronous (`.async()`) request
-  execution via RxJava `Single`.
-- Returns `LoomClientResponse<T>` with body, status code, message, and headers.
-- Binary downloads return `LoomBinaryResponse`.
-- File uploads use multipart form data.
-- Implements `ClientMethods` interface which composes all entity method
-  interfaces (UserMethods, AssetMethods, etc.).
-- API path prefix: `/api/v1` (defined in `LoomHttpClient.API_V1_PATH`).
+`LoomHttpClientImpl extends AbstractLoomOkHttpClient`, OkHttp-based.
 
-### 5.2 Java gRPC Client (`loom-client-grpc`)
+| Aspect | Value |
+|--------|-------|
+| Builder | `LoomHttpClient.builder().setHostname(…).setPort(…).setPathPrefix(…).build()` |
+| Defaults | port `6333`, scheme `http`, path prefix `/api/v1` (`LoomHttpClient.API_V1_PATH`) |
+| Timeouts | connect / read / write, 10s each, configurable |
+| Auth | `client.setToken(token)` → `Authorization: Bearer <token>` |
+| Execution | `.sync()` and `.async()` (RxJava `Single`) |
+| Responses | `LoomClientResponse<T>`; binaries as `LoomBinaryResponse`; uploads as multipart |
 
-- Module: `loom-client/grpc` (currently commented out in parent pom)
-- Implementation: `LoomGRPCClientImpl`
-- Uses gRPC for communication.
-- JWT authentication via `ClientJWTInterceptor`.
-- Currently only implements `AssetMethods`.
-
-### 5.3 Client Method Interfaces (`loom-client-common`)
-
-The `ClientMethods` interface is a composite of all entity-specific method
-interfaces, providing a unified API surface:
-
-- `UserMethods`, `AssetMethods`, `AssetLocationMethods`, `AssetBinaryMethods`,
-  `AssetComponentMethods`, `AssetPoolMethods`, `AttachmentMethods`,
-  `BlacklistMethods`, `ChatMethods`, `SkillMethods`, `ClusterMethods`, `DetectionMethods`,
-  `GroupMethods`, `RoleMethods`, `CollectionMethods`, `AnnotationMethods`,
-  `TaskMethods`, `TagMethods`, `AuthenticationMethods`, `ReactionMethods`,
-  `TokenMethods`, `LibraryMethods`, `PersonMethods`, `PipelineMethods`,
-  `SpaceMethods`, `CommentMethods`, `EmbeddingMethods`, `TranscriptMethods`
-
-### 5.4 Client Usage Example
+`ClientMethods` (in `loom-client/common`) composes: `UserMethods`, `AssetMethods`,
+`AssetLocationMethods`, `AssetBinaryMethods`, `AssetComponentMethods`, `AssetPoolMethods`,
+`AttachmentMethods`, `BlacklistMethods`, `ChatMethods`, `SkillMethods`, `ClusterMethods`,
+`DetectionMethods`, `GroupMethods`, `RoleMethods`, `CollectionMethods`, `AnnotationMethods`,
+`TaskMethods`, `TagMethods`, `AuthenticationMethods`, `ReactionMethods`, `TokenMethods`,
+`LibraryMethods`, `PersonMethods`, `PipelineMethods`, `SpaceMethods`, `CommentMethods`,
+`EmbeddingMethods`, `TranscriptMethods`, `NodeResultMethods`, `JsonCompMethods`,
+`FingerprintCompMethods`, `SegmentCompMethods`, `SearchMethods`, `SimilarityMethods`,
+`DedupGroupMethods`, `GraphQLMethods`, `HealthMethods`, `InfoMethods`.
 
 ```java
-try (LoomClient client = LoomHttpClient.builder()
-    .setHostname("localhost")
-    .setPort(6333)
-    .build()) {
+try (LoomClient client = LoomHttpClient.builder().setHostname("localhost").setPort(6333).build()) {
+    AuthLoginResponse login = client.login("admin", "password").sync().body();
+    client.setToken(login.getToken());
 
-    // Login
-    AuthLoginResponse response = client.login("admin", "password").sync().body();
-    client.setToken(response.getToken());
-
-    // Create a user
     UserCreateRequest request = new UserCreateRequest();
     request.setUsername("johndoe");
-    UserResponse user = client.createUser(request).sync().body();
-
-    // Load a user
-    UserResponse user = client.loadUser(uuid).sync().body();
-
-    // List users
+    UserResponse created = client.createUser(request).sync().body();
     UserListResponse list = client.listUsers().sync().body();
 }
 ```
 
----
+### 6.2 Java gRPC client (`loom-client/grpc`)
 
-## 6. Architecture and Design Patterns
-
-### 6.1 Endpoint Pattern
-
-- All endpoints extend `AbstractEndpoint` which implements `RESTEndpoint`.
-- Each endpoint declares a `basePath()` (prefixed with `/api/v1`) and a
-  `name()` (for logging).
-- The `register()` method wires up routes using `addRoute()` and `addListRoute()`.
-- The `secure(path)` method applies the authentication handler to a path pattern.
-- Routes are registered via `ApiRouter` which supports OpenAPI documentation
-  metadata (description, request/response examples, query parameters).
-
-### 6.2 Dependency Injection
-
-- Dagger is used for DI.
-- `RESTModule` provides the `ApiRouter`, `LoomModelValidator`,
-  `NodeDescriptorRegistry`, and other singletons.
-- `RESTBindModule` binds the `LoomModelBuilder` interface to its implementation.
-- `EndpointModule` collects all `RESTEndpoint` instances into a set annotated
-  with `@RESTEndpoints`.
-- `EndpointDependencies` bundles the Vertx instance, router, auth handler, and
-  DI component provider for per-request scopes.
-- Each request creates a new `RestComponent` DI scope via
-  `restComponentProvider.get().context(rc).build()`.
-
-### 6.3 Service Layer
-
-- `AbstractEndpointService` provides common utilities: `checkPerm()`,
-  `setEditor()`, and `update()` (conditional field update).
-- `AbstractCRUDEndpointService` provides the standard CRUD pattern:
-  `create()`, `load()`, `update()`, `delete()`, `list()` with permission
-  checks and DAO delegation.
-- Each entity has a corresponding `*EndpointService` that extends
-  `AbstractCRUDEndpointService` with entity-specific logic.
-
-### 6.4 Model Building
-
-- `LoomModelBuilder` (bound via `RESTBindModule`) converts DAO entities to
-  REST response models.
-- `ModelExamples` provides request/response examples for OpenAPI documentation.
-
-### 6.5 Validation
-
-- `LoomModelValidator` validates request models.
-- `ValidationException` results in HTTP 400.
-- `ReplaceValidator` backs the full replace (PUT) completeness check. It derives
-  the set of required JSON property names from the Jackson introspection of the
-  request model — which matches the actual wire format (including
-  `@JsonProperty` renames) and automatically excludes fields with no accessors,
-  such as `AssetUpdateRequest.dominantColor`. Properties annotated
-  `@ReplaceOptional` opt out; `AssetUpdateRequest` uses this for the kind
-  specific blocks (`image`, `video`, `audio`, `document`, `geo`, `timeline`,
-  `s3`, `consistency`, `fingerprint`) which are meaningless for most assets.
-- The check runs against the **raw** `JsonObject` body, not the parsed model —
-  the model cannot distinguish an absent field from an explicit null.
-- `AbstractEndpoint.replaceHandler(Class, Handler)` wraps an update handler with
-  the check; `LoomRoutingContext.requireFullBody(Class)` performs it.
-
-### 6.6 Error Handling
-
-- `LoomRestException` carries an HTTP status code, an error code
-  (`LoomRestErrorCode`), and a message.
-- `LoomRestErrorCode` enum: `MISSING_PERM`, `BAD_QUERY_PARAMS`,
-  `BAD_PATH_PARAMS`, `NOT_FOUND`, `BAD_REQUEST`, `UPLOAD_DATA_MISSING`,
-  `INTERNAL_ERROR`.
-- `ServerFailureHandler` catches all routing failures and maps them to
-  appropriate HTTP responses.
+Currently commented out in the parent pom. `LoomGRPCClientImpl`, JWT via `ClientJWTInterceptor`,
+implements `AssetMethods` only. See [GRPC.md](GRPC.md).
 
 ---
 
-## 7. Progress Assessment
+## 7. Architecture
 
-The following checkboxes track aspects of the REST API that need improvement,
-fixes, or are incomplete. AI agents can use this list to identify work items.
+### 7.1 Endpoint pattern
 
-### 7.1 Core API Completeness
+Every endpoint extends `AbstractEndpoint implements RESTEndpoint`, declares `basePath()`
+(prefixed with `API_V1_PATH`) and `name()`, and wires routes in `register()`:
 
-- [x] Standard CRUD pattern implemented for all primary resources
-- [x] Asset endpoint with SHA-512 hash-based lookup
-- [x] Asset bulk create/update operations
-- [x] Sub-resource pattern (tags, reactions, detections, transcripts, binary, components on assets)
-- [x] Reactions on tasks, comments, annotations, assets
-- [x] Pipeline run endpoint with `SOURCE_TASK` dispatch + engine-driven `NODE_TASK`s
-- [x] WebSocket endpoints for processor and pipeline events
-- [x] Node descriptor and content type catalog endpoints
-- [x] Token management endpoints (API tokens)
-- [x] OAuth2 BFF flow with PKCE
-- [x] JWT cookie-based authentication
-- [x] OpenAPI spec generation endpoint
-- [x] GraphQL endpoint implemented and registered in `EndpointModule`
-- [x] REST info endpoint (stub - returns "not yet implemented")
+| Helper | Purpose |
+|--------|---------|
+| `addRoute(path, method, description, [requestExample, responseExample,] handler)` | Generic route |
+| `addListRoute(...)` | Adds the list query parameters to the OpenAPI operation |
+| `addSearchRoute(...)` | Adds the disjoint search parameter set |
+| `addUploadRoute(path, description, responseExample, handler)` | POST, sets `consumes: multipart/form-data` |
+| `addDownloadRoute(path, description, handler)` | GET, sets the byte `produces` |
+| `secure(path)` | Applies `LoomAuthenticationHandler` to a path (or `path + "*"`) |
+| `replaceHandler(Class, handler)` | Wraps an update handler with the PUT completeness check |
 
-### 7.2 Authentication and Security
+### 7.2 Dependency injection
 
-- [x] JWT-based authentication with HttpOnly, Secure, SameSite=STRICT cookies
-- [x] OAuth2 BFF pattern with PKCE (S256)
-- [x] CSRF protection via state parameter in OAuth2 flow
-- [x] WebSocket authentication via token query parameter
-- [x] Permission-based authorization per endpoint
-- [x] API token management for programmatic access
-- [ ] REST info endpoint (`GET /api/v1`) is not implemented (returns error)
-- [ ] Strict WebSocket auth is opt-in (default is lenient - accepts missing token)
-- [ ] No rate limiting on authentication endpoints
-- [ ] No account lockout policy on login endpoint
-- [ ] OAuth2 callback does not validate PKCE verifier against stored cookie in all error paths
-- [ ] OAuth2 logout endpoint only clears cookie, does not revoke IdP tokens
+Dagger. `RESTModule` provides `ApiRouter`, `LoomModelValidator`, `NodeDescriptorRegistry` and other
+singletons; `RESTBindModule` binds `LoomModelBuilder`; `EndpointModule` collects every
+`RESTEndpoint` into a `@RESTEndpoints` set; `EndpointDependencies` bundles Vertx, router, auth
+handler and the per-request component provider.
 
-### 7.3 API Design Consistency
+### 7.3 Services, models, errors
 
-- [x] Consistent CRUD pattern across most resources
-- [x] Consistent error responses (`GenericMessageResponse`)
-- [x] Consistent query parameters for list endpoints
-- [x] Consistent path parameter naming (`:uuid`)
-- [x] PUT (full replace) and PATCH (partial update) implemented for the User,
-  Group and Asset endpoints, backed by `ReplaceValidator`
-- [ ] PUT/PATCH not yet rolled out to the remaining CRUD endpoints (they still
-  only support `POST /resource/:uuid` for updates)
-- [ ] `GroupEndpoint` uses `addRoute` instead of `addListRoute` for the list
-  endpoint (missing query parameter documentation for OpenAPI)
-- [ ] `EmbeddingEndpoint` has attachment sub-resource routes without OpenAPI
-  examples (uses simplified `addRoute` without request/response examples)
-- [ ] `NodeDescriptorEndpoint` and `ContentTypes` endpoints are not secured
-  (no `secure()` call)
-- [ ] `ProcessorEndpoint` list/load routes are secured but the WebSocket route
-  is not secured via standard auth handler (see [WEBSOCKET.md](WEBSOCKET.md) for WebSocket auth details)
-- [ ] `PipelineEventEndpoint` WebSocket route is not secured via standard auth
-  handler (uses post-upgrade authentication, see [WEBSOCKET.md](WEBSOCKET.md))
-- [x] `GraphQL` endpoint is secured via `secure(basePath())`
-- [ ] `LoginEndpoint` and `OAuth2Endpoint` are correctly not secured (pre-auth)
-- [ ] `RESTInfoEndpoint` is not secured (acceptable for info/OpenAPI endpoints)
-- [ ] `ReactionEndpoint` uses a different pattern (`/reactions/assets/:assetUuid`)
-  vs asset-scoped pattern on other endpoints (`/assets/:uuid/reactions`)
-- [ ] `EmbeddingEndpoint` attachment routes use `:embeddingUuid` path param
-  but do not use `addListRoute` for the list route
+- `AbstractEndpointService` — `checkPerm()`, `setEditor()`, `update()` (conditional field update).
+- `AbstractCRUDEndpointService` — `create/load/update/delete/list` with permission checks and DAO
+  delegation. Each entity has a `*EndpointService` extending it.
+- `LoomModelBuilder` converts DAO entities to response models; `ModelExamples` supplies the OpenAPI
+  request/response examples.
+- `LoomModelValidator` validates request models → `ValidationException` → 400.
+- `LoomRestException` carries an HTTP code, a `LoomRestErrorCode`
+  (`MISSING_PERM`, `BAD_QUERY_PARAMS`, `BAD_PATH_PARAMS`, `NOT_FOUND`, `BAD_REQUEST`,
+  `UPLOAD_DATA_MISSING`, `INTERNAL_ERROR`) and a message.
 
-### 7.4 Client Completeness
+---
 
-- [x] HTTP client covers all primary CRUD operations
-- [x] HTTP client supports asset SHA-512 lookups
-- [x] HTTP client supports bulk asset operations
-- [x] HTTP client supports sub-resource operations (tags, reactions, detections, transcripts, components, binary)
-- [x] HTTP client supports file upload (attachments) via multipart form data
-- [x] HTTP client supports binary download
-- [x] HTTP client supports both sync and async execution
-- [x] HTTP client supports configurable timeouts
-- [x] gRPC client skeleton exists (commented out in parent pom)
-- [x] HTTP client has methods for pipeline run, run control (pause/resume/cancel) and
-      versions, plus `restInfo()`/`me()` and `Builder.setPathPrefix` (added 2026-07-26
-      with the `cli/` module)
-- [ ] HTTP client does not have methods for processor listing/loading
-- [ ] HTTP client does not have methods for node descriptors
-- [ ] HTTP client does not have methods for GraphQL queries
-- [ ] HTTP client does not have methods for OAuth2 login/callback/logout
-- [ ] HTTP client does not have methods for pipeline events WebSocket (see [WEBSOCKET.md](WEBSOCKET.md))
-- [ ] HTTP client does not have methods for processor WebSocket (see [WEBSOCKET.md](WEBSOCKET.md))
-- [ ] HTTP client does not have methods for REST info / OpenAPI spec
-- [ ] HTTP client does not have methods for embedding attachments
-- [ ] HTTP client does not have methods for asset pool operations (pool CRUD exists in client but not in endpoint)
-- [ ] HTTP client `listCommentsForAnnotation` uses wrong path `annotation/` (singular) instead of `annotations/` (plural)
-- [ ] gRPC client only implements `AssetMethods` - all other methods are missing
+## 8. Test Setup
 
-### 7.5 Documentation and OpenAPI
+Endpoint tests live in `loom/core/src/test/java/io/metaloom/loom/core/endpoint/test/` and extend
+`AbstractEndpointTest` (or `AbstractCRUDEndpointTest`, which mixes in `CRUDEndpointTestcases` and,
+for PUT endpoints, `ReplaceEndpointTestcases`).
 
-- [x] OpenAPI spec generation via `LoomOpenAPI` (§1.7)
-- [x] Route descriptions on all registered routes, and carried into the spec —
-  `addRoute` sets the description on the route, not on the router
-- [x] Request/response examples on most CRUD endpoints, inlined into the spec as
-  JSON rather than as encoded strings
-- [x] Query parameter documentation on list endpoints (via `addListRoute`)
-- [x] The offline spec covers **all** endpoints (~130 paths), including the chat
-  and memory endpoints of the agent modules
-- [x] OpenAPI path templating (`/{uuid}`) with declared path parameters
-- [x] OpenAPI tags per resource, operation summaries and `operationId`s
-- [x] OpenAPI security scheme definitions (`bearerAuth`, `cookieAuth`) with the
-  pre-auth routes opting out
-- [x] Standard error responses (400/401/403/404/500) documented per operation
-- [x] The served spec advertises the server URL it was fetched from instead of the
-  hardcoded `https://server.tld`, and carries a real description
-- [x] Spec published on the website: downloadable YAML/JSON plus an embedded API
-  explorer (see [../website/WEBSITE.md](../website/WEBSITE.md))
-- [ ] REST info endpoint (`GET /api/v1`) returns "not yet implemented" instead of actual API metadata
-- [ ] Several endpoints use the simplified `addRoute` (without examples) for sub-resource routes, so their operations carry a description but no example
-- [ ] WebSocket endpoints are not documented in the OpenAPI spec (see [WEBSOCKET.md](WEBSOCKET.md) for WebSocket docs)
-- [ ] No OpenAPI schema definitions for request/response models (only examples),
-  so a generated client gets untyped bodies
-- [ ] Endpoint-specific query parameters (e.g. `?scope=`/`?ref=`/`?id=` on
-  `/memory/entry`, `?scope=` on `/chat-sessions`) are not declared as parameters —
-  only the generic list parameters of `addListRoute` are
-- [ ] The staged website copy of the spec is refreshed by a manual `cp`; nothing
-  fails the build when it goes stale
+```bash
+./setup-pool.sh                       # required before any test run, and after every Flyway change
+mvn test -pl loom/core -Dtest=UserEndpointTest
+```
 
-### 7.6 Error Handling
+Per [../guidelines/CODING.md](../guidelines/CODING.md), a REST implementation is done only when it
+has a `*EndpointTest` **and** permission test cases asserting fine-grained permission handling.
 
-- [x] `ServerFailureHandler` handles routing failures
-- [x] `LoomRestException` with HTTP codes and error codes
-- [x] 404 handler with JSON error response
-- [x] Validation errors return 400
-- [ ] Error responses do not include the error code (`LoomRestErrorCode`) in the JSON body, only the message
-- [ ] No standardized error response model (uses `GenericMessageResponse` which only has a `message` field)
-- [ ] No HATEOAS links or Location headers on create operations
-- [ ] Pipeline run returns 503 when no processor is available, but the client may not handle this gracefully
-- [ ] `NodeDescriptorEndpoint` returns raw JSON strings instead of using the standard response model
+- Do **not** redeclare `@RegisterExtension LoomCoreTestExtension` in an `AbstractEndpointTest`
+  subclass — configure the inherited `loom` field instead.
+- A test class with 20+ methods can exhaust the test DB provider pool; the last few then fail in
+  `ProviderExtension.beforeEach` while passing in isolation. That is pool capacity, not a regression.
+- Rebuild `loom/core` cleanly after changing an endpoint constructor, or Dagger's generated factories
+  go stale and tests fail with `NoSuchMethodError`.
 
-### 7.7 Testing
+---
 
-- [x] HTTP client has test infrastructure (`AbstractContainerTest`, `AbstractHTTPClientTest`)
-- [x] HTTP client has `LoomHttpClientAssert` for assertions
-- [x] Basic usage example test exists
-- [ ] No dedicated endpoint-level integration tests visible in the REST service module
-- [ ] No OpenAPI spec validation tests
-- [ ] No WebSocket endpoint tests (see [WEBSOCKET.md](WEBSOCKET.md) for WebSocket-specific testing gaps)
+## 9. Conventions and Gotchas
+
+- **Literal prefixes before wildcards.** `/assets/bulk/*`, `/assets/sha512/*`,
+  `/pipelines/runs/stats` and `/skills/library` must be registered **before** the corresponding
+  `/:uuid` route or Vert.x will match the wildcard first. `PipelineEndpoint` and `MemoryEndpoint`
+  therefore also call `secure()` per explicit path rather than with a `*` wildcard.
+- **`addRoute` description goes on the route.** Setting it on the router leaves the OpenAPI
+  operation undocumented.
+- **`POST /x/:uuid` is an update, not a create.** Every endpoint has it; only users, groups and
+  assets additionally accept PATCH/PUT.
+- **PUT never nulls absent fields** — it rejects the request (400). And the Java client cannot send
+  an explicit `null` at all (`Include.NON_NULL`).
+- **`/assets/:uuid/binary` is singular on purpose** — a one-to-one sub-resource. The collection is
+  `/assets/:uuid/binaries`. Ditto `/assets/:uuid/binary/data` for the bytes.
+- **Two reaction shapes coexist:** `/assets/:uuid/reactions` (sub-resource, like tasks and comments)
+  and `/reactions/assets/:assetUuid` (`ReactionEndpoint`). New code should prefer the former.
+- **`ProcessorEndpoint` `:uuid` is a node id, not always a UUID.** Lookup falls back from the
+  registry key to a derived UUID to a persisted-but-offline record.
+- **Pipeline `:version` is an integer** (`lrc.pathParamInt("version")`), unlike every other path param.
+- **`GroupEndpoint` and `AssetEndpoint` list routes use `addRoute`**, so their OpenAPI operations
+  carry no list query parameters even though the service honours them.
+- **WebSocket routes bypass `secure()`** — they must, because the upgrade precedes the handler chain.
+  Authentication happens post-upgrade in `WebSocketAuthenticator`.
+- **The MCP server has no auth at all** and hits the DAOs directly.
+- The generated OpenAPI document must stay reproducible — `LoomOpenAPITest` fails on unpolished or
+  unsorted output.
+
+---
+
+## 10. Key Classes Reference
+
+| Class | Package / module | Purpose |
+|-------|------------------|---------|
+| `RESTService` | `io.metaloom.loom.rest` (`loom/services/rest`) | Builds the router: CORS, body handler, failure handler, endpoint registration |
+| `AbstractEndpoint` | `io.metaloom.loom.rest` | `addRoute`/`addListRoute`/`addSearchRoute`/`addUploadRoute`/`addDownloadRoute`/`secure`/`replaceHandler` |
+| `RESTEndpoint` | `io.metaloom.loom.rest.endpoint` | Endpoint contract (`name`, `basePath`, `register`) |
+| `LoomRoutingContext` | `io.metaloom.loom.rest` | Per-request facade: `pathParamUUID`, `pathParamAssetId`, `requestBody`, `requirePerm`, `send`, `requireFullBody` |
+| `ServerFailureHandler` | `io.metaloom.loom.rest` | Maps exceptions to HTTP responses |
+| `LoomRestException` / `LoomRestErrorCode` | `io.metaloom.loom.api.error` (`loom/common`) | Coded HTTP errors |
+| `EndpointModule` | `io.metaloom.loom.rest.dagger` | Dagger multibinding of every `RESTEndpoint` |
+| `RESTModule` / `RESTBindModule` / `EndpointDependencies` | `io.metaloom.loom.rest.dagger` | Router, validator, per-request component provider |
+| `AbstractCRUDEndpointService` | `io.metaloom.loom.rest.service` | Standard create/load/update/delete/list |
+| `WebSocketAuthenticator` | `io.metaloom.loom.rest.service.impl` | Post-upgrade `?token=` validation, close code 4401 |
+| `LoomModelBuilder` | `io.metaloom.loom.rest.builder` | DAO entity → response model |
+| `ModelExamples` + per-entity `*Examples` | `io.metaloom.loom.rest.model[.*]` (`loom-shared/rest-model`) | OpenAPI request/response examples |
+| `ReplaceValidator` | `io.metaloom.loom.rest.validation` (`loom-shared/rest-model`) | PUT completeness check, `@ReplaceOptional` |
+| `LoomOpenAPI` | `io.metaloom.loom.rest.openapi` | Offline spec generation + `polish` |
+| `OpenAPIGenerator` | `io.metaloom.loom.doc.impl` (`loom/doc`) | Writes `openapi.{json,yaml}` for the website |
+| `LoomAuthenticationHandler` | `io.metaloom.loom.auth` (`loom/services/auth/auth-common`) | JWT bearer/cookie authentication |
+| `AuthenticationOptions` | `io.metaloom.loom.api.options` (`loom-shared/api`) | `TOKEN_COOKIE_KEY = "__Host-loom_token"`, expiry |
+| `QueryParameterKey` | `io.metaloom.loom.rest.parameter` (`loom-shared/rest-model`) | `limit`, `from`, `filter`, `sort`, `dir` |
+| `LoomHttpClientImpl` / `ClientMethods` | `loom-client/rest`, `loom-client/common` | Java HTTP client and its method composite |
+
+---
+
+## 11. Where do I find …?
+
+| I want to … | Look at |
+|-------------|---------|
+| Add an endpoint | `loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/` + register it in `EndpointModule` |
+| Add an agent-side endpoint | `loom/agent/{chat,memory}/src/main/java/.../rest/` + the extra-endpoint factory in `loom/doc` |
+| Change route helpers / auth wiring | `loom/services/rest/src/main/java/io/metaloom/loom/rest/AbstractEndpoint.java` |
+| Change CORS / body limit / failure handling | `.../rest/RESTService.java`, `.../rest/ServerFailureHandler.java` |
+| Add a request/response example | `ModelExamples` in `loom/services/rest/.../rest/model/` |
+| Change PUT completeness rules | `loom-shared/rest-model/.../rest/validation/ReplaceValidator.java` |
+| Change the generated OpenAPI document | `loom/services/rest/.../rest/openapi/LoomOpenAPI.java` (+ `LoomOpenAPITest`) |
+| Regenerate the static spec files | `loom/doc/.../doc/impl/OpenAPIGenerator.java` → `loom/doc/src/main/generated/` |
+| Write an endpoint test | `loom/core/src/test/java/io/metaloom/loom/core/endpoint/test/` |
+| Add a client method | `loom-client/common/.../*Methods.java` + `loom-client/rest/.../LoomHttpClientImpl.java` |
+| Understand a permission constant | [../features/permissions/PERMISSIONS.md](../features/permissions/PERMISSIONS.md) |
+| Understand binary storage | [../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) |
+
+---
+
+## 12. Progress Assessment
+
+### 12.1 Core API completeness
+
+- [x] Standard CRUD across all primary resources
+- [x] Asset SHA-512 lookup, bulk create/update, upload
+- [x] Asset sub-resources: tags, tasks, reactions, comments, detections, transcripts, node-results,
+      json-comps, fingerprints, segments, components, binary/binaries/binary-data
+- [x] Reactions on tasks, comments, annotations and assets
+- [x] Pipeline run with `SOURCE_TASK` dispatch + engine-driven `NODE_TASK`s
+- [x] Pipeline run control: `pause`, `resume`, `cancel`, `runs/:runUuid/items`, `runs/stats`
+- [x] Pipeline versions with flattened `PipelineResponse` and version restore
+- [x] Skill library, install and versioning; owner-scoped skill CRUD
+- [x] Chat SSE streaming endpoint (`/chats/:uuid/stream`) with cancel
+- [x] Chat sessions with publish/unpublish/context, sandbox file browsing (`/sessions/:uuid/*`)
+- [x] Agent memory (`/memory`, `/memory/scopes`, `/memory/entry`) and `/memory-deny-rules`
+- [x] Search endpoints (`results`, `assets`, `suggestions`, `status`)
+- [x] Dedup review groups and similarity index rebuild
+- [x] Processor listing, single load, forget, and node-kind restrictions
+- [x] Node descriptor and content type catalogs
+- [x] Token management, OAuth2 BFF+PKCE, JWT cookie auth
+- [x] GraphQL endpoint, OpenAPI spec endpoint, health endpoint
+- [x] `GET /api/v1` returns real info (version, DB revision, last-used timestamp)
+
+### 12.2 Authentication and security
+
+- [x] JWT auth via `Authorization` header and `__Host-loom_token` HttpOnly/Secure/SameSite=STRICT cookie
+- [x] OAuth2 BFF with S256 PKCE and state-based CSRF protection
+- [x] WebSocket auth via `?token=`, close code 4401
+- [x] Permission-based authorization per endpoint; API tokens for programmatic access
+- [ ] Strict WebSocket auth is opt-in (`LOOM_WS_STRICT_AUTH`); default accepts a missing token
+- [ ] No rate limiting and no account lockout on `/login`
+- [ ] OAuth2 callback does not validate the PKCE verifier against the stored cookie on all error paths
+- [ ] OAuth2 logout only clears the cookie — no IdP token revocation
+- [ ] `NodeDescriptorEndpoint` (descriptors + content types) is unsecured
+- [ ] MCP server (port 4041) has no authentication and bypasses the permission layer ([MCP.md](MCP.md))
+- [ ] MCP port is hardcoded, not configurable via `LoomOptions`
+- [ ] Body size limit is unlimited (`setBodyLimit(-1)`) and CORS allows all origins (`.*`)
+
+### 12.3 API design consistency
+
+- [x] Consistent CRUD shape, error model, path params and list parameters
+- [x] PUT/PATCH on User, Group and Asset backed by `ReplaceValidator`
+- [ ] PUT/PATCH not rolled out to the remaining CRUD endpoints
+- [ ] `GroupEndpoint` and `AssetEndpoint` list routes use `addRoute` instead of `addListRoute`
+- [ ] `EmbeddingEndpoint` attachment routes use the bare `addRoute` (no examples, no list parameters)
+- [ ] `ReactionEndpoint` exposes `/reactions/assets/:assetUuid` alongside the `/assets/:uuid/reactions`
+      sub-resource — two shapes for the same thing
+- [ ] `DedupGroupEndpoint` supports PATCH but not PUT, unlike the other PATCH-capable endpoints
+- [ ] `ProcessorEndpoint` and `NodeDescriptorEndpoint` hand-write JSON strings for some responses
+      instead of using response models
+- [ ] Pipeline `:version` being an integer path param is unique across the API
+
+### 12.4 Client completeness
+
+- [x] Covers CRUD, SHA-512 lookups, bulk asset ops, all asset sub-resources, multipart upload,
+      binary download, sync + async, configurable timeouts
+- [x] Pipeline run, run control (pause/resume/cancel) and versions; `restInfo()`, `me()`,
+      `Builder.setPathPrefix` (added with the `cli/` module)
+- [x] Search, similarity, dedup group, GraphQL, health and info method interfaces
+- [ ] `listCommentsForAnnotation` requests `annotation/:uuid/comments` — singular **and** a path the
+      server does not register at all (`LoomHttpClientImpl:1055`)
+- [ ] No methods for processor listing/loading or processor restrictions
+- [ ] No methods for node descriptors / content types
+- [ ] No methods for OAuth2 login/callback/logout
+- [ ] No methods for embedding attachments
+- [ ] No methods for chat SSE streaming, chat sessions, session files, memory or memory deny rules
+- [ ] No methods for either WebSocket endpoint ([WEBSOCKET.md](WEBSOCKET.md))
+- [ ] `AssetLocationMethods` exist but no asset-location endpoint is registered
+- [ ] gRPC client implements `AssetMethods` only and is disabled in the parent pom
+
+### 12.5 Documentation and OpenAPI
+
+- [x] Offline generation via `LoomOpenAPI`, covering rest-module **and** agent-module endpoints
+- [x] Route descriptions carried into the spec; examples inlined as real JSON
+- [x] Path templating with declared parameters, tags, summaries, `operationId`s
+- [x] `bearerAuth`/`cookieAuth` schemes with pre-auth routes opting out
+- [x] Standard 400/401/403/404/500 responses per operation
+- [x] Served spec advertises the URL it was fetched from
+- [x] Spec published on the website (YAML/JSON download + embedded explorer)
+- [ ] No schema definitions for request/response models (examples only) — generated clients get
+      untyped bodies
+- [ ] Endpoint-specific query parameters are undeclared: `?scope=`/`?ref=`/`?id=` on `/memory/entry`,
+      `?scope=` on `/chat-sessions`, `?pipeline=` on the events WebSocket, dedup `?status=`
+- [ ] WebSocket endpoints are absent from the spec ([WEBSOCKET.md](WEBSOCKET.md))
+- [ ] Sub-resource routes registered with the bare `addRoute` carry a description but no example
+- [ ] The staged website copy of the spec is refreshed by a manual `cp`; nothing fails when it goes stale
+
+### 12.6 Error handling
+
+- [x] `ServerFailureHandler`, `LoomRestException` with codes, JSON 404 handler, 400 on validation
+- [ ] `LoomRestErrorCode` is not included in the response body — only `message`
+- [ ] `GenericMessageResponse` is the only error model (no field-level detail, no error code)
+- [ ] No `Location` header or HATEOAS links on create
+- [ ] Some handlers emit hand-written JSON error strings (`ProcessorEndpoint` 404/409)
+
+### 12.7 Testing
+
+- [x] `*EndpointTest` coverage for users, roles, groups, assets (+ binary, binary data, components,
+      tasks, tags, detections, transcripts, node results, json comps, similar assets), pools,
+      annotations (+ tasks), tasks, tags, persons, spaces, libraries, clusters, chats, chat stream,
+      skills, embeddings, attachments, dedup groups, search, processors, node descriptors,
+      pipeline runs (cancel, pause, stats, items, completion), pipeline events, login, GraphQL,
+      REST info, memory, memory deny rules
+- [x] `LoomOpenAPITest` guards spec generation and every polish step
+- [x] `ReplaceValidatorTest` guards the PUT completeness rules
+- [x] HTTP client test infrastructure (`AbstractContainerTest`, `AbstractHTTPClientTest`,
+      `LoomHttpClientAssert`) plus a usage-example test
+- [ ] **No `*EndpointTest`:** blacklists, collections, comments, reactions, tokens, `/me`,
+      similarity-index, pipeline CRUD/versions (only run-scoped tests exist), chat-sessions,
+      session files
 - [ ] No OAuth2 flow tests
+- [ ] Health has only `HealthEndpointIntegrationTest`, no endpoint test
+- [ ] No WebSocket protocol tests ([WEBSOCKET.md](WEBSOCKET.md))
 - [ ] No rate limiting tests
 
-### 7.8 Infrastructure and Configuration
+### 12.8 Infrastructure and missing features
 
-- [x] Dagger-based DI with per-request scope
-- [x] Configurable timeouts on HTTP client
-- [x] Configurable body limit (currently unlimited: `setBodyLimit(-1)`)
-- [x] CORS configured for all origins/methods
-- [ ] No rate limiting middleware
-- [ ] No request logging middleware
-- [ ] No compression middleware
-- [ ] Body size limit is unlimited (`-1`) which may be a security concern
-- [ ] CORS allows all origins (`.*`) which may not be suitable for production
-
-### 7.9 Missing or Incomplete Features
-
-- [ ] `RESTInfoEndpoint` (`GET /api/v1`) is a stub - returns "not yet implemented"
-- [x] Health check endpoint (`GET /api/v1/health`) reporting status, version and DB connectivity
-- [ ] No readiness probe endpoint
-- [ ] No metrics endpoint (e.g. `/api/v1/metrics` or `/metrics`)
-- [ ] No versioned API deprecation headers
+- [x] Dagger DI with per-request scope; configurable client timeouts; CORS configured
+- [ ] No rate limiting, request logging or compression middleware
+- [ ] No readiness probe and no metrics endpoint on the Loom REST server (Cortex has its own
+      `/metrics` scrape endpoint on a separate server)
 - [ ] No pagination metadata in list responses (no total count, no next/prev links)
-- [ ] No ETag/conditional request support
-- [ ] No request ID / correlation ID tracking
-- [ ] No audit logging
-- [ ] `AssetPool` client methods exist but no corresponding `AssetPool` endpoint is registered (only the `AssetPoolEndpoint` exists for pools, which is correct - but the client naming is inconsistent)
-- [ ] `DetectionMethods` and `TranscriptMethods` exist in the client common module but are not listed in `ClientMethods` interface (they are only accessible as asset sub-resources)
-- [ ] `AssetLocationMethods` exist in client but no `AssetLocation` endpoint is registered in `EndpointModule`
-- [ ] MCP server (port 4041) has no authentication — tools bypass REST API auth and access DAOs directly (see [MCP.md](MCP.md))
-- [ ] MCP server port is hardcoded to 4041, not configurable via `LoomOptions`
-- [ ] MCP tools are read-only (search, get, list, stats) — no tools for create/update/delete operations
+- [ ] No ETag / conditional requests, no request-ID correlation, no audit logging
+- [ ] No API deprecation headers
+- [ ] MCP tools are read-only (search, get, list, stats) — no create/update/delete
 
 ---
 
-_Git HEAD revision: `183d36715c05e429474f7730d96869a906f3fecc`_
-_Last updated: 2026-07-26 (UTC)_
+_Git HEAD revision: `2e5981cb`_
+_Last updated: 2026-08-01 (Rebuilt the endpoint inventory against the code and added the missing search, dedup, similarity, me, health, skill-version, run-control and asset sub-resource routes.)_

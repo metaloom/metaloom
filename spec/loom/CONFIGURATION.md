@@ -1,264 +1,308 @@
 # Loom Configuration Specification
 
-## Overview
+Covers the **Loom server** configuration system: `loom.yml`, the `Option` tree in
+`loom-shared/api`, environment overrides and startup validation.
 
-The Loom configuration system provides a hierarchical, type-safe configuration mechanism with support for YAML files, environment variable overrides, and sensible defaults. The system is built around the `Option` interface and uses Jackson for YAML deserialization.
+**Not covered here** (separate subsystems, do not duplicate):
 
-### Configuration Architecture
+| Subsystem | Spec |
+|-----------|------|
+| Cortex worker config (`cortex.yml`, `CORTEX_*`, CLI flags, per-node options) | [../cortex/CONFIGURATION.md](../cortex/CONFIGURATION.md) |
+| Helm chart values → env wiring | [../features/helm/HELM_LOOM.md](../features/helm/HELM_LOOM.md) |
+| Binary storage backends, pools, S3 semantics | [../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) §5, §11 |
+| Search behaviour behind `search.*` | [../features/search/SEARCH.md](../features/search/SEARCH.md) |
+| Similarity index behind `similarity.*` | [../features/search/LUCENE_PLAN.md](../features/search/LUCENE_PLAN.md) |
+| Chat agent / memory bank behaviour behind `ai.*`, `memory.*` | [../features/chat/CHAT_MEMORY_PLAN.md](../features/chat/CHAT_MEMORY_PLAN.md) |
+| MCP auth behaviour behind `auth.mcpAuth*` | [MCP.md](MCP.md) |
+
+---
+
+## 1. Overview
+
+Configuration is a plain POJO tree rooted at `LoomOptions`, deserialized from YAML with Jackson,
+then overridden from the environment, then validated.
 
 ```mermaid
 graph TB
-    subgraph "Configuration Loading"
-        Loader[LoomOptionsLoader]
-        YAML[Jackson YAML Mapper]
-        Env[Environment Variables]
-        Defaults[Default Values]
+    subgraph Load
+        FS[loom.yml lookup order] --> YAML[Jackson YAML mapper]
+        YAML --> Tree
+        CP[classpath /loom.yml] --> YAML
+        GEN[generateDefaultConfig] --> Tree
     end
-    
-    subgraph "Configuration Objects"
-        LoomOpts[LoomOptions]
-        DBOpts[DatabaseOptions]
-        ServerOpts[ServerOptions]
-        AuthOpts[AuthenticationOptions]
-        OAuth2Opts[OAuth2Options]
+    subgraph Tree[LoomOptions]
+        DB[database] & SRV[server] & AUTH[auth] & ST[storage] & S3[s3]
+        AI[ai] & SB[sandbox] & MEM[memory] & SE[search] & SIM[similarity]
     end
-    
-    subgraph "Annotation Processing"
-        EnvAnnotation[@EnvironmentVariable]
-        OptionUtils[OptionUtils]
-        Reflection[Reflection-based Override]
-    end
-    
-    Loader --> YAML
-    Loader --> Env
-    Loader --> Defaults
-    
-    LoomOpts --> DBOpts
-    LoomOpts --> ServerOpts
-    LoomOpts --> AuthOpts
-    AuthOpts --> OAuth2Opts
-    
-    EnvAnnotation --> OptionUtils
-    OptionUtils --> Reflection
-    Reflection --> LoomOpts
-    Reflection --> DBOpts
-    Reflection --> ServerOpts
-    Reflection --> AuthOpts
-    Reflection --> OAuth2Opts
-    
-    style LoomOpts fill:#e1f5fe
-    style DBOpts fill:#fff3e0
-    style ServerOpts fill:#f3e5f5
-    style AuthOpts fill:#e8f5e9
-    style OAuth2Opts fill:#fce4ec
+    AUTH --> OA[auth.oauth2]
+    Tree --> ENV[overrideWithEnv]
+    ENV --> VAL[validate → OptionErrors]
+    VAL -->|errors| EX[ConfigurationValidationException]
+    VAL -->|ok| BOOT[Loom.create]
 ```
+
+There are **three** layers only — YAML file → environment variables → code defaults.
+CLI argument overrides do **not** exist (`applyCommandLineArgs` is commented out in
+`LoomOptionsLoader`); the only recognised flag is `--validate-config`.
 
 ---
 
-## Configuration File Locations
+## 2. Configuration file lookup
 
-The configuration is loaded from the following locations in priority order (first match wins):
+`LoomOptionsLoader.loadLoomOptions()` — **first match wins, no merging** between locations:
 
-| Priority | Path | Description | Constant |
-|----------|------|-------------|----------|
-| 1 | `/etc/metaloom/loom.yml` | System-wide configuration | `LoomEnv.LOCAL_ETC_PATH` |
-| 2 | `~/.config/metaloom/loom.yml` | User-specific configuration | `LoomEnv.HOME_CONFIG_PATH` |
-| 3 | `config/loom.yml` | Local project configuration | `LoomEnv.LOCAL_CONFIG_PATH` |
-| 4 | Classpath `/loom.yml` | Bundled default configuration | `Loom.class.getResourceAsStream()` |
-| 5 | Generated default | Auto-generated if none found | `generateDefaultConfig()` |
+| # | Path | Constant | `baseConfigFolder` |
+|---|------|----------|--------------------|
+| 1 | `/etc/metaloom/loom.yml` | `LoomEnv.LOCAL_ETC_PATH` | `/etc/metaloom` |
+| 2 | `~/.config/metaloom/loom.yml` | `LoomEnv.HOME_CONFIG_PATH` | `~/.config/metaloom` |
+| 3 | `config/loom.yml` (cwd-relative) | `LoomEnv.LOCAL_CONFIG_PATH` | `<cwd>/config` |
+| 4 | classpath `/loom.yml` | `Loom.class.getResourceAsStream` | **`null`** |
+| 5 | `generateDefaultConfig()`, written to `config/loom.yml` | — | `<cwd>/config` |
 
-### LoomEnv Constants
+`LoomEnv` holds only these constants; there is **no env var that relocates the config file**
+(see §5.3). `LoomOptionsLookup(baseConfigFolder, options)` is the injected carrier — the JWT
+keystore is resolved as `baseConfigFolder/keystore.jceks` (`AuthenticationOptions.DEFAULT_KEYSTORE_FILENAME`).
 
-```java
-// Package: io.metaloom.loom.api.LoomEnv
-public static final String LOOM_CONF_FILENAME = "loom.yml";
-public static final Path LOCAL_ETC_PATH = Path.of("/etc", "metaloom", LOOM_CONF_FILENAME);
-public static final Path HOME_CONFIG_PATH = Path.of(System.getProperty("user.home"), ".config", "metaloom", LOOM_CONF_FILENAME);
-public static final Path LOCAL_CONFIG_PATH = Path.of("config", LOOM_CONF_FILENAME);
-```
+Mapper settings: `FAIL_ON_UNKNOWN_PROPERTIES=false` (unknown keys silently ignored),
+`Include.ALWAYS` on serialization.
 
 ---
 
-## Configuration Structure (loom.yml)
+## 3. `loom.yml` structure
 
-### Complete Example
+Top-level keys map 1:1 to the fields of `LoomOptions`. Every section is optional; a missing
+section keeps the code defaults of its `*Options` class.
 
 ```yaml
-database:
-  host: "127.0.0.1"
-  port: 5432
-  username: "postgres"
-  password: "finger"
-  databaseName: "loom"
-  minPoolSize: 5
-  acquireIncrement: 5
-  maxPoolSize: 20
-
-server:
-  grpcPort: 8091
-  bindAddress: "0.0.0.0"
-  restPort: 8092
-  monitoringPort: 8989
-  mcpPort: 4041
-
-auth:
-  keystorePassword: "8qA9uBbdaEFp"
-  initialPassword: null
-  tokenExpirationTime: 3600
-  oauth2:
-    enabled: false
-    clientId: ""
-    clientSecret: ""
-    authUrl: ""
-    tokenUrl: ""
-    userInfoUrl: ""
-    callbackUrl: ""
-    logoutUrl: ""
-    scope: "openid profile email"
+database:   { host, port, username, password, databaseName, minPoolSize, acquireIncrement, maxPoolSize }
+server:     { grpcPort, bindAddress, restPort, monitoringPort, mcpPort }
+auth:       { keystorePassword, initialPassword, tokenExpirationTime,
+              mcpAuthEnabled, mcpAuthStrictMode, mcpAuthAllowedOrigins,
+              oauth2: { enabled, clientId, clientSecret, authUrl, tokenUrl,
+                        userInfoUrl, callbackUrl, logoutUrl, scope } }
+storage:    { uploadDirectory, maxUploadSize, minFreeSpace }
+s3:         { endpoint, region, accessKey, secretKey, pathStyleAccess }
+ai:         { enabled, providerType, url, modelId, contextWindow, maxTurns,
+              toolTimeoutMs, thinkEnabled, streaming, titleGeneration }
+sandbox:    { enabled, backend, image, namespace, idleTtlSeconds, maxSessionSeconds,
+              execTimeoutSeconds, maxConcurrent, readyTimeoutSeconds,
+              cpuRequest, cpuLimit, memRequest, memLimit, workspaceSize }
+memory:     { enabled, mountEnabled, mountPath, maxEntryBytes, maxEntriesPerScope,
+              maxScopeBytes, maxDepth, maxWritesPerRun, promptMaxEntries,
+              promptMaxChars, sharedScopesEnabled, sharedWriteEnabled }
+search:     { enabled, provider, defaultLimit, maxLimit, maxOffset, highlightEnabled,
+              trigramThreshold, trigramWeight, bodyMaxBytes, tsConfig }
+similarity: { enabled, indexPath, algorithm, scoreThreshold, topK }
 ```
 
-### Configuration Object Hierarchy
+`database.jdbcUrl` is **derived** (`@JsonIgnore`): `jdbc:postgresql://host:port/databaseName`.
 
-```
-LoomOptions (root)
-├── DatabaseOptions
-├── ServerOptions
-└── AuthenticationOptions
-    └── OAuth2Options
-```
+Reference files: `e2e-test/config/loom.yml`, `loom/containers/server/config/loom.yml`.
+⚠️ The latter contains `auth.keystorePath`, which **no option class declares** — it is silently
+dropped by the lenient mapper.
 
 ---
 
-## Option Classes Reference
+## 4. Environment variables — complete table
 
-### LoomOptions (Root)
+Every variable below is genuinely read by the Loom server process at HEAD. `Options` names the
+class that reads it; the YAML path is the class's section plus the field.
 
-**Package:** `io.metaloom.loom.api.options.LoomOptions`
+### 4.1 `database` — `DatabaseOptions`
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `database` | `DatabaseOptions` | Database connection and pool configuration |
-| `server` | `ServerOptions` | Server ports and bind address |
-| `auth` | `AuthenticationOptions` | Authentication and security settings |
-| `storage` | `StorageOptions` | Where binaries land when a library has no pool, plus the upload size and free-space guards |
-| `s3` | `S3Options` | Credentials and endpoint/region defaults for every S3-backed `asset_pool` |
+| Variable | Default | Options | Purpose |
+|----------|---------|---------|---------|
+| `LOOM_DB_HOST` | `127.0.0.1` | `DatabaseOptions` | PostgreSQL host |
+| `LOOM_DB_PORT` | `5432` | `DatabaseOptions` | PostgreSQL port |
+| `LOOM_DB_USERNAME` | `postgres` | `DatabaseOptions` | PostgreSQL user |
+| `LOOM_DB_PASSWORD` | `finger` | `DatabaseOptions` | PostgreSQL password (**not** marked sensitive — value is logged) |
+| `LOOM_DB_NAME` | `loom` | `DatabaseOptions` | Database name |
+| `LOOM_DB_MIN_POOL_SIZE` | `5` | `DatabaseOptions` | Minimum pool size |
+| `LOOM_DB_MAX_POOL_SIZE` | `20` | `DatabaseOptions` | Maximum pool size |
+| — | `5` | `DatabaseOptions` | `acquireIncrement` — **YAML only, no env var** |
 
-> `storage` and `s3` are documented in full — including how a library selects its backend — in
-> [../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) §5 and §11.
-> Note that `StorageOptions` accepts **both** `LOOM_STORAGE_UPLOAD_DIR` (canonical) and
-> `LOOM_BINARY_DIR` (alias kept for the Helm chart's historic name); the canonical one wins.
+### 4.2 `server` — `ServerOptions`
 
-### DatabaseOptions
+| Variable | Default | Options | Purpose |
+|----------|---------|---------|---------|
+| `LOOM_SERVER_GRPC_PORT` | `8091` | `ServerOptions` | gRPC port |
+| `LOOM_SERVER_GRPC_BIND_ADDRESS` | `0.0.0.0` | `ServerOptions` | Bind address for **all** listeners despite the name |
+| `LOOM_SERVER_REST_PORT` | `8092` | `ServerOptions` | REST + WebSocket port |
+| `LOOM_SERVER_MON_PORT` | `8989` | `ServerOptions` | Monitoring/health/metrics port |
+| `LOOM_SERVER_MCP_PORT` | `4041` | `ServerOptions` | MCP server port |
 
-**Package:** `io.metaloom.loom.api.options.DatabaseOptions`
+### 4.3 `auth` — `AuthenticationOptions`
 
-| Property | Default | Environment Variable | Type | Description |
-|----------|---------|---------------------|------|-------------|
-| `host` | `127.0.0.1` | `LOOM_DB_HOST` | String | Database host |
-| `port` | `5432` | `LOOM_DB_PORT` | int | Database port |
-| `username` | `postgres` | `LOOM_DB_USERNAME` | String | Database username |
-| `password` | `finger` | `LOOM_DB_PASSWORD` | String | Database password (sensitive) |
-| `databaseName` | `loom` | `LOOM_DB_NAME` | String | Database name |
-| `minPoolSize` | `5` | `LOOM_DB_MIN_POOL_SIZE` | int | Minimum connection pool size |
-| `acquireIncrement` | `5` | — | int | Pool acquire increment |
-| `maxPoolSize` | `20` | `LOOM_DB_MAX_POOL_SIZE` | int | Maximum connection pool size |
-| `jdbcUrl` | computed | — | String | **Derived**: `jdbc:postgresql://host:port/databaseName` |
+| Variable | Default | Options | Purpose |
+|----------|---------|---------|---------|
+| `LOOM_INITIAL_PASSWORD` | `null` | `AuthenticationOptions` | Bootstrap admin password |
+| `LOOM_TOKEN_EXPIRATION_TIME` | `3600` | `AuthenticationOptions` | JWT lifetime in seconds |
+| `LOOM_MCP_AUTH_ENABLED` | `false` | `AuthenticationOptions` | Auth on MCP SSE/message/WebSocket endpoints |
+| `LOOM_MCP_AUTH_STRICT_MODE` | `false` | `AuthenticationOptions` | Require auth on all MCP endpoints (no lenient mode) |
+| `LOOM_MCP_AUTH_ALLOWED_ORIGINS` | `*` | `AuthenticationOptions` | CORS origins for the MCP SSE endpoint |
+| — | `null` | `AuthenticationOptions` | `keystorePassword` — **YAML only**, generated by `generateDefaultConfig()` |
 
-### ServerOptions
+Constants: `DEFAULT_KEYSTORE_FILENAME = "keystore.jceks"`, `TOKEN_COOKIE_KEY = "__Host-loom_token"`,
+`DEFAULT_TOKEN_EXPIRATION_TIME = 3600`.
 
-**Package:** `io.metaloom.loom.api.options.ServerOptions`
+### 4.4 `auth.oauth2` — `OAuth2Options`
 
-| Property | Default | Environment Variable | Type | Description |
-|----------|---------|---------------------|------|-------------|
-| `grpcPort` | `8091` | `LOOM_SERVER_GRPC_PORT` | int | gRPC server port |
-| `bindAddress` | `0.0.0.0` | `LOOM_SERVER_GRPC_BIND_ADDRESS` | String | Bind address for all servers |
-| `restPort` | `8092` | `LOOM_SERVER_REST_PORT` | int | REST/HTTP server port |
-| `monitoringPort` | `8989` | `LOOM_SERVER_MON_PORT` | int | Monitoring server port (reserved) |
-| `mcpPort` | `4041` | `LOOM_SERVER_MCP_PORT` | int | MCP server port |
+| Variable | Default | Options | Purpose |
+|----------|---------|---------|---------|
+| `LOOM_OAUTH2_ENABLED` | `false` | `OAuth2Options` | Master switch; gates all validation below |
+| `LOOM_OAUTH2_CLIENT_ID` | `null` | `OAuth2Options` | Client ID |
+| `LOOM_OAUTH2_CLIENT_SECRET` | `null` | `OAuth2Options` | Client secret (**sensitive**, masked) |
+| `LOOM_OAUTH2_AUTH_URL` | `null` | `OAuth2Options` | Authorization endpoint |
+| `LOOM_OAUTH2_TOKEN_URL` | `null` | `OAuth2Options` | Token endpoint |
+| `LOOM_OAUTH2_USERINFO_URL` | `null` | `OAuth2Options` | Userinfo endpoint |
+| `LOOM_OAUTH2_CALLBACK_URL` | `null` | `OAuth2Options` | Callback URL |
+| `LOOM_OAUTH2_LOGOUT_URL` | `null` | `OAuth2Options` | End-session endpoint (optional) |
+| `LOOM_OAUTH2_SCOPE` | `openid profile email` | `OAuth2Options` | Requested scopes |
 
-### AuthenticationOptions
+### 4.5 `storage` — `StorageOptions`
 
-**Package:** `io.metaloom.loom.api.options.AuthenticationOptions`
+| Variable | Default | Options | Purpose |
+|----------|---------|---------|---------|
+| `LOOM_STORAGE_UPLOAD_DIR` | `data/storage` | `StorageOptions` | Default binary destination for libraries without an `asset_pool` |
+| `LOOM_BINARY_DIR` | — | `StorageOptions` | **Alias** for the above; applied first so `LOOM_STORAGE_UPLOAD_DIR` wins when both are set |
+| `LOOM_STORAGE_MAX_UPLOAD_SIZE` | `-1` (no cap) | `StorageOptions` | Largest accepted upload in bytes |
+| `LOOM_STORAGE_MIN_FREE_SPACE` | `1073741824` (1 GiB) | `StorageOptions` | Refuse uploads below this free-byte floor; `0` disables. Not applied to S3 pools |
 
-| Property | Default | Environment Variable | Type | Description |
-|----------|---------|---------------------|------|-------------|
-| `keystorePassword` | `null` | — | String | Keystore password (set via `generateDefaultConfig()`) |
-| `initialPassword` | `null` | `LOOM_INITIAL_PASSWORD` | String | Initial admin password |
-| `tokenExpirationTime` | `3600` | `LOOM_TOKEN_EXPIRATION_TIME` | int | JWT token expiration (seconds) |
-| `oauth2` | `OAuth2Options` | — | Object | OAuth2 configuration |
-| `mcpAuthEnabled` | `false` | `LOOM_MCP_AUTH_ENABLED` | boolean | Enable authentication on MCP endpoints |
-| `mcpAuthStrictMode` | `false` | `LOOM_MCP_AUTH_STRICT_MODE` | boolean | Require auth on all MCP endpoints (no lenient mode) |
-| `mcpAuthAllowedOrigins` | `*` | `LOOM_MCP_AUTH_ALLOWED_ORIGINS` | String | Comma-separated allowed origins for the MCP SSE endpoint |
+### 4.6 `s3` — `S3Options`
 
-**Constants:**
-- `DEFAULT_KEYSTORE_FILENAME = "keystore.jceks"`
-- `TOKEN_COOKIE_KEY = "__Host-loom_token"`
-- `DEFAULT_TOKEN_EXPIRATION_TIME = 3600`
+| Variable | Default | Options | Purpose |
+|----------|---------|---------|---------|
+| `LOOM_S3_ENDPOINT` | `null` | `S3Options` | Endpoint used when a pool names none (MinIO/Ceph) |
+| `LOOM_S3_REGION` | `us-east-1` | `S3Options` | Region used when a pool names none |
+| `LOOM_S3_ACCESS_KEY` | `null` | `S3Options` | Access key (**sensitive**). Unset ⇒ AWS default credential chain |
+| `LOOM_S3_SECRET_KEY` | `null` | `S3Options` | Secret key (**sensitive**) |
+| `LOOM_S3_PATH_STYLE` | unset ⇒ on iff an endpoint is set | `S3Options` | Force path-style bucket addressing |
 
-### OAuth2Options
+Credentials live on the process only — never in `asset_pool` rows, REST responses or backups.
+Names mirror Cortex's `CORTEX_S3_*` (`S3ClientOptions`).
 
-**Package:** `io.metaloom.loom.api.options.OAuth2Options`
+### 4.7 `ai` — `AiOptions` (chat agent)
 
-| Property | Default | Environment Variable | Type | Description |
-|----------|---------|---------------------|------|-------------|
-| `enabled` | `false` | `LOOM_OAUTH2_ENABLED` | boolean | Enable OAuth2 |
-| `clientId` | `""` | `LOOM_OAUTH2_CLIENT_ID` | String | OAuth2 client ID |
-| `clientSecret` | `""` | `LOOM_OAUTH2_CLIENT_SECRET` | String | OAuth2 client secret (sensitive) |
-| `authUrl` | `""` | `LOOM_OAUTH2_AUTH_URL` | String | Authorization endpoint URL |
-| `tokenUrl` | `""` | `LOOM_OAUTH2_TOKEN_URL` | String | Token endpoint URL |
-| `userInfoUrl` | `""` | `LOOM_OAUTH2_USERINFO_URL` | String | Userinfo endpoint URL |
-| `callbackUrl` | `""` | `LOOM_OAUTH2_CALLBACK_URL` | String | Callback URL |
-| `logoutUrl` | `""` | `LOOM_OAUTH2_LOGOUT_URL` | String | Logout endpoint URL |
-| `scope` | `openid profile email` | `LOOM_OAUTH2_SCOPE` | String | OAuth2 scopes |
+| Variable | Default | Options | Purpose |
+|----------|---------|---------|---------|
+| `LOOM_AI_ENABLED` | `true` | `AiOptions` | Enable the chat agent |
+| `LOOM_AI_PROVIDER_TYPE` | `OLLAMA` | `AiOptions` | Provider (`OLLAMA`, `VLLM`) — free-form string, not enum-checked |
+| `LOOM_AI_URL` | `http://127.0.0.1:11434` | `AiOptions` | Provider base URL |
+| `LOOM_AI_MODEL_ID` | `gpt-oss:20b` | `AiOptions` | Model id |
+| `LOOM_AI_CONTEXT_WINDOW` | `16384` | `AiOptions` | Context window |
+| `LOOM_AI_MAX_TURNS` | `8` | `AiOptions` | Agentic loop turns per user message |
+| `LOOM_AI_TOOL_TIMEOUT_MS` | `30000` | `AiOptions` | Per-tool-invocation timeout |
+| `LOOM_AI_THINK_ENABLED` | `true` | `AiOptions` | Reasoning/think mode |
+| `LOOM_AI_STREAMING` | `false` | `AiOptions` | True token streaming (else turn-granular) |
+| `LOOM_AI_TITLE_GENERATION` | `true` | `AiOptions` | Automatic chat title generation |
+
+### 4.8 `sandbox` — `SandboxOptions` (per-session coding sandbox)
+
+| Variable | Default | Options | Purpose |
+|----------|---------|---------|---------|
+| `LOOM_AGENT_SANDBOX_ENABLED` | `false` | `SandboxOptions` | Enable `run_shell`/`write_file`/`read_file`/`list_files` |
+| `LOOM_AGENT_SANDBOX_BACKEND` | `podman` | `SandboxOptions` | `podman` or `kubernetes` |
+| `LOOM_AGENT_SANDBOX_IMAGE` | `metaloom/loom-session-runner:latest` | `SandboxOptions` | Session Runner image |
+| `LOOM_AGENT_SANDBOX_NAMESPACE` | `""` | `SandboxOptions` | K8s/OpenShift namespace (falls back to the SA namespace) |
+| `LOOM_AGENT_SANDBOX_IDLE_TTL_S` | `900` | `SandboxOptions` | Idle reap timeout |
+| `LOOM_AGENT_SANDBOX_MAX_SESSION_S` | `3600` | `SandboxOptions` | Hard session time-box |
+| `LOOM_AGENT_SANDBOX_EXEC_TIMEOUT_S` | `120` | `SandboxOptions` | Per-exec wall-clock timeout |
+| `LOOM_AGENT_SANDBOX_MAX_CONCURRENT` | `10` | `SandboxOptions` | Per-deployment concurrent runner cap |
+| `LOOM_AGENT_SANDBOX_READY_TIMEOUT_S` | `60` | `SandboxOptions` | Provision readiness wait |
+| `LOOM_AGENT_SANDBOX_CPU_REQUEST` | `100m` | `SandboxOptions` | CPU request |
+| `LOOM_AGENT_SANDBOX_CPU_LIMIT` | `1` | `SandboxOptions` | CPU limit |
+| `LOOM_AGENT_SANDBOX_MEM_REQUEST` | `128Mi` | `SandboxOptions` | Memory request |
+| `LOOM_AGENT_SANDBOX_MEM_LIMIT` | `512Mi` | `SandboxOptions` | Memory limit |
+| `LOOM_AGENT_SANDBOX_WORKSPACE_SIZE` | `512Mi` | `SandboxOptions` | Ephemeral `/workspace` size |
+
+The Kubernetes backend additionally reads the standard `KUBERNETES_SERVICE_HOST` (`kubernetes.default.svc`)
+and `KUBERNETES_SERVICE_PORT` (`443`) directly in `KubernetesBackend` — they are not option fields.
+
+### 4.9 `memory` — `MemoryOptions` (agent memory bank)
+
+| Variable | Default | Options | Purpose |
+|----------|---------|---------|---------|
+| `LOOM_AGENT_MEMORY_ENABLED` | `false` | `MemoryOptions` | Enable memory tools + system-prompt block |
+| `LOOM_AGENT_MEMORY_MOUNT_ENABLED` | `true` | `MemoryOptions` | Materialize memory read-only into the Session Runner |
+| `LOOM_AGENT_MEMORY_MOUNT_PATH` | `/memory` | `MemoryOptions` | Mount path inside the runner (must be absolute) |
+| `LOOM_AGENT_MEMORY_MAX_ENTRY_BYTES` | `262144` | `MemoryOptions` | Max single entry body |
+| `LOOM_AGENT_MEMORY_MAX_ENTRIES_PER_SCOPE` | `500` | `MemoryOptions` | Max entries per scope |
+| `LOOM_AGENT_MEMORY_MAX_SCOPE_BYTES` | `16777216` | `MemoryOptions` | Max total body bytes per scope |
+| `LOOM_AGENT_MEMORY_MAX_DEPTH` | `4` | `MemoryOptions` | Max path segments of a memory id |
+| `LOOM_AGENT_MEMORY_MAX_WRITES_PER_RUN` | `20` | `MemoryOptions` | Write/delete budget per agent run |
+| `LOOM_AGENT_MEMORY_PROMPT_MAX_ENTRIES` | `50` | `MemoryOptions` | Index entries injected into the system prompt |
+| `LOOM_AGENT_MEMORY_PROMPT_MAX_CHARS` | `4096` | `MemoryOptions` | Size of the injected prompt block |
+| `LOOM_AGENT_MEMORY_SHARED_SCOPES_ENABLED` | `true` | `MemoryOptions` | Allow group/space scopes at all |
+| `LOOM_AGENT_MEMORY_SHARED_WRITE_ENABLED` | `true` | `MemoryOptions` | Allow the agent to write shared scopes |
+
+### 4.10 `search` — `SearchOptions`
+
+| Variable | Default | Options | Purpose |
+|----------|---------|---------|---------|
+| `LOOM_SEARCH_ENABLED` | `true` | `SearchOptions` | Master switch; off ⇒ search routes answer 503 |
+| `LOOM_SEARCH_PROVIDER` | `postgres` | `SearchOptions` | `postgres` \| `elasticsearch` \| `none` |
+| `LOOM_SEARCH_DEFAULT_LIMIT` | `25` | `SearchOptions` | Default page size |
+| `LOOM_SEARCH_MAX_LIMIT` | `100` | `SearchOptions` | Max requestable page size |
+| `LOOM_SEARCH_MAX_OFFSET` | `1000` | `SearchOptions` | Deep-paging guard (beyond ⇒ 400) |
+| `LOOM_SEARCH_HIGHLIGHT_ENABLED` | `true` | `SearchOptions` | Allow `ts_headline` snippets |
+| `LOOM_SEARCH_TRIGRAM_THRESHOLD` | `0.3` | `SearchOptions` | `pg_trgm` similarity floor |
+| `LOOM_SEARCH_TRIGRAM_WEIGHT` | `0.35` | `SearchOptions` | Trigram term weight in the blended score |
+| `LOOM_SEARCH_BODY_MAX_BYTES` | `524288` | `SearchOptions` | Cap on indexed body text (tsvector limit is 1 MB) |
+| `LOOM_SEARCH_TS_CONFIG` | `english` | `SearchOptions` | Postgres text-search configuration |
+
+### 4.11 `similarity` — `SimilarityOptions`
+
+| Variable | Default | Options | Purpose |
+|----------|---------|---------|---------|
+| `LOOM_SIMILARITY_ENABLED` | `false` | `SimilarityOptions` | Master switch for the fingerprint k-NN index |
+| `LOOM_SIMILARITY_INDEX_PATH` | `similarity-index` | `SimilarityOptions` | On-disk Lucene index directory |
+| `LOOM_SIMILARITY_ALGORITHM` | `metaloom-multisector-v1` | `SimilarityOptions` | Which `asset_fingerprint_comp.algorithm` participates |
+| `LOOM_SIMILARITY_SCORE_THRESHOLD` | `0.10` | `SimilarityOptions` | Default k-NN score floor (per-request overridable) |
+| `LOOM_SIMILARITY_TOPK` | `10` | `SimilarityOptions` | Default neighbours per query (per-request overridable) |
+
+### 4.12 Read outside the option tree
+
+| Variable | Default | Read by | Purpose |
+|----------|---------|---------|---------|
+| `LOOM_WS_STRICT_AUTH` | `false` | `WebSocketAuthenticator` | Require a `?token=` on every WebSocket handshake. JVM property `loom.ws.strictAuth` wins over it. **Not** an option field and not validated |
+| `LOOM_NAME` | random "adjective Noun" | `LoomNameProvider` | Instance name used in log patterns. JVM property `loom.name` wins over it |
+| `LOOM_UI_DIR` | `../loom-ui` | `E2ETest` (test only) | Location of the built UI for the e2e suite |
+
+### 4.13 Documented elsewhere but **never read** by Loom
+
+| Variable | Where it appears | Reality |
+|----------|------------------|---------|
+| `LOOM_CONF_FILENAME` | `helm/loom/templates/deployment.yaml`, `helm/loom/values.yaml`, [../CONTEXT.md](../CONTEXT.md) §4.4 | `LoomEnv.LOOM_CONF_FILENAME` is a **compile-time constant** (`"loom.yml"`). Nothing calls `getenv` for it. Mount the file at one of the §2 paths instead |
+| `LOOM_AUTH_KEYSTORE_PATH` | `helm/loom/templates/deployment.yaml` | No option field. The keystore is always `baseConfigFolder/keystore.jceks` |
+| `LOOM_DB_USER` | `helm/loom/templates/deployment.yaml` | The code reads `LOOM_DB_USERNAME`. A Helm install therefore silently runs as `postgres` |
+| `LOOM_HOST`, `LOOM_PORT`, `LOOM_TOKEN` | Helm chart, `CortexContainer` | Read by **Cortex/CLI**, not by the Loom server — see [../cortex/CONFIGURATION.md](../cortex/CONFIGURATION.md) |
+
+### 4.14 Read in code but undocumented outside this file
+
+`LOOM_WS_STRICT_AUTH`, `LOOM_BINARY_DIR` (as an alias), the whole `LOOM_SEARCH_*` and
+`LOOM_SIMILARITY_*` families, and most of `LOOM_AGENT_SANDBOX_*` / `LOOM_AGENT_MEMORY_*` are not
+surfaced by the Helm chart at all — set them through `.Values.extraEnv` /
+`.Values.ai.extraEnv` / `.Values.sandbox.extraEnv`.
 
 ---
 
-## Environment Variable Override System
+## 5. Override mechanism
 
-### How It Works
+### 5.1 Two code paths, same annotation
 
-The configuration system uses a two-phase approach:
+`Option.overrideWithEnv()` has a **reflection default** that walks declared methods and fields for
+`@EnvironmentVariable` and recurses into any field whose type is an `Option`. Classes that override
+it use the reflection-free `OptionUtils.applyEnv*` helpers instead (native-image safe).
 
-1. **YAML Deserialization** — Jackson maps YAML to POJOs
-2. **Environment Override** — `overrideWithEnv()` recursively applies environment variables
+| Uses explicit `applyEnv*` | Uses the reflection default |
+|---------------------------|-----------------------------|
+| `LoomOptions` (delegates), `DatabaseOptions`, `ServerOptions`, `AuthenticationOptions`, `OAuth2Options`, `StorageOptions`, `S3Options`, `AiOptions` | `SandboxOptions`, `MemoryOptions`, `SearchOptions`, `SimilarityOptions` |
 
-### Override Mechanism
-
-```java
-// In Option interface (default method)
-default void overrideWithEnv() {
-    Class<?> cls = getClass();
-    while (cls != null && cls != Object.class) {
-        // Check annotated methods
-        for (Method method : cls.getDeclaredMethods()) {
-            if (method.getParameterCount() == 1 && method.isAnnotationPresent(EnvironmentVariable.class)) {
-                OptionUtils.overrideWithEnvViaMethod(method, this);
-            }
-        }
-        // Check annotated fields
-        for (Field field : cls.getDeclaredFields()) {
-            if (field.isAnnotationPresent(EnvironmentVariable.class)) {
-                OptionUtils.overrideWitEnvViaFieldSet(field, this);
-            }
-            // Recursively process nested Option objects
-            if (Option.class.isAssignableFrom(field.getType())) {
-                field.setAccessible(true);
-                Option subOption = (Option) field.get(this);
-                if (subOption != null) {
-                    subOption.overrideWithEnv();
-                }
-            }
-        }
-        cls = cls.getSuperclass();
-    }
-}
-```
-
-### @EnvironmentVariable Annotation
+Both paths honour `isSensitive` and log `Setting env {NAME=value}` / `********`.
 
 ```java
-@Target({ ElementType.ANNOTATION_TYPE, ElementType.FIELD, ElementType.METHOD })
-@Retention(RetentionPolicy.RUNTIME)
+@Target({ ANNOTATION_TYPE, FIELD, METHOD })
+@Retention(RUNTIME)
 public @interface EnvironmentVariable {
     String description();
     String name();
@@ -266,95 +310,38 @@ public @interface EnvironmentVariable {
 }
 ```
 
-### OptionUtils Helper Methods
+### 5.2 `OptionUtils`
 
-| Method | Purpose |
+| Member | Purpose |
 |--------|---------|
-| `applyEnv(name, setter)` | String env var with direct setter |
-| `applyEnvSensitive(name, setter)` | Sensitive string (masked in logs) |
-| `applyEnvInt(name, setter)` | Integer env var |
-| `applyEnvBoolean(name, setter)` | Boolean env var |
-| `convertValue(clazz, value)` | Type conversion (String, boolean, int, long, float, double, JsonObject, Enum, List, Set) |
+| `envLookup` | `static Function<String,String>` defaulting to `System::getenv`; **package-private, reassigned by tests** |
+| `applyEnv` / `applyEnvSensitive` | String setter, plain vs masked logging |
+| `applyEnvInt` / `applyEnvLong` / `applyEnvBoolean` | Typed setters |
+| `overrideWithEnvViaMethod` / `overrideWitEnvViaFieldSet` | Reflection paths (note the typo in the second name) |
+| `envVarNameFor(cls, field)` | Resolves the env name for a field so validation errors can print `[env: …]` |
+| `convertValue` | `String`, `boolean`, `int`, `long`, `float`, `double`, `JsonObject`, enum, `List`, `Set` (comma-split). The literal string `null` converts to `null` |
 
-### Sensitive Value Handling
+Only fields annotated `isSensitive = true` are masked: `LOOM_OAUTH2_CLIENT_SECRET`,
+`LOOM_S3_ACCESS_KEY`, `LOOM_S3_SECRET_KEY`. `LOOM_DB_PASSWORD` and `LOOM_INITIAL_PASSWORD` are
+**not** masked and appear in the startup log.
 
-Fields annotated with `isSensitive() = true` have their values masked in logs:
+### 5.3 Precedence
+
+`env > YAML > code default`. There is no per-key merging across config files and no CLI override
+layer. `createOrLoadOptions()` is the only path that applies overrides and validation:
 
 ```java
-@EnvironmentVariable(name = "LOOM_OAUTH2_CLIENT_SECRET", description = "...", isSensitive = true)
-private String clientSecret;
-```
-
-Log output: `Setting env {LOOM_OAUTH2_CLIENT_SECRET=********}`
-
----
-
-## Configuration Loading Flow
-
-```mermaid
-sequenceDiagram
-    participant App as Application
-    participant Loader as LoomOptionsLoader
-    participant FS as File System
-    participant YAML as Jackson YAML
-    participant Env as Environment
-    participant Defaults as Default Config
-    
-    App->>Loader: createOrLoadOptions()
-    Loader->>FS: Check /etc/metaloom/loom.yml
-    alt Found
-        FS-->>Loader: File content
-        Loader->>YAML: Parse YAML
-        YAML-->>Loader: LoomOptions
-    else Not Found
-        Loader->>FS: Check ~/.config/metaloom/loom.yml
-        alt Found
-            FS-->>Loader: File content
-            Loader->>YAML: Parse YAML
-        else Not Found
-            Loader->>FS: Check config/loom.yml
-            alt Found
-                FS-->>Loader: File content
-                Loader->>YAML: Parse YAML
-            else Not Found
-                Loader->>YAML: Check classpath /loom.yml
-                alt Found
-                    YAML-->>Loader: LoomOptions
-                else Not Found
-                    Loader->>Defaults: generateDefaultConfig()
-                    Defaults-->>Loader: LoomOptions
-                    Loader->>FS: Write to config/loom.yml
-                end
-            end
-        end
-    end
-    Loader->>Env: overrideWithEnv()
-    Env-->>Loader: Applied overrides
-    Loader->>Loader: validate()
-    Loader-->>App: LoomOptionsLookup
+LoomOptionsLookup lookup = loadLoomOptions();   // 1. first file/classpath/generated wins
+lookup.options().overrideWithEnv();             // 2. env wins over YAML
+lookup.options().validate();                    // 3. fail fast
 ```
 
 ---
 
-## Configuration Validation
+## 6. Validation
 
-After the YAML has been parsed and environment overrides have been applied, `LoomOptions.validate()` checks the whole option tree. Validation is **fail-fast at startup** — an invalid configuration prevents the server from booting rather than surfacing as an obscure runtime failure later.
-
-### Collecting Errors
-
-Every `Option` may implement `validate(OptionErrors errors)`. All implementations report into a **shared collector** so that the full set of problems is reported at once:
-
-```java
-@Override
-public void validate(OptionErrors errors) {
-    errors.host("host", host)
-        .port("port", port)
-        .notBlank("username", username)
-        .min("minPoolSize", minPoolSize, 1);
-}
-```
-
-`LoomOptions.validate()` walks the tree and then throws a single `ConfigurationValidationException` carrying every error:
+`LoomOptions.validate()` builds a root `OptionErrors`, walks every `nested(...)` sub option and
+throws one `ConfigurationValidationException` listing **all** problems:
 
 ```
 Configuration validation failed with 4 error(s):
@@ -364,242 +351,251 @@ Configuration validation failed with 4 error(s):
   - auth.oauth2.authUrl: must be an absolute URL including scheme and host but was '/authorize' [env: LOOM_OAUTH2_AUTH_URL]
 ```
 
-Each error is prefixed with the dotted YAML path and — when the field carries an `@EnvironmentVariable` annotation — suffixed with the environment variable that can override it. Values of blank/secret fields are never echoed into the message.
+Values of blank/secret fields are never echoed.
 
-### OptionErrors API
+### 6.1 `OptionErrors` API
 
-| Method | Purpose |
-|--------|---------|
-| `nested(name, option)` | Validate a sub option under a nested path; reports an error when the sub option is `null` |
-| `add(field, message)` | Record a free-form error |
-| `notBlank(field, value)` | Value must be non-null and non-blank (value is never echoed) |
-| `port(field, value)` | Value must be in range 1–65535 |
-| `min(field, value, min)` | Value must be `>= min` |
-| `host(field, value)` | Value must be a syntactically valid hostname or IP literal (no DNS resolution) |
-| `url(field, value)` | Value must be an absolute `http`/`https` URL |
-| `isEmpty()` / `errors()` | Inspect the collected errors |
-| `throwOnError()` | Throw `ConfigurationValidationException` when any error was collected |
+| Method | Rule |
+|--------|------|
+| `nested(name, option)` | Scope path to `name`; a `null` sub option is itself an error |
+| `add(field, message)` | Free-form error, auto-suffixed with `[env: …]` when the field is annotated |
+| `notBlank(field, value)` | Non-null, non-blank; value never echoed |
+| `port(field, value)` | 1–65535 |
+| `min(field, value, min)` | `int` only — there is no `long`/`double` variant |
+| `host(field, value)` | Matches `^[A-Za-z0-9._:\[\]-]+$` — **syntax only, no DNS resolution** |
+| `url(field, value)` | Absolute URI with a host and an `http`/`https` scheme |
+| `isEmpty()` / `errors()` / `throwOnError()` | Inspect / raise |
 
-### Required vs Optional Settings
+### 6.2 What is actually enforced
 
-| Setting | Required | Rule |
-|---------|----------|------|
-| `database.host` | ✅ | Valid hostname or IP literal |
-| `database.port` | ✅ | 1–65535 |
-| `database.username` | ✅ | Non-blank |
-| `database.password` | ✅ | Non-blank |
-| `database.databaseName` | ✅ | Non-blank |
-| `database.minPoolSize` | ✅ | `>= 1` |
-| `database.maxPoolSize` | ✅ | `>= 1` and `>= minPoolSize` |
-| `database.acquireIncrement` | ✅ | `>= 1` |
-| `server.bindAddress` | ✅ | Valid hostname or IP literal |
-| `server.grpcPort` | ✅ | 1–65535, distinct from the other server ports |
-| `server.restPort` | ✅ | 1–65535, distinct from the other server ports |
-| `server.monitoringPort` | ✅ | 1–65535, distinct from the other server ports |
-| `server.mcpPort` | ✅ | 1–65535, distinct from the other server ports |
-| `auth.keystorePassword` | ✅ | Non-blank (auto-generated by `generateDefaultConfig()`) |
-| `auth.tokenExpirationTime` | ✅ | `>= 1` |
-| `auth.initialPassword` | ⬜ | Not validated |
-| `auth.mcpAuthAllowedOrigins` | ⚠️ | Non-blank **only when** `auth.mcpAuthEnabled` is `true` |
-| `auth.oauth2.*` | ⚠️ | Validated **only when** `auth.oauth2.enabled` is `true` (see below) |
+| Section | Gate | Rules |
+|---------|------|-------|
+| `database` | always | `host` valid; `port` 1–65535; `username`/`password`/`databaseName` non-blank; `minPoolSize`, `maxPoolSize`, `acquireIncrement` ≥ 1; `maxPoolSize ≥ minPoolSize` |
+| `server` | always | `bindAddress` valid; all four ports 1–65535 **and pairwise distinct** |
+| `auth` | always | `keystorePassword` non-blank; `tokenExpirationTime` ≥ 1. `initialPassword` unvalidated |
+| `auth` | `mcpAuthEnabled` | `mcpAuthAllowedOrigins` non-blank |
+| `auth.oauth2` | `enabled` | `clientId`, `clientSecret`, `scope` non-blank; `authUrl`, `tokenUrl`, `userInfoUrl`, `callbackUrl` absolute http(s); `logoutUrl` optional but validated when set. **Whole block skipped when disabled** |
+| `storage` | always | `uploadDirectory` non-blank; `maxUploadSize` positive or exactly `-1`; `minFreeSpace` ≥ 0 |
+| `s3` | always | `accessKey` and `secretKey` must be set **together** (or neither). Endpoint/region unvalidated |
+| `ai` | **always — even when `enabled: false`** | `providerType`, `url`, `modelId` non-blank. `providerType` is not checked against a known set; no numeric bounds on turns/window/timeout |
+| `sandbox` | — | `validate()` is an intentional **no-op**; backends report their own errors at provision time |
+| `memory` | `enabled` | `maxEntryBytes`, `maxEntriesPerScope`, `maxDepth`, `promptMaxEntries`, `promptMaxChars` ≥ 1; `maxScopeBytes` > 0; `mountPath` absolute when `mountEnabled` |
+| `search` | `enabled` | `provider` ∈ {postgres, elasticsearch, none} (case-insensitive); `defaultLimit`/`maxLimit` ≥ 1, `maxOffset` ≥ 0, `bodyMaxBytes` ≥ 1024; `defaultLimit ≤ maxLimit`; `trigramThreshold` ∈ [0,1]; `trigramWeight` ≥ 0; `tsConfig` non-blank |
+| `similarity` | `enabled` | `indexPath`, `algorithm` non-blank; `scoreThreshold` ≥ 0; `topK` ≥ 1 |
 
-When `auth.oauth2.enabled` is `false` the whole OAuth2 block is skipped, so a partially filled placeholder block is not an error. When enabled:
+### 6.3 `--validate-config`
 
-| Setting | Required | Rule |
-|---------|----------|------|
-| `clientId` | ✅ | Non-blank |
-| `clientSecret` | ✅ | Non-blank |
-| `scope` | ✅ | Non-blank |
-| `authUrl` | ✅ | Absolute `http`/`https` URL |
-| `tokenUrl` | ✅ | Absolute `http`/`https` URL |
-| `userInfoUrl` | ✅ | Absolute `http`/`https` URL |
-| `callbackUrl` | ✅ | Absolute `http`/`https` URL |
-| `logoutUrl` | ⬜ | Optional, but must be a valid URL when set |
-
-### Validating Without Starting the Server
-
-`LoomServerRunner` accepts a `--validate-config` flag which loads the configuration through the normal lookup order, validates it, and exits without booting any service:
-
-```bash
-loom-server --validate-config
-```
-
-| Exit code | Meaning |
-|-----------|---------|
-| `0` | Configuration is valid — the source folder is printed to stdout |
-| `1` | Configuration is invalid — every error is printed to stderr |
-
-Because it runs the ordinary loading path, environment variable overrides are applied, making it usable as a deployment pre-flight check:
+`LoomServerRunner` runs the ordinary loading path and exits without booting anything:
 
 ```bash
 LOOM_DB_PASSWORD="$DB_PASS" loom-server --validate-config || exit 1
 ```
 
-On a normal boot, a `ConfigurationValidationException` is reported as a plain error list (no stacktrace) and the process exits with code `11`.
+| Exit code | Meaning |
+|-----------|---------|
+| `0` | Valid — the source folder (or "loaded from classpath") is printed to stdout |
+| `1` | Invalid, or the configuration could not be loaded at all |
+| `11` | Normal boot aborted: `ConfigurationValidationException` (error list, no stacktrace) or any other bootstrap failure |
 
 ---
 
-## Default Configuration Generation
-
-When no configuration file is found, a default is generated and saved to `config/loom.yml`:
+## 7. Default configuration generation
 
 ```java
 public static LoomOptions generateDefaultConfig() {
     LoomOptions options = new LoomOptions();
     options.getAuth().setKeystorePassword(StringUtils.randomHumanString(12));
-    // options.setNodeName(LoomNameProvider.getInstance().getRandomName());
     return options;
 }
 ```
 
-**Generated defaults:**
-- Database: localhost:5432, postgres/finger, database "loom", pool 5-20
-- Server: gRPC 8091, REST 8092, bind 0.0.0.0, monitoring 8989
-- Auth: Random 12-char keystore password, token expiration 3600s, OAuth2 disabled
+Written to `config/loom.yml` with **default file permissions** — it contains a freshly generated
+keystore password, so the config directory must be secured by the operator.
+`defaultLoomConfig()` (used when a stream is null) does **not** set a keystore password and
+therefore yields an invalid tree.
 
 ---
 
-## Key Classes Reference
+## 8. Key Classes Reference
 
 | Class | Package | Purpose |
 |-------|---------|---------|
-| `LoomOptions` | `io.metaloom.loom.api.options` | Root configuration object |
-| `DatabaseOptions` | `io.metaloom.loom.api.options` | Database configuration |
-| `ServerOptions` | `io.metaloom.loom.api.options` | Server ports and bind address |
-| `AuthenticationOptions` | `io.metaloom.loom.api.options` | Authentication settings |
-| `OAuth2Options` | `io.metaloom.loom.api.options` | OAuth2 configuration |
-| `LoomOptionsLoader` | `io.metaloom.loom.common.options` | Configuration loading logic |
-| `LoomOptionsLookup` | `io.metaloom.loom.api.options` | Config + source location container |
-| `Option` | `io.metaloom.loom.api.options` | Marker interface with `overrideWithEnv()` and `validate(OptionErrors)` |
-| `OptionErrors` | `io.metaloom.loom.api.options` | Validation error collector with path scoping and check helpers |
-| `ConfigurationValidationException` | `io.metaloom.loom.api.error` | Thrown on startup with the full list of validation errors |
-| `OptionUtils` | `io.metaloom.loom.api.options` | Environment override utilities |
-| `EnvironmentVariable` | `io.metaloom.loom.api.options` | Annotation for env var mapping |
-| `LoomEnv` | `io.metaloom.loom.api` | Config file path constants |
+| `LoomOptions` | `io.metaloom.loom.api.options` | Root; owns the ten sections, `validate()` entry point |
+| `DatabaseOptions` | `io.metaloom.loom.api.options` | PostgreSQL connection + pool, derived `jdbcUrl` |
+| `ServerOptions` | `io.metaloom.loom.api.options` | Four ports + shared bind address, distinctness check |
+| `AuthenticationOptions` | `io.metaloom.loom.api.options` | Keystore password, JWT lifetime, MCP auth |
+| `OAuth2Options` | `io.metaloom.loom.api.options` | OAuth2/OIDC endpoints, gated validation |
+| `StorageOptions` | `io.metaloom.loom.api.options` | Default binary directory, upload/free-space guards |
+| `S3Options` | `io.metaloom.loom.api.options` | Process-level S3 credentials & endpoint defaults |
+| `AiOptions` | `io.metaloom.loom.api.options` | Chat agent provider, model, loop limits |
+| `SandboxOptions` | `io.metaloom.loom.api.options` | Session Runner backend, image, quotas, timeouts |
+| `MemoryOptions` | `io.metaloom.loom.api.options` | Agent memory bank limits and mount |
+| `SearchOptions` | `io.metaloom.loom.api.options` | Search provider and paging/scoring knobs |
+| `SimilarityOptions` | `io.metaloom.loom.api.options` | Fingerprint k-NN index switches |
+| `Option` | `io.metaloom.loom.api.options` | Interface with default `overrideWithEnv()` + `validate(OptionErrors)` |
+| `OptionUtils` | `io.metaloom.loom.api.options` | `envLookup`, `applyEnv*`, `convertValue`, `envVarNameFor` |
+| `OptionErrors` | `io.metaloom.loom.api.options` | Path-scoped error collector and check helpers |
+| `EnvironmentVariable` | `io.metaloom.loom.api.options` | Field/method annotation (`name`, `description`, `isSensitive`) |
+| `LoomOptionsLookup` | `io.metaloom.loom.api.options` | `record(File baseConfigFolder, LoomOptions options)` |
+| `ConfigurationValidationException` | `io.metaloom.loom.api.error` | Carries the full error list |
+| `LoomEnv` | `io.metaloom.loom.api` | Config filename + the three lookup paths |
+| `LoomOptionsLoader` | `io.metaloom.loom.common.options` | Lookup order, YAML mapper, default generation |
+| `LoomServerRunner` | `io.metaloom.loom.container.server` | `main`, `--validate-config`, exit codes |
+| `LoomNameProvider` | `io.metaloom.loom.log` | `LOOM_NAME` / `loom.name` instance naming |
+| `WebSocketAuthenticator` | `io.metaloom.loom.rest.service.impl` | `LOOM_WS_STRICT_AUTH` / `loom.ws.strictAuth` |
 
 ---
 
-## Conventions and Gotchas
+## 9. Conventions and Gotchas
 
-| Issue | Description | Impact |
-|-------|-------------|--------|
-| **No acquireIncrement env var** | `acquireIncrement` field lacks `@EnvironmentVariable` annotation | Cannot override via `LOOM_DB_ACQUIRE_INCREMENT` |
-| **keystorePassword not in env** | No env var for keystore password, only set via `generateDefaultConfig()` | Must use generated config or manually edit YAML |
-| **initialPassword not in overrideWithEnv** | `initialPassword` field has annotation but not in `overrideWithEnv()` method | Env var `LOOM_INITIAL_PASSWORD` ignored (uses reflection path) |
-| **OAuth2 clientSecret sensitive** | Marked `isSensitive=true` but uses `applyEnvSensitive` only in `overrideWithEnv()` | Reflection path doesn't mask sensitive values in logs |
-| **Config file permissions** | Default config written with random password - file may be world-readable | Security risk if config directory not secured |
-| **No command-line args support** | `applyCommandLineArgs` commented out in `LoomOptionsLoader`; only `--validate-config` is handled in `LoomServerRunner` | Cannot override individual settings via CLI arguments |
-| **Validation only runs via the loader** | `validate()` is invoked from `LoomOptionsLoader.createOrLoadOptions()` | Tests and services constructing `new LoomOptions()` directly are not validated |
-| **`new LoomOptions()` is not valid** | `auth.keystorePassword` defaults to `null` and is only set by `generateDefaultConfig()` | A hand-built `LoomOptions` fails validation until a keystore password is set |
-| **Host validation is syntax-only** | `OptionErrors.host()` does not resolve DNS | An unresolvable but well-formed hostname still passes validation |
-| **Nested Option recursion** | Reflection-based recursion may miss private fields in subclasses | Sub-options must be accessible via reflection |
+| Issue | Impact |
+|-------|--------|
+| **Helm sets `LOOM_DB_USER`, code reads `LOOM_DB_USERNAME`** | A chart install silently connects as `postgres`. Override via `.Values.extraEnv` until the chart is fixed |
+| **`LOOM_CONF_FILENAME` and `LOOM_AUTH_KEYSTORE_PATH` are never read** | Mounting a config file only works at the §2 paths; the keystore is always `baseConfigFolder/keystore.jceks` |
+| **`baseConfigFolder` is `null` for classpath configs** | `AuthModule.jwtAuthProvider` calls `basePath.toPath()` → NPE. A `/loom.yml` bundled on the classpath boots only if nothing needs the keystore |
+| **`ai.*` is validated even when `ai.enabled=false`** | Blanking `LOOM_AI_URL` to "disable" the agent fails startup; set `LOOM_AI_ENABLED=false` and leave the rest at defaults |
+| **`acquireIncrement` has no env var** | Only settable in YAML, yet validated (`≥ 1`) — an env-only deployment can never change it |
+| **`keystorePassword` has no env var** | `new LoomOptions()` is invalid until `generateDefaultConfig()` or YAML sets it. Tests must set it explicitly |
+| **`LOOM_DB_PASSWORD` / `LOOM_INITIAL_PASSWORD` are not `isSensitive`** | Their values are written verbatim into the startup log |
+| **All four server ports must be distinct** | Sharing REST and monitoring ports is rejected at startup, not at bind time |
+| **`host()` is syntax-only** | A well-formed but unresolvable hostname passes validation and fails at connect time |
+| **Unknown YAML keys are dropped silently** | `FAIL_ON_UNKNOWN_PROPERTIES=false`; a typo (`auth.keystorePath` in `loom/containers/server/config/loom.yml`) never surfaces |
+| **`applyEnvBoolean` uses `Boolean.parseBoolean`** | Anything other than `true` (case-insensitive) is `false` — `1`/`yes`/`on` silently disable a feature |
+| **Env value `"null"` becomes `null`** | Harmless on `String` fields; on a primitive field the reflection path throws `IllegalArgumentException` at startup |
+| **First config file wins — no merge** | A stray `/etc/metaloom/loom.yml` masks the project-local `config/loom.yml` entirely |
+| **`validate()` runs only from `createOrLoadOptions()`** | Services and tests that build `LoomOptions` by hand are never validated |
+| **No CLI override layer** | `applyCommandLineArgs` is commented out; `--validate-config` is the only recognised argument |
+| **`LOOM_WS_STRICT_AUTH` is not an option field** | It bypasses YAML, validation and the `--validate-config` pre-flight entirely |
+| **`OptionUtils.envLookup` is package-private** | Only tests inside `io.metaloom.loom.api.options` can stub the environment |
 
 ---
 
-## Where Do I Find...?
+## 10. Where Do I Find...?
 
 | Concept | File Path |
 |---------|-----------|
-| Root configuration | `loom-shared/api/src/main/java/io/metaloom/loom/api/options/LoomOptions.java` |
-| Database configuration | `loom-shared/api/src/main/java/io/metaloom/loom/api/options/DatabaseOptions.java` |
-| Server configuration | `loom-shared/api/src/main/java/io/metaloom/loom/api/options/ServerOptions.java` |
-| Authentication configuration | `loom-shared/api/src/main/java/io/metaloom/loom/api/options/AuthenticationOptions.java` |
-| OAuth2 configuration | `loom-shared/api/src/main/java/io/metaloom/loom/api/options/OAuth2Options.java |
-| Configuration loader | `loom/common/src/main/java/io/metaloom/loom/common/options/LoomOptionsLoader.java` |
-| Option interface | `loom-shared/api/src/main/java/io/metaloom/loom/api/options/Option.java` |
-| Validation error collector | `loom-shared/api/src/main/java/io/metaloom/loom/api/options/OptionErrors.java` |
+| Root option tree | `loom-shared/api/src/main/java/io/metaloom/loom/api/options/LoomOptions.java` |
+| Any section's fields/defaults/env names | `loom-shared/api/src/main/java/io/metaloom/loom/api/options/<Section>Options.java` |
+| `Option` interface + reflection override | `.../api/options/Option.java` |
+| Env helpers, `convertValue`, `envLookup` | `.../api/options/OptionUtils.java` |
+| Validation collector and check helpers | `.../api/options/OptionErrors.java` |
 | Validation exception | `loom-shared/api/src/main/java/io/metaloom/loom/api/error/ConfigurationValidationException.java` |
+| Config file paths / filename constant | `loom-shared/api/src/main/java/io/metaloom/loom/api/LoomEnv.java` |
+| Lookup order, YAML mapper, default generation | `loom/common/src/main/java/io/metaloom/loom/common/options/LoomOptionsLoader.java` |
+| `--validate-config`, exit codes | `loom/containers/server/src/main/java/io/metaloom/loom/container/server/LoomServerRunner.java` |
+| Keystore resolution from `baseConfigFolder` | `loom/services/auth/auth-jwt/src/main/java/io/metaloom/loom/auth/jwt/AuthModule.java` |
+| `LOOM_WS_STRICT_AUTH` handling | `loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/WebSocketAuthenticator.java` |
+| `LOOM_NAME` handling | `loom/common/src/main/java/io/metaloom/loom/log/LoomNameProvider.java` |
+| Kubernetes sandbox env (`KUBERNETES_SERVICE_*`) | `loom/agent/sandbox/src/main/java/io/metaloom/loom/agent/sandbox/backend/KubernetesBackend.java` |
+| Example configs | `e2e-test/config/loom.yml`, `loom/containers/server/config/loom.yml` |
+| Helm env wiring | `helm/loom/templates/deployment.yaml`, `helm/loom/values.yaml` |
 | Validation tests | `loom-shared/api/src/test/java/io/metaloom/loom/api/options/LoomOptionsValidationTest.java` |
-| `--validate-config` flag | `loom/containers/server/src/main/java/io/metaloom/loom/container/server/LoomServerRunner.java` |
-| Option utilities | `loom-shared/api/src/main/java/io/metaloom/loom/api/options/OptionUtils.java` |
-| Environment variable annotation | `loom-shared/api/src/main/java/io/metaloom/loom/api/options/EnvironmentVariable.java` |
-| Config file paths | `loom-shared/api/src/main/java/io/metaloom/loom/api/LoomEnv.java` |
-| Example configuration | `e2e-test/config/loom.yml` |
-| Config lookup record | `loom-shared/api/src/main/java/io/metaloom/loom/api/options/LoomOptionsLookup.java` |
+| Env override tests + fixtures | `.../api/options/EnvironmentOverrideTest.java`, `TestOptions.java`, `TestMethodSetOption.java`, `ValueEntry.java` |
+| Per-section option tests | `.../api/options/DatabaseOptionsTest.java`, `ServerOptionsTest.java` |
 
 ---
 
-## Test Setup
+## 11. Test Setup
 
-### Unit Testing Configuration Loading
+All configuration tests live in `loom-shared/api` and need **no database and no pool**
+(`./setup-pool.sh` is irrelevant here).
+
+### 11.1 Stubbing the environment
+
+`System.getenv` cannot be mutated, so `OptionUtils.envLookup` is reassigned. The test class must
+be in package `io.metaloom.loom.api.options` to reach it:
 
 ```java
-// Test loading from specific path
-LoomOptionsLookup lookup = LoomOptionsLoader.loadLoomOptions();
-// Or test with custom environment
-System.setProperty("LOOM_DB_HOST", "test-host");
-System.setProperty("LOOM_SERVER_REST_PORT", "9090");
-LoomOptionsLookup lookup = LoomOptionsLoader.createOrLoadOptions();
-assertEquals("test-host", lookup.options().getDatabase().getHost());
-assertEquals(9090, lookup.options().getServer().getRestPort());
+@BeforeAll
+static void setEnv() {
+    Map<String, String> env = Map.of("LOOM_DB_HOST", "test-host", "LOOM_SERVER_REST_PORT", "9090");
+    OptionUtils.envLookup = env::get;   // package-private static field
+}
+
+@Test
+void testOverride() {
+    LoomOptions options = new LoomOptions();
+    options.overrideWithEnv();
+    assertEquals("test-host", options.getDatabase().getHost());
+    assertEquals(9090, options.getServer().getRestPort());
+}
 ```
 
-### Testing Environment Override
+`EnvironmentOverrideTest` uses `TestOptions` (annotated fields) and `TestMethodSetOption`
+(annotated setters) to cover both override paths and every type `convertValue` supports.
+Restore `OptionUtils.envLookup = System::getenv` if other tests in the same JVM read the
+environment.
+
+### 11.2 Validation tests
+
+`LoomOptionsValidationTest` builds a **valid baseline** — a plain `new LoomOptions()` is not valid:
 
 ```java
-// Test sensitive value masking
-System.setProperty("LOOM_OAUTH2_CLIENT_SECRET", "secret123");
-LoomOptions options = new LoomOptions();
-options.getAuth().getOauth2().overrideWithEnv();
-// Verify log shows: Setting env {LOOM_OAUTH2_CLIENT_SECRET=********}
+private LoomOptions validOptions() {
+    LoomOptions options = new LoomOptions();
+    options.getAuth().setKeystorePassword("8qA9uBbdaEFp");   // no env var for this
+    return options;
+}
 ```
 
-### Integration Test Configuration
+`assertSingleError(options, "auth.oauth2.clientId")` asserts exactly one error at a dotted path.
+When adding a new `*Options` class, add: a happy path, one failing rule per check, the
+enabled/disabled gate, and an assertion that secrets are not echoed
+(`testValidationNeverLeaksSecretValues`).
 
-```yaml
-# config/loom.yml for integration tests
-database:
-  host: "localhost"
-  port: 5432
-  username: "postgres"
-  password: "postgres"
-  databaseName: "loom_test"
-  minPoolSize: 2
-  maxPoolSize: 10
+### 11.3 Adding a new option section — checklist
 
-server:
-  grpcPort: 8091
-  bindAddress: "0.0.0.0"
-  restPort: 8092
-  monitoringPort: 8989
-  mcpPort: 4041
-
-auth:
-  keystorePassword: "testpassword123"
-  tokenExpirationTime: 3600
-  oauth2:
-    enabled: false
-```
+1. New `XOptions implements Option` in `io.metaloom.loom.api.options`, one `@EnvironmentVariable`
+   per settable field.
+2. Field + getter/setter on `LoomOptions`, plus a line in **both** `overrideWithEnv()` and
+   `validate()` (`errors.nested("x", x)`).
+3. Prefer the reflection default for `overrideWithEnv()` unless native-image safety is needed.
+4. Extend §4 of this file **and** the Helm chart if operators must reach it.
+5. Add validation tests per §11.2.
 
 ---
 
-## Progress Assessment
+## 12. Progress Assessment
 
-- [x] Document configuration file locations and priority order
-- [x] Document complete loom.yml structure with all sections
-- [x] Document all Option classes with properties, defaults, and env vars
-- [x] Document environment variable override mechanism
-- [x] Document @EnvironmentVariable annotation and OptionUtils
-- [x] Include architecture diagram (Mermaid)
-- [x] Include configuration loading flow diagram (Mermaid)
-- [x] Include Key Classes Reference table
-- [x] Include environment variable tables with defaults
-- [x] Include Conventions and Gotchas section
-- [x] Include Where do I find...? cheat sheet
-- [x] Include Test Setup section
-- [x] Cross-reference related specs
-- [x] Document validation implementation
-- [x] Document required vs optional settings
-- [x] Document the `--validate-config` CLI flag
-- [ ] Document remaining command-line argument support (`applyCommandLineArgs` still commented out)
-- [ ] Document config file permission/security considerations
-- [ ] Document acquireIncrement env var missing
+- [x] Config file lookup order and `baseConfigFolder` semantics
+- [x] Complete `loom.yml` structure — all ten sections
+- [x] Exhaustive env-var table (variable → default → Options class → purpose)
+- [x] Flag documented-but-never-read variables (§4.13) and code-read-but-undocumented ones (§4.12, §4.14)
+- [x] Both override paths (reflection vs `applyEnv*`) and which class uses which
+- [x] Sensitive-value masking, and which secrets are *not* masked
+- [x] Precedence: env > YAML > default; no CLI layer
+- [x] What validation actually enforces, per section, including the enabled/disabled gates
+- [x] `--validate-config` and exit codes 0 / 1 / 11
+- [x] Architecture diagram, Key Classes Reference, Conventions and Gotchas, "Where do I find…?"
+- [x] Test setup: `envLookup` stubbing, validation baseline, new-section checklist
+- [ ] Fix `LOOM_DB_USER` → `LOOM_DB_USERNAME` in `helm/loom/templates/deployment.yaml`
+- [ ] Drop or implement `LOOM_CONF_FILENAME` and `LOOM_AUTH_KEYSTORE_PATH` (chart sets both; nothing reads them)
+- [ ] Guard `AuthModule` against a `null` `baseConfigFolder` (classpath-loaded config NPEs)
+- [ ] Move `ai.*` validation behind `ai.enabled`, or validate `providerType` against the known set
+- [ ] Mark `LOOM_DB_PASSWORD` / `LOOM_INITIAL_PASSWORD` as `isSensitive`
+- [ ] Add `LOOM_DB_ACQUIRE_INCREMENT` and an env var for `auth.keystorePassword`
+- [ ] Promote `LOOM_WS_STRICT_AUTH` into `AuthenticationOptions` so it is validated
+- [ ] Restrict permissions on the generated `config/loom.yml` (contains the keystore password)
+- [ ] Restore command-line argument support (`applyCommandLineArgs`) or delete the dead code
 
 ---
 
-## Related Specifications
+## 13. Related Specifications
 
-- [SERVER.md](SERVER.md) — Server ports and service configuration
-- [DATABASE.md](DATABASE.md) — Database connection and migration
-- [AUTH.md](AUTH.md) — Authentication and OAuth2 implementation
-- [DEPLOYMENT.md](DEPLOYMENT.md) — Deployment configuration
+- [../CONTEXT.md](../CONTEXT.md) — spec index; §4.4 carries an abridged env-var list that is
+  authoritative only insofar as it agrees with §4 here
+- [SERVER.md](SERVER.md) — what each configured port serves
+- [PERSISTENCE.md](PERSISTENCE.md) — how `database.*` is consumed (pool, jOOQ, Flyway)
+- [MCP.md](MCP.md) — behaviour behind `auth.mcpAuth*` and `server.mcpPort`
+- [WEBSOCKET.md](WEBSOCKET.md) — behaviour behind `LOOM_WS_STRICT_AUTH`
+- [../features/helm/HELM_LOOM.md](../features/helm/HELM_LOOM.md) — chart values → env mapping
+- [../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) — `storage.*` and `s3.*` in context
+- [../features/search/SEARCH.md](../features/search/SEARCH.md), [../features/search/LUCENE_PLAN.md](../features/search/LUCENE_PLAN.md) — `search.*`, `similarity.*`
+- [../features/chat/CHAT_MEMORY_PLAN.md](../features/chat/CHAT_MEMORY_PLAN.md) — `ai.*`, `memory.*`, `sandbox.*`
+- [../cortex/CONFIGURATION.md](../cortex/CONFIGURATION.md) — the separate Cortex configuration system
+- [../guidelines/CODING.md](../guidelines/CODING.md) — definition of done for a code change
+
+---
+
+_Git HEAD revision: `2e5981cb`_
+_Last updated: 2026-08-01 (Rewrote against the code: all ten option sections, exhaustive env-var table, real validation rules, and the Helm variables nothing reads.)_

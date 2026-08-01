@@ -1,535 +1,377 @@
-# Loom Build System Specification
+# Loom Build Specification
 
-## Overview
-
-This document describes the build system for the **Loom** module of the MetaLoom project. The build system is a multi-stage pipeline that produces:
-
-1. **JVM artifacts** - Shaded JAR files for demo and server containers
-2. **Native artifacts** - GraalVM/SubstrateVM native binaries for demo and server
-3. **Container images** - Docker/Podman images for JVM and native variants
-4. **UI assets** - React/Vite frontend build output
-5. **Cortex container** - Separate container for the Cortex AI service
-
----
-
-## Progress Assessment
-
-- [x] Document Maven multi-module structure
-- [x] Document JVM build process (shaded JARs)
-- [x] Document Native build process (GraalVM native-image)
-- [x] Document Container image build process
-- [x] Document UI build process (Vite/React)
-- [x] Document Cortex container build
-- [x] Document environment variables and configuration
-- [x] Document test setup and execution
-- [x] Create architecture diagrams
-- [x] Create key classes reference table
-- [x] Document conventions and gotchas
-- [x] Create "Where do I find...?" cheat sheet
+> **Audience: AI coding agents.** How the repository is compiled, how the UI is bundled, and how
+> the Loom container images are produced. Verified against the code on the revision in the footer —
+> **the code wins**; fix this file in the same change.
+>
+> **Scope split — do not duplicate these here:**
+>
+> | Topic | Spec |
+> |---|---|
+> | Cortex reactor, `cortex/container/build-container.sh`, CUDA/OpenCV/InspireFace deps | [../cortex/BUILD.md](../cortex/BUILD.md) |
+> | Runtime config, option classes, full env-var catalogue | [CONFIGURATION.md](CONFIGURATION.md) |
+> | Module responsibilities, Dagger wiring | [LOOM.md](LOOM.md) |
+> | Startup/shutdown, ports, entry points | [SERVER.md](SERVER.md) |
+> | Flyway migrations and schema | [PERSISTENCE.md](PERSISTENCE.md) |
+> | UI source structure and routing | [ui/LOOM_UI.md](ui/LOOM_UI.md) |
+> | Website build | [../website/WEBSITE.md](../website/WEBSITE.md) |
 
 ---
 
-## Architecture Diagram
+## 1. Progress Assessment
+
+- [x] Reactor layout verified against `pom.xml` and `loom/pom.xml`
+- [x] `build.sh` pipeline documented (Maven → UI → Loom containers → Cortex container)
+- [x] `build-containers.sh` argument grammar and image names verified
+- [x] Containerfile contents (JVM + native, demo + server) verified
+- [x] UI build integration (`vite` `outDir: build` → `/loom/ui`) verified
+- [x] `loom/db/jooq/generate.sh` and `setup-pool.sh` documented
+- [x] Every documented command checked to exist
+- [x] Cortex container detail delegated to [../cortex/BUILD.md](../cortex/BUILD.md)
+- [x] Native-image build args and rationale documented
+- [x] Diagram, Key Artifacts table, Conventions & Gotchas, cheat sheet, test setup
+- [ ] `build.sh` does not build the `cli/` native binary (`cli/build-native.sh` is manual)
+- [ ] `build.sh` has no `--skip-native` / target selection; it always builds all four Loom images
+- [ ] `e2e.sh` implicitly requires GraalVM (see gotcha 3)
+- [ ] Stale `mainClass` in the container `maven-jar-plugin` config (see gotcha 8)
+- [ ] No CI pipeline definition is checked in
+
+---
+
+## 2. Pipeline Overview
 
 ```mermaid
 graph TB
-    subgraph "Root Build"
-        A[build.sh] --> B[Maven: mvn clean package -DskipTests]
-        A --> C[UI: npm run build]
-        A --> D[Containers: ./build-containers.sh all]
-        A --> E[Cortex: ./build-container.sh]
-    end
+    BS["./build.sh"]
 
-    subgraph "Maven Build (loom/pom.xml)"
-        B --> F[loom-common]
-        B --> G[loom-db]
-        B --> H[loom-services]
-        B --> I[loom-core]
-        B --> J[loom-fixture]
-        B --> L[loom-containers]
-        B --> M[loom-doc]
-    end
+    BS --> MVN["mvn -T 8 clean package -DskipTests<br/>(whole reactor, from repo root)"]
+    BS --> UI["loom-ui: npm run build<br/>tsc && vite build → loom-ui/build/"]
+    BS --> LC["loom/containers/build-containers.sh all"]
+    BS --> CC["cortex/container/build-container.sh"]
 
-    subgraph "Container Build (loom/containers/build-containers.sh)"
-        L --> N[demo module]
-        L --> O[server module]
-        N --> P[JVM: loom-demo.jar + Containerfile]
-        N --> Q[Native: loom-demo binary + Containerfile.native]
-        O --> R[JVM: loom-server.jar + Containerfile]
-        O --> S[Native: loom-server binary + Containerfile.native]
-    end
+    MVN --> JAR1["loom/containers/demo/target/loom-demo.jar"]
+    MVN --> JAR2["loom/containers/server/target/loom-server.jar"]
 
-    subgraph "UI Build (loom-ui/)"
-        C --> T[TypeScript Compilation]
-        T --> U[Vite Build]
-        U --> V[loom-ui/build/]
-        V --> P
-        V --> Q
-        V --> R
-        V --> S
-    end
+    LC --> NB["mvn -Pnative (GraalVM 25)<br/>→ loom-demo / loom-server binaries"]
 
-    subgraph "Cortex Build (cortex/container/)"
-        E --> W[cortex-cli.jar + Containerfile]
-        W --> X[metaloom/cortex-server:latest]
-    end
+    JAR1 --> I1["metaloom/loom-demo:latest"]
+    JAR2 --> I2["metaloom/loom-server:latest"]
+    NB --> I3["metaloom/loom-demo:latest-native"]
+    NB --> I4["metaloom/loom-server:latest-native"]
 
-    style A fill:#f9f,stroke:#333
-    style B fill:#bbf,stroke:#333
-    style C fill:#bfb,stroke:#333
-    style D fill:#fbf,stroke:#333
-    style E fill:#ffb,stroke:#333
+    UI --> I1
+    UI --> I2
+    UI --> I3
+    UI --> I4
+
+    CC --> I5["metaloom/cortex-server:latest<br/>(see ../cortex/BUILD.md)"]
+
+    style BS fill:#f9f,stroke:#333
+    style UI fill:#bfb,stroke:#333
+    style NB fill:#ffb,stroke:#333
 ```
 
----
-
-## Build Pipeline Stages
-
-### Stage 1: Maven Build (Root Level)
-
-**Entry Point:** `build.sh` → `mvn -T 8 clean package -DskipTests`
-
-**Location:** `/home/defaultuser/workspaces/metaloom/metaloom/`
-
-**Parent POM:** `pom.xml` (metaloom-parent)
-- Manages versions via `dependencyManagement`
-- Defines modules: `bom`, `loom-test-env`, `loom-shared`, `loom-client`, `cortex`, `loom`, `examples`, `integration-test`, `e2e-test`, `website`
-
-**Loom POM:** `loom/pom.xml`
-- Parent: `io.metaloom:metaloom-parent:1.0.0-SNAPSHOT`
-- Modules: `common`, `db`, `services`, `core`, `fixture`, `cli`, `containers`, `doc`
-- Imports BOM: `io.metaloom:bom:${project.version}`
-
-**Key Properties:**
-| Property | Value | Description |
-|----------|-------|-------------|
-| `vertx.version` | `5.0.11` | Vert.x framework version |
-| `netty.version` | `4.2.12.Final` | Netty version |
-| `jackson.version` | `2.18.2` | Jackson version |
-| `dagger.version` | `2.57.2` | Dagger DI version |
-| `jacoco.version` | `0.8.4` | JaCoCo coverage version |
-| `loom.cortex.version` | `1.0.0-SNAPSHOT` | Cortex module version |
-
-### Stage 2: UI Build
-
-**Entry Point:** `build.sh` → `cd loom-ui && npm run build`
-
-**Location:** `/home/defaultuser/workspaces/metaloom/metaloom/loom-ui/`
-
-**Build Command:** `tsc && vite build`
-
-**Output:** `loom-ui/build/` (copied into container images)
-
-**Key Dependencies:**
-- React 18.3.1
-- MUI (Material UI) 5.16.0
-- Vite 6.4.2
-- TypeScript 5.5.0
-- React Router 6.26.0
-- React Flow 11.11.0
-- Recharts 2.12.0
-
-### Stage 3: Container Build
-
-**Entry Point:** `build.sh` → `cd loom/containers && ./build-containers.sh all`
-
-**Script:** `loom/containers/build-containers.sh`
-
-**Variants:**
-| Variant | Base Image | Output |
-|---------|------------|--------|
-| `jvm` | `eclipse-temurin:25-jre-alpine` | `metaloom/loom-demo:latest`, `metaloom/loom-server:latest` |
-| `native` | `debian:stable-slim` | `metaloom/loom-demo:latest-native`, `metaloom/loom-server:latest-native` |
-| `both` | Both | All four images |
-
-**Targets:** `demo`, `server`, `all`
-
-**Environment Variables:**
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `TAG` | `latest` | Image tag suffix |
-| `GRAALVM_HOME` | `/opt/jvm/graalvm-25` | GraalVM installation path |
-
-### Stage 4: Cortex Container Build
-
-**Entry Point:** `build.sh` → `cd cortex/container && ./build-container.sh`
-
-**Script:** `cortex/container/build-container.sh`
-
-**Prerequisites:** `mvn -f ../../pom.xml clean package -DskipTests -pl cortex/container,cortex/cli -am`
-
-**Output:** `metaloom/cortex-server:latest`
-
-**Base Image:** `debian:trixie-slim`
-
-**Special Features:**
-- CUDA 13.2 runtime (NVIDIA)
-- OpenCV 4.10 JNI libraries
-- Eclipse Temurin JDK 25 (downloaded at build time)
-- InspireFace model (downloaded at build time)
+`build.sh` runs the four stages **sequentially and unconditionally** (`set -o errexit`), each
+wrapped in `time`. It is the only script that ties them together; there are no flags.
 
 ---
 
-## Key Classes Reference
+## 3. Reactor Layout
 
-| Class | Package | Purpose | Module |
-|-------|---------|---------|--------|
-| `LoomDemoRunner` | `io.metaloom.loom.container.demo` | Main class for demo container (JVM) | `loom-container-demo` |
-| `LoomServerRunner` | `io.metaloom.loom.container.server` | Main class for server container (JVM) | `loom-container-server` |
-| `Loom` | `io.metaloom.loom.server.cli` | CLI entry point (shared) | `loom-core` |
-| `LoomDemoRunner` (native) | `io.metaloom.loom.container.demo` | Main class for native demo | `loom-container-demo` (native profile) |
-| `LoomServerRunner` (native) | `io.metaloom.loom.container.server` | Main class for native server | `loom-container-server` (native profile) |
+**Root `pom.xml`** (`io.metaloom:metaloom-parent:1.0.0-SNAPSHOT`) modules, in order:
 
----
+`bom` · `loom-test-env` · `loom-shared` · `loom-client` · `cortex` · `loom` · `cli` · `examples` ·
+`integration-test` · `e2e-test` · `website`
 
-## Environment Variables Reference
+**`loom/pom.xml`** modules, in order:
 
-### Container Runtime Environment Variables
+`common` · `pipeline` · `db` · `services` · `agent` · `core` · `fixture` · `containers` · `doc`
 
-#### Demo Container (JVM & Native)
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `LOOM_AUTH_KEYSTORE_PATH` | `/keystore/keystore.jks` | Path to auth keystore |
-| `LOOM_BINARY_DIR` | `/uploads` | Directory for binary uploads |
-| `LOOM_TEMP_DIR` | `/tmp` | Temporary directory |
-| `HOME` | `/loom` | Home directory for loom user |
-| `JAVA_TOOL_OPTIONS` | `-Xms512m -Xmx512m` | JVM memory settings (JVM only) |
+Per-module purpose lives in [LOOM.md §2](LOOM.md) — not repeated here.
 
-#### Server Container (JVM & Native)
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `LOOM_AUTH_KEYSTORE_PATH` | `/keystore/keystore.jks` | Path to auth keystore |
-| `LOOM_BINARY_DIR` | `/uploads` | Directory for binary uploads |
-| `LOOM_TEMP_DIR` | `/tmp` | Temporary directory |
-| `LOOM_DB_HOST` | `postgres` | PostgreSQL host |
-| `LOOM_DB_PORT` | `5432` | PostgreSQL port |
-| `LOOM_DB_NAME` | `loom` | Database name |
-| `LOOM_DB_USER` | `loom` | Database user |
-| `LOOM_DB_PASSWORD` | `loom` | Database password |
-| `HOME` | `/loom` | Home directory for loom user |
-| `JAVA_TOOL_OPTIONS` | `-Xms512m -Xmx512m` | JVM memory settings (JVM only) |
+**Version properties** (root `pom.xml` unless noted):
 
-#### Cortex Container
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `LOOM_HOST` | `loom` | Loom server host |
-| `LOOM_PORT` | `8092` | Loom server port |
-| `CORTEX_MONITORING_PORT` | `8093` | Cortex monitoring port |
-| `HOME` | `/cortex` | Home directory for cortex user |
-| `JAVA_TOOL_OPTIONS` | `-Xms256m -Xmx512m` | JVM memory settings |
-| `JAVA_HOME` | `/opt/java25` | JDK installation path |
-| `PATH` | `/usr/local/cuda-13.2/bin:...` | Includes CUDA bin path |
+| Property | Value | Where |
+|---|---|---|
+| `vertx.version` | `5.0.11` | root |
+| `netty.version` | `4.2.12.Final` | root |
+| `jackson.version` | `2.18.2` | root |
+| `protobuf.version` | `4.29.3` | root |
+| `avro.version` | `1.12.0` | root |
+| `loom-test-env.version` | `0.0.1-SNAPSHOT` | root |
+| `dagger.version` | `2.57.2` | `bom/pom.xml` |
+| `jacoco.version` | `0.8.4` | `loom/pom.xml` |
+
+All modules import `io.metaloom:bom` for external dependency versions; `dependencyManagement` in
+the poms lists only internal modules.
 
 ---
 
-## Build Commands Reference
+## 4. Build Commands
 
-### Full Build (All Artifacts)
+Every command below exists in the checkout.
+
+| Command | Location | What it does |
+|---|---|---|
+| `./build.sh` | repo root | Full pipeline: Maven → UI → Loom containers → Cortex container |
+| `mvn -T 8 clean package -DskipTests` | repo root | Whole reactor, no tests |
+| `mvn -pl loom/containers/server -am package` | repo root | One container module + its dependencies |
+| `./setup-pool.sh` | repo root | `mvn exec:java -pl loom/fixture -Dexec.mainClass=io.metaloom.loom.test.PoolSetupRunner` — provisions the pooled test databases |
+| `./it.sh` | repo root | `PoolSetupRunner`, then `mvn verify -pl integration-test` |
+| `./e2e.sh` | repo root | Package demo → build demo images → `start-postgres.sh` + `start-demo.sh` → `mvn test -Dloom.external=true` in `e2e-test/` (removes the containers on exit) |
+| `./ui.sh` | repo root | `cd loom-ui && npm run dev` |
+| `./start-postgres.sh`, `./start-demo.sh`, `./start-server.sh`, `./start-minio.sh`, `./start-cortex.sh` | repo root | Run the built images locally on the `dev` docker network |
+| `./generate.sh` | `loom/db/jooq` | Wipes `src/jooq/java/`, starts a PostgreSQL testcontainer, runs Flyway, runs jOOQ codegen |
+| `./migrate.sh` | `loom/db/jooq` | Flyway migration helper |
+| `./build-containers.sh [jvm\|native\|both] [demo\|server\|all]` | `loom/containers` | Loom container images |
+| `./build-container.sh` | `cortex/container` | Cortex image — see [../cortex/BUILD.md](../cortex/BUILD.md) |
+| `./build-native.sh [build\|metadata\|agent\|smoke\|install]` | `cli` | GraalVM native binary for the `metaloom` CLI (**not** part of `build.sh`) |
+
+### UI scripts (`loom-ui/package.json`)
+
+| Script | Command |
+|---|---|
+| `npm run build` | `tsc && vite build` → `loom-ui/build/` (`vite.config.ts` sets `outDir: "build"`) |
+| `npm run dev` | `vite` |
+| `npm run preview` | `vite preview` |
+| `npm run test` | `vitest run` |
+| `npm run test:watch` | `vitest` |
+| `npm run test:e2e` / `test:e2e:ui` | `playwright test` / `--ui` |
+
+Key versions: React 18.3, MUI 5.16, Vite 6.4, TypeScript 5.5, react-router-dom 6.26, reactflow
+11.11, recharts 2.12, i18next 26, Playwright 1.59, Vitest 3.2. UI test conventions are in
+[ui/LOOM_UI.md](ui/LOOM_UI.md).
+
+### Native (GraalVM) builds
+
 ```bash
-# From metaloom root
-./build.sh
-```
-
-### Maven Only
-```bash
-# From metaloom root
-mvn -T 8 clean package -DskipTests
-
-# With tests
-mvn -T 8 clean package
-
-# Specific module
-mvn -pl loom/containers/demo -am package
-mvn -pl loom/containers/server -am package
-```
-
-### Native Build (Maven Profile)
-```bash
-# Demo native
-JAVA_HOME=/opt/jvm/graalvm-25 mvn -Pnative -DskipTests -pl loom/containers/demo -am package
-
-# Server native
 JAVA_HOME=/opt/jvm/graalvm-25 mvn -Pnative -DskipTests -pl loom/containers/server -am package
+JAVA_HOME=/opt/jvm/graalvm-25 mvn -Pnative -DskipTests -pl loom/containers/demo   -am package
 ```
 
-### UI Build
-```bash
-cd loom-ui
-npm run build        # Production build (tsc + vite build)
-npm run dev          # Development server
-npm run preview      # Preview production build
-npm run test:e2e     # Playwright E2E tests
-```
-
-### Container Build
-```bash
-cd loom/containers
-
-# All variants, all targets
-./build-containers.sh all
-./build-containers.sh both all
-
-# JVM only
-./build-containers.sh jvm
-./build-containers.sh jvm demo
-./build-containers.sh jvm server
-
-# Native only
-./build-containers.sh native
-./build-containers.sh native demo
-./build-containers.sh native server
-
-# Custom tag
-TAG=v1.0.0 ./build-containers.sh all
-GRAALVM_HOME=/custom/graalvm ./build-containers.sh native
-```
-
-### Cortex Container Build
-```bash
-cd cortex/container
-./build-container.sh
-
-# Custom tag
-TAG=v1.0.0 ./build-container.sh
-```
+`build-containers.sh` invokes exactly these for the `native` variant.
 
 ---
 
-## Test Setup
+## 5. Container Build (`loom/containers/build-containers.sh`)
 
-### Unit Tests (Maven)
+### Argument grammar
+
+`./build-containers.sh [variant] [target]` — variant ∈ `jvm | native | both | all` (default
+**`both`**), target ∈ `demo | server | all` (default `all`).
+
+| Invocation | Result |
+|---|---|
+| `./build-containers.sh` | jvm + native, demo + server — **four images** |
+| `./build-containers.sh all` | identical to no args (what `build.sh` uses) |
+| `./build-containers.sh jvm` | `loom-demo:$TAG`, `loom-server:$TAG` |
+| `./build-containers.sh jvm server` | `loom-server:$TAG` only |
+| `./build-containers.sh native demo` | `loom-demo:$TAG-native` only |
+| `./build-containers.sh demo` | variant falls back to `both` → **jvm *and* native** demo images |
+
+### Script environment
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `TAG` | `latest` | Image tag; native images get `-native` appended automatically |
+| `GRAALVM_HOME` | `/opt/jvm/graalvm-25` | Must contain an executable `bin/native-image` |
+
+### Preconditions enforced by the script
+
+1. `loom-ui/build/` must exist → otherwise *"Run 'npm run build' in loom-ui first."*
+2. The relevant `target/loom-{demo,server}.jar` must exist → otherwise *"Run 'mvn package' first."*
+3. For native: `$GRAALVM_HOME/bin/native-image` must be executable.
+
+The docker build context is always the **repository root**, so the Containerfiles reference
+`./loom/containers/<module>/target/...` and `./loom-ui/build`.
+
+### Image contents
+
+| | JVM demo & server | Native demo & server |
+|---|---|---|
+| Base | `eclipse-temurin:25-jre-alpine` | `debian:stable-slim` (+ `ca-certificates`, `libstdc++6`, `zlib1g`) |
+| Payload | `loom.jar` (shaded) at `/loom/loom.jar` | `loom` binary at `/loom/loom` |
+| UI | `loom-ui/build` → `/loom/ui` | same |
+| User | `loom`, UID 1000, group 0, `WORKDIR /loom` | same |
+| Volumes | `/uploads`, `/plugins`, `/keystore`, `/config` (symlinked from `/loom/config`) | same |
+| `CMD` | `java -Djna.tmpdir=/tmp/.jna -Duser.dir=/loom [-Dlogback.configurationFile=logback.default.xml] -jar loom.jar` | `/loom/loom` |
+
+Baked-in `ENV` (defaults only — override at run time, see [CONFIGURATION.md](CONFIGURATION.md)):
+
+| Variable | demo | server | Note |
+|---|---|---|---|
+| `LOOM_AUTH_KEYSTORE_PATH` | `/keystore/keystore.jks` | same | |
+| `LOOM_BINARY_DIR` | `/uploads` | same | |
+| `LOOM_TEMP_DIR` | `/tmp` | same | |
+| `HOME` | `/loom` | same | |
+| `JAVA_TOOL_OPTIONS` | `-Xms512m -Xmx512m` | same | JVM images only |
+| `LOOM_AGENT_MEMORY_ENABLED` | `true` | — | demo only; without it the Memory screen has no endpoints |
+| `LOOM_DB_HOST` / `PORT` / `NAME` / `USER` / `PASSWORD` | — | `postgres` / `5432` / `loom` / `loom` / `loom` | server only; the demo image expects them at run time |
+| `EXPOSE` | 8092, 8091 | 8092, 8091, 8989 | demo does not expose the monitoring port |
+
+The demo `CMD` additionally passes `-Dlogback.configurationFile=logback.default.xml`: the jar ships
+`logback.default.xml`, but logback only auto-loads `logback.xml`, so without the flag it falls back
+to `BasicConfigurator` at DEBUG and logs every jOOQ statement.
+
+### Cortex image
+
+`cortex/container/build-container.sh` produces `metaloom/cortex-server:$TAG` and needs a locally
+built **OpenCV 5.1** tree (`OPENCV_LIB_DIR`, default `<repo>/../opencv/build/lib`) staged into the
+build context. Full detail — CUDA repo, JDK download, InspireFace model, image env — is in
+[../cortex/BUILD.md](../cortex/BUILD.md).
+
+---
+
+## 6. Native Image Configuration
+
+`loom/containers/{demo,server}/pom.xml`, profile `native`, `native-maven-plugin`:
+
+| Build arg | Reason |
+|---|---|
+| `--no-fallback` | Fail the build instead of silently emitting a JVM-fallback image |
+| `-H:+UnlockExperimentalVMOptions`, `-H:+ReportExceptionStackTraces` | Diagnostics |
+| `--enable-url-protocols=http,https` | HTTP(S) is not on by default in a native image |
+| `--initialize-at-build-time=org.slf4j,ch.qos.logback,org.jooq,com.fasterxml.jackson,org.yaml.snakeyaml,org.apache.commons.logging` | Pre-initialise logging/JSON/YAML/jOOQ for faster startup |
+| `--initialize-at-build-time=kotlin` | The OpenAI SDK (chat agent) is Kotlin and pulls in `jackson-module-kotlin`; jOOQ's static `Convert.ConvertAll` `ObjectMapper` registers it, so Kotlin objects land in the build-time image heap. Without this: *"object … found in the image heap [but] marked for initialization at image run time"* |
+| `--initialize-at-run-time=io.netty` | Netty allocates direct `ByteBuffer`s during class init |
+| `-H:ConfigurationFileDirectories=.../META-INF/native-image/io.metaloom.loom/loom-{demo,server}` | reflect-/jni-/proxy-config |
+| `-J-Xmx6g` | native-image compiler heap |
+
+`mainClass` for both the shaded jar and the native image is the module's `*Runner`
+(`io.metaloom.loom.container.{demo,server}.Loom{Demo,Server}Runner`); `finalName` is
+`loom-demo` / `loom-server`.
+
+---
+
+## 7. Test Setup
+
 ```bash
-# Run all tests
-mvn test
-
-# Run tests for specific module
+./setup-pool.sh            # REQUIRED before any DB-backed test, and after every Flyway change
+mvn test                   # unit tests
 mvn test -pl loom/core
-
-# Skip tests
-mvn package -DskipTests
-
-# Run specific test class
-mvn test -Dtest=MyTestClass -pl loom/core
+mvn test -Dtest=MyTest -pl loom/core
+./it.sh                    # pool setup + mvn verify -pl integration-test
+./e2e.sh                   # containerised end-to-end run
+cd loom-ui && npm run test && npm run test:e2e
 ```
 
-**Test Configuration (loom/pom.xml):**
-| Property | Default | Description |
-|----------|---------|-------------|
-| `surefire.forkcount` | `1` | Fork count for Surefire |
-| `skip.unit.tests` | `false` | Skip unit tests |
-| `skip.cluster.tests` | `false` | Skip cluster tests |
-| `surefire.excludedGroups` | `` | Excluded test groups |
-| `surefire.groups` | `` | Included test groups |
-| `jacoco.skip` | `true` | Skip JaCoCo coverage |
+The `testdatabase-provider` container must be running for anything that touches the database.
 
-### Integration Tests
-```bash
-# Run integration tests
-./it.sh
+Surefire/JaCoCo properties (`loom/pom.xml`):
 
-# Run e2e tests
-./e2e.sh
-```
-
-### UI Tests
-```bash
-cd loom-ui
-npm run test:e2e       # Headless Playwright
-npm run test:e2e:ui    # Playwright with UI
-```
+| Property | Default | Purpose |
+|---|---|---|
+| `skip.unit.tests` | `false` | Bound to the surefire `<skip>` |
+| `skip.cluster.tests` | `false` | Cluster test toggle |
+| `surefire.forkcount` | `1` | Fork count |
+| `surefire.jvm.postfix` | *(empty)* | Extra JVM args appended to the forked JVM |
+| `surefire.groups` / `surefire.excludedGroups` | *(empty)* | JUnit tag filters |
+| `jacoco.skip` | `true` | Coverage off by default |
+| `jacoco.skip.merge` | `true` | Skip the `merge-all-jacoco` execution |
 
 ---
 
-## Conventions and Gotchas
+## 8. Key Artifacts Reference
 
-### ⚠️ Critical Gotchas
-
-1. **UI Build Required First**: Container builds fail if `loom-ui/build/` doesn't exist. Always run `npm run build` in `loom-ui` before building containers.
-
-2. **Native Build Requires GraalVM**: The `native` Maven profile requires `JAVA_HOME` pointing to a GraalVM installation with `native-image` installed. Default: `/opt/jvm/graalvm-25`.
-
-3. **Native Images Use Debian, Not Alpine**: Native binaries are glibc-linked, so `Containerfile.native` uses `debian:stable-slim` instead of Alpine.
-
-4. **Maven Shade Plugin**: Both demo and server modules use `maven-shade-plugin` to create uber-jars with `ServicesResourceTransformer` for SPI support.
-
-5. **Dagger Annotation Processing**: The `loom-common` module configures `dagger-compiler` as an annotation processor path.
-
-6. **BOM Import**: All modules import `io.metaloom:bom` for dependency version management.
-
-7. **Cortex Build Prerequisites**: Cortex container build requires Maven build of `cortex/container` and `cortex/cli` modules first.
-
-8. **Volume Mounts**: Containers define volumes for `/uploads`, `/plugins`, `/keystore`, `/config` - these must be mounted at runtime.
-
-9. **Non-Root User**: All containers run as UID 1000 (user `loom` or `cortex`) for security.
-
-10. **JVM Memory Settings**: Default `-Xms512m -Xmx512m` for loom containers, `-Xms256m -Xmx512m` for cortex.
-
-### 📝 Conventions
-
-- **Module Naming**: `loom-<module>` for core modules, `loom-container-<variant>` for container modules
-- **Final JAR Names**: `loom-demo.jar`, `loom-server.jar` (configured via `finalName` in pom.xml)
-- **Native Binary Names**: `loom-demo`, `loom-server` (no extension)
-- **Image Tags**: `latest` for JVM, `latest-native` for native
-- **Base Images**: Eclipse Temurin 25 JRE Alpine (JVM), Debian Stable Slim (Native), Debian Trixie Slim (Cortex)
+| Artifact / class | Package or path | Purpose |
+|---|---|---|
+| `LoomServerRunner` | `io.metaloom.loom.container.server` | `mainClass` of `loom-server.jar` and of the native server binary |
+| `LoomDemoRunner` | `io.metaloom.loom.container.demo` | `mainClass` of `loom-demo.jar` and of the native demo binary |
+| `MetaLoomCLIMain` | `io.metaloom.cli` | `mainClass` of `metaloom-cli` (top-level `cli/` module, picocli) |
+| `PoolSetupRunner` | `io.metaloom.loom.test` (`loom/fixture`) | Entry point invoked by `setup-pool.sh` and `it.sh` |
+| `LoomJooqStrategy` | `loom/db/jooq-gen` | Prefixes generated table classes with `Jooq` |
+| `loom-demo.jar` / `loom-server.jar` | `loom/containers/*/target/` | Shaded uber-jars (`ManifestResourceTransformer` + `ServicesResourceTransformer`) |
+| `loom-demo` / `loom-server` | `loom/containers/*/target/` | GraalVM native binaries (no extension) |
+| `loom-ui/build/` | repo | Vite output, copied to `/loom/ui` in every image |
 
 ---
 
-## Where Do I Find...?
+## 9. Conventions and Gotchas
 
-| Concept | File Path |
-|---------|-----------|
-| Root build script | `build.sh` |
-| Maven parent POM | `pom.xml` |
-| Loom module POM | `loom/pom.xml` |
-| Loom common module | `loom/common/pom.xml` |
-| Loom core module | `loom/core/pom.xml` |
-| Loom containers parent | `loom/containers/pom.xml` |
-| Demo container module | `loom/containers/demo/pom.xml` |
-| Server container module | `loom/containers/server/pom.xml` |
-| Demo JVM Containerfile | `loom/containers/demo/Containerfile` |
-| Demo Native Containerfile | `loom/containers/demo/Containerfile.native` |
-| Server JVM Containerfile | `loom/containers/server/Containerfile` |
-| Server Native Containerfile | `loom/containers/server/Containerfile.native` |
-| Container build script | `loom/containers/build-containers.sh` |
-| UI package.json | `loom-ui/package.json` |
-| UI Vite config | `loom-ui/vite.config.ts` |
-| UI TypeScript config | `loom-ui/tsconfig.json` |
-| Cortex container build | `cortex/container/build-container.sh` |
-| Cortex Containerfile | `cortex/container/Containerfile` |
-| Integration test script | `it.sh` |
-| E2E test script | `e2e.sh` |
-| Native image config (demo) | `loom/containers/demo/src/main/resources/META-INF/native-image/io.metaloom.loom/loom-demo/` |
-| Native image config (server) | `loom/containers/server/src/main/resources/META-INF/native-image/io.metaloom.loom/loom-server/` |
-
----
-
-## Cross-References
-
-- [Cortex Architecture](../cortex/ARCHITECTURE.md) - Cortex service architecture
-- [Loom REST API](../loom/RESTAPI.md) - REST API specification
-- [Loom Database](../loom/DATABASE.md) - Database schema and jOOQ setup
-- [Loom Services](../loom/SERVICES.md) - Service layer documentation
-- [Common Module](../loom/COMMON.md) - Shared utilities and Dagger setup
-- [Website Build](../website/BUILD.md) - Website build process
+1. **UI first.** Container builds abort if `loom-ui/build/` is missing. `build.sh` orders this
+   correctly; a manual `./build-containers.sh` after a `git clean` will not.
+2. **`build-containers.sh` with no variant means BOTH.** The default is `both`, not `jvm` — an
+   unqualified run needs GraalVM.
+3. **`e2e.sh` needs GraalVM.** It calls `./build-containers.sh demo`, which parses `demo` as the
+   *target* and leaves the variant at `both`, so it also builds the native demo image.
+4. **Native binaries are reused, not rebuilt.** `maven_native_build()` returns early when the
+   binary already exists. After changing Java code, delete
+   `loom/containers/*/target/loom-{demo,server}` or the image will ship stale code.
+5. **Native images are Debian, not Alpine.** The binaries are glibc-linked; Alpine (musl) would not
+   run them.
+6. **Docker build context is the repo root**, not the container module directory.
+7. **`setup-pool.sh` after every Flyway change**, and install `loom/db/flyway` first — otherwise the
+   pool is provisioned from a stale jar and silently skips the new migration.
+8. **Stale `mainClass` in `maven-jar-plugin`.** Both container poms declare
+   `io.metaloom.loom.server.cli.Loom`, a class that no longer exists. It is harmless only because
+   `maven-shade-plugin`'s `ManifestResourceTransformer` overwrites the manifest with the correct
+   `*Runner`. Fix it when touching those poms.
+9. **jOOQ codegen is not part of `build.sh`.** Run `loom/db/jooq/generate.sh` manually after a
+   Flyway change; it deletes `src/jooq/java/` first and pins its own plugin versions.
+10. **`cli/build-native.sh` is not wired into `build.sh`** — the `metaloom` CLI native binary is a
+    manual step.
+11. **All containers run as UID 1000** (`loom` / `cortex`) with group 0; mounted volumes must be
+    group-writable.
+12. **Naming.** Modules `loom-<name>` / `loom-container-<variant>`; jars `loom-demo.jar` /
+    `loom-server.jar`; images `metaloom/loom-{demo,server}:{TAG,TAG-native}` and
+    `metaloom/cortex-server:TAG`.
 
 ---
 
-## Native Image Configuration Details
+## 10. Troubleshooting
 
-### Demo Native Image Config
-**Location:** `loom/containers/demo/src/main/resources/META-INF/native-image/io.metaloom.loom/loom-demo/`
+| Symptom | Cause | Fix |
+|---|---|---|
+| `ERROR: .../loom-ui/build not found` | UI not built | `cd loom-ui && npm run build` |
+| `ERROR: .../loom-server.jar not found` | Reactor not packaged | `mvn -T 8 clean package -DskipTests` |
+| `ERROR: native-image not found at ...` | No GraalVM | Install GraalVM 25, set `GRAALVM_HOME` |
+| Image runs old code after a rebuild | Stale native binary reused (gotcha 4) | Delete `loom/containers/*/target/loom-{demo,server}` |
+| `object … found in the image heap` | Kotlin/Jackson init class | Keep `--initialize-at-build-time=kotlin` |
+| `Pool not found {loom-dev}` in tests | Test pool not provisioned | `./setup-pool.sh` |
+| New migration missing from test DBs | `loom/db/flyway` not installed before `setup-pool.sh` | Install that module, re-run |
+| `ERROR: OpenCV libraries not found at ...` | Cortex build without an OpenCV 5.1 tree | Set `OPENCV_LIB_DIR`; see [../cortex/BUILD.md](../cortex/BUILD.md) |
 
-**Key Build Args:**
-```xml
-<buildArg>--no-fallback</buildArg>
-<buildArg>-H:+UnlockExperimentalVMOptions</buildArg>
-<buildArg>-H:+ReportExceptionStackTraces</buildArg>
-<buildArg>--enable-url-protocols=http,https</buildArg>
-<buildArg>--initialize-at-build-time=org.slf4j,ch.qos.logback,org.jooq,com.fasterxml.jackson,org.yaml.snakeyaml,org.apache.commons.logging</buildArg>
-<buildArg>--initialize-at-build-time=kotlin</buildArg>
-<buildArg>--initialize-at-run-time=io.netty</buildArg>
-<buildArg>-H:ConfigurationFileDirectories=${project.basedir}/src/main/resources/META-INF/native-image/io.metaloom.loom/loom-demo</buildArg>
-<buildArg>-J-Xmx6g</buildArg>
-```
-
-### Server Native Image Config
-**Location:** `loom/containers/server/src/main/resources/META-INF/native-image/io.metaloom.loom/loom-server/`
-
-**Key Build Args:** (Same as demo, with server-specific config directory)
-
-### Why These Settings?
-
-| Setting | Reason |
-|---------|--------|
-| `--no-fallback` | Fail fast if native compilation fails |
-| `--initialize-at-run-time=io.netty` | Netty creates direct ByteBuffers during class init; defer to runtime |
-| `--initialize-at-build-time=...` | Pre-initialize logging, JSON, YAML, jooq at build time for faster startup |
-| `--initialize-at-build-time=kotlin` | The OpenAI SDK (chat agent) is Kotlin and drags in `jackson-module-kotlin`. jOOQ's static `Convert.ConvertAll` `ObjectMapper` registers that module, so Kotlin objects (`KotlinInstantiators`, a `SynchronizedLazyImpl` from a `lazy` converter field) end up in the build-time-initialized image heap. Without this the build fails with *"object … found in the image heap [but] marked for initialization at image run time"* |
-| `-J-Xmx6g` | Give native-image compiler 6GB heap for large project |
-| `ConfigurationFileDirectories` | Load reflect-config, jni-config, proxy-config from resources |
-
----
-
-## Container Image Details
-
-### JVM Variant (Demo & Server)
-```dockerfile
-FROM eclipse-temurin:25-jre-alpine
-# Creates user loom (UID 1000)
-# Sets up directories: /uploads, /plugins, /keystore, /config, /loom/data
-# Adds loom-demo.jar or loom-server.jar as /loom/loom.jar
-# Adds loom-ui/build as /loom/ui
-# Runs as user loom
-CMD ["java", "-Djna.tmpdir=/tmp/.jna", "-Duser.dir=/loom", "-jar", "loom.jar"]
-```
-
-### Native Variant (Demo & Server)
-```dockerfile
-FROM debian:stable-slim
-# Installs: ca-certificates, libstdc++6, zlib1g
-# Creates user loom (UID 1000)
-# Same directory structure
-# Adds native binary (loom-demo or loom-server) as /loom/loom
-# Adds loom-ui/build as /loom/ui
-# Runs as user loom
-CMD ["/loom/loom"]
-```
-
-### Cortex Variant
-```dockerfile
-FROM debian:trixie-slim
-# Installs CUDA 13.2 runtime (cudart, cublas)
-# Installs OpenCV 4.10 JNI libraries
-# Downloads Eclipse Temurin JDK 25
-# Downloads InspireFace model
-# Creates user cortex (UID 1000)
-# Adds cortex-cli.jar
-# Runs with --enable-native-access=ALL-UNNAMED
-CMD ["/opt/java25/bin/java", "-Djna.tmpdir=/tmp/.jna", "-Duser.dir=/cortex", "--enable-native-access=ALL-UNNAMED", "-jar", "cortex-cli.jar", "server", "start"]
-```
-
----
-
-## Troubleshooting
-
-### Common Build Failures
-
-| Error | Cause | Solution |
-|-------|-------|----------|
-| `loom-ui/build not found` | UI not built | Run `cd loom-ui && npm run build` |
-| `native-image not found` | GraalVM not installed or wrong JAVA_HOME | Install GraalVM 25, set `JAVA_HOME=/opt/jvm/graalvm-25` |
-| `jar not found` | Maven package not run | Run `mvn -T 8 clean package -DskipTests` |
-| `docker build fails` | Docker daemon not running | Start Docker/Podman daemon |
-| `CUDA packages not found` | Network issues in Cortex build | Check internet connectivity, NVIDIA repo availability |
-
-### Verifying Build Output
+### Verify build output
 
 ```bash
-# Check JVM jars
-ls -la loom/containers/demo/target/loom-demo.jar
-ls -la loom/containers/server/target/loom-server.jar
-
-# Check native binaries
-ls -la loom/containers/demo/target/loom-demo
-ls -la loom/containers/server/target/loom-server
-
-# Check UI build
+ls -la loom/containers/{demo,server}/target/loom-{demo,server}.jar
+ls -la loom/containers/{demo,server}/target/loom-{demo,server}
 ls -la loom-ui/build/
-
-# Check container images
-docker images metaloom/loom-demo
-docker images metaloom/loom-server
-docker images metaloom/cortex-server
+docker images 'metaloom/*'
 ```
 
 ---
 
-## Version History
+## 11. Where Do I Find...?
 
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0.0 | 2026-07-14 | Initial specification |
+| Concept | Path |
+|---|---|
+| Full build pipeline | `build.sh` |
+| Reactor root / Loom aggregator | `pom.xml` · `loom/pom.xml` |
+| Dependency versions (BOM) | `bom/pom.xml` |
+| Loom container build script | `loom/containers/build-containers.sh` |
+| Demo / server container modules | `loom/containers/{demo,server}/pom.xml` |
+| Containerfiles | `loom/containers/{demo,server}/Containerfile[.native]` |
+| Native-image metadata | `loom/containers/{demo,server}/src/main/resources/META-INF/native-image/io.metaloom.loom/loom-{demo,server}/` |
+| UI build config | `loom-ui/package.json` · `loom-ui/vite.config.ts` · `loom-ui/tsconfig.json` |
+| jOOQ codegen / migrate | `loom/db/jooq/generate.sh` · `loom/db/jooq/migrate.sh` |
+| Flyway migrations | `loom/db/flyway/src/main/resources/db/migration/` |
+| Test pool provisioning | `setup-pool.sh` · `loom/fixture` (`PoolSetupRunner`) |
+| Integration / E2E drivers | `it.sh` · `e2e.sh` · `integration-test/` · `e2e-test/` |
+| Local run helpers | `start-postgres.sh` · `start-demo.sh` · `start-server.sh` · `start-minio.sh` · `start-cortex.sh` · `ui.sh` |
+| CLI native build | `cli/build-native.sh` |
+| Cortex container build | `cortex/container/build-container.sh` · `cortex/container/Containerfile` |
 
 ---
 
-*This specification follows the [SPEC_RULES.md](../SPEC_RULES.md) guidelines for AI Coding Agent usability.*
+## 12. Related Specifications
+
+[LOOM.md](LOOM.md) · [SERVER.md](SERVER.md) · [CONFIGURATION.md](CONFIGURATION.md) ·
+[PERSISTENCE.md](PERSISTENCE.md) · [ui/LOOM_UI.md](ui/LOOM_UI.md) ·
+[../cortex/BUILD.md](../cortex/BUILD.md) · [../cortex/CORTEX.md](../cortex/CORTEX.md) ·
+[../METALOOM.md](../METALOOM.md) · [../website/WEBSITE.md](../website/WEBSITE.md)
+
+---
+
+_Git HEAD revision: `2e5981cb`_
+_Last updated: 2026-08-01 (verified every command and image against the scripts; fixed the reactor module lists, the build-containers argument grammar and the Cortex/OpenCV claims.)_

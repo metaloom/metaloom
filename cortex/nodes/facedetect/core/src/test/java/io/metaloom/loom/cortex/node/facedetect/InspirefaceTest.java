@@ -1,5 +1,7 @@
 package io.metaloom.loom.cortex.node.facedetect;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
 import java.util.List;
 
@@ -15,11 +17,23 @@ import io.metaloom.video4j.Video4j;
 import io.metaloom.video4j.VideoFile;
 import io.metaloom.video4j.VideoFrame;
 import io.metaloom.video4j.opencv.CVUtils;
-import io.metaloom.video4j.utils.SimpleImageViewer;
 
-public class InspirefaceTest {
+/**
+ * Worked example of driving inspireface4j over a video with video4j.
+ *
+ * <p>
+ * The pack path is resolved relative to the module, like every other test here, rather than
+ * from a developer's home directory, and the video comes from the shared test media instead
+ * of {@code /extra/vid}. The example also no longer opens a Swing viewer per frame, so it can
+ * run unattended.
+ * </p>
+ */
+public class InspirefaceTest extends AbstractFacedetectMediaTest {
 
-	private static final String DEFAULT_PACK = "/home/jotschi/workspaces/metaloom/inspireface4j/packs/Pikachu";
+	private static final String DEFAULT_PACK = "packs/Pikachu";
+
+	/** Keeps the example bounded — it demonstrates the API, it does not need the whole video. */
+	private static final int MAX_FRAMES = 25;
 
 	@Test
 	public void testVideoUsageExample() throws IOException {
@@ -27,17 +41,18 @@ public class InspirefaceTest {
 
 		// Initialize video4j and InspirefaceLib (Video4j is used to handle OpenCV Mat)
 		Video4j.init();
-		SimpleImageViewer viewer = new SimpleImageViewer();
+
+		int detectedFaces = 0;
 
 		try (InspirefaceSession session = InspirefaceLib.session(DEFAULT_PACK, 640)) {
 
 			// Open the video using Video4j
-			try (VideoFile video = VideoFile.open("/extra/vid/1.avi")) {
+			try (VideoFile video = VideoFile.open(video2().path().toString())) {
 
 				// Process each frame
 				VideoFrame frame;
-				while ((frame = video.frame()) != null) {
-					// System.out.println(frame);
+				int frameCount = 0;
+				while ((frame = video.frame()) != null && frameCount++ < MAX_FRAMES) {
 
 					// Optionally downscale the frame
 					CVUtils.resize(frame, 512);
@@ -50,20 +65,24 @@ public class InspirefaceTest {
 						float[] embedding = session.embedding(frame.mat(), detections, 0);
 						// Extract the face attributes
 						List<FaceAttributes> attrs = session.attributes(frame.mat(), detections, true);
+						assertThat(embedding).as("A detected face must yield an embedding").isNotEmpty();
+						assertThat(attrs).as("A detected face must yield attributes").isNotEmpty();
 					}
 
-					// Print the detections
+					// Inspect the detections
 					for (Detection detection : detections) {
 						double confidence = detection.conf();
 						BoundingBox box = detection.box();
-						System.out.println("Frame[" + video.currentFrame() + "] = " + confidence + " @ " + box);
+						assertThat(confidence).as("Detection confidence is a probability").isBetween(0d, 1d);
+						assertThat(box).as("Every detection carries a bounding box").isNotNull();
+						detectedFaces++;
 					}
-
-					viewer.show(frame.mat());
 				}
 			}
 		}
 		// SNIPPET END video-usage.example
+
+		assertThat(detectedFaces).as("The test video contains faces, so the example must detect some").isPositive();
 	}
 
 }

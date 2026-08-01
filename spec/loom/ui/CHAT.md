@@ -1,418 +1,467 @@
 # MetaLoom // Chat (Loom Agent) Specification
 
-> This document specifies the **Chat / Loom Agent** feature: an OpenAI-style chat in the
-> Loom UI backed by a **server-side agentic loop** in the Loom backend. The agent lets
-> users converse with the Loom domain ([DOMAIN.md](../DOMAIN.md)) — find assets, list
-> open tasks, surface new comments, summarize media transcripts, run semantic content
-> searches — and renders the domain entities it touches as dedicated chips/tiles
-> ("Kacheln") inside the conversation.
+> This document specifies the **Chat / Loom Agent**: an OpenAI-style chat in the Loom UI
+> backed by a **server-side agentic loop** in the `loom/agent/chat` Maven module
+> (package `io.metaloom.loom.agent.chat`). The agent converses with the Loom domain
+> ([DOMAIN.md](../DOMAIN.md)) — find assets, list tasks, surface comments, summarize
+> transcripts, run semantic searches — and renders the domain entities it touches as
+> chips/tiles inside the conversation.
 >
-> The agentic loop design is inspired by the **pi agent harness**
-> (`workspaces/metaloom/pi`, pi-mono / `@earendil-works`): its turn loop, its streaming
-> event protocol (distinct text/thinking/tool-call deltas), its "errors become tool
+> **Scope note.** This file owns the *agentic loop, the streaming protocol and the chat
+> UI contract*. Adjacent subsystems have their own specs and are only cross-referenced
+> here — do not duplicate them:
+>
+> | Subsystem | Spec |
+> |---|---|
+> | Agent memory bank (`get/put/list/delete_memory`, scopes, denylist, materialization) | [CHAT_MEMORY_PLAN.md](../../features/chat/CHAT_MEMORY_PLAN.md) |
+> | Chat sessions (capture, publish, context composition, session filesystem) | [CHAT_SESSIONS_CONCEPT.md](../../features/chat/CHAT_SESSIONS_CONCEPT.md) |
+> | Chat UI implementation tasks / coverage matrix | [TASK_UI_CHAT.md](TASK_UI_CHAT.md) |
+> | Backend implementation tasks | [CHAT_TASKS.md](../../features/chat/CHAT_TASKS.md) |
+> | MCP tool surface & `visuals` envelope | [MCP.md](../MCP.md) |
+> | REST endpoint inventory | [RESTAPI.md](../RESTAPI.md) |
+> | General UI shell / routes | [LOOM_UI.md](LOOM_UI.md) |
+> | Permission model | [PERMISSIONS.md](../../features/permissions/PERMISSIONS.md) |
+>
+> The loop design follows the **pi agent harness** (pi-mono / `@earendil-works`): its turn
+> loop, its distinct text/thinking/tool-call stream events, its "errors become tool
 > results" rule, and its progressive-disclosure **skills** model.
 >
-> Status legend used throughout: ✅ implemented · 🟡 partial · ⬜ planned.
->
-> Related documents:
-> - [LOOM_UI.md](LOOM_UI.md) — general UI spec (§3.1 lists the chat route).
-> - [RESTAPI.md](../RESTAPI.md) — REST endpoint inventory (`/api/v1/chats` CRUD).
-> - [MCP.md](../MCP.md) — the MCP tool surface reused by the agent loop.
-> - [TASK_UI_CHAT.md](TASK_UI_CHAT.md) — UI implementation tasks.
-> - [CHAT_TASKS.md](../../features/chat/CHAT_TASKS.md) — backend implementation tasks.
+> ⚠️ **Historical note:** the loop used to live in `loom/services/ai`
+> (`io.metaloom.loom.ai`). That module is gone — any such reference elsewhere is stale.
 
 ---
 
-## 1. Overview & Goals
+## 1. Progress Assessment
 
-The chat is the landing page of the Loom UI (route `/`). Goals:
+- [x] Chat session CRUD (`/api/v1/chats`, `chat` table, `ChatDao`, permissions)
+- [x] Agentic loop (`AgentLoop`) — transcript replay, tool dispatch, turn limit, abort, persistence
+- [x] `AgentService` — one active run per chat, `executeBlocking`, `abort()`
+- [x] SSE streaming endpoint `POST|DELETE /api/v1/chats/:uuid/stream`
+- [x] Turn-granular streaming (`BlockingTurnStreamer`) **and** true token/reasoning streaming (`StreamingTurnStreamer`, `LOOM_AI_STREAMING=true`)
+- [x] MCP tool inventory dispatched in-process, permission-checked, with server-resolved `MCPCallerContext`
+- [x] Skills: table + versions, owner-scoped REST, progressive disclosure, `load_skill` tool, per-chat activation
+- [x] References (chips) and `visuals` (inline pipeline graph) envelopes
+- [x] Auto title generation + auto session capture after the first exchange
+- [x] Agent memory bank wired into the system prompt and the tool set (see [CHAT_MEMORY_PLAN.md](../../features/chat/CHAT_MEMORY_PLAN.md))
+- [x] Sandbox coding tools (`run_shell`, `read_file`, `write_file`, `list_files`) gated by `LOOM_AGENT_SANDBOX_ENABLED`
+- [x] Chat sessions REST (`/api/v1/chat-sessions`) + session filesystem (`/api/v1/sessions/:uuid/files|download|preview`)
+- [x] UI: streaming transcript, markdown, hidden reasoning, action rows, chips, skills panel, greeting, split workspace
+- [x] UI views: `SkillManagementView`, `ChatSessionsView` / `ChatSessionDetail`, `MemoryView`
+- [x] Tests: `AgentLoopTest`, `StreamingTurnStreamerTest`, `ReferenceExtractorTest`, `VisualExtractorTest`, `SkillPromptBuilderTest`, `ChatStreamEndpointTest`, mocked + backend Playwright specs
+- [ ] **`ChatStreamRequest.think` is parsed but never forwarded** — `AgentRequest` has no `think` field, so the loop always uses `LOOM_AI_THINK_ENABLED` (§4.1)
+- [ ] No endpoint tests for `ChatSessionEndpoint` / `SessionFsEndpoint`
+- [ ] No live-LLM integration test (backend Playwright specs assert CRUD only)
+- [ ] vLLM has no true-streaming path — `LOOM_AI_STREAMING=true` degrades to the blocking streamer behaviour there
 
-1. **Conversational access to the domain** — "find beach videos", "what tasks are open
-   for me?", "any new comments on asset X?", "summarize the transcript of this clip",
-   "find assets showing a sunset" (semantic search via embeddings/transcripts).
-2. **Agentic, not canned** — the backend runs a tool-calling loop against an LLM
-   (via `genai-utils`), invoking the existing MCP tools in-process with the caller's
-   permissions, until the model produces a final answer.
-3. **Live streaming UX** — assistant text streams token-by-token; **reasoning
-   ("thinking") chunks stream into a section that is hidden by default**; tool
-   invocations appear as live action rows; entity references appear as chips as soon as
-   a tool returns them.
-4. **Markdown answers** — assistant messages are rendered as sanitized GitHub-flavored
-   markdown.
-5. **Skills** — user-owned, SKILL.md-style instruction packages that can be activated /
-   deactivated per chat and shared between users via a publish + install library.
-
-## 2. Current State (what exists today)
-
-| Area | Status | Where |
-|------|--------|-------|
-| Chat session CRUD (backend) | ✅ | `chat` table (migration [V2.28__add_chat.sql](../../../loom/db/flyway/src/main/resources/db/migration/V2.28__add_chat.sql)): `uuid`, `title`, `messages jsonb`, `meta jsonb`, audit columns. [ChatDao](../../../loom/db/api/src/main/java/io/metaloom/loom/db/model/chat/ChatDao.java), [ChatDaoImpl](../../../loom/db/jooq/src/main/java/io/metaloom/loom/db/jooq/dao/chat/ChatDaoImpl.java), [ChatEndpoint](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/ChatEndpoint.java) (`/api/v1/chats` CRUD), [ChatMethods](../../../loom-client/common/src/main/java/io/metaloom/loom/client/common/method/ChatMethods.java), `ChatEndpointTest`. Permissions `CREATE/READ/UPDATE/DELETE_CHAT`. |
-| Chat UI shell | ✅ | [ChatWorkspace.tsx](../../../loom-ui/src/features/chat/ChatWorkspace.tsx) — sessions rail, resizable chat column, right workspace panel (overview / embedded asset browser / asset detail card). The chat/workspace split is a persisted percentage (80/20 by default) and the workspace panel is collapsible — see [LOOM_UI.md §3.7](LOOM_UI.md). Session persistence is real (via [api/chat.ts](../../../loom-ui/src/api/chat.ts)). |
-| New-session greeting | ✅ | [ChatGreeting](../../../loom-ui/src/features/chat/ChatGreeting.tsx) — prominent "Hello \<username\>" + one-line capability hint, rendered while the transcript is empty (see §5.1). |
-| Entity chips | ✅ | `RefChip` in ChatWorkspace.tsx — chips for `asset · collection · task · pipeline · annotation` with navigation / inline asset preview. |
-| Inline visuals | ✅ | `visuals` envelope on tool results (§6.1): [VisualExtractor](../../../loom/agent/chat/src/main/java/io/metaloom/loom/agent/chat/ref/VisualExtractor.java) → `tool_end` / persisted message → [PipelineGraphCard](../../../loom-ui/src/features/chat/PipelineGraphCard.tsx) + [pipelineGraphLayout](../../../loom-ui/src/features/chat/pipelineGraphLayout.ts). Fed by the `get_pipeline` MCP tool. |
-| Agent action rows | ✅ | `ActionRow` in ChatWorkspace.tsx — pending/running/done/error status rows (currently fed by mock data only). |
-| Assistant replies | ✅ | The UI streams from the live agent: [ChatWorkspace](../../../loom-ui/src/features/chat/ChatWorkspace.tsx) consumes `POST /chats/:uuid/stream` via [api/agent.ts](../../../loom-ui/src/api/agent.ts) (fetch + ReadableStream, incremental SSE parser). `mockChatService` has been removed. State machine: sending → streaming(reasoning \| answering \| tool) → done/error/aborted; Stop button aborts (fetch abort + `DELETE …/stream`); 409 → busy toast + input restored. |
-| Markdown rendering | ✅ | [MarkdownContent](../../../loom-ui/src/features/chat/MarkdownContent.tsx) (react-markdown + remark-gfm, raw HTML stays escaped — no rehype-raw); replaces the old `dangerouslySetInnerHTML` regex. |
-| Reasoning section | ✅ | [ReasoningSection](../../../loom-ui/src/features/chat/ReasoningSection.tsx): live "thinking… (Ns)" indicator while `reasoning_delta` streams, content hidden by default behind a Show/Hide toggle (`chat-reasoning-*` testids). |
-| Streaming endpoint (backend) | ✅ | `POST/DELETE /api/v1/chats/:uuid/stream` ([ChatStreamEndpoint](../../../loom/agent/chat/src/main/java/io/metaloom/loom/agent/chat/rest/ChatStreamEndpoint.java), SSE via [SseAgentEventSink](../../../loom/agent/chat/src/main/java/io/metaloom/loom/agent/chat/rest/SseAgentEventSink.java)); busy-guard (409), abort on disconnect, `ChatStreamEndpointTest`. |
-| Agentic loop | ✅ | [loom/agent/chat](../../../loom/agent/chat): [AgentLoop](../../../loom/agent/chat/src/main/java/io/metaloom/loom/agent/chat/loop/AgentLoop.java) + [AgentService](../../../loom/agent/chat/src/main/java/io/metaloom/loom/agent/chat/AgentService.java) — transcript replay, in-process MCP tool dispatch, error-as-tool-result, turn limit, abort, persistence, auto-title. Config via `AiOptions` (`LOOM_AI_*`). |
-| LLM access | ✅ | `genai-utils` compile-scope in `loom/agent/chat`. `generateStreamWithTools` (streamed text/reasoning/tool calls) implemented for Ollama; vLLM falls back to the blocking path. True token streaming is opt-in via `LOOM_AI_STREAMING=true` ([StreamingTurnStreamer](../../../loom/agent/chat/src/main/java/io/metaloom/loom/agent/chat/loop/StreamingTurnStreamer.java)); default is turn-granular ([BlockingTurnStreamer](../../../loom/agent/chat/src/main/java/io/metaloom/loom/agent/chat/loop/BlockingTurnStreamer.java)). |
-| MCP tools | ✅ | [MCPToolRegistry](../../../loom/services/mcp/src/main/java/io/metaloom/loom/mcp/tool/MCPToolRegistry.java): `search_assets`, `get_asset`, `search_transcript`, `list_collections`, `asset_statistics`, `list_pipelines`, `get_pipeline` — permission-checked, dispatchable in-process via the Vert.x EventBus. Reference envelopes (§6) attached via [MCPToolResults](../../../loom/services/mcp/src/main/java/io/metaloom/loom/mcp/tool/MCPToolResults.java). |
-| Skills (backend) | ✅ | Migration `V2.36__add_skill.sql`, [SkillDao](../../../loom/db/api/src/main/java/io/metaloom/loom/db/model/skill/SkillDao.java), owner-scoped [SkillEndpoint](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/SkillEndpoint.java) (`/api/v1/skills` + `/library` + `/:uuid/install`), `SkillMethods` client, progressive disclosure + `load_skill` tool in the loop ([SkillPromptBuilder](../../../loom/agent/chat/src/main/java/io/metaloom/loom/agent/chat/skill/SkillPromptBuilder.java)). |
-| Skills (UI) | ✅ | [api/skills.ts](../../../loom-ui/src/api/skills.ts); [SkillsPanel](../../../loom-ui/src/features/chat/SkillsPanel.tsx) in the chat header (per-session toggles, persisted to `chat.meta.activeSkillUuids`, sent with every stream request); [SkillManagementView](../../../loom-ui/src/features/skills/SkillManagementView.tsx) at `/skills` (CRUD, markdown editor, enabled/publish switches, Library tab + install with origin badge / update hint). |
-| Chat E2E tests | ✅ | Mocked: `chat-mocked.spec.ts` (scripted SSE fixture — markdown, hidden reasoning, tool rows, chips, persistence round-trip, 409 toast, stop button) `chat-pipeline-graph-mocked.spec.ts` (inline pipeline diagram: nodes, connectors, branch label, left-to-right order, persistence, editor link) and `skills-mocked.spec.ts` (CRUD/publish/library/install, chat toggles → stream body). Backend variants (CRUD only, no live-LLM assertions): `chat-backend.spec.ts`, `skills-backend.spec.ts`. Backend JUnit: `SkillDaoTest`, `SkillEndpointTest`, `MCPToolReferencesTest`, `PipelineToolTest`, `VisualExtractorTest`, `AgentLoopTest`, `ChatStreamEndpointTest`. UI unit: `pipelineGraphLayout.test.ts`. |
-
-## 3. Architecture (planned)
+## 2. Architecture
 
 ```mermaid
 graph LR
-    subgraph loom-ui
-        CW[ChatWorkspace] -->|POST /chats/:uuid/stream| SSE
-        CW -->|CRUD| CHATS[/api/v1/chats/]
-        CW -->|CRUD + library/install| SKILLS[/api/v1/skills/]
+    subgraph loomui["loom-ui"]
+        CW[ChatWorkspace] -->|"POST /chats/:uuid/stream (SSE)"| SSE
+        CW -->|CRUD| CHATS["/api/v1/chats"]
+        CW -->|toggles| SKILLS["/api/v1/skills"]
+        CSV[ChatSessionsView] --> CSES2["/api/v1/chat-sessions"]
+        CSD[ChatSessionDetail] --> FS["/api/v1/sessions/:uuid/files"]
     end
-    subgraph loom backend
-        SSE[SSE stream] --> CSES[ChatStreamEndpointService<br/>services/rest]
-        CSES --> AS[AgentService<br/>loom/agent/chat]
-        AS --> AL[AgentLoop]
-        AL -->|generate w/ tools| LLM[genai-utils LLMProvider<br/>Ollama / vLLM]
-        AL -->|dispatch in-process| MCP[MCPToolRegistry<br/>services/mcp]
-        AL -->|load_skill / prompt| SK[SkillDao]
-        AL -->|persist transcript| CD[ChatDao]
+    subgraph backend["loom backend"]
+        SSE[ChatStreamEndpoint] --> CSS["ChatStreamEndpointService<br/>loom/agent/chat/rest"]
+        CSS --> AS["AgentService<br/>loom/agent/chat"]
+        AS -->|executeBlocking| AL[AgentLoop]
+        AL -->|streamTurn| TS["TurnStreamer<br/>Blocking | Streaming"]
+        TS --> LLM["OmniProvider<br/>Ollama | vLLM (genai-utils)"]
+        AL -->|"dispatch(name,args,user,ctx)"| MCP["MCPToolRegistry<br/>services/mcp"]
+        AL -->|coding tools| SB["SandboxOrchestrator<br/>loom/agent/sandbox"]
+        AL -->|index + tools| MEM["MemoryService<br/>loom/agent/memory"]
+        AL -->|prompt| SPB[SystemPromptBuilder]
+        AL -->|"transcript + title"| CD[ChatDao]
+        AL -->|capture| CSD2[ChatSessionDao]
+        AL -->|events| SINK["AgentEventSink<br/>→ SseAgentEventSink"]
     end
 ```
 
-- **`loom/agent/chat`** (new Maven module, package `io.metaloom.loom.agent.chat`): hosts the
-  agentic loop. Promotes `genai-utils` to a compile dependency **in this module only**.
-  - `AgentService` — entry point; enforces one active run per chat (`409 AGENT_BUSY`),
-    supports abort.
-  - `AgentLoop` — the turn loop (see §3.1), pure logic, testable with a fake provider.
-  - `TurnStreamer` — abstraction over one LLM turn. `BlockingTurnStreamer` wraps the
-    existing `generateWithTools` (turn-granular streaming); `StreamingTurnStreamer`
-    arrives once `genai-utils` gains `generateStreamWithTools` (true token/reasoning
-    deltas — see Risks §8).
-  - `AgentEvent` / `AgentEventSink` — event protocol objects; the SSE writer implements
-    the sink, tests collect to a list.
-  - `ReferenceExtractor`, `SkillPromptBuilder`, agent-local `load_skill` tool.
-  - `AiOptions` (in `loom-shared/api` options): provider type, URL, model id, context
-    window, `maxTurns` (default 8), tool/turn timeouts, think mode, title generation.
+Module layout — `loom/agent/` holds four modules; **only `chat` is specified here**:
 
-### 3.1 The agentic loop
+| Module | Contents |
+|---|---|
+| `loom/agent/chat` | the loop, the event protocol, `ChatStreamEndpoint`, `ChatSessionEndpoint`, `SessionFsEndpoint`, prompt/skill/ref builders. Promotes `genai-utils` to compile scope. |
+| `loom/agent/memory` | memory bank — see [CHAT_MEMORY_PLAN.md](../../features/chat/CHAT_MEMORY_PLAN.md) |
+| `loom/agent/sandbox` | Session Runner orchestration + `CodingTools` |
+| `loom/agent/session-runner`, `loom/agent/deploy` | the container image and its deployment |
 
-Modeled on pi's inner loop (`pi/packages/agent/src/agent-loop.ts`) and the proven
-`MCPServerToolCallTest` prototype:
+`/api/v1/chats` CRUD deliberately stays in `loom/services/rest` (`ChatEndpoint`); only the
+stream and session routes live in the agent module.
 
+### 2.1 The agentic loop
+
+```mermaid
+sequenceDiagram
+    participant UI as ChatWorkspace
+    participant EP as ChatStreamEndpointService
+    participant AS as AgentService
+    participant AL as AgentLoop
+    participant LLM as TurnStreamer/LLM
+    participant T as Tools
+
+    UI->>EP: POST /chats/:uuid/stream {message, skillUuids}
+    EP->>EP: requirePerm(UPDATE_CHAT) + owner check (404 if foreign)
+    EP->>AS: run(AgentRequest, SseAgentEventSink)
+    AS-->>EP: 409 AGENT_BUSY when a run is active
+    AS->>AL: executeBlocking(loop.run())
+    AL->>AL: buildCallerContext · loadMemory · loadActiveSkills · buildHistory · buildTools
+    AL-->>UI: agent_start {chatUuid, model, maxTurns}
+    loop turn = 1..maxTurns
+        AL-->>UI: turn_start
+        AL->>LLM: streamTurn(ctx)
+        LLM-->>UI: reasoning_delta* / text_delta*
+        alt no tool calls
+            AL-->>UI: turn_end
+            AL->>AL: status = completed (break)
+        else tool calls
+            loop each call
+                AL-->>UI: tool_start
+                AL->>T: load_skill | coding tool | MCP dispatch
+                T-->>AL: result (failure → ERROR text, loop continues)
+                AL-->>UI: tool_end {summary, references, visuals}
+            end
+            AL-->>UI: turn_end
+        end
+    end
+    AL->>AL: persist(user + assistant message, chat.meta)
+    AL-->>UI: message_end {message}
+    opt first exchange && titleGeneration
+        AL-->>UI: title {title}
+        AL->>AL: generateDescription + captureSession (best effort)
+    end
+    AL-->>UI: agent_end {status: completed|aborted|error}
 ```
-run(chatUuid, userMessage, activeSkillUuids, vertxUser, sink):
-  emit agent_start
-  history = [ system(SkillPromptBuilder.build(activeSkills)) ]
-          + replay(chat.messages)                 // persisted transcript → LLM messages
-          + user(userMessage)
-  tools = MCP tool descriptors + load_skill
-  for turn in 1..maxTurns:
-    emit turn_start
-    stream one LLM turn                            // relays reasoning_delta / text_delta
-    if aborted → persist partial, emit agent_end{aborted}, return
-    if tool calls:
-      for each call:
-        emit tool_start
-        result = MCPToolRegistry.dispatch(name, args, user)  // permission-checked
-                 (failure → error tool RESULT — the loop continues; pi rule)
-        emit tool_end { references extracted from result }
-        history += toolResult(...)
-      emit turn_end; continue
-    else:
-      emit message_end { final assistant message }; emit turn_end; break
-  persist user + assistant message into chat.messages; update chat.meta
-  emit agent_end{completed}
-```
 
-Threading: LLM calls and jOOQ access are blocking → the loop runs on worker threads
-(`executeBlocking`); SSE writes hop back onto the response context. Abort is triggered by
-client disconnect (`response.closeHandler`) or `DELETE /chats/:uuid/stream`.
+**Threading.** LLM calls and jOOQ access are blocking, so the loop runs on a Vert.x worker
+thread via `executeBlocking(..., false)` (unordered). `SseAgentEventSink` holds the request
+`Context` and hops SSE writes back onto it. Abort is triggered by
+`response.closeHandler` (client disconnect) or `DELETE /chats/:uuid/stream`; `AgentLoop.abort()`
+sets an `AtomicBoolean` that is checked between turns and between tool calls.
 
-Error taxonomy (pi-inspired):
+**Error taxonomy (pi-inspired).**
 
 | Failure | Handling |
 |---|---|
-| Tool execution fails / times out | Becomes an **error tool result**; loop continues so the model can react. |
-| LLM/provider failure | Terminal `error {code: LLM_ERROR, terminal: true}` then `agent_end{error}`; the user message is still persisted. |
-| Turn limit reached | Non-fatal `error {code: TURN_LIMIT, terminal: false}`; a final message is synthesized from partial state. |
-| Concurrent run on same chat | `409` with `error {code: AGENT_BUSY}`. |
+| Tool execution fails / times out (`LOOM_AI_TOOL_TIMEOUT_MS`) | Becomes an **error tool result** (`"ERROR: …"`); the loop continues so the model can react. |
+| Coding tool with non-zero shell exit | **Not** an error — exit code is appended to the result text so the model can react. |
+| LLM/provider failure | `error {code: LLM_ERROR, terminal: true}` → `agent_end{status:"error"}`. Only the **user** message is persisted, plus `chat.meta.lastError`; no `message_end` is emitted. |
+| Turn limit reached | Non-fatal `error {code: TURN_LIMIT, terminal: false}`, then the run finishes as **`completed`** with whatever text accumulated. |
+| Memory write budget exceeded | Error tool result telling the model to stop writing (never aborts the run). |
+| Chat not found | `error {code: NOT_FOUND, terminal: true}` → `agent_end{status:"error"}`. |
+| Concurrent run on same chat | HTTP `409` before the stream opens. |
 
-## 4. Streaming Endpoint & Event Protocol
+## 3. Tool inventory
+
+The model is offered, in this order (`AgentLoop.buildTools()`):
+
+| Group | Tools | Source |
+|---|---|---|
+| Domain (MCP) | `search_assets`, `get_asset`, `search_transcript`, `list_collections`, `asset_statistics`, `list_pipelines`, `get_pipeline` | `loom/services/mcp/.../tool/impl` via `MCPToolModule` |
+| Memory (MCP) | `get_memory`, `put_memory`, `list_memory`, `delete_memory` | `loom/agent/memory/.../tool` via `MemoryToolModule` — details in [CHAT_MEMORY_PLAN.md](../../features/chat/CHAT_MEMORY_PLAN.md) |
+| Coding | `run_shell`, `read_file`, `write_file`, `list_files` | `CodingTools` — advertised **only** when `LOOM_AGENT_SANDBOX_ENABLED=true`; executed in a per-chat Session Runner via `SandboxOrchestrator.dispatchCodingTool(chatUuid, …)`, *not* through the MCP registry |
+| Agent-local | `load_skill` | added only when the run has active skills |
+
+**Caller identity is server-resolved.** `AgentLoop.buildCallerContext()` builds an
+`MCPCallerContext(userUuid, userName, groupUuids, spaceUuid, chatUuid)` from the request
+user, `GroupDao.loadGroupsForUser` and the chat's space — never from tool arguments
+(`MCPToolRegistry.CALLER_ENVELOPE_KEY` strips any `__loom` key a model tries to smuggle in).
+Identity-requiring tools are not bound to the EventBus at all and are reachable only via
+`dispatch(name, args, user, ctx)`. Group-resolution failure degrades to "no groups".
+
+## 4. Streaming endpoint & event protocol
 
 ### 4.1 Endpoint
 
-**`POST /api/v1/chats/:uuid/stream`** — send a user message, receive the agent run as
-Server-Sent Events. Registered in `ChatEndpoint`, handled by a new
-`ChatStreamEndpointService`; SSE write pattern copied from
-[MCPService](../../../loom/services/mcp/src/main/java/io/metaloom/loom/mcp/MCPService.java)
-(`text/event-stream`, `Cache-Control: no-cache`, `X-Accel-Buffering: no`, chunked).
+`ChatStreamEndpoint` (`loom/agent/chat/rest`) registers both routes; the SSE write pattern
+mirrors `MCPService` (`text/event-stream`, `Cache-Control: no-cache`,
+`X-Accel-Buffering: no`, chunked).
+
+**`POST /api/v1/chats/:uuid/stream`** — requires `UPDATE_CHAT` *and* chat ownership
+(a foreign chat is indistinguishable from a missing one → `404`).
 
 ```json
 { "message": "Find all beach videos and open a review task",
-  "skillUuids": ["<uuid>", "..."],
+  "skillUuids": ["<uuid>"],
   "think": true }
 ```
 
-**`DELETE /api/v1/chats/:uuid/stream`** — explicit cancel of the active run (204).
+> ⚠️ `think` is deserialized into `ChatStreamRequest` but **never reaches the loop** —
+> `AgentRequest` carries only `(chatUuid, userUuid, user, message, skillUuids)` and
+> `AgentLoop` reads `AiOptions.isThinkEnabled()`. Either wire it through or drop the field.
 
-Why POST + SSE (not `EventSource`, not WebSocket): `EventSource` can neither POST a body
-nor set the `Authorization` header the UI uses; the client therefore reads the response
-via `fetch` + `ReadableStream`. WebSocket (precedent:
-`PipelineEventEndpoint`) remains the documented alternative should bidirectional
-mid-run steering ever be needed; v1 models steering as abort + resend.
+**`DELETE /api/v1/chats/:uuid/stream`** — idempotent cancel, `204` (also `UPDATE_CHAT` + ownership).
+
+Why POST + SSE and not `EventSource`/WebSocket: `EventSource` can neither POST a body nor
+set the `Authorization` header, so the client reads the response with `fetch` +
+`ReadableStream` and an incremental parser (`createSseParser` in `api/agent.ts`). WebSocket
+(precedent: `PipelineEventEndpoint`) stays the documented alternative if mid-run steering is
+ever needed; v1 models steering as abort + resend.
 
 ### 4.2 Event vocabulary
 
-SSE frames are `event: <type>` + single-line JSON `data:`. Unlike pi (which re-emits the
-full accumulated partial message on every delta) Loom streams **deltas plus one final
-authoritative snapshot** (`message_end`) — the UI shows deltas live but persists nothing
-itself.
+Frames are `event: <type>` + single-line JSON `data:` (`AgentEventType`). Unlike pi (which
+re-emits the full accumulated message per delta) Loom streams **deltas plus one final
+authoritative snapshot** (`message_end`); the client persists nothing itself.
 
 | event | data payload | notes |
 |---|---|---|
-| `agent_start` | `{"chatUuid":"…","model":"…","maxTurns":8}` | first event |
-| `turn_start` | `{"turn":1}` | |
-| `reasoning_delta` | `{"turn":1,"text":"…"}` | **distinct type → UI hides it by default** |
-| `text_delta` | `{"turn":1,"text":"…"}` | answer markdown, incremental |
-| `tool_start` | `{"turn":1,"toolCallId":"c1","name":"search_assets","args":{…}}` | renders as ActionRow (running) |
-| `tool_end` | `{"turn":1,"toolCallId":"c1","name":"…","isError":false,"summary":"…","references":[{"type":"asset","uuid":"…","label":"beach.mp4"}],"visuals":[…]}` | chips and inline visuals (§6.1) appear live |
-| `turn_end` | `{"turn":1}` | |
-| `message_end` | `{"message": <persisted assistant message, §4.3>}` | UI swaps accumulated deltas for this |
-| `title` | `{"title":"…"}` | optional auto-title after first exchange |
-| `error` | `{"code":"LLM_ERROR"\|"TURN_LIMIT"\|"AGENT_BUSY"\|"TOOL_TIMEOUT","message":"…","terminal":bool}` | |
-| `agent_end` | `{"chatUuid":"…","status":"completed"\|"aborted"\|"error"}` | always last |
+| `agent_start` | `{"chatUuid","model","maxTurns"}` | always first |
+| `turn_start` / `turn_end` | `{"turn":1}` | |
+| `reasoning_delta` | `{"turn","text"}` | distinct type → UI hides it by default |
+| `text_delta` | `{"turn","text"}` | answer markdown, incremental |
+| `tool_start` | `{"turn","toolCallId","name","args"}` | renders as an ActionRow (running) |
+| `tool_end` | `{"turn","toolCallId","name","isError","summary","references":[…],"visuals":[…]}` | chips and inline visuals appear live |
+| `message_end` | `{"message": <persisted assistant message, §4.3>}` | omitted on terminal error |
+| `title` | `{"title":"…"}` | first exchange only, when `LOOM_AI_TITLE_GENERATION` |
+| `error` | `{"code":"LLM_ERROR"\|"TURN_LIMIT"\|"NOT_FOUND","message","terminal":bool}` | `AGENT_BUSY` is an HTTP 409, not an SSE frame |
+| `agent_end` | `{"chatUuid","status":"completed"\|"aborted"\|"error"}` | always last |
 
 ### 4.3 Persisted message schema
 
 `chat.messages` (jsonb array) elements:
 
 ```json
-{
-  "id": "3f1c…",
-  "role": "user" | "assistant",
-  "content": "markdown text",
-  "reasoning": "…",
-  "toolCalls": [
-    {"id":"c1","name":"search_assets","args":{"query":"beach"},
-     "resultSummary":"3 assets found","isError":false,"durationMs":412}
-  ],
-  "references": [ {"type":"asset","uuid":"…","label":"beach.mp4"} ],
-  "visuals": [ {"type":"pipeline-graph","uuid":"…","label":"…","payload":{ … }} ],
-  "skillUuids": ["…"],
-  "createdAt": "2026-07-22T10:15:03Z"
-}
+{ "id":"3f1c…", "role":"user"|"assistant", "content":"markdown text",
+  "reasoning":"…",
+  "toolCalls":[{"id":"c1","name":"search_assets","args":{"query":"beach"},
+                "resultSummary":"3 assets found","isError":false,"durationMs":412}],
+  "references":[{"type":"asset","uuid":"…","label":"beach.mp4"}],
+  "visuals":[{"type":"pipeline-graph","uuid":"…","label":"…","payload":{}}],
+  "skillUuids":["…"],
+  "createdAt":"2026-07-22T10:15:03Z" }
 ```
 
-- `reasoning`, `toolCalls`, `references`, `visuals` — assistant messages only; `skillUuids`
-  records the active skill set on user messages. `visuals` (§6.1) is capped in count and size and
-  is **not** replayed into the LLM history.
-- Full raw tool results are **not** persisted (only a ≤2 KB `resultSummary`) to bound
-  row growth. On the next run the transcript replay reconstructs
-  `assistantWithToolCalls`/`toolResult` messages from `toolCalls[]`, using
-  `resultSummary` as the tool result text — an accepted context-fidelity trade-off
-  (see Risks §8).
-- `chat.meta` stores `{"activeSkillUuids":[…],"model":"…"}` so reloading a session
-  restores skill toggles.
+- `reasoning` / `toolCalls` / `references` / `visuals` — assistant messages only;
+  `skillUuids` records the active skill set on **user** messages.
+- Raw tool results are **not** persisted — only a `resultSummary` truncated to
+  `AgentLoop.RESULT_SUMMARY_MAX_LENGTH` (2048 chars). `buildHistory` reconstructs
+  `assistantWithToolCalls` + `toolResult` pairs from `toolCalls[]` using that summary — an
+  accepted context-fidelity trade-off (§8 R4).
+- `visuals` are persisted but **never replayed** into the LLM history.
+- `chat.meta` = `{"activeSkillUuids":[…], "model":"…", "lastError":"…"?}`; `lastError` is set
+  on a terminal error and removed on the next successful run.
 
-## 5. Streaming UX (UI)
+## 5. UI contract
 
-### 5.1 New-session greeting
+`ChatWorkspace.tsx` is the whole chat surface: sessions rail, resizable chat column
+(persisted percentage, collapsible workspace panel — [LOOM_UI.md §3.7](LOOM_UI.md)), right
+panel with overview / embedded `AssetBrowser` / asset detail card.
 
-Before the first message exists, `ChatWorkspace` renders `ChatGreeting` instead of a
-blank transcript: the agent avatar, a large gradient **"Hello \<username\>"** and a
-one-line summary of what the agent can do. The name comes from
-`AuthContext.username`; without one, the greeting falls back to a neutral salutation
-(`chat.greeting.helloAnonymous`).
+| Concern | Component / file | Notes |
+|---|---|---|
+| Empty transcript | `ChatGreeting.tsx` | condition `messages.length === 0 && !streaming && !sending`; tracks the *empty transcript*, not session creation (server session stays lazy until the first `sendMessage`). Falls back to `chat.greeting.helloAnonymous`. Testids `chat-greeting`, `chat-greeting-title`. |
+| Markdown | `MarkdownContent.tsx` | react-markdown + remark-gfm; **no `rehype-raw`** — raw HTML stays escaped. That is the entire sanitization story. |
+| Reasoning | `ReasoningSection.tsx` | live "thinking… (Ns)" indicator; content collapsed by default; testids `chat-reasoning-*`. |
+| Tool activity | `ActionRow` in `ChatWorkspace.tsx` | fed by `tool_start` / `tool_end`. |
+| Chips | `RefChip` in `ChatWorkspace.tsx` | `asset · collection · task · comment · pipeline · annotation`; navigates per type. |
+| Inline visuals | `PipelineGraphCard.tsx` + `pipelineGraphLayout.ts` | §6.1. |
+| Skills | `SkillsPanel.tsx` | per-session toggles → `chat.meta.activeSkillUuids`, sent with **every** stream request. |
+| Stream client | `api/agent.ts` | `streamChatMessage`, `cancelChatStream`, `createSseParser`, `AgentBusyError`. |
+| Session CRUD | `api/chat.ts` | title renames and `meta` only — the server owns the transcript. |
+| Chat sessions | `api/chatSessions.ts`, `features/chatSessions/` | `ChatSessionsView`, `ChatSessionDetail` (incl. `listSessionFiles` / `sessionFileDownloadUrl`). |
+| Skills / memory views | `features/skills/SkillManagementView.tsx`, `features/memory/MemoryView.tsx` | `/skills` (CRUD, versions, publish, library+install) and the memory browser. |
 
-The condition is `messages.length === 0 && !streaming && !sending`, so the greeting
-also returns when the user clicks **New chat** (`newChat()` clears `messages`) — it
-tracks the *empty transcript*, not the creation of a server-side session (which is
-still lazy, on the first `sendMessage`). Testids: `chat-greeting`,
-`chat-greeting-title`; covered by `e2e/empty-states-mocked.spec.ts`.
+State machine per in-flight message:
+`idle → sending → streaming(reasoning | answering | tool) → done | error | aborted`.
+The Stop button aborts the `fetch` (AbortController) **and** calls `cancelChatStream`;
+a `409` surfaces as a busy toast with the input restored.
 
-### 5.2 Streaming
+## 6. References (chips) and inline visuals
 
-- **Markdown**: assistant `content` renders through `react-markdown` + `remark-gfm`
-  inside a `MarkdownContent` component (tables, lists, code blocks; links open in a new
-  tab). Raw HTML in model output stays escaped (no `rehype-raw`) — that is the
-  sanitization story; the current `dangerouslySetInnerHTML` block is removed.
-- **State machine** per in-flight message:
-  `idle → sending → streaming(phase: reasoning | answering | tool) → done | error | aborted`.
-- **Reasoning section** (`ReasoningSection`): while `reasoning_delta` events arrive the
-  message shows an animated *"thinking…"* indicator row (with elapsed time); the chunk
-  text is **collapsed/hidden by default** and only visible after the user expands it.
-  After completion a subtle "Show reasoning" toggle remains iff `reasoning` is non-empty.
-- **Tool activity**: `tool_start`/`tool_end` map onto the existing `ActionRow`
-  (running → done/error, with `summary`). References from `tool_end` render as `RefChip`s
-  immediately, before the final answer exists.
-- **Stop button** during streaming → aborts the fetch (AbortController) → server abort.
-- **Persistence**: the server persists the transcript; the client keeps `updateChat`
-  only for title renames and `meta.activeSkillUuids`.
-
-## 6. Domain-Entity Chips (references) and Inline Visuals
-
-Convention: MCP tool results carry an optional structured `references` array next to the
-standard MCP `content` (external MCP clients simply ignore the extra field):
+MCP tool results carry optional structured envelopes next to the standard MCP `content`
+(external MCP clients ignore the extra fields — see [MCP.md §5.0.1](../MCP.md)):
 
 ```json
 { "content":[{"type":"text","text":"…"}],
-  "references":[{"type":"asset","uuid":"…","label":"beach.mp4"}] }
+  "references":[{"type":"asset","uuid":"…","label":"beach.mp4"}],
+  "visuals":[{"type":"pipeline-graph","uuid":"…","label":"…","payload":{"nodes":[],"edges":[]}}] }
 ```
 
-- `type ∈ asset | collection | task | comment | pipeline | annotation`; `label` is the
-  filename / title / name.
-- The five MCP tools ([tool/impl](../../../loom/services/mcp/src/main/java/io/metaloom/loom/mcp/tool/impl/))
-  are extended to populate it via a shared helper.
-- `ReferenceExtractor` in the agent loop reads `references` when present, with a
-  tool-name → type fallback heuristic for legacy tools; dedupes by `(type, uuid)`, caps
-  at 20 per message.
-- The UI maps `uuid` → the existing `ChatReference.id` consumed by `RefChip`, which
-  already navigates per type (asset → detail/inline preview, task → board, …).
+- `ReferenceExtractor` dedupes by `(type, uuid)` and caps at `MAX_REFERENCES` (20) per message.
+- `VisualExtractor` dedupes likewise, caps at `MAX_VISUALS` (4) and `MAX_VISUAL_BYTES`
+  (32 KB) per visual, on top of the producing tool's own node/edge caps.
 
-### 6.1 Inline visualizations (visuals) ✅
+### 6.1 `pipeline-graph`
 
-A chip says *which* entity the answer is about; some answers also need to show *what it looks
-like*. Tool results may therefore carry a second envelope, `visuals`, which the chat renders as a
-card inside the message ([MCP.md §5.0.1](../MCP.md)):
-
-```json
-{ "content":[{"type":"text","text":"Pipeline: Media Transcription…"}],
-  "visuals":[{"type":"pipeline-graph","uuid":"…","label":"Media Transcription",
-              "payload":{"nodes":[…],"edges":[…]}}] }
-```
-
-Today one type exists: **`pipeline-graph`**, produced by the `get_pipeline` MCP tool. The user
-asks *"show me the current pipeline for media transcription"*, the agent calls `get_pipeline`, and
-the chat draws the graph next to the answer instead of describing it in prose.
-
-Flow — the same one references take, so a visual costs no extra round trip:
-
-```
-get_pipeline result.visuals
-  → VisualExtractor (loom/agent/chat/ref)      // dedupe by (type, uuid), cap count + size
-  → tool_end { …, "visuals":[…] }              // live: the card appears before the answer text
-  → assistant message.visuals (persisted)      // a reloaded session still shows the diagram
-  → PipelineGraphCard (loom-ui/src/features/chat)
-```
+The only visual type today, produced by `get_pipeline`. Flow (same path references take, so a
+visual costs no extra round trip):
+`tool result.visuals → VisualExtractor → tool_end → persisted message.visuals → PipelineGraphCard`.
 
 Rules:
 
-- **The model never sees a visual.** It reads the tool result's text content only; `get_pipeline`
-  therefore renders the full graph as text as well. A dropped visual costs a diagram, never an
-  answer — which is what lets the extractor discard silently.
-- **Bounded payload.** `VisualExtractor` caps at `MAX_VISUALS` (4) per message and
-  `MAX_VISUAL_BYTES` (32 KB) per visual, on top of the producing tool's own node/edge caps. The
-  payload is persisted onto `chat.messages`, so an unbounded one would grow the row per exchange.
-- **Not replayed.** `buildHistory` reconstructs the LLM history from `content` and `toolCalls`
-  only; persisted visuals never re-enter the context window.
-- **Layout is the client's job.** The payload carries no coordinates — the stored `x`/`y` are laid
-  out for the full-screen editor canvas. `pipelineGraphLayout.ts` re-derives a left-to-right layered
-  layout from the edges (column = 1 + deepest predecessor; parallel branches stack and are centred),
-  and stays drawable for a cyclic definition, which the parser rejects on save but which can still
-  sit in an older row.
-- **Rendering** (`PipelineGraphCard.tsx`): header with pipeline name, version chip, `disabled` chip
-  and an *Open* action into `/pipelines`; nodes coloured by `category` with the pipeline editor's
-  palette; edges as bezier connectors with `PASS`/`REJECT` branch labels; the graph scrolls
-  horizontally rather than shrinking labels; `truncated` payloads say so. An empty graph renders
-  nothing — the text answer already stands on its own.
-- Testids: `chat-pipeline-graph`, `chat-pipeline-graph-node`, `chat-pipeline-graph-edges`,
-  `chat-pipeline-graph-open`.
+- **The model never sees a visual.** It reads the tool result's text only, so `get_pipeline`
+  also renders the graph as text. A dropped visual costs a diagram, never an answer — which
+  is why the extractor may discard silently.
+- **Layout is the client's job.** The payload carries no coordinates (stored `x`/`y` belong to
+  the full-screen editor canvas). `pipelineGraphLayout.ts` re-derives a left-to-right layered
+  layout from the edges (column = 1 + deepest predecessor; parallel branches stack and are
+  centred) and stays drawable for a cyclic definition, which the parser rejects on save but
+  which may still sit in an older row.
+- **Rendering:** name header, version chip, `disabled` chip, *Open* action into `/pipelines`;
+  nodes coloured by `category` with the editor palette; bezier edges with `PASS`/`REJECT`
+  labels; horizontal scroll rather than shrinking labels; `truncated` payloads say so; an
+  empty graph renders nothing. Testids `chat-pipeline-graph`, `-node`, `-edges`, `-open`.
 
-Adding a second visual type means: produce the envelope in a tool, add the payload type in
-`types/index.ts`, and render it in `MessageBubble`'s visuals block — no protocol change.
+Adding a second visual type = produce the envelope in a tool, add the payload type in
+`types/index.ts`, render it in the message bubble's visuals block. No protocol change.
 
 ## 7. Skills
 
-### 7.1 Concept
+A **skill** is a user-owned, SKILL.md-style markdown instruction package stored in the
+database: `name` (unique per owner), `description` (≤1024 chars — what the model sees up
+front), `content`, `enabled`, `published`, `origin_skill_uuid`, `meta`, plus a version
+history (`skill_version`, `activeVersionNumber`).
 
-A **skill** is a user-owned, SKILL.md-style markdown instruction package (following the
-pi / Agent Skills model — `pi/packages/coding-agent/docs/skills.md`), stored in the
-database instead of on disk:
+- **Owner-scoped.** Loom permissions are global per entity type (`READ_SKILL` gates the
+  feature); per-object scoping lives in the endpoint service. `AgentLoop.loadActiveSkills()`
+  additionally filters to `creatorUuid == caller` **and** `enabled` — a foreign or disabled
+  skill can never influence a run, and deleted uuids are dropped silently.
+- **Per-chat activation.** `chat.meta.activeSkillUuids`, no join table. The client sends
+  `skillUuids` with every stream request, so a mid-conversation toggle applies to the next
+  message.
+- **Progressive disclosure** (`SkillPromptBuilder`): the system prompt gets only
+  `- name: description` inside `<available_skills>` plus an instruction to call `load_skill`.
+  The full body is fetched on demand by the agent-local `load_skill {name}` tool, keeping
+  unbounded bodies out of the context window. Escape hatch: `meta.injectFull = true` inlines
+  the content in a `<skill name="…">` block — for small models that ignore the pattern (R7).
+- **Sharing = publish + copy-on-install.** `published=true` exposes the skill in
+  `GET /api/v1/skills/library`; `POST /api/v1/skills/:uuid/install` **copies** the row with
+  `origin_skill_uuid` provenance (name collisions get a suffix). Execution always uses the
+  caller's own copy, so an edited or deleted original can never silently change another
+  user's agent behaviour; `ON DELETE SET NULL` keeps copies intact and provenance drives the
+  *"update available"* hint.
+- Backend surface: `SkillEndpoint` (`loom/services/rest`) `/api/v1/skills` CRUD + `/library`
+  + `/:uuid/install` + version routes; permissions `CREATE/READ/UPDATE/DELETE_SKILL`.
 
-| Field | Meaning |
+`SystemPromptBuilder` composes the final system prompt as
+`SkillPromptBuilder.build(activeSkills)` + `MemoryPromptBuilder.build(...)` (appended only
+when the memory bank is enabled). Both halves follow the same progressive-disclosure rule —
+skills expose name+description, memory exposes a header-only index.
+
+## 8. Adjacent surfaces owned by other specs
+
+Listed here only so an agent knows they exist and where they live.
+
+| Surface | Routes | Spec |
+|---|---|---|
+| Chat sessions | `GET|POST /api/v1/chat-sessions`, `GET|POST|DELETE /:uuid`, `POST /:uuid/publish|unpublish`, `GET|PUT /:uuid/context` — permissions `CREATE/READ/UPDATE/DELETE_CHAT_SESSION` | [CHAT_SESSIONS_CONCEPT.md](../../features/chat/CHAT_SESSIONS_CONCEPT.md) |
+| Session filesystem | `GET /api/v1/sessions/:uuid/files|download|preview` (keyed by **chat** uuid, `READ_CHAT`, preview served under `CSP: sandbox`) | [CHAT_SESSIONS_CONCEPT.md §6](../../features/chat/CHAT_SESSIONS_CONCEPT.md) |
+| Memory bank | `/api/v1/memory*`, `/api/v1/memory-deny-rules*` | [CHAT_MEMORY_PLAN.md](../../features/chat/CHAT_MEMORY_PLAN.md) |
+| Session Runner / sandbox | no public REST; `LOOM_AGENT_SANDBOX_*` | [CHAT_MEMORY_PLAN.md §4](../../features/chat/CHAT_MEMORY_PLAN.md) |
+
+`AgentLoop` touches two of them directly: after the first completed exchange it generates a
+title **and** a one-sentence description, then captures the chat as a `chat_session` with the
+active skill **versions** pinned (`ChatSessionSkillPin`). This is idempotent and entirely
+best-effort — every failure is logged and swallowed.
+
+## 9. Configuration
+
+`AiOptions` — `loom-shared/api/src/main/java/io/metaloom/loom/api/options/AiOptions.java`,
+reachable as `LoomOptions.getAi()`.
+
+| Env var | Default | Meaning |
+|---|---|---|
+| `LOOM_AI_ENABLED` | `true` | Enable the chat agent |
+| `LOOM_AI_PROVIDER_TYPE` | `OLLAMA` | `OLLAMA` or `VLLM` (uppercased into `LLMProviderType`) |
+| `LOOM_AI_URL` | `http://127.0.0.1:11434` | LLM provider base url |
+| `LOOM_AI_MODEL_ID` | `gpt-oss:20b` | Model id |
+| `LOOM_AI_CONTEXT_WINDOW` | `16384` | Context window handed to the provider |
+| `LOOM_AI_MAX_TURNS` | `8` | Max agentic turns per user message |
+| `LOOM_AI_TOOL_TIMEOUT_MS` | `30000` | Timeout for a single MCP tool dispatch |
+| `LOOM_AI_THINK_ENABLED` | `true` | Enable reasoning/think mode (`ctx.enableThink()`) |
+| `LOOM_AI_STREAMING` | `false` | `true` → `StreamingTurnStreamer` (true token/reasoning deltas); `false` → `BlockingTurnStreamer` (turn-granular) |
+| `LOOM_AI_TITLE_GENERATION` | `true` | Auto title + description + session capture after the first exchange |
+
+`validate()` requires `providerType`, `url` and `modelId` to be non-blank.
+Related but owned elsewhere: `LOOM_AGENT_SANDBOX_*` (`SandboxOptions` — gates the coding
+tools) and the memory options (`MemoryOptions`, incl. `maxWritesPerRun` and
+`promptMaxEntries`).
+
+## 10. Test setup
+
+| Level | Tests |
 |---|---|
-| `name` | short machine-friendly name, unique per owner |
-| `description` | ≤1024 chars — this is what the model sees up front |
-| `content` | full markdown instructions (the SKILL.md body) |
-| `enabled` | owner-level default on/off |
-| `published` | visible in the shared library (§7.4) |
-| `origin_skill_uuid` | provenance when installed from the library |
+| Loop (no DB, no LLM) | `AgentLoopTest`, `StreamingTurnStreamerTest`, `ReferenceExtractorTest`, `VisualExtractorTest`, `SkillPromptBuilderTest` — all in `loom/agent/chat/src/test` |
+| Endpoint (pooled DB) | `ChatEndpointTest`, `ChatStreamEndpointTest`, `SkillEndpointTest`, `MemoryEndpointTest`, `MemoryDenyRuleEndpointTest` in `loom/core/src/test` |
+| DAO | `ChatSessionDaoTest`, `SkillDaoTest`, `SkillVersionDaoTest`, `MemoryEntryDaoTest`, `MemoryDenyRuleDaoTest` in `loom/db/jooq/src/test` |
+| MCP | `MCPToolReferencesTest`, `PipelineToolTest` in `loom/services/mcp` |
+| UI unit | `api/agent.test.ts`, `api/chatMessageMapper.test.ts`, `api/skills.test.ts`, `features/chat/pipelineGraphLayout.test.ts` |
+| E2E mocked | `chat-mocked.spec.ts`, `chat-split-mocked.spec.ts`, `chat-pipeline-graph-mocked.spec.ts`, `chat-sessions-mocked.spec.ts`, `skills-mocked.spec.ts`, `skills-version-mocked.spec.ts`, `empty-states-mocked.spec.ts` |
+| E2E backend | `chat-backend.spec.ts`, `skills-backend.spec.ts` — CRUD only, no live-LLM assertions |
 
-**Skills are user-specific**: every user owns their own set (`creator_uuid`), and all
-list/read/update/delete operations are owner-scoped in the endpoint service. (Loom
-permissions are global per entity type — `READ_SKILL` gates the feature, not individual
-skills; per-object scoping lives in the service layer, see
-[PERMISSIONS.md](../../features/permissions/PERMISSIONS.md).)
+**Writing a loop test:** call `AgentService.setTurnStreamerFactory(...)` with a scripted
+`TurnStreamer` — that is the seam the whole suite uses to run the loop without an LLM.
+Remember `./setup-pool.sh` before any DB-backed test (and after every Flyway change).
 
-### 7.2 Per-chat activation
+## 11. Conventions & Gotchas
 
-The active skill set is per chat session, stored in `chat.meta.activeSkillUuids` (no
-join table). The client sends the current `skillUuids` with **every** stream request, so
-toggling a skill mid-conversation takes effect on the next message. Deleted skills are
-silently dropped at load time.
+- **The loop lives in `loom/agent/chat`.** `loom/services/ai` / `io.metaloom.loom.ai` no
+  longer exist; treat any such reference as stale.
+- **`/chats` CRUD is *not* in the agent module** — it stays in `loom/services/rest`
+  (`ChatEndpoint`). Only `/chats/:uuid/stream`, `/chat-sessions` and `/sessions` moved.
+- **Ownership beats permissions.** Stream and session-fs routes check `UPDATE_CHAT`/`READ_CHAT`
+  *and* `chat.creatorUuid == caller`; a foreign chat returns `404`, never `403`.
+- **Never trust tool arguments for identity.** Build an `MCPCallerContext` server-side;
+  arguments may only filter within what it resolves to.
+- **Errors become tool results.** Only LLM/provider failures are terminal. Resist the urge to
+  abort a run because a tool threw.
+- **`TURN_LIMIT` ends as `completed`,** not `error` — the emitted `error` frame is
+  `terminal:false` and `message_end` still arrives.
+- **Terminal error ⇒ only the user message is persisted** (plus `meta.lastError`), so a retry
+  starts from a consistent transcript.
+- **Everything blocking runs on a worker thread.** `AgentLoop.run()` must never be invoked
+  from the event loop; SSE writes hop back via the captured `Context`.
+- **Streaming is opt-in and provider-dependent.** vLLM has no true streaming path — the
+  `TurnStreamer` seam is what keeps the feature shippable on both.
+- **Coding tools bypass the MCP registry** entirely (`SandboxOrchestrator.dispatchCodingTool`)
+  and are only advertised when the sandbox is enabled.
+- **Reasoning text is persisted.** `chat.messages[].reasoning` stores the raw thinking stream;
+  the UI hides it, it is not redacted.
+- **`chat.messages` is rewritten wholesale per exchange** (jsonb). Fine at chat scale, flagged
+  for normalization (R5).
 
-### 7.3 Injection — progressive disclosure
+## 12. Where do I find …?
 
-Following pi exactly: the system prompt receives only **name + description** of the
-active skills:
+| Concept | Path |
+|---|---|
+| Agent entry point / busy guard / abort | `loom/agent/chat/src/main/java/io/metaloom/loom/agent/chat/AgentService.java` |
+| The turn loop | `.../agent/chat/loop/AgentLoop.java` |
+| Turn abstraction | `.../agent/chat/loop/TurnStreamer.java`, `BlockingTurnStreamer`, `StreamingTurnStreamer`, `TurnListener`, `TurnResult` |
+| Event protocol | `.../agent/chat/event/AgentEvent*.java`, sink impl `.../rest/SseAgentEventSink.java` |
+| Stream routes | `.../agent/chat/rest/ChatStreamEndpoint.java` (+ `…Service`) |
+| Chat session routes | `.../agent/chat/rest/ChatSessionEndpoint.java` (+ `…Service`) |
+| Session filesystem routes | `.../agent/chat/rest/SessionFsEndpoint.java` (+ `…Service`) |
+| System prompt assembly | `.../agent/chat/prompt/SystemPromptBuilder.java`, `.../skill/SkillPromptBuilder.java` |
+| Chips / visuals extraction | `.../agent/chat/ref/ReferenceExtractor.java`, `VisualExtractor.java` |
+| Dagger wiring of the endpoints | `.../agent/chat/dagger/ChatEndpointModule.java` |
+| MCP tools + registry | `loom/services/mcp/src/main/java/io/metaloom/loom/mcp/tool/` |
+| Coding tools | `loom/agent/sandbox/src/main/java/io/metaloom/loom/agent/sandbox/tool/CodingTools.java` |
+| Memory tools | `loom/agent/memory/src/main/java/io/metaloom/loom/agent/memory/tool/` |
+| Config | `loom-shared/api/src/main/java/io/metaloom/loom/api/options/AiOptions.java` |
+| Chat CRUD endpoint | `loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/ChatEndpoint.java` |
+| Skill CRUD endpoint | `loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/SkillEndpoint.java` |
+| Migrations | `loom/db/flyway/src/main/resources/db/migration/`: `V2.28__add_chat`, `V2.36__add_skill`, `V2.37__add_skill_version`, `V2.52__add_chat_session`, `V2.53__add_agent_memory`, `V2.54__add_memory_deny_rule` |
+| Chat UI | `loom-ui/src/features/chat/` |
+| Stream client | `loom-ui/src/api/agent.ts` |
+| Chat session client / views | `loom-ui/src/api/chatSessions.ts`, `loom-ui/src/features/chatSessions/` |
+| Skills / memory views | `loom-ui/src/features/skills/`, `loom-ui/src/features/memory/` |
 
-```
-<available_skills>
-- transcript-summarizer: Summarize video transcripts into bullet lists …
-- review-task-opener: Open review tasks for flagged assets …
-</available_skills>
-Use the load_skill tool to read a skill's full instructions before applying it.
-```
-
-The full `content` is fetched on demand by the model via an **agent-local `load_skill
-{name}` tool** (Loom's equivalent of pi reading `SKILL.md` with its `read` tool). This
-keeps unbounded skill bodies out of the context window. Escape hatch: a skill may set
-`meta.injectFull = true` to have its body injected directly (useful for small local
-models that ignore progressive disclosure — Risk R7).
-
-### 7.4 Sharing between users — publish + copy-on-install
-
-Chosen design (alternatives considered: group-based live sharing, global use-in-place
-library):
-
-1. The owner sets `published = true` → the skill appears in the shared **library**
-   (`GET /api/v1/skills/library`, requires only the global `READ_SKILL`).
-2. Another user **installs** it (`POST /api/v1/skills/:uuid/install`) → the row is
-   **copied** into their own skill set with `origin_skill_uuid` provenance (name
-   collisions get a suffix).
-3. Because execution always uses the caller's own copy, a published skill edited or
-   deleted by its author can never silently change another user's agent behavior —
-   copies are stable and auditable. `ON DELETE SET NULL` on the origin FK keeps installed
-   copies intact.
-4. Provenance enables an *"update available"* hint (origin `edited` newer than the
-   copy's) with an explicit re-install/pull action.
-
-Future extension (compatible, not in scope): a `skill_group` join table to scope library
-visibility to RBAC groups; it layers on top of `published` without schema conflict.
-
-### 7.5 Skill REST surface & UI
-
-- Backend: `skill` table (migration `V2.36__add_skill.sql`), permissions
-  `CREATE/READ/UPDATE/DELETE_SKILL`, `SkillDao` (+ jOOQ impl, dagger wiring), REST models,
-  `SkillEndpoint` (`/api/v1/skills` CRUD + `/library` + `/:uuid/install`),
-  `SkillMethods` client — see [CHAT_TASKS.md](../../features/chat/CHAT_TASKS.md).
-- UI: `src/api/skills.ts`; a **SkillsPanel** in the chat (checkbox toggles of the user's
-  enabled skills → active set for the session); a **SkillManagementView** at `/skills`
-  (table, markdown editor, publish toggle, Library tab with install) — see
-  [TASK_UI_CHAT.md](TASK_UI_CHAT.md).
-
-## 8. Risks / Open Questions
+## 13. Risks / Open Questions
 
 | # | Risk | Mitigation |
 |---|---|---|
-| R1 | `genai-utils` has **no streaming + tools combination** today (`generateWithTools` is blocking; `generateStream` has no tools and never flags thinking chunks). | Extend genai-utils with `generateStreamWithTools → Flowable<StreamEvent>` (langchain4j exposes `onPartialThinking` + streamed tool calls; verify pinned version). The `TurnStreamer` abstraction ships the feature turn-granular first. |
-| R2 | Reverse proxies may buffer SSE. | `X-Accel-Buffering: no`, chunked responses; document `proxy_buffering off` for nginx deployments. |
-| R3 | Blocking LLM/jOOQ calls on the Vert.x event loop. | Loop runs via `executeBlocking`; SSE writes hop back via `runOnContext`; blocked-thread checker asserted in the endpoint test. |
-| R4 | Transcript replay uses ≤2 KB tool-result summaries → context fidelity loss on follow-up questions. | Documented trade-off; revisit with a normalized `chat_message` table if it hurts. |
-| R5 | Whole `chat.messages` jsonb rewritten per exchange. | Fine at chat scale; flagged for future normalization. |
-| R6 | Ollama provider hardcodes `numCtx(16384)` / 60 s timeout. | Move to `AiOptions` when touched (backend task B5). |
-| R7 | Small local models may ignore `load_skill` progressive disclosure. | Require action-complete descriptions for trivial skills; `meta.injectFull` escape hatch. |
+| R1 | `think` from the request body is silently ignored (§4.1). | Add `think` to `AgentRequest` and let it override `AiOptions.isThinkEnabled()`, or remove the field from `ChatStreamRequest`. |
+| R2 | Reverse proxies may buffer SSE. | `X-Accel-Buffering: no` + chunked responses; document `proxy_buffering off` for nginx. |
+| R3 | vLLM has no true streaming path; `LOOM_AI_STREAMING=true` silently behaves turn-granular there. | `TurnStreamer` seam already isolates it; extend `genai-utils` when vLLM streaming lands. |
+| R4 | Transcript replay uses ≤2 KB tool-result summaries → context fidelity loss on follow-ups. | Documented trade-off; revisit with a normalized `chat_message` table if it hurts. |
+| R5 | Whole `chat.messages` jsonb is rewritten per exchange. | Fine at chat scale; flagged for future normalization. |
+| R6 | `ChatSessionEndpoint` / `SessionFsEndpoint` have no endpoint tests — the session-fs routes serve files out of a container. | Add endpoint + permission tests per [CODING.md](../../guidelines/CODING.md). |
+| R7 | Small local models may ignore `load_skill` progressive disclosure. | Require action-complete descriptions; `meta.injectFull` escape hatch. |
+| R8 | Persisted `reasoning` is neither redacted nor size-capped. | Consider a cap analogous to `RESULT_SUMMARY_MAX_LENGTH`. |
+
+_Git HEAD revision: `2e5981cb`_
+_Last updated: 2026-08-01 (rewrote against `loom/agent/chat` — removed stale `loom/services/ai` claims, added memory/sandbox/session surfaces, verified env vars and tool inventory)_

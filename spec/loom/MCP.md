@@ -1,483 +1,286 @@
 # MetaLoom // Loom MCP Server Specification
 
-> This document describes the Model Context Protocol (MCP) server built into
-> Loom. It is intended to be consumed by AI coding agents and developers who
-> need to understand, extend, or integrate with the MCP feature.
+> The Model Context Protocol (MCP) server built into Loom: JSON-RPC 2.0 over
+> HTTP+SSE and WebSocket, a Dagger-multibound tool registry, and the tools that
+> expose assets, collections, pipelines and the agent memory bank to LLM clients.
 >
-> The progress checklist at the end tracks areas that still need improvement.
+> **Scope split:** this file owns the MCP *server, protocol and tool contract*.
+> The chat agent that consumes the registry in-process is [ui/CHAT.md](ui/CHAT.md);
+> the memory bank behind the four memory tools is
+> [../features/chat/CHAT_MEMORY_PLAN.md](../features/chat/CHAT_MEMORY_PLAN.md);
+> ports/options live in [SERVER.md](SERVER.md) and [CONFIGURATION.md](CONFIGURATION.md);
+> permission names in [../features/permissions/PERMISSIONS.md](../features/permissions/PERMISSIONS.md).
 
 ---
 
 ## 1. Overview
 
-The MCP server exposes Loom's asset library, collections, and search
-capabilities to AI assistants (LLM agents) via the Model Context Protocol
-(JSON-RPC 2.0 over HTTP+SSE or WebSocket). An AI agent can discover
-available tools, invoke them, and receive structured results that it can
-use to answer user questions about the content stored in Loom.
+| Artifact         | Value                                                              |
+|------------------|--------------------------------------------------------------------|
+| MCP service      | `loom/services/mcp` (Maven module `loom-service-mcp`)               |
+| Memory tools     | `loom/agent/memory` (contributes to the same tool set)              |
+| Main class       | `io.metaloom.loom.mcp.MCPService`                                   |
+| Default port     | `4041` (`ServerOptions.DEFAULT_MCP_PORT`, `LOOM_SERVER_MCP_PORT`)   |
+| Protocol version | `2025-03-26` (`MCPConstants.MCP_PROTOCOL_VERSION`)                  |
+| Server info      | `loom-mcp-server` / `1.0.0-SNAPSHOT` (hardcoded in the handler)     |
+| Transports       | HTTP+SSE (`/mcp/sse` + `/mcp/message`) **and** WebSocket (`/mcp/ws`) — both implemented |
 
-### 1.1 Module Location
-
-| Artifact            | Path                                    |
-|---------------------|-----------------------------------------|
-| MCP Service         | `loom/services/mcp`                     |
-| Main class          | `io.metaloom.loom.mcp.MCPService`       |
-| Default port        | `4041` (`ServerOptions.DEFAULT_MCP_PORT`, `LOOM_SERVER_MCP_PORT`) |
-| Protocol version    | `2025-03-26` (`MCP_PROTOCOL_VERSION`)  |
-
-### 1.2 Architecture
-
-```
-                     AI Agent / LLM Client
-                    /                     \
-              HTTP + SSE              WebSocket
-            (POST /mcp/message)     (/mcp/ws)
-                    \                     /
-                     \                   /
-                      MCPJsonRpcHandler
-                      (JSON-RPC 2.0)
-                             |
-                      MCPToolRegistry
-                      (EventBus dispatch)
-                             |
-                    EventBus: mcp.tool.<name>
-                             |
-                   ┌─────────┴─────────┐
-                   │                   │
-             SearchAssetsTool    GetAssetTool  ... (7 tools)
-             (DAO-backed)        (DAO-backed)
+```mermaid
+flowchart TD
+  ext["External MCP client<br/>(LLM agent)"] -->|GET /mcp/sse<br/>POST /mcp/message| svc
+  ext -->|WS /mcp/ws| svc
+  chat["Chat agent (in-process)<br/>AgentLoop"] -->|dispatch(name, args, user, ctx)| reg
+  svc["MCPService<br/>(own HTTP server, port 4041)"] --> auth["MCPAuthenticationHandler<br/>WebSocketAuthenticator"]
+  svc --> rpc["MCPJsonRpcHandler<br/>(JSON-RPC 2.0, resolves MCPCallerContext)"]
+  rpc --> reg["MCPToolRegistry<br/>(permission check + __loom strip)"]
+  reg -->|EventBus mcp.tool.name| plain["Plain tools<br/>7 x loom/services/mcp"]
+  reg -->|in-process execute(args, ctx)| ident["Identity-scoped tools<br/>4 x memory (loom/agent/memory)"]
+  plain --> dao[("DaoCollection / DAOs")]
+  ident --> mem["MemoryService"]
 ```
 
-**Key design decisions:**
+**Key design decisions**
 
-- **Transport decoupled from tools** — The JSON-RPC handler never calls tool
-  implementations directly. Instead, it dispatches via the Vert.x EventBus
-  (`mcp.tool.<name>`). This allows tools to be registered/unregistered at
-  runtime and, in a clustered deployment, to run on different nodes.
-- **Dagger multibinding** — Tools are collected into a `Set<MCPTool>` via
-  `@MCPTools` qualifier and `MCPToolModule`. Adding a new tool requires only
-  adding it to the module's `mcpTools` method.
-- **DAO-backed** — Each tool injects `DaoCollection` and queries the database
-  directly. No REST API round-trip is needed; tools operate at the DAO layer.
+- **Transport decoupled from tools.** The JSON-RPC handler never calls a tool
+  directly; plain tools are reached over the Vert.x EventBus (`mcp.tool.<name>`).
+- **Dagger multibinding.** Tools are collected into `@MCPTools Set<MCPTool>` from
+  *several* modules (`MCPToolModule`, `MemoryToolModule`), so a feature module can
+  contribute tools — and contribute **none** when the feature is disabled.
+- **Identity never travels on the EventBus.** Tools that need to know *who* asked
+  declare `requiresIdentity()`; they get **no** EventBus address and are only
+  reachable through `MCPToolRegistry.dispatch(name, args, user, ctx)`.
+- **DAO-backed.** Tools inject `DaoCollection` (or `MemoryService`) — no REST
+  round-trip.
 
 ---
 
 ## 2. Transports
 
-### 2.1 HTTP + SSE (Streamable HTTP)
+### 2.1 HTTP + SSE (Streamable HTTP, MCP 2025-03-26)
 
-This is the MCP 2025-03-26 standard transport.
+| Endpoint | Method | Path           | Purpose                          |
+|----------|--------|----------------|----------------------------------|
+| SSE      | GET    | `/mcp/sse`     | Opens the persistent event stream |
+| Message  | POST   | `/mcp/message` | Sends one JSON-RPC request        |
 
-| Endpoint                | Method | Path              | Purpose                                  |
-|-------------------------|--------|-------------------|------------------------------------------|
-| SSE stream              | GET    | `/mcp/sse`        | Opens a persistent SSE connection        |
-| JSON-RPC message        | POST   | `/mcp/message`    | Sends a JSON-RPC request                 |
+1. Client opens `GET /mcp/sse`; server replies `Content-Type: text/event-stream`
+   (`Cache-Control: no-cache`, `Connection: keep-alive`) and immediately sends
+   `event: endpoint` / `data: /mcp/message?sessionId=<uuid>`.
+2. Client POSTs JSON-RPC to that URL. The HTTP body carries the response (200);
+   when `sessionId` matches a live stream the same JSON is *also* pushed as an
+   `event: message`.
+3. Sessions live in a `ConcurrentHashMap<String, HttpServerResponse>`; the close
+   handler removes them. No heartbeat/keepalive is sent.
 
-**Flow:**
-
-1. Client opens a GET connection to `/mcp/sse`.
-2. Server responds with `Content-Type: text/event-stream` and sends an
-   `endpoint` event containing the URL to POST messages to:
-   ```
-   event: endpoint
-   data: /mcp/message?sessionId=<uuid>
-   ```
-3. Client sends JSON-RPC requests via POST to `/mcp/message?sessionId=<uuid>`.
-4. The HTTP response body contains the JSON-RPC response (status 200).
-5. The same response is also pushed to the SSE stream as a `message` event,
-   so other listeners on the SSE connection receive it.
-
-**SSE session lifecycle:**
-
-- Sessions are stored in a `ConcurrentHashMap<String, HttpServerResponse>`.
-- When the SSE connection closes, the session is removed.
-- The `sessionId` is a random UUID generated per connection.
+**HTTP status codes** — `200` response, `202` for notifications (handler returned
+`null`), `400` unparsable body (JSON-RPC `-32700` in the body), `401` failed auth,
+`500` when the handler future itself fails. Tool *errors* are recovered into a
+JSON-RPC error object with status `200`.
 
 ### 2.2 WebSocket
 
-| Endpoint | Path     | Purpose                                  |
-|----------|----------|------------------------------------------|
-| WS       | `/mcp/ws` | Full-duplex JSON-RPC over a single connection |
+`GET /mcp/ws` upgrades via `rc.request().toWebSocket()`. Each text frame is one
+JSON-RPC request; responses go back as text frames; notifications produce no frame.
+Unparsable frames yield a `-32700` error frame. Auth (when enabled) runs on upgrade
+through `WebSocketAuthenticator`, which closes with **4401** on failure.
 
-**Flow:**
+### 2.3 Port
 
-1. Client initiates a WebSocket upgrade at `/mcp/ws`.
-2. Each text frame is parsed as a JSON-RPC request.
-3. The response is sent back as a text frame on the same WebSocket.
-4. Notifications (requests without an `id`) do not produce a response frame.
-
-The WebSocket transport is useful for tools that may produce incremental
-results or for clients that prefer a single bidirectional connection.
-
-### 2.3 Port Configuration
-
-- Configurable via `options().getServer().getMcpPort()` — set through the
-  `server.mcpPort` config key or the `LOOM_SERVER_MCP_PORT` environment
-  variable. Default: `4041` (`ServerOptions.DEFAULT_MCP_PORT`).
-- When the REST server port is set to `0` (test mode), the MCP server also
-  uses port `0` (OS-assigned random port). This is determined by checking
-  `options().getServer().getRestPort() == 0`.
-- The bind address is taken from `options().getServer().getBindAddress()`.
-- The MCP server runs on a **separate HTTP server** from the REST API
-  (which listens on the REST port, typically `6333`).
+- `options().getServer().getMcpPort()` — `server.mcpPort` / `LOOM_SERVER_MCP_PORT`,
+  default `4041`. Bind address from `server.bindAddress`.
+- **Test mode:** `MCPService.start()` uses port `0` when `server.restPort == 0`
+  (see [SERVER.md](SERVER.md) — `mcpPort: 0` alone does *not* trigger this).
+- The MCP server is its own `HttpServer`, independent of the REST server.
 
 ---
 
 ## 3. JSON-RPC Protocol
 
-### 3.1 Request Format
+Requests/responses are plain JSON-RPC 2.0. A request without `id` is a
+notification: `MCPJsonRpcHandler.handle()` resolves to `null` and no response is
+written.
 
-All requests follow JSON-RPC 2.0:
+| Method                      | Behaviour                                                     |
+|-----------------------------|---------------------------------------------------------------|
+| `initialize`                | Returns `protocolVersion`, `capabilities` (`tools.listChanged=true`, `resources.subscribe=false`, `resources.listChanged=false`), `serverInfo` |
+| `notifications/initialized` | Logged, returns `null` (no response)                          |
+| `ping`                      | Empty result object                                           |
+| `tools/list`                | `{ "tools": [ descriptor.toJson(), … ] }`                     |
+| `tools/call`                | `params.name` + `params.arguments` → registry dispatch        |
+| `resources/list`            | `{ "resources": [] }` (stub)                                  |
+| `resources/read`            | `-32601` "Resource reading not yet implemented"               |
+| *anything else*             | `-32601` "Unknown method: …"                                  |
 
-```json
-{
-  "jsonrpc": "2.0",
-  "method": "<method-name>",
-  "id": <number-or-string>,
-  "params": { ... }
-}
-```
-
-Requests without an `id` field are treated as notifications (no response
-is sent, though the handler returns an empty response for pipeline
-consistency).
-
-### 3.2 Response Format
-
-**Success:**
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "result": { ... }
-}
-```
-
-**Error:**
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "error": {
-    "code": -32601,
-    "message": "Unknown method: foo"
-  }
-}
-```
-
-### 3.3 Supported Methods
-
-| Method                  | Description                                      |
-|-------------------------|--------------------------------------------------|
-| `initialize`            | Handshake — returns protocol version, capabilities, and server info |
-| `notifications/initialized` | Client notification after initialization (no response) |
-| `ping`                  | Health check — returns empty result              |
-| `tools/list`            | Lists all registered tools with their descriptors |
-| `tools/call`            | Invokes a tool by name with arguments            |
-| `resources/list`        | Returns empty resource list (stubbed)            |
-| `resources/read`        | Returns error — not yet implemented              |
-
-### 3.4 Error Codes
-
-| Code   | Constant              | Meaning                          |
-|--------|-----------------------|----------------------------------|
-| -32700 | `ERR_PARSE_ERROR`     | Invalid JSON                     |
-| -32600 | `ERR_INVALID_REQUEST` | Missing method or malformed request |
-| -32601 | `ERR_METHOD_NOT_FOUND`| Unknown JSON-RPC method          |
-| -32602 | `ERR_INVALID_PARAMS`  | Missing required parameters      |
-| -32603 | `ERR_INTERNAL`        | Internal server error / tool failure |
-
-### 3.5 Initialize Response
-
-The `initialize` method returns:
-
-```json
-{
-  "protocolVersion": "2025-03-26",
-  "capabilities": {
-    "tools": { "listChanged": true },
-    "resources": { "subscribe": false, "listChanged": false }
-  },
-  "serverInfo": {
-    "name": "loom-mcp-server",
-    "version": "1.0.0-SNAPSHOT"
-  }
-}
-```
+| Code   | Constant               | Meaning                                     |
+|--------|------------------------|---------------------------------------------|
+| -32700 | `ERR_PARSE_ERROR`      | Invalid JSON (HTTP body or WS frame)        |
+| -32600 | `ERR_INVALID_REQUEST`  | Missing `method`                            |
+| -32601 | `ERR_METHOD_NOT_FOUND` | Unknown method / `resources/read`           |
+| -32602 | `ERR_INVALID_PARAMS`   | Missing `params` or `params.name`           |
+| -32603 | `ERR_INTERNAL`         | Tool dispatch failure (incl. permission denial and unknown tool) |
 
 ---
 
-## 4. Tool Registry and Dispatch
+## 4. Tool Model
 
-### 4.1 MCPTool Interface
-
-Every tool implements `io.metaloom.loom.mcp.tool.MCPTool`:
+### 4.1 `MCPTool`
 
 ```java
-public interface MCPTool {
-    MCPToolDescriptor descriptor();
-    Future<JsonObject> execute(JsonObject arguments);
-}
+MCPToolDescriptor descriptor();
+Future<JsonObject> execute(JsonObject arguments);
+default Future<JsonObject> execute(JsonObject arguments, MCPCallerContext ctx) { return execute(arguments); }
 ```
 
-- `descriptor()` returns the tool name, description, and JSON Schema for
-  parameters (used in `tools/list` responses).
-- `execute()` receives the arguments from the MCP client and returns a
-  `Future<JsonObject>` containing the MCP content-format result.
+Identity-scoped tools override the two-arg overload and make the one-arg overload
+fail loudly (see `AbstractMemoryTool`) — reaching it would mean the caller identity
+was lost.
 
-### 4.2 MCPToolDescriptor
+### 4.2 `MCPToolDescriptor`
 
-A `record` with four fields:
+`record MCPToolDescriptor(String name, String description, JsonObject inputSchema,
+List<String> requiredPermissions, boolean requiresIdentity)` — a 4-arg convenience
+constructor defaults `requiresIdentity` to `false`.
 
-| Field                 | Type       | Description                                    |
-|-----------------------|------------|------------------------------------------------|
-| `name`                | `String`   | Unique tool name (e.g. `"search_assets"`)      |
-| `description`         | `String`   | Human-readable description                     |
-| `inputSchema`         | `JsonObject` | JSON Schema describing accepted parameters   |
-| `requiredPermissions` | `List<String>` | Permissions required to invoke this tool (e.g., `["READ_ASSET"]`) |
+- `toJson()` emits `name`, `description`, `inputSchema` and (when non-empty)
+  `requiredPermissions`. **`requiresIdentity` is deliberately not serialized** — it
+  is a server-side dispatch detail and the wire format must stay MCP-standard.
+- `buildInputSchema(List<MCPToolParam>)` builds the JSON Schema.
+  `MCPToolParam(name, type, description, required, enumValues)` — `enumValues`
+  becomes a JSON Schema `enum` (used by the memory `scope` parameter); a 4-arg
+  constructor leaves it null.
 
-The `buildInputSchema(List<MCPToolParam>)` helper constructs the schema from
-a list of `MCPToolParam(name, type, description, required)` records.
+### 4.3 `MCPCallerContext` — server-resolved identity
 
-The `toJson()` method includes `requiredPermissions` in the output when present,
-allowing clients to discover permission requirements.
+`record MCPCallerContext(UUID userUuid, String userName, Set<UUID> groupUuids,
+UUID spaceUuid, UUID chatUuid)`, plus `ANONYMOUS` and `isAuthenticated()`.
 
-### 4.3 MCPToolRegistry
+Every field is derived server-side. For **external** MCP clients the handler builds
+it from the authenticated principal (`uuid`, `username`, groups via
+`groupDao().loadGroupsForUser`) — `spaceUuid`/`chatUuid` stay `null`, so an external
+client reaches user- and group-scoped data only. For the **chat agent** the loop
+builds it from the chat (`AgentLoop.buildCallerContext`), adding space and chat.
 
-The registry:
+Scope-like *arguments* may only act as filters over what this context resolves to.
 
-1. Receives all `MCPTool` instances via Dagger injection (`@MCPTools Set<MCPTool>`).
-2. For each tool, stores it in a `ConcurrentHashMap` and registers an EventBus
-   consumer at address `mcp.tool.<name>`.
-3. `dispatch(toolName, arguments)` sends a request on the EventBus to the
-   tool's consumer and returns the reply as a `Future<JsonObject>`.
-4. Supports runtime registration/unregistration of tools.
+### 4.4 `MCPToolRegistry`
 
-### 4.4 Dagger Wiring
+1. Injected with `@MCPTools Set<MCPTool>` and `LoomAuthorizationProvider`;
+   `register()`s each tool into a `ConcurrentHashMap`.
+2. `register()` binds an EventBus consumer at `mcp.tool.<name>` **unless** the
+   descriptor declares `requiresIdentity()` — those get no address at all.
+3. `dispatch(name, args, user)` → `dispatch(name, args, user, ANONYMOUS)`.
+   `dispatch(name, args, user, ctx)`:
+   - unknown tool → failed future `"Unknown tool: …"`;
+   - strips a caller-supplied `__loom` key (`CALLER_ENVELOPE_KEY`) from the
+     arguments and logs a possible prompt-injection attempt;
+   - `requiresIdentity` + unauthenticated caller → refuse;
+   - if `user != null` **and** the tool declares permissions, all of them must
+     match (`PermissionBasedAuthorization`), else `"Missing required permissions: …"`;
+   - invokes in-process (identity tools) or over the EventBus (plain tools).
+4. `unregister(name)` / `unregisterAll()` support runtime changes;
+   `listDescriptors()` / `listToolNames()` / `getDescriptor(name)` for discovery.
 
-| Class           | Role                                                |
-|-----------------|-----------------------------------------------------|
-| `MCPModule`     | Provides the `Router` bean (named `"mcpRouter"`)    |
-| `MCPToolModule` | Provides the `Set<MCPTool>` via `@ElementsIntoSet`  |
-| `MCPTools`      | Qualifier annotation for the tool set               |
-| `MCPService`    | Starts/stops the HTTP server, wires routes          |
-| `MCPJsonRpcHandler` | Parses JSON-RPC, dispatches to tool registry     |
+### 4.5 Dagger wiring
 
-To add a new tool:
+| Class             | Role                                                                    |
+|-------------------|-------------------------------------------------------------------------|
+| `MCPModule`       | Provides `@Named("mcpRouter") Router`, `MCPAuthenticationHandler`, `WebSocketAuthenticator` |
+| `MCPToolModule`   | `@ElementsIntoSet @MCPTools` — the 7 core tools                          |
+| `MemoryToolModule`| `@ElementsIntoSet @MCPTools` — the 4 memory tools, **empty set** when `LOOM_AGENT_MEMORY_ENABLED=false` |
+| `MCPTools`        | Qualifier for the tool set                                              |
 
-1. Create a class implementing `MCPTool` in `io.metaloom.loom.mcp.tool.impl`.
-2. Annotate it with `@Singleton` and inject `DaoCollection` (or other deps).
-3. Add the new tool class as a parameter to `MCPToolModule.mcpTools(...)`.
-4. The Dagger-generated component will inject it automatically.
+All three are listed in `LoomCoreComponent`.
 
-### 4.5 EventBus Addresses
+**Adding a tool:** implement `MCPTool` (`@Singleton`, inject `DaoCollection` or a
+service), add it as a parameter of `MCPToolModule.mcpTools(...)` and to the returned
+set. For a feature-gated tool, add a sibling `@ElementsIntoSet @MCPTools` module
+that returns `Set.of()` when the feature is off, and register it in
+`LoomCoreComponent`.
 
-| Address                  | Purpose                                |
-|--------------------------|----------------------------------------|
-| `mcp.tool.<toolName>`    | Request/reply for tool execution       |
-| `mcp.registry`           | Tool registration notifications (future use) |
+### 4.6 EventBus addresses
+
+| Address               | Purpose                                                        |
+|-----------------------|----------------------------------------------------------------|
+| `mcp.tool.<toolName>` | Request/reply for plain tools (identity tools have none)        |
+| `mcp.registry`        | Constant `EVENTBUS_TOOL_REGISTRY` — declared, not yet used      |
+
+See [EVENTBUS.md](EVENTBUS.md) for the wider address map.
+
+### 4.7 Result envelopes
+
+Base MCP content format, built with `MCPToolResults.mcpTextResult(text)`:
+
+```json
+{ "content": [{ "type": "text", "text": "…" }] }
+```
+
+Two optional extras — external clients ignore them, the loom chat extracts them:
+
+- **`references`** (`mcpResultWithReferences`) — the domain entities the result is
+  about: `{"type":"asset","uuid":"…","label":"beach.mp4"}`. `type ∈ asset |
+  collection | task | comment | pipeline | annotation | memory`; `label` is the
+  filename / title / name. Rendered as entity chips ([ui/CHAT.md](ui/CHAT.md) §6).
+- **`visuals`** (`mcpResult(text, references, visuals)` + `MCPToolResults.visual`)
+  — renderable payloads drawn inline: `{"type":"pipeline-graph","uuid":"…",
+  "label":"…","payload":{…}}`. Today only `pipeline-graph` exists.
+
+Two rules keep visuals safe on any tool: **the text stays complete** (the model
+never sees `visuals`, so dropping one never costs an answer) and **the payload is
+bounded** (producer caps it — `GetPipelineTool.MAX_NODES`/`MAX_EDGES` — and
+`VisualExtractor` caps count and encoded size again, [ui/CHAT.md](ui/CHAT.md) §6.1).
 
 ---
 
 ## 5. Registered Tools
 
-### 5.0 Reference envelopes
+Eleven tool implementations in total — the seven core tools always, the four memory
+tools only when `LOOM_AGENT_MEMORY_ENABLED=true` (default `false`). All are
+**read-oriented** except the memory writes.
 
-Besides the standard MCP `content` items, tool results may carry an additional
-`references` array which lists the loom domain entities the result is about:
+| Tool                | Class                  | Module   | Permissions       | Identity | References | Visual |
+|---------------------|------------------------|----------|-------------------|----------|------------|--------|
+| `search_assets`     | `SearchAssetsTool`     | mcp      | `READ_ASSET`      | no       | asset      | —      |
+| `get_asset`         | `GetAssetTool`         | mcp      | `READ_ASSET`      | no       | asset      | —      |
+| `search_transcript` | `SearchTranscriptTool` | mcp      | `READ_ASSET`      | no       | —          | —      |
+| `list_collections`  | `ListCollectionsTool`  | mcp      | `READ_COLLECTION` | no       | collection | —      |
+| `asset_statistics`  | `AssetStatisticsTool`  | mcp      | `READ_ASSET`      | no       | —          | —      |
+| `list_pipelines`    | `ListPipelinesTool`    | mcp      | `READ_PIPELINE`   | no       | pipeline   | —      |
+| `get_pipeline`      | `GetPipelineTool`      | mcp      | `READ_PIPELINE`   | no       | pipeline   | `pipeline-graph` |
+| `list_memory`       | `ListMemoryTool`       | memory   | `READ_MEMORY`     | **yes**  | —          | —      |
+| `get_memory`        | `GetMemoryTool`        | memory   | `READ_MEMORY`     | **yes**  | memory     | —      |
+| `put_memory`        | `PutMemoryTool`        | memory   | `UPDATE_MEMORY`   | **yes**  | memory     | —      |
+| `delete_memory`     | `DeleteMemoryTool`     | memory   | `DELETE_MEMORY`   | **yes**  | —          | —      |
 
-```json
-{ "content": [{ "type": "text", "text": "…" }],
-  "references": [{ "type": "asset", "uuid": "…", "label": "beach.mp4" }] }
-```
+### 5.1 Asset & collection tools
 
-`type ∈ asset | collection | task | comment | pipeline | annotation`; `label` is
-the filename / title / name. External MCP clients simply ignore the extra field;
-the loom chat agent ([ui/CHAT.md](ui/CHAT.md) §6) extracts it to render entity
-chips for tool results. Built via `MCPToolResults.mcpResultWithReferences(...)`.
-Currently populated by `search_assets`, `get_asset`, `search_transcript`,
-`list_collections`, `list_pipelines` and `get_pipeline`; `asset_statistics`
-carries no references.
+| Tool | Parameters | Result | Known gaps |
+|------|------------|--------|------------|
+| `search_assets` | `query` (string), `mimeType` (string), `limit` (int, 25) | `Found N assets.` + JSON array (uuid, filename, mimeType, size, sha512) | `query`/`mimeType` are **accepted but ignored** — `assetDao.loadPage(null, limit, …)` returns an unfiltered page |
+| `get_asset` | `assetId` (string, **required**) — UUID or SHA-512 via `AssetId.assetId()` | JSON object (uuid, filename, mimeType, size, sha512, initialOrigin, firstSeen, s3Bucket, s3ObjectPath) | Description promises media properties, geo and components; they are not returned. Missing asset → text result, not an error |
+| `search_transcript` | `query` (string, **required**), `limit` (int, 10) | **Stub** text explaining that full-text search is unimplemented | Needs the search backend ([../features/search/SEARCH.md](../features/search/SEARCH.md)) |
+| `list_collections` | `limit` (int, 25) | `Found N collections.` + JSON array (uuid, name) | No name filter, no space scoping |
+| `asset_statistics` | `collection` (string) | JSON object: totalAssets, totalStorageBytes, totalStorageMB, images, videos, audio, documents, other | `collection` is **ignored**; loads up to 10 000 assets and aggregates in memory instead of using SQL aggregates |
 
-### 5.0.1 Visual envelopes
+### 5.2 Pipeline tools
 
-A result may additionally carry a `visuals` array — renderable payloads the chat
-draws **inline** instead of only describing in text:
+`list_pipelines` — params `query`, `limit` (25). Emits uuid, name, description,
+enabled, versionNumber, nodeCount taken from each pipeline's **latest version**
+(resolved in one `loadByUuids`, not per row), plus one `pipeline` reference per row.
+The node graph is deliberately omitted — one graph per row would swamp the context
+window. `query` filters **in memory** over the loaded page, so it can only match
+within the first `limit` pipelines.
 
-```json
-{ "content": [{ "type": "text", "text": "Pipeline: Media Transcription…" }],
-  "references": [{ "type": "pipeline", "uuid": "…", "label": "Media Transcription" }],
-  "visuals": [{ "type": "pipeline-graph", "uuid": "…", "label": "Media Transcription",
-                "payload": { "nodes": [ … ], "edges": [ … ] } }] }
-```
+`get_pipeline` — param `pipelineId` (**required**), a UUID *or* a pipeline name
+(case-insensitive, falling back to a substring match over the first 200 pipelines).
+Name resolution is not a convenience: the user asks for "the transcription
+pipeline" and the model passes that phrasing straight through. Three renderings of
+the same graph:
 
-`type` discriminates the payload shape; today only `pipeline-graph` exists
-(produced by `get_pipeline`, §5.7). Built via
-`MCPToolResults.mcpResult(text, references, visuals)` + `MCPToolResults.visual(...)`.
-
-Two rules make this safe to attach to any tool:
-
-- **The text stays complete.** The model never sees `visuals` — the agent loop feeds
-  it the `content` text only. A visual may therefore be dropped (payload too large,
-  unknown type, non-loom client) without costing an answer.
-- **The payload is bounded.** It is relayed on `tool_end` and persisted onto the chat
-  transcript, so the producing tool caps it (`GetPipelineTool.MAX_NODES` /
-  `MAX_EDGES`) and the consuming `VisualExtractor` caps count and encoded size again
-  ([ui/CHAT.md](ui/CHAT.md) §6.1).
-
-### 5.1 search_assets
-
-| Field        | Value |
-|--------------|-------|
-| Name         | `search_assets` |
-| Description  | Search for assets by filename, MIME type, tags, or metadata. Returns a paginated list of matching assets with key metadata fields. |
-| Class        | `SearchAssetsTool` |
-| Required Permissions | `READ_ASSET` |
-
-**Parameters:**
-
-| Parameter  | Type    | Required | Description                                    |
-|------------|---------|----------|------------------------------------------------|
-| `query`    | string  | No       | Free-text search query (filename, origin, metadata) |
-| `mimeType` | string  | No       | Filter by MIME type (e.g. `image/jpeg`, `video/*`) |
-| `limit`    | integer | No       | Maximum results (default: 25)                  |
-
-**Result:** Text content with a JSON array of asset summaries (uuid,
-filename, mimeType, size, sha512).
-
-**Current limitation:** The `query` and `mimeType` parameters are accepted
-but not yet wired to DAO-level filtering. The tool currently loads a page
-of assets without applying filters.
-
-### 5.2 get_asset
-
-| Field        | Value |
-|--------------|-------|
-| Name         | `get_asset` |
-| Description  | Load complete metadata for a single asset, including file info, hashes, media properties, geo location, and components. |
-| Class        | `GetAssetTool` |
-| Required Permissions | `READ_ASSET` |
-
-**Parameters:**
-
-| Parameter  | Type   | Required | Description                        |
-|------------|--------|----------|------------------------------------|
-| `assetId`  | string | Yes      | Asset UUID or SHA-512 hash         |
-
-**Result:** Text content with full asset metadata (uuid, filename, mimeType,
-size, sha512, initialOrigin, firstSeen, s3Bucket, s3ObjectPath).
-
-### 5.3 search_transcript
-
-| Field        | Value |
-|--------------|-------|
-| Name         | `search_transcript` |
-| Description  | Search across transcripts and extracted text from all assets. |
-| Class        | `SearchTranscriptTool` |
-| Required Permissions | `READ_ASSET` |
-
-**Parameters:**
-
-| Parameter  | Type    | Required | Description                                    |
-|------------|---------|----------|------------------------------------------------|
-| `query`    | string  | Yes      | Text to search for in transcripts/documents    |
-| `limit`    | integer | No       | Maximum results (default: 10)                  |
-
-**Result:** Text content with matching text snippets and asset references.
-
-**Current limitation:** Returns a stub response. Full-text search requires
-Elasticsearch/Lucene integration that is not yet implemented.
-
-### 5.4 list_collections
-
-| Field        | Value |
-|--------------|-------|
-| Name         | `list_collections` |
-| Description  | List available asset collections. Collections group assets for spaces or topics. |
-| Class        | `ListCollectionsTool` |
-| Required Permissions | `READ_COLLECTION` |
-
-**Parameters:**
-
-| Parameter  | Type    | Required | Description                                       |
-|------------|---------|----------|---------------------------------------------------|
-| `limit`    | integer | No       | Maximum collections to return (default: 25)       |
-
-**Result:** Text content with a JSON array of collections (uuid, name).
-
-### 5.5 asset_statistics
-
-| Field        | Value |
-|--------------|-------|
-| Name         | `asset_statistics` |
-| Description  | Get aggregate statistics about the asset library: total count, storage used, MIME type distribution. |
-| Class        | `AssetStatisticsTool` |
-| Required Permissions | `READ_ASSET` |
-
-**Parameters:**
-
-| Parameter    | Type   | Required | Description                                       |
-|--------------|--------|----------|---------------------------------------------------|
-| `collection` | string | No       | Optional collection UUID to scope statistics       |
-
-**Result:** Text content with a JSON object containing totalAssets,
-totalStorageBytes, totalStorageMB, images, videos, audio, documents, other.
-
-**Current limitation:** The `collection` parameter is accepted but not yet
-used for scoping. Statistics are computed by loading a page of up to 10,000
-assets and aggregating in memory. This should use SQL aggregate queries.
-
-### 5.6 list_pipelines
-
-| Field        | Value |
-|--------------|-------|
-| Name         | `list_pipelines` |
-| Description  | List the media processing pipelines with name, description, uuid and enabled state. |
-| Class        | `ListPipelinesTool` |
-| Required Permissions | `READ_PIPELINE` |
-
-**Parameters:**
-
-| Parameter  | Type    | Required | Description                                            |
-|------------|---------|----------|--------------------------------------------------------|
-| `query`    | string  | No       | Case-insensitive filter on pipeline name or description |
-| `limit`    | integer | No       | Maximum number of pipelines (default: 25)              |
-
-**Result:** Text content with a JSON array (uuid, name, description, enabled,
-versionNumber, nodeCount) plus a `pipeline` reference per row. Metadata comes from
-each pipeline's **latest version**, resolved in one `loadByUuids` query rather than
-per row. The node graph is deliberately **not** included — one graph per row would
-swamp the context window; `get_pipeline` loads the one the user asked about.
-
-**Current limitation:** `query` filters in memory over the loaded page rather than
-at DAO level, so it can only match within the first `limit` pipelines.
-
-### 5.7 get_pipeline
-
-| Field        | Value |
-|--------------|-------|
-| Name         | `get_pipeline` |
-| Description  | Load one pipeline including its node graph (nodes and port-to-port connections). |
-| Class        | `GetPipelineTool` |
-| Required Permissions | `READ_PIPELINE` |
-
-**Parameters:**
-
-| Parameter    | Type   | Required | Description                                    |
-|--------------|--------|----------|------------------------------------------------|
-| `pipelineId` | string | Yes      | Pipeline UUID **or** pipeline name (case-insensitive, falls back to a substring match) |
-
-Name resolution is not a convenience: a user asks for "the transcription pipeline",
-and the model passes that phrasing straight through.
-
-**Result:** three renderings of the same graph —
-
-1. **Text** — header (name, uuid, description, version, enabled/dry-run/priority), a
-   node list `pn1 Media Source [filesystem-source, SOURCE]`, and a connection list
+1. **Text** — header (name, uuid, description, version, enabled/dry-run/priority),
+   node list `pn1 Media Source [filesystem-source, SOURCE]`, connection list
    `pn1.media -> pn2.video (branch PASS)`. This is all the model ever sees.
-2. **Reference** — one `pipeline` entity chip.
-3. **Visual** — a `pipeline-graph` payload (§5.0.1) which the chat renders as a
-   compact diagram ([ui/CHAT.md](ui/CHAT.md) §6.1):
+2. **Reference** — one `pipeline` chip.
+3. **Visual** — `pipeline-graph` payload:
 
 ```json
 { "pipelineUuid": "…", "name": "…", "description": "…", "enabled": true, "versionNumber": 3,
@@ -486,377 +289,352 @@ and the model passes that phrasing straight through.
   "truncated": false }
 ```
 
-- The graph is that of the **latest version** — the one that would run today, which is
-  what "the current pipeline" means to whoever is asking.
-- `category` is resolved through the `NodeDescriptorRegistry` (unknown kinds fall back
-  to `ANALYSIS`), so a node keeps the colour the pipeline editor gives it.
-- Editor-only fields (`x`/`y`) and node options are stripped; the chat lays the graph
-  out itself from the edges (a canvas layout does not fit a chat bubble).
-- Clipped at `MAX_NODES` (40) / `MAX_EDGES` (80); clipping sets `truncated`, which is
-  stated in the text and shown on the card.
+- Always the **latest version** — the one that would run today.
+- `category` comes from `NodeDescriptorRegistry` (unknown kinds → `ANALYSIS`), so a
+  node keeps the colour the pipeline editor gives it
+  ([ui/PIPELINE_EDITOR.md](ui/PIPELINE_EDITOR.md)).
+- Editor-only fields (`x`/`y`) and node options are stripped; the chat lays the
+  graph out from the edges.
+- Clipped at `MAX_NODES` (40) / `MAX_EDGES` (80); clipping sets `truncated`, which
+  is stated in the text and shown on the card.
+
+### 5.3 Memory tools
+
+Four identity-scoped tools over the agent memory bank; the bank itself (scopes,
+frontmatter header, denylist, materialized `/memory` folder) is specified in
+[../features/chat/CHAT_MEMORY_PLAN.md](../features/chat/CHAT_MEMORY_PLAN.md).
+
+| Tool | Parameters | Notes |
+|------|------------|-------|
+| `list_memory` | `scope` (enum `user`\|`group`\|`space`\|`all`), `ref`, `prefix`, `limit` (50) | Ids, titles and write times only — not bodies |
+| `get_memory` | `id` (**required**), `scope` (enum without `all`), `ref`, `includeHeader` (bool) | Shared-scope content is delimited and labelled with its author — data, not instructions |
+| `put_memory` | `id` (**required**), `content` (**required**), `scope`, `ref`, `title` | The **only** way to change memory; the `/memory` folder is read-only. Provenance header added automatically |
+| `delete_memory` | `id` (**required**), `scope`, `ref` | Permanent — no version history |
+
+`scope` defaults to `user`; `ref` picks the group/space by name when several are
+available; both are resolved against `MemoryService.scopes().resolve(ctx)`, so an
+argument can only *narrow* what the caller already has. Because the tools require
+identity, they are unreachable from an unauthenticated caller and have no EventBus
+address. When `LOOM_AGENT_MEMORY_ENABLED=false` they are not registered at all and
+never appear in `tools/list`.
 
 ---
 
-## 6. Tool Result Format
+## 6. Authentication and Permissions
 
-All tools return results in the MCP content format:
+Authentication is **off by default** and covers all three transports when enabled.
 
-```json
-{
-  "content": [
-    {
-      "type": "text",
-      "text": "<human-readable or JSON string>"
-    }
-  ]
-}
-```
+| Transport | Endpoint            | Accepted credentials                                            |
+|-----------|---------------------|-----------------------------------------------------------------|
+| SSE       | `GET /mcp/sse`      | `?token=<jwt>` **or** `Authorization: Bearer <jwt>`              |
+| Message   | `POST /mcp/message` | `Authorization: Bearer <jwt>` **or** `X-API-Key: <token>`        |
+| WebSocket | `GET /mcp/ws`       | `?token=<jwt>` (via `WebSocketAuthenticator`, close code 4401)   |
 
-The `MCPToolResults.mcpTextResult(String)` helper wraps a text string in this
-format; `mcpResultWithReferences(...)` and `mcpResult(...)` add the `references` and
-`visuals` envelopes of §5.0 / §5.0.1 on top of it.
+`MCPAuthenticationHandler` (in `loom/services/auth/auth-common`) tries the token as
+a JWT first (`LoomAuthenticationHandler.authenticateToken`) and falls back to an API
+key (`TokenDao.findByToken`, resolved to the token's `creator_uuid`). A token that
+matches **neither** is rejected regardless of strict mode — strict/lenient only
+governs requests with *no* credentials at all.
 
----
+**CORS** — auth disabled: `Access-Control-Allow-Origin: *`. Auth enabled: the
+`Origin` header is echoed (plus `Allow-Credentials: true`) when it matches
+`allowedOrigins` (entries may contain `*` wildcards, e.g. `https://*.example.com`);
+otherwise `*` is sent if the list contains `*`, else no CORS header is set.
 
-## 7. Authentication
+**Permissions** — `MCPToolRegistry.dispatch()` checks
+`descriptor.requiredPermissions()` with `PermissionBasedAuthorization` **only when a
+`User` is present**. With auth disabled (or lenient mode and no credentials) `user`
+is `null` and no permission check runs. `tools/list` exposes
+`requiredPermissions` so clients can discover what a tool needs.
 
-### 7.1 Current State
+### 6.1 Environment variables
 
-**The MCP server implements authentication across all transports.**
+| Option (config key)          | Environment variable            | Default | Description |
+|------------------------------|---------------------------------|---------|-------------|
+| `server.mcpPort`             | `LOOM_SERVER_MCP_PORT`          | `4041`  | MCP server port (`0` when `server.restPort` is `0`) |
+| `server.bindAddress`         | `LOOM_SERVER_GRPC_BIND_ADDRESS` | `0.0.0.0` | Bind address shared with the other servers |
+| `auth.mcpAuthEnabled`        | `LOOM_MCP_AUTH_ENABLED`         | `false` | Enable auth on all MCP endpoints |
+| `auth.mcpAuthStrictMode`     | `LOOM_MCP_AUTH_STRICT_MODE`     | `false` | Reject requests without credentials (401 / WS 4401) |
+| `auth.mcpAuthAllowedOrigins` | `LOOM_MCP_AUTH_ALLOWED_ORIGINS` | `*`     | Comma-separated CORS origins; validated non-blank when auth is enabled |
+| `memory.enabled`             | `LOOM_AGENT_MEMORY_ENABLED`     | `false` | Off ⇒ the four memory tools are not registered and not advertised |
 
-Authentication is disabled by default and can be enabled via the
-`LOOM_MCP_AUTH_ENABLED` environment variable (or `mcp.auth.enabled` in
-configuration). When enabled, the following authentication mechanisms are
-supported:
+Full option reference: [CONFIGURATION.md](CONFIGURATION.md).
 
-| Transport | Endpoint | Authentication Methods |
-|-----------|----------|------------------------|
-| SSE | `GET /mcp/sse` | `?token=<jwt>` query parameter OR `Authorization: Bearer <jwt>` header |
-| Message | `POST /mcp/message` | `Authorization: Bearer <jwt>` header OR `X-API-Key` header |
-| WebSocket | `GET /mcp/ws` | `?token=<jwt>` query parameter (via `WebSocketAuthenticator`) |
+### 6.2 Security notes
 
-### 7.2 Configuration
-
-| Option | Environment Variable | Default | Description |
-|--------|---------------------|---------|-------------|
-| `mcp.auth.enabled` | `LOOM_MCP_AUTH_ENABLED` | `false` | Enable authentication on all MCP endpoints |
-| `mcp.auth.strictMode` | `LOOM_MCP_AUTH_STRICT_MODE` | `false` | Require valid credentials on every request (reject unauthenticated) |
-| `mcp.auth.allowedOrigins` | `LOOM_MCP_AUTH_ALLOWED_ORIGINS` | `*` | Comma-separated list of allowed origins for SSE CORS |
-
-When `strictMode` is `false` (lenient mode), requests without valid credentials
-are accepted but logged with a warning. When `strictMode` is `true`, requests
-without valid credentials are rejected with HTTP 401 (or WS close code 4401).
-
-### 7.3 Implementation Details
-
-The authentication infrastructure reuses existing components:
-
-1. **`MCPAuthenticationHandler`** — New handler in `loom/services/auth-common` that:
-   - Extracts credentials from HTTP requests (query params, headers)
-   - Validates JWT tokens via `LoomAuthenticationHandler.authenticateToken()`
-   - Validates API keys via `TokenDao.findByToken()`
-   - Applies CORS headers based on `allowedOrigins` configuration
-
-2. **`WebSocketAuthenticator`** — Reused from REST WebSocket endpoints
-   (`loom/services/rest`) to validate `?token=` query parameter on WS upgrade
-
-3. **`LoomAuthorizationProvider`** — Reused for permission checking via
-   Vert.x `PermissionBasedAuthorization`
-
-4. **`MCPToolDescriptor.requiredPermissions`** — Each tool declares required
-   permissions (e.g., `READ_ASSET`, `READ_COLLECTION`) that are checked
-   before dispatch in `MCPToolRegistry.dispatch()`
-
-### 7.4 Security Implications
-
-- When authentication is **disabled** (default), the MCP server behaves as
-  before — no auth checks, CORS allows all origins. Suitable for local
-  development only.
-- When authentication is **enabled**, all endpoints require valid credentials.
-  The MCP port (4041) should still not be exposed to untrusted networks
-  without additional network-level security (firewall, VPN, etc.).
-- Tools access DAOs directly but now go through permission checks in
-  `MCPToolRegistry.dispatch()` before execution.
+- With auth disabled the port is unauthenticated and unauthorized — local
+  development only. Even with auth on, `4041` should not face untrusted networks
+  without firewall/VPN.
+- Tool arguments are model-authored. Nothing in them participates in authorization;
+  the `__loom` key is stripped and logged as a possible injection attempt.
+- No rate limiting and no audit log of tool calls yet.
 
 ---
 
-## 8. Lifecycle
+## 7. Lifecycle
 
-### 8.1 Startup
+`BootstrapInitializer.init()` starts MCP **after** the REST service, UI service and
+the main HTTP server, and before the monitoring and gRPC services;
+`deinit()` calls `mcpService.stop()` before `restService.stop()`.
 
-The `BootstrapInitializer` starts the MCP server after the REST service and
-HTTP server are up:
+`MCPService.start()`: resolve port → new `Router` with `BodyHandler` (**1 MB** body
+limit, hardcoded) → register `/mcp/sse`, `/mcp/message`, `/mcp/ws` → create and
+`listen()` the `HttpServer` (blocking `get()`).
+`stop()`: `end()` every open SSE response, clear the session map, `server.close()`,
+null the field. No graceful-shutdown timeout.
 
-```java
-// BootstrapInitializer.init()
-restService.start();
-uiService.start();
-httpServer.listen();
-mcpService.start();  // starts MCP HTTP server on port 4041
-```
-
-The `MCPService.start()` method:
-1. Resolves the port (4041, or 0 if REST port is 0 for tests).
-2. Creates a Vert.x `Router` with a `BodyHandler` (1 MB body limit).
-3. Registers the SSE endpoint (`GET /mcp/sse`).
-4. Registers the message endpoint (`POST /mcp/message`).
-5. Registers the WebSocket endpoint (`GET /mcp/ws`).
-6. Creates and starts the HTTP server.
-
-### 8.2 Shutdown
-
-`MCPService.stop()`:
-1. Closes all open SSE sessions (calls `response.end()` on each).
-2. Clears the `sseSessions` map.
-3. Closes the HTTP server.
-
-`BootstrapInitializer.deinit()` calls `mcpService.stop()` followed by
-`restService.stop()`.
-
-### 8.3 Tool Registration
-
-Tools are registered at startup via Dagger injection:
-1. `MCPToolModule` provides a `Set<MCPTool>` annotated with `@MCPTools`.
-2. `MCPToolRegistry` receives the injected set and calls `register()` on
-   each tool.
-3. Each `register()` call stores the tool in the map and creates an EventBus
-   consumer at `mcp.tool.<name>`.
+Tools register at construction time of `MCPToolRegistry` (Dagger singleton), i.e.
+before the server accepts requests.
 
 ---
 
-## 9. Integration with AI Agents
+## 8. Integration
 
-### 9.1 Direct Tool Registry Access (In-Process)
+### 8.1 In-process (chat agent)
 
-In-process callers (e.g. an LLM integration test) can bypass HTTP entirely
-and call tools directly via `MCPToolRegistry`:
+`AgentLoop` holds the `MCPToolRegistry` and:
+
+- builds LLM tool definitions from `listDescriptors()`
+  (`new ToolDefinition(name, description, inputSchema)`), then appends sandbox
+  coding tools and `load_skill` — those are **not** MCP tools;
+- dispatches with `dispatch(name, args, request.user(), callerContext)` where the
+  context carries user, groups, space and chat;
+- extracts `references`/`visuals` from the result and relays them on the SSE
+  stream. See [ui/CHAT.md](ui/CHAT.md).
+
+### 8.2 In-process (tests / other callers)
 
 ```java
 MCPToolRegistry registry = mcpService.getToolRegistry();
-JsonObject result = registry.dispatch("search_assets", arguments)
+JsonObject result = registry.dispatch("search_assets", args, null)
     .toCompletionStage().toCompletableFuture().get();
 ```
 
-This is used by `MCPDirectToolCallTest` to test tools against a real
-PostgreSQL database without HTTP overhead.
-
-### 9.2 HTTP JSON-RPC (Remote Clients)
-
-Remote AI agents interact via HTTP POST to `/mcp/message`:
+### 8.3 Remote clients
 
 ```
 POST /mcp/message HTTP/1.1
 Content-Type: application/json
 
-{
-  "jsonrpc": "2.0",
-  "method": "tools/list",
-  "id": 1
-}
+{ "jsonrpc": "2.0", "method": "tools/list", "id": 1 }
 ```
 
-The `MCPServerToolCallTest` demonstrates the full flow:
-1. `initialize` handshake
-2. `tools/list` to discover available tools
-3. Convert tool descriptors to LLM `ToolDefinition` objects
-4. Ask the LLM a question with the tool definitions
-5. For each tool call the LLM produces, send `tools/call` to the MCP server
-6. Feed the tool result back into the conversation
-7. Repeat until the LLM produces a final answer
-
-### 9.3 LLM Integration (genai-utils)
-
-The MCP tool descriptors are designed to be convertible to LLM tool
-definitions:
-
-```java
-List<ToolDefinition> llmTools = toolRegistry.listDescriptors().stream()
-    .map(d -> new ToolDefinition(d.name(), d.description(), d.inputSchema()))
-    .toList();
-```
-
-This allows any LLM provider (e.g. Ollama) to use the MCP tools via
-function calling. The LLM generates tool calls, which are dispatched through
-the MCP registry or HTTP server, and the results are fed back as tool
-result messages.
+Typical loop: `initialize` → `tools/list` → convert descriptors to the provider's
+tool definitions → model emits calls → `tools/call` per call → feed results back.
 
 ---
 
-## 10. Key Classes Reference
+## 9. Key Classes Reference
 
-| Class                  | Package                                    | Purpose                                  |
-|------------------------|--------------------------------------------|------------------------------------------|
-| `MCPService`           | `io.metaloom.loom.mcp`                     | HTTP server, SSE/WS endpoints, lifecycle |
-| `MCPConstants`         | `io.metaloom.loom.mcp`                     | Constants (paths, method names, error codes) |
-| `MCPJsonRpcHandler`    | `io.metaloom.loom.mcp.handler`             | JSON-RPC request dispatch                |
-| `MCPToolRegistry`      | `io.metaloom.loom.mcp.tool`                | Tool registration and EventBus dispatch  |
-| `MCPTool`              | `io.metaloom.loom.mcp.tool`                | Tool interface                           |
-| `MCPToolDescriptor`    | `io.metaloom.loom.mcp.model`               | Tool descriptor record + schema builder  |
-| `MCPToolModule`        | `io.metaloom.loom.mcp.dagger`              | Dagger module providing tool set         |
-| `MCPModule`            | `io.metaloom.loom.mcp.dagger`              | Dagger module providing MCP router       |
-| `MCPTools`             | `io.metaloom.loom.mcp.dagger`              | Dagger qualifier for tool set            |
-| `JsonRpcRequest`       | `io.metaloom.loom.mcp.model`               | JSON-RPC 2.0 request model               |
-| `JsonRpcResponse`      | `io.metaloom.loom.mcp.model`               | JSON-RPC 2.0 response model              |
-| `SearchAssetsTool`     | `io.metaloom.loom.mcp.tool.impl`           | Search assets tool                       |
-| `GetAssetTool`         | `io.metaloom.loom.mcp.tool.impl`           | Get single asset tool                    |
-| `SearchTranscriptTool` | `io.metaloom.loom.mcp.tool.impl`           | Search transcripts tool                  |
-| `ListCollectionsTool`  | `io.metaloom.loom.mcp.tool.impl`           | List collections tool                    |
-| `AssetStatisticsTool`  | `io.metaloom.loom.mcp.tool.impl`           | Asset statistics tool                    |
-| `ListPipelinesTool`    | `io.metaloom.loom.mcp.tool.impl`           | List pipelines tool                      |
-| `GetPipelineTool`      | `io.metaloom.loom.mcp.tool.impl`           | Single pipeline + graph visual tool      |
-| `MCPToolResults`       | `io.metaloom.loom.mcp.tool`                | Result envelopes (content / references / visuals) |
-| `MCPAuthenticationHandler` | `io.metaloom.loom.auth`                | MCP HTTP authentication (JWT + API key)  |
-| `WebSocketAuthenticator` | `io.metaloom.loom.rest.service.impl`     | WebSocket authentication (token query)   |
-| `LoomAuthenticationHandler` | `io.metaloom.loom.auth`                | JWT authentication (shared with REST)    |
-| `LoomAuthorizationProvider` | `io.metaloom.loom.auth`                | Permission checking (shared with REST)   |
-| `TokenDao`             | `io.metaloom.loom.db.model.token`          | API token validation                     |
+| Class                      | Package                                | Purpose |
+|----------------------------|----------------------------------------|---------|
+| `MCPService`               | `io.metaloom.loom.mcp`                 | HTTP server, SSE/WS endpoints, lifecycle |
+| `MCPConstants`             | `io.metaloom.loom.mcp`                 | Paths, method names, error codes, EventBus prefixes |
+| `MCPJsonRpcHandler`        | `io.metaloom.loom.mcp.handler`         | JSON-RPC dispatch; resolves `MCPCallerContext` for external clients |
+| `MCPToolRegistry`          | `io.metaloom.loom.mcp.tool`            | Registration, permission check, EventBus/in-process dispatch |
+| `MCPTool`                  | `io.metaloom.loom.mcp.tool`            | Tool interface (both `execute` overloads) |
+| `MCPToolResults`           | `io.metaloom.loom.mcp.tool`            | `content` / `references` / `visuals` envelopes |
+| `MCPToolDescriptor`        | `io.metaloom.loom.mcp.model`           | Descriptor record + `MCPToolParam` + schema builder |
+| `MCPCallerContext`         | `io.metaloom.loom.mcp.model`           | Server-resolved caller identity |
+| `JsonRpcRequest` / `JsonRpcResponse` | `io.metaloom.loom.mcp.model` | JSON-RPC 2.0 models |
+| `MCPModule` / `MCPToolModule` / `MCPTools` | `io.metaloom.loom.mcp.dagger` | Infrastructure beans, core tool set, qualifier |
+| `SearchAssetsTool`, `GetAssetTool`, `SearchTranscriptTool`, `ListCollectionsTool`, `AssetStatisticsTool`, `ListPipelinesTool`, `GetPipelineTool` | `io.metaloom.loom.mcp.tool.impl` | The 7 core tools |
+| `AbstractMemoryTool`, `ListMemoryTool`, `GetMemoryTool`, `PutMemoryTool`, `DeleteMemoryTool` | `io.metaloom.loom.agent.memory.tool` | The 4 identity-scoped memory tools |
+| `MemoryToolModule`         | `io.metaloom.loom.agent.memory.dagger` | Feature-gated contribution to `@MCPTools` |
+| `MCPAuthenticationHandler` | `io.metaloom.loom.auth`                | MCP HTTP auth (JWT + API key) and CORS |
+| `LoomAuthenticationHandler` / `LoomAuthorizationProvider` | `io.metaloom.loom.auth` | JWT auth / permission resolution (shared with REST) |
+| `WebSocketAuthenticator`   | `io.metaloom.loom.rest.service.impl`   | WS token auth, close code 4401 |
+| `TokenDao`                 | `io.metaloom.loom.db.model.token`      | API key lookup |
+| `AgentLoop`                | `io.metaloom.loom.agent.chat.loop`     | In-process consumer of the registry |
 
 ---
 
-## 11. Progress Assessment
+## 10. Conventions and Gotchas
 
-The following checkboxes track the implementation status and areas that need
-improvement. AI agents can use this list to identify work items.
-
-### 11.1 Core Protocol
-
-- [x] JSON-RPC 2.0 request/response handling
-- [x] `initialize` method with protocol version and capabilities
-- [x] `notifications/initialized` notification handling
-- [x] `ping` health check method
-- [x] `tools/list` method returning all registered tool descriptors
-- [x] `tools/call` method with EventBus dispatch
-- [x] `resources/list` stub (returns empty list)
-- [x] Error codes for parse, invalid request, method not found, invalid params, internal
-- [x] MCP content format result (`{ "content": [{ "type": "text", "text": "..." }] }`)
-
-### 11.2 Transports
-
-- [x] HTTP + SSE (Streamable HTTP) transport with session management
-- [x] WebSocket transport (`/mcp/ws`) with full-duplex JSON-RPC
-- [x] SSE session tracking with automatic cleanup on disconnect
-- [x] SSE `endpoint` event sent on connection to tell client where to POST
-- [x] POST message endpoint with session ID query parameter
-- [x] Body handler with 1 MB body limit on message endpoint
-- [x] CORS `Access-Control-Allow-Origin: *` header on SSE endpoint (configurable via `LOOM_MCP_AUTH_ALLOWED_ORIGINS`)
-- [ ] SSE heartbeat/keepalive (connections may time out on long idle)
-- [x] WebSocket authentication (token via `?token=` query param, reuses `WebSocketAuthenticator`)
-- [x] SSE authentication (token via `?token=` query param OR `Authorization: Bearer` header)
-- [x] Message endpoint authentication (requires `Authorization: Bearer` header OR `X-API-Key` header)
-- [ ] Configurable body limit (hardcoded to 1 MB, not configurable)
-- [x] MCP server port configurable via `LoomOptions` (`LOOM_SERVER_MCP_PORT`, default 4041)
-
-### 11.3 Tools
-
-- [x] `search_assets` tool — lists assets with basic metadata
-- [x] `get_asset` tool — loads single asset by UUID or SHA-512
-- [x] `search_transcript` tool — stub (returns placeholder, no full-text search)
-- [x] `list_collections` tool — lists collections with UUID and name
-- [x] `asset_statistics` tool — aggregates counts by MIME type and total storage
-- [x] `list_pipelines` tool — lists pipelines with the metadata of their latest version
-- [x] `get_pipeline` tool — loads one pipeline's node graph as text + `pipeline-graph` visual
-- [x] Visual envelopes (`visuals`) for results the chat renders inline
-- [x] Tool descriptor with JSON Schema for parameters
-- [x] Dagger multibinding for tool registration
-- [x] EventBus-based dispatch (decoupled from transport)
-- [ ] `search_assets` does not apply `query` or `mimeType` filters (loads page without filtering)
-- [ ] `search_transcript` is a stub — no Elasticsearch/Lucene integration
-- [ ] `asset_statistics` does not use the `collection` parameter for scoping
-- [ ] `asset_statistics` loads up to 10,000 assets in memory instead of using SQL aggregates
-- [ ] No tool for creating/updating/deleting assets (read-only tools only)
-- [ ] `list_pipelines` filters `query` in memory over the loaded page, not at DAO level
-- [ ] No tool for pipeline *operations* (run, cancel, run status, events) — the pipeline tools are read-only
-- [ ] No visual payload for anything but pipelines (asset previews, run timelines, statistics charts)
-- [ ] No tool for tag operations (create, list, assign to assets)
-- [ ] No tool for user/role/group management
-- [ ] No tool for embedding operations
-- [ ] No tool for task/comment/annotation operations
-- [ ] No tool for GraphQL queries
-- [ ] No tool for processor status or registration
-- [ ] Tool results do not include pagination metadata (total count, next page cursor)
-- [ ] Tool error handling returns generic messages without structured error codes
-
-### 11.4 Authentication and Security
-
-- [x] MCP server runs on a separate port from the REST API (4041 vs 6333)
-- [x] Authentication on all MCP endpoints (SSE, message, WebSocket) via `LOOM_MCP_AUTH_ENABLED`
-- [x] JWT token via `Authorization: Bearer` header (SSE, message)
-- [x] JWT token via `?token=` query parameter (SSE, WebSocket)
-- [x] API key via `X-API-Key` header (message endpoint)
-- [x] Permission checks on tool execution via `MCPToolDescriptor.requiredPermissions`
-- [x] Strict/lenient mode via `LOOM_MCP_AUTH_STRICT_MODE`
-- [x] Configurable CORS allowed origins via `LOOM_MCP_AUTH_ALLOWED_ORIGINS`
-- [x] Reuses `LoomAuthenticationHandler` and `WebSocketAuthenticator` from REST API
-- [ ] No rate limiting on MCP endpoints
-- [ ] No audit logging of tool calls
-
-### 11.5 Resources (MCP Resources)
-
-- [x] `resources/list` returns an empty list (stubbed)
-- [x] `resources/read` returns method-not-found error
-- [ ] No MCP resource providers implemented (could expose assets, collections, etc. as resources)
-- [ ] No `resources/subscribe` or `resources/unsubscribe` support
-
-### 11.6 Testing
-
-- [x] `MCPDirectToolCallTest` — tests tool dispatch via registry (no HTTP)
-- [x] `MCPServerToolCallTest` — tests full HTTP JSON-RPC flow
-- [x] Tests use real PostgreSQL database with test fixtures
-- [x] Tests integrate with Ollama LLM for tool-call loop validation
-- [x] `initialize` and `tools/list` verified over HTTP
-- [ ] No tests for WebSocket transport (`/mcp/ws`)
-- [ ] No tests for SSE transport (`/mcp/sse`)
-- [ ] No tests for error handling (invalid JSON, missing method, etc.)
-- [ ] No tests for tool call with invalid arguments
-- [ ] No tests for concurrent tool calls
-- [ ] No tests for tool registration/unregistration at runtime
-- [ ] Tests require Ollama running at `http://127.0.0.1:11434` with `gpt-oss:20b`
-
-### 11.7 Configuration and Integration
-
-- [x] MCP service started by `BootstrapInitializer` after REST and HTTP server
-- [x] MCP service stopped by `BootstrapInitializer.deinit()`
-- [x] Dagger DI wiring with `MCPModule`, `MCPToolModule`, `MCPTools` qualifier
-- [x] Separate `loom-service-mcp` Maven module with minimal dependencies
-- [x] `MCPService.getToolRegistry()` exposes registry for in-process callers
-- [x] `MCPService.getServer()` exposes HTTP server for test port discovery
-- [x] MCP port configurable via `LoomOptions` (`LOOM_SERVER_MCP_PORT`, default 4041)
-- [ ] No health check endpoint for MCP server
-- [ ] No metrics/observability for MCP server (tool call count, latency, etc.)
-- [ ] No graceful shutdown timeout (server.close() is immediate)
-- [ ] MCP server does not participate in Vert.x cluster (EventBus dispatch is local only)
-
-### 11.8 Documentation
-
-- [x] This document (MCP.md)
-- [x] Javadoc on all public classes and methods
-- [x] `MCPConstants` documents all method names and error codes
-- [ ] No OpenAPI/JSON schema for MCP endpoints (MCP uses JSON-RPC, not REST)
-- [ ] No client SDK for MCP (clients must use raw JSON-RPC)
-- [ ] No example client script or curl commands in documentation
-- [ ] No diagram of the tool dispatch flow in Javadoc
+- **`requiresIdentity` is the security boundary.** Registering an EventBus address
+  for such a tool would create an unauthenticated path to it. Never add one; never
+  implement the one-arg `execute` for them with real behaviour.
+- **Identity never comes from arguments.** `__loom` in the arguments is always a
+  forgery attempt: stripped and logged. Scope-ish arguments (`scope`, `ref`,
+  `collection`) may only filter what the context already resolves to.
+- **`requiresIdentity` must not appear on the wire.** `toJson()` omits it on
+  purpose — external MCP clients see a standard descriptor.
+- **Permission checks are user-conditional.** No `User` ⇒ no check. Disabled auth
+  therefore means full read access to every tool.
+- **`MCPModule.mcpRouter` is unused.** `MCPService.start()` creates its own
+  `Router`; the named bean is legacy wiring.
+- **`restPort == 0` is what puts MCP on port 0**, not `mcpPort: 0`.
+- **Body limit 1 MB, hardcoded** in `MCPService.start()`.
+- **No SSE heartbeat** — idle streams can be dropped by intermediaries.
+- **EventBus dispatch is node-local.** Despite the clustering rationale in the
+  Javadoc, tool calls do not cross cluster nodes today ([../CLUSTERING.md](../CLUSTERING.md)).
+- **Tool descriptions are prompts.** They are handed verbatim to the model; word
+  them as instructions to a model (`put_memory`'s "this is the ONLY way…" exists for
+  that reason), and keep destructive semantics explicit.
+- **Text must stand alone.** `references`/`visuals` are optional decorations; a
+  client that ignores them must still be able to answer from `content`.
+- **Feature-gated tools return `Set.of()`** rather than registering a disabled stub —
+  a disabled feature must not appear in `tools/list` at all.
 
 ---
 
-## 12. Connection Points to REST API
+## 11. Where do I find …?
 
-The MCP server and the REST API share the same underlying data layer (DAOs)
-but are otherwise independent services. Key connection points:
+| I need …                                    | Path |
+|---------------------------------------------|------|
+| HTTP server, SSE/WS routes, shutdown        | `loom/services/mcp/src/main/java/io/metaloom/loom/mcp/MCPService.java` |
+| JSON-RPC methods, initialize payload        | `…/mcp/handler/MCPJsonRpcHandler.java` |
+| Paths, method names, error codes            | `…/mcp/MCPConstants.java` |
+| Dispatch, permission check, `__loom` strip  | `…/mcp/tool/MCPToolRegistry.java` |
+| Descriptor / schema / `enum` params         | `…/mcp/model/MCPToolDescriptor.java` |
+| Caller identity record                      | `…/mcp/model/MCPCallerContext.java` |
+| Result envelopes (`references`, `visuals`)  | `…/mcp/tool/MCPToolResults.java` |
+| The 7 core tool implementations             | `loom/services/mcp/src/main/java/io/metaloom/loom/mcp/tool/impl/` |
+| The 4 memory tools                          | `loom/agent/memory/src/main/java/io/metaloom/loom/agent/memory/tool/` |
+| Tool set wiring                             | `…/mcp/dagger/MCPToolModule.java`, `…/agent/memory/dagger/MemoryToolModule.java`, `loom/core/…/dagger/LoomCoreComponent.java` |
+| Auth handler (JWT, API key, CORS)           | `loom/services/auth/auth-common/src/main/java/io/metaloom/loom/auth/MCPAuthenticationHandler.java` |
+| Port / auth options                         | `loom-shared/api/src/main/java/io/metaloom/loom/api/options/ServerOptions.java`, `AuthenticationOptions.java` |
+| Startup / shutdown order                    | `loom/core/src/main/java/io/metaloom/loom/core/boot/BootstrapInitializer.java` |
+| In-process consumer (chat)                  | `loom/agent/chat/src/main/java/io/metaloom/loom/agent/chat/loop/AgentLoop.java` |
+| Tests                                       | `loom/services/mcp/src/test/java/…`, `loom/core/src/test/java/io/metaloom/loom/core/mcp/` |
 
-| Concern             | REST API                          | MCP Server                          |
-|---------------------|-----------------------------------|-------------------------------------|
-| Port                | 6333 (configurable)               | 4041 (configurable via `LOOM_SERVER_MCP_PORT`) |
-| Authentication      | JWT cookie + OAuth2 + API tokens  | JWT (header/query), API key (header), strict/lenient mode |
-| Protocol            | HTTP REST                         | JSON-RPC 2.0                        |
-| Data access         | via `*EndpointService` -> DAO     | via `DaoCollection` -> DAO (direct) |
-| Path prefix         | `/api/v1`                         | `/mcp/sse`, `/mcp/message`, `/mcp/ws` |
-| Body limit          | Unlimited (`-1`)                  | 1 MB                                |
-| CORS                | All origins, all methods          | Configurable via `LOOM_MCP_AUTH_ALLOWED_ORIGINS` |
-| Tool operations     | Full CRUD on all resources        | Read-only (search, get, list, stats) with permission checks |
-| Pipeline operations | `POST /pipelines/:uuid/run`       | Read-only: `list_pipelines`, `get_pipeline` (no run/cancel) |
-| WebSocket           | Processor + pipeline events       | MCP JSON-RPC over WS                |
+---
 
-The MCP tools access DAOs directly but now go through permission checks in
-`MCPToolRegistry.dispatch()` before execution. Authentication infrastructure
-(`LoomAuthenticationHandler`, `WebSocketAuthenticator`, `LoomAuthorizationProvider`,
-`TokenDao`) is shared with the REST API.
+## 12. Test Setup
+
+Unit tests (module `loom-service-mcp`, no database):
+
+| Test | Covers |
+|------|--------|
+| `MCPToolIdentityTest` | Identity tools get no EventBus address; plain tools do; context reaches the tool; anonymous callers refused; `__loom` stripped on both paths; unknown tool fails |
+| `PipelineToolTest` | `get_pipeline` by uuid / name / partial name, graph + visual, unknown kind → `ANALYSIS`, truncation, descriptors, `list_pipelines` |
+
+Integration tests (module `loom/core`, real PostgreSQL from the pooled test DB —
+run `./setup-pool.sh` first):
+
+| Test | Covers |
+|------|--------|
+| `MCPAuthDisabledTest` | Unauthenticated tool call succeeds when auth is off |
+| `MCPAuthLenientTest` | Valid JWT, unprivileged JWT denied with structured error, missing credentials tolerated, API key path, `tools/list` exposes `requiredPermissions`, SSE `?token=`, CORS echo under wildcard |
+| `MCPAuthStrictTest` | Message/SSE rejection without credentials, invalid token rejected, WS 4401 vs. valid-token round trip, CORS allow/deny |
+| `MCPToolReferencesTest` | `references` on search/get asset, collections, pipelines; none for `asset_statistics`; `get_pipeline` visual present/absent |
+| `MCPDirectToolCallTest` | Registry dispatch without HTTP, driven by an LLM tool-call loop |
+| `MCPServerToolCallTest` | Full HTTP JSON-RPC flow: `initialize` + `tools/list` (no LLM needed), then a full LLM tool-call loop |
+
+`MCPTestClient` and `MCPAuthTestSupport` provide the HTTP/WS/SSE client helpers,
+JWT/API-key fixtures and canned JSON-RPC payloads.
+
+The two LLM-driven tests call `OllamaAvailability.assumeRunning()` and are skipped
+unless Ollama serves `gpt-oss:20b` at `http://127.0.0.1:11434`.
+
+---
+
+## 13. Progress Assessment
+
+### 13.1 Core protocol
+
+- [x] JSON-RPC 2.0 request/response + notification handling (202 / no WS frame)
+- [x] `initialize`, `notifications/initialized`, `ping`, `tools/list`, `tools/call`
+- [x] `resources/list` stub; `resources/read` returns method-not-found
+- [x] Full error-code set (-32700 … -32603)
+- [x] MCP content-format results
+- [ ] Structured tool errors (failures collapse into `-32603` + a message string)
+- [ ] Pagination metadata in tool results (total count / next cursor)
+
+### 13.2 Transports
+
+- [x] HTTP+SSE with session map, `endpoint` event and cleanup on close
+- [x] WebSocket transport with full-duplex JSON-RPC
+- [x] Auth on all three transports (JWT header/query, API key header, WS 4401)
+- [x] Configurable CORS origins incl. wildcard subdomains
+- [x] Port configurable (`LOOM_SERVER_MCP_PORT`), port-0 test mode
+- [ ] SSE heartbeat/keepalive
+- [ ] Configurable body limit (hardcoded 1 MB)
+- [ ] Graceful shutdown timeout
+
+### 13.3 Tool framework
+
+- [x] Dagger multibinding across several modules (`MCPToolModule`, `MemoryToolModule`)
+- [x] EventBus dispatch decoupled from transport
+- [x] Identity-scoped dispatch (`requiresIdentity` + `MCPCallerContext`, no EventBus address)
+- [x] `__loom` envelope stripping with injection warning
+- [x] Permission declaration + check, surfaced in `tools/list`
+- [x] `references` and `visuals` envelopes
+- [x] `enum`-constrained tool parameters
+- [ ] Permission check skipped when no `User` is present (auth disabled ⇒ no authorization)
+- [ ] Runtime (re)registration is possible but unused — no admin surface for it
+
+### 13.4 Tools
+
+- [x] `search_assets`, `get_asset`, `search_transcript` (stub), `list_collections`, `asset_statistics`
+- [x] `list_pipelines`, `get_pipeline` (+ `pipeline-graph` visual)
+- [x] `list_memory`, `get_memory`, `put_memory`, `delete_memory` (feature-gated)
+- [ ] `search_assets` ignores `query` and `mimeType`
+- [ ] `get_asset` returns none of the media/geo/component data its description promises
+- [ ] `search_transcript` is a stub — needs the search backend
+- [ ] `asset_statistics` ignores `collection` and aggregates 10 000 rows in memory
+- [ ] `list_pipelines` filters `query` in memory over the loaded page
+- [ ] No pipeline *operations* (run, cancel, status, events)
+- [ ] No write tools for assets, tags, tasks, comments or annotations
+- [ ] No tools for users/roles/groups, embeddings, GraphQL, processor status
+- [ ] No visual types beyond `pipeline-graph` (asset previews, run timelines, charts)
+
+### 13.5 Resources
+
+- [x] `resources/list` empty stub, `resources/read` error
+- [ ] No resource providers (assets/collections as MCP resources)
+- [ ] No `resources/subscribe` / `unsubscribe`
+
+### 13.6 Testing
+
+- [x] Identity/dispatch unit tests (`MCPToolIdentityTest`)
+- [x] Pipeline tool unit tests incl. truncation (`PipelineToolTest`)
+- [x] SSE, WebSocket and message-endpoint auth tests (disabled / lenient / strict)
+- [x] CORS allow + deny tests
+- [x] Reference/visual envelope tests against a real database
+- [x] HTTP `initialize` + `tools/list` without an LLM
+- [x] Optional LLM tool-call loops (registry-direct and over HTTP)
+- [ ] No tests for the memory tools at the MCP layer (covered only via `MemoryServiceTest` / `AgentLoopTest`)
+- [ ] No tests for malformed JSON / unknown method / invalid tool arguments over the wire
+- [ ] No concurrency or runtime register/unregister tests
+
+### 13.7 Operations
+
+- [x] Started/stopped by `BootstrapInitializer`; own port, own HTTP server
+- [x] `getToolRegistry()` / `getServer()` exposed for in-process callers and tests
+- [ ] No health endpoint for the MCP server
+- [ ] No metrics (call count, latency, error rate) — see [../features/ops/METRICS.md](../features/ops/METRICS.md)
+- [ ] No audit log of tool calls; no rate limiting
+- [ ] EventBus dispatch is node-local (no clustered tool execution)
+
+### 13.8 Documentation
+
+- [x] This file; Javadoc on the public MCP classes; `MCPConstants` documents methods/codes
+- [ ] No example curl/client script in the docs
+- [ ] No client SDK (raw JSON-RPC only)
+
+---
+
+## 14. Relation to the REST API
+
+Same DAOs, otherwise independent services — see [RESTAPI.md](RESTAPI.md).
+
+| Concern        | REST API                         | MCP server |
+|----------------|----------------------------------|------------|
+| Port           | 6333                             | 4041 (`LOOM_SERVER_MCP_PORT`) |
+| Protocol       | HTTP REST (`/api/v1`)            | JSON-RPC 2.0 (`/mcp/sse`, `/mcp/message`, `/mcp/ws`) |
+| Auth           | JWT cookie + OAuth2 + API tokens | JWT (header/query), API key (header), strict/lenient, off by default |
+| Authorization  | Endpoint permission checks       | `requiredPermissions` in `MCPToolRegistry.dispatch()` — only when a `User` exists |
+| Data access    | `*EndpointService` → DAO         | Tool → `DaoCollection` / `MemoryService` |
+| Body limit     | Unlimited (`-1`)                 | 1 MB |
+| CORS           | All origins, all methods         | `LOOM_MCP_AUTH_ALLOWED_ORIGINS` |
+| Write surface  | Full CRUD                        | Read-only, except the memory bank (`put_memory` / `delete_memory`) |
+| WebSocket      | Processor + pipeline events ([WEBSOCKET.md](WEBSOCKET.md)) | MCP JSON-RPC frames |
+
+Shared infrastructure: `LoomAuthenticationHandler`, `LoomAuthorizationProvider`,
+`WebSocketAuthenticator`, `TokenDao`.
+
+---
+
+_Git HEAD revision: `2e5981cb`_
+_Last updated: 2026-08-01 (Verified against `loom/services/mcp`: added the four memory tools, the identity-scoped dispatch model and corrected config keys, auth and test coverage.)_

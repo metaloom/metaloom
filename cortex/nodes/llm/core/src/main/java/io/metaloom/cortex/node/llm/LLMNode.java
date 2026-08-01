@@ -1,5 +1,8 @@
 package io.metaloom.cortex.node.llm;
 
+import static io.metaloom.cortex.api.node.ResultOrigin.COMPUTED;
+import static io.metaloom.cortex.api.node.ResultOrigin.LOCAL;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -102,7 +105,7 @@ public class LLMNode extends AbstractMediaNode<LLMNodeOptions> {
 		if (cached != null) {
 			metrics.recordAiCacheHit("ollama");
 			cached.forEach((promptId, answer) -> ctx.output(resultPort(promptId), answer));
-			return NodeResult.success(ctx.outputs());
+			return ctx.origin(LOCAL).next();
 		}
 		Map<String, String> answers = new HashMap<>();
 
@@ -132,7 +135,7 @@ public class LLMNode extends AbstractMediaNode<LLMNodeOptions> {
 		}
 
 		resultCache.put(path, answers);
-		return NodeResult.success(ctx.outputs());
+		return ctx.origin(COMPUTED).next();
 	}
 
 	/**

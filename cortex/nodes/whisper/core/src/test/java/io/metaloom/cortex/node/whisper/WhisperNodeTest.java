@@ -1,6 +1,7 @@
 package io.metaloom.cortex.node.whisper;
 
 import static io.metaloom.cortex.media.test.assertj.NodeAssertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import java.io.IOException;
@@ -9,6 +10,8 @@ import org.junit.jupiter.api.Test;
 
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.ResultOrigin;
+import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.media.test.AbstractBasicNodeTest;
 import io.metaloom.cortex.media.whisper.WhisperResult;
@@ -46,9 +49,15 @@ public class WhisperNodeTest extends AbstractBasicNodeTest<WhisperNode> {
 		assertThat(media).hasSHA512();
 		assertProcessed(jfk, media, result, nodeMock);
 
-		// Run the process again on the media to ensure that it will be skipped
-		NodeResult result2 = nodeMock.process(ctx(media));
-		assertThat(result2).isSkipped();
+		// Run again: the transcript is now in the node's local result cache, so it must be served
+		// rather than recomputed. That is asserted as SUCCESS-from-cache, not as SKIPPED — a cache
+		// hit still emits on the transcript port, and SKIPPED would claim it produced nothing.
+		NodeContext secondCtx = ctx(media);
+		NodeResult result2 = nodeMock.process(secondCtx);
+		assertThat(result2).isSuccess();
+		assertEquals(ResultOrigin.LOCAL, secondCtx.resultOrigin(),
+			"The second run must be served from the local result cache, not recomputed");
+		assertProcessed(jfk, media, result2, nodeMock);
 	}
 
 	@Test

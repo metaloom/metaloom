@@ -2,7 +2,6 @@ package io.metaloom.cortex.node.scene;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 
 import org.junit.jupiter.api.Test;
 
@@ -25,7 +24,6 @@ public class FeatureSceneDetectorTest {
 		SceneDetector dectector = new FeatureSceneDetector();
 		TestDataCollection data = TestEnvHelper.prepareTestdata("scene-detection-test");
 		Path videoPath = data.video2().path();
-		videoPath = Paths.get("/extra/vid/3.avi");
 		try (VideoFile video = Videos.open(videoPath)) {
 			dectector.detect(video);
 		}

@@ -167,27 +167,27 @@ class FingerprintNodePipelineTest extends AbstractNodeChainTest {
 	}
 
 	@Test
-	void testAlreadyProcessedSkipped() throws Exception {
+	void testAlreadyProcessedServedFromCache() throws Exception {
 		FingerprintNodeOptions options = mock(FingerprintNodeOptions.class);
 		when(options.isEnabled()).thenReturn(true);
 		when(options.isProcessIncomplete()).thenReturn(true);
 
-		FingerprintNode node = spy(new FingerprintNode(null, new CortexOptions(), options));
+		FingerprintNode node = new FingerprintNode(null, new CortexOptions(), options);
 
-		// Seed the in-memory skip cache so the node treats the media as already fingerprinted
+		// Seed the in-memory cache so the node treats the media as already fingerprinted
 		node.markFingerprinted(media, FAKE_FINGERPRINT);
 
-		doAnswer(invocation -> {
-			NodeContext<LoomMedia> ctx = invocation.getArgument(0);
-			ctx.output(FingerprintNode.OUT_FINGERPRINT, FAKE_FINGERPRINT);
-			return ctx.origin(ResultOrigin.COMPUTED).next();
-		}).when(node).compute(any(), any());
-
+		// compute() is deliberately left unstubbed here: the cache hit returns before any
+		// native Video4j call, and that early return is the path under test.
 		CortexNodeAdapter adapter = adapt(node);
 		PipelineResult result = execute(media, adapter);
 
-		// Node should skip because fingerprint was already computed
+		// A cache hit still yields the value. This used to assert SKIPPED, which is what the node
+		// did by bailing out in isProcessable() — and that emitted nothing on OUT_FINGERPRINT,
+		// starving anything bound to the port. Serving the cached value is a SUCCESS.
 		assertThat(result).isSuccess();
-		assertThat(result).node("fingerprint").isSkipped();
+		assertThat(result).node("fingerprint")
+			.isCompleted()
+			.hasOutput(FingerprintNode.OUT_FINGERPRINT, FAKE_FINGERPRINT);
 	}
 }

@@ -1,6 +1,7 @@
 package io.metaloom.cortex.node.fp;
 
 import static io.metaloom.cortex.api.node.ResultOrigin.COMPUTED;
+import static io.metaloom.cortex.api.node.ResultOrigin.LOCAL;
 import static io.metaloom.cortex.api.node.ResultOrigin.REMOTE;
 
 import java.util.Collections;
@@ -104,11 +105,6 @@ public class FingerprintNode extends AbstractMediaNode<FingerprintNodeOptions> {
 			return false;
 		}
 
-		// Skip if fingerprint was already computed during this worker's lifetime
-		if (fingerprintCache.containsKey(media.absolutePath())) {
-			return false;
-		}
-
 		// Check consistency from the declared input port
 		Boolean isComplete = ctx.input(IN_IS_COMPLETE);
 		if (isComplete != null && !isComplete && !options().isProcessIncomplete()) {
@@ -120,6 +116,17 @@ public class FingerprintNode extends AbstractMediaNode<FingerprintNodeOptions> {
 	@Override
 	protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) {
 		LoomMedia media = ctx.media();
+
+		// Re-emit a fingerprint this worker already computed instead of recomputing it. The check
+		// has to live here rather than in isProcessable(): skipping there reports SKIPPED and emits
+		// nothing on OUT_FINGERPRINT, which starves every node bound to that port. A cache hit is
+		// still a result, so it is reported as SUCCESS with a LOCAL origin.
+		String cached = fingerprintCache.get(media.absolutePath());
+		if (cached != null) {
+			ctx.output(OUT_FINGERPRINT, cached);
+			return ctx.origin(LOCAL).next();
+		}
+
 		if (asset != null && asset.getFingerprint() != null) {
 			String fp = asset.getFingerprint().getFingerprintV1();
 			ctx.output(OUT_FINGERPRINT, fp);

@@ -1,1493 +1,639 @@
 # MetaLoom // Loom UI Specification
 
-> This document is a living specification for the Loom UI (React + TypeScript + Vite). It is intended to be consumed by AI agents and developers who need to understand, extend, or integrate with the UI. The progress checklist at the end tracks areas that still need improvement.
+> Navigable reference for the Loom UI (`loom-ui/` — React + TypeScript + Vite). It describes the
+> **shell**: stack, layout, routing, providers, API client surface, cross-cutting components,
+> configuration and test setup. Per-screen behaviour and per-endpoint gap analysis live in the
+> sibling files listed in §1.2 — do not duplicate them here.
 
 ---
 
-## 1. General Principles
+## 1. Scope
 
-### 1.1 Technology Stack
+### 1.1 What this file covers
 
-| Layer | Technology | Version | Purpose |
-|-------|------------|---------|---------|
-| Framework | React | 18.3.1 | Component-based UI |
-| Language | TypeScript | 5.5.0 | Type-safe development |
-| Build Tool | Vite | 6.4.2 | Fast dev server & bundler |
-| UI Library | MUI (Material UI) | 5.16.0 | Component library & theming |
-| Routing | React Router | 6.26.0 | Client-side routing |
-| State | React Context + Hooks | — | Global state management |
-| Graph Visualization | React Flow | 11.11.0 | Pipeline editor canvas |
-| Internationalization | i18next + react-i18next | 26.0.4 / 17.0.2 | Multi-language support |
-| Testing | Playwright | 1.59.1 | E2E testing |
-| Charts | Recharts | 2.12.0 | Monitoring dashboards |
+| In scope | Out of scope (see §1.2) |
+|----------|-------------------------|
+| Stack, `src/` layout, build & env config | Pipeline editor internals |
+| Route table, provider tree, contexts | Chat / agent protocol, skills, memory |
+| `src/api/*` client inventory | Per-endpoint REST↔UI coverage gaps |
+| Shared components (`EmptyState`, `AssetThumbnail`, …) | Screen-by-screen feature prose |
+| `/ui/` base path, auth handling, test setup | Backend endpoint semantics |
 
-### 1.2 Project Structure
+### 1.2 Cross-references
+
+| Spec file | Coverage |
+|-----------|----------|
+| [PIPELINE_EDITOR.md](PIPELINE_EDITOR.md) | Pipeline editor: React Flow canvas, typed ports, node/edge rendering, validation, CRUD, versions, diff, run history, live events |
+| [CHAT.md](CHAT.md) | Chat / Loom Agent: server-side agentic loop, SSE streaming, references, skills, sessions |
+| [TASK_UI_AI_ML.md](TASK_UI_AI_ML.md) | Gap matrix — embeddings, clusters, detections, persons, chat |
+| [TASK_UI_ASSETS_MEDIA.md](TASK_UI_ASSETS_MEDIA.md) | Gap matrix — assets, locations, pools, components, attachments, annotations |
+| [TASK_UI_COLLABORATION.md](TASK_UI_COLLABORATION.md) | Gap matrix — tasks, comments, reactions |
+| [TASK_UI_IDENTITY_ACCESS.md](TASK_UI_IDENTITY_ACCESS.md) | Gap matrix — users, groups, roles, permissions, tokens |
+| [TASK_UI_ORGANIZATION.md](TASK_UI_ORGANIZATION.md) | Gap matrix — collections, libraries, spaces, tags |
+| [TASK_UI_PIPELINE.md](TASK_UI_PIPELINE.md) | Gap matrix — pipelines, versions, runs, run items, cortex instances |
+| [TASK_UI_SYSTEM.md](TASK_UI_SYSTEM.md) | Gap matrix — info, health, processors, node descriptors |
+| [TASK_UI_CHAT.md](TASK_UI_CHAT.md) | Gap matrix — chat/skills UI tasks (all shipped) |
+| [RESTAPI.md](../RESTAPI.md) | REST endpoints, auth, request/response models |
+| [WEBSOCKET.md](../WEBSOCKET.md) | `/pipelines/events/ws`, `/processors/ws` frame protocol |
+| [MCP.md](../MCP.md) | MCP server (separate port) |
+
+> **Rule:** when a UI feature is missing or partial, record it in the matching `TASK_UI_*.md`,
+> not in this file. §11 here only tracks *shell-level* progress.
+
+---
+
+## 2. Stack
+
+Versions are the `package.json` ranges (`^`), so patch/minor drift is expected.
+
+| Layer | Package | Version |
+|-------|---------|---------|
+| Framework | `react` / `react-dom` | ^18.3.1 |
+| Language | `typescript` | ^5.5.0 |
+| Build | `vite` + `@vitejs/plugin-react` + `vite-plugin-svgr` | ^6.4.2 |
+| UI | `@mui/material` / `@mui/system` / `@mui/icons-material` | ^5.16.0 |
+| UI (lab) | `@mui/lab` | ^5.0.0-alpha.170 |
+| Styling engine | `@emotion/react` / `@emotion/styled` | ^11.13.0 |
+| Routing | `react-router-dom` | ^6.26.0 |
+| Graph canvas | `reactflow` | ^11.11.0 |
+| Charts | `recharts` | ^2.12.0 |
+| Markdown (chat) | `react-markdown` + `remark-gfm` | ^10.1.0 / ^4.0.1 |
+| i18n | `i18next` + `react-i18next` | ^26.0.4 / ^17.0.2 |
+| Unit tests | `vitest` | ^3.2.7 |
+| E2E tests | `@playwright/test` | ^1.59.1 |
+
+State is **React Context + hooks only** — no Redux/Zustand/React Query. Server data is fetched
+with `fetch` in `useEffect` and held in feature-local `useState`.
+
+Scripts: `dev`, `build` (`tsc && vite build`), `preview`, `test` / `test:watch` (vitest),
+`test:e2e` / `test:e2e:ui` (Playwright).
+
+---
+
+## 3. Project structure
 
 ```
 loom-ui/
 ├── src/
-│   ├── api/                    # REST API client modules (one per endpoint)
-│   ├── components/             # Shared UI components (Title.tsx, EmptyState.tsx, MediaPlaceholder.tsx, AssetThumbnail.tsx)
-│   ├── context/                # React Context providers (Auth, Space, NodeRegistry, Theme, Toast, Layout)
-│   ├── features/               # Feature modules (one per major UI area)
-│   │   ├── admin/              # Admin panel (spaces, users, groups, roles, API keys, blacklist)
-│   │   ├── assetDetail/        # Asset detail view with media, timeline, annotations, comments, reactions, tasks, faces
-│   │   ├── assetPools/         # Asset pool management
-│   │   ├── assets/             # Asset browser (grid/list, filters, search)
-│   │   ├── auth/               # Login page
-│   │   ├── chat/               # Loom Agent chat interface
-│   │   ├── collections/        # Collection management
-│   │   ├── cortex/             # Cortex worker monitoring
-│   │   ├── detection/          # Detection management (faces, objects, LLM)
-│   │   ├── faceDetection/      # Face clusters & person database
-│   │   ├── library/            # Library views
-│   │   ├── maintenance/        # System health overview
-│   │   ├── monitoring/         # Metrics & statistics dashboard
-│   │   ├── pipeline/           # Pipeline editor (React Flow canvas, node palette, validation, run history)
-│   │   ├── profile/            # User profile settings
-│   │   ├── tags/               # Tag management
-│   │   ├── tasks/              # Task board
-│   │   └── workflow/           # Keyboard-driven bulk review workflows
-│   ├── i18n/                   # Internationalization (i18n.ts + locales/en.json, de.json)
-│   ├── layout/                 # App shell (AppShell.tsx, Sidebar.tsx)
-│   ├── mock/                   # Mock data & services for development
-│   ├── theme/                  # MUI theme configuration (tokens, buildTheme)
-│   ├── types/                  # Shared TypeScript types (domain + nodeDescriptors)
-│   ├── main.tsx                # App entry point
-│   └── react-app-env.d.ts      # Vite type declarations
-├── e2e/                        # Playwright E2E tests
-├── public/                     # Static assets
-├── index.html                  # HTML entry point
-├── package.json
-├── tsconfig.json
-├── vite.config.ts
-└── playwright.config.ts
+│   ├── api/          # 30 REST/WS client modules + 12 co-located *.test.ts (§5)
+│   ├── components/   # Shared: Title, EmptyState, MediaPlaceholder, AssetThumbnail
+│   ├── context/      # Auth, Space, NodeRegistry, Theme, Toast, Layout (§6)
+│   ├── features/     # One directory per UI area (§4.2)
+│   ├── i18n/         # i18n.ts + locales/{en,de}.json
+│   ├── layout/       # AppShell.tsx (routes + shell), Sidebar.tsx (nav)
+│   ├── mock/         # data.ts / services.ts — only two live consumers left (§7.5)
+│   ├── theme/        # index.ts — dark+light token sets, `tokens`, `buildTheme`
+│   ├── types/        # index.ts (domain), nodeDescriptors.ts (pipeline ports)
+│   ├── img/
+│   └── main.tsx      # Entry: provider tree + AuthGate
+├── e2e/              # 64 Playwright specs (§8.2)
+├── public/ · index.html
+├── vite.config.ts · vitest.config.ts · playwright.config.ts · tsconfig.json
+└── package.json
 ```
 
-### 1.3 Cross-References
+> **Dead code:** `src/Admin/`, `src/Asset/`, `src/Content/`, `src/Dashboard/`, `src/Login/`,
+> `src/Pipeline/`, `src/User/`, `src/Welcome/` are the pre-`features/` generation and are
+> **not reachable from `main.tsx`**. Nothing imports them. Do not extend them; when touching
+> a screen, work under `src/features/`.
 
-| Spec File | Coverage |
-|-----------|----------|
-| [RESTAPI.md](../RESTAPI.md) | REST API endpoints, authentication, data models |
-| [WEBSOCKET.md](../WEBSOCKET.md) | WebSocket protocols for pipeline events & processor communication |
-| [MCP.md](../MCP.md) | Model Context Protocol server (separate port 4041) |
-| [PIPELINE_EDITOR.md](PIPELINE_EDITOR.md) | Detailed pipeline visualization & editing (this file references it) |
+> **There is no `src/theme/tokens.ts`.** Both token sets and `buildTheme`/`setActiveTokens`
+> live in `src/theme/index.ts`; consumers do `import { tokens } from "../../theme"`.
 
 ---
 
-## 2. E2E Test Setup
+## 4. Shell, routing and navigation
 
-### 2.1 Playwright Configuration
+### 4.1 Provider tree and routing
 
-**File:** `playwright.config.ts`
-
-```typescript
-import { defineConfig } from "@playwright/test";
-
-const vitePort = Number(process.env.VITE_PORT ?? 3000);
-
-export default defineConfig({
-  testDir: "./e2e",
-  timeout: 30_000,
-  retries: 0,
-  use: {
-    baseURL: `http://localhost:${vitePort}`,
-    headless: true,
-  },
-  webServer: {
-    command: `npx vite --port ${vitePort}`,
-    url: `http://localhost:${vitePort}`,
-    reuseExistingServer: !process.env.CI,
-    timeout: 30_000,
-  },
-  projects: [
-    { name: "chromium", use: { browserName: "chromium" } },
-  ],
-});
+```mermaid
+graph TD
+    App --> ThemeModeProvider
+    ThemeModeProvider --> ThemedApp
+    ThemedApp --> MUIThemeProvider[MUI ThemeProvider + CssBaseline]
+    MUIThemeProvider --> BrowserRouter["BrowserRouter basename=BASE_URL"]
+    BrowserRouter --> AuthProvider
+    AuthProvider --> ToastProvider
+    ToastProvider --> AuthGate
+    AuthGate -->|not authenticated| LoginPage
+    AuthGate -->|authenticated| NodeRegistryProvider
+    NodeRegistryProvider --> SpaceProvider
+    SpaceProvider --> AppShell
+    AppShell --> LayoutContext[LayoutContext.Provider]
+    LayoutContext --> Sidebar
+    LayoutContext --> RouteTable["&lt;Routes&gt; — see §4.2"]
 ```
 
-### 2.2 Required Environment Variables
+`main.tsx` holds the provider tree and `AuthGate`; **all `<Route>` declarations live in
+`src/layout/AppShell.tsx`** (admin sub-routes in `src/features/admin/AdminArea.tsx`).
 
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `VITE_API_BASE_URL` | Base path for REST API | `/api/v1` | Yes (for backend tests) |
-| `VITE_PROXY_TARGET` | Backend server URL for Vite proxy | `http://localhost:8092` | Yes (for backend tests) |
-| `VITE_PORT` | Vite dev server port | `3000` | No |
+### 4.2 Registered routes
 
-### 2.3 Test Categories
+| Route | Element | File |
+|-------|---------|------|
+| `/` | `ChatWorkspace` | `features/chat/ChatWorkspace.tsx` |
+| `/chat/sessions` | `ChatSessionsView` | `features/chatSessions/ChatSessionsView.tsx` |
+| `/chat/sessions/:id` | `ChatSessionDetail` | `features/chatSessions/ChatSessionDetail.tsx` |
+| `/skills` | `SkillManagementView` | `features/skills/SkillManagementView.tsx` |
+| `/memory` | `MemoryView` | `features/memory/MemoryView.tsx` |
+| `/library` | `LibraryView` | `features/library/LibraryView.tsx` |
+| `/assets` | `AssetBrowser` | `features/assets/AssetBrowser.tsx` |
+| `/assets/:id` | `AssetDetail` | `features/assetDetail/AssetDetail.tsx` |
+| `/collections` | `CollectionsView` | `features/collections/CollectionsView.tsx` |
+| `/tasks` | `TasksView` | `features/tasks/TasksView.tsx` |
+| `/detection` | `DetectionManagement` | `features/detection/DetectionManagement.tsx` |
+| `/faces` | `<Navigate to="/detection" replace />` | `layout/AppShell.tsx` |
+| `/tags` | `TagsView` | `features/tags/TagsView.tsx` |
+| `/workflow` | `WorkflowView` | `features/workflow/WorkflowView.tsx` |
+| `/asset-pools` | `AssetPoolsView` | `features/assetPools/AssetPoolsView.tsx` |
+| `/pipelines` | `PipelineEditor` | `features/pipeline/PipelineEditor.tsx` |
+| `/cortex` | `CortexView` | `features/cortex/CortexView.tsx` |
+| `/monitoring` | `MonitoringArea` | `features/monitoring/MonitoringArea.tsx` |
+| `/admin/*` | `AdminArea` | `features/admin/AdminArea.tsx` |
+| `/profile` | `ProfileView` | `features/profile/ProfileView.tsx` |
+| `/maintenance` | `MaintenanceView` | `features/maintenance/MaintenanceView.tsx` |
+| `*` | `<Navigate to="/" replace />` | `layout/AppShell.tsx` |
 
-| Test File | Type | Backend Required | Description |
-|-----------|------|------------------|-------------|
-| `login.spec.ts` | UI Smoke | No (mocked) | Login form rendering, error handling, navigation |
-| `login-backend.spec.ts` | Integration | Yes | Real login against backend |
-| `pipeline-backend.spec.ts` | Integration | Yes | Pipeline editor with real node descriptors |
-| `pipeline-loading.spec.ts` | Integration | Yes | Pipeline loading & canvas rendering |
-| `pipeline-versions.spec.ts` | Integration | Yes | Version badge, history dropdown, restore round-trip |
-| `pipeline-versions-mocked.spec.ts` | UI Smoke | No (mocked) | Version badge/history/restore mechanics in isolation |
-| `empty-states-mocked.spec.ts` | UI Smoke | No (mocked) | New-chat greeting + feature-page empty states and their CTAs (§3.3) |
-| `routing-mocked.spec.ts` | UI Smoke | No (mocked) | `/ui` base path: bare `/` redirect, login staying put, reload/deep-link survival (§3.6) |
-| `chat-split-mocked.spec.ts` | UI Smoke | No (mocked) | Chat/workspace split: 80/20 default, divider range, reset, collapse persistence (§3.7) |
-| `assets-backend.spec.ts` | Integration | Yes | Asset browser with real data |
-| `collections-backend.spec.ts` | Integration | Yes | Collection CRUD |
-| `detections-backend.spec.ts` | Integration | Yes | Face/object detection views |
-| `groups-backend.spec.ts` | Integration | Yes | Group management (via the ACL sub-group) |
-| `library-backend.spec.ts` | Integration | Yes | Library views |
-| `persons-backend.spec.ts` | Integration | Yes | Person database |
-| `pools-backend.spec.ts` | Integration | Yes | Asset pool management |
-| `roles-backend.spec.ts` | Integration | Yes | Role/permission management (via the ACL sub-group) |
-| `spaces-backend.spec.ts` | Integration | Yes | Space management |
-| `tags-backend.spec.ts` | Integration | Yes | Tag management |
-| `tasks-backend.spec.ts` | Integration | Yes | Task board |
-| `users-backend.spec.ts` | Integration | Yes | User management (opens the `sidebar-group-acl` sub-group first — §3.2) |
+`AdminArea` nests: `spaces`, `users`, `groups`, `permissions`, `api-keys`, `blacklist`,
+`memory-denylist` — all seven screens are defined **inside the single
+`AdminArea.tsx` file** (~1.5k lines), not as separate modules.
 
-### 2.4 Running Tests
+`FaceDetectionManagement`, `ClustersPanel`, `PersonsPanel` and `ReactionsPanel` have **no
+route of their own** — they are mounted as panels from `DetectionManagement` / asset detail.
 
-```bash
-# Start backend (required for backend tests)
-# Ensure Loom server is running on VITE_PROXY_TARGET with demo data
+### 4.3 Sidebar
 
-# Run all E2E tests
-npm run test:e2e
-
-# Run with UI mode
-npm run test:e2e:ui
-
-# Run specific test file
-npx playwright test e2e/pipeline-backend.spec.ts
-
-# Run with custom API base URL
-VITE_API_BASE_URL=/api/v1 VITE_PROXY_TARGET=http://localhost:8092 npm run test:e2e
-```
-
-### 2.5 Test Prerequisites
-
-1. **Loom Server Running** — With `DemoDatabaseInitializer` populated
-2. **Default Credentials** — `admin` / `finger`
-3. **Node Descriptors Registered** — `NodeDescriptorEndpoint` must be active
-4. **Vite Dev Server** — Started by Playwright webServer config (or manually)
-
----
-
-## 3. Features Covered by the UI
-
-### 3.1 Feature Inventory
-
-| Feature Area | Route | Component | Description | Backend Endpoints |
-|--------------|-------|-----------|-------------|-------------------|
-| **Authentication** | `/` | `LoginPage` | JWT login form, error handling | `POST /api/v1/login` |
-| **Asset Browser** | `/assets` | `AssetBrowser` | Grid/list view, search, filters (status, type, library), card size toggle | `GET /api/v1/assets` |
-| **Asset Detail** | `/assets/:id` | `AssetDetail` | Media player (video/image), timeline with markers, annotations, comments, reactions, tasks, transcripts, face detection, tags, metadata | `GET /api/v1/assets/:uuid`, `GET /api/v1/assets/:uuid/annotations`, `GET /api/v1/assets/:uuid/reactions`, `GET /api/v1/assets/:uuid/comments`, `GET /api/v1/assets/:uuid/transcripts`, `GET /api/v1/assets/:uuid/detections` |
-| **Library** | `/library` | `LibraryView` | Library selector, asset grid per library | `GET /api/v1/libraries`, `GET /api/v1/libraries/:uuid/assets` |
-| **Collections** | `/collections` | `CollectionsView` | CRUD collections, asset assignment, color coding | `GET/POST/DELETE /api/v1/collections` |
-| **Tasks** | `/tasks` | `TasksView` | Kanban-style board, priority/status, assignee, due dates, drawer detail | `GET/POST/DELETE /api/v1/tasks` |
-| **Tags** | `/tags` | `TagsView` | Tag management grouped by collection, drag-to-move | `GET/POST/DELETE /api/v1/tags` |
-| **Detection** | `/detection` | `DetectionView` | Tabs: Faces, Objects, LLM prompts | `GET /api/v1/detections` |
-| **Face Detection** | `/detection/faces` | `FaceDetectionView` | Cluster management, person assignment, face gallery | `GET /api/v1/clusters`, `GET /api/v1/persons` |
-| **Chat (Loom Agent)** | `/` | `ChatView` | Conversational AI assistant with asset/task/pipeline references | `POST /api/v1/graphql` (not yet registered) |
-| **Pipeline Editor** | `/pipelines` | `PipelineEditor` | React Flow canvas, node palette, validation, run history, JSON view | `GET/POST /api/v1/pipelines`, `POST /api/v1/pipelines/:uuid/run`, `GET /api/v1/pipeline/node-descriptors` |
-| **Cortex Workers** | `/cortex` | `CortexView` | Worker status, CPU/GPU/IO metrics, pause/resume/terminate, node-restriction (whitelist/blacklist) editing, forget offline worker | `GET /api/v1/processors` (live + persisted-offline merged), `GET/PUT /api/v1/processors/:nodeId/restrictions`, `DELETE /api/v1/processors/:nodeId`, `WS /api/v1/processors/ws` |
-| **Monitoring** | `/monitoring` | `MonitoringView` | 14-day rolling metrics: ingestion, pipeline runs, latency, storage, tasks, agent usage | `GET /api/v1/metrics` (not implemented) |
-| **Asset Pools** | `/asset-pools` | `AssetPoolsView` | Pool CRUD, asset assignment, replication | `GET/POST/DELETE /api/v1/pools` |
-| **Admin: Spaces** | `/admin/spaces` | `SpacesView` | Space CRUD | `GET/POST/DELETE /api/v1/spaces` |
-| **Admin: Users** | `/admin/users` | `UsersView` | User CRUD, roles, status | `GET/POST/DELETE /api/v1/users` |
-| **Admin: Groups** | `/admin/groups` | `GroupsView` | Group CRUD, member management | `GET/POST/DELETE /api/v1/groups` |
-| **Admin: Roles** | `/admin/permissions` | `RolesView` | Role CRUD, permission matrix | `GET/POST/DELETE /api/v1/roles` |
-| **Admin: API Keys** | `/admin/api-keys` | `ApiKeysView` | Token generation, listing, deletion | `GET/POST/DELETE /api/v1/tokens` |
-| **Admin: Blacklist** | `/admin/blacklist` | `BlacklistView` | IP/domain/fingerprint/user blacklist entries | `GET/POST/DELETE /api/v1/blacklists` |
-| **Admin: Memory Denylist** | `/admin/memory-denylist` | `MemoryDenylistAdmin` | Regex rules the agent may never store in memory, with the rejection message shown to the agent | `GET/POST/DELETE /api/v1/memory-deny-rules` |
-| **Agent Memory** | `/memory` | `MemoryView` | Browse and edit the agent's scoped markdown notes | `GET/POST/PUT/DELETE /api/v1/memory*` |
-| **Profile** | `/profile` | `ProfileView` | Name, email, username, role, language, theme | `GET/PUT /api/v1/users/:uuid` |
-| **Maintenance** | `/maintenance` | `MaintenanceView` | System health: DB, S3, memory, workers | `GET /api/v1/health` (not implemented) |
-| **Workflow** | `/workflow` | `WorkflowView` | Fullscreen keyboard-driven review modes | — |
-
-### 3.2 Navigation Structure
-
-**File:** `src/layout/Sidebar.tsx`
-
-The sidebar has three labelled sections, and one of them (Management) carries a nested,
-collapsible sub-group. Grouping is by *what you are steering* — the agent, the media, or the
-installation — not by permission level: the old flat "user vs admin" split put Skills and
-Memory (agent configuration) next to Tags, and buried the five access-control screens in a
-list of eleven.
+`src/layout/Sidebar.tsx` — three labelled sections grouped by *what you steer* (the agent,
+the media, the installation), with one nested collapsible sub-group:
 
 ```
-Sidebar (collapsible)
-├── AI
-│   ├── Chat (/)                          → ChatWorkspace
-│   ├── Chat Sessions (/chat/sessions)    → ChatSessionsView
-│   ├── Skills (/skills)                  → SkillManagementView
-│   └── Memory (/memory)                  → MemoryView
-├── CONTENT
-│   ├── Library (/library)                → LibraryView
-│   ├── Assets (/assets)                  → AssetBrowser
-│   ├── Collections (/collections)        → CollectionsView
-│   ├── Tasks (/tasks)                    → TasksView
-│   ├── Detection (/detection)            → DetectionManagement
-│   ├── Tags (/tags)                      → TagsView
-│   └── Workflow (/workflow)              → WorkflowView
-└── MANAGEMENT
-    ├── Asset Pools (/asset-pools)        → AssetPoolsView
-    ├── Pipelines (/pipelines)            → PipelineEditor
-    ├── Cortex (/cortex)                  → CortexView
-    ├── Monitoring (/monitoring)          → MonitoringArea
-    ├── Spaces (/admin/spaces)            → SpacesView
-    ├── Memory Denylist (/admin/memory-denylist) → MemoryDenylistAdmin
-    └── ACL ▾  (collapsible sub-group)
-        ├── Users (/admin/users)          → UsersView
-        ├── Groups (/admin/groups)        → GroupsView
-        ├── Permissions (/admin/permissions) → RolesView
-        ├── API Keys (/admin/api-keys)    → ApiKeysView
-        └── Blacklist (/admin/blacklist)  → BlacklistView
+AI          Chat (/) · Chat Sessions (/chat/sessions) · Skills (/skills) · Memory (/memory)
+CONTENT     Library · Assets · Collections · Tasks · Detection · Tags · Workflow
+MANAGEMENT  Asset Pools · Pipelines · Cortex · Monitoring · Spaces (/admin/spaces) ·
+            Memory Denylist (/admin/memory-denylist)
+            └── ACL ▾   Users · Groups · Permissions · API Keys · Blacklist
 ```
 
-Sub-group behaviour:
+`/profile` is reached from the avatar menu in the sidebar header (which also holds Logout);
+`/maintenance` has **no nav entry at all** and is URL-only.
 
 | Aspect | Rule |
 |--------|------|
-| Initial state | Closed, **unless** one of its routes is the active route — a deep link never lands on a page whose nav entry is hidden |
-| Toggling | Local `openGroups` state keyed by group id; once toggled, the user's choice wins over the auto-open |
-| Collapsed sidebar | The sub-group header is dropped and its items render flat, because an icon-only rail has no room for a second level |
-| Test ids | `sidebar-group-<key>` on the header (e.g. `sidebar-group-acl`), `sidebar-item-<path>` on every entry |
+| Sub-group initial state | Closed, unless one of its routes is active — a deep link never lands on a page whose entry is hidden |
+| Toggling | Local `openGroups` record keyed by group id; an explicit toggle wins over the auto-open |
+| Collapsed rail (56px) | Sub-group header is dropped; its items render flat — an icon rail has no second level |
+| Test ids | `sidebar-group-<key>` (e.g. `sidebar-group-acl`), `sidebar-item-<path>` |
+| i18n | `sidebar.divider.{ai,content,management}`, `sidebar.group.acl`, `sidebar.nav.*`, `sidebar.admin.*` |
 
-> **Gotcha:** E2E tests that navigate to an ACL screen must click
-> `getByTestId("sidebar-group-acl")` first — `getByRole("button", { name: "Users" })` alone no
-> longer resolves. `users-backend`, `groups-backend`, `roles-backend` and `tokens-backend` do
-> this; so does `scripts/capture-ui-screenshots.mjs` (`openAclGroup()`).
->
-> i18n keys: `sidebar.divider.{ai,content,management}` for the section labels and
-> `sidebar.group.acl` for the sub-group.
+> **Gotcha:** E2E specs targeting an ACL screen must click `getByTestId("sidebar-group-acl")`
+> first — `getByRole("button", { name: "Users" })` alone does not resolve. `users-backend`,
+> `groups-backend`, `roles-backend`, `tokens-backend` and `scripts/capture-ui-screenshots.mjs`
+> all do this.
 
-### 3.3 First-Run Experience (greeting & empty states)
+---
 
-Two surfaces cover the "nothing here yet" moment: a personal greeting in a fresh
-chat session, and a shared empty-state component on every feature page.
+## 5. API client layer (`src/api/`)
 
-#### Chat greeting
+Every module is plain `fetch` + `authHeaders(token)`, exporting typed functions and the
+response interfaces. `API_BASE_URL` comes from `src/api/config.ts`:
 
-`ChatGreeting` (`src/features/chat/ChatGreeting.tsx`) replaces the blank transcript
-area whenever `messages.length === 0 && !streaming && !sending` in `ChatWorkspace`.
-It renders the gradient agent avatar, a large gradient-text **"Hello \<username\>"**
-(`chat.greeting.hello`, `{{name}}` from `AuthContext.username`) and a one-line hint
-(`chat.greeting.subtitle`). Without a username it falls back to
-`chat.greeting.helloAnonymous`. Testids: `chat-greeting`, `chat-greeting-title`.
-
-Because `newChat()` clears `messages`, the greeting reappears every time the user
-starts a new conversation — it is not tied to session creation on the server (the
-backend session is still created lazily on the first `sendMessage`).
-
-#### Shared `EmptyState` component
-
-**File:** `src/components/EmptyState.tsx`
-
-```tsx
-<EmptyState
-  icon={PermMediaOutlined}          // large haloed icon (54px in a 112px tinted circle)
-  title={t("assets.empty.title")}   // headline, usually a question
-  description={t("assets.empty.description")}
-  actionLabel={t("assets.empty.action")}
-  actionIcon={<CloudUploadOutlined sx={{ fontSize: 18 }} />}
-  onAction={openUploadDialog}       // creates the *first* element
-  testId="assets-empty-state"       // button gets `${testId}-action`
-  compact={embedded}                // smaller variant for panels (e.g. chat-embedded browser)
-/>
+```ts
+export const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "") ?? "http://localhost:8092/api/v1";
 ```
 
-| Prop | Meaning |
-|------|---------|
-| `icon` | Icon component; rendered at 54px (34px compact) inside a `tokens.primary.subtle` circle |
-| `title` / `description` | Headline + explanatory sentence (max width 440px, centered) |
-| `actionLabel` / `actionIcon` / `onAction` | Primary CTA; omit to render a text-only state |
-| `testId` | Applied to the wrapper; the CTA gets `<testId>-action` |
-| `compact` | Panel variant — smaller icon, no vertical centering/min-height |
+> **Gotcha:** the fallback is an **absolute** `http://localhost:8092/api/v1`, *not* `/api/v1`.
+> Same-origin behaviour (which cookie-authenticated `<img src>` previews depend on — §7.2)
+> only happens when `VITE_API_BASE_URL=/api/v1` is set at build time. The container build
+> sets it; a bare `npm run build` does not.
 
-#### Where it is used
+| Module | Base paths |
+|--------|-----------|
+| `auth.ts` | `/login`, `/me` (+ `decodeJwt`) |
+| `info.ts` · `health.ts` | `/` (version, dbRevision) · `/health` |
+| `assets.ts` | `/assets`, `/assets/:uuid`, `/assets/upload`, `/assets/bulk/{create,update}`, `/assets/:uuid/binary/data` (`assetBinaryUrl`) |
+| `binaries.ts` | `/assets/:uuid/binary`, `/assets/:uuid/binary/data` |
+| `libraries.ts` · `collections.ts` · `spaces.ts` | `/libraries` · `/collections` · `/spaces` |
+| `tags.ts` | `/tags`, `/tags/:uuid/rating`, `/assets/:uuid/tags[/:tagUuid]` |
+| `tasks.ts` | `/tasks`, `/assets/:uuid/tasks[/:taskUuid]` |
+| `comments.ts` | `/comments`, `/assets/:uuid/comments`, `/tasks/:uuid/comments` |
+| `reactions.ts` | `/{assets,comments,annotations,tasks}/:uuid/reactions[/:reactionUuid]` |
+| `annotations.ts` | `/annotations[/:uuid]` |
+| `transcripts.ts` | `/assets/:uuid/transcripts[/:transcriptUuid]` |
+| `detections.ts` | `/assets/:uuid/detections[/:uuid|/bulk]` |
+| `clusters.ts` · `persons.ts` | `/clusters` · `/persons` |
+| `pools.ts` | `/pools` |
+| `pipelines.ts` | `/pipelines`, `/:uuid/run`, `/:uuid/runs[/:runUuid[/items|/cancel]]`, `/:uuid/versions[/:n[/restore]]`, `/pipelines/runs/stats` |
+| `nodeDescriptors.ts` | `/pipeline/node-descriptors[/:kind]`, `/pipeline/content-types` |
+| `pipelineEvents.ts` | **WebSocket** `…/pipelines/events/ws?token=` (§7.4) |
+| `processors.ts` | `/processors[/:nodeId[/restrictions]]` |
+| `chat.ts` · `agent.ts` | `/chats[/:uuid]` · `/chats/:uuid/stream` (SSE) |
+| `chatSessions.ts` | `/chat-sessions[/:uuid[/context|/<action>]]`, `/sessions/:uuid/{files,download}` |
+| `skills.ts` | `/skills`, `/skills/library`, `/:uuid/{install,versions[/:n[/restore]]}` |
+| `memory.ts` · `memoryDenylist.ts` | `/memory`, `/memory/entry`, `/memory/scopes` · `/memory-deny-rules` |
+| `users.ts` · `groups.ts` · `roles.ts` · `tokens.ts` · `blacklist.ts` | `/users` · `/groups` · `/roles` · `/tokens` · `/blacklists` |
 
-| View | Condition | CTA |
-|------|-----------|-----|
-| `AssetBrowser` | `assets.length === 0` | Opens the upload dialog (`assets-empty-state`) |
-| `LibraryView` | `libraries.length === 0` | Opens the create-library dialog (`library-empty-state`) |
-| `LibraryView` | library selected, `libraryAssets.length === 0` | Navigates to `/assets` (`library-assets-empty-state`) |
-| `CollectionsView` | `collections.length === 0` | Opens the create dialog (`collections-empty-state`) |
-| `TagsView` | `tree.length === 0` | Focuses the inline "new tag" field (`tags-empty-state`) |
-| `TasksView` | `tasks.length === 0` | Opens the create dialog (`tasks-empty-state`); the table is not rendered at all |
-| `SkillManagementView` | `skills.length === 0` (My skills) | Opens the skill editor (`skills-empty-state`) |
-| `SkillManagementView` | `library.length === 0` (Library tab) | No CTA (`skills-library-empty-state`) |
-| `AssetPoolsView` | `pools.length === 0` | Opens the create dialog (`asset-pools-empty-state`) |
+---
 
-**Rule:** the empty state is bound to *the collection being empty*, never to a
-filtered/searched result. When the feature has content but a query matches nothing,
-the pre-existing small "no matches" hint is kept (`assets.empty.noMatch`,
-`collections.empty.noSearch`, `library.empty.noSearch`, `tags.empty`, …). Conflating
-the two would offer a "create the first X" button on a page that already has data.
+## 6. State and contexts
 
-> **Gotcha:** `SkillManagementView` and `TasksView` no longer render their `<Table>`
-> when the collection is empty. E2E tests must wait on `skills-view` (view root) or
-> `tasks-empty-state` rather than on the table/column headers.
+| Context | File | Value | Persisted |
+|---------|------|-------|-----------|
+| `AuthContext` | `context/AuthContext.tsx` | `isAuthenticated`, `username`, `userUuid`, `token`, `login`, `logout` | **No** — in-memory only |
+| `SpaceContext` | `context/SpaceContext.tsx` | `spaces[]`, `activeSpace`, `setActiveSpace` | No |
+| `NodeRegistryContext` | `context/NodeRegistryContext.tsx` | `descriptors[]`, `contentTypes[]`, `loading`, `error`, lookup helpers | No |
+| `ThemeContext` | `context/ThemeContext.tsx` | `mode` (`dark`\|`light`), `toggleMode`, `setMode` | `localStorage` key `loom-ui-theme` |
+| `ToastContext` | `context/ToastContext.tsx` | global notifications | No |
+| `LayoutContext` | `context/LayoutContext.tsx` | `sidebarCollapsed`, `setSidebarCollapsed` | **No** — plain `useState` in `AppShell` |
 
-i18n keys live under `<feature>.empty.*` (assets, collections) or
-`<feature>.emptyState.*` (library, tags, tasks, skills, assetPools) — the second form
-is used where an `empty` key already existed with a different meaning.
+Other persisted state: `loom-ui-language` (`i18n/i18n.ts`), `loom.chat.splitPct` /
+`loom.chat.panelOpen` (§7.3), workflow ratings (`features/workflow/ratingPersistence.ts`).
 
-### 3.4 Asset previews (thumbnails)
+Everything else is feature-local `useState`, loaded by `useEffect([token, …]) → fetch → setState`.
 
-**Files:** `src/components/AssetThumbnail.tsx`, `src/components/MediaPlaceholder.tsx`,
-`src/api/assets.ts` → `assetBinaryUrl`
+---
 
-There is no thumbnail service and no derived-image endpoint. A preview is simply the asset's
-**stored binary**, served by `GET /api/v1/assets/:uuid/binary/data`, which resolves only for
-assets that actually have an `asset_location` row pointing at bytes on disk.
+## 7. Cross-cutting behaviour
+
+### 7.1 Authentication
 
 ```
-AssetResponse ──toAsset/apiToAsset──▶ thumbnailUrl = type === "image"
-                                        ? assetBinaryUrl(uuid)
-                                        : ""                       // no <img>-decodable preview
-                                      url          = same (feeds ZoomableImage in AssetDetail)
+LoginPage → AuthProvider.login() → POST /login
+  → setToken(jwt); setUserUuid(decodeJwt(jwt).uuid)   ← immediate, no round-trip
+  → GET /me → setUserUuid(me.uuid)                    ← authoritative; failure is non-fatal
+  → AuthGate swaps LoginPage for the provider stack + AppShell
 ```
+
+| Aspect | Implementation |
+|--------|----------------|
+| Storage | In-memory React state — a reload always returns to the login form |
+| Header | `Authorization: Bearer <token>` on every REST call |
+| Cookie | The backend *also* sets an HttpOnly `__Host-loom_token` cookie; this is what authenticates `<img src>` binary requests (§7.2) |
+| `userUuid` | Used to gate authored-content actions (edit/delete own comment, reaction) |
+| WebSocket | `?token=` query parameter (headers are not settable on `WebSocket`) |
+| 401 handling | Per-call only; there is no global interceptor |
+| Refresh | Not implemented |
+| OAuth2 / SSO | Backend has a BFF flow ([RESTAPI.md](../RESTAPI.md)); **UI has none** |
+
+### 7.2 Asset previews
+
+`components/AssetThumbnail.tsx` + `components/MediaPlaceholder.tsx`, URL from
+`api/assets.ts → assetBinaryUrl(uuid)`.
+
+There is no thumbnail service and no derived-image endpoint. A preview *is* the stored binary
+(`GET /assets/:uuid/binary/data`), which only resolves for assets with an `asset_location` row.
 
 | Concern | Rule |
 |---------|------|
-| Which assets | **Images only.** A browser cannot decode `video/*`, `audio/*` or `application/pdf` in an `<img>`, so those keep the type placeholder. Nothing renders a poster frame yet. |
-| Auth | An `<img src>` cannot carry `Authorization`, so the request authenticates with the **HttpOnly `__Host-loom_token` cookie** the login endpoint sets. This works because the UI is served from the same origin as the API; a cross-origin `VITE_API_BASE_URL` would silently produce 401s and fall back to placeholders. |
-| Failure | `AssetThumbnail` swaps in `MediaPlaceholder` on `onError`. A missing preview is the normal case, not an error worth surfacing. |
-| `Content-Disposition` | The download route sends `attachment`; browsers ignore that for `<img>`, so no special handling is needed. |
+| Which assets | **Images only** — a browser cannot decode `video/*`, `audio/*` or PDF in an `<img>`. No poster frames are generated. |
+| Auth | `<img>` cannot carry `Authorization`, so it relies on the HttpOnly cookie. This requires same-origin — a cross-origin `VITE_API_BASE_URL` silently yields 401s and placeholder icons everywhere. |
+| Failure | `onError` swaps in `MediaPlaceholder`. A missing preview is the normal case, not an error to surface. |
 
-The demo seeds real image bytes for its image assets (see §3.5), which is what makes the asset
-browser, the asset detail view and the region/detection overlays show actual pictures rather
-than icons.
+### 7.3 Serving under `/ui/` (base path)
 
-### 3.5 What the demo data has to cover
-
-`DemoDatabaseInitializer` (`loom/core/.../boot/`) is the only reason a fresh demo container has
-anything to show, so every UI area the screenshots document needs seed data. Beyond the
-long-standing assets/tags/collections/pipelines/users it now seeds:
-
-| Data | Why the UI needs it |
-|------|---------------------|
-| **Image binaries** — synthesised JPEG/PNG bytes written into the storage directory with a matching `asset_location` row, and the asset's real sha512/size | Without stored bytes every card is a placeholder icon (§3.4). Painted at runtime (`java.awt`, no text — the Alpine JRE has no fontconfig) so no blobs live in the repo |
-| **Skills with two versions each** | One version hides the whole version UI: the version chip, the history list and the revert action have nothing to point at |
-| **Chat sessions with context** — three sessions, two published, plus `chat_session_context_ref` rows and `chat_session_skill` pins | The session detail view is *about* context; unpublished sessions cannot be referenced at all |
-| **Agent memory entries** (USER scope) | The Memory screen is otherwise empty. The demo image also sets `LOOM_AGENT_MEMORY_ENABLED=true`, since the memory endpoints are not even registered when the feature is off |
-| **Tasks attached to assets**, with priority, status and due dates | Fills both the task board (colour-coded priority) and the Tasks tab of the asset detail view |
-
-> **Gotcha:** `detection` is unique on `(asset_uuid, node_kind, frame_number, detection_index)`.
-> Two detections in one frame must be numbered, or the insert aborts the whole seeding run —
-> and because `BootstrapInitializer` swallows the failure, everything *after* the detections
-> (transcripts, the VLM component) is then silently missing from the demo.
-
-### 3.6 Serving the SPA under `/ui/` (base path & routing)
-
-The UI is not served from the origin root — the Vert.x `UIService` mounts it at `/ui/`, next
-to `/api/v1` and `/graphiql`. Three pieces have to agree on that prefix, and when they did
-not, deep links and reloads broke in ways that looked like unrelated bugs.
+Three pieces must agree on the prefix; when they drift, deep links and reloads break in ways
+that look like unrelated bugs.
 
 | Piece | File | Setting |
 |-------|------|---------|
 | Bundle URLs | `loom-ui/vite.config.ts` | `base: "/ui/"` |
-| Router matching | `loom-ui/src/main.tsx` | `<BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/+$/, "")}>` |
+| Router matching | `loom-ui/src/main.tsx` | `basename={import.meta.env.BASE_URL.replace(/\/+$/, "")}` |
 | Server routes | `loom/services/rest/.../UIService.java` | `registerUiRoutes(router, "/loom/ui")` |
 
-Deriving the basename from `import.meta.env.BASE_URL` keeps the prefix in exactly one place
-(`vite.config.ts`); React Router wants it **without** the trailing slash.
+Server routes, in registration order: `/` → 302 `/ui/`; `/ui` (**regex**) → 302 `/ui/`;
+`/ui/*` fallback — a last segment with no extension is a client route → `index.html` with
+`Cache-Control: no-cache`, otherwise `next()`; `/ui/*` static handler over `/loom/ui`.
 
-#### Server routes (in registration order)
+> **Gotcha:** the `/ui` redirect uses `routeWithRegex`, not `route`. A plain Vert.x path route
+> also matches the trailing-slash form, so `route("/ui")` makes `/ui/` redirect to itself
+> forever. `UIServiceRoutingTest` pins this.
 
-| Route | Behaviour |
-|-------|-----------|
-| `/` | 302 → `/ui/` — the bare host is the front door, not a 404 |
-| `/ui` (regex) | 302 → `/ui/` |
-| `/ui/*` (fallback) | If the last path segment has **no** extension it is a client-side route → send `index.html` with `Cache-Control: no-cache`; otherwise `next()` |
-| `/ui/*` (static) | `StaticHandler` over `/loom/ui` |
+> **Gotcha:** the extension test keeps the fallback honest. A missing hashed bundle must still
+> 404 — returning `index.html` for `/ui/assets/index-gone.js` hands the browser HTML to parse
+> as JavaScript, failing far from the cause.
 
-> **Gotcha:** the `/ui` redirect is registered with `routeWithRegex`, not `route`. A plain
-> Vert.x path route also matches the trailing-slash form, so `route("/ui")` makes `/ui/`
-> redirect to itself forever. `UIServiceRoutingTest` pins this.
+The Vite dev server reproduces all of it, so `npm run dev` and the packaged build behave the
+same. E2E specs may keep `page.goto("/")`; a deep-linking spec must spell out the prefix
+(`page.goto("/ui/maintenance")`).
 
-> **Gotcha:** the extension test is what keeps the fallback honest. A missing hashed bundle
-> must still 404 — returning `index.html` for `/ui/assets/index-gone.js` hands the browser
-> an HTML page to parse as JavaScript, which fails much further from the cause.
+### 7.4 Live events (single shared WebSocket)
 
-#### Why each piece is needed
+`src/api/pipelineEvents.ts` owns **one module-level socket** for the whole app, derived from
+`API_BASE_URL` (`http`→`ws`) as `…/pipelines/events/ws?token=`. Frames are routed by their
+`channel` field: `PROCESSOR` → `subscribeProcessorEvents` (CortexView), everything else →
+`subscribePipelineEvents` (PipelineEditor, MonitoringArea).
 
-- Without `base: "/ui/"`, Vite emits **relative** bundle URLs that resolve against the current
-  route, so `/ui/chat/sessions/<id>` asks for `/ui/chat/sessions/assets/index-*.js`.
-- Without the `basename`, the router sees `/ui` as an unknown path and `<Route path="*">`
-  redirects it to `/` — this is why logging in at `/ui` used to bounce to the root.
-- Without the server fallback, only the client-side push worked: reloading `/ui/memory` or
-  opening it from a bookmark hit `StaticHandler`, which has no file by that name.
+Reconnect is exponential backoff (1s → 30s cap, reset on open, capped attempt count) and is
+**suppressed on close code `4401`** (server-side unauthorized). Connection state is broadcast
+to listeners (`connecting`/`connected`/`disconnected`/`failed`).
 
-The Vite dev server reproduces all of this: with `base` set it redirects `/` → `/ui/` and
-serves the history fallback itself, so `npm run dev` and the packaged build behave the same.
-E2E specs may therefore keep using `page.goto("/")`; a spec that deep-links has to spell out
-the prefix (`page.goto("/ui/maintenance")`).
+> **Gotcha:** because the socket is shared, there is no `?pipeline=` server-side filter —
+> the pipeline editor filters incoming events **client-side by `pipelineName`**.
 
-Reloading still lands on the login form — the token is in-memory only (§4.4) — but on the
-**same** URL, so signing in resolves to the requested route.
+Protocol details: [WEBSOCKET.md](../WEBSOCKET.md).
 
-### 3.7 Chat workspace split
+### 7.5 Shared `EmptyState`
 
-`ChatWorkspace` is three columns: the sessions rail (fixed 220px, toggled by
-`chat.sessions.toggle`), the chat column, and the workspace panel (Overview / Assets). The
-last two are separated by a drag divider and live inside their own flex container
-(`splitRef`), so the split percentage is measured against that container and the rail's
-width never skews it.
+`src/components/EmptyState.tsx` — large haloed icon (54px, 34px `compact`) + headline +
+description + optional CTA. Props: `icon`, `title`, `description`, `actionLabel`, `actionIcon`,
+`onAction`, `testId` (CTA gets `<testId>-action`), `compact`.
+
+Live in: `AssetBrowser`, `LibraryView` (two states), `CollectionsView`, `TagsView`, `TasksView`,
+`SkillManagementView` (two tabs), `AssetPoolsView`.
+
+**Rule:** the empty state is bound to *the collection being empty*, never to a filtered or
+searched result — otherwise a page that already has data would offer "create the first X".
+Filtered-to-nothing keeps the small inline hint (`assets.empty.noMatch`,
+`collections.empty.noSearch`, …).
+
+> **Gotcha:** `SkillManagementView` and `TasksView` do **not** render their `<Table>` when the
+> collection is empty. E2E specs must wait on `skills-view` / `tasks-empty-state`, not on
+> table headers.
+
+i18n keys: `<feature>.empty.*` (assets, collections) or `<feature>.emptyState.*` (library, tags,
+tasks, skills, assetPools) — the second form where an `empty` key already meant something else.
+
+### 7.6 Chat workspace split
+
+`ChatWorkspace` is three columns: sessions rail (fixed 220px), chat column, workspace panel.
+The last two share a flex container (`splitRef`) with a drag divider, so the split percentage
+is measured against that container and the rail never skews it. Chat itself: [CHAT.md](CHAT.md).
 
 | Aspect | Rule |
 |--------|------|
-| Unit | **Percent**, not pixels — `chatPct` state, default `SPLIT_DEFAULT_PCT = 80` |
-| Range | `SPLIT_MIN_PCT = 20` … `SPLIT_MAX_PCT = 95` |
-| Drag | Tracks the pointer against `splitRef.getBoundingClientRect()` rather than accumulating a delta, so the divider stays under the cursor once clamped; `document.body.style.cursor` is pinned to `col-resize` for the whole drag |
-| Reset | Double-clicking the divider restores 80% |
-| Collapse | `panelOpen` hides the divider **and** the panel; the chat column then spans 100% |
-| Toggles | `chat-panel-toggle` in the chat header (always visible, `SpaceDashboardOutlined`) and `chat-panel-collapse` in the panel's tab bar (`KeyboardDoubleArrowRight`) |
-| Persistence | `localStorage` — `loom.chat.splitPct` and `loom.chat.panelOpen` |
-| i18n | `chat.panel.hide` / `chat.panel.show` |
+| Unit | Percent — `chatPct`, `SPLIT_DEFAULT_PCT = 80`, range `SPLIT_MIN_PCT = 20` … `SPLIT_MAX_PCT = 95` |
+| Drag | Tracks the pointer against `splitRef.getBoundingClientRect()` (not an accumulated delta), so the divider stays under the cursor once clamped |
+| Reset / collapse | Double-click resets to 80%; `panelOpen=false` hides divider + panel, chat spans 100% |
+| Persistence | `localStorage` — `loom.chat.splitPct`, `loom.chat.panelOpen` |
 | Test ids | `chat-column`, `chat-split-divider`, `chat-workspace-panel`, `chat-panel-toggle`, `chat-panel-collapse` |
+| Mobile | Below `md` the rail, divider and panel are `display: none`; chat is 100% |
 
-> **Gotcha:** the chat column previously used a pixel `chatWidth` with `maxWidth: 700`. The
-> drag clamp allowed 1200px, but the `maxWidth` won — which is why the divider appeared to
-> move "only a little" on a wide screen. If a fixed cap comes back, the percentage is
-> silently overridden again.
+> **Gotcha:** a fixed pixel `maxWidth` on the chat column silently overrides the percentage —
+> that was the old "the divider barely moves on a wide screen" bug. Do not reintroduce one.
 
-The mobile layout is unchanged: below the `md` breakpoint the rail, divider and panel are
-all `display: none` and the chat column is `100%`.
+### 7.7 Remaining mock data
 
----
+Only **two** modules still import `src/mock/`:
 
-## 4. Authentication Handling
+| Consumer | What is mocked | What is real |
+|----------|----------------|--------------|
+| `features/monitoring/MonitoringArea.tsx` | `METRICS` — ingestion, latency, storage, task backlog, chat usage, annotations charts | Pipeline run stats via `loadPipelineRunStats` (`/pipelines/runs/stats`) + live `subscribePipelineEvents` |
+| `features/workflow/WorkflowView.tsx` | `FACE_CLUSTERS`, `PERSONS` seeds, plus a hardcoded VLM result string | Assets (`listAssets`) and detections (`listAssetDetections`) |
 
-### 4.1 Architecture
+Everything else — chat, sessions, skills, memory, tasks, tags, collections, pools, cortex,
+maintenance (`/health` + `/`), pipelines — is wired to real endpoints.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        AuthProvider                         │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
-│  │ isAuth:bool │  │ username    │  │ token:string        │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
-│         │               │                    │               │
-│         ▼               ▼                    ▼               │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ login(username, password) → calls api/auth.ts       │   │
-│  │ logout() → clears all state                         │   │
-│  └─────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
-```
+### 7.8 Demo data dependency
 
-### 4.2 AuthContext API
+`DemoDatabaseInitializer` (`loom/core/.../boot/`) is the only reason a fresh demo container has
+anything to show. Beyond assets/tags/collections/pipelines/users it must seed: image binaries
+(synthesised at runtime with `java.awt`, no text — the Alpine JRE has no fontconfig — plus a
+matching `asset_location` row and real sha512/size, otherwise every card is a placeholder §7.2);
+skills with **two** versions each (one version hides the whole version UI); chat sessions with
+`chat_session_context_ref` / `chat_session_skill` rows and at least two published; agent memory
+entries (and `LOOM_AGENT_MEMORY_ENABLED=true`, since the endpoints are not registered otherwise);
+tasks attached to assets with priority/status/due dates.
 
-**File:** `src/context/AuthContext.tsx`
-
-```typescript
-interface AuthContextValue {
-  isAuthenticated: boolean;
-  username: string | null;
-  token: string | null;
-  login: (username: string, password: string) => Promise<boolean>;
-  logout: () => void;
-}
-```
-
-### 4.3 Login Flow
-
-1. User submits credentials on `LoginPage` (`/`)
-2. `AuthProvider.login()` calls `api/auth.ts → login()` → `POST /api/v1/login`
-3. On success: JWT token stored in context, `isAuthenticated = true`
-4. `AuthGate` in `main.tsx` switches from `LoginPage` to `AppShell` (wrapped in providers)
-5. Token included in all API calls via `authHeaders(token)` helper
-
-### 4.4 Token Management
-
-| Aspect | Implementation |
-|--------|----------------|
-| Storage | In-memory React state (not localStorage) |
-| Header | `Authorization: Bearer <token>` on all API requests |
-| Expiry | Handled by backend (401 → UI redirects to login) |
-| Refresh | Not implemented (session-based) |
-| Logout | Clears context state, redirects to `/` |
-
-### 4.5 Protected Routes
-
-All routes under `AppShell` require authentication. The `AuthGate` component in `main.tsx` enforces this:
-
-```tsx
-function AuthGate() {
-  const { isAuthenticated } = useAuth();
-  if (!isAuthenticated) return <LoginPage />;
-  return (
-    <NodeRegistryProvider>
-      <SpaceProvider>
-        <AppShell />
-      </SpaceProvider>
-    </NodeRegistryProvider>
-  );
-}
-```
-
-### 4.6 OAuth2 / SSO
-
-**Not implemented in UI.** The backend supports OAuth2 BFF pattern (`/api/v1/auth/oauth2/*`) but the UI only implements username/password login. See [RESTAPI.md](../RESTAPI.md#23-oauth2-bff-pattern) for backend details.
+> **Gotcha:** `detection` is unique on `(asset_uuid, node_kind, frame_number, detection_index)`.
+> Two detections in one frame must be numbered or the insert aborts the seeding run — and
+> because `BootstrapInitializer` swallows the failure, everything *after* the detections
+> (transcripts, the VLM component) is silently missing from the demo.
 
 ---
 
-## 5. State Handling
+## 8. Test setup
 
-### 5.1 Global State Architecture
+### 8.1 Unit tests — vitest, **node environment**
 
-```
-┌────────────────────────────────────────────────────────────────┐
-│                      React Context Providers                   │
-├──────────────────┬──────────────────┬──────────────────────────┤
-│  AuthContext     │  SpaceContext    │  NodeRegistryContext     │
-│  - isAuth        │  - spaces[]      │  - descriptors[]         │
-│  - username      │  - activeSpace   │  - contentTypes[]        │
-│  - token         │  - setActiveSpace│  - loading/error         │
-│  - login/logout  │                  │  - getDescriptor()       │
-├──────────────────┼──────────────────┼──────────────────────────┤
-│  ThemeContext    │  ToastContext    │  LayoutContext           │
-│  - mode          │  - toasts[]      │  - sidebarCollapsed      │
-│  - toggleTheme   │  - show/hide     │  - setSidebarCollapsed   │
-└──────────────────┴──────────────────┴──────────────────────────┘
-```
+`vitest.config.ts`: `environment: "node"`, `include: ["src/**/*.{test,spec}.{ts,tsx}"]`,
+`exclude: ["e2e/**", "node_modules/**"]`. Run with `npm test`.
 
-### 5.2 Context Details
+> **Convention — there is no jsdom, no React Testing Library, no `@testing-library/*`
+> dependency and no setup file.** vitest covers **pure logic only**: API client request
+> shaping and response mapping, and extracted feature helpers. Anything that needs a rendered
+> component is a *mocked* Playwright spec (§8.2). Do not add RTL/jsdom to test a component —
+> extract the logic into a `.ts` module or write a mocked e2e.
 
-| Context | File | Purpose | Consumers |
-|---------|------|---------|-----------|
-| `AuthContext` | `src/context/AuthContext.tsx` | JWT auth state & login | All API calls, AuthGate, LoginPage, Sidebar |
-| `SpaceContext` | `src/context/SpaceContext.tsx` | Active space selection | AssetBrowser, LibraryView, CollectionsView, Sidebar |
-| `NodeRegistryContext` | `src/context/NodeRegistryContext.tsx` | Pipeline node descriptors & content types | PipelineEditor, PipelineCanvas, CommandPalette |
-| `ThemeContext` | `src/context/ThemeContext.tsx` | Dark/light mode toggle | ThemeProvider, ProfileView |
-| `ToastContext` | `src/context/ToastContext.tsx` | Global notifications | PipelineEditor (save/run), AssetDetail (actions) |
-| `LayoutContext` | `src/context/LayoutContext.tsx` | Sidebar collapse state | AppShell, Sidebar |
+18 test files today:
 
-### 5.3 Feature-Local State
+| Area | Files |
+|------|-------|
+| `src/api/` | `agent`, `annotations`, `binaries`, `chat`, `chatMessageMapper`, `comments`, `pipelineEvents`, `reactions`, `skills`, `tags`, `tasks`, `transcripts` |
+| Feature helpers | `chat/pipelineGraphLayout`, `library/libraryAssets`, `monitoring/runMetrics`, `pipeline/contentTypes`, `pipeline/portResolvers`, `workflow/ratingPersistence` |
 
-Each feature manages its own state via `useState`/`useReducer`:
+### 8.2 E2E tests — Playwright
 
-| Feature | Key State |
-|---------|-----------|
-| `AssetBrowser` | `assets[]`, `filtered[]`, `loading`, `query`, `viewMode`, `cardSize`, `statusFilter`, `typeFilter` |
-| `AssetDetail` | `asset`, `comments[]`, `annotations[]`, `reactions[]`, `tasks[]`, `transcriptSections[]`, `detectedFaces[]`, `faceClusters[]`, `persons[]`, `tab`, `currentTime`, `playing`, `leftPct` (draggable split) |
-| `PipelineEditor` | `pipelines[]`, `selected`, `selectedNodeId`, `addedNodes[]`, `nodeDisplayNames{}`, `canvasTab`, `graphJson`, `validationErrors[]`, `pipelineRuns[]`, `dirty`, `saving`, `running`, `logOpen`, `logHeight`, `nodeDetailOpen`, `showHelp`, `showCommandPalette` |
-| `CollectionsView` | `collections[]`, `selectedCollection`, `assets[]`, `viewMode`, `query` |
-| `TasksView` | `tasks[]`, `filter`, `sort`, `selectedTask` |
-| `CortexView` | `workers[]`, `loading`, `query`, `statusFilter`, `capFilter` |
+`playwright.config.ts`: `testDir: "./e2e"`, 30s timeout, no retries, chromium only,
+`baseURL: http://localhost:${VITE_PORT ?? 3000}`, `webServer` runs `npx vite --port …` and
+reuses an existing server outside CI. `VITE_*` vars are inherited by the dev server from the
+Playwright invocation, so no explicit env block is needed.
 
-### 5.4 Data Flow Patterns
+64 specs in two flavours, distinguished by filename suffix:
 
-#### Pattern 1: Server-First (Most Features)
-```
-useEffect([token, id]) → API call → setState(data) → render
-```
-
-#### Pattern 2: Optimistic Updates (Pipeline Editor)
-```
-User action → update local state immediately → setDirty(true) → 
-  Save button → API call → on success: setDirty(false)
-```
-
-#### Pattern 3: WebSocket Live Updates (Cortex, Pipeline Events)
-```
-WS connection → onMessage → update local state → re-render
-```
-
-### 5.5 State Persistence
-
-| State | Persisted? | Mechanism |
-|-------|------------|-----------|
-| Theme mode | Yes | `localStorage` via `ThemeContext` |
-| Sidebar collapse | Yes | `localStorage` via `LayoutContext` |
-| Language | Yes | `localStorage` via `i18n` |
-| Auth token | No | In-memory only (security) |
-| Pipeline draft | No | In-memory (`dirty` flag warns on navigate) |
-| Asset detail scroll | No | Reset on navigate |
-
----
-
-## 6. Pipeline Visualization & Editing
-
-> **Note:** This section provides an overview. For exhaustive detail, see [PIPELINE_EDITOR.md](PIPELINE_EDITOR.md).
-
-### 6.1 Architecture Overview
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                            PipelineEditor (Main Component)                  │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌──────────────┐  ┌──────────────────────────┐  ┌──────────────┐          │
-│  │ Pipeline List│  │      PipelineCanvas      │  │  Inspector   │          │
-│  │  (220px)     │  │   (React Flow Canvas)    │  │  (240px)     │          │
-│  │              │  │                          │  │              │          │
-│  │ - Select     │  │  ┌──────────────────┐   │  │ - Pipeline   │          │
-│  │ - Status     │  │  │ PipelineNode     │   │  │   metadata   │          │
-│  │ - Priority   │  │  │ (custom node)    │   │  │ - Run history│          │
-│  │ - Dry run    │  │  │                  │   │  │              │          │
-│  └──────────────┘  │  │ - Handles        │   │  └──────────────┘          │
-│                    │  │ - Connectors     │   │                            │
-│                    │  │ - Edge labels    │   │  ┌──────────────┐          │
-│                    │  │ - Validation     │   │  │ NodeDetail   │          │
-│                    │  │ - Auto-arrange   │   │  │ Sidebar      │          │
-│                    │  │ - Command palette│   │  │ (280px,      │          │
-│                    │  └──────────────────┘   │  │  collapsible)│          │
-│                    │                         │  └──────────────┘          │
-│                    │  ┌──────────────────┐   │                            │
-│                    │  │ Add Node Bar     │   │                            │
-│                    │  │ (search + popper)│   │                            │
-│                    │  └──────────────────┘   │                            │
-│                    │  ┌──────────────────┐   │                            │
-│                    │  │ Log Panel        │   │                            │
-│                    │  │ (draggable,      │   │                            │
-│                    │  │  run history)    │   │                            │
-│                    │  └──────────────────┘   │                            │
-│                    └──────────────────────────┘                            │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-### 6.2 React Flow Canvas (`PipelineCanvas`)
-
-**File:** `src/features/pipeline/PipelineEditor.tsx` (lines ~800-1300)
-
-#### Node Rendering (`PipelineNodeComponent`)
-
-- **Categories:** SOURCE, FILTER, ANALYSIS, TRANSFORM, OUTPUT — each with distinct color/icon
-- **Handles:** Input (left) / Output (right) — typed by data type (media, data, hash, text, control)
-- **Visual States:** Selected (colored border), Active (pulsing green dot), Hover (delete button)
-- **Data:** `label`, `description`, `category`, `nodeIcon`, `inputs[]`, `outputs[]`, `onDelete`, `isActive`, `displayName`, dynamic parameters
-
-#### Edge Rendering
-
-- **Types:** PASS (green), REJECT (red dashed), ANY (gray) — configurable via edge context menu
-- **Validation:** Connection only allowed between matching data types
-- **Reconnect:** Drag existing edge to new target; drop in empty space → delete edge
-
-#### Interactions
-
-| Action | Handler | Effect |
+| Suffix | Backend | Nature |
 |--------|---------|--------|
-| Click node | `onNodeClick` | Select node, open NodeDetailSidebar |
-| Click pane | `onPaneClick` | Deselect |
-| Drag handle → handle | `onConnect` | Create edge (validated by `isValidConnection`) |
-| Drag edge | `onReconnectStart/End` | Reconnect or delete edge |
-| Right-click edge | `onEdgeClick` | Open PASS/REJECT/ANY context menu |
-| DEL key | `keydown` handler | Delete selected node (with confirmation) |
-| N key | `keydown` handler | Open command palette |
-| A key | `keydown` handler | Auto-arrange (topological layout) |
+| `*-mocked.spec.ts` (32) | **No** | The component/integration test tier. Every `**/api/v1/**` call is intercepted with `page.route(...)` and fulfilled with fixture JSON — typically a broad catch-all plus specific overrides for `/login` and `/me`. |
+| `*-backend.spec.ts` (29) | **Yes** | Real Loom server with demo data |
+| `login.spec.ts`, `pipeline-loading.spec.ts`, `pipeline-versions.spec.ts` | mixed | Legacy names predating the suffix convention |
 
-#### Auto-Arrange Algorithm
+Typical mocked-spec shape: `mock…(page)` route handlers → `login(page)` (fill
+`Username`/`Password` placeholders, click *Sign in*, assert the username field is hidden) →
+assertions on `data-testid` locators.
 
-Topological sort (Kahn's algorithm) → assign columns → position nodes in DAG layout → `fitView()`
+### 8.3 Running
 
-### 6.3 Node Palette & Command Palette
+```bash
+npm test                       # vitest (node env, pure logic)
+npx playwright test e2e/chat-mocked.spec.ts     # one mocked spec, no backend needed
 
-**Add Node Bar** (above log panel): Search input + Popper menu with filtered descriptors
-
-**Command Palette** (N key): Full-screen searchable modal with keyboard navigation (↑/↓/Enter/Escape)
-
-Both use `descriptors` from `NodeRegistryContext`, filtered by:
-- Name
-- Kind
-- Category (SOURCE, FILTER, ANALYSIS, TRANSFORM, OUTPUT)
-
-### 6.4 Node Detail Sidebar
-
-**File:** `src/features/pipeline/PipelineEditor.tsx` (lines ~400-800)
-
-Three tabs:
-1. **Config** — Display name (editable, max 15 chars), description, dynamic parameter editors from `NodeDescriptor.parameters` (enum dropdown, boolean switch, string list, number/text input)
-2. **Log** — Simulated processing log with timestamps/levels
-3. **JSON** — Full node state as formatted JSON
-
-Parameter changes → `handleParameterChange` → updates `selected.definition.nodes` → `setDirty(true)`
-
-### 6.5 Pipeline Inspector (Right Panel)
-
-Shows:
-- Pipeline name, description
-- Enabled/disabled, priority, dry-run chips
-- Latest run status (success/failed/running/idle)
-- Scrollable run history (`RunHistory` component)
-
-### 6.6 Persistence & API Integration
-
-#### Loading Pipelines
-```typescript
-useEffect(() => {
-  listPipelines(token).then(resp => {
-    const ps = resp.data.map(mapToPipeline);
-    setPipelines(ps);
-    setSelected(ps[0]);
-  });
-}, [token]);
-```
-
-#### Loading Run History
-```typescript
-useEffect(() => {
-  listPipelineRuns(token, selected.id).then(setPipelineRuns);
-}, [token, selected?.id]);
-```
-
-#### Save Pipeline
-```typescript
-const handleSave = async () => {
-  // 1. Validate (cycle detection, duplicate IDs, unknown types)
-  const errors = validatePipeline(nodes, edges, descriptors);
-  if (errors.length) return notify("error", errors[0].message);
-
-  // 2. Build definition from graphJson or selected.definition
-  const req: PipelineUpdateRequest = { name, description, definition, enabled, priority, dryRun };
-
-  // 3. POST /api/v1/pipelines/:uuid
-  await updatePipeline(token, selected.id, req);
-  setDirty(false);
-};
-```
-
-#### Run Pipeline
-```typescript
-const handleRun = async () => {
-  const resp = await runPipeline(token, selected.id, { dryRun: selected.dryRun });
-  notify(resp.dispatched ? "success" : "info", resp.message);
-};
-```
-
-### 6.7 Pipeline Versioning
-
-Every pipeline is stored as a `pipeline` row pointing at a `latest_version_uuid`;
-the name/description/definition/enabled/priority/dryRun fields live on
-`pipeline_version` rows. The REST layer flattens the two back together, so a
-`PipelineResponse` carries **both** `uuid` (the pipeline) and
-`versionUuid` + `versionNumber` (the version it was rendered from). There is no
-`version` field — see [RESTAPI.md](../RESTAPI.md#35-pipeline-versions-and-the-flattened-pipeline-model).
-
-#### Endpoints used by the UI
-
-| Endpoint | UI usage |
-|----------|----------|
-| `GET /api/v1/pipelines/:uuid/versions` | Populate the version history dropdown (paged, cursor-based) |
-| `GET /api/v1/pipelines/:uuid/versions/:n` | Available via `loadPipelineVersion` (not yet used by the editor) |
-| `POST /api/v1/pipelines/:uuid/versions/:n/restore` | Restore a version — responds **201** |
-
-API client: `src/api/pipelines.ts` → `listPipelineVersions`, `loadPipelineVersion`,
-`restorePipelineVersion`. `listPipelineVersions` degrades to `[]` when the
-endpoint is absent, mirroring `listPipelineRuns`.
-
-#### UI surfaces
-
-1. **Version badge** (`PipelineVersionBadge`) — a compact monospace `v<n>` chip
-   absolutely positioned at the top-left of the node editor
-   (`data-testid="pipeline-version-badge"`). Deliberately minimal so it does not
-   obstruct the canvas.
-2. **Version history dropdown** — clicking the badge opens a `Popover`
-   (`data-testid="pipeline-version-list"`) listing every version newest-first,
-   each row showing the version number, creation timestamp and author. The
-   current version is highlighted and tagged `current`; all others expose a
-   restore icon button.
-3. **Inspector chip** — the right-hand `PipelineInspector` header repeats the
-   current version as a chip (`data-testid="pipeline-inspector-version"`) so the
-   version is visible even when the canvas is scrolled or the JSON tab is open.
-
-#### Restore semantics (important)
-
-Restore is **copy-forward, not a rewind**: the server copies the requested
-version's contents into a *brand-new* version and repoints the pipeline at it.
-Restoring v1 while v4 is current yields **v5**, and nothing is deleted. The UI
-states this in the confirmation dialog and reports it as "Restored v1 as v5".
-
-#### Restore flow
-
-```
-Badge click → loadVersions() → GET /versions
-Restore icon → setRestoreConfirm(n) → confirmation dialog
-  (warns if the editor is dirty — restoring discards local edits)
-Confirm → POST /versions/:n/restore → 201 PipelineResponse
-  → toPipeline(resp) → setSelected + patch pipelines[]
-  → clear addedNodes / nodeDisplayNames / graphJson / selection / validation
-  → setDirty(false)
-  → setCanvasReloadKey(k => k + 1)   ← forces the canvas to rebuild
-```
-
-`PipelineCanvas` normally resets its React Flow graph only when `pipeline.id`
-changes. Because a restore keeps the same pipeline id, the canvas takes a
-`reloadKey` prop and its reset effect depends on `[pipeline?.id, reloadKey]`.
-Bumping `canvasReloadKey` is what makes the restored definition appear in the
-node editor automatically.
-
-A successful **save** also mints a new version: `handleSave` adopts the
-`versionUuid` / `versionNumber` from the update response so the badge and
-history stay in sync — but it deliberately does *not* bump `reloadKey`, since
-the canvas already shows exactly what was saved.
-
-### 6.8 Validation
-
-**File:** `src/features/pipeline/PipelineEditor.tsx` (lines ~1300-1450)
-
-| Check | Algorithm | Error Type |
-|-------|-----------|------------|
-| Duplicate IDs | Set tracking | `duplicateId` |
-| ID Format | Regex `^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$` | `invalidId` |
-| Unknown Types | Check against `descriptors` | `unknownType` |
-| Cycles | Kahn's topological sort | `cycle` |
-
-Validation runs on:
-- Save (blocking)
-- Graph change (clears stale errors)
-
-### 6.9 JSON View (Canvas Tab)
-
-Two panels:
-1. **Loaded Definition** — Server-persisted pipeline definition (read-only, syntax highlighted)
-2. **Current Canvas State** — Live React Flow graph (editable via canvas, syntax highlighted)
-3. **Validity Indicator** — Green/red dot based on `graphJson` presence
-4. **Validation Errors** — Listed below if any
-
-### 6.10 Event Handling Summary
-
-| Event Source | Handler | State Mutation |
-|--------------|---------|----------------|
-| Node click | `handleNodeSelect` | `selectedNodeId`, `nodeDetailOpen` |
-| Node add (palette) | `handleAddNode` | `addedNodes[]`, `selected.definition.nodes[]` |
-| Node delete | `handleDeleteNodeConfirm` | `selected.definition.nodes/edges`, `addedNodes[]`, `removalTrigger` |
-| Parameter change | `handleParameterChange` | `selected.definition.nodes[].data[key]` |
-| Edge type change | `handleEdgeTypeChange` | `selected.definition.edges[].edgeType` |
-| Node drag | React Flow `onNodesChange` | `nodes[].position` (local only) |
-| Auto-arrange | `setAutoArrangeTrigger` | Triggers layout effect → `setNodes` with new positions |
-| Save | `handleSave` | `POST /pipelines/:uuid` → `setDirty(false)` |
-| Run | `handleRun` | `POST /pipelines/:uuid/run` → notification |
-
-### 6.11 CRUD Handling
-
-| Operation | UI Action | API Call | Optimistic? |
-|-----------|-----------|----------|-------------|
-| **Create** | Not in editor (use API directly) | `POST /pipelines` | N/A |
-| **Read (List)** | Mount `PipelineEditor` | `GET /pipelines` | No |
-| **Read (Single)** | Select in list | `GET /pipelines/:uuid` (via list) | No |
-| **Update** | Edit canvas → Save | `POST /pipelines/:uuid` | Yes (local first) |
-| **Delete** | Not in editor (use API directly) | `DELETE /pipelines/:uuid` | N/A |
-| **Run** | Run button | `POST /pipelines/:uuid/run` | No |
-
-> **Note:** Pipeline creation/deletion not implemented in UI — only editing existing pipelines.
-
-### 6.12 Pipeline Version Diff
-
-Restore is copy-forward and irreversible-by-omission (see §6.7), so before
-reinstating an old version an author needs to see *what* it would reintroduce.
-The version diff renders a side-by-side comparison between any previous version
-and the current one.
-
-#### Endpoints used by the UI
-
-| Endpoint | UI usage |
-|----------|----------|
-| `GET /api/v1/pipelines/:uuid/versions/:n` | Fetch both sides via `loadPipelineVersion` — the base version and the current version |
-
-#### UI surfaces
-
-1. **Compare action** — every non-current row of the version-history `Popover`
-   exposes a compare icon button (`CompareArrowsOutlined`,
-   `data-testid="pipeline-version-compare-<n>"`) beside the restore button.
-   Clicking it closes the popover and opens the diff of `v<n>` against current.
-2. **Diff dialog** (`PipelineVersionDiff`, `src/features/pipeline/PipelineVersionDiff.tsx`)
-   — a full-width MUI `Dialog` (`data-testid="pipeline-version-diff"`) showing
-   two aligned monospace JSON columns: base `v<n>` on the left, current on the
-   right. Added lines are green, removed lines red, changed lines amber. Each
-   non-identical row carries `data-testid="pipeline-version-diff-changed"`;
-   identical rows carry `pipeline-version-diff-same`. Loading, error
-   (`pipeline-version-diff-error`) and "no differences"
-   (`pipeline-version-diff-empty`) states are handled. Closed via
-   `pipeline-version-diff-close`.
-
-#### Diff engine
-
-`src/features/pipeline/pipelineDiff.ts` is a pure module (no React):
-`normalizeDefinition` recursively sorts object keys and orders `nodes` / `edges`
-by `id` before pretty-printing, so reordering alone never registers as a change;
-`diffLines` runs a longest-common-subsequence line alignment, folding adjacent
-remove+add pairs into single `changed` rows; `hasChanges` backs the empty state.
-The raw server `definition` is diffed directly — it is already free of the
-cosmetic React-Flow keys that `getGraphJson` strips from local canvas state.
-
-#### Diff flow
-
-```
-Compare icon (v<n>) → setDiffTarget(n) → <PipelineVersionDiff open>
-  → Promise.all(loadPipelineVersion(base), loadPipelineVersion(current))
-  → normalizeDefinition(each) → diffLines(base, current)
-  → render side-by-side columns (green add / red remove / amber change)
-Close → setDiffTarget(null)
+# Backend specs need a running Loom server with demo data (admin / finger) and
+# NodeDescriptorEndpoint active:
+VITE_API_BASE_URL=/api/v1 VITE_PROXY_TARGET=http://localhost:8092 npm run test:e2e
 ```
 
 ---
 
-## 7. Key Classes Reference
+## 9. Configuration
 
-| Class/Component | File | Purpose |
-|-----------------|------|---------|
-| `PipelineEditor` | `src/features/pipeline/PipelineEditor.tsx` | Main pipeline editor orchestration |
-| `PipelineCanvas` | `src/features/pipeline/PipelineEditor.tsx` | React Flow canvas wrapper |
-| `PipelineNodeComponent` | `src/features/pipeline/PipelineEditor.tsx` | Custom node renderer |
-| `PipelineInspector` | `src/features/pipeline/PipelineEditor.tsx` | Right stats panel |
-| `NodeDetailSidebar` | `src/features/pipeline/PipelineEditor.tsx` | Collapsible node config panel |
-| `RunHistory` | `src/features/pipeline/PipelineEditor.tsx` | Run history list |
-| `PipelineVersionBadge` | `src/features/pipeline/PipelineEditor.tsx` | `v<n>` canvas badge + version history dropdown + restore + compare |
-| `PipelineVersionDiff` | `src/features/pipeline/PipelineVersionDiff.tsx` | Side-by-side JSON diff dialog between a previous version and current |
-| `normalizeDefinition` / `diffLines` | `src/features/pipeline/pipelineDiff.ts` | Pure version-diff engine (stable JSON + LCS line diff) |
-| `toPipeline` | `src/features/pipeline/PipelineEditor.tsx` | Maps `PipelineResponse` (incl. version fields) to the local `Pipeline` type |
-| `CommandPaletteContent` | `src/features/pipeline/PipelineEditor.tsx` | N-key node search modal |
-| `AssetBrowser` | `src/features/assets/AssetBrowser.tsx` | Asset grid/list with filters |
-| `AssetDetail` | `src/features/assetDetail/AssetDetail.tsx` | Asset detail with media, timeline, sidebar |
-| `VideoTimeline` | `src/features/assetDetail/VideoTimeline.tsx` | Timeline with draggable markers |
-| `ZoomableImage` | `src/features/assetDetail/ZoomableImage.tsx` | Pan/zoom image viewer |
-| `AssetCard` / `AssetRow` | `src/features/assets/AssetBrowser.tsx` | Asset display components |
-| `AuthProvider` / `useAuth` | `src/context/AuthContext.tsx` | Authentication state |
-| `SpaceProvider` / `useSpace` | `src/context/SpaceContext.tsx` | Active space state |
-| `NodeRegistryProvider` / `useNodeRegistry` | `src/context/NodeRegistryContext.tsx` | Node descriptors & content types |
-| `ThemeModeProvider` / `useThemeMode` | `src/context/ThemeContext.tsx` | Dark/light theme |
+### 9.1 Environment variables
+
+Only variables actually read by the code. `VITE_*` are **build-time** substitutions, not
+runtime config.
+
+| Variable | Read by | Default | Purpose |
+|----------|---------|---------|---------|
+| `VITE_API_BASE_URL` | `src/api/config.ts` | `http://localhost:8092/api/v1` | REST base; also the source of the WS URL (§7.4). Set to `/api/v1` for same-origin builds. |
+| `VITE_PROXY_TARGET` | `vite.config.ts` (dev only) | unset → no proxy | Backend for the dev-server `/api` proxy; the path is **not** rewritten |
+| `VITE_PORT` | `playwright.config.ts` | `3000` | Dev-server port used by the E2E webServer |
+
+> `VITE_WS_URL` and `VITE_MCP_URL` are **not** read anywhere — earlier revisions of this spec
+> listed them in error. The WS URL is derived from `VITE_API_BASE_URL`.
+
+### 9.2 Build
+
+`vite.config.ts` sets `base: "/ui/"` (§7.3) and `build.outDir: "build"`. `build/` is what
+`loom/containers/*/Containerfile` copies to `/loom/ui` in the image, so `base` must match the
+path `UIService` serves from. `npm run build` type-checks first (`tsc && vite build`).
+
+---
+
+## 10. Key components reference
+
+Shell and cross-cutting only — pipeline internals are tabulated in
+[PIPELINE_EDITOR.md](PIPELINE_EDITOR.md), chat internals in [CHAT.md](CHAT.md).
+
+| Component / symbol | File | Purpose |
+|--------------------|------|---------|
+| `App` / `ThemedApp` / `AuthGate` | `src/main.tsx` | Provider tree, router basename, auth gate |
+| `AppShell` | `src/layout/AppShell.tsx` | Flex shell + **all route declarations** + `LayoutContext` |
+| `Sidebar` | `src/layout/Sidebar.tsx` | AI/Content/Management nav, ACL sub-group, avatar menu, collapse |
+| `AuthProvider` / `useAuth` | `src/context/AuthContext.tsx` | JWT, username, `userUuid` |
+| `SpaceProvider` / `useSpace` | `src/context/SpaceContext.tsx` | Active space |
+| `NodeRegistryProvider` / `useNodeRegistry` | `src/context/NodeRegistryContext.tsx` | Node descriptors + content types |
+| `ThemeModeProvider` / `useThemeMode` | `src/context/ThemeContext.tsx` | Dark/light mode |
 | `ToastProvider` / `useToast` | `src/context/ToastContext.tsx` | Global notifications |
-| `EmptyState` | `src/components/EmptyState.tsx` | Shared feature-page empty state (big icon + headline + description + create CTA) — see §3.3 |
-| `AssetThumbnail` | `src/components/AssetThumbnail.tsx` | Asset preview `<img>` that degrades to `MediaPlaceholder` — see §3.4 |
-| `assetBinaryUrl` | `src/api/assets.ts` | URL of an asset's stored bytes; cookie-authenticated, used as an `<img src>` |
-| `ChatGreeting` | `src/features/chat/ChatGreeting.tsx` | Prominent "Hello \<username\>" shown in a fresh chat session — see §3.3 |
-| `AppShell` | `src/layout/AppShell.tsx` | Main layout (sidebar + outlet) |
-| `Sidebar` | `src/layout/Sidebar.tsx` | Collapsible navigation — AI / Content / Management sections + the ACL sub-group (§3.2) |
-| `LoginPage` | `src/features/auth/LoginPage.tsx` | Login form |
-| `listPipelines` / `updatePipeline` / `runPipeline` | `src/api/pipelines.ts` | Pipeline API client |
-| `listPipelineVersions` / `loadPipelineVersion` / `restorePipelineVersion` | `src/api/pipelines.ts` | Pipeline version API client |
-| `listAssets` / `loadAsset` | `src/api/assets.ts` | Asset API client |
-| `fetchNodeDescriptors` | `src/api/nodeDescriptors.ts` | Node descriptor API client |
-| `validatePipeline` | `src/features/pipeline/PipelineEditor.tsx` | Pipeline validation logic |
-| `toRFNodes` / `toRFEdges` | `src/features/pipeline/PipelineEditor.tsx` | React Flow format converters |
+| `LayoutContext` / `useLayout` | `src/context/LayoutContext.tsx` | Sidebar collapse (not persisted) |
+| `tokens` / `buildTheme` / `setActiveTokens` | `src/theme/index.ts` | Design tokens + MUI theme (no `tokens.ts`) |
+| `EmptyState` | `src/components/EmptyState.tsx` | Shared feature-page empty state (§7.5) |
+| `AssetThumbnail` / `MediaPlaceholder` | `src/components/` | Cookie-authenticated preview `<img>` with fallback (§7.2) |
+| `Title` | `src/components/Title.tsx` | Page heading |
+| `assetBinaryUrl` | `src/api/assets.ts` | URL of an asset's stored bytes, usable as `<img src>` |
+| `subscribePipelineEvents` / `subscribeProcessorEvents` | `src/api/pipelineEvents.ts` | Shared reconnecting WebSocket (§7.4) |
+| `login` / `getMe` / `decodeJwt` | `src/api/auth.ts` | Auth calls + JWT claim decode |
+| `API_BASE_URL` | `src/api/config.ts` | REST base (§5) |
+| `AdminArea` | `src/features/admin/AdminArea.tsx` | All seven admin screens in one file |
+| `AssetDetail` | `src/features/assetDetail/AssetDetail.tsx` | Media, timeline, annotations, comments, reactions, tasks, transcripts, faces, tags |
+| `VideoTimeline` / `ZoomableImage` | `src/features/assetDetail/` | Marker timeline · pan/zoom viewer |
+| `PipelineEditor` | `src/features/pipeline/PipelineEditor.tsx` | ~3.7k lines — see [PIPELINE_EDITOR.md](PIPELINE_EDITOR.md) |
+| `ChatWorkspace` / `ChatGreeting` | `src/features/chat/` | Chat shell + split (§7.6) — see [CHAT.md](CHAT.md) |
 
 ---
 
-## 8. Architecture Diagrams
+## 11. Conventions and gotchas
 
-### 8.1 Component Hierarchy
-
-```mermaid
-graph TD
-    App[App] --> ThemeModeProvider
-    ThemeModeProvider --> ThemedApp
-    ThemedApp --> ThemeProvider
-    ThemeProvider --> BrowserRouter
-    BrowserRouter --> AuthProvider
-    AuthProvider --> ToastProvider
-    ToastProvider --> AuthGate
-    AuthGate -->|unauth| LoginPage
-    AuthGate -->|auth| NodeRegistryProvider
-    NodeRegistryProvider --> SpaceProvider
-    SpaceProvider --> AppShell
-    AppShell --> Sidebar
-    AppShell --> Outlet
-    Outlet -->|/| ChatView
-    Outlet -->|/assets| AssetBrowser
-    Outlet -->|/assets/:id| AssetDetail
-    Outlet -->|/library| LibraryView
-    Outlet -->|/collections| CollectionsView
-    Outlet -->|/tasks| TasksView
-    Outlet -->|/tags| TagsView
-    Outlet -->|/detection| DetectionView
-    Outlet -->|/workflow| WorkflowView
-    Outlet -->|/pipelines| PipelineEditor
-    Outlet -->|/cortex| CortexView
-    Outlet -->|/monitoring| MonitoringView
-    Outlet -->|/asset-pools| AssetPoolsView
-    Outlet -->|/admin/*| AdminViews
-    Outlet -->|/profile| ProfileView
-    Outlet -->|/maintenance| MaintenanceView
-```
-
-### 8.2 Pipeline Editor Data Flow
-
-```mermaid
-graph LR
-    subgraph "PipelineEditor"
-        PE[PipelineEditor State]
-        PL[Pipeline List]
-        PC[PipelineCanvas]
-        PI[PipelineInspector]
-        NDS[NodeDetailSidebar]
-        LP[Log Panel]
-        AB[Add Node Bar]
-        CP[Command Palette]
-    end
-
-    subgraph "Contexts"
-        NR[NodeRegistryContext]
-        AC[AuthContext]
-        SC[SpaceContext]
-    end
-
-    subgraph "API"
-        PIPES[/api/v1/pipelines]
-        DESC[/api/v1/pipeline/node-descriptors]
-        RUNS[/api/v1/pipelines/:uuid/runs]
-        RUN[/api/v1/pipelines/:uuid/run]
-    end
-
-    NR -->|descriptors| PE
-    AC -->|token| PE
-    PE -->|listPipelines| PIPES
-    PE -->|fetchNodeDescriptors| DESC
-    PE -->|listPipelineRuns| RUNS
-    PE -->|updatePipeline| PIPES
-    PE -->|runPipeline| RUN
-
-    PE -->|pipelines[]| PL
-    PE -->|selected| PC
-    PE -->|selected| PI
-    PE -->|selectedNodeId| NDS
-    PE -->|pipelineRuns[]| LP
-    PE -->|descriptors| AB
-    PE -->|descriptors| CP
-
-    PC -->|onNodeSelect| PE
-    PC -->|onGraphChange| PE
-    PC -->|onDeleteNode| PE
-    PC -->|onEdgeTypeChange| PE
-
-    NDS -->|onDisplayNameChange| PE
-    NDS -->|onParameterChange| PE
-
-    AB -->|handleAddNode| PE
-    CP -->|handleAddNode| PE
-```
-
-### 8.3 Asset Detail Data Flow
-
-```mermaid
-graph LR
-    AD[AssetDetail] -->|apiLoadAsset| ASSETS[/api/v1/assets/:uuid]
-    AD -->|listAssetReactions| REACT[/api/v1/assets/:uuid/reactions]
-    AD -->|listComments| COMM[/api/v1/comments]
-    AD -->|listAssetTranscripts| TRANS[/api/v1/assets/:uuid/transcripts]
-    AD -->|listAssetDetections| DET[/api/v1/assets/:uuid/detections]
-    AD -->|listClusters| CLUST[/api/v1/clusters]
-    AD -->|listPersons| PERS[/api/v1/persons]
-
-    ASSETS -->|asset + collections + annotations| AD
-    REACT -->|reactions[]| AD
-    COMM -->|comments[]| AD
-    TRANS -->|transcriptSections[]| AD
-    DET -->|detectedFaces[]| AD
-    CLUST -->|faceClusters[]| AD
-    PERS -->|persons[]| AD
-
-    AD -->|tab state| Tabs[Overview/Comments/Annotations/Reactions/Tasks/Faces]
-    AD -->|currentTime| VT[VideoTimeline]
-    AD -->|markers| VT
-    VT -->|onSeek| AD
-    VT -->|onMarkerDrag| AD
-```
-
----
-
-## 9. Environment Variables
-
-### 9.1 Vite Environment Variables (`.env`, `.env.development`)
-
-| Variable | Description | Default | Example |
-|----------|-------------|---------|---------|
-| `VITE_API_BASE_URL` | REST API base path | `/api/v1` | `/api/v1` |
-| `VITE_PROXY_TARGET` | Backend target for Vite proxy | `http://localhost:8092` | `http://localhost:8092` |
-| `VITE_WS_URL` | WebSocket base URL | `ws://localhost:8092` | `ws://localhost:8092` |
-| `VITE_MCP_URL` | MCP server URL | `http://localhost:4041` | `http://localhost:4041` |
-
-### 9.2 Vite Base Path and Proxy (`vite.config.ts`)
-
-```typescript
-export default defineConfig({
-  plugins: [react(), svgr()],
-  // The backend serves the SPA under /ui/ — see §3.6. Also drives the router basename.
-  base: "/ui/",
-  server: {
-    port: 3000,
-    open: true,
-    // Only registered when VITE_PROXY_TARGET is set; the path is *not* rewritten,
-    // because the backend already listens on /api/v1.
-    proxy: process.env.VITE_PROXY_TARGET
-      ? { "/api": { target: process.env.VITE_PROXY_TARGET, changeOrigin: true } }
-      : undefined,
-  },
-  build: { outDir: "build" },
-});
-```
-
-`build/` is what `loom/containers/*/Containerfile` copies to `/loom/ui` in the image, so the
-`base` value has to match the path `UIService` serves from.
-
-### 9.3 Runtime Configuration
-
-The UI reads `VITE_API_BASE_URL` at build time via `import.meta.env.VITE_API_BASE_URL` in `src/api/config.ts`:
-
-```typescript
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
-```
-
----
-
-## 10. Conventions and Gotchas
-
-### 10.1 Code Conventions
+### 11.1 Conventions
 
 | Convention | Rule |
 |------------|------|
-| **Component naming** | PascalCase, feature-prefixed (e.g., `AssetCard`, `PipelineNodeComponent`) |
-| **Hook naming** | `use` prefix, descriptive (e.g., `useAuth`, `useNodeRegistry`) |
-| **Context naming** | `XxxContext` + `XxxProvider` + `useXxx` |
-| **API modules** | One file per endpoint group (`pipelines.ts`, `assets.ts`, `auth.ts`) |
-| **Types** | Domain types in `src/types/index.ts`, API-specific in respective API files |
-| **i18n keys** | Namespaced: `feature.section.key` (e.g., `pipeline.editor.title`) |
-| **Tokens** | Use `tokens` from `src/theme` for all colors, spacing, radii |
-| **SX props** | Prefer `sx` over `styled()` for one-off styles |
-| **State** | Colocate state nearest to usage; lift only when shared |
+| New screens | Always under `src/features/<area>/`. The capitalised top-level dirs are dead (§3). |
+| Routes | Declared in `AppShell.tsx` (admin sub-routes in `AdminArea.tsx`) — never in `main.tsx` |
+| API modules | One file per endpoint group in `src/api/`, exporting typed functions + response interfaces |
+| Naming | Components PascalCase; hooks `useXxx`; contexts `XxxContext` + `XxxProvider` + `useXxx` |
+| Types | Domain in `src/types/index.ts`, port/descriptor types in `src/types/nodeDescriptors.ts`, request/response types beside their API module |
+| Styling | `tokens` from `src/theme` for all colours/spacing/radii; prefer `sx` over `styled()` |
+| i18n | Namespaced `feature.section.key`; **every key must exist in both `en.json` and `de.json`** |
+| Test ids | `data-testid` on anything an E2E spec touches; kebab-case, feature-prefixed |
+| Tests | Pure logic → vitest; anything rendered → mocked Playwright spec (§8.1) |
 
-### 10.2 Common Pitfalls
+### 11.2 Gotchas
 
-| Pitfall | Description | Solution |
-|---------|-------------|----------|
-| **Stale closures in callbacks** | `useCallback` deps missing `selected` | Include all referenced state in deps; use functional updates |
-| **React Flow node identity** | Nodes recreated on every render | Use `useNodesState`/`useEdgesState`; only reset on `pipeline.id` change |
-| **Validation timing** | Validation runs before graphJson populated | Clear errors on `handleGraphChange`; validate on save |
-| **Token expiry** | 401 not handled globally | Add interceptor in `api/config.ts` or handle per-call |
-| **WebSocket auth** | WS endpoints need `?token=` query param | See [WEBSOCKET.md](../WEBSOCKET.md) |
-| **Mock vs Real API** | Some features use mock data (`src/mock/`) | Check `useEffect` — real API calls use `token` guard |
-| **Sidebar collapse persistence** | localStorage key mismatch | Use `LayoutContext` consistently |
-| **Deep link 404s on reload** | The SPA is mounted at `/ui/`; a client route has no file behind it | Keep `base`, `basename` and the `UIService` fallback in sync — §3.6 |
-| **i18n missing keys** | Fallback to key name | Add keys to `en.json` and `de.json` |
-| **Pipeline dirty flag** | Navigating away loses unsaved changes | Warn via `Prompt` or persist to localStorage (not implemented) |
+| Pitfall | Detail / fix |
+|---------|--------------|
+| `API_BASE_URL` default is absolute | Falls back to `http://localhost:8092/api/v1`; cookie-authenticated previews and same-origin assumptions need `VITE_API_BASE_URL=/api/v1` (§5) |
+| `VITE_WS_URL` / `VITE_MCP_URL` don't exist | Setting them has no effect; the WS URL derives from `VITE_API_BASE_URL` |
+| No `src/theme/tokens.ts` | Import `tokens` from `src/theme` (`index.ts`) |
+| Dead capitalised directories | `src/Admin`, `src/Asset`, … are unreferenced legacy; editing them changes nothing |
+| Auth is in-memory | Every reload lands on the login form — on the *same* URL, so signing in resolves to the requested route |
+| No global 401 handling | Each call handles its own failure; there is no interceptor |
+| Sidebar collapse is not persisted | Plain `useState` in `AppShell` despite `LayoutContext` looking like a store |
+| ACL nav is nested | Open `sidebar-group-acl` before asserting on Users/Groups/Permissions/API-Keys/Blacklist |
+| Deep-link 404 on reload | Keep `base`, `basename` and the `UIService` fallback in sync (§7.3) |
+| Empty views drop their table | `TasksView` / `SkillManagementView` render no `<Table>` when empty (§7.5) |
+| One shared WebSocket | Filter pipeline events client-side by `pipelineName`; close code `4401` disables reconnect (§7.4) |
+| React Flow node identity | Use `useNodesState`/`useEdgesState`; reset only on `pipeline.id` **or** `reloadKey` change (see [PIPELINE_EDITOR.md](PIPELINE_EDITOR.md)) |
+| Unsaved pipeline edits | The `dirty` flag warns but nothing blocks navigation; edits are lost |
+| No error boundaries | A render throw blanks the app; there is no fallback UI |
+| Missing i18n key | Renders the raw key — always add to both locale files |
 
-### 10.3 Performance Considerations
+### 11.3 Performance
 
-| Area | Concern | Mitigation |
-|------|---------|------------|
-| **React Flow** | Large graphs (>100 nodes) | Virtualization not implemented; use auto-arrange |
-| **Asset grid** | Many assets | Skeleton loading, lazy images, pagination not implemented |
-| **Timeline markers** | Many annotations/comments | Filter by viewport (not implemented) |
-| **Re-renders** | Context changes trigger all consumers | Split contexts by domain (already done) |
-
----
-
-## 11. Where Do I Find...? (Cheat Sheet)
-
-| Concept | File Path |
-|---------|-----------|
-| **App entry point** | `src/main.tsx` |
-| **Routing setup** | `src/main.tsx` (BrowserRouter + basename + AuthGate) — see §3.6 |
-| **`/ui` base path (server side)** | `loom/services/rest/.../UIService.java` (`registerUiRoutes`) |
-| **Chat/workspace split** | `src/features/chat/ChatWorkspace.tsx` (search `SPLIT_DEFAULT_PCT`) — see §3.7 |
-| **Shared empty state** | `src/components/EmptyState.tsx` |
-| **New-chat greeting** | `src/features/chat/ChatGreeting.tsx` |
-| **Main layout** | `src/layout/AppShell.tsx` |
-| **Sidebar navigation** | `src/layout/Sidebar.tsx` |
-| **Login page** | `src/features/auth/LoginPage.tsx` |
-| **Asset browser** | `src/features/assets/AssetBrowser.tsx` |
-| **Asset detail** | `src/features/assetDetail/AssetDetail.tsx` |
-| **Pipeline editor (main)** | `src/features/pipeline/PipelineEditor.tsx` |
-| **Pipeline canvas** | `src/features/pipeline/PipelineEditor.tsx` (search `PipelineCanvas`) |
-| **Node component** | `src/features/pipeline/PipelineEditor.tsx` (search `PipelineNodeComponent`) |
-| **Node detail sidebar** | `src/features/pipeline/PipelineEditor.tsx` (search `NodeDetailSidebar`) |
-| **Command palette** | `src/features/pipeline/PipelineEditor.tsx` (search `CommandPaletteContent`) |
-| **Validation logic** | `src/features/pipeline/PipelineEditor.tsx` (search `validatePipeline`) |
-| **API config** | `src/api/config.ts` |
-| **Pipeline API** | `src/api/pipelines.ts` |
-| **Asset API** | `src/api/assets.ts` |
-| **Auth API** | `src/api/auth.ts` |
-| **Node descriptors API** | `src/api/nodeDescriptors.ts` |
-| **Auth context** | `src/context/AuthContext.tsx` |
-| **Space context** | `src/context/SpaceContext.tsx` |
-| **Node registry context** | `src/context/NodeRegistryContext.tsx` |
-| **Theme context** | `src/context/ThemeContext.tsx` |
-| **Toast context** | `src/context/ToastContext.tsx` |
-| **Layout context** | `src/context/LayoutContext.tsx` |
-| **Theme tokens** | `src/theme/tokens.ts` |
-| **Theme builder** | `src/theme/index.ts` |
-| **Domain types** | `src/types/index.ts` |
-| **Node descriptor types** | `src/types/nodeDescriptors.ts` |
-| **i18n setup** | `src/i18n/i18n.ts` |
-| **English translations** | `src/i18n/locales/en.json` |
-| **German translations** | `src/i18n/locales/de.json` |
-| **Mock data** | `src/mock/data.ts` |
-| **Mock services** | `src/mock/services.ts` |
-| **E2E tests** | `e2e/*.spec.ts` |
-| **Playwright config** | `playwright.config.ts` |
-| **Vite config** | `vite.config.ts` |
-| **Package.json** | `package.json` |
+| Area | Concern | Current state |
+|------|---------|---------------|
+| React Flow | Graphs >100 nodes | No virtualization; auto-arrange only |
+| Asset grid | Large libraries | Skeletons + lazy `<img>`; no pagination or list virtualization |
+| Timeline markers | Many annotations/comments | No viewport filtering |
+| Context fan-out | Every consumer re-renders | Mitigated by splitting contexts per domain |
 
 ---
 
-## 12. Progress Assessment
+## 12. Where do I find ...?
 
-### 12.1 Core UI Completeness
+| Concept | Path |
+|---------|------|
+| App entry, provider tree, auth gate | `loom-ui/src/main.tsx` |
+| **Route table** | `loom-ui/src/layout/AppShell.tsx` |
+| Admin sub-routes (all 7 screens) | `loom-ui/src/features/admin/AdminArea.tsx` |
+| Sidebar navigation / ACL sub-group | `loom-ui/src/layout/Sidebar.tsx` |
+| `/ui` base path (server side) | `loom/services/rest/.../UIService.java` (`registerUiRoutes`) |
+| REST base URL | `loom-ui/src/api/config.ts` |
+| Shared WebSocket + reconnect | `loom-ui/src/api/pipelineEvents.ts` |
+| Auth calls / JWT decode | `loom-ui/src/api/auth.ts` |
+| Design tokens + MUI theme | `loom-ui/src/theme/index.ts` |
+| Domain types · port types | `loom-ui/src/types/index.ts` · `types/nodeDescriptors.ts` |
+| i18n setup · locales | `loom-ui/src/i18n/i18n.ts` · `i18n/locales/{en,de}.json` |
+| Shared empty state | `loom-ui/src/components/EmptyState.tsx` |
+| Asset preview `<img>` | `loom-ui/src/components/AssetThumbnail.tsx` |
+| Chat split constants | `loom-ui/src/features/chat/ChatWorkspace.tsx` (`SPLIT_DEFAULT_PCT`) |
+| New-chat greeting | `loom-ui/src/features/chat/ChatGreeting.tsx` |
+| Remaining mock data | `loom-ui/src/mock/data.ts` (consumers: monitoring, workflow) |
+| Unit tests (pure logic) | `loom-ui/src/**/*.test.ts` + `vitest.config.ts` |
+| E2E specs | `loom-ui/e2e/*.spec.ts` + `playwright.config.ts` |
+| Build/base config | `loom-ui/vite.config.ts` |
+| Screenshot capture script | `loom-ui/scripts/capture-ui-screenshots.mjs` |
 
-- [x] Authentication (JWT login, protected routes, logout)
-- [x] Responsive layout (collapsible sidebar, app shell)
-- [x] Internationalization (en/de, i18next, namespaced keys)
-- [x] Theming (dark/light, MUI tokens, CSS variables)
-- [x] Toast notifications (global, auto-dismiss)
-- [x] First-run experience (new-chat greeting, shared feature-page empty states with create CTA)
-- [x] Asset browser (grid/list, search, filters, card sizes)
-- [x] Asset detail (media player, timeline, annotations, comments, reactions, tasks, transcripts, faces)
-- [x] Library view (library selector, asset grid)
-- [x] Collections (CRUD, asset assignment, color coding)
-- [x] Tasks (Kanban board, priority/status, drawer detail)
-- [x] Tags (grouped by collection, drag-to-move)
-- [x] Detection (faces, objects, LLM prompts tabs)
-- [x] Face detection (clusters, person assignment, gallery)
-- [x] Chat / Loom Agent (conversational UI, references, suggested follow-ups)
-- [x] Pipeline editor (React Flow canvas, node palette, validation, run history, JSON view)
-- [x] Cortex workers (status, metrics, pause/resume/terminate)
-- [x] Monitoring dashboard (14-day metrics, charts via Recharts)
-- [x] Asset pools (CRUD, asset assignment)
-- [x] Admin: Spaces, Users, Groups, Roles, API Keys, Blacklist, Memory Denylist
-- [x] Profile (name, email, username, role, language, theme)
-- [x] Maintenance view (system health)
-- [x] Workflow (fullscreen keyboard-driven review)
-- [x] E2E test suite (Playwright, 17 test files)
-- [x] Mock data/services for offline development
+---
 
-### 12.2 Authentication & Security
+## 13. Progress Assessment
 
-- [x] JWT login with HttpOnly cookie (backend sets cookie)
-- [x] Token in Authorization header for all API calls
-- [x] Protected routes via AuthGate
+Shell-level only. Feature/endpoint gaps belong in the `TASK_UI_*.md` files (§1.2).
+
+### 13.1 Shell
+
+- [x] Provider tree + `AuthGate` (`main.tsx`)
+- [x] Route table with catch-all redirect (`AppShell.tsx`)
+- [x] Sidebar: three sections, collapsible ACL sub-group, collapsed icon rail, avatar menu
+- [x] Dark/light theming with persisted mode
+- [x] i18n (en/de, namespaced keys, persisted language)
+- [x] Toast notifications
+- [x] Shared `EmptyState` across 7 views
+- [x] Cookie-authenticated asset previews with placeholder fallback
+- [x] `/ui/` base path aligned across Vite, router and `UIService`
+- [x] Single shared reconnecting WebSocket (pipeline + processor channels)
+- [ ] Global 401 interceptor / session-expiry warning
+- [ ] React error boundaries
+- [ ] Sidebar collapse persistence
+- [ ] Route-level code splitting (`React.lazy`) — everything is in one bundle
+- [ ] Accessibility audit (contrast, keyboard nav, ARIA)
+
+### 13.2 Authentication
+
+- [x] Username/password login → JWT in memory + HttpOnly cookie from the server
+- [x] `userUuid` resolved from the JWT, confirmed via `/me`
+- [x] Bearer header on REST, `?token=` on WebSocket
 - [x] Logout clears context
-- [ ] OAuth2 / SSO login flow (backend supports, UI not implemented)
+- [ ] OAuth2 / SSO flow (backend BFF exists, no UI)
 - [ ] Token refresh / silent re-auth
-- [ ] Session expiry warning
-- [ ] Rate limiting on login (backend concern)
 
-### 12.3 Pipeline Editor Completeness
+### 13.3 Data wiring
 
-- [x] React Flow canvas with custom nodes
-- [x] Node palette (search + category filter)
-- [x] Command palette (N key, keyboard navigation)
-- [x] Node handles with data-type validation
-- [x] Edge types (PASS/REJECT/ANY) with context menu
-- [x] Auto-arrange (topological DAG layout)
-- [x] Node detail sidebar (config/log/JSON tabs)
-- [x] Dynamic parameter editors from descriptors
-- [x] Pipeline inspector (metadata + run history)
-- [x] Run history panel (live from API)
-- [x] JSON view (loaded vs current, syntax highlighting)
-- [x] Validation (duplicate IDs, cycles, unknown types, ID format)
-- [x] Save (POST /pipelines/:uuid) with validation
-- [x] Run (POST /pipelines/:uuid/run) with dry-run support
-- [x] Draggable log panel with run history
-- [x] Keyboard shortcuts (H/N/A/Del) with help overlay
-- [x] Delete node confirmation dialog
-- [ ] Pipeline creation UI (only editing existing)
-- [ ] Pipeline deletion UI
-- [ ] Pipeline duplication/clone
-- [x] Pipeline versioning (version badge, history dropdown, restore)
-- [x] Pipeline version diff (side-by-side JSON, compare with current)
-- [ ] Collaborative editing (multi-user)
-- [ ] Minimap node color by category
-- [ ] Edge label editing (inline)
-- [ ] Node grouping/containers
-- [ ] Undo/redo stack
+- [x] 30 API client modules covering assets, media, collaboration, organization, RBAC, pipeline, agent
+- [x] Maintenance on real `/health` + `/`
+- [x] Monitoring on real `/pipelines/runs/stats` + live events
+- [ ] Monitoring KPI/chart series still from `mock/data.ts` `METRICS` (no `/metrics` endpoint)
+- [ ] Workflow face-cluster/person seeds and the VLM result still mocked
+- [ ] Pagination / infinite scroll for large lists
 
-### 12.4 Asset Detail Completeness
+### 13.4 Testing
 
-- [x] Video player (thumbnail overlay, play/pause, seek)
-- [x] Image viewer (pan/zoom via ZoomableImage)
-- [x] Timeline with markers (comments, annotations, reactions)
-- [x] Draggable marker handles (update timestamps)
-- [x] Annotations (time ranges, regions, colors)
-- [x] Comments (threaded, timestamps, highlight sync)
-- [x] Reactions (chips, types, ratings)
-- [x] Tasks (linked, drawer detail)
-- [x] Transcripts (sections, words, confidence, seek sync)
-- [x] Face detection (clusters, person assignment)
-- [x] Tags (editable, autocomplete)
-- [x] Metadata panel (size, mime, dimensions, duration, owner, custom)
-- [x] Draggable left/right split (media vs sidebar)
-- [ ] Real video playback (currently simulated)
-- [ ] Annotation creation UI (draw regions on video/image)
-- [ ] Comment creation UI (reply, thread)
-- [ ] Reaction creation UI
-- [ ] Task creation from asset detail
-- [ ] Transcript editing
-- [ ] Face cluster merge/split UI
-- [ ] Keyboard shortcuts for timeline navigation
-
-### 12.5 API Integration Completeness
-
-| Endpoint Group | UI Coverage | Missing |
-|----------------|-------------|---------|
-| `/auth/login` | ✅ Full | OAuth2, logout revocation |
-| `/assets` | ✅ List, load, detail | Create, update, delete, bulk |
-| `/assets/:uuid/*` | ✅ Annotations, reactions, comments, transcripts, detections, binary | Tags CRUD, components |
-| `/collections` | ✅ CRUD | Asset drag-drop to collection |
-| `/tasks` | ✅ CRUD, board view | Bulk operations, filters |
-| `/tags` | ✅ CRUD, grouped | Bulk tag/untag |
-| `/pipelines` | ✅ List, load, update, run, versions, restore | Create, delete, clone |
-| `/pipeline/node-descriptors` | ✅ Load for palette | Real-time updates |
-| `/processors` | ✅ List, WS connection | Detailed worker management |
-| `/clusters` | ✅ List | Cluster management UI |
-| `/persons` | ✅ List, assignment | Person detail/edit |
-| `/spaces` | ✅ Admin CRUD | Space switching in UI |
-| `/users` | ✅ Admin CRUD | Self-service profile |
-| `/groups` | ✅ Admin CRUD | Member management UI |
-| `/roles` | ✅ Admin CRUD, permission matrix | Permission testing |
-| `/tokens` | ✅ Admin CRUD | Token scopes UI |
-| `/blacklists` | ✅ Admin CRUD | Entry types UI |
-| `/graphql` | ❌ Not used | Chat uses mock |
-| `/metrics` | ❌ Not implemented | Monitoring uses mock |
-| `/health` | ❌ Not implemented | Maintenance uses mock |
-
-### 12.6 Testing Coverage
-
-- [x] Login page (UI + backend)
-- [x] Pipeline editor (backend: descriptors, add nodes, connectors, categories)
-- [x] Pipeline loading
-- [x] Pipeline versioning (backend + mocked)
-- [x] Assets (backend)
-- [x] Collections (backend)
-- [x] Detections (backend)
-- [x] Groups (backend)
-- [x] Library (backend)
-- [x] Persons (backend)
-- [x] Pools (backend)
-- [x] Roles (backend)
-- [x] Spaces (backend)
-- [x] Tags (backend)
-- [x] Tasks (backend)
-- [x] Users (backend)
-- [ ] Unit tests (Jest/Vitest) — none
-- [ ] Component tests (React Testing Library) — none
-- [ ] Visual regression tests — none
-- [ ] Accessibility tests — none
-- [ ] Performance tests — none
-
-### 12.7 Infrastructure & Configuration
-
-- [x] Vite dev server with proxy
-- [x] TypeScript strict mode
-- [x] ESLint + Prettier (implied)
-- [x] Playwright E2E with webServer
-- [x] Environment variable configuration
-- [x] Docker Containerfile (in parent `copilot/`)
-- [ ] CI/CD pipeline
-- [ ] Storybook for component documentation
-- [ ] Bundle analysis
-- [ ] PWA support
-- [ ] Error boundary (React Error Boundary not used)
-
-### 12.8 Missing or Incomplete Features
-
-- [ ] **Pipeline Creation UI** — Only editing existing pipelines
-- [ ] **OAuth2/SSO Login** — Backend ready, UI missing
-- [ ] **GraphQL Integration** — Chat uses mock; endpoint not registered in backend
-- [ ] **Metrics/Health Endpoints** — Monitoring/Maintenance use mock data
-- [ ] **Real Video Playback** — Asset detail simulates progress
-- [ ] **Annotation Creation** — No drawing tools for regions/time ranges
-- [ ] **Comment/Reaction Creation** — Read-only in asset detail
-- [ ] **Task Creation from Asset** — Only in Tasks view
-- [ ] **Transcript Editing** — Read-only
-- [ ] **Face Cluster Management** — Merge/split/rename UI missing
-- [x] **Pipeline Version Diff** — Side-by-side JSON diff between a previous version and current (see §6.12)
-- [ ] **Collaborative Editing** — No real-time multi-user
-- [ ] **Undo/Redo** — Not implemented anywhere
-- [ ] **Bulk Operations** — Assets, tags, tasks, pipelines
-- [ ] **Keyboard Shortcuts** — Only in pipeline editor
-- [ ] **Accessibility (a11y)** — Not audited
-- [ ] **Error Boundaries** — No graceful error UI
-- [ ] **Offline Support** — No service worker
-- [ ] **Virtualized Lists** — Large datasets may lag
-- [x] **WebSocket Reconnection** — the shared UI events socket
-      (`src/api/pipelineEvents.ts`) auto-reconnects with exponential backoff
-      (1s→30s cap, reset on open, suppressed on close code `4401`)
-- [x] **Pipeline Event WS** — the pipeline editor
-      (`src/features/pipeline/PipelineEditor.tsx`) subscribes via
-      `subscribePipelineEvents`, driving live node activity (`isActive` pulse),
-      per-node last-result tint (`NODE_COMPLETED`/`NODE_FAILED`), and a live run
-      banner + run-history refresh (`PIPELINE_STARTED`/`PIPELINE_COMPLETED`).
-      Events are filtered client-side by `pipelineName` (the socket is shared
-      with the Cortex view, so no `?pipeline=` URL filter). See
-      [WEBSOCKET.md](../WEBSOCKET.md)
+- [x] vitest (node env) for API clients and extracted helpers — 18 files
+- [x] Playwright mocked specs as the component tier — 32 files
+- [x] Playwright backend specs against demo data — 29 files
+- [x] `tsc --noEmit` gate via `npm run build`
+- [ ] Visual regression tests
+- [ ] Accessibility tests
+- [ ] CI wiring for the E2E suite
 
 ---
 
-## 13. UI Features Lacking Loom Server Implementation
-
-| UI Feature | Required Backend Endpoint | Status |
-|------------|---------------------------|--------|
-| Pipeline creation | `POST /api/v1/pipelines` | ✅ Exists, UI missing |
-| Pipeline deletion | `DELETE /api/v1/pipelines/:uuid` | ✅ Exists, UI missing |
-| Pipeline cloning | `POST /api/v1/pipelines` with source | ❌ Not in API |
-| Pipeline versioning | `GET /api/v1/pipelines/:uuid/versions` | ✅ Exists, UI implemented |
-| Pipeline version restore | `POST /api/v1/pipelines/:uuid/versions/:n/restore` | ✅ Exists, UI implemented |
-| GraphQL queries | `POST /api/v1/graphql` | ⚠️ Implemented but not registered |
-| Metrics dashboard | `GET /api/v1/metrics` | ❌ Not in API |
-| Health check | `GET /api/v1/health` | ❌ Not in API |
-| OAuth2 login | `GET /api/v1/auth/oauth2/login` | ✅ Exists, UI missing |
-| OAuth2 callback | `GET /api/v1/auth/oauth2/callback` | ✅ Exists, UI missing |
-| WebSocket pipeline events | `WS /api/v1/pipelines/events/ws` | ✅ Exists, UI not connected |
-| WebSocket processor | `WS /api/v1/processors/ws` | ✅ Exists, CortexView connects |
-| Processor restrictions | `GET/PUT /api/v1/processors/:nodeId/restrictions` | ✅ Exists, CortexView edits |
-| Forget processor | `DELETE /api/v1/processors/:nodeId` | ✅ Exists, CortexView (offline only) |
-| Asset bulk create | `POST /api/v1/assets/bulk/create` | ✅ Exists, UI missing |
-| Asset bulk update | `POST /api/v1/assets/bulk/update` | ✅ Exists, UI missing |
-| Asset tags CRUD | `POST/DELETE /api/v1/assets/:uuid/tags` | ✅ Exists, UI partial |
-| Asset components | `GET/POST/DELETE /api/v1/assets/:uuid/components` | ✅ Exists, UI missing |
-| Asset pool operations | `GET/POST/DELETE /api/v1/pools` | ✅ Exists, UI partial |
-| Transcript editing | `PUT /api/v1/assets/:uuid/transcripts/:uuid` | ❌ Not in API |
-| Annotation creation | `POST /api/v1/annotations` | ✅ Exists, UI missing |
-| Comment creation | `POST /api/v1/comments` | ✅ Exists, UI missing |
-| Reaction creation | `POST /api/v1/reactions` | ✅ Exists, UI missing |
-| Face cluster merge/split | `POST /api/v1/clusters/merge` | ❌ Not in API |
-| Person management | `POST/PUT /api/v1/persons` | ✅ Exists, UI partial |
-| Task bulk operations | `POST /api/v1/tasks/bulk` | ❌ Not in API |
-| Collection asset drag-drop | `POST /api/v1/collections/:uuid/assets` | ✅ Exists, UI missing |
-
----
-
-## 14. UI Features Still Mocked (Need Real Implementation)
-
-| Feature | Current State | Required Work |
-|---------|---------------|---------------|
-| **Chat / Loom Agent** | Full mock (`src/mock/data.ts` + `services.ts`) | Connect to GraphQL endpoint or REST API |
-| **Monitoring Dashboard** | Mock metrics (`src/mock/data.ts`) | Implement `/api/v1/metrics` endpoint |
-| **Maintenance View** | Static mock data | Implement `/api/v1/health` endpoint |
-| **Video Playback** | Simulated progress bar | Real `<video>` element with HLS/DASH |
-| **Transcript Data** | Mock sections in `AssetDetail` | Already loads from API (`listAssetTranscripts`) |
-| **Face Detection Data** | Loads from API but clusters/persons mock | `listClusters`/`listPersons` already real |
-| **Task Data** | Mock in `TasksView` | Connect to `/api/v1/tasks` |
-| **Collection Data** | Mock in `CollectionsView` | Connect to `/api/v1/collections` |
-| **Tag Data** | Mock in `TagsView` | Connect to `/api/v1/tags` |
-| **Asset Pool Data** | Mock in `AssetPoolsView` | Connect to `/api/v1/pools` |
-| **Cortex Worker Data** | Real: live REST + WS updates; per-worker node-restriction (whitelist/blacklist) editing and forget of offline instances | ✅ Real |
-| **Pipeline Run History** | Loads from API (`listPipelineRuns`) | ✅ Real |
-| **Node Descriptors** | Loads from API (`fetchNodeDescriptors`) | ✅ Real |
-
----
-
-## 15. Overall UI Implementation Progress
-
-```
-████████████████████████████████████████████████████  85%
-
-Core Framework:     ████████████████████████████████  100%
-Authentication:     ██████████████████████████████    90%
-Asset Management:   ████████████████████████████████  95%
-Pipeline Editor:    ███████████████████████████████   93%
-Admin Panels:       ████████████████████████████████  95%
-Monitoring/Chat:    ████████████████████████          70%
-Testing:            ████████████████████████████████  85%
-API Integration:    ████████████████████████████      80%
-```
-
-### Priority Next Steps
-
-1. **Connect Chat to GraphQL** — Replace mock with real `POST /api/v1/graphql`
-2. **Implement Monitoring API** — Add `/api/v1/metrics` endpoint
-3. **Add Pipeline Creation/Deletion UI** — Use existing API endpoints
-4. **OAuth2 Login Flow** — Implement BFF pattern in UI
-5. **Real Video Playback** — Replace simulation with `<video>` + HLS.js
-6. **Annotation/Comment/Reaction Creation** — Add create UI in AssetDetail
-7. **Pipeline Event WebSocket** — Connect live run updates
-8. **Undo/Redo System** — Implement for pipeline editor first
-9. **Accessibility Audit** — Fix contrast, keyboard nav, ARIA labels
-10. **Error Boundaries** — Add graceful error UI throughout
+_Git HEAD revision: `2e5981cb`_
+_Last updated: 2026-08-01 (rewritten as a shell-level reference: verified stack, routes, API modules and test tooling against the code; per-screen and gap content delegated to PIPELINE_EDITOR.md, CHAT.md and the TASK_UI_* files.)_

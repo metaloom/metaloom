@@ -1,414 +1,322 @@
 # Cortex — Build Specification
 
-> This document covers building Cortex from source, the Maven module
-> structure, the container image, native dependencies, and fast-compile
-> recipes. It is a companion to [CORTEX.md](CORTEX.md) (architecture)
-> and [CONFIGURATION.md](CONFIGURATION.md) (runtime configuration).
+> Building Cortex from source: Maven reactor layout, shaded CLI JAR, container
+> image, native dependencies, test recipes.
 >
-> **Cross-references**:
-> - [CORTEX.md](CORTEX.md) — Module map, Dagger wiring, startup lifecycle
-> - [CONFIGURATION.md](CONFIGURATION.md) — Container env vars, CLI flags
-> - [../METALOOM.md](../METALOOM.md) — Top-level project context and build scripts
+> **Cross-references** (do not duplicate content from these):
+> - [CORTEX.md](CORTEX.md) — Architecture, module responsibilities, Dagger wiring, startup lifecycle
+> - [CONFIGURATION.md](CONFIGURATION.md) — Runtime configuration, CLI flags, node options
+> - [../loom/BUILD.md](../loom/BUILD.md) — Loom/UI build, `build-containers.sh`, native (GraalVM) builds
+> - [../METALOOM.md](../METALOOM.md) — Repository-wide layout and testing overview
 
 ---
 
 ## 1. Prerequisites
 
-| Requirement | Minimum / Version | Notes |
+| Requirement | Version | Needed for |
 |---|---|---|
-| Java (JDK) | JDK 25 | The `maven.compiler.release` is set to `25` in `cortex/core/pom.xml` |
-| Maven | 3.9+ | Uses `maven-compiler-plugin` 3.14.0, `maven-shade-plugin` 3.4.1 |
-| Docker / Podman | Any recent version | Only needed for container image builds |
-| OpenCV | 4.10+ (JNI) | Required by facedetect, thumbnail, quality, scene-detection nodes |
-| InspireFace | 1.2.1+ | Required by facedetect node (native library + model packs) |
-| whisper.cpp | Latest | Required by whisper node (ASR) |
-| Tesseract | 5+ | Required by OCR node |
-| Apache Tika | Java (Maven) | Required by tika node (metadata extraction) |
-| Ollama | Any | Required by LLM node (local LLM inference) |
+| JDK | 25 | `<release>25</release>` is set in `maven-parent` and re-declared in `cortex/nodes/pom.xml`, `cortex/core/pom.xml` |
+| Maven | 3.9+ | `maven-compiler-plugin` 3.14.0, `maven-shade-plugin` 3.4.1 (versions from `maven-parent`) |
+| Docker | recent | Container image only (`build-container.sh` calls `docker build`) |
+| OpenCV **5.1** build | soname `.so.501` | Container image build (staged by `build-container.sh`); runtime for video4j-backed nodes |
+| InspireFace | native lib + model pack | facedetect node (InspireFace backend) |
+| whisper.cpp | via `asr4j` | whisper node |
+| Tesseract | 5+, via `tess4j` | ocr node |
+| Sidecar services | HTTP | tts, depthmap, image-generation, video-generation, sentiment, llm, vlm, captioning (see `sidecars/`) |
 
-> **Note**: OpenCV, InspireFace, whisper.cpp, and Tesseract are only
-> needed if the corresponding nodes are enabled. Cortex can be built
-> and run without them (those nodes will be disabled at runtime).
+Cortex builds and runs without any of the native/sidecar dependencies — the
+affected nodes simply fail or stay disabled at runtime.
 
 ---
 
 ## 2. Maven Module Structure
 
-Cortex is a Maven reactor under `cortex/pom.xml` (parent:
-`io.metaloom:metaloom-parent:1.0.0-SNAPSHOT`, which inherits from
-`io.metaloom:maven-parent:3.0.0-SNAPSHOT`).
+Reactor root: `cortex/pom.xml` (groupId `io.metaloom.cortex`, packaging `pom`,
+parent `io.metaloom:metaloom-parent:1.0.0-SNAPSHOT` → `io.metaloom:maven-parent:3.0.0-SNAPSHOT`).
+`cortex` is a module of the repository root `pom.xml`.
 
-### 2.1 Module Hierarchy
+### 2.1 Top-level modules
 
-```
-cortex/                          (parent POM, packaging=pom)
-├── api/                         (cortex-api)          — Public interfaces, options, media types
-├── common/                      (cortex-common)        — Shared impls: MetaStorage, options loader, media loader
-├── fs/                          (cortex-fs)            — Linux filesystem scanner (xattr support)
-├── core-media/                  (cortex-core-media)    — Media decorator types, AssertJ test helpers
-├── nodes/                       (cortex-nodes)         — Concrete processing nodes (parent POM)
-│   ├── common-api/              (cortex-nodes-common-api)
-│   ├── filter-api/              (cortex-filter-api)
-│   ├── source-api/              (cortex-source-api)
-│   ├── filesystem-source/       (cortex-filesystem-source-node)
-│   ├── hash/                    (cortex-hash)
-│   ├── fingerprint/             (cortex-fingerprint)
-│   ├── facedetect/              (cortex-facedetect)
-│   ├── thumbnail/               (cortex-thumbnail)
-│   ├── consistency/             (cortex-consistency)
-│   ├── dedup/                   (cortex-dedup)
-│   ├── quality/                 (cortex-quality)
-│   ├── scene-detection/         (cortex-scene-detection)
-│   ├── ocr/                     (cortex-ocr)
-│   ├── tika/                    (cortex-tika)
-│   ├── whisper/                 (cortex-whisper)
-│   ├── llm/                     (cortex-llm)
-│   ├── vlm/                     (cortex-vlm)
-│   ├── captioning/              (cortex-captioning)
-│   └── loom/                    (cortex-loom)
-├── processor/                   (cortex-processor)     — MediaProcessor, FilesystemProcessor
-├── pipeline-api/                (cortex-pipeline-api)  — Pipeline, PipelineNode, executor, events, cache SPIs
-├── pipeline-core/               (cortex-pipeline-core) — DefaultPipeline, ReactivePipelineExecutor, filters, serde
-├── pipeline-common/             (cortex-pipeline-common)— Event bus, cache impls, bulk sync collector
-├── core/                        (cortex-core)          — Runtime wiring, CLI commands, Dagger modules, Loom channel
-├── cli/                         (cortex-cli)           — CLI entry point, Dagger component, shade plugin
-├── container/                   (cortex-container)     — Containerfile + dependency copy
-```
+| Directory | artifactId | Role |
+|---|---|---|
+| `api` | `cortex-api` | Public interfaces, options, `NodeResult`, media types |
+| `common` | `cortex-common` | Shared impls: MetaStorage, options loader, media loader |
+| `s3-common` | `cortex-s3-common` | AWS SDK S3/SQS client, lazy `s3://` media materialization |
+| `fs` | `cortex-fs` | Linux filesystem scanner (xattr) |
+| `core-media` | `cortex-core-media` | Media decorator types + AssertJ test helpers |
+| `nodes` | `cortex-nodes` | Aggregator for all node modules (see 2.2) |
+| `processor` | `cortex-processor` | `MediaProcessor`, `FilesystemProcessor` |
+| `core` | `cortex-core` | Runtime wiring, CLI commands, Dagger modules, Loom control channel |
+| `cli` | `cortex-cli` | Picocli entry point, Dagger component, shade plugin |
+| `container` | `cortex-container` | Copies the shaded JAR for the image build (packaging `pom`) |
+| `pipeline-api` | `cortex-pipeline-api` | Pipeline/executor/event/cache SPIs |
+| `pipeline-common` | `cortex-pipeline-common` | Event bus, cache impls, bulk sync collector |
+| `pipeline-core` | `cortex-pipeline-core` | `DefaultPipeline`, reactive executor, filters, JSON serde |
+| `node-runtime` | `cortex-node-runtime` | Standalone node runtime harness (pipeline-model + Vert.x) |
 
-### 2.2 Key Dependencies
+### 2.2 Node modules (`cortex/nodes/`)
 
-| Dependency | Version | Scope | Purpose |
-|---|---|---|---|
-| `io.vertx:vertx-core` | 5.0.11 | compile | Vert.x event loop, WebSocket client, HTTP server |
-| `io.vertx:vertx-web` | 5.0.11 | compile | Router for monitoring endpoints |
-| `com.google.dagger:dagger` | 2.57.2 | compile | Dependency injection |
-| `com.google.dagger:dagger-compiler` | 2.57.2 | annotation processor | Dagger code generation |
-| `info.picocli:picocli` | 4.7.7 | compile | CLI framework |
-| `info.picocli:picocli-codegen` | 4.7.7 | annotation processor | Picocli completion/reflection config |
-| `io.reactivex.rxjava3:rxjava` | (from BOM) | compile | Reactive streams (pipeline executor) |
-| `com.fasterxml.jackson` | 2.18.2 | compile | JSON/YAML serialization (config, pipeline serde) |
-| `org.apache.commons:commons-io` | (from BOM) | compile | File utilities |
-| `io.metaloom.loom:loom-client` | 1.0.0-SNAPSHOT | compile | Loom REST client (online mode) |
-| `io.metaloom.loom:loom-shared-rest-model` | 1.0.0-SNAPSHOT | compile | DTOs (pipeline, processor, asset) |
+Every node except the two source nodes is a **two-level module**: a
+packaging=`pom` parent `cortex-<name>` containing a `core/` submodule that
+produces `cortex-<name>-node`. Depend on the `-node` artifact, never the parent.
 
-### 2.3 Dependency Management
+| Module | artifactId (`core/`) | Notable build dependency |
+|---|---|---|
+| `filesystem-source` *(flat)* | `cortex-filesystem-source-node` | `differential-filesystem-scanner` |
+| `s3-source` *(flat)* | `cortex-s3-source-node` | `differential-filesystem-scanner`, Avro |
+| `s3-sink` | `cortex-s3-sink-node` | `cortex-s3-common` |
+| `hash` | `cortex-hash-node` | — (pure Java) |
+| `dedup` | `cortex-dedup-node` | `io.metaloom:utils` |
+| `thumbnail` | `cortex-thumbnail-node` | `video4j` (OpenCV) |
+| `consistency` | `cortex-consistency-node` | — |
+| `fingerprint` | `cortex-fingerprint-node` | `video4j-fingerprint` (OpenCV) |
+| `facedetect` | `cortex-facedetect-node` | `video4j-facedetect-{inspireface,insightface-http,dlib}`, `genai-utils`, `hash-utils`, Avro |
+| `scene-detection` | `cortex-scene-detection-node` | `video4j`, `commons-math3` |
+| `ocr` | `cortex-ocr-node` | `tess4j` (Tesseract JNA) |
+| `llm` | `cortex-llm-node` | `genai-utils` |
+| `vlm` | `cortex-vlm-node` | `genai-utils-mock-llm-server` (test) |
+| `tika` | `cortex-tika-node` | Apache Tika 3.2.2 |
+| `whisper` | `cortex-whisper-node` | `asr4j` (whisper.cpp) |
+| `tts` | `cortex-tts-node` | HTTP sidecar |
+| `sentiment` | `cortex-sentiment-node` | HTTP sidecar |
+| `script` | `cortex-script-node` | GraalVM `polyglot` + `js-community` |
+| `depthmap` | `cortex-depthmap-node` | HTTP sidecar |
+| `scene-layout` | `cortex-scene-layout-node` | — |
+| `dominant-color` | `cortex-dominant-color-node` | — |
+| `quality` | `cortex-quality-node` | `video4j` (OpenCV) |
+| `captioning` | `cortex-captioning-node` | `video4j`, HTTP sidecar |
+| `image-generation` | `cortex-image-generation-node` | HTTP sidecar |
+| `video-generation` | `cortex-video-generation-node` | HTTP sidecar |
+| `watermark` | `cortex-watermark-node` | — |
 
-All external dependency versions are managed in the root BOM
-(`bom/pom.xml`) and the `metaloom-parent` POM. Internal
-`io.metaloom.cortex:*` dependencies are managed in `cortex/pom.xml`
-under `<dependencyManagement>`.
+### 2.3 Version management
+
+| Where | Manages |
+|---|---|
+| `bom/pom.xml` | All external versions (`dagger` 2.57.2, `pico-cli` 4.7.7, `jackson` 2.18.2, `tika` 3.2.2, `aws.sdk` 2.49.4, `video4j` 2.0.0-SNAPSHOT, …) |
+| root `pom.xml` | `vertx.version` 5.0.11, `avro.version` 1.12.0, protobuf/gRPC |
+| `cortex/pom.xml` | Internal `io.metaloom.cortex:*` deps, `dagger.version`, `loom.version`, `loom.client.version` |
+
+Never write a `<version>` for a managed dependency in a child POM.
 
 ---
 
 ## 3. Build Commands
 
-### 3.1 Full Build (All Modules)
+| Goal | Command (from repo root unless noted) |
+|---|---|
+| Everything (Maven + UI + all containers) | `./build.sh` |
+| Maven only, whole repo | `mvn -T 8 clean package -DskipTests` |
+| Whole Cortex reactor | `mvn -T 8 clean package -DskipTests -f cortex/pom.xml` |
+| Fast compile check | `mvn -T 8 test-compile -q -f cortex/pom.xml` |
+| Shaded CLI JAR only | `mvn -T 8 clean package -DskipTests -pl cortex/cli -am` |
+| CLI + container staging | `mvn -T 8 clean package -DskipTests -pl cortex/container,cortex/cli -am` |
+| One module's tests | `mvn test -pl cortex/pipeline-core` / `-pl cortex/nodes/hash/core` |
+| Integration tests | `./it.sh` (runs `PoolSetupRunner`, then `mvn verify -pl integration-test`) |
+| E2E tests | `./e2e.sh` (builds demo container, starts Postgres + demo, runs `e2e-test`) |
 
-```bash
-# From the project root (metaloom/)
-mvn -T 8 clean package -DskipTests
-```
+`build.sh` performs, in order: `mvn -T 8 clean package -DskipTests` →
+`loom-ui: npm run build` → `loom/containers/build-containers.sh all` →
+`cortex/container/build-container.sh`.
 
-Or use the convenience script:
-
-```bash
-./build.sh
-```
-
-`build.sh` does:
-1. `mvn -T 8 clean package -DskipTests` (Maven build)
-2. `npm run build` (Loom UI)
-3. `loom/containers/build-containers.sh all` (Loom containers)
-4. `cortex/container/build-container.sh` (Cortex container)
-
-### 3.2 Build Only Cortex
-
-```bash
-# Build all cortex modules (skip tests)
-mvn -T 8 clean package -DskipTests -pl cortex -am
-
-# Or from within the cortex/ directory:
-cd cortex/
-mvn -T 8 clean package -DskipTests
-```
-
-### 3.3 Fast Compile Check
-
-```bash
-mvn -T 8 test-compile -q -DskipTests -pl cortex
-```
-
-### 3.4 Build Only the CLI JAR
-
-```bash
-mvn -T 8 clean package -DskipTests -pl cortex/cli -am
-# Output: cortex/cli/target/cortex-cli-*.jar
-```
-
-### 3.5 Run Tests
-
-```bash
-# All cortex tests
-mvn -T 8 test -pl cortex
-
-# Specific module
-mvn test -pl cortex/pipeline-core
-mvn test -pl cortex/nodes/hash
-
-# Integration tests (requires test database pool)
-cd ../  # project root
-./it.sh
-```
-
-### 3.6 Dagger Annotation Processing
-
-Dagger generates `DaggerCortexComponent` and related classes during
-compilation. The generated sources appear under:
-
-```
-cortex/cli/target/generated-sources/annotations/
-```
-
-If you change Dagger modules, `@Binds`, `@Provides`, or `@IntoSet`
-annotations, do a full `mvn clean compile` — incremental compilation
-may not re-trigger the annotation processor.
+**Dagger**: `DaggerCortexComponent` is generated under
+`cortex/cli/target/generated-sources/annotations/`. After changing `@Module`,
+`@Binds`, `@Provides` or `@IntoSet`, run a clean build of the affected module —
+incremental compilation does not reliably re-run the processor.
 
 ---
 
 ## 4. Container Image
 
-### 4.1 Containerfile
+### 4.1 Contents (`cortex/container/Containerfile`)
 
-Location: `cortex/container/Containerfile`
+Base `debian:trixie-slim`; produces `metaloom/cortex-server:${TAG:-latest}`.
 
-The container image is based on `debian:trixie-slim` and includes:
+| Layer | Source |
+|---|---|
+| CUDA 13.2 runtime (`cuda-cudart-13-2`, `libcublas-13-2`) | NVIDIA `debian13` repo via `cuda-keyring` |
+| FFmpeg runtime libs (`libavcodec61`, `libavformat61`, `libavutil59`, `libswscale8`, `libswresample5`), `adduser` | Debian apt |
+| **OpenCV 5.1 shared libs** → `/opt/opencv/lib` | Staged from a local OpenCV build by `build-container.sh` into `container/target/opencv-libs` |
+| Temurin JRE 25.0.2+10 → `/opt/java25` | Downloaded from the adoptium GitHub release |
+| InspireFace `Pikachu` model pack → `/cortex/packs` | HyperInspire GitHub release `v1.x` |
+| `cortex-cli.jar`, `logback.xml` → `/cortex` | `container/target/cortex-cli/`, `container/logback.xml` |
 
-| Component | Source | Purpose |
-|---|---|---|
-| CUDA 13.2 runtime | NVIDIA Debian13 repo | GPU support for whisper, facedetect |
-| OpenCV 4.10 JNI | Debian Trixie apt | Image/video processing |
-| OpenJDK 25 JRE | Eclipse Temurin | Runtime for Cortex |
-| InspireFace model packs | GitHub releases | Face detection models |
-| cortex-cli.jar | Maven build | The shaded CLI JAR |
+CMD:
+`/opt/java25/bin/java -Djna.tmpdir=/tmp/.jna -Duser.dir=/cortex -Dlogback.configurationFile=/cortex/logback.xml --enable-native-access=ALL-UNNAMED -jar cortex-cli.jar server start`
 
-### 4.2 Building the Container Image
+Runs as user `cortex` (uid 1000, group `root`/0). Exposes `8093`.
+Volumes: `/config` (symlinked to `/cortex/config`) and `/meta`.
+
+### 4.2 Building
 
 ```bash
-# Prerequisite: build the CLI JAR first
 mvn -T 8 clean package -DskipTests -pl cortex/container,cortex/cli -am
-
-# Build the container image
-cd cortex/container/
-./build-container.sh
-
-# Or with a custom tag:
-TAG=v1.0.0 ./build-container.sh
+cortex/container/build-container.sh          # TAG=v1.0.0 to override the tag
 ```
 
-The script produces `metaloom/cortex-server:latest` (or `:$TAG`).
+`build-container.sh` stages OpenCV before calling docker: it requires
+`libopencv_core.so.501` in `$OPENCV_LIB_DIR` and aborts with an explicit error
+otherwise. The build context is the **repository root**, so `Containerfile`
+paths are `./cortex/container/...`.
 
-### 4.3 Container Runtime
+### 4.3 Build-script environment
 
-```bash
-# Run the container (server mode, connecting to Loom)
-docker run -d \
-  -e LOOM_HOST=loom \
-  -e LOOM_PORT=8092 \
-  -e LOOM_TOKEN=your-token \
-  -p 8093:8093 \
-  -v /path/to/meta:/meta \
-  -v /path/to/config:/config \
-  metaloom/cortex-server:latest
+| Env Var | Default | Purpose |
+|---|---|---|
+| `TAG` | `latest` | Image tag for `metaloom/cortex-server` |
+| `OPENCV_LIB_DIR` | `<repo>/../opencv/build/lib` | Directory holding `libopencv_*.so.501` to stage into the image |
 
-# The container CMD is:
-# /opt/java25/bin/java -Djna.tmpdir=/tmp/.jna -Duser.dir=/cortex \
-#   --enable-native-access=ALL-UNNAMED -jar cortex-cli.jar server start
-```
-
-### 4.4 Container Environment
+### 4.4 Image environment (defaults baked in)
 
 | Env Var | Default | Description |
 |---|---|---|
 | `LOOM_HOST` | `loom` | Loom server hostname |
 | `LOOM_PORT` | `8092` | Loom server HTTP port |
-| `CORTEX_MONITORING_PORT` | `8093` | Monitoring HTTP port |
-| `HOME` | `/cortex` | Home directory |
-| `JAVA_TOOL_OPTIONS` | `-Xms256m -Xmx512m` | JVM heap settings |
-| `LOOM_TOKEN` | (not set) | Bearer token for Loom WebSocket auth |
+| `CORTEX_MONITORING_PORT` | `8093` | Monitoring HTTP port (maps to `--monitoring-port`) |
+| `HOME` | `/cortex` | Home / working directory |
+| `JAVA_TOOL_OPTIONS` | `-Xms256m -Xmx512m` | JVM heap |
+| `JAVA_HOME` | `/opt/java25` | Temurin JRE 25 |
+| `LD_LIBRARY_PATH` | `/opt/opencv/lib` | OpenCV 5.1 libraries |
+| `PATH` | `/usr/local/cuda-13.2/bin:$PATH` | CUDA tools |
+| `LOOM_TOKEN` | *(unset)* | Bearer token read by `LoomControlChannel` for WebSocket auth |
 
-### 4.5 Container Volumes
-
-| Volume | Container Path | Purpose |
-|---|---|---|
-| `/config` | symlinked to `/cortex/config` | Config files (`cortex.yml`) |
-| `/meta` | — | Metadata storage (sidecar files, xattr) |
+Runtime option/env mapping beyond these lives in [CONFIGURATION.md](CONFIGURATION.md).
 
 ---
 
-## 5. CLI JAR Packaging
+## 5. Shaded CLI JAR
 
-The `cortex-cli` module uses the `maven-shade-plugin` to produce a
-shaded (uber) JAR with classifier `combined`:
+`cortex-cli` attaches a shaded artifact with classifier `combined`:
+`cortex/cli/target/cortex-cli-1.0.0-SNAPSHOT-combined.jar`.
+`cortex-container` copies it via `maven-dependency-plugin` to
+`cortex/container/target/cortex-cli/cortex-cli.jar`.
 
-```
-cortex/cli/target/cortex-cli-1.0.0-SNAPSHOT-combined.jar
-```
+| Shade setting | Value / reason |
+|---|---|
+| `shadedArtifactAttached` / `shadedClassifierName` | `true` / `combined` — the plain `cortex-cli.jar` stays unshaded |
+| Filter `*:*` excludes | `META-INF/*.SF`, `*.DSA`, `*.RSA` (signature files break the uber JAR) |
+| `ManifestResourceTransformer` | `Main-Class` = `io.metaloom.cortex.cli.CortexCLIMain` |
+| `ServicesResourceTransformer` | **Required** — merges `META-INF/services`; without it the AWS SDK `SdkHttpService` entry is overwritten and the shaded JAR fails at runtime with *"Unable to load an HTTP implementation from any provider in the chain"*. Classpath-based tests never catch this. |
 
-The `cortex-container` module uses `maven-dependency-plugin` to copy
-this JAR to `cortex/container/target/cortex-cli/cortex-cli.jar`.
-
-**Main class**: `io.metaloom.cortex.cli.CortexCLIMain`
-
-The shade plugin:
-- Merges all dependency JARs into a single JAR
-- Excludes signature files (`META-INF/*.SF`, `*.DSA`, `*.RSA`)
-- Sets `Main-Class` to `io.metaloom.cortex.cli.CortexCLIMain` via
-  `ManifestResourceTransformer`
+Annotation processors on `cortex-cli`: `picocli-codegen` and `dagger-compiler`.
 
 ---
 
 ## 6. Native Dependencies
 
-Cortex nodes depend on native libraries. These are not bundled in the
-JAR — they must be available on the library path or installed system-wide.
+Native libraries are **not** bundled in the JAR.
 
-| Node | Native Dependency | Library / Path | Container Source |
-|---|---|---|---|
-| Facedetect | InspireFace | `libinspireface.so` + model packs | Installed in `/cortex/packs` |
-| Facedetect / Thumbnail / Quality / Scene | OpenCV | `libopencv410-jni` + native libs | apt: `libopencv410-jni` |
-| Whisper | whisper.cpp | `libwhisper.so` + GGML model | Not in container (mount or install) |
-| OCR | Tesseract | `libtesseract.so` + tessdata | Not in container (install separately) |
-| Hash | None (pure Java) | — | — |
-| Tika | None (Java) | — | — |
-| LLM | Ollama (HTTP) | `ollama` server running locally | Not in container |
-| Captioning | SmolVLM (HTTP) | External service | Not in container |
+| Node(s) | Native / external | In the container? |
+|---|---|---|
+| thumbnail, quality, scene-detection, fingerprint, captioning | OpenCV 5.1 via `video4j` / `opencv-ffm` (`libopencv_ffm.so`, soname `.so.501`) | Yes — `/opt/opencv/lib` |
+| facedetect | InspireFace (`libinspireface.so` + `Pikachu` pack) | Model pack yes (`/cortex/packs`); native lib via `video4j-facedetect-inspireface` |
+| whisper | whisper.cpp via `asr4j` + GGML model | No — mount/install |
+| ocr | Tesseract via `tess4j` + tessdata | No — install separately |
+| script | GraalVM `js-community` (JVM-embedded) | Ships in the JAR |
+| llm, vlm, tts, sentiment, depthmap, image/video-generation, captioning | HTTP sidecar services (`sidecars/`) or Ollama/llama.cpp | No |
+| hash, dedup, tika, consistency, watermark, dominant-color, scene-layout, s3-* | Pure Java | n/a |
 
-### JVM Native Access
-
-The container runs with `--enable-native-access=ALL-UNNAMED` to allow
-JNI calls to OpenCV and InspireFace without warnings on JDK 25.
+**Do not** install Debian's `libopencv410*` packages instead of staging 5.1 — the
+bundled `libopencv_ffm.so` links against soname `.so.501` and the container dies
+on startup with `UnsatisfiedLinkError: libopencv_video.so.501`.
 
 ---
 
-## 7. Key Build Artifacts
+## 7. Test Setup
 
-| Artifact | Module | Description |
+| Kind | Location | How to run |
 |---|---|---|
-| `cortex-api` jar | `cortex/api` | Public interfaces (Cortex, CortexOptions, CortexNode, LoomMedia) |
-| `cortex-common` jar | `cortex/common` | Shared impls (MetaStorage, options loader, media loader) |
-| `cortex-core` jar | `cortex/core` | Runtime wiring, CLI commands, Dagger modules |
-| `cortex-cli` jar (combined) | `cortex/cli` | Shaded uber JAR with all dependencies |
-| `cortex-pipeline-api` jar | `cortex/pipeline-api` | Pipeline interfaces |
-| `cortex-pipeline-core` jar | `cortex/pipeline-core` | Pipeline executor, filters, JSON serde |
-| `cortex-pipeline-common` jar | `cortex/pipeline-common` | Event bus, cache impls, bulk sync |
-| `cortex-container` (pom) | `cortex/container` | Copies CLI JAR for container build |
-| Node jars | `cortex/nodes/*` | Per-node implementations |
+| Unit tests | `src/test/java` in each module | `mvn test -pl cortex/<module>` |
+| Pipeline / serde / control-channel tests | `cortex/pipeline-core`, `cortex/core` | `mvn test -pl cortex/pipeline-core` |
+| Per-node E2E integration tests | `integration-test/` (depends on every `cortex-*-node` + `cortex-cli`) | `./it.sh` |
+| E2E against a running backend | `e2e-test/` | `./e2e.sh` |
 
----
+Test libraries: JUnit Jupiter, AssertJ, Testcontainers, `loom-test-env`
+(inherited as a test dependency by every Cortex module from `cortex/pom.xml`).
 
-## 8. Test Setup
-
-### 8.1 Unit Tests
-
-Each module has `src/test/java` with unit tests. Run with:
-
-```bash
-mvn test -pl cortex/<module>
-```
-
-### 8.2 Test Dependencies
-
-| Library | Scope | Purpose |
-|---|---|---|
-| JUnit 6 (`junit-jupiter`) | test | Test framework |
-| Testcontainers | test | Integration tests (Loom server, Postgres) |
-| AssertJ | test | Custom assertions (see [CORTEX.md](CORTEX.md) Section 9.3) |
-
-### 8.3 Integration Tests
-
-Integration tests are in `cortex/pipeline-core/src/test` and
-`cortex/core/src/test`. They test the pipeline executor, JSON serde,
-and Loom control channel.
-
-### 8.4 Custom AssertJ Assertions
+Custom AssertJ assertions:
 
 | Assert | Module |
 |---|---|
-| `PipelineResultAssert` | `cortex/pipeline-core` |
-| `PipelineNodeResultAssert` | `cortex/pipeline-core` |
-| `NodeResultAssert` | `cortex/core-media` |
-| `FaceAssert` | `cortex/nodes/facedetect/core` |
+| `LoomMediaAssert`, `NodeResultAssert`, `AbstractProcessableMediaAssert` | `cortex/core-media` |
+| `PipelineResultAssert`, `PipelineNodeResultAssert` | `cortex/pipeline-core` |
+| `CortexNodeOptionsAssert`, `ValidationResultAssert` | `cortex/api` |
+| `<Node>OptionsAssert` (facedetect, thumbnail, tika, tts, watermark, …) | `cortex/nodes/<node>/core` |
+
+Cortex unit tests need no database; `integration-test` requires the pooled test
+database — run `./setup-pool.sh` first (or use `./it.sh`, which does it).
 
 ---
 
-## 9. Conventions and Gotchas
+## 8. Conventions and Gotchas
 
-- **Java 25**: The compiler release is set to `25` in `cortex/core/pom.xml`.
-  Ensure your JDK is 25+ or the build will fail.
-- **Dagger regeneration**: After changing `@Binds`, `@Provides`,
-  `@IntoSet`, or `@Module` annotations, run `mvn clean compile` —
-  incremental builds may not regenerate `DaggerCortexComponent`.
-- **Shade plugin**: The `cortex-cli` JAR is shaded with classifier
-  `combined`. The container module references it via
-  `<classifier>combined</classifier>`. If you change the shade config,
-  rebuild both `cortex-cli` and `cortex-container`.
-- **BOM**: All external dependency versions are managed in the root
-  `bom/pom.xml`. Do not add version numbers in child POMs — use the
-  managed version.
-- **Vert.x 5**: Cortex uses Vert.x 5.0.11 (not Vert.x 4). The API
-  differs significantly — use `io.vertx.core.http.WebSocketClient`
-  (not `HttpClient.webSocket()`).
-- **RxJava 3**: The pipeline executor uses `io.reactivex.rxjava3.core.
-  Flowable` and `Single`. Do not mix with Reactor or CompletableFuture.
-- **Native libraries**: If a node fails with `UnsatisfiedLinkError`,
-  check that the native library is on `java.library.path` or
-  `LD_LIBRARY_PATH`. The container sets `--enable-native-access=ALL-UNNAMED`.
-- **Test database**: Cortex unit tests do not require a database.
-  Integration tests that interact with Loom require the Loom server
-  to be running (see [../METALOOM.md](../METALOOM.md) Section 7).
-- **Build order**: The reactor build order is defined by module
-  dependencies. `cortex-api` is built first, then `common`, then
-  `nodes`, then `pipeline-*`, then `core`, then `cli`, then `container`.
+- **`-pl cortex` does not build the nodes.** `cortex` is an aggregator POM;
+  `-pl cortex` selects only that POM. Use `-f cortex/pom.xml` for the whole
+  Cortex reactor, or `-pl cortex/<module> -am` for a slice.
+- **Node artifact naming**: the module directory is `cortex/nodes/<name>`, the
+  parent artifact is `cortex-<name>` (packaging `pom`), the jar is
+  `cortex-<name>-node` in `<name>/core`. `filesystem-source` and `s3-source`
+  are flat — no `core/` submodule.
+- **`ServicesResourceTransformer` must stay in the shade config.** Removing it
+  breaks the S3 nodes only in the shaded JAR (see §5).
+- **OpenCV 5.1, not 4.10** — see §6.
+- **Rebuild both `cortex-cli` and `cortex-container`** after touching the shade
+  config; the container module resolves the `combined` classifier from the repo.
+- **Dagger regeneration**: clean-build after annotation changes; stale
+  `DaggerCortexComponent` surfaces as `NoSuchMethodError` at startup.
+- **Vert.x 5.0.11** (not 4) — use `io.vertx.core.http.WebSocketClient`.
+- **RxJava 3** in the pipeline executor — do not mix with Reactor/CompletableFuture.
+- **BOM only**: no `<version>` for managed deps in child POMs.
+- **`UnsatisfiedLinkError`** → check `LD_LIBRARY_PATH` / `java.library.path`;
+  the container also needs `--enable-native-access=ALL-UNNAMED` on JDK 25.
+- **`build-container.sh` ignores its positional argument** (`target="${1:-all}"`
+  is parsed but unused) — it always builds the single server image.
+- **Docker build context is the repo root**, not `cortex/container/`.
 
 ---
 
-## 10. Where do I find …?
+## 9. Where do I find …?
 
-| Need | Look here |
+| Need | Path |
 |---|---|
-| Root POM | `cortex/pom.xml` |
-| BOM (dependency versions) | `bom/pom.xml` |
-| Parent POM | `metaloom-parent` → `maven-parent` |
-| CLI entry point | `cortex/cli/src/main/java/.../CortexCLIMain.java` |
-| CLI POM (shade plugin) | `cortex/cli/pom.xml` |
-| Container POM | `cortex/container/pom.xml` |
-| Containerfile | `cortex/container/Containerfile` |
-| Container build script | `cortex/container/build-container.sh` |
-| Full build script | `build.sh` (project root) |
-| Dagger component | `cortex/cli/src/main/java/.../dagger/CortexComponent.java` |
-| Dagger bindings | `cortex/core/src/main/java/.../dagger/CortexBindModule.java` |
-| Node modules POM | `cortex/nodes/pom.xml` |
-| Pipeline API POM | `cortex/pipeline-api/pom.xml` |
-| Integration test script | `it.sh` (project root) |
-| E2E test script | `e2e.sh` (project root) |
-| Custom node example | `examples/cortex-custom-node/` |
-| Custom example | `examples/cortex-custom/` |
+| Cortex reactor POM | `cortex/pom.xml` |
+| Node aggregator POM | `cortex/nodes/pom.xml` |
+| External dependency versions | `bom/pom.xml`, root `pom.xml` |
+| Compiler/plugin versions | `maven-parent` (sibling checkout `../maven-parent/pom.xml`) |
+| Shade plugin config | `cortex/cli/pom.xml` |
+| CLI entry point | `cortex/cli/src/main/java/io/metaloom/cortex/cli/CortexCLIMain.java` |
+| Dagger component | `cortex/cli/src/main/java/io/metaloom/cortex/cli/dagger/CortexComponent.java` |
+| Dagger bindings | `cortex/core/src/main/java/io/metaloom/cortex/cli/dagger/CortexBindModule.java` |
+| Env → CLI option mapping | `cortex/core/src/main/java/io/metaloom/cortex/cli/EnvDefaultProvider.java` |
+| Containerfile / build script / logging config | `cortex/container/{Containerfile,build-container.sh,logback.xml}` |
+| Full build script | `build.sh` (repo root) |
+| Integration / E2E scripts | `it.sh`, `e2e.sh`, `setup-pool.sh` (repo root) |
+| Integration test module | `integration-test/` |
+| Sidecar services | `sidecars/` |
+| Custom node examples | `examples/cortex-custom-node/`, `examples/cortex-custom/`, `examples/cortex-python/` |
 
 ---
 
-## 11. Progress Assessment
+## 10. Progress Assessment
 
-- [x] Prerequisites documented (JDK, Maven, native deps)
-- [x] Maven module structure documented
-- [x] Key dependencies table
-- [x] Build commands (full, cortex-only, fast compile, CLI JAR, tests)
-- [x] Container image build and runtime documented
-- [x] CLI JAR packaging (shade plugin) documented
-- [x] Native dependencies table
-- [x] Build artifacts table
-- [x] Test setup section
+- [x] Prerequisites table
+- [x] Complete module list incl. `s3-common`, `node-runtime` and all 26 node modules
+- [x] Two-level node module layout documented
+- [x] Version management (BOM / root POM / cortex POM) documented
+- [x] Build commands verified against `build.sh`, `it.sh`, `e2e.sh`
+- [x] Container image contents (CUDA 13.2, OpenCV 5.1 staging, Temurin 25.0.2+10, logback)
+- [x] Build-script env vars (`TAG`, `OPENCV_LIB_DIR`) and image env vars
+- [x] Shade plugin config incl. `ServicesResourceTransformer` rationale
+- [x] Native dependency matrix
+- [x] Test setup incl. `integration-test` / `e2e-test`
 - [x] Conventions and gotchas
-- [x] "Where do I find" cheat sheet
-- [ ] CI/CD pipeline configuration
-- [ ] GraalVM native image build
-- [ ] Release process documentation
+- [x] "Where do I find …?" cheat sheet
+- [ ] CI/CD pipeline configuration (no CI config present in the repo)
+- [ ] GraalVM native image build for Cortex (only Loom has native profiles — see [../loom/BUILD.md](../loom/BUILD.md))
+- [ ] Release / publishing process
+- [ ] `examples/cortex-python` is not wired into `examples/pom.xml` — decide whether it should be
+
+---
+
+_Git HEAD revision: `2e5981cb`_
+_Last updated: 2026-08-01 (Rewrote against the actual POMs, Containerfile and build scripts: corrected the module list, OpenCV 5.1 staging, shade transformers and build commands.)_

@@ -1,118 +1,92 @@
 # Cortex — General Information Specification
 
-> This document describes the Cortex processing node at a high level: its
-> architecture, module layout, startup lifecycle, CLI commands, online/offline
-> modes, and Loom integration. It is the entry point for AI coding tasks
-> inside the `cortex/` reactor.
->
-> **Subsystem-specific specs** (do not duplicate content from these):
-> - [CONFIGURATION.md](CONFIGURATION.md) — `CortexOptions`, env vars, CLI flags, YAML config
-> - [BUILD.md](BUILD.md) — Maven build, container image, native dependencies
-> - [PIPELINE.md](../features/pipeline/PIPELINE.md) — Pipeline DAG engine, executor, events, caching, sync
-> - [NODES.md](../features/pipeline-nodes/NODES.md) — Node lifecycle, MetaStorage, per-node reference, filter nodes
->
-> **Companion docs in the Loom spec directory**:
-> - [../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) — Loom-side pipeline persistence + event bridge (PIPELINE_CONTEXT.md was merged into it)
-> - [../loom/WEBSOCKET.md](../loom/WEBSOCKET.md) — Processor WebSocket protocol (Loom perspective)
-> - [../METALOOM.md](../METALOOM.md) — Top-level project context
+Entry point for coding tasks inside the `cortex/` reactor: module layout, startup
+lifecycle, CLI, online/offline mode, node-kind registration, monitoring and the Loom
+control channel.
+
+**Scope delineation** — do not duplicate content from these:
+
+| Topic | Spec |
+|---|---|
+| `CortexOptions`, env vars, CLI flags, `cortex.yml`, per-node options | [CONFIGURATION.md](CONFIGURATION.md) |
+| Maven build, dependency versions, container image, native deps | [BUILD.md](BUILD.md) |
+| Node lifecycle, per-node reference, ports/payloads, filter & source nodes | [NODES.md](../features/pipeline-nodes/NODES.md) |
+| Pipeline DAG engine (Loom-side), persistence, events, caching, sync | [PIPELINE.md](../features/pipeline/PIPELINE.md) |
+| Processor WebSocket protocol (Loom perspective) | [../loom/WEBSOCKET.md](../loom/WEBSOCKET.md) |
+| Top-level project context | [../METALOOM.md](../METALOOM.md) |
 
 ---
 
 ## 1. Overview
 
-Cortex is the **processing layer** of MetaLoom. It runs as a standalone
-worker process that analyses media files (images, videos, audio, documents)
-and optionally syncs results back to the Loom backend.
+Cortex is the **processing layer** of MetaLoom: a standalone worker process that
+analyses media (image, video, audio, document) and syncs results back to Loom.
 
-### 1.1 What Cortex Does
+**Cortex does not own a DAG.** Loom's `PipelineRunEngine` owns the graph and dispatches
+one unit of work at a time; Cortex executes it and reports back. There is no
+`Pipeline`, `PipelineManager` or `PipelineExecutor` class in the reactor — the pipeline
+modules only contribute node implementations, filters, an event bus, caches and the
+bulk-sync collector. See [PIPELINE.md](../features/pipeline/PIPELINE.md).
 
-| Capability | Description |
-|---|---|
-| **Hashing** | SHA-512, SHA-256, MD5, chunk-hash for deduplication |
-| **Fingerprinting** | Video fingerprinting for content identification |
-| **Face detection** | Face detection + embeddings via InspireFace |
-| **Thumbnail** | Contact-sheet thumbnail generation for videos |
-| **Consistency** | Zero-chunk detection for incomplete/corrupt media |
-| **Metadata extraction** | Apache Tika metadata extraction |
-| **OCR** | Text extraction from images via Tesseract |
-| **Whisper (ASR)** | Speech-to-text via whisper.cpp |
-| **LLM** | Metadata extraction via Ollama LLM prompts |
-| **VLM** | Image reading via a vision-language model over an OpenAI-compatible endpoint; ships an olmOCR document-transcription preset |
-| **Captioning** | Image captioning via SmolVLM vision model |
-| **Quality** | Resolution, blurriness, bitrate metrics |
-| **Scene detection** | Optical-flow scene boundary detection |
-| **Dedup** | SHA-512 or fingerprint-based deduplication |
-
-### 1.2 Online vs Offline Mode
-
-Cortex operates in two modes:
+### 1.1 Online vs Offline
 
 | Mode | Condition | Behaviour |
 |---|---|---|
-| **Online** | Loom host + port configured (`--hostname` / `--port` or env vars) | Connects to Loom via WebSocket, registers capabilities, receives source/node tasks, syncs results back |
-| **Offline** | No Loom host configured | Runs standalone; no WebSocket, no source/node tasks, no result sync. Processing is driven by the `process run` CLI command |
+| **Online** | Loom hostname resolvable from `--hostname`/`LOOM_HOST` (+ port) | `LoomControlChannel` opens the WebSocket, REGISTERs, receives source/node/segment tasks, syncs results |
+| **Offline** | `CortexOptions.getLoom()` is `null` or its hostname is `null` | `CortexClientModule#restClient` returns `null`; no WebSocket, no tasks, no sync. Work is driven by `cortex po run` |
 
-The `LoomClient` is `@Nullable` in Dagger — when the host is absent,
-`CortexClientModule` returns `null`, and all Loom-dependent components
-gracefully degrade (e.g. `LoomBulkSyncWriterImpl` becomes a no-op,
-`LoomPipelineLoader` skips loading, `LoomControlChannel` logs a warning
-and does not start).
+`LoomClient` is `@Nullable` in Dagger. All Loom-dependent components must degrade
+gracefully: `LoomBulkSyncWriterImpl` no-ops, `LoomControlChannel` logs
+`"LOOM host not configured"` and does not connect (`endpointConfigured = false`).
+
+Note that `--hostname` **defaults to `localhost`**, so a plain `cortex server start`
+is *online* against localhost, not offline. True offline requires clearing the Loom
+options in `cortex.yml`.
 
 ---
 
 ## 2. Module Map
 
-Cortex is a Maven reactor under `cortex/pom.xml` with these modules:
+Maven reactor `cortex/pom.xml`. Build ordering and dependency versions live in
+[BUILD.md](BUILD.md).
 
-```
-cortex/
-├── api/              # Public interfaces: Cortex, CortexOptions, CortexNode, LoomMedia, NodeResult, MetaStorage
-├── common/           # Shared impls: MetaStorageImpl, CortexOptionsLoader, LoomMediaLoader, media types
-├── fs/               # Filesystem scanner (Linux xattr support)
-├── core-media/       # Media decorator types (HashMedia, FacedetectMedia, etc.) + AssertJ test helpers
-├── nodes/            # Concrete processing nodes (hash, facedetect, fingerprint, ocr, vlm, thumbnail, llm, whisper, tika, dedup, quality, captioning, consistency, scene-detection, loom)
-├── processor/        # MediaProcessor + FilesystemProcessor (CLI-driven batch processing)
-├── core/             # Runtime wiring: CortexImpl, CLI commands, Dagger modules, LoomControlChannel, monitoring, pipeline loader
-├── cli/              # CLI entry point (CortexCLIMain), Dagger component, node collection module
-├── container/        # Containerfile + build-container.sh for OCI image
-├── pipeline-api/     # Pipeline, PipelineNode, PipelineExecutor, PipelineManager, NodeResult, events, cache SPIs
-├── pipeline-core/    # DefaultPipeline, ReactivePipelineExecutor, AbstractPipelineNode, filter nodes, JSON serde
-├── pipeline-common/  # DefaultPipelineEventBus, cache impls, DefaultLoomBulkSyncCollector
-```
-
-### Module Dependency Graph
+| Module | Artifact | Responsibility |
+|---|---|---|
+| `api/` | `cortex-api` | `Cortex`, `CortexFactory`, `CortexEnv`, `LoomWorker`; options (`CortexOptions`, `LoomClientOptions`, `S3ClientOptions`, `S3EventOptions`); node SPI (`CortexNode`, `FilesystemNode`, `SourceNode`, `NodeResult`, `ResultState`, `InputPort`/`OutputPort`, `payload/*`); `LoomMedia` |
+| `common/` | `cortex-common` | `CortexOptionsLoader`, `LoomMediaLoader`, `LoomMediaComponent`, media impls, `PipelineConfigurable` |
+| `s3-common/` | `cortex-s3-common` | `S3Support`, object store/materializer, `S3ObjectIndexStore`, event sources (`WebhookS3EventSource`, `SqsS3EventSource`), `S3EventBuffer` |
+| `fs/` | `cortex-fs` | **Empty shell** — only `module-info.java.off`. The Linux scanner comes from the external `io.metaloom.fs` artifact (`differential-filesystem-scanner`) |
+| `core-media/` | `cortex-core-media` | Result value types (`WhisperResult`, `SceneDetectionResult`, `Scene`) + the shared AssertJ/node test harness (test-jar) |
+| `nodes/` | 26 submodules | Concrete nodes; see [NODES.md](../features/pipeline-nodes/NODES.md) |
+| `processor/` | `cortex-processor` | `MediaProcessor` + `FilesystemProcessor` (CLI-driven batch walk) |
+| `node-runtime/` | `cortex-node-runtime` | `NodeTaskRunner`, `SegmentTaskRunner`, `SourceTaskRunner`, `ResultBatcher`, `NodeResultMapper` — executes what Loom hands down |
+| `core/` | `cortex-core` | `CortexImpl`, `CortexCLI` + commands, Dagger modules, `LoomControlChannel`, `PipelineTaskHandler`, monitoring, node registry |
+| `cli/` | `cortex-cli` | `CortexCLIMain`, `CortexComponent`, `NodeCollectionModule`, `PipelineNodeFactoryModule`, `RegistryNodeRegistrar`; shaded jar |
+| `container/` | `cortex-container` | `Containerfile`, `build-container.sh`, `logback.xml` |
+| `pipeline-api/` | `cortex-pipeline-api` | `PipelineNode`, `MediaSourceNode`, `PipelineResult`, `NodeMode`, filter SPI, `PipelineEventBus`, `NodeCacheProvider`, `LoomBulkSyncCollector` |
+| `pipeline-core/` | `cortex-pipeline-core` | `AbstractPipelineNode`, `CortexNodeAdapter`, `AssetSourceNode`, `LoomFetchNode`, filter nodes |
+| `pipeline-common/` | `cortex-pipeline-common` | `DefaultPipelineEventBus`, cache impls (heap / xattr / sidecar / layered / no-op), `DefaultLoomBulkSyncCollector` |
 
 ```mermaid
 graph TD
     api[api]
-    common[common]
-    fs[fs]
-    core-media[core-media]
-    nodes[nodes]
-    processor[processor]
-    core[core]
-    cli[cli]
-    container[container]
-    pipeline-api[pipeline-api]
-    pipeline-core[pipeline-core]
-    pipeline-common[pipeline-common]
-
     common --> api
-    fs --> common
-    core-media --> api
+    common --> fsext["io.metaloom.fs (external)"]
+    s3-common --> common
+    core-media --> common
+    pipeline-api --> api
+    pipeline-common --> pipeline-api
+    pipeline-core --> pipeline-common
     nodes --> common
     nodes --> core-media
     nodes --> pipeline-api
-    pipeline-core --> pipeline-api
-    pipeline-common --> pipeline-api
-    processor --> common
     processor --> nodes
-    core --> pipeline-core
-    core --> pipeline-common
+    processor --> pipeline-core
+    node-runtime --> pipeline-core
+    core --> node-runtime
     core --> processor
-    core --> common
+    core --> s3-common
     cli --> core
-    cli --> nodes
     container --> cli
 ```
 
@@ -122,326 +96,322 @@ graph TD
 
 | Class | Package | Purpose |
 |---|---|---|
-| `Cortex` | `io.metaloom.cortex` | Top-level interface: `run()`, `shutdown()`, `checkNodes()` |
-| `CortexImpl` | `io.metaloom.cortex.impl` | Implementation of `Cortex`; manages startup/shutdown lifecycle |
-| `CortexFactory` | `io.metaloom.cortex` | Static factory (currently throws — use Dagger component) |
-| `CortexEnv` | `io.metaloom.cortex` | Constants (config filename `cortex.yml`) |
-| `CortexOptions` | `io.metaloom.cortex.api.option` | Root config object (nodes, loom, dryrun, metaPath, monitoringPort) |
-| `CortexOptionsLoader` | `io.metaloom.cortex.common.option` | Loads `cortex.yml` from `~/.config/metaloom/cortex.yml` |
-| `CortexCLI` | `io.metaloom.cortex.cli` | Picocli command root (`cortex` command with global options) |
-| `CortexCLIMain` | `io.metaloom.cortex.cli` | `main()` entry point; builds Dagger component, runs CLI |
-| `CortexComponent` | `io.metaloom.cortex.cli.dagger` | Dagger component; wires all modules |
-| `CortexBindModule` | `io.metaloom.cortex.cli.dagger` (core) | Dagger bindings: Cortex, MediaProcessor, MetaStorage, Vertx, PipelineExecutor, etc. |
-| `CortexClientModule` | `io.metaloom.cortex.cli.dagger` (core) | Dagger: LoomClient (nullable), CortexOptions |
-| `CortexMediaModule` | `io.metaloom.cortex.cli.dagger` (core) | Dagger: LoomMediaComponent subcomponent |
-| `PicoCLIModule` | `io.metaloom.cortex.cli.dagger` (core) | Dagger: CommandLine + subcommands (process, server) |
-| `NodeCollectionModule` | `io.metaloom.cortex.cli.dagger` | Dagger: includes all node modules (hash, facedetect, etc.) |
-| `PipelineNodeFactoryModule` | `io.metaloom.cortex.cli.dagger` | Dagger: RegistryNodeFactory populated with concrete node producers |
-| `LoomStorageModule` | `io.metaloom.cortex.cli.dagger` | Dagger: multibindings for `LoomMetaTypeHandler` (XATTR, FS, HEAP, AVRO) |
-| `CortexBootstrapInitializer` | `io.metaloom.cortex.impl.boot` | Starts monitoring HTTP server + Loom control channel |
-| `LoomControlChannel` | `io.metaloom.cortex.impl.loom` | WebSocket client to Loom (`/api/v1/processors/ws`); registration, heartbeat, source/node tasks, pipeline event forwarding |
-| `PipelineTaskHandler` | `io.metaloom.cortex.impl.loom` | Runs `SOURCE_TASK` / `NODE_TASK` / `SEGMENT_TASK` from Loom and reports results back |
-| `MonitoringService` | `io.metaloom.cortex.impl.monitoring` | Vert.x HTTP server for health/ready endpoints |
-| `HealthEndpoint` | `io.metaloom.cortex.impl.monitoring` | `/api/health` and `/api/ready` endpoints |
-| `MediaProcessor` | `io.metaloom.cortex.processor` | Interface for CLI-driven batch processing |
-| `DefaultMediaProcessorImpl` | `io.metaloom.cortex.processor.impl` | Delegates to `FilesystemProcessor` |
-| `FilesystemProcessor` | `io.metaloom.cortex.scanner` | Filesystem scanner interface |
-| `FilesystemProcessorImpl` | `io.metaloom.cortex.scanner.impl` | Walks directories, feeds media to nodes |
-| `LoomPipelineLoader` | `io.metaloom.cortex.pipeline.loader` | Loads pipeline definitions from Loom REST API |
-| `RegistryNodeFactory` | `io.metaloom.cortex.pipeline.loader` | Maps JSON node definitions to concrete `PipelineNode` impls |
-| `NodeFactory` | `io.metaloom.cortex.pipeline.loader` | SPI for node creation from JSON |
+| `Cortex` | `io.metaloom.cortex` (api) | `run()`, `run(boolean)`, `shutdown()`, `shutdownAndTerminate(int)`, `checkNodes()`, `actualMonitoringPort()` |
+| `CortexImpl` | `io.metaloom.cortex.impl` (core) | Lifecycle; registers the JVM shutdown hook, flushes the sync buffer, blocks on a `CountDownLatch` |
+| `CortexEnv` | `io.metaloom.cortex` (api) | `CORTEX_CONF_FILENAME = "cortex.yml"` |
+| `CortexCLI` | `io.metaloom.cortex.cli` (**core**) | Picocli root; all global `@Option`s use `ScopeType.INHERIT` |
+| `CortexCLIMain` | `io.metaloom.cortex.cli` (**cli**) | `main()`; pre-parses args into `CortexOptions`, builds the Dagger component, executes |
+| `EnvDefaultProvider` | `io.metaloom.cortex.cli` (core) | Maps CLI flags to env vars |
+| `CortexComponent` | `io.metaloom.cortex.cli.dagger` (cli) | Dagger `@Component`; exposes `cortex()`, `cli()`, `nodeFactory()`, `nodeRegistrar()` |
+| `CortexBootstrapInitializer` | `io.metaloom.cortex.impl.boot` | `init(port)`: registrar → monitoring → SQS source → control channel. `deinit()`: drain → stop |
+| `LoomControlChannel` | `io.metaloom.cortex.impl.loom` | Vert.x 5 `WebSocketClient` to `/api/v1/processors/ws`; register, heartbeat, status, task dispatch, drain |
+| `PipelineTaskHandler` | `io.metaloom.cortex.impl.loom` | Owns the three task runners plus `beginDrain`/`awaitDrain`/`returnOutstanding` |
+| `NodeTaskRunner` / `SegmentTaskRunner` / `SourceTaskRunner` | `io.metaloom.cortex.runtime` | Execute a single node, an affinity segment, a source enumeration |
+| `ResultBatcher` / `NodeResultMapper` | `io.metaloom.cortex.runtime` | Batch results for the wire; map `NodeResult` to the Loom model |
+| `NodeFactory` / `RegistryNodeFactory` | `io.metaloom.cortex.pipeline.loader` | Kind → `PipelineNode` registry; `registeredTypes()` feeds the REGISTER whitelist |
+| `NodeRegistrar` / `RegistryNodeRegistrar` | `…loader` (core) / `…cli.dagger` (cli) | Seam that fills the registry at bootstrap from the node multibinding |
+| `CortexNodeAdapter` | `io.metaloom.cortex.pipeline.core.node` | Wraps a `FilesystemNode` as a `PipelineNode` (mode, blocking, concurrency, timeout, `syncToLoom`) |
+| `MonitoringService` | `io.metaloom.cortex.impl.monitoring` | Vert.x HTTP server hosting health, metrics and the S3 webhook route |
+| `HealthEndpoint` / `MetricsEndpoint` / `MicrometerCortexMetrics` | `…impl.monitoring` | `/api/health`, `/api/ready`, `/metrics`; `cortex_*` meters |
+| `MediaProcessor` / `FilesystemProcessor` | `io.metaloom.cortex.processor` / `.scanner` | CLI batch processing |
+| `S3Support` | `io.metaloom.cortex.s3` | Worker-level S3 client, materializer, index base dir; `isActive()` gates the `s3-source` kind |
 
 ---
 
 ## 4. Startup Lifecycle
 
-### 4.1 CLI Entry Point
+### 4.1 Entry point
 
 ```
 CortexCLIMain.main(args)
-  ├── parseOptions(args)          // Pre-parse CLI args + env vars → CortexOptions
+  ├── parseOptions(args)     // CortexCLI + EnvDefaultProvider → CortexOptions
   ├── DaggerCortexComponent.builder().options(options).build()
-  └── cli.execute(args)           // Picocli dispatches subcommands
+  └── component.cli().execute(args)
 ```
 
-### 4.2 Server Mode (`cortex server start`)
+### 4.2 Subcommands (picocli)
+
+| Invocation | Registered by | Notes |
+|---|---|---|
+| `cortex server start [-a <nodes>]` | `PicoCLIModule` under name `server`, annotation alias `s` | Calls `requireNodeId()` first, then `cortex.run()` (blocking) |
+| `cortex po run [-a <nodes>] <path>` | `PicoCLIModule` under name **`po`**, annotation alias `p` | Offline batch walk via `MediaProcessor.process(actions, folder)` |
+
+`ProcessCommand` is annotated `@Command(name = "process", aliases = {"p"})` but
+`PicoCLIModule` registers it with the explicit name `"po"`. Picocli's
+`CommandSpec#addSubcommand(name, cl)` keys the lookup on the passed name plus the
+annotation aliases, so **`cortex process run` does not resolve** — only `po` and `p`
+do. This reads like a typo; treat `process` in older docs as stale.
+
+### 4.3 Server mode
 
 ```mermaid
 sequenceDiagram
-    participant CLI as CortexCLI
     participant SC as ServerCommand
     participant C as CortexImpl
     participant Boot as CortexBootstrapInitializer
+    participant NR as NodeRegistrar
     participant MS as MonitoringService
     participant LCC as LoomControlChannel
     participant Loom as Loom Server
 
-    CLI->>SC: server start
-    SC->>C: cortex.run()
-    C->>Boot: init(monitoringPort)
-    Boot->>MS: init(port)
-    MS->>MS: Vert.x HTTP server on port 8093
+    SC->>C: requireNodeId(); cortex.run()
+    C->>C: registerShutdownHook()
+    C->>Boot: init(options.getMonitoringPort())
+    Boot->>NR: registerAll()  (must precede REGISTER)
+    Boot->>MS: init(port)  → health + /metrics + S3 webhook route
+    Boot->>Boot: SqsS3EventSource.start()  (no-op unless configured)
     Boot->>LCC: start()
-    LCC->>LCC: resolveEndpoint (host, port, token)
-    LCC->>Loom: WebSocket connect /api/v1/processors/ws?token=…
-    Loom-->>LCC: WebSocket open
-    LCC->>Loom: REGISTER message
+    LCC->>Loom: WS connect /api/v1/processors/ws
+    LCC->>Loom: REGISTER (nodeId, capabilities, whitelist=registeredTypes())
     Loom-->>LCC: REGISTERED
-    LCC->>LCC: Periodic: HEARTBEAT (10s), STATUS_UPDATE (20s)
-    LCC->>LCC: Forward pipeline tracking events to Loom
-    C->>C: dontExit() (blocks on CountDownLatch)
+    LCC->>LCC: HEARTBEAT 10s / STATUS_UPDATE 20s / health log 30s
+    C->>C: dontExit()  — blocks on CountDownLatch
 ```
 
-### 4.3 Process Mode (`cortex process run -a hash,thumbnail /path`)
+### 4.4 Task-driven work (online)
 
-```
-ProcessCommand.run(enabledNodes, path)
-  └── MediaProcessor.process(actionList, folder)
-        └── FilesystemProcessor.analyze(enabledNodes, folder)
-              // Walks directory, applies enabled Cortex nodes to each file
-```
-
-### 4.4 Task-Driven Mode (Online)
-
-When Cortex is running in server mode and connected to Loom, the
-`LoomControlChannel` receives the run's task messages from Loom and hands them to
-`PipelineTaskHandler`. Loom's `PipelineRunEngine` owns the DAG; Cortex only ever
-sees one unit of work at a time:
-
-| Message from Loom | Handler action |
-|---|---|
-| `SOURCE_TASK` | Runs the source node and streams discovered items back as `SOURCE_ITEMS` batches (acked with `SOURCE_ITEMS_ACK`), ending with `SOURCE_COMPLETE` |
-| `NODE_TASK` | Applies one node to one media item and replies with `NODE_TASK_RESULT` (batched as `NODE_TASK_RESULT_BATCH`) |
-| `SEGMENT_TASK` | Runs an affinity group of connected nodes on one item and replies with `SEGMENT_TASK_RESULT` |
-
-Pipeline definitions are still loaded on startup via
-`LoomPipelineLoader.loadAndRegister()` (fetched from the Loom REST API).
-
----
-
-## 5. Dagger DI Wiring
-
-The Dagger component `DaggerCortexComponent` is generated from
-`CortexComponent` and includes these modules:
-
-| Module | Provides |
-|---|---|
-| `CortexBindModule` | `Cortex`, `MediaProcessor`, `FilesystemProcessor`, `MetaStorage`, `Vertx`, `PipelineManager`, `PipelineEventBus`, `PipelineExecutor`, `LoomBulkSyncCollector`, `BulkSyncWriter`, `LinuxFilesystemScanner` |
-| `CortexClientModule` | `LoomClient` (nullable, offline = null), `CortexOptions` |
-| `CortexMediaModule` | `LoomMediaComponent` subcomponent |
-| `PicoCLIModule` | `CommandLine` with `process` and `server` subcommands |
-| `NodeCollectionModule` | All node Dagger modules (hash, facedetect, fingerprint, etc.) |
-| `PipelineNodeFactoryModule` | `NodeFactory` (RegistryNodeFactory with concrete node producers) |
-| `LoomStorageModule` | `Set<LoomMetaTypeHandler>` multibinding (XATTR, FS, HEAP, AVRO) |
-
----
-
-## 6. Monitoring Endpoints
-
-The `MonitoringService` starts a Vert.x HTTP server on the configured
-monitoring port (default 8093). The following endpoints are exposed:
-
-| Endpoint | Method | Description |
+| Message from Loom | Handler | Reply |
 |---|---|---|
-| `/api/health` | GET | Always returns `{"status":"up","loom":{…}}` |
-| `/api/ready` | GET | Returns 200 if connected + registered, 503 otherwise |
-| `/health` | GET | Legacy alias for `/api/health` |
-| `/ready` | GET | Legacy alias for `/api/ready` |
+| `SOURCE_TASK` | `handleSourceTask` → `SourceTaskRunner` | `SOURCE_ITEMS` batches (flow-controlled by `SOURCE_ITEMS_ACK`), then `SOURCE_COMPLETE` |
+| `NODE_TASK` | `handleNodeTask` → `NodeTaskRunner` | `NODE_TASK_RESULT` (batched as `NODE_TASK_RESULT_BATCH`) |
+| `SEGMENT_TASK` | `handleSegmentTask` → `SegmentTaskRunner` | `SEGMENT_TASK_RESULT` |
 
-The `loom` object in the health response contains:
-
-| Field | Type | Description |
-|---|---|---|
-| `configured` | boolean | Whether Loom host+port are configured |
-| `connected` | boolean | Whether the WebSocket is currently open |
-| `registered` | boolean | Whether Loom acknowledged the REGISTER message |
-| `host` | string | Resolved Loom hostname |
-| `port` | int | Resolved Loom port |
-| `reconnectAttempts` | long | Number of reconnection attempts since last success |
-| `lastConnectedAt` | long\|null | Epoch millis of last successful connection |
-| `lastMessageAt` | long\|null | Epoch millis of last received message |
-| `lastHeartbeatAckAt` | long\|null | Epoch millis of last heartbeat acknowledgement |
-| `error` | string\|null | Last connection error message |
+Loom sends the node definition inline with the task; Cortex materialises the node via
+`NodeFactory#createNode`. There is **no** startup-time pipeline fetch — the former
+`LoomPipelineLoader` no longer exists.
 
 ---
 
-## 7. Loom Control Channel (WebSocket)
+## 5. Dagger Wiring
 
-The `LoomControlChannel` is the persistent WebSocket connection from
-Cortex to the Loom server. It uses Vert.x 5's `WebSocketClient`.
+`@Component(modules = { CortexBindModule, CortexMediaModule, PicoCLIModule,
+PipelineNodeFactoryModule, CortexClientModule, S3Module })`
 
-### 7.1 Connection Lifecycle
+| Module | Location | Provides |
+|---|---|---|
+| `CortexBindModule` | core | `Cortex`, `MediaProcessor`, `FilesystemProcessor`, `BulkSyncWriter`, `CortexMetrics`, `PrometheusMeterRegistry`, `Vertx` (micrometer-bound), `PipelineEventBus`, `LoomBulkSyncCollector`, `LinuxFilesystemScanner` |
+| `CortexClientModule` | core | `@Nullable LoomClient` (REST; `null` offline), `CortexOptions` (injected default or `CortexOptionsLoader.load()`) |
+| `CortexMediaModule` | core | `LoomMediaComponent` subcomponent |
+| `PicoCLIModule` | core | `CommandLine` + the two subcommands |
+| `S3Module` | core | `S3ClientOptions`, `S3Support`, `S3EventBuffer`, `WebhookS3EventSource`, `SqsS3EventSource`, `MediaReferenceResolver` |
+| `PipelineNodeFactoryModule` | cli | `NodeFactory` ← `RegistryNodeFactory` (singleton, initially empty), `NodeRegistrar` |
+| `NodeCollectionModule` | cli | Includes all 26 node modules (via `PipelineNodeFactoryModule`) |
 
-| Step | Message | Direction | Description |
-|---|---|---|---|
-| 1 | WebSocket connect | Cortex → Loom | `ws://{host}:{port}/api/v1/processors/ws?token=…` |
-| 2 | `REGISTER` | Cortex → Loom | `ProcessorRegistration` with nodeId, name, priority, host, capabilities |
-| 3 | `REGISTERED` | Loom → Cortex | Acknowledgement; sets `registered=true` |
-| 4 | `HEARTBEAT` | Cortex → Loom | Sent every 10 seconds |
-| 5 | `HEARTBEAT_ACK` | Loom → Cortex | Acknowledgement |
-| 6 | `STATUS_UPDATE` | Cortex → Loom | System status (CPU, memory, disk) every 20 seconds |
-| 7 | `SOURCE_TASK` / `NODE_TASK` | Loom → Cortex | A source node to enumerate, or a single node to apply to one item |
-| 8 | `NODE_TASK_RESULT` / `SOURCE_ITEMS` | Cortex → Loom | Node outcome, or a batch of discovered items |
-| 9 | `PIPELINE_EVENT` | Cortex → Loom | Forwarded pipeline tracking event (NODE_STARTED, NODE_COMPLETED, etc.) |
-| 10 | `ERROR` | Loom → Cortex | Error message |
-| 11 | `STATE_CHANGE` (`TERMINATING`) + `TASK_RETURNED` | Cortex → Loom | Shutdown: see [7.4](#74-graceful-shutdown-drain) |
+### 5.1 Node-kind registration
 
-### 7.2 Reconnection
+Each node module contributes its kind with a one-line multibinding:
 
-- Base delay: 2 seconds, exponential backoff up to 30 seconds max.
-- On reconnect: re-sends `REGISTER`, resets `reconnectAttempts`.
+```java
+@Binds @IntoMap @StringKey("thumbnail")
+abstract FilesystemNode<?, ?> bindKind(ThumbnailNode node);
+```
 
-### 7.3 Capabilities
+`RegistryNodeRegistrar` consumes `Map<String, Provider<FilesystemNode<?,?>>>` and wraps
+each entry in a `CortexNodeAdapter`. **Adding a node kind requires no edit outside its
+own module** (plus one `includes = …` line in `NodeCollectionModule`).
 
-Cortex registers with `EnumSet.of(CPU, IO)` capabilities. Future
-extensions may add `GPU`.
+The `Provider` indirection is load-bearing: a kind is advertised without constructing
+the node, so a worker that only hashes never loads face-detection model packs.
+`CortexImpl` uses `Lazy<Set<CortexNode<?,?>>>` for the same reason.
 
-### 7.4 Graceful Shutdown (Drain)
+Registered kinds (`registeredTypes()`):
 
-`SIGTERM` is how a worker is normally stopped — `docker stop`, a Kubernetes
-eviction, a systemd restart — and it does not reach `CortexImpl#shutdown` on its own.
-A JVM shutdown hook registered in `run()` calls it, so a stop flushes the bulk-sync
-buffer *and* drains in-flight work instead of abandoning both. A direct
-`shutdown()` removes the hook, so it fires at most once.
+| Group | Kinds |
+|---|---|
+| Sources | `filesystem-source`, `asset-source`, `s3-source` *(only when `S3Support.isActive()`)* |
+| Hash / dedup | `sha512`, `sha256`, `md5`, `chunk-hash`, `sha512-dedup`, `hash-dedup`, `fingerprint-dedup`, `fingerprint-dedup-apply` |
+| Analysis | `fingerprint`, `facedetect`, `ocr`, `tika`, `quality`, `consistency`, `scene-detection`, `scene-layout`, `dominant-color`, `depthmap`, `sentiment` |
+| AI | `llm`, `vlm`, `captioning`, `whisper`, `tts`, `imagegen`, `videogen` |
+| Transform / sink | `thumbnail`, `watermark`, `script`, `s3-sink` |
 
-`CortexBootstrapInitializer#deinit` then runs `LoomControlChannel#drain` before
-`stop()`, because both the announcement and the hand-back need the connection open:
+---
 
-1. `STATE_CHANGE` → `TERMINATING`. Loom places nothing more here.
-2. `PipelineTaskHandler#beginDrain` — a dispatch already on the wire is answered
-   with `TASK_RETURNED` rather than started.
-3. `awaitDrain(--drain-timeout-ms)` — running node, segment *and* source tasks are
-   given the grace period to finish.
-4. `returnOutstanding` — whatever is still running is handed back. The task keeps
-   running; Loom is simply free to place it elsewhere at once.
-5. The channel writes one more frame and waits for it, since frames queued on the
-   event loop are lost when the socket closes.
+## 6. Monitoring
 
-Without this, every task the worker held stays `RUNNING` until its lease lapses
-(10 minutes by default), so a scale-down costs each affected run a lease interval
-per task. See [../loom/WEBSOCKET.md §3.8.1](../loom/WEBSOCKET.md) for the protocol
-and for what a return does to the attempt budget.
+`MonitoringService` starts one Vert.x HTTP server (default port 8093).
 
-**Gap:** a source task already enumerating cannot be handed back — there is no
-reclaim path for one, and fabricating a `SOURCE_COMPLETE` would mark a truncated
-scan as a whole one. It is logged and abandoned, and the run must be dispatched
-again.
+| Route | Description |
+|---|---|
+| `/api/health` | `{"status":"up","loom":{…}}` — always 200 |
+| `/api/ready` | 200 when `endpointConfigured && connected && registered`, else 503; same `loom` body |
+| `/health`, `/ready` | Legacy aliases, identical handlers |
+| `/metrics` | Prometheus scrape (`cortex_*` meters + Vert.x/JVM built-ins) |
+| S3 webhook path | Registered only when webhook events are enabled **and** a shared secret is set |
+
+`loom` object (`LoomControlChannel#healthStatus`): `configured`, `connected`,
+`registered`, `host`, `port`, `reconnectAttempts`, `lastConnectedAt`, `lastMessageAt`,
+`lastHeartbeatAckAt`, `error` (the three timestamps are `null` when zero).
+
+Meter families: `cortex_loom_messages_received`, `cortex_loom_reconnects`,
+`cortex_tasks_{received,returned,completed}`, `cortex_task_duration`,
+`cortex_node_operations`, `cortex_node_operation_duration`, `cortex_files_missing`,
+`cortex_results_{batches_sent,sent}`, `cortex_bulk_sync_assets`,
+`cortex_source_items_enumerated`, `cortex_source_ack_timeouts`, `cortex_ai_calls`,
+`cortex_ai_call_duration`, `cortex_ai_cache_hits`, plus gauges
+`cortex_loom_reconnect_attempts` and `cortex_memory_max_bytes`.
+
+---
+
+## 7. Loom Control Channel
+
+### 7.1 Timings and constants (`LoomControlChannel`)
+
+| Constant | Value |
+|---|---|
+| `HEARTBEAT_INTERVAL_MS` | 10 000 |
+| `STATUS_INTERVAL_MS` | 20 000 |
+| `HEALTH_LOG_INTERVAL_MS` | 30 000 |
+| `RECONNECT_BASE_DELAY_MS` | 2 000 |
+| `RECONNECT_MAX_DELAY_MS` | 30 000 |
+
+### 7.2 Reconnection — **linear**, not exponential
+
+```java
+long delay = Math.min(RECONNECT_BASE_DELAY_MS * Math.max(1, attempt), RECONNECT_MAX_DELAY_MS);
+```
+
+Delays run 2s, 4s, 6s … capped at 30s from attempt 15 on. `reconnectAttempts` resets to
+0 on a successful `REGISTERED`; every reconnect re-sends `REGISTER`.
+
+### 7.3 Registration payload
+
+`ProcessorRegistration`: `nodeId` (from `--node-id`, mandatory for `server start`),
+`name = "cortex"`, `priority = 100`, `host = <hostname>:<monitoringPort>`,
+`capabilities = EnumSet.of(CPU, IO)`, `nodeWhitelist`, `nodeBlacklist`.
+
+The announced whitelist is `options.getNodeWhitelist()` when non-empty, otherwise
+`nodeFactory.registeredTypes()` — so a worker cannot advertise work it cannot run. If
+that lookup throws, it registers `null` (= unrestricted). The blacklist always narrows
+the whitelist.
+
+### 7.4 Graceful shutdown (drain)
+
+`SIGTERM` does not reach `CortexImpl#shutdown` on its own, so `run()` registers a JVM
+shutdown hook that calls it; a direct `shutdown()` removes the hook, so it fires at
+most once. `shutdown()` flushes the bulk-sync buffer *before* `boot.deinit()`, which
+drains while the socket is still open:
+
+1. `STATE_CHANGE` → `TERMINATING` — Loom places nothing more here.
+2. `PipelineTaskHandler#beginDrain` — a dispatch already on the wire is answered with `TASK_RETURNED` instead of being started.
+3. `awaitDrain(--drain-timeout-ms)` (default 30 000) — node, segment *and* source tasks get the grace period.
+4. `returnOutstanding(reason)` — whatever still runs is handed back; the task keeps running locally, Loom is simply free to re-place it.
+5. One final frame is written and awaited, because frames queued on the event loop are lost when the socket closes.
+
+Without this, held tasks stay `RUNNING` until the lease lapses (10 min default). See
+[../loom/WEBSOCKET.md](../loom/WEBSOCKET.md) for the wire protocol and attempt-budget
+effect.
+
+**Gap:** a source task already enumerating cannot be handed back — there is no reclaim
+path, and fabricating `SOURCE_COMPLETE` would mark a truncated scan as whole. It is
+logged and abandoned; the run must be dispatched again.
 
 ---
 
 ## 8. Environment Variables
 
-See [CONFIGURATION.md](CONFIGURATION.md) for the full environment variable
-table and CLI flag reference.
+Full flag/env/default matrix: [CONFIGURATION.md §2](CONFIGURATION.md). The ones this
+document's behaviour depends on:
+
+| Env | Flag | Default | Effect here |
+|---|---|---|---|
+| `LOOM_HOST` | `-h`, `--hostname` | `localhost` | Absent/blank ⇒ offline; otherwise the WS endpoint host |
+| `LOOM_PORT` | `-p`, `--port` | `7733` | WS + REST port; `<= 0` ⇒ not configured |
+| `CORTEX_MONITORING_PORT` | `--monitoring-port` | `8093` | Health/metrics/webhook server; also reported as the registration `host` suffix |
+| `CORTEX_NODE_ID` | `--node-id` | — | **Required by `server start`**; must be unique and restart-stable |
+| `CORTEX_DRAIN_TIMEOUT_MS` | `--drain-timeout-ms` | `30000` | Grace period in step 3 of the drain |
+| `CORTEX_NODE_WHITELIST` | `--node-whitelist` | — (announces `registeredTypes()`) | Narrows what this worker accepts |
+| `CORTEX_NODE_BLACKLIST` | `--node-blacklist` | — | Refusals; wins over the whitelist |
+| `CORTEX_META_PATH` | `--meta-path` | `${user.home}/.cache/metaloom/cortex/meta` | Base for `filesystem-index/`, S3 index fallback |
+| `LOOM_TOKEN` | — | — | Bearer token for the WebSocket/REST auth |
 
 ---
 
 ## 9. Test Setup
 
-### 9.1 Unit Tests
+Build and test commands: [BUILD.md §3](BUILD.md).
 
-Each module has its own `src/test` directory. Tests are run with
-`mvn test -pl <module>`.
+| Layer | Where | Notes |
+|---|---|---|
+| Unit tests | `<module>/src/test` | `mvn test -pl cortex/<module>` |
+| Shared node harness | `cortex/core-media` test-jar — `AbstractNodeTest`, `AbstractBasicNodeTest`, `NodeTestcases`, `NodeAssertions` | Depend on it with `<type>test-jar</type>` |
+| Node E2E ITs | `integration-test/src/test/java/io/metaloom/loom/test/integration/node/` (`AbstractNodeIntegrationTest`, `NodePortConformanceTest`, `*NodeIntegrationTest`) | Testcontainers: `LoomContainer`, `CortexContainer`, `MinioContainer` |
+| Distributed / drain / health ITs | `…/integration/` — `PipelineDistributedExecutionIntegrationTest`, `PipelineAffinitySegmentIntegrationTest`, `PipelineContainerExecutionIntegrationTest`, `HealthEndpointIntegrationTest`, `CliIntegrationTest` | Rebuild the shaded `cortex-cli` jar **and** the container image before running |
+| Model-heavy comparisons | `*IT.java` inside node modules (e.g. `SceneBoundaryIT`, `VideoCaptioningComparisonIT`) | Not part of the default surefire run |
 
-### 9.2 Integration Tests
-
-Cortex integration tests live alongside the main test source in each
-module. They use the `cortex-common` test-jar for shared test utilities.
-
-### 9.3 Custom AssertJ
-
-Cortex provides custom AssertJ assertions for pipeline testing:
-
-| Assert | Location |
-|---|---|
-| `PipelineResultAssert` | `cortex/pipeline-core/src/test/.../assertj/PipelineResultAssert.java` |
-| `PipelineNodeResultAssert` | `cortex/pipeline-core/src/test/.../assertj/PipelineNodeResultAssert.java` |
-| `NodeResultAssert` | `cortex/core-media/src/test/.../assertj/NodeResultAssert.java` |
-| `FaceAssert` | `cortex/nodes/facedetect/core/src/test/.../assertj/FaceAssert.java` |
-
-### 9.4 Running Tests
-
-```bash
-# Fast compile check (no tests)
-mvn -T 8 test-compile -q -DskipTests -pl cortex
-
-# Run cortex tests
-mvn -T 8 test -pl cortex
-
-# Run a specific module's tests
-mvn test -pl cortex/pipeline-core
-```
+AssertJ helpers: `PipelineResultAssert`/`PipelineNodeResultAssert`
+(`cortex/pipeline-core/src/test/.../pipeline/test/assertj/`), `NodeResultAssert`/
+`LoomMediaAssert` (`cortex/core-media/src/test/.../media/test/assertj/`),
+`CortexNodeOptionsAssert`/`ValidationResultAssert` (`cortex/api/src/test/…`), and one
+`<Node>OptionsAssert` per node module.
 
 ---
 
 ## 10. Conventions and Gotchas
 
-- **Package roots**: `io.metaloom.cortex.*` for all Cortex code. Do not
-  mix with `io.metaloom.loom.*` (Loom backend code).
-- **Dagger**: After touching generic types on nodes/services, do a full
-  `mvn clean compile` — Dagger annotation processors may not
-  re-trigger on incremental compiles.
-- **Two node hierarchies**: Cortex-level nodes (`CortexNode` /
-  `AbstractMediaNode`) and pipeline-level nodes (`PipelineNode` /
-  `AbstractPipelineNode`) are bridged by `CortexNodeAdapter`. Do not
-  mix them without the adapter. See [NODES.md](../features/pipeline-nodes/NODES.md).
-- **Offline mode**: When `LoomClient` is null, all Loom-dependent
-  components must gracefully degrade. Never NPE a null `LoomClient`.
-- **Vert.x**: Cortex uses Vert.x 5 (shared with Loom). The Vert.x
-  instance is provided by `CortexBindModule.provideVertx()` as a
-  singleton.
-- **Config file**: `cortex.yml` in `~/.config/metaloom/`. If missing,
-  `CortexOptionsLoader` generates a default config. See
-  [CONFIGURATION.md](CONFIGURATION.md).
-- **Monitoring port**: Default 8093. Must not conflict with the Loom
-  HTTP port (default 7733).
-- **Loom port**: Default 7733 for HTTP. The WebSocket endpoint is at
-  `/api/v1/processors/ws` on the same host/port.
-- **Token**: The Loom bearer token for WebSocket auth can be set via
-  `LoomClientOptions.token` or the `LOOM_TOKEN` environment variable.
-- **Container**: The container image runs `java -jar cortex-cli.jar
-  server start` by default. See [BUILD.md](BUILD.md).
+- **`process` is registered as `po`.** See [§4.2](#42-subcommands-picocli). Fixing it means changing `PicoCLIModule`, not the annotation.
+- **Registrar before channel.** `NodeRegistrar#registerAll()` must run before `LoomControlChannel#start()`, or REGISTER advertises an empty whitelist and the worker silently receives nothing. `registerAll()` is guarded by a `registered` flag and is idempotent.
+- **Never eagerly inject node sets.** Use `Provider`/`Lazy`. Injecting `Set<CortexNode>` directly constructs every node — face detection loads its model pack merely to print help.
+- **Conditional kinds.** `s3-source` is only registered when `S3Support.isActive()`. Registering it unconditionally turns a missing capability into a dead run.
+- **Package roots.** `io.metaloom.cortex.*` only; `io.metaloom.loom.*` is Loom backend. Note `CortexCLI` lives in `cortex/core` while `CortexCLIMain` lives in `cortex/cli`, both in package `io.metaloom.cortex.cli`.
+- **Two node hierarchies.** `CortexNode`/`FilesystemNode` (Cortex level) vs `PipelineNode` (pipeline level), bridged by `CortexNodeAdapter`. Never mix without the adapter — see [NODES.md](../features/pipeline-nodes/NODES.md).
+- **Offline safety.** `LoomClient` may be `null`; never dereference it unguarded.
+- **Dagger incrementality.** After changing generic types on nodes/services or adding a multibinding, run a clean `mvn compile` — the annotation processor may not re-trigger and you get a `NoSuchMethodError` at runtime.
+- **`cortex/fs` is empty.** The real scanner is the external `io.metaloom.fs` artifact; do not add code to `cortex/fs` expecting it to be picked up.
+- **Vert.x 5** shared with Loom; the singleton comes from `CortexBindModule#provideVertx` and is bound to the Prometheus registry, so replacing it drops all Vert.x metrics.
+- **Port collisions.** Monitoring 8093 vs Loom HTTP 7733. The WebSocket shares the Loom HTTP port at `/api/v1/processors/ws`.
+- **Container** runs `java … -jar cortex-cli.jar server start` (Java 25, `--enable-native-access=ALL-UNNAMED`). See [BUILD.md](BUILD.md).
 
 ---
 
 ## 11. Where do I find …?
 
-| Need | Look here |
+| Need | Path (relative to repo root) |
 |---|---|
-| CLI entry point | `cortex/cli/src/main/java/io/metaloom/cortex/cli/CortexCLIMain.java` |
-| CLI commands (process, server) | `cortex/core/src/main/java/io/metaloom/cortex/cli/cmd/` |
-| Cortex runtime impl | `cortex/core/src/main/java/io/metaloom/cortex/impl/CortexImpl.java` |
+| `main()` | `cortex/cli/src/main/java/io/metaloom/cortex/cli/CortexCLIMain.java` |
+| Global CLI options | `cortex/core/src/main/java/io/metaloom/cortex/cli/CortexCLI.java` |
+| Subcommand registration | `cortex/core/src/main/java/io/metaloom/cortex/cli/dagger/PicoCLIModule.java` |
+| Subcommands | `cortex/core/src/main/java/io/metaloom/cortex/cli/cmd/` |
+| Runtime lifecycle | `cortex/core/src/main/java/io/metaloom/cortex/impl/CortexImpl.java` |
+| Bootstrap order | `cortex/core/src/main/java/io/metaloom/cortex/impl/boot/CortexBootstrapInitializer.java` |
 | Dagger component | `cortex/cli/src/main/java/io/metaloom/cortex/cli/dagger/CortexComponent.java` |
-| Dagger bindings | `cortex/core/src/main/java/io/metaloom/cortex/cli/dagger/CortexBindModule.java` |
-| Options/config loading | `cortex/common/src/main/java/io/metaloom/cortex/common/option/CortexOptionsLoader.java` |
-| Loom WebSocket client | `cortex/core/src/main/java/io/metaloom/cortex/impl/loom/LoomControlChannel.java` |
-| Task handler | `cortex/core/src/main/java/io/metaloom/cortex/impl/loom/PipelineTaskHandler.java` |
-| Monitoring/health | `cortex/core/src/main/java/io/metaloom/cortex/impl/monitoring/` |
-| Pipeline loader | `cortex/core/src/main/java/io/metaloom/cortex/pipeline/loader/LoomPipelineLoader.java` |
-| Node factory | `cortex/core/src/main/java/io/metaloom/cortex/pipeline/loader/RegistryNodeFactory.java` |
-| Pipeline API | `cortex/pipeline-api/src/main/java/io/metaloom/cortex/pipeline/api/` |
-| Pipeline executor | `cortex/pipeline-core/src/main/java/io/metaloom/cortex/pipeline/core/executor/ReactivePipelineExecutor.java` |
-| Concrete nodes | `cortex/nodes/` |
-| Containerfile | `cortex/container/Containerfile` |
-| Build script | `cortex/container/build-container.sh` |
-| Root build script | `build.sh` (project root) |
+| Dagger bindings | `cortex/core/src/main/java/io/metaloom/cortex/cli/dagger/` |
+| Node-kind registry fill | `cortex/cli/src/main/java/io/metaloom/cortex/cli/dagger/RegistryNodeRegistrar.java` |
+| Node module list | `cortex/cli/src/main/java/io/metaloom/cortex/cli/dagger/NodeCollectionModule.java` |
+| WebSocket client | `cortex/core/src/main/java/io/metaloom/cortex/impl/loom/LoomControlChannel.java` |
+| Task dispatch + drain | `cortex/core/src/main/java/io/metaloom/cortex/impl/loom/PipelineTaskHandler.java` |
+| Task execution | `cortex/node-runtime/src/main/java/io/metaloom/cortex/runtime/` |
+| Health / metrics | `cortex/core/src/main/java/io/metaloom/cortex/impl/monitoring/` |
+| Config loading | `cortex/common/src/main/java/io/metaloom/cortex/common/option/CortexOptionsLoader.java` |
+| S3 support | `cortex/s3-common/src/main/java/io/metaloom/cortex/s3/` |
+| Node → pipeline adapter | `cortex/pipeline-core/src/main/java/io/metaloom/cortex/pipeline/core/node/CortexNodeAdapter.java` |
+| Filter nodes | `cortex/pipeline-core/src/main/java/io/metaloom/cortex/pipeline/core/node/filter/` |
+| Node caches | `cortex/pipeline-common/src/main/java/io/metaloom/cortex/pipeline/common/cache/` |
+| Concrete nodes | `cortex/nodes/<kind>/core/` |
+| Containerfile / build | `cortex/container/`, `build.sh` (repo root) |
+| Integration tests | `integration-test/src/test/java/io/metaloom/loom/test/` |
 
 ---
 
 ## 12. Progress Assessment
 
-- [x] Module map documented
+- [x] Module map matches `cortex/*/pom.xml` (incl. `s3-common`, `node-runtime`, empty `fs`)
 - [x] Key classes reference table
-- [x] Startup lifecycle (server, process, task-driven modes)
-- [x] Dagger DI wiring documented
-- [x] Monitoring endpoints documented
-- [x] Loom control channel (WebSocket) protocol documented
-- [x] Online vs offline mode explained
-- [x] Environment variable pointers (cross-ref to CONFIGURATION.md)
-- [x] Test setup section
-- [x] Conventions and gotchas
-- [x] "Where do I find" cheat sheet
-- [x] Architecture diagrams (module graph, sequence diagram)
-- [ ] Container deployment guide (K8S, Cron)
+- [x] Startup lifecycle and bootstrap ordering
+- [x] Subcommand names verified against `PicoCLIModule` (`po`, not `process`)
+- [x] Dagger wiring matches `CortexComponent`
+- [x] Node-kind registration via `@Binds @IntoMap @StringKey` documented
+- [x] Monitoring endpoints + `cortex_*` meter families
+- [x] Control channel: linear backoff, registration payload, drain sequence
+- [x] Online vs offline selection (incl. the `localhost` default caveat)
+- [x] Test setup incl. integration-test module
+- [x] Conventions and gotchas, "Where do I find" cheat sheet, diagrams
+- [ ] Fix the `po` subcommand name in `PicoCLIModule` (code change, then update §4.2)
+- [ ] Container deployment guide (Kubernetes manifests, probes, HPA on `cortex_*` metrics)
+- [ ] Source-task reclaim path so a drained enumeration is not abandoned ([§7.4](#74-graceful-shutdown-drain))
 - [ ] GraalVM native image notes
-- [ ] Performance tuning guide
+- [ ] Performance tuning guide (`maxConcurrentMedia`, per-node timeouts, batch sizes)
+
+---
+
+_Git HEAD revision: `2e5981cb`_
+_Last updated: 2026-08-01 (verified against code: module map, subcommand names, bootstrap order, linear reconnect backoff, node-kind multibinding)_

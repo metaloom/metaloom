@@ -1,41 +1,36 @@
 package io.metaloom.loom.cortex.node.facedetect;
 
-import java.awt.Color;
-import java.awt.Graphics;
-import java.awt.image.BufferedImage;
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 
-import org.apache.commons.math3.ml.clustering.Cluster;
-import org.apache.commons.math3.ml.clustering.DBSCANClusterer;
-import org.apache.commons.math3.ml.clustering.DoublePoint;
 import org.junit.jupiter.api.Test;
 
 import io.metaloom.cortex.node.facedetect.FacedetectNodeModule;
 import io.metaloom.cortex.node.facedetect.FacedetectNodeOptions;
 import io.metaloom.cortex.node.facedetect.video.VideoFaceScanner;
 import io.metaloom.cortex.node.facedetect.video.VideoFaceScannerReport;
-import io.metaloom.utils.FloatUtils;
 import io.metaloom.video.facedetect.face.Face;
 import io.metaloom.video.facedetect.inspireface.InspireFacedetector;
 import io.metaloom.video4j.Video4j;
 import io.metaloom.video4j.VideoFile;
 import io.metaloom.video4j.Videos;
-import io.metaloom.video4j.utils.ImageUtils;
-import io.metaloom.video4j.utils.SimpleImageViewer;
 
-public class VideoFaceScannerTest {
+/**
+ * Scans a test video for faces and checks the report the scanner produces.
+ *
+ * <p>
+ * This used to be an interactive developer scratchpad: it opened a hard-coded video from
+ * {@code /extra/vid}, rendered every hit through a Swing viewer and then blocked on
+ * {@code System.in.read()}. That cannot run unattended — once the missing video no longer
+ * failed it first, it would simply hang. It now runs against the shared test media and
+ * asserts the report instead of displaying it.
+ * </p>
+ */
+public class VideoFaceScannerTest extends AbstractFacedetectMediaTest {
 
 	private static final String DEFAULT_PACK = "packs/Pikachu";
-
-	private SimpleImageViewer viewer = new SimpleImageViewer();
-
-	// private static final int WINDOW_COUNT = 30;
-	// private static final int WINDOW_SIZE = 120;
-	// private static final int WINDOW_STEPS = 5;
 
 	private static final int WINDOW_COUNT = 100;
 
@@ -44,73 +39,31 @@ public class VideoFaceScannerTest {
 	}
 
 	@Test
-	public void testExampleCode() throws InterruptedException, IOException, URISyntaxException {
+	public void testScanReportsFaces() throws InterruptedException, IOException, URISyntaxException {
 		VideoFaceScanner detector = scanner();
 
-		try (VideoFile video = Videos.open("/extra/vid/5.mp4")) {
-			System.out.println(video.height() + " x " + video.width());
-			long start = System.currentTimeMillis();
+		try (VideoFile video = Videos.open(video2().path())) {
 			VideoFaceScannerReport report = detector.scan(video, WINDOW_COUNT);
-			long dur = System.currentTimeMillis() - start;
-			System.out.println("Scan took " + dur + " ms / " + (dur / 1000) + " s");
+
+			assertThat(report).as("The scanner must return a report").isNotNull();
+			assertThat(report.getFaces()).as("The test video contains faces, so the scan must find some").isNotEmpty();
+
 			for (Face face : report.getFaces()) {
-				double b = face.getBluriness();
-				System.out.println("Face [" + b + "][" + face.get("frame") + "] " + Arrays.toString(face.getEmbedding()));
-				BufferedImage img = (BufferedImage) face.get("image");
-				Graphics g = img.getGraphics();
-				g.setColor(Color.RED);
-				g.drawString("B: " + b, 10, 10);
-				g.dispose();
-				ImageUtils.show(img);
+				assertThat(face.getEmbedding()).as("Every detected face carries an embedding").isNotEmpty();
+				// Bind first: Face#get is generic, so passing it straight to assertThat leaves the
+				// compiler choosing between the IntPredicate and Predicate<T> overloads.
+				Object frameRef = face.get("frame");
+				assertThat(frameRef).as("Every face records the frame it was found in").isNotNull();
 			}
-
-			// for (List<Face> cluster : clusterFaces(report.getFaces())) {
-			// for (Face face : cluster) {
-			// ImageUtils.show((BufferedImage) face.get("image"));
-			// }
-			// System.in.read();
-			// System.out.println("NEXT");
-			// }
 		}
-		System.out.println("Done");
-		System.in.read();
-
 	}
 
 	private VideoFaceScanner scanner() {
 		FacedetectNodeOptions options = new FacedetectNodeOptions();
-		// DLibFacedetector dlib = FacedetectNodeModule.dlibDetector(options);
+		options.setInspirefacePackPath(DEFAULT_PACK);
+		options.setMinFaceHeightFactor(0.05f).setVideoScaleSize(512);
 		InspireFacedetector inspireface = FacedetectNodeModule.inspirefaceDetector(options);
-		VideoFaceScanner scanner = new VideoFaceScanner(inspireface);
-		return scanner;
-	}
-
-	private List<List<Face>> clusterFaces(List<Face> faces) {
-		System.out.println("Faces for cluster: " + faces.size());
-		DBSCANClusterer<DoublePoint> clusterAlgo = new DBSCANClusterer<>(30.0, 2);
-		List<DoublePoint> ar = new ArrayList<>();
-		faces.stream().forEach(facedescriptor -> {
-			ar.add(new DoublePoint(FloatUtils.toDouble(facedescriptor.getEmbedding())));
-		});
-
-		List<Cluster<DoublePoint>> clusters = clusterAlgo.cluster(ar);
-		List<List<Face>> clusterlist = new ArrayList<>();
-		for (int i = 0; i < clusters.size(); i++) {
-			Cluster<DoublePoint> cluster = clusters.get(i);
-			String label = "P: " + i;
-			List<Face> clusterfaces = new ArrayList<>();
-			cluster.getPoints().stream().forEach(point -> {
-				faces.stream().filter(
-					facedescriptor -> Arrays.equals(FloatUtils.toDouble(facedescriptor.getEmbedding()), point.getPoint()))
-					.forEach(facedescriptor -> {
-						facedescriptor.setLabel(label);
-						clusterfaces.add(facedescriptor);
-					});
-			});
-			clusterlist.add(clusterfaces);
-		}
-		System.out.println("Cluster: " + clusterlist.size());
-		return clusterlist;
+		return new VideoFaceScanner(inspireface);
 	}
 
 }

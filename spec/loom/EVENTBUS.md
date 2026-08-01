@@ -1,423 +1,293 @@
 # Loom Eventbus System
 
-> Spec and progress tracker for the MetaLoom eventbus and pipeline event dispatch system.
-> Written for AI coding agents working on the MCP feature and related event infrastructure.
+> Spec for the event/messaging fabric in MetaLoom: which bus carries what, who emits, who consumes.
+> Transport details of the sockets live in [WEBSOCKET.md](WEBSOCKET.md); the run engine that produces
+> the events lives in [../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md); MCP tool
+> semantics live in [MCP.md](MCP.md). This file does not repeat them.
 
 ---
 
-## 1. Overview
+## 1. Three buses, one page
 
-MetaLoom has **two independent event systems** that serve different purposes:
+| Bus | Scope | Transport | Carries today |
+|---|---|---|---|
+| **Vert.x EventBus** | Loom JVM, in-process (never clustered) | `vertx.eventBus()` | MCP tool dispatch (`mcp.tool.<name>`, request/reply) **and** asset lifecycle (`loom.asset.created`, publish/subscribe) |
+| **UI events WebSocket** | Loom REST server → browsers | raw `ServerWebSocket` via `PipelineEventBroadcaster` (no SockJS bridge) | `PipelineEventMessage` + `ProcessorEventMessage`, multiplexed on one socket |
+| **Cortex `PipelineEventBus`** | One Cortex JVM, in-process | plain Java pub/sub | **Nothing in production.** Vestigial — see §4 |
 
-| System | Scope | Transport | Used For |
-|--------|-------|----------|----------|
-| **Cortex Pipeline Event Bus** (`PipelineEventBus`) | In-process (cortex side) | Java pub/sub (no Vert.x EventBus) | Internal pipeline coordination, sync collection, caching, lightweight tracking events |
-| **Vert.x EventBus** | Vert.x instance (loom side) | Vert.x EventBus (in-process / cluster-capable) | MCP tool dispatch only (`mcp.tool.<name>`) |
-| **WebSocket fan-out** (`PipelineEventBroadcaster`) | Loom REST server | Raw `ServerWebSocket` (no SockJS bridge) | Forwarding pipeline tracking events from cortex processors to UI clients |
+> **The single most important correction to make when reading older docs:** pipeline events are no
+> longer produced by Cortex and relayed to Loom. Under **Variant C** Loom owns the pipeline graph, so
+> Loom emits every run event itself from `RunStatsAggregator`. A `PIPELINE_EVENT` frame arriving from
+> a worker is **accepted and dropped**.
 
-The **`loom-service-eventbus` module** (`loom/services/eventbus/`) is an **empty placeholder** - it has a `pom.xml` and a one-line README but **no source files**. No other module depends on it. All actual event dispatching code lives in:
-- `cortex/pipeline-common` - `DefaultPipelineEventBus` implementation
-- `cortex/pipeline-core` - `ReactivePipelineExecutor` (event publisher)
-- `cortex/core` - `LoomControlChannel` (bridge from cortex to loom)
-- `loom/services/rest` - `PipelineEventBroadcaster`, `PipelineEventEndpoint`, `ProcessorEndpoint`
-- `loom/services/mcp` - `MCPService`, `MCPToolRegistry` (Vert.x EventBus for tool dispatch)
+The **`loom/services/eventbus/` module is an empty placeholder** — `pom.xml` with zero dependencies,
+a README, no `src/`. It is listed in `loom/services/pom.xml` and builds an empty jar. Nothing depends
+on it. Its README still points at a non-existent `spec/cortex/EVENTBUS.md`.
 
 ---
 
-## 2. Architecture Diagram
+## 2. Architecture
 
 ```mermaid
-┌─────────────────────────────────────────────────────────────────┐
-│  Cortex Processor Node (in-process)                             │
-│                                                                 │
-│  ReactivePipelineExecutor                                       │
-│    |  publishes NodeCompletionEvent + PipelineTrackingEvent     │
-│    v                                                            │
-│  DefaultPipelineEventBus (in-process pub/sub)                   │
-│    |  subscribeTracking()                                       │
-│    v                                                            │
-│  LoomControlChannel.forwardPipelineTrackingEvent()              │
-│    |  converts PipelineTrackingEvent -> PipelineEventMessage    │
-│    |  wraps in ProcessorMessage(PIPELINE_EVENT)                 │
-│    v                                                            │
-│  WebSocket client -> /api/v1/processors/ws                      │
-└─────────────────────────────────────────────────────────────────┘
-                           |
-                           v
-┌─────────────────────────────────────────────────────────────────┐
-│  Loom REST Server                                               │
-│                                                                 │
-│  ProcessorEndpoint.handlePipelineEvent()                        │
-│    |  deserializes PipelineEventMessage                         │
-│    v                                                            │
-│  PipelineEventBroadcaster.broadcast(event)                      │
-│    |  fans out to all matching subscribers                      │
-│    |  (per-pipeline filter, backpressure-aware)                │
-│    v                                                            │
-│  WebSocket -> /api/v1/pipelines/events/ws -> UI clients        │
-└─────────────────────────────────────────────────────────────────┘
+flowchart TB
+    subgraph cortex["Cortex worker JVM"]
+        CN["Node execution<br/>(NODE_TASK / SEGMENT_TASK)"]
+        LCC["LoomControlChannel<br/>register / heartbeat / status / results"]
+        PEB["DefaultPipelineEventBus<br/><i>no production publisher</i>"]
+        CN --> LCC
+        PEB -.->|test harness only| CN
+    end
+
+    subgraph loom["Loom REST server JVM"]
+        PE["ProcessorEndpoint<br/>/api/v1/processors/ws"]
+        ENG["PipelineRunEngine<br/>onNodeSettled"]
+        RSA["RunStatsAggregator<br/>counts settles, 1s timer flush"]
+        REG["ProcessorRegistry"]
+        BC["PipelineEventBroadcaster"]
+        VEB["Vert.x EventBus"]
+        AEP["AssetEventPublisher"]
+        APT["AssetPipelineTrigger"]
+        PE -->|NODE_TASK_RESULT| ENG
+        PE -->|register/heartbeat/state| REG
+        ENG --> RSA
+        RSA -->|"NODE_STATS, NODE_FAILED"| BC
+        REG -->|"ProcessorEventMessage"| BC
+        AEP -->|"loom.asset.created"| VEB
+        VEB --> APT
+        APT -->|runForAsset| ENG
+    end
+
+    UI["Browser<br/>/api/v1/pipelines/events/ws"]
+
+    LCC <-->|ProcessorMessage JSON| PE
+    BC -->|"JSON frames"| UI
 ```
 
-### Separate Vert.x EventBus (MCP only)
+---
 
-```mermaid
-┌─────────────────────────────────────────────────────────────────┐
-│  MCP Service (loom/services/mcp)                                │
-│                                                                 │
-│  MCPToolRegistry                                                │
-│    |  registers consumers on Vert.x EventBus                    │
-│    |  address: mcp.tool.<toolName>                              │
-│    v                                                            │
-│  Vert.x EventBus (vertx.eventBus())                             │
-│    |  request("mcp.tool.<name>", arguments) -> reply            │
-│    v                                                            │
-│  MCPTool.execute() runs and replies                             │
-└─────────────────────────────────────────────────────────────────┘
-```
+## 3. Event inventory
 
-The Vert.x EventBus is **NOT** used for pipeline event dispatch. It is only used by the MCP tool registry for internal tool invocation.
+### 3.1 Pipeline events (UI events socket)
+
+`PipelineEventType` declares eight constants, but **only two are emitted at runtime**. The rest are
+model-level vocabulary retained for the wire format and for the Cortex-side enum alignment.
+
+| Event | Emitted by | Consumed by | Transport |
+|---|---|---|---|
+| `NODE_STATS` | `RunStatsAggregator.flush()` — one frame per node, on a 1 s `vertx.setPeriodic` timer, only when `dirty` | `pipelineEvents.ts` → `PipelineArea.tsx` | `PipelineEventBroadcaster` → UI WS |
+| `NODE_FAILED` | `RunStatsAggregator.emitFailure()` — released immediately, one per failed item | same | same |
+| `PIPELINE_STARTED` / `PIPELINE_COMPLETED` / `NODE_STARTED` / `NODE_COMPLETED` / `NODE_SKIPPED` / `NODE_BUFFERED` | **nobody** (no production emitter) | UI can render them if they ever appear | — |
+
+`PipelineEventMessage` fields: `type`, `pipelineName`, `pipelineRunUuid`, `nodeId`, `mediaPath`,
+`timestamp`, `durationMs`, `message`, `activeCount`, `pendingCount`, `processedCount`, `failedCount`,
+`skippedCount`. It carries **no** `channel` field — that absence is how the UI tells it apart from a
+processor frame.
+
+### 3.2 Processor lifecycle events (same socket)
+
+| Event | Emitted by | Consumed by | Transport |
+|---|---|---|---|
+| `REGISTERED`, `STATE_CHANGED`, `STATUS_UPDATED`, `HEARTBEAT`, `DISCONNECTED` | `ProcessorRegistry.broadcast()` | UI Cortex view | `PipelineEventBroadcaster.broadcastProcessorEvent()` → UI WS |
+
+`ProcessorEventMessage` always sets `channel = "PROCESSOR"`. These frames **bypass the `?pipeline=`
+and `?run=` filters** on purpose — processor state is fleet-wide, not run-scoped.
+
+### 3.3 Vert.x EventBus addresses
+
+| Address | Emitted by | Consumed by | Pattern |
+|---|---|---|---|
+| `loom.asset.created` | `AssetEventPublisher.publishCreated()`, called from `AssetUploadEndpointService` | `AssetPipelineTrigger` (registered once from `BootstrapInitializer`) | publish/subscribe; payload `{assetUuid, mimeType}`; handler hops to `executeBlocking` |
+| `mcp.tool.<name>` | `MCPToolRegistry.dispatch()` | per-tool consumer registered in `MCPToolRegistry.register()` | request/reply — see [MCP.md](MCP.md) |
+| `mcp.registry` | — | — | constant `MCPConstants.EVENTBUS_TOOL_REGISTRY` is **declared but never used** |
+
+### 3.4 Processor control messages
+
+`ProcessorMessage{type, body}` on `/api/v1/processors/ws`. Full protocol in
+[WEBSOCKET.md](WEBSOCKET.md) §3. Only the event-relevant member matters here: **`PIPELINE_EVENT`**,
+worker → Loom, is validated for a body and then discarded. `ProcessorEndpoint` logs one warning per
+sending `nodeId` (tracked in `warnedPipelineEventSenders`) and stays silent afterwards, so a legacy
+worker emitting one frame per item cannot flood the log or be answered with an error per item.
 
 ---
 
-## 3. Key Components
+## 4. Cortex `PipelineEventBus` — vestigial
 
-### 3.1 Cortex Pipeline Event Bus (in-process)
+`PipelineEventBus` (two channels: `NodeCompletionEvent` and `PipelineTrackingEvent`) and
+`DefaultPipelineEventBus` still exist and are still provided as a Dagger singleton by
+`CortexBindModule.providePipelineEventBus()`. But:
 
-**Interface:** `cortex/pipeline-api/src/main/java/io/metaloom/cortex/pipeline/api/event/PipelineEventBus.java`
+- **There is no production caller of `publish()` or `publishTracking()`.** The publisher was
+  `ReactivePipelineExecutor`, which **no longer exists** — the class and `PipelineExecutorTest` were
+  removed with Variant C.
+- **`LoomControlChannel` no longer subscribes to it.** It has no reference to `PipelineEventBus` and
+  no `forwardPipelineTrackingEvent`. It handles `REGISTER`, `HEARTBEAT`, `STATUS_UPDATE`,
+  `STATE_CHANGE`, task execution (via `PipelineTaskHandler`) and reconnect backoff — nothing else.
+- **Its only live user is the test harness** `AbstractNodeChainTest`, which builds a
+  `DefaultPipelineEventBus`, subscribes both channels, and synthesises events while walking a node
+  chain so node tests can assert on them.
 
-Two channels:
-- **Node completion events** - full-fidelity `NodeCompletionEvent` carrying `LoomMedia` + `NodeResult`. Used for internal pipeline coordination (sync collection, caching).
-- **Tracking events** - lightweight `PipelineTrackingEvent` with scalar-only data. Designed for high-volume WebSocket dispatch.
+Implementation notes that still hold: `ConcurrentHashMap` + `CopyOnWriteArrayList`; dispatch is
+**synchronous on the publishing thread**; listener exceptions are caught and logged, never propagated;
+subscription handles are UUID strings in a `handleCleanup` map for O(1) unsubscribe.
 
-**Implementation:** `cortex/pipeline-common/src/main/java/io/metaloom/cortex/pipeline/common/event/DefaultPipelineEventBus.java`
-- `ConcurrentHashMap` + `CopyOnWriteArrayList` for thread-safe subscriptions.
-- `publish()` dispatches to node-specific subscribers, then global subscribers.
-- `publishTracking()` dispatches to all tracking subscribers.
-- Events dispatched **synchronously** on the publishing thread.
-- Subscription handles are UUID strings stored in a `handleCleanup` map for O(1) unsubscribe.
-
-**Wiring:** `CortexBindModule.providePipelineEventBus()` returns `new DefaultPipelineEventBus()`.
-
-### 3.2 Event Types
-
-**`PipelineTrackingEvent.Type`** (cortex side):
-- `PIPELINE_STARTED`, `PIPELINE_COMPLETED`
-- `NODE_STARTED`, `NODE_COMPLETED`, `NODE_FAILED`, `NODE_SKIPPED`, `NODE_BUFFERED`
-
-**`PipelineEventType`** (REST model, `loom-shared/rest-model`):
-- Same as above plus `NODE_STATS` (REST-model-only, injected by processors with aggregate throughput data: `activeCount`, `pendingCount`, `processedCount`, `failedCount`).
-
-**`PipelineEventMessage`** (REST model, WebSocket envelope):
-- Fields: `type`, `pipelineName`, `nodeId`, `mediaPath`, `timestamp`, `durationMs`, `message`, plus stats fields (`activeCount`, `pendingCount`, `processedCount`, `failedCount`).
-- Implements `RestModel` (JSON-serializable).
-
-**`NodeCompletionEvent`** (cortex internal):
-- Fields: `nodeId`, `LoomMedia media`, `NodeResult result`, `timestamp`.
-- NOT sent over WebSocket - used only for in-process coordination.
-
-### 3.3 ReactivePipelineExecutor (Event Publisher)
-
-**File:** `cortex/pipeline-core/src/main/java/io/metaloom/cortex/pipeline/core/executor/ReactivePipelineExecutor.java`
-
-Publishes events at these lifecycle points:
-
-| Location | Event | Type |
-|---|---|---|
-| `execute()` start | `publishTracking` | `PIPELINE_STARTED` |
-| `execute()` completion | `publishTracking` | `PIPELINE_COMPLETED` |
-| Node semaphore unavailable | `emitTrackingEvent` | `NODE_BUFFERED` |
-| Node semaphore acquired | `emitTrackingEvent` | `NODE_STARTED` |
-| Node success | `publish` + `emitTrackingEvent` | `NODE_COMPLETED` |
-| Node failure | `publish` + `emitTrackingEvent` | `NODE_FAILED` |
-| Dependency failure / filter mismatch | `publish` + `emitTrackingEvent` | `NODE_SKIPPED` |
-
-The `emitTrackingEvent` helper converts `LoomMedia` to path string and calls `eventBus.publishTracking()`.
-
-### 3.4 LoomControlChannel (Cortex -> Loom Bridge)
-
-**File:** `cortex/core/src/main/java/io/metaloom/cortex/impl/loom/LoomControlChannel.java`
-
-This is the critical bridge between the in-process cortex `PipelineEventBus` and the loom WebSocket dispatch. It runs inside a cortex processor node:
-
-1. On `start()`, subscribes to tracking events: `pipelineEventBus.subscribeTracking(this::forwardPipelineTrackingEvent)`
-2. Connects a WebSocket client to loom's `/api/v1/processors/ws` and sends a `REGISTER` message.
-3. For each `PipelineTrackingEvent`, converts it to `PipelineEventMessage` and wraps in `ProcessorMessage(PIPELINE_EVENT, ...)`, sends over WebSocket.
-4. Also handles heartbeats, status updates, source/node tasks (via `PipelineTaskHandler`), and reconnection with exponential backoff.
-
-### 3.5 PipelineEventBroadcaster (Loom-side Fan-out)
-
-**File:** `loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/PipelineEventBroadcaster.java`
-
-- `@Singleton`, thread-safe `ConcurrentHashMap<ServerWebSocket, Subscriber>`.
-- `broadcast(PipelineEventMessage)` - fans out to all matching subscribers. JSON is lazily encoded (only if >=1 subscriber matches).
-- **Per-pipeline filtering**: subscribers can filter by pipeline name via `?pipeline=<name>` query param.
-- **Backpressure**: each subscriber has a bounded queue (default 1024). When `ws.writeQueueFull()`, events are dropped and `droppedCount` is incremented (logged every 100 drops).
-- Uses `ws.writeTextMessage(json)` for non-blocking writes.
-
-### 3.6 WebSocket Endpoints
-
-**PipelineEventEndpoint** (`loom/services/rest/.../endpoint/impl/PipelineEventEndpoint.java`):
-- Route: `GET /api/v1/pipelines/events/ws` (WebSocket upgrade, order -1000 to beat wildcard auth routes).
-- Read-only from client side - clients only receive events, never send.
-- Authentication via `?token=<jwt>` query parameter validated by `WebSocketAuthenticator` (close code `4401` on failure).
-- Per-pipeline filtering via `?pipeline=<name>` query parameter.
-- Registers each WebSocket as a subscriber in `PipelineEventBroadcaster`.
-
-**ProcessorEndpoint** (`loom/services/rest/.../endpoint/impl/ProcessorEndpoint.java`):
-- Route: `GET /api/v1/processors/ws` (WebSocket upgrade).
-- Processor nodes connect, register, and exchange `ProcessorMessage` envelopes.
-- The `PIPELINE_EVENT` message type handler (`handlePipelineEvent`) deserializes the body to `PipelineEventMessage` and calls `pipelineEventBroadcaster.broadcast(event)`.
-- Also dispatches `SOURCE_TASK` and `NODE_TASK` messages to processors via `ProcessorRegistry.send()` (the latter driven by the loom-side `PipelineRunEngine` / `WebSocketNodeDispatcher`).
-
-### 3.7 Vert.x EventBus (MCP Tool Dispatch Only)
-
-**VertxModule** (`loom/common/src/main/java/io/metaloom/loom/common/dagger/VertxModule.java`):
-- Provides `EventBus` and `io.vertx.rxjava3.core.eventbus.EventBus` as singletons via Dagger.
-
-**MCPToolRegistry** (`loom/services/mcp/src/main/java/io/metaloom/loom/mcp/tool/MCPToolRegistry.java`):
-- Registers each tool on the Vert.x EventBus at address `mcp.tool.<name>`.
-- Dispatches tool calls via `vertx.eventBus().request("mcp.tool.<name>", arguments)`.
-- Tools reply with results or failures using `msg.reply(result)` / `msg.fail(...)`.
-
-**MCPService** (`loom/services/mcp/src/main/java/io/metaloom/loom/mcp/MCPService.java`):
-- Provides HTTP+SSE and WebSocket transports for MCP JSON-RPC.
-- WebSocket at `/mcp/ws` for bidirectional streaming.
-- Tool calls dispatched through `MCPToolRegistry.dispatch()` which uses the Vert.x EventBus.
-
-### 3.8 Message Models
-
-**ProcessorMessage** (`loom-shared/rest-model/.../processor/message/ProcessorMessage.java`):
-- Fields: `type` (`ProcessorMessageType`), `body` (`JsonObject`).
-
-**ProcessorMessageType**:
-- Processor->Loom: `REGISTER`, `HEARTBEAT`, `STATUS_UPDATE`, `STATE_CHANGE`, `SOURCE_ITEMS`, `SOURCE_COMPLETE`, `NODE_TASK_RESULT`, `NODE_TASK_RESULT_BATCH`, `SEGMENT_TASK_RESULT`, `PIPELINE_RUN_COMPLETED`, `PIPELINE_EVENT`.
-- Loom->Processor: `REGISTERED`, `HEARTBEAT_ACK`, `SOURCE_TASK`, `SOURCE_ITEMS_ACK`, `NODE_TASK`, `SEGMENT_TASK`, `ERROR`.
-
-### 3.9 UI Client
-
-**`loom-ui/src/api/pipelineEvents.ts`** - TypeScript client that opens a WebSocket to `/api/v1/pipelines/events/ws`, parses `PipelineEventMessage` JSON, and dispatches to registered listeners. Supports lazy connection, auto-reconnect with exponential backoff + jitter (bounded by `maxAttempts`, default 10), connection-state events (`connecting`/`connected`/`disconnected`/`failed`) via `subscribeConnectionState`, tunable via `configureReconnect`, and token auth via `?token=` query param.
-
-**`loom-ui/src/Pipeline/PipelineArea.tsx`** - React component that subscribes to live events and updates `nodeStates` in real time, mapping `PipelineEventType` -> visual node status (`processing`, `completed`, `failed`, `skipped`, `buffered`).
+`PipelineTrackingEvent` has drifted ahead of what anything reads: its `Type` enum now includes
+`NODE_STATS`, and it carries `pipelineRunUuid` plus a `RunCounters` record (`mediaCount`,
+`successCount`, `failureCount`, `skippedCount`) populated only on `PIPELINE_COMPLETED`.
 
 ---
 
-## 4. Tests
+## 5. `PipelineEventBroadcaster`
 
-### 4.1 Pipeline Executor Tests
+`@Singleton`, `ConcurrentHashMap<ServerWebSocket, Subscriber>`.
 
-**File:** `cortex/pipeline-core/src/test/java/io/metaloom/cortex/pipeline/core/PipelineExecutorTest.java`
-- `testFullPipelineExecution()` - subscribes via `executor.getEventBus().subscribeAll(...)`, verifies 7 completion events for a 7-node DAG.
-- Tests parallel execution, per-node concurrency limiting, caching, dry-run, dependency failure skipping.
+- **Filters** — `?pipeline=<name>` and `?run=<uuid>`, extracted by `PipelineEventEndpoint` and ANDed
+  in `Subscriber.matches()`. Blank is treated as absent. Both bypassed for processor events.
+- **Lazy encode** — `Json.encode()` runs at most once per broadcast, and only after a subscriber
+  matches, so a broadcast with no listeners costs nothing.
+- **Pruning** — closed sockets are removed during broadcast, not only on `closeHandler`.
+- **Backpressure** — `Subscriber.send()` checks `ws.writeQueueFull()`; if full it increments
+  `droppedCount`, logs every 100th drop, and returns false. Otherwise `ws.writeTextMessage(json)`.
+- **Metrics** — gauge `loom_pipeline_event_subscribers`; counters via
+  `LoomMetrics.recordPipelineEventBroadcast()` / `recordPipelineEventDropped()`. A no-arg constructor
+  wires `NoopLoomMetrics` for tests.
 
-### 4.2 Abstract Pipeline Node Test Base
+Tunables are compile-time constants, not configuration:
 
-**File:** `cortex/pipeline-core/src/test/java/io/metaloom/cortex/pipeline/test/AbstractPipelineNodeTest.java`
-- Sets up `DefaultPipelineEventBus` + `ReactivePipelineExecutor` in `@BeforeEach`.
-- Subscribes to both channels: `eventBus.subscribeAll(completionEvents::add)` and `eventBus.subscribeTracking(trackingEvents::add)`.
-- Provides `assertCompletionEvent` / tracking event assertions for subclasses.
+| Setting | Where | Default | Notes |
+|---|---|---|---|
+| Stats flush interval | `PipelineEndpointService.STATS_INTERVAL_MS` | `1000` ms | timer cancelled on run completion, with one final `flush()` |
+| Subscriber queue capacity | `PipelineEventBroadcaster.DEFAULT_QUEUE_CAPACITY` | `1024` | **passed to `Subscriber` and then ignored** — see gotchas |
 
-### 4.3 Node-specific Pipeline Tests
-
-All extend `AbstractPipelineNodeTest` and use tracking events:
-- `FacedetectNodePipelineTest`
-- `FingerprintNodePipelineTest`
-- `ChunkHashNodePipelineTest`
-- `MD5NodePipelineTest`
-- `SHA512NodePipelineTest`
-- `LLMNodePipelineTest`
-- `ThumbnailNodePipelineTest`
-- `WhisperNodePipelineTest`
-
-### 4.4 WebSocket Endpoint Tests
-
-**File:** `loom/core/src/test/java/io/metaloom/core/endpoint/test/PipelineEventEndpointTest.java`
-
-End-to-end tests using real Vert.x server:
-- `testConnectToPipelineEventsWs()` - UI client connects to `/api/v1/pipelines/events/ws`
-- `testPipelineEventForwarding()` - processor sends `PIPELINE_EVENT`, UI subscriber receives it
-- `testMultipleSubscribersReceiveEvent()` - fan-out to multiple UI clients
-- `testPipelineEventWithoutRegister()` - error if processor sends event before REGISTER
-- `testPipelineEventWithoutBody()` - error if event has no body
-- `testNodeLifecycleEventSequence()` - full `PIPELINE_STARTED` -> `NODE_STARTED` -> `NODE_COMPLETED` -> `PIPELINE_COMPLETED` sequence
-- `testNodeStatsEvent()` - `NODE_STATS` with volume fields
-
-**File:** `loom/core/src/test/java/io/metaloom/core/endpoint/test/ProcessorEndpointTest.java`
-- Processor WebSocket lifecycle tests.
-
-### 4.5 Test Coverage Gaps
-
-- **No tests for Vert.x EventBus integration** - the MCP tool dispatch via EventBus has no dedicated tests.
-- **No tests for `loom-service-eventbus` module** - the module is empty.
-- **No integration tests for the full cortex->loom event flow** - the `LoomControlChannel` -> `ProcessorEndpoint` -> `PipelineEventBroadcaster` chain is only tested piecewise.
-- **No tests for backpressure behavior** - the `PipelineEventBroadcaster`'s event dropping when `writeQueueFull()` is not tested.
-- **No tests for WebSocket reconnection** - `LoomControlChannel`'s exponential backoff reconnection is not tested.
+There are **no environment variables** governing this subsystem.
 
 ---
 
-## 5. Integration with the Pipeline System
+## 6. Tests
 
-### 5.1 Event Flow (End-to-End)
-
-1. **Cortex executor runs pipeline** - `ReactivePipelineExecutor` processes media items through a DAG of nodes.
-2. **Executor publishes events** - At each lifecycle point (start, node start, node complete, etc.), the executor calls `eventBus.publishTracking(new PipelineTrackingEvent(...))` and/or `eventBus.publish(new NodeCompletionEvent(...))`.
-3. **LoomControlChannel receives tracking events** - Its `subscribeTracking` subscription receives each `PipelineTrackingEvent`.
-4. **Control channel converts and forwards** - `forwardPipelineTrackingEvent()` converts `PipelineTrackingEvent` to `PipelineEventMessage`, wraps it in `ProcessorMessage(PIPELINE_EVENT)`, and sends it over the processor WebSocket to loom.
-5. **ProcessorEndpoint receives** - `handlePipelineEvent()` deserializes the `PipelineEventMessage` and calls `pipelineEventBroadcaster.broadcast(event)`.
-6. **Broadcaster fans out** - `PipelineEventBroadcaster` iterates subscribers, filters by pipeline name, and writes JSON to each WebSocket via `ws.writeTextMessage(json)`.
-7. **UI client receives** - The TypeScript client in `pipelineEvents.ts` parses the JSON and dispatches to registered listeners. `PipelineArea.tsx` updates the visual node states.
-
-### 5.2 Pipeline Run Trigger
-
-The REST endpoint `POST /api/v1/pipelines/{id}/run` (handled by `PipelineEndpointService`) triggers pipeline execution by selecting a processor via `processorRegistry.selectProcessorForKinds(CPU, [sourceKind])`, creating a `pipeline_run` row, building a `PipelineRunEngine`, and handing the pipeline's source node to the worker as a `SOURCE_TASK` (`processorRegistry.send()`). The engine then drives the run by dispatching individual `NODE_TASK`s via `WebSocketNodeDispatcher`. The response includes `PipelineRunResponse` with `runUuid`, `processorNodeId`, and `dispatched` flag. Per-node status can be observed on the pipeline events WebSocket.
-
-### 5.3 Processor Registry and Run Dispatch
-
-- `ProcessorRegistry` tracks connected processor nodes (state, heartbeat, status, capabilities) and sends messages to them via `send()`.
-- `WebSocketNodeDispatcher` sends the `PipelineRunEngine`'s `NODE_TASK`s over the processor socket; run completion is closed out by `PipelineRunTracker`.
-- These are in `loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/`.
-
----
-
-## 6. Vert.x EventBus Assessment
-
-### 6.1 Current State
-
-The Vert.x EventBus is provided via Dagger (`VertxModule`) and is available throughout the loom application. However, it is **only used for MCP tool dispatch** (`mcp.tool.<name>` addresses). The pipeline event system does **not** use the Vert.x EventBus at all.
-
-The pipeline event flow uses:
-- A custom in-process `DefaultPipelineEventBus` (Java pub/sub with `ConcurrentHashMap`).
-- Raw `ServerWebSocket` connections for cortex->loom and loom->UI communication.
-- A custom JSON protocol (`ProcessorMessage` / `PipelineEventMessage`).
-
-### 6.2 Vert.x EventBus Features Relevant to MetaLoom
-
-Based on the [Vert.x EventBus documentation](https://vertx.io/docs/vertx-core/java/#event_bus):
-
-| Feature | Description | Relevance to MetaLoom |
-|--------|-------------|----------------------|
-| **Publish/subscribe** | `eventBus.publish(address, message)` delivers to all registered consumers | Could replace `PipelineEventBroadcaster`'s manual fan-out |
-| **Point-to-point / request-reply** | `eventBus.request(address, message)` delivers to one consumer, with reply | Already used for MCP tool dispatch |
-| **Message codecs** | Custom serialization for typed objects | Could serialize `PipelineEventMessage` directly |
-| **Clustered EventBus** | Distributed event bus across Vert.x cluster nodes | Could enable multi-node pipeline event distribution |
-| **Automatic verticle cleanup** | EventBus consumers registered in verticles are auto-unregistered | Simplifies lifecycle management |
-| **Backpressure** | EventBus handles message queuing internally | Could replace manual `writeQueueFull()` checks |
-| **SockJS Bridge** | Bridges EventBus to browser clients via SockJS | Could replace the raw WebSocket fan-out to UI clients |
-
-### 6.3 Vert.x SockJS Event Bus Bridge
-
-The [Vert.x Web SockJS Bridge](https://vertx.io/docs/vertx-web/java/#_handling_event_bus_bridge_events) provides a built-in bridge that exposes the EventBus to browser clients. Key features:
-- `SockJSHandler.bridge(options)` mounts a bridge at a URL path (e.g., `/eventbus/*`).
-- `PermittedOptions` controls which addresses are allowed inbound/outbound.
-- `BridgeEvent` handler allows filtering/authorization of bridge messages.
-- Client-side `vertx-eventbus.js` library provides an EventBus API in the browser.
-
-This could **replace** the current `PipelineEventBroadcaster` + `PipelineEventEndpoint` with a simpler architecture:
-- Cortex publishes tracking events to `vertx.eventBus().publish("pipeline.events", message)`.
-- UI clients subscribe via SockJS bridge at `/eventbus/*` with `PermittedOptions` for `pipeline.events.*`.
-- No custom WebSocket endpoint, no custom broadcaster, no manual JSON encoding.
-
-### 6.4 Assessment: Is the Vert.x EventBus Useful for the Pipeline Event System?
-
-**Yes, but with caveats.** The Vert.x EventBus could simplify the pipeline event dispatch in several ways, but the current custom implementation has specific properties that would need to be preserved:
-
-**Advantages of using Vert.x EventBus:**
-1. **Simpler fan-out** - `eventBus.publish()` handles delivery to all consumers automatically, replacing the manual `ConcurrentHashMap<ServerWebSocket, Subscriber>` in `PipelineEventBroadcaster`.
-2. **SockJS Bridge** - Could replace the raw WebSocket endpoint with a standards-based bridge that handles reconnection, fallback transports, and authentication.
-3. **Clustered distribution** - In a multi-node deployment, the clustered EventBus would automatically distribute events across nodes.
-4. **Message codecs** - Could register a custom codec for `PipelineEventMessage` to avoid manual JSON serialization.
-5. **Backpressure** - Vert.x EventBus handles message queuing internally, potentially replacing the manual `writeQueueFull()` / drop logic.
-6. **Lifecycle management** - EventBus consumers registered in verticles are auto-cleaned on undeploy.
-
-**Disadvantages / risks:**
-1. **Cortex runs in a separate process** - The cortex processor is not a Vert.x verticle and does not share the Vert.x instance with loom. The EventBus would need to be clustered for cortex to publish to it, adding complexity.
-2. **Current architecture works** - The existing `LoomControlChannel` -> `ProcessorEndpoint` -> `PipelineEventBroadcaster` chain is functional and tested.
-3. **SockJS overhead** - SockJS adds overhead compared to raw WebSockets, and the current UI client already has a working raw WebSocket implementation.
-4. **Per-pipeline filtering** - The current `?pipeline=<name>` query param filtering would need to be replicated using EventBus address patterns (e.g., `pipeline.events.<name>`).
-5. **Authentication** - The current `?token=<jwt>` WebSocket auth would need to be replaced with SockJS bridge authentication, which is more complex.
-
----
-
-## 7. TODOs
-
-### 7.1 Populate the `loom-service-eventbus` Module
-
-- [ ] **TODO-1**: Create source directory and implement an EventBus-based service in `loom/services/eventbus/src/main/java/`. The module currently has no source files. If the Vert.x EventBus approach is adopted for pipeline events, this module should house the Vert.x EventBus integration code (publishers, subscribers, codecs, bridge configuration).
-- [ ] **TODO-2**: Add dependencies to `loom/services/eventbus/pom.xml` - currently has no dependencies beyond the parent. Should depend on `loom-common` (for Vert.x/Dagger), `cortex-pipeline-api` (for event types), and `loom-shared/rest-model` (for `PipelineEventMessage`).
-
-### 7.2 Vert.x EventBus Integration for Pipeline Events
-
-- [ ] **TODO-3**: Evaluate replacing `PipelineEventBroadcaster` with Vert.x EventBus `publish()`. Register a consumer at address `pipeline.events` (or `pipeline.events.<pipelineName>`) that forwards to WebSocket subscribers. This would simplify the broadcaster and leverage Vert.x's built-in message delivery.
-- [ ] **TODO-4**: Evaluate replacing `PipelineEventEndpoint` (raw WebSocket) with a SockJS Event Bus Bridge. Configure `SockJSBridgeOptions` with `PermittedOptions` for outbound addresses matching `pipeline.events.*`. This would give UI clients a standards-based EventBus client (`vertx-eventbus.js`) instead of a custom WebSocket client.
-- [ ] **TODO-5**: If SockJS bridge is adopted, register a `BridgeEvent` handler to intercept `REGISTER` / `UNREGISTER` / `RECEIVE` events for authentication and per-pipeline filtering. Use `setRequiredAuthority` on `PermittedOptions` for JWT-based access control.
-- [ ] **TODO-6**: Register a custom `MessageCodec` for `PipelineEventMessage` so it can be sent over the EventBus without manual `JsonObject.mapFrom()` conversion. This would simplify `LoomControlChannel.forwardPipelineTrackingEvent()`.
-- [ ] **TODO-7**: If clustered deployment is planned, evaluate using a clustered EventBus (`Vertx.clusteredVertx()`) so that cortex processors on different nodes can publish events to the loom EventBus without the WebSocket bridge. This would require a `ClusterManager` (e.g., Hazelcast) on the classpath.
-
-### 7.3 Cortex-side EventBus Integration
-
-- [ ] **TODO-8**: Currently `LoomControlChannel` subscribes to `PipelineEventBus.subscribeTracking()` and forwards events over a WebSocket client to `/api/v1/processors/ws`. If the Vert.x EventBus is adopted, evaluate having the cortex processor publish directly to the EventBus (requires clustered EventBus or an EventBus client). This would eliminate the `ProcessorMessage(PIPELINE_EVENT)` -> `ProcessorEndpoint.handlePipelineEvent()` -> `PipelineEventBroadcaster` chain entirely.
-- [ ] **TODO-9**: The `DefaultPipelineEventBus` is an in-process pub/sub. Consider whether it should be retained for internal cortex coordination (full-fidelity `NodeCompletionEvent` events) even if tracking events are moved to the Vert.x EventBus. The `NodeCompletionEvent` carries `LoomMedia` + `NodeResult` which are heavy objects not suitable for EventBus transport.
-
-### 7.4 MCP EventBus Integration
-
-- [ ] **TODO-10**: The MCP tool dispatch already uses the Vert.x EventBus (`mcp.tool.<name>`). Evaluate whether MCP-related events (tool call lifecycle, progress notifications) should also be published on the EventBus for observability. Currently MCP tool calls are dispatched via `eventBus.request()` (request-reply) with no event stream.
-- [ ] **TODO-11**: Consider whether MCP tool results should be forwardable to UI clients via the same event stream as pipeline events. This would require a new `PipelineEventMessage` type or a separate MCP event channel.
-
-### 7.5 Testing
-
-- [ ] **TODO-12**: Add integration tests for the full cortex -> loom event flow: `ReactivePipelineExecutor` -> `LoomControlChannel` -> `ProcessorEndpoint` -> `PipelineEventBroadcaster` -> UI WebSocket subscriber. Currently only piecewise tests exist.
-- [ ] **TODO-13**: Add tests for `PipelineEventBroadcaster` backpressure behavior (event dropping when `writeQueueFull()`).
-- [ ] **TODO-14**: Add tests for `LoomControlChannel` reconnection with exponential backoff.
-- [ ] **TODO-15**: If Vert.x EventBus integration is implemented, add tests for EventBus-based event publishing/subscribing, including clustered scenarios.
-- [ ] **TODO-16**: If SockJS bridge is adopted, add tests for bridge authentication, per-pipeline filtering via `PermittedOptions`, and `BridgeEvent` handler.
-
-### 7.6 Documentation
-
-- [ ] **TODO-17**: Document the event flow in the loom REST API docs (OpenAPI/Swagger) - the WebSocket endpoints `/api/v1/pipelines/events/ws` and `/api/v1/processors/ws` should be documented with their message schemas.
-- [ ] **TODO-18**: Update the `loom/services/eventbus/README.md` (currently one line: "This service provides eventbus code to loom.") with actual content once the module is populated.
-
----
-
-## 8. Key File Index
-
-| Component | File Path |
+| Area | Test |
 |---|---|
-| PipelineEventBus interface | `cortex/pipeline-api/src/main/java/io/metaloom/cortex/pipeline/api/event/PipelineEventBus.java` |
-| DefaultPipelineEventBus impl | `cortex/pipeline-common/src/main/java/io/metaloom/cortex/pipeline/common/event/DefaultPipelineEventBus.java` |
-| PipelineTrackingEvent | `cortex/pipeline-api/src/main/java/io/metaloom/cortex/pipeline/api/event/PipelineTrackingEvent.java` |
-| NodeCompletionEvent | `cortex/pipeline-api/src/main/java/io/metaloom/cortex/pipeline/api/event/NodeCompletionEvent.java` |
-| ReactivePipelineExecutor | `cortex/pipeline-core/src/main/java/io/metaloom/cortex/pipeline/core/executor/ReactivePipelineExecutor.java` |
-| LoomControlChannel (bridge) | `cortex/core/src/main/java/io/metaloom/cortex/impl/loom/LoomControlChannel.java` |
-| PipelineTaskHandler | `cortex/core/src/main/java/io/metaloom/cortex/impl/loom/PipelineTaskHandler.java` |
-| PipelineEventEndpoint (UI WS) | `loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/PipelineEventEndpoint.java` |
-| ProcessorEndpoint (processor WS) | `loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/ProcessorEndpoint.java` |
-| PipelineEventBroadcaster | `loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/PipelineEventBroadcaster.java` |
-| WebSocketAuthenticator | `loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/WebSocketAuthenticator.java` |
-| ProcessorRegistry | `loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/ProcessorRegistry.java` |
-| WebSocketNodeDispatcher | `loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/WebSocketNodeDispatcher.java` |
-| PipelineRunEngine | `loom/pipeline/src/main/java/io/metaloom/loom/pipeline/engine/PipelineRunEngine.java` |
-| PipelineEndpointService (REST) | `loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/PipelineEndpointService.java` |
-| MCPService (WebSocket + SSE) | `loom/services/mcp/src/main/java/io/metaloom/loom/mcp/MCPService.java` |
-| MCPToolRegistry (EventBus dispatch) | `loom/services/mcp/src/main/java/io/metaloom/loom/mcp/tool/MCPToolRegistry.java` |
-| MCPConstants (EventBus addresses) | `loom/services/mcp/src/main/java/io/metaloom/loom/mcp/MCPConstants.java` |
-| VertxModule (Dagger) | `loom/common/src/main/java/io/metaloom/loom/common/dagger/VertxModule.java` |
-| CortexBindModule (pipeline bus wiring) | `cortex/core/src/main/java/io/metaloom/cortex/cli/dagger/CortexBindModule.java` |
-| PipelineEventMessage (REST model) | `loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/model/pipeline/event/PipelineEventMessage.java` |
-| PipelineEventType (REST model) | `loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/model/pipeline/event/PipelineEventType.java` |
-| ProcessorMessage | `loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/model/processor/message/ProcessorMessage.java` |
-| ProcessorMessageType | `loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/model/processor/message/ProcessorMessageType.java` |
-| PipelineRunResponse | `loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/model/pipeline/PipelineRunResponse.java` |
-| Eventbus service (empty module) | `loom/services/eventbus/` |
-| Pipeline executor tests | `cortex/pipeline-core/src/test/java/io/metaloom/cortex/pipeline/core/PipelineExecutorTest.java` |
-| Abstract pipeline node test | `cortex/pipeline-core/src/test/java/io/metaloom/cortex/pipeline/test/AbstractPipelineNodeTest.java` |
-| Pipeline event endpoint tests | `loom/core/src/test/java/io/metaloom/core/endpoint/test/PipelineEventEndpointTest.java` |
-| Processor endpoint tests | `loom/core/src/test/java/io/metaloom/core/endpoint/test/ProcessorEndpointTest.java` |
-| UI pipeline events client | `loom-ui/src/api/pipelineEvents.ts` |
-| UI pipeline area component | `loom-ui/src/Pipeline/PipelineArea.tsx` |
+| Fan-out, `?run=` filter, closed-socket pruning, full-write-queue drop | `loom/services/rest/src/test/java/io/metaloom/loom/rest/service/PipelineEventBroadcasterTest.java` |
+| Aggregation: successes counted not broadcast, one snapshot per node, skips counted separately, failures immediate + named, idle run silent, flush resumes, per-node counters, live active/pending, failing supplier and broken subscriber tolerated | `loom/services/rest/src/test/java/io/metaloom/loom/rest/service/RunStatsAggregatorTest.java` |
+| `channel: "PROCESSOR"`, filter bypass, registry without broadcaster | `loom/services/rest/src/test/java/io/metaloom/loom/rest/service/ProcessorEventBroadcastTest.java` |
+| UI socket connect; `PIPELINE_EVENT` from a worker is **dropped** (three cases); errors without REGISTER / without body | `loom/core/src/test/java/io/metaloom/loom/core/endpoint/test/PipelineEventEndpointTest.java` |
+| Processor socket lifecycle | `loom/core/src/test/java/io/metaloom/loom/core/endpoint/test/ProcessorEndpointTest.java` |
+| Vert.x EventBus request/reply for tools | `loom/services/mcp/src/test/java/io/metaloom/loom/mcp/tool/MCPToolIdentityTest.java` |
+| Cortex bus (harness) | `cortex/pipeline-core/src/test/java/io/metaloom/cortex/pipeline/test/AbstractNodeChainTest.java` + ~18 `*NodePipelineTest` subclasses |
+
+**Setup:** endpoint tests need the pooled test DB — run `./setup-pool.sh` first (see project
+`CLAUDE.md`). Broadcaster/aggregator tests are plain JUnit with mocked `ServerWebSocket` and need no
+database.
+
+**Gaps:** no test for `loom.asset.created` → `AssetPipelineTrigger` end to end; no test for
+`LoomControlChannel` reconnect backoff; no test asserting `mcp.registry` is dead.
 
 ---
 
-## 9. References
+## 7. Conventions and Gotchas
 
-- [Vert.x Core - Event Bus](https://vertx.io/docs/vertx-core/java/#event_bus) - publish/subscribe, request-reply, message codecs, clustered event bus
-- [Vert.x Web - SockJS Event Bus Bridge](https://vertx.io/docs/vertx-web/java/#_handling_event_bus_bridge_events) - bridging EventBus to browser clients, `PermittedOptions`, `BridgeEvent` handling
-- [Vert.x Core - WebSockets](https://vertx.io/docs/vertx-core/java/#_websockets) - `ServerWebSocket`, `WebSocketClient`, `writeTextMessage`, `writeQueueFull`
+- **Do not add a per-item pipeline event.** Aggregation exists because a 100 000-item run over a
+  10-node graph settles a million nodes. Counters go through `RunStatsAggregator`; only individually
+  actionable things (failures) are released immediately.
+- **`PIPELINE_EVENT` is a trap.** It is still in `ProcessorMessageType` and still accepted, but the
+  frame is discarded. Emitting it from a new worker silently does nothing.
+- **The "bounded queue" in `PipelineEventBroadcaster` does not exist.** `Subscriber`'s constructor
+  takes `queueCapacity` and never stores it; there is no queue and no field. Backpressure is purely
+  `ws.writeQueueFull()`, and the event dropped is the **new** one, not the "oldest" the Javadoc
+  claims. Fix the Javadoc or implement the queue — do not trust the comment.
+- **Two frame shapes on one socket.** Discriminate on `channel`: present and `"PROCESSOR"` → processor
+  event; absent → pipeline event. Never discriminate on `type`, the enums are disjoint today but
+  nothing enforces that.
+- **The UI WS route uses `order(-1000)`** so the upgrade beats the wildcard `/api/v1/pipelines*` auth
+  route. Auth happens **after** upgrade via `?token=`; failure closes with **4401**.
+- **Vert.x EventBus is in-process only.** No `ClusterManager` on the classpath, no
+  `Vertx.clusteredVertx()`. Cortex workers cannot reach it — that is why the processor socket exists.
+- **`AssetPipelineTrigger.handle()` is blocking** (DAO calls) and must stay inside `executeBlocking`.
+- **Cortex bus dispatch is synchronous.** A slow subscriber stalls the publishing thread. Only the
+  test harness publishes today, so this is latent rather than live.
+- **`loom/services/eventbus` is empty.** Do not add code there expecting wiring; nothing depends on it.
+
+---
+
+## 8. Key Classes Reference
+
+| Class | Package / module | Purpose |
+|---|---|---|
+| `PipelineEventBroadcaster` | `io.metaloom.loom.rest.service.impl` (loom/services/rest) | UI socket registry + fan-out, filters, backpressure, metrics |
+| `RunStatsAggregator` | `io.metaloom.loom.rest.service.impl` | **The only production emitter of pipeline events**; `NodeSettleListener` |
+| `PipelineEventEndpoint` | `io.metaloom.loom.rest.endpoint.impl` | `GET /api/v1/pipelines/events/ws`, token auth, `?pipeline=`/`?run=` |
+| `ProcessorEndpoint` | `io.metaloom.loom.rest.endpoint.impl` | `GET /api/v1/processors/ws`; drops `PIPELINE_EVENT` |
+| `ProcessorRegistry` | `io.metaloom.loom.rest.service.impl` | Tracks workers; emits `ProcessorEventMessage` |
+| `AssetEventPublisher` | `io.metaloom.loom.rest.service.impl` | Publishes `loom.asset.created` on the Vert.x EventBus |
+| `AssetPipelineTrigger` | `io.metaloom.loom.rest.service.impl` | Consumes it; auto-runs a matching pipeline |
+| `PipelineEndpointService` | `io.metaloom.loom.rest.service.impl` | Builds the engine, wires the aggregator + 1 s flush timer |
+| `WebSocketAuthenticator` | `io.metaloom.loom.rest.service.impl` | Post-upgrade `?token=` validation, 4401 close |
+| `MCPToolRegistry` | `io.metaloom.loom.mcp.tool` (loom/services/mcp) | Registers/dispatches tools on `mcp.tool.<name>` |
+| `MCPConstants` | `io.metaloom.loom.mcp` | `EVENTBUS_TOOL_PREFIX`, unused `EVENTBUS_TOOL_REGISTRY` |
+| `VertxModule` | `io.metaloom.loom.common.dagger` (loom/common) | Provides `EventBus` + rx `EventBus` singletons |
+| `PipelineEventMessage` / `PipelineEventType` | `io.metaloom.loom.rest.model.pipeline.event` (loom-shared/rest-model) | UI pipeline frame; no `channel` field |
+| `ProcessorEventMessage` / `ProcessorEventType` | `io.metaloom.loom.rest.model.processor.event` | UI processor frame; `channel="PROCESSOR"` |
+| `ProcessorMessage` / `ProcessorMessageType` | `io.metaloom.loom.rest.model.processor.message` | Worker control envelope |
+| `PipelineEventBus` / `PipelineTrackingEvent` / `NodeCompletionEvent` | `io.metaloom.cortex.pipeline.api.event` (cortex/pipeline-api) | Vestigial in-process Cortex bus |
+| `DefaultPipelineEventBus` | `io.metaloom.cortex.pipeline.common.event` (cortex/pipeline-common) | Its implementation |
+| `CortexBindModule` | `io.metaloom.cortex.cli.dagger` (cortex/core) | Still provides the bus singleton |
+| `LoomControlChannel` | `io.metaloom.cortex.impl.loom` (cortex/core) | Worker↔Loom socket; **no** pipeline-event forwarding |
+| `AbstractNodeChainTest` | `io.metaloom.cortex.pipeline.test` (cortex/pipeline-core, test) | Only live user of the Cortex bus |
+
+---
+
+## 9. Where do I find ...?
+
+| I want to ... | Look at |
+|---|---|
+| See what a UI client actually receives | `loom-ui/src/api/pipelineEvents.ts` (channel routing, reconnect, `?token=`) |
+| See events rendered | `loom-ui/src/Pipeline/PipelineArea.tsx` |
+| Change what gets pushed to the UI | `RunStatsAggregator` — not Cortex |
+| Change the flush cadence | `PipelineEndpointService.STATS_INTERVAL_MS` |
+| Add a filter to the UI stream | `PipelineEventEndpoint.extractQueryParam` + `PipelineEventBroadcaster.Subscriber.matches` |
+| Add a Vert.x EventBus address | `AssetEventPublisher` is the smallest working example |
+| Add an MCP tool | [MCP.md](MCP.md); `MCPToolRegistry` |
+| Understand the worker protocol | [WEBSOCKET.md](WEBSOCKET.md) |
+| Understand run/task orchestration | [../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) |
+| Understand REST run triggering | [RESTAPI.md](RESTAPI.md) |
+
+---
+
+## 10. Progress Assessment
+
+**Working**
+
+- [x] Loom-side event emission via `RunStatsAggregator` (aggregated `NODE_STATS`, immediate `NODE_FAILED`)
+- [x] UI socket fan-out with `?pipeline=` / `?run=` filters, lazy JSON encode, closed-socket pruning
+- [x] Processor lifecycle events multiplexed on the same socket via `channel`
+- [x] Backpressure drop + `loom_pipeline_event_*` metrics
+- [x] Vert.x EventBus for MCP tool dispatch and `loom.asset.created` auto-trigger
+- [x] `PIPELINE_EVENT` from workers dropped with once-per-node warning
+- [x] Unit coverage for broadcaster, aggregator, processor-event channel; endpoint coverage for both sockets
+
+**Open**
+
+- [ ] **EB-1** Fix `PipelineEventBroadcaster`'s Javadoc/`Subscriber` mismatch: either implement the
+      bounded queue or delete `queueCapacity` and correct the "oldest event is dropped" wording.
+- [ ] **EB-2** Decide the fate of the Cortex `PipelineEventBus`. It has no production publisher. Either
+      delete `PipelineEventBus`/`DefaultPipelineEventBus`/`PipelineTrackingEvent`/`NodeCompletionEvent`
+      and rework `AbstractNodeChainTest`, or document it explicitly as a test-only fixture and move it
+      to a test scope.
+- [ ] **EB-3** Remove or use the unemitted `PipelineEventType` constants (`PIPELINE_STARTED`,
+      `PIPELINE_COMPLETED`, `NODE_STARTED`, `NODE_COMPLETED`, `NODE_SKIPPED`, `NODE_BUFFERED`). The UI
+      maps them but nothing sends them.
+- [ ] **EB-4** Remove the unused `MCPConstants.EVENTBUS_TOOL_REGISTRY` address, or implement registry
+      notifications on it.
+- [ ] **EB-5** Delete `loom/services/eventbus` or give it a purpose. As-is it builds an empty jar and
+      its README points at a spec path that does not exist.
+- [ ] **EB-6** Add an integration test for `AssetUploadEndpointService` → `loom.asset.created` →
+      `AssetPipelineTrigger` → run dispatch.
+- [ ] **EB-7** Add a test for `LoomControlChannel` reconnect with exponential backoff.
+- [ ] **EB-8** Document both WebSocket endpoints and their frame schemas in the OpenAPI output.
+- [ ] **EB-9** Retire `ProcessorMessageType.PIPELINE_EVENT` once no deployed worker emits it.
+- [ ] **EB-10** Revisit clustering only if Loom becomes multi-instance — a clustered Vert.x EventBus
+      would need a `ClusterManager` and would still not reach Cortex workers. See [../CLUSTERING.md](../CLUSTERING.md).
+
+---
+
+_Git HEAD revision: `2e5981cb`_
+_Last updated: 2026-08-01 (rewritten after verifying against code: pipeline events are now Loom-emitted under Variant C, the Cortex bus is vestigial, and the Vert.x EventBus also carries asset events.)_

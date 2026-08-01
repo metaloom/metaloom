@@ -45,7 +45,19 @@ public interface TestValues {
 
 	public static final Float[] AUDIO_FINGERPRINT = { 0.42f, 0.24f, 0.44f, 21.5f };
 
-	public static final String VIDEO_FINGERPRINT_STR = "0002000100ffdfffdfdfdfffdfdf9ffd9fff9f193f007800780078807810b806e83e8718017d";
+	/**
+	 * Golden fingerprint of {@code folderA/folderB/pexels-jack-sparrow-5977265.mp4}, asserted by
+	 * {@code FingerprintNodeTest}.
+	 *
+	 * <p>
+	 * This is a perceptual hash over decoded frames, so it is tied to the decoder as much as to the
+	 * algorithm: an OpenCV/FFmpeg upgrade shifts a few bits without anything being wrong. The value
+	 * was last rebaselined when it had drifted 7 bits out of 304 (~2%) from the previous constant —
+	 * far too close to be a regression, which would change roughly half the bits. If it drifts again
+	 * after a decoder bump, compare the Hamming distance before assuming a bug.
+	 * </p>
+	 */
+	public static final String VIDEO_FINGERPRINT_STR = "0002000100ffdfffdfdfdfffdfdd9ff99fff9f193f007800780078007890b806f03e8708017d";
 
 	public static final Float[] VIDEO_FINGERPRINT = { 0.42f, 0.24f, 0.44f, 21.5f };
 

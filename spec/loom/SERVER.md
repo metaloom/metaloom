@@ -1,514 +1,337 @@
-# Loom Server Specification
+# Loom Server — Startup, Listeners & Lifecycle
 
-## Overview
+> **Audience: AI coding agents.** What happens between `main()` and a listening socket, which
+> processes bind which port, and what happens on shutdown. Verified against the code on the
+> revision in the footer — **the code wins**; fix this file in the same change.
+>
+> **Scope split — do not duplicate these here:**
+>
+> | Topic | Spec |
+> |---|---|
+> | Config loading, option classes, env-var override machinery, validation | [CONFIGURATION.md](CONFIGURATION.md) |
+> | Module layout, Dagger wiring, Loom↔Cortex relationship | [LOOM.md](LOOM.md) |
+> | Compiling, containers, native images | [BUILD.md](BUILD.md) |
+> | REST endpoints, auth flows, clients | [RESTAPI.md](RESTAPI.md) |
+> | `/api/v1/health`, `/metrics`, meter catalog | [../features/ops/MONITORING.md](../features/ops/MONITORING.md), [../features/ops/METRICS.md](../features/ops/METRICS.md) |
+> | MCP transports / tools | [MCP.md](MCP.md) · gRPC services: [GRPC.md](GRPC.md) |
+> | SPA routing & history fallback | [ui/LOOM_UI.md](ui/LOOM_UI.md) |
+> | Flyway migrations | [PERSISTENCE.md](PERSISTENCE.md) |
 
-The Loom Server is the core HTTP/gRPC/MCP server component of the MetaLoom platform. It provides REST APIs, gRPC services, Model Context Protocol (MCP) endpoints, and a static UI file server. The server is built on **Vert.x** (reactive, non-blocking) and uses **Dagger** for dependency injection.
+---
 
-### Server Architecture
+## 1. TL;DR
+
+- **No Vert.x verticles.** There is no `AbstractVerticle` and no `deployVerticle()` anywhere in
+  `loom/`. Services are plain `@Singleton` Dagger beans that each own (or share) an `HttpServer`.
+- **Four listeners**, all bound to `server.bindAddress`: REST/UI **8092**, gRPC **8091**,
+  monitoring **8989**, MCP **4041**. All four are configurable; `ServerOptions.validate()` rejects
+  duplicates.
+- **One shared `HttpServer`** (provided by `VertxModule`) carries REST + UI + GraphiQL. gRPC, MCP
+  and monitoring each create their own.
+- **`BootstrapInitializer.init(migrate)`** is the whole startup sequence; **`deinit()`** is the whole
+  shutdown sequence, and it *does* close the shared HTTP server.
+- **There is no JVM shutdown hook.** `LoomImpl.shutdown()` must be called explicitly — a `SIGTERM`
+  kills the process without running `deinit()`. (Cortex *does* install one; Loom does not.)
+
+---
+
+## 2. Architecture
 
 ```mermaid
 graph TB
-    subgraph "Loom Server"
-        Bootstrap[BootstrapInitializer]
-        Vertx[Vert.x Instance]
-        
-        subgraph "Services"
-            REST[RESTService :8092]
-            GRPC[GrpcService :8091]
-            MCP[MCPService :4041]
-            UI[UIService :8092/ui]
-        end
-        
-        subgraph "Infrastructure"
-            Router[ApiRouter]
-            Flyway[Flyway Migration]
-            DBInit[DatabaseInitializer]
-            DemoInit[DemoDatabaseInitializer]
-        end
+    Runner["LoomServerRunner / LoomDemoRunner<br/>main()"]
+    Loader["LoomOptionsLoader.createOrLoadOptions()"]
+    Impl["LoomImpl.run(block)"]
+    Dagger["DaggerLoomCoreComponent"]
+    Boot["BootstrapInitializer.init(true)"]
+
+    Runner --> Loader --> Impl --> Dagger --> Boot
+
+    subgraph shared["Shared HttpServer (VertxModule) :8092"]
+        REST["RESTService<br/>/api/v1/*"]
+        UI["UIService<br/>/ui/* + /graphiql/*"]
     end
-    
-    Bootstrap --> Vertx
-    Bootstrap --> REST
-    Bootstrap --> GRPC
-    Bootstrap --> MCP
-    Bootstrap --> UI
-    Bootstrap --> Flyway
-    Bootstrap --> DBInit
-    Bootstrap --> DemoInit
-    
-    REST --> Router
-    GRPC --> Vertx
-    MCP --> Vertx
-    UI --> Router
-    
-    style REST fill:#e1f5fe
-    style GRPC fill:#fff3e0
-    style MCP fill:#f3e5f5
-    style UI fill:#e8f5e9
-```
 
----
-
-## Server Configuration
-
-### Configuration File Locations
-
-The server loads configuration from the following locations in priority order:
-
-| Priority | Path | Description |
-|----------|------|-------------|
-| 1 | `/etc/metaloom/loom.yml` | System-wide configuration |
-| 2 | `~/.config/metaloom/loom.yml` | User-specific configuration |
-| 3 | `config/loom.yml` | Local project configuration |
-| 4 | Classpath `/loom.yml` | Bundled default configuration |
-| 5 | Generated default | Auto-generated if none found |
-
-### Configuration Structure (loom.yml)
-
-```yaml
-database:
-  host: "127.0.0.1"
-  port: 5432
-  username: "postgres"
-  password: "finger"
-  databaseName: "loom"
-  minPoolSize: 5
-  acquireIncrement: 5
-  maxPoolSize: 20
-
-server:
-  grpcPort: 8091
-  bindAddress: "0.0.0.0"
-  restPort: 8092
-  monitoringPort: 8989
-
-auth:
-  keystorePassword: "8qA9uBbdaEFp"
-```
-
-### ServerOptions Class Reference
-
-**Package:** `io.metaloom.loom.api.options.ServerOptions`
-
-| Property | Default | Environment Variable | Description |
-|----------|---------|---------------------|-------------|
-| `grpcPort` | 8091 | `LOOM_SERVER_GRPC_PORT` | gRPC server port |
-| `bindAddress` | 0.0.0.0 | `LOOM_SERVER_GRPC_BIND_ADDRESS` | Bind address for all servers |
-| `restPort` | 8092 | `LOOM_SERVER_REST_PORT` | REST/HTTP server port |
-| `monitoringPort` | 8989 | `LOOM_SERVER_MON_PORT` | Monitoring server port (reserved) |
-
-### Environment Variable Override
-
-All server options support environment variable override via the `@EnvironmentVariable` annotation. The `overrideWithEnv()` method is called during configuration loading:
-
-```java
-@Override
-public void overrideWithEnv() {
-    OptionUtils.applyEnvInt("LOOM_SERVER_GRPC_PORT", this::setGrpcPort);
-    OptionUtils.applyEnv("LOOM_SERVER_GRPC_BIND_ADDRESS", this::setBindAddress);
-    OptionUtils.applyEnvInt("LOOM_SERVER_REST_PORT", this::setRestPort);
-    OptionUtils.applyEnvInt("LOOM_SERVER_MON_PORT", this::setMonitoringPort);
-}
-```
-
----
-
-## Server Connection / Port Handling
-
-### Port Assignment Summary
-
-| Service | Default Port | Config Property | Env Variable | Protocol |
-|---------|-------------|-----------------|--------------|----------|
-| gRPC | 8091 | `server.grpcPort` | `LOOM_SERVER_GRPC_PORT` | gRPC over HTTP/2 |
-| REST API | 8092 | `server.restPort` | `LOOM_SERVER_REST_PORT` | HTTP/1.1 + WebSocket |
-| MCP | 4041 | (hardcoded) | — | HTTP + SSE / WebSocket |
-| Monitoring | 8989 | `server.monitoringPort` | `LOOM_SERVER_MON_PORT` | Reserved (not implemented) |
-| UI Static | 8092 | (shares REST) | — | HTTP/1.1 |
-
-### Server Startup Sequence
-
-```mermaid
-sequenceDiagram
-    participant Main as LoomServerRunner.main()
-    participant Loader as LoomOptionsLoader
-    participant Factory as LoomFactory
-    participant Impl as LoomImpl
-    participant Dagger as DaggerLoomCoreComponent
-    participant Boot as BootstrapInitializer
-    participant Services as Services
-    
-    Main->>Loader: createOrLoadOptions()
-    Loader-->>Main: LoomOptionsLookup
-    Main->>Factory: create(optionsLookup)
-    Factory-->>Main: Loom instance
-    Main->>Impl: run()
-    Impl->>Dagger: build()
-    Dagger-->>Impl: LoomCoreComponent
-    Impl->>Boot: init(true)
-    
-    par Database Migration
-        Boot->>Flyway: migrate()
-    and Database Init
-        Boot->>DBInit: init()
-    and Demo Data
-        Boot->>DemoInit: init()
+    subgraph own["Own HttpServer per service"]
+        GRPC["GrpcService :8091"]
+        MON["MonitoringService :8989<br/>GET /metrics"]
+        MCP["MCPService :4041<br/>/mcp/sse|message|ws"]
     end
-    
-    par REST Service
-        Boot->>REST: start()
-        REST->>Router: setupRouter()
-        REST->>Server: requestHandler(router)
-    and gRPC Service
-        Boot->>GRPC: start() (commented out)
-    and UI Service
-        Boot->>UI: start()
-        UI->>Router: redirects (/ , /ui) + SPA fallback + StaticHandler(/ui/*)
-    and HTTP Server
-        Boot->>Server: listen()
-    and MCP Service
-        Boot->>MCP: start()
-        MCP->>Server: listen(:4041)
+
+    subgraph db["Database bootstrap"]
+        FW["Flyway.migrate()"]
+        DBI["DatabaseInitializer"]
+        DEMO["DemoDatabaseInitializer"]
     end
+
+    subgraph bg["Background workers"]
+        LR["LeaseReaper"]
+        PRR["PipelineRunRecovery"]
+        APT["AssetPipelineTrigger"]
+        SR["SandboxReaper"]
+    end
+
+    Boot --> db
+    Boot --> shared
+    Boot --> own
+    Boot --> bg
+
+    style shared fill:#e1f5fe
+    style own fill:#fff3e0
+    style db fill:#f3e5f5
+    style bg fill:#e8f5e9
 ```
-
-### Vert.x HttpServer Creation
-
-The HTTP server is created in `VertxModule.java` and shared between REST and UI services:
-
-```java
-@Provides
-@Singleton
-public HttpServer httpServer(Vertx vertx, LoomOptions options) {
-    HttpServerOptions httpOptions = new HttpServerOptions()
-        .setHost(options.getServer().getBindAddress())
-        .setPort(options.getServer().getRestPort());
-    return vertx.createHttpServer(httpOptions);
-}
-```
-
-**Key Points:**
-- Single `HttpServer` instance shared by REST and UI services
-- REST routes registered via `ApiRouter` (Vert.x Web Router)
-- UI static files served from the `/loom/ui` directory on disk (the container copies `loom-ui/build` there)
-- `/` and `/ui` 302 to `/ui/`, and any extension-less path under `/ui/` falls back to `index.html` so
-  React Router deep links survive a reload — see [LOOM_UI.md §3.6](ui/LOOM_UI.md)
-- Server starts listening in `BootstrapInitializer.init()` via `httpServer.listen()`
-
-### gRPC Server (GrpcService)
-
-The gRPC service creates its own `HttpServer` with JWT authentication:
-
-```java
-server = vertx().createHttpServer(new HttpServerOptions().setPort(0)
-    .setHost("localhost")).requestHandler(jwtServer);
-```
-
-**Note:** Currently hardcoded to `port=0` (OS-assigned) and `host=localhost` — does not use `ServerOptions` configuration. This is a known issue (see Conventions and Gotchas).
-
-### MCP Server (MCPService)
-
-The MCP service creates a separate `HttpServer` on port 4041:
-
-```java
-HttpServerOptions httpOptions = new HttpServerOptions()
-    .setHost(host)
-    .setPort(port);  // DEFAULT_MCP_PORT = 4041
-```
-
-**Transports:**
-1. **HTTP + SSE** (Streamable HTTP per MCP 2025-03-26)
-   - `GET /mcp/sse` — Opens SSE stream
-   - `POST /mcp/message?sessionId=...` — JSON-RPC requests
-2. **WebSocket** — `GET /mcp/ws` — Bidirectional JSON-RPC frames
 
 ---
 
-## Health Check Endpoint
+## 3. Listeners and Ports
 
-### Overview
+`ServerOptions` (`io.metaloom.loom.api.options`) owns every port. Defaults, config keys and env
+vars:
 
-The server exposes a lightweight health check endpoint that reports overall service status and database connectivity. It is intended for external monitoring (load balancers, container orchestrators, uptime checks) and is **publicly accessible without authentication**.
+| Listener | Default | Config key | Env var | Owner | Server instance |
+|---|---|---|---|---|---|
+| REST + UI + GraphiQL | 8092 | `server.restPort` | `LOOM_SERVER_REST_PORT` | `RESTService` / `UIService` | **shared**, from `VertxModule.httpServer()` |
+| gRPC | 8091 | `server.grpcPort` | `LOOM_SERVER_GRPC_PORT` | `GrpcService` | own |
+| Monitoring (`GET /metrics`) | 8989 | `server.monitoringPort` | `LOOM_SERVER_MON_PORT` | `MonitoringService` | own |
+| MCP (SSE + WS) | 4041 | `server.mcpPort` | `LOOM_SERVER_MCP_PORT` | `MCPService` | own |
+| Bind address (all four) | `0.0.0.0` | `server.bindAddress` | `LOOM_SERVER_GRPC_BIND_ADDRESS` | — | — |
 
-| Property | Value |
-|----------|-------|
-| Path | `/api/v1/health` |
-| Method | `GET` |
-| Authentication | None (endpoint does not call `secure()`) |
-| Implementation | `io.metaloom.loom.rest.endpoint.impl.HealthEndpoint` |
-| Response model | `io.metaloom.loom.rest.model.health.HealthCheckResponse` |
+**Validation** (`ServerOptions.validate()`): each port must be a legal port, `bindAddress` a legal
+host, and **all four ports must be distinct** — a collision is reported at config-load time rather
+than as a late bind failure.
 
-### Response Model (`HealthCheckResponse`)
+**Test mode:** `MCPService.start()` and `MonitoringService.start()` both check
+`restPort == 0` and, if so, bind port `0` themselves. Setting `restPort: 0` therefore gives an
+OS-assigned port for REST, MCP *and* monitoring in one move. gRPC does **not** do this — it always
+uses `grpcPort` verbatim.
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `status` | String (required) | Overall status: `UP` when healthy, `DEGRADED` when a dependency check failed |
-| `version` | String | Loom service version (`LoomVersion.VERSION`) |
-| `database` | String | Database connectivity: `UP` / `DOWN` (verified via a `SELECT 1` probe on the jOOQ `DSLContext`) |
-| `timestamp` | String | ISO-8601 timestamp of the health check |
+Routes served on the shared 8092 listener:
 
-### Example Response
-
-```json
-{
-  "status": "UP",
-  "version": "1_0",
-  "database": "UP",
-  "timestamp": "2026-07-16T19:46:45.592Z"
-}
-```
-
-### Behaviour
-
-- Always returns HTTP `200`. The health verdict is carried in the `status` field.
-- The database probe runs on a worker thread via `vertx.executeBlocking()` so it does not block the event loop.
-- If the database probe fails, `database` is set to `DOWN` and `status` degrades to `DEGRADED` (the failure is logged as a warning).
-
-### Client Support
-
-The Java REST client (`LoomHttpClient`) exposes `health()` returning `LoomClientRequest<HealthCheckResponse>` (via the `HealthMethods` client interface). Registered in Dagger through `EndpointModule` alongside the other `RESTEndpoint` beans.
-
-### Verification
-
-```bash
-curl http://localhost:8092/api/v1/health
-```
-
-Covered by `HealthEndpointIntegrationTest` (integration-test module), which asserts the endpoint is reachable both anonymously and authenticated and that `status`/`database` report `UP`.
+| Path | Handler | Secured |
+|---|---|---|
+| `/api/v1/*` | `RESTService` (endpoints call `secure()` themselves) | mostly yes |
+| `/api/v1/health` | `HealthEndpoint` | **no** — see [../features/ops/MONITORING.md](../features/ops/MONITORING.md) |
+| `/` , `/ui` | 302 → `/ui/` | no |
+| `/ui/*` | SPA fallback → `index.html` for extension-less paths, else `StaticHandler` on `/loom/ui` | no |
+| `/graphiql`, `/graphiql/*` | 302 → `/graphiql/`, then classpath `StaticHandler("graphiql")` | no (posts to the secured `/api/v1/graphql`) |
 
 ---
 
-## Monitoring Server
+## 4. Startup Sequence
 
-### Current Status
+`LoomImpl.run(block)` → builds `DaggerLoomCoreComponent` → `boot().init(true)`. If `block` is
+`true` the caller then parks on a `CountDownLatch` in `dontExit()`.
 
-**The monitoring server is NOT implemented.** The `monitoringPort` (default 8989) is defined in `ServerOptions` and configurable via `LOOM_SERVER_MON_PORT`, but no service currently binds to this port.
+`BootstrapInitializer.init(boolean migrate)` runs strictly in this order:
 
-### Monitoring References in Codebase
+| # | Step | Failure behaviour |
+|---|---|---|
+| 1 | `flyway.migrate()` — only when `migrate == true` | fatal |
+| 2 | `DatabaseInitializer.init()` — admin user, `admins` group, `admin-role` with **all** `Permission` values | fatal |
+| 3 | `DemoDatabaseInitializer.init()` — demo content | **non-fatal**, warns and continues |
+| 4 | ~~`authService.init()`~~ | commented out |
+| 5 | `RESTService.start()` — `setupRouter()`, then `LeaseReaper.start()` and `PipelineRunRecovery.recoverAll()` | fatal |
+| 6 | `UIService.start()` — registers `/ui/*` and `/graphiql/*` on the same router | fatal |
+| 7 | `AssetPipelineTrigger.register()` | fatal |
+| 8 | `httpServer.listen()` — **blocking** `.get()`; this is when 8092 goes live | fatal |
+| 9 | `MCPService.start()` | fatal |
+| 10 | `MonitoringService.start()` | fatal |
+| 11 | `GrpcService.start()` — **blocking** `.get()` | fatal |
+| 12 | `SandboxReaper.start()` | **non-fatal**, warns and continues |
 
-| Location | Purpose |
-|----------|---------|
-| `ServerOptions.java` | Defines `DEFAULT_MONITORING_PORT = 8989` and getter/setter |
-| `LoomControlChannel.java` (cortex) | Returns `hostname:monitoringPort` for cluster health reporting |
-| `loom.yml` | Includes `monitoringPort: 8989` in example config |
+`setupRouter()` (step 5), in order: `CorsHandler` (`.*` origin regex, GET/POST/PUT/DELETE/PATCH/
+OPTIONS, headers `Content-Type`/`Authorization`/`Accept`, credentials allowed) → `BodyHandler` with
+`setBodyLimit(-1)` (**no upload limit**) → `endpoint.register()` for every injected `RESTEndpoint`
+→ 404 error handler → `ServerFailureHandler` as the route failure handler.
 
-### Health Status (Cortex Integration)
-
-The Cortex module provides a `healthStatus()` method that returns a `JsonObject` with:
-- Disk metrics (free/total space)
-- Memory usage
-- Thread counts
-- Periodic health logging every 30 seconds
-
-This is used by the Cortex control plane, not the Loom server directly.
+`DatabaseInitializer` prints the initial admin password to **stdout** when it creates the admin
+user: a random 8-char string, or a note that `LOOM_INITIAL_PASSWORD` was used.
 
 ---
 
-## Key Classes Reference
+## 5. Shutdown Sequence
+
+`LoomImpl.shutdown()` → `boot().deinit()` → counts the latch down so `dontExit()` returns.
+`shutdown()` is idempotent (guarded by a `shutdown` flag).
+
+`BootstrapInitializer.deinit()` drains, in order:
+
+1. `sandboxReaper.stop()`
+2. `monitoringService.stop()` — closes its `HttpServer`, blocking
+3. `mcpService.stop()` — closes its `HttpServer` and SSE sessions
+4. `restService.stop()` — `server.close()` (fire-and-forget)
+5. `grpcService.stop()`
+6. `httpServer.close()` — **blocking `.get()`**
+
+Step 6 exists because stopping the services unregisters handlers but leaves the socket bound; a
+test suite that starts, stops and restarts Loom in one JVM would otherwise fail with *"Address
+already in use"*.
+
+**Not drained:** the Vert.x instance itself (`vertx.close()` is never called), the database
+connection pool, `LeaseReaper` and `AssetPipelineTrigger`.
+
+**No shutdown hook.** `Runtime.addShutdownHook` appears only in `cortex/core/.../CortexImpl.java`
+and `examples/cortex-custom`. `LoomServerRunner`/`LoomDemoRunner` never register one, so a
+container `SIGTERM` terminates the JVM without `deinit()` ever running.
+
+`LoomImpl.shutdownAndTerminate(int)` is *not* a graceful path — it calls `Runtime.exit(code)`
+directly and skips `deinit()`. Both runners use it as their "startup failed" exit (code `10`).
+
+---
+
+## 6. Entry Points
+
+| Entry point | Module | Notes |
+|---|---|---|
+| `LoomServerRunner.main()` | `loom/containers/server` | Supports `--validate-config`: loads + validates config, prints the source folder, exits `0`/`1` without booting anything. Exit `10` = startup failure, `11` = invalid config or fatal bootstrap error. |
+| `LoomDemoRunner.main()` | `loom/containers/demo` | Minimal: load options → `Loom.create()` → `run()`. No config-validation flag. |
+| `Loom.create(lookup)` | `loom-shared/api` | Programmatic entry used by tests; `run(false)` boots non-blocking. |
+
+---
+
+## 7. Key Classes Reference
 
 | Class | Package | Purpose |
-|-------|---------|---------|
-| `BootstrapInitializer` | `io.metaloom.loom.core.boot` | Orchestrates server startup: migration, DB init, service startup |
-| `LoomImpl` | `io.metaloom.loom.core` | Main Loom implementation, manages lifecycle |
-| `LoomServerRunner` | `io.metaloom.loom.container.server` | Entry point for containerized server |
-| `LoomOptions` | `io.metaloom.loom.api.options` | Root configuration object |
-| `ServerOptions` | `io.metaloom.loom.api.options` | Server-specific configuration (ports, bind address) |
-| `LoomOptionsLoader` | `io.metaloom.loom.common.options` | Loads configuration from YAML files |
-| `VertxModule` | `io.metaloom.loom.common.dagger` | Provides Vert.x, HttpServer, EventBus, FileSystem |
-| `LoomModule` | `io.metaloom.loom.common.dagger` | Provides LoomOptions, DatabaseOptions |
-| `RESTService` | `io.metaloom.loom.rest` | REST API server (CORS, body handling, endpoint registration) |
-| `UIService` | `io.metaloom.loom.rest` | Serves the SPA at `/ui/*` from `/loom/ui`, with the `/`→`/ui/` redirect and the history fallback |
-| `MCPService` | `io.metaloom.loom.mcp` | Model Context Protocol server (SSE + WebSocket) |
-| `GrpcService` | `io.metaloom.loom.server.grpc` | gRPC server with JWT authentication |
-| `ApiRouter` | `io.metaloom.vertx.router` | Vert.x Web Router wrapper for REST endpoints |
-| `RESTEndpoint` | `io.metaloom.loom.rest.endpoint` | Interface for REST endpoint registration |
-| `ServerFailureHandler` | `io.metaloom.loom.rest` | Global error handler for REST routes |
-| `LoomControlChannel` | `io.metaloom.cortex.impl.loom` | Cortex integration, health reporting |
+|---|---|---|
+| `LoomImpl` | `io.metaloom.loom.core` | Lifecycle: builds the Dagger component, `run()`/`shutdown()`/`dontExit()`, `actualRestPort()` |
+| `BootstrapInitializer` | `io.metaloom.loom.core.boot` | The entire startup (`init`) and shutdown (`deinit`) sequence |
+| `DatabaseInitializer` | `io.metaloom.loom.core.boot` | Admin user, `admins` group, `admin-role` + all permissions, initial password |
+| `DemoDatabaseInitializer` | `io.metaloom.loom.core.boot` | Demo content seeding (non-fatal) |
+| `LoomCoreComponent` | `io.metaloom.loom.core.dagger` | Dagger root component; `boot()` returns the `BootstrapInitializer` |
+| `VertxModule` | `io.metaloom.loom.common.dagger` | `PrometheusMeterRegistry`, `Vertx` (Micrometer-instrumented), rx variants, `FileSystem`, `EventBus`, the **shared** `HttpServer` |
+| `RESTService` | `io.metaloom.loom.rest` | Router setup, endpoint registration, `LeaseReaper`, `PipelineRunRecovery` |
+| `UIService` | `io.metaloom.loom.rest` | `/`→`/ui/` redirect, SPA history fallback, static `/loom/ui`, GraphiQL |
+| `MonitoringService` | `io.metaloom.loom.monitoring` | Own `HttpServer` serving `GET /metrics` (`PrometheusScrapingHandler`) |
+| `MCPService` | `io.metaloom.loom.mcp` | Own `HttpServer`; SSE + WebSocket JSON-RPC, EventBus tool dispatch |
+| `GrpcService` | `io.metaloom.loom.server.grpc` | Own `HttpServer`; registers asset, health and reflection gRPC services |
+| `AbstractService` | `io.metaloom.loom.common.service` | Base holding `Vertx` + `LoomOptions` for the four services |
+| `ServerOptions` | `io.metaloom.loom.api.options` | All four ports, bind address, distinct-port validation |
+| `ServerFailureHandler` | `io.metaloom.loom.rest` | Global REST failure handler |
+| `AssetPipelineTrigger` | `io.metaloom.loom.rest.service.impl` | Registered at boot; kicks pipelines on asset events |
+| `LeaseReaper` / `PipelineRunRecovery` | `io.metaloom.loom.rest.service.impl` | Reclaim dead worker task leases / resume runs interrupted by a restart |
+| `SandboxReaper` | `io.metaloom.loom.agent.sandbox` | Reaps stale coding-agent sandboxes |
+| `LoomServerRunner` | `io.metaloom.loom.container.server` | Container entry point, `--validate-config` |
+| `LoomDemoRunner` | `io.metaloom.loom.container.demo` | Demo container entry point |
 
 ---
 
-## REST API Conventions
+## 8. Conventions and Gotchas
 
-### Base Path
-
-All REST endpoints are prefixed with `/api/v1` (defined in `RESTConstants.API_V1_PATH`).
-
-### Endpoint Registration
-
-Endpoints implement `RESTEndpoint` interface and are injected as a `Set<RESTEndpoint>` via Dagger multibinding:
-
-```java
-@Module
-public class EndpointModule {
-    @Provides
-    @RESTEndpoints
-    static Set<RESTEndpoint> endpoints(AssetEndpoint asset, UserEndpoint user, ...) {
-        return Set.of(asset, user, ...);
-    }
-}
-```
-
-### Route Registration Pattern
-
-```java
-@Override
-public void register() {
-    log.info("Registering assets endpoint");
-    secure(basePath() + "*");  // Apply authentication
-    
-    addRoute(basePath(), POST, "Create asset", requestExample, responseExample, lrc -> service.create(lrc));
-    addRoute(basePath(), GET, "List assets", null, listExample, lrc -> service.list(lrc));
-}
-```
-
-### CORS Configuration
-
-```java
-router.getDelegate().route().handler(CorsHandler.create()
-    .addOriginWithRegex(".*")
-    .allowedMethod(HttpMethod.GET, POST, PUT, DELETE, PATCH, OPTIONS)
-    .allowedHeader("Content-Type", "Authorization", "Accept")
-    .allowCredentials(true));
-```
-
-### Body Handling
-
-```java
-router.getDelegate().route().handler(BodyHandler.create().setBodyLimit(-1));  // No limit
-```
-
-### Error Handling
-
-- `404` — Path not found (custom handler in `setupRouter()`)
-- `400` — Validation errors (`ValidationException`)
-- `500` — Internal server errors (catch-all via `ServerFailureHandler`)
+| Issue | Detail | Impact |
+|---|---|---|
+| **No shutdown hook** | Loom never calls `Runtime.addShutdownHook`; only Cortex does | `SIGTERM`/`docker stop` skips `deinit()` — sockets, sandboxes and SSE sessions are not drained |
+| **`vertx.close()` never called** | `deinit()` closes servers but not the Vert.x instance or the DB pool | Repeated start/stop in one JVM leaks event-loop threads |
+| **Startup is blocking** | Steps 8 and 11 call `.toCompletableFuture().get()` | `run(false)` still blocks until REST *and* gRPC are bound |
+| **Shared HTTP server** | REST, UI and GraphiQL share one `HttpServer` from `VertxModule` | UI cannot be given its own port; `restService.stop()` alone leaves the socket bound |
+| **Auth service not initialised** | `authService.init()` is commented out in `init()` | Any bootstrap the auth provider needs must happen lazily |
+| **`restPort: 0` is magic** | MCP and monitoring read `restPort == 0` to decide their own port-0 mode | Setting only `mcpPort: 0` does *not* have the same effect; gRPC ignores the convention entirely |
+| **Unlimited body size** | `BodyHandler.setBodyLimit(-1)` | No server-side upload cap — deliberate for binary ingest |
+| **CORS is wide open** | `addOriginWithRegex(".*")` with `allowCredentials(true)` | Fine for dev; must be tightened before a public deployment |
+| **Demo seeding is non-fatal** | Step 3 only warns | A broken `DemoDatabaseInitializer` shows up as a warning line, not a failed boot |
+| **UI path is absolute** | `UIService.UI_FS_PATH = /loom/ui`, hardcoded, `FileSystemAccess.ROOT` | Outside a container the SPA 404s unless `/loom/ui` exists; tests use `registerUiRoutes(router, dir)` instead |
 
 ---
 
-## Conventions and Gotchas
+## 9. Where Do I Find...?
 
-| Issue | Description | Impact |
-|-------|-------------|--------|
-| **gRPC Port Hardcoded** | `GrpcService` uses `port=0` and `host=localhost` instead of `ServerOptions` | gRPC port not configurable via config/env |
-| **gRPC Service Disabled** | `GrpcService` is commented out in `BootstrapInitializer` constructor | gRPC not started by default |
-| **Monitoring Port Unused** | `monitoringPort` defined but no service binds to it | Reserved for future use |
-| **Single HttpServer** | REST and UI share one `HttpServer` instance | Cannot independently configure REST vs UI ports |
-| **Auth Service Disabled** | `authService.init()` commented out in `BootstrapInitializer` | Authentication not initialized on startup |
-
----
-
-## Where Do I Find...?
-
-| Concept | File Path |
-|---------|-----------|
-| Server entry point (container) | `loom/containers/server/src/main/java/io/metaloom/loom/container/server/LoomServerRunner.java` |
-| Server entry point (demo) | `loom/containers/demo/src/main/java/io/metaloom/loom/container/demo/LoomDemoRunner.java` |
-| Bootstrap/startup logic | `loom/core/src/main/java/io/metaloom/loom/core/boot/BootstrapInitializer.java` |
-| Main Loom implementation | `loom/core/src/main/java/io/metaloom/loom/core/LoomImpl.java` |
-| Configuration loading | `loom/common/src/main/java/io/metaloom/loom/common/options/LoomOptionsLoader.java` |
-| Server options (ports, bind) | `loom-shared/api/src/main/java/io/metaloom/loom/api/options/ServerOptions.java` |
-| Vert.x / HttpServer DI | `loom/common/src/main/java/io/metaloom/loom/common/dagger/VertxModule.java` |
-| REST service | `loom/services/rest/src/main/java/io/metaloom/loom/rest/RESTService.java` |
-| UI service | `loom/services/rest/src/main/java/io/metaloom/loom/rest/UIService.java` |
-| MCP service | `loom/services/mcp/src/main/java/io/metaloom/loom/mcp/MCPService.java` |
-| gRPC service | `loom/services/grpc/src/main/java/io/metaloom/loom/server/grpc/GrpcService.java` |
-| REST endpoint interface | `loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/RESTEndpoint.java` |
-| Health check endpoint | `loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/HealthEndpoint.java` |
-| Health response model | `loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/model/health/HealthCheckResponse.java` |
+| Concept | Path |
+|---|---|
+| Startup/shutdown sequence | `loom/core/src/main/java/io/metaloom/loom/core/boot/BootstrapInitializer.java` |
+| Lifecycle / latch / `actualRestPort()` | `loom/core/src/main/java/io/metaloom/loom/core/LoomImpl.java` |
+| Admin user + role seeding | `loom/core/src/main/java/io/metaloom/loom/core/boot/DatabaseInitializer.java` |
+| Demo data seeding | `loom/core/src/main/java/io/metaloom/loom/core/boot/DemoDatabaseInitializer.java` |
+| Shared `HttpServer` + Vert.x + meter registry | `loom/common/src/main/java/io/metaloom/loom/common/dagger/VertxModule.java` |
+| Ports and port validation | `loom-shared/api/src/main/java/io/metaloom/loom/api/options/ServerOptions.java` |
+| REST router setup | `loom/services/rest/src/main/java/io/metaloom/loom/rest/RESTService.java` |
+| SPA routes / GraphiQL | `loom/services/rest/src/main/java/io/metaloom/loom/rest/UIService.java` |
+| `/metrics` server | `loom/services/monitoring/src/main/java/io/metaloom/loom/monitoring/MonitoringService.java` |
+| MCP server | `loom/services/mcp/src/main/java/io/metaloom/loom/mcp/MCPService.java` |
+| gRPC server | `loom/services/grpc/src/main/java/io/metaloom/loom/server/grpc/GrpcService.java` |
+| Health endpoint | `loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/HealthEndpoint.java` |
+| Server container entry point | `loom/containers/server/src/main/java/io/metaloom/loom/container/server/LoomServerRunner.java` |
+| Demo container entry point | `loom/containers/demo/src/main/java/io/metaloom/loom/container/demo/LoomDemoRunner.java` |
+| Config file search order | `loom-shared/api/src/main/java/io/metaloom/loom/api/LoomEnv.java` (see [CONFIGURATION.md](CONFIGURATION.md)) |
 | Example config | `e2e-test/config/loom.yml` |
-| Config file locations | `loom-shared/api/src/main/java/io/metaloom/loom/api/LoomEnv.java` |
 
 ---
 
-## Test Setup
+## 10. Test Setup
 
-### Running the Server Locally
+Pooled test databases are required first — see [BUILD.md](BUILD.md) and the repo `CLAUDE.md`:
 
 ```bash
-# From metaloom root
-./mvnw -pl loom/containers/server -am exec:java -Dexec.mainClass=io.metaloom.loom.container.server.LoomServerRunner
+./setup-pool.sh
 ```
 
-### Configuration for Testing
-
-Create `config/loom.yml` in the module or project root:
-
-```yaml
-database:
-  host: "localhost"
-  port: 5432
-  username: "postgres"
-  password: "postgres"
-  databaseName: "loom_test"
-  minPoolSize: 2
-  maxPoolSize: 10
-
-server:
-  grpcPort: 8091
-  bindAddress: "0.0.0.0"
-  restPort: 8092
-  monitoringPort: 8989
-
-auth:
-  keystorePassword: "testpassword123"
-```
-
-### Integration Test Base
+Boot Loom in-process (non-blocking) and read back the OS-assigned port:
 
 ```java
-// loom/integration-test/src/test/java/io/metaloom/loom/test/integration/AbstractIntegrationTest.java
-@BeforeAll
-static void setup() {
-    LoomOptionsLookup options = LoomOptionsLoader.createOrLoadOptions();
-    loom = Loom.create(options);
-    loom.run(false);  // Non-blocking
-}
+LoomOptionsLookup options = LoomOptionsLoader.createOrLoadOptions();
+Loom loom = Loom.create(options);
+loom.run(false);                       // returns once REST + gRPC are bound
+int port = ((LoomImpl) loom).actualRestPort();
+// ...
+loom.shutdown();                       // runs deinit(); nothing else does
 ```
 
-### Verifying Server Startup
+Set `server.restPort: 0` so REST, MCP and monitoring all take OS-assigned ports; give `grpcPort` an
+explicit free port, since it does not honour the port-0 convention.
+
+Run the server from the command line:
 
 ```bash
-# Check health (no auth required)
-curl http://localhost:8092/api/v1/health
+./mvnw -pl loom/containers/server -am exec:java \
+  -Dexec.mainClass=io.metaloom.loom.container.server.LoomServerRunner
 
-# Check REST API
-curl http://localhost:8092/api/v1/assets
-
-# Check UI
-curl http://localhost:8092/ui/
-
-# Check MCP SSE
-curl -N http://localhost:4041/mcp/sse
-
-# Check gRPC (if enabled)
-grpcurl -plaintext localhost:8091 list
+# Validate configuration only (exit 0 = valid)
+java -jar loom/containers/server/target/loom-server.jar --validate-config
 ```
 
----
+Smoke-test each listener:
 
-## Progress Assessment
+```bash
+curl http://localhost:8092/api/v1/health     # REST (unauthenticated)
+curl http://localhost:8092/ui/               # SPA
+curl http://localhost:8989/metrics           # Prometheus scrape
+curl -N http://localhost:4041/mcp/sse        # MCP SSE
+grpcurl -plaintext localhost:8091 list       # gRPC reflection
+```
 
-- [x] Document server configuration (ServerOptions, environment variables, config file locations)
-- [x] Document server connection/port handling (REST, gRPC, MCP, UI ports)
-- [x] Document monitoring server status (not implemented, port reserved)
-- [x] Include architecture diagram (Mermaid)
-- [x] Include Key Classes Reference table
-- [x] Include environment variable tables with defaults
-- [x] Include Conventions and Gotchas section
-- [x] Include Where do I find...? cheat sheet
-- [x] Include Test Setup section
-- [x] Cross-reference related specs (RESTAPI.md, etc.)
-- [ ] Document gRPC service configuration fix (port/bind from ServerOptions)
-- [ ] Document MCP port configuration (move to ServerOptions)
-- [ ] Document monitoring server implementation plan
-- [x] Document health/actuator endpoint addition
-- [ ] Document authentication service initialization
+Existing coverage: `HealthEndpointIntegrationTest` (integration-test module),
+`MonitoringServiceTest` (`loom/services/monitoring`), and `UIService.registerUiRoutes` route tests.
 
 ---
 
-## Related Specifications
+## 11. Progress Assessment
 
-- [RESTAPI.md](RESTAPI.md) — REST endpoint specifications
-- [MCP.md](MCP.md) — Model Context Protocol implementation
-- [GRPC.md](GRPC.md) — gRPC service specifications
-- [DATABASE.md](DATABASE.md) — Database configuration and migration
-- [AUTH.md](AUTH.md) — Authentication and authorization
+- [x] Startup sequence documented against `BootstrapInitializer.init()`
+- [x] Shutdown sequence documented against `BootstrapInitializer.deinit()`
+- [x] All four listeners (REST 8092, gRPC 8091, monitoring 8989, MCP 4041) documented with owners
+- [x] gRPC bound from `ServerOptions` (port + bind address) — previously hardcoded, now fixed
+- [x] MCP port moved into `ServerOptions` (`LOOM_SERVER_MCP_PORT`)
+- [x] Monitoring server implemented (`/metrics`, Micrometer + Prometheus)
+- [x] Recorded that no Vert.x verticles are used
+- [x] Architecture diagram, Key Classes table, Conventions & Gotchas, cheat sheet, test setup
+- [x] Config duplication moved out to [CONFIGURATION.md](CONFIGURATION.md); health/metrics to [../features/ops/MONITORING.md](../features/ops/MONITORING.md)
+- [ ] **Install a JVM shutdown hook** in `LoomServerRunner`/`LoomDemoRunner` so `SIGTERM` runs `deinit()`
+- [ ] Close `Vertx` and the database pool in `deinit()`
+- [ ] Initialise the authentication service at boot (step 4 is still commented out)
+- [ ] Make CORS origins configurable instead of `.*`
+- [ ] Give gRPC the same `restPort == 0` test-mode convention as MCP/monitoring
+- [ ] Add a readiness endpoint distinct from `/api/v1/health` (Cortex already has `/api/ready`)
+
+---
+
+## 12. Related Specifications
+
+[LOOM.md](LOOM.md) · [CONFIGURATION.md](CONFIGURATION.md) · [BUILD.md](BUILD.md) ·
+[RESTAPI.md](RESTAPI.md) · [MCP.md](MCP.md) · [GRPC.md](GRPC.md) · [GRAPHQL.md](GRAPHQL.md) ·
+[PERSISTENCE.md](PERSISTENCE.md) · [EVENTBUS.md](EVENTBUS.md) · [ui/LOOM_UI.md](ui/LOOM_UI.md) ·
+[../features/ops/MONITORING.md](../features/ops/MONITORING.md) ·
+[../features/ops/METRICS.md](../features/ops/METRICS.md)
+
+---
+
+_Git HEAD revision: `2e5981cb`_
+_Last updated: 2026-08-01 (rewritten against the real boot sequence: gRPC and monitoring now start, MCP port is configurable, and there is still no shutdown hook.)_

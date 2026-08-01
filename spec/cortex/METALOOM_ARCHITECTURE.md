@@ -1,698 +1,493 @@
 # MetaLoom Architecture — How Loom and Cortex Work Together
 
-> **Audience:** anyone who needs to understand the shape of MetaLoom without
-> reading Java first — product owners, new contributors, operators, and AI
-> agents orienting themselves before a task.
+> **Scope:** the Loom ↔ Cortex boundary — registration, wire protocol, dispatch,
+> results, monitoring, deployment. Written as built, verified against the code.
 >
-> This document favours plain language over precision-by-jargon, but it does
-> **not** soften the facts. Where something is documented but not actually
-> built, it says so. Every claim was checked against
-> the code; last verified 2026-07-19.
+> **Not here (do not duplicate):** pipeline graph model and validation →
+> [../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) · node kinds,
+> ports and descriptors → [../features/pipeline-nodes/NODES.md](../features/pipeline-nodes/NODES.md) ·
+> port/content types → [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) ·
+> Cortex CLI/config → [CONFIGURATION.md](CONFIGURATION.md) · Cortex internals →
+> [CORTEX.md](CORTEX.md) · WebSocket frames → [../loom/WEBSOCKET.md](../loom/WEBSOCKET.md) ·
+> metrics catalogue → [../features/ops/METRICS.md](../features/ops/METRICS.md) ·
+> Helm → [../features/helm/HELM_CORTEX.md](../features/helm/HELM_CORTEX.md),
+> [../features/helm/HELM_LOOM.md](../features/helm/HELM_LOOM.md) ·
+> binary/asset locations → [../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md).
 >
-> **Deeper references:** [CORTEX.md](CORTEX.md) ·
-> [../loom/LOOM.md](../loom/LOOM.md) ·
-> [../loom/WEBSOCKET.md](../loom/WEBSOCKET.md) ·
-> [../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) ·
-> [../features/pipeline-nodes/NODES.md](../features/pipeline-nodes/NODES.md)
->
-> **Work items derived from this document:**
-> [METALOOM_ARCHITECTURE_TASK.md](METALOOM_ARCHITECTURE_TASK.md)
+> **Open work:** [METALOOM_ARCHITECTURE_TASK.md](METALOOM_ARCHITECTURE_TASK.md) ·
+> **build record:** [METALOOM_ARCHITECTURE_V2_PLAN_C.md](METALOOM_ARCHITECTURE_V2_PLAN_C.md)
 
 ---
 
-## 1. The system in one page
-
-MetaLoom is a **Digital Asset Management (DAM)** platform. You point it at a
-pile of media — images, video, audio, documents — and it works out what is in
-that media: hashes, faces, transcripts, thumbnails, text, quality metrics.
-
-It is split into two programs that do very different jobs:
+## 1. The two programs
 
 | | **Loom** | **Cortex** |
 |---|---|---|
-| Think of it as | the office | the workshop |
-| Runs | one central server | one or more worker machines |
-| Holds | the database, the users, the web UI, the API | no database at all |
-| Does | remembers, coordinates, shows | the heavy lifting |
-| Talks | REST, WebSocket, gRPC, GraphQL | to Loom, and to the filesystem |
+| Role | orchestrator + system of record | worker |
+| Instances | one server | many |
+| Holds | PostgreSQL, users, web UI, API, **the pipeline graph** | no database, no graph |
+| Decides | what runs, where, in what order, what to retry | nothing — executes one instruction at a time |
+| Speaks | REST, WebSocket, gRPC, GraphQL | WebSocket + REST **to Loom**, filesystem/S3 |
 
-The reason for the split is simple: analysing video is expensive and slow, and
-you want to be able to add more machines to make it faster without touching the
-part that holds your data.
+Two invariants that explain most of the design:
 
-Around those two there is a **web UI** (`loom-ui`), a desktop wrapper
-(`loom-app`), and a documentation site (`website`).
+- **Cortex always dials out.** Loom never opens a connection to a worker, so workers
+  may sit behind NAT with no inbound ports. Work is pushed down the connection the
+  worker already opened.
+- **Loom reads the pipeline definition; Cortex never does.** A worker receives a
+  concrete task (`NODE_TASK` / `SEGMENT_TASK` / `SOURCE_TASK`), not a recipe. The
+  Cortex-side `LoomPipelineLoader` is deleted.
 
-### The one-sentence version of the interaction
-
-> A user draws a processing recipe in the Loom UI; Loom stores it and tells a
-> Cortex worker to run it; Cortex fetches the recipe, walks a folder, processes
-> every file, streams live progress back to Loom, and posts the results back so
-> Loom can attach them to assets.
-
-### The honest caveat
-
-That sentence describes the **intended** design, and most of the machinery for
-it genuinely exists. But **the end-to-end path is currently broken in three
-independent places**, all of which fail *silently* — runs go green while doing
-almost nothing:
-
-1. **Loom and Cortex do not agree on how to write down a graph.** Loom saves the
-   connections between nodes in an `edges` list. Cortex reads connections from a
-   `dependencies` field on each node and never looks at `edges`. So a recipe
-   drawn in the UI arrives at Cortex as a pile of *disconnected* nodes, and only
-   the first one runs.
-2. **Most node types are not actually wired up.** The UI palette offers 29 kinds
-   of node. Only 6 (`filesystem-source`, `sha512`, `sha256`, `md5`, `chunk-hash`,
-   `thumbnail`) map to real code. The other 23 — including face detection,
-   transcription, OCR, and every filter — silently resolve to a stub that
-   **reports success without doing anything**.
-3. **Almost nothing gets sent back.** The result-sync path forwards only hash
-   values; transcripts, faces, OCR text and thumbnails are computed and then
-   discarded. And the streaming path that a real run uses never flushes its
-   buffer at the end, so a typical run sends nothing at all.
-
-Each of these is independently sufficient to defeat the round trip, and fixing
-any one alone changes nothing observable.
-
-Read [§12](#12-what-actually-works-today) before drawing conclusions about what
-the system can do today. The rest of this document describes the architecture as
-built, marking the gaps as it goes.
-
----
-
-## 2. The big picture
+## 2. Topology
 
 ```mermaid
 graph TB
-    subgraph USER["People"]
-        UI["Loom UI (React)<br/>draw pipelines, watch progress"]
+    subgraph USER["Browser"]
+        UI["loom-ui (React)"]
     end
-
-    subgraph LOOM["Loom — the office (one server)"]
-        REST["REST API<br/>/api/v1/*"]
-        WS["Processor WebSocket<br/>/api/v1/processors/ws"]
-        EVWS["Events WebSocket<br/>/api/v1/pipelines/events/ws"]
-        REG["ProcessorRegistry<br/>(in memory only)"]
-        DB[("PostgreSQL<br/>assets, users, pipelines, runs")]
+    subgraph LOOM["Loom — one server"]
+        REST["REST /api/v1/*"]
+        WS["/api/v1/processors/ws"]
+        EVWS["/api/v1/pipelines/events/ws (read-only)"]
+        ENG["PipelineRunEngine + WebSocketNodeDispatcher"]
+        REG["ProcessorRegistry (live map + cortex_instance rows)"]
+        REAP["LeaseReaper (60 s)"]
+        DB[("PostgreSQL")]
     end
-
-    subgraph CORTEX["Cortex — the workshop (many workers)"]
-        LCC["LoomControlChannel<br/>the phone line"]
+    subgraph CORTEX["Cortex — many workers"]
+        LCC["LoomControlChannel"]
         PTH["PipelineTaskHandler"]
-        EXEC["Node runner<br/>runs one node at a time"]
-        NODES["Nodes: hash, facedetect,<br/>whisper, OCR, thumbnail…"]
-        FILES[("Media files<br/>+ xattr metadata")]
+        NF["RegistryNodeFactory (32 kinds)"]
+        MON["MonitoringService :8093<br/>/api/health /api/ready /metrics"]
+        FILES[("Media: filesystem or S3")]
     end
 
-    UI -->|"REST: save / run"| REST
-    UI -->|"WebSocket: live progress"| EVWS
+    UI -->|save / run| REST
+    UI -->|live progress| EVWS
     REST --> DB
-    REST -->|"SOURCE_TASK + engine drives NODE_TASKs"| REG
-    REG --> WS
-    WS <-->|"one long-lived connection"| LCC
-    LCC --> PTH --> EXEC --> NODES --> FILES
-    EXEC -->|"progress events"| LCC
-    LCC -->|"PIPELINE_EVENT"| WS --> EVWS
-    NODES -->|"results, REST bulk"| REST
-    LCC -.->|"fetch definitions, REST"| REST
+    REST --> ENG --> REG --> WS
+    REAP --> ENG
+    WS <-->|one long-lived ws:// connection| LCC
+    LCC --> PTH --> NF --> FILES
+    PTH -->|NODE_TASK_RESULT / _BATCH| LCC
+    ENG -->|NODE_STATS, failures| EVWS
+    NF -->|typed results, REST| REST
+    LCC -.->|bulk asset update, REST| REST
 ```
 
-Two things to notice, because they are the most common source of confusion:
-
-- **Cortex always calls Loom first.** Loom never dials out to Cortex. Cortex
-  opens the connection and keeps it open; Loom pushes work down that existing
-  pipe. This is deliberate — it means Cortex workers can sit behind NAT or a
-  firewall with no inbound ports open.
-- **Progress and results travel by different roads.** Live progress goes over
-  the WebSocket. Actual result *data* goes over REST. They are unrelated code
-  paths, and one can work while the other is broken.
+**Progress and results travel different roads.** Orchestration outcomes go over the
+WebSocket; result *payloads* go over REST. Either can break without the other.
 
 ---
 
-## 3. How Cortex registers with Loom
+## 3. Registration and liveness
 
-Nobody configures a list of workers on the Loom side. **Registration is
-self-service and happens at startup.**
+A worker registers itself at startup — Loom holds no configured worker list.
+Connect → `REGISTER` → `REGISTERED`, then eligible for work.
 
-When a Cortex process starts in server mode:
+| `ProcessorRegistration` field | Value today |
+|---|---|
+| `nodeId` | **configured and mandatory** — `--node-id` / `CORTEX_NODE_ID`. A blank id throws at `LoomControlChannel.start()`; a duplicate of a live worker is closed by Loom with code **4409** |
+| `name` | hardcoded `"cortex"` |
+| `priority` | hardcoded `100` |
+| `host` | hostname + **monitoring** port |
+| `capabilities` | hardcoded `CPU` + `IO`. 🔴 **`GPU` is never advertised**, so GPU routing matches nothing |
+| `nodeWhitelist` | defaults to `NodeFactory.registeredTypes()` — a worker cannot advertise what it cannot run. `CORTEX_NODE_WHITELIST` narrows it |
+| `nodeBlacklist` | `CORTEX_NODE_BLACKLIST`; **wins over the whitelist** |
 
-1. It reads a Loom hostname and port from its CLI flags or environment.
-2. It opens a WebSocket to `ws://<host>:<port>/api/v1/processors/ws`.
-3. It immediately sends a `REGISTER` message introducing itself.
-4. Loom replies `REGISTERED`, and from that moment the worker is eligible for
-   work.
+**Registration is persisted.** `V2.33__add_cortex_instance.sql` creates
+`cortex_instance` (unique `node_id`, `state`, `priority`, `last_seen`) and
+`cortex_instance_node_kind` (`WHITELIST` / `BLACKLIST`). First registration seeds the
+restriction from what the worker announced; afterwards the **persisted row is the
+override**, so an admin edit via `PUT /api/v1/processors/:uuid/restrictions`
+(`MANAGE_CORTEX_INSTANCE`) survives reconnects. A persistence failure never takes a
+worker offline. `GET /api/v1/processors` merges the live map with persisted offline rows.
 
-What the worker says about itself in that `REGISTER` message:
-
-| Field | What it should mean | What it actually is today |
+| Signal | Direction | Interval |
 |---|---|---|
-| `nodeId` | stable identity of this worker | `"cortex-" + random UUID`, **generated fresh on every process start** |
-| `name` | human-readable name | hardcoded `"cortex"` |
-| `priority` | dispatch preference, higher wins | hardcoded `100` |
-| `host` | where to reach it | hostname + **monitoring** port |
-| `capabilities` | what it can do — `CPU`, `IO`, `GPU` | hardcoded `CPU` + `IO`; **`GPU` is never advertised** |
+| `HEARTBEAT` → `HEARTBEAT_ACK` | Cortex ↔ Loom | 10 s |
+| `STATUS_UPDATE` | Cortex → Loom | 20 s |
+| health log line | Cortex-local | 30 s |
 
-Four consequences follow from that right-hand column, and they matter for
-anything you plan to build on top:
+Reconnect backoff is **linear**: `2 s × attempt`, capped at 30 s
+(`RECONNECT_BASE_DELAY_MS`, `RECONNECT_MAX_DELAY_MS`), re-registering each time.
+[CORTEX.md](CORTEX.md) calling it exponential is wrong.
 
-- **Worker identity does not survive a restart.** A restarted Cortex is a
-  brand-new entry as far as Loom is concerned. There is no way to pin a worker,
-  recognise it after a reboot, or address it deliberately.
-- **Registration is not persisted anywhere.** `ProcessorRegistry` is a plain
-  in-memory map on the Loom side; there is no `processor` table. Restart Loom
-  and every worker vanishes from the registry until it reconnects.
-- **Every worker looks identical.** Same name, same priority, same
-  capabilities. Loom has no basis on which to prefer one over another.
-- **GPU work cannot be routed.** The capability exists in the enum and in the
-  docs, but no Cortex ever claims it, so asking for a GPU worker matches nothing.
-
-### Staying registered
-
-| Signal | Direction | Every | Purpose |
-|---|---|---|---|
-| `HEARTBEAT` → `HEARTBEAT_ACK` | Cortex → Loom → Cortex | 10 s | "still alive" |
-| `STATUS_UPDATE` | Cortex → Loom | 20 s | CPU / memory / disk |
-| health log | local only | 30 s | writes connection state to the Cortex log |
-
-If the connection drops, Cortex reconnects on its own with a backoff of
-2 s, 4 s, 6 s … capped at 30 s, and re-registers each time.
-
-> ⚠️ **The heartbeat is decorative.** Cortex sends it faithfully, and Loom
-> replies — but **Loom never checks whether one stopped arriving.** There is no
-> timeout sweep. A worker whose network half-opens stays `ONLINE` in the
-> registry forever and keeps being handed work that vanishes. The only thing
-> that removes a worker is a cleanly closed socket.
->
-> Note this also contradicts [CORTEX.md](CORTEX.md), which describes the
-> reconnect backoff as *exponential*; the code is linear.
+> 🔴 **The heartbeat is not enforced.** `ProcessorRegistry.heartbeat()` only stamps
+> an in-memory `lastSeen`; nothing sweeps for expiry, and `cortex_instance.last_seen`
+> is written only at REGISTER. A worker whose socket half-opens stays `ONLINE` and
+> keeps being selected. Only a clean socket close evicts it. `LeaseReaper` (60 s)
+> rescues the *tasks*, not the worker.
 
 ---
 
-## 4. How the two talk: REST vs WebSocket
+## 4. The wire
 
-This is the question that most often gets answered wrongly, so here it is
-explicitly. **The split is not arbitrary — it follows who starts the
-conversation.**
+### 4.1 Control channel — `ws://<host>:<port>/api/v1/processors/ws`
 
-| Road | Used for | Why |
-|---|---|---|
-| **WebSocket** | anything Loom needs to *push* to a worker, and any small, frequent status message coming back | Loom cannot dial out to Cortex, so it needs a pipe that is already open |
-| **REST** | anything Cortex chooses to *fetch* or *submit* in bulk | ordinary request/response, no need for a persistent channel |
-
-### Over the WebSocket (`/api/v1/processors/ws`)
+Envelope: `{"type": "...", "body": {...}}` (`ProcessorMessageType`, 19 values).
 
 | Cortex → Loom | Loom → Cortex |
 |---|---|
-| `REGISTER` — introduce myself | `REGISTERED` — acknowledged |
-| `HEARTBEAT` — still alive | `HEARTBEAT_ACK` |
-| `STATUS_UPDATE` — machine load | `SOURCE_TASK` — **enumerate this source** |
-| `SOURCE_ITEMS` / `SOURCE_COMPLETE` — what I found | `NODE_TASK` — **run this one node** |
-| `NODE_TASK_RESULT` — node outcome | `ERROR` |
-| `PIPELINE_EVENT` — live progress | |
-| `PIPELINE_RUN_COMPLETED` — final tally | |
+| `REGISTER`, `HEARTBEAT`, `STATUS_UPDATE` | `REGISTERED`, `HEARTBEAT_ACK` |
+| `STATE_CHANGE` (e.g. `TERMINATING` on drain) | `SOURCE_TASK` — enumerate this source |
+| `SOURCE_ITEMS` / `SOURCE_COMPLETE` | `SOURCE_ITEMS_ACK` — send the next batch |
+| `NODE_TASK_RESULT`, `NODE_TASK_RESULT_BATCH` | `NODE_TASK` — run one node on one item |
+| `SEGMENT_TASK_RESULT` | `SEGMENT_TASK` — run one affinity segment |
+| `TASK_RETURNED` — hand work back unfinished | `ERROR` |
+| ~~`PIPELINE_EVENT`, `PIPELINE_RUN_COMPLETED`~~ | |
 
-Everything is a small JSON envelope: `{"type": "...", "body": {...}}`.
+`PIPELINE_EVENT` / `PIPELINE_RUN_COMPLETED` still exist in the enum but a worker holds
+no graph, so nothing emits them; Loom accepts and drops `PIPELINE_EVENT` with a
+once-per-node warning. Progress is now aggregated Loom-side by `RunStatsAggregator`.
 
-### Over REST
+Source enumeration is **acked and back-pressured**: the worker streams `SOURCE_ITEMS`
+batches and waits for `SOURCE_ITEMS_ACK` before sending the next.
 
-There are exactly **three** places where Cortex calls Loom's REST API:
+### 4.2 UI events — `/api/v1/pipelines/events/ws`
 
-| Call | Purpose |
+Read-only fan-out for browsers. Clients send nothing; filters `?pipeline=<name>` and
+`?run=<uuid>` are ANDed. Registered with `.order(-1000)` so the upgrade beats the
+wildcard auth routes.
+
+### 4.3 REST from Cortex to Loom
+
+Cortex no longer fetches pipeline definitions. It calls Loom REST for **result
+payloads and asset lookups** only, via `loom-client` (`LoomHttpClient`):
+
+| Call | Used by |
 |---|---|
-| `GET /api/v1/pipelines` | fetch the pipeline definitions |
-| `POST` bulk asset update | **push results back** |
-| load asset by SHA-512 | look up an existing asset before processing |
+| `bulkUpdateAssets` | `LoomBulkSyncWriterImpl` — batched `syncToLoom` outputs, keyed by SHA-512 |
+| `POST /api/v1/assets/:uuid/node-results` | typed node write-back ledger (`AssetNodeResult`, `V2.45`) |
+| `createAssetJsonComp` | ocr, tika, quality, sentiment, captioning, vlm, scene-layout, s3-sink, facedescription |
+| `bulkCreateAssetDetections`, `createAssetSegmentComps` | facedetect, scene-detection |
+| `loadAsset` (uuid or SHA-512), `createAsset`, `updateAsset` | s3-sink, dedup, consistency |
+| `listSimilarAssets`, `createDedupGroup`, `listAssetDedupGroups` | dedup nodes |
 
-Note the important one: **pipeline definitions are pulled over REST, not pushed
-over the WebSocket.** Cortex fetches them on startup via
-`LoomPipelineLoader.loadAndRegister()`; a `SOURCE_TASK` names the source node to
-run but does not carry the recipe.
+### 4.4 Authentication
 
-### A third road, for the UI only
-
-`/api/v1/pipelines/events/ws` is a **read-only** WebSocket for browsers. Loom
-receives `PIPELINE_EVENT` messages from workers and fans them out to any UI
-client watching. Clients never send anything on it, and may filter with
-`?pipeline=<name>`.
-
-> ⚠️ **Authentication is lopsided.** The WebSocket authenticates with a JWT in
-> the `?token=` query string (query string, not a header, because browsers
-> cannot set headers on a WebSocket handshake) — but it is **lenient by
-> default**: a connection with no token is accepted with a warning unless
-> `LOOM_WS_STRICT_AUTH=true`. Meanwhile the **REST client inside Cortex is never
-> given a token at all** and talks plain HTTP. There is also no TLS path in the
-> control channel — it constructs `ws://` unconditionally. Do not put this on an
-> untrusted network as it stands.
+| Aspect | Reality |
+|---|---|
+| Handshake | JWT in `?token=` (browsers cannot set handshake headers) |
+| Default | 🔴 **lenient** — a token-less connection is accepted with a warning. `LOOM_WS_STRICT_AUTH=true` (or `-Dloom.ws.strictAuth`) rejects with close code 4401 |
+| Per message | none — the token is never tied to the announced `nodeId` |
+| Cortex side | token from `LoomClientOptions` or `LOOM_TOKEN` env; **no CLI flag exists** |
+| Transport | 🔴 `ws://` unconditionally — no TLS path in the control channel |
 
 ---
 
-## 5. How Cortex reports its status
+## 5. Status, load and metrics
 
-Three different things get called "status", and they are worth separating.
-
-**1. Is the worker alive and connected?** — the heartbeat, plus Cortex's own
-HTTP health endpoint (see [§7](#7-monitoring-and-health)).
-
-**2. How loaded is the machine?** — the `STATUS_UPDATE` message, every 20
-seconds. It carries CPU load, memory, and disk. What is actually in it:
+`STATUS_UPDATE` carries `SystemStatusInfo`, produced by `SystemLoadProbe`:
 
 | Field | Reality |
 |---|---|
-| `cpuLoad` | percentage of total CPU capacity in use, from `OperatingSystemMXBean.getCpuLoad()`. Falls back to load average ÷ core count where that is unavailable. `null` when neither can be read — never a substituted zero |
-| `ioLoad` | percentage of wall-clock time the **busiest** physical disk spent with a request in flight, measured between consecutive status updates from `/proc/diskstats` (the `%util` iostat prints). Linux-only; `null` elsewhere |
-| `memoryUsed` / `memoryTotal` | **JVM heap only**, not system memory, despite the field naming |
-| `diskUsed` / `diskTotal` | the filesystem of the process working directory — not necessarily where the media lives |
-| `gpuLoad` | **always null** — never populated |
+| `cpuLoad` | `OperatingSystemMXBean.getCpuLoad() × 100`, falling back to load-avg ÷ cores. `null` when unknown — never a substituted zero |
+| `ioLoad` | busiest physical device `%util` from `/proc/diskstats`, re-sampled at most every 2 s. Linux-only, `null` elsewhere. **Stateful** — the first update after connect has none |
+| `memoryUsed` / `memoryTotal` | **JVM heap only**, despite the naming |
+| `diskUsed` / `diskTotal` | filesystem of the process working directory, not necessarily where media lives |
+| `gpuLoad` | 🔴 **never populated** — the field exists only in the shared model |
 
-Both load figures are produced by `SystemLoadProbe` (`cortex/core`, package
-`io.metaloom.cortex.impl.loom`), which also backs the `cortex_cpu_load` and
-`cortex_io_load` gauges, so a dashboard shows the same numbers Loom placed work on.
-The probe is stateful — I/O utilisation is a rate — so the first status update after
-a worker connects carries no `ioLoad`.
+**Metrics exist.** `MicrometerCortexMetrics` (Micrometer + `PrometheusMeterRegistry`)
+is scraped at `GET /metrics` on the monitoring port, alongside JVM and Vert.x binders.
+Counters/timers cover Loom messages, reconnects, task receipt/completion, node
+operations, bulk sync outcomes and AI calls; the connection and load gauges are bound
+in `LoomControlChannel.registerGauges()`. Full catalogue and known gaps:
+[../features/ops/METRICS.md](../features/ops/METRICS.md).
 
-**Loom's worker selection uses them**, as the tie-break among workers of equal
-declared priority: see [§6](#6-how-loom-tells-cortex-what-to-run). A worker whose
-load is unknown or older than 60 seconds is scored mid-scale, so silence neither
-attracts work nor repels it.
-
-**3. How is the actual work going?** — `PIPELINE_EVENT` messages, streamed as
-they happen. These are the ones the UI draws:
-
-`PIPELINE_STARTED` · `NODE_STARTED` · `NODE_COMPLETED` · `NODE_FAILED` ·
-`NODE_SKIPPED` · `NODE_BUFFERED` · `NODE_STATS` (every 500 ms) ·
-`PIPELINE_COMPLETED`
-
-Each carries the pipeline name, node id, media path, timestamp, duration, and
-counters. They are deliberately kept to simple scalars so they are cheap to
-forward.
-
-> ⚠️ Live events are **fire-and-forget**. If a UI client is too slow to keep up,
-> Loom **drops the newest event** and counts the loss. Nothing is replayed or
-> persisted, so the live view is a courtesy, not a record. (Both the spec and
-> the class's own Javadoc claim a 1024-entry queue that drops the *oldest* — the
-> queue does not exist; the capacity constant is passed in and discarded.)
+> ⚠️ Live UI events are **fire-and-forget**. `PipelineEventBroadcaster` drops the
+> **newest** event when `ws.writeQueueFull()` and counts the loss. Its own Javadoc and
+> `DEFAULT_QUEUE_CAPACITY = 1024` describe a drop-oldest bounded queue that does not
+> exist — `Subscriber` discards the capacity argument.
 
 ---
 
-## 6. How Loom tells Cortex what to run
+## 6. Dispatch and placement
 
-You start a run against a pipeline, optionally narrowing which media it covers.
-Loom then works out what needs doing and hands out the work.
+A run selects media, then walks each item through the graph:
 
-A worker is never given "a pipeline". It is given a single, concrete instruction:
-run this node against this file, or run this short sequence of nodes against this
-file. It answers, and waits to be told what to do next. Everything about ordering,
-what depends on what, and what happens after a failure is decided by Loom.
+1. One worker gets a `SOURCE_TASK` and streams `SOURCE_ITEMS` batches back, acked.
+2. Loom processes early items while the scan is still running.
+3. Each ready node becomes a `NODE_TASK` (or a `SEGMENT_TASK` for a whole affinity
+   segment) dispatched to a selected worker.
+4. Outcomes are recorded, unblock successors, and the run completes when everything
+   discovered has settled.
 
-Two kinds of instruction exist, and the difference is only about efficiency:
+**Worker selection** (`ProcessorRegistry.select`), in order:
 
-- **One node against one file** — the ordinary case.
-- **Several connected nodes against one file** — when a pipeline has asked for
-  those nodes to be grouped, so they run on the same machine instead of being
-  handed out separately.
+1. `isPlaceable` — state is `ONLINE` (a `TERMINATING`/`PAUSED`/`STARTING` worker is skipped)
+2. required capability — hardcoded `CPU` at every call site
+3. `accepts(nodeKind)` — blacklist wins, empty whitelist means unrestricted
+4. **configured `priority`, descending** (primary)
+5. **reported load, ascending** (secondary) — `max(cpuLoad, ioLoad)`; a status older
+   than 60 s or absent scores `UNKNOWN_LOAD = 50.0`, so silence neither attracts nor repels
+6. `nodeId` — deterministic final tiebreak
 
-Selecting the media is itself a piece of work given to a worker: one worker walks
-the filesystem and streams back what it finds, in batches, while Loom starts
-processing the earlier items before the scan has finished.
+### What a worker can actually run
 
-**A pipeline that cannot run is rejected when you start it**, with a reason. See
-[§14](#14-how-a-pipeline-runs) for what a run does from beginning to end.
+**32 kinds** are registered today (33 with S3 configured): 30 processing kinds bound
+by each node module with `@Binds @IntoMap @StringKey`, plus `filesystem-source` and
+`asset-source` registered directly by `RegistryNodeRegistrar`, plus `s3-source` **only
+when `S3Support.isActive()`**. That set is exactly what the worker announces as its
+whitelist, so advertisement cannot drift from capability.
+
+**There is no stub node.** `RegistryNodeFactory.produce()` returns `null` for an
+unregistered kind (its "falling back to stub" log line is a leftover), and
+`NodeTaskRunner` turns the resulting NPE into a `FAILED` result. A `SOURCE_TASK` for a
+non-source kind is rejected outright. Unknown kinds no longer report silent success.
+
+The palette is dynamic — `GET /api/v1/pipeline/node-descriptors`, served from
+`NodeDescriptorRegistry` (26 `ServiceLoader` providers, 41 kinds). **The descriptor set
+is wider than the executable set:** the 8 `filter-*` kinds, `loom-fetch` and
+`facedescription` have descriptors but no producer; `asset-source` and `sha512-dedup`
+are the reverse. Details in [../features/pipeline-nodes/NODES.md](../features/pipeline-nodes/NODES.md).
+
+### Rejecting a run that cannot execute
+
+A run whose graph contains a node kind no online worker accepts is **rejected with
+503** naming the kinds (`PipelineEndpointService.unsupportedNodeKinds`) — every kind
+is checked, not just the source.
+
+⚠️ The *descriptor* check (`PipelineValidationService`, "Unknown node type") runs only
+on pipeline **create/update**. At run start `PipelineEndpointService` builds
+`PipelineGraphParser` with the no-arg constructor, whose registry is `null`, so the
+unknown-kind branch is skipped. A saved pipeline containing `filter-mimetype` therefore
+fails at run start as a 503 capability error, not as a validation error.
+
+**Affinity segments** group connected nodes onto one worker, saving a round trip per
+node per item. Everything is in one group by default. It does **not** avoid re-reading
+the file — there is no frame handoff between nodes.
 
 ---
 
+## 7. Results
 
-## 7. Monitoring and health
+| Path | Carries | Mechanism |
+|---|---|---|
+| **Orchestration** | state, duration, failure cause, outputs | `NODE_TASK_RESULT`, or `NODE_TASK_RESULT_BATCH` (a transport saving; each entry is assimilated as if it arrived alone) |
+| **Bulk asset sync** | outputs of nodes with `syncToLoom == true` | `DefaultLoomBulkSyncCollector` buffers, flushes on batch size or explicit `flush()`, and `LoomBulkSyncWriterImpl` groups by SHA-512 into one `bulkUpdateAssets`. Entries without a SHA-512 are skipped; a failed flush re-queues |
+| **Typed write-back** | transcripts, detections, OCR text, captions, quality, scenes | the node itself calls `loom-client` during execution (see §4.3) and records an `asset_node_result` ledger row |
 
-**Yes, Cortex has a monitoring endpoint** — a small HTTP server, separate from
-the Loom connection, on port **8093** by default.
+Nothing is lost if Loom restarts: outcomes are persisted as they arrive and in-flight
+runs resume. Buffered results survive a `SIGTERM` because the shutdown hook flushes
+them (§8).
+
+> ⚠️ `syncToLoom` is read from the definition by `RegistryNodeRegistrar` but the UI
+> editor never sets it, so the bulk path is effectively opt-in via hand-edited JSON.
+> The typed write-back path does not depend on it.
+
+---
+
+## 8. Running and stopping a worker
+
+`cortex server start` runs in the **foreground** and blocks on a latch — no fork, no
+PID file, no `--daemon`. That is what a container wants; supervision is the
+orchestrator's job. `cortex process run -a hash /path` is the offline one-shot mode.
+
+**Shutdown is graceful.** `CortexImpl.registerShutdownHook()` installs a
+`cortex-shutdown` thread, so `SIGTERM` runs the ordinary path:
+
+1. `syncCollector.flush()` — buffered results go out **while the client is still up**
+2. `LoomControlChannel.drain(drainTimeoutMs)` — announce `STATE_CHANGE: TERMINATING`
+   (Loom stops placing here), `beginDrain()` stops accepting locally, wait out the
+   grace period, then `returnOutstanding()` hands the rest back as `TASK_RETURNED`
+   for immediate re-placement, then flush the socket (5 s)
+3. `stop()` — cancel timers, close socket; `MonitoringService.deinit()`
+
+A hard `kill -9` still falls back to lease expiry.
+
+### Monitoring endpoints (default port 8093)
 
 | Endpoint | Returns |
 |---|---|
-| `GET /api/health` | always `200` with `{"status":"up", "loom":{…}}` |
-| `GET /api/ready` | `200` if connected *and* registered with Loom, else **`503`** |
-| `GET /health`, `GET /ready` | legacy aliases |
+| `GET /api/health`, `GET /health` | **always 200**, `{"status":"up","loom":{…}}` — pure liveness |
+| `GET /api/ready`, `GET /ready` | 200 when `configured && connected && registered`, else **503** — readiness |
+| `GET /metrics` | Prometheus scrape |
+| `POST /s3-events` | only when S3 events are enabled in `WEBHOOK` mode with a secret |
 
-The `loom` block is genuinely useful for debugging: whether an endpoint is
-configured, whether the socket is connected, whether registration succeeded,
-the resolved host and port, the reconnect attempt count, timestamps of the last
-connection / message / heartbeat ack, and the last error.
+The `loom` block reports configured/connected/registered, resolved host+port,
+reconnect attempts, last connect/message/heartbeat-ack timestamps and last error.
 
-`/api/health` is a **liveness** check and `/api/ready` is a **readiness** check
-in the Kubernetes sense — which maps cleanly onto a `livenessProbe` and
-`readinessProbe`.
+### Environment variables (Cortex)
 
-> ⚠️ **There are no metrics.** No Prometheus endpoint, no `/metrics`, no
-> Micrometer. The per-node throughput numbers *are* computed every 500 ms — but
-> they are emitted as WebSocket events to Loom and formatted into a display
-> string, so they cannot be scraped, and they are never stored anywhere. If
-> Loom is down, that telemetry is simply lost. Also note `pending` in those
-> stats is **hardcoded to 0**, because queue depth is not observable.
-
----
-
-## 8. Is Cortex a daemon?
-
-**No — and this is a deliberate design choice, not an oversight.**
-
-`cortex server start` runs in the **foreground** and blocks forever on a latch.
-There is no fork, no `setsid`, no PID file, no `--daemon` flag, and no systemd
-unit anywhere in the repo. The process runs until it is killed.
-
-That is exactly what you want for a container: the container image runs it as
-PID 1 and exposes 8093. Process supervision is the orchestrator's job —
-Kubernetes, Docker's restart policy, or systemd if you write your own unit. The
-CLI also supports a one-shot batch mode (`cortex process run -a hash /path`)
-that processes a folder and exits, which suits a Cron job or a Kubernetes `Job`.
-
-> ⚠️ **Shutdown is abrupt, and this can lose data.** There is no shutdown hook
-> anywhere in the codebase. On `SIGTERM` the JVM dies with in-flight work simply
-> abandoned, and — importantly — **the buffered result queue is not flushed**.
-> Up to 100 results that were computed but not yet sent to Loom are silently
-> lost. Redoing that work is the only recovery, and nothing reports that it
-> happened.
-
-### Operational defaults worth knowing
-
-| Setting | Env var | Default | Note |
+| Variable | CLI flag | Default | Note |
 |---|---|---|---|
-| Loom host | `LOOM_HOST` | `localhost` | |
-| Loom port | `LOOM_PORT` | `7733` | but the shipped container and `start-cortex.sh` both set **8092** |
-| Monitoring port | `CORTEX_MONITORING_PORT` | `8093` | |
-| Metadata path | `CORTEX_META_PATH` | `~/.cache/metaloom/cortex/meta` | |
-| Loom token | `LOOM_TOKEN` | none | **no CLI flag exists** |
-| Container heap | — | `-Xmx512m` | low for video work |
+| `LOOM_HOST` | `-h`, `--hostname` | `localhost` | presence selects online mode |
+| `LOOM_PORT` | `-p`, `--port` | `7733` | container + `start-cortex.sh` set **8092** |
+| `LOOM_TOKEN` | — | none | 🔴 env only, no flag |
+| `CORTEX_NODE_ID` | `--node-id` | none | **required for the server**; unique per worker, stable across restarts |
+| `CORTEX_MONITORING_PORT` | `--monitoring-port` | `8093` | health + ready + metrics |
+| `CORTEX_META_PATH` | `--meta-path` | `~/.cache/metaloom/cortex/meta` | |
+| `CORTEX_DRAIN_TIMEOUT_MS` | `--drain-timeout-ms` | `30000` | raise with the orchestrator grace period for long nodes |
+| `CORTEX_NODE_WHITELIST` | `--node-whitelist` | all runnable kinds | comma separated |
+| `CORTEX_NODE_BLACKLIST` | `--node-blacklist` | none | wins over the whitelist |
+| `CORTEX_S3_*` | `--s3-*` | — | endpoint, region, keys, path-style, cache/index paths, size budgets, reconcile interval, events (mode/webhook/secret/queue) |
+| `LOOM_WS_STRICT_AUTH` | — (Loom side) | `false` | reject token-less WebSockets |
+| — | — | `-Xms256m -Xmx512m` | container `JAVA_TOOL_OPTIONS`; low for video work |
 
-> ⚠️ **The YAML config file does not work on the server path.** `CORTEX.md` and
-> `CONFIGURATION.md` both describe a precedence chain of CLI → env → 
-> `~/.config/metaloom/cortex.yml` → defaults. In reality the loader is only
-> consulted when no options object is supplied, and the CLI always supplies one
-> — so **`cortex.yml` is never read**, and its merge logic is commented out.
-> Anything set only in that file, including `maxConcurrentMedia` and the Loom
-> token, is silently ignored. The container's `/config` volume compounds this by
-> mounting to a path the loader would not look at anyway.
+> 🔴 **`cortex.yml` is not read on the CLI path.** `CortexCLIMain.parseOptions()`
+> always builds a `CortexOptions`, and `CortexClientModule.options()` consults
+> `CortexOptionsLoader` **only when that object is null**. Anything set only in the
+> YAML file is silently ignored, and the container's `/config` mount compounds it.
+> [CONFIGURATION.md](CONFIGURATION.md) still describes the intended precedence chain.
 
----
-
-## 9. How results get back to Loom
-
-A worker answers every piece of work it is given. That answer says what the node
-produced, how long it took, and whether it succeeded, was skipped, or failed.
-
-Loom records each answer as it arrives, works out what it unblocks, and hands out
-whatever became ready. Nothing is lost if Loom restarts — see
-[§14](#14-how-a-pipeline-runs).
-
-**Results can be grouped.** A cheap node over thousands of small files produces
-thousands of tiny answers. A pipeline can ask for them to be sent in batches
-instead, which trades a little delay for far fewer messages. The default is to send
-each result immediately, so this is something a pipeline opts into.
-
-A partly-filled batch is sent after a short wait rather than being held until it
-fills, so the end of a run is never left sitting on a worker.
-
-**One gap worth knowing:** hashes are written back onto the asset, but output from
-other node types — thumbnails, embeddings, extracted text, transcripts, detections
-— is recorded against the run and **not yet mapped onto the asset itself**. The
-work is done and stored; it simply is not surfaced where you would look for it.
-This is an open task.
+Kubernetes deployment is covered by the charts under `helm/loom/` and `helm/cortex/`
+(StatefulSet, per-ordinal stable `nodeId`, probes on `/api/health` + `/api/ready`) —
+see [../features/helm/HELM_CORTEX.md](../features/helm/HELM_CORTEX.md).
 
 ---
 
-## 10. What "reactive processing" means here
+## 9. Media never crosses the wire — only a locator does
 
-Mostly it means *nothing blocks waiting for something else to finish*.
-
-A run does not wait for the whole filesystem scan before it starts processing —
-the first files are being worked on while the scan is still going. A worker does
-not sit idle waiting for one slow file. Loom does not stop handing out work
-because one node is slow.
-
-The practical consequences are the ones worth remembering:
-
-- **Work is spread out rather than done in strict order.** Two files are processed
-  at the same time, so "file 1 finished before file 2 started" is not something
-  you can rely on.
-- **The system pushes back when it is busy** rather than accepting unbounded work.
-  A scan is slowed down when its run already has as much outstanding as it allows.
-- **Order within one file is still guaranteed.** A node never runs before the
-  nodes it depends on.
-
----
-
-## 11. What happens when a node fails
-
-A failure is treated as a result, not a crash. One bad file does not stop a run.
-
-| Situation | What happens |
-|---|---|
-| A node fails on one file | Recorded as failed. Nodes that depend on it are skipped for **that file only** |
-| A node is marked as non-blocking | Nodes after it still run, and can see that it failed |
-| A node type asks to be retried | It gets another attempt, with a growing delay between tries |
-| It keeps failing | Given up on after a set number of attempts, keeping the history of why |
-| A worker dies mid-task | The work is given to another worker |
-| A node type fails on nearly everything | Set aside for a while, then tried again cautiously, so one broken node type does not consume the fleet |
-
-The distinction that matters most in practice: **a failure affects one file, not the
-run.** A run reports how many items succeeded, failed and were skipped, and finishes
-either way. Failures are reported individually and name the file; volume is reported
-as counts.
-
----
-
-
-## 12. What actually works today
-
-Being blunt about the state of things, because several of the remaining problems
-fail quietly.
-
-**Works:**
-
-- Cortex connects, registers, heartbeats, reconnects, and reports health
-- Pipelines can be authored, validated, versioned, and restored
-- **A pipeline authored in the UI now runs as drawn.** It used to collapse to just
-  the source node, because the editor and the worker read the same file
-  differently. Only Loom reads it now
-- **An unrunnable pipeline is rejected when you start it**, with a reason, instead
-  of reporting a green run that did nothing
-- Work is decided by Loom and executed by workers, one piece at a time
-- A run survives a Loom restart; a dead worker's work is reassigned
-- Repeated failures on one file are given up on, keeping the history
-- A node type failing everywhere is set aside rather than consuming the fleet
-- Live progress reaches the UI as counts, with failures named individually
-- Results can be grouped to reduce message volume
-- Local sidecar storage of results next to the media
-- Offline CLI batch processing, which bypasses Loom entirely
-
-**Still broken or missing:**
-
-- **Most node types do nothing.** Only a handful of the advertised node kinds are
-  actually implemented; the rest report success without doing work. This is the
-  single most misleading behaviour left
-- **Only hashes reach the asset.** Transcripts, faces, OCR, fingerprints and
-  thumbnails are computed and recorded against the run, but never mapped onto the
-  asset where you would look for them
-- **`syncToLoom` is not set by the UI**, so a UI-authored pipeline stores less than
-  the author expects
-- **No way to inspect a run in detail.** Where each file got to, what failed and
-  what is retrying is all recorded and none of it is reachable over the API
-- **The control channel is unauthenticated**, and now carries work and results
-- **Worker load is measured incorrectly**, so work is placed by configured priority
-  rather than by how busy a machine is
-
-**Not built, despite appearing in docs or UI:**
-
-- GPU routing · selecting media by id · the YAML config file · TLS on the control
-  channel · REST authentication from Cortex
-
-The common thread among the remaining problems is unchanged: **they fail quietly.**
-A node that does nothing and a result that is never stored both look like success.
-That is still the most important property to fix, and it is why the open task list
-puts truthfulness ahead of performance.
-
----
-
-## 13. Where things live
-
-| Need | Path |
-|---|---|
-| Cortex ↔ Loom control channel | `cortex/core/…/impl/loom/LoomControlChannel.java` |
-| Source/node task handling | `cortex/core/…/impl/loom/PipelineTaskHandler.java` |
-| Health / readiness | `cortex/core/…/impl/monitoring/` |
-| Startup + shutdown | `cortex/core/…/impl/boot/CortexBootstrapInitializer.java` |
-| The execution engine | `cortex/pipeline-core/…/executor/ReactivePipelineExecutor.java` |
-| Pipeline loading from Loom | `cortex/core/…/pipeline/loader/LoomPipelineLoader.java` |
-| Which node kinds are real | `cortex/cli/…/dagger/PipelineNodeFactoryModule.java` |
-| Result batching | `cortex/pipeline-common/…/sync/DefaultLoomBulkSyncCollector.java` |
-| Loom's side of the socket | `loom/services/rest/…/endpoint/impl/ProcessorEndpoint.java` |
-| Worker registry + dispatch | `loom/services/rest/…/service/impl/ProcessorRegistry.java` |
-| Run dispatch + watchdog | `loom/services/rest/…/service/impl/PipelineEndpointService.java` |
-| Live event fan-out | `loom/services/rest/…/service/impl/PipelineEventBroadcaster.java` |
-| Container image | `cortex/container/Containerfile` |
-
----
-
-## 14. How a pipeline runs
-
-### Who decides what
-
-**Loom owns the pipeline. Cortex does the work it is asked to do.**
-
-Loom holds the graph, reads the definition, decides which node runs next, and
-records what happened. A Cortex worker is given one piece of work at a time — run
-*this* node against *this* file — and answers with the outcome. It holds no
-pipelines and makes no scheduling decisions.
-
-The important consequence is that **the definition is read in exactly one place**.
-Previously both sides parsed it, and disagreed: the editor wrote one shape and the
-worker read another, so pipelines that looked correct in the UI quietly did
-nothing. A single reader removes that whole class of problem rather than fixing
-instances of it.
-
-### What a run does
-
-Starting a run selects media, then processes each item through the graph.
-
-1. A worker walks the filesystem and streams back what it finds, in batches.
-2. As items arrive, Loom works out which nodes are ready for each one and sends
-   them out.
-3. Workers answer; Loom records each outcome and works out what that unblocks.
-4. The run finishes when everything discovered has been fully processed.
-
-**A pipeline that cannot run is rejected when you start it**, with a reason —
-unknown node types, no source, circular dependencies, edges to nodes that do not
-exist. It does not start and quietly finish having done nothing, which is what
-used to happen.
-
-### What MetaLoom guarantees
-
-| Guarantee | What it means in practice |
-|---|---|
-| **A run survives a restart** | Progress is recorded as it happens. If Loom restarts, in-flight runs resume from where they were. Work already done is not repeated |
-| **A worker dying does not lose work** | Every dispatched task has a deadline. Work from a worker that never answers is given to another one |
-| **A bad file cannot stall a run** | Repeated failures on one item are given up on, with the history kept, rather than retried forever |
-| **A broken node type cannot burn the fleet** | If a node type starts failing on nearly everything, it is set aside and retried periodically instead of failing every remaining item |
-| **One run cannot consume everything** | Each run has a ceiling on outstanding work, and a scan is slowed down when its run is saturated |
-| **One slow node type cannot consume a run** | Each node type can be given its own ceiling, so transcription cannot occupy every slot while hashing waits behind it |
-| **Failures are reported individually; progress is summarised** | You are told which file failed and why, promptly. Volume is reported as counts, not as one message per file — including how much is running and how much is still waiting |
-
-### 🔴 Media never crosses the wire — only a locator does
-
-Loom sends the worker a **string**, taken from `asset_location.path`, and the worker resolves it
-itself. That has a deployment consequence which is easy to miss until nothing processes:
+Loom sends a **string** from `asset_location.path`; the worker resolves it itself.
 
 | What Loom stores | What the worker does | What the deployment must provide |
 |---|---|---|
-| a filesystem path (`/var/lib/loom/storage/ab/cd/…`) | opens it on **its own** filesystem | 🔴 the worker must see that path, identically — a shared volume, or the same host. Loom and Cortex running on different machines with unshared disks will fail on every asset |
-| `s3://bucket/key` | `S3MediaMaterializer` downloads it into its cache | `CORTEX_S3_*` on the worker. **No shared filesystem needed** |
+| filesystem path | opens it on **its own** filesystem | 🔴 the worker must see that identical path — shared volume or same host |
+| `s3://bucket/key` | `S3MediaMaterializer` downloads into its cache | `CORTEX_S3_*` on the worker; **no shared filesystem** |
 
-So a library backed by an S3 `asset_pool` removes the co-location constraint, and a filesystem-backed
-one does not. This is the single most common cause of "the pipeline runs but every item fails to
-open". See
-[../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) §7.1.
-
-Note that the worker's S3 credentials (`CORTEX_S3_*`) are configured independently of Loom's
-(`LOOM_S3_*`). They may address the same bucket; setting one says nothing about the other.
-
-### Two limits worth knowing
-
-**A scan interrupted by a restart cannot be resumed.** If Loom restarts while a
-worker is still enumerating files, the files it had not reached yet were never
-recorded anywhere. The run completes with the media it already knew about, and is
-**marked as such** — it does not claim to have processed a folder it only partly
-saw.
-
-**Duplicate work is possible, and preferred to stalling.** A worker that is merely
-slow can have its task reassigned while it is still working. A node may therefore
-run twice on the same file. Results are recorded once, so this costs time rather
-than correctness — and the alternative, waiting indefinitely for a worker that may
-be dead, is worse.
-
-### Putting work on the right machine
-
-Not every worker can do every job. A worker can declare which node types it
-accepts, so a GPU machine can be reserved for models and a machine with the media
-mounted can be reserved for scanning. A worker that declares nothing accepts
-everything.
-
-⚠️ Work is currently placed by **configured priority**, not by how busy a machine
-is, because the load figure workers report is wrong. Placing work on a bad
-measurement would be worse than not using it at all. Fixing that is an open task.
-
-### Grouping nodes onto one machine
-
-Nodes can be marked as belonging to the same **affinity group**. Connected nodes in
-the same group are sent to one worker together and run there as a unit, rather than
-being handed out one at a time.
-
-By default **everything is in one group**, so a pipeline is only split across
-machines when someone asks for it.
-
-**What grouping saves is round trips.** Sending each node separately costs a
-message and a reply per node per file; grouping five nodes into one exchange
-removes four of them, and keeps related work on one machine, which is also what
-makes node-type restrictions and shared storage tractable.
-
-It does **not** currently avoid re-reading the file. Each node still opens what it
-needs, because there is no way for one node to hand a decoded frame to the next.
-Making that possible is a node-level caching question, tracked in
-[../tasks/TASKS.md](../tasks/TASKS.md).
+An S3-backed `asset_pool` removes the co-location constraint; a filesystem-backed one
+does not. This is the most common cause of "the run starts but every item fails to
+open". Worker S3 credentials (`CORTEX_S3_*`) are independent of Loom's (`LOOM_S3_*`).
+See [../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) §7.1.
 
 ---
 
-## 15. What is not yet proven
+## 10. Failure handling and guarantees
 
-Being explicit, because these are the claims most likely to be assumed:
+| Situation | Behaviour |
+|---|---|
+| Node fails on one item | recorded FAILED; dependants skipped **for that item only** |
+| Node marked non-blocking | successors still run and can see the failure |
+| Retryable node kind | retried with growing delay, then given up on with history kept |
+| Worker dies mid-task | lease expires, `LeaseReaper` (60 s) re-places the work |
+| Worker drains | `TASK_RETURNED` re-places immediately, no lease wait |
+| Node kind failing nearly everywhere | set aside and retried periodically instead of burning the fleet |
+| Run saturated | the source scan is slowed; per-run and per-node-kind ceilings apply |
+| Loom restarts mid-run | run resumes; completed work is not repeated |
+| Loom restarts mid-**scan** | ⚠️ unreachable files were never recorded — the run completes over what it saw and is **marked truncated** |
+| Slow (not dead) worker | a task may be reassigned and run twice; results are recorded once, so this costs time, not correctness |
 
-- **The cost this architecture pays has never been measured.** Sending each node to
-  a worker individually costs a network round trip. Nobody has measured what that
-  costs, and therefore nobody has measured what grouping saves.
-- **No run at realistic scale has been executed.** The mechanisms for handling
-  100 000 items exist and are individually tested. A run of that size has not been
-  performed.
-- **Spreading a run across several machines is proven in tests, not in a
-  deployment.** The placement logic is tested; a real multi-worker cluster has not
-  been run.
-
----
-
-## 16. Conventions and gotchas
-
-> Developer-facing notes. Everything above is requirements and behaviour; this is
-> the small set of things that will otherwise cost someone an afternoon.
-
-- **Dagger 2 annotation processing is stale-prone.** After changing an injected
-  constructor, run a full `mvn clean install` — an incremental build leaves the
-  generated factory on the old signature and fails at runtime with
-  `NoSuchMethodError`.
-- **DB tests draw from an external pool, not a fresh container.** After adding a
-  Flyway migration you **must** re-seed it with `PoolSetupRunner` from
-  `loom/fixture`, or every DAO test fails with `relation … does not exist`.
-- **The `loom/pipeline` module may not depend on Cortex.** Enforced by
-  `maven-enforcer`; it is what keeps the orchestrator independent of its workers.
-- **Node options are flattened to the top level** when a task is turned back into
-  a node definition, because that is where the existing node producers read them.
+A failure affects one item, not the run. Runs can be cancelled, paused and resumed
+(`POST /api/v1/pipelines/:uuid/runs/:runUuid/{cancel,pause,resume}`).
 
 ---
 
-## 17. Progress Assessment
+## 11. Progress Assessment
 
-- [x] Plain-language overview of Loom and Cortex
-- [x] Registration, REST/WebSocket split, status reporting, monitoring
-- [x] Daemonization, result return path, reactive processing, node failure
-- [x] **How a pipeline runs, in requirements terms** (§14)
-- [x] Durability, recovery, leases, retries and flow control described
-- [x] Affinity groups described **with the benchmark that corrects their stated
-      purpose**
-- [x] Unproven claims stated as unproven (§15)
-- [x] §6, §9, §10 and §11 rewritten for the current model — the document no
-      longer contradicts itself
-- [ ] Deployment guide (Kubernetes manifests, Helm) — none exist in the repo
-- [ ] Security review of the control channel (no TLS, lenient auth, no REST token)
-- [ ] **Round-trip cost and saving unmeasured** — the justification for this whole
-      architecture. Tracked as task 1
-- [ ] No run at 100 000-item scale has been executed
+- [x] Registration persisted (`cortex_instance`) with admin-editable node-kind restrictions
+- [x] Stable, mandatory `nodeId`; duplicate registrations rejected (4409)
+- [x] Loom is the sole reader of the pipeline definition; `LoomPipelineLoader` deleted
+- [x] Unschedulable runs rejected with 503 naming the missing node kinds
+- [x] Placement uses priority **then** live load, with staleness handling
+- [x] Graceful drain + JVM shutdown hook; buffered results flushed on `SIGTERM`
+- [x] 32 executable node kinds derived from the Dagger node collection; the announced whitelist is derived from them
+- [x] No stub node — an unregistered kind fails the task instead of reporting success
+- [x] Typed per-node write-back to assets (json comps, detections, segments, `node-results` ledger)
+- [x] Prometheus `/metrics` on the monitoring port; health + readiness probes
+- [x] Run inspection API: `GET .../runs`, `.../runs/:runUuid`, `.../runs/:runUuid/items`, `/runs/stats`
+- [x] Helm charts for Loom and Cortex
+- [ ] 🔴 **No heartbeat/`lastSeen` expiry sweep** — a half-open worker stays `ONLINE` and dispatchable
+- [ ] 🔴 **Control channel is unauthenticated by default** (`LOOM_WS_STRICT_AUTH=false`) and has **no TLS**
+- [ ] 🔴 `gpuLoad` never populated and `GPU` never advertised — GPU routing matches nothing
+- [ ] `PipelineEventBroadcaster` has no bounded queue despite its Javadoc; drops newest
+- [ ] `syncToLoom` not settable from the UI editor
+- [ ] 10 palette kinds (8 `filter-*`, `loom-fetch`, `facedescription`) have descriptors but no producer — savable, then 503 at run start
+- [ ] `PipelineGraphParser` is built without the descriptor registry on the run path, so the unknown-kind check is skipped there
+- [ ] `cortex/nodes/loom/` is a dead directory (stale `target/`, no `src/`, not a Maven module)
+- [ ] Round-trip cost of per-node dispatch, and the saving from affinity segments, **unmeasured**
+- [ ] No run at 100 000-item scale executed; multi-worker placement proven in tests only
 
 ---
 
-_Last updated: 2026-07-19_
+## 12. Key Classes Reference
+
+| Class | Package / module | Purpose |
+|---|---|---|
+| `LoomControlChannel` | `io.metaloom.cortex.impl.loom` (cortex/core) | WebSocket to Loom: register, heartbeat, status, reconnect, drain, gauges |
+| `PipelineTaskHandler` | `io.metaloom.cortex.impl.loom` (cortex/core) | Executes `NODE_TASK` / `SEGMENT_TASK` / `SOURCE_TASK`; in-flight set, drain, hand-back |
+| `SystemLoadProbe` | `io.metaloom.cortex.impl.loom` (cortex/core) | `cpuLoad` / `ioLoad`, `null` for unknown |
+| `LoomBulkSyncWriterImpl` | `io.metaloom.cortex.impl.loom` (cortex/core) | Groups sync entries by SHA-512 → `bulkUpdateAssets` |
+| `DefaultLoomBulkSyncCollector` | `io.metaloom.cortex.pipeline.common.sync` | Buffers `syncToLoom` results; `flush()` called on shutdown |
+| `CortexImpl` | `io.metaloom.cortex.impl` (cortex/core) | Lifecycle, shutdown hook, sync flush |
+| `CortexBootstrapInitializer` | `io.metaloom.cortex.impl.boot` | Boot/deinit order: node registrar → monitoring → control channel |
+| `MonitoringService`, `HealthEndpoint`, `MetricsEndpoint` | `io.metaloom.cortex.impl.monitoring` | The only HTTP server in Cortex (8093) |
+| `MicrometerCortexMetrics` | `io.metaloom.cortex.impl.monitoring` | Micrometer/Prometheus impl of `CortexMetrics` (cortex/common) |
+| `RegistryNodeRegistrar` | `io.metaloom.cortex.cli.dagger` | Populates `RegistryNodeFactory` from the `@IntoMap @StringKey` node collection + source producers |
+| `RegistryNodeFactory` | `io.metaloom.cortex.pipeline.loader` (cortex/core) | Kind → producer lookup; `registeredTypes()` backs the announced whitelist |
+| `NodeTaskRunner` | `io.metaloom.cortex.runtime` (cortex/node-runtime) | Runs one node, turns any throw into a `FAILED` `NodeTaskResult` |
+| `NodeDescriptorRegistry` | `io.metaloom.loom.nodes.spec` (loom-shared/node-model) | `ServiceLoader` palette catalogue behind `/api/v1/pipeline/node-descriptors` |
+| `CortexCLI`, `CortexCLIMain`, `EnvDefaultProvider` | `io.metaloom.cortex.cli` (cortex/core, cortex/cli) | Flags, env defaults, options pre-parse |
+| `S3MediaMaterializer` | `io.metaloom.cortex.s3` (cortex/s3-common) | Downloads `s3://` locators into the local cache |
+| `ProcessorEndpoint` | `io.metaloom.loom.rest.endpoint.impl` | Loom side of `/api/v1/processors/ws` + processor REST |
+| `ProcessorRegistry` | `io.metaloom.loom.rest.service.impl` | Live worker map, `cortex_instance` reconciliation, `select()` placement |
+| `WebSocketNodeDispatcher` | `io.metaloom.loom.rest.service.impl` | Turns a ready node/segment into a dispatched task |
+| `PipelineEndpointService` | `io.metaloom.loom.rest.service.impl` | Run start/cancel/pause/resume, 503 precheck, stats timer |
+| `PipelineRunEngine` | `io.metaloom.loom.pipeline.engine` (loom/pipeline) | Graph walk, readiness, retries, flow control |
+| `LeaseReaper` | `io.metaloom.loom.rest.service.impl` | Reclaims expired task leases every 60 s |
+| `PipelineEventBroadcaster` | `io.metaloom.loom.rest.service.impl` | Fan-out to UI subscribers, drop-newest |
+| `WebSocketAuthenticator` | `io.metaloom.loom.rest.service.impl` | `?token=` handshake auth, `LOOM_WS_STRICT_AUTH` |
+| `ProcessorMessageType` | `io.metaloom.loom.rest.model.processor.message` (loom-shared/rest-model) | The 19-value protocol enum |
+| `NodeTask`, `SegmentTask`, `NodeTaskResult` | `io.metaloom.loom.pipeline.model` (loom-shared/pipeline-model) | Dispatch payloads |
+
+---
+
+## 13. Where do I find …?
+
+| Need | Path |
+|---|---|
+| Control channel + task handler | `cortex/core/src/main/java/io/metaloom/cortex/impl/loom/` |
+| Cortex lifecycle / shutdown hook | `cortex/core/src/main/java/io/metaloom/cortex/impl/CortexImpl.java` |
+| Health / ready / metrics | `cortex/core/src/main/java/io/metaloom/cortex/impl/monitoring/` |
+| Which node kinds are executable | each node's `*NodeModule` under `cortex/nodes/*/core/`, collected by `cortex/cli/.../dagger/NodeCollectionModule.java` |
+| Node kind registration into the factory | `cortex/cli/.../dagger/RegistryNodeRegistrar.java` |
+| Cortex flags and env defaults | `cortex/core/.../cli/CortexCLI.java`, `.../cli/EnvDefaultProvider.java` |
+| Loom side of the socket | `loom/services/rest/.../endpoint/impl/ProcessorEndpoint.java` |
+| Worker registry + placement | `loom/services/rest/.../service/impl/ProcessorRegistry.java` |
+| Run dispatch, 503 precheck, stats | `loom/services/rest/.../service/impl/PipelineEndpointService.java` |
+| Graph engine | `loom/pipeline/src/main/java/io/metaloom/loom/pipeline/{engine,graph}/` |
+| Protocol enum + DTOs | `loom-shared/rest-model/.../processor/`, `loom-shared/pipeline-model/` |
+| Worker persistence migration | `loom/db/flyway/.../V2.33__add_cortex_instance.sql` |
+| Node result ledger migration | `loom/db/flyway/.../V2.45__add_asset_node_result.sql` |
+| Container image | `cortex/container/Containerfile`; scripts `start-cortex.sh`, `start-server.sh` |
+| Helm charts | `helm/cortex/`, `helm/loom/` |
+
+---
+
+## 14. Conventions and Gotchas
+
+| Gotcha | Detail |
+|---|---|
+| 🔴 `ctx.failure(msg).next()` | Returns **SUCCESS** — `NodeContextImpl.next()` ignores `failureCause`. Only `abort()` yields `FAILED`. Use `ctx.failure(msg).abort()` |
+| 🔴 `cortex.yml` on the CLI path | Never read — the CLI always supplies a `CortexOptions`, so `CortexOptionsLoader` is skipped (§8) |
+| 🔴 No worker liveness sweep | Heartbeats are acked but never audited; only a socket close evicts (§3) |
+| Stale Javadoc | `PipelineEventBroadcaster` (claims a 1024-entry drop-oldest queue), `WebSocketNodeDispatcher` (claims load is ignored and kinds cannot be routed) and `RegistryNodeFactory` ("falling back to stub") all contradict their own code |
+| `nodeId` is load-bearing | Loom keys registration, leases, restrictions and attribution on it. Never generate it per start; the Helm chart derives it from the StatefulSet ordinal |
+| Announce ≠ implement | The whitelist defaults to `NodeFactory.registeredTypes()`. `s3-source` is only registered when S3 is actually configured, so an unconfigured worker never advertises it |
+| Descriptor ≠ registration | A palette descriptor makes a kind *visible*; running it needs `@Binds @IntoMap @StringKey("<kind>")` in the node's own module — see [../features/pipeline-nodes/NODES.md](../features/pipeline-nodes/NODES.md) |
+| Node options are flattened | When a task is turned back into a node definition, options land at the top level, because that is where node producers read them |
+| `loom/pipeline` must not depend on Cortex | Enforced by `maven-enforcer` — it is what keeps the orchestrator independent of its workers |
+| Dagger is stale-prone | After changing an injected constructor, run a full `mvn clean install`; incremental builds fail at runtime with `NoSuchMethodError` |
+| DB tests use an external pool | Re-seed with `./setup-pool.sh` after any Flyway change, or DAO tests fail with `relation … does not exist` |
+
+---
+
+## 15. Test setup
+
+| Layer | Where | Notes |
+|---|---|---|
+| Drain / hand-back | `cortex/core/src/test/.../impl/loom/PipelineTaskHandlerDrainTest.java` | `TERMINATING` → refuse → return outstanding |
+| Load probe | `cortex/core/src/test/.../impl/loom/SystemLoadProbeTest.java` | `null` semantics, `/proc/diskstats` parsing |
+| Metrics endpoint | `cortex/core/src/test/.../impl/monitoring/MetricsEndpointTest.java` | Scrape asserts `cortex_*` and JVM meters. **No HealthEndpoint test exists** |
+| Node registration | `cortex/cli/src/test/.../dagger/NodeRegistrarTest.java`, `PipelineConfigurableTest.java` | `registeredTypes()`, idempotence, conditional `s3-source` |
+| Loom protocol | `loom/core/src/test/.../endpoint/test/ProcessorEndpointTest.java` | Register/heartbeat/status over a real socket |
+| Placement | `loom/services/rest/src/test/.../service/ProcessorPlacementTest.java` | Priority vs load vs staleness |
+| Run lifecycle | `loom/core/src/test/.../endpoint/test/PipelineRun*EndpointTest.java` | Items, cancel, pause, stats, completion |
+| End to end | `integration-test/.../Pipeline{Distributed,Container,AffinitySegment,Persistence}ExecutionIntegrationTest.java` | Rebuild the shaded `cortex/cli` JAR and container image first |
+
+Run DB-backed tests only after `./setup-pool.sh`.
+
+---
+
+_Git HEAD revision: `2e5981cb`_
+_Last updated: 2026-08-01 (re-verified against code; corrected registration persistence, metrics, shutdown, placement and result write-back)_

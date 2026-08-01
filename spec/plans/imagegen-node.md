@@ -1,188 +1,71 @@
-# Plan: `imagegen` node + Ideogram 4.0 Python sidecar
+# Plan: `imagegen` node + image-generation sidecar
 
-> Status: **proposed** — exploration/design plan, not yet implemented.
-> Node kind: `imagegen`. Backing model: Ideogram 4.0 (open-weight).
+> Status: **implemented** — the node ships and the sidecar is built. This file is now a
+> thin status page for the remaining open items.
+>
+> ⚠️ **Superseded**: the authoritative design/spec for this node is
+> [../features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md](../features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md)
+> (architecture, ports, options table, gotchas, key-classes reference). Do not add design
+> detail here — put it there. Node catalog: [../features/pipeline-nodes/NODES.md](../features/pipeline-nodes/NODES.md).
 
-## Context
+## Already implemented
 
-We want an **image-generation** capability in the Cortex pipeline, backed by the
-open-weight **Ideogram 4.0** model (released 2026-06-03; 9.3B-param diffusion
-transformer). Two deliverables:
-
-1. A standalone **Python sidecar** that serves Ideogram 4.0 over HTTP (the PoC,
-   lives outside the metaloom repo).
-2. A new Cortex node **`imagegen`** that calls the sidecar to produce a derived
-   image from an existing asset (image-to-image / remix), stores it to a local
-   meta path, and records an `asset_node_result` ledger entry.
-
-### Facts driving the design
-- **Ideogram 4.0 runs in Python/PyTorch via HF Diffusers** — there is no C/C++
-  native library, so a Java FFM wrapper (yolo4j / inspireface4j style) does
-  **not** apply. Inference:
-  `DiffusionPipeline.from_pretrained("ideogram-ai/ideogram-4-nf4", …)` or the
-  shipped `run_inference.py` CLI. Checkpoints: `nf4` (24 GB CUDA) / `fp8`
-  (broader HW). Weights are gated on Hugging Face.
-- The model runs as a **Python sidecar**, not a Java wrapper. This mirrors the
-  existing **CaptioningNode → SmolVLMClient → FastAPI** pattern exactly, so no
-  `ideogram4j` project is needed.
-- Node semantics: **image-to-image / remix** — `compute(ctx, asset)` takes the
-  existing asset's image plus a prompt and generates a new image. This fits
-  `AbstractMediaNode`'s asset-centric model.
-- Output storage: **local meta path + ledger marker** (ThumbnailNode pattern).
-  Pushing bytes into Loom's asset-binary subsystem is a follow-up, out of scope.
-
-### ⚠️ License caveat
-Ideogram 4.0 **code** is Apache-2.0 but the **weights** are under the *Ideogram 4
-Non-Commercial Model Agreement*. This is fine for a PoC / research node; using it
-in a commercial metaloom deployment would violate the weight license. The sidecar
-is intentionally **pluggable** — any Diffusers-compatible image model can back the
-same HTTP contract, so the node is not coupled to Ideogram specifically.
-
----
-
-## Part A — `ideogram-sidecar` (Python PoC, outside metaloom)
-
-A minimal FastAPI service wrapping Ideogram 4.0, sibling to the other workspace
-projects. Name: `ideogram-sidecar` (`ideogram4-poc` is an acceptable alias — but
-**not** `ideogram4j`; it is Python, not Java).
-
-**Layout**
-```
-ideogram-sidecar/
-  pyproject.toml    # diffusers, torch, transformers, fastapi, uvicorn, pillow
-  server.py         # FastAPI app, loads the pipeline once at startup
-  README.md         # HF login/gate steps, GPU reqs, docker run, curl examples
-  Dockerfile        # CUDA base; optional, mirrors kokoro-fastapi packaging
-```
-
-**HTTP contract** (kept model-agnostic so the node isn't coupled to Ideogram):
-- `GET  /health`   → `{"status":"ok","model":"ideogram-4-nf4"}`
-- `POST /generate` — `{prompt, width, height, seed?, steps?}` → `image/png`
-  (text-to-image; used for smoke tests).
-- `POST /remix`    — `{image_b64, prompt, strength, seed?}` → `image/png`
-  (image-to-image; the endpoint the node uses).
-
-**Model loading** — load the pipeline once at startup:
-`DiffusionPipeline.from_pretrained("ideogram-ai/ideogram-4-nf4", torch_dtype=torch.bfloat16, device_map="cuda")`.
-Gate access requires a Hugging Face token (`HF_TOKEN` env). Structured-JSON /
-magic-prompt expansion can be added later; plain-text prompts work.
-
-**Prereqs to document**: ~24 GB CUDA GPU for `nf4` (or the `fp8` build for other
-HW), `huggingface-cli login` + accepting the model gate.
-
-**References to mirror**: `tts4j/kokoro4j/` (Dockerized FastAPI model server +
-README skeleton) and the `sidecars/tts/server.py` scaffold
-for the FastAPI shape.
-
----
-
-## Part B — Cortex `imagegen` node (metaloom repo)
-
-Mirror **CaptioningNode** (HTTP model-server client) for the call and
-**ThumbnailNode** (produces an image file → local metaPath + ledger) for output.
-
-### New module `cortex/nodes/image-generation/`
-`pom.xml` (parent) + `core/pom.xml`, deps like `captioning/core/pom.xml` (slf4j,
-cortex-api/common, video4j for `ImageUtils.load`). Add
-`<module>image-generation</module>` to `cortex/nodes/pom.xml`.
-
-`core/src/main/java/io/metaloom/cortex/node/imagegen/`:
-
-- **`ImageGenNode.java`** — `extends AbstractMediaNode<ImageGenNodeOptions>`.
-  - `name()` → `"imagegen"`.
-  - `isProcessable(ctx)` → true when the asset is an image (reuse the media-type
-    guard CaptioningNode / ThumbnailNode use).
-  - `compute(ctx, asset)`:
-    1. Load source image via `ImageUtils.load(...)` (as CaptioningNode does).
-    2. Build the prompt from an options template (later: read an upstream caption
-       via `ctx.upstreamOutput(...)`).
-    3. `imageGenClient.remix(sourceImage, prompt, strength)` → PNG bytes.
-    4. Write bytes to a hash-segmented dir under
-       `cortexOptions.getMetaPath().resolve("imagegen_bin")` (copy ThumbnailNode's
-       segmenting).
-    5. `ctx.output(OUTPUT_IMAGE_PATH, path)` where
-       `NodeOutputKey<String> OUTPUT_IMAGE_PATH = NodeOutputKey.of("imagegen_path", String.class)`.
-    6. `recordNodeResult(asset, ctx, SUCCESS, reason, PRODUCER_VERSION, resultRef(...))`
-       — best-effort ledger write with `nodeKind="imagegen"`.
-    7. `return ctx.next()`.
-- **`ImageGenNodeOptions.java`** — `extends AbstractNodeOptions`, `KEY="imagegen"`,
-  fields `host`, `port`, `endpoint`, `promptTemplate`, `strength`, `width`,
-  `height`, `timeoutMs`; `validate()` (mirror `WhisperOptions` /
-  `CaptioningNodeOptions`).
-- **`ImageGenClient.java`** — small `java.net.http.HttpClient` POST to the sidecar
-  `/remix` (base64 image + prompt) returning `byte[]`. Direct analog of
-  `SmolVLMClient`.
-- **`ImageGenNodeModule.java`** — `extends AbstractNodeModule`: `@Binds @IntoSet`
-  the node; `@Provides` options + `CortexNodeOptionDeserializerInfo(ImageGenNodeOptions.class, KEY)`;
-  `@Provides` the `ImageGenClient`. (Copy `CaptioningNodeModule`.)
-
-### Wiring (must-do or the node is invisible)
-- `cortex/cli/src/main/java/io/metaloom/cortex/cli/dagger/NodeCollectionModule.java`
-  — add `ImageGenNodeModule.class` to `includes`.
-- `node_kind` is a free-form string on the Loom side (no enum), so no backend enum
-  change is required.
-
-### Tests (definition of done — `spec/guidelines/CODING.md`)
-Mirror the whisper/thumbnail test set under `.../imagegen/`:
-- `ImageGenNodeTest` — unit, mock `ImageGenClient`, assert an image is written and
-  `ResultState.SUCCESS`.
-- `ImageGenNodePipelineTest` — output-key propagation.
-- `ImageGenNodePersistenceTest` — asserts the `asset_node_result` ledger row is
-  recorded (pattern: `WhisperNodePersistenceTest`).
-- `ImageGenOptionsValidationTest` — options `validate()`.
-- Per-node E2E:
-  `integration-test/src/test/java/io/metaloom/loom/test/integration/node/ImageGenNodeIntegrationTest.java`
-  extends `AbstractNodeIntegrationTest` — pre-create an image asset, **mock the
-  model client** (no live GPU), run `node.process(...)`, assert SUCCESS and that
-  the output artifact exists.
-
-### Docs & spec (definition of done)
-- Add the node to the catalog in `spec/features/pipeline-nodes/NODES.md` and,
-  if a fuller design doc is warranted, `spec/features/pipeline-nodes/NODE_IMAGE_GENERATION_PLAN.md`
-  following `SPEC_RULES.md`. Surface the non-commercial license caveat there.
-- Customer-facing docs: add a short page under `website/content/english/docs`
-  (CODING.md requires customer-facing docs for new features).
-- Demo data: if the node's enablement/config should be visible in the demo, add
-  it in `DemoDatabaseInitializer` (`loom/core/.../boot/`).
-
----
-
-## Critical files (reference / to modify)
-
-| Purpose | Path |
+| Item | Where it lives |
 |---|---|
-| Node call pattern (HTTP model server) | `cortex/nodes/captioning/core/.../CaptioningNode.java`, `SmolVLMClient` |
-| Produces an image + local metaPath + ledger | `cortex/nodes/thumbnail/core/.../ThumbnailNode.java` |
-| Result write-back template (2-step) | `cortex/nodes/whisper/core/.../WhisperNode.java` (`recordNodeResult`, `resultRef`) |
-| Base node class | `cortex/common/.../common/node/AbstractMediaNode.java` |
-| Options base | `cortex/api/.../api/option/node/AbstractNodeOptions.java` |
-| Result types | `cortex/api/.../api/node/{NodeResult,ResultState,NodeOutputKey}.java` |
-| Module wiring | `cortex/cli/.../dagger/NodeCollectionModule.java`; `cortex/nodes/pom.xml` |
-| IT base | `integration-test/.../node/AbstractNodeIntegrationTest.java`, `WhisperNodeIntegrationTest.java` |
-| Sidecar template | `tts4j/kokoro4j/`; `sidecars/tts/server.py` (FastAPI shape) |
-| Node spec conventions | `spec/features/pipeline-nodes/NODES.md`; `spec/SPEC_RULES.md`; `spec/guidelines/CODING.md` |
+| Maven module | `cortex/nodes/image-generation/` (parent + `core`), registered in `cortex/nodes/pom.xml`, `cortex/processor/pom.xml`, `integration-test/pom.xml` |
+| Node | `cortex/nodes/image-generation/core/.../imagegen/ImageGenNode.java` — `name()="imagegen"`, `isProcessable = media.isImage()`, `LocalResultCache`, writes `metaPath/imagegen_bin/<seg>/<sha512>.png`, ledger-only `recordNodeResult` |
+| Modes | `ImageGenMode` (`GENERATE` \| `REMIX`), selected via `ImageGenNodeOptions.mode` |
+| Options | `ImageGenNodeOptions` (`KEY="imagegen"`): `mode`, `prompt`, `host`, `port` (9200), `generateEndpoint`, `remixEndpoint`, `width`/`height`, `strength`, `seed`, `steps`, `timeoutMs` (120 s) + `validate()` |
+| Sidecar client | `ImageGenClient` — `java.net.http.HttpClient` → `/generate`, `/remix`, returns PNG `byte[]` |
+| Typed ports | `IN_PROMPT` (`text/*`, optional — a wired prompt wins over the option), `IN_MEDIA` (`media/image`), `OUT_IMAGE` (`artifact/image`), `OUT_FLAG` |
+| Dagger wiring | `ImageGenNodeModule` (`@Binds @IntoSet`, `@Binds @IntoMap @StringKey("imagegen")`, `optionInfo`, `options`, `imageGenClient`); included in `cortex/cli/.../dagger/NodeCollectionModule.java` |
+| Pipeline-editor descriptor | `website/static/pipeline-editor/node-descriptors.json` — kind `imagegen`, category `TRANSFORM`, both input ports |
+| Unit tests | `.../imagegen/{ImageGenNodeTest,ImageGenNodePipelineTest,ImageGenNodePersistenceTest,ImageGenOptionsValidationTest}` + `assertj/ImageGenNodeAssertions` |
+| Integration test | `integration-test/.../node/ImageGenNodeIntegrationTest.java` (stubbed client, asserts PNG + `imagegen` ledger row via REST); port conformance in `NodePortConformanceTest` |
+| Sidecar | `sidecars/ideogram-sidecar/` — FastAPI `/health` `/generate` `/remix`, default **SDXL-Turbo**, Ideogram-4 opt-in via `IMAGEGEN_MODEL`+`HF_TOKEN`, `gen_ideogram.py` |
+| Second sidecar (same contract) | `sidecars/mage-flow-sidecar/` — Mage-Flow 4B, **MIT weights**; drop-in by changing only the node's `port` |
+| Docs | `spec/features/pipeline-nodes/NODES.md` (§2/§3/§5/§12), `website/content/english/docs/nodes/imagegen/index.adoc`, `docs/legal/model-licenses/` |
+| Sink path for the bytes | `S3SinkNode` uploads `imagegen_path` to S3 and registers it as its own Loom asset |
 
-## Out of scope / follow-ups
-- **Loom binary upload**: pushing the generated PNG into Loom's asset-binary
-  subsystem as a derivative asset (the client has no raw byte-upload today; only
-  `AttachmentMethods.uploadAttachment`). Track separately.
-- Structured-JSON / magic-prompt prompting, bounding-box layout, colour-palette
-  steering — sidecar can add later.
-- Caption-driven prompt sourcing (chain off the captioning node's output).
+## Open work
 
-## Verification (end-to-end)
-1. **Sidecar**: `huggingface-cli login`, accept the model gate, `uvicorn server:app`;
-   `curl` `/remix` with an image → valid PNG (GPU box).
-2. **Node unit/IT**: after any Flyway change run `./setup-pool.sh`; then
-   `mvn -pl cortex/nodes/image-generation/core test` and the `imagegen` IT in
-   `integration-test`. The IT mocks the model client — no GPU needed in CI.
-3. **Live smoke** (optional, GPU): point `ImageGenNodeOptions.host/port` at a
-   running sidecar, run the node against a real image asset, confirm a PNG lands
-   under `metaPath/imagegen_bin/…` and an `asset_node_result` row with
-   `node_kind="imagegen"` is created.
-4. **Rebuild gotcha**: after endpoint/constructor changes, clean-rebuild
-   `loom/core` before setup-pool/tests (known `NoSuchMethodError` pitfall).
+- [ ] **Live GPU smoke test.** Everything below the sidecar boundary is covered by stubbed
+      clients; no end-to-end run against real weights has been recorded.
+      ```bash
+      cd sidecars/ideogram-sidecar && CUDA_VISIBLE_DEVICES=1 ./venv/bin/uvicorn server:app --port 9200
+      # point ImageGenNodeOptions host/port at it, run GENERATE on a real image asset
+      # expect: PNG under metaPath/imagegen_bin/<seg>/<sha512>.png + asset_node_result row node_kind="imagegen"
+      ```
+      Repeat against `sidecars/mage-flow-sidecar` (its own port) to confirm the contract is
+      genuinely model-agnostic.
+- [ ] **Loom byte-ingest for generated media.** The PNG stays in the local `imagegen_bin`
+      cache because Loom has no raw byte-upload endpoint (only `AttachmentMethods.uploadAttachment`).
+      `S3SinkNode` is the current workaround, not a fix. Affects `thumbnail`, `depthmap`,
+      `tts`, `script` and `imagegen` alike — solve once, at the Loom REST layer.
+- [ ] **Commercial-safe default model.** The `ideogram-sidecar` default (SDXL-Turbo) and its
+      opt-in Ideogram-4 weights are both non-commercial. Decide whether MIT-licensed Mage-Flow
+      becomes the documented default for shipping deployments, and record the decision in
+      `NODE_IMAGEGEN_PLAN.md` §7 and `docs/legal/model-licenses/`.
+- [ ] **Spec coverage for `sidecars/mage-flow-sidecar`.** It is absent from the whole `spec/`
+      tree; `NODE_IMAGEGEN_PLAN.md` §7 still names only the ideogram sidecar.
+- [ ] **Prompt templating.** The `IN_PROMPT` port already lets an upstream caption or LLM answer
+      drive generation, so caption chaining is done; placeholder substitution inside
+      `options.prompt` (e.g. `${caption}`) is still not implemented.
+- [ ] **Sidecar prompting features** (nice-to-have): structured-JSON / magic-prompt expansion,
+      bounding-box layout, colour-palette steering.
+
+## Gotchas (carried forward)
+
+- `ImageUtils` has no PNG writer (JPG only) — use `ImageIO.write(img, "png", …)`.
+- Ledger-only persistence: pass `resultRef=null`/`producerVersion=null`; the base class no-ops
+  when `asset == null || client() == null`, so offline runs stay clean.
+- Ideogram-4 nf4 on a 12 GB GPU only works at `guidance_scale=1.0`; any CFG or per-step
+  CPU↔GPU swapping collapses it to a gray *"Image blocked by safety filter"* card — a
+  quantization artifact, **not** a moderation filter.
+- After the `NodeCollectionModule` edit, clean-rebuild `loom/core` before `./setup-pool.sh`
+  or tests (known `NoSuchMethodError` pitfall).
 
 ---
 
-_Basis: metaloom @ 5fbbeebc · drafted 2026-07-26._
+_Git HEAD revision: `2e5981cb`_
+_Last updated: 2026-08-01 (reduced to a status page: node and sidecar are implemented, only live-GPU smoke, byte-ingest and licensing decisions remain open)_
